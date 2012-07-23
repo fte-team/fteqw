@@ -868,7 +868,7 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 	{
 		qbyte *data;
 
-		data = Hunk_Alloc( patch->numfacets * sizeof( q2cbrush_t ) + totalsides * ( sizeof( q2cbrushside_t ) + sizeof( mplane_t ) ) );
+		data = Hunk_AllocName( patch->numfacets * sizeof( q2cbrush_t ) + totalsides * ( sizeof( q2cbrushside_t ) + sizeof( mplane_t ) ), "patch");
 
 		patch->facets = ( q2cbrush_t * )data; data += patch->numfacets * sizeof( q2cbrush_t );
 		memcpy( patch->facets, facets, patch->numfacets * sizeof( q2cbrush_t ) );
@@ -1080,7 +1080,7 @@ qboolean CMod_LoadSurfaces (lump_t *l)
 //		Host_Error ("Map has too many surfaces");
 
 	numtexinfo = count;
-	out = map_surfaces = Hunk_Alloc(count * sizeof(*map_surfaces));
+	out = map_surfaces = Hunk_AllocName(count * sizeof(*map_surfaces), "surfaces");
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1242,7 +1242,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 			out->texture = Mod_LoadWall (name, sname);
 			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
-				out->texture = Hunk_Alloc(sizeof(texture_t) + 16*16+8*8+4*4+2*2);
+				out->texture = Hunk_AllocName(sizeof(texture_t) + 16*16+8*8+4*4+2*2, in->texture);
 
 				Con_Printf (CON_WARNING "Couldn't load %s\n", name);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
@@ -1442,7 +1442,7 @@ qboolean CMod_LoadNodes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_Alloc(sizeof(mnode_t)*count);
+	out = Hunk_AllocName(sizeof(mnode_t)*count, "nodes");
 
 	loadmodel->nodes = out;
 	loadmodel->numnodes = count;
@@ -1874,7 +1874,7 @@ void CMod_LoadEntityString (lump_t *l)
 //	if (l->filelen > MAX_Q2MAP_ENTSTRING)
 //		Host_Error ("Map has too large entity lump");
 
-	map_entitystring = Hunk_Alloc(l->filelen+1);
+	map_entitystring = Hunk_AllocName(l->filelen+1, "ents");
 	memcpy (map_entitystring, cmod_base + l->fileofs, l->filelen);
 
 	loadmodel->entities = map_entitystring;
@@ -2012,15 +2012,15 @@ qboolean CModQ3_LoadShaders (lump_t *l)
 //		Host_Error ("Map has too many shaders");
 
 	numtexinfo = count;
-	out = map_surfaces = Hunk_Alloc(count*sizeof(*out));
+	out = map_surfaces = Hunk_AllocName(count*sizeof(*out), "tsurfaces");
 
-	loadmodel->texinfo = Hunk_Alloc(sizeof(mtexinfo_t)*count);
+	loadmodel->texinfo = Hunk_AllocName(sizeof(mtexinfo_t)*count, "texinfo");
 	loadmodel->numtextures = count;
-	loadmodel->textures = Hunk_Alloc(sizeof(texture_t*)*count);
+	loadmodel->textures = Hunk_AllocName(sizeof(texture_t*)*count, "textures");
 
 	for ( i=0 ; i<count ; i++, in++, out++ )
 	{
-		loadmodel->texinfo[i].texture = Hunk_Alloc(sizeof(texture_t));
+		loadmodel->texinfo[i].texture = Hunk_AllocName(sizeof(texture_t), in->shadername);
 		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
 		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
 
@@ -2054,13 +2054,13 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_Alloc ( count*sizeof(*out) );
-	stout = Hunk_Alloc ( count*sizeof(*stout) );
-	lmout = Hunk_Alloc ( count*sizeof(*lmout) );
-	cout = Hunk_Alloc ( count*sizeof(*cout) );
-	nout = Hunk_Alloc ( count*sizeof(*nout) );
-	sout = Hunk_Alloc ( count*sizeof(*nout) );
-	tout = Hunk_Alloc ( count*sizeof(*nout) );
+	out = Hunk_AllocName ( count*sizeof(*out), "vert_v");
+	stout = Hunk_AllocName ( count*sizeof(*stout), "vert_st");
+	lmout = Hunk_AllocName ( count*sizeof(*lmout), "vert_lm1");
+	cout = Hunk_AllocName ( count*sizeof(*cout), "vert_c");
+	nout = Hunk_AllocName ( count*sizeof(*nout), "vert_n");
+	sout = Hunk_AllocName ( count*sizeof(*nout), "vert_s");
+	tout = Hunk_AllocName ( count*sizeof(*nout), "vert_t");
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	map_vertlstmexcoords[0] = lmout;
@@ -2118,13 +2118,13 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_Alloc ( count*sizeof(*out) );
-	stout = Hunk_Alloc ( count*sizeof(*stout) );
-	lmout = Hunk_Alloc ( MAXLIGHTMAPS*count*sizeof(*lmout) );
-	cout = Hunk_Alloc ( count*sizeof(*cout) );
-	nout = Hunk_Alloc ( count*sizeof(*nout) );
-	sout = Hunk_Alloc ( count*sizeof(*sout) );
-	tout = Hunk_Alloc ( count*sizeof(*tout) );
+	out = Hunk_AllocName ( count*sizeof(*out), "vert_v");
+	stout = Hunk_AllocName ( count*sizeof(*stout), "vert_st");
+	lmout = Hunk_AllocName ( MAXLIGHTMAPS*count*sizeof(*lmout), "vert_lm4");
+	cout = Hunk_AllocName ( count*sizeof(*cout), "vert_c");
+	nout = Hunk_AllocName ( count*sizeof(*nout), "vert_n");
+	sout = Hunk_AllocName ( count*sizeof(*sout), "vert_s");
+	tout = Hunk_AllocName ( count*sizeof(*tout), "vert_t");
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
@@ -2297,7 +2297,7 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_Alloc ( count*sizeof(*out) );
+	out = Hunk_AllocName ( count*sizeof(*out), "fogs");
 
 	map_fogs = out;
 	map_numfogs = count;
@@ -2317,7 +2317,7 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		out->shader = R_RegisterShader_Lightmap ( in->shader );
 		R_BuildDefaultTexnums(&out->shader->defaulttextures, out->shader);
 		out->numplanes = brush->numsides;
-		out->planes = Hunk_Alloc ( out->numplanes*sizeof(cplane_t *) );
+		out->planes = Hunk_AllocName ( out->numplanes*sizeof(cplane_t *), "fogplane");
 
 		for ( j = 0; j < out->numplanes; j++ )
 		{
@@ -3346,7 +3346,7 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 
 		numclusters++;
 
-		map_q3pvs = Hunk_Alloc(sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
+		map_q3pvs = Hunk_AllocName(sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters, "pvs");
 		memset (map_q3pvs, 0xff, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
 		map_q3pvs->numclusters = numclusters;
 		numvisibility = 0;
@@ -3550,12 +3550,12 @@ void CMQ3_CalcPHS (void)
 
 	Con_DPrintf ("Building PHS...\n");
 
-	map_q3phs = Hunk_Alloc(sizeof(*map_q3phs) + (map_q3pvs->numclusters+sizeof(int)*8-1)/8 * map_q3pvs->numclusters);
+	map_q3phs = Hunk_AllocName(sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters, "phs");
 
 	rowwords = map_q3pvs->rowsize / sizeof(int);
 	rowbytes = map_q3pvs->rowsize;
 
-	memset ( map_q3phs, 0, sizeof(*map_q3phs) + (map_q3pvs->numclusters+sizeof(int)*8-1)/8 * map_q3pvs->numclusters );
+	memset ( map_q3phs, 0, sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters );
 
 	map_q3phs->rowsize = map_q3pvs->rowsize;
 	map_q3phs->numclusters = numclusters = map_q3pvs->numclusters;
@@ -3593,8 +3593,8 @@ void CMQ3_CalcPHS (void)
 					continue;
 				// OR this pvs row into the phs
 				index = (j<<3) + k;
-//				if (index >= numclusters)
-//					Host_Error ("CM_CalcPHS: Bad bit in PVS");	// pad bits should be 0
+				if (index >= numclusters)
+					Host_Error ("CM_CalcPHS: Bad bit in PVS");	// pad bits should be 0
 				src = (unsigned int *)(map_q3pvs->data) + index*rowwords;
 				for (l=0 ; l<rowwords ; l++)
 					dest[l] |= src[l];

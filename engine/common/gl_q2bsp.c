@@ -5406,16 +5406,58 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
-	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
-#ifdef TERRAIN
-	if (model->terrain)
+	if (axis)
 	{
-		trace_t hmt;
-		Heightmap_Trace(model, forcehullnum, frame, axis, start, end, mins, maxs, contents, &hmt);
-		if (hmt.fraction < trace->fraction)
-			*trace = hmt;
-	}
+		vec3_t start_l;
+		vec3_t end_l;
+		start_l[0] = DotProduct(start, axis[0]);
+		start_l[1] = DotProduct(start, axis[1]);
+		start_l[2] = DotProduct(start, axis[2]);
+		end_l[0] = DotProduct(end, axis[0]);
+		end_l[1] = DotProduct(end, axis[1]);
+		end_l[2] = DotProduct(end, axis[2]);
+		*trace = CM_BoxTrace(model, start_l, end_l, mins, maxs, contents);
+#ifdef TERRAIN
+		if (model->terrain)
+		{
+			trace_t hmt;
+			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, contents, &hmt);
+			if (hmt.fraction < trace->fraction)
+				*trace = hmt;
+		}
 #endif
+
+		if (trace->fraction == 1)
+		{
+			VectorCopy (end, trace->endpos);
+		}
+		else
+		{
+			vec3_t iaxis[3];
+			vec3_t norm;
+			Matrix3x3_RM_Invert_Simple((void *)axis, iaxis);
+			VectorCopy(trace->plane.normal, norm);
+			trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
+			trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
+			trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
+
+			/*just interpolate it, its easier than inverse matrix rotations*/
+			VectorInterpolate(start, trace->fraction, end, trace->endpos);
+		}
+	}
+	else
+	{
+		*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
+#ifdef TERRAIN
+		if (model->terrain)
+		{
+			trace_t hmt;
+			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, contents, &hmt);
+			if (hmt.fraction < trace->fraction)
+				*trace = hmt;
+		}
+#endif
+	}
 	return trace->fraction != 1;
 }
 

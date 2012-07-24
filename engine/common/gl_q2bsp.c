@@ -3547,6 +3547,7 @@ void CMQ3_CalcPHS (void)
 	qbyte	*scan;
 	int		count, vcount;
 	int		numclusters;
+	qboolean buggytools = false;
 
 	Con_DPrintf ("Building PHS...\n");
 
@@ -3594,10 +3595,17 @@ void CMQ3_CalcPHS (void)
 				// OR this pvs row into the phs
 				index = (j<<3) + k;
 				if (index >= numclusters)
-					Host_Error ("CM_CalcPHS: Bad bit in PVS");	// pad bits should be 0
-				src = (unsigned int *)(map_q3pvs->data) + index*rowwords;
-				for (l=0 ; l<rowwords ; l++)
-					dest[l] |= src[l];
+				{
+					if (!buggytools)
+						Con_Printf ("CM_CalcPHS: Bad bit(s) in PVS (%i >= %i)\n", index, numclusters);	// pad bits should be 0
+					buggytools = true;
+				}
+				else
+				{
+					src = (unsigned int *)(map_q3pvs->data) + index*rowwords;
+					for (l=0 ; l<rowwords ; l++)
+						dest[l] |= src[l];
+				}
 			}
 		}
 		for (j=0 ; j<numclusters ; j++)

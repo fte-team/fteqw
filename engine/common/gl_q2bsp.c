@@ -4,8 +4,8 @@
 #endif
 #include "com_mesh.h"
 
-#define MAX_Q3MAP_INDICES 0x80000
-#define	MAX_Q3MAP_VERTEXES	0x80000
+#define MAX_Q3MAP_INDICES 0x800000	//just a sanity limit
+#define	MAX_Q3MAP_VERTEXES	0x80000	//just a sanity limit
 #define	MAX_Q3MAP_BRUSHSIDES	0x30000
 #define MAX_CM_BRUSHSIDES		(MAX_Q3MAP_BRUSHSIDES << 1)
 #define MAX_CM_BRUSHES			(MAX_Q2MAP_BRUSHES << 1)
@@ -2171,7 +2171,7 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	if (count < 1 || count >= MAX_Q3MAP_INDICES || count > MAX_INDICIES)
+	if (count < 1 || count >= MAX_Q3MAP_INDICES)
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: too many indicies in %s: %i\n",
 					loadmodel->name, count);
@@ -2486,8 +2486,6 @@ void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patc
 	}
 
 // allocate and fill index table
-	if (mesh->numindexes != numindexes)
-		Con_Printf("DEBUGY\n");
 
 	mesh->numindexes = numindexes;
 

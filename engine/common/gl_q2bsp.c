@@ -301,11 +301,9 @@ static int			numbrushes;
 static q2cbrush_t	map_brushes[MAX_Q2MAP_BRUSHES];
 
 static int			numvisibility;
-static qbyte		map_visibility[MAX_Q2MAP_VISIBILITY];
-static q2dvis_t		*map_q2vis = (q2dvis_t *)map_visibility;
-static q3dvis_t		*map_q3pvs = (q3dvis_t *)map_visibility;
-static qbyte		map_hearability[MAX_Q2MAP_VISIBILITY];
-static q3dvis_t		*map_q3phs = (q3dvis_t *)map_hearability;
+static q2dvis_t		*map_q2vis;
+static q3dvis_t		*map_q3pvs;
+static q3dvis_t		*map_q3phs;
 
 static int			numentitychars;
 static char		*map_entitystring;
@@ -1843,13 +1841,14 @@ qboolean CMod_LoadVisibility (lump_t *l)
 	int		i;
 
 	numvisibility = l->filelen;
-	if (l->filelen > MAX_Q2MAP_VISIBILITY)
-	{
-		Con_Printf (CON_ERROR "Map has too large visibility lump\n");
-		return false;
-	}
+//	if (l->filelen > MAX_Q2MAP_VISIBILITY)
+//	{
+//		Con_Printf (CON_ERROR "Map has too large visibility lump\n");
+//		return false;
+//	}
 
-	memcpy (map_visibility, cmod_base + l->fileofs, l->filelen);
+	map_q2vis = Hunk_AllocName(l->filelen, "vis");
+	memcpy (map_q2vis, cmod_base + l->fileofs, l->filelen);
 
 	loadmodel->vis = map_q2vis;
 
@@ -3353,15 +3352,10 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 	else
 	{
 		numvisibility = l->filelen;
-		if (l->filelen > MAX_Q2MAP_VISIBILITY)
-		{
-			Con_Printf (CON_ERROR "Map has too large visibility lump\n");
-			return false;
-		}
 
+		map_q3pvs = Hunk_AllocName(l->filelen, "pvs");
 		loadmodel->vis = (q2dvis_t *)map_q3pvs;
-
-		memcpy (map_visibility, cmod_base + l->fileofs, l->filelen);
+		memcpy (map_q3pvs, cmod_base + l->fileofs, l->filelen);
 
 		numclusters = map_q3pvs->numclusters = LittleLong (map_q3pvs->numclusters);
 		map_q3pvs->rowsize = LittleLong (map_q3pvs->rowsize);
@@ -5694,7 +5688,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buf
 	if (cluster == -1)
 		memset (buffer, 0, (numclusters+7)>>3);
 	else
-		CM_DecompressVis (map_visibility + map_q2vis->bitofs[cluster][DVIS_PVS], buffer);
+		CM_DecompressVis (((qbyte*)map_q2vis) + map_q2vis->bitofs[cluster][DVIS_PVS], buffer);
 	return buffer;
 }
 
@@ -5716,7 +5710,7 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
 	if (cluster == -1)
 		memset (phsrow, 0, (numclusters+7)>>3);
 	else
-		CM_DecompressVis (map_visibility + map_q2vis->bitofs[cluster][DVIS_PHS], phsrow);
+		CM_DecompressVis (((qbyte*)map_q2vis) + map_q2vis->bitofs[cluster][DVIS_PHS], phsrow);
 	return phsrow;
 }
 

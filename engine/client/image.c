@@ -1776,7 +1776,7 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 
 typedef struct bmpheader_s
 {
-	unsigned short	Type;
+/*	unsigned short	Type;*/
 	unsigned long	Size;
 	unsigned short	Reserved1;
 	unsigned short	Reserved2;
@@ -1797,28 +1797,28 @@ typedef struct bmpheader_s
 qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 {
 	unsigned int i;
-	bmpheader_t h, *in;
+	bmpheader_t h;
 	qbyte *data;
 
-	in = (bmpheader_t *)buf;
-	h.Type = LittleShort(in->Type);
-	if (h.Type != 'B' + ('M'<<8))
+	if (buf[0] != 'B' || buf[1] != 'M')
 		return NULL;
-	h.Size = LittleLong(in->Size);
-	h.Reserved1 = LittleShort(in->Reserved1);
-	h.Reserved2 = LittleShort(in->Reserved2);
-	h.OffsetofBMPBits = LittleLong(in->OffsetofBMPBits);
-	h.SizeofBITMAPINFOHEADER = LittleLong(in->SizeofBITMAPINFOHEADER);
-	h.Width = LittleLong(in->Width);
-	h.Height = LittleLong(in->Height);
-	h.Planes = LittleShort(in->Planes);
-	h.BitCount = LittleShort(in->BitCount);
-	h.Compression = LittleLong(in->Compression);
-	h.ImageSize = LittleLong(in->ImageSize);
-	h.TargetDeviceXRes = LittleLong(in->TargetDeviceXRes);
-	h.TargetDeviceYRes = LittleLong(in->TargetDeviceYRes);
-	h.NumofColorIndices = LittleLong(in->NumofColorIndices);
-	h.NumofImportantColorIndices = LittleLong(in->NumofImportantColorIndices);
+
+	memcpy(&h, (bmpheader_t *)(buf+2), sizeof(h));	
+	h.Size = LittleLong(h.Size);
+	h.Reserved1 = LittleShort(h.Reserved1);
+	h.Reserved2 = LittleShort(h.Reserved2);
+	h.OffsetofBMPBits = LittleLong(h.OffsetofBMPBits);
+	h.SizeofBITMAPINFOHEADER = LittleLong(h.SizeofBITMAPINFOHEADER);
+	h.Width = LittleLong(h.Width);
+	h.Height = LittleLong(h.Height);
+	h.Planes = LittleShort(h.Planes);
+	h.BitCount = LittleShort(h.BitCount);
+	h.Compression = LittleLong(h.Compression);
+	h.ImageSize = LittleLong(h.ImageSize);
+	h.TargetDeviceXRes = LittleLong(h.TargetDeviceXRes);
+	h.TargetDeviceYRes = LittleLong(h.TargetDeviceYRes);
+	h.NumofColorIndices = LittleLong(h.NumofColorIndices);
+	h.NumofImportantColorIndices = LittleLong(h.NumofImportantColorIndices);
 
 	if (h.Compression)	//probably RLE?
 		return NULL;
@@ -2393,7 +2393,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		int j;
 		char *suf[] =
 		{
-//			"rt", "lf", "ft", "bk", "up", "dn",
+			"rt", "lf", "ft", "bk", "up", "dn",
 			"px", "nx", "py", "ny", "pz", "nz",
 			"posx", "negx", "posy", "negy", "posz", "negz"
 		};

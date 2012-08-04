@@ -1281,16 +1281,12 @@ void SCR_DrawFPS (void)
 		lastfps = 1/frametime;
 		lastupdatetime = t;
 		break;
-#ifdef GLQUAKE
 	case 5:
-		if (qrenderer == QR_OPENGL)
-			GLR_FrameTimeGraph((int)(1000.0*2*frametime));
+		R_FrameTimeGraph((int)(1000.0*2*frametime));
 		break;
 	case 7:
-		if (qrenderer == QR_OPENGL)
-			GLR_FrameTimeGraph((int)(1000.0*1*frametime));
+		R_FrameTimeGraph((int)(1000.0*1*frametime));
 		break;
-#endif
 	case 6:
 		{
 			float mean, deviation;
@@ -2283,7 +2279,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	// draw any areas not covered by the refresh
 	//
 	if (r_netgraph.value)
-		GLR_NetGraph ();
+		R_NetGraph ();
 
 	if (scr_drawloading || loading_stage)
 	{

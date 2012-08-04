@@ -120,3 +120,7 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end);
 extern struct font_s *font_conchar;
 extern struct font_s *font_tiny;
 /*end fonts*/
+
+void R_NetgraphInit(void);
+void R_NetGraph (void);
+void R_FrameTimeGraph (int frametime);

@@ -117,9 +117,6 @@ void GL_InitFogTexture(void);
 void GL_BeginRendering (void);
 void GL_EndRendering (void);
 
-void R_NetgraphInit(void);
-void GLR_NetGraph (void);
-void GLR_FrameTimeGraph (int frametime);
 void GL_FlushSkinCache(void);
 void GL_GAliasFlushSkinCache(void);
 

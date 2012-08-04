@@ -91,7 +91,7 @@ static void Draw_CharToNetGraph (int x, int y, int num)
 R_NetGraph
 ==============
 */
-void GLR_NetGraph (void)
+void R_NetGraph (void)
 {
 	int		a, x, i, y;
 	int lost;
@@ -127,7 +127,7 @@ void GLR_NetGraph (void)
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 }
 
-void GLR_FrameTimeGraph (int frametime)
+void R_FrameTimeGraph (int frametime)
 {
 	int		a, x, i, y;
 	int lost;

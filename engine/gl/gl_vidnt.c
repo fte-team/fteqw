@@ -1929,7 +1929,9 @@ LONG WINAPI GLMainWndProc (
 			break;
 
 		case WM_USER:
+#ifndef NOMEDIA
 			STT_Event();
+#endif
 			break;
 
 		case WM_GETMINMAXINFO:

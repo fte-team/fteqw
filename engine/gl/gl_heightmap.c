@@ -44,6 +44,7 @@ enum
 {
 	//these flags can be found on disk
 	TSF_HASWATER	= 1u<<0,
+	TSF_HASCOLOURS	= 1u<<1,
 
 	//these flags should not be found on disk
 	TSF_RELIGHT		= 1u<<29,	//height edited, needs relighting.
@@ -75,12 +76,21 @@ typedef struct
 	float waterheight;
 	float minh;
 	float maxh;
-	int numents;
-	int entsofs;
+	int ents_num;
+	int reserved1;
+	int reserved4;
 	int reserved3;
 	int reserved2;
-	int reserved1;
 } dsection_t;
+
+typedef struct hmpolyset_s
+{
+	struct hmpolyset_s *next;
+	shader_t *shader;
+	mesh_t mesh;
+	mesh_t *amesh;
+	vbo_t vbo;
+} hmpolyset_t;
 typedef struct
 {
 	link_t recycle;
@@ -94,6 +104,7 @@ typedef struct
 	struct heightmap_s *hmmod;
 
 #ifndef SERVERONLY
+	vec4_t colours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	char texname[4][32];
 	int lightmap;
 	int lmx, lmy;
@@ -106,6 +117,8 @@ typedef struct
 	int numents;
 	int maxents;
 	entity_t *ents;
+
+	hmpolyset_t *polys;
 #endif
 } hmsection_t;
 typedef struct
@@ -124,6 +137,9 @@ typedef struct heightmap_s
 	mesh_t skymesh;
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
+	int tiled;
+	int tilecount[2];
+	int tilepixcount[2];
 
 	int activesections;
 	link_t recycle;
@@ -178,12 +194,24 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 	//CL_CheckOrEnqueDownloadFile(s->texname[1], NULL, 0);
 	//CL_CheckOrEnqueDownloadFile(s->texname[2], NULL, 0);
 	//CL_CheckOrEnqueDownloadFile(s->texname[3], NULL, 0);
-	s->textures.base			= Terr_LoadTexture(s->texname[0]);
-	s->textures.upperoverlay	= Terr_LoadTexture(s->texname[1]);
-	s->textures.loweroverlay	= Terr_LoadTexture(s->texname[2]);
-	s->textures.fullbright		= Terr_LoadTexture(s->texname[3]);
-	s->textures.bump			= *s->texname[0]?R_LoadHiResTexture(va("%s_norm", s->texname[0]), NULL, 0):r_nulltex;
-	s->textures.specular		= *s->texname[0]?R_LoadHiResTexture(va("%s_spec", s->texname[0]), NULL, 0):r_nulltex;
+	if (s->hmmod->tiled)
+	{
+		s->textures.base			= Terr_LoadTexture(va("maps/%s/atlas.tga", s->hmmod->path));
+		s->textures.fullbright		= Terr_LoadTexture(va("maps/%s/atlas_luma.tga", s->hmmod->path));
+		s->textures.bump			= Terr_LoadTexture(va("maps/%s/atlas_norm.tga", s->hmmod->path));
+		s->textures.specular		= Terr_LoadTexture(va("maps/%s/atlas_spec.tga", s->hmmod->path));
+		s->textures.upperoverlay	= missing_texture;
+		s->textures.loweroverlay	= missing_texture;
+	}
+	else
+	{
+		s->textures.base			= Terr_LoadTexture(s->texname[0]);
+		s->textures.upperoverlay	= Terr_LoadTexture(s->texname[1]);
+		s->textures.loweroverlay	= Terr_LoadTexture(s->texname[2]);
+		s->textures.fullbright		= Terr_LoadTexture(s->texname[3]);
+		s->textures.bump			= *s->texname[0]?R_LoadHiResTexture(va("%s_norm", s->texname[0]), NULL, 0):r_nulltex;
+		s->textures.specular		= *s->texname[0]?R_LoadHiResTexture(va("%s_spec", s->texname[0]), NULL, 0):r_nulltex;
+	}
 #endif
 }
 
@@ -238,6 +266,8 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	dsmesh_t *dm;
 	unsigned char *lm;
 #endif
+	float *colours;
+	void *ptr;
 
 	/*queue the file for download if we don't have it yet*/
 	if (FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&ds) < 0
@@ -306,6 +336,8 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		s->waterheight = ds->waterheight;
 		s->holes = ds->holes;
 
+		ptr = ds+1;
+
 #ifndef SERVERONLY
 		/*deal with textures*/
 		Q_strncpyz(s->texname[0], ds->texname[0], sizeof(s->texname[0]));
@@ -322,7 +354,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		if (s->lightmap >= 0)
 		{
 			lm = lightmap[s->lightmap]->lightmaps;
-			lm += (s->lmx * HMLMSTRIDE + s->lmy) * lightmap_bytes;
+			lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
 			for (i = 0; i < SECTTEXSIZE; i++)
 			{
 				memcpy(lm, ds->texmap + i, sizeof(ds->texmap[0]));
@@ -335,8 +367,31 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
 		}
 
+		s->mesh.colors4f_array = s->colours;
+		if (ds->flags & TSF_HASCOLOURS)
+		{
+			for (i = 0, colours = (float*)ptr; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++, colours+=4)
+			{
+				s->colours[i][0] = LittleFloat(colours[0]);
+				s->colours[i][1] = LittleFloat(colours[1]);
+				s->colours[i][2] = LittleFloat(colours[2]);
+				s->colours[i][3] = LittleFloat(colours[3]);
+			}
+			ptr = colours;
+		}
+		else
+		{
+			for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+			{
+				s->colours[i][0] = 1;
+				s->colours[i][1] = 1;
+				s->colours[i][2] = 1;
+				s->colours[i][3] = 1;
+			}
+		}
+
 		/*load any static ents*/
-		s->numents = ds->numents;
+		s->numents = ds->ents_num;
 		s->maxents = s->numents;
 		if (s->maxents)
 			s->ents = malloc(sizeof(*s->ents) * s->maxents);
@@ -345,7 +400,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		if (!s->ents)
 			s->numents = s->maxents = 0;
 		memset(s->ents, 0, sizeof(*s->ents) * s->maxents);
-		for (i = 0, dm = (dsmesh_t*)((qbyte*)ds + ds->entsofs); i < s->numents; i++, dm = (dsmesh_t*)((qbyte*)dm + dm->size))
+		for (i = 0, dm = (dsmesh_t*)ptr; i < s->numents; i++, dm = (dsmesh_t*)((qbyte*)dm + dm->size))
 		{
 			s->ents[i].model = Mod_ForName((char*)(dm + 1), false);
 			if (!s->ents[i].model || s->ents[i].model->type == mod_dummy)
@@ -387,7 +442,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			if (splatter)
 			{
 				lm = lightmap[s->lightmap]->lightmaps;
-				lm += (s->lmx * HMLMSTRIDE + s->lmy) * lightmap_bytes;
+				lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
 
 				for (vx = 0; vx < SECTTEXSIZE; vx++)
 				{
@@ -474,6 +529,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	vfsfile_t *f;
 	int nothing = 0;
 	int i;
+	vec4_t dcolours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	//if its invalid or doesn't contain all the data...
 	if (!s || s->lightmap < 0)
 		return true;
@@ -489,6 +545,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	//kill the haswater flag if its entirely above any possible water anyway.
 	if (s->waterheight < s->minh)
 		ds.flags &= ~TSF_HASWATER;
+	ds.flags &= TSF_HASCOLOURS;	//recalculate
 
 	Q_strncpyz(ds.texname[0], s->texname[0], sizeof(ds.texname[0]));
 	Q_strncpyz(ds.texname[1], s->texname[1], sizeof(ds.texname[1]));
@@ -496,7 +553,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	Q_strncpyz(ds.texname[3], s->texname[3], sizeof(ds.texname[3]));
 
 	lm = lightmap[s->lightmap]->lightmaps;
-	lm += (s->lmx * HMLMSTRIDE + s->lmy) * lightmap_bytes;
+	lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
 	for (i = 0; i < SECTTEXSIZE; i++)
 	{
 		memcpy(ds.texmap + i, lm, sizeof(ds.texmap[0]));
@@ -506,13 +563,25 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
 	{
 		ds.heights[i] = LittleFloat(s->heights[i]);
+
+		if (s->colours[i][0] != 1 || s->colours[i][1] != 1 || s->colours[i][2] != 1 || s->colours[i][3] != 1)
+		{
+			ds.flags |= TSF_HASCOLOURS;
+			dcolours[i][0] = LittleFloat(s->colours[i][0]);
+			dcolours[i][1] = LittleFloat(s->colours[i][1]);
+			dcolours[i][2] = LittleFloat(s->colours[i][2]);
+			dcolours[i][3] = LittleFloat(s->colours[i][3]);
+		}
+		else
+		{
+			dcolours[i][0] = dcolours[i][1] = dcolours[i][2] = dcolours[i][3] = LittleFloat(1);
+		}
 	}
 	ds.waterheight = s->waterheight;
 	ds.holes = s->holes;
 	ds.minh = s->minh;
 	ds.maxh = s->maxh;
-	ds.numents = s->numents;
-	ds.entsofs = sizeof(ds);
+	ds.ents_num = s->numents;
 
 	fname = Terr_DiskSectionName(hm, sx, sy);
 	FS_CreatePath(fname, FS_GAMEONLY);
@@ -524,6 +593,8 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 		return false;
 	}
 	VFS_WRITE(f, &ds, sizeof(ds));
+	if (ds.flags & TSF_HASCOLOURS)
+		VFS_WRITE(f, dcolours, sizeof(dcolours));
 	for (i = 0; i < s->numents; i++)
 	{
 		int pad;
@@ -849,89 +920,285 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 	s->minh = 9999999999999999.f;
 	s->maxh = -9999999999999999.f;
 
-	if (!mesh->xyz_array)
+	if (hm->tiled)
 	{
-		mesh->xyz_array = BZ_Malloc((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
-		mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
-		mesh->lmst_array[0] = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
-	}
-	mesh->numvertexes = 0;
-	/*64 quads across requires 65 verticies*/
-	for (vx = 0; vx < SECTHEIGHTSIZE; vx++)
-	{
-		for (vy = 0; vy < SECTHEIGHTSIZE; vy++)
+		if (mesh->xyz_array)
+			BZ_Free(mesh->xyz_array);
 		{
-			v = mesh->numvertexes++;
-			mesh->xyz_array[v][0] = (x-CHUNKBIAS + vx/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
-			mesh->xyz_array[v][1] = (y-CHUNKBIAS + vy/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
-			mesh->xyz_array[v][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
-
-			if (s->maxh < mesh->xyz_array[v][2])
-				s->maxh = mesh->xyz_array[v][2];
-			if (s->minh > mesh->xyz_array[v][2])
-				s->minh = mesh->xyz_array[v][2];
-
-			mesh->st_array[v][0] = mesh->xyz_array[v][0] / 128;
-			mesh->st_array[v][1] = mesh->xyz_array[v][1] / 128;
-
-			//calc the position in the range -0.5 to 0.5
-			mesh->lmst_array[0][v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
-			mesh->lmst_array[0][v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
-			//scale down to a half-texel
-			mesh->lmst_array[0][v][0] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
-			mesh->lmst_array[0][v][1] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
-			//bias it
-			mesh->lmst_array[0][v][0] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmy) / HMLMSTRIDE);
-			mesh->lmst_array[0][v][1] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmx) / HMLMSTRIDE);
-
-			//TODO: include colour tints
+			mesh->xyz_array = BZ_Malloc((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (SECTHEIGHTSIZE-1)*(SECTHEIGHTSIZE-1)*4*3);
+			mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE-1)*(SECTHEIGHTSIZE-1)*4*3);
+			mesh->lmst_array[0] = (void*) (mesh->st_array + (SECTHEIGHTSIZE-1)*(SECTHEIGHTSIZE-1)*4*3);
 		}
-	}
+		mesh->numvertexes = 0;
 
-	if (!mesh->indexes)
-		mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6);
+		if (mesh->indexes)
+			BZ_Free(mesh->indexes);
+			mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6*3);
+		mesh->numindexes = 0;
 
-	mesh->numindexes = 0;
-	for (vx = 0; vx < SECTHEIGHTSIZE-1; vx++)
-	{
 		for (vy = 0; vy < SECTHEIGHTSIZE-1; vy++)
 		{
-#ifndef STRICTEDGES
-			float d1,d2;
-#endif
-
+			for (vx = 0; vx < SECTHEIGHTSIZE-1; vx++)
+			{
+				float st[2], inst[2];
 #if SECTHEIGHTSIZE >= 4
-			int holebit;
+				int holebit;
 
-			//skip generation of the mesh above holes
-			holebit = (vy / (SECTHEIGHTSIZE/4))+(vx / (SECTHEIGHTSIZE/4))*4;
-			holebit = 1u<<holebit;
-			if (s->holes & holebit)
-				continue;
+				//skip generation of the mesh above holes
+				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>2) + (vy/(SECTHEIGHTSIZE>>2))*4);
+				if (s->holes & holebit)
+					continue;
 #endif
-			v = vx + vy*(SECTHEIGHTSIZE);
 
-#ifndef STRICTEDGES
-			d1 = fabs(mesh->xyz_array[v][2] - mesh->xyz_array[v+1+SECTHEIGHTSIZE][2]);
-			d2 = fabs(mesh->xyz_array[v+1][2] - mesh->xyz_array[v+SECTHEIGHTSIZE][2]);
-			if (d1 < d2)
-			{
+				//top face
+				v = mesh->numvertexes;
+				mesh->numvertexes += 4;
+				mesh->xyz_array[v+0][0] = (x-CHUNKBIAS + (vx+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+0][1] = (y-CHUNKBIAS + (vy+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+0][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+1][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+1][1] = (y-CHUNKBIAS + (vy+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+1][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+2][0] = (x-CHUNKBIAS + (vx+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+2][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+2][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+3][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+3][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+3][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
+
+				if (s->maxh < mesh->xyz_array[v][2])
+					s->maxh = mesh->xyz_array[v][2];
+				if (s->minh > mesh->xyz_array[v][2])
+					s->minh = mesh->xyz_array[v][2];
+
+				st[0] = 1.0f/hm->tilecount[0] * vx;
+				st[1] = 1.0f/hm->tilecount[1] * vy;
+				inst[0] = 0.5f/(hm->tilecount[0]*hm->tilepixcount[0]);
+				inst[1] = 0.5f/(hm->tilecount[1]*hm->tilepixcount[1]);
+				mesh->st_array[v+0][0] = st[0]+inst[0];
+				mesh->st_array[v+0][1] = st[1]+inst[1];
+				mesh->st_array[v+1][0] = st[0]-inst[0]+1.0f/hm->tilecount[0];
+				mesh->st_array[v+1][1] = st[1]+inst[1];
+				mesh->st_array[v+2][0] = st[0]+inst[0];
+				mesh->st_array[v+2][1] = st[1]-inst[1]+1.0f/hm->tilecount[1];
+				mesh->st_array[v+3][0] = st[0]-inst[0]+1.0f/hm->tilecount[0];
+				mesh->st_array[v+3][1] = st[1]-inst[1]+1.0f/hm->tilecount[1];
+
+				//calc the position in the range -0.5 to 0.5
+				mesh->lmst_array[0][v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
+				mesh->lmst_array[0][v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
+				//scale down to a half-texel
+				mesh->lmst_array[0][v][0] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				mesh->lmst_array[0][v][1] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				//bias it
+				mesh->lmst_array[0][v][0] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmx) / HMLMSTRIDE);
+				mesh->lmst_array[0][v][1] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmy) / HMLMSTRIDE);
+
 				mesh->indexes[mesh->numindexes++] = v+0;
+				mesh->indexes[mesh->numindexes++] = v+2;
 				mesh->indexes[mesh->numindexes++] = v+1;
-				mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
+				mesh->indexes[mesh->numindexes++] = v+1;
+				mesh->indexes[mesh->numindexes++] = v+2;
+				mesh->indexes[mesh->numindexes++] = v+1+2;
+
+
+				//x boundary
+				v = mesh->numvertexes;
+				mesh->numvertexes += 4;
+				mesh->xyz_array[v+0][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+0][1] = (y-CHUNKBIAS + (vy+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+0][2] = s->heights[vx+0 + vy*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+1][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+1][1] = (y-CHUNKBIAS + (vy+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+1][2] = s->heights[(vx+1) + vy*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+2][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+2][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+2][2] = s->heights[(vx+0) + vy*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+3][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+3][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+3][2] = s->heights[(vx+1) + vy*SECTHEIGHTSIZE];
+
+				if (s->maxh < mesh->xyz_array[v][2])
+					s->maxh = mesh->xyz_array[v][2];
+				if (s->minh > mesh->xyz_array[v][2])
+					s->minh = mesh->xyz_array[v][2];
+
+				st[0] = 1.0f/hm->tilecount[0] * vx;
+				st[1] = 1.0f/hm->tilecount[1] * vy;
+				inst[0] = 0.5f/(hm->tilecount[0]*hm->tilepixcount[0]);
+				inst[1] = 0.5f/(hm->tilecount[1]*hm->tilepixcount[1]);
+				mesh->st_array[v+0][0] = st[0]+inst[0];
+				mesh->st_array[v+0][1] = st[1]+inst[1];
+				mesh->st_array[v+1][0] = st[0]+inst[0];
+				mesh->st_array[v+1][1] = st[1]-inst[1]+1.0f/hm->tilecount[1];
+				mesh->st_array[v+2][0] = st[0]-inst[0]+1.0f/hm->tilecount[0];
+				mesh->st_array[v+2][1] = st[1]+inst[1];
+				mesh->st_array[v+3][0] = st[0]-inst[0]+1.0f/hm->tilecount[0];
+				mesh->st_array[v+3][1] = st[1]-inst[1]+1.0f/hm->tilecount[1];
+
+				//calc the position in the range -0.5 to 0.5
+				mesh->lmst_array[0][v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
+				mesh->lmst_array[0][v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
+				//scale down to a half-texel
+				mesh->lmst_array[0][v][0] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				mesh->lmst_array[0][v][1] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				//bias it
+				mesh->lmst_array[0][v][0] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmx) / HMLMSTRIDE);
+				mesh->lmst_array[0][v][1] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmy) / HMLMSTRIDE);
+
+
 				mesh->indexes[mesh->numindexes++] = v+0;
-				mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
-				mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
+				mesh->indexes[mesh->numindexes++] = v+2;
+				mesh->indexes[mesh->numindexes++] = v+1;
+				mesh->indexes[mesh->numindexes++] = v+1;
+				mesh->indexes[mesh->numindexes++] = v+2;
+				mesh->indexes[mesh->numindexes++] = v+1+2;
+
+				//y boundary
+				v = mesh->numvertexes;
+				mesh->numvertexes += 4;
+				mesh->xyz_array[v+0][0] = (x-CHUNKBIAS + (vx+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+0][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+0][2] = s->heights[vx + (vy+0)*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+1][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+1][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+1][2] = s->heights[vx + (vy+0)*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+2][0] = (x-CHUNKBIAS + (vx+0)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+2][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+2][2] = s->heights[vx + (vy+1)*SECTHEIGHTSIZE];
+
+				mesh->xyz_array[v+3][0] = (x-CHUNKBIAS + (vx+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+3][1] = (y-CHUNKBIAS + (vy+1)/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v+3][2] = s->heights[vx + (vy+1)*SECTHEIGHTSIZE];
+
+				if (s->maxh < mesh->xyz_array[v][2])
+					s->maxh = mesh->xyz_array[v][2];
+				if (s->minh > mesh->xyz_array[v][2])
+					s->minh = mesh->xyz_array[v][2];
+
+				st[0] = 1.0f/hm->tilecount[0] * vx;
+				st[1] = 1.0f/hm->tilecount[1] * vy;
+				inst[0] = 0.5f/(hm->tilecount[0]*hm->tilepixcount[0]);
+				inst[1] = 0.5f/(hm->tilecount[1]*hm->tilepixcount[1]);
+				mesh->st_array[v+0][0] = st[0]+inst[0];
+				mesh->st_array[v+0][1] = st[1]+inst[1];
+				mesh->st_array[v+1][0] = st[0]-inst[0]+1.0f/hm->tilecount[0];
+				mesh->st_array[v+1][1] = st[1]+inst[1];
+				mesh->st_array[v+2][0] = st[0]+inst[0];
+				mesh->st_array[v+2][1] = st[1]-inst[1]+1.0f/hm->tilecount[1];
+				mesh->st_array[v+3][0] = st[0]-inst[0]+1.0f/hm->tilecount[0];
+				mesh->st_array[v+3][1] = st[1]-inst[1]+1.0f/hm->tilecount[1];
+
+				//calc the position in the range -0.5 to 0.5
+				mesh->lmst_array[0][v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
+				mesh->lmst_array[0][v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
+				//scale down to a half-texel
+				mesh->lmst_array[0][v][0] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				mesh->lmst_array[0][v][1] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				//bias it
+				mesh->lmst_array[0][v][0] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmx) / HMLMSTRIDE);
+				mesh->lmst_array[0][v][1] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmy) / HMLMSTRIDE);
+
+				mesh->indexes[mesh->numindexes++] = v+0;
+				mesh->indexes[mesh->numindexes++] = v+2;
+				mesh->indexes[mesh->numindexes++] = v+1;
+				mesh->indexes[mesh->numindexes++] = v+1;
+				mesh->indexes[mesh->numindexes++] = v+2;
+				mesh->indexes[mesh->numindexes++] = v+1+2;
 			}
-			else
-#endif
+		}
+	}
+	else
+	{
+		if (!mesh->xyz_array)
+		{
+			mesh->xyz_array = BZ_Malloc((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+			mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+			mesh->lmst_array[0] = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+		}
+		mesh->numvertexes = 0;
+		/*64 quads across requires 65 verticies*/
+		for (vy = 0; vy < SECTHEIGHTSIZE; vy++)
+		{
+			for (vx = 0; vx < SECTHEIGHTSIZE; vx++)
 			{
-				mesh->indexes[mesh->numindexes++] = v+0;
-				mesh->indexes[mesh->numindexes++] = v+1;
-				mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
-				mesh->indexes[mesh->numindexes++] = v+1;
-				mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
-				mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
+				v = mesh->numvertexes++;
+				mesh->xyz_array[v][0] = (x-CHUNKBIAS + vx/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v][1] = (y-CHUNKBIAS + vy/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+				mesh->xyz_array[v][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
+
+				if (s->maxh < mesh->xyz_array[v][2])
+					s->maxh = mesh->xyz_array[v][2];
+				if (s->minh > mesh->xyz_array[v][2])
+					s->minh = mesh->xyz_array[v][2];
+
+				mesh->st_array[v][0] = mesh->xyz_array[v][0] / 128;
+				mesh->st_array[v][1] = mesh->xyz_array[v][1] / 128;
+
+				//calc the position in the range -0.5 to 0.5
+				mesh->lmst_array[0][v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
+				mesh->lmst_array[0][v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
+				//scale down to a half-texel
+				mesh->lmst_array[0][v][0] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				mesh->lmst_array[0][v][1] *= (SECTTEXSIZE-1.0f)/HMLMSTRIDE;
+				//bias it
+				mesh->lmst_array[0][v][0] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmx) / HMLMSTRIDE);
+				mesh->lmst_array[0][v][1] += ((float)SECTTEXSIZE/(HMLMSTRIDE*2)) + ((float)(s->lmy) / HMLMSTRIDE);
+			}
+		}
+
+		if (!mesh->indexes)
+			mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6);
+
+		mesh->numindexes = 0;
+		for (vy = 0; vy < SECTHEIGHTSIZE-1; vy++)
+		{
+			for (vx = 0; vx < SECTHEIGHTSIZE-1; vx++)
+			{
+	#ifndef STRICTEDGES
+				float d1,d2;
+	#endif
+
+	#if SECTHEIGHTSIZE >= 4
+				int holebit;
+
+				//skip generation of the mesh above holes
+				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>2) + (vy/(SECTHEIGHTSIZE>>2))*4);
+				if (s->holes & holebit)
+					continue;
+	#endif
+				v = vx + vy*(SECTHEIGHTSIZE);
+
+	#ifndef STRICTEDGES
+				d1 = fabs(mesh->xyz_array[v][2] - mesh->xyz_array[v+1+SECTHEIGHTSIZE][2]);
+				d2 = fabs(mesh->xyz_array[v+1][2] - mesh->xyz_array[v+SECTHEIGHTSIZE][2]);
+				if (d1 < d2)
+				{
+					mesh->indexes[mesh->numindexes++] = v+0;
+					mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
+					mesh->indexes[mesh->numindexes++] = v+1;
+					mesh->indexes[mesh->numindexes++] = v+0;
+					mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
+					mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
+				}
+				else
+	#endif
+				{
+					mesh->indexes[mesh->numindexes++] = v+0;
+					mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
+					mesh->indexes[mesh->numindexes++] = v+1;
+					mesh->indexes[mesh->numindexes++] = v+1;
+					mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
+					mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
+				}
 			}
 		}
 	}
@@ -939,16 +1206,34 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
+		if (qrenderer == QR_OPENGL)
+		{
+			qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
+			qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
+			s->vbo.coord.gl.vbo = 0;
+			s->vbo.indicies.gl.vbo = 0;
+		}
+
 		if (!s->vbo.coord.gl.vbo)
+		{
 			qglGenBuffersARB(1, &s->vbo.coord.gl.vbo);
-		s->vbo.coord.gl.addr = 0;
-		GL_SelectVBO(s->vbo.coord.gl.vbo);
-		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (mesh->numvertexes), mesh->xyz_array, GL_STATIC_DRAW_ARB);
+			GL_SelectVBO(s->vbo.coord.gl.vbo);
+			qglBufferDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)+sizeof(vec4_t)) * (mesh->numvertexes), NULL, GL_STATIC_DRAW_ARB);
+		}
+		else
+			GL_SelectVBO(s->vbo.coord.gl.vbo);
+
+		qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, mesh->xyz_array);
+		if (!hm->tiled)
+			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, sizeof(vec4_t)*mesh->numvertexes,  mesh->colors4f_array);
 		GL_SelectVBO(0);
+		s->vbo.coord.gl.addr = 0;
 		s->vbo.texcoord.gl.addr = (void*)((char*)mesh->st_array - (char*)mesh->xyz_array);
 		s->vbo.texcoord.gl.vbo = s->vbo.coord.gl.vbo;
 		s->vbo.lmcoord[0].gl.addr = (void*)((char*)mesh->lmst_array[0] - (char*)mesh->xyz_array);
 		s->vbo.lmcoord[0].gl.vbo = s->vbo.coord.gl.vbo;
+		s->vbo.colours.gl.addr = (void*)((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes);
+		s->vbo.colours.gl.vbo = s->vbo.coord.gl.vbo;
 //		Z_Free(mesh->xyz_array);
 //		mesh->xyz_array = NULL;
 //		mesh->st_array = NULL;
@@ -1130,6 +1415,97 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 		}
 	}
 }
+
+typedef struct fragmentdecal_s fragmentdecal_t;
+
+void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts);
+void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_t *model)
+{
+	int min[2], max[2], mint[2], maxt[2];
+	int x, y, tx, ty;
+	vecV_t vert[6];
+	hmsection_t *s;
+	heightmap_t *hm = model->terrain; 
+	min[0] = floor((center[0] - radius)/(hm->sectionsize)) + CHUNKBIAS;
+	min[1] = floor((center[1] - radius)/(hm->sectionsize)) + CHUNKBIAS;
+	max[0] = ceil((center[0] + radius)/(hm->sectionsize)) + CHUNKBIAS;
+	max[1] = ceil((center[1] + radius)/(hm->sectionsize)) + CHUNKBIAS;
+
+	min[0] = bound(hm->firstsegx, min[0], hm->maxsegx);
+	min[1] = bound(hm->firstsegy, min[1], hm->maxsegy);
+	max[0] = bound(hm->firstsegx, max[0], hm->maxsegx);
+	max[1] = bound(hm->firstsegy, max[1], hm->maxsegy);
+
+	for (y = min[1]; y < max[1]; y++)
+	{
+		for (x = min[0]; x < max[0]; x++)
+		{
+			s = Terr_GetSection(hm, x, y, true);
+			if (!s)
+				continue;
+
+			mint[0] = floor((center[0] - radius)*(SECTHEIGHTSIZE-1)/(hm->sectionsize) + (CHUNKBIAS - x)*(SECTHEIGHTSIZE-1));
+			mint[1] = floor((center[1] - radius)*(SECTHEIGHTSIZE-1)/(hm->sectionsize) + (CHUNKBIAS - y)*(SECTHEIGHTSIZE-1));
+			maxt[0] =  ceil((center[0] + radius)*(SECTHEIGHTSIZE-1)/(hm->sectionsize) + (CHUNKBIAS - x)*(SECTHEIGHTSIZE-1));
+			maxt[1] =  ceil((center[1] + radius)*(SECTHEIGHTSIZE-1)/(hm->sectionsize) + (CHUNKBIAS - y)*(SECTHEIGHTSIZE-1));
+
+			mint[0] = bound(0, mint[0], (SECTHEIGHTSIZE-1));
+			mint[1] = bound(0, mint[1], (SECTHEIGHTSIZE-1));
+			maxt[0] = bound(0, maxt[0], (SECTHEIGHTSIZE-1));
+			maxt[1] = bound(0, maxt[1], (SECTHEIGHTSIZE-1));
+
+			for (ty = mint[1]; ty < maxt[1]; ty++)
+			{
+				for (tx = mint[0]; tx < maxt[0]; tx++)
+				{
+#ifndef STRICTEDGES
+					float d1, d2;
+					d1 = fabs(s->heights[(tx+0) + (ty+0)*SECTHEIGHTSIZE] - s->heights[(tx+1) + (ty+1)*SECTHEIGHTSIZE]);
+					d2 = fabs(s->heights[(tx+1) + (ty+0)*SECTHEIGHTSIZE] - s->heights[(tx+0) + (ty+1)*SECTHEIGHTSIZE]);
+					if (d1 < d2)
+					{
+						vert[0][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[0][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[1][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[1][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[2][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[2][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+
+						vert[3][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[3][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[4][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[4][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[5][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[5][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+
+						vert[0][2] = s->heights[(tx+0) + (ty+0)*SECTHEIGHTSIZE];
+						vert[1][2] = s->heights[(tx+1) + (ty+1)*SECTHEIGHTSIZE];
+						vert[2][2] = s->heights[(tx+1) + (ty+0)*SECTHEIGHTSIZE];
+						vert[3][2] = s->heights[(tx+0) + (ty+0)*SECTHEIGHTSIZE];
+						vert[4][2] = s->heights[(tx+0) + (ty+1)*SECTHEIGHTSIZE];
+						vert[5][2] = s->heights[(tx+1) + (ty+1)*SECTHEIGHTSIZE];
+					}
+					else
+#endif
+					{
+						vert[0][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[0][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[1][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[1][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[2][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[2][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+
+						vert[3][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[3][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[4][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+0)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[4][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+						vert[5][0] = (x-CHUNKBIAS)*hm->sectionsize + (tx+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;vert[5][1] = (y-CHUNKBIAS)*hm->sectionsize + (ty+1)/(float)(SECTHEIGHTSIZE-1)*hm->sectionsize;
+
+						vert[0][2] = s->heights[(tx+0) + (ty+0)*SECTHEIGHTSIZE];
+						vert[1][2] = s->heights[(tx+0) + (ty+1)*SECTHEIGHTSIZE];
+						vert[2][2] = s->heights[(tx+1) + (ty+0)*SECTHEIGHTSIZE];
+						vert[3][2] = s->heights[(tx+1) + (ty+0)*SECTHEIGHTSIZE];
+						vert[4][2] = s->heights[(tx+0) + (ty+1)*SECTHEIGHTSIZE];
+						vert[5][2] = s->heights[(tx+1) + (ty+1)*SECTHEIGHTSIZE];
+					}
+
+					Fragment_ClipPoly(dec, 3, &vert[0][0]);
+					Fragment_ClipPoly(dec, 3, &vert[3][0]);
+				}
+			}
+		}
+	}
+}
+
 #endif
 
 unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
@@ -1163,7 +1539,7 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	sx = x; x-=sx;
 	sy = y; y-=sy;
 
-	holebit = sx*4/SECTHEIGHTSIZE + (sy*4/SECTHEIGHTSIZE)*4;
+	holebit = 1u<<(sx/(SECTHEIGHTSIZE>>2) + (sy/(SECTHEIGHTSIZE>>2))*4);
 	if (s->holes & (1u<<holebit))
 		return FTECONTENTS_EMPTY;
 
@@ -1243,16 +1619,7 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 
 	x = (org[0]+wbias - (sx*hm->sectionsize))*(SECTHEIGHTSIZE-1)/hm->sectionsize;
 	y = (org[1]+wbias - (sy*hm->sectionsize))*(SECTHEIGHTSIZE-1)/hm->sectionsize;
-/*
-	if (x < 0)
-		x = 0;
-	if (y < 0)
-		y = 0;
-	if (x > hm->maxsegx-1)
-		x = hm->maxsegx-1;
-	if (y > hm->maxsegy-1)
-		y = hm->maxsegy-1;
-*/
+
 	sx = x; x-=sx;
 	sy = y; y-=sy;
 
@@ -1417,10 +1784,28 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	if (s->holes & holebit)
 		return;	//no collision with holes
 
+	if (tr->hm->tiled)
+	{
+		//left-most
+		Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
+		//bottom-most
+		Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
+		//right-most
+		Vector4Set(n[2], 1, 0, 0, tr->htilesize*(sx+1));
+		//top-most
+		Vector4Set(n[3], 0, -1, 0, -tr->htilesize*(sy+0));
+		//top
+		Vector4Set(n[4], 0, 0, 1, s->heights[(tx+0)+(ty+0)*SECTHEIGHTSIZE]);
+
+		Heightmap_Trace_Brush(tr, n, 5);
+		return;
+	}
+	
 	VectorSet(p[0], tr->htilesize*(sx+0), tr->htilesize*(sy+0), s->heights[(tx+0)+(ty+0)*SECTHEIGHTSIZE]);
 	VectorSet(p[1], tr->htilesize*(sx+1), tr->htilesize*(sy+0), s->heights[(tx+1)+(ty+0)*SECTHEIGHTSIZE]);
 	VectorSet(p[2], tr->htilesize*(sx+0), tr->htilesize*(sy+1), s->heights[(tx+0)+(ty+1)*SECTHEIGHTSIZE]);
 	VectorSet(p[3], tr->htilesize*(sx+1), tr->htilesize*(sy+1), s->heights[(tx+1)+(ty+1)*SECTHEIGHTSIZE]);
+
 
 #ifndef STRICTEDGES
 	d1 = fabs(p[0][2] - p[3][2]);
@@ -1737,7 +2122,7 @@ static unsigned char *ted_getlightmap(hmsection_t *s, int idx)
 	lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
 	lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
 	lm = lightmap[s->lightmap]->lightmaps;
-	lm += ((s->lmx+y) * HMLMSTRIDE + (s->lmy+x)) * lightmap_bytes;
+	lm += ((s->lmy+y) * HMLMSTRIDE + (s->lmx+x)) * lightmap_bytes;
 	return lm;
 }
 static void ted_dorelight(heightmap_t *hm)
@@ -1991,9 +2376,26 @@ static void ted_mixtally(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	((float*)ctx)[3] += w;
 }
 
+static void ted_tint(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	float *col = s->colours[idx];
+	float *newval = ctx;
+	if (w > 1)
+		w = 1;
+	s->flags |= TSF_DIRTY|TSF_EDITED|TSF_HASCOLOURS;	/*dirty because of the vbo*/
+	col[0] = col[0]*(1-w) + (newval[0]*(w));
+	col[1] = col[1]*(1-w) + (newval[1]*(w));
+	col[2] = col[2]*(1-w) + (newval[2]*(w));
+	col[3] = col[3]*(1-w) + (newval[3]*(w));
+}
 
+enum
+{
+	tid_linear,
+	tid_exponential
+};
 //calls 'func' for each tile upon the terrain. the 'tile' can be either height or texel
-static void ted_itterate(heightmap_t *hm, float *pos, float radius, float strength, int steps, void(*func)(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength), void *ctx)
+static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float radius, float strength, int steps, void(*func)(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength), void *ctx)
 {
 	int tx, ty;
 	float wx, wy;
@@ -2003,40 +2405,49 @@ static void ted_itterate(heightmap_t *hm, float *pos, float radius, float streng
 	hmsection_t *s;
 	float w, xd, yd;
 
-	min[0] = floor((pos[0] - radius)/(hm->sectionsize) - 1);
-	min[1] = floor((pos[1] - radius)/(hm->sectionsize) - 1);
-	max[0] = ceil((pos[0] + radius)/(hm->sectionsize) + 1);
-	max[1] = ceil((pos[1] + radius)/(hm->sectionsize) + 1);
+	min[0] = floor((pos[0] - radius)/(hm->sectionsize) - 1.5);
+	min[1] = floor((pos[1] - radius)/(hm->sectionsize) - 1.5);
+	max[0] = ceil((pos[0] + radius)/(hm->sectionsize) + 1.5);
+	max[1] = ceil((pos[1] + radius)/(hm->sectionsize) + 1.5);
 
 	min[0] = bound(hm->firstsegx, min[0], hm->maxsegx);
-	min[1] = bound(hm->firstsegx, min[1], hm->maxsegy);
+	min[1] = bound(hm->firstsegy, min[1], hm->maxsegy);
 	max[0] = bound(hm->firstsegx, max[0], hm->maxsegx);
-	max[1] = bound(hm->firstsegx, max[1], hm->maxsegy);
+	max[1] = bound(hm->firstsegy, max[1], hm->maxsegy);
 
 	sc[0] = hm->sectionsize/(steps-1);
 	sc[1] = hm->sectionsize/(steps-1);
 
-	for (sx = min[0]; sx < max[0]; sx++)
+	for (sy = min[1]; sy < max[1]; sy++)
 	{
-		for (sy = min[1]; sy < max[1]; sy++)
+		for (sx = min[0]; sx < max[0]; sx++)
 		{
 			s = Terr_GetSection(hm, sx, sy, true);
 			if (!s)
 				continue;
 
-			for (tx = 0; tx < steps; tx++)
+			for (ty = 0; ty < steps; ty++)
 			{
-				for (ty = 0; ty < steps; ty++)
+				wy = (sy*(steps-1.0) + ty)*sc[1];
+				yd = wy - pos[1];// - sc[1]/4;
+//				if (yd < 0)
+//					yd = 0;
+				for (tx = 0; tx < steps; tx++)
 				{
 					/*both heights and textures have an overlapping/matching sample at the edge, there's no need for any half-pixels or anything here*/
 					wx = (sx*(steps-1.0) + tx)*sc[0];
-					wy = (sy*(steps-1.0) + ty)*sc[1];
-					xd = wx - pos[0];
-					yd = wy - pos[1];
-					w = sqrt(radius*radius - (xd*xd+yd*yd));
-					if (w > 0)
+					xd = wx - pos[0];// - sc[0]/4;
+//					if (xd < 0)
+//						xd = 0;
+
+					if (radius*radius >= (xd*xd+yd*yd))
 					{
-						func(ctx, s, tx+ty*steps, wx, wy, w*strength/(radius));
+						if (distribution == tid_exponential)
+							w = sqrt((radius*radius) - ((xd*xd)+(yd*yd)));
+						else
+							w = radius - sqrt(xd*xd+yd*yd);
+						if (w > 0)
+							func(ctx, s, tx+ty*steps, wx, wy, w*strength/(radius));
 					}
 				}
 			}
@@ -2047,24 +2458,32 @@ static void ted_itterate(heightmap_t *hm, float *pos, float radius, float streng
 //Heightmap_NativeBoxContents
 enum
 {
-	ter_reload,
-	ter_save,
-	ter_sethole,
-	ter_height_set,
-	ter_height_smooth,
-	ter_height_spread,
-	ter_raise,
-	ter_lower,
-	ter_tex_kill,
-	ter_tex_get,
-	ter_mixpaint,
-	ter_mixconcentrate,
-	ter_mixnoise,
-	ter_mixblur,
-	ter_water_set,
-	ter_mesh_add,
-	ter_mesh_kill
+	ter_reload,			//
+	ter_save,			//
+	ter_sethole,		//vector pos, float radius, floatbool hole
+	ter_height_set,		//vector pos, float radius, float newheight
+	ter_height_smooth,	//vector pos, float radius, float percent
+	ter_height_spread,	//vector pos, float radius, float percent
+	ter_raise,			//vector pos, float radius, float heightchange
+	ter_lower,			//vector pos, float radius, float heightchange
+	ter_tex_kill,		//vector pos, void junk, void junk, string texname
+	ter_tex_get,		//vector pos, void junk, float imagenum
+	ter_mixpaint,		//vector pos, float radius, float percent, string texname
+	ter_mixconcentrate,	//vector pos, float radius, float percent
+	ter_mixnoise,		//vector pos, float radius, float percent
+	ter_mixblur,		//vector pos, float radius, float percent
+	ter_water_set,		//vector pos, float radius, float newwaterheight
+	ter_mesh_add,		//entity ent
+	ter_mesh_kill,		//vector pos, float radius
+	ter_tint,			//vector pos, float radius, float percent, vector newcol, float newalph
+	ter_height_flatten,	//vector pos, float radius, float percent
+//	ter_poly_add,		//add a poly, woo
+//	ter_poly_remove,	//remove polys
+
+//	ter_autopaint_h,	//vector pos, float radius, float percent, string tex1, string tex2				(paint tex1/tex2
+//	ter_autopaint_n	//vector pos, float radius, float percent, string tex1, string tex2
 };
+
 void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *vmw = prinst->parms->user;
@@ -2073,8 +2492,7 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	float radius = G_FLOAT(OFS_PARM2);
 	float quant = G_FLOAT(OFS_PARM3);
 //	G_FLOAT(OFS_RETURN) = Heightmap_Edit(w->worldmodel, action, pos, radius, quant);
-
-	model_t *mod = vmw->worldmodel;
+	model_t *mod = vmw->Get_CModel(vmw, ((wedict_t*)PROG_TO_EDICT(prinst, *vmw->g.self))->v->modelindex);
 	heightmap_t *hm;
 	vec4_t tally;
 
@@ -2097,7 +2515,7 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		Con_Printf("%i sections saved\n", HeightMap_Save(hm));
 		break;
 	case ter_sethole:
-		{
+	/*	{
 			int x, y;
 			hmsection_t *s;
 			x = pos[0]*4 / hm->sectionsize;
@@ -2110,27 +2528,37 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 				return;
 			ted_sethole(&quant, s, (x&3) + (y&3)*4, x/4, y/4, 0);
 		}
+	*/	ted_itterate(hm, tid_linear, pos, radius, 1, 4, ted_sethole, &quant);
 		break;
 	case ter_height_set:
-		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heightset, &quant);
+		ted_itterate(hm, tid_linear, pos, radius, 1, SECTHEIGHTSIZE, ted_heightset, &quant);
+		break;
+	case ter_height_flatten:
+		tally[0] = 0;
+		tally[1] = 0;
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTHEIGHTSIZE, ted_heighttally, &tally);
+		tally[0] /= tally[1];
+		if (IS_NAN(tally[0]))
+			tally[0] = 0;
+		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
 		break;
 	case ter_height_smooth:
 		tally[0] = 0;
 		tally[1] = 0;
-		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heighttally, &tally);
+		ted_itterate(hm, tid_linear, pos, radius, 1, SECTHEIGHTSIZE, ted_heighttally, &tally);
 		tally[0] /= tally[1];
 		if (IS_NAN(tally[0]))
 			tally[0] = 0;
-		ted_itterate(hm, pos, radius, quant, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
+		ted_itterate(hm, tid_linear, pos, radius, quant, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
 		break;
 	case ter_height_spread:
 		tally[0] = 0;
 		tally[1] = 0;
-		ted_itterate(hm, pos, radius/2, 1, SECTHEIGHTSIZE, ted_heighttally, &tally);
+		ted_itterate(hm, tid_exponential, pos, radius/2, 1, SECTHEIGHTSIZE, ted_heighttally, &tally);
 		tally[0] /= tally[1];
 		if (IS_NAN(tally[0]))
 			tally[0] = 0;
-		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
 		break;
 	case ter_water_set:
 		{
@@ -2151,25 +2579,28 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	case ter_lower:
 		quant *= -1;
 	case ter_raise:
-		ted_itterate(hm, pos, radius, quant, SECTHEIGHTSIZE, ted_heightraise, &quant);
+		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTHEIGHTSIZE, ted_heightraise, &quant);
+		break;
+	case ter_tint:
+		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTHEIGHTSIZE, ted_tint, G_VECTOR(OFS_PARM4));	//and parm5 too
 		break;
 //	case ter_mixset:
-//		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixset, G_VECTOR(OFS_PARM4));
+//		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixset, G_VECTOR(OFS_PARM4));
 //		break;
 	case ter_mixpaint:
-		ted_itterate(hm, pos, radius, quant/10, SECTTEXSIZE, ted_mixpaint, PR_GetStringOfs(prinst, OFS_PARM4));
+		ted_itterate(hm, tid_exponential, pos, radius, quant/10, SECTTEXSIZE, ted_mixpaint, PR_GetStringOfs(prinst, OFS_PARM4));
 		break;
 	case ter_mixconcentrate:
-		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixconcentrate, NULL);
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixconcentrate, NULL);
 		break;
 	case ter_mixnoise:
-		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixnoise, NULL);
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixnoise, NULL);
 		break;
 	case ter_mixblur:
 		Vector4Set(tally, 0, 0, 0, 0);
-		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixtally, &tally);
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixtally, &tally);
 		VectorScale(tally, 1/(tally[3]*255), tally);
-		ted_itterate(hm, pos, radius, quant, SECTTEXSIZE, ted_mixset, &tally);
+		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTTEXSIZE, ted_mixset, &tally);
 		break;
 	case ter_tex_get:
 		{
@@ -2313,9 +2744,11 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 #endif
 
-void Terr_ParseEntityLump(char *data, float *scale, int *minx, int *maxx, int *miny, int *maxy)
+void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 {
 	char key[128];
+
+	heightmap->sectionsize = 1024;
 
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.
@@ -2333,31 +2766,88 @@ void Terr_ParseEntityLump(char *data, float *scale, int *minx, int *maxx, int *m
 		if (!((data=COM_Parse(data))))
 			break; // error		
 		if (!strcmp("segmentsize", key))
-			*scale = atof(com_token);
+			heightmap->sectionsize = atof(com_token);
 		else if (!strcmp("minxsegment", key))
-			*minx = atoi(com_token);
+			heightmap->firstsegx = atoi(com_token);
 		else if (!strcmp("minysegment", key))
-			*miny = atoi(com_token);
+			heightmap->firstsegy = atoi(com_token);
 		else if (!strcmp("maxxsegment", key))
-			*maxx = atoi(com_token);
+			heightmap->maxsegx = atoi(com_token);
 		else if (!strcmp("maxysegment", key))
-			*maxy = atoi(com_token);
+			heightmap->maxsegy = atoi(com_token);
+		else if (!strcmp("tiles", key))
+		{
+			char *d;
+			heightmap->tiled = true;
+			d = com_token;
+			d = COM_ParseOut(d, key, sizeof(key));
+			heightmap->tilepixcount[0] = atoi(key);
+			d = COM_ParseOut(d, key, sizeof(key));
+			heightmap->tilepixcount[1] = atoi(key);
+			d = COM_ParseOut(d, key, sizeof(key));
+			heightmap->tilecount[0] = atoi(key);
+			d = COM_ParseOut(d, key, sizeof(key));
+			heightmap->tilecount[1] = atoi(key);
+		}
 	}
 
-	*minx += CHUNKBIAS;
-	*miny += CHUNKBIAS;
-	*maxx += CHUNKBIAS;
-	*maxy += CHUNKBIAS;
-	if (*minx < 0)
-		*minx = 0;
-	if (*miny < 0)
-		*miny = 0;
-	if (*maxx > CHUNKLIMIT)
-		*maxx = CHUNKLIMIT;
-	if (*maxy > CHUNKLIMIT)
-		*maxy = CHUNKLIMIT;
+	/*bias and bound it*/
+	heightmap->firstsegx += CHUNKBIAS;
+	heightmap->firstsegy += CHUNKBIAS;
+	heightmap->maxsegx += CHUNKBIAS;
+	heightmap->maxsegy += CHUNKBIAS;
+	if (heightmap->firstsegx < 0)
+		heightmap->firstsegx = 0;
+	if (heightmap->firstsegy < 0)
+		heightmap->firstsegy = 0;
+	if (heightmap->maxsegx > CHUNKLIMIT)
+		heightmap->maxsegx = CHUNKLIMIT;
+	if (heightmap->maxsegy > CHUNKLIMIT)
+		heightmap->maxsegy = CHUNKLIMIT;
 }
 
+void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
+{
+#ifndef SERVERONLY
+	if (qrenderer != QR_NONE)
+	{
+		hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), Shader_DefaultSkybox, NULL);
+		if (hm->tiled)
+			hm->shader = R_RegisterShader("terraintileshader",
+					"{\n"
+						"{\n"
+							"map $diffuse\n"	
+						"}\n"
+					"}\n"
+				);
+		else
+			hm->shader = R_RegisterShader(shadername,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+						"{\n"
+							"map $upperoverlay\n"
+						"}\n"
+						"{\n"
+							"map $loweroverlay\n"
+						"}\n"
+						"{\n"
+							"map $fullbright\n"
+						"}\n"
+						"{\n"
+							"map $lightmap\n"
+						"}\n"
+						"program terrain\n"
+						"if r_terraindebug\n"
+						"[\n"
+						"program terraindebug\n"
+						"]\n"
+					"}\n"
+				);
+	}
+#endif
+}
 
 qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 {
@@ -2403,7 +2893,7 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 	hm->maxsegy = +1;
 	hm->exteriorcontents = FTECONTENTS_SOLID;	//sky outside the map
 
-	Terr_ParseEntityLump(mod->entities, &hm->sectionsize, &hm->firstsegx, &hm->maxsegx, &hm->firstsegy, &hm->maxsegy);
+	Terr_ParseEntityLump(mod->entities, hm);
 
 	mod->mins[0] = (hm->firstsegx - CHUNKBIAS) * hm->sectionsize;
 	mod->mins[1] = (hm->firstsegy - CHUNKBIAS) * hm->sectionsize;
@@ -2411,37 +2901,6 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 	mod->maxs[0] = (hm->maxsegy - CHUNKBIAS) * hm->sectionsize;
 	mod->maxs[1] = (hm->maxsegy - CHUNKBIAS) * hm->sectionsize;
 	mod->maxs[2] = 999999999999999999999999.f;
-
-#ifndef SERVERONLY
-	if (qrenderer != QR_NONE)
-	{
-		hm->shader = R_RegisterShader(shadername,
-					"{\n"
-						"{\n"
-							"map $diffuse\n"
-						"}\n"
-						"{\n"
-							"map $upperoverlay\n"
-						"}\n"
-						"{\n"
-							"map $loweroverlay\n"
-						"}\n"
-						"{\n"
-							"map $fullbright\n"
-						"}\n"
-						"{\n"
-							"map $lightmap\n"
-						"}\n"
-						"program terrain\n"
-						"if r_terraindebug\n"
-						"[\n"
-						"program terraindebug\n"
-						"]\n"
-					"}\n"
-				);
-		hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), Shader_DefaultSkybox, NULL);
-	}
-#endif
 
 	mod->funcs.NativeTrace			= Heightmap_Trace;
 	mod->funcs.PointContents		= Heightmap_PointContents;
@@ -2468,67 +2927,33 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 
 	mod->terrain = hm;
 
+	Terr_FinishTerrain(hm, shadername, skyname);
+
 	return true;
 }
 
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname)
 {
 	heightmap_t *hm;
-	float scale = 0;
-	int bounds[4] = {0};
+	heightmap_t potential;
 	if (!mod->entities)
 		return NULL;
 
-	Terr_ParseEntityLump(mod->entities, &scale, &bounds[0], &bounds[1], &bounds[2], &bounds[3]);
+	memset(&potential, 0, sizeof(potential));
+	Terr_ParseEntityLump(mod->entities, &potential);
 
-	if (!scale && (bounds[0] == bounds[1] || bounds[2] == bounds[3]))
+	if (potential.firstsegx == potential.maxsegx || potential.firstsegy == potential.maxsegy)
 		return NULL;
 
-	if (scale < 1)
-		scale = 1024;
-
 	hm = Z_Malloc(sizeof(*hm));
+	*hm = potential;
 	ClearLink(&hm->recycle);
 	Q_strncpyz(hm->path, loadname, sizeof(hm->path));
-	hm->sectionsize = scale;
-	hm->firstsegx = bounds[0];
-	hm->maxsegx = bounds[1];
-	hm->firstsegy = bounds[2];
-	hm->maxsegy = bounds[3];
 
 	hm->exteriorcontents = FTECONTENTS_EMPTY;	//bsp geometry outside the heightmap
 
+	Terr_FinishTerrain(hm, "terrainshader", loadname);
 
-#ifndef SERVERONLY
-	if (qrenderer != QR_NONE)
-	{
-		hm->skyshader = R_RegisterCustom(va("skybox_%s", loadname), Shader_DefaultSkybox, NULL);
-		hm->shader = R_RegisterShader("terrainshader",
-					"{\n"
-						"{\n"
-							"map $diffuse\n"
-						"}\n"
-						"{\n"
-							"map $upperoverlay\n"
-						"}\n"
-						"{\n"
-							"map $loweroverlay\n"
-						"}\n"
-						"{\n"
-							"map $fullbright\n"
-						"}\n"
-						"{\n"
-							"map $lightmap\n"
-						"}\n"
-						"program terrain\n"
-						"if r_terraindebug\n"
-						"[\n"
-						"program terraindebug\n"
-						"]\n"
-					"}\n"
-				);
-	}
-#endif
 	return hm;
 }
 #endif

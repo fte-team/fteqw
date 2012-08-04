@@ -3,11 +3,12 @@
 //beware that a few things use this, including apparently fonts and bloom rescaling.
 //its really not meant to do anything special.
 
+varying vec2 tc;
+varying vec4 vc;
+
 #ifdef VERTEX_SHADER
 attribute vec2 v_texcoord;
 attribute vec4 v_colour;
-varying vec2 tc;
-varying vec4 vc;
 void main ()
 {
 	tc = v_texcoord;
@@ -17,8 +18,6 @@ void main ()
 #endif
 #ifdef FRAGMENT_SHADER
 uniform sampler2D s_t0;
-in vec2 tc;
-varying vec4 vc;
 void main ()
 {
 	gl_FragColor = texture2D(s_t0, tc) * vc;

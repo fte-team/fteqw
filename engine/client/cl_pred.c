@@ -665,7 +665,10 @@ void CL_CalcClientTime(void)
 			max = cl.gametime;
 			min = cl.oldgametime;
 
-			cl.servertime += host_frametime;
+			if (max)
+				cl.servertime += host_frametime;
+			else
+				cl.servertime = 0;
 
 			if (cl.servertime > max)
 			{

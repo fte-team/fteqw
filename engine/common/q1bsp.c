@@ -1093,7 +1093,8 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 #define MAXFRAGMENTTRIS 256
 vec3_t decalfragmentverts[MAXFRAGMENTTRIS*3];
 
-typedef struct {
+struct fragmentdecal_s
+{
 	vec3_t center;
 
 	vec3_t normal;
@@ -1106,8 +1107,8 @@ typedef struct {
 
 	vec_t radius;
 	int numtris;
-
-} fragmentdecal_t;
+};
+typedef struct fragmentdecal_s fragmentdecal_t;
 
 //#define SHOWCLIPS
 //#define FRAGMENTASTRIANGLES	//works, but produces more fragments.
@@ -1115,7 +1116,7 @@ typedef struct {
 #ifdef FRAGMENTASTRIANGLES
 
 //if the triangle is clipped away, go recursive if there are tris left.
-void Fragment_ClipTriToPlane(int trinum, float *plane, float planedist, fragmentdecal_t *dec)
+static void Fragment_ClipTriToPlane(int trinum, float *plane, float planedist, fragmentdecal_t *dec)
 {
 	float *point[3];
 	float dotv[3];
@@ -1249,7 +1250,7 @@ void Fragment_ClipTriToPlane(int trinum, float *plane, float planedist, fragment
 	}
 }
 
-void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
+static void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 {
 	//emit the triangle, and clip it's fragments.
 	int start, i;
@@ -1279,7 +1280,7 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 #else
 
 #define MAXFRAGMENTVERTS 360
-int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
+static int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
 {
 #define C 4
 	float dotv[MAXFRAGMENTVERTS+1];
@@ -1400,7 +1401,7 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 #endif
 
 //this could be inlined, but I'm lazy.
-void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
+static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 {
 	int i;
 
@@ -1428,7 +1429,7 @@ void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 	}
 }
 
-void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
+static void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -1479,7 +1480,7 @@ extern int sh_shadowframe;
 static int sh_shadowframe;
 #endif
 #ifdef Q3BSPS
-void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
+static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -1547,8 +1548,9 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 
 	sh_shadowframe++;
 
-	if (!cl.worldmodel)
-		return 0;
+	if (!cl.worldmodel || cl.worldmodel->type != mod_brush)
+	{
+	}
 	else if (cl.worldmodel->fromgame == fg_quake)
 		Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
 #ifdef Q3BSPS
@@ -1556,95 +1558,14 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
 #endif
 
+#ifdef TERRAIN
+	if (cl.worldmodel->terrain)
+		Terrain_ClipDecal(&dec, center, dec.radius, cl.worldmodel);
+#endif
+
 	*out = (float *)decalfragmentverts;
 	return dec.numtris;
 }
-
-//This is spike's testing function, and is only usable by gl. :)
-/*
-#include "glquake.h"
-void Q1BSP_TestClipDecal(void)
-{
-	int i;
-	int numtris;
-	vec3_t fwd;
-	vec3_t start;
-	vec3_t center, normal, tangent, tangent2;
-	float *verts;
-
-	if (cls.state != ca_active)
-		return;
-
-	VectorCopy(r_origin, start);
-//	start[2]+=22;
-	VectorMA(start, 10000, vpn, fwd);
-
-	if (!TraceLineN(start, fwd, center, normal))
-	{
-		VectorCopy(start, center);
-		normal[0] = 0;
-		normal[1] = 0;
-		normal[2] = 1;
-	}
-
-	CrossProduct(fwd, normal, tangent);
-	VectorNormalize(tangent);
-
-	CrossProduct(normal, tangent, tangent2);
-
-	numtris = Q1BSP_ClipDecal(center, normal, tangent, tangent2, 128, &verts);
-	PPL_RevertToKnownState();
-	qglDisable(GL_TEXTURE_2D);
-	qglDisable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-	qglDisable(GL_DEPTH_TEST);
-
-	qglColor3f(1, 0, 0);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_TRIANGLES);
-	for (i = 0; i < numtris; i++)
-	{
-		qglVertex3fv(verts+i*9+0);
-		qglVertex3fv(verts+i*9+3);
-		qglVertex3fv(verts+i*9+6);
-	}
-	qglEnd();
-
-	qglColor3f(1, 1, 1);
-	qglBegin(GL_LINES);
-	for (i = 0; i < numtris; i++)
-	{
-		qglVertex3fv(verts+i*9+0);
-		qglVertex3fv(verts+i*9+3);
-		qglVertex3fv(verts+i*9+3);
-		qglVertex3fv(verts+i*9+6);
-		qglVertex3fv(verts+i*9+6);
-		qglVertex3fv(verts+i*9+0);
-	}
-
-	qglVertex3fv(center);
-	VectorMA(center, 10, normal, fwd);
-	qglVertex3fv(fwd);
-
-	qglColor3f(0, 1, 0);
-	qglVertex3fv(center);
-	VectorMA(center, 10, tangent, fwd);
-	qglVertex3fv(fwd);
-
-	qglColor3f(0, 0, 1);
-	qglVertex3fv(center);
-	CrossProduct(tangent, normal, fwd);
-	VectorMA(center, 10, fwd, fwd);
-	qglVertex3fv(fwd);
-
-	qglColor3f(1, 1, 1);
-
-	qglEnd();
-	qglEnable(GL_TEXTURE_2D);
-	qglEnable(GL_DEPTH_TEST);
-	PPL_RevertToKnownState();
-}
-*/
 
 #endif
 /*

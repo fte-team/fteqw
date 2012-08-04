@@ -6,6 +6,9 @@ There is no screen-space culling of lit surfaces.
 model meshes are interpolated multiple times per frame
 */
 
+//#define DBG_COLOURNOTDEPTH
+
+
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 #ifdef RTLIGHTS
 
@@ -25,11 +28,14 @@ void D3DBE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbu
 #endif
 void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsigned numindicies, int ibo, index_t *indicies);
 
+static void SHM_Shutdown(void);
+
 #define SHADOWMAP_SIZE 512
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 
-#define nearplane	(16)
+#define nearplane	(4)
+static texid_t shadowmap[2];
 
 static int shadow_fbo_id;
 static int crepuscular_fbo_id;
@@ -58,6 +64,16 @@ void Sh_Shutdown(void)
 		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
 		shadow_fbo_id = 0;
 	}
+	if (shadowmap[0].num)
+	{
+		R_DestroyTexture(shadowmap[0]);
+		shadowmap[0] = r_nulltex;
+	}
+	if (shadowmap[1].num)
+	{
+		R_DestroyTexture(shadowmap[1]);
+		shadowmap[1] = r_nulltex;
+	}
 	if (crepuscular_texture_id.num)
 	{
 		R_DestroyTexture(crepuscular_texture_id);
@@ -69,6 +85,8 @@ void Sh_Shutdown(void)
 		crepuscular_fbo_id = 0;
 	}
 #endif
+
+	SHM_Shutdown();
 }
 
 
@@ -968,6 +986,14 @@ static struct {
 	int *edgeuses;	/*negative for back sides, so 0 means unused or used equally on both sides*/
 } cv;
 
+static void SHM_Shutdown(void)
+{
+	free(cv.tris);
+	free(cv.edges);
+	free(cv.points);
+	memset(&cv, 0, sizeof(cv));
+}
+
 #define VERT_POS_EPSILON (1.0f/32)
 static int SHM_ComposeVolume_FindVert(float *vert)
 {
@@ -1233,6 +1259,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 
 	firstedge=0;
 
+	if (cl.worldmodel->type == mod_brush)
 	switch(cl.worldmodel->fromgame)
 	{
 	case fg_quake:
@@ -1778,6 +1805,34 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, vrect_t *r)
 #endif
 
 #ifdef GLQUAKE
+#ifdef DBG_COLOURNOTDEPTH
+void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
+{
+	if (gl_config.ext_framebuffer_objects)
+	{
+		if (!shadow_fbo_id)
+		{
+			int drb;
+			qglGenFramebuffersEXT(1, &shadow_fbo_id);
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
+
+			//create an unnamed depth buffer
+//			qglGenRenderbuffersEXT(1, &drb);
+//			qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
+//			qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2);
+//			qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
+
+			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			qglReadBuffer(GL_NONE);
+		}
+		else
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
+
+		if (TEXVALID(depthtexture))
+			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
+	}
+}
+#else
 void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 {
 	if (gl_config.ext_framebuffer_objects)
@@ -1796,6 +1851,7 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
 	}
 }
+#endif
 void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 {
 	if (gl_config.ext_framebuffer_objects)
@@ -1812,74 +1868,86 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float proj[16])
 {
 	qboolean oxv;
-	float mvm[16], sav[16];
-	vec3_t t1,t2;
+	vec3_t t1,t2, t3;
+	texture_t *tex;
+	int tno;
 
 	int smsize = SHADOWMAP_SIZE;
-
-//	qglDepthRange(0, 1);
 
 	if (l->fov)
 		qglViewport (0, 0, smsize, smsize);
 	else
-		qglViewport (((face/2)*smsize)/3, ((face&1)*smsize)/2, smsize/3, smsize/2);
+	{
+		qglViewport ((face%3 * smsize), ((face>=3)*smsize), smsize, smsize);
+	}
 
 	switch(face)
 	{
 	case 0:
-		//forward
-		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, l->axis[0], l->axis[1], l->axis[2], l->origin);
+		//+x - forward
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, l->axis[0], l->axis[1], l->axis[2], l->origin);
+		r_refdef.flipcull = false;
 		break;
 	case 1:
-		//back
+		//+y - right
 		VectorNegate(l->axis[0], t1);
 		VectorNegate(l->axis[1], t2);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, t1, t2, l->axis[2], l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t2, t1, l->axis[2], l->origin);
+		r_refdef.flipcull = true;
 		break;
 	case 2:
-		//left
-		VectorNegate(l->axis[1], t1);
-		VectorNegate(l->axis[0], t2);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, l->axis[1], t2, l->axis[2], l->origin);
+		//+z - down
+		VectorNegate(l->axis[0], t1);
+		VectorNegate(l->axis[2], t2);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t2, l->axis[1], t1, l->origin);
+		r_refdef.flipcull = true;
 		break;
 	case 3:
-		//right
-		VectorNegate(l->axis[1], t1);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, t1, l->axis[0], l->axis[2], l->origin);
+		//-x - back
+		VectorNegate(l->axis[0], t1);
+		VectorNegate(l->axis[1], t2);
+		VectorNegate(l->axis[2], t3);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t1, l->axis[1], l->axis[2], l->origin);
+		r_refdef.flipcull = true;
 		break;
 	case 4:
-		//up
+		//-y - left
+		VectorNegate(l->axis[1], t1);
 		VectorNegate(l->axis[0], t2);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, l->axis[2], l->axis[1], t2, l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, l->axis[1], t2, l->axis[2], l->origin);
+		r_refdef.flipcull = false;
 		break;
 	case 5:
-		//down
-		VectorNegate(l->axis[2], t1);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, t1, l->axis[1], l->axis[0], l->origin);
+		//-z - up
+		VectorNegate(l->axis[0], t2);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, l->axis[2], l->axis[1], t2, l->origin);
+		r_refdef.flipcull = false;
 		break;
 	}
+GL_CullFace(0);
+	R_SetFrustum(proj, r_refdef.m_view);
 
-	qglMatrixMode(GL_MODELVIEW);
-	memcpy(sav, r_refdef.m_view, sizeof(r_refdef.m_view));
-	memcpy(r_refdef.m_view, mvm, sizeof(r_refdef.m_view));
-	qglLoadMatrixf(mvm);
-
-	R_SetFrustum(proj, mvm);
-
-/*	if (smesh)
-	for (tno = 0; tno < smesh->numsurftextures; tno++)
-	{
-		m = NULL;
-		if (!smesh->litsurfs[tno].count)
-			continue;
-		tex = cl.worldmodel->textures[tno];
-		BE_DrawMesh_List(tex->shader, smesh->litsurfs[tno].count, smesh->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures, 0);
-	}
-*/
+#ifdef DBG_COLOURNOTDEPTH
+	BE_SelectMode(BEM_STANDARD);
+#else
 	BE_SelectMode(BEM_DEPTHONLY);
+#endif
 	/*shadow meshes are always drawn as an external view*/
 	oxv = r_refdef.externalview;
 	r_refdef.externalview = true;
+
+	BE_SelectEntity(&r_worldentity);
+
+	for (tno = 0; tno < smesh->numbatches; tno++)
+	{
+		if (!smesh->batches[tno].count)
+			continue;
+		tex = cl.worldmodel->shadowbatches[tno].tex;
+		if (tex->shader->flags & SHADER_NODLIGHT)
+			continue;
+		BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
+	}
+
 	switch(qrenderer)
 	{
 #ifdef GLQUAKE
@@ -1893,9 +1961,10 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		break;
 #endif
 	}
+
 	r_refdef.externalview = oxv;
 
-	if (0)
+/*
 	{
 		int i;
 		static float depth[SHADOWMAP_SIZE*SHADOWMAP_SIZE];
@@ -1908,6 +1977,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 			else
 				*((unsigned int*)depth+i) = 0xff000000|((((unsigned char)(int)(depth[i]*128)))*0x10101);
 		}
+
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
 			smsize, smsize, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, depth);
@@ -1917,65 +1987,99 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
-
-	memcpy(r_refdef.m_view, sav, sizeof(r_refdef.m_view));
+*/
 }
 
 void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 {
 	int f;
 	int smsize = SHADOWMAP_SIZE;
-	float proj[16];
-
+	float oproj[16], oview[16];
 	shadowmesh_t *smesh;
+	int isspot = (l->fov != 0);
 
-	if (!TEXVALID(l->stexture))
+	if (!TEXVALID(shadowmap[isspot]))
 	{
-		l->stexture = GL_AllocNewTexture("***shadowmap***", smsize, smsize);
+		if (isspot)
+		{
+			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize, smsize);
+			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
+#ifdef DBG_COLOURNOTDEPTH
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+#else
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+#endif
+		}
+		else
+		{
+			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize*3, smsize*2);
+			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
+#ifdef DBG_COLOURNOTDEPTH
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize*3, smsize*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+#else
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize*3, smsize*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+#endif
+		}
 
-		GL_MTBind(0, GL_TEXTURE_2D, l->stexture);
-		qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-	//	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+#if 1//def DBG_COLOURNOTDEPTH
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+#else
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+#endif
+
+		//in case we're using shadow samplers
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+		qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
 	}
 
 	smesh = SHM_BuildShadowMesh(l, lvis, NULL, true);
 
-	/*polygon offsets. urgh.*/
-	qglEnable(GL_POLYGON_OFFSET_FILL);
-	qglPolygonOffset(5, 25);
-	BE_SetupForShadowMap();
-
 	/*set framebuffer*/
-	GL_BeginRenderBuffer_DepthOnly(l->stexture);
-	qglClear (GL_DEPTH_BUFFER_BIT);
+	GL_BeginRenderBuffer_DepthOnly(shadowmap[isspot]);
+	BE_SetupForShadowMap(shadowmap[isspot]);
 
+	qglViewport(0, 0, smsize*3, smsize*2);
+	qglClear (GL_DEPTH_BUFFER_BIT);
+#ifdef DBG_COLOURNOTDEPTH
+	qglClearColor(0,1,0,1);
+	qglClear (GL_COLOR_BUFFER_BIT);
+#endif
+
+	memcpy(oproj, r_refdef.m_projection, sizeof(oproj));
+	memcpy(oview, r_refdef.m_view, sizeof(oview));
 	if (l->fov)
 	{
-		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, l->fov, l->fov, nearplane, l->radius);
 		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(proj);
+		qglLoadMatrixf(r_refdef.m_projection);
+		qglMatrixMode(GL_MODELVIEW);
 
 		/*single face*/
-		Sh_GenShadowFace(l, smesh, 0, proj);
+		Sh_GenShadowFace(l, smesh, 0, r_refdef.m_projection);
 	}
 	else
 	{
-		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, l->radius);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, 90, 90, nearplane, l->radius);
 		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(proj);
+		qglLoadMatrixf(r_refdef.m_projection);
+		qglMatrixMode(GL_MODELVIEW);
 
 		/*generate faces*/
 		for (f = 0; f < 6; f++)
 		{
-			Sh_GenShadowFace(l, smesh, f, proj);
+			Sh_GenShadowFace(l, smesh, f, r_refdef.m_projection);
 		}
 	}
 	/*end framebuffer*/
-	GL_EndRenderBuffer_DepthOnly(l->stexture, smsize);
+	GL_EndRenderBuffer_DepthOnly(shadowmap[isspot], smsize);
+
+	memcpy(r_refdef.m_view, oview, sizeof(r_refdef.m_view));
+	memcpy(r_refdef.m_projection, oproj, sizeof(r_refdef.m_projection));
 
 	qglDisable(GL_POLYGON_OFFSET_FILL);
 
@@ -1990,20 +2094,8 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	R_SetFrustum(r_refdef.m_projection, r_refdef.m_view);
 }
 
-static float shadowprojectionbias[16] =
-{
-	0.5f, 0.0f, 0.0f, 0.0f,
-	0.0f, 0.5f, 0.0f, 0.0f,
-	0.0f, 0.0f, 0.5f, 0.0f,
-	0.5f, 0.5f, 0.4993f, 1.0f
-};
-
 static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 {
-	float t[16];
-	float bp[16];
-	float proj[16], view[16];
-	vec3_t biasorg;
 	int ve;
 	vec3_t mins, maxs;
 	qbyte *lvis;
@@ -2030,86 +2122,49 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 		return;
 	}
 
-    if (l->worldshadowmesh)
-    {
-		lvis = l->worldshadowmesh->litleaves;
-        //fixme: check head node first?
-        if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
-        {
-                bench.numpvsculled++;
-                return;
-        }
-	}
-	else
+	if (vvis)
 	{
-		int leaf;
-		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
-		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+		if (l->worldshadowmesh)
 		{
-			bench.numpvsculled++;
-			return;
+			lvis = l->worldshadowmesh->litleaves;
+			//fixme: check head node first?
+			if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
+			{
+					bench.numpvsculled++;
+					return;
+			}
+		}
+		else
+		{
+			int leaf;
+			leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
+			lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+			{
+				bench.numpvsculled++;
+				return;
+			}
 		}
 	}
 
+	qglDisable(GL_SCISSOR_TEST);
+
 	Sh_GenShadowMap(l, lvis);
-
-	if (l->fov)
-		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
-	else
-		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, l->radius);
-	VectorMA(l->origin, 0, l->axis[0], biasorg);
-	Matrix4x4_CM_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
-
-	//bp = shadowprojectionbias*proj*view;
-	Matrix4_Multiply(shadowprojectionbias, proj, t);
-	Matrix4_Multiply(t, view, bp);
-
-	t[0] = bp[0];
-	t[1] = bp[4];
-	t[2] = bp[8];
-	t[3] = bp[12];
-	t[4] = bp[1];
-	t[5] = bp[5];
-	t[6] = bp[9];
-	t[7] = bp[13];
-	t[8] = bp[2];
-	t[9] = bp[6];
-	t[10] = bp[10];
-	t[11] = bp[14];
-	t[12] = bp[3];
-	t[13] = bp[7];
-	t[14] = bp[11];
-	t[15] = bp[15];
 
 	bench.numlights++;
 
+	//may as well use scissors
 	Sh_Scissor(rect);
-	qglEnable(GL_STENCIL_TEST);
-
-	qglMatrixMode(GL_TEXTURE);
-	GL_MTBind(7, GL_TEXTURE_2D, l->stexture);
-
-//	qglEnable(GL_TEXTURE_2D);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
-	qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
-	qglLoadMatrixf(bp);
-	qglMatrixMode(GL_MODELVIEW);
-
-	GL_SelectTexture(0);
+	qglEnable(GL_SCISSOR_TEST);
 
 	ve = 0;
+
+	BE_SelectEntity(&r_worldentity);
 
 	GLBE_SelectDLight(l, colour);
 	BE_SelectMode(l->fov?BEM_SMAPLIGHTSPOT:BEM_SMAPLIGHT);
 	Sh_DrawEntLighting(l, colour);
 
-	GL_SelectTexture(7);
-	qglDisable(GL_TEXTURE_2D);
-	qglMatrixMode(GL_TEXTURE);
-	qglLoadIdentity();
-	qglMatrixMode(GL_MODELVIEW);
 }
 #endif
 
@@ -2871,6 +2926,7 @@ void Sh_DrawLights(qbyte *vis)
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_dlight;
 	extern cvar_t r_shadow_realtime_world_shadows, r_shadow_realtime_dlight_shadows;
 	extern cvar_t r_sun_dir, r_sun_colour;
+	extern cvar_t r_shadow_shadowmapping;
 
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
 	{
@@ -2942,7 +2998,7 @@ void Sh_DrawLights(qbyte *vis)
 		{
 			Sh_DrawShadowlessLight(dl, colour, vis);
 		}
-		else if (dl->flags & LFLAG_SHADOWMAP)
+		else if ((dl->flags & LFLAG_SHADOWMAP) || dl->fov || r_shadow_shadowmapping.ival)
 		{
 #ifdef GLQUAKE
 			Sh_DrawShadowMapLight(dl, colour, vis);

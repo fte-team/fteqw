@@ -3324,9 +3324,9 @@ static void QCBUILTIN PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_
 
 	if (sv.mvdrecording)
 	{
-		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
-		MSG_WriteByte (&demo.dbuf->sb, svc_stufftext);
-		MSG_WriteString (&demo.dbuf->sb, str);
+		sizebuf_t *msg = MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
+		MSG_WriteByte (msg, svc_stufftext);
+		MSG_WriteString (msg, str);
 	}
 }
 

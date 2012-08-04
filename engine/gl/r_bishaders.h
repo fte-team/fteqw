@@ -902,7 +902,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //s0=diffuse, s1=normal, s2=specular, s3=shadowmap
 //custom modifiers:
 //PCF(shadowmap)
-//CUBE(projected cubemap)
+//CUBEPROJ(projected cubemap)
+//SPOT(projected circle
+//CUBESHADOW
+
+"#if 0 && defined(GL_ARB_texture_gather) && defined(PCF) \n"
+"#extension GL_ARB_texture_gather : enable\n"
+"#endif\n"
 
 
 "varying vec2 tcbase;\n"
@@ -910,9 +916,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
-"#if defined(PCF) || defined(CUBE)\n"
-"varying vec4 vshadowcoord;\n"
+"#if defined(PCF) || defined(CUBEPROJ)\n"
+"varying vec4 vtexprojcoord;\n"
+"uniform mat4 l_cubematrix;\n"
+"#ifndef SPOT\n"
 "uniform mat4 l_projmatrix;\n"
+"#endif\n"
 "#endif\n"
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
@@ -936,33 +945,142 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#endif\n"
-"#if defined(PCF) || defined(SPOT) || defined(PROJECTION) || defined(CUBE)\n"
-"vshadowcoord = l_projmatrix*vec4(w.xyz, 1.0);\n"
+"#if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n"
+//for texture projections/shadowmapping on dlights
+"vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
 "#endif\n"
 "}\n"
 "#endif\n"
+
+
+
+
 "#ifdef FRAGMENT_SHADER\n"
 "#include \"sys/fog.h\"\n"
 "uniform sampler2D s_t0;\n"
+
 "#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n"
 "uniform sampler2D s_t1;\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
 "uniform sampler2D s_t2;\n"
 "#endif\n"
-"#ifdef CUBE\n"
+"#ifdef CUBEPROJ\n"
 "uniform samplerCube s_t3;\n"
 "#endif\n"
 "#ifdef PCF\n"
-"#ifdef CUBE\n"
-"uniform samplerCubeShadow s_t7;\n"
+"#ifdef CUBESHADOW\n"
+"uniform samplerCubeShadow s_t4;\n"
 "#else\n"
-"uniform sampler2DShadow s_t7;\n"
+"#if 0//def GL_ARB_texture_gather\n"
+"uniform sampler2D s_t4;\n"
+"#else\n"
+"uniform sampler2DShadow s_t4;\n"
 "#endif\n"
 "#endif\n"
+"#endif\n"
+
+
 "uniform float l_lightradius;\n"
 "uniform vec3 l_lightcolour;\n"
 "uniform vec3 l_lightcolourscale;\n"
+
+
+
+"#ifdef PCF\n"
+//#define shadow2DProj(t,c) (vec2(1.0,1.0))
+//#define shadow2DProj(t,c) texture2DProj(t,c).rg
+
+"float ShadowmapFilter(void)\n"
+"{\n"
+"#ifdef SPOT\n"
+"const vec3 texscale = vec3(1.0/512.0, 1.0/512.0, 1.0);\n"
+"#else\n"
+"const vec3 texscale = vec3(1.0/(512.0*3.0), 1.0/(512.0*2.0), 1.0);\n"
+"#endif\n"
+
+//dehomogonize input
+"vec3 shadowcoord = (vtexprojcoord.xyz / vtexprojcoord.w);\n"
+
+"#ifdef CUBESHADOW\n"
+//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
+//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
+"#else\n"
+
+"#ifdef SPOT\n"
+//bias it. don't bother figuring out which side or anything, its not needed
+//l_projmatrix contains the light's projection matrix so no other magic needed
+"shadowcoord.xyz = (shadowcoord.xyz + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+"#else\n"
+//figure out which axis to use
+//texture is arranged thusly:
+//forward left  up
+//back    right down
+"vec3 dir = abs(shadowcoord);\n"
+//assume z is the major axis (ie: forward from the light)
+"vec3 t = shadowcoord;\n"
+"float ma = dir.z;\n"
+"vec4 axis = vec4(1.0, 1.0, 1.0, 0.0);\n"
+"if (dir.x > ma)\n"
+"{\n"
+"ma = dir.x;\n"
+"t = shadowcoord.zyx;\n"
+"axis.x = 3.0;\n"
+"}\n"
+"if (dir.y > ma)\n"
+"{\n"
+"ma = dir.y;\n"
+"t = shadowcoord.xzy;\n"
+"axis.x = 5.0;\n"
+"}\n"
+"if (t.z > 0.0)\n"
+"{\n"
+"axis.y = 3.0;\n"
+"t.z = -t.z;\n"
+"}\n"
+
+
+//we also need to pass the result through the light's projection matrix too
+"vec4 nsc =l_projmatrix*vec4(t, 1.0);\n"
+"shadowcoord = (nsc.xyz / nsc.w);\n"
+
+//now bias and relocate it
+"shadowcoord = (shadowcoord + axis.xyz) * vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
+"#endif\n"
+
+"#if 0//def GL_ARB_texture_gather\n"
+"vec2 ipart, fpart;\n"
+"#define dosamp(x,y) textureGatherOffset(s_t4, ipart.xy, vec2(x,y)))\n"
+"vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"
+"vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));\n"
+"vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));\n"
+"vec4 br = step(shadowcoord.z, dosamp(1.0, 1.0));\n"
+//we now have 4*4 results, woo
+//we can just average them for 1/16th precision, but that's still limited graduations
+//the middle four pixels are 'full strength', but we interpolate the sides to effectively give 3*3
+"vec4 col =     vec4(tl.ba, tr.ba) + vec4(bl.rg, br.rg) + //middle two rows are full strength\n"
+"mix(vec4(tl.rg, tr.rg), vec4(bl.ba, br.ba), fpart.y); //top+bottom rows\n"
+"return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0)); //blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.\n"
+
+"#else\n"
+"#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*texscale.xyz)).r\n"
+"float s = 0.0;\n"
+"s += dosamp(-1.0, -1.0);\n"
+"s += dosamp(-1.0, 0.0);\n"
+"s += dosamp(-1.0, 1.0);\n"
+"s += dosamp(0.0, -1.0);\n"
+"s += dosamp(0.0, 0.0);\n"
+"s += dosamp(0.0, 1.0);\n"
+"s += dosamp(1.0, -1.0);\n"
+"s += dosamp(1.0, 0.0);\n"
+"s += dosamp(1.0, 1.0);\n"
+"return s/9.0;\n"
+"#endif\n"
+"#endif\n"
+"}\n"
+"#endif\n"
+
+
 "#ifdef OFFSETMAPPING\n"
 "#include \"sys/offsetmapping.h\"\n"
 "#endif\n"
@@ -987,6 +1105,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef BUMP\n"
 "diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));\n"
 "#else\n"
+//we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
 "diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));\n"
 "#endif\n"
 
@@ -999,54 +1118,30 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 
 
-"#ifdef CUBE\n"
-"diff *= textureCube(s_t3, vshadowcoord.xyz).rgb;\n"
+"#ifdef CUBEPROJ\n"
+/*filter the colour by the cubemap projection*/
+"diff *= textureCube(s_t3, vtexprojcoord.xyz).rgb;\n"
 "#endif\n"
+
+"#if defined(SPOT)\n"
+/*filter the colour by the spotlight. discard anything behind the light so we don't get a mirror image*/
+"if (vtexprojcoord.w < 0.0) discard;\n"
+"vec2 spot = ((vtexprojcoord.st)/vtexprojcoord.w);colorscale*=1.0-(dot(spot,spot));\n"
+"#endif\n"
+
 "#ifdef PCF\n"
-"#if defined(SPOT)\n"
-"const float texx = 512.0;\n"
-"const float texy = 512.0;\n"
-"vec4 shadowcoord = vshadowcoord;\n"
-"#else\n"
-"const float texx = 512.0;\n"
-"const float texy = 512.0;\n"
-"vec4 shadowcoord;\n"
-"shadowcoord.zw = vshadowcoord.zw;\n"
-"shadowcoord.xy = vshadowcoord.xy;\n"
+/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
+//diff.rgb = (vtexprojcoord.xyz/vtexprojcoord.w) * 0.5 + 0.5;
+"colorscale *= ShadowmapFilter();\n"
+//	gl_FragColor.rgb = vec3(ShadowmapFilter());
+
 "#endif\n"
-"#ifdef CUBE\n"
-"const float xPixelOffset = 1.0/texx; const float yPixelOffset = 1.0/texy; float s = 0.0;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadowCubeProj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"colorscale *= s/9.0;\n"
-"#else\n"
-"const float xPixelOffset = 1.0/texx; const float yPixelOffset = 1.0/texy; float s = 0.0;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"s += shadow2DProj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n"
-"colorscale *= s/9.0;\n"
-"#endif\n"
-"#endif\n"
-"#if defined(SPOT)\n"
-"if (shadowcoord.w < 0.0) discard;\n"
-"vec2 spot = ((shadowcoord.st)/shadowcoord.w - 0.5)*2.0;colorscale*=1.0-(dot(spot,spot));\n"
-"#endif\n"
+
 "#if defined(PROJECTION)\n"
-"l_lightcolour *= texture2d(s_t3, shadowcoord);\n"
+/*2d projection, not used*/
+//	diff *= texture2d(s_t3, shadowcoord);
 "#endif\n"
+
 "gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n"
 "}\n"
 "#endif\n"
@@ -1107,14 +1202,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/fog.h\"\n"
 "varying vec2 tc;\n"
 "varying vec2 lm;\n"
+"varying vec4 vc;\n"
 
 "#ifdef VERTEX_SHADER\n"
 "attribute vec2 v_texcoord;\n"
 "attribute vec2 v_lmcoord;\n"
+"attribute vec4 v_colour;\n"
 "void main (void)\n"
 "{\n"
 "tc = v_texcoord.st;\n"
 "lm = v_lmcoord.st;\n"
+"vc = v_colour;\n"
 "gl_Position = ftetransform();\n"
 "}\n"
 "#endif\n"
@@ -1137,7 +1235,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec4 m = texture2D(s_t4, lm);\n"
 
-"gl_FragColor = fog4(vec4(m.aaa,1.0)*(\n"
+"gl_FragColor = fog4(vc*vec4(m.aaa,1.0)*(\n"
 "texture2D(s_t0, tc)*m.r\n"
 "+ texture2D(s_t1, tc)*m.g\n"
 "+ texture2D(s_t2, tc)*m.b\n"

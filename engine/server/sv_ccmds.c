@@ -1590,13 +1590,14 @@ void SV_ConSay_f(void)
 
 	if (sv.mvdrecording)
 	{
-		MVDWrite_Begin (dem_all, 0, strlen(text)+4);
-		MSG_WriteByte (&demo.dbuf->sb, svc_print);
-		MSG_WriteByte (&demo.dbuf->sb, PRINT_CHAT);
+		sizebuf_t *msg;
+		msg = MVDWrite_Begin (dem_all, 0, strlen(text)+4);
+		MSG_WriteByte (msg, svc_print);
+		MSG_WriteByte (msg, PRINT_CHAT);
 		for (j = 0; text[j]; j++)
-			MSG_WriteChar(&demo.dbuf->sb, text[j]);
-		MSG_WriteChar(&demo.dbuf->sb, '\n');
-		MSG_WriteChar(&demo.dbuf->sb, 0);
+			MSG_WriteChar(msg, text[j]);
+		MSG_WriteChar(msg, '\n');
+		MSG_WriteChar(msg, 0);
 	}
 }
 

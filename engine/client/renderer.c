@@ -73,6 +73,8 @@ cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "0",
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+cvar_t r_wireframe							= CVARF ("r_wireframe", "0",
+												CVAR_CHEAT);
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
@@ -595,6 +597,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_sun_dir, GRAPHICALNICETIES);
 	Cvar_Register (&r_sun_colour, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
+	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);

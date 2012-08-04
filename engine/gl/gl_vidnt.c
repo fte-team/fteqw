@@ -27,6 +27,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #include <commctrl.h>
 
+void STT_Event(void);
+
 #ifndef SetWindowLongPtr	//yes its a define, for unicode support
 #define SetWindowLongPtr SetWindowLong
 #endif
@@ -1206,7 +1208,9 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			else
 				attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
 			attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
-			i+=2;
+			//WGL_CONTEXT_PROFILE_MASK_ARB is ignored if < 3.2 - however, nvidia do not agree and return errors
+			if (atof(ver) >= 3.2 || vid_gl_context_es2.ival)
+				i+=2;
 
 			attribs[i] = 0;
 
@@ -1922,6 +1926,10 @@ LONG WINAPI GLMainWndProc (
 			// raw input handling
 			if (!vid_initializing)
 				IN_RawInput_Read((HANDLE)lParam);
+			break;
+
+		case WM_USER:
+			STT_Event();
 			break;
 
 		case WM_GETMINMAXINFO:

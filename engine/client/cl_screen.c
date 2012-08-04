@@ -2282,10 +2282,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	//
 	// draw any areas not covered by the refresh
 	//
-#ifdef GLQUAKE
-	if (r_netgraph.value && qrenderer == QR_OPENGL)
+	if (r_netgraph.value)
 		GLR_NetGraph ();
-#endif
 
 	if (scr_drawloading || loading_stage)
 	{

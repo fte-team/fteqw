@@ -90,8 +90,8 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 			#define GL_QUADS (Con_Printf("GL_QUADS was used"),0)
 
 
-			#define GL_PROJECTION (Con_Printf("GL_QUADS was used"),0)
-			#define GL_MODELVIEW (Con_Printf("GL_QUADS was used"),0)
+			#define GL_PROJECTION (Con_Printf("GL_PROJECTION was used"),0)
+			#define GL_MODELVIEW (Con_Printf("GL_MODELVIEW was used"),0)
 			#define GL_CLIP_PLANE0 (Con_Printf("GL_CLIP_PLANE0 was used"),0)
 			#define GL_MODULATE (Con_Printf("GL_MODULATE was used"),0)
 			#define GL_FLAT (Con_Printf("GL_FLAT was used"),0)

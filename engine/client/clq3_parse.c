@@ -887,6 +887,8 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
 	cl.servertime = ccs.serverTime / 1000.0f;
 
+	cl.gametime = cl.oldgametime = cl.servertime;
+
 	//reuse the q1 array
 	cmd->servertime = ccs.serverTime;
 	cmd->weapon = ccs.selected_weapon;

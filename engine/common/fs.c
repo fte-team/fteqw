@@ -2593,6 +2593,17 @@ void FS_StartupWithGame(int gamenum)
 		COM_Gamedir(com_argv[i+1]);
 	}
 
+#if 1//def ANDROID
+	{
+		vfsfile_t *f;
+		//write a .nomedia file to avoid people from getting random explosion sounds etc intersperced with their music
+		f = FS_OpenVFS(".nomedia", "rb", FS_ROOT);
+		if (f)
+			VFS_CLOSE(f);
+		else
+			FS_WriteFile(".nomedia", NULL, 0, FS_ROOT);
+	}
+#endif
 
 	if (gamemode_info[gamenum].customexec)
 		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);

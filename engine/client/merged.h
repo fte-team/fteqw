@@ -212,16 +212,17 @@ typedef enum uploadfmt
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
 typedef enum backendmode_e
 {
-        BEM_STANDARD,           //regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
-        BEM_DEPTHONLY,          //just a quick depth pass. textures used only for alpha test (shadowmaps).
-        BEM_STENCIL,            //used for drawing shadow volumes to the stencil buffer.
-        BEM_DEPTHDARK,          //a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
+        BEM_STANDARD,			//regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
+        BEM_DEPTHONLY,			//just a quick depth pass. textures used only for alpha test (shadowmaps).
+		BEM_WIREFRAME,			//for debugging or something
+        BEM_STENCIL,			//used for drawing shadow volumes to the stencil buffer.
+        BEM_DEPTHDARK,			//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
 		BEM_CREPUSCULAR,		//sky is special, everything else completely black
 		BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
-        BEM_LIGHT,              //we have a valid light
-        BEM_SMAPLIGHTSPOT,      //we have a spot light using a shadowmap
-        BEM_SMAPLIGHT,          //we have a light using a shadowmap
-		BEM_FOG                 //drawing a fog volume
+        BEM_LIGHT,				//we have a valid light
+        BEM_SMAPLIGHTSPOT,		//we have a spot light using a shadowmap
+        BEM_SMAPLIGHT,			//we have a light using a shadowmap
+		BEM_FOG					//drawing a fog volume
 } backendmode_t;
 
 typedef struct rendererinfo_s {

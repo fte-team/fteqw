@@ -646,8 +646,8 @@ typedef struct {
 
 typedef struct
 {
-	demobuf_t	*dbuf;
-	dbuffer_t	dbuffer;
+//	demobuf_t	*dbuf;
+//	dbuffer_t	dbuffer;
 	sizebuf_t	datagram;
 	qbyte		datagram_data[MSG_BUF_SIZE];
 	int			lastto;
@@ -1270,8 +1270,7 @@ typedef struct mvddest_s {
 } mvddest_t;
 void SV_MVDPings (void);
 void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player);
-void SV_MVDWriteToDisk(int type, int to, float time);
-qboolean MVDWrite_Begin(qbyte type, int to, int size);
+sizebuf_t *MVDWrite_Begin(qbyte type, int to, int size);
 void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur);
 void SV_MVDStop (int reason, qboolean mvdonly);
 void SV_MVDStop_f (void);

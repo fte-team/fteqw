@@ -2351,10 +2351,11 @@ void SV_VoiceReadPacket(void)
 
 	if (sv.mvdrecording && sv_voip_record.ival && !(sv_voip_record.ival == 2 && !host_client->spectator))
 	{
+		sizebuf_t *msg;
 		// non-team messages should be seen always, even if not tracking any player
 		if (vt == VT_ALL && (!host_client->spectator || sv_spectalk.ival))
 		{
-			MVDWrite_Begin (dem_all, 0, ring->datalen+6);
+			msg = MVDWrite_Begin (dem_all, 0, ring->datalen+6);
 		}
 		else
 		{
@@ -2363,15 +2364,15 @@ void SV_VoiceReadPacket(void)
 				(ring->receiver[1]<<8) |
 				(ring->receiver[2]<<16) |
 				(ring->receiver[3]<<24);
-			MVDWrite_Begin (dem_multiple, cls, ring->datalen+6);
+			msg = MVDWrite_Begin (dem_multiple, cls, ring->datalen+6);
 		}
 
-		MSG_WriteByte( &demo.dbuf->sb, svcfte_voicechat);
-		MSG_WriteByte( &demo.dbuf->sb, ring->sender);
-		MSG_WriteByte( &demo.dbuf->sb, ring->gen);
-		MSG_WriteByte( &demo.dbuf->sb, ring->seq);
-		MSG_WriteShort(&demo.dbuf->sb, ring->datalen);
-		SZ_Write(      &demo.dbuf->sb, ring->data, ring->datalen);
+		MSG_WriteByte(msg, svcfte_voicechat);
+		MSG_WriteByte(msg, ring->sender);
+		MSG_WriteByte(msg, ring->gen);
+		MSG_WriteByte(msg, ring->seq);
+		MSG_WriteShort(msg, ring->datalen);
+		SZ_Write(msg, ring->data, ring->datalen);
 	}
 }
 void SV_VoiceInitClient(client_t *client)
@@ -3088,6 +3089,7 @@ void SV_Say (qboolean team)
 	char	t1[32], *t2;
 	int cls = 0;
 	float floodtime;
+	sizebuf_t *msg;
 
 	qboolean sent[MAX_CLIENTS];	//so we don't send to the same splitscreen connection twice. (it's ugly)
 	int cln;
@@ -3222,15 +3224,13 @@ void SV_Say (qboolean team)
 
 	// non-team messages should be seen always, even if not tracking any player
 	if (!team && ((host_client->spectator && sv_spectalk.value) || !host_client->spectator))
-	{
-		MVDWrite_Begin (dem_all, 0, strlen(text)+3);
-	}
+		msg = MVDWrite_Begin (dem_all, 0, strlen(text)+3);
 	else
-		MVDWrite_Begin (dem_multiple, cls, strlen(text)+3);
+		msg = MVDWrite_Begin (dem_multiple, cls, strlen(text)+3);
 
-	MSG_WriteByte (&demo.dbuf->sb, svc_print);
-	MSG_WriteByte (&demo.dbuf->sb, PRINT_CHAT);
-	MSG_WriteString (&demo.dbuf->sb, text);
+	MSG_WriteByte (msg, svc_print);
+	MSG_WriteByte (msg, PRINT_CHAT);
+	MSG_WriteString (msg, text);
 }
 
 
@@ -3664,11 +3664,11 @@ void SV_SetInfo_f (void)
 
 		if (sv.mvdrecording)
 		{
-			MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(val)+4);
-			MSG_WriteByte (&demo.dbuf->sb, svc_setinfo);
-			MSG_WriteByte (&demo.dbuf->sb, i);
-			MSG_WriteString (&demo.dbuf->sb, key);
-			MSG_WriteString (&demo.dbuf->sb, val);
+			sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(val)+4);
+			MSG_WriteByte (msg, svc_setinfo);
+			MSG_WriteByte (msg, i);
+			MSG_WriteString (msg, key);
+			MSG_WriteString (msg, val);
 		}
 	}
 

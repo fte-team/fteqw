@@ -1230,7 +1230,7 @@ void Hunk_Check (void)
 	for (h = (hunk_t *)hunk_base ; (qbyte *)h != hunk_base + hunk_low_used ; )
 	{
 		if (h->sentinal != HUNK_SENTINAL)
-			Sys_Error ("Hunk_Check: trahsed sentinal");
+			Sys_Error ("Hunk_Check: trashed sentinal");
 		if (h->size < 16+HUNKDEBUG*2 || h->size + (qbyte *)h - hunk_base > hunk_size)
 			Sys_Error ("Hunk_Check: bad size");
 #if HUNKDEBUG > 0
@@ -1243,9 +1243,9 @@ void Hunk_Check (void)
 			for (i = 0; i < HUNKDEBUG; i++)
 			{
 				if (present[i] != sentinalkey)
-					*(int*)0 = -3;
+					Sys_Error ("Hunk_Check: trashed pre-sentinal on \"%s\"", h->name);
 				if (postsent[i] != sentinalkey)
-					*(int*)0 = -3;
+					Sys_Error ("Hunk_Check: trashed post-sentinal on \"%s\"", h->name);
 			}
 		}
 #endif

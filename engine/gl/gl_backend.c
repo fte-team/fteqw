@@ -1,7 +1,6 @@
 #include "quakedef.h"
 
 //#define FORCESTATE
-//#define WIREFRAME
 
 #ifdef GLQUAKE
 
@@ -26,7 +25,9 @@
 
 extern cvar_t gl_overbright;
 extern cvar_t gl_ati_truform;
+extern cvar_t r_wireframe;
 
+//simple dlight
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program rtlight%s\n\
@@ -41,7 +42,8 @@ static const char LIGHTPASS_SHADER[] = "\
 		map $specular\n\
 	}\n\
 }";
-static const char RTLIGHTCUBE_SHADER[] = "\
+//dlight with cubemap projection
+static const char RTLIGHTCUBEPROJ_SHADER[] = "\
 {\n\
 	program rtlight%s\n\
 	{\n\
@@ -80,6 +82,9 @@ static const char PCFPASS_SHADER[] = "\
 		map $specular\n\
 	}\n\
 	{\n\
+		map $lightcubemap\n\
+	}\n\
+	{\n\
 		map $shadowmap\n\
 	}\n\
 }";
@@ -102,8 +107,8 @@ struct {
 
 		qboolean inited_shader_rtlight;
 		const shader_t *shader_rtlight;
-		qboolean inited_shader_cube;
-		const shader_t *shader_cube;
+		qboolean inited_shader_cubeproj;
+		const shader_t *shader_cubeproj;
 		qboolean inited_shader_smap;
 		const shader_t *shader_smap;
 		qboolean inited_shader_spot;
@@ -213,44 +218,36 @@ struct {
 
 static void BE_PolyOffset(qboolean pushdepth)
 {
+	polyoffset_t po;
+	po.factor = shaderstate.curshader->polyoffset.factor;
+	po.unit = shaderstate.curshader->polyoffset.unit;
+
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
 		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
 		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
-		polyoffset_t po;
-		po.factor = shaderstate.curshader->polyoffset.factor + r_polygonoffset_submodel_factor.value;
-		po.unit = shaderstate.curshader->polyoffset.unit + r_polygonoffset_submodel_offset.value;
+		po.factor += r_polygonoffset_submodel_factor.value;
+		po.unit += r_polygonoffset_submodel_offset.value;
+	}
+	if (shaderstate.mode == BEM_DEPTHONLY)
+	{
+		po.factor += 5;
+		po.unit += 25;
+	}
 
 #ifndef FORCESTATE
-		if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
+	if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
 #endif
-		{
-			shaderstate.curpolyoffset = po;
-			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
-			{
-				qglEnable(GL_POLYGON_OFFSET_FILL);
-				qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
-			}
-			else
-				qglDisable(GL_POLYGON_OFFSET_FILL);
-		}
-	}
-	else
 	{
-#ifndef FORCESTATE
-		if (*(int*)&shaderstate.curpolyoffset.factor != *(int*)&shaderstate.curshader->polyoffset.factor || *(int*)&shaderstate.curpolyoffset.unit != *(int*)&shaderstate.curshader->polyoffset.unit)
-#endif
+		shaderstate.curpolyoffset = po;
+		if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
 		{
-			shaderstate.curpolyoffset = shaderstate.curshader->polyoffset;
-			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
-			{
-				qglEnable(GL_POLYGON_OFFSET_FILL);
-				qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
-			}
-			else
-				qglDisable(GL_POLYGON_OFFSET_FILL);
+			qglEnable(GL_POLYGON_OFFSET_FILL);
+			qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
 		}
+		else
+			qglDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }
 
@@ -343,12 +340,6 @@ void GL_SetShaderState2D(qboolean is2d)
 {
 	shaderstate.updatetime = realtime;
 	shaderstate.force2d = is2d;
-#ifdef WIREFRAME
-	if (!is2d)
-		qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	else
-		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-#endif
 	if (is2d)
 		memcpy(shaderstate.modelviewmatrix, r_refdef.m_view, sizeof(shaderstate.modelviewmatrix));
 	BE_SelectMode(BEM_STANDARD);
@@ -910,17 +901,19 @@ void R_IBrokeTheArrays(void)
 
 #ifdef RTLIGHTS
 //called from gl_shadow
-void BE_SetupForShadowMap(void)
+void BE_SetupForShadowMap(texid_t shadowmaptex)
 {
+	shaderstate.curshadowmap = shadowmaptex;
 	while(shaderstate.lastpasstmus>0)
 	{
 		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 	}
 
+	shaderstate.shaderbits &= ~SBITS_MISC_DEPTHWRITE;
+
 	qglShadeModel(GL_FLAT);
 	BE_SetPassBlendMode(0, PBM_REPLACE);
-	qglDepthMask(GL_TRUE);
-	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
+	GL_ForceDepthWritable();
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
 	BE_SelectMode(BEM_DEPTHONLY);
@@ -930,6 +923,9 @@ void BE_SetupForShadowMap(void)
 static void T_Gen_CurrentRender(int tmu)
 {
 	int vwidth, vheight;
+	if (r_refdef.recurse)
+		return;
+
 	if (gl_config.arb_texture_non_power_of_two)
 	{
 		vwidth = vid.pixelwidth;
@@ -1140,10 +1136,10 @@ void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
 	sprintf(shadertext, LIGHTPASS_SHADER, "");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
-void Shader_LightPass_Cube(char *shortname, shader_t *s, const void *args)
+void Shader_LightPass_CubeProj(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, RTLIGHTCUBE_SHADER, "#CUBE");
+	sprintf(shadertext, RTLIGHTCUBEPROJ_SHADER, "#CUBEPROJ");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
@@ -1246,10 +1242,10 @@ void GLBE_Init(void)
 		shaderstate.inited_shader_rtlight = true;
 		shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
 	}
-	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_cube && gl_config.arb_shader_objects)
+	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_cubeproj && gl_config.arb_shader_objects)
 	{
-		shaderstate.inited_shader_cube = true;
-		shaderstate.shader_cube = R_RegisterCustom("rtlight_sube", Shader_LightPass_Cube, NULL);
+		shaderstate.inited_shader_cubeproj = true;
+		shaderstate.shader_cubeproj = R_RegisterCustom("rtlight_cubeproj", Shader_LightPass_CubeProj, NULL);
 	}
 
 	gl_overbright.modified = true; /*in case the d3d renderer does the same*/
@@ -2842,10 +2838,17 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolourscale);
 			break;
 		case SP_LIGHTPROJMATRIX:
+			{
+				float t[16];
+				Matrix4x4_CM_Projection_Far(t, 90, 90, 4, 3000);
+				qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
+			}
+			break;
+		case SP_LIGHTCUBEMATRIX:
 			/*light's texture projection matrix*/
 			{
 				float t[16];
-				Matrix4_Multiply(shaderstate.lightprojmatrix, shaderstate.modelmatrix, t);
+				Matrix4_Multiply(shaderstate.modelmatrix, shaderstate.lightprojmatrix, t);
 				qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
 			}
 			break;
@@ -3105,10 +3108,10 @@ void GLBE_SelectMode(backendmode_t mode)
 				shaderstate.inited_shader_rtlight = true;
 				shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
 			}
-			if (!shaderstate.inited_shader_cube && gl_config.arb_shader_objects)
+			if (!shaderstate.inited_shader_cubeproj && gl_config.arb_shader_objects)
 			{
-				shaderstate.inited_shader_cube = true;
-				shaderstate.shader_cube = R_RegisterCustom("rtlight_sube", Shader_LightPass_Cube, NULL);
+				shaderstate.inited_shader_cubeproj = true;
+				shaderstate.shader_cubeproj = R_RegisterCustom("rtlight_sube", Shader_LightPass_CubeProj, NULL);
 			}
 			break;
 
@@ -3197,34 +3200,27 @@ void BE_SelectFog(vec3_t colour, float alpha, float density)
 
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
-	static float shadowprojectionbias[16] =
-	{
-		0.5f, 0.0f, 0.0f, 0.0f,
-		0.0f, 0.5f, 0.0f, 0.0f,
-		0.0f, 0.0f, 0.5f, 0.0f,
-		0.5f, 0.5f, 0.4993f, 1.0f
-	};
-	float view[16], proj[16], t[16];
+	float view[16], proj[16];
 
 	/*generate light projection information*/
 	float nearplane = 4;
 	if (dl->fov)
+	{
 		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, nearplane, dl->radius);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(view, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
+		Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
+	}
 	else
+	{
 		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, dl->radius);
-	Matrix4x4_CM_ModelViewMatrixFromAxis(view, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
-	Matrix4_Multiply(shadowprojectionbias, proj, t);
-	Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
-
+		Matrix4x4_CM_ModelViewMatrixFromAxis(shaderstate.lightprojmatrix, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
+	}
 
 	/*simple info*/
 	shaderstate.lightradius = dl->radius;
 	VectorCopy(dl->origin, shaderstate.lightorg);
 	VectorCopy(dl->lightcolourscales, shaderstate.lightcolourscale);
 	VectorCopy(colour, shaderstate.lightcolours);
-#ifdef RTLIGHTS
-	shaderstate.curshadowmap = dl->stexture;
-#endif
 #ifdef RTLIGHTS
 	shaderstate.lightcubemap = dl->cubetexture;
 #endif
@@ -3436,10 +3432,12 @@ static void DrawMeshes(void)
 		break;
 #ifdef RTLIGHTS
 	case BEM_SMAPLIGHTSPOT:
-		BE_RenderMeshProgram(shaderstate.shader_spot, shaderstate.shader_spot->passes);
+		if (shaderstate.shader_smap->prog)
+			BE_RenderMeshProgram(shaderstate.shader_spot, shaderstate.shader_spot->passes);
 		break;
 	case BEM_SMAPLIGHT:
-		BE_RenderMeshProgram(shaderstate.shader_smap, shaderstate.shader_smap->passes);
+		if (shaderstate.shader_smap->prog)
+			BE_RenderMeshProgram(shaderstate.shader_smap, shaderstate.shader_smap->passes);
 		break;
 	case BEM_LIGHT:
 		if (!shaderstate.inited_shader_rtlight)
@@ -3447,9 +3445,9 @@ static void DrawMeshes(void)
 			BE_LegacyLighting();
 			break;
 		}
-		if (TEXVALID(shaderstate.lightcubemap))
-			BE_RenderMeshProgram(shaderstate.shader_cube, shaderstate.shader_cube->passes);
-		else
+		if (TEXVALID(shaderstate.lightcubemap) && shaderstate.shader_cubeproj->prog)
+			BE_RenderMeshProgram(shaderstate.shader_cubeproj, shaderstate.shader_cubeproj->passes);
+		else if (shaderstate.shader_rtlight->prog)
 			BE_RenderMeshProgram(shaderstate.shader_rtlight, shaderstate.shader_rtlight->passes);
 		break;
 	case BEM_DEPTHNORM:
@@ -3481,6 +3479,23 @@ static void DrawMeshes(void)
 		BE_SubmitMeshChain();
 		break;
 
+	case BEM_WIREFRAME:
+		//FIXME: do this with a shader instead? its not urgent as we can draw the shader normally anyway, just faster.
+		GL_DeselectVAO();
+		GL_DeSelectProgram();
+		shaderstate.pendingcolourvbo = 0;
+		shaderstate.pendingcolourpointer = NULL;
+		Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
+		while(shaderstate.lastpasstmus>0)
+		{
+			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+		}
+		BE_SetPassBlendMode(0, PBM_REPLACE);
+		BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits | SBITS_MISC_NODEPTHTEST);
+
+		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR));
+		BE_SubmitMeshChain();
+		break;
 	case BEM_DEPTHDARK:
 		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright) && !gl_config.nofixedfunc)
 		{
@@ -3756,14 +3771,16 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					continue;
 				}
 			}
-			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR)
+			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
 				continue;
 		}
 
-		if (batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP))
+		if ((batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
 		{
 			//these flags require rendering some view as an fbo
 			if (r_refdef.recurse)
+				continue;
+			if (shaderstate.mode != BEM_STANDARD && shaderstate.mode != BEM_DEPTHDARK)
 				continue;
 
 			if (batch->shader->flags & SHADER_HASREFLECT)
@@ -4227,7 +4244,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		}
 
 #ifdef RTLIGHTS
-		if (vis)
+		if (drawworld)
 		{
 			RSpeedRemark();
 			TRACE(("GLBE_DrawWorld: drawing lights\n"));
@@ -4249,10 +4266,28 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 		}
 */
+
+		if (r_wireframe.ival)
+		{
+			BE_SelectMode(BEM_WIREFRAME);
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+			BE_SelectMode(BEM_STANDARD);
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
 	}
 	else
 	{
 		GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+
+		if (r_wireframe.ival)
+		{
+			BE_SelectMode(BEM_WIREFRAME);
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+			BE_SelectMode(BEM_STANDARD);
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
 	}
 
 	BE_SelectEntity(&r_worldentity);

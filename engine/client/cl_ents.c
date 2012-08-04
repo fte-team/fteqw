@@ -116,12 +116,10 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 {
 	void *sm;
 	texid_t st;
-	TEXASSIGNF(st, dl->stexture);
 	sm = dl->worldshadowmesh;
 	memset (dl, 0, sizeof(*dl));
 	dl->rebuildcache = true;
 	dl->worldshadowmesh = sm;
-	TEXASSIGNF(dl->stexture, st);
 	dl->axis[0][0] = 1;
 	dl->axis[1][1] = 1;
 	dl->axis[2][2] = 1;
@@ -873,10 +871,10 @@ void CL_ParsePacketEntities (qboolean delta)
 
 	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
 	{
-		extern float nextdemotime;
+		extern float olddemotime;	//time from the most recent demo packet
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
-		cl.gametime = nextdemotime;
+		cl.gametime = olddemotime;
 		cl.gametimemark = realtime;
 	}
 	else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
@@ -2872,6 +2870,8 @@ void CL_LinkPacketEntities (void)
 //			angles[1] += sin(realtime)*8;
 //			angles[0] += cos(realtime*1.13)*5;
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+
+			VectorMA(dl->origin, 16, dl->axis[0], dl->origin);
 		}
 
 		// add automatic particle trails
@@ -4146,7 +4146,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused)
+	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused || cl.worldmodel->needload)
 		return;
 
 	frame = &cl.frames[cl.parsecount&UPDATE_MASK];

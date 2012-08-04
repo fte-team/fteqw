@@ -60,6 +60,10 @@ typedef struct mesh_s
 	unsigned int	vbofirstvert;
 	unsigned int	vbofirstelement;
 
+	/*
+	FIXME: move most of this stuff out into a vbo struct
+	*/
+
 	float			xyz_blendw[2];
 
 	/*arrays used for rendering*/
@@ -86,8 +90,6 @@ typedef struct mesh_s
 	vec4_t			*boneweights;
 } mesh_t;
 extern mesh_t nullmesh;
-
-extern int gl_canbumpmap;
 
 /*
 batches are generated for each shader/ent as required.
@@ -1019,6 +1021,8 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname);	//call this after loading a bsp
 qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, struct trace_s *trace);
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);
+struct fragmentdecal_s;
+void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);
 #endif
 
 

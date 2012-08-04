@@ -666,9 +666,40 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
 
-	if (0 && !gl_config.nofixedfunc)
+	if (Cvar_Get("gl_blacklist_debug_glsl", "0", CVAR_RENDERERLATCH, "gl blacklists")->ival && !gl_config.nofixedfunc)
 	{
 		Con_Printf(CON_NOTICE "GLSL disabled\n");
+		gl_config.arb_shader_objects = false;
+		qglCreateProgramObjectARB	= NULL;
+		qglDeleteProgramObject_		= NULL;
+		qglDeleteShaderObject_		= NULL;
+		qglUseProgramObjectARB		= NULL;
+		qglCreateShaderObjectARB	= NULL;
+		qglGetProgramParameteriv_	= NULL;
+		qglGetShaderParameteriv_	= NULL;
+		qglAttachObjectARB			= NULL;
+		qglGetProgramInfoLog_		= NULL;
+		qglGetShaderInfoLog_		= NULL;
+		qglShaderSourceARB			= NULL;
+		qglCompileShaderARB			= NULL;
+		qglLinkProgramARB			= NULL;
+		qglBindAttribLocationARB	= NULL;
+		qglGetAttribLocationARB		= NULL;
+		qglVertexAttribPointer		= NULL;
+		qglGetVertexAttribiv		= NULL;
+		qglEnableVertexAttribArray	= NULL;
+		qglDisableVertexAttribArray	= NULL;
+		qglGetUniformLocationARB	= NULL;
+		qglUniformMatrix4fvARB		= NULL;
+		qglUniformMatrix3x4fv		= NULL;
+		qglUniformMatrix4x3fv		= NULL;
+		qglUniform4fARB				= NULL;
+		qglUniform4fvARB			= NULL;
+		qglUniform3fARB				= NULL;
+		qglUniform3fvARB			= NULL;
+		qglUniform2fvARB			= NULL;
+		qglUniform1iARB				= NULL;
+		qglUniform1fARB				= NULL;
 	}
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.

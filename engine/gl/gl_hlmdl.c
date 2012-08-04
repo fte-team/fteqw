@@ -851,9 +851,8 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 {
 	hlmodelcache_t *modelc = Mod_Extradata(rent->model);
 	hlmodel_t model;
-	int						body, m, v;
+	int						body, m;
 	short					*skins;
-	int bgroup, cbone, lastbone;
 	int batchid = 0;
 	static mesh_t bmesh, *mptr = &bmesh;
 

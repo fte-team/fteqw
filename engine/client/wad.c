@@ -638,7 +638,6 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		}
 		else if (!strcmp("fog", key))
 		{
-			char *s;
 			void CL_Fog_f(void);
 			key[0] = 'f';
 			key[1] = ' ';

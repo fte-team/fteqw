@@ -3119,6 +3119,422 @@ void TTS_Say_f(void)
 {
 	TTS_SayAsciiString(Cmd_Args());
 }
+
+#define ISpRecognizer void
+#define SPPHRASE void
+#define SPSERIALIZEDPHRASE void
+#define SPSTATEHANDLE void*
+#define SPGRAMMARWORDTYPE int
+#define SPPROPERTYINFO void
+#define SPLOADOPTIONS void*
+#define SPBINARYGRAMMAR void*
+#define SPRULESTATE int
+#define SPTEXTSELECTIONINFO void
+#define SPWORDPRONOUNCEABLE void
+#define SPGRAMMARSTATE int
+typedef struct ISpRecoResult ISpRecoResult;
+typedef struct ISpRecoContext ISpRecoContext;
+typedef struct ISpRecoGrammar ISpRecoGrammar;
+
+typedef struct ISpRecoContextVtbl
+{
+	HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+		ISpRecoContext * This,
+		/* [in] */ REFIID riid,
+		/* [iid_is][out] */ void **ppvObject);
+
+	ULONG ( STDMETHODCALLTYPE *AddRef )( 
+		ISpRecoContext * This);
+
+	ULONG ( STDMETHODCALLTYPE *Release )( 
+		ISpRecoContext * This);
+
+    HRESULT ( STDMETHODCALLTYPE *SetNotifySink )( 
+        ISpRecoContext * This,
+        /* [in] */ ISpNotifySink *pNotifySink);
+    
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyWindowMessage )( 
+        ISpRecoContext * This,
+        /* [in] */ HWND hWnd,
+        /* [in] */ UINT Msg,
+        /* [in] */ WPARAM wParam,
+        /* [in] */ LPARAM lParam);
+    
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyCallbackFunction )( 
+        ISpRecoContext * This,
+        /* [in] */ SPNOTIFYCALLBACK *pfnCallback,
+        /* [in] */ WPARAM wParam,
+        /* [in] */ LPARAM lParam);
+    
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyCallbackInterface )( 
+        ISpRecoContext * This,
+        /* [in] */ ISpNotifyCallback *pSpCallback,
+        /* [in] */ WPARAM wParam,
+        /* [in] */ LPARAM lParam);
+    
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyWin32Event )( 
+        ISpRecoContext * This);
+    
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *WaitForNotifyEvent )( 
+        ISpRecoContext * This,
+        /* [in] */ DWORD dwMilliseconds);
+    
+    /* [local] */ HANDLE ( STDMETHODCALLTYPE *GetNotifyEventHandle )( 
+        ISpRecoContext * This);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetInterest )( 
+        ISpRecoContext * This,
+        /* [in] */ ULONGLONG ullEventInterest,
+        /* [in] */ ULONGLONG ullQueuedInterest);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetEvents )( 
+        ISpRecoContext * This,
+        /* [in] */ ULONG ulCount,
+        /* [size_is][out] */ SPEVENT *pEventArray,
+        /* [out] */ ULONG *pulFetched);
+
+    HRESULT ( STDMETHODCALLTYPE *GetInfo )( 
+        ISpRecoContext * This,
+        /* [out] */ SPEVENTSOURCEINFO *pInfo);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetRecognizer )( 
+        ISpRecoContext * This,
+        /* [out] */ ISpRecognizer **ppRecognizer);
+    
+    HRESULT ( STDMETHODCALLTYPE *CreateGrammar )( 
+        ISpRecoContext * This,
+        /* [in] */ ULONGLONG ullGrammarId,
+        /* [out] */ ISpRecoGrammar **ppGrammar);
+} ISpRecoContextVtbl;
+struct ISpRecoContext
+{
+    struct ISpRecoContextVtbl *lpVtbl;
+};
+
+typedef struct ISpRecoResultVtbl
+{
+    HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+        ISpRecoResult * This,
+        /* [in] */ REFIID riid,
+        /* [iid_is][out] */ void **ppvObject);
+    
+    ULONG ( STDMETHODCALLTYPE *AddRef )( 
+        ISpRecoResult * This);
+    
+    ULONG ( STDMETHODCALLTYPE *Release )( 
+        ISpRecoResult * This);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetPhrase )( 
+        ISpRecoResult * This,
+        /* [out] */ SPPHRASE **ppCoMemPhrase);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetSerializedPhrase )( 
+        ISpRecoResult * This,
+        /* [out] */ SPSERIALIZEDPHRASE **ppCoMemPhrase);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetText )( 
+        ISpRecoResult * This,
+        /* [in] */ ULONG ulStart,
+        /* [in] */ ULONG ulCount,
+        /* [in] */ BOOL fUseTextReplacements,
+        /* [out] */ WCHAR **ppszCoMemText,
+        /* [out] */ BYTE *pbDisplayAttributes);
+    
+    HRESULT ( STDMETHODCALLTYPE *Discard )( 
+        ISpRecoResult * This,
+        /* [in] */ DWORD dwValueTypes);
+#if 0
+    HRESULT ( STDMETHODCALLTYPE *GetResultTimes )( 
+        ISpRecoResult * This,
+        /* [out] */ SPRECORESULTTIMES *pTimes);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetAlternates )( 
+        ISpRecoResult * This,
+        /* [in] */ ULONG ulStartElement,
+        /* [in] */ ULONG cElements,
+        /* [in] */ ULONG ulRequestCount,
+        /* [out] */ ISpPhraseAlt **ppPhrases,
+        /* [out] */ ULONG *pcPhrasesReturned);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetAudio )( 
+        ISpRecoResult * This,
+        /* [in] */ ULONG ulStartElement,
+        /* [in] */ ULONG cElements,
+        /* [out] */ ISpStreamFormat **ppStream);
+    
+    HRESULT ( STDMETHODCALLTYPE *SpeakAudio )( 
+        ISpRecoResult * This,
+        /* [in] */ ULONG ulStartElement,
+        /* [in] */ ULONG cElements,
+        /* [in] */ DWORD dwFlags,
+        /* [out] */ ULONG *pulStreamNumber);
+    
+    HRESULT ( STDMETHODCALLTYPE *Serialize )( 
+        ISpRecoResult * This,
+        /* [out] */ SPSERIALIZEDRESULT **ppCoMemSerializedResult);
+    
+    HRESULT ( STDMETHODCALLTYPE *ScaleAudio )( 
+        ISpRecoResult * This,
+        /* [in] */ const GUID *pAudioFormatId,
+        /* [in] */ const WAVEFORMATEX *pWaveFormatEx);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetRecoContext )( 
+        ISpRecoResult * This,
+        /* [out] */ ISpRecoContext **ppRecoContext);
+    
+#endif
+} ISpRecoResultVtbl;
+struct ISpRecoResult
+{
+    struct ISpRecoResultVtbl *lpVtbl;
+};
+
+typedef struct ISpRecoGrammarVtbl
+{
+    HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+        ISpRecoGrammar * This,
+        /* [in] */ REFIID riid,
+        /* [iid_is][out] */ void **ppvObject);
+    
+    ULONG ( STDMETHODCALLTYPE *AddRef )( 
+        ISpRecoGrammar * This);
+    
+    ULONG ( STDMETHODCALLTYPE *Release )( 
+        ISpRecoGrammar * This);
+    
+    HRESULT ( STDMETHODCALLTYPE *ResetGrammar )( 
+        ISpRecoGrammar * This,
+        /* [in] */ WORD NewLanguage);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetRule )( 
+        ISpRecoGrammar * This,
+        /* [in] */ const WCHAR *pszRuleName,
+        /* [in] */ DWORD dwRuleId,
+        /* [in] */ DWORD dwAttributes,
+        /* [in] */ BOOL fCreateIfNotExist,
+        /* [out] */ SPSTATEHANDLE *phInitialState);
+    
+    HRESULT ( STDMETHODCALLTYPE *ClearRule )( 
+        ISpRecoGrammar * This,
+        SPSTATEHANDLE hState);
+    
+    HRESULT ( STDMETHODCALLTYPE *CreateNewState )( 
+        ISpRecoGrammar * This,
+        SPSTATEHANDLE hState,
+        SPSTATEHANDLE *phState);
+    
+    HRESULT ( STDMETHODCALLTYPE *AddWordTransition )( 
+        ISpRecoGrammar * This,
+        SPSTATEHANDLE hFromState,
+        SPSTATEHANDLE hToState,
+        const WCHAR *psz,
+        const WCHAR *pszSeparators,
+        SPGRAMMARWORDTYPE eWordType,
+        float Weight,
+        const SPPROPERTYINFO *pPropInfo);
+    
+    HRESULT ( STDMETHODCALLTYPE *AddRuleTransition )( 
+        ISpRecoGrammar * This,
+        SPSTATEHANDLE hFromState,
+        SPSTATEHANDLE hToState,
+        SPSTATEHANDLE hRule,
+        float Weight,
+        const SPPROPERTYINFO *pPropInfo);
+    
+    HRESULT ( STDMETHODCALLTYPE *AddResource )( 
+        ISpRecoGrammar * This,
+        /* [in] */ SPSTATEHANDLE hRuleState,
+        /* [in] */ const WCHAR *pszResourceName,
+        /* [in] */ const WCHAR *pszResourceValue);
+    
+    HRESULT ( STDMETHODCALLTYPE *Commit )( 
+        ISpRecoGrammar * This,
+        DWORD dwReserved);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetGrammarId )( 
+        ISpRecoGrammar * This,
+        /* [out] */ ULONGLONG *pullGrammarId);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetRecoContext )( 
+        ISpRecoGrammar * This,
+        /* [out] */ ISpRecoContext **ppRecoCtxt);
+    
+    HRESULT ( STDMETHODCALLTYPE *LoadCmdFromFile )( 
+        ISpRecoGrammar * This,
+        /* [string][in] */ const WCHAR *pszFileName,
+        /* [in] */ SPLOADOPTIONS Options);
+    
+    HRESULT ( STDMETHODCALLTYPE *LoadCmdFromObject )( 
+        ISpRecoGrammar * This,
+        /* [in] */ REFCLSID rcid,
+        /* [string][in] */ const WCHAR *pszGrammarName,
+        /* [in] */ SPLOADOPTIONS Options);
+    
+    HRESULT ( STDMETHODCALLTYPE *LoadCmdFromResource )( 
+        ISpRecoGrammar * This,
+        /* [in] */ HMODULE hModule,
+        /* [string][in] */ const WCHAR *pszResourceName,
+        /* [string][in] */ const WCHAR *pszResourceType,
+        /* [in] */ WORD wLanguage,
+        /* [in] */ SPLOADOPTIONS Options);
+    
+    HRESULT ( STDMETHODCALLTYPE *LoadCmdFromMemory )( 
+        ISpRecoGrammar * This,
+        /* [in] */ const SPBINARYGRAMMAR *pGrammar,
+        /* [in] */ SPLOADOPTIONS Options);
+    
+    HRESULT ( STDMETHODCALLTYPE *LoadCmdFromProprietaryGrammar )( 
+        ISpRecoGrammar * This,
+        /* [in] */ REFGUID rguidParam,
+        /* [string][in] */ const WCHAR *pszStringParam,
+        /* [in] */ const void *pvDataPrarm,
+        /* [in] */ ULONG cbDataSize,
+        /* [in] */ SPLOADOPTIONS Options);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetRuleState )( 
+        ISpRecoGrammar * This,
+        /* [string][in] */ const WCHAR *pszName,
+        void *pReserved,
+        /* [in] */ SPRULESTATE NewState);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetRuleIdState )( 
+        ISpRecoGrammar * This,
+        /* [in] */ ULONG ulRuleId,
+        /* [in] */ SPRULESTATE NewState);
+    
+    HRESULT ( STDMETHODCALLTYPE *LoadDictation )( 
+        ISpRecoGrammar * This,
+        /* [string][in] */ const WCHAR *pszTopicName,
+        /* [in] */ SPLOADOPTIONS Options);
+    
+    HRESULT ( STDMETHODCALLTYPE *UnloadDictation )( 
+        ISpRecoGrammar * This);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetDictationState )( 
+        ISpRecoGrammar * This,
+        /* [in] */ SPRULESTATE NewState);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetWordSequenceData )( 
+        ISpRecoGrammar * This,
+        /* [in] */ const WCHAR *pText,
+        /* [in] */ ULONG cchText,
+        /* [in] */ const SPTEXTSELECTIONINFO *pInfo);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetTextSelection )( 
+        ISpRecoGrammar * This,
+        /* [in] */ const SPTEXTSELECTIONINFO *pInfo);
+    
+    HRESULT ( STDMETHODCALLTYPE *IsPronounceable )( 
+        ISpRecoGrammar * This,
+        /* [string][in] */ const WCHAR *pszWord,
+        /* [out] */ SPWORDPRONOUNCEABLE *pWordPronounceable);
+    
+    HRESULT ( STDMETHODCALLTYPE *SetGrammarState )( 
+        ISpRecoGrammar * This,
+        /* [in] */ SPGRAMMARSTATE eGrammarState);
+    
+    HRESULT ( STDMETHODCALLTYPE *SaveCmd )( 
+        ISpRecoGrammar * This,
+        /* [in] */ IStream *pStream,
+        /* [optional][out] */ WCHAR **ppszCoMemErrorText);
+    
+    HRESULT ( STDMETHODCALLTYPE *GetGrammarState )( 
+        ISpRecoGrammar * This,
+        /* [out] */ SPGRAMMARSTATE *peGrammarState);
+} ISpRecoGrammarVtbl;
+struct ISpRecoGrammar
+{
+	struct ISpRecoGrammarVtbl *lpVtbl;
+};
+
+static ISpRecoContext *stt_recctx = NULL;
+static ISpRecoGrammar *stt_gram = NULL;
+void STT_Event(void)
+{
+	WCHAR *wstring, *i;
+	struct SPEVENT ev;
+	ISpRecoResult *rr;
+	HRESULT hr;
+	char asc[2048], *o;
+	int l;
+	unsigned short c;
+	char *nib = "0123456789abcdef";
+	if (!stt_gram)
+		return;
+
+	while (SUCCEEDED(hr = stt_recctx->lpVtbl->GetEvents(stt_recctx, 1, &ev, NULL)) && hr != S_FALSE)
+	{
+		rr = (ISpRecoResult*)ev.lParam;
+		rr->lpVtbl->GetText(rr, -1, -1, TRUE, &wstring, NULL);
+		for (l = sizeof(asc)-1, o = asc, i = wstring; l > 0 && *i; )
+		{
+			c = *i++;
+			if (c == '\n' || c == ';')
+			{
+			}
+			else if (c < 128)
+			{
+				*o++ = c;
+				l--;
+			}
+			else if (l > 6)
+			{
+				*o++ = '^';
+				*o++ = 'U';
+				*o++ = nib[(c>>12)&0xf];
+				*o++ = nib[(c>>8)&0xf];
+				*o++ = nib[(c>>4)&0xf];
+				*o++ = nib[(c>>0)&0xf];
+			}
+			else
+				break;
+		}
+		*o = 0;
+		CoTaskMemFree(wstring);
+		Cbuf_AddText("say tts ", RESTRICT_LOCAL);
+		Cbuf_AddText(asc, RESTRICT_LOCAL);
+		Cbuf_AddText("\n", RESTRICT_LOCAL);
+		rr->lpVtbl->Release(rr);
+	}
+}
+void STT_Init_f(void)
+{
+	static CLSID CLSID_SpSharedRecoContext	=	{0x47206204, 0x5ECA, 0x11D2, 0x96, 0x0F, 0x00, 0xC0, 0x4F, 0x8E, 0xE6, 0x28};
+	static CLSID IID_SpRecoContext			=	{0xF740A62F, 0x7C15, 0x489E, 0x82, 0x34, 0x94, 0x0A, 0x33, 0xD9, 0x27, 0x2D};
+
+	if (stt_gram)
+	{
+		stt_gram->lpVtbl->Release(stt_gram);
+		stt_recctx->lpVtbl->Release(stt_recctx);
+		stt_gram = NULL;
+		stt_recctx = NULL;
+		Con_Printf("Speech-to-text disabled\n");
+		return;
+	}
+
+	if (SUCCEEDED(CoCreateInstance(&CLSID_SpSharedRecoContext, NULL, CLSCTX_SERVER, &IID_SpRecoContext, &stt_recctx)))
+	{
+		ULONGLONG ev = (((ULONGLONG)1) << 38) | (((ULONGLONG)1) << 30) | (((ULONGLONG)1) << 33);
+		if (SUCCEEDED(stt_recctx->lpVtbl->SetNotifyWindowMessage(stt_recctx, mainwindow, WM_USER, 0, 0)))
+		if (SUCCEEDED(stt_recctx->lpVtbl->SetInterest(stt_recctx, ev, ev)))
+		if (SUCCEEDED(stt_recctx->lpVtbl->CreateGrammar(stt_recctx, 0, &stt_gram)))
+		{
+			if (SUCCEEDED(stt_gram->lpVtbl->LoadDictation(stt_gram, NULL, 0)))
+			if (SUCCEEDED(stt_gram->lpVtbl->SetDictationState(stt_gram, 1)))
+			{
+				//success!
+				Con_Printf("Speech-to-text active\n");
+				return;
+			}
+			stt_gram->lpVtbl->Release(stt_gram);
+		}
+		stt_recctx->lpVtbl->Release(stt_recctx);
+	}
+	stt_gram = NULL;
+	stt_recctx = NULL;
+
+	Con_Printf("Speech-to-text unavailable\n");
+}
 #endif
 
 qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
@@ -3127,6 +3543,7 @@ void Media_Init(void)
 {
 #ifdef _WIN32
 	Cmd_AddCommand("tts", TTS_Say_f);
+	Cmd_AddCommand("stt", STT_Init_f);
 	Cvar_Register(&tts_mode, "Gimmicks");
 #endif
 

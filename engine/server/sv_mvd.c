@@ -31,10 +31,10 @@ void SV_MVDStop_f (void);
 #define demo_size_padding 0x1000
 
 
-#define MIN_MVD_MEMORY 0x100000
-#define MAXSIZE (demobuffer->end < demobuffer->last ? \
-				demobuffer->start - demobuffer->end : \
-				demobuffer->maxsize - demobuffer->end)
+//#define MIN_MVD_MEMORY 0x100000
+//#define MAXSIZE (demobuffer->end < demobuffer->last ? \
+//				demobuffer->start - demobuffer->end : \
+//				demobuffer->maxsize - demobuffer->end)
 
 static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
@@ -59,10 +59,16 @@ cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
 cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
+void SV_WriteRecordMVDMessage (sizebuf_t *msg);
 
 demo_t			demo;
-static dbuffer_t	*demobuffer;
-static int	header = (char *)&((header_t*)0)->data - (char *)NULL;
+static float			demo_prevtime;
+//static dbuffer_t	*demobuffer;
+//static int	header = (char *)&((header_t*)0)->data - (char *)NULL;
+static sizebuf_t demomsg;
+int demomsgtype;
+int demomsgto;
+static char demomsgbuf[MAX_OVERALLMSGLEN];
 
 entity_state_t demo_entities[UPDATE_MASK+1][MAX_MVDPACKET_ENTITIES];
 client_frame_t demo_frames[UPDATE_MASK+1];
@@ -753,6 +759,7 @@ static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue)
 
 void SV_MVDPings (void)
 {
+	sizebuf_t *msg;
 	client_t *client;
 	int		j;
 
@@ -761,50 +768,45 @@ void SV_MVDPings (void)
 		if (client->state != cs_spawned)
 			continue;
 
-		MVDWrite_Begin (dem_all, 0, 7);
-		MSG_WriteByte(&demo.dbuf->sb, svc_updateping);
-		MSG_WriteByte(&demo.dbuf->sb,  j);
-		MSG_WriteShort(&demo.dbuf->sb,  SV_CalcPing(client, false));
-		MSG_WriteByte(&demo.dbuf->sb, svc_updatepl);
-		MSG_WriteByte (&demo.dbuf->sb, j);
-		MSG_WriteByte (&demo.dbuf->sb, client->lossage);
+		msg = MVDWrite_Begin (dem_all, 0, 7);
+		MSG_WriteByte(msg, svc_updateping);
+		MSG_WriteByte(msg,  j);
+		MSG_WriteShort(msg,  SV_CalcPing(client, false));
+		MSG_WriteByte(msg, svc_updatepl);
+		MSG_WriteByte (msg, j);
+		MSG_WriteByte (msg, client->lossage);
 	}
 }
 void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 {
 	char info[MAX_INFO_STRING];
 	qboolean dosizes;
+
 	if (!sv.mvdrecording)
 		return;
 
-	if (msg)
-		dosizes = false;
-	else
-	{
-		dosizes = true;
-		msg = &demo.dbuf->sb;
-	}
+	dosizes = !msg;
 
 	if (dosizes)
-		MVDWrite_Begin (dem_all, 0, 4);
+		msg = MVDWrite_Begin (dem_all, 0, 4);
 	MSG_WriteByte (msg, svc_updatefrags);
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteShort (msg, player->old_frags);
 
 	if (dosizes)
-		MVDWrite_Begin (dem_all, 0, 4);
+		msg = MVDWrite_Begin (dem_all, 0, 4);
 	MSG_WriteByte (msg, svc_updateping);
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteShort (msg, SV_CalcPing(player, false));
 
 	if (dosizes)
-		MVDWrite_Begin (dem_all, 0, 3);
+		msg = MVDWrite_Begin (dem_all, 0, 3);
 	MSG_WriteByte (msg, svc_updatepl);
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteByte (msg, player->lossage);
 
 	if (dosizes)
-		MVDWrite_Begin (dem_all, 0, 6);
+		msg = MVDWrite_Begin (dem_all, 0, 6);
 	MSG_WriteByte (msg, svc_updateentertime);
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteFloat (msg, realtime - player->connection_started);
@@ -815,47 +817,14 @@ void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 	Info_RemoveKey(info, "*ip");
 
 	if (dosizes)
-		MVDWrite_Begin (dem_all, 0, 7 + strlen(info));
+		msg = MVDWrite_Begin (dem_all, 0, 7 + strlen(info));
 	MSG_WriteByte (msg, svc_updateuserinfo);
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteLong (msg, player->userid);
 	MSG_WriteString (msg, info);
 }
 
-void MVDBuffer_Init(dbuffer_t *dbuffer, qbyte *buf, size_t size)
-{
-	demobuffer = dbuffer;
-
-	demobuffer->data = buf;
-	demobuffer->maxsize = size;
-	demobuffer->start = 0;
-	demobuffer->end = 0;
-	demobuffer->last = 0;
-}
-
-/*
-==============
-MVD_SetMsgBuf
-
-Sets the frame message buffer
-==============
-*/
-
-void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur)
-{
-	// fix the maxsize of previous msg buffer,
-	// we won't be able to write there anymore
-	if (prev != NULL)
-		prev->sb.maxsize = prev->bufsize;
-
-	demo.dbuf = cur;
-	memset(demo.dbuf, 0, sizeof(*demo.dbuf));
-
-	demo.dbuf->sb.data = demobuffer->data + demobuffer->end;
-	demo.dbuf->sb.maxsize = MAXSIZE;
-	demo.dbuf->sb.prim = demo.recorder.netchan.netprim;
-}
-
+#if 0
 /*
 ==============
 DemoWriteToDisk
@@ -866,7 +835,7 @@ Message is cleared from demobuf after that
 ==============
 */
 
-void SV_MVDWriteToDisk(int type, int to, float time)
+static void SV_MVDWriteToDisk(int type, int to, float time)
 {
 	int pos = 0, oldm, oldd;
 	header_t *p;
@@ -921,63 +890,21 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 		demobuffer->start = 0;
 	}
 }
+#endif
 
-/*
-==============
-MVDSetBuf
-
-Sets position in the buf for writing to specific client
-==============
-*/
-
-static void MVDSetBuf(qbyte type, int to)
+sizebuf_t *MVDWrite_Begin(qbyte type, int to, int size)
 {
-	header_t *p;
-	int pos = 0;
+	if (demomsg.cursize)
+		SV_WriteMVDMessage(&demomsg, demomsgtype, demomsgto, demo_prevtime);
 
-	p = (header_t *)demo.dbuf->sb.data;
+	demomsgtype = type;
+	demomsgto = to;
 
-	while (pos < demo.dbuf->bufsize)
-	{
-		pos += header + p->size;
-
-		if (type == p->type && to == p->to && !p->full)
-		{
-			demo.dbuf->sb.cursize = pos;
-			demo.dbuf->h = p;
-			return;
-		}
-
-		p = (header_t *)(p->data + p->size);
-	}
-	// type&&to not exist in the buf, so add it
-
-	p->type = type;
-	p->to = to;
-	p->size = 0;
-	p->full = 0;
-
-	demo.dbuf->bufsize += header;
-	demo.dbuf->sb.cursize = demo.dbuf->bufsize;
-	demobuffer->end += header;
-	demo.dbuf->h = p;
-}
-
-void MVDMoveBuf(void)
-{
-	// set the last message mark to the previous frame (i/e begining of this one)
-	demobuffer->last = demobuffer->end - demo.dbuf->bufsize;
-
-	// move buffer to the begining of demo buffer
-	memmove(demobuffer->data, demo.dbuf->sb.data, demo.dbuf->bufsize);
-	demo.dbuf->sb.data = demobuffer->data;
-	demobuffer->end = demo.dbuf->bufsize;
-	demo.dbuf->h = NULL; // it will be setup again
-	demo.dbuf->sb.maxsize = MAXSIZE + demo.dbuf->bufsize;
-}
-
-qboolean MVDWrite_Begin(qbyte type, int to, int size)
-{
+	demomsg.maxsize = size;
+	demomsg.cursize = 0;
+	demomsg.data = demomsgbuf;
+	return &demomsg;
+#if 0
 	qbyte *p;
 	qboolean move = false;
 
@@ -1017,28 +944,37 @@ qboolean MVDWrite_Begin(qbyte type, int to, int size)
 		demobuffer->last = demobuffer->end;
 
 	return true;
+#endif
 }
 
 /*
 ====================
 SV_WriteMVDMessage
 
-Dumps the current net message, prefixed by the length and view angles
+Dumps the current net message, along with framing
 ====================
 */
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 {
 	int		len, i, msec;
 	qbyte	c;
-	static double prevtime;
 
 	if (!sv.mvdrecording)
 		return;
 
-	msec = (time - prevtime)*1000;
-	prevtime += msec*0.001;
-	if (msec > 255) msec = 255;
-	if (msec < 2) msec = 0;
+	msec = (time - demo_prevtime)*1000;
+	if (abs(msec) > 1000)
+	{
+		//catastoptic slip. debugging? reset any sync
+		msec = 0;
+		demo_prevtime = time;
+	}
+	else
+	{
+		if (msec > 255) msec = 255;
+		if (msec < 2) msec = 0;
+		demo_prevtime += msec*0.001;
+	}
 
 	c = msec;
 	DemoWrite(&c, sizeof(c));
@@ -1155,8 +1091,6 @@ qboolean SV_MVDWritePackets (int num)
 		nextframe = frame;
 		msg.cursize = 0;
 
-		demo.dbuf = &frame->buf;
-
 		// find two frames
 		// one before the exact time (time - msec) and one after,
 		// then we can interpolte exact position for current frame
@@ -1264,8 +1198,8 @@ qboolean SV_MVDWritePackets (int num)
 			demoinfo->model = cl->info.model;
 		}
 
-		SV_MVDWriteToDisk(demo.lasttype,demo.lastto, (float)time); // this goes first to reduce demo size a bit
-		SV_MVDWriteToDisk(0,0, (float)time); // now goes the rest
+		//flush any intermediate data
+		MVDWrite_Begin(255, -1, 0);
 		if (msg.cursize)
 			SV_WriteMVDMessage(&msg, dem_all, 0, (float)time);
 
@@ -1276,9 +1210,6 @@ qboolean SV_MVDWritePackets (int num)
 
 	if (demo.lastwritten > demo.parsecount)
 		demo.lastwritten = demo.parsecount;
-
-	demo.dbuf = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf;
-	demo.dbuf->sb.maxsize = MAXSIZE + demo.dbuf->bufsize;
 
 	return true;
 }
@@ -1497,6 +1428,7 @@ stop recording a demo
 */
 void SV_MVDStop (int reason, qboolean mvdonly)
 {
+	sizebuf_t *msg;
 	int numclosed;
 	if (!sv.mvdrecording)
 	{
@@ -1521,15 +1453,11 @@ void SV_MVDStop (int reason, qboolean mvdonly)
 
 		return;
 	}
-// write a disconnect message to the demo file
 
-	// clearup to be sure message will fit
-	demo.dbuf->sb.cursize = 0;
-	demo.dbuf->h = NULL;
-	demo.dbuf->bufsize = 0;
-	MVDWrite_Begin(dem_all, 0, 2+strlen("EndOfDemo"));
-	MSG_WriteByte (&demo.dbuf->sb, svc_disconnect);
-	MSG_WriteString (&demo.dbuf->sb, "EndOfDemo");
+// write a disconnect message to the demo file
+	msg = MVDWrite_Begin(dem_all, 0, 2+strlen("EndOfDemo"));
+	MSG_WriteByte (msg, svc_disconnect);
+	MSG_WriteString (msg, "EndOfDemo");
 
 	SV_MVDWritePackets(demo.parsecount - demo.lastwritten + 1);
 // finish up
@@ -1579,7 +1507,7 @@ Dumps the current net message, prefixed by the length and view angles
 ====================
 */
 
-void SV_WriteRecordMVDMessage (sizebuf_t *msg, int seq)
+void SV_WriteRecordMVDMessage (sizebuf_t *msg)
 {
 	int		len;
 	qbyte	c;
@@ -1660,14 +1588,17 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			demo.recorder.frameunion.frames[i].entities.entities = demo_entities[i];
 		}
 
-		MVDBuffer_Init(&demo.dbuffer, demo.buffer, sizeof(demo.buffer));
-		MVDSetMsgBuf(NULL, &demo.frames[0].buf);
-
 		demo.datagram.maxsize = sizeof(demo.datagram_data);
 		demo.datagram.data = demo.datagram_data;
 		demo.datagram.prim = demo.recorder.netchan.netprim;
 
-		if (sv_demoExtensions.ival)
+		if (sv_demoExtensions.ival == 2)
+		{	/*more limited subset supported by ezquake*/
+			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|PEXT_FLOATCOORDS|PEXT_ACCURATETIMINGS|PEXT_TRANS|PEXT_HLBSP|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
+			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT;
+			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
+		}
+		else
 		{
 			demo.recorder.fteprotocolextensions = PEXT_CSQC | PEXT_COLOURMOD | PEXT_DPFLAGS | PEXT_CUSTOMTEMPEFFECTS | PEXT_ENTITYDBL | PEXT_ENTITYDBL2 | PEXT_FATNESS | PEXT_HEXEN2 | PEXT_HULLSIZE | PEXT_LIGHTSTYLECOL | PEXT_MODELDBL | PEXT_SCALE | PEXT_SETATTACHMENT | PEXT_SETVIEW | PEXT_SOUNDDBL | PEXT_SPAWNSTATIC2 | PEXT_TRANS | PEXT_VIEW2;
 			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_PRYDONCURSOR;
@@ -1676,6 +1607,9 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			/*enable these, because we might as well (stat ones are always useful)*/
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
 		}
+
+		//pointless extensions that are redundant with mvds
+		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;
 
 		demo.recorder.max_net_ents = 512;
 		if (demo.recorder.fteprotocolextensions & PEXT_ENTITYDBL)
@@ -1706,7 +1640,6 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	client_t *player;
 	char *gamedir;
-	int seq = 1;
 
 	if (!demo.dest)
 		return;
@@ -1789,7 +1722,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteString (&buf, va("fullserverinfo \"%s\"\n", svs.info) );
 
 	// flush packet
-	SV_WriteRecordMVDMessage (&buf, seq++);
+	SV_WriteRecordMVDMessage (&buf);
 	SZ_Clear (&buf);
 
 // soundlist
@@ -1805,7 +1738,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		{
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, n);
-			SV_WriteRecordMVDMessage (&buf, seq++);
+			SV_WriteRecordMVDMessage (&buf);
 			SZ_Clear (&buf);
 			MSG_WriteByte (&buf, svc_soundlist);
 			MSG_WriteByte (&buf, n + 1);
@@ -1818,7 +1751,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	{
 		MSG_WriteByte (&buf, 0);
 		MSG_WriteByte (&buf, 0);
-		SV_WriteRecordMVDMessage (&buf, seq++);
+		SV_WriteRecordMVDMessage (&buf);
 		SZ_Clear (&buf);
 	}
 
@@ -1835,7 +1768,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		{
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, n);
-			SV_WriteRecordMVDMessage (&buf, seq++);
+			SV_WriteRecordMVDMessage (&buf);
 			SZ_Clear (&buf);
 			MSG_WriteByte (&buf, svc_modellist);
 			MSG_WriteByte (&buf, n + 1);
@@ -1847,7 +1780,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	{
 		MSG_WriteByte (&buf, 0);
 		MSG_WriteByte (&buf, 0);
-		SV_WriteRecordMVDMessage (&buf, seq++);
+		SV_WriteRecordMVDMessage (&buf);
 		SZ_Clear (&buf);
 	}
 
@@ -1915,7 +1848,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			}
 			if (buf.cursize > MAX_QWMSGLEN/2)
 			{
-				SV_WriteRecordMVDMessage (&buf, seq++);
+				SV_WriteRecordMVDMessage (&buf);
 				SZ_Clear (&buf);
 			}
 		}
@@ -1927,7 +1860,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	{
 		if (buf.cursize+sv.signon_buffer_size[n] > MAX_QWMSGLEN/2)
 		{
-			SV_WriteRecordMVDMessage (&buf, seq++);
+			SV_WriteRecordMVDMessage (&buf);
 			SZ_Clear (&buf);
 		}
 		SZ_Write (&buf,
@@ -1937,7 +1870,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	if (buf.cursize > MAX_QWMSGLEN/2)
 	{
-		SV_WriteRecordMVDMessage (&buf, seq++);
+		SV_WriteRecordMVDMessage (&buf);
 		SZ_Clear (&buf);
 	}
 
@@ -1946,7 +1879,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	if (buf.cursize)
 	{
-		SV_WriteRecordMVDMessage (&buf, seq++);
+		SV_WriteRecordMVDMessage (&buf);
 		SZ_Clear (&buf);
 	}
 
@@ -1960,7 +1893,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
-			SV_WriteRecordMVDMessage (&buf, seq++);
+			SV_WriteRecordMVDMessage (&buf);
 			SZ_Clear (&buf);
 		}
 	}
@@ -1993,7 +1926,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteByte (&buf, svc_stufftext);
 	MSG_WriteString (&buf, "skins\n");
 
-	SV_WriteRecordMVDMessage (&buf, seq++);
+	SV_WriteRecordMVDMessage (&buf);
 
 	SV_WriteSetMVDMessage();
 

@@ -421,7 +421,7 @@ void R_SetupGL (void)
 			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
 	#endif
 
-			if ((!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+			if (1)//(!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
 			{
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;

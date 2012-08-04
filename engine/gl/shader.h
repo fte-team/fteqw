@@ -336,6 +336,7 @@ typedef struct {
 		SP_LIGHTPOSITION,
 		SP_LIGHTSCREEN,
 		SP_LIGHTPROJMATRIX,
+		SP_LIGHTCUBEMATRIX,
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
@@ -556,7 +557,7 @@ void BE_GenerateProgram(shader_t *shader);
 #ifdef RTLIGHTS
 void BE_PushOffsetShadow(qboolean foobar);
 //sets up gl for depth-only FIXME
-void BE_SetupForShadowMap(void);
+void BE_SetupForShadowMap(texid_t shadowmaptex);
 //Called from shadowmapping code into backend
 void GLBE_BaseEntTextures(void);
 void D3DBE_BaseEntTextures(void);

@@ -1506,6 +1506,8 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 		FS_FreeFile(file);
 
 		g->prog.refs++;
+		if (g->failed)
+			return NULL;
 		return &g->prog;
 	}
 	else
@@ -1644,6 +1646,7 @@ struct shader_field_names_s shader_unif_names[] =
 	{"l_lightposition",			SP_LIGHTPOSITION},
 	{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},
 	{"l_projmatrix",			SP_LIGHTPROJMATRIX},
+	{"l_cubematrix",			SP_LIGHTCUBEMATRIX},
 
 	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
 	{NULL}
@@ -3958,7 +3961,7 @@ void Shader_DefaultScript(char *shortname, shader_t *s, const void *args)
 void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 {
 	char *builtin = NULL;
-	if (!builtin && r_drawflat.value)
+	if (!builtin && r_drawflat.ival)
 		builtin = (
 				"{\n"
 					"program drawflat_wall\n"
@@ -4158,6 +4161,7 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 2:	//refraction of the underwater surface, with a fresnel
 			return (
 				"{\n"
+					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
 					"}\n"
@@ -4170,9 +4174,26 @@ char *Shader_DefaultBSPWater(char *shortname)
 					"program altwater#FRESNEL=4\n"
 				"}\n"
 			);
-		case 3:	//ripples
+		case 3:	//reflections
 			return (
 				"{\n"
+					"surfaceparm nodlight\n"
+					"{\n"
+						"map $refraction\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $reflection\n"
+					"}\n"
+					"program altwater#REFLECT#FRESNEL=4\n"
+				"}\n"
+			);
+		case 4:	//ripples
+			return (
+				"{\n"
+					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
 					"}\n"
@@ -4188,9 +4209,10 @@ char *Shader_DefaultBSPWater(char *shortname)
 					"program altwater#RIPPLEMAP#FRESNEL=4\n"
 				"}\n"
 			);
-		case 4:	//reflections
+		case 5:	//ripples+reflections
 			return (
 				"{\n"
+					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
 					"}\n"

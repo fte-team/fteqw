@@ -274,7 +274,6 @@ typedef struct dlight_s
 	//the following are used for rendering (client code should clear on create)
 	qboolean rebuildcache;
 	struct	shadowmesh_s *worldshadowmesh;
-	texid_t stexture;
 	texid_t cubetexture;
 	struct {
 		float updatetime;

@@ -298,6 +298,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 {
 	int		i;
 	gltexture_t	*glt;
+	int targ;
 
 	if (qrenderer != QR_OPENGL)
 		return;
@@ -323,12 +324,17 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 	{
 		if (!(glt->flags & IF_NOMIPMAP))
 		{
-			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-			if (glt->flags & IF_NEAREST)
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			if (glt->flags & IF_CUBEMAP)
+				targ = GL_TEXTURE_CUBE_MAP_ARB;
 			else
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+				targ = GL_TEXTURE_2D;
+
+			GL_MTBind(0, targ, glt->texnum);
+			qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+			if (glt->flags & IF_NEAREST)
+				qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			else
+				qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 		}
 	}
 }
@@ -1127,7 +1133,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	unsigned	*scaled = (unsigned *)uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 	int		type;
-	int		targ;
+	int		targ, targface;
 
 	TRACE(("dbg: GL_Upload32: %s %i %i\n", name, width, height));
 
@@ -1152,13 +1158,14 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
 	{
 	case 0:
-		targ = GL_TEXTURE_2D;
+		targface = targ = GL_TEXTURE_2D;
 		break;
 	case 1:
-		targ = GL_TEXTURE_3D;
+		targface = targ = GL_TEXTURE_3D;
 		break;
 	default:
-		targ = GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + (((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT) - 2);
+		targface = GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + (((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT) - 2);
+		targ = GL_TEXTURE_CUBE_MAP_ARB;
 		break;
 	}
 
@@ -1265,11 +1272,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		{
 			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
 			if (type == GL_UNSIGNED_SHORT_5_6_5)
-				GL_8888to565(targ, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
+				GL_8888to565(targface, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
 			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
-				GL_8888to4444(targ, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
+				GL_8888to4444(targface, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
 			else
-				qglTexImage2D (targ, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
+				qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
 			goto done;
 		}
 		memcpy (scaled, data, width*height*4);
@@ -1279,11 +1286,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	TRACE(("dbg: GL_Upload32: recaled\n"));
 	if (type == GL_UNSIGNED_SHORT_5_6_5)
-		GL_8888to565(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
+		GL_8888to565(targface, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
 	else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
-		GL_8888to4444(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
+		GL_8888to4444(targface, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
 	else
-		qglTexImage2D (targ, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 	if (!(flags&IF_NOMIPMAP) && !gl_config.sgis_generate_mipmap)
 	{
 		miplevel = 0;
@@ -1299,11 +1306,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 				scaled_height = 1;
 			miplevel++;
 			if (type == GL_UNSIGNED_SHORT_5_6_5)
-				GL_8888to565(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
+				GL_8888to565(targface, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
 			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
-				GL_8888to4444(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
+				GL_8888to4444(targface, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
 			else
-				qglTexImage2D (targ, miplevel, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+				qglTexImage2D (targface, miplevel, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 		}
 	}
 

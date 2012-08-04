@@ -132,9 +132,9 @@ void RQ_Init(void)
 	if (initialque)
 		return;
 
-	initialque = (renderque_t *) Hunk_AllocName (rquesize * sizeof(renderque_t), "renderque");
-			
-	
+	initialque = (renderque_t *) Z_Malloc (rquesize * sizeof(renderque_t));
+
+
 	freerque = &initialque[0];
 	activerque = NULL;
 

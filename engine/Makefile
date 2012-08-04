@@ -455,7 +455,6 @@ CLIENT_OBJS = \
 
 GLQUAKE_OBJS =		\
 	gl_draw.o		\
-	gl_ngraph.o		\
 	gl_backend.o		\
 	gl_rmain.o		\
 	gl_rmisc.o		\
@@ -473,6 +472,7 @@ D3DQUAKE_OBJS =		\
 	
 D3DGL_OBJS =		\
 	gl_font.o \
+	gl_ngraph.o		\
 	gl_model.o	\
 	gl_shader.o	\
 	gl_shadow.o	\

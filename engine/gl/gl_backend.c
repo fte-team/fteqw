@@ -4267,7 +4267,8 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		}
 */
 
-		if (r_wireframe.ival)
+#ifdef GL_LINE	//no gles
+		if (r_wireframe.ival && qglPolygonMode)
 		{
 			BE_SelectMode(BEM_WIREFRAME);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -4275,12 +4276,14 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			BE_SelectMode(BEM_STANDARD);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
+#endif
 	}
 	else
 	{
 		GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 
-		if (r_wireframe.ival)
+#ifdef GL_LINE	//no gles
+		if (r_wireframe.ival && qglPolygonMode)
 		{
 			BE_SelectMode(BEM_WIREFRAME);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -4288,6 +4291,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			BE_SelectMode(BEM_STANDARD);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
+#endif
 	}
 
 	BE_SelectEntity(&r_worldentity);

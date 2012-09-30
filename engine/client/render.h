@@ -214,19 +214,13 @@ typedef unsigned char stmap;
 struct mesh_s;
 typedef struct {
 	texid_t lightmap_texture;
-	texid_t deluxmap_texture;
 	qboolean	modified;
-	qboolean	deluxmodified;
 	qboolean	external;
+	qboolean	hasdeluxe;
 	int			width;
 	int			height;
 	glRect_t	rectchange;
-	glRect_t	deluxrectchange;
-#if 0 //def TERRAIN
-	int allocated[LMBLOCK_WIDTH];
-#endif
 	qbyte		*lightmaps;//[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
-	qbyte		*deluxmaps;//[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
 	stmap		*stainmaps;//[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
 } lightmapinfo_t;
 extern lightmapinfo_t **lightmap;
@@ -268,11 +262,11 @@ enum imageflags
 {
 	/*warning: many of these flags only apply the first time it is requested*/
 	IF_CLAMP = 1<<0,
-	IF_NOPICMIP = 1<<1,
-	IF_NOMIPMAP = 1<<2,
-	IF_NOALPHA = 1<<3,
-	IF_NOGAMMA = 1<<4,
-	IF_NEAREST = 1<<5,
+	IF_NEAREST = 1<<1,
+	IF_NOPICMIP = 1<<2,
+	IF_NOMIPMAP = 1<<3,
+	IF_NOALPHA = 1<<4,
+	IF_NOGAMMA = 1<<5,
 	IF_3DMAP = 1<<6,	/*waning - don't test directly*/
 	IF_CUBEMAP = 1<<7,	/*waning - don't test directly*/
 	IF_CUBEMAPEXTRA = 1<<8,
@@ -291,7 +285,7 @@ enum imageflags
 
 /*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
 #ifdef GLQUAKE
-texid_tf GL_AllocNewTexture(char *name, int w, int h);
+texid_tf GL_AllocNewTexture(char *name, int w, int h, unsigned int flags);
 void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 texid_tf GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
 void GL_DestroyTexture(texid_t tex);
@@ -302,19 +296,20 @@ texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *
 texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_t D3D9_LoadCompressed (char *name);
 texid_t D3D9_FindTexture (char *identifier, unsigned int flags);
-texid_t D3D9_AllocNewTexture(char *ident, int width, int height);
+texid_t D3D9_AllocNewTexture(char *ident, int width, int height, unsigned int flags);
 void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D9_DestroyTexture (texid_t tex);
-void D3D_Image_Shutdown(void);
+void D3D9_Image_Shutdown(void);
 
 texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
 texid_t D3D11_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
 texid_t D3D11_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_t D3D11_LoadCompressed (char *name);
-texid_t D3D11_FindTexture (char *identifier);
-texid_t D3D11_AllocNewTexture(char *ident, int width, int height);
+texid_t D3D11_FindTexture (char *identifier, unsigned int flags);
+texid_t D3D11_AllocNewTexture(char *ident, int width, int height, unsigned int flags);
 void    D3D11_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D11_DestroyTexture (texid_t tex);
+void D3D11_Image_Shutdown(void);
 #endif
 
 extern int image_width, image_height;
@@ -379,6 +374,7 @@ void R_SetRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
 struct texture_s *R_TextureAnimation (int frame, struct texture_s *base);
 void RQ_Init(void);
+void RQ_Shutdown(void);
 
 void CLQ2_EntityEvent(entity_state_t *es);
 void CLQ2_TeleporterParticles(entity_state_t *es);

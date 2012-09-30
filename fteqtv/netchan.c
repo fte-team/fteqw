@@ -21,10 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qtv.h"
 #include <string.h>
 
-#ifndef IPV6_V6ONLY
-	#define IPV6_V6ONLY 27
-#endif
-
 #define curtime Sys_Milliseconds()
 
 

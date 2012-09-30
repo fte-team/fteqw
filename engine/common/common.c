@@ -644,7 +644,7 @@ void deleetstring(char *result, char *leet)
 	char *s2 = leet;
 	while(*s2)
 	{
-		if (*s2 == 0xff)
+		if (*s2 == (char)0xff)
 		{
 			s2++;
 			continue;
@@ -3192,8 +3192,11 @@ void COM_Version_f (void)
 #ifdef GLQUAKE
 	Con_Printf("OpenGL available\n");
 #endif
-#ifdef D3DQUAKE
-	Con_Printf("Direct3D available\n");
+#ifdef D3D9QUAKE
+	Con_Printf("Direct3D9 available\n");
+#endif
+#ifdef D3D11QUAKE
+	Con_Printf("Direct3D11 available\n");
 #endif
 
 #ifdef QCJIT
@@ -3342,6 +3345,11 @@ void COM_CrashMe_f(void)
 	*crashaddr = 0;
 }
 
+void COM_ErrorMe_f(void)
+{
+	Sys_Error("\"errorme\" command used");
+}
+
 /*
 ================
 COM_Init
@@ -3379,6 +3387,7 @@ void COM_Init (void)
 	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
 
 	Cmd_AddCommand ("crashme", COM_CrashMe_f);
+	Cmd_AddCommand ("errorme", COM_ErrorMe_f);
 	COM_InitFilesystem ();
 
 	COM_CheckRegistered ();
@@ -4442,5 +4451,5 @@ void COM_TimeOfDay(date_t *date)
 	date->min = newtime->tm_min;
 	date->sec = newtime->tm_sec;
 	strftime( date->str, 128,
-         "%a %b %d, %H:%M:%S %Y", newtime);
+		"%a %b %d, %H:%M:%S %Y", newtime);
 }

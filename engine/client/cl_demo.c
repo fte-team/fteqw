@@ -1317,7 +1317,7 @@ void CL_Record_f (void)
 	{
 		if (!cl.playerview[0].stats[i])
 			continue;
-		MSG_WriteByte (&buf, svc_updatestatlong);
+		MSG_WriteByte (&buf, svcqw_updatestatlong);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteLong (&buf, cl.playerview[0].stats[i]);
 		if (buf.cursize > MAX_QWMSGLEN/2)

@@ -39,6 +39,7 @@ void (APIENTRY *qglFlush) (void);
 void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 GLuint (APIENTRY *qglGenLists) (GLsizei range);
 void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
+void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
 GLenum (APIENTRY *qglGetError) (void);
 void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
 void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
@@ -208,16 +209,16 @@ typedef void (APIENTRY *GLDEBUGPROCARB)(GLenum source,
 					GLsizei length,
 					const GLchar* message,
 					GLvoid* userParam);
-void (APIENTRY *qglDebugMessageControlARB)(enum source,
-					enum type,
-					enum severity,
+void (APIENTRY *qglDebugMessageControlARB)(GLenum source,
+					GLenum type,
+					GLenum severity,
 					GLsizei count,
 					const GLuint* ids,
 					GLboolean enabled);
-void (APIENTRY *qglDebugMessageInsertARB)(enum source,
-					enum type,
+void (APIENTRY *qglDebugMessageInsertARB)(GLenum source,
+					GLenum type,
 					GLuint id,
-					enum severity,
+					GLenum severity,
 					GLsizei length, 
 					const char* buf);
 void (APIENTRY *qglDebugMessageCallbackARB)(GLDEBUGPROCARB callback,
@@ -320,13 +321,19 @@ qboolean GL_CheckExtension(char *extname)
 	int i;
 	cvar_t *v = Cvar_Get(va("gl_ext_%s", extname), "1", 0, "GL Extensions");
 	if (v && !v->ival)
+	{
+		Con_Printf("Cvar %s is 0\n", v->name);
 		return false;
+	}
 
 	if (gl_num_extensions && qglGetStringi)
 	{
 		for (i = 0; i < gl_num_extensions; i++)
 			if (!strcmp(qglGetStringi(GL_EXTENSIONS, i), extname))
+			{
+				Con_DPrintf("Detected GL extension %s\n", extname);
 				return true;
+			}
 	}
 
 	if (!gl_extensions)
@@ -1046,7 +1053,7 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 			}
 			if (!glsl_hdrs[i])
 			{
-				if (FS_LoadFile(incname, &inc) >= 0)
+				if (FS_LoadFile(incname, (void**)&inc) >= 0)
 				{
 					if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
 					{
@@ -1194,7 +1201,7 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 		this patch makes the submission more mainstream
 		if ati can feck it up so much on a system with no real system memory issues, I wouldn't be surprised if embedded systems also mess it up.
 		*/
-		char *combined;
+		GLcharARB *combined;
 		int totallen = 1;
 		for (i = 0; i < strings; i++)
 			totallen += length[i];
@@ -1207,7 +1214,7 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 			totallen += length[i];
 			combined[totallen] = 0;
 		}
-		qglShaderSourceARB(shader, 1, &combined, NULL);
+		qglShaderSourceARB(shader, 1, (const GLcharARB**)&combined, NULL);
 		free(combined);
 	}
 	else
@@ -1427,6 +1434,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglVertex3fv		= (void *)getglcore("glVertex3fv");
 	qglViewport			= (void *)getglcore("glViewport");
 
+	qglGetBooleanv		= (void *)getglcore("glGetBooleanv");
 	qglGetError			= (void *)getglcore("glGetError");
 	qglDeleteTextures	= (void *)getglcore("glDeleteTextures");
 

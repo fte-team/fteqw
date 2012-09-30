@@ -2527,7 +2527,7 @@ Sbar_IntermissionNumber
 
 ==================
 */
-void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color)
+void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color, qboolean left)
 {
 	char			str[12];
 	char			*ptr;
@@ -2537,8 +2537,9 @@ void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color)
 	ptr = str;
 	if (l > digits)
 		ptr += (l-digits);
-	if (l < digits)
-		x += (digits-l)*24;
+	if (!left)
+		if (l < digits)
+			x += (digits-l)*24;
 
 	while (*ptr)
 	{
@@ -3235,20 +3236,20 @@ void Sbar_CoopIntermission (void)
 
 // time
 	dig = cl.completed_time/60;
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 64, dig, 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 64, dig, 4, 0, false);
 	num = cl.completed_time - dig*60;
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 234,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 246,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 266,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 254,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 278,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
 
 //it is assumed that secrits/monsters are going to be constant for any player...
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_SECRETS], 3, 0);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_TOTALSECRETS], 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_SECRETS], 4, 0, false);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 230, (sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_TOTALSECRETS], 4, 0, true);
 
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_MONSTERS], 3, 0);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_TOTALMONSTERS], 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_MONSTERS], 4, 0, false);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_TOTALMONSTERS], 4, 0, true);
 }
 /*
 ==================

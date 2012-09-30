@@ -85,7 +85,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON3               ICON                    "bymorphed.ico"
+IDI_ICON1               ICON                    "bymorphed.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //

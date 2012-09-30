@@ -59,7 +59,7 @@ cvar_t	pr_imitatemvdsv = CVARF("pr_imitatemvdsv", "0", CVAR_LATCH);
 cvar_t	pr_fixbrokenqccarrays = CVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
 
 /*other stuff*/
-cvar_t	pr_maxedicts = CVARF("pr_maxedicts", "2048", CVAR_LATCH);
+cvar_t	pr_maxedicts = CVARAF("pr_maxedicts", "8192", "max_edicts", CVAR_LATCH);
 
 cvar_t	pr_no_playerphysics = CVARF("pr_no_playerphysics", "0", CVAR_LATCH);
 cvar_t	pr_no_parsecommand = CVARF("pr_no_parsecommand", "0", 0);
@@ -574,6 +574,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 void PR_Deinit(void)
 {
+	int i;
 #ifdef USEODE
 	World_ODE_End(&sv.world);
 #endif
@@ -590,6 +591,12 @@ void PR_Deinit(void)
 			CloseProgs(svprogfuncs);
 
 		Z_FreeTags(Z_QC_TAG);
+
+		for (i = 0; i < MAX_LIGHTSTYLES; i++)
+		{
+			BZ_Free(sv.strings.lightstyles[i]);
+			sv.strings.lightstyles[i] = NULL;
+		}
 	}
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(svprogfuncs);
@@ -2363,50 +2370,6 @@ static void QCBUILTIN PF_h2set_puzzle_model (progfuncs_t *prinst, struct globalv
 	PF_setmodel_Internal(prinst, e, fullname);
 }
 
-static void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = SVPR_GetCModel(&sv.world, modelindex);
-
-	if (mod && Mod_FrameForName)
-		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
-	else
-		G_FLOAT(OFS_RETURN) = -1;
-}
-static void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
-	unsigned int framenum = G_FLOAT(OFS_PARM1);
-	model_t *mod;
-
-	if (modelindex >= MAX_MODELS)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-	{
-		mod = SVPR_GetCModel(&sv.world, modelindex);
-
-		if (mod && Mod_GetFrameDuration)
-			G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
-		else
-			G_FLOAT(OFS_RETURN) = 0;
-	}
-}
-static void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-#ifndef SERVERONLY
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = SVPR_GetCModel(&sv.world, modelindex);
-
-
-	if (mod && Mod_SkinForName)
-		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
-	else
-#endif
-		G_FLOAT(OFS_RETURN) = -1;
-}
-
 /*
 =================
 PF_bprint
@@ -3659,7 +3622,7 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s, qboolean queryonly
 
 	if (s[0] <= ' ')
 	{
-		Con_Printf ("precache_model: empty string\n");
+		Con_DPrintf ("precache_model: empty string\n");
 		return 0;
 	}
 
@@ -3920,18 +3883,10 @@ void QCBUILTIN PF_applylightstyle(int style, char *val, int col)
 
 
 // change the string in sv
-	if (!svprogfuncs)
-	{
-		if (sv.strings.lightstyles[style])
-			BZ_Free(sv.strings.lightstyles[style]);
-		sv.strings.lightstyles[style] = BZ_Malloc(strlen(val)+1);
-	}
-	else
-	{
-		if (sv.strings.lightstyles[style])
-			PR_AddressableFree(svprogfuncs, sv.strings.lightstyles[style]);
-		sv.strings.lightstyles[style] = PR_AddressableAlloc(svprogfuncs, strlen(val)+1);
-	}
+	if (sv.strings.lightstyles[style])
+		BZ_Free(sv.strings.lightstyles[style]);
+	sv.strings.lightstyles[style] = BZ_Malloc(strlen(val)+1);
+
 	strcpy(sv.strings.lightstyles[style], val);
 //	sv.lightstyles[style] = val;
 #ifdef PEXT_LIGHTSTYLECOL
@@ -7828,7 +7783,7 @@ static void QCBUILTIN PF_te_particlerain(progfuncs_t *prinst, struct globalvars_
 	MSG_WriteCoord(&sv.multicast, velocity[1]);
 	MSG_WriteCoord(&sv.multicast, velocity[2]);
 	// count
-	MSG_WriteShort(&sv.multicast, max(count, 65535));
+	MSG_WriteShort(&sv.multicast, min(count, 65535));
 	// colour
 	MSG_WriteByte(&sv.multicast, colour);
 
@@ -7848,7 +7803,7 @@ static void QCBUILTIN PF_te_particlerain(progfuncs_t *prinst, struct globalvars_
 	MSG_WriteCoord(&sv.nqmulticast, velocity[1]);
 	MSG_WriteCoord(&sv.nqmulticast, velocity[2]);
 	// count
-	MSG_WriteShort(&sv.nqmulticast, max(count, 65535));
+	MSG_WriteShort(&sv.nqmulticast, min(count, 65535));
 	// colour
 	MSG_WriteByte(&sv.nqmulticast, colour);
 #endif
@@ -7882,7 +7837,7 @@ static void QCBUILTIN PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_
 	MSG_WriteCoord(&sv.multicast, velocity[1]);
 	MSG_WriteCoord(&sv.multicast, velocity[2]);
 	// count
-	MSG_WriteShort(&sv.multicast, max(count, 65535));
+	MSG_WriteShort(&sv.multicast, min(count, 65535));
 	// colour
 	MSG_WriteByte(&sv.multicast, colour);
 
@@ -7902,7 +7857,7 @@ static void QCBUILTIN PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_
 	MSG_WriteCoord(&sv.nqmulticast, velocity[1]);
 	MSG_WriteCoord(&sv.nqmulticast, velocity[2]);
 	// count
-	MSG_WriteShort(&sv.nqmulticast, max(count, 65535));
+	MSG_WriteShort(&sv.nqmulticast, min(count, 65535));
 	// colour
 	MSG_WriteByte(&sv.nqmulticast, colour);
 #endif
@@ -8972,12 +8927,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	"float(float skel, string dollname, float parentskel, vector trans, vector fwd, vector rt, vector up)" NYI}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	"float*(float skel)"},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	"void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)"},
-
-	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	"void*(int size)"},
-	{"memfree",			PF_memfree,			0,		0,		0,		385,	"void(void *ptr)"},
-	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	"void(void *dst, void *src, int size)"},
-	{"memset",			PF_memset,			0,		0,		0,		387,	"void(void *dst, int val, int size)"},
-
+	{"frametoname",		PF_frametoname,		0,		0,		0,		284,	"string(float modidx, float framenum)"},
+	{"skintoname",		PF_skintoname,		0,		0,		0,		285,	"string(float modidx, float skin)"},
 
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		284,	"void(string cvarname, optional string value)"},	//72
 
@@ -9077,6 +9028,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"dynamiclight_set",PF_Fixme,	0,		0,		0,		373,	"void(float lno, float fld, __variant value)"},
 	{"particleeffectquery",PF_Fixme,0,		0,		0,		374,	"string(float efnum, float body)"},
 //END EXT_CSQC
+
+	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	"void*(int size)"},
+	{"memfree",			PF_memfree,			0,		0,		0,		385,	"void(void *ptr)"},
+	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	"void(void *dst, void *src, int size)"},
+	{"memset",			PF_memset,			0,		0,		0,		387,	"void(void *dst, int val, int size)"},
+
 
 //end fte extras
 
@@ -9305,8 +9262,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //VM_SV_getextresponse,			// #624 string getextresponse(void)
 
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)"},
-//	{"getsurfacenumpoints",VM_getsurfacenumtriangles,0,0,	0,		628,	"float(entity e, float s)" STUB},
-//	{"getsurfacepoint",VM_getsurfacenumtriangles,0,0,	0,		629,	"vector(entity e, float s, float n)" STUB},
+	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,	0,		628,	"float(entity e, float s)"},
+	{"getsurfacetriangle",PF_getsurfacetriangle,0,0,	0,		629,	"vector(entity e, float s, float n)"},
 
 //VM_digest_hex,						// #639
 

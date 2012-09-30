@@ -283,7 +283,6 @@ extern unzFile ZEXPORT unzOpen (vfsfile_t *fin) {
 	if ((central_pos<us.offset_central_dir+us.size_central_dir) && (err==UNZ_OK)) err=UNZ_BADZIPFILE;
 
 	if (err!=UNZ_OK) {
-		VFS_CLOSE(fin);
 		return NULL;
 	}
 

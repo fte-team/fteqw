@@ -308,6 +308,8 @@
     <ResourceCompile Include="..\ftequake\npplug.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\client\pr_skelobj.c" />
+    <ClCompile Include="..\client\sys_axfte.cpp" />
     <ClCompile Include="..\client\sys_npfte.c" />
     <ClCompile Include="..\client\sys_plugfte.c" />
     <ClCompile Include="..\server\net_preparse.c">

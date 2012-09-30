@@ -15,7 +15,7 @@
 
 #include "quakedef.h"
 #include "glquake.h"
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 
 #ifdef _WIN32
 	#include <malloc.h>
@@ -24,6 +24,13 @@
 #endif
 
 #include "com_mesh.h"
+
+#if defined(RTLIGHTS)
+static int numProjectedShadowVerts;
+static vec3_t *ProjectedShadowVerts;
+static int numFacing;
+static qbyte *triangleFacing;
+#endif
 
 //FIXME
 typedef struct
@@ -168,6 +175,16 @@ void GL_GAliasFlushSkinCache(void)
 		BZ_Free(skincolourmapped.bucket);
 	skincolourmapped.bucket = NULL;
 	skincolourmapped.numbuckets = 0;
+
+#ifdef RTLIGHTS
+	BZ_Free(ProjectedShadowVerts);
+	ProjectedShadowVerts = NULL;
+	numProjectedShadowVerts = 0;
+	
+	BZ_Free(triangleFacing);
+	triangleFacing = NULL;
+	numFacing = 0;
+#endif
 }
 
 static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e, texnums_t **forcedtex)
@@ -507,7 +524,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				}
 				if (qrenderer == QR_OPENGL)
 				{
-					cm->texnum.base = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
+					cm->texnum.base = R_AllocNewTexture(cm->name, scaled_width, scaled_height, IF_NOMIPMAP);
 					R_Upload(cm->texnum.base, cm->name, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 				}
 				else
@@ -533,7 +550,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					}
 					if (qrenderer == QR_OPENGL)
 					{
-						cm->texnum.fullbright = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
+						cm->texnum.fullbright = R_AllocNewTexture(cm->name, scaled_width, scaled_height, IF_NOMIPMAP);
 						R_Upload(cm->texnum.fullbright, cm->name, TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 					}
 					else
@@ -573,8 +590,6 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 }
 
 #if defined(RTLIGHTS)
-static int numFacing;
-static qbyte *triangleFacing;
 static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
 {
 	float *v1, *v2, *v3;
@@ -609,8 +624,6 @@ static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
 }
 
 #define PROJECTION_DISTANCE 30000
-static int numProjectedShadowVerts;
-static vec3_t *ProjectedShadowVerts;
 static void R_ProjectShadowVolume(mesh_t *mesh, vec3_t lightpos)
 {
 	int numverts = mesh->numvertexes;

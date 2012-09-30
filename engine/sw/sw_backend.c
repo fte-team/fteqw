@@ -452,18 +452,18 @@ void SWBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, str
 
 	if (mesh->istrifan)
 	{
-		com = SWRast_BeginCommand(WTC_TRIFAN, mesh->numvertexes*sizeof(swvert_t) + sizeof(com->trifan) - sizeof(com->trifan.verts));
+		com = SWRast_BeginCommand(&commandqueue, WTC_TRIFAN, mesh->numvertexes*sizeof(swvert_t) + sizeof(com->trifan) - sizeof(com->trifan.verts));
 
 		com->trifan.texture = texnums->base.ptr;
 		com->trifan.numverts = mesh->numvertexes;
 
 		SWBE_TransformVerticies(com->trifan.verts, mesh);
 
-		SWRast_EndCommand(com);
+		SWRast_EndCommand(&commandqueue, com);
 	}
 	else
 	{
-		com = SWRast_BeginCommand(WTC_TRISOUP, (mesh->numvertexes*sizeof(swvert_t)) + sizeof(com->trisoup) - sizeof(com->trisoup.verts) + (sizeof(index_t)*mesh->numindexes));
+		com = SWRast_BeginCommand(&commandqueue, WTC_TRISOUP, (mesh->numvertexes*sizeof(swvert_t)) + sizeof(com->trisoup) - sizeof(com->trisoup.verts) + (sizeof(index_t)*mesh->numindexes));
 		
 		com->trisoup.texture = texnums->base.ptr;
 		com->trisoup.numverts = mesh->numvertexes;
@@ -472,7 +472,7 @@ void SWBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, str
 		SWBE_TransformVerticies(com->trisoup.verts, mesh);
 		memcpy(com->trisoup.verts + mesh->numvertexes, mesh->indexes, sizeof(index_t)*mesh->numindexes);
 
-		SWRast_EndCommand(com);
+		SWRast_EndCommand(&commandqueue, com);
 	}
 }
 void SWBE_DrawMesh_List(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags)
@@ -593,7 +593,7 @@ void SWBE_Set2D(void)
 
 	memcpy(shaderstate.m_mvp, r_refdef.m_projection, sizeof(shaderstate.m_mvp));
 }
-void SWBE_DrawWorld(qbyte *vis)
+void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 
@@ -615,7 +615,7 @@ void SWBE_DrawWorld(qbyte *vis)
 	shaderstate.curentity = NULL;
 	SWBE_SelectEntity(&r_worldentity);
 
-	SWBE_SubmitMeshes(vis!=NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+	SWBE_SubmitMeshes(drawworld, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 
 	SWBE_Set2D();
 }

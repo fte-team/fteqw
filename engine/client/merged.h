@@ -219,10 +219,10 @@ typedef enum backendmode_e
         BEM_DEPTHDARK,			//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
 		BEM_CREPUSCULAR,		//sky is special, everything else completely black
 		BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
+		BEM_FOG,				//drawing a fog volume
         BEM_LIGHT,				//we have a valid light
         BEM_SMAPLIGHTSPOT,		//we have a spot light using a shadowmap
-        BEM_SMAPLIGHT,			//we have a light using a shadowmap
-		BEM_FOG					//drawing a fog volume
+        BEM_SMAPLIGHT			//we have a light using a shadowmap
 } backendmode_t;
 
 typedef struct rendererinfo_s {
@@ -238,7 +238,7 @@ typedef struct rendererinfo_s {
 	texid_tf (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 	texid_tf (*IMG_LoadCompressed)		(char *name);
 	texid_tf (*IMG_FindTexture)			(char *identifier, unsigned int flags);
-	texid_tf (*IMG_AllocNewTexture)		(char *identifier, int w, int h);
+	texid_tf (*IMG_AllocNewTexture)		(char *identifier, int w, int h, unsigned int flags);
 	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 

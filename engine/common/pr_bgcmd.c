@@ -87,7 +87,7 @@ char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_glob
 
 #define MAX_TEMPSTRS	((int)pr_tempstringcount.value)
 #define MAXTEMPBUFFERLEN	((int)pr_tempstringsize.value)
-string_t PR_TempString(progfuncs_t *prinst, char *str)
+string_t PR_TempString(progfuncs_t *prinst, const char *str)
 {
 	char *tmp;
 	if (!prinst->tempstringbase)
@@ -368,6 +368,61 @@ void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *
 // #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+}
+
+// #628 float(entity e, float s) getsurfacenumtriangles
+void QCBUILTIN PF_getsurfacenumtriangles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum;
+	model_t *model;
+	wedict_t *ent;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+	}
+	else
+	{
+		surfnum += model->firstmodelsurface;
+		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numindexes/3;
+	}
+}
+// #629 float(entity e, float s) getsurfacetriangle
+void QCBUILTIN PF_getsurfacetriangle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum, firstidx;
+	model_t *model;
+	wedict_t *ent;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+	firstidx = G_FLOAT(OFS_PARM2)*3;
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	if (model && model->type == mod_brush && surfnum < model->nummodelsurfaces)
+	{
+		surfnum += model->firstmodelsurface;
+
+		if (firstidx+2 < model->surfaces[surfnum].mesh->numindexes)
+		{
+			G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->indexes[firstidx+0];
+			G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->indexes[firstidx+1];
+			G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->indexes[firstidx+2];
+			return;
+		}
+	}
+
+	G_FLOAT(OFS_RETURN+0) = 0;
+	G_FLOAT(OFS_RETURN+1) = 0;
+	G_FLOAT(OFS_RETURN+2) = 0;
 }
 
 #ifndef TERRAIN
@@ -2155,10 +2210,30 @@ struct strbuf {
 #define NUMSTRINGBUFS 16
 struct strbuf strbuflist[NUMSTRINGBUFS];
 
+void PF_buf_shutdown(progfuncs_t *prinst)
+{
+	int i, bufno;
+
+	for (bufno = 0; bufno < NUMSTRINGBUFS; bufno++)
+	{
+		if (strbuflist[bufno].prinst == prinst)
+		{
+			for (i = 0; i < strbuflist[bufno].used; i++)
+				Z_Free(strbuflist[bufno].strings[i]);
+			Z_Free(strbuflist[bufno].strings);
+
+			strbuflist[bufno].strings = NULL;
+			strbuflist[bufno].used = 0;
+			strbuflist[bufno].allocated = 0;
+
+			strbuflist[bufno].prinst = NULL;
+		}
+	}
+}
+
 // #440 float() buf_create (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_create  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	
 	int i;
 
 	for (i = 0; i < NUMSTRINGBUFS; i++)
@@ -2300,6 +2375,8 @@ void QCBUILTIN PF_bufstr_set  (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		strbuflist[bufno].strings = BZ_Realloc(strbuflist[bufno].strings, strbuflist[bufno].allocated*sizeof(char*));
 		memset(strbuflist[bufno].strings+oldcount, 0, (strbuflist[bufno].allocated - oldcount) * sizeof(char*));
 	}
+	if (strbuflist[bufno].strings[index])
+		Z_Free(strbuflist[bufno].strings[index]);
 	strbuflist[bufno].strings[index] = Z_Malloc(strlen(string)+1);
 	strcpy(strbuflist[bufno].strings[index], string);
 

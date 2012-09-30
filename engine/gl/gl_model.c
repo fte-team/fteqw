@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY	//FIXME
 #include "glquake.h"
 #include "com_mesh.h"
 
@@ -45,7 +45,9 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
+#ifdef HALFLIFEMODELS
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
+#endif
 model_t *RMod_LoadModel (model_t *mod, qboolean crash);
 
 #ifdef MAP_DOOM
@@ -596,15 +598,20 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 	
 	loadmodel = mod;
 
-#ifdef Q2BSPS
 	if (!*mod->name)
 	{
-		if (!Mod_LoadQ2BrushModel (mod, buf))
-			goto couldntload;
+		mod->type = mod_dummy;
+		mod->mins[0] = -16;
+		mod->mins[1] = -16;
+		mod->mins[2] = -16;
+		mod->maxs[0] = 16;
+		mod->maxs[1] = 16;
+		mod->maxs[2] = 16;
 		mod->needload = false;
+		mod->engineflags = 0;
+		P_LoadedModel(mod);
 		return mod;
 	}
-#endif
 	
 //
 // load the file
@@ -808,7 +815,8 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		case 30:	//hl
 		case 29:	//q1
 		case 28:	//prerel
-		case BSPVERSION_LONG:
+		case BSPVERSION_LONG1:
+		case BSPVERSION_LONG2:
 			TRACE(("RMod_LoadModel: hl/q1 bsp\n"));
 			if (!RMod_LoadBrushModel (mod, buf))
 				continue;
@@ -865,9 +873,6 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		return mod;
 	}
 
-#ifdef Q2BSPS
-couldntload:
-#endif
 	if (crash)
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
@@ -1626,7 +1631,7 @@ void RMod_LoadLighting (lump_t *l)
 		}
 		if (!luxdata) //dp...
 		{
-			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
+			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".dlit", sizeof(luxname));
 			luxdata = COM_LoadHunkFile(luxname);
 			luxtmp = false;
@@ -2540,15 +2545,25 @@ typedef struct
 {
 	int allocated[LMBLOCK_WIDTH];
 	int lmnum;
+	qboolean deluxe;
 } lmalloc_t;
-static void RMod_LightmapAllocInit(lmalloc_t *lmallocator)
+static void RMod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe)
 {
 	memset(lmallocator, 0, sizeof(*lmallocator));
+	lmallocator->deluxe = hasdeluxe;
 }
 static void RMod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 {
 	mod->lightmaps.first = 1;
 	mod->lightmaps.count = lmallocator->lmnum;
+	if (lmallocator->deluxe)
+	{
+		mod->lightmaps.first*=2;
+		mod->lightmaps.count*=2;
+		mod->lightmaps.deluxemapping = true;
+	}
+	else
+		mod->lightmaps.deluxemapping = false;
 }
 static void RMod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum)
 {
@@ -2590,7 +2605,10 @@ static void RMod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsign
 		for (i=0; i < w; i++)
 			lmallocator->allocated[*x + i] = best + h;
 
-		*tnum = lmallocator->lmnum;
+		if (lmallocator->deluxe)
+			*tnum = lmallocator->lmnum*2;
+		else
+			*tnum = lmallocator->lmnum;
 		break;
 	}
 }
@@ -2687,7 +2705,7 @@ static void RMod_Batches_AllocLightmaps(model_t *mod)
 	msurface_t *surf;
 	int sty;
 
-	RMod_LightmapAllocInit(&lmallocator);
+	RMod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL);
 
 	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
@@ -2827,14 +2845,53 @@ void RMod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadNodes
 =================
 */
-qboolean RMod_LoadNodes (lump_t *l, qboolean lm)
+qboolean RMod_LoadNodes (lump_t *l, int lm)
 {
 	int			i, j, count, p;
 	mnode_t 	*out;
 
-	if (lm)
+	if (lm == 2)
 	{
-		dlnode_t		*in;
+		dl2node_t		*in;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+		loadmodel->nodes = out;
+		loadmodel->numnodes = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			for (j=0 ; j<3 ; j++)
+			{
+				out->minmaxs[j] = LittleFloat (in->mins[j]);
+				out->minmaxs[3+j] = LittleFloat (in->maxs[j]);
+			}
+		
+			p = LittleLong(in->planenum);
+			out->plane = loadmodel->planes + p;
+
+			out->firstsurface = LittleLong (in->firstface);
+			out->numsurfaces = LittleLong (in->numfaces);
+			
+			for (j=0 ; j<2 ; j++)
+			{
+				p = LittleLong (in->children[j]);
+				if (p >= 0)
+					out->children[j] = loadmodel->nodes + p;
+				else
+					out->children[j] = (mnode_t *)(loadmodel->leafs + (-1 - p));
+			}
+		}
+	}
+	else if (lm)
+	{
+		dl1node_t		*in;
 		in = (void *)(mod_base + l->fileofs);
 		if (l->filelen % sizeof(*in))
 		{
@@ -2897,8 +2954,8 @@ qboolean RMod_LoadNodes (lump_t *l, qboolean lm)
 			p = LittleLong(in->planenum);
 			out->plane = loadmodel->planes + p;
 
-			out->firstsurface = LittleShort (in->firstface);
-			out->numsurfaces = LittleShort (in->numfaces);
+			out->firstsurface = (unsigned short)LittleShort (in->firstface);
+			out->numsurfaces = (unsigned short)LittleShort (in->numfaces);
 			
 			for (j=0 ; j<2 ; j++)
 			{
@@ -2920,14 +2977,71 @@ qboolean RMod_LoadNodes (lump_t *l, qboolean lm)
 Mod_LoadLeafs
 =================
 */
-qboolean RMod_LoadLeafs (lump_t *l, qboolean lm)
+qboolean RMod_LoadLeafs (lump_t *l, int lm)
 {
 	mleaf_t 	*out;
 	int			i, j, count, p;
 
-	if (lm)
+	if (lm==2)
 	{
-		dlleaf_t 	*in;
+		dl2leaf_t 	*in;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+		loadmodel->leafs = out;
+		loadmodel->numleafs = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			for (j=0 ; j<3 ; j++)
+			{
+				out->minmaxs[j] = LittleFloat (in->mins[j]);
+				out->minmaxs[3+j] = LittleFloat (in->maxs[j]);
+			}
+
+			p = LittleLong(in->contents);
+			out->contents = p;
+
+			out->firstmarksurface = loadmodel->marksurfaces +
+				LittleLong(in->firstmarksurface);
+			out->nummarksurfaces = LittleLong(in->nummarksurfaces);
+			
+			p = LittleLong(in->visofs);
+			if (p == -1)
+				out->compressed_vis = NULL;
+			else
+				out->compressed_vis = loadmodel->visdata + p;
+			
+			for (j=0 ; j<4 ; j++)
+				out->ambient_sound_level[j] = in->ambient_level[j];
+
+	#ifndef CLIENTONLY
+			if (!isDedicated)
+	#endif
+			{
+				// gl underwater warp
+				if (out->contents != Q1CONTENTS_EMPTY)
+				{
+					for (j=0 ; j<out->nummarksurfaces ; j++)
+						out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+				}
+				if (isnotmap)
+				{
+					for (j=0 ; j<out->nummarksurfaces ; j++)
+						out->firstmarksurface[j]->flags |= SURF_DONTWARP;
+				}
+			}
+		}
+	}
+	else if (lm)
+	{
+		dl1leaf_t 	*in;
 		in = (void *)(mod_base + l->fileofs);
 		if (l->filelen % sizeof(*in))
 		{
@@ -3751,7 +3865,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	unsigned int chksum;
 	int start;
 	qboolean noerrors;
-	qboolean longm = false;
+	int longm = false;
 	mesh_t *meshlist = NULL;
 #if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
 	qboolean ode = true;
@@ -3781,9 +3895,15 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		loadmodel->fromgame = fg_quake;
 		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 	}
-	else if (i == BSPVERSION_LONG)
+	else if (i == BSPVERSION_LONG1)
 	{
 		longm = true;
+		loadmodel->fromgame = fg_quake;
+		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+	}
+	else if (i == BSPVERSION_LONG2)
+	{
+		longm = 2;
 		loadmodel->fromgame = fg_quake;
 		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 	}

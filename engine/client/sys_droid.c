@@ -18,19 +18,24 @@ qboolean isDedicated = false;
 #endif
 #endif
 void *sys_window; /*public so the renderer can attach to the correct place*/
-static qboolean sys_running = false;
+static int sys_running = false;
 int sys_glesversion;
+static void *sys_memheap;
+static unsigned int sys_lastframe;
+static unsigned int vibrateduration;
+static char errormessage[256];
+extern  jmp_buf 	host_abort;
+
 cvar_t sys_vibrate = CVAR("sys_vibrate", "1");
 cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
 cvar_t sys_keepscreenon = CVAR("sys_keepscreenon", "1");	//to be toggled
+cvar_t sys_orientation = CVAR("sys_orientation", "sensor");
+extern cvar_t vid_conautoscale;
 
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, DISTRIBUTION"Droid", __VA_ARGS__))
 #define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, DISTRIBUTION"Droid", __VA_ARGS__))
-
-static void *sys_memheap;
-static unsigned int sys_lastframe;
-static unsigned int vibrateduration;
+#define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, DISTRIBUTION"Droid", __VA_ARGS__))
 
 void Sys_Vibrate(int count)
 {
@@ -43,11 +48,26 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_getvibrateduration(JNIEnv *
 	return dur;
 }
 
+JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_geterrormessage(JNIEnv *env, jobject obj)
+{
+	return (*env)->NewStringUTF(env, errormessage);
+}
+JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedorientation(JNIEnv *env, jobject obj)
+{
+	sys_orientation.modified = false;
+	return (*env)->NewStringUTF(env, sys_orientation.string);
+}
+
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
 				jfloat ax, jfloat ay, jfloat az)
 {
 	int ret;
 	static vec3_t oac;
+
+	//if we had an error, don't even run a frame any more.
+	if (*errormessage)
+		return 8;
+
 	#ifdef SERVERONLY
 	SV_Frame();
 	#else
@@ -74,18 +94,48 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		ret |= 2;
 	if (sys_keepscreenon.ival)
 		ret |= 4;
+	if (*errormessage)
+		ret |= 8;
+	if (sys_orientation.modified)
+		ret |= 16;
 	return ret;
 }
 
+//tells us that our old gl context got completely obliterated
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_newglcontext(JNIEnv *env, jobject obj)
+{
+	if (sys_running)
+		sys_running = 2;
+
+	//fixme: wipe image handles
+}
+
+//called for init or resizes
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
                  jint width, jint height, jint glesversion, jstring japkpath, jstring jusrpath)
 {
 	const char *tmp;
+
+	if (*errormessage)
+		return;
+
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 	sys_glesversion = glesversion;
 	if (sys_running)
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	{
+		Sys_Printf("vid size changed\n");
+		if (1)//FFS sys_running == 2)
+		{
+			//if our textures got destroyed, we need to reload them all
+			Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+		}
+		else
+		{
+			//otherwise we just need to set the size properly again.
+			Cvar_ForceCallback(&vid_conautoscale);
+		}
+	}
 	else
 	{
 		const char *args [] =
@@ -99,6 +149,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		char *basepack;
 		int align;
 		quakeparms_t parms;
+		Sys_Printf("reinit\n");
 		if (sys_memheap)
 			free(sys_memheap);
 		parms.basedir = NULL;	/*filled in later*/
@@ -109,6 +160,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		if (!parms.membase)
 		{
 			Sys_Printf("Unable to alloc heap\n");
+			Q_strncpyz(errormessage, "Unable to alloc heap\n", sizeof(errormessage));
 			return;
 		}
 
@@ -224,7 +276,10 @@ void Sys_Quit(void)
 	SV_Shutdown();
 #endif
 
-	exit (0);
+	LOGI("%s", "quitting");
+
+	longjmp(host_abort, 1);
+	exit(0);
 }
 void Sys_Error (const char *error, ...)
 {
@@ -234,9 +289,14 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr, error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
+	if (!*string)
+		strcpy(string, "no error");
 
-	LOGW("%s", string);
+	Q_strncpyz(errormessage, string, sizeof(errormessage));
 
+	LOGE("%s", string);
+
+	longjmp(host_abort, 1);
 	exit(1);
 }
 void Sys_Printf (char *fmt, ...)
@@ -308,6 +368,7 @@ void Sys_Init(void)
 	Cvar_Register(&sys_vibrate, "android stuff");
 	Cvar_Register(&sys_osk, "android stuff");
 	Cvar_Register(&sys_keepscreenon, "android stuff");
+	Cvar_Register(&sys_orientation, "android stuff");
 }
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)

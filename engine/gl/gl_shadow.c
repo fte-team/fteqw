@@ -9,13 +9,13 @@ model meshes are interpolated multiple times per frame
 //#define DBG_COLOURNOTDEPTH
 
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3D9QUAKE)
 #ifdef RTLIGHTS
 
 #include "glquake.h"
 #include "shader.h"
 
-#ifdef D3DQUAKE
+#ifdef D3D9QUAKE
 #include "shader.h"
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
     #define HMONITOR_DECLARED
@@ -23,8 +23,8 @@ model meshes are interpolated multiple times per frame
 #endif
 #include <d3d9.h>
 extern LPDIRECT3DDEVICE9 pD3DDev9;
-void D3DBE_Cull(unsigned int sflags);
-void D3DBE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf);
+void D3D9BE_Cull(unsigned int sflags);
+void D3D9BE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf);
 #endif
 void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsigned numindicies, int ibo, index_t *indicies);
 
@@ -55,8 +55,11 @@ struct {
 } bench;
 
 
-
-void Sh_Shutdown(void)
+/*
+called on framebuffer resize.
+flushes textures so they can be regenerated at the real size
+*/
+void Sh_Reset(void)
 {
 #ifdef GLQUAKE
 	if (shadow_fbo_id)
@@ -85,10 +88,12 @@ void Sh_Shutdown(void)
 		crepuscular_fbo_id = 0;
 	}
 #endif
-
+}
+void Sh_Shutdown(void)
+{
+	Sh_Reset();
 	SHM_Shutdown();
 }
-
 
 
 
@@ -119,7 +124,7 @@ typedef struct shadowmesh_s {
 #ifdef GLQUAKE
 	GLuint vebo[2];
 #endif
-#ifdef D3DQUAKE
+#ifdef D3D9QUAKE
 	IDirect3DVertexBuffer9	*d3d_vbuffer;
 	IDirect3DIndexBuffer9	*d3d_ibuffer;
 #endif
@@ -268,14 +273,18 @@ static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
 	sh_shmesh->litleaves[i>>3] |= 1<<(i&7);
 }
 
-void SH_FreeShadowMesh(shadowmesh_t *sm)
+static void SH_FreeShadowMesh_(shadowmesh_t *sm)
 {
 	unsigned int i;
 	for (i = 0; i < sm->numbatches; i++)
 		Z_Free(sm->batches[i].s);
+	sm->numbatches = 0;
 	Z_Free(sm->batches);
+	sm->batches = NULL;
 	Z_Free(sm->indicies);
+	sm->indicies = NULL;
 	Z_Free(sm->verts);
+	sm->verts = NULL;
 
 	switch (qrenderer)
 	{
@@ -286,8 +295,8 @@ void SH_FreeShadowMesh(shadowmesh_t *sm)
 		sm->vebo[1] = 0;
 		break;
 #endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
+#ifdef D3D9QUAKE
+	case QR_DIRECT3D9:
 		if (sm->d3d_ibuffer)
 			IDirect3DIndexBuffer9_Release(sm->d3d_ibuffer);
 		sm->d3d_ibuffer = NULL;
@@ -297,7 +306,10 @@ void SH_FreeShadowMesh(shadowmesh_t *sm)
 		break;
 #endif
 	}
-
+}
+void SH_FreeShadowMesh(shadowmesh_t *sm)
+{
+	SH_FreeShadowMesh_(sm);
 	Z_Free(sm);
 }
 
@@ -424,8 +436,8 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
 			break;
 #endif
-#ifdef D3DQUAKE
-		case QR_DIRECT3D:
+#ifdef D3D9QUAKE
+		case QR_DIRECT3D9:
 			if (sh_shmesh->numindicies && sh_shmesh->numverts)
 			{
 				void *map;
@@ -988,6 +1000,7 @@ static struct {
 
 static void SHM_Shutdown(void)
 {
+	SH_FreeShadowMesh_(&sh_tempshmesh);
 	free(cv.tris);
 	free(cv.edges);
 	free(cv.points);
@@ -1413,6 +1426,7 @@ static void Sh_Scissor (srect_t r)
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		qglScissor(r.x, r.y, r.width, r.height);
+		qglEnable(GL_SCISSOR_TEST);
 
 		if (qglDepthBoundsEXT)
 		{
@@ -1421,8 +1435,8 @@ static void Sh_Scissor (srect_t r)
 		}
 		break;
 #endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
+#ifdef D3D9QUAKE
+	case QR_DIRECT3D9:
 		{
 			RECT rect;
 			rect.left = r.x;
@@ -1431,6 +1445,23 @@ static void Sh_Scissor (srect_t r)
 			rect.bottom = r.y + r.height;
 			IDirect3DDevice9_SetScissorRect(pD3DDev9, &rect);
 		}
+		break;
+#endif
+	}
+}
+static void Sh_ScissorOff (void)
+{
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		qglDisable(GL_SCISSOR_TEST);
+		if (qglDepthBoundsEXT)
+			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+		break;
+#endif
+#ifdef D3D9QUAKE
+	case QR_DIRECT3D9:
 		break;
 #endif
 	}
@@ -1924,6 +1955,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		r_refdef.flipcull = false;
 		break;
 	}
+	//fixme
 GL_CullFace(0);
 	R_SetFrustum(proj, r_refdef.m_view);
 
@@ -1955,9 +1987,9 @@ GL_CullFace(0);
 		GLBE_BaseEntTextures();
 		break;
 #endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
-		D3DBE_BaseEntTextures();
+#ifdef D3D9QUAKE
+	case QR_DIRECT3D9:
+		D3D9BE_BaseEntTextures();
 		break;
 #endif
 	}
@@ -2002,7 +2034,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	{
 		if (isspot)
 		{
-			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize, smsize);
+			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize, smsize, 0);
 			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 #ifdef DBG_COLOURNOTDEPTH
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -2012,7 +2044,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 		}
 		else
 		{
-			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize*3, smsize*2);
+			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize*3, smsize*2, 0);
 			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 #ifdef DBG_COLOURNOTDEPTH
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize*3, smsize*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -2041,7 +2073,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	/*set framebuffer*/
 	GL_BeginRenderBuffer_DepthOnly(shadowmap[isspot]);
-	BE_SetupForShadowMap(shadowmap[isspot]);
+	GLBE_SetupForShadowMap(shadowmap[isspot]);
 
 	qglViewport(0, 0, smsize*3, smsize*2);
 	qglClear (GL_DEPTH_BUFFER_BIT);
@@ -2146,6 +2178,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 			}
 		}
 	}
+	else
+		lvis = NULL;
 
 	qglDisable(GL_SCISSOR_TEST);
 
@@ -2155,7 +2189,6 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 	//may as well use scissors
 	Sh_Scissor(rect);
-	qglEnable(GL_SCISSOR_TEST);
 
 	ve = 0;
 
@@ -2232,9 +2265,9 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			GLBE_BaseEntTextures();
 			break;
 #endif
-#ifdef D3DQUAKE
-		case QR_DIRECT3D:
-			D3DBE_BaseEntTextures();
+#ifdef D3D9QUAKE
+		case QR_DIRECT3D9:
+			D3D9BE_BaseEntTextures();
 			break;
 #endif
 		}
@@ -2268,7 +2301,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	GL_SelectEBO(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 
-	BE_PushOffsetShadow(true);
+	GLBE_PushOffsetShadow(true);
 
 	model = e->model;
 	surf = model->surfaces+model->firstmodelsurface;
@@ -2345,7 +2378,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		qglEnd();
 	}
 
-	BE_PushOffsetShadow(false);
+	GLBE_PushOffsetShadow(false);
 #endif
 }
 
@@ -2367,9 +2400,9 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	{
 		switch (qrenderer)
 		{
-#ifdef D3DQUAKE
-		case QR_DIRECT3D:
-			D3DBE_RenderShadowBuffer(sm->numverts, sm->d3d_vbuffer, sm->numindicies, sm->d3d_ibuffer);
+#ifdef D3D9QUAKE
+		case QR_DIRECT3D9:
+			D3D9BE_RenderShadowBuffer(sm->numverts, sm->d3d_vbuffer, sm->numindicies, sm->d3d_ibuffer);
 			break;
 #endif
 #ifdef GLQUAKE
@@ -2654,8 +2687,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		}
 		break;
 #endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
+#ifdef D3D9QUAKE
+	case QR_DIRECT3D9:
 		sref = (1<<8)-1;
 		sref/=2;
 
@@ -2663,7 +2696,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_STENCIL, D3DCOLOR_XRGB(0, 0, 0), 1.0f, sref);
 
 		/*set up 2-sided stenciling*/
-		D3DBE_Cull(0);
+		D3D9BE_Cull(0);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILENABLE, true);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILFUNC, D3DCMP_ALWAYS);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_TWOSIDEDSTENCILMODE, true);
@@ -2753,17 +2786,8 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		return;	//was culled.
 	}
 
-	switch(qrenderer)
-	{
-#ifdef GLQUAKE
-	case QR_OPENGL:
-		//so state doesn't linger
-		qglDisable(GL_SCISSOR_TEST);
-		if (qglDepthBoundsEXT)
-			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
-		break;
-#endif
-	}
+	//should we actually scissor here? there's not really much point I suppose.
+	Sh_ScissorOff();
 
 	bench.numlights++;
 
@@ -2819,6 +2843,8 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 	if (!gl_config.ext_framebuffer_objects)
 		return;
 
+	//fixme: we should add an extra few pixels each side to the fbo, to avoid too much weirdness at screen edges.
+
 	if (!crepuscular_texture_id.num)
 	{
 		/*FIXME: requires npot*/
@@ -2832,7 +2858,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 			"}\n"
 			);
 
-		crepuscular_texture_id = GL_AllocNewTexture("***crepusculartexture***", vid.pixelwidth, vid.pixelheight);
+		crepuscular_texture_id = GL_AllocNewTexture("***crepusculartexture***", vid.pixelwidth, vid.pixelheight, 0);
 		GL_MTBind(0, GL_TEXTURE_2D, crepuscular_texture_id);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -2840,6 +2866,8 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
+
+	Sh_ScissorOff();
 
 	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, false);
 
@@ -2947,8 +2975,8 @@ void Sh_DrawLights(qbyte *vis)
 		}*/
 		break;
 #endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
+#ifdef D3D9QUAKE
+	case QR_DIRECT3D9:
 		#ifdef GLQUAKE
 		//the code still has a lot of ifdefs, so will crash if you try it in a merged build.
 		//its not really usable in d3d-only builds either, so no great loss.
@@ -3043,16 +3071,7 @@ void Sh_DrawLights(qbyte *vis)
 		}
 	}
 
-	switch(qrenderer)
-	{
-#ifdef GLQUAKE
-	case QR_OPENGL:
-		qglDisable(GL_SCISSOR_TEST);
-		if (qglDepthBoundsEXT)
-			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
-		break;
-#endif
-	}
+	Sh_ScissorOff();
 
 	BE_SelectMode(BEM_STANDARD);
 

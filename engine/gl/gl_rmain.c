@@ -69,6 +69,8 @@ cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
+extern cvar_t	r_stereo_separation;
+extern cvar_t	r_stereo_method;
 extern cvar_t	r_postprocshader;
 
 extern cvar_t	gl_screenangle;
@@ -149,13 +151,13 @@ void GL_SetupSceneProcessingTextures (void)
 
 	scenepp_postproc_cube = r_nulltex;
 
-	TEXASSIGN(sceneblur_texture, GL_AllocNewTexture("***postprocess_blur***", 0, 0));
+	TEXASSIGN(sceneblur_texture, GL_AllocNewTexture("***postprocess_blur***", 0, 0, 0));
 
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", 0, 0));
-	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", 0, 0));
+	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0));
+	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0));
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -362,7 +364,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 R_SetupGL
 =============
 */
-void R_SetupGL (void)
+void R_SetupGL (float stereooffset)
 {
 	float	screenaspect;
 	int		x, x2, y2, y, w, h;
@@ -374,6 +376,8 @@ void R_SetupGL (void)
 	{
 		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 		VectorCopy (r_refdef.vieworg, r_origin);
+
+		VectorMA(r_origin, stereooffset, vright, r_origin);
 
 		//
 		// set up viewpoint
@@ -443,11 +447,10 @@ void R_SetupGL (void)
 				Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 		}
 
-		VectorCopy(r_refdef.viewangles, newa);
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		Matrix4x4_CM_ModelViewMatrix(r_refdef.m_view, newa, r_refdef.vieworg);
+		Matrix4x4_CM_ModelViewMatrix(r_refdef.m_view, newa, r_origin);
 	}
 
 	if (qglLoadMatrixf)
@@ -482,36 +485,122 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
+	float stereooffset[2];
+	int stereoframes = 1;
+	int stereomode;
+	int i;
 	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
-	TRACE(("dbg: calling R_SetupGL\n"));
-	R_SetupGL ();
-
-	TRACE(("dbg: calling R_SetFrustrum\n"));
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
-
-	RQ_BeginFrame();
-
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	stereomode = r_stereo_method.ival;
+	if (stereomode == 1)
 	{
-		TRACE(("dbg: calling R_DrawWorld\n"));
-		Surf_DrawWorld ();		// adds static entities to the list
+#ifdef GL_STEREO
+		GLint glb;
+		qglGetIntegerv(GL_STEREO, &glb);
+		if (!glb)
+#endif
+			stereomode = 0;	//we are not a stereo context, so no stereoscopic rendering (this encourages it to otherwise be left enabled, which means the user is more likely to spot that they asked it to give a slower context.
 	}
-	else
-		BE_DrawWorld(false, NULL);
 
-	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
-//	R_DrawDecals();
+	if (r_refdef.recurse || !stereomode || !r_stereo_separation.value)
+	{
+		stereooffset[0] = 0;
+		stereoframes = 1;
+		stereomode = 0;
+	}
+	else	
+	{
+		stereooffset[0] = -r_stereo_separation.value;
+		stereooffset[1] = r_stereo_separation.value;
+		stereoframes = 2;
+	}
 
-	TRACE(("dbg: calling R_RenderDlights\n"));
-	R_RenderDlights ();
+	for (i = 0; i < stereoframes; i++)
+	{
+		switch (stereomode)
+		{
+		default:
+		case 0:	//off
+			if (i)
+				return;
+			break;
+#ifdef GL_STEREO
+		case 1:	//proper gl stereo rendering
+			if (stereooffset[i] < 0)
+				qglDrawBuffer(GL_BACK_LEFT);
+			else
+				qglDrawBuffer(GL_BACK_RIGHT);
+			break;
+#endif
+		case 2:	//red/cyan
+			if (stereooffset[i] < 0)
+				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+			else
+				qglColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
+			break;
+		case 3: //red/blue
+			if (stereooffset[i] < 0)
+				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+			else
+				qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_TRUE);
+			break;
+		case 4:	//red/green
+			if (stereooffset[i] < 0)
+				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+			else
+				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_TRUE);
+			break;
 
-	RQ_RenderBatchClear();
+		}
+		if (i)
+			qglClear (GL_DEPTH_BUFFER_BIT);
 
-	cl_numvisedicts = tmpvisents;
+		TRACE(("dbg: calling R_SetupGL\n"));
+		R_SetupGL (stereooffset[i]);
+
+		TRACE(("dbg: calling R_SetFrustrum\n"));
+		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+
+		RQ_BeginFrame();
+
+		if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		{
+			TRACE(("dbg: calling R_DrawWorld\n"));
+			Surf_DrawWorld ();		// adds static entities to the list
+		}
+		else
+			BE_DrawWorld(false, NULL);
+
+		S_ExtraUpdate ();	// don't let sound get messed up if going slow
+
+	//	R_DrawDecals();
+
+		TRACE(("dbg: calling R_RenderDlights\n"));
+		R_RenderDlights ();
+
+		RQ_RenderBatchClear();
+
+		cl_numvisedicts = tmpvisents;
+	}
+
+	switch (stereomode)
+	{
+	default:
+	case 0:
+		break;
+	case 1:
+		qglDrawBuffer(GL_BACK);
+		break;
+	case 2:
+	case 3:
+	case 4:
+		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		break;
+
+	}
 }
 /*generates a new modelview matrix, as well as vpn vectors*/
 static void R_MirrorMatrix(plane_t *plane)
@@ -1087,7 +1176,7 @@ qboolean R_RenderScene_Cubemap(void)
 
 	if (!TEXVALID(scenepp_postproc_cube))
 	{
-		scenepp_postproc_cube = GL_AllocNewTexture("***fish***", cmapsize, cmapsize);
+		scenepp_postproc_cube = GL_AllocNewTexture("***fish***", cmapsize, cmapsize, 0);
 
 		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
 		for (i = 0; i < 6; i++)

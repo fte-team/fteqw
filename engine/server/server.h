@@ -383,7 +383,7 @@ typedef struct client_s
 	// the datagram is written to after every frame, but only cleared
 	// when it is sent out to the client.  overflow is tolerated.
 	sizebuf_t		datagram;
-	qbyte			datagram_buf[MAX_DATAGRAM];
+	qbyte			datagram_buf[MAX_OVERALLMSGLEN/2];
 
 	// back buffers for client reliable data
 	sizebuf_t	backbuf;

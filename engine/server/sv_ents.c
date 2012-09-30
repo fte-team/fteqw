@@ -2382,7 +2382,7 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	if (ent->dpflags & RENDER_STEP)
 		bits |= NQU_NOLERP;	// don't mess up the step animation
 
-	if (baseline->colormap != ent->colormap && ent->colormap>=0)
+	if (baseline->colormap != ent->colormap)
 		bits |= NQU_COLORMAP;
 
 	if (baseline->skinnum != ent->skinnum)
@@ -3360,7 +3360,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		{
 			if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.world.physicstime - client->nextservertimeupdate > 0)
 			{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
-				MSG_WriteByte (msg, svc_updatestatlong);
+				MSG_WriteByte (msg, svcqw_updatestatlong);
 				MSG_WriteByte (msg, STAT_TIME);
 				MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 
@@ -3368,7 +3368,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 			else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
 			{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
-				MSG_WriteByte (msg, svc_updatestatlong);
+				MSG_WriteByte (msg, svcqw_updatestatlong);
 				MSG_WriteByte (msg, STAT_TIME);
 				MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 

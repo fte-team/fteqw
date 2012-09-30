@@ -1529,14 +1529,14 @@ typedef struct IPropertyStore
 
 #endif
 #endif
-static const IID IID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
+static const IID qIID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
 
 #ifndef MINGW
 #if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
 #define IObjectArray IUnknown 
 #endif
 #endif
-static const IID IID_IObjectArray = {0x92ca9dcd, 0x5622, 0x4bba, {0xa8,0x05,0x5e,0x9f,0x54,0x1b,0xd8,0xc9}};
+static const IID qIID_IObjectArray = {0x92ca9dcd, 0x5622, 0x4bba, {0xa8,0x05,0x5e,0x9f,0x54,0x1b,0xd8,0xc9}};
 
 #ifndef MINGW
 #if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
@@ -1583,8 +1583,8 @@ typedef struct IObjectCollection
 } IObjectCollection;
 #endif
 #endif
-static const IID IID_IObjectCollection = {0x5632b1a4, 0xe38a, 0x400a, {0x92,0x8a,0xd4,0xcd,0x63,0x23,0x02,0x95}};
-static const CLSID CLSID_EnumerableObjectCollection = {0x2d3468c1, 0x36a7, 0x43b6, {0xac,0x24,0xd3,0xf0,0x2f,0xd9,0x60,0x7a}};
+static const IID qIID_IObjectCollection = {0x5632b1a4, 0xe38a, 0x400a, {0x92,0x8a,0xd4,0xcd,0x63,0x23,0x02,0x95}};
+static const CLSID qCLSID_EnumerableObjectCollection = {0x2d3468c1, 0x36a7, 0x43b6, {0xac,0x24,0xd3,0xf0,0x2f,0xd9,0x60,0x7a}};
 
 
 #ifndef MINGW
@@ -1646,8 +1646,8 @@ typedef struct ICustomDestinationList
 } ICustomDestinationList;
 #endif
 #endif
-static const IID IID_ICustomDestinationList = {0x6332debf, 0x87b5, 0x4670, {0x90,0xc0,0x5e,0x57,0xb4,0x08,0xa4,0x9e}};
-static const CLSID CLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5,0x20,0xb7,0xc5,0x4f,0xd3,0x5e,0xd6}};
+static const IID qIID_ICustomDestinationList = {0x6332debf, 0x87b5, 0x4670, {0x90,0xc0,0x5e,0x57,0xb4,0x08,0xa4,0x9e}};
+static const CLSID qCLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5,0x20,0xb7,0xc5,0x4f,0xd3,0x5e,0xd6}};
 
 
 
@@ -1690,7 +1690,7 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
 
 
-	hr = IShellLinkW_QueryInterface(link, &IID_IPropertyStore, &prop_store);
+	hr = IShellLinkW_QueryInterface(link, &qIID_IPropertyStore, &prop_store);
 
 	#ifndef MINGW
 	if(SUCCEEDED(hr))
@@ -1746,13 +1746,13 @@ void Win7_TaskListInit(void)
 	IObjectArray *arr;
 	IShellLinkW *link;
 	CoInitialize(NULL);
-	if (SUCCEEDED(CoCreateInstance(&CLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER, &IID_ICustomDestinationList, &cdl)))
+	if (SUCCEEDED(CoCreateInstance(&qCLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER, &qIID_ICustomDestinationList, &cdl)))
 	{
 		UINT minslots;
 		IUnknown *removed;
-		cdl->lpVtbl->BeginList(cdl, &minslots, &IID_IObjectArray, &removed);
+		cdl->lpVtbl->BeginList(cdl, &minslots, &qIID_IObjectArray, &removed);
 
-		if (SUCCEEDED(CoCreateInstance(&CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER, &IID_IObjectCollection, &col)))
+		if (SUCCEEDED(CoCreateInstance(&qCLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER, &qIID_IObjectCollection, &col)))
 		{
 
 			switch(M_GameType())
@@ -1761,13 +1761,13 @@ void Win7_TaskListInit(void)
 				link = CreateShellLink("+menu_servers", "", "Server List", "Pick a multiplayer server to join");
 				if (link)
 				{
-					col->lpVtbl->AddObject(col, link);
+					col->lpVtbl->AddObject(col, (IUnknown*)link);
 					link->lpVtbl->Release(link);
 				}
 				link = CreateShellLink("+map start", "", "Start New Game (Quake)", "Begin a new single-player game");
 				if (link)
 				{
-					col->lpVtbl->AddObject(col, link);
+					col->lpVtbl->AddObject(col, (IUnknown*)link);
 					link->lpVtbl->Release(link);
 				}
 				break;
@@ -1775,13 +1775,13 @@ void Win7_TaskListInit(void)
 				link = CreateShellLink("+menu_servers", "", "Quake2 Server List", "Pick a multiplayer server to join");
 				if (link)
 				{
-					col->lpVtbl->AddObject(col, link);
+					col->lpVtbl->AddObject(col, (IUnknown*)link);
 					link->lpVtbl->Release(link);
 				}
 				link = CreateShellLink("+map unit1", "", "Start New Game (Quake2)", "Begin a new game");
 				if (link)
 				{
-					col->lpVtbl->AddObject(col, link);
+					col->lpVtbl->AddObject(col, (IUnknown*)link);
 					link->lpVtbl->Release(link);
 				}
 				break;
@@ -1789,19 +1789,19 @@ void Win7_TaskListInit(void)
 				link = CreateShellLink("+menu_servers", "", "Hexen2 Server List", "Pick a multiplayer server to join");
 				if (link)
 				{
-					col->lpVtbl->AddObject(col, link);
+					col->lpVtbl->AddObject(col, (IUnknown*)link);
 					link->lpVtbl->Release(link);
 				}
 				link = CreateShellLink("+map demo1", "", "Start New Game (Hexen2)", "Begin a new game");
 				if (link)
 				{
-					col->lpVtbl->AddObject(col, link);
+					col->lpVtbl->AddObject(col, (IUnknown*)link);
 					link->lpVtbl->Release(link);
 				}
 				break;
 			}
 
-			if (SUCCEEDED(col->lpVtbl->QueryInterface(col, &IID_IObjectArray, &arr)))
+			if (SUCCEEDED(col->lpVtbl->QueryInterface(col, &qIID_IObjectArray, &arr)))
 			{
 				cdl->lpVtbl->AddUserTasks(cdl, arr);
 				arr->lpVtbl->Release(arr);
@@ -2161,12 +2161,12 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 /* Thread creation calls */
 typedef struct threadwrap_s
 {
-	void (*func)(void *);
+	int (*func)(void *);
 	void *args;
 } threadwrap_t;
 
 // the thread call is wrapped so we don't need WINAPI everywhere
-DWORD WINAPI threadwrapper(void *args)
+unsigned WINAPI threadwrapper(void *args)
 {
 	threadwrap_t tw;
 	tw.func = ((threadwrap_t *)args)->func;

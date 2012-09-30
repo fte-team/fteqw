@@ -19,7 +19,7 @@
 //we get 20->130
 //perhaps we should build it with multitexture? (no - slower on ati)
 
-int Surf_NewLightmaps(int count, int width, int height);
+int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe);
 
 #define MAXSECTIONS 64	//this many sections max in each direction
 #define SECTTEXSIZE 64	//this many texture samples per section
@@ -134,6 +134,7 @@ typedef struct heightmap_s
 	hmcluster_t *cluster[MAXSECTIONS*MAXSECTIONS];
 	shader_t *skyshader;
 	shader_t *shader;
+	shader_t *watershader;
 	mesh_t skymesh;
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
@@ -225,12 +226,11 @@ static void Terr_InitLightmap(hmsection_t *s)
 	{
 		int lm;
 		int i;
-		lm = Surf_NewLightmaps(1, SECTTEXSIZE*LMCHUNKS, SECTTEXSIZE*LMCHUNKS);
+		lm = Surf_NewLightmaps(1, SECTTEXSIZE*LMCHUNKS, SECTTEXSIZE*LMCHUNKS, false);
 		for (i = 0; i < LMCHUNKS*LMCHUNKS; i++)
 		{
 			lms = malloc(sizeof(*lms));
 			lms->lm = lm;
-			BE_UploadAllLightmaps();
 			lms->x = (i & (LMCHUNKS-1))*SECTTEXSIZE;
 			lms->y = (i / LMCHUNKS)*SECTTEXSIZE;
 			lms->next = hm->unusedlmsects;
@@ -427,6 +427,29 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	else
 	{
 		s->flags |= TSF_RELIGHT;
+
+		if (s->lightmap >= 0)
+		{
+			lm = lightmap[s->lightmap]->lightmaps;
+			lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+			for (i = 0; i < SECTTEXSIZE; i++)
+			{
+				memset(lm, 0, sizeof(byte_vec4_t)*SECTTEXSIZE);
+				lm += (HMLMSTRIDE)*lightmap_bytes;
+			}
+			lightmap[s->lightmap]->modified = true;
+			lightmap[s->lightmap]->rectchange.l = 0;
+			lightmap[s->lightmap]->rectchange.t = 0;
+			lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
+			lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
+		}
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			s->colours[i][0] = 1;
+			s->colours[i][1] = 1;
+			s->colours[i][2] = 1;
+			s->colours[i][3] = 1;
+		}
 
 #if 0//def DEBUG
 		void *f;
@@ -807,26 +830,11 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 #endif
 }
 #ifndef SERVERONLY
-void Terr_DrawTerrainWater(float *mins, float *maxs, float waterz, float r, float g, float b, float a)
+void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, float waterz, float r, float g, float b, float a)
 {
 	scenetris_t *t;
-	shader_t *s = R_RegisterCustom ("warp/terrain", Shader_DefaultBSPQ2, NULL);
-
-	if (!TEXVALID(s->defaulttextures.base))
-		s->defaulttextures.base = R_LoadHiResTexture("terwater", NULL, IF_NOALPHA);
-	if (!TEXVALID(s->defaulttextures.bump))
-		s->defaulttextures.bump = R_LoadBumpmapTexture("terwater_bump", NULL);
-	if (!TEXVALID(s->defaulttextures.bump))
-	{
-		unsigned char dat[64*64] = {0};
-		int i;
-		for (i = 0; i < 64*64; i++)
-			dat[i] = rand()&15;
-		s->defaulttextures.bump = R_LoadTexture8BumpPal("terwater_bump", 64, 64, dat, 0);
-	}
-
-
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == s)
+	
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == hm->watershader)
 	{
 		t = &cl_stris[cl_numstris-1];
 	}
@@ -838,7 +846,7 @@ void Terr_DrawTerrainWater(float *mins, float *maxs, float waterz, float r, floa
 			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
 		}
 		t = &cl_stris[cl_numstris++];
-		t->shader = s;
+		t->shader = hm->watershader;
 		t->firstidx = cl_numstrisidx;
 		t->firstvert = cl_numstrisvert;
 		t->numvert = 0;
@@ -935,6 +943,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 			BZ_Free(mesh->indexes);
 			mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6*3);
 		mesh->numindexes = 0;
+		mesh->colors4f_array = NULL;
 
 		for (vy = 0; vy < SECTHEIGHTSIZE-1; vy++)
 		{
@@ -1124,6 +1133,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 			mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
 			mesh->lmst_array[0] = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
 		}
+		mesh->colors4f_array = s->colours;
 		mesh->numvertexes = 0;
 		/*64 quads across requires 65 verticies*/
 		for (vy = 0; vy < SECTHEIGHTSIZE; vy++)
@@ -1206,7 +1216,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (qrenderer == QR_OPENGL)
+		if (s->vbo.coord.gl.vbo)
 		{
 			qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
 			qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
@@ -1224,7 +1234,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 			GL_SelectVBO(s->vbo.coord.gl.vbo);
 
 		qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, mesh->xyz_array);
-		if (!hm->tiled)
+		if (mesh->colors4f_array)
 			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, sizeof(vec4_t)*mesh->numvertexes,  mesh->colors4f_array);
 		GL_SelectVBO(0);
 		s->vbo.coord.gl.addr = 0;
@@ -1247,6 +1257,21 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 		GL_SelectEBO(0);
 //		Z_Free(mesh->indexes);
 //		mesh->indexes = NULL;
+	}
+#endif
+#ifdef D3D11QUAKE
+	if (qrenderer == QR_DIRECT3D11)
+	{
+		void D3D11BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch);
+		batch_t batch = {0};
+		mesh_t *meshes = &s->mesh;
+		vbo_t *vbo = NULL;
+		batch.maxmeshes = 1;
+		batch.mesh = &meshes;
+
+		//BE_ClearVBO(&s->vbo);
+		D3D11BE_GenBatchVBOs(&vbo, &batch, NULL);
+		s->vbo = *vbo;
 	}
 #endif
 }
@@ -1381,7 +1406,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 				maxs[2] = s->waterheight;
 				if (!R_CullBox(mins, maxs))
 				{
-					Terr_DrawTerrainWater(mins, maxs, s->waterheight, 1, 1, 1, 1);
+					Terr_DrawTerrainWater(hm, mins, maxs, s->waterheight, 1, 1, 1, 1);
 				}
 			}
 
@@ -1404,7 +1429,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 			b->buildmeshes = NULL;
 			b->skin = &s->textures;
 			b->texture = NULL;
-			b->vbo = &s->vbo;
+			b->vbo = NULL;//&s->vbo;
 			b->lightmap[0] = s->lightmap;
 			b->lightmap[1] = -1;
 			b->lightmap[2] = -1;
@@ -2002,7 +2027,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 				npos[axis] -= nudge[axis];
 			}
 			else
-				frac[axis] = 1000000000000000;
+				frac[axis] = 1000000000000000.0;
 		}
 
 		//which side are we going down?
@@ -2137,6 +2162,9 @@ static void ted_dorelight(heightmap_t *hm)
 	s->flags &= ~TSF_RELIGHT;
 	hm->relight = NULL;
 
+	if (s->lightmap < 0)
+		return;
+
 	for (y = -EXPAND; y < SECTTEXSIZE+EXPAND; y++)
 	for (x = -EXPAND; x < SECTTEXSIZE+EXPAND; x++)
 	{
@@ -2172,6 +2200,12 @@ static void ted_dorelight(heightmap_t *hm)
 //		lm[2] = norm[2]*127 + 128;
 		lm[3] = d*255;
 	}
+
+	lightmap[s->lightmap]->modified = true;
+	lightmap[s->lightmap]->rectchange.l = 0;
+	lightmap[s->lightmap]->rectchange.t = 0;
+	lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
+	lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
 }
 static void ted_sethole(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
@@ -2845,6 +2879,21 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 						"]\n"
 					"}\n"
 				);
+
+
+		hm->watershader = R_RegisterCustom ("warp/terrain", Shader_DefaultBSPQ2, NULL);
+		if (!TEXVALID(hm->watershader->defaulttextures.base))
+			hm->watershader->defaulttextures.base = R_LoadHiResTexture("terwater", NULL, IF_NOALPHA);
+		if (!TEXVALID(hm->watershader->defaulttextures.bump))
+			hm->watershader->defaulttextures.bump = R_LoadBumpmapTexture("terwater_bump", NULL);
+		if (!TEXVALID(hm->watershader->defaulttextures.bump))
+		{
+			unsigned char dat[64*64] = {0};
+			int i;
+			for (i = 0; i < 64*64; i++)
+				dat[i] = rand()&15;
+			hm->watershader->defaulttextures.bump = R_LoadTexture8BumpPal("terwater_bump", 64, 64, dat, 0);
+		}
 	}
 #endif
 }

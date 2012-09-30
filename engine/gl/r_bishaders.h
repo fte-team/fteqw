@@ -63,7 +63,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 
 //generate the two wave patterns from the normalmap
-"n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0)).xyz);\n"
+"n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);\n"
 "n += (texture2D(s_t1, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);\n"
 "n -= 1.0 - 4.0/256.0;\n"
 
@@ -312,11 +312,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //beware that a few things use this, including apparently fonts and bloom rescaling.
 //its really not meant to do anything special.
 
+"varying vec2 tc;\n"
+"varying vec4 vc;\n"
+
 "#ifdef VERTEX_SHADER\n"
 "attribute vec2 v_texcoord;\n"
 "attribute vec4 v_colour;\n"
-"varying vec2 tc;\n"
-"varying vec4 vc;\n"
 "void main ()\n"
 "{\n"
 "tc = v_texcoord;\n"
@@ -326,8 +327,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
 "uniform sampler2D s_t0;\n"
-"in vec2 tc;\n"
-"varying vec4 vc;\n"
 "void main ()\n"
 "{\n"
 "gl_FragColor = texture2D(s_t0, tc) * vc;\n"

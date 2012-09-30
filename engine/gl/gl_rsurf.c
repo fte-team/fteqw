@@ -489,6 +489,10 @@ void GLBE_UploadAllLightmaps(void)
 		if (!lm->modified)
 			continue;
 		lm->modified = false;
+		if (!TEXVALID(lm->lightmap_texture))
+		{
+			TEXASSIGN(lm->lightmap_texture, R_AllocNewTexture("***lightmap***", lm->width, lm->height, 0));
+		}
 		GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -509,20 +513,6 @@ void GLBE_UploadAllLightmaps(void)
 				lm->width, lm->height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
 				lightmap[i]->lightmaps);
 			break;
-		}
-		if (r_deluxemapping.ival)
-		{
-			lightmap[i]->deluxmodified = false;
-			lightmap[i]->deluxrectchange.l = lm->width;
-			lightmap[i]->deluxrectchange.t = lm->height;
-			lightmap[i]->deluxrectchange.w = 0;
-			lightmap[i]->deluxrectchange.h = 0;
-			GL_MTBind(0, GL_TEXTURE_2D, lm->deluxmap_texture);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			qglTexImage2D (GL_TEXTURE_2D, 0, 3
-					, lm->width, lm->height, 0,
-					GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
 		}
 	}
 }

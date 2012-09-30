@@ -45,11 +45,7 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 
 
 
-#if defined(D3DQUAKE) || defined(GLQUAKE) || defined(SERVERONLY)
-
-#ifdef GLQUAKE
-#include "glquake.h"
-#endif
+#if 1
 
 #ifdef _WIN32
 #include <malloc.h>
@@ -1369,6 +1365,7 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galiasinfo_t 
 }
 
 #ifdef GLQUAKE
+#include "glquake.h"
 static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount)
 {
 	PPL_RevertToKnownState();
@@ -2810,9 +2807,6 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	{
 	default:
 #if defined(GLQUAKE) || defined(D3DQUAKE)
-	case QR_DIRECT3D:
-	case QR_OPENGL:
-	case QR_SOFTWARE:
 		pinstverts = (dstvert_t *)Q1_LoadSkins_GL(skinstart, skintranstype);
 		break;
 #endif
@@ -3761,6 +3755,43 @@ int Mod_SkinNumForName(model_t *model, char *name)
 	return -1;
 }
 #endif
+
+const char *Mod_FrameNameForNum(model_t *model, int num)
+{
+	galiasgroup_t *group;
+	galiasinfo_t *inf;
+
+	if (!model)
+		return NULL;
+	if (model->type != mod_alias)
+		return NULL;
+
+	inf = Mod_Extradata(model);
+
+	if (num >= inf->groups)
+		return NULL;
+	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	return group[num].name;
+}
+
+const char *Mod_SkinNameForNum(model_t *model, int num)
+{
+#ifdef SERVERONLY
+	return NULL;
+#else
+	galiasinfo_t *inf;
+	galiasskin_t *skin;
+
+	if (!model || model->type != mod_alias)
+		return NULL;
+	inf = Mod_Extradata(model);
+
+	if (num >= inf->numskins)
+		return NULL;
+	skin = (galiasskin_t*)((char*)inf+inf->ofsskins);
+	return skin[num].name;
+#endif
+}
 
 float Mod_FrameDuration(model_t *model, int frameno)
 {
@@ -5808,7 +5839,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 		for (i = 0; i < h->num_joints; i++)
 		{
-			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(ijoint[i].name));
+			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(bones[i].name));
 			bones[i].parent = ijoint[i].parent;
 
 			GenMatrixPosQuat3Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, &basepose[i*12]);
@@ -5906,6 +5937,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			fgroup[i].numposes = LittleLong(anim[i].num_frames);
 			fgroup[i].poseofs = (char*)(opose+LittleLong(anim[i].first_frame)*12*h->num_poses) - (char*)&fgroup[i];
 			fgroup[i].rate = LittleFloat(anim[i].framerate);
+			if (!fgroup[i].rate)
+				fgroup[i].rate = 10;
 		}
 	}
 

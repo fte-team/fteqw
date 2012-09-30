@@ -2317,43 +2317,31 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 
 void World_ODE_Frame(world_t *world, double frametime, double gravity)
 {
-	if (world->ode.ode)
+	if (world->ode.ode && (world->ode.hasodeents))// || world->ode.hasragdoll))
 	{
 		int i;
 		wedict_t *ed;
-
-		if (!world->ode.hasodeents)
-		{
-			for (i = 0; i < world->num_edicts; i++)
-			{
-				ed = (wedict_t*)EDICT_NUM(world->progs, i);
-				if (ed->v->movetype >= SOLID_PHYSICS_BOX)
-				{
-					world->ode.hasodeents = true;
-					break;
-				}
-			}
-			if (!world->ode.hasodeents)
-				return;
-		}
 
 		world->ode.ode_iterations = bound(1, physics_ode_iterationsperframe.ival, 1000);
 		world->ode.ode_step = frametime / world->ode.ode_iterations;
 		world->ode.ode_movelimit = physics_ode_movelimit.value / world->ode.ode_step;
 
-		// copy physics properties from entities to physics engine
-		for (i = 0;i < world->num_edicts;i++)
+		if (world->ode.hasodeents)
 		{
-			ed = (wedict_t*)EDICT_NUM(world->progs, i);
-			if (!ed->isfree)
-				World_ODE_Frame_BodyFromEntity(world, ed);
-		}
-		// oh, and it must be called after all bodies were created
-		for (i = 0;i < world->num_edicts;i++)
-		{
-			ed = (wedict_t*)EDICT_NUM(world->progs, i);
-			if (!ed->isfree)
-				World_ODE_Frame_JointFromEntity(world, ed);
+			// copy physics properties from entities to physics engine
+			for (i = 0;i < world->num_edicts;i++)
+			{
+				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				if (!ed->isfree)
+					World_ODE_Frame_BodyFromEntity(world, ed);
+			}
+			// oh, and it must be called after all bodies were created
+			for (i = 0;i < world->num_edicts;i++)
+			{
+				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				if (!ed->isfree)
+					World_ODE_Frame_JointFromEntity(world, ed);
+			}
 		}
 
 		for (i = 0;i < world->ode.ode_iterations;i++)
@@ -2379,12 +2367,15 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 			dJointGroupEmpty(world->ode.ode_contactgroup);
 		}
 
-		// copy physics properties from physics engine to entities
-		for (i = 1;i < world->num_edicts;i++)
+		if (world->ode.hasodeents)
 		{
-			ed = (wedict_t*)EDICT_NUM(world->progs, i);
-			if (!ed->isfree)
-				World_ODE_Frame_BodyToEntity(world, ed);
+			// copy physics properties from physics engine to entities
+			for (i = 1;i < world->num_edicts;i++)
+			{
+				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				if (!ed->isfree)
+					World_ODE_Frame_BodyToEntity(world, ed);
+			}
 		}
 	}
 }

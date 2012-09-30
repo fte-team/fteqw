@@ -96,7 +96,7 @@ static void R_SetupBloomTextures(int w, int h)
 
 	/*we should be doing this outside of this code*/
 	if (!TEXVALID(scrtex))
-		scrtex = GL_AllocNewTexture("", scrwidth, scrheight);
+		scrtex = GL_AllocNewTexture("", scrwidth, scrheight, 0);
 	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scrwidth, scrheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	/*top level uses nearest sampling*/
@@ -113,7 +113,7 @@ static void R_SetupBloomTextures(int w, int h)
 			if (!TEXVALID(pingtex[i][j]))
 			{
 				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
-				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j]));
+				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j], 0));
 			}
 			GL_MTBind(0, GL_TEXTURE_2D, pingtex[i][j]);
 			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, texwidth[j], texheight[j], 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);

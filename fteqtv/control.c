@@ -537,12 +537,8 @@ int main(int argc, char **argv)
 			if (cluster->tcpsocket[0] == INVALID_SOCKET && cluster->tcpsocket[1] == INVALID_SOCKET && !cluster->tcplistenportnum)
 			{
 				cluster->tcplistenportnum = 27599;
-				cluster->tcpsocket[0] = Net_TCPListen(cluster->tcplistenportnum, false);
-				if (cluster->tcpsocket[0] != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened tcp4 port %i\n", cluster->tcplistenportnum);
-				cluster->tcpsocket[1] = Net_TCPListen(cluster->tcplistenportnum, true);
-				if (cluster->tcpsocket[1] != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened tcp6 port %i\n", cluster->tcplistenportnum);
+				Net_TCPListen(cluster, cluster->tcplistenportnum, true);
+				Net_TCPListen(cluster, cluster->tcplistenportnum, false);
 			}
 
 			Sys_Printf(cluster, "\n"

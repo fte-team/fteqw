@@ -583,7 +583,14 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->q2edict->s.origin);
 				else
 #endif
+				{
+					if (svprogfuncs)
+					{
+						if (!((int)client->edict->xv->dimension_see & dimension_mask))
+							continue;
+					}
 					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->edict->v->origin);
+				}
 				cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
 				area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
 				if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
@@ -1631,7 +1638,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 			if (statsi[i] != client->statsi[i])
 			{
 				client->statsi[i] = statsi[i];
-				ClientReliableWrite_Begin(client, svc_updatestat, 6);
+				ClientReliableWrite_Begin(client, svcnq_updatestatlong, 6);
 				ClientReliableWrite_Byte(client, i);
 				ClientReliableWrite_Long(client, statsi[i]);
 			}
@@ -1683,13 +1690,13 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 							{
 								ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
 								ClientReliableWrite_Byte(client->controller, pnum);
-								ClientReliableWrite_Byte(client->controller, svc_updatestat);
+								ClientReliableWrite_Byte(client->controller, svcqw_updatestatbyte);
 								ClientReliableWrite_Byte(client->controller, i);
 								ClientReliableWrite_Byte(client->controller, statsf[i]);
 							}
 							else
 							{
-								ClientReliableWrite_Begin(client, svc_updatestat, 3);
+								ClientReliableWrite_Begin(client, svcqw_updatestatbyte, 3);
 								ClientReliableWrite_Byte(client, i);
 								ClientReliableWrite_Byte(client, statsf[i]);
 							}
@@ -1733,13 +1740,13 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 					{
 						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
 						ClientReliableWrite_Byte(client->controller, pnum);
-						ClientReliableWrite_Byte(client->controller, svc_updatestat);
+						ClientReliableWrite_Byte(client->controller, svcqw_updatestatbyte);
 						ClientReliableWrite_Byte(client->controller, i);
 						ClientReliableWrite_Byte(client->controller, statsi[i]);
 					}
 					else
 					{
-						ClientReliableWrite_Begin(client, svc_updatestat, 3);
+						ClientReliableWrite_Begin(client, svcqw_updatestatbyte, 3);
 						ClientReliableWrite_Byte(client, i);
 						ClientReliableWrite_Byte(client, statsi[i]);
 					}
@@ -1750,13 +1757,13 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 					{
 						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
 						ClientReliableWrite_Byte(client->controller, pnum);
-						ClientReliableWrite_Byte(client->controller, svc_updatestatlong);
+						ClientReliableWrite_Byte(client->controller, svcqw_updatestatlong);
 						ClientReliableWrite_Byte(client->controller, i);
 						ClientReliableWrite_Long(client->controller, statsi[i]);
 					}
 					else
 					{
-						ClientReliableWrite_Begin(client, svc_updatestatlong, 6);
+						ClientReliableWrite_Begin(client, svcqw_updatestatlong, 6);
 						ClientReliableWrite_Byte(client, i);
 						ClientReliableWrite_Long(client, statsi[i]);
 					}
@@ -2479,7 +2486,7 @@ void SV_SendMVDMessage(void)
 						if (statsf[j] - (float)(int)statsf[j] == 0 && statsf[j] >= 0 && statsf[j] <= 255)
 						{
 							dmsg = MVDWrite_Begin(dem_stats, i, 3);
-							MSG_WriteByte(dmsg, svc_updatestat);
+							MSG_WriteByte(dmsg, svcqw_updatestatbyte);
 							MSG_WriteByte(dmsg, j);
 							MSG_WriteByte(dmsg, statsf[j]);
 						}
@@ -2507,14 +2514,14 @@ void SV_SendMVDMessage(void)
 				if (statsi[j] >=0 && statsi[j] <= 255)
 				{
 					dmsg = MVDWrite_Begin(dem_stats, i, 3);
-					MSG_WriteByte(dmsg, svc_updatestat);
+					MSG_WriteByte(dmsg, svcqw_updatestatbyte);
 					MSG_WriteByte(dmsg, j);
 					MSG_WriteByte(dmsg, statsi[j]);
 				}
 				else
 				{
 					dmsg = MVDWrite_Begin(dem_stats, i, 6);
-					MSG_WriteByte(dmsg, svc_updatestatlong);
+					MSG_WriteByte(dmsg, svcqw_updatestatlong);
 					MSG_WriteByte(dmsg, j);
 					MSG_WriteLong(dmsg, statsi[j]);
 				}

@@ -198,7 +198,7 @@ static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h)
 	return glt;
 }
 
-texid_t GL_AllocNewTexture(char *name, int w, int h)
+texid_t GL_AllocNewTexture(char *name, int w, int h, unsigned int flags)
 {
 	gltexture_t *glt = GL_AllocNewGLTexture(name, w, h);
 	return glt->texnum;
@@ -426,10 +426,6 @@ void GLDraw_Init (void)
 	memset(gltexturetablebuckets, 0, sizeof(gltexturetablebuckets));
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
 
-//	GL_FlushSkinCache();
-	TRACE(("dbg: GLDraw_ReInit: GL_GAliasFlushSkinCache\n"));
-	GL_GAliasFlushSkinCache();
-
 	qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxtexsize);
 	if (gl_max_size.value > maxtexsize)
 	{
@@ -506,12 +502,7 @@ void GLDraw_DeInit (void)
 
 	R2D_Shutdown();
 
-	if (font_conchar)
-		Font_Free(font_conchar);
-	font_conchar = NULL; 
-	if (font_tiny)
-		Font_Free(font_tiny);
-	font_tiny = NULL; 
+	GL_GAliasFlushSkinCache();
 
 	draw_disc = NULL;
 

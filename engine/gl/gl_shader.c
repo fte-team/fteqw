@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
-#ifdef D3DQUAKE
+#ifdef D3D9QUAKE
 #include <d3d9.h>
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 #endif
@@ -241,6 +241,12 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		else if (!Q_stricmp(token, "normalmap") )
 			conditiontrue = conditiontrue == r_loadbumpmapping;
 
+		else if (!Q_stricmp(token, "opengl") )
+			conditiontrue = conditiontrue == (qrenderer == QR_OPENGL);
+		else if (!Q_stricmp(token, "d3d9") )
+			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D9);
+		else if (!Q_stricmp(token, "d3d11") )
+			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D11);
 		else if (!Q_stricmp(token, "gles") )
 		{
 #ifdef GLQUAKE
@@ -251,11 +257,22 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		}
 		else if (!Q_stricmp(token, "nofixed") )
 		{
+			switch(qrenderer)
+			{
 #ifdef GLQUAKE
-			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && !!gl_config.nofixedfunc);
-#else
-			conditiontrue = conditiontrue == false;
+			case QR_OPENGL:
+				conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && !!gl_config.nofixedfunc);
+				break;
 #endif
+#ifdef D3D11QUAKE
+			case QR_DIRECT3D11:
+				conditiontrue = conditiontrue == true;
+				break;
+#endif
+			default:
+				conditiontrue = conditiontrue == false;
+				break;
+			}
 		}
 		else if (!Q_stricmp(token, "glsl") )
 		{
@@ -267,15 +284,22 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		}
 		else if (!Q_stricmp(token, "hlsl") )
 		{
-#ifdef D3DQUAKE
-			conditiontrue = conditiontrue == false;//((qrenderer == QR_DIRECT3D) && gl_config.arb_shader_objects);
-#else
-			conditiontrue = conditiontrue == false;
+			switch(qrenderer)
+			{
+#ifdef D3D9QUAKE
+			case QR_DIRECT3D9:
+				conditiontrue = conditiontrue == true;	//FIXME
+				break;
 #endif
-		
-
-
-// GCC hates these within if statements "error: expected '}' before 'else'"
+#ifdef D3D11QUAKE
+			case QR_DIRECT3D11:
+				conditiontrue = conditiontrue == true;
+				break;
+#endif
+			default:
+				conditiontrue = conditiontrue == false;
+				break;
+			}
 #ifdef warningmsg
 #pragma warningmsg("shader fixme")
 #endif
@@ -545,7 +569,7 @@ static void Shader_ParseFunc ( char **ptr, shaderfunc_t *func )
 
 //===========================================================================
 
-static int Shader_SetImageFlags(shader_t *shader, char **name)
+static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **name)
 {
 	int flags = 0;
 
@@ -555,6 +579,12 @@ static int Shader_SetImageFlags(shader_t *shader, char **name)
 		{
 			*name+=4;
 			flags|= IF_3DMAP;
+		}
+		else if (!Q_strnicmp(*name, "$nearest:", 9))
+		{
+			*name+=9;
+			flags|= IF_NEAREST;
+			pass->flags |= SHADER_PASS_NEAREST;
 		}
 		else
 			name = NULL;
@@ -807,7 +837,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define SPECULAR\n",
 		"#define FULLBRIGHT\n",
 		"#define UPPERLOWER\n",
-		"#define OFFSETMAPPING\n",
+		"#define DELUXE\n",
 		"#define SKELETAL\n",
 		"#define FOG\n",
 		"#define FRAMEBLEND\n",
@@ -824,6 +854,11 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	int cvartypes[64];
 	int cvarcount = 0;
 	qboolean onefailed = false;
+
+	if (qrenderer != qrtype)
+	{
+		return false;
+	}
 
 	cvarnames[cvarcount] = NULL;
 
@@ -940,16 +975,25 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			if (p & (1u<<n))
 				permutationdefines[pn++] = permutationname[n];
 		}
-		if (r_glsl_offsetmapping_reliefmapping.ival && (p & PERMUTATION_OFFSET))
-			permutationdefines[pn++] = "#define RELIEFMAPPING\n";
+		if (p & PERMUTATION_BUMPMAP)
+		{
+			if (r_glsl_offsetmapping.ival)
+			{
+				permutationdefines[pn++] = "#define OFFSETMAPPING\n";
+				if (r_glsl_offsetmapping_reliefmapping.ival && (p & PERMUTATION_BUMPMAP))
+					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
+			}
+		}
 		permutationdefines[pn++] = NULL;
 
-		if (qrenderer != qrtype)
+		if (0)
 		{
 		}
 #ifdef GLQUAKE
 		else if (qrenderer == QR_OPENGL)
 		{
+			if (prog->handle[p].glsl)
+				qglDeleteProgramObject_(prog->handle[p].glsl);
 			prog->handle[p].glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script, onefailed);
 			if (!prog->handle[p].glsl)
 				onefailed = true;
@@ -957,10 +1001,17 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				break;
 		}
 #endif
-#ifdef D3DQUAKE
-		else if (qrenderer == QR_DIRECT3D)
+#ifdef D3D9QUAKE
+		else if (qrenderer == QR_DIRECT3D9)
 		{
-			if (!D3DShader_CreateProgram(prog, p, permutationdefines, script, script))
+			if (!D3D9Shader_CreateProgram(prog, p, permutationdefines, script, script))
+				break;
+		}
+#endif
+#ifdef D3D11QUAKE
+		else if (qrenderer == QR_DIRECT3D11)
+		{
+			if (!D3D11Shader_CreateProgram(prog, name, p, permutationdefines, script, script))
 				break;
 		}
 #endif
@@ -1242,8 +1293,8 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 #endif
-#ifdef D3DQUAKE
-	{QR_DIRECT3D, 9, "rtlight",
+#ifdef D3D9QUAKE
+	{QR_DIRECT3D9, 9, "rtlight",
 	/*
 	texture units:
 	s0=diffuse, s1=normal, s2=specular, s3=shadowmap
@@ -1305,7 +1356,7 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 
-	{QR_DIRECT3D, 9, "defaultsky",
+	{QR_DIRECT3D9, 9, "defaultsky",
 
 			"struct a2v {\n"
 				"float4 pos: POSITION;\n"
@@ -1359,7 +1410,7 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 
-	{QR_DIRECT3D, 9, "defaultwarp",
+	{QR_DIRECT3D9, 9, "defaultwarp",
 		"!!cvarf r_wateralpha\n"
 		"struct a2v {\n"
 			"float4 pos: POSITION;\n"
@@ -1403,34 +1454,29 @@ struct sbuiltin_s
 };
 void Shader_UnloadProg(program_t *prog)
 {
-	if (prog->refs == 1)
-	{
 #ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL)
+	if (qrenderer == QR_OPENGL)
+	{
+		int p;
+		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			int p;
-			for (p = 0; p < PERMUTATIONS; p++)
-			{
-				if (prog->handle[p].glsl)
-					qglDeleteProgramObject_(prog->handle[p].glsl);
-			}
+			if (prog->handle[p].glsl)
+				qglDeleteProgramObject_(prog->handle[p].glsl);
 		}
+	}
 #endif
-#ifdef D3DQUAKE
-		if (qrenderer == QR_DIRECT3D)
+#ifdef D3D9QUAKE
+	if (qrenderer == QR_DIRECT3D9)
+	{
+		int p;
+		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			int p;
-			for (p = 0; p < PERMUTATIONS; p++)
-			{
 //				if (prog->handle[p].hlsl.vert || prog->handle[p].hlsl.frag)
 //					D3DShader_DeleteProgram(&prog->handle[p].hlsl);
-			}
 		}
-#endif
-		free(prog);
 	}
-	else
-		prog->refs--;
+#endif
+	free(prog);
 }
 static void Shader_FlushGenerics(void)
 {
@@ -1449,44 +1495,26 @@ static void Shader_FlushGenerics(void)
 			Con_Printf("generic shader still used\n"); 
 	}
 }
-static program_t *Shader_LoadGeneric(char *name, int qrtype)
+static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 {
 	unsigned int i;
 	void *file;
 	char basicname[MAX_QPATH];
 	char *h;
 
-	sgeneric_t *g;
-
-	for (g = sgenerics; g; g = g->next)
-	{
-		if (!strcmp(name, g->name))
-		{
-			if (g->failed)
-				return NULL;
-			g->prog.refs++;
-			return &g->prog;
-		}
-	}
-
-	g = malloc(sizeof(*g) + strlen(name)+1);
-	memset(g, 0, sizeof(*g));
-	g->name = (char*)(g+1);
-	strcpy(g->name, name);
-	g->next = sgenerics;
-	sgenerics = g;
-
-	g->prog.refs = 1;
+	g->failed = true;
 
 	basicname[1] = 0;
-	Q_strncpyz(basicname, name, sizeof(basicname));
+	Q_strncpyz(basicname, g->name, sizeof(basicname));
 	h = strchr(basicname+1, '#');
 	if (h)
 		*h = '\0';
 
 	if (strchr(basicname, '/') || strchr(basicname, '.'))
 		FS_LoadFile(basicname, &file);
-	else if (qrenderer == QR_DIRECT3D)
+	else if (qrenderer == QR_DIRECT3D9)
+		FS_LoadFile(va("hlsl/%s.hlsl", basicname), &file);
+	else if (qrenderer == QR_DIRECT3D11)
 		FS_LoadFile(va("hlsl/%s.hlsl", basicname), &file);
 	else if (qrenderer == QR_OPENGL)
 	{
@@ -1502,13 +1530,9 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	if (file)
 	{
 		Con_DPrintf("Loaded %s from disk\n", basicname);
-		g->failed = !Shader_LoadPermutations(name, &g->prog, file, qrtype, 0);
+		g->failed = !Shader_LoadPermutations(g->name, &g->prog, file, qrtype, 0);
 		FS_FreeFile(file);
-
-		g->prog.refs++;
-		if (g->failed)
-			return NULL;
-		return &g->prog;
+		return;
 	}
 	else
 	{
@@ -1535,18 +1559,53 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 					}
 				}
 #endif
-				g->failed = !Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, ver);
+				g->failed = !Shader_LoadPermutations(g->name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, ver);
 
 				if (g->failed)
 					continue;
 
-				g->prog.refs++;
-				return &g->prog;
+				return;
 			}
 		}
 	}
-	g->failed = true;
-	return NULL;
+}
+static void Shader_ReloadGenerics(void)
+{
+	sgeneric_t *g;
+	for (g = sgenerics; g; g = g->next)
+	{
+		Shader_LoadGeneric(g, qrenderer);
+	}
+}
+static program_t *Shader_FindGeneric(char *name, int qrtype)
+{
+	sgeneric_t *g;
+
+	for (g = sgenerics; g; g = g->next)
+	{
+		if (!strcmp(name, g->name))
+		{
+			if (g->failed)
+				return NULL;
+			g->prog.refs++;
+			return &g->prog;
+		}
+	}
+
+	g = malloc(sizeof(*g) + strlen(name)+1);
+	memset(g, 0, sizeof(*g));
+	g->name = (char*)(g+1);
+	strcpy(g->name, name);
+	g->next = sgenerics;
+	sgenerics = g;
+
+	g->prog.refs = 1;
+
+	Shader_LoadGeneric(g, qrtype);
+	if (g->failed)
+		return NULL;
+	g->prog.refs++;
+	return &g->prog;
 }
 
 void Shader_WriteOutGenerics_f(void)
@@ -1563,7 +1622,9 @@ void Shader_WriteOutGenerics_f(void)
 			else
 				name = va("glsl/%s.glsl", sbuiltins[i].name);
 		}
-		else if (sbuiltins[i].qrtype == QR_DIRECT3D)
+		else if (sbuiltins[i].qrtype == QR_DIRECT3D9)
+			name = va("hlsl/%s.hlsl", sbuiltins[i].name);
+		else if (sbuiltins[i].qrtype == QR_DIRECT3D11)
 			name = va("hlsl/%s.hlsl", sbuiltins[i].name);
 
 		if (name)
@@ -1768,8 +1829,8 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		return;
 	}
 #endif
-#ifdef D3DQUAKE
-	if (qrenderer == QR_DIRECT3D)
+#ifdef D3D9QUAKE
+	if (qrenderer == QR_DIRECT3D9)
 	{
 		prog->nofixedcompat = true;
 
@@ -1787,14 +1848,14 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			{
 				if (!prog->handle[p].glsl)
 					continue;
-				uniformloc = D3DShader_FindUniform(&prog->handle[p], 1, va("cvar_%s", tmpname));
+				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 1, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 				{
 					vec4_t v = {cvar->value, 0, 0, 0};
 					IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->handle[0].hlsl.vert);
 					IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, v, 1);
 				}
-				uniformloc = D3DShader_FindUniform(&prog->handle[p], 2, va("cvar_%s", tmpname));
+				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 2, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 				{
 					vec4_t v = {cvar->value, 0, 0, 0};
@@ -1808,7 +1869,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				uniformloc = D3DShader_FindUniform(&prog->handle[p], 0, shader_unif_names[i].name);
+				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 0, shader_unif_names[i].name);
 				if (uniformloc != -1)
 					found = true;
 				prog->parm[prog->numparams].handle[p] = uniformloc;
@@ -1824,7 +1885,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		{
 			for (i = 0; i < 8; i++)
 			{
-				uniformloc = D3DShader_FindUniform(&prog->handle[p], 2, va("s_t%i", i));
+				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 2, va("s_t%i", i));
 				if (uniformloc != -1)
 				{
 					int v[4] = {i};
@@ -1901,7 +1962,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 		return;
 	}
 
-	shader->prog = Shader_LoadGeneric(Shader_ParseString(ptr), qrtype);
+	shader->prog = Shader_FindGeneric(Shader_ParseString(ptr), qrtype);
 }
 
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -1914,7 +1975,7 @@ static void Shader_ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr
 }
 static void Shader_HLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D);
+	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D9);
 }
 
 static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -2087,6 +2148,11 @@ static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
 	shader->flags |= SHADER_BLEND;
 }
 
+static void Shader_DP_Camera(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	shader->sort = SHADER_SORT_PORTAL;
+}
+
 static shaderkey_t shaderkeys[] =
 {
 	{"cull",			Shader_Cull},
@@ -2107,6 +2173,9 @@ static shaderkey_t shaderkeys[] =
 	{"hlslprogram",		Shader_HLSLProgramName},	//for d3d
 	{"param",			Shader_ProgramParam},
 
+	//dp compat
+	{"dp_camera",		Shader_DP_Camera},
+
 	/*doom3 compat*/
 	{"diffusemap",		Shader_DiffuseMap},
 	{"bumpmap",			NULL},
@@ -2123,7 +2192,7 @@ static shaderkey_t shaderkeys[] =
 
 // ===============================================================
 
-static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname)
+static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname)
 {
 	if (!Q_stricmp (tname, "$lightmap"))
 	{
@@ -2233,9 +2302,9 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	pass->anim_frames[0] = r_nulltex;
 
 	token = Shader_ParseString (ptr);
-	if (!ShaderPass_MapGen(shader, pass, token))
+	flags = Shader_SetImageFlags (shader, pass, &token);
+	if (!Shaderpass_MapGen(shader, pass, token))
 	{
-		flags = Shader_SetImageFlags (shader, &token);
 		if (flags & IF_3DMAP)
 			pass->texgen = T_GEN_3DMAP;
 		else
@@ -2252,7 +2321,7 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 	char *token;
 	texid_t image;
 
-	flags = Shader_SetImageFlags (shader, NULL);
+	flags = Shader_SetImageFlags (shader, pass, NULL);
 
 	pass->tcgen = TC_GEN_BASE;
 	pass->flags |= SHADER_PASS_ANIMMAP;
@@ -2292,10 +2361,9 @@ static void Shaderpass_ClampMap (shader_t *shader, shaderpass_t *pass, char **pt
 
 	token = Shader_ParseString (ptr);
 
-	if (!ShaderPass_MapGen(shader, pass, token))
+	flags = Shader_SetImageFlags (shader, pass, &token);
+	if (!Shaderpass_MapGen(shader, pass, token))
 	{
-		flags = Shader_SetImageFlags (shader, &token);
-
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (token, flags | IF_CLAMP);
 		if (flags & IF_3DMAP)
@@ -2933,7 +3001,10 @@ void Shader_Free (shader_t *shader)
 	shader->bucket.data = NULL;
 
 	if (shader->prog)
-		Shader_UnloadProg(shader->prog);
+	{
+		if (shader->prog->refs-- == 1)
+			Shader_UnloadProg(shader->prog);
+	}
 	shader->prog = NULL;
 
 	if (shader->skydome)
@@ -3972,6 +4043,37 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 					"}\n"
 				"}\n"
 			);
+#ifdef D3D11QUAKE
+	if (qrenderer == QR_DIRECT3D11)
+	{
+		if (!builtin)
+			builtin = (
+						"{\n"
+							"program defaultwall\n"
+							/*"param texture 0 tex_diffuse\n"
+							"param texture 1 tex_lightmap\n"
+							"param texture 2 tex_normalmap\n"
+							"param texture 3 tex_deluxmap\n"
+							"param texture 4 tex_fullbright\n"*/
+							"{\n"
+								"map $diffuse\n"
+							"}\n"
+							"{\n"
+								"map $lightmap\n"
+							"}\n"
+							"{\n"
+								"map $normalmap\n"
+							"}\n"
+							"{\n"
+								"map $deluxmap\n"
+							"}\n"
+							"{\n"
+								"map $fullbright\n"
+							"}\n"
+						"}\n"
+					);
+	}
+#endif
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
@@ -4792,11 +4894,22 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 			}
 		}
 #endif
-#ifdef D3DQUAKE
-		if (qrenderer == QR_DIRECT3D)
+#ifdef D3D9QUAKE
+		if (qrenderer == QR_DIRECT3D9)
 		{
 			{
 				if (Shader_ParseShader(va("%s_hlsl", shortname), shortname, s))
+				{
+					return f;
+				}
+			}
+		}
+#endif
+#ifdef D3D11QUAKE
+		if (qrenderer == QR_DIRECT3D11)
+		{
+			{
+				if (Shader_ParseShader(va("%s_hlsl11", shortname), shortname, s))
 				{
 					return f;
 				}
@@ -4853,6 +4966,7 @@ void Shader_DoReload(void)
 		return;
 	shader_reload_needed = false;
 	Font_InvalidateColour();
+	Shader_ReloadGenerics();
 
 	for (s = r_shaders, i = 0; i < MAX_SHADERS; i++, s++)
 	{

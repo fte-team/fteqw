@@ -56,7 +56,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define BSPVERSION	29
 //HalfLife support
 #define BSPVERSIONHL	30
-#define BSPVERSION_LONG (('B' << 24) | ('S' << 16) | ('P' << 8) | '2') /*RMQ support. 32bits instead of shorts for all but bbox sizes*/
+#define BSPVERSION_LONG1 (('B' << 24) | ('S' << 16) | ('P' << 8) | '2') /*RMQ support (2PSB). 32bits instead of shorts for all but bbox sizes*/
+#define BSPVERSION_LONG2 (('B' << 0) | ('S' << 8) | ('P' << 16) | ('2'<<24)) /*BSP2 support. 32bits instead of shorts for everything*/
 
 typedef struct
 {
@@ -172,7 +173,16 @@ typedef struct
 	short		maxs[3];
 	unsigned int	firstface;
 	unsigned int	numfaces;	// counting both sides
-} dlnode_t;
+} dl1node_t;
+typedef struct
+{
+	int			planenum;
+	int			children[2];	// negative numbers are -(leafs+1), not nodes
+	float		mins[3];		// for sphere culling
+	float		maxs[3];
+	unsigned int	firstface;
+	unsigned int	numfaces;	// counting both sides
+} dl2node_t;
 
 typedef struct
 {
@@ -274,7 +284,20 @@ typedef struct
 	unsigned int		nummarksurfaces;
 
 	qbyte		ambient_level[NUM_AMBIENTS];
-} dlleaf_t;
+} dl1leaf_t;
+typedef struct
+{
+	int			contents;
+	int			visofs;				// -1 = no visibility info
+
+	float		mins[3];			// for frustum culling
+	float		maxs[3];
+
+	unsigned int		firstmarksurface;
+	unsigned int		nummarksurfaces;
+
+	qbyte		ambient_level[NUM_AMBIENTS];
+} dl2leaf_t;
 
 //============================================================================
 

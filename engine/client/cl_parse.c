@@ -35,12 +35,12 @@ int cl_dp_csqc_progscrc;
 int cl_dp_serverextension_download;
 
 
-char *svc_strings[] =
+char *svc_qwstrings[] =
 {
 	"svc_bad",
 	"svc_nop",
 	"svc_disconnect",
-	"svc_updatestat",
+	"svcqw_updatestatbyte",
 	"svc_version",		// [long] server version
 	"svc_setview",		// [short] entity number
 	"svc_sound",			// <see code>
@@ -170,7 +170,7 @@ char *svc_nqstrings[] =
 	"nqsvc_bad",
 	"nqsvc_nop",
 	"nqsvc_disconnect",
-	"nqsvc_updatestat",
+	"nqsvc_updatestatlong",
 	"nqsvc_version",		// [long] server version
 	"nqsvc_setview",		// [short] entity number
 	"nqsvc_sound",			// <see code>
@@ -2696,7 +2696,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			netprim.coordsize = 3;
 		if (fl & RMQFL_FLOATCOORD)
 			netprim.coordsize = 4;
-		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_FLOATCOORD))
+		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_FLOATCOORD|RMQFL_EDICTSCALE))
 			Con_Printf("WARNING: Server is using unsupported RMQ extensions\n");
 	}
 	else if (protover == DP5_PROTOCOL_VERSION)
@@ -3519,17 +3519,23 @@ void CL_ParseStatic (int version)
 			CLFTE_ParseBaseline(&es, false);
 		else
 			CLQW_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
-		es.number+=MAX_EDICTS;
 
-		for (i = 0; i < cl.num_statics; i++)
-			if (cl_static_entities[i].ent.keynum == es.number)
-			{
-				pe->DelinkTrailstate (&cl_static_entities[i].emit);
-				break;
-			}
+		if (!es.number)
+			i = cl.num_statics++;
+		else
+		{
+			es.number+=MAX_EDICTS;
 
-		if (i == cl.num_statics)
-			cl.num_statics++;
+			for (i = 0; i < cl.num_statics; i++)
+				if (cl_static_entities[i].ent.keynum == es.number)
+				{
+					pe->DelinkTrailstate (&cl_static_entities[i].emit);
+					break;
+				}
+
+			if (i == cl.num_statics)
+				cl.num_statics++;
+		}
 	}
 
 	if (i == cl_max_static_entities)
@@ -5184,7 +5190,7 @@ void CLQW_ParseServerMessage (void)
 
 		if (cmd == svcfte_choosesplitclient)
 		{
-			SHOWNET(svc_strings[cmd]);
+			SHOWNET(svc_qwstrings[cmd]);
 
 			destsplit = MSG_ReadByte() % MAX_SPLITS;
 			cmd = MSG_ReadByte();
@@ -5199,7 +5205,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 		}
 
-		SHOWNET(svc_strings[cmd]);
+		SHOWNET(svc_qwstrings[cmd]);
 
 	// other commands
 		switch (cmd)
@@ -5449,13 +5455,13 @@ void CLQW_ParseServerMessage (void)
 			cl.playerview[destsplit].stats[STAT_SECRETS]++;
 			break;
 
-		case svc_updatestat:
+		case svcqw_updatestatbyte:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
 			CL_SetStatInt (destsplit, i, j);
 			CL_SetStatFloat (destsplit, i, j);
 			break;
-		case svc_updatestatlong:
+		case svcqw_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();	//make qbyte if nq compatability?
 			CL_SetStatInt (destsplit, i, j);
@@ -6265,7 +6271,7 @@ void CLNQ_ParseServerMessage (void)
 			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
 			break;
 
-		case svc_updatestat:
+		case svcnq_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();
 			CL_SetStatInt (0, i, j);

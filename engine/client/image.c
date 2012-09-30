@@ -641,18 +641,22 @@ return NULL;
 #define PNG_ALLOCATED
 #endif
 
+#define png_const_infop png_infop
+#define png_const_structp png_structp
+#define png_const_bytep png_bytep
+
 void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
 void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
-png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_bit_depth);
-png_byte (PNGAPI *qpng_get_channels) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_channels);
-png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_rowbytes);
+png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, const png_const_infop info_ptr)) PSTATIC(png_get_bit_depth);
+png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_channels);
+png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_rowbytes);
 void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
 void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
 void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
 void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
 void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
-png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
+png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
 void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
 void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
 void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
@@ -664,7 +668,7 @@ void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, p
 void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
 png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_structp png_ptr)) PSTATIC(png_create_info_struct);
 png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
-int (PNGAPI *qpng_sig_cmp) PNGARG((png_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
+int (PNGAPI *qpng_sig_cmp) PNGARG((png_const_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
 
 void (PNGAPI *qpng_write_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_write_end);
 void (PNGAPI *qpng_write_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
@@ -2230,7 +2234,7 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 	if (!qglCompressedTexImage2DARB)
 		return r_nulltex;
 
-	texnum = GL_AllocNewTexture(iname, fmtheader.dwWidth, fmtheader.dwHeight);
+	texnum = GL_AllocNewTexture(iname, fmtheader.dwWidth, fmtheader.dwHeight, 0);
 	GL_MTBind(0, GL_TEXTURE_2D, texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;
@@ -2393,7 +2397,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		int j;
 		char *suf[] =
 		{
-			"rt", "lf", "ft", "bk", "up", "dn",
+			"rt", "lf", "ft", "bk", "up", "dn",	//FIXME: This is inverted and thus wrong
 			"px", "nx", "py", "ny", "pz", "nz",
 			"posx", "negx", "posy", "negy", "posz", "negz"
 		};

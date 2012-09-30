@@ -83,7 +83,7 @@ void VARGS PR_CB_Free(void *mem);
 
 
 void PF_InitTempStrings(progfuncs_t *prinst);
-string_t PR_TempString(progfuncs_t *prinst, char *str);	//returns a tempstring containing str
+string_t PR_TempString(progfuncs_t *prinst, const char *str);	//returns a tempstring containing str
 char *PF_TempStr(progfuncs_t *prinst);	//returns a tempstring which can be filled in with whatever junk you want.
 
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
@@ -188,6 +188,8 @@ void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenumtriangles(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacetriangle(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -204,6 +206,11 @@ void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_frametoname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skintoname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out);
 void skel_dodelete(progfuncs_t *prinst);
 void skel_reset(progfuncs_t *prinst);

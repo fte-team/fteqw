@@ -72,7 +72,7 @@ alpha <value>
 alphadelta <value>
 	specifies how much the alpha value of the effect changes per second (subtracted)
 
-die <value>
+die <maximum age> 
 	specifies the maximum age of the particle
 
 diesubrand <value>
@@ -215,10 +215,10 @@ spawnmode <mode> [arg1] [arg2]
 		*default*: particles spawn as a regular trail.
 
 spawnparam1 <value>
-	obsolete
+	obsolete. see spawnmode.
 
 spawnparam2 <value>
-	obsolete
+	obsolete. see spawnmode.
 
 up <value>
 	the particle's origin is moved upwards by this amount

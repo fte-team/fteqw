@@ -105,6 +105,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define DYNAMIC_LIBPNG
 //#define DYNAMIC_LIBJPEG
 
+#ifdef D3DQUAKE
+#define D3D9QUAKE
+#endif
+
+#if (defined(D3D9QUAKE) || defined(D3D11Quake)) && !defined(D3DQUAKE)
+#define D3DQUAKE
+#endif
+
 #if defined(_MSC_VER) //too lazy to fix up the makefile
 //#define BOTLIB_STATIC
 #endif
@@ -306,26 +314,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //remove any options that depend upon GL.
 #ifndef SERVERONLY
-	#if !defined(GLQUAKE) && !defined(D3DQUAKE)
-		#undef DOOMWADS
-		#undef HALFLIFEMODELS
-		#undef Q3BSPS
-		#undef R_XFLIP
-		#undef RUNTIMELIGHTING
-		#undef Q3CLIENT
-	#endif
-
 	// undefine things not supported yet for D3D
 	#if defined(D3DQUAKE) && !defined(GLQUAKE)
 		#undef DDS // this is dumb
-		#undef HALFLIFEMODELS
 	#endif
 
 #endif
 
-#if !defined(GLQUAKE) && !defined(D3DQUAKE) && !defined(SERVERONLY)
-	#undef Q3BSPS
-#endif
 #if !defined(Q3BSPS)
 	#undef Q3CLIENT //reconsider this (later)
 	#undef Q3SERVER //reconsider this (later)

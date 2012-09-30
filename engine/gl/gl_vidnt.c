@@ -96,7 +96,7 @@ extern cvar_t vid_wndalpha;
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 
-BOOL bSetupPixelFormat(HDC hDC);
+BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
 
 //qboolean VID_SetWindowedMode (int modenum);
 //qboolean VID_SetFullDIBMode (int modenum);
@@ -631,6 +631,9 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		return false;
 	}
 
+	SendMessage (dibwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
+	SendMessage (dibwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
+
 	if (!sys_parentwindow)
 	{
 #ifdef WS_EX_LAYERED
@@ -702,8 +705,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	mainwindow = dibwindow;
 	vid_isfullscreen=false;
 
-	SendMessage (mainwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
-	SendMessage (mainwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
+	CL_UpdateWindowTitle();
 
 	return true;
 }
@@ -783,6 +785,9 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	if (!dibwindow)
 		Sys_Error ("Couldn't create DIB window");
 
+	SendMessage (dibwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
+	SendMessage (dibwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
+
 	ShowWindow (dibwindow, SW_SHOWDEFAULT);
 	UpdateWindow (dibwindow);
 
@@ -826,9 +831,6 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	vid_isfullscreen=true;
 
 	mainwindow = dibwindow;
-
-	SendMessage (mainwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
-	SendMessage (mainwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
 
 	return true;
 }
@@ -1094,7 +1096,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		{
 			maindc = GetDC(mainwindow);
 			TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
-			if (bSetupPixelFormat(maindc))
+			if (bSetupPixelFormat(maindc, info))
 				break;
 			ReleaseDC(mainwindow, maindc);
 		}
@@ -1113,7 +1115,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			{
 				maindc = GetDC(mainwindow);
 				TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
-				if (bSetupPixelFormat(maindc))
+				if (bSetupPixelFormat(maindc, info))
 					break;
 				ReleaseDC(mainwindow, maindc);
 			}
@@ -1242,6 +1244,14 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
+
+	if (info->stereo)
+	{
+		GLboolean ster = false;
+		qglGetBooleanv(GL_STEREO, &ster);
+		if (!ster)
+			Con_Printf("Unable to create stereoscopic/quad-buffered OpenGL context. Please use a different stereoscopic method.\n");
+	}
 
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 
@@ -1488,15 +1498,16 @@ void	GLVID_Shutdown (void)
 
 //==========================================================================
 
-#define 	WGL_DRAW_TO_WINDOW_ARB   0x2001
-#define 	WGL_SUPPORT_OPENGL_ARB   0x2010
-#define 	WGL_ACCELERATION_ARB   0x2003
-#define 	WGL_FULL_ACCELERATION_ARB   0x2027
-#define 	WGL_COLOR_BITS_ARB   0x2014
-#define 	WGL_ALPHA_BITS_ARB   0x201B
-#define 	WGL_DEPTH_BITS_ARB   0x2022
-#define 	WGL_STENCIL_BITS_ARB   0x2023
-#define 	WGL_DOUBLE_BUFFER_ARB   0x2011
+#define 	WGL_DRAW_TO_WINDOW_ARB		0x2001
+#define 	WGL_ACCELERATION_ARB		0x2003
+#define 	WGL_SUPPORT_OPENGL_ARB		0x2010
+#define 	WGL_DOUBLE_BUFFER_ARB		0x2011
+#define		WGL_STEREO_ARB				0x2012
+#define 	WGL_COLOR_BITS_ARB			0x2014
+#define 	WGL_ALPHA_BITS_ARB			0x201B
+#define 	WGL_DEPTH_BITS_ARB			0x2022
+#define 	WGL_STENCIL_BITS_ARB		0x2023
+#define 	WGL_FULL_ACCELERATION_ARB	0x2027
 qboolean shouldforcepixelformat;
 int forcepixelformat;
 
@@ -1519,6 +1530,7 @@ BOOL CheckForcePixelFormat(rendererstate_t *info)
 				WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
 				WGL_SAMPLE_BUFFERS_ARB,GL_TRUE,
 				WGL_SAMPLES_ARB, info->multisample,						// Check For 4x Multisampling
+				WGL_STEREO_ARB,	 info->stereo,
 				0,0};
 
 		TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 4)\n"));
@@ -1608,7 +1620,7 @@ void FixPaletteInDescriptor(HDC hDC, PIXELFORMATDESCRIPTOR *pfd)
 	}
 }
 
-BOOL bSetupPixelFormat(HDC hDC)
+BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 {
     static PIXELFORMATDESCRIPTOR pfd = {
 	sizeof(PIXELFORMATDESCRIPTOR),	// size of this pfd
@@ -1638,6 +1650,11 @@ BOOL bSetupPixelFormat(HDC hDC)
     int pixelformat;
 
 	TRACE(("dbg: bSetupPixelFormat: ChoosePixelFormat\n"));
+
+	if (info->stereo)
+		pfd.dwFlags |= PFD_STEREO;
+	if (info->bpp == 15 || info->bpp == 16)
+		pfd.cColorBits = 16;
 
 	if (shouldforcepixelformat && qwglChoosePixelFormatARB)	//the extra && is paranoia
 	{
@@ -2066,13 +2083,15 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	memset(&devmode, 0, sizeof(devmode));
 
+	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
+
 	/* Register the frame class */
     wc.style         = 0;
     wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
     wc.cbClsExtra    = 0;
     wc.cbWndExtra    = 0;
     wc.hInstance     = global_hInstance;
-    wc.hIcon         = 0;
+    wc.hIcon         = hIcon;
     wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wc.hbrBackground = NULL;
     wc.lpszMenuName  = 0;
@@ -2080,8 +2099,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	if (!RegisterClass (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
 		MessageBox(NULL, "RegisterClass failed", "GAH", 0);
-
-	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	vid_initialized = false;
 	vid_initializing = true;

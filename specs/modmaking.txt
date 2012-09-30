@@ -16,8 +16,8 @@ You can also 'compile csprogs.src' if you want to compile, eg, a csqc mod.
 Additionally, the 'applycompile' basically does a quick savegame, effectively applying a newly compiled mod without restarting a map. This is useful if you just want to test a single repeatable function without booting players or anything - this won't automagically change any fields!
 
 Multiplayer testing:
-Unlike other engines, FTE permits multiple instances of itself.
-(Note that ezquake will not start up if FTE is already running, but FTE will start up if ezquake is, so if you want to test ezquake+FTE compatibility, start ezquake first).
+Unlike other QuakeWorld engines, FTE permits multiple instances of itself.
+(Note that other quakeworld engines will refuse to start up if FTE is already running, but FTE will start up if they are running, so if you want to test ezquake+FTE compatibility, start ezquake first).
 Also...
 FTE supports splitscreen! This can simplify testing multiplayer when you can't be bothered switching between two clients.
 Mostly this should be documented elsewhere, but here's the basics.

@@ -58,8 +58,8 @@ typedef struct sfx_s
 // !!! if this is changed, it much be changed in asm_i386.h too !!!
 typedef struct sfxcache_s
 {
-	unsigned int length;
-	unsigned int loopstart;
+	unsigned int length;	//sample count
+	unsigned int loopstart;	//-1 or sample index to begin looping at once the sample ends
 	unsigned int speed;
 	unsigned int width;
 	unsigned int numchannels;
@@ -256,6 +256,7 @@ typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
 extern sounddriver pOPENAL_InitCard;
 extern sounddriver pDSOUND_InitCard;
 extern sounddriver pALSA_InitCard;
+extern sounddriver pSNDIO_InitCard;
 extern sounddriver pOSS_InitCard;
 extern sounddriver pSDL_InitCard;
 extern sounddriver pWAV_InitCard;
@@ -285,16 +286,16 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	int	samplequeue;	//this is the number of samples the device can enqueue. if set, DMAPos returns the write point (rather than hardware read point) (in samplepairs).
 
 //callbacks
-	void *(*Lock) (soundcardinfo_t *sc, unsigned int *startoffset);
-	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
-	void (*Submit) (soundcardinfo_t *sc, int start, int end);
-	void (*Shutdown) (soundcardinfo_t *sc);
-	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
-	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
-	void (*Restore) (soundcardinfo_t *sc);
-	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);
+	void *(*Lock) (soundcardinfo_t *sc, unsigned int *startoffset);	//grab a pointer to the hardware ringbuffer or whatever. startoffset is the starting offset. you can set it to 0 and bump the start offset if you need.
+	void (*Unlock) (soundcardinfo_t *sc, void *buffer);				//release the hardware ringbuffer memory
+	void (*Submit) (soundcardinfo_t *sc, int start, int end);		//if the ringbuffer is emulated, this is where you should push it to the device.
+	void (*Shutdown) (soundcardinfo_t *sc);							//kill the device
+	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);				//get the current point that the hardware is reading from (the return value should not wrap, at least not very often)
+	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);	//if you have eax enabled, change the environment. fixme. generally this is a stub. optional.
+	void (*Restore) (soundcardinfo_t *sc);							//called before lock/unlock/lock/unlock/submit. optional
+	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);	//properties of a sound effect changed. this is to notify hardware mixers. optional.
 
-//driver -specific
+//driver-specific - if you need more stuff, you should just shove it in the handle pointer
 	void *thread;
 	void *handle;
 	int snd_sent;

@@ -128,7 +128,7 @@ struct progfuncs_s {
 	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
 	int		tempstringnum;			//for engine's use.
 
-	string_t (*TempString)				(progfuncs_t *prinst, char *str);
+	string_t (*TempString)				(progfuncs_t *prinst, const char *str);
 
 	string_t (*StringToProgs)			(progfuncs_t *prinst, char *str);
 	char *(ASMCALL *StringToNative)				(progfuncs_t *prinst, string_t str);

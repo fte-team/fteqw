@@ -46,6 +46,13 @@ ifeq ($(FTE_TARGET),win64)
 			STRIP=amd64-mingw32msvc-strip
 #			BITS=64
 		endif
+		ifneq ($(shell which x86_64-w64-mingw32-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=x86_64-w64-mingw32-gcc -m64
+			WINDRES=x86_64-w64-mingw32-windres
+			STRIP=x86_64-w64-mingw32-strip
+#			BITS=64
+		endif
 	endif
 endif
 
@@ -217,6 +224,7 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	endif
 	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
 		FTE_TARGET=cygwin
+		ANDROID_SCRIPT=android.bat
 	endif
 	ifeq ($(FTE_TARGET),) 	#still not set
 
@@ -257,7 +265,6 @@ HTTP_DIR=$(BASE_DIR)/http
 #LIBS_DIR=$(BASE_DIR)/libs
 LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
-SNDCODEC_DIR=$(BASE_DIR)/sndcodec
 NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
 
@@ -347,7 +354,7 @@ PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS=-DGLQUAKE
-D3DCFLAGS=-DD3DQUAKE
+D3DCFLAGS=-DD3D9QUAKE
 NPFTECFLAGS=-DNPFTE
 
 SPEEX_OBJS = \
@@ -461,14 +468,17 @@ GLQUAKE_OBJS =		\
 	gl_rsurf.o		\
 	gl_screen.o		\
 	gl_bloom.o		\
-	gl_vidcommon.o	\
-	gl_hlmdl.o
+	gl_vidcommon.o
 
 D3DQUAKE_OBJS =		\
 	d3d_backend.o \
 	d3d_image.o	\
 	d3d_shader.o	\
-	vid_d3d.o
+	vid_d3d.o	\
+	d3d11_backend.o \
+	d3d11_image.o	\
+	d3d11_shader.o	\
+	vid_d3d11.o
 	
 D3DGL_OBJS =		\
 	gl_font.o \
@@ -477,6 +487,7 @@ D3DGL_OBJS =		\
 	gl_shader.o	\
 	gl_shadow.o	\
 	gl_rlight.o	\
+	gl_hlmdl.o	\
 	gl_warp.o	\
 	ltface.o	\
 	r_surf.o	\
@@ -1031,7 +1042,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(SNDCODEC_DIR) : $(D3D_DIR) : $(BOTLIB_DIR)
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(BOTLIB_DIR)
 
 ifneq ($(findstring -DSPEEX_STATIC, $(CFLAGS)),)
 	#add these to statically link libspeex

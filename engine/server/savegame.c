@@ -529,6 +529,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	gametype_e gametype;
 
 	levelcache_t *cache;
+	int numstyles;
 
 	if (isloadgame)
 	{
@@ -644,7 +645,8 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 // load the light styles
 
 	VFS_GETS(f, str, sizeof(str));
-	if (atoi(str) != MAX_LIGHTSTYLES)
+	numstyles = atoi(str);
+	if (numstyles > MAX_LIGHTSTYLES)
 	{
 		VFS_CLOSE (f);
 		Con_Printf ("load failed - invalid number of lightstyles\n");
@@ -663,13 +665,23 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 	}
 
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	for (i = 0; i<MAX_LIGHTSTYLES ; i++)
+	{
+		if (sv.strings.lightstyles[i])
+			BZ_Free(sv.strings.lightstyles[i]);
+		sv.strings.lightstyles[i] = NULL;
+	}
+
+	for (i=0 ; i<numstyles ; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
-		if (sv.strings.lightstyles[i])
-			PR_AddressableFree(svprogfuncs, sv.strings.lightstyles[i]);
-		sv.strings.lightstyles[i] = PR_AddressableAlloc(svprogfuncs, strlen(str)+1);
+		sv.strings.lightstyles[i] = BZ_Malloc(strlen(str)+1);
 		strcpy (sv.strings.lightstyles[i], str);
+	}
+	for ( ; i<MAX_LIGHTSTYLES ; i++)
+	{
+		sv.strings.lightstyles[i] = BZ_Malloc(1);
+		strcpy (sv.strings.lightstyles[i], "");
 	}
 
 	modelpos = VFS_TELL(f);
@@ -911,10 +923,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	VFS_PRINTF (f, "%i\n",MAX_LIGHTSTYLES);
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		if (sv.strings.lightstyles[i])
-			VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]);
-		else
-			VFS_PRINTF (f, "\n");
+		VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]?sv.strings.lightstyles[i]:"");
 	}
 
 	for (i=1 ; i<MAX_MODELS ; i++)

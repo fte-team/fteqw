@@ -15,6 +15,8 @@ import android.view.WindowManager;
 import android.opengl.GLSurfaceView;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 
 import android.hardware.SensorManager;
 import android.hardware.Sensor;
@@ -137,6 +139,71 @@ public class FTEDroidActivity extends Activity
 						};
 						act.runOnUiThread(r);
 					}
+					if (((flags ^ notifiedflags) & 8) != 0)
+					{					
+						//8 means sys error
+						Runnable r = new Runnable() 
+						{
+							public void run()
+							{
+								theview.setVisibility(theview.GONE);
+								AlertDialog ad = new AlertDialog.Builder(act).create();
+								ad.setTitle("FTE ERROR");
+								ad.setMessage(FTEDroidEngine.geterrormessage());
+								ad.setCancelable(false);
+								ad.setButton("Ok", new DialogInterface.OnClickListener()
+										{
+											public void onClick(DialogInterface dialog, int which)
+											{
+												finish();
+												System.exit(0);
+											}
+										}
+									);
+								ad.show();
+							}
+						};
+						act.runOnUiThread(r);
+					}
+					if (((flags ^ notifiedflags) & 16) != 0)
+					{					
+						Runnable r = new Runnable() 
+						{
+							public void run()
+							{
+								String ors = FTEDroidEngine.getpreferedorientation();
+								int ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR;
+								if (ors.equalsIgnoreCase("unspecified"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+								else if (ors.equalsIgnoreCase("landscape"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+								else if (ors.equalsIgnoreCase("portrait"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+								else if (ors.equalsIgnoreCase("user"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER;
+								else if (ors.equalsIgnoreCase("behind"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_BEHIND;
+								else if (ors.equalsIgnoreCase("sensor"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR;
+								else if (ors.equalsIgnoreCase("nosensor"))
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_NOSENSOR;
+								//the following are api level 9+
+								else if (ors.equalsIgnoreCase("sensorlandscape"))
+									ori = 6;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+								else if (ors.equalsIgnoreCase("sensorportrait"))
+									ori = 7;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+								else if (ors.equalsIgnoreCase("reverselandscape"))
+									ori = 8;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+								else if (ors.equalsIgnoreCase("reverseportrait"))
+									ori = 9;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+								else if (ors.equalsIgnoreCase("fullsensor"))
+									ori = 10;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
+								android.util.Log.i("FTEDroid", "Orientation changed to " + ori + " (" + ors + ").");
+								act.setRequestedOrientation(ori);
+							}
+						};
+						act.runOnUiThread(r);
+					}
 
 					//clear anything which is an impulse
 					notifiedflags = flags;
@@ -153,6 +220,7 @@ public class FTEDroidActivity extends Activity
 		@Override
 		public void onSurfaceCreated(GL10 gl, EGLConfig config)
 		{
+			FTEDroidEngine.newglcontext();
 		}
 	}
 
@@ -550,7 +618,6 @@ public class FTEDroidActivity extends Activity
 		android.util.Log.i("FTEDroid", "create view");
 		view = new FTEView(this);
 		setContentView(view);
-	//	setContentView(R.layout.main);
 				
 
 		if (runningintheemulator())

@@ -81,7 +81,7 @@ texid_t GenerateNormalisationCubeMap(void)
 
 	int i, j;
 	
-	normalisationCubeMap = R_AllocNewTexture("normalisationcubemap", 32, 32);
+	normalisationCubeMap = R_AllocNewTexture("normalisationcubemap", 32, 32, 0);
 	GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 
 	//positive x

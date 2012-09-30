@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 #include "glquake.h"
 #endif
 #include "com_mesh.h"
@@ -1374,12 +1374,8 @@ qboolean CMod_LoadFaces (lump_t *l)
 		i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-		else if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
-			out->samples = loadmodel->lightdata + i;
-#endif
 		else
-			out->samples = loadmodel->lightdata + i/3;
+			out->samples = loadmodel->lightdata + i;
 
 	// set the drawing flags
 
@@ -2274,7 +2270,7 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 	return true;
 }
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 
 /*
 =================
@@ -2500,15 +2496,7 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 
 	if (LittleLong(in->facetype) == MST_PATCH)
 	{
-//		out->mesh->numindexes = 0;
-//		out->mesh->numvertexes = 0;
-		//FIXME
 		GL_CreateMeshForPatch(loadmodel, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
-//		if (out->mesh)
-//		{
-//			Mod_AccumulateMeshTextureVectors(out->mesh);
-//			Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
-//		}
 	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
@@ -2530,35 +2518,6 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 		{
 			out->mesh->indexes[i] = map_surfindexes[fv + i];
 		}
-
-/*		numindexes = LittleLong(in->num_indexes);
-		numverts = LittleLong(in->num_vertices);
-		if (numindexes%3 || numindexes < 0 || numverts < 0)
-		{
-			Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
-			return false;
-		}
-
-		out->mesh = Hunk_Alloc(sizeof(mesh_t));
-		out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
-		out->mesh->snormals_array = map_svector_array + LittleLong(in->firstvertex);
-		out->mesh->tnormals_array = map_tvector_array + LittleLong(in->firstvertex);
-
-		out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
-		out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
-		out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
-		out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
-		out->mesh->lmst_array	= map_vertlstmexcoords + LittleLong(in->firstvertex);
-
-		out->mesh->numindexes = numindexes;
-		out->mesh->numvertexes = numverts;
-
-		if (LittleLong(in->facetype) == MST_PLANAR)
-			if (out->mesh->numindexes == (out->mesh->numvertexes-2)*3)
-				out->mesh->istrifan = true;
-
-		Mod_AccumulateMeshTextureVectors(out->mesh);
-*/
 	}
 	else
 	{
@@ -3454,7 +3413,7 @@ int CM_GetQ2Palette (void)
 	FS_FreeFile(f);
 
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#if 1
 	{
 		float	inf;
 		qbyte	palette[768];
@@ -3858,153 +3817,135 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 
 		Q1BSPX_Setup(loadmodel, mod_base, com_filesize, header.lumps, Q3LUMPS_TOTAL);
 
-		switch(qrenderer)
+		mapisq3 = true;
+		noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
+		noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
+		noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
+		noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
+		if (header.version == 1)
 		{
-#if defined(GLQUAKE)
-		case QR_OPENGL:
-#endif
-#if defined(D3DQUAKE)
-		case QR_DIRECT3D:
-#endif
-		case QR_NONE:	//dedicated only
-			mapisq3 = true;
-			noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
-			noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
-			noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
-			if (header.version == 1)
-			{
-				noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
-				noerrors = noerrors && CModRBSP_LoadVertexes	(&header.lumps[Q3LUMP_DRAWVERTS]);
-			}
-			else
-			{
-				noerrors = noerrors && CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
-				noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
-			}
-			if (header.version == 1)
-				noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
-			else
-				noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-			if (qrenderer != QR_NONE)
-			{
-				if (noerrors)
-					RMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
-				if (header.version == 1)
-					noerrors = noerrors && CModRBSP_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
-				else
-					noerrors = noerrors && CModQ3_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID]);
-				noerrors = noerrors && CModQ3_LoadIndexes		(&header.lumps[Q3LUMP_DRAWINDEXES]);
-
-				if (header.version != Q3BSPVERSION+1)
-					noerrors = noerrors && CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
-				else
-					map_numfogs = 0;
-
-				buildcookie = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
-				if (header.version == 1)
-				{
-					noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
-					buildmeshes = CModRBSP_BuildSurfMesh;
-				}
-				else
-				{
-					noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
-					buildmeshes = CModQ3_BuildSurfMesh;
-				}
-				noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
-
-				/*make sure all textures have a shader*/
-				for (i=0; i<loadmodel->numtextures; i++)
-				{
-					if (!loadmodel->textures[i]->shader)
-						loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
-				}
-			}
-#endif
-			noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
-			noerrors = noerrors && CModQ3_LoadLeafs		(&header.lumps[Q3LUMP_LEAFS]);
-			noerrors = noerrors && CModQ3_LoadNodes		(&header.lumps[Q3LUMP_NODES]);
-			noerrors = noerrors && CModQ3_LoadSubmodels	(&header.lumps[Q3LUMP_MODELS]);
-			noerrors = noerrors && CModQ3_LoadVisibility	(&header.lumps[Q3LUMP_VISIBILITY]);
+			noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModRBSP_LoadVertexes	(&header.lumps[Q3LUMP_DRAWVERTS]);
+		}
+		else
+		{
+			noerrors = noerrors && CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
+		}
+		if (header.version == 1)
+			noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
+		else
+			noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
+#ifndef SERVERONLY
+		if (qrenderer != QR_NONE)
+		{
 			if (noerrors)
-				CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
+				RMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
+			if (header.version == 1)
+				noerrors = noerrors && CModRBSP_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
+			else
+				noerrors = noerrors && CModQ3_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID]);
+			noerrors = noerrors && CModQ3_LoadIndexes		(&header.lumps[Q3LUMP_DRAWINDEXES]);
 
-			if (!noerrors)
+			if (header.version != Q3BSPVERSION+1)
+				noerrors = noerrors && CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
+			else
+				map_numfogs = 0;
+
+			buildcookie = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
+			if (header.version == 1)
 			{
-				if (map_faces)
-					BZ_Free(map_faces);
-				if (map_leaffaces)
-					BZ_Free(map_leaffaces);
-
-				Hunk_FreeToLowMark(start);
-				return NULL;
+				noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+				buildmeshes = CModRBSP_BuildSurfMesh;
 			}
+			else
+			{
+				noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+				buildmeshes = CModQ3_BuildSurfMesh;
+			}
+			noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
+
+			/*make sure all textures have a shader*/
+			for (i=0; i<loadmodel->numtextures; i++)
+			{
+				if (!loadmodel->textures[i]->shader)
+					loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
+			}
+		}
+#endif
+		noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
+		noerrors = noerrors && CModQ3_LoadLeafs		(&header.lumps[Q3LUMP_LEAFS]);
+		noerrors = noerrors && CModQ3_LoadNodes		(&header.lumps[Q3LUMP_NODES]);
+		noerrors = noerrors && CModQ3_LoadSubmodels	(&header.lumps[Q3LUMP_MODELS]);
+		noerrors = noerrors && CModQ3_LoadVisibility	(&header.lumps[Q3LUMP_VISIBILITY]);
+		if (noerrors)
+			CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
+
+		if (!noerrors)
+		{
+			if (map_faces)
+				BZ_Free(map_faces);
+			if (map_leaffaces)
+				BZ_Free(map_leaffaces);
+
+			Hunk_FreeToLowMark(start);
+			return NULL;
+		}
 
 #ifndef CLIENTONLY
-			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
-			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+		loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
+		loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
+		loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
-			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
-
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-			loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
-			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
-			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
-#endif
-			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
-			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
-			loadmodel->funcs.NativeContents			= CM_NativeContents;
+		loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
+		loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
 
 #ifndef SERVERONLY
-			//light grid info
-			if (loadmodel->lightgrid)
+		loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
+		loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
+		loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
+#endif
+		loadmodel->funcs.PointContents			= Q2BSP_PointContents;
+		loadmodel->funcs.NativeTrace			= CM_NativeTrace;
+		loadmodel->funcs.NativeContents			= CM_NativeContents;
+
+#ifndef SERVERONLY
+		//light grid info
+		if (loadmodel->lightgrid)
+		{
+			float maxs;
+			q3lightgridinfo_t *lg = loadmodel->lightgrid;
+			if ( lg->gridSize[0] < 1 || lg->gridSize[1] < 1 || lg->gridSize[2] < 1 )
 			{
-				float maxs;
-				q3lightgridinfo_t *lg = loadmodel->lightgrid;
-				if ( lg->gridSize[0] < 1 || lg->gridSize[1] < 1 || lg->gridSize[2] < 1 )
-				{
-					lg->gridSize[0] = 64;
-					lg->gridSize[1] = 64;
-					lg->gridSize[2] = 128;
-				}
-
-				for ( i = 0; i < 3; i++ )
-				{
-					lg->gridMins[i] = lg->gridSize[i] * ceil( (map_cmodels->mins[i] + 1) / lg->gridSize[i] );
-					maxs = lg->gridSize[i] * floor( (map_cmodels->maxs[i] - 1) / lg->gridSize[i] );
-					lg->gridBounds[i] = (maxs - lg->gridMins[i])/lg->gridSize[i] + 1;
-				}
-
-				lg->gridBounds[3] = lg->gridBounds[1] * lg->gridBounds[0];
+				lg->gridSize[0] = 64;
+				lg->gridSize[1] = 64;
+				lg->gridSize[2] = 128;
 			}
+
+			for ( i = 0; i < 3; i++ )
+			{
+				lg->gridMins[i] = lg->gridSize[i] * ceil( (map_cmodels->mins[i] + 1) / lg->gridSize[i] );
+				maxs = lg->gridSize[i] * floor( (map_cmodels->maxs[i] - 1) / lg->gridSize[i] );
+				lg->gridBounds[i] = (maxs - lg->gridMins[i])/lg->gridSize[i] + 1;
+			}
+
+			lg->gridBounds[3] = lg->gridBounds[1] * lg->gridBounds[0];
+		}
 #endif
 
-			if (!CM_CreatePatchesForLeafs ())	//for clipping
-			{
-				BZ_Free(map_faces);
-				BZ_Free(map_leaffaces);
-				Hunk_FreeToLowMark(start);
-				return NULL;
-			}
-#ifndef CLIENTONLY
-			CMQ3_CalcPHS();
-#endif
-//			BZ_Free(map_verts);
+		if (!CM_CreatePatchesForLeafs ())	//for clipping
+		{
 			BZ_Free(map_faces);
 			BZ_Free(map_leaffaces);
-			break;
-		default:
-#ifdef SERVERONLY
-			SV_Error("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
-#else
-			Con_Printf(CON_ERROR "Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
+			Hunk_FreeToLowMark(start);
 			return NULL;
-#endif
 		}
+#ifndef CLIENTONLY
+		CMQ3_CalcPHS();
+#endif
+//			BZ_Free(map_verts);
+		BZ_Free(map_faces);
+		BZ_Free(map_leaffaces);
 		break;
 #endif
 	case Q2BSPVERSION:
@@ -4056,7 +3997,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 
 			break;
 #if defined(GLQUAKE) || defined(D3DQUAKE)
-		case QR_DIRECT3D:
+		case QR_DIRECT3D9:
+		case QR_DIRECT3D11:
 		case QR_OPENGL:
 		// load into heap
 		#ifndef SERVERONLY
@@ -4243,21 +4185,21 @@ char	*CM_EntityString (model_t *model)
 
 int		CM_LeafContents (model_t *model, int leafnum)
 {
-	if (leafnum < 0 || leafnum >= numleafs)
+	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafContents: bad number");
 	return map_leafs[leafnum].contents;
 }
 
 int		CM_LeafCluster (model_t *model, int leafnum)
 {
-	if (leafnum < 0 || leafnum >= numleafs)
+	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafCluster: bad number");
 	return map_leafs[leafnum].cluster;
 }
 
 int		CM_LeafArea (model_t *model, int leafnum)
 {
-	if (leafnum < 0 || leafnum >= numleafs)
+	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafArea: bad number");
 	return map_leafs[leafnum].area;
 }

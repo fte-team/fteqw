@@ -192,6 +192,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef EAGAIN
 #define EAGAIN EWOULDBLOCK
 #endif
+#ifndef IPV6_V6ONLY
+	#define IPV6_V6ONLY 27
+#endif
 
 #ifndef pgetaddrinfo
 	#ifndef _WIN32
@@ -602,6 +605,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 	qboolean silentstream;
 
 	qboolean usequakeworldprotocols;
+	unsigned int pext;
 	int challenge;
 	unsigned short qport;
 	int isconnected;
@@ -904,7 +908,7 @@ void Sys_Printf(cluster_t *cluster, char *fmt, ...) PRINTFWARNING(2);
 void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
 sv_t *QTV_NewServerConnection(cluster_t *cluster, int streamid, char *server, char *password, qboolean force, enum autodisconnect_e autodisconnect, qboolean noduplicates, qboolean query);
-SOCKET Net_TCPListen(int port, qboolean ipv6);
+void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6);
 qboolean Net_StopFileProxy(sv_t *qtv);
 
 

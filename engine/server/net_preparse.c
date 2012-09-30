@@ -947,9 +947,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svcdp_skybox:
 			protocollen = 2;//it's just a string
 			break;
-		case svc_updatestat:	//insta fixup
-			data = svc_updatestatlong;	//ho hum... let it through (should check size later.)
-			protocollen = 5;
+		case svcnq_updatestatlong:	//insta fixup
+			data = svcqw_updatestatlong;	//ho hum... let it through (should check size later.)
+			protocollen = 6;
 			break;
 		case svc_stufftext:
 		case svc_centerprint:
@@ -1436,7 +1436,7 @@ void NPP_QWFlush(void)
 					if (cl->zquake_extensions & Z_EXT_SERVERTIME)
 					{
 						ClientReliableCheckBlock(cl, 6);
-						ClientReliableWrite_Byte(cl, svc_updatestatlong);
+						ClientReliableWrite_Byte(cl, svcqw_updatestatlong);
 						ClientReliableWrite_Byte(cl, STAT_TIME);
 						ClientReliableWrite_Long(cl, (int)(sv.world.physicstime * 1000));
 						cl->nextservertimeupdate = sv.world.physicstime+10;
@@ -1773,7 +1773,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 1;
 			nullterms=1;
 			break;
-		case svc_updatestat:
+		case svcqw_updatestatbyte:
 			protocollen = 3;
 			break;
 		case svc_updateping:
@@ -1787,7 +1787,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 6;
 			nullterms = 1;
 			break;
-		case svc_updatestatlong:
+		case svcqw_updatestatlong:
 			protocollen = 6;
 			break;
 		case svc_setpause:

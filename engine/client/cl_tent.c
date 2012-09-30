@@ -1587,7 +1587,7 @@ void CL_ParseTEnt (void)
 			dir[1] = MSG_ReadCoord();
 			dir[2] = MSG_ReadCoord();
 
-			cnt = MSG_ReadShort();	//count
+			cnt = (unsigned short)MSG_ReadShort();	//count
 			colour = MSG_ReadByte ();	//colour
 
 			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "rain");
@@ -1612,7 +1612,7 @@ void CL_ParseTEnt (void)
 			dir[1] = MSG_ReadCoord();
 			dir[2] = MSG_ReadCoord();
 
-			cnt = MSG_ReadShort();	//count
+			cnt = (unsigned short)MSG_ReadShort();	//count
 			colour = MSG_ReadByte ();	//colour
 
 			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "snow");

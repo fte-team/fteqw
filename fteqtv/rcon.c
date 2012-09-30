@@ -1010,64 +1010,23 @@ void Cmd_Reconnect(cmdctxt_t *ctx)
 void Cmd_MVDPort(cmdctxt_t *ctx)
 {
 	char *val = Cmd_Argv(ctx, 1);
-	int news;
 	int newp = atoi(val);
+
+	if (!*val)
+	{
+		Cmd_Printf(ctx, "Listening for tcp connections on port %i\n", ctx->cluster->tcplistenportnum);
+		return;
+	}
 
 	if (!newp)
 	{
 		if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET && ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
 			Cmd_Printf(ctx, "Already closed\n");
-
-		if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET)
-		{
-			closesocket(ctx->cluster->tcpsocket[0]);
-			ctx->cluster->tcpsocket[0] = INVALID_SOCKET;
-			ctx->cluster->tcplistenportnum = 0;
-
-			Cmd_Printf(ctx, "tcp4 port is now closed\n");
-		}
-
-		if (ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
-		{
-			closesocket(ctx->cluster->tcpsocket[1]);
-			ctx->cluster->tcpsocket[1] = INVALID_SOCKET;
-			ctx->cluster->tcplistenportnum = 0;
-
-			Cmd_Printf(ctx, "tcp6 port is now closed\n");
-		}
 	}
-	else
-	{
 
-		news = Net_TCPListen(newp, false);
-
-		if (news != INVALID_SOCKET)
-		{
-			if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET)
-				closesocket(ctx->cluster->tcpsocket[0]);
-			ctx->cluster->tcpsocket[0] = news;
-			ctx->cluster->tcplistenportnum = newp;
-
-			Cmd_Printf(ctx, "Opened tcp4 port %i\n", newp);
-		}
-		else
-			Cmd_Printf(ctx, "Failed to open tcp4 port %i\n", newp);
-
-		news = Net_TCPListen(newp, true);
-
-		if (news != INVALID_SOCKET)
-		{
-			if (ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
-				closesocket(ctx->cluster->tcpsocket[1]);
-			ctx->cluster->tcpsocket[1] = news;
-			ctx->cluster->tcplistenportnum = newp;
-
-			Cmd_Printf(ctx, "Opened tcp6 port %i\n", newp);
-		}
-		else
-			Cmd_Printf(ctx, "Failed to open tcp6 port %i\n", newp);
-
-	}
+	Net_TCPListen(ctx->cluster, newp, true);
+	Net_TCPListen(ctx->cluster, newp, false);
+	ctx->cluster->tcplistenportnum = newp;
 }
 
 void Cmd_DemoList(cmdctxt_t *ctx)

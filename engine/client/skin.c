@@ -276,22 +276,18 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	{
 		if (strcmp(skin->name, baseskin.string))
 		{
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-			if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
+			TEXASSIGN(skin->tex_base, R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA));
+			if (TEXVALID(skin->tex_base))
 			{
-				TEXASSIGN(skin->tex_base, R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA));
-				if (TEXVALID(skin->tex_base))
-				{
-					Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
-					TEXASSIGN(skin->tex_upper, R_LoadReplacementTexture(name, "skins", 0));
-					Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
-					TEXASSIGN(skin->tex_lower, R_LoadReplacementTexture(name, "skins", 0));
+				Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
+				TEXASSIGN(skin->tex_upper, R_LoadReplacementTexture(name, "skins", 0));
+				Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
+				TEXASSIGN(skin->tex_lower, R_LoadReplacementTexture(name, "skins", 0));
 
-					skin->failedload = true;
-					return NULL;
-				}
+				skin->failedload = true;
+				return NULL;
 			}
-#endif
+
 			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
 			Con_Printf ("Couldn't load skin %s\n", name);
 			Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);

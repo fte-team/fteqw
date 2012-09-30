@@ -42,7 +42,7 @@
 	#include <errno.h>
 	#ifndef IPPROTO_IPV6
 		/*for msvc6*/
-		#define	IPPROTO_IPV6
+		#define	IPPROTO_IPV6 41
 		
 		#ifndef EAI_NONAME		
 			#define EAI_NONAME 8

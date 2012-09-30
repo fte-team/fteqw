@@ -2193,7 +2193,7 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 	if (!cin->outunchanged)
 	{
 		if (!TEXVALID(cin->texture))
-			TEXASSIGN(cin->texture, R_AllocNewTexture("***cin***", cin->outwidth, cin->outheight));
+			TEXASSIGN(cin->texture, R_AllocNewTexture("***cin***", cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA));
 		R_Upload(cin->texture, "cin", cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	}
 
@@ -3064,7 +3064,7 @@ void TTS_SayUnicodeString(wchar_t *stringtosay)
 				NULL,
 				CLSCTX_SERVER,
 				&IID_ISpVoice,
-				&sp);
+				(void*)&sp);
 
 	if (sp)
 	{
@@ -3512,7 +3512,7 @@ void STT_Init_f(void)
 		return;
 	}
 
-	if (SUCCEEDED(CoCreateInstance(&CLSID_SpSharedRecoContext, NULL, CLSCTX_SERVER, &IID_SpRecoContext, &stt_recctx)))
+	if (SUCCEEDED(CoCreateInstance(&CLSID_SpSharedRecoContext, NULL, CLSCTX_SERVER, &IID_SpRecoContext, (void*)&stt_recctx)))
 	{
 		ULONGLONG ev = (((ULONGLONG)1) << 38) | (((ULONGLONG)1) << 30) | (((ULONGLONG)1) << 33);
 		if (SUCCEEDED(stt_recctx->lpVtbl->SetNotifyWindowMessage(stt_recctx, mainwindow, WM_USER, 0, 0)))

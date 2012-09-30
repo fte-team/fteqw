@@ -28,6 +28,7 @@ typedef struct
 	unsigned int vpwidth;
 	unsigned int vpheight;
 	qintptr_t vpcstride;
+	struct workqueue_s *wq;
 } swthread_t;
 
 typedef struct
@@ -39,7 +40,19 @@ typedef struct
 	unsigned int clipflags;	/*1=left,2=right,4=top,8=bottom,16=near*/
 } swvert_t;
 
-swthread_t *SWRast_CreateThread(int tno);
+#define WQ_SIZE 1024*1024*8
+#define WQ_MASK (WQ_SIZE-1)
+#define WQ_MAXTHREADS 64
+struct workqueue_s
+{
+	unsigned int numthreads;
+	qbyte queue[WQ_SIZE];
+	volatile unsigned int pos;
+
+	swthread_t swthreads[WQ_MAXTHREADS];
+};
+extern struct workqueue_s commandqueue;
+
 
 
 enum wqcmd_e
@@ -50,7 +63,8 @@ enum wqcmd_e
 	WTC_NOOP,
 	WTC_VIEWPORT,
 	WTC_TRIFAN,
-	WTC_TRISOUP
+	WTC_TRISOUP,
+	WTC_SPANS
 };
 
 enum
@@ -102,13 +116,17 @@ typedef union
 		qboolean cleardepth;
 		qboolean clearcolour;
 	} viewport;
+	struct
+	{
+		int foo;
+	} spans;
 } wqcom_t;
 
 
 
-void SWRast_EndCommand(wqcom_t *com);
-wqcom_t *SWRast_BeginCommand(int cmdtype, unsigned int size);
-void SWRast_Sync(void);
+void SWRast_EndCommand(struct workqueue_s *wq, wqcom_t *com);
+wqcom_t *SWRast_BeginCommand(struct workqueue_s *wq, int cmdtype, unsigned int size);
+void SWRast_Sync(struct workqueue_s *wq);
 
 
 
@@ -128,7 +146,7 @@ texid_tf SW_LoadTexture(char *identifier, int width, int height, uploadfmt_t fmt
 texid_tf SW_LoadTexture8Pal24(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
 texid_tf SW_LoadTexture8Pal32(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_tf SW_LoadCompressed(char *name);
-texid_tf SW_FindTexture(char *identifier);
+texid_tf SW_FindTexture(char *identifier, unsigned int flags);
 texid_tf SW_AllocNewTexture(char *identifier, int w, int h);
 void SW_Upload(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void SW_DestroyTexture(texid_t tex);
@@ -139,7 +157,7 @@ void SWBE_DrawMesh_List(shader_t *shader, int nummeshes, struct mesh_s **mesh, s
 void SWBE_DrawMesh_Single(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
 void SWBE_SubmitBatch(struct batch_s *batch);
 struct batch_s *SWBE_GetTempBatch(void);
-void SWBE_DrawWorld(qbyte *vis);
+void SWBE_DrawWorld(qboolean drawworld, qbyte *vis);
 void SWBE_Init(void);
 void SWBE_GenBrushModelVBO(struct model_s *mod);
 void SWBE_ClearVBO(struct vbo_s *vbo);

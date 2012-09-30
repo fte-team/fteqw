@@ -2655,9 +2655,16 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 				case TCPC_QIZMO:
 					{
 						unsigned short slen = BigShort((unsigned short)length);
-	#pragma warningmsg("TCPConnect: these calls can fail half way through the write, corrupting the message stream")
-						send(st->socketnum, (char*)&slen, sizeof(slen), 0);
-						send(st->socketnum, data, length, 0);
+						if (st->outlen + sizeof(slen) + length > sizeof(st->outbuffer))
+						{
+							Con_DPrintf("FTENET_TCPConnect_SendPacket: outgoing overflow\n");
+						}
+						else
+						{
+							memcpy(st->outbuffer + st->outlen, &slen, sizeof(slen));
+							memcpy(st->outbuffer + st->outlen + sizeof(slen), data, length);
+							st->outlen += sizeof(slen) + length;
+						}
 					}
 					break;
 				case TCPC_WEBSOCKET:

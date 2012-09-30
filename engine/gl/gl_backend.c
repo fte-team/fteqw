@@ -4,7 +4,7 @@
 
 #ifdef GLQUAKE
 
-#define r_refract_fboival 0
+#define r_refract_fboival 1
 
 #include "glquake.h"
 #include "shader.h"
@@ -901,7 +901,7 @@ void R_IBrokeTheArrays(void)
 
 #ifdef RTLIGHTS
 //called from gl_shadow
-void BE_SetupForShadowMap(texid_t shadowmaptex)
+void GLBE_SetupForShadowMap(texid_t shadowmaptex)
 {
 	shaderstate.curshadowmap = shadowmaptex;
 	while(shaderstate.lastpasstmus>0)
@@ -946,7 +946,7 @@ static void T_Gen_CurrentRender(int tmu)
 	}
 	// copy the scene to texture
 	if (!TEXVALID(shaderstate.temptexture))
-		TEXASSIGN(shaderstate.temptexture, GL_AllocNewTexture("***$currentrender***", vwidth, vheight));
+		TEXASSIGN(shaderstate.temptexture, GL_AllocNewTexture("***$currentrender***", vwidth, vheight, 0));
 	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -978,10 +978,13 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			t = lightmap[shaderstate.curbatch->lightmap[0]]->lightmap_texture;
 		break;
 	case T_GEN_DELUXMAP:
-		if (shaderstate.curbatch->lightmap[0] < 0)
-			t = r_nulltex;	//fixme
-		else
-			t = lightmap[shaderstate.curbatch->lightmap[0]]->deluxmap_texture;
+		{
+			int lmi = shaderstate.curbatch->lightmap[0];
+			if (lmi < 0 || !lightmap[lmi]->hasdeluxe)
+				t = r_nulltex;	//fixme
+			else
+				t = lightmap[lmi+1]->lightmap_texture;
+		}
 		break;
 	case T_GEN_DIFFUSE:
 		if (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->base))
@@ -1186,7 +1189,7 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 		}
 
 	if (!TEXVALID(*tex))
-		*tex = R_AllocNewTexture("***fog***", FOGS, FOGT);
+		*tex = R_AllocNewTexture("***fog***", FOGS, FOGT, 0);
 	R_Upload(*tex, "fog", TF_RGBA32, fogdata, NULL, FOGS, FOGT, IF_CLAMP|IF_NOMIPMAP);
 }
 
@@ -2255,7 +2258,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 		else if (shaderstate.flags & BEF_FORCETRANSPARENT)
 		{
 			if ((sbits & SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE| SBITS_DSTBLEND_ZERO) || !(sbits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
-				sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+				sbits = (sbits & ~(SBITS_BLEND_BITS|SBITS_ATEST_BITS))
 							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
 		}
 
@@ -2928,8 +2931,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].glsl)
 		perm |= PERMUTATION_FOG;
-	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET].glsl)
-		perm |= PERMUTATION_OFFSET;
+	if (p->handle[perm|PERMUTATION_DELUXE].glsl && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+		perm |= PERMUTATION_DELUXE;
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->handle[perm|PERMUTATION_LIGHTSTYLES].glsl)
 		perm |= PERMUTATION_LIGHTSTYLES;
 
@@ -3056,7 +3059,7 @@ void GLBE_SelectMode(backendmode_t mode)
 #ifdef RTLIGHTS
 		case BEM_STENCIL:
 			/*BEM_STENCIL doesn't support mesh writing*/
-			BE_PushOffsetShadow(false);
+			GLBE_PushOffsetShadow(false);
 
 			if (gl_config.nofixedfunc && !shaderstate.allblackshader)
 			{
@@ -3185,7 +3188,7 @@ void GLBE_SelectEntity(entity_t *ent)
 	shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 }
 
-void BE_SelectFog(vec3_t colour, float alpha, float density)
+static void BE_SelectFog(vec3_t colour, float alpha, float density)
 {
 	float zscale;
 
@@ -3228,7 +3231,7 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 	shaderstate.lastuniform = 0;
 }
 
-void BE_PushOffsetShadow(qboolean pushdepth)
+void GLBE_PushOffsetShadow(qboolean pushdepth)
 {
 	extern cvar_t r_polygonoffset_stencil_offset, r_polygonoffset_stencil_factor;
 	polyoffset_t po;
@@ -3777,17 +3780,19 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if ((batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
 		{
+			int oldbem;
 			//these flags require rendering some view as an fbo
 			if (r_refdef.recurse)
 				continue;
 			if (shaderstate.mode != BEM_STANDARD && shaderstate.mode != BEM_DEPTHDARK)
 				continue;
+			oldbem = shaderstate.mode;
 
 			if (batch->shader->flags & SHADER_HASREFLECT)
 			{
 				if (!shaderstate.tex_reflection.num)
 				{
-					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth/2, vid.pixelheight/2);
+					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth/2, vid.pixelheight/2, 0);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
 					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -3811,7 +3816,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				{
 					if (!shaderstate.tex_refraction.num)
 					{
-						shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth/2, vid.pixelheight/2);
+						shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth/2, vid.pixelheight/2, 0);
 						GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction);
 						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -3837,7 +3842,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			{
 				if (!shaderstate.tex_ripplemap.num)
 				{
-					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2);
+					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2, 0);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
 					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -3859,6 +3864,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 			}
+			BE_SelectMode(oldbem);
 		}
 
 		GLBE_SubmitBatch(batch);
@@ -3887,6 +3893,22 @@ static void BE_UpdateLightmaps(void)
 {
 	lightmapinfo_t *lm;
 	int lmidx;
+	int glformat, gltype;
+	switch (lightmap_bytes)
+	{
+	case 4:
+		glformat = lightmap_bgra?GL_BGRA_EXT:GL_RGBA;
+		gltype = GL_UNSIGNED_INT_8_8_8_8_REV;
+		break;
+	case 3:
+		glformat = lightmap_bgra?GL_BGR_EXT:GL_RGB;
+		gltype = GL_UNSIGNED_BYTE;
+		break;
+	default:
+		glformat = GL_LUMINANCE;
+		gltype = GL_UNSIGNED_BYTE;
+		break;
+	}
 	for (lmidx = 0; lmidx < numlightmaps; lmidx++)
 	{
 		lm = lightmap[lmidx];
@@ -3894,46 +3916,28 @@ static void BE_UpdateLightmaps(void)
 			continue;
 		if (lm->modified)
 		{
-			glRect_t *theRect;
 			lm->modified = false;
-			theRect = &lm->rectchange;
-			GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-			switch (lightmap_bytes)
+			if (!TEXVALID(lm->lightmap_texture))
 			{
-			case 4:
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
-					LMBLOCK_WIDTH, theRect->h, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
-					lm->lightmaps+(theRect->t) *LMBLOCK_WIDTH*4);
-				break;
-			case 3:
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
-					LMBLOCK_WIDTH, theRect->h, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
-					lm->lightmaps+(theRect->t) *LMBLOCK_WIDTH*3);
-				break;
-			case 1:
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
-					LMBLOCK_WIDTH, theRect->h, GL_LUMINANCE, GL_UNSIGNED_BYTE,
-					lm->lightmaps+(theRect->t) *LMBLOCK_WIDTH);
-				break;
+				TEXASSIGN(lm->lightmap_texture, R_AllocNewTexture("***lightmap***", lm->width, lm->height, 0));
+				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+						lm->width, lm->height, 0, glformat, gltype,
+						lm->lightmaps);
 			}
-			theRect->l = LMBLOCK_WIDTH;
-			theRect->t = LMBLOCK_HEIGHT;
-			theRect->h = 0;
-			theRect->w = 0;
-
-			if (lm->deluxmodified)
+			else
 			{
-				lm->deluxmodified = false;
-				theRect = &lm->deluxrectchange;
-				GL_MTBind(0, GL_TEXTURE_2D, lm->deluxmap_texture);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
-					LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
-					lm->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
-				theRect->l = LMBLOCK_WIDTH;
-				theRect->t = LMBLOCK_HEIGHT;
-				theRect->h = 0;
-				theRect->w = 0;
+				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, lm->rectchange.t,
+						lm->width, lm->rectchange.h, glformat, gltype,
+						lm->lightmaps+(lm->rectchange.t) *lm->width*lightmap_bytes);
 			}
+			lm->rectchange.l = LMBLOCK_WIDTH;
+			lm->rectchange.t = LMBLOCK_HEIGHT;
+			lm->rectchange.h = 0;
+			lm->rectchange.w = 0;
 		}
 	}
 }
@@ -4045,7 +4049,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 	if (!TEXVALID(shaderstate.tex_normals))
 	{
-		shaderstate.tex_normals = GL_AllocNewTexture("***prepass normals***", vid.pixelwidth, vid.pixelheight);
+		shaderstate.tex_normals = GL_AllocNewTexture("***prepass normals***", vid.pixelwidth, vid.pixelheight, 0);
 		r_lightprepass.modified = true;
 	}
 	if (r_lightprepass.modified)
@@ -4061,7 +4065,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	{
 		int drb;
 
-		shaderstate.tex_diffuse = GL_AllocNewTexture("***prepass diffuse***", vid.pixelwidth, vid.pixelheight);
+		shaderstate.tex_diffuse = GL_AllocNewTexture("***prepass diffuse***", vid.pixelwidth, vid.pixelheight, 0);
 		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_diffuse);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -4190,7 +4194,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		}
 #ifdef RTLIGHTS
-		Sh_Shutdown();
+		Sh_Reset();
 #endif
 	}
 	BE_GenModelBatches(batches);

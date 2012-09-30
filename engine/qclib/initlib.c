@@ -870,7 +870,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 }
 
 
-string_t PR_AllocTempString			(progfuncs_t *progfuncs, char *str)
+string_t PR_AllocTempString			(progfuncs_t *progfuncs, const char *str)
 {
 	char **ntable;
 	int newmax;

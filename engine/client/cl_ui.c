@@ -1533,7 +1533,7 @@ void UI_Stop (void)
 void UI_Start (void)
 {
 	int apiversion;
-	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
+	if (qrenderer == QR_NONE)
 		return;
 
 	uivm = VM_Create(NULL, "vm/ui", UI_SystemCallsNative, UI_SystemCallsVM);

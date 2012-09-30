@@ -237,7 +237,7 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2)
 	return false;
 }
 
-SOCKET Net_TCPListen(int port, qboolean ipv6)
+void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 {
 	SOCKET sock;
 
@@ -249,6 +249,7 @@ SOCKET Net_TCPListen(int port, qboolean ipv6)
 //	int fromlen;
 
 	unsigned long nonblocking = true;
+	unsigned long v6only = false;
 
 	if (ipv6)
 	{
@@ -269,18 +270,42 @@ SOCKET Net_TCPListen(int port, qboolean ipv6)
 		addrsize = sizeof(struct sockaddr_in);
 	}
 
+	if (!ipv6 && !v6only && cluster->tcpsocket[1] != INVALID_SOCKET)
+	{
+		int sz = sizeof(v6only);
+		if (getsockopt(cluster->tcpsocket[1], IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, &sz) == 0 && !v6only)
+			port = 0;
+	}
 
+	if (cluster->tcpsocket[ipv6] != INVALID_SOCKET)
+	{
+		closesocket(cluster->tcpsocket[ipv6]);
+		cluster->tcpsocket[ipv6] = INVALID_SOCKET;
+
+		if (v6only)
+			Sys_Printf(cluster, "closed tcp%i port\n", ipv6?6:4);
+		else
+			Sys_Printf(cluster, "closed tcp port\n");
+	}
+	if (!port)
+		return;
 
 	if ((sock = socket (prot, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
-		return INVALID_SOCKET;
+		cluster->tcpsocket[ipv6] = INVALID_SOCKET;
+		return;
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
 	{
+		cluster->tcpsocket[ipv6] = INVALID_SOCKET;
 		closesocket(sock);
-		return INVALID_SOCKET;
+		return;
 	}
+
+	if (prot == AF_INET6)
+		if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only)) == -1)
+			v6only = true;
 
 	if (bind (sock, address, addrsize) == -1)
 	{
@@ -291,7 +316,12 @@ SOCKET Net_TCPListen(int port, qboolean ipv6)
 
 	listen(sock, 2);	//don't listen for too many clients.
 
-	return sock;
+	if (v6only)
+		Sys_Printf(cluster, "opened tcp%i port %i\n", ipv6?6:4, port);
+	else
+		Sys_Printf(cluster, "opened tcp port %i\n", port);
+
+	cluster->tcpsocket[ipv6] = sock;
 }
 
 char *strchrrev(char *str, char chr)
@@ -453,6 +483,12 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 		return false;
 	}
 
+	if (afam == AF_INET6)
+	{
+		qboolean v6only = true;
+		setsockopt(qtv->sourcesock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only));
+	}
+
 	memset(&from, 0, sizeof(from));
 	((struct sockaddr*)&from)->sa_family = afam;
 	if (bind(qtv->sourcesock, (struct sockaddr *)&from, sizeof(from)) == -1)
@@ -509,6 +545,12 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 	qtv->sourcesock = socket(pfam, SOCK_DGRAM, IPPROTO_UDP);
 	if (qtv->sourcesock == INVALID_SOCKET)
 		return false;
+
+	if (afam == AF_INET6)
+	{
+		qboolean v6only = true;
+		setsockopt(qtv->sourcesock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only));
+	}
 
 	memset(&from, 0, sizeof(from));
 	((struct sockaddr*)&from)->sa_family = afam;
@@ -622,6 +664,7 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 	char *ip = Net_DiagnoseProtocol(qtv);
 
 	qtv->usequakeworldprotocols = false;
+	qtv->pext = 0;
 
 	if (qtv->sourcetype == SRC_DEMO)
 		qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME_DEMO;	//wait half a minuite before trying to reconnect

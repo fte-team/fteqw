@@ -91,6 +91,20 @@ void ReadString(netmsg_t *b, char *string, int maxlen)
 	while(ReadByte(b))	//finish reading the string, even if we will loose part of it
 		;
 }
+float ReadCoord(netmsg_t *b, unsigned int pext)
+{
+	if (pext & PEXT_FLOATCOORDS)
+		return ReadFloat(b);
+	else
+		return ReadShort(b) / 8.0;
+}
+float ReadAngle(netmsg_t *b, unsigned int pext)
+{
+	if (pext & PEXT_FLOATCOORDS)
+		return (ReadShort(b) * 360.0) / 0x10000;
+	else
+		return (ReadByte(b) * 360.0) / 0x100;
+}
 
 void WriteByte(netmsg_t *b, unsigned char c)
 {
@@ -143,4 +157,17 @@ void WriteData(netmsg_t *b, const void *data, int length)
 		*buf++ = ((unsigned char*)data)[i];
 	b->cursize+=length;
 }
-
+void WriteCoordf(netmsg_t *b, unsigned int pext, float fl)
+{
+	if (pext & PEXT_FLOATCOORDS)
+		WriteFloat(b, fl);
+	else
+		WriteShort(b, fl*8);
+}
+void WriteAnglef(netmsg_t *b, unsigned int pext, float fl)
+{
+	if (pext & PEXT_FLOATCOORDS)
+		WriteShort(b, (fl/360)*0x10000);
+	else
+		WriteByte(b, (fl/360)*0x100);
+}

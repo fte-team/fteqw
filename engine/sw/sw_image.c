@@ -21,7 +21,7 @@ texid_tf SW_AllocNewTexture(char *identifier, int w, int h)
 	n.ref = &img->com;
 	return n;
 }
-texid_tf SW_FindTexture(char *identifier)
+texid_tf SW_FindTexture(char *identifier, unsigned int flags)
 {
 	return r_nulltex;
 }
@@ -70,9 +70,11 @@ void SW_Upload8(swimage_t *img, int w, int h, unsigned char *data)
 
 texid_tf SW_LoadTexture(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags)
 {
-	texid_t img = SW_FindTexture(identifier);
+	texid_t img = SW_FindTexture(identifier, flags);
 	if (!img.ptr)
 		img = SW_AllocNewTexture(identifier, width, height);
+	if (!img.ptr)
+		return r_nulltex;
 	switch(fmt)
 	{
 	case TF_SOLID8:
@@ -114,7 +116,7 @@ void SW_DestroyTexture(texid_t tex)
 	swimage_t *img = tex.ptr;
 
 	/*make sure its not in use by the renderer*/
-	SWRast_Sync();
+	SWRast_Sync(&commandqueue);
 
 	/*okay, it can be killed*/
 	BZ_Free(img);

@@ -1322,7 +1322,7 @@ char *particle_set_high =
 "step 5\n"
 "scale 30\n"
 "alpha 0.2\n"
-"die 1.5\n"
+"die 0.75\n"
 //diesubrand 10.25
 "randomvel 0.2\n"
 "rgb 5 5 5\n"

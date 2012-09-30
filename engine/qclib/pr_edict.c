@@ -110,7 +110,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			char *buf;
 			buf = progfuncs->save_ents(progfuncs, NULL, &size, 0);
 			progfuncs->parms->WriteFile("edalloc.dump", buf, size);
-			Sys_Error ("ED_Alloc: no free edicts");
+			Sys_Error ("ED_Alloc: no free edicts (max is %i)", sv_num_edicts);
 		}
 	}
 

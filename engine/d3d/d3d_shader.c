@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef D3DQUAKE
+#ifdef D3D9QUAKE
 #include "shader.h"
 #include "winquake.h"
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
@@ -138,7 +138,7 @@ dllhandle_t *shaderlib;
 
 
 
-void D3DShader_Init(void)
+void D3D9Shader_Init(void)
 {
 	dllfunction_t funcs[] =
 	{
@@ -155,7 +155,7 @@ void D3DShader_Init(void)
 		return;
 }
 
-qboolean D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag)
+qboolean D3D9Shader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag)
 {
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;
@@ -226,7 +226,7 @@ qboolean D3DShader_CreateProgram (program_t *prog, int permu, char **precompiler
 	return success;
 }
 
-static int D3DShader_FindUniform_(LPD3DXCONSTANTTABLE ct, char *name)
+static int D3D9Shader_FindUniform_(LPD3DXCONSTANTTABLE ct, char *name)
 {
 	if (ct)
 	{
@@ -238,19 +238,19 @@ static int D3DShader_FindUniform_(LPD3DXCONSTANTTABLE ct, char *name)
 	return -1;
 }
 
-int D3DShader_FindUniform(union programhandle_u *h, int type, char *name)
+int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name)
 {
 	int offs;
 
 	if (!type || type == 1)
 	{
-		offs = D3DShader_FindUniform_(h->hlsl.ctabv, name);
+		offs = D3D9Shader_FindUniform_(h->hlsl.ctabv, name);
 		if (offs >= 0)
 			return offs;
 	}
 	if (!type || type == 2)
 	{
-		offs = D3DShader_FindUniform_(h->hlsl.ctabf, name);
+		offs = D3D9Shader_FindUniform_(h->hlsl.ctabf, name);
 		if (offs >= 0)
 			return offs;
 	}

@@ -659,6 +659,7 @@ void S_Voip_Parse(void)
 sounddriver pOPENAL_InitCard;
 sounddriver pDSOUND_InitCard;
 sounddriver pALSA_InitCard;
+sounddriver pSNDIO_InitCard;
 sounddriver pOSS_InitCard;
 sounddriver pMacOS_InitCard;
 sounddriver pSDL_InitCard;
@@ -677,9 +678,10 @@ sdriver_t drivers[] = {
 
 	{"DSound", &pDSOUND_InitCard},	//prefered on windows
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
-	{"Droid", &pDroid_InitCard},		//prefered on android (java thread)
+	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
 	{"AHI", &pAHI_InitCard},		//prefered on morphos
 	{"PPAPI", &pPPAPI_InitCard},	//google's native client
+	{"SNDIO", &pSNDIO_InitCard},	//prefered on OpenBSD
 
 	{"SDL", &pSDL_InitCard},		//prefered on linux
 	{"ALSA", &pALSA_InitCard},		//pure shite
@@ -911,7 +913,8 @@ void S_SetUnderWater(qboolean underwater)
 	soundcardinfo_t *sc;
 
 	for (sc = sndcardinfo; sc; sc=sc->next)
-		sc->SetWaterDistortion(sc, underwater);
+		if (sc->SetWaterDistortion)
+			sc->SetWaterDistortion(sc, underwater);
 }
 
 //why isn't this part of S_Restart_f anymore?

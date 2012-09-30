@@ -125,6 +125,13 @@ void RQ_RenderBatchClear(void)
 	rqmingrad = NUMGRADUATIONS-1;
 }
 
+void RQ_Shutdown(void)
+{
+	Z_Free(initialque);
+	initialque = NULL;
+	freerque = NULL;
+}
+
 void RQ_Init(void)
 {
 	int		i;

@@ -180,6 +180,8 @@ BRUSH MODELS
 ==============================================================================
 */
 
+struct mnode_s;
+
 typedef struct {
 	//model is being purged from memory.
 	void (*PurgeModel) (struct model_s *mod);
@@ -254,7 +256,7 @@ typedef struct vboarray_s
 		} gl;
 #endif
 
-#ifdef D3DQUAKE
+#if defined(D3D9QUAKE) || defined(D3D11QUAKE)
 		struct
 		{
 			void *buff;
@@ -965,6 +967,7 @@ typedef struct model_s
 		int count;
 		int width;
 		int height;
+		qboolean deluxemapping;
 	} lightmaps;
 
 	unsigned	checksum;

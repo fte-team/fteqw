@@ -472,7 +472,7 @@ void V_cshift_f (void)
 			char *c = Cmd_Argv(4);
 
 			// malice jumbles commands into a v_cshift so this attempts to fix
-			while (isdigit(*c))
+			while (isdigit(*c) || *c == '.')
 				c++;
 
 			if (*c)

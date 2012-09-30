@@ -60,9 +60,11 @@ enum
 };
 typedef struct
 {
-	int jointo;	/*multiple of 12*/
+	int ownerent;	/*multiple of 12*/
 	int flags;
-	vec3_t vel;
+
+	float moment[12];
+	float matrix[12];
 } body_t;
 #endif
 
@@ -236,6 +238,7 @@ doll_t *rag_loaddoll(model_t *mod, char *fname)
 
 void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelobjsrc, float ft, float mmat[12])
 {
+#if 0
 	trace_t t;
 	vec3_t npos, opos, wnpos, wopos;
 	vec3_t move;
@@ -336,7 +339,7 @@ void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelob
 			/*FIXME*/
 		}
 	}
-
+#endif
 	/*debugging*/
 #if 0
 	/*draw points*/
@@ -355,12 +358,20 @@ void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelob
 /*destroys all skeletons*/
 void skel_reset(progfuncs_t *prinst)
 {
-	while (numskelobjectsused > 0)
+	int i;
+
+	for (i = 0; i < numskelobjectsused; i++)
 	{
-		numskelobjectsused--;
-		skelobjects[numskelobjectsused].numbones = 0;
-		skelobjects[numskelobjectsused].inuse = false;
+		if (skelobjects[i].world = prinst->parms->user)
+		{
+			skelobjects[i].numbones = 0;
+			skelobjects[i].inuse = false;
+			skelobjects[i].bonematrix = NULL;
+		}
 	}
+
+	while (numskelobjectsused && !skelobjects[numskelobjectsused-1].inuse)
+		numskelobjectsused--;
 }
 
 /*deletes any skeletons marked for deletion*/
@@ -391,24 +402,26 @@ skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
 
 		for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
 		{
-			if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount)
+			if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount && skelobjects[skelidx].world == prinst->parms->user)
 				return &skelobjects[skelidx];
 		}
 
-		for (skelidx = 0; skelidx <= numskelobjectsused; skelidx++)
+		for (skelidx = 0; skelidx <= MAX_SKEL_OBJECTS; skelidx++)
 		{
-			if (!skelobjects[skelidx].inuse && !skelobjects[skelidx].numbones)
+			if (!skelobjects[skelidx].inuse &&
+				(!skelobjects[skelidx].numbones || skelobjects[skelidx].numbones == bonecount) &&
+				(!skelobjects[skelidx].world || skelobjects[skelidx].world == prinst->parms->user))
 			{
-				skelobjects[skelidx].numbones = bonecount;
-				/*so bone matrix list can be mmapped some day*/
-				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
-				skelobjects[skelidx].world = prinst->parms->user;
-				if (skelidx <= numskelobjectsused)
+				if (!skelobjects[skelidx].numbones)
 				{
-					numskelobjectsused = skelidx + 1;
-					skelobjects[skelidx].model = NULL;
-					skelobjects[skelidx].inuse = 1;
+					skelobjects[skelidx].numbones = bonecount;
+					skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
 				}
+				skelobjects[skelidx].world = prinst->parms->user;
+				if (numskelobjectsused == skelidx)
+					numskelobjectsused = skelidx + 1;
+				skelobjects[skelidx].model = NULL;
+				skelobjects[skelidx].inuse = 1;
 				return &skelobjects[skelidx];
 			}
 		}
@@ -493,8 +506,8 @@ void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		sko->numbodies = doll->numbodies;
 		sko->body = malloc(sko->numbodies * sizeof(*sko->body));
 		memset(sko->body, 0, sko->numbodies * sizeof(*sko->body));
-		for (i = 0; i < sko->numbodies; i++)
-			sko->body[i].jointo = doll->body[i].bone * 12;
+//		for (i = 0; i < sko->numbodies; i++)
+//			sko->body[i].jointo = doll->body[i].bone * 12;
 	}
 
 	psko = skel_get(prinst, parentskel, 0);
@@ -1056,6 +1069,78 @@ void QCBUILTIN PF_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
+}
+
+const char *Mod_FrameNameForNum(model_t *model, int num);
+const char *Mod_SkinNameForNum(model_t *model, int num);
+
+//string(float modidx, float framenum) frametoname
+void QCBUILTIN PF_frametoname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	model_t *mod = w->Get_CModel(w, modelindex);
+	const char *n = Mod_FrameNameForNum(mod, skinnum);
+
+	if (n)
+		RETURN_TSTRING(n);
+	else
+		G_INT(OFS_RETURN) = 0;	//null string (which is also empty in qc)
+}
+
+//string(float modidx, float skinnum) skintoname
+void QCBUILTIN PF_skintoname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	model_t *mod = w->Get_CModel(w, modelindex);
+	const char *n = Mod_SkinNameForNum(mod, skinnum);
+
+	if (n)
+		RETURN_TSTRING(n);
+	else
+		G_INT(OFS_RETURN) = 0;	//null string (which is also empty in qc)
+}
+
+void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = w->Get_CModel(w, modelindex);
+
+	if (mod && Mod_FrameForName)
+		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
+	else
+		G_FLOAT(OFS_RETURN) = -1;
+}
+void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int framenum = G_FLOAT(OFS_PARM1);
+	model_t *mod = w->Get_CModel(w, modelindex);
+
+	if (mod && Mod_GetFrameDuration)
+		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
+void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifndef SERVERONLY
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = w->Get_CModel(w, modelindex);
+
+	if (mod && Mod_SkinForName)
+		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
+	else
+#endif
+		G_FLOAT(OFS_RETURN) = -1;
 }
 #endif
 

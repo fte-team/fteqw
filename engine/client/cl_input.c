@@ -646,7 +646,7 @@ void CL_ClampPitch (int pnum)
 	}
 #endif
 #if 1
-	if (1)
+	if (0)
 	{
 		float surfm[16], invsurfm[16];
 		float viewm[16];

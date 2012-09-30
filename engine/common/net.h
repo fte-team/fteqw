@@ -257,6 +257,7 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define RMQFL_FLOATCOORD	(1 << 4)
 #define RMQFL_EDICTSCALE	(1 << 5)
 #define RMQFL_ALPHASANITY	(1 << 6)
+#define RMQFL_INT32COORD	(1 << 7)
 #define RMQFL_MOREFLAGS		(1 << 31)
 
 #endif

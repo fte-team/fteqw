@@ -30,20 +30,12 @@ we can also trivially implement interlacing with this method
 
 */
 
-
-#define MAXWORKERTHREADS 64
-static swthread_t swthreads[MAXWORKERTHREADS];
-
 cvar_t sw_interlace = CVAR("sw_interlace", "0");
-cvar_t sw_threads = CVAR("sw_threads", "0");
+cvar_t sw_vthread = CVAR("sw_vthread", "0");
+cvar_t sw_fthreads = CVAR("sw_fthreads", "0");
 
-struct
-{
-	unsigned int numthreads;
-	qbyte queue[1024*1024*8];
-	volatile unsigned int pos;
-} wq;
-#define WQ_MASK (sizeof(wq.queue)-1)
+struct workqueue_s commandqueue;
+struct workqueue_s spanqueue;
 
 static void WT_Triangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert_t *v2, swvert_t *v3)
 {
@@ -594,14 +586,14 @@ qboolean WT_HandleCommand(swthread_t *t, wqcom_t *com)
 		t->vpwidth = com->viewport.width;
 		t->vpheight = com->viewport.height;
 		t->vpcstride = com->viewport.stride;
-		if (!wq.numthreads)
+		if (!t->wq->numthreads)
 		{
 			t->interlacemod = com->viewport.interlace;	//this many vthreads
 			t->interlaceline = com->viewport.framenum%com->viewport.interlace;	//this vthread
 		}
 		else
 		{
-			t->interlacemod = wq.numthreads*com->viewport.interlace;	//this many vthreads
+			t->interlacemod = t->wq->numthreads*com->viewport.interlace;	//this many vthreads
 			t->interlaceline = (t->threadnum*com->viewport.interlace) + (com->viewport.framenum%com->viewport.interlace);	//this vthread
 		}
 
@@ -627,6 +619,8 @@ qboolean WT_HandleCommand(swthread_t *t, wqcom_t *com)
 			WT_ClipTriangle(t, com->trisoup.texture, &com->trisoup.verts[idx[0]], &com->trisoup.verts[idx[1]], &com->trisoup.verts[idx[2]]);
 		}
 		break;
+	case WTC_SPANS:
+		break;
 	default:
 		Sys_Printf("Unknown render command!\n");
 		break;
@@ -641,94 +635,105 @@ int WT_Main(void *ptr)
 	swthread_t *t = ptr;
 	for(;;)
 	{
-		if (t->readpoint == wq.pos)
+		if (t->readpoint == t->wq->pos)
 		{
 			Sys_Sleep(0);
 			continue;
 		}
-		com = (wqcom_t*)&wq.queue[t->readpoint & WQ_MASK];
+		com = (wqcom_t*)&t->wq->queue[t->readpoint & WQ_MASK];
 		if (WT_HandleCommand(t, com))
 			break;
 	}
 	return 0;
 }
-void SWRast_EndCommand(wqcom_t *com)
+void SWRast_EndCommand(struct workqueue_s *wq, wqcom_t *com)
 {
-	wq.pos += com->com.cmdsize;
+	wq->pos += com->com.cmdsize;
 
-	if (!wq.numthreads)
+	if (!wq->numthreads)
 	{
 		//immediate mode
-		WT_HandleCommand(swthreads, com);
+		WT_HandleCommand(wq->swthreads, com);
 	}
 }
-wqcom_t *SWRast_BeginCommand(int cmdtype, unsigned int size)
+wqcom_t *SWRast_BeginCommand(struct workqueue_s *wq, int cmdtype, unsigned int size)
 {
 	wqcom_t *com;
 	//round the command size up, so we always have space for a noop/wrap if needed
 	size = (size + sizeof(com->align)) & ~(sizeof(com->align)-1);
 
 	//generate a noop if we don't have enough space for the command
-	if ((wq.pos&WQ_MASK) + size > sizeof(wq.queue))
+	if ((wq->pos&WQ_MASK) + size > WQ_SIZE)
 	{
 //		SWRast_Sync();
-		com = (wqcom_t *)&wq.queue[wq.pos&WQ_MASK];
-		com->com.cmdsize = sizeof(wq.queue) - wq.pos&WQ_MASK;
+		com = (wqcom_t *)&wq->queue[wq->pos&WQ_MASK];
+		com->com.cmdsize = WQ_SIZE - wq->pos&WQ_MASK;
 		com->com.command = WTC_NOOP;
-		SWRast_EndCommand(com);
+		SWRast_EndCommand(wq, com);
 	}
 
-	com = (wqcom_t *)&wq.queue[wq.pos&WQ_MASK];
+	com = (wqcom_t *)&wq->queue[wq->pos&WQ_MASK];
 	com->com.cmdsize = size;
 	com->com.command = cmdtype;
 
 	return com;
 }
-void SWRast_Sync(void)
+void SWRast_Sync(struct workqueue_s *wq)
 {
 	int i;
 	swthread_t *t;
 
-	for (i = 0; i < wq.numthreads; i++)
+	for (i = 0; i < wq->numthreads; i++)
 	{
-		t = &swthreads[i];
-		while (t->readpoint != wq.pos)
+		t = &wq->swthreads[i];
+		while (t->readpoint != wq->pos)
 			;
 	}
 
 	//all worker threads are up to speed
 }
-void SWRast_CreateThreadPool(int numthreads)
+void SWRast_CreateThreadPool(struct workqueue_s *wq, int numthreads)
 {
 	int i = 0;
 	swthread_t *t;
-	wq.pos = 0;
-	numthreads = ((numthreads > MAXWORKERTHREADS)?MAXWORKERTHREADS:numthreads);
+	wq->pos = 0;
+	numthreads = ((numthreads > WQ_MAXTHREADS)?WQ_MAXTHREADS:numthreads);
 #ifdef MULTITHREAD
-	for (; i < numthreads; i++)
+	for (i = 0; i < numthreads; i++)
 	{
-		t = &swthreads[i];
+		t = &wq->swthreads[i];
 		t->threadnum = i;
-		t->readpoint = wq.pos;
 		t->thread = Sys_CreateThread(WT_Main, t, THREADP_NORMAL, 0);
 		if (!t->thread)
 			break;
 	}
+#else
+	numthreads = 0;
 #endif
-	wq.numthreads = i;
+	wq->numthreads = i;
+
+	if (i == 0)
+		numthreads = 1;
+	else
+		numthreads = i;
+	for (i = 0; i < numthreads; i++)
+	{
+		wq->swthreads[i].readpoint = wq->pos;
+		wq->swthreads[i].wq = wq;
+	}
 }
-void SWRast_TerminateThreadPool(void)
+void SWRast_TerminateThreadPool(struct workqueue_s *wq)
 {
 	int i;
-	wqcom_t *com = SWRast_BeginCommand(WTC_DIE, sizeof(com->com));
-	SWRast_EndCommand(com);
+	wqcom_t *com = SWRast_BeginCommand(wq, WTC_DIE, sizeof(com->com));
+	SWRast_EndCommand(wq, com);
 #ifdef MULTITHREAD
-	for (i = 0; i < wq.numthreads; i++)
+	for (i = 0; i < wq->numthreads; i++)
 	{
-		Sys_WaitOnThread(swthreads[i].thread);
+		Sys_WaitOnThread(wq->swthreads[i].thread);
 	}
 #endif
-	wq.numthreads = 0;
+	wq->numthreads = 0;
 }
 
 
@@ -755,12 +760,12 @@ void SW_Draw_Shutdown(void)
 }
 void SW_R_Init(void)
 {
-	SWRast_CreateThreadPool(sw_threads.ival);
-	sw_threads.modified = false;
+	SWRast_CreateThreadPool(&commandqueue, sw_vthread.ival?1:0);
+	sw_vthread.modified = true;
 }
 void SW_R_DeInit(void)
 {
-	SWRast_TerminateThreadPool();
+	SWRast_TerminateThreadPool(&commandqueue);
 }
 void SW_R_RenderView(void)
 {
@@ -794,12 +799,7 @@ void SW_R_RenderView(void)
 
 	RQ_BeginFrame();
 
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-	{
-		Surf_DrawWorld ();		// adds static entities to the list
-	}
-	else
-		SWBE_DrawWorld(NULL);
+	Surf_DrawWorld ();		// adds static entities to the list
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
@@ -881,21 +881,28 @@ void SW_SCR_UpdateScreen(void)
 
 	SWBE_Set2D();
 
-	SWRast_Sync();
+	SWRast_Sync(&commandqueue);
+	SWRast_Sync(&spanqueue);
 	SW_VID_SwapBuffers();
-	if (sw_threads.modified)
+	if (sw_vthread.modified)
 	{
-		SWRast_TerminateThreadPool();
-		SWRast_CreateThreadPool(sw_threads.ival);
-		sw_threads.modified = false;
+		SWRast_TerminateThreadPool(&commandqueue);
+		SWRast_CreateThreadPool(&commandqueue, sw_vthread.ival?1:0);
+		sw_vthread.modified = false;
+	}
+	if (sw_fthreads.modified)
+	{
+		SWRast_TerminateThreadPool(&spanqueue);
+		SWRast_CreateThreadPool(&spanqueue, sw_fthreads.ival);
+		sw_fthreads.modified = false;
 	}
 
-	com = SWRast_BeginCommand(WTC_VIEWPORT, sizeof(com->viewport));
+	com = SWRast_BeginCommand(&commandqueue, WTC_VIEWPORT, sizeof(com->viewport));
 	com->viewport.interlace = bound(0, sw_interlace.ival, 15)+1;
 	com->viewport.clearcolour = r_clear.ival;
 	com->viewport.cleardepth = true;
 	SW_VID_UpdateViewport(com);
-	SWRast_EndCommand(com);
+	SWRast_EndCommand(&commandqueue, com);
 
 	Shader_DoReload();
 

@@ -771,7 +771,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	//This fixes a bug where the server advertises cheats, the internal client connects, and doesn't think cheats are allowed.
 	//this applies to a few other things too, but cheats is the only special one (because of the *)
 	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
-	CL_CheckServerInfo();
+	if (!isDedicated)
+		CL_CheckServerInfo();
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 #endif
 

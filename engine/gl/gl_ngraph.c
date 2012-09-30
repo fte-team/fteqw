@@ -170,7 +170,7 @@ void R_FrameTimeGraph (int frametime)
 
 void R_NetgraphInit(void)
 {
-	TEXASSIGN(netgraphtexture, R_AllocNewTexture("***netgraph***", NET_TIMINGS, NET_GRAPHHEIGHT));
+	TEXASSIGN(netgraphtexture, R_AllocNewTexture("***netgraph***", NET_TIMINGS, NET_GRAPHHEIGHT, IF_NOMIPMAP));
 	netgraphshader = R_RegisterShader("netgraph",
 		"{\n"
 			"program default2d\n"

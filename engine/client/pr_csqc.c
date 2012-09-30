@@ -1401,12 +1401,6 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 		GL_Set2D (false);
 	}
 #endif
-#ifdef D3DQUAKE
-	if (qrenderer == QR_DIRECT3D)
-	{
-		D3D9_Set2D ();
-	}
-#endif
 
 	vid.recalc_refdef = 1;
 
@@ -3329,40 +3323,6 @@ static void QCBUILTIN PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalv
 	VectorCopy(srcorg, retorg);
 }
 
-static void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int modelindex = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = CSQC_GetModelForIndex(modelindex);
-
-	if (mod && Mod_FrameForName)
-		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
-	else
-		G_FLOAT(OFS_RETURN) = -1;
-}
-static void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int modelindex = G_FLOAT(OFS_PARM0);
-	int frameno = G_FLOAT(OFS_PARM1);
-	model_t *mod = CSQC_GetModelForIndex(modelindex);
-
-	if (mod && Mod_GetFrameDuration)
-		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, frameno);
-	else
-		G_FLOAT(OFS_RETURN) = 0;
-}
-static void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int modelindex = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = CSQC_GetModelForIndex(modelindex);
-
-
-	if (mod && Mod_SkinForName)
-		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
-	else
-		G_FLOAT(OFS_RETURN) = -1;
-}
 static void QCBUILTIN PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -4343,11 +4303,8 @@ static struct {
 	{"skel_ragupdate",		PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
 	{"skel_mmap",			PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",	PF_skel_set_bone_world,	283},
-
-	{"memalloc",			PF_memalloc,			384},
-	{"memfree",				PF_memfree,				385},
-	{"memcpy",				PF_memcpy,				386},
-	{"memset",				PF_memset,				387},
+	{"frametoname",			PF_frametoname,			284},//string(float modidx, float framenum) frametoname
+	{"skintoname",			PF_skintoname,			285},//string(float modidx, float skin) skintoname
 
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
@@ -4456,6 +4413,11 @@ static struct {
 	{"dynamiclight_get",	PF_R_DynamicLight_Get,	372},
 	{"dynamiclight_set",	PF_R_DynamicLight_Set,	373},
 	{"particleeffectquery",	PF_cs_particleeffectquery,	374},
+
+	{"memalloc",			PF_memalloc,			384},
+	{"memfree",				PF_memfree,				385},
+	{"memcpy",				PF_memcpy,				386},
+	{"memset",				PF_memset,				387},
 
 //400
 	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
@@ -4653,6 +4615,9 @@ static struct {
 
 	{"sprintf",				PF_sprintf,					627},
 
+	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,628},
+	{"getsurfacetriangle",	PF_getsurfacetriangle,		629},
+
 	{NULL}
 };
 
@@ -4831,6 +4796,8 @@ void CSQC_Shutdown(void)
 {
 	if (csqcprogs)
 	{
+		skel_reset(csqcprogs);
+
 		search_close_progs(csqcprogs, false);
 		PR_fclose_progs(csqcprogs);
 
@@ -4990,9 +4957,12 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 	csprogs_checksum = checksum;
 
 	csqc_usinglistener = false;
+
 	csqc_singlecheats = cls.demoplayback;
+	if (atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
+		csqc_singlecheats = true;
 #ifndef CLIENTONLY
-	if ((sv.state == ss_active && sv.allocated_client_slots == 1) || atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
+	else if (sv.state == ss_active && sv.allocated_client_slots == 1)
 		csqc_singlecheats = true;
 #endif
 
@@ -5017,7 +4987,6 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 	}
 
 	csqc_deprecated_warned = false;
-	skel_reset(csqcprogs);
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
 
@@ -5098,11 +5067,6 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 
 			if (loaded)
 				Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
-		}
-		if (setjmp(csqc_abort))
-		{
-			CSQC_Shutdown();
-			return false;
 		}
 
 		if (csqc_singlecheats)

@@ -254,7 +254,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT));
+		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_NOMIPMAP));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont",
@@ -265,7 +265,7 @@ void Font_Init(void)
 			"]\n"
 			"nomipmaps\n"
 			"{\n"
-				"map $diffuse\n"
+				"map $nearest:$diffuse\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"blendfunc blend\n"
@@ -609,6 +609,8 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 	FT_Error error;
 	flocation_t loc;
 	void *fbase = NULL;
+	if (!*fontfilename)
+		return false;
 	if (!fontlib)
 	{
 		dllfunction_t ft2funcs[] =

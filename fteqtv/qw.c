@@ -3100,47 +3100,11 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		}
 		else if (!strcmp(v->expectcommand, "setmvdport"))
 		{
-			int newp;
-			SOCKET news;
+			int newp = atoi(message);
 
-			newp = atoi(message);
-
-
-			if (newp)
-			{
-				news = Net_TCPListen(newp, true);
-
-				if (news != INVALID_SOCKET)
-				{
-					if (cluster->tcpsocket[1] != INVALID_SOCKET)
-						closesocket(cluster->tcpsocket[1]);
-					cluster->tcpsocket[1] = news;
-					cluster->tcplistenportnum = newp;
-				}
-			}
-			else if (cluster->tcpsocket[1] != INVALID_SOCKET)
-			{
-				closesocket(cluster->tcpsocket[1]);
-				cluster->tcpsocket[1] = INVALID_SOCKET;
-			}
-
-			if (newp)
-			{
-				news = Net_TCPListen(newp, false);
-
-				if (news != INVALID_SOCKET)
-				{
-					if (cluster->tcpsocket[0] != INVALID_SOCKET)
-						closesocket(cluster->tcpsocket[0]);
-					cluster->tcpsocket[0] = news;
-					cluster->tcplistenportnum = newp;
-				}
-			}
-			else if (cluster->tcpsocket[0] != INVALID_SOCKET)
-			{
-				closesocket(cluster->tcpsocket[0]);
-				cluster->tcpsocket[0] = INVALID_SOCKET;
-			}
+			Net_TCPListen(cluster, newp, true);
+			Net_TCPListen(cluster, newp, false);
+			cluster->tcplistenportnum = newp;
 		}
 		else
 		{

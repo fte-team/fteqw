@@ -51,6 +51,7 @@ cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
 cvar_t	sv_cheatspeedchecktime	= CVAR("sv_cheatspeedchecktime", "30");
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
+cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "0", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
 
 cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
@@ -276,7 +277,7 @@ void SV_New_f (void)
 		if (svs.netprim.coordsize == 2)	//we're not using float orgs on this level.
 			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
 		else
-			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions);
+			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions|PEXT_FLOATCOORDS);
 	}
 	if (host_client->fteprotocolextensions2)//let the client know
 	{
@@ -521,12 +522,13 @@ void SVNQ_New_f (void)
 	case SCP_NETQUAKE:
 	case SCP_FITZ666:
 		SV_LogPlayer(host_client, "new (NQ)");
-		if (sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2)
+		if (sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2 || sv_protocol_nq.ival == 666)
 		{
 			int rmqfl =
 					((sv.nqdatagram.prim.coordsize==4)?RMQFL_FLOATCOORD:0) |
 					((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
 			host_client->protocol = SCP_FITZ666; /*mneh, close enough, the rmq stuff is just modifiers*/
+			host_client->datagram.maxsize = sizeof(host_client->datagram_buf);
 
 			if (rmqfl)
 			{
@@ -542,6 +544,7 @@ void SVNQ_New_f (void)
 		{
 			host_client->protocol = SCP_NETQUAKE;
 			MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
+			host_client->datagram.maxsize = MAX_NQDATAGRAM;
 		}
 		MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>16)?16:sv.allocated_client_slots);
 		break;
@@ -1466,7 +1469,7 @@ void SVQW_PreSpawn_f (void)
 SV_Spawn_f
 ==================
 */
-void SV_Spawn_f (void)
+void SVQW_Spawn_f (void)
 {
 	int		i;
 	client_t	*client, *split;
@@ -1586,19 +1589,19 @@ void SV_Spawn_f (void)
 		monsters_total = pr_global_struct->total_monsters;
 		monsters_found = pr_global_struct->killed_monsters;
 	}
-	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
+	ClientReliableWrite_Begin (host_client, svcqw_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
 	ClientReliableWrite_Long (host_client, secret_total);
 
-	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
+	ClientReliableWrite_Begin (host_client, svcqw_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALMONSTERS);
 	ClientReliableWrite_Long (host_client, monsters_total);
 
-	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
+	ClientReliableWrite_Begin (host_client, svcqw_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_SECRETS);
 	ClientReliableWrite_Long (host_client, secret_found);
 
-	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
+	ClientReliableWrite_Begin (host_client, svcqw_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
 	ClientReliableWrite_Long (host_client, monsters_found);
 	// get the client to check and download skins
@@ -4458,19 +4461,19 @@ void SVNQ_Spawn_f (void)
 	memset (host_client->statsf, 0, sizeof(host_client->statsf));
 	memset (host_client->statss, 0, sizeof(host_client->statss));
 
-	ClientReliableWrite_Begin (host_client, svc_updatestat, 6);
+	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
 	ClientReliableWrite_Long (host_client, pr_global_struct->total_secrets);
 
-	ClientReliableWrite_Begin (host_client, svc_updatestat, 6);
+	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALMONSTERS);
 	ClientReliableWrite_Long (host_client, pr_global_struct->total_monsters);
 
-	ClientReliableWrite_Begin (host_client, svc_updatestat, 6);
+	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_SECRETS);
 	ClientReliableWrite_Long (host_client, pr_global_struct->found_secrets);
 
-	ClientReliableWrite_Begin (host_client, svc_updatestat, 6);
+	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
 	ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
 
@@ -4893,7 +4896,7 @@ ucmd_t ucmds[] =
 	{"modellist", SV_Modellist_f, true},
 	{"soundlist", SV_Soundlist_f, true},
 	{"prespawn", SVQW_PreSpawn_f, true},
-	{"spawn", SV_Spawn_f, true},
+	{"spawn", SVQW_Spawn_f, true},
 	{"begin", SV_Begin_f, true},
 
 	/*ezquake warning*/
@@ -6920,6 +6923,7 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_realip_timeout, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
+	Cvar_Register (&sv_protocol_nq, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pure, cvargroup_servercontrol);
 	Cvar_Register (&sv_floodprotect, cvargroup_servercontrol);

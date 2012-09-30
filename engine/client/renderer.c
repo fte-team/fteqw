@@ -204,6 +204,9 @@ cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 cvar_t vid_width							= CVARF ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
+cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far your eyes are apart, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
+cvar_t	r_stereo_method						= CVARD("r_stereo_method", "0", "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue. Value 4=red/green");
+
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
 extern cvar_t r_drawentities;
@@ -331,9 +334,9 @@ cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "E
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
 cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
 
-cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE);
+cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
-cvar_t r_glsl_offsetmapping_reliefmapping = CVARF("r_glsl_offsetmapping_reliefmapping", "1", CVAR_RENDERERLATCH);
+cvar_t r_glsl_offsetmapping_reliefmapping = CVARF("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
@@ -365,6 +368,7 @@ void GLD3DRenderer_Init(void)
 {
 	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
+	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
 }
 #endif
 
@@ -462,8 +466,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
-
 	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
 
 	R_BloomRegister();
@@ -535,9 +537,11 @@ void Renderer_Init(void)
 #ifdef SWQUAKE
 	{
 	extern cvar_t sw_interlace;
-	extern cvar_t sw_threads;
+	extern cvar_t sw_vthread;
+	extern cvar_t sw_fthreads;
 	Cvar_Register(&sw_interlace, "Software Rendering Options");
-	Cvar_Register(&sw_threads, "Software Rendering Options");
+	Cvar_Register(&sw_vthread, "Software Rendering Options");
+	Cvar_Register(&sw_fthreads, "Software Rendering Options");
 	}
 #endif
 
@@ -598,6 +602,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_sun_colour, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
+	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
+	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -842,7 +848,8 @@ rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
 rendererinfo_t openglrendererinfo;
 
-rendererinfo_t d3drendererinfo;
+rendererinfo_t d3d9rendererinfo;
+rendererinfo_t d3d11rendererinfo;
 rendererinfo_t swrendererinfo;
 
 rendererinfo_t *rendererinfo[] =
@@ -854,7 +861,8 @@ rendererinfo_t *rendererinfo[] =
 	&openglrendererinfo,
 #endif
 #ifdef D3DQUAKE
-	&d3drendererinfo,
+	&d3d9rendererinfo,
+	&d3d11rendererinfo,
 #endif
 #ifdef SWQUAKE
 	&swrendererinfo,
@@ -950,6 +958,9 @@ void R_ShutdownRenderer(void)
 		R_DeInit();
 	}
 
+	if (Draw_Shutdown)
+		Draw_Shutdown();
+
 	if (VID_DeInit)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
@@ -965,6 +976,8 @@ void R_ShutdownRenderer(void)
 	if (host_basepal)
 		BZ_Free(host_basepal);
 	host_basepal = NULL;
+
+	RQ_Shutdown();
 
 	S_Shutdown();
 }
@@ -1349,10 +1362,15 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 					"OpenGL renderer initialized\n");
 		break;
 
-	case QR_DIRECT3D:
+	case QR_DIRECT3D9:
 		Con_Printf(	"\n"
 					"-----------------------------\n"
-					"Direct3d renderer initialized\n");
+					"Direct3d9 renderer initialized\n");
+		break;
+	case QR_DIRECT3D11:
+		Con_Printf(	"\n"
+					"-----------------------------\n"
+					"Direct3d11 renderer initialized\n");
 		break;
 	}
 
@@ -1399,6 +1417,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.bpp = vid_bpp.value;
 	newr.fullscreen = vid_fullscreen.value;
 	newr.rate = vid_refreshrate.value;
+	newr.stereo = (r_stereo_method.ival == 1);
 
 	if (!*_vid_wait_override.string || _vid_wait_override.value < 0)
 		newr.wait = -1;
@@ -1425,13 +1444,18 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	}
 	if (!newr.renderer)
 	{
+		int i;
 		Con_Printf("vid_renderer unset or unsupported. Using default.\n");
+
 		//gotta do this after main hunk is saved off.
-#if defined(GLQUAKE)
-		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
-#elif defined(D3DQUAKE)
-		Cmd_ExecuteString("setrenderer d3d\n", RESTRICT_LOCAL);
-#endif
+		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		{
+			if (rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
+			{
+				Cmd_ExecuteString(va("setrenderer %s\n", rendererinfo[i]->name[0]), RESTRICT_LOCAL);
+				break;
+			}
+		}
 		return;
 	}
 
@@ -1968,46 +1992,62 @@ qbyte *R_CalcVis_Q1 (void)
 
 qbyte *R_MarkLeaves_Q1 (void)
 {
-	static qbyte	fatvis[MAX_MAP_LEAFS/8];
-	static qbyte	*vis;
+	static qbyte	fatvis[2][MAX_MAP_LEAFS/8];
+	static qbyte	*cvis[2];
+	qbyte *vis;
 	mnode_t	*node;
 	int		i;
-	qbyte	solid[4096];
+	qboolean portal = r_refdef.recurse;
+
+	//for portals to work, we need two sets of any pvs caches
+	//this means lights can still check pvs at the end of the frame despite recursing in the mean time
+	//however, we still need to invalidate the cache because we only have one 'visframe' field in nodes.
 
 	if (r_refdef.forcevis)
 	{
-		vis = r_refdef.forcedvis;
+		vis = cvis[portal] = r_refdef.forcedvis;
 
 		r_oldviewleaf = NULL;
 		r_oldviewleaf2 = NULL;
 	}
 	else
 	{
-		if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
-			return vis;
+		if (!portal)
+		{
+			if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
+				return cvis[portal];
 
-		r_oldviewleaf = r_viewleaf;
-		r_oldviewleaf2 = r_viewleaf2;
+			r_oldviewleaf = r_viewleaf;
+			r_oldviewleaf2 = r_viewleaf2;
+		}
+		else
+		{
+			r_oldviewleaf = NULL;
+			r_oldviewleaf2 = NULL;
+		}
 
 		if (r_novis.ival)
 		{
-			vis = solid;
-			memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
+			vis = cvis[portal] = fatvis[portal];
+			memset (fatvis[portal], 0xff, (cl.worldmodel->numleafs+7)>>3);
+
+			r_oldviewleaf = NULL;
+			r_oldviewleaf2 = NULL;
 		}
 		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
 		{
 			int c;
-			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis, sizeof(fatvis));
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
+			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis[portal], sizeof(fatvis[portal]));
+			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
 			c = (cl.worldmodel->numleafs+31)/32;
 			for (i=0 ; i<c ; i++)
-				((int *)fatvis)[i] |= ((int *)vis)[i];
+				((int *)fatvis[portal])[i] |= ((int *)vis)[i];
 
-			vis = fatvis;
+			vis = cvis[portal] = fatvis[portal];
 		}
 		else
 		{
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis, sizeof(fatvis));
+			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis[portal], sizeof(fatvis[portal]));
 		}
 	}
 

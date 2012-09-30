@@ -8,6 +8,9 @@ public class FTEDroidEngine
 	public static native void keypress(int down, int qkey, int unicode);
 	public static native void motion(int act, int pointerid, float x, float y, float size);
 	public static native int  paintaudio(byte[] stream, int len);
+	public static native String geterrormessage();
+	public static native String getpreferedorientation();
+	public static native void newglcontext();
 
 	static
 	{

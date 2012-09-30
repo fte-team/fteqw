@@ -149,7 +149,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_bad				0
 #define	svc_nop				1
 #define	svc_disconnect		2
-#define	svc_updatestat		3	// [qbyte] [qbyte]
+#define	svcqw_updatestatbyte	3	// [qbyte] [qbyte]
+#define	svcnq_updatestatlong	3	// [qbyte] [long]
 #define	svc_version			4	// [long] server version
 #define	svc_setview			5	// [short] entity number
 #define	svc_sound			6	// <see code>
@@ -201,7 +202,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_updateping		36		// [qbyte] [short]
 #define	svc_updateentertime	37		// [qbyte] [float]
 
-#define	svc_updatestatlong	38		// [qbyte] [long]
+#define	svcqw_updatestatlong	38		// [qbyte] [long]
 
 #define	svc_muzzleflash		39		// [short] entity
 

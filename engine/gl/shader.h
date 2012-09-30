@@ -113,23 +113,23 @@ enum
 
 #define SBITS_BLEND_BITS				(SBITS_SRCBLEND_BITS|SBITS_DSTBLEND_BITS)
 
+	SBITS_MASK_RED						= 0x00000100,
+	SBITS_MASK_GREEN					= 0x00000200,
+	SBITS_MASK_BLUE						= 0x00000400,
+	SBITS_MASK_ALPHA					= 0x00000800,
+#define SBITS_MASK_BITS				  0x00000f00
+
 	SBITS_ATEST_NONE					= 0x00000000,
-	SBITS_ATEST_GT0						= 0x00000100,
-	SBITS_ATEST_LT128					= 0x00000200,
-	SBITS_ATEST_GE128					= 0x00000300,
-#define SBITS_ATEST_BITS				  0x00000f00
+	SBITS_ATEST_GT0						= 0x00001000,
+	SBITS_ATEST_LT128					= 0x00002000,
+	SBITS_ATEST_GE128					= 0x00003000,
+#define SBITS_ATEST_BITS				  0x0000f000
 
-	SBITS_MISC_DEPTHWRITE				= 0x00001000,
-	SBITS_MISC_NODEPTHTEST				= 0x00002000,
-	SBITS_MISC_DEPTHEQUALONLY			= 0x00004000,
-	SBITS_MISC_DEPTHCLOSERONLY			= 0x00008000,
-#define SBITS_MISC_BITS				  0x0000f000
-
-	SBITS_MASK_RED						= 0x00010000,
-	SBITS_MASK_GREEN					= 0x00020000,
-	SBITS_MASK_BLUE						= 0x00040000,
-	SBITS_MASK_ALPHA					= 0x00080000,
-#define SBITS_MASK_BITS				  0x000f0000
+	SBITS_MISC_DEPTHWRITE				= 0x00010000,
+	SBITS_MISC_NODEPTHTEST				= 0x00020000,
+	SBITS_MISC_DEPTHEQUALONLY			= 0x00040000,
+	SBITS_MISC_DEPTHCLOSERONLY			= 0x00080000,
+#define SBITS_MISC_BITS				  0x000f0000
 
 	SBITS_TRUFORM						= 0x00100000,
 };
@@ -239,8 +239,9 @@ typedef struct shaderpass_s {
 	} texgen;
 
 	enum {
-		SHADER_PASS_NOMIPMAP    = 1<<1,
-		SHADER_PASS_CLAMP		= 1<<2,
+		SHADER_PASS_CLAMP		= 1<<0,	//needed for d3d's sampler states, infects image flags
+		SHADER_PASS_NEAREST		= 1<<1,	//needed for d3d's sampler states, infects image flags
+		SHADER_PASS_NOMIPMAP    = 1<<2,	//infects image flags
 		SHADER_PASS_NOCOLORARRAY = 1<< 3,
 
 		//FIXME: remove these
@@ -264,7 +265,7 @@ enum{
 	PERMUTATION_SPECULAR = 2,
 	PERMUTATION_FULLBRIGHT = 4,
 	PERMUTATION_UPPERLOWER = 8,
-	PERMUTATION_OFFSET = 16,
+	PERMUTATION_DELUXE = 16,
 	PERMUTATION_SKELETAL = 32,
 	PERMUTATION_FOG	= 64,
 	PERMUTATION_FRAMEBLEND = 128,
@@ -366,6 +367,7 @@ union programhandle_u
 		void *frag;
 		void *ctabf;
 		void *ctabv;
+		void *layout;
 	} hlsl;
 #endif
 };
@@ -506,29 +508,30 @@ void GLBE_SelectEntity(entity_t *ent);
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 #endif
-#ifdef D3DQUAKE
-void D3DBE_Init(void);
-void D3DBE_SelectMode(backendmode_t mode);
-void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
-void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
-void D3DBE_SubmitBatch(batch_t *batch);
-batch_t *D3DBE_GetTempBatch(void);
-void D3DBE_GenBrushModelVBO(model_t *mod);
-void D3DBE_ClearVBO(vbo_t *vbo);
-void D3DBE_UploadAllLightmaps(void);
-void D3DBE_DrawWorld (qboolean drawworld, qbyte *vis);
-qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
-void D3DBE_SelectEntity(entity_t *ent);
-void D3DBE_SelectDLight(dlight_t *dl, vec3_t colour);
+#ifdef D3D9QUAKE
+void D3D9BE_Init(void);
+void D3D9BE_Shutdown(void);
+void D3D9BE_SelectMode(backendmode_t mode);
+void D3D9BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D9BE_SubmitBatch(batch_t *batch);
+batch_t *D3D9BE_GetTempBatch(void);
+void D3D9BE_GenBrushModelVBO(model_t *mod);
+void D3D9BE_ClearVBO(vbo_t *vbo);
+void D3D9BE_UploadAllLightmaps(void);
+void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis);
+qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
+void D3D9BE_SelectEntity(entity_t *ent);
+void D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour);
 
-qboolean D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
-int D3DShader_FindUniform(union programhandle_u *h, int type, char *name);
-void D3DShader_Init(void);
-void D3DBE_Reset(qboolean before);
-
-
-
+qboolean D3D9Shader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
+int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name);
+void D3D9Shader_Init(void);
+void D3D9BE_Reset(qboolean before);
+#endif
+#ifdef D3D11QUAKE
 void D3D11BE_Init(void);
+void D3D11BE_Shutdown(void);
 void D3D11BE_SelectMode(backendmode_t mode);
 void D3D11BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
 void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
@@ -537,15 +540,17 @@ batch_t *D3D11BE_GetTempBatch(void);
 void D3D11BE_GenBrushModelVBO(model_t *mod);
 void D3D11BE_ClearVBO(vbo_t *vbo);
 void D3D11BE_UploadAllLightmaps(void);
-void D3D11BE_DrawWorld (qbyte *vis);
+void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);
 void D3D11BE_SelectEntity(entity_t *ent);
 void D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour);
 
-qboolean D3D11Shader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
+qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3D11Shader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3D11Shader_Init(void);
 void D3D11BE_Reset(qboolean before);
+void D3D11BE_SetupViewCBuffer(void);
+void D3D11_UploadLightmap(lightmapinfo_t *lm);
 #endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
@@ -555,20 +560,22 @@ void BE_DrawNonWorld (void);
 void BE_GenerateProgram(shader_t *shader);
 
 #ifdef RTLIGHTS
-void BE_PushOffsetShadow(qboolean foobar);
+//
+void GLBE_PushOffsetShadow(qboolean foobar);
 //sets up gl for depth-only FIXME
-void BE_SetupForShadowMap(texid_t shadowmaptex);
+void GLBE_SetupForShadowMap(texid_t shadowmaptex);
 //Called from shadowmapping code into backend
 void GLBE_BaseEntTextures(void);
-void D3DBE_BaseEntTextures(void);
+void D3D9BE_BaseEntTextures(void);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis);
 void SH_FreeShadowMesh(struct shadowmesh_s *sm);
+//frees all memory
 void Sh_Shutdown(void);
-//Draws the depth of ents in the world near the current light
-void BE_BaseEntShadowDepth(void);
+//resize any textures to match new screen resize
+void Sh_Reset(void);
 #endif
 
 struct shader_field_names_s

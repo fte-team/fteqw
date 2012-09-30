@@ -206,6 +206,54 @@ enum {
 #define PROTOCOL_VERSION_NQ	15
 #define	PROTOCOL_VERSION	28
 
+#define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
+#define PROTOCOL_VERSION_FTE2			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions.
+#define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
+#define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//variable length handshake
+#define PROTOCOL_VERSION_FRAGMENT		(('F'<<0) + ('R'<<8) + ('A'<<16) + ('G' << 24))	//supports fragmentation/packets larger than 1450
+
+
+
+#define PEXT_SETVIEW			0x00000001
+#define PEXT_SCALE				0x00000002
+#define PEXT_LIGHTSTYLECOL		0x00000004
+#define PEXT_TRANS				0x00000008
+#define PEXT_VIEW2				0x00000010
+//#define PEXT_BULLETENS			0x00000020 //obsolete
+#define PEXT_ACCURATETIMINGS	0x00000040
+#define PEXT_SOUNDDBL			0x00000080	//revised startsound protocol
+#define PEXT_FATNESS			0x00000100	//GL only (or servers)
+#define PEXT_HLBSP				0x00000200
+#define PEXT_TE_BULLET			0x00000400
+#define PEXT_HULLSIZE			0x00000800
+#define PEXT_MODELDBL			0x00001000
+#define PEXT_ENTITYDBL			0x00002000	//max of 1024 ents instead of 512
+#define PEXT_ENTITYDBL2			0x00004000	//max of 1024 ents instead of 512
+#define PEXT_FLOATCOORDS		0x00008000	//supports floating point origins.
+//#define PEXT_VWEAP				0x00010000	//cause an extra qbyte to be sent, and an extra list of models for vweaps.
+#define PEXT_Q2BSP				0x00020000
+#define PEXT_Q3BSP				0x00040000
+#define PEXT_COLOURMOD			0x00080000	//this replaces an older value which would rarly have caried any actual data.
+#define PEXT_SPLITSCREEN		0x00100000
+#define PEXT_HEXEN2				0x00200000	//more stats and working particle builtin.
+#define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
+#define PEXT_CUSTOMTEMPEFFECTS	0x00800000	//supports custom temp ents.
+#define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
+//#define PEXT_NEVERUSED		0x02000000
+#define PEXT_SHOWPIC			0x04000000
+#define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
+//#define PEXT_NEVERUSED		0x10000000
+#define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
+#define PEXT_CSQC				0x40000000	//csqc additions
+#define PEXT_DPFLAGS			0x80000000	//extra flags for viewmodel/externalmodel and possible other persistant style flags.	
+
+#define PEXT2_PRYDONCURSOR			0x00000001
+#define PEXT2_VOICECHAT				0x00000002
+#define PEXT2_SETANGLEDELTA			0x00000004
+#define PEXT2_REPLACEMENTDELTAS		0x00000008
+#define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
+//#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+
 
 //flags on entities
 #define	U_ORIGIN1	(1<<9)

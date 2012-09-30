@@ -867,6 +867,7 @@ extern 	kbutton_t 	in_speed;
 extern	float in_sensitivityscale;
 
 void CL_MakeActive(char *gamename);
+void CL_UpdateWindowTitle(void);
 
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);

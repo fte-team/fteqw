@@ -92,13 +92,11 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 void CL_FreeDlights(void)
 {
-#if defined(GLQUAKE) || defined(D3DQUAKE)
 #ifdef RTLIGHTS
 	int i;
 	for (i = 0; i < rtlights_max; i++)
 		if (cl_dlights[i].worldshadowmesh)
 			SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
-#endif
 #endif
 
 	rtlights_max = cl_maxdlights = 0;
@@ -115,7 +113,6 @@ void CL_InitDlights(void)
 static void CL_ClearDlight(dlight_t *dl, int key)
 {
 	void *sm;
-	texid_t st;
 	sm = dl->worldshadowmesh;
 	memset (dl, 0, sizeof(*dl));
 	dl->rebuildcache = true;
@@ -2254,8 +2251,6 @@ void CL_LinkStaticEntities(void *pvs)
 		ent->framestate.g[FS_REG].frametime[0] = cl.time;
 		ent->framestate.g[FS_REG].frametime[1] = cl.time;
 
-		ent->shaderRGBAf[3] = 0.7;
-
 	// emit particles for statics (we don't need to cheat check statics)
 		if (clmodel->particleeffect >= 0 && gl_part_flame.ival)
 		{
@@ -4020,6 +4015,27 @@ void CL_LinkViewModel(void)
 	plstate = &cl.frames[parsecountmod].playerstate[plnum];
 
 	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
+
+	if (alpha < 1 && qrenderer == QR_OPENGL)
+	{
+		ent.forcedshader = 	R_RegisterShader("viewmodeldepthmask",
+				"{\n"
+					"noshadows\n"
+					"surfaceparm nodlight\n"
+					"{\n"
+						"map $whiteimage\n"
+						"maskcolor\n"
+						"depthwrite\n"
+					"}\n"
+				"}\n"
+				);
+		ent.shaderRGBAf[3] = 1;
+		ent.flags &= ~Q2RF_TRANSLUCENT;
+		V_AddEntity(&ent);
+		ent.forcedshader = NULL;
+		ent.shaderRGBAf[3] = alpha;
+		ent.flags |= Q2RF_TRANSLUCENT;
+	}
 }
 
 //======================================================================

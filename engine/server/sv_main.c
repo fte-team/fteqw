@@ -136,12 +136,12 @@ cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
 							"sv_maxdownloadrate", 0);
 cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
 
-cvar_t sv_bigcoords = CVARF("sv_bigcoords", "", CVAR_SERVERINFO);
-cvar_t sv_calcphs = CVAR("sv_calcphs", "2");
+cvar_t sv_bigcoords = CVARFD("sv_bigcoords", "", CVAR_SERVERINFO, "Uses floats for coordinates instead of 16bit values. Affects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
+cvar_t sv_calcphs = CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
 
-cvar_t sv_cullplayers_trace = CVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
-cvar_t sv_cullentities_trace = CVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
-cvar_t sv_phs = CVAR("sv_phs", "1");
+cvar_t sv_cullplayers_trace = CVARFD("sv_cullplayers_trace", "", CVAR_SERVERINFO, "Attempt to cull player entities using tracelines as an anti-wallhack.");
+cvar_t sv_cullentities_trace = CVARFD("sv_cullentities_trace", "", CVAR_SERVERINFO, "Attempt to cull non-player entities using tracelines as an extreeme anti-wallhack.");
+cvar_t sv_phs = CVARD("sv_phs", "1", "If 1, do not use the phs. It is generally better to use sv_calcphs instead, and leave this as 1.");
 cvar_t sv_resetparms = CVAR("sv_resetparms", "0");
 cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
 
@@ -701,9 +701,9 @@ void PIN_LoadMessages(void)
 void PIN_SaveMessages(void)
 {
 	pinnedmessages_t *p;
-	FILE *f;
+	vfsfile_t *f;
 
-	f = COM_WriteFileOpen("pinned.txt");
+	f = FS_OpenVFS("pinned.txt", "wt", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_Printf("couldn't write anything\n");
@@ -711,9 +711,9 @@ void PIN_SaveMessages(void)
 	}
 
 	for (p = pinned; p; p = p->next)
-		fprintf(f, "%s\r\n\t%s\r\n\n", p->message, p->setby);
+		VFS_PRINTF(f, "%s\r\n\t%s\r\n\n", p->message, p->setby);
 
-	fclose(f);
+	VFS_CLOSE(f);
 }
 void PIN_DeleteOldestMessage(void)
 {
@@ -4500,8 +4500,8 @@ void Master_Shutdown (void)
 	}
 }
 
-#define iswhite(c) (c == ' ' || c == INVIS_CHAR1 || c == INVIS_CHAR2 || c == INVIS_CHAR3)
-#define isinvalid(c) (c == ':' || c == '\r' || c == '\n' || (unsigned char)(c) == '\xff')
+#define iswhite(c) ((c) == ' ' || (unsigned char)(c) == (unsigned char)INVIS_CHAR1 || (unsigned char)(c) == (unsigned char)INVIS_CHAR2 || (unsigned char)(c) == (unsigned char)INVIS_CHAR3)
+#define isinvalid(c) ((c) == ':' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff)
 //colon is so clients can't get confused while parsing chats
 //255 is so fuhquake/ezquake don't end up with nameless players
 

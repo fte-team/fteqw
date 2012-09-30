@@ -109,6 +109,13 @@ void R2D_Shutdown(void)
 	cl_maxstrisvert = 0;
 	cl_numstris = 0;
 	cl_maxstris = 0;
+
+	if (font_conchar)
+		Font_Free(font_conchar);
+	font_conchar = NULL; 
+	if (font_tiny)
+		Font_Free(font_tiny);
+	font_tiny = NULL; 
 }
 
 /*
@@ -446,7 +453,7 @@ void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qby
 
 	if (!TEXVALID(translate_texture))
 	{
-		translate_texture = R_AllocNewTexture("***translatedpic***", 64, 64);
+		translate_texture = R_AllocNewTexture("***translatedpic***", 64, 64, 0);
 		translate_shader = R_RegisterShader("translatedpic", "{\n"
 			"if $nofixed\n"
 			"[\n"
@@ -979,7 +986,7 @@ void R2D_Crosshair_Update(void)
 	c = c % (sizeof(crosshair_pixels) / (CS_HEIGHT*sizeof(*crosshair_pixels)));
 
 	if (!TEXVALID(ch_int_texture))
-		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT);
+		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT, 0);
 	shader_crosshair->defaulttextures.base = ch_int_texture;
 
 	Q_memset(crossdata, 0, sizeof(crossdata));

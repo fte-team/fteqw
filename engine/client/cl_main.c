@@ -19,7 +19,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // cl_main.c  -- client main loop
 
-#include <ctype.h>
 #include "quakedef.h"
 #include "winquake.h"
 #include <sys/types.h>
@@ -263,6 +262,26 @@ char soundlist_name[] =
 	{ 's'^0xff, 'o'^0xff, 'u'^0xff, 'n'^0xff, 'd'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff,
 		' '^0xff, '%'^0xff, 'i'^0xff, ' '^0xff, '%'^0xff, 'i'^0xff, 0 };
 
+void CL_UpdateWindowTitle(void)
+{
+	if (VID_SetWindowCaption)
+	{
+		switch (cls.state)
+		{
+		default:
+#ifndef CLIENTONLY
+			if (sv.state)
+				VID_SetWindowCaption(va("%s %s: %s", DISTRIBUTION, fs_gamename.string, sv.name));
+			else
+#endif
+				VID_SetWindowCaption(va("%s %s: %s", DISTRIBUTION, fs_gamename.string, cls.servername));
+			break;
+		case ca_disconnected:
+			VID_SetWindowCaption(va("%s %s: disconnected", DISTRIBUTION, fs_gamename.string));
+			break;
+		}
+	}
+}
 
 void CL_MakeActive(char *gamename)
 {
@@ -274,8 +293,7 @@ void CL_MakeActive(char *gamename)
 	}
 	cls.state = ca_active;
 	S_Purge(true);
-	if (VID_SetWindowCaption)
-		VID_SetWindowCaption(va("FTE %s: %s", gamename, cls.servername));
+	CL_UpdateWindowTitle();
 
 	SCR_EndLoadingPlaque();
 
@@ -1033,6 +1051,8 @@ void CL_ClearState (void)
 #define SV_UnspawnServer()
 #endif
 
+	CL_UpdateWindowTitle();
+
 	CL_AllowIndependantSendCmd(false);	//model stuff could be a problem.
 
 	S_StopAllSounds (true);
@@ -1150,9 +1170,6 @@ void CL_Disconnect (void)
 	SCR_SetLoadingStage(0);
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
-
-	if (VID_SetWindowCaption)
-		VID_SetWindowCaption(FULLENGINENAME": disconnected");
 
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
@@ -4004,8 +4021,6 @@ void Host_Shutdown(void)
 
 	//disconnect server/client/etc
 	CL_Disconnect_f();
-	//Kill renderer
-	R_ShutdownRenderer();
 
 #ifdef VM_UI
 	UI_Stop();

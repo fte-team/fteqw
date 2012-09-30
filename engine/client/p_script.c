@@ -5357,7 +5357,13 @@ static void PScript_DrawParticleTypes (void)
 					{
 						p->die = -1;
 						VectorNormalize(p->vel);
-						P_RunParticleEffectType(stop, p->vel, type->clipcount/part_type[type->cliptype].count, type->cliptype);
+						if (type->clipbounce)
+						{
+							VectorScale(normal, type->clipbounce, normal);
+							P_RunParticleEffectType(stop, normal, type->clipcount/part_type[type->cliptype].count, type->cliptype);
+						}
+						else
+							P_RunParticleEffectType(stop, p->vel, type->clipcount/part_type[type->cliptype].count, type->cliptype);
 						continue;
 					}
 				}

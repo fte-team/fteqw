@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "bsd_string.h"
 
-#define ParseError(m) (m)->cursize = (m)->cursize+1	//
+#define ParseError(m) (m)->readpos = (m)->cursize+1	//
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable)
 {
@@ -114,17 +114,83 @@ void ConnectionData(sv_t *tv, void *buffer, int length, int to, unsigned int pla
 
 static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playermask)
 {
-	int protocol;
+	unsigned int protocol;
+	unsigned int supported;
 	viewer_t *v;
 
 	//free the old map state
 	QTV_CleanupMap(tv);
 
-	protocol = ReadLong(m);
-	if (protocol != PROTOCOL_VERSION)
+	tv->pext = 0;
+
+	for(;;)
 	{
-		ParseError(m);
-		return;
+		protocol = ReadLong(m);
+		switch (protocol)
+		{
+		case PROTOCOL_VERSION:
+			break;
+		case PROTOCOL_VERSION_FTE:
+			protocol = ReadLong(m);
+			tv->pext = protocol;
+
+			supported = PEXT_SETVIEW|PEXT_ACCURATETIMINGS; /*simple forwarding*/
+			supported |= PEXT_256PACKETENTITIES|PEXT_VIEW2|PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;	//features other than the protocol (stats, simple limits etc)
+
+			//supported |= PEXT_FLOATCOORDS|PEXT_TRANS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2;	//things we ought to support, but do not
+
+			if (protocol & PEXT_FLOATCOORDS)
+			{
+				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE (PEXT_FLOATCOORDS) not supported\n");
+				supported |= PEXT_FLOATCOORDS;
+			}
+			if (protocol & ~supported)
+				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE (%x) not supported\n", protocol & ~supported);
+			continue;
+		case PROTOCOL_VERSION_FTE2:
+			protocol = ReadLong(m);
+			supported = 0;
+//			supported |= PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS;
+
+			if (protocol & ~supported)
+				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE2 (%x) not supported\n", protocol & ~supported);
+			continue;
+		case PROTOCOL_VERSION_HUFFMAN:
+			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_HUFFMAN not supported\n", protocol);
+			ParseError(m);
+			return;
+		case PROTOCOL_VERSION_VARLENGTH:
+			{
+				int len = ReadLong(m);
+				if (len < 0 || len > 8192)
+				{
+					Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_VARLENGTH invalid\n");
+					ParseError(m);
+					return;
+				}
+				protocol = ReadLong(m);/*ident*/
+				switch(protocol)
+				{
+				default:
+					m->readpos += len;
+
+					Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_VARLENGTH (%x) not supported\n", protocol);
+					ParseError(m);
+					return;
+				}
+			}
+			continue;
+		case PROTOCOL_VERSION_FRAGMENT:
+			protocol = ReadLong(m);
+			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FRAGMENT not supported\n", protocol);
+			ParseError(m);
+			return;
+		default:
+			Sys_Printf(tv->cluster, "ParseMessage: Unknown protocol version %x\n", protocol);
+			ParseError(m);
+			return;
+		}
+		break;
 	}
 
 	tv->mapstarttime = tv->parsetime;
@@ -1273,15 +1339,15 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	switch(i)
 	{
 	case TE_SPIKE:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_SUPERSPIKE:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_GUNSHOT:
@@ -1295,15 +1361,15 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		nqversionlength = 8;
 		break;
 	case TE_EXPLOSION:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_TAREXPLOSION:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_LIGHTNING1:
@@ -1311,49 +1377,51 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	case TE_LIGHTNING3:
 		ReadShort (m);
 
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_WIZSPIKE:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_KNIGHTSPIKE:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_LAVASPLASH:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_TELEPORT:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
 		dest |= NQ;
 		break;
 	case TE_BLOOD:
 		ReadByte (m);
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		//FIXME: generate svc_particle for nq
 		break;
 	case TE_LIGHTNINGBLOOD:
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext);
+		//FIXME: generate svc_particle for nq
 		break;
 	default:
 		Sys_Printf(tv->cluster, "temp entity %i not recognised\n", i);

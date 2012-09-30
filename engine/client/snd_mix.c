@@ -115,6 +115,7 @@ void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom16Stereo (channel_t *ch, sfxcache_t *sc, int count);
 
+//NOTE: MAY NOT CALL SYS_ERROR
 void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 {
 	int 	i;

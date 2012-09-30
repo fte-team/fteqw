@@ -265,8 +265,8 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 #ifndef SERVERONLY
 	dsmesh_t *dm;
 	unsigned char *lm;
-#endif
 	float *colours;
+#endif
 	void *ptr;
 
 	/*queue the file for download if we don't have it yet*/
@@ -428,6 +428,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	{
 		s->flags |= TSF_RELIGHT;
 
+#ifndef SERVERONLY
 		if (s->lightmap >= 0)
 		{
 			lm = lightmap[s->lightmap]->lightmaps;
@@ -450,6 +451,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			s->colours[i][2] = 1;
 			s->colours[i][3] = 1;
 		}
+#endif
 
 #if 0//def DEBUG
 		void *f;

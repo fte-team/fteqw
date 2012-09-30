@@ -1193,7 +1193,7 @@ qboolean Mod_LoadNodes (lump_t *l, qboolean lm)
 
 	if (lm)
 	{
-		dlnode_t		*in;
+		dl1node_t		*in;
 		in = (void *)(mod_base + l->fileofs);
 		if (l->filelen % sizeof(*in))
 		{
@@ -1286,7 +1286,7 @@ qboolean Mod_LoadLeafs (lump_t *l, qboolean lm)
 
 	if (lm)
 	{
-		dlleaf_t 	*in;
+		dl1leaf_t 	*in;
 		in = (void *)(mod_base + l->fileofs);
 		if (l->filelen % sizeof(*in))
 		{
@@ -1749,7 +1749,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	i = LittleLong (header->version);
 
 
-	if (i == BSPVERSION_LONG)
+	if (i == BSPVERSION_LONG1)
 	{
 		loadmodel->fromgame = fg_quake;
 		longm = true;

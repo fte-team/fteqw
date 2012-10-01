@@ -523,6 +523,7 @@ typedef struct client_s
 		SCP_QUAKE3,
 		//all the below are considered netquake clients.
 		SCP_NETQUAKE,
+		SCP_PROQUAKE,
 		SCP_FITZ666,
 		SCP_DARKPLACES6,
 		SCP_DARKPLACES7	//extra prediction stuff

@@ -2580,6 +2580,9 @@ void FS_StartupWithGame(int gamenum)
 	if (i && i < com_argc-1)
 	{
 		COM_Gamedir(com_argv[i+1]);
+#ifndef CLIENTONLY
+		Info_SetValueForStarKey (svs.info, "*gamedir", com_argv[i+1], MAX_SERVERINFO_STRING);
+#endif
 	}
 
 	//+gamedir specifies the mod gamedir to use in QW

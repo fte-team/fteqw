@@ -642,7 +642,12 @@ void CL_CheckForResend (void)
 			cl.movemessages = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
 				cls.protocol = CP_QUAKEWORLD;
-			else if (!strcmp(cl_loopbackprotocol.string, "nq"))
+			else if (!strcmp(cl_loopbackprotocol.string, "nq"))	//actually proquake, because we might as well use the extra angles
+			{
+				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_PROQUAKE3_4;
+			}
+			else if (!strcmp(cl_loopbackprotocol.string, "nqid"))
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_ID;
@@ -687,6 +692,13 @@ void CL_CheckForResend (void)
 			{
 				net_from = adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
+
+				SVC_DirectConnect();
+			}
+			else if (cls.protocol_nq == CPNQ_PROQUAKE3_4)
+			{
+				net_from = adr;
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
@@ -2604,7 +2616,7 @@ void CLNQ_ConnectionlessPacket(void)
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
 		{
 			int ver = MSG_ReadByte();
-			Con_Printf("ProQuake server %i.%i\n", ver/10, ver%10);
+			Con_DPrintf("ProQuake server %i.%i\n", ver/10, ver%10);
 
 //			if (ver >= 34)
 			cls.protocol_nq = CPNQ_PROQUAKE3_4;

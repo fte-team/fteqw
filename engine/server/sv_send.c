@@ -253,6 +253,7 @@ void SV_PrintToClient(client_t *cl, int level, char *string)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
+	case SCP_PROQUAKE:
 	case SCP_FITZ666:
 #ifdef NQPROT
 		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
@@ -282,6 +283,7 @@ void SV_StuffcmdToClient(client_t *cl, char *string)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
+	case SCP_PROQUAKE:
 	case SCP_FITZ666:
 		ClientReliableWrite_Begin (cl, svc_stufftext, strlen(string)+3);
 		ClientReliableWrite_String (cl, string);
@@ -612,6 +614,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				break;
 #ifdef NQPROT
 			case SCP_NETQUAKE:
+			case SCP_PROQUAKE:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:
@@ -764,6 +767,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 #ifdef NQPROT
 			case SCP_NETQUAKE:
+			case SCP_PROQUAKE:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:	//extra prediction stuff

@@ -946,8 +946,12 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	for (i=0 ; i<3 ; i++)
 	{
-		if (cls.protocol_nq == CPNQ_FITZ666 || cls.protocol_nq == CPNQ_PROQUAKE3_4)
+		if ((cls.protocol_nq == CPNQ_FITZ666 || cls.protocol_nq == CPNQ_PROQUAKE3_4) && buf->prim.anglesize <= 1)
+		{
+			//fitz/proquake protocols are always 16bit for this angle and 8bit elsewhere. rmq is always at least 16bit
+			//the above logic should satify everything.
 			MSG_WriteAngle16 (buf, cl.playerview[pnum].viewangles[i]);
+		}
 		else
 			MSG_WriteAngle (buf, cl.playerview[pnum].viewangles[i]);
 	}

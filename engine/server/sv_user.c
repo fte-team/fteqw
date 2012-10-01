@@ -520,9 +520,10 @@ void SVNQ_New_f (void)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
+	case SCP_PROQUAKE:
 	case SCP_FITZ666:
 		SV_LogPlayer(host_client, "new (NQ)");
-		if (sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2 || sv_protocol_nq.ival == 666)
+		if (sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2 || sv_protocol_nq.ival == 666 || host_client->protocol == SCP_FITZ666)
 		{
 			int rmqfl =
 					((sv.nqdatagram.prim.coordsize==4)?RMQFL_FLOATCOORD:0) |
@@ -542,7 +543,7 @@ void SVNQ_New_f (void)
 		}
 		else
 		{
-			host_client->protocol = SCP_NETQUAKE;
+			host_client->protocol = (host_client->protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;	//identical other than the client->server angles
 			MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
 			host_client->datagram.maxsize = MAX_NQDATAGRAM;
 		}
@@ -6283,7 +6284,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 	{
 		if (msg_badread)
 		{
-			Con_Printf ("SV_ReadClientMessage: badread\n");
+			Con_Printf ("SVQW_ReadClientMessage: badread\n");
 			SV_DropClient (cl);
 			return;
 		}
@@ -6298,7 +6299,7 @@ haveannothergo:
 		switch (c)
 		{
 		default:
-			Con_Printf ("SV_ReadClientMessage: unknown command char %i\n", c);
+			Con_Printf ("SVQW_ReadClientMessage: unknown command char %i\n", c);
 			SV_DropClient (cl);
 			return;
 
@@ -6414,7 +6415,7 @@ haveannothergo:
 
 							if (msg_badread)
 							{
-								Con_Printf ("SV_ReadClientMessage: badread\n");
+								Con_Printf ("SV_QWReadClientMessage: badread\n");
 								SV_DropClient (cl);
 								return;
 							}
@@ -6583,7 +6584,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		switch (c)
 		{
 		default:
-			Con_Printf ("SV_ReadClientMessage: unknown command char %i\n", c);
+			Con_Printf ("SVQ2_ReadClientMessage: unknown command char %i\n", c);
 			SV_DropClient (cl);
 			return;
 
@@ -6719,7 +6720,10 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 // read current angles
 	for (i=0 ; i<3 ; i++)
 	{
-		host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
+		if ((host_client->protocol == SCP_FITZ666 || host_client->protocol == SCP_PROQUAKE))
+			host_client->edict->v->v_angle[i] = MSG_ReadAngle16 ();
+		else
+			host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
 
 		move->angles[i] = (host_client->edict->v->v_angle[i] * 256*256)/360;
 	}
@@ -6831,7 +6835,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	{
 		if (msg_badread)
 		{
-			Con_Printf ("SV_ReadClientMessage: badread\n");
+			Con_Printf ("SVNQ_ReadClientMessage: badread\n");
 			SV_DropClient (cl);
 			return;
 		}
@@ -6843,7 +6847,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 		switch (c)
 		{
 		default:
-			Con_Printf ("SV_ReadClientMessage: unknown command char %i\n", c);
+			Con_Printf ("SVNQ_ReadClientMessage: unknown command char %i\n", c);
 			SV_DropClient (cl);
 			return;
 

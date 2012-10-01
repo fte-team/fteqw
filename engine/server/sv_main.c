@@ -428,6 +428,7 @@ void SV_DropClient (client_t *drop)
 				break;
 			case SCP_QUAKEWORLD:
 			case SCP_NETQUAKE:
+			case SCP_PROQUAKE:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:
@@ -795,6 +796,7 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
+	case SCP_PROQUAKE:
 	case SCP_FITZ666:
 	case SCP_QUAKEWORLD:
 		ping = 0;
@@ -1572,6 +1574,7 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 #ifdef NQPROT
 	case SCP_NETQUAKE:
 	case SCP_FITZ666:
+	case SCP_PROQUAKE:
 		string[4] = CCREP_REJECT;
 		vsnprintf (string+5,sizeof(string)-1-5, format,argptr);
 		len = strlen(string+4)+1+4;
@@ -1624,13 +1627,16 @@ void SV_AcceptMessage(int protocol)
 #ifdef NQPROT
 	case SCP_NETQUAKE:
 	case SCP_FITZ666:
-		if (net_from.type != NA_LOOPBACK)
+	case SCP_PROQUAKE:
+//		if (net_from.type != NA_LOOPBACK)
 		{
 			SZ_Clear(&sb);
 			MSG_WriteLong(&sb, 0);
 			MSG_WriteByte(&sb, CCREP_ACCEPT);
 			NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
 			MSG_WriteLong(&sb, ShortSwap(localaddr.port));
+			MSG_WriteByte(&sb, 1/*MOD_PROQUAKE*/);
+			MSG_WriteByte(&sb, 10 * 3.50/*MOD_PROQUAKE_VERSION*/);
 			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 			return;
@@ -1823,6 +1829,8 @@ client_t *SVC_DirectConnect(void)
 		{
 			numssclients = 1;
 			protocol = SCP_NETQUAKE; //because we can
+			if (atoi(Info_ValueForKey(Cmd_Argv(4), "mod")) == 1)
+				protocol = SCP_PROQUAKE;
 		}
 		else if (version != PROTOCOL_VERSION_QW)
 		{
@@ -3005,7 +3013,7 @@ void SVNQ_ConnectionlessPacket(void)
 						{
 							client_t *newcl;
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
-							str = va("connect %i %i %s \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1));
+							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4));
 							Cmd_TokenizeString (str, false, false);
 
 							newcl = SVC_DirectConnect();
@@ -3037,13 +3045,16 @@ void SVNQ_ConnectionlessPacket(void)
 					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 
 
-					/*resend the cmd request, cos if they didn't send it then it must have gotten dropped*/
+					/*resend the cmd request, cos if they didn't send it then it must have gotten dropped.
+					at this point, we assume its a proquake clone and that it already thinks that we are proquake
+					a vanilla client will not start spamming nops until it has received the server info, so its only the proquake clients+clones that will send a nop before a challengeconnect
+					unfortunatly we don't know the modver+flags+password any more. I hope its not needed. if it does, server admins will be forced to use sv_listen_nq 1 instead of 2*/
 					SZ_Clear(&sb);
 					MSG_WriteLong(&sb, 0);
 					MSG_WriteLong(&sb, 0);
 
 					MSG_WriteByte(&sb, svc_stufftext);
-					MSG_WriteString(&sb, va("cmd challengeconnect %i\n", SV_NewChallenge()));
+					MSG_WriteString(&sb, va("cmd challengeconnect %i %i\n", SV_NewChallenge(), 1/*MOD_PROQUAKE*/));
 
 					*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
 					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
@@ -3101,6 +3112,8 @@ void SVNQ_ConnectionlessPacket(void)
 				MSG_WriteByte(&sb, CCREP_ACCEPT);
 				NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
 				MSG_WriteLong(&sb, ShortSwap(localaddr.port));
+				MSG_WriteByte(&sb, 1/*MOD_PROQUAKE*/);
+				MSG_WriteByte(&sb, 10 * 3.50/*MOD_PROQUAKE_VERSION*/);
 				*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 
@@ -3110,7 +3123,7 @@ void SVNQ_ConnectionlessPacket(void)
 				MSG_WriteLong(&sb, 0);
 
 				MSG_WriteByte(&sb, svc_stufftext);
-				MSG_WriteString(&sb, va("cmd challengeconnect %i\n", SV_NewChallenge()));
+				MSG_WriteString(&sb, va("cmd challengeconnect %i %i %i %i %i\n", SV_NewChallenge(), mod, modver, flags, passwd));
 
 				*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
 				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
@@ -3118,7 +3131,7 @@ void SVNQ_ConnectionlessPacket(void)
 			}
 			else
 			{
-				str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
+				str = va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\\modver\\%i\\flags\\%i\\password\\%i\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge(), mod, modver, flags, passwd);
 				Cmd_TokenizeString (str, false, false);
 
 				SVC_DirectConnect();

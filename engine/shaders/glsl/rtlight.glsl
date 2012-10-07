@@ -1,6 +1,5 @@
 !!permu BUMP
 !!permu SPECULAR
-!!permu OFFSETMAPPING
 !!permu SKELETAL
 !!permu FOG
 !!cvarf r_glsl_offsetmapping_scale

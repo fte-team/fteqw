@@ -19,6 +19,11 @@ vector originalmousepos;
 float mousedown;
 float shiftdown;
 
+string pointedshadername;
+vector pointedsurfacenormal;
+entity pointedent;
+float pointedsurface;
+
 /*the renderscene builtin in the parent progs is redirected to here*/
 void() wrap_renderscene =
 {
@@ -90,7 +95,7 @@ void() wrap_renderscene =
 	setproperty(VF_DRAWENGINESBAR, 0);
 	setproperty(VF_DRAWCROSSHAIR, 0);
 
-vidsize = getproperty(VF_SIZE);
+	vidsize = getproperty(VF_SIZE);
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_add();
@@ -147,6 +152,23 @@ vidsize = getproperty(VF_SIZE);
 		editor_particles_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
 		editor_terrain_overlay(curmousepos);
+
+
+	{
+		vector t = unproject((vidsize*0.5) + '0 0 8192');
+		vector o = unproject(vidsize*0.5);
+		if (vlen(o - t) > 8192)
+			t = o + normalize(t)*8192;
+		traceline(o, t, TRUE, world);
+
+		float s = getsurfacenearpoint(trace_ent, trace_endpos);
+		string sname = getsurfacetexture(trace_ent, s);
+		if (sname != pointedshadername)
+		{
+			strunzone(pointedshadername);
+			pointedshadername = strzone(sname);
+		}
+	}
 
 	drawcharacter(curmousepos - '4 4', '+', '8 8', '1 1 1', 1);
 };
@@ -230,6 +252,23 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			return TRUE;
 		}
 	}
+	else if (pointedshadername != "")
+	{
+/*		if (parama == 513)
+		{
+			strunzone(pointedshadername);
+			pointedshadername = "";
+			print("release (mouse2)!\n");
+			return TRUE;
+		}
+*/
+		if (event == 0 || event == 1)
+		{
+			gecko_keyevent(pointedshadername, parama, event);
+			if (event == 0)
+				return TRUE;
+		}
+	}
 
 	if (orig_input_event)
 		return orig_input_event(event, parama, paramb);
@@ -246,6 +285,104 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	setproperty(VF_DRAWCROSSHAIR, 1);
 	addentities(intermission?MASK_ENGINE:(MASK_VIEWMODEL|MASK_ENGINE));
 	wrap_renderscene();
+};
+
+void() CSQC_Input_Frame =
+{
+	vector t, o;
+	if ((input_buttons & 1) && pointedshadername == "")
+	{
+		t = unproject((vidsize*0.5) + '0 0 8192');
+		o = unproject(vidsize*0.5);
+		if (vlen(o - t) > 8192)
+			t = o + normalize(t)*8192;
+		traceline(o, t, TRUE, world);
+
+		if (vlen(trace_endpos - o) < 512)
+		{
+			float s = getsurfacenearpoint(trace_ent, trace_endpos);
+			pointedshadername = getsurfacetexture(trace_ent, s);
+			pointedsurfacenormal = getsurfacenormal(trace_ent, s);
+			if (gecko_get_texture_extent(pointedshadername) == '0 0 0')
+				pointedshadername = "";
+			if (pointedshadername == "")
+				pointedshadername = "";
+			else
+			{
+				pointedshadername = strzone(pointedshadername);
+				//print("sending input to ", pointedshadername, "\n");
+
+				pointedent = trace_ent;
+				pointedsurface = s;
+			}
+		}
+	}
+	if (pointedshadername != "")
+	{
+		input_buttons = input_buttons - (input_buttons & 1);
+
+		makevectors(input_angles);
+		if (v_forward * pointedsurfacenormal >= 0)
+		{
+			strunzone(pointedshadername);
+			pointedshadername = "";
+		//	print("release (angle)!\n");
+		}
+		else
+		{
+			t = unproject((vidsize*0.5) + '0 0 8192');
+			o = unproject(vidsize*0.5);
+			if (vlen(o - t) > 8192)
+				t = o + normalize(t)*8192;
+			traceline(o, t, TRUE, world);
+
+			//this code is vile.
+			//it expects the texture to be aligned to the surface plane with flat projection.
+			//it will also break on any polysoup/patch surfaces
+			//it should at least accept any weird shaped cut up triangles, so long as they're all flat on the surface.
+
+			vector xyz1, xyz2, xyz3;
+			vector st1, st2, st3;
+			xyz1 = getsurfacepointattribute(pointedent, pointedsurface, 0, 0);
+			xyz2 = getsurfacepointattribute(pointedent, pointedsurface, 2, 0);
+			xyz3 = getsurfacepointattribute(pointedent, pointedsurface, 1, 0);
+			st1 = getsurfacepointattribute(pointedent, pointedsurface, 0, 4);
+			st2 = getsurfacepointattribute(pointedent, pointedsurface, 2, 4);
+			st3 = getsurfacepointattribute(pointedent, pointedsurface, 1, 4);
+
+			float f1, f2, backoff;
+			vector dir1 = xyz2 - xyz1;
+			vector std1 = st2 - st1;
+			vector dir2 = xyz3 - xyz1;
+			vector std2 = st3 - st1;
+			f1 = 1/vlen(dir1);
+			dir1 *= f1;
+			std1 *= f1;
+			backoff = dir1 * dir2;
+			std2 = std2 - (std1 * backoff);
+			dir2 = dir2 - (dir1 * backoff);
+			f2 = 1/vlen(dir2);
+			dir1 *= f2;
+			std1 *= f2;
+			//the two directions should be perpendicular, and normalized
+
+			float d1 = dir1*xyz1;
+			float p = dir1*trace_endpos;
+			float d2 = dir1*(xyz1+dir1);
+			float f1 = (p-d1) / (d2 - d1);
+
+			d1 = dir2*xyz1;
+			p = dir2*trace_endpos;
+			d2 = dir2*(xyz1+dir2);
+			f2 = (p-d1) / (d2 - d1);
+
+			vector res = st1 + std1*f1 + std2*f2;
+
+			res_x-= floor(res_x);
+			res_y-= floor(res_y);
+			gecko_mousemove(pointedshadername, res_x, res_y);
+		}
+	}
 };
 
 /*this is a fallback function, in case the main progs does not have one*/

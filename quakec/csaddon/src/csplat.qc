@@ -655,7 +655,7 @@ void(vector origin, string sample, float volume, float attenuation) pointsound =
 #endif
 string(string search, string replace, string subject) strreplace = #484;
 string(string search, string replace, string subject) strireplace = #485;
-//vector(entity e, float s, float n, float a) getsurfacepointattribute = #486;
+vector(entity e, float s, float n, float a) getsurfacepointattribute = #486;
 #ifdef CSQC
 float(string name) gecko_create = #487;
 void(string name) gecko_destroy = #488;

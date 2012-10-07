@@ -50,6 +50,11 @@ void BadBuiltin(void);
 #include <stdlib.h>
 #include <stdarg.h>
 #include "math.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //DLLs need a wrapper to add the extra parameter and call a boring function.
 #define EBUILTIN(t, n, args) extern int BUILTIN_##n; t n args
 #define TEST
@@ -75,8 +80,13 @@ int snprintf(char *buffer, size_t maxlen, const char *format, ...);
 #endif
 
 #endif
-
-typedef enum {false, true} qboolean;
+#ifdef __cplusplus
+typedef enum {qfalse, qtrue} qboolean;
+#else
+typedef enum {qfalse, qtrue} qboolean;
+#define false qfalse
+#define true qtrue
+#endif
 typedef void *qhandle_t;
 typedef float vec3_t[3];
 typedef void* funcptr_t;
@@ -109,7 +119,7 @@ EBUILTIN(qboolean, Plug_ExportNative, (char *funcname, void *func));	//set up in
 EBUILTIN(void, Con_Print, (char *text));	//on to main console.
 
 EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
-EBUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a console.
+EBUILTIN(void, Con_RenameSub, (char *oldname, char *newname));	//rename a console.
 EBUILTIN(int, Con_IsActive, (char *conname));
 EBUILTIN(void, Con_SetActive, (char *conname));
 EBUILTIN(void, Con_Destroy, (char *conname));
@@ -255,5 +265,9 @@ void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, char *key, char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

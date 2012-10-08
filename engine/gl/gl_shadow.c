@@ -3026,7 +3026,7 @@ void Sh_DrawLights(qbyte *vis)
 		{
 			Sh_DrawShadowlessLight(dl, colour, vis);
 		}
-		else if ((dl->flags & LFLAG_SHADOWMAP) || dl->fov || r_shadow_shadowmapping.ival)
+		else if ((dl->flags & LFLAG_SHADOWMAP) || r_shadow_shadowmapping.ival)
 		{
 #ifdef GLQUAKE
 			Sh_DrawShadowMapLight(dl, colour, vis);

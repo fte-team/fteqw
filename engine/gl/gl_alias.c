@@ -1014,6 +1014,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 			b->buildmeshes = R_GAlias_DrawBatch;
 			b->ent = e;
+			b->fog = CM_FogForOrigin(e->origin);
 			b->mesh = NULL;
 			b->firstmesh = 0;
 			b->meshes = 1;
@@ -1770,6 +1771,13 @@ static void R_DB_Sprite(batch_t *batch)
 	Vector4Copy(e->shaderRGBAf, colours[2]);
 	Vector4Copy(e->shaderRGBAf, colours[3]);
 
+	VectorSubtract(sprorigin, e->origin, sprorigin);
+	if (!e->scale)
+		e->scale = 1;
+	VectorSet(e->axis[0], 1/e->scale, 0, 0);
+	VectorSet(e->axis[1], 0, 1/e->scale, 0);
+	VectorSet(e->axis[2], 0, 0, 1/e->scale);
+
 	VectorMA (sprorigin, frame->down, spraxis[2], point);
 	VectorMA (point, frame->left, spraxis[1], vertcoords[0]);
 
@@ -1782,7 +1790,6 @@ static void R_DB_Sprite(batch_t *batch)
 	VectorMA (sprorigin, frame->down, spraxis[2], point);
 	VectorMA (point, frame->right, spraxis[1], vertcoords[3]);
 
-	batch->ent = &r_worldentity;
 	batch->mesh = &meshptr;
 
 	memset(&mesh, 0, sizeof(mesh));
@@ -1856,6 +1863,7 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 
 	b->buildmeshes = drawfunc;
 	b->ent = e;
+	b->fog = CM_FogForOrigin(e->origin);
 	b->mesh = NULL;
 	b->firstmesh = 0;
 	b->meshes = 1;

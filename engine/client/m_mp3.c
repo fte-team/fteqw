@@ -960,7 +960,6 @@ static qboolean qAVIStartup(void)
 
 struct cin_s
 {
-
 	qboolean (*decodeframe)(cin_t *cin, qboolean nosound);
 	void (*doneframe)(cin_t *cin);
 	void (*shutdown)(cin_t *cin);	//warning: doesn't free cin_t
@@ -1022,6 +1021,8 @@ struct cin_s
 		void *ctx;
 		struct plugin_s *plug;
 		media_decoder_funcs_t *funcs;	/*fixme*/
+		struct cin_s *next;
+		struct cin_s *prev;
 	} plugin;
 #endif
 
@@ -1177,6 +1178,9 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 	PAVIFILE			pavi;
 	flocation_t loc;
 
+	if (strchr(name, ':'))
+		return NULL;
+
 	if (!qAVIStartup())
 		return NULL;
 
@@ -1304,8 +1308,9 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 //////////////////////////////////////////////////////////////////////////////////
 //Plugin Support
 #ifdef PLUGINS
-media_decoder_funcs_t *plugindecodersfunc[8];
-struct plugin_s *plugindecodersplugin[8];
+static media_decoder_funcs_t *plugindecodersfunc[8];
+static struct plugin_s *plugindecodersplugin[8];
+static cin_t *active_cin_plugins;
 
 qboolean Media_RegisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs)
 {
@@ -1321,19 +1326,69 @@ qboolean Media_RegisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *fun
 	}
 	return false;
 }
+/*funcs==null closes ALL decoders from this plugin*/
 qboolean Media_UnregisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs)
 {
+	qboolean success = true;
 	int i;
+	static media_decoder_funcs_t deadfuncs;
+	struct plugin_s *oldplug = currentplug;
+	cin_t *cin, *next;
+
 	for (i = 0; i < sizeof(plugindecodersfunc)/sizeof(plugindecodersfunc[0]); i++)
 	{
 		if (plugindecodersfunc[i] == funcs || (!funcs && plugindecodersplugin[i] == plug))
 		{
+			//kill any cinematics currently using that decoder
+			for (cin = active_cin_plugins; cin; cin = next)
+			{
+				next = cin->plugin.next;
+
+				if (cin->plugin.plug == plug && cin->plugin.funcs == plugindecodersfunc[i])
+				{
+					//we don't kill the engine's side of it, not just yet anyway.
+					currentplug = cin->plugin.plug;
+					if (cin->plugin.funcs->shutdown)
+						cin->plugin.funcs->shutdown(cin->plugin.ctx);
+					cin->plugin.funcs = &deadfuncs;
+					cin->plugin.plug = NULL;
+					cin->plugin.ctx = NULL;
+				}
+			}
+			currentplug = oldplug;
+
+
 			plugindecodersfunc[i] = NULL;
 			plugindecodersplugin[i] = NULL;
-			return true;
+			if (funcs)
+				return success;
 		}
 	}
-	return false;
+
+	if (!funcs)
+	{
+		static media_decoder_funcs_t deadfuncs;
+		struct plugin_s *oldplug = currentplug;
+		cin_t *cin, *next;
+
+		for (cin = active_cin_plugins; cin; cin = next)
+		{
+			next = cin->plugin.next;
+
+			if (cin->plugin.plug == plug)
+			{
+				//we don't kill the engine's side of it, not just yet anyway.
+				currentplug = cin->plugin.plug;
+				if (cin->plugin.funcs->shutdown)
+					cin->plugin.funcs->shutdown(cin->plugin.ctx);
+				cin->plugin.funcs = &deadfuncs;
+				cin->plugin.plug = NULL;
+				cin->plugin.ctx = NULL;
+			}
+		}
+		currentplug = oldplug;
+	}
+	return success;
 }
 
 static qboolean Media_Plugin_DecodeFrame(cin_t *cin, qboolean nosound)
@@ -1342,6 +1397,8 @@ static qboolean Media_Plugin_DecodeFrame(cin_t *cin, qboolean nosound)
 	currentplug = cin->plugin.plug;
 	cin->outdata = cin->plugin.funcs->decodeframe(cin->plugin.ctx, nosound, &cin->outtype, &cin->outwidth, &cin->outheight);
 	currentplug = oldplug;
+
+	cin->outunchanged = (cin->outdata==NULL);
 
 	if (cin->outtype != TF_INVALID)
 		return true;
@@ -1362,6 +1419,13 @@ static void Media_Plugin_Shutdown(cin_t *cin)
 	if (cin->plugin.funcs->shutdown)
 		cin->plugin.funcs->shutdown(cin->plugin.ctx);
 	currentplug = oldplug;
+
+	if (cin->plugin.prev)
+		cin->plugin.prev->plugin.next = cin->plugin.next;
+	else
+		active_cin_plugins = cin->plugin.next;
+	if (cin->plugin.next)
+		cin->plugin.next->plugin.prev = cin->plugin.prev;
 }
 static void Media_Plugin_Rewind(cin_t *cin)
 {
@@ -1443,6 +1507,11 @@ cin_t *Media_Plugin_TryLoad(char *name)
 		cin->plugin.funcs = funcs;
 		cin->plugin.plug = plug;
 		cin->plugin.ctx = ctx;
+		cin->plugin.next = active_cin_plugins;
+		cin->plugin.prev = NULL;
+		if (cin->plugin.next)
+			cin->plugin.next->plugin.prev = cin;
+		active_cin_plugins = cin;
 		cin->decodeframe = Media_Plugin_DecodeFrame;
 		cin->doneframe = Media_Plugin_DoneFrame;
 		cin->shutdown = Media_Plugin_Shutdown;
@@ -1587,6 +1656,9 @@ cin_t *Media_RoQ_TryLoad(char *name)
 {
 	cin_t *cin;
 	roq_info *roqfilm;
+	if (strchr(name, ':'))
+		return NULL;
+
 	if ((roqfilm = roq_open(name)))
 	{
 		cin = Z_Malloc(sizeof(cin_t));
@@ -2166,6 +2238,8 @@ qboolean Media_ShowFilm(void)
 				extern int mousecursor_x, mousecursor_y;
 				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
 			}
+			if (cin->setsize)
+				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
 
 //			GL_Set2D (false);
 			R2D_ImageColours(1, 1, 1, 1);

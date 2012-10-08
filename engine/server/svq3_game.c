@@ -1674,6 +1674,7 @@ static void SV_InitBotLib(void)
 
 qboolean SVQ3_InitGame(void)
 {
+	int i;
 	char buffer[8192];
 	char *str;
 	char sysinfo[8192];
@@ -1748,10 +1749,13 @@ qboolean SVQ3_InitGame(void)
 	q3_next_snapshot_entities = 0;
 	q3_snapshot_entities = BZ_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
 
-#ifdef USEBOTLIB
-	if (botlib)
-		VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
-#endif
+
+		// run a few frames to allow everything to settle
+	for (i = 0; i < 3; i++)
+	{
+		SVQ3_RunFrame();
+		sv.time += 0.1;
+	}
 
 	return true;
 }

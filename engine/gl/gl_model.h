@@ -108,6 +108,7 @@ typedef struct batch_s
 	int lightmap[MAXLIGHTMAPS];	/*used for shader lightmap textures*/
 
 	unsigned char lightstyle[MAXLIGHTMAPS];
+	struct mfog_s *fog;
 
 	struct texture_s *texture; /*is this used by the backend?*/
 	struct texnums_s *skin;

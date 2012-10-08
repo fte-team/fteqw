@@ -264,23 +264,30 @@ static void dlnotification(struct dl_download *dl)
 static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	package_t *p;
+	int fl;
 	p = c->data;
 	if (p)
 	{
 		Draw_FunString (x+4, y, "^Ue080^Ue082");
-		Draw_FunString (x+24, y, "^Ue080^Ue082");
 
-		if (p->flags&DPF_WANTTOINSTALL)
-			Draw_FunString (x+8, y, "^Ue083");
-		else
+		fl = p->flags & (DPF_HAVEAVERSION | DPF_WANTTOINSTALL);
+		if ((p->flags & (DPF_DOWNLOADING|DPF_ENQUED)) && ((int)(realtime*4)&1))
+			fl |= DPF_HAVEAVERSION;	//flicker have if we're downloading it.
+		switch(fl)
+		{
+		case 0:
 			Draw_FunString (x+8, y, "^Ue081");
-
-		//if you have it already
-		if (p->flags&(DPF_HAVEAVERSION | ((((int)(realtime*4))&1)?(DPF_DOWNLOADING|DPF_ENQUED):0) ))
-			Draw_FunString (x+28, y, "^Ue083");
-		else
-			Draw_FunString (x+28, y, "^Ue081");
-
+			break;
+		case DPF_HAVEAVERSION:
+			Draw_FunString (x, y, "REM");
+			break;
+		case DPF_WANTTOINSTALL:
+			Draw_FunString (x, y, "GET");
+			break;
+		case DPF_HAVEAVERSION | DPF_WANTTOINSTALL:
+			Draw_FunString (x+8, y, "^Ue083");
+			break;
+		}
 
 		if (&m->selecteditem->common == &c->common)
 			Draw_AltFunString (x+48, y, p->name);
@@ -396,7 +403,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 	int prefixlen;
 	p = availablepackages;
 
-	MC_AddRedText(m, 0, 40, "WntHav", false);
+//	MC_AddRedText(m, 0, 40, "WntHav", false);
 
 	prefixlen = strlen(info->pathprefix);
 	y = 48+4;

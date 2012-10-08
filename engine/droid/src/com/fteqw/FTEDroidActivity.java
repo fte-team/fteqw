@@ -204,6 +204,13 @@ public class FTEDroidActivity extends Activity
 						};
 						act.runOnUiThread(r);
 					}
+					if (((flags ^ notifiedflags) & 32) != 0)
+					{
+						if ((flags & 32) != 0)
+							view.audioInit(FTEDroidEngine.audioinfo(0), FTEDroidEngine.audioinfo(1), FTEDroidEngine.audioinfo(2));
+						else
+							view.audioStop();
+					}
 
 					//clear anything which is an impulse
 					notifiedflags = flags;
@@ -319,24 +326,37 @@ public class FTEDroidActivity extends Activity
 		private class audiothreadclass extends Thread
 		{
 			boolean timetodie;
+			int schannels;
+			int sspeed;
+			int sbits;
 			@Override
 			public void run()
 			{
 				byte[] audbuf = new byte[2048];
 				int avail;
 				
-				int sspeed = 11025;
-				int speakers = 1;
-				int sz = 2*AudioTrack.getMinBufferSize(sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT);
+				int chans;
+				if (schannels >= 8)	//the OUT enumeration allows specific speaker control. but also api level 5+
+					chans = AudioFormat.CHANNEL_OUT_7POINT1;
+				else if (schannels >= 6)
+					chans = AudioFormat.CHANNEL_OUT_5POINT1;
+				else if (schannels >= 4)
+					chans = AudioFormat.CHANNEL_OUT_QUAD;
+				else if (schannels >= 2)
+					chans = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
+				else
+					chans = AudioFormat.CHANNEL_CONFIGURATION_MONO;
+				int enc = (sbits == 8)?AudioFormat.ENCODING_PCM_8BIT:AudioFormat.ENCODING_PCM_16BIT;
+				
+				int sz = 2*AudioTrack.getMinBufferSize(sspeed, chans, enc);
 
 //				if (sz < sspeed * 0.05)
 //					sz = sspeed * 0.05;
 
-				AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT, sz, AudioTrack.MODE_STREAM);
+				AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, chans, enc, sz, AudioTrack.MODE_STREAM);
 
 				at.setStereoVolume(1, 1);
 				at.play();
-			
 			
 				while(!timetodie)
 				{
@@ -356,14 +376,18 @@ public class FTEDroidActivity extends Activity
 				catch(InterruptedException e)
 				{
 				}
+				timetodie = false;
 			}
 		};
 
-		private void audioInit()
+		private void audioInit(int sspeed, int schannels, int sbits)
 		{
 			if (audiothread == null)
 			{
 				audiothread = new audiothreadclass();
+				audiothread.schannels = schannels;
+				audiothread.sspeed = sspeed;
+				audiothread.sbits = sbits;
 				audiothread.start();
 			}
 		}
@@ -377,8 +401,11 @@ public class FTEDroidActivity extends Activity
 		}
 		public void audioResume()
 		{
-			audioStop();
-			audioInit();
+			if (audiothread != null)
+			{
+				audiothread.killoff();
+				audiothread.start();
+			}
 		}
 		
 		private FTELegacyInputEvent inputevent;
@@ -499,10 +526,6 @@ public class FTEDroidActivity extends Activity
 			setRenderer(rndr);
 			setFocusable(true);
 			setFocusableInTouchMode(true);
-
-			android.util.Log.i("FTEDroid", "starting audio");
-			audioInit();
-			android.util.Log.i("FTEDroid", "audio running");
 		}
 		
 		private void sendKey(final boolean presseddown, final int qcode, final int unicode)

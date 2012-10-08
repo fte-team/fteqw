@@ -355,7 +355,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 	float r, g, b;
 
 	conchar_t buffer[2048], *str;
-	float px, py;
+	float px, py, ipx;
 
 	if (*prinst->callargc >= 6)
 	{
@@ -384,10 +384,16 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 	str = buffer;
 
 	Font_BeginScaledString(font_conchar, pos[0], pos[1], &px, &py);
+	ipx = px;
 	Font_ForceColour(r, g, b, alpha);
 	while(*str)
 	{
-		px = Font_DrawScaleChar(px, py, size[0], size[1], *str++);
+		if ((*str & CON_CHARMASK) == '\n')
+			py += Font_CharHeight();
+		else if ((*str & CON_CHARMASK) == '\r')
+			px = ipx;
+		else
+			px = Font_DrawScaleChar(px, py, size[0], size[1], *str++);
 	}
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);

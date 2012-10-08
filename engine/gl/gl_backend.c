@@ -90,6 +90,14 @@ static const char PCFPASS_SHADER[] = "\
 }";
 
 
+enum
+{
+	LSHADER_STANDARD,
+	LSHADER_CUBE,
+	LSHADER_SMAP,
+	LSHADER_SPOT,
+	LSHADER_MODES
+};
 
 extern cvar_t r_glsl_offsetmapping, r_noportals;
 
@@ -105,7 +113,9 @@ struct {
 //		int vbo_texcoords[SHADER_PASS_MAX];
 //		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		qboolean inited_shader_rtlight;
+		const shader_t *shader_light[LSHADER_MODES];
+		qboolean inited_shader_light[LSHADER_MODES];
+/*		qboolean inited_shader_rtlight;
 		const shader_t *shader_rtlight;
 		qboolean inited_shader_cubeproj;
 		const shader_t *shader_cubeproj;
@@ -113,7 +123,7 @@ struct {
 		const shader_t *shader_smap;
 		qboolean inited_shader_spot;
 		const shader_t *shader_spot;
-
+*/
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
 
@@ -193,10 +203,12 @@ struct {
 		const entity_t *curentity;
 		const batch_t *curbatch;
 		const texnums_t *curtexnums;
+		const mfog_t *fog;
 
 		float curtime;
 		float updatetime;
 
+		int lightmode;
 		vec3_t lightorg;
 		vec3_t lightcolours;
 		vec3_t lightcolourscale;
@@ -1165,6 +1177,12 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 	byte_vec4_t fogdata[FOGS*FOGT];
 	int s, t;
 	float f, z;
+	static float fogdensity, fogzscale;
+	if (TEXVALID(*tex) && density == fogdensity && zscale == fogzscale)
+		return;
+	fogdensity = density;
+	fogzscale = zscale;
+
 	for(s = 0; s < FOGS; s++)
 		for(t = 0; t < FOGT; t++)
 		{
@@ -1172,7 +1190,7 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 			z *= zscale;
 
 			if (0)//q3
-				f = pow(f, 0.5);
+				f = pow(z, 0.5);
 			else if (1)//GL_EXP
 				f = 1-exp(-density * z);
 			else //GL_EXP2
@@ -1239,6 +1257,7 @@ void GLBE_Init(void)
 	for (i = 0; i < MAXLIGHTMAPS; i++)
 		shaderstate.dummybatch.lightmap[i] = -1;
 
+#if FIXME
 	/*normally we load these lazily, but if they're probably going to be used anyway, load them now to avoid stalls.*/
 	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_rtlight && gl_config.arb_shader_objects)
 	{
@@ -1250,6 +1269,7 @@ void GLBE_Init(void)
 		shaderstate.inited_shader_cubeproj = true;
 		shaderstate.shader_cubeproj = R_RegisterCustom("rtlight_cubeproj", Shader_LightPass_CubeProj, NULL);
 	}
+#endif
 
 	gl_overbright.modified = true; /*in case the d3d renderer does the same*/
 	/*lock the cvar down if the backend can't actually do it*/
@@ -1311,7 +1331,7 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 	}
 }
 
-static void tcgen_fog(float *st, unsigned int numverts, float *xyz)
+static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 {
 	int			i;
 
@@ -1358,9 +1378,6 @@ static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
 		if (!mesh->normals_array)
 			return (float*)mesh->st_array;
 		tcgen_environment(dst, cnt, (float*)mesh->xyz_array, (float*)mesh->normals_array);
-		return dst;
-	case TC_GEN_FOG:
-		tcgen_fog(dst, cnt, (float*)mesh->xyz_array);
 		return dst;
 
 //	case TC_GEN_DOTPRODUCT:
@@ -1464,23 +1481,17 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 	}
 }
 
-static void GenerateTCFog(int passnum)
+static void GenerateTCFog(int passnum, mfog_t *fog)
 {
 	int m;
-	float *src;
 	mesh_t *mesh;
 	for (m = 0; m < shaderstate.meshcount; m++)
 	{
 		mesh = shaderstate.meshes[m];
-
-		src = tcgen(TC_GEN_FOG, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
-		if (src != texcoordarray[passnum]+mesh->vbofirstvert*2)
-		{
-			//this shouldn't actually ever be true
-			memcpy(texcoordarray[passnum]+mesh->vbofirstvert*2, src, 8*mesh->numvertexes);
-		}
+		tcgen_fog(texcoordarray[passnum]+mesh->vbofirstvert*2, mesh->numvertexes, (float*)mesh->xyz_array, fog);
 	}
 	GL_SelectVBO(0);
+	qglClientActiveTextureARB(mtexid0 + passnum);
 	qglTexCoordPointer(2, GL_FLOAT, 0, texcoordarray[passnum]);
 }
 static void GenerateTCMods(const shaderpass_t *pass, int passnum)
@@ -3088,36 +3099,6 @@ void GLBE_SelectMode(backendmode_t mode)
 			//don't actually change stencil stuff - caller needs to be
 			//aware of how many times stuff is drawn, so they can do that themselves.
 			break;
-
-		case BEM_SMAPLIGHT:
-			if (!shaderstate.inited_shader_smap)
-			{
-				shaderstate.inited_shader_smap = true;
-				shaderstate.shader_smap = R_RegisterCustom("rtlight_shadowmap", Shader_LightPass_PCF, NULL);
-			}
-			break;
-
-		case BEM_SMAPLIGHTSPOT:
-			if (!shaderstate.inited_shader_spot)
-			{
-				shaderstate.inited_shader_spot = true;
-				shaderstate.shader_spot = R_RegisterCustom("rtlight_spot", Shader_LightPass_Spot, NULL);
-			}
-			break;
-
-		case BEM_LIGHT:
-			if (!shaderstate.inited_shader_rtlight && gl_config.arb_shader_objects)
-			{
-				shaderstate.inited_shader_rtlight = true;
-				shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
-			}
-			if (!shaderstate.inited_shader_cubeproj && gl_config.arb_shader_objects)
-			{
-				shaderstate.inited_shader_cubeproj = true;
-				shaderstate.shader_cubeproj = R_RegisterCustom("rtlight_sube", Shader_LightPass_CubeProj, NULL);
-			}
-			break;
-
 		case BEM_CREPUSCULAR:
 			if (!shaderstate.crepopaqueshader)
 			{
@@ -3204,6 +3185,7 @@ static void BE_SelectFog(vec3_t colour, float alpha, float density)
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
 	float view[16], proj[16];
+	int lmode;
 
 	/*generate light projection information*/
 	float nearplane = 4;
@@ -3229,6 +3211,15 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 #endif
 
 	shaderstate.lastuniform = 0;
+
+	lmode = 0;
+	if (dl->fov && shaderstate.shader_light[lmode|LSHADER_SPOT]->prog)
+		lmode |= LSHADER_SPOT;
+	if ((dl->flags & LFLAG_SHADOWMAP) && shaderstate.shader_light[lmode|LSHADER_SMAP]->prog)
+		lmode |= LSHADER_SMAP;
+	if (TEXVALID(shaderstate.lightcubemap) && shaderstate.shader_light[lmode|LSHADER_CUBE]->prog)
+		lmode |= LSHADER_CUBE;
+	shaderstate.lightmode = lmode;
 }
 
 void GLBE_PushOffsetShadow(qboolean pushdepth)
@@ -3435,23 +3426,46 @@ static void DrawMeshes(void)
 		break;
 #ifdef RTLIGHTS
 	case BEM_SMAPLIGHTSPOT:
-		if (shaderstate.shader_smap->prog)
-			BE_RenderMeshProgram(shaderstate.shader_spot, shaderstate.shader_spot->passes);
-		break;
+//		if (shaderstate.shader_spot->prog)
+//			BE_RenderMeshProgram(shaderstate.shader_spot, shaderstate.shader_spot->passes);
+//		break;
 	case BEM_SMAPLIGHT:
-		if (shaderstate.shader_smap->prog)
-			BE_RenderMeshProgram(shaderstate.shader_smap, shaderstate.shader_smap->passes);
-		break;
+//		if (shaderstate.shader_smap->prog)
+//			BE_RenderMeshProgram(shaderstate.shader_smap, shaderstate.shader_smap->passes);
+//		break;
 	case BEM_LIGHT:
-		if (!shaderstate.inited_shader_rtlight)
+		if (!shaderstate.shader_light[shaderstate.lightmode])
 		{
-			BE_LegacyLighting();
-			break;
+			if (!shaderstate.inited_shader_light[shaderstate.lightmode])
+			{
+				shaderstate.inited_shader_light[shaderstate.lightmode] = true;
+				switch(shaderstate.lightmode)
+				{
+				case LSHADER_SMAP:
+					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight_shadowmap", Shader_LightPass_PCF, NULL);
+					break;
+				case LSHADER_SPOT:
+					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight_spot", Shader_LightPass_Spot, NULL);
+					break;
+				case LSHADER_STANDARD:
+					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
+					break;
+				case LSHADER_CUBE:
+					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight_cube", Shader_LightPass_CubeProj, NULL);
+					break;
+				}
+
+				if (!shaderstate.shader_light[shaderstate.lightmode])
+					break;
+			}
+			else
+			{
+				BE_LegacyLighting();
+				break;
+			}
 		}
-		if (TEXVALID(shaderstate.lightcubemap) && shaderstate.shader_cubeproj->prog)
-			BE_RenderMeshProgram(shaderstate.shader_cubeproj, shaderstate.shader_cubeproj->passes);
-		else if (shaderstate.shader_rtlight->prog)
-			BE_RenderMeshProgram(shaderstate.shader_rtlight, shaderstate.shader_rtlight->passes);
+
+		BE_RenderMeshProgram(shaderstate.shader_light[shaderstate.lightmode], shaderstate.shader_light[shaderstate.lightmode]->passes);
 		break;
 	case BEM_DEPTHNORM:
 		BE_RenderMeshProgram(shaderstate.depthnormshader, shaderstate.depthnormshader->passes);
@@ -3477,7 +3491,7 @@ static void DrawMeshes(void)
 		GL_DeselectVAO();
 		GL_DeSelectProgram();
 
-		GenerateTCFog(0);
+		GenerateTCFog(0, NULL);
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX));
 		BE_SubmitMeshChain();
 		break;
@@ -3541,6 +3555,31 @@ static void DrawMeshes(void)
 
 				DrawPass(p);
 			}
+		}
+		if (shaderstate.curbatch->fog)
+		{
+			GL_DeselectVAO();
+			GL_DeSelectProgram();
+
+			GenerateFogTexture(&shaderstate.fogtexture, shaderstate.curbatch->fog->shader->fog_dist, 2048);
+			shaderstate.fogfar = 1.0f/2048; /*scaler for z coords*/
+
+			while(shaderstate.lastpasstmus>0)
+			{
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+			}
+			GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.fogtexture);
+			shaderstate.lastpasstmus = 1;
+
+			Vector4Scale(shaderstate.curbatch->fog->shader->fog_color, (1/255.0), shaderstate.pendingcolourflat);
+			shaderstate.pendingcolourvbo = 0;
+			shaderstate.pendingcolourpointer = NULL;
+			BE_SetPassBlendMode(0, PBM_MODULATE);
+			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
+
+			GenerateTCFog(0, shaderstate.curbatch->fog);
+			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0));
+			BE_SubmitMeshChain();
 		}
 		break;
 	}
@@ -3944,12 +3983,15 @@ static void BE_UpdateLightmaps(void)
 
 batch_t *GLBE_GetTempBatch(void)
 {
+	batch_t *b;
 	if (shaderstate.wbatch >= shaderstate.maxwbatches)
 	{
 		shaderstate.wbatch++;
 		return NULL;
 	}
-	return &shaderstate.wbatches[shaderstate.wbatch++];
+	b = &shaderstate.wbatches[shaderstate.wbatch++];
+	b->fog = NULL;
+	return b;
 }
 
 /*called from shadowmapping code*/

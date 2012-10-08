@@ -2184,33 +2184,47 @@ void S_PlayVol(void)
 
 void S_SoundList_f(void)
 {
-	/*
 	int		i;
 	sfx_t	*sfx;
 	sfxcache_t	*sc;
+	sfxcache_t	scachebuf;
 	int		size, total;
+	int duration;
+
+	S_LockMixer();
+
 
 	total = 0;
 	for (sfx=known_sfx, i=0 ; i<num_sfx ; i++, sfx++)
 	{
-		if (!sfx->decoder)
+		if (sfx->decoder.decodedata)
 		{
-			Con_Printf("S(      )        : %s\n", sfx->name);
+			sc = sfx->decoder.decodedata(sfx, &scachebuf, 0, 0x0fffffff);
+			if (!sc)
+			{
+				Con_Printf("S(      )            : %s\n", sfx->name);
+				continue;
+			}
+		}
+		else
+			sc = sfx->decoder.buf;
+		if (!sc)
+		{
+			Con_Printf("?(      )            : %s\n", sfx->name);
 			continue;
 		}
-		sc = Cache_Check (&sfx->cache);
-		if (!sc)
-			continue;
-		size = sc->length*sc->width*(sc->numchannels);
+		size = (sc->soundoffset+sc->length)*sc->width*(sc->numchannels);
+		duration = (sc->soundoffset+sc->length) / sc->speed;
 		total += size;
 		if (sc->loopstart >= 0)
 			Con_Printf ("L");
 		else
 			Con_Printf (" ");
-		Con_Printf("(%2db%2ic) %6i : %s\n",sc->width*8, sc->numchannels, size, sfx->name);
+		Con_Printf("(%2db%2ic) %6i %2is : %s\n",sc->width*8, sc->numchannels, size, duration, sfx->name);
 	}
 	Con_Printf ("Total resident: %i\n", total);
-	*/
+
+	S_UnlockMixer();
 }
 
 

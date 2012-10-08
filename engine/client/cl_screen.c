@@ -1750,7 +1750,7 @@ void SCR_SetUpToDrawConsole (void)
 			key_dest = key_console;
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active)
+		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen())
 		{
 			if (cls.state < ca_demostart)
 				key_dest = key_console;

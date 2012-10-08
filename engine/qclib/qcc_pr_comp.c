@@ -3171,9 +3171,23 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			if (!func->initialized)
 				func->initialized = 3;
 			func->references++;
-			t = QCC_PR_ParseType(false, false);
-			QCC_PR_Expect(")");
-			return QCC_MakeIntConst(t->size * 4);
+			t = QCC_PR_ParseType(false, true);
+			if (t)
+			{
+				QCC_PR_Expect(")");
+				return QCC_MakeIntConst(t->size * 4);
+			}
+			else
+			{
+				int oldstcount = numstatements;
+				e = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+				//the term should not have side effects, or generate any actual statements.
+				numstatements = oldstcount;
+				QCC_PR_Expect(")");
+				if (!e)
+					QCC_PR_ParseErrorPrintDef (ERR_NOTAFUNCTION, func, "sizeof term not supported");
+				return QCC_MakeIntConst(e->type->size * 4 * e->arraysize);
+			}
 		}
 		if (!strcmp(func->name, "_"))
 		{

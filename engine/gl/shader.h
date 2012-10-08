@@ -189,7 +189,6 @@ typedef struct shaderpass_s {
 		TC_GEN_ENVIRONMENT,
 		TC_GEN_DOTPRODUCT,
 		TC_GEN_VECTOR,
-		TC_GEN_FOG,
 
 		//these are really for use only in glsl stuff or perhaps cubemaps, as they generate 3d coords.
 		TC_GEN_NORMAL,

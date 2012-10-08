@@ -20,6 +20,7 @@ qboolean isDedicated = false;
 void *sys_window; /*public so the renderer can attach to the correct place*/
 static int sys_running = false;
 int sys_glesversion;
+int sys_soundflags;	/*1 means active. 2 means reset (so claim that its not active for one frame to force a reset)*/
 static void *sys_memheap;
 static unsigned int sys_lastframe;
 static unsigned int vibrateduration;
@@ -98,6 +99,13 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		ret |= 8;
 	if (sys_orientation.modified)
 		ret |= 16;
+	if (sys_soundflags)
+	{
+		if (sys_soundflags & 2)
+			sys_soundflags &= ~2;
+		else
+			ret |= 32;
+	}
 	return ret;
 }
 

@@ -136,6 +136,7 @@ typedef struct plugin_s {
 	int svmsgfunction;
 	int chatmsgfunction;
 	int centerprintfunction;
+	int shutdown;
 
 	struct plugin_s *next;
 } plugin_t;
@@ -379,6 +380,8 @@ qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const qintptr
 		currentplug->tick = functionid;
 	else if (!strcmp(name, "ExecuteCommand"))
 		currentplug->executestring = functionid;
+	else if (!strcmp(name, "Shutdown"))
+		currentplug->shutdown = functionid;
 #ifndef SERVERONLY
 	else if (!strcmp(name, "ConExecuteCommand"))
 		currentplug->conexecutecommand = functionid;
@@ -1807,6 +1810,11 @@ void Plug_Close(plugin_t *plug)
 	}
 
 	Con_Printf("Closing plugin %s\n", plug->name);
+#if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
+	Media_UnregisterDecoder(plug, NULL);
+#endif
+	if (plug->shutdown)
+		VM_Call(plug->vm, plug->shutdown);
 	VM_Destroy(plug->vm);
 
 	Plug_FreeConCommands(plug);

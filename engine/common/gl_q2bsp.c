@@ -2328,7 +2328,7 @@ mfog_t *CM_FogForOrigin(vec3_t org)
 	int i, j;
 	mfog_t 	*ret = map_fogs;
 	float dot;
-	if (!cl.worldmodel || cl.worldmodel->fromgame != fg_quake3)
+	if (!map_numfogs || !cl.worldmodel || cl.worldmodel->fromgame != fg_quake3)
 		return NULL;
 
 	for ( i=0 ; i<map_numfogs ; i++, ret++)

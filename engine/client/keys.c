@@ -1330,6 +1330,9 @@ qboolean Key_MouseShouldBeFree(void)
 		return false;
 #endif
 
+	if (Media_PlayingFullScreen())
+		return true;
+
 	if (cl_prydoncursor.ival)
 		return true;
 

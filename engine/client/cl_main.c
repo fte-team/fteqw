@@ -3658,7 +3658,8 @@ double Host_Frame (double time)
 		SV_Frame();
 		RSpeedEnd(RSPEED_SERVER);
 		host_frametime = ohft;
-		CL_ReadPackets ();
+		if (cls.protocol != CP_QUAKE3)
+			CL_ReadPackets ();	//q3's cgame cannot cope with input commands with the same time as the most recent snapshot value
 	}
 #endif
 	CL_CalcClientTime();

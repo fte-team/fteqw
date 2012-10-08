@@ -8,8 +8,24 @@ java code has a function or two which just periodically calls us to ask us to du
 
 //static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static soundcardinfo_t *sys_sc = NULL;
+extern int sys_soundflags;
 
+JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_audioinfo(JNIEnv *env, jclass this, jint arg)
+{
+	soundcardinfo_t *sc = sys_sc;
+	if (!sc)
+		return 0;
 
+	switch(arg)
+	{
+	case 1:
+		return sc->sn.numchannels;
+	case 2:
+		return sc->sn.samplebits;
+	default:
+		return sc->sn.speed;
+	}
+}
 
 //transfer the 'dma' buffer into the buffer it requests, called from a dedicated sound thread created by the java code.
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_paintaudio(JNIEnv *env, jclass this, jbyteArray stream, jint len)
@@ -61,6 +77,7 @@ static void Droid_Shutdown(soundcardinfo_t *sc)
 
 	sys_sc = NULL;
 	free(sc->sn.buffer);
+	sys_soundflags = 0;
 	
 //	pthread_mutex_unlock(&mutex);
 }
@@ -90,6 +107,10 @@ static void Droid_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 
+//on android, 16bit audio is 'guarenteed'.
+//8bit is not guarenteed.
+//there's no reference to sample rates.	I assume 44.1khz will always work, though we want to avoid that cpu+mem load if we can
+//nor any guarentee about channels supported. I assume mono will always work.
 static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
 {
 	if (sys_sc)
@@ -98,9 +119,10 @@ static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
 //	if (!pthread_mutex_lock(&mutex))
 	{
 		sc->selfpainting = true;
-		sc->sn.speed = 11025;
-		sc->sn.samplebits = 16;
-		sc->sn.numchannels = 1;
+//		sc->sn.speed = 11025;
+//		sc->sn.samplebits = 16;
+//		sc->sn.numchannels = 1;
+
 		/*internal buffer should have 1 sec audio*/
 		sc->sn.samples = sc->sn.speed*sc->sn.numchannels;
 
@@ -114,6 +136,8 @@ static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
 		sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebits/8);
 		
 		sys_sc = sc;
+
+		sys_soundflags = 3;
 		
 //		pthread_mutex_unlock(&mutex);
 

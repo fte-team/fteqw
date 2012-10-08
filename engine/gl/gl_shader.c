@@ -2387,7 +2387,7 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 {
 	char		*token;
 
-	token = Shader_ParseString (ptr);
+	token = Shader_ParseSensString (ptr);
 
 #ifdef NOMEDIA
 #else

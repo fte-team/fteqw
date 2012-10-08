@@ -844,7 +844,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		S_StartSound(VM_LONG(arg[1]), VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), 1, 1, 0, 0);
+		S_StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), 1, 1, 0, 0);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:

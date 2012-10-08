@@ -498,10 +498,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
-"!!permu OFFSETMAPPING\n"
+"!!permu DELUXE\n"
 "!!permu FULLBRIGHT\n"
 "!!permu FOG\n"
 "!!permu LIGHTSTYLED\n"
+"!!permu BUMP\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 
 //this is what normally draws all of your walls, even with rtlights disabled
@@ -557,18 +558,22 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef FRAGMENT_SHADER\n"
 //samplers
-"uniform sampler2D s_t0;\n"
-"uniform sampler2D s_t1;\n"
-"#ifdef OFFSETMAPPING\n"
-"uniform sampler2D s_t2;\n"
+"uniform sampler2D s_t0; //diffuse\n"
+"uniform sampler2D s_t1; //lightmap0\n"
+"#if defined(OFFSETMAPPING) || defined(DELUXE)\n"
+"uniform sampler2D s_t2; //normal\n"
 "#endif\n"
+"uniform sampler2D s_t3; //deluxe0\n"
 "#ifdef FULLBRIGHT\n"
-"uniform sampler2D s_t4;\n"
+"uniform sampler2D s_t4; //fullbright\n"
 "#endif\n"
 "#ifdef LIGHTSTYLED\n"
-"uniform sampler2D s_t5;\n"
-"uniform sampler2D s_t6;\n"
-"uniform sampler2D s_t7;\n"
+"uniform sampler2D s_t5; //lightmap1\n"
+"uniform sampler2D s_t6; //lightmap2\n"
+"uniform sampler2D s_t7; //lightmap3\n"
+"uniform sampler2D s_t8; //deluxe1\n"
+"uniform sampler2D s_t9; //deluxe2\n"
+"uniform sampler2D s_t10; //deluxe3\n"
 "#endif\n"
 
 "#ifdef LIGHTSTYLED\n"
@@ -582,26 +587,50 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "void main ()\n"
 "{\n"
+//adjust texture coords for offsetmapping
 "#ifdef OFFSETMAPPING\n"
 "vec2 tcoffsetmap = offsetmap(s_t2, tc, eyevector);\n"
 "#define tc tcoffsetmap\n"
 "#endif\n"
+
+//yay, regular texture!
 "gl_FragColor = texture2D(s_t0, tc);\n"
+
+//modulate that by the lightmap(s) including deluxemap(s)
 "#ifdef LIGHTSTYLED\n"
 "vec4 lightmaps;\n"
+"#ifdef DELUXE\n"
+"vec3 norm = texture2D(s_t2, tc).rgb;\n"
+"lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0] * dot(norm, texture2D(s_t3, lm ));\n"
+"lightmaps += texture2D(s_t5, lm2) * e_lmscale[1] * dot(norm, texture2D(s_t8, lm2));\n"
+"lightmaps += texture2D(s_t6, lm3) * e_lmscale[2] * dot(norm, texture2D(s_t9, lm3));\n"
+"lightmaps += texture2D(s_t7, lm4) * e_lmscale[3] * dot(norm, texture2D(s_t10,lm4));\n"
+"#else\n"
 "lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0];\n"
 "lightmaps += texture2D(s_t5, lm2) * e_lmscale[1];\n"
 "lightmaps += texture2D(s_t6, lm3) * e_lmscale[2];\n"
 "lightmaps += texture2D(s_t7, lm4) * e_lmscale[3];\n"
+"#endif\n"
 "gl_FragColor.rgb *= lightmaps.rgb;\n"
+"#else\n"
+"#ifdef DELUXE\n"
+//gl_FragColor.rgb = dot(normalize(texture2D(s_t2, tc).rgb - 0.5), normalize(texture2D(s_t3, lm).rgb - 0.5));
+//gl_FragColor.rgb = texture2D(s_t3, lm).rgb;
+"gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb * dot(normalize(texture2D(s_t2, tc).rgb-0.5), 2.0*(texture2D(s_t3, lm).rgb-0.5));\n"
 "#else\n"
 "gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb;\n"
 "#endif\n"
+"#endif\n"
 
+//add on the fullbright
 "#ifdef FULLBRIGHT\n"
 "gl_FragColor.rgb += texture2D(s_t4, tc).rgb;\n"
 "#endif\n"
+
+//entity modifiers
 "gl_FragColor = gl_FragColor * e_colourident;\n"
+
+//and finally hide it all if we're fogged.
 "#ifdef FOG\n"
 "gl_FragColor = fog4(gl_FragColor);\n"
 "#endif\n"
@@ -890,7 +919,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "rtlight",
 "!!permu BUMP\n"
 "!!permu SPECULAR\n"
-"!!permu OFFSETMAPPING\n"
 "!!permu SKELETAL\n"
 "!!permu FOG\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"

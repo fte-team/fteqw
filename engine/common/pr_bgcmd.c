@@ -425,6 +425,67 @@ void QCBUILTIN PF_getsurfacetriangle(progfuncs_t *prinst, struct globalvars_s *p
 	G_FLOAT(OFS_RETURN+2) = 0;
 }
 
+//vector(entity e, float s, float n, float a) getsurfacepointattribute
+void QCBUILTIN PF_getsurfacepointattribute(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
+	unsigned int surfnum = G_FLOAT(OFS_PARM1);
+	unsigned int pointnum = G_FLOAT(OFS_PARM2);
+	unsigned int attribute = G_FLOAT(OFS_PARM3);
+	world_t *w = prinst->parms->user;
+	model_t *model = w->Get_CModel(w, ent->v->modelindex);
+	G_FLOAT(OFS_RETURN+0) = 0;
+	G_FLOAT(OFS_RETURN+1) = 0;
+	G_FLOAT(OFS_RETURN+2) = 0;
+	if (model && model->type == mod_brush && surfnum < model->nummodelsurfaces)
+	{
+		surfnum += model->firstmodelsurface;
+
+		if (pointnum < model->surfaces[surfnum].mesh->numvertexes)
+		{
+			switch(attribute)
+			{
+			case 0:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->xyz_array[pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->xyz_array[pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
+				break;
+			case 1:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->snormals_array[pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->snormals_array[pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->snormals_array[pointnum][2];
+				break;
+			case 2:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->tnormals_array[pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->tnormals_array[pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->tnormals_array[pointnum][2];
+				break;
+			case 3:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->normals_array[pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->normals_array[pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->normals_array[pointnum][2];
+				break;
+			case 4:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->st_array[pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->st_array[pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = 0;
+				break;
+			case 5:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->lmst_array[0][pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->lmst_array[0][pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = 0;
+				break;
+			case 6:
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->colors4f_array[pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->colors4f_array[pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->colors4f_array[pointnum][2];
+				//no way to return alpha here.
+				break;
+			}
+		}
+	}
+}
+
 #ifndef TERRAIN
 void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

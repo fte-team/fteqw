@@ -635,6 +635,7 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
+	if (cls.protocol != CP_QUAKE3)
 	{
 		float oldst = realtime;
 

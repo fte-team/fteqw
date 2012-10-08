@@ -119,6 +119,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		}
 		if (funcs[i].name)
 		{
+			Con_DPrintf("Missing export \"%s\" in \"%s\"\n", funcs[i].name, name);
 			Sys_CloseLibrary((dllhandle_t*)lib);
 			lib = NULL;
 		}

@@ -2502,19 +2502,29 @@ static void RMod_Batches_Generate(model_t *mod)
 			plane[3] = 0;
 		}
 
-		if (lbatch && (lbatch->texture == surf->texinfo->texture && lbatch->lightmap[0] == surf->lightmaptexturenums[0] && Vector4Compare(plane, lbatch->plane) && lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
-																	lbatch->lightmap[1] == surf->lightmaptexturenums[1] &&
-																	lbatch->lightmap[2] == surf->lightmaptexturenums[2] &&
-																	lbatch->lightmap[3] == surf->lightmaptexturenums[3])
+		if (lbatch && (
+					lbatch->texture == surf->texinfo->texture &&
+					lbatch->lightmap[0] == surf->lightmaptexturenums[0] &&
+					Vector4Compare(plane, lbatch->plane) &&
+					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
+					lbatch->lightmap[1] == surf->lightmaptexturenums[1] &&
+					lbatch->lightmap[2] == surf->lightmaptexturenums[2] &&
+					lbatch->lightmap[3] == surf->lightmaptexturenums[3] &&
+					lbatch->fog == surf->fog)
 			batch = lbatch;
 		else
 		{
 			for (batch = mod->batches[sortid]; batch; batch = batch->next)
 			{
-				if (batch->texture == surf->texinfo->texture && batch->lightmap[0] == surf->lightmaptexturenums[0] && Vector4Compare(plane, batch->plane) && batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
-																batch->lightmap[1] == surf->lightmaptexturenums[1] &&
-																batch->lightmap[2] == surf->lightmaptexturenums[2] &&
-																batch->lightmap[3] == surf->lightmaptexturenums[3])
+				if (
+							batch->texture == surf->texinfo->texture &&
+							batch->lightmap[0] == surf->lightmaptexturenums[0] &&
+							Vector4Compare(plane, batch->plane) &&
+							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
+							batch->lightmap[1] == surf->lightmaptexturenums[1] &&
+							batch->lightmap[2] == surf->lightmaptexturenums[2] &&
+							batch->lightmap[3] == surf->lightmaptexturenums[3] &&
+							batch->fog == surf->fog)
 					break;
 			}
 		}
@@ -2528,6 +2538,7 @@ static void RMod_Batches_Generate(model_t *mod)
 			batch->texture = surf->texinfo->texture;
 			batch->next = mod->batches[sortid];
 			batch->ent = &r_worldentity;
+			batch->fog = surf->fog;
 			Vector4Copy(plane, batch->plane);
 
 			mod->batches[sortid] = batch;

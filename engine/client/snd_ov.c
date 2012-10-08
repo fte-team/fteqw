@@ -125,33 +125,41 @@ sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, 
 	start *= 2*dec->srcchannels;
 	length *= 2*dec->srcchannels;
 
-	for (;;)
+	if (start < dec->decodedbytestart)
 	{
-		if (start < dec->decodedbytestart)
+		/*something rewound, purge clear the buffer*/
+		dec->decodedbytecount = 0;
+		dec->decodedbytestart = start;
+
+		//check pos
+		p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
+	}
+
+	if (dec->decodedbytecount > snd_speed*8)
+	{
+		/*everything is okay, but our buffer is getting needlessly large.
+		keep anything after the 'new' position, but discard all before that
+		trim shouldn't be able to go negative
+		*/
+		int trim = start - dec->decodedbytestart;
+		if (trim < 0)
 		{
-			/*something rewound, purge clear the buffer*/
 			dec->decodedbytecount = 0;
 			dec->decodedbytestart = start;
-
-			//check pos
-			p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
 		}
-
-		if (start+length <= dec->decodedbytestart + dec->decodedbytecount)
-			break;
-
-		if (dec->decodedbytecount > snd_speed*8)
+		else
 		{
-			/*everything is okay, but our buffer is getting needlessly large.
-			keep anything after the 'new' position, but discard all before that
-			trim shouldn't be able to go negative
-			*/
-			unsigned int trim = start - dec->decodedbytestart;
 			//FIXME: retain an extra half-second for dual+ sound devices running slightly out of sync
 			memmove(dec->decodedbuffer, dec->decodedbuffer + trim, dec->decodedbytecount - trim);
 			dec->decodedbytecount -= trim;
 			dec->decodedbytestart += trim;
 		}
+	}
+
+	for (;;)
+	{
+		if (start+length <= dec->decodedbytestart + dec->decodedbytecount)
+			break;
 
 		if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
 		{

@@ -52,7 +52,6 @@ struct wedict_s
 #define PF_gecko_get_texture_extent PF_Fixme
 
 #define PF_pointsound PF_Fixme
-#define PF_getsurfacepointattribute PF_Fixme
 #define PF_gecko_mousemove PF_Fixme
 #define PF_numentityfields PF_Fixme
 #define PF_entityfieldname PF_Fixme
@@ -190,6 +189,7 @@ void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_getsurfacenumtriangles(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_getsurfacetriangle(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacepointattribute(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals);

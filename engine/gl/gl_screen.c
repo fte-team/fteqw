@@ -134,6 +134,7 @@ void GLSCR_UpdateScreen (void)
 		R2D_BrightenScreen();
 		GL_EndRendering ();	
 		GL_DoSwap();
+		GL_Set2D (false);
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
 	}

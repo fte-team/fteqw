@@ -101,10 +101,10 @@ void main ()
 	vec4 lightmaps;
 	#ifdef DELUXE
 		vec3 norm = texture2D(s_t2, tc).rgb;
-		lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0] * dot(norm, texture2D(s_t3, lm ));
-		lightmaps += texture2D(s_t5, lm2) * e_lmscale[1] * dot(norm, texture2D(s_t8, lm2));
-		lightmaps += texture2D(s_t6, lm3) * e_lmscale[2] * dot(norm, texture2D(s_t9, lm3));
-		lightmaps += texture2D(s_t7, lm4) * e_lmscale[3] * dot(norm, texture2D(s_t10,lm4));
+		lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0] * dot(norm, texture2D(s_t3, lm ).rgb);
+		lightmaps += texture2D(s_t5, lm2) * e_lmscale[1] * dot(norm, texture2D(s_t8, lm2).rgb);
+		lightmaps += texture2D(s_t6, lm3) * e_lmscale[2] * dot(norm, texture2D(s_t9, lm3).rgb);
+		lightmaps += texture2D(s_t7, lm4) * e_lmscale[3] * dot(norm, texture2D(s_t10,lm4).rgb);
 	#else
 		lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0];
 		lightmaps += texture2D(s_t5, lm2) * e_lmscale[1];

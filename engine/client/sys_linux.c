@@ -507,7 +507,7 @@ void *Sys_GetGameAPI(void *parms)
 		else
 			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, agamename);
 
-		game_library = dlopen (name, RTLD_LAZY);
+		game_library = dlopen (name, RTLD_NOW | RTLD_LOCAL);
 		if (game_library)
 		{
 			GetGameAPI = (void *)dlsym (game_library, "GetGameAPI");
@@ -541,7 +541,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
 	{
-		Con_DPrintf("module \"%s\" faield - %s\n", name, dlerror());
+		Con_DPrintf("%s\n", dlerror());
 		return NULL;
 	}
 

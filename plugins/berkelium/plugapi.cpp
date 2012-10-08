@@ -102,7 +102,7 @@ static void *Dec_Create(char *medianame)
 	if (!strncmp(medianame, "berkelium:", 10))
 		medianame = medianame + 10;
 	else if (!strcmp(medianame, "berkelium"))
-		medianame = "about:blank";
+		medianame = (char*)"about:blank";
 	else if (!strncmp(medianame, "http:", 5))
 		medianame = medianame;	//and direct http requests.
 	else
@@ -251,22 +251,19 @@ static void Dec_ChangeStream(void *vctx, char *newstream)
 
 static bool Dec_Init(void)
 {
-	if (!Berkelium::init(Berkelium::FileString::empty()))
-	{
-		Con_Printf("Couldn't initialize Berkelium.\n");
-		return false;
-	}
+	//linux lags behind and apparently returns void.
+	Berkelium::init(Berkelium::FileString::empty());
 	return true;
 }
 
-static int Dec_Tick(int *args)
+static qintptr_t Dec_Tick(qintptr_t *args)
 {
 	//need to keep it ticking over, if any work is to be done.
 	Berkelium::update();
 	return 0;
 }
 
-static int Dec_Shutdown(int *args)
+static qintptr_t Dec_Shutdown(qintptr_t *args)
 {
 	//force-kill all.
 	Berkelium::destroy();
@@ -288,7 +285,7 @@ static media_decoder_funcs_t decoderfuncs =
 	Dec_ChangeStream
 };
 
-int Plug_Init(int *args)
+extern "C" qintptr_t Plug_Init(qintptr_t *args)
 {
 	if (!Plug_Export("Tick", Dec_Tick))
 	{
@@ -298,7 +295,7 @@ int Plug_Init(int *args)
 	if (!Plug_Export("Shutdown", Dec_Shutdown))
 	{
 		Con_Printf("Berkelium plugin warning: Engine doesn't support Shutdown feature\n");
-	//	return false;
+//		return false;
 	}
 	if (!Plug_ExportNative("Media_VideoDecoder", &decoderfuncs))
 	{
@@ -307,3 +304,4 @@ int Plug_Init(int *args)
 	}
 	return Dec_Init();
 }
+

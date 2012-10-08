@@ -537,10 +537,13 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	lib = NULL;
 	if (!lib)
 		lib = dlopen (name, RTLD_LAZY);
-	if (!lib)
+	if (!lib && strcmp(COM_FileExtension(name), "so"))
 		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
+	{
+		Con_DPrintf("module \"%s\" faield - %s\n", name, dlerror());
 		return NULL;
+	}
 
 	if (funcs)
 	{
@@ -552,6 +555,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		}
 		if (funcs[i].name)
 		{
+			Con_DPrintf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
 			Sys_CloseLibrary((dllhandle_t*)lib);
 			lib = NULL;
 		}

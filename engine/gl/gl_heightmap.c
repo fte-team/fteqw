@@ -1216,7 +1216,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 	}
 
 #ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
+	if (qrenderer == QR_OPENGL && qglGenBuffersARB)
 	{
 		if (s->vbo.coord.gl.vbo)
 		{

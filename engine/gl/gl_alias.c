@@ -1014,7 +1014,9 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 			b->buildmeshes = R_GAlias_DrawBatch;
 			b->ent = e;
+#ifdef Q3BSPS
 			b->fog = CM_FogForOrigin(e->origin);
+#endif
 			b->mesh = NULL;
 			b->firstmesh = 0;
 			b->meshes = 1;
@@ -1863,7 +1865,9 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 
 	b->buildmeshes = drawfunc;
 	b->ent = e;
+#ifdef Q3BSPS
 	b->fog = CM_FogForOrigin(e->origin);
+#endif
 	b->mesh = NULL;
 	b->firstmesh = 0;
 	b->meshes = 1;

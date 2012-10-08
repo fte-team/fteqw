@@ -3,15 +3,15 @@
 #include "plugin.h"
 
 typedef struct {
-	char *name;
+	const char *name;
 	export_t func;
 } exports_t;
 extern exports_t exports[16];
 
-int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11  )
+qintptr_t NATIVEEXPORT vmMain( qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6, qintptr_t arg7, qintptr_t arg8, qintptr_t arg9, qintptr_t arg10, qintptr_t arg11  )
 {
-	int ret;
-	int args[12];
+	qintptr_t ret;
+	qintptr_t args[12];
 	args[0] = arg0;
 	args[1] = arg1;
 	args[2] = arg2;
@@ -31,27 +31,27 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 
 
 #ifndef Q3_VM
-int (QDECL *plugin_syscall)( int arg, ... );
+qintptr_t (QDECL *plugin_syscall)( qintptr_t arg, ... );
 #endif
 
 #define PASSFLOAT(f) *(int*)&(f)
 
 #define ARGNAMES ,funcname
-BUILTINR(funcptr_t, Plug_GetEngineFunction, (char *funcname));
+BUILTINR(funcptr_t, Plug_GetEngineFunction, (const char *funcname));
 #undef ARGNAMES
 
 #define ARGNAMES ,funcname,expnum
-BUILTINR(int, Plug_ExportToEngine, (char *funcname, int expnum));
+BUILTINR(int, Plug_ExportToEngine, (const char *funcname, int expnum));
 #undef ARGNAMES
 
 #ifndef Q3_VM
 #define ARGNAMES ,funcname,func
-BUILTINR(qboolean, Plug_ExportNative, (char *funcname, void *func));
+BUILTINR(qboolean, Plug_ExportNative, (const char *funcname, void *func));
 #undef ARGNAMES
 #endif
 
 #define ARGNAMES ,text
-BUILTIN(void, Con_Print, (char *text));	//on to main console.
+BUILTIN(void, Con_Print, (const char *text));	//on to main console.
 #undef ARGNAMES
 
 #define ARGNAMES ,conname,text
@@ -254,7 +254,7 @@ char	*va(char *format, ...)	//Identical in function to the one in Quake, though 
 	return string;	
 }
 
-void Con_Printf(char *format, ...)
+void Con_Printf(const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -265,7 +265,7 @@ void Con_Printf(char *format, ...)
 
 	Con_Print(string);	
 }
-void Sys_Errorf(char *format, ...)
+void Sys_Errorf(const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -370,14 +370,14 @@ void Plug_InitStandardBuiltins(void)
 }
 
 #ifndef Q3_VM
-void dllEntry(int (QDECL *funcptr)(int,...))
+void NATIVEEXPORT dllEntry(qintptr_t (QDECL *funcptr)(qintptr_t,...))
 {
 	plugin_syscall = funcptr;
 }
 #endif
 
 vmvideo_t vid;
-int Plug_UpdateVideo(int *args)
+qintptr_t Plug_UpdateVideo(qintptr_t *args)
 {
 	vid.width = args[0];
 	vid.height = args[1];
@@ -385,7 +385,7 @@ int Plug_UpdateVideo(int *args)
 	return true;
 }
 
-int Plug_InitAPI(int *args)
+qintptr_t Plug_InitAPI(qintptr_t *args)
 {
 #ifdef Q3_VM
 	Plug_GetEngineFunction = (void*)args[0];
@@ -399,7 +399,7 @@ int Plug_InitAPI(int *args)
 	return Plug_Init(args);
 }
 
-qboolean Plug_Export(char *name, export_t func)
+qboolean Plug_Export(const char *name, export_t func)
 {
 	int i;
 	for (i = 0; i < sizeof(exports)/sizeof(exports[0]); i++)

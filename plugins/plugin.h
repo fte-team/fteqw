@@ -3,6 +3,9 @@
 
 #ifdef Q3_VM
 
+typedef int qintptr_t;
+typedef unsigned int quintptr_t;
+
 #define TESTBI 1
 #ifdef TESTBI
 #	define EBUILTIN(t, n, args) extern t (*n) args
@@ -51,28 +54,41 @@ void BadBuiltin(void);
 #include <stdarg.h>
 #include "math.h"
 
+#ifdef _WIN64
+typedef long long qintptr_t;
+typedef unsigned long long quintptr_t;
+#else
+typedef long qintptr_t;
+typedef unsigned long quintptr_t;
+#endif
+
+#ifndef _WIN32
+#define NATIVEEXPORT __attribute__((visibility("default")))
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //DLLs need a wrapper to add the extra parameter and call a boring function.
-#define EBUILTIN(t, n, args) extern int BUILTIN_##n; t n args
+#define EBUILTIN(t, n, args) extern qintptr_t BUILTIN_##n; t n args
 #define TEST
 #ifdef TEST
-	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {int res; if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
-	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t n args {qintptr_t res; if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
+	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}
 #else
-	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {int res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
-	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t n args {qintptr_t res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
+	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
 #endif
-#define CHECKBUILTIN(n) BUILTIN_##n = (int)Plug_GetEngineFunction(#n);
+#define CHECKBUILTIN(n) BUILTIN_##n = (qintptr_t)Plug_GetEngineFunction(#n);
 #define BUILTINISVALID(n) (BUILTIN_##n != 0)
 #ifdef _WIN32
 #define QDECL __cdecl
 #else
 #define QDECL
 #endif
-extern int (*plugin_syscall)( int arg, ... );
+extern qintptr_t (*plugin_syscall)( qintptr_t arg, ... );
 
 #ifdef _WIN32
 void strlcpy(char *d, const char *s, int n);
@@ -80,6 +96,11 @@ int snprintf(char *buffer, size_t maxlen, const char *format, ...);
 #endif
 
 #endif
+
+#ifndef NATIVEEXPORT
+#define NATIVEEXPORT
+#endif
+
 #ifdef __cplusplus
 typedef enum {qfalse, qtrue} qboolean;
 #else
@@ -112,11 +133,11 @@ typedef struct {
 
 
 //Basic builtins:
-EBUILTIN(funcptr_t, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
+EBUILTIN(funcptr_t, Plug_GetEngineFunction, (const char *funcname));	//set up in vmMain, use this to get all other builtins
 #ifndef Q3_VM
-EBUILTIN(qboolean, Plug_ExportNative, (char *funcname, void *func));	//set up in vmMain, use this to get all other builtins
+EBUILTIN(qboolean, Plug_ExportNative, (const char *funcname, void *func));	//set up in vmMain, use this to get all other builtins
 #endif
-EBUILTIN(void, Con_Print, (char *text));	//on to main console.
+EBUILTIN(void, Con_Print, (const char *text));	//on to main console.
 
 EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
 EBUILTIN(void, Con_RenameSub, (char *oldname, char *newname));	//rename a console.
@@ -199,12 +220,12 @@ EBUILTIN(float, cos, (float f));
 EBUILTIN(float, sin, (float f));
 #endif
 
-typedef int (*export_t) (int *args);
+typedef qintptr_t (*export_t) (qintptr_t *args);
 char	*va(char *format, ...);
-int Plug_Init(int *args);
-qboolean Plug_Export(char *name, export_t func);
-void Con_Printf(char *format, ...);
-void Sys_Errorf(char *format, ...);
+qintptr_t Plug_Init(qintptr_t *args);
+qboolean Plug_Export(const char *name, export_t func);
+void Con_Printf(const char *format, ...);
+void Sys_Errorf(const char *format, ...);
 typedef unsigned char qbyte;
 void Q_strncpyz(char *d, const char *s, int n);
 

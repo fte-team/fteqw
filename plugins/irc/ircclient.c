@@ -233,11 +233,11 @@ int IRC_CvarUpdate(void) // perhaps void instead?
 }
 
 void IRC_Command(char *args);
-int IRC_ExecuteCommand(int *args);
-int IRC_ConExecuteCommand(int *args);
-int IRC_Frame(int *args);
+qintptr_t IRC_ExecuteCommand(qintptr_t *args);
+qintptr_t IRC_ConExecuteCommand(qintptr_t *args);
+qintptr_t IRC_Frame(qintptr_t *args);
 
-int Plug_Init(int *args)
+qintptr_t Plug_Init(qintptr_t *args)
 {
 	if (	Plug_Export("Tick", IRC_Frame) &&
 		Plug_Export("ExecuteCommand", IRC_ExecuteCommand))
@@ -279,7 +279,7 @@ int Plug_Init(int *args)
 
 
 
-int IRC_ExecuteCommand(int *args)
+qintptr_t IRC_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[8];
 	Cmd_Argv(0, cmd, sizeof(cmd));
@@ -290,7 +290,7 @@ int IRC_ExecuteCommand(int *args)
 	}
 	return false;
 }
-int IRC_ConExecuteCommand(int *args)
+qintptr_t IRC_ConExecuteCommand(qintptr_t *args)
 {
 	char buffer[256];
 	int cmdlen;
@@ -339,7 +339,7 @@ ircclient_t *IRC_Connect(char *server, int defport)
 
 	//not yet blocking. So no frequent attempts please...
 	//non blocking prevents connect from returning worthwhile sensible value.
-	if ((int)irc->socket < 0)
+	if ((qintptr_t)irc->socket < 0)
 	{
 		Con_Printf("IRC_OpenSocket: couldn't connect\n");
 		IRC_Free(irc);
@@ -1324,7 +1324,7 @@ int IRC_ClientFrame(ircclient_t *irc)
 //functions above this line allow connections to multiple servers.
 //it is just the control functions that only allow one server.
 
-int IRC_Frame(int *args)
+qintptr_t IRC_Frame(qintptr_t *args)
 {
 	int stat = IRC_CONTINUE;
 	if (ircclient)

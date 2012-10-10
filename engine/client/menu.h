@@ -57,7 +57,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //mt_custom			- Just an option with callbacks. This is the basis of the top/bottom color seletion, and could be used for all sorts of things.
 
 
-//Sample menu creation, entirly within /* and */
+//Sample menu creation, entirly within / * and * /
 //Note that most of FTE's menus are more complicated, as FTE runs on Q1/Q2/H2 data, and it's choice of menu images reflects this.
 //Most of the normal menus also have more items too, of course.
 

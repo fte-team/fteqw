@@ -1394,6 +1394,9 @@ qboolean Media_UnregisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *f
 static qboolean Media_Plugin_DecodeFrame(cin_t *cin, qboolean nosound)
 {
 	struct plugin_s *oldplug = currentplug;
+	if (!cin->plugin.funcs->decodeframe)
+		return false;	//plugin closed or something
+
 	currentplug = cin->plugin.plug;
 	cin->outdata = cin->plugin.funcs->decodeframe(cin->plugin.ctx, nosound, &cin->outtype, &cin->outwidth, &cin->outheight);
 	currentplug = oldplug;

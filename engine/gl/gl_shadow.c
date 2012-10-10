@@ -9,7 +9,6 @@ model meshes are interpolated multiple times per frame
 //#define DBG_COLOURNOTDEPTH
 
 
-#if defined(GLQUAKE) || defined(D3D9QUAKE)
 #ifdef RTLIGHTS
 
 #include "glquake.h"
@@ -3079,5 +3078,4 @@ void Sh_DrawLights(qbyte *vis)
 //	Con_Printf("%i lights drawn, %i frustum culled, %i pvs culled, %i scissor culled\n", bench.numlights, bench.numfrustumculled, bench.numpvsculled, bench.numscissorculled);
 //	memset(&bench, 0, sizeof(bench));
 }
-#endif
 #endif

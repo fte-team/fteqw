@@ -477,7 +477,7 @@ static qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qi
 	else if (!strcmp(name, "Media_VideoDecoder"))
 	{
 		Media_RegisterDecoder(currentplug, func);
-		currentplug->blockcloses++;
+//		currentplug->blockcloses++;
 	}
 #endif
 

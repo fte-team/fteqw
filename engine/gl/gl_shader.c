@@ -1515,7 +1515,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 	else if (qrenderer == QR_DIRECT3D9)
 		FS_LoadFile(va("hlsl/%s.hlsl", basicname), &file);
 	else if (qrenderer == QR_DIRECT3D11)
-		FS_LoadFile(va("hlsl/%s.hlsl", basicname), &file);
+		FS_LoadFile(va("hlsl11/%s.hlsl", basicname), &file);
 	else if (qrenderer == QR_OPENGL)
 	{
 #ifdef GLQUAKE
@@ -1625,7 +1625,7 @@ void Shader_WriteOutGenerics_f(void)
 		else if (sbuiltins[i].qrtype == QR_DIRECT3D9)
 			name = va("hlsl/%s.hlsl", sbuiltins[i].name);
 		else if (sbuiltins[i].qrtype == QR_DIRECT3D11)
-			name = va("hlsl/%s.hlsl", sbuiltins[i].name);
+			name = va("hlsl11/%s.hlsl", sbuiltins[i].name);
 
 		if (name)
 		{

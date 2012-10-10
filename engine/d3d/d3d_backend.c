@@ -2019,7 +2019,8 @@ static void BE_DrawMeshChain_Internal(void)
 	switch (shaderstate.mode)
 	{
 	case BEM_LIGHT:
-		BE_RenderMeshProgram(shaderstate.shader_rtlight, vertcount, idxfirst, idxcount);
+		if (shaderstate.shader_rtlight->prog)
+			BE_RenderMeshProgram(shaderstate.shader_rtlight, vertcount, idxfirst, idxcount);
 		break;
 	case BEM_DEPTHONLY:
 		shaderstate.lastpasscount = 0;

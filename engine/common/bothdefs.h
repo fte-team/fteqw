@@ -85,7 +85,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define AVAIL_OGGVORBIS
 
-//		#define AVAIL_OPENAL	/* Jogi's OpenAL support */
+		/* Jogi's OpenAL support */
+//		#define AVAIL_OPENAL
 	#endif
 
 #if defined(MINGW) || defined(MACOSX)
@@ -109,7 +110,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define D3D9QUAKE
 #endif
 
-#if (defined(D3D9QUAKE) || defined(D3D11Quake)) && !defined(D3DQUAKE)
+#if (defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
 #define D3DQUAKE
 #endif
 
@@ -268,6 +269,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define MULTITHREAD
 		#define WEBCLIENT
 	#endif
+#endif
+
+#if defined(RTLIGHTS) && !defined(GLQUAKE) && !defined(D3D9QUAKE)
+#undef RTLIGHTS
 #endif
 
 #ifndef _WIN32

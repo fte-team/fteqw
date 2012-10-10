@@ -683,7 +683,7 @@ typedef struct
 	int teamplay;
 	int deathmatch;
 
-	qboolean teamfortress;	//*sigh*. This is used for teamplay stuff. This sucks.
+	qboolean teamfortress;	// *sigh*. This is used for teamplay stuff. This sucks.
 	qboolean hexen2pickups;
 
 	qboolean sendprespawn;

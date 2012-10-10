@@ -285,11 +285,16 @@ void QCBUILTIN PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr
 // #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
 void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#define TriangleNormal(a,b,c,n) ( \
+	(n)[0] = ((a)[1] - (b)[1]) * ((c)[2] - (b)[2]) - ((a)[2] - (b)[2]) * ((c)[1] - (b)[1]), \
+	(n)[1] = ((a)[2] - (b)[2]) * ((c)[0] - (b)[0]) - ((a)[0] - (b)[0]) * ((c)[2] - (b)[2]), \
+	(n)[2] = ((a)[0] - (b)[0]) * ((c)[1] - (b)[1]) - ((a)[1] - (b)[1]) * ((c)[0] - (b)[0]) \
+	)
+
 	model_t *model;
 	wedict_t *ent;
 	msurface_t *surf;
 	int i;
-	float planedist;
 	float *point;
 
 	vec3_t edgedir;
@@ -312,53 +317,130 @@ void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *
 	if (!model || model->type != mod_brush)
 		return;
 
-	if (model->fromgame != fg_quake)
-		return;
-
-
-	surf = model->surfaces + model->firstmodelsurface;
-	for (i = 0; i < model->nummodelsurfaces; i++, surf++)
+	if (model->fromgame == fg_quake)
 	{
-		planedist = DotProduct(point, surf->plane->normal) - surf->plane->dist;
-		//don't care about SURF_PLANEBACK, the maths works out the same.
+		//all polies, we can skip parts. special case.
 
-		if (planedist*planedist < bestdist)
-		{	//within a specific range
-			//make sure it's within the poly
-			VectorMA(point, planedist, surf->plane->normal, cpoint);
-			for (e = surf->firstedge+surf->numedges; e > surf->firstedge; edge++)
-			{
-				edge = model->surfedges[--e];
-				if (edge < 0)
-				{
-					v1 = &model->vertexes[model->edges[-edge].v[0]];
-					v2 = &model->vertexes[model->edges[-edge].v[1]];
-				}
-				else
-				{
-					v2 = &model->vertexes[model->edges[edge].v[0]];
-					v1 = &model->vertexes[model->edges[edge].v[1]];
-				}
-				
-				VectorSubtract(v1->position, v2->position, edgedir);
-				CrossProduct(edgedir, surf->plane->normal, edgenormal);
-				if (!(surf->flags & SURF_PLANEBACK))
-				{
-					VectorNegate(edgenormal, edgenormal);
-				}
-				VectorNormalize(edgenormal);
+		surf = model->surfaces + model->firstmodelsurface;
+		for (i = 0; i < model->nummodelsurfaces; i++, surf++)
+		{
+			dist = DotProduct(point, surf->plane->normal) - surf->plane->dist;
+			//don't care about SURF_PLANEBACK, the maths works out the same.
 
-				dist = DotProduct(v1->position, edgenormal) - DotProduct(cpoint, edgenormal);
-				if (dist < 0)
-					VectorMA(cpoint, dist, edgenormal, cpoint);
+			if (dist*dist < bestdist)
+			{	//within a specific range
+				//make sure it's within the poly
+				VectorMA(point, dist, surf->plane->normal, cpoint);
+				for (e = surf->firstedge+surf->numedges; e > surf->firstedge; edge++)
+				{
+					edge = model->surfedges[--e];
+					if (edge < 0)
+					{
+						v1 = &model->vertexes[model->edges[-edge].v[0]];
+						v2 = &model->vertexes[model->edges[-edge].v[1]];
+					}
+					else
+					{
+						v2 = &model->vertexes[model->edges[edge].v[0]];
+						v1 = &model->vertexes[model->edges[edge].v[1]];
+					}
+					
+					VectorSubtract(v1->position, v2->position, edgedir);
+					CrossProduct(edgedir, surf->plane->normal, edgenormal);
+					if (!(surf->flags & SURF_PLANEBACK))
+					{
+						VectorNegate(edgenormal, edgenormal);
+					}
+					VectorNormalize(edgenormal);
+
+					dist = DotProduct(v1->position, edgenormal) - DotProduct(cpoint, edgenormal);
+					if (dist < 0)
+						VectorMA(cpoint, dist, edgenormal, cpoint);
+				}
+
+				VectorSubtract(cpoint, point, temp);
+				dist = DotProduct(temp, temp);
+				if (dist < bestdist)
+				{
+					bestsurf = i;
+					bestdist = dist;
+				}
 			}
+		}
+	}
+	else
+	{
+		int j;
+		float *v1, *v2;
+		vec3_t trinorm;
 
-			VectorSubtract(cpoint, point, temp);
-			dist = DotProduct(temp, temp);
-			if (dist < bestdist)
+		//if performance is needed, I suppose we could try walking bsp nodes a bit
+		surf = model->surfaces + model->firstmodelsurface;
+		for (i = 0; i < model->nummodelsurfaces; i++, surf++)
+		{
+			mesh_t *mesh = surf->mesh;
+/*			vec3_t mins, maxs;
+
+			//calc the surface bounds
+			ClearBounds(mins, maxs);
+			for (j = 0; j < mesh->numvertexes; j++)
+				AddPointToBounds(mesh->xyz_array[j], mins, maxs);
+
+			//clip the point to within those bounds
+			for (j = 0; j < 3; j++)
 			{
-				bestsurf = i;
-				bestdist = dist;
+				if (cpoint[j] < mins[j])
+					cpoint[j] = mins[j];
+				else
+					cpoint[j] = point[j];
+
+				if (cpoint[j] > maxs[j])
+					cpoint[j] = maxs[j];
+			}
+			//if the point got clipped to too far away, we can't do much
+			VectorSubtract(point, cpoint, temp);
+			dist = DotProduct(temp, temp);
+			if (dist*dist > bestdist)
+				continue;
+*/
+			for (j = 0; j < mesh->numindexes; j+=3)
+			{
+				//calculate the distance from the plane
+				TriangleNormal(mesh->xyz_array[mesh->indexes[j+2]], mesh->xyz_array[mesh->indexes[j+1]], mesh->xyz_array[mesh->indexes[j+0]], trinorm);
+				if (!trinorm[0] && !trinorm[1] && !trinorm[2])
+					continue;
+				VectorNormalize(trinorm);
+				dist = DotProduct(point, trinorm) - DotProduct(mesh->xyz_array[mesh->indexes[j+0]], trinorm);
+				if (dist*dist < bestdist)
+				{
+					//set cpoint to be the point on the plane
+					VectorMA(point, -dist, trinorm, cpoint);
+
+					//clip to each edge of the triangle
+					for (e = 0; e < 3; e++)
+					{
+						v1 = mesh->xyz_array[mesh->indexes[j+e]];
+						v2 = mesh->xyz_array[mesh->indexes[j+((e+1)%3)]];
+
+						VectorSubtract(v1, v2, edgedir);
+						CrossProduct(edgedir, trinorm, edgenormal);
+						VectorNormalize(edgenormal);
+
+						dist = DotProduct(cpoint, edgenormal) - DotProduct(v1, edgenormal);
+						if (dist < 0)
+							VectorMA(cpoint, -dist, edgenormal, cpoint);
+					}
+
+					//if the point is closer, we win.
+					VectorSubtract(cpoint, point, temp);
+					dist = DotProduct(temp, temp);
+					if (dist < bestdist)
+					{
+						bestsurf = i;
+						bestdist = dist;
+						//can't break, one of the other tris might be closer.
+					}
+				}
 			}
 		}
 	}
@@ -368,6 +450,7 @@ void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *
 // #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Con_Printf("PF_getsurfaceclippedpoint not implemented\n");
 }
 
 // #628 float(entity e, float s) getsurfacenumtriangles

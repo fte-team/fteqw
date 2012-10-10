@@ -2206,9 +2206,11 @@ void Surf_DrawWorld (void)
 		{
 			int leafnum;
 			int clientarea;
-#ifdef QUAKE2
+#ifdef Q2CLIENT
 			if (cls.protocol == CP_QUAKE2)	//we can get server sent info
+			{
 				memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
+			}
 			else
 #endif
 			{	//generate the info each frame.

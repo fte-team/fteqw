@@ -12,6 +12,7 @@ xwindow_t *rootwindow;
 xresource_t *resources;
 
 qbyte *xscreen;
+qboolean xscreenmodified;
 short xscreenwidth;
 short xscreenheight;
 
@@ -392,6 +393,7 @@ xwindow_t *XS_CreateWindow(int wid, xclient_t *owner, xwindow_t *parent, short x
 	neww->width = width;
 	neww->height = height;
 	neww->buffer = NULL;
+	neww->depth = 24;
 
 	XS_SetParent(neww, parent);
 
@@ -561,6 +563,7 @@ void XS_CreateInitialResources(void)
 	xscreenwidth = 640;
 	xscreenheight = 480;
 	xscreen = realloc(xscreen, xscreenwidth*4 * xscreenheight);
+	xscreenmodified = true;
 
 	XS_CheckResourceSentinals();
 
@@ -643,6 +646,7 @@ void XS_CreateInitialResources(void)
 	XS_CreateAtom(baseres++, "WM_TRANSIENT_FOR", NULL);
 
 	rootwindow = XS_CreateWindow(baseres++, NULL, NULL, 0, 0, xscreenwidth, xscreenheight);
+	rootwindow->depth = 24;
 	rootwindow->mapped = true;
 
 	XS_CheckResourceSentinals();

@@ -1437,7 +1437,7 @@ void XR_GetKeyboardMapping (xclient_t *cl, xReq *request)
 
 void XR_QueryPointer (xclient_t *cl, xReq *request)
 {
-	extern int mousecursor_x, mousecursor_y;
+	extern int x_mousex, x_mousey, x_mousestate;
 	xQueryPointerReply rep;
 
 	rep.type			= X_Reply;
@@ -1446,13 +1446,24 @@ void XR_QueryPointer (xclient_t *cl, xReq *request)
 	rep.length	= 0;
 	rep.root	= rootwindow->res.id;
 	rep.child	= rootwindow->res.id;
-	rep.rootX	= mousecursor_x;
-	rep.rootY	= mousecursor_y;
-	rep.winX	= mousecursor_x;
-	rep.winY	= mousecursor_y;
+	rep.rootX	= x_mousex;
+	rep.rootY	= x_mousey;
+	rep.winX	= x_mousex;
+	rep.winY	= x_mousey;
 	rep.mask	= 0;
 	rep.pad1	= 0;
 	rep.pad		= 0;
+
+	if ((x_mousestate) & Button1Mask)
+		rep.mask |= Button1MotionMask;
+	if ((x_mousestate) & Button2Mask)
+		rep.mask |= Button2MotionMask;
+	if ((x_mousestate) & Button3Mask)
+		rep.mask |= Button3MotionMask;
+	if ((x_mousestate) & Button4Mask)
+		rep.mask |= Button4MotionMask;
+	if ((x_mousestate) & Button5Mask)
+		rep.mask |= Button5MotionMask;
 
 	X_SendData(cl, &rep, sizeof(rep));
 }
@@ -2127,7 +2138,6 @@ void XR_CreatePixmap(xclient_t *cl, xReq *request)
 //		X_SendError(cl, BadValue, req->depth, X_CreatePixmap, 0);
 //		return;
 	}
-	req->depth = 24;
 
 	if (XS_GetResource(req->pid, (void**)&newpix) != x_none)
 	{

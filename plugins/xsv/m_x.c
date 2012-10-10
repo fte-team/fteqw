@@ -1,4 +1,9 @@
-//network interface
+//network interface+main module
+
+//this code should work okay as a host server for Xepher.
+//issue these two commands and Xephyr will do all the stuff we don't support properly.
+//DISPLAY=127.0.0.1:0 Xephyr :1
+//wmaker -display :1 (or xterm or whatever)
 
 #include "../plugin.h"
 #include "../engine.h"
@@ -13,6 +18,7 @@ static qhandle_t xlistensocket=NULL;
 xwindow_t *xfocusedwindow;
 
 qboolean xrefreshed;
+qboolean xscreenmodified;	//texture updated
 
 xclient_t *xgrabbedclient;	//clients can ask the server to ignore other clients
 extern xwindow_t *xpgrabbedwindow;
@@ -1355,10 +1361,9 @@ void X_EvalutateCursorOwner(int movemode)
 
 		if (mx != x_mousex || my != x_mousey)
 		{
+			mask |= PointerMotionMask;
 			if (mousestate)
 				mask |= ButtonMotionMask;
-			else
-				mask |= PointerMotionMask;
 		}
 		if ((mousestate^x_mousestate) & Button1Mask)
 			mask |= Button1MotionMask;
@@ -1669,6 +1674,7 @@ void XWindows_Draw(void)
 	{
 		XWindows_RefreshWindow(rootwindow);
 		xrefreshed = false;
+		xscreenmodified = true; 
 //		Con_Printf("updated screen\n");
 	}
 
@@ -1915,7 +1921,7 @@ int Plug_MenuEvent(int *args)
 	return 0;
 }
 
-int Plug_ExecuteCommand(int *args)
+qintptr_t Plug_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
 	Cmd_Argv(0, cmd, sizeof(cmd));
@@ -1927,7 +1933,7 @@ int Plug_ExecuteCommand(int *args)
 	return 0;
 }
 
-int Plug_Tick(int *args)
+qintptr_t Plug_Tick(qintptr_t *args)
 {
 	XWindows_TendToClients();
 	return 0;
@@ -1950,6 +1956,10 @@ qbyte *XWindows_DisplayFrame(void *ctx, qboolean nosound, enum uploadfmt *fmt, i
 	*fmt = TF_BGRX32;
 	*width = xscreenwidth;
 	*height = xscreenheight;
+
+	if (!xscreenmodified)
+		return NULL;
+	xscreenmodified = false;
 	return xscreen;
 }
 
@@ -1971,6 +1981,7 @@ static qboolean XWindows_SetSize (void *ctx, int width, int height)
 		xscreen = ns;
 		xscreenwidth = width;
 		xscreenheight = height;
+		xscreenmodified = true;
 
 		//FIXME: resize root window + send notify
 
@@ -2015,7 +2026,7 @@ media_decoder_funcs_t decoderfuncs =
 };
 
 
-int Plug_Init(int *args)
+qintptr_t Plug_Init(qintptr_t *args)
 {
 	if (!Plug_Export("ExecuteCommand", Plug_ExecuteCommand) ||
 //		!Plug_Export("MenuEvent", Plug_MenuEvent) ||

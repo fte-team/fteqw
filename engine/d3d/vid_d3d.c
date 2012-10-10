@@ -5,7 +5,7 @@
 
 #include "glquake.h"
 
-#ifdef D3DQUAKE
+#ifdef D3D9QUAKE
 #include "winquake.h"
 
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)

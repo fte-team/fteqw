@@ -331,7 +331,7 @@ static qbyte	portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qby
 
 
 static int	mapisq3;
-cvar_t		map_noareas			= SCVAR("map_noareas", "1");	//1 for lack of mod support.
+cvar_t		map_noareas			= SCVAR("map_noareas", "0");	//1 for lack of mod support.
 cvar_t		map_noCurves		= SCVARF("map_noCurves", "0", CVAR_CHEAT);
 cvar_t		map_autoopenportals	= SCVAR("map_autoopenportals", "1");	//1 for lack of mod support.
 cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
@@ -2318,6 +2318,13 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		{
 			out->planes[j] = brushsides[j].plane;
 		}
+
+		if (!out->shader->fog_dist)
+		{
+			//invalid fog shader, don't use.
+			out->shader = NULL;
+			out->numplanes = 0;
+		}
 	}
 
 	return true;
@@ -2858,7 +2865,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 			R_BuildDefaultTexnums(&out->texinfo->texture->shader->defaulttextures, out->texinfo->texture->shader);
 		}
 
-		if (in->fognum < 0 || in->fognum >= map_numfogs)
+		if (in->fognum < 0 || in->fognum >= map_numfogs || !map_fogs[in->fognum].shader)
 			out->fog = NULL;
 		else
 			out->fog = map_fogs + in->fognum;
@@ -5839,6 +5846,17 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 	return bytes;
 }
 
+
+void	CM_InitPortalState(void)
+{
+	int i;
+	//if we're not running q2, force all q2 portals open.
+	if (svs.gametype != GT_QUAKE2 && !mapisq3)
+	{
+		for (i = 0; i < numareas; i++)
+			map_q2areas[i].floodnum = 0;
+	}
+}
 
 /*
 ===================

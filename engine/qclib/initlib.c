@@ -288,7 +288,14 @@ static void PR_memfree (progfuncs_t *progfuncs, void *memptr)
 //	PR_memvalidate(progfuncs);
 	if (ptr < sizeof(qcmemusedblock_t) || ptr >= prinst->addressableused)
 	{
-		printf("PF_memfree: pointer invalid - out of range (%u >= %u)\n", ptr, prinst->addressableused);
+		if (ptr < sizeof(qcmemusedblock_t) && !*(char*)memptr)
+		{
+			//the empty string is a point of contention. while we can detect it from fteqcc, its best to not give any special favours (other than nicer debugging, where possible)
+			//we might not actually spot it from other qccs, so warning about it where possible is probably a very good thing.
+			printf("PF_memfree: unable to free the non-null empty string constant\n", ptr, prinst->addressableused);
+		}
+		else
+			printf("PF_memfree: pointer invalid - out of range (%u >= %u)\n", ptr, prinst->addressableused);
 		PR_StackTrace(progfuncs);
 		return;
 	}
@@ -298,7 +305,7 @@ static void PR_memfree (progfuncs_t *progfuncs, void *memptr)
 	ptr = (char*)ub - progfuncs->stringtable;
 	if (ub->marker != MARKER || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst->addressableused)
 	{
-		printf("PF_memfree: memory corruption or double free\n");
+		printf("PR_memfree: pointer lacks marker - double-freed?\n");
 		PR_StackTrace(progfuncs);
 		return;
 	}

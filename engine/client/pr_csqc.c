@@ -107,6 +107,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
+	globalfunction(console_link,		"CSQC_ConsoleLink");	\
 	globalfunction(gamecommand,			"GameCommand");	/*DP extension*/\
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
@@ -1249,6 +1250,15 @@ static void QCBUILTIN PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s 
 
 	case VF_PERSPECTIVE:
 		*r = r_refdef.useperspective;
+		break;
+
+	case VF_SCREENVSIZE:
+		r[0] = vid.width;
+		r[1] = vid.height;
+		break;
+	case VF_SCREENPSIZE:
+		r[0] = vid.rotpixelwidth;
+		r[1] = vid.rotpixelheight;
 		break;
 
 	default:
@@ -4947,7 +4957,7 @@ qboolean CSQC_Inited(void)
 }
 
 double  csqctime;
-qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
+qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum)
 {
 	int i;
 	string_t *str;
@@ -5054,23 +5064,27 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 		}
 
 		csqc_isdarkplaces = false;
-		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0) >= 0)
-			loaded = true;
-		else
+		if (csdatenabled || csqc_singlecheats || anycsqc)
 		{
-			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) >= 0)
-				loaded = true;
-			else if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) >= 0) 
+			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0) >= 0)
 				loaded = true;
 			else
-				loaded = false;
+			{
+				if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) >= 0)
+					loaded = true;
+				else if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) >= 0) 
+					loaded = true;
+				else
+					loaded = false;
 
-			if (loaded)
-				Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
+				if (loaded)
+					Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
+			}
 		}
 
-		if (csqc_singlecheats)
+		if (csqc_singlecheats || anycsqc)
 		{
+			Con_DPrintf("loading csaddon.dat...\n");
 			if (PR_LoadProgs(csqcprogs, "csaddon.dat", 0, NULL, 0) >= 0)
 				loaded = true;
 		}
@@ -5515,6 +5529,21 @@ qboolean CSQC_Accelerometer(float x, float y, float z)
 	G_FLOAT(OFS_PARM2) = y;
 	G_FLOAT(OFS_PARM3) = z;
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+	return G_FLOAT(OFS_RETURN);
+}
+
+qboolean CSQC_ConsoleLink(char *text, char *info)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.console_link)
+		return false;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, info));
+	*info = 0;
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, text));
+	*info = '\\';
+	PR_ExecuteProgram (csqcprogs, csqcg.console_link);
 	return G_FLOAT(OFS_RETURN);
 }
 

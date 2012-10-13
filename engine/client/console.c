@@ -848,7 +848,7 @@ int Con_DrawInput (int left, int right, int y)
 	text[key_linepos] = 0;
 	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), true);
 	text[key_linepos] = i;
-	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), true);
+	endmtext = COM_ParseFunString(CON_WHITEMASK, text+key_linepos, cursor, ((char*)maskedtext)+sizeof(maskedtext) - (char*)(cursor+1), true);
 
 	endmtext[1] = 0;
 
@@ -890,11 +890,11 @@ int Con_DrawInput (int left, int right, int y)
 #endif
 		cursorframe = ((int)(realtime*con_cursorspeed)&1);
 
-	for (lhs = 0, i = key_linepos-1; i >= 0; i--)
+	for (lhs = 0, i = cursor - maskedtext-1; i >= 0; i--)
 	{
 		lhs += Font_CharWidth(maskedtext[i]);
 	}
-	for (rhs = 0, i = key_linepos+1; maskedtext[i]; i++)
+	for (rhs = 0, i = cursor - maskedtext; maskedtext[i]; i++)
 	{
 		rhs += Font_CharWidth(maskedtext[i]);
 	}
@@ -1575,11 +1575,12 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 
 
-char *Con_CopyConsole(void)
+char *Con_CopyConsole(qboolean nomarkup)
 {
 	conchar_t *cur;
 	conline_t *l;
 	conchar_t *lend;
+	conchar_t col = CON_WHITEMASK;
 	char *result;
 	int outlen, maxlen;
 	int finalendoffset;
@@ -1589,6 +1590,9 @@ char *Con_CopyConsole(void)
 
 	maxlen = 1024*1024;
 	result = Z_Malloc(maxlen+1);
+
+//	for (cur = (conchar_t*)(selstartline+1), finalendoffset = 0; cur < (conchar_t*)(selstartline+1) + selstartline->length; cur++, finalendoffset++)
+//		result[finalendoffset] = *cur & 0xffff;
 
 	l = selstartline;
 	cur = (conchar_t*)(l+1) + selstartoffset;
@@ -1603,19 +1607,46 @@ char *Con_CopyConsole(void)
 			while (cur > (conchar_t*)(l+1))
 			{
 				cur--;
-				if ((*cur & 0xff) == ' ')
+				if ((*cur & CON_CHARMASK) == ' ')
 				{
 					cur++;
 					break;
 				}
+				if (*cur == CON_LINKSTART)
+					break;
 			}
 			while (finalendoffset < selendline->length)
 			{
-				if ((((conchar_t*)(l+1))[finalendoffset] & 0xff) != ' ')
+				if ((((conchar_t*)(l+1))[finalendoffset] & CON_CHARMASK) != ' ')
 					finalendoffset++;
 				else
 					break;
 			}
+		}
+	}
+	
+	//scan backwards to find any link enclosure
+	for(lend = cur; lend >= (conchar_t*)(l+1); lend--)
+	{
+		if (*lend == CON_LINKSTART)
+		{
+			//found one
+			cur = lend;
+			break;
+		}
+		if (*lend == CON_LINKEND)
+		{
+			//some other link ended here. don't use its start.
+			break;
+		}
+	}
+	//scan forwards to find the end of the selected link
+	for(lend = (conchar_t*)(selendline+1) + finalendoffset; lend < (conchar_t*)(selendline+1) + selendline->length; lend++)
+	{
+		if (*lend == CON_LINKEND)
+		{
+			finalendoffset = lend+1 - (conchar_t*)(selendline+1);
+			break;
 		}
 	}
 
@@ -1626,12 +1657,8 @@ char *Con_CopyConsole(void)
 			lend = (conchar_t*)(l+1) + finalendoffset;
 		else
 			lend = (conchar_t*)(l+1) + l->length;
-		while (cur < lend)
-		{
-			if (outlen == maxlen)
-				break;
-			result[outlen++] = *cur++;
-		}
+
+		outlen = COM_DeFunString(cur, lend, result + outlen, maxlen - outlen, nomarkup) - result;
 
 		if (l == selendline)
 			break;
@@ -1642,6 +1669,9 @@ char *Con_CopyConsole(void)
 			Con_Printf("Error: Bad console buffer\n");
 			break;
 		}
+
+		if (outlen+3 > maxlen)
+			break;
 #ifdef _WIN32
 		result[outlen++] = '\r';
 #endif

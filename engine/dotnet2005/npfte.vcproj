@@ -22539,6 +22539,18 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\common\sha1.c"
+					>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
 					RelativePath="..\common\translate.c"
 					>
 					<FileConfiguration

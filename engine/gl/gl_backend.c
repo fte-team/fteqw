@@ -3213,11 +3213,11 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 	shaderstate.lastuniform = 0;
 
 	lmode = 0;
-	if (dl->fov && shaderstate.shader_light[lmode|LSHADER_SPOT]->prog)
+	if (dl->fov && shaderstate.shader_light[lmode|LSHADER_SPOT] && shaderstate.shader_light[lmode|LSHADER_SPOT]->prog)
 		lmode |= LSHADER_SPOT;
-	if ((dl->flags & LFLAG_SHADOWMAP) && shaderstate.shader_light[lmode|LSHADER_SMAP]->prog)
+	if ((dl->flags & LFLAG_SHADOWMAP) && shaderstate.shader_light[lmode|LSHADER_SMAP] && shaderstate.shader_light[lmode|LSHADER_SMAP]->prog)
 		lmode |= LSHADER_SMAP;
-	if (TEXVALID(shaderstate.lightcubemap) && shaderstate.shader_light[lmode|LSHADER_CUBE]->prog)
+	if (TEXVALID(shaderstate.lightcubemap) && shaderstate.shader_light[lmode|LSHADER_CUBE] && shaderstate.shader_light[lmode|LSHADER_CUBE]->prog)
 		lmode |= LSHADER_CUBE;
 	shaderstate.lightmode = lmode;
 }

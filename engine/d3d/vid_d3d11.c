@@ -9,11 +9,6 @@
 #define COBJMACROS
 #include <d3d11.h>
 
-//#include    <d3d9.h>
-
-//#pragma comment(lib, "../libs/dxsdk9/lib/d3d9.lib")
-
-
 /*Fixup outdated windows headers*/
 #ifndef WM_XBUTTONDOWN
    #define WM_XBUTTONDOWN      0x020B

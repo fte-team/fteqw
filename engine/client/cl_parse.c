@@ -1024,30 +1024,30 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	{
 		char *s;
 		qboolean anycsqc;
+		char *endptr;
+		unsigned int chksum;
 #ifdef _DEBUG
 		anycsqc = true;
 #else
 		anycsqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc"));
 #endif
+		if (cls.demoplayback)
+			anycsqc = true;
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-		if (anycsqc || *s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+		chksum = strtoul(s, &endptr, 0);
+		if (*endptr)
 		{
-			char *endptr;
-			unsigned int chksum = strtoul(s, &endptr, 0);
-			if (*endptr)
-			{
-				Con_Printf("corrupt *csprogs key in serverinfo\n");
-				anycsqc = true;
-				chksum = 0;
-			}
-			SCR_SetLoadingFile("csprogs");
-			if (!CSQC_Init(anycsqc, chksum))
-			{
-				Sbar_Start();	//try and start this before we're actually on the server,
-								//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
-								//hopefully this'll make it more robust.
-								//csqc is expected to use it's own huds, or to run on decent servers. :p
-			}
+			Con_Printf("corrupt *csprogs key in serverinfo\n");
+			anycsqc = true;
+			chksum = 0;
+		}
+		SCR_SetLoadingFile("csprogs");
+		if (!CSQC_Init(anycsqc, *s?true:false, chksum))
+		{
+			Sbar_Start();	//try and start this before we're actually on the server,
+							//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
+							//hopefully this'll make it more robust.
+							//csqc is expected to use it's own huds, or to run on decent servers. :p
 		}
 		endstage();
 	}
@@ -1285,7 +1285,6 @@ Sound_NextDownload
 */
 void Sound_CheckDownloads (void)
 {
-	char	*s;
 	int		i;
 
 
@@ -1294,6 +1293,7 @@ void Sound_CheckDownloads (void)
 #ifdef CSQC_DAT
 //	if (cls.fteprotocolextensions & PEXT_CSQC)
 	{
+		char	*s;
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
@@ -2843,8 +2843,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
-	if (cls.demoplayback)
-		CSQC_Init(true, 0);
+	CSQC_Init(cls.demoplayback, false, 0);
 #endif
 }
 void CLNQ_SignonReply (void)
@@ -2881,10 +2880,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 			{
 				char *s;
 				s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-				if (*s)
-					CSQC_Init(false, atoi(s));
-				else
-					CSQC_Shutdown();
+				CSQC_Init(false, *s?true:false, atoi(s));
 			}
 #endif
 		}
@@ -4786,18 +4782,15 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{
-			// color is reset every printf so we're safe here
-			Q_strncatz(fullchatmessage, va("\1(%s^%c", name_coloured?"":"^m", c), sizeof(fullchatmessage));
-			Q_strncatz(fullchatmessage, va("%s%s^d",  name_coloured?"^m":"", name), sizeof(fullchatmessage));
-			Q_strncatz(fullchatmessage, va("%s^%c)", name_coloured?"^m":"", c), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("\1(^[%s%s^d\\player\\%i^])", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
 		}
 		else if (cl_standardchat.ival)
 		{
-			Q_strncatz(fullchatmessage, va("\1%s", name), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("\1^[%s%s^d\\player\\%i^]", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
 		}
 		else
 		{
-			Q_strncatz(fullchatmessage, va("\1%s^%c%s^d", name_coloured?"":"^m", c, name), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("\1^[%s^%c%s^d\\player\\%i^]", name_coloured?"^m":"", c, name, plr-cl.players), sizeof(fullchatmessage));
 		}
 
 		if (!memessage)
@@ -4935,7 +4928,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 				c = '0' + CL_PlayerColor(p, &coloured);
 
 			// print name
-			Q_strncatz(fullmessage, va("%s^%c%s^7%s", coloured?"^m":"", c, name, coloured?"^m":""), sizeof(fullmessage));
+			Q_strncatz(fullmessage, va("^[%s^%c%s^d\\player\\%i^]", coloured?"^m":"", c, name, p - cl.players), sizeof(fullmessage));
 			break;
 		}
 	}

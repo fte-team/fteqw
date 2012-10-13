@@ -409,6 +409,12 @@ qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 			con_mousedown[1] -= 8;
 			con_current->display = con_current->display->newer;
 		}
+
+		*sx = mousecursor_x;
+		*sy = mousecursor_y;
+		*ex = mousecursor_x;
+		*ey = mousecursor_y;
+		return true;
 	}
 	else if (con_mousedown[2] == 2)
 	{
@@ -421,22 +427,344 @@ qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 	return false;
 }
 
+/*insert the given text at the console input line at the current cursor pos*/
+void Key_ConsoleInsert(char *instext)
+{
+	int i;
+	int len;
+	len = strlen(instext);
+	if (len + strlen(key_lines[edit_line]) > MAXCMDLINE - 1)
+		len = MAXCMDLINE - 1 - strlen(key_lines[edit_line]);
+	if (len > 0)
+	{	// insert the string
+		memmove (key_lines[edit_line] + key_linepos + len,
+			key_lines[edit_line] + key_linepos, strlen(key_lines[edit_line]) - key_linepos + 1);
+		memcpy (key_lines[edit_line] + key_linepos, instext, len);
+		for (i = 0; i < len; i++)
+		{
+			if (key_lines[edit_line][key_linepos+i] == '\r')
+				key_lines[edit_line][key_linepos+i] = ' ';
+			else if (key_lines[edit_line][key_linepos+i] == '\n')
+				key_lines[edit_line][key_linepos+i] = ';';
+		}
+		key_linepos += len;
+	}
+}
+
 void Key_ConsoleRelease(int key, int unicode)
 {
+	extern int mousecursor_x, mousecursor_y;
+	char *buffer;
 	if (key == K_MOUSE1)
+	{
 		con_mousedown[2] = 0;
+		if (abs(con_mousedown[0] - mousecursor_x) < 5 && abs(con_mousedown[1] - mousecursor_y) < 5)
+		{
+			buffer = Con_CopyConsole(false);
+			if (!buffer)
+				return;
+			if (keydown[K_SHIFT])
+			{
+				int len;
+				len = strlen(buffer);
+				//strip any trailing dots/elipsis
+				while (len > 1 && !strcmp(buffer+len-1, "."))
+				{
+					len-=1;
+					buffer[len] = 0;
+				}
+				//strip any enclosing quotes
+				while (*buffer == '\"' && len > 2 && !strcmp(buffer+len-1, "\""))
+				{
+					len-=2;
+					memmove(buffer, buffer+1, len);
+					buffer[len] = 0;
+				}
+				Key_ConsoleInsert(buffer);
+			}
+			else
+			{
+				if (buffer[0] == '^' && buffer[1] == '[')
+				{
+					//looks like it might be a link!
+					char *end = NULL;
+					char *info;
+					for (info = buffer + 2; *info; )
+					{
+						if (info[0] == '^' && info[1] == ']')
+						{
+							break;
+						}
+						if (*info == '\\')
+							break;
+						else if (info[0] == '^' && info[1] == '^')
+							info+=2;
+						else
+							info++;
+					}
+					for(end = info; *end; )
+					{
+						if (end[0] == '^' && end[1] == ']')
+						{
+							char *c;
+							//okay, its a valid link that they clicked
+							*end = 0;
+#ifdef CSQC_DAT
+							if (!CSQC_ConsoleLink(buffer+2, info))
+#endif
+							{
+								/*the engine supports specific default links*/
+								/*we don't support everything. a: there's no point. b: unbindall links are evil.*/
+								c = Info_ValueForKey(info, "player");
+								if (*c)
+								{
+									unsigned int player = atoi(c);
+									int i;
+									if (player >= MAX_CLIENTS)
+										break;
+
+									c = Info_ValueForKey(info, "action");
+									if (*c)
+									{
+										if (!strcmp(c, "mute"))
+										{
+											if (!cl.players[player].vignored)
+											{
+												cl.players[player].vignored = true;
+												Con_Printf("^[%s\\player\\%i^] muted\n", cl.players[player].name, player);
+											}
+											else
+											{
+												cl.players[player].vignored = false;
+												Con_Printf("^[%s\\player\\%i^] unmuted\n", cl.players[player].name, player);
+											}
+										}
+										else if (!strcmp(c, "ignore"))
+										{
+											if (!cl.players[player].ignored)
+											{
+												cl.players[player].ignored = true;
+												cl.players[player].vignored = true;
+												Con_Printf("^[%s\\player\\%i^] ignored\n", cl.players[player].name, player);
+											}
+											else
+											{
+												cl.players[player].ignored = false;
+												cl.players[player].vignored = false;
+												Con_Printf("^[%s\\player\\%i^] unignored\n", cl.players[player].name, player);
+											}
+										}
+										else if (!strcmp(c, "kick"))
+										{
+#ifndef CLIENTONLY
+											if (sv.active)
+											{
+												//use the q3 command, because we can.
+												Cbuf_AddText(va("\nclientkick %i\n", player), RESTRICT_LOCAL);
+											}
+											else
+#endif
+												Cbuf_AddText(va("\nrcon kick %s\n", cl.players[player].name), RESTRICT_LOCAL);
+										}
+										else if (!strcmp(c, "ban"))
+										{
+#ifndef CLIENTONLY
+											if (sv.active)
+											{
+												//use the q3 command, because we can.
+												Cbuf_AddText(va("\nbanname %s QuickBan\n", cl.players[player].name), RESTRICT_LOCAL);
+											}
+											else
+#endif
+												Cbuf_AddText(va("\nrcon banname %s QuickBan\n", cl.players[player].name), RESTRICT_LOCAL);
+										}
+										break;
+									}
+
+									Con_Printf("^m#^m ^[%s\\player\\%i^]: %if %ims", cl.players[player].name, player, cl.players[player].frags, cl.players[player].ping);
+
+									for (i = 0; i < cl.splitclients; i++)
+									{
+										if (cl.playernum[i] == player)
+											break;
+									}
+									if (i == cl.splitclients)
+									{
+										extern cvar_t rcon_password;
+										if (cls.protocol == CP_QUAKEWORLD && strcmp(cl.players[cl.playernum[0]].team, cl.players[player].team))
+											Con_Printf(" ^[[Join Team %s]\\cmd\\setinfo team %s^]", cl.players[player].team, cl.players[player].team);
+										Con_Printf(" ^[%sgnore\\player\\%i\\action\\ignore^]", cl.players[player].ignored?"Uni":"I", player);
+//										if (cl_voip_play.ival)
+											Con_Printf(" ^[%sute\\player\\%i\\action\\mute^]", cl.players[player].vignored?"Unm":"M",  player);
+
+										if (*rcon_password.string
+#ifndef CLIENTONLY
+											|| (sv.state && svs.clients[player].netchan.remote_address.type != NA_LOOPBACK)
+#endif
+											)
+										{
+											Con_Printf(" ^[Kick\\player\\%i\\action\\kick^]", player);
+											Con_Printf(" ^[Ban\\player\\%i\\action\\ban^]", player);
+										}
+									}
+									else
+									{
+										char cmdprefix[6];
+										snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i);
+
+										//hey look! its you!
+										Con_Printf(" ^[Suicide\\cmd\\kill^]");
+#ifndef CLIENTONLY
+										if (!sv.state)
+											Con_Printf(" ^[Disconnect\\cmd\\disconnect^]");
+										if (cls.allow_cheats || (sv.state && sv.allocated_client_slots == 1))
+#else
+										Con_Printf(" ^[Disconnect\\cmd\\disconnect^]");
+										if (cls.allow_cheats)
+#endif
+										{
+											Con_Printf(" ^[Noclip\\cmd\\noclip^]");
+											Con_Printf(" ^[Fly\\cmd\\fly^]");
+											Con_Printf(" ^[God\\cmd\\god^]");
+											Con_Printf(" ^[Give\\impulse\\9^]");
+										}
+									}
+									Con_Printf("\r");
+									break;
+								}
+								c = Info_ValueForKey(info, "connect");
+								if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+								{
+									Cbuf_AddText(va("\nconnect %s\n", c), RESTRICT_LOCAL);
+									break;
+								}
+								c = Info_ValueForKey(info, "qtv");
+								if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+								{
+									Cbuf_AddText(va("\nqtvplay %s\n", c), RESTRICT_LOCAL);
+									break;
+								}
+								c = Info_ValueForKey(info, "cmd");
+								if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+								{
+									Cbuf_AddText(va("\ncmd %s\n", c), RESTRICT_LOCAL);
+									break;
+								}
+								c = Info_ValueForKey(info, "impulse");
+								if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+								{
+									Cbuf_AddText(va("\nimpulse %s\n", c), RESTRICT_LOCAL);
+									break;
+								}
+							}
+
+							break;
+						}
+						if (end[0] == '^' && end[1] == '^')
+							end+=2;
+						else
+							end++;
+					}
+				}
+			}
+			Z_Free(buffer);
+		}
+	}
 	if (key == K_MOUSE2 && con_mousedown[2] == 2)
 	{
-		extern int mousecursor_x, mousecursor_y;
-		char *buffer;
 		con_mousedown[2] = 0;
-		buffer = Con_CopyConsole();
+		buffer = Con_CopyConsole(true);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
 		Sys_SaveClipboard(buffer);
 		Z_Free(buffer);
 
 	}
+}
+
+//move the cursor one char to the left. cursor must be within the 'start' string.
+unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
+{
+	extern cvar_t com_parseutf8;
+	if (cursor == start)
+		return cursor;
+	if (com_parseutf8.ival>0)
+	{
+		cursor--;
+		while ((*cursor & 0xc0) == 0x80 && cursor > start)
+			cursor--;
+	}
+	else
+		cursor--;
+
+	if (*cursor == ']' && cursor > start && cursor[-1] == '^')
+	{
+		//just stepped onto a link
+		char *linkstart;
+		linkstart = cursor-1;
+		while(linkstart >= start)
+		{
+			if (linkstart[0] == '^' && linkstart[1] == '[')
+				return linkstart;
+			linkstart--;
+		}
+	}
+
+	return cursor;
+}
+
+//move the cursor one char to the right.
+unsigned char *utf_right(unsigned char *cursor)
+{
+	extern cvar_t com_parseutf8;
+
+	if (*cursor == '^' && cursor[1] == '[')
+	{
+		//just stepped over a link
+		char *linkend;
+		linkend = cursor+2;
+		while(*linkend)
+		{
+			if (linkend[0] == '^' && linkend[1] == '^')
+				linkend += 2;
+			else if (linkend[0] == '^' && linkend[1] == ']')
+				return linkend+2;
+			else
+				linkend++;
+		}
+		return linkend;
+	}
+
+	if (com_parseutf8.ival>0)
+	{
+		int skip = 1;
+		//figure out the length of the char
+		if ((*cursor & 0xc0) == 0x80)
+			skip = 1;	//error
+		else if ((*cursor & 0xe0) == 0xc0)
+			skip = 2;
+		else if ((*cursor & 0xf0) == 0xe0)
+			skip = 3;
+		else if ((*cursor & 0xf1) == 0xf0)
+			skip = 4;
+		else if ((*cursor & 0xf3) == 0xf1)
+			skip = 5;
+		else if ((*cursor & 0xf7) == 0xf3)
+			skip = 6;
+		else if ((*cursor & 0xff) == 0xf7)
+			skip = 7;
+		else skip = 1;
+
+		while (*cursor && skip)
+		{
+			cursor++;
+			skip--;
+		}
+	}
+	else if (*cursor)
+		cursor++;
+
+	return cursor;
 }
 
 /*
@@ -544,15 +872,14 @@ void Key_Console (unsigned int unicode, int key)
 	
 	if (key == K_LEFTARROW)
 	{
-		if (key_linepos > 1)
-			key_linepos--;
+		key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
 		return;
 	}
 	if (key == K_RIGHTARROW)
 	{
 		if (key_lines[edit_line][key_linepos])
 		{
-			key_linepos++;
+			key_linepos = utf_right(key_lines[edit_line] + key_linepos) - key_lines[edit_line];
 			return;
 		}
 		else
@@ -563,15 +890,8 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key_lines[edit_line][key_linepos])
 		{
-			int charlen = 1;
-			if (com_parseutf8.ival>0 &&
-				(key_lines[edit_line][key_linepos] & 0xc0) != 0x80)
-			{
-				while((key_lines[edit_line][key_linepos+charlen] & 0xc0) == 0x80)
-					charlen++;
-			}
-
-			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+charlen);
+			int charlen = utf_right(key_lines[edit_line] + key_linepos) - (key_lines[edit_line] + key_linepos);
+			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+1);
 			return;
 		}
 		else
@@ -582,13 +902,8 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key_linepos > 1)
 		{
-			int charlen = 1;
-			if (com_parseutf8.ival>0)
-			{
-				while (key_linepos > charlen && (key_lines[edit_line][key_linepos-charlen] & 0xc0) == 0x80)
-					charlen++;
-			}
-			memmove(key_lines[edit_line]+key_linepos-charlen, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+charlen);
+			int charlen = (key_lines[edit_line]+key_linepos) - utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos);
+			memmove(key_lines[edit_line]+key_linepos-charlen, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
 			key_linepos -= charlen;
 		}
 		return;
@@ -692,36 +1007,19 @@ void Key_Console (unsigned int unicode, int key)
 		return;
 	}
 
-	if (((unicode=='C' || unicode=='c') && keydown[K_CTRL]) || (keydown[K_CTRL] && key == K_INS))
+	//beware that windows translates ctrl+c and ctrl+v to a control char
+	if (((unicode=='C' || unicode=='c' || unicode==3) && keydown[K_CTRL]) || (keydown[K_CTRL] && key == K_INS))
 	{
 		Sys_SaveClipboard(key_lines[edit_line]+1);
 		return;
 	}
 
-	if (((unicode=='V' || unicode=='v') && keydown[K_CTRL]) || (keydown[K_SHIFT] && key == K_INS))
+	if (((unicode=='V' || unicode=='v' || unicode==22) && keydown[K_CTRL]) || (keydown[K_SHIFT] && key == K_INS))
 	{
 		clipText = Sys_GetClipboard();
 		if (clipText)
 		{
-			int i;
-			int len;
-			len = strlen(clipText);
-			if (len + strlen(key_lines[edit_line]) > MAXCMDLINE - 1)
-				len = MAXCMDLINE - 1 - strlen(key_lines[edit_line]);
-			if (len > 0)
-			{	// insert the string
-				memmove (key_lines[edit_line] + key_linepos + len,
-					key_lines[edit_line] + key_linepos, strlen(key_lines[edit_line]) - key_linepos + 1);
-				memcpy (key_lines[edit_line] + key_linepos, clipText, len);
-				for (i = 0; i < len; i++)
-				{
-					if (key_lines[edit_line][key_linepos+i] == '\r')
-						key_lines[edit_line][key_linepos+i] = ' ';
-					else if (key_lines[edit_line][key_linepos+i] == '\n')
-						key_lines[edit_line][key_linepos+i] = ';';
-				}
-				key_linepos += len;
-			}
+			Key_ConsoleInsert(clipText);
 			Sys_CloseClipboard(clipText);
 		}
 		return;
@@ -1466,7 +1764,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 
 	//yes, csqc is allowed to steal the escape key.
 	if (key != '`' && key != '~')
-	if (key_dest == key_game)
+	if (key_dest == key_game && !Media_PlayingFullScreen())
 	{
 #ifdef CSQC_DAT
 		if (CSQC_KeyPress(key, unicode, down, devid))	//give csqc a chance to handle it.

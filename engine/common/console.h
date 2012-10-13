@@ -38,7 +38,7 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_HIGHCHARSMASK	0x00000080 // Quake's alternative mask
 
 #define CON_FLAGSMASK		0xFFF00000
-#define CON_UNUSEDMASK		0x000F0000
+#define CON_HIDDEN			0x000F0000
 #define CON_CHARMASK		0x0000FFFF
 
 #define CON_FGMASK			0x0F000000
@@ -50,6 +50,9 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_WHITEMASK		0x0F000000 // must be constant. things assume this
 
 #define CON_DEFAULTCHAR		(CON_WHITEMASK | 32)
+
+#define CON_LINKSTART		(CON_HIDDEN | '[')
+#define CON_LINKEND			(CON_HIDDEN | ']')
 
 // RGBI standard colors
 #define COLOR_BLACK			0
@@ -142,7 +145,7 @@ void Con_ForceActiveNow(void);
 void Con_Init (void);
 void Con_Shutdown (void);
 void Con_DrawConsole (int lines, qboolean noback);
-char *Con_CopyConsole(void);
+char *Con_CopyConsole(qboolean nomarkup);
 void Con_Print (char *txt);
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);

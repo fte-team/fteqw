@@ -9946,6 +9946,8 @@ void PR_DumpPlatform_f(void)
 		{"VF_PERSPECTIVE",		"const float", CS, VF_PERSPECTIVE},
 		{"VF_LPLAYER",			"const float", CS, VF_LPLAYER},
 		{"VF_AFOV",				"const float", CS, VF_AFOV},
+		{"VF_SCREENVSIZE",		"const float", CS, VF_SCREENVSIZE},
+		{"VF_SCREENPSIZE",		"const float", CS, VF_SCREENPSIZE},
 
 		{"RF_VIEWMODEL",		"const float", CS, CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, CSQCRF_EXTERNALMODEL},

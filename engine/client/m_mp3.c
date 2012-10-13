@@ -2199,6 +2199,8 @@ qboolean Media_PlayFilm(char *name)
 			cin->ended = false;
 			if (cin->rewind)
 				cin->rewind(cin);
+			if (cin->changestream)
+				cin->changestream(cin, "cmd:focus");
 		}
 		else
 		{

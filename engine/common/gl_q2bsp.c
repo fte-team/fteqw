@@ -5846,7 +5846,7 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 	return bytes;
 }
 
-
+#ifndef CLIENTONLY
 void	CM_InitPortalState(void)
 {
 	int i;
@@ -5857,6 +5857,7 @@ void	CM_InitPortalState(void)
 			map_q2areas[i].floodnum = 0;
 	}
 }
+#endif
 
 /*
 ===================

@@ -1075,7 +1075,8 @@ char *CG_GetConfigString(int num);
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
 void CSQC_RendererRestarted(void);
-qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum);
+qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum);
+qboolean CSQC_ConsoleLink(char *text, char *info);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);

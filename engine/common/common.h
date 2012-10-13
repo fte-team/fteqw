@@ -275,7 +275,7 @@ void COM_InitArgv (int argc, const char **argv);
 void COM_ParsePlusSets (void);
 
 typedef unsigned int conchar_t;
-void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags);
+char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 int COM_FunStringLength(unsigned char *str);
 

@@ -4523,6 +4523,7 @@ void SV_FixupName(char *in, char *out, unsigned int outlen)
 {
 	char *s, *p;
 	unsigned int len;
+	conchar_t testbuf[1024], *t, *e;
 
 	if (outlen == 0)
 		return;
@@ -4544,7 +4545,20 @@ void SV_FixupName(char *in, char *out, unsigned int outlen)
 	}
 	*s = '\0';
 
-	if (!*out)
+	/*note: clients are not guarenteed to parse things the same as the server. utf-8 surrogates may be awkward here*/
+	e = COM_ParseFunString(CON_WHITEMASK, out, testbuf, sizeof(testbuf), false);
+	for (t = testbuf; t < e; t++)
+	{
+		/*reject anything hidden in names*/
+		if (*t & CON_HIDDEN)
+			break;
+		/*reject pictograms*/
+		if ((*t & CON_CHARMASK) >= 0xe100 && (*t & CON_CHARMASK) < 0xe200)
+			break;
+		/*FIXME: should we try to ensure that the chars are in most fonts? that might annoy speakers of more exotic languages I suppose. cvar it?*/
+	}
+
+	if (!*out || (t < e) || e == testbuf)
 	{	//reached end and it was all whitespace
 		//white space only
 		strncpy(out, "unnamed", outlen);

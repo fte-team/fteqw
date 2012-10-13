@@ -1863,31 +1863,74 @@ conchar_t q3codemasks[MAXQ3COLOURS] = {
 	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
 };
 
-
-//Strips out the flags
-void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags)
+//Converts a conchar_t string into a char string. returns the null terminator. pass NULL for stop to calc it
+char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags)
 {
-	if (ignoreflags)
+	if (!stop)
 	{
-		while(*str)
+		for (stop = str; *stop; stop++)
+			;
+	}
+#ifdef _DEBUG
+	if (!outsize)
+		Sys_Error("COM_DeFunString given outsize=0");
+#endif
+
+	/*if (ignoreflags)
+	{
+		while(str < stop)
 		{
 			if (!--outsize)
 				break;
 			*out++ = (unsigned char)(*str++&255);
 		}
-		*out++ = 0;
+		*out = 0;
 	}
-	else
+	else*/
 	{
 		int fl, d;
+		unsigned int c;
+		int prelinkflags = CON_WHITEMASK;	//if used, its already an error.
 		//FIXME: TEST!
 
 		fl = CON_WHITEMASK;
-		while(*str)
+		while(str < stop)
 		{
-			if (!--outsize)
-				break;
-			if ((*str & CON_FLAGSMASK) != fl)
+			if ((*str & CON_HIDDEN) && ignoreflags)
+			{
+				str++;
+				continue;
+			}
+			if (*str == CON_LINKSTART)
+			{
+				if (!ignoreflags)
+				{
+					if (outsize<=2)
+						break;
+					outsize -= 2;
+					*out++ = '^';
+					*out++ = '[';
+				}
+				prelinkflags = fl;
+				fl = COLOR_RED << CON_FGSHIFT;
+				str++;
+				continue;
+			}
+			else if (*str == CON_LINKEND)
+			{
+				if (!ignoreflags)
+				{
+					if (outsize<=2)
+						break;
+					outsize -= 2;
+					*out++ = '^';
+					*out++ = ']';
+				}
+				fl = prelinkflags;
+				str++;
+				continue;
+			}
+			else if ((*str & CON_FLAGSMASK) != fl && !ignoreflags)
 			{
 				d = fl^(*str & CON_FLAGSMASK);
 //				if (fl & CON_NONCLEARBG)	//not represented.
@@ -1918,31 +1961,130 @@ void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflag
 
 				if (d & (CON_FGMASK | CON_BGMASK | CON_NONCLEARBG))
 				{
-					if (outsize<=4)
-						break;
-					outsize -= 4;
-
-					d = (*str & CON_FLAGSMASK);
-					*out++ = '^';
-					*out++ = '&';
-					if ((d & CON_FGMASK) == CON_WHITEMASK)
-						*out++ = '-';
-					else
-						sprintf(out, "%X", d>>24);
-					if (d & CON_NONCLEARBG)
+					static char q3[16] = {	'0', 0,   0,   0,
+											0,   0,   0,   0,
+											0,	 '4', '2', '5',
+											'1', '6', '3', '7'};
+					if (!(d & (CON_BGMASK | CON_NONCLEARBG)) && q3[(*str & CON_FGMASK) >> CON_FGSHIFT] && !((d|fl) & CON_HALFALPHA))
 					{
-						sprintf(out, "%X", d>>28);
+						if (outsize<=2)
+							break;
+						outsize -= 2;
+
+						d = (*str & CON_FLAGSMASK);
+						*out++ = '^';
+						*out++ = q3[(*str & CON_FGMASK) >> CON_FGSHIFT];
 					}
 					else
-						*out++ = '-';
+					{
+						if (outsize<=4)
+							break;
+						outsize -= 4;
+
+						d = (*str & CON_FLAGSMASK);
+						*out++ = '^';
+						*out++ = '&';
+						if ((d & CON_FGMASK) == CON_WHITEMASK)
+							*out = '-';
+						else
+							sprintf(out, "%X", d>>24);
+						out++;
+						if (d & CON_NONCLEARBG)
+							sprintf(out, "%X", d>>28);
+						else
+							*out = '-';
+						out++;
+					}
 				}
 
 				fl = (*str & CON_FLAGSMASK);
 			}
-			*out++ = (unsigned char)(*str++&255);
+
+			//don't magically show hidden text
+			if (ignoreflags && (*str & CON_HIDDEN))
+				continue;
+
+			c = *str++ & 0xffff;
+			if (com_parseutf8.ival > 0)
+			{
+				//utf-8
+				if (c > 0x7ff)
+				{
+					if (outsize<=3)
+						break;
+					outsize -= 3;
+
+					*out++ = (unsigned char)((c>>12)&0x0f) | 0xe0;
+					*out++ = (unsigned char)((c>>6)&0x3f) | 0x80;
+					*out++ = (unsigned char)(c&0x3f) | 0x80;
+				}
+				else if (c > 0x7f)
+				{
+					if (outsize<=2)
+						break;
+					outsize -= 2;
+
+					*out++ = (unsigned char)((c>>6)&0x1f) | 0xc0;
+					*out++ = (unsigned char)(c&0x3f) | 0x80;
+				}
+				else
+				{
+					if (outsize<=1)
+						break;
+					outsize -= 1;
+					*out++ = (unsigned char)(c&0x7f);
+				}
+			}
+			else if (com_parseutf8.ival)
+			{
+				//iso8859-1
+				if ((c >= 0 && c < 255) || (c >= 0xe000+32 && c < 0xe000+127))	//quake chars between 32 and 127 are identical to iso8859-1
+				{
+					if (!--outsize)
+						break;
+					*out++ = (unsigned char)(c&255);
+				}
+				else	//any other quake char is not iso8859-1
+				{
+					const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+					if (outsize<=6)
+						break;
+					outsize -= 6;
+					*out++ = '^';
+					*out++ = 'U';
+					*out++ = hex[(c>>12)&15];
+					*out++ = hex[(c>>8)&15];
+					*out++ = hex[(c>>4)&15];
+					*out++ = hex[(c>>0)&15];
+				}
+			}
+			else
+			{
+				//quake chars
+				if (c == '\n' || c == '\r' || c == '\t' || (c >= 32 && c < 127) || (c >= 0xe000 && c < 0xe100))	//quake chars between 32 and 127 are identical to iso8859-1
+				{
+					if (!--outsize)
+						break;
+					*out++ = (unsigned char)(c&255);
+				}
+				else	//any other char is not quake
+				{
+					const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+					if (outsize<=6)
+						break;
+					outsize -= 6;
+					*out++ = '^';
+					*out++ = 'U';
+					*out++ = hex[(c>>12)&15];
+					*out++ = hex[(c>>8)&15];
+					*out++ = hex[(c>>4)&15];
+					*out++ = hex[(c>>0)&15];
+				}
+			}
 		}
-		*out++ = 0;
+		*out = 0;
 	}
+	return out;
 }
 
 static int dehex(int i)
@@ -1963,6 +2105,9 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	int extstackdepth = 0;
 	unsigned int uc, l;
 	int utf8 = com_parseutf8.ival;
+	conchar_t linkinitflags = CON_WHITEMASK;/*doesn't need the init, but msvc is stupid*/
+	qboolean linkkeep = keepmarkup;
+	conchar_t *linkstart = NULL;
 
 	conchar_t ext;
 
@@ -2120,6 +2265,40 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				// else invalid code
 				goto messedup;
 			}
+			else if (str[1] == '[' && !linkstart)
+			{
+				//preserved flags and reset to white. links must contain their own colours.
+				linkinitflags = ext;
+				ext = COLOR_RED << CON_FGSHIFT;
+				linkstart = out;
+				*out++ = '[';
+
+				//never keep the markup
+				linkkeep = keepmarkup;
+				keepmarkup = false;
+				str+=2;
+				continue;
+			}
+			else if (str[1] == ']' && linkstart)
+			{
+				*out++ = ']';
+
+				//its a valid link, so we can hide it all now
+				*linkstart++ |= CON_HIDDEN;	//leading [ is hidden
+				while(linkstart < out-1 && (*linkstart&CON_CHARMASK) != '\\')	//link text is NOT hidden
+					linkstart++;
+				while(linkstart < out)	//but the infostring behind it is, as well as the terminator
+					*linkstart++ |= CON_HIDDEN;
+
+				//reset colours to how they used to be
+				ext = linkinitflags;
+				linkstart = NULL;
+				keepmarkup = linkkeep;
+
+				//never keep the markup
+				str+=2;
+				continue;
+			}
 			else if (str[1] == 'a')
 			{
 				ext ^= CON_2NDCHARSETTEXT;
@@ -2130,7 +2309,10 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			else if (str[1] == 'd')
 			{
-				ext = defaultflags;
+				if (linkstart)
+					ext = COLOR_RED << CON_FGSHIFT;
+				else
+					ext = defaultflags;
 			}
 			else if (str[1] == 'm')
 			{

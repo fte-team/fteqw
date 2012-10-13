@@ -435,6 +435,8 @@ typedef enum
 	//201 used by DP... WTF? CLEARSCREEN
 	VF_LPLAYER = 202,
 	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
+	VF_SCREENVSIZE = 204,
+	VF_SCREENPSIZE = 205,
 } viewflags;
 
 /*FIXME: this should be changed*/

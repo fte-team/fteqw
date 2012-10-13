@@ -2290,7 +2290,7 @@ void QCBUILTIN PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	char result[8192];
 	unsigned int flagged[8192];
 	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
-	COM_DeFunString(flagged, result, sizeof(result), true);
+	COM_DeFunString(flagged, NULL, result, sizeof(result), true);
 
 	RETURN_TSTRING(result);
 }

@@ -1190,6 +1190,8 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
 {
 	struct charcache_s *c;
 #define TABWIDTH (8*20)
+	if (charcode&CON_HIDDEN)
+		return x;
 	if ((charcode&CON_CHARMASK) == '\t')
 		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
 
@@ -1212,6 +1214,8 @@ int Font_CharWidth(unsigned int charcode)
 {
 	struct charcache_s *c;
 	struct font_s *font = curfont;
+	if (charcode&CON_HIDDEN)
+		return 0;
 	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
 		font = font->alt;
 
@@ -1333,6 +1337,9 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	int col;
 	int v;
 	struct font_s *font = curfont;
+	if (charcode & CON_HIDDEN)
+		return px;
+
 	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
 		font = font->alt;
 

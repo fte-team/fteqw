@@ -29,8 +29,7 @@ float intermission;
 vector v_forward, v_up, v_right;
 vector view_angles;
 float trace_allsolid, trace_startsolid, trace_fraction;
-shared vector trace_endpos;
-vector trace_plane_normal;
+vector trace_endpos, trace_plane_normal;
 float trace_plane_dist;
 entity trace_ent;
 float trace_inopen;
@@ -81,8 +80,10 @@ void end_sys_fields;
 .float hull;
 .entity movechain;
 .void() chainmoved;
+.void(float old, float new) contentstransition;
 .float dimension_solid;
 .float dimension_hit;
+.float hitcontentsmask;
 .float scale;
 .float fatness;
 .float alpha;
@@ -114,6 +115,7 @@ void end_sys_fields;
 .float ideal_pitch;
 .float pitch_speed;
 var float physics_mode = 2;
+float gamespeed;
 #define TRUE 1
 #define FALSE 0
 #define MOVETYPE_NONE 0
@@ -166,6 +168,7 @@ var float physics_mode = 2;
 #define FL_ONGROUND 512
 #define FL_PARTIALGROUND 1024
 #define FL_WATERJUMP 2048
+#define FL_JUMPRELEASED 4096
 #define FL_FINDABLE_NONSOLID 16384
 #define MOVE_NORMAL 0
 #define MOVE_NOMONSTERS 1
@@ -228,6 +231,8 @@ var float physics_mode = 2;
 #define VF_PERSPECTIVE 200
 #define VF_LPLAYER 202
 #define VF_AFOV 203
+#define VF_SCREENVSIZE 204
+#define VF_SCREENPSIZE 205
 #define RF_VIEWMODEL 1
 #define RF_EXTERNALMODEL 2
 #define RF_DEPTHHACK 4
@@ -481,10 +486,8 @@ void(float buf, float fl) writefloat = #280;
 #endif
 float*(float skel) skel_mmap = #282;
 void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up) skel_set_bone_world = #283;
-void*(int size) memalloc = #384;
-void(void *ptr) memfree = #385;
-void(void *dst, void *src, int size) memcpy = #386;
-void(void *dst, int val, int size) memset = #387;
+string(float modidx, float framenum) frametoname = #284;
+string(float modidx, float skin) skintoname = #285;
 #ifdef CSQC
 void() clearscene = #300;
 void(float mask) addentities = #301;
@@ -563,6 +566,10 @@ __variant(float lno, float fld) dynamiclight_get = #372;
 void(float lno, float fld, __variant value) dynamiclight_set = #373;
 string(float efnum, float body) particleeffectquery = #374;
 #endif
+void*(int size) memalloc = #384;
+void(void *ptr) memfree = #385;
+void(void *dst, void *src, int size) memcpy = #386;
+void(void *dst, int val, int size) memset = #387;
 void(entity from, entity to) copyentity = #400;
 #ifdef SSQC
 void(entity from, entity to) setcolors = #401;
@@ -698,4 +705,6 @@ void(float fh, entity e) writetofile = #606;
 float(string s) isfunction = #607;
 void(entity e, string s) parseentitydata = #608;
 string(...) sprintf = #627;
+float(entity e, float s) getsurfacenumtriangles = #628;
+vector(entity e, float s, float n) getsurfacetriangle = #629;
 #pragma noref 0

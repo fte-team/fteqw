@@ -29,6 +29,9 @@ void() wrap_renderscene =
 {
 	local int retval;
 	vector col;
+
+	vidsize = getproperty(VF_SCREENVSIZE);
+
 	/*inactive? then show nothing*/
 	if (!autocvar_ca_show)
 	{
@@ -95,8 +98,6 @@ void() wrap_renderscene =
 	setproperty(VF_DRAWENGINESBAR, 0);
 	setproperty(VF_DRAWCROSSHAIR, 0);
 
-	vidsize = getproperty(VF_SIZE);
-
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_add();
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
@@ -152,23 +153,6 @@ void() wrap_renderscene =
 		editor_particles_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
 		editor_terrain_overlay(curmousepos);
-
-
-	{
-		vector t = unproject((vidsize*0.5) + '0 0 8192');
-		vector o = unproject(vidsize*0.5);
-		if (vlen(o - t) > 8192)
-			t = o + normalize(t)*8192;
-		traceline(o, t, TRUE, world);
-
-		float s = getsurfacenearpoint(trace_ent, trace_endpos);
-		string sname = getsurfacetexture(trace_ent, s);
-		if (sname != pointedshadername)
-		{
-			strunzone(pointedshadername);
-			pointedshadername = strzone(sname);
-		}
-	}
 
 	drawcharacter(curmousepos - '4 4', '+', '8 8', '1 1 1', 1);
 };
@@ -312,11 +296,14 @@ void() CSQC_Input_Frame =
 				pointedshadername = strzone(pointedshadername);
 				//print("sending input to ", pointedshadername, "\n");
 
+				gecko_navigate(pointedshadername, "cmd:focus");
+
 				pointedent = trace_ent;
 				pointedsurface = s;
 			}
 		}
 	}
+
 	if (pointedshadername != "")
 	{
 		input_buttons = input_buttons - (input_buttons & 1);
@@ -324,6 +311,7 @@ void() CSQC_Input_Frame =
 		makevectors(input_angles);
 		if (v_forward * pointedsurfacenormal >= 0)
 		{
+			gecko_navigate(pointedshadername, "cmd:unfocus");
 			strunzone(pointedshadername);
 			pointedshadername = "";
 		//	print("release (angle)!\n");
@@ -344,11 +332,11 @@ void() CSQC_Input_Frame =
 			vector xyz1, xyz2, xyz3;
 			vector st1, st2, st3;
 			xyz1 = getsurfacepointattribute(pointedent, pointedsurface, 0, 0);
-			xyz2 = getsurfacepointattribute(pointedent, pointedsurface, 2, 0);
-			xyz3 = getsurfacepointattribute(pointedent, pointedsurface, 1, 0);
+			xyz2 = getsurfacepointattribute(pointedent, pointedsurface, 1, 0);
+			xyz3 = getsurfacepointattribute(pointedent, pointedsurface, 2, 0);
 			st1 = getsurfacepointattribute(pointedent, pointedsurface, 0, 4);
-			st2 = getsurfacepointattribute(pointedent, pointedsurface, 2, 4);
-			st3 = getsurfacepointattribute(pointedent, pointedsurface, 1, 4);
+			st2 = getsurfacepointattribute(pointedent, pointedsurface, 1, 4);
+			st3 = getsurfacepointattribute(pointedent, pointedsurface, 2, 4);
 
 			float f1, f2, backoff;
 			vector dir1 = xyz2 - xyz1;
@@ -381,9 +369,21 @@ void() CSQC_Input_Frame =
 			res_x-= floor(res_x);
 			res_y-= floor(res_y);
 			gecko_mousemove(pointedshadername, res_x, res_y);
+
+//			pointparticles(particleeffectnum("te_spike"), xyz1 + dir1*f1 + dir2*f2, trace_plane_normal, 1);
 		}
 	}
 };
+
+/*
+float(string txt, string info) CSQC_ConsoleLink =
+{
+	print("Console link pressed. Text \"", txt, "\"\n");
+	print("Info: \"", info, "\"\n");
+
+	return FALSE;
+};
+*/
 
 /*this is a fallback function, in case the main progs does not have one*/
 float (float event, float parama, float paramb) CSQC_InputEvent =

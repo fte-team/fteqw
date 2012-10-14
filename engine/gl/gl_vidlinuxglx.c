@@ -56,6 +56,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WARP_HEIGHT             200
 
 static Display *vid_dpy = NULL;
+static Cursor vid_nullcursor;
 static Window vid_window;
 static GLXContext ctx = NULL;
 int scrnum;
@@ -399,11 +400,15 @@ static void GetEvent(void)
 				int cx = vid.pixelwidth/2, cy=vid.pixelheight/2;
 				IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
 
-				/* move the mouse to the window center again */
+				/* move the mouse to the window center again (disabling warp first so we don't see it*/
 				XSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
 				XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
 					cx, cy);
 				XSelectInput(vid_dpy, vid_window, X_MASK);
+			}
+			else
+			{
+				IN_MouseMove(0, true, event.xmotion.x, event.xmotion.y, 0, 0);
 			}
 		}
 		break;
@@ -550,7 +555,7 @@ static void GetEvent(void)
 	wantwindowed = !!_windowed_mouse.value;
 	if (!ActiveApp)
 		wantwindowed = false;
-	if (key_dest == key_console && !vidglx_fullscreen)
+	if (Key_MouseShouldBeFree() && !vidglx_fullscreen)
 		wantwindowed = false;
 
 	if (old_windowed_mouse != wantwindowed)
@@ -562,12 +567,15 @@ static void GetEvent(void)
 			Con_DPrintf("uninstall grabs\n");
 			/* ungrab the pointer */
 			uninstall_grabs();
+			XUndefineCursor(vid_dpy, vid_window);
 		}
 		else
 		{
 			Con_DPrintf("install grabs\n");
 			/* grab the pointer */
 			install_grabs();
+			/*hide the cursor*/
+			XDefineCursor(vid_dpy, vid_window, vid_nullcursor);
 		}
 	}
 }
@@ -599,6 +607,8 @@ void GLVID_Shutdown(void)
 
 	if (vid_window)
 		XDestroyWindow(vid_dpy, vid_window);
+	if (vid_nullcursor)
+		XFreeCursor(vid_dpy, vid_nullcursor);
 #ifdef WITH_VMODE
 	if (vid_dpy) {
 		if (vidmode_active)
@@ -947,8 +957,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-//hide the cursor.
-	XDefineCursor(vid_dpy, vid_window, CreateNullCursor(vid_dpy, vid_window));
+	vid_nullcursor = CreateNullCursor(vid_dpy, vid_window);
 
 	XFlush(vid_dpy);
 
@@ -1014,7 +1023,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.recalc_refdef = 1;				// force a surface cache flush
 
 	if (Cvar_Get("vidx_grabkeyboard", "0", 0, "Additional video options")->value)
-	XGrabKeyboard(vid_dpy, vid_window,
+		XGrabKeyboard(vid_dpy, vid_window,
 				  False,
 				  GrabModeAsync, GrabModeAsync,
 				  CurrentTime);

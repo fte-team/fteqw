@@ -798,6 +798,23 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//we only use vao with shaders anyway.
 	if (!gl_config.arb_shader_objects)
 	{
+		//don't bother if we've no glsl
+		qglGenVertexArrays	= NULL;
+		qglBindVertexArray	= NULL;
+	}
+	else if (gl_config.glversion >= 3)
+	{
+		/*yay core!*/
+		qglGenVertexArrays	= (void *)getglext("glGenVertexArrays");
+		qglBindVertexArray	= (void *)getglext("glBindVertexArray");
+	}
+	else if (GL_CheckExtension("GL_ARB_vertex_array_object"))
+	{
+		qglGenVertexArrays	= (void *)getglext("glGenVertexArraysARB");
+		qglBindVertexArray	= (void *)getglext("glBindVertexArrayARB");
+	}
+	else
+	{
 		qglGenVertexArrays	= NULL;
 		qglBindVertexArray	= NULL;
 	}
@@ -1459,9 +1476,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglPushAttrib		= (void *)getglcore("glPushAttrib");
 	qglPopAttrib		= (void *)getglcore("glPopAttrib");
 	qglScissor			= (void *)getglcore("glScissor");
-
-	qglGenVertexArrays	= (void *)getglext("glGenVertexArrays");
-	qglBindVertexArray	= (void *)getglext("glBindVertexArray");
 
 	//does this need to be non-core as well?
 	qglFogi				= (void *)getglcore("glFogi");

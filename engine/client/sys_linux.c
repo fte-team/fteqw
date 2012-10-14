@@ -164,11 +164,26 @@ void Sys_Printf (char *fmt, ...)
 
 	for (c = ctext; c < e; c++)
 	{
+		if (*c & CON_HIDDEN)
+			continue;
+
 		ApplyColour(*c);
 		w = *c & 0x0ffff;
 		if (w >= 0xe000 && w < 0xe100)
 		{
-			putc(w&0x7f, stdout);
+			/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
+			if ((w & 0x7f) > 0x20)
+				putc(w&0x7f, stdout);
+			else if (w & 0x80)
+			{
+				static char tab[32] = "---#@.@@@@ # >.." "[]0123456789.---";
+				putc(tab[w&31], stdout);
+			}
+			else
+			{
+				static char tab[32] = ".####.#### # >.." "[]0123456789.---";
+				putc(tab[w&31], stdout);
+			}
 		}
 		else
 		{

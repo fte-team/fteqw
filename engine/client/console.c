@@ -1568,9 +1568,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 	}
 
 	Font_EndString(font_conchar);
-
-// draw the input prompt, user text, and cursor if desired
-	SCR_DrawCursor(0);
 }
 
 

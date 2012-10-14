@@ -59,6 +59,36 @@ JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedorientation(J
 	return (*env)->NewStringUTF(env, sys_orientation.string);
 }
 
+/*the java passes in all input directly via a 'UI' thread. we don't need to poll it at all*/
+void INS_Move(float *movements, int pnum)
+{
+}
+void INS_Commands(void)
+{
+}
+void INS_Init(void)
+{
+}
+void INS_ReInit(void)
+{
+}
+void INS_Shutdown(void)
+{
+}
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobject obj,
+                 jint down, jint keycode, jint unicode)
+{
+	IN_KeyEvent(0, down, keycode, unicode);
+}
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject obj,
+                 jint act, jint ptrid, jfloat x, jfloat y, jfloat size)
+{
+	if (act)
+		IN_KeyEvent(ptrid, act==1, K_MOUSE1, 0);
+	else
+		IN_MouseMove(ptrid, true, x, y, 0, size);
+}
+
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
 				jfloat ax, jfloat ay, jfloat az)
 {

@@ -181,7 +181,7 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 	window_center_x = (window_rect.left + window_rect.right) / 2;
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
-	IN_UpdateClipCursor ();
+	INS_UpdateClipCursor ();
 }
 
 static qboolean D3D9AppActivate(BOOL fActive, BOOL minimize)
@@ -260,13 +260,13 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				IN_TranslateKeyEvent (wParam, lParam, true, 0);
+				INS_TranslateKeyEvent (wParam, lParam, true, 0);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				IN_TranslateKeyEvent (wParam, lParam, false, 0);
+				INS_TranslateKeyEvent (wParam, lParam, false, 0);
 			break;
 
 		case WM_SYSCHAR:

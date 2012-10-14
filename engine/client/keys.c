@@ -1615,6 +1615,9 @@ qboolean Key_MouseShouldBeFree(void)
 //	if (mouseusedforgui)	//I don't like this
 //		return true;
 
+//	if (!ActiveApp)
+//		return true;
+
 	if (key_dest == key_menu)
 	{
 		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)

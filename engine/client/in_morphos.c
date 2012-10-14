@@ -50,16 +50,11 @@ static struct MsgPort *inputport = 0;
 static struct IOStdReq *inputreq = 0;
 static BYTE inputret = -1;
 
-cvar_t m_filter = {"m_filter", "1", CVAR_ARCHIVE};
-
 extern cvar_t _windowed_mouse;
-
-float mouse_x, mouse_y;
-float old_mouse_x, old_mouse_y;
 
 #define DEBUGRING(x)
 
-void IN_Shutdown(void)
+void INS_Shutdown(void)
 {
 	if (inputret == 0)
 	{
@@ -87,9 +82,12 @@ void IN_Shutdown(void)
 	}
 }
 
-void IN_ReInit()
+void INS_ReInit()
 {
 /*	Cvar_Register (&m_filter, "input controls");*/
+
+	if (inputport)
+		return;
 
 	inputport = CreatePort(0, 0);
 	if (inputport == 0)
@@ -122,182 +120,99 @@ void IN_ReInit()
 	DoIO((struct IORequest *)inputreq);
 }
 
-void IN_Init(void)
+void INS_Init(void)
 {
-	IN_ReInit();
+	INS_ReInit();
 }
 
-static void ExpireRingBuffer()
+//IN_KeyEvent is threadsafe (for one other thread, anyway)
+void INS_ProcessInputMessage(struct InputEvent *msg, qboolean consumemotion)
 {
-	int i = 0;
-
-	while(imsgs[imsglow].ie_Class == IECLASS_NULL && imsglow != imsghigh)
+	if ((window->Flags & WFLG_WINDOWACTIVE))
 	{
-		imsglow++;
-		i++;
-		imsglow%= MAXIMSGS;
-	}
-
-	DEBUGRING(dprintf("Expired %d messages\n", i));
-}
-
-void IN_Commands(void)
-{
-	int a;
-	char key;
-	int i;
-	int down;
-	struct InputEvent ie;
-
-	for(i = imsglow;i != imsghigh;i++, i%= MAXIMSGS)
-	{
-		DEBUGRING(dprintf("%d %d\n", i, imsghigh));
-		if ((window->Flags & WFLG_WINDOWACTIVE))
+		if (msg->ie_Class == IECLASS_NEWMOUSE)
 		{
-			if (imsgs[i].ie_Class == IECLASS_NEWMOUSE)
+			key = 0;
+
+			if (msg->ie_Code == NM_WHEEL_UP)
+				key = K_MWHEELUP;
+			else if (msg->ie_Code == NM_WHEEL_DOWN)
+				key = K_MWHEELDOWN;
+
+			if (msg->ie_Code == NM_BUTTON_FOURTH)
 			{
-				key = 0;
-
-				if (imsgs[i].ie_Code == NM_WHEEL_UP)
-					key = K_MWHEELUP;
-				else if (imsgs[i].ie_Code == NM_WHEEL_DOWN)
-					key = K_MWHEELDOWN;
-
-				if (imsgs[i].ie_Code == NM_BUTTON_FOURTH)
-				{
-					Key_Event(0, K_MOUSE4, 0, true);
-				}
-				else if (imsgs[i].ie_Code == (NM_BUTTON_FOURTH|IECODE_UP_PREFIX))
-				{
-					Key_Event(0, K_MOUSE4, 0, false);
-				}
-
-				if (key)
-				{
-					Key_Event(0, key, 0, 1);
-					Key_Event(0, key, 0, 0);
-				}
-
+				IN_KeyEvent(0, true, K_MOUSE4, 0);
 			}
-			else if (imsgs[i].ie_Class == IECLASS_RAWKEY)
+			else if (msg->ie_Code == (NM_BUTTON_FOURTH|IECODE_UP_PREFIX))
 			{
-				down = !(imsgs[i].ie_Code&IECODE_UP_PREFIX);
-				imsgs[i].ie_Code&=~IECODE_UP_PREFIX;
-
-				memcpy(&ie, &imsgs[i], sizeof(ie));
-
-				key = 0;
-				if (imsgs[i].ie_Code <= 255)
-					key = keyconv[imsgs[i].ie_Code];
-
-				if (key)
-					Key_Event(0, key, key, down);
-				else
-				{
-					if (developer.value)
-						Con_Printf("Unknown key %d\n", imsgs[i].ie_Code);
-				}
+				IN_KeyEvent(0, false, K_MOUSE4, 0);
 			}
 
-			else if (imsgs[i].ie_Class == IECLASS_RAWMOUSE)
+			if (key)
 			{
-				if (imsgs[i].ie_Code == IECODE_LBUTTON)
-					Key_Event(0, K_MOUSE1, 0, true);
-				else if (imsgs[i].ie_Code == (IECODE_LBUTTON|IECODE_UP_PREFIX))
-					Key_Event(0, K_MOUSE1, 0, false);
-				else if (imsgs[i].ie_Code == IECODE_RBUTTON)
-					Key_Event(0, K_MOUSE2, 0, true);
-				else if (imsgs[i].ie_Code == (IECODE_RBUTTON|IECODE_UP_PREFIX))
-					Key_Event(0, K_MOUSE2, 0, false);
-				else if (imsgs[i].ie_Code == IECODE_MBUTTON)
-					Key_Event(0, K_MOUSE3, 0, true);
-				else if (imsgs[i].ie_Code == (IECODE_MBUTTON|IECODE_UP_PREFIX))
-					Key_Event(0, K_MOUSE3, 0, false);
-
-				mouse_x+= imsgs[i].ie_position.ie_xy.ie_x;
-				mouse_y+= imsgs[i].ie_position.ie_xy.ie_y;
+				IN_KeyEvent(0, true, key, 0);
+				IN_KeyEvent(0, false, key, 0);
 			}
 
 		}
-
-		imsgs[i].ie_Class = IECLASS_NULL;
-
-	}
-
-	ExpireRingBuffer();
-
-}
-
-void IN_Move (float *movements, int pnum)
-{
-	extern int mousecursor_x, mousecursor_y;
-	extern int mousemove_x, mousemove_y;
-
-	if (pnum != 0)
-		return;	//we're lazy today.
-
-	if (m_filter.value) {
-		mouse_x = (mouse_x + old_mouse_x) * 0.5;
-		mouse_y = (mouse_y + old_mouse_y) * 0.5;
-	}
-
-	old_mouse_x = mouse_x;
-	old_mouse_y = mouse_y;
-
-	if(in_xflip.value) mouse_x *= -1;
-
-   	if (Key_MouseShouldBeFree())
-	{
-		mousemove_x += mouse_x;
-		mousemove_y += mouse_y;
-		mousecursor_x += mouse_x;
-		mousecursor_y += mouse_y;
-
-		if (mousecursor_y<0)
-			mousecursor_y=0;
-		if (mousecursor_x<0)
-			mousecursor_x=0;
-
-		if (mousecursor_x >= vid.width)
-			mousecursor_x = vid.width - 1;
-
-		if (mousecursor_y >= vid.height)
-			mousecursor_y = vid.height - 1;
-
-		mouse_x = mouse_y = 0;
-#ifdef VM_UI
-		UI_MousePosition(mousecursor_x, mousecursor_y);
-#endif
-	}
-
-
-	mouse_x *= sensitivity.value;
-	mouse_y *= sensitivity.value;
-   
-	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-	{
-		if (movements)
-			movements[1] += m_side.value * mouse_x;
-	}
-	else
-	{
-		cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
-	}
-	if (in_mlook.state[pnum] & 1)
-		V_StopPitchDrift (pnum);
-   
-	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1)) {
-		cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
-	} else {
-		if (movements)
+		else if (msg->ie_Class == IECLASS_RAWKEY)
 		{
-			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-				movements[2] -= m_forward.value * mouse_y;
+			down = !(msg->ie_Code&IECODE_UP_PREFIX);
+			msg->ie_Code&=~IECODE_UP_PREFIX;
+
+			memcpy(&ie, msg, sizeof(ie));
+
+			key = 0;
+			if (msg->ie_Code <= 255)
+				key = keyconv[msg->ie_Code];
+
+			if (key)
+				IN_KeyEvent(0, down, key, key);
 			else
-				movements[0] -= m_forward.value * mouse_y;
+			{
+//				if (developer.value)
+//					printf("Unknown key %d\n", msg->ie_Code);
+			}
+		}
+
+		else if (msg->ie_Class == IECLASS_RAWMOUSE)
+		{
+			if (msg->ie_Code == IECODE_LBUTTON)
+				IN_KeyEvent(0, true, K_MOUSE1, 0);
+			else if (msg->ie_Code == (IECODE_LBUTTON|IECODE_UP_PREFIX))
+				IN_KeyEvent(0, false, K_MOUSE1, 0);
+			else if (msg->ie_Code == IECODE_RBUTTON)
+				IN_KeyEvent(0, true, K_MOUSE2, 0);
+			else if (msg->ie_Code == (IECODE_RBUTTON|IECODE_UP_PREFIX))
+				IN_KeyEvent(0, false, K_MOUSE2, 0);
+			else if (msg->ie_Code == IECODE_MBUTTON)
+				IN_KeyEvent(0, true, K_MOUSE3, 0);
+			else if (msg->ie_Code == (IECODE_MBUTTON|IECODE_UP_PREFIX))
+				IN_KeyEvent(0, false, K_MOUSE3, 0);
+
+			if (_windowed_mouse.ival)
+			{
+				if (consumemotion)
+				{
+					IN_MouseMove(0, 0, msg->ie_position.ie_xy.ie_x, msg->ie_position.ie_xy.ie_y, 0, 0);
+
+#if 0
+					coin->ie_Class = IECLASS_NULL;
+#else
+					coin->ie_position.ie_xy.ie_x = 0;
+					coin->ie_position.ie_xy.ie_y = 0;
+#endif
+				}
+			}
 		}
 	}
-	mouse_x = mouse_y = 0.0;
+}
+
+void INS_Commands(void)
+{
+}
+void INS_Move (float *movements, int pnum)
+{
 }
 
 char keyconv[] =
@@ -597,31 +512,7 @@ struct InputEvent *myinputhandler_real()
 	{
 		if (coin->ie_Class == IECLASS_RAWMOUSE || coin->ie_Class == IECLASS_RAWKEY || coin->ie_Class == IECLASS_NEWMOUSE)
 		{
-/*			kprintf("Mouse\n");*/
-
-			if ((imsghigh > imsglow && !(imsghigh == MAXIMSGS-1 && imsglow == 0)) || (imsghigh < imsglow && imsghigh != imsglow-1) || imsglow == imsghigh)
-			{
-				memcpy(&imsgs[imsghigh], coin, sizeof(imsgs[0]));
-				imsghigh++;
-				imsghigh%= MAXIMSGS;
-			}
-			else
-			{
-				DEBUGRING(kprintf("FTE: message dropped, imsglow = %d, imsghigh = %d\n", imsglow, imsghigh));
-			}
-
-			if (/*mouse_active && */(window->Flags & WFLG_WINDOWACTIVE) && coin->ie_Class == IECLASS_RAWMOUSE && screeninfront && window->MouseX > 0 && window->MouseY > 0)
-			{
-				if (_windowed_mouse.value)
-				{
-#if 0
-					coin->ie_Class = IECLASS_NULL;
-#else
-					coin->ie_position.ie_xy.ie_x = 0;
-					coin->ie_position.ie_xy.ie_y = 0;
-#endif
-				}
-			}
+			INS_ProcessInputMessage(coin, screeninfront && window->MouseX > 0 && window->MouseY > 0);
 		}
 
 		coin = coin->ie_NextEvent;

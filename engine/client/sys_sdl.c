@@ -476,7 +476,7 @@ void Sys_CloseTerminal (void)
 
 #include <windows.h>
 #endif
-int main(int argc, char **argv)
+int QDECL main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
 	quakeparms_t	parms;

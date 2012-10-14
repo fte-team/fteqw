@@ -88,13 +88,6 @@ qboolean originalapplied;	//states that the origionalramps arrays are valid, and
 
 extern cvar_t	_windowed_mouse;
 
-
-cvar_t	m_filter = {"m_filter", "0"};
-cvar_t  m_accel = {"m_accel", "0"};
-
-static float   mouse_x, mouse_y;
-static float	old_mouse_x, old_mouse_y;
-
 /*-----------------------------------------------------------------------*/
 
 float		gldepthmin, gldepthmax;
@@ -396,21 +389,20 @@ static void GetEvent(void)
 #ifdef USE_DGA
 		if (dgamouse && old_windowed_mouse)
 		{
-			mouse_x += event.xmotion.x_root;
-			mouse_y += event.xmotion.y_root;
+			IN_MouseMove(0, false, event.xmotion.x_root, event.xmotion.y_root, 0, 0);
 		}
 		else
 #endif
 		{
 			if (old_windowed_mouse)
 			{
-				mouse_x = (float) ((int)event.xmotion.x - (int)(vid.width/2));
-				mouse_y = (float) ((int)event.xmotion.y - (int)(vid.height/2));
+				int cx = vid.pixelwidth/2, cy=vid.pixelheight/2;
+				IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
 
 				/* move the mouse to the window center again */
 				XSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
 				XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
-					(vid.width/2), (vid.height/2));
+					cx, cy);
 				XSelectInput(vid_dpy, vid_window, X_MASK);
 			}
 		}
@@ -448,7 +440,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			Key_Event(0, b, 0, true);
+			IN_KeyEvent(0, true, b, 0);
 #ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
 		if (!ActiveApp)
@@ -491,7 +483,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			Key_Event(0, b, 0, false);
+			IN_KeyEvent(0, false, b, 0);
 		break;
 
 	case FocusIn:
@@ -1046,140 +1038,22 @@ void Force_CenterView_f (void)
 	cl.playerview[0].viewangles[PITCH] = 0;
 }
 
-void IN_ReInit(void)
+
+//these are done from the x11 event handler. we don't support evdev.
+void INS_Move(float *movements, int pnum)
 {
 }
-
-void IN_Init(void)
-{
-	IN_ReInit();
-}
-
-void IN_Shutdown(void)
+void INS_Commands(void)
 {
 }
-
-/*
-===========
-IN_Commands
-===========
-*/
-void IN_Commands (void)
+void INS_Init(void)
 {
 }
-
-/*
-===========
-IN_Move
-===========
-*/
-void IN_MouseMove (float *movements, int pnum)
+void INS_ReInit(void)
 {
-	extern int mousecursor_x, mousecursor_y;
-	extern int mousemove_x, mousemove_y;
-	float mx, my;
-
-	mx = mouse_x;
-	my = mouse_y;
-
-	if (Key_MouseShouldBeFree())
-	{
-		mousemove_x += mouse_x;
-		mousemove_y += mouse_y;
-		mousecursor_x += mouse_x;
-		mousecursor_y += mouse_y;
-
-		if (mousecursor_y<0)
-			mousecursor_y=0;
-		if (mousecursor_x<0)
-			mousecursor_x=0;
-
-		if (mousecursor_x >= vid.width)
-			mousecursor_x = vid.width - 1;
-
-		if (mousecursor_y >= vid.height)
-			mousecursor_y = vid.height - 1;
-		mouse_x=mouse_y=0;
-#ifdef VM_UI
-		UI_MousePosition(mousecursor_x, mousecursor_y);
-#endif
-
-#ifdef PEXT_CSQC
-		if (CSQC_MousePosition(mousecursor_x, mousecursor_y, 0))
-		{
-			mx = 0;
-			my = 0;
-		}
-#endif
-	}
-
-#ifdef PEXT_CSQC
-	if (mx || my)
-	if (CSQC_MouseMove(mx, my, 0))
-	{
-		mx = 0;
-		my = 0;
-	}
-#endif
-
-	if (m_filter.value)
-	{
-		float fraction = bound(0, m_filter.value, 2) * 0.5;
-		mouse_x = (mouse_x*(1-fraction) + old_mouse_x*fraction);
-		mouse_y = (mouse_y*(1-fraction) + old_mouse_y*fraction);
-	}
-	else
-	{
-		mouse_x = mx;
-		mouse_y = my;
-	}
-	old_mouse_x = mx;
-	old_mouse_y = my;
-
-	if (m_accel.value)
-	{
-		float mouse_deltadist = sqrt(mx*mx + my*my);
-		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-	}
-	else
-	{
-		mouse_x *= sensitivity.value*in_sensitivityscale;
-		mouse_y *= sensitivity.value*in_sensitivityscale;
-	}
-
-	if(in_xflip.value) mouse_x *= -1;
-
-	if (movements)
-	{
-// add mouse X/Y movement to cmd
-		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-			movements[1] += m_side.value * mouse_x;
-		else
-			cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
-
-		if (in_mlook.state[pnum] & 1)
-			V_StopPitchDrift (pnum);
-
-		if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
-		{
-			cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
-			CL_ClampPitch(pnum);
-		}
-		else
-		{
-			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-				movements[2] -= m_forward.value * mouse_y;
-			else
-				movements[0] -= m_forward.value * mouse_y;
-		}
-	}
-	mouse_x = mouse_y = 0.0;
 }
-
-void IN_Move (float *movements, int pnum)
+void INS_Shutdown(void)
 {
-	IN_MouseMove(movements, pnum);
 }
 
 void GL_DoSwap(void) {}

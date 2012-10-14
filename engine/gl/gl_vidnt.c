@@ -859,7 +859,7 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 		stat = VID_SetFullDIBMode(info);
 	}
 
-	IN_UpdateGrabs(info->fullscreen, ActiveApp);
+	INS_UpdateGrabs(info->fullscreen, ActiveApp);
 
 	return stat;
 }
@@ -1081,7 +1081,7 @@ void VID_UpdateWindowStatus (HWND hWnd)
 	window_center_x = (window_rect.left + window_rect.right) / 2;
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
-	IN_UpdateClipCursor ();
+	INS_UpdateClipCursor ();
 }
 
 
@@ -1359,7 +1359,7 @@ void GL_DoSwap (void)
 
 // handle the mouse state when windowed if that's changed
 
-	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 }
 
 void GL_EndRendering (void)
@@ -1722,7 +1722,7 @@ void ClearAllStates (void)
 	}
 
 	Key_ClearStates ();
-	IN_ClearStates ();
+	INS_ClearStates ();
 }
 
 qboolean GLAppActivate(BOOL fActive, BOOL minimize)
@@ -1759,7 +1759,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 		sound_active = true;
 	}
 
-	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 
 	if (fActive)
 	{
@@ -1849,7 +1849,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				IN_TranslateKeyEvent(wParam, lParam, true, 0);
+				INS_TranslateKeyEvent(wParam, lParam, true, 0);
 			break;
 
 //		case WM_UNICHAR:
@@ -1858,13 +1858,13 @@ LONG WINAPI GLMainWndProc (
 		case WM_CHAR:
 		case WM_SYSCHAR:
 //			if (!vid_initializing)
-//				IN_TranslateKeyEvent(wParam, lParam, true);
+//				INS_TranslateKeyEvent(wParam, lParam, true);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				IN_TranslateKeyEvent(wParam, lParam, false, 0);
+				INS_TranslateKeyEvent(wParam, lParam, false, 0);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into
@@ -1916,7 +1916,7 @@ LONG WINAPI GLMainWndProc (
 				temp |= 512;
 
 			if (!vid_initializing)
-				IN_MouseEvent (temp);
+				INS_MouseEvent (temp);
 
 			break;
 
@@ -1942,7 +1942,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_INPUT:
 			// raw input handling
 			if (!vid_initializing)
-				IN_RawInput_Read((HANDLE)lParam);
+				INS_RawInput_Read((HANDLE)lParam);
 			break;
 
 		case WM_USER:

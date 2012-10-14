@@ -204,6 +204,9 @@ void GLSCR_UpdateScreen (void)
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
+	if (Key_MouseShouldBeFree())
+		SCR_DrawCursor(0);
+
 	V_UpdatePalette (false);
 #if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();

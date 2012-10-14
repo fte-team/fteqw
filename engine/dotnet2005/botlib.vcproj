@@ -400,6 +400,10 @@
 				RelativePath="..\botlib\l_utils.h"
 				>
 			</File>
+			<File
+				RelativePath="..\botlib\q_platform.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

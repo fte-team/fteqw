@@ -22,7 +22,10 @@ qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
 
-
+static void *GLVID_getsdlglfunction(char *functionname)
+{
+	return SDL_GL_GetProcAddress(functionname);
+}
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
@@ -72,7 +75,7 @@ Con_Printf("Getting gamma\n");
 	ActiveApp = true;
 
 	GLVID_SetPalette (palette);
-	GL_Init(SDL_GL_GetProcAddress);
+	GL_Init(GLVID_getsdlglfunction);
 
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 

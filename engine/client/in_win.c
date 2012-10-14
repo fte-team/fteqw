@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "in_raw.h"
 #endif
 
+void INS_Accumulate (void);
+
 #ifdef AVAIL_DINPUT
 
 #ifndef _MSC_VER
@@ -50,17 +52,15 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 #define DINPUT_VERSION_DX7 0x0700
 
 // mouse variables
-cvar_t	m_filter = CVAR("m_filter","0");
-cvar_t  m_accel = CVAR("m_accel", "0");
-cvar_t	m_forcewheel = CVAR("m_forcewheel", "1");
-cvar_t	m_forcewheel_threshold = CVAR("m_forcewheel_threshold", "32");
-cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
-cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
+static cvar_t	m_filter = CVAR("m_filter","0");
+static cvar_t  m_accel = CVAR("m_accel", "0");
+static cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
+static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 
-cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
-cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
+static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
+static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
 
-cvar_t	cl_keypad = CVAR("cl_keypad", "0");
+static cvar_t	cl_keypad = CVAR("cl_keypad", "0");
 extern cvar_t cl_forcesplitclient;
 
 typedef struct {
@@ -77,20 +77,11 @@ typedef struct {
 	} handles;
 
 	int numbuttons;
+	int oldbuttons;
 	int qdeviceid;	/*the device id controls which player slot it controls, if splitscreen splits it that way*/
-
-	volatile int buttons;
-	volatile int oldbuttons;
-	volatile int wheeldelta;
-
-	volatile int delta[2];
-	int old_delta[2];
-	int accum[2];
-
-	int pos[2];
 } mouse_t;
 
-mouse_t sysmouse;
+static mouse_t sysmouse;
 
 static qboolean	restore_spi;
 static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
@@ -119,46 +110,46 @@ enum _ControlList
 	AxisNada = 0, AxisForward, AxisLook, AxisSide, AxisTurn
 };
 
-DWORD	dwAxisFlags[JOY_MAX_AXES] =
+static DWORD	dwAxisFlags[JOY_MAX_AXES] =
 {
 	JOY_RETURNX, JOY_RETURNY, JOY_RETURNZ, JOY_RETURNR, JOY_RETURNU, JOY_RETURNV
 };
 
-DWORD	dwAxisMap[JOY_MAX_AXES];
-DWORD	dwControlMap[JOY_MAX_AXES];
-PDWORD	pdwRawValue[JOY_MAX_AXES];
+static DWORD	dwAxisMap[JOY_MAX_AXES];
+static DWORD	dwControlMap[JOY_MAX_AXES];
+static PDWORD	pdwRawValue[JOY_MAX_AXES];
 
 // none of these cvars are saved over a session
 // this means that advanced controller configuration needs to be executed
 // each time.  this avoids any problems with getting back to a default usage
 // or when changing from one controller to another.  this way at least something
 // works.
-cvar_t	in_joystick				= CVARF("joystick","0", CVAR_ARCHIVE);
-cvar_t	joy_name				= CVAR("joyname", "joystick");
-cvar_t	joy_advanced			= CVAR("joyadvanced", "0");
-cvar_t	joy_advaxisx			= CVAR("joyadvaxisx", "0");
-cvar_t	joy_advaxisy			= CVAR("joyadvaxisy", "0");
-cvar_t	joy_advaxisz			= CVAR("joyadvaxisz", "0");
-cvar_t	joy_advaxisr			= CVAR("joyadvaxisr", "0");
-cvar_t	joy_advaxisu			= CVAR("joyadvaxisu", "0");
-cvar_t	joy_advaxisv			= CVAR("joyadvaxisv", "0");
-cvar_t	joy_forwardthreshold	= CVAR("joyforwardthreshold", "0.15");
-cvar_t	joy_sidethreshold		= CVAR("joysidethreshold", "0.15");
-cvar_t	joy_pitchthreshold		= CVAR("joypitchthreshold", "0.15");
-cvar_t	joy_yawthreshold		= CVAR("joyyawthreshold", "0.15");
-cvar_t	joy_forwardsensitivity	= CVAR("joyforwardsensitivity", "-1.0");
-cvar_t	joy_sidesensitivity		= CVAR("joysidesensitivity", "-1.0");
-cvar_t	joy_pitchsensitivity	= CVAR("joypitchsensitivity", "1.0");
-cvar_t	joy_yawsensitivity		= CVAR("joyyawsensitivity", "-1.0");
-cvar_t	joy_wwhack1				= CVAR("joywwhack1", "0.0");
-cvar_t	joy_wwhack2				= CVAR("joywwhack2", "0.0");
+static cvar_t	in_joystick				= CVARF("joystick","0", CVAR_ARCHIVE);
+static cvar_t	joy_name				= CVAR("joyname", "joystick");
+static cvar_t	joy_advanced			= CVAR("joyadvanced", "0");
+static cvar_t	joy_advaxisx			= CVAR("joyadvaxisx", "0");
+static cvar_t	joy_advaxisy			= CVAR("joyadvaxisy", "0");
+static cvar_t	joy_advaxisz			= CVAR("joyadvaxisz", "0");
+static cvar_t	joy_advaxisr			= CVAR("joyadvaxisr", "0");
+static cvar_t	joy_advaxisu			= CVAR("joyadvaxisu", "0");
+static cvar_t	joy_advaxisv			= CVAR("joyadvaxisv", "0");
+static cvar_t	joy_forwardthreshold	= CVAR("joyforwardthreshold", "0.15");
+static cvar_t	joy_sidethreshold		= CVAR("joysidethreshold", "0.15");
+static cvar_t	joy_pitchthreshold		= CVAR("joypitchthreshold", "0.15");
+static cvar_t	joy_yawthreshold		= CVAR("joyyawthreshold", "0.15");
+static cvar_t	joy_forwardsensitivity	= CVAR("joyforwardsensitivity", "-1.0");
+static cvar_t	joy_sidesensitivity		= CVAR("joysidesensitivity", "-1.0");
+static cvar_t	joy_pitchsensitivity	= CVAR("joypitchsensitivity", "1.0");
+static cvar_t	joy_yawsensitivity		= CVAR("joyyawsensitivity", "-1.0");
+static cvar_t	joy_wwhack1				= CVAR("joywwhack1", "0.0");
+static cvar_t	joy_wwhack2				= CVAR("joywwhack2", "0.0");
 
-qboolean	joy_avail, joy_advancedinit, joy_haspov;
-DWORD		joy_oldbuttonstate, joy_oldpovstate;
+static qboolean	joy_avail, joy_advancedinit, joy_haspov;
+static DWORD		joy_oldbuttonstate, joy_oldpovstate;
 
-int			joy_id;
-DWORD		joy_flags;
-DWORD		joy_numbuttons;
+static int			joy_id;
+static DWORD		joy_flags;
+static DWORD		joy_numbuttons;
 
 #ifdef AVAIL_DINPUT
 static const GUID fGUID_XAxis	= {0xA36D02E0, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
@@ -170,8 +161,8 @@ static const GUID fIID_IDirectInputDevice7A	= {0x57d7c6bc, 0x2356, 0x11d3, {0x8e
 static const GUID fIID_IDirectInput7A		= {0x9a4cb684, 0x236d, 0x11d3, {0x8e, 0x9d, 0x00, 0xc0, 0x4f, 0x68, 0x44, 0xae}};
 
 // devices
-LPDIRECTINPUT		g_pdi;
-LPDIRECTINPUTDEVICE	g_pMouse;
+static LPDIRECTINPUT		g_pdi;
+static LPDIRECTINPUTDEVICE	g_pMouse;
 
 static HINSTANCE hInstDI;
 
@@ -223,8 +214,8 @@ static DIDATAFORMAT	df = {
 
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 // DX7 devices
-LPDIRECTINPUT7		g_pdi7;
-LPDIRECTINPUTDEVICE7	g_pMouse7;
+static LPDIRECTINPUT7		g_pdi7;
+static LPDIRECTINPUTDEVICE7	g_pMouse7;
 
 // DX7 specific calls
 #define iDirectInputCreateEx(a,b,c,d,e)	pDirectInputCreateEx(a,b,c,d,e)
@@ -254,34 +245,34 @@ typedef INT(WINAPI *pGetRawInputData)(IN HRAWINPUT hRawInput, IN UINT uiCommand,
 typedef INT(WINAPI *pGetRawInputDeviceInfoA)(IN HANDLE hDevice, IN UINT uiCommand, OUT LPVOID pData, IN OUT PINT pcbSize);
 typedef BOOL (WINAPI *pRegisterRawInputDevices)(IN PCRAWINPUTDEVICE pRawInputDevices, IN UINT uiNumDevices, IN UINT cbSize);
 
-pGetRawInputDeviceList _GRIDL;
-pGetRawInputData _GRID;
-pGetRawInputDeviceInfoA _GRIDIA;
-pRegisterRawInputDevices _RRID;
+static pGetRawInputDeviceList _GRIDL;
+static pGetRawInputData _GRID;
+static pGetRawInputDeviceInfoA _GRIDIA;
+static pRegisterRawInputDevices _RRID;
 
-keyboard_t *rawkbd;
-mouse_t *rawmice;
-int rawmicecount;
-int rawkbdcount;
-RAWINPUT *raw;
-int ribuffersize;
+static keyboard_t *rawkbd;
+static mouse_t *rawmice;
+static int rawmicecount;
+static int rawkbdcount;
+static RAWINPUT *raw;
+static int ribuffersize;
 
-cvar_t in_rawinput = CVARD("in_rawinput", "0", "Enables rawinput support for mice in XP onwards. Rawinput permits independant device identification (ie: splitscreen clients can each have their own mouse)");
-cvar_t in_rawinput_keyboard = CVARD("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice. Requires in_rawinput to be set.");
-cvar_t in_rawinput_rdp = CVARD("in_rawinput_rdp", "0", "Activate Remote Desktop Protocol devices too.");
+static cvar_t in_rawinput = CVARD("in_rawinput", "0", "Enables rawinput support for mice in XP onwards. Rawinput permits independant device identification (ie: splitscreen clients can each have their own mouse)");
+static cvar_t in_rawinput_keyboard = CVARD("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice. Requires in_rawinput to be set.");
+static cvar_t in_rawinput_rdp = CVARD("in_rawinput_rdp", "0", "Activate Remote Desktop Protocol devices too.");
 
-void IN_RawInput_MouseDeRegister(void);
-int IN_RawInput_MouseRegister(void);
-void IN_RawInput_KeyboardDeRegister(void);
-int IN_RawInput_KeyboardRegister(void);
-void IN_RawInput_DeInit(void);
+void INS_RawInput_MouseDeRegister(void);
+int INS_RawInput_MouseRegister(void);
+void INS_RawInput_KeyboardDeRegister(void);
+int INS_RawInput_KeyboardRegister(void);
+void INS_RawInput_DeInit(void);
 
 #endif
 
 // forward-referenced functions
-void IN_StartupJoystick (void);
+void INS_StartupJoystick (void);
 void Joy_AdvancedUpdate_f (void);
-void IN_JoyMove (float *movements, int pnum);
+void INS_JoyMove (float *movements, int pnum);
 
 /*
 ===========
@@ -295,12 +286,11 @@ void Force_CenterView_f (void)
 
 /*
 ===========
-IN_UpdateClipCursor
+INS_UpdateClipCursor
 ===========
 */
-void IN_UpdateClipCursor (void)
+void INS_UpdateClipCursor (void)
 {
-
 	if (mouseinitialized && mouseactive && !dinput)
 	{
 		ClipCursor (&window_rect);
@@ -310,12 +300,11 @@ void IN_UpdateClipCursor (void)
 
 /*
 ===========
-IN_ShowMouse
+INS_ShowMouse
 ===========
 */
-static void IN_ShowMouse (void)
+static void INS_ShowMouse (void)
 {
-
 	if (!mouseshowtoggle)
 	{
 		ShowCursor (TRUE);
@@ -326,12 +315,11 @@ static void IN_ShowMouse (void)
 
 /*
 ===========
-IN_HideMouse
+INS_HideMouse
 ===========
 */
-static void IN_HideMouse (void)
+static void INS_HideMouse (void)
 {
-
 	if (mouseshowtoggle)
 	{
 		ShowCursor (FALSE);
@@ -342,12 +330,11 @@ static void IN_HideMouse (void)
 
 /*
 ===========
-IN_ActivateMouse
+INS_ActivateMouse
 ===========
 */
-static void IN_ActivateMouse (void)
+static void INS_ActivateMouse (void)
 {
-
 	mouseactivatetoggle = true;
 
 	if (mouseinitialized && !mouseactive)
@@ -392,18 +379,18 @@ static void IN_ActivateMouse (void)
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
 			{
-				if (IN_RawInput_MouseRegister())
+				if (INS_RawInput_MouseRegister())
 				{
 					Con_SafePrintf("Raw input: unable to register raw input for mice, deinitializing\n");
-					IN_RawInput_MouseDeRegister();
+					INS_RawInput_MouseDeRegister();
 				}
 			}
 			if (rawkbdcount > 0)
 			{
-				if (IN_RawInput_KeyboardRegister())
+				if (INS_RawInput_KeyboardRegister())
 				{
 					Con_SafePrintf("Raw input: unable to register raw input for keyboard, deinitializing\n");
-					IN_RawInput_KeyboardDeRegister();
+					INS_RawInput_KeyboardDeRegister();
 				}
 			}
 #endif
@@ -416,6 +403,7 @@ static void IN_ActivateMouse (void)
 			ClipCursor (&window_rect);
 		}
 
+		Con_Printf("Mouse grabbed\n");
 		mouseactive = true;
 	}
 }
@@ -423,12 +411,11 @@ static void IN_ActivateMouse (void)
 
 /*
 ===========
-IN_DeactivateMouse
+INS_DeactivateMouse
 ===========
 */
-static void IN_DeactivateMouse (void)
+static void INS_DeactivateMouse (void)
 {
-
 	mouseactivatetoggle = false;
 
 	if (mouseinitialized && mouseactive)
@@ -468,7 +455,7 @@ static void IN_DeactivateMouse (void)
 		{
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
-				IN_RawInput_MouseDeRegister();
+				INS_RawInput_MouseDeRegister();
 #endif
 
 			if (restore_spi)
@@ -478,33 +465,34 @@ static void IN_DeactivateMouse (void)
 			ReleaseCapture ();
 		}
 
+		Con_Printf("Mouse released\n");
 		mouseactive = false;
 	}
 }
 
 /*
 ===========
-IN_SetQuakeMouseState
+INS_SetQuakeMouseState
 ===========
 */
-void IN_SetQuakeMouseState (void)
+void INS_SetQuakeMouseState (void)
 {
 	if (mouseactivatetoggle)
-		IN_ActivateMouse ();
+		INS_ActivateMouse ();
 	else
-		IN_DeactivateMouse();
+		INS_DeactivateMouse();
 }
 
 /*
 ===========
-IN_RestoreOriginalMouseState
+INS_RestoreOriginalMouseState
 ===========
 */
-void IN_RestoreOriginalMouseState (void)
+void INS_RestoreOriginalMouseState (void)
 {
 	if (mouseactivatetoggle)
 	{
-		IN_DeactivateMouse ();
+		INS_DeactivateMouse ();
 		mouseactivatetoggle = true;
 	}
 
@@ -517,7 +505,7 @@ void IN_RestoreOriginalMouseState (void)
 
 
 
-void IN_UpdateGrabs(int fullscreen, int activeapp)
+void INS_UpdateGrabs(int fullscreen, int activeapp)
 {
 	int grabmouse;
 
@@ -537,9 +525,9 @@ void IN_UpdateGrabs(int fullscreen, int activeapp)
 
 	//visiblity
 	if (grabmouse)
-		IN_HideMouse();
+		INS_HideMouse();
 	else
-		IN_ShowMouse();
+		INS_ShowMouse();
 
 #ifdef HLCLIENT
 	//halflife gamecode does its own mouse control... yes this is vile.
@@ -551,7 +539,7 @@ void IN_UpdateGrabs(int fullscreen, int activeapp)
 
 	if (grabmouse == 2)
 	{
-		IN_DeactivateMouse();
+		INS_DeactivateMouse();
 		CLHL_SetMouseActive(true);
 		return;
 	}
@@ -560,9 +548,9 @@ void IN_UpdateGrabs(int fullscreen, int activeapp)
 #endif
 
 	if (grabmouse)
-		IN_ActivateMouse();
+		INS_ActivateMouse();
 	else
-		IN_DeactivateMouse();
+		INS_DeactivateMouse();
 }
 
 
@@ -571,7 +559,7 @@ void IN_UpdateGrabs(int fullscreen, int activeapp)
 
 
 #ifdef AVAIL_DINPUT
-BOOL CALLBACK IN_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
+BOOL CALLBACK INS_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
 {
 	Con_DPrintf("EnumerateDevices found: %s\n", inst->tszProductName);
 
@@ -579,10 +567,10 @@ BOOL CALLBACK IN_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
 }
 /*
 ===========
-IN_InitDInput
+INS_InitDInput
 ===========
 */
-int IN_InitDInput (void)
+int INS_InitDInput (void)
 {
     HRESULT		hr;
 	DIPROPDWORD	dipdw = {
@@ -618,7 +606,7 @@ int IN_InitDInput (void)
 		if (FAILED(hr))
 			return 0;
 
-		IDirectInput7_EnumDevices(g_pdi7, 0, &IN_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
+		IDirectInput7_EnumDevices(g_pdi7, 0, &INS_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
 
 		// obtain an interface to the system mouse device.
 		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &fGUID_SysMouse, &fIID_IDirectInputDevice7A, &g_pMouse7, NULL);
@@ -676,7 +664,7 @@ int IN_InitDInput (void)
 	{
 		return 0;
 	}
-	IDirectInput_EnumDevices(g_pdi, 0, &IN_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
+	IDirectInput_EnumDevices(g_pdi, 0, &INS_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
 
 // obtain an interface to the system mouse device.
 	hr = IDirectInput_CreateDevice(g_pdi, &fGUID_SysMouse, &g_pMouse, NULL);
@@ -720,7 +708,7 @@ int IN_InitDInput (void)
 	return DINPUT_VERSION_DX3;
 }
 
-void IN_CloseDInput (void)
+void INS_CloseDInput (void)
 {
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	if (g_pMouse7)
@@ -755,7 +743,7 @@ void IN_CloseDInput (void)
 #endif
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_MouseDeRegister(void)
+void INS_RawInput_MouseDeRegister(void)
 {
 	RAWINPUTDEVICE Rid;
 
@@ -768,7 +756,7 @@ void IN_RawInput_MouseDeRegister(void)
 	(*_RRID)(&Rid, 1, sizeof(Rid));
 }
 
-void IN_RawInput_KeyboardDeRegister(void)
+void INS_RawInput_KeyboardDeRegister(void)
 {
 	RAWINPUTDEVICE Rid;
 
@@ -781,17 +769,17 @@ void IN_RawInput_KeyboardDeRegister(void)
 	(*_RRID)(&Rid, 1, sizeof(Rid));
 }
 
-void IN_RawInput_DeInit(void)
+void INS_RawInput_DeInit(void)
 {
 	if (rawmicecount > 0)
 	{
-		IN_RawInput_MouseDeRegister();
+		INS_RawInput_MouseDeRegister();
 		Z_Free(rawmice);
 		rawmicecount = 0;
 	}
 	if (rawkbdcount > 0)
 	{
-		IN_RawInput_KeyboardDeRegister();
+		INS_RawInput_KeyboardDeRegister();
 		Z_Free(rawkbd);
 		rawkbdcount = 0;
 	}
@@ -800,7 +788,7 @@ void IN_RawInput_DeInit(void)
 
 #ifdef USINGRAWINPUT
 // raw input registration functions
-int IN_RawInput_MouseRegister(void)
+int INS_RawInput_MouseRegister(void)
 {
 	// This function registers to receive the WM_INPUT messages
 	RAWINPUTDEVICE Rid; // Register only for mouse messages from wm_input.
@@ -818,7 +806,7 @@ int IN_RawInput_MouseRegister(void)
 	return 0;
 }
 
-int IN_RawInput_KeyboardRegister(void)
+int INS_RawInput_KeyboardRegister(void)
 {
 	RAWINPUTDEVICE Rid;
 
@@ -833,14 +821,14 @@ int IN_RawInput_KeyboardRegister(void)
 	return 0;
 }
 
-int IN_RawInput_Register(void)
+int INS_RawInput_Register(void)
 {
-	if (IN_RawInput_MouseRegister())
-		return !in_rawinput_keyboard.ival || IN_RawInput_KeyboardRegister();
+	if (INS_RawInput_MouseRegister())
+		return !in_rawinput_keyboard.ival || INS_RawInput_KeyboardRegister();
 	return 0;
 }
 
-int IN_RawInput_IsRDPDevice(char *cDeviceString)
+int INS_RawInput_IsRDPDevice(char *cDeviceString)
 {
 	// mouse is \\?\Root#RDP_MOU#, keyboard is \\?\Root#RDP_KBD#"
 	char cRDPString[] = "\\\\?\\Root#RDP_";
@@ -859,7 +847,7 @@ int IN_RawInput_IsRDPDevice(char *cDeviceString)
 	return 1;
 }
 
-void IN_RawInput_Init(void)
+void INS_RawInput_Init(void)
 {
 	  // "0" to exclude, "1" to include
 	PRAWINPUTDEVICELIST pRawInputDeviceList;
@@ -929,7 +917,7 @@ void IN_RawInput_Init(void)
 		if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
 			dname[0] = 0;
 
-		if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
+		if (!(in_rawinput_rdp.value) && INS_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
 			continue;
 
 		switch (pRawInputDeviceList[i].dwType)
@@ -966,7 +954,7 @@ void IN_RawInput_Init(void)
 		if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
 			dname[0] = 0;
 
-		if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
+		if (!(in_rawinput_rdp.value) && INS_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
 			continue;
 
 		switch (pRawInputDeviceList[i].dwType)
@@ -975,7 +963,6 @@ void IN_RawInput_Init(void)
 			// set handle
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			rawmice[rawmicecount].numbuttons = 10;
-			rawmice[rawmicecount].pos[0] = RI_INVALID_POS;
 			rawmice[rawmicecount].qdeviceid = rawmicecount;
 			rawmicecount++;
 			break;
@@ -1020,10 +1007,10 @@ void IN_RawInput_Init(void)
 
 /*
 ===========
-IN_StartupMouse
+INS_StartupMouse
 ===========
 */
-void IN_StartupMouse (void)
+void INS_StartupMouse (void)
 {
 	if ( COM_CheckParm ("-nomouse") )
 		return;
@@ -1031,12 +1018,12 @@ void IN_StartupMouse (void)
 	mouseinitialized = true;
 
 	//make sure it can't get stuck
-	IN_DeactivateMouse ();
+	INS_DeactivateMouse ();
 
 #ifdef AVAIL_DINPUT
 	if (in_dinput.value)
 	{
-		dinput = IN_InitDInput ();
+		dinput = INS_InitDInput ();
 
 		if (dinput)
 		{
@@ -1074,39 +1061,33 @@ void IN_StartupMouse (void)
 // if a fullscreen video mode was set before the mouse was initialized,
 // set the mouse state appropriately
 	if (mouseactivatetoggle)
-		IN_ActivateMouse ();
+		INS_ActivateMouse ();
 }
 
 
 /*
 ===========
-IN_Init
+INS_Init
 ===========
 */
-void IN_ReInit (void)
+void INS_ReInit (void)
 {
 #ifdef USINGRAWINPUT
 	if (in_rawinput.value)
 	{
-		IN_RawInput_Init();
+		INS_RawInput_Init();
 	}
 #endif
 
-	IN_StartupMouse ();
-	IN_StartupJoystick ();
-//	IN_ActivateMouse();
+	INS_StartupMouse ();
+	INS_StartupJoystick ();
+//	INS_ActivateMouse();
 }
 
-void IN_Init (void)
+void INS_Init (void)
 {
 	//keyboard variables
 	Cvar_Register (&cl_keypad, "Input Controls");
-
-	// mouse variables
-	Cvar_Register (&m_filter, "Input Controls");
-	Cvar_Register (&m_accel, "Input Controls");
-	Cvar_Register (&m_forcewheel, "Input Controls");
-	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
 
 	Cvar_Register (&in_dinput, "Input Controls");
 	Cvar_Register (&in_builtinkeymap, "Input Controls");
@@ -1167,33 +1148,34 @@ void IN_Init (void)
 
 /*
 ===========
-IN_Shutdown
+INS_Shutdown
 ===========
 */
-void IN_Shutdown (void)
+void INS_Shutdown (void)
 {
 	mouseinitialized = false;
 
-	IN_DeactivateMouse ();
-	IN_ShowMouse ();
+	INS_DeactivateMouse ();
+	INS_ShowMouse ();
 
 	mouseparmsvalid = false;
 
 #ifdef AVAIL_DINPUT
-	IN_CloseDInput();
+	INS_CloseDInput();
 #endif
 #ifdef USINGRAWINPUT
-	IN_RawInput_DeInit();
+	INS_RawInput_DeInit();
 #endif
 }
 
 
 /*
 ===========
-IN_MouseEvent
+INS_MouseEvent
 ===========
+a mouse button was pressed/released, mstate is the current set of buttons pressed.
 */
-void IN_MouseEvent (int mstate)
+void INS_MouseEvent (int mstate)
 {
 	int		i;
 
@@ -1213,13 +1195,13 @@ void IN_MouseEvent (int mstate)
 			if ( (mstate & (1<<i)) &&
 				!(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (0, K_MOUSE1 + i, 0, true);
+				IN_KeyEvent (0, true, K_MOUSE1 + i, 0);
 			}
 
 			if ( !(mstate & (1<<i)) &&
 				(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (0, K_MOUSE1 + i, 0, false);
+				IN_KeyEvent (0, false, K_MOUSE1 + i, 0);
 			}
 		}
 
@@ -1227,217 +1209,15 @@ void IN_MouseEvent (int mstate)
 	}
 }
 
-static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
-{
-	extern int mousecursor_x, mousecursor_y;
-	extern int mousemove_x, mousemove_y;
-
-	int mx, my;
-	double mouse_x, mouse_y, mouse_deltadist;
-	int mfwt;
-
-	int i;
-
-	/*each device will be processed when its player comes to be processed*/
-	int wpnum;
-	wpnum = cl.splitclients;
-	if (wpnum < 1)
-		wpnum = 1;
-	if (cl_forcesplitclient.ival)
-		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
-	else
-		wpnum = mouse->qdeviceid % wpnum;
-	if (wpnum != pnum)
-		return;
-
-	// perform button actions
-	for (i=0 ; i<mouse->numbuttons ; i++)
-	{
-		if ( (mouse->buttons & (1<<i)) &&
-			!(mouse->oldbuttons & (1<<i)) )
-		{
-			Key_Event (mouse->qdeviceid, K_MOUSE1 + i, 0, true);
-		}
-
-		if ( !(mouse->buttons & (1<<i)) &&
-			(mouse->oldbuttons & (1<<i)) )
-		{
-			Key_Event (mouse->qdeviceid, K_MOUSE1 + i, 0, false);
-		}
-	}
-	mouse->oldbuttons = mouse->buttons;
-
-	if (m_forcewheel.value)
-	{
-		mfwt = (int)m_forcewheel_threshold.value;
-		if (mfwt)
-		{
-			while(mouse->wheeldelta <= -mfwt)
-			{
-				Key_Event (mouse->qdeviceid, K_MWHEELUP, 0, true);
-				Key_Event (mouse->qdeviceid, K_MWHEELUP, 0, false);
-				mouse->wheeldelta += mfwt;
-			}
-
-			while(mouse->wheeldelta >= mfwt)
-			{
-				Key_Event (mouse->qdeviceid, K_MWHEELDOWN, 0, true);
-				Key_Event (mouse->qdeviceid, K_MWHEELDOWN, 0, false);
-				mouse->wheeldelta -= mfwt;
-			}
-		}
-
-		if (m_forcewheel.value < 2)
-			mouse->wheeldelta = 0;
-	}
-
-	mx = mouse->delta[0];
-	mouse->delta[0]=0;
-	my = mouse->delta[1];
-	mouse->delta[1]=0;
-
-
-	if(in_xflip.value) mx *= -1;
-
-	mousemove_x += mx;
-	mousemove_y += my;
-
-	if (Key_MouseShouldBeFree())
-	{
-		mousecursor_x += mx;
-		mousecursor_y += my;
-
-		if (mousecursor_y<0)
-			mousecursor_y=0;
-		if (mousecursor_x<0)
-			mousecursor_x=0;
-
-		if (mousecursor_x >= vid.width)
-			mousecursor_x = vid.width - 1;
-
-		if (mousecursor_y >= vid.height)
-			mousecursor_y = vid.height - 1;
-		mx=my=0;
-
-#ifdef PEXT_CSQC
-		CSQC_MousePosition(mousecursor_x, mousecursor_y, mouse->qdeviceid);
-#endif
-	}
-	else
-	{
-#ifdef VM_UI
-		if (UI_MousePosition(mx, my))
-		{
-			mx = 0;
-			my = 0;
-		}
-#endif
-	}
-
-#ifdef PEXT_CSQC
-	if (mx || my)
-	if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
-	{
-		mx = 0;
-		my = 0;
-	}
-#endif
-
-	if (m_filter.value)
-	{
-		double fraction = bound(0, m_filter.value, 2) * 0.5;
-		mouse_x = (mx*(1-fraction) + mouse->old_delta[0]*fraction);
-		mouse_y = (my*(1-fraction) + mouse->old_delta[1]*fraction);
-	}
-	else
-	{
-		mouse_x = mx;
-		mouse_y = my;
-	}
-
-	mouse->old_delta[0] = mx;
-	mouse->old_delta[1] = my;
-
-	if (m_accel.value) {
-		mouse_deltadist = sqrt(mx*mx + my*my);
-		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-	} else {
-		mouse_x *= sensitivity.value*in_sensitivityscale;
-		mouse_y *= sensitivity.value*in_sensitivityscale;
-	}
-
-	if (cl.playerview[pnum].stats[STAT_VIEWZOOM])
-	{
-		mouse_x *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
-		mouse_y *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
-	}
-
-
-	if (!movements)
-	{
-		return;
-	}
-
-//	if (cl.paused)
-//		return;
-
-// add mouse X/Y movement to cmd
-	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-		movements[1] += m_side.value * mouse_x;
-	else
-	{
-//		if ((int)((cl.viewangles[pnum][PITCH]+89.99)/180) & 1)
-//			mouse_x *= -1;
-		cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
-	}
-
-	if (in_mlook.state[pnum] & 1)
-		V_StopPitchDrift (pnum);
-
-	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
-	{
-		cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
-	}
-	else
-	{
-		if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-			movements[2] -= m_forward.value * mouse_y;
-		else
-			movements[0] -= m_forward.value * mouse_y;
-	}
-
-}
-
-
 /*
 ===========
-IN_MouseMove
+INS_MouseMove
 ===========
 */
-void IN_MouseMove (float *movements, int pnum)
+void INS_MouseMove (float *movements, int pnum)
 {
-	POINT		current_pos;
-
 	extern int mousecursor_x, mousecursor_y;
 	extern int window_x, window_y;
-
-	if (!mouseactive)
-	{
-		GetCursorPos (&current_pos);
-		mousecursor_x = current_pos.x-window_x;
-		mousecursor_y = current_pos.y-window_y;
-
-		mousecursor_x *= vid.width/(float)vid.pixelwidth;
-		mousecursor_y *= vid.height/(float)vid.pixelheight;
-
-#ifdef VM_UI
-		if (!Key_MouseShouldBeFree())
-			UI_MousePosition(mousecursor_x, mousecursor_y);
-#endif
-
-		return;
-	}
 
 #ifdef AVAIL_DINPUT
 	if (dinput)
@@ -1445,6 +1225,7 @@ void IN_MouseMove (float *movements, int pnum)
 		DIDEVICEOBJECTDATA	od;
 		DWORD				dwElements;
 		HRESULT				hr;
+		int xd = 0, yd = 0, zd = 0;
 
 		for (;;)
 		{
@@ -1488,158 +1269,96 @@ void IN_MouseMove (float *movements, int pnum)
 			switch (od.dwOfs)
 			{
 				case DIMOFS_X:
-					sysmouse.delta[0] += od.dwData;
+					xd += od.dwData;
 					break;
 
 				case DIMOFS_Y:
-					sysmouse.delta[1] += od.dwData;
+					yd += od.dwData;
 					break;
 
 				case DIMOFS_Z:
-					if (m_forcewheel.value >= 2)
-						sysmouse.wheeldelta -= (signed int)od.dwData;
-					else if (m_forcewheel.value)
-					{
-						int mfwt = (int)m_forcewheel_threshold.value;
-
-						if ((signed int)od.dwData > mfwt)
-							sysmouse.wheeldelta -= mfwt;
-						else if ((signed int)od.dwData < -mfwt)
-							sysmouse.wheeldelta += mfwt;
-					}
+					zd += od.dwData;
 					break;
 
 				case DIMOFS_BUTTON0:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= 1;
-					else
-						sysmouse.buttons &= ~1;
-					break;
-
 				case DIMOFS_BUTTON1:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 1);
-					else
-						sysmouse.buttons &= ~(1 << 1);
-					break;
-
 				case DIMOFS_BUTTON2:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 2);
-					else
-						sysmouse.buttons &= ~(1 << 2);
-					break;
-
 				case DIMOFS_BUTTON3:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 3);
-					else
-						sysmouse.buttons &= ~(1 << 3);
-					break;
-
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 				case DIMOFS_BUTTON4:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 4);
-					else
-						sysmouse.buttons &= ~(1 << 4);
-					break;
-
 				case DIMOFS_BUTTON5:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 5);
-					else
-						sysmouse.buttons &= ~(1 << 5);
-					break;
-
 				case DIMOFS_BUTTON6:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 6);
-					else
-						sysmouse.buttons &= ~(1 << 6);
-					break;
-
 				case DIMOFS_BUTTON7:
-					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 7);
-					else
-						sysmouse.buttons &= ~(1 << 7);
-					break;
 #endif
+					IN_KeyEvent(sysmouse.qdeviceid, (od.dwData & 0x80)?true:false, K_MOUSE1 + ((od.dwOfs - DIMOFS_BUTTON0) / (DIMOFS_BUTTON1-DIMOFS_BUTTON0)), 0);
+					break;
 			}
 		}
+		if (xd || yd || zd)
+			IN_MouseMove(sysmouse.qdeviceid, false, xd, yd, zd, 0);
 	}
 	else
 #endif
 	{
-		IN_Accumulate();
-
-		sysmouse.buttons = sysmouse.oldbuttons;	//don't do it!!! Our buttons are event driven. We don't want to merge em and forget do we now?
+		INS_Accumulate();
 	}
-
-#ifdef USINGRAWINPUT
-	if (rawmicecount)
-	{
-		int x;
-		for (x = 0; x < rawmicecount; x++)
-		{
-			ProcessMouse(rawmice + x, movements, pnum);
-		}
-	}
-#endif
-
-	ProcessMouse(&sysmouse,		movements, pnum);
 }
 
 
 /*
 ===========
-IN_Move
+INS_Move
 ===========
 */
-void IN_Move (float *movements, int pnum)
+void INS_Move (float *movements, int pnum)
 {
-
 	if (ActiveApp && !Minimized)
 	{
-		IN_MouseMove (movements, pnum);
+		INS_MouseMove (movements, pnum);
 		if (pnum == 1 || cl.splitclients<2)
-			IN_JoyMove (movements, pnum);
+			INS_JoyMove (movements, pnum);
 	}
 }
 
 
 /*
 ===========
-IN_Accumulate
+INS_Accumulate
 ===========
+potentially called multiple times per frame.
 */
-void IN_Accumulate (void)
+void INS_Accumulate (void)
 {
+	POINT		current_pos;
+
 	if (mouseactive && !dinput)
 	{
 #ifdef USINGRAWINPUT
-		if (rawmicecount)
-		{
-		}
-		else
+		//raw input disables the system mouse, to avoid dupes
+		if (!rawmicecount)
 #endif
 		{
-			POINT		current_pos;
-
 			GetCursorPos (&current_pos);
 
-			sysmouse.delta[0] += current_pos.x - window_center_x;
-			sysmouse.delta[1] += current_pos.y - window_center_y;
+			IN_MouseMove(sysmouse.qdeviceid, false, current_pos.x - window_center_x, current_pos.y - window_center_y, 0, 0);
 		}
 
-	// force the mouse to the center, so there's room to move
+	// force the mouse to the center, so there's room to move (rawinput ignore this apparently)
 		SetCursorPos (window_center_x, window_center_y);
+	}
+
+	if (!mouseactive)
+	{
+		extern int window_x, window_y;
+		GetCursorPos (&current_pos);
+
+		IN_MouseMove(sysmouse.qdeviceid, true, current_pos.x-window_x, current_pos.y-window_y, 0, 0);
+		return;
 	}
 }
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_MouseRead(void)
+void INS_RawInput_MouseRead(void)
 {
 	int i, tbuttons, j;
 	mouse_t *mouse;
@@ -1658,55 +1377,47 @@ void IN_RawInput_MouseRead(void)
 	// movement
 	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 	{
-		if (rawmice[i].pos[0] != RI_INVALID_POS)
-		{
-			rawmice[i].delta[0] += raw->data.mouse.lLastX - rawmice[i].pos[0];
-			rawmice[i].delta[1] += raw->data.mouse.lLastY - rawmice[i].pos[1];
-		}
-		rawmice[i].pos[0] = raw->data.mouse.lLastX;
-		rawmice[i].pos[1] = raw->data.mouse.lLastY;
+		IN_MouseMove(mouse->qdeviceid, true, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 	}
 	else // RELATIVE
 	{
-		rawmice[i].delta[0] += raw->data.mouse.lLastX;
-		rawmice[i].delta[1] += raw->data.mouse.lLastY;
-		rawmice[i].pos[0] = RI_INVALID_POS;
+		IN_MouseMove(mouse->qdeviceid, false, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 	}
 
 	// buttons
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN)
-		Key_Event(mouse->qdeviceid, K_MOUSE1, 0, true);
+		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE1, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)
-		Key_Event(mouse->qdeviceid, K_MOUSE1, 0, false);
+		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE1, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN)
-		Key_Event(mouse->qdeviceid, K_MOUSE2, 0, true);
+		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE2, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)
-		Key_Event(mouse->qdeviceid, K_MOUSE2, 0, false);
+		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE2, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN)
-		Key_Event(mouse->qdeviceid, K_MOUSE3, 0, true);
+		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE3, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)
-		Key_Event(mouse->qdeviceid, K_MOUSE3, 0, false);
+		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE3, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN)
-		Key_Event(mouse->qdeviceid, K_MOUSE4, 0, true);
+		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE4, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)
-		Key_Event(mouse->qdeviceid, K_MOUSE4, 0, false);
+		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE4, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN)
-		Key_Event(mouse->qdeviceid, K_MOUSE5, 0, true);
+		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE5, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)
-		Key_Event(mouse->qdeviceid, K_MOUSE5, 0, false);
+		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE5, 0);
 
 	// mouse wheel
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
 	{      // If the current message has a mouse_wheel message
 		if ((SHORT)raw->data.mouse.usButtonData > 0)
 		{
-			Key_Event(mouse->qdeviceid, K_MWHEELUP, 0, true);
-			Key_Event(mouse->qdeviceid, K_MWHEELUP, 0, false);
+			IN_KeyEvent(mouse->qdeviceid, true, K_MWHEELUP, 0);
+			IN_KeyEvent(mouse->qdeviceid, false, K_MWHEELUP, 0);
 		}
 		if ((SHORT)raw->data.mouse.usButtonData < 0)
 		{
-			Key_Event(mouse->qdeviceid, K_MWHEELDOWN, 0, true);
-			Key_Event(mouse->qdeviceid, K_MWHEELDOWN, 0, false);
+			IN_KeyEvent(mouse->qdeviceid, true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(mouse->qdeviceid, false, K_MWHEELDOWN, 0);
 		}
 	}
 
@@ -1714,23 +1425,22 @@ void IN_RawInput_MouseRead(void)
 	tbuttons = raw->data.mouse.ulRawButtons & RI_RAWBUTTON_MASK;
 	for (j=6 ; j<rawmice[i].numbuttons ; j++)
 	{
-		if ( (tbuttons & (1<<j)) && !(rawmice[i].buttons & (1<<j)) )
+		if ( (tbuttons & (1<<j)) && !(rawmice[i].oldbuttons & (1<<j)) )
 		{
-			Key_Event (mouse->qdeviceid, K_MOUSE1 + j, 0, true);
+			IN_KeyEvent (mouse->qdeviceid, true, K_MOUSE1 + j, 0);
 		}
 
-		if ( !(tbuttons & (1<<j)) && (rawmice[i].buttons & (1<<j)) )
+		if ( !(tbuttons & (1<<j)) && (rawmice[i].oldbuttons & (1<<j)) )
 		{
-			Key_Event (mouse->qdeviceid, K_MOUSE1 + j, 0, false);
+			IN_KeyEvent (mouse->qdeviceid, false, K_MOUSE1 + j, 0);
 		}
-
 	}
 
-	rawmice[i].buttons &= ~RI_RAWBUTTON_MASK;
-	rawmice[i].buttons |= tbuttons;
+	rawmice[i].oldbuttons &= ~RI_RAWBUTTON_MASK;
+	rawmice[i].oldbuttons |= tbuttons;
 }
 
-void IN_RawInput_KeyboardRead(void)
+void INS_RawInput_KeyboardRead(void)
 {
 	int i;
 	qboolean down;
@@ -1750,10 +1460,10 @@ void IN_RawInput_KeyboardRead(void)
 	wParam = (-down) & 0xC0000000;
 	lParam = MapVirtualKey(raw->data.keyboard.VKey, 0)<<16;
 
- 	IN_TranslateKeyEvent(wParam, lParam, down, rawkbd[i].qdeviceid);
+ 	INS_TranslateKeyEvent(wParam, lParam, down, rawkbd[i].qdeviceid);
 }
 
-void IN_RawInput_Read(HANDLE in_device_handle)
+void INS_RawInput_Read(HANDLE in_device_handle)
 {
 	int dwSize;
 
@@ -1775,21 +1485,21 @@ void IN_RawInput_Read(HANDLE in_device_handle)
 		return;
 	}
 
-	IN_RawInput_MouseRead();
-	IN_RawInput_KeyboardRead();
+	INS_RawInput_MouseRead();
+	INS_RawInput_KeyboardRead();
 }
 #else
-void IN_RawInput_Read(HANDLE in_device_handle)
+void INS_RawInput_Read(HANDLE in_device_handle)
 {
 }
 #endif
 
 /*
 ===================
-IN_ClearStates
+INS_ClearStates
 ===================
 */
-void IN_ClearStates (void)
+void INS_ClearStates (void)
 {
 
 	if (mouseactive)
@@ -1802,10 +1512,10 @@ void IN_ClearStates (void)
 
 /*
 ===============
-IN_StartupJoystick
+INS_StartupJoystick
 ===============
 */
-void IN_StartupJoystick (void)
+void INS_StartupJoystick (void)
 {
 	int			numdevs;
 	JOYCAPS		jc;
@@ -1876,7 +1586,7 @@ void IN_StartupJoystick (void)
 RawValuePointer
 ===========
 */
-PDWORD RawValuePointer (int axis)
+static PDWORD RawValuePointer (int axis)
 {
 	switch (axis)
 	{
@@ -1905,7 +1615,7 @@ Joy_AdvancedUpdate_f
 void Joy_AdvancedUpdate_f (void)
 {
 
-	// called once by IN_ReadJoystick and by user whenever an update is needed
+	// called once by INS_ReadJoystick and by user whenever an update is needed
 	// cvars are now available
 	int	i;
 	DWORD dwTemp;
@@ -1971,10 +1681,10 @@ void Joy_AdvancedUpdate_f (void)
 
 /*
 ===========
-IN_Commands
+INS_Commands
 ===========
 */
-void IN_Commands (void)
+void INS_Commands (void)
 {
 	int		i, key_index;
 	DWORD	buttonstate, povstate;
@@ -2041,10 +1751,10 @@ void IN_Commands (void)
 
 /*
 ===============
-IN_ReadJoystick
+INS_ReadJoystick
 ===============
 */
-qboolean IN_ReadJoystick (void)
+qboolean INS_ReadJoystick (void)
 {
 
 	memset (&ji, 0, sizeof(ji));
@@ -2067,7 +1777,7 @@ qboolean IN_ReadJoystick (void)
 		// read error occurred
 		// turning off the joystick seems too harsh for 1 read error,
 		// but what should be done?
-		// Con_Printf ("IN_ReadJoystick: no response\n");
+		// Con_Printf ("INS_ReadJoystick: no response\n");
 		// joy_avail = false;
 		return false;
 	}
@@ -2076,10 +1786,10 @@ qboolean IN_ReadJoystick (void)
 
 /*
 ===========
-IN_JoyMove
+INS_JoyMove
 ===========
 */
-void IN_JoyMove (float *movements, int pnum)
+void INS_JoyMove (float *movements, int pnum)
 {
 	float	speed, aspeed;
 	float	fAxisValue, fTemp;
@@ -2100,7 +1810,7 @@ void IN_JoyMove (float *movements, int pnum)
 	}
 
 	// collect the joystick data, if possible
-	if (IN_ReadJoystick () != true)
+	if (INS_ReadJoystick () != true)
 	{
 		return;
 	}
@@ -2380,7 +2090,7 @@ static int MapKey (int vkey)
 	return scantokey[key];
 }
 
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdeviceid)
+void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdeviceid)
 {
 	extern cvar_t in_builtinkeymap;
 	int qcode;

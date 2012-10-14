@@ -409,6 +409,7 @@ CLIENT_OBJS = \
 	cl_ents.o	\
 	clq2_ents.o	\
 	cl_input.o	\
+	in_generic.o	\
 	cl_main.o	\
 	cl_parse.o	\
 	cl_pred.o	\
@@ -671,7 +672,7 @@ ifeq ($(FTE_TARGET),nacl)
 	BASELDFLAGS = -lm -lppapi_gles2 -lnosys -lppapi
 	IMAGELDFLAGS =
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o in_generic.o fs_ppapi.o snd_ppapi.o 
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
 
 	GLB_DIR=gl_nacl_x86_$(BITS)
 	GL_EXE_NAME=../fteqw_x86_$(BITS).nexe
@@ -994,12 +995,12 @@ ifeq ($(FTE_TARGET),droid)
 
 	SV_DIR=sv_droid-$(DROID_ARCH)
 	SV_LDFLAGS=-lz
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) svmodel.o sys_droid.o in_droid.o
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) svmodel.o sys_droid.o 
 	SV_EXE_NAME=libftedroid.so
 
 	SV_LDFLAGS=
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_viddroid.o sys_droid.o in_droid.o cd_null.o snd_droid.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
         GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_droid-$(DROID_ARCH)
 	GL_EXE_NAME=libftedroid.so

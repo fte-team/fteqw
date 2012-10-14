@@ -34,8 +34,6 @@ void IN_Move (float *movements, int pnum);
 void IN_ModeChanged (void);
 // called whenever screen dimensions change
 
-void IN_ClearStates (void);
-void IN_Accumulate (void);
 extern cvar_t in_xflip;
 
 #ifdef _SDL
@@ -44,3 +42,16 @@ void IN_DeactivateMouse(void);
 #endif
 
 int CL_TargettedSplit(qboolean nowrap);
+
+//specific events for the system-specific input code to call. may be called outside the main thread (so long as you don't call these simultaneously - ie: use a mutex or only one input thread).
+void IN_KeyEvent(int devid, int down, int keycode, int unicode);		//don't use IN_KeyEvent for mice if you ever use abs mice...
+void IN_MouseMove(int devid, int abs, float x, float y, float z, float size);
+
+//system-specific functions
+void INS_Move (float *movements, int pnum);
+void INS_Accumulate (void);
+void INS_ClearStates (void);
+void INS_ReInit (void);
+void INS_Init (void);
+void INS_Shutdown (void);
+void INS_Commands (void);	//final chance to call IN_MouseMove/IN_KeyEvent each frame

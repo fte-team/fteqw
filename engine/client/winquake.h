@@ -73,11 +73,11 @@ extern qboolean		ActiveApp, Minimized;
 
 extern qboolean	WinNT;
 
-void IN_UpdateGrabs(int fullscreen, int activeapp);
-void IN_RestoreOriginalMouseState (void);
-void IN_SetQuakeMouseState (void);
-void IN_MouseEvent (int mstate);
-void IN_RawInput_Read(HANDLE in_device_handle);
+void INS_UpdateGrabs(int fullscreen, int activeapp);
+void INS_RestoreOriginalMouseState (void);
+void INS_SetQuakeMouseState (void);
+void INS_MouseEvent (int mstate);
+void INS_RawInput_Read(HANDLE in_device_handle);
 
 extern qboolean	winsock_lib_initialized;
 
@@ -88,9 +88,9 @@ extern qboolean	mouseinitialized;
 
 //extern HANDLE	hinput, houtput;
 
-void IN_UpdateClipCursor (void);
+void INS_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum);
+void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum);
 
 void S_BlockSound (void);
 void S_UnblockSound (void);

@@ -222,8 +222,6 @@ static unsigned int tbl_sdltoquakemouse[] =
 	K_MOUSE10
 };
 
-int mouse_x, mouse_y;
-
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;
@@ -253,12 +251,11 @@ void Sys_SendKeyEvents(void)
 
 		case SDL_KEYUP:
 		case SDL_KEYDOWN:
-			Key_Event(0, tbl_sdltoquake[event.key.keysym.sym], event.key.keysym.unicode, event.key.state);
+			IN_KeyEvent(0, event.key.state, tbl_sdltoquake[event.key.keysym.sym], event.key.keysym.unicode);
 			break;
 
 		case SDL_MOUSEMOTION:
-			mouse_x += event.motion.xrel;
-			mouse_y += event.motion.yrel;
+			IN_MouseMove(0, 0, event.motion.xrel, event.motion.yrel, 0, 0);
 			break;
 
 		case SDL_MOUSEBUTTONDOWN:
@@ -266,7 +263,7 @@ void Sys_SendKeyEvents(void)
 			//Hmm. SDL allows for 255 buttons...
 			if (event.button.button > sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]))
 				event.button.button = sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]);
-			Key_Event(0, tbl_sdltoquakemouse[event.button.button-1], 0, event.button.state);
+			IN_KeyEvent(0, event.button.state, tbl_sdltoquakemouse[event.button.button-1], 0);
 			break;
 
 		case SDL_QUIT:
@@ -281,65 +278,29 @@ void Sys_SendKeyEvents(void)
 
 
 
-void IN_Shutdown (void)
+void INS_Shutdown (void)
 {
+	IN_DeactivateMouse();
 }
 
-void IN_ReInit (void)
+void INS_ReInit (void)
 {
 	IN_ActivateMouse();
 
 	SDL_EnableUNICODE(SDL_ENABLE);
 }
 
-void IN_Init (void)
-{
-	IN_ReInit();
-}
-void IN_Move (float *movements, int pnum)	//add mouse movement to cmd
-{
-#ifdef PEXT_CSQC
-	if (CSQC_MouseMove(mouse_x, mouse_y, 0))
-	{
-		mouse_x = 0;
-		mouse_y = 0;
-	}
-#endif
-	mouse_x *= sensitivity.value*in_sensitivityscale;
-	mouse_y *= sensitivity.value*in_sensitivityscale;
-
-
-	if (!cl.paused && mouseactive)
-	{
-// add mouse X/Y movement to cmd
-		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-			movements[1] += m_side.value * mouse_x;
-		else
-			cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
-
-		if (in_mlook.state[pnum] & 1)
-			V_StopPitchDrift (pnum);
-
-		if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
-		{
-			cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
-		}
-		else
-		{
-			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-				movements[2] -= m_forward.value * mouse_y;
-			else
-				movements[0] -= m_forward.value * mouse_y;
-		}
-	}
-
-	mouse_x = 0;
-	mouse_y = 0;
-}
-void IN_Accumulate(void)	//input polling
+//stubs, all the work is done in Sys_SendKeyEvents
+void INS_Move(float *movements, int pnum)
 {
 }
-void IN_Commands (void)	//used to Cbuf_AddText joystick button events in windows.
+void INS_Init (void)
+{
+}
+void INS_Accumulate(void)	//input polling
+{
+}
+void INS_Commands (void)	//used to Cbuf_AddText joystick button events in windows.
 {
 }
 

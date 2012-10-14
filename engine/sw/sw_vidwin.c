@@ -240,7 +240,7 @@ void SWV_UpdateWindowStatus(void)
 	window_center_x = (window_rect.left + window_rect.right) / 2;
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
-	IN_UpdateClipCursor ();
+	INS_UpdateClipCursor ();
 }
 
 
@@ -487,13 +487,13 @@ LONG WINAPI MainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 //			if (!vid_initializing)
-				IN_TranslateKeyEvent(wParam, lParam, true, 0);
+				INS_TranslateKeyEvent(wParam, lParam, true, 0);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 //			if (!vid_initializing)
-				IN_TranslateKeyEvent(wParam, lParam, false, 0);
+				INS_TranslateKeyEvent(wParam, lParam, false, 0);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into

@@ -317,6 +317,19 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #endif
 
+#ifdef __CYGWIN__
+#define OS_STRING "cygwin"
+#define ID_INLINE inline
+#define PATH_SEP '/'
+
+#define ARCH_STRING "x86"
+
+#define Q3_BIG_ENDIAN
+
+#define DLL_EXT ".dll"
+
+#endif
+
 //================================================================== Q3VM ===
 
 #ifdef Q3_VM

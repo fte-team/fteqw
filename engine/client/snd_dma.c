@@ -2048,7 +2048,7 @@ void S_ExtraUpdate (void)
 		return;
 
 #ifdef _WIN32
-	IN_Accumulate ();
+	INS_Accumulate ();
 #endif
 
 	if (snd_noextraupdate.ival)

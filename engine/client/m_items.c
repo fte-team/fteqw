@@ -1566,8 +1566,6 @@ void M_Complex_Draw(void)
 		}
 		MenuDraw(cmenu);
 	}
-
-	SCR_DrawCursor(0);
 }
 
 menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)

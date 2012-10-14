@@ -216,7 +216,7 @@ static qboolean D3D9AppActivate(BOOL fActive, BOOL minimize)
 		sound_active = true;
 	}
 
-	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 
 	if (fActive)
 	{
@@ -317,7 +317,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				temp |= 512;
 
 			if (!vid_initializing)
-				IN_MouseEvent (temp);
+				INS_MouseEvent (temp);
 
 			break;
 
@@ -343,7 +343,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case WM_INPUT:
 			// raw input handling
 			if (!vid_initializing)
-				IN_RawInput_Read((HANDLE)lParam);
+				INS_RawInput_Read((HANDLE)lParam);
 			break;
 
 		case WM_GETMINMAXINFO:
@@ -1102,7 +1102,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	window_center_y = (window_rect.top + window_rect.bottom)/2;
 
 
-	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 
 	VID_ShiftPalette (NULL);
 }

@@ -202,4 +202,19 @@ void GLVID_ShiftPalette(unsigned char *p)
 		GLVID_SetDeviceGammaRamp(ramps);
 }
 
-
+//I'm too lazy to put these stubs elsewhere.
+void INS_Init (void)
+{
+}
+void INS_ReInit(void)
+{
+}
+void INS_Shutdown (void)
+{
+}
+void INS_Commands (void)
+{
+}
+void INS_Move (float *movements, int pnum)
+{
+}

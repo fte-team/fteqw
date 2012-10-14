@@ -128,6 +128,10 @@ void INS_Init(void)
 //IN_KeyEvent is threadsafe (for one other thread, anyway)
 void INS_ProcessInputMessage(struct InputEvent *msg, qboolean consumemotion)
 {
+	int key;
+	qboolean down;
+	int code;
+
 	if ((window->Flags & WFLG_WINDOWACTIVE))
 	{
 		if (msg->ie_Class == IECLASS_NEWMOUSE)
@@ -158,13 +162,11 @@ void INS_ProcessInputMessage(struct InputEvent *msg, qboolean consumemotion)
 		else if (msg->ie_Class == IECLASS_RAWKEY)
 		{
 			down = !(msg->ie_Code&IECODE_UP_PREFIX);
-			msg->ie_Code&=~IECODE_UP_PREFIX;
-
-			memcpy(&ie, msg, sizeof(ie));
+			code = msg->ie_Code & ~IECODE_UP_PREFIX;
 
 			key = 0;
-			if (msg->ie_Code <= 255)
-				key = keyconv[msg->ie_Code];
+			if (code <= 255)
+				key = keyconv[code];
 
 			if (key)
 				IN_KeyEvent(0, down, key, key);
@@ -197,10 +199,10 @@ void INS_ProcessInputMessage(struct InputEvent *msg, qboolean consumemotion)
 					IN_MouseMove(0, 0, msg->ie_position.ie_xy.ie_x, msg->ie_position.ie_xy.ie_y, 0, 0);
 
 #if 0
-					coin->ie_Class = IECLASS_NULL;
+					msg->ie_Class = IECLASS_NULL;
 #else
-					coin->ie_position.ie_xy.ie_x = 0;
-					coin->ie_position.ie_xy.ie_y = 0;
+					msg->ie_position.ie_xy.ie_x = 0;
+					msg->ie_position.ie_xy.ie_y = 0;
 #endif
 				}
 			}

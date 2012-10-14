@@ -31,9 +31,6 @@ void IN_Commands (void);
 void IN_Move (float *movements, int pnum);
 // add additional movement on top of the keyboard move cmd
 
-void IN_ModeChanged (void);
-// called whenever screen dimensions change
-
 extern cvar_t in_xflip;
 
 #ifdef _SDL

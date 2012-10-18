@@ -23,7 +23,9 @@ struct sockaddr;
 #include "quakedef.h"
 #include "netinc.h"
 
-
+#ifdef _WIN32
+#define USE_GETHOSTNAME_LOCALLISTING
+#endif
 
 netadr_t	net_local_cl_ipadr;	//still used to match local ui requests (quake/gamespy), and to generate ip reports for q3 servers (which is probably pointless).
 
@@ -1618,6 +1620,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 		memset(&adr, 0, sizeof(adr));
 		SockadrToNetadr(&from, &adr);
 
+#ifdef USE_GETHOSTNAME_LOCALLISTING
 		if (adr.type == NA_IPV6 &&
 			!*(int*)&adr.address.ip6[0] &&
 			!*(int*)&adr.address.ip6[4] &&
@@ -1734,7 +1737,20 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 			}
 		}
 		else
+#endif
 		{
+			if (adr.type == NA_IPV6 &&
+				!*(int*)&adr.address.ip6[0] &&
+				!*(int*)&adr.address.ip6[4] &&
+				!*(int*)&adr.address.ip6[8] &&
+				!*(int*)&adr.address.ip6[12])
+			{
+				if (idx++ == count)
+				{
+					*out = adr;
+					out->type = NA_IP;
+				}
+			}
 			if (idx++ == count)
 				*out = adr;
 		}

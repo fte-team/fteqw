@@ -435,8 +435,8 @@ public class FTEDroidActivity extends Activity
 					id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
 					x = event.getX(id);
 					y = event.getY(id);
-					id = event.getPointerId(id);
 					size = event.getSize(id);
+					id = event.getPointerId(id);
 					FTEDroidEngine.motion(1, id, x, y, size);
 					break;
 				case MotionEvent.ACTION_UP:
@@ -444,8 +444,8 @@ public class FTEDroidActivity extends Activity
 					id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
 					x = event.getX(id);
 					y = event.getY(id);
-					id = event.getPointerId(id);
 					size = event.getSize(id);
+					id = event.getPointerId(id);
 					FTEDroidEngine.motion(2, id, x, y, size);
 					break;
 				case MotionEvent.ACTION_MOVE:

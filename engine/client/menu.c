@@ -722,6 +722,8 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 		M_RemoveMenu(menu);
 		break;
 
+	case 'q':
+	case 'Q':
 	case 'Y':
 	case 'y':
 		M_RemoveMenu(menu);
@@ -746,6 +748,8 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 		M_RemoveMenu(menu);
 		break;
 
+	case 'q':
+	case 'Q':
 	case 'n':
 	case 'N':
 		M_RemoveMenu(menu);
@@ -777,12 +781,22 @@ void M_Menu_Quit_f (void)
 	char *arg = Cmd_Argv(1);
 	if (!strcmp(arg, "force"))
 		mode = 0;
+	else if (!strcmp(arg, "forcesave"))
+	{
+		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
+		mode = 0;
+	}
 	else if (!strcmp(arg, "save"))
 		mode = 2;
 	else if (!strcmp(arg, "prompt"))
-		mode = 1;
+	{	//always prompt, though it might be about saving.
+		if (Cvar_UnsavedArchive())
+			mode = 2;
+		else
+			mode = 1;
+	}
 	else
-	{
+	{	//prompt to save, but not otherwise.
 		if (Cvar_UnsavedArchive())
 			mode = 2;
 		else
@@ -802,11 +816,17 @@ void M_Menu_Quit_f (void)
 		quitmenu = M_CreateMenuInfront(0);
 		quitmenu->key = MC_SaveQuit_Key;
 
-		MC_AddWhiteText(quitmenu, 64, 84,	"You have unsaved settings ", false);
-		MC_AddWhiteText(quitmenu, 64, 92,	"    Would you like to     ", false);
-		MC_AddWhiteText(quitmenu, 64, 100,	"      save them now?      ", false);
-		MC_AddWhiteText(quitmenu, 64, 108,	"         [Y/N/ESC]        ", false);
-		MC_AddBox (quitmenu, 56, 76, 25, 4);
+		MC_AddWhiteText(quitmenu, 64, 84,	 "You have unsaved settings ", false);
+		MC_AddWhiteText(quitmenu, 64, 92,	 "    Would you like to     ", false);
+		MC_AddWhiteText(quitmenu, 64, 100,	 "      save them now?      ", false);
+		MC_AddWhiteText(quitmenu, 64, 108,	 "         [Y/N/ESC]        ", false);
+                        
+                quitmenu->selecteditem = (menuoption_t *)
+		MC_AddConsoleCommand    (quitmenu, 64, 116, "Yes",			       "menu_quit forcesave\n");
+		MC_AddConsoleCommand    (quitmenu, 144,116,           "No",               "menu_quit force\n");
+		MC_AddConsoleCommand    (quitmenu, 224,116,                     "Cancel", "menupop\n");
+
+		MC_AddBox (quitmenu, 56, 76, 25, 5);
 		break;
 	case 1:
 		key_dest = key_menu;
@@ -822,7 +842,12 @@ void M_Menu_Quit_f (void)
 		MC_AddWhiteText(quitmenu, 64, 92, quitMessage[i*4+1], false);
 		MC_AddWhiteText(quitmenu, 64, 100, quitMessage[i*4+2], false);
 		MC_AddWhiteText(quitmenu, 64, 108, quitMessage[i*4+3], false);
-		MC_AddBox (quitmenu, 56, 76, 24, 4);
+                
+		quitmenu->selecteditem = (menuoption_t *)
+		MC_AddConsoleCommand    (quitmenu, 120, 116,        "Yes",			       "menu_quit force\n");
+		MC_AddConsoleCommand    (quitmenu, 208,116,                   "No",               "menupop\n");
+
+		MC_AddBox (quitmenu, 56, 76, 24, 5);
 		break;
 	}
 }

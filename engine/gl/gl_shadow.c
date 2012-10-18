@@ -289,7 +289,8 @@ static void SH_FreeShadowMesh_(shadowmesh_t *sm)
 	{
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		qglDeleteBuffersARB(2, sm->vebo);
+		if (qglDeleteBuffersARB)
+			qglDeleteBuffersARB(2, sm->vebo);
 		sm->vebo[0] = 0;
 		sm->vebo[1] = 0;
 		break;

@@ -791,6 +791,11 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 
 	BASELDFLAGS=
 
+	# Allow 32bit FTE to access beyond the 2GB address space
+	ifeq ($(FTE_TARGET),win32)
+		BASELDFLAGS=-Wl,--large-address-aware
+	endif
+
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
 	LIBS_DIR = $(BASE_DIR)/libs

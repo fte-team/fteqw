@@ -878,7 +878,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga -lz
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS) -lXxf86vm -lXxf86dga -lz
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
@@ -886,7 +886,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lXxf86dga -lz
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS) -lXxf86vm -lXxf86dga -lz
 	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
@@ -944,7 +944,7 @@ ifeq ($(FTE_TARGET),morphos)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../morphos_fteqw.gl
 	GLCL_EXE_NAME=../morphos_fteqwcl.gl
-	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
+	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) $(SOUNDLDFLAGS) -lz
 	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
@@ -952,7 +952,7 @@ ifeq ($(FTE_TARGET),morphos)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	M_EXE_NAME=../morphos_fteqw
 	MCL_EXE_NAME=../morphos_fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(SOUNDLDFLAGS)
 	M_CFLAGS=$(GLCFLAGS)
 	MB_DIR=m_morphos
 	MCL_DIR=mcl_morphos
@@ -978,7 +978,7 @@ ifeq ($(FTE_TARGET),cygwin)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
 	GL_EXE_NAME=../fteqwglcyg.exe
 	GLCL_EXE_NAME=../fteqwclglcyg.exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
@@ -986,7 +986,7 @@ ifeq ($(FTE_TARGET),cygwin)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
 	M_EXE_NAME=../fteqwcyg.exe
 	MCL_EXE_NAME=../fteqwclcyg.exe
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS)
 	M_CFLAGS=$(GLCFLAGS)
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin

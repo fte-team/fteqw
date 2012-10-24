@@ -105,6 +105,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define DYNAMIC_ZLIB
 //#define DYNAMIC_LIBPNG
 //#define DYNAMIC_LIBJPEG
+//#define LIBVORBISFILE_STATIC
+//#define SPEEX_STATIC
 
 #ifdef D3DQUAKE
 #define D3D9QUAKE

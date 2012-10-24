@@ -13,17 +13,8 @@
 #endif
 
 
-#if defined(__MORPHOS__)
-
-	#define oggvorbislibrary VorbisFileBase
-	struct Library *VorbisFileBase;
-
-#else
-	dllhandle_t *oggvorbislibrary;
-#endif
-
-#ifdef __MORPHOS__
-	#define p_ov_open_callbacks(a, b, c, d, e) ov_open_callbacks(a, b, c, d, &e)
+#ifdef LIBVORBISFILE_STATIC
+	#define p_ov_open_callbacks ov_open_callbacks
 	#define p_ov_clear ov_clear
 	#define p_ov_info ov_info
 	#define p_ov_comment ov_comment
@@ -31,14 +22,33 @@
 	#define p_ov_read ov_read
 	#define p_ov_pcm_seek ov_pcm_seek
 #else
-	int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
-	int (VARGS *p_ov_clear)(OggVorbis_File *vf);
-	vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
-	vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
-	ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
-	long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
-				int bigendianp,int word,int sgned,int *bitstream);
-	int (VARGS *p_ov_pcm_seek)(OggVorbis_File *vf,ogg_int64_t pos);
+	#if defined(__MORPHOS__)
+
+		#define oggvorbislibrary VorbisFileBase
+		struct Library *VorbisFileBase;
+
+	#else
+		dllhandle_t *oggvorbislibrary;
+	#endif
+
+	#ifdef __MORPHOS__
+		#define p_ov_open_callbacks(a, b, c, d, e) ov_open_callbacks(a, b, c, d, &e)
+		#define p_ov_clear ov_clear
+		#define p_ov_info ov_info
+		#define p_ov_comment ov_comment
+		#define p_ov_pcm_total ov_pcm_total
+		#define p_ov_read ov_read
+		#define p_ov_pcm_seek ov_pcm_seek
+	#else
+		int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
+		int (VARGS *p_ov_clear)(OggVorbis_File *vf);
+		vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
+		vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
+		ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
+		long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
+					int bigendianp,int word,int sgned,int *bitstream);
+		int (VARGS *p_ov_pcm_seek)(OggVorbis_File *vf,ogg_int64_t pos);
+	#endif
 #endif
 
 
@@ -307,6 +317,7 @@ static ov_callbacks callbacks = {
 };
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
 {
+#ifndef LIBVORBISFILE_STATIC
 	static qboolean tried;
 #ifndef __MORPHOS__
 	static dllfunction_t funcs[] =
@@ -321,7 +332,6 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		{NULL}
 	};
 #endif
-	static void *libhandle;
 
 	if (!oggvorbislibrary && !tried)
 #if defined(__MORPHOS__)
@@ -355,6 +365,7 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		Con_Printf("ogg vorbis library is not loaded.\n");
 		return false;
 	}
+#endif
 
 	buffer->start = start;
 	buffer->length = length;

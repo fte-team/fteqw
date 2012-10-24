@@ -901,6 +901,8 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLB_DIR=gl_macosx$(EXTENSION)$(BITS)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
+	
+	SOUNDLDFLAGS=
 
 	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
 	ifeq ($(WHOAMI),moodles)
@@ -940,6 +942,7 @@ ifeq ($(FTE_TARGET),morphos)
 
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-ldl -lz
+	SOUNDLDFLAGS=
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../morphos_fteqw.gl

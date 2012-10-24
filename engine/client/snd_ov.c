@@ -61,7 +61,7 @@ typedef struct {
 
 	qboolean failed;
 
-	char *tempbuffer;	
+	char *tempbuffer;
 	int tempbufferbytes;
 
 	char *decodedbuffer;
@@ -119,7 +119,7 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 }
 
 sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length)
-{	
+{
 	extern int snd_speed;
 	extern cvar_t snd_linearresample_stream;
 	int bigendianp = bigendian;
@@ -215,10 +215,10 @@ sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, 
 				return NULL;
 			}
 
-			SND_ResampleStream(dec->tempbuffer, 
-				dec->srcspeed, 
-				2, 
-				dec->srcchannels, 
+			SND_ResampleStream(dec->tempbuffer,
+				dec->srcspeed,
+				2,
+				dec->srcchannels,
 				bytesread / (2 * dec->srcchannels),
 				dec->decodedbuffer+dec->decodedbytecount,
 				outspeed,
@@ -267,7 +267,7 @@ void OV_CancelDecoder(sfx_t *s)
 }
 
 static size_t VARGS read_func (void *ptr, size_t size, size_t nmemb, void *datasource)
-{	
+{
 	ovdecoderbuffer_t *buffer = datasource;
 	int spare = buffer->length - buffer->pos;
 
@@ -279,7 +279,7 @@ static size_t VARGS read_func (void *ptr, size_t size, size_t nmemb, void *datas
 }
 
 static int VARGS seek_func (void *datasource, ogg_int64_t offset, int whence)
-{	
+{
 	ovdecoderbuffer_t *buffer = datasource;
 	switch(whence)
 	{
@@ -292,7 +292,7 @@ static int VARGS seek_func (void *datasource, ogg_int64_t offset, int whence)
 	case SEEK_CUR:
 		buffer->pos+=offset;
 		break;
-	}	
+	}
 	return 0;
 }
 
@@ -347,8 +347,16 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		oggvorbislibrary = Sys_LoadLibrary("vorbisfile", funcs);
 		if (!oggvorbislibrary)
 			oggvorbislibrary = Sys_LoadLibrary("libvorbisfile", funcs);
+
 		if (!oggvorbislibrary)
-			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\".\n");
+		{
+			oggvorbislibrary = Sys_LoadLibrary("libvorbisfile-3", funcs);
+			if (!oggvorbislibrary)
+				oggvorbislibrary = Sys_LoadLibrary("libvorbisfile", funcs);
+		}
+
+		if (!oggvorbislibrary)
+			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\" or \"libvorbisfile-3\".\n");
 	}
 #else
 	{

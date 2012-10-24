@@ -77,7 +77,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define NO_OGG
 	#endif
 
-	//#define AVAIL_OGGVORBIS
+	#define AVAIL_OGGVORBIS
 	#if !defined(__CYGWIN__) && !defined(MINGW) && !defined(MACOSX)
 		#define AVAIL_PNGLIB
 		#define AVAIL_JPEGLIB
@@ -93,6 +93,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_PNGLIB
 	#define AVAIL_ZLIB
 	#define AVAIL_JPEGLIB
+	#define AVAIL_OGGVORBIS
 #endif
 
 #if !defined(NO_DIRECTX) && !defined(NODIRECTX)

@@ -39,18 +39,18 @@ endif
 ifeq ($(FTE_TARGET),win64)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
-		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
-			#yup, the alternative exists (this matches the one debian has)
-			CC=amd64-mingw32msvc-gcc -m64
-			WINDRES=amd64-mingw32msvc-windres
-			STRIP=amd64-mingw32msvc-strip
-#			BITS=64
-		endif
 		ifneq ($(shell which x86_64-w64-mingw32-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=x86_64-w64-mingw32-gcc -m64
 			WINDRES=x86_64-w64-mingw32-windres
 			STRIP=x86_64-w64-mingw32-strip
+#			BITS=64
+		endif
+		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=amd64-mingw32msvc-gcc -m64
+			WINDRES=amd64-mingw32msvc-windres
+			STRIP=amd64-mingw32msvc-strip
 #			BITS=64
 		endif
 	endif

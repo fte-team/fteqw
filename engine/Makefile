@@ -312,7 +312,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 	endif
 
 	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
-	SOUNDLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
+	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
 		RELEASE_CFLAGS+= -D_SDL
@@ -321,7 +321,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 endif
 
 IMAGELDFLAGS ?= -lpng -ljpeg
-SOUNDLDFLAGS ?= -lvorbisfile -lvorbis -logg
+OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 
 #BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
@@ -632,9 +632,9 @@ GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
 else
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SOUNDLDFLAGS) `sdl-config --libs`
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -DSPEEX_STATIC `sdl-config --libs`
 endif
-GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
+GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -DSPEEX_STATIC
 GLB_DIR=gl_sdl$(FTE_TARGET)$(BITS)
 GLCL_DIR=glcl_sdl$(FTE_TARGET)$(BITS)
 
@@ -649,14 +649,14 @@ MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
 MB_DIR=m_sdl$(FTE_TARGET)$(BITS)
 M_EXE_NAME=../fteqw_sdl$(BITS)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
-M_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
-M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SOUNDLDFLAGS)
+M_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL -DSPEEX_STATIC
+M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 
 ifdef windir
 	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 else
 	#pthread is needed because of SDL.
-	M_LDFLAGS=$(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS) $(SOUNDLDFLAGS)
+	M_LDFLAGS=$(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 endif
 
 
@@ -698,10 +698,10 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	ifdef windir
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
 	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) $(SOUNDLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
 	endif
 	
-	GL_CFLAGS=-D_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` $(DX7SDK)
+	GL_CFLAGS=-D_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` $(DX7SDK) -DSPEEX_STATIC
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		GL_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -720,25 +720,25 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl$(BITS).exe
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK)
+	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK) -DSPEEX_STATIC
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		M_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
 
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SOUNDLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 	
 	ifdef windir
 		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 	else
 		#pthread is needed because of SDL.
-		M_LDFLAGS=$(IMAGELDFLAGS) $(SOUNDLDFLAGS) -lws2_32 -lmingw32 $(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS) -DSPEEX_STATIC
 	endif
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS).exe
-	D3D_LDFLAGS=$(IMAGELDFLAGS) $(SOUNDLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
+	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 -DSPEEX_STATIC
 	D3D_CFLAGS=$(D3DCFLAGS) -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `sdl-config --cflags` $(DX7SDK)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		D3D_CFLAGS+= -D_MINGW_VFPRINTF
@@ -810,32 +810,32 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
 	GL_EXE_NAME=../fteglqw$(BITS).exe
 	GLCL_EXE_NAME=../fteglqwcl$(BITS).exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SOUNDLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DSPEEX_STATIC
 	GLB_DIR=gl_mgw$(BITS)
 	GLCL_DIR=glcl_mgw$(BITS)
 
 	NPFTECL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npfte.o sys_axfte.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
 	NPFTE_DLL_NAME=../npfte$(BITS).dll
 	NPFTECL_DLL_NAME=../npftecl$(BITS).dll
-	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) $(SOUNDLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared
-	NPFTE_CFLAGS=$(NPFTECFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC
+	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared
+	NPFTE_CFLAGS=$(NPFTECFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DSPEEX_STATIC
 	NPFTEB_DIR=npfte_mgw$(BITS)
 	NPFTECL_DIR=npqtvcl_mgw$(BITS)
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
 	M_EXE_NAME=../fteqw$(BITS).exe
 	MCL_EXE_NAME=../fteqwcl$(BITS).exe
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SOUNDLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DSPEEX_STATIC
 	MB_DIR=m_mgw$(BITS)
 	MCL_DIR=mcl_mgw$(BITS)
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(D3DGL_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3dqw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
-	D3D_LDFLAGS=$(IMAGELDFLAGS) $(SOUNDLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC
+	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DSPEEX_STATIC
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
 
@@ -878,16 +878,16 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS) -lXxf86vm -lXxf86dga -lz
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lXxf86vm -lXxf86dga -lz
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA -DSPEEX_STATIC -DLIBVORBISFILE_STATIC
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS) -lXxf86vm -lXxf86dga -lz
-	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lXxf86vm -lXxf86dga -lz
+	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DSPEEX_STATIC -DLIBVORBISFILE_STATIC
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
 
@@ -902,7 +902,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 	
-	SOUNDLDFLAGS=
+	OGGVORBISLDFLAGS=
 
 	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
 	ifeq ($(WHOAMI),moodles)
@@ -942,13 +942,13 @@ ifeq ($(FTE_TARGET),morphos)
 
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-ldl -lz
-	SOUNDLDFLAGS=
+	OGGVORBISLDFLAGS=
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../morphos_fteqw.gl
 	GLCL_EXE_NAME=../morphos_fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
-	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./
+	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./ -DSPEEX_STATIC
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
@@ -956,7 +956,7 @@ ifeq ($(FTE_TARGET),morphos)
 	M_EXE_NAME=../morphos_fteqw
 	MCL_EXE_NAME=../morphos_fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS)
-	M_CFLAGS=$(GLCFLAGS)
+	M_CFLAGS=$(GLCFLAGS) -DSPEEX_STATIC
 	MB_DIR=m_morphos
 	MCL_DIR=mcl_morphos
 
@@ -981,16 +981,16 @@ ifeq ($(FTE_TARGET),cygwin)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
 	GL_EXE_NAME=../fteqwglcyg.exe
 	GLCL_EXE_NAME=../fteqwclglcyg.exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DSPEEX_STATIC -DLIBVORBISFILE_STATIC
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
 	M_EXE_NAME=../fteqwcyg.exe
 	MCL_EXE_NAME=../fteqwclcyg.exe
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(SOUNDLDFLAGS)
-	M_CFLAGS=$(GLCFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS)
+	M_CFLAGS=$(GLCFLAGS) -DSPEEX_STATIC -DLIBVORBISFILE_STATIC
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin
 
@@ -1011,7 +1011,7 @@ ifeq ($(FTE_TARGET),droid)
 	SV_LDFLAGS=
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
-        GL_LDFLAGS=$(GLLDFLAGS)
+    GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_droid-$(DROID_ARCH)
 	GL_EXE_NAME=libftedroid.so
 endif
@@ -1057,8 +1057,8 @@ VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) 
 
 ifneq ($(findstring -DSPEEX_STATIC, $(CFLAGS)),)
 	#add these to statically link libspeex
-	VPATH += : $(BASE_DIR)/libs/speex-1.2rc1/libspeex
-	BASE_CFLAGS += -DSPEEX_STATIC -I$(BASE_DIR)/libs/speex-1.2rc1/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
+	VPATH += : $(BASE_DIR)/libs/speex/libspeex
+	BASE_CFLAGS += -DSPEEX_STATIC -I$(BASE_DIR)/libs/speex/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
 	CLIENT_OBJS += $(SPEEX_OBJS)
 endif
 

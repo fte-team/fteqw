@@ -627,7 +627,7 @@ BOTLIB_OBJS = 			\
 	l_struct.o	
 
 #the defaults for sdl come first
-GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS)  gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 GL_EXE_NAME=../fteqw_sdl.gl$(BITS)
 GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
 ifdef windir
@@ -635,7 +635,7 @@ ifdef windir
 else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `sdl-config --libs`
 endif
-GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` $(SPEEXCFLAGS)
+GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
 GLB_DIR=gl_sdl$(FTE_TARGET)$(BITS)
 GLCL_DIR=glcl_sdl$(FTE_TARGET)$(BITS)
 
@@ -649,8 +649,8 @@ MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
 
 MB_DIR=m_sdl$(FTE_TARGET)$(BITS)
 M_EXE_NAME=../fteqw_sdl$(BITS)
-MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
-M_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL $(SPEEXCFLAGS)
+MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
+M_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 
 ifdef windir
@@ -945,19 +945,19 @@ ifeq ($(FTE_TARGET),morphos)
 	SV_LDFLAGS=-ldl -lz
 	OGGVORBISLDFLAGS=
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../morphos_fteqw.gl
 	GLCL_EXE_NAME=../morphos_fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
-	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./ $(SPEEXCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	M_EXE_NAME=../morphos_fteqw
 	MCL_EXE_NAME=../morphos_fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS)
-	M_CFLAGS=$(GLCFLAGS) $(SPEEXCFLAGS)
+	M_CFLAGS=$(GLCFLAGS)
 	MB_DIR=m_morphos
 	MCL_DIR=mcl_morphos
 

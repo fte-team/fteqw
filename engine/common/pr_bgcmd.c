@@ -1525,7 +1525,7 @@ void QCBUILTIN PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_glo
 
 void QCBUILTIN PF_writetofile(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int fnum = G_FLOAT(OFS_PARM0);
+	int fnum = G_FLOAT(OFS_PARM0)-FIRST_QC_FILE_INDEX;
 	void *ed = G_EDICT(prinst, OFS_PARM1);
 
 	char buffer[65536];

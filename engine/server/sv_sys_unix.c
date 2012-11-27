@@ -539,7 +539,7 @@ c = *line++;
 	if (c == '\t')
 	{
 		int i;
-		char *s = Cmd_CompleteCommand(coninput_text, true, true, 0);
+		char *s = Cmd_CompleteCommand(coninput_text, true, true, 0, NULL);
 		if(s)
 		{
 			for (i = 0; i < coninput_len; i++)

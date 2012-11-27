@@ -795,7 +795,7 @@ void R2D_BrightenScreen (void)
 
 	RSpeedMark();
 
-	if (gl_contrast.value != 1.0 && gl_brightness.value != 0)
+	if (gl_contrast.value == 1.0 && gl_brightness.value == 0)
 		return;
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)

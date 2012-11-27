@@ -425,6 +425,7 @@ const char *presetexec[] =
 	"m_preset_chosen 1;"
 	"gl_texturemode nn;"
 	"r_particlesystem null;"
+	"r_particledesc \"\";"
 	"r_stains 0;"
 	"r_drawflat 1;"
 	"r_nolerp 1;"
@@ -450,6 +451,7 @@ const char *presetexec[] =
 	, // fast options
 	"gl_texturemode ln;"
 	"r_particlesystem classic;"
+	"r_particledesc classic;"
 	"r_drawflat 0;"
 	"r_nolerp 0;"
 	"gl_flashblend 1;"
@@ -459,7 +461,7 @@ const char *presetexec[] =
 	"r_lavastyle 1;"
 	"r_nolightdir 0;"
 
-	, // normal options
+	, // normal (faithful) options
 #ifdef MINIMAL
 	"r_particlesystem classic;"
 #else
@@ -510,9 +512,16 @@ static void ApplyPreset (int presetnum)
 	// TODO: work backwards and only set cvars once
 	for (i = 0; i <= presetnum; i++)
 	{
-		Cbuf_AddText(presetexec[i], Cmd_ExecLevel);
-		Cbuf_AddText("\n", Cmd_ExecLevel);
+		Cbuf_AddText(presetexec[i], RESTRICT_LOCAL);
+		Cbuf_AddText("\n", RESTRICT_LOCAL);
 		Cbuf_Execute(); // hack
+	}
+
+	//make sure the presets always set up particles correctly for certain other game modes.
+	if (M_GameType() == MGT_HEXEN2)
+	{
+		Cbuf_AddText("r_particledesc $r_particledesc h2part\n", RESTRICT_LOCAL);
+		Cbuf_Execute();
 	}
 }
 

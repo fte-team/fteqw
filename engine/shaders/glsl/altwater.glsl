@@ -1,9 +1,12 @@
+!!cvarf r_glsl_turbscale
 //modifier: REFLECT (s_t2 is a reflection instead of diffusemap)
 //modifier: STRENGTH (0.1 = fairly gentle, 0.2 = big waves)
 //modifier: FRESNEL (5=water)
 //modifier: TXSCALE (0.2 - wave strength)
 //modifier: RIPPLEMAP (s_t3 contains a ripplemap
 //modifier: TINT    (some colour value)
+
+uniform float cvar_r_glsl_turbscale;
 
 #ifndef FRESNEL
 #define FRESNEL 5.0
@@ -67,9 +70,9 @@ void main (void)
 	//the fresnel term decides how transparent the water should be
 	f = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));
 
-	refr = texture2D(s_t0, stc + n.st*STRENGTH).rgb * TINT;
+	refr = texture2D(s_t0, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;
 #ifdef REFLECT
-	refl = texture2D(s_t2, stc - n.st*STRENGTH).rgb;
+	refl = texture2D(s_t2, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;
 #else
 	refl = texture2D(s_t2, ntc).xyz;
 #endif

@@ -2,9 +2,11 @@
 
 //#define FORCESTATE
 
+void DumpGLState(void);
+
 #ifdef GLQUAKE
 
-#define r_refract_fboival 1
+#define r_refract_fboival 0
 
 #include "glquake.h"
 #include "shader.h"
@@ -144,10 +146,10 @@ struct {
 
 		qboolean force2d;
 		int currenttmu;
-		int blendmode[SHADER_PASS_MAX];
-		int texenvmode[SHADER_PASS_MAX];
-		int currenttextures[SHADER_PASS_MAX];
-		GLenum curtexturetype[SHADER_PASS_MAX];
+		int blendmode[SHADER_TMU_MAX];
+		int texenvmode[SHADER_TMU_MAX];
+		int currenttextures[SHADER_TMU_MAX];
+		GLenum curtexturetype[SHADER_TMU_MAX];
 
 		polyoffset_t curpolyoffset;
 		unsigned int curcull;
@@ -181,6 +183,10 @@ struct {
 		void *pendingvertexpointer;
 		int curvertexvbo;
 		void *curvertexpointer;
+
+		int pendingtexcoordparts[SHADER_TMU_MAX];
+		int pendingtexcoordvbo[SHADER_TMU_MAX];
+		void *pendingtexcoordpointer[SHADER_TMU_MAX];
 
 		float identitylighting;	//set to how bright lightmaps should be (reduced for overbright or realtime_world_lightmaps)
 
@@ -395,8 +401,6 @@ void GL_DeselectVAO(void)
 void GL_SelectEBO(int vbo)
 {
 	//EBO is part of the current VAO, so keep things matching that
-	GL_DeselectVAO();
-
 #ifndef FORCESTATE
 	if (shaderstate.currentebo != vbo)
 #endif
@@ -506,12 +510,21 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 	}
 
 	//legacy tmus
-	if (bitstoendisable >= (1u<<VATTR_LEG_TMU0))
+	if ((bitstoendisable|bitstochange) >= (1u<<VATTR_LEG_TMU0))
 	{
-		for (i = VATTR_LEG_TMU0; bitstoendisable >= (1u<<i); i++)
+		for (i = VATTR_LEG_TMU0; (bitstoendisable|bitstochange) >= (1u<<i); i++)
 		{
+			if ((bitstochange) & (1u<<i))
+			{
+				qglClientActiveTextureARB(i-VATTR_LEG_TMU0 + mtexid0);
+				if (bitstoendisable & (1u<<i))
+					qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+				GL_SelectVBO(shaderstate.pendingtexcoordvbo[i-VATTR_LEG_TMU0]);
+				qglTexCoordPointer(shaderstate.pendingtexcoordparts[i-VATTR_LEG_TMU0], GL_FLOAT, 0, shaderstate.pendingtexcoordpointer[i-VATTR_LEG_TMU0]);
+			}
+
 #ifndef FORCESTATE
-			if (bitstoendisable & (1u<<i))
+			else if (bitstoendisable & (1u<<i))
 #endif
 			{
 				qglClientActiveTextureARB(i-VATTR_LEG_TMU0 + mtexid0);
@@ -587,8 +600,16 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				qglVertexAttribPointer(VATTR_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
 				break;
 			case VATTR_LMCOORD:
-				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[0].gl.vbo);
-				qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord[0].gl.addr);
+				if (!shaderstate.sourcevbo->lmcoord[0].gl.vbo && !shaderstate.sourcevbo->lmcoord[0].gl.addr)
+				{
+					GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+					qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
+				}
+				else
+				{
+					GL_SelectVBO(shaderstate.sourcevbo->lmcoord[0].gl.vbo);
+					qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord[0].gl.addr);
+				}
 				break;
 			case VATTR_LMCOORD2:
 				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[1].gl.vbo);
@@ -644,9 +665,15 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 	}
 }
 
-static void BE_EnableShaderAttributes(unsigned int progattrmask)
+static void BE_EnableShaderAttributes(unsigned int progattrmask, int usevao)
 {
 	unsigned int bitstochange, bitstoendisable;
+
+	if (shaderstate.currentvao != usevao)
+	{
+		shaderstate.currentvao = usevao;
+		qglBindVertexArray(usevao); 
+	}
 
 	if (shaderstate.currentvao)
 	{
@@ -719,6 +746,8 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned vaodynamic)
 	}
 	else
 	{
+		GL_DeselectVAO();
+
 		/*always select the coord vbo and indicies ebo, for easy bufferdata*/
 		GL_SelectEBO(vbo->indicies.gl.vbo);
 		GL_SelectVBO(vbo->coord.gl.vbo);
@@ -755,13 +784,15 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	{
 		GL_SelectProgram(shaderstate.allblackshader);
 
-		BE_EnableShaderAttributes(gl_config.nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX));
+		BE_EnableShaderAttributes(gl_config.nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX), 0);
 
+		if (shaderstate.allblackshader != shaderstate.lastuniform)
 		{
 			float m16[16];
 			Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
 			qglUniformMatrix4fvARB(qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection"), 1, false, m16);
 		}
+		shaderstate.lastuniform = shaderstate.allblackshader;
 
 
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
@@ -769,8 +800,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	else
 	{
 		GL_DeSelectProgram();
-		GL_DeselectVAO();
-		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX));
+		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
 
 		//draw cached world shadow mesh
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
@@ -872,7 +902,7 @@ static void RevertToKnownState(void)
 	shaderstate.currentvao = 0;
 	shaderstate.curvertexvbo = ~0;
 	GL_SelectVBO(0);
-	GL_SelectEBO(0);
+//	GL_SelectEBO(0);
 
 	while(shaderstate.lastpasstmus>0)
 	{
@@ -970,6 +1000,7 @@ static void T_Gen_CurrentRender(int tmu)
 static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 {
 	extern texid_t missing_texture;
+	extern texid_t missing_texture_gloss;
 	extern texid_t scenepp_postproc_cube;
 	extern texid_t r_whiteimage;
 
@@ -1008,7 +1039,10 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex; /*FIXME: nulltex is not correct*/
 		break;
 	case T_GEN_SPECULAR:
-		t = shaderstate.curtexnums->specular;
+		if (TEXVALID(shaderstate.curtexnums->specular))
+			t = shaderstate.curtexnums->specular;
+		else
+			t = missing_texture_gloss;
 		break;
 	case T_GEN_UPPEROVERLAY:
 		t = shaderstate.curtexnums->upperoverlay;
@@ -1490,9 +1524,10 @@ static void GenerateTCFog(int passnum, mfog_t *fog)
 		mesh = shaderstate.meshes[m];
 		tcgen_fog(texcoordarray[passnum]+mesh->vbofirstvert*2, mesh->numvertexes, (float*)mesh->xyz_array, fog);
 	}
-	GL_SelectVBO(0);
-	qglClientActiveTextureARB(mtexid0 + passnum);
-	qglTexCoordPointer(2, GL_FLOAT, 0, texcoordarray[passnum]);
+
+	shaderstate.pendingtexcoordparts[passnum] = 2;
+	shaderstate.pendingtexcoordvbo[passnum] = 0;
+	shaderstate.pendingtexcoordpointer[passnum] = texcoordarray[passnum];
 }
 static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 {
@@ -1521,9 +1556,11 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 			memcpy(texcoordarray[passnum]+mesh->vbofirstvert*2, src, 8*mesh->numvertexes);
 		}
 	}
-	GL_SelectVBO(0);
-	qglTexCoordPointer(2, GL_FLOAT, 0, texcoordarray[passnum]);
+	shaderstate.pendingtexcoordparts[passnum] = 2;
+	shaderstate.pendingtexcoordvbo[passnum] = 0;
+	shaderstate.pendingtexcoordpointer[passnum] = texcoordarray[passnum];
 #else
+	GL_DeselectVAO();
 	if (!shaderstate.vbo_texcoords[passnum])
 	{
 		qglGenBuffersARB(1, &shaderstate.vbo_texcoords[passnum]);
@@ -1550,7 +1587,10 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, meshlist->vbofirstvert*8, meshlist->numvertexes*8, src);
 		}
 	}
-	qglTexCoordPointer(2, GL_FLOAT, 0, NULL);
+
+	shaderstate.pendingtexcoordparts[passnum] = 2;
+	shaderstate.pendingtexcoordvbo[passnum] = shaderstate.vbo_texcoords[passnum];
+	shaderstate.pendingtexcoordpointer[passnum] = NULL;
 #endif
 }
 
@@ -2199,42 +2239,47 @@ static void GenerateColourMods(const shaderpass_t *pass)
 
 static void BE_GeneratePassTC(const shaderpass_t *pass, int tmu)
 {
-	qglClientActiveTextureARB(mtexid0 + tmu);
 	if (!pass->numtcmods)
 	{
 		//if there are no tcmods, pass through here as fast as possible
 		if (pass->tcgen == TC_GEN_BASE)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-			qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+			shaderstate.pendingtexcoordparts[tmu] = 2;
+			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->texcoord.gl.addr;
 		}
 		else if (pass->tcgen == TC_GEN_LIGHTMAP)
 		{
 			if (!shaderstate.sourcevbo->lmcoord[0].gl.addr)
 			{
-				GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+				shaderstate.pendingtexcoordparts[tmu] = 2;
+				shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
+				shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->texcoord.gl.addr;
 			}
 			else
 			{
-				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[0].gl.vbo);
-				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->lmcoord[0].gl.addr);
+				shaderstate.pendingtexcoordparts[tmu] = 2;
+				shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->lmcoord[0].gl.vbo;
+				shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->lmcoord[0].gl.addr;
 			}
 		}
 		else if (pass->tcgen == TC_GEN_NORMAL)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
-			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->normals.gl.addr);
+			shaderstate.pendingtexcoordparts[tmu] = 3;
+			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->normals.gl.vbo;
+			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->normals.gl.addr;
 		}
 		else if (pass->tcgen == TC_GEN_SVECTOR)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
-			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->svector.gl.addr);
+			shaderstate.pendingtexcoordparts[tmu] = 3;
+			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->svector.gl.vbo;
+			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->svector.gl.addr;
 		}
 		else if (pass->tcgen == TC_GEN_TVECTOR)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
-			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->tvector.gl.addr);
+			shaderstate.pendingtexcoordparts[tmu] = 3;
+			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->tvector.gl.vbo;
+			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->tvector.gl.addr;
 		}
 		else
 		{
@@ -2569,7 +2614,7 @@ static void DrawPass(const shaderpass_t *pass)
 				shaderstate.lastpasstmus = tmu;
 
 				/*push it*/
-				BE_EnableShaderAttributes(attr);
+				BE_EnableShaderAttributes(attr, 0);
 				BE_SubmitMeshChain();
 				tmu = 0;
 
@@ -2586,9 +2631,9 @@ static void DrawPass(const shaderpass_t *pass)
 				shaderstate.pendingcolourflat[3] = 1;
 
 				/*pick the correct st coords for this lightmap pass*/
-				qglClientActiveTextureARB(mtexid0 + tmu);
-				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[j].gl.vbo);
-				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->lmcoord[j].gl.addr);
+				shaderstate.pendingtexcoordparts[tmu] = 2;
+				shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->lmcoord[j].gl.vbo;
+				shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->lmcoord[j].gl.addr;
 
 				BE_SetPassBlendMode(tmu, PBM_ADD);
 				BE_SendPassBlendDepthMask((pass[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
@@ -2607,7 +2652,7 @@ static void DrawPass(const shaderpass_t *pass)
 					GL_LazyBind(k, 0, r_nulltex);
 				}
 				shaderstate.lastpasstmus = tmu;
-				BE_EnableShaderAttributes(attr);
+				BE_EnableShaderAttributes(attr, 0);
 
 				BE_SubmitMeshChain();
 				tmu = 0;
@@ -2626,7 +2671,7 @@ static void DrawPass(const shaderpass_t *pass)
 		GL_LazyBind(i, 0, r_nulltex);
 	}
 	shaderstate.lastpasstmus = tmu;
-	BE_EnableShaderAttributes(attr);
+	BE_EnableShaderAttributes(attr, 0);
 
 	BE_SubmitMeshChain();
 }
@@ -2636,6 +2681,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 	vec3_t param3;
 	int r, g, b;
 	int i;
+	unsigned int ph;
 	const shaderprogparm_t *p;
 
 	/*don't bother setting it if the ent properties are unchanged (but do if the mesh changed)*/
@@ -2645,25 +2691,26 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 	for (i = 0; i < prog->numparams; i++)
 	{
 		p = &prog->parm[i];
-		if (p->handle[perm] == -1)
+		ph = prog->permu[perm].parm[i];
+		if (ph == -1)
 			continue;	/*not in this permutation*/
 
 		switch(p->type)
 		{
 		case SP_M_VIEW:
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_view);
+			qglUniformMatrix4fvARB(ph, 1, false, r_refdef.m_view);
 			break;
 		case SP_M_PROJECTION:
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_projection);
+			qglUniformMatrix4fvARB(ph, 1, false, r_refdef.m_projection);
 			break;
 		case SP_M_MODELVIEW:
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelviewmatrix);
+			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.modelviewmatrix);
 			break;
 		case SP_M_MODELVIEWPROJECTION:
 			{
 				float m16[16];
 				Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
-				qglUniformMatrix4fvARB(p->handle[perm], 1, false, m16);
+				qglUniformMatrix4fvARB(ph, 1, false, m16);
 			}
 			break;
 		case SP_M_INVMODELVIEWPROJECTION:
@@ -2671,15 +2718,15 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				float m16[16], inv[16];
 				Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
 				Matrix4_Invert(m16, inv);
-				qglUniformMatrix4fvARB(p->handle[perm], 1, false, inv);
+				qglUniformMatrix4fvARB(ph, 1, false, inv);
 			}
 			break;
 		case SP_M_MODEL:
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelmatrix);
+			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.modelmatrix);
 			break;
 		case SP_M_ENTBONES:
 			{
-				qglUniformMatrix3x4fv(p->handle[perm], shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
+				qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
 			}
 			break;
 		case SP_M_INVVIEWPROJECTION:
@@ -2687,12 +2734,12 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				float m16[16], inv[16];
 				Matrix4_Multiply(r_refdef.m_projection, r_refdef.m_view, m16);
 				Matrix4_Invert(m16, inv);
-				qglUniformMatrix4fvARB(p->handle[perm], 1, false, inv);
+				qglUniformMatrix4fvARB(ph, 1, false, inv);
 			}
 			break;
 
 		case SP_E_VBLEND:
-			qglUniform2fvARB(p->handle[perm], 1, shaderstate.meshes[0]->xyz_blendw);
+			qglUniform2fvARB(ph, 1, shaderstate.meshes[0]->xyz_blendw);
 			break;
 
 		case SP_E_LMSCALE:
@@ -2728,7 +2775,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 					VectorScale(colscale[j], d_lightstylevalue[s]/256.0f, colscale[j]);
 				}
 
-				qglUniform4fvARB(p->handle[perm], j, (GLfloat*)colscale);
+				qglUniform4fvARB(ph, j, (GLfloat*)colscale);
 				shaderstate.lastuniform = 0;
 			}
 			else
@@ -2745,38 +2792,38 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				}
 				colscale[0][3] = 1;
 
-				qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)colscale);
+				qglUniform4fvARB(ph, 1, (GLfloat*)colscale);
 			}
 			break;
 
 		case SP_E_GLOWMOD:
-			qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->glowmod);
+			qglUniform3fvARB(ph, 1, (GLfloat*)shaderstate.curentity->glowmod);
 			break;
 		case SP_E_ORIGIN:
-			qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->origin);
+			qglUniform3fvARB(ph, 1, (GLfloat*)shaderstate.curentity->origin);
 			break;
 		case SP_E_COLOURS:
-			qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+			qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
 			break;
 		case SP_E_COLOURSIDENT:
 			if (shaderstate.flags & BEF_FORCECOLOURMOD)
-				qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+				qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
 			else
-				qglUniform4fARB(p->handle[perm], 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
+				qglUniform4fARB(ph, 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
 			break;
 		case SP_E_TOPCOLOURS:
 			R_FetchTopColour(&r, &g, &b);
 			param3[0] = r/255.0f;
 			param3[1] = g/255.0f;
 			param3[2] = b/255.0f;
-			qglUniform3fvARB(p->handle[perm], 1, param3);
+			qglUniform3fvARB(ph, 1, param3);
 			break;
 		case SP_E_BOTTOMCOLOURS:
 			R_FetchBottomColour(&r, &g, &b);
 			param3[0] = r/255.0f;
 			param3[1] = g/255.0f;
 			param3[2] = b/255.0f;
-			qglUniform3fvARB(p->handle[perm], 1, param3);
+			qglUniform3fvARB(ph, 1, param3);
 			break;
 
 		case SP_RENDERTEXTURESCALE:
@@ -2797,7 +2844,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				param3[1] = vid.pixelheight/(float)g;
 			}
 			param3[2] = 1;
-			qglUniform3fvARB(p->handle[perm], 1, param3);
+			qglUniform3fvARB(ph, 1, param3);
 			break;
 
 		case SP_LIGHTSCREEN:
@@ -2817,27 +2864,27 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				v[1] = (v[1]/v[3]) + 0.5;
 				v[2] = (v[2]/v[3]) + 0.5;
 
-				qglUniform3fvARB(p->handle[perm], 1, v);
+				qglUniform3fvARB(ph, 1, v);
 			}
 			break;
 		case SP_LIGHTRADIUS:
-			qglUniform1fARB(p->handle[perm], shaderstate.lightradius);
+			qglUniform1fARB(ph, shaderstate.lightradius);
 			break;
 		case SP_LIGHTCOLOUR:
-			qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolours);
+			qglUniform3fvARB(ph, 1, shaderstate.lightcolours);
 			break;
 		case SP_W_FOG:
-			qglUniform4fvARB(p->handle[perm], 1, r_refdef.gfog_rgbd);
+			qglUniform4fvARB(ph, 1, r_refdef.gfog_rgbd);
 			break;
 		case SP_V_EYEPOS:
-			qglUniform3fvARB(p->handle[perm], 1, r_origin);
+			qglUniform3fvARB(ph, 1, r_origin);
 			break;
 		case SP_E_EYEPOS:
 			{
 				/*eye position in model space*/
 				vec3_t t2;
 				Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, r_origin, t2);
-				qglUniform3fvARB(p->handle[perm], 1, t2);
+				qglUniform3fvARB(ph, 1, t2);
 			}
 			break;
 		case SP_LIGHTPOSITION:
@@ -2845,17 +2892,17 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				/*light position in model space*/
 				vec3_t t2;
 				Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, shaderstate.lightorg, t2);
-				qglUniform3fvARB(p->handle[perm], 1, t2);
+				qglUniform3fvARB(ph, 1, t2);
 			}
 			break;
 		case SP_LIGHTCOLOURSCALE:
-			qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolourscale);
+			qglUniform3fvARB(ph, 1, shaderstate.lightcolourscale);
 			break;
 		case SP_LIGHTPROJMATRIX:
 			{
 				float t[16];
 				Matrix4x4_CM_Projection_Far(t, 90, 90, 4, 3000);
-				qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
+				qglUniformMatrix4fvARB(ph, 1, false, t);
 			}
 			break;
 		case SP_LIGHTCUBEMATRIX:
@@ -2863,36 +2910,36 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			{
 				float t[16];
 				Matrix4_Multiply(shaderstate.modelmatrix, shaderstate.lightprojmatrix, t);
-				qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
+				qglUniformMatrix4fvARB(ph, 1, false, t);
 			}
 			break;
 
 		/*static lighting info*/
 		case SP_E_L_DIR:
-			qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_dir);
+			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_dir);
 			break;
 		case SP_E_L_MUL:
-			qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_range);
+			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_range);
 			break;
 		case SP_E_L_AMBIENT:
-			qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_avg);
+			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_avg);
 			break;
 
 		case SP_E_TIME:
-			qglUniform1fARB(p->handle[perm], shaderstate.curtime);
+			qglUniform1fARB(ph, shaderstate.curtime);
 			break;
 		case SP_CONSTI:
 		case SP_TEXTURE:
-			qglUniform1iARB(p->handle[perm], p->ival);
+			qglUniform1iARB(ph, p->ival);
 			break;
 		case SP_CONSTF:
-			qglUniform1fARB(p->handle[perm], p->fval);
+			qglUniform1fARB(ph, p->fval);
 			break;
 		case SP_CVARI:
-			qglUniform1iARB(p->handle[perm], ((cvar_t*)p->pval)->ival);
+			qglUniform1iARB(ph, ((cvar_t*)p->pval)->ival);
 			break;
 		case SP_CVARF:
-			qglUniform1fARB(p->handle[perm], ((cvar_t*)p->pval)->value);
+			qglUniform1fARB(ph, ((cvar_t*)p->pval)->value);
 			break;
 		case SP_CVAR3F:
 			{
@@ -2904,7 +2951,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				param3[1] = atof(com_token);
 				vs = COM_Parse(vs);
 				param3[2] = atof(com_token);
-				qglUniform3fvARB(p->handle[perm], 1, param3);
+				qglUniform3fvARB(ph, 1, param3);
 			}
 			break;
 
@@ -2925,45 +2972,42 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	perm = 0;
 	if (shaderstate.sourcevbo->numbones)
 	{
-		if (p->handle[perm|PERMUTATION_SKELETAL].glsl)
+		if (p->permu[perm|PERMUTATION_SKELETAL].handle.glsl)
 			perm |= PERMUTATION_SKELETAL;
 		else
 			return;
 	}
-	if (p->handle[perm|PERMUTATION_FRAMEBLEND].glsl && shaderstate.sourcevbo->coord2.gl.addr)
+	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.glsl && shaderstate.sourcevbo->coord2.gl.addr)
 		perm |= PERMUTATION_FRAMEBLEND;
-	if (TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_BUMPMAP].glsl)
+	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.glsl)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->specular) && p->handle[perm|PERMUTATION_SPECULAR].glsl)
+	if (/*TEXVALID(shaderstate.curtexnums->specular) &&*/ p->permu[perm|PERMUTATION_SPECULAR].handle.glsl)
 		perm |= PERMUTATION_SPECULAR;
-	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->handle[perm|PERMUTATION_FULLBRIGHT].glsl)
+	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.glsl)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if ((TEXVALID(shaderstate.curtexnums->loweroverlay) || TEXVALID(shaderstate.curtexnums->upperoverlay)) && p->handle[perm|PERMUTATION_UPPERLOWER].glsl)
+	if ((TEXVALID(shaderstate.curtexnums->loweroverlay) || TEXVALID(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].handle.glsl)
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].glsl)
+	if (r_refdef.gfog_rgbd[3] && p->permu[perm|PERMUTATION_FOG].handle.glsl)
 		perm |= PERMUTATION_FOG;
-	if (p->handle[perm|PERMUTATION_DELUXE].glsl && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 		perm |= PERMUTATION_DELUXE;
-	if (shaderstate.curbatch->lightmap[1] >= 0 && p->handle[perm|PERMUTATION_LIGHTSTYLES].glsl)
+	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.glsl)
 		perm |= PERMUTATION_LIGHTSTYLES;
 
-	if (shaderstate.currentvao != shaderstate.sourcevbo->vao)
-	{
-		shaderstate.currentvao = shaderstate.sourcevbo->vao;
-		qglBindVertexArray(shaderstate.sourcevbo->vao); 
-	}
-	GL_SelectProgram(p->handle[perm].glsl);
-	if (shaderstate.lastuniform == p->handle[perm].glsl)
+	GL_SelectProgram(p->permu[perm].handle.glsl);
+#ifndef FORCESTATE
+	if (shaderstate.lastuniform == p->permu[perm].handle.glsl)
 		i = true;
 	else
+#endif
 	{
 		i = false;
-		shaderstate.lastuniform = p->handle[perm].glsl;
+		shaderstate.lastuniform = p->permu[perm].handle.glsl;
 	}
 	BE_Program_Set_Attributes(p, perm, i);
 
 	BE_SendPassBlendDepthMask(pass->shaderbits);
-	BE_EnableShaderAttributes(p->attrmask[perm]);
+	BE_EnableShaderAttributes(p->permu[perm].attrmask, shaderstate.sourcevbo->vao);
 	if (p->nofixedcompat)
 	{
 		for (i = 0; i < pass->numMergedPasses; i++)
@@ -3186,6 +3230,7 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
 	float view[16], proj[16];
 	int lmode;
+	extern cvar_t gl_specular;
 
 	/*generate light projection information*/
 	float nearplane = 4;
@@ -3205,6 +3250,7 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 	shaderstate.lightradius = dl->radius;
 	VectorCopy(dl->origin, shaderstate.lightorg);
 	VectorCopy(dl->lightcolourscales, shaderstate.lightcolourscale);
+	shaderstate.lightcolourscale[2] *= gl_specular.value;
 	VectorCopy(colour, shaderstate.lightcolours);
 #ifdef RTLIGHTS
 	shaderstate.lightcubemap = dl->cubetexture;
@@ -3268,6 +3314,7 @@ static void BE_LegacyLighting(void)
 	int i, m;
 	mesh_t *mesh;
 	unsigned int attr = (1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR);
+	int tmu = 0;
 
 	BE_SendPassBlendDepthMask(SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
 
@@ -3295,43 +3342,52 @@ static void BE_LegacyLighting(void)
 
 	if (shaderstate.curtexnums->bump.num && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
 	{	//we could get this down to 2 tmus by arranging for the dot3 result to be written the alpha buffer. But then we'd need to have an alpha buffer too.
-		attr |= (1u<<(VATTR_LEG_TMU0)) | (1u<<(VATTR_LEG_TMU0+1)) | (1u<<(VATTR_LEG_TMU0+2));
 
 		if (!shaderstate.normalisationcubemap.num)
 			shaderstate.normalisationcubemap = GenerateNormalisationCubeMap();
 
 		//tmu0: normalmap+replace+regular tex coords
-		GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.curtexnums->bump);
-		BE_SetPassBlendMode(0, PBM_REPLACE);
-		qglClientActiveTextureARB(mtexid0 + 0);
-		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-		qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->bump);
+		BE_SetPassBlendMode(tmu, PBM_REPLACE);
+		shaderstate.pendingtexcoordparts[tmu] = 2;
+		shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
+		shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->texcoord.gl.addr;
+		attr |= (1u<<(VATTR_LEG_TMU0+tmu));
+		tmu++;
 
 		//tmu1: normalizationcubemap+dot3+lightdir
-		GL_LazyBind(1, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.normalisationcubemap);
-		BE_SetPassBlendMode(1, PBM_DOTPRODUCT);
-		qglClientActiveTextureARB(mtexid0 + 1);
-		GL_SelectVBO(0);
-		qglTexCoordPointer(3, GL_FLOAT, 0, texcoordarray[0]);
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.normalisationcubemap);
+		BE_SetPassBlendMode(tmu, PBM_DOTPRODUCT);
+		shaderstate.pendingtexcoordparts[tmu] = 3;
+		shaderstate.pendingtexcoordvbo[tmu] = 0;
+		shaderstate.pendingtexcoordpointer[tmu] = texcoordarray[0];
+		attr |= (1u<<(VATTR_LEG_TMU0+tmu));
+		tmu++;
 
 		//tmu2: $diffuse+multiply+regular tex coords
-		GL_LazyBind(2, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
-		BE_SetPassBlendMode(2, PBM_MODULATE);
-		qglClientActiveTextureARB(mtexid0 + 2);
-		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-		qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
+		BE_SetPassBlendMode(tmu, PBM_MODULATE);
+		shaderstate.pendingtexcoordparts[tmu] = 2;
+		shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
+		shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->texcoord.gl.addr;
+		attr |= (1u<<(VATTR_LEG_TMU0+tmu));
+		tmu++;
 	
 		//tmu3: $any+multiply-by-colour+notc
-		GL_LazyBind(3, GL_TEXTURE_2D, shaderstate.curtexnums->bump);	//texture not used, its just to make sure the code leaves it enabled.
-		BE_SetPassBlendMode(3, PBM_MODULATE_PREV_COLOUR);
+		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->bump);	//texture not used, its just to make sure the code leaves it enabled.
+		BE_SetPassBlendMode(tmu, PBM_MODULATE_PREV_COLOUR);
+		shaderstate.pendingtexcoordparts[tmu] = 0;
+		shaderstate.pendingtexcoordvbo[tmu] = 0;
+		shaderstate.pendingtexcoordpointer[tmu] = NULL;
+		tmu++;
 
 		//note we need 4 combiners in the first because we can't use the colour argument in the first without breaking the normals.
 
-		for (i = 4; i < shaderstate.lastpasstmus; i++)
+		for (i = tmu; i < shaderstate.lastpasstmus; i++)
 		{
-			GL_LazyBind(i, GL_TEXTURE_2D, r_nulltex);
+			GL_LazyBind(i, 0, r_nulltex);
 		}
-		shaderstate.lastpasstmus = 4;
+		shaderstate.lastpasstmus = tmu;
 	}
 	else
 	{
@@ -3341,13 +3397,12 @@ static void BE_LegacyLighting(void)
 		//multiplies by vertex colours
 		GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
 		BE_SetPassBlendMode(0, PBM_MODULATE);
-		qglClientActiveTextureARB(mtexid0 + 0);
-		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-		qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+		shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+		shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
 
 		for (i = 1; i < shaderstate.lastpasstmus; i++)
 		{
-			GL_LazyBind(i, GL_TEXTURE_2D, r_nulltex);
+			GL_LazyBind(i, 0, r_nulltex);
 		}
 		shaderstate.lastpasstmus = 1;
 	}
@@ -3356,15 +3411,14 @@ static void BE_LegacyLighting(void)
 	shaderstate.pendingcolourvbo = 0;
 	shaderstate.pendingcolourpointer = coloursarray;
 
-	GL_DeselectVAO();
 	GL_DeSelectProgram();
-	BE_EnableShaderAttributes(attr);
+	BE_EnableShaderAttributes(attr, 0);
 
 	BE_SubmitMeshChain();
 
-	GL_LazyBind(1, GL_TEXTURE_2D, r_nulltex);
-	GL_LazyBind(2, GL_TEXTURE_2D, r_nulltex);
-	GL_LazyBind(3, GL_TEXTURE_2D, r_nulltex);
+	GL_LazyBind(1, 0, r_nulltex);
+	GL_LazyBind(2, 0, r_nulltex);
+	GL_LazyBind(3, 0, r_nulltex);
 }
 #endif
 
@@ -3455,8 +3509,11 @@ static void DrawMeshes(void)
 					break;
 				}
 
-				if (!shaderstate.shader_light[shaderstate.lightmode])
+				if (!shaderstate.shader_light[shaderstate.lightmode] || !shaderstate.shader_light[shaderstate.lightmode]->prog)
+				{
+					shaderstate.shader_light[shaderstate.lightmode] = NULL;
 					break;
+				}
 			}
 			else
 			{
@@ -3478,27 +3535,24 @@ static void DrawMeshes(void)
 			BE_RenderMeshProgram(shaderstate.crepopaqueshader, shaderstate.crepopaqueshader->passes);
 		break;
 	case BEM_DEPTHONLY:
-		GL_DeselectVAO();
 		GL_DeSelectProgram();
 #ifdef warningmsg
 #pragma warningmsg("fixme: support alpha test")
 #endif
-		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX));
+		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
 		BE_SubmitMeshChain();
 		break;
 
 	case BEM_FOG:
-		GL_DeselectVAO();
 		GL_DeSelectProgram();
 
 		GenerateTCFog(0, NULL);
-		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX));
+		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
 		BE_SubmitMeshChain();
 		break;
 
 	case BEM_WIREFRAME:
 		//FIXME: do this with a shader instead? its not urgent as we can draw the shader normally anyway, just faster.
-		GL_DeselectVAO();
 		GL_DeSelectProgram();
 		shaderstate.pendingcolourvbo = 0;
 		shaderstate.pendingcolourpointer = NULL;
@@ -3510,27 +3564,48 @@ static void DrawMeshes(void)
 		BE_SetPassBlendMode(0, PBM_REPLACE);
 		BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits | SBITS_MISC_NODEPTHTEST);
 
-		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR));
+		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
 		BE_SubmitMeshChain();
 		break;
 	case BEM_DEPTHDARK:
 		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright) && !gl_config.nofixedfunc)
 		{
-			//FIXME: do this with a shader instead? its not urgent as we can draw the shader normally anyway, just faster.
-			GL_DeselectVAO();
-			GL_DeSelectProgram();
-			shaderstate.pendingcolourvbo = 0;
-			shaderstate.pendingcolourpointer = NULL;
-			Vector4Set(shaderstate.pendingcolourflat, 0, 0, 0, 1);
-			while(shaderstate.lastpasstmus>0)
+			if (gl_config.arb_shader_objects)
 			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
-			}
-			BE_SetPassBlendMode(0, PBM_REPLACE);
-			BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
+				char *defs[] = {NULL};
+				if (!shaderstate.allblackshader)
+					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false);
 
-			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR));
-			BE_SubmitMeshChain();
+				GL_SelectProgram(shaderstate.allblackshader);
+				BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
+				BE_EnableShaderAttributes(1u<<VATTR_LEG_VERTEX, 0);
+				if (shaderstate.allblackshader != shaderstate.lastuniform)
+				{
+					float m16[16];
+					Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+					qglUniformMatrix4fvARB(qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection"), 1, false, m16);
+				}
+				BE_SubmitMeshChain();
+
+				shaderstate.lastuniform = shaderstate.allblackshader;
+			}
+			else
+			{
+				GL_DeSelectProgram();
+				shaderstate.pendingcolourvbo = 0;
+				shaderstate.pendingcolourpointer = NULL;
+				Vector4Set(shaderstate.pendingcolourflat, 0, 0, 0, 1);
+				while(shaderstate.lastpasstmus>0)
+				{
+					GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+				}
+
+				BE_SetPassBlendMode(0, PBM_REPLACE);
+				BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
+
+				BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
+				BE_SubmitMeshChain();
+			}
 			break;
 		}
 		//fallthrough
@@ -3544,7 +3619,6 @@ static void DrawMeshes(void)
 			break;
 		else
 		{
-			GL_DeselectVAO();
 			GL_DeSelectProgram();
 			while (passno < shaderstate.curshader->numpasses)
 			{
@@ -3558,7 +3632,6 @@ static void DrawMeshes(void)
 		}
 		if (shaderstate.curbatch->fog)
 		{
-			GL_DeselectVAO();
 			GL_DeSelectProgram();
 
 			GenerateFogTexture(&shaderstate.fogtexture, shaderstate.curbatch->fog->shader->fog_dist, 2048);
@@ -3578,7 +3651,7 @@ static void DrawMeshes(void)
 			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
 
 			GenerateTCFog(0, shaderstate.curbatch->fog);
-			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0));
+			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0), 0);
 			BE_SubmitMeshChain();
 		}
 		break;
@@ -3597,7 +3670,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		TRACE(("GLBE_DrawMesh_List: shader %s\n", shader->name));
 		if (shaderstate.curentity != &r_worldentity)
 		{
-			BE_SelectEntity(&r_worldentity);
+			GLBE_SelectEntity(&r_worldentity);
 		}
 		shaderstate.curtexnums = texnums;
 
@@ -3640,7 +3713,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		shaderstate.flags = beflags;
 		if (shaderstate.curentity != &r_worldentity)
 		{
-			BE_SelectEntity(&r_worldentity);
+			GLBE_SelectEntity(&r_worldentity);
 		}
 		shaderstate.curtexnums = texnums;
 
@@ -3697,7 +3770,7 @@ void GLBE_SubmitBatch(batch_t *batch)
 	shaderstate.flags = batch->flags;
 	if (shaderstate.curentity != batch->ent)
 	{
-		BE_SelectEntity(batch->ent);
+		GLBE_SelectEntity(batch->ent);
 	}
 	if (batch->skin)
 		shaderstate.curtexnums = batch->skin;
@@ -3829,6 +3902,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 			if (batch->shader->flags & SHADER_HASREFLECT)
 			{
+				vrect_t orect = r_refdef.vrect;
 				if (!shaderstate.tex_reflection.num)
 				{
 					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -3842,17 +3916,23 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				GL_ForceDepthWritable();
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, true);
 				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
+				r_refdef.vrect.x = 0;
+				r_refdef.vrect.y = 0;
+				r_refdef.vrect.width = vid.pixelwidth/2;
+				r_refdef.vrect.height = vid.pixelheight/2;
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				GLR_DrawPortal(batch, cl.worldmodel->batches, 1);
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
 				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+				r_refdef.vrect = orect;
 			}
 			if (batch->shader->flags & SHADER_HASREFRACT)
 			{
 				if (r_refract_fboival)
 				{
+					vrect_t orect;
 					if (!shaderstate.tex_refraction.num)
 					{
 						shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -3865,7 +3945,14 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					}
 					GL_ForceDepthWritable();
 					GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, true);
+
 					qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
+					orect = r_refdef.vrect;
+					r_refdef.vrect.x = 0;
+					r_refdef.vrect.y = 0;
+					r_refdef.vrect.width = vid.pixelwidth/2;
+					r_refdef.vrect.height = vid.pixelheight/2;
+
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -3873,12 +3960,14 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
 
 					qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+					r_refdef.vrect = orect;
 				}
 				else
 					GLR_DrawPortal(batch, cl.worldmodel->batches, 2);
 			}
 			if (batch->shader->flags & SHADER_HASRIPPLEMAP)
 			{
+				vrect_t orect;
 				if (!shaderstate.tex_ripplemap.num)
 				{
 					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -3891,6 +3980,12 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				}
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_ripplemap, false);
 				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
+				orect = r_refdef.vrect;
+				r_refdef.vrect.x = 0;
+				r_refdef.vrect.y = 0;
+				r_refdef.vrect.width = vid.pixelwidth/2;
+				r_refdef.vrect.height = vid.pixelheight/2;
+
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT);
 
@@ -3902,6 +3997,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
 
 				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+				r_refdef.vrect = orect;
 			}
 			BE_SelectMode(oldbem);
 		}
@@ -4003,7 +4099,7 @@ void GLBE_BaseEntTextures(void)
 	shaderstate.mbatches = batches;
 	BE_GenModelBatches(batches);
 	GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
-	BE_SelectEntity(&r_worldentity);
+	GLBE_SelectEntity(&r_worldentity);
 	shaderstate.mbatches = ob;
 }
 #endif
@@ -4157,7 +4253,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	qglClearColor (0,0,0,0);
 	qglClear(GL_COLOR_BUFFER_BIT);
 
-	BE_SelectEntity(&r_worldentity);
+	GLBE_SelectEntity(&r_worldentity);
 	/*now draw the prelights*/
 	GLBE_SubmitMeshes(true, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
 
@@ -4167,12 +4263,12 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	qglDrawBuffer(GL_BACK);
 
 	/*now draw the postlight passes (this includes blended stuff which will NOT be lit)*/
-	BE_SelectEntity(&r_worldentity);
+	GLBE_SelectEntity(&r_worldentity);
 	GLBE_SubmitMeshes(true, SHADER_SORT_SKY, SHADER_SORT_NEAREST);
 
 #ifdef RTLIGHTS
 	/*regular lighting now*/
-	BE_SelectEntity(&r_worldentity);
+	GLBE_SelectEntity(&r_worldentity);
 	Sh_DrawLights(vis);
 #endif
 
@@ -4190,12 +4286,11 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	RSpeedLocals();
 	shaderstate.mbatches = batches;
 
-	GL_DoSwap();
-
 	TRACE(("GLBE_DrawWorld: %i %p\n", drawworld, vis));
 
 	if (!r_refdef.recurse)
 	{
+		GL_DoSwap();
 		if (shaderstate.wbatch + 50 > shaderstate.maxwbatches)
 		{
 			int newm = shaderstate.wbatch + 100;
@@ -4247,7 +4342,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	else
 		shaderstate.updatetime = cl.servertime;
 
-	BE_SelectEntity(&r_worldentity);
+	GLBE_SelectEntity(&r_worldentity);
 
 	BE_UpdateLightmaps();
 	if (drawworld)
@@ -4259,7 +4354,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			if (gl_overbright.ival > 2)
 				gl_overbright.ival = 2;
 
-			for (i = 0; i < SHADER_PASS_MAX; i++)
+			for (i = 0; i < SHADER_TMU_MAX; i++)
 				shaderstate.blendmode[i] = -1;
 		}
 
@@ -4294,7 +4389,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		{
 			RSpeedRemark();
 			TRACE(("GLBE_DrawWorld: drawing lights\n"));
-			BE_SelectEntity(&r_worldentity);
+			GLBE_SelectEntity(&r_worldentity);
 			Sh_DrawLights(vis);
 			RSpeedEnd(RSPEED_STENCILSHADOWS);
 			TRACE(("GLBE_DrawWorld: lights drawn\n"));
@@ -4340,7 +4435,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 #endif
 	}
 
-	BE_SelectEntity(&r_worldentity);
+	GLBE_SelectEntity(&r_worldentity);
 	shaderstate.curtime = shaderstate.updatetime = realtime;
 
 	shaderstate.identitylighting = 1;

@@ -4,6 +4,7 @@
 #include "gl_draw.h"
 
 texid_t missing_texture;
+texid_t missing_texture_gloss;
 
 texid_t translate_texture;
 shader_t *translate_shader;
@@ -17,7 +18,9 @@ static mpic_t *draw_backtile;
 static shader_t *shader_draw_fill, *shader_draw_fill_trans;
 mpic_t		*draw_disc;
 
-shader_t *shader_brighten;
+shader_t *shader_contrastup;
+shader_t *shader_contrastdown;
+shader_t *shader_brightness;
 shader_t *shader_polyblend;
 shader_t *shader_menutint;
 
@@ -31,7 +34,7 @@ unsigned int r2d_be_flags;
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font;
-extern cvar_t gl_contrast;
+extern cvar_t gl_contrast, gl_brightness;
 extern cvar_t gl_screenangle;
 extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
@@ -124,6 +127,8 @@ Image loading code must be ready for use at this point.
 */
 void R2D_Init(void)
 {
+	unsigned int nogloss[4*4];
+	int i;
 	conback = NULL;
 
 	Shader_Init();
@@ -144,7 +149,10 @@ void R2D_Init(void)
 #pragma warningmsg("Fixme: move conwidth handling into here")
 #endif
 
+	for (i = 0; i < 4*4; i++)
+		nogloss[i] = LittleLong(0xff101010);
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
+	missing_texture_gloss = R_LoadTexture("no_texture_gloss", 4, 4, TF_RGBA32, (unsigned char*)nogloss, IF_NOGAMMA);
 	translate_texture = r_nulltex;
 	ch_int_texture = r_nulltex;
 
@@ -182,12 +190,37 @@ void R2D_Init(void)
 				"blendfunc blend\n"
 			"}\n"
 		"}\n");
-	shader_brighten = R_RegisterShader("constrastshader",
+	shader_contrastup = R_RegisterShader("constrastupshader",
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
+				"nodepthtest\n"
 				"map $whiteimage\n"
 				"blendfunc gl_dst_color gl_one\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+	);
+	shader_contrastdown = R_RegisterShader("constrastdownshader",
+		"{\n"
+			"program defaultfill\n"
+			"{\n"
+				"nodepthtest\n"
+				"map $whiteimage\n"
+				"blendfunc gl_dst_color gl_zero\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+	);
+	shader_brightness = R_RegisterShader("brightnessshader",
+		"{\n"
+			"program defaultfill\n"
+			"{\n"
+				"nodepthtest\n"
+				"map $whiteimage\n"
+				"blendfunc gl_one gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 			"}\n"
@@ -520,7 +553,9 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 
 void R2D_EditorBackground (void)
 {
-	R2D_ScalePic(0, 0, vid.width, vid.height, conback);
+	R2D_ImageColours(0, 0, 0, 1);
+	R2D_FillBlock(0, 0, vid.width, vid.height);
+//	R2D_ScalePic(0, 0, vid.width, vid.height, conback);
 }
 
 /*
@@ -760,7 +795,7 @@ void R2D_BrightenScreen (void)
 
 	RSpeedMark();
 
-	if (gl_contrast.value <= 1.0)
+	if (gl_contrast.value != 1.0 && gl_brightness.value != 0)
 		return;
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
@@ -772,11 +807,27 @@ void R2D_BrightenScreen (void)
 	while (f > 1)
 	{
 		if (f >= 2)
+		{
 			R2D_ImageColours (1, 1, 1, 1);
+			f *= 0.5;
+		}
 		else
+		{
 			R2D_ImageColours (f - 1, f - 1, f - 1, 1);
-		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brighten);
-		f *= 0.5;
+			f = 1;
+		}
+		R2D_ScalePic(0, 0, vid.width, vid.height, shader_contrastup);
+	}
+	if (f < 1)
+	{
+		R2D_ImageColours (f, f, f, 1);
+		R2D_ScalePic(0, 0, vid.width, vid.height, shader_contrastdown);
+	}
+
+	if (gl_brightness.value)
+	{
+		R2D_ImageColours (gl_brightness.value, gl_brightness.value, gl_brightness.value, 1);
+		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brightness);
 	}
 	R2D_ImageColours (1, 1, 1, 1);
 

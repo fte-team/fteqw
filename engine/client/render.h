@@ -200,7 +200,9 @@ void Surf_LessenStains(void);
 void Surf_WipeStains(void);
 void Surf_DeInit(void);
 void Surf_Clear(struct model_s *mod);
-void Surf_BuildLightmaps(void);
+void Surf_BuildLightmaps(void);				//enables Surf_BuildModelLightmaps, calls it for each bsp.
+void Surf_ClearLightmaps(void);				//stops Surf_BuildModelLightmaps from working.
+void Surf_BuildModelLightmaps (struct model_s *m);	//rebuild lightmaps for a single bsp. beware of submodels.
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
@@ -360,7 +362,8 @@ qboolean Media_ShowFilm(void);
 void Media_CaptureDemoEnd(void);
 void Media_RecordFrame (void);
 qboolean Media_PausedDemo (void);
-double Media_TweekCaptureFrameTime(double time);
+int Media_Capturing (void);
+double Media_TweekCaptureFrameTime(double oldtime, double time);
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
@@ -424,6 +427,7 @@ extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_waterstyle;
+extern	cvar_t	r_lavastyle;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;

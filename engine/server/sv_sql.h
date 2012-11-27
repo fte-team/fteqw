@@ -1,6 +1,16 @@
-#ifndef MYSQLDLL_H
-#define MYSQLDLL_H
-#include <mysql/mysql.h>
+#ifndef SV_SQL_H
+#define SV_SQL_H
+
+#ifdef USE_MYSQL
+	#ifdef _WIN32
+		#include <windows.h>
+	#endif
+	#include <mysql/mysql.h>
+#endif
+
+#ifdef USE_SQLITE
+	#include "sqlite3.h"
+#endif
 
 dllhandle_t *mysqlhandle;
 
@@ -34,7 +44,7 @@ typedef struct queryresult_s
 	int rows; /* rows contained in single result set */
 	int columns; /* fields */
 	qboolean eof; /* end of query reached */
-	MYSQL_RES *result; /* result set from mysql */
+	void *result; /* result set from mysql */
 #if 0
 	char **resultset; /* stored result set from partial fetch */
 #endif
@@ -45,8 +55,14 @@ typedef struct sqlserver_s
 {
 	void *thread; /* worker thread for server */
 	sqldrv_t driver; /* driver type */
+#ifdef USE_MYSQL
 	MYSQL *mysql; /* mysql server */
+#endif
+#ifdef USE_SQLITE
+	sqlite3 *sqlite;
+#endif
 	volatile qboolean active; /* set to false to kill thread */
+	volatile qboolean terminated; /* set by the worker to say that it won't block (for long) and can be joined */
 	void *requestcondv; /* lock and conditional variable for queue read/write */
 	void *resultlock; /* mutex for queue read/write */
 	int querynum; /* next reference number for queries */
@@ -67,7 +83,7 @@ void SQL_DeInit(void);
 
 sqlserver_t *SQL_GetServer (int serveridx, qboolean inactives);
 queryresult_t *SQL_GetQueryResult (sqlserver_t *server, int queryidx);
-void SQL_DeallocResult(queryresult_t *qres);
+//void SQL_DeallocResult(sqlserver_t *server, queryresult_t *qres);
 void SQL_ClosePersistantResult(sqlserver_t *server, queryresult_t *qres);
 void SQL_CloseResult(sqlserver_t *server, queryresult_t *qres);
 void SQL_CloseAllResults(sqlserver_t *server);
@@ -76,7 +92,7 @@ int SQL_NewServer(char *driver, char **paramstr);
 int SQL_NewQuery(sqlserver_t *server, int callfunc, int type, int self, float selfid, int other, float otherid, char *str);
 void SQL_Disconnect(sqlserver_t *server);
 void SQL_Escape(sqlserver_t *server, char *src, char *dst, int dstlen);
-char *SQL_Info(sqlserver_t *server);
+const char *SQL_Info(sqlserver_t *server);
 qboolean SQL_Available(void);
 void SQL_ServerCycle (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 

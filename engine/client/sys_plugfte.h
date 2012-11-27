@@ -17,6 +17,7 @@ struct contextpublic
 	unsigned int dlsize;
 	unsigned int dldone;
 	float availver;	/*this is the version of the plugin that is available, if current is better, use 0*/
+	char statusmessage[256];
 
 #if defined(_WIN32) && defined(__QUAKEDEF_H__)
 	/*the npapi stuff is lazy and uses this*/
@@ -58,7 +59,7 @@ struct context *Plug_CreateContext(void *sysctx, const struct browserfuncs *func
 void Plug_DestroyContext(struct context *ctx);
 void Plug_LockPlugin(struct context *ctx, qboolean lockstate);
 qboolean Plug_StartContext(struct context *ctx);
-void Plug_StopContext(struct context *ctx);
+void Plug_StopContext(struct context *ctx, qboolean wait);
 qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int left, int top, int width, int height);
 
 int Plug_FindProp(struct context *ctx, const char *field);
@@ -81,7 +82,7 @@ struct plugfuncs
 	void (*DestroyContext)(struct context *ctx);
 	void (*LockPlugin)(struct context *ctx, qboolean lockstate);
 	qboolean (*StartContext)(struct context *ctx);
-	void (*StopContext)(struct context *ctx);
+	void (*StopContext)(struct context *ctx, qboolean wait);
 	qboolean (*ChangeWindow)(struct context *ctx, void *whnd, int left, int top, int width, int height);
 
 	int (*FindProp)(struct context *ctx, const char *field);

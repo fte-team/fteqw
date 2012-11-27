@@ -319,6 +319,8 @@ extern cvar_t gl_workaround_ati_shadersource;
 qboolean GL_CheckExtension(char *extname)
 {
 	int i;
+	int len;
+	const char *foo;
 	cvar_t *v = Cvar_Get(va("gl_ext_%s", extname), "1", 0, "GL Extensions");
 	if (v && !v->ival)
 	{
@@ -339,8 +341,18 @@ qboolean GL_CheckExtension(char *extname)
 	if (!gl_extensions)
 		return false;
 
-	//note that this is not actually correct...
-	return !!strstr(gl_extensions, extname);
+	//the list is space delimited. we cannot just strstr lest we find leading/trailing _FOO_.
+	len = strlen(extname);
+	for (foo = gl_extensions; *foo; )
+	{
+		if (!strncmp(foo, extname, len) && (foo[len] == ' ' || !foo[len]))
+			return true;
+		while(*foo && *foo != ' ')
+			foo++;
+		if (*foo == ' ')
+			foo++;
+	}
+	return false;
 }
 
 void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
@@ -352,6 +364,10 @@ void APIENTRY GL_BindBufferARBStub(GLenum target, GLuint id)
 }
 
 void APIENTRY GL_ClientStateStub(GLenum array)
+{
+}
+
+void APIENTRY GL_ClientActiveTextureStub(GLenum texid)
 {
 }
 
@@ -388,7 +404,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			s++;
 		gl_minor_version = atoi(s);
 	}
-	gl_config.glversion = gl_major_version + (gl_minor_version/10.f);
+	//yes, I know, this can't cope with minor versions of 10+... I don't care yet.
+	gl_config.glversion += gl_major_version + (gl_minor_version/10.f);
 
 	/*gl3 adds glGetStringi instead, as core, with the old form require GL_ARB_compatibility*/
 	if (gl_major_version >= 3 && qglGetStringi) /*warning: wine fails to export qglGetStringi*/
@@ -578,6 +595,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		}
 
 	}
+	/*
 	else if (GL_CheckExtension("GL_SGIS_multitexture") && !COM_CheckParm("-nomtex"))
 	{	//SGIS multitexture, limited in many ways but basic functionality is identical to ARB
 		Con_SafePrintf("Multitexture extensions found.\n");
@@ -587,10 +605,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		mtexid0 = GL_TEXTURE0_SGIS;
 	}
+	*/
+	if (!qglClientActiveTextureARB)
+	{
+		qglClientActiveTextureARB = GL_ClientActiveTextureStub;
+	}
 
 	if ((gl_config.gles && gl_config.glversion >= 2) || GL_CheckExtension("GL_EXT_stencil_wrap"))
 		gl_config.ext_stencil_wrap = true;
 
+	qglStencilOpSeparateATI = NULL;
+	qglActiveStencilFaceEXT = NULL;
 	if (gl_config.gles && gl_config.glversion >= 2)
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparate");
 	else if (GL_CheckExtension("GL_ATI_separate_stencil"))

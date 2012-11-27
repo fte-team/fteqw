@@ -40,39 +40,149 @@ public class FTEDroidActivity extends Activity
 	private Sensor sensoracc;
 	private FTEView view;
 	float acc_x, acc_y, acc_z; /*might be some minor race condition on these*/
+	private String basedir, userdir;
+	
+	private class FTEEGLConfig implements GLSurfaceView.EGLConfigChooser
+	{
+		int version;
+		public void setversion(FTEView view, int version)
+		{
+			this.version = version;
+			view.setEGLContextClientVersion(version);
+		}
+		public boolean CheckGLES2Support()
+		{
+			EGL10 egl = (EGL10) EGLContext.getEGL();       
+			EGLDisplay display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
+			EGLConfig cfg;
+			int oldver = this.version;
+			
+			int[] version = new int[2];
+			egl.eglInitialize(display, version);
+
+			this.version = 2;
+			cfg = chooseConfig(egl, display);
+			this.version = oldver;
+			
+			int[] value = {0};
+			egl.eglGetConfigAttrib(display, cfg, EGL10.EGL_RENDERABLE_TYPE, value);
+			egl.eglTerminate(display);
+			return ((value[0] & 4) == 4);
+		}
+		
+		@Override
+		public EGLConfig chooseConfig (EGL10 egl, EGLDisplay display)
+		{
+			int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
+			EGLConfig[] cfg = new EGLConfig[64];
+			int[] num_configs = {0};
+			int[] value = {0};
+			int i;
+			int[] attribs =
+				{
+					egl.EGL_RENDERABLE_TYPE,	(version>=2?4:1)/*egl.EGL_OPENGL_ES2_BIT*/,
+//					egl.EGL_SURFACE_TYPE,		egl.EGL_WINDOW_BIT,
+					egl.EGL_BLUE_SIZE,		5,
+					egl.EGL_GREEN_SIZE,		6,
+					egl.EGL_RED_SIZE,			5,
+					egl.EGL_DEPTH_SIZE,		16,
+//					egl.EGL_STENCIL_SIZE, 		8,
+					egl.EGL_NONE,			egl.EGL_NONE
+				};
+
+			if (!egl.eglChooseConfig(display, attribs, cfg, 64, num_configs))
+				throw new IllegalArgumentException("eglChooseConfig failed");
+				
+			if (num_configs[0] == 0)
+			{
+				attribs[1] = 1;	//egl.EGL_RENDERABLE_TYPE,	1/*egl.EGL_OPENGL_ES_BIT*/,
+				if (!egl.eglChooseConfig(display, attribs, cfg, 64, num_configs))
+					throw new IllegalArgumentException("eglChooseConfig failed");
+					
+				if (num_configs[0] == 0)
+				{
+					throw new IllegalArgumentException("eglChooseConfig didn't report any valid configs");
+				}
+			}
+				
+			android.util.Log.i("FTEDroid", "Found " + num_configs[0] + " EGL configs.");
+			
+			//try to find a gles2 context instead.
+			for (i = 0; i < num_configs[0]; i++)
+			{
+				android.util.Log.i("FTEDroid", "Config " + i + ":");
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_RED_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_RED_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_GREEN_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_GREEN_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_BLUE_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_BLUE_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_DEPTH_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_DEPTH_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_STENCIL_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_STENCIL_SIZE " + value[0]);
+				
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_RENDERABLE_TYPE, value);
+				android.util.Log.i("FTEDroid", "EGL_RENDERABLE_TYPE " + value[0]);
+				
+				if ((value[0] & 4) == 4)
+				{
+					android.util.Log.i("FTEDroid", "Found a GLES2 context!");
+					return cfg[i];
+				}
+			}
+			return cfg[0];
+		}
+	}
 
 	private class FTERenderer implements GLSurfaceView.Renderer 
 	{
 		private boolean inited;
 		public int glesversion;
-		private String basedir, userdir;
 		FTEDroidActivity act;
 		FTEView theview;
+		FTEEGLConfig cfgchooser;
 		int notifiedflags;
+		
+		void updateGLESVersion()
+		{
+			if (FTEDroidEngine.getpreferedglesversion() < 2)
+			{
+				android.util.Log.i("FTEDroid", "Using GLES1");
+				this.glesversion = 1;
+			}
+			else if (android.os.Build.VERSION.SDK_INT >= 8)	//could be 5 with setEGLContextFactory instead of setEGLContextClientVersion
+			{
+				if (cfgchooser.CheckGLES2Support())
+				{
+					android.util.Log.i("FTEDroid", "Support for GLES2 detected");
+					this.glesversion = 2;
+					cfgchooser.setversion(theview, this.glesversion);
+				}
+				else
+				{
+					android.util.Log.i("FTEDroid", "GLES2 not supported. Using GLES1.");
+					this.glesversion = 1;
+				}
+			}
+			else
+			{
+				android.util.Log.i("FTEDroid", "GLES2 requires android 2.2+");
+				this.glesversion = 1;
+			}
+		}
 		
 		FTERenderer(FTEView view, FTEDroidActivity parent)
 		{
 			act = parent;
 			theview = view;
-			try
-			{
-			   android.content.pm.PackageInfo info = parent.getPackageManager().getPackageInfo("com.fteqw", 0);
-			   basedir = info.applicationInfo.sourceDir;
-			}
-			catch(android.content.pm.PackageManager.NameNotFoundException e)
-			{
-				/*oh well, can just use the homedir instead*/
-			}
-//			try
-//			{
-				userdir = Environment.getExternalStorageDirectory().getPath() + "/fte";
-//			}
-//			catch(foo)
-//			{
-//			}
 			
-			android.util.Log.i("FTEDroid", "Base dir is \"" + basedir + "\".");
-			android.util.Log.i("FTEDroid", "User dir is \"" + userdir + "\".");
+			FTEDroidEngine.init(0, 0, 0, basedir, userdir);
+			inited = true;
+			
+			cfgchooser = new FTEEGLConfig();
+//			theview.setEGLConfigChooser(cfgchooser);
+			updateGLESVersion();
 		}
 		
 		@Override
@@ -140,7 +250,17 @@ public class FTEDroidActivity extends Activity
 						act.runOnUiThread(r);
 					}
 					if (((flags ^ notifiedflags) & 8) != 0)
-					{					
+					{
+						final String errormsg = FTEDroidEngine.geterrormessage();
+						
+						inited = false;
+						
+						if (errormsg == "")
+						{
+							finish();
+							System.exit(0);
+						}
+						
 						//8 means sys error
 						Runnable r = new Runnable() 
 						{
@@ -149,7 +269,7 @@ public class FTEDroidActivity extends Activity
 								theview.setVisibility(theview.GONE);
 								AlertDialog ad = new AlertDialog.Builder(act).create();
 								ad.setTitle("FTE ERROR");
-								ad.setMessage(FTEDroidEngine.geterrormessage());
+								ad.setMessage(errormsg);
 								ad.setCancelable(false);
 								ad.setButton("Ok", new DialogInterface.OnClickListener()
 										{
@@ -166,7 +286,8 @@ public class FTEDroidActivity extends Activity
 						act.runOnUiThread(r);
 					}
 					if (((flags ^ notifiedflags) & 16) != 0)
-					{					
+					{		
+						//16 means orientation cvar change				
 						Runnable r = new Runnable() 
 						{
 							public void run()
@@ -231,93 +352,6 @@ public class FTEDroidActivity extends Activity
 		}
 	}
 
-	private class FTEEGLConfig implements GLSurfaceView.EGLConfigChooser
-	{
-		public void setversion(FTEView view, int version)
-		{
-			view.setEGLContextClientVersion(version);
-		}
-		public boolean CheckGLES2Support()
-		{
-			EGL10 egl = (EGL10) EGLContext.getEGL();       
-			EGLDisplay display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
-			EGLConfig cfg;
-			
-			int[] version = new int[2];
-			egl.eglInitialize(display, version);
-
-			cfg = chooseConfig(egl, display);
-			
-			int[] value = {0};
-			egl.eglGetConfigAttrib(display, cfg, EGL10.EGL_RENDERABLE_TYPE, value);
-			egl.eglTerminate(display);
-			return ((value[0] & 4) == 4);
-		}
-		
-		@Override
-		public EGLConfig chooseConfig (EGL10 egl, EGLDisplay display)
-		{
-			int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
-			EGLConfig[] cfg = new EGLConfig[64];
-			int[] num_configs = {0};
-			int[] value = {0};
-			int i;
-			int[] attribs =
-				{
-					egl.EGL_RENDERABLE_TYPE,	4/*egl.EGL_OPENGL_ES2_BIT*/,
-//					egl.EGL_SURFACE_TYPE,		egl.EGL_WINDOW_BIT,
-					egl.EGL_BLUE_SIZE,		5,
-					egl.EGL_GREEN_SIZE,		6,
-					egl.EGL_RED_SIZE,			5,
-					egl.EGL_DEPTH_SIZE,		16,
-//					egl.EGL_STENCIL_SIZE, 		8,
-					egl.EGL_NONE,			egl.EGL_NONE
-				};
-
-			if (!egl.eglChooseConfig(display, attribs, cfg, 64, num_configs))
-				throw new IllegalArgumentException("eglChooseConfig failed");
-				
-			if (num_configs[0] == 0)
-			{
-				attribs[1] = 1;	//egl.EGL_RENDERABLE_TYPE,	1/*egl.EGL_OPENGL_ES_BIT*/,
-				if (!egl.eglChooseConfig(display, attribs, cfg, 64, num_configs))
-					throw new IllegalArgumentException("eglChooseConfig failed");
-					
-				if (num_configs[0] == 0)
-				{
-					throw new IllegalArgumentException("eglChooseConfig didn't report any valid configs");
-				}
-			}
-				
-			android.util.Log.i("FTEDroid", "Found " + num_configs[0] + " EGL configs.");
-			
-			for (i = 0; i < num_configs[0]; i++)
-			{
-				android.util.Log.i("FTEDroid", "Config " + i + ":");
-				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_RED_SIZE, value);
-				android.util.Log.i("FTEDroid", "EGL_RED_SIZE " + value[0]);
-				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_GREEN_SIZE, value);
-				android.util.Log.i("FTEDroid", "EGL_GREEN_SIZE " + value[0]);
-				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_BLUE_SIZE, value);
-				android.util.Log.i("FTEDroid", "EGL_BLUE_SIZE " + value[0]);
-				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_DEPTH_SIZE, value);
-				android.util.Log.i("FTEDroid", "EGL_DEPTH_SIZE " + value[0]);
-				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_STENCIL_SIZE, value);
-				android.util.Log.i("FTEDroid", "EGL_STENCIL_SIZE " + value[0]);
-				
-				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_RENDERABLE_TYPE, value);
-				android.util.Log.i("FTEDroid", "EGL_RENDERABLE_TYPE " + value[0]);
-				
-				if ((value[0] & 4) == 4)
-				{
-					android.util.Log.i("FTEDroid", "Found a GLES2 context!");
-					return cfg[i];
-				}
-			}
-			return cfg[0];
-		}
-	}
-
 	private class FTEView extends GLSurfaceView implements SensorEventListener
 	{
 		private final FTERenderer rndr;
@@ -334,26 +368,35 @@ public class FTEDroidActivity extends Activity
 			{
 				byte[] audbuf = new byte[2048];
 				int avail;
+				AudioTrack at;
 				
 				int chans;
-				if (schannels >= 8)	//the OUT enumeration allows specific speaker control. but also api level 5+
-					chans = AudioFormat.CHANNEL_OUT_7POINT1;
-				else if (schannels >= 6)
-					chans = AudioFormat.CHANNEL_OUT_5POINT1;
-				else if (schannels >= 4)
-					chans = AudioFormat.CHANNEL_OUT_QUAD;
-				else if (schannels >= 2)
-					chans = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
-				else
-					chans = AudioFormat.CHANNEL_CONFIGURATION_MONO;
-				int enc = (sbits == 8)?AudioFormat.ENCODING_PCM_8BIT:AudioFormat.ENCODING_PCM_16BIT;
-				
-				int sz = 2*AudioTrack.getMinBufferSize(sspeed, chans, enc);
+				try
+				{
+					if (schannels >= 8)	//the OUT enumeration allows specific speaker control. but also api level 5+
+						chans = AudioFormat.CHANNEL_OUT_7POINT1;
+					else if (schannels >= 6)
+						chans = AudioFormat.CHANNEL_OUT_5POINT1;
+					else if (schannels >= 4)
+						chans = AudioFormat.CHANNEL_OUT_QUAD;
+					else if (schannels >= 2)
+						chans = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
+					else
+						chans = AudioFormat.CHANNEL_CONFIGURATION_MONO;
+					int enc = (sbits == 8)?AudioFormat.ENCODING_PCM_8BIT:AudioFormat.ENCODING_PCM_16BIT;
+					
+					int sz = 2*AudioTrack.getMinBufferSize(sspeed, chans, enc);
 
-//				if (sz < sspeed * 0.05)
-//					sz = sspeed * 0.05;
+	//				if (sz < sspeed * 0.05)
+	//					sz = sspeed * 0.05;
 
-				AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, chans, enc, sz, AudioTrack.MODE_STREAM);
+					at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, chans, enc, sz, AudioTrack.MODE_STREAM);
+				}
+				catch(IllegalArgumentException e)
+				{
+					//fixme: tell the engine that its bad and that it should configure some different audio attributes, instead of simply muting.
+					return;
+				}
 
 				at.setStereoVolume(1, 1);
 				at.play();
@@ -494,35 +537,6 @@ public class FTEDroidActivity extends Activity
 				inputevent = new FTELegacyInputEvent();
 
 			rndr = new FTERenderer(this, context);
-			
-			if (USE_GLES_VERSION < 2)
-			{
-				android.util.Log.i("FTEDroid", "GLES2 disabled at game compile time");
-				rndr.glesversion = 1;
-			}
-			else if (android.os.Build.VERSION.SDK_INT >= 8)	//could be 5 with setEGLContextFactory instead of setEGLContextClientVersion
-			{
-				FTEEGLConfig cfgchooser = new FTEEGLConfig();
-				setEGLConfigChooser(cfgchooser);
-				
-				if (cfgchooser.CheckGLES2Support())
-				{
-					android.util.Log.i("FTEDroid", "Support for GLES2 detected");
-					rndr.glesversion = 2;
-					cfgchooser.setversion(this, rndr.glesversion);
-				}
-				else
-				{
-					android.util.Log.i("FTEDroid", "GLES2 not supported. Using GLES1.");
-					rndr.glesversion = 1;
-				}
-			}
-			else
-			{
-				android.util.Log.i("FTEDroid", "GLES2 requires android 2.2+");
-				rndr.glesversion = 1;
-			}
-				
 			setRenderer(rndr);
 			setFocusable(true);
 			setFocusableInTouchMode(true);
@@ -632,6 +646,28 @@ public class FTEDroidActivity extends Activity
 	public void onCreate(Bundle savedInstanceState)
 	{
 		android.util.Log.i("FTEDroid", "onCreate");
+		
+		try
+		{
+			String packagename = this.getComponentName().getPackageName();	//"com.fteqw", but not hardcoded.
+			android.util.Log.i("FTEDroid", "Installed in package \"" + packagename + "\".");
+			android.content.pm.PackageInfo info = this.getPackageManager().getPackageInfo(packagename, 0);
+			basedir = info.applicationInfo.sourceDir;
+		}
+		catch(android.content.pm.PackageManager.NameNotFoundException e)
+		{
+			/*oh well, can just use the homedir instead*/
+		}
+//		try
+//		{
+			userdir = Environment.getExternalStorageDirectory().getPath() + "/fte";
+//		}
+//		catch(foo)
+//		{
+//		}
+		android.util.Log.i("FTEDroid", "Base dir is \"" + basedir + "\".");
+		android.util.Log.i("FTEDroid", "User dir is \"" + userdir + "\".");
+			
 		//go full-screen		
 		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);    	
 		requestWindowFeature(Window.FEATURE_NO_TITLE);

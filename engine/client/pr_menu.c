@@ -393,7 +393,8 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 		else if ((*str & CON_CHARMASK) == '\r')
 			px = ipx;
 		else
-			px = Font_DrawScaleChar(px, py, size[0], size[1], *str++);
+			px = Font_DrawScaleChar(px, py, size[0], size[1], *str);
+		str++;
 	}
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
@@ -411,7 +412,7 @@ void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	else
 		fontsize = 8;
 
-	if (mp_globs.drawfontscale)
+	if (mp_globs.drawfontscale && !prinst->parms->user)
 		fontsize *= mp_globs.drawfontscale[1];
 
 	end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), !usecolours);
@@ -421,7 +422,7 @@ void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	px = Font_LineWidth(buffer, end);
 	Font_EndString(font_conchar);
 
-	if (mp_globs.drawfontscale)
+	if (mp_globs.drawfontscale && !prinst->parms->user)
 		px *= mp_globs.drawfontscale[1];
 
 	G_FLOAT(OFS_RETURN) = px * fontsize;
@@ -572,9 +573,13 @@ void QCBUILTIN PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr
 		return;
 	}
 
+	//no control chars. use quake ones if so
+	if (chara < 32 && chara != '\t')
+		chara |= 0xe000;
+
 	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
-	Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK | /*0xe000|*/(chara&0xff));
+	Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK | /*0xe000|*/chara);
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
 
@@ -590,6 +595,7 @@ void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr
 	float alpha = G_FLOAT(OFS_PARM4);
 //	float flag = G_FLOAT(OFS_PARM5);
 	float x, y;
+	unsigned int c;
 
 	if (!text)
 	{
@@ -602,7 +608,7 @@ void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr
 	y = pos[1];
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 
-	if (mp_globs.drawfontscale)
+	if (mp_globs.drawfontscale && !prinst->parms->user)
 	{
 		size[0] *= mp_globs.drawfontscale[0];
 		size[1] *= mp_globs.drawfontscale[1];
@@ -611,7 +617,12 @@ void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr
 	{
 		//FIXME: which charset is this meant to be using?
 		//quakes? 8859-1? utf8? some weird hacky mixture?
-		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|/*0xe000|*/(*text++&0xff));
+		c = *text++&0xff;
+		if ((c&0x7f) < 32)
+			c |= 0xe000;	//if its a control char, just use the quake range instead.
+		else if (c & 0x80)
+			c |= 0xe000;	//if its a high char, just use the quake range instead. we could colour it, but why bother
+		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|/*0xe000|*/c);
 	}
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
@@ -704,6 +715,7 @@ void QCBUILTIN PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (b == 0)
 	{
 		Con_Printf("mod by zero\n");
+		*prinst->pr_trace = 1;
 		G_FLOAT(OFS_RETURN) = 0;
 	}
 	else
@@ -741,16 +753,25 @@ static void QCBUILTIN PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr
 	char	*str;
 
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	str = RemapCvarNameFromDPToFTE(str);
-	var = Cvar_Get(str, "", 0, "menu cvars");
-	if (var)
-	{
-		if (var->latched_string)
-			G_FLOAT(OFS_RETURN) = atof(var->latched_string);			else
-			G_FLOAT(OFS_RETURN) = var->value;
-	}
+
+	if (!strcmp(str, "vid_conwidth"))
+		G_FLOAT(OFS_RETURN) = vid.width;
+	else if (!strcmp(str, "vid_conheight"))
+		G_FLOAT(OFS_RETURN) = vid.height;
 	else
-		G_FLOAT(OFS_RETURN) = 0;
+	{
+		str = RemapCvarNameFromDPToFTE(str);
+		var = Cvar_Get(str, "", 0, "menu cvars");
+		if (var)
+		{
+			if (var->latched_string)
+				G_FLOAT(OFS_RETURN) = atof(var->latched_string);
+			else
+				G_FLOAT(OFS_RETURN) = var->value;
+		}
+		else
+			G_FLOAT(OFS_RETURN) = 0;
+	}
 }
 static void QCBUILTIN PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -833,6 +854,10 @@ void QCBUILTIN PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = sv.state != ss_dead;
 #endif
 }
+void QCBUILTIN PF_isdemo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = !!cls.demoplayback;
+}
 
 //float	clientstate(void)  = #62;
 void QCBUILTIN PF_clientstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -914,11 +939,11 @@ void QCBUILTIN PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *p
 	extern int mouseusedforgui;
 	switch ((int)G_FLOAT(OFS_PARM0))
 	{
-	case 1:
-		mouseusedforgui = true;
-		break;
-	case 2:
+	case 1:	//1 is delta-based.
 		mouseusedforgui = false;
+		break;
+	case 2:	//2 is absolute.
+		mouseusedforgui = true;
 		break;
 	default:
 		PR_BIError(prinst, "PF_setmousetarget: not a valid destination\n");
@@ -929,7 +954,7 @@ void QCBUILTIN PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern int mouseusedforgui;
-	G_FLOAT(OFS_RETURN) = mouseusedforgui?1:2;
+	G_FLOAT(OFS_RETURN) = mouseusedforgui?2:1;
 }
 
 //vector	getmousepos(void)  	= #66;
@@ -1406,6 +1431,37 @@ void QCBUILTIN PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 }
 
+//string(string serveraddress) crypto_getkeyfp
+void QCBUILTIN PF_crypto_getkeyfp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
+//string(string serveraddress) crypto_getidfp
+void QCBUILTIN PF_crypto_getidfp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
+//string(string serveraddress) crypto_getencryptlevel
+void QCBUILTIN PF_crypto_getencryptlevel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
+//string(float i) crypto_getmykeyfp
+void QCBUILTIN PF_crypto_getmykeyfp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
+//string(float i) crypto_getmyidfp
+void QCBUILTIN PF_crypto_getmyidfp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
+
 builtin_t menu_builtins[] = {
 //0
 	PF_Fixme,
@@ -1527,7 +1583,7 @@ builtin_t menu_builtins[] = {
 	PF_infoadd,						// #226 string(string info, string key, string value, ...) infoadd (FTE_STRINGS)
 	PF_infoget,						// #227 string(string info, string key) infoget (FTE_STRINGS)
 	PF_strncmp,							// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
-	PF_strncasecmp,					// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
+	PF_strcasecmp,					// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
 //230
 	PF_strncasecmp,					// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
 	skip1
@@ -1543,7 +1599,21 @@ builtin_t menu_builtins[] = {
 	skip10
 	skip50
 //300
-	skip100
+	skip10
+	skip10
+	skip10
+	skip10
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	PF_isdemo,
+	skip50
 //400
 	skip10
 	skip10
@@ -1677,7 +1747,7 @@ builtin_t menu_builtins[] = {
 	PF_M_sethostcachemasknumber,
 	PF_M_resorthostcache,
 	PF_M_sethostcachesort,
-	PF_M_refreshhostcache,
+	PF_M_refreshhostcache,			//600
 	PF_M_gethostcachenumber,
 	PF_M_gethostcacheindexforkey,
 	PF_M_addwantedhostcachekey,
@@ -1692,16 +1762,14 @@ builtin_t menu_builtins[] = {
 	PF_sprintf,	/*sprintf*/
 	skip1	/*not listed in dp*/
 	skip1	/*not listed in dp*/
-	skip1	/*setkeybind*/
+	skip1	/*setkeybind*/		//630
 	skip1	/*getbindmaps*/
 	skip1	/*setbindmaps*/
-	skip1	/*crypto*/
-	skip1	/*crypto*/
-	skip1	/*crypto*/
-	skip1	/*crypto*/
-	skip1	/*crypto #637*/
-
-
+	PF_crypto_getkeyfp,	/*crypto*/
+	PF_crypto_getidfp,	/*crypto*/
+	PF_crypto_getencryptlevel,	/*crypto*/
+	PF_crypto_getmykeyfp,	/*crypto*/
+	PF_crypto_getmyidfp,	/*crypto #637*/
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
@@ -1752,6 +1820,10 @@ void MP_Shutdown (void)
 	PR_fclose_progs(menuprogs);
 	search_close_progs(menuprogs, true);
 
+#ifdef CL_MASTER
+	Master_ClearMasks();
+#endif
+
 	CloseProgs(menuprogs);
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(menuprogs);
@@ -1762,12 +1834,6 @@ void MP_Shutdown (void)
 	m_state = 0;
 
 	mouseusedforgui = false;
-
-	if (inmenuprogs)	//something in the menu caused the problem, so...
-	{
-		inmenuprogs = 0;
-		longjmp(mp_abort, 1);
-	}
 }
 
 pbool QC_WriteFile(const char *name, void *data, int len);
@@ -1797,6 +1863,12 @@ void VARGS Menu_Abort (char *format, ...)
 	}
 
 	MP_Shutdown();
+
+	if (inmenuprogs)	//something in the menu caused the problem, so...
+	{
+		inmenuprogs = 0;
+		longjmp(mp_abort, 1);
+	}
 }
 
 void MP_CvarChanged(cvar_t *var)
@@ -1858,13 +1930,14 @@ qboolean MP_Init (void)
 	menuprogparms.sv_num_edicts = &num_menu_edicts;
 
 	menuprogparms.useeditor = NULL;//sorry... QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
+	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 
 	menutime = Sys_DoubleTime();
 	if (!menuprogs)
 	{
 		Con_DPrintf("Initializing menu.dat\n");
 		menuprogs = InitProgs(&menuprogparms);
-		PR_Configure(menuprogs, -1, 1);
+		PR_Configure(menuprogs, 64*1024*1024, 1);
 		if (PR_LoadProgs(menuprogs, "menu.dat", 10020, NULL, 0) < 0) //no per-progs builtins.
 		{
 			//failed to load or something
@@ -1886,11 +1959,8 @@ qboolean MP_Init (void)
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
 
-#ifdef warningmsg
-#pragma warningmsg("disabled until csqc gets forked or some such")
-#endif
-		//mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
-		//mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
+		mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
+		mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
 
 		menuentsize = PR_InitEnts(menuprogs, 8192);
 
@@ -1971,6 +2041,12 @@ void MP_Draw(void)
 void MP_Keydown(int key, int unicode)
 {
 	extern qboolean	keydown[K_MAX];
+
+#ifdef TEXTEDITOR
+	if (editormodal)
+		return;
+#endif
+
 	if (setjmp(mp_abort))
 		return;
 
@@ -2008,6 +2084,11 @@ void MP_Keydown(int key, int unicode)
 
 void MP_Keyup(int key, int unicode)
 {
+#ifdef TEXTEDITOR
+	if (editormodal)
+		return;
+#endif
+
 	if (setjmp(mp_abort))
 		return;
 
@@ -2030,6 +2111,10 @@ qboolean MP_Toggle(void)
 {
 	if (!menuprogs)
 		return false;
+#ifdef TEXTEDITOR
+	if (editormodal)
+		return false;
+#endif
 
 	if (setjmp(mp_abort))
 		return false;

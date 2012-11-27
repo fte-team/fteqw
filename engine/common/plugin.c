@@ -479,6 +479,11 @@ static qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qi
 		Media_RegisterDecoder(currentplug, func);
 //		currentplug->blockcloses++;
 	}
+	else if (!strcmp(name, "Media_VideoEncoder"))
+	{
+		Media_RegisterEncoder(currentplug, func);
+//		currentplug->blockcloses++;
+	}
 #endif
 
 #ifndef SERVERONLY
@@ -1812,6 +1817,7 @@ void Plug_Close(plugin_t *plug)
 	Con_Printf("Closing plugin %s\n", plug->name);
 #if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
 	Media_UnregisterDecoder(plug, NULL);
+	Media_UnregisterEncoder(plug, NULL);
 #endif
 	if (plug->shutdown)
 		VM_Call(plug->vm, plug->shutdown);
@@ -1899,6 +1905,10 @@ void Plug_Shutdown(void)
 	numplugbuiltins = 0;
 	BZ_Free(plugbuiltins);
 	plugbuiltins = NULL;
+
+	plugincvararraylen = 0;
+	BZ_Free(plugincvararray);
+	plugincvararray = NULL;
 
 	plugincommandarraylen = 0;
 	BZ_Free(plugincommandarray);

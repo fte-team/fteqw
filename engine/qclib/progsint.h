@@ -150,6 +150,7 @@ typedef struct edictrun_s
 int Comp_Begin(progfuncs_t *progfuncs, int nump, char **parms);
 int Comp_Continue(progfuncs_t *progfuncs);
 
+pbool PR_SetWatchPoint(progfuncs_t *progfuncs, char *key);
 char *EvaluateDebugString(progfuncs_t *progfuncs, char *key);
 char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *size, int mode);
 int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags);
@@ -303,7 +304,7 @@ void ED_PrintNum (progfuncs_t *progfuncs, int ent);
 
 
 pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type);
-void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t progs1, progsnum_t progs2);
+pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newprogs);
 
 
 
@@ -365,6 +366,11 @@ var(unsigned int, maxprogs);
 
 var(progstate_t *,current_progstate);
 #define current_progstate prinst->current_progstate
+
+var(char *, watch_name);
+var(eval_t *, watch_ptr);
+var(eval_t, watch_old);
+var(etype_t, watch_type);
 
 var(unsigned int, numshares);
 #define numshares prinst->numshares

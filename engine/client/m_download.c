@@ -803,3 +803,173 @@ void Menu_DownloadStuff_f (void)
 #endif
 
 
+#ifdef AVAIL_ZLIB
+
+static int numbootdownloads;
+#include "fs.h"
+extern searchpathfuncs_t zipfilefuncs;
+static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr)
+{
+	char buffer[512*1024];
+	int read;
+	void *zip = ptr;
+	flocation_t loc;
+	int slashes;
+	const char *s;
+	vfsfile_t *compressedpak;
+	vfsfile_t *decompressedpak;
+
+	if (zipfilefuncs.FindFile(zip, &loc, fname, NULL))
+	{
+		compressedpak = zipfilefuncs.OpenVFS(zip, &loc, "rb");
+		if (compressedpak)
+		{
+			//this extra logic is so we can handle things like nexuiz/data/blah.pk3
+			//as well as just data/blah.pk3
+			slashes = 0;
+			for (s = strchr(fname, '/'); s; s = strchr(s+1, '/'))
+				slashes++;
+			for (; slashes > 1; slashes--)
+				fname = strchr(fname, '/')+1;
+
+			if (!slashes)
+			{
+				FS_CreatePath(fname, FS_GAMEONLY);
+				decompressedpak = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+			}
+			else
+			{
+				FS_CreatePath(fname, FS_ROOT);
+				decompressedpak = FS_OpenVFS(fname, "wb", FS_ROOT);
+			}
+			if (decompressedpak)
+			{
+				for(;;)
+				{
+					read = VFS_READ(compressedpak, buffer, sizeof(buffer));
+					if (read <= 0)
+						break;
+					if (VFS_WRITE(decompressedpak, buffer, read) != read)
+					{
+						Con_Printf("write failed writing %s. disk full?\n", fname);
+						break;
+					}
+				}
+				VFS_CLOSE(decompressedpak);
+			}
+			VFS_CLOSE(compressedpak);
+		}
+	}
+	return true;
+}
+static void CL_BootDownload_Complete(struct dl_download *dl)
+{
+	void *zip;
+/*
+	int sz;
+	char *buf;
+	FILE *f;
+	sz = VFS_GETLEN(dl->file);
+	buf = malloc(sz);
+	VFS_READ(dl->file, buf, sz);
+	f = fopen("C:/Games/Quake/test/emptybasedir/test.zip", "wb");
+	fwrite(buf, 1, sz, f);
+	fclose(f);
+	free(buf);
+*/
+	if (dl->status == DL_FINISHED)
+		zip = zipfilefuncs.OpenNew(dl->file, dl->url);
+	else
+		zip = NULL;
+	/*the zip code will have eaten the file handle*/
+	dl->file = NULL;
+	if (zip)
+	{
+		/*scan it to extract its contents*/
+		zipfilefuncs.EnumerateFiles(zip, "*/*.pk3", CL_BootDownload_Extract, zip);
+		zipfilefuncs.EnumerateFiles(zip, "*/*.pak", CL_BootDownload_Extract, zip);
+		zipfilefuncs.EnumerateFiles(zip, "*/*/*.pk3", CL_BootDownload_Extract, zip);
+		zipfilefuncs.EnumerateFiles(zip, "*/*/*.pak", CL_BootDownload_Extract, zip);
+
+		/*close it, delete the temp file from disk, etc*/
+		zipfilefuncs.ClosePath(zip);
+
+		/*restart the filesystem so those new files can be found*/
+		Cmd_ExecuteString("fs_restart\n", RESTRICT_LOCAL);
+	}
+
+	if (!--numbootdownloads)
+	{
+		CL_ExecInitialConfigs();
+		Cmd_StuffCmds();
+		Cbuf_Execute ();
+		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	}
+}
+
+qboolean CL_CheckBootDownloads(void)
+{
+	char *downloads = fs_gamedownload.string;
+	char token[2048];
+	char *c, *s;
+	vfsfile_t *f;
+	struct dl_download *dl;
+	int mirrors;
+
+	while ((downloads = COM_ParseOut(downloads, token, sizeof(token))))
+	{
+		//FIXME: do we want to add some sort of file size indicator?
+		c = token;
+		while(*c && *c != ':' && *c != '|')
+			c++;
+		if (!*c)	//erp?
+			continue;
+		*c++ = 0;
+		f = FS_OpenVFS(token, "rb", FS_ROOT);
+		if (f)
+		{
+			Con_DPrintf("Already have %s\n", token);
+			VFS_CLOSE(f);
+			continue;
+		}
+		mirrors = 1;
+		for (s = c; *s; s++)
+		{
+			if (*s == '|')
+				mirrors++;
+		}
+		mirrors = rand() % mirrors;
+
+		while(mirrors)
+		{
+			mirrors--;
+			while(*c != '|')
+				c++;
+			c++;
+		}
+		for (s = c; *s; s++)
+		{
+			if (*s == '|')
+				*s = 0;
+		}
+
+		Con_Printf("Attempting to download %s\n", c);
+
+		dl = HTTP_CL_Get(c, token, CL_BootDownload_Complete);
+		if (dl)
+		{
+#ifdef MULTITHREAD
+			DL_CreateThread(dl, FS_OpenTemp(), CL_BootDownload_Complete);
+#endif
+			numbootdownloads++;
+		}
+	}
+
+	return !numbootdownloads;
+}
+#else
+qboolean CL_CheckBootDownloads(void)
+{
+	return true;
+}
+#endif

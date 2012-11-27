@@ -483,6 +483,8 @@ int QDECL main(int argc, char **argv)
 	int				t;
 	int delay = 1;
 
+	memset(&parms, 0, sizeof(parms));
+
 	parms.argv = argv;
 
 	parms.basedir = ".";

@@ -1057,6 +1057,7 @@ progfuncs_t deffuncs = {
 	PR_memalloc,
 	PR_AllocTempStringLen,
 	PR_memfree,
+	PR_SetWatchPoint,
 };
 #undef printf
 
@@ -1153,6 +1154,8 @@ void CloseProgs(progfuncs_t *inst)
 	if (inst->inst->tempstrings)
 		f(inst->inst->tempstrings);
 	inst->inst->tempstrings = NULL;
+
+	free(inst->inst->watch_name);
 
 
 /*

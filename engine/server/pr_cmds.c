@@ -24,6 +24,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "sv_sql.h"
 #endif
 
+#ifndef SQL
+#define PF_sqlconnect		PF_Fixme
+#define PF_sqldisconnect	PF_Fixme
+#define PF_sqlopenquery		PF_Fixme
+#define PF_sqlclosequery	PF_Fixme
+#define PF_sqlreadfield		PF_Fixme
+#define PF_sqlerror			PF_Fixme
+#define PF_sqlescape		PF_Fixme
+#define PF_sqlversion		PF_Fixme
+#define PF_sqlreadfloat		PF_Fixme
+#endif
+
 #define Z_QC_TAG 2
 
 #ifndef CLIENTONLY
@@ -400,14 +412,14 @@ void QC_Clear(void);
 builtin_t pr_builtin[];
 extern int pr_numbuiltins;
 
-int QCLibEditor(progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
-int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms)
+int QCLibEditor(progfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
+int QCEditor (progfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
 {
 #ifdef TEXTEDITOR
 	static char oldfuncname[64];
 
 	if (!parms)
-		return QCLibEditor(prinst, filename, line, nump, parms);
+		return QCLibEditor(prinst, filename, line, statement, nump, parms);
 	else
 	{
 		if (!nump && !strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
@@ -627,6 +639,7 @@ void PR_LoadGlabalStruct(void)
 	//static vec3_t vecwriteonly; // 523:16: warning: unused variable ‘vecwriteonly’
 	static float input_buttons_default;
 	static float input_timelength_default;
+	static float input_impulse_default;
 	static vec3_t input_angles_default;
 	static vec3_t input_movevalues_default;
 	int i;
@@ -686,6 +699,7 @@ void PR_LoadGlabalStruct(void)
 
 	globalfloat		(false, clientcommandframe);
 	globalfloat		(false, input_timelength);
+	globalfloat		(false, input_impulse);
 	globalvec		(false, input_angles);
 	globalvec		(false, input_movevalues);
 	globalfloat		(false, input_buttons);
@@ -704,6 +718,7 @@ void PR_LoadGlabalStruct(void)
 	ensureglobal(trace_surfaceflags, writeonly);
 
 	ensureglobal(input_timelength, input_timelength_default);
+	ensureglobal(input_impulse, input_impulse_default);
 	ensureglobal(input_angles, input_angles_default);
 	ensureglobal(input_movevalues, input_movevalues_default);
 	ensureglobal(input_buttons, input_buttons_default);
@@ -751,13 +766,16 @@ void PR_LoadGlabalStruct(void)
 	ensureglobal(trace_inwater, writeonly);
 	ensureglobal(physics_mode, svphysicsmode);
 
-	pr_global_struct->dimension_send = 255;
+	//this can be a map start or a loadgame. don't hurt stuff.
+	if (!pr_global_struct->dimension_send)
+		pr_global_struct->dimension_send = 255;
+/*	pr_global_struct->dimension_send = 255;
 	pr_global_struct->serverflags = 0;
 	pr_global_struct->total_secrets = 0;
 	pr_global_struct->total_monsters = 0;
 	pr_global_struct->found_secrets = 0;
 	pr_global_struct->killed_monsters = 0;
-
+*/
 	pr_teamfield = 0;
 
 	SpectatorConnect = PR_FindFunction(svprogfuncs, "SpectatorConnect", PR_ANY);
@@ -1121,6 +1139,41 @@ void PR_BreakPoint_f(void)
 		Con_Printf("Breakpoint has been cleared\n");
 
 }
+void PR_WatchPoint_f(void)
+{
+	char *variable = Cmd_Argv(1);
+	int oldself;
+	if (!*variable)
+		variable = NULL;
+
+	if (!svprogfuncs)
+	{
+		Con_Printf("Start the server first\n");
+		return;
+	}
+	oldself = pr_global_struct->self;
+	if (oldself == 0)
+	{	//if self is world, set it to something sensible.
+		int i;
+		for (i = 0; i < sv.allocated_client_slots; i++)
+		{
+			if (svs.clients[i].state && svs.clients[i].netchan.remote_address.type == NA_LOOPBACK)
+			{
+				//always use first local client, if available.
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+				break;
+			}
+			//failing that, just use the first client.
+			if (svs.clients[i].state == cs_spawned && !pr_global_struct->self)
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
+		}
+	}
+	if (svprogfuncs->SetWatchPoint(svprogfuncs, variable))
+		Con_Printf("Watchpoint set\n");
+	else
+		Con_Printf("Watchpoint cleared\n");
+	pr_global_struct->self = oldself;
+}
 
 void PR_SSCoreDump_f(void)
 {
@@ -1162,6 +1215,7 @@ void PR_Init(void)
 	int i;
 
 	Cmd_AddCommand ("breakpoint", PR_BreakPoint_f);
+	Cmd_AddCommand ("watchpoint", PR_WatchPoint_f);
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
@@ -1592,6 +1646,9 @@ void Q_InitProgs(void)
 			}
 		}
 	}
+
+//	svprogfuncs->ToggleBreak(svprogfuncs, "", 0, 2);
+//	svprogfuncs->SetWatchPoint(svprogfuncs, "");
 
 	sv.world.max_edicts = pr_maxedicts.value;
 	if (sv.world.max_edicts > MAX_EDICTS)
@@ -3699,7 +3756,7 @@ static void QCBUILTIN PF_h2precache_puzzle_model (progfuncs_t *prinst, struct gl
 static void QCBUILTIN PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
-	qboolean queryonly = G_FLOAT(OFS_PARM1);
+	qboolean queryonly = (*svprogfuncs->callargc >= 2)?G_FLOAT(OFS_PARM1):false;
 
 	G_FLOAT(OFS_RETURN) = PF_precache_model_Internal(prinst, s, queryonly);
 }
@@ -5100,7 +5157,6 @@ char *PF_infokey_Internal (int entnum, char *key)
 {
 	char	*value;
 	static char ov[256];
-	char adr[MAX_ADR_SIZE];
 
 	if (entnum == 0)
 	{
@@ -5116,7 +5172,7 @@ char *PF_infokey_Internal (int entnum, char *key)
 	{
 		value = ov;
 		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
-			value = strcpy(ov, NET_BaseAdrToString (adr, sizeof(adr), svs.clients[entnum-1].netchan.remote_address));
+			NET_BaseAdrToString (ov, sizeof(ov), svs.clients[entnum-1].netchan.remote_address);
 		else if (!strcmp(key, "ping"))
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], false));
 		else if (!strcmp(key, "svping"))
@@ -5333,7 +5389,7 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		paramstr[3] = sql_defaultdb.string;
 
 	// verify/switch driver choice
-	if (*svprogfuncs->callargc > (SQL_CONNECT_PARAMS + 1))
+	if (*svprogfuncs->callargc >= (SQL_CONNECT_PARAMS + 1))
 		driver = PR_GetStringOfs(prinst, OFS_PARM0 + SQL_CONNECT_PARAMS * 3);
 	else
 		driver = "";
@@ -5893,24 +5949,17 @@ FIXME: check for null pointers first?
 
 static void QCBUILTIN PF_MVDSV_strcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int dst = G_INT(OFS_PARM0);
 	char *src = PR_GetStringOfs(prinst, OFS_PARM1);
-	char *dest = PR_GetStringOfs(prinst, OFS_PARM0);
-	int *ident;
-	ident = (int *)(dest-8);
+	int size = strlen(src)+1;
 
-/*
-	if (*ident != PRSTR)
+	if (dst < 0 || dst+size >= prinst->stringtablesize)
 	{
-		Con_Printf("PF_strcpy: not an allocated string\n");
+		PR_BIError(prinst, "PF_strcpy: invalid dest\n");
 		return;
 	}
-	if (ident[1] < strlen(src)+1)
-	{
-		Con_Printf("PF_strcpy: allocated string is not big enough.\n");
-		return;
-	}
-*/
-	strcpy(dest, src);
+
+	strcpy(prinst->stringtable+dst, src);
 }
 
 /*
@@ -5924,7 +5973,17 @@ FIXME: check for null pointers first?
 
 static void QCBUILTIN PF_MVDSV_strncpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	strncpy(PR_GetStringOfs(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), (int) G_FLOAT(OFS_PARM2));
+	int dst = G_INT(OFS_PARM0);
+	char *src = PR_GetStringOfs(prinst, OFS_PARM1);
+	int size = G_FLOAT(OFS_PARM2);
+
+	if (dst < 0 || dst+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_strncpy: invalid dest\n");
+		return;
+	}
+
+	strncpy(prinst->stringtable+dst, src, size);
 }
 
 
@@ -7957,9 +8016,11 @@ void QCBUILTIN PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	else if (e1 <= sv.allocated_client_slots)
 	{	//woo. we found a client.
 		Info_SetValueForStarKey(svs.clients[e1-1].userinfo, key, value, sizeof(svs.clients[e1-1].userinfo));
-
-
+		
 		SV_ExtractFromUserinfo (&svs.clients[e1-1]);
+
+		if (SV_UserInfoIsBasic(key))
+			Info_SetValueForKey (svs.clients[e1-1].userinfobasic, key, value, sizeof(svs.clients[e1-1].userinfobasic));
 
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, e1-1);
@@ -8470,6 +8531,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 
 
 		pr_global_struct->input_timelength = ucmd->msec/1000.0f;
+		pr_global_struct->input_impulse = ucmd->impulse;
 	//precision inaccuracies. :(
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
 		if (sv_player->v->fixangle)
@@ -8560,15 +8622,15 @@ static void QCBUILTIN PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr
 
 
 #define STUB ,true
-#ifdef DEBUG
-#define NYI ,false
+#if defined(DEBUG) || defined(_DEBUG)
+#define NYI
 #else
 #define NYI ,true
 #endif
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0,		0,	"void()"},
 	{"ignore",			PF_Ignore,			0,		0,		0,		0,	"void()"},
-	{"makevectors",		PF_makevectors,		1,		1,		1,		0,	"void(vector)"},
+	{"makevectors",		PF_makevectors,		1,		1,		1,		0,	"void(vector vang)"},
 	{"setorigin",		PF_setorigin,		2,		2,		2,		0,	"void(entity e, vector o)"},
 	{"setmodel",		PF_setmodel,		3,		3,		3,		0,	"void(entity e, string m)"},
 	{"setsize",			PF_setsize,			4,		4,		4,		0,	"void(entity e, vector min, vector max)"},
@@ -8691,14 +8753,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file2",	PF_precache_file,	77,		77,		0,		0,	"void(string str)"},	//77
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78,		0,	"void()"},	//78
-	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79,		0,	""},	//79
+	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79,		0,	"void(entity targ, float stringno)"},	//79
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
-	{"tq_zone",			PF_dupstring,		0,		0,		0,		79, "", true},	//79
-	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80, "", true},	//80
-	{"tq_stof",			PF_stof,			0,		0,		0,		81, "", true},	//81
-	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, "", true},	//82
+	{"tq_zone",			PF_dupstring,		0,		0,		0,		79, "string(string s)", true},	//79
+	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80, "void(string s)", true},	//80
+	{"tq_stof",			PF_stof,			0,		0,		0,		81, "float(string s)", true},	//81
+	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", true},	//82
 	{"tq_substring",	PF_substring,		0,		0,		0,		83, "string(string str, float start, float len)", true},	//83
 	{"tq_stof",			PF_stof,			0,		0,		0,		84, "float(string s)", true},	//84
 	{"tq_stov",			PF_stov,			0,		0,		0,		85, "vector(string s)", true},	//85
@@ -8729,23 +8791,23 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //some of these are a little iffy.
 //we support them for mvdsv compatability but some of them look very hacky.
 //these ones are not honoured with numbers, but can be used via the proper means.
-	{"teamfield",		PF_teamfield,		0,		0,		0,		87, "", true},
-	{"substr",			PF_substr,			0,		0,		0,		88, "", true},
-	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, "", true},
-	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, "", true},
-	{"str2byte",		PF_str2byte,		0,		0,		0,		91, "", true},
-	{"str2short",		PF_str2short,		0,		0,		0,		92, "", true},
-	{"mvdnewstr",		PF_newstring,		0,		0,		0,		93, "", true},
-	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		94, "", true},
-	{"conprint",		PF_conprint,		0,		0,		0,		95, "", true},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		96, "", true},
-	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, "", true},
-	{"strstr",			PF_strstr,			0,		0,		0,		98, "", true},
-	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, "", true},
-	{"log",				PF_log,				0,		0,		0,		100, "", true},
-//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, "", true},
-	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, "", true},
-	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, "", true},
+	{"teamfield",		PF_teamfield,		0,		0,		0,		87, "void(.string teamfield)", true},
+	{"substr",			PF_substr,			0,		0,		0,		88, "string(string str, float start, float len)", true},
+	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", true},
+	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, "float(string s)", true},
+	{"str2byte",		PF_str2byte,		0,		0,		0,		91, "float(string str)", true},
+	{"str2short",		PF_str2short,		0,		0,		0,		92, "float(string str)", true},
+	{"mvdnewstr",		PF_newstring,		0,		0,		0,		93, "string(string s, optional float bufsize)", true},
+	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		94, "void(string s)", true},
+	{"conprint",		PF_conprint,		0,		0,		0,		95, "void(string s, ...)", true},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		96, "string(string str)", true},
+	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, "void(string dst, string src)", true},
+	{"strstr",			PF_strstr,			0,		0,		0,		98, "string(string str, string sub)", true},
+	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, "void(string dst, string src, float count)", true},
+	{"log",				PF_log,				0,		0,		0,		100, "void(string name, float console, string text)", true},
+//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, "void(entity to, string str)", true},
+	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, "void()", true},
+	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, "void(float now)", true},
 //end of mvdsv
 
 	{"setpuzzlemodel",	PF_h2set_puzzle_model,0,	0,		87,		0},
@@ -8789,7 +8851,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	"float(string extname)"},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	"float(string builtinname)"},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
-	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	"", true},
+	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	"string(string cvarname)", true},
 
 //TEI_SHOWLMP2
 	{"showpic",			PF_ShowPic,			0,		0,		0,		104,	"void(string slot, string picname, float x, float y, float zone, optional entity player)"},
@@ -8798,15 +8860,15 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"changepic",		PF_ChangePic,		0,		0,		0,		107,	"void(string slot, string picname, optional entity player)"},
 	{"showpicent",		PF_ShowPic,			0,		0,		0,		108,	"void(string slot, entity player)", true},
 	{"hidepicent",		PF_HidePic,			0,		0,		0,		109,	"void(string slot, entity player)", true},
-//	{"movepicent",		PF_ShowPic,			0,		0,		0,		110, "", true},
-//	{"changepicent",	PF_HidePic,			0,		0,		0,		111, "", true},
+//	{"movepicent",		PF_ShowPic,			0,		0,		0,		110,	"void(string slot, float x, float y, float zone, entity player)", true},
+//	{"changepicent",	PF_HidePic,			0,		0,		0,		111,	"void(string slot, string picname, entity player)", true},
 //End TEU_SHOWLMP2
 
 //frik file
 	{"fopen",			PF_fopen,			0,		0,		0,		110, "float(string filename, float mode, optional float mmapminsize)"},	// (FRIK_FILE)
 	{"fclose",			PF_fclose,			0,		0,		0,		111, "void(float fhandle)"},	// (FRIK_FILE)
 	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(float fhandle)"},	// (FRIK_FILE)
-	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(float fhandle, string s)"},	// (FRIK_FILE)
+	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},	// (FRIK_FILE)
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
 	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, ...)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
@@ -8889,17 +8951,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"rotatevectorsbytag",	PF_Fixme,		0,		0,		0,		244,	"vector(entity ent, float tagnum)"},	// #234
 
-#ifdef SQL
-	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250,	"float(optional string host, optional string user, optional string pass, optional string defaultdb, optional string driver)"} // sqlconnect (FTE_SQL)
-	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251,	"void(float serveridx)"} // sqldisconnect (FTE_SQL)
-	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252,	"float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query)"} // sqlopenquery (FTE_SQL)
-	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253,	"void(float serveridx, float queryidx)"} // sqlclosequery (FTE_SQL)
-	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254,	"string(float serveridx, float queryidx, float row, float column)"} // sqlreadfield (FTE_SQL)
-	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255,	"string(float serveridx, optional float queryidx)"} // sqlerror (FTE_SQL)
-	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data)"} // sqlescape (FTE_SQL)
-	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx)"} // sqlversion (FTE_SQL)
-	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column)"} // sqlreadfloat (FTE_SQL)
-#endif
+	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250,	"float(optional string host, optional string user, optional string pass, optional string defaultdb, optional string driver)"}, // sqlconnect (FTE_SQL)
+	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251,	"void(float serveridx)"}, // sqldisconnect (FTE_SQL)
+	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252,	"float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query)"}, // sqlopenquery (FTE_SQL)
+	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253,	"void(float serveridx, float queryidx)"}, // sqlclosequery (FTE_SQL)
+	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254,	"string(float serveridx, float queryidx, float row, float column)"}, // sqlreadfield (FTE_SQL)
+	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255,	"string(float serveridx, optional float queryidx)"}, // sqlerror (FTE_SQL)
+	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data)"}, // sqlescape (FTE_SQL)
+	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx)"}, // sqlversion (FTE_SQL)
+	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column)"}, // sqlreadfloat (FTE_SQL)
+
 	{"stoi",			PF_stoi,			0,		0,		0,		259,	"int(string)"},
 	{"itos",			PF_itos,			0,		0,		0,		260,	"string(int)"},
 	{"stoh",			PF_stoh,			0,		0,		0,		261,	"int(string)"},
@@ -8918,13 +8979,13 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"skel_mul_bones",	PF_skel_mul_bones,	0,		0,		0,		273,	"void(float skel, float startbone, float endbone, vector org, optional vector fwd, optional vector right, optional vector up)"}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 	{"skel_copybones",	PF_skel_copybones,	0,		0,		0,		274,	"void(float skeldst, float skelsrc, float startbone, float entbone)"}, // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_delete",		PF_skel_delete,		0,		0,		0,		275,	"void(float skel)"}, // (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	"void(float modidx, string framename)"},// (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	"float(float modidx, string framename)"},// (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	"float(float modidx, float framenum)"},// (FTE_CSQC_SKELETONOBJECTS)
 
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	"void(float action, vector pos, float radius, float quant)"},// (??FTE_TERRAIN_EDIT??
 	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	"void()"},//
 	{"writefloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
-	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	"float(float skel, string dollname, float parentskel, vector trans, vector fwd, vector rt, vector up)" NYI}, // (FTE_CSQC_RAGDOLL)
+	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	"float(entity skelent, string dollname, float parentskel)" NYI}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	"float*(float skel)"},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	"void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)"},
 	{"frametoname",		PF_frametoname,		0,		0,		0,		284,	"string(float modidx, float framenum)"},
@@ -9044,9 +9105,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_SV_SETCOLOR
 	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	"void(entity from, entity to)"},//
 //DP_QC_FINDCHAIN
-	{"findchain",		PF_sv_findchain,	0,		0,		0,		402,	"entity(string field, string match)"},// (DP_QC_FINDCHAIN)
+	{"findchain",		PF_sv_findchain,	0,		0,		0,		402,	"entity(.string field, string match)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
-	{"findchainfloat",	PF_sv_findchainfloat,0,		0,		0,		403,	"entity(float fld, float match)"},// (DP_QC_FINDCHAINFLOAT)
+	{"findchainfloat",	PF_sv_findchainfloat,0,		0,		0,		403,	"entity(.float fld, float match)"},// (DP_QC_FINDCHAINFLOAT)
 //DP_SV_EFFECT
 	{"effect",			PF_effect,			0,		0,		0,		404,	"void(vector org, string modelname, float startframe, float endframe, float framerate)"},// (DP_SV_EFFECT)
 //DP_TE_BLOOD
@@ -9074,7 +9135,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"te_customflash",	PF_te_customflash,	0,		0,		0,		417,	"void(vector org, float radius, float lifetime, vector color)"},// (DP_TE_CUSTOMFLASH)
 
 //DP_TE_STANDARDEFFECTBUILTINS
-	{"te_gunshot",		PF_te_gunshot,		0,		0,		0,		418,	"void(vector org)"},// #418 te_gunshot
+	{"te_gunshot",		PF_te_gunshot,		0,		0,		0,		418,	"void(vector org, optional float count)"},// #418 te_gunshot
 	{"te_spike",		PF_te_spike,		0,		0,		0,		419,	"void(vector org)"},// #419 te_spike
 	{"te_superspike",	PF_te_superspike,	0,		0,		0,		420,	"void(vector org)"},// #420 te_superspike
 	{"te_explosion",	PF_te_explosion,	0,		0,		0,		421,	"void(vector org)"},// #421 te_explosion
@@ -9116,7 +9177,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_string",		PF_cvar_string,		0,		0,		0,		448,	"string(string cvarname)"},//
 
 //DP_QC_FINDFLAGS
-	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .entity fld, float match)"},//
+	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .float fld, float match)"},//
 //DP_QC_FINDCHAINFLAGS
 	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//
 //DP_MD3_TAGSINFO
@@ -9231,7 +9292,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_URI_GET
 	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	"float(string uril, float id)" STUB},//
 
-	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"void(string str)"},
+	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"float(string str)"},
 	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	"float(float idx)"},
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(float strbuf)" STUB},
@@ -9261,7 +9322,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //VM_SV_getextresponse,			// #624 string getextresponse(void)
 
-	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)"},
+	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,	0,		628,	"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,0,0,	0,		629,	"vector(entity e, float s, float n)"},
 
@@ -9606,7 +9667,7 @@ void PR_DumpPlatform_f(void)
 
 	int idx;
 	int i, j;
-	int d = 0, nd;
+	int d = 0, nd, k;
 	vfsfile_t *f;
 	char *fname = "";
 	char dbgfname[MAX_OSPATH];
@@ -10006,6 +10067,25 @@ void PR_DumpPlatform_f(void)
 		{"LFLAG_SHADOWMAP",		"const float", CS, LFLAG_SHADOWMAP},
 		{"LFLAG_CREPUSCULAR",	"const float", CS, LFLAG_CREPUSCULAR},
 
+		{"TEREDIT_RELOAD",		"const float", CS, ter_reload},
+		{"TEREDIT_SAVE",		"const float", CS, ter_save},
+		{"TEREDIT_SETHOLE",		"const float", CS, ter_sethole},
+		{"TEREDIT_HEIGHT_SET",	"const float", CS, ter_height_set},
+		{"TEREDIT_HEIGHT_SMOOTH","const float",CS, ter_height_smooth},
+		{"TEREDIT_HEIGHT_SPREAD","const float",CS, ter_height_spread},
+		{"TEREDIT_HEIGHT_RAISE","const float", CS, ter_raise},
+		{"TEREDIT_HEIGHT_FLATTEN","const float", CS, ter_height_flatten},
+		{"TEREDIT_HEIGHT_LOWER","const float", CS, ter_lower},
+		{"TEREDIT_TEX_KILL",	"const float", CS, ter_tex_kill},
+		{"TEREDIT_TEX_GET",		"const float", CS, ter_tex_get},
+		{"TEREDIT_MIX_PAINT",	"const float", CS, ter_mix_paint},
+		{"TEREDIT_MIX_UNIFY",	"const float", CS, ter_mix_concentrate},
+		{"TEREDIT_MIX_NOISE",	"const float", CS, ter_mix_noise},
+		{"TEREDIT_MIX_BLUR",	"const float", CS, ter_mix_blur},
+		{"TEREDIT_WATER_SET",	"const float", CS, ter_water_set},
+		{"TEREDIT_MESH_ADD",	"const float", CS, ter_mesh_add},
+		{"TEREDIT_MESH_KILL",	"const float", CS, ter_mesh_kill},
+		{"TEREDIT_TINT",		"const float", CS, ter_tint},
 		NULL
 	};
 
@@ -10138,7 +10218,7 @@ void PR_DumpPlatform_f(void)
 	if (d != ALL)
 		VFS_PRINTF(f, "#endif\n");
 
-	d = 0;
+	d = ALL;
 	for (i = 0; BuiltinList[i].name; i++)
 	{
 		if (BuiltinList[i].obsolete)
@@ -10154,9 +10234,9 @@ void PR_DumpPlatform_f(void)
 			if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
 			{
 				if (BuiltinList[i].bifunc == PF_Fixme || BuiltinList[i].bifunc == PF_Ignore)
-					nd = 2; /*csqc only*/
+					nd = CS; /*csqc only*/
 				else
-					nd = 0; /*both*/
+					nd = NQ|QW|CS; /*both*/
 			}
 			else
 			{
@@ -10167,23 +10247,70 @@ void PR_DumpPlatform_f(void)
 					nd = d;	/*don't switch ifdefs*/
 				}
 				else
-					nd = 1; /*ssqc only*/
+					nd = NQ|QW; /*ssqc only*/
 			}
 			if (nd != d)
 			{
-				if (d)
+				if (!(nd & targ))
+					continue;
+
+				if (d != ALL)
 					VFS_PRINTF(f, "#endif\n");
-				if (nd == 1)
-					VFS_PRINTF(f, "#ifdef SSQC\n");
-				if (nd == 2)
-					VFS_PRINTF(f, "#ifdef CSQC\n");
 				d = nd;
+
+				switch(d)
+				{
+				case 0:
+					continue;
+				case QW:
+					VFS_PRINTF(f, "#if defined(SSQC) && !defined(NETQUAKE)\n");
+					break;
+				case NQ:
+					VFS_PRINTF(f, "#if defined(SSQC) && defined(NETQUAKE)\n");
+					break;
+				case QW|NQ:
+					VFS_PRINTF(f, "#ifdef SSQC\n");
+					break;
+				case CS:
+					VFS_PRINTF(f, "#ifdef CSQC\n");
+					break;
+				case QW|CS:
+					VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && !defined(NETQUAKE))\n");
+					break;
+				case NQ|CS:
+					VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && defined(NETQUAKE))\n");
+					break;
+				case ALL:
+					break;
+				}
 			}
-			VFS_PRINTF(f, "%s%s %s = #%u;\n", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
+			VFS_PRINTF(f, "%s%s %s = #%u;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
+			nd = 0;
+			for (j = 0; j < QSG_Extensions_count; j++)
+			{
+				for (k = 0; k < QSG_Extensions[j].numbuiltins; k++)
+				{
+					if (!strcmp(QSG_Extensions[j].builtinnames[k], BuiltinList[i].name))
+					{
+						if (!nd)
+							VFS_PRINTF(f, " /* Part of ");
+						else
+							VFS_PRINTF(f, ", ");
+						nd++;
+						VFS_PRINTF(f, "%s", QSG_Extensions[j].name);
+					}
+				}
+			}
+			if (nd)
+				VFS_PRINTF(f, "*/\n");
+			else
+				VFS_PRINTF(f, "\n");
 		}
 	}
-	if (d)
+	if (d != ALL)
 		VFS_PRINTF(f, "#endif\n");
+
+
 	VFS_PRINTF(f, "#pragma noref 0\n");
 
 	VFS_CLOSE(f);

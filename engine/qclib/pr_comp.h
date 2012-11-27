@@ -434,15 +434,6 @@ typedef struct ddef32_s
 	string_t		s_name;
 } ddef32_t;
 
-typedef struct fdef_s
-{
-	unsigned int	type;		// if DEF_SAVEGLOBAL bit is set
-								// the variable needs to be saved in savegames
-	unsigned int	ofs;
-	unsigned int	progsofs;	//used at loading time, so maching field offsets (unions/members) are positioned at the same runtime offset.
-	char *		name;
-} fdef_t;
-
 typedef void *ddefXX_t;
 #else
 typedef struct QCC_ddef16_s

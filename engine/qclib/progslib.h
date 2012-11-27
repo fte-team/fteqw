@@ -43,6 +43,15 @@ typedef struct {
 #define sizeofevalc sizeof(evalc_t)
 typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union} etype_t;
 
+typedef struct fdef_s
+{
+	unsigned int	type;		// if DEF_SAVEGLOBAL bit is set
+								// the variable needs to be saved in savegames
+	unsigned int	ofs;
+	unsigned int	progsofs;	//used at loading time, so maching field offsets (unions/members) are positioned at the same runtime offset.
+	char *		name;
+} fdef_t;
+
 //the number of pointers to variables (as opposed to functions - those are fine) in these structures is excessive.
 //Many of the functions are also obsolete.
 struct progfuncs_s {
@@ -143,6 +152,7 @@ struct progfuncs_s {
 
 	string_t (*AllocTempString)			(progfuncs_t *prinst, char **str, unsigned int len);
 	void (*AddressableFree)				(progfuncs_t *progfuncs, void *mem); /*frees a block of addressable memory*/
+	pbool (*SetWatchPoint)				(progfuncs_t *prinst, char *key);
 };
 
 typedef struct progexterns_s {
@@ -183,7 +193,7 @@ typedef struct progexterns_s {
 	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
 	unsigned int *sv_num_edicts;		//pointer to the engine's edict count.
 
-	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
+	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
 	void (*addressablerelocated) (progfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
 
 	void *user;	/*contains the owner's world reference in FTE*/

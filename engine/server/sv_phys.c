@@ -1832,7 +1832,6 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		host_client = &svs.clients[ent->entnum-1];
 		SV_ClientThink();
 
-
 		if (progstype == PROG_QW)	//detect if the mod should do a jump
 			if (svent->v->button2)
 				if ((int)svent->v->flags & FL_JUMPRELEASED)

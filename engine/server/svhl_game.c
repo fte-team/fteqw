@@ -1262,7 +1262,7 @@ int SVHL_InitGame(void)
 		return 1;
 	}
 
-	hlgamecode = Sys_LoadLibrary("C:/Incoming/d/Half-Life/sdks/hlsdk-2.3-p3/hlsdk-2.3-p3/multiplayer/dlls/debugmp/mp.dll", hlgamefuncs);
+	hlgamecode = NULL;//Sys_LoadLibrary("C:/Incoming/d/Half-Life/sdks/hlsdk-2.3-p3/hlsdk-2.3-p3/multiplayer/dlls/debugmp/mp.dll", hlgamefuncs);
 	if (!hlgamecode)
 	{
 		gamedll = Info_ValueForKey(svs.info, "*gamedll");

@@ -128,7 +128,8 @@ typedef struct serverinfo_s {
 typedef struct master_s{
 	struct master_s *next;
 	netadr_t adr;
-	char *address;	//text based address (http servers
+	char *address;	//text based address (http servers)
+	struct dl_download *dl;
 	int type;
 	int servertype;	//filled in for http servers
 	int sends; /*needs to resend?*/
@@ -163,6 +164,7 @@ extern player_t *mplayers;
 void Master_SetupSockets(void);
 void CL_QueryServers(void);
 int Master_CheckPollSockets(void);
+void MasterInfo_Shutdown(void);
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);
 serverinfo_t *Master_InfoForServer (netadr_t addr);
 serverinfo_t *Master_InfoForNum (int num);

@@ -650,7 +650,7 @@ char *Sys_ConsoleInput (void)
 		if (c == '\t')
 		{
 			int i;
-			char *s = Cmd_CompleteCommand(coninput_text, true, true, 0);
+			char *s = Cmd_CompleteCommand(coninput_text, true, true, 0, NULL);
 			if(s)
 			{
 				for (i = 0; i < coninput_len; i++)
@@ -724,6 +724,8 @@ void ApplyColour(unsigned int chr)
 
 void Sys_PrintColouredChar(unsigned int chr)
 {
+	if (chr & CON_HIDDEN)
+		return;
 	ApplyColour(chr);
 
 	printf("%c", chr & CON_CHARMASK);
@@ -765,29 +767,16 @@ void Sys_Printf (char *fmt, ...)
 			putch('\b');
 		}
 
-
-		for (t = (unsigned char*)msg; *t; t++)
-		{
-			if (*t >= 146 && *t < 156)
-				*t = *t - 146 + '0';
-			if (*t >= 0x12 && *t <= 0x1b)
-				*t = *t - 0x12 + '0';
-			if (*t == 143)
-				*t = '.';
-			if (*t == 157 || *t == 158 || *t == 159)
-				*t = '-';
-			if (*t >= 128)
-				*t -= 128;
-			if (*t == 16)
-				*t = '[';
-			if (*t == 17)
-				*t = ']';
-			if (*t == 0x1c)
-				*t = 249;
-		}
-
 		if (sys_colorconsole.value && hconsoleout)
 		{
+#if 1
+			conchar_t out[MAXPRINTMSG], *c, *end;
+			end = COM_ParseFunString(CON_WHITEMASK, msg, out, sizeof(out), false);
+
+			for (c = out; c < end; c++) 
+				Sys_PrintColouredChar (*c);
+#else
+
 			int ext = CON_WHITEMASK;
 			int extstack[4];
 			int extstackdepth = 0;
@@ -880,11 +869,32 @@ void Sys_Printf (char *fmt, ...)
 				}
 				Sys_PrintColouredChar ((*str++) | ext);
 			}
-
+#endif
 			ApplyColour(CON_WHITEMASK);
 		}
 		else
+		{
+			for (t = (unsigned char*)msg; *t; t++)
+			{
+				if (*t >= 146 && *t < 156)
+					*t = *t - 146 + '0';
+				if (*t >= 0x12 && *t <= 0x1b)
+					*t = *t - 0x12 + '0';
+				if (*t == 143)
+					*t = '.';
+				if (*t == 157 || *t == 158 || *t == 159)
+					*t = '-';
+				if (*t >= 128)
+					*t -= 128;
+				if (*t == 16)
+					*t = '[';
+				if (*t == 17)
+					*t = ']';
+				if (*t == 0x1c)
+					*t = 249;
+			}
 			printf("%s", msg);
+		}
 
 
 		if (coninput_len)
@@ -1106,6 +1116,8 @@ void StartQuakeServer(void)
 	quakeparms_t	parms;
 	//static	char	cwd[1024]; //unused variable
 	int				t;
+
+	memset(&parms, 0, sizeof(parms));
 
 	TL_InitLanguages();
 

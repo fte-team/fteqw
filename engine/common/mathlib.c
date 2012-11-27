@@ -1685,8 +1685,10 @@ void Matrix4x4_CM_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles
 //returns fractions of screen.
 //uses GL style rotations and translations and stuff.
 //3d -> screen (fixme: offscreen return values needed)
-void Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
+//returns false if the 2d point is offscreen.
+qboolean Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
 {
+	qboolean result = true;
 	float modelview[16];
 	float proj[16];
 
@@ -1705,12 +1707,17 @@ void Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles,
 
 		v[0] /= v[3];
 		v[1] /= v[3];
+		if (v[2] < 0)
+			result = false;	//too close to the view
 		v[2] /= v[3];
 
 		out[0] = (1+v[0])/2;
 		out[1] = (1+v[1])/2;
 		out[2] = (1+v[2])/2;
+		if (out[2] > 1)
+			result = false;	//beyond far clip plane
 	}
+	return result;
 }
 
 

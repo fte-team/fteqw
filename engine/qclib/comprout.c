@@ -92,7 +92,7 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 			if (!externs->useeditor)
 				printf("Error in %s on line %i\n", errorfile, errorline);
 			else
-				externs->useeditor(progfuncs, errorfile, errorline, nump, parms);
+				externs->useeditor(progfuncs, errorfile, errorline, 0, nump, parms);
 		}
 		return false;
 	}
@@ -118,7 +118,7 @@ int Comp_Begin(progfuncs_t *progfuncs, int nump, char **parms)
 	{
 		PostCompile();
 		if (*errorfile)
-			externs->useeditor(progfuncs, errorfile, errorline, nump, parms);
+			externs->useeditor(progfuncs, errorfile, errorline, 0, nump, parms);
 		return false;
 	}
 
@@ -135,7 +135,7 @@ int Comp_Continue(progfuncs_t *progfuncs)
 	{
 		PostCompile();
 		if (*errorfile && externs->useeditor)
-			externs->useeditor(progfuncs, errorfile, errorline, comp_nump, comp_parms);
+			externs->useeditor(progfuncs, errorfile, errorline, 0, comp_nump, comp_parms);
 		return false;
 	}
 
@@ -146,7 +146,7 @@ int Comp_Continue(progfuncs_t *progfuncs)
 		PostCompile();
 
 		if (*errorfile && externs->useeditor)
-			externs->useeditor(progfuncs, errorfile, errorline, comp_nump, comp_parms);
+			externs->useeditor(progfuncs, errorfile, errorline, 0 , comp_nump, comp_parms);
 
 		return false;
 	}

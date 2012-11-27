@@ -1872,91 +1872,87 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-qboolean SCR_ScreenShot (char *filename)
+qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height)
 {
-	int truewidth, trueheight;
-	qbyte            *buffer;
 	int                     i, c, temp;
 #if defined(AVAIL_PNGLIB) || defined(AVAIL_JPEGLIB)
 	extern cvar_t scr_sshot_compression;
 #endif
 
-#define MAX_PREPAD	128
 	char *ext;
 
 	ext = COM_FileExtension(filename);
 
-	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
-#ifdef warningmsg
-#pragma warningmsg("Need to ensure that the various image writing routines can cope with ((width|height)&3")
-#endif
-
-	if (!buffer)
+	if (!rgb_buffer)
 		return false;
 
 #ifdef AVAIL_PNGLIB
 	if (!strcmp(ext, "png"))
 	{
-		Image_WritePNG(filename, scr_sshot_compression.value, buffer+MAX_PREPAD, truewidth, trueheight);
+		Image_WritePNG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
 		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
 	{
-		screenshotJPEG(filename, scr_sshot_compression.value, buffer+MAX_PREPAD, truewidth, trueheight);
+		screenshotJPEG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
 	/*	if (!strcmp(ext, "bmp"))
 	{
-		WriteBMPFile(pcxname, buffer+MAX_PREPAD, truewidth, trueheight);
+		WriteBMPFile(pcxname, rgb_buffer, width, height);
 	}
 	else*/
 		if (!strcmp(ext, "pcx"))
 	{
 		int y, x;
 		qbyte *src, *dest;
-		qbyte *newbuf = buffer + MAX_PREPAD;
-		// convert to eight bit
-		for (y = 0; y < trueheight; y++) {
-			src = newbuf + (truewidth * 3 * y);
-			dest = newbuf + (truewidth * y);
+		qbyte *newbuf = rgb_buffer;
+		// convert in-place to eight bit
+		for (y = 0; y < height; y++)
+		{
+			src = newbuf + (width * 3 * y);
+			dest = newbuf + (width * y);
 
-			for (x = 0; x < truewidth; x++) {
+			for (x = 0; x < width; x++) {
 				*dest++ = MipColor(src[0], src[1], src[2]);
 				src += 3;
 			}
 		}
 
-		WritePCXfile (filename, newbuf, truewidth, trueheight, truewidth, host_basepal, false);
+		WritePCXfile (filename, newbuf, width, height, width, host_basepal, false);
 	}
 	else	//tga
 	{
-		buffer+=MAX_PREPAD-18;
-		memset (buffer, 0, 18);
-		buffer[2] = 2;          // uncompressed type
-		buffer[12] = truewidth&255;
-		buffer[13] = truewidth>>8;
-		buffer[14] = trueheight&255;
-		buffer[15] = trueheight>>8;
-		buffer[16] = 24;        // pixel size
-
-		// swap rgb to bgr
-		c = 18+truewidth*trueheight*3;
-		for (i=18 ; i<c ; i+=3)
+		vfsfile_t *vfs;
+		FS_CreatePath(filename, FS_GAMEONLY);
+		vfs = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+		if (vfs)
 		{
-			temp = buffer[i];
-			buffer[i] = buffer[i+2];
-			buffer[i+2] = temp;
+			unsigned char header[18];
+			memset (header, 0, 18);
+			header[2] = 2;          // uncompressed type
+			header[12] = width&255;
+			header[13] = width>>8;
+			header[14] = height&255;
+			header[15] = height>>8;
+			header[16] = 24;        // pixel size
+			VFS_WRITE(vfs, header, sizeof(header));
+
+			// swap rgb to bgr
+			c = width*height*3;
+			for (i=0 ; i<c ; i+=3)
+			{
+				temp = ((qbyte*)rgb_buffer)[i];
+				((qbyte*)rgb_buffer)[i] = ((qbyte*)rgb_buffer)[i+2];
+				((qbyte*)rgb_buffer)[i+2] = temp;
+			}
+			VFS_WRITE(vfs, rgb_buffer, c);
+			VFS_CLOSE(vfs);
 		}
-		COM_WriteFile (filename, buffer, truewidth*trueheight*3 + 18 );
-		buffer-=MAX_PREPAD-18;
 	}
-
-
-	BZ_Free (buffer);
-
 	return true;
 }
 
@@ -1971,6 +1967,8 @@ void SCR_ScreenShot_f (void)
 	char            pcxname[80];
 	int                     i;
 	vfsfile_t *vfs;
+	void *rgbbuffer;
+	int width, height;
 
 	if (!VID_GetRGBInfo)
 	{
@@ -2015,10 +2013,18 @@ void SCR_ScreenShot_f (void)
 
 	FS_NativePath(pcxname, FS_GAMEONLY, sysname, sizeof(sysname));
 
-	if (SCR_ScreenShot(pcxname))
-		Con_Printf ("Wrote %s\n", sysname);
-	else
-		Con_Printf ("Screenshot failed\n");
+	rgbbuffer = VID_GetRGBInfo(0, &width, &height);
+	if (rgbbuffer)
+	{
+		if (SCR_ScreenShot(pcxname, rgbbuffer, width, height))
+		{
+			Con_Printf ("Wrote %s\n", sysname);
+			BZ_Free(rgbbuffer);
+			return;
+		}
+		BZ_Free(rgbbuffer);
+	}
+	Con_Printf ("Couldn't write %s\n", sysname);
 }
 
 

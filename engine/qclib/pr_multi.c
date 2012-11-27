@@ -16,6 +16,7 @@ sharedvar_t *shares;	//shared globals, not including parms
 int maxshares;
 */
 
+//switches progs without preserving parms/ret/shared
 pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 {	
 	if ((unsigned)type >= maxprogs)
@@ -40,22 +41,30 @@ pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 	return true;
 }
 
-void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t newpr, progsnum_t oldpr)	//from 2 to 1
+//switch to new progs, preserving all arguments. oldpr should be 'pr_typecurrent'
+pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 1
 {
 	unsigned int a;
 	progstate_t *np;
 	progstate_t *op;
+	int oldpr = pr_typecurrent;
 
 	if (newpr == oldpr)
-		return;	//don't bother coping variables to themselves...
+	{
+		//don't bother coping variables to themselves...
+		return true;
+	}
 
 	np = &pr_progstate[(int)newpr];
 	op = &pr_progstate[(int)oldpr];
 
 	if ((unsigned)newpr >= maxprogs || !np->globals)
-		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", newpr);
-	if ((unsigned)oldpr >= maxprogs || !op->globals)
-		return;
+	{
+		printf("QCLIB: Bad prog type - %i", newpr);
+		return false;
+	}
+	if ((unsigned)oldpr >= maxprogs || !op->globals)	//startup?
+		return PR_SwitchProgs(progfuncs, newpr);
 
 	//copy parms.
 	for (a = 0; a < MAX_PARMS;a++)
@@ -81,6 +90,7 @@ void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t newpr, progsnum_t oldpr)	//
 		}
 */
 	}
+	return PR_SwitchProgs(progfuncs, newpr);
 }
 
 progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_t *builtins, int numbuiltins)

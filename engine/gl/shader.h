@@ -2,6 +2,7 @@
 #define SHADER_H
 typedef void (shader_gen_t)(char *name, shader_t*, const void *args);
 
+#define SHADER_TMU_MAX 16
 #define SHADER_PASS_MAX	8
 #define SHADER_MAX_TC_MODS	8
 #define SHADER_DEFORM_MAX	8
@@ -347,7 +348,6 @@ typedef struct {
 		SP_CVAR3F,
 		SP_TEXTURE
 	} type;
-	unsigned int handle[PERMUTATIONS];
 	union
 	{
 		int ival;
@@ -375,10 +375,13 @@ typedef struct programshared_s
 {
 	int refs;
 	qboolean nofixedcompat;
-	union programhandle_u handle[PERMUTATIONS];
-	unsigned int attrmask[PERMUTATIONS];
 	int numparams;
 	shaderprogparm_t parm[SHADER_PROGPARMS_MAX];
+	struct {
+		union programhandle_u handle;
+		unsigned int attrmask;
+		unsigned int parm[SHADER_PROGPARMS_MAX];
+	} permu[PERMUTATIONS];
 } program_t;
 
 typedef struct {
@@ -417,7 +420,7 @@ struct shader_s
 		SHADER_NOIMAGE			= 1 << 8,
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
 		SHADER_VIDEOMAP			= 1 << 10,
-		SHADER_DEPTHWRITE		= 1 << 11,
+		SHADER_DEPTHWRITE		= 1 << 11,	//some pass already wrote depth. not used by the renderer.
 		SHADER_AGEN_PORTAL		= 1 << 12,
 		SHADER_BLEND			= 1 << 13,	//blend or alphatest (not 100% opaque).
 		SHADER_NODRAW			= 1 << 14,	//parsed only to pee off developers when they forget it on no-pass shaders.
@@ -430,6 +433,7 @@ struct shader_s
 		SHADER_HASREFRACT		= 1 << 20,	//says that we need to generate a refraction image first
 		SHADER_HASNORMALMAP		= 1 << 21,	//says that we need to load a normalmap texture
 		SHADER_HASRIPPLEMAP		= 1 << 22,	//water surface disturbances for water splashes
+		SHADER_HASGLOSS			= 1 << 23,	//
 	} flags;
 
 	program_t *prog;
@@ -523,7 +527,7 @@ qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
 void D3D9BE_SelectEntity(entity_t *ent);
 void D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour);
 
-qboolean D3D9Shader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
+qboolean D3D9Shader_CreateProgram (program_t *prog, char *sname, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3D9Shader_Init(void);
 void D3D9BE_Reset(qboolean before);

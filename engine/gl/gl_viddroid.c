@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "glquake.h"
 
-extern qboolean sys_glesversion;
+extern int sys_glesversion;
 
 static dllhandle_t *sys_gl_module = NULL;
 
@@ -85,6 +85,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Cons: GL_EndRendering call will not swap buffers. Buffers will be swapped on return to java.
 	*/
 
+	if (!sys_glesversion)
+		return false;
+
 	if (sys_glesversion >= 2)
 		Sys_Printf("Loading GLES2 driver\n");
 	else
@@ -114,12 +117,12 @@ void GLVID_DeInit(void)
 {
 	if (sys_display != EGL_NO_DISPLAY)
 	{
-        	eglMakeCurrent(sys_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+		eglMakeCurrent(sys_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 		if (sys_context != EGL_NO_CONTEXT)
 			eglDestroyContext(sys_display, sys_context);
 		if (sys_surface != EGL_NO_SURFACE)
 			eglDestroySurface(sys_display, sys_surface);
-	        eglTerminate(sys_display);
+		eglTerminate(sys_display);
 		sys_context = EGL_NO_CONTEXT;
 		sys_surface = EGL_NO_SURFACE;
 		sys_display = EGL_NO_DISPLAY;
@@ -189,7 +192,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = w;
 	vid.pixelheight = h;
 
-        GLVID_SetPalette (palette);
+	GLVID_SetPalette (palette);
 	GL_Init(GLES_GetSymbol);
 	vid.recalc_refdef = 1;
 	return true;

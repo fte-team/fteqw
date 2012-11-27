@@ -218,7 +218,8 @@ int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_lis
 
 typedef struct quakeparms_s
 {
-	char	*basedir;
+	char	*basedir;	//working directory
+	char	*binarydir;	//exe directory
 	int		argc;
 	const char	**argv;
 	void	*membase;
@@ -240,6 +241,7 @@ extern qboolean noclip_anglehack;
 extern	quakeparms_t host_parms;
 
 extern	cvar_t		fs_gamename;
+extern	cvar_t		fs_gamedownload;
 extern	cvar_t		com_protocolname;
 extern	cvar_t		com_modname;
 extern	cvar_t		sys_ticrate;

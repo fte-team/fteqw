@@ -67,7 +67,7 @@ qboolean NPFTE_BeginDownload(void *ctx, struct pipetype *ftype, char *url)
 }
 
 void NPFTE_StatusChanged(void *sysctx)
-{
+{	//potentially called from another thread
 	NPP instance = sysctx;
 	struct contextpublic *pub = instance->pdata;
 	InvalidateRgn(pub->oldwnd, NULL, FALSE);
@@ -128,11 +128,28 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	case WM_ERASEBKGND:
 		return FALSE;
 	case WM_PAINT:
-		if (pub->downloading)
+		if (*pub->statusmessage)
 		{
 			HDC hdc;
 			PAINTSTRUCT paint;
-			char *s;
+			unsigned int progress;
+			unsigned int total;
+
+			progress = pub->dldone;
+			total = pub->dlsize;
+
+			hdc = BeginPaint(hWnd, &paint);
+			DrawWndBack(ctx, hWnd, hdc, &paint);
+			SetBkMode(hdc, TRANSPARENT);
+			TextOutA(hdc, 0, 0, pub->statusmessage, strlen(pub->statusmessage));
+			EndPaint(hWnd, &paint);
+			return TRUE;
+		}
+		else if (pub->downloading)
+		{
+			HDC hdc;
+			PAINTSTRUCT paint;
+			char s[32];
 			unsigned int progress;
 			unsigned int total;
 
@@ -144,11 +161,11 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			SetBkMode(hdc, TRANSPARENT);
 			TextOutA(hdc, 0, 0, "Downloading Data, please wait", 16);
 			if (!progress && !total)
-				s = "connecting";
+				sprintf(s, "connecting");
 			else if (total)
-				s = va("%i bytes (%i%%)", progress, (int)((100.0f*progress)/total));
+				sprintf(s, "%i bytes (%i%%)", progress, (int)((100.0f*progress)/total));
 			else
-				s = va("%i bytes", progress);
+				sprintf(s, "%i bytes", progress);
 			TextOutA(hdc, 0, 32, s, strlen(s));
 			EndPaint(hWnd, &paint);
 			return TRUE;
@@ -169,9 +186,9 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 				if (pub->availver)
 				{
-					s = va("Your plugin may be incompatible");
+					s = "Your plugin may be incompatible";
 					TextOutA(hdc, 0, 32, s, strlen(s));
-					s = va("Version %3.2f was requested, you are using version %3.2f", pub->availver, (float)version_number());
+					s = "A newer version is available. Your version is dated " __DATE__ ".";
 					TextOutA(hdc, 0, 48, s, strlen(s));
 				}
 			}
@@ -183,7 +200,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	case WM_LBUTTONDOWN:
 		SetActiveWindow(hWnd);
 		if (!Plug_StartContext(ctx))
-			Plug_StopContext(NULL);
+			Plug_StopContext(NULL, false);
 		break;
 	default:
 		break;

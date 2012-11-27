@@ -2,8 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="8.00"
-	Name="berkelium"
+	Name="berkplug"
 	ProjectGUID="{4877586B-E85B-4DF8-BCCE-59D31514D240}"
+	RootNamespace="berkplug"
 	>
 	<Platforms>
 		<Platform
@@ -121,6 +122,9 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="berkelium/berkelium.lib"
+				OutputFile="C:\Games\Quake\fte\plugins\$(ProjectName)x86.dll"
+				GenerateManifest="false"
+				ModuleDefinitionFile="..\plugin.def"
 			/>
 			<Tool
 				Name="VCALinkTool"

@@ -13,7 +13,7 @@ extern ID3D11DeviceContext *d3ddevctx;
 //#define d3dcheck(foo) foo
 #define d3dcheck(foo) do{HRESULT err = foo; if (FAILED(err)) Sys_Error("D3D reported error on backend line %i - error 0x%x\n", __LINE__, (unsigned int)err);} while(0)
 
-#define MAX_TMUS 8
+#define MAX_TMUS 16
 
 extern float d3d_trueprojection[16];
 
@@ -1542,9 +1542,9 @@ static void BE_SubmitMeshChain(int idxfirst)
 static void BE_ApplyUniforms(program_t *prog, int permu)
 {
 	//FIXME: how many of these calls can we avoid?
-	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->handle[permu].hlsl.layout);
-	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->handle[permu].hlsl.vert, NULL, 0);
-	ID3D11DeviceContext_PSSetShader(d3ddevctx, prog->handle[permu].hlsl.frag, NULL, 0);
+	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->permu[permu].handle.hlsl.layout);
+	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.vert, NULL, 0);
+	ID3D11DeviceContext_PSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.frag, NULL, 0);
 	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	ID3D11DeviceContext_VSSetConstantBuffers(d3ddevctx, 0, sizeof(shaderstate.cbuffers)/sizeof(shaderstate.cbuffers[0]), shaderstate.cbuffers);
@@ -1558,15 +1558,15 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 
 	program_t *p = s->prog;
 
-	if (TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_BUMPMAP].hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.hlsl.vert)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->specular) && p->handle[perm|PERMUTATION_SPECULAR].hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->specular) && p->permu[perm|PERMUTATION_SPECULAR].handle.hlsl.vert)
 		perm |= PERMUTATION_SPECULAR;
-	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->handle[perm|PERMUTATION_FULLBRIGHT].hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->handle[perm|PERMUTATION_UPPERLOWER].hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
+	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].hlsl.vert)
+	if (r_refdef.gfog_rgbd[3] && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
 		perm |= PERMUTATION_FOG;
 //	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)
 //		perm |= PERMUTATION_OFFSET;
@@ -2449,6 +2449,7 @@ static entity_t *R_NearestPortal(plane_t *plane)
 	int i;
 	entity_t *best = NULL;
 	float dist, bestd = 0;
+	//for q3-compat, portals on world scan for a visedict to use for their view.
 	for (i = 0; i < cl_numvisedicts; i++)
 	{
 		if (cl_visedicts[i].rtype == RT_PORTALSURFACE)

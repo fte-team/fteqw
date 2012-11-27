@@ -34,7 +34,7 @@ char lastdemoname[256];
 extern cvar_t qtvcl_forceversion1;
 extern cvar_t qtvcl_eztvextensions;
 
-unsigned char demobuffer[1024*16];
+unsigned char demobuffer[1024*66];
 int demobuffersize;
 int demopreparsedbytes;
 qboolean disablepreparse;
@@ -325,20 +325,19 @@ void CL_DemoJump_f(void)
 	if (!cls.demoplayback)
 		return;
 
-	if (*s == '+')
+	if (*s == '+' || *s == '-')
 	{
 		if (colon)
 		{
 			colon++;
-			demtime += atoi(colon);
-
-			demtime += atoi(s)*60;
+			newtime = demtime + atoi(colon) + atoi(s)*60;
 		}
 		else
-			demtime += atoi(s);
+			newtime = demtime + atoi(s);
 	}
 	else
 	{
+		//absolute seek time
 		if (colon)
 		{
 			colon++;
@@ -347,16 +346,17 @@ void CL_DemoJump_f(void)
 		}
 		else
 			newtime = atoi(s);
+	}
 
-		if (newtime >= demtime)
-			demtime = newtime;
-		else
-		{
-			Con_Printf("Rewinding demo\n");
-			CL_PlayDemo(lastdemoname);
+	if (newtime >= demtime)
+		demtime = newtime;
+	else
+	{
+		Con_Printf("Rewinding demo\n");
+		CL_PlayDemo(lastdemoname);
 
-			demtime = newtime;
-		}
+		//now fastparse it.
+		demtime = newtime;
 	}
 }
 

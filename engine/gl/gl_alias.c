@@ -938,7 +938,7 @@ void R_GAlias_DrawBatch(batch_t *batch)
 		{
 			if (batch->surf_first == surfnum)
 			{
-				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, surfnum, e, true);
+				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl);
 				batch->mesh = &meshl;
 				return;
 			}
@@ -976,7 +976,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	clmodel = e->model;
 
-	if (!(e->flags & Q2RF_WEAPONMODEL))
+	if (!(e->flags & Q2RF_WEAPONMODEL) && !e->framestate.bonestate)
 	{
 		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
 			return;

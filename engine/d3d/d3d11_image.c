@@ -125,8 +125,11 @@ static void *D3D11_AllocNewTextureData(void *datargba, int width, int height, un
 }
 texid_t D3D11_AllocNewTexture(char *ident, int width, int height, unsigned int flags)
 {
+	d3d11texture_t *t;
 	void *img = D3D11_AllocNewTextureData(NULL, width, height, flags);
-	d3d11texture_t *t = d3d_lookup_texture("");
+	if (!img)
+		return r_nulltex;
+	t = d3d_lookup_texture("");
 	t->tex2d = img;
 	
 	return ToTexID(t);
@@ -207,6 +210,8 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int widt
 //	D3D11_MAPPED_SUBRESOURCE lock;
 
 	D3D11_TEXTURE2D_DESC desc;
+	if (!tex)
+		return;
 
 	ID3D11Texture2D_GetDesc(tex, &desc);
 	if (width == desc.Width && height == desc.Height)

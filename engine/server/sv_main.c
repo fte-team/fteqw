@@ -177,6 +177,7 @@ cvar_t	fraglimit		= CVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
 cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
+cvar_t	sv_playerslots	= CVARD("sv_playerslots", "", "Specify maximum number of player/spectator slots. This should generally be maxclients+maxspectators. Leave blank for a default value. Maximum value of "STRINGIFY(MAX_CLIENTS)".");
 cvar_t	maxclients		= CVARAF("maxclients",		"8",
 								 "sv_maxclients",			CVAR_SERVERINFO);
 cvar_t	maxspectators	= CVARF("maxspectators",	"8",	CVAR_SERVERINFO);
@@ -204,6 +205,7 @@ cvar_t	sv_motd[]		={	CVAR("sv_motd1",		""),
 							CVAR("sv_motd4",		"")	};
 
 cvar_t sv_compatiblehulls = CVAR("sv_compatiblehulls", "1");
+cvar_t  dpcompat_stats = CVAR("dpcompat_stats", "0");
 
 cvar_t	hostname = CVARF("hostname","unnamed", CVAR_SERVERINFO);
 
@@ -1691,11 +1693,18 @@ SVC_DirectConnect
 
 A connection request that did not come from the master
 ==================
+arguments must be tokenized first
+Q3: connect "\key\val"
+DP: connect\key\val
+QW: connect $VER $QPORT $CHALLENGE "\key\val"
+SS: connect2 $VER $QPORT $CHALLENGE "\key\val" "\key\val"
+NQ: hacked to take the form of QW
+extension flags follow it.
 */
 int	nextuserid;
 client_t *SVC_DirectConnect(void)
 {
-	char		userinfo[MAX_CLIENTS][2048];
+	char		userinfo[MAX_SPLITS][2048];
 	netadr_t	adr;
 	int			i;
 	client_t	*cl, *newcl;
@@ -1811,7 +1820,7 @@ client_t *SVC_DirectConnect(void)
 		if (atoi(Cmd_Argv(0)+7))
 		{
 			numssclients = atoi(Cmd_Argv(0)+7);
-			if (numssclients<1 || numssclients > 4)
+			if (numssclients<1 || numssclients > MAX_SPLITS)
 			{
 				SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 				Con_Printf ("* rejected connect from broken client\n");
@@ -4150,6 +4159,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
 
 	Cvar_Register (&sv_compatiblehulls,		cvargroup_serverphysics);
+	Cvar_Register (&dpcompat_stats,			"Darkplaces compatibility");
 
 	for (i = 0; i < sizeof(sv_motd)/sizeof(sv_motd[0]); i++)
 		Cvar_Register(&sv_motd[i],	cvargroup_serverinfo);

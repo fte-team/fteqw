@@ -26,6 +26,11 @@ extern "C"
 #include <stdio.h>
 #include "codec.h"
 
+/*Spike: libvorbis internally uses cdecl. fte uses whatever the project settings are, so make sure this header is explicit so that everything still works.*/
+#ifndef VARGS
+#define VARGS
+#endif
+
 /* The function prototypes for the callbacks are basically the same as for
  * the stdio functions fread, fseek, fclose, ftell.
  * The one difference is that the FILE * arguments have been replaced with
@@ -37,10 +42,10 @@ extern "C"
  * unseekable
  */
 typedef struct {
-  size_t (*read_func)  (void *ptr, size_t size, size_t nmemb, void *datasource);
-  int    (*seek_func)  (void *datasource, ogg_int64_t offset, int whence);
-  int    (*close_func) (void *datasource);
-  long   (*tell_func)  (void *datasource);
+  size_t (VARGS *read_func)  (void *ptr, size_t size, size_t nmemb, void *datasource);
+  int    (VARGS *seek_func)  (void *datasource, ogg_int64_t offset, int whence);
+  int    (VARGS *close_func) (void *datasource);
+  long   (VARGS *tell_func)  (void *datasource);
 } ov_callbacks;
 
 #ifndef OV_EXCLUDE_STATIC_CALLBACKS
@@ -73,31 +78,31 @@ static int _ov_header_fseek_wrap(FILE *f,ogg_int64_t off,int whence){
  */
 
 static ov_callbacks OV_CALLBACKS_DEFAULT = {
-  (size_t (*)(void *, size_t, size_t, void *))  fread,
-  (int (*)(void *, ogg_int64_t, int))           _ov_header_fseek_wrap,
-  (int (*)(void *))                             fclose,
-  (long (*)(void *))                            ftell
+  (size_t (VARGS *)(void *, size_t, size_t, void *))  fread,
+  (int (VARGS *)(void *, ogg_int64_t, int))           _ov_header_fseek_wrap,
+  (int (VARGS *)(void *))                             fclose,
+  (long (VARGS *)(void *))                            ftell
 };
 
 static ov_callbacks OV_CALLBACKS_NOCLOSE = {
-  (size_t (*)(void *, size_t, size_t, void *))  fread,
-  (int (*)(void *, ogg_int64_t, int))           _ov_header_fseek_wrap,
-  (int (*)(void *))                             NULL,
-  (long (*)(void *))                            ftell
+  (size_t (VARGS *)(void *, size_t, size_t, void *))  fread,
+  (int (VARGS *)(void *, ogg_int64_t, int))           _ov_header_fseek_wrap,
+  (int (VARGS *)(void *))                             NULL,
+  (long (VARGS *)(void *))                            ftell
 };
 
 static ov_callbacks OV_CALLBACKS_STREAMONLY = {
-  (size_t (*)(void *, size_t, size_t, void *))  fread,
-  (int (*)(void *, ogg_int64_t, int))           NULL,
-  (int (*)(void *))                             fclose,
-  (long (*)(void *))                            NULL
+  (size_t (VARGS *)(void *, size_t, size_t, void *))  fread,
+  (int (VARGS *)(void *, ogg_int64_t, int))           NULL,
+  (int (VARGS *)(void *))                             fclose,
+  (long (VARGS *)(void *))                            NULL
 };
 
 static ov_callbacks OV_CALLBACKS_STREAMONLY_NOCLOSE = {
-  (size_t (*)(void *, size_t, size_t, void *))  fread,
-  (int (*)(void *, ogg_int64_t, int))           NULL,
-  (int (*)(void *))                             NULL,
-  (long (*)(void *))                            NULL
+  (size_t (VARGS *)(void *, size_t, size_t, void *))  fread,
+  (int (VARGS *)(void *, ogg_int64_t, int))           NULL,
+  (int (VARGS *)(void *))                             NULL,
+  (long (VARGS *)(void *))                            NULL
 };
 
 #endif
@@ -146,57 +151,57 @@ typedef struct OggVorbis_File {
 } OggVorbis_File;
 
 
-extern int ov_clear(OggVorbis_File *vf);
-extern int ov_fopen(const char *path,OggVorbis_File *vf);
-extern int ov_open(FILE *f,OggVorbis_File *vf,const char *initial,long ibytes);
-extern int ov_open_callbacks(void *datasource, OggVorbis_File *vf,
+extern int VARGS ov_clear(OggVorbis_File *vf);
+extern int VARGS ov_fopen(const char *path,OggVorbis_File *vf);
+extern int VARGS ov_open(FILE *f,OggVorbis_File *vf,const char *initial,long ibytes);
+extern int VARGS ov_open_callbacks(void *datasource, OggVorbis_File *vf,
                 const char *initial, long ibytes, ov_callbacks callbacks);
 
-extern int ov_test(FILE *f,OggVorbis_File *vf,const char *initial,long ibytes);
-extern int ov_test_callbacks(void *datasource, OggVorbis_File *vf,
+extern int VARGS ov_test(FILE *f,OggVorbis_File *vf,const char *initial,long ibytes);
+extern int VARGS ov_test_callbacks(void *datasource, OggVorbis_File *vf,
                 const char *initial, long ibytes, ov_callbacks callbacks);
-extern int ov_test_open(OggVorbis_File *vf);
+extern int VARGS ov_test_open(OggVorbis_File *vf);
 
-extern long ov_bitrate(OggVorbis_File *vf,int i);
-extern long ov_bitrate_instant(OggVorbis_File *vf);
-extern long ov_streams(OggVorbis_File *vf);
-extern long ov_seekable(OggVorbis_File *vf);
-extern long ov_serialnumber(OggVorbis_File *vf,int i);
+extern long VARGS ov_bitrate(OggVorbis_File *vf,int i);
+extern long VARGS ov_bitrate_instant(OggVorbis_File *vf);
+extern long VARGS ov_streams(OggVorbis_File *vf);
+extern long VARGS ov_seekable(OggVorbis_File *vf);
+extern long VARGS ov_serialnumber(OggVorbis_File *vf,int i);
 
-extern ogg_int64_t ov_raw_total(OggVorbis_File *vf,int i);
-extern ogg_int64_t ov_pcm_total(OggVorbis_File *vf,int i);
-extern double ov_time_total(OggVorbis_File *vf,int i);
+extern ogg_int64_t VARGS ov_raw_total(OggVorbis_File *vf,int i);
+extern ogg_int64_t VARGS ov_pcm_total(OggVorbis_File *vf,int i);
+extern double VARGS ov_time_total(OggVorbis_File *vf,int i);
 
-extern int ov_raw_seek(OggVorbis_File *vf,ogg_int64_t pos);
-extern int ov_pcm_seek(OggVorbis_File *vf,ogg_int64_t pos);
-extern int ov_pcm_seek_page(OggVorbis_File *vf,ogg_int64_t pos);
-extern int ov_time_seek(OggVorbis_File *vf,double pos);
-extern int ov_time_seek_page(OggVorbis_File *vf,double pos);
+extern int VARGS ov_raw_seek(OggVorbis_File *vf,ogg_int64_t pos);
+extern int VARGS ov_pcm_seek(OggVorbis_File *vf,ogg_int64_t pos);
+extern int VARGS ov_pcm_seek_page(OggVorbis_File *vf,ogg_int64_t pos);
+extern int VARGS ov_time_seek(OggVorbis_File *vf,double pos);
+extern int VARGS ov_time_seek_page(OggVorbis_File *vf,double pos);
 
-extern int ov_raw_seek_lap(OggVorbis_File *vf,ogg_int64_t pos);
-extern int ov_pcm_seek_lap(OggVorbis_File *vf,ogg_int64_t pos);
-extern int ov_pcm_seek_page_lap(OggVorbis_File *vf,ogg_int64_t pos);
-extern int ov_time_seek_lap(OggVorbis_File *vf,double pos);
-extern int ov_time_seek_page_lap(OggVorbis_File *vf,double pos);
+extern int VARGS ov_raw_seek_lap(OggVorbis_File *vf,ogg_int64_t pos);
+extern int VARGS ov_pcm_seek_lap(OggVorbis_File *vf,ogg_int64_t pos);
+extern int VARGS ov_pcm_seek_page_lap(OggVorbis_File *vf,ogg_int64_t pos);
+extern int VARGS ov_time_seek_lap(OggVorbis_File *vf,double pos);
+extern int VARGS ov_time_seek_page_lap(OggVorbis_File *vf,double pos);
 
-extern ogg_int64_t ov_raw_tell(OggVorbis_File *vf);
-extern ogg_int64_t ov_pcm_tell(OggVorbis_File *vf);
-extern double ov_time_tell(OggVorbis_File *vf);
+extern ogg_int64_t VARGS ov_raw_tell(OggVorbis_File *vf);
+extern ogg_int64_t VARGS ov_pcm_tell(OggVorbis_File *vf);
+extern double VARGS ov_time_tell(OggVorbis_File *vf);
 
-extern vorbis_info *ov_info(OggVorbis_File *vf,int link);
-extern vorbis_comment *ov_comment(OggVorbis_File *vf,int link);
+extern vorbis_info *VARGS ov_info(OggVorbis_File *vf,int link);
+extern vorbis_comment *VARGS ov_comment(OggVorbis_File *vf,int link);
 
-extern long ov_read_float(OggVorbis_File *vf,float ***pcm_channels,int samples,
+extern long VARGS ov_read_float(OggVorbis_File *vf,float ***pcm_channels,int samples,
                           int *bitstream);
-extern long ov_read_filter(OggVorbis_File *vf,char *buffer,int length,
+extern long VARGS ov_read_filter(OggVorbis_File *vf,char *buffer,int length,
                           int bigendianp,int word,int sgned,int *bitstream,
                           void (*filter)(float **pcm,long channels,long samples,void *filter_param),void *filter_param);
-extern long ov_read(OggVorbis_File *vf,char *buffer,int length,
+extern long VARGS ov_read(OggVorbis_File *vf,char *buffer,int length,
                     int bigendianp,int word,int sgned,int *bitstream);
-extern int ov_crosslap(OggVorbis_File *vf1,OggVorbis_File *vf2);
+extern int VARGS ov_crosslap(OggVorbis_File *vf1,OggVorbis_File *vf2);
 
-extern int ov_halfrate(OggVorbis_File *vf,int flag);
-extern int ov_halfrate_p(OggVorbis_File *vf);
+extern int VARGS ov_halfrate(OggVorbis_File *vf,int flag);
+extern int VARGS ov_halfrate_p(OggVorbis_File *vf);
 
 #ifdef __cplusplus
 }

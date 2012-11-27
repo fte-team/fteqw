@@ -1336,10 +1336,10 @@ char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
 ============
 Cmd_TokenizeString
 
-Parses the given string into command line tokens.
+Parses the given string into command line tokens, stopping at the \n
 ============
 */
-void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
+char *Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 {
 	int		i;
 
@@ -1365,7 +1365,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 		}
 
 		if (!*text)
-			return;
+			return text;
 
 		if (cmd_argc == 1)
 		{
@@ -1374,7 +1374,9 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 
 		text = COM_StringParse (text, com_token, sizeof(com_token), expandmacros, qctokenize);
 		if (!text)
-			return;
+			return text;
+		if (!strcmp(com_token, "\n"))
+			return text;
 
 		if (cmd_argc < MAX_ARGS)
 		{
@@ -1383,6 +1385,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 			cmd_argc++;
 		}
 	}
+	return text;
 }
 
 void Cmd_TokenizePunctation (char *text, char *punctuation)
@@ -1438,7 +1441,7 @@ Cmd_AddCommand
 ============
 */
 
-qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
+qboolean Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *desc)
 {
 	cmd_function_t	*cmd;
 
@@ -1467,6 +1470,7 @@ qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
 
 	cmd = (cmd_function_t*)Z_Malloc (sizeof(cmd_function_t)+strlen(cmd_name)+1);
 	cmd->name = (char*)(cmd+1);
+	cmd->description = desc;
 	strcpy(cmd->name, cmd_name);
 	cmd->function = function;
 	cmd->next = cmd_functions;
@@ -1474,6 +1478,11 @@ qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
 	cmd_functions = cmd;
 
 	return true;
+}
+
+qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
+{
+	return Cmd_AddCommandD(cmd_name, function, NULL);
 }
 
 void	Cmd_RemoveCommand (char *cmd_name)
@@ -1660,8 +1669,9 @@ typedef struct {
 	qboolean allowcutdown;
 	qboolean cutdown;
 	char result[256];
+	char *desc;
 } match_t;
-void Cmd_CompleteCheck(char *check, match_t *match)	//compare cumulative strings and join the result
+void Cmd_CompleteCheck(char *check, match_t *match, char *desc)	//compare cumulative strings and join the result
 {
 	if (*match->result)
 	{
@@ -1678,21 +1688,19 @@ void Cmd_CompleteCheck(char *check, match_t *match)	//compare cumulative strings
 		else if (match->matchnum > 0)
 		{
 			strcpy(match->result, check);
+			match->desc = desc;
 			match->matchnum--;
 		}
 	}
 	else
 	{
 		if (match->matchnum > 0)
-		{
-			strcpy(match->result, check);
 			match->matchnum--;
-		}
-		else
-			strcpy(match->result, check);
+		strcpy(match->result, check);
+		match->desc = desc;
 	}
 }
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum)
+char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, char **descptr)
 {
 	extern cvar_group_t *cvar_groups;
 	cmd_function_t	*cmd;
@@ -1711,6 +1719,9 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	else
 		len = Q_strlen(partial);
 
+	if (descptr)
+		*descptr = NULL;
+
 	if (!len)
 		return NULL;
 
@@ -1719,6 +1730,7 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 
 	match.allowcutdown = !fullonly?true:false;
 	match.cutdown = false;
+	match.desc = NULL;
 	if (matchnum)
 		match.matchnum = matchnum;
 	else
@@ -1731,17 +1743,17 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	{
 		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 			if (!Q_strncasecmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
-				Cmd_CompleteCheck(cmd->name, &match);
+				Cmd_CompleteCheck(cmd->name, &match, cmd->description);
 		for (a=cmd_alias ; a ; a=a->next)
 			if (!Q_strncasecmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
-				Cmd_CompleteCheck(a->name, &match);
+				Cmd_CompleteCheck(a->name, &match, "");
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
 		{
 			if (!Q_strncasecmp (partial,cvar->name, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name) == len))
-				Cmd_CompleteCheck(cvar->name, &match);
+				Cmd_CompleteCheck(cvar->name, &match, cvar->description);
 			if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name2) == len))
-				Cmd_CompleteCheck(cvar->name2, &match);
+				Cmd_CompleteCheck(cvar->name2, &match, cvar->description);
 		}
 
 	}
@@ -1749,23 +1761,26 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	{
 		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 			if (!Q_strncmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
-				Cmd_CompleteCheck(cmd->name, &match);
+				Cmd_CompleteCheck(cmd->name, &match, cmd->description);
 		for (a=cmd_alias ; a ; a=a->next)
 			if (!Q_strncmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
-				Cmd_CompleteCheck(a->name, &match);
+				Cmd_CompleteCheck(a->name, &match, "");
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
 		{
 			if (!Q_strncmp (partial,cvar->name, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name) == len))
-				Cmd_CompleteCheck(cvar->name, &match);
+				Cmd_CompleteCheck(cvar->name, &match, cvar->description);
 			if (cvar->name2 && !Q_strncmp (partial,cvar->name2, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name2) == len))
-				Cmd_CompleteCheck(cvar->name2, &match);
+				Cmd_CompleteCheck(cvar->name2, &match, cvar->description);
 		}
 	}
 	if (match.matchnum>0)
 		return NULL;
 	if (!*match.result)
 		return NULL;
+
+	if (descptr)
+		*descptr = match.desc;
 	return match.result;
 }
 
@@ -2735,6 +2750,7 @@ void Cmd_WriteConfig_f(void)
 	vfsfile_t *f;
 	char *filename;
 	char fname[MAX_OSPATH];
+	char sysname[MAX_OSPATH];
 
 	filename = Cmd_Argv(1);
 	if (!*filename)
@@ -2779,6 +2795,9 @@ void Cmd_WriteConfig_f(void)
 	VFS_CLOSE(f);
 
 	Cvar_Saved();
+
+	FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
+	Con_Printf ("Wrote %s\n",sysname);
 }
 
 void Cmd_Reset_f(void)

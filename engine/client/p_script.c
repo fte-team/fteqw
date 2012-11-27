@@ -1779,6 +1779,8 @@ static void P_ImportEffectInfo_f(void)
 			args--;
 		}
 		line = COM_StringParse(line, com_token, sizeof(com_token), false, false);
+		if (!line)
+			break;
 		Q_strncpyz(arg[args], com_token, sizeof(arg[args]));
 		args++;
 		if (*com_token == '\n')
@@ -4655,7 +4657,12 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 		c = b->next;
 
 		q = c->p;
+		if (!q)
+			continue;
 		p = b->p;
+
+		q->rgba[3] = 1;
+		p->rgba[3] = 1;
 
 		VectorSubtract(r_refdef.vieworg, q->org, v);
 		VectorNormalize(v);
@@ -5108,7 +5115,11 @@ static void PScript_DrawParticleTypes (void)
 		{
 			while ((p=type->particles))
 			{
-				if (pdraw)
+				if (scenetri)
+				{
+					tdraw(scenetri, p, type->slooks);
+				}
+				else if (pdraw)
 					RQ_AddDistReorder(pdraw, p, type->slooks, p->org);
 
 				// make sure emitter runs at least once

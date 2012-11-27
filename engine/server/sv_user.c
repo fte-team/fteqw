@@ -298,7 +298,7 @@ void SV_New_f (void)
 		splitnum = 0;
 		for (split = host_client, splitnum = 0; split; split = split->controlled)
 			splitnum++;
-		ClientReliableWrite_Byte (host_client, (split->spectator?128:0) | splitnum);
+		ClientReliableWrite_Byte (host_client, (host_client->spectator?128:0) | splitnum); //read each player's userinfo to see if its a spectator or not. this hint is merely a cheat.
 		for (split = host_client; split; split = split->controlled)
 		{
 			playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
@@ -2675,6 +2675,10 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		else
 			return -1;	//not found/unable to open
 	}
+	else if (Terrain_LocateSection(name, loc))
+	{
+		found = true;
+	}
 	else
 		found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
 
@@ -2782,6 +2786,9 @@ void SV_DownloadSize_f(void)
 		name = va("dlsize \"%s\" %u\n", name, loc.len);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
+		break;
+	case -6: /*heightmap section*/
+		//don't reply.
 		break;
 	}
 }

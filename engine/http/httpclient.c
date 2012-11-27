@@ -46,6 +46,7 @@ void HTTP_Cleanup(struct dl_download *dl)
 	free(con->buffer);
 	free(con);
 
+	dl->abort = NULL;
 	dl->status = DL_PENDING;
 	dl->completed = 0;
 	dl->totalsize = 0;
@@ -112,6 +113,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			con->state = HC_GETTING;
 			dl->status = DL_ACTIVE;
 			con->contentlength = -1;	//meaning end of stream.
+			dl->replycode = 0;
 		}
 		else
 		{
@@ -160,6 +162,9 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			msg = COM_ParseOut(con->buffer, buffer, sizeof(buffer));
 			msg = COM_ParseOut(msg, buffer, sizeof(buffer));
+
+			dl->replycode = atoi(buffer);
+
 			if (!stricmp(buffer, "100"))
 			{	//http/1.1 servers can give this. We ignore it.
 
@@ -222,6 +227,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			if (!dl->file)
 			{
+#ifndef NPFTE
 				if (*dl->localname)
 				{
 					FS_CreatePath(dl->localname, FS_GAME);
@@ -229,6 +235,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				}
 				else
 					dl->file = FS_OpenTemp();
+#endif
 				if (!dl->file)
 				{
 					Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
@@ -350,8 +357,10 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 void HTTPDL_Establish(struct dl_download *dl)
 {
 	unsigned long _true = true;
-	struct sockaddr_qstorage	from;
+	struct sockaddr_qstorage	serveraddr;
 	struct http_dl_ctx_s *con;
+	int addressfamily;
+	int addresssize;
 
 	char server[128];
 	char uri[MAX_OSPATH];
@@ -379,30 +388,28 @@ void HTTPDL_Establish(struct dl_download *dl)
 	con = malloc(sizeof(*con));
 	memset(con, 0, sizeof(*con));
 	dl->ctx = con;
+	dl->abort = HTTP_Cleanup;
 
-	if ((con->sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	dl->status = DL_RESOLVING;
+
+	if (!NET_StringToSockaddr(server, 80, &serveraddr, &addressfamily, &addresssize))
 	{
 		dl->status = DL_FAILED;
 		return;
 	}
 
-	dl->status = DL_RESOLVING;
-	{//quake routines using dns and stuff (Really, I wanna keep quake and ftp fairly seperate)
-		netadr_t qaddy;		
-		if (!NET_StringToAdr (server, &qaddy))
-		{
-			dl->status = DL_FAILED;
-			return;
-		}
-		if (!qaddy.port)
-			qaddy.port = htons(80);
-		NetadrToSockadr(&qaddy, &from);
-	}//end of quake.
-
 	dl->status = DL_QUERY;
 
+	if ((con->sock = socket (addressfamily, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	{
+		dl->status = DL_FAILED;
+		return;
+	}
+
+	//don't bother binding. its optional.
+
 	//not yet blocking.
-	if (connect(con->sock, (struct sockaddr *)&from, sizeof(struct sockaddr_in)) == -1)
+	if (connect(con->sock, (struct sockaddr *)&serveraddr, addresssize) == -1)
 	{
 		dl->status = DL_FAILED;
 		return;
@@ -414,7 +421,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 		return;
 	}
 
-	ExpandBuffer(con, 2048);
+	ExpandBuffer(con, 512*1024);
 	sprintf(con->buffer, "GET %s HTTP/1.1\r\n"	"Host: %s\r\n" "Connection: close\r\n"	"User-Agent: "FULLENGINENAME"\r\n" "\r\n", uri, server);
 	con->bufferused = strlen(con->buffer);
 	con->contentlength = -1;
@@ -480,10 +487,16 @@ static int DL_Thread_Work(void *arg)
 	{
 		if (!dl->poll(dl))
 		{
+#ifdef NPFTE
+			//the plugin doesn't have a download loop
 			if (dl->notify)
 				dl->notify(dl);
 			if (dl->file)
 				VFS_CLOSE(dl->file);
+#else
+			if (dl->status != DL_FAILED && dl->status != DL_FINISHED)
+				dl->status = DL_FAILED;
+#endif
 			break;
 		}
 	}
@@ -540,8 +553,12 @@ void DL_Close(struct dl_download *dl)
 }
 
 
+/*updates pending downloads*/
+#ifndef NPFTE
+
 static struct dl_download *activedownloads;
 static struct dl_download *showndownload;
+unsigned int shownbytestart;
 /*create a download context and add it to the list, for lazy people*/
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl))
 {
@@ -555,10 +572,10 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 
 	newdl->next = activedownloads;
 	activedownloads = newdl;
+
 	return newdl;
 }
 
-/*updates pending downloads*/
 void HTTP_CL_Think(void)
 {
 	struct dl_download *con = activedownloads;
@@ -568,6 +585,18 @@ void HTTP_CL_Think(void)
 	while (*link)
 	{
 		con = *link;
+#ifdef MULTITHREAD
+		if (con->threadctx)
+		{
+			if (con->status == DL_FINISHED || con->status == DL_FAILED)
+			{
+				Sys_WaitOnThread(con->threadctx);
+				con->threadctx = NULL;
+				continue;
+			}
+		}
+		else 
+#endif
 		if (!con->poll(con))
 		{
 			if (con->file)
@@ -595,6 +624,9 @@ void HTTP_CL_Think(void)
 			showndownload = con;
 			strcpy(cls.downloadlocalname, con->localname);
 			strcpy(cls.downloadremotename, con->url);
+			cls.downloadstarttime = Sys_DoubleTime();
+			cls.downloadedbytes = 0;
+			shownbytestart = con->completed;
 		}
 		if (cls.downloadmethod == DL_HTTP)
 		{
@@ -608,8 +640,10 @@ void HTTP_CL_Think(void)
 					cls.downloadpercent = 50;
 				else
 					cls.downloadpercent = con->completed*100.0f/con->totalsize;
+				cls.downloadedbytes = con->completed;
 			}
 		}
 	}
 }
+#endif
 #endif	/*WEBCLIENT*/

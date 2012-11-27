@@ -102,6 +102,7 @@ texid_t scenepp_texture_warp;
 texid_t scenepp_texture_edge;
 
 texid_t scenepp_postproc_cube;
+int scenepp_postproc_cube_size;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -581,7 +582,10 @@ void R_RenderScene (void)
 		TRACE(("dbg: calling R_RenderDlights\n"));
 		R_RenderDlights ();
 
-		RQ_RenderBatchClear();
+		if (r_refdef.recurse)
+			RQ_RenderBatch();
+		else
+			RQ_RenderBatchClear();
 
 		cl_numvisedicts = tmpvisents;
 	}
@@ -677,6 +681,7 @@ static entity_t *R_NearestPortal(plane_t *plane)
 	int i;
 	entity_t *best = NULL;
 	float dist, bestd = 0;
+	//for q3-compat, portals on world scan for a visedict to use for their view.
 	for (i = 0; i < cl_numvisedicts; i++)
 	{
 		if (cl_visedicts[i].rtype == RT_PORTALSURFACE)
@@ -825,6 +830,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 			}
 //			memset(newvis, 0xff, pvsbytes);
 		}
+	}
+	else if (batch->ent != &r_worldentity)
+	{
+		float d;
+		view = batch->ent;
+		d = DotProduct(r_refdef.vieworg, plane.normal) - plane.dist;
+		d-= 0.1;	//nudge it past.
+		VectorAdd(r_refdef.vieworg, view->oldorigin, r_refdef.vieworg);		//trivial offset for the warpzone.
+		VectorMA(r_refdef.vieworg, -d, plane.normal, r_refdef.pvsorigin);	//clip the pvs origin to the plane.
 	}
 	else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 	{
@@ -1011,14 +1025,15 @@ void GLR_SetupFog (void)
 }
 #endif
 
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 static void R_RenderMotionBlur(void)
 {
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
-#ifdef warningmsg
-#pragma warningmsg("backend fixme")
-#endif
+	shader_t *shader;
+
 #if !defined(ANDROID) && !defined(NACL)
+	//figure out the size of our texture.
 	if (gl_config.arb_texture_non_power_of_two)
 	{	//we can use any size, supposedly
 		vwidth = vid.pixelwidth;
@@ -1032,21 +1047,6 @@ static void R_RenderMotionBlur(void)
 			vheight *= 2;
 	}
 
-	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
-
-	PPL_RevertToKnownState();
-
-	GL_LazyBind(0, GL_TEXTURE_2D, sceneblur_texture);
-
-	// go 2d
-	qglMatrixMode(GL_PROJECTION);
-	qglPushMatrix();
-	qglLoadIdentity ();
-	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
-	qglMatrixMode(GL_MODELVIEW);
-	qglPushMatrix();
-	qglLoadIdentity ();
-
 	//blend the last frame onto the scene
 	//the maths is because our texture is over-sized (must be power of two)
 	cs = vs = (float)vid.pixelwidth / vwidth * 0.5;
@@ -1054,34 +1054,28 @@ static void R_RenderMotionBlur(void)
 	vs *= gl_motionblurscale.value;
 	vt *= gl_motionblurscale.value;
 
-	qglDisable (GL_DEPTH_TEST);
-	GL_CullFace(0);
-	qglDisable (GL_ALPHA_TEST);
-	qglEnable(GL_BLEND);
-	qglColor4f(1, 1, 1, gl_motionblur.value);
-	qglBegin(GL_QUADS);
-	qglTexCoord2f(cs-vs, ct-vt);
-	qglVertex2f(0, 0);
-	qglTexCoord2f(cs+vs, ct-vt);
-	qglVertex2f(vid.pixelwidth, 0);
-	qglTexCoord2f(cs+vs, ct+vt);
-	qglVertex2f(vid.pixelwidth, vid.pixelheight);
-	qglTexCoord2f(cs-vs, ct+vt);
-	qglVertex2f(0, vid.pixelheight);
-	qglEnd();
+	//render using our texture
+	shader = R_RegisterShader("postproc_motionblur",
+		"{\n"
+			"program default2d\n"
+			"{\n"
+				"map $sourcecolour\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n"
+		);
+	GLBE_RenderToTexture(sceneblur_texture, r_nulltex, r_nulltex, false);
+	R2D_ImageColours(1, 1, 1, gl_motionblur.value);
+	R2D_Image(0, 0, vid.width, vid.height, cs-vs, ct+vt, cs+vs, ct-vt, shader);
+	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
 
-	qglMatrixMode(GL_PROJECTION);
-	qglPopMatrix();
-	qglMatrixMode(GL_MODELVIEW);
-	qglPopMatrix();
-
-
+	//grab the current image so we can feed that back into the next frame.
+	GL_MTBind(0, GL_TEXTURE_2D, sceneblur_texture);
 	//copy the image into the texture so that we can play with it next frame too!
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 #endif
-	PPL_RevertToKnownState();
 }
 
 /*FIXME: we could use geometry shaders to draw to all 6 faces at once*/
@@ -1174,8 +1168,10 @@ qboolean R_RenderScene_Cubemap(void)
 	VectorCopy(r_refdef.viewangles, saveang);
 	saveang[2] = 0;
 
-	if (!TEXVALID(scenepp_postproc_cube))
+	if (!TEXVALID(scenepp_postproc_cube) || cmapsize != scenepp_postproc_cube_size)
 	{
+		if (TEXVALID(scenepp_postproc_cube))
+			GL_DestroyTexture(scenepp_postproc_cube);
 		scenepp_postproc_cube = GL_AllocNewTexture("***fish***", cmapsize, cmapsize, 0);
 
 		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
@@ -1185,10 +1181,14 @@ qboolean R_RenderScene_Cubemap(void)
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+		scenepp_postproc_cube_size = cmapsize;
 	}
 
-	r_refdef.vrect.width = cmapsize;
-	r_refdef.vrect.height = cmapsize;
+	vrect = r_refdef.vrect;	//save off the old vrect
+
+	r_refdef.vrect.width = (cmapsize * vid.width) / vid.pixelwidth;
+	r_refdef.vrect.height = (cmapsize * vid.height) / vid.pixelheight;
 	r_refdef.vrect.x = 0;
 	r_refdef.vrect.y = prect.y;
 
@@ -1222,6 +1222,8 @@ qboolean R_RenderScene_Cubemap(void)
 //FIXME: use a render target instead.
 		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
 	}
+
+	r_refdef.vrect = vrect;
 
 	qglViewport (prect.x, vid.pixelheight - (prect.y+prect.height), prect.width, prect.height);
 
@@ -1339,6 +1341,8 @@ void GLR_RenderView (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
+	GL_Set2D (false);
+
 	if (r_bloom.value)
 		R_BloomBlend();
 
@@ -1348,7 +1352,6 @@ void GLR_RenderView (void)
 	{
 		if (scenepp_waterwarp)
 		{
-			GL_Set2D(false);
 			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
 		}
 	}
@@ -1363,7 +1366,6 @@ void GLR_RenderView (void)
 		shader_t *postproc = R_RegisterCustom(r_postprocshader.string, NULL, NULL);
 		if (postproc)
 		{
-			GL_Set2D(false);
 			R2D_ScalePic(0, 0, vid.width, vid.height, postproc);
 		}
 	}

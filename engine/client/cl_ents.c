@@ -2242,9 +2242,9 @@ void CL_LinkStaticEntities(void *pvs)
 		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
 			continue;
 
+		/*pvs test*/
 		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &cl_static_entities[i].pvscache, pvs))
 			continue;
-		/*pvs test*/
 
 		ent = &cl_visedicts[cl_numvisedicts++];
 		*ent = *stat;
@@ -3255,11 +3255,13 @@ void CL_ParsePlayerinfo (void)
 
 		TP_ParsePlayerInfo(oldstate, state, info);
 
+
+		//can't CL_SetStatInt as we don't know if its actually us or not
 		cl.players[num].stats[STAT_WEAPONFRAME] = state->weaponframe;
 		cl.players[num].statsf[STAT_WEAPONFRAME] = state->weaponframe;
 		for (i = 0; i < cl.splitclients; i++)
 		{
-			if (cl.playernum[i] == num)
+			if (spec_track[i] == num)
 			{
 				cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
 				cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
@@ -3484,9 +3486,10 @@ guess_pm_type:
 
 	TP_ParsePlayerInfo(oldstate, state, info);
 
+	//can't CL_SetStatInt as we don't know if its actually us or not
 	for (i = 0; i < cl.splitclients; i++)
 	{
-		if (cl.playernum[i] == num)
+		if (spec_track[i] == num)
 		{
 			cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
 			cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
@@ -3729,6 +3732,7 @@ void CL_LinkPlayers (void)
 			{
 				vec3_t org;
 				VectorCopy(state->origin, org);
+				//make the light appear at the predicted position rather than anywhere else.
 				for (pnum = 0; pnum < cl.splitclients; pnum++)
 					if (cl.playernum[pnum] == j)
 						VectorCopy(cl.playerview[pnum].simorg, org);

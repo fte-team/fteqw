@@ -53,11 +53,6 @@ struct wedict_s
 
 #define PF_pointsound PF_Fixme
 #define PF_gecko_mousemove PF_Fixme
-#define PF_numentityfields PF_Fixme
-#define PF_entityfieldname PF_Fixme
-#define PF_entityfieldtype PF_Fixme
-#define PF_getentityfieldstring PF_Fixme
-#define PF_putentityfieldstring PF_Fixme
 #define PF_WritePicture PF_Fixme
 #define PF_ReadPicture PF_Fixme
 
@@ -179,6 +174,11 @@ void PR_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 void PR_AutoCvarSetup(progfuncs_t *prinst);
 void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var);
+void QCBUILTIN PF_numentityfields (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_entityfieldname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_entityfieldtype (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getentityfieldstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_putentityfieldstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
 void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -315,7 +315,7 @@ void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PF_fclose_progs (progfuncs_t *prinst);
-int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
+int QCEditor (progfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
 
 
 
@@ -487,6 +487,34 @@ enum csqc_input_event
 	CSIE_MOUSEDELTA = 2, /*x, y, devid*/
 	CSIE_MOUSEABS = 3, /*x, y, devid*/
 	CSIE_ACCELEROMETER = 4 /*x, y, z*/
+};
+
+enum terrainedit_e
+{
+	ter_reload,			//
+	ter_save,			//
+	ter_sethole,		//vector pos, float radius, floatbool hole
+	ter_height_set,		//vector pos, float radius, float newheight
+	ter_height_smooth,	//vector pos, float radius, float percent
+	ter_height_spread,	//vector pos, float radius, float percent
+	ter_raise,			//vector pos, float radius, float heightchange
+	ter_lower,			//vector pos, float radius, float heightchange
+	ter_tex_kill,		//vector pos, void junk, void junk, string texname
+	ter_tex_get,		//vector pos, void junk, float imagenum
+	ter_mix_paint,		//vector pos, float radius, float percent, string texname
+	ter_mix_concentrate,	//vector pos, float radius, float percent
+	ter_mix_noise,		//vector pos, float radius, float percent
+	ter_mix_blur,		//vector pos, float radius, float percent
+	ter_water_set,		//vector pos, float radius, float newwaterheight
+	ter_mesh_add,		//entity ent
+	ter_mesh_kill,		//vector pos, float radius
+	ter_tint,			//vector pos, float radius, float percent, vector newcol, float newalph
+	ter_height_flatten,	//vector pos, float radius, float percent
+//	ter_poly_add,		//add a poly, woo
+//	ter_poly_remove,	//remove polys
+
+//	ter_autopaint_h,	//vector pos, float radius, float percent, string tex1, string tex2				(paint tex1/tex2
+//	ter_autopaint_n	//vector pos, float radius, float percent, string tex1, string tex2
 };
 
 enum

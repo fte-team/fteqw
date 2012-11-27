@@ -1303,6 +1303,26 @@ void GLVID_Recenter_f(void)
 	//int nx = 0;
 	//int ny = 0;
 
+#ifdef _MSC_VER
+#define strtoull _strtoui64
+#endif
+
+	if (Cmd_Argc() > 1)
+		sys_parentleft = atoi(Cmd_Argv(1));
+	if (Cmd_Argc() > 2)
+		sys_parenttop = atoi(Cmd_Argv(2));
+	if (Cmd_Argc() > 3)
+		sys_parentwidth = atoi(Cmd_Argv(3));
+	if (Cmd_Argc() > 4)
+		sys_parentheight = atoi(Cmd_Argv(4));
+	if (Cmd_Argc() > 5)
+	{
+		HWND newparent = (HWND)strtoull(Cmd_Argv(5), NULL, 16);
+		if (newparent != sys_parentwindow && mainwindow && modestate==MS_WINDOWED)
+			SetParent(mainwindow, sys_parentwindow);
+		sys_parentwindow = newparent;
+	}
+
 	if (sys_parentwindow && modestate==MS_WINDOWED)
 	{
 		WindowRect = centerrect(sys_parentleft, sys_parenttop, sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
@@ -1673,6 +1693,11 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 				qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
 				gl_stencilbits = pfd.cStencilBits;
+
+				if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
+				{
+					Con_Printf(CON_WARNING "WARNING: software-rendered opengl context\nPlease install appropriate graphics drivers, or try d3d rendering instead\n");
+				}
 				return TRUE;
 			}
 		}
@@ -1693,6 +1718,11 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
         Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
         return FALSE;
     }
+
+	if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
+	{
+		Con_Printf(CON_WARNING "WARNING: software-rendered opengl context\nPlease install appropriate graphics drivers, or try d3d rendering instead\n");
+	}
 
 	FixPaletteInDescriptor(hDC, &pfd);
     return TRUE;
@@ -1883,9 +1913,8 @@ LONG WINAPI GLMainWndProc (
 			if (wParam & MK_LBUTTON)
 			{
 				temp |= 1;
-#ifdef NPFTE
-				SetFocus(hWnd);
-#endif
+				if (sys_parentwindow && modestate == MS_WINDOWED)
+					SetFocus(hWnd);
 			}
 
 			if (wParam & MK_RBUTTON)

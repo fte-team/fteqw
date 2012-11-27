@@ -28,6 +28,35 @@ Note that there is no way to install the package with a different name at this t
 
 
 
+Browser versions of FTE:
+The FTE browser plugin is available only in windows.
+Compile with 'make npfte-rel FTE_TARGET=win32'.
+This will yield an npfte.dll file.
+You can 'register' this dll by running 'regsvr32 npfte.dll' at a command prompt (this is the standard way to register an activex control - any setup software should provide some mechanism to do this at install time). This will register both the netscape/firefox/chrome/opera version, and the activex/IE version of the plugin.
+Note that the plugin will run the engine in a separate process and thus requires a valid fteqw.exe file in the same directory as the plugin.
+If given an 'npfte.txt' file that contains the line 'relexe foo', the plugin will try to run foo.exe instead of fteqw, basedir "foo" can be used to invoke it with a different basedir. You can use this if you'd rather run the mingl or gl-only version, or if you'd like to retarget npfte to invoke a different quake engine intead. Note that different quake engines will need to support the -plugin argument and the stdin/stdout parsing for embedding - at the time of writing, no others do.
+The following chunk of html can then be included on a web page to embed it. Yes. Two nested objects.
+<object	name="ieplug" type="text/x-quaketvident" classid="clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb" width=100% height=100% ><param name="splash" value="http://127.0.0.1:27599/qtvsplash.jpg"><param name="game" value="q1"><param name="dataDownload" value=''><object	name="npplug" type="text/x-quaketvident" width=100% height=100% ><param name="splash" value="http://127.0.0.1:27599/qtvsplash.jpg"><param name="game" value="q1"><param name="dataDownload" value=''>Plugin failed to load</object></object>
+
+Nacl version of FTE:
+make gl-rel FTE_TARGET=nacl NACL_SDK_ROOT=SOMEVALIDPATHHERE BITS=32
+make gl-rel FTE_TARGET=nacl NACL_SDK_ROOT=SOMEVALIDPATHHERE BITS=64
+in windows compile with cygwin, not minsys.
+This will give you two 'nexe' files.
+You can then embed the 'fteqw.nmf' file (its entire contents can be found on the following line) with mime type 'application/x-nacl' on your page. Give it a sane width/height.
+	{
+  "program": {
+    "x86-64": {"url": "fteqw_x86_64.nexe"},
+    "x86-32": {"url": "fteqw_x86_32.nexe"}
+  }
+}
+
+You can object.postMessage("join foo") / qtvplay / map to tell it to switch server/map/stream.
+You can read console prints via listener.addEventListener('message', handleMessage, true);
+Your users will need to explicitly allow nacl use outside of google play (in about:config or whatever it is), or you will need to submit your port of fte to google play.
+
+
+
 This stuff has separate directories
 engine: FTEQW game engine itself. Both client and dedicated server.
 engine/ftequake: location of old msvc6 project file. Might not work.

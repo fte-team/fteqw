@@ -42,6 +42,7 @@ extern cvar_t	sv_gamespeed;
 extern cvar_t	sv_csqcdebug;
 extern cvar_t	sv_csqc_progname;
 extern cvar_t	sv_calcphs;
+extern cvar_t	sv_playerslots;
 
 /*
 ================
@@ -1042,7 +1043,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		if (!isDedicated && !deathmatch.value && !coop.value)
 			sv.allocated_client_slots = 1;
 		else
-			sv.allocated_client_slots = MAX_CLIENTS;
+			sv.allocated_client_slots = QWMAX_CLIENTS;
+		if (sv_playerslots.ival > 0)
+			sv.allocated_client_slots = sv_playerslots.ival;
+		sv.allocated_client_slots = bound(1, sv.allocated_client_slots, MAX_CLIENTS);	//bound it
 
 		// leave slots at start for clients only
 		for (i=0 ; i<sv.allocated_client_slots ; i++)

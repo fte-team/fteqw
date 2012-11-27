@@ -314,7 +314,7 @@ void RMod_Think (void)
 			{
 				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
 				COM_DefaultExtension(filename, ".lux", sizeof(filename));
-				f = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+				f = FS_OpenVFS(filename, "wb", FS_GAME);
 				if (f)
 				{
 					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
@@ -329,7 +329,8 @@ void RMod_Think (void)
 			{
 				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
 				COM_DefaultExtension(filename, ".lit", sizeof(filename));
-				f = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+
+				f = FS_OpenVFS(filename, "wb", FS_GAME);
 				if (f)
 				{
 					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
@@ -429,6 +430,10 @@ void RMod_Init (void)
 	Cmd_AddCommand("mod_batchlist", RMod_BatchList_f);
 	Cmd_AddCommand("mod_texturelist", RMod_TextureList_f);
 	Cmd_AddCommand("mod_usetexture", RMod_BlockTextureColour_f);
+
+#ifdef TERRAIN
+	Terr_Init();
+#endif
 }
 
 void RMod_Shutdown (void)
@@ -734,6 +739,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			TRACE(("RMod_LoadModel: md3\n"));
 			if (!Mod_LoadQ3Model (mod, buf))
 				continue;
+			Surf_BuildModelLightmaps(mod);
 			break;
 #endif
 
@@ -801,6 +807,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			TRACE(("RMod_LoadModel: q2/q3/raven/fusion bsp\n"));
 			if (!Mod_LoadQ2BrushModel (mod, buf))
 				continue;
+			Surf_BuildModelLightmaps(mod);
 			break;
 #endif
 #ifdef MAP_DOOM
@@ -820,6 +827,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			TRACE(("RMod_LoadModel: hl/q1 bsp\n"));
 			if (!RMod_LoadBrushModel (mod, buf))
 				continue;
+			Surf_BuildModelLightmaps(mod);
 			break;
 
 	//Text based misc types.
@@ -861,7 +869,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			}
 #endif
 
-			Con_Printf(CON_WARNING "Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
+			Con_Printf(CON_WARNING "Unrecognised model format 0x%x (%c%c%c%c)\n", LittleLong(*(unsigned *)buf), ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
 			continue;
 		}
 
@@ -1236,7 +1244,7 @@ void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 					snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 			}
 
-			if (!TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife)// && gl_bump_fallbacks.ival)
+			if (!TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife && r_loadbumpmapping)// && gl_bump_fallbacks.ival)
 			{
 				//no mip levels here, would be absurd.
 				base = (qbyte *)(mt+1);	//convert to greyscale.
@@ -1794,9 +1802,9 @@ void RMod_LoadLighting (lump_t *l)
 		luxdata = Hunk_AllocName(samples*3, "lux data");
 		for (i = 0; i < samples; i++)
 		{
-			litdata[i*3+0] = 0.5f*255;
-			litdata[i*3+0] = 0.5f*255;
-			litdata[i*3+0] = 255;
+			luxdata[i*3+0] = 0.5f*255;
+			luxdata[i*3+1] = 0.5f*255;
+			luxdata[i*3+2] = 255;
 		}
 	}
 #endif

@@ -2554,6 +2554,19 @@ void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color, qboo
 	}
 }
 
+#define COL_TEAM_LOWAVGHIGH	COLUMN("low/avg/high", 12*8, {sprintf (num, "%3i/%3i/%3i", plow, pavg, phigh); Draw_FunString ( x, y, num); })
+#define COL_TEAM_TEAM		COLUMN("team", 4*8, 		{Draw_FunStringWidth ( x, y, tm->team, 4*8); \
+		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16))\
+		{\
+			Draw_FunString ( x - 1*8, y, "^Ue010");\
+			Draw_FunString ( x + 4*8, y, "^Ue011");\
+		}\
+	})
+#define COL_TEAM_TOTAL		COLUMN("total", 5*8, 		{Draw_FunString ( x, y, va("%5i", tm->frags)); })
+#define COL_TEAM_PLAYERS	COLUMN("players", 7*8,		{Draw_FunString ( x, y, va("%5i", tm->players)); })
+#define ALL_TEAM_COLUMNS	COL_TEAM_LOWAVGHIGH COL_TEAM_TEAM COL_TEAM_TOTAL COL_TEAM_PLAYERS
+
+
 /*
 ==================
 Sbar_TeamOverlay
@@ -2565,10 +2578,9 @@ added by Zoid
 void Sbar_TeamOverlay (void)
 {
 	mpic_t			*pic;
-	int				i, k, l;
-	int				x, y;
+	int				i, k;
+	int				x, y, l;
 	char			num[12];
-	char			team[5];
 	team_t *tm;
 	int plow, phigh, pavg;
 
@@ -2592,19 +2604,31 @@ void Sbar_TeamOverlay (void)
 		y += 24;
 	}
 
-	x = (vid.width - 320)/2 + 36;
-	Draw_FunString(x, y, "low/avg/high team total players");
+	x = l = (vid.width - 320)/2 + 36;
+
+#define COLUMN(title, cwidth, code) Draw_FunString(x, y, title), x+=cwidth + 8;
+	ALL_TEAM_COLUMNS
+//	if (rank_width+(cwidth)+8 <= vid.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
+
+//	Draw_FunString(x, y, "low/avg/high");
+//	Draw_FunString(x+13*8, y, "team");
+//	Draw_FunString(x+18*8, y, "total");
+//	Draw_FunString(x+24*8, y, "players");
 	y += 8;
 //	Draw_String(x, y, "------------ ---- ----- -------");
-	Draw_FunString(x, y, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1f");
+	x = l;
+#undef COLUMN
+#define COLUMN(title, cwidth, code) {char buf[64*6]; int t = (cwidth)/8; int c=0; while (t-->0) {buf[c++] = '^'; buf[c++] = 'U'; buf[c++] = 'e'; buf[c++] = '0'; buf[c++] = '1'; buf[c++] = (c==5?'d':(!t?'f':'e'));} buf[c] = 0; Draw_FunString(x, y, buf); x += cwidth + 8;}
+	ALL_TEAM_COLUMNS
+//	Draw_FunString(x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f");
 	y += 8;
+
+#undef COLUMN
 
 // sort the teams
 	Sbar_SortTeams();
 
 // draw the text
-	l = scoreboardlines;
-
 	for (i=0 ; i < scoreboardteams && y <= vid.height-10 ; i++)
 	{
 		k = teamsort[i];
@@ -2624,6 +2648,13 @@ void Sbar_TeamOverlay (void)
 		if (pavg < 0 || pavg > 999)
 			pavg = 999;
 
+		x = l;
+
+#if 1
+#define COLUMN(title, cwidth, code) code; x+=cwidth + 8;
+		ALL_TEAM_COLUMNS
+#undef COLUMN
+#else
 		sprintf (num, "%3i/%3i/%3i", plow, pavg, phigh);
 		Draw_FunString ( x, y, num);
 
@@ -2641,10 +2672,10 @@ void Sbar_TeamOverlay (void)
 
 		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16))
 		{
-			Draw_FunString ( x + 104 - 8, y, "^Ue016");
-			Draw_FunString ( x + 104 + 32, y, "^Ue017");
+			Draw_FunString ( x + 104 - 8, y, "^Ue010");
+			Draw_FunString ( x + 104 + 32, y, "^Ue011");
 		}
-
+#endif
 		y += 8;
 	}
 	y += 8;

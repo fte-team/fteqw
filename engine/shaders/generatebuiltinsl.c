@@ -67,6 +67,21 @@ void dumpprogstring(FILE *out, FILE *src)
 
 }
 
+struct shadertype_s
+{
+	char *filepattern;
+	char *preprocessor;
+	char *rendererapi;
+	int apiversion;
+} shadertype[] =
+{
+	{"glsl/%s.glsl", 	"GLQUAKE", 	"QR_OPENGL", 		110},	//gl2+
+	{"gles/%s.glsl", 	"GLQUAKE", 	"QR_OPENGL", 		100},	//gles
+	{"hlsl9/%s.hlsl", 	"D3D9QUAKE", 	"QR_DIRECT3D9", 	9},	//d3d9
+	{"hlsl11/%s.hlsl", 	"D3D11QUAKE", 	"QR_DIRECT3D11", 	11},	//d3d11
+};
+//tbh we should precompile the d3d shaders.
+
 int main(void)
 {
 	FILE *c, *s;
@@ -84,35 +99,17 @@ int main(void)
 
 	for (i = 0; *shaders[i]; i++)
 	{
-		for (a = 0; a < 3; a++)
+		for (a = 0; a < sizeof(shadertype)/sizeof(shadertype[0]); a++)
 		{
-			if (a == 0)
-				sprintf(line, "glsl/%s.glsl", shaders[i]);
-			else if (a == 1)
-				sprintf(line, "gles/%s.glsl", shaders[i]);
-			else
-				sprintf(line, "hlsl/%s.hlsl", shaders[i]);
+			sprintf(line, shadertype[a].filepattern, shaders[i]);
 			s = fopen(line, "rt");
 			if (!s)
 			{
 				printf("unable to open %s\n", line);
 				continue;
 			}
-			if (a == 0)
-			{
-				fprintf(c, "#ifdef GLQUAKE\n");
-				fprintf(c, "{QR_OPENGL, 110, \"%s\",\n", shaders[i]);
-			}
-			else if (a == 1)
-			{
-				fprintf(c, "#ifdef GLQUAKE\n");
-				fprintf(c, "{QR_OPENGL, 100, \"%s\",\n", shaders[i]);
-			}
-			else
-			{
-				fprintf(c, "#ifdef D3DQUAKE\n");
-				fprintf(c, "{QR_DIRECT3D, 9, \"%s\",\n", shaders[i]);
-			}
+			fprintf(c, "#ifdef %s\n", shadertype[a].preprocessor);
+			fprintf(c, "{%s, %i, \"%s\",\n", shadertype[a].rendererapi, shadertype[a].apiversion, shaders[i]);
 
 			while(fgets(line, sizeof(line), s))
 			{

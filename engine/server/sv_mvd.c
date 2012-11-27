@@ -2035,38 +2035,26 @@ void SV_MVD_QTVReverse_f (void)
 	char *data;
 	int sock;
 
-	struct sockaddr_in	local;
 	struct sockaddr_qstorage	remote;
 //	int fromlen;
 
+	int adrfam;
+	int adrsz;
 	unsigned int nonblocking = true;
 
 
-	if (!NET_StringToSockaddr(ip, &remote))
+	if (!NET_StringToSockaddr(ip, 0, &remote, &adrfam, &adrsz))
 	{
 		Con_Printf ("qtvreverse: failed to resolve address\n");
 		return;
 	}
 
-
-	local.sin_family = AF_INET;
-	local.sin_addr.s_addr = INADDR_ANY;
-	local.sin_port = 0;
-
-	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+	if ((sock = socket (adrfam, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
 		Con_Printf ("qtvreverse: socket: %s\n", strerror(qerrno));
 		return;
 	}
-
-	if( bind (sock, (void *)&local, sizeof(local)) == INVALID_SOCKET)
-	{
-		closesocket(sock);
-		Con_Printf ("qtvreverse: bind: %s\n", strerror(qerrno));
-		return;
-	}
-
-	if (connect(sock, (void*)&remote, sizeof(remote)) == INVALID_SOCKET)
+	if (connect(sock, (void*)&remote, adrsz) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: connect: %s\n", strerror(qerrno));
@@ -2467,10 +2455,10 @@ void SV_MVDList_f (void)
 			for (d = demo.dest; d; d = d->nextdest)
 			{
 				if (!strcmp(list->name, d->name))
-					Con_Printf("*%d: %s %dk\n", i, list->name, d->totalsize/1024);
+					Con_Printf("*%d: ^[^7%s\\demo\\%s/%s^] %dk\n", i, list->name, sv_demoDir.string, list->name, d->totalsize/1024);
 			}
 			if (!d)
-				Con_Printf("%d: %s %dk\n", i, list->name, list->size/1024);
+				Con_Printf("%d: ^[^7%s\\demo\\%s/%s^] %dk\n", i, list->name, sv_demoDir.string, list->name, list->size/1024);
 		}
 	}
 

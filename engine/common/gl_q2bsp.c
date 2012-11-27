@@ -1969,7 +1969,8 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 			bleaf->contents = 0;
 
 			leafbrush = &map_leafbrushes[numleafbrushes];
-			for ( j = 0; j < bleaf->numleafbrushes; j++, leafbrush++ ) {
+			for ( j = 0; j < bleaf->numleafbrushes; j++, leafbrush++ )
+			{
 				*leafbrush = LittleLong ( in->firstbrush ) + j;
 				bleaf->contents |= map_brushes[*leafbrush].contents;
 			}

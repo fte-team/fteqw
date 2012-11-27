@@ -1419,6 +1419,14 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 #endif
 
 /*
+static qbyte *Surf_MaskVis(qbyte *src, qbyte *dest)
+{
+	int i;
+	if (cl.worldmodel->leafs[i].ma
+}
+*/
+qbyte *frustumvis;
+/*
 ================
 R_RecursiveWorldNode
 ================
@@ -1455,6 +1463,9 @@ start:
 	if (node->contents < 0)
 	{
 		pleaf = (mleaf_t *)node;
+
+		c = pleaf - cl.worldmodel->leafs;
+		frustumvis[c>>3] |= 1<<(c&7);
 
 		mark = pleaf->firstmarksurface;
 		c = pleaf->nummarksurfaces;
@@ -2019,6 +2030,9 @@ void Surf_SetupFrame(void)
 			case Q1CONTENTS_SKY:
 				r_viewcontents |= FTECONTENTS_SKY;
 				break;
+			case Q1CONTENTS_SOLID:
+				r_viewcontents |= FTECONTENTS_SOLID;
+				break;
 			}
 		}
 	}
@@ -2176,7 +2190,9 @@ R_DrawWorld
 
 void Surf_DrawWorld (void)
 {
-	qbyte *vis;
+	//surfvis vs entvis - the key difference is that surfvis is surfaces while entvis is volume. though surfvis should be frustum culled also for lighting. entvis doesn't care.
+	qbyte *surfvis, *entvis;
+	qbyte frustumvis_[MAX_MAP_LEAFS/8];
 	RSpeedLocals();
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
@@ -2221,14 +2237,14 @@ void Surf_DrawWorld (void)
 #ifdef Q3BSPS
 			if (currententity->model->fromgame == fg_quake3)
 			{
-				vis = R_MarkLeaves_Q3 ();
+				entvis = surfvis = R_MarkLeaves_Q3 ();
 				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<FRUSTUMPLANES)-1);
 				//Surf_LeafWorldNode ();
 			}
 			else
 #endif
 			{
-				vis = R_MarkLeaves_Q2 ();
+				entvis = surfvis = R_MarkLeaves_Q2 ();
 				VectorCopy (r_refdef.vieworg, modelorg);
 				Surf_RecursiveQ2WorldNode (cl.worldmodel->nodes);
 			}
@@ -2238,14 +2254,14 @@ void Surf_DrawWorld (void)
 #ifdef MAP_PROC
 		     if (cl.worldmodel->fromgame == fg_doom3)
 		{
-			vis = D3_CalcVis(cl.worldmodel, r_origin);
+			entvis = surfvis = D3_CalcVis(cl.worldmodel, r_origin);
 		}
 		else
 #endif
 #ifdef MAP_DOOM
 			if (currentmodel->fromgame == fg_doom)
 		{
-			vis = NULL;
+			entvis = surfvis = NULL;
 			GLR_DoomWorld();
 		}
 		else
@@ -2253,37 +2269,42 @@ void Surf_DrawWorld (void)
 #ifdef TERRAIN
 		if (currentmodel->type == mod_heightmap)
 		{
-			vis = NULL;
+			entvis = surfvis = NULL;
 		}
 		else
 #endif
 		{
 			//extern cvar_t temp1;
 //			if (0)//temp1.value)
-//				vis = R_MarkLeafSurfaces_Q1();
+//				entvis = surfvis = R_MarkLeafSurfaces_Q1();
 //			else
 			{
-				vis = R_MarkLeaves_Q1 ();
+				entvis = R_MarkLeaves_Q1 ();
 				if (!(r_novis.ival & 2))
 					VectorCopy (r_origin, modelorg);
+
+				frustumvis = frustumvis_;
+				memset(frustumvis, 0, (cl.worldmodel->numleafs + 7)>>3);
 
 				if (r_refdef.useperspective)
 					Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
 				else
 					Surf_OrthoRecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
+				surfvis = frustumvis;
 			}
 		}
 
 		if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		{
-			CL_LinkStaticEntities(vis);
+	//		CL_LinkStaticEntities(entvis);
 			TRACE(("dbg: calling R_DrawParticles\n"));
-			P_DrawParticles ();
+			if (!r_refdef.recurse)
+				P_DrawParticles ();
 		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));
-		BE_DrawWorld(true, vis);
+		BE_DrawWorld(true, surfvis);
 
 		/*FIXME: move this away*/
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
@@ -2486,6 +2507,163 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 	return first;
 }
 
+void Surf_BuildModelLightmaps (model_t *m)
+{
+	int		i, t;
+	int shift;
+	msurface_t *surf;
+	batch_t *batch;
+	int sortid;
+	int ptype;
+	int newfirst;
+
+	if (!lightmap_bytes)
+		return;
+
+#ifdef TERRAIN
+	if (m->terrain)
+		Terr_PurgeTerrainModel(m, true, false);
+#endif
+
+	if (m->type != mod_brush)
+		return;
+
+	if (!m->lightmaps.count)
+		return;
+	if (m->needload)
+		return;
+
+	currentmodel = m;
+	shift = Surf_LightmapShift(currentmodel);
+
+	if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
+		newfirst = cl.model_precache[1]->lightmaps.first;
+	else
+	{
+		if (!m->lightdata && m->lightmaps.count && m->fromgame == fg_quake3)
+		{
+			char pattern[MAX_QPATH];
+			COM_StripAllExtensions(m->name, pattern, sizeof(pattern));
+			Q_strncatz(pattern, "/lm_%04u.tga", sizeof(pattern));
+			newfirst = Surf_NewExternalLightmaps(m->lightmaps.count, pattern, m->lightmaps.deluxemapping);
+		}
+		else
+			newfirst = Surf_NewLightmaps(m->lightmaps.count, m->lightmaps.width, m->lightmaps.height, m->lightmaps.deluxemapping);
+	}
+
+	//fixup batch lightmaps
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		for (i = 0; i < MAXLIGHTMAPS; i++)
+		{
+			if (batch->lightmap[i] < 0)
+				continue;
+			batch->lightmap[i] = batch->lightmap[i] - m->lightmaps.first + newfirst;
+		}
+	}
+
+	
+	/*particle emision based upon texture. this is lazy code*/
+	if (m == cl.worldmodel)
+	{
+		for (t = m->numtextures-1; t >= 0; t--)
+		{
+			ptype = P_FindParticleType(va("tex_%s", m->textures[t]->name));
+		
+			if (ptype != P_INVALID)
+			{
+				for (i=0; i<m->nummodelsurfaces; i++)
+				{
+					surf = m->surfaces + i + m->firstmodelsurface;
+					if (surf->texinfo->texture == m->textures[t])
+						P_EmitSkyEffectTris(m, surf, ptype);
+				}
+			}
+		}
+	}
+
+
+	if (m->fromgame == fg_quake3)
+	{
+		int j;
+		unsigned char *src;
+		unsigned char *dst;
+		for (i = 0; i < m->lightmaps.count; i++)
+		{
+			if (lightmap[newfirst+i]->external)
+				continue;
+
+			dst = lightmap[newfirst+i]->lightmaps;
+			src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
+			if (lightmap_bytes == 4 && m->lightdata)
+			{
+				if (lightmap_bgra)
+				{
+					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
+					{
+						dst[0] = src[2];
+						dst[1] = src[1];
+						dst[2] = src[0];
+						dst[3] = 255;
+					}
+				}
+				else
+				{
+					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
+					{
+						dst[0] = src[0];
+						dst[1] = src[1];
+						dst[2] = src[2];
+						dst[3] = 255;
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		int j;
+		lightmapinfo_t *lm, *dlm;
+		qbyte *deluxemap;
+		//fixup surface lightmaps, and paint
+		for (i=0; i<m->nummodelsurfaces; i++)
+		{
+			surf = m->surfaces + i + m->firstmodelsurface;
+			for (j = 0; j < 4; j++)
+			{
+				if (surf->lightmaptexturenums[j] < m->lightmaps.first)
+				{
+					surf->lightmaptexturenums[j] = -1;
+					continue;
+				}
+				surf->lightmaptexturenums[j] = surf->lightmaptexturenums[0] - m->lightmaps.first + newfirst;
+
+				lm = lightmap[surf->lightmaptexturenums[j]];
+				if (lm->hasdeluxe)
+				{
+					dlm = lightmap[surf->lightmaptexturenums[j]+1];
+					deluxemap = dlm->lightmaps + (surf->light_t[j] * dlm->width + surf->light_s[j]) * lightmap_bytes;
+				}
+				else
+					deluxemap = NULL;
+
+				Surf_BuildLightMap (surf, 
+					lm->lightmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * lightmap_bytes,
+					deluxemap,
+					lm->stainmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * 3,
+					shift, r_ambient.value*255);
+			}
+		}
+	}
+	m->lightmaps.first = newfirst;
+}
+
+void Surf_ClearLightmaps(void)
+{
+	lightmap_bytes = 0;
+}
+
 /*
 ==================
 GL_BuildLightmaps
@@ -2497,14 +2675,8 @@ Groups surfaces into their respective batches (based on the lightmap number).
 */
 void Surf_BuildLightmaps (void)
 {
-	int		i, j, t;
+	int		i, j;
 	model_t	*m;
-	int shift;
-	msurface_t *surf;
-	batch_t *batch;
-	int sortid;
-	int ptype;
-	int newfirst;
 
 	r_framecount = 1;		// no dlightcache
 
@@ -2522,155 +2694,24 @@ void Surf_BuildLightmaps (void)
 	r_oldviewleaf2 = NULL;
 	r_oldviewcluster = -1;
 	r_oldviewcluster2 = -1;
+	numlightmaps = 0;
 
 	if (cl.worldmodel->fromgame == fg_doom)
 		return;	//no lightmaps.
-
-	numlightmaps = 0;
 
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
 		m = cl.model_precache[j];
 		if (!m)
 			break;
-
-#ifdef TERRAIN
-		if (m->terrain)
-			Terr_PurgeTerrainModel(m, true, false);
-#endif
-
-		if (m->type != mod_brush)
-			continue;
-
-		if (!m->lightmaps.count)
-			continue;
-		if (m->needload)
-			continue;
-
-		currentmodel = m;
-		shift = Surf_LightmapShift(currentmodel);
-
-		if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
-			newfirst = cl.model_precache[1]->lightmaps.first;
-		else
-		{
-			if (!m->lightdata && m->lightmaps.count)
-			{
-				char pattern[MAX_QPATH];
-				COM_StripAllExtensions(m->name, pattern, sizeof(pattern));
-				Q_strncatz(pattern, "/lm_%04u.tga", sizeof(pattern));
-				newfirst = Surf_NewExternalLightmaps(m->lightmaps.count, pattern, m->lightmaps.deluxemapping);
-			}
-			else
-				newfirst = Surf_NewLightmaps(m->lightmaps.count, m->lightmaps.width, m->lightmaps.height, m->lightmaps.deluxemapping);
-		}
-
-		//fixup batch lightmaps
-		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
-		{
-			for (i = 0; i < MAXLIGHTMAPS; i++)
-			{
-				if (batch->lightmap[i] < 0)
-					continue;
-				batch->lightmap[i] = batch->lightmap[i] - m->lightmaps.first + newfirst;
-			}
-		}
-
-		
-		/*particle emision based upon texture. this is lazy code*/
-		if (m == cl.worldmodel)
-		{
-			for (t = m->numtextures-1; t >= 0; t--)
-			{
-				ptype = P_FindParticleType(va("tex_%s", m->textures[t]->name));
-			
-				if (ptype != P_INVALID)
-				{
-					for (i=0; i<m->nummodelsurfaces; i++)
-					{
-						surf = m->surfaces + i + m->firstmodelsurface;
-						if (surf->texinfo->texture == m->textures[t])
-							P_EmitSkyEffectTris(m, surf, ptype);
-					}
-				}
-			}
-		}
-
-
-		if (m->fromgame == fg_quake3)
-		{
-			int j;
-			unsigned char *src;
-			unsigned char *dst;
-			for (i = 0; i < m->lightmaps.count; i++)
-			{
-				if (lightmap[newfirst+i]->external)
-					continue;
-
-				dst = lightmap[newfirst+i]->lightmaps;
-				src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
-				if (lightmap_bytes == 4 && m->lightdata)
-				{
-					if (lightmap_bgra)
-					{
-						for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
-						{
-							dst[0] = src[2];
-							dst[1] = src[1];
-							dst[2] = src[0];
-							dst[3] = 255;
-						}
-					}
-					else
-					{
-						for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
-						{
-							dst[0] = src[0];
-							dst[1] = src[1];
-							dst[2] = src[2];
-							dst[3] = 255;
-						}
-					}
-				}
-			}
-		}
-		else
-		{
-			int j;
-			lightmapinfo_t *lm, *dlm;
-			qbyte *deluxemap;
-			//fixup surface lightmaps, and paint
-			for (i=0; i<m->nummodelsurfaces; i++)
-			{
-				surf = m->surfaces + i + m->firstmodelsurface;
-				for (j = 0; j < 4; j++)
-				{
-					if (surf->lightmaptexturenums[j] < m->lightmaps.first)
-					{
-						surf->lightmaptexturenums[j] = -1;
-						continue;
-					}
-					surf->lightmaptexturenums[j] = surf->lightmaptexturenums[0] - m->lightmaps.first + newfirst;
-
-					lm = lightmap[surf->lightmaptexturenums[j]];
-					if (lm->hasdeluxe)
-					{
-						dlm = lightmap[surf->lightmaptexturenums[j]+1];
-						deluxemap = dlm->lightmaps + (surf->light_t[j] * dlm->width + surf->light_s[j]) * lightmap_bytes;
-					}
-					else
-						deluxemap = NULL;
-
-					Surf_BuildLightMap (surf, 
-						lm->lightmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * lightmap_bytes,
-						deluxemap,
-						lm->stainmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * 3,
-						shift, r_ambient.value*255);
-				}
-			}
-		}
-		m->lightmaps.first = newfirst;
+		Surf_BuildModelLightmaps(m);
+	}
+	for (j=1 ; j<MAX_CSQCMODELS ; j++)
+	{
+		m = cl.model_csqcprecache[j];
+		if (!m)
+			break;
+		Surf_BuildModelLightmaps(m);
 	}
 	BE_UploadAllLightmaps();
 }

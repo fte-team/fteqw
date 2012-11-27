@@ -950,7 +950,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 		for (i = '!'; i <= '_'; i++)
 		{
 			dp = NULL;
-			FS_LoadFile(va("wad/stcfn%.3d", i), &dp);
+			FS_LoadFile(va("wad/stcfn%.3d", i), (void**)&dp);
 			if (!dp)
 				break;
 
@@ -1128,6 +1128,12 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 void Font_Free(struct font_s *f)
 {
 	struct charcache_s **link;
+
+	if (f->alt)
+	{
+		Font_Free(f->alt);
+		f->alt = NULL;
+	}
 	for (link = &fontplanes.oldestchar; *link; )
 	{
 		if (*link >= f->chars && *link <= f->chars + FONTCHARS)
@@ -1195,8 +1201,13 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
 	if ((charcode&CON_CHARMASK) == '\t')
 		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
 
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
-		font = font->alt;
+	if (charcode & CON_2NDCHARSETTEXT)
+	{
+		if (font->alt)
+			font = font->alt;
+		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
+			charcode |= 0xe000;
+	}
 
 	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
@@ -1216,8 +1227,13 @@ int Font_CharWidth(unsigned int charcode)
 	struct font_s *font = curfont;
 	if (charcode&CON_HIDDEN)
 		return 0;
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
-		font = font->alt;
+	if (charcode & CON_2NDCHARSETTEXT)
+	{
+		if (font->alt)
+			font = font->alt;
+		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
+			charcode |= 0xe000;
+	}
 
 	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
@@ -1340,8 +1356,13 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	if (charcode & CON_HIDDEN)
 		return px;
 
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
-		font = font->alt;
+	if (charcode & CON_2NDCHARSETTEXT)
+	{
+		if (font->alt)
+			font = font->alt;
+		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
+			charcode |= 0xe000;
+	}
 
 	//crash if there is no current font.
 	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
@@ -1464,8 +1485,13 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	int col;
 	int v;
 	struct font_s *font = curfont;
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
-		font = font->alt;
+	if (charcode & CON_2NDCHARSETTEXT)
+	{
+		if (font->alt)
+			font = font->alt;
+		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
+			charcode |= 0xe000;
+	}
 
 	cw /= font->charheight;
 	ch /= font->charheight;

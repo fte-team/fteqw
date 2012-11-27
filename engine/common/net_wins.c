@@ -662,13 +662,7 @@ idnewt:28000
 any form of ipv6, including port number.
 =============
 */
-#define DO(src,dest)	\
-	copy[0] = s[src];	\
-	copy[1] = s[src + 1];	\
-	sscanf (copy, "%x", &val);	\
-	((struct sockaddr_ipx *)sadr)->dest = val
-
-qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
+qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize)
 {
 	struct hostent	*h;
 	char	*colon;
@@ -685,6 +679,13 @@ qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 		unsigned int val;
 
 		((struct sockaddr_ipx *)sadr)->sa_family = AF_IPX;
+
+#define DO(src,dest)	\
+	copy[0] = s[src];	\
+	copy[1] = s[src + 1];	\
+	sscanf (copy, "%x", &val);	\
+	((struct sockaddr_ipx *)sadr)->dest = val
+
 		copy[2] = 0;
 		DO(0, sa_netnum[0]);
 		DO(2, sa_netnum[1]);
@@ -697,7 +698,14 @@ qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 		DO(17, sa_nodenum[4]);
 		DO(19, sa_nodenum[5]);
 		sscanf (&s[22], "%u", &val);
+
+#undef DO
+
 		((struct sockaddr_ipx *)sadr)->sa_socket = htons((unsigned short)val);
+		if (addrfamily)
+			*addrfamily = AF_IPX;
+		if (addrsize)
+			*addrsize = sizeof(struct sockaddr_ipx);
 	}
 	else
 #endif
@@ -719,7 +727,7 @@ qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 
 		if (*s == '[')
 		{
-			port = strstr(s, "]:");
+			port = strstr(s, "]");
 			if (!port)
 				error = EAI_NONAME;
 			else
@@ -729,7 +737,7 @@ qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 					len = sizeof(dupbase)-1;
 				strncpy(dupbase, s+1, len);
 				dupbase[len] = '\0';
-				error = pgetaddrinfo(dupbase, port+2, &udp6hint, &addrinfo);
+				error = pgetaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
 			}
 		}
 		else
@@ -748,7 +756,7 @@ qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 			else
 				error = EAI_NONAME;
 			if (error)	//failed, try string with no port.
-			error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
+				error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 		}
 		if (error)
 		{
@@ -779,6 +787,24 @@ dblbreak:
 		pfreeaddrinfo (addrinfo);
 		if (!((struct sockaddr*)sadr)->sa_family)	//none suitablefound
 			return false;
+
+		if (addrfamily)
+			*addrfamily = ((struct sockaddr*)sadr)->sa_family;
+	
+		if (((struct sockaddr*)sadr)->sa_family == AF_INET)
+		{
+			if (!((struct sockaddr_in *)sadr)->sin_port)
+				((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
+			if (addrsize)
+				*addrsize = sizeof(struct sockaddr_in);
+		}
+		else
+		{
+			if (!((struct sockaddr_in6 *)sadr)->sin6_port)
+				((struct sockaddr_in6 *)sadr)->sin6_port = htons(defaultport);
+			if (addrsize)
+				*addrsize = sizeof(struct sockaddr_in6);
+		}
 	}
 	else
 #endif
@@ -790,6 +816,8 @@ dblbreak:
 
 		if (strlen(s) >= sizeof(copy)-1)
 			return false;
+
+		((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
 
 		strcpy (copy, s);
 		// strip off a trailing :port if present
@@ -812,6 +840,10 @@ dblbreak:
 				return false;
 			*(int *)&((struct sockaddr_in *)sadr)->sin_addr = *(int *)h->h_addr_list[0];
 		}
+		if (addrfamily)
+			*addrfamily = AF_INET;
+		if (addrsize)
+			*addrsize = sizeof(struct sockaddr_in);
 #else
 		return false;
 #endif
@@ -819,8 +851,6 @@ dblbreak:
 
 	return true;
 }
-
-#undef DO
 
 /*
 accepts anything that NET_StringToSockaddr accepts plus certain url schemes
@@ -868,7 +898,7 @@ qboolean	NET_StringToAdr (const char *s, netadr_t *a)
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
-		if (!NET_StringToSockaddr (s+6, &sadr))
+		if (!NET_StringToSockaddr (s+6, 0, &sadr, NULL, NULL))
 		{
 			a->type = NA_INVALID;
 			return false;
@@ -914,7 +944,7 @@ qboolean	NET_StringToAdr (const char *s, netadr_t *a)
 	}
 #endif
 
-	if (!NET_StringToSockaddr (s, &sadr))
+	if (!NET_StringToSockaddr (s, 0, &sadr, NULL, NULL))
 	{
 		a->type = NA_INVALID;
 		return false;
@@ -4269,7 +4299,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
 	{
 		notvalid = true;
-		NET_StringToSockaddr("0.0.0.0", (struct sockaddr_qstorage *)&address);
+		NET_StringToSockaddr("0.0.0.0", 0, (struct sockaddr_qstorage *)&address, NULL, NULL);
 //		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
 	}
 

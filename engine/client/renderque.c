@@ -125,6 +125,39 @@ void RQ_RenderBatchClear(void)
 	rqmingrad = NUMGRADUATIONS-1;
 }
 
+//render without clearing
+void RQ_RenderBatch(void)
+{
+#define SLOTS 512
+	void *slot[SLOTS];
+	void *typeptr = NULL;
+	int maxslot = SLOTS;
+	void (*lr) (int count, void **objects, void *objtype) = NULL;
+	int i;
+	renderque_t *rq;
+
+	for (i = rqmaxgrad; i>=rqmingrad; i--)
+//	for (i = rqmingrad; i<=rqmaxgrad; i++)
+	{
+		for (rq = distrque[i]; rq; rq=rq->next)	
+		{
+			if (!maxslot || rq->render != lr || typeptr != rq->data2)
+			{
+				if (maxslot != SLOTS)
+					lr(SLOTS - maxslot, &slot[maxslot], typeptr);
+				maxslot = SLOTS;
+			}
+			
+			slot[--maxslot] = rq->data1;
+			typeptr = rq->data2;
+			lr  = rq->render;
+		}
+	}
+	if (maxslot != SLOTS)
+		lr(SLOTS - maxslot, &slot[maxslot], typeptr);
+}
+
+
 void RQ_Shutdown(void)
 {
 	Z_Free(initialque);

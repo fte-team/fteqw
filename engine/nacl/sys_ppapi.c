@@ -160,6 +160,23 @@ void Sys_Shutdown(void)
 {
 }
 
+//this is already done using the ppapi event callback. can't poll any of this stuff.
+void INS_Move(float *movements, int pnum)
+{
+}
+void INS_Commands(void)
+{
+}
+void INS_Init(void)
+{
+}
+void INS_ReInit(void)
+{
+}
+void INS_Shutdown(void)
+{
+}
+
 //nacl supposedly has no way to implement this (other than us writing a listfile in each directory)
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
@@ -307,6 +324,7 @@ void startquake(void)
 		""
 	};
 	quakeparms_t parms;
+	memset(&parms, 0, sizeof(parms));
 	parms.basedir = "";	/*filled in later*/
 	parms.argc = 1;
 	parms.argv = args;
@@ -406,9 +424,6 @@ unsigned int domkeytoquake(unsigned int code)
 	return tab[code];
 }
 
-void IN_QueueKey(int down, int keycode, int unicode);
-void IN_QueueMouse(int act, int ptrid, float x, float y, int button);
-void IN_AmmendUnicode(int unicode);
 PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 {
 	extern cvar_t vid_fullscreen;
@@ -433,10 +448,10 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 					return PP_TRUE;
 			}
 		}
-		IN_QueueMouse(1, 0, 0, 0, ppb_mouseinputevent_interface->GetButton(resource));
+		IN_KeyEvent(0, true, K_MOUSE1 + ppb_mouseinputevent_interface->GetButton(resource), 0);
 		return PP_TRUE;
 	case PP_INPUTEVENT_TYPE_MOUSEUP:
-		IN_QueueMouse(2, 0, 0, 0, ppb_mouseinputevent_interface->GetButton(resource));
+		IN_KeyEvent(0, false, K_MOUSE1 + ppb_mouseinputevent_interface->GetButton(resource), 0);
 		return PP_TRUE;
 	case PP_INPUTEVENT_TYPE_MOUSEMOVE:
 		{
@@ -444,12 +459,12 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 			if (mouselocked)
 			{
 				p = ppb_mouseinputevent_interface->GetMovement(resource);
-				IN_QueueMouse(3, 0, p.x, p.y, 0);
+				IN_MouseMove(0, false, p.x, p.y, 0, 0);
 			}
 			else
 			{
 				p = ppb_mouseinputevent_interface->GetPosition(resource);
-				IN_QueueMouse(0, 0, p.x, p.y, 0);
+				IN_MouseMove(0, true, p.x, p.y, 0, 0);
 			}
 		}
 		return PP_TRUE;
@@ -468,14 +483,14 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 			//BUG: the value is fractional.
 			while (p.x >= 1)
 			{
-				IN_QueueKey(1, K_MWHEELUP, 0);
-				IN_QueueKey(0, K_MWHEELUP, 0);
+				IN_KeyEvent(0, 1, K_MWHEELUP, 0);
+				IN_KeyEvent(0, 0, K_MWHEELUP, 0);
 				p.x--;
 			}
 			while (p.x <= -1)
 			{
-				IN_QueueKey(1, K_MWHEELDOWN, 0);
-				IN_QueueKey(0, K_MWHEELDOWN, 0);
+				IN_KeyEvent(0, 1, K_MWHEELDOWN, 0);
+				IN_KeyEvent(0, 0, K_MWHEELDOWN, 0);
 				p.x++;
 			}
 		}
@@ -484,10 +499,10 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 //		Con_Printf("rawkeydown\n");
 		return PP_FALSE;
 	case PP_INPUTEVENT_TYPE_KEYDOWN:
-		IN_QueueKey(1, domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource)), 0);
+		IN_KeyEvent(0, 1, domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource)), 0);
 		return PP_FALSE;
 	case PP_INPUTEVENT_TYPE_KEYUP:
-		IN_QueueKey(0, domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource)), 0);
+		IN_KeyEvent(0, 0, domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource)), 0);
 		return PP_TRUE;
 	case PP_INPUTEVENT_TYPE_CHAR:
 		{
@@ -540,7 +555,8 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 					len--;
 				}
 
-				IN_AmmendUnicode(c);
+				IN_KeyEvent(0, true, 0, c);
+				IN_KeyEvent(0, false, 0, c);
 			}
 		}
 		return PP_TRUE;

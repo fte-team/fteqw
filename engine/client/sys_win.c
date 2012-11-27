@@ -49,6 +49,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
 qboolean isDedicated = false;
 #endif
+qboolean isPlugin;
 qboolean debugout;
 
 HWND sys_parentwindow;
@@ -87,7 +88,11 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	return true;
 }
 
-
+/*
+=================
+Library loading
+=================
+*/
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	FreeLibrary((HMODULE)lib);
@@ -371,19 +376,183 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 
 #ifdef PRINTGLARRAYS
 #include "glquake.h"
-#define GL_ARRAY_BUFFER                   0x8892
-#define GL_ELEMENT_ARRAY_BUFFER           0x8893
-#define GL_ARRAY_BUFFER_BINDING           0x8894
-#define GL_ELEMENT_ARRAY_BUFFER_BINDING   0x8895
-#define GL_VERTEX_ARRAY_BUFFER_BINDING   0x8896
+#define GL_VERTEX_ARRAY_BINDING					0x85B5
+#define GL_ARRAY_BUFFER							0x8892
+#define GL_ELEMENT_ARRAY_BUFFER					0x8893
+#define GL_ARRAY_BUFFER_BINDING					0x8894
+#define GL_ELEMENT_ARRAY_BUFFER_BINDING			0x8895
+#define GL_VERTEX_ARRAY_BUFFER_BINDING			0x8896
+#define GL_NORMAL_ARRAY_BUFFER_BINDING			0x8897
+#define GL_COLOR_ARRAY_BUFFER_BINDING			0x8898
 #define GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING   0x889A
-#define GL_VERTEX_ATTRIB_ARRAY_ENABLED        0x8622
-#define GL_VERTEX_ATTRIB_ARRAY_SIZE           0x8623
-#define GL_VERTEX_ATTRIB_ARRAY_STRIDE         0x8624
-#define GL_VERTEX_ATTRIB_ARRAY_TYPE           0x8625
-#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED     0x886A
-#define GL_VERTEX_ATTRIB_ARRAY_POINTER        0x8645
-#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING 0x889F
+#define GL_VERTEX_ATTRIB_ARRAY_ENABLED			0x8622
+#define GL_VERTEX_ATTRIB_ARRAY_SIZE				0x8623
+#define GL_VERTEX_ATTRIB_ARRAY_STRIDE			0x8624
+#define GL_VERTEX_ATTRIB_ARRAY_TYPE				0x8625
+#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED		0x886A
+#define GL_VERTEX_ATTRIB_ARRAY_POINTER			0x8645
+#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING	0x889F
+#define GL_CURRENT_PROGRAM						0x8B8D
+
+char *DecodeGLEnum(GLenum num)
+{
+	switch(num)
+	{
+	case GL_CW:						return "GL_CW";
+	case GL_CCW:					return "GL_CCW";
+	case GL_NEVER:					return "GL_NEVER";
+	case GL_LESS:					return "GL_LESS";
+	case GL_EQUAL:					return "GL_EQUAL";
+	case GL_LEQUAL:					return "GL_LEQUAL";
+	case GL_GREATER:				return "GL_GREATER";
+	case GL_NOTEQUAL:				return "GL_NOTEQUAL";
+	case GL_GEQUAL:					return "GL_GEQUAL";
+	case GL_ALWAYS:					return "GL_ALWAYS";
+	case GL_FRONT:					return "GL_FRONT";
+	case GL_BACK:					return "GL_BACK";
+	case GL_FRONT_AND_BACK:			return "GL_FRONT_AND_BACK";
+	case GL_COMBINE_ARB:			return "GL_COMBINE";
+	case GL_MODULATE:				return "GL_MODULATE";
+	case GL_REPLACE:				return "GL_REPLACE";
+	case GL_ZERO:					return "GL_ZERO";
+	case GL_ONE:					return "GL_ONE";
+	case GL_SRC_COLOR:				return "GL_SRC_COLOR";
+	case GL_ONE_MINUS_SRC_COLOR:	return "GL_ONE_MINUS_SRC_COLOR";
+	case GL_SRC_ALPHA:				return "GL_SRC_ALPHA";
+	case GL_ONE_MINUS_SRC_ALPHA:	return "GL_ONE_MINUS_SRC_ALPHA";
+	case GL_DST_ALPHA:				return "GL_DST_ALPHA";
+	case GL_ONE_MINUS_DST_ALPHA:	return "GL_ONE_MINUS_DST_ALPHA";
+	case GL_DST_COLOR:				return "GL_DST_COLOR";
+	case GL_ONE_MINUS_DST_COLOR:	return "GL_ONE_MINUS_DST_COLOR";
+	case GL_SRC_ALPHA_SATURATE:		return "GL_SRC_ALPHA_SATURATE";
+	default:						return va("0x%x", num);
+	}
+}
+
+void DumpGLState(void)
+{
+	int rval;
+	void *ptr;
+	int i;
+	GLint glint;
+	GLint glint4[4];
+	void (APIENTRY *qglGetVertexAttribiv) (GLuint index, GLenum pname, GLint* params);
+	void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid** pointer);
+	qglGetVertexAttribiv = (void*)wglGetProcAddress("glGetVertexAttribiv");
+	qglGetVertexAttribPointerv = (void*)wglGetProcAddress("glGetVertexAttribPointerv");
+#pragma comment(lib,"opengl32.lib")
+
+	if (qglGetVertexAttribiv)
+	{
+		glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &rval);
+		Sys_Printf("VERTEX_ARRAY_BINDING: %i\n", rval);
+		glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
+		Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
+		if (glIsEnabled(GL_COLOR_ARRAY))
+		{
+			glGetIntegerv(GL_COLOR_ARRAY_BUFFER_BINDING, &rval);
+			glGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_COLOR_ARRAY: %s %i:%p\n", glIsEnabled(GL_COLOR_ARRAY)?"en":"dis", rval, ptr);
+		}
+//		if (glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT))
+//		{
+//			glGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
+//			Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
+//		}
+//		if (glIsEnabled(GL_INDEX_ARRAY))
+		{
+			glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+			glGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
+		}
+		if (glIsEnabled(GL_NORMAL_ARRAY))
+		{
+			glGetIntegerv(GL_NORMAL_ARRAY_BUFFER_BINDING, &rval);
+			glGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_NORMAL_ARRAY: %s %i:%p\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", rval, ptr);
+		}
+	//	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
+	//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
+		for (i = 0; i < 4; i++)
+		{
+			qglClientActiveTextureARB(mtexid0 + i);
+			if (glIsEnabled(GL_TEXTURE_COORD_ARRAY))
+			{
+				glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+				glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
+				Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
+			}
+		}
+		if (glIsEnabled(GL_VERTEX_ARRAY))
+		{
+			glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
+			glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
+		}
+
+		for (i = 0; i < 16; i++)
+		{
+			int en, bo, as, st, ty, no;
+
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
+			if (!en)
+				continue;
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
+			qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
+
+			Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
+		}
+
+		glGetIntegerv(GL_CURRENT_PROGRAM, &glint);
+		Sys_Printf("GL_CURRENT_PROGRAM: %i\n", glint);
+
+		glGetIntegerv(GL_BLEND, &glint);
+		Sys_Printf("GL_BLEND: %i\n", glint);
+		glGetIntegerv(GL_BLEND_SRC, &glint);
+		Sys_Printf("GL_BLEND_SRC: %i\n", DecodeGLEnum(glint));
+		glGetIntegerv(GL_BLEND_DST, &glint);
+		Sys_Printf("GL_BLEND_DST: %i\n", DecodeGLEnum(glint));
+
+		glGetIntegerv(GL_DEPTH_WRITEMASK, &glint);
+		Sys_Printf("GL_DEPTH_WRITEMASK: %i\n", glint);
+		glGetIntegerv(GL_DEPTH_TEST, &glint);
+		Sys_Printf("GL_DEPTH_TEST: %i\n", glint);
+		glGetIntegerv(GL_DEPTH_FUNC, &glint);
+		Sys_Printf("GL_DEPTH_FUNC: %s\n", DecodeGLEnum(glint));
+		glGetIntegerv(GL_CULL_FACE, &glint);
+		Sys_Printf("GL_CULL_FACE: %i\n", glint);
+		glGetIntegerv(GL_CULL_FACE_MODE, &glint);
+		Sys_Printf("GL_CULL_FACE_MODE: %s\n", DecodeGLEnum(glint));
+		glGetIntegerv(GL_FRONT_FACE, &glint);
+		Sys_Printf("GL_FRONT_FACE: %s\n", DecodeGLEnum(glint));
+		glGetIntegerv(GL_SCISSOR_TEST, &glint);
+		Sys_Printf("GL_SCISSOR_TEST: %i\n", glint);
+		glGetIntegerv(GL_STENCIL_TEST, &glint);
+		Sys_Printf("GL_STENCIL_TEST: %i\n", glint);
+		glGetIntegerv(GL_COLOR_WRITEMASK, glint4);
+		Sys_Printf("GL_COLOR_WRITEMASK: %i %i %i %i\n", glint4[0], glint4[1], glint4[2], glint4[3]);
+
+		GL_SelectTexture(0);
+		glGetIntegerv(GL_TEXTURE_2D, &glint);
+		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
+		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		GL_SelectTexture(1);
+		glGetIntegerv(GL_TEXTURE_2D, &glint);
+		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
+		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		GL_SelectTexture(2);
+		glGetIntegerv(GL_TEXTURE_2D, &glint);
+		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
+		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+	}
+}
 #endif
 
 DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
@@ -398,56 +567,7 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
 
 #ifdef PRINTGLARRAYS
-	int rval;
-	void *ptr;
-	int i;
-	void (APIENTRY *qglGetVertexAttribiv) (GLuint index, GLenum pname, GLint* params);
-	void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid** pointer);
-	qglGetVertexAttribiv = (void*)wglGetProcAddress("glGetVertexAttribiv");
-	qglGetVertexAttribPointerv = (void*)wglGetProcAddress("glGetVertexAttribPointerv");
-#pragma comment(lib,"opengl32.lib")
-
-	if (qglGetVertexAttribiv)
-	{
-		glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
-		Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
-		glGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
-		Sys_Printf("GL_COLOR_ARRAY: %s (%lx)\n", glIsEnabled(GL_COLOR_ARRAY)?"en":"dis", (int) ptr);
-	//	glGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
-	//	Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
-		glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
-		glGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
-		Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
-		glGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
-		Sys_Printf("GL_NORMAL_ARRAY: %s (%lx)\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", (int) ptr);
-	//	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
-	//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
-		for (i = 0; i < 4; i++)
-		{
-			qglClientActiveTextureARB(mtexid0 + i);
-			glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
-			glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
-			Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
-		}
-		glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
-		glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
-		Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
-
-		for (i = 0; i < 16; i++)
-		{
-			int en, bo, as, st, ty, no;
-
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
-			qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
-
-			Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
-		}
-	}
+	DumpGLState();
 #endif
 
 	hKernel = LoadLibrary ("kernel32");
@@ -851,15 +971,7 @@ void VARGS Sys_Error (const char *error, ...)
 	SetHookState(false);
 #endif
 
-#ifdef NPFTE
-	{
-		extern jmp_buf 	host_abort;
-		/*jump to start of main loop (which exits the main loop)*/
-		longjmp (host_abort, 1);
-	}
-#else
 	exit (1);
-#endif
 }
 
 static wchar_t dequake(conchar_t chr)
@@ -912,15 +1024,17 @@ void VARGS Sys_Printf (char *fmt, ...)
 	if (debugout)
 	{
 		//msvc debug output
-		conchar_t msg[1024], *end;
-		wchar_t wide[1024];
-		int i;
+		conchar_t msg[1024], *end, *in;
+		wchar_t wide[1024], *out;
 		end = COM_ParseFunString(CON_WHITEMASK, text, msg, sizeof(msg), false);
-		for (i = 0; msg+i < end; i++)
+		out = wide;
+		in = msg;
+		for (in = msg; in < end; in++)
 		{
-			wide[i] = dequake(msg[i] & CON_CHARMASK);
+			if (!(*in & CON_HIDDEN))
+				*out++ = dequake(*in & CON_CHARMASK);
 		}
-		wide[i] = 0;
+		*out = 0;
 		OutputDebugStringW(wide);
 	}
 #endif
@@ -946,21 +1060,12 @@ void Sys_Quit (void)
 	longjmp(restart_jmpbuf, 1);
 #endif
 
-#ifdef NPFTE
-	{
-		extern jmp_buf 	host_abort;
-		/*jump to start of main loop (which exits the main loop)*/
-		longjmp (host_abort, 1);
-	}
-#else
-
 #ifdef USE_MSVCRT_DEBUG
 	if (_CrtDumpMemoryLeaks())
 		OutputDebugStringA("Leaks detected\n");
 #endif
 
 	exit(1);
-#endif
 }
 
 
@@ -1262,7 +1367,52 @@ void Sys_SendKeyEvents (void)
 {
     MSG        msg;
 
-	if (isDedicated)
+	if (isPlugin)
+	{
+		DWORD avail;
+		static char	text[256], *nl;
+		static int textpos = 0;
+
+		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+		if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
+		{
+			Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
+		}
+		else if (avail)
+		{
+			if (avail > sizeof(text)-1-avail)
+				avail = sizeof(text)-1-avail;
+			if (ReadFile(input, text+textpos, avail, &avail, NULL))
+			{
+				textpos += avail;
+				while(1)
+				{
+					text[textpos] = 0;
+					nl = strchr(text, '\n');
+					if (nl)
+					{
+						*nl++ = 0;
+						if (!qrenderer && !strncmp(text, "vid_recenter ", 13))
+						{
+							Cmd_TokenizeString(text, false, false);
+							sys_parentleft = strtoul(Cmd_Argv(1), NULL, 0);
+							sys_parenttop = strtoul(Cmd_Argv(2), NULL, 0);
+							sys_parentwidth = strtoul(Cmd_Argv(3), NULL, 0);
+							sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
+							sys_parentwindow = (HWND)strtoul(Cmd_Argv(5), NULL, 16);
+						}
+						Cmd_ExecuteString(text, RESTRICT_LOCAL);
+						memmove(text, nl, textpos - (nl - text));
+						textpos -= (nl - text);
+					}
+					else
+						break;
+				}
+			}
+
+		}
+	}
+	else if (isDedicated)
 	{
 #ifndef CLIENTONLY
 		SV_GetConsoleCommands ();
@@ -1362,76 +1512,6 @@ qboolean Sys_Startup_CheckMem(quakeparms_t *parms)
 		return false;
 	return true;
 }
-
-#ifdef NPFTE
-static quakeparms_t	parms;
-double lastlooptime;
-qboolean NPQTV_Sys_Startup(int argc, char *argv[])
-{
-	if (!host_initialized)
-	{
-		TL_InitLanguages();
-
-		parms.argc = argc;
-		parms.argv = argv;
-		parms.basedir = argv[0];
-		COM_InitArgv (parms.argc, parms.argv);
-
-		if (!Sys_Startup_CheckMem(&parms))
-			return false;
-
-		Host_Init (&parms);
-	}
-
-	lastlooptime = Sys_DoubleTime ();
-
-	return true;
-}
-
-void NPQTV_Sys_MainLoop(void)
-{
-	double duratrion, newtime;
-
-	if (isDedicated)
-	{
-#ifndef CLIENTONLY
-		NET_Sleep(50, false);
-
-	// find time passed since last cycle
-		newtime = Sys_DoubleTime ();
-		duratrion = newtime - lastlooptime;
-		lastlooptime = newtime;
-
-		SV_Frame ();
-#else
-		Sys_Error("wut?");
-#endif
-	}
-	else
-	{
-#ifndef SERVERONLY
-		double sleeptime;
-
-		newtime = Sys_DoubleTime ();
-		duratrion = newtime - lastlooptime;
-		sleeptime = Host_Frame (duratrion);
-		lastlooptime = newtime;
-
-		SetHookState(sys_disableWinKeys.ival);
-
-		Sys_Sleep(sleeptime);
-//			Sleep(0);
-#else
-		Sys_Error("wut?");
-#endif
-	}
-}
-
-void Sys_RecentServer(char *command, char *target, char *title, char *desc)
-{
-}
-
-#else
 
 /*
 ==================
@@ -1833,13 +1913,15 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 //    MSG				msg;
 	quakeparms_t	parms;
 	double			time, oldtime, newtime;
-	char	cwd[1024];
+	char	cwd[1024], bindir[1024], *s;
 	const char *qtvfile = NULL;
 	int delay = 0;
 
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
+
+	memset(&parms, 0, sizeof(parms));
 
 	#ifndef MINGW
 	#if _MSC_VER > 1200
@@ -1937,11 +2019,20 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		setjmp (restart_jmpbuf);
 #endif
 
-		GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
-		strcpy(exename, COM_SkipPath(cwd));
+		GetModuleFileName(NULL, bindir, sizeof(bindir)-1);
+		s = COM_SkipPath(exename);
+		strcpy(exename, s);
+		*s = 0;
 		parms.argv = (const char **)argv;
 
 		COM_InitArgv (parms.argc, parms.argv);
+
+		isPlugin = !!COM_CheckParm("-plugin");
+		if (isPlugin)
+		{
+			printf("status Starting up!\n");
+			fflush(stdout);
+		}
 
 		if (COM_CheckParm("--version") || COM_CheckParm("-v"))
 		{
@@ -1978,6 +2069,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		//tprints are now allowed
 
 		parms.basedir = cwd;
+		parms.binarydir = bindir;
 
 		parms.argc = com_argc;
 		parms.argv = com_argv;
@@ -2049,6 +2141,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		Win7_TaskListInit();
 		#endif
 		#endif
+
+		if (isPlugin)
+		{
+			printf("status Running!\n");
+			fflush(stdout);
+		}
 
 		/* main window message loop */
 		while (1)
@@ -2134,7 +2232,6 @@ int __cdecl main(void)
 	}
 	return WinMain(GetModuleHandle(NULL), NULL, cmdline, SW_NORMAL);
 }
-#endif
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {

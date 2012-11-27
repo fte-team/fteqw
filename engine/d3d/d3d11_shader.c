@@ -138,9 +138,9 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu
 	ID3DBlob *vcode = NULL, *fcode = NULL, *errors = NULL;
 	qboolean success = false;
 
-	prog->handle[permu].hlsl.vert = NULL;
-	prog->handle[permu].hlsl.frag = NULL;
-	prog->handle[permu].hlsl.layout = NULL;
+	prog->permu[permu].handle.hlsl.vert = NULL;
+	prog->permu[permu].handle.hlsl.frag = NULL;
+	prog->permu[permu].handle.hlsl.layout = NULL;
 
 	if (pD3DCompile)
 	{
@@ -176,7 +176,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu
 			success = false;
 		else
 		{
-			if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vcode->lpVtbl->GetBufferPointer(vcode), vcode->lpVtbl->GetBufferSize(vcode), NULL, (ID3D11VertexShader**)&prog->handle[permu].hlsl.vert)))
+			if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vcode->lpVtbl->GetBufferPointer(vcode), vcode->lpVtbl->GetBufferSize(vcode), NULL, (ID3D11VertexShader**)&prog->permu[permu].handle.hlsl.vert)))
 				success = false;
 		}
 		if (errors)
@@ -191,7 +191,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu
 			success = false;
 		else
 		{
-			if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fcode->lpVtbl->GetBufferPointer(fcode), fcode->lpVtbl->GetBufferSize(fcode), NULL, (ID3D11PixelShader**)&prog->handle[permu].hlsl.frag)))
+			if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fcode->lpVtbl->GetBufferPointer(fcode), fcode->lpVtbl->GetBufferSize(fcode), NULL, (ID3D11PixelShader**)&prog->permu[permu].handle.hlsl.frag)))
 				success = false;
 		}
 		if (errors)
@@ -291,7 +291,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu
 			decl[elements].InstanceDataStepRate = 0;
 			elements++;
 */
-			if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vcode->lpVtbl->GetBufferPointer(vcode), vcode->lpVtbl->GetBufferSize(vcode), (ID3D11InputLayout**)&prog->handle[permu].hlsl.layout)))
+			if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vcode->lpVtbl->GetBufferPointer(vcode), vcode->lpVtbl->GetBufferSize(vcode), (ID3D11InputLayout**)&prog->permu[permu].handle.hlsl.layout)))
 			{
 				Con_Printf("HLSL Shader %s requires unsupported inputs\n", name);
 				success = false;

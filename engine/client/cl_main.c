@@ -102,7 +102,7 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 // info mirrors
 //
-cvar_t	password = CVARF("password",		"",			CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy...
+cvar_t	password = CVARAF("password",		"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
 cvar_t	spectator = CVARF("spectator",		"",			CVAR_USERINFO);
 cvar_t	name = CVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team = CVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
@@ -1089,6 +1089,7 @@ void CL_ClearState (void)
 	CL_ClearParseState();
 	CL_ClearTEnts();
 	CL_ClearCustomTEnts();
+	Surf_ClearLightmaps();
 	T_FreeInfoStrings();
 	SCR_ShowPic_Clear();
 
@@ -1135,6 +1136,7 @@ void CL_ClearState (void)
 
 	cl.allocated_client_slots = QWMAX_CLIENTS;
 #ifndef CLIENTONLY
+	//FIXME: we should just set it to 0 to make sure its set up properly elsewhere.
 	if (sv.state)
 		cl.allocated_client_slots = sv.allocated_client_slots;
 #endif
@@ -3406,6 +3408,8 @@ Writes key bindings and archived cvars to config.cfg
 void Host_WriteConfiguration (void)
 {
 	vfsfile_t	*f;
+	char savename[MAX_OSPATH];
+	char sysname[MAX_OSPATH];
 
 	if (host_initialized && cfg_save_name.string && *cfg_save_name.string)
 	{
@@ -3415,7 +3419,9 @@ void Host_WriteConfiguration (void)
 			return;
 		}
 
-		f = FS_OpenVFS(va("%s.cfg",cfg_save_name.string), "wb", FS_GAMEONLY);
+		Q_snprintfz(savename, sizeof(savename), "%s.cfg", cfg_save_name.string);
+
+		f = FS_OpenVFS(savename, "wb", FS_GAMEONLY);
 		if (!f)
 		{
 			Con_TPrintf (TLC_CONFIGCFG_WRITEFAILED);
@@ -3426,6 +3432,9 @@ void Host_WriteConfiguration (void)
 		Cvar_WriteVariables (f, false);
 
 		VFS_CLOSE (f);
+
+		FS_NativePath(savename, FS_GAMEONLY, sysname, sizeof(sysname));
+		Con_Printf("Wrote %s\n", savename);
 	}
 }
 
@@ -3477,7 +3486,7 @@ double Host_Frame (double time)
 	static double		time3 = 0;
 	int			pass1, pass2, pass3;
 //	float fps;
-	double realframetime;
+	double realframetime, newrealtime;
 	static double spare;
 	float maxfps;
 	qboolean maxfpsignoreserver;
@@ -3490,7 +3499,13 @@ double Host_Frame (double time)
 		return 0;			// something bad happened, or the server disconnected
 	}
 
-	realframetime = time = Media_TweekCaptureFrameTime(time);
+	newrealtime = Media_TweekCaptureFrameTime(realtime, time);
+
+	realframetime = time = newrealtime - realtime;
+	realtime = newrealtime;
+
+	if (oldrealtime > realtime)
+		oldrealtime = 0;
 
 //	if (cls.demoplayback && cl_demospeed.value>0)
 //		realframetime *= cl_demospeed.value; // this probably screws up other timings
@@ -3507,11 +3522,6 @@ double Host_Frame (double time)
 #ifdef PLUGINS
 	Plug_Tick();
 #endif
-
-	// decide the simulation time
-	realtime += realframetime;
-	if (oldrealtime > realtime)
-		oldrealtime = 0;
 
 	if (cl.paused)
 		cl.gametimemark += time;
@@ -3570,7 +3580,7 @@ double Host_Frame (double time)
 			maxfps = 4;
 	}
 
-	if (maxfps > 0)
+	if (maxfps > 0 && Media_Capturing() != 2)
 	{
 		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
@@ -3779,6 +3789,130 @@ void CL_ReadCDKey(void)
 //============================================================================
 
 
+void CL_StartCinematicOrMenu(void)
+{
+	//start up the ui now we have a renderer
+#ifdef VM_UI
+	UI_Start();
+#endif
+
+	Con_TPrintf (TLC_QUAKEWORLD_INITED, fs_gamename.string);
+
+	//there might be some console command or somesuch waiting for the renderer to begin (demos or map command or whatever all need model support).
+	realtime+=1;
+	Cbuf_Execute ();	//server may have been waiting for the renderer
+
+	//and any startup cinematics
+#ifndef NOMEDIA
+	if (!cls.demoinfile && !cls.state && !Media_PlayingFullScreen())
+	{
+		int ol_depth;
+		int idcin_depth;
+		int idroq_depth;
+
+		idcin_depth = COM_FDepthFile("video/idlog.cin", true);	//q2
+		idroq_depth = COM_FDepthFile("video/idlogo.roq", true);	//q2
+		ol_depth = COM_FDepthFile("video/openinglogos.roq", true);	//jk2
+
+		if (ol_depth != 0x7fffffff && (ol_depth <= idroq_depth || ol_depth <= idcin_depth))
+			Media_PlayFilm("video/openinglogos.roq");
+		else if (idroq_depth != 0x7fffffff && idroq_depth <= idcin_depth)
+			Media_PlayFilm("video/idlogo.roq");
+		else if (idcin_depth != 0x7fffffff)
+			Media_PlayFilm("video/idlog.cin");
+	}
+#endif
+
+	if (!cls.demoinfile && !*cls.servername && !Media_Playing())
+	{
+#ifndef CLIENTONLY
+		if (!sv.state)
+#endif
+		{
+			if (qrenderer > QR_NONE)
+				M_ToggleMenu_f();
+			//Con_ForceActiveNow();
+		}
+	}
+}
+
+//note that this does NOT include commandline.
+void CL_ExecInitialConfigs(void)
+{
+	int qrc, hrc, def, i;
+
+	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
+
+	//who should we imitate?
+	qrc = COM_FDepthFile("quake.rc", true);	//q1
+	hrc = COM_FDepthFile("hexen.rc", true);	//h2
+	def = COM_FDepthFile("default.cfg", true);	//q2/q3
+
+	if (qrc <= def && qrc <= hrc && qrc!=0x7fffffff)
+		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
+	else if (hrc <= def && hrc!=0x7fffffff)
+		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
+	else
+	{	//they didn't give us an rc file!
+		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
+		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
+		if (COM_FCheckExists ("config.cfg"))
+			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+		if (COM_FCheckExists ("q3config.cfg"))
+			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
+		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
+	}
+	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+
+	if (COM_FCheckExists ("frontend.cfg"))
+		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
+	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
+
+	{
+		extern cvar_t com_parseutf8;
+		com_parseutf8.ival = com_parseutf8.value;
+	}
+
+//	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+
+
+	//assuming they didn't use any waits in their config (fools)
+	//the configs should be fully loaded.
+	//so convert the backwards compable commandline parameters in cvar sets.
+
+	if (COM_CheckParm ("-window") || COM_CheckParm ("-startwindowed"))
+		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
+	if (COM_CheckParm ("-fullscreen"))
+		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
+
+	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
+	{
+		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);
+		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/4)*3);
+	}
+	if ((i = COM_CheckParm ("-height")))
+		Cvar_Set(Cvar_FindVar("vid_height"), com_argv[i+1]);
+
+	if ((i = COM_CheckParm ("-conwidth")))	//width on it's own also sets height
+	{
+		Cvar_Set(Cvar_FindVar("vid_conwidth"), com_argv[i+1]);
+		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/4)*3);
+	}
+	if ((i = COM_CheckParm ("-conheight")))
+		Cvar_Set(Cvar_FindVar("vid_conheight"), com_argv[i+1]);
+
+	if ((i = COM_CheckParm ("-bpp")))
+		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
+
+	if (COM_CheckParm ("-current"))
+		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
+	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+}
+
+
+
+
+
 /*
 ====================
 Host_Init
@@ -3786,12 +3920,8 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
-#ifndef NPFTE
-	int i;
-	int qrc, hrc, def;
-#endif
 	extern cvar_t com_parseutf8;
-	com_parseutf8.ival = 1;
+	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
 
 	COM_InitArgv (parms->argc, parms->argv);
 
@@ -3875,116 +4005,26 @@ void Host_Init (quakeparms_t *parms)
 
 	host_initialized = true;
 
-#ifdef NPFTE
-}
+	Sys_SendKeyEvents();
 
-void Host_FinishInit(void)
-{
-	int i;
-	int qrc, hrc, def;
-#endif
 
-	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
+	//the engine is technically initialised at this point, except for the renderer. now we exec configs and bring up the renderer
+	//anything that needs models cannot be run yet, but it should be safe to allow console commands etc.
+	//if we get a map command, we'll just stick it on the end of the console command buffer.
 
-	//who should we imitate?
-	qrc = COM_FDepthFile("quake.rc", true);	//q1
-	hrc = COM_FDepthFile("hexen.rc", true);	//h2
-	def = COM_FDepthFile("default.cfg", true);	//q2/q3
+	Con_History_Load();
 
-	if (qrc <= def && qrc <= hrc && qrc!=0x7fffffff)
-		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
-	else if (hrc <= def && hrc!=0x7fffffff)
-		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
-	else
-	{	//they didn't give us an rc file!
-		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
-		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-		if (COM_FCheckExists ("config.cfg"))
-			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-		if (COM_FCheckExists ("q3config.cfg"))
-			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
-		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
-	}
-	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+	CL_ExecInitialConfigs();
 
-	if (COM_FCheckExists ("frontend.cfg"))
-		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
-	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
-
+	if (CL_CheckBootDownloads())
 	{
-		extern cvar_t com_parseutf8;
-		com_parseutf8.ival = com_parseutf8.value;
+		Cmd_StuffCmds();
+		Cbuf_Execute ();
 	}
-
-	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
-
-
-	//assuming they didn't use any waits in their config (fools)
-	//the configs should be fully loaded.
-	//so convert the backwards compable commandline parameters in cvar sets.
-
-	if (COM_CheckParm ("-window") || COM_CheckParm ("-startwindowed"))
-		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
-	if (COM_CheckParm ("-fullscreen"))
-		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
-
-	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
-	{
-		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);
-		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/4)*3);
-	}
-	if ((i = COM_CheckParm ("-height")))
-		Cvar_Set(Cvar_FindVar("vid_height"), com_argv[i+1]);
-
-	if ((i = COM_CheckParm ("-conwidth")))	//width on it's own also sets height
-	{
-		Cvar_Set(Cvar_FindVar("vid_conwidth"), com_argv[i+1]);
-		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/4)*3);
-	}
-	if ((i = COM_CheckParm ("-conheight")))
-		Cvar_Set(Cvar_FindVar("vid_conheight"), com_argv[i+1]);
-
-	if ((i = COM_CheckParm ("-bpp")))
-		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
-
-	if (COM_CheckParm ("-current"))
-		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
-
-	//now exec their commandline
-	Cmd_StuffCmds();
-	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
-
-	Renderer_Start();
-
-#ifdef VM_UI
-	UI_Start();
-#endif
-
-#ifndef NOMEDIA
-	if (!cls.demoinfile && !cls.state && !Media_PlayingFullScreen())
-	{
-		int ol_depth;
-		int idcin_depth;
-		int idroq_depth;
-
-		idcin_depth = COM_FDepthFile("video/idlog.cin", true);	//q2
-		idroq_depth = COM_FDepthFile("video/idlogo.roq", true);	//q2
-		ol_depth = COM_FDepthFile("video/openinglogos.roq", true);	//jk2
-
-		if (ol_depth != 0x7fffffff && (ol_depth <= idroq_depth || ol_depth <= idcin_depth))
-			Media_PlayFilm("video/openinglogos.roq");
-		else if (idroq_depth != 0x7fffffff && idroq_depth <= idcin_depth)
-			Media_PlayFilm("video/idlogo.roq");
-		else if (idcin_depth != 0x7fffffff)
-			Media_PlayFilm("video/idlog.cin");
-	}
-#endif
 
 Con_TPrintf (TL_NL);
 	Con_Printf ("%s", version_string());
 Con_TPrintf (TL_NL);
-
-	Con_TPrintf (TLC_QUAKEWORLD_INITED, fs_gamename.string);
 
 	Con_DPrintf("This program is free software; you can redistribute it and/or "
 				"modify it under the terms of the GNU General Public License "
@@ -3997,20 +4037,9 @@ Con_TPrintf (TL_NL);
 				"\n"
 				"See the GNU General Public License for more details.\n");
 
-	realtime+=1;
-	Cbuf_Execute ();	//server may have been waiting for the renderer
+	Renderer_Start();
 
-	if (!cls.demoinfile && !*cls.servername && !Media_Playing())
-	{
-#ifndef CLIENTONLY
-		if (!sv.state)
-#endif
-		{
-			if (qrenderer > QR_NONE)
-				M_ToggleMenu_f();
-			//Con_ForceActiveNow();
-		}
-	}
+	CL_StartCinematicOrMenu();
 }
 
 /*
@@ -4045,6 +4074,9 @@ void Host_Shutdown(void)
 	S_Shutdown();
 	IN_Shutdown ();
 	R_ShutdownRenderer();
+#ifdef CL_MASTER
+	MasterInfo_Shutdown();
+#endif
 	CL_FreeDlights();
 	M_Shutdown();
 #ifndef CLIENTONLY

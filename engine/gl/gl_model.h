@@ -305,6 +305,7 @@ typedef struct vbo_s
 } vbo_t;
 void GL_SelectVBO(int vbo);
 void GL_SelectEBO(int vbo);
+void GL_DeselectVAO(void);
 
 typedef struct texture_s
 {
@@ -1019,10 +1020,12 @@ qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 // gl_heightmap.c
 //
 #ifdef TERRAIN
+void Terr_Init(void);
 void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
 qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
 void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean lightmapreusable);
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname);	//call this after loading a bsp
+qboolean Terrain_LocateSection(char *name, flocation_t *loc);	//used on servers to generate sections for download.
 qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, struct trace_s *trace);
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);
 struct fragmentdecal_s;

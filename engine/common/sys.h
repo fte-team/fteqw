@@ -92,6 +92,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #ifdef MULTITHREAD
 void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize);
 void Sys_WaitOnThread(void *thread);
+void Sys_DetachThread(void *thread);
 
 #define THREADP_IDLE -5
 #define THREADP_NORMAL 0

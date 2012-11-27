@@ -10,6 +10,17 @@
 #define TERRAINTHICKNESS 16
 #define TERRAINACTIVESECTIONS 1000
 
+/*
+a note on networking:
+By default terrain is NOT networked. This means content is loaded without networking delays.
+If you wish to edit the terrain collaboratively, you can enable the mod_terrain_networked cvar.
+When set, changes on the server will notify clients that a section has changed, and the client will reload it as needed.
+Changes on the client WILL NOT notify the server, and will get clobbered if the change is also made on the server.
+This means for editing purposes, you MUST funnel it via ssqc with your own permission checks.
+It also means for explosions and local stuff, the server will merely restate changes from impacts if you do them early. BUT DO NOT CALL THE EDIT FUNCTION IF THE SERVER HAS ALREADY APPLIED THE CHANGE.
+*/
+cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
+
 //heightmaps work thusly:
 //there is one raw heightmap file
 //the file is split to 4*4 sections.
@@ -258,6 +269,15 @@ static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy)
 	sy &= CHUNKLIMIT-1;
 	return va("maps/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
 }
+static char *Terr_TempDiskSectionName(heightmap_t *hm, int sx, int sy)
+{
+	sx -= CHUNKBIAS;
+	sy -= CHUNKBIAS;
+	//wrap cleanly
+	sx &= CHUNKLIMIT-1;
+	sy &= CHUNKLIMIT-1;
+	return va("temp/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
+}
 static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 {
 	dsection_t *ds = NULL;
@@ -268,6 +288,14 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	float *colours;
 #endif
 	void *ptr;
+
+	if (mod_terrain_networked.ival)
+	{
+#ifndef CLIENTONLY
+		if (hm != sv.world.worldmodel->terrain)
+#endif
+			return NULL;
+	}
 
 	/*queue the file for download if we don't have it yet*/
 	if (FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&ds) < 0
@@ -544,12 +572,12 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	return s;
 }
 
-static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
+//doesn't clear edited/dirty flags or anything
+static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, char *fname)
 {
 #ifndef SERVERONLY
 	dsection_t ds;
 	dsmesh_t dm;
-	char *fname;
 	unsigned char *lm;
 	vfsfile_t *f;
 	int nothing = 0;
@@ -608,7 +636,6 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	ds.maxh = s->maxh;
 	ds.ents_num = s->numents;
 
-	fname = Terr_DiskSectionName(hm, sx, sy);
 	FS_CreatePath(fname, FS_GAMEONLY);
 
 	f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
@@ -683,7 +710,7 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, qboolean dolo
 }
 
 /*save all currently loaded sections*/
-int HeightMap_Save(heightmap_t *hm)
+int Heightmap_Save(heightmap_t *hm)
 {
 	hmsection_t *s;
 	int x, y;
@@ -697,7 +724,7 @@ int HeightMap_Save(heightmap_t *hm)
 				continue;
 			if (s->flags & TSF_EDITED)
 			{
-				if (Terr_SaveSection(hm, s, x, y))
+				if (Terr_SaveSection(hm, s, x, y, Terr_DiskSectionName(hm, x, y)))
 				{
 					s->flags &= ~TSF_EDITED;
 					sectionssaved++;
@@ -708,6 +735,68 @@ int HeightMap_Save(heightmap_t *hm)
 
 	return sectionssaved;
 }
+
+#ifndef CLIENTONLY
+static int dehex(int i)
+{
+	if      (i >= '0' && i <= '9')
+		return (i-'0');
+	else if (i >= 'A' && i <= 'F')
+		return (i-'A'+10);
+	else
+		return (i-'a'+10);
+}
+
+//on servers, we can get requests to download current map sections. if so, give them it.
+qboolean Terrain_LocateSection(char *name, flocation_t *loc)
+{
+	heightmap_t *hm;
+	hmsection_t *s;
+	int x, y;
+	int nlen = strlen(name);
+
+	//reject if its not in maps
+	if (strncmp(name, "maps/", 5))
+		return false;
+	//or too short
+	if (nlen < 17+5)
+		return false;
+	//reject if its not a section...
+	if (strncmp(name+nlen - 17, "/sect_", 6) || strcmp(name+nlen - 4, ".hms"))
+		return false;
+	
+	//FIXME: find the right map instead
+	hm = sv.world.worldmodel->terrain;
+
+	if (!hm)	//its not terrain.
+		return false;
+
+	x = dehex(name[nlen-17+ 6])<<8;
+	x|= dehex(name[nlen-17+ 7])<<4;
+	x|= dehex(name[nlen-17+ 8])<<0;
+
+	y = dehex(name[nlen-17+10])<<8;
+	y|= dehex(name[nlen-17+11])<<4;
+	y|= dehex(name[nlen-17+12])<<0;
+
+	x += CHUNKBIAS;
+	y += CHUNKBIAS;
+
+	//verify that its valid
+	if (strcmp(name, Terr_DiskSectionName(hm, x, y)))
+		return false;
+
+	s = Terr_GetSection(hm, x, y, false);
+	if (!s || !(s->flags & TSF_EDITED))
+		return false;	//its not been edited, might as well just use the regular file
+
+	name = Terr_TempDiskSectionName(hm, x, y);
+	if (!Terr_SaveSection(hm, s, x, y, name))
+		return false;
+
+	return FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
+}
+#endif
 
 void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
 {
@@ -729,7 +818,7 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 		hm->relight = NULL;
 
 #ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
+	if (qrenderer == QR_OPENGL && qglDeleteBuffersARB)
 	{
 		qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
 		qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
@@ -2491,35 +2580,6 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 	}
 }
 
-//Heightmap_NativeBoxContents
-enum
-{
-	ter_reload,			//
-	ter_save,			//
-	ter_sethole,		//vector pos, float radius, floatbool hole
-	ter_height_set,		//vector pos, float radius, float newheight
-	ter_height_smooth,	//vector pos, float radius, float percent
-	ter_height_spread,	//vector pos, float radius, float percent
-	ter_raise,			//vector pos, float radius, float heightchange
-	ter_lower,			//vector pos, float radius, float heightchange
-	ter_tex_kill,		//vector pos, void junk, void junk, string texname
-	ter_tex_get,		//vector pos, void junk, float imagenum
-	ter_mixpaint,		//vector pos, float radius, float percent, string texname
-	ter_mixconcentrate,	//vector pos, float radius, float percent
-	ter_mixnoise,		//vector pos, float radius, float percent
-	ter_mixblur,		//vector pos, float radius, float percent
-	ter_water_set,		//vector pos, float radius, float newwaterheight
-	ter_mesh_add,		//entity ent
-	ter_mesh_kill,		//vector pos, float radius
-	ter_tint,			//vector pos, float radius, float percent, vector newcol, float newalph
-	ter_height_flatten,	//vector pos, float radius, float percent
-//	ter_poly_add,		//add a poly, woo
-//	ter_poly_remove,	//remove polys
-
-//	ter_autopaint_h,	//vector pos, float radius, float percent, string tex1, string tex2				(paint tex1/tex2
-//	ter_autopaint_n	//vector pos, float radius, float percent, string tex1, string tex2
-};
-
 void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *vmw = prinst->parms->user;
@@ -2548,7 +2608,7 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		Terr_PurgeTerrainModel(mod, false, true);
 		break;
 	case ter_save:
-		Con_Printf("%i sections saved\n", HeightMap_Save(hm));
+		Con_Printf("%i sections saved\n", Heightmap_Save(hm));
 		break;
 	case ter_sethole:
 	/*	{
@@ -2623,16 +2683,16 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 //	case ter_mixset:
 //		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixset, G_VECTOR(OFS_PARM4));
 //		break;
-	case ter_mixpaint:
+	case ter_mix_paint:
 		ted_itterate(hm, tid_exponential, pos, radius, quant/10, SECTTEXSIZE, ted_mixpaint, PR_GetStringOfs(prinst, OFS_PARM4));
 		break;
-	case ter_mixconcentrate:
+	case ter_mix_concentrate:
 		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixconcentrate, NULL);
 		break;
-	case ter_mixnoise:
+	case ter_mix_noise:
 		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixnoise, NULL);
 		break;
-	case ter_mixblur:
+	case ter_mix_blur:
 		Vector4Set(tally, 0, 0, 0, 0);
 		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixtally, &tally);
 		VectorScale(tally, 1/(tally[3]*255), tally);
@@ -3006,5 +3066,10 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname)
 	Terr_FinishTerrain(hm, "terrainshader", loadname);
 
 	return hm;
+}
+
+void Terr_Init(void)
+{
+	Cvar_Register(&mod_terrain_networked, "Terrain");
 }
 #endif

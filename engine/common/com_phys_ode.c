@@ -482,7 +482,7 @@ void            (ODE_API *dJointSetUniversalParam)(dJointID, int parameter, dRea
 //void            (ODE_API *dJointSetPistonAnchorOffset)(dJointID j, dReal x, dReal y, dReal z, dReal dx, dReal dy, dReal dz);
 //void            (ODE_API *dJointSetPistonParam)(dJointID, int parameter, dReal value);
 //void            (ODE_API *dJointAddPistonForce)(dJointID joint, dReal force);
-//void            (ODE_API *dJointSetFixed)(dJointID);
+void            (ODE_API *dJointSetFixed)(dJointID);
 //void            (ODE_API *dJointSetFixedParam)(dJointID, int parameter, dReal value);
 //void            (ODE_API *dJointSetAMotorNumAxes)(dJointID, int num);
 //void            (ODE_API *dJointSetAMotorAxis)(dJointID, int anum, int rel, dReal x, dReal y, dReal z);
@@ -947,7 +947,7 @@ static dllfunction_t odefuncs[] =
 //	{"dJointSetPistonAnchorOffset",					(void **) &dJointSetPistonAnchorOffset},
 //	{"dJointSetPistonParam",						(void **) &dJointSetPistonParam},
 //	{"dJointAddPistonForce",						(void **) &dJointAddPistonForce},
-//	{"dJointSetFixed",								(void **) &dJointSetFixed},
+	{(void **) &dJointSetFixed,						"dJointSetFixed"},
 //	{"dJointSetFixedParam",							(void **) &dJointSetFixedParam},
 //	{"dJointSetAMotorNumAxes",						(void **) &dJointSetAMotorNumAxes},
 //	{"dJointSetAMotorAxis",							(void **) &dJointSetAMotorAxis},
@@ -1177,7 +1177,7 @@ void World_ODE_Init(void)
 	const char* dllname =
 	{
 # if defined(WIN64)
-		"libode1_64.dll"
+		"libode1_64"
 # elif defined(WIN32)
 		"ode_double"
 # elif defined(MACOSX)
@@ -1664,7 +1664,6 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 				break;
 			case 0:
 			default:
-				Sys_Error("what? but above the joint was valid...\n");
 				break;
 		}
 #undef SETPARAMS
@@ -1771,11 +1770,169 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	ed->ode.ode_numtriangles = numindexes/3;
 	return true;
 }
-/*
-static void World_ODE_BodyFromSkel(world_t *world)
+
+qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, float *mat, wedict_t *ent)
 {
+	dVector3 r[3];
+
+	if (!world->ode.ode_space)
+		return false;
+	bodyptr->ode_geom = dCreateBox(world->ode.ode_space, 3, 3, 3);
+	bodyptr->ode_body = dBodyCreate(world->ode.ode_world);
+	dGeomSetBody(bodyptr->ode_geom, bodyptr->ode_body);
+	dGeomSetData(bodyptr->ode_geom, (void*)ent);
+
+	r[0][0] = mat[0];
+	r[0][1] = mat[1];
+	r[0][2] = mat[2];
+	r[1][0] = mat[4];
+	r[1][1] = mat[5];
+	r[1][2] = mat[6];
+	r[2][0] = mat[8];
+	r[2][1] = mat[9];
+	r[2][2] = mat[10];
+
+	dBodySetPosition(bodyptr->ode_body, mat[3], mat[7], mat[11]);
+	dBodySetRotation(bodyptr->ode_body, r[0]);
+	dBodySetLinearVel(bodyptr->ode_body, 0, 0, 0);
+	dBodySetAngularVel(bodyptr->ode_body, 0, 0, 0);
+	return true;
 }
-*/
+
+void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat)
+{
+	const dReal *o = dBodyGetPosition(bodyptr->ode_body);
+	const dReal *r = dBodyGetRotation(bodyptr->ode_body);
+	mat[0] = r[0];
+	mat[1] = r[1];
+	mat[2] = r[2];
+	mat[3] = o[0];
+
+	mat[4] = r[4];
+	mat[5] = r[5];
+	mat[6] = r[6];
+	mat[7] = o[1];
+
+	mat[8] = r[8];
+	mat[9] = r[9];
+	mat[10] = r[10];
+	mat[11] = o[2];
+}
+
+void World_ODE_RagCreateJoint(world_t *world, odejoint_t *joint, odejointinfo_t *info, odebody_t *body1, odebody_t *body2, vec3_t aaa2[3])
+{
+	switch(info->type)
+	{
+		case JOINTTYPE_POINT:
+			joint->ode_joint = dJointCreateBall(world->ode.ode_world, 0);
+			break;
+		case JOINTTYPE_HINGE:
+			joint->ode_joint = dJointCreateHinge(world->ode.ode_world, 0);
+			break;
+		case JOINTTYPE_SLIDER:
+			joint->ode_joint = dJointCreateSlider(world->ode.ode_world, 0);
+			break;
+		case JOINTTYPE_UNIVERSAL:
+			joint->ode_joint = dJointCreateUniversal(world->ode.ode_world, 0);
+			break;
+		case JOINTTYPE_HINGE2:
+			joint->ode_joint = dJointCreateHinge2(world->ode.ode_world, 0);
+			break;
+		case JOINTTYPE_FIXED:
+			joint->ode_joint = dJointCreateFixed(world->ode.ode_world, 0);
+			break;
+		default:
+			joint->ode_joint = NULL;
+			break;
+	}
+	if (joint->ode_joint)
+	{
+		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
+//		dJointSetData(joint->ode_joint, NULL);
+		dJointAttach(joint->ode_joint, body1?body1->ode_body:NULL, body2?body2->ode_body:NULL);
+
+		switch(info->type)
+		{
+			case JOINTTYPE_POINT:
+				dJointSetBallAnchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				break;
+			case JOINTTYPE_HINGE:
+				dJointSetHingeAnchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetHingeAxis(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetHingeParam(joint->ode_joint, dParamFMax, info->FMax);
+				dJointSetHingeParam(joint->ode_joint, dParamHiStop, info->HiStop);	
+				dJointSetHingeParam(joint->ode_joint, dParamLoStop, info->LoStop);
+				dJointSetHingeParam(joint->ode_joint, dParamStopCFM, info->CFM);
+				dJointSetHingeParam(joint->ode_joint, dParamStopERP, info->ERP);
+				dJointSetHingeParam(joint->ode_joint, dParamVel, info->Vel);
+				break;
+			case JOINTTYPE_SLIDER:
+				dJointSetSliderAxis(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetSliderParam(joint->ode_joint, dParamFMax, info->FMax);
+				dJointSetSliderParam(joint->ode_joint, dParamHiStop, info->HiStop);
+				dJointSetSliderParam(joint->ode_joint, dParamLoStop, info->LoStop);
+				dJointSetSliderParam(joint->ode_joint, dParamStopCFM, info->CFM);
+				dJointSetSliderParam(joint->ode_joint, dParamStopERP, info->ERP);
+				dJointSetSliderParam(joint->ode_joint, dParamVel, info->Vel);
+				break;
+			case JOINTTYPE_UNIVERSAL:
+				dJointSetUniversalAnchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetUniversalAxis1(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetUniversalAxis2(joint->ode_joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
+				dJointSetUniversalParam(joint->ode_joint, dParamFMax, info->FMax);
+				dJointSetUniversalParam(joint->ode_joint, dParamHiStop, info->HiStop);
+				dJointSetUniversalParam(joint->ode_joint, dParamLoStop, info->LoStop);
+				dJointSetUniversalParam(joint->ode_joint, dParamStopCFM, info->CFM);
+				dJointSetUniversalParam(joint->ode_joint, dParamStopERP, info->ERP);
+				dJointSetUniversalParam(joint->ode_joint, dParamVel, info->Vel);
+				dJointSetUniversalParam(joint->ode_joint, dParamFMax2, info->FMax2);
+				dJointSetUniversalParam(joint->ode_joint, dParamHiStop2, info->HiStop2);
+				dJointSetUniversalParam(joint->ode_joint, dParamLoStop2, info->LoStop2);
+				dJointSetUniversalParam(joint->ode_joint, dParamStopCFM2, info->CFM2);
+				dJointSetUniversalParam(joint->ode_joint, dParamStopERP2, info->ERP2);
+				dJointSetUniversalParam(joint->ode_joint, dParamVel2, info->Vel2);
+				break;
+			case JOINTTYPE_HINGE2:
+				dJointSetHinge2Anchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetHinge2Axis1(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetHinge2Axis2(joint->ode_joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
+				dJointSetHinge2Param(joint->ode_joint, dParamFMax, info->FMax);
+				dJointSetHinge2Param(joint->ode_joint, dParamHiStop, info->HiStop);
+				dJointSetHinge2Param(joint->ode_joint, dParamLoStop, info->LoStop);
+				dJointSetHinge2Param(joint->ode_joint, dParamStopCFM, info->CFM);
+				dJointSetHinge2Param(joint->ode_joint, dParamStopERP, info->ERP);
+				dJointSetHinge2Param(joint->ode_joint, dParamVel, info->Vel);
+				dJointSetHinge2Param(joint->ode_joint, dParamFMax2, info->FMax2);
+				dJointSetHinge2Param(joint->ode_joint, dParamHiStop2, info->HiStop2);
+				dJointSetHinge2Param(joint->ode_joint, dParamLoStop2, info->LoStop2);
+				dJointSetHinge2Param(joint->ode_joint, dParamStopCFM2, info->CFM2);
+				dJointSetHinge2Param(joint->ode_joint, dParamStopERP2, info->ERP2);
+				dJointSetHinge2Param(joint->ode_joint, dParamVel2, info->Vel2);
+				break;
+			case JOINTTYPE_FIXED:
+				dJointSetFixed(joint->ode_joint);
+				break;
+		}
+	}
+}
+
+void World_ODE_RagDestroyBody(world_t *world, odebody_t *bodyptr)
+{
+	if (bodyptr->ode_geom)
+		dGeomDestroy(bodyptr->ode_geom);
+	bodyptr->ode_geom = NULL;
+	if (bodyptr->ode_body)
+		dBodyDestroy(bodyptr->ode_body);
+	bodyptr->ode_body = NULL;
+}
+
+void World_ODE_RagDestroyJoint(world_t *world, odejoint_t *joint)
+{
+	if (joint->ode_joint)
+		dJointDestroy(joint->ode_joint);
+	joint->ode_joint = NULL;
+}
+
 static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
 	dBodyID body = (dBodyID)ed->ode.ode_body;
@@ -1995,21 +2152,13 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	}
 
 	// get current data from entity
-	VectorClear(origin);
-	VectorClear(velocity);
-	//VectorClear(forward);
-	//VectorClear(left);
-	//VectorClear(up);
-	//VectorClear(spinvelocity);
-	VectorClear(angles);
-	VectorClear(avelocity);
 	gravity = true;
 	VectorCopy(ed->v->origin, origin);
 	VectorCopy(ed->v->velocity, velocity);
-	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_forward);if (val) VectorCopy(val->vector, forward);
-	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_left);if (val) VectorCopy(val->vector, left);
-	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_up);if (val) VectorCopy(val->vector, up);
-	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.spinvelocity);if (val) VectorCopy(val->vector, spinvelocity);
+	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_forward);if (val) VectorCopy(val->vector, forward); else VectorClear(forward);
+	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_left);if (val) VectorCopy(val->vector, left); else VectorClear(left);
+	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_up);if (val) VectorCopy(val->vector, up); else VectorClear(up);
+	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.spinvelocity);if (val) VectorCopy(val->vector, spinvelocity); else VectorClear(spinvelocity);
 	VectorCopy(ed->v->angles, angles);
 	VectorCopy(ed->v->avelocity, avelocity);
 	if (ed == world->edicts || (ed->xv->gravity && ed->xv->gravity <= 0.01))
@@ -2231,11 +2380,11 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 		return;
 
 	ed1 = (wedict_t *) dGeomGetData(o1);
-	if(ed1 && ed1->isfree)
-		ed1 = NULL;
+	if(!ed1 || ed1->isfree)
+		ed1 = world->edicts;
 	ed2 = (wedict_t *) dGeomGetData(o2);
-	if(ed2 && ed2->isfree)
-		ed2 = NULL;
+	if(!ed2 || ed2->isfree)
+		ed2 = world->edicts;
 
 	// generate contact points between the two non-space geoms
 	numcontacts = dCollide(o1, o2, MAX_CONTACTS, &(contact[0].geom), sizeof(contact[0]));
@@ -2317,7 +2466,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 
 void World_ODE_Frame(world_t *world, double frametime, double gravity)
 {
-	if (world->ode.ode && (world->ode.hasodeents))// || world->ode.hasragdoll))
+	if (world->ode.ode && (world->ode.hasodeents || world->ode.hasextraobjs))
 	{
 		int i;
 		wedict_t *ed;

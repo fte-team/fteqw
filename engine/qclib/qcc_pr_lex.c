@@ -22,7 +22,7 @@
 
 void QCC_PR_ConditionCompilation(void);
 pbool QCC_PR_UndefineName(char *name);
-char *QCC_PR_CheakCompConstString(char *def);
+char *QCC_PR_CheckCompConstString(char *def);
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
 pbool QCC_Include(char *filename);
 
@@ -37,6 +37,8 @@ int			pr_bracelevel;
 
 char		pr_token[8192];
 token_type_t	pr_token_type;
+int				pr_token_line;
+int				pr_token_line_last;
 QCC_type_t		*pr_immediate_type;
 QCC_eval_t		pr_immediate;
 
@@ -180,9 +182,10 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 		doubledots++;
 	}
 
+#if 0
 	currentfile += strlen(rootpath);	//could this be bad?
-
 	strcpy(fullname, rootpath);
+
 	end = fullname+strlen(end);
 	if (*fullname && end[-1] != '/')
 	{
@@ -191,6 +194,10 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 	}
 	strcpy(end, currentfile);
 	end = end+strlen(end);
+#else
+	strcpy(fullname, currentfile);
+	end = fullname+strlen(fullname);
+#endif
 
 	while (end > fullname)
 	{
@@ -1313,7 +1320,7 @@ void QCC_PR_LexString (void)
 
 			c = *end;
 			*end = '\0';
-			cnst = QCC_PR_CheakCompConstString(pr_file_p);
+			cnst = QCC_PR_CheckCompConstString(pr_file_p);
 			if (cnst==pr_file_p)
 				cnst=NULL;
 			*end = c;
@@ -2177,7 +2184,7 @@ static void QCC_PR_ExpandStrCat(char **buffer, int *bufferlen, int *buffermax,  
 	/*no null terminator, remember to cat one if required*/
 }
 
-int QCC_PR_CheakCompConst(void)
+int QCC_PR_CheckCompConst(void)
 {
 	char		*oldpr_file_p = pr_file_p;
 	int whitestart;
@@ -2470,7 +2477,7 @@ int QCC_PR_CheakCompConst(void)
 	return false;
 }
 
-char *QCC_PR_CheakCompConstString(char *def)
+char *QCC_PR_CheckCompConstString(char *def)
 {
 	char *s;
 
@@ -2480,7 +2487,7 @@ char *QCC_PR_CheakCompConstString(char *def)
 
 	if (c)
 	{
-		s = QCC_PR_CheakCompConstString(c->value);
+		s = QCC_PR_CheckCompConstString(c->value);
 		return s;
 	}
 	return def;
@@ -2519,6 +2526,9 @@ void QCC_PR_Lex (void)
 	}
 
 	QCC_PR_LexWhitespace ();
+
+	pr_token_line_last = pr_token_line;
+	pr_token_line = pr_source_line;
 
 	if (!pr_file_p)
 	{
@@ -2585,7 +2595,7 @@ void QCC_PR_Lex (void)
 	if (c == '#' && !(pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
 	{
 		pr_file_p++;
-		if (!QCC_PR_CheakCompConst())
+		if (!QCC_PR_CheckCompConst())
 		{
 			if (!QCC_PR_SimpleGetToken())
 				strcpy(pr_token, "unknown");
@@ -2600,7 +2610,7 @@ void QCC_PR_Lex (void)
 
 	if ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' )
 	{
-		if (flag_hashonly || !QCC_PR_CheakCompConst())	//look for a macro.
+		if (flag_hashonly || !QCC_PR_CheckCompConst())	//look for a macro.
 			QCC_PR_LexName ();
 		else
 			if (pr_token_type == tt_eof)
@@ -2964,6 +2974,59 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 
 	return 0;
 }
+
+//compares the types, but doesn't complain if there are optional arguments which differ
+int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
+{
+	int numargs = 0;
+	int t;
+	if (a == b)
+		return 0;
+	if (!a || !b)
+		return 1;	//different (^ and not both null)
+
+	if (a->type != b->type)
+	{
+		if (a->type != ev_variant && b->type != ev_variant)
+			return 1;
+	}
+	else if (a->size != b->size)
+		return 1;
+
+	t = a->num_parms;
+	if (t < 0)
+		t = (t * -1) - 1;
+	numargs = t;
+	t = b->num_parms;
+	if (t < 0)
+		t = (t * -1) - 1;
+	if (numargs > t)
+		numargs = t;
+
+//	if (STRCMP(a->name, b->name))	//This isn't 100% clean.
+//		return 1;
+
+	if (typecmp_lax(a->aux_type, b->aux_type))
+		return 1;
+
+	if (numargs)
+	{
+		a = a->param;
+		b = b->param;
+
+		while(numargs-->0 || (a&&b))
+		{
+			if (typecmp_lax(a, b))
+				return 1;
+
+			a=a->next;
+			b=b->next;
+		}
+	}
+
+	return 0;
+}
+
 
 QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in)
 {
@@ -3392,7 +3455,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		return QCC_PR_FindType (newt);
 	}
 
-	name = QCC_PR_CheakCompConstString(pr_token);
+	name = QCC_PR_CheckCompConstString(pr_token);
 
 	if (QCC_PR_CheckKeyword (keyword_class, "class"))
 	{

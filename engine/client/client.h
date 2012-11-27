@@ -378,11 +378,13 @@ typedef struct
 
 	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_DARKPLACES, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	vfsfile_t		*downloadqw;		// file transfer from server
-	char		downloadtempname[MAX_OSPATH];
-	char		downloadlocalname[MAX_OSPATH];
-	char		downloadremotename[MAX_OSPATH];
-	int			downloadpercent;
-	int			downloadchunknum;
+	char			downloadtempname[MAX_OSPATH];	//file its currently writing to.
+	char			downloadlocalname[MAX_OSPATH];	//file its going to be renamed to.
+	char			downloadremotename[MAX_OSPATH];	//file its coming from.
+	float			downloadpercent;	//for progress indicator.
+	int				downloadchunknum;	//for QW downloads only.
+	float			downloadstarttime;	//for speed info
+	unsigned int	downloadedbytes;	//number of bytes downloaded, for progress/speed info
 
 // demo loop control
 	int			demonum;		// -1 = don't play demos
@@ -821,6 +823,9 @@ void CL_SetInfo (int pnum, char *key, char *value);
 
 void CL_BeginServerConnect(int port);
 char *CL_TryingToConnect(void);
+
+void CL_ExecInitialConfigs(void);
+qboolean CL_CheckBootDownloads(void);
 
 #define			MAX_VISEDICTS	2048
 extern	int				cl_numvisedicts;
@@ -1347,6 +1352,14 @@ typedef struct
 	void (VARGS *getsize) (void *ctx, int *width, int *height);
 	void (VARGS *changestream) (void *ctx, char *streamname);
 } media_decoder_funcs_t;
+typedef struct {
+	void *(VARGS *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
+	void (VARGS *capture_video) (void *ctx, void *data, int frame, int width, int height);
+	void (VARGS *capture_audio) (void *ctx, void *data, int bytes);
+	void (VARGS *capture_end) (void *ctx);
+} media_encoder_funcs_t;
 extern struct plugin_s *currentplug;
 qboolean Media_RegisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs);
 qboolean Media_UnregisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs);
+qboolean Media_RegisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs);
+qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs);

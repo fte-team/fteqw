@@ -5,6 +5,7 @@ void RQ_BeginFrame(void);
 void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype), void *object, void *objtype, float *pos);
 
 void RQ_RenderBatchClear(void);
+void RQ_RenderBatch(void);
 
 typedef struct renderque_s
 {

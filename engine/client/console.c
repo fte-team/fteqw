@@ -24,10 +24,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 console_t	con_main;
 console_t	*con_current;		// points to whatever is the visible console
 console_t	*con_chat;			// points to a chat console
+conline_t *con_footerline;	//temp text at the bottom of the console
 
 #define Font_ScreenWidth() (vid.pixelwidth)
 
 static int Con_DrawProgress(int left, int right, int y);
+static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qboolean selactive, int selsx, int selex, int selsy, int seley);
 
 #ifdef QTERM
 #include <windows.h>
@@ -65,11 +67,6 @@ cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
 cvar_t		con_separatechat = CVAR("con_separatechat", "0");
 
 #define	NUM_CON_TIMES 24
-
-#define		MAXCMDLINE	256
-extern	unsigned char	key_lines[32][MAXCMDLINE];
-extern	int		edit_line;
-extern	int		key_linepos;
 
 static conline_t	*selstartline, *selendline;
 static unsigned int	selstartoffset, selendoffset;
@@ -163,6 +160,14 @@ console_t *Con_Create(char *name, unsigned int flags)
 void Con_SetActive (console_t *con)
 {
 	con_current = con;
+
+	if (con_footerline)
+	{
+		selstartline = NULL;
+		selendline = NULL;
+		Z_Free(con_footerline);
+		con_footerline = NULL;
+	}
 }
 /*for enumerating consoles*/
 qboolean Con_NameForNum(int num, char *buffer, int buffersize)
@@ -357,6 +362,55 @@ void Key_ClearTyping (void)
 	key_linepos = 1;
 }
 
+void Con_History_Load(void)
+{
+	unsigned char *cr;
+	vfsfile_t *file = FS_OpenVFS("conhistory.txt", "rb", FS_ROOT);
+
+	for (edit_line=0 ; edit_line<=CON_EDIT_LINES_MASK ; edit_line++)
+	{
+		key_lines[edit_line][0] = ']';
+		key_lines[edit_line][1] = 0;
+	}
+	edit_line = 0;
+	key_linepos = 1;
+
+	if (file)
+	{
+		while (VFS_GETS(file, key_lines[edit_line]+1, sizeof(key_lines[edit_line])-1))
+		{
+			//strip a trailing \r if its from windows.
+			cr = key_lines[edit_line] + strlen(key_lines[edit_line]);
+			if (cr > key_lines[edit_line] && cr[-1] == '\r')
+				cr[-1] = '\0';
+			edit_line = (edit_line + 1) & CON_EDIT_LINES_MASK;
+		}
+		VFS_CLOSE(file);
+	}
+	history_line = edit_line;
+}
+void Con_History_Save(void)
+{
+	vfsfile_t *file = FS_OpenVFS("conhistory.txt", "wb", FS_ROOT);
+	int line;
+	if (file)
+	{
+		line = edit_line - CON_EDIT_LINES_MASK;
+		if (line < 0)
+			line = 0;
+		for(; line < edit_line; line++)
+		{
+			VFS_PUTS(file, key_lines[line]+1);
+#ifdef _WIN32	//use an \r\n for readability with notepad.
+			VFS_PUTS(file, "\r\n");
+#else
+			VFS_PUTS(file, "\n");
+#endif
+		}
+		VFS_CLOSE(file);
+	}
+}
+
 /*
 ================
 Con_ToggleConsole_f
@@ -539,12 +593,20 @@ void Con_Init (void)
 
 void Con_Shutdown(void)
 {
+	Con_History_Save();
+
 	while(con_main.next)
 	{
 		Con_Destroy(con_main.next);
 	}
 	con_initialized = false;
 	Con_Destroy(&con_main);
+
+	selstartline = NULL;
+	selendline = NULL;
+	if (con_footerline)
+		Z_Free(con_footerline);
+	con_footerline = NULL;
 }
 
 void TTS_SayConString(conchar_t *stringtosay);
@@ -793,6 +855,47 @@ void VARGS Con_DPrintf (char *fmt, ...)
 		Con_PrintCon(&con_main, msg);
 }
 
+/*description text at the bottom of the console*/
+void Con_Footerf(qboolean append, char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+	conchar_t	marked[MAXPRINTMSG], *markedend;
+	int oldlen, newlen;
+	conline_t *newf;
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+	markedend = COM_ParseFunString(COLOR_YELLOW << CON_FGSHIFT, msg, marked, sizeof(marked), false);
+
+	newlen = markedend - marked;
+	if (append)
+		oldlen = con_footerline->length;
+	else
+		oldlen = 0;
+
+	if (!newlen && !oldlen)
+		newf = NULL;
+	else
+	{
+		newf = Z_Malloc(sizeof(*newf) + (oldlen + newlen) * sizeof(conchar_t));
+		if (con_footerline)
+			memcpy(newf, con_footerline, sizeof(*con_footerline)+oldlen*sizeof(conchar_t));
+		markedend = (void*)(newf+1);
+		markedend += oldlen;
+		memcpy(markedend, marked, newlen*sizeof(conchar_t));
+		newf->length = oldlen + newlen;
+	}
+
+	if (selstartline == con_footerline)
+		selstartline = NULL;
+	if (selendline == con_footerline)
+		selendline = NULL;
+	Z_Free(con_footerline);
+	con_footerline = newf;
+}
+
 /*
 ==============================================================================
 
@@ -811,7 +914,7 @@ y is the bottom of the input
 return value is the top of the region
 ================
 */
-int Con_DrawInput (int left, int right, int y)
+int Con_DrawInput (int left, int right, int y, qboolean selactive, int selsx, int selex, int selsy, int seley)
 {
 #ifdef _WIN32
 	extern qboolean ActiveApp;
@@ -869,7 +972,7 @@ int Con_DrawInput (int left, int right, int y)
 		{
 			int cmdstart;
 			cmdstart = text[1] == '/'?2:1;
-			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch);
+			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch, NULL);
 			if (fname)	//we can compleate it to:
 			{
 				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>' '; p++)
@@ -931,43 +1034,9 @@ int Con_DrawInput (int left, int right, int y)
 	}
 
 	/*if its getting completed to something, show some help about the command that is going to be used*/
-	if (!text[1])
-		con_commandmatch = 0;
-	if (con_commandmatch && fname && Cmd_IsCommand(text+(text[1] == '/'?2:1)))
+	if (con_footerline)
 	{
-		cvar_t *var;
-		char *desc = NULL;
-		if (!desc)
-		{
-			var = Cvar_FindVar(fname);
-			if (var && var->description)
-				desc = var->description;
-		}
-		if (!desc)
-		{
-			desc = Cmd_Describe(fname);
-		}
-
-		if (desc)
-		{
-			int lines;
-			conchar_t *starts[8];
-			conchar_t *ends[8];
-			conchar_t *end;
-			end = maskedtext;
-
-			end = COM_ParseFunString((COLOR_YELLOW<<CON_FGSHIFT), va("%s: %s", fname, desc), end, (maskedtext+sizeof(maskedtext)/sizeof(maskedtext[0])-1-end)*sizeof(maskedtext[0]), true);
-			lines = Font_LineBreaks(maskedtext, end, right - left, 8, starts, ends);
-			while(lines-->0)
-			{
-				rhs = left;
-				y -= Font_CharHeight();
-				for (cchar = starts[lines]; cchar < ends[lines]; cchar++)
-				{
-					rhs = Font_DrawChar(rhs, y, *cchar);
-				}
-			}
-		}
+		y = Con_DrawConsoleLines(con_footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley);
 	}
 
 	/*just above that, we have the tab completion list*/
@@ -984,7 +1053,7 @@ int Con_DrawInput (int left, int right, int y)
 
 		for (i = 1; ; i++)
 		{
-			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i);
+			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i, NULL);
 			if (!cmd)
 				break;
 
@@ -1188,20 +1257,13 @@ static int Con_DrawProgress(int left, int right, int y)
 		progresstext = cls.downloadlocalname;
 		progresspercent = cls.downloadpercent;
 
-		if ((int)(realtime/2)&1)
-			sprintf(progresspercenttext, " %02d%% (%ukbps)", (int)progresspercent, CL_DownloadRate()/1000);
+		CL_GetDownloadSizes(&count, &total, &extra);
+
+		if ((int)(realtime/2)&1 || total == 0)
+			sprintf(progresspercenttext, " %5.1f%% (%ukbps)", progresspercent, CL_DownloadRate()/1000);
 		else
 		{
-			CL_GetDownloadSizes(&count, &total, &extra);
-			if (total == 0)
-			{
-				//just show progress
-				sprintf(progresspercenttext, " %02f%%", progresspercent);
-			}
-			else
-			{
-				sprintf(progresspercenttext, " %02d%% (%u%skb)", (int)progresspercent, total/1024, extra?"+":"");
-			}
+			sprintf(progresspercenttext, " %5.1f%% (%u%skb)", progresspercent, total/1024, extra?"+":"");
 		}
 	}
 #ifdef RUNTIMELIGHTING
@@ -1342,72 +1404,40 @@ int Con_DrawAlternateConsoles(int lines)
 	return y;
 }
 
-/*
-================
-Con_DrawConsole
-
-Draws the console with the solid background
-================
-*/
-void Con_DrawConsole (int lines, qboolean noback)
+//draws the conline_t list bottom-up within the width of the screen until the top of the screen is reached.
+//if text is selected, the selstartline globals will be updated, so make sure the lines persist or check them.
+static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qboolean selactive, int selsx, int selex, int selsy, int seley)
 {
-	extern qboolean scr_con_forcedraw;
-	int x, y, sx, ex, linecount, linelength;
-	conline_t *l;
-	conchar_t *s;
-	int selsx, selsy, selex, seley, selactive;
-	int top;
+	int linecount;
+	int linelength;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
+	conchar_t *s;
 	int i;
-	qboolean haveprogress;
-	int hidelines;
+	int x;
 
-	if (lines <= 0)
-		return;
-
-#ifdef QTERM
-	if (qterms)
-		QT_Update();
-#endif
-
-// draw the background
-	if (!noback)
-		R2D_ConsoleBackground (0, lines, scr_con_forcedraw);
-
-	con_current->unseentext = false;
-
-	con_current->vislines = lines;
-
-	top = Con_DrawAlternateConsoles(lines);
-
-	x = 8;
-	y = lines;
-
-	selactive = Key_GetConsoleSelectionBox(&selsx, &selsy, &selex, &seley);
-
-	Font_BeginString(font_conchar, x, y, &x, &y);
-	Font_BeginString(font_conchar, selsx, selsy, &selsx, &selsy);
-	Font_BeginString(font_conchar, selex, seley, &selex, &seley);
-	ex = Font_ScreenWidth();
-	sx = x;
-	ex -= sx;
-
-	y -= Font_CharHeight();
-	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
-	y = Con_DrawInput (x, ex - x, y);
+	//deactivate the selection if the start and end is outside
+	if (
+		(selsx < sx && selex < sx) ||
+		(selsx > ex && selex > ex) ||
+		(selsy < top && seley < top) ||
+		(selsy > y && seley > y)
+		)
+		selactive = false;
 
 	if (selactive)
 	{
-		if (selsx < x)
-			selsx = x;
-		if (selex < x)
-			selex = x;
+		//clip it
+		if (selsx < sx)
+			selsx = sx;
+		if (selex < sx)
+			selex = sx;
 
 		if (selsy > y)
 			selsy = y;
 		if (seley > y)
 			seley = y;
 
+		//scale the y coord to be in lines instead of pixels
 		selsy -= y;
 		seley -= y;
 		selsy /= Font_CharHeight();
@@ -1415,6 +1445,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		selsy--;
 		seley--;
 
+		//invert the selections to make sense, text-wise
 		if (selsy == seley)
 		{
 			//single line selected backwards
@@ -1441,19 +1472,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 		seley += y;
 	}
 
-	if (!con_current->display)
-		con_current->display = con_current->current;
-	l = con_current->display;
-	hidelines = con_current->subline;
-
-	if (l != con_current->current)
-	{
-		y -= 8;
-	// draw arrows to show the buffer is backscrolled
-		for (x = sx ; x<ex; )
-			x = (Font_DrawChar (x, y, '^'|CON_WHITEMASK)-x)*4+x;
-	}
-
 	if (l && l == con_current->current && l->length == 0)
 		l = l->older;
 	for (; l; l = l->older)
@@ -1469,14 +1487,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 			starts[0] = ends[0] = NULL;
 		}
 		l->lines = linecount;
-
-		if (hidelines > 0)
-		{
-			linecount -= hidelines;
-			if (linecount < 0)
-				linecount = 0;
-			hidelines -= linecount;
-		}
 
 		while (linecount-- > 0)
 		{
@@ -1554,6 +1564,74 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (y < top)
 			break;
 	}
+	return y;
+}
+
+/*
+================
+Con_DrawConsole
+
+Draws the console with the solid background
+================
+*/
+void Con_DrawConsole (int lines, qboolean noback)
+{
+	extern qboolean scr_con_forcedraw;
+	int x, y, sx, ex;
+	conline_t *l;
+	int selsx, selsy, selex, seley, selactive;
+	int top;
+	qboolean haveprogress;
+
+	if (lines <= 0)
+		return;
+
+#ifdef QTERM
+	if (qterms)
+		QT_Update();
+#endif
+
+// draw the background
+	if (!noback)
+		R2D_ConsoleBackground (0, lines, scr_con_forcedraw);
+
+	con_current->unseentext = false;
+
+	con_current->vislines = lines;
+
+	top = Con_DrawAlternateConsoles(lines);
+
+	x = 8;
+	y = lines;
+
+	selstartline = NULL;
+	selendline = NULL;
+	selactive = Key_GetConsoleSelectionBox(&selsx, &selsy, &selex, &seley);
+
+	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_BeginString(font_conchar, selsx, selsy, &selsx, &selsy);
+	Font_BeginString(font_conchar, selex, seley, &selex, &seley);
+	ex = Font_ScreenWidth();
+	sx = x;
+	ex -= sx;
+
+	y -= Font_CharHeight();
+	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
+	y = Con_DrawInput (x, ex - x, y, selactive, selsx, selex, selsy, seley);
+
+	if (!con_current->display)
+		con_current->display = con_current->current;
+	l = con_current->display;
+
+	if (l != con_current->current)
+	{
+		y -= 8;
+	// draw arrows to show the buffer is backscrolled
+		for (x = sx ; x<ex; )
+			x = (Font_DrawChar (x, y, '^'|CON_WHITEMASK)-x)*4+x;
+	}
+
+	y = Con_DrawConsoleLines(l, sx, ex, y, top, selactive, selsx, selex, selsy, seley);
 
 	if (!haveprogress && lines == vid.height)
 	{

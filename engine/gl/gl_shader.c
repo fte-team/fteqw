@@ -936,8 +936,6 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			break;
 	};
 
-	memset(prog->handle, 0, sizeof(*prog->handle)*PERMUTATIONS);
-
 	nummodifiers = 0;
 	for (end = strchr(name, '#'); end && *end; )
 	{
@@ -965,6 +963,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
+		memset(&prog->permu[p].handle, 0, sizeof(prog->permu[p].handle));
 		if (nopermutation & p)
 		{
 			continue;
@@ -992,19 +991,19 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 #ifdef GLQUAKE
 		else if (qrenderer == QR_OPENGL)
 		{
-			if (prog->handle[p].glsl)
-				qglDeleteProgramObject_(prog->handle[p].glsl);
-			prog->handle[p].glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script, onefailed);
-			if (!prog->handle[p].glsl)
+			if (prog->permu[p].handle.glsl)
+				qglDeleteProgramObject_(prog->permu[p].handle.glsl);
+			prog->permu[p].handle.glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script, onefailed);
+			if (!prog->permu[p].handle.glsl)
 				onefailed = true;
-			if (!p && !prog->handle[p].glsl)
+			if (!p && !prog->permu[p].handle.glsl)
 				break;
 		}
 #endif
 #ifdef D3D9QUAKE
 		else if (qrenderer == QR_DIRECT3D9)
 		{
-			if (!D3D9Shader_CreateProgram(prog, p, permutationdefines, script, script))
+			if (!D3D9Shader_CreateProgram(prog, name, p, permutationdefines, script, script))
 				break;
 		}
 #endif
@@ -1041,7 +1040,7 @@ struct sbuiltin_s
 	char *body;
 } sbuiltins[] =
 {
-#ifdef GLQUAKE
+#if 0//def GLQUAKE
 	/*a quick note on glsl versions:
 	  gl versioning started with 110
 	  gles versioning started at 100 and only had a single one defined
@@ -1293,162 +1292,6 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 #endif
-#ifdef D3D9QUAKE
-	{QR_DIRECT3D9, 9, "rtlight",
-	/*
-	texture units:
-	s0=diffuse, s1=normal, s2=specular, s3=shadowmap
-	custom modifiers:
-	PCF(shadowmap)
-	CUBE(projected cubemap)
-	*/
-		"!!permu BUMP\n"
-		"!!permu SPECULAR\n"
-		"!!permu OFFSETMAPPING\n"
-		"!!permu SKELETAL\n"
-		"!!permu FOG\n"
-
-
-			"struct a2v {\n"
-				"float4 pos: POSITION;\n"
-				"float3 tc: TEXCOORD0;\n"
-				"float3 n: NORMAL0;\n"
-				"float3 s: TANGENT0;\n"
-				"float3 t: BINORMAL0;\n"
-			"};\n"
-			"struct v2f {\n"
-				"#ifndef FRAGMENT_SHADER\n"
-				"float4 pos: POSITION;\n"
-				"#endif\n"
-				"float3 tc: TEXCOORD0;\n"
-				"float3 lpos: TEXCOORD1;\n"
-			"};\n"
-
-		"#ifdef VERTEX_SHADER\n"
-			"float4x4  m_modelviewprojection;\n"
-			"float3 l_lightposition;\n"
-			"v2f main (a2v inp)\n"
-			"{\n"
-			"	v2f outp;\n"
-			"	outp.pos = mul(m_modelviewprojection, inp.pos);\n"
-			"	outp.tc = inp.tc;\n"
-
-				"float3 lightminusvertex = l_lightposition - inp.pos.xyz;\n"
-				"outp.lpos.x = dot(lightminusvertex, inp.s.xyz);\n"
-				"outp.lpos.y = dot(lightminusvertex, inp.t.xyz);\n"
-				"outp.lpos.z = dot(lightminusvertex, inp.n.xyz);\n"
-			"	return outp;\n"
-			"}\n"
-		"#endif\n"
-
-		"#ifdef FRAGMENT_SHADER\n"
-			"sampler s_t0;\n"
-			"sampler s_t1;\n"
-			"float l_lightradius;\n"
-			"float3 l_lightcolour;\n"
-			"float4 main (v2f inp) : COLOR0\n"
-			"{\n"
-			"	float3 col = l_lightcolour;\n"
-			"	col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);\n"
-			"	float3 diff = tex2D(s_t0, inp.tc);\n"
-			"	return float4(diff * col, 1);"
-			"}\n"
-		"#endif\n"
-	},
-
-	{QR_DIRECT3D9, 9, "defaultsky",
-
-			"struct a2v {\n"
-				"float4 pos: POSITION;\n"
-			"};\n"
-			"struct v2f {\n"
-				"#ifndef FRAGMENT_SHADER\n"
-				"float4 pos: POSITION;\n"
-				"#endif\n"
-				"float3 vpos: TEXCOORD0;\n"
-			"};\n"
-
-		"#ifdef VERTEX_SHADER\n"
-			"float4x4  m_modelviewprojection;\n"
-			"v2f main (a2v inp)\n"
-			"{\n"
-			"	v2f outp;\n"
-			"	outp.pos = mul(m_modelviewprojection, inp.pos);\n"
-			"	outp.vpos = inp.pos;\n"
-			"	return outp;\n"
-			"}\n"
-		"#endif\n"
-
-		"#ifdef FRAGMENT_SHADER\n"
-			"float e_time;\n"
-			"float3 e_eyepos;\n"
-
-			"float l_lightradius;\n"
-			"float3 l_lightcolour;\n"
-			"float3 l_lightposition;\n"
-
-			"sampler s_t0;\n" /*diffuse*/
-			"sampler s_t1;\n" /*normal*/
-			"sampler s_t2;\n" /*specular*/
-			"float4 main (v2f inp) : COLOR0\n"
-			"{\n"
-			"	float2 tccoord;\n"
-
-			"	float3 dir = inp.vpos - e_eyepos;\n"
-
-			"	dir.z *= 3.0;\n"
-			"	dir.xy /= 0.5*length(dir);\n"
-
-			"	tccoord = (dir.xy + e_time*0.03125);\n"
-			"	float4 solid = tex2D(s_t0, tccoord);\n"
-
-			"	tccoord = (dir.xy + e_time*0.0625);\n"
-			"	float4 clouds = tex2D(s_t1, tccoord);\n"
-
-			"	return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);\n"
-			"}\n"
-		"#endif\n"
-	},
-
-	{QR_DIRECT3D9, 9, "defaultwarp",
-		"!!cvarf r_wateralpha\n"
-		"struct a2v {\n"
-			"float4 pos: POSITION;\n"
-			"float2 tc: TEXCOORD0;\n"
-		"};\n"
-		"struct v2f {\n"
-			"#ifndef FRAGMENT_SHADER\n"
-			"float4 pos: POSITION;\n"
-			"#endif\n"
-			"float2 tc: TEXCOORD0;\n"
-		"};\n"
-		"#ifdef VERTEX_SHADER\n"
-			"float4x4  m_modelviewprojection;\n"
-			"v2f main (a2v inp)\n"
-			"{\n"
-			"	v2f outp;\n"
-			"	outp.pos = mul(m_modelviewprojection, inp.pos);\n"
-			"	outp.tc = inp.tc;\n"
-			"	return outp;\n"
-			"}\n"
-		"#endif\n"
-
-		"#ifdef FRAGMENT_SHADER\n"
-			"float cvar_r_wateralpha;\n"
-			"float e_time;\n"
-			"sampler s_t0;\n"
-			"float4 main (v2f inp) : COLOR0\n"
-			"{\n"
-			"	float2 ntc;\n"
-			"	ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
-			"	ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
-			"	float3 ts = tex2D(s_t0, ntc).xyz;\n"
-
-			"	return float4(ts, cvar_r_wateralpha);\n"
-			"}\n"
-		"#endif\n"
-	},
-#endif
 #include "r_bishaders.h"
 	{QR_NONE}
 };
@@ -1460,8 +1303,8 @@ void Shader_UnloadProg(program_t *prog)
 		int p;
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			if (prog->handle[p].glsl)
-				qglDeleteProgramObject_(prog->handle[p].glsl);
+			if (prog->permu[p].handle.glsl)
+				qglDeleteProgramObject_(prog->permu[p].handle.glsl);
 		}
 	}
 #endif
@@ -1728,18 +1571,18 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		//figure out visible attributes
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			if (!prog->handle[p].glsl)
+			if (!prog->permu[p].handle.glsl)
 				continue;
-			GLSlang_UseProgram(prog->handle[p].glsl);
+			GLSlang_UseProgram(prog->permu[p].handle.glsl);
 			for (i = 0; shader_attr_names[i].name; i++)
 			{
-				uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, shader_attr_names[i].name);
+				uniformloc = qglGetAttribLocationARB(prog->permu[p].handle.glsl, shader_attr_names[i].name);
 				if (uniformloc != -1)
 				{
 					if (shader_attr_names[i].ptype != uniformloc)
 						Con_Printf("Bad attribute\n");
 					else
-						prog->attrmask[p] |= 1u<<uniformloc;
+						prog->permu[p].attrmask |= 1u<<uniformloc;
 				}
 			}
 		}
@@ -1750,11 +1593,11 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!prog->handle[p].glsl)
+				if (!prog->permu[p].handle.glsl)
 					continue;
-				GLSlang_UseProgram(prog->handle[p].glsl);
+				GLSlang_UseProgram(prog->permu[p].handle.glsl);
 
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, shader_unif_names[i].name);
+				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, shader_unif_names[i].name);
 				if (uniformloc != -1)
 					found = true;
 
@@ -1764,7 +1607,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 						break;
 				}
 				else
-					prog->parm[prog->numparams].handle[p] = uniformloc;
+					prog->permu[p].parm[prog->numparams] = uniformloc;
 			}
 			if (found)
 			{
@@ -1797,16 +1640,16 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!prog->handle[p].glsl)
+				if (!prog->permu[p].handle.glsl)
 					continue;
-				GL_SelectProgram(prog->handle[p].glsl);
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("cvar_%s", tmpname));
+				GL_SelectProgram(prog->permu[p].handle.glsl);
+				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 				{
 					qglUniform1fARB(uniformloc, cvar->value);
 					found = true;
 				}
-				prog->parm[prog->numparams].handle[p] = uniformloc;
+				prog->permu[p].parm[prog->numparams] = uniformloc;
 			}
 			if (found)
 				prog->numparams++;
@@ -1814,14 +1657,14 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		/*set texture uniforms*/
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			if (!prog->handle[p].glsl)
+			if (!prog->permu[p].handle.glsl)
 				continue;
-			if (!(prog->attrmask[p] & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
-				prog->attrmask[p] |= (1u<<VATTR_LEG_VERTEX);
-			GLSlang_UseProgram(prog->handle[p].glsl);
+			if (!(prog->permu[p].attrmask & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
+				prog->permu[p].attrmask |= (1u<<VATTR_LEG_VERTEX);
+			GLSlang_UseProgram(prog->permu[p].handle.glsl);
 			for (i = 0; i < 8; i++)
 			{
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("s_t%i", i));
+				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("s_t%i", i));
 				if (uniformloc != -1)
 					qglUniform1iARB(uniformloc, i);
 			}
@@ -1846,20 +1689,20 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			cvar->flags |= CVAR_SHADERSYSTEM;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!prog->handle[p].glsl)
+				if (!prog->permu[p].handle.hlsl.vert || !prog->permu[p].handle.hlsl.frag)
 					continue;
-				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 1, va("cvar_%s", tmpname));
+				uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 1, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 				{
 					vec4_t v = {cvar->value, 0, 0, 0};
-					IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->handle[0].hlsl.vert);
+					IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[p].handle.hlsl.vert);
 					IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, v, 1);
 				}
-				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 2, va("cvar_%s", tmpname));
+				uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 				{
 					vec4_t v = {cvar->value, 0, 0, 0};
-					IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->handle[0].hlsl.vert);
+					IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
 					IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, v, 1);
 				}
 			}
@@ -1869,10 +1712,10 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 0, shader_unif_names[i].name);
+				uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 0, shader_unif_names[i].name);
 				if (uniformloc != -1)
 					found = true;
-				prog->parm[prog->numparams].handle[p] = uniformloc;
+				prog->permu[p].parm[prog->numparams] = uniformloc;
 			}
 			if (found)
 			{
@@ -1885,11 +1728,11 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		{
 			for (i = 0; i < 8; i++)
 			{
-				uniformloc = D3D9Shader_FindUniform(&prog->handle[p], 2, va("s_t%i", i));
+				uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, va("s_t%i", i));
 				if (uniformloc != -1)
 				{
 					int v[4] = {i};
-					IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->handle[0].hlsl.vert);
+					IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
 					IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
 				}
 			}
@@ -2087,12 +1930,12 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 			prog->parm[prog->numparams].type = parmtype;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!prog->handle[p].glsl)
+				if (!prog->permu[p].handle.glsl)
 					continue;
-				GLSlang_UseProgram(prog->handle[p].glsl);
+				GLSlang_UseProgram(prog->permu[p].handle.glsl);
 
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, token);
-				prog->parm[prog->numparams].handle[p] = uniformloc;
+				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, token);
+				prog->permu[p].parm[prog->numparams] = uniformloc;
 
 				if (uniformloc != -1)
 				{
@@ -2223,6 +2066,7 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_SPECULAR;
 		pass->tcgen = TC_GEN_BASE;
+		shader->flags |= SHADER_HASGLOSS;
 	}
 	else if (!Q_stricmp (tname, "$fullbright"))
 	{
@@ -4010,7 +3854,15 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	}
 
 	if (!TEXVALID(shader->defaulttextures.specular))
+	{
+		extern cvar_t gl_specular;
+		if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
+		{
+			if (!TEXVALID(tn->specular))
+				tn->specular = R_LoadHiResTexture(va("%s_gloss", shader->name), NULL, 0);
+		}
 		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
+	}
 	if (!TEXVALID(shader->defaulttextures.fullbright))
 		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
 }
@@ -4070,10 +3922,49 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 							"{\n"
 								"map $fullbright\n"
 							"}\n"
+							"{\n"
+								"map $specular\n"
+							"}\n"
 						"}\n"
 					);
 	}
 #endif
+
+#if 0//def D3D9QUAKE
+	if (qrenderer == QR_DIRECT3D9)
+	{
+		if (!builtin)
+			builtin = (
+						"{\n"
+							"program defaultwall\n"
+							/*"param texture 0 tex_diffuse\n"
+							"param texture 1 tex_lightmap\n"
+							"param texture 2 tex_normalmap\n"
+							"param texture 3 tex_deluxmap\n"
+							"param texture 4 tex_fullbright\n"*/
+							"{\n"
+								"map $diffuse\n"
+							"}\n"
+							"{\n"
+								"map $lightmap\n"
+							"}\n"
+							"{\n"
+								"map $normalmap\n"
+							"}\n"
+							"{\n"
+								"map $deluxmap\n"
+							"}\n"
+							"{\n"
+								"map $fullbright\n"
+							"}\n"
+							"{\n"
+								"map $specular\n"
+							"}\n"
+						"}\n"
+					);
+	}
+#endif
+
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
@@ -4127,6 +4018,9 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 						"}\n"
 						"{\n"
 							"map $fullbright\n"
+						"}\n"
+						"{\n"
+							"map $specular\n"
 						"}\n"
 					"}\n"
 				);
@@ -4214,8 +4108,10 @@ char *Shader_DefaultBSPWater(char *shortname)
 	else if (r_fastturb.ival)
 		wstyle = 0;
 #ifdef GLQUAKE
-	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && r_waterstyle.ival>0 && !r_fastturb.ival && strncmp(shortname, "*lava", 5))
-		wstyle = r_waterstyle.ival;	//r_waterstyle does not apply to lava, and requires glsl and stuff
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*lava", 5))
+		wstyle = r_lavastyle.ival;
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && strncmp(shortname, "*lava", 5))
+		wstyle = r_waterstyle.ival<1?1:r_waterstyle.ival;
 #endif
 	else
 		wstyle = 1;
@@ -4263,6 +4159,7 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 2:	//refraction of the underwater surface, with a fresnel
 			return (
 				"{\n"
+					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4279,6 +4176,7 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 3:	//reflections
 			return (
 				"{\n"
+					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4295,6 +4193,7 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 4:	//ripples
 			return (
 				"{\n"
+					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4314,6 +4213,7 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 5:	//ripples+reflections
 			return (
 				"{\n"
+					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"

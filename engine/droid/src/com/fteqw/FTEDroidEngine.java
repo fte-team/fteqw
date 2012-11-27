@@ -11,6 +11,7 @@ public class FTEDroidEngine
 	public static native int audioinfo(int arg);
 	public static native String geterrormessage();
 	public static native String getpreferedorientation();
+	public static native int getpreferedglesversion();
 	public static native void newglcontext();
 
 	static

@@ -96,7 +96,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b);
 qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);
 char		*NET_AdrToString (char *s, int len, netadr_t a);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t a);
-qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr);
+qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize);
 qboolean	NET_StringToAdr (const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 

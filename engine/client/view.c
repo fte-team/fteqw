@@ -142,19 +142,21 @@ V_CalcBob
 float V_CalcBob (int pnum, qboolean queryold)
 {
 	static	double	bobtime[MAX_SPLITS];
+	static	double	cltime[MAX_SPLITS];
 	static float	bob[MAX_SPLITS];
 	float	cycle;
 
 	if (cl.spectator)
 		return 0;
 
-	if (!cl.onground[pnum] || cl.paused || queryold)
+	if (!cl.onground[pnum] || cl.paused)
 		return bob[pnum];		// just use old value
 
 	if (cl_bobcycle.value <= 0)
 		return 0;
 
-	bobtime[pnum] += host_frametime;
+	bobtime[pnum] += cl.time - cltime[pnum];
+	cltime[pnum] = cl.time;
 	cycle = bobtime[pnum] - (int)(bobtime[pnum]/cl_bobcycle.value)*cl_bobcycle.value;
 	cycle /= cl_bobcycle.value;
 	if (cycle < cl_bobup.value)
@@ -568,7 +570,7 @@ void V_SetContentsColor (int contents)
 
 	cl.cshifts[CSHIFT_CONTENTS].percent *= v_contentblend.value;
 
-	if (cl.cshifts[CSHIFT_SERVER].percent)
+	if (cl.cshifts[CSHIFT_CONTENTS].percent)
 	{	//bound contents so it can't go negative
 		if (cl.cshifts[CSHIFT_CONTENTS].percent < 0)
 			cl.cshifts[CSHIFT_CONTENTS].percent = 0;
@@ -1292,13 +1294,16 @@ void R_DrawNameTags(void)
 			continue;
 		if (i == cl.playernum[r_refdef.currentplayernum])
 			continue;	// Don't draw tag for the local player
+		if (cl.players[i].spectator)
+			continue;
+		if (i == Cam_TrackNum(r_refdef.currentplayernum))
+			continue;
 
 		if (TP_IsPlayerVisible(nametagorg[i]))
 		{
 			VectorCopy(nametagorg[i], tagcenter);
 			tagcenter[2] += 32;
-			Matrix4x4_CM_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
-			if (center[2] > 1)
+			if (!Matrix4x4_CM_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
 				continue;
 
 			len = COM_ParseFunString(CON_WHITEMASK, cl.players[i].name, buffer, sizeof(buffer), false) - buffer;
@@ -1307,6 +1312,7 @@ void R_DrawNameTags(void)
 	}
 }
 
+void R2D_PolyBlend (void);
 void V_RenderPlayerViews(int plnum)
 {
 	int oldnuments;
@@ -1333,6 +1339,7 @@ void V_RenderPlayerViews(int plnum)
 
 	Cam_SelfTrack(plnum);
 	R_RenderView ();
+	R2D_PolyBlend ();
 	R_DrawNameTags();
 
 	cl_numvisedicts = oldnuments;

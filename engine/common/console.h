@@ -117,7 +117,6 @@ typedef struct console_s
 	int		x;				// offset in current line for next print
 	int		cr;
 	conline_t *display;		// bottom of console displays this line
-	int		subline;
 	int		vislines;		// pixel lines
 	int		linesprinted;	// for notify times
 	qboolean unseentext;
@@ -132,6 +131,15 @@ extern	console_t	con_main;
 extern	console_t	*con_current;			// point to either con_main or con_chat
 extern	console_t	*con_chat;
 
+//shared between console and keys.
+//really the console input should be in console.c instead of keys.c I suppose.
+#define		MAXCMDLINE	256
+#define		CON_EDIT_LINES_MASK ((1<<6)-1)
+extern	unsigned char	key_lines[CON_EDIT_LINES_MASK+1][MAXCMDLINE];
+extern	int		edit_line;
+extern	int		key_linepos;
+extern	int		history_line;
+
 extern int scr_chatmode;
 
 //extern int con_totallines;
@@ -144,6 +152,7 @@ void Con_CheckResize (void);
 void Con_ForceActiveNow(void);
 void Con_Init (void);
 void Con_Shutdown (void);
+void Con_History_Load(void);
 void Con_DrawConsole (int lines, qboolean noback);
 char *Con_CopyConsole(qboolean nomarkup);
 void Con_Print (char *txt);
@@ -151,6 +160,7 @@ void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_SafePrintf (char *fmt, ...) LIKEPRINTF(1);
+void Con_Footerf(qboolean append, char *fmt, ...) LIKEPRINTF(2); 
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);

@@ -1166,7 +1166,7 @@ void CLHL_LoadClientGame(void)
 
 	memset(&CLHL_cgamefuncs, 0, sizeof(CLHL_cgamefuncs));
 
-	clg = Sys_LoadLibrary("C:/Incoming/d/Half-Life/sdks/hlsdk-2.3-p3/hlsdk-2.3-p3/multiplayer/cl_dll/Debug/client", funcs);
+	clg = NULL;//Sys_LoadLibrary("C:/Incoming/d/Half-Life/sdks/hlsdk-2.3-p3/hlsdk-2.3-p3/multiplayer/cl_dll/Debug/client", funcs);
 	if (!clg)
 	{
 		path = NULL;

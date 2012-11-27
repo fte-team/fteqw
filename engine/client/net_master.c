@@ -40,6 +40,7 @@ cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
 void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 void CL_QueryServers(void);
 int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite);
+void MasterInfo_RemoveAllPlayers(void);
 
 master_t *master;
 player_t *mplayers;
@@ -495,7 +496,7 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 
 char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 {
-	char adr[MAX_ADR_SIZE];
+	static char adr[MAX_ADR_SIZE];
 
 	if (keynum < SLKEY_CUSTOM)
 	{
@@ -631,12 +632,26 @@ void Master_AddMaster (char *address, int type, char *description)
 void MasterInfo_Shutdown(void)
 {
 	master_t *mast;
+	serverinfo_t *sv;
+	MasterInfo_RemoveAllPlayers();
+	while(firstserver)
+	{
+		sv = firstserver;
+		firstserver = sv->next;
+		Z_Free(sv);
+	}
 	while(master)
 	{
 		mast = master;
 		master = mast->next;
+		if (mast->dl)
+			DL_Close(mast->dl);
 		Z_Free(mast);
 	}
+
+	maxvisibleservers = 0;
+	numvisibleservers = 0;
+	Z_Free(visibleservers);
 }
 
 void Master_AddMasterHTTP (char *address, int mastertype, char *description)
@@ -1267,6 +1282,8 @@ void MasterInfo_ProcessHTTPJSON(struct dl_download *dl)
 {
 	int len;
 	char *buf;
+	master_t *mast = dl->user_ctx;
+	mast->dl = NULL;
 	if (dl->file)
 	{
 		len = VFS_GETLEN(dl->file);
@@ -1285,11 +1302,15 @@ void MasterInfo_ProcessHTTPJSON(struct dl_download *dl)
 // wrapper functions for the different server types
 void MasterInfo_ProcessHTTPNQ(struct dl_download *dl)
 {
+	master_t *mast = dl->user_ctx;
+	mast->dl = NULL;
 	MasterInfo_ProcessHTTP(dl->file, SS_NETQUAKE);
 }
 
 void MasterInfo_ProcessHTTPQW(struct dl_download *dl)
 {
+	master_t *mast = dl->user_ctx;
+	mast->dl = NULL;
 	MasterInfo_ProcessHTTP(dl->file, SS_GENERICQUAKEWORLD);
 }
 #endif
@@ -1368,13 +1389,28 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 #endif
 #ifdef WEBCLIENT
 	case MT_MASTERHTTPJSON:
-		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPJSON);
+		if (!mast->dl)
+		{
+			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPJSON);
+			if (mast->dl)
+				mast->dl->user_ctx = mast;
+		}
 		break;
 	case MT_MASTERHTTPNQ:
-		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
+		if (!mast->dl)
+		{
+			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
+			if (mast->dl)
+				mast->dl->user_ctx = mast;
+		}
 		break;
 	case MT_MASTERHTTPQW:
-		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPQW);
+		if (!mast->dl)
+		{
+			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPQW);
+			if (mast->dl)
+				mast->dl->user_ctx = mast;
+		}
 		break;
 #endif
 	}
@@ -1757,6 +1793,16 @@ serverinfo_t *Master_InfoForNum (int num)
 	return NULL;
 }
 
+void MasterInfo_RemoveAllPlayers(void)
+{
+	player_t *p;
+	while(mplayers)
+	{
+		p = mplayers;
+		mplayers = p->next;
+		Z_Free(p);
+	}
+}
 void MasterInfo_RemovePlayers(netadr_t adr)
 {
 	player_t *p, *prev;

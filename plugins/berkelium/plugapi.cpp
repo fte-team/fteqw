@@ -8,6 +8,8 @@
 
 #include <string>
 
+qboolean inited;
+
 class decctx
 {
 public:
@@ -188,6 +190,13 @@ static void *Dec_Create(char *medianame)
 	else
 		return NULL;
 
+	if (!inited)
+	{
+		//linux lags behind and apparently returns void, so don't bother checking return values on windows, cos I'm lazy.
+		Berkelium::init(Berkelium::FileString::empty());
+		inited = qtrue;
+	}
+
 	decctx *ctx = new decctx();
 
 	Berkelium::Context* context = Berkelium::Context::create();
@@ -366,22 +375,23 @@ static void Dec_ChangeStream(void *vctx, char *newstream)
 
 static bool Dec_Init(void)
 {
-	//linux lags behind and apparently returns void.
-	Berkelium::init(Berkelium::FileString::empty());
 	return true;
 }
 
 static qintptr_t Dec_Tick(qintptr_t *args)
 {
 	//need to keep it ticking over, if any work is to be done.
-	Berkelium::update();
+	if (inited)
+		Berkelium::update();
 	return 0;
 }
 
 static qintptr_t Dec_Shutdown(qintptr_t *args)
 {
 	//force-kill all.
-	Berkelium::destroy();
+	if (inited)
+		Berkelium::destroy();
+	inited = qfalse;
 	return 0;
 }
 

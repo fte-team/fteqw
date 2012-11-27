@@ -1534,8 +1534,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 #ifdef SKELETALMODELS
 	meshcache.usebonepose = NULL;
-	if (inf->ofs_skel_xyz && 1)//!inf->ofs_skel_weight)
+	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 	{
+		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
 		meshcache.usebonepose = NULL;
 		mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
 		mesh->xyz2_array = NULL;
@@ -1548,8 +1549,10 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		mesh->xyz2_array = NULL;
 		meshcache.usebonepose = Alias_GetBonePositions(inf, &e->framestate, meshcache.bonepose, MAX_BONES, true);
 
-		if (e->fatness || !inf->ofs_skel_idx || !usebones)
+		if (e->fatness || !inf->ofs_skel_idx || !usebones || inf->numswtransforms)
 		{
+			//software bone animation
+			//there are two ways to animate a skeleton, one is to transform 
 			Alias_BuildSkeletalMesh(mesh, meshcache.usebonepose, inf);
 
 #ifdef PEXT_FATNESS
@@ -1575,6 +1578,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		}
 		else
 		{
+			//hardware bone animation
 			mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
 			mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
 			mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
@@ -5842,7 +5846,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(bones[i].name));
 			bones[i].parent = ijoint[i].parent;
 
-			GenMatrixPosQuat3Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, &basepose[i*12]);
+			GenMatrixPosQuat3Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, mat);
 
 			if (ijoint[i].parent >= 0)
 				Matrix3x4_Multiply(mat, &basepose[ijoint[i].parent*12], &basepose[i*12]);
@@ -5932,7 +5936,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		for (i = 0; i < h->num_anims; i++)
 		{
 			fgroup[i].isheirachical = true;
-			fgroup[i].loop = LittleLong(anim[i].flags) & IQM_LOOP;
+			fgroup[i].loop = !!(LittleLong(anim[i].flags) & IQM_LOOP);
 			Q_strncpyz(fgroup[i].name, strings+anim[i].name, sizeof(fgroup[i].name));
 			fgroup[i].numposes = LittleLong(anim[i].num_frames);
 			fgroup[i].poseofs = (char*)(opose+LittleLong(anim[i].first_frame)*12*h->num_poses) - (char*)&fgroup[i];

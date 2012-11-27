@@ -16,11 +16,22 @@ F11 will step through.
 
 #include "quakedef.h"
 #ifdef TEXTEDITOR
-static cvar_t alloweditor = SCVAR("alloweditor", "1");	//disallow loading editor for stepbystep debugging.
-static cvar_t editstripcr = SCVAR("edit_stripcr", "1");	//remove \r from eols (on load).
-static cvar_t editaddcr = SCVAR("edit_addcr", "1");		//make sure that each line ends with a \r (on save).
-static cvar_t edittabspacing = SCVAR("edit_tabsize", "4");
-cvar_t debugger = SCVAR("debugger", "1");
+
+#ifdef _WIN32
+#define editaddcr_default "1"
+#else
+#define editaddcr_default "0"
+#endif
+#ifdef ANDROID
+#define debugger_default "0"
+#else
+#define debugger_default "1"
+#endif
+
+static cvar_t editstripcr = CVARD("edit_stripcr", "1", "remove \\r from eols (on load)");
+static cvar_t editaddcr = CVARD("edit_addcr", editaddcr_default, "make sure that each line ends with a \\r (on save)");
+static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
+cvar_t debugger = CVARD("debugger", debugger_default, "When enabled, QC errors and debug events will enable step-by-step tracing.");
 
 #undef pr_trace
 
@@ -53,6 +64,21 @@ static void E_Free(void *mem)
 
 #define GETBLOCK(s, ret) ret = (void *)E_Malloc(sizeof(fileblock_t) + s);ret->allocatedlength = s;ret->data = (char *)ret + sizeof(fileblock_t)
 
+void PR_GenerateStatementString (progfuncs_t *progfuncs, int statementnum, char *out, int outlen);
+fileblock_t *GenAsm(int statement)
+{
+	char linebuf[256];
+	fileblock_t *b;
+	int l;
+	PR_GenerateStatementString(editprogfuncs, statement, linebuf, sizeof(linebuf));
+	l = strlen(linebuf);
+	b = E_Malloc(sizeof(fileblock_t) + l);
+	b->allocatedlength = l;
+	b->datalength = l;
+	b->data = (char *)b + sizeof(fileblock_t);
+	memcpy(b->data, linebuf, l);
+	return b;
+}
 
 static char OpenEditorFile[256];
 
@@ -61,8 +87,10 @@ qboolean editoractive;	//(export)
 qboolean editormodal;	//doesn't return. (export)
 static qboolean editorblocking;
 static qboolean madechanges;
+static qboolean editenabled;
 static qboolean insertkeyhit=true;
 static qboolean useeval;
+static qboolean stepasm;
 
 static char evalstring[256];
 
@@ -161,7 +189,7 @@ static void CloseEditor(void)
 {
 	fileblock_t *b;
 
-	key_dest = key_console;
+	key_dest = key_game;
 	editoractive = false;
 	editprogfuncs = NULL;
 
@@ -169,11 +197,11 @@ static void CloseEditor(void)
 		return;
 	OpenEditorFile[0] = '\0';
 
-	for (b = firstblock; b;)
+	while(firstblock)
 	{
-		firstblock = b;
-		b=b->next;
-		E_Free(firstblock);
+		b = firstblock;
+		firstblock=firstblock->next;
+		E_Free(b);
 	}
 
 	madechanges = false;
@@ -227,6 +255,7 @@ static qboolean EditorSaveFile(char *s)	//returns true if succesful
 	fclose(F);
 */
 	madechanges = false;
+	editenabled = true;
 	executionlinenum = -1;
 
 	return true;
@@ -236,6 +265,14 @@ static qboolean EditorSaveFile(char *s)	//returns true if succesful
 
 static void EditorNewFile(void)
 {
+	fileblock_t *b;
+	while(firstblock)
+	{
+		b = firstblock;
+		firstblock=firstblock->next;
+		E_Free(b);
+	}
+
 	GETBLOCK(64, firstblock);
 	GETBLOCK(64, firstblock->next);
 	firstblock->next->prev = firstblock;
@@ -250,9 +287,10 @@ static void EditorNewFile(void)
 
 	key_dest = key_editor;
 	editoractive = true;
+	editenabled = true;
 }
 
-static void EditorOpenFile(char *name)
+static void EditorOpenFile(char *name, qboolean readonly)
 {
 	int i;
 	char line[8192];
@@ -347,14 +385,17 @@ static void EditorOpenFile(char *name)
 
 	madechanges = false;
 	executionlinenum = -1;
+	editenabled = !readonly;
 
 	key_dest = key_editor;
 	editoractive = true;
 }
 
+extern qboolean	keydown[K_MAX];
 void Editor_Key(int key, int unicode)
 {
 	int i;
+	fileblock_t *nb;
 	if (keybindings[key][0])
 		if (!strcmp(keybindings[key][0], "toggleconsole"))
 		{
@@ -400,7 +441,7 @@ void Editor_Key(int key, int unicode)
 	if (key == K_SHIFT)
 		return;
 
-	if (useeval && key != K_F11 && key != K_F5)
+	if (useeval)
 	{
 		switch(key)
 		{
@@ -408,19 +449,19 @@ void Editor_Key(int key, int unicode)
 			if (editprogfuncs)
 				*editprogfuncs->pr_trace = 0;
 			useeval = false;
-			break;
+			return;
 		case K_F3:
 			useeval = false;
-			break;
+			return;
 		case K_DEL:
 			evalstring[0] = '\0';
-			break;
+			return;
 		case K_BACKSPACE:
 			i = strlen(evalstring);
 			if (i < 1)
-				break;
+				return;
 			evalstring[i-1] = '\0';
-			break;
+			return;
 		default:
 			if (unicode)
 			{
@@ -428,9 +469,20 @@ void Editor_Key(int key, int unicode)
 				evalstring[i] = unicode;
 				evalstring[i+1] = '\0';
 			}
+			return;
+		case K_F5:
+		case K_F9:
+		case K_F11:
+		case K_MWHEELUP:
+		case K_UPARROW:
+		case K_PGUP:
+		case K_MWHEELDOWN:
+		case K_DOWNARROW:
+		case K_PGDN:
+		case K_LEFTARROW:
+		case K_RIGHTARROW:
 			break;
 		}
-		return;
 	}
 
 /*	if (ctrl_down && (key == 'c' || key == K_INS))
@@ -466,6 +518,14 @@ void Editor_Key(int key, int unicode)
 					cursorblock = cursorblock->prev;
 					cursorlinenum--;
 				}
+				else if (cursorlinenum>1)
+				{
+					cursorlinenum--;
+					nb = GenAsm(cursorlinenum);
+					nb->next = cursorblock;
+					cursorblock->prev = nb;
+					firstblock = cursorblock = nb;
+				}
 			}
 		}
 		SetCursorpos();
@@ -489,6 +549,14 @@ void Editor_Key(int key, int unicode)
 				{
 					cursorblock = cursorblock->next;
 					cursorlinenum++;
+				}
+				else
+				{
+					cursorlinenum++;
+					nb = GenAsm(cursorlinenum);
+					nb->prev = cursorblock;
+					cursorblock->next = nb;
+					cursorblock = nb;
 				}
 			}
 		}
@@ -516,7 +584,7 @@ void Editor_Key(int key, int unicode)
 				s++;
 			}
 			if (*file)
-				EditorOpenFile(file);
+				EditorOpenFile(file, false);
 		}
 		break;
 	case K_F3:
@@ -593,14 +661,39 @@ void Editor_Key(int key, int unicode)
 
 	case K_LEFTARROW:
 		cursorx--;
+		if (keydown[K_CTRL])
+		{
+			//skip additional whitespace
+			while(cursorx > 0 && (cursorblock->data[cursorx-1] == ' ' || cursorblock->data[cursorx-1] <= '\t'))
+				cursorx--;
+			//skip over the word, to the start of it
+			while(cursorx > 0 && ((cursorblock->data[cursorx-1] >= 'a' && cursorblock->data[cursorx-1] <= 'z') ||
+								  (cursorblock->data[cursorx-1] >= 'A' && cursorblock->data[cursorx-1] <= 'Z') ||
+								  (cursorblock->data[cursorx-1] >= '0' && cursorblock->data[cursorx-1] <= '9')))
+				cursorx--;
+		}
 		if (cursorx < 0)
 			cursorx = 0;
 		break;
 
 	case K_RIGHTARROW:
-		cursorx++;
-		if (cursorx > cursorblock->datalength)
-			cursorx = cursorblock->datalength;
+		if (keydown[K_CTRL])
+		{
+			while(cursorx+1 < cursorblock->datalength && ((cursorblock->data[cursorx] >= 'a' && cursorblock->data[cursorx] <= 'z') ||
+														  (cursorblock->data[cursorx] >= 'A' && cursorblock->data[cursorx] <= 'Z') ||
+														  (cursorblock->data[cursorx] >= '0' && cursorblock->data[cursorx] <= '9')))
+				cursorx++;
+			cursorx++;
+			while(cursorx+1 < cursorblock->datalength && (cursorblock->data[cursorx] == ' ' || cursorblock->data[cursorx] <= '\t'))
+				cursorx++;
+		}
+		else
+		{
+			cursorx++;
+			if (cursorx > cursorblock->datalength)
+				cursorx = cursorblock->datalength;
+		}
+
 		break;
 
 	case K_BACKSPACE:
@@ -615,29 +708,38 @@ void Editor_Key(int key, int unicode)
 				break;
 			}
 
-			cursorlinenum-=1;
-			madechanges = true;
+			if (editenabled)
+			{
+				cursorlinenum-=1;
+				madechanges = true;
 
-			cursorblock = b->prev;
+				cursorblock = b->prev;
 
-			MakeNewSize(cursorblock, b->datalength + cursorblock->datalength+5);
+				MakeNewSize(cursorblock, b->datalength + cursorblock->datalength+5);
 
-			cursorx = cursorblock->datalength;
-			memcpy(cursorblock->data + cursorblock->datalength, b->data, b->datalength);
-			cursorblock->datalength += b->datalength;
+				cursorx = cursorblock->datalength;
+				memcpy(cursorblock->data + cursorblock->datalength, b->data, b->datalength);
+				cursorblock->datalength += b->datalength;
 
-			cursorblock->next = b->next;
-			if (b->next)
-				b->next->prev = cursorblock;
-//			cursorblock->prev->next = cursorblock->next;
-//			cursorblock->next->prev = cursorblock->prev;
+				cursorblock->next = b->next;
+				if (b->next)
+					b->next->prev = cursorblock;
+	//			cursorblock->prev->next = cursorblock->next;
+	//			cursorblock->next->prev = cursorblock->prev;
 
-			E_Free(b);
-//			cursorblock = b;
+				E_Free(b);
+	//			cursorblock = b;
+			}
+			else
+			{
+				cursorblock = cursorblock->prev;
+				cursorx = cursorblock->datalength;
+			}
 
 			break;
 		}
 	case K_DEL:	//bksp falls through.
+		if (editenabled)
 		{
 			int a;
 			fileblock_t *b;
@@ -673,6 +775,7 @@ void Editor_Key(int key, int unicode)
 		break;
 
 	case K_ENTER:
+		if (editenabled)
 		{
 			fileblock_t *b = cursorblock;
 
@@ -695,14 +798,22 @@ void Editor_Key(int key, int unicode)
 
 			cursorx = 0;
 		}
+		else if (cursorblock->next)
+		{
+			cursorblock = cursorblock->next;
+			cursorlinenum++;
+			cursorx = 0;
+		}
 		break;
 
 	case K_INS:
 		insertkeyhit = insertkeyhit?false:true;
 		break;
 	default:
+		if (!editenabled)
+			break;
 		if (unicode < ' ' && unicode != '\t')	//we deem these as unprintable
-				break;
+			break;
 
 		if (insertkeyhit)	//insert a char
 		{
@@ -735,58 +846,138 @@ void Editor_Key(int key, int unicode)
 	}
 }
 
-static void Draw_Line(int x, int y, fileblock_t *b, int cursorx)
+static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 {
-	int nx = 0, nnx;
+	int nx = 0;
+	int y;
+	char *tooltip = NULL;
+	int nnx;
 	qbyte *d = b->data;
 	qbyte *c;
 	int i;
-
-	int colour=COLOR_WHITE;
+	extern int mousecursor_x, mousecursor_y;
+	int smx = (mousecursor_x * vid.pixelwidth) / vid.width, smy = (mousecursor_y * vid.pixelheight) / vid.height;
+	unsigned int colour;
 
 	int ts = edittabspacing.value;
+			char linebuf[128];
 
 	if (cursorx >= 0)
 		c = d + cursorx;
 	else
 		c = NULL;
 
-	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_BeginString(font_conchar, nx, vy, &nx, &y);
 
 	if (ts < 1)
 		ts = 4;
 	ts*=8;
 
+	//figure out the colour
 	if (b->flags & (FB_BREAK))
-		colour = COLOR_RED;	//red
-
-	if (executionblock == b)
 	{
-		if (colour)	//break point too
-			colour = COLOR_GREEN;	//green
+		if (executionblock == b)
+			colour = COLOR_MAGENTA<<CON_FGSHIFT;
 		else
-			colour = COLOR_YELLOW;	//yellow
+			colour = COLOR_RED<<CON_FGSHIFT;
+	}
+	else
+	{
+		if (executionblock == b)
+			colour = COLOR_YELLOW<<CON_FGSHIFT;	//yellow
+		else
+			colour = COLOR_WHITE<<CON_FGSHIFT;
 	}
 
-	nx = x;
+	//if this line currently holds the mouse cursor, figure out the word that is highighted, and evaluate that word for debugging.
+	//self.ammo_shells is just 'self' if you highlight 'self', but if you highlight ammo_shells, it'll include the self, for easy debugging.
+	//use the f3 evaulator for more explicit debugging.
+	if (editprogfuncs && smy >= y && smy < y + Font_CharHeight())
+	{
+		int e, s;
+		nx = -viewportx;
+		for (i = 0; i < b->datalength; i++)
+		{
+			if (d[i] == '\t')
+			{
+				nnx=nx+ts;
+				nnx-=(nnx - -viewportx)%ts;
+			}
+			else
+				nnx = Font_CharEndCoord(font_conchar, nx, (int)d[i] | (colour));
+
+			if (smx >= nx && smx <= nnx)
+			{
+				for(s = i; s > 0; )
+				{
+					if ((d[s-1] >= 'a' && d[s-1] <= 'z') ||
+						(d[s-1] >= 'A' && d[s-1] <= 'Z') || 
+						(d[s-1] >= '0' && d[s-1] <= '9') ||
+						d[s-1] == '.' || d[s-1] == '_')
+						s--;
+					else
+						break;
+				}
+				for (e = i; e < b->datalength; )
+				{
+					if ((d[e] >= 'a' && d[e] <= 'z') ||
+						(d[e] >= 'A' && d[e] <= 'Z') || 
+						(d[e] >= '0' && d[e] <= '9') ||
+						/*d[e] == '.' ||*/ d[e] == '_')
+						e++;
+					else
+						break;
+				}
+				if (e >= s+sizeof(linebuf))
+					e = s+sizeof(linebuf) - 1;
+				memcpy(linebuf, d+s, e - s);
+				linebuf[e-s] = 0;
+				if (*linebuf)
+					tooltip = editprogfuncs->EvaluateDebugString(editprogfuncs, linebuf);
+				break;
+			}
+			nx = nnx;
+		}
+	}
+	nx = -viewportx;
 
 	for (i = 0; i < b->datalength; i++)
 	{
 		if (*d == '\t')
 		{
 			if (d == c)
-				Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK));
+			{
+				int e = Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK|CON_BLINKTEXT));
+				if (e >= vid.pixelwidth)
+					viewportx += e - vid.pixelwidth;
+				if (nx < 0)
+				{
+					viewportx -= -nx;
+					if (viewportx < 0)
+						viewportx = 0;
+				}
+			}
 			nx+=ts;
-			nx-=(nx - x)%ts;
+			nx-=(nx - -viewportx)%ts;
 			d++;
 			continue;
 		}
-		if (nx < (int)vid.pixelwidth)
-			nnx = Font_DrawChar(nx, y, (int)*d | (colour<<CON_FGSHIFT));
+		if (nx <= (int)vid.pixelwidth || cursorx>=0)
+			nnx = Font_DrawChar(nx, y, (int)*d | (colour));
 		else nnx = vid.pixelwidth;
 
 		if (d == c)
-			Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK));
+		{
+			int e = Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK|CON_BLINKTEXT));
+			if (e >= vid.pixelwidth)
+				viewportx += e - vid.pixelwidth;
+			if (nx < 0)
+			{
+				viewportx -= -nx;
+				if (viewportx < 0)
+					viewportx = 0;
+			}
+		}
 		nx = nnx;
 
 		d++;
@@ -794,8 +985,32 @@ static void Draw_Line(int x, int y, fileblock_t *b, int cursorx)
 
 	/*we didn't do the cursor! stick it at the end*/
 	if (c && c >= d)
-		Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK));
+	{
+		int e = Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK|CON_BLINKTEXT));
+		if (e >= vid.pixelwidth)
+			viewportx += e - vid.pixelwidth;
+		if (nx < 0)
+		{
+			viewportx -= -nx;
+			if (viewportx < 0)
+				viewportx = 0;
+		}
+	}
 
+	if (tooltip)
+	{
+		while(*tooltip)
+		{
+			if (*tooltip == '\n')
+			{
+				smy += Font_CharHeight();
+				smx = (mousecursor_x * vid.pixelwidth) / vid.width;
+				tooltip++;
+			}
+			else
+				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT) | (COLOR_BLACK<<CON_BGSHIFT) | CON_NONCLEARBG | *tooltip++);
+		}
+	}
 	Font_EndString(font_conchar);
 }
 
@@ -821,7 +1036,6 @@ static fileblock_t *firstline(void)
 
 void Editor_Draw(void)
 {
-	int x;
 	int y;
 	int c;
 	fileblock_t *b;
@@ -854,27 +1068,12 @@ void Editor_Draw(void)
 		}
 	}
 
-	x=0;
-	for (y = 0; y < cursorx; y++)
-	{
-		if (cursorblock->data[y] == '\0')
-			break;
-		else if (cursorblock->data[y] == '\t')
-		{
-			x+=32;
-			x&=~31;
-		}
-		else
-			x+=8;
-	}
-	x=-x + vid.width/2;
-	if (x > 0)
-		x = 0;
-
 	if (madechanges)
 		Draw_FunString (vid.width - 8, 0, "!");
 	if (!insertkeyhit)
 		Draw_FunString (vid.width - 16, 0, "O");
+	if (!editenabled)
+		Draw_FunString (vid.width - 24, 0, "R");
 	Draw_FunString(0, 0, va("%6i:%4i:%s", cursorlinenum, cursorx+1, OpenEditorFile));
 
 	if (useeval)
@@ -915,9 +1114,8 @@ void Editor_Draw(void)
 	{
 		c = -1;
 		if (b == cursorblock)
-			if ((int)(Sys_DoubleTime()*4.0) & 1)
-				c = cursorx;
-		Draw_Line(x, y, b, c);
+			c = cursorx;
+		Draw_Line(y, b, c);
 		y+=8;
 
 		if (y > vid.height)
@@ -947,10 +1145,10 @@ void Editor_Draw(void)
 	*/
 }
 
-int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **parms)
+int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int statement, int nump, char **parms)
 {
 	char *f1, *f2;
-	if (editormodal || line < 0 || !debugger.ival)
+	if (editormodal || (line < 0 && !statement) || !debugger.ival)
 		return line;	//whoops
 
 	if (qrenderer == QR_NONE)
@@ -988,38 +1186,82 @@ int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **
 		f1 += 4;
 	if (!strncmp(f2, "src/", 4))
 		f2 += 4;
-	if (!editoractive || strcmp(f1, f2))
-	{
-		if (editoractive)
-			EditorSaveFile(OpenEditorFile);
 
-		EditorOpenFile(filename);
+	stepasm = line < 0;
+
+	if (stepasm)
+	{
+		fileblock_t *nb, *lb;
+		int i;
+		EditorNewFile();
+		E_Free(firstblock->next);
+		E_Free(firstblock);
+		
+		cursorlinenum = statement;
+		firstblock = GenAsm(cursorlinenum);
+		cursorblock = firstblock;
+
+		for (i = cursorlinenum; i > 0 && i > cursorlinenum - 20; i)
+		{
+			i--;
+			firstblock->prev = GenAsm(i);
+			firstblock->prev->next = firstblock;
+			firstblock = firstblock->prev;
+		}
+		lb = cursorblock;
+		for (i = cursorlinenum; i < cursorlinenum+20; )
+		{
+			i++;
+			nb = GenAsm(i);
+			lb->next = nb;
+			nb->prev = lb;
+			lb = nb;
+		}
+	}
+	else
+	{
+		if (!editoractive || strcmp(f1, f2))
+		{
+			if (editoractive && madechanges)
+				EditorSaveFile(OpenEditorFile);
+
+			EditorOpenFile(filename, true);
+		}
+
+		for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
+			cursorblock=cursorblock->next;
 	}
 
-	for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
-		cursorblock=cursorblock->next;
+	executionlinenum = cursorlinenum;
 
 	executionblock = cursorblock;
 
 	if (!parms)
 	{
+		double oldrealtime = realtime;
 		editormodal = true;
 
 		while(editormodal && editoractive && editprogfuncs)
 		{
+			realtime = Sys_DoubleTime();
 //			key_dest = key_editor;
 			scr_disabled_for_loading=false;
 			SCR_UpdateScreen();
 			Sys_SendKeyEvents();
+			IN_Commands ();
 			S_ExtraUpdate();
 
-			NET_Sleep(100, false);	//any os.
+			NET_Sleep(20, false);	//any os.
 		}
+		realtime = oldrealtime;
 
 		editormodal = false;
 	}
 
-	return line;
+	if (stepasm)
+		return -executionlinenum;
+	else
+		return executionlinenum;
 }
 
 void Editor_ProgsKilled(progfuncs_t *dead)
@@ -1042,9 +1284,9 @@ static void Editor_f(void)
 	editprogfuncs = NULL;
 	useeval = false;
 
-	if (editoractive)
+	if (editoractive && madechanges)
 		EditorSaveFile(OpenEditorFile);
-	EditorOpenFile(Cmd_Argv(1));
+	EditorOpenFile(Cmd_Argv(1), false);
 //	EditorNewFile();
 }
 
@@ -1052,7 +1294,6 @@ void Editor_Init(void)
 {
 	Cmd_AddCommand("edit", Editor_f);
 
-	Cvar_Register(&alloweditor, "Text editor");
 	Cvar_Register(&editstripcr, "Text editor");
 	Cvar_Register(&editaddcr, "Text editor");
 	Cvar_Register(&edittabspacing, "Text editor");

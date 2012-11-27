@@ -65,7 +65,7 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 	}
 	else
 #endif
-		printf ("op%3i ");
+		printf ("op%3i ", op);
 
 	if (op == OP_IF_F || op == OP_IFNOT_F)
 		printf ("%sbranch %i",PR_GlobalString(progfuncs, arg[0]),arg[1]);
@@ -89,6 +89,135 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 	}
 	printf ("\n");
 }
+
+#ifdef _WIN32
+static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list args;
+	va_start (args, fmt);
+	vsnprintf (dest, size-1, fmt, args);
+	va_end (args);
+	//make sure its terminated.
+	dest[size-1] = 0;
+}
+#else
+#define QC_snprintfz snprintf
+#endif
+
+void PR_GenerateStatementString (progfuncs_t *progfuncs, int statementnum, char *out, int outlen)
+{
+	int		i;
+	unsigned int op;
+	unsigned int arg[3];
+
+	*out = 0;
+	outlen--;
+
+	switch(current_progstate->structtype)
+	{
+	case PST_DEFAULT:
+	case PST_QTEST:
+		op = ((dstatement16_t*)current_progstate->statements + statementnum)->op;
+		arg[0] = ((dstatement16_t*)current_progstate->statements + statementnum)->a;
+		arg[1] = ((dstatement16_t*)current_progstate->statements + statementnum)->b;
+		arg[2] = ((dstatement16_t*)current_progstate->statements + statementnum)->c;
+		break;
+	case PST_KKQWSV:
+	case PST_FTE32:
+		op = ((dstatement32_t*)current_progstate->statements + statementnum)->op;
+		arg[0] = ((dstatement32_t*)current_progstate->statements + statementnum)->a;
+		arg[1] = ((dstatement32_t*)current_progstate->statements + statementnum)->b;
+		arg[2] = ((dstatement32_t*)current_progstate->statements + statementnum)->c;
+		break;
+	}
+
+	if (current_progstate->linenums)
+	{
+		QC_snprintfz (out, outlen, "%3i: ", current_progstate->linenums[statementnum]);
+		outlen -= strlen(out);
+		out += strlen(out);
+	}
+	else
+	{
+		QC_snprintfz (out, outlen, "%3i: ", statementnum);
+		outlen -= strlen(out);
+		out += strlen(out);
+	}
+
+#ifndef MINIMAL
+	if ( (unsigned)op < OP_NUMOPS)
+	{
+		QC_snprintfz (out, outlen, "%s", pr_opcodes[op].name);
+		outlen -= strlen(out);
+		out += strlen(out);
+		QC_snprintfz (out, outlen, " ");
+		outlen -= 1;
+		out += 1;
+
+		QC_snprintfz (out, outlen, "%s ",  pr_opcodes[op].name);
+		i = strlen(pr_opcodes[op].name);
+		for ( ; i<10 ; i++)
+		{
+			QC_snprintfz (out, outlen, " ");
+			outlen -= 1;
+			out += 1;
+		}
+	}
+	else
+#endif
+	{
+		QC_snprintfz (out, outlen, "op%3i ", op);
+		outlen -= strlen(out);
+		out += strlen(out);
+	}
+
+	if (op == OP_IF_F || op == OP_IFNOT_F)
+	{
+		QC_snprintfz (out, outlen, "%sbranch %i",PR_GlobalString(progfuncs, arg[0]),arg[1]);
+		outlen -= strlen(out);
+		out += strlen(out);
+	}
+	else if (op == OP_GOTO)
+	{
+		QC_snprintfz (out, outlen, "branch %i",arg[0]);
+		outlen -= strlen(out);
+		out += strlen(out);
+	}
+	else if ( (unsigned)(op - OP_STORE_F) < 6)
+	{
+		QC_snprintfz (out, outlen, "%s",PR_GlobalString(progfuncs, arg[0]));
+		outlen -= strlen(out);
+		out += strlen(out);
+		QC_snprintfz (out, outlen, "%s", PR_GlobalStringNoContents(progfuncs, arg[1]));
+		outlen -= strlen(out);
+		out += strlen(out);
+	}
+	else
+	{
+		if (arg[0])
+		{
+			QC_snprintfz (out, outlen, "%s",PR_GlobalString(progfuncs, arg[0]));
+			outlen -= strlen(out);
+			out += strlen(out);
+		}
+		if (arg[1])
+		{
+			QC_snprintfz (out, outlen, "%s",PR_GlobalString(progfuncs, arg[1]));
+			outlen -= strlen(out);
+			out += strlen(out);
+		}
+		if (arg[2])
+		{
+			QC_snprintfz (out, outlen, "%s", PR_GlobalStringNoContents(progfuncs, arg[2]));
+			outlen -= strlen(out);
+			out += strlen(out);
+		}
+	}
+	QC_snprintfz (out, outlen, "\n");
+	outlen -= 1;
+	out += 1;
+}
+
 
 /*
 ============
@@ -351,8 +480,7 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 
 // up stack
 	pr_depth--;
-	PR_MoveParms(progfuncs, pr_stack[pr_depth].progsnum, pr_typecurrent);
-	PR_SwitchProgs(progfuncs, pr_stack[pr_depth].progsnum);
+	PR_SwitchProgsParms(progfuncs, pr_stack[pr_depth].progsnum);
 	pr_xfunction = pr_stack[pr_depth].f;
 	pr_spushed = pr_stack[pr_depth].pushed;
 
@@ -376,7 +504,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 	case PST_KKQWSV:
 		//this gets parms fine, but not locals
 		if (pr_xfunction)
-		for (i = 0; i < pr_xfunction->numparms; i++)
+		for (i = 0; i < pr_xfunction->locals; i++)
 		{
 			def16 = ED_GlobalAtOfs16(progfuncs, pr_xfunction->parm_start+i);
 			if (!def16)
@@ -449,23 +577,132 @@ char *COM_TrimString(char *str)
 	return buffer;
 }
 
+pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_t *rettype, eval_t *store)
+{
+	ddef32_t *def;
+	fdef_t *fdef;
+	eval_t *val = NULL;
+	char *c, *c2;
+	etype_t type = ev_void;
+	struct edictrun_s *ed;
+
+	c = strchr(key, '.');
+	if (c) *c = '\0';
+	def = ED_FindLocalOrGlobal(progfuncs, key, &val);
+	if (!def)
+	{
+		if (*key == '\'')
+		{
+			type = ev_vector;
+			val = store;
+			val->_vector[0] = 0;
+			val->_vector[1] = 0;
+			val->_vector[2] = 0;
+		}
+		else if (*key == '\"')
+		{
+			type = ev_string;
+			val = store;
+			val->string = 0;
+		}
+		else if (atoi(key))
+		{
+			type = ev_entity;
+			val = store;
+			val->edict = atoi(key);
+		}
+	}
+	else
+		type = def->type;
+
+	if (c) *c = '.';
+	if (!val)
+	{
+		return false;
+	}
+
+	//go through ent vars
+	c = strchr(key, '.');
+	while(c)
+	{
+		c2 = c+1;
+		c = strchr(c2, '.');
+		type = type &~DEF_SAVEGLOBAL;
+		if (current_progstate && current_progstate->types)
+			type = current_progstate->types[type].type;
+		if (type != ev_entity)
+			return false;
+		if (c)*c = '\0';
+		fdef = ED_FindField(progfuncs, COM_TrimString(c2));
+		if (c)*c = '.';
+		if (!fdef)
+			return false;
+		ed = PROG_TO_EDICT(progfuncs, val->_int);
+		if (!ed)
+			return false;
+		val = (eval_t *) (((char *)ed->fields) + fdef->ofs*4);
+		type = fdef->type;
+	}
+	*rettype = type;
+	*result = val;
+	return true;
+}
+
+pbool PR_SetWatchPoint(progfuncs_t *progfuncs, char *key)
+{
+	eval_t *val;
+	eval_t fakeval;
+	etype_t type;
+
+	if (!key)
+	{
+		free(prinst->watch_name);
+		prinst->watch_name = NULL;
+		prinst->watch_ptr = NULL;
+		prinst->watch_type = ev_void;
+		return false;
+	}
+	if (!LocateDebugTerm(progfuncs, key, &val, &type, &fakeval))
+	{
+		printf("Unable to evaluate watch term \"%s\"\n", key);
+		return false;
+	}
+	if (val == &fakeval)
+	{
+		printf("Do you like watching paint dry?\n");
+		return false;
+	}
+	if (type == ev_vector)
+	{
+		printf("Unable to watch vectors. Watching the x field instead.\n");
+		type = ev_float;
+	}
+
+	free(prinst->watch_name);
+	prinst->watch_name = strdup(key);
+	prinst->watch_ptr = val;
+	prinst->watch_old = *prinst->watch_ptr;
+	prinst->watch_type = type;
+	return true;
+}
+
 char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 {
 	static char buf[256];
-	char *c, *c2;
-	ddef32_t *def;
 	fdef_t *fdef;
 	eval_t *val;
 	char *assignment;
-	int type;
-	ddef32_t fakedef;
+	etype_t type;
 	eval_t fakeval;
-	edictrun_t *ed;
 
 	assignment = strchr(key, '=');
 	if (assignment)
 		*assignment = '\0';
 
+	if (!LocateDebugTerm(progfuncs, key, &val, &type, &fakeval))
+		return "(unable to evaluate)";
+
+		/*
 	c = strchr(key, '.');
 	if (c) *c = '\0';
 	def = ED_FindLocalOrGlobal(progfuncs, key, &val);
@@ -509,7 +746,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		val = (eval_t *) (((char *)ed->fields) + fdef->ofs*4);
 		type = fdef->type;
 	}
-
+*/
 	if (assignment)
 	{
 		assignment++;
@@ -835,15 +1072,24 @@ static char *lastfile = 0;
 		return statement;
 	}
 
-	if (f && pr_progstate[pn].linenums && externs->useeditor)
+	if (f && externs->useeditor)
 	{
-		if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file+progfuncs->stringtable)
-			return statement;	//no info/same line as last time
+		if (pr_progstate[pn].linenums)
+		{
+			if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file+progfuncs->stringtable)
+				return statement;	//no info/same line as last time
 
-		lastline = pr_progstate[pn].linenums[statement];
+			lastline = pr_progstate[pn].linenums[statement];
+		}
+		else
+			lastline = -1;
 		lastfile = f->s_file+progfuncs->stringtable;
 
-		lastline = externs->useeditor(progfuncs, lastfile, lastline, 0, NULL);
+		lastline = externs->useeditor(progfuncs, lastfile, lastline, statement, 0, NULL);
+		if (lastline < 0)
+			return -lastline;
+		if (!pr_progstate[pn].linenums)
+			return statement;
 
 		if (pr_progstate[pn].linenums[statement] != lastline)
 		{
@@ -864,7 +1110,7 @@ static char *lastfile = 0;
 	{
 		if (*(f->s_file+progfuncs->stringtable))	//if we can't get the filename, then it was stripped, and debugging it like this is useless
 			if (externs->useeditor)
-				externs->useeditor(progfuncs, f->s_file+progfuncs->stringtable, -1, 0, NULL);
+				externs->useeditor(progfuncs, f->s_file+progfuncs->stringtable, -1, 0, 0, NULL);
 		return statement;
 	}
 
@@ -894,6 +1140,29 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 	float *glob;
 
 	int fnum;
+
+	if (prinst->watch_ptr && prinst->watch_ptr->_int != prinst->watch_old._int)
+	{
+		switch(prinst->watch_type)
+		{
+		case ev_float:
+			printf("Watch point \"%s\" changed by engine from %g to %g.\n", prinst->watch_name, prinst->watch_old._float, prinst->watch_ptr->_float);
+			break;
+		default:
+			printf("Watch point \"%s\" changed by engine from %i to %i.\n", prinst->watch_name, prinst->watch_old._int, prinst->watch_ptr->_int);
+			break;
+		case ev_function:
+		case ev_string:
+			printf("Watch point \"%s\" set by engine to %s.\n", prinst->watch_name, PR_ValueString(progfuncs, prinst->watch_type, prinst->watch_ptr));
+			break;
+		}
+		prinst->watch_old = *prinst->watch_ptr;
+
+		//we can't dump stack or anything, as we don't really know the stack frame that it happened in.
+
+		//stop watching
+		prinst->watch_ptr = NULL;
+	}
 
 	prinst->continuestatement = -1;
 #ifdef QCJIT
@@ -932,7 +1201,7 @@ restart:	//jumped to when the progs might have changed.
 	case PST_QTEST:
 #define INTSIZE 16
 		st16 = &pr_statements16[s];
-		while (pr_trace)
+		while (pr_trace || prinst->watch_ptr)
 		{
 			#define DEBUGABLE
 			#ifdef SEPARATEINCLUDES
@@ -954,7 +1223,7 @@ restart:	//jumped to when the progs might have changed.
 	case PST_FTE32:
 #define INTSIZE 32
 		st32 = &pr_statements32[s];
-		while (pr_trace)
+		while (pr_trace || prinst->watch_ptr)
 		{
 			#define DEBUGABLE
 			#ifdef SEPARATEINCLUDES
@@ -1003,8 +1272,7 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 			printf("PR_ExecuteProgram: tried branching into invalid progs\n");
 			return;
 		}
-		PR_MoveParms(progfuncs, newprogs, pr_typecurrent);
-		PR_SwitchProgs(progfuncs, newprogs);
+		PR_SwitchProgsParms(progfuncs, newprogs);
 	}
 
 	if (!(fnum & ~0xff000000) || (signed)(fnum & ~0xff000000) >= pr_progs->numfunctions)
@@ -1041,8 +1309,7 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 			}
 			current_progstate->builtins [i] (progfuncs, (struct globalvars_s *)current_progstate->globals);
 		}
-		PR_MoveParms(progfuncs, initial_progs, pr_typecurrent);
-		PR_SwitchProgs(progfuncs, initial_progs);
+		PR_SwitchProgsParms(progfuncs, initial_progs);
 		return;
 	}
 
@@ -1059,8 +1326,7 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 	PR_ExecuteCode(progfuncs, s);
 
 
-	PR_MoveParms(progfuncs, initial_progs, pr_typecurrent);
-	PR_SwitchProgs(progfuncs, initial_progs);
+	PR_SwitchProgsParms(progfuncs, initial_progs);
 
 	PR_FreeTemps(progfuncs, tempdepth);
 	prinst->numtempstringsstack = tempdepth;
@@ -1179,8 +1445,7 @@ void PR_ResumeThread (progfuncs_t *progfuncs, struct qcthread_s *thread)
 
 	//do progs switching stuff as appropriate. (fteqw only)
 	initial_progs = pr_typecurrent;
-	PR_MoveParms(progfuncs, prnum, pr_typecurrent);
-	PR_SwitchProgs(progfuncs, prnum);
+	PR_SwitchProgsParms(progfuncs, prnum);
 
 
 	oldexitdepth = prinst->exitdepth;
@@ -1242,8 +1507,7 @@ void PR_ResumeThread (progfuncs_t *progfuncs, struct qcthread_s *thread)
 	PR_ExecuteCode(progfuncs, s);
 
 
-	PR_MoveParms(progfuncs, initial_progs, pr_typecurrent);
-	PR_SwitchProgs(progfuncs, initial_progs);
+	PR_SwitchProgsParms(progfuncs, initial_progs);
 	PR_FreeTemps(progfuncs, tempdepth);
 	prinst->numtempstringsstack = tempdepth;
 

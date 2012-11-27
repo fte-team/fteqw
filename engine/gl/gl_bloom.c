@@ -186,8 +186,6 @@ void R_BloomBlend (void)
 	if (!r_refdef.pxrect.width || !r_refdef.pxrect.height)
 		return;
 
-	GL_Set2D(false);
-
 	/*update textures if we need to resize them*/
 	R_SetupBloomTextures(r_refdef.pxrect.width, r_refdef.pxrect.height);
 

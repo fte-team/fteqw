@@ -435,6 +435,8 @@ const char *presetexec[] =
 	"gl_specular 0;"
 	"r_loadlit 0;"
 	"r_fastsky 1;"
+	"r_waterstyle 0;"
+	"r_lavastyle 0;"
 	"r_shadow_realtime_dlight 0;"
 	"r_shadow_realtime_world 0;"
 	"r_glsl_offsetmapping 0;"
@@ -444,6 +446,7 @@ const char *presetexec[] =
 	"r_waterwarp 0;"
 	"r_lightstylesmooth 0;"
 	"r_part_density 0.25;"
+
 	, // fast options
 	"gl_texturemode ln;"
 	"r_particlesystem classic;"
@@ -452,7 +455,10 @@ const char *presetexec[] =
 	"gl_flashblend 1;"
 	"r_loadlit 1;"
 	"r_fastsky 0;"
+	"r_waterstyle 1;"
+	"r_lavastyle 1;"
 	"r_nolightdir 0;"
+
 	, // normal options
 #ifdef MINIMAL
 	"r_particlesystem classic;"
@@ -467,6 +473,7 @@ const char *presetexec[] =
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_waterwarp 1;"
+
 	, // nice options
 	"r_stains 0.75;"
 	"gl_texturemode ll;"
@@ -476,14 +483,17 @@ const char *presetexec[] =
 #endif
 	"gl_specular 1;"
 	"r_loadlit 2;"
+	"r_waterstyle 2;"
 //	"r_fastsky -1;"
 	"r_shadow_realtime_dlight 1;"
 	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
 	"gl_texture_anisotropic_filtering 4;"
+
 	, // realtime options
 //	"r_bloom 1;"
 	"r_particledesc \"spikeset high tsshaft\";"
+	"r_waterstyle 3;"
 	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"

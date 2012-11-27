@@ -5,12 +5,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "altwater",
+"!!cvarf r_glsl_turbscale\n"
 //modifier: REFLECT (s_t2 is a reflection instead of diffusemap)
 //modifier: STRENGTH (0.1 = fairly gentle, 0.2 = big waves)
 //modifier: FRESNEL (5=water)
 //modifier: TXSCALE (0.2 - wave strength)
 //modifier: RIPPLEMAP (s_t3 contains a ripplemap
 //modifier: TINT    (some colour value)
+
+"uniform float cvar_r_glsl_turbscale;\n"
 
 "#ifndef FRESNEL\n"
 "#define FRESNEL 5.0\n"
@@ -74,9 +77,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //the fresnel term decides how transparent the water should be
 "f = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));\n"
 
-"refr = texture2D(s_t0, stc + n.st*STRENGTH).rgb * TINT;\n"
+"refr = texture2D(s_t0, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;\n"
 "#ifdef REFLECT\n"
-"refl = texture2D(s_t2, stc - n.st*STRENGTH).rgb;\n"
+"refl = texture2D(s_t2, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;\n"
 "#else\n"
 "refl = texture2D(s_t2, ntc).xyz;\n"
 "#endif\n"
@@ -334,6 +337,44 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 },
 #endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "default2d",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_projection, inp.pos);\n"
+"outp.tc = inp.tc;\n"
+"outp.vcol = inp.vcol;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture;\n"
+"SamplerState SampleType;\n"
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return shaderTexture.Sample(SampleType, inp.tc) * inp.vcol;\n"
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultadditivesprite",
 "!!permu FOG\n"
@@ -431,6 +472,67 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 },
 #endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultskin",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 tc: TEXCOORD0;\n"
+"float3 normal: NORMAL;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float3 light: TEXCOORD1;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+//attribute vec2 v_texcoord;
+//uniform vec3 e_light_dir;
+//uniform vec3 e_light_mul;
+//uniform vec3 e_light_ambient;
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.light = e_light_ambient + (dot(inp.normal,e_light_dir)*e_light_mul);\n"
+"outp.tc = inp.tc.xy;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture[4]; //diffuse, lower, upper, fullbright\n"
+"SamplerState SampleType;\n"
+
+//uniform vec4 e_colourident;
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"float4 col;\n"
+"col = shaderTexture[0].Sample(SampleType, inp.tc);\n"
+"#ifdef UPPER\n"
+"float4 uc = shaderTexture[2].Sample(SampleType, inp.tc);\n"
+"col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
+"#endif\n"
+"#ifdef LOWER\n"
+"float4 lc = shaderTexture[1].Sample(SampleType, inp.tc);\n"
+"col.rgb = mix(col.rgb, lc.rgb*e_lowercolour, lc.a);\n"
+"#endif\n"
+"col.rgb *= inp.light;\n"
+"#ifdef FULLBRIGHT\n"
+"float4 fb = shaderTexture[3].Sample(SampleType, inp.tc);\n"
+"col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
+"#endif\n"
+"return col;\n"
+//		return fog4(col * e_colourident);
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultsky",
 //regular sky shader for scrolling q1 skies
@@ -461,6 +563,113 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "tccoord = (dir.xy + e_time*0.0625);\n"
 "vec4 clouds = texture2D(s_t1, tccoord);\n"
 "gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D9QUAKE
+{QR_DIRECT3D9, 9, "defaultsky",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"#ifndef FRAGMENT_SHADER\n"
+"float4 pos: POSITION;\n"
+"#endif\n"
+"float3 vpos: TEXCOORD0;\n"
+"};\n"
+
+"#ifdef VERTEX_SHADER\n"
+"float4x4  m_modelviewprojection;\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_modelviewprojection, inp.pos);\n"
+"outp.vpos = inp.pos;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"float e_time;\n"
+"float3 e_eyepos;\n"
+
+"float l_lightradius;\n"
+"float3 l_lightcolour;\n"
+"float3 l_lightposition;\n"
+
+"sampler s_t0; /*diffuse*/\n"
+"sampler s_t1; /*normal*/\n"
+"sampler s_t2; /*specular*/\n"
+"float4 main (v2f inp) : COLOR0\n"
+"{\n"
+"float2 tccoord;\n"
+
+"float3 dir = inp.vpos - e_eyepos;\n"
+
+"dir.z *= 3.0;\n"
+"dir.xy /= 0.5*length(dir);\n"
+
+"tccoord = (dir.xy + e_time*0.03125);\n"
+"float4 solid = tex2D(s_t0, tccoord);\n"
+
+"tccoord = (dir.xy + e_time*0.0625);\n"
+"float4 clouds = tex2D(s_t1, tccoord);\n"
+
+"return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultsky",
+//regular sky shader for scrolling q1 skies
+//the sky surfaces are thrown through this as-is.
+
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float3 mpos: TEXCOORD1;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.mpos = outp.pos.xyz;\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture[2];\n"
+"SamplerState SampleType;\n"
+
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"float2 tccoord;\n"
+"float3 dir = inp.mpos - v_eyepos;\n"
+"dir.z *= 3.0;\n"
+"dir.xy /= 0.5*length(dir);\n"
+"tccoord = (dir.xy + e_time*0.03125);\n"
+"float4 solid = shaderTexture[0].Sample(SampleType, tccoord);\n"
+"tccoord = (dir.xy + e_time*0.0625);\n"
+"float4 clouds = shaderTexture[1].Sample(SampleType, tccoord);\n"
+"return (solid*(1.0-clouds.a)) + (clouds.a*clouds);\n"
 "}\n"
 "#endif\n"
 },
@@ -496,6 +705,46 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 },
 #endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultsprite",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc.xy;\n"
+"outp.vcol = inp.vcol;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture;\n"
+"SamplerState SampleType;\n"
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return shaderTexture.Sample(SampleType, inp.tc) * inp.vcol;\n"
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
 "!!permu DELUXE\n"
@@ -503,13 +752,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu FOG\n"
 "!!permu LIGHTSTYLED\n"
 "!!permu BUMP\n"
+"!!permu SPECULAR\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
+"!!cvarf gl_specular\n"
 
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
 
 "#include \"sys/fog.h\"\n"
-"#if defined(OFFSETMAPPING)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
 
@@ -530,7 +781,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "attribute vec2 v_lmcoord3;\n"
 "attribute vec2 v_lmcoord4;\n"
 "#endif\n"
-"#if defined(OFFSETMAPPING)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
 "uniform vec3 e_eyepos;\n"
 "attribute vec3 v_normal;\n"
 "attribute vec3 v_svector;\n"
@@ -538,7 +789,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "void main ()\n"
 "{\n"
-"#if defined(OFFSETMAPPING)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
 "vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
 "eyevector.x = -dot(eyeminusvertex, v_svector.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
@@ -560,20 +811,23 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //samplers
 "uniform sampler2D s_t0; //diffuse\n"
 "uniform sampler2D s_t1; //lightmap0\n"
-"#if defined(OFFSETMAPPING) || defined(DELUXE)\n"
-"uniform sampler2D s_t2; //normal\n"
+"#if defined(BUMP) && (defined(OFFSETMAPPING) || defined(DELUXE) || defined(SPECULAR))\n"
+"uniform sampler2D s_t2; //normal.rgb+height.a\n"
 "#endif\n"
 "uniform sampler2D s_t3; //deluxe0\n"
 "#ifdef FULLBRIGHT\n"
 "uniform sampler2D s_t4; //fullbright\n"
 "#endif\n"
+"#ifdef SPECULAR\n"
+"uniform sampler2D s_t5; //specular\n"
+"#endif\n"
 "#ifdef LIGHTSTYLED\n"
-"uniform sampler2D s_t5; //lightmap1\n"
-"uniform sampler2D s_t6; //lightmap2\n"
-"uniform sampler2D s_t7; //lightmap3\n"
-"uniform sampler2D s_t8; //deluxe1\n"
-"uniform sampler2D s_t9; //deluxe2\n"
-"uniform sampler2D s_t10; //deluxe3\n"
+"uniform sampler2D s_t6; //lightmap1\n"
+"uniform sampler2D s_t7; //lightmap2\n"
+"uniform sampler2D s_t8; //lightmap3\n"
+"uniform sampler2D s_t9; //deluxe1\n"
+"uniform sampler2D s_t10; //deluxe2\n"
+"uniform sampler2D s_t11; //deluxe3\n"
 "#endif\n"
 
 "#ifdef LIGHTSTYLED\n"
@@ -582,6 +836,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform vec4 e_lmscale;\n"
 "#endif\n"
 "uniform vec4 e_colourident;\n"
+"#ifdef SPECULAR\n"
+"uniform float cvar_gl_specular;\n"
+"#endif\n"
 "#ifdef OFFSETMAPPING\n"
 "#include \"sys/offsetmapping.h\"\n"
 "#endif\n"
@@ -596,31 +853,53 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //yay, regular texture!
 "gl_FragColor = texture2D(s_t0, tc);\n"
 
+"#if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR))\n"
+"vec3 norm = normalize(texture2D(s_t2, tc).rgb - 0.5);\n"
+"#elif defined(SPECULAR) || defined(DELUXE)\n"
+"vec3 norm = vec3(0, 0, 1); //specular lighting expects this to exist.\n"
+"#endif\n"
+
 //modulate that by the lightmap(s) including deluxemap(s)
 "#ifdef LIGHTSTYLED\n"
-"vec4 lightmaps;\n"
+"vec3 lightmaps;\n"
 "#ifdef DELUXE\n"
-"vec3 norm = texture2D(s_t2, tc).rgb;\n"
-"lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0] * dot(norm, texture2D(s_t3, lm ).rgb);\n"
-"lightmaps += texture2D(s_t5, lm2) * e_lmscale[1] * dot(norm, texture2D(s_t8, lm2).rgb);\n"
-"lightmaps += texture2D(s_t6, lm3) * e_lmscale[2] * dot(norm, texture2D(s_t9, lm3).rgb);\n"
-"lightmaps += texture2D(s_t7, lm4) * e_lmscale[3] * dot(norm, texture2D(s_t10,lm4).rgb);\n"
+"lightmaps  = texture2D(s_t1, lm ).rgb * e_lmscale[0].rgb * dot(norm, texture2D(s_t3, lm ).rgb);\n"
+"lightmaps += texture2D(s_t6, lm2).rgb * e_lmscale[1].rgb * dot(norm, texture2D(s_t9, lm2).rgb);\n"
+"lightmaps += texture2D(s_t7, lm3).rgb * e_lmscale[2].rgb * dot(norm, texture2D(s_t10, lm3).rgb);\n"
+"lightmaps += texture2D(s_t8, lm4).rgb * e_lmscale[3].rgb * dot(norm, texture2D(s_t11,lm4).rgb);\n"
 "#else\n"
-"lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0];\n"
-"lightmaps += texture2D(s_t5, lm2) * e_lmscale[1];\n"
-"lightmaps += texture2D(s_t6, lm3) * e_lmscale[2];\n"
-"lightmaps += texture2D(s_t7, lm4) * e_lmscale[3];\n"
+"lightmaps  = texture2D(s_t1, lm ).rgb * e_lmscale[0].rgb;\n"
+"lightmaps += texture2D(s_t6, lm2).rgb * e_lmscale[1].rgb;\n"
+"lightmaps += texture2D(s_t7, lm3).rgb * e_lmscale[2].rgb;\n"
+"lightmaps += texture2D(s_t8, lm4).rgb * e_lmscale[3].rgb;\n"
 "#endif\n"
+"#else\n"
+"vec3 lightmaps = (texture2D(s_t1, lm) * e_lmscale).rgb;\n"
+//modulate by the  bumpmap dot light
+"#ifdef DELUXE\n"
+"lightmaps *= dot(norm, 2.0*(texture2D(s_t3, lm).rgb-0.5));\n"
+"#endif\n"
+"#endif\n"
+
+"#ifdef SPECULAR\n"
+"vec4 specs = texture2D(s_t5, tc);\n"
+"#ifdef DELUXE\n"
+//not lightstyled...
+"vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_t3, lm).rgb-0.5)); //this norm should be the deluxemap info instead\n"
+"#else\n"
+"vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0)); //this norm should be the deluxemap info instead\n"
+"#endif\n"
+"float spec = pow(max(dot(halfdir, norm), 0.0), 32.0 * specs.a);\n"
+"spec *= cvar_gl_specular;\n"
+//NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
+//As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
+//we default to something that is not garish when the light value is directly infront of every single pixel.
+//we can justify this difference due to the rtlight editor etc showing the *4.
+"gl_FragColor.rgb += spec * specs.rgb;\n"
+"#endif\n"
+
+//now we have our diffuse+specular terms, modulate by lightmap values.
 "gl_FragColor.rgb *= lightmaps.rgb;\n"
-"#else\n"
-"#ifdef DELUXE\n"
-//gl_FragColor.rgb = dot(normalize(texture2D(s_t2, tc).rgb - 0.5), normalize(texture2D(s_t3, lm).rgb - 0.5));
-//gl_FragColor.rgb = texture2D(s_t3, lm).rgb;
-"gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb * dot(normalize(texture2D(s_t2, tc).rgb-0.5), 2.0*(texture2D(s_t3, lm).rgb-0.5));\n"
-"#else\n"
-"gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb;\n"
-"#endif\n"
-"#endif\n"
 
 //add on the fullbright
 "#ifdef FULLBRIGHT\n"
@@ -634,6 +913,46 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FOG\n"
 "gl_FragColor = fog4(gl_FragColor);\n"
 "#endif\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultwall",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 tc: TEXCOORD0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float2 lmtc: TEXCOORD1;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc.xy;\n"
+"outp.lmtc = inp.tc.zw;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture[2];\n"
+"SamplerState SampleType[2];\n"
+
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return shaderTexture[0].Sample(SampleType[0], inp.tc) * shaderTexture[1].Sample(SampleType[1], inp.lmtc).bgra;\n"
 "}\n"
 "#endif\n"
 },
@@ -671,6 +990,91 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 },
 #endif
+#ifdef D3D9QUAKE
+{QR_DIRECT3D9, 9, "defaultwarp",
+"!!cvarf r_wateralpha\n"
+"struct a2v {\n"
+"float4 pos: POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"};\n"
+"struct v2f {\n"
+"#ifndef FRAGMENT_SHADER\n"
+"float4 pos: POSITION;\n"
+"#endif\n"
+"float2 tc: TEXCOORD0;\n"
+"};\n"
+"#ifdef VERTEX_SHADER\n"
+"float4x4  m_modelviewprojection;\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_modelviewprojection, inp.pos);\n"
+"outp.tc = inp.tc;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"float cvar_r_wateralpha;\n"
+"float e_time;\n"
+"sampler s_t0;\n"
+"float4 main (v2f inp) : COLOR0\n"
+"{\n"
+"float2 ntc;\n"
+"ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
+"ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
+"float3 ts = tex2D(s_t0, ntc).xyz;\n"
+
+"return float4(ts, cvar_r_wateralpha);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultwarp",
+"!!cvarf r_wateralpha\n"
+
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+//	float cvar_r_wateralpha;
+//	float e_time;
+//	sampler s_t0;
+"Texture2D shaderTexture;\n"
+"SamplerState SampleType;\n"
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"float2 ntc;\n"
+"ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
+"ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
+"return shaderTexture.Sample(SampleType, ntc);\n"
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "drawflat_wall",
 "!!cvarv r_floorcolor\n"
@@ -701,6 +1105,49 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "gl_FragColor = fog4(col * texture2D(s_t0, lm));\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "drawflat_wall",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 tc: TEXCOORD0;\n"
+"float3 norm: NORMAL;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float2 lmtc: TEXCOORD1;\n"
+"float4 col: TEXCOORD2;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc.xy;\n"
+"outp.lmtc = inp.tc.zw;\n"
+"outp.col = ((inp.norm.z<0.73)?float4(0.5, 0.5, 0.5, 1):float4(0.25, 0.25, 0.5, 1));\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture;\n"
+"SamplerState SampleType;\n"
+
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return inp.col * shaderTexture.Sample(SampleType, inp.lmtc);\n"
 "}\n"
 "#endif\n"
 },
@@ -1174,6 +1621,72 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 },
 #endif
+#ifdef D3D9QUAKE
+{QR_DIRECT3D9, 9, "rtlight",
+"!!permu BUMP\n"
+"!!permu SPECULAR\n"
+"!!permu OFFSETMAPPING\n"
+"!!permu SKELETAL\n"
+"!!permu FOG\n"
+
+
+//	texture units:
+//	s0=diffuse, s1=normal, s2=specular, s3=shadowmap
+//	custom modifiers:
+//	PCF(shadowmap)
+//	CUBE(projected cubemap)
+
+
+
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float3 tc: TEXCOORD0;\n"
+"float3 n: NORMAL0;\n"
+"float3 s: TANGENT0;\n"
+"float3 t: BINORMAL0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"#ifndef FRAGMENT_SHADER\n"
+"float4 pos: POSITION;\n"
+"#endif\n"
+"float3 tc: TEXCOORD0;\n"
+"float3 lpos: TEXCOORD1;\n"
+"};\n"
+
+"#ifdef VERTEX_SHADER\n"
+"float4x4  m_modelviewprojection;\n"
+"float3 l_lightposition;\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_modelviewprojection, inp.pos);\n"
+"outp.tc = inp.tc;\n"
+
+"float3 lightminusvertex = l_lightposition - inp.pos.xyz;\n"
+"outp.lpos.x = dot(lightminusvertex, inp.s.xyz);\n"
+"outp.lpos.y = dot(lightminusvertex, inp.t.xyz);\n"
+"outp.lpos.z = dot(lightminusvertex, inp.n.xyz);\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"sampler s_t0;\n"
+"sampler s_t1;\n"
+"float l_lightradius;\n"
+"float3 l_lightcolour;\n"
+"float4 main (v2f inp) : COLOR0\n"
+"{\n"
+"float3 col = l_lightcolour;\n"
+"col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);\n"
+"float3 diff = tex2D(s_t0, inp.tc);\n"
+"return float4(diff * col, 1);\n"
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "underwaterwarp",
 "!!cvarf r_waterwarp\n"
@@ -1268,6 +1781,59 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "+ texture2D(s_t2, tc)*m.b\n"
 "+ texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b))\n"
 "));\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "terrain",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float2 lmtc: TEXCOORD1;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc.xy;\n"
+"outp.lmtc = inp.tc.zw;\n"
+"outp.vcol = inp.vcol;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture[5];\n"
+"SamplerState SampleType;\n"
+
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return float4(1,1,1,1);\n"
+
+//		float4 m = shaderTexture[4].Sample(SampleType, inp.tc) ;
+
+//		return inp.vcol*float4(m.aaa,1.0)*(
+//			  shaderTexture[0].Sample(SampleType, inp.tc)*m.r
+//			+ shaderTexture[1].Sample(SampleType, inp.tc)*m.g
+//			+ shaderTexture[2].Sample(SampleType, inp.tc)*m.b
+//			+ shaderTexture[3].Sample(SampleType, inp.tc)*1.0 - (m.r + m.g + m.b))
+//			;
+
 "}\n"
 "#endif\n"
 },

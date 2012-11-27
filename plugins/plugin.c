@@ -265,6 +265,20 @@ void Con_Printf(const char *format, ...)
 
 	Con_Print(string);	
 }
+void Con_DPrintf(const char *format, ...)
+{
+	va_list		argptr;
+	static char		string[1024];
+
+	if (!Cvar_GetFloat("developer"))
+		return;
+		
+	va_start (argptr, format);
+	vsnprintf (string, sizeof(string), format,argptr);
+	va_end (argptr);
+
+	Con_Print(string);	
+}
 void Sys_Errorf(const char *format, ...)
 {
 	va_list		argptr;

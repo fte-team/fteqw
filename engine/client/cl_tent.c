@@ -1165,8 +1165,8 @@ void CL_ParseTEnt (void)
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			dl->radius = 150 + r_explosionlight.value*200;
-			dl->die = cl.time + 1;
-			dl->decay = 300;
+			dl->die = cl.time + 0.75;
+			dl->decay = dl->radius*2;
 
 			dl->color[0] = 4.0;
 			dl->color[1] = 2.0;
@@ -2890,7 +2890,7 @@ void CL_UpdateBeams (void)
 	int			i, j;
 	beam_t		*b;
 	vec3_t		dist, org;
-	float		*vieworg;
+	float		*vieworg, *viewang;
 	float		d;
 	entity_t	*ent;
 	entity_state_t *st;
@@ -2937,11 +2937,20 @@ void CL_UpdateBeams (void)
 						float	delta, f, len;
 
 						if (cl.spectator && autocam[j])
-						{
+						{	//if we're tracking someone, use their origin explicitly.
 							vieworg = pl->origin;
 						}
 						else
 							vieworg = cl.playerview[j].simorg;
+						viewang = cl.playerview[j].simangles;
+
+						if (cl_truelightning.ival >= 2 && cls.netchan.outgoing_sequence > cl_truelightning.ival)
+						{
+							frame_t *frame = &cl.frames[(cls.netchan.outgoing_sequence-cl_truelightning.ival)&UPDATE_MASK];
+							viewang = frame->playerstate[cl.playernum[j]].viewangles;
+							viewang[0] = (frame->playerstate[cl.playernum[j]].command.angles[0] * 360) / 65336.0;
+							viewang[1] = (frame->playerstate[cl.playernum[j]].command.angles[1] * 360) / 65336.0;
+						}
 
 						VectorCopy (vieworg, b->start);
 						b->start[2] += cl.crouch[j] + bound(-7, v_viewheight.value, 4);
@@ -2960,10 +2969,10 @@ void CL_UpdateBeams (void)
 						ang[0] = -ang[0];
 						if (ang[0] < -180)
 							ang[0] += 360;
-						ang[0] += (cl.playerview[j].simangles[0] - ang[0]) * f;
+						ang[0] += (viewang[0] - ang[0]) * f;
 
 						// lerp yaw
-						delta = cl.playerview[j].simangles[1] - ang[1];
+						delta = viewang[1] - ang[1];
 						if (delta > 180)
 							delta -= 360;
 						if (delta < -180)
@@ -2974,7 +2983,7 @@ void CL_UpdateBeams (void)
 						AngleVectors (ang, fwd, ang, ang);
 						VectorCopy(fwd, ang);
 						VectorScale (fwd, len, fwd);
-						VectorCopy (cl.playerview[j].simorg, org);
+						VectorCopy (vieworg, org);
 						org[2] += 16;
 						VectorAdd (org, fwd, b->end);
 

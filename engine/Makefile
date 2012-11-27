@@ -537,6 +537,7 @@ SERVER_OBJS = 		\
 	sv_ents.o 		\
 	sv_send.o 		\
 	sv_user.o		\
+	sv_sql.o		\
 	sv_mvd.o		\
 	sv_ccmds.o 		\
 	sv_rankin.o 	\
@@ -664,6 +665,8 @@ endif
 #specific targets override those defaults as needed.
 #google native client
 ifeq ($(FTE_TARGET),nacl)
+	OGGVORBISLDFLAGS=
+
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
 		CC=$(NACL_SDK_ROOT)/toolchain/linux_x86_newlib/bin/i686-nacl-gcc -DNACL -m$(BITS)
 		STRIP=$(NACL_SDK_ROOT)/toolchain/linux_x86_newlib/bin/i686-nacl-strip

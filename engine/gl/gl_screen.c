@@ -178,12 +178,6 @@ void GLSCR_UpdateScreen (void)
 
 	GL_Set2D (false);
 
-	if (!noworld)
-	{
-		R2D_PolyBlend ();
-		R2D_BrightenScreen();
-	}
-
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
@@ -208,6 +202,8 @@ void GLSCR_UpdateScreen (void)
 		SCR_DrawCursor(0);
 
 	V_UpdatePalette (false);
+	R2D_BrightenScreen();
+
 #if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif

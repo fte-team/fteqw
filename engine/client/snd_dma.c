@@ -50,7 +50,7 @@ vec3_t		listener_up = {0, 0, 1};
 vec3_t		listener_velocity;
 vec_t		sound_nominal_clip_dist=1000.0;
 
-#define	MAX_SFX		512
+#define	MAX_SFX		2048
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
 int			num_sfx;
 
@@ -901,7 +901,7 @@ void S_Startup (void)
 			break;
 	}
 
-	sound_started = !!sndcardinfo;
+	sound_started = true;//!!sndcardinfo;
 
 	S_ClearRaw();
 

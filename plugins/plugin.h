@@ -225,6 +225,7 @@ char	*va(char *format, ...);
 qintptr_t Plug_Init(qintptr_t *args);
 qboolean Plug_Export(const char *name, export_t func);
 void Con_Printf(const char *format, ...);
+void Con_DPrintf(const char *format, ...);	//not a particuarly efficient implementation, so beware.
 void Sys_Errorf(const char *format, ...);
 typedef unsigned char qbyte;
 void Q_strncpyz(char *d, const char *s, int n);

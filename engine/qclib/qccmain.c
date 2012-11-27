@@ -2013,6 +2013,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	}
 	ADD("} entvars_t;\n\n");
 
+/*
 	///temp
 	ADD2("//with this the crc isn't needed for fields.\n#ifdef FIELDSSTRUCT\nstruct fieldvars_s {\n\tint ofs;\n\tint type;\n\tchar *name;\n} fieldvars[] = {\n");
 	f=0;
@@ -2030,6 +2031,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	}
 	ADD2("\n};\n#endif\n\n");
 	//end temp
+*/
 
 	ADD2(qcva("#define PROGHEADER_CRC %i\n", crc));
 
@@ -3307,7 +3309,10 @@ void QCC_ContinueCompile(void)
 
 	if (newstylesource)
 	{
-		new_QCC_ContinueCompile();
+		do
+		{
+			new_QCC_ContinueCompile();
+		} while(currentchunk);	//while parsing through preprocessor, make sure nothing gets hurt.
 		return;
 	}
 

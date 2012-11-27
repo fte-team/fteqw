@@ -41,7 +41,7 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
-cvar_t _vid_wait_override					= CVARAF  ("vid_wait", "",
+cvar_t _vid_wait_override					= CVARAF  ("vid_wait", "1",
 													   "_vid_wait_override", CVAR_ARCHIVE);
 
 cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
@@ -169,8 +169,8 @@ cvar_t scr_viewsize							= CVARFC("viewsize", "100",
 cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "2",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 #else
-cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+cvar_t vid_conautoscale						= CVARFD ("vid_conautoscale", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Changes the 2d scale, including hud, console, and fonts. To specify an explicit font size, divide the desired 'point' size by 8 to get the scale. High values will be clamped to maintain at least a 320*200 virtual size.");
 #endif
 cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
 												CVAR_ARCHIVE);
@@ -256,13 +256,14 @@ cvar_t gl_compress							= CVARF ("gl_compress", "0",
 cvar_t gl_conback							= CVARFC ("gl_conback", "",
 												CVAR_RENDERERCALLBACK, R2D_Conback_Callback);
 cvar_t gl_contrast							= CVAR  ("gl_contrast", "1");
+cvar_t gl_brightness						= CVAR  ("gl_brightness", "0");
 cvar_t gl_detail							= CVARF ("gl_detail", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
 cvar_t gl_font								= CVARFD ("gl_font", "",
-													  CVAR_RENDERERCALLBACK, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used."
-													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this."
-													  "TTF fonts may be loaded from your windows directory. \'gl_font cour\' loads eg: c:\\windows\\fonts\\cour.ttf."
+													  CVAR_RENDERERCALLBACK, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
+													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
+													  "TTF fonts may be loaded from your windows directory. \'gl_font cour:couri\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text."
 													  ));
 cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= CVARF  ("gl_lerpimages", "1", CVAR_ARCHIVE);
@@ -337,6 +338,7 @@ cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10"
 cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
 cvar_t r_glsl_offsetmapping_reliefmapping = CVARF("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
+cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
 
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
@@ -346,15 +348,16 @@ cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_ligh
 cvar_t r_shadow_shadowmapping				= SCVARF ("debug_r_shadow_shadowmapping", "0", 0);
 cvar_t r_sun_dir							= SCVAR ("r_sun_dir", "0.2 0.5 0.8");
 cvar_t r_sun_colour							= SCVARF ("r_sun_colour", "0 0 0", CVAR_ARCHIVE);
-cvar_t r_waterstyle							= CVARF ("r_waterstyle", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
+cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, slime, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
+cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava.");
 
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
 cvar_t vid_preservegamma					= SCVAR ("vid_preservegamma", "0");
 cvar_t vid_hardwaregamma					= SCVARF ("vid_hardwaregamma", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_desktopgamma						= SCVARF ("vid_desktopgamma", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 
@@ -420,8 +423,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
 
-	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
+
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 #endif
@@ -601,6 +605,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_sun_dir, GRAPHICALNICETIES);
 	Cvar_Register (&r_sun_colour, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
+	Cvar_Register (&r_lavastyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
@@ -635,6 +640,8 @@ void Renderer_Init(void)
 	Cvar_Register(&r_fullbrightSkins, GRAPHICALNICETIES);
 
 	Cvar_Register (&mod_md3flags, GRAPHICALNICETIES);
+	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_brightness, GLRENDEREROPTIONS);
 
 
 //renderer
@@ -683,7 +690,6 @@ void Renderer_Init(void)
 
 	P_InitParticleSystem();
 	R_InitTextures();
-	RQ_Init();
 }
 
 qboolean Renderer_Started(void)
@@ -976,6 +982,7 @@ void R_ShutdownRenderer(void)
 	if (host_basepal)
 		BZ_Free(host_basepal);
 	host_basepal = NULL;
+	Surf_ClearLightmaps();
 
 	RQ_Shutdown();
 
@@ -1110,6 +1117,7 @@ TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Draw_Init();
 TRACE(("dbg: R_ApplyRenderer: draw inited\n"));
 		R_Init();
+		RQ_Init();
 		R_InitParticleTexture ();
 TRACE(("dbg: R_ApplyRenderer: renderer inited\n"));
 		SCR_Init();
@@ -1445,7 +1453,10 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	if (!newr.renderer)
 	{
 		int i;
-		Con_Printf("vid_renderer unset or unsupported. Using default.\n");
+		if (*vid_renderer.string)
+			Con_Printf("vid_renderer unsupported. Using default.\n");
+		else
+			Con_DPrintf("vid_renderer unset. Using default.\n");
 
 		//gotta do this after main hunk is saved off.
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)

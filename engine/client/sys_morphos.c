@@ -398,6 +398,8 @@ int main(int argc, char **argv)
 	quakeparms_t parms;
 	int i;
 
+	memset(&parms, 0, sizeof(parms));
+
 	COM_InitArgv(argc, argv);
 	TL_InitLanguages();
 

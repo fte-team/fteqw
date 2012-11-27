@@ -93,6 +93,7 @@ cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
 cvar_t	fs_gamename = CVARFD("fs_gamename", "", CVAR_NOSET, "The filesystem is trying to run this game");
+cvar_t	fs_gamedownload = CVARFD("fs_gamedownload", "", CVAR_NOSET, "The place that the game can be downloaded from.");
 cvar_t	com_protocolname = CVARD("com_gamename", "", "The game name used for dpmaster queries");
 cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
@@ -188,7 +189,7 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 //windows/linux have inconsistant snprintf
 //this is an attempt to get them consistant and safe
 //size is the total size of the buffer
-void VARGS Q_vsnprintfz (char *dest, size_t size, char *fmt, va_list argptr)
+void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
 {
 	vsnprintf (dest, size, fmt, argptr);
 	dest[size-1] = 0;
@@ -197,7 +198,7 @@ void VARGS Q_vsnprintfz (char *dest, size_t size, char *fmt, va_list argptr)
 //windows/linux have inconsistant snprintf
 //this is an attempt to get them consistant and safe
 //size is the total size of the buffer
-void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
+void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list		argptr;
 
@@ -405,7 +406,7 @@ char *Q_strlwr(char *s)
 int wildcmp(const char *wild, const char *string)
 {
 	const char *cp=NULL, *mp=NULL;
-
+/*
 	while ((*string) && (*wild != '*'))
 	{
 		if ((*wild != *string) && (*wild != '?'))
@@ -415,30 +416,29 @@ int wildcmp(const char *wild, const char *string)
 		wild++;
 		string++;
 	}
-
+*/
 	while (*string)
 	{
 		if (*wild == '*')
 		{
-			if (!*++wild)	//a * at the end of the wild string matches anything the checked string has
+			if (wild[1] == *string || *string == '/' || *string == '\\')
 			{
-				string = strchr(string, '/');
-				if (string && string[1])	/*don't match it if there's a / with something after it*/
-					return 0;
-				return 1;
+				//* terminates if we get a match on the char following it, or if its a \ or / char
+				wild++;
+				continue;
 			}
-			mp = wild;
-			cp = string+1;
+			string++;
 		}
 		else if ((*wild == *string) || (*wild == '?'))
 		{
+			//this char matches
 			wild++;
 			string++;
 		}
 		else
 		{
-			wild = mp;
-			string = cp++;
+			//failure
+			return false;
 		}
 	}
 
@@ -1629,7 +1629,7 @@ char *COM_SkipPath (const char *pathname)
 	last = pathname;
 	while (*pathname)
 	{
-		if (*pathname=='/')
+		if (*pathname=='/' || *pathname == '\\')
 			last = pathname+1;
 		pathname++;
 	}
@@ -2455,76 +2455,24 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 messedup:
 		if (!--outsize)
 			break;
+		uc = (unsigned char)(*str++);
 		if (utf8)
-			*out++ = (unsigned char)(*str++) | ext;
+			*out++ = uc | ext;
 		else
 		{
-			if (strchr("\n\r\t ", *str))
-				*out++ = (unsigned char)(*str++) | (ext&~CON_HIGHCHARSMASK);
-			else if (*str >= 32 && *str < 127 && !(ext&CON_HIGHCHARSMASK))
-				*out++ = (unsigned char)(*str++) | ext;
+			if (uc == '\n' || uc == '\r' || uc == '\t' || uc == ' ')
+				*out++ = uc | (ext&~CON_HIGHCHARSMASK);
+			else if (uc >= 32 && uc < 127 && !(ext&CON_HIGHCHARSMASK))
+				*out++ = uc | ext;
+			else if (uc >= 0x80+32 && uc < 0x80+127)
+				*out++ = (uc&127) | ext ^ CON_2NDCHARSETTEXT;
 			else
-				*out++ = (unsigned char)(*str++) | ext | 0xe000;
+				*out++ = uc | ext | 0xe000;
 		}
 	}
 	*out = 0;
 	return out;
 }
-
-int COM_FunStringLength(unsigned char *str)
-{
-	//FIXME:
-	int len = 0;
-
-	while(*str)
-	{
-		//fixme: utf8
-		if (*str == '^')
-		{
-			str++;
-			if (*str >= '0' && *str <= '9')
-				str++;	//invisible
-			else if (*str == '&') // extended code
-			{
-				if (isextendedcode(str[1]) && isextendedcode(str[2]))
-				{
-					str++;// foreground char
-					str++; // background char
-					str++;
-					continue;
-				}
-				// else invalid code
-				goto messedup;
-			}
-			else if (*str == 'a' || *str == 'b' || *str == 'h' || *str == 's' || *str == 'r')
-				str++;	//invisible
-			else if (*str == '^')
-			{
-				len++;	//double-code single-output
-				str++;
-			}
-			else
-			{
-				len++;	//not recognised
-				len++;
-				str++;
-			}
-			continue;
-		}
-		if (*str == '&' && str[1] == 'c' && ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
-		{
-			//ezquake colour codes
-			str += 5;
-			continue;
-		}
-messedup:
-		len++;
-		str++;
-	}
-
-	return len;
-}
-
 
 //============================================================================
 
@@ -3472,6 +3420,12 @@ void COM_Version_f (void)
 	}
 #endif
 
+#ifdef MULTITHREAD
+	Con_Printf("multithreading: enabled\n");
+#else
+	Con_Printf("multithreading: disabled\n");
+#endif
+
 	//print out which libraries are disabled
 #ifndef AVAIL_ZLIB
 	Con_Printf("zlib disabled\n");
@@ -3492,6 +3446,37 @@ void COM_Version_f (void)
 	Con_Printf("libjpeg disabled\n");
 #else
 	Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+#endif
+#ifdef SPEEX_STATIC
+	Con_Printf("speex: static\n");
+#elif defined(VOICECHAT)
+	Con_Printf("speex: dynamic\n");
+#else
+	Con_Printf("speex: disabled\n");
+#endif
+#ifdef ODE_STATIC
+	Con_Printf("ODE: static\n");
+#elif defined(USEODE)
+	Con_Printf("ODE: dynamic\n");
+#else
+	Con_Printf("ODE: disabled\n");
+#endif
+#ifndef AVAIL_OGGVORBIS
+	Con_Printf("Ogg Vorbis: disabled\n");
+#elif defined(LIBVORBISFILE_STATIC)
+	Con_Printf("Ogg Vorbis: static\n");
+#else
+	Con_Printf("Ogg Vorbis: dynamic\n");
+#endif
+#ifdef USE_MYSQL
+	Con_Printf("mySQL: dynamic\n");
+#else
+	Con_Printf("mySQL: disabled\n");
+#endif
+#ifdef USE_SQLITE
+	Con_Printf("sqlite: dynamic\n");
+#else
+	Con_Printf("sqlite: disabled\n");
 #endif
 #ifndef AVAIL_OGGVORBIS
 	Con_Printf("libvorbis disabled\n");
@@ -3734,7 +3719,7 @@ void COM_Effectinfo_Reload(void)
 	if (!f)
 		return;
 	buf = f;
-	while (*f)
+	while (f && *f)
 	{
 		f = COM_ParseToken(f, NULL);
 		if (strcmp(com_token, "\n"))
@@ -3749,7 +3734,7 @@ void COM_Effectinfo_Reload(void)
 			do
 			{
 				f = COM_ParseToken(f, NULL);
-			} while(*f && strcmp(com_token, "\n"));
+			} while(f && *f && strcmp(com_token, "\n"));
 		}
 	}
 	FS_FreeFile(buf);

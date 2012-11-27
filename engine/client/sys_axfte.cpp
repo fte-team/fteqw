@@ -64,6 +64,7 @@ public:
 	}
 	static void statuschanged(void *arg)
 	{
+		//potentially comes from another thread
 		//axfte *fte = (axfte*)arg;
 		InvalidateRect(NULL, NULL, FALSE);
 	}
@@ -602,6 +603,7 @@ public:
 						  ULONG_PTR dwContinue),
 		/* [in] */ ULONG_PTR dwContinue)
 	{
+		struct contextpublic *pub = (struct contextpublic*)plug;
 		int width, height;
 		HBITMAP bmp = (HBITMAP)funcs->GetSplashBack(plug, hdcDraw, &width, &height);
 		if (bmp)
@@ -619,6 +621,11 @@ public:
 			SelectObject(memDC, NULL);
 			DeleteDC(memDC);
 			funcs->ReleaseSplashBack(plug, bmp);
+		}
+		if (*pub->statusmessage)
+		{
+			SetBkMode(hdcDraw, TRANSPARENT);
+			TextOutA(hdcDraw, 0, 0, pub->statusmessage, strlen(pub->statusmessage));
 		}
 
 		return S_OK;
@@ -785,10 +792,6 @@ struct
 	{"Software\\Classes\\CLSID\\{"axfte_iid_str"}\\VersionIndependentProgID\\",		"FTE.FTEPlug"},
 	{"Software\\Classes\\CLSID\\{"axfte_iid_str"}\\ProgID\\",						"FTE.FTEPlug.1.0"},
 
-#ifdef warningmsg
-#pragma warningmsg("Hey, moodles, do you want the plugin to register itself as a firefox plugin at the same time as it registers itself for support in IE?")
-#endif
-	/*
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Description",										ENGINEWEBSITE},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\GeckoVersion",										"1.00"},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Path",												"***DLLNAME***"},
@@ -800,7 +803,6 @@ struct
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\MimeTypes\\application/x-qtv\\Suffixes",			"qtv"},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Suffixes\\qtv",										""},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Suffixes\\mvd",										""},
-	*/
 	{NULL}
 };
 HRESULT WINAPI DllRegisterServer(void)
@@ -826,8 +828,15 @@ HRESULT WINAPI DllRegisterServer(void)
 			RegSetValueExA(h, ls, 0, REG_SZ, (BYTE*)binaryname, strlen(binaryname));
 		else if (!strcmp(regkeys[i].value, "***VERSION***"))
 		{
-			char *ver = version_string();
-			RegSetValueExA(h, ls, 0, REG_SZ, (BYTE*)ver, strlen(ver));
+			char s[128];
+#ifdef OFFICIAL_RELEASE
+			Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+#elif defined(SVNREVISION)
+			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
+#else
+			Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
+#endif
+			RegSetValueExA(h, ls, 0, REG_SZ, (BYTE*)s, strlen(s));
 		}
 		else
 			RegSetValueExA(h, ls, 0, REG_SZ, (BYTE*)regkeys[i].value, strlen(regkeys[i].value));

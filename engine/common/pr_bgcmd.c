@@ -6,16 +6,13 @@
 
 #include <ctype.h>
 
-//fixme
-#define Z_QC_TAG 2
-#define PRSTR	0xa6ffb3d7
-
 static char *cvargroup_progs = "Progs variables";
 
 cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
 cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
-cvar_t  dpcompat_stats = CVAR("dpcompat_stats", "0");
+cvar_t pr_enable_uriget = SCVAR("pr_enable_uriget", "1");
+int tokenizeqc(char *str, qboolean dpfuckage);
 
 static char *strtoupper(char *s)
 {
@@ -50,7 +47,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
-	Cvar_Register (&dpcompat_stats, cvargroup_progs);
+	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
 
 	WPhys_Init();
 }
@@ -823,9 +820,8 @@ void QCBUILTIN PF_cvar_type (progfuncs_t *prinst, struct globalvars_s *pr_global
 			ret |= 4; // CVAR_TYPE_PRIVATE
 		if(!(v->flags & CVAR_USERCREATED))
 			ret |= 8; // CVAR_TYPE_ENGINE
-		
-		//fte cvars don't support this
-		//	ret |= 16; // CVAR_TYPE_HASDESCRIPTION
+		if (v->description)
+			ret |= 16; // CVAR_TYPE_HASDESCRIPTION
 	}
 	G_FLOAT(OFS_RETURN) = ret;
 }
@@ -1204,19 +1200,19 @@ static void PF_fwrite (progfuncs_t *prinst, int fnum, char *msg, int len)
 {
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
-		Con_Printf("PF_fgets: File out of range\n");
+		Con_Printf("PF_fwrite: File out of range\n");
 		return;	//out of range
 	}
 
 	if (!pf_fopen_files[fnum].data)
 	{
-		Con_Printf("PF_fgets: File is not open\n");
+		Con_Printf("PF_fwrite: File is not open\n");
 		return;	//not open
 	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
 	{
-		Con_Printf("PF_fgets: File is from wrong instance\n");
+		Con_Printf("PF_fwrite: File is from wrong instance\n");
 		return;	//this just isn't ours.
 	}
 
@@ -1263,6 +1259,7 @@ void PF_fcloseall (progfuncs_t *prinst)
 		Con_Printf("qc file %s was still open\n", pf_fopen_files[i].name);
 		PF_fclose_i(i);
 	}
+	tokenizeqc("", false);
 }
 
 
@@ -2151,7 +2148,7 @@ void QCBUILTIN PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_global
 	slen = strlen(s);
 
 	if (start < 0)
-		start = slen-start;
+		start = slen+start;
 	if (length < 0)
 		length = slen-start+(length+1);
 	if (start < 0)
@@ -2279,7 +2276,15 @@ void QCBUILTIN PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_strlennocol (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = COM_FunStringLength(in);
+	char result[8192];
+	unsigned int flagged[8192];
+	unsigned int len = 0;
+	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
+	COM_DeFunString(flagged, NULL, result, sizeof(result), true);
+
+	for (len = 0; result[len]; len++)
+		;
+	G_FLOAT(OFS_RETURN) = len;
 }
 
 //DP_QC_STRINGCOLORFUNCTIONS
@@ -2351,7 +2356,7 @@ struct strbuf {
 	int allocated;
 };
 
-#define NUMSTRINGBUFS 16
+#define NUMSTRINGBUFS 64
 struct strbuf strbuflist[NUMSTRINGBUFS];
 
 void PF_buf_shutdown(progfuncs_t *prinst)
@@ -2531,30 +2536,67 @@ void QCBUILTIN PF_bufstr_set  (progfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	//char *string = PR_GetStringOfs(prinst, OFS_PARM1);
-	//int order = G_FLOAT(OFS_PARM2);
+	char *string = PR_GetStringOfs(prinst, OFS_PARM1);
+	int order = G_FLOAT(OFS_PARM2);
+
+	int index;
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	Con_Printf("PF_bufstr_add: stub\n");
+	if (order)
+	{
+		//add on end
+		index = strbuflist[bufno].used;
+	}
+	else
+	{
+		//find a hole
+		for (index = 0; index < strbuflist[bufno].used; index++)
+			if (!strbuflist[bufno].strings[index])
+				break;
+	}
 
-	G_FLOAT(OFS_RETURN) = 0;
+	//expand it if needed
+	if (index >= strbuflist[bufno].allocated)
+	{
+		int oldcount;
+		oldcount = strbuflist[bufno].allocated;
+		strbuflist[bufno].allocated = (index + 256);
+		strbuflist[bufno].strings = BZ_Realloc(strbuflist[bufno].strings, strbuflist[bufno].allocated*sizeof(char*));
+		memset(strbuflist[bufno].strings+oldcount, 0, (strbuflist[bufno].allocated - oldcount) * sizeof(char*));
+	}
+
+	//add in the new string.
+	if (strbuflist[bufno].strings[index])
+		Z_Free(strbuflist[bufno].strings[index]);
+	strbuflist[bufno].strings[index] = Z_Malloc(strlen(string)+1);
+	strcpy(strbuflist[bufno].strings[index], string);
+
+	if (index >= strbuflist[bufno].used)
+		strbuflist[bufno].used = index+1;
+
+	G_FLOAT(OFS_RETURN) = index;
 }
 // #449 void(float bufhandle, float string_index) bufstr_free (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	//int index = G_FLOAT(OFS_PARM1);
+	int index = G_FLOAT(OFS_PARM1);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	Con_Printf("PF_bufstr_free: stub\n");
+	if (index >= strbuflist[bufno].used)
+		return;	//not valid anyway.
+
+	if (strbuflist[bufno].strings[index])
+		Z_Free(strbuflist[bufno].strings[index]);
+	strbuflist[bufno].strings[index] = NULL;
 }
 
 void QCBUILTIN PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2659,14 +2701,74 @@ void QCBUILTIN PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	RETURN_TSTRING(resultbuf);
 }
 
+#ifdef WEBCLIENT
+static void PR_uri_get_callback(struct dl_download *dl)
+{
+	extern progfuncs_t *menuprogs;
+	world_t *w = dl->user_ctx;
+	progfuncs_t *prinst = w?w->progs:menuprogs;
+	float id = dl->user_num;
+	func_t func;
+
+	if (!prinst)
+		return;
+	
+	func = PR_FindFunction(prinst, "URI_Get_Callback", PR_ANY);
+
+	if (func)
+	{
+		int len;
+		char *buffer;
+		struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
+
+		G_FLOAT(OFS_PARM0) = id;
+		G_FLOAT(OFS_PARM1) = (dl->replycode!=200)?dl->replycode:0;	//for compat with DP, we change any 200s to 0.
+		G_INT(OFS_PARM2) = 0;
+
+		if (dl->file)
+		{
+			len = VFS_GETLEN(dl->file);
+			buffer = malloc(len+1);
+			buffer[len] = 0;
+			VFS_READ(dl->file, buffer, len);
+			G_INT(OFS_PARM2) = PR_TempString(prinst, buffer);
+			free(buffer);
+		}
+
+		PR_ExecuteProgram(prinst, func);
+	}
+}
+#endif
+
 // uri_get() gets content from an URL and calls a callback "uri_get_callback" with it set as string; an unique ID of the transfer is returned
 // returns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string
 //float(string uril, float id) uri_get = #513;
 void QCBUILTIN PF_uri_get  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Con_Printf("PF_uri_get: stub\n");
+#ifdef WEBCLIENT
+	world_t *w = prinst->parms->user;
+	unsigned char *url = PR_GetStringOfs(prinst, OFS_PARM0);
+	float id = G_FLOAT(OFS_PARM1);
+	struct dl_download *dl;
 
-	G_FLOAT(OFS_RETURN) = 0;
+	if (!pr_enable_uriget.ival)
+	{
+		Con_Printf("PF_uri_get(\"%s\",%g): %s disabled\n", url, id, pr_enable_uriget.name);
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
+	Con_DPrintf("PF_uri_get(%s,%g)\n", url, id);
+
+	dl = HTTP_CL_Get(url, NULL, PR_uri_get_callback);
+	if (dl)
+	{
+		dl->user_ctx = w;
+		dl->user_num = id;
+		G_FLOAT(OFS_RETURN) = 1;
+	}
+	else
+#endif
+		G_FLOAT(OFS_RETURN) = 0;
 }
 
 ////////////////////////////////////////////////////
@@ -3170,18 +3272,30 @@ void QCBUILTIN PF_externvalue (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	char *varname = PF_VarString(prinst, 1, pr_globals);
 	eval_t *var;
 
-	var = prinst->FindGlobal(prinst, varname, n, NULL);
-
-	if (var)
+	if (*varname == '&')
 	{
-		G_INT(OFS_RETURN+0) = ((int*)&var->_int)[0];
-		G_INT(OFS_RETURN+1) = ((int*)&var->_int)[1];
-		G_INT(OFS_RETURN+2) = ((int*)&var->_int)[2];
+		//return its address instead of its value, for pointer use.
+		var = prinst->FindGlobal(prinst, varname+1, n, NULL);
+		if (var)
+			G_INT(OFS_RETURN) = (char*)var - prinst->stringtable;
+		else
+			G_INT(OFS_RETURN) = 0;
 	}
 	else
 	{
-		n = prinst->FindFunction(prinst, varname, n);
-		G_INT(OFS_RETURN) = n;
+		var = prinst->FindGlobal(prinst, varname, n, NULL);
+
+		if (var)
+		{
+			G_INT(OFS_RETURN+0) = ((int*)&var->_int)[0];
+			G_INT(OFS_RETURN+1) = ((int*)&var->_int)[1];
+			G_INT(OFS_RETURN+2) = ((int*)&var->_int)[2];
+		}
+		else
+		{
+			n = prinst->FindFunction(prinst, varname, n);
+			G_INT(OFS_RETURN) = n;
+		}
 	}
 }
 
@@ -3657,7 +3771,8 @@ nolength:
 			default:
 verbatim:
 				if(o < end - 1)
-					*o++ = *s++;
+					*o++ = *s;
+				s++;
 				break;
 		}
 	}
@@ -3665,6 +3780,77 @@ finished:
 	*o = 0;
 
 	RETURN_TSTRING(outbuf);
+}
+
+fdef_t *ED_FieldInfo (progfuncs_t *progfuncs, unsigned int *count);
+char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
+pbool	ED_ParseEval (progfuncs_t *progfuncs, eval_t *eval, int type, char *s);
+//float()
+void QCBUILTIN PF_numentityfields (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int count = 0;
+	ED_FieldInfo(prinst, &count);
+	G_FLOAT(OFS_RETURN) = count;
+}
+//string(float fieldnum)
+void QCBUILTIN PF_entityfieldname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int fidx = G_FLOAT(OFS_PARM0);
+	unsigned int count = 0;
+	fdef_t *fdef;
+	fdef = ED_FieldInfo(prinst, &count);
+	if (fidx < count)
+	{
+		RETURN_TSTRING(fdef[fidx].name);
+	}
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+//float(float fieldnum)
+void QCBUILTIN PF_entityfieldtype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int fidx = G_FLOAT(OFS_PARM0);
+	unsigned int count = 0;
+	fdef_t *fdef = ED_FieldInfo(prinst, &count);
+	if (fidx < count)
+	{
+		G_FLOAT(OFS_RETURN) = fdef[fidx].type;
+	}
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
+//string(float fieldnum, entity ent)
+void QCBUILTIN PF_getentityfieldstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int fidx = G_FLOAT(OFS_PARM0);
+	wedict_t *ent = (wedict_t *)G_EDICT(prinst, OFS_PARM1);
+	eval_t *eval;
+	unsigned int count = 0;
+	fdef_t *fdef = ED_FieldInfo(prinst, &count);
+	if (fidx < count)
+	{
+		eval = (eval_t *)&((float *)ent->v)[fdef[fidx].ofs];
+		RETURN_TSTRING(PR_UglyValueString(prinst, fdef[fidx].type, eval));
+	}
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+//float(float fieldnum, entity ent, string s)
+void QCBUILTIN PF_putentityfieldstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int fidx = G_FLOAT(OFS_PARM0);
+	wedict_t *ent = (wedict_t *)G_EDICT(prinst, OFS_PARM1);
+	char *str = PR_GetStringOfs(prinst, OFS_PARM2);
+	eval_t *eval;
+	unsigned int count = 0;
+	fdef_t *fdef = ED_FieldInfo(prinst, &count);
+	if (fidx < count)
+	{
+		eval = (eval_t *)&((float *)ent->v)[fdef[fidx].ofs];
+		G_FLOAT(OFS_RETURN) = ED_ParseEval(prinst, eval, fdef[fidx].type, str);
+	}
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 }
 
 #define DEF_SAVEGLOBAL (1u<<15)
@@ -3690,11 +3876,11 @@ static void PR_AutoCvarApply(progfuncs_t *prinst, eval_t *val, etype_t type, cva
 			char res[128];
 			char *vs = var->string;
 			vs = COM_ParseOut(vs, res, sizeof(res));
-			val->_vector[0] = atof(com_token);
+			val->_vector[0] = atof(res);
 			vs = COM_ParseOut(vs, res, sizeof(res));
-			val->_vector[1] = atof(com_token);
+			val->_vector[1] = atof(res);
 			vs = COM_ParseOut(vs, res, sizeof(res));
-			val->_vector[2] = atof(com_token);
+			val->_vector[2] = atof(res);
 		}
 		break;
 	}
@@ -3726,11 +3912,17 @@ void PR_FoundPrefixedGlobals(progfuncs_t *progfuncs, char *name, eval_t *val, et
 {
 	cvar_t *var;
 	char *vals;
+	int nlen;
 	name += 9; //autocvar_
 	
 	switch(type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_float:
+		//ignore individual vector componants. let the vector itself do all the work.
+		nlen = strlen(name);
+		if(nlen >= 2 && name[nlen-2] == '_' && (name[nlen-1] == 'x' || name[nlen-1] == 'y' || name[nlen-1] == 'z'))
+			return;
+
 		vals = va("%f", val->_float);
 		break;
 	case ev_integer:
@@ -3786,7 +3978,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.
 	{"DP_ENT_COLORMOD"},
 	{NULL},	//splitscreen - not queryable.
-	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
+	{"FTE_HEXEN2",						3,	NULL, {"particle2", "particle3", "particle4"}},				//client can use hexen2 maps. server can use hexen2 progs
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatible - previous system failed with -1 skins)
 	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
 	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
@@ -3835,6 +4027,7 @@ lh_extension_t QSG_Extensions[] = {
 	//to an extend {"DP_HALFLIFE_SPRITE"},
 	{"DP_INPUTBUTTONS"},
 	{"DP_LITSUPPORT"},
+	{"DP_MD3_TAGSINFO",					2,	NULL, {"gettagindex", "gettaginfo"}},
 	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
@@ -3854,6 +4047,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_FINDCHAINFLAGS",			1,	NULL, {"findchainflags"}},
 	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
 	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
+	{"DP_QC_GETSURFACE",				6,	NULL, {"getsurfacenumpoints", "getsurfacepoint", "getsurfacenormal", "getsurfacetexture", "getsurfacenearpoint", "getsurfaceclippedpoint"}},
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	1,	NULL, {"getsurfacepointattribute"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS"},
@@ -3901,14 +4095,14 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_SV_WRITEUNTERMINATEDSTRING",	1,	NULL, {"WriteUnterminatedString"}},
 	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
 	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
-	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
-	{"DP_TE_EXPLOSIONRGB"},
-	{"DP_TE_FLAMEJET",					1,	NULL, {"te_flamejet"}},
+	{"_DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
+	{"DP_TE_EXPLOSIONRGB",				1,	NULL, {"te_explosionrgb"}},
+	{"_DP_TE_FLAMEJET",					1,	NULL, {"te_flamejet"}},
 	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
-	//particlerain
-	//particlesnow
-	{"DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
-	{"DP_TE_QUADEFFECTS1"},
+	{"_DP_TE_PARTICLERAIN",				1,	NULL, {"te_particlerain"}},
+	{"_DP_TE_PARTICLESNOW",				1,	NULL, {"te_particlesnow"}},
+	{"_DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
+	{"_DP_TE_QUADEFFECTS1",				4,	NULL, {"te_gunshotquad", "te_spikequad", "te_superspikequad", "te_explosionquad"}},
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
 	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
 	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
@@ -3933,7 +4127,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
 	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
 #endif
-	{"FTE_MULTIPROGS"},	//multiprogs functions are available.
+	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}},	//multiprogs functions are available.
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
 #ifdef SERVER_DEMO_PLAYBACK
 	{"FTE_MVD_PLAYBACK"},
@@ -3944,19 +4138,19 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclientname"}},
 	{"FTE_QC_PAUSED"},
-	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},
+	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
+	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},	//includes the SV_ParseConnectionlessPacket event.
 	{"FTE_QC_TRACETRIGGER"},
 	{"FTE_SOLID_LADDER"},	//Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS
 
-#ifdef SQL
 	// serverside SQL functions for managing an SQL database connection
 	{"FTE_SQL",							9, NULL, {"sqlconnect","sqldisconnect","sqlopenquery","sqlclosequery","sqlreadfield","sqlerror","sqlescape","sqlversion",
 												  "sqlreadfloat"}},
-#endif
+
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)
-	{"FTE_STRINGS",						16, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
-												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
+	{"FTE_STRINGS",						17, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
+												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp", "strpad"}},
 	{"FTE_SV_REENTER"},
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},

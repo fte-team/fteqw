@@ -128,6 +128,7 @@ struct dl_download
 		DL_ACTIVE,		/*receiving data*/
 		DL_FINISHED		/*its complete*/
 	} status;
+	unsigned int replycode;
 	unsigned int totalsize;	/*max size (can be 0 for unknown)*/
 	unsigned int completed; /*ammount correctly received so far*/
 

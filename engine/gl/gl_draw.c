@@ -380,13 +380,15 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 void GLDraw_ImageList_f(void)
 {
 	int count = 0;
+	unsigned int mem = 0;
 	gltexture_t	*glt;
 	for (glt=gltextures ; glt ; glt=glt->next)
 	{
 		count++;
+		mem += glt->width * glt->height * 4;
 		Con_Printf("%s (%i*%i, seq=%i)\n", glt->identifier, glt->width, glt->height, glt->com.regsequence);
 	}
-	Con_Printf("%i images\n", count);
+	Con_Printf("%i images, %i bytes\n", count, mem);
 }
 
 void GLDraw_FlushOldTextures(void)
@@ -493,7 +495,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	GL_InitSceneProcessingShaders();
 
-	Cmd_AddCommand ("r_imagelist", GLDraw_ImageList_f);
+	Cmd_AddCommandD ("r_imagelist", GLDraw_ImageList_f, "Debug command. Reveals current list of loaded images.");
 }
 
 void GLDraw_DeInit (void)
@@ -1393,15 +1395,9 @@ void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight, un
 	dest = uploadmemorybufferintermediate;
 	//change from bgr bottomup to rgba topdown
 
-	for (outwidth = 1; outwidth < inwidth; outwidth*=2)
-		;
-	for (outheight = 1; outheight < inheight; outheight*=2)
-		;
-
-	if (outwidth > 512)
-		outwidth = 512;
-	if (outheight > 512)
-		outheight = 512;
+	outwidth = inwidth;
+	outheight = inheight;
+	GL_RoundDimensions(&outwidth, &outheight, !(flags&IF_NOMIPMAP));
 
 	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
 		Sys_Error("GL_Upload24BGR: image too big (%i*%i)", inwidth, inheight);
@@ -1466,15 +1462,9 @@ void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheigh
 	dest = uploadmemorybufferintermediate;
 	//change from bgr bottomup to rgba topdown
 
-	for (outwidth = 1; outwidth < inwidth; outwidth*=2)
-		;
-	for (outheight = 1; outheight < inheight; outheight*=2)
-		;
-
-	if (outwidth > 512)
-		outwidth = 512;
-	if (outheight > 512)
-		outheight = 512;
+	outwidth = inwidth;
+	outheight = inheight;
+	GL_RoundDimensions(&outwidth, &outheight, !(flags&IF_NOMIPMAP));
 
 	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
 		Sys_Error("GL_Upload24BGR_Flip: image too big (%i*%i)", inwidth, inheight);

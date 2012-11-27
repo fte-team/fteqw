@@ -85,6 +85,7 @@ typedef struct nqglobalvars_s
 	float *physics_mode;
 	float *clientcommandframe;
 	float *input_timelength;
+	float *input_impulse;
 	vec3_t *input_angles;
 	vec3_t *input_movevalues;
 	float *input_buttons;
@@ -362,15 +363,46 @@ comextqcfields
 #endif
 
 
-
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)
-	#if defined(ODE_STATIC) || defined(ODE_DYNAMIC)
-		#define USEODE 1
+	#define USEODE 1
+	#if !(defined(ODE_STATIC) || defined(ODE_DYNAMIC))
+		#undef USEODE
 	#endif
 #endif
 
 #ifdef USEODE
-typedef struct {
+typedef struct
+{
+	void *ode_body;
+	void *ode_geom;
+} odebody_t;
+
+typedef struct
+{
+	void *ode_joint;
+} odejoint_t;
+typedef struct
+{
+	char name[32];
+	int type;
+	int body1;	//handled by the ragdoll code, rather than the physics library.
+	int body2;	//handled by the ragdoll code.
+	int bonepivot;	//pivot is specified relative to this bone.
+
+	float FMax,		FMax2;
+	float HiStop,	HiStop2;
+	float LoStop,	LoStop2;
+	float CFM,		CFM2;
+	float ERP,		ERP2;
+	float Vel,		Vel2;
+	vec3_t offset,	offset2;
+	vec3_t axis,	axis2;
+
+	float orgmatrix[12];
+} odejointinfo_t;
+
+typedef struct
+{
 	// physics parameters
 	qboolean ode_physics;
 	void *ode_body;
@@ -417,6 +449,7 @@ typedef struct
 	// for ODE physics engine
 	qboolean ode; // if true then ode is activated
 	qboolean hasodeents; // if true then we have some ode body somewhere, and we consume more cycles processing full physics, instead of trying to skip as much as we can
+	qboolean hasextraobjs;
 	void *ode_world;
 	void *ode_space;
 	void *ode_contactgroup;

@@ -122,41 +122,41 @@ static unsigned int ALSA_RW_GetDMAPos (soundcardinfo_t *sc)
 static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
 {
 	int			state;
-        unsigned int frames, offset, ringsize;
-        unsigned chunk;
-        int result;
+	unsigned int frames, offset, ringsize;
+	unsigned chunk;
+	int result;
 	int stride = sc->sn.numchannels * (sc->sn.samplebits/8);
 
-        /*we can't change the data that was already written*/
-        frames = end - sc->snd_sent;
-        if (!frames)
-                return;
+	/*we can't change the data that was already written*/
+	frames = end - sc->snd_sent;
+	if (!frames)
+		return;
 
 	state = psnd_pcm_state (sc->handle);
 
-        ringsize = sc->sn.samples / sc->sn.numchannels;
+	ringsize = sc->sn.samples / sc->sn.numchannels;
 
-        chunk = frames;
-        offset = sc->snd_sent % ringsize;
+	chunk = frames;
+	offset = sc->snd_sent % ringsize;
 
-        if (offset + chunk >= ringsize)
-                chunk = ringsize - offset;
+	if (offset + chunk >= ringsize)
+		chunk = ringsize - offset;
 	result = psnd_pcm_writei(sc->handle, sc->sn.buffer + offset*stride, chunk);
-        if (result < chunk)
-        {
-                if (result >= 0)
-                        sc->snd_sent += result;
-                return;
-        }
-        sc->snd_sent += chunk;
+	if (result < chunk)
+	{
+		if (result >= 0)
+			sc->snd_sent += result;
+		return;
+	}
+	sc->snd_sent += chunk;
 
-        chunk = frames - chunk;
-        if (chunk)
-        {
+	chunk = frames - chunk;
+	if (chunk)
+	{
 		result = psnd_pcm_writei(sc->handle, sc->sn.buffer, chunk);
-                if (result > 0)
-                        sc->snd_sent += result;
-        }
+		if (result > 0)
+			sc->snd_sent += result;
+	}
 
 	if (state == SND_PCM_STATE_PREPARED)
 		psnd_pcm_start (sc->handle);

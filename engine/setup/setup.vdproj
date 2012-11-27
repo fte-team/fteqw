@@ -70,12 +70,6 @@
         "Entry"
         {
         "MsmKey" = "8:_71CBEB9164DF59638557E9DDA2701375"
-        "OwnerKey" = "8:_59B5273419A741098C2F6C4D3D48B5F9"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_71CBEB9164DF59638557E9DDA2701375"
         "OwnerKey" = "8:_3D8125FEDA5B43DFAE7E3CF1642F05A8"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -111,7 +105,7 @@
         "InstallerBootstrapper" = "3:2"
             "BootstrapperCfg:{63ACBE69-63AA-4F98-B2B6-99F9E24495F2}"
             {
-            "Enabled" = "11:TRUE"
+            "Enabled" = "11:FALSE"
             "PromptEnabled" = "11:TRUE"
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
@@ -138,7 +132,7 @@
         "InstallerBootstrapper" = "3:2"
             "BootstrapperCfg:{63ACBE69-63AA-4F98-B2B6-99F9E24495F2}"
             {
-            "Enabled" = "11:TRUE"
+            "Enabled" = "11:FALSE"
             "PromptEnabled" = "11:TRUE"
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
@@ -147,7 +141,7 @@
                 {
                     "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:Microsoft.Net.Framework.2.0"
                     {
-                    "Name" = "8:Microsoft .NET Framework 2.0"
+                    "Name" = "8:.NET Framework 2.0"
                     "ProductCode" = "8:Microsoft.Net.Framework.2.0"
                     }
                 }
@@ -443,7 +437,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:FTEQuake"
         "ProductCode" = "8:{1E2732CA-B825-4859-B5F7-41749C2BCBA3}"
-        "PackageCode" = "8:{C7794AE3-06F3-4BEB-BEDD-18434AE7855A}"
+        "PackageCode" = "8:{309367B2-B756-448D-B49E-90522718F916}"
         "UpgradeCode" = "8:{ED40A57B-C477-465A-8F0E-02E662BD739A}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
@@ -498,184 +492,6 @@
             {
                 "Keys"
                 {
-                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_BA542D4D6D7B4A64B364F1C78F8F20F8"
-                    {
-                    "Name" = "8:Software"
-                    "Condition" = "8:NPFTE"
-                    "AlwaysCreate" = "11:FALSE"
-                    "DeleteAtUninstall" = "11:FALSE"
-                    "Transitive" = "11:FALSE"
-                        "Keys"
-                        {
-                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_052DC401864F43D09A342786A17CB17E"
-                            {
-                            "Name" = "8:MozillaPlugins"
-                            "Condition" = "8:"
-                            "AlwaysCreate" = "11:FALSE"
-                            "DeleteAtUninstall" = "11:FALSE"
-                            "Transitive" = "11:FALSE"
-                                "Keys"
-                                {
-                                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_72A4CA00A74F46E28190454DE108A80B"
-                                    {
-                                    "Name" = "8:@fteqw.com/npFTE"
-                                    "Condition" = "8:"
-                                    "AlwaysCreate" = "11:FALSE"
-                                    "DeleteAtUninstall" = "11:TRUE"
-                                    "Transitive" = "11:FALSE"
-                                        "Keys"
-                                        {
-                                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_AE4CF76690644064A9ADBBA9BD1B9208"
-                                            {
-                                            "Name" = "8:MimeTypes"
-                                            "Condition" = "8:"
-                                            "AlwaysCreate" = "11:FALSE"
-                                            "DeleteAtUninstall" = "11:TRUE"
-                                            "Transitive" = "11:FALSE"
-                                                "Keys"
-                                                {
-                                                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_1FC1AEDF2D3545408D04E544FE23192F"
-                                                    {
-                                                    "Name" = "8:application/x-fteplugin"
-                                                    "Condition" = "8:"
-                                                    "AlwaysCreate" = "11:FALSE"
-                                                    "DeleteAtUninstall" = "11:TRUE"
-                                                    "Transitive" = "11:FALSE"
-                                                        "Keys"
-                                                        {
-                                                        }
-                                                        "Values"
-                                                        {
-                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_E5D107AFC3D8450BA2B340C074E9ECEB"
-                                                            {
-                                                            "Name" = "8:Description"
-                                                            "Condition" = "8:"
-                                                            "Transitive" = "11:FALSE"
-                                                            "ValueTypes" = "3:1"
-                                                            "Value" = "8:FTE Browser Plugin"
-                                                            }
-                                                        }
-                                                    }
-                                                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_7A99D87EEBBC442EB22A23CFE1C3EAED"
-                                                    {
-                                                    "Name" = "8:application/x-qtv"
-                                                    "Condition" = "8:"
-                                                    "AlwaysCreate" = "11:FALSE"
-                                                    "DeleteAtUninstall" = "11:TRUE"
-                                                    "Transitive" = "11:FALSE"
-                                                        "Keys"
-                                                        {
-                                                        }
-                                                        "Values"
-                                                        {
-                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_0438CD1948E5418BA70012A58633CE71"
-                                                            {
-                                                            "Name" = "8:Suffixes"
-                                                            "Condition" = "8:"
-                                                            "Transitive" = "11:FALSE"
-                                                            "ValueTypes" = "3:1"
-                                                            "Value" = "8:qtv"
-                                                            }
-                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_D33B30BC77DE456AB625E7823EE719E2"
-                                                            {
-                                                            "Name" = "8:Description"
-                                                            "Condition" = "8:"
-                                                            "Transitive" = "11:FALSE"
-                                                            "ValueTypes" = "3:1"
-                                                            "Value" = "8:QuakeTV Stream Information File"
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                "Values"
-                                                {
-                                                }
-                                            }
-                                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_C70BEC3C971B4FEC8C0D09248A984B97"
-                                            {
-                                            "Name" = "8:Suffixes"
-                                            "Condition" = "8:"
-                                            "AlwaysCreate" = "11:FALSE"
-                                            "DeleteAtUninstall" = "11:TRUE"
-                                            "Transitive" = "11:FALSE"
-                                                "Keys"
-                                                {
-                                                }
-                                                "Values"
-                                                {
-                                                    "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_D68A43CA0F284FE8A0EA2686803DB13E"
-                                                    {
-                                                    "Name" = "8:qtv"
-                                                    "Condition" = "8:"
-                                                    "Transitive" = "11:FALSE"
-                                                    "ValueTypes" = "3:1"
-                                                    "Value" = "8:"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        "Values"
-                                        {
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_15F93F3E68C74AB9B3E588FEF9847B36"
-                                            {
-                                            "Name" = "8:GeckoVersion"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:1"
-                                            "Value" = "8:1.0"
-                                            }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_408FC05728EA4929BA76659C4F8FDABE"
-                                            {
-                                            "Name" = "8:Vendor"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:1"
-                                            "Value" = "8:[Manufacturer]"
-                                            }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_7144D64EBC1F4693BC6AD2AF33D9852A"
-                                            {
-                                            "Name" = "8:Description"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:1"
-                                            "Value" = "8:Quake in a Browser"
-                                            }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_AFCDA966380243C4BFD1982226E8E47E"
-                                            {
-                                            "Name" = "8:Version"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:1"
-                                            "Value" = "8:[Version]"
-                                            }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_D5FB5B18F26746D9BA0457E8F038FAA8"
-                                            {
-                                            "Name" = "8:ProductName"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:1"
-                                            "Value" = "8:FTE Quake Plugin"
-                                            }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_F040BDD5ACDA41BA9C2050923C944C11"
-                                            {
-                                            "Name" = "8:Path"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:1"
-                                            "Value" = "8:[TARGETDIR]npfte.dll"
-                                            }
-                                        }
-                                    }
-                                }
-                                "Values"
-                                {
-                                }
-                            }
-                        }
-                        "Values"
-                        {
-                        }
-                    }
                 }
             }
         }
@@ -1288,7 +1104,7 @@
             "Exclude" = "11:FALSE"
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
-            "ProjectOutputGroupRegister" = "3:1"
+            "ProjectOutputGroupRegister" = "3:4"
             "OutputConfiguration" = "8:GLRelease|Win32"
             "OutputGroupCanonicalName" = "8:Built"
             "OutputProjectGuid" = "8:{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}"

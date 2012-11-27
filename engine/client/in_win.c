@@ -403,7 +403,6 @@ static void INS_ActivateMouse (void)
 			ClipCursor (&window_rect);
 		}
 
-		Con_Printf("Mouse grabbed\n");
 		mouseactive = true;
 	}
 }
@@ -465,7 +464,6 @@ static void INS_DeactivateMouse (void)
 			ReleaseCapture ();
 		}
 
-		Con_Printf("Mouse released\n");
 		mouseactive = false;
 	}
 }
@@ -1220,7 +1218,7 @@ void INS_MouseMove (float *movements, int pnum)
 	extern int window_x, window_y;
 
 #ifdef AVAIL_DINPUT
-	if (dinput)
+	if (dinput && mouseactive)
 	{
 		DIDEVICEOBJECTDATA	od;
 		DWORD				dwElements;

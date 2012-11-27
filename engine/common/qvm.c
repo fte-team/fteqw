@@ -33,10 +33,6 @@ Also, can efficiency be improved much?
 */
 
 
-#ifdef __MORPHOS__
-#include <proto/dynload.h>
-#endif
-
 #include "quakedef.h"
 
 #ifdef VM_ANY
@@ -70,10 +66,6 @@ struct vm_s {
 	qintptr_t (EXPORT_FN *vmMain)(qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6);
 };
 
-#if defined(__MORPHOS__) && I_AM_BIGFOOT
-#include <proto/dynload.h>
-#endif
-
 dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
@@ -87,11 +79,6 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 		{(void*)vmMain, "vmMain"},
 		{NULL, NULL},
 	};
-
-#ifdef __MORPHOS__
-	if (DynLoadBase == 0)
-		return 0;
-#endif
 
 #ifdef _WIN32
 	snprintf(dllname_arch, sizeof(dllname_arch), "%sx86.dll", name);

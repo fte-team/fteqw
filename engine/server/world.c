@@ -920,7 +920,7 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 	}
 
 	// don't rotate non bsp ents. Too small to bother.
-	if (model)
+	if (model && !model->needload)
 	{
 		VectorSubtract (start, origin, start_l);
 		VectorSubtract (end, origin, end_l);

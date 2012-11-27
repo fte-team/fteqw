@@ -7,6 +7,12 @@
 //#include "d3dquake.h"
 #endif
 
+#ifdef NPFTE
+//#define Con_Printf(f, ...)
+//hope you're on a littleendian machine
+#define LittleShort(s) s
+#define LittleLong(s) s
+#else
 cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upside down.
 													//This is due to a bug in tenebrae.
 													//(normally) the textures are actually the right way around.
@@ -16,6 +22,7 @@ cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upsid
 cvar_t r_dodgypcxfiles = SCVAR("r_dodgypcxfiles", "0");	//Quake 2's PCX loading isn't complete,
 													//and some Q2 mods include PCX files
 													//that only work with this assumption
+#endif
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -66,9 +73,10 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 	numPixels = columns * rows;
 
 	flipped = !((tgahead->attribs & 0x20) >> 5);
+#ifndef NPFTE
 	if (r_dodgytgafiles.value)
 		flipped = true;
-
+#endif
 
 	if (tgahead->version == 1)
 	{
@@ -173,8 +181,10 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 	tgaheader.attribs = buf[17];
 
 	flipped = !((tgaheader.attribs & 0x20) >> 5);
+#ifndef NPFTE
 	if (r_dodgytgafiles.value)
 		flipped = true;
+#endif
 
 	data=buf+18;
 	data += tgaheader.id_len;
@@ -872,7 +882,7 @@ error:
 
 
 
-
+#ifndef NPFTE
 int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height)
 {
 	char name[MAX_OSPATH];
@@ -940,6 +950,7 @@ err:
 	fclose(fp);
 	return true;
 }
+#endif
 
 
 #endif
@@ -1340,6 +1351,7 @@ badjpeg:
 
 }
 /*end read*/
+#ifndef NPFTE
 /*begin write*/
 #define OUTPUT_BUF_SIZE 4096
 typedef struct  {
@@ -1503,8 +1515,9 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	#endif
 }
 #endif
+#endif
 
-
+#ifndef NPFTE
 /*
 ==============
 WritePCXfile
@@ -1575,7 +1588,7 @@ void WritePCXfile (const char *filename, qbyte *data, int width, int height,
 	else
 		COM_WriteFile (filename, pcx, length);
 }
-
+#endif
 
 
 /*
@@ -1622,9 +1635,11 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 	*width = swidth;
 	*height = sheight;
 
+#ifndef NPFTE
 	if (r_dodgypcxfiles.value)
 		palette = host_basepal;
 	else
+#endif
 		palette = buf + length-768;
 
 	data = (char *)(pcx+1);
@@ -2054,6 +2069,10 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	return NULL;
 }*/
 
+
+#ifndef NPFTE
+
+
 // saturate function, stolen from jitspoe
 void SaturateR8G8B8(qbyte *data, int size, float sat)
 {
@@ -2214,14 +2233,14 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 		divsize = 4;
 		blocksize = 8;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT2" || *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
 	{
 		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
 		pad = 8;
 		divsize = 4;
 		blocksize = 16;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT4" || *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
 	{
 		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
 		pad = 8;
@@ -2458,6 +2477,20 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			return tex;
 	}
 
+#ifdef DDS
+	snprintf(fname, sizeof(fname)-1, "dds/%s.dds", nicename); /*should be safe if its null*/
+	if ((buf = COM_LoadFile (fname, 5)))
+	{
+		tex = GL_LoadTextureDDS(name, buf, com_filesize);
+		if (TEXVALID(tex))
+		{
+			BZ_Free(buf);
+			return tex;
+		}
+		BZ_Free(buf);
+	}
+#endif
+
 	if (strchr(name, '/'))	//never look in a root dir for the pic
 		i = 0;
 	else
@@ -2489,7 +2522,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
 #ifdef DDS
-				tex = GL_LoadTextureDDS(fname, buf, com_filesize);
+				tex = GL_LoadTextureDDS(name, buf, com_filesize);
 				if (TEXVALID(tex))
 				{
 					BZ_Free(buf);
@@ -2746,3 +2779,4 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
 		}
 	}
 }
+#endif

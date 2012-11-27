@@ -224,6 +224,11 @@ fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs)
 	}
 	return NULL;
 }
+fdef_t *ED_FieldInfo (progfuncs_t *progfuncs, unsigned int *count)
+{
+	*count = numfields;
+	return field;
+}
 /*
 ============
 ED_FindField
@@ -493,7 +498,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		else
 		{
 			if ((val->function & 0xff000000)>>24 >= (unsigned)maxprogs || !pr_progstate[(val->function & 0xff000000)>>24].functions)
-				sprintf (line, "Bad function");
+				sprintf (line, "Bad function %i:%i", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
 			else
 			{
 				if ((val->function &~0xff000000) >= pr_progs->numfunctions)
@@ -1028,6 +1033,88 @@ Can parse either fields or globals
 returns false if error
 =============
 */
+pbool	ED_ParseEval (progfuncs_t *progfuncs, eval_t *eval, int type, char *s)
+{
+	int		i;
+	char	string[128];
+	fdef_t	*def;
+	char	*v, *w;
+	string_t st;
+	dfunction_t	*func;
+
+	switch (type & ~DEF_SAVEGLOBAL)
+	{
+	case ev_string:
+		st = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, s, 0));
+		eval->string = st;
+		break;
+
+	case ev_float:
+		eval->_float = (float)atof (s);
+		break;
+
+	case ev_integer:
+		eval->_int = atoi (s);
+		break;
+
+	case ev_vector:
+		strncpy (string, s, sizeof(string));
+		string[sizeof(string)-1] = 0;
+		v = string;
+		w = string;
+		for (i=0 ; i<3 ; i++)
+		{
+			while (*v && *v != ' ')
+				v++;
+			if (!*v)
+			{
+				eval->_vector[i] = (float)atof (w);
+				w = v;
+			}
+			else
+			{
+				*v = 0;
+				eval->_vector[i] = (float)atof (w);
+				w = v = v+1;
+			}
+		}
+		break;
+
+	case ev_entity:
+		eval->edict = atoi (s);
+		break;
+
+	case ev_field:
+		def = ED_FindField (progfuncs, s);
+		if (!def)
+		{
+			printf ("Can't find field %s\n", s);
+			return false;
+		}
+		eval->_int = def->ofs;
+		break;
+
+	case ev_function:
+		if (s[1]==':'&&s[2]=='\0')
+		{
+			eval->function = 0;
+			return true;
+		}
+		func = ED_FindFunction (progfuncs, s, &i, -1);
+		if (!func)
+		{
+			printf ("Can't find function %s\n", s);
+			return false;
+		}
+		eval->function = (func - pr_progstate[i].functions) | (i<<24);
+		break;
+
+	default:
+		return false;
+	}
+	return true;
+}
+
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s)
 {
 	int		i;
@@ -1810,6 +1897,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				free(oldglobals);
 				oldglobals = NULL;
 			}
+
+			PR_SwitchProgs(progfuncs, 0);
 		}
 		else if (!strcmp(qcc_token, "globals"))
 		{
@@ -1855,8 +1944,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				case PST_KKQWSV:
 					if (!(d16 = ED_FindGlobal16(progfuncs, qcc_token)))
 					{
+						printf("global value %s not found\n", qcc_token);
 						file = QCC_COM_Parse(file);
-						printf("global value %s not found", qcc_token);
 					}
 					else
 					{
@@ -1868,8 +1957,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				case PST_FTE32:
 					if (!(d32 = ED_FindGlobal32(progfuncs, qcc_token)))
 					{
+						printf("global value %s not found\n", qcc_token);
 						file = QCC_COM_Parse(file);
-						printf("global value %s not found", qcc_token);
 					}
 					else
 					{
@@ -1881,6 +1970,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					Sys_Error("Bad struct type in LoadEnts");
 				}
 			}
+			PR_SwitchProgs(progfuncs, 0);
 
 //			file = QCC_COM_Parse(file);
 //			if (com_token[0] != '}')
@@ -1969,8 +2059,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						case PST_KKQWSV:
 							if (!(d16 = ED_FindGlobal16(progfuncs, qcc_token)))
 							{
+								printf("global value %s not found\n", qcc_token);
 								file = QCC_COM_Parse(file);
-								printf("global value %s not found", qcc_token);
 							}
 							else
 							{
@@ -1982,8 +2072,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						case PST_FTE32:
 							if (!(d32 = ED_FindGlobal32(progfuncs, qcc_token)))
 							{
+								printf("global value %s not found\n", qcc_token);
 								file = QCC_COM_Parse(file);
-								printf("global value %s not found", qcc_token);
 							}
 							else
 							{

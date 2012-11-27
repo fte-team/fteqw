@@ -611,6 +611,13 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	cs_getframestate(in, rflags, &out->framestate);
 
 	VectorCopy(in->v->origin, out->origin);
+	VectorCopy(in->v->oldorigin, out->oldorigin);
+	if (in->v->enemy)
+	{
+		csqcedict_t *ed = (csqcedict_t*)PROG_TO_EDICT(csqcprogs, in->v->enemy);
+		VectorSubtract(out->oldorigin, ed->v->oldorigin, out->oldorigin);
+	}
+
 	if (rflags & CSQCRF_USEAXIS)
 	{
 		VectorCopy(csqcg.forward, out->axis[0]);
@@ -1394,6 +1401,7 @@ static void QCBUILTIN PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s 
 	}
 }
 
+void R2D_PolyBlend (void);
 static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (cl.worldmodel)
@@ -1404,13 +1412,7 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 	V_CalcGunPositionAngle(csqc_lplayernum, V_CalcBob(csqc_lplayernum, true));
 
 	R_RenderView();
-
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		GL_Set2D (false);
-	}
-#endif
+	R2D_PolyBlend ();
 
 	vid.recalc_refdef = 1;
 
@@ -1686,7 +1688,7 @@ static void csqc_setmodel(progfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 	ent->v->modelindex = modelindex;
 	if (modelindex < 0)
 	{
-		if (modelindex <= -MAX_MODELS)
+		if (modelindex <= -MAX_CSQCMODELS)
 			return;
 		ent->v->model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
 		if (!cl.model_csqcprecache[-modelindex])
@@ -3257,7 +3259,7 @@ static void QCBUILTIN PF_cl_runningserver (progfuncs_t *prinst, struct globalvar
 #ifdef CLIENTONLY
 	G_FLOAT(OFS_RETURN) = false;
 #else
-	G_FLOAT(OFS_RETURN) = !!sv.active;
+	G_FLOAT(OFS_RETURN) = sv.state != ss_dead;
 #endif
 }
 
@@ -4275,7 +4277,6 @@ static struct {
 //	{"bulleten",		PF_bulleten,		243}, (removed builtin)
 	{"rotatevectorsbytag",	PF_rotatevectorsbytag,	244},
 
-#ifdef SQL
 	{"sqlconnect",		PF_NoCSQC,			250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
 	{"sqldisconnect",	PF_NoCSQC,			251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
 	{"sqlopenquery",	PF_NoCSQC,			252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
@@ -4285,7 +4286,6 @@ static struct {
 	{"sqlescape",		PF_NoCSQC,			256},	// #256 string(float serveridx, string data) sqlescape (FTE_SQL)
 	{"sqlversion",		PF_NoCSQC,			257},	// #257 string(float serveridx) sqlversion (FTE_SQL)
 	{"sqlreadfloat",	PF_NoCSQC,			258},	// #258 float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
-#endif
 
 	{"stoi",			PF_stoi,			259},
 	{"itos",			PF_itos,			260},
@@ -4293,7 +4293,7 @@ static struct {
 	{"htos",			PF_htos,			262},
 
 	{"skel_create",			PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
 	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
@@ -4623,6 +4623,8 @@ static struct {
 	{"isfunction",			PF_isfunction,				607},
 	{"parseentitydata",		PF_parseentitydata,			608},
 
+	{"findkeysforcommand",	PF_cl_findkeysforcommand,	610},
+
 	{"sprintf",				PF_sprintf,					627},
 
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,628},
@@ -4830,6 +4832,10 @@ void CSQC_Shutdown(void)
 
 	memset(&deltafunction, 0, sizeof(deltafunction));
 	memset(csqcdelta_playerents, 0, sizeof(csqcdelta_playerents));
+
+	Z_Free(csqcent);
+	csqcent = NULL;
+	maxcsqcentities = 0;
 
 	csqcmapentitydata = NULL;
 	csqcmapentitydataloaded = false;
@@ -5084,10 +5090,16 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 
 		if (csqc_singlecheats || anycsqc)
 		{
-			Con_DPrintf("loading csaddon.dat...\n");
 			if (PR_LoadProgs(csqcprogs, "csaddon.dat", 0, NULL, 0) >= 0)
+			{
+				Con_DPrintf("loaded csaddon.dat...\n");
 				loaded = true;
+			}
+			else
+				Con_DPrintf("unable to find csaddon.dat.\n");
 		}
+		else
+			Con_DPrintf("skipping csaddon.dat due to cheat restrictions\n");
 
 		if (!loaded)
 		{
@@ -5188,9 +5200,8 @@ void CSQC_WorldLoaded(void)
 #endif
 
 	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
-	worldent->v->modelindex = 1;
-	worldent->v->model = PR_SetString(csqcprogs, cl.model_name[(int)worldent->v->modelindex]);
 	worldent->v->solid = SOLID_BSP;
+	csqc_setmodel(csqcprogs, worldent, 1);
 
 	if (csqcg.worldloaded)
 		PR_ExecuteProgram(csqcprogs, csqcg.worldloaded);
@@ -5357,7 +5368,7 @@ void CSQC_RegisterCvarsAndThings(void)
 {
 	Cmd_AddCommand("coredump_csqc", CSQC_CoreDump);
 	Cmd_AddCommand ("extensionlist_csqc", PR_CSExtensionList_f);
-	Cmd_AddCommand("cl_cmd", CSQC_GameCommand_f);
+	Cmd_AddCommandD("cl_cmd", CSQC_GameCommand_f, "Calls the csqc's GameCommand function");
 	Cmd_AddCommand("breakpoint_csqc", CSQC_Breakpoint_f);
 
 	Cvar_Register(&pr_csqc_memsize, CSQCPROGSGROUP);

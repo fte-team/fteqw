@@ -3,13 +3,15 @@
 !!permu FOG
 !!permu LIGHTSTYLED
 !!permu BUMP
+!!permu SPECULAR
 !!cvarf r_glsl_offsetmapping_scale
+!!cvarf gl_specular
 
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
 
 #include "sys/fog.h"
-#if defined(OFFSETMAPPING)
+#if defined(OFFSETMAPPING) || defined(SPECULAR)
 varying vec3 eyevector;
 #endif
 
@@ -30,7 +32,7 @@ attribute vec2 v_lmcoord2;
 attribute vec2 v_lmcoord3;
 attribute vec2 v_lmcoord4;
 #endif
-#if defined(OFFSETMAPPING)
+#if defined(OFFSETMAPPING) || defined(SPECULAR)
 uniform vec3 e_eyepos;
 attribute vec3 v_normal;
 attribute vec3 v_svector;
@@ -38,7 +40,7 @@ attribute vec3 v_tvector;
 #endif
 void main ()
 {
-#if defined(OFFSETMAPPING)
+#if defined(OFFSETMAPPING) || defined(SPECULAR)
 	vec3 eyeminusvertex = e_eyepos - v_position.xyz;
 	eyevector.x = -dot(eyeminusvertex, v_svector.xyz);
 	eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
@@ -60,20 +62,23 @@ void main ()
 //samplers
 uniform sampler2D s_t0;	//diffuse
 uniform sampler2D s_t1;	//lightmap0
-#if defined(OFFSETMAPPING) || defined(DELUXE)
-uniform sampler2D s_t2;	//normal
+#if defined(BUMP) && (defined(OFFSETMAPPING) || defined(DELUXE) || defined(SPECULAR))
+uniform sampler2D s_t2;	//normal.rgb+height.a
 #endif
 uniform sampler2D s_t3;	//deluxe0
 #ifdef FULLBRIGHT
 uniform sampler2D s_t4;	//fullbright
 #endif
+#ifdef SPECULAR
+uniform sampler2D s_t5;	//specular
+#endif
 #ifdef LIGHTSTYLED
-uniform sampler2D s_t5;	//lightmap1
-uniform sampler2D s_t6;	//lightmap2
-uniform sampler2D s_t7;	//lightmap3
-uniform sampler2D s_t8;	//deluxe1
-uniform sampler2D s_t9;	//deluxe2
-uniform sampler2D s_t10;	//deluxe3
+uniform sampler2D s_t6;	//lightmap1
+uniform sampler2D s_t7;	//lightmap2
+uniform sampler2D s_t8;	//lightmap3
+uniform sampler2D s_t9;	//deluxe1
+uniform sampler2D s_t10;	//deluxe2
+uniform sampler2D s_t11;	//deluxe3
 #endif
 
 #ifdef LIGHTSTYLED
@@ -82,6 +87,9 @@ uniform vec4 e_lmscale[4];
 uniform vec4 e_lmscale;
 #endif
 uniform vec4 e_colourident;
+#ifdef SPECULAR
+uniform float cvar_gl_specular;
+#endif
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"
 #endif
@@ -96,31 +104,53 @@ void main ()
 //yay, regular texture!
 	gl_FragColor = texture2D(s_t0, tc);
 
+#if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR))
+	vec3 norm = normalize(texture2D(s_t2, tc).rgb - 0.5);
+#elif defined(SPECULAR) || defined(DELUXE)
+	vec3 norm = vec3(0, 0, 1);	//specular lighting expects this to exist.
+#endif
+
 //modulate that by the lightmap(s) including deluxemap(s)
 #ifdef LIGHTSTYLED
-	vec4 lightmaps;
+	vec3 lightmaps;
 	#ifdef DELUXE
-		vec3 norm = texture2D(s_t2, tc).rgb;
-		lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0] * dot(norm, texture2D(s_t3, lm ).rgb);
-		lightmaps += texture2D(s_t5, lm2) * e_lmscale[1] * dot(norm, texture2D(s_t8, lm2).rgb);
-		lightmaps += texture2D(s_t6, lm3) * e_lmscale[2] * dot(norm, texture2D(s_t9, lm3).rgb);
-		lightmaps += texture2D(s_t7, lm4) * e_lmscale[3] * dot(norm, texture2D(s_t10,lm4).rgb);
+		lightmaps  = texture2D(s_t1, lm ).rgb * e_lmscale[0].rgb * dot(norm, texture2D(s_t3, lm ).rgb);
+		lightmaps += texture2D(s_t6, lm2).rgb * e_lmscale[1].rgb * dot(norm, texture2D(s_t9, lm2).rgb);
+		lightmaps += texture2D(s_t7, lm3).rgb * e_lmscale[2].rgb * dot(norm, texture2D(s_t10, lm3).rgb);
+		lightmaps += texture2D(s_t8, lm4).rgb * e_lmscale[3].rgb * dot(norm, texture2D(s_t11,lm4).rgb);
 	#else
-		lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0];
-		lightmaps += texture2D(s_t5, lm2) * e_lmscale[1];
-		lightmaps += texture2D(s_t6, lm3) * e_lmscale[2];
-		lightmaps += texture2D(s_t7, lm4) * e_lmscale[3];
+		lightmaps  = texture2D(s_t1, lm ).rgb * e_lmscale[0].rgb;
+		lightmaps += texture2D(s_t6, lm2).rgb * e_lmscale[1].rgb;
+		lightmaps += texture2D(s_t7, lm3).rgb * e_lmscale[2].rgb;
+		lightmaps += texture2D(s_t8, lm4).rgb * e_lmscale[3].rgb;
 	#endif
-	gl_FragColor.rgb *= lightmaps.rgb;
 #else
+	vec3 lightmaps = (texture2D(s_t1, lm) * e_lmscale).rgb;
+	//modulate by the  bumpmap dot light
 	#ifdef DELUXE
-//gl_FragColor.rgb = dot(normalize(texture2D(s_t2, tc).rgb - 0.5), normalize(texture2D(s_t3, lm).rgb - 0.5));
-//gl_FragColor.rgb = texture2D(s_t3, lm).rgb;
-		gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb * dot(normalize(texture2D(s_t2, tc).rgb-0.5), 2.0*(texture2D(s_t3, lm).rgb-0.5));
-	#else
-		gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb;
+		lightmaps *= dot(norm, 2.0*(texture2D(s_t3, lm).rgb-0.5));
 	#endif
 #endif
+
+#ifdef SPECULAR
+	vec4 specs = texture2D(s_t5, tc);
+	#ifdef DELUXE
+//not lightstyled...
+		vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_t3, lm).rgb-0.5));	//this norm should be the deluxemap info instead
+	#else
+		vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));	//this norm should be the deluxemap info instead
+	#endif
+	float spec = pow(max(dot(halfdir, norm), 0.0), 32.0 * specs.a);
+	spec *= cvar_gl_specular;
+//NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
+//As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
+//we default to something that is not garish when the light value is directly infront of every single pixel.
+//we can justify this difference due to the rtlight editor etc showing the *4.
+	gl_FragColor.rgb += spec * specs.rgb;
+#endif
+
+	//now we have our diffuse+specular terms, modulate by lightmap values.
+	gl_FragColor.rgb *= lightmaps.rgb;
 
 //add on the fullbright
 #ifdef FULLBRIGHT

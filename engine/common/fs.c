@@ -176,40 +176,6 @@ searchpath_t	*com_searchpaths;
 searchpath_t	*com_purepaths;
 searchpath_t	*com_base_searchpaths;	// without gamedirs
 
-/*
-================
-COM_filelength
-================
-*/
-int COM_filelength (FILE *f)
-{
-	int		pos;
-	int		end;
-
-	pos = ftell (f);
-	fseek (f, 0, SEEK_END);
-	end = ftell (f);
-	fseek (f, pos, SEEK_SET);
-
-	return end;
-}
-/*
-static int COM_FileOpenRead (char *path, FILE **hndl)
-{
-	FILE	*f;
-
-	f = fopen(path, "rb");
-	if (!f)
-	{
-		*hndl = NULL;
-		return -1;
-	}
-	*hndl = f;
-
-	return COM_filelength(f);
-}
-*/
-
 int COM_FileSize(const char *path)
 {
 	int len;
@@ -1810,8 +1776,8 @@ void COM_Gamedir (const char *dir)
 
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT "set _cl_playermodel \"\"\n set dpcompat_set 1\n set dpcompat_trailparticles 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
-/*nexuiz/xonotic has a few quirks...*/
-#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
+/*nexuiz/xonotic has a few quirks/annoyances...*/
+#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2*/
@@ -1830,6 +1796,7 @@ typedef struct {
 
 	const char *dir[4];
 	const char *poshname;	//Full name for the game.
+	const char *downloadaddr;
 } gamemode_info_t;
 const gamemode_info_t gamemode_info[] = {
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
@@ -1837,12 +1804,12 @@ const gamemode_info_t gamemode_info[] = {
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
 	//cmdline switch exename    protocol name(dpmaster)  identifying file		exec     dir1       dir2    dir3       dir(fte)     full name
-	{"-quake",		"q1",		"DarkPlaces-Quake",		{"id1/pak0.pak"
-														 "id1/quake.rc"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"-quake",		"q1",		"DarkPlaces-Quake",		{"id1/pak0.pak",
+														 "id1/quake.rc"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"/*,    "id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	{"-hipnotic",	"hipnotic",	"Darkplaces-Hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
 	{"-rogue",		"rogue",	"Darkplaces-Rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
-	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
+	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic",	"data/xonotic-20120308-data.pk3|http://localhost/xonotic-0.6.0.zip"},
 	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 														 "base/qwprogs.dat",
 														 "base/pak0.pak"},		DMFCFG,	{"base",						         },	"Spark"},
@@ -2215,7 +2182,8 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	FILE *f;
 	DWORD resultlen;
 	HKEY key = NULL;
-	if (!FAILED(RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+	
+	if (RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 	{
 		resultlen = basepathlen;
 		RegQueryValueEx(key, "SteamPath", NULL, NULL, basepath, &resultlen);
@@ -2239,7 +2207,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #endif
 
 	//first, try and find it in our game paths location
-	if (!FAILED(RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+	if (RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 	{
 		resultlen = basepathlen;
 		if (!RegQueryValueEx(key, gamename, NULL, NULL, basepath, &resultlen))
@@ -2284,7 +2252,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		HKEY key = NULL;
 
 		//look for HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Quake2_exe\Path
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
@@ -2306,7 +2274,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		DWORD resultlen;
 		HKEY key = NULL;
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Activision\Wolfenstein - Enemy Territory
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
@@ -2328,7 +2296,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		HKEY key = NULL;
 
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Quake III Arena\InstallPath
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
@@ -2350,7 +2318,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		DWORD resultlen;
 		HKEY key = NULL;
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\World Of Padman\Path
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
@@ -2365,7 +2333,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		DWORD resultlen;
 		HKEY key = NULL;
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Doom 3\InstallPath
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Doom 3", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Doom 3", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
@@ -2416,13 +2384,13 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			Q_strncpyz(basepath, resultpath, basepathlen-1);
 
 			//and save it into the windows registry
-			if (!FAILED(RegCreateKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths",
+			if (RegCreateKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths",
 				0, NULL,
 				REG_OPTION_NON_VOLATILE,
 				KEY_WRITE,
 				NULL,
 				&key,
-				NULL)))
+				NULL) == ERROR_SUCCESS)
 			{
 				RegSetValueEx(key, gamename, 0, REG_SZ, basepath, strlen(basepath));
 
@@ -2439,6 +2407,9 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #else
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
+#ifdef __linux__
+	// /usr/share/quake
+#endif
 	return false;
 }
 #endif
@@ -2518,6 +2489,7 @@ void FS_StartupWithGame(int gamenum)
 
 	Cvar_Set(&com_protocolname, gamemode_info[gamenum].protocolname);
 	Cvar_ForceSet(&fs_gamename, gamemode_info[gamenum].poshname);
+	Cvar_ForceSet(&fs_gamedownload, gamemode_info[gamenum].downloadaddr?gamemode_info[gamenum].downloadaddr:"");
 
 	i = COM_CheckParm ("-basepack");
 	while (i && i < com_argc-1)
@@ -2596,7 +2568,7 @@ void FS_StartupWithGame(int gamenum)
 		COM_Gamedir(com_argv[i+1]);
 	}
 
-#if 1//def ANDROID
+#ifdef ANDROID
 	{
 		vfsfile_t *f;
 		//write a .nomedia file to avoid people from getting random explosion sounds etc intersperced with their music
@@ -2679,6 +2651,7 @@ void COM_InitFilesystem (void)
 
 
 	Cvar_Register(&fs_gamename, "FS");
+	Cvar_Register(&fs_gamedownload, "FS");
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&com_modname, "Server Info");
 	//identify the game from a telling file
@@ -2697,6 +2670,29 @@ void COM_InitFilesystem (void)
 			}
 		}
 	}
+	if (gamenum == -1 && host_parms.binarydir && *host_parms.binarydir && autobasedir)
+	{
+		for (i = 0; gamemode_info[i].argname && gamenum==-1; i++)
+		{
+			//look in the directory the exe exists in if we failed to find a valid installation in the working dir
+			for (j = 0; j < 4; j++)
+			{
+				if (gamemode_info[i].auniquefile[j])
+				{
+					f = VFSOS_Open(va("%s%s", host_parms.binarydir, gamemode_info[i].auniquefile[j]), "rb");
+					if (f)
+					{
+						//apply this as the new -basedir
+						Q_strncpyz(com_quakedir, host_parms.binarydir, sizeof(com_quakedir));
+						gamenum = i;
+						//we found it, its all okay
+						VFS_CLOSE(f);
+						break;
+					}
+				}
+			}
+		}
+	}
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
 	for (i = 0; gamemode_info[i].argname; i++)
 	{
@@ -2711,37 +2707,59 @@ void COM_InitFilesystem (void)
 		{
 			gamenum = i;
 
-			for (j = 0; j < 4; j++)
+			if (autobasedir)
 			{
-				if (gamemode_info[gamenum].auniquefile[j])
+				//try the working directory first
+				for (j = 0; j < 4; j++)
 				{
-					f = VFSOS_Open(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
-					if (f)
+					if (gamemode_info[gamenum].auniquefile[j])
 					{
-						//we found it, its all okay
-						VFS_CLOSE(f);
-						break;
-					}
-					if (autobasedir)
-					{
-#ifdef _WIN32
-						if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+						f = VFSOS_Open(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+						if (f)
 						{
-							if (com_quakedir[strlen(com_quakedir)-1] == '\\')
-								com_quakedir[strlen(com_quakedir)-1] = '/';
-							else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+							//we found it, its all okay
+							VFS_CLOSE(f);
+							break;
+						}
+					}
+				}
+				//try looking where the exe is
+				if (j == 4 && host_parms.binarydir && *host_parms.binarydir)
+				{
+					for (j = 0; j < 4; j++)
+					{
+						if (gamemode_info[gamenum].auniquefile[j])
+						{
+							f = VFSOS_Open(va("%s%s", host_parms.binarydir, gamemode_info[i].auniquefile[j]), "rb");
+							if (f)
 							{
-								com_quakedir[strlen(com_quakedir)+1] = '\0';
-								com_quakedir[strlen(com_quakedir)] = '/';
+								Q_strncpyz(com_quakedir, host_parms.binarydir, sizeof(com_quakedir));
+								//we found it, its all okay
+								VFS_CLOSE(f);
+								break;
 							}
 						}
-						else
-#endif
+					}
+				}
+				//scan known locations/windows registry/etc to see if we can find an existing install
+				if (j == 4)
+				{
+					char realpath[MAX_OSPATH-1];
+					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, realpath, sizeof(realpath)))
+					{
+						Q_strncpyz(com_quakedir, realpath, sizeof(com_quakedir));
+						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+							com_quakedir[strlen(com_quakedir)-1] = '/';
+						else if (com_quakedir[strlen(com_quakedir)-1] != '/')
 						{
-							Con_Printf("Couldn't find the gamedata for this game mode!\n");
+							com_quakedir[strlen(com_quakedir)+1] = '\0';
+							com_quakedir[strlen(com_quakedir)] = '/';
 						}
 					}
-					break;
+					else
+					{
+						Con_Printf("Couldn't find the gamedata for this game mode!\n");
+					}
 				}
 			}
 			break;
@@ -2760,8 +2778,10 @@ void COM_InitFilesystem (void)
 
 				if (autobasedir)
 				{
-					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+					char realpath[MAX_OSPATH-1];
+					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, realpath, sizeof(realpath)))
 					{
+						Q_strncpyz(com_quakedir, realpath, sizeof(com_quakedir));
 						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
 							com_quakedir[strlen(com_quakedir)-1] = '/';
 						else if (com_quakedir[strlen(com_quakedir)-1] != '/')

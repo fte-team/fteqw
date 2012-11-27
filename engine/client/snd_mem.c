@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include "winquake.h"
+#include "fs.h"
 
 int			cache_full_cycle;
 
@@ -779,7 +780,8 @@ qboolean S_LoadSound (sfx_t *s)
 
 	if (name[1] == ':' && name[2] == '\\')
 	{
-		FILE *f;
+		vfsfile_t *f;
+		int fsize;
 #ifndef _WIN32	//convert from windows to a suitable alternative.
 		char unixname[128];
 		Q_snprintfz(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
@@ -794,16 +796,16 @@ qboolean S_LoadSound (sfx_t *s)
 #endif
 
 		
-		if ((f = fopen(name, "rb")))
+		if ((f = VFSOS_Open(name, "rb")))
 		{
-			com_filesize = COM_filelength(f);
-			data = Hunk_TempAlloc (com_filesize);
-			result = fread(data, 1, com_filesize, f); //do something with result
+			fsize = VFS_GETLEN(f);
+			data = Hunk_TempAlloc (fsize);
+			result = VFS_READ(f, data, fsize);
 
-			if (result != com_filesize)
-				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u\n",name,com_filesize,(unsigned int)result);
+			if (result != fsize)
+				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u\n", name, fsize, (unsigned int)result);
 
-			fclose(f);
+			VFS_CLOSE(f);
 		}
 		else
 		{

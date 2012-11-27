@@ -207,6 +207,12 @@ void World_ODE_Init(void);
 void World_ODE_Start(world_t *world);
 void World_ODE_End(world_t *world);
 void World_ODE_Shutdown(void);
+
+qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, float *mat, wedict_t *ed);
+void World_ODE_RagDestroyBody(world_t *world, odebody_t *bodyptr);
+void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat);
+void World_ODE_RagCreateJoint(world_t *world, odejoint_t *joint, odejointinfo_t *info, odebody_t *body1, odebody_t *body2, vec3_t aaa2[3]);
+void World_ODE_RagDestroyJoint(world_t *world, odejoint_t *joint);
 #endif
 
 void World_ClearWorld (world_t *w);

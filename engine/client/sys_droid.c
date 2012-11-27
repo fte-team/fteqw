@@ -27,10 +27,11 @@ static unsigned int vibrateduration;
 static char errormessage[256];
 extern  jmp_buf 	host_abort;
 
-cvar_t sys_vibrate = CVAR("sys_vibrate", "1");
+cvar_t sys_vibrate = CVARD("sys_vibrate", "1", "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
 cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
-cvar_t sys_keepscreenon = CVAR("sys_keepscreenon", "1");	//to be toggled
-cvar_t sys_orientation = CVAR("sys_orientation", "sensor");
+cvar_t sys_keepscreenon = CVARD("sys_keepscreenon", "1", "If set, the screen will never darken. This might cost some extra battery power, but then so will running a 3d engine.");	//to be toggled
+cvar_t sys_orientation = CVARD("sys_orientation", "landscape", "Specifies what angle to render quake at.\nValid values are: sensor (autodetect), landscape, portrait, reverselandscape, reverseportrait");
+cvar_t sys_glesversion_cvar = CVARD("sys_glesversion", "1", "Specifies which version of gles to use. 1 or 2 are valid values.");
 extern cvar_t vid_conautoscale;
 
 
@@ -56,7 +57,13 @@ JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_geterrormessage(JNIEnv *
 JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedorientation(JNIEnv *env, jobject obj)
 {
 	sys_orientation.modified = false;
+	sys_glesversion_cvar.modified = false;
 	return (*env)->NewStringUTF(env, sys_orientation.string);
+}
+
+JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedglesversion(JNIEnv *env, jobject obj)
+{
+	return sys_glesversion_cvar.ival;
 }
 
 /*the java passes in all input directly via a 'UI' thread. we don't need to poll it at all*/
@@ -96,8 +103,11 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 	static vec3_t oac;
 
 	//if we had an error, don't even run a frame any more.
-	if (*errormessage)
+	if (*errormessage || !sys_running)
+	{
+		Sys_Printf("Crashed or quit\n");
 		return 8;
+	}
 
 	#ifdef SERVERONLY
 	SV_Frame();
@@ -127,7 +137,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		ret |= 4;
 	if (*errormessage)
 		ret |= 8;
-	if (sys_orientation.modified)
+	if (sys_orientation.modified || sys_glesversion_cvar.modified)
 		ret |= 16;
 	if (sys_soundflags)
 	{
@@ -190,6 +200,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		Sys_Printf("reinit\n");
 		if (sys_memheap)
 			free(sys_memheap);
+		memset(&parms, 0, sizeof(parms));
 		parms.basedir = NULL;	/*filled in later*/
 		parms.argc = 3;
 		parms.argv = args;
@@ -239,6 +250,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		#endif
 		sys_running = true;
 		sys_lastframe = Sys_Milliseconds();
+		sys_orientation.modified = true;
 	}
 }
 
@@ -407,6 +419,7 @@ void Sys_Init(void)
 	Cvar_Register(&sys_osk, "android stuff");
 	Cvar_Register(&sys_keepscreenon, "android stuff");
 	Cvar_Register(&sys_orientation, "android stuff");
+	Cvar_Register(&sys_glesversion_cvar, "android stuff");
 }
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)

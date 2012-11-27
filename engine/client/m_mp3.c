@@ -14,6 +14,9 @@
 #ifdef _WIN32
 #define WINAMP
 #endif
+#if defined(_WIN32)
+#define WINAVI
+#endif
 
 #ifdef WINAMP
 
@@ -229,11 +232,13 @@ qboolean Media_FakeTrack(int i, qboolean loop)
 			sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
 			found = COM_FCheckExists(trackname);
 		}
+#ifdef WINAVI
 		if (!found)
 		{
 			sprintf(trackname, "sound/cdtracks/track%03i.mp3", i);
 			found = COM_FCheckExists(trackname);
 		}
+#endif
 		if (!found)
 		{
 			sprintf(trackname, "sound/cdtracks/track%03i.wav", i);
@@ -756,10 +761,6 @@ char *Media_NextTrack(int musicchannelnum)
 
 
 
-//Avi files are specific to windows. Bit of a bummer really.
-#if defined(_WIN32)
-#define WINAVI
-#endif
 
 
 
@@ -1405,6 +1406,7 @@ static qboolean Media_Plugin_DecodeFrame(cin_t *cin, qboolean nosound)
 
 	if (cin->outtype != TF_INVALID)
 		return true;
+	cin->ended = true;
 	return false;
 }
 static void Media_Plugin_DoneFrame(cin_t *cin)
@@ -2357,33 +2359,26 @@ void Media_PlayFilm_f (void)
 
 
 
-#if defined(GLQUAKE)
-#if defined(WINAVI)
-#define WINAVIRECORDING
-PAVIFILE recordavi_file;
-#define recordavi_video_stream (recordavi_codec_fourcc?recordavi_compressed_video_stream:recordavi_uncompressed_video_stream)
-PAVISTREAM recordavi_uncompressed_video_stream;
-PAVISTREAM recordavi_compressed_video_stream;
-PAVISTREAM recordavi_uncompressed_audio_stream;
-WAVEFORMATEX recordavi_wave_format;
-unsigned long recordavi_codec_fourcc;
-#endif /* WINAVI */
-
 soundcardinfo_t *capture_fakesounddevice;
+/*
 int recordavi_video_frame_counter;
 int recordavi_audio_frame_counter;
 float recordavi_frametime;	//length of a frame in fractional seconds
 float recordavi_videotime;
 float recordavi_audiotime;
-int capturesize;
-int capturewidth;
-char *capturevideomem;
-vfsfile_t *captureaudiorawfile;
+*/
+//int capturesize;
+//int capturewidth;
+//char *capturevideomem;
 //short *captureaudiomem;
-int captureaudiosamples;
+//int captureaudiosamples;
+double captureframeinterval;	//interval between video frames
+double capturelastvideotime;	//time of last video frame
 int captureframe;
+qboolean captureframeforce;
+
 qboolean capturepaused;
-cvar_t capturerate = SCVAR("capturerate", "15");
+cvar_t capturerate = SCVAR("capturerate", "30");
 #if defined(WINAVI)
 cvar_t capturecodec = SCVAR("capturecodec", "divx");
 #else
@@ -2394,18 +2389,332 @@ cvar_t capturesoundchannels = SCVAR("capturesoundchannels", "1");
 cvar_t capturesoundbits = SCVAR("capturesoundbits", "8");
 cvar_t capturemessage = SCVAR("capturemessage", "");
 qboolean recordingdemo;
-enum {
-	CT_NONE,
-	CT_AVI,
-	CT_SCREENSHOT
-} capturetype;
-char capturefilenameprefix[MAX_QPATH];
+media_encoder_funcs_t *capturedriver[8];
 
-qboolean Media_Capturing (void)
+media_encoder_funcs_t *currentcapture_funcs;
+void *currentcapture_ctx;
+
+
+#if 1
+/*screenshot capture*/
+struct capture_raw_ctx
 {
-	if (!capturetype)
-		return false;
-	return true;
+	char videonameprefix[MAX_QPATH];
+	vfsfile_t *audio;
+};
+
+static void *QDECL capture_raw_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
+{
+	struct capture_raw_ctx *ctx = Z_Malloc(sizeof(*ctx));
+
+	Q_strncpyz(ctx->videonameprefix, streamname, sizeof(ctx->videonameprefix));
+	ctx->audio = NULL;
+	if (*sndkhz)
+	{
+		char filename[MAX_OSPATH];
+		if (*sndbits < 8)
+			*sndbits = 8;
+		if (*sndbits != 8)
+			*sndbits = 16;
+		if (*sndchannels > 6)
+			*sndchannels = 6;
+		if (*sndchannels < 1)
+			*sndchannels = 1;
+		Q_snprintfz(filename, sizeof(filename), "%s/audio_%ichan_%ikhz_%ib.raw", ctx->videonameprefix, *sndchannels, *sndkhz/1000, *sndbits);
+		ctx->audio = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+	}
+	if (!ctx->audio)
+	{
+		*sndkhz = 0;
+		*sndchannels = 0;
+		*sndbits = 0;
+	}
+	return ctx;
+}
+static void QDECL capture_raw_video (void *vctx, void *data, int frame, int width, int height)
+{
+	struct capture_raw_ctx *ctx = vctx;
+	char filename[MAX_OSPATH];
+	Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", ctx->videonameprefix, frame, capturecodec.string);
+	SCR_ScreenShot(filename, data, width, height);
+}
+static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
+{
+	struct capture_raw_ctx *ctx = vctx;
+
+	if (ctx->audio)
+		VFS_WRITE(ctx->audio, data, bytes);
+}
+static void QDECL capture_raw_end (void *vctx)
+{
+	struct capture_raw_ctx *ctx = vctx;
+	Z_Free(ctx);
+}
+static media_encoder_funcs_t capture_raw =
+{
+	capture_raw_begin,
+	capture_raw_video,
+	capture_raw_audio,
+	capture_raw_end
+};
+#endif
+#if defined(WINAVI)
+
+/*screenshot capture*/
+struct capture_avi_ctx
+{
+	PAVIFILE file;
+	#define avi_video_stream(ctx) (ctx->codec_fourcc?ctx->compressed_video_stream:ctx->uncompressed_video_stream)
+	PAVISTREAM uncompressed_video_stream;
+	PAVISTREAM compressed_video_stream;
+	PAVISTREAM uncompressed_audio_stream;
+	WAVEFORMATEX wave_format;
+	unsigned long codec_fourcc;
+
+	int audio_frame_counter;
+};
+
+static void QDECL capture_avi_end(void *vctx)
+{
+	struct capture_avi_ctx *ctx = vctx;
+
+    if (ctx->uncompressed_video_stream)	qAVIStreamRelease(ctx->uncompressed_video_stream);
+    if (ctx->compressed_video_stream)	qAVIStreamRelease(ctx->compressed_video_stream);
+    if (ctx->uncompressed_audio_stream)	qAVIStreamRelease(ctx->uncompressed_audio_stream);
+    if (ctx->file)						qAVIFileRelease(ctx->file);
+	Z_Free(ctx);
+}
+
+static void *QDECL capture_avi_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
+{
+	struct capture_avi_ctx *ctx = Z_Malloc(sizeof(*ctx));
+	HRESULT hr;
+	BITMAPINFOHEADER bitmap_info_header;
+	AVISTREAMINFOA stream_header;
+	FILE *f;
+	char aviname[256];
+	char nativepath[256];
+
+	char *fourcc = capturecodec.string;
+
+	if (strlen(fourcc) == 4)
+		ctx->codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
+	else
+		ctx->codec_fourcc = 0;
+
+	if (!qAVIStartup())
+	{
+		Con_Printf("vfw support not available.\n");
+		capture_avi_end(ctx);
+		return NULL;
+	}
+
+	/*convert to foo.avi*/
+	COM_StripExtension(streamname, aviname, sizeof(aviname));
+	COM_DefaultExtension (aviname, ".avi", sizeof(aviname));
+	/*find the system location of that*/
+	FS_NativePath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
+
+	//wipe it.
+	f = fopen(nativepath, "rb");
+	if (f)
+	{
+		fclose(f);
+		unlink(nativepath);
+	}
+
+	hr = qAVIFileOpenA(&ctx->file, nativepath, OF_WRITE | OF_CREATE, NULL);
+	if (FAILED(hr))
+	{
+		Con_Printf("Failed to open %s\n", nativepath);
+		capture_avi_end(ctx);
+		return NULL;
+	}
+
+
+	memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
+	bitmap_info_header.biSize = 40;
+	bitmap_info_header.biWidth = vid.pixelwidth;
+	bitmap_info_header.biHeight = vid.pixelheight;
+	bitmap_info_header.biPlanes = 1;
+	bitmap_info_header.biBitCount = 24;
+	bitmap_info_header.biCompression = BI_RGB;
+	bitmap_info_header.biSizeImage = vid.pixelwidth*vid.pixelheight * 3;
+
+
+	memset(&stream_header, 0, sizeof(stream_header));
+	stream_header.fccType = streamtypeVIDEO;
+	stream_header.fccHandler = ctx->codec_fourcc;
+	stream_header.dwScale = 100;
+	stream_header.dwRate = (unsigned long)(0.5 + 100.0/captureframeinterval);
+	SetRect(&stream_header.rcFrame, 0, 0, vid.pixelwidth, vid.pixelheight);
+
+	hr = qAVIFileCreateStreamA(ctx->file, &ctx->uncompressed_video_stream, &stream_header);
+	if (FAILED(hr))
+	{
+		Con_Printf("Couldn't initialise the stream, check codec\n");
+		capture_avi_end(ctx);
+		return NULL;
+	}
+
+	if (ctx->codec_fourcc)
+	{
+		AVICOMPRESSOPTIONS opts;
+		AVICOMPRESSOPTIONS* aopts[1] = { &opts };
+		memset(&opts, 0, sizeof(opts));
+		opts.fccType = stream_header.fccType;
+		opts.fccHandler = ctx->codec_fourcc;
+		// Make the stream according to compression
+		hr = qAVIMakeCompressedStream(&ctx->compressed_video_stream, ctx->uncompressed_video_stream, &opts, NULL);
+		if (FAILED(hr))
+		{
+			Con_Printf("Failed to init compressor\n");
+			capture_avi_end(ctx);
+			return NULL;
+		}
+	}
+
+
+	hr = qAVIStreamSetFormat(avi_video_stream(ctx), 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
+	if (FAILED(hr))
+	{
+		Con_Printf("Failed to set format\n");
+		capture_avi_end(ctx);
+		return NULL;
+	}
+
+	if (*sndbits != 8 && *sndbits != 16)
+		*sndbits = 8;
+	if (*sndchannels < 1 && *sndchannels > 6)
+		*sndchannels = 1;
+
+	if (*sndkhz)
+	{
+		memset(&ctx->wave_format, 0, sizeof(WAVEFORMATEX));
+		ctx->wave_format.wFormatTag = WAVE_FORMAT_PCM;
+		ctx->wave_format.nChannels = *sndchannels;
+		ctx->wave_format.nSamplesPerSec = *sndkhz;
+		ctx->wave_format.wBitsPerSample = *sndbits;
+		ctx->wave_format.nBlockAlign = ctx->wave_format.wBitsPerSample/8 * ctx->wave_format.nChannels;
+		ctx->wave_format.nAvgBytesPerSec = ctx->wave_format.nSamplesPerSec * ctx->wave_format.nBlockAlign;
+		ctx->wave_format.cbSize = 0;
+
+
+		memset(&stream_header, 0, sizeof(stream_header));
+		stream_header.fccType = streamtypeAUDIO;
+		stream_header.dwScale = ctx->wave_format.nBlockAlign;
+		stream_header.dwRate = stream_header.dwScale * (unsigned long)ctx->wave_format.nSamplesPerSec;
+		stream_header.dwSampleSize = ctx->wave_format.nBlockAlign;
+
+		hr = qAVIFileCreateStreamA(ctx->file, &ctx->uncompressed_audio_stream, &stream_header);
+		if (FAILED(hr))
+		{
+			capture_avi_end(ctx);
+			return NULL;
+		}
+
+		hr = qAVIStreamSetFormat(ctx->uncompressed_audio_stream, 0, &ctx->wave_format, sizeof(WAVEFORMATEX));
+		if (FAILED(hr))
+		{
+			capture_avi_end(ctx);
+			return NULL;
+		}
+	}
+	return ctx;
+}
+
+static void QDECL capture_avi_video(void *vctx, void *vdata, int frame, int width, int height)
+{
+	struct capture_avi_ctx *ctx = vctx;
+	qbyte *data = vdata;
+	int c, i;
+	qbyte temp;
+	// swap rgb to bgr
+	c = width*height*3;
+	for (i=0 ; i<c ; i+=3)
+	{
+		temp = data[i];
+		data[i] = data[i+2];
+		data[i+2] = temp;
+	}
+	//write it
+	Con_Printf("%i - %f\n", frame, realtime);
+	if (FAILED(qAVIStreamWrite(avi_video_stream(ctx), frame, 1, data, width*height * 3, ((frame%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL)))
+		Con_Printf("Recoring error\n");
+}
+
+static void QDECL capture_avi_audio(void *vctx, void *data, int bytes)
+{
+	struct capture_avi_ctx *ctx = vctx;
+	if (ctx->uncompressed_audio_stream)
+		qAVIStreamWrite(ctx->uncompressed_audio_stream, ctx->audio_frame_counter++, 1, data, bytes, AVIIF_KEYFRAME, NULL, NULL);
+}
+
+static media_encoder_funcs_t capture_avi =
+{
+	capture_avi_begin,
+	capture_avi_video,
+	capture_avi_audio,
+	capture_avi_end
+};
+#else
+media_encoder_funcs_t capture_avi =
+{
+	NULL,
+	NULL,
+	NULL,
+	NULL
+};
+#endif
+
+
+static media_encoder_funcs_t *pluginencodersfunc[8];
+static struct plugin_s *pluginencodersplugin[8];
+
+qboolean Media_RegisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs)
+{
+	int i;
+	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
+	{
+		if (pluginencodersfunc[i] == NULL)
+		{
+			pluginencodersfunc[i] = funcs;
+			pluginencodersplugin[i] = plug;
+			return true;
+		}
+	}
+	return false;
+}
+void Media_StopRecordFilm_f(void);
+/*funcs==null closes ALL decoders from this plugin*/
+qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs)
+{
+	qboolean success = true;
+	int i;
+	static media_decoder_funcs_t deadfuncs;
+
+	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
+	{
+		if (pluginencodersfunc[i] == funcs || (!funcs && pluginencodersplugin[i] == plug))
+		{
+			if (currentcapture_funcs == funcs)
+				Media_StopRecordFilm_f();
+
+			plugindecodersfunc[i] = NULL;
+			plugindecodersplugin[i] = NULL;
+			if (funcs)
+				return success;
+		}
+	}
+	return success;
+}
+
+//returns 0 if not capturing. 1 if capturing live. 2 if capturing a demo (where frame timings are forced).
+int Media_Capturing (void)
+{
+	if (!currentcapture_funcs)
+		return 0;
+	return captureframeforce?2:1;
 }
 
 void Media_CapturePause_f (void)
@@ -2424,20 +2733,42 @@ qboolean Media_PausedDemo (void)
 	return false;
 }
 
-double Media_TweekCaptureFrameTime(double time)
+static qboolean Media_ForceTimeInterval(void)
 {
-	if (cls.demoplayback && Media_Capturing() && recordavi_frametime)
+	return (cls.demoplayback && Media_Capturing() && captureframeinterval>0);
+}
+
+double Media_TweekCaptureFrameTime(double oldtime, double time)
+{
+	if (Media_ForceTimeInterval())
 	{
-		return time = recordavi_frametime;
+		captureframeforce = true;
+		//if we're forcing time intervals, then we use fixed time increments and generate a new video frame for every single frame.
+		return capturelastvideotime;
 	}
-	return time;
+	return oldtime + time;
 }
 
 void Media_RecordFrame (void)
 {
-	if (!capturetype)
+	char *buffer;
+	int truewidth, trueheight;
+
+	if (!currentcapture_funcs)
 		return;
 
+/*	if (*capturecutoff.string && captureframe * captureframeinterval > capturecutoff.value*60)
+	{
+		currentcapture_funcs->capture_end(currentcapture_ctx);
+		currentcapture_ctx = currentcapture_funcs->capture_begin(Cmd_Argv(1), capturerate.value, vid.pixelwidth, vid.pixelheight, &sndkhz, &sndchannels, &sndbits);
+		if (!currentcapture_ctx)
+		{
+			currentcapture_funcs = NULL;
+			return;
+		}
+		captureframe = 0;
+	}
+*/
 	if (Media_PausedDemo())
 	{
 		int y = vid.height -32-16;
@@ -2445,11 +2776,11 @@ void Media_RecordFrame (void)
 		if (y > vid.height-8)
 			y = vid.height-8;
 		Draw_FunString((strlen(capturemessage.string)+1)*8, y, S_COLOR_RED "PAUSED");
+
+		if (captureframeforce)
+			capturelastvideotime += captureframeinterval;
 		return;
 	}
-
-	if (cls.findtrack)
-		return;	//skip until we're tracking the right player.
 
 //overlay this on the screen, so it appears in the film
 	if (*capturemessage.string)
@@ -2462,55 +2793,33 @@ void Media_RecordFrame (void)
 	}
 
 	//time for annother frame?
-	if (recordavi_videotime > realtime+1)
-		recordavi_videotime = realtime;	//urm, wrapped?..
-	if (recordavi_videotime > realtime)
-		goto skipframe;
-	recordavi_videotime += recordavi_frametime;
-	//audio is mixed to match the video times
-
-	switch (capturetype)
+	if (!captureframeforce)
 	{
-	case CT_AVI:
-#if defined(WINAVI)
-		{
-			HRESULT hr;
-			char *framebuffer = capturevideomem;
-			qbyte temp;
-			int i, c;
-
-			if (!framebuffer)
-			{
-				Con_Printf("framebuffer = NULL with AVI capture type (this shouldn't happen)\n");
-				return;
-			}
-		//ask gl for it
-			qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer );
-
-			// swap rgb to bgr
-			c = vid.pixelwidth*vid.pixelheight*3;
-			for (i=0 ; i<c ; i+=3)
-			{
-				temp = framebuffer[i];
-				framebuffer[i] = framebuffer[i+2];
-				framebuffer[i+2] = temp;
-			}
-			//write it
-			hr = qAVIStreamWrite(recordavi_video_stream, captureframe++, 1, framebuffer, vid.pixelwidth*vid.pixelheight * 3, ((captureframe%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL);
-			if (FAILED(hr)) Con_Printf("Recoring error\n");
-		}
-#endif /* WINAVI */
-		break;
-	case CT_SCREENSHOT:
-		{
-			char filename[MAX_OSPATH];
-			Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", capturefilenameprefix, captureframe++, capturecodec.string);
-			SCR_ScreenShot(filename);
-		}
-		break;
-	case CT_NONE:	//non issue.
-		;
+		if (capturelastvideotime > realtime+1)
+			capturelastvideotime = realtime;	//urm, wrapped?..
+		if (capturelastvideotime > realtime)
+			goto skipframe;
 	}
+	
+	if (cls.findtrack)
+	{
+		capturelastvideotime += captureframeinterval;
+		return;	//skip until we're tracking the right player.
+	}
+
+	//submit the current video frame. audio will be mixed to match.
+	buffer = VID_GetRGBInfo(0, &truewidth, &trueheight);
+	if (buffer)
+	{
+		currentcapture_funcs->capture_video(currentcapture_ctx, buffer, captureframe, truewidth, trueheight);
+		capturelastvideotime += captureframeinterval;
+		captureframe++;
+		BZ_Free (buffer);
+	}
+	else
+		Con_DPrintf("Unable to grab video image\n");
+
+	captureframeforce = false;
 
 	//this is drawn to the screen and not the film
 skipframe:
@@ -2539,7 +2848,7 @@ static unsigned int MSD_GetDMAPos(soundcardinfo_t *sc)
 {
 	int		s;
 
-	s = captureframe*(snd_speed*recordavi_frametime);
+	s = captureframe*(snd_speed*captureframeinterval);
 
 
 //	s >>= (sc->sn.samplebits/8) - 1;
@@ -2559,52 +2868,39 @@ static void MSD_Submit(soundcardinfo_t *sc, int start, int end)
 	int offset;
 	int bytespersample;
 
-	lastpos = sc->snd_completed;
 	newpos = sc->paintedtime;
 
-	samplestosubmit = newpos - lastpos;
-	if (samplestosubmit < (snd_speed*recordavi_frametime))
-		return;
-
-	bytespersample = sc->sn.numchannels*sc->sn.samplebits/8;
-
-	sc->snd_completed = newpos;
-	offset = (lastpos % (sc->sn.samples/sc->sn.numchannels));
-
-	//we could just use a buffer size equal to the number of samples in each frame
-	//but that isn't as robust when it comes to floating point imprecisions
-	//namly: that it would loose a sample each frame with most framerates.
-
-	switch (capturetype)
+	while(1)
 	{
-	case CT_AVI:
-#if defined(WINAVI)
+		lastpos = sc->snd_completed;
+		samplestosubmit = newpos - lastpos;
+		if (samplestosubmit < (snd_speed*captureframeinterval))
+			return;
+		if (samplestosubmit < 1152)
+			return;
+		if (samplestosubmit > 1152)
+			samplestosubmit = 1152;
+
+		bytespersample = sc->sn.numchannels*sc->sn.samplebits/8;
+
+		offset = (lastpos % (sc->sn.samples/sc->sn.numchannels));
+
+		//we could just use a buffer size equal to the number of samples in each frame
+		//but that isn't as robust when it comes to floating point imprecisions
+		//namly: that it would loose a sample each frame with most framerates.
+
 		if ((sc->snd_completed % (sc->sn.samples/sc->sn.numchannels)) < offset)
 		{
 			int partialsamplestosubmit;
 			//wraped, two chunks to send
 			partialsamplestosubmit = ((sc->sn.samples/sc->sn.numchannels)) - offset;
-			qAVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, partialsamplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
+			currentcapture_funcs->capture_audio(currentcapture_ctx, sc->sn.buffer+offset*bytespersample, partialsamplestosubmit*bytespersample);
 			samplestosubmit -= partialsamplestosubmit;
+			sc->snd_completed += partialsamplestosubmit;
 			offset = 0;
 		}
-		qAVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
-#endif /* WINAVI */
-		break;
-	case CT_NONE:
-		break;
-	case CT_SCREENSHOT:
-		if ((sc->snd_completed % (sc->sn.samples/sc->sn.numchannels)) < offset)
-		{
-			int partialsamplestosubmit;
-			//wraped, two chunks to send
-			partialsamplestosubmit = ((sc->sn.samples/sc->sn.numchannels)) - offset;
-			VFS_WRITE(captureaudiorawfile, sc->sn.buffer+offset*bytespersample, partialsamplestosubmit*bytespersample);
-			samplestosubmit -= partialsamplestosubmit;
-			offset = 0;
-		}
-		VFS_WRITE(captureaudiorawfile, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample);
-		break;
+		currentcapture_funcs->capture_audio(currentcapture_ctx, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample);
+		sc->snd_completed += samplestosubmit;
 	}
 }
 
@@ -2614,24 +2910,29 @@ static void MSD_Shutdown (soundcardinfo_t *sc)
 	capture_fakesounddevice = NULL;
 }
 
-void Media_InitFakeSoundDevice (int channels, int samplebits)
+void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 {
 	soundcardinfo_t *sc;
 
 	if (capture_fakesounddevice)
 		return;
 
+	if (!snd_speed)
+		snd_speed = speed;
+
 	sc = Z_Malloc(sizeof(soundcardinfo_t));
 
 	sc->snd_sent = 0;
 	sc->snd_completed = 0;
 
-	sc->sn.samples = snd_speed*0.5;
-	sc->sn.speed = snd_speed;
+	sc->sn.samples = speed*0.5;
+	sc->sn.speed = speed;
 	sc->sn.samplebits = samplebits;
 	sc->sn.samplepos = 0;
 	sc->sn.numchannels = channels;
 	sc->inactive_sound = true;
+
+	sc->sn.samples -= sc->sn.samples%1152;
 
 	sc->sn.buffer = (unsigned char *) BZ_Malloc(sc->sn.samples*sc->sn.numchannels*(sc->sn.samplebits/8));
 
@@ -2655,40 +2956,22 @@ void Media_InitFakeSoundDevice (int channels, int samplebits)
 
 void Media_StopRecordFilm_f (void)
 {
-#if defined(WINAVI)
-    if (recordavi_uncompressed_video_stream)	qAVIStreamRelease(recordavi_uncompressed_video_stream);
-    if (recordavi_compressed_video_stream)		qAVIStreamRelease(recordavi_compressed_video_stream);
-    if (recordavi_uncompressed_audio_stream)	qAVIStreamRelease(recordavi_uncompressed_audio_stream);
-    if (recordavi_file)					qAVIFileRelease(recordavi_file);
-
-	recordavi_uncompressed_video_stream=NULL;
-	recordavi_compressed_video_stream = NULL;
-	recordavi_uncompressed_audio_stream=NULL;
-	recordavi_file = NULL;
-#endif /* WINAVI */
-
-	if (capturevideomem)
-		BZ_Free(capturevideomem);
-	capturevideomem = NULL;
-
 	if (capture_fakesounddevice)
 		S_ShutdownCard(capture_fakesounddevice);
 	capture_fakesounddevice = NULL;
 
-	if (captureaudiorawfile)
-		VFS_CLOSE(captureaudiorawfile);
-	captureaudiorawfile = NULL;
-
-
-	capturevideomem = NULL;
-
 	recordingdemo=false;
 
-	capturetype = CT_NONE;
+	if (currentcapture_funcs)
+		currentcapture_funcs->capture_end(currentcapture_ctx);
+	currentcapture_ctx = NULL;
+	currentcapture_funcs = NULL;
 }
 void Media_RecordFilm_f (void)
 {
 	char *fourcc = capturecodec.string;
+	int sndkhz, sndchannels, sndbits;
+	int i;
 
 	if (Cmd_Argc() != 2)
 	{
@@ -2702,18 +2985,16 @@ void Media_RecordFilm_f (void)
 
 	Media_StopRecordFilm_f();
 
-	recordavi_video_frame_counter = 0;
-	recordavi_audio_frame_counter = 0;
-
 	if (capturerate.value<=0)
 	{
 		Con_Printf("Invalid capturerate\n");
 		capturerate.value = 15;
 	}
 
-	recordavi_frametime = 1/capturerate.value;
-	if (recordavi_frametime < 0.001)
-		recordavi_frametime = 0.001;	//no more than 1000 images per second.
+	captureframeinterval = 1/capturerate.value;
+	if (captureframeinterval < 0.001)
+		captureframeinterval = 0.001;	//no more than 1000 images per second.
+	capturelastvideotime = realtime = 0;
 
 	captureframe = 0;
 	if (*fourcc)
@@ -2723,209 +3004,70 @@ void Media_RecordFilm_f (void)
 			!strcmp(fourcc, "jpg") ||
 			!strcmp(fourcc, "pcx"))
 		{
-			capturetype = CT_SCREENSHOT;
-			Q_strncpyz(capturefilenameprefix, Cmd_Argv(1), sizeof(capturefilenameprefix));
+			currentcapture_funcs = &capture_raw;
 		}
 		else
 		{
-			capturetype = CT_AVI;
+			currentcapture_funcs = &capture_avi;
 		}
 	}
 	else
 	{
-		capturetype = CT_AVI;	//uncompressed avi
+		currentcapture_funcs = &capture_avi;
 	}
-
-	if (capturetype == CT_NONE)
+	for (i = 0; i < 8; i++)
 	{
-
+		if (pluginencodersfunc[i])
+			currentcapture_funcs = pluginencodersfunc[i];
 	}
-	else if (capturetype == CT_SCREENSHOT)
+
+	if (capturesound.ival)
 	{
-		if (capturesound.value && capturesoundchannels.value >= 1)
-		{
-			char filename[MAX_OSPATH];
-			int chans = capturesoundchannels.value;
-			int sbits = capturesoundbits.value;
-			if (sbits < 8)
-				sbits = 8;
-			if (sbits != 8)
-				sbits = 16;
-			if (chans > 6)
-				chans = 6;
-			Q_snprintfz(filename, sizeof(filename), "%s/audio_%ichan_%ikhz_%ib.raw", capturefilenameprefix, chans, snd_speed/1000, sbits);
-			captureaudiorawfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
-
-			if (captureaudiorawfile)
-				Media_InitFakeSoundDevice(chans, sbits);
-		}
+		sndkhz = snd_speed?snd_speed:48000;
+		sndchannels = capturesoundchannels.ival;
+		sndbits = capturesoundbits.ival;
 	}
-#if defined(WINAVI)
-	else if (capturetype == CT_AVI)
-	{
-		HRESULT hr;
-		BITMAPINFOHEADER bitmap_info_header;
-		AVISTREAMINFOA stream_header;
-		FILE *f;
-		char aviname[256];
-		char nativepath[256];
-
-		if (strlen(fourcc) == 4)
-			recordavi_codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
-		else
-			recordavi_codec_fourcc = 0;
-
-		if (!qAVIStartup())
-		{
-			Con_Printf("vfw support not available.\n");
-			return;
-		}
-
-		/*convert to foo.avi*/
-		COM_StripExtension(Cmd_Argv(1), aviname, sizeof(aviname));
-		COM_DefaultExtension (aviname, ".avi", sizeof(aviname));
-		/*find the system location of that*/
-		FS_NativePath(aviname, FS_ROOT, nativepath, sizeof(nativepath));
-
-		//wipe it.
-		f = fopen(nativepath, "rb");
-		if (f)
-		{
-			fclose(f);
-			unlink(nativepath);
-		}
-
-		hr = qAVIFileOpenA(&recordavi_file, nativepath, OF_WRITE | OF_CREATE, NULL);
-		if (FAILED(hr))
-		{
-			Con_Printf("Failed to open %s\n", nativepath);
-			return;
-		}
-
-
-		memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
-		bitmap_info_header.biSize = 40;
-		bitmap_info_header.biWidth = vid.pixelwidth;
-		bitmap_info_header.biHeight = vid.pixelheight;
-		bitmap_info_header.biPlanes = 1;
-		bitmap_info_header.biBitCount = 24;
-		bitmap_info_header.biCompression = BI_RGB;
-		bitmap_info_header.biSizeImage = vid.pixelwidth*vid.pixelheight * 3;
-
-
-		memset(&stream_header, 0, sizeof(stream_header));
-		stream_header.fccType = streamtypeVIDEO;
-		stream_header.fccHandler = recordavi_codec_fourcc;
-		stream_header.dwScale = 100;
-		stream_header.dwRate = (unsigned long)(0.5 + 100.0/recordavi_frametime);
-		SetRect(&stream_header.rcFrame, 0, 0, vid.pixelwidth, vid.pixelheight);
-
-		hr = qAVIFileCreateStreamA(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
-		if (FAILED(hr))
-		{
-			Con_Printf("Couldn't initialise the stream, check codec\n");
-			Media_StopRecordFilm_f();
-			return;
-		}
-
-		if (recordavi_codec_fourcc)
-		{
-			AVICOMPRESSOPTIONS opts;
-			AVICOMPRESSOPTIONS* aopts[1] = { &opts };
-			memset(&opts, 0, sizeof(opts));
-			opts.fccType = stream_header.fccType;
-			opts.fccHandler = recordavi_codec_fourcc;
-			// Make the stream according to compression
-			hr = qAVIMakeCompressedStream(&recordavi_compressed_video_stream, recordavi_uncompressed_video_stream, &opts, NULL);
-			if (FAILED(hr))
-			{
-				Con_Printf("Failed to init compressor\n");
-				Media_StopRecordFilm_f();
-				return;
-			}
-		}
-
-
-		hr = qAVIStreamSetFormat(recordavi_video_stream, 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
-		if (FAILED(hr))
-		{
-			Con_Printf("Failed to set format\n");
-			Media_StopRecordFilm_f();
-			return;
-		}
-
-		if (capturesoundbits.value != 8 && capturesoundbits.value != 16)
-			Cvar_Set(&capturesoundbits, "8");
-		if (capturesoundchannels.value < 1 && capturesoundchannels.value > 6)
-			Cvar_Set(&capturesoundchannels, "1");
-
-		if (capturesound.value)
-		{
-			memset(&recordavi_wave_format, 0, sizeof(WAVEFORMATEX));
-			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM;
-			recordavi_wave_format.nChannels = capturesoundchannels.value;
-			recordavi_wave_format.nSamplesPerSec = snd_speed;
-			recordavi_wave_format.wBitsPerSample = capturesoundbits.value;
-			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels;
-			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign;
-			recordavi_wave_format.cbSize = 0;
-
-
-			memset(&stream_header, 0, sizeof(stream_header));
-			stream_header.fccType = streamtypeAUDIO;
-			stream_header.dwScale = recordavi_wave_format.nBlockAlign;
-			stream_header.dwRate = stream_header.dwScale * (unsigned long)recordavi_wave_format.nSamplesPerSec;
-			stream_header.dwSampleSize = recordavi_wave_format.nBlockAlign;
-
-			hr = qAVIFileCreateStreamA(recordavi_file, &recordavi_uncompressed_audio_stream, &stream_header);
-			if (FAILED(hr)) return;
-
-			hr = qAVIStreamSetFormat(recordavi_uncompressed_audio_stream, 0, &recordavi_wave_format, sizeof(WAVEFORMATEX));
-			if (FAILED(hr)) return;
-
-			Media_InitFakeSoundDevice(recordavi_wave_format.nChannels, recordavi_wave_format.wBitsPerSample);
-		}
-
-
-		recordavi_videotime = realtime;
-		recordavi_audiotime = realtime;
-
-//		if (recordavi_wave_format.nSamplesPerSec)
-//			captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
-
-		capturevideomem = BZ_Malloc(vid.pixelwidth*vid.pixelheight*3);
-	}
-#endif /* WINAVI */
 	else
 	{
-		Con_Printf("That sort of video capturing is not supported in this build\n");
-		capturetype = CT_NONE;
+		sndkhz = 0;
+		sndchannels = 0;
+		sndbits = 0;
 	}
+	
+	if (!currentcapture_funcs->capture_begin)
+		currentcapture_ctx = NULL;
+	else
+		currentcapture_ctx = currentcapture_funcs->capture_begin(Cmd_Argv(1), capturerate.value, vid.pixelwidth, vid.pixelheight, &sndkhz, &sndchannels, &sndbits);
+	if (!currentcapture_ctx)
+	{
+		currentcapture_funcs = NULL;
+		Con_Printf("Unable to initialise capture driver\n");
+	}
+	else if (sndkhz)
+		Media_InitFakeSoundDevice(sndkhz, sndchannels, sndbits);
 }
 void Media_CaptureDemoEnd(void)
 {
 	if (recordingdemo)
 		Media_StopRecordFilm_f();
 }
+void CL_PlayDemo(char *demoname);
 void Media_RecordDemo_f(void)
 {
-	CL_PlayDemo_f();
+	if (Cmd_Argc() < 2)
+		return;
+	CL_PlayDemo(Cmd_Argv(1));
+	if (Cmd_Argc() > 2)
+		Cmd_ShiftArgs(1, false);
 	Media_RecordFilm_f();
 	scr_con_current=0;
 	key_dest = key_game;
 
-	if (capturetype != CT_NONE)
+	if (currentcapture_funcs)
 		recordingdemo = true;
 	else
 		CL_Stopdemo_f();	//capturing failed for some reason
 }
-#else /* GLQUAKE */
-void Media_CaptureDemoEnd(void){}
-void Media_RecordAudioFrame (short *sample_buffer, int samples){}
-double Media_TweekCaptureFrameTime(double time) { return time ; }
-void Media_RecordFrame (void) {}
-qboolean Media_PausedDemo (void) {return false;} //should not return a value
-#endif /* GLQUAKE */
 
 #ifdef _WIN32
 typedef struct ISpNotifySink ISpNotifySink;
@@ -3626,6 +3768,11 @@ void Media_Init(void)
 	Cvar_Register(&tts_mode, "Gimmicks");
 #endif
 
+#if defined(WINAVI)
+	Media_RegisterEncoder(NULL, &capture_avi);
+#endif
+	Media_RegisterEncoder(NULL, &capture_raw);
+
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
 	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
 	Cmd_AddCommand("music_fforward", Media_FForward_f);
@@ -3872,7 +4019,7 @@ void M_Media_Draw (void){}
 void M_Media_Key (int key) {}
 qboolean Media_ShowFilm(void){return false;}
 
-double Media_TweekCaptureFrameTime(double time) { return time ; }
+double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime+time ; }
 void Media_RecordFrame (void) {}
 void Media_CaptureDemoEnd(void) {}
 void Media_RecordDemo_f(void) {}

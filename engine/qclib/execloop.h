@@ -36,7 +36,7 @@
 #endif
 
 #ifdef DEBUGABLE
-#define OPCODE (st->op & ~0x8000)
+#define OPCODE (pr_trace?(st->op & ~0x8000):st->op)
 #else
 #define OPCODE (st->op)
 #endif
@@ -48,10 +48,35 @@
 //rely upon just st
 {
 #ifdef DEBUGABLE
-cont:	//last statement may have been a breakpoint		
+cont:	//last statement may have been a breakpoint
 	s = st-pr_statements;
 	s+=1;
-	s=ShowStep(progfuncs, s);
+
+	if (prinst->watch_ptr && prinst->watch_ptr->_int != prinst->watch_old._int)
+	{
+		//this will fire on the next instruction after the variable got changed.
+		pr_xstatement = s;
+		switch(prinst->watch_type)
+		{
+		case ev_float:
+			printf("Watch point hit in %s, \"%s\" changed from %g to %g.\n", PR_StringToNative(progfuncs, pr_xfunction->s_name), prinst->watch_name, prinst->watch_old._float, prinst->watch_ptr->_float);
+			break;
+		default:
+			printf("Watch point hit in %s, \"%s\" changed from %i to %i.\n", PR_StringToNative(progfuncs, pr_xfunction->s_name), prinst->watch_name, prinst->watch_old._int, prinst->watch_ptr->_int);
+			break;
+		case ev_function:
+		case ev_string:
+			printf("Watch point hit in %s, \"%s\" now set to %s.\n", PR_StringToNative(progfuncs, pr_xfunction->s_name), prinst->watch_name, PR_ValueString(progfuncs, prinst->watch_type, prinst->watch_ptr));
+			break;
+		}
+		prinst->watch_old = *prinst->watch_ptr;
+//		prinst->watch_ptr = NULL;
+		if (pr_trace<1)
+			pr_trace=1;	//this is what it's for
+	}
+
+	if (pr_trace)
+		s=ShowStep(progfuncs, s);
 	st = pr_statements + s;
 
 reeval:
@@ -313,14 +338,6 @@ reeval:
 		break;
 	case OP_STOREP_I:
 	case OP_GSTOREP_I:
-		if ((unsigned int)OPB->_int >= prinst->addressableused)
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
-		}
-		ptr = QCPOINTER(OPB);
-		ptr->_int = OPA->_int;
-		break;
 	case OP_STOREP_F:
 	case OP_GSTOREP_F:
 	case OP_STOREP_ENT:
@@ -486,7 +503,7 @@ reeval:
 #ifndef DEBUGABLE
 			//boot it over to the debugger
 			pr_trace++;
-			printf("assignment to read-only entity in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
+			printf("assignment to read-only entity in %s\n", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 			st--;
 			goto cont;
 #else
@@ -606,88 +623,91 @@ reeval:
 	case OP_CALL2:
 	case OP_CALL1:
 	case OP_CALL0:
-		RUNAWAYCHECK();
-		pr_xstatement = st-pr_statements;
-
-		if (OPCODE > OP_CALL8)
-			pr_argc = OPCODE - (OP_CALL1H-1);
-		else
-			pr_argc = OPCODE - OP_CALL0;
-		fnum = OPA->function;
-		if ((fnum & ~0xff000000)==0)
 		{
-			PR_RunError(progfuncs, "NULL function from qc (%s).\n", PR_StringToNative(progfuncs, pr_xfunction->s_name));
-#ifndef DEBUGABLE
-			goto cont;
-#endif
-			break;
-		}
-/*
-{
-	static char buffer[1024*1024*8];
-	int size = sizeof buffer;
-		progfuncs->save_ents(progfuncs, buffer, &size, 0);
-}*/
+			int callerprogs;
+			int newpr;
+			unsigned int fnum;
+			RUNAWAYCHECK();
+			pr_xstatement = st-pr_statements;
 
-		{
-		int callerprogs=pr_typecurrent;
-//about to switch. needs caching.
-
-		//if it's an external call, switch now (before any function pointers are used)
-		PR_MoveParms(progfuncs, (fnum & 0xff000000)>>24, callerprogs);
-		PR_SwitchProgs(progfuncs, (fnum & 0xff000000)>>24);
-
-		newf = &pr_functions[fnum & ~0xff000000];
-
-		if (newf->first_statement < 0)
-		{	// negative statements are built in functions
-			/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
-			if (pr_typecurrent != 0)
-			{
-				PR_MoveParms(progfuncs, 0, pr_typecurrent);
-				PR_SwitchProgs(progfuncs, 0);
-			}
-			i = -newf->first_statement;
-//			p = pr_typecurrent;
-			progfuncs->lastcalledbuiltinnumber = i;
-			if (i < externs->numglobalbuiltins)
-			{
-				prinst->numtempstringsstack = prinst->numtempstrings;
-				(*externs->globalbuiltins[i]) (progfuncs, (struct globalvars_s *)current_progstate->globals);
-				if (prinst->continuestatement!=-1)
-				{
-					st=&pr_statements[prinst->continuestatement];
-					prinst->continuestatement=-1;
-					break;
-				}
-			}
+			if (OPCODE > OP_CALL8)
+				pr_argc = OPCODE - (OP_CALL1H-1);
 			else
+				pr_argc = OPCODE - OP_CALL0;
+			fnum = OPA->function;
+
+			callerprogs=pr_typecurrent;			//so we can revert to the right caller.
+			newpr = (fnum & 0xff000000)>>24;	//this is the progs index of the callee
+			fnum &= ~0xff000000;				//the callee's function index.
+
+			//if it's an external call, switch now (before any function pointers are used)
+			if (!PR_SwitchProgsParms(progfuncs, newpr) || !fnum || fnum > pr_progs->numfunctions)
 			{
-				i -= externs->numglobalbuiltins;
-				if (i >= current_progstate->numbuiltins)
+				char *msg = fnum?"OP_CALL references invalid function in %s\n":"NULL function from qc (%s).\n";
+				PR_SwitchProgsParms(progfuncs, callerprogs);
+
+				//break/skip the instruction.
+				printf(msg, PR_StringToNative(progfuncs, pr_xfunction->s_name));
+#ifndef DEBUGABLE
+				pr_trace++;
+				st--;
+				goto cont;
+#else
+				pr_globals[OFS_RETURN] = 0;
+				pr_globals[OFS_RETURN+1] = 0;
+				pr_globals[OFS_RETURN+2] = 0;
+				break;
+#endif
+			}
+
+			newf = &pr_functions[fnum & ~0xff000000];
+
+			if (newf->first_statement < 0)
+			{	// negative statements are built in functions
+				/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
+				if (pr_typecurrent != 0)
 				{
-//					if (newf->first_statement == -0x7fffffff)
-//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
-//					else
-						PR_RunError (progfuncs, "Bad builtin call number - %i", -newf->first_statement);
+					PR_SwitchProgsParms(progfuncs, 0);
+				}
+				i = -newf->first_statement;
+	//			p = pr_typecurrent;
+				progfuncs->lastcalledbuiltinnumber = i;
+				if (i < externs->numglobalbuiltins)
+				{
+					prinst->numtempstringsstack = prinst->numtempstrings;
+					(*externs->globalbuiltins[i]) (progfuncs, (struct globalvars_s *)current_progstate->globals);
+					if (prinst->continuestatement!=-1)
+					{
+						st=&pr_statements[prinst->continuestatement];
+						prinst->continuestatement=-1;
+						break;
+					}
 				}
 				else
-					current_progstate->builtins [i] (progfuncs, (struct globalvars_s *)current_progstate->globals);
-			}
-			PR_MoveParms(progfuncs, callerprogs, pr_typecurrent);
-//			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
-			PR_SwitchProgs(progfuncs, (progsnum_t)callerprogs);
+				{
+					i -= externs->numglobalbuiltins;
+					if (i >= current_progstate->numbuiltins)
+					{
+	//					if (newf->first_statement == -0x7fffffff)
+	//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
+	//					else
+							PR_RunError (progfuncs, "Bad builtin call number - %i", -newf->first_statement);
+					}
+					else
+						current_progstate->builtins [i] (progfuncs, (struct globalvars_s *)current_progstate->globals);
+				}
+	//			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
+				PR_SwitchProgsParms(progfuncs, (progsnum_t)callerprogs);
 
-//#ifndef DEBUGABLE	//decide weather non debugger wants to start debugging.
-			s = st-pr_statements;
-			goto restart;
-//#endif
-//			break;
-		}
-//		PR_MoveParms((OPA->function & 0xff000000)>>24, pr_typecurrent);
-//		PR_SwitchProgs((OPA->function & 0xff000000)>>24);
-		s = PR_EnterFunction (progfuncs, newf, callerprogs);
-		st = &pr_statements[s];
+	//#ifndef DEBUGABLE	//decide weather non debugger wants to start debugging.
+				s = st-pr_statements;
+				goto restart;
+	//#endif
+	//			break;
+			}
+	//		PR_SwitchProgsParms((OPA->function & 0xff000000)>>24);
+			s = PR_EnterFunction (progfuncs, newf, callerprogs);
+			st = &pr_statements[s];
 		}
 		
 		goto restart;
@@ -898,11 +918,11 @@ reeval:
 		break;
 
 	case OP_CSTATE:
-		externs->cstateop(progfuncs, OPA->_float, OPB->_float, fnum);
+		externs->cstateop(progfuncs, OPA->_float, OPB->_float, pr_xfunction - pr_functions);
 		break;
 
 	case OP_CWSTATE:
-		externs->cwstateop(progfuncs, OPA->_float, OPB->_float, fnum);
+		externs->cwstateop(progfuncs, OPA->_float, OPB->_float, pr_xfunction - pr_functions);
 		break;
 
 	case OP_THINKTIME:
@@ -1127,7 +1147,7 @@ reeval:
 		OPC->_int = (OPA->_float != OPB->_int);
 		break;
 
-	case OP_GADDRESS:
+	case OP_GADDRESS: //return glob[aint+bfloat]
 	case OP_GLOAD_I:
 	case OP_GLOAD_F:
 	case OP_GLOAD_FLD:

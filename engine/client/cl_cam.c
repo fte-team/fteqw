@@ -697,7 +697,7 @@ void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg)
 		c = plrarg;
 		while (*c)
 		{
-			if (!isdigit(*c))
+			if (*c < '0' || *c > '9')
 			{
 				Con_Printf("Couldn't find nick %s\n", plrarg);
 				return;

@@ -524,6 +524,8 @@ int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 			VFS_SEEK(vfsz->parent->raw, vfsz->pos+vfsz->startpos);
 			vfsz->parent->currentfile = file;
 		}
+		if (vfsz->pos + bytestoread > vfsz->length)
+			bytestoread = max(0, vfsz->length - vfsz->pos);
 		read = VFS_READ(vfsz->parent->raw, buffer, bytestoread);
 	}
 

@@ -155,14 +155,14 @@ void D3D9Shader_Init(void)
 		return;
 }
 
-qboolean D3D9Shader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag)
+qboolean D3D9Shader_CreateProgram (program_t *prog, char *sname, int permu, char **precompilerconstants, char *vert, char *frag)
 {
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;
 	qboolean success = false;
 
-	prog->handle[permu].hlsl.vert = NULL;
-	prog->handle[permu].hlsl.frag = NULL;
+	prog->permu[permu].handle.hlsl.vert = NULL;
+	prog->permu[permu].handle.hlsl.frag = NULL;
 
 	if (pD3DXCompileShader)
 	{
@@ -194,32 +194,32 @@ qboolean D3D9Shader_CreateProgram (program_t *prog, int permu, char **precompile
 		success = true;
 
 		defines[0].Name = "VERTEX_SHADER";
-		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->handle[permu].hlsl.ctabv)))
+		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].handle.hlsl.ctabv)))
 			success = false;
 		else
 		{
-			IDirect3DDevice9_CreateVertexShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DVertexShader9**)&prog->handle[permu].hlsl.vert);
+			IDirect3DDevice9_CreateVertexShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DVertexShader9**)&prog->permu[permu].handle.hlsl.vert);
 			code->lpVtbl->Release(code);
 		}
 		if (errors)
 		{
 			char *messages = errors->lpVtbl->GetBufferPointer(errors);
-			Con_Printf("%s", messages);
+			Con_Printf("Error compiling vertex shader %s:\n%s", sname, messages);
 			errors->lpVtbl->Release(errors);
 		}
 
 		defines[0].Name = "FRAGMENT_SHADER";
-		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->handle[permu].hlsl.ctabf)))
+		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].handle.hlsl.ctabf)))
 			success = false;
 		else
 		{
-			IDirect3DDevice9_CreatePixelShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DPixelShader9**)&prog->handle[permu].hlsl.frag);
+			IDirect3DDevice9_CreatePixelShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DPixelShader9**)&prog->permu[permu].handle.hlsl.frag);
 			code->lpVtbl->Release(code);
 		}
 		if (errors)
 		{
 			char *messages = errors->lpVtbl->GetBufferPointer(errors);
-			Con_Printf("%s", messages);
+			Con_Printf("Error compiling pixel shader %s:\n%s", sname, messages);
 			errors->lpVtbl->Release(errors);
 		}
 	}

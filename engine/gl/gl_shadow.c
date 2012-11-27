@@ -429,6 +429,7 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 		case QR_OPENGL:
 			qglGenBuffersARB(2, sh_shmesh->vebo);
 
+			GL_DeselectVAO();
 			GL_SelectVBO(sh_shmesh->vebo[0]);
 			qglBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->verts) * sh_shmesh->numverts, sh_shmesh->verts, GL_STATIC_DRAW_ARB);
 
@@ -1382,6 +1383,9 @@ static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 	return false;
 }
 
+#if 1
+#define Sh_LeafInView Sh_VisOverlaps
+#else
 static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
 {
 	int i;
@@ -1409,6 +1413,7 @@ static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
 
 	return false;
 }
+#endif
 
 typedef struct
 {
@@ -2181,7 +2186,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	else
 		lvis = NULL;
 
-	qglDisable(GL_SCISSOR_TEST);
+	Sh_ScissorOff();
 
 	Sh_GenShadowMap(l, lvis);
 
@@ -2297,6 +2302,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 
 	BE_SelectEntity(e);
 
+	GL_DeselectVAO();
 	GL_SelectVBO(0);
 	GL_SelectEBO(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
@@ -2534,7 +2540,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		{
 			int sfrontfail;
 			int sbackfail;
-			qglEnable(GL_SCISSOR_TEST);
 			qglEnable(GL_STENCIL_TEST);
 
 			//FIXME: is it practical to test to see if scissors allow not clearing the stencil buffer?
@@ -2650,7 +2655,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 			//end stencil writing.
 
 			/*stencil writing probably changed the vertex pointer, and our backend caches it*/
-			PPL_RevertToKnownState();
+//			PPL_RevertToKnownState();
 
 		#if 0	//draw the stencil stuff to the red channel
 			qglMatrixMode(GL_PROJECTION);

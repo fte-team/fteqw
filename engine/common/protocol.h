@@ -52,10 +52,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
 #define PEXT_CUSTOMTEMPEFFECTS	0x00800000	//supports custom temp ents.
 #define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
-//#define PEXT_NEVERUSED		0x02000000
+//#define PEXT_NEVERUSED		0x02000000	//reserved for a future multicastmask
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
-//#define PEXT_NEVERUSED		0x10000000
+//#define PEXT_NEVERUSED		0x10000000	//reserved for a future multicastmask
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 
 #ifdef CSQC_DAT
@@ -773,8 +773,9 @@ enum {
 ==========================================================
 */
 
-#define	MAX_CLIENTS		32	/*max 255, min 32*/
-#define	QWMAX_CLIENTS		32 /*QW's standard max*/
+#define	MAX_CLIENTS		32//255	/*max 255, min 32*/
+#define	QWMAX_CLIENTS	32 /*QW's standard max. clients might have issues above this value*/
+#define	NQMAX_CLIENTS	16 /*NQ's standard max. clients might have issues above this value*/
 
 #define	UPDATE_BACKUP	64	// copies of entity_state_t to keep buffered
 							// must be power of two

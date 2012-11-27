@@ -88,7 +88,7 @@ cvar_t	net_mtu = CVARD("net_mtu", "1450", "Specifies a maximum udp payload size,
 
 cvar_t	pext_replacementdeltas = CVAR("debug_pext_replacementdeltas", "0");	/*rename once the extension is finalized*/
 
-/*returns the bitmask of supported+enabled extensions*/
+/*returns the entire bitmask of supported+enabled extensions*/
 unsigned int Net_PextMask(int maskset)
 {
 	unsigned int mask = 0;

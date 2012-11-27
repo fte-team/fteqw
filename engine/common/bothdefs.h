@@ -175,6 +175,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 			#endif
 		#endif
 	#else
+		#define USE_SQLITE
+//		#define USE_MYSQL
+
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 
 		#define SP2MODELS		//quake2 sprite models
@@ -260,6 +263,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #undef IRCCONNECT
 #endif
 
+#ifndef MULTITHREAD
+	#undef USE_SQLITE
+	#undef USE_MYSQL
+#endif
+
+#if defined(USE_SQLITE) || defined(USE_MYSQL)
+	#define SQL
+#endif
 
 //fix things a little...
 #ifdef NPQTV

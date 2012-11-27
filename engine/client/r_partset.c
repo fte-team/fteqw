@@ -1592,9 +1592,9 @@ char *particle_set_high =
 "float f;\n"
 "nst = scoord.xy / scoord.w;\n"
 "nst = (1.0 + nst)/2.0;\n"
-"f = 1 - length(tcoord);\n"
-//				f = 1 - tcoord*tcoord;
-"if (f < 0) discard;\n"
+"f = 1.0 - length(tcoord);\n"
+//				f = 1.0 - tcoord*tcoord;
+"if (f < 0.0) discard;\n"
 "f *= alph;\n"
 "gl_FragColor = texture2D(s_t0, nst - tcoord*f);\n"
 "}\n"

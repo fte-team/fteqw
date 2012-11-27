@@ -211,8 +211,8 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 #define Q_strcmp(s1, s2) strcmp((s1), (s2))
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
-void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...) LIKEPRINTF(3);
-void VARGS Q_vsnprintfz (char *dest, size_t size, char *fmt, va_list args);
+void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3);
+void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list args);
 int VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
@@ -277,7 +277,6 @@ void COM_ParsePlusSets (void);
 typedef unsigned int conchar_t;
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
-int COM_FunStringLength(unsigned char *str);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
@@ -391,7 +390,6 @@ void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 
 
-FTE_DEPRECATED int COM_filelength (FILE *f);
 qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
 qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more without freeing old temp

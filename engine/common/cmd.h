@@ -78,6 +78,7 @@ void	Cmd_StuffCmds (void);
 
 void	Cmd_RemoveCommand (char *cmd_name);
 qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
+qboolean	Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *description);
 // called by the init functions of other parts of the program to
 // register commands and functions to call for them.
 // The cmd_name is referenced later, so it should not be in temp memory
@@ -89,7 +90,7 @@ qboolean Cmd_Exists (char *cmd_name);
 
 char *Cmd_Describe (char *cmd_name);
 
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum);
+char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, char **descptr);
 qboolean Cmd_IsCommand (char *line);
 // attempts to match a partial command for automatic command line completion
 // returns NULL if nothing fits
@@ -114,7 +115,7 @@ void Alias_WipeStuffedAliaes(void);
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions);
 
 void Cmd_TokenizePunctation (char *text, char *punctuation);
-void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize);
+char *Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize);
 // Takes a null terminated string.  Does not need to be /n terminated.
 // breaks the string up into arg tokens.
 

@@ -33,7 +33,11 @@ Things to improve:
 
 
 
+#define FORCESTATE
 
+#ifdef FORCESTATE
+#pragma warningmsg("D3D9 FORCESTATE is active")
+#endif
 
 
 extern LPDIRECT3DDEVICE9 pD3DDev9;
@@ -41,7 +45,9 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 //#define d3dcheck(foo) foo
 #define d3dcheck(foo) do{HRESULT err = foo; if (FAILED(err)) Sys_Error("D3D reported error on backend line %i - error 0x%x\n", __LINE__, (unsigned int)err);} while(0)
 
-#define MAX_TMUS 4
+#define MAX_TMUS 16
+
+#define MAX_TC_TMUS 4
 
 extern float d3d_trueprojection[16];
 
@@ -179,8 +185,8 @@ typedef struct
 	unsigned int dynxyz_offs;
 	unsigned int dynxyz_size;
 
-	IDirect3DVertexBuffer9 *dynst_buff[MAX_TMUS];
-	unsigned int dynst_offs[MAX_TMUS];
+	IDirect3DVertexBuffer9 *dynst_buff[MAX_TC_TMUS];
+	unsigned int dynst_offs[MAX_TC_TMUS];
 	unsigned int dynst_size;
 
 	IDirect3DVertexBuffer9 *dyncol_buff;
@@ -304,7 +310,11 @@ static void BE_ApplyShaderBits(unsigned int bits)
 		}
 	}
 
+#ifdef FORCESTATE
+	delta = ~0;
+#else
 	delta = bits ^ shaderstate.shaderbits;
+#endif
 	if (!delta)
 		return;
 	shaderstate.shaderbits = bits;
@@ -433,7 +443,7 @@ void D3D9BE_Reset(qboolean before)
 		if (shaderstate.dynxyz_buff)
 			IDirect3DVertexBuffer9_Release(shaderstate.dynxyz_buff);
 		shaderstate.dynxyz_buff = NULL;
-		for (tmu = 0; tmu < MAX_TMUS; tmu++)
+		for (tmu = 0; tmu < MAX_TC_TMUS; tmu++)
 		{
 			if (shaderstate.dynst_buff[tmu])
 				IDirect3DVertexBuffer9_Release(shaderstate.dynst_buff[tmu]);
@@ -507,7 +517,7 @@ void D3D9BE_Reset(qboolean before)
 				elements++;
 			}
 
-			for (tmu = 0; tmu < MAX_TMUS; tmu++)
+			for (tmu = 0; tmu < MAX_TC_TMUS; tmu++)
 			{
 				if (i & (D3D_VDEC_ST0<<tmu))
 				{
@@ -547,7 +557,7 @@ void D3D9BE_Reset(qboolean before)
 		}
 
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynxyz_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynxyz_buff, NULL);
-		for (tmu = 0; tmu < MAX_TMUS; tmu++)
+		for (tmu = 0; tmu < D3D_VDEC_ST0; tmu++)
 			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
 		IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, shaderstate.dynidx_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, D3DFMT_QINDEX, D3DPOOL_DEFAULT, &shaderstate.dynidx_buff, NULL);
@@ -1655,25 +1665,27 @@ static void BE_SubmitMeshChain(int idxfirst)
 
 static void BE_ApplyUniforms(program_t *prog, int permu)
 {
+	int h;
 	int i;
-	IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->handle[permu].hlsl.vert);
-	IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->handle[permu].hlsl.frag);
+	IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[permu].handle.hlsl.vert);
+	IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[permu].handle.hlsl.frag);
 	for (i = 0; i < prog->numparams; i++)
 	{
+		h = prog->permu[permu].parm[i];
 		switch (prog->parm[i].type)
 		{
 		case SP_M_PROJECTION:
-			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], d3d_trueprojection, 4);
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, d3d_trueprojection, 4);
 			break;
 		case SP_M_VIEW:
-			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], r_refdef.m_view, 4);
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, r_refdef.m_view, 4);
 			break;
 //		case SP_M_MODEL:
-//			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], r_refdef.m_view, 4);
+//			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, r_refdef.m_view, 4);
 //			break;
 
 		case SP_V_EYEPOS:
-			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], r_origin, 1);
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_origin, 1);
 			break;
 		case SP_E_EYEPOS:
 			{
@@ -1681,13 +1693,13 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 				float m16[16];
 				Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
 				Matrix4x4_CM_Transform3(m16, r_origin, t2);
-				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], t2, 1);
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, t2, 1);
 			}
 			break;
 		case SP_E_TIME:
 			{
 				vec4_t t1 = {shaderstate.curtime};
-				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], t1, 1);
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, t1, 1);
 			}
 			break;
 		case SP_M_MODELVIEWPROJECTION:
@@ -1695,7 +1707,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 				float mv[16], mvp[16];
 				Matrix4_Multiply(r_refdef.m_view, shaderstate.m_model, mv);
 				Matrix4_Multiply(d3d_trueprojection, mv, mvp);
-				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], mvp, 4);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, mvp, 4);
 			}
 			break;
 
@@ -1708,15 +1720,15 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 
 				Matrix4_Invert(shaderstate.m_model, inv);
 				Matrix4x4_CM_Transform3(inv, shaderstate.curdlight->origin, t2);
-				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], t2, 3);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, t2, 3);
 				break;
 			}
 
 		case SP_LIGHTRADIUS:
-			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], &shaderstate.curdlight->radius, 1);
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, &shaderstate.curdlight->radius, 1);
 			break;
 		case SP_LIGHTCOLOUR:
-			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], shaderstate.curdlight_colours, 3);
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curdlight_colours, 3);
 			break;
 
 		case SP_E_COLOURS:
@@ -1754,15 +1766,15 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 
 	program_t *p = s->prog;
 
-	if (TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_BUMPMAP].hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.hlsl.vert)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->specular) && p->handle[perm|PERMUTATION_SPECULAR].hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->specular) && p->permu[perm|PERMUTATION_SPECULAR].handle.hlsl.vert)
 		perm |= PERMUTATION_SPECULAR;
-	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->handle[perm|PERMUTATION_FULLBRIGHT].hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->handle[perm|PERMUTATION_UPPERLOWER].hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
+	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].hlsl.vert)
+	if (r_refdef.gfog_rgbd[3] && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
 		perm |= PERMUTATION_FOG;
 //	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)
 //		perm |= PERMUTATION_OFFSET;

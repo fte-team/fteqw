@@ -436,6 +436,8 @@ tt_immediate,	// string, float, vector
 
 extern	char		pr_token[8192];
 extern	token_type_t	pr_token_type;
+extern	int				pr_token_line;
+extern	int				pr_token_line_last;
 extern	QCC_type_t		*pr_immediate_type;
 extern	QCC_eval_t		pr_immediate;
 

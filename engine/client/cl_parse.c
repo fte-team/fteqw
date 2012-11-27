@@ -233,7 +233,7 @@ char *svc_nqstrings[] =
 	"dpsvc_spawnbaseline2",		//55
 	"dpsvc_spawnstatic2",	//56 obsolete
 	"dpsvc_entities",		//57
-	"NEW PROTOCOL",			//58
+	"dpsvc_csqcentities",			//58
 	"dpsvc_spawnstaticsound2",	//59
 	"dpsvc_trailparticles",	//60
 	"dpsvc_pointparticles",	//61
@@ -360,8 +360,11 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 	char *ext;
 	downloadlist_t *dl;
 	qboolean webdl = false;
-	if (localname && !strncmp(filename, "http://", 7))
+	if (!strncmp(filename, "http://", 7))
 	{
+		if (!localname)
+			return false;
+
 		webdl = true;
 	}
 	else
@@ -619,6 +622,7 @@ void CL_DownloadFinished(void)
 		CL_CheckModelResources(filename);
 		if (!cl.sendprespawn)
 		{
+/*
 			for (i = 0; i < mod_numknown; i++)	//go and load this model now.
 			{
 				if (!strcmp(mod_known[i].name, filename))
@@ -627,6 +631,7 @@ void CL_DownloadFinished(void)
 					break;
 				}
 			}
+*/
 			for (i = 0; i < MAX_MODELS; i++)	//go and load this model now.
 			{
 				if (!strcmp(cl.model_name[i], filename))
@@ -634,6 +639,14 @@ void CL_DownloadFinished(void)
 					cl.model_precache[i] = Mod_ForName(cl.model_name[i], false);	//throw away result.
 					if (i == 1)
 						cl.worldmodel = cl.model_precache[i];
+					break;
+				}
+			}
+			for (i = 0; i < MAX_CSQCMODELS; i++)	//go and load this model now.
+			{
+				if (!strcmp(cl.model_csqcname[i], filename))
+				{
+					cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], false);	//throw away result.
 					break;
 				}
 			}
@@ -1589,12 +1602,10 @@ downloadlist_t *CL_DownloadFailed(char *name)
 	return failed;
 }
 
-float downloadstarttime;
 #ifdef PEXT_CHUNKEDDOWNLOADS
 #define MAXBLOCKS 512	//must be power of 2
 #define DLBLOCKSIZE 1024
 int downloadsize;
-int receivedbytes;
 struct
 {
 	int chunkno;
@@ -1605,7 +1616,7 @@ int download_file_number;
 
 int CL_DownloadRate(void)
 {
-	return receivedbytes/(Sys_DoubleTime() - downloadstarttime);
+	return cls.downloadedbytes/(Sys_DoubleTime() - cls.downloadstarttime);
 }
 
 void CL_ParseChunkedDownload(void)
@@ -1664,7 +1675,7 @@ void CL_ParseChunkedDownload(void)
 		cls.downloadpercent = 0;
 		downloadsize = totalsize;
 
-		downloadstarttime = Sys_DoubleTime();
+		cls.downloadstarttime = Sys_DoubleTime();
 
 		/*
 		strcpy(cls.downloadname, svname);
@@ -1696,7 +1707,7 @@ void CL_ParseChunkedDownload(void)
 
 		download_file_number++;
 		firstblock = 0;
-		receivedbytes = 0;
+		cls.downloadedbytes = 0;
 		blockcycle = -1;	//so it requests 0 first. :)
 		for (chunknum = 0; chunknum < MAXBLOCKS; chunknum++)
 			dlblock[chunknum].chunkno = ~0u;
@@ -1728,7 +1739,7 @@ void CL_ParseChunkedDownload(void)
 	dlblock[ridx].chunkno = ~0;
 
 //	Con_Printf("usable\n", chunknum);
-	receivedbytes+=DLBLOCKSIZE;
+	cls.downloadedbytes+=DLBLOCKSIZE;
 
 	VFS_SEEK(cls.downloadqw, chunknum*DLBLOCKSIZE);
 	if (downloadsize - chunknum*DLBLOCKSIZE < DLBLOCKSIZE)	//final block is actually meant to be smaller than we recieve.
@@ -1736,7 +1747,7 @@ void CL_ParseChunkedDownload(void)
 	else
 		VFS_WRITE(cls.downloadqw, data, DLBLOCKSIZE);
 
-	cls.downloadpercent = receivedbytes/(float)downloadsize*100;
+	cls.downloadpercent = cls.downloadedbytes/(float)downloadsize*100;
 }
 
 int CL_CountQueuedDownloads(void)
@@ -1781,7 +1792,7 @@ int CL_RequestADownloadChunk(void)
 	CL_SendClientCommand(true, "stopdownload");
 	CL_DownloadFinished();
 
-	Con_DPrintf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
+	Con_DPrintf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - cls.downloadstarttime), CL_CountQueuedDownloads());
 
 	*cls.downloadlocalname = '\0';
 	*cls.downloadremotename = '\0';
@@ -1896,8 +1907,8 @@ void CL_ParseDownload (void)
 			return;
 		}
 
-		downloadstarttime = Sys_DoubleTime();
-		receivedbytes = 0;
+		cls.downloadstarttime = Sys_DoubleTime();
+		cls.downloadedbytes = 0;
 		SCR_EndLoadingPlaque();
 	}
 #ifdef PEXT_ZLIBDL
@@ -1918,9 +1929,9 @@ void CL_ParseDownload (void)
 		msg_readcount += size;
 	}
 
-	receivedbytes += size;
+	cls.downloadedbytes += size;
 	if (cls.downloadpercent != percent)	//try and guess the size (its most acurate when the percent value changes)
-		downloadsize = ((float)receivedbytes*100)/percent;
+		downloadsize = ((float)cls.downloadedbytes*100)/percent;
 
 	if (cls.downloadmethod == DL_QWPENDING)
 		cls.downloadmethod = DL_QW;
@@ -1949,7 +1960,7 @@ void CL_ParseDownload (void)
 		cls.downloadqw = NULL;
 		cls.downloadpercent = 0;
 
-		Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+		Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - cls.downloadstarttime));
 
 		// get another file if needed
 
@@ -2002,6 +2013,12 @@ void CLDP_ParseDownloadBegin(char *s)
 	size = (unsigned int)atoi(Cmd_Argv(1));
 	fname = Cmd_Argv(2);
 
+	if (strcmp(fname, cls.downloadlocalname))
+	{
+		Con_Printf("Warning: server started sending a file we did not request. Ignoring.\n");
+		return;
+	}
+
 	COM_StripExtension (fname, cls.downloadtempname, sizeof(cls.downloadtempname)-5);
 	strcat (cls.downloadtempname, ".tmp");
 
@@ -2016,6 +2033,10 @@ void CLDP_ParseDownloadBegin(char *s)
 	FS_CreatePath (cls.downloadtempname, FS_GAME);
 	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAME);
 	cls.downloadmethod = DL_DARKPLACES;
+
+	Q_strncpyz(cls.downloadlocalname, fname, sizeof(cls.downloadlocalname));
+	cls.downloadstarttime = Sys_DoubleTime();
+	cls.downloadedbytes = 0;
 
 	if (cls.downloadqw)
 	{
@@ -2032,7 +2053,7 @@ void CLDP_ParseDownloadBegin(char *s)
 	else
 		CL_DownloadFailed(cls.downloadremotename);
 
-	downloadstarttime = Sys_DoubleTime();
+	cls.downloadstarttime = Sys_DoubleTime();
 }
 
 void CLDP_ParseDownloadFinished(char *s)
@@ -2089,7 +2110,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	cls.downloadqw = NULL;
 	cls.downloadpercent = 0;
 
-	Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+	Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - cls.downloadstarttime));
 
 	// get another file if needed
 
@@ -2758,8 +2779,15 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	Q_strncpyz (cl.levelname, str, sizeof(cl.levelname));
 
 	// seperate the printfs so the server message can have a color
+#if 1
+	Con_Printf ("\n\n");
+	Con_Printf ("^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f");
+	Con_Printf ("\n\n");
+	Con_Printf ("\1%s\n", str);
+#else
 	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
 	Con_TPrintf (TLC_PC_PS_NL, 2, str);
+#endif
 
 	SCR_BeginLoadingPlaque();
 
@@ -3545,6 +3573,7 @@ void CL_ParseStatic (int version)
 
 	ent = &cl_static_entities[i].ent;
 	memset(ent, 0, sizeof(*ent));
+	memset(&cl_static_entities[i].pvscache, 0, sizeof(cl_static_entities[i].pvscache));
 
 	ent->keynum = es.number;
 
@@ -3591,8 +3620,13 @@ void CL_ParseStatic (int version)
 		/*FIXME: compensate for angle*/
 		VectorAdd(es.origin, ent->model->mins, mins);
 		VectorAdd(es.origin, ent->model->maxs, maxs);
-		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
 	}
+	else
+	{
+		VectorCopy(es.origin, mins);
+		VectorCopy(es.origin, maxs);
+	}
+	cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
 }
 
 /*
@@ -3600,7 +3634,7 @@ void CL_ParseStatic (int version)
 CL_ParseStaticSound
 ===================
 */
-void CL_ParseStaticSound (void)
+void CL_ParseStaticSound (qboolean large)
 {
 	extern cvar_t cl_staticsounds;
 	vec3_t		org;
@@ -3609,7 +3643,10 @@ void CL_ParseStaticSound (void)
 
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
-	sound_num = MSG_ReadByte ();
+	if (large)
+		sound_num = (unsigned short)MSG_ReadShort();
+	else
+		sound_num = MSG_ReadByte ();
 	vol = MSG_ReadByte ();
 	atten = MSG_ReadByte ();
 
@@ -5474,7 +5511,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_spawnstaticsound:
-			CL_ParseStaticSound ();
+			CL_ParseStaticSound (false);
 			break;
 
 		case svc_cdtrack:
@@ -6157,7 +6194,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_spawnstaticsound:
-			CL_ParseStaticSound ();
+			CL_ParseStaticSound (false);
 			break;
 
 		case svc_spawnstatic:
@@ -6384,6 +6421,10 @@ void CLNQ_ParseServerMessage (void)
 			}
 			//well, it's really any protocol, but we're only going to support version 5.
 			CLDP_ParseDarkPlaces5Entities();
+			break;
+
+		case svcdp_spawnstaticsound2:
+			CL_ParseStaticSound(true);
 			break;
 
 #ifdef PEXT_CSQC

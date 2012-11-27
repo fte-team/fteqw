@@ -939,9 +939,11 @@ void LightFace (int surfnum)
 					temp[1] = DotProduct(wnorm, tvector);
 					temp[2] = DotProduct(wnorm, l.facenormal);
 					VectorNormalize(temp);
-					*dulout++ = -(temp[0]+1)*128 + 128;
-					*dulout++ = (temp[1]+1)*128 + 128;
-					*dulout++ = (temp[2]+1)*128 + 128;
+					temp[2] += 0.5;
+					VectorNormalize(temp);
+					*dulout++ = (-temp[0]+1)*128;
+					*dulout++ = (-temp[1]+1)*128;
+					*dulout++ = (-temp[2]+1)*128;
 				}
 			}
 		}

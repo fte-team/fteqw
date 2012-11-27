@@ -671,7 +671,6 @@ void rag_uninstanciate(skelobject_t *sko)
 qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t *ent)
 {
 	int i;
-	vec3_t org, porg;
 	float *bmat;
 	float bodymat[12], worldmat[12];
 	vec3_t aaa2[3];
@@ -705,7 +704,7 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 		bone = j->bonepivot;
 		bmat = sko->bonematrix + bone*12;
 
-		R_ConcatTransforms(bmat, j->orgmatrix, bodymat);
+		R_ConcatTransforms((void*)bmat, (void*)j->orgmatrix, (void*)bodymat);
 		R_ConcatTransforms((void*)emat, (void*)bodymat, (void*)worldmat);
 		aaa2[0][0] = worldmat[3];
 		aaa2[0][1] = worldmat[3+4];
@@ -871,7 +870,6 @@ void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	model_t *model;
 	int midx;
 	int type;
-	int i;
 
 	midx = G_FLOAT(OFS_PARM0);
 	type = (*prinst->callargc > 1)?G_FLOAT(OFS_PARM1):SKOT_RELATIVE;

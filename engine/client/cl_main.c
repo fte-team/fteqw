@@ -3580,7 +3580,11 @@ double Host_Frame (double time)
 			maxfps = 4;
 	}
 
-	if (maxfps > 0 && Media_Capturing() != 2)
+	if (maxfps > 0 
+#if !defined(NOMEDIA)
+		&& Media_Capturing() != 2
+#endif
+		)
 	{
 		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);

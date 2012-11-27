@@ -644,8 +644,10 @@ void MasterInfo_Shutdown(void)
 	{
 		mast = master;
 		master = mast->next;
+#ifdef WEBCLIENT
 		if (mast->dl)
 			DL_Close(mast->dl);
+#endif
 		Z_Free(mast);
 	}
 

@@ -803,7 +803,7 @@ void Menu_DownloadStuff_f (void)
 #endif
 
 
-#ifdef AVAIL_ZLIB
+#if defined(AVAIL_ZLIB) && defined(WEBCLIENT)
 
 static int numbootdownloads;
 #include "fs.h"

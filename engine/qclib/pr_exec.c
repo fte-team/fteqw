@@ -33,7 +33,6 @@ PR_PrintStatement
 */
 static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 {
-	int		i;
 	unsigned int op;
 	unsigned int arg[3];
 
@@ -58,6 +57,7 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 #ifndef MINIMAL
 	if ( (unsigned)op < OP_NUMOPS)
 	{
+		int i;
 		printf ("%s ",  pr_opcodes[op].name);
 		i = strlen(pr_opcodes[op].name);
 		for ( ; i<10 ; i++)
@@ -106,7 +106,6 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
 
 void PR_GenerateStatementString (progfuncs_t *progfuncs, int statementnum, char *out, int outlen)
 {
-	int		i;
 	unsigned int op;
 	unsigned int arg[3];
 
@@ -147,6 +146,7 @@ void PR_GenerateStatementString (progfuncs_t *progfuncs, int statementnum, char 
 #ifndef MINIMAL
 	if ( (unsigned)op < OP_NUMOPS)
 	{
+		int i;
 		QC_snprintfz (out, outlen, "%s", pr_opcodes[op].name);
 		outlen -= strlen(out);
 		out += strlen(out);

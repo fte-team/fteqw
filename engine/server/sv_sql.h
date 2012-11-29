@@ -12,8 +12,6 @@
 	#include "sqlite3.h"
 #endif
 
-dllhandle_t *mysqlhandle;
-
 #define SQL_CONNECT_STRUCTPARAMS 2
 #define SQL_CONNECT_PARAMS 4
 

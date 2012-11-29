@@ -278,7 +278,7 @@ void RMod_Think (void)
 				relightthreads = sizeof(relightthread)/sizeof(relightthread[0]);
 			wantrelight = true;
 			for (i = 0; i < relightthreads; i++)
-				relightthread[i] = Sys_CreateThread(RelightThread, lightmodel, THREADP_NORMAL, 0);
+				relightthread[i] = Sys_CreateThread("relight", RelightThread, lightmodel, THREADP_NORMAL, 0);
 		}
 		if (relitsurface < lightmodel->numsurfaces)
 		{

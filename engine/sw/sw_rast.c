@@ -703,7 +703,7 @@ void SWRast_CreateThreadPool(struct workqueue_s *wq, int numthreads)
 	{
 		t = &wq->swthreads[i];
 		t->threadnum = i;
-		t->thread = Sys_CreateThread(WT_Main, t, THREADP_NORMAL, 0);
+		t->thread = Sys_CreateThread("swrast", WT_Main, t, THREADP_NORMAL, 0);
 		if (!t->thread)
 			break;
 	}

@@ -591,10 +591,6 @@ void PR_Deinit(void)
 	World_ODE_End(&sv.world);
 #endif
 
-#ifdef SQL
-	SQL_DeInit();
-#endif
-
 	PRSV_ClearThreads();
 	if (svprogfuncs)
 	{
@@ -610,6 +606,11 @@ void PR_Deinit(void)
 			sv.strings.lightstyles[i] = NULL;
 		}
 	}
+
+#ifdef SQL
+	SQL_KillServers();
+#endif
+
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(svprogfuncs);
 #endif
@@ -622,6 +623,13 @@ void PR_Deinit(void)
 	SpectatorDisconnect = 0;
 }
 
+void PR_Shutdown(void)
+{
+	PR_Deinit();
+#ifdef SQL
+	SQL_DeInit();
+#endif
+}
 
 #define QW_PROGHEADER_CRC	54730
 #define NQ_PROGHEADER_CRC	5927
@@ -2061,46 +2069,59 @@ static int SV_CustomTEnt_Register(char *effectname, int nettype, float *stain_rg
 	return i;
 }
 
-static void SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, float *dir)
+static int SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, float *dir)
 {
+	static int persist_id;
 	int type;
+	multicast_t mct = MULTICAST_PVS;
 	if (index < 0 || index >= 255)
-		return;
+		return -1;
+	type = sv.customtents[index].netstyle;
 
 	MSG_WriteByte(&sv.multicast, svcfte_customtempent);
 	MSG_WriteByte(&sv.multicast, index);
+
+	if (type & CTE_PERSISTANT)
+	{
+		persist_id++;
+		if (persist_id >= 0x8000)
+			persist_id = 1;
+		if (sv.state == ss_loading)
+			mct = MULTICAST_INIT;
+		else
+			mct = MULTICAST_ALL;
+		MSG_WriteShort(&sv.multicast, persist_id);
+	}
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
 	MSG_WriteCoord(&sv.multicast, org[2]);
 
-	type = sv.customtents[index].netstyle;
 	if (type & CTE_ISBEAM)
 	{
 		MSG_WriteCoord(&sv.multicast, org2[0]);
 		MSG_WriteCoord(&sv.multicast, org2[1]);
 		MSG_WriteCoord(&sv.multicast, org2[2]);
 	}
-	else
+	if (type & CTE_CUSTOMCOUNT)
 	{
-		if (type & CTE_CUSTOMCOUNT)
-		{
-			MSG_WriteByte(&sv.multicast, count);
-		}
-		if (type & CTE_CUSTOMVELOCITY)
-		{
-			MSG_WriteCoord(&sv.multicast, dir[0]);
-			MSG_WriteCoord(&sv.multicast, dir[1]);
-			MSG_WriteCoord(&sv.multicast, dir[2]);
-		}
-		else if (type & CTE_CUSTOMDIRECTION)
-		{
-			vec3_t norm;
-			VectorNormalize2(dir, norm);
-			MSG_WriteDir(&sv.multicast, norm);
-		}
+		MSG_WriteByte(&sv.multicast, count);
+	}
+	if (type & CTE_CUSTOMVELOCITY)
+	{
+		MSG_WriteCoord(&sv.multicast, dir[0]);
+		MSG_WriteCoord(&sv.multicast, dir[1]);
+		MSG_WriteCoord(&sv.multicast, dir[2]);
+	}
+	else if (type & CTE_CUSTOMDIRECTION)
+	{
+		vec3_t norm;
+		VectorNormalize2(dir, norm);
+		MSG_WriteDir(&sv.multicast, norm);
 	}
 
-	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+	SV_MulticastProtExt (org, mct, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+
+	return persist_id;
 }
 
 
@@ -5441,6 +5462,8 @@ void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 				qother = pr_global_struct->other;
 			qotherid = PROG_TO_EDICT(prinst, qother)->xv->uniquespawnid;
 
+			Con_DPrintf("SQL Query: %s\n", querystr);
+
 			G_FLOAT(OFS_RETURN) = SQL_NewQuery(server, callfunc, querytype, qself, qselfid, qother, qotherid, querystr);
 			return;
 		}
@@ -6763,11 +6786,10 @@ void SV_RegisterH2CustomTents(void)
 
 	if (progstype == PROG_H2)
 	{
-
-//	ce_rain
-//	ce_fountain
+		h2customtents[ce_rain]				= SV_CustomTEnt_Register("ce_rain",				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_fountain]			= SV_CustomTEnt_Register("ce_fountain",			CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_quake]				= SV_CustomTEnt_Register("ce_quake",			0, NULL, 0, NULL, 0, 0, NULL);
-//	ce_white_smoke
+//	ce_white_smoke (special)
 		h2customtents[ce_bluespark]			= SV_CustomTEnt_Register("ce_bluespark",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_yellowspark]		= SV_CustomTEnt_Register("ce_yellowspark",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_sm_circle_exp]		= SV_CustomTEnt_Register("ce_sm_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
@@ -6783,8 +6805,8 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_floor_explosion]	= SV_CustomTEnt_Register("ce_floor_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_rider_death]		= SV_CustomTEnt_Register("ce_rider_death",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_blue_explosion]	= SV_CustomTEnt_Register("ce_blue_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
-//	ce_green_smoke
-//	ce_grey_smoke
+//	ce_green_smoke (special)
+//	ce_grey_smoke (special)
 		h2customtents[ce_red_smoke]			= SV_CustomTEnt_Register("ce_red_smoke",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_slow_white_smoke]	= SV_CustomTEnt_Register("ce_slow_white_smoke",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_redspark]			= SV_CustomTEnt_Register("ce_redspark",			0, NULL, 0, NULL, 0, 0, NULL);
@@ -6798,7 +6820,7 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_xbow_explosion]	= SV_CustomTEnt_Register("ce_xbow_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_new_explosion]		= SV_CustomTEnt_Register("ce_new_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_magic_missile_explosion]	= SV_CustomTEnt_Register("ce_magic_missile_explosion", 0, NULL, 0, NULL, 0, 0, NULL);
-//	ce_ghost
+		h2customtents[ce_ghost]				= SV_CustomTEnt_Register("ce_ghost",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_redcloud]			= SV_CustomTEnt_Register("ce_redcloud",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
@@ -6806,7 +6828,7 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_boneshard]			= SV_CustomTEnt_Register("ce_boneshard",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_boneshrapnel]		= SV_CustomTEnt_Register("ce_boneshrapnel",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-//	ce_snow,
+		h2customtents[ce_snow]				= SV_CustomTEnt_Register("ce_snow",				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_gravitywell]		= SV_CustomTEnt_Register("ce_gravitywell",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_bldrn_expl]		= SV_CustomTEnt_Register("ce_bldrn_expl",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_acid_muzzfl]		= SV_CustomTEnt_Register("ce_acid_muzzfl",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
@@ -6818,7 +6840,7 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_acid_splat]		= SV_CustomTEnt_Register("ce_acid_splat",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_acid_expl]			= SV_CustomTEnt_Register("ce_acid_expl",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_fboom]				= SV_CustomTEnt_Register("ce_fboom",			0, NULL, 0, NULL, 0, 0, NULL);
-//	ce_chunk
+//	ce_chunk (special)
 		h2customtents[ce_bomb]				= SV_CustomTEnt_Register("ce_bomb",				0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_brn_bounce]		= SV_CustomTEnt_Register("ce_brn_bounce",		0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_lshock]			= SV_CustomTEnt_Register("ce_lshock",			0, NULL, 0, NULL, 0, 0, NULL);
@@ -6870,9 +6892,10 @@ void SV_RegisterH2CustomTents(void)
 }
 static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-//	float *min, *max, *angle, *size;
-//	float colour, wait, radius, frame, framelength, duration;
-//	int flags, type, skin;
+	float *min, *max, *angle, *size;
+	float colour;
+//	float wait, radius, frame, framelength, duration;
+//	int flags, skin;
 	int type;
 	float *org, *dir;
 	int count;
@@ -6883,40 +6906,50 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 	{
 	case ce_rain:
 		/*this effect is meant to be persistant (endeffect is never used)*/
-		//min = G_VECTOR(OFS_PARM1);
-		//max = G_VECTOR(OFS_PARM2);
-		//size = G_VECTOR(OFS_PARM3);
-		//dir = G_VECTOR(OFS_PARM4);
-		//colour = G_FLOAT(OFS_PARM5);
-		//count = G_FLOAT(OFS_PARM6);
+		min = G_VECTOR(OFS_PARM1);
+		max = G_VECTOR(OFS_PARM2);
+		size = G_VECTOR(OFS_PARM3);
+		dir = G_VECTOR(OFS_PARM4);
+		colour = G_FLOAT(OFS_PARM5);
+		count = G_FLOAT(OFS_PARM6);
 		//wait = G_FLOAT(OFS_PARM7);
+
 		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
 
-		Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n");
+		if (colour == 0 && size == 0)
+			SV_CustomTEnt_Spawn(h2customtents[efnum], min, max, count, dir);
+		else
+			Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n");
 		return;
-		break;
 	case ce_snow:
 		/*this effect is meant to be persistant (endeffect is never used)*/
-		//min = G_VECTOR(OFS_PARM1);
-		//max = G_VECTOR(OFS_PARM2);
+		min = G_VECTOR(OFS_PARM1);
+		max = G_VECTOR(OFS_PARM2);
 		//flags = G_FLOAT(OFS_PARM3);
-		//dir = G_VECTOR(OFS_PARM4);
-		//count = G_FLOAT(OFS_PARM5);
-		/*FIXME: not spawned - this persistant effect is created by a map object (might be delay-spawned), all attributes are custom.*/
-		Con_Printf("FTE-H2 FIXME: ce_snow not supported!\n");
+		dir = G_VECTOR(OFS_PARM4);
+		count = G_FLOAT(OFS_PARM5);
+
+		/*FIXME: we ignore any happy/fluffy/mixed snow types*/
+		SV_CustomTEnt_Spawn(h2customtents[efnum], min, max, count, dir);
+//		Con_Printf("FTE-H2 FIXME: ce_snow not supported!\n");
 		return;
-		break;
 	case ce_fountain:
 		/*this effect is meant to be persistant (endeffect is never used)*/
-		//org = G_VECTOR(OFS_PARM1);
-		//angle = G_VECTOR(OFS_PARM2);
-		//dir = G_VECTOR(OFS_PARM3);
-		//colour = G_FLOAT(OFS_PARM4);
-		//count = G_FLOAT(OFS_PARM5);
+		org = G_VECTOR(OFS_PARM1);
+		angle = G_VECTOR(OFS_PARM2);
+		dir = G_VECTOR(OFS_PARM3);
+		colour = G_FLOAT(OFS_PARM4);
+		count = G_FLOAT(OFS_PARM5);
+
 		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
-		Con_Printf("FTE-H2 FIXME: ce_fountain not supported!\n");
+		if (colour == 407)
+		{
+			dir[2] *= 2;
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, count, dir);
+		}
+		else
+			Con_Printf("FTE-H2 FIXME: ce_fountain not supported!\n");
 		return;
-		break;
 	case ce_quake:
 		/*this effect is meant to be persistant*/
 		org = G_VECTOR(OFS_PARM1);
@@ -6924,7 +6957,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 
 		if (h2customtents[efnum] != -1)
 		{
-			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			G_FLOAT(OFS_RETURN) = SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
 			return;
 		}
 		break;
@@ -7077,7 +7110,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		/*FIXME: meant to be persistant until removed*/
 		if (h2customtents[efnum] != -1)
 		{
-			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			G_FLOAT(OFS_RETURN) = SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
 			return;
 		}
 		break;
@@ -7228,10 +7261,11 @@ static void QCBUILTIN PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr
 {
 	int type;
 	int arg;
-	float *org = G_VECTOR(OFS_PARM1);
+	float *org;
+	multicast_t mcd = MULTICAST_PVS;
 
 	if (sv.multicast.cursize)
-		SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, PEXT_CUSTOMTEMPEFFECTS);	//do a multicast with the current buffer to all players who won't get the new effect.
+		SV_MulticastProtExt (vec3_origin, MULTICAST_ALL, pr_global_struct->dimension_send, 0, PEXT_CUSTOMTEMPEFFECTS);	//do a multicast with the current buffer to all players who won't get the new effect.
 
 	type = G_FLOAT(OFS_PARM0);
 	if (type < 0 || type >= 255)
@@ -7239,12 +7273,29 @@ static void QCBUILTIN PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr
 
 	MSG_WriteByte(&sv.multicast, svcfte_customtempent);
 	MSG_WriteByte(&sv.multicast, type);
+	type = sv.customtents[type].netstyle;
+	arg = 1;
+
+	if (type & CTE_PERSISTANT)
+	{
+		int id = G_EDICTNUM(prinst, OFS_PARM0+arg*3);
+		arg++;
+		mcd = MULTICAST_ALL_R;
+
+		if (arg == *prinst->callargc)
+		{
+			MSG_WriteShort(&sv.multicast, id | 0x8000);
+			SV_MulticastProtExt (vec3_origin, mcd, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+			return;
+		}
+		MSG_WriteShort(&sv.multicast, id);
+	}
+
+	org = G_VECTOR(OFS_PARM0+arg*3);
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
 	MSG_WriteCoord(&sv.multicast, org[2]);
 
-	type = sv.customtents[type].netstyle;
-	arg = 2;
 	if (type & CTE_ISBEAM)
 	{
 		MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3)[0]);
@@ -7278,7 +7329,7 @@ static void QCBUILTIN PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr
 	if (arg != *prinst->callargc)
 		Con_Printf("PF_CusromTEnt: bad number of arguments for particle type\n");
 
-	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+	SV_MulticastProtExt (org, mcd, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
 }
 
 //float(string effectname) particleeffectnum (EXT_CSQC)

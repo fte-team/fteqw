@@ -834,7 +834,6 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	static char *permutationname[] =
 	{
 		"#define BUMP\n",
-		"#define SPECULAR\n",
 		"#define FULLBRIGHT\n",
 		"#define UPPERLOWER\n",
 		"#define DELUXE\n",
@@ -854,6 +853,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	int cvartypes[64];
 	int cvarcount = 0;
 	qboolean onefailed = false;
+	extern cvar_t gl_specular;
 
 	if (qrenderer != qrtype)
 	{
@@ -983,6 +983,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
 			}
 		}
+		if (gl_specular.value)
+			permutationdefines[pn++] = "#define SPECULAR\n";
 		permutationdefines[pn++] = NULL;
 
 		if (0)

@@ -1030,6 +1030,7 @@ qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axi
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);
 struct fragmentdecal_s;
 void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);
+qboolean Terr_DownloadedSection(char *fname);
 #endif
 
 

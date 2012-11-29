@@ -1444,7 +1444,7 @@ DWORD WINAPI threadwrapper(void *args)
 	return 0;
 }
 
-void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize)
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
 	HANDLE handle;

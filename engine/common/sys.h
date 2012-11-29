@@ -90,7 +90,7 @@ void Sys_Vibrate(int count);
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
 #ifdef MULTITHREAD
-void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize);
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize);
 void Sys_WaitOnThread(void *thread);
 void Sys_DetachThread(void *thread);
 

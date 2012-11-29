@@ -941,6 +941,15 @@ void Matrix4x4_CM_Transform4(const float *matrix, const float *vector, float *pr
 	product[3] = matrix[3]*vector[0] + matrix[7]*vector[1] + matrix[11]*vector[2] + matrix[15]*vector[3];
 }
 
+//ignore the entire right+bottom row/column of the 4*4 matrix
+void Matrix4x4_CM_Transform3x3(const float *matrix, const float *vector, float *product)
+{
+	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2];
+	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2];
+	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2];
+}
+
+//disregard the extra bit of the matrix
 void Matrix4x4_CM_Transform3(const float *matrix, const float *vector, float *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12];

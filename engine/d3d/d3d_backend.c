@@ -1768,8 +1768,6 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 
 	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.hlsl.vert)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->specular) && p->permu[perm|PERMUTATION_SPECULAR].handle.hlsl.vert)
-		perm |= PERMUTATION_SPECULAR;
 	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
 		perm |= PERMUTATION_FULLBRIGHT;
 	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))

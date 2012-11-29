@@ -438,7 +438,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 #ifdef PEXT_PK3DOWNLOADS
 		| PEXT_PK3DOWNLOADS
 #endif
-		)))
+		)) && !(dl->flags & DLLF_TEMPORARY))
 	{
 		CL_SendClientCommand(true, "dlsize \"%s\"", dl->rname);
 	}
@@ -508,7 +508,7 @@ void CL_DisenqueDownload(char *filename)
 void CL_WebDownloadFinished(struct dl_download *dl)
 {
 	if (dl->status == DL_FAILED)
-		CL_DownloadFailed(dl->url);
+		CL_DownloadFailed(dl->url, false);
 	else if (dl->status == DL_FINISHED)
 	{
 		if (dl->file)
@@ -519,11 +519,12 @@ void CL_WebDownloadFinished(struct dl_download *dl)
 }
 #endif
 
-void CL_SendDownloadStartRequest(char *filename, char *localname)
+void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int flags)
 {
 	strcpy (cls.downloadremotename, filename);
 	strcpy (cls.downloadlocalname, localname);
-	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadlocalname);
+	if (!(flags & DLLF_TEMPORARY))
+		Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadlocalname);
 
 	// download to a temp name, and only rename
 	// to the real name when done, so if interrupted
@@ -537,7 +538,7 @@ void CL_SendDownloadStartRequest(char *filename, char *localname)
 		cls.downloadmethod = DL_HTTP;
 		cls.downloadpercent = 0;
 		if (!HTTP_CL_Get(cls.downloadremotename, cls.downloadtempname, CL_WebDownloadFinished))
-			CL_DownloadFailed(cls.downloadremotename);
+			CL_DownloadFailed(cls.downloadremotename, false);
 	}
 	else
 #endif
@@ -569,7 +570,15 @@ void CL_DownloadFinished(void)
 	// rename the temp file to it's final name
 	if (tempname)
 	{
-		if (strcmp(tempname, filename))
+#ifdef TERRAIN
+		if (!strncmp(tempname, "temp/", 5) && Terr_DownloadedSection(tempname))
+		{
+			FS_Remove(tempname, FS_GAME);
+			return;
+		}
+		else 
+#endif
+			if (strcmp(tempname, filename))
 		{
 			if (!strncmp(tempname,"package/",8))
 			{
@@ -1379,7 +1388,7 @@ void CL_RequestNextDownload (void)
 			{
 				if ((fl & DLLF_OVERWRITE) || !CL_CheckFile (dl->localname))
 				{
-					CL_SendDownloadStartRequest(dl->rname, dl->localname);
+					CL_SendDownloadStartRequest(dl->rname, dl->localname, fl);
 					return;
 				}
 				else
@@ -1555,7 +1564,7 @@ char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
-downloadlist_t *CL_DownloadFailed(char *name)
+downloadlist_t *CL_DownloadFailed(char *name, qboolean cancel)
 {
 	//add this to our failed list. (so we don't try downloading it again...)
 	downloadlist_t *failed, **link, *dl;
@@ -1565,7 +1574,8 @@ downloadlist_t *CL_DownloadFailed(char *name)
 	Q_strncpyz(failed->rname, name, sizeof(failed->rname));
 
 	//if this is what we're currently downloading, close it up now.
-	if (!stricmp(cls.downloadremotename, name) || !*name)
+	//don't do this if we're just marking the file as unavailable for download.
+	if (cancel && (!stricmp(cls.downloadremotename, name) || !*name))
 	{
 		cls.downloadmethod = DL_NONE;
 
@@ -1657,7 +1667,7 @@ void CL_ParseChunkedDownload(void)
 				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
 
 			cls.downloadmethod = DL_NONE;
-			CL_DownloadFailed(svname);
+			CL_DownloadFailed(svname, true);
 
 			CL_RequestNextDownload();
 			return;
@@ -1701,7 +1711,7 @@ void CL_ParseChunkedDownload(void)
 
 		if (!cls.downloadqw)
 		{
-			CL_DownloadFailed(svname);
+			CL_DownloadFailed(svname, true);
 			return;
 		}
 
@@ -1848,7 +1858,7 @@ void CL_ParseDownload (void)
 			VFS_CLOSE (cls.downloadqw);
 			cls.downloadqw = NULL;
 		}
-		CL_DownloadFailed(cls.downloadremotename);
+		CL_DownloadFailed(cls.downloadremotename, true);
 		CL_CheckOrEnqueDownloadFile(name, localname, DLLF_IGNOREFAILED);
 		return;
 	}
@@ -1879,7 +1889,7 @@ void CL_ParseDownload (void)
 			cls.downloadqw = NULL;
 		}
 
-		CL_DownloadFailed(cls.downloadremotename);
+		CL_DownloadFailed(cls.downloadremotename, true);
 		return;
 	}
 
@@ -1902,7 +1912,7 @@ void CL_ParseDownload (void)
 		{
 			msg_readcount += size;
 			Con_TPrintf (TL_FAILEDTOOPEN, cls.downloadtempname);
-			CL_DownloadFailed(cls.downloadremotename);
+			CL_DownloadFailed(cls.downloadremotename, true);
 			CL_RequestNextDownload ();
 			return;
 		}
@@ -2051,7 +2061,7 @@ void CLDP_ParseDownloadBegin(char *s)
 		}
 	}
 	else
-		CL_DownloadFailed(cls.downloadremotename);
+		CL_DownloadFailed(cls.downloadremotename, true);
 
 	cls.downloadstarttime = Sys_DoubleTime();
 }
@@ -2086,7 +2096,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	else
 	{
 		Con_Printf("Download failed: unable to check CRC of download\n");
-		CL_DownloadFailed(cls.downloadremotename);
+		CL_DownloadFailed(cls.downloadremotename, true);
 		return;
 	}
 
@@ -2094,13 +2104,13 @@ void CLDP_ParseDownloadFinished(char *s)
 	if (size != atoi(Cmd_Argv(1)))
 	{
 		Con_Printf("Download failed: wrong file size\n");
-		CL_DownloadFailed(cls.downloadremotename);
+		CL_DownloadFailed(cls.downloadremotename, true);
 		return;
 	}
 	if (runningcrc != atoi(Cmd_Argv(2)))
 	{
 		Con_Printf("Download failed: wrong crc\n");
-		CL_DownloadFailed(cls.downloadremotename);
+		CL_DownloadFailed(cls.downloadremotename, true);
 		return;
 	}
 

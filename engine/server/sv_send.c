@@ -510,6 +510,16 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	qboolean	reliable;
 	int pnum = 0;
 
+	if (to == MULTICAST_INIT)
+	{
+		//we only have one signon buffer. make sure you don't put non-identical protocols in the buffer
+		SV_FlushSignon();
+		SZ_Write (&sv.signon, sv.multicast.data, sv.multicast.cursize);
+
+		//and send to players that are already on
+		to = MULTICAST_ALL_R;
+	}
+
 //	to = MULTICAST_ALL;
 #ifdef Q2BSPS
 	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)

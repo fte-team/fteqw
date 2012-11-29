@@ -2893,21 +2893,21 @@ void CL_DownloadSize_f(void)
 	if (!strcmp(size, "e"))
 	{
 		Con_Printf("Download of \"%s\" failed. Not found.\n", rname);
-		CL_DownloadFailed(rname);
+		CL_DownloadFailed(rname, false);
 	}
 	else if (!strcmp(size, "p"))
 	{
 		if (stricmp(cls.downloadremotename, rname))
 		{
 			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
-			CL_DownloadFailed(rname);
+			CL_DownloadFailed(rname, false);
 		}
 	}
 	else if (!strcmp(size, "r"))
 	{
 		redirection = Cmd_Argv(3);
 
-		dl = CL_DownloadFailed(rname);
+		dl = CL_DownloadFailed(rname, false);
 
 		if (cl_download_redirection.ival)
 		{
@@ -3012,7 +3012,7 @@ void CL_Windows_f (void)
 #ifndef CLIENTONLY
 void CL_ServerInfo_f(void)
 {
-	if (!sv.state && cls.state)
+	if (!sv.state && cls.state && Cmd_Argc() < 2)
 	{
 		if (cls.demoplayback || cls.protocol != CP_QUAKEWORLD)
 		{

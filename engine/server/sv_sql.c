@@ -59,6 +59,7 @@ static dllfunction_t mysqlfuncs[] =
 	{(void*)&qmysql_thread_safe, "mysql_thread_safe"},
 	{NULL}
 };
+dllhandle_t *mysqlhandle;
 #endif
 
 #ifdef USE_SQLITE
@@ -93,6 +94,7 @@ static dllfunction_t sqlitefuncs[] =
 	{(void*)&qsqlite3_finalize,					"sqlite3_finalize"},
 	{NULL}
 };
+dllhandle_t *sqlitehandle;
 #endif
 
 cvar_t sql_driver = SCVARF("sv_sql_driver", "mysql", CVAR_NOUNSAFEEXPAND);
@@ -184,6 +186,7 @@ int sql_serverworker(void *sref)
 	const char *error = NULL;
 	int tinit = -1, i;
 	qboolean needlock = false;
+	qboolean allokay = true;
 
 	switch(server->driver)
 	{
@@ -240,9 +243,9 @@ int sql_serverworker(void *sref)
 	}
 
 	if (error)
-		server->active = false;
+		allokay = false;
 
-	while (server->active)
+	while (allokay)
 	{	
 		Sys_LockConditional(server->requestcondv);
 		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
@@ -260,7 +263,11 @@ int sql_serverworker(void *sref)
 			void *res = NULL;
 
 			if (!(qreq = SQL_PullRequest(server, needlock)))
+			{
+				if (!server->active)
+					allokay = false;
 				break;
+			}
 
 			// pullrequest makes sure our condition is unlocked but we'll need
 			// a lock next round
@@ -329,6 +336,7 @@ int sql_serverworker(void *sref)
 					int rowspace;
 					qboolean keeplooping = true;
 
+					Sys_Printf("processing %s\n", statementstring);
 //					qsqlite3_mutex_enter(server->sqlite->mutex);
 //					while(*statementstring)
 //					{
@@ -383,6 +391,15 @@ int sql_serverworker(void *sref)
 											qres->eof = true;	//this one was the ender.
 											break;
 										}
+										else
+										{
+											Sys_Printf("sqlite error code %i: %s\n", rc, statementstring);
+											keeplooping = false;
+											qres->eof = true;	//this one was the ender.
+											if (!qres->columns)
+												qres->columns = -1;
+											break;
+										}
 
 										rc = qsqlite3_step(pStmt);
 									}
@@ -421,6 +438,7 @@ int sql_serverworker(void *sref)
 			}
 		}
 	}
+	server->active = false;
 
 	switch(server->driver)
 	{
@@ -792,7 +810,7 @@ int SQL_NewServer(char *driver, char **paramstr)
 		return -1;
 	}
 
-	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, THREADP_NORMAL, 1024);
+	server->thread = Sys_CreateThread("sqlworker", sql_serverworker, (void *)server, THREADP_NORMAL, 1024);
 	
 	if (!server->thread)
 	{
@@ -1170,7 +1188,7 @@ void SQL_KillServers(void)
 
 void SQL_DeInit(void)
 {
-	sqlavailable = false;
+	sqlavailable = 0;
 
 	SQL_KillServers();
 
@@ -1179,6 +1197,9 @@ void SQL_DeInit(void)
 		qmysql_library_end();
 
 	Sys_CloseLibrary(mysqlhandle);
+#endif
+#ifdef USE_SQLITE
+	Sys_CloseLibrary(sqlitehandle);
 #endif
 }
 

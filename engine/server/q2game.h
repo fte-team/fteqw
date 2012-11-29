@@ -30,7 +30,8 @@ typedef enum multicast_e
 	MULTICAST_PVS_R,
 
 	MULTICAST_ONE,
-	MULTICAST_ONE_R
+	MULTICAST_ONE_R,
+	MULTICAST_INIT
 } multicast_t;
 
 extern float	pm_q2stepheight;

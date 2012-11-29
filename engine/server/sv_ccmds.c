@@ -2210,7 +2210,8 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("pin_delete", SV_Pin_Delete_f);
 	Cmd_AddCommand ("pin_add", SV_Pin_Add_f);
 
-	cl_warncmd.value = 1;
+	if (isDedicated)
+		cl_warncmd.value = 1;
 }
 
 #endif

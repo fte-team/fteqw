@@ -2194,6 +2194,8 @@ static void PScript_Shutdown (void)
 	while (numparticletypes > 0)
 	{
 		numparticletypes--;
+		if (part_type[numparticletypes].models)
+			BZ_Free(part_type[numparticletypes].models);
 		if (part_type[numparticletypes].ramp)
 			BZ_Free(part_type[numparticletypes].ramp);
 	}

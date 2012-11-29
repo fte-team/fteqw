@@ -253,7 +253,7 @@ void SV_Shutdown (void)
 		sv_fraglogfile = NULL;
 	}
 
-	PR_Deinit();
+	PR_Shutdown();
 #ifdef USEODE
 	World_ODE_Shutdown();
 #endif
@@ -274,6 +274,7 @@ void SV_Shutdown (void)
 		sv_staticentities = NULL;
 	}
 
+	T_FreeStrings();
 
 	SV_GibFilterPurge();
 

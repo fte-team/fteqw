@@ -2296,7 +2296,7 @@ void Surf_DrawWorld (void)
 
 		if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		{
-	//		CL_LinkStaticEntities(entvis);
+			CL_LinkStaticEntities(entvis);
 			TRACE(("dbg: calling R_DrawParticles\n"));
 			if (!r_refdef.recurse)
 				P_DrawParticles ();

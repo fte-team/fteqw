@@ -567,13 +567,8 @@ void R_RenderScene (void)
 
 		RQ_BeginFrame();
 
-		if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-		{
-			TRACE(("dbg: calling R_DrawWorld\n"));
-			Surf_DrawWorld ();		// adds static entities to the list
-		}
-		else
-			BE_DrawWorld(false, NULL);
+		TRACE(("dbg: calling Surf_DrawWorld\n"));
+		Surf_DrawWorld ();		// adds static entities to the list
 
 		S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
@@ -732,10 +727,49 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
+static float sgn(float a)
+{
+    if (a > 0.0F) return (1.0F);
+    if (a < 0.0F) return (-1.0F);
+    return (0.0F);
+}
+void R_ObliqueNearClip(mplane_t *wplane)
+{
+	float f;
+	vec4_t q, c;
+	vec3_t ping, pong;
+	vec4_t vplane;
+
+	//convert world plane into view space
+	Matrix4x4_CM_Transform3x3(r_refdef.m_view, wplane->normal, vplane);
+	VectorScale(wplane->normal, wplane->dist, ping);
+	Matrix4x4_CM_Transform3(r_refdef.m_view, ping, pong);
+	vplane[3] = -DotProduct(pong, vplane);
+
+	// Calculate the clip-space corner point opposite the clipping plane
+	// as (sgn(clipPlane.x), sgn(clipPlane.y), 1, 1) and
+	// transform it into camera space by multiplying it
+	// by the inverse of the projection matrix
+
+	q[0] = (sgn(vplane[0]) + r_refdef.m_projection[8]) / r_refdef.m_projection[0];
+	q[1] = (sgn(vplane[1]) + r_refdef.m_projection[9]) / r_refdef.m_projection[5];
+	q[2] = -1.0F;
+	q[3] = (1.0F + r_refdef.m_projection[10]) / r_refdef.m_projection[14];
+
+	// Calculate the scaled plane vector
+	f = 2.0F / DotProduct4(vplane, q);
+	Vector4Scale(vplane, f, c);
+
+	// Replace the third row of the projection matrix
+	r_refdef.m_projection[2] = c[0];
+	r_refdef.m_projection[6] = c[1];
+	r_refdef.m_projection[10] = c[2] + 1.0F;
+	r_refdef.m_projection[14] = c[3];
+}
 void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 {
 	entity_t *view;
-	GLdouble glplane[4];
+//	GLdouble glplane[4];
 	plane_t plane;
 	refdef_t oldrefdef;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
@@ -892,22 +926,23 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 
 	/*FIXME: can we get away with stenciling the screen?*/
 	/*Add to frustum culling instead of clip planes?*/
-	if (qglClipPlane)
-	{
-		glplane[0] = -plane.normal[0];
-		glplane[1] = -plane.normal[1];
-		glplane[2] = -plane.normal[2];
-		glplane[3] = plane.dist;
-		qglClipPlane(GL_CLIP_PLANE0, glplane);
-		qglEnable(GL_CLIP_PLANE0);
-	}
+//	if (qglClipPlane)
+//	{
+//		glplane[0] = -plane.normal[0];
+//		glplane[1] = -plane.normal[1];
+//		glplane[2] = -plane.normal[2];
+//		glplane[3] = plane.dist;
+//		qglClipPlane(GL_CLIP_PLANE0, glplane);
+//		qglEnable(GL_CLIP_PLANE0);
+//	}
 	frustum[4].normal[0] = plane.normal[0];
 	frustum[4].normal[1] = plane.normal[1];
 	frustum[4].normal[2] = plane.normal[2];
 	frustum[4].dist	= plane.dist + 0.01;
+	R_ObliqueNearClip(&frustum[4]);
 	R_RenderScene();
-	if (qglClipPlane)
-		qglDisable(GL_CLIP_PLANE0);
+//	if (qglClipPlane)
+//		qglDisable(GL_CLIP_PLANE0);
 
 	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
 	for (batch = blist[sort]; batch; batch = batch->next)
@@ -963,10 +998,6 @@ void R_Clear (void)
 		gldepthmax = 1;
 		gldepthfunc=GL_LEQUAL;
 	}
-	if (qglDepthRange)
-		qglDepthRange (gldepthmin, gldepthmax);
-	else if (qglDepthRangef)
-		qglDepthRangef (gldepthmin, gldepthmax);
 }
 
 #if 0

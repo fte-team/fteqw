@@ -484,7 +484,7 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 #ifdef MULTITHREAD
 /* Everything here is stubbed because I don't know MorphOS */
 /* Thread creation calls */
-void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize) { return NULL; }
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize) { return NULL; }
 void Sys_WaitOnThread(void *thread) {}
 /* Mutex calls */
 void *Sys_CreateMutex(void) { return NULL; }

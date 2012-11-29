@@ -33964,6 +33964,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\common\sys_win_threads.c"
+					>
+				</File>
+				<File
 					RelativePath="..\common\translate.c"
 					>
 					<FileConfiguration

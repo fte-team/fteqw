@@ -123,6 +123,10 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_DEPTH_TEXTURE_MODE_ARB         0x884B
 #endif
 
+#ifndef GL_EXT_packed_depth_stencil
+#define GL_DEPTH24_STENCIL8_EXT                           0x88F0
+#endif
+
 #ifndef GL_ARB_shadow
 #define GL_ARB_shadow
 #define GL_TEXTURE_COMPARE_MODE_ARB       0x884C
@@ -689,8 +693,6 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_RENDERBUFFER_DEPTH_SIZE_EXT    0x8D54
 #define GL_RENDERBUFFER_STENCIL_SIZE_EXT  0x8D55
 #endif
-
-
 
 #ifndef GL_VERSION_3_0
 #define GL_MAJOR_VERSION                  0x821B

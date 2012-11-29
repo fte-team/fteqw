@@ -541,6 +541,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	gl_config.ext_texture_filter_anisotropic = 0;
 
+	gl_config.ext_packed_depth_stencil = GL_CheckExtension("GL_EXT_packed_depth_stencil");
+
 	if (GL_CheckExtension("GL_EXT_texture_filter_anisotropic"))
 	{
 		qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_config.ext_texture_filter_anisotropic);
@@ -616,7 +618,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	qglStencilOpSeparateATI = NULL;
 	qglActiveStencilFaceEXT = NULL;
-	if (gl_config.gles && gl_config.glversion >= 2)
+	if ((gl_config.gles && gl_config.glversion >= 2) || gl_config.glversion >= 3) //theoretically that should be a 2 not 3.
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparate");
 	else if (GL_CheckExtension("GL_ATI_separate_stencil"))
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparateATI");

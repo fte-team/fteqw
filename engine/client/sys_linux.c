@@ -760,7 +760,7 @@ void Sys_SaveClipboard(char *text) {
 /* Thread creation calls */
 typedef void *(*pfunction_t)(void *);
 
-void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize)
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	pthread_t *thread;
 	pthread_attr_t attr;

@@ -1132,7 +1132,8 @@ qboolean	Cvar_Command (int level)
 
 	if (v->flags & CVAR_NOSET)
 	{
-		Con_Printf ("Cvar %s may not be set via the console\n", v->name);
+		if (cl_warncmd.value || developer.value)
+			Con_Printf ("Cvar %s may not be set via the console\n", v->name);
 		return true;
 	}
 #ifndef SERVERONLY

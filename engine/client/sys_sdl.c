@@ -592,7 +592,7 @@ void Sys_SaveClipboard(char *text)
 
 #ifdef MULTITHREAD
 /* Thread creation calls */
-void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize)
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	// SDL threads do not support setting thread stack size
 	return (void *)SDL_CreateThread(func, args);

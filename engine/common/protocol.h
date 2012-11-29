@@ -752,6 +752,7 @@ enum {
 #define CTE_GLOWS			8
 #define CTE_CHANNELFADE		16
 #define CTE_CUSTOMVELOCITY	32
+#define CTE_PERSISTANT		64
 #define CTE_ISBEAM			128
 
 //FTE's version of TEI_SHOWLMP2

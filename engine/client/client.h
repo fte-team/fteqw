@@ -448,6 +448,7 @@ typedef struct downloadlist_s {
 #define DLLF_SIZEUNKNOWN 8		//download's size isn't known
 #define DLLF_IGNOREFAILED 16	//
 #define DLLF_NONGAME 32			//means the requested download filename+localname is gamedir explicit (so id1/foo.txt is distinct from qw/foo.txt)
+#define DLLF_TEMPORARY 64		//download it, but don't actually save it (DLLF_OVERWRITE doesn't actually overwrite, but does ignore any local files)
 	struct downloadlist_s *next;
 } downloadlist_t;
 
@@ -974,7 +975,7 @@ void CL_NewTranslation (int slot);
 
 qboolean CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags);
 qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags);
-downloadlist_t *CL_DownloadFailed(char *name);
+downloadlist_t *CL_DownloadFailed(char *name, qboolean cancel);
 int CL_DownloadRate(void);
 void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown);
 qboolean CL_ParseOOBDownload(void);

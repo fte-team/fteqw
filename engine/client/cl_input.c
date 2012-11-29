@@ -1234,7 +1234,7 @@ void CL_UseIndepPhysics(qboolean allow)
 		indeplock = Sys_CreateMutex();
 		runningindepphys = true;
 
-		indepthread = Sys_CreateThread(CL_IndepPhysicsThread, NULL, THREADP_HIGHEST, 8192);
+		indepthread = Sys_CreateThread("indepphys", CL_IndepPhysicsThread, NULL, THREADP_HIGHEST, 8192);
 		allowindepphys = true;
 	}
 	else

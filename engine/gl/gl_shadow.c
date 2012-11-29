@@ -2654,37 +2654,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 				qglDisable(GL_DEPTH_CLAMP_ARB);
 			//end stencil writing.
 
-			/*stencil writing probably changed the vertex pointer, and our backend caches it*/
-//			PPL_RevertToKnownState();
-
-		#if 0	//draw the stencil stuff to the red channel
-			qglMatrixMode(GL_PROJECTION);
-			qglPushMatrix();
-			qglMatrixMode(GL_MODELVIEW);
-			qglPushMatrix();
-			GL_Set2D();
-
-			{
-				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-				qglStencilFunc(GL_GREATER, sref, ~0);
-				R2D_ConsoleBackground(vid.height);
-
-				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-				qglStencilFunc(GL_LESS, sref, ~0);
-				R2D_ConsoleBackground(vid.height);
-
-				qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-				qglStencilFunc(GL_EQUAL, sref, ~0);
-				R2D_ConsoleBackground(vid.height);
-			}
-
-			qglMatrixMode(GL_PROJECTION);
-			qglPopMatrix();
-			qglMatrixMode(GL_MODELVIEW);
-			qglPopMatrix();
-		#endif
-
-
 			BE_SelectMode(BEM_LIGHT);
 			Sh_DrawEntLighting(dl, colour);
 			qglDisable(GL_STENCIL_TEST);

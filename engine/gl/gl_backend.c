@@ -6,7 +6,7 @@ void DumpGLState(void);
 
 #ifdef GLQUAKE
 
-#define r_refract_fboival 0
+#define r_refract_fboival 1
 
 #include "glquake.h"
 #include "shader.h"
@@ -136,6 +136,8 @@ struct {
 		texid_t tex_normals;
 		texid_t tex_diffuse;
 		int fbo_diffuse;
+		int rb_depth;
+		int rb_stencil;
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
 		int fbo_depthless;
@@ -194,6 +196,7 @@ struct {
 		texid_t fogtexture;
 		texid_t normalisationcubemap;
 		float fogfar;
+		float depthrange;
 
 		batch_t **mbatches;	//model batches (ie: not world)
 	};
@@ -625,19 +628,31 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				break;
 			case VATTR_NORMALS:
 				if (!shaderstate.sourcevbo->normals.gl.addr)
-					break;
+				{
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
+				}
 				GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
 				qglVertexAttribPointer(VATTR_NORMALS, 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->normals.gl.addr);
 				break;
 			case VATTR_SNORMALS:
 				if (!shaderstate.sourcevbo->svector.gl.addr)
-					break;
+				{
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
+				}
 				GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
 				qglVertexAttribPointer(VATTR_SNORMALS, 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->svector.gl.addr);
 				break;
 			case VATTR_TNORMALS:
 				if (!shaderstate.sourcevbo->tvector.gl.addr)
-					break;
+				{
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
+				}
 				GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
 				qglVertexAttribPointer(VATTR_TNORMALS, 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector.gl.addr);
 				break;
@@ -780,7 +795,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	shaderstate.sourcevbo = &shaderstate.dummyvbo;
 	shaderstate.dummyvbo.indicies.gl.vbo = ibo;
 
-	if (gl_config.nofixedfunc)
+	if (shaderstate.allblackshader)
 	{
 		GL_SelectProgram(shaderstate.allblackshader);
 
@@ -2981,8 +2996,6 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_FRAMEBLEND;
 	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.glsl)
 		perm |= PERMUTATION_BUMPMAP;
-	if (/*TEXVALID(shaderstate.curtexnums->specular) &&*/ p->permu[perm|PERMUTATION_SPECULAR].handle.glsl)
-		perm |= PERMUTATION_SPECULAR;
 	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.glsl)
 		perm |= PERMUTATION_FULLBRIGHT;
 	if ((TEXVALID(shaderstate.curtexnums->loweroverlay) || TEXVALID(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].handle.glsl)
@@ -3188,25 +3201,25 @@ void GLBE_SelectMode(backendmode_t mode)
 
 void GLBE_SelectEntity(entity_t *ent)
 {
-	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK)
-	{
-		if (qglDepthRange)
-			qglDepthRange (gldepthmin, gldepthmax);
-		else if (qglDepthRangef)
-			qglDepthRangef (gldepthmin, gldepthmax);
-	}
+	float nd;
 	shaderstate.curentity = ent;
 	currententity = ent;
 	R_RotateForEntity(shaderstate.modelmatrix, shaderstate.modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
 	Matrix4_Invert(shaderstate.modelmatrix, shaderstate.modelmatrixinv);
 	if (qglLoadMatrixf)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
+
 	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK)
+		nd = 0.3;
+	else
+		nd = 1;
+	if (shaderstate.depthrange != nd)
 	{
+		shaderstate.depthrange = nd;
 		if (qglDepthRange)
-			qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+			qglDepthRange (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
 		else if (qglDepthRangef)
-			qglDepthRangef (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+			qglDepthRangef (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
 	}
 
 	shaderstate.lastuniform = 0;
@@ -3918,8 +3931,8 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
-				r_refdef.vrect.width = vid.pixelwidth/2;
-				r_refdef.vrect.height = vid.pixelheight/2;
+				r_refdef.vrect.width = vid.width/2;
+				r_refdef.vrect.height = vid.height/2;
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -3950,8 +3963,8 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					orect = r_refdef.vrect;
 					r_refdef.vrect.x = 0;
 					r_refdef.vrect.y = 0;
-					r_refdef.vrect.width = vid.pixelwidth/2;
-					r_refdef.vrect.height = vid.pixelheight/2;
+					r_refdef.vrect.width = vid.width/2;
+					r_refdef.vrect.height = vid.height/2;
 
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
@@ -3983,8 +3996,8 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				orect = r_refdef.vrect;
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
-				r_refdef.vrect.width = vid.pixelwidth/2;
-				r_refdef.vrect.height = vid.pixelheight/2;
+				r_refdef.vrect.width = vid.width/2;
+				r_refdef.vrect.height = vid.height/2;
 
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT);
@@ -4116,17 +4129,26 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 		{
 			if (!shaderstate.fbo_diffuse)
 			{
-				int drb;
-
 				qglGenFramebuffersEXT(1, &shaderstate.fbo_diffuse);
 				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
 
 				//create an unnamed depth buffer
-				qglGenRenderbuffersEXT(1, &drb);
-				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
-				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2);
-				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
-//				qglDeleteRenderbuffersEXT(1, &drb);
+				qglGenRenderbuffersEXT(1, &shaderstate.rb_depth);
+				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
+				if (gl_config.ext_packed_depth_stencil)
+				{
+					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, vid.pixelwidth/2, vid.pixelheight/2);
+					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
+				}
+				else
+				{
+					qglGenRenderbuffersEXT(1, &shaderstate.rb_stencil);
+					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, vid.pixelwidth/2, vid.pixelheight/2);
+					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
+					
+					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2);
+				}
+				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
 
 				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 				qglReadBuffer(GL_NONE);
@@ -4286,6 +4308,8 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	RSpeedLocals();
 	shaderstate.mbatches = batches;
 
+	shaderstate.depthrange = 0;
+
 	TRACE(("GLBE_DrawWorld: %i %p\n", drawworld, vis));
 
 	if (!r_refdef.recurse)
@@ -4323,6 +4347,12 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			qglDeleteFramebuffersEXT(1, &shaderstate.fbo_diffuse);
 			shaderstate.fbo_diffuse = 0;
 		}
+		if (shaderstate.rb_depth)
+			qglDeleteRenderbuffersEXT(1, &shaderstate.rb_depth);
+		shaderstate.rb_depth = 0;
+		if (shaderstate.rb_stencil)
+			qglDeleteRenderbuffersEXT(1, &shaderstate.rb_stencil);
+		shaderstate.rb_stencil = 0;
 		shaderstate.oldwidth = vid.pixelwidth;
 		shaderstate.oldheight = vid.pixelheight;
 

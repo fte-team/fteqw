@@ -29,7 +29,8 @@ struct edict_s;
 void SVQ1_CvarChanged(cvar_t *var);
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
-void PR_Deinit(void);
+void PR_Deinit(void);	//server shutting down
+void PR_Shutdown(void);	//server quitting
 void PR_LoadGlabalStruct(void);
 void Q_InitProgs(void);
 void PR_RegisterFields(void);

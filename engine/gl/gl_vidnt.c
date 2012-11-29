@@ -2145,8 +2145,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid_canalttab = true;
 
-	S_Restart_f();
-
 	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
 	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
 

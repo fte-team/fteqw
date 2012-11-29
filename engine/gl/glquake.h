@@ -197,6 +197,7 @@ typedef struct {
 	qboolean arb_shader_objects;
 	qboolean ext_framebuffer_objects;
 	qboolean ext_stencil_wrap;
+	qboolean ext_packed_depth_stencil;
 	qboolean arb_depth_clamp;
 	int ext_texture_filter_anisotropic;
 } gl_config_t;

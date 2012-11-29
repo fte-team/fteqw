@@ -1638,17 +1638,122 @@ typedef struct {
 	vec3_t dlightcfade;
 } clcustomtents_t;
 
-clcustomtents_t customtenttype[255];	//network based.
-void CL_ParseCustomTEnt(void)
+typedef struct custtentinst_s
 {
-	int count;
+	struct custtentinst_s *next;
+	clcustomtents_t *type;
+	int id;
 	vec3_t pos;
 	vec3_t pos2;
 	vec3_t dir;
+	int count;
+} custtentinst_t;
+custtentinst_t *activepcusttents;
+
+void CL_SpawnCustomTEnd(custtentinst_t *info)
+{
+	clcustomtents_t *t = info->type;
+	qboolean failed;
+	if (t->netstyle & CTE_ISBEAM)
+	{
+		if (t->netstyle & (CTE_CUSTOMVELOCITY|CTE_CUSTOMDIRECTION))
+		{
+			vec3_t org;
+			int i, j;
+			//FIXME: pvs cull
+			if (t->particleeffecttype != -1)
+			{
+				for (i=0 ; i<info->count ; i++)
+				{
+					for (j=0 ; j<3 ; j++)
+					{
+						org[j] = info->pos[j] + (info->pos2[j] - info->pos[j])*frandom();
+					}
+
+					P_RunParticleEffectType(org, info->dir, 1, t->particleeffecttype);
+				}
+			}
+		}
+		else
+			failed = P_ParticleTrail(info->pos, info->pos2, t->particleeffecttype, 0, NULL);
+	}
+	else
+	{
+		if (t->netstyle & CTE_CUSTOMVELOCITY|CTE_CUSTOMDIRECTION)
+			failed = P_RunParticleEffectType(info->pos, info->dir, info->count, t->particleeffecttype);
+		else
+			failed = P_RunParticleEffectType(info->pos, NULL, info->count, t->particleeffecttype);
+	}
+
+	if (failed)
+		Con_DPrintf("Failed to create effect %s\n", t->name);
+
+	if (t->netstyle & CTE_STAINS)
+	{	//added at pos2 - end of trail
+		R_AddStain(info->pos2, t->stain[0], t->stain[1], t->stain[2], 40);
+	}
+	if (t->netstyle & CTE_GLOWS)
+	{	//added at pos1 firer's end.
+		dlight_t	*dl;
+		dl = CL_AllocDlight (0);
+		VectorCopy (info->pos, dl->origin);
+		dl->radius = t->dlightradius*4;
+		dl->die = cl.time + t->dlighttime;
+		dl->decay = t->radius/t->dlighttime;
+
+		dl->color[0] = t->dlightrgb[0];
+		dl->color[1] = t->dlightrgb[1];
+		dl->color[2] = t->dlightrgb[2];
+
+		if (t->netstyle & CTE_CHANNELFADE)
+		{
+			dl->channelfade[0] = t->dlightcfade[0];
+			dl->channelfade[1] = t->dlightcfade[1];
+			dl->channelfade[2] = t->dlightcfade[2];
+		}
+
+		/*
+		if (dl->color[0] < 0)
+			dl->channelfade[0] = 0;
+		else
+			dl->channelfade[0] = dl->color[0]/t->dlighttime;
+
+		if (dl->color[1] < 0)
+			dl->channelfade[1] = 0;
+		else
+			dl->channelfade[1] = dl->color[0]/t->dlighttime;
+
+		if (dl->color[2] < 0)
+			dl->channelfade[2] = 0;
+		else
+			dl->channelfade[2] = dl->color[0]/t->dlighttime;
+		*/
+	}
+}
+
+void CL_RunPCustomTEnts(void)
+{
+	custtentinst_t *ef;
+	static float lasttime;
+	float since = cl.time - lasttime;
+	if (since < 0)
+		lasttime = cl.time;
+	else if (since < 1/60.0)
+		return;
+	lasttime = cl.time;
+	for (ef = activepcusttents; ef; ef = ef->next)
+	{
+		CL_SpawnCustomTEnd(ef);
+	}
+}
+
+clcustomtents_t customtenttype[255];	//network based.
+void CL_ParseCustomTEnt(void)
+{
 	char *str;
 	clcustomtents_t *t;
 	int type = MSG_ReadByte();
-	qboolean failed;
+	custtentinst_t info;
 
 	if (type == 255)	//255 is register
 	{
@@ -1692,93 +1797,97 @@ void CL_ParseCustomTEnt(void)
 
 	t = &customtenttype[type];
 
-	if (t->netstyle & CTE_ISBEAM)
+	info.type = t;
+	if (t->netstyle & CTE_PERSISTANT)
 	{
-		MSG_ReadPos (pos);
-		MSG_ReadPos (pos2);
-		failed = P_ParticleTrail(pos, pos2, t->particleeffecttype, 0, NULL);
+		info.id = MSG_ReadShort();
+	}
+	else
+		info.id = 0;
+
+	if (info.id & 0x8000)
+	{
+		VectorClear(info.pos);
+		VectorClear(info.pos2);
+		info.count = 0;
+		VectorClear(info.dir);
 	}
 	else
 	{
-		MSG_ReadPos (pos);
-		VectorCopy(pos, pos2);
+		MSG_ReadPos (info.pos);
+
+		if (t->netstyle & CTE_ISBEAM)
+			MSG_ReadPos (info.pos2);
+		else
+			VectorCopy(info.pos, info.pos2);
 
 		if (t->netstyle & CTE_CUSTOMCOUNT)
-			count = MSG_ReadByte();
+			info.count = MSG_ReadByte();
 		else
-			count = 1;
+			info.count = 1;
 
 		if (t->netstyle & CTE_CUSTOMVELOCITY)
 		{
-			dir[0] = MSG_ReadCoord();
-			dir[1] = MSG_ReadCoord();
-			dir[2] = MSG_ReadCoord();
-			failed = P_RunParticleEffectType(pos, dir, count, t->particleeffecttype);
+			info.dir[0] = MSG_ReadCoord();
+			info.dir[1] = MSG_ReadCoord();
+			info.dir[2] = MSG_ReadCoord();
 		}
 		else if (t->netstyle & CTE_CUSTOMDIRECTION)
+			MSG_ReadDir (info.dir);
+		else
+			VectorClear(info.dir);
+	}
+
+	if (t->netstyle & CTE_PERSISTANT)
+	{
+		if (info.id & 0x8000)
 		{
-			MSG_ReadDir (dir);
-			failed = P_RunParticleEffectType(pos, dir, count, t->particleeffecttype);
+			custtentinst_t **link, *o;
+			for (link = &activepcusttents; *link; )
+			{
+				o = *link;
+				if (o->id == info.id)
+				{
+					*link = o->next;
+					Z_Free(o);
+				}
+				else
+					link = &(*link)->next;
+			}
 		}
-		else failed = P_RunParticleEffectType(pos, NULL, count, t->particleeffecttype);
-	}
-
-	if (failed)
-		Con_DPrintf("Failed to create effect %s\n", t->name);
-
-	if (t->netstyle & CTE_STAINS)
-	{	//added at pos2 - end of trail
-		R_AddStain(pos2, t->stain[0], t->stain[1], t->stain[2], 40);
-	}
-	if (t->netstyle & CTE_GLOWS)
-	{	//added at pos1 firer's end.
-		dlight_t	*dl;
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = t->dlightradius*4;
-		dl->die = cl.time + t->dlighttime;
-		dl->decay = t->radius/t->dlighttime;
-
-		dl->color[0] = t->dlightrgb[0];
-		dl->color[1] = t->dlightrgb[1];
-		dl->color[2] = t->dlightrgb[2];
-
-		if (t->netstyle & CTE_CHANNELFADE)
+		else
 		{
-			dl->channelfade[0] = t->dlightcfade[0];
-			dl->channelfade[1] = t->dlightcfade[1];
-			dl->channelfade[2] = t->dlightcfade[2];
+			//heap fragmentation is going to suck here.
+			custtentinst_t *n = Z_Malloc(sizeof(*n));
+			info.next = activepcusttents;
+			*n = info;
+			activepcusttents = n;
 		}
-
-		/*
-		if (dl->color[0] < 0)
-			dl->channelfade[0] = 0;
-		else
-			dl->channelfade[0] = dl->color[0]/t->dlighttime;
-
-		if (dl->color[1] < 0)
-			dl->channelfade[1] = 0;
-		else
-			dl->channelfade[1] = dl->color[0]/t->dlighttime;
-
-		if (dl->color[2] < 0)
-			dl->channelfade[2] = 0;
-		else
-			dl->channelfade[2] = dl->color[0]/t->dlighttime;
-		*/
 	}
+	else
+		CL_SpawnCustomTEnd(&info);
 }
 void CL_RefreshCustomTEnts(void)
 {
 	int i;
 	for (i = 0; i < sizeof(customtenttype)/sizeof(customtenttype[0]); i++)
-		customtenttype[i].particleeffecttype = P_FindParticleType(customtenttype[i].name);
+		customtenttype[i].particleeffecttype = (!*customtenttype[i].name)?-1:P_FindParticleType(customtenttype[i].name);
 }
 void CL_ClearCustomTEnts(void)
 {
 	int i;
+	custtentinst_t *p;
+	while(activepcusttents)
+	{
+		p = activepcusttents;
+		activepcusttents = p->next;
+		Z_Free(p);
+	}
 	for (i = 0; i < sizeof(customtenttype)/sizeof(customtenttype[0]); i++)
+	{
+		*customtenttype[i].name = 0;
 		customtenttype[i].particleeffecttype = -1;
+	}
 }
 
 int CL_TranslateParticleFromServer(int sveffect)
@@ -3210,4 +3319,5 @@ void CL_UpdateTEnts (void)
 {
 	CL_UpdateBeams ();
 	CL_UpdateExplosions ();
+	CL_RunPCustomTEnts ();
 }

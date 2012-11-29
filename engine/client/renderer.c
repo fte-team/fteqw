@@ -979,6 +979,9 @@ void R_ShutdownRenderer(void)
 	COM_FlushTempoaryPacks();
 
 	W_Shutdown();
+	if (h2playertranslations)
+		BZ_Free(h2playertranslations);
+	h2playertranslations = NULL;
 	if (host_basepal)
 		BZ_Free(host_basepal);
 	host_basepal = NULL;

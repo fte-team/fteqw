@@ -1173,9 +1173,9 @@ SV_PreSpawn_f
 enum
 {
 	PRESPAWN_MAPCHECK=0,
+	PRESPAWN_CUSTOMTENTS,
 	PRESPAWN_SIGNON_BUF,
 	PRESPAWN_SPAWNSTATIC,
-	PRESPAWN_CUSTOMTENTS,
 	PRESPAWN_BASELINES,
 	PRESPAWN_DONE
 };
@@ -1266,6 +1266,49 @@ void SVQW_PreSpawn_f (void)
 		edict_t *ent;
 		svcustomtents_t *ctent;
 
+		if (ps_type == PRESPAWN_CUSTOMTENTS)
+		{
+			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
+			{
+				if (ps_idx >= 255)
+				{
+					ps_type++;
+					ps_idx = 0;
+					break;
+				}
+
+				ctent = &sv.customtents[ps_idx];
+
+				if (*ctent->particleeffecttype)
+				{
+					if (host_client->fteprotocolextensions & PEXT_CUSTOMTEMPEFFECTS)
+					{
+						MSG_WriteByte(&host_client->netchan.message, svcfte_customtempent);
+						MSG_WriteByte(&host_client->netchan.message, 255);
+						MSG_WriteByte(&host_client->netchan.message, ps_idx);
+						MSG_WriteByte(&host_client->netchan.message, ctent->netstyle);
+						MSG_WriteString(&host_client->netchan.message, ctent->particleeffecttype);
+						if (ctent->netstyle & CTE_STAINS)
+						{
+							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
+							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
+							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->radius);
+						}
+						if (ctent->netstyle & CTE_GLOWS)
+						{
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[0]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[1]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[2]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightradius);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlighttime);
+						}
+					}
+				}
+				ps_idx++;
+			}
+		}
+
 		if (ps_type == PRESPAWN_SIGNON_BUF)
 		{
 			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
@@ -1337,49 +1380,6 @@ void SVQW_PreSpawn_f (void)
 					}
 					continue;
 				}
-			}
-		}
-
-		if (ps_type == PRESPAWN_CUSTOMTENTS)
-		{
-			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
-			{
-				if (ps_idx >= 255)
-				{
-					ps_type++;
-					ps_idx = 0;
-					break;
-				}
-
-				ctent = &sv.customtents[ps_idx];
-
-				if (*ctent->particleeffecttype)
-				{
-					if (host_client->fteprotocolextensions & PEXT_CUSTOMTEMPEFFECTS)
-					{
-						MSG_WriteByte(&host_client->netchan.message, svcfte_customtempent);
-						MSG_WriteByte(&host_client->netchan.message, 255);
-						MSG_WriteByte(&host_client->netchan.message, ps_idx);
-						MSG_WriteByte(&host_client->netchan.message, ctent->netstyle);
-						MSG_WriteString(&host_client->netchan.message, ctent->particleeffecttype);
-						if (ctent->netstyle & CTE_STAINS)
-						{
-							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
-							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
-							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
-							MSG_WriteByte(&host_client->netchan.message, ctent->radius);
-						}
-						if (ctent->netstyle & CTE_GLOWS)
-						{
-							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[0]);
-							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[1]);
-							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[2]);
-							MSG_WriteByte(&host_client->netchan.message, ctent->dlightradius);
-							MSG_WriteByte(&host_client->netchan.message, ctent->dlighttime);
-						}
-					}
-				}
-				ps_idx++;
 			}
 		}
 

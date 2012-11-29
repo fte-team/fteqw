@@ -923,7 +923,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 
 #ifdef MULTITHREAD
 	sc->selfpainting = true;
-	sc->thread = Sys_CreateThread(DSOUND_Thread, sc, THREADP_HIGHEST, 0);
+	sc->thread = Sys_CreateThread("dsoundmixer", DSOUND_Thread, sc, THREADP_HIGHEST, 0);
 	if (!sc->thread)
 		sc->selfpainting = false; /*oh well*/
 #endif

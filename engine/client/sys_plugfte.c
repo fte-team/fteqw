@@ -858,7 +858,7 @@ qboolean Plug_StartContext(struct context *ctx)
 		activecontext = ctx;
 	if (!ctx->mutex)
 		ctx->mutex = Sys_CreateMutex();
-	ctx->thread = Sys_CreateThread(Plug_PluginThread, ctx, THREADP_NORMAL, 0);
+	ctx->thread = Sys_CreateThread("pluginctx", Plug_PluginThread, ctx, THREADP_NORMAL, 0);
 
 	return true;
 }

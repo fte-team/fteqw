@@ -676,9 +676,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	Mod_ClearAll ();
 	Hunk_FreeToLowMark (host_hunklevel);
 
-#ifdef USEODE
-	World_ODE_End(&sv.world);
-#endif
+	PR_Deinit();
 
 	// wipe the entire per-level structure
 	memset (&sv, 0, sizeof(sv));

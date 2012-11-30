@@ -2405,10 +2405,25 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	return false;
 }
 #else
+#ifdef __linux__
+#include <sys/stat.h>
+#endif
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
 #ifdef __linux__
-	// /usr/share/quake
+	struct stat sb;
+        if (!strcmp(gamename, "q1"))
+	{
+		if (stat("/usr/share/quake/", &sb) == 0)
+		{
+			// /usr/share/quake
+			if (S_ISDIR(sb.st_mode))
+			{
+				Q_strncpyz(basepath, "/usr/share/quake/", basepathlen);
+				return true;
+			}
+		}
+	}
 #endif
 	return false;
 }

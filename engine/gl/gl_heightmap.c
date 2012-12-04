@@ -1632,18 +1632,9 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 
 void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 {
-	//a 512*512 heightmap
-	//will draw 2 tris per square, drawn twice for detail
-	//so a million triangles per frame if the whole thing is visible.
-
-	//with 130 to 180fps, display lists rule!
-	int x, y, i;
-	vec3_t mins, maxs;
 	model_t *m = e->model;
 	heightmap_t *hm = m->terrain;
-	mesh_t *mesh;
 	batch_t *b;
-	hmsection_t *s;
 	int bounds[4];
 	struct tdibctx tdibctx;
 	

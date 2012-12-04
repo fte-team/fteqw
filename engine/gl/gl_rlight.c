@@ -661,7 +661,7 @@ void R_ImportRTLights(char *entlump)
 			color[1] *= overridecolor[1];
 			color[2] *= overridecolor[2];
 		}
-		radius = light[3] * 1/*r_editlights_quakelightsizescale*/ * lightscale / fadescale;
+		radius = light[3] * r_editlights_import_radius.value * lightscale / fadescale;
 		color[0] = color[0] * light[0];
 		color[1] = color[1] * light[1];
 		color[2] = color[2] * light[2];
@@ -700,6 +700,9 @@ void R_ImportRTLights(char *entlump)
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_FLASHBLEND:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 			dl->style = style+1;
+			dl->lightcolourscales[0] = r_editlights_import_ambient.value;
+			dl->lightcolourscales[1] = r_editlights_import_diffuse.value;
+			dl->lightcolourscales[2] = r_editlights_import_specular.value;
 
 			//FIXME: cubemaps if skin >= 16
 		}

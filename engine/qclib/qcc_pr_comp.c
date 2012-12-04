@@ -1765,6 +1765,13 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 					optres_constantarithmatic++;
 					return QCC_MakeIntConst(G_INT(var_a->ofs) - G_INT(var_b->ofs));
 
+				case OP_ADD_IF:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(G_INT(var_a->ofs) + G_FLOAT(var_b->ofs));
+				case OP_ADD_FI:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(G_FLOAT(var_a->ofs) + G_INT(var_b->ofs));
+
 				case OP_AND_F:
 					optres_constantarithmatic++;
 					return QCC_MakeIntConst(G_INT(var_a->ofs) && G_INT(var_b->ofs));

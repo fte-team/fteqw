@@ -42,7 +42,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef _DEBUG
 #if _MSC_VER >= 1300
-#define CATCHCRASH
+//#define CATCHCRASH
 #endif
 #endif
 
@@ -1420,13 +1420,13 @@ void Sys_SendKeyEvents (void)
 		return;
 	}
 
-	while (PeekMessage (&msg, NULL, 0, 0, PM_NOREMOVE))
+	while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
 	{
 	// we always update if there are any event, even if we're paused
 		scr_skipupdate = 0;
 
-		if (!GetMessage (&msg, NULL, 0, 0))
-			break;
+		//if (!GetMessage (&msg, NULL, 0, 0))
+		//	break;
 //			Sys_Quit ();
 //		if (TranslateMessage (&msg))
 //			continue;

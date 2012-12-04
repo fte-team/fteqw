@@ -8,10 +8,6 @@
 	#include <mysql/mysql.h>
 #endif
 
-#ifdef USE_SQLITE
-	#include "sqlite3.h"
-#endif
-
 #define SQL_CONNECT_STRUCTPARAMS 2
 #define SQL_CONNECT_PARAMS 4
 
@@ -40,6 +36,7 @@ typedef struct queryresult_s
 	struct queryrequest_s *request; /* corresponding request */
 	struct queryresult_s *next; /* next result in queue */
 	int rows; /* rows contained in single result set */
+	int firstrow;	/* 0 on first result block */
 	int columns; /* fields */
 	qboolean eof; /* end of query reached */
 	void *result; /* result set from mysql */
@@ -57,7 +54,7 @@ typedef struct sqlserver_s
 	MYSQL *mysql; /* mysql server */
 #endif
 #ifdef USE_SQLITE
-	sqlite3 *sqlite;
+	struct sqlite3 *sqlite;
 #endif
 	volatile qboolean active; /* set to false to kill thread */
 	volatile qboolean terminated; /* set by the worker to say that it won't block (for long) and can be joined */

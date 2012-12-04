@@ -302,6 +302,7 @@ cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
 #ifdef SPECULAR
 cvar_t gl_specular							= CVARF  ("gl_specular", "1", CVAR_ARCHIVE);
+cvar_t gl_specular_fallback					= CVARF  ("gl_specular_fallback", "0.05", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
@@ -342,9 +343,16 @@ cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
 
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
 cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
+cvar_t r_shadow_realtime_dlight_ambient		= SCVAR ("r_shadow_realtime_dlight_ambient", "0");
+cvar_t r_shadow_realtime_dlight_diffuse		= SCVAR ("r_shadow_realtime_dlight_diffuse", "1");
+cvar_t r_shadow_realtime_dlight_specular	= SCVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+cvar_t r_editlights_import_radius			= SCVAR ("r_editlights_import_radius", "1");
+cvar_t r_editlights_import_ambient			= SCVAR ("r_editlights_import_ambient", "0");
+cvar_t r_editlights_import_diffuse			= SCVAR ("r_editlights_import_diffuse", "1");
+cvar_t r_editlights_import_specular			= SCVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
 cvar_t r_shadow_shadowmapping				= SCVARF ("debug_r_shadow_shadowmapping", "0", 0);
 cvar_t r_sun_dir							= SCVAR ("r_sun_dir", "0.2 0.5 0.8");
 cvar_t r_sun_colour							= SCVARF ("r_sun_colour", "0 0 0", CVAR_ARCHIVE);
@@ -415,7 +423,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
-	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
@@ -430,6 +437,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 #endif
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
+	Cvar_Register (&gl_specular_fallback, GRAPHICALNICETIES);
 
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
 
@@ -528,6 +536,11 @@ void Renderer_Init(void)
 #ifdef RTLIGHTS
 	Cmd_AddCommand ("r_editlights_reload", R_ReloadRTLights_f);
 	Cmd_AddCommand ("r_editlights_save", R_SaveRTLights_f);
+	Cvar_Register (&r_editlights_import_radius, "Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_import_ambient, "Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_import_diffuse, "Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_import_specular, "Realtime Light editing/importing");
+
 #endif
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
 
@@ -574,6 +587,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_width, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_height, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_refreshrate, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
@@ -599,6 +613,9 @@ void Renderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_world, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_world_shadows, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_dlight, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_dlight_ambient, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_dlight_diffuse, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_dlight_specular, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_dlight_shadows, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_shadowmapping, GRAPHICALNICETIES);
@@ -2250,7 +2267,13 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 #if FRUSTUMPLANES > 4
 	//do far plane
 	//fog will not logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.gfog_rgbd[3])
+	if (r_refdef.gfog_rgbd[3] 
+#ifdef TERRAIN
+	&& cl.worldmodel && cl.worldmodel->terrain
+#else
+	&& 0
+#endif
+		)
 	{
 		float culldist;
 		float fog;

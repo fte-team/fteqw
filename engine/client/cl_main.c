@@ -3039,7 +3039,9 @@ void CL_FTP_f(void)
 
 void CL_Fog_f(void)
 {
-	if (Cmd_Argc() <= 1)
+	if (cl.fog_locked && !Cmd_FromGamecode())
+		Con_Printf("Current fog %f (r:%f g:%f b:%f)\n", cl.fog_density, cl.fog_colour[0], cl.fog_colour[1], cl.fog_colour[2]);
+	else if (Cmd_Argc() <= 1)
 	{
 		Con_Printf("Current fog %f (r:%f g:%f b:%f)\n", cl.fog_density, cl.fog_colour[0], cl.fog_colour[1], cl.fog_colour[2]);
 	}
@@ -3052,6 +3054,9 @@ void CL_Fog_f(void)
 			cl.fog_colour[1] = atof(Cmd_Argv(3));
 			cl.fog_colour[2] = atof(Cmd_Argv(4));
 		}
+
+		if (Cmd_FromGamecode())
+			cl.fog_locked = !!cl.fog_density;
 	}
 }
 

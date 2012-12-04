@@ -129,6 +129,8 @@ void R2D_Init(void)
 {
 	unsigned int nogloss[4*4];
 	int i;
+	unsigned int glossval;
+	extern cvar_t gl_specular_fallback;
 	conback = NULL;
 
 	Shader_Init();
@@ -149,8 +151,12 @@ void R2D_Init(void)
 #pragma warningmsg("Fixme: move conwidth handling into here")
 #endif
 
+	glossval = min(gl_specular_fallback.value*255, 255);
+	glossval *= 0x10101;
+	glossval |= 0xff000000;
+	glossval = LittleLong(glossval);
 	for (i = 0; i < 4*4; i++)
-		nogloss[i] = LittleLong(0xff101010);
+		nogloss[i] = glossval;
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 	missing_texture_gloss = R_LoadTexture("no_texture_gloss", 4, 4, TF_RGBA32, (unsigned char*)nogloss, IF_NOGAMMA);
 	translate_texture = r_nulltex;

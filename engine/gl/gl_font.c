@@ -1353,6 +1353,11 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	int col;
 	int v;
 	struct font_s *font = curfont;
+#ifdef D3D11QUAKE
+	float dxbias = (qrenderer == QR_DIRECT3D11)?0.5:0;
+#else
+#define dxbias 0
+#endif
 	if (charcode & CON_HIDDEN)
 		return px;
 
@@ -1415,29 +1420,29 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	switch(c->texplane)
 	{
 	case DEFAULTPLANE:
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
+		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((font->charheight)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(fontplanes.defaultfont);
 		break;
 	case BITMAPPLANE:
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
+		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((font->charheight)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(font->singletexture);
 		break;
 	case SINGLEPLANE:
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
+		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((c->bmw)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((c->bmh)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(font->singletexture);
 		break;
 	default:
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
+		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((c->bmw)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((c->bmh)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);

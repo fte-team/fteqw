@@ -576,7 +576,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		skins += e->skinnum;
 	else
 	{
-		Con_DPrintf("Skin number out of range\n");
+		Con_DPrintf("Skin number out of range (%u > %u - %s)\n", e->skinnum, inf->numskins, model->name);
 		if (!inf->numskins)
 			return NULL;
 	}

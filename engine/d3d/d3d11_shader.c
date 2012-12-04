@@ -54,7 +54,7 @@ HRESULT (WINAPI *pD3DCompile) (
 	ID3DBlob **ppCode,
 	ID3DBlob **ppErrorMsgs
 );
-dllhandle_t *shaderlib;
+static dllhandle_t *shaderlib;
 
 
 

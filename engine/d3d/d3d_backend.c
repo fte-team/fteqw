@@ -1284,21 +1284,21 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 	for (mno = 0; mno < shaderstate.nummeshes; mno++)
 	{
 		mesh = shaderstate.meshlist[mno];
-		src = tcgen(pass, mesh->numvertexes, dest, mesh);
+		src = tcgen(pass, mesh->numvertexes, dest + mesh->vbofirstvert*2, mesh);
 		//tcgen might return unmodified info
 		if (pass->numtcmods)
 		{
-			tcmod(&pass->tcmods[0], mesh->numvertexes, src, dest, mesh);
+			tcmod(&pass->tcmods[0], mesh->numvertexes, src, dest + mesh->vbofirstvert*2, mesh);
 			for (i = 1; i < pass->numtcmods; i++)
 			{
-				tcmod(&pass->tcmods[i], mesh->numvertexes, dest, dest, mesh);
+				tcmod(&pass->tcmods[i], mesh->numvertexes, dest + mesh->vbofirstvert*2, dest + mesh->vbofirstvert*2, mesh);
 			}
 		}
 		else if (src != dest)
 		{
-			memcpy(dest, src, sizeof(vec2_t)*mesh->numvertexes);
+			memcpy(dest + mesh->vbofirstvert*2, src, sizeof(vec2_t)*mesh->numvertexes);
 		}
-		dest += mesh->numvertexes*2;
+//		dest += mesh->numvertexes*2;
 	}
 }
 
@@ -2182,6 +2182,9 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 			vert += m->numvertexes;
 		}
 	}
+
+	vbo->indexcount = idx;
+	vbo->vertcount = vert;
 
 	IDirect3DIndexBuffer9_Unlock(ebuff);
 	IDirect3DVertexBuffer9_Unlock(vbuff);

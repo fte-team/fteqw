@@ -6403,6 +6403,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.fog_colour[1] = MSG_ReadByte()/255.0f;
 			cl.fog_colour[2] = MSG_ReadByte()/255.0f;
 			/*time =*/ MSG_ReadShort();
+			cl.fog_locked = !!cl.fog_density;
 			break;
 		case svcfitz_spawnbaseline2:
 			i = MSG_ReadShort ();

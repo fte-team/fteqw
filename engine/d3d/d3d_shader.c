@@ -134,7 +134,7 @@ HRESULT (WINAPI *pD3DXCompileShader) (
 	LPD3DXBUFFER *ppErrorMsgs,
 	LPD3DXCONSTANTTABLE *constants
 );
-dllhandle_t *shaderlib;
+static dllhandle_t *shaderlib;
 
 
 

@@ -2115,7 +2115,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	/* Register the frame class */
-    wc.style         = 0;
+    wc.style         = CS_OWNDC;
     wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
     wc.cbClsExtra    = 0;
     wc.cbWndExtra    = 0;

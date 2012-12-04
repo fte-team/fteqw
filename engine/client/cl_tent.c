@@ -1661,8 +1661,11 @@ void CL_SpawnCustomTEnd(custtentinst_t *info)
 			vec3_t org;
 			int i, j;
 			//FIXME: pvs cull
-			if (t->particleeffecttype != -1)
+			if (t->particleeffecttype == -1)
+				failed = true;
+			else
 			{
+				failed = false;
 				for (i=0 ; i<info->count ; i++)
 				{
 					for (j=0 ; j<3 ; j++)
@@ -1670,7 +1673,7 @@ void CL_SpawnCustomTEnd(custtentinst_t *info)
 						org[j] = info->pos[j] + (info->pos2[j] - info->pos[j])*frandom();
 					}
 
-					P_RunParticleEffectType(org, info->dir, 1, t->particleeffecttype);
+					failed |= P_RunParticleEffectType(org, info->dir, 1, t->particleeffecttype);
 				}
 			}
 		}

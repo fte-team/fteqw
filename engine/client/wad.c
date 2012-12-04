@@ -638,12 +638,15 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		}
 		else if (!strcmp("fog", key))
 		{
+			int oel = Cmd_ExecLevel;
 			void CL_Fog_f(void);
 			key[0] = 'f';
 			key[1] = ' ';
 			Q_strncpyz(key+2, com_token, sizeof(key)-2);
 			Cmd_TokenizeString(key, false, false);
+			Cmd_ExecLevel=RESTRICT_LOCAL;
 			CL_Fog_f();
+			Cmd_ExecLevel=oel;
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{

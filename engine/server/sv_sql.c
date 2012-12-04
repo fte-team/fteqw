@@ -63,6 +63,7 @@ dllhandle_t *mysqlhandle;
 #endif
 
 #ifdef USE_SQLITE
+#include "sqlite3.h"
 SQLITE_API int (QDECL *qsqlite3_open)(const char *zFilename, sqlite3 **ppDb);
 SQLITE_API const char *(QDECL *qsqlite3_libversion)(void);
 SQLITE_API int (QDECL *qsqlite3_set_authorizer)(sqlite3*, int (QDECL *xAuth)(void*,int,const char*,const char*,const char*,const char*), void *pUserData);
@@ -97,7 +98,7 @@ static dllfunction_t sqlitefuncs[] =
 dllhandle_t *sqlitehandle;
 #endif
 
-cvar_t sql_driver = SCVARF("sv_sql_driver", "mysql", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_driver = SCVARF("sv_sql_driver", "", CVAR_NOUNSAFEEXPAND);
 cvar_t sql_host = SCVARF("sv_sql_host", "127.0.0.1", CVAR_NOUNSAFEEXPAND);
 cvar_t sql_username = SCVARF("sv_sql_username", "", CVAR_NOUNSAFEEXPAND);
 cvar_t sql_password = SCVARF("sv_sql_password", "", CVAR_NOUNSAFEEXPAND);
@@ -334,6 +335,7 @@ int sql_serverworker(void *sref)
 					char **mat;
 					int matsize;
 					int rowspace;
+					int totalrows = 0;
 					qboolean keeplooping = true;
 
 					Sys_Printf("processing %s\n", statementstring);
@@ -359,6 +361,7 @@ int sql_serverworker(void *sref)
 									qres->rows = 0;
 									qres->columns = columns;
 									qres->request = qreq;
+									qres->firstrow = totalrows;
 									qres->eof = false;
 									qreq->next = NULL;
 
@@ -381,6 +384,7 @@ int sql_serverworker(void *sref)
 											for (i = 0; i < columns; i++)
 												mat[i] = strdup(qsqlite3_column_text(pStmt, i));
 											qres->rows++;
+											totalrows++;
 											rowspace--;
 											mat += columns;
 										}
@@ -413,14 +417,15 @@ int sql_serverworker(void *sref)
 						}
 						else
 						{
-							char *queryerror = va("Bad SQL statement %s", statementstring);
-							qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + strlen(queryerror));
+							qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + 18 + strlen(statementstring));
 							if (qres)
 							{
-								strcpy(qres->error, queryerror);
+								strcpy(qres->error, "Bad SQL statement ");
+								strcpy(qres->error+18, statementstring);
 								qres->result = NULL;
 								qres->rows = 0;
 								qres->columns = -1;
+								qres->firstrow = totalrows;
 								qres->request = qreq;
 								qres->eof = true;
 								qreq->next = NULL;
@@ -727,10 +732,15 @@ int SQL_NewServer(char *driver, char **paramstr)
 	char nativepath[MAX_OSPATH];
 	int i, tsize;
 
+	//name matches
 	if (Q_strcasecmp(driver, "mysql") == 0)
 		drvchoice = SQLDRV_MYSQL;
 	else if (Q_strcasecmp(driver, "sqlite") == 0)
 		drvchoice = SQLDRV_SQLITE;
+	else if (!*driver && (sqlavailable & (1u<<SQLDRV_SQLITE)))
+		drvchoice = SQLDRV_SQLITE;
+	else if (!*driver && (sqlavailable & (1u<<SQLDRV_MYSQL)))
+		drvchoice = SQLDRV_MYSQL;
 	else // invalid driver choice so we bomb out
 		return -1;
 
@@ -739,11 +749,12 @@ int SQL_NewServer(char *driver, char **paramstr)
 
 	if (drvchoice == SQLDRV_SQLITE)
 	{
+		//sqlite can be sandboxed.
 		//explicitly allow 'temp' and 'memory' databases
 		if (*paramstr[3] && strcmp(paramstr[3], ":memory:"))
 		{
 			//anything else is sandboxed into a subdir/database.
-			char *qname = va("qdb/%s.db", paramstr[3]);
+			char *qname = va("sqlite/%s.db", paramstr[3]);
 			if (!FS_NativePath(qname, FS_GAMEONLY, nativepath, sizeof(nativepath)))
 				return -1;
 			paramstr[3] = nativepath;
@@ -1070,6 +1081,7 @@ void SQL_ServerCycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 					G_FLOAT(OFS_PARM2) = qres->rows;
 					G_FLOAT(OFS_PARM3) = qres->columns;
 					G_FLOAT(OFS_PARM4) = qres->eof;
+					G_FLOAT(OFS_PARM5) = qres->firstrow;
 
 					// recall self and other references
 					ent = PROG_TO_EDICT(prinst, qres->request->selfent);
@@ -1085,21 +1097,17 @@ void SQL_ServerCycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 					PR_ExecuteProgram(prinst, qres->request->callback);
 
-					if (qres->eof)
+					if (server->currentresult)
 					{
-						if (server->currentresult)
+						if (server->currentresult->request && server->currentresult->request->persistant)
 						{
-							if (server->currentresult->request && server->currentresult->request->persistant)
-							{
-								// move into persistant list
-								server->currentresult->next = server->persistresults;
-								server->persistresults = server->currentresult;
-							}
-							else // just close the query
-								SQL_CloseResult(server, server->currentresult);
+							// move into persistant list
+							server->currentresult->next = server->persistresults;
+							server->persistresults = server->currentresult;
 						}
+						else // just close the query
+							SQL_CloseResult(server, server->currentresult);
 					}
-					// TODO: else we move a request back into the queue?
 				}
 			}
 			else // error or server-only result
@@ -1114,46 +1122,47 @@ void SQL_ServerCycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 #ifdef USE_MYSQL
-void SQL_MYSQLInit(void)
+qboolean SQL_MYSQLInit(void)
 {
-	if (!(mysqlhandle = Sys_LoadLibrary("libmysql", mysqlfuncs)))
+	if ((mysqlhandle = Sys_LoadLibrary("libmysql", mysqlfuncs)))
 	{
-		Con_Printf("mysql client didn't load\n");
-		return;
-	}
-
-	if (qmysql_thread_safe())
-	{
-		if (!qmysql_library_init(0, NULL, NULL))
+		if (qmysql_thread_safe())
 		{
-			Con_Printf("MYSQL backend loaded\n");
-			sqlavailable |= 1u<<SQLDRV_MYSQL;
-			return;
+			if (!qmysql_library_init(0, NULL, NULL))
+			{
+				Con_Printf("MYSQL backend loaded\n");
+				return true;
+			}
+			else
+				Con_Printf("MYSQL library init failed!\n");
 		}
 		else
-			Con_Printf("MYSQL library init failed!\n");
+			Con_Printf("MYSQL client is not thread safe!\n");
+
+		Sys_CloseLibrary(mysqlhandle);
 	}
 	else
-		Con_Printf("MYSQL client is not thread safe!\n");
-
-	Sys_CloseLibrary(mysqlhandle);
-	sqlavailable &= ~(1u<<SQLDRV_MYSQL);
+	{
+		Con_Printf("mysql client didn't load\n");
+	}
+	return false;
 }
 #endif
 
 void SQL_Init(void)
 {
+	sqlavailable = 0;
 #ifdef USE_MYSQL
 	//mysql pokes network etc. there's no sandbox. people can use quake clients to pry upon private databases.
 	if (COM_CheckParm("-mysql"))
-		SQL_MYSQLInit();
+		if (SQL_MYSQLInit())
+			sqlavailable |= 1u<<SQLDRV_MYSQL;
 #endif
 #ifdef USE_SQLITE
 	//our sqlite implementation is sandboxed. we block database attachments, and restrict the master database name.
-	if (Sys_LoadLibrary("sqlite3", sqlitefuncs))
+	sqlitehandle = Sys_LoadLibrary("sqlite3", sqlitefuncs);
+	if (sqlitehandle)
 	{
-		if (!sqlavailable)
-			sql_driver.string = "sqlite";	//use this by default if its the only one available.
 		sqlavailable |= 1u<<SQLDRV_SQLITE;
 	}
 #endif

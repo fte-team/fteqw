@@ -17,6 +17,16 @@ typedef struct d3dtexture_s
 } d3d11texture_t;
 static d3d11texture_t *d3d11textures;
 
+ID3D11ShaderResourceView *D3D11_Image_View(const texid_t *id)
+{
+	d3d11texture_t *info = (d3d11texture_t*)id->ref;
+	if (!info)
+		return NULL;
+	if (!info->view)
+		ID3D11Device_CreateShaderResourceView(pD3DDev11, (ID3D11Resource *)info->tex2d, NULL, &info->view);
+	return info->view;
+}
+
 void D3D11_Image_Shutdown(void)
 {
 	//destroy all named textures
@@ -39,6 +49,10 @@ void    D3D11_DestroyTexture (texid_t tex)
 	d3d11texture_t *t = (d3d11texture_t*)tex.ref;
 
 	ID3D11Texture2D *tx = tex.ptr;
+
+	if (!t)
+		return;
+
 	if (t->view)
 		ID3D11ShaderResourceView_Release(t->view);
 	if (t->tex2d)
@@ -90,8 +104,29 @@ static texid_t ToTexID(d3d11texture_t *tex)
 	tid.ref = &tex->com;
 	if (!tex->view)
 		ID3D11Device_CreateShaderResourceView(pD3DDev11, (ID3D11Resource *)tex->tex2d, NULL, &tex->view);
-	tid.ptr = tex->view;
+	tid.ptr = NULL;//(void*)0xdeadbeef;
 	return tid;
+}
+
+static void D3D_MipMap (qbyte *out, int outwidth, int outheight, const qbyte *in, int inwidth, int inheight)
+{
+    int             i, j;
+    const qbyte   *inrow;
+
+    //with npot
+    int rowwidth = inwidth*4; //rowwidth is the byte width of the input
+    inrow = in;
+
+    for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+    {
+            for (in = inrow, j=0 ; j<outwidth ; j++, out+=4, in+=8)
+            {
+                    out[0] = (in[0] + in[4] + in[rowwidth+0] + in[rowwidth+4])>>2;
+                    out[1] = (in[1] + in[5] + in[rowwidth+1] + in[rowwidth+5])>>2;
+                    out[2] = (in[2] + in[6] + in[rowwidth+2] + in[rowwidth+6])>>2;
+                    out[3] = (in[3] + in[7] + in[rowwidth+3] + in[rowwidth+7])>>2;
+            }
+    }
 }
 
 static void *D3D11_AllocNewTextureData(void *datargba, int width, int height, unsigned int flags)
@@ -99,40 +134,81 @@ static void *D3D11_AllocNewTextureData(void *datargba, int width, int height, un
 	HRESULT hr;
 	ID3D11Texture2D *tx = NULL;
 	D3D11_TEXTURE2D_DESC tdesc = {0};
-	D3D11_SUBRESOURCE_DATA subresdesc = {0};
-
-	subresdesc.pSysMem = datargba;
-	subresdesc.SysMemPitch = width*4;
-	subresdesc.SysMemSlicePitch = width*height*4;
+	D3D11_SUBRESOURCE_DATA subresdesc[64] = {0};
+	int i;
+	int owidth, oheight;
 
 	tdesc.Width = width;
 	tdesc.Height = height;
-	tdesc.MipLevels = 1;
+	tdesc.MipLevels = (!datargba || (flags & IF_NOMIPMAP))?1:0;	//0 generates mipmaps automagically
 	tdesc.ArraySize = 1;
 	tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	tdesc.SampleDesc.Count = 1;
 	tdesc.SampleDesc.Quality = 0;
-	tdesc.Usage = datargba?D3D11_USAGE_DEFAULT:D3D11_USAGE_DYNAMIC;
+	tdesc.Usage = datargba?D3D11_USAGE_IMMUTABLE:D3D11_USAGE_DYNAMIC;
 	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	tdesc.CPUAccessFlags = 0;
+	tdesc.CPUAccessFlags = (datargba)?0:D3D11_CPU_ACCESS_WRITE;
 	tdesc.MiscFlags = 0;
-	hr = ID3D11Device_CreateTexture2D(pD3DDev11, &tdesc, (datargba?&subresdesc:NULL), &tx);
+
+	//first mip level
+	subresdesc[0].SysMemPitch = width*4;
+	subresdesc[0].SysMemSlicePitch = width*height*4;
+
+	if (!datargba)
+	{
+		subresdesc[0].pSysMem = NULL;
+		//one mip, but no data
+		i = 1;
+	}
+	else
+	{
+		subresdesc[0].pSysMem = datargba;
+		for (i = 1; i < 64 && width > 1 && height > 1; i++)
+		{
+			owidth = width;
+			oheight = height;
+			width /= 2;
+			height /= 2;
+
+			subresdesc[i].pSysMem = malloc(width*height*4);
+			subresdesc[i].SysMemPitch = width*4;
+			subresdesc[i].SysMemSlicePitch = width*height*4;
+
+			D3D_MipMap((void*)subresdesc[i].pSysMem, width, height, subresdesc[i-1].pSysMem, owidth, oheight);
+		}
+	}
+
+	tdesc.MipLevels = i;	//0 generates mipmaps automagically
+
+	hr = ID3D11Device_CreateTexture2D(pD3DDev11, &tdesc, (subresdesc[0].pSysMem?subresdesc:NULL), &tx);
 	if (FAILED(hr))
 	{
+		Con_Printf("Failed to create texture\n");
 		tx = NULL;
+	}
+
+	for (i = 1; i < tdesc.MipLevels; i++)
+	{
+		free((void*)subresdesc[i].pSysMem);
 	}
 	return tx;
 }
 texid_t D3D11_AllocNewTexture(char *ident, int width, int height, unsigned int flags)
 {
-	d3d11texture_t *t;
-	void *img = D3D11_AllocNewTextureData(NULL, width, height, flags);
-	if (!img)
+	d3d11texture_t *t = d3d_lookup_texture("");
+	texid_t id;
+	if (t->tex2d)
+		return ToTexID(t);
+	t->tex2d = D3D11_AllocNewTextureData(NULL, width, height, flags);
+
+	id = ToTexID(t);
+	if (!t->tex2d)
+	{
+		D3D11_DestroyTexture(id);
 		return r_nulltex;
-	t = d3d_lookup_texture("");
-	t->tex2d = img;
+	}
 	
-	return ToTexID(t);
+	return id;
 }
 
 static void D3D11_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
@@ -178,42 +254,22 @@ static void D3D11_RoundDimensions(int *scaled_width, int *scaled_height, qboolea
 		*scaled_height = 1;
 }
 
-#if 0
-static void D3D_MipMap (qbyte *out, int outwidth, int outheight, qbyte *in, int inwidth, int inheight)
-{
-        int             i, j;
-        qbyte   *inrow;
-
-        //with npot
-        int rowwidth = inwidth*4; //rowwidth is the byte width of the input
-        inrow = in;
-
-        for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
-        {
-                for (in = inrow, j=0 ; j<outwidth ; j++, out+=4, in+=8)
-                {
-                        out[0] = (in[0] + in[4] + in[rowwidth+0] + in[rowwidth+4])>>2;
-                        out[1] = (in[1] + in[5] + in[rowwidth+1] + in[rowwidth+5])>>2;
-                        out[2] = (in[2] + in[6] + in[rowwidth+2] + in[rowwidth+6])>>2;
-                        out[3] = (in[3] + in[7] + in[rowwidth+3] + in[rowwidth+7])>>2;
-                }
-        }
-}
-#endif
-
 static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int width, int height, unsigned int flags)
 {
-//	int x, y;
-//	unsigned int *dest;
+	int x, y;
+	unsigned int *dest;
 //	unsigned char swapbuf[4];
 //	unsigned char swapbuf2[4];
-//	D3D11_MAPPED_SUBRESOURCE lock;
+	D3D11_MAPPED_SUBRESOURCE lock;
 
 	D3D11_TEXTURE2D_DESC desc;
 	if (!tex)
 		return;
 
+	desc.Width = 0;
+	desc.Height = 0;
 	ID3D11Texture2D_GetDesc(tex, &desc);
+#if 0
 	if (width == desc.Width && height == desc.Height)
 	{
 		ID3D11DeviceContext_UpdateSubresource(d3ddevctx, (ID3D11Resource*)tex, 0, NULL, data, width*4, width*height*4);
@@ -222,7 +278,7 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int widt
 
 	Con_Printf("Wrong size!\n");
 	return;
-#if 0
+#else
 	if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)tex, 0, D3D11_MAP_WRITE_DISCARD, 0, &lock)))
 	{
 		Con_Printf("Dynamic texture update failed\n");
@@ -236,10 +292,10 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int widt
 			dest = (unsigned int *)((char *)lock.pData + lock.RowPitch*y);
 			for (x = 0; x < width; x++)
 			{
-				*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf = data[x];
-				swapbuf[0] = swapbuf2[2];
-				swapbuf[2] = swapbuf2[0];
-				dest[x] = *(unsigned int*)swapbuf;
+			//	*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf = data[x];
+			//	swapbuf[0] = swapbuf2[2];
+			//	swapbuf[2] = swapbuf2[0];
+				dest[x] = data[x];//*(unsigned int*)swapbuf;
 			}
 			data += width;
 		}
@@ -257,10 +313,10 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int widt
 			inrow = data + width*iny;
 			for (x = 0; x < desc.Width; x++)
 			{
-				*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf =  inrow[(x * width)/desc.Width];
-				swapbuf[0] = swapbuf2[2];
-				swapbuf[2] = swapbuf2[0];
-				row[x] = *(unsigned int*)swapbuf;
+				//*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf =  inrow[(x * width)/desc.Width];
+				//swapbuf[0] = swapbuf2[2];
+				//swapbuf[2] = swapbuf2[0];
+				row[x] = inrow[(x * width)/desc.Width];//*(unsigned int*)swapbuf;
 			}
 		}
 	}
@@ -291,8 +347,8 @@ static void D3D11_LoadTexture_32(d3d11texture_t *tex, unsigned int *data, int wi
 		tex->tex2d = D3D11_AllocNewTextureData(data, width, height, flags);
 		return;
 	}
-
-	Upload_Texture_32(tex->tex2d, data, width, height, flags);
+	else
+		Upload_Texture_32(tex->tex2d, data, width, height, flags);
 }
 
 static void D3D11_LoadTexture_8(d3d11texture_t *tex, unsigned char *data, unsigned int *pal32, int width, int height, int flags, enum uploadfmt fmt)
@@ -401,15 +457,22 @@ static void D3D11_LoadTexture_8(d3d11texture_t *tex, unsigned char *data, unsign
 	D3D11_LoadTexture_32(tex, trans, width, height, flags);
 }
 
-void    D3D11_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
+void    D3D11_Upload (texid_t id, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
+	d3d11texture_t *tex = (d3d11texture_t *)id.ref;
 	switch (fmt)
 	{
 	case TF_RGBX32:
 		flags |= IF_NOALPHA;
 		//fall through
 	case TF_RGBA32:
-		Upload_Texture_32(tex.ptr, data, width, height, flags);
+		Upload_Texture_32(tex->tex2d, data, width, height, flags);
+		if (tex->view)
+		{
+			tex->view->lpVtbl->Release(tex->view);
+			tex->view = NULL;
+		}
+		ToTexID(tex);
 		break;
 	case TF_TRANS8:
 		OutputDebugString(va("D3D11_LoadTextureFmt doesn't support fmt TF_TRANS8 (%s)\n", fmt, name));
@@ -486,6 +549,8 @@ texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadf
 
 	}
 	tex = d3d_lookup_texture(identifier);
+	if (tex->tex2d)	//already loaded
+		return ToTexID(tex);
 
 	switch (fmt)
 	{

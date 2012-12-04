@@ -116,7 +116,7 @@ ifeq ($(FTE_TARGET),droid)
 	endif
 
 	STRIP=$(TOOLCHAIN)strip
-	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI)
+	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI) -fno-strict-aliasing
 	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
@@ -338,7 +338,7 @@ else
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
-BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I$(BOTLIB_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex -DBOTLIB $(SVNREVISION)
+BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I$(BOTLIB_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex -DBOTLIB $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -356,7 +356,7 @@ PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS=-DGLQUAKE
-D3DCFLAGS=-DD3D9QUAKE
+D3DCFLAGS=-DD3D9QUAKE -DD3D11QUAKE
 NPFTECFLAGS=-DNPFTE
 SPEEXCFLAGS=-DSPEEX_STATIC -I$(BASE_DIR)/libs/speex/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
 
@@ -755,32 +755,68 @@ endif
 
 #FTE_TARGET=vc (Visual C)
 ifeq ($(FTE_TARGET),vc)
-	CC=cl
+	ifeq ($(BITS),64)
+		WINDRES=x86_64-w64-mingw32-windres
+
+		MSVCPATH=C:/Program Files (x86)/Microsoft Visual Studio 8/VC/BIN/amd64/
+
+		MSVCINC=-I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\include"
+		MSVCLIB=/LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\lib\amd64" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\LIB\AMD64"
+		JPEGLIB=libs/libjpeg$(BITS).lib
+	else
+		MSVCPATH=C:/Program Files (x86)/Microsoft Visual Studio 8/VC/BIN/
+
+		MSVCINC=-I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\include"
+		MSVCLIB=/LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\LIB" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\LIB" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\lib" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\LIB"
+		JPEGLIB=libs/jpeg.lib
+	endif
+	STRIP=@echo strip
+
+	CC="$(MSVCPATH)cl" $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
 	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
 	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast 
 	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
 	RELEASE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMIZATIONS) /fp:fast
 	RELEASE_LDFLAGS = /LTCG:PGOPTIMIZE
-	
 
 	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
-	DO_LD=link /nologo /out:$@ wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib.lib shell32.lib /nodefaultlib:libc.lib /nodefaultlib:MSVCRT /manifest:no /OPT:REF 
+	DO_LD=@"$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
 	NODEPS = 1
 
 	LIBS_DIR=./libs/
 
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
-	SV_EXE_NAME=../fteqwsv.exe
-	SV_DIR=sv_vc
+	SPEEXCFLAGS+= -Dinline=_inline -D_USE_MATH_DEFINES
+
+
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS) -DMULTITHREAD -DMSVCLIBSPATH="libs/"
+	SV_EXE_NAME=../fteqwsv$(BITS).exe
+	SV_DIR=sv_vc$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
 	SV_LDFLAGS=/subsystem:console
+
+	GL_EXE_NAME=../fteglqw$(BITS).exe
+	GLCL_EXE_NAME=../minfteqw.gl$(BITS)
+	GLB_DIR=gl_vc$(BITS)
+	GLCL_DIR=glcl_vc$(BITS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
+	GLCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o fs_win32.o in_win.o sys_win.o sys_win_threads.o resources.o
+	GL_OBJS=
+
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(D3DGL_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+	D3D_EXE_NAME=../fted3dqw$(BITS).exe
+	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
+	D3D_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
+	D3DB_DIR=d3d_vc$(BITS)
+	D3DCL_DIR=d3dcl_vc$(BITS)
 	
-	M_EXE_NAME=../fteqw.exe
-	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o resources.o
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS)
-	MB_DIR=m_vc
-	M_LDFLAGS=$(GLLDFLAGS) libs/jpeg.lib libs/libpng.lib libs/zlib.lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
+	M_EXE_NAME=../fteqw$(BITS).exe
+	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(D3DQUAKE_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o resources.o
+	M_CFLAGS=$(D3DCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
+	MB_DIR=m_vc$(BITS)
+	M_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 endif
 
 #FTE_TARGET=win32 | FTE_TARGET=win64 (MinGW32 | MinGW64)

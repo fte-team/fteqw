@@ -499,6 +499,9 @@ then clears sv.multicast.
 MULTICAST_ALL	same as broadcast
 MULTICAST_PVS	send to clients potentially visible from org
 MULTICAST_PHS	send to clients potentially hearable from org
+
+MULTICAST_ONE	sent to a single client.
+MULTICAST_INIT	sent to clients when they first connect. for completeness.
 =================
 */
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without)

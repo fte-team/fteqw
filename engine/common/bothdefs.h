@@ -176,7 +176,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#endif
 	#else
 		#define USE_SQLITE
-//		#define USE_MYSQL
+		#ifdef SERVERONLY
+			#define USE_MYSQL	//allow mysql in dedicated servers.
+		#endif
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 
@@ -229,8 +231,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef _DEBUG
 //		#define OFFSCREENGECKO
 #endif
-
-		//#define SQL
 
 		#define CSQC_DAT	//support for csqc
 		#define MENU_DAT	//support for menu.dat
@@ -411,8 +411,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define MSVCDISABLEWARNINGS
 	#if _MSC_VER >= 1300
 		#define FTE_DEPRECATED __declspec(deprecated)
-		#define _CRT_SECURE_NO_WARNINGS
-		#define _CRT_NONSTDC_NO_WARNINGS
+		#ifndef _CRT_SECURE_NO_WARNINGS
+			#define _CRT_SECURE_NO_WARNINGS
+		#endif
+		#ifndef _CRT_NONSTDC_NO_WARNINGS
+			#define _CRT_NONSTDC_NO_WARNINGS
+		#endif
 	#endif
 	#define NORETURN __declspec(noreturn)
 #endif

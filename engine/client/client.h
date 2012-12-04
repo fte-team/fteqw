@@ -647,6 +647,7 @@ typedef struct
 	float skyrotate;
 	vec3_t skyaxis;
 
+	qboolean	fog_locked;
 	float		fog_density;
 	vec3_t		fog_colour;
 

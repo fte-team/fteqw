@@ -29,49 +29,9 @@ extern cvar_t gl_overbright;
 extern cvar_t gl_ati_truform;
 extern cvar_t r_wireframe;
 
-//simple dlight
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program rtlight%s\n\
-	{\n\
-		map $diffuse\n\
-		blendfunc add\n\
-	}\n\
-	{\n\
-		map $normalmap\n\
-	}\n\
-	{\n\
-		map $specular\n\
-	}\n\
-}";
-//dlight with cubemap projection
-static const char RTLIGHTCUBEPROJ_SHADER[] = "\
-{\n\
-	program rtlight%s\n\
-	{\n\
-		map $diffuse\n\
-		blendfunc add\n\
-	}\n\
-	{\n\
-		map $normalmap\n\
-	}\n\
-	{\n\
-		map $specular\n\
-	}\n\
-	{\n\
-		map $lightcubemap\n\
-	}\n\
-}";
-static const char PCFPASS_SHADER[] = "\
-{\n\
-	program rtlight#PCF%s\n"/*\
-	program\n\
-	{\n\
-	#define LIGHTPASS\n\
-	//#define CUBE\n\
-	#define PCF\n\
-	%s%s\n\
-	}\n*/"\
 \
 	{\n\
 		map $diffuse\n\
@@ -115,17 +75,9 @@ struct {
 //		int vbo_texcoords[SHADER_PASS_MAX];
 //		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		const shader_t *shader_light[LSHADER_MODES];
-		qboolean inited_shader_light[LSHADER_MODES];
-/*		qboolean inited_shader_rtlight;
-		const shader_t *shader_rtlight;
-		qboolean inited_shader_cubeproj;
-		const shader_t *shader_cubeproj;
-		qboolean inited_shader_smap;
-		const shader_t *shader_smap;
-		qboolean inited_shader_spot;
-		const shader_t *shader_spot;
-*/
+		const shader_t *shader_light[1u<<LSHADER_MODES];
+		qboolean inited_shader_light[1u<<LSHADER_MODES];
+
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
 
@@ -1194,28 +1146,10 @@ static float *FTableForFunc ( unsigned int func )
 	return NULL;
 }
 
-void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
+void Shader_LightPass(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
 	sprintf(shadertext, LIGHTPASS_SHADER, "");
-	Shader_DefaultScript(shortname, s, shadertext);
-}
-void Shader_LightPass_CubeProj(char *shortname, shader_t *s, const void *args)
-{
-	char shadertext[8192*2];
-	sprintf(shadertext, RTLIGHTCUBEPROJ_SHADER, "#CUBEPROJ");
-	Shader_DefaultScript(shortname, s, shadertext);
-}
-void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
-{
-	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, "");
-	Shader_DefaultScript(shortname, s, shadertext);
-}
-void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
-{
-	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, "#SPOT");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
@@ -3239,11 +3173,38 @@ static void BE_SelectFog(vec3_t colour, float alpha, float density)
 	qglColor4f(colour[0], colour[1], colour[2], alpha);
 }
 
+#ifdef RTLIGHTS
+static qboolean GLBE_RegisterLightShader(int mode)
+{
+	if (!shaderstate.inited_shader_light[mode])
+	{
+		char *name = va("rtlight%s%s%s", 
+			(mode & (1u<<LSHADER_SMAP))?"#PCF":"",
+			(mode & (1u<<LSHADER_SPOT))?"#SPOT":"",
+			(mode & (1u<<LSHADER_CUBE))?"#CUBE":"");
+
+		shaderstate.inited_shader_light[mode] = true;
+		shaderstate.shader_light[mode] = R_RegisterCustom(name, Shader_LightPass, NULL);
+
+		//make sure it has a program and forget it if it doesn't, to save a compare.
+		if (!shaderstate.shader_light[mode] || !shaderstate.shader_light[mode]->prog)
+		{
+			shaderstate.shader_light[mode] = NULL;
+		}
+	}
+
+	if (shaderstate.shader_light[mode]);
+		return true;
+	return false;
+}
+#endif
+
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
 	float view[16], proj[16];
 	int lmode;
 	extern cvar_t gl_specular;
+	extern cvar_t r_shadow_shadowmapping;
 
 	/*generate light projection information*/
 	float nearplane = 4;
@@ -3272,12 +3233,16 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 	shaderstate.lastuniform = 0;
 
 	lmode = 0;
-	if (dl->fov && shaderstate.shader_light[lmode|LSHADER_SPOT] && shaderstate.shader_light[lmode|LSHADER_SPOT]->prog)
-		lmode |= LSHADER_SPOT;
-	if ((dl->flags & LFLAG_SHADOWMAP) && shaderstate.shader_light[lmode|LSHADER_SMAP] && shaderstate.shader_light[lmode|LSHADER_SMAP]->prog)
-		lmode |= LSHADER_SMAP;
-	if (TEXVALID(shaderstate.lightcubemap) && shaderstate.shader_light[lmode|LSHADER_CUBE] && shaderstate.shader_light[lmode|LSHADER_CUBE]->prog)
-		lmode |= LSHADER_CUBE;
+#ifdef RTLIGHTS
+	if (((dl->flags & LFLAG_SHADOWMAP) || r_shadow_shadowmapping.ival) && GLBE_RegisterLightShader(lmode | (1u<<LSHADER_SMAP)))
+		lmode |= 1u<<LSHADER_SMAP;
+	else
+		GLBE_RegisterLightShader(lmode);	//make sure either shadowmapping or non-shadowmapping is loaded...
+	if (TEXVALID(shaderstate.lightcubemap) && GLBE_RegisterLightShader(lmode | (1u<<LSHADER_CUBE)))
+		lmode |= 1u<<LSHADER_CUBE;
+	else if (dl->fov && GLBE_RegisterLightShader(lmode | (1u<<LSHADER_SPOT)))
+		lmode |= 1u<<LSHADER_SPOT;
+#endif
 	shaderstate.lightmode = lmode;
 }
 
@@ -3502,40 +3467,9 @@ static void DrawMeshes(void)
 //		break;
 	case BEM_LIGHT:
 		if (!shaderstate.shader_light[shaderstate.lightmode])
-		{
-			if (!shaderstate.inited_shader_light[shaderstate.lightmode])
-			{
-				shaderstate.inited_shader_light[shaderstate.lightmode] = true;
-				switch(shaderstate.lightmode)
-				{
-				case LSHADER_SMAP:
-					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight_shadowmap", Shader_LightPass_PCF, NULL);
-					break;
-				case LSHADER_SPOT:
-					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight_spot", Shader_LightPass_Spot, NULL);
-					break;
-				case LSHADER_STANDARD:
-					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
-					break;
-				case LSHADER_CUBE:
-					shaderstate.shader_light[shaderstate.lightmode] = R_RegisterCustom("rtlight_cube", Shader_LightPass_CubeProj, NULL);
-					break;
-				}
-
-				if (!shaderstate.shader_light[shaderstate.lightmode] || !shaderstate.shader_light[shaderstate.lightmode]->prog)
-				{
-					shaderstate.shader_light[shaderstate.lightmode] = NULL;
-					break;
-				}
-			}
-			else
-			{
-				BE_LegacyLighting();
-				break;
-			}
-		}
-
-		BE_RenderMeshProgram(shaderstate.shader_light[shaderstate.lightmode], shaderstate.shader_light[shaderstate.lightmode]->passes);
+			BE_LegacyLighting();
+		else
+			BE_RenderMeshProgram(shaderstate.shader_light[shaderstate.lightmode], shaderstate.shader_light[shaderstate.lightmode]->passes);
 		break;
 	case BEM_DEPTHNORM:
 		BE_RenderMeshProgram(shaderstate.depthnormshader, shaderstate.depthnormshader->passes);

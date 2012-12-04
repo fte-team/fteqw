@@ -937,6 +937,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	};
 
 	nummodifiers = 0;
+	if (gl_specular.value)
+		permutationdefines[nummodifiers++] = strdup("#define SPECULAR\n");
 	for (end = strchr(name, '#'); end && *end; )
 	{
 		char *start = end+1;
@@ -983,8 +985,6 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
 			}
 		}
-		if (gl_specular.value)
-			permutationdefines[pn++] = "#define SPECULAR\n";
 		permutationdefines[pn++] = NULL;
 
 		if (0)
@@ -1759,6 +1759,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	*/
 	char *programbody;
 	char *start, *end;
+	char *hash;
 
 	end = *ptr;
 	while (*end == ' ' || *end == '\t' || *end == '\r')
@@ -1807,7 +1808,16 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 		return;
 	}
 
-	shader->prog = Shader_FindGeneric(Shader_ParseString(ptr), qrtype);
+	hash = strchr(shader->name, '#');
+	if (hash)
+	{
+		//pass the # postfixes from the shader name onto the generic glsl to use
+		char newname[512];
+		Q_snprintfz(newname, sizeof(newname), "%s%s", Shader_ParseString(ptr), hash);
+		shader->prog = Shader_FindGeneric(newname, qrtype);
+	}
+	else
+		shader->prog = Shader_FindGeneric(Shader_ParseString(ptr), qrtype);
 }
 
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)

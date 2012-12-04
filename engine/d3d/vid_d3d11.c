@@ -165,6 +165,8 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 	int window_width, window_height;
 	GetClientRect(hWnd, &nr);
 
+	Sys_Printf("Update: %i %i %i %i\n", nr.left, nr.top, nr.right, nr.bottom);
+
 	//if its bad then we're probably minimised
 	if (nr.right <= nr.left)
 		return;
@@ -187,6 +189,9 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 	window_rect.bottom = window_y + window_height;
 	window_center_x = (window_rect.left + window_rect.right) / 2;
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
+
+	Sys_Printf("Window: %i %i %i %i\n", window_x, window_y, window_width, window_height);
+
 
 	INS_UpdateClipCursor ();
 }
@@ -243,15 +248,17 @@ static qboolean D3D11AppActivate(BOOL fActive, BOOL minimize)
 
 static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	LONG    lRet = 1;
+	LONG    lRet = 0;
 	int		fActive, fMinimized, temp;
 	extern unsigned int uiWheelMessage;
+	extern qboolean	keydown[K_MAX];
 
 	if ( uMsg == uiWheelMessage )
 		uMsg = WM_MOUSEWHEEL;
 
 	switch (uMsg)
 	{
+#if 1
 /*		case WM_KILLFOCUS:
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
@@ -267,7 +274,43 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
-			if (!vid_initializing)
+			if (keydown[K_ALT] && wParam == '\r')
+			{
+				if (modestate == MS_FULLSCREEN)
+					modestate = MS_WINDOWED;
+				else
+				{
+					RECT rect;
+					extern cvar_t vid_width, vid_height;
+					int width = vid_width.ival;
+					int height = vid_height.ival;
+					rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+					rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+					rect.right = rect.left+width;
+					rect.bottom = rect.top+height;
+					AdjustWindowRectEx(&rect, WS_OVERLAPPED, FALSE, 0);
+					SetWindowPos(hWnd, NULL, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, SWP_SHOWWINDOW|SWP_FRAMECHANGED);
+					modestate = MS_FULLSCREEN;
+				}
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, NULL);
+
+				if (modestate == MS_WINDOWED)
+				{
+					RECT rect;
+					int width = 640;
+					int height = 480;
+					rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+					rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+					rect.right = rect.left+width;
+					rect.bottom = rect.top+height;
+					AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
+					SetWindowLong(hWnd, GWL_STYLE, WS_OVERLAPPEDWINDOW);	//make sure dxgi didn't break us.
+					SetWindowPos(hWnd, HWND_TOP, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, SWP_SHOWWINDOW|SWP_FRAMECHANGED);
+					SetForegroundWindow(hWnd);
+					SetFocus(hWnd);
+				}
+			}
+			else if (!vid_initializing)
 				INS_TranslateKeyEvent (wParam, lParam, true, 0);
 			break;
 
@@ -381,7 +424,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
 			resetD3D11();
 			D3D11BE_Reset(false);
-			lRet = 0;
+			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
 			break;
 
 		case WM_CLOSE:
@@ -402,10 +445,13 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 				ShowWindow(mainwindow, SW_SHOWNORMAL);
 
+			if (ActiveApp && modestate == MS_FULLSCREEN)
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, NULL);
+
 		// fix the leftover Alt from any Alt-Tab or the like that switched us away
 //			ClearAllStates ();
 
-			lRet = 0;
+			lRet = 1;
 			break;
 
    	    case WM_DESTROY:
@@ -418,7 +464,9 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 		case MM_MCINOTIFY:
             lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
-
+#endif
+		case WM_ERASEBKGND:
+			return 1;
     	default:
             /* pass all unhandled messages to DefWindowProc */
             lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
@@ -524,7 +572,7 @@ static qboolean resetd3dbackbuffer(int width, int height)
 	return true;
 }
 
-static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN func)
+static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN func, IDXGIAdapter *adapt)
 {
 	int flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
 	DXGI_SWAP_CHAIN_DESC scd;
@@ -555,7 +603,14 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 //	flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-	if (FAILED(func(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, flags,
+	if (adapt)
+	{
+		DXGI_ADAPTER_DESC adesc;
+		adapt->lpVtbl->GetDesc(adapt, &adesc);
+		Con_Printf("D3D11 Adaptor: %S\n", adesc.Description);
+	}
+
+	if (FAILED(func(adapt, adapt?D3D_DRIVER_TYPE_UNKNOWN:D3D_DRIVER_TYPE_HARDWARE, NULL, flags,
 				flevels, sizeof(flevels)/sizeof(flevels[0]),
 				D3D11_SDK_VERSION,
 				&scd,
@@ -585,20 +640,50 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 static void initD3D11(HWND hWnd, rendererstate_t *info)
 {
 	static dllhandle_t *d3d11dll;
+	static dllhandle_t *dxgi;
 	static PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN fnc;
-	dllfunction_t funcs[] =
+	static HRESULT (*pCreateDXGIFactory1)(REFIID riid, void **ppFactory);
+	IID factiid = {0x770aae78, 0xf26f, 0x4dba, 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87};
+	IDXGIFactory1 *fact = NULL;
+	IDXGIAdapter *adapt = NULL;
+	dllfunction_t d3d11funcs[] =
 	{
 		{(void**)&fnc, "D3D11CreateDeviceAndSwapChain"},
 		{NULL}
 	};
+	dllfunction_t dxgifuncs[] =
+	{
+		{(void**)&pCreateDXGIFactory1, "CreateDXGIFactory1"},
+		{NULL}
+	};
 
 	if (!d3d11mod)
-		d3d11mod = Sys_LoadLibrary("d3d11", funcs);
+		d3d11mod = Sys_LoadLibrary("d3d11", d3d11funcs);
+	if (!dxgi)
+		dxgi = Sys_LoadLibrary("dxgi", dxgifuncs);
 
 	if (!d3d11mod)
 		return;
+
+	if (pCreateDXGIFactory1)
+	{
+		pCreateDXGIFactory1(&factiid, &fact);
+		if (fact)
+		{
+			fact->lpVtbl->EnumAdapters(fact, 0, &adapt);
+		}
+	}
+
 	
-	initD3D11Device(hWnd, info, fnc);
+	initD3D11Device(hWnd, info, fnc, adapt);
+
+	if (fact)
+	{
+		//DXGI SUCKS and fucks up alt+tab every single time. its pointless to go from fullscreen to fullscreen-with-taskbar-obscuring-half-the-window.
+		//I'm just going to handle that stuff myself.
+		fact->lpVtbl->MakeWindowAssociation(fact, hWnd, DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER|DXGI_MWA_NO_PRINT_SCREEN);
+		fact->lpVtbl->Release(fact);
+	}
 }
 
 static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
@@ -640,15 +725,14 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	RegisterClass(&wc);
 
-	if (info->fullscreen)
-		wstyle = 0;
-	else
-		wstyle = WS_OVERLAPPEDWINDOW;
+	modestate = info->fullscreen?MS_FULLSCREEN:MS_WINDOWED;
 
-	rect.left = (GetSystemMetrics(SM_CXSCREEN) - info->width) / 2;
-	rect.top = (GetSystemMetrics(SM_CYSCREEN) - info->height) / 2;
-	rect.right = rect.left+info->width;
-	rect.bottom = rect.top+info->height;
+	wstyle = WS_OVERLAPPEDWINDOW;
+
+	rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+	rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+	rect.right = rect.left+width;
+	rect.bottom = rect.top+height;
 	AdjustWindowRectEx(&rect, wstyle, FALSE, 0);
 	mainwindow = CreateWindow(CLASSNAME, "Direct3D11", wstyle, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, NULL, NULL, NULL, NULL);
 
@@ -1074,6 +1158,9 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
 	V_UpdatePalette (false);
+
+	if (Key_MouseShouldBeFree())
+		SCR_DrawCursor(0);
 #if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif

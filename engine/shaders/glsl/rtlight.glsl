@@ -1,5 +1,4 @@
 !!permu BUMP
-!!permu SPECULAR
 !!permu SKELETAL
 !!permu FOG
 !!cvarf r_glsl_offsetmapping_scale
@@ -24,7 +23,8 @@ varying vec3 lightvector;
 #if defined(SPECULAR) || defined(OFFSETMAPPING)
 varying vec3 eyevector;
 #endif
-#if defined(PCF) || defined(CUBEPROJ)
+
+#if defined(PCF) || defined(CUBEPROJ) || defined(SPOT)
 varying vec4 vtexprojcoord;
 uniform mat4 l_cubematrix;
 #ifndef SPOT

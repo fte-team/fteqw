@@ -1365,7 +1365,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "rtlight",
 "!!permu BUMP\n"
-"!!permu SPECULAR\n"
 "!!permu SKELETAL\n"
 "!!permu FOG\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
@@ -1390,7 +1389,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
-"#if defined(PCF) || defined(CUBEPROJ)\n"
+
+"#if defined(PCF) || defined(CUBEPROJ) || defined(SPOT)\n"
 "varying vec4 vtexprojcoord;\n"
 "uniform mat4 l_cubematrix;\n"
 "#ifndef SPOT\n"

@@ -275,14 +275,29 @@ float gamespeed;
 #define LFLAG_NOSHADOWS 256
 #define LFLAG_SHADOWMAP 512
 #define LFLAG_CREPUSCULAR 1024
-void(vector) makevectors = #1;
+#define TEREDIT_RELOAD 0
+#define TEREDIT_SAVE 1
+#define TEREDIT_SETHOLE 2
+#define TEREDIT_HEIGHT_SET 3
+#define TEREDIT_HEIGHT_SMOOTH 4
+#define TEREDIT_HEIGHT_SPREAD 5
+#define TEREDIT_HEIGHT_RAISE 6
+#define TEREDIT_HEIGHT_FLATTEN 18
+#define TEREDIT_HEIGHT_LOWER 7
+#define TEREDIT_TEX_KILL 8
+#define TEREDIT_TEX_GET 9
+#define TEREDIT_MIX_PAINT 10
+#define TEREDIT_MIX_UNIFY 11
+#define TEREDIT_MIX_NOISE 12
+#define TEREDIT_MIX_BLUR 13
+#define TEREDIT_WATER_SET 14
+#define TEREDIT_MESH_ADD 15
+#define TEREDIT_MESH_KILL 16
+#define TEREDIT_TINT 17
+void(vector vang) makevectors = #1;
 void(entity e, vector o) setorigin = #2;
 void(entity e, string m) setmodel = #3;
 void(entity e, vector min, vector max) setsize = #4;
-#ifdef SSQC
-void(float style, float val) lightstylestatic = #5;
-void() break = #6;
-#endif
 float() random = #7;
 void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags) sound = #8;
 vector(vector v) normalize = #9;
@@ -293,20 +308,10 @@ float(vector v) vectoyaw = #13;
 entity() spawn = #14;
 void(entity e) remove = #15;
 void(vector v1, vector v2, float nomonsters, entity ent) traceline = #16;
-#ifdef SSQC
-entity() checkclient = #17;
-#endif
 entity(entity start, .string fld, string match) find = #18;
 void(string s) precache_sound = #19;
 void(string s) precache_model = #20;
-#ifdef SSQC
-void(entity client, string s) stuffcmd = #21;
-#endif
 entity(vector org, float rad) findradius = #22;
-#ifdef SSQC
-void(string s) bprint = #23;
-void(entity client, string s) sprint = #24;
-#endif
 void(string s, ...) dprint = #25;
 string(float val) ftos = #26;
 string(vector val) vtos = #27;
@@ -324,9 +329,6 @@ float(float) ceil = #38;
 float(entity ent) checkbottom = #40;
 float(vector pos) pointcontents = #41;
 float(float) fabs = #43;
-#ifdef SSQC
-vector(entity player, float missilespeed) aim = #44;
-#endif
 float(string) cvar = #45;
 void(string, ...) localcmd = #46;
 entity(entity) nextent = #47;
@@ -334,136 +336,77 @@ void(vector pos, vector dir, float colour, float count) particle = #48;
 #define ChangeYaw changeyaw
 void() changeyaw = #49;
 vector(vector fwd, optional vector up) vectoangles = #51;
-#ifdef SSQC
-void(float to, float val) WriteByte = #52;
-void(float to, float val) WriteChar = #53;
-void(float to, float val) WriteShort = #54;
-void(float to, float val) WriteLong = #55;
-void(float to, float val) WriteCoord = #56;
-void(float to, float val) WriteAngle = #57;
-void(float to, string val) WriteString = #58;
-void(float to, entity val) WriteEntity = #59;
-#endif
-float(float angle) sin = #60;
-float(float angle) cos = #61;
-float(float value) sqrt = #62;
-void(entity ent) changepitch = #63;
+float(float angle) sin = #60; /* Part of DP_QC_SINCOSSQRTPOW*/
+float(float angle) cos = #61; /* Part of DP_QC_SINCOSSQRTPOW*/
+float(float value) sqrt = #62; /* Part of DP_QC_SINCOSSQRTPOW*/
+void(entity ent) changepitch = #63; /* Part of DP_QC_CHANGEPITCH*/
 void(entity ent, entity ignore) tracetoss = #64;
-string(entity ent) etos = #65;
+string(entity ent) etos = #65; /* Part of DP_QC_ETOS*/
 void(float step) movetogoal = #67;
-#ifdef SSQC
-void(string s) precache_file = #68;
-#endif
 void(entity e) makestatic = #69;
-#ifdef SSQC
-void(string mapname, optional string newmapstartspot) changelevel = #70;
-#endif
 void(string cvarname, string valuetoset) cvar_set = #72;
-#ifdef SSQC
-void(entity ent, string text, ...) centerprint = #73;
-#endif
 void (vector pos, string samp, float vol, float atten) ambientsound = #74;
 void(string str) precache_model2 = #75;
 void(string str) precache_sound2 = #76;
-#ifdef SSQC
-void(string str) precache_file2 = #77;
-void() setspawnparms = #78;
-void(entity killer, entity killee) logfrag = #79;
-string(entity e, string key) infokey = #80;
-#endif
-float(string) stof = #81;
-#ifdef SSQC
-void(vector where, float set) multicast = #82;
-#endif
-void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent) tracebox = #90;
-vector() randomvec = #91;
+float(string) stof = #81; /* Part of FRIK_FILE, FTE_STRINGS, QW_ENGINE, ZQ_QC_STRINGS*/
+void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent) tracebox = #90; /* Part of DP_QC_TRACEBOX*/
+vector() randomvec = #91; /* Part of DP_QC_RANDOMVEC*/
 vector(vector org) getlight = #92;
-void(string cvarname, string defaultvalue) registercvar = #93;
-float(float a, float b, ...) min = #94;
-float(float a, float b, ...) max = #95;
-float(float minimum, float val, float maximum) bound = #96;
-float(float value, float exp) pow = #97;
-entity(entity start, .float fld, float match) findfloat = #98;
+void(string cvarname, string defaultvalue) registercvar = #93; /* Part of DP_REGISTERCVAR*/
+float(float a, float b, ...) min = #94; /* Part of DP_QC_MINMAXBOUND*/
+float(float a, float b, ...) max = #95; /* Part of DP_QC_MINMAXBOUND*/
+float(float minimum, float val, float maximum) bound = #96; /* Part of DP_QC_MINMAXBOUND*/
+float(float value, float exp) pow = #97; /* Part of DP_QC_SINCOSSQRTPOW*/
+entity(entity start, .float fld, float match) findfloat = #98; /* Part of DP_QC_FINDFLOAT*/
 float(string extname) checkextension = #99;
-#ifdef SSQC
-float(string builtinname) builtin_find = #100;
-float(float value) anglemod = #102;
-void(string slot, string picname, float x, float y, float zone, optional entity player) showpic = #104;
-void(string slot, optional entity player) hidepic = #105;
-void(string slot, float x, float y, float zone, optional entity player) movepic = #106;
-void(string slot, string picname, optional entity player) changepic = #107;
-#endif
-float(string filename, float mode, optional float mmapminsize) fopen = #110;
-void(float fhandle) fclose = #111;
-string(float fhandle) fgets = #112;
-void(float fhandle, string s) fputs = #113;
-float(string s) strlen = #114;
-string(string s1, optional string s2, ...) strcat = #115;
-string(string s, float start, float length) substring = #116;
-vector(string s) stov = #117;
-string(string s) strzone = #118;
-void(string s) strunzone = #119;
-#ifdef SSQC
-void(string cvar, float val) cvar_setf = #176;
-#endif
+float(string filename, float mode, optional float mmapminsize) fopen = #110; /* Part of FRIK_FILE*/
+void(float fhandle) fclose = #111; /* Part of FRIK_FILE*/
+string(float fhandle) fgets = #112; /* Part of FRIK_FILE*/
+void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7) fputs = #113; /* Part of FRIK_FILE*/
+float(string s) strlen = #114; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
+string(string s1, optional string s2, ...) strcat = #115; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
+string(string s, float start, float length) substring = #116; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
+vector(string s) stov = #117; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
+string(string s) strzone = #118; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
+void(string s) strunzone = #119; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
 float(string modelname, optional float queryonly) getmodelindex = #200;
-__variant(float prnum, string funcname, ...) externcall = #201;
-float(string progsname) addprogs = #202;
-__variant(float prnum, string varname) externvalue = #203;
-void(float prnum, __variant newval, string varname) externset = #204;
-float(string input, string token) instr = #206;
+__variant(float prnum, string funcname, ...) externcall = #201; /* Part of FTE_MULTIPROGS*/
+float(string progsname) addprogs = #202; /* Part of FTE_MULTIPROGS*/
+__variant(float prnum, string varname) externvalue = #203; /* Part of FTE_MULTIPROGS*/
+void(float prnum, __variant newval, string varname) externset = #204; /* Part of FTE_MULTIPROGS*/
+float(string input, string token) instr = #206; /* Part of FTE_MULTIPROGS*/
 void(float portal, float state) openportal = #207;
-#ifdef SSQC
-float(float attributes, string effectname, ...) RegisterTempEnt = #208;
-void(float type, vector pos, ...) CustomTempEnt = #209;
-float(optional float sleeptime) fork = #210;
-#endif
-void(optional __variant ret) abort = #211;
-#ifdef SSQC
-void(float sleeptime) sleep = #212;
-void(entity player, string key, string value) forceinfokey = #213;
-void(string filename, float starttag, entity edict) chat = #214;
-#endif
-void(vector org, vector dmin, vector dmax, float colour, float effect, float count) particle2 = #215;
-void(vector org, vector box, float colour, float effect, float count) particle3 = #216;
-void(vector org, float radius, float colour, float effect, float count) particle4 = #217;
-float(float number, float quantity) bitshift = #218;
-void(vector pos) te_lightningblood = #219;
-float(string s1, string sub, optional float startidx) strstrofs = #221;
-float(string str, float index) str2chr = #222;
-string(float chr, ...) chr2str = #223;
-string(float ccase, float redalpha, float redchars, string str, ...) strconv = #224;
-string(float pad, string str1, ...) strpad = #225;
-string(string old, string key, string value) infoadd = #226;
-string(string info, string key) infoget = #227;
-float(string s1, string s2, float len) strncmp = #228;
-float(string s1, string s2) strcasecmp = #229;
-float(string s1, string s2, float len) strncasecmp = #230;
-void() calltimeofday = #231;
-#ifdef SSQC
-void(float num, float type, .void fld) clientstat = #232;
-void(float num, float type, string name) globalstat = #233;
-void(entity player) isbackbuffered = #234;
-#endif
+void(optional __variant ret) abort = #211; /* Part of FTE_MULTITHREADED*/
+void(vector org, vector dmin, vector dmax, float colour, float effect, float count) particle2 = #215; /* Part of FTE_HEXEN2*/
+void(vector org, vector box, float colour, float effect, float count) particle3 = #216; /* Part of FTE_HEXEN2*/
+void(vector org, float radius, float colour, float effect, float count) particle4 = #217; /* Part of FTE_HEXEN2*/
+float(float number, float quantity) bitshift = #218; /* Part of EXT_BITSHIFT*/
+void(vector pos) te_lightningblood = #219; /* Part of FTE_TE_STANDARDEFFECTBUILTINS*/
+float(string s1, string sub, optional float startidx) strstrofs = #221; /* Part of FTE_STRINGS*/
+float(string str, float index) str2chr = #222; /* Part of FTE_STRINGS*/
+string(float chr, ...) chr2str = #223; /* Part of FTE_STRINGS*/
+string(float ccase, float redalpha, float redchars, string str, ...) strconv = #224; /* Part of FTE_STRINGS*/
+string(float pad, string str1, ...) strpad = #225; /* Part of FTE_STRINGS*/
+string(string old, string key, string value) infoadd = #226; /* Part of FTE_STRINGS*/
+string(string info, string key) infoget = #227; /* Part of FTE_STRINGS*/
+float(string s1, string s2, float len) strncmp = #228; /* Part of FTE_STRINGS*/
+float(string s1, string s2) strcasecmp = #229; /* Part of FTE_STRINGS*/
+float(string s1, string s2, float len) strncasecmp = #230; /* Part of FTE_STRINGS*/
+void() calltimeofday = #231; /* Part of FTE_CALLTIMEOFDAY*/
 void(vector angle) rotatevectorsbyangle = #235;
 void(vector fwd, vector right, vector up) rotatevectorsbyvectors = #236;
 float(float mdlindex, string skinname) skinforname = #237;
 #ifdef CSQC
 float(string shadername, optional string defaultshader, ...) shaderforname = #238;
 #endif
-void(vector org, optional float count) te_bloodqw = #239;
-#ifdef SSQC
-float(vector viewpos, entity entity) checkpvs = #240;
-entity(string match, optional float matchnum) matchclientname = #241;
-void(string dest, string content) sendpacket = #242;
-#endif
+void(vector org, optional float count) te_bloodqw = #239; /* Part of FTE_TE_STANDARDEFFECTBUILTINS*/
 #ifdef CSQC
 vector(entity ent, float tagnum) rotatevectorsbytag = #244;
 #endif
-int(string) stoi = #259;
-string(int) itos = #260;
-int(string) stoh = #261;
-string(int) htos = #262;
+int(string) stoi = #259; /* Part of FTE_QC_INTCONV*/
+string(int) itos = #260; /* Part of FTE_QC_INTCONV*/
+int(string) stoh = #261; /* Part of FTE_QC_INTCONV*/
+string(int) htos = #262; /* Part of FTE_QC_INTCONV*/
 float(float modlindex, optional float useabstransforms) skel_create = #263;
 float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac) skel_build = #264;
 float(float skel) skel_get_numbones = #265;
@@ -477,13 +420,11 @@ void(float skel, float bonenum, vector org, optional vector fwd, optional vector
 void(float skel, float startbone, float endbone, vector org, optional vector fwd, optional vector right, optional vector up) skel_mul_bones = #273;
 void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274;
 void(float skel) skel_delete = #275;
-void(float modidx, string framename) frameforname = #276;
+float(float modidx, string framename) frameforname = #276;
 float(float modidx, float framenum) frameduration = #277;
 void(float action, vector pos, float radius, float quant) terrain_edit = #278;
 void() touchtriggers = #279;
-#ifdef SSQC
-void(float buf, float fl) writefloat = #280;
-#endif
+float(entity skelent, string dollname, float parentskel) skel_ragupdate = #281;
 float*(float skel) skel_mmap = #282;
 void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up) skel_set_bone_world = #283;
 string(float modidx, float framenum) frametoname = #284;
@@ -566,129 +507,114 @@ __variant(float lno, float fld) dynamiclight_get = #372;
 void(float lno, float fld, __variant value) dynamiclight_set = #373;
 string(float efnum, float body) particleeffectquery = #374;
 #endif
-void*(int size) memalloc = #384;
-void(void *ptr) memfree = #385;
-void(void *dst, void *src, int size) memcpy = #386;
-void(void *dst, int val, int size) memset = #387;
-void(entity from, entity to) copyentity = #400;
-#ifdef SSQC
-void(entity from, entity to) setcolors = #401;
-#endif
-entity(string field, string match) findchain = #402;
-entity(float fld, float match) findchainfloat = #403;
-void(vector org, string modelname, float startframe, float endframe, float framerate) effect = #404;
-void(vector org, vector dir, float count) te_blood = #405;
-void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower = #406;
-void(vector org, vector color) te_explosionrgb = #407;
-void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube = #408;
-void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain = #409;
-void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow = #410;
-void(vector org, vector vel, float howmany) te_spark = #411;
-void(vector org) te_gunshotquad = #412;
-void(vector org) te_spikequad = #413;
-void(vector org) te_superspikequad = #414;
-void(vector org) te_explosionquad = #415;
-void(vector org) te_smallflash = #416;
-void(vector org, float radius, float lifetime, vector color) te_customflash = #417;
-void(vector org) te_gunshot = #418;
-void(vector org) te_spike = #419;
-void(vector org) te_superspike = #420;
-void(vector org) te_explosion = #421;
-void(vector org) te_tarexplosion = #422;
-void(vector org) te_wizspike = #423;
-void(vector org) te_knightspike = #424;
-void(vector org) te_lavasplash = #425;
-void(vector org) te_teleport = #426;
-void(vector org, float color, float colorlength) te_explosion2 = #427;
-void(entity own, vector start, vector end) te_lightning1 = #428;
-void(entity own, vector start, vector end) te_lightning2 = #429;
-void(entity own, vector start, vector end) te_lightning3 = #430;
-void(entity own, vector start, vector end) te_beam = #431;
-void(vector dir) vectorvectors = #432;
-void(vector org) te_plasmaburn = #433;
-float(entity e, float s) getsurfacenumpoints = #434;
-vector(entity e, float s, float n) getsurfacepoint = #435;
-vector(entity e, float s) getsurfacenormal = #436;
-string(entity e, float s) getsurfacetexture = #437;
-float(entity e, vector p) getsurfacenearpoint = #438;
-#ifdef SSQC
-void(entity e, string s) clientcommand = #440;
-#endif
-float(string s) tokenize = #441;
-string(float n) argv = #442;
-#ifdef SSQC
-void(entity e, entity tagentity, string tagname) setattachment = #443;
-#endif
-float(string pattern, float caseinsensitive, float quiet) search_begin = #444;
-void(float handle) search_end = #445;
-float(float handle) search_getsize = #446;
-string(float handle, float num) search_getfilename = #447;
-string(string cvarname) cvar_string = #448;
-entity(entity start, .entity fld, float match) findflags = #449;
-entity(.float fld, float match) findchainflags = #450;
-float(entity ent, string tagname) gettagindex = #451;
-vector(entity ent, float tagindex) gettaginfo = #452;
-#ifdef SSQC
-void(entity player) dropclient = #453;
-entity() spawnclient = #454;
-float(entity client) clienttype = #455;
-void(float target, string str) WriteUnterminatedString = #456;
-#endif
-entity(float entnum) edict_num = #459;
-float() buf_create = #460;
-void(float bufhandle) buf_del = #461;
-float(float bufhandle) buf_getsize = #462;
-void(float bufhandle_from, float bufhandle_to) buf_copy = #463;
-void(float bufhandle, float sortpower, float backward) buf_sort = #464;
-string(float bufhandle, string glue) buf_implode = #465;
-string(float bufhandle, float string_index) bufstr_get = #466;
-void(float bufhandle, float string_index, string str) bufstr_set = #467;
-float(float bufhandle, string str, float order) bufstr_add = #468;
-void(float bufhandle, float string_index) bufstr_free = #469;
-float(float s) asin = #471;
-float(float c) acos = #472;
-float(float t) atan = #473;
-float(float c, float s) atan2 = #474;
-float(float a) tan = #475;
-float(string s) strlennocol = #476;
-string(string s) strdecolorize = #477;
-string(float uselocaltime, string format, ...) strftime = #478;
-float(string s, string separator1, ...) tokenizebyseparator = #479;
-string(string s) strtolower = #480;
-string(string s) strtoupper = #481;
-string(string s) cvar_defstring = #482;
+void*(int size) memalloc = #384; /* Part of FTE_MEMALLOC*/
+void(void *ptr) memfree = #385; /* Part of FTE_MEMALLOC*/
+void(void *dst, void *src, int size) memcpy = #386; /* Part of FTE_MEMALLOC*/
+void(void *dst, int val, int size) memset = #387; /* Part of FTE_MEMALLOC*/
+void(entity from, entity to) copyentity = #400; /* Part of DP_QC_COPYENTITY*/
+entity(.string field, string match) findchain = #402; /* Part of DP_QC_FINDCHAIN*/
+entity(.float fld, float match) findchainfloat = #403; /* Part of DP_QC_FINDCHAINFLOAT*/
+void(vector org, string modelname, float startframe, float endframe, float framerate) effect = #404; /* Part of DP_SV_EFFECT*/
+void(vector org, vector dir, float count) te_blood = #405; /* Part of DP_TE_BLOOD*/
+void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower = #406; /* Part of DP_TE_BLOODSHOWER*/
+void(vector org, vector color) te_explosionrgb = #407; /* Part of DP_TE_EXPLOSIONRGB*/
+void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube = #408; /* Part of DP_TE_PARTICLECUBE*/
+void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain = #409; /* Part of _DP_TE_PARTICLERAIN*/
+void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow = #410; /* Part of _DP_TE_PARTICLESNOW*/
+void(vector org, vector vel, float howmany) te_spark = #411; /* Part of DP_TE_SPARK*/
+void(vector org) te_gunshotquad = #412; /* Part of _DP_TE_QUADEFFECTS1*/
+void(vector org) te_spikequad = #413; /* Part of _DP_TE_QUADEFFECTS1*/
+void(vector org) te_superspikequad = #414; /* Part of _DP_TE_QUADEFFECTS1*/
+void(vector org) te_explosionquad = #415; /* Part of _DP_TE_QUADEFFECTS1*/
+void(vector org) te_smallflash = #416; /* Part of DP_TE_SMALLFLASH*/
+void(vector org, float radius, float lifetime, vector color) te_customflash = #417; /* Part of _DP_TE_CUSTOMFLASH*/
+void(vector org, optional float count) te_gunshot = #418; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_spike = #419; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_superspike = #420; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_explosion = #421; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_tarexplosion = #422; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_wizspike = #423; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_knightspike = #424; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_lavasplash = #425; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org) te_teleport = #426; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(vector org, float color, float colorlength) te_explosion2 = #427; /* Part of DP_TE_STANDARDEFFECTBUILTINS*/
+void(entity own, vector start, vector end) te_lightning1 = #428; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(entity own, vector start, vector end) te_lightning2 = #429; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(entity own, vector start, vector end) te_lightning3 = #430; /* Part of DP_TE_STANDARDEFFECTBUILTINS, FTE_TE_STANDARDEFFECTBUILTINS*/
+void(entity own, vector start, vector end) te_beam = #431; /* Part of DP_TE_STANDARDEFFECTBUILTINS*/
+void(vector dir) vectorvectors = #432; /* Part of DP_QC_VECTORVECTORS*/
+void(vector org) te_plasmaburn = #433; /* Part of _DP_TE_PLASMABURN*/
+float(entity e, float s) getsurfacenumpoints = #434; /* Part of DP_QC_GETSURFACE*/
+vector(entity e, float s, float n) getsurfacepoint = #435; /* Part of DP_QC_GETSURFACE*/
+vector(entity e, float s) getsurfacenormal = #436; /* Part of DP_QC_GETSURFACE*/
+string(entity e, float s) getsurfacetexture = #437; /* Part of DP_QC_GETSURFACE*/
+float(entity e, vector p) getsurfacenearpoint = #438; /* Part of DP_QC_GETSURFACE*/
+float(string s) tokenize = #441; /* Part of KRIMZON_SV_PARSECLIENTCOMMAND*/
+string(float n) argv = #442; /* Part of KRIMZON_SV_PARSECLIENTCOMMAND*/
+float(string pattern, float caseinsensitive, float quiet) search_begin = #444; /* Part of DP_QC_FS_SEARCH*/
+void(float handle) search_end = #445; /* Part of DP_QC_FS_SEARCH*/
+float(float handle) search_getsize = #446; /* Part of DP_QC_FS_SEARCH*/
+string(float handle, float num) search_getfilename = #447; /* Part of DP_QC_FS_SEARCH*/
+string(string cvarname) cvar_string = #448; /* Part of DP_QC_CVAR_STRING*/
+entity(entity start, .float fld, float match) findflags = #449; /* Part of DP_QC_FINDFLAGS*/
+entity(.float fld, float match) findchainflags = #450; /* Part of DP_QC_FINDCHAINFLAGS*/
+float(entity ent, string tagname) gettagindex = #451; /* Part of DP_MD3_TAGSINFO*/
+vector(entity ent, float tagindex) gettaginfo = #452; /* Part of DP_MD3_TAGSINFO*/
+entity(float entnum) edict_num = #459; /* Part of DP_QC_EDICT_NUM*/
+float() buf_create = #460; /* Part of DP_QC_STRINGBUFFERS*/
+void(float bufhandle) buf_del = #461; /* Part of DP_QC_STRINGBUFFERS*/
+float(float bufhandle) buf_getsize = #462; /* Part of DP_QC_STRINGBUFFERS*/
+void(float bufhandle_from, float bufhandle_to) buf_copy = #463; /* Part of DP_QC_STRINGBUFFERS*/
+void(float bufhandle, float sortpower, float backward) buf_sort = #464; /* Part of DP_QC_STRINGBUFFERS*/
+string(float bufhandle, string glue) buf_implode = #465; /* Part of DP_QC_STRINGBUFFERS*/
+string(float bufhandle, float string_index) bufstr_get = #466; /* Part of DP_QC_STRINGBUFFERS*/
+void(float bufhandle, float string_index, string str) bufstr_set = #467; /* Part of DP_QC_STRINGBUFFERS*/
+float(float bufhandle, string str, float order) bufstr_add = #468; /* Part of DP_QC_STRINGBUFFERS*/
+void(float bufhandle, float string_index) bufstr_free = #469; /* Part of DP_QC_STRINGBUFFERS*/
+float(float s) asin = #471; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
+float(float c) acos = #472; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
+float(float t) atan = #473; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
+float(float c, float s) atan2 = #474; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
+float(float a) tan = #475; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
+float(string s) strlennocol = #476; /* Part of DP_QC_STRINGCOLORFUNCTIONS*/
+string(string s) strdecolorize = #477; /* Part of DP_QC_STRINGCOLORFUNCTIONS*/
+string(float uselocaltime, string format, ...) strftime = #478; /* Part of DP_QC_STRFTIME*/
+float(string s, string separator1, ...) tokenizebyseparator = #479; /* Part of DP_QC_TOKENIZEBYSEPARATOR*/
+string(string s) strtolower = #480; /* Part of DP_QC_STRING_CASE_FUNCTIONS*/
+string(string s) strtoupper = #481; /* Part of DP_QC_STRING_CASE_FUNCTIONS*/
+string(string s) cvar_defstring = #482; /* Part of DP_QC_CVAR_DEFSTRING*/
 #ifdef CSQC
-void(vector origin, string sample, float volume, float attenuation) pointsound = #483;
+void(vector origin, string sample, float volume, float attenuation) pointsound = #483; /* Part of DP_SV_POINTSOUND*/
 #endif
-string(string search, string replace, string subject) strreplace = #484;
-string(string search, string replace, string subject) strireplace = #485;
-vector(entity e, float s, float n, float a) getsurfacepointattribute = #486;
+string(string search, string replace, string subject) strreplace = #484; /* Part of DP_QC_STRREPLACE*/
+string(string search, string replace, string subject) strireplace = #485; /* Part of DP_QC_STRREPLACE*/
+vector(entity e, float s, float n, float a) getsurfacepointattribute = #486; /* Part of DP_QC_GETSURFACEPOINTATTRIBUTE*/
 #ifdef CSQC
-float(string name) gecko_create = #487;
-void(string name) gecko_destroy = #488;
-void(string name, string URI) gecko_navigate = #489;
-float(string name, float key, float eventtype) gecko_keyevent = #490;
-void(string name, float x, float y) gecko_mousemove = #491;
-void(string name, float w, float h) gecko_resize = #492;
-vector(string name) gecko_get_texture_extent = #493;
+float(string name) gecko_create = #487; /* Part of DP_GECKO_SUPPORT*/
+void(string name) gecko_destroy = #488; /* Part of DP_GECKO_SUPPORT*/
+void(string name, string URI) gecko_navigate = #489; /* Part of DP_GECKO_SUPPORT*/
+float(string name, float key, float eventtype) gecko_keyevent = #490; /* Part of DP_GECKO_SUPPORT*/
+void(string name, float x, float y) gecko_mousemove = #491; /* Part of DP_GECKO_SUPPORT*/
+void(string name, float w, float h) gecko_resize = #492; /* Part of DP_GECKO_SUPPORT*/
+vector(string name) gecko_get_texture_extent = #493; /* Part of DP_GECKO_SUPPORT*/
 #endif
-float(float caseinsensitive, string s, ...) crc16 = #494;
-float(string name) cvar_type = #495;
-//float() numentityfields = #496;
-//string(float fieldnum) entityfieldname = #497;
-//float(float fieldnum) entityfieldtype = #498;
-//string(float fieldnum, entity ent) getentityfieldstring = #499;
-//float(float fieldnum, entity ent, string s) putentityfieldstring = #500;
-//void(float to, string s, float sz) WritePicture = #501;
+float(float caseinsensitive, string s, ...) crc16 = #494; /* Part of DP_QC_CRC16*/
+float(string name) cvar_type = #495; /* Part of DP_QC_CVAR_TYPE*/
+float() numentityfields = #496; /* Part of DP_QC_ENTITYDATA*/
+string(float fieldnum) entityfieldname = #497; /* Part of DP_QC_ENTITYDATA*/
+float(float fieldnum) entityfieldtype = #498; /* Part of DP_QC_ENTITYDATA*/
+string(float fieldnum, entity ent) getentityfieldstring = #499; /* Part of DP_QC_ENTITYDATA*/
+float(float fieldnum, entity ent, string s) putentityfieldstring = #500; /* Part of DP_QC_ENTITYDATA*/
+//void(float to, string s, float sz) WritePicture = #501; /* Part of DP_SV_WRITEPICTURE*/
 //string() ReadPicture = #501;
-string(string filename) whichpack = #503;
+string(string filename) whichpack = #503; /* Part of DP_QC_WHICHPACK*/
 #ifdef CSQC
 __variant(float entnum, float fieldnum) getentity = #504;
 #endif
-string(string in) uri_escape = #510;
-string(string in) uri_unescape = #511;
+string(string in) uri_escape = #510; /* Part of DP_QC_URI_ESCAPE*/
+string(string in) uri_unescape = #511; /* Part of DP_QC_URI_ESCAPE*/
 float(entity ent) num_for_edict = #512;
-void(string str) tokenize_console = #514;
+float(string str) tokenize_console = #514;
 float(float idx) argv_start_index = #515;
 float(float idx) argv_end_index = #516;
 string(string cvarname) cvar_description = #518;
@@ -697,14 +623,11 @@ float(optional float timetype) gettime = #519;
 #endif
 void(string s) loadfromdata = #529;
 void(string s) loadfromfile = #530;
-#ifdef SSQC
-float(string mname) precache_vwep_model = #532;
-#endif
 void(.../*, string funcname*/) callfunction = #605;
 void(float fh, entity e) writetofile = #606;
 float(string s) isfunction = #607;
 void(entity e, string s) parseentitydata = #608;
-string(...) sprintf = #627;
+string(string fmt, ...) sprintf = #627;
 float(entity e, float s) getsurfacenumtriangles = #628;
 vector(entity e, float s, float n) getsurfacetriangle = #629;
 #pragma noref 0

@@ -57,7 +57,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 	{
 		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8 && render_only == 0)
 		{
-			col_x = (sin(time*3.14)+1) / 2;
+			col_x = (sin(cltime*3.14)+1) / 2;
 			col_y = col_x;
 			col_z = 1;
 		}
@@ -73,7 +73,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 		drawstring(spos, "^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", '8 8 0', '1 1 1', 1, 0);
 		if (!(menu->flags & MF_DS_VALUE))
 			drawstring(spos + '88 0', ftos(f), '8 8 0', col, 1, 0);
-		spos_x += 9*8*(f - minv) / (maxv - minv);
+		spos_x += 4 + 9*8*(f - minv) / (maxv - minv);
 		drawstring(spos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
 	}
 	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
@@ -133,7 +133,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 	{
 		if (cursor_in_widget(pos, epos, mousepos) && render_only == 0)
 		{
-			col_x = (sin(time*3.14)+1) / 2;
+			col_x = (sin(cltime*3.14)+1) / 2;
 			col_y = col_x;
 			col_z = 1;
 		}
@@ -209,7 +209,7 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 	{
 		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8 && render_only == 0)
 		{
-			col_x = (sin(time*3.14)+1) / 2;
+			col_x = (sin(cltime*3.14)+1) / 2;
 			col_y = col_x;
 			col_z = 1;
 		}
@@ -261,7 +261,7 @@ void(string fieldname, vector pos, vector *mousepos_in, float *value, float key)
 	{
 		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8 && render_only == 0)
 		{
-			col_x = (sin(time*3.14)+1) / 2;
+			col_x = (sin(cltime*3.14)+1) / 2;
 			col_y = col_x;
 			col_z = 1;
 		}
@@ -309,7 +309,7 @@ void(menu_t *menu, string fieldname, vector pos, int *value) checkboxi_widgit =
 	{
 		if (cursor_in_widget(pos, epos, mousepos) && render_only == 0)
 		{
-			col_x = (sin(time*3.14)+1) / 2;
+			col_x = (sin(cltime*3.14)+1) / 2;
 			col_y = col_x;
 			col_z = 1;
 		}
@@ -354,7 +354,7 @@ int (menu_t *menu, string fieldname, vector pos) button_widget =
 	{
 		if (cursor_in_widget(pos, epos, mousepos) && render_only == 0)
 		{
-			col_x = (sin(time*3.14)+1) / 2;
+			col_x = (sin(cltime*3.14)+1) / 2;
 			col_y = col_x;
 			col_z = 1;
 		}

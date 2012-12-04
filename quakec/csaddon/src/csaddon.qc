@@ -1,7 +1,3 @@
-float autocvar_ca_show;
-float autocvar_ca_editormode;
-string autocvar_ca_colourtint;
-
 enum
 {
 	MODE_INITIAL=0,
@@ -11,6 +7,10 @@ enum
 	MODE_TERRAINEDIT=3,
 	MODE_PARTICLEEDIT=4,
 };
+
+float autocvar_ca_show;
+var float autocvar_ca_editormode = MODE_LIGHTEDIT;
+string autocvar_ca_colourtint;
 
 var vector vidsize = '640 480 0';
 vector curmousepos;
@@ -405,3 +405,9 @@ void(float prevprogs) init =
 		externset(0, wrap_InputEvent, "CSQC_InputEvent");
 	}
 };
+
+void() CSQC_Shutdown =
+{
+	spline_shutdown();
+};
+

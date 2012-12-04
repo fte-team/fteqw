@@ -32,6 +32,7 @@ static camdata_t *camdata;
 static var float splinefile = -1;
 static var int edit_type = 0;
 static vector submenu_position;
+static var float autocvar_cl_demospeed = 1;
 
 void(int *dest, int bytes) memclr =
 {
@@ -45,10 +46,17 @@ void(int *dest, int bytes) memclr =
 
 void() spline_init =
 {
+	string camfilename;
+	if (isdemo())
+		camfilename = serverkey("ip");	//this always contains the name of the demo rather than the original ip, which is not known.
+	else
+		camfilename = mapname;	//otherwise just use the current map (though really we should just disable this)
+	camfilename = strcat(camfilename, ".cam");
+
 	/*precache the shader*/
 	shaderforname("camsplineshader", "{\n{\nmap construction.tga\nblendfunc blend\nrgbgen vertex\nalphagen vertex\n}\n}\n");
 
-	splinefile = fopen("spline.dat", FILE_MMAP_RW, sizeof(camdata_t));
+	splinefile = fopen(camfilename, FILE_MMAP_RW, sizeof(camdata_t));
 	if (splinefile < 0)
 	{
 		/*too lazy to create a file, just use it as a malloc*/
@@ -62,7 +70,7 @@ void() spline_init =
 
 	if (camdata->ver != VER)
 	{
-		print("spline.dat version is outdated, wiping.\n");
+		print(sprintf("%s version is outdated, wiping.\n", camfilename));
 		memclr ((int*)camdata, sizeof(camdata_t));
 		camdata->ver = VER;
 	}
@@ -88,7 +96,7 @@ static vector(spline_t *s, float frac) spline_pos =
 	vector v1, v2;
 	if (s->numpoints < 2)
 	{
-		return;
+		return '0 0 0';
 	}
 	frac *= s->numpoints;
 	if (frac < 0)
@@ -499,7 +507,7 @@ float slidertestfloat1, slidertestfloat2, slidertestfloat3;
 static float *curslider;
 static menu_t menu;
 
-int (vector *curmousepos, vector mousediff, float key) submenu =
+void (vector *curmousepos, vector mousediff, float key) submenu =
 {
 	local vector pos, cpos;
 	local spline_t *s;
@@ -623,7 +631,7 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 		menu->flags = MF_DS_VALUE;
 		point1 = '0 0 0';	// << problem with using a global value identifier i cant reuse point
 		str = "move spline: ";
-		drawstring(pos, str, '8 8 0', '1 1 1', 1);
+		drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
 		pos_y += 8;
 		sliderf_fixed_widgit(&menu, " x:", pos, &point1_x); pos_y += 8;
 		sliderf_fixed_widgit(&menu, " y:", pos, &point1_y); pos_y += 8;
@@ -632,7 +640,7 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 		menu->flags = 0;
 	}
 
-	drawrawstring(pos, sprintf("isdemo: %f", isdemo()), '8 8 0', '1 1 1', 1);
+//	drawrawstring(pos, sprintf("isdemo: %f", isdemo()), '8 8 0', '1 1 1', 1);
 }
 
 int (vector *curmousepos, vector mousediff, float key) testmenu =
@@ -660,6 +668,7 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 	local spline_t *s;
 	local int ri;
 	local string str;
+	float min, sec;
 
 	if (splinefile < 0)
 		spline_init();
@@ -687,6 +696,17 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 
 	menu->flags = MF_DS_VALUE;
 	checkboxi_widgit(&menu, "", v, &edit_type);
+
+	v_x = 0;
+	v_y += 8;
+	sliderf_widgit(&menu, "demo speed", v, &autocvar_cl_demospeed, 0, 1);
+	cvar_set("cl_demospeed", ftos(autocvar_cl_demospeed));
+
+	v_y += 8;
+	sec = time;
+	min = floor(sec/60);
+	sec -= min*60;
+	drawrawstring(v, sprintf("time: %g:%02.0f", min, sec), '8 8 0', '1 1 1', 1);
 
 	submenu_position = pos + '0 8';
 

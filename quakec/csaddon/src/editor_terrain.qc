@@ -17,26 +17,30 @@ enum
 	ter_water_set = 14,		//lower the terrain in a bell (negative value to raise)
 	ter_mesh_add = 15,		//add a mesh
 	ter_mesh_kill = 16,		//remove meshes within the radius
-
-
+	ter_tint = 17,			//pants new colour modifiers/tints
+	ter_height_flatten,		//smooth the heights slightly (non-destructive), such that the middle becomes flatter faster than the edges
 
 	ter_blank,
 	ter_radius,
 	ter_quant,
 	ter_strength,
 	ter_mesh,
+	ter_tintval,
 	ter_tex,
 	ter_count
 };
 static var float eradius = 256;
 static var float equant = 8;
-static var float epercent = 80;
+static var float epercent = 40;
 static string tex[8];
+static var string tint[8] = {"1 1 1", "1.2 0.9 0.9", "0 1 0"};
 static string meshname;
 static float curtool;
 static int painttex;
 static float mautorepeattime;
 static entity tempent;
+
+float autocvar_mod_terrain_networked;
 
 vector vidsize;
 float mousedown;
@@ -60,6 +64,7 @@ static string toolname[ter_count] =
 	"water set",
 	"mesh add",
 	"mesh kill",
+	"mesh tint",
 	"",
 	"rad",
 	"quant",
@@ -80,25 +85,46 @@ void(vector m) editor_do =
 		t = o + normalize(t)*8192;
 	traceline(o, t, TRUE, world);
 
+	self = world;
+
 	switch(curtool)
 	{
 	case ter_reload:
 	case ter_save:
 		mautorepeattime = 0;	//don't autorepeat that...
-		terrain_edit(curtool);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "f", curtool);
+		else
+		{
+			if (curtool == ter_save)
+				print("Saving...\n");
+			else if (curtool == ter_reload)
+				print("Reloading...\n");
+			terrain_edit(curtool);
+		}
 		break;
 	case ter_sethole:	//use view center instead of targetted - you cannot target that which is not there
-		terrain_edit(curtool, trace_endpos, eradius, equant);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, equant);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, equant);
 		break;
 
 	case ter_height_smooth:
-		terrain_edit(curtool, trace_endpos, eradius, epercent/100.0);
+	case ter_height_spread:
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, epercent/100.0);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0);
 		break;
 	case ter_height_set:
 	case ter_height_smooth:
 	case ter_height_raise:
 	case ter_height_lower:
-		terrain_edit(curtool, trace_endpos, eradius, equant);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, equant);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, equant);
 		break;
 	case ter_tex_get:
 		strunzone(tex[0]);
@@ -114,22 +140,41 @@ void(vector m) editor_do =
 //		terrain_edit(curtool, trace_endpos, eradius, equant, emix);
 //		break;
 	case ter_mixpaint:
-		terrain_edit(curtool, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvffs", curtool, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0, tex[painttex]);
 		break;
 	case ter_tex_kill:
-		terrain_edit(curtool, trace_endpos, eradius, equant, tex[painttex]);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvffs", curtool, trace_endpos, eradius, equant, tex[painttex]);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, equant, tex[painttex]);
 		break;
 	case ter_mixconcentrate:
 	case ter_mixnoise:
 	case ter_mixblur:
-		terrain_edit(curtool, trace_endpos, eradius, equant);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, equant);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, equant);
+		break;
+
+	case ter_tint:
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvffvf", curtool, trace_endpos, eradius, epercent/100.0, stov(tint[painttex]), 1);
+		else
+			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0, stov(tint[painttex]), 1);
 		break;
 
 	case ter_mesh_add:
 		terrain_edit(curtool, tempent);
 		break;
 	case ter_mesh_kill:
-		terrain_edit(curtool, trace_endpos, eradius);
+		if (autocvar_mod_terrain_networked)
+			sendevent("teredit", "fvf", curtool, trace_endpos, eradius);
+		else
+			terrain_edit(curtool, trace_endpos, eradius);
 		break;
 	}
 };
@@ -148,11 +193,20 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			txt = itos((int)epercent);
 		if (curtool == ter_mesh)
 			txt = meshname;
+		if (curtool == ter_tintval)
+			txt = tint[painttex];
 		if (curtool == ter_tex)
 			txt = tex[painttex];
 			
 		if (keyc == 10 || keyc == 13)
-			nt = ter_mixpaint;
+		{
+			if (curtool == ter_mesh)
+				nt = ter_mesh_add;
+			else if (curtool == ter_tintval)
+				nt = ter_tint;
+			else
+				nt = ter_mixpaint;
+		}
 		else if (keyc == 127)
 			txt = substring(txt, 0, -2);
 		else if (keyc == 8)
@@ -177,6 +231,12 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			txt = strzone(txt);
 			strunzone(tex[painttex]);
 			tex[painttex] = txt;
+		}
+		if (curtool == ter_tintval)
+		{
+			txt = strzone(txt);
+			strunzone(tint[painttex]);
+			tint[painttex] = txt;
 		}
 
 		curtool = nt;
@@ -222,7 +282,6 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 		}
 		else
 			return FALSE;
-		return TRUE;
 	}
 	else if (unic == '[')
 		equant -= 1;
@@ -250,6 +309,12 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 		painttex = 7;
 	else
 		return FALSE;
+
+	if (curtool == ter_save || curtool == ter_reload)
+	{
+		editor_do('0 0 0');
+		curtool = -1;
+	}
 	return TRUE;
 };
 
@@ -378,6 +443,8 @@ void(vector mousepos) editor_terrain_overlay =
 				drawpic(pos + '0 8 0', tex[painttex], '128 128 0', '1 1 1', 1);
 		
 		}
+		else if (i == ter_tintval)
+			drawstring(pos, sprintf("Tint%1i: %s", painttex, tint[painttex]), '8 8 0', colour, 1, 0);
 		else
 			drawstring(pos, toolname[i], '8 8 0', colour, 1, 0);
 		pos_y += 8;

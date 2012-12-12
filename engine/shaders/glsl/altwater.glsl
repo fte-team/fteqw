@@ -64,7 +64,7 @@ void main (void)
 	n -= 1.0 - 4.0/256.0;
 
 #ifdef RIPPLEMAP
-	n += texture2D(s_t3, stc)*3;
+	n += texture2D(s_t3, stc).rgb*3.0;
 #endif
 
 	//the fresnel term decides how transparent the water should be

@@ -1389,6 +1389,21 @@ void CL_Users_f (void)
 	Con_TPrintf (TLC_USERTOTAL, c);
 }
 
+int CL_ParseColour(char *colt)
+{
+	int col;
+	if (!strncmp(colt, "0x", 2))
+		col = 0xff000000|strtoul(colt+2, NULL, 16);
+	else
+	{
+		col = atoi(colt);
+		col &= 15;
+		if (col > 13)
+			col = 13;
+	}
+	return col;
+}
+
 void CL_Color_f (void)
 {
 	// just for quake compatability...
@@ -1414,34 +1429,27 @@ void CL_Color_f (void)
 
 
 	if (Cmd_Argc() == 2)
-		top = bottom = atoi(Cmd_Argv(1));
+		top = bottom = CL_ParseColour(Cmd_Argv(1));
 	else
 	{
-		top = atoi(Cmd_Argv(1));
-		bottom = atoi(Cmd_Argv(2));
+		top = CL_ParseColour(Cmd_Argv(1));
+		bottom = CL_ParseColour(Cmd_Argv(2));
 	}
 
-	top &= 15;
-	if (top > 13)
-		top = 13;
-	bottom &= 15;
-	if (bottom > 13)
-		bottom = 13;
-
-	Q_snprintfz (num, sizeof(num), "%i", top);
+	Q_snprintfz (num, sizeof(num), (top&0xff000000)?"%#08x":"%i", top & 0xffffff);
 	if (top == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
-		Cbuf_AddText(va("cmd %i setinfo topcolor %i\n", Cmd_ExecLevel-RESTRICT_SERVER-1, top), Cmd_ExecLevel);
+		Cbuf_AddText(va("cmd %i setinfo topcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
 //	else if (server_owns_colour)
 //		Cvar_LockFromServer(&topcolor, num);
 	else
 		Cvar_Set (&topcolor, num);
-	Q_snprintfz (num, sizeof(num), "%i", bottom);
+	Q_snprintfz (num, sizeof(num), (bottom&0xff000000)?"%#08x":"%i", bottom & 0xffffff);
 	if (bottom == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
-		Cbuf_AddText(va("cmd %i setinfo bottomcolor %i\n", Cmd_ExecLevel-RESTRICT_SERVER-1, bottom), Cmd_ExecLevel);
+		Cbuf_AddText(va("cmd %i setinfo bottomcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
 	else if (server_owns_colour)
 		Cvar_LockFromServer(&bottomcolor, num);
 	else
@@ -3882,7 +3890,7 @@ void CL_ExecInitialConfigs(void)
 		com_parseutf8.ival = com_parseutf8.value;
 	}
 
-//	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
 
 	//assuming they didn't use any waits in their config (fools)
@@ -3915,7 +3923,7 @@ void CL_ExecInitialConfigs(void)
 
 	if (COM_CheckParm ("-current"))
 		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
-	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+//	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 }
 
 

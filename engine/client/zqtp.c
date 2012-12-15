@@ -1247,6 +1247,13 @@ static char *TP_ParseMacroString (char *s)
 				case 'X':	macro_string = Macro_Took(); break;
 				case 'y':	macro_string = Macro_PointLocation(); break;
 				case 'Y':	macro_string = Macro_TookLoc(); break;
+
+				case 'n':	//vicinity
+				case 'N':	//hides from you
+				case 'g':	//bonus timers.
+				case 'C':	//colour
+				case 'z':	//nearest waypoint (looking)
+				case 'Z':	//nearest waypoint (moving)
 				default:
 					buf[i++] = *s++;
 					continue;
@@ -1361,7 +1368,8 @@ skip:
 */
 
 typedef struct locdata_s {
-	vec3_t coord;
+	vec3_t min;
+	vec3_t max;
 	char name[MAX_LOC_NAME];
 } locdata_t;
 
@@ -1379,6 +1387,7 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 	int		i, argc;
 	int		errorcount = 0;
 	locdata_t	*loc;
+	char *comma, *space;
 
 	if (!*filename)
 		return;
@@ -1387,7 +1396,8 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 	COM_DefaultExtension (fullpath, ".loc", sizeof(fullpath));
 
 	buf = (char *) COM_LoadTempFile (fullpath);
-	if (!buf) {
+	if (!buf)
+	{
 		if (!quiet)
 			Com_Printf ("Could not load %s\n", fullpath);
 		return;
@@ -1398,12 +1408,14 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 	// parse the file
 	// we rely on the fact that FS_Load*File always appends a 0 at the end
 	p = buf;
-	while (1) {
+	while (1)
+	{
 		if (!*p)
 			break;		// end of file
 
 		// get a line out
-		for (i = 0; i < sizeof(line)-1; ) {
+		for (i = 0; i < sizeof(line)-1; )
+		{
 			char c = *p++;
 			if (!c || c == 10)
 				break;
@@ -1412,38 +1424,113 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 		}
 		line[i] = 0;
 
-		Cmd_TokenizeString (line, true, false);
+		comma = strchr(line, ',');
+		space = strchr(line, ' ');
 
-		argc = Cmd_Argc();
-		if (!argc)
-			continue;
+		if (comma && (comma < space || !space))
+		{
+			vec3_t min, max;
+			
+			min[0] = strtod(line, &comma);
+			if (*comma++ == ',')
+			{
+				while(*comma == ' ' || *comma == '\t')
+					comma++;
+				min[1] = strtod(comma, &comma);
+				if (*comma++ == ',')
+				{
+					while(*comma == ' ' || *comma == '\t')
+						comma++;
+					min[2] = strtod(comma, &comma);
+					if (*comma++ == ',')
+					{
+						while(*comma == ' ' || *comma == '\t')
+							comma++;
+						max[0] = strtod(comma, &comma);
+						if (*comma++ == ',')
+						{
+							while(*comma == ' ' || *comma == '\t')
+								comma++;
+							max[1] = strtod(comma, &comma);
+							if (*comma++ == ',')
+							{
+								while(*comma == ' ' || *comma == '\t')
+									comma++;
+								max[2] = strtod(comma, &comma);
+								if (*comma++ == ',')
+								{
+									if (loc_numentries >= MAX_LOC_ENTRIES)
+										continue;
+									loc = &locdata[loc_numentries];
+									loc_numentries++;
 
-		if (argc < 4) {
+									while(*comma == ' ' || *comma == '\t')
+										comma++;
+									if (*comma == '\"')
+										COM_ParseOut(comma, loc->name, sizeof(loc->name));
+									else
+										Q_strncpyz(loc->name, comma, sizeof(loc->name));
+
+									for (i = 0; i < 3; i++)
+									{
+										if (min[i] > max[i])
+										{
+											loc->min[i] = max[i];
+											loc->max[i] = min[i];
+										}
+										else
+										{
+											loc->min[i] = min[i];
+											loc->max[i] = max[i];
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
 			errorcount++;
-			continue;
 		}
+		else
+		{
+			Cmd_TokenizeString (line, true, false);
 
-		if (atoi(Cmd_Argv(0)) == 0 && Cmd_Argv(0)[0] != '0') {
-			// first token is not a number
-			errorcount++;
-			continue;
-		}
+			argc = Cmd_Argc();
+			if (!argc)
+				continue;
 
-		if (loc_numentries >= MAX_LOC_ENTRIES)
-			continue;
+			if (argc < 4)
+			{
+				errorcount++;
+				continue;
+			}
 
-		loc = &locdata[loc_numentries];
-		loc_numentries++;
+			if (atoi(Cmd_Argv(0)) == 0 && Cmd_Argv(0)[0] != '0')
+			{
+				// first token is not a number
+				errorcount++;
+				continue;
+			}
 
-		for (i = 0; i < 3; i++)
-			loc->coord[i] = atoi(Cmd_Argv(i)) / 8.0;
+			if (loc_numentries >= MAX_LOC_ENTRIES)
+				continue;
 
-		loc->name[0] = 0;
-		loc->name[sizeof(loc->name)-1] = 0;	// can't rely on strncat
-		for (i = 3; i < argc; i++) {
-			if (i != 3)
-				strncat (loc->name, " ", sizeof(loc->name)-1);
-			strncat (loc->name, Cmd_Argv(i), sizeof(loc->name)-1);
+			loc = &locdata[loc_numentries];
+			loc_numentries++;
+
+			for (i = 0; i < 3; i++)
+				loc->min[i] = loc->max[i] = atoi(Cmd_Argv(i)) / 8.0;
+
+			loc->name[0] = 0;
+			loc->name[sizeof(loc->name)-1] = 0;	// can't rely on strncat
+			for (i = 3; i < argc; i++)
+			{
+				if (i != 3)
+					strncat (loc->name, " ", sizeof(loc->name)-1);
+				strncat (loc->name, Cmd_Argv(i), sizeof(loc->name)-1);
+			}
 		}
 	}
 
@@ -1464,7 +1551,7 @@ static void TP_LoadLocFile_f (void)
 
 char *TP_LocationName (vec3_t location)
 {
-	int		i, minnum;
+	int		i, j, minnum;
 	float	dist, mindist;
 	vec3_t	vec;
 	static qbool	recursive;
@@ -1479,12 +1566,21 @@ char *TP_LocationName (vec3_t location)
 	minnum = 0;
 	mindist = 9999999;
 
-	for (i = 0; i < loc_numentries; i++) {
-		VectorSubtract (location, locdata[i].coord, vec);
+	for (i = 0; i < loc_numentries; i++)
+	{
+		//clip the point to the box, to find the nearest point within it.
+		for (j = 0; j < 3; j++)
+			vec[j] = bound(locdata[i].min[j], location[j], locdata[i].max[j]);
+		VectorSubtract (location, vec, vec);
 		dist = VectorLength (vec);
-		if (dist < mindist) {
+		if (dist < mindist)
+		{
 			minnum = i;
 			mindist = dist;
+
+			//break out if we're actually inside it, to always favour the first.
+			if (dist < 0.01)
+				break;
 		}
 	}
 
@@ -1958,7 +2054,7 @@ void TP_NewMap (void)
 	if (strcmp(host_mapname.string, last_map))
 	{	// map name has changed
 		loc_numentries = 0;	// clear loc file
-		if (tp_loadlocs.value && cl.deathmatch && !cls.demoplayback)
+		if (tp_loadlocs.value && cl.allocated_client_slots > 1 && !cls.demoplayback)
 		{
 			Q_snprintfz (locname, sizeof(locname), "%s.loc", host_mapname.string);
 			TP_LoadLocFile (locname, true);

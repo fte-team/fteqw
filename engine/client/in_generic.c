@@ -465,7 +465,7 @@ void IN_KeyEvent(int devid, int down, int keycode, int unicode)
 	if (!ev)	
 		return;
 	ev->type = down?IEV_KEYDOWN:IEV_KEYRELEASE;
-	ev->devid = 0;
+	ev->devid = devid;
 	ev->keyboard.scancode = keycode;
 	ev->keyboard.unicode = unicode;
 	in_finishevent();

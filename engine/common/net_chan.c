@@ -170,7 +170,17 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= PEXT_CSQC | PEXT_FLOATCOORDS | PEXT_HLBSP | PEXT_Q2BSP | PEXT_Q3BSP;
+			mask &= 
+#ifdef PEXT_CSQC
+					PEXT_CSQC |
+#endif
+#ifdef PEXT_Q2BSP
+					PEXT_Q2BSP |
+#endif
+#ifdef PEXT_Q3BSP
+					PEXT_Q3BSP |
+#endif
+					PEXT_FLOATCOORDS | PEXT_HLBSP;
 
 			//these all depend fully upon the player/entity deltas, and don't make sense for NQ. Implement PEXT2_REPLACEMENTDELTAS instead.
 			mask &= ~(PEXT_SCALE|PEXT_TRANS|PEXT_ACCURATETIMINGS|PEXT_FATNESS|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_COLOURMOD|PEXT_SPAWNSTATIC2|PEXT_256PACKETENTITIES|PEXT_SETATTACHMENT|PEXT_DPFLAGS); 

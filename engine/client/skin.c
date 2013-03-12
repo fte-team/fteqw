@@ -299,7 +299,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		//use 24bit skins even if gl_load24bit is failed
 		if (strcmp(skin->name, baseskin.string))
 		{
-			if (!gl_load24bit.value)
+//			if (!gl_load24bit.value)
 			{
 				TEXASSIGN(skin->textures.base, R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA));
 				if (TEXVALID(skin->textures.base))

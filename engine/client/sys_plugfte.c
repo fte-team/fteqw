@@ -481,7 +481,7 @@ vfsfile_t *VFSPIPE_Open(void)
 //#endif
 
 
-qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
+qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, DWORD datalen)
 {
 	qboolean result = false;
 	DWORD resultlen = datalen - 1;
@@ -500,7 +500,7 @@ qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *da
 	return result;
 }
 
-void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, DWORD datalen)
 {
 	HKEY subkey;
 	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
@@ -797,7 +797,7 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 	char basedir[1024];
 	qboolean autoupdate;
 
-	Q_snprintfz(exe, sizeof(exe), "%s%s", binarypath, "fteqw");
+	*exe = 0;
 	*basedir = 0;
 
 	autoupdate = Plug_GetBinaryName(exe, sizeof(exe), basedir, sizeof(basedir));
@@ -881,6 +881,13 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 		ADDRARG("-addbasegame");
 		ADDCARG(tok);
 	}
+
+	if (ctx->datadownload)
+	{
+		ADDRARG("-manifest");
+		ADDCARG(ctx->datadownload);
+	}
+
 	return argc;
 }
 qboolean Plug_GenCommandlineString(struct context *ctx, char *cmdline, int cmdlinelen)

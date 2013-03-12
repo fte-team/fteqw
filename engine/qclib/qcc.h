@@ -45,6 +45,8 @@ extern float   (*PRLittleFloat) (float l);
 #define	MAX_NAME		256		// chars long
 
 extern unsigned int MAX_REGS;
+extern unsigned int MAX_LOCALS;
+extern unsigned int MAX_TEMPS;
 
 extern int	MAX_STRINGS;
 extern int	MAX_GLOBALS;
@@ -509,7 +511,7 @@ extern pbool opt_return_only;
 extern pbool opt_compound_jumps;
 //extern pbool opt_comexprremoval;
 extern pbool opt_stripfunctions;
-extern pbool opt_locals_marshalling;
+extern pbool opt_locals_overlapping;
 extern pbool opt_logicops;
 extern pbool opt_vectorcalls;
 
@@ -531,7 +533,7 @@ extern int optres_return_only;
 extern int optres_compound_jumps;
 //extern int optres_comexprremoval;
 extern int optres_stripfunctions;
-extern int optres_locals_marshalling;
+extern int optres_locals_overlapping;
 extern int optres_logicops;
 
 pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms);
@@ -582,6 +584,7 @@ enum {
 	WARN_TOOFEWPARAMS,
 	WARN_TOOMANYPARAMS,
 	WARN_UNEXPECTEDPUNCT,
+	WARN_UNINITIALIZED,
 	WARN_ASSIGNMENTTOCONSTANT,
 	WARN_ASSIGNMENTTOCONSTANTFUNC,
 	WARN_MISSINGRETURNVALUE,
@@ -596,6 +599,7 @@ enum {
 	WARN_STRINGTOOLONG,
 	WARN_BADTARGET,
 	WARN_BADPRAGMA,
+	WARN_NOTUTF8,
 	WARN_HANGINGSLASHR,
 	WARN_NOTDEFINED,
 	WARN_NOTCONSTANT,
@@ -782,7 +786,11 @@ extern	QCC_def_t	*pr_scope;
 extern	int		pr_error_count, pr_warning_count;
 
 void QCC_PR_NewLine (pbool incomment);
-QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, pbool saved);
+#define GDF_NONE		0
+#define GDF_SAVED	1
+#define GDF_STATIC	2
+#define GDF_CONST	4
+QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, unsigned int flags);
 
 void QCC_PR_PrintDefs (void);
 
@@ -822,6 +830,9 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname);
 void PostCompile(void);
 pbool PreCompile(void);
 
+
+#define FIRST_LOCAL (MAX_REGS)
+#define FIRST_TEMP (MAX_REGS+MAX_LOCALS)
 //=============================================================================
 
 extern char	pr_immediate_string[8192];

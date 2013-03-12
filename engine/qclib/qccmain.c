@@ -28,6 +28,8 @@ void *FS_ReadToMem(char *fname, void *membuf, int *len);
 void FS_CloseFromMem(void *mem);
 
 unsigned int MAX_REGS;
+unsigned int MAX_LOCALS = 0x10000;
+unsigned int MAX_TEMPS = 0x10000;
 
 int	MAX_STRINGS;
 int	MAX_GLOBALS;
@@ -175,6 +177,8 @@ struct {
 	{" Q111", WARN_DUPLICATELABEL},
 	{" Q201", WARN_ASSIGNMENTINCONDITIONAL},
 	{" F300", WARN_DEADCODE},
+	{" F301", WARN_NOTUTF8},
+	{" F302", WARN_UNINITIALIZED},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -234,11 +238,11 @@ optimisations_t optimisations[] =
 	{&opt_overlaptemps,				"r",	1,	FLAG_ASDEFAULT,			"overlaptemps",		"Optimises the pr_globals count by overlapping temporaries. In QC, every multiplication, division or operation in general produces a temporary variable. This optimisation prevents excess, and in the case of Hexen2's gamecode, reduces the count by 50k. This is the most important optimisation, ever."},
 	{&opt_constantarithmatic,		"a",	1,	FLAG_ASDEFAULT,			"constantarithmatic", "5*6 actually emits an operation into the progs. This prevents that happening, effectivly making the compiler see 30"},
 	{&opt_precache_file,			"pf",	2,	0,						"precache_file",	"Strip out stuff wasted used in function calls and strings to the precache_file builtin (which is actually a stub in quake)."},
-	{&opt_return_only,				"ro",	3,	FLAG_KILLSDEBUGGERS,					"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
-	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,					"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
+	{&opt_return_only,				"ro",	3,	FLAG_KILLSDEBUGGERS,	"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
+	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
 	{&opt_stripfunctions,			"sf",	4,	0,						"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
-	{&opt_locals_marshalling,		"lm",	4,	FLAG_KILLSDEBUGGERS,		"locals_marshalling", "Store all locals in one section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps. It's been noticed as buggy by a few, however, and the curcumstances where it causes problems are not yet known."},
+	{&opt_locals_overlapping,		"lo",	4,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,					"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{NULL}
 };
@@ -366,11 +370,17 @@ void QCC_BspModels (void)
 */
 }
 
+typedef struct stringtab_s
+{
+	struct stringtab_s *prev;
+	char *ofs;
+	int len;
+} stringtab_t;
+stringtab_t *stringtablist[256];
 // CopyString returns an offset from the string heap
 int	QCC_CopyString (char *str)
 {
 	int		old;
-	char *s;
 
 	if (!str)
 		return 0;
@@ -379,12 +389,35 @@ int	QCC_CopyString (char *str)
 
 	if (opt_noduplicatestrings)
 	{
+#if 1
+		//more scalable (faster) version.
+		stringtab_t *t;
+		int len = strlen(str);
+		unsigned char key = str[len-1];
+		for (t = stringtablist[key]; t; t = t->prev)
+		{
+			if (t->len >= len)
+				if (!strcmp(t->ofs + t->len - len, str))
+				{
+					optres_noduplicatestrings += len;
+					return (t->ofs + t->len - len)-strings;
+				}
+		}
+		t = qccHunkAlloc(sizeof(*t));
+		t->prev = stringtablist[key];
+		stringtablist[key] = t;
+		t->ofs = strings+strofs;
+		t->len = len;
+#elif 1
+		//bruteforce
+		char *s;
 		for (s = strings; s < strings+strofs; s++)
 			if (!strcmp(s, str))
 			{
 				optres_noduplicatestrings += strlen(str);
 				return s-strings;
 			}
+#endif
 	}
 
 	old = strofs;
@@ -542,6 +575,7 @@ void QCC_InitData (void)
 
 	qcc_sourcefile = NULL;
 
+	memset(stringtablist, 0, sizeof(stringtablist));
 	numstatements = 1;
 	strofs = 2;
 	numfunctions = 1;
@@ -588,42 +622,43 @@ int WriteBodylessFuncs (int handle)
 	return ret;
 }
 
-//marshalled locals remaps all the functions to use the range MAX_REGS onwards for the offset to their locals.
-//this function remaps all the locals back into the function.
+//marshalled locals still point to the FIRST_LOCAL range.
+//this function remaps all the locals back into actual usable defs.
 void QCC_UnmarshalLocals(void)
 {
 	QCC_def_t		*def;
 	unsigned int ofs;
 	unsigned int maxo;
 	int i;
+	extern int tempsused;
 
 	ofs = numpr_globals;
 	maxo = ofs;
 
 	for (def = pr.def_head.next ; def ; def = def->next)
 	{
-		if (def->ofs >= MAX_REGS)	//unmap defs.
+		if (def->ofs >= FIRST_LOCAL)	//unmap defs.
 		{
-			def->ofs = def->ofs + ofs - MAX_REGS;
-			if (maxo < def->ofs)
-				maxo = def->ofs;
+			def->ofs = def->ofs + ofs - FIRST_LOCAL;
+			if (maxo < def->ofs + def->type->size)
+				maxo = def->ofs + def->type->size;
 		}
 	}
 
 	for (i = 0; i < numfunctions; i++)
 	{
-		if (functions[i].parm_start == MAX_REGS)
+		if (functions[i].parm_start == FIRST_LOCAL)
 			functions[i].parm_start = ofs;
 	}
 
-	QCC_RemapOffsets(0, numstatements, MAX_REGS, MAX_REGS + maxo-numpr_globals + 3, ofs);
+	QCC_RemapOffsets(0, numstatements, FIRST_LOCAL, FIRST_LOCAL+(maxo-ofs), ofs);
+	QCC_RemapOffsets(0, numstatements, FIRST_TEMP, FIRST_TEMP+tempsused, maxo);
 
-	numpr_globals = maxo+3;
+	numpr_globals = maxo+tempsused;
 	if (numpr_globals > MAX_REGS)
 		QCC_Error(ERR_TOOMANYGLOBALS, "Too many globals are in use to unmarshal all locals");
 
-	if (maxo-ofs)
-		printf("Total of %i marshalled globals\n", maxo-ofs);
+	printf("Total of %i locals, %i temps\n", maxo-ofs, tempsused);
 }
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
@@ -825,7 +860,7 @@ pbool QCC_WriteData (int crc)
 
 		if (def->type->type == ev_function)
 		{
-			if (opt_function_names && functions[G_FUNCTION(def->ofs)].first_statement<0)
+			if (opt_function_names && def->initialized && functions[G_FUNCTION(def->ofs)].first_statement<0)
 			{
 				optres_function_names++;
 				def->name = "";
@@ -847,7 +882,7 @@ pbool QCC_WriteData (int crc)
 //			numfunctions++;
 
 		}
-		else if (def->type->type == ev_field && def->constant)
+		else if (def->type->type == ev_field && def->constant && (!def->scope || def->isstatic))
 		{
 			if (numfielddefs >= MAX_FIELDS)
 				QCC_PR_ParseError(0, "Too many fields. Limit is %u\n", MAX_FIELDS);
@@ -1018,8 +1053,6 @@ strofs = (strofs+3)&~3;
 		}
 	}
 
-	for (i=0 ; i<numstatements ; i++)
-
 	switch(outputsttype)
 	{
 	case PST_KKQWSV:
@@ -1164,6 +1197,9 @@ strofs = (strofs+3)&~3;
 	default:
 		Sys_Error("structtype error");
 	}
+
+//	if (verbose)
+//		QCC_PrintFields();
 
 	switch(outputsttype)
 	{
@@ -1704,7 +1740,6 @@ called before compiling a batch of files, clears the pr struct
 void	QCC_PR_BeginCompilation (void *memory, int memsize)
 {
 	extern int recursivefunctiontype;
-	extern struct freeoffset_s *freeofs;
 	int		i;
 	char name[16];
 
@@ -1775,8 +1810,6 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	pr_error_count = 0;
 	pr_warning_count = 0;
 	recursivefunctiontype = 0;
-
-	freeofs = NULL;
 }
 
 /*
@@ -2727,6 +2760,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
 				qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
 				qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
+				qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
 			}
 			else
 			{
@@ -2861,7 +2895,7 @@ void QCC_SetDefaultProperties (void)
 	//play with default warnings.
 	qccwarningaction[WARN_NOTREFERENCEDCONST] = WA_IGNORE;
 	qccwarningaction[WARN_MACROINSTRING] = WA_IGNORE;
-//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = true;
+//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_IGNORE;
 	qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
 	qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
 	qccwarningaction[WARN_DEADCODE] = WA_IGNORE;
@@ -2870,6 +2904,8 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_EXTENSION_USED] = WA_IGNORE;
 	qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;
 	qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
+	qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
+	qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;	//not sure about this being ignored by default.
 
 	if (QCC_CheckParm("-h2"))
 		qccwarningaction[WARN_CASEINSENSATIVEFRAMEMACRO] = WA_IGNORE;
@@ -2954,7 +2990,7 @@ extern int accglobalsblock;
 char *originalqccmsrc;	//for autoprototype.
 void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
-	extern int			pr_bracelevel;
+	extern int			pr_bracelevel, tempsused;
 	time_t long_time;
 
 	int		p;
@@ -2968,6 +3004,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	myargc = argc;
 	myargv = argv;
+	pr_scope = NULL;
 
 	qcc_compileactive = true;
 
@@ -3072,7 +3109,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	optres_compound_jumps = 0;
 //	optres_comexprremoval = 0;
 	optres_stripfunctions = 0;
-	optres_locals_marshalling = 0;
+	optres_locals_overlapping = 0;
 	optres_logicops = 0;
 
 	optres_test1 = 0;
@@ -3082,6 +3119,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 
 	numtemps = 0;
+	tempsused = 0;
 
 	QCC_PurgeTemps();
 
@@ -3097,7 +3135,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	pr_bracelevel = 0;
 
-	qcc_pr_globals = (void *)qccHunkAlloc(sizeof(float) * MAX_REGS);
+	qcc_pr_globals = (void *)qccHunkAlloc(sizeof(float) * (MAX_REGS + MAX_LOCALS + MAX_TEMPS));
 	numpr_globals=0;
 
 	Hash_InitTable(&globalstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
@@ -3180,10 +3218,6 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		pHash_GetNext = &Hash_GetNextInsensative;
 		pHash_Add = &Hash_AddInsensative;
 	}
-
-
-	if (opt_locals_marshalling)
-		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nLocals marshalling might be buggy. Use with caution\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
 	p = QCC_CheckParm ("-src");
 	if (p && p < argc-1 )
@@ -3539,8 +3573,8 @@ void QCC_FinishCompile(void)
 		//		printf("optres_comexprremoval %i\n", optres_comexprremoval);
 			if (optres_stripfunctions)
 				printf("optres_stripfunctions %i\n", optres_stripfunctions);
-			if (optres_locals_marshalling)
-				printf("optres_locals_marshalling %i\n", optres_locals_marshalling);
+			if (optres_locals_overlapping)
+				printf("optres_locals_overlapping %i\n", optres_locals_overlapping);
 			if (optres_logicops)
 				printf("optres_logicops %i\n", optres_logicops);
 

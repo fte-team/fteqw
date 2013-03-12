@@ -15,7 +15,7 @@
 LoadFile
 ==============
 */
-unsigned char *QCC_ReadFile (const char *fname, void *buffer, int len)
+unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len)
 {
 	long    length;
 	FILE *f;
@@ -30,7 +30,7 @@ unsigned char *QCC_ReadFile (const char *fname, void *buffer, int len)
 
 	return buffer;
 }
-int QCC_FileSize (const char *fname)
+int PDECL QCC_FileSize (const char *fname)
 {
 	long    length;
 	FILE *f;
@@ -44,7 +44,7 @@ int QCC_FileSize (const char *fname)
 	return length;
 }
 
-pbool QCC_WriteFile (const char *name, void *data, int len)
+pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 {
 	long    length;
 	FILE *f;

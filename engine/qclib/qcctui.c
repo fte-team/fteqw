@@ -8,7 +8,7 @@
 LoadFile
 ==============
 */
-unsigned char *QCC_ReadFile (char *fname, void *buffer, int len)
+unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len)
 {
 	long    length;
 	FILE *f;
@@ -23,7 +23,7 @@ unsigned char *QCC_ReadFile (char *fname, void *buffer, int len)
 
 	return buffer;
 }
-int QCC_FileSize (char *fname)
+int PDECL QCC_FileSize (const char *fname)
 {
 	long    length;
 	FILE *f;
@@ -37,7 +37,7 @@ int QCC_FileSize (char *fname)
 	return length;
 }
 
-pbool QCC_WriteFile (char *name, void *data, int len)
+pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 {
 	long    length;
 	FILE *f;
@@ -56,7 +56,7 @@ pbool QCC_WriteFile (char *name, void *data, int len)
 #undef printf
 #undef Sys_Error
 
-void Sys_Error(const char *text, ...)
+void PDECL Sys_Error(const char *text, ...)
 {
 	va_list argptr;
 	static char msg[2048];	
@@ -97,13 +97,13 @@ int main (int argc, char **argv)
 	progfuncs_t funcs;
 	progfuncs = &funcs;
 	memset(&funcs, 0, sizeof(funcs));
-	funcs.parms = &ext;
+	funcs.funcs.parms = &ext;
 	memset(&ext, 0, sizeof(progexterns_t));
-	funcs.parms->ReadFile = QCC_ReadFile;
-	funcs.parms->FileSize = QCC_FileSize;
-	funcs.parms->WriteFile = QCC_WriteFile;
-	funcs.parms->printf = logprintf;
-	funcs.parms->Sys_Error = Sys_Error;
+	funcs.funcs.parms->ReadFile = QCC_ReadFile;
+	funcs.funcs.parms->FileSize = QCC_FileSize;
+	funcs.funcs.parms->WriteFile = QCC_WriteFile;
+	funcs.funcs.parms->Printf = logprintf;
+	funcs.funcs.parms->Sys_Error = Sys_Error;
 	logfile = fopen("fteqcc.log", "wt");
 	sucess = CompileParams(&funcs, true, argc, argv);
 	qccClearHunk();

@@ -541,7 +541,10 @@ reeval:
 	case OP_LOAD_S:
 	case OP_LOAD_FNC:
 		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+		{
+			pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "OP_LOAD references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -552,7 +555,10 @@ reeval:
 
 	case OP_LOAD_V:
 		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+		{
+			pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "OP_LOAD_V references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range

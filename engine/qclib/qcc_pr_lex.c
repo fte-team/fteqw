@@ -369,9 +369,10 @@ int ParsePrecompilerIf(int level)
 
 static void QCC_PR_SkipToEndOfLine(void)
 {
+	pbool handlecomments = true;
 	while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 	{
-		if (*pr_file_p == '/' && pr_file_p[1] == '*')
+		if (*pr_file_p == '/' && pr_file_p[1] == '*' && handlecomments)
 		{
 			pr_file_p += 2;
 			while(*pr_file_p)
@@ -385,6 +386,11 @@ static void QCC_PR_SkipToEndOfLine(void)
 					pr_source_line++;
 				*pr_file_p++;
 			}
+		}
+		else if (*pr_file_p == '/' && pr_file_p[1] == '/' && handlecomments)
+		{
+			handlecomments = false;
+			pr_file_p += 2;
 		}
 		else if (*pr_file_p == '\\' && pr_file_p[1] == '\r' && pr_file_p[2] == '\n')
 		{	/*windows endings*/
@@ -569,7 +575,7 @@ pbool QCC_PR_Precompiler(void)
 					if (!strncmp(pr_file_p, "endif", 5))
 						level--;
 					if (!strncmp(pr_file_p, "if", 2))
-							level++;
+						level++;
 					if (!strncmp(pr_file_p, "else", 4) && level == 1)
 					{
 						ifs+=1;
@@ -1402,6 +1408,46 @@ void QCC_PR_LexString (void)
 			pr_token_type = tt_immediate;
 			pr_immediate_type = type_string;
 			strcpy (pr_immediate_string, pr_token);
+
+			if (qccwarningaction[WARN_NOTUTF8])
+			{
+				len = 0;
+				//this doesn't do over-long checks.
+				for (c = 0; pr_token[c]; c++)
+				{
+					if (len)
+					{
+						if ((pr_token[c] & 0xc0) != 0x80)
+							break;
+						len--;
+					}
+					else if (pr_token[c] & 0x80)
+					{
+						if (!(pr_token[c] & 0x40))
+						{
+							//error.
+							len = 1;
+							break;
+						}
+						else if (!(pr_token[c] & 0x20))
+							len = 2;
+						else if (!(pr_token[c] & 0x10))
+							len = 3;
+						else if (!(pr_token[c] & 0x08))
+							len = 4;
+						else if (!(pr_token[c] & 0x04))
+							len = 5;
+						else if (!(pr_token[c] & 0x02))
+							len = 6;
+						else if (!(pr_token[c] & 0x01))
+							len = 7;
+						else
+							len = 8;
+					}
+				}
+				if (len)
+					QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8\n");
+			}
 			return;
 		}
 		else if (c == '#')

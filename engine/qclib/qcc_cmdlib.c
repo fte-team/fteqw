@@ -304,13 +304,12 @@ skipwhite:
 		if (len >= sizeof(qcc_token)-1)
 			;
 		else
-			qcc_token[len] = c;
+			qcc_token[len++] = c;
 		data++;
-		len++;
 		c = *data;
 		if (c=='{' || c=='}'|| c==')'|| c=='(' || c=='\'' || c==':' || c=='\"' || c==',')
 			break;
-	} while (!qcc_iswhite(c));
+	} while (c && !qcc_iswhite(c));
 
 	qcc_token[len] = 0;
 	return data;
@@ -367,8 +366,7 @@ skipwhite:
 			if (len >= sizeof(qcc_token)-1)
 				;
 			else
-				qcc_token[len] = c;
-			len++;
+				qcc_token[len++] = c;
 		} while (1);
 	}
 
@@ -383,9 +381,11 @@ skipwhite:
 			data++;
 			for(;;)
 			{	//parse regular number
-				qcc_token[len] = c;
+				if (len >= sizeof(qcc_token)-1)
+					;
+				else
+					qcc_token[len++] = c;
 				data++;
-				len++;
 				c = *data;
 				if ((c<'0'|| c>'9') && (c<'a'||c>'f') && (c<'A'||c>'F') && c != '.')
 					break;
@@ -399,9 +399,8 @@ skipwhite:
 				if (len >= sizeof(qcc_token)-1)
 					;
 				else
-					qcc_token[len] = c;
+					qcc_token[len++] = c;
 				data++;
-				len++;
 				c = *data;
 				if ((c<'0'|| c>'9') && c != '.')
 					break;
@@ -419,9 +418,8 @@ skipwhite:
 			if (len >= sizeof(qcc_token)-1)
 				;
 			else
-				qcc_token[len] = c;
+				qcc_token[len++] = c;
 			data++;
-			len++;
 			c = *data;
 		} while ((c>= 'a' && c <= 'z') || (c>= 'A' && c <= 'Z') || c == '_');
 

@@ -2044,11 +2044,11 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 		//try to deal with surrogates by decoding the low if we see a high.
 		if (uc >= 0xd800u && uc < 0xdc00u)
 		{
-#if 0
+#if 1
 			//cesu-8
-			void *lowend;
-			unsigned int lowsur = utf_decode(&error, str + l, &lowend);
-			if (*error == 4 && lowsur >= 0xdc00u && lowsur < 0xe000u)
+			char *lowend;
+			unsigned int lowsur = utf8_decode(error, str + l, &lowend);
+			if (*error == 4)
 			{
 				*out = lowend;
 				uc = (((uc&0x3ff) << 10) || (lowsur&0x3ff)) + 0x10000;
@@ -2057,11 +2057,11 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 			else
 #endif
 			{
-				*error = 3;	//bad lead surrogate.
+				*error = 3;	//bad - lead surrogate without tail.
 			}
 		}
-		if (uc >= 0xd800u && uc < 0xdc00u)
-			*error = 4;	//bad tail surrogate
+		if (uc >= 0xdc00u && uc < 0xe000u)
+			*error = 4;	//bad - tail surrogate
 
 		//these are meant to be illegal too
 		if (uc == 0xfffeu || uc == 0xffffu || uc > 0x10ffff)

@@ -1047,7 +1047,7 @@ fixedorg:
 		for (i=0 ; i<3 ; i++)
 		{
 			lrp[i] = to->playerstate[spec_track[pnum]].origin[i] +
-			f * (from->playerstate[spec_track[pnum]].origin[i] - to->playerstate[cl.playernum[pnum]].origin[i]);
+			f * (from->playerstate[spec_track[pnum]].origin[i] - to->playerstate[spec_track[pnum]].origin[i]);
 
 			lrpv[i] = to->playerstate[spec_track[pnum]].velocity[i] +
 			f * (from->playerstate[spec_track[pnum]].velocity[i] - to->playerstate[spec_track[pnum]].velocity[i]);

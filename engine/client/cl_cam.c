@@ -134,6 +134,7 @@ void Cam_Lock(int pnum, int playernum)
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		memcpy(&cl.playerview[pnum].stats, cl.players[playernum].stats, sizeof(cl.playerview[pnum].stats));
+		locked[pnum] = true;	//instantly lock if the player is valid.
 	}
 
 	Sbar_Changed();
@@ -470,8 +471,6 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 		if (scr_chatmode != 2)
 			cam_lastviewtime[pnum] = realtime;
 
-		cmd->forwardmove = cmd->sidemove = cmd->upmove = 0;
-
 		VectorCopy(player->viewangles, cl.playerview[pnum].viewangles);
 		if (memcmp(player->origin, &self->origin, sizeof(player->origin)) != 0)
 		{
@@ -555,12 +554,71 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 	int i;
 	player_info_t	*s;
 	int end;
+	extern cvar_t cl_demospeed, cl_splitscreen;
 
 	if (cls.state != ca_active)
 		return;
 
 	if (!cl.spectator && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) // only in spectator mode
 		return;
+
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
+		int nb;
+		nb = (cmd->sidemove<0)?4:0;
+		nb |= (cmd->sidemove>0)?8:0;
+		nb |= (cmd->forwardmove<0)?16:0;
+		nb |= (cmd->forwardmove>0)?32:0;
+		nb |= (cmd->upmove<0)?64:0;
+		nb |= (cmd->upmove>0)?128:0;
+		if (nb & (nb ^ oldbuttons[pnum]) & 4)
+			Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
+		if (nb & (nb ^ oldbuttons[pnum]) & 8)
+			Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
+		if (nb & (nb ^ oldbuttons[pnum]) & (4|8))
+			Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+		if (nb & (nb ^ oldbuttons[pnum]) & 16)
+			Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
+		if (nb & (nb ^ oldbuttons[pnum]) & 32)
+			Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);
+		if (nb & (nb ^ oldbuttons[pnum]) & (4|8))
+			Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+		if (nb & (nb ^ oldbuttons[pnum]) & 64)
+			Cvar_SetValue(&cl_splitscreen, max(cl_splitscreen.ival - 1, 0));
+		if (nb & (nb ^ oldbuttons[pnum]) & 128)
+			Cvar_SetValue(&cl_splitscreen, min(cl_splitscreen.ival + 1, MAX_SPLITS-1));
+		oldbuttons[pnum] = (oldbuttons[pnum] & 3) | (nb & ~3);
+		if (cmd->impulse)
+		{
+			int pl = cmd->impulse;
+			for (i = 0; ; i++)
+			{
+				if (i == MAX_CLIENTS)
+				{
+					if (pl == cmd->impulse)
+						break;
+					i = 0;
+				}
+
+				s = &cl.players[i];
+				if (s->name[0] && !s->spectator)
+				{
+					pl--;
+					if (!pl)
+					{
+						Cam_Lock(pnum, i);
+
+						pnum++;
+						if (pnum < cl.splitclients)
+							pl = 1;
+						else
+							break;
+					}
+				}
+			}
+			return;
+		}
+	}
 
 	if (cmd->buttons & BUTTON_ATTACK) 
 	{

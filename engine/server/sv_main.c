@@ -1735,6 +1735,7 @@ client_t *SVC_DirectConnect(void)
 
 	unsigned int protextsupported=0;
 	unsigned int protextsupported2=0;
+	extern cvar_t pr_maxedicts;
 
 
 	char *name;
@@ -1993,19 +1994,28 @@ client_t *SVC_DirectConnect(void)
 	newcl->maxmodels = 256;
 	if (protocol == SCP_QUAKEWORLD)	//readd?
 	{
-		newcl->max_net_ents = 512;
-		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL)
-			newcl->max_net_ents += 512;
-		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL2)
-			newcl->max_net_ents += 1024;
+		if (newcl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		{
+			//you need to reconnect for this to update, of course. so make sure its not *too* low...
+			newcl->max_net_ents =  bound(512, pr_maxedicts.ival, 32768);
+			newcl->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
+		}
+		else
+		{
+			newcl->max_net_ents = 512;
+			if (newcl->fteprotocolextensions & PEXT_ENTITYDBL)
+				newcl->max_net_ents += 512;
+			if (newcl->fteprotocolextensions & PEXT_ENTITYDBL2)
+				newcl->max_net_ents += 1024;
+		}
 
 		if (newcl->fteprotocolextensions & PEXT_MODELDBL)
 			newcl->maxmodels = MAX_MODELS;
 	}
 	else if (ISDPCLIENT(newcl))
 	{
-		newcl->max_net_ents = 32767;
-		newcl->maxmodels = 1024;
+		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
+		newcl->maxmodels = 1024;	//protocol limit of 16bits. 15bits for late precaches. client limit of 1k
 	}
 	else
 		newcl->max_net_ents = 600;
@@ -2371,7 +2381,10 @@ client_t *SVC_DirectConnect(void)
 #endif
 	newcl->datagram.allowoverflow = true;
 	newcl->datagram.data = newcl->datagram_buf;
-	newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
+	if (mtu >= 64)
+		newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
+	else
+		newcl->datagram.maxsize = MAX_DATAGRAM;
 
 	newcl->netchan.netprim = svs.netprim;
 	newcl->datagram.prim = svs.netprim;
@@ -2846,10 +2859,10 @@ qboolean SVC_ThrottleInfo (void)
 
 	/*don't allow it to go beyond curtime or we get issues with the logic above*/
 	if (inc > curtime-blockuntil)
-		return true;
+		return false;
 
 	blockuntil += inc;
-	return false;
+	return true;
 }
 /*
 =================
@@ -3023,7 +3036,7 @@ void SVNQ_ConnectionlessPacket(void)
 						{
 							client_t *newcl;
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
-							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4));
+							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
 							Cmd_TokenizeString (str, false, false);
 
 							newcl = SVC_DirectConnect();

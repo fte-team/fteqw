@@ -1167,7 +1167,9 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
 		}
 		break;
+	default:
 	case PSL_NONE:
+		visinfo = NULL;
 		break;	//erm
 	}
 

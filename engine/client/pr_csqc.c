@@ -5490,8 +5490,10 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 
 	if (!csqcprogs || !csqcg.input_event)
 		return false;
+#ifdef TEXTEDITOR
 	if (editormodal)
 		return false;
+#endif
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	G_FLOAT(OFS_PARM0) = down?CSIE_KEYDOWN:CSIE_KEYUP;
@@ -5573,8 +5575,10 @@ qboolean CSQC_ConsoleCommand(char *cmd)
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.console_command)
 		return false;
+#ifdef TEXTEDITOR
 	if (editormodal)
 		return false;
+#endif
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));

@@ -1863,7 +1863,7 @@ void M_Menu_Main_f (void)
 	int mgt;
 
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(va("%s %s", Cmd_Argv(0), Cmd_Args)))
+	if (CSQC_ConsoleCommand(va("%s %s", Cmd_Argv(0), Cmd_Args())))
 		return;
 #endif
 

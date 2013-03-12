@@ -1419,6 +1419,15 @@ static void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "lighttime"))
 			ptype->dl_time = atof(value);
+		else if (!strcmp(var, "lightcubemap"))
+			ptype->dl_cubemapnum = atoi(value);
+		else if (!strcmp(var, "spawnstain"))
+		{
+			ptype->stain_radius = atof(value);
+			ptype->stain_rgb[0] = atof(Cmd_Argv(2));
+			ptype->stain_rgb[1] = atof(Cmd_Argv(3));
+			ptype->stain_rgb[2] = atof(Cmd_Argv(4));
+		}
 		else
 			Con_DPrintf("%s is not a recognised particle type field (in %s)\n", var, ptype->name);
 	}
@@ -1555,13 +1564,15 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		if (ptype->dl_radius)
 		{
 			Q_strncatz(outstr, va("lightradius %g\n", ptype->dl_radius), outstrlen);
-			Q_strncatz(outstr, va("lightradiusfade %g \n", ptype->dl_decay[3]), outstrlen);
+			Q_strncatz(outstr, va("lightradiusfade %g\n", ptype->dl_decay[3]), outstrlen);
 			Q_strncatz(outstr, va("lightrgb %g %g %g\n", ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]), outstrlen);
 			Q_strncatz(outstr, va("lightrgbfade %g %g %g\n", ptype->dl_decay[0], ptype->dl_decay[1], ptype->dl_decay[2]), outstrlen);
 			Q_strncatz(outstr, va("lighttime %g\n", ptype->dl_time), outstrlen);
 			Q_strncatz(outstr, va("lightshadows %g\n", (ptype->flags & PT_NODLSHADOW)?0.0f:1.0f), outstrlen);
 			Q_strncatz(outstr, va("lightcubemap %i\n", ptype->dl_cubemapnum), outstrlen);
 		}
+		if (ptype->stain_radius)
+			Q_strncatz(outstr, va("spawnstain %g %g %g %g\n", ptype->stain_radius, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2]), outstrlen);
 
 		return true;
 

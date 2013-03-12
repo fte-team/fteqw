@@ -2768,7 +2768,6 @@ void QCBUILTIN PF_uri_unescape  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 #ifdef WEBCLIENT
 static void PR_uri_get_callback(struct dl_download *dl)
 {
-	extern pubprogfuncs_t *menuprogs;
 	world_t *w = dl->user_ctx;
 	pubprogfuncs_t *prinst = w->progs;
 	float id = dl->user_num;

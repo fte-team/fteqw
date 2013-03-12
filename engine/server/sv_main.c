@@ -537,6 +537,10 @@ void SV_DropClient (client_t *drop)
 					ED_Clear(svprogfuncs, drop->edict);
 			}
 
+			if (svprogfuncs && drop->edict)
+				drop->edict->v->frags = 0;
+			drop->edict = NULL;
+
 			if (drop->spawninfo)
 				Z_Free(drop->spawninfo);
 			drop->spawninfo = NULL;
@@ -564,7 +568,7 @@ void SV_DropClient (client_t *drop)
 		Z_Free(drop->centerprintstring);
 	drop->centerprintstring = NULL;
 
-	if (!drop->redirect)
+	if (!drop->redirect && drop->state > cs_zombie)
 	{
 		if (drop->spectator)
 			Con_Printf ("Spectator %s removed\n",drop->name);
@@ -607,8 +611,6 @@ void SV_DropClient (client_t *drop)
 	drop->kills = 0;
 	drop->deaths = 0;
 #endif
-	if (svprogfuncs && drop->edict)
-		drop->edict->v->frags = 0;
 	drop->namebuf[0] = 0;
 	drop->name = drop->namebuf;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
@@ -2290,7 +2292,7 @@ client_t *SVC_DirectConnect(void)
 		{
 			if (!newcl)
 			{
-				if (!strcmp(cl->name, name) || !*cl->name)	//named, or first come first serve.
+				if (!strcmp(cl->name, name) || !*cl->name || sv.allocated_client_slots <= 1)	//named, or first come first serve.
 				{
 					newcl = cl;
 					temp.istobeloaded = cl->istobeloaded;

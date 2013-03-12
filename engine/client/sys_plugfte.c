@@ -578,6 +578,10 @@ void Sys_mkdir (char *path)
 	CreateDirectory (path, NULL);
 }
 #else
+void Sys_mkdir (char *path)
+{
+	mkdir (path, 0777);
+}
 qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 {
 	qboolean result = false;
@@ -620,9 +624,12 @@ void Update_Version_Updated(struct dl_download *dl)
 			char pendingname[MAX_OSPATH];
 			FILE *pending;
 			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
-			Q_strncatz(pendingname, DISTRIBUTION BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
+			Q_strncatz(pendingname, "pending" BUILDTYPE EXETYPE ".tmp", sizeof(pendingname));
 			fullsize = VFS_GETLEN(dl->file);
 			Update_CreatePath(pendingname);
+#ifndef _WIN32
+			unlink(pendingname);
+#endif
 			pending = fopen(pendingname, "wb");
 			if (pending)
 			{
@@ -707,7 +714,7 @@ qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 	Update_GetHomeDirectory(currentpath, sizeof(currentpath));
 	Q_strncatz(currentpath, "cur" BUILDTYPE EXETYPE, sizeof(currentpath));
 	Update_GetHomeDirectory(pendingpath, sizeof(pendingpath));
-	Q_strncatz(pendingpath, "pending" BUILDTYPE EXETYPE, sizeof(pendingpath));
+	Q_strncatz(pendingpath, "pending" BUILDTYPE EXETYPE ".tmp", sizeof(pendingpath));
 
 	//truncated to be the same string? :s
 	if (!strcmp(currentpath, pendingpath))
@@ -733,7 +740,7 @@ qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 		if (!stat(currentpath, &st))
 		{
 			//there's a current file, yay.
-			Q_strncpyz(updatedpath, pendingpath, updatedpathlen);
+			Q_strncpyz(updatedpath, currentpath, updatedpathlen);
 		}
 		else
 		{	//no engine available to run. we'll have to download one (we only need to do it in this case because the engine itself autoupdates,
@@ -1061,14 +1068,15 @@ void Plug_ExecuteCommand(struct context *ctx, char *message, ...)
 	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
 	va_end (va);
 
-#ifdef _WIN32
+	if (ctx->pipetoengine)
 	{
+#ifdef _WIN32
 		DWORD written = 0;
 		WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
-	}
 #else
-	write(ctx->pipetoengine, finalmessage, strlen(finalmessage));
+		write(ctx->pipetoengine, finalmessage, strlen(finalmessage));
 #endif
+	}
 }
 
 qboolean Plug_CreatePluginProcess(struct context *ctx)

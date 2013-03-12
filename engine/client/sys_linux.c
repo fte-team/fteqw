@@ -58,6 +58,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 int noconinput = 0;
 int nostdout = 0;
 
+qboolean isPlugin;
+int sys_parentleft;
+int sys_parenttop;
+int sys_parentwidth;
+int sys_parentheight;
+long	sys_parentwindow;
+
+
 char *basedir = ".";
 
 qboolean Sys_InitTerminal (void)	//we either have one or we don't.
@@ -611,6 +619,18 @@ char *Sys_ConsoleInput(void)
 
 		text[len-1] = 0;    // rip off the /n and terminate
 
+//Con_Printf("console input: %s\n", text);
+
+		if (!strncmp(text, "vid_recenter ", 13))
+		{
+			Cmd_TokenizeString(text, false, false);
+			sys_parentleft = strtoul(Cmd_Argv(1), NULL, 0);
+			sys_parenttop = strtoul(Cmd_Argv(2), NULL, 0);
+			sys_parentwidth = strtoul(Cmd_Argv(3), NULL, 0);
+			sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0);
+			sys_parentwindow = strtoul(Cmd_Argv(5), NULL, 16);
+		}
+
 		return text;
 	}
 #endif
@@ -644,6 +664,15 @@ int main (int c, const char **v)
 	parms.membase = malloc (parms.memsize);
 
 	parms.basedir = basedir;
+
+	isPlugin = !!COM_CheckParm("-plugin");
+	if (isPlugin)
+	{
+		printf("status Starting up!\n");
+		fflush(stdout);
+		nostdout = true;
+	}
+
 
 	noconinput = COM_CheckParm("-noconinput");
 	if (!noconinput)
@@ -757,163 +786,6 @@ void Sys_SaveClipboard(char *text) {
 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }
 #endif
-
-#ifdef MULTITHREAD
-/* Thread creation calls */
-typedef void *(*pfunction_t)(void *);
-
-void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
-{
-	pthread_t *thread;
-	pthread_attr_t attr;
-
-	thread = (pthread_t *)malloc(sizeof(pthread_t));
-	if (!thread)
-		return NULL;
-
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	if (stacksize < PTHREAD_STACK_MIN)
-		stacksize = PTHREAD_STACK_MIN;
-	pthread_attr_setstacksize(&attr, stacksize);
-	if (pthread_create(thread, &attr, (pfunction_t)func, args))
-	{
-		free(thread);
-		thread = NULL;
-	}
-	pthread_attr_destroy(&attr);
-
-	return (void *)thread;
-}
-
-void Sys_WaitOnThread(void *thread)
-{
-	pthread_join((pthread_t *)thread, NULL);
-	free(thread);
-}
-
-/* Mutex calls */
-void *Sys_CreateMutex(void)
-{
-	pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-
-	if (mutex && !pthread_mutex_init(mutex, NULL))
-		return mutex;
-	return NULL;
-}
-
-qboolean Sys_TryLockMutex(void *mutex)
-{
-	return !pthread_mutex_trylock(mutex);
-}
-
-qboolean Sys_LockMutex(void *mutex)
-{
-	return !pthread_mutex_lock(mutex);
-}
-
-qboolean Sys_UnlockMutex(void *mutex)
-{
-	return !pthread_mutex_unlock(mutex);
-}
-
-void Sys_DestroyMutex(void *mutex)
-{
-	pthread_mutex_destroy(mutex);
-	free(mutex);
-}
-
-/* Conditional wait calls */
-typedef struct condvar_s
-{
-	pthread_mutex_t *mutex;
-	pthread_cond_t *cond;
-} condvar_t;
-
-void *Sys_CreateConditional(void)
-{
-	condvar_t *condv;
-	pthread_mutex_t *mutex;
-	pthread_cond_t *cond;
-
-	condv = (condvar_t *)malloc(sizeof(condvar_t));
-	if (!condv)
-		return NULL;
-
-	mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	if (!mutex)
-		return NULL;
-
-	cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
-	if (!cond)
-		return NULL;
-
-	if (!pthread_mutex_init(mutex, NULL))
-	{
-		if (!pthread_cond_init(cond, NULL))
-		{
-			condv->cond = cond;
-			condv->mutex = mutex;
-
-			return (void *)condv;
-		}
-		else
-			pthread_mutex_destroy(mutex);
-	}
-
-	free(cond);
-	free(mutex);
-	free(condv);
-	return NULL;
-}
-
-qboolean Sys_LockConditional(void *condv)
-{
-	return !pthread_mutex_lock(((condvar_t *)condv)->mutex);
-}
-
-qboolean Sys_UnlockConditional(void *condv)
-{
-	return !pthread_mutex_unlock(((condvar_t *)condv)->mutex);
-}
-
-qboolean Sys_ConditionWait(void *condv)
-{
-	return !pthread_cond_wait(((condvar_t *)condv)->cond, ((condvar_t *)condv)->mutex);
-}
-
-qboolean Sys_ConditionSignal(void *condv)
-{
-	return !pthread_cond_signal(((condvar_t *)condv)->cond);
-}
-
-qboolean Sys_ConditionBroadcast(void *condv)
-{
-	return !pthread_cond_broadcast(((condvar_t *)condv)->cond);
-}
-
-void Sys_DestroyConditional(void *condv)
-{
-	condvar_t *cv = (condvar_t *)condv;
-
-	pthread_cond_destroy(cv->cond);
-	pthread_mutex_destroy(cv->mutex);
-	free(cv->cond);
-	free(cv->mutex);
-	free(cv);
-}
-#endif
-
-void Sys_Sleep (double seconds)
-{
-	struct timespec ts;
-
-	ts.tv_sec = (time_t)seconds;
-	seconds -= ts.tv_sec;
-	ts.tv_nsec = seconds * 1000000000.0;
-
-	nanosleep(&ts, NULL);
-}
 
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {

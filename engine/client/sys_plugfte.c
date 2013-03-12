@@ -2,6 +2,9 @@
 #include "winquake.h"
 #include "sys_plugfte.h"
 #include "../http/iweb.h"
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
 
 static void UnpackAndExtractPakFiles_Complete(struct dl_download *dl);
 static void pscript_property_splash_sets(struct context *ctx, const char *val);
@@ -95,7 +98,17 @@ void VARGS Con_Printf (const char *fmt, ...)
 	Q_vsnprintfz(dest, sizeof(dest), fmt, argptr);
 	va_end (argptr);
 
+#ifdef _WIN32
 	OutputDebugString(dest);
+#else
+	FILE *f = fopen("/tmp/ftelog", "a");
+	if (f)
+	{
+		fputs(dest, f);
+		fclose(f);
+	}
+	write(2, dest, strlen(dest));
+#endif
 }
 #ifdef _WIN32
 // don't use these functions in MSVC8
@@ -151,12 +164,17 @@ int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...
 #endif
 
 #include "netinc.h"
+#ifndef _WIN32
+#define pgetaddrinfo getaddrinfo
+#define pfreeaddrinfo freeaddrinfo
+#else
 #if 0//def _MSC_VER
 #include <wspiapi.h>
 #define pgetaddrinfo getaddrinfo
 #define pfreeaddrinfo freeaddrinfo
 #else
 #include <ws2tcpip.h>
+#endif
 #endif
 qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize)
 {
@@ -389,7 +407,7 @@ unsigned long VFSPIPE_Tell(vfsfile_t *f)
 }
 qboolean VFSPIPE_Seek(vfsfile_t *f, unsigned long offset)
 {
-	OutputDebugStringA("Seeking is a bad plan, mmkay?\n");
+	Con_Printf("Seeking is a bad plan, mmkay?\n");
 	return false;
 }
 int VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
@@ -457,13 +475,24 @@ vfsfile_t *VFSPIPE_Open(void)
 	#define BUILDTYPE "test"
 	#define UPDATE_URL "http://triptohell.info/moodles/"
 	#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
-	#ifdef _WIN64
-		#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE ".exe"
+
+	//we should perhaps use the uname stuff instead.
+	#ifdef _WIN32
+		#ifdef _WIN64
+			#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE ".exe"
+		#else
+			#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
+		#endif
 	#else
-		#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
+		#if defined(__amd64__)
+			#define UPDATE_URL_BUILD UPDATE_URL "linux_amd64/fteqw." EXETYPE "64"
+		#else
+			#define UPDATE_URL_BUILD UPDATE_URL "linux_x86/fteqw." EXETYPE "32"
+		#endif
 	#endif
 #endif
 
+#ifdef _WIN32
 //#if defined(GLQUAKE) && defined(D3DQUAKE)
 //	#define EXETYPE "qw"
 //#elif defined(GLQUAKE)
@@ -479,12 +508,14 @@ vfsfile_t *VFSPIPE_Open(void)
 //#else 	//erm...
 //	#define EXETYPE "qw"
 //#endif
+#else
+	#define EXETYPE "gl"
+#endif
 
-
+#ifdef _WIN32
 qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, DWORD datalen)
 {
 	qboolean result = false;
-	DWORD resultlen = datalen - 1;
 	HKEY subkey;
 	DWORD type = REG_NONE;
 	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
@@ -546,6 +577,20 @@ void Sys_mkdir (char *path)
 {
 	CreateDirectory (path, NULL);
 }
+#else
+qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
+{
+	qboolean result = false;
+	char *val = getenv("HOME");
+	if (!val) val = ".";
+	else	result = true;
+
+	Q_strncpyz(homedir, val, homedirsize);
+	Q_strncatz(homedir, "/.fte/", homedirsize);
+
+	return result;
+}
+#endif
 static void	Update_CreatePath (char *path)
 {
 	char	*ofs;
@@ -591,7 +636,11 @@ void Update_Version_Updated(struct dl_download *dl)
 				fclose(pending);
 				if (fullsize == size)
 				{
+#ifdef _WIN32
 					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
+#else
+					chmod(pendingname, S_IRUSR|S_IXUSR);
+#endif
 				}
 				else
 				{
@@ -607,6 +656,7 @@ void Update_Version_Updated(struct dl_download *dl)
 }
 qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 {
+#ifdef _WIN32
 	char pendingpath[MAX_OSPATH];
 	char temppath[MAX_OSPATH];
 
@@ -648,7 +698,60 @@ qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 	}
 
 	Sys_UnlockMutex(globalmutex);
+#else
 
+	char pendingpath[MAX_OSPATH];
+	char currentpath[MAX_OSPATH];
+	struct stat st;
+
+	Update_GetHomeDirectory(currentpath, sizeof(currentpath));
+	Q_strncatz(currentpath, "cur" BUILDTYPE EXETYPE, sizeof(currentpath));
+	Update_GetHomeDirectory(pendingpath, sizeof(pendingpath));
+	Q_strncatz(pendingpath, "pending" BUILDTYPE EXETYPE, sizeof(pendingpath));
+
+	//truncated to be the same string? :s
+	if (!strcmp(currentpath, pendingpath))
+		return false;
+
+	Sys_LockMutex(globalmutex);
+
+	if (!enginedownloadactive || (enginedownloadactive->status == DL_FINISHED || enginedownloadactive->status == DL_FAILED))
+	{
+		//make sure the download is cleaned up properly.
+		if (enginedownloadactive)
+			DL_Close(enginedownloadactive);
+		enginedownloadactive = NULL;
+
+		//if the engine wrote a new version to use, copy it over to the proper path now (two paths means we're less likely to be trying to write a file that is already open).
+		if (!stat(pendingpath, &st))
+		{
+			//rename supposedly overwrites automagically. I'm paranoid.
+			unlink(currentpath);
+			rename(pendingpath, currentpath);
+		}
+
+		if (!stat(currentpath, &st))
+		{
+			//there's a current file, yay.
+			Q_strncpyz(updatedpath, pendingpath, updatedpathlen);
+		}
+		else
+		{	//no engine available to run. we'll have to download one (we only need to do it in this case because the engine itself autoupdates,
+			//and we can't because we don't actually know what version we have, only the binary that's running knows its version.
+			//that's the theory anyway.
+			Con_Printf("downloading %s\n", UPDATE_URL_BUILD);
+			enginedownloadactive = DL_Create(UPDATE_URL_BUILD);
+                        if (enginedownloadactive)
+                        {
+                                enginedownloadactive->user_ctx = NULL;
+                                DL_CreateThread(enginedownloadactive, VFSPIPE_Open(), Update_Version_Updated);
+                        }
+
+		}
+	}
+	Sys_UnlockMutex(globalmutex);
+	
+#endif
 	return !!*updatedpath;
 }
 
@@ -708,6 +811,10 @@ struct context
 	HANDLE pipetoengine;
 	HANDLE pipefromengine;
 	HANDLE engineprocess;
+#else
+	int pipetoengine;
+	int pipefromengine;
+	pid_t engineprocess;
 #endif
 };
 
@@ -777,8 +884,7 @@ char *cleanarg(char *arg)
 	return strdup("\"\"");
 }
 
-qboolean Plug_GetBinaryName(char *exe, int exelen,
-						char *basedir, int basedirlen)
+qboolean Plug_GetBinaryName(char *exe, int exelen, char *basedir, int basedirlen)
 {
 //	char buffer[1024];
 //	char cmd[64];
@@ -832,7 +938,10 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 	autoupdate = Plug_GetBinaryName(exe, sizeof(exe), basedir, sizeof(basedir));
 
 	if (!*exe)
+	{
+		Con_Printf("Unable to determine what to run\n");
 		return 0;	//error
+	}
 
 	argv[0] = strdup(exe);
 	argc = 1;
@@ -947,17 +1056,24 @@ void Plug_ExecuteCommand(struct context *ctx, char *message, ...)
 	va_list		va;
 
 	char		finalmessage[1024];
-	DWORD written = 0;
 
 	va_start (va, message);
 	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
 	va_end (va);
 
-	WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
+#ifdef _WIN32
+	{
+		DWORD written = 0;
+		WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
+	}
+#else
+	write(ctx->pipetoengine, finalmessage, strlen(finalmessage));
+#endif
 }
 
 qboolean Plug_CreatePluginProcess(struct context *ctx)
 {
+#ifdef _WIN32
 	char cmdline[8192];
 	PROCESS_INFORMATION childinfo;
 	STARTUPINFO startinfo;
@@ -988,7 +1104,76 @@ qboolean Plug_CreatePluginProcess(struct context *ctx)
 	CloseHandle(startinfo.hStdInput);
 
 	return true;
+#else
+	int in[2];
+	int out[2];
+        char *argv[64] = {NULL};
+	int i;
+
+	i = Plug_GenCommandline(ctx, argv, sizeof(argv) / sizeof(argv[0]));
+	if (!i)
+		return false;
+
+	argv[i] = NULL;
+
+/*	char buf[512];
+	snprintf(buf, sizeof(buf), "%i args\n", i);
+	write(2, buf, strlen(buf));
+	for (i = 0; argv[i]; i++)
+	{
+		snprintf(buf, sizeof(buf), "argv[%i] = %s\n", i, argv[i]);
+		write(2, buf, strlen(buf));
+	}
+*/
+	pipe(in);
+	pipe(out);
+
+	ctx->pipefromengine = in[0];
+	ctx->pipetoengine = out[1];
+
+	Plug_ExecuteCommand(ctx, "vid_recenter %i %i %i %i %#p\n", ctx->windowleft, ctx->windowtop, ctx->windowwidth, ctx->windowheight, (void*)ctx->windowhnd);
+
+	ctx->engineprocess = fork();
+	if (ctx->engineprocess == 0)
+	{
+		//close the ends we don't care about
+		close(in[0]);
+		close(out[1]);
+
+		//dupe them to the stdin/stdout, for ease of use, and clean up the extra handles
+		dup2(out[0], 0);
+		dup2(in[1], 1);
+		//dup2(in[1], 2);
+		close(in[1]);
+		close(out[0]);
+
+		//invoke the child and kill ourselves if that failed.
+		write(2, "invoking engine\n", 16);
+		execv(argv[0], argv);
+		write(2, "execv failed\n", 13);
+		exit(1);
+	}
+	close(in[1]);
+	close(out[0]);
+
+	if (ctx->engineprocess == -1)
+		return false;
+
+	return true;
+#endif
 }
+
+void Plug_LockPlugin(struct context *ctx, qboolean lockstate)
+{
+	if (!ctx || !ctx->mutex)
+		return;
+
+	if (lockstate)
+		Sys_LockMutex(ctx->mutex);
+	else
+		Sys_UnlockMutex(ctx->mutex);
+}
+//#define Plug_LockPlugin(c,s) do{Plug_LockPlugin(c,s);VS_DebugLocation(__FILE__, __LINE__, s?"Lock":"Unlock"); }while(0)
 
 int Plug_PluginThread(void *ctxptr)
 {
@@ -1131,7 +1316,11 @@ int Plug_PluginThread(void *ctxptr)
 					Sys_UnlockMutex(globalmutex);
 				if (os == -2)
 					break;
+#ifdef _WIN32
 				Sleep(1000);
+#else
+				sleep(1);
+#endif
 			}
 		}
 	}
@@ -1142,6 +1331,7 @@ int Plug_PluginThread(void *ctxptr)
 	if (ctx->pub.running)
 	while(1)
 	{
+#ifdef _WIN32
 		DWORD avail;
 		//use Peek so we can read exactly how much there is without blocking, so we don't have to read byte-by-byte.
 		PeekNamedPipe(ctx->pipefromengine, NULL, 0, NULL, &avail, NULL);
@@ -1155,6 +1345,33 @@ int Plug_PluginThread(void *ctxptr)
 			*ctx->pub.statusmessage = 0;
 			break;
 		}
+#else
+		int avail;
+//		Con_Printf("Attempting to read from pipe...\n");
+		if (bufoffs == sizeof(buffer))
+		{
+			Con_Printf("ERROR: Pipe full!\n");
+			bufoffs = 0;	//not much we can really do
+		}
+		avail = read(ctx->pipefromengine, buffer + bufoffs, 1);
+		if (!avail)
+		{
+			Con_Printf("eof on pipe\n");
+			//broken pipe, client died?
+			*ctx->pub.statusmessage = 0;
+			break;
+		}
+		if (avail < 0)
+		{
+			int err = errno;
+			if (err == EAGAIN)
+				continue;
+			perror("hello moo\n");
+			//broken pipe, client died?
+			Q_strncpyz(ctx->pub.statusmessage, "pipe error", sizeof(ctx->pub.statusmessage));
+			break;
+		}
+#endif
 		bufoffs += avail;
 		while(1)
 		{
@@ -1183,6 +1400,7 @@ int Plug_PluginThread(void *ctxptr)
 					*ctx->pub.statusmessage = 0;
 					if (ctx->bfuncs.StatusChanged)
 						ctx->bfuncs.StatusChanged(ctx->hostinstance);
+					Con_Printf("Status changed to \"%s\"\n", buffer+6);
 				}
 				else if (!strcmp(buffer, "curserver"))
 				{
@@ -1194,9 +1412,7 @@ int Plug_PluginThread(void *ctxptr)
 				else
 				{
 					//handle anything else we need to handle here
-					OutputDebugStringA("Unknown command from engine \"");
-					OutputDebugStringA(buffer);
-					OutputDebugStringA("\"\n");
+					Con_Printf("Unknown command from engine \"%s\"\n", buffer);
 				}
 			}
 			else
@@ -1212,35 +1428,34 @@ int Plug_PluginThread(void *ctxptr)
 	return 0;
 }
 
-void Plug_LockPlugin(struct context *ctx, qboolean lockstate)
-{
-	if (!ctx || !ctx->mutex)
-		return;
-
-	if (lockstate)
-		Sys_LockMutex(ctx->mutex);
-	else
-		Sys_UnlockMutex(ctx->mutex);
-}
-//#define Plug_LockPlugin(c,s) do{Plug_LockPlugin(c,s);VS_DebugLocation(__FILE__, __LINE__, s?"Lock":"Unlock"); }while(0)
-
 //begins the context, fails if one is already active
 qboolean Plug_StartContext(struct context *ctx)
 {
 	if (activecontext && !ctx->multiplecontexts)
 		return false;
-	if (ctx->pub.running)
-		return true;
 
-	if (ctx->thread)
-		Plug_StopContext(ctx, true);
+	Sys_LockMutex(globalmutex);
+	if (!ctx->pub.running)
+	{
+		if (ctx->thread)
+		{
+			//make sure the thread is killed properly, so we don't get two threads trying to drive the same context
+			Sys_UnlockMutex(globalmutex);
+			Plug_StopContext(ctx, true);
+			Sys_LockMutex(globalmutex);
+		}
 
-	ctx->pub.running = true;
-	if (!ctx->multiplecontexts)
-		activecontext = ctx;
-	if (!ctx->mutex)
-		ctx->mutex = Sys_CreateMutex();
-	ctx->thread = Sys_CreateThread("pluginctx", Plug_PluginThread, ctx, THREADP_NORMAL, 0);
+	}
+	if (!ctx->pub.running && !ctx->thread)
+	{
+		ctx->pub.running = true;
+		if (!ctx->multiplecontexts)
+			activecontext = ctx;
+		if (!ctx->mutex)
+			ctx->mutex = Sys_CreateMutex();
+		ctx->thread = Sys_CreateThread("pluginctx", Plug_PluginThread, ctx, THREADP_NORMAL, 0);
+	}
+	Sys_UnlockMutex(globalmutex);
 
 	return true;
 }
@@ -1253,13 +1468,15 @@ void Plug_StopContext(struct context *ctx, qboolean wait)
 		ctx = activecontext;
 	if (!ctx)
 		return;
+
 	Plug_ExecuteCommand(ctx, "quit force\n");
 
 	thread = ctx->thread;
-	if (ctx->thread)
+	if (thread)
 	{
 		if (wait)
 		{
+#ifdef _WIN32
 			while (ctx->pub.running && ctx->windowhnd)
 			{
 				MSG msg;
@@ -1270,8 +1487,9 @@ void Plug_StopContext(struct context *ctx, qboolean wait)
 				}
 				Sleep(10);
 			}
-			Sys_WaitOnThread(ctx->thread);
+#endif
 			ctx->thread = NULL;
+			Sys_WaitOnThread(thread);
 		}
 	}
 }
@@ -1604,7 +1822,6 @@ void pscript_property_startserver_sets(struct context *ctx, const char *val)
 }
 char *pscript_property_curserver_gets(struct context *ctx)
 {
-	extern char lastdemoname[];
 	if (!pscript_property_running_getb(ctx))
 		return pscript_property_startserver_gets(ctx);
 
@@ -1691,6 +1908,7 @@ void pscript_property_splash_sets(struct context *ctx, const char *val)
 	if (val != ctx->qtvf.splashscreen)
 		Q_strncpyz(ctx->qtvf.splashscreen, val, sizeof(ctx->qtvf.splashscreen));
 
+/*
 	ctx->splashdownload = DL_Create(ctx->qtvf.splashscreen);
 	ctx->splashdownload->user_ctx = ctx;
 	if (!DL_CreateThread(ctx->splashdownload, VFSPIPE_Open(), LoadSplashImage))
@@ -1698,6 +1916,7 @@ void pscript_property_splash_sets(struct context *ctx, const char *val)
 		DL_Close(ctx->splashdownload);
 		ctx->splashdownload = NULL;
 	}
+*/
 }
 
 char *pscript_property_build_gets(struct context *ctx)
@@ -1959,8 +2178,10 @@ static const struct plugfuncs exportedplugfuncs_1 =
 	Plug_SetFloat,
 	Plug_GetFloat,
 
+#ifdef _WIN32
 	Plug_GetSplashBack,
 	Plug_ReleaseSplashBack,
+#endif
 
 	Plug_SetWString
 };

@@ -80,6 +80,12 @@ static enum
 
 extern cvar_t vid_conautoscale;
 
+extern int sys_parentleft;
+extern int sys_parenttop;
+extern int sys_parentwidth;
+extern int sys_parentheight;
+extern long    sys_parentwindow;
+
 #define KEY_MASK (KeyPressMask | KeyReleaseMask)
 #define MOUSE_MASK (ButtonPressMask | ButtonReleaseMask | \
 		    PointerMotionMask)
@@ -1216,13 +1222,14 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	return success;
 }
 
-Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int width, unsigned int height)
+Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int width, unsigned int height, qboolean fullscreen)
 {
-	Window wnd;
+	Window wnd, parent;
 	XSetWindowAttributes attr;
 	XSizeHints szhints;
 	unsigned int mask;
 	Atom prots[1];
+	int x, y;
 
 	/* window attributes */
 	attr.background_pixel = 0;
@@ -1249,7 +1256,21 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 	szhints.width = width;
 	szhints.height = height;
 
-	wnd = XCreateWindow(vid_dpy, vid_root, 0, 0, width, height,
+
+	if (sys_parentwindow && !fullscreen)
+	{
+		x = (sys_parentwidth - width) / 2;
+		y = (sys_parentheight - height) / 2;
+		parent = sys_parentwindow;
+	}
+	else
+	{
+		parent = vid_root;
+		x = 0;
+		y = 0;
+	}
+
+	wnd = XCreateWindow(vid_dpy, parent, x, y, width, height,
 						0, visinfo->depth, InputOutput,
 						visinfo->visual, mask, &attr);
 	/*ask the window manager to stop triggering bugs in Xlib*/
@@ -1395,6 +1416,13 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		else
                         fullscreenflags |= FULLSCREEN_LEGACY;
 	}
+	else if (sys_parentwindow)
+	{
+		if (width < 64 || width > sys_parentwidth)
+			width = sys_parentwidth;
+		if (height < 64 || height > sys_parentheight)
+			height = sys_parentheight;
+	}
 
 	switch(currentpsl)
 	{
@@ -1424,11 +1452,11 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	ActiveApp = false;
 	if (fullscreenflags & FULLSCREEN_LEGACY)
 	{
-		vid_decoywindow = X_CreateWindow(false, visinfo, 640, 480);
-		vid_window = X_CreateWindow(true, visinfo, width, height);
+		vid_decoywindow = X_CreateWindow(false, visinfo, 640, 480, false);
+		vid_window = X_CreateWindow(true, visinfo, width, height, fullscreen);
 	}
 	else
-		vid_window = X_CreateWindow(false, visinfo, width, height);
+		vid_window = X_CreateWindow(false, visinfo, width, height, fullscreen);
 
 	CL_UpdateWindowTitle();
 	/*make it visible*/
@@ -1562,6 +1590,10 @@ qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 void Sys_SendKeyEvents(void)
 {
+#ifndef CLIENTONLY
+	//this is stupid
+	SV_GetConsoleCommands();
+#endif
 	if (gracefulexit)
 	{
 		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);

@@ -6,9 +6,14 @@
 #ifndef _WINDOWS
 #define _WINDOWS	//stupid GCC
 #endif
+#else
+#define XP_UNIX
+#define MOZ_X11
+#include <X11/Xlib.h>
+#include <X11/Intrinsic.h>
 #endif
 
-#include "npapi/npupp.h"
+#include "libs/npapi/npupp.h"
 #include "sys_plugfte.h"
 
 /*work around absolute crapness in the npapi headers*/
@@ -59,8 +64,6 @@ NPNetscapeFuncs *browserfuncs;
 
 
 
-
-
 qboolean NPFTE_BeginDownload(void *ctx, struct pipetype *ftype, char *url)
 {
 	return NPERR_NO_ERROR==browserfuncs->geturlnotify(ctx, url, NULL, ftype);
@@ -70,7 +73,9 @@ void NPFTE_StatusChanged(void *sysctx)
 {	//potentially called from another thread
 	NPP instance = sysctx;
 	struct contextpublic *pub = instance->pdata;
+#ifdef _WIN32
 	InvalidateRgn(pub->oldwnd, NULL, FALSE);
+#endif
 }
 
 #ifdef _WIN32
@@ -234,6 +239,9 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 		return NPERR_INVALID_PLUGIN_ERROR;
 	}
 
+//	browserfuncs->setvalue(instance, NPPVpluginWindowBool, (void*)FALSE);
+//	browserfuncs->setvalue(instance, NPPVpluginTransparentBool, (void*)TRUE);
+
 	ctx = Plug_CreateContext(instance, &npfte_browserfuncs);
 	instance->pdata = ctx;
 	if (!ctx)
@@ -271,6 +279,29 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 
 	return NPERR_NO_ERROR;
 }
+
+#ifdef MOZ_X11
+static void myxteventcallback (Widget w, XtPointer closure, XEvent *event, Boolean *cont)
+{
+	switch(event->type)
+	{
+	case MotionNotify:
+//		Con_Printf("Motion Mouse event\n");
+		break;
+	case ButtonPress:
+		if (event->xbutton.button == 1)
+		{
+			if (!Plug_StartContext(closure))
+        	                Plug_StopContext(NULL, false);
+		}
+		break;
+	default:
+//		Con_Printf("other event (%i)\n", event->type);
+		break;
+	}
+}
+#endif
+
 NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 {
 	struct context *ctx = instance->pdata;
@@ -302,6 +333,17 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 	}
 
 	InvalidateRgn(window->window, NULL, FALSE);
+#endif
+#ifdef MOZ_X11
+	Window wnd = (Window)window->window;
+	NPSetWindowCallbackStruct *ws = window->ws_info;
+	Widget xtw = XtWindowToWidget (ws->display, wnd);
+	XSelectInput(ws->display, wnd, ButtonPressMask|ButtonReleaseMask|PointerMotionMask|KeyPressMask|KeyReleaseMask|EnterWindowMask);
+	XtAddEventHandler(xtw, ButtonPressMask|ButtonReleaseMask|PointerMotionMask, FALSE, myxteventcallback, ctx);
+
+	if (Plug_ChangeWindow(ctx, window->window, 0, 0, window->width, window->height))
+	{
+	}
 #endif
 	return NPERR_NO_ERROR;
 }
@@ -414,7 +456,7 @@ int32   NP_LOADDS NPP_WriteReady(NPP instance, NPStream* stream)
 int32   NP_LOADDS NPP_Write(NPP instance, NPStream* stream, int32 offset,
                             int32 len, void* buffer)
 {
-	return NPERR_NO_ERROR;
+	return len;
 /*	int bytes = NPP_WriteReady(instance, stream);
 	struct context *ctx = instance->pdata;
 	struct qstream *qstr = stream->pdata;
@@ -523,7 +565,7 @@ bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
 	NPUTF8 *pname;
 	int prop;
 	bool success = false;
-	char *strval;
+	const char *strval;
 	int intval;
 	float floatval;
 	pname = browserfuncs->utf8fromidentifier(name);
@@ -628,18 +670,18 @@ NPClass npscript_class =
 {
 	NP_CLASS_STRUCT_VERSION,
 
-    npscript_allocate,
-    npscript_deallocate,
-    npscript_invalidate,
-    npscript_hasMethod,
-    npscript_invoke,
-    npscript_invokeDefault,
-    npscript_hasProperty,
-    npscript_getProperty,
-    npscript_setProperty,
-    npscript_removeProperty,
-    npscript_enumerate,
-    npscript_construct
+	npscript_allocate,
+	npscript_deallocate,
+	npscript_invalidate,
+	npscript_hasMethod,
+	npscript_invoke,
+	npscript_invokeDefault,
+	npscript_hasProperty,
+	npscript_getProperty,
+	npscript_setProperty,
+	npscript_removeProperty,
+	npscript_enumerate,
+	npscript_construct
 };
 
 NPError NP_LOADDS NPP_GetValue(NPP instance, NPPVariable variable, void *value)
@@ -662,12 +704,6 @@ NPError NP_LOADDS NPP_SetValue(NPP instance, NPNVariable variable, void *value)
 	default:
 		return NPERR_INVALID_PARAM;
 	}
-	return NPERR_NO_ERROR;
-}
-
-NPError OSCALL NP_Initialize(NPNetscapeFuncs* pFuncs)
-{
-	browserfuncs = pFuncs;
 	return NPERR_NO_ERROR;
 }
 
@@ -706,27 +742,50 @@ NPError OSCALL NP_GetEntryPoints (NPPluginFuncs* pFuncs)
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 	pFuncs->size = sizeof(NPPluginFuncs);
 
-    pFuncs->version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
+	pFuncs->version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
 
-    pFuncs->newp = NPP_New;
-    pFuncs->destroy = NPP_Destroy;
-    pFuncs->setwindow = NPP_SetWindow;
-    pFuncs->newstream = NPP_NewStream;
-    pFuncs->destroystream = NPP_DestroyStream;
-    pFuncs->asfile = NPP_StreamAsFile;
-    pFuncs->writeready = NPP_WriteReady;
-    pFuncs->write = NPP_Write;
-    pFuncs->print = NPP_Print;
-    pFuncs->event = NPP_HandleEvent;
-    pFuncs->urlnotify = NPP_URLNotify;
-    pFuncs->javaClass = NULL;
-    pFuncs->getvalue = NPP_GetValue;
-    pFuncs->setvalue = NPP_SetValue;
+	pFuncs->newp = NPP_New;
+	pFuncs->destroy = NPP_Destroy;
+	pFuncs->setwindow = NPP_SetWindow;
+	pFuncs->newstream = NPP_NewStream;
+	pFuncs->destroystream = NPP_DestroyStream;
+	pFuncs->asfile = NPP_StreamAsFile;
+	pFuncs->writeready = NPP_WriteReady;
+	pFuncs->write = NPP_Write;
+	pFuncs->print = NPP_Print;
+	pFuncs->event = NPP_HandleEvent;
+	pFuncs->urlnotify = NPP_URLNotify;
+	pFuncs->javaClass = NULL;
+	pFuncs->getvalue = NPP_GetValue;
+	pFuncs->setvalue = NPP_SetValue;
 
 	return NPERR_NO_ERROR;
 }
 
+#ifdef _WIN32
+NPError OSCALL NP_Initialize(NPNetscapeFuncs* pFuncs)
+{
+	Plug_GetFuncs(1);
+	browserfuncs = pFuncs;
+	return NPERR_NO_ERROR;
+}
+#else
+NPError OSCALL NP_Initialize(NPNetscapeFuncs *aNPNFuncs, NPPluginFuncs *aNPPFuncs)
+{
+	Plug_GetFuncs(1);
+	browserfuncs = aNPNFuncs;
+	
+	return NP_GetEntryPoints(aNPPFuncs);
+}
+#endif
+
 char *NP_GetMIMEDescription(void)
 {
-	return "test/x-qtv:qtv:QTV Stream Description";
+	return
+		"text/x-quaketvident:qtv:QTV Stream Description"
+			";"
+		"application/x-multiviewdemo:mvd:Multiview Demo"
+			";"
+		"application/x-fteplugin:fmf:FTE Engine Plugin"
+		;
 }

@@ -52,7 +52,7 @@
 
 #define PR_AF_INET6 23  /* same as AF_INET6 */
 
-#if defined(_M_IX86) || defined(_X86_)
+#if defined(_M_IX86) || defined(_X86_) || defined(__i386__)
 
 #define IS_LITTLE_ENDIAN 1
 #undef  IS_BIG_ENDIAN
@@ -144,7 +144,7 @@
 #define PR_ALIGN_OF_DOUBLE  8
 #define PR_ALIGN_OF_POINTER 4
 
-#elif defined(_AMD64_)
+#elif defined(_AMD64_) || defined(__x86_64__)
 
 #define IS_LITTLE_ENDIAN 1
 #undef  IS_BIG_ENDIAN

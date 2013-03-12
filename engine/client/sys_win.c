@@ -1978,7 +1978,8 @@ void Win7_TaskListInit(void)
 }
 #endif
 
-#if defined(SVNREVISION)
+#if defined(SVNREVISION) && !defined(MINIMAL)
+	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
 	#if defined(OFFICIAL_RELEASE)
 		#define BUILDTYPE "rel"
 	#else
@@ -2003,7 +2004,7 @@ void Win7_TaskListInit(void)
 	#else
 		#define EXETYPE "glqw"
 	#endif
-#elif defiend(D3DQUAKE)
+#elif defined(D3DQUAKE)
 	#define EXETYPE "d3dqw"
 #elif defiend(SWQUAKE)
 	#define EXETYPE "swqw"
@@ -2012,41 +2013,50 @@ void Win7_TaskListInit(void)
 	#define EXETYPE "qw"
 #endif
 
-#ifdef UPDATE_URL
 
-void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
 {
-	HKEY subkey;
-	RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey);
-	RegSetValueEx(subkey, valuename, 0, type, data, datalen);
-	RegCloseKey (subkey);
-}
-void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
-{
-	HKEY subkey;
-	RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey);
-	RegDeleteValue(subkey, valuename);
-	RegCloseKey (subkey);
-}
-void MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
-{
+	qboolean result = false;
 	DWORD resultlen = datalen - 1;
 	HKEY subkey;
 	DWORD type = REG_NONE;
-	RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey);
-	RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
-	RegCloseKey (subkey);
+	if (RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)
+	{
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
+		RegCloseKey (subkey);
+	}
 
 	if (type == REG_SZ || type == REG_EXPAND_SZ)
 		((char*)data)[datalen] = 0;
 	else
 		((char*)data)[0] = 0;
+	return result;
+}
+
+#ifdef UPDATE_URL
+
+void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+{
+	HKEY subkey;
+	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
+	{
+		RegSetValueEx(subkey, valuename, 0, type, data, datalen);
+		RegCloseKey (subkey);
+	}
+}
+void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
+{
+	HKEY subkey;
+	if (RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)
+	{
+		RegDeleteValue(subkey, valuename);
+		RegCloseKey (subkey);
+	}
 }
 
 qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 {
 	HMODULE shfolder = LoadLibrary("shfolder.dll");
-	DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
 
 	if (shfolder)
 	{
@@ -2111,7 +2121,7 @@ void Update_Versioninfo_Available(struct dl_download *dl)
 			{
 				if (!strnicmp(linebuf, "Revision: ", 10))
 				{
-					if (atoi(linebuf+10) > atoi(SVNREVISION))
+					if (atoi(linebuf+10) > atoi(SVNREVISIONSTR))
 					{
 						struct dl_download *dl;
 						Con_Printf("Downloading update: revision %i\n", atoi(linebuf+10));
@@ -2143,23 +2153,21 @@ void Update_Check(void)
 
 qboolean Sys_CheckUpdated(void)
 {
-	if (!strcmp(SVNREVISION, "-"))
+	int ffe = COM_CheckParm("--fromfrontend");
+	PROCESS_INFORMATION childinfo;
+	STARTUPINFO startinfo = {sizeof(startinfo)};
+
+	if (!strcmp(SVNREVISIONSTR, "-"))
 		return false;	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
 	else if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate"))
 		return false;
 	else if (!COM_CheckParm("-autoupdate") && !COM_CheckParm("--autoupdate"))
 		return false;
-	else if (!COM_CheckParm("--fromfrontend"))
+	else if (!ffe)
 	{
+		char frontendpath[MAX_OSPATH];
 		char pendingpath[MAX_OSPATH];
 		char updatedpath[MAX_QPATH];
-
-		PROCESS_INFORMATION childinfo;
-		STARTUPINFO startinfo;
-		char *cmdline = GetCommandLineA();
-
-		memset(&startinfo, 0, sizeof(startinfo));
-		startinfo.cb = sizeof(startinfo);
 
 		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
 		if (*pendingpath)
@@ -2175,7 +2183,21 @@ qboolean Sys_CheckUpdated(void)
 		
 		if (*updatedpath)
 		{
-			if (CreateProcess(updatedpath, va("%s --fromfrontend", COM_Parse(cmdline)), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
+			if (CreateProcess(updatedpath, va("--fromfrontend \"%s\" \"%s\" %s", SVNREVISIONSTR, frontendpath, COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+				return true;
+		}
+	}
+	else
+	{
+		char frontendpath[MAX_OSPATH];
+		//com_argv[ffe+1] is frontend revision
+		//com_argv[ffe+2] is frontend location
+		if (atoi(com_argv[ffe+1]) > atoi(SVNREVISIONSTR))
+		{
+			//ping-pong it back, to make sure we're running the most recent version.
+			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
+			if (CreateProcess(com_argv[ffe+2], va("--fromfrontend \"%s\" \"%s\" %s", "", "", COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
 	}

@@ -603,12 +603,12 @@ void SV_Map_f (void)
 		gametype->flags |= CVAR_SERVERINFO;
 		Cvar_ForceSet(gametype, level);
 
-		gametype = Cvar_Get("g_gametype", "0", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+		gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 		gametype->callback = gtcallback;
 		if (wasspmap)
 			Cvar_ForceSet(gametype, "2");//singleplayer
 		else if (gametype->value == 2)
-			Cvar_ForceSet(gametype, "0");//force to ffa deathmatch
+			Cvar_ForceSet(gametype, "");//force to ffa deathmatch
 	}
 #endif
 
@@ -628,7 +628,7 @@ void SV_Map_f (void)
 	{
 		/*pass the new map's name as an extension, so appropriate loading screens can be shown*/
 		if (ISNQCLIENT(host_client))
-			SV_StuffcmdToClient(host_client, va("restart \"%s\"\n", level));
+			SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
 		else
 			SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
 	}
@@ -647,6 +647,11 @@ void SV_Map_f (void)
 	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
 	{	//this expanded code cuts out a packet when changing maps...
 		//but more usefully, it stops dp(and probably nq too) from timing out.
+		//make sure its all reset.
+		host_client->sentents.num_entities = 0;
+		host_client->ratetime = 0;
+		if (host_client->pendingentbits)
+			host_client->pendingentbits[0] = UF_REMOVE;
 		if (host_client->controller)
 			continue;
 		if (host_client->state>=cs_connected)

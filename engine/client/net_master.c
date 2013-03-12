@@ -537,7 +537,7 @@ int Master_KeyForName(char *keyname)
 		return SLKEY_MAP;
 	else if (!strcmp(keyname, "ping"))
 		return SLKEY_PING;
-	else if (!strcmp(keyname, "name"))
+	else if (!strcmp(keyname, "name") || !strcmp(keyname, "hostname"))
 		return SLKEY_NAME;
 	else if (!strcmp(keyname, "address") || !strcmp(keyname, "cname"))
 		return SLKEY_ADDRESS;

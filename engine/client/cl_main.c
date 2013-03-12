@@ -59,7 +59,7 @@ cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
 
 cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
 
-cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
+cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE|CVAR_NOTFROMSERVER);
 
 cvar_t	cl_splitscreen = CVARD("cl_splitscreen", "0", "Enables splitscreen support. See also: allow_splitscreen, in_rawinput*, the \"p\" command.");
 
@@ -685,6 +685,7 @@ void CL_CheckForResend (void)
 			{
 				Con_TPrintf (TLC_BADSERVERADDRESS);
 				connect_time = -1;
+				SCR_EndLoadingPlaque();
 				return;
 			}
 			NET_AdrToString(data, sizeof(data), adr);
@@ -754,11 +755,13 @@ void CL_CheckForResend (void)
 	{
 		Con_TPrintf (TLC_BADSERVERADDRESS);
 		connect_time = -1;
+		SCR_EndLoadingPlaque();
 		return;
 	}
 	if (!NET_IsClientLegal(&adr))
 	{
 		Con_TPrintf (TLC_ILLEGALSERVERADDRESS);
+		SCR_EndLoadingPlaque();
 		connect_time = -1;
 		return;
 	}

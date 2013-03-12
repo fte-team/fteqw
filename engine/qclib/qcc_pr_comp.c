@@ -1973,7 +1973,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				if (statements[numstatements-1].c == var_a->ofs)
 				{
 					static QCC_def_t nvara;
-					if (statements[numstatements-1].op == OP_NOT_F)
+					if (statements[numstatements-1].op == OP_NOT_F && QCC_OPCodeValid(&pr_opcodes[OP_IF_F]))
 						op = &pr_opcodes[OP_IF_F];
 					else
 						op = &pr_opcodes[OP_IF_I];
@@ -2812,16 +2812,16 @@ void QCC_PrecacheSound (QCC_def_t *e, int ch)
 	if (!*n)
 		return;
 	for (i=0 ; i<numsounds ; i++)
-		if (!STRCMP(n, precache_sounds[i]))
+		if (!STRCMP(n, precache_sound[i].name))
 			return;
 	if (numsounds == QCC_MAX_SOUNDS)
 		return;
 //		QCC_Error ("PrecacheSound: numsounds == MAX_SOUNDS");
-	strcpy (precache_sounds[i], n);
+	strcpy (precache_sound[i].name, n);
 	if (ch >= '1'  && ch <= '9')
-		precache_sounds_block[i] = ch - '0';
+		precache_sound[i].block = ch - '0';
 	else
-		precache_sounds_block[i] = 1;
+		precache_sound[i].block = 1;
 	numsounds++;
 }
 
@@ -2839,25 +2839,27 @@ void QCC_PrecacheModel (QCC_def_t *e, int ch)
 	if (!*n)
 		return;
 	for (i=0 ; i<nummodels ; i++)
-		if (!STRCMP(n, precache_models[i]))
+		if (!STRCMP(n, precache_model[i].name))
 		{
-			if (!precache_models_block[i])
+			if (!precache_model[i].block)
 			{
 				if (ch >= '1'  && ch <= '9')
-					precache_models_block[i] = ch - '0';
+					precache_model[i].block = ch - '0';
 				else
-					precache_models_block[i] = 1;
+					precache_model[i].block = 1;
 			}
 			return;
 		}
 	if (nummodels == QCC_MAX_MODELS)
 		return;
 //		QCC_Error ("PrecacheModels: nummodels == MAX_MODELS");
-	strcpy (precache_models[i], n);
+	strcpy (precache_model[i].name, n);
 	if (ch >= '1'  && ch <= '9')
-		precache_models_block[i] = ch - '0';
+		precache_model[i].block = ch - '0';
 	else
-		precache_models_block[i] = 1;
+		precache_model[i].block = 1;
+	precache_model[i].filename = strings+s_file;
+	precache_model[i].fileline = pr_source_line;
 	nummodels++;
 }
 
@@ -2875,16 +2877,19 @@ void QCC_SetModel (QCC_def_t *e)
 	if (!*n)
 		return;
 	for (i=0 ; i<nummodels ; i++)
-		if (!STRCMP(n, precache_models[i]))
+		if (!STRCMP(n, precache_model[i].name))
 		{
-			precache_models_used[i]++;
+			precache_model[i].used++;
 			return;
 		}
 	if (nummodels == QCC_MAX_MODELS)
 		return;
-	strcpy (precache_models[i], n);
-	precache_models_block[i] = 0;
-	precache_models_used[i]=1;
+	strcpy (precache_model[i].name, n);
+	precache_model[i].block = 0;
+	precache_model[i].used=1;
+
+	precache_model[i].filename = strings+s_file;
+	precache_model[i].fileline = pr_source_line;
 	nummodels++;
 }
 
@@ -2902,16 +2907,16 @@ void QCC_PrecacheTexture (QCC_def_t *e, int ch)
 	if (!*n)
 		return;
 	for (i=0 ; i<numtextures ; i++)
-		if (!STRCMP(n, precache_textures[i]))
+		if (!STRCMP(n, precache_texture[i].name))
 			return;
 	if (nummodels == QCC_MAX_MODELS)
 		return;
 //		QCC_Error ("PrecacheTextures: numtextures == MAX_TEXTURES");
-	strcpy (precache_textures[i], n);
+	strcpy (precache_texture[i].name, n);
 	if (ch >= '1'  && ch <= '9')
-		precache_textures_block[i] = ch - '0';
+		precache_texture[i].block = ch - '0';
 	else
-		precache_textures_block[i] = 1;
+		precache_texture[i].block = 1;
 	numtextures++;
 }
 
@@ -2929,16 +2934,16 @@ void QCC_PrecacheFile (QCC_def_t *e, int ch)
 	if (!*n)
 		return;
 	for (i=0 ; i<numfiles ; i++)
-		if (!STRCMP(n, precache_files[i]))
+		if (!STRCMP(n, precache_file[i].name))
 			return;
 	if (numfiles == QCC_MAX_FILES)
 		return;
 //		QCC_Error ("PrecacheFile: numfiles == MAX_FILES");
-	strcpy (precache_files[i], n);
+	strcpy (precache_file[i].name, n);
 	if (ch >= '1'  && ch <= '9')
-		precache_files_block[i] = ch - '0';
+		precache_file[i].block = ch - '0';
 	else
-		precache_files_block[i] = 1;
+		precache_file[i].block = 1;
 	numfiles++;
 }
 
@@ -2947,16 +2952,16 @@ void QCC_PrecacheFileOptimised (char *n, int ch)
 	int		i;
 
 	for (i=0 ; i<numfiles ; i++)
-		if (!STRCMP(n, precache_files[i]))
+		if (!STRCMP(n, precache_file[i].name))
 			return;
 	if (numfiles == QCC_MAX_FILES)
 		return;
 //		QCC_Error ("PrecacheFile: numfiles == MAX_FILES");
-	strcpy (precache_files[i], n);
+	strcpy (precache_file[i].name, n);
 	if (ch >= '1'  && ch <= '9')
-		precache_files_block[i] = ch - '0';
+		precache_file[i].block = ch - '0';
 	else
-		precache_files_block[i] = 1;
+		precache_file[i].block = 1;
 	numfiles++;
 }
 
@@ -5853,6 +5858,97 @@ pbool QCC_PR_StatementBlocksMatch(QCC_dstatement_t *p1, int p1count, QCC_dstatem
 	return true;
 }
 
+//vanilla qc only has an OP_IFNOT_I, others will be emulated as required, so we tend to need to emulate other opcodes.
+QCC_dstatement_t *QCC_Generate_OP_IF(QCC_def_t *e)
+{
+	QCC_dstatement_t *st;
+	switch(e->type->type)
+	{
+	//int/pointer types
+	case ev_entity:
+	case ev_field:
+	case ev_function:
+	case ev_pointer:
+	case ev_integer:
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], e, NULL, &st));
+		break;
+
+	//emulated types
+	case ev_string:
+		QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) tests for null, not empty.");
+		if (flag_ifstring)
+		{
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_S], e, NULL, &st));
+			break;
+		}
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], e, NULL, &st));
+		break;
+	case ev_float:
+		if (flag_iffloat || QCC_OPCodeValid(&pr_opcodes[OP_IF_F]))
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_F], e, NULL, &st));
+		else
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], e, NULL, &st));
+		break;
+	case ev_vector:
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], QCC_PR_Statement (&pr_opcodes[OP_NOT_V], e, NULL, NULL), NULL, &st));
+		break;
+
+	case ev_variant:
+	case ev_struct:
+	case ev_union:
+	case ev_void:
+	default:
+		QCC_PR_ParseWarning(WARN_CONDITIONALTYPEMISMATCH, "conditional type mismatch: %s", basictypenames[e->type->type]);
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], e, NULL, &st));
+		break;
+	}
+	return st;
+}
+QCC_dstatement_t *QCC_Generate_OP_IFNOT(QCC_def_t *e)
+{
+	QCC_dstatement_t *st;
+	switch(e->type->type)
+	{
+	//int/pointer types
+	case ev_entity:
+	case ev_field:
+	case ev_function:
+	case ev_pointer:
+	case ev_integer:
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, NULL, &st));
+		break;
+
+	//emulated types
+	case ev_string:
+		QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) tests for null, not empty");
+		if (flag_ifstring)
+		{
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_S], e, NULL, &st));
+			break;
+		}
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, NULL, &st));
+		break;
+	case ev_float:
+		if (flag_iffloat || QCC_OPCodeValid(&pr_opcodes[OP_IFNOT_F]))
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_F], e, NULL, &st));
+		else
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, NULL, &st));
+		break;
+	case ev_vector:
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], QCC_PR_Statement (&pr_opcodes[OP_NOT_V], e, NULL, NULL), NULL, &st));
+		break;
+
+	case ev_variant:
+	case ev_struct:
+	case ev_union:
+	case ev_void:
+	default:
+		QCC_PR_ParseWarning(WARN_CONDITIONALTYPEMISMATCH, "conditional type mismatch: %s", basictypenames[e->type->type]);
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, NULL, &st));
+		break;
+	}
+	return st;
+}
 /*
 ============
 PR_ParseStatement
@@ -5960,15 +6056,8 @@ void QCC_PR_ParseStatement (void)
 				else
 					patch1 = NULL;
 			}
-			else if (!typecmp( e->type, type_string) && flag_ifstring)	//special case, as strings are now pointers, not offsets from string table
-			{
-				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "while(string) can result in bizzare behaviour");
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_S], e, 0, &patch1));
-			}
-			else if (!typecmp( e->type, type_float) && (flag_iffloat||QCC_OPCodeValid(&pr_opcodes[OP_IFNOT_F])))	//special case, as negative 0 is also zero
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_F], e, 0, &patch1));
 			else
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, 0, &patch1));
+				patch1 = QCC_Generate_OP_IFNOT(e);
 		}
 		QCC_PR_Expect (")");	//after the line number is noted..
 		QCC_PR_ParseStatement ();
@@ -6111,16 +6200,7 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			if (!typecmp( e->type, type_string) && flag_ifstring)
-			{
-				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "do {} while(string) can result in bizzare behaviour");
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_S], e, NULL, &patch2));
-			}
-			else if (!typecmp( e->type, type_float) && (flag_iffloat||QCC_OPCodeValid(&pr_opcodes[OP_IFNOT_F])))
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_F], e, NULL, &patch2));
-			else
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], e, NULL, &patch2));
-
+			patch2 = QCC_Generate_OP_IF(e);
 			patch2->b = patch1 - patch2;
 		}
 
@@ -6205,27 +6285,11 @@ void QCC_PR_ParseStatement (void)
 
 		if (negate)
 		{
-			if (!typecmp( e->type, type_string) && flag_ifstring)
-			{
-				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if not(string) can result in bizzare behaviour");
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_S], e, 0, &patch1));
-			}
-			else if (!typecmp( e->type, type_float) && (flag_iffloat||QCC_OPCodeValid(&pr_opcodes[OP_IFNOT_F])))
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_F], e, 0, &patch1));
-			else
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IF_I], e, 0, &patch1));
+			patch1 = QCC_Generate_OP_IF(e);
 		}
 		else
 		{
-			if (!typecmp( e->type, type_string) && flag_ifstring)
-			{
-				QCC_PR_ParseWarning(WARN_IFSTRING_USED, "if (string) can result in bizzare behaviour");
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_S], e, 0, &patch1));
-			}
-			else if (!typecmp( e->type, type_float) && (flag_iffloat||QCC_OPCodeValid(&pr_opcodes[OP_IFNOT_F])))
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_F], e, 0, &patch1));
-			else
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, 0, &patch1));
+			patch1 = QCC_Generate_OP_IFNOT(e);
 		}
 
 		QCC_PR_Expect (")");	//close bracket is after we save the statement to mem (so debugger does not show the if statement as being on the line after
@@ -6487,12 +6551,7 @@ void QCC_PR_ParseStatement (void)
 						}
 						else
 						{
-							if (e->type->type == ev_string)
-								QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_S], e, 0, &patch3));
-							else if (e->type->type == ev_float)
-								QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_F], e, 0, &patch3));
-							else
-								QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_IFNOT_I], e, 0, &patch3));
+							patch3 = QCC_Generate_OP_IFNOT(e);
 						}
 						patch3->b = &statements[pr_cases[i]] - patch3;
 					}
@@ -9017,7 +9076,8 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 			}
 		}
 
-		if (!pr_scope || def->constant)
+		tmp->references++;
+		if (!pr_scope || def->constant || def->isstatic)
 		{
 			if (!tmp->constant)
 				QCC_PR_ParseErrorPrintDef (ERR_BADIMMEDIATETYPE, def, "initializer is not constant");

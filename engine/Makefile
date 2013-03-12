@@ -419,6 +419,7 @@ CLIENT_OBJS = \
 	cl_tent.o	\
 	cl_cam.o	\
 	cl_screen.o	\
+	pr_clcmd.o	\
 	cl_ui.o	\
 	cl_ignore.o \
 	cl_cg.o \
@@ -810,7 +811,7 @@ ifeq ($(FTE_TARGET),vc)
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(D3DGL_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3dqw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
-	D3D_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib
+	D3D_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
 	D3DB_DIR=d3d_vc$(BITS)
 	D3DCL_DIR=d3dcl_vc$(BITS)
@@ -1061,6 +1062,8 @@ ifeq ($(FTE_TARGET),droid)
 endif
 
 SV_DIR?=sv_sdl
+
+-include Makefile_private
 
 .default: help
 all: rel

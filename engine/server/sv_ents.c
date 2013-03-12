@@ -841,7 +841,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (to->hexen2flags != from->hexen2flags)
 		bits |= UF_DRAWFLAGS;
 	if (to->abslight != from->abslight)
-		bits |= UF_ABSLIGHT;
+		bits |= UF_DRAWFLAGS;
 
 	if (to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2])
 		bits |= UF_COLORMOD;
@@ -1014,10 +1014,16 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte(msg, state->trans);
 	if (bits & UF_SCALE)
 		MSG_WriteByte(msg, state->scale);
-	if (bits & UF_ABSLIGHT)
-		MSG_WriteByte(msg, state->abslight);
+	if (bits & UF_UNUSED3)
+	{
+//		MSG_WriteByte(msg, );
+	}
 	if (bits & UF_DRAWFLAGS)
+	{
 		MSG_WriteByte(msg, state->hexen2flags);
+		if ((state->hexen2flags & MLS_MASKIN) == MLS_ABSLIGHT)
+			MSG_WriteByte(msg, state->abslight);
+	}
 	if (bits & UF_TAGINFO)
 	{
 		MSG_WriteEntity(msg, state->tagentity);
@@ -1091,16 +1097,28 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	unsigned int *resendbits;
 	unsigned int *resendnum;
 	unsigned int outno, outmax;
-	qboolean reset = (client->delta_sequence == -1) || (client->pendingentbits[0] & UF_REMOVE);
+	int sequence;
+
+	if (ISNQCLIENT(client))
+		sequence = client->netchan.outgoing_unreliable;
+	else
+		sequence = client->netchan.incoming_sequence;
+
+	if (!client->pendingentbits)
+		return;
+	
+	if (client->delta_sequence <= 0)
+		client->pendingentbits[0] = UF_REMOVE;
 
 	//if we're clearing the list and starting from scratch, just wipe all lingering state
-	if (reset)
+	if (client->pendingentbits[0] & UF_REMOVE)
 	{
-		for (j = 0; j < client->sentents.max_entities; j++)
+		for (j = 0; j < client->sentents.num_entities; j++)
 		{
 			client->sentents.entities[j].number = 0;
 			client->pendingentbits[j] = 0;
 		}
+		client->pendingentbits[0] = UF_REMOVE;
 	}
 
 	//expand client's entstate list
@@ -1113,6 +1131,8 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			memset(&client->sentents.entities[client->sentents.max_entities], 0, sizeof(client->sentents.entities[0]) * (j - client->sentents.max_entities));
 			client->sentents.max_entities = j;
 		}
+		if (j > client->sentents.num_entities)
+			client->sentents.num_entities = j;
 	}
 
 	/*figure out the entitys+bits that changed (removed and active)*/
@@ -1142,13 +1162,16 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		}
 		else
 		{
+			//its valid, make sure we don't have a stale/resent remove, and do a cheap reset due to uncertainty.
+			if (client->pendingentbits[j] & UF_REMOVE)
+				client->pendingentbits[j] = (client->pendingentbits[j] & ~UF_REMOVE) | UF_RESET2;
 			client->pendingentbits[j] |= SVFTE_DeltaCalcBits(o, n);
 		}
 		*o = *n;
 		j++;
 	}
 	/*gaps are dead entities*/
-	for (; j < client->sentents.max_entities; j++)
+	for (; j < client->sentents.num_entities; j++)
 	{
 		o = &client->sentents.entities[j];
 		if (o->number)
@@ -1163,18 +1186,21 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	}
 
 	/*cache frame info*/
-	resendbits = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].resendentbits;
-	resendnum = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].resendentnum;
+	resendbits = client->frameunion.frames[sequence & UPDATE_MASK].resendentbits;
+	resendnum = client->frameunion.frames[sequence & UPDATE_MASK].resendentnum;
 	outno = 0;
-	outmax = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].entities.max_entities;
+	outmax = client->frameunion.frames[sequence & UPDATE_MASK].entities.max_entities;
 
 	/*start writing the packet*/
 	MSG_WriteByte (msg, svcfte_updateentities);
+	if (ISNQCLIENT(client))
+	{
+		MSG_WriteLong(msg, client->netchan.incoming_unreliable);
+	}
+//	Con_Printf("Gen sequence %i\n", sequence);
 	MSG_WriteFloat(msg, sv.world.physicstime);
-	if (reset) /*if we're resetting, the client will see 'remove world' which should be handled as a special case*/
-		MSG_WriteShort(msg, 0x8000);
 
-	for(j = 0; j < client->sentents.max_entities; j++)
+	for(j = 0; j < client->sentents.num_entities; j++)
 	{
 		bits = client->pendingentbits[j];
 		if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
@@ -1186,10 +1212,10 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		client->pendingentbits[j] = 0;
 
 		if (bits & UF_REMOVE)
-		{
+		{	//if reset is set, then reset was set eroneously.
 			SV_EmitDeltaEntIndex(msg, j, true, true);
 			resendbits[outno] = UF_REMOVE;
-//			Con_Printf("REMOVE %i @ %i\n", j, client->netchan.incoming_sequence);
+//			Con_Printf("REMOVE %i @ %i\n", j, sequence);
 		}
 		else if (client->sentents.entities[j].number) /*only send a new copy of the ent if they actually have one already*/
 		{
@@ -1198,7 +1224,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 				/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
 				resendbits[outno] = bits & ~UF_RESET2;
 				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, &client->sentents.entities[j]);
-//				Con_Printf("RESET2 %i @ %i\n", j, client->netchan.incoming_sequence);
+//				Con_Printf("RESET2 %i @ %i\n", j, sequence);
 			}
 			else if (bits & UF_RESET)
 			{
@@ -1206,7 +1232,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 				client->pendingentbits[j] = UF_RESET2;
 				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, &client->sentents.entities[j]);
 				resendbits[outno] = UF_RESET;
-//				Con_Printf("RESET %i @ %i\n", j, client->netchan.incoming_sequence);
+//				Con_Printf("RESET %i @ %i\n", j, sequence);
 			}
 			else
 				resendbits[outno] = bits;
@@ -1218,8 +1244,8 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	}
 	MSG_WriteShort(msg, 0);
 
-	client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].entities.num_entities = outno;
-	client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].sequence = client->netchan.incoming_sequence;
+	client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = outno;
+	client->frameunion.frames[sequence & UPDATE_MASK].sequence = sequence;
 }
 
 /*
@@ -3389,12 +3415,13 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 #ifdef NQPROT
 	if (ISNQCLIENT(client))
 	{
-		if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		{
-			SVDP_EmitEntitiesUpdate(client, pack, msg);
-			SV_EmitCSQCUpdate(client, msg, svcdp_csqcentities);
-			return;
+			SVFTE_EmitPacketEntities(client, pack, msg);
+			client->netchan.incoming_sequence++;
 		}
+		else if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+			SVDP_EmitEntitiesUpdate(client, pack, msg);
 		else
 		{
 			for (e = 0; e < pack->num_entities; e++)
@@ -3404,10 +3431,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				SVNQ_EmitEntityState(msg, &pack->entities[e]);
 			}
 			client->netchan.incoming_sequence++;
-
-			SV_EmitCSQCUpdate(client, msg, svcfte_csqcentities);
-			return;
 		}
+		SV_EmitCSQCUpdate(client, msg, svcdp_csqcentities);
+		return;
 	}
 #endif
 

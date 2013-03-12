@@ -133,8 +133,8 @@ void Cmd_Args_Set(char *newargs);
 #define RESTRICT_RCON	rcon_level.ival
 #define RESTRICT_PROGS	RESTRICT_MAX-2
 
-#define Cmd_FromGamecode() (Cmd_ExecLevel>=RESTRICT_SERVER)	//cheat provention
-#define Cmd_IsInsecure() (Cmd_ExecLevel>=RESTRICT_INSECURE)	//prevention from the server from breaking/crashing/wiping us.
+#define Cmd_FromGamecode() (Cmd_ExecLevel>=RESTRICT_SERVER)	//cheat provention. block cheats if its not fromgamecode
+#define Cmd_IsInsecure() (Cmd_ExecLevel>=RESTRICT_INSECURE)	//prevention from the server from breaking/crashing/wiping us. if this returns true, block file access etc.
 
 // Parses a single line of text into arguments and tries to execute it
 // as if it was typed at the console

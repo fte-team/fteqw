@@ -12008,6 +12008,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\client\pr_clcmd.c"
+					>
+				</File>
+				<File
 					RelativePath="..\client\pr_csqc.c"
 					>
 					<FileConfiguration

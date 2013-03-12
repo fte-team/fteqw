@@ -276,7 +276,7 @@ cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
 
 cvar_t	r_clear								= CVARAF("r_clear","0",
 													 "gl_clear", 0);
-cvar_t gl_max_size							= SCVARF  ("gl_max_size", "1024", CVAR_RENDERERLATCH);
+cvar_t gl_max_size							= SCVARF  ("gl_max_size", "2048", CVAR_RENDERERLATCH);
 cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
 												CVAR_ARCHIVE);
 cvar_t gl_menutint_shader					= SCVAR  ("gl_menutint_shader", "1");

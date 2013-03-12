@@ -496,7 +496,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		bits |= MSG_ReadByte()<<24;
 
 	if (cl_shownet.ival >= 3)
-		Con_Printf("%3i: Update %4i 0x%x\n", msg_readcount, entnum, bits);
+		Con_Printf("%3i:     Update %4i 0x%x\n", msg_readcount, entnum, bits);
 
 	if (bits & UF_RESET)
 	{
@@ -506,7 +506,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	else if (!olds)
 	{
 		/*reset got lost, probably the data will be filled in later - FIXME: we should probably ignore this entity*/
-		Con_DPrintf("New entity without reset\n");
+		Con_DPrintf("New entity %i without reset\n", entnum);
 		*news = nullentitystate;
 //		*news = *baseline;
 	}
@@ -639,10 +639,18 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->trans = MSG_ReadByte();
 	if (bits & UF_SCALE)
 		news->scale = MSG_ReadByte();
-	if (bits & UF_ABSLIGHT)
-		news->abslight = MSG_ReadByte();
+	if (bits & UF_UNUSED3)
+	{
+	//	news->abslight = MSG_ReadByte();
+	}
 	if (bits & UF_DRAWFLAGS)
+	{
 		news->hexen2flags = MSG_ReadByte();
+		if ((news->hexen2flags & MLS_MASKIN) == MLS_ABSLIGHT)
+			news->abslight = MSG_ReadByte();
+		else
+			news->abslight = 0;
+	}
 	if (bits & UF_TAGINFO)
 	{
 		news->tagentity = MSGCL_ReadEntity();
@@ -718,6 +726,29 @@ void CLFTE_ParseEntities(void)
 //		Con_Printf("CL: Dropped %i\n", i);
 //	}
 
+#ifdef NQPROT
+	if (cls.protocol == CP_NETQUAKE)
+	{
+		int i;
+		for (i = 0; i < MAX_SPLITS; i++)
+			cl.playerview[i].fixangle = false;
+		cls.netchan.outgoing_sequence = cls.netchan.incoming_unreliable;
+		cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence;
+		cls.netchan.outgoing_sequence++;
+		cl.last_servermessage = realtime;
+		cl.ackedinputsequence = MSG_ReadLong();
+
+		if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
+			cl.numackframes--;
+		cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
+
+		cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
+
+		if (cl.validsequence != cls.netchan.incoming_sequence-1)
+			Con_Printf("CLIENT: Dropped a frame\n");
+	}
+#endif
+
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	oldpacket = cl.validsequence&UPDATE_MASK;
 	newp = &cl.frames[newpacket].packet_entities;
@@ -725,8 +756,10 @@ void CLFTE_ParseEntities(void)
 	cl.frames[newpacket].invalid = true;
 
 
-	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1)
+	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1 || oldp == newp)
 	{
+		//yes, this results in a load of invalid packets for a while.
+		//server is meant to notice and send a reset packet, which causes it to become valid again
 		oldp = &nullp;
 		oldp->num_entities = 0;
 		oldp->max_entities = 0;
@@ -787,14 +820,17 @@ void CLFTE_ParseEntities(void)
 		if (removeflag)
 		{
 			if (cl_shownet.ival >= 3)
-				Con_Printf("%3i: Remove %i @ %i\n", msg_readcount, newnum, cls.netchan.incoming_sequence);
+				Con_Printf("%3i:     Remove %i @ %i\n", msg_readcount, newnum, cls.netchan.incoming_sequence);
 
 			if (!newnum)
 			{
 				/*removal of world - means forget all entities*/
 				if (cl_shownet.ival >= 3)
-					Con_Printf("%3i: Reset all\n", msg_readcount);
+					Con_Printf("%3i:     Reset all\n", msg_readcount);
 				newp->num_entities = 0;
+				oldp = &nullp;
+				oldp->num_entities = 0;
+				oldp->max_entities = 0;
 				isvalid = true;
 				continue;
 			}
@@ -1233,7 +1269,6 @@ void DP5_ParseDelta(entity_state_t *s)
 	}
 }
 
-int cl_latestframenum;
 void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 {
 	//the incoming entities do not come in in any order. :(
@@ -1252,7 +1287,9 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	int oldi, newi, lowesti, lowestv, newremaining;
 	qboolean remove;
 
-	cl_latestframenum = MSG_ReadLong(); /*server sequence to be acked*/
+	if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
+		cl.numackframes--;
+	cl.ackframes[cl.numackframes++] = MSG_ReadLong(); /*server sequence to be acked*/
 
 	if (cls.protocol_nq >= CPNQ_DP7)
 		cl.ackedinputsequence = MSG_ReadLong(); /*client input sequence which has been acked*/
@@ -2941,6 +2978,9 @@ void CL_TransitionEntities (void)
 	packnew = &cl.frames[newf].packet_entities;
 	packold = &cl.frames[oldf].packet_entities;
 
+//	Con_Printf("%f %f %f\n", packold->servertime, servertime, packnew->servertime);
+//	Con_Printf("%f %f %f\n", cl.oldgametime, servertime, cl.gametime);
+
 	CL_TransitionPacketEntities(newff, packnew, packold, servertime);
 	cl.currentpacktime = servertime;
 	cl.currentpackentities = packnew;
@@ -3194,8 +3234,9 @@ void CL_LinkPacketEntities (void)
 		}
 		else if (state->colormap > 0 && state->colormap <= MAX_CLIENTS)
 		{
-			ent->topcolour    = cl.players[state->colormap-1].ttopcolor;
-			ent->bottomcolour = cl.players[state->colormap-1].tbottomcolor;
+			ent->playerindex = state->colormap-1;
+			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;
+			ent->bottomcolour = cl.players[ent->playerindex].tbottomcolor;
 		}
 
 		// set skin

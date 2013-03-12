@@ -507,17 +507,23 @@ void M_Menu_Help_f (void)
 	m_state = m_help;
 	help_page = 0;
 
-	if (COM_FDepthFile("gfx/help1.lmp", true) < COM_FDepthFile("gfx/menu/help1.lmp", true))
+	if (COM_FDepthFile("gfx/help0.lmp", true) <= COM_FDepthFile("gfx/menu/help1.lmp", true))
 	{
 		helpstyle = "gfx/help%i.lmp";
-		num_help_pages = 6;
 		helppagemin=0;
 	}
 	else
 	{
 		helpstyle = "gfx/menu/help%02i.lmp";
-		num_help_pages = 5;
 		helppagemin = 1;
+	}
+
+	num_help_pages = 1;
+	while(num_help_pages < 100)
+	{
+		if (!COM_FDepthFile(va(helpstyle, num_help_pages+helppagemin), true))
+			break;
+		num_help_pages++;
 	}
 }
 
@@ -1071,7 +1077,7 @@ void M_Draw (int uimenu)
 		return;
 	}
 
-	if (m_state == m_none)
+	if (m_state == m_none || m_state == m_menu_dat)
 		return;
 
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)

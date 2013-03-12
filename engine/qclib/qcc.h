@@ -634,6 +634,7 @@ enum {
 	WARN_UNSAFEFUNCTIONRETURNTYPE,
 	WARN_MISSINGOPTIONAL,
 	WARN_SYSTEMCRC,
+	WARN_CONDITIONALTYPEMISMATCH,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -875,22 +876,21 @@ extern int numtemps;
 
 typedef char PATHSTRING[MAX_DATA_PATH];
 
-extern PATHSTRING		*precache_sounds;
-extern int			*precache_sounds_block;
-extern int			*precache_sounds_used;
+typedef struct
+{
+	PATHSTRING name;
+	int block;
+	int used;
+	int fileline;
+	char *filename;
+} precache_t;
+extern precache_t	*precache_sound;
 extern int			numsounds;
-
-extern PATHSTRING		*precache_textures;
-extern int			*precache_textures_block;
+extern precache_t	*precache_texture;
 extern int			numtextures;
-
-extern PATHSTRING		*precache_models;
-extern int			*precache_models_block;
-extern int			*precache_models_used;
+extern precache_t	*precache_model;
 extern int			nummodels;
-
-extern PATHSTRING		*precache_files;
-extern int			*precache_files_block;
+extern precache_t	*precache_file;
 extern int			numfiles;
 
 typedef struct qcc_includechunk_s {

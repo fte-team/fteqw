@@ -1877,7 +1877,7 @@ void NPP_QWWriteShort(int dest, short data)	//replacement write func (nq to qw)
 		qbyte b[2];
 		short s;
 	} u;
-	if (bufferlen == 2 && majortype == svc_temp_entity)
+	if (bufferlen == 2 && majortype == svc_temp_entity && (minortype == TE_LIGHTNING1 || minortype == TE_LIGHTNING2 || minortype == TE_LIGHTNING3))
 		NPP_QWWriteEntity(dest, data);
 	else
 	{

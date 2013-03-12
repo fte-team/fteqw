@@ -52,7 +52,7 @@ typedef struct
 	vec3_t		velocity;
 	int			weaponframe;
 
-	int			modelindex;
+	unsigned int			modelindex;
 	int			frame;
 	int			skinnum;
 	int			effects;
@@ -523,6 +523,10 @@ typedef struct
 
 	double		last_ping_request;	// while showing scoreboard
 	double		last_servermessage;
+
+	//list of ent frames that still need to be acked.
+	int numackframes;
+	int ackframes[64];
 
 #ifdef Q2CLIENT
 	q2frame_t	q2frame;
@@ -1105,7 +1109,7 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid);
 qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid);
 qboolean CSQC_MousePosition(float xabs, float yabs, int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
-int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);
 

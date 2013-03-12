@@ -244,7 +244,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_menutint = R_RegisterShader("menutint_glsl",
+	shader_menutint = R_RegisterShader("menutint",
 		"{\n"
 			"if $glsl && gl_menutint_shader != 0\n"
 			"[\n"
@@ -610,6 +610,13 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 #ifdef _WIN32
 	if (!strcmp(var->string, "?"))
 	{
+		BOOL (APIENTRY *pChooseFontA)(LPCHOOSEFONTA) = NULL;
+		dllfunction_t funcs[] =
+		{
+			{(void*)&pChooseFontA, "ChooseFontA"},
+			{NULL}
+		};
+		qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen);
 		LOGFONT lf = {0};
 		CHOOSEFONT cf = {sizeof(cf)};
 		extern HWND	mainwindow;
@@ -620,20 +627,21 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 		cf.iPointSize = (8 * vid.rotpixelheight)/vid.height;
 		cf.Flags = CF_FORCEFONTEXIST | CF_TTONLY;
 		cf.lpLogFont = &lf;
+
+		Sys_LoadLibrary("Comdlg32.dll", funcs);
 					
-		if (ChooseFont(&cf))
+		if (pChooseFontA && pChooseFontA(&cf))
 		{
 			char fname[MAX_OSPATH];
-			DWORD bufsz = sizeof(fname);
 			char *keyname;
 			keyname = va("%s%s%s (TrueType)", lf.lfFaceName, lf.lfWeight>=FW_BOLD?" Bold":"", lf.lfItalic?" Italic":"");
-			if (ERROR_SUCCESS == RegGetValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, RRF_RT_REG_SZ, NULL, fname, &bufsz))
+			if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
 			{
 				Cvar_Set(var, fname);
 				return;
 			}
 			keyname = va("%s (OpenType)", lf.lfFaceName);
-			if (ERROR_SUCCESS == RegGetValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, RRF_RT_REG_SZ, NULL, fname, &bufsz))
+			if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
 			{
 				Cvar_Set(var, fname);
 				return;
@@ -1165,3 +1173,4 @@ void R2D_DrawCrosshair(void)
 
 
 #endif
+

@@ -71,7 +71,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "n -= 1.0 - 4.0/256.0;\n"
 
 "#ifdef RIPPLEMAP\n"
-"n += texture2D(s_t3, stc)*3;\n"
+"n += texture2D(s_t3, stc).rgb*3.0;\n"
 "#endif\n"
 
 //the fresnel term decides how transparent the water should be
@@ -414,23 +414,50 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu FRAMEBLEND\n"
 "!!permu SKELETAL\n"
 "!!permu FOG\n"
+"!!cvarf r_glsl_offsetmapping_scale\n"
+"!!cvarf gl_specular\n"
 
 //standard shader used for models.
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
 
+"#ifdef UPPERLOWER\n"
+"#define UPPER\n"
+"#define LOWER\n"
+"#endif\n"
+
 "varying vec2 tc;\n"
 "varying vec3 light;\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"varying vec3 eyevector;\n"
+"#endif\n"
+
+
+
+
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
 "attribute vec2 v_texcoord;\n"
 "uniform vec3 e_light_dir;\n"
 "uniform vec3 e_light_mul;\n"
 "uniform vec3 e_light_ambient;\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"uniform vec3 e_eyepos;\n"
+"#endif\n"
 "void main ()\n"
 "{\n"
+"#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
+"vec3 n, s, t, w;\n"
+"gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
+"vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
+"eyevector.x = -dot(eyeminusvertex, s.xyz);\n"
+"eyevector.y = dot(eyeminusvertex, t.xyz);\n"
+"eyevector.z = dot(eyeminusvertex, n.xyz);\n"
+"#else\n"
 "vec3 n;\n"
 "gl_Position = skeletaltransform_n(n);\n"
+"#endif\n"
+
 "light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);\n"
 "tc = v_texcoord;\n"
 "}\n"
@@ -449,24 +476,54 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FULLBRIGHT\n"
 "uniform sampler2D s_t3;\n"
 "#endif\n"
+
+"#if defined(SPECULAR)\n"
+"uniform sampler2D s_t4;\n"
+"uniform sampler2D s_t5;\n"
+"uniform float cvar_gl_specular;\n"
+"#endif\n"
+
+"#ifdef OFFSETMAPPING\n"
+"#include \"sys/offsetmapping.h\"\n"
+"#endif\n"
+
+
+
 "uniform vec4 e_colourident;\n"
 "void main ()\n"
 "{\n"
 "vec4 col, sp;\n"
+
+"#ifdef OFFSETMAPPING\n"
+"vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);\n"
+"#define tc tcoffsetmap\n"
+"#endif\n"
+
 "col = texture2D(s_t0, tc);\n"
 "#ifdef UPPER\n"
 "vec4 uc = texture2D(s_t2, tc);\n"
-"col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
+"col.rgb += uc.rgb*e_uppercolour*uc.a;\n"
 "#endif\n"
 "#ifdef LOWER\n"
 "vec4 lc = texture2D(s_t1, tc);\n"
-"col.rgb = mix(col.rgb, lc.rgb*e_lowercolour, lc.a);\n"
+"col.rgb += lc.rgb*e_lowercolour*lc.a;\n"
 "#endif\n"
 "col.rgb *= light;\n"
+
+"#if defined(SPECULAR)\n"
+"vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);\n"
+"vec4 specs = texture2D(s_t5, tc);\n"
+
+"vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));\n"
+"float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);\n"
+"col.rgb += cvar_gl_specular * spec * specs.rgb;\n"
+"#endif\n"
+
 "#ifdef FULLBRIGHT\n"
 "vec4 fb = texture2D(s_t3, tc);\n"
 "col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
 "#endif\n"
+
 "gl_FragColor = fog4(col * e_colourident);\n"
 "}\n"
 "#endif\n"
@@ -1366,6 +1423,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "rtlight",
 "!!permu BUMP\n"
 "!!permu SKELETAL\n"
+"!!permu UPPERLOWER\n"
 "!!permu FOG\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 
@@ -1381,6 +1439,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#if 0 && defined(GL_ARB_texture_gather) && defined(PCF) \n"
 "#extension GL_ARB_texture_gather : enable\n"
+"#endif\n"
+
+"#ifdef UPPERLOWER\n"
+"#define UPPER\n"
+"#define LOWER\n"
 "#endif\n"
 
 
@@ -1431,20 +1494,20 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef FRAGMENT_SHADER\n"
 "#include \"sys/fog.h\"\n"
-"uniform sampler2D s_t0;\n"
+"uniform sampler2D s_t0; //diffuse\n"
 
 "#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n"
-"uniform sampler2D s_t1;\n"
+"uniform sampler2D s_t1; //normalmap\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
-"uniform sampler2D s_t2;\n"
+"uniform sampler2D s_t2; //specular\n"
 "#endif\n"
 "#ifdef CUBEPROJ\n"
-"uniform samplerCube s_t3;\n"
+"uniform samplerCube s_t3; //projected cubemap\n"
 "#endif\n"
 "#ifdef PCF\n"
 "#ifdef CUBESHADOW\n"
-"uniform samplerCubeShadow s_t4;\n"
+"uniform samplerCubeShadow s_t4; //shadowmap\n"
 "#else\n"
 "#if 0//def GL_ARB_texture_gather\n"
 "uniform sampler2D s_t4;\n"
@@ -1452,6 +1515,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2DShadow s_t4;\n"
 "#endif\n"
 "#endif\n"
+"#endif\n"
+"#ifdef LOWER\n"
+"uniform sampler2D s_t5;  //pants colours\n"
+"uniform vec3 e_lowercolour;\n"
+"#endif\n"
+"#ifdef UPPER\n"
+"uniform sampler2D s_t6;  //shirt colours\n"
+"uniform vec3 e_uppercolour;\n"
 "#endif\n"
 
 
@@ -1494,7 +1565,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //assume z is the major axis (ie: forward from the light)
 "vec3 t = shadowcoord;\n"
 "float ma = dir.z;\n"
-"vec4 axis = vec4(1.0, 1.0, 1.0, 0.0);\n"
+"vec3 axis = vec3(1.0, 1.0, 1.0);\n"
 "if (dir.x > ma)\n"
 "{\n"
 "ma = dir.x;\n"
@@ -1566,6 +1637,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define tcbase tcoffsetmap\n"
 "#endif\n"
 "vec3 bases = vec3(texture2D(s_t0, tcbase));\n"
+"#ifdef UPPER\n"
+"vec4 uc = texture2D(s_t6, tcbase);\n"
+"bases.rgb += uc.rgb*e_uppercolour*uc.a;\n"
+"#endif\n"
+"#ifdef LOWER\n"
+"vec4 lc = texture2D(s_t5, tcbase);\n"
+"bases.rgb += lc.rgb*e_lowercolour*lc.a;\n"
+"#endif\n"
 "#if defined(BUMP) || defined(SPECULAR)\n"
 "vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);\n"
 "#endif\n"
@@ -1716,7 +1795,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t0;/*$currentrender*/\n"
 "uniform sampler2D s_t1;/*warp image*/\n"
 "uniform sampler2D s_t2;/*edge image*/\n"
-"uniform vec3 e_rendertexturescale;\n"
+"uniform vec4 e_rendertexturescale;\n"
 "uniform float cvar_r_waterwarp;\n"
 "void main ()\n"
 "{\n"

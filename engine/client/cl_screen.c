@@ -1478,12 +1478,12 @@ void SCR_SetLoadingStage(int stage)
 		loadingfile = NULL;
 		break;
 	case LS_CONNECTION:
-		SCR_SetLoadingFile("connection...");
+		SCR_SetLoadingFile("waiting for connection...");
 		break;
 	case LS_SERVER:
 		if (scr_con_current > vid.height*scr_consize.value)
 			scr_con_current = vid.height*scr_consize.value;
-		SCR_SetLoadingFile("server...");
+		SCR_SetLoadingFile("starting server...");
 		break;
 	case LS_CLIENT:
 		SCR_SetLoadingFile("initial state");
@@ -1571,7 +1571,10 @@ void SCR_DrawLoading (void)
 		y += 16;
 
 		if (loadingfile)
+		{
 			Draw_FunString(x+8, y+4, loadingfile);
+			y+=8;
+		}
 	}
 	else
 	{	//hexen2 files
@@ -1697,8 +1700,8 @@ void SCR_EndLoadingPlaque (void)
 
 	scr_disabled_for_loading = false;
 	*levelshotname = '\0';
+	SCR_SetLoadingStage(0);
 	scr_drawloading = false;
-	loading_stage = 0;
 }
 
 void SCR_ImageName (char *mapname)

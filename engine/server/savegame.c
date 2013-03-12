@@ -907,6 +907,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 				// this will set the body to a dead frame, among other things
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 				PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+				sv.spawned_observer_slots--;
 			}
 		}
 	}

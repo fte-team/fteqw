@@ -997,7 +997,7 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 
 void CLNQ_SendCmd(sizebuf_t *buf)
 {
-	extern int cl_latestframenum;
+	int i;
 
 //	if (cls.signon == 4)
 	{
@@ -1008,11 +1008,12 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 			CLNQ_SendMove (&independantphysics[0], 0, buf);
 	}
 
-	if (CPNQ_IS_DP && cls.signon == 4)
+	for (i = 0; i < cl.numackframes; i++)
 	{
 		MSG_WriteByte(buf, clcdp_ackframe);
-		MSG_WriteLong(buf, cl_latestframenum);
+		MSG_WriteLong(buf, cl.ackframes[i]);
 	}
+	cl.numackframes = 0;
 
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 }

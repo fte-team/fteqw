@@ -134,7 +134,7 @@ cvar_t sv_loadentfiles = CVAR("sv_loadentfiles", "1");
 cvar_t sv_maxrate = CVAR("sv_maxrate", "30000");
 cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
 							"sv_maxdownloadrate", 0);
-cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
+cvar_t sv_minping = CVARF("sv_minping", "", CVAR_SERVERINFO);
 
 cvar_t sv_bigcoords = CVARFD("sv_bigcoords", "", CVAR_SERVERINFO, "Uses floats for coordinates instead of 16bit values. Affects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
 cvar_t sv_calcphs = CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
@@ -184,19 +184,18 @@ cvar_t	maxspectators	= CVARF("maxspectators",	"8",	CVAR_SERVERINFO);
 #ifdef SERVERONLY
 cvar_t	deathmatch		= CVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
 #else
-cvar_t	deathmatch		= CVARF("deathmatch",		"0",	CVAR_SERVERINFO);			// 0, 1, or 2
+cvar_t	deathmatch		= CVARF("deathmatch",		"",	CVAR_SERVERINFO);			// 0, 1, or 2
 #endif
 cvar_t	coop			= CVARF("coop",			"" ,	CVAR_SERVERINFO);
 cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
 cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
 cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
 cvar_t	rearview		= CVARF("rearview",		"" ,	CVAR_SERVERINFO);
-cvar_t	allow_luma		= CVARF("allow_luma",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_luma		= CVARF("allow_luma",		"",	CVAR_SERVERINFO);
 #pragma warningmsg("Remove this some time")
-cvar_t	allow_bump		= CVARF("allow_bump",		"1",	CVAR_SERVERINFO);
 cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
 cvar_t	sv_allow_splitscreen = CVARF("allow_splitscreen","",CVAR_SERVERINFO);
-cvar_t	fbskins			= CVARF("fbskins",			"1",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
+cvar_t	fbskins			= CVARF("fbskins",			"",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
 cvar_t	mirrors			= CVARF("mirrors",			"" ,	CVAR_SERVERINFO);
 
 cvar_t	sv_motd[]		={	CVAR("sv_motd1",		""),
@@ -523,12 +522,14 @@ void SV_DropClient (client_t *drop)
 							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
 						sv.spawned_client_slots--;
 					}
-					else if (SpectatorDisconnect)
+					else
 					{
-					// call the prog function for removing a client
-					// this will set the body to a dead frame, among other things
+						// call the prog function for removing a client
+						// this will set the body to a dead frame, among other things
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-						PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+						if (SpectatorDisconnect)
+							PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+						sv.spawned_observer_slots--;
 					}
 				}
 
@@ -621,6 +622,7 @@ void SV_DropClient (client_t *drop)
 	}
 	drop->laggedpacket_last = NULL;
 
+	drop->pendingentbits = NULL;
 	if (drop->frameunion.frames)	//union of the same sort of structure
 	{
 		Z_Free(drop->frameunion.frames);
@@ -1710,6 +1712,129 @@ static void SV_CheckRecentCrashes(client_t *tellclient)
 }
 #endif
 
+
+void SV_ClientProtocolExtensionsChanged(client_t *client)
+{
+	int i;
+	int maxpacketentities;
+	extern cvar_t pr_maxedicts;
+	client->maxmodels = 256;
+
+	if (client->fteprotocolextensions & PEXT_256PACKETENTITIES)
+		maxpacketentities = MAX_EXTENDED_PACKET_ENTITIES;
+	else
+		maxpacketentities = MAX_STANDARD_PACKET_ENTITIES;	//true for qw,q2
+
+	if (ISQWCLIENT(client))	//readd?
+	{
+		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		{
+			//you need to reconnect for this to update, of course. so make sure its not *too* low...
+			client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
+			client->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
+		}
+		else
+		{
+			client->max_net_ents = 512;
+			if (client->fteprotocolextensions & PEXT_ENTITYDBL)
+				client->max_net_ents += 512;
+			if (client->fteprotocolextensions & PEXT_ENTITYDBL2)
+				client->max_net_ents += 1024;
+		}
+
+		if (client->fteprotocolextensions & PEXT_MODELDBL)
+			client->maxmodels = MAX_MODELS;
+	}
+	else if (ISDPCLIENT(client))
+	{
+		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
+		client->maxmodels = 1024;	//protocol limit of 16 bits. 15 bits for late precaches. client limit of 1k
+
+		client->datagram.maxsize = sizeof(host_client->datagram_buf);
+	}
+	else if (client->protocol == SCP_FITZ666)
+	{
+		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently.
+		client->maxmodels = 1024;
+		maxpacketentities = 512;
+
+		client->datagram.maxsize = sizeof(host_client->datagram_buf);
+	}
+	else
+	{
+		client->datagram.maxsize = MAX_NQDATAGRAM;	//vanilla limit
+		client->max_net_ents = bound(512, pr_maxedicts.ival, 600);
+	}
+
+	client->pendingentbits = NULL;
+
+	//initialise the client's frames, based on that client's protocol
+	switch(client->protocol)
+	{
+#ifdef Q3SERVER
+	case SCP_QUAKE3:
+		Huff_PreferedCompressionCRC();
+		if (client->frameunion.q3frames)
+			Z_Free(client->frameunion.q3frames);
+		client->frameunion.q3frames = Z_Malloc(Q3UPDATE_BACKUP*sizeof(*client->frameunion.q3frames));
+		break;
+#endif
+
+#ifdef Q2SERVER
+	case SCP_QUAKE2:
+		// build a new connection
+		// accept the new client
+		// this is the only place a client_t is ever initialized
+		client->frameunion.q2frames = client->frameunion.q2frames;	//don't touch these.
+		if (client->frameunion.q2frames)
+			Z_Free(client->frameunion.q2frames);
+
+		client->frameunion.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
+		break;
+#endif
+
+	default:
+		client->frameunion.frames = client->frameunion.frames;	//don't touch these.
+		if (client->frameunion.frames)
+			Z_Free(client->frameunion.frames);
+
+		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
+		{
+			char *ptr;
+			int maxents = client->max_net_ents;//maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
+							sizeof(*client->pendingentbits)*client->max_net_ents+
+							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
+							sizeof(unsigned int)*maxents*UPDATE_BACKUP);
+			client->frameunion.frames = (void*)ptr;
+			ptr += sizeof(*client->frameunion.frames)*UPDATE_BACKUP;
+			client->pendingentbits = (void*)ptr;
+			ptr += sizeof(*client->pendingentbits)*client->max_net_ents;
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				client->frameunion.frames[i].entities.max_entities = maxents;
+				client->frameunion.frames[i].resendentnum = (void*)ptr;
+				ptr += sizeof(*client->frameunion.frames[i].resendentnum)*maxents;
+				client->frameunion.frames[i].resendentbits = (void*)ptr;
+				ptr += sizeof(*client->frameunion.frames[i].resendentbits)*maxents;
+			}
+
+			//make sure the reset is sent.
+			client->pendingentbits[0] = UF_REMOVE;
+		}
+		else
+		{
+			client->frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				client->frameunion.frames[i].entities.max_entities = maxpacketentities;
+				client->frameunion.frames[i].entities.entities = (entity_state_t*)(client->frameunion.frames+UPDATE_BACKUP) + i*client->frameunion.frames[i].entities.max_entities;
+			}
+		}
+		break;
+	}
+}
+
 /*
 ==================
 SVC_DirectConnect
@@ -1749,15 +1874,13 @@ client_t *SVC_DirectConnect(void)
 	char basic[80];
 	qboolean	redirect = false;
 
-	int maxpacketentities;
-
 	int numssclients = 1;
 
 	int protocol;
 
 	unsigned int protextsupported=0;
 	unsigned int protextsupported2=0;
-	extern cvar_t pr_maxedicts, sv_protocol_nq;
+	extern cvar_t sv_protocol_nq;
 
 
 	char *name;
@@ -1940,13 +2063,6 @@ client_t *SVC_DirectConnect(void)
 	}
 	msg_badread=false;
 	
-
-
-	if (protextsupported & PEXT_256PACKETENTITIES)
-		maxpacketentities = MAX_EXTENDED_PACKET_ENTITIES;
-	else
-		maxpacketentities = MAX_STANDARD_PACKET_ENTITIES;
-
 	/*allow_splitscreen applies only to non-local clients, so that clients have only one enabler*/
 	if (!sv_allow_splitscreen.ival && net_from.type != NA_LOOPBACK)
 		numssclients = 1;
@@ -2042,41 +2158,6 @@ client_t *SVC_DirectConnect(void)
 	newcl->fteprotocolextensions2 = protextsupported2;
 	newcl->protocol = protocol;
 	Q_strncpyz(newcl->guid, guid, sizeof(newcl->guid));
-
-	newcl->maxmodels = 256;
-	if (protocol == SCP_QUAKEWORLD)	//readd?
-	{
-		if (newcl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		{
-			//you need to reconnect for this to update, of course. so make sure its not *too* low...
-			newcl->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
-			newcl->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
-		}
-		else
-		{
-			newcl->max_net_ents = 512;
-			if (newcl->fteprotocolextensions & PEXT_ENTITYDBL)
-				newcl->max_net_ents += 512;
-			if (newcl->fteprotocolextensions & PEXT_ENTITYDBL2)
-				newcl->max_net_ents += 1024;
-		}
-
-		if (newcl->fteprotocolextensions & PEXT_MODELDBL)
-			newcl->maxmodels = MAX_MODELS;
-	}
-	else if (ISDPCLIENT(newcl))
-	{
-		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
-		newcl->maxmodels = 1024;	//protocol limit of 16 bits. 15 bits for late precaches. client limit of 1k
-	}
-	else if (newcl->protocol == SCP_FITZ666)
-	{
-		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently.
-		newcl->maxmodels = 1024;
-		maxpacketentities = 512;
-	}
-	else
-		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 600);
 
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;
@@ -2331,72 +2412,11 @@ client_t *SVC_DirectConnect(void)
 		break;
 	}
 
-	//initialise the client's frames, based on that client's protocol
-	switch(temp.protocol)
+	if (newcl->frameunion.frames)
 	{
-#ifdef Q3SERVER
-	case SCP_QUAKE3:
-		Huff_PreferedCompressionCRC();
-		if (temp.frameunion.q3frames)
-			Z_Free(temp.frameunion.q3frames);
-		temp.frameunion.q3frames = Z_Malloc(Q3UPDATE_BACKUP*sizeof(*temp.frameunion.q3frames));
-		break;
-#endif
-
-#ifdef Q2SERVER
-	case SCP_QUAKE2:
-		// build a new connection
-		// accept the new client
-		// this is the only place a client_t is ever initialized
-		temp.frameunion.q2frames = newcl->frameunion.q2frames;	//don't touch these.
-		if (temp.frameunion.q2frames)
-			Z_Free(temp.frameunion.q2frames);
-
-		temp.frameunion.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
-		break;
-#endif
-
-	default:
-		temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.
-		if (temp.frameunion.frames)
-		{
-			Con_Printf("Debug: frames were set?\n");
-			Z_Free(temp.frameunion.frames);
-		}
-
-		if ((temp.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
-		{
-			char *ptr;
-			int maxents = temp.max_net_ents;//maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
-			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
-							sizeof(*temp.pendingentbits)*temp.max_net_ents+
-							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
-							sizeof(unsigned int)*maxents*UPDATE_BACKUP);
-			temp.frameunion.frames = (void*)ptr;
-			ptr += sizeof(*temp.frameunion.frames)*UPDATE_BACKUP;
-			temp.pendingentbits = (void*)ptr;
-			ptr += sizeof(*temp.pendingentbits)*temp.max_net_ents;
-			for (i = 0; i < UPDATE_BACKUP; i++)
-			{
-				temp.frameunion.frames[i].entities.max_entities = maxents;
-				temp.frameunion.frames[i].resendentnum = (void*)ptr;
-				ptr += sizeof(*temp.frameunion.frames[i].resendentnum)*maxents;
-				temp.frameunion.frames[i].resendentbits = (void*)ptr;
-				ptr += sizeof(*temp.frameunion.frames[i].resendentbits)*maxents;
-			}
-		}
-		else
-		{
-			temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
-			for (i = 0; i < UPDATE_BACKUP; i++)
-			{
-				temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
-				temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
-			}
-		}
-		break;
+		Con_Printf("Client frame info was set\n");
+		Z_Free(newcl->frameunion.frames);
 	}
-
 
 	{
 		char *n, *t;
@@ -2447,6 +2467,8 @@ client_t *SVC_DirectConnect(void)
 	newcl->netchan.netprim = svs.netprim;
 	newcl->datagram.prim = svs.netprim;
 	newcl->netchan.message.prim = svs.netprim;
+
+	SV_ClientProtocolExtensionsChanged(newcl);
 
 	// spectator mode can ONLY be set at join time
 	newcl->spectator = spectator;
@@ -2562,7 +2584,12 @@ client_t *SVC_DirectConnect(void)
 	{
 		SV_AcceptMessage (protocol);
 
-		if (redirect)
+		if (ISNQCLIENT(newcl))
+		{
+			//FIXME: we should delay this until we actually have a name.
+			SV_BroadcastPrintf(PRINT_LOW, "New client connected\n", newcl->name);
+		}
+		else if (redirect)
 		{
 		}
 		else if (newcl->spectator)
@@ -3941,7 +3968,7 @@ float SV_Frame (void)
 #ifndef SERVERONLY
 	isidle = !isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game && cls.state == ca_active;
 	/*server is effectively paused if there are no clients*/
-	if (sv.spawned_client_slots == 0)
+	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && (cls.state != ca_connected))
 		isidle = true;
 	if ((sv.paused & 4) != (isidle?4:0))
 		sv.paused ^= 4;
@@ -4210,7 +4237,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&rearview,	cvargroup_serverinfo);
 	Cvar_Register (&mirrors,	cvargroup_serverinfo);
 	Cvar_Register (&allow_luma,	cvargroup_serverinfo);
-	Cvar_Register (&allow_bump,	cvargroup_serverinfo);
 	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
 	Cvar_Register (&sv_allow_splitscreen,	cvargroup_serverinfo);
 	Cvar_Register (&fbskins,	cvargroup_serverinfo);

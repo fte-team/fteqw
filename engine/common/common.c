@@ -1921,7 +1921,7 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 //3 invalid unicode char
 //4 invalid utf-16 lead/high surrogate
 //5 invalid utf-16 tail/low surrogate
-unsigned int utf8_decode(int *error, const void *in, void **out)
+unsigned int utf8_decode(int *error, const void *in, char **out)
 {
 	//uc is the output unicode char
 	unsigned int uc = 0xfffdu;	//replacement character
@@ -2406,7 +2406,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		if (*str & 0x80 && utf8 > 0)
 		{	//check for utf-8
 			int decodeerror;
-			void *end;
+			char *end;
 			uc = utf8_decode(&decodeerror, str, &end);
 			if (decodeerror)
 			{
@@ -2600,8 +2600,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				//we don't support the full 12bit colour depth (only 4-bit CGA)
 				//so find the closest that we do support
 				int best = 1;
-				float bd = 255*255*255, d;
-				int c;
+				float bd = 255*255*255;
 				int r, g, b;
 				if      (str[2] >= '0' && str[2] <= '9')
 					r = (str[2]-'0');

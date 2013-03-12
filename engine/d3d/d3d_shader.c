@@ -259,3 +259,4 @@ int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name)
 	return -1;
 }
 #endif
+

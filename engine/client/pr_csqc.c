@@ -3153,98 +3153,6 @@ static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvar
 #endif
 }
 
-#ifndef NOMEDIA
-
-// #487 float(string name) gecko_create( string name )
-static void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-
-	if (!cin)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-		G_FLOAT(OFS_RETURN) = 1;
-}
-// #488 void(string name) gecko_destroy( string name )
-static void QCBUILTIN PF_cs_gecko_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-}
-// #489 void(string name) gecko_navigate( string name, string URI )
-static void QCBUILTIN PF_cs_gecko_navigate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *command = PR_GetStringOfs(prinst, OFS_PARM1);
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-
-	if (!cin)
-		return;
-
-	Media_Send_Command(cin, command);
-}
-// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
-static void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	int key = G_FLOAT(OFS_PARM1);
-	int eventtype = G_FLOAT(OFS_PARM2);
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-
-	if (!cin)
-		return;
-	Media_Send_KeyEvent(cin, MP_TranslateDPtoFTECodes(key), (key>127)?0:key, eventtype);
-}
-// #491 void gecko_mousemove( string name, float x, float y )
-static void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	float posx = G_FLOAT(OFS_PARM1);
-	float posy = G_FLOAT(OFS_PARM2);
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-
-	if (!cin)
-		return;
-	Media_Send_MouseMove(cin, posx, posy);
-}
-// #492 void gecko_resize( string name, float w, float h )
-static void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	float sizex = G_FLOAT(OFS_PARM1);
-	float sizey = G_FLOAT(OFS_PARM2);
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-	if (!cin)
-		return;
-	Media_Send_Resize(cin, sizex, sizey);
-}
-// #493 vector gecko_get_texture_extent( string name )
-static void QCBUILTIN PF_cs_gecko_get_texture_extent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	float *ret = G_VECTOR(OFS_RETURN);
-	int sx, sy;
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-	if (cin)
-	{
-		Media_Send_GetSize(cin, &sx, &sy);
-	}
-	else
-	{
-		sx = 0;
-		sy = 0;
-	}
-	ret[0] = sx;
-	ret[1] = sy;
-	ret[2] = 0;
-}
-#endif
-
 static void QCBUILTIN PF_cs_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t		*ent;
@@ -3282,20 +3190,6 @@ static void QCBUILTIN PF_cs_copyentity (pubprogfuncs_t *prinst, struct globalvar
 	memcpy(out->v, in->v, csqcentsize);
 
 	World_LinkEdict (&csqc_world, (wedict_t*)out, false);
-}
-
-static void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = !!cls.demoplayback;
-}
-
-static void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-#ifdef CLIENTONLY
-	G_FLOAT(OFS_RETURN) = false;
-#else
-	G_FLOAT(OFS_RETURN) = sv.state != ss_dead;
-#endif
 }
 
 static void QCBUILTIN PF_cl_getlight (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3369,24 +3263,6 @@ static void QCBUILTIN PF_rotatevectorsbytag (pubprogfuncs_t *prinst, struct glob
 
 	VectorCopy(srcorg, retorg);
 }
-
-static void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *defaultbody = PF_VarString(prinst, 1, pr_globals);
-
-	shader_t *shad;
-
-	if (*defaultbody)
-		shad = R_RegisterShader(str, defaultbody);
-	else
-		shad = R_RegisterSkin(str, NULL);
-	if (shad)
-		G_FLOAT(OFS_RETURN) = shad-r_shaders + 1;
-	else
-		G_FLOAT(OFS_RETURN) = 0;
-}
-
 
 
 
@@ -3671,7 +3547,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 {
 	func_t func;
 
-	if (!state || !state->modelindex)
+	if (!state || state->modelindex <= 0 || state->modelindex >= MAX_MODELS)
 	{
 		if (csqcdelta_playerents[playernum])
 		{
@@ -4658,8 +4534,10 @@ static struct {
 	{"writetofile",			PF_writetofile,				606},
 	{"isfunction",			PF_isfunction,				607},
 	{"parseentitydata",		PF_parseentitydata,			608},
+	{"keynumtostring",		PF_cl_keynumtostring,		609},
 
 	{"findkeysforcommand",	PF_cl_findkeysforcommand,	610},
+	{"stringtokeynum",		PF_cl_stringtokeynum,		614},
 
 	{"sprintf",				PF_sprintf,					627},
 
@@ -5661,7 +5539,7 @@ qboolean CSQC_LoadResource(char *resname, char *restype)
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, resname));
-	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, restype));
+	(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, restype));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.loadresource);
 
@@ -5797,7 +5675,7 @@ static void CSQC_EntityCheck(int entnum)
 	}
 }
 
-int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation)
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod)
 {
 	void *pr_globals;
 	csqcedict_t *ent;
@@ -5814,6 +5692,7 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 		G_FLOAT(OFS_PARM3) = vol;
 		G_FLOAT(OFS_PARM4) = attenuation;
 		VectorCopy(pos, G_VECTOR(OFS_PARM5));
+		G_FLOAT(OFS_PARM6) = attenuation;
 
 		PR_ExecuteProgram(csqcprogs, csqcg.event_sound);
 

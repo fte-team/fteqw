@@ -317,6 +317,9 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport)
 	chan->sock = sock;
 	chan->remote_address = adr;
 	chan->last_received = realtime;
+#ifdef NQPROT
+	chan->nqreliable_allowed = true;
+#endif
 	
 	chan->message.data = chan->message_buf;
 	chan->message.allowoverflow = true;
@@ -406,6 +409,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 			}
 			chan->incoming_reliable_acknowledged = chan->reliable_sequence;
 			chan->reliable_sequence++;
+			chan->nqreliable_allowed = true;
 
 			chan->last_received = realtime;
 		}
@@ -415,10 +419,9 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 			Con_Printf("Future ack recieved\n");
 
 		if (showpackets.value)
-			Con_Printf ("<-- a s=%i a=%i(%i) %i\n"
-						, chan->outgoing_sequence
-						, chan->incoming_sequence
-						, chan->incoming_reliable_sequence
+			Con_Printf ("in  %s a=%i %i\n"
+						, chan->sock != NS_SERVER?"s2c":"c2s"
+						, sequence
 						, 0);
 
 		return NQP_ERROR;	//don't try execing the 'payload'. I hate ack packets.
@@ -426,7 +429,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 
 	if (header & NETFLAG_UNRELIABLE)
 	{
-		if (sequence < chan->incoming_unreliable)
+		if (sequence <= chan->incoming_unreliable)
 		{
 			Con_DPrintf("Stale datagram recieved\n");
 			return NQP_ERROR;
@@ -452,10 +455,9 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		chan->good_count++;
 
 		if (showpackets.value)
-			Con_Printf ("<-- u s=%i a=%i(%i) %i\n"
-						, chan->outgoing_sequence
-						, chan->incoming_sequence
-						, chan->incoming_reliable_sequence
+			Con_Printf ("in  %s u=%i %i\n"
+						, chan->sock != NS_SERVER?"s2c":"c2s"
+						, chan->incoming_unreliable
 						, net_message.cursize);
 		return NQP_DATAGRAM;
 	}
@@ -466,6 +468,11 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		runt[0] = BigLong(NETFLAG_ACK | 8);
 		runt[1] = BigLong(sequence);
 		NET_SendPacket (chan->sock, 8, runt, net_from);
+		if (showpackets.value)
+			Con_Printf ("out %s a=%i %i\n"
+						, chan->sock == NS_SERVER?"s2c":"c2s"
+						, sequence
+						, 0);
 
 		chan->last_received = realtime;
 		if (sequence == chan->incoming_reliable_sequence)
@@ -489,10 +496,9 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 				MSG_BeginReading(chan->netprim);
 
 				if (showpackets.value)
-					Con_Printf ("<-- r s=%i a=%i(%i) %i\n"
-								, chan->outgoing_sequence
-								, chan->incoming_sequence
-								, chan->incoming_reliable_sequence
+					Con_Printf ("in  %s r=%i %i\n"
+								, chan->sock != NS_SERVER?"s2c":"c2s"
+								, sequence
 								, net_message.cursize);
 				return NQP_RELIABLE;	//we can read it now
 			}
@@ -536,9 +542,12 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.cursize = 0;
 
 		/*unreliables flood out, but reliables are tied to server sequences*/
+		if (chan->nqreliable_resendtime < realtime)
+			chan->nqreliable_allowed = true;
 		if (chan->nqreliable_allowed)
 		{
-			if (!chan->reliable_length && chan->message.cursize)
+			//consume the new reliable when we can.
+			if (!chan->reliable_length && chan->message.cursize && !chan->nqunreliableonly)
 			{
 				memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
 				chan->reliable_length = chan->message.cursize;
@@ -560,8 +569,8 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				{
 					if (send.cursize + length < send.maxsize)
 					{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
-						SZ_Write (&send, data, length);
-						length = 0;
+//						SZ_Write (&send, data, length);
+//						length = 0;
 					}
 
 					*(int*)send_buf = BigLong(NETFLAG_DATA | NETFLAG_EOM | send.cursize);
@@ -574,14 +583,15 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				sentsize += send.cursize;
 
 				if (showpackets.value)
-					Con_Printf ("--> r s=%i a=%i(%i) %i\n"
-						, chan->outgoing_sequence
-						, chan->incoming_sequence
-						, chan->incoming_reliable_sequence
+					Con_Printf ("out %s r s=%i %i\n"
+						, chan->sock == NS_SERVER?"s2c":"c2s"
+						, chan->reliable_sequence
 						, send.cursize);
 				send.cursize = 0;
+
+				chan->nqreliable_allowed = false;
+				chan->nqreliable_resendtime = realtime + 0.3;	//resend reliables after 0.3 seconds. nq transports suck.
 			}
-			chan->nqreliable_allowed = false;
 		}
 
 		//send out the unreliable (if still unsent)
@@ -598,8 +608,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			sentsize += send.cursize;
 
 			if (showpackets.value)
-				Con_Printf ("--> u s=%i %i\n"
-						, chan->outgoing_unreliable
+				Con_Printf ("out %s u=%i %i\n"
+						, chan->sock == NS_SERVER?"s2c":"c2s"
+						, chan->outgoing_unreliable-1
 						, send.cursize);
 			send.cursize = 0;
 		}

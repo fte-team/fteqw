@@ -876,8 +876,16 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 	int			qwflags;
     int			i;
 	qboolean	use_phs;
-	qboolean	reliable = false;
+	qboolean	reliable;
 	int requiredextensions = 0;
+
+	if (channel & 256)
+	{
+		channel -= 256;
+		reliable = true;
+	}
+	else
+		reliable = false;
 
 	if (volume < 0 || volume > 255)
 	{
@@ -891,7 +899,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		return;
 	}
 
-	if (channel < 0 || channel > 15)
+	if (channel < 0 || channel > 255)
 	{
 		Con_Printf ("SV_StartSound: channel = %i", channel);
 		return;
@@ -914,16 +922,10 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
         return;
     }
 
-	if ((channel & 8) || !sv_phs.value)	// no PHS flag
-	{
-		if (channel & 8)
-			reliable = true; // sounds that break the phs are reliable
+	if (reliable || !sv_phs.value)	// no PHS flag
 		use_phs = false;
-	}
 	else
 		use_phs = attenuation!=0;
-
-	channel = (channel & 7) | ((channel & 0x1f0) >> 1);
 
 //	if (channel == CHAN_BODY || channel == CHAN_VOICE)
 //		reliable = true;
@@ -1187,6 +1189,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 #endif
 	client_t *split;
 	int pnum=0;
+	int weaponmodelindex = 0;
+	qboolean nqjunk = true;
 
 	// send the chokecount for r_netgraph
 	if (ISQWCLIENT(client))
@@ -1221,10 +1225,13 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	ent = client->edict;
 
 
-	MSG_WriteByte (msg, svc_time);
-	MSG_WriteFloat(msg, sv.world.physicstime);
-	client->nextservertimeupdate = sv.world.physicstime;
-//	Con_Printf("%f\n", sv.world.physicstime);
+	if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+	{
+		MSG_WriteByte (msg, svc_time);
+		MSG_WriteFloat(msg, sv.world.physicstime);
+		client->nextservertimeupdate = sv.world.physicstime;
+//		Con_Printf("%f\n", sv.world.physicstime);
+	}
 
 
 	bits = 0;
@@ -1242,8 +1249,26 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 #define	SU_INWATER		(1<<11)		// no data follows, the bit is it
 #define	SU_WEAPONFRAME	(1<<12)
 #define	SU_ARMOR		(1<<13)
-#define	SU_WEAPON		(1<<14)
+#define	SU_WEAPONMODEL	(1<<14)
 #define	SU_EXTEND1		(1<<15)
+
+#define FITZSU_WEAPONMODEL2	(1<<16) // 1 byte, this is .weaponmodel & 0xFF00 (second byte)
+#define FITZSU_ARMOR2		(1<<17) // 1 byte, this is .armorvalue & 0xFF00 (second byte)
+#define FITZSU_AMMO2		(1<<18) // 1 byte, this is .currentammo & 0xFF00 (second byte)
+#define FITZSU_SHELLS2		(1<<19) // 1 byte, this is .ammo_shells & 0xFF00 (second byte)
+#define FITZSU_NAILS2		(1<<20) // 1 byte, this is .ammo_nails & 0xFF00 (second byte)
+#define FITZSU_ROCKETS2		(1<<21) // 1 byte, this is .ammo_rockets & 0xFF00 (second byte)
+#define FITZSU_CELLS2		(1<<22) // 1 byte, this is .ammo_cells & 0xFF00 (second byte)
+#define FITZSU_EXTEND2		(1<<23) // another byte to follow
+
+#define FITZSU_WEAPONFRAME2	(1<<24) // 1 byte, this is .weaponframe & 0xFF00 (second byte)
+#define FITZSU_WEAPONALPHA	(1<<25) // 1 byte, this is alpha for weaponmodel, uses ENTALPHA_ENCODE, not sent if ENTALPHA_DEFAULT
+#define FITZSU_UNUSED26		(1<<26)
+#define FITZSU_UNUSED27		(1<<27)
+#define FITZSU_UNUSED28		(1<<28)
+#define FITZSU_UNUSED29		(1<<29)
+#define FITZSU_UNUSED30		(1<<30)
+#define FITZSU_EXTEND3		(1<<31) // another byte to follow, future expansion
 
 	if (ent->v->view_ofs[2] != DEFAULT_VIEWHEIGHT)
 		bits |= SU_VIEWHEIGHT;
@@ -1277,17 +1302,55 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			bits |= (SU_VELOCITY1<<i);
 	}
 
-	if (ent->v->weaponframe)
-		bits |= SU_WEAPONFRAME;
+	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+	{
+		//bits &= ~SU_ITEMS;
+		nqjunk = false;
+	}
+	else
+	{
+		nqjunk = true;
 
-	if (ent->v->armorvalue)
-		bits |= SU_ARMOR;
+		if (ent->v->weaponframe)
+			bits |= SU_WEAPONFRAME;
 
-//	if (ent->v->weapon)
-		bits |= SU_WEAPON;
+		if (ent->v->armorvalue)
+			bits |= SU_ARMOR;
 
-	if (bits >= 65536)
+		weaponmodelindex = SV_ModelIndex(ent->v->weaponmodel + svprogfuncs->stringtable);
+
+		if (weaponmodelindex)
+			bits |= SU_WEAPONMODEL;
+
+		if (client->protocol == SCP_FITZ666)
+		{
+			if (weaponmodelindex & 0xff00)
+				bits |= FITZSU_WEAPONMODEL2;
+			if ((int)ent->v->armorvalue & 0xff00)
+				bits |= FITZSU_ARMOR2;
+			if ((int)ent->v->currentammo & 0xff00)
+				bits |= FITZSU_AMMO2;
+			if ((int)ent->v->ammo_shells & 0xff00)
+				bits |= FITZSU_SHELLS2;
+			if ((int)ent->v->ammo_nails & 0xff00)
+				bits |= FITZSU_NAILS2;
+			if ((int)ent->v->ammo_rockets & 0xff00)
+				bits |= FITZSU_ROCKETS2;
+			if ((int)ent->v->ammo_cells & 0xff00)
+				bits |= FITZSU_CELLS2;
+			if ((int)ent->v->weaponframe & 0xff00)
+				bits |= FITZSU_WEAPONFRAME2;
+			if (ent->xv->alpha && ent->xv->alpha < 1)
+				bits |= FITZSU_WEAPONALPHA;
+		}
+	}
+
+	if (bits >= (1u<<16))
 		bits |= SU_EXTEND1;
+	if (bits >= (1u<<24))
+		bits |= FITZSU_EXTEND2;
+	if (bits >= (1ull<<32))
+		bits |= FITZSU_EXTEND3;
 
 // send the data
 
@@ -1316,48 +1379,54 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (bits & SU_ITEMS)
 		MSG_WriteLong (msg, items);
 
-	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
-		return;
-
 	if (bits & SU_WEAPONFRAME)
 		MSG_WriteByte (msg, ent->v->weaponframe);
 	if (bits & SU_ARMOR)
 	{
-		if (ent->v->armorvalue>255)
+		if (ent->v->armorvalue>255 && !(bits & FITZSU_ARMOR2))
 			MSG_WriteByte (msg, 255);
 		else
 			MSG_WriteByte (msg, ent->v->armorvalue);
 	}
-	if (bits & SU_WEAPON)
-		MSG_WriteByte (msg, SV_ModelIndex(ent->v->weaponmodel + svprogfuncs->stringtable));
+	if (bits & SU_WEAPONMODEL)
+		MSG_WriteByte (msg, weaponmodelindex);
 
-	MSG_WriteShort (msg, ent->v->health);
-	MSG_WriteByte (msg, ent->v->currentammo);
-	MSG_WriteByte (msg, ent->v->ammo_shells);
-	MSG_WriteByte (msg, ent->v->ammo_nails);
-	MSG_WriteByte (msg, ent->v->ammo_rockets);
-	MSG_WriteByte (msg, ent->v->ammo_cells);
-
-	//if (other && other->v->weapon)
-		//MSG_WriteByte (msg, other->v->weapon);
-	//else
-	//{
-
-	if (standard_quake)
+	if (nqjunk)
 	{
-		MSG_WriteByte (msg, ent->v->weapon);
-	}
-	else
-	{
-		for(i=0;i<32;i++)
+		MSG_WriteShort (msg, ent->v->health);
+		MSG_WriteByte (msg, ent->v->currentammo);
+		MSG_WriteByte (msg, ent->v->ammo_shells);
+		MSG_WriteByte (msg, ent->v->ammo_nails);
+		MSG_WriteByte (msg, ent->v->ammo_rockets);
+		MSG_WriteByte (msg, ent->v->ammo_cells);
+
+		if (standard_quake)
 		{
-			if ( ((int)ent->v->weapon) & (1<<i) )
+			MSG_WriteByte (msg, ent->v->weapon);
+		}
+		else
+		{
+			for(i=0;i<32;i++)
 			{
-				MSG_WriteByte (msg, i);
-				break;
+				if ( ((int)ent->v->weapon) & (1<<i) )
+				{
+					MSG_WriteByte (msg, i);
+					break;
+				}
 			}
 		}
 	}
+
+	if (bits & FITZSU_WEAPONMODEL2)	MSG_WriteByte (msg, weaponmodelindex >> 8);
+	if (bits & FITZSU_ARMOR2)		MSG_WriteByte (msg, (int)ent->v->armorvalue >> 8);
+	if (bits & FITZSU_AMMO2)		MSG_WriteByte (msg, (int)ent->v->currentammo >> 8);
+	if (bits & FITZSU_SHELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_shells >> 8);
+	if (bits & FITZSU_NAILS2)		MSG_WriteByte (msg, (int)ent->v->ammo_nails >> 8);
+	if (bits & FITZSU_ROCKETS2)		MSG_WriteByte (msg, (int)ent->v->ammo_rockets >> 8);
+	if (bits & FITZSU_CELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_cells >> 8);
+	if (bits & FITZSU_WEAPONFRAME2)	MSG_WriteByte (msg, (int)ent->v->weaponframe >> 8);
+	if (bits & FITZSU_WEAPONALPHA)	MSG_WriteByte (msg, ent->xv->alpha*255);
+
 //	}
 #endif
 }
@@ -2332,29 +2401,50 @@ void SV_SendClientMessages (void)
 			continue;
 		}
 
+#ifdef NQPROT
 		// only send messages if the client has sent one
 		// and the bandwidth is not choked
 		if (ISNQCLIENT(c))
-		{	//nq clients get artificial choke too
-			c->send_message = false;
-			if (c->nextservertimeupdate != pt && c->state != cs_zombie)
+		{
+			//tread carefully with NQ:
+			//while loading models etc, NQ will error out if it receives anything that it wasn't expecting.
+			//we should still send unreliable nops whenever we want as a keepalive (and we may need to in order to wake up the client).
+			//other unreliables are disallowed when connecting, due to sync issues.
+			//reliables may be sent only if some other code has said that its okay (to avoid stray name changes killing clients).
+			if (c->state == cs_connected)
 			{
-				c->send_message = c->netchan.nqreliable_allowed = true;
+				if (c->nextservertimeupdate > pt + 6)
+					c->nextservertimeupdate = 0;
 
-				if (c->state == cs_connected && !c->datagram.cursize && !c->netchan.message.cursize)
+				c->netchan.nqunreliableonly = !c->send_message;
+				c->datagram.cursize = 0;
+				if (!c->send_message && c->nextservertimeupdate < pt)
 				{
-					if (c->nextservertimeupdate < pt)
-					{	//part of the nq protocols allowed downloading content over isdn
-						//the nop requirement of the protocol persisted to prevent timeouts when content loading is otherwise slow..
-						//aditionally we might need this for lost packets, not sure
-						//but the client isn't able to respond unless we send an occasional datagram
-						if (c->nextservertimeupdate)
-							MSG_WriteByte(&c->datagram, svc_nop);
-						c->nextservertimeupdate = pt+5;
-					}
+					if (c->nextservertimeupdate)
+						MSG_WriteByte(&c->datagram, svc_nop);
+					c->nextservertimeupdate = pt+5;
+				}
+				c->send_message = true;
+				//we can still send an outgoing packet if something set send_message. This should really only be svnq_new_f and friends.
+			}
+			else
+			{
+				if (c->nextservertimeupdate > pt + 0.5*2)
+					c->nextservertimeupdate = 0;
+
+				c->netchan.nqunreliableonly = false;
+				c->send_message = false;
+				//nq sends one packet only for each server physics frame
+				if (c->nextservertimeupdate < pt && c->state != cs_zombie)
+				{
+					c->send_message = true;
+					c->nextservertimeupdate = pt;
 				}
 			}
 		}
+		//qw servers will set send_message on packet reception.
+#endif
+
 		if (!c->send_message)
 			continue;
 		c->send_message = false;	// try putting this after choke?

@@ -1447,6 +1447,20 @@ static searchpath_t *FS_AddPathHandle(const char *purepath, const char *probable
 	else
 		Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 
+	//temp packages also do not nest
+	if (!istemporary)
+	{
+		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+		{
+			if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew || !searchpathformats[i].loadscan)
+				continue;
+			if (loadstuff & (1<<i))
+			{
+				FS_AddDataFiles(purepath, probablepath, search, searchpathformats[i].extension, searchpathformats[i].funcs);
+			}
+		}
+	}
+
 	if (istemporary)
 	{
 		//add at end. pureness will reorder if needed.
@@ -1462,22 +1476,7 @@ static searchpath_t *FS_AddPathHandle(const char *purepath, const char *probable
 		search->next = com_searchpaths;
 		com_searchpaths = search;
 	}
-
 	com_fschanged = true;
-
-	//temp packages also do not nest
-	if (!istemporary)
-	{
-		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
-		{
-			if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew || !searchpathformats[i].loadscan)
-				continue;
-			if (loadstuff & (1<<i))
-			{
-				FS_AddDataFiles(purepath, probablepath, search, searchpathformats[i].extension, searchpathformats[i].funcs);
-			}
-		}
-	}
 
 	return search;
 }

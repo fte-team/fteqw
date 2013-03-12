@@ -39,7 +39,20 @@ CSQC is able to interact with videos by:
 	this will 'end' the video. when the shader is next displayed it'll reset from the original url.
 7: you can change the url with:
 	gecko_navigate(texname, "http://fteqw.com");
-
+8: you can send it these navigation commands (in the place of a url). You'll likely want a focus command.
+	cmd:refresh
+	cmd:transparent
+	cmd:focus
+	cmd:unfocus
+	cmd:opaque
+	cmd:stop
+	cmd:back
+	cmd:forward
+	cmd:cut
+	cmd:copy
+	cmd:paste
+	cmd:del
+	cmd:selectall
 
 
 Compiling the plugin for Windows:

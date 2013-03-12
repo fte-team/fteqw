@@ -1446,7 +1446,7 @@ void QCC_PR_LexString (void)
 					}
 				}
 				if (len)
-					QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8\n");
+					QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
 			}
 			return;
 		}

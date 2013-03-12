@@ -1847,7 +1847,6 @@ dllfunction_t gecko_functions[] =
 	{(void**)&posgk_browser_unlock_data, "osgk_browser_unlock_data"},
 
 	{(void**)&posgk_browser_event_mouse_move, "osgk_browser_event_mouse_move"},
-	{(void**)&posgk_browser_event_mouse_move, "osgk_browser_event_mouse_move"},
 	{(void**)&posgk_browser_event_mouse_button, "osgk_browser_event_mouse_button"},
 	{(void**)&posgk_browser_event_key, "osgk_browser_event_key"},
 
@@ -4030,3 +4029,4 @@ qboolean Media_PausedDemo(void) {return false;}
 
 int filmtexture;
 #endif
+

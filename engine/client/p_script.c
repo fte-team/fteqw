@@ -1554,7 +1554,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		if (ptype->dl_radius)
 		{
-			Q_strncatz(outstr, va("lightradius %g %g\n", ptype->dl_radius), outstrlen);
+			Q_strncatz(outstr, va("lightradius %g\n", ptype->dl_radius), outstrlen);
 			Q_strncatz(outstr, va("lightradiusfade %g \n", ptype->dl_decay[3]), outstrlen);
 			Q_strncatz(outstr, va("lightrgb %g %g %g\n", ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]), outstrlen);
 			Q_strncatz(outstr, va("lightrgbfade %g %g %g\n", ptype->dl_decay[0], ptype->dl_decay[1], ptype->dl_decay[2]), outstrlen);
@@ -4480,40 +4480,45 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 	}
 }
 
-static void R_AddLineSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
+static void R_AddLineSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
-	vec3_t v, cr, o2;
-	float scale;
-
-	if (cl_numstrisvert+2 > cl_maxstrisvert)
+/*
+	particle_t *p;
+	while (count--)
 	{
-		cl_maxstrisvert+=64*2;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		p = *plist++;
+
+		if (cl_numstrisvert+2 > cl_maxstrisvert)
+		{
+			cl_maxstrisvert+=64*2;
+			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		}
+
+		Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
+		VectorCopy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
+		cl_strisvertc[cl_numstrisvert+1][3] = 0;
+		Vector2Set(cl_strisvertt[cl_numstrisvert+0], p->s1, p->t1);
+		Vector2Set(cl_strisvertt[cl_numstrisvert+1], p->s2, p->t2);
+
+		VectorCopy(p->org, cl_strisvertv[cl_numstrisvert+0]);
+		VectorMA(p->org, -1/10, p->vel, cl_strisvertv[cl_numstrisvert+1]);
+		
+		if (cl_numstrisidx+2 > cl_maxstrisidx)
+		{
+			cl_maxstrisidx += 64*2;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
+		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 1;
+
+		cl_numstrisvert += 2;
+
+		t->numvert += 2;
+		t->numidx += 2;
 	}
-
-	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
-	VectorCopy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
-	cl_strisvertc[cl_numstrisvert+1][3] = 0;
-	Vector2Set(cl_strisvertt[cl_numstrisvert+0], p->s1, p->t1);
-	Vector2Set(cl_strisvertt[cl_numstrisvert+1], p->s2, p->t2);
-
-	VectorCopy(p->org, cl_strisvertv[cl_numstrisvert+0]);
-	VectorMA(p->org, -1/10, p->vel, cl_strisvertv[cl_numstrisvert+1]);
-	
-	if (cl_numstrisidx+2 > cl_maxstrisidx)
-	{
-		cl_maxstrisidx += 64*2;
-		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-	}
-	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
-	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 1;
-
-	cl_numstrisvert += 2;
-
-	t->numvert += 2;
-	t->numidx += 2;
+*/
 }
 
 static void R_AddTSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
@@ -4919,9 +4924,9 @@ static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 
 static void PScript_DrawParticleTypes (void)
 {
-	void (*sparklineparticles)(scenetris_t *t, particle_t *p, plooks_t *type)=R_AddLineSparkParticle;
-	void (*sparkfanparticles)(scenetris_t *t, particle_t *p, plooks_t *type)=GL_DrawTrifanParticle;
-	void (*sparktexturedparticles)(scenetris_t *t, particle_t *p, plooks_t *type)=GL_DrawTexturedSparkParticle;
+	void (*sparklineparticles)(int count, particle_t **plist, plooks_t *type)=R_AddLineSparkParticle;
+	void (*sparkfanparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTrifanParticle;
+	void (*sparktexturedparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTexturedSparkParticle;
 
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
@@ -5590,3 +5595,4 @@ particleengine_t pe_script =
 
 #endif
 #endif
+

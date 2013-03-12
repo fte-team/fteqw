@@ -437,6 +437,7 @@ const char *presetexec[] =
 	"gl_specular 0;"
 	"r_loadlit 0;"
 	"r_fastsky 1;"
+	"r_drawflame 0;"
 	"r_waterstyle 0;"
 	"r_lavastyle 0;"
 	"r_shadow_realtime_dlight 0;"
@@ -462,7 +463,7 @@ const char *presetexec[] =
 	"r_lavastyle 1;"
 	"r_nolightdir 0;"
 
-	, // normal (faithful) options
+	, // normal (faithful) options, with content replacement thrown in
 #ifdef MINIMAL
 	"r_particlesystem classic;"
 #else
@@ -476,6 +477,7 @@ const char *presetexec[] =
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_waterwarp 1;"
+	"r_drawflame 1;"
 
 	, // nice options
 	"r_stains 0.75;"

@@ -887,6 +887,8 @@ void EditorReload(editor_t *editor)
 		QCC_ReadFile(editor->filename, file, flen);
 		file[flen] = 0;
 	}
+	else
+		file = NULL;
 
 	SendMessage(editor->editpane, EM_SETEVENTMASK, 0, 0);
 
@@ -894,15 +896,18 @@ void EditorReload(editor_t *editor)
 	Edit_SetSel(editor->editpane,0,Edit_GetTextLength(editor->editpane));
 	Edit_ReplaceSel(editor->editpane,"");
 
-	if (!fl_autohighlight)
+	if (file)
 	{
-		GUIPrint(editor->editpane, file);
+		if (!fl_autohighlight)
+		{
+			GUIPrint(editor->editpane, file);
+		}
+		else
+		{
+			GUIFormattingPrint(editor->editpane, file);
+		}
+		free(file);
 	}
-	else
-	{
-		GUIFormattingPrint(editor->editpane, file);
-	}
-	free(file);
 
 	editor->modified = false;
 	stat(editor->filename, &sbuf);
@@ -1888,16 +1893,7 @@ int GUIprintf(const char *msg, ...)
 		return 0;
 	}
 
-	if (strstr(buf, "warning: "))
-	{
-		if (outstatus < 1)
-		{
-			TreeView_SetBkColor(projecttree, RGB(255, 255, 0));
-			outstatus = 1;
-		}
-		col = RGB(128, 128, 0);
-	}
-	else if (strstr(buf, "error: "))
+	if (strstr(buf, ": error"))
 	{
 		if (outstatus < 2)
 		{
@@ -1905,6 +1901,15 @@ int GUIprintf(const char *msg, ...)
 			outstatus = 2;
 		}
 		col = RGB(255, 0, 0);
+	}
+	else if (strstr(buf, ": warning"))
+	{
+		if (outstatus < 1)
+		{
+			TreeView_SetBkColor(projecttree, RGB(255, 255, 0));
+			outstatus = 1;
+		}
+		col = RGB(128, 128, 0);
 	}
 	else
 		col = RGB(0, 0, 0);

@@ -57,15 +57,15 @@ cvar_t	sv_gameplayfix_noairborncorpse = SCVAR( "sv_gameplayfix_noairborncorpse",
 cvar_t	sv_gameplayfix_multiplethinks = CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
-cvar_t	sv_stepheight		 = CVARAF("pm_stepheight", "18",
-					  "sv_stepheight", CVAR_SERVERINFO);
+cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",
+					  "sv_stepheight", CVAR_SERVERINFO, "If empty, the value 18 will be used instead.");
 
-cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "0", CVAR_SERVERINFO);
-cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "0", CVAR_SERVERINFO);
-cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "0", CVAR_SERVERINFO);
-cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "0", CVAR_SERVERINFO);
-cvar_t	pm_airstep			 = SCVARF("pm_airstep", "0", CVAR_SERVERINFO);
-cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
+cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "", CVAR_SERVERINFO);
+cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "", CVAR_SERVERINFO);
+cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "", CVAR_SERVERINFO);
+cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
+cvar_t	pm_airstep			 = SCVARF("pm_airstep", "", CVAR_SERVERINFO);
+cvar_t	pm_walljump			 = SCVARF("pm_walljump", "", CVAR_SERVERINFO);
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)

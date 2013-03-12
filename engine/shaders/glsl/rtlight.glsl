@@ -1,5 +1,6 @@
 !!permu BUMP
 !!permu SKELETAL
+!!permu UPPERLOWER
 !!permu FOG
 !!cvarf r_glsl_offsetmapping_scale
 
@@ -15,6 +16,11 @@
 
 #if 0 && defined(GL_ARB_texture_gather) && defined(PCF) 
 #extension GL_ARB_texture_gather : enable
+#endif
+
+#ifdef UPPERLOWER
+#define UPPER
+#define LOWER
 #endif
 
 
@@ -65,20 +71,20 @@ void main ()
 
 #ifdef FRAGMENT_SHADER
 #include "sys/fog.h"
-uniform sampler2D s_t0;
+uniform sampler2D s_t0;	//diffuse
 
 #if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)
-uniform sampler2D s_t1;
+uniform sampler2D s_t1;	//normalmap
 #endif
 #ifdef SPECULAR
-uniform sampler2D s_t2;
+uniform sampler2D s_t2;	//specular
 #endif
 #ifdef CUBEPROJ
-uniform samplerCube s_t3;
+uniform samplerCube s_t3;	//projected cubemap
 #endif
 #ifdef PCF
 #ifdef CUBESHADOW
-uniform samplerCubeShadow s_t4;
+uniform samplerCubeShadow s_t4;	//shadowmap
 #else
 #if 0//def GL_ARB_texture_gather
 uniform sampler2D s_t4;
@@ -86,6 +92,14 @@ uniform sampler2D s_t4;
 uniform sampler2DShadow s_t4;
 #endif
 #endif
+#endif
+#ifdef LOWER
+uniform sampler2D s_t5;		//pants colours
+uniform vec3 e_lowercolour;
+#endif
+#ifdef UPPER
+uniform sampler2D s_t6;		//shirt colours
+uniform vec3 e_uppercolour;
 #endif
 
 
@@ -128,7 +142,7 @@ float ShadowmapFilter(void)
 	//assume z is the major axis (ie: forward from the light)
 	vec3 t = shadowcoord;
 	float ma = dir.z;
-	vec4 axis = vec4(1.0, 1.0, 1.0, 0.0);
+	vec3 axis = vec3(1.0, 1.0, 1.0);
 	if (dir.x > ma)
 	{
 		ma = dir.x;
@@ -200,6 +214,14 @@ void main ()
 #define tcbase tcoffsetmap
 #endif
 	vec3 bases = vec3(texture2D(s_t0, tcbase));
+#ifdef UPPER
+	vec4 uc = texture2D(s_t6, tcbase);
+	bases.rgb += uc.rgb*e_uppercolour*uc.a;
+#endif
+#ifdef LOWER
+	vec4 lc = texture2D(s_t5, tcbase);
+	bases.rgb += lc.rgb*e_lowercolour*lc.a;
+#endif
 #if defined(BUMP) || defined(SPECULAR)
 	vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);
 #endif

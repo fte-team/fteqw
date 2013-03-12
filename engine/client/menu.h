@@ -443,6 +443,7 @@ void MP_Draw(void);
 void MP_RegisterCvarsAndCmds(void);
 void MP_Keydown(int key, int unicode);
 void MP_Keyup(int key, int unicode);
+int MP_BuiltinValid(char *name, int num);
 
 #define MGT_BAD    ~0
 #define MGT_QUAKE1 0

@@ -325,15 +325,6 @@ void M_Menu_Setup_f (void)
 	menu_t *menu;
 	menucustom_t *ci;
 	menubutton_t *b;
-	static const char *classnames[] =
-	{
-		"Paladin",
-		"Crusader",
-		"Necromancer",
-		"Assasin",
-		"Demoness",
-		NULL
-	};
 
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
@@ -414,6 +405,15 @@ void M_Menu_Setup_f (void)
 	(info->teamedit = MC_AddEdit(menu, 64, 56, "Your team", team.string));
 	if (mgt == MGT_HEXEN2)
 	{
+		static const char *classnames[] =
+		{
+			"Paladin",
+			"Crusader",
+			"Necromancer",
+			"Assasin",
+			"Demoness",
+			NULL
+		};
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
 		(info->classedit = MC_AddCombo(menu, 64, 72, "Your class", (const char **)classnames, pc->ival-1));
 	}

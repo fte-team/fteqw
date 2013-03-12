@@ -339,7 +339,7 @@ static void Dec_ChangeStream(void *vctx, char *newstream)
 		else if (!strcmp(newstream+4, "unfocus"))
 			ctx->wnd->unfocus();
 		else if (!strcmp(newstream+4, "opaque"))
-			ctx->wnd->setTransparent(true);
+			ctx->wnd->setTransparent(false);
 		else if (!strcmp(newstream+4, "stop"))
 			ctx->wnd->stop();
 		else if (!strcmp(newstream+4, "back"))

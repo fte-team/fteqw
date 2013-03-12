@@ -77,23 +77,16 @@ int			numfielddefs;
 
 //typedef char PATHSTRING[MAX_DATA_PATH];
 
-PATHSTRING		*precache_sounds;
-int			*precache_sounds_block;
-int			*precache_sounds_used;
+precache_t	*precache_sound;
 int			numsounds;
 
-PATHSTRING		*precache_textures;
-int			*precache_textures_block;
-int			*precache_textures_block;
+precache_t	*precache_texture;
 int			numtextures;
 
-PATHSTRING		*precache_models;
-int			*precache_models_block;
-int			*precache_models_used;
+precache_t	*precache_model;
 int			nummodels;
 
-PATHSTRING		*precache_files;
-int			*precache_files_block;
+precache_t	*precache_file;
 int			numfiles;
 
 extern int numCompilerConstants;
@@ -988,10 +981,10 @@ pbool QCC_WriteData (int crc)
 
 	for (i = 0; i < nummodels; i++)
 	{
-		if (!precache_models_used[i])
-			QCC_PR_Warning(WARN_EXTRAPRECACHE, NULL, 0, "Model %s was precached but not directly used", precache_models[i]);
-		else if (!precache_models_block[i])
-			QCC_PR_Warning(WARN_NOTPRECACHED, NULL, 0, "Model %s was used but not precached", precache_models[i]);
+		if (!precache_model[i].used)
+			QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_model[i].filename, precache_model[i].fileline, "Model %s was precached but not directly used", precache_model[i].name);
+		else if (!precache_model[i].block)
+			QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, "Model %s was used but not precached", precache_model[i].name);
 	}
 //PrintStrings ();
 //PrintFunctions ();
@@ -2438,33 +2431,33 @@ void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 
 	for (i=0 ; i<numsounds ; i++)
 	{
-		if (precache_sounds_block[i] != blocknum)
+		if (precache_sound[i].block != blocknum)
 			continue;
-		sprintf (srcfile,"%s%s",srcdir, precache_sounds[i]);
-		sprintf (destfile,"%s%s",destdir, precache_sounds[i]);
+		sprintf (srcfile,"%s%s",srcdir, precache_sound[i].name);
+		sprintf (destfile,"%s%s",destdir, precache_sound[i].name);
 		if (copytype == 1)
 			QCC_CopyFile (srcfile, destfile);
 		else
-			QCC_PackFile (srcfile, precache_sounds[i]);
+			QCC_PackFile (srcfile, precache_sound[i].name);
 	}
 	for (i=0 ; i<nummodels ; i++)
 	{
-		if (precache_models_block[i] != blocknum)
+		if (precache_model[i].block != blocknum)
 			continue;
-		sprintf (srcfile,"%s%s",srcdir, precache_models[i]);
-		sprintf (destfile,"%s%s",destdir, precache_models[i]);
+		sprintf (srcfile,"%s%s",srcdir, precache_model[i].name);
+		sprintf (destfile,"%s%s",destdir, precache_model[i].name);
 		if (copytype == 1)
 			QCC_CopyFile (srcfile, destfile);
 		else
-			QCC_PackFile (srcfile, precache_models[i]);
+			QCC_PackFile (srcfile, precache_model[i].name);
 	}
 	for (i=0 ; i<numtextures ; i++)
 	{
-		if (precache_textures_block[i] != blocknum)
+		if (precache_texture[i].block != blocknum)
 			continue;
 
 		{
-			sprintf (name, "%s", precache_textures[i]);
+			sprintf (name, "%s", precache_texture[i].name);
 			sprintf (srcfile,"%s%s",srcdir, name);
 			sprintf (destfile,"%s%s",destdir, name);
 			if (copytype == 1)
@@ -2473,7 +2466,7 @@ void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 				QCC_PackFile (srcfile, name);
 		}
 		{
-			sprintf (name, "%s.bmp", precache_textures[i]);
+			sprintf (name, "%s.bmp", precache_texture[i].name);
 			sprintf (srcfile,"%s%s",srcdir, name);
 			sprintf (destfile,"%s%s",destdir, name);
 			if (copytype == 1)
@@ -2482,7 +2475,7 @@ void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 				QCC_PackFile (srcfile, name);
 		}
 		{
-			sprintf (name, "%s.tga", precache_textures[i]);
+			sprintf (name, "%s.tga", precache_texture[i].name);
 			sprintf (srcfile,"%s%s",srcdir, name);
 			sprintf (destfile,"%s%s",destdir, name);
 			if (copytype == 1)
@@ -2493,14 +2486,14 @@ void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 	}
 	for (i=0 ; i<numfiles ; i++)
 	{
-		if (precache_files_block[i] != blocknum)
+		if (precache_file[i].block != blocknum)
 			continue;
-		sprintf (srcfile,"%s%s",srcdir, precache_files[i]);
-		sprintf (destfile,"%s%s",destdir, precache_files[i]);
+		sprintf (srcfile,"%s%s",srcdir, precache_file[i].name);
+		sprintf (destfile,"%s%s",destdir, precache_file[i].name);
 		if (copytype == 1)
 			QCC_CopyFile (srcfile, destfile);
 		else
-			QCC_PackFile (srcfile, precache_files[i]);
+			QCC_PackFile (srcfile, precache_file[i].name);
 	}
 
 	if (copytype == 2)
@@ -3155,22 +3148,13 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
-	precache_sounds = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_SOUNDS);
-	precache_sounds_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_SOUNDS);
-	precache_sounds_used = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_SOUNDS);
+	precache_sound = (void *)qccHunkAlloc(sizeof(*precache_sound)*QCC_MAX_SOUNDS);
 	numsounds=0;
-
-	precache_textures = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_TEXTURES);
-	precache_textures_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_TEXTURES);
+	precache_texture = (void *)qccHunkAlloc(sizeof(*precache_texture)*QCC_MAX_TEXTURES);
 	numtextures=0;
-
-	precache_models = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_MODELS);
-	precache_models_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_MODELS);
-	precache_models_used = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_MODELS);
+	precache_model = (void *)qccHunkAlloc(sizeof(*precache_model)*QCC_MAX_MODELS);
 	nummodels=0;
-
-	precache_files = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_FILES);
-	precache_files_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_FILES);
+	precache_file = (void *)qccHunkAlloc(sizeof(*precache_file)*QCC_MAX_FILES);
 	numfiles = 0;
 
 	qcc_typeinfo = (void *)qccHunkAlloc(sizeof(QCC_type_t)*maxtypeinfos);

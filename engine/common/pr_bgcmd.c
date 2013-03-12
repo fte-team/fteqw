@@ -1,3 +1,5 @@
+//file for builtin implementations relevent to all VMs.
+
 #include "quakedef.h"
 
 #if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
@@ -2844,6 +2846,16 @@ static struct {
 } qctoken[MAXQCTOKENS];
 unsigned int qctoken_count;
 
+void tokenize_flush(void)
+{
+	while(qctoken_count > 0)
+	{
+		qctoken_count--;
+		free(qctoken[qctoken_count].token);
+	}
+	qctoken_count = 0;
+}
+
 void QCBUILTIN PF_ArgC  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			//float() argc;
 {
 	G_FLOAT(OFS_RETURN) = qctoken_count;
@@ -2908,13 +2920,7 @@ void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvar
 		seps++;
 	}
 
-	/*flush the old lot*/
-	while(qctoken_count > 0)
-	{
-		qctoken_count--;
-		free(qctoken[qctoken_count].token);
-	}
-	qctoken_count = 0;
+	tokenize_flush();
 
 	qctoken[qctoken_count].start = 0;
 	if (*str)
@@ -3928,6 +3934,7 @@ void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(progs);
 #endif
+	tokenize_flush();
 }
 
 
@@ -3943,7 +3950,8 @@ static void PR_AutoCvarApply(pubprogfuncs_t *prinst, eval_t *val, etype_t type, 
 		val->_int = var->ival;
 		break;
 	case ev_string:
-		prinst->RemoveProgsString(prinst, val->_int);
+		if (val->_int)
+			prinst->RemoveProgsString(prinst, val->_int);
 		if (*var->string)
 			val->_int = PR_SetString(prinst, var->string);
 		else
@@ -4011,6 +4019,7 @@ void PDECL PR_FoundPrefixedGlobals(pubprogfuncs_t *progfuncs, char *name, eval_t
 		break;
 	case ev_string:
 		vals = PR_GetString(progfuncs, val->string);
+		val->_int = 0;
 		break;
 	default:
 		return;
@@ -4196,6 +4205,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
+	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_GFX_QUAKE3SHADERS"},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},

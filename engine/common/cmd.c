@@ -1861,6 +1861,13 @@ void Cmd_ForwardToServer_f (void)
 		if (SCR_RSShot())
 			return;
 	}
+	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.protocol_nq != CPNQ_ID || cls.netchan.remote_address.type != NA_LOOPBACK))
+	{	//don't send any extension flags this if we're using cl_loopbackprotocol nqid, purely for a compat test.
+		//if you want to record compat-demos, disable extensions instead.
+		unsigned int fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE), fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE);
+		CL_SendClientCommand(true, "pext %#x %#x %#x %#x", PROTOCOL_VERSION_FTE, fp1, PROTOCOL_VERSION_FTE2, fp2);
+		return;
+	}
 	if (Q_strcasecmp(Cmd_Argv(1), "ptrack") == 0)
 	{
 		if (!*Cmd_Argv(2))
@@ -2773,6 +2780,12 @@ void Cmd_WriteConfig_f(void)
 	char *filename;
 	char fname[MAX_OSPATH];
 	char sysname[MAX_OSPATH];
+
+	if (Cmd_IsInsecure())
+	{
+		Con_Printf ("%s not allowed\n", Cmd_Argv(0));
+		return;
+	}
 
 	filename = Cmd_Argv(1);
 	if (!*filename)

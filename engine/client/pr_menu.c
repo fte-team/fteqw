@@ -16,264 +16,6 @@ struct
 } mp_globs;
 
 
-int MP_TranslateFTEtoDPCodes(int code)
-{
-	switch(code)
-	{
-	case K_TAB:				return 9;
-	case K_ENTER:			return 13;
-	case K_ESCAPE:			return 27;
-	case K_SPACE:			return 32;
-	case K_BACKSPACE:		return 127;
-	case K_UPARROW:			return 128;
-	case K_DOWNARROW:		return 129;
-	case K_LEFTARROW:		return 130;
-	case K_RIGHTARROW:		return 131;
-	case K_ALT:				return 132;
-	case K_CTRL:			return 133;
-	case K_SHIFT:			return 134;
-	case K_F1:				return 135;
-	case K_F2:				return 136;
-	case K_F3:				return 137;
-	case K_F4:				return 138;
-	case K_F5:				return 139;
-	case K_F6:				return 140;
-	case K_F7:				return 141;
-	case K_F8:				return 142;
-	case K_F9:				return 143;
-	case K_F10:				return 144;
-	case K_F11:				return 145;
-	case K_F12:				return 146;
-	case K_INS:				return 147;
-	case K_DEL:				return 148;
-	case K_PGDN:			return 149;
-	case K_PGUP:			return 150;
-	case K_HOME:			return 151;
-	case K_END:				return 152;
-	case K_KP_HOME:			return 160;
-	case K_KP_UPARROW:		return 161;
-	case K_KP_PGUP:			return 162;
-	case K_KP_LEFTARROW:	return 163;
-	case K_KP_5:			return 164;
-	case K_KP_RIGHTARROW:	return 165;
-	case K_KP_END:			return 166;
-	case K_KP_DOWNARROW:	return 167;
-	case K_KP_PGDN:			return 168;
-	case K_KP_ENTER:		return 169;
-	case K_KP_INS:			return 170;
-	case K_KP_DEL:			return 171;
-	case K_KP_SLASH:		return 172;
-	case K_KP_MINUS:		return 173;
-	case K_KP_PLUS:			return 174;
-	case K_PAUSE:			return 255;
-	case K_JOY1:			return 768;
-	case K_JOY2:			return 769;
-	case K_JOY3:			return 770;
-	case K_JOY4:			return 771;
-	case K_AUX1:			return 772;
-	case K_AUX2:			return 773;
-	case K_AUX3:			return 774;
-	case K_AUX4:			return 775;
-	case K_AUX5:			return 776;
-	case K_AUX6:			return 777;
-	case K_AUX7:			return 778;
-	case K_AUX8:			return 779;
-	case K_AUX9:			return 780;
-	case K_AUX10:			return 781;
-	case K_AUX11:			return 782;
-	case K_AUX12:			return 783;
-	case K_AUX13:			return 784;
-	case K_AUX14:			return 785;
-	case K_AUX15:			return 786;
-	case K_AUX16:			return 787;
-	case K_AUX17:			return 788;
-	case K_AUX18:			return 789;
-	case K_AUX19:			return 790;
-	case K_AUX20:			return 791;
-	case K_AUX21:			return 792;
-	case K_AUX22:			return 793;
-	case K_AUX23:			return 794;
-	case K_AUX24:			return 795;
-	case K_AUX25:			return 796;
-	case K_AUX26:			return 797;
-	case K_AUX27:			return 798;
-	case K_AUX28:			return 799;
-	case K_AUX29:			return 800;
-	case K_AUX30:			return 801;
-	case K_AUX31:			return 802;
-	case K_AUX32:			return 803;
-	case K_MOUSE1:			return 512;
-	case K_MOUSE2:			return 513;
-	case K_MOUSE3:			return 514;
-	case K_MOUSE4:			return 517;
-	case K_MOUSE5:			return 518;
-	case K_MOUSE6:			return 519;
-	case K_MOUSE7:			return 520;
-	case K_MOUSE8:			return 521;
-	case K_MOUSE9:			return 522;
-	case K_MOUSE10:			return 523;
-	case K_MWHEELDOWN:		return 515;//K_MOUSE4;
-	case K_MWHEELUP:		return 516;//K_MOUSE5;
-	default:				return code;
-	}
-}
-
-int MP_TranslateDPtoFTECodes(int code)
-{
-	switch(code)
-	{
-	case 9:			return K_TAB;
-	case 13:		return K_ENTER;
-	case 27:		return K_ESCAPE;
-	case 32:		return K_SPACE;
-	case 127:		return K_BACKSPACE;
-	case 128:		return K_UPARROW;
-	case 129:		return K_DOWNARROW;
-	case 130:		return K_LEFTARROW;
-	case 131:		return K_RIGHTARROW;
-	case 132:		return K_ALT;
-	case 133:		return K_CTRL;
-	case 134:		return K_SHIFT;
-	case 135:		return K_F1;
-	case 136:		return K_F2;
-	case 137:		return K_F3;
-	case 138:		return K_F4;
-	case 139:		return K_F5;
-	case 140:		return K_F6;
-	case 141:		return K_F7;
-	case 142:		return K_F8;
-	case 143:		return K_F9;
-	case 144:		return K_F10;
-	case 145:		return K_F11;
-	case 146:		return K_F12;
-	case 147:		return K_INS;
-	case 148:		return K_DEL;
-	case 149:		return K_PGDN;
-	case 150:		return K_PGUP;
-	case 151:		return K_HOME;
-	case 152:		return K_END;
-	case 160:		return K_KP_HOME;
-	case 161:		return K_KP_UPARROW;
-	case 162:		return K_KP_PGUP;
-	case 163:		return K_KP_LEFTARROW;
-	case 164:		return K_KP_5;
-	case 165:		return K_KP_RIGHTARROW;
-	case 166:		return K_KP_END;
-	case 167:		return K_KP_DOWNARROW;
-	case 168:		return K_KP_PGDN;
-	case 169:		return K_KP_ENTER;
-	case 170:		return K_KP_INS;
-	case 171:		return K_KP_DEL;
-	case 172:		return K_KP_SLASH;
-	case 173:		return K_KP_MINUS;
-	case 174:		return K_KP_PLUS;
-	case 255:		return K_PAUSE;
-
-	case 768:		return K_JOY1;
-	case 769:		return K_JOY2;
-	case 770:		return K_JOY3;
-	case 771:		return K_JOY4;
-	case 772:		return K_AUX1;
-	case 773:		return K_AUX2;
-	case 774:		return K_AUX3;
-	case 775:		return K_AUX4;
-	case 776:		return K_AUX5;
-	case 777:		return K_AUX6;
-	case 778:		return K_AUX7;
-	case 779:		return K_AUX8;
-	case 780:		return K_AUX9;
-	case 781:		return K_AUX10;
-	case 782:		return K_AUX11;
-	case 783:		return K_AUX12;
-	case 784:		return K_AUX13;
-	case 785:		return K_AUX14;
-	case 786:		return K_AUX15;
-	case 787:		return K_AUX16;
-	case 788:		return K_AUX17;
-	case 789:		return K_AUX18;
-	case 790:		return K_AUX19;
-	case 791:		return K_AUX20;
-	case 792:		return K_AUX21;
-	case 793:		return K_AUX22;
-	case 794:		return K_AUX23;
-	case 795:		return K_AUX24;
-	case 796:		return K_AUX25;
-	case 797:		return K_AUX26;
-	case 798:		return K_AUX27;
-	case 799:		return K_AUX28;
-	case 800:		return K_AUX29;
-	case 801:		return K_AUX30;
-	case 802:		return K_AUX31;
-	case 803:		return K_AUX32;
-	case 512:		return K_MOUSE1;
-	case 513:		return K_MOUSE2;
-	case 514:		return K_MOUSE3;
-	case 517:		return K_MOUSE4;
-	case 518:		return K_MOUSE5;
-	case 519:		return K_MOUSE6;
-	case 520:		return K_MOUSE7;
-	case 521:		return K_MOUSE8;
-	case 522:		return K_MOUSE9;
-	case 523:		return K_MOUSE10;
-	case 515:		return K_MWHEELDOWN;//K_MOUSE4;
-	case 516:		return K_MWHEELUP;//K_MOUSE5;
-	default:		return code;
-	}
-}
-
-//string	findkeysforcommand(string command) = #610;
-void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int keynums[2];
-	char keyname[512];
-
-	M_FindKeysForCommand(0, cmdname, keynums);
-
-	keyname[0] = '\0';
-
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), sizeof(keyname));
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), sizeof(keyname));
-
-	RETURN_TSTRING(keyname);
-}
-
-void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *binding = Key_GetBinding(G_FLOAT(OFS_PARM0));
-	RETURN_TSTRING(binding);
-}
-
-void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-	int modifier;
-	char *s;
-
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-	i = Key_StringToKeynum(s, &modifier);
-	if (i < 0 || modifier != ~0)
-	{
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-	i = MP_TranslateFTEtoDPCodes(i);
-	G_FLOAT(OFS_RETURN) = i;
-}
-
-//string	keynumtostring(float keynum) = #609;
-void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int code = G_FLOAT(OFS_PARM0);
-
-	code = MP_TranslateDPtoFTECodes (code);
-
-	RETURN_TSTRING(Key_KeynumToString(code));
-}
-
-
-
-
 
 
 
@@ -375,7 +117,6 @@ void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, fl
 		}
 	}
 
-	fontidx--;
 	if (fontidx >= 0 && fontidx < FONT_SLOTS)
 	{
 		int i, j;
@@ -383,7 +124,7 @@ void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, fl
 		for (i = 0; i < fontslot[fontidx].sizes; i++)
 		{
 			j = abs(szy - fontslot[fontidx].size[i]);
-			if (j < fontdiff && fontslot[fontidx].font)
+			if (j < fontdiff && fontslot[fontidx].font[i])
 			{
 				fontdiff = j;
 				font = fontslot[fontidx].font[i];
@@ -421,7 +162,8 @@ void PR_ResetFonts(qboolean purge)
 	{
 		for (j = 0; j < fontslot[i].sizes; j++)
 		{
-			Font_Free(fontslot[i].font[j]);
+			if (fontslot[i].font[j])
+				Font_Free(fontslot[i].font[j]);
 			fontslot[i].font[j] = NULL;
 		}
 
@@ -455,13 +197,13 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	G_FLOAT(OFS_RETURN) = 0;	//return default on failure.
 
-	if (slotnum == -1 && *slotname)
+	if (slotnum < 0 && *slotname)
 		slotnum = PR_findnamedfont(slotname, true);
-	else if (slotnum == -1)
+	else if (slotnum < 0)
 		slotnum = PR_findnamedfont(facename, false);
-	if (slotnum == -1)
+	if (slotnum < 0)
 		slotnum = PR_findnamedfont("", true);
-	if (slotnum == -1)
+	if (slotnum < 0)
 		return;	//eep.
 
 	if ((unsigned)slotnum >= FONT_SLOTS)
@@ -474,7 +216,8 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		Q_strncpyz(fontslot[slotnum].facename, facename, sizeof(fontslot[slotnum].facename));
 		for (i = 0; i < fontslot[slotnum].sizes; i++)
 		{
-			Font_Free(fontslot[slotnum].font[i]);
+			if (fontslot[slotnum].font[i])
+				Font_Free(fontslot[slotnum].font[i]);
 			fontslot[slotnum].font[i] = NULL;
 		}
 	}
@@ -497,7 +240,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			fontslot[slotnum].sizes++;
 		}
 	}
-	G_FLOAT(OFS_RETURN) = slotnum + 1;
+	G_FLOAT(OFS_RETURN) = slotnum;
 }
 
 void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -969,7 +712,9 @@ qboolean M_Vid_GetMode(int num, int *w, int *h);
 //a bit pointless really
 void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern cvar_t vid_fullscreen;
 	float mode = G_FLOAT(OFS_PARM0);
+	qboolean forfullscreen = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):vid_fullscreen.ival;
 	float *ret = G_VECTOR(OFS_RETURN);
 	int w, h;
 
@@ -1158,17 +903,6 @@ static void QCBUILTIN PF_CopyEntity (pubprogfuncs_t *prinst, struct globalvars_s
 #ifdef CL_MASTER
 #include "cl_master.h"
 
-typedef enum{
-	SLIST_HOSTCACHEVIEWCOUNT,
-	SLIST_HOSTCACHETOTALCOUNT,
-	SLIST_MASTERQUERYCOUNT,
-	SLIST_MASTERREPLYCOUNT,
-	SLIST_SERVERQUERYCOUNT,
-	SLIST_SERVERREPLYCOUNT,
-	SLIST_SORTFIELD,
-	SLIST_SORTDESCENDING
-} hostcacheglobal_t;
-
 void QCBUILTIN PF_M_gethostcachevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	hostcacheglobal_t hcg = G_FLOAT(OFS_PARM0);
@@ -1330,16 +1064,22 @@ void QCBUILTIN PF_localsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	S_LocalSound (soundname);
 }
 
-#define skip1 PF_Fixme,
-#define skip5 skip1 skip1 skip1 skip1 skip1
-#define skip10 skip5 skip5
-#define skip50 skip10 skip10 skip10 skip10 skip10
-#define skip100 skip50 skip50
-
 void QCBUILTIN PF_menu_checkextension (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	//yeah, this is a stub... not sure what form extex
+	char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int i;
 	G_FLOAT(OFS_RETURN) = 0;
+
+	for (i = 0; i < QSG_Extensions_count; i++)
+	{
+		if (!QSG_Extensions[i].name)
+			continue;
+		if (!stricmp(extname, QSG_Extensions[i].name))
+		{
+			G_FLOAT(OFS_RETURN) = 1;
+			break;
+		}
+	}
 }
 
 void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1404,6 +1144,35 @@ void QCBUILTIN PF_menu_findchainfloat (pubprogfuncs_t *prinst, struct globalvars
 		if (ent->isfree)
 			continue;
 		if (((float *)ent->fields)[f] != s)
+			continue;
+
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
+		if (val)
+			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, (void*)chain);
+}
+//entity	findchainflags(.float _field, float match);
+void QCBUILTIN PF_menu_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	int s;
+	menuedict_t	*ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
+	eval_t *val;
+
+	chain = (menuedict_t *) *prinst->parms->sv_edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	s = G_FLOAT(OFS_PARM1);
+
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	{
+		ent = (menuedict_t*)EDICT_NUM(prinst, i);
+		if (ent->isfree)
+			continue;
+		if ((int)((float *)ent->fields)[f] & s)
 			continue;
 
 		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
@@ -1522,7 +1291,7 @@ void QCBUILTIN PF_altstr_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	}
 
 	*out = 0;
-	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
+	G_INT( OFS_RETURN ) = (int)PR_TempString( prinst, outstr );
 }
 //string  altstr_set(string str, float num, string set) = #85
 void QCBUILTIN PF_altstr_set(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1607,321 +1376,280 @@ void QCBUILTIN PF_crypto_getmyidfp(pubprogfuncs_t *prinst, struct globalvars_s *
 	G_INT(OFS_RETURN) = 0;
 }
 
-builtin_t menu_builtins[] = {
-//0
-	PF_Fixme,
-	PF_menu_checkextension,				//void 	checkextension(string ext) = #1;
-	PF_error,
-	PF_nonfatalobjerror,
-	PF_print,
-	skip1				//void 	bprint(string text,...)	= #5;
-	skip1				//void	sprint(float clientnum, string text,...) = #6;
-	skip1				//void 	centerprint(string text,...) = #7;
-	PF_normalize,		//vector	normalize(vector v) 	= #8;
-	PF_vlen,			//float 	vlen(vector v)			= #9;
-//10
-	PF_vectoyaw,//10		//float  	vectoyaw(vector v)		= #10;
-	PF_vectoangles,//11		//vector 	vectoangles(vector v)	= #11;
-	PF_random,//12
-	PF_localcmd,//13
-	PF_menu_cvar,//14
-	PF_menu_cvar_set,//15
-	PF_dprint,//16
-	PF_ftos,//17
-	PF_fabs,//18
-	PF_vtos,//19
-
-	PF_etos,//20
-	PF_stof,//21
-	PF_Spawn,//22
-	PF_Remove_,//23
-	PF_FindString,//24
-	PF_FindFloat,//25
-	PF_menu_findchain,//26			//entity	findchainstring(.string _field, string match) = #26;
-	PF_menu_findchainfloat,//27		//entity	findchainfloat(.float _field, float match) = #27;
-	PF_CL_precache_file,//28
-	PF_CL_precache_sound,//29
-
-//30
-	PF_coredump,				//void	coredump(void) = #30;
-	PF_traceon,				//void	traceon(void) = #31;
-	PF_traceoff,				//void	traceoff(void) = #32;
-	PF_eprint,				//void	eprint(entity e)  = #33;
-	PF_rint,
-	PF_floor,
-	PF_ceil,
-	PF_nextent,
-	PF_Sin,
-	PF_Cos,
-//40
-	PF_Sqrt,
-	PF_randomvector,
-	PF_registercvar,
-	PF_min,
-	PF_max,
-	PF_bound,
-	PF_pow,
-	PF_CopyEntity,
-	PF_fopen,
-	PF_fclose,
-//50
-	PF_fgets,
-	PF_fputs,
-	PF_strlen,
-	PF_strcat,
-	PF_substring,
-	PF_stov,
-	PF_dupstring,
-	PF_forgetstring,
-	PF_Tokenize,
-	PF_ArgV,
-//60
-	PF_isserver,
-	skip1						//float	clientcount(void)  = #61;
-	PF_clientstate,
-	skip1						//void	clientcommand(float client, string s)  = #63;
-	skip1						//void	changelevel(string map)  = #64;
-	PF_localsound,
-	PF_cl_getmousepos,
-	PF_gettime,
-	PF_loadfromdata,
-	PF_loadfromfile,
-//70
-	PF_mod,//0
-	PF_menu_cvar_string,//1
-	PF_Fixme,//2				//void	crash(void)	= #72;
-	PF_Fixme,//3				//void	stackdump(void) = #73;
-	PF_search_begin,//4
-	PF_search_end,//5
-	PF_search_getsize ,//6
-	PF_search_getfilename,//7
-	PF_chr2str,//8
-	PF_etof,//9				//float 	etof(entity ent) = #79;
-//80
-	PF_ftoe,//10
-	PF_IsNotNull,
-
-
-	PF_altstr_count, //float 	altstr_count(string str) = #82;
-	PF_altstr_prepare, //string  altstr_prepare(string str) = #83;
-	PF_altstr_get, //string  altstr_get(string str, float num) = #84;
-	PF_altstr_set, //string  altstr_set(string str, float num, string set) = #85
-
-	skip1	//altstr_ins
-	skip1	//findflags
-	skip1	//findchainflags
-	PF_cvar_defstring,
-//90
-	skip10
-//100
-	skip100
-//200
-	skip10
-	skip10
-//220
-	skip1
-	PF_strstrofs,						// #221 float(string str, string sub[, float startpos]) strstrofs (FTE_STRINGS)
-	PF_str2chr,						// #222 float(string str, float ofs) str2chr (FTE_STRINGS)
-	PF_chr2str,						// #223 string(float c, ...) chr2str (FTE_STRINGS)
-	PF_strconv,						// #224 string(float ccase, float calpha, float cnum, string s, ...) strconv (FTE_STRINGS)
-	PF_strpad,						// #225 string(float chars, string s, ...) strpad (FTE_STRINGS)
-	PF_infoadd,						// #226 string(string info, string key, string value, ...) infoadd (FTE_STRINGS)
-	PF_infoget,						// #227 string(string info, string key) infoget (FTE_STRINGS)
-	PF_strncmp,							// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
-	PF_strcasecmp,					// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
-//230
-	PF_strncasecmp,					// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-//240
-	skip10
-	skip50
-//300
-	skip10
-	skip10
-	skip10
-	skip10
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	PF_isdemo,
-	skip50
-//400
-	skip10
-	skip10
-	skip10
-	skip10
-//440
-	PF_buf_create,					// #440 float() buf_create (DP_QC_STRINGBUFFERS)
-	PF_buf_del,						// #441 void(float bufhandle) buf_del (DP_QC_STRINGBUFFERS)
-	PF_buf_getsize,					// #442 float(float bufhandle) buf_getsize (DP_QC_STRINGBUFFERS)
-	PF_buf_copy,					// #443 void(float bufhandle_from, float bufhandle_to) buf_copy (DP_QC_STRINGBUFFERS)
-	PF_buf_sort,					// #444 void(float bufhandle, float sortpower, float backward) buf_sort (DP_QC_STRINGBUFFERS)
-	PF_buf_implode,					// #445 string(float bufhandle, string glue) buf_implode (DP_QC_STRINGBUFFERS)
-	PF_bufstr_get,					// #446 string(float bufhandle, float string_index) bufstr_get (DP_QC_STRINGBUFFERS)
-	PF_bufstr_set,					// #447 void(float bufhandle, float string_index, string str) bufstr_set (DP_QC_STRINGBUFFERS)
-	PF_bufstr_add,					// #448 float(float bufhandle, string str, float order) bufstr_add (DP_QC_STRINGBUFFERS)
-	PF_bufstr_free,					// #449 void(float bufhandle, float string_index) bufstr_free (DP_QC_STRINGBUFFERS)
-//450
-	PF_Fixme,//0
-	PF_CL_is_cached_pic,//1
-	PF_CL_precache_pic,//2
-	PF_CL_free_pic,//3
-	PF_CL_drawcharacter,//4
-	PF_CL_drawrawstring,//5
-	PF_CL_drawpic,//6
-	PF_CL_drawfill,//7
-	PF_CL_drawsetcliparea,//8
-	PF_CL_drawresetcliparea,//9
-
-//460
-	PF_CL_drawgetimagesize,//460
-	PF_cin_open,						// #461
-	PF_cin_close,						// #462
-	PF_cin_setstate,					// #463
-	PF_cin_getstate,					// #464
-	PF_cin_restart, 					// #465
-	PF_drawline,						// #466
-	PF_CL_drawcolouredstring,		// #467
-	PF_CL_stringwidth,					// #468
-	PF_CL_drawsubpic,						// #469
-
-//470
-	skip1					// #470
+static struct {
+	char *name;
+	builtin_t bifunc;
+	int ebfsnum;
+}  BuiltinList[] = {
+	{"checkextension",			PF_menu_checkextension,		1},
+	{"error",					PF_error,					2},
+	{"objerror",				PF_nonfatalobjerror,		3},
+	{"print",					PF_print,					4},
+	{"bprint",					PF_Fixme,					5},
+	{"msprint",					PF_Fixme,					6},
+	{"cprint",					PF_Fixme,					7},
+	{"normalize",				PF_normalize,				8},
+	{"vlen",					PF_vlen,					9},
+	{"vectoyaw",				PF_vectoyaw,				10},
+	{"vectoangles",				PF_vectoangles,				11},
+	{"random",					PF_random,					12},
+	{"localcmd",				PF_localcmd,				13},
+	{"cvar",					PF_menu_cvar,				14},
+	{"cvar_set",				PF_menu_cvar_set,			15},
+	{"dprint",					PF_dprint,					16},
+	{"ftos",					PF_ftos,					17},
+	{"fabs",					PF_fabs,					18},
+	{"vtos",					PF_vtos,					19},
+	{"etos",					PF_etos,					20},
+	{"stof",					PF_stof,					21},
+	{"spawn",					PF_Spawn,					22},
+	{"remove",					PF_Remove_,					23},
+	{"find",					PF_FindString,				24},
+	{"findfloat",				PF_FindFloat,				25},
+	{"findchain",				PF_menu_findchain,			26},
+	{"findchainfloat",			PF_menu_findchainfloat,		27},
+	{"precache_file",			PF_CL_precache_file,		28},
+	{"precache_sound",			PF_CL_precache_sound,		29},
+	{"coredump",				PF_coredump,				30},
+	{"traceon",					PF_traceon,					31},
+	{"traceoff",				PF_traceoff,				32},
+	{"eprint",					PF_eprint,					33},
+	{"rint",					PF_rint,					34},
+	{"floor",					PF_floor,					35},
+	{"ceil",					PF_ceil,					36},
+	{"nextent",					PF_nextent,					37},
+	{"sin",						PF_Sin,						38},
+	{"cos",						PF_Cos,						39},
+	{"sqrt",					PF_Sqrt,					40},
+	{"randomvector",			PF_randomvector,			41},
+	{"registercvar",			PF_registercvar,			42},
+	{"min",						PF_min,						43},
+	{"max",						PF_max,						44},
+	{"bound",					PF_bound,					45},
+	{"pow",						PF_pow,						46},
+	{"copyentity",				PF_CopyEntity,				47},
+	{"fopen",					PF_fopen,					48},
+	{"fclose",					PF_fclose,					49},
+	{"fgets",					PF_fgets,					50},
+	{"fputs",					PF_fputs,					51},
+	{"strlen",					PF_strlen,					52},
+	{"strcat",					PF_strcat,					53},
+	{"substring",				PF_substring,				54},
+	{"stov",					PF_stov,					55},
+	{"strzone",					PF_dupstring,				56},
+	{"strunzone",				PF_forgetstring,			57},
+	{"tokenize",				PF_Tokenize,				58},
+	{"argv",					PF_ArgV,					59},
+	{"isserver",				PF_isserver,				60},
+	{"clientcount",				PF_Fixme,					61},						//float	clientcount(void)  = #61;
+	{"clientstate",				PF_clientstate,				62},
+	{"clientcommand",			PF_Fixme,					63},						//void	clientcommand(float client, string s)  = #63;
+	{"changelevel",				PF_Fixme,					64},						//void	changelevel(string map)  = #64;
+	{"localsound",				PF_localsound,				65},
+	{"getmousepos",				PF_cl_getmousepos,			66},
+	{"gettime",					PF_gettime,					67},
+	{"loadfromdata",			PF_loadfromdata,			68},
+	{"loadfromfile",			PF_loadfromfile,			69},
+	{"mod",						PF_mod,						70},
+	{"cvar_string",				PF_menu_cvar_string,		71},
+	{"crash",					PF_Fixme,					72},				//void	crash(void)	= #72;
+	{"stackdump",				PF_Fixme,					73},			//void	stackdump(void) = #73;
+	{"search_begin",			PF_search_begin,			74},
+	{"search_end",				PF_search_end,				75},
+	{"search_getsize",			PF_search_getsize,			76},
+	{"search_getfilename",		PF_search_getfilename,		77},
+	{"chr2str",					PF_chr2str,					78},
+	{"etof",					PF_etof,					79},
+	{"ftoe",					PF_ftoe,					80},
+	{"validstring",				PF_IsNotNull,				81},
+	{"altstr_count",			PF_altstr_count, 			82},
+	{"altstr_prepare",			PF_altstr_prepare, 			83},
+	{"altstr_get",				PF_altstr_get,				84},
+	{"altstr_set",				PF_altstr_set, 				85},
+	{"altstr_ins",				PF_Fixme,					86},
+	{"findflags",				PF_FindFlags,				87},
+	{"findchainflags",			PF_menu_findchainflags,		88},
+	{"mcvar_defstring",			PF_cvar_defstring,			89},
+															//gap
+	{"abort",					PF_Abort,					211},
+															//gap
+	{"strstrofs",				PF_strstrofs,				221},
+	{"str2chr",					PF_str2chr,					222},
+	{"chr2str",					PF_chr2str,					223},
+	{"strconv",					PF_strconv,					224},
+	{"strpad",					PF_strpad,					225},
+	{"infoadd",					PF_infoadd,					226},
+	{"infoget",					PF_infoget,					227},
+	{"strncmp",					PF_strncmp,					228},
+	{"strcasecmp",				PF_strcasecmp,				229},
+	{"strncasecmp",				PF_strncasecmp,				230},
+															//gap
+	{"shaderforname",			PF_shaderforname,			238},
+															//gap
+	{"isdemo",					PF_isdemo,					349},
+															//gap
+	{"findfont",				PF_CL_findfont,				356},
+	{"loadfont",				PF_CL_loadfont,				357},
+															//gap
+	{"memalloc",				PF_memalloc,				384},
+	{"memfree",					PF_memfree,					385},
+	{"memcpy",					PF_memcpy,					386},
+	{"memset",					PF_memset,					387},
+															//gap
+	{"buf_create",				PF_buf_create,				440},
+	{"buf_del",					PF_buf_del,					441},
+	{"buf_getsize",				PF_buf_getsize,				442},
+	{"buf_copy",				PF_buf_copy,				443},
+	{"buf_sort",				PF_buf_sort,				444},
+	{"buf_implode",				PF_buf_implode,				445},
+	{"bufstr_get",				PF_bufstr_get,				446},
+	{"bufstr_set",				PF_bufstr_set,				447},
+	{"bufstr_add",				PF_bufstr_add,				448},
+	{"bufstr_free",				PF_bufstr_free,				449},
+															//gap
+	{"is_cached_pic",			PF_CL_is_cached_pic,		451},
+	{"precache_pic",			PF_CL_precache_pic,			452},
+	{"free_pic",				PF_CL_free_pic,				453},
+	{"drawcharacter",			PF_CL_drawcharacter,		454},
+	{"drawrawstring",			PF_CL_drawrawstring,		455},
+	{"drawpic",					PF_CL_drawpic,				456},
+	{"drawfill",				PF_CL_drawfill,				457},
+	{"drawsetcliparea",			PF_CL_drawsetcliparea,		458},
+	{"drawresetcliparea",		PF_CL_drawresetcliparea,	459},
+	{"drawgetimagesize",		PF_CL_drawgetimagesize,		460},
+	{"cin_open",				PF_cin_open,				461},
+	{"cin_close",				PF_cin_close,				462},
+	{"cin_setstate",			PF_cin_setstate,			463},
+	{"cin_getstate",			PF_cin_getstate,			464},
+	{"cin_restart",				PF_cin_restart, 			465},
+	{"drawline",				PF_drawline,				466},
+	{"drawstring",				PF_CL_drawcolouredstring,	467},
+	{"stringwidth",				PF_CL_stringwidth,			468},
+	{"drawsubpic",				PF_CL_drawsubpic,			469},
+															//gap
 //MERGES WITH CLIENT+SERVER BUILTIN MAPPINGS BELOW
-	PF_asin,				// #471
-	PF_acos,					// #472
-	PF_atan,						// #473
-	PF_atan2,									// #474
-	PF_tan,									// #475
-	PF_strlennocol,									// #476
-	PF_strdecolorize,									// #477
-	PF_strftime,									// #478
-	PF_tokenizebyseparator,									// #479
-
-//480
-	PF_strtolower,						// #480 string(string s) VM_strtolower : DRESK - Return string as lowercase
-	PF_strtoupper,						// #481 string(string s) VM_strtoupper : DRESK - Return string as uppercase
-	PF_cvar_defstring,									// #482
-	skip1									// #483
-	PF_strreplace,						// #484 string(string search, string replace, string subject) strreplace (DP_QC_STRREPLACE)
-	PF_strireplace,					// #485 string(string search, string replace, string subject) strireplace (DP_QC_STRREPLACE)
-	skip1									// #486
-	PF_gecko_create,					// #487 float gecko_create( string name )
-	PF_gecko_destroy,					// #488 void gecko_destroy( string name )
-	PF_gecko_navigate,				// #489 void gecko_navigate( string name, string URI )
-
-//490
-	PF_gecko_keyevent,				// #490 float gecko_keyevent( string name, float key, float eventtype )
-	PF_gecko_movemouse,				// #491 void gecko_mousemove( string name, float x, float y )
-	PF_gecko_resize,					// #492 void gecko_resize( string name, float w, float h )
-	PF_gecko_get_texture_extent,	// #493 vector gecko_get_texture_extent( string name )
-	PF_crc16,						// #494 float(float caseinsensitive, string s, ...) crc16 = #494 (DP_QC_CRC16)
-	PF_cvar_type,					// #495 float(string name) cvar_type = #495; (DP_QC_CVAR_TYPE)
-	skip1									// #496
-	skip1									// #497
-	skip1									// #498
-	skip1									// #499
-
-//500
-	skip1									// #500
-	skip1									// #501
-	skip1									// #502
-	PF_whichpack,					// #503 string(string) whichpack = #503;
-	skip1									// #504
-	skip1									// #505
-	skip1									// #506
-	skip1									// #507
-	skip1									// #508
-	skip1									// #509
-
-//510
-	PF_uri_escape,					// #510 string(string in) uri_escape = #510;
-	PF_uri_unescape,				// #511 string(string in) uri_unescape = #511;
-	PF_etof,					// #512 float(entity ent) num_for_edict = #512 (DP_QC_NUM_FOR_EDICT)
-	PF_uri_get,						// #513 float(string uril, float id) uri_get = #513; (DP_QC_URI_GET)
-	PF_tokenize_console,									// #514
-	PF_argv_start_index,					// #515
-	PF_argv_end_index,						// #516
-	PF_buf_cvarlist,						// #517
-	PF_cvar_description,					// #518
-	skip1									// #519
-
-//520
-	skip10
-	skip10
-	skip10
-	skip50
-//600
-	skip1
-	PF_cl_setkeydest,
-	PF_cl_getkeydest,
-	PF_cl_setmousetarget,
-	PF_cl_getmousetarget,
-	PF_callfunction,
-	PF_writetofile,				//void	writetofile(float fhandle, entity ent) = #606;
-	PF_isfunction,
-	PF_cl_getresolution,
-	PF_cl_keynumtostring,
-	PF_cl_findkeysforcommand,
+	{"asin",					PF_asin,					471},
+	{"acos",					PF_acos,					472},
+	{"atan",					PF_atan,					473},
+	{"atan2",					PF_atan2,					474},
+	{"tan",						PF_tan,						475},
+	{"strlennocol",				PF_strlennocol,				476},
+	{"strdecolorize",			PF_strdecolorize,			477},
+	{"strftime",				PF_strftime,				478},
+	{"tokenizebyseparator",		PF_tokenizebyseparator,		479},
+	{"strtolower",				PF_strtolower,				480},
+	{"strtoupper",				PF_strtoupper,				481},
+	{"cvar_defstring",			PF_cvar_defstring,			482},
+															//gap
+	{"strreplace",				PF_strreplace,				484},
+	{"strireplace",				PF_strireplace,				485},
+															//gap
+	{"gecko_create",			PF_cs_gecko_create,			487},
+	{"gecko_destroy",			PF_cs_gecko_destroy,		488},
+	{"gecko_navigate",			PF_cs_gecko_navigate,		489},
+	{"gecko_keyevent",			PF_cs_gecko_keyevent,		490},
+	{"gecko_mousemove",			PF_cs_gecko_mousemove,		491},
+	{"gecko_resize",			PF_cs_gecko_resize,			492},
+	{"gecko_get_texture_extent",PF_gecko_get_texture_extent,493},
+	{"crc16",					PF_crc16,					494},
+	{"cvar_type",				PF_cvar_type,				495},
+	{"numentityfields",			PF_numentityfields,			496},
+	{"entityfieldname",			PF_entityfieldname,			497},
+	{"entityfieldtype",			PF_entityfieldtype,			498},
+	{"getentityfieldstring",	PF_getentityfieldstring,	499},
+	{"putentityfieldstring",	PF_putentityfieldstring,	500},
+	{"whichpack",				PF_whichpack,				503},
+															//gap
+	{"uri_escape",				PF_uri_escape,				510},
+	{"uri_unescape",			PF_uri_unescape,			511},
+	{"num_for_edict",			PF_etof,					512},
+	{"uri_get",					PF_uri_get,					513},
+	{"tokenize_console",		PF_tokenize_console,		514},
+	{"argv_start_index",		PF_argv_start_index,		515},
+	{"argv_end_index",			PF_argv_end_index,			516},
+	{"buf_cvarlist",			PF_buf_cvarlist,			517},
+	{"cvar_description",		PF_cvar_description,		518},
+															//gap
+	{"setkeydest",				PF_cl_setkeydest,			601},
+	{"getkeydest",				PF_cl_getkeydest,			602},
+	{"setmousetarget",			PF_cl_setmousetarget,		603},
+	{"getmousetarget",			PF_cl_getmousetarget,		604},
+	{"callfunction",			PF_callfunction,			605},
+	{"writetofile",				PF_writetofile,				606},
+	{"isfunction",				PF_isfunction,				607},
+	{"getresolution",			PF_cl_getresolution,		608},
+	{"keynumtostring",			PF_cl_keynumtostring,		609},
+	{"findkeysforcommand",		PF_cl_findkeysforcommand,	610},
 #ifdef CL_MASTER
-	PF_M_gethostcachevalue,
-	PF_M_gethostcachestring,
-#else
-	skip1
-	skip1
+	{"gethostcachevalue",		PF_M_gethostcachevalue,		611},
+	{"gethostcachestring",		PF_M_gethostcachestring,	612},
 #endif
-	PF_parseentitydata,			//void 	parseentitydata(entity ent, string data) = #613;
+	{"parseentitydata",			PF_parseentitydata,			613},
 
-	PF_cl_stringtokeynum,
+	{"stringtokeynum",			PF_cl_stringtokeynum,		614},
 
-	PF_M_resethostcachemasks,
-	PF_M_sethostcachemaskstring,
-	PF_M_sethostcachemasknumber,
-	PF_M_resorthostcache,
-	PF_M_sethostcachesort,
-	PF_M_refreshhostcache,			//600
-	PF_M_gethostcachenumber,
-	PF_M_gethostcacheindexforkey,
-	PF_M_addwantedhostcachekey,
+	{"resethostcachemasks",		PF_M_resethostcachemasks,	615},
+	{"sethostcachemaskstring",	PF_M_sethostcachemaskstring,616},
+	{"sethostcachemasknumber",	PF_M_sethostcachemasknumber,617},
+	{"resorthostcache",			PF_M_resorthostcache,		618},
+	{"sethostcachesort",		PF_M_sethostcachesort,		619},
+	{"refreshhostcache",		PF_M_refreshhostcache,		620},
+	{"gethostcachenumber",		PF_M_gethostcachenumber,	621},
+	{"gethostcacheindexforkey",	PF_M_gethostcacheindexforkey,622},
+	{"addwantedhostcachekey",	PF_M_addwantedhostcachekey,	623},
 #ifdef CL_MASTER
-	PF_M_getextresponse,			// #624
-	PF_netaddress_resolve,
-#else
-	skip1
-	skip1
+	{"getextresponse",			PF_M_getextresponse,		624},
+	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 #endif
-	skip1	/*get gamedir info*/
-	PF_sprintf,	/*sprintf*/
-	skip1	/*not listed in dp*/
-	skip1	/*not listed in dp*/
-	skip1	/*setkeybind*/		//630
-	skip1	/*getbindmaps*/
-	skip1	/*setbindmaps*/
-	PF_crypto_getkeyfp,	/*crypto*/
-	PF_crypto_getidfp,	/*crypto*/
-	PF_crypto_getencryptlevel,	/*crypto*/
-	PF_crypto_getmykeyfp,	/*crypto*/
-	PF_crypto_getmyidfp,	/*crypto #637*/
+															//gap
+	{"sprintf",					PF_sprintf,					627},
+															//gap
+	{"setkeybind",				PF_Fixme,					630},
+	{"getbindmaps",				PF_Fixme,					631},
+	{"setbindmaps",				PF_Fixme,					632},
+	{"crypto_getkeyfp",			PF_crypto_getkeyfp,			633},
+	{"crypto_getidfp",			PF_crypto_getidfp,			634},
+	{"crypto_getencryptlevel",	PF_crypto_getencryptlevel,	635},
+	{"crypto_getmykeyfp",		PF_crypto_getmykeyfp,		636},
+	{"crypto_getmyidfp",		PF_crypto_getmyidfp,		637},
+	{"digest_hex",				PF_digest_hex,				639},
+	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641}
 };
-int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
+builtin_t menu_builtins[1024];
 
 
+int MP_BuiltinValid(char *name, int num)
+{
+	int i;
+	for (i = 0; BuiltinList[i].name; i++)
+	{
+		if (BuiltinList[i].ebfsnum == num)
+		{
+			if (!strcmp(BuiltinList[i].name, name))
+			{
+				if (/*BuiltinList[i].bifunc == PF_NoMenu ||*/ BuiltinList[i].bifunc == PF_Fixme)
+					return false;
+				else
+					return true;
+			}
+		}
+	}
+	return false;
+}
 
+static void MP_SetupBuiltins(void)
+{
+	int i;
+	for (i = 0; i < sizeof(menu_builtins)/sizeof(menu_builtins[0]); i++)
+		menu_builtins[i] = PF_Fixme;
+	for (i = 0; BuiltinList[i].bifunc; i++)
+	{
+		if (BuiltinList[i].ebfsnum)
+			menu_builtins[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+	}
+}
 
+void M_Init_Internal (void);
 void M_DeInit_Internal (void);
 
 int inmenuprogs;
@@ -2004,6 +1732,7 @@ void VARGS Menu_Abort (char *format, ...)
 	}
 
 	MP_Shutdown();
+	M_Init_Internal();
 
 	if (inmenuprogs)	//something in the menu caused the problem, so...
 	{
@@ -2033,6 +1762,8 @@ qboolean MP_Init (void)
 
 	M_DeInit_Internal();
 
+	MP_SetupBuiltins();
+
 	memset(&menuc_eval_chain, 0, sizeof(menuc_eval_chain));
 
 
@@ -2061,7 +1792,7 @@ qboolean MP_Init (void)
 
 
 	menuprogparms.globalbuiltins = menu_builtins;//builtin_t *globalbuiltins;	//these are available to all progs
-	menuprogparms.numglobalbuiltins = menu_numbuiltins;
+	menuprogparms.numglobalbuiltins = sizeof(menu_builtins) / sizeof(menu_builtins[0]);
 
 	menuprogparms.autocompile = PR_COMPILEIGNORE;//PR_COMPILEEXISTANDCHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
@@ -2103,6 +1834,8 @@ qboolean MP_Init (void)
 		mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
 		mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
 
+		PR_AutoCvarSetup(menuprogs);
+
 		menuentsize = PR_InitEnts(menuprogs, 8192);
 
 
@@ -2127,6 +1860,21 @@ qboolean MP_Init (void)
 	return false;
 }
 
+static void MP_GameCommand_f(void)
+{
+	void *pr_globals;
+	func_t gamecommand;
+	if (!menuprogs)
+		return;
+	gamecommand = PR_FindFunction(menuprogs, "GameCommand", PR_ANY);
+	if (!gamecommand)
+		return;
+
+	pr_globals = PR_globals(menuprogs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menuprogs, Cmd_Args()));
+	PR_ExecuteProgram (menuprogs, gamecommand);
+}
+
 void MP_CoreDump_f(void)
 {
 	if (!menuprogs)
@@ -2146,14 +1894,15 @@ void MP_CoreDump_f(void)
 
 void MP_Reload_f(void)
 {
-	MP_Shutdown();
-	MP_Init();
+	M_Shutdown();
+	M_Reinit();
 }
 
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_restart", MP_Reload_f);
+	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);
@@ -2196,6 +1945,7 @@ void MP_Keydown(int key, int unicode)
 		if (keydown[K_CTRL])
 		{
 			MP_Shutdown();
+			M_Init_Internal();
 			return;
 		}
 	}
@@ -2266,7 +2016,11 @@ qboolean MP_Toggle(void)
 
 	inmenuprogs++;
 	if (mp_toggle_function)
+	{
+		void *pr_globals = PR_globals(menuprogs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = 1;
 		PR_ExecuteProgram(menuprogs, mp_toggle_function);
+	}
 	inmenuprogs--;
 
 	return true;

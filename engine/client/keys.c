@@ -609,10 +609,10 @@ void Key_DefaultLinkClicked(char *text, char *info)
 		}
 		return;
 	}
-	c = Info_ValueForKey(info, "desc");
-	if (*c)
+	c = Info_ValueForKey(info, "menu");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Con_Footerf(false, "%s", c);
+		Cbuf_AddText(va("\nmenu_cmd conlink %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "connect");
@@ -649,6 +649,12 @@ void Key_DefaultLinkClicked(char *text, char *info)
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nimpulse %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
+	c = Info_ValueForKey(info, "desc");
+	if (*c)
+	{
+		Con_Footerf(false, "%s", c);
 		return;
 	}
 	if (!*info && *text == '/')

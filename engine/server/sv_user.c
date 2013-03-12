@@ -423,9 +423,12 @@ void SVNQ_New_f (void)
 	extern cvar_t coop;
 	char			message[2048];
 	int i;
-	int maxents;
+	int maxplayers = 0;
+	int op;
 	extern cvar_t	pr_maxedicts;
+	unsigned int protext1 = 0, protext2 = 0, protmain = 0, protfl = 0;
 
+	host_client->send_message = true;
 	if (host_client->redirect)
 	{
 		char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
@@ -477,20 +480,17 @@ void SVNQ_New_f (void)
 		}
 	}
 
-	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
+	protext1 = host_client->fteprotocolextensions;
+	protext2 = host_client->fteprotocolextensions2;
+	protmain = NQ_PROTOCOL_VERSION;
+	protfl = 0;
+	//force floatcoords as required.
+	if (sv.nqdatagram.prim.coordsize >= 4)
+		protext1 |= PEXT_FLOATCOORDS;
+	else
+		protext1 &= ~PEXT_FLOATCOORDS;
 
-	if (host_client->fteprotocolextensions)
-	{
-		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE);
-		MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
-	}
-	if (host_client->fteprotocolextensions2)
-	{
-		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE2);
-		MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions2);
-	}
-
-	maxents = host_client->max_net_ents;
+	op = host_client->protocol;
 	switch(host_client->protocol)
 	{
 #ifdef NQPROT
@@ -500,47 +500,35 @@ void SVNQ_New_f (void)
 		SV_LogPlayer(host_client, "new (NQ)");
 		if (sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2 || host_client->protocol == SCP_FITZ666)
 		{
-			int rmqfl =
+			protfl =
 					((sv.nqdatagram.prim.coordsize==4)?RMQFL_FLOATCOORD:0) |
 					((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
 			host_client->protocol = SCP_FITZ666; /*mneh, close enough, the rmq stuff is just modifiers*/
-			host_client->datagram.maxsize = sizeof(host_client->datagram_buf);
 
-			if (rmqfl)
+			if (protfl)
 			{
-				MSG_WriteLong (&host_client->netchan.message, RMQ_PROTOCOL_VERSION);
-				MSG_WriteLong (&host_client->netchan.message, rmqfl);
+				protext1 &= ~PEXT_FLOATCOORDS;		//never report floatcoords when using rmq protocol, as the base protocol allows us to be more specific anyway.
+				protmain = RMQ_PROTOCOL_VERSION;
 			}
 			else
-			{
-				MSG_WriteLong (&host_client->netchan.message, FITZ_PROTOCOL_VERSION);
-			}
-
-			host_client->maxmodels = 1024;
+				protmain = FITZ_PROTOCOL_VERSION;
 		}
 		else
 		{
 			host_client->protocol = (host_client->protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;	//identical other than the client->server angles
-			if (host_client->protocol==SCP_PROQUAKE)
-				host_client->max_net_ents = bound(512, pr_maxedicts.ival, 32767);	//modified engines will all want to use proquake's improved aiming protocol.
-			else																	//if this breaks your client, upgrade.
-				host_client->max_net_ents = bound(512, pr_maxedicts.ival, 600);
-			MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
-			host_client->datagram.maxsize = MAX_NQDATAGRAM;
-
-			host_client->maxmodels = 256;
+			protmain = NQ_PROTOCOL_VERSION;
 		}
-		MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>16)?16:sv.allocated_client_slots);
+		maxplayers = 16;
 		break;
 	case SCP_DARKPLACES6:
 		SV_LogPlayer(host_client, "new (DP6)");
-		MSG_WriteLong (&host_client->netchan.message, DP6_PROTOCOL_VERSION);
-		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
+		protmain = DP6_PROTOCOL_VERSION;
+		maxplayers = 255;
 		break;
 	case SCP_DARKPLACES7:
 		SV_LogPlayer(host_client, "new (DP7)");
-		MSG_WriteLong (&host_client->netchan.message, DP7_PROTOCOL_VERSION);
-		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
+		protmain = DP7_PROTOCOL_VERSION;
+		maxplayers = 255;
 		break;
 #endif
 	default:
@@ -548,9 +536,24 @@ void SVNQ_New_f (void)
 		break;
 	}
 
-	//the protocol limits were recalculated to avoid any nasty surprises when things default to forcing a protocol
-	if (maxents != host_client->max_net_ents && !(host_client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-		host_client->max_net_ents = maxents;
+	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
+	if (protext1)
+	{
+		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (&host_client->netchan.message, protext1);
+	}
+	if (protext2)
+	{
+		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE2);
+		MSG_WriteLong (&host_client->netchan.message, protext2);
+	}
+	MSG_WriteLong (&host_client->netchan.message, protmain);
+	if (protmain == RMQ_PROTOCOL_VERSION)
+		MSG_WriteLong (&host_client->netchan.message, protfl);
+	MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>maxplayers)?maxplayers:sv.allocated_client_slots);
+
+	if (op != host_client->protocol)
+		SV_ClientProtocolExtensionsChanged(host_client);
 
 	if (!coop.value && deathmatch.value)
 		MSG_WriteByte (&host_client->netchan.message, GAME_DEATHMATCH);
@@ -950,7 +953,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		started = false;
 
 		//allows stalling for the soundlist command, for compat.
-		if (host_client->prespawn_idx & 0x80000000)
+		if (client->prespawn_idx & 0x80000000)
 			return;
 
 		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
@@ -993,7 +996,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
 
 			if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-				host_client->prespawn_idx |= 0x80000000;
+				client->prespawn_idx |= 0x80000000;
 		}
 	}
 	if (client->prespawn_stage == PRESPAWN_MODELLIST)
@@ -1001,7 +1004,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		started = false;
 
 		//allows stalling for the soundlist command, for compat.
-		if (host_client->prespawn_idx & 0x80000000)
+		if (client->prespawn_idx & 0x80000000)
 			return;
 
 		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
@@ -1078,7 +1081,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
 
 			if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-				host_client->prespawn_idx |= 0x80000000;
+				client->prespawn_idx |= 0x80000000;
 		}
 	}
 
@@ -1171,7 +1174,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
-				MSG_WriteByte(&client->netchan.message, svc_spawnstatic2);
+				MSG_WriteByte(&client->netchan.message, svcfte_spawnstatic2);
 				SVFTE_EmitBaseline(state, false, &client->netchan.message);
 				continue;
 			}
@@ -1180,7 +1183,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				/*if it uses some new feature, use the updated spawnstatic*/
 				if (state->hexen2flags || state->trans || state->modelindex >= 256 || state->frame > 255 || state->scale || state->abslight)
 				{
-					MSG_WriteByte(&client->netchan.message, svc_spawnstatic2);
+					MSG_WriteByte(&client->netchan.message, svcfte_spawnstatic2);
 					SVQW_WriteDelta(&nullentitystate, state, &client->netchan.message, true, client->fteprotocolextensions);
 					continue;
 				}
@@ -1317,8 +1320,18 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		if (!client->prespawn_idx)
 		{
 			//we'll spawn the client and then send all the updating stuff only when we know the channel is clear, by pinging the client for it.
-			MSG_WriteByte (&client->netchan.message, svc_stufftext);
-			MSG_WriteString (&client->netchan.message, va("cmd spawn %i\n",svs.spawncount) );
+			if (ISNQCLIENT(client))
+			{
+				//effectively a cmd spawn... but also causes the client to actually send the player's name too.
+				ClientReliableWrite_Begin (client, svc_signonnum, 2);
+				ClientReliableWrite_Byte (client, 2);
+			}
+			else
+			{
+				char *cmd = va("cmd spawn %i\n",svs.spawncount);
+				ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(cmd));
+				ClientReliableWrite_String(client, cmd);
+			}
 			client->prespawn_idx++;
 		}
 	}
@@ -1627,6 +1640,7 @@ void SV_Begin_Core(client_t *split)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 			}
+			sv.spawned_observer_slots++;
 		}
 		else
 		{
@@ -3591,8 +3605,17 @@ void SV_SetInfo_f (void)
 				if (basic || (client->fteprotocolextensions & PEXT_BIGUSERINFOS))
 				{
 					ClientReliableWrite_Begin(client, svc_setinfo, 1+1+strlen(key)+1+strlen(val)+1);
-					ClientReliableWrite_Char(client, i);
+					ClientReliableWrite_Byte(client, i);
 					ClientReliableWrite_String(client, key);
+					ClientReliableWrite_String(client, val);
+				}
+			}
+			if (ISNQCLIENT(client))
+			{
+				if (!strcmp(key, "name"))
+				{
+					ClientReliableWrite_Begin(client, svc_updatename, 1+1+strlen(val)+1);
+					ClientReliableWrite_Byte(client, i);
 					ClientReliableWrite_String(client, val);
 				}
 			}
@@ -4104,6 +4127,7 @@ void Cmd_Join_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	if (SpectatorDisconnect)
 		PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+	sv.spawned_observer_slots--;
 
 	SV_SetUpClientEdict (host_client, host_client->edict);
 
@@ -4230,6 +4254,7 @@ void Cmd_Observe_f (void)
 	}
 	else
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
+	sv.spawned_observer_slots++;
 
 	// send notification to all clients
 	host_client->old_frags = host_client->edict->v->frags;
@@ -4416,9 +4441,6 @@ void SVNQ_Spawn_f (void)
 	ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
 	ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
 
-
-
-	SZ_Write (&host_client->netchan.message, sv.signon.data, sv.signon.cursize);
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 3);
 
@@ -4462,6 +4484,7 @@ void SVNQ_Begin_f (void)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 			}
+			sv.spawned_observer_slots++;
 		}
 		else
 		{
@@ -4531,9 +4554,6 @@ void SVNQ_Begin_f (void)
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
 	}
 
-
-
-	SZ_Write (&host_client->netchan.message, sv.signon.data, sv.signon.cursize);
 //	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 //	MSG_WriteByte (&host_client->netchan.message, 4);
 
@@ -4660,6 +4680,10 @@ void SV_Pext_f(void)
 			break;
 		}
 	}
+
+	Con_DPrintf("%s now using pext: %x, %x\n", host_client->name, host_client->fteprotocolextensions, host_client->fteprotocolextensions2);
+
+	SV_ClientProtocolExtensionsChanged(host_client);
 
 	if (ISNQCLIENT(host_client))
 		SVNQ_New_f();
@@ -6014,6 +6038,25 @@ done:
 		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", rname);
 }
 
+void SV_AckEntityFrame(client_t *cl, int framenum)
+{
+#ifdef PEXT_CSQC
+	if (cl->lastsequence_acknowledged + UPDATE_BACKUP > framenum)
+	{
+		int i;
+		Con_DPrintf("SV: Acked %i\n", framenum);
+		for (i = cl->lastsequence_acknowledged+1; i < framenum; i++)
+			SV_CSQC_DroppedPacket(cl, i);
+	}
+	else
+	{
+		/*too much loss, we don't know what was sent when, so reset the entire entity state*/
+		SV_CSQC_DropAll(cl);
+	}
+#endif
+	cl->lastsequence_acknowledged = framenum;
+}
+
 /*
 ===================
 SV_ExecuteClientMessage
@@ -6064,19 +6107,6 @@ void SV_ExecuteClientMessage (client_t *cl)
 				}
 			}
 		}
-#ifdef PEXT_CSQC
-		if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
-		{
-			for (i = cl->lastsequence_acknowledged+1; i < cl->netchan.incoming_acknowledged; i++)
-				SV_CSQC_DroppedPacket(cl, i);
-		}
-		else
-		{
-			/*too much loss, we don't know what was sent when, so reset the entire entity state*/
-			SV_CSQC_DropAll(cl);
-		}
-#endif
-		cl->lastsequence_acknowledged = cl->netchan.incoming_acknowledged;
 
 		if (sv_antilag.ival)
 		{
@@ -6374,8 +6404,14 @@ haveannothergo:
 			SV_VoiceReadPacket();
 			break;
 #endif
+		case clcdp_ackframe:
+			cl->delta_sequence = MSG_ReadLong();
+			SV_AckEntityFrame(cl, cl->delta_sequence);
+			break;
 		}
 	}
+
+	SV_AckEntityFrame(cl, cl->netchan.incoming_acknowledged);
 
 	host_client = NULL;
 	sv_player = NULL;
@@ -6571,6 +6607,20 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	frame->ping_time = sv.time - cltime;
 
 
+	if (frame->ping_time*1000 > sv_minping.value+1)
+	{
+		host_client->delay -= 0.001;
+		if (host_client->delay < 0)
+			host_client->delay = 0;
+	}
+	if (frame->ping_time*1000 < sv_minping.value)
+	{
+		host_client->delay += 0.001;
+		if (host_client->delay > 1)
+			host_client->delay = 1;
+	}
+
+
 // read current angles
 	for (i=0 ; i<3 ; i++)
 	{
@@ -6731,8 +6781,13 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			sv_player = cl->edict;
 			break;
 
+		case clc_qcrequest:
+			SV_ReadQCRequest();
+			break;
+
 		case clcdp_ackframe:
 			cl->delta_sequence = MSG_ReadLong();
+			SV_AckEntityFrame(cl, cl->delta_sequence);
 			break;
 		case clcdp_ackdownloaddata:
 			SV_DarkPlacesDownloadAck(cl);

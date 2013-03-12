@@ -171,7 +171,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_damage			19
 
 #define	svc_spawnstatic		20
-#define	svc_spawnstatic2	21
+#define	svcfte_spawnstatic2	21
 #define	svc_spawnbaseline	22
 
 #define	svc_temp_entity		23	// variable
@@ -541,7 +541,7 @@ enum clcq2_ops_e
 /*the rest is optional extensions*/
 #define UF_ALPHA		(1u<<16)
 #define UF_SCALE		(1u<<17)
-#define UF_ABSLIGHT		(1u<<18)
+#define UF_UNUSED3		(1u<<18)
 #define UF_DRAWFLAGS	(1u<<19)
 #define UF_TAGINFO		(1u<<20)
 #define UF_LIGHT		(1u<<21)

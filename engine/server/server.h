@@ -142,6 +142,7 @@ typedef struct
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
 	int			spawned_client_slots; //number of PLAYER slots which are active (ie: putclientinserver was called)
+	int			spawned_observer_slots;
 
 	model_t	*models[MAX_MODELS];
 	qbyte		*pvs, *phs;			// fully expanded and decompressed
@@ -1081,6 +1082,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse);
 void SV_PostRunCmd(void);
 
 void SV_SendClientPrespawnInfo(client_t *client);
+void SV_ClientProtocolExtensionsChanged(client_t *client);
 
 //sv_master.c
 void SVM_Think(int port);

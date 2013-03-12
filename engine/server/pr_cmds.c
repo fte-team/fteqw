@@ -2894,6 +2894,7 @@ void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuat
 {
 	int			i, soundnum, j;
 	sizebuf_t *buf[3] = {&sv.signon, &sv.nqmulticast, &sv.multicast};
+	sizebuf_t *msg;
 
 // check to see if samp was properly precached
 	for (soundnum=1 ; *sv.strings.sound_precache[soundnum] ; soundnum++)
@@ -2913,13 +2914,16 @@ void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuat
 
 	for (j = 0; j < 3; j++)
 	{
+		msg = buf[j];
+		if (sv.state == ss_loading && j)
+			break;
 	// add an svc_spawnambient command to the level signon packet
-		MSG_WriteByte (buf[j],svc_spawnstaticsound);
+		MSG_WriteByte (msg,svc_spawnstaticsound);
 		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord(buf[j], pos[i]);
-		MSG_WriteByte (buf[j], soundnum);
-		MSG_WriteByte (buf[j], vol*255);
-		MSG_WriteByte (buf[j], attenuation*64);
+			MSG_WriteCoord(msg, pos[i]);
+		MSG_WriteByte (msg, soundnum);
+		MSG_WriteByte (msg, vol*255);
+		MSG_WriteByte (msg, attenuation*64);
 	}
 	SV_Multicast(pos, MULTICAST_ALL_R);
 }
@@ -2978,10 +2982,14 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		flags = G_FLOAT(OFS_PARM5);
 		if (channel < 0)
 			channel = 0;
-		channel &= 7;
 	}
 	else
+	{
+		//QW uses channel&8 to mean reliable.
 		flags = (channel & 8)?1:0;
+		//demangle it so the upper bits are still useful.
+		channel = (channel & 7) | ((channel & 0x1f0) >> 1);
+	}
 
 	if (volume < 0)	//erm...
 		return;
@@ -2990,8 +2998,9 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		volume = 255;
 
 	if (flags & 1)
-		channel |= 8;
+		channel |= 256;
 
+	//shift the reliable flag to 256 instead.
 	SVQ1_StartSound ((wedict_t*)entity, channel, sample, volume, attenuation, pitchadj);
 }
 
@@ -8721,6 +8730,100 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 #endif
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0,		0,	"void()"},
+
+#ifndef SERVERONLY
+	//begin menu-only 'standard'
+	{"checkextension",	PF_Fixme,			0,		0,		0,		1,	"float(string ext)"},
+	{"error",			PF_Fixme,			0,		0,		0,		2,	"void(string err,...)"},
+	{"objerror",		PF_Fixme,			0,		0,		0,		3,	"void(string err,...)"},
+	{"print",			PF_Fixme,			0,		0,		0,		4,	"void(string text,...)"},
+	{"bprint",			PF_Fixme,			0,		0,		0,		5,	"void(string text,...)"},
+	{"msprint",			PF_Fixme,			0,		0,		0,		6,	"void(float clientnum, string text,...)"},
+	{"cprint",			PF_Fixme,			0,		0,		0,		7,	"void(string text,...)"},
+	{"normalize",		PF_Fixme,			0,		0,		0,		8,	"vector(vector)"},
+	{"vlen",			PF_Fixme,			0,		0,		0,		9,	"float(vector)"},
+	{"vectoyaw",		PF_Fixme,			0,		0,		0,		10,	"float(vector)"},
+	{"vectoangles",		PF_Fixme,			0,		0,		0,		11,	"vector(vector)"},
+	{"random",			PF_Fixme,			0,		0,		0,		12,	"float()"},
+	{"localcmd",		PF_Fixme,			0,		0,		0,		13,	"void(string)"},
+	{"cvar",			PF_Fixme,			0,		0,		0,		14,	"float(string name)"},
+	{"cvar_set",		PF_Fixme,			0,		0,		0,		15,	"void(string name, string value)"},
+	{"dprint",			PF_Fixme,			0,		0,		0,		16,	"void(string text)"},
+	{"ftos",			PF_Fixme,			0,		0,		0,		17,	"string(float)"},
+	{"fabs",			PF_Fixme,			0,		0,		0,		18,	"float(float)"},
+	{"vtos",			PF_Fixme,			0,		0,		0,		19,	"string(vector)"},
+	{"etos",			PF_Fixme,			0,		0,		0,		20,	"string(entity)"},
+	{"stof",			PF_Fixme,			0,		0,		0,		21,	"float(string)"},
+	{"spawn",			PF_Fixme,			0,		0,		0,		22,	"entity()"},
+	{"remove",			PF_Fixme,			0,		0,		0,		23,	"void(entity)"},
+	{"find",			PF_Fixme,			0,		0,		0,		24,	"entity(entity start, .string field, string match)"},
+	{"findfloat",		PF_Fixme,			0,		0,		0,		25,	"entity(entity start, .__variant field, __variant match)"},
+	{"findchain",		PF_Fixme,			0,		0,		0,		26,	"entity(.string field, string match)"},
+	{"findchainfloat",	PF_Fixme,			0,		0,		0,		27,	"entity(.__variant field, __variant match)"},
+	{"precache_file",	PF_Fixme,			0,		0,		0,		28,	"string(string file)"},
+	{"precache_sound",	PF_Fixme,			0,		0,		0,		29,	"string(string sample)"},
+	{"coredump",		PF_Fixme,			0,		0,		0,		30,	"void()"},
+	{"traceon",			PF_Fixme,			0,		0,		0,		31,	"void()"},
+	{"traceoff",		PF_Fixme,			0,		0,		0,		32,	"void()"},
+	{"eprint",			PF_Fixme,			0,		0,		0,		33,	"void(entity)"},
+	{"rint",			PF_Fixme,			0,		0,		0,		34,	"float(float)"},
+	{"floor",			PF_Fixme,			0,		0,		0,		35,	"float(float)"},
+	{"ceil",			PF_Fixme,			0,		0,		0,		36,	"float(float)"},
+	{"nextent",			PF_Fixme,			0,		0,		0,		37,	"entity(entity)"},
+	{"sin",				PF_Fixme,			0,		0,		0,		38,	"float(float)"},
+	{"cos",				PF_Fixme,			0,		0,		0,		39,	"float(float)"},
+	{"sqrt",			PF_Fixme,			0,		0,		0,		40,	"float(float)"},
+	{"randomvector",	PF_Fixme,			0,		0,		0,		41,	"vector()"},
+	{"registercvar",	PF_Fixme,			0,		0,		0,		42,	"float(string name, string value, float flags)"},
+	{"min",				PF_Fixme,			0,		0,		0,		43,	"float(float,...)"},
+	{"max",				PF_Fixme,			0,		0,		0,		44,	"float(float,...)"},
+	{"bound",			PF_Fixme,			0,		0,		0,		45,	"float(float min,float value,float max)"},
+	{"pow",				PF_Fixme,			0,		0,		0,		46,	"float(float,float)"},
+	{"copyentity",		PF_Fixme,			0,		0,		0,		47,	"void(entity src, entity dst)"},
+	{"fopen",			PF_Fixme,			0,		0,		0,		48,	"float(string filename, float mode)"},
+	{"fclose",			PF_Fixme,			0,		0,		0,		49,	"void(float fhandle)"},
+	{"fgets",			PF_Fixme,			0,		0,		0,		50,	"string(float fhandle)"},
+	{"fputs",			PF_Fixme,			0,		0,		0,		51,	"void(float fhandle, string s)"},
+	{"strlen",			PF_Fixme,			0,		0,		0,		52,	"float(string)"},
+	{"strcat",			PF_Fixme,			0,		0,		0,		53,	"string(string, optional string, optional string, optional string, optional string, optional string, optional string, optional string)"},
+	{"substring",		PF_Fixme,			0,		0,		0,		54,	"string(string s, float start, float length)"},
+	{"stov",			PF_Fixme,			0,		0,		0,		55,	"vector(string)"},
+	{"strzone",			PF_Fixme,			0,		0,		0,		56,	"string(string)"},
+	{"strunzone",		PF_Fixme,			0,		0,		0,		57,	"void(string)"},
+	{"tokenize",		PF_Fixme,			0,		0,		0,		58,	"float(string)"},
+	{"argv",			PF_Fixme,			0,		0,		0,		59,	"string(float)"},
+	{"isserver",		PF_Fixme,			0,		0,		0,		60,	"float()"},
+	{"clientcount",		PF_Fixme,			0,		0,		0,		61,	"float()"},
+	{"clientstate",		PF_Fixme,			0,		0,		0,		62,	"float()"},
+	{"clientcommand",	PF_Fixme,			0,		0,		0,		63,	"void(float client, string s)"},
+	{"changelevel",		PF_Fixme,			0,		0,		0,		64,	"void(string map)"},
+	{"localsound",		PF_Fixme,			0,		0,		0,		65,	"void(string sample)"},
+	{"getmousepos",		PF_Fixme,			0,		0,		0,		66,	"vector()"},
+	{"gettime",			PF_Fixme,			0,		0,		0,		67,	"float()"},
+	{"loadfromdata",	PF_Fixme,			0,		0,		0,		68,	"void(string data)"},
+	{"loadfromfile",	PF_Fixme,			0,		0,		0,		69,	"void(string data)"},
+	{"mod",				PF_Fixme,			0,		0,		0,		70,	"float(float val, float m)"},
+	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	"string(string name)"},
+	{"crash",			PF_Fixme,			0,		0,		0,		72,	"void()"},
+	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	"void()"},
+	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"float(string pattern, float caseinsensitive, float quiet)"},
+	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(float handle)"},
+	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(float handle)"},
+	{"search_getfilename",PF_Fixme,			0,		0,		0,		77,	"string(float handle, float num)"},
+	{"etof",			PF_Fixme,			0,		0,		0,		79,	"float(entity)"},
+	{"ftoe",			PF_Fixme,			0,		0,		0,		80,	"entity(float)"},
+	{"validstring",		PF_Fixme,			0,		0,		0,		81,	"float(string)"},
+	{"altstr_count",	PF_Fixme,			0,		0,		0, 		82,	"float(string str)"},
+	{"altstr_prepare",	PF_Fixme,			0,		0,		0, 		83,	"string(string str)"},
+	{"altstr_get",		PF_Fixme,			0,		0,		0,		84,	"string(string str, float num)"},
+	{"altstr_set",		PF_Fixme,			0,		0,		0, 		85,	"string(string str, float num, string set) "},
+	{"altstr_ins",		PF_Fixme,			0,		0,		0,		86,	"string(string str, float num, string set)"},
+	{"findflags",		PF_Fixme,			0,		0,		0,		87,	"entity(entity start, .float field, float match)"},
+	{"findchainflags",	PF_Fixme,			0,		0,		0,		88,	"entity(.float field, float match)"},
+	{"mcvar_defstring",	PF_Fixme,			0,		0,		0,		89,	"string(string name) " STUB},
+	//end menu-only 'standard'
+#endif
+										  //nq		qw		h2		ebfs
 	{"ignore",			PF_Ignore,			0,		0,		0,		0,	"void()"},
 	{"makevectors",		PF_makevectors,		1,		1,		1,		0,	"void(vector vang)"},
 	{"setorigin",		PF_setorigin,		2,		2,		2,		0,	"void(entity e, vector o)"},
@@ -9117,7 +9220,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //2d (immediate) operations
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	"void(float width, vector pos1, vector pos2)"},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	"float(string name)"},// (EXT_CSQC)
-	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	"string(string name, float trywad)"},// (EXT_CSQC)
+	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	"string(string name, optional float trywad)"},// (EXT_CSQC)
 	{"draw_getimagesize",PF_Fixme,	0,		0,		0,		318,	"vector(string picname)"},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	"void(string name)"},// (EXT_CSQC)
 //320
@@ -9208,7 +9311,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_COPYENTITY
 	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	"void(entity from, entity to)"},// (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
-	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	"void(entity from, entity to)"},//
+	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	"void(entity from, entity to)"},//DP_SV_SETCOLOR
 //DP_QC_FINDCHAIN
 	{"findchain",		PF_sv_findchain,	0,		0,		0,		402,	"entity(.string field, string match)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
@@ -9262,6 +9365,41 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437,	"string(entity e, float s)"},// (DP_QC_GETSURFACE)
 	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438,	"float(entity e, vector p)"},// (DP_QC_GETSURFACE)
 	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439,	"vector(entity e, float s, vector p)" STUB},// (DP_QC_GETSURFACE)
+
+#ifndef SERVERONLY
+	//begin menu-only
+	{"buf_create",		PF_Fixme,			0,		0,		0,		440,	"float()"},//DP_QC_STRINGBUFFERS
+	{"buf_del",			PF_Fixme,			0,		0,		0,		441,	"void(float bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_getsize",		PF_Fixme,			0,		0,		0,		442,	"float(float bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_copy",		PF_Fixme,			0,		0,		0,		443,	"void(float bufhandle_from, float bufhandle_to)"},//DP_QC_STRINGBUFFERS
+	{"buf_sort",		PF_Fixme,			0,		0,		0,		444,	"void(float bufhandle, float sortpower, float backward)"},//DP_QC_STRINGBUFFERS
+	{"buf_implode",		PF_Fixme,			0,		0,		0,		445,	"string(float bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_get",		PF_Fixme,			0,		0,		0,		446,	"string(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_set",		PF_Fixme,			0,		0,		0,		447,	"void(float bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_add",		PF_Fixme,			0,		0,		0,		448,	"float(float bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_free",		PF_Fixme,			0,		0,		0,		449,	"void(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"iscachedpic",		PF_Fixme,			0,		0,		0,		451,	"float(string name)"},// (EXT_CSQC)
+	{"precache_pic",	PF_Fixme,			0,		0,		0,		452,	"string(string name, optional float trywad)"},// (EXT_CSQC)
+	{"freepic",			PF_Fixme,			0,		0,		0,		453,	"void(string name)"},// (EXT_CSQC)
+	{"drawcharacter",	PF_Fixme,			0,		0,		0,		454,	"float(vector position, float character, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",	PF_Fixme,			0,		0,		0,		455,	"float(vector position, string text, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",			PF_Fixme,			0,		0,		0,		456,	"float(vector position, string pic, vector size, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawfill",		PF_Fixme,			0,		0,		0,		457,	"float(vector position, vector size, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawsetcliparea",	PF_Fixme,			0,		0,		0,		458,	"void(float x, float y, float width, float height)"},// (EXT_CSQC_???)
+	{"drawresetcliparea",PF_Fixme,			0,		0,		0,		459,	"void(void)"},// (EXT_CSQC_???)
+	{"drawgetimagesize",PF_Fixme,			0,		0,		0,		460,	"vector(string picname)"},// (EXT_CSQC)
+	{"cin_open",		PF_Fixme,			0,		0,		0,		461,	"float(string file, string id)" STUB},
+	{"cin_close",		PF_Fixme,			0,		0,		0,		462,	"void(string id)" STUB},
+	{"cin_setstate",	PF_Fixme,			0,		0,		0,		463,	"void(string id, float newstate)" STUB},
+	{"cin_getstate",	PF_Fixme,			0,		0,		0,		464,	"float(string id)" STUB},
+	{"cin_restart",		PF_Fixme,			0,		0,		0, 		465,	"void(string file)" STUB},
+	{"drawline",		PF_Fixme,			0,		0,		0,		466,	"void(float width, vector pos1, vector pos2)"},// (EXT_CSQC)
+	{"drawstring",		PF_Fixme,			0,		0,		0,		467,	"float(vector position, string text, vector scale, vector rgb, float alpha, float flag)"},// #326
+	{"stringwidth",		PF_Fixme,			0,		0,		0,		468,	"float(string text, float usecolours, optional vector fontsize)"},// EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",		PF_Fixme,			0,		0,		0,		469,	"void(vector pos, vector sz, string pic, vector srcpos, vector srcsz, vector rgb, float alpha, float flag)"},// #328 EXT_CSQC_'DARKPLACES'
+	//end menu-only
+#endif
+	//begin non-menu
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440,	"void(entity e, string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
@@ -9292,6 +9430,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467,	"void(float bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468,	"float(float bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469,	"void(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	//end non-menu
+
 //	{"undefined",		PF_Fixme,			0,		0,		0,		470,	""},
 //MENU VM BUILTINS SHARE THE BELOW BUILTINS
 	{"asin",			PF_asin,			0,		0,		0,		471,	"float(float s)"},//DP_QC_ASINACOSATANATAN2TAN
@@ -9344,8 +9484,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(float strbuf)" STUB},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
 	{"gettime",			PF_Fixme,			0,		0,		0,		519,	"float(optional float timetype)"},
-//	{"keynumtostring",	PF_Fixme,			0,		0,		0,		520,	"string(float keynum)"},
-//	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	"string(string command, optional float bindmap)"},
+	{"keynumtostring",	PF_Fixme,			0,		0,		0,		520,	"string(float keynum)"},
+	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	"string(string command, optional float bindmap)"},
 //	{"initparticlespawner",PF_Fixme,		0,		0,		0,		522,	"void(float max_themes)"},
 //	{"resetparticle",	PF_Fixme,			0,		0,		0,		523,	"void()"},
 //	{"particletheme",	PF_Fixme,			0,		0,		0,		524,	"void(float theme)"},
@@ -9373,31 +9513,31 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"physics_addforce",PF_Ignore,			0,		0,		0,		541,	"void(entity e, vector force, vector relative_ofs)" STUB},
 	{"physics_addtorque",PF_Ignore,			0,		0,		0,		542,	"void(entity e, vector torque)" STUB},
 
-//	{"setkeydest",		PF_Fixme,			0,		0,		0,		601,	"void(float dest)"},
-//	{"getkeydest",		PF_Fixme,			0,		0,		0,		602,	"float()"},
-//	{"setmousetarget",	PF_Fixme,			0,		0,		0,		603,	"void(float trg)"},
-//	{"getmousetarget",	PF_Fixme,			0,		0,		0,		604,	"float()"},
+	{"setkeydest",		PF_Fixme,			0,		0,		0,		601,	"void(float dest)"},
+	{"getkeydest",		PF_Fixme,			0,		0,		0,		602,	"float()"},
+	{"setmousetarget",	PF_Fixme,			0,		0,		0,		603,	"void(float trg)"},
+	{"getmousetarget",	PF_Fixme,			0,		0,		0,		604,	"float()"},
 	{"callfunction",	PF_callfunction,	0,		0,		0,		605,	"void(.../*, string funcname*/)"},
 	{"writetofile",		PF_writetofile,		0,		0,		0,		606,	"void(float fh, entity e)"},
 	{"isfunction",		PF_isfunction,		0,		0,		0,		607,	"float(string s)"},
-//	{"getresolution",	PF_Fixme,			0,		0,		0,		608,	"vector(float number, optional float forfullscreen)"},
-//	{"keynumtostring",	PF_Fixme,			0,		0,		0,		609,	"string(float keynum)"},
-//	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		610,	"string()"},
-//	{"gethostcachevalue",PF_Fixme,			0,		0,		0,		611,	"float(float type)"},
-//	{"gethostcachestring",PF_Fixme,			0,		0,		0,		612,	"string(float type, float hostnr)"},
+	{"getresolution",	PF_Fixme,			0,		0,		0,		608,	"vector(float vidmode, optional float forfullscreen)"},
+	{"keynumtostring",	PF_Fixme,			0,		0,		0,		609,	"string(float keynum)"},
+	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		610,	"string(string command, optional float bindmap)"},
+	{"gethostcachevalue",PF_Fixme,			0,		0,		0,		611,	"float(float type)"},
+	{"gethostcachestring",PF_Fixme,			0,		0,		0,		612,	"string(float type, float hostnr)"},
 	{"parseentitydata",	PF_parseentitydata,	0,		0,		0,		613,	"void(entity e, string s)"},
-//	{"stringtokeynum",	PF_Fixme,			0,		0,		0,		614,	"float(string key)"},
-//	{"resethostcachemasks",PF_Fixme,		0,		0,		0,		615,	"void()"},
-//	{"sethostcachemaskstring",PF_Fixme,		0,		0,		0,		616,	"void(float mask, float fld, string str, float op)"},
-//	{"sethostcachemasknumber",PF_Fixme,		0,		0,		0,		617,	"void(float mask, float fld, float num, float op)"},
-//	{"resorthostcache",	PF_Fixme,			0,		0,		0,		618,	"void()"},
-//	{"sethostcachesort",PF_Fixme,			0,		0,		0,		619,	"void(float fld, float descending)"},
-//	{"refreshhostcache",PF_Fixme,			0,		0,		0,		620,	"void()"},
-//	{"gethostcachenumber",PF_Fixme,			0,		0,		0,		621,	"float(float fld, float hostnr)"},
-//	{"gethostcacheindexforkey",PF_Fixme,	0,		0,		0,		622,	"float(string key)"},
-//	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	"void(string key)"},
-//	{"getextresponse",	PF_Fixme,			0,		0,		0,		624,	"string()"},
-//	{"netaddress_resolve",PF_Fixme,			0,		0,		0,		625,	"string(string, float)"},
+	{"stringtokeynum",	PF_Fixme,			0,		0,		0,		614,	"float(string key)"},
+	{"resethostcachemasks",PF_Fixme,		0,		0,		0,		615,	"void()"},
+	{"sethostcachemaskstring",PF_Fixme,		0,		0,		0,		616,	"void(float mask, float fld, string str, float op)"},
+	{"sethostcachemasknumber",PF_Fixme,		0,		0,		0,		617,	"void(float mask, float fld, float num, float op)"},
+	{"resorthostcache",	PF_Fixme,			0,		0,		0,		618,	"void()"},
+	{"sethostcachesort",PF_Fixme,			0,		0,		0,		619,	"void(float fld, float descending)"},
+	{"refreshhostcache",PF_Fixme,			0,		0,		0,		620,	"void()"},
+	{"gethostcachenumber",PF_Fixme,			0,		0,		0,		621,	"float(float fld, float hostnr)"},
+	{"gethostcacheindexforkey",PF_Fixme,	0,		0,		0,		622,	"float(string key)"},
+	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	"void(string key)"},
+	{"getextresponse",	PF_Fixme,			0,		0,		0,		624,	"string()"},
+	{"netaddress_resolve",PF_Fixme,			0,		0,		0,		625,	"string(string, float)"},
 //	{"getgamedirinfo",	PF_Fixme,			0,		0,		0,		626,	"string(float n, float prop)"},
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,0,		628,	"float(entity e, float s)"},
@@ -9405,15 +9545,15 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"setkeybind",		PF_Fixme,			0,		0,		0,		630,	"float(float key, string bind, optional float bindmap)"},
 //	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()"},
 //	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)"},
-//	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"string(string addr)"},
-//	{"crypto_getidfp",	PF_Fixme,			0,		0,		0,		634,	"string(string addr)"},
-//	{"crypto_getencryptlevel",PF_Fixme,		0,		0,		0,		635,	"string(string addr)"},
-//	{"crypto_getmykeyfp",PF_Fixme,			0,		0,		0,		636,	"string(string addr)"},
-//	{"crypto_getmyidfp",PF_Fixme,			0,		0,		0,		637,	"string(float addr)"},
+	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"string(string addr)"  STUB},
+	{"crypto_getidfp",	PF_Fixme,			0,		0,		0,		634,	"string(string addr)"  STUB},
+	{"crypto_getencryptlevel",PF_Fixme,		0,		0,		0,		635,	"string(string addr)"  STUB},
+	{"crypto_getmykeyfp",PF_Fixme,			0,		0,		0,		636,	"string(string addr)"  STUB},
+	{"crypto_getmyidfp",PF_Fixme,			0,		0,		0,		637,	"string(float addr)" STUB},
 //	{"VM_CL_RotateMoves",PF_Fixme,			0,		0,		0,		638,	""},
 	{"digest_hex",		PF_digest_hex,		0,		0,		0,		639,	"string(string digest, string data, ...)"},
 //	{"V_CalcRefdef",	PF_Fixme,			0,		0,		0,		640,	"void(entity e)"},
-	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"float(float i)"},
+	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"float(float i)"	STUB},
 
 	//end dp extras
 
@@ -9729,11 +9869,15 @@ svextqcfields
 		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
 }
 
+//targets
 #define QW 1
 #define NQ 2
 #define CS 4
-#define FTE 8
-#define ALL (QW|NQ|CS)
+#define MENU 8
+#define H2 16
+//mere flags
+#define FTE 32
+#define ALL (QW|NQ|CS|MENU)
 #define CORE
 typedef struct
 {
@@ -9745,6 +9889,7 @@ typedef struct
 	char *valuestr;
 	qboolean misc;
 } knowndef_t;
+#include "cl_master.h"
 void PR_DumpPlatform_f(void)
 {
 #ifdef SERVERONLY
@@ -9764,7 +9909,7 @@ void PR_DumpPlatform_f(void)
 	/*this list is here to ensure that the file can be used as a valid initial qc file (ignoring precompiler options)*/
 	knowndef_t knowndefs[] =
 	{
-		{"self",				"entity", QW|NQ|CS},
+		{"self",				"entity", QW|NQ|CS|MENU},
 		{"other",				"entity", QW|NQ|CS},
 		{"world",				"entity", QW|NQ|CS},
 		{"time",				"float", QW|NQ|CS},
@@ -9812,7 +9957,7 @@ void PR_DumpPlatform_f(void)
 		{"ClientDisconnect",	"void()", QW|NQ},
 		{"SetNewParms",			"void()", QW|NQ},
 		{"SetChangeParms",		"void()", QW|NQ},
-		{"end_sys_globals",		"void", QW|NQ|CS},
+		{"end_sys_globals",		"void", QW|NQ|CS|MENU},
 
 		{"modelindex",			".float", QW|NQ|CS},
 		{"absmin, absmax",		".vector", QW|NQ|CS},
@@ -9901,7 +10046,7 @@ void PR_DumpPlatform_f(void)
 		{"noise1",				".string", QW|NQ},
 		{"noise2",				".string", QW|NQ},
 		{"noise3",				".string", QW|NQ},
-		{"end_sys_fields",		"void", QW|NQ|CS},
+		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
 #define comfieldfloat(name) {#name, ".float", FL},
 #define comfieldvector(name) {#name, ".vector", FL},
@@ -9911,7 +10056,7 @@ void PR_DumpPlatform_f(void)
 #define FL QW|NQ
 		comqcfields
 #undef FL
-#define FL ALL
+#define FL QW|NQ|CS
 		comextqcfields
 #undef FL
 #define FL QW|NQ
@@ -9926,12 +10071,61 @@ void PR_DumpPlatform_f(void)
 #undef comfieldstring
 #undef comfieldfunction
 
-		{"physics_mode",	"var float", QW|NQ|CS, 2},
-		{"gamespeed",		"float", CS},
-		{"drawfont",		"float", CS},
+		{"SpectatorConnect",		"noref void()", QW|NQ},
+		{"SpectatorDisconnect",		"noref void()", QW|NQ},
+		{"SpectatorThink",			"noref void()", QW|NQ},
+		{"SV_ParseClientCommand",	"noref void()", QW|NQ},
+		{"SV_ParseConnectionlessPacket", "noref void()", QW|NQ},
+		{"SV_PausedTic",			"noref void()", QW|NQ},
+		{"SV_ShouldPause",			"noref void()", QW|NQ},
+		{"ClassChangeWeapon",		"noref void()", H2},
+		{"SV_RunClientCommand",		"noref void()", QW|NQ},
+		{"SV_AddDebugPolygons",		"noref void()", QW|NQ},
+		{"SV_PlayerPhysics",		"noref void()", QW|NQ},
+		{"EndFrame",				"noref void()", QW|NQ},
+		/* //mvdsv compat
+		{"UserInfo_Changed",		"//noref void()", QW},
+		{"localinfoChanged",		"//noref void()", QW},
+		{"ChatMessage",				"//noref void()", QW},
+		{"UserCmd",					"//noref void()", QW},
+		{"ConsoleCmd",				"//noref void()", QW},
+		*/
 
-		{"TRUE",	"const float", QW|NQ|CS, 1},
-		{"FALSE",	"const float", QW|NQ|CS, 0},
+		{"CSQC_Init",				"noref void(float apilevel, string enginename, float engineversion)", CS},
+		{"CSQC_WorldLoaded",		"noref void()", CS},
+		{"CSQC_Shutdown",			"noref void()", CS},
+		{"CSQC_UpdateView",			"noref void(float vwidth, float vheight, float notmenu)", CS},
+		{"CSQC_Parse_StuffCmd",		"noref void(string msg)", CS},
+		{"CSQC_Parse_CenterPrint",	"noref float(string msg)", CS},
+		{"CSQC_Parse_Print",		"noref void(string printmsg, float printlvl)", CS},
+		{"CSQC_InputEvent",			"noref float(float evtype, float scanx, float chary, float devid)", CS},
+		{"CSQC_Input_Frame",		"noref void()", CS},
+		{"CSQC_ConsoleCommand",		"noref float(string cmd)", CS},
+		{"CSQC_ConsoleLink",		"noref float(string text, string info)", CS},
+		{"CSQC_Ent_Update",			"noref void()", CS},
+		{"CSQC_Ent_Remove",			"noref void()", CS},
+		{"CSQC_Event_Sound",		"noref float(float entnum, float channel, float soundname, float vol, float attenuation, vector pos, float pitchmod)", CS},
+//		{"CSQC_ServerSound",		"//void()", CS},
+		{"CSQC_LoadResource",		"noref float(string resname, string restype)", CS},
+		{"CSQC_Parse_TempEntity",	"noref void()", CS},
+
+		{"GameCommand",				"noref void(string cmdtext)", CS|MENU},
+
+		{"m_init",					"void()", MENU},
+		{"m_shutdown",				"void()", MENU},
+		{"m_draw",					"void()", MENU},
+		{"m_keydown",				"void(float scan, float chr)", MENU},
+		{"m_keyup",					"void(float scan, float chr)", MENU},
+		{"m_toggle",				"void(float mode)", MENU},
+
+		{"physics_mode",			"var float", QW|NQ|CS, 2},
+		{"gamespeed",				"float", CS},
+		{"drawfontscale",			"var vector", CS|MENU, 0, "'1 1 0'"},
+		{"drawfont",				"float", CS|MENU},
+		{"FONT_DEFAULT",			"const float", CS|MENU, 0},
+
+		{"TRUE",					"const float", ALL, 1},
+		{"FALSE",					"const float", ALL, 0},
 
 		{"MOVETYPE_NONE",			"const float", QW|NQ|CS, MOVETYPE_NONE},
 		{"MOVETYPE_WALK",			"const float", QW|NQ|CS, MOVETYPE_WALK},
@@ -10014,17 +10208,17 @@ void PR_DumpPlatform_f(void)
 		{"PVSF_IGNOREPVS",		"const float", QW|NQ, PVSF_IGNOREPVS},
 		{"PVSF_NOREMOVE",		"const float", QW|NQ, PVSF_NOREMOVE},
 
-		{"INFOKEY_P_IP",		"const string", QW|NQ, 0, "ip"},
-		{"INFOKEY_P_REALIP",	"const string", QW|NQ, 0, "realip"},
-		{"INFOKEY_P_CSQCACTIVE","const string", QW|NQ, 0, "csqcactive"},
-		{"INFOKEY_P_PING",		"const string", QW|NQ, 0, "ping"},
-		{"INFOKEY_P_SVPING",	"const string", QW|NQ, 0, "svping"},
-		{"INFOKEY_P_GUID",		"const string", QW|NQ, 0, "guid"},
-		{"INFOKEY_P_CHALLENGE",	"const string", QW|NQ, 0, "challenge"},
-		{"INFOKEY_P_USERID",	"const string", QW|NQ, 0, "*userid"},
-		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, 0, "download"},
-		{"INFOKEY_P_TRUSTLEVEL","const string", QW|NQ, 0, "trustlevel"},
-		{"INFOKEY_P_PROTOCOL",	"const string", QW|NQ, 0, "protocol"},
+		{"INFOKEY_P_IP",		"const string", QW|NQ, 0, "\"ip\""},
+		{"INFOKEY_P_REALIP",	"const string", QW|NQ, 0, "\"realip\""},
+		{"INFOKEY_P_CSQCACTIVE","const string", QW|NQ, 0, "\"csqcactive\""},
+		{"INFOKEY_P_PING",		"const string", QW|NQ, 0, "\"ping\""},
+		{"INFOKEY_P_SVPING",	"const string", QW|NQ, 0, "\"svping\""},
+		{"INFOKEY_P_GUID",		"const string", QW|NQ, 0, "\"guid\""},
+		{"INFOKEY_P_CHALLENGE",	"const string", QW|NQ, 0, "\"challenge\""},
+		{"INFOKEY_P_USERID",	"const string", QW|NQ, 0, "\"*userid\""},
+		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, 0, "\"download\""},
+		{"INFOKEY_P_TRUSTLEVEL","const string", QW|NQ, 0, "\"trustlevel\""},
+		{"INFOKEY_P_PROTOCOL",	"const string", QW|NQ, 0, "\"protocol\""},
 
 		// edict.flags
 		{"FL_FLY",				"const float", QW|NQ|CS, FL_FLY},
@@ -10137,9 +10331,9 @@ void PR_DumpPlatform_f(void)
 		{"CLIENTTYPE_BOT",		"const float", QW|NQ, CLIENTTYPE_BOT},
 		{"CLIENTTYPE_NOTACLIENT","const float",QW|NQ, CLIENTTYPE_NOTACLIENT},
 
-		{"FILE_READ",			"const float", QW|NQ|CS, FRIK_FILE_READ},
-		{"FILE_APPEND",			"const float", QW|NQ|CS, FRIK_FILE_APPEND},
-		{"FILE_WRITE",			"const float", QW|NQ|CS, FRIK_FILE_WRITE},
+		{"FILE_READ",			"const float", ALL, FRIK_FILE_READ},
+		{"FILE_APPEND",			"const float", ALL, FRIK_FILE_APPEND},
+		{"FILE_WRITE",			"const float", ALL, FRIK_FILE_WRITE},
 		{"FILE_READNL",			"const float", QW|NQ|CS, FRIK_FILE_READNL},
 		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_READ},
 		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_RW},
@@ -10188,6 +10382,25 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_MESH_ADD",	"const float", CS, ter_mesh_add},
 		{"TEREDIT_MESH_KILL",	"const float", CS, ter_mesh_kill},
 		{"TEREDIT_TINT",		"const float", CS, ter_tint},
+
+		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", MENU, SLIST_HOSTCACHEVIEWCOUNT},
+		{"SLIST_HOSTCACHETOTALCOUNT",	"const float", MENU, SLIST_HOSTCACHETOTALCOUNT},
+		{"SLIST_MASTERQUERYCOUNT",		"const float", MENU, SLIST_MASTERQUERYCOUNT},
+		{"SLIST_MASTERREPLYCOUNT",		"const float", MENU, SLIST_MASTERREPLYCOUNT},
+		{"SLIST_SERVERQUERYCOUNT",		"const float", MENU, SLIST_SERVERQUERYCOUNT},
+		{"SLIST_SERVERREPLYCOUNT",		"const float", MENU, SLIST_SERVERREPLYCOUNT},
+		{"SLIST_SORTFIELD",				"const float", MENU, SLIST_SORTFIELD},
+		{"SLIST_SORTDESCENDING",		"const float", MENU, SLIST_SORTDESCENDING},
+		{"SLIST_TEST_CONTAINS",			"const float", MENU, SLIST_TEST_CONTAINS},
+		{"SLIST_TEST_NOTCONTAIN",		"const float", MENU, SLIST_TEST_NOTCONTAIN},
+		{"SLIST_TEST_LESSEQUAL",		"const float", MENU, SLIST_TEST_LESSEQUAL},
+		{"SLIST_TEST_LESS",				"const float", MENU, SLIST_TEST_LESS},
+		{"SLIST_TEST_EQUAL",			"const float", MENU, SLIST_TEST_EQUAL},
+		{"SLIST_TEST_GREATER",			"const float", MENU, SLIST_TEST_GREATER},
+		{"SLIST_TEST_GREATEREQUAL",		"const float", MENU, SLIST_TEST_GREATEREQUAL},
+		{"SLIST_TEST_NOTEQUAL",			"const float", MENU, SLIST_TEST_NOTEQUAL},
+		{"SLIST_TEST_STARTSWITH",		"const float", MENU, SLIST_TEST_STARTSWITH},
+		{"SLIST_TEST_NOTSTARTSWITH",	"const float", MENU, SLIST_TEST_NOTSTARTSWITH},
 		NULL
 	};
 
@@ -10202,6 +10415,10 @@ void PR_DumpPlatform_f(void)
 			targ |= CS;
 		if (!stricmp(Cmd_Argv(i), "-Tqw"))
 			targ |= QW;
+		if (!stricmp(Cmd_Argv(i), "-Tmenu"))
+			targ |= MENU;
+		if (!stricmp(Cmd_Argv(i), "-Th2"))
+			targ |= H2;
 		if (!stricmp(Cmd_Argv(i), "-Fdefines"))
 			defines = true;
 		if (!stricmp(Cmd_Argv(i), "-Fnodefines"))
@@ -10210,7 +10427,7 @@ void PR_DumpPlatform_f(void)
 			fname = Cmd_Argv(++i);
 	}
 	if (!(targ & ALL))
-		targ |= ALL;
+		targ |= (QW|NQ|CS|MENU);
 
 	if (!*fname)
 		fname = "fteextensions";
@@ -10233,6 +10450,7 @@ void PR_DumpPlatform_f(void)
 					"-Tnq        - dump specifically NQ fields\n"
 					"-Tqw        - dump specifically QW fields\n"
 					"-Tcs        - dump specifically CSQC fields\n"
+					"-Tmenu      - dump specifically menuqc fields\n"
 					"-Fdefines   - generate #defines instead of constants\n"
 					"-O          - write to a different qc file\n"
 					"*/\n"
@@ -10243,23 +10461,55 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning error Q101 /*too many parms*/\n");
 	VFS_PRINTF(f, "#pragma warning error Q105 /*too few parms*/\n");
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown*/\n");
+	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings*/\n");
+	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals*/\n");
 
 	if (targ&FTE)
 		VFS_PRINTF(f, "#pragma target FTE\n");
 	if ((targ&ALL) == CS)
-		VFS_PRINTF(f,	"#define CSQC\n");
+		VFS_PRINTF(f,	"#ifndef CSQC\n"
+							"#define CSQC\n"
+						"#endif\n"
+						);
 	else if ((targ&ALL) == NQ)
-		VFS_PRINTF(f,	"#define NETQUAKE\n"
-						"#define SSQC\n"
+		VFS_PRINTF(f,	"#ifndef NETQUAKE\n"
+							"#define NETQUAKE\n"
+						"#endif\n"
+						"#ifndef NQSSQC\n"
+							"#define NQSSQC\n"
+						"#endif\n"
+						"#ifndef SSQC\n"
+							"#define SSQC\n"
+						"#endif\n"
 						);
 	else if ((targ&ALL) == QW)
-		VFS_PRINTF(f,	"#define QUAKEWORLD\n"
-						"#define SSQC\n"
+		VFS_PRINTF(f,	"#ifndef QUAKEWORLD\n"
+							"#define QUAKEWORLD\n"
+						"#endif\n"
+						"#ifndef QWSSQC\n"
+							"#define QWSSQC\n"
+						"#endif\n"
+						"#ifndef SSQC\n"
+							"#define SSQC\n"
+						"#endif\n"
+						);
+	else if ((targ&ALL) == MENU)
+		VFS_PRINTF(f,	"#ifndef MENU\n"
+							"#define MENU\n"
+						"#endif\n"
 						);
 	else
-		VFS_PRINTF(f,	"#if !defined(CSQC) && !defined(SSQC)\n"
+		VFS_PRINTF(f,	"#if !defined(CSQC) && !defined(NQSSQC) && !defined(QWSSQC)&& !defined(MENU)\n"
+							"#ifdef QUAKEWORLD\n"
+								"#define QWSSQC\n"
+							"#else\n"
+								"#define NQSSQC\n"
+							"#endif\n"
+						"#endif\n"
+						"#if !defined(SSQC) && (defined(QWSSQC) || defined(NQSSQC))\n"
 							"#define SSQC\n"
-						"#endif\n");
+						"#endif\n"
+						);
 
 	for (i = 0; knowndefs[i].name; i++)
 	{
@@ -10270,43 +10520,70 @@ void PR_DumpPlatform_f(void)
 		}
 	}
 
-	d = ALL;
+	d = ALL & ~targ;
 	for (i = 0; knowndefs[i].name; i++)
 	{
 		nd = (knowndefs[i].module & targ) | (~targ & ALL);
-		if (nd != d)
+		if (!(nd & targ))
+			continue;
+		if ((nd&targ) != (d&targ))
 		{
-			if (!(nd & targ))
-				continue;
-
-			if (d != ALL)
+			if (d != (ALL & ~targ))
 				VFS_PRINTF(f, "#endif\n");
-			d = nd;
-
-			switch(d)
+			if (((nd | (~targ)) & ALL) == ALL)
+				d = ALL & ~targ;	//every part of the target is specified, so don't do the ifdef thing.
+			else
 			{
-			case 0:
-				continue;
-			case QW:
-				VFS_PRINTF(f, "#if defined(SSQC) && !defined(NETQUAKE)\n");
-				break;
-			case NQ:
-				VFS_PRINTF(f, "#if defined(SSQC) && defined(NETQUAKE)\n");
-				break;
-			case QW|NQ:
-				VFS_PRINTF(f, "#ifdef SSQC\n");
-				break;
-			case CS:
-				VFS_PRINTF(f, "#ifdef CSQC\n");
-				break;
-			case QW|CS:
-				VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && !defined(NETQUAKE))\n");
-				break;
-			case NQ|CS:
-				VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && defined(NETQUAKE))\n");
-				break;
-			case ALL:
-				break;
+				d = nd;
+				switch(d & (ALL & targ))
+				{
+				case 0:
+					continue;
+				case QW:
+					VFS_PRINTF(f, "#if defined(QWSSQC)\n");
+					break;
+				case NQ:
+					VFS_PRINTF(f, "#if defined(NQSSQC)\n");
+					break;
+				case QW|NQ:
+					VFS_PRINTF(f, "#ifdef SSQC\n");
+					break;
+				case CS:
+					VFS_PRINTF(f, "#ifdef CSQC\n");
+					break;
+				case QW|CS:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
+					break;
+				case NQ|CS:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
+					break;
+				case NQ|CS|QW:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
+					break;
+				case MENU:
+					VFS_PRINTF(f, "#ifdef MENU\n");
+					break;
+				case QW|MENU:
+					VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
+					break;
+				case NQ|MENU:
+					VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
+					break;
+				case QW|NQ|MENU:
+					VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
+					break;
+				case CS|MENU:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+					break;
+				case QW|CS|MENU:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+					break;
+				case NQ|CS|MENU:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+					break;
+				case ALL:
+					break;
+				}
 			}
 		}
 		if (!strcmp(knowndefs[i].type, "const float"))
@@ -10319,13 +10596,13 @@ void PR_DumpPlatform_f(void)
 		else if (!strcmp(knowndefs[i].type, "const string"))
 		{
 			if (defines)
-				VFS_PRINTF(f, "#define %s \"%s\"\n", knowndefs[i].name, knowndefs[i].valuestr);
+				VFS_PRINTF(f, "#define %s %s\n", knowndefs[i].name, knowndefs[i].valuestr);
 			else
-				VFS_PRINTF(f, "%s %s = \"%s\";\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr);
+				VFS_PRINTF(f, "%s %s = %s;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr);
 		}
 		else if (knowndefs[i].valuestr)
 		{
-			VFS_PRINTF(f, "%s %s = \"%s\";\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr);
+			VFS_PRINTF(f, "%s %s = %s;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr);
 		}
 		else if (knowndefs[i].value)
 		{
@@ -10334,10 +10611,6 @@ void PR_DumpPlatform_f(void)
 		else
 			VFS_PRINTF(f, "%s %s;\n", knowndefs[i].type, knowndefs[i].name);
 	}
-	if (d != ALL)
-		VFS_PRINTF(f, "#endif\n");
-
-	d = ALL;
 	for (i = 0; BuiltinList[i].name; i++)
 	{
 		if (BuiltinList[i].obsolete)
@@ -10349,67 +10622,103 @@ void PR_DumpPlatform_f(void)
 			idx = BuiltinList[i].nqnum;
 		else if (BuiltinList[i].qwnum)
 			idx = BuiltinList[i].qwnum;
+		else if (BuiltinList[i].h2num)
+			idx = BuiltinList[i].h2num;
 		else
 			idx = 0;
 
 		nd = 0;
-		if (BuiltinList[i].ebfsnum == idx)
-			nd |= NQ|QW;
-		if (BuiltinList[i].nqnum == idx)
-			nd |= NQ;
-		if (BuiltinList[i].qwnum == idx)
-			nd |= QW;
+
+		if (BuiltinList[i].bifunc != PF_Fixme && BuiltinList[i].bifunc != PF_Ignore)
+		{
+			if (BuiltinList[i].ebfsnum == idx)
+				nd |= NQ|QW;
+			if (BuiltinList[i].nqnum == idx)
+				nd |= NQ;
+			if (BuiltinList[i].qwnum == idx)
+				nd |= QW;
+			if (BuiltinList[i].h2num == idx)
+				nd |= H2;
+		}
 		
 		if (idx)
 		{
 			if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
-			{
 				nd |= CS;
-				if (BuiltinList[i].bifunc == PF_Fixme || BuiltinList[i].bifunc == PF_Ignore)
-					nd &= CS; /*csqc only*/
-			}
-			else
+			if (MP_BuiltinValid(BuiltinList[i].name, idx))
+				nd |= MENU;
+			
+			if (!nd)
 			{
-				if (BuiltinList[i].bifunc == PF_Fixme || BuiltinList[i].bifunc == PF_Ignore)
-				{
-					/*neither*/
-					BuiltinList[i].obsolete = true;
-					nd = d;	/*don't switch ifdefs*/
-				}
+				/*no idea what its for*/
+				BuiltinList[i].obsolete = true;
+				nd = d;	/*don't switch ifdefs*/
 			}
-			if (nd != d)
+			nd |= (~targ & ALL);
+			if (!(nd & targ))
+				continue;
+			if ((nd&targ) != (d&targ))
 			{
-				if (!(nd & targ))
-					continue;
-
-				if (d != ALL)
+				if (d != (ALL & ~targ))
 					VFS_PRINTF(f, "#endif\n");
-				d = nd;
 
-				switch(d)
+				if (((nd | (~targ)) & ALL) == ALL)
+					d = ALL & ~targ;
+				else
 				{
-				case 0:
-					continue;
-				case QW:
-					VFS_PRINTF(f, "#if defined(SSQC) && !defined(NETQUAKE)\n");
-					break;
-				case NQ:
-					VFS_PRINTF(f, "#if defined(SSQC) && defined(NETQUAKE)\n");
-					break;
-				case QW|NQ:
-					VFS_PRINTF(f, "#ifdef SSQC\n");
-					break;
-				case CS:
-					VFS_PRINTF(f, "#ifdef CSQC\n");
-					break;
-				case QW|CS:
-					VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && !defined(NETQUAKE))\n");
-					break;
-				case NQ|CS:
-					VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && defined(NETQUAKE))\n");
-					break;
-				case ALL:
-					break;
+					d = nd;
+					switch(d & (ALL & targ))
+					{
+					case 0:
+						continue;
+					case QW:
+						VFS_PRINTF(f, "#if defined(QWSSQC)\n");
+						break;
+					case NQ:
+						VFS_PRINTF(f, "#if defined(NQSSQC)\n");
+						break;
+					case QW|NQ:
+						VFS_PRINTF(f, "#ifdef SSQC\n");
+						break;
+					case CS:
+						VFS_PRINTF(f, "#ifdef CSQC\n");
+						break;
+					case QW|CS:
+						VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
+						break;
+					case NQ|CS:
+						VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
+						break;
+					case NQ|CS|QW:
+						VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
+						break;
+					case MENU:
+						VFS_PRINTF(f, "#ifdef MENU\n");
+						break;
+					case QW|MENU:
+						VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
+						break;
+					case NQ|MENU:
+						VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
+						break;
+					case QW|NQ|MENU:
+						VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
+						break;
+					case CS|MENU:
+						VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+						break;
+					case QW|CS|MENU:
+						VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+						break;
+					case NQ|CS|MENU:
+						VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+						break;
+					case ALL:
+						break;
+					default:
+						VFS_PRINTF(f, "#if 0 //???\n");
+						break;
+					}
 				}
 			}
 			VFS_PRINTF(f, "%s%s %s = #%u;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
@@ -10435,7 +10744,7 @@ void PR_DumpPlatform_f(void)
 				VFS_PRINTF(f, "\n");
 		}
 	}
-	if (d != ALL)
+	if (d != (ALL & ~targ))
 		VFS_PRINTF(f, "#endif\n");
 
 

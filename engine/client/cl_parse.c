@@ -194,7 +194,7 @@ char *svc_nqstrings[] =
 	"nqsvc_damage",			// [qbyte] impact [qbyte] blood [vec3] from
 
 	"nqsvc_spawnstatic",
-	"nqOBSOLETE svc_spawnbinary",
+	"nqsvcfte_spawnstatic2(21)",
 	"nqsvc_spawnbaseline",
 
 	"nqsvc_temp_entity",		// <variable>
@@ -237,7 +237,34 @@ char *svc_nqstrings[] =
 	"dpsvc_spawnstaticsound2",	//59
 	"dpsvc_trailparticles",	//60
 	"dpsvc_pointparticles",	//61
-	"dpsvc_pointparticles1"	//62
+	"dpsvc_pointparticles1",	//62
+	"NEW PROTOCOL(63)",
+	"NEW PROTOCOL(64)",
+	"NEW PROTOCOL(65)",
+	"nqsvcfte_spawnbaseline2(66)",	//66
+	"NEW PROTOCOL(67)",
+	"NEW PROTOCOL(68)",
+	"NEW PROTOCOL(69)",
+	"NEW PROTOCOL(70)",
+	"NEW PROTOCOL(71)",
+	"NEW PROTOCOL(72)",
+	"NEW PROTOCOL(73)",
+	"NEW PROTOCOL(74)",
+	"NEW PROTOCOL(75)",
+	"NEW PROTOCOL(76)",
+	"NEW PROTOCOL(77)",
+	"NEW PROTOCOL(78)",
+	"NEW PROTOCOL(79)",
+	"NEW PROTOCOL(80)",
+	"NEW PROTOCOL(81)",
+	"NEW PROTOCOL(82)",
+	"NEW PROTOCOL(83)",
+	"NEW PROTOCOL(84)",
+	"NEW PROTOCOL(85)",
+	"nqsvcfte_updateentities(86)",
+	"NEW PROTOCOL(87)",
+	"NEW PROTOCOL(88)",	
+
 };
 
 extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl, cl_download_mapsrc;
@@ -1865,7 +1892,8 @@ void CL_ParseDownload (void)
 			cls.downloadqw = NULL;
 		}
 		CL_DownloadFailed(cls.downloadremotename, true);
-		CL_CheckOrEnqueDownloadFile(name, localname, DLLF_IGNOREFAILED);
+		//FIXME: find some safe way to do this and actually test it. we should already know the local name, but we might have gained a .gz or something (this is quakeforge after all).
+//		CL_CheckOrEnqueDownloadFile(name, localname, DLLF_IGNOREFAILED);
 		return;
 	}
 
@@ -2300,6 +2328,13 @@ void CLQW_ParseServerData (void)
 
 	float maxspeed, entgrav;
 
+	if (cls.downloadmethod == DL_QWPENDING)
+	{
+		//if we didn't actually start downloading it yet, cancel the current download.
+		//this is to avoid qizmo not responding to the download command, resulting in hanging downloads that cause the client to then be unable to connect anywhere simply because someone's skin was set.
+		CL_DownloadFailed(cls.downloadremotename, true);
+	}
+
 	Con_DPrintf ("Serverdata packet received.\n");
 //
 // wipe the client_state_t struct
@@ -2702,7 +2737,24 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	Stats_NewMap();
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
-	protover = MSG_ReadLong ();
+	cls.fteprotocolextensions = 0;
+	cls.fteprotocolextensions2 = 0;
+	for(;;)
+	{
+		protover = MSG_ReadLong ();
+		switch(protover)
+		{
+		case PROTOCOL_VERSION_FTE:
+			cls.fteprotocolextensions = MSG_ReadLong();
+			continue;
+		case PROTOCOL_VERSION_FTE2:
+			cls.fteprotocolextensions2 = MSG_ReadLong();
+			continue;
+		default:
+			break;
+		}
+		break;
+	}
 
 	netprim.coordsize = 2;
 	netprim.anglesize = 1;
@@ -2778,6 +2830,13 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	else
 	{
 		Con_DPrintf("Standard NQ protocols\n");
+	}
+	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
+	{
+		if (netprim.anglesize < 2)
+			netprim.anglesize = 2;
+		if (netprim.coordsize < 4)
+			netprim.coordsize = 4;
 	}
 	cls.netchan.message.prim = cls.netchan.netprim = netprim;
 	MSG_ChangePrimitives(netprim);
@@ -3726,7 +3785,7 @@ void CLQW_ParseStartSoundPacket(void)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 100))
 #endif
 	{
 		if (!sound_num)
@@ -3874,7 +3933,7 @@ void CLNQ_ParseStartSoundPacket(void)
 		pos[i] = MSG_ReadCoord ();
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, pitchadj))
 #endif
 	{
 		if (!sound_num)
@@ -4831,10 +4890,12 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		if (memessage)
 		{
 			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
-				Q_strncatz(fullchatmessage, "^m^0*^7 ", sizeof(fullchatmessage));
+				Q_strncatz(fullchatmessage, "^0*^7 ", sizeof(fullchatmessage));
 			else
-				Q_strncatz(fullchatmessage, "^m* ", sizeof(fullchatmessage));
+				Q_strncatz(fullchatmessage, "* ", sizeof(fullchatmessage));
 		}
+		else
+			Q_strncatz(fullchatmessage, "\1", sizeof(fullchatmessage));
 
 #if defined(_WIN32) && !defined(NOMEDIA)
 		TTS_SayChatString(&msg);
@@ -4842,15 +4903,15 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{
-			Q_strncatz(fullchatmessage, va("\1(^[%s%s^d\\player\\%i^])", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("(^[^7%s%s^d\\player\\%i^])", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
 		}
 		else if (cl_standardchat.ival)
 		{
-			Q_strncatz(fullchatmessage, va("\1^[%s%s^d\\player\\%i^]", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("^[^7%s%s^d\\player\\%i^]", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
 		}
 		else
 		{
-			Q_strncatz(fullchatmessage, va("\1^[%s^%c%s^d\\player\\%i^]", name_coloured?"^m":"", c, name, plr-cl.players), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("^[^7%s^%c%s^d\\player\\%i^]", name_coloured?"^m":"", c, name, plr-cl.players), sizeof(fullchatmessage));
 		}
 
 		if (!memessage)
@@ -5182,7 +5243,7 @@ void CL_DumpPacket(void)
 		{
 			if (pos >= net_message.cursize)
 				Con_Printf("X");
-			else if (packet[pos] == 0 || packet[pos] == '\n')
+			else if (packet[pos] == 0 || packet[pos] == '\t' || packet[pos] == '\r' || packet[pos] == '\n')
 				Con_Printf(".");
 			else
 				Con_Printf("%c", (unsigned char)packet[pos]);
@@ -5265,7 +5326,7 @@ void CLQW_ParseServerMessage (void)
 		{
 		default:
 			CL_DumpPacket();
-			Host_EndGame ("CL_ParseServerMessage: Illegible server message (%i)", cmd);
+			Host_EndGame ("CL_ParseServerMessage: Illegible server message (%i@%i)", cmd, msg_readcount-1);
 			return;
 
 		case svc_time:
@@ -5475,7 +5536,7 @@ void CLQW_ParseServerMessage (void)
 		case svc_spawnstatic:
 			CL_ParseStatic (1);
 			break;
-		case svc_spawnstatic2:
+		case svcfte_spawnstatic2:
 			CL_ParseStatic (2);
 			break;
 		case svc_temp_entity:
@@ -5992,7 +6053,7 @@ qboolean CLNQ_ParseNQPrints(char *s)
 		{
 			while(*s >= '0' && *s <= '9')
 				s++;
-			if (*s == ' ' && s-start >= 4)
+			if (*s == ' ' && s-start >= 3)
 			{
 				s++;
 				start = s;
@@ -6040,8 +6101,6 @@ void CLNQ_ParseServerMessage (void)
 //	received_framecount = host_framecount;
 //	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
-
-	cls.netchan.nqreliable_allowed = true;
 
 //
 // if recording demos, copy the message out
@@ -6233,6 +6292,22 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseBaseline (cl_baselines + i);
 			break;
 
+		//PEXT_REPLACEMENTDELTAS
+		case svcfte_updateentities:
+			if (cls.signon == 4 - 1)
+			{	// first update is the final signon stage
+				cls.signon = 4;
+				CLNQ_SignonReply ();
+			}
+			CLFTE_ParseEntities();
+			break;
+		case svcfte_spawnstatic2:
+			CL_ParseStatic (2);
+			break;
+		case svcfte_spawnbaseline2:
+			CL_ParseBaseline2 ();
+			break;
+
 		case svc_time:
 			cl.playerview[0].oldfixangle = cl.playerview[0].fixangle;
 			VectorCopy(cl.playerview[0].fixangles, cl.playerview[0].oldfixangles);
@@ -6240,7 +6315,7 @@ void CLNQ_ParseServerMessage (void)
 
 			cls.netchan.outgoing_sequence++;
 			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
-			cl.validsequence = cls.netchan.incoming_sequence-1;
+			cl.validsequence = cls.netchan.incoming_sequence;
 
 			received_framecount = host_framecount;
 			cl.last_servermessage = realtime;
@@ -6267,8 +6342,8 @@ void CLNQ_ParseServerMessage (void)
 			else
 			{
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
-				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;
-				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
+				cl.frames[cl.validsequence&UPDATE_MASK].packet_entities.num_entities=0;
+				cl.frames[cl.validsequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
 			}
 			break;
 

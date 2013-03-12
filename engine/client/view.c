@@ -1020,6 +1020,7 @@ void V_CalcRefdef (int pnum)
 	entity_t	*view;
 	int			i;
 	float		bob;
+	float		viewheight;
 
 	r_refdef.currentplayernum = pnum;
 
@@ -1090,19 +1091,16 @@ void V_CalcRefdef (int pnum)
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
 
-	if (cl.viewheight[pnum] == DEFAULT_VIEWHEIGHT)
+	viewheight = cl.viewheight[pnum];
+	if (viewheight == DEFAULT_VIEWHEIGHT)
 	{
 		if (view_message && view_message->flags & PF_GIB)
-			r_refdef.vieworg[2] += 8;	// gib view height
+			viewheight = 8;	// gib view height
 		else if (view_message && view_message->flags & PF_DEAD)
-			r_refdef.vieworg[2] -= 16;	// corpse view height
-		else
-			r_refdef.vieworg[2] += DEFAULT_VIEWHEIGHT;
+			viewheight = 16;	// corpse view height
 	}
-	else
-		r_refdef.vieworg[2] += cl.viewheight[pnum];
 
-	r_refdef.vieworg[2] += cl.crouch[pnum];
+	viewheight += cl.crouch[pnum];
 
 	if (view_message && view_message->flags & PF_DEAD && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
@@ -1112,8 +1110,10 @@ void V_CalcRefdef (int pnum)
 	else
 	{
 		// v_viewheight only affects the view if the player is alive
-		r_refdef.vieworg[2] += bob;
+		viewheight += bob;
 	}
+
+	VectorMA(r_refdef.vieworg, -viewheight, cl.playerview[pnum].gravitydir, r_refdef.vieworg);
 
 // set up gun position
 	V_CalcGunPositionAngle (pnum, bob);

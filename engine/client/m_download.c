@@ -862,21 +862,13 @@ static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr)
 	}
 	return true;
 }
+
+qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, qboolean copyprotect, qboolean istemporary, qboolean isexplicit);
+
+void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
 static void CL_BootDownload_Complete(struct dl_download *dl)
 {
 	void *zip;
-/*
-	int sz;
-	char *buf;
-	FILE *f;
-	sz = VFS_GETLEN(dl->file);
-	buf = malloc(sz);
-	VFS_READ(dl->file, buf, sz);
-	f = fopen("C:/Games/Quake/test/emptybasedir/test.zip", "wb");
-	fwrite(buf, 1, sz, f);
-	fclose(f);
-	free(buf);
-*/
 	if (dl->status == DL_FINISHED)
 		zip = zipfilefuncs.OpenNew(dl->file, dl->url);
 	else
@@ -885,11 +877,71 @@ static void CL_BootDownload_Complete(struct dl_download *dl)
 	dl->file = NULL;
 	if (zip)
 	{
-		/*scan it to extract its contents*/
-		zipfilefuncs.EnumerateFiles(zip, "*/*.pk3", CL_BootDownload_Extract, zip);
-		zipfilefuncs.EnumerateFiles(zip, "*/*.pak", CL_BootDownload_Extract, zip);
-		zipfilefuncs.EnumerateFiles(zip, "*/*/*.pk3", CL_BootDownload_Extract, zip);
-		zipfilefuncs.EnumerateFiles(zip, "*/*/*.pak", CL_BootDownload_Extract, zip);
+		if (dl->user_ctx)
+		{
+			vfsfile_t *in, *out;
+			flocation_t loc;
+			qboolean found = false;
+			int crc;
+
+			found = zipfilefuncs.FindFile(zip, &loc, dl->user_ctx, NULL);
+			if (!found)
+			{
+				char *s = COM_SkipPath(dl->user_ctx);
+				if (s != dl->user_ctx)
+					found = zipfilefuncs.FindFile(zip, &loc, s, NULL);
+			}
+
+			if (found)
+			{
+				in = zipfilefuncs.OpenVFS(zip, &loc, "rb");
+				if (in)
+				{
+					char local[MAX_OSPATH];
+					FS_GenCachedPakName(dl->user_ctx, va("%i", dl->user_num), local, sizeof(local));
+					FS_CreatePath(local, FS_ROOT);
+					out = FS_OpenVFS(local, "wb", FS_ROOT);
+					if (out)
+					{
+						char buffer[8192];
+						int read;
+						for(;;)
+						{
+							read = VFS_READ(in, buffer, sizeof(buffer));
+							if (read <= 0)
+								break;
+							if (VFS_WRITE(out, buffer, read) != read)
+							{
+								Con_Printf("write failed writing %s. disk full?\n", local);
+								break;
+							}
+						}
+						VFS_CLOSE(out);
+						out = FS_OpenVFS(local, "rb", FS_ROOT);
+						crc = dl->user_num;
+						if (!FS_LoadPackageFromFile(out, dl->user_ctx, local, &crc, true, false, true))
+						{
+							if (crc == dl->user_num)
+								Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable.\n", dl->user_ctx);
+							else
+								Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable or has invalid crc. Stated crc %#x is not calculated crc %#x\n", dl->user_ctx, dl->user_num, crc);
+							FS_Remove(local, FS_ROOT);
+						}
+					}
+				}
+				VFS_CLOSE(in);
+			}
+
+			free(dl->user_ctx);
+		}
+		else
+		{
+			/*scan it to extract its contents*/
+			zipfilefuncs.EnumerateFiles(zip, "*/*.pk3", CL_BootDownload_Extract, zip);
+			zipfilefuncs.EnumerateFiles(zip, "*/*.pak", CL_BootDownload_Extract, zip);
+			zipfilefuncs.EnumerateFiles(zip, "*/*/*.pk3", CL_BootDownload_Extract, zip);
+			zipfilefuncs.EnumerateFiles(zip, "*/*/*.pak", CL_BootDownload_Extract, zip);
+		}
 
 		/*close it, delete the temp file from disk, etc*/
 		zipfilefuncs.ClosePath(zip);
@@ -907,6 +959,71 @@ static void CL_BootDownload_Complete(struct dl_download *dl)
 	}
 }
 
+static void CL_Manifest_Complete(struct dl_download *dl)
+{
+	if (dl->file)
+	{
+		vfsfile_t *f;
+		char buffer[1024];
+		char *fname;
+		int crc;
+		char local[MAX_OSPATH];
+		while(VFS_GETS(dl->file, buffer, sizeof(buffer)))
+		{
+			Cmd_TokenizeString(buffer, false, false);
+			if (!Cmd_Argc())
+				continue;
+			fname = Cmd_Argv(0);
+			crc = strtoul(Cmd_Argv(1), NULL, 0);
+
+			f = FS_OpenVFS(fname, "rb", FS_ROOT);
+			if (f)
+			{
+				//should be loaded as needed
+				VFS_CLOSE(f);
+			}
+			else
+			{
+				FS_GenCachedPakName(fname, va("%i", crc), local, sizeof(local));
+				f = FS_OpenVFS(local, "rb", FS_ROOT);
+				if (f)
+				{
+					int truecrc = crc;
+					if (!FS_LoadPackageFromFile(f, fname, local, &truecrc, true, false, true))
+					{
+						if (crc == truecrc)
+							Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable.\n", fname);
+						else
+							Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable or has invalid crc. Stated crc %#x is not calculated crc %#x\n", fname, crc, truecrc);
+						FS_Remove(local, FS_ROOT);
+					}
+				}
+				else
+				{
+					Con_Printf("Downloading %s from %s\n", fname, Cmd_Argv(2));
+					dl = HTTP_CL_Get(Cmd_Argv(2), "", CL_BootDownload_Complete);
+					if (dl)
+					{
+						dl->user_ctx = strdup(fname);
+						dl->user_num = crc;
+			#ifdef MULTITHREAD
+						DL_CreateThread(dl, FS_OpenTemp(), CL_BootDownload_Complete);
+			#endif
+						numbootdownloads++;
+					}
+				}
+			}
+		}
+	}
+	if (!--numbootdownloads)
+	{
+		CL_ExecInitialConfigs();
+		Cmd_StuffCmds();
+		Cbuf_Execute ();
+		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	}
+}
+
 qboolean CL_CheckBootDownloads(void)
 {
 	char *downloads = fs_gamedownload.string;
@@ -915,6 +1032,23 @@ qboolean CL_CheckBootDownloads(void)
 	vfsfile_t *f;
 	struct dl_download *dl;
 	int mirrors;
+
+	int man = COM_CheckParm("-manifest");
+	if (man)
+	{
+		const char *fname = com_argv[man+1];
+
+		Con_Printf("Checking manifest from \"%s\"\n", fname);
+
+		dl = HTTP_CL_Get(fname, token, CL_Manifest_Complete);
+		if (dl)
+		{
+#ifdef MULTITHREAD
+			DL_CreateThread(dl, FS_OpenTemp(), CL_Manifest_Complete);
+#endif
+			numbootdownloads++;
+		}
+	}
 
 	while ((downloads = COM_ParseOut(downloads, token, sizeof(token))))
 	{

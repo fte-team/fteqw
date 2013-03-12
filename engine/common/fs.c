@@ -1866,6 +1866,47 @@ void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen)
 	}
 }
 
+qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, qboolean copyprotect, qboolean istemporary, qboolean isexplicit)
+{
+	int i;
+	char *ext = COM_FileExtension(pname);
+	void *handle;
+
+	searchpath_t *sp;
+
+	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+	{
+		if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
+			continue;
+		if (!strcmp(ext, searchpathformats[i].extension))
+		{
+			handle = searchpathformats[i].funcs->OpenNew (vfs, localname);
+			if (!handle)
+				break;
+			if (crc)
+			{
+				int truecrc = searchpathformats[i].funcs->GeneratePureCRC(handle, 0, false);
+				if (truecrc != *crc)
+				{
+					*crc = truecrc;
+					VFS_CLOSE(vfs);
+					return false;
+				}
+			}
+			sp = FS_AddPathHandle(pname, localname, searchpathformats[i].funcs, handle, copyprotect, istemporary, isexplicit, (unsigned int)-1);
+
+			if (sp)
+			{
+				FS_FlushFSHashReally();
+				return true;
+			}
+		}
+	}
+
+	VFS_CLOSE(vfs);
+	return false;
+}
+
 //if a server is using private pak files then load the same version of those, but deprioritise them
 //crcs are not used, but matched only if the server has a different version from a previous file
 void FS_ImpurePacks(const char *names, const char *crcs)
@@ -1873,6 +1914,7 @@ void FS_ImpurePacks(const char *names, const char *crcs)
 	int crc;
 	searchpath_t *sp;
 	char *pname;
+	qboolean success;
 
 	while(names)
 	{
@@ -1899,31 +1941,14 @@ void FS_ImpurePacks(const char *names, const char *crcs)
 			char local[MAX_OSPATH];
 			vfsfile_t *vfs;
 			char *ext = COM_FileExtension(pname);
-			void *handle;
-			int i;
 
 			FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local));
 			vfs = FS_OpenVFS(local, "rb", FS_ROOT);
+			success = false;
 			if (vfs)
-			{
-				for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
-				{
-					if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
-						continue;
-					if (!strcmp(ext, searchpathformats[i].extension))
-					{
-						handle = searchpathformats[i].funcs->OpenNew (vfs, local);
-						if (!handle)
-							break;
-						sp = FS_AddPathHandle(pname, local, searchpathformats[i].funcs, handle, true, true, false, (unsigned int)-1);
+				success = FS_LoadPackageFromFile(vfs, pname, local, NULL, true, true, false);
 
-						FS_FlushFSHashReally();
-						break;
-					}
-				}
-			}
-
-			if (!sp)
+			if (!success)
 				Con_DPrintf("Unable to load matching package file %s\n", pname);
 		}
 	}

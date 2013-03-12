@@ -14,5 +14,8 @@
       </Description>
     </em:targetApplication>
    <em:unpack>true</em:unpack>
+   <em:creator>The FTE Contributors</em:creator>
+   <em:description>Run quake in your browser and stuff!</em:creator>
+   <em:homepageURL>http://fteqw.com/</em:creator>
   </Description>
 </RDF>

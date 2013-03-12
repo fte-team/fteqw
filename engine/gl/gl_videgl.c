@@ -200,41 +200,41 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 	//NOTE: mesa's egl really loves to crash on this call, and I define crash as 'anything that fails to return to caller', which fucks everything up.
 	if (!qeglInitialize(egldpy, &major, &minor))
 	{
-		Con_Printf(CON_ERROR "EGL: can't initialize display!");
+		Con_Printf(CON_ERROR "EGL: can't initialize display!\n");
 		return false;
 	}
 
 /*
 	if (!qeglGetConfigs(egldpy, NULL, 0, &numconfigs) || !numconfigs)
 	{
-		Con_Printf(CON_ERROR "EGL: can't get configs!");
+		Con_Printf(CON_ERROR "EGL: can't get configs!\n");
 		return false;
 	}
 */
 
 	if (!qeglChooseConfig(egldpy, attrib, &cfg, 1, &numconfig))
 	{
-		Con_Printf(CON_ERROR "EGL: can't choose config!");
+		Con_Printf(CON_ERROR "EGL: can't choose config!\n");
 		return false;
 	}
 
 	eglsurf = qeglCreateWindowSurface(egldpy, cfg, window, NULL);
 	if (eglsurf == EGL_NO_SURFACE)
 	{
-		Con_Printf(CON_ERROR "EGL: no surface!");
+		Con_Printf(CON_ERROR "EGL: no surface!\n");
 		return false;
 	}
 
 	eglctx = qeglCreateContext(egldpy, cfg, EGL_NO_SURFACE, contextattr);
 	if (eglctx == EGL_NO_CONTEXT)
 	{
-		Con_Printf(CON_ERROR "EGL: no context!");
+		Con_Printf(CON_ERROR "EGL: no context!\n");
 		return false;
 	}
 
 	if (!qeglMakeCurrent(egldpy, eglsurf, eglsurf, eglctx))
 	{
-		Con_Printf(CON_ERROR "EGL: can't make current!");
+		Con_Printf(CON_ERROR "EGL: can't make current!\n");
 		return false;
 	}
 

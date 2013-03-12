@@ -2817,11 +2817,11 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->u.q1.velocity[1] = 0;
 	state->u.q1.velocity[2] = 0;
 
-	if (client == &svs.clients[state->number-1])
+	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && (client == &svs.clients[state->number-1] || client == svs.clients[state->number-1].controller))
 		state->u.q1.weaponframe = ent->v->weaponframe;
 	else
 		state->u.q1.weaponframe = 0;
-	if ((state->number-1) < (unsigned short)sv.allocated_client_slots && ent->v->movetype)
+	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && ent->v->movetype)
 	{
 		client_t *cl = &svs.clients[state->number-1];
 		if (cl->isindependant)

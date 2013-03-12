@@ -28,6 +28,10 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_TEXTURE_INTERNAL_FORMAT		0x1003
 #endif
 
+#ifndef GL_DEPTH_COMPONENT
+#define GL_DEPTH_COMPONENT                0x1902
+#endif
+
 //#ifndef GL_VERSION_1_2
 #define GL_CLAMP_TO_EDGE                  0x812F
 //#endif

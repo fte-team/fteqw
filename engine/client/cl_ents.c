@@ -126,8 +126,8 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[0] = 1;
 	dl->color[1] = 1;
 	dl->color[2] = 1;
-	dl->corona = r_flashblend.value * 0.25;
-	dl->coronascale = r_flashblendscale.value;
+	dl->corona = bound(0, r_flashblend.value * 0.25, 1);
+	dl->coronascale = bound(0, r_flashblendscale.value, 1);
 	dl->lightcolourscales[0] = r_shadow_realtime_dlight_ambient.value;
 	dl->lightcolourscales[1] = r_shadow_realtime_dlight_diffuse.value;
 	dl->lightcolourscales[2] = r_shadow_realtime_dlight_specular.value;

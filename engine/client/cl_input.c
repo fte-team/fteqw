@@ -49,7 +49,7 @@ vec3_t mousemovements[MAX_SPLITS];
 
 /*kinda a hack...*/
 static int		con_splitmodifier;
-cvar_t	cl_forcesplitclient = CVAR("cl_forcesplitclient", "0");
+cvar_t	cl_forcesplitclient = CVAR("in_forcesplitclient", "0");
 extern cvar_t cl_splitscreen;
 int CL_TargettedSplit(qboolean nowrap)
 {

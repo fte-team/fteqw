@@ -1823,6 +1823,7 @@ so when they are typed in at the console, they will need to be forwarded.
 */
 void Cmd_ForwardToServer (void)
 {
+	int sp;
 	if (cls.state == ca_disconnected)
 	{
 		if (cl_warncmd.ival)
@@ -1841,10 +1842,21 @@ void Cmd_ForwardToServer (void)
 	}
 #endif
 
-	if (Cmd_Argc() > 1)
-		CL_SendClientCommand(true, "%s %s", Cmd_Argv(0), Cmd_Args());
+	sp = CL_TargettedSplit(false);
+	if (sp)
+	{
+		if (Cmd_Argc() > 1)
+			CL_SendClientCommand(true, "%i %s %s", sp+1, Cmd_Argv(0), Cmd_Args());
+		else
+			CL_SendClientCommand(true, "%i %s", sp+1, Cmd_Argv(0));
+	}
 	else
-		CL_SendClientCommand(true, "%s", Cmd_Argv(0));
+	{
+		if (Cmd_Argc() > 1)
+			CL_SendClientCommand(true, "%s %s", Cmd_Argv(0), Cmd_Args());
+		else
+			CL_SendClientCommand(true, "%s", Cmd_Argv(0));
+	}
 }
 
 // don't forward the first argument

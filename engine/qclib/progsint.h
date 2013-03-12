@@ -470,7 +470,7 @@ void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int 
 int PDECL PR_InitEnts(pubprogfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
 void PDECL QC_ClearEdict (pubprogfuncs_t *progfuncs, struct edict_s *ed);
-void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount);
+void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount);
 void QC_FlushProgsOffsets(progfuncs_t *progfuncs);
 
 ddef16_t *ED_GlobalAtOfs16 (progfuncs_t *progfuncs, int ofs);

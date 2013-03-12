@@ -382,7 +382,7 @@ void X_SendIntialResponse(xclient_t *cl)
 		setup->maxKeyCode			= 255;
 
 		vendor = (char *)(setup+1);
-		strcpy(vendor, "FTE QuakeWorld X");
+		strcpy(vendor, FULLENGINENAME " X");
 		setup->nbytesVendor = (strlen(vendor)+3)&~3;
 
 		pixmapformats = (xPixmapFormat *)(vendor + setup->nbytesVendor);

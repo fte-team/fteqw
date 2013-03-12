@@ -1978,10 +1978,11 @@ void Win7_TaskListInit(void)
 }
 #endif
 
-
 #if defined(SVNREVISION)
 	#if defined(OFFICIAL_RELEASE)
-		#define BUILDTYPE "dev"
+		#define BUILDTYPE "rel"
+	#else
+		#define BUILDTYPE "test"
 		#define UPDATE_URL "http://triptohell.info/moodles/"
 		#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
 		#ifdef _WIN64
@@ -1989,8 +1990,6 @@ void Win7_TaskListInit(void)
 		#else
 			#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
 		#endif
-	#else
-		#define BUILDTYPE "rel"
 	#endif
 #endif
 
@@ -2018,16 +2017,30 @@ void Win7_TaskListInit(void)
 void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
 {
 	HKEY subkey;
-	RegOpenKeyEx(HKEY_CURRENT_USER,keyname, 0, KEY_WRITE, &subkey);
+	RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey);
 	RegSetValueEx(subkey, valuename, 0, type, data, datalen);
 	RegCloseKey (subkey);
 }
 void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
 {
 	HKEY subkey;
-	RegOpenKeyEx(HKEY_CURRENT_USER,keyname, 0, KEY_WRITE, &subkey);
+	RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey);
 	RegDeleteValue(subkey, valuename);
 	RegCloseKey (subkey);
+}
+void MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
+{
+	DWORD resultlen = datalen - 1;
+	HKEY subkey;
+	DWORD type = REG_NONE;
+	RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey);
+	RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
+	RegCloseKey (subkey);
+
+	if (type == REG_SZ || type == REG_EXPAND_SZ)
+		((char*)data)[datalen] = 0;
+	else
+		((char*)data)[0] = 0;
 }
 
 qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
@@ -2140,7 +2153,6 @@ qboolean Sys_CheckUpdated(void)
 	{
 		char pendingpath[MAX_OSPATH];
 		char updatedpath[MAX_QPATH];
-		DWORD bufsz;
 
 		PROCESS_INFORMATION childinfo;
 		STARTUPINFO startinfo;
@@ -2149,9 +2161,7 @@ qboolean Sys_CheckUpdated(void)
 		memset(&startinfo, 0, sizeof(startinfo));
 		startinfo.cb = sizeof(startinfo);
 
-		bufsz = sizeof(pendingpath);
-		*pendingpath = 0;
-		RegGetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, RRF_RT_REG_SZ, NULL, pendingpath, &bufsz);
+		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
 		if (*pendingpath)
 		{
 			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
@@ -2161,9 +2171,7 @@ qboolean Sys_CheckUpdated(void)
 				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
 		}
 
-		bufsz = sizeof(updatedpath);
-		*updatedpath = 0;
-		RegGetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, RRF_RT_REG_SZ, NULL, updatedpath, &bufsz);
+		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, updatedpath, sizeof(updatedpath));
 		
 		if (*updatedpath)
 		{

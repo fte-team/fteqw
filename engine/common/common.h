@@ -191,6 +191,7 @@ int MSG_ReadBits(int bits);
 int MSG_ReadByte (void);
 int MSG_ReadShort (void);
 int MSG_ReadLong (void);
+struct client_s;
 unsigned int MSGSV_ReadEntity (struct client_s *fromclient);
 unsigned int MSGCL_ReadEntity (void);
 float MSG_ReadFloat (void);
@@ -292,7 +293,7 @@ void COM_ParsePlusSets (void);
 typedef unsigned int conchar_t;
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
-unsigned int utf8_decode(int *error, void *in, void **out);
+unsigned int utf8_decode(int *error, const void *in, void **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 
 char *COM_SkipPath (const char *pathname);

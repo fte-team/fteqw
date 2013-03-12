@@ -49,7 +49,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
 qboolean isDedicated = false;
 #endif
-qboolean isPlugin;
+extern qboolean isPlugin;
 qboolean debugout;
 
 HWND sys_parentwindow;

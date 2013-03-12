@@ -251,7 +251,7 @@ cvar_t gl_ati_truform						= CVAR  ("gl_ati_truform", "0");
 cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
-cvar_t gl_blendsprites						= CVAR  ("gl_blendsprites", "1");
+cvar_t gl_blendsprites						= CVAR  ("gl_blendsprites", "0");
 cvar_t r_deluxemapping						= CVARAF ("r_deluxemapping", "0", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t gl_compress							= CVARF ("gl_compress", "0",
@@ -1501,8 +1501,9 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	if (newr.renderer->rtype != QR_NONE)
 	{
 		int dbpp, dheight, dwidth, drate;
+		extern qboolean isPlugin;
 
-		if ((!newr.fullscreen && !vid_desktopsettings.value) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		if ((!newr.fullscreen && !vid_desktopsettings.value && !isPlugin) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
 		{
 			// force default values for systems not supporting desktop parameters
 			dwidth = DEFAULT_WIDTH;

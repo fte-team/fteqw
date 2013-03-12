@@ -1534,6 +1534,8 @@ void UI_Start (void)
 	if (qrenderer == QR_NONE)
 		return;
 
+	UI_Stop();
+
 	uivm = VM_Create(NULL, "vm/ui", UI_SystemCallsNative, UI_SystemCallsVM);
 	if (uivm)
 	{

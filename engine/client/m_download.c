@@ -16,6 +16,7 @@
 #define DPF_DOWNLOADING 16
 #define DPF_ENQUED	32
 
+void CL_StartCinematicOrMenu(void);
 
 int dlcount=1;
 
@@ -956,6 +957,7 @@ static void CL_BootDownload_Complete(struct dl_download *dl)
 		Cmd_StuffCmds();
 		Cbuf_Execute ();
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+		CL_StartCinematicOrMenu();
 	}
 }
 
@@ -1021,6 +1023,7 @@ static void CL_Manifest_Complete(struct dl_download *dl)
 		Cmd_StuffCmds();
 		Cbuf_Execute ();
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+		CL_StartCinematicOrMenu();
 	}
 }
 

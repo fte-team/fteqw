@@ -944,7 +944,7 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	}
 #endif
 
-	if (!NET_StringToSockaddr (s, 0, &sadr, NULL, NULL))
+	if (!NET_StringToSockaddr (s, defaultport, &sadr, NULL, NULL))
 	{
 		a->type = NA_INVALID;
 		return false;

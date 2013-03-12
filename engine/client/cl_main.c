@@ -3971,6 +3971,7 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+	qboolean downloading = false;
 	extern cvar_t com_parseutf8;
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
 
@@ -4076,6 +4077,8 @@ void Host_Init (quakeparms_t *parms)
 		Cmd_StuffCmds();
 		Cbuf_Execute ();
 	}
+	else
+		downloading = true;
 
 Con_TPrintf (TL_NL);
 	Con_Printf ("%s", version_string());
@@ -4094,7 +4097,8 @@ Con_TPrintf (TL_NL);
 
 	Renderer_Start();
 
-	CL_StartCinematicOrMenu();
+	if (!downloading)
+		CL_StartCinematicOrMenu();
 }
 
 /*

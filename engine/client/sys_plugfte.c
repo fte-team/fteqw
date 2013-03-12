@@ -787,6 +787,10 @@ qboolean Plug_GetBinaryName(char *exe, int exelen,
 
 	*exe = 0;
 	*basedir = 0;
+
+//#ifdef _DEBUG
+//	Q_strncpyz(exe, "C:/Games/Quake/fte_trunk/fteglqw_dbg.exe", exelen);
+//#endif
 /*
 	Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, "npfte.txt");
 

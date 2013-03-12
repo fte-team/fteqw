@@ -104,6 +104,7 @@ qboolean	com_modified;	// set true if using non-id files
 qboolean		static_registered = true;	// only for startup check, then set
 
 qboolean		msg_suppress_1 = false;
+qboolean		isPlugin;
 
 void COM_Path_f (void);
 void COM_Dir_f (void);

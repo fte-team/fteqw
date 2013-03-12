@@ -113,17 +113,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 
 //reduce the normals in shallow water (near walls, reduces the pain of linear sampling)
-"if (depth < 100)\n"
+"if (depth < 100.0)\n"
 "n *= depth/100.0;\n"
 "#else\n"
-"depth = 1;\n"
+"depth = 1.0;\n"
 "#endif \n"
 
 
 //refraction image (and water fog, if possible)
 "refr = texture2D(s_t0, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;\n"
 "#ifdef DEPTH\n"
-"refr = mix(refr, FOGTINT, min(depth/4096, 1));\n"
+"refr = mix(refr, FOGTINT, min(depth/4096.0, 1.0));\n"
 "#endif\n"
 
 //reflection/diffuse

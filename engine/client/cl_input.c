@@ -915,6 +915,8 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 
 	TraceLineN(cursor_start, cursor_end, cursor_impact, cursor_impact_normal);
 
+	*entnum = 0;
+
 //	P_RunParticleEffect(cursor_impact, vec3_origin, 15, 16);
 }
 

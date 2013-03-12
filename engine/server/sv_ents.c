@@ -3037,6 +3037,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 #endif
 	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 	int pvsflags;
+	int limit;
 
 	if (client->spectator)
 		trackent = EDICT_NUM(svprogfuncs, client->spec_track);
@@ -3097,7 +3098,9 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	else
 		e = 1;
 
-	for ( ; e<sv.world.num_edicts ; e++)
+	limit = min(client->max_net_ents, sv.world.num_edicts);
+
+	for ( ; e<limit ; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
 

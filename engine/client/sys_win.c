@@ -42,7 +42,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef _DEBUG
 #if _MSC_VER >= 1300
-//#define CATCHCRASH
+#define CATCHCRASH
 #endif
 #endif
 
@@ -750,69 +750,126 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (*func)(const char *, int, void *), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;
-	char apath[MAX_OSPATH];
-	char apath2[MAX_OSPATH];
-	char file[MAX_OSPATH];
-	char *s;
-	int go;
-	if (!gpath)
-		return 0;
-//	strcpy(apath, match);
-	Q_snprintfz(apath, sizeof(apath), "%s/%s", gpath, match);
-	for (s = apath+strlen(apath)-1; s> apath; s--)
+	int nest = neststart;	//neststart refers to just after a /
+	qboolean go;
+	qboolean wild = false;
+
+	while(match[nest] && match[nest] != '/')
 	{
-		if (*s == '/')
-			break;
+		if (match[nest] == '?' || match[nest] == '*')
+			wild = true;
+		nest++;
 	}
-	*s = '\0';
-
-	//this is what we ask windows for.
-	Q_snprintfz(file, sizeof(file), "%s/*.*", apath);
-
-	//we need to make apath contain the path in match but not gpath
-	Q_strncpyz(apath2, match, sizeof(apath));
-	match = s+1;
-	for (s = apath2+strlen(apath2)-1; s> apath2; s--)
+	if (match[nest] == '/')
 	{
-		if (*s == '/')
-			break;
-	}
-	*s = '\0';
-	if (s != apath2)
-		strcat(apath2, "/");
+		char submatch[MAX_OSPATH];
+		char tmproot[MAX_OSPATH];
+		char file[MAX_OSPATH];
 
-	r = FindFirstFile(file, &fd);
-	if (r==(HANDLE)-1)
-		return 1;
-    go = true;
-	do
-	{
-		if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
-		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+		if (!wild)
+			return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm);
+
+		if (nest-neststart+1> MAX_OSPATH)
+			return 1;
+		memcpy(submatch, match+neststart, nest - neststart);
+		submatch[nest - neststart] = 0;
+		nest++;
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		r = FindFirstFile(tmproot, &fd);
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
 		{
-			if (wildcmp(match, fd.cFileName))
+			if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 			{
-				Q_snprintfz(file, sizeof(file), "%s%s/", apath2, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, parm);
+				if (wildcmp(submatch, fd.cFileName))
+				{
+					int newnest;
+					if (strlen(tmproot) + strlen(fd.cFileName) + strlen(match+nest) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
+						newnest = strlen(file);
+						strcpy(file+newnest, match+nest);
+						go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm);
+					}
+				}
 			}
-		}
-		else
-		{
-			if (wildcmp(match, fd.cFileName))
-			{
-				Q_snprintfz(file, sizeof(file), "%s%s", apath2, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, parm);
-			}
-		}
+		} while(FindNextFile(r, &fd) && go);
+		FindClose(r);
 	}
-	while(FindNextFile(r, &fd) && go);
-	FindClose(r);
+	else
+	{
+		const char *submatch = match + neststart;
+		char tmproot[MAX_OSPATH];
+		char file[MAX_OSPATH];
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		r = FindFirstFile(tmproot, &fd);
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, fd.cFileName))
+				{
+					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
+						go = func(file, fd.nFileSizeLow, parm);
+					}
+				}
+			}
+			else
+			{
+				if (wildcmp(submatch, fd.cFileName))
+				{
+					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
+						go = func(file, fd.nFileSizeLow, parm);
+					}
+				}
+			}
+		} while(FindNextFile(r, &fd) && go);
+		FindClose(r);
+	}
 
 	return go;
+}
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	char fullmatch[MAX_OSPATH];
+	int start;
+	if (strlen(gpath) + strlen(match) + 2 > MAX_OSPATH)
+		return 1;
+
+	strcpy(fullmatch, gpath);
+	start = strlen(fullmatch);
+	if (start && fullmatch[start-1] != '/')
+		fullmatch[start++] = '/';
+	fullmatch[start] = 0;
+	strcat(fullmatch, match);
+	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm);
 }
 
 /*

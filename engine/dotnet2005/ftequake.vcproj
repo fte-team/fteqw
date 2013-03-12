@@ -1302,7 +1302,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteqwsv.exe"
+				OutputFile="../../fteqwsv_dbg.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -12011,6 +12011,14 @@
 				<File
 					RelativePath="..\client\pr_clcmd.c"
 					>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\pr_csqc.c"

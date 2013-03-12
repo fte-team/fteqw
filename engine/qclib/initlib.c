@@ -473,7 +473,7 @@ void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_p
 #ifdef _WIN64
 		addressable_size = 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
 #else
-		addressable_size = 8*1024*1024;
+		addressable_size = 32*1024*1024;
 #endif
 	}
 	if (addressable_size > 0x80000000)

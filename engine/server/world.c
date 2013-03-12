@@ -1023,15 +1023,20 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	{
 		model = w->Get_CModel(w, mdlidx);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
-			Host_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(w->progs, ent->v->classname));
+		{
+//			Host_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(w->progs, ent->v->classname));
+			model = NULL;
+		}
 	}
 	else
+		model = NULL;
+
+	if (!model);
 	{
 		vec3_t boxmins, boxmaxs;
 		VectorSubtract (ent->v->mins, maxs, boxmins);
 		VectorSubtract (ent->v->maxs, mins, boxmaxs);
 		World_HullForBox(boxmins, boxmaxs);
-		model = NULL;
 	}
 
 // trace a line through the apropriate clipping hull

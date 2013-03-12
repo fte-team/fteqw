@@ -930,7 +930,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 	if (crash)
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
-	if (*mod->name != '*')
+	if (*mod->name != '*' && strcmp(mod->name, "null"))
 		Con_Printf(CON_ERROR "Unable to load or replace %s\n", mod->name);
 	mod->type = mod_dummy;
 	mod->mins[0] = -16;

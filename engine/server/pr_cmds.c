@@ -3005,7 +3005,27 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		channel |= 256;
 
 	//shift the reliable flag to 256 instead.
-	SVQ1_StartSound ((wedict_t*)entity, channel, sample, volume, attenuation, pitchadj);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj);
+}
+
+static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *sample;
+	float *origin;
+	float volume;
+	float attenuation;
+	float pitchpct;
+
+	origin = G_VECTOR(OFS_PARM0);
+	sample = PR_GetStringOfs(prinst, OFS_PARM1);
+	volume = G_FLOAT(OFS_PARM2);
+	attenuation = G_FLOAT(OFS_PARM3);
+	if (prinst->callargc >= 5)
+		pitchpct = G_FLOAT(OFS_PARM4);
+	else
+		pitchpct = 0;
+
+	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct);
 }
 
 //an evil one from telejano.
@@ -7378,7 +7398,7 @@ static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound ((wedict_t*)entity, channel, "", 1, 0, 0);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, "", 1, 0, 0);
 }
 
 static void QCBUILTIN PF_h2updatesoundpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9414,7 +9434,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	"void(string cmdname)"},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	"float(entity ent)"},//(EXT_CSQC) (should be availabe on server too)
 	{"serverkey",		PF_Fixme,	0,		0,		0,		354,	"string(string key)"},//
-	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	"string()"},//;
+	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	"string(optional string resetstring)"},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	"float(string s)"},//;
 	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	"float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)"},
 	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	"void(string evname, string evargs, ...)"},// (EXT_CSQC_1)
@@ -9441,10 +9461,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"adddecal",		PF_Fixme,	0,		0,		0,		375,	"void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha)"},
 //END EXT_CSQC
 
-	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	"void*(int size)"},
-	{"memfree",			PF_memfree,			0,		0,		0,		385,	"void(void *ptr)"},
-	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	"void(void *dst, void *src, int size)"},
-	{"memset",			PF_memset,			0,		0,		0,		387,	"void(void *dst, int val, int size)"},
+	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	"__variant*(int size)"},
+	{"memfree",			PF_memfree,			0,		0,		0,		385,	"void(__variant *ptr)"},
+	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	"void(__variant *dst, __variant *src, int size)"},
+	{"memset",			PF_memset,			0,		0,		0,		387,	"void(__variant *dst, int val, int size)"},
 
 
 //end fte extras
@@ -9646,7 +9666,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	//restart dp extras
 //	{"log",				PF_Fixme,			0,		0,		0,		532,	"float(string mname)", true},
 //	{"getsoundtime",	VM_getsoundtime,	0,		0,		0,		533,	"float(entity e, float channel)" STUB},
-//	{"soundlength",		VM_soundlength,		0,		0,		0,		534,	"float(string sample)" STUB},
+	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	"float(string sample)" STUB},
 //	{"buf_loadfile",	PF_Fixme,			0,		0,		0,		535,	"float(string filename, float bufhandle)"},
 //	{"buf_writefile",	PF_Fixme,			0,		0,		0,		536,	"float(float filehandle, float bufhandle, float startpos, float numstrings)"},
 //	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},

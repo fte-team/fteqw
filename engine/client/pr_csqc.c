@@ -211,7 +211,7 @@ static void CSQC_ChangeLocalPlayer(int lplayernum)
 		csqcg.view_angles[1] = cl.playerview[csqc_lplayernum].viewangles[1];
 		csqcg.view_angles[2] = cl.playerview[csqc_lplayernum].viewangles[2];
 	}
-	if (dpcompat_corruptglobals.ival)
+	if (dpcompat_corruptglobals.ival || csqc_isdarkplaces)
 	{
 		if (csqcg.pmove_org)
 		{
@@ -266,7 +266,10 @@ static void CSQC_FindGlobals(void)
 	csqc_world.g.drawfontscale = (float*)PR_FindGlobal(csqcprogs, "drawfontscale", 0, NULL);
 
 	if (!csqc_world.g.physics_mode)
+	{
+		csphysicsmode = csqc_isdarkplaces?1:0;
 		csqc_world.g.physics_mode = &csphysicsmode;
+	}
 
 	if (csqcg.maxclients)
 		*csqcg.maxclients = cl.allocated_client_slots;
@@ -936,17 +939,17 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 		if (ent->isfree)
 			continue;
 
+		if (ent->xv->predraw)
+		{
+			*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
+			PR_ExecuteProgram(prinst, ent->xv->predraw);
+
+			if (ent->isfree || (int)ent->xv->renderflags & CSQCRF_NOAUTOADD)
+				continue;	//bummer...
+		}
+
 		if ((int)ent->xv->drawmask & mask)
 		{
-			if (ent->xv->predraw)
-			{
-				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
-				PR_ExecuteProgram(prinst, ent->xv->predraw);
-
-				if (ent->isfree || (int)ent->xv->renderflags & CSQCRF_NOAUTOADD)
-					continue;	//bummer...
-			}
-
 			if (CopyCSQCEdictToEntity(ent, &rent))
 			{
 				CLQ1_AddShadow(&rent);
@@ -978,10 +981,13 @@ static int csqc_poly_flags;
 // #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	csqc_poly_shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+	csqc_poly_flags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	if (csqc_poly_flags & 4)
+		csqc_poly_shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
+	else
+		csqc_poly_shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 	csqc_poly_startvert = cl_numstrisvert;
 	csqc_poly_startidx = cl_numstrisidx;
-	csqc_poly_flags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
 }
 
 // #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
@@ -1050,6 +1056,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (csqc_poly_flags & 4)
 	{
 		mesh_t mesh;
+		int i;
 		memset(&mesh, 0, sizeof(mesh));
 		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
 
@@ -2273,6 +2280,16 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 
 static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (prinst->callargc)
+	{
+		char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+		if (*s == 0)
+			s = cl.worldmodel?cl.worldmodel->entities:NULL;
+		csqcmapentitydata = s;
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+
 	if (!csqcmapentitydata)
 	{
 		//nothing more to parse
@@ -4581,6 +4598,8 @@ static struct {
 	{"loadfromdata",			PF_loadfromdata,			529},
 	{"loadfromfile",			PF_loadfromfile,			530},
 
+	{"soundlength",				PF_soundlength,				534},
+
 	{"callfunction",			PF_callfunction,			605},
 	{"writetofile",				PF_writetofile,				606},
 	{"isfunction",				PF_isfunction,				607},
@@ -4749,18 +4768,20 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 	PR_ExecuteProgram (w->progs, s->v->think);
 }
 
-void CSQC_Event_Sound (wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
+void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
 	int i;
-	vec3_t origin;
-	if (wentity->v->solid == SOLID_BSP)
+	vec3_t originbuf;
+	if (!origin)
 	{
-		for (i=0 ; i<3 ; i++)
-			origin[i] = wentity->v->origin[i]+0.5*(wentity->v->mins[i]+wentity->v->maxs[i]);
-	}
-	else
-	{
-		VectorCopy (wentity->v->origin, origin);
+		if (wentity->v->solid == SOLID_BSP)
+		{
+			origin = originbuf;
+			for (i=0 ; i<3 ; i++)
+				origin[i] = wentity->v->origin[i]+0.5*(wentity->v->mins[i]+wentity->v->maxs[i]);
+		}
+		else
+			origin = wentity->v->origin;
 	}
 
 	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, 0, pitchadj);
@@ -5368,6 +5389,34 @@ void CSQC_Breakpoint_f(void)
 
 }
 
+static void CSQC_Poke_f(void)
+{
+	if (!csqc_singlecheats)
+		Con_Printf("%s is a cheat command\n", Cmd_Argv(0));
+	else if (csqcprogs)
+		Con_Printf("Result: %s\n", csqcprogs->EvaluateDebugString(csqcprogs, Cmd_Args()));
+	else
+		Con_Printf("csqc not running\n");
+}
+void CSQC_WatchPoint_f(void)
+{
+	char *variable = Cmd_Argv(1);
+	if (!*variable)
+		variable = NULL;
+
+	if (!csqc_singlecheats)
+		Con_Printf("%s is a cheat command\n", Cmd_Argv(0));
+	else if (!csqcprogs)
+	{
+		Con_Printf("csqc not running\n");
+		return;
+	}
+	if (csqcprogs->SetWatchPoint(csqcprogs, variable))
+		Con_Printf("Watchpoint set\n");
+	else
+		Con_Printf("Watchpoint cleared\n");
+}
+
 static void CSQC_GameCommand_f(void);
 void CSQC_RegisterCvarsAndThings(void)
 {
@@ -5375,6 +5424,8 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cmd_AddCommand ("extensionlist_csqc", PR_CSExtensionList_f);
 	Cmd_AddCommandD("cl_cmd", CSQC_GameCommand_f, "Calls the csqc's GameCommand function");
 	Cmd_AddCommand("breakpoint_csqc", CSQC_Breakpoint_f);
+	Cmd_AddCommand ("watchpoint_csqc", CSQC_WatchPoint_f);
+	Cmd_AddCommandD("poke_csqc", CSQC_Poke_f, "Allows you to inspect/debug ");
 
 	Cvar_Register(&pr_csqc_formenus, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_memsize, CSQCPROGSGROUP);

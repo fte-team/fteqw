@@ -51,7 +51,6 @@ struct wedict_s
 #define PF_gecko_resize PF_Fixme
 #define PF_gecko_get_texture_extent PF_Fixme
 
-#define PF_pointsound PF_Fixme
 #define PF_gecko_mousemove PF_Fixme
 #define PF_WritePicture PF_Fixme
 #define PF_ReadPicture PF_Fixme
@@ -385,6 +384,7 @@ void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memset (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

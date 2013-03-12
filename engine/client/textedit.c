@@ -296,7 +296,8 @@ static void EditorOpenFile(char *name, qboolean readonly)
 	int len, flen, pos=0;
 	vfsfile_t *F;
 	fileblock_t *b;
-
+	char *prname;
+	pubprogfuncs_t *epf = editprogfuncs;
 	CloseEditor();
 
 	strcpy(OpenEditorFile, name);
@@ -314,6 +315,12 @@ static void EditorOpenFile(char *name, qboolean readonly)
 		}
 	}
 	i=1;
+
+	prname = OpenEditorFile;
+	if (!strncmp(prname, "src/", 4))
+		prname += 4;
+	if (!strncmp(prname, "source/", 7))
+		prname += 7;
 
 	flen = VFS_GETLEN(F);
 
@@ -349,9 +356,9 @@ static void EditorOpenFile(char *name, qboolean readonly)
 		firstblock->datalength = len;
 
 		memcpy(firstblock->data, line, len);
-		if (editprogfuncs)
+		if (epf)
 		{
-			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile, i, 3))
+			if (epf->ToggleBreak(epf, prname, i, 3))
 			{
 				firstblock->flags |= FB_BREAK;
 			}
@@ -360,7 +367,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 		{
 			if (svprogfuncs)
 			{
-				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile, i, 3))
+				if (svprogfuncs->ToggleBreak(svprogfuncs, prname, i, 3))
 				{
 					firstblock->flags |= FB_BREAK;
 				}
@@ -389,6 +396,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 	editor_oldkeydest = key_dest;
 	key_dest = key_editor;
 	editoractive = true;
+	editprogfuncs = epf;
 }
 
 extern qboolean	keydown[K_MAX];
@@ -634,9 +642,15 @@ void Editor_Key(int key, int unicode)
 	case K_F9: /*set breakpoint*/
 		{
 			int f = 0;
+			char *fname = OpenEditorFile;
+			if (!strncmp(fname, "src/", 4))
+				fname += 4;
+			if (!strncmp(fname, "source/", 7))
+				fname += 7;
+
 			if (editprogfuncs)
 			{
-				if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile, cursorlinenum, 2))
+				if (editprogfuncs->ToggleBreak(editprogfuncs, fname, cursorlinenum, 2))
 					f |= 1;
 				else
 					f |= 2;
@@ -644,7 +658,7 @@ void Editor_Key(int key, int unicode)
 #ifndef CLIENTONLY
 			else if (svprogfuncs)
 			{
-				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile, cursorlinenum, 2))
+				if (svprogfuncs->ToggleBreak(svprogfuncs, fname, cursorlinenum, 2))
 					f |= 1;
 				else
 					f |= 2;

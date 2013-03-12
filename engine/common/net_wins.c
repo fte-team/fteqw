@@ -90,7 +90,7 @@ static qboolean allowconnects = false;
 #define	MAX_LOOPBACK	8
 typedef struct
 {
-	qbyte	data[MAX_UDP_PACKET];
+	qbyte	data[MAX_OVERALLMSGLEN];
 	int		datalen;
 } loopmsg_t;
 
@@ -1466,11 +1466,14 @@ void NET_SendLoopPacket (netsrc_t sock, int length, void *data, netadr_t to)
 
 	loop = &loopbacks[sock^1];
 
+	if (length > sizeof(loop->msgs[i].data))
+	{
+		Con_Printf("NET_SendLoopPacket: Loopback buffer is too small");
+		return;
+	}
+
 	i = loop->send & (MAX_LOOPBACK-1);
 	loop->send++;
-
-	if (length > sizeof(loop->msgs[i].data))
-		Sys_Error("NET_SendLoopPacket: Loopback buffer is too small");
 
 	memcpy (loop->msgs[i].data, data, length);
 	loop->msgs[i].datalen = length;

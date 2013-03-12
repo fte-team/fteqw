@@ -3413,11 +3413,11 @@ void CL_LinkPacketEntities (void)
 			}
 			else if (modelflags & MFH2_FIREBALL)
 			{
-				rad = 120 - (rand() % 20);
+				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
 			}
 			else if (modelflags & MFH2_ACIDBALL)
 			{
-				rad = 120 - (rand() % 20);
+				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
 				dclr[0] = 0.1;
 				dclr[1] = 0.2;
 			}
@@ -3427,7 +3427,7 @@ void CL_LinkPacketEntities (void)
 				dclr[0] = -dclr[0];
 				dclr[0] = -dclr[1];
 				dclr[0] = -dclr[2];
-				rad = 120 - (rand() % 20);
+				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
 			}
 
 			if (rad)

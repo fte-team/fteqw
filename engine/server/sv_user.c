@@ -473,7 +473,8 @@ void SVNQ_New_f (void)
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, com_filesize)));
 
-			host_client->csqcactive = true;
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
 		}
 	}
 
@@ -1978,9 +1979,9 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 			host_client->downloadcount = chunknum*CHUNKSIZE;
 	}
 
-	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
+	if ((host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize) || (host_client->datagram.cursize + CHUNKSIZE+5 > 1400))
 	{
-		//would overflow the packet.
+		//would overflow the packet, or result in (ethernet) fragmentation and high packet loss.
 		msg = &msg_oob;
 
 		if (!ezfilenum)
@@ -2158,7 +2159,7 @@ void SV_NextUpload (void)
 	{
 		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_UPLOADDENIED);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
-		ClientReliableWrite_String (host_client, "stopul");
+		ClientReliableWrite_String (host_client, "stopul\n");
 
 		// suck out rest of packet
 		size = MSG_ReadShort ();	MSG_ReadByte ();
@@ -2171,12 +2172,13 @@ void SV_NextUpload (void)
 
 	if (!host_client->upload)
 	{
+		FS_CreatePath(host_client->uploadfn, FS_GAMEONLY);
 		host_client->upload = FS_OpenVFS(host_client->uploadfn, "wb", FS_GAMEONLY);
 		if (!host_client->upload)
 		{
 			Sys_Printf("Can't create %s\n", host_client->uploadfn);
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
-			ClientReliableWrite_String (host_client, "stopul");
+			ClientReliableWrite_String (host_client, "stopul\n");
 			*host_client->uploadfn = 0;
 			return;
 		}
@@ -2211,6 +2213,7 @@ void SV_NextUpload (void)
 			OutofBandPrintf(host_client->snap_from, "%s upload completed.\nTo download, enter:\ndownload %s\n",
 				host_client->uploadfn, p);
 		}
+		*host_client->uploadfn = 0;	//don't let it get overwritten again
 	}
 }
 
@@ -2521,8 +2524,10 @@ qboolean SV_AllowDownload (const char *name)
 			if (!allow_download_packages.ival)
 				return false;
 			/*do not permit 'id1/pak1.pak' or 'baseq3/pak0.pk3' or any similarly named packages. such packages would violate copyright, and must be obtained through other means (like buying the damn game)*/
-			if (FS_GetPackageDownloadable(name+8))
-				return !!allow_download_packages.ival;
+			if (!allow_download_copyrighted.ival && !FS_GetPackageDownloadable(name+8))
+				return false;
+
+			return true;
 		}
 		return false;
 	}
@@ -3682,7 +3687,8 @@ void SV_NoSnap_f(void)
 {
 	SV_LogPlayer(host_client, "refused snap");
 
-	if (*host_client->uploadfn) {
+	if (*host_client->uploadfn)
+	{
 		*host_client->uploadfn = 0;
 		SV_BroadcastTPrintf (PRINT_HIGH, STL_SNAPREFUSED, host_client->name);
 	}
@@ -4835,6 +4841,10 @@ ucmd_t ucmds[] =
 	{"fly", Cmd_Fly_f},
 	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
+
+#ifdef NQPROT
+	{"name",		SVNQ_NQInfo_f},
+#endif
 
 #ifdef VOICECHAT
 	{"voicetarg", SV_Voice_Target_f},

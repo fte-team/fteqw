@@ -1744,23 +1744,20 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	else
 		maxpacketentities = MAX_STANDARD_PACKET_ENTITIES;	//true for qw,q2
 
-	if (ISQWCLIENT(client))	//readd?
+	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
-		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		{
-			//you need to reconnect for this to update, of course. so make sure its not *too* low...
-			client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
-			client->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
-		}
-		else
-		{
-			client->max_net_ents = 512;
-			if (client->fteprotocolextensions & PEXT_ENTITYDBL)
-				client->max_net_ents += 512;
-			if (client->fteprotocolextensions & PEXT_ENTITYDBL2)
-				client->max_net_ents += 1024;
-		}
-
+		//you need to reconnect for this to update, of course. so make sure its not *too* low...
+		client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
+		client->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
+	}
+	else if (ISQWCLIENT(client))	//readd?
+	{
+		client->max_net_ents = 512;
+		if (client->fteprotocolextensions & PEXT_ENTITYDBL)
+			client->max_net_ents += 512;
+		if (client->fteprotocolextensions & PEXT_ENTITYDBL2)
+			client->max_net_ents += 1024;
+	
 		if (client->fteprotocolextensions & PEXT_MODELDBL)
 			client->maxmodels = MAX_MODELS;
 	}

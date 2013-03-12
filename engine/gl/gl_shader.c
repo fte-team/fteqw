@@ -584,7 +584,7 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 				for (ss = 0; ss < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); ss++)
 				{
 					Com_sprintf ( path, sizeof(path), skyname_pattern[sp], texturename, skyname_suffix[ss][i] );
-					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA);
+					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA|IF_CLAMP);
 					if (TEXVALID(images[i]))
 						break;
 				}

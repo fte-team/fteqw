@@ -1029,19 +1029,23 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
+void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
 	edict_t *entity = (edict_t*)wentity;
 	int i;
-	vec3_t origin;
-	if (entity->v->solid == SOLID_BSP)
+	vec3_t originbuf;
+	if (!origin)
 	{
-		for (i=0 ; i<3 ; i++)
-			origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
-	}
-	else
-	{
-		VectorCopy (entity->v->origin, origin);
+		origin = originbuf;
+		if (entity->v->solid == SOLID_BSP)
+		{
+			for (i=0 ; i<3 ; i++)
+				origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
+		}
+		else
+		{
+			VectorCopy (entity->v->origin, origin);
+		}
 	}
 
 	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj);

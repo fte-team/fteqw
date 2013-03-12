@@ -1397,6 +1397,8 @@ static struct {
 	{"buf_cvarlist",			PF_buf_cvarlist,			517},
 	{"cvar_description",		PF_cvar_description,		518},
 															//gap
+	{"soundlength",				PF_soundlength,				534},
+															//gap
 	{"setkeydest",				PF_cl_setkeydest,			601},
 	{"getkeydest",				PF_cl_getkeydest,			602},
 	{"setmousetarget",			PF_cl_setmousetarget,		603},

@@ -1018,7 +1018,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 	pmove.numphysent = 0;
 
-#ifdef PEXT_CSQC
+/*#ifdef PEXT_CSQC
 	if (atstage())
 	{
 		extern cvar_t  cl_nocsqc;
@@ -1045,7 +1045,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		}
 		endstage();
 	}
-#endif
+#endif*/
 
 #ifdef HLCLIENT
 	if (atstage())
@@ -2867,7 +2867,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			return;
 		}
 		strcpy (cl.model_name[nummodels], str);
-		if (*str != '*')	//not inline models!
+		if (*str != '*' && strcmp(str, "null"))	//not inline models!
 			CL_CheckOrEnqueDownloadFile(str, NULL, ((nummodels==1)?DLLF_REQUIRED:0));
 		Mod_TouchModel (str);
 	}
@@ -2885,9 +2885,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.sound_name[numsounds], str);
 
-		if (*str != '*')	//not inline models!
-			CL_CheckOrEnqueDownloadFile(va("sound/%s", str), NULL, 0);
-
+		Sound_CheckDownload(str);
 		S_TouchSound (str);
 	}
 
@@ -6185,6 +6183,8 @@ void CLNQ_ParseServerMessage (void)
 					CLDP_ParseDownloadBegin(s);
 				else if (!strncmp(s, "\ncl_downloadfinished ", 17))
 					CLDP_ParseDownloadFinished(s);
+				else if (!strcmp(s, "\nstopdownload\n"))
+					CL_DownloadFailed(cls.downloadremotename, true);
 				else if (!strncmp(s, "csqc_progname ", 14))
 					COM_ParseOut(s+14, cl_dp_csqc_progsname, sizeof(cl_dp_csqc_progsname));
 				else if (!strncmp(s, "csqc_progsize ", 14))

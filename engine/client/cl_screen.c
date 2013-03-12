@@ -2058,6 +2058,13 @@ void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 	int		drawline;
 	int		x;
 
+	if (!draw_chars)
+	{
+		draw_chars = W_GetLumpName("conchars");
+		if (!draw_chars)
+			return;
+	}
+
 	row = num>>4;
 	col = num&15;
 	source = draw_chars + (row<<10) + (col<<3);
@@ -2102,7 +2109,6 @@ qboolean SCR_RSShot (void)
 
 	int     x, y;
 	unsigned char		*src, *dest;
-	char		pcxname[80];
 	unsigned char		*newbuf;
 	int w, h;
 	int dx, dy, dex, dey, nx;
@@ -2127,7 +2133,6 @@ qboolean SCR_RSShot (void)
 	}
 
 	Con_Printf("Remote screen shot requested.\n");
-
 
 //
 // save the pcx file
@@ -2195,11 +2200,9 @@ qboolean SCR_RSShot (void)
 	Q_strncpyz(st, name.string, sizeof(st));
 	SCR_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 21, w);
 
-	WritePCXfile (pcxname, newbuf, w, h, w, host_basepal, true);
+	WritePCXfile ("snap.pcx", newbuf, w, h, w, host_basepal, true);
 
 	BZ_Free(newbuf);
-
-	Con_Printf ("Wrote %s\n", pcxname);
 
 	return true;
 }

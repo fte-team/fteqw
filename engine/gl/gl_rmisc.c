@@ -496,6 +496,7 @@ void GLR_NewMap (void)
 	VectorInverse(r_worldentity.axis[1]);
 	r_worldentity.model = cl.worldmodel;
 	Vector4Set(r_worldentity.shaderRGBAf, 1, 1, 1, 1);
+	VectorSet(r_worldentity.light_avg, 1, 1, 1);
 
 
 	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));

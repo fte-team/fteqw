@@ -1868,7 +1868,7 @@ void Cmd_ForwardToServer_f (void)
 		return;
 	}
 
-	if (Q_strcasecmp(Cmd_Argv(1), "snap") == 0)
+	if (Q_strcasecmp(Cmd_Argv(1), "snap") == 0 && cls.protocol == CP_QUAKEWORLD)
 	{
 		if (SCR_RSShot())
 			return;

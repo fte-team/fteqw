@@ -94,7 +94,14 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	if (fnMiniDumpWriteDump)
 	{
 		if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
+		{
+			if (pIsDebuggerPresent ())
+			{
+				//its possible someone attached a debugger while we were showing that message
+				return EXCEPTION_CONTINUE_SEARCH;
+			}
 			return EXCEPTION_EXECUTE_HANDLER;
+		}
 
 		/*take a dump*/
 		GetTempPath (sizeof(dumpPath)-16, dumpPath);

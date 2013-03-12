@@ -31,6 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define VMFSID_Q1QVM 57235	//a cookie
 
+void PR_SV_FillWorldGlobals(world_t *w);
+
 #if GAME_API_VERSION >= 13
 	#define WASTED_EDICT_T_SIZE (VM_NonNative(q1qvm)?sizeof(int):sizeof(void*))
 	//in version 13, the actual edict_t struct is gone, and there's a pointer to it in its place (which we don't need, but it changes size based on vm/native).
@@ -639,7 +641,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case G_SOUND:
 //		( int edn, int channel, char *samp, float vol, float att )
-		SVQ1_StartSound ((wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
+		SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
 		break;
 
 	case G_TRACELINE:
@@ -1321,8 +1323,6 @@ void Q1QVM_Event_Think(world_t *w, wedict_t *s)
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
 	VM_Call(q1qvm, GAME_EDICT_THINK);
-
-	PR_ExecuteProgram (w->progs, s->v->think);
 }
 
 qboolean Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
@@ -1334,6 +1334,7 @@ qboolean PR_LoadQ1QVM(void)
 {
 	static float writable;
 	static float dimensionsend;
+	static float physics_mode = 2;
 	int i;
 	gameDataN_t *gd, gdm;
 	gameData32_t *gd32;
@@ -1473,6 +1474,7 @@ qboolean PR_LoadQ1QVM(void)
 	pr_global_ptrs->trace_surfaceflags = &writable;
 	pr_global_ptrs->trace_endcontents = &writable;
 	pr_global_ptrs->dimension_send = &dimensionsend;
+	pr_global_ptrs->physics_mode = &physics_mode;
 
 	dimensionsend = 255;
 	for (i = 0; i < 16; i++)
@@ -1487,6 +1489,8 @@ qboolean PR_LoadQ1QVM(void)
 
 	if ((unsigned)gd->global->mapname && (unsigned)gd->global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
 		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gd->global->mapname, sv.mapname, MAPNAME_LEN);
+
+	PR_SV_FillWorldGlobals(&sv.world);
 	return true;
 }
 

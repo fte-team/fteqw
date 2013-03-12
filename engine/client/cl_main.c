@@ -140,7 +140,7 @@ cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 
 cvar_t	cl_download_csprogs = CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available.");
-cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files.");
+cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files. Also allows the server to send nearly arbitary download commands.");
 cvar_t  cl_download_mapsrc = CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
 cvar_t	cl_download_packages = CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads = CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
@@ -2841,6 +2841,27 @@ void CL_ReadPackets (void)
 
 //=============================================================================
 
+qboolean CL_AllowArbitaryDownload(char *localfile)
+{
+	qboolean allow;
+	//never allow certain (native code) arbitary downloads.
+	if (!strnicmp(localfile, "game", 4) || !stricmp(localfile, "progs.dat") || !stricmp(localfile, "menu.dat") || !stricmp(localfile, "csprogs.dat") || !stricmp(localfile, "qwprogs.dat") || strstr(localfile, "..") || strstr(localfile, ":") || strstr(localfile, "//") || strstr(localfile, ".qvm") || strstr(localfile, ".dll") || strstr(localfile, ".so"))
+	{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
+		Con_Printf("Ignoring arbitary download to \"%s\" due to possible security risk\n", localfile);
+		return false;
+	}
+	allow = cl_download_redirection.ival;
+	if (allow == 2)
+	{
+		char *ext = COM_FileExtension(localfile);
+		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
+			allow = true;
+		else
+			allow = false;
+	}
+	return !!allow;
+}
+
 /*
 =====================
 CL_Download_f
@@ -2888,11 +2909,8 @@ void CL_Download_f (void)
 
 	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
-		if (!strnicmp(url, "game", 4) || !stricmp(url, "progs.dat") || !stricmp(url, "menu.dat") || !stricmp(url, "csprogs.dat") || !stricmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".qvm") || strstr(url, ".dll") || strstr(url, ".so"))
-		{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
-			Con_Printf("Ignoring stuffed download of \"%s\" due to possible security risk\n", url);
+		if (!CL_AllowArbitaryDownload(url))
 			return;
-		}
 
 		CL_CheckOrEnqueDownloadFile(url, url, DLLF_REQUIRED|DLLF_VERBOSE);
 		return;
@@ -2933,23 +2951,15 @@ void CL_DownloadSize_f(void)
 		int allow = cl_download_redirection.ival;
 		redirection = Cmd_Argv(3);
 
-		dl = CL_DownloadFailed(rname, false);
+		if (!CL_AllowArbitaryDownload(redirection))
+		{
+			Con_Printf("Ignoring redirection of %s to %s\n", rname, redirection);
+			return;
+		}
 
-		if (allow == 2)
-		{
-			char *ext = COM_FileExtension(redirection);
-			if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
-				allow = true;
-			else
-				allow = false;
-		}
-		if (allow)
-		{
-			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
-			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
-		}
-		else
-			Con_Printf("Download of \"%s\" redirected to \"%s\". Prevented by cl_download_redirection.\n", rname, redirection);
+		dl = CL_DownloadFailed(rname, false);
+		Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
+		CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 	}
 	else
 	{

@@ -2890,10 +2890,13 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	switch(action)
 	{
 	case ter_reload:
+		G_FLOAT(OFS_RETURN) = 1;
 		Terr_PurgeTerrainModel(mod, false, true);
 		break;
 	case ter_save:
-		Con_Printf("%i sections saved\n", Heightmap_Save(hm));
+		quant = Heightmap_Save(hm);
+		Con_DPrintf("ter_save: %g sections saved\n", quant);
+		G_FLOAT(OFS_RETURN) = quant;
 		break;
 	case ter_sethole:
 	/*	{

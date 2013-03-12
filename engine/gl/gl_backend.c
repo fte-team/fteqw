@@ -1310,6 +1310,9 @@ void GLBE_Init(void)
 	r_worldentity.axis[0][0] = 1;
 	r_worldentity.axis[1][1] = 1;
 	r_worldentity.axis[2][2] = 1;
+	r_worldentity.light_avg[0] = 1;
+	r_worldentity.light_avg[1] = 1;
+	r_worldentity.light_avg[2] = 1;
 
 	R_InitFlashblends();
 }

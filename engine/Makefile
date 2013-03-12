@@ -957,7 +957,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
 	NPFTE_DLL_NAME=../npfte$(BITS).so
-	NPFTE_LDFLAGS=-shared -Wl,-z,defs
+	NPFTE_LDFLAGS=-shared -Wl,-z,defs -lpthread
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
 	NPFTEB_DIR=npfte_linux$(BITS)
 

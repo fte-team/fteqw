@@ -325,11 +325,22 @@ int CL_CalcNet (void)
 	sent = NET_TIMINGS;
 
 	for (i=cls.netchan.outgoing_sequence-UPDATE_BACKUP+1
-		; i <= (cl_countpendingpl.ival?cls.netchan.outgoing_sequence:cl.parsecount)
+		; i <= cls.netchan.outgoing_sequence
 		; i++)
 	{
 		frame = &cl.inframes[i&UPDATE_MASK];
-		if (frame->latency == -1)
+		if (i > cl.parsecount)
+		{
+			// no response yet
+			if (cl_countpendingpl.ival)
+			{
+				packet_latency[i&NET_TIMINGSMASK] = 9999;
+				lost++;
+			}
+			else
+				packet_latency[i&NET_TIMINGSMASK] = 10000;
+		}
+		else if (frame->latency == -1)
 		{
 			packet_latency[i&NET_TIMINGSMASK] = 9999;	// dropped
 			lost++;
@@ -3922,6 +3933,11 @@ void CL_ParseClientdata (void)
 
 // calculate latency
 	frame->latency = realtime - parsecounttime;
+	//and mark any missing ones as dropped
+	for (i = (oldparsecountmod+1)&UPDATE_MASK; i != parsecountmod; i=((i+1)&UPDATE_MASK))
+	{
+		cl.inframes[i].latency = -1;
+	}
 
 	if (frame->latency < 0 || frame->latency > 1.0)
 	{

@@ -1786,7 +1786,10 @@ void RMod_LoadLighting (lump_t *l)
 			}
 		}
 		else if (litdata)
+		{
 			Con_Printf("lit \"%s\" isn't a lit\n", litname);
+			litdata = NULL;
+		}
 //		else
 			//failed to find
 	}

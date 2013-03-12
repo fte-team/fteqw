@@ -187,23 +187,30 @@ typedef struct player_info_s
 
 typedef struct
 {
+	double		senttime;			// time cmd was sent off
+
 	// generated on client side
-	usercmd_t	cmd[MAX_SPLITS];		// cmd that generated the frame
-	double		senttime;	// time cmd was sent off
-	int			delta_sequence;		// sequence number to delta from, -1 = full update
+	usercmd_t	cmd[MAX_SPLITS];	// cmd that generated the frame
 	int			cmd_sequence;
+	int			server_message_num;
+
+	int server_time;
+	int client_time;
+} outframe_t;
+
+typedef struct
+{
+	//this is the sequence we requested for this frame.
+	int			delta_sequence;		// sequence number to delta from, -1 = full update
+	float		latency;
 
 	// received from server
 	double		receivedtime;	// time message was received, or -1
 	player_state_t	playerstate[MAX_CLIENTS+MAX_SPLITS];	// message received that reflects performing
-							// the usercmd
+								// the usercmd
 	packet_entities_t	packet_entities;
 	qboolean	invalid;		// true if the packet_entities delta was invalid
-
-	int server_time;
-	int client_time;
-	int server_message_num;
-} frame_t;
+} inframe_t;
 
 #ifdef Q2CLIENT
 typedef struct
@@ -427,7 +434,7 @@ typedef struct
 	qboolean	allow_cheats;
 	qboolean	allow_semicheats;	//defaults to true, but this allows a server to enforce a strict ruleset (smackdown type rules).
 	float		maxfps;	//server capped
-	enum {GAME_DEATHMATCH, GAME_COOP} gamemode;
+	int			deathmatch;
 
 #ifdef NQPROT
 	int signon;
@@ -510,14 +517,11 @@ typedef struct
 	int			parsecount;		// server message counter
 	int			oldparsecount;
 	int			oldvalidsequence;
-	int			ackedinputsequence;	//in quakeworld/q2 this is always equal to validsequence. dp can differ.
+	int			ackedmovesequence;	//in quakeworld/q2 this is always equal to validsequence. nq can differ. may only be updated when validsequence is updated.
 	int			validsequence;	// this is the sequence number of the last good
 								// packetentity_t we got.  If this is 0, we can't
 								// render a frame yet
-	int			movemessages;	// since connecting to this server
-								// throw out the first couple, so the player
-								// doesn't accidentally do something the
-								// first frame
+	int			movesequence;	// 
 
 	int			spectator;
 
@@ -534,7 +538,8 @@ typedef struct
 #endif
 
 // sentcmds[cl.netchan.outgoing_sequence & UPDATE_MASK] = cmd
-	frame_t		frames[UPDATE_BACKUP];
+	outframe_t	outframes[UPDATE_BACKUP];	//user inputs (cl.ackedmovesequence+1 to cl.movesequence are still pending)
+	inframe_t	inframes[UPDATE_BACKUP];	//server state (cl.validsequence is the most recent set)
 	lerpents_t	*lerpents;
 	int			maxlerpents;	//number of slots allocated.
 	int			lerpentssequence;
@@ -1089,6 +1094,8 @@ char *CG_GetConfigString(int num);
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
 void CSQC_RendererRestarted(void);
+qboolean CSQC_UnconnectedOkay(qboolean inprinciple);
+qboolean CSQC_UnconnectedInit(void);
 qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum);
 qboolean CSQC_ConsoleLink(char *text, char *info);
 void CSQC_RegisterCvarsAndThings(void);
@@ -1222,6 +1229,7 @@ void	Skin_FlushSkin(char *name);
 void	Skin_AllSkins_f (void);
 void	Skin_NextDownload (void);
 void Skin_FlushPlayers(void);
+void Skin_FlushAll(void);
 
 #define RSSHOT_WIDTH 320
 #define RSSHOT_HEIGHT 200

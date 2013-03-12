@@ -464,7 +464,7 @@ void FlushEntityPacket (void)
 	memset (&olde, 0, sizeof(olde));
 
 	cl.validsequence = 0;		// can't render a frame
-	cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].invalid = true;
+	cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].invalid = true;
 
 	// read it all, but ignore it
 	while (1)
@@ -719,6 +719,7 @@ void CLFTE_ParseEntities(void)
 	qboolean	isvalid = false;
 	entity_state_t *e;
 	qboolean removeflag;
+	int inputframe = cls.netchan.incoming_sequence;
 
 //	int i;
 //	for (i = cl.validsequence+1; i < cls.netchan.incoming_sequence; i++)
@@ -737,11 +738,10 @@ void CLFTE_ParseEntities(void)
 		int i;
 		for (i = 0; i < MAX_SPLITS; i++)
 			cl.playerview[i].fixangle = false;
-		cls.netchan.outgoing_sequence = cls.netchan.incoming_unreliable;
-		cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence;
-		cls.netchan.outgoing_sequence++;
+		cls.netchan.incoming_sequence = cls.netchan.incoming_unreliable;
 		cl.last_servermessage = realtime;
-		cl.ackedinputsequence = MSG_ReadLong();
+		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+			inputframe = MSG_ReadLong();
 
 		if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
 			cl.numackframes--;
@@ -750,7 +750,7 @@ void CLFTE_ParseEntities(void)
 		else
 			cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
 
-		cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
+		cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
 
 //		if (cl.validsequence != cls.netchan.incoming_sequence-1)
 //			Con_Printf("CLIENT: Dropped a frame\n");
@@ -759,9 +759,9 @@ void CLFTE_ParseEntities(void)
 
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	oldpacket = cl.validsequence&UPDATE_MASK;
-	newp = &cl.frames[newpacket].packet_entities;
-	oldp = &cl.frames[oldpacket].packet_entities;
-	cl.frames[newpacket].invalid = true;
+	newp = &cl.inframes[newpacket].packet_entities;
+	oldp = &cl.inframes[oldpacket].packet_entities;
+	cl.inframes[newpacket].invalid = true;
 
 
 	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1 || oldp == newp)
@@ -874,8 +874,8 @@ void CLFTE_ParseEntities(void)
 		/*update the prediction info if needed*/
 //		if (e->u.q1.pmovetype)
 		{
-			frame_t *fram;
-			fram = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+			inframe_t *fram;
+			fram = &cl.inframes[cls.netchan.incoming_sequence & UPDATE_MASK];
 			CL_PlayerFrameUpdated(&fram->playerstate[e->number-1], e, cls.netchan.incoming_sequence);
 		}
 	}
@@ -884,17 +884,14 @@ void CLFTE_ParseEntities(void)
 	{
 		cl.oldvalidsequence = cl.validsequence;
 		cl.validsequence = cls.netchan.incoming_sequence;
-		cl.ackedinputsequence = cl.validsequence;
-		cl.frames[newpacket].invalid = false;
+		cl.ackedmovesequence = inputframe;
+		cl.inframes[newpacket].invalid = false;
 	}
 	else
 	{
 		newp->num_entities = 0;
 		cl.validsequence = 0;
 	}
-
-	/*ackedinputsequence is updated when we have new player prediction info*/
-	cl.ackedinputsequence = cls.netchan.incoming_sequence;
 }
 
 /*
@@ -915,8 +912,8 @@ void CLQW_ParsePacketEntities (qboolean delta)
 	int		from;
 
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
-	newp = &cl.frames[newpacket].packet_entities;
-	cl.frames[newpacket].invalid = false;
+	newp = &cl.inframes[newpacket].packet_entities;
+	cl.inframes[newpacket].invalid = false;
 
 	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
 	{
@@ -942,7 +939,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 
 //		Con_Printf("%i %i from %i\n", cls.netchan.outgoing_sequence, cls.netchan.incoming_sequence, from);
 
-		oldpacket = cl.frames[newpacket].delta_sequence;
+		oldpacket = cl.inframes[newpacket].delta_sequence;
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			from = oldpacket = cls.netchan.incoming_sequence - 1;
 
@@ -970,7 +967,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 			return;
 		}
 
-		oldp = &cl.frames[oldpacket & UPDATE_MASK].packet_entities;
+		oldp = &cl.inframes[oldpacket & UPDATE_MASK].packet_entities;
 		full = false;
 	}
 	else
@@ -982,6 +979,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 
 	cl.oldvalidsequence = cl.validsequence;
 	cl.validsequence = cls.netchan.incoming_sequence;
+	cl.ackedmovesequence = cl.validsequence;
 
 	oldindex = 0;
 	newindex = 0;
@@ -1130,7 +1128,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	packet_entities_t	*pack;
 	if (!cl.validsequence)
 		return NULL;
-	pack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
+	pack = &cl.inframes[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
 	{
@@ -1300,10 +1298,10 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	cl.ackframes[cl.numackframes++] = MSG_ReadLong(); /*server sequence to be acked*/
 
 	if (cls.protocol_nq >= CPNQ_DP7)
-		cl.ackedinputsequence = MSG_ReadLong(); /*client input sequence which has been acked*/
+		cl.ackedmovesequence = MSG_ReadLong(); /*client input sequence which has been acked*/
 
-	cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
-	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
+	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
+	pack = &cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
 	pack->servertime = cl.gametime;
 	oldpack = *pack;
 	oldi = 0;
@@ -1428,7 +1426,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 		cls.signon = 4;
 		CLNQ_SignonReply ();
 	}
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
+	pack = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 
 
 	if (bits & NQU_MOREBITS)
@@ -1566,7 +1564,7 @@ entity_state_t *CL_FindPacketEntity(int num)
 	int					pnum;
 	entity_state_t		*s1;
 	packet_entities_t	*pack;
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
+	pack = &cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
 	{
@@ -1625,10 +1623,10 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 			}
 			else
 			{
-				org = cl.frames[parsecountmod].playerstate[parenttagent-1].origin;
-				ang = cl.frames[parsecountmod].playerstate[parenttagent-1].viewangles;
+				org = cl.inframes[parsecountmod].playerstate[parenttagent-1].origin;
+				ang = cl.inframes[parsecountmod].playerstate[parenttagent-1].viewangles;
 			}
-			model = cl.frames[parsecountmod].playerstate[parenttagent-1].modelindex;
+			model = cl.inframes[parsecountmod].playerstate[parenttagent-1].modelindex;
 
 			CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpplayers[parenttagent-1]);
 		}
@@ -2248,7 +2246,7 @@ void CLQ1_AddVisibleBBoxes(void)
 	#endif
 	case 3:
 		{
-			frame_t *frame;
+			inframe_t *frame;
 			packet_entities_t *pak;
 			entity_state_t *state;
 			model_t *mod;
@@ -2262,7 +2260,7 @@ void CLQ1_AddVisibleBBoxes(void)
 				"alphagen vertex\n"
 				"}\n"
 				"}\n");
-			frame = &cl.frames[cl.parsecount & UPDATE_MASK];
+			frame = &cl.inframes[cl.parsecount & UPDATE_MASK];
 			pak = &frame->packet_entities;
 
 			for (i=0 ; i<pak->num_entities ; i++)
@@ -2279,7 +2277,7 @@ void CLQ1_AddVisibleBBoxes(void)
 					if (!cl.model_precache[state->modelindex])
 						continue;
 					/*this makes non-inline bsp objects non-solid for prediction*/
-					if ((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode)
+					if ((cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || ((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode))
 					{
 						mod = cl.model_precache[state->modelindex];
 						VectorAdd(state->origin, mod->mins, min);
@@ -2882,23 +2880,23 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 	//we should be picking the packet just after the server time, and the one just before
 	for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 	{
-		if (cl.frames[i&UPDATE_MASK].receivedtime < 0 || cl.frames[i&UPDATE_MASK].invalid)
+		if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].invalid)
 			continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 
-		if (cl.frames[i&UPDATE_MASK].packet_entities.servertime >= servertime)
+		if (cl.inframes[i&UPDATE_MASK].packet_entities.servertime >= servertime)
 		{
-			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime)
+			if (cl.inframes[i&UPDATE_MASK].packet_entities.servertime)
 			{
-				if (!newtime || newtime != cl.frames[i&UPDATE_MASK].packet_entities.servertime)	//if it's a duplicate, pick the latest (so just-shot rockets are still present)
+				if (!newtime || newtime != cl.inframes[i&UPDATE_MASK].packet_entities.servertime)	//if it's a duplicate, pick the latest (so just-shot rockets are still present)
 				{
-					newtime = cl.frames[i&UPDATE_MASK].packet_entities.servertime;
+					newtime = cl.inframes[i&UPDATE_MASK].packet_entities.servertime;
 					*newf = i;
 				}
 			}
 		}
 		else if (newtime)
 		{
-			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime != newtime)
+			if (cl.inframes[i&UPDATE_MASK].packet_entities.servertime != newtime)
 			{	//it does actually lerp, and isn't an identical frame.
 				*oldf = i;
 				break;
@@ -2917,7 +2915,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 		/*just grab the most recent frame that is valid*/
 		for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 		{
-			if (cl.frames[i&UPDATE_MASK].receivedtime < 0 || cl.frames[i&UPDATE_MASK].invalid)
+			if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].invalid)
 				continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 			*oldf = *newf = i;
 			return true;
@@ -2943,7 +2941,7 @@ qboolean CL_MayLerp(void)
 	if (cls.protocol == CP_NETQUAKE)	//this includes DP protocols.
 		return !cl_nolerp_netquake.ival;
 #endif
-	if (cl_nolerp.ival == 2 && cls.gamemode != GAME_DEATHMATCH)
+	if (cl_nolerp.ival == 2 && !cls.deathmatch)
 		return true;
 	return !cl_nolerp.ival;
 }
@@ -2967,7 +2965,7 @@ void CL_TransitionEntities (void)
 
 	//force our emulated time to as late as we can, if we're not using interpolation, which has the effect of disabling all interpolation
 	if (nolerp)
-		servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
+		servertime = cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
 	else
 		servertime = cl.servertime;
 
@@ -2981,8 +2979,8 @@ void CL_TransitionEntities (void)
 	newf&=UPDATE_MASK;
 	oldf&=UPDATE_MASK;
 	/*transition the ents and stuff*/
-	packnew = &cl.frames[newf].packet_entities;
-	packold = &cl.frames[oldf].packet_entities;
+	packnew = &cl.inframes[newf].packet_entities;
+	packold = &cl.inframes[oldf].packet_entities;
 
 //	Con_Printf("%f %f %f (%i)\n", packold->servertime, servertime, packnew->servertime, newff);
 //	Con_Printf("%f %f %f\n", cl.oldgametime, servertime, cl.gametime);
@@ -3009,8 +3007,8 @@ void CL_TransitionEntities (void)
 			frac = 1; //lerp totally into the new
 		else
 			frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
-		pnew = &cl.frames[newf].playerstate[0];
-		pold = &cl.frames[oldf].playerstate[0];
+		pnew = &cl.inframes[newf].playerstate[0];
+		pold = &cl.inframes[oldf].playerstate[0];
 		for (p = 0; p < cl.allocated_client_slots; p++, pnew++, pold++)
 		{
 			if (pnew->messagenum != newff)
@@ -3152,7 +3150,7 @@ void CL_LinkPacketEntities (void)
 			if (radius)
 			{
 				radius += r_lightflicker.value?((flicker + state->number)&31):0;
-				CL_NewDlight(state->number, state->origin, radius, 0.1, colour[0], colour[1], colour[2]);
+				CL_NewDlight(state->number, ent->origin, radius, 0.1, colour[0], colour[1], colour[2]);
 			}
 		}
 		if (state->lightpflags & PFLAGS_FULLDYNAMIC)
@@ -3168,7 +3166,7 @@ void CL_LinkPacketEntities (void)
 				colour[1] = state->light[1]/1024.0f;
 				colour[2] = state->light[2]/1024.0f;
 			}
-			dl = CL_NewDlight(state->number, state->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
+			dl = CL_NewDlight(state->number, ent->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
 			dl->corona = (state->lightpflags & PFLAGS_CORONA)?1:0;
 			dl->coronascale = 0.25;
 			dl->flags &= ~LFLAG_FLASHBLEND;
@@ -3208,7 +3206,7 @@ void CL_LinkPacketEntities (void)
 
 		if (cl.model_precache_vwep[0])
 		{
-			if (state->modelindex == cl_playerindex)
+			if (state->modelindex == cl_playerindex && !cl.model_precache_vwep[0]->needload)
 			{
 				model = cl.model_precache_vwep[0];
 				model2 = cl.model_precache_vwep[state->modelindex2];
@@ -3622,8 +3620,8 @@ void CL_MVDUpdateSpectator(void)
 	int s;
 	for (s = 0; s < cl.splitclients; s++)
 	{
-		self = &cl.frames[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[s]];
-		oldself = &cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum[s]];
+		self = &cl.inframes[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[s]];
+		oldself = &cl.inframes[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum[s]];
 //		cl.frames[cl.parsecount & UPDATE_MASK].senttime = cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].senttime;
 
 //		self->messagenum = cl.parsecount;
@@ -3654,8 +3652,8 @@ void CL_ParsePlayerinfo (void)
 
 	info = &cl.players[num];
 
-	oldstate = &cl.frames[oldparsecountmod].playerstate[num];
-	state = &cl.frames[parsecountmod].playerstate[num];
+	oldstate = &cl.inframes[oldparsecountmod].playerstate[num];
+	state = &cl.inframes[parsecountmod].playerstate[num];
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
@@ -3667,7 +3665,7 @@ void CL_ParsePlayerinfo (void)
 		}
 		else
 		{
-			prevstate = &cl.frames[info->prevcount & UPDATE_MASK].playerstate[num];
+			prevstate = &cl.inframes[info->prevcount & UPDATE_MASK].playerstate[num];
 		}
 		memcpy(state, prevstate, sizeof(player_state_t));
 		info->prevcount = cl.parsecount;
@@ -3699,7 +3697,7 @@ void CL_ParsePlayerinfo (void)
 		}
 
 		VectorSubtract(state->origin, prevstate->origin, dist);
-		VectorScale(dist, 1/(cl.frames[parsecountmod].packet_entities.servertime - cl.frames[oldparsecountmod].packet_entities.servertime), state->velocity);
+		VectorScale(dist, 1/(cl.inframes[parsecountmod].packet_entities.servertime - cl.inframes[oldparsecountmod].packet_entities.servertime), state->velocity);
 		VectorCopy (state->origin, state->predorigin);
 
 		for (i = 0; i < 3; i++)
@@ -3976,7 +3974,7 @@ guess_pm_type:
 	//can't CL_SetStatInt as we don't know if its actually us or not
 	for (i = 0; i < cl.splitclients; i++)
 	{
-		if (spec_track[i] == num)
+		if ((cl.spectator?spec_track[i]:cl.playernum[i]) == num)
 		{
 			cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
 			cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
@@ -4123,8 +4121,8 @@ void CL_LinkPlayers (void)
 	double			playertime;
 	entity_t		*ent;
 	int				msec;
-	frame_t			*frame;
-	frame_t			*fromf;
+	inframe_t			*frame;
+	inframe_t			*fromf;
 	int				oldphysent;
 	vec3_t			angles;
 	qboolean		predictplayers;
@@ -4141,8 +4139,8 @@ void CL_LinkPlayers (void)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	frame = &cl.frames[cl.validsequence&UPDATE_MASK];
-	fromf = &cl.frames[cl.oldvalidsequence&UPDATE_MASK];
+	frame = &cl.inframes[cl.validsequence&UPDATE_MASK];
+	fromf = &cl.inframes[cl.oldvalidsequence&UPDATE_MASK];
 
 	predictplayers = cl_predict_players.ival;
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -4510,7 +4508,7 @@ void CL_LinkViewModel(void)
 		plnum = Cam_TrackNum(r_refdef.currentplayernum);
 	if (plnum == -1)
 		plnum = cl.playernum[r_refdef.currentplayernum];
-	plstate = &cl.frames[parsecountmod].playerstate[plnum];
+	plstate = &cl.inframes[parsecountmod].playerstate[plnum];
 
 	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
 
@@ -4548,7 +4546,7 @@ Builds all the pmove physents for the current frame
 void CL_SetSolidEntities (void)
 {
 	int		i;
-	frame_t	*frame;
+	inframe_t	*frame;
 	packet_entities_t	*pak;
 	entity_state_t		*state;
 	physent_t			*pent;
@@ -4559,7 +4557,7 @@ void CL_SetSolidEntities (void)
 	pmove.physents[0].info = 0;
 	pmove.numphysent = 1;
 
-	frame = &cl.frames[parsecountmod];
+	frame = &cl.inframes[parsecountmod];
 	pak = &frame->packet_entities;
 
 	for (i=0 ; i<pak->num_entities ; i++)
@@ -4575,17 +4573,18 @@ void CL_SetSolidEntities (void)
 				continue;
 			if (!cl.model_precache[state->modelindex])
 				continue;
-			/*this makes non-inline bsp objects non-solid for prediction*/
-			if ((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode)
-			{
-				pent = &pmove.physents[pmove.numphysent];
-				memset(pent, 0, sizeof(physent_t));
-				pent->model = cl.model_precache[state->modelindex];
-				VectorCopy (state->angles, pent->angles);
-				pent->angles[0]*=-1;
-			}
-			else
+			/*vanilla protocols have no 'solid' information. all entities get assigned ES_SOLID_BSP, even if its not actually solid.
+			so we need to make sure that item pickups are not erroneously considered solid, but doors etc are.
+			yes, this probably means that externally loaded models will be predicted non-solid - you'll need to upgrade your network protocol for the gamecode to be able to specify solidity.
+			*/
+			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && !((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode))
 				continue;
+	
+			pent = &pmove.physents[pmove.numphysent];
+			memset(pent, 0, sizeof(physent_t));
+			pent->model = cl.model_precache[state->modelindex];
+			VectorCopy (state->angles, pent->angles);
+			pent->angles[0]*=-1;
 		}
 		else
 		{
@@ -4649,7 +4648,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	player_state_t	exact;
 	double			playertime;
 	int				msec;
-	frame_t			*frame;
+	inframe_t			*frame;
 	struct predicted_player *pplayer;
 	extern cvar_t cl_nopred;
 	float predictmsmult = 1000*cl_predict_players_frac.value;
@@ -4663,7 +4662,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused || cl.worldmodel->needload)
 		return;
 
-	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
+	frame = &cl.inframes[cl.parsecount&UPDATE_MASK];
 
 	for (j=0, pplayer = predicted_players, state=frame->playerstate;
 		j < MAX_CLIENTS;
@@ -4687,7 +4686,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 		{
 			if (j == cl.playernum[s])
 			{
-				VectorCopy(cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playernum[s]].origin,
+				VectorCopy(cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playernum[s]].origin,
 					pplayer->origin);
 				break;
 			}

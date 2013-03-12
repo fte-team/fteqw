@@ -856,7 +856,7 @@ dblbreak:
 accepts anything that NET_StringToSockaddr accepts plus certain url schemes
 including: tcp, irc
 */
-qboolean	NET_StringToAdr (const char *s, netadr_t *a)
+qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 {
 	struct sockaddr_qstorage sadr;
 
@@ -1116,7 +1116,7 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 			i = sizeof(t);
 
 		Q_strncpyz(t, s, i);
-		if (!ParsePartialIPv4(t, a) && !NET_StringToAdr(t, a))
+		if (!ParsePartialIPv4(t, a) && !NET_StringToAdr(t, 0, a))
 			return false;
 		spoint++;
 
@@ -1135,7 +1135,7 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 		}
 
 		if (c == NULL) // we have an address so resolve it and return
-			return ParsePartialIPv4(spoint, amask) || NET_StringToAdr(spoint, amask);
+			return ParsePartialIPv4(spoint, amask) || NET_StringToAdr(spoint, 0, amask);
 
 		// otherwise generate mask for given bits
 		i = atoi(spoint);
@@ -1145,7 +1145,7 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 	{
 		// we don't have a slash, resolve and fill with a full mask
 		i = ParsePartialIPv4(s, a);
-		if (!i && !NET_StringToAdr(s, a))
+		if (!i && !NET_StringToAdr(s, 0, a))
 			return false;
 
 		memset (amask, 0, sizeof(*amask));
@@ -1937,8 +1937,8 @@ qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 	char *e;
 	int port;
 	port = strtoul(s, &e, 10);
-	if (*e)
-		return NET_StringToAdr(s, a);
+	if (*e)	//if *e then its not just a single number in there, so treat it as a proper address.
+		return NET_StringToAdr(s, 0, a);
 	else if (port)
 	{
 		memset(a, 0, sizeof(*a));
@@ -3493,7 +3493,7 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 	ftenet_ircconnect_connection_t *newcon;
 	netadr_t adr;
 
-	if (!NET_StringToAdr(address, &adr))
+	if (!NET_StringToAdr(address, 6667, &adr))
 		return NULL;	//couldn't resolve the name
 
 
@@ -3860,7 +3860,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 {
 	netadr_t adr;
 
-	NET_StringToAdr(host, &adr);
+	NET_StringToAdr(host, 0, &adr);
 
 	switch(adr.type)
 	{
@@ -4302,8 +4302,8 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	gethostname(buff, 512);
 	buff[512-1] = 0;
 
-	if (!NET_StringToAdr (buff, &adr))	//urm
-		NET_StringToAdr ("127.0.0.1", &adr);
+	if (!NET_StringToAdr (buff, 0, &adr))	//urm
+		NET_StringToAdr ("127.0.0.1", 0, &adr);
 
 
 	namelen = sizeof(address);
@@ -4709,7 +4709,7 @@ vfsfile_t *FS_OpenTCP(const char *name)
 	tcpfile_t *newf;
 	int sock;
 	netadr_t adr = {0};
-	if (NET_StringToAdr(name, &adr))
+	if (NET_StringToAdr(name, 0, &adr))
 	{
 		sock = TCP_OpenStream(adr);
 		if (sock == INVALID_SOCKET)

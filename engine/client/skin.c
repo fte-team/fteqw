@@ -590,6 +590,19 @@ void Skin_FlushPlayers(void)
 		CL_NewTranslation(i);
 }
 
+void Skin_FlushAll(void)
+{	//wipe the skin info
+	int i;
+	for (i=0 ; i<numskins ; i++)
+	{
+		if (skins[i].cache.data)
+			Cache_Free (&skins[i].cache);
+	}
+	numskins = 0;
+
+	Skin_FlushPlayers();
+}
+
 /*
 ==========
 Skin_Skins_f

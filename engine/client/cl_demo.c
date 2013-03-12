@@ -668,7 +668,7 @@ readnext:
 		{
 			// user sent input
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-			pcmd = &cl.frames[i].cmd[0];
+			pcmd = &cl.outframes[i].cmd[0];
 			r = readdemobytes (&demopos, &q1cmd, sizeof(q1cmd));
 			if (r != sizeof(q1cmd))
 			{
@@ -690,9 +690,9 @@ readnext:
 			pcmd->buttons = q1cmd.buttons;
 
 
-			cl.frames[i].senttime = demotime;
-			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+			cl.outframes[i].senttime = realtime;
 			cls.netchan.outgoing_sequence++;
+			cl.movesequence = cls.netchan.outgoing_sequence;
 			for (i=0 ; i<3 ; i++)
 			{
 				readdemobytes (&demopos, &f, 4);
@@ -775,6 +775,7 @@ readit:
 		}
 		cls.netchan.outgoing_sequence = LittleLong(j);
 		cls.netchan.incoming_sequence = LittleLong(i);
+		cl.movesequence = cls.netchan.outgoing_sequence;
 
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			cls.netchan.incoming_acknowledged = cls.netchan.incoming_sequence;

@@ -282,7 +282,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	while (++ack < current)
 	{
 		frame = ack & (UPDATE_MASK);
-		cmd = (q2usercmd_t*)&cl.frames[frame].cmd[0];
+		cmd = (q2usercmd_t*)&cl.outframes[frame].cmd[0];
 
 		pm.cmd = *cmd;
 		Q2_Pmove (&pm);
@@ -862,7 +862,7 @@ qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence)
 
 	CL_PlayerFrameUpdated(&start, state, sequence);
 
-	msec = 500*(realtime - cls.latency + 0.02 - cl.frames[sequence & UPDATE_MASK].receivedtime);
+	msec = 500*(realtime - cls.latency + 0.02 - cl.inframes[sequence & UPDATE_MASK].receivedtime);
 	cmd.msec = bound(0, msec, 255);
 	cmd.forwardmove = state->u.q1.movement[0];
 	cmd.sidemove = state->u.q1.movement[1];
@@ -886,28 +886,56 @@ qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence)
 CL_PredictMove
 ==============
 */
-void CL_PredictMovePNum (int pnum)
+void CL_PredictMovePNum (int vnum)
 {
-	frame_t ind;
+	inframe_t	indstate;
+	outframe_t	indcmd;
 	int			i;
 	float		f;
-	frame_t		*from, *to = NULL;
+	inframe_t	*from, *to = NULL;
+	outframe_t	*cmdfrom, *cmdto;
 	int			oldphysent;
 	vec3_t lrp, lrpv;
-
+	double		simtime;
+	extern cvar_t cl_netfps;
+	
 	//these are to make svc_viewentity work better
 	float *vel;
 	float *org;
 	float stepheight = 0;
+	float netfps = cl_netfps.value;
+	if (!netfps)
+	{
+		//every video frame has its own input frame.
+		simtime = realtime;
+	}
+	else
+	{
+		netfps = bound(6.7, netfps, cls.maxfps);
+		if (netfps < 30)
+		{
+			//extrapolate if we've a low net rate. This should reduce apparent lag, but will be jerky if the net rate is not an (inverse) multiple of the monitor rate.
+			//this is in addition to any monitor desync.
+			simtime = realtime;
+		}
+		else
+		{
+			//interpolate. The input rate is completely smoothed out, at the cost of some latency.
+			//You can still get juddering if the video rate doesn't match the monitor refresh rate (and isn't so high that it doesn't matter).
+			//note that the code below will back-date input frames if the server acks too fast.
+			netfps = bound(6.7, netfps, cls.maxfps);
+			simtime = realtime - (1/netfps);
+		}
+	}
 
-	cl.nolocalplayer[pnum] = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
+	cl.nolocalplayer[vnum] = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
 		if (!cl.worldmodel || cl.worldmodel->needload)
 			return;
-		cl.crouch[pnum] = 0;
+		cl.crouch[vnum] = 0;
 		CLQ2_PredictMovement();
 		return;
 	}
@@ -916,117 +944,121 @@ void CL_PredictMovePNum (int pnum)
 	if (cl_pushlatency.value > 0)
 		Cvar_Set (&cl_pushlatency, "0");
 
-	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !autocam[pnum]))
+	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !autocam[vnum]))
 		return;
 
 	if (cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
 	{
-		cl.crouch[pnum] = 0;
+		cl.crouch[vnum] = 0;
 		return;
 	}
 
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE)
+	if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
-		cl.ackedinputsequence = cls.netchan.outgoing_sequence;
+		cl.ackedmovesequence = cl.movesequence;
 	}
 #endif
 
-	if (!cl.ackedinputsequence)
+	if (!cl.validsequence)
 	{
 		return;
 	}
-	if (cls.netchan.outgoing_sequence - cl.ackedinputsequence >= UPDATE_BACKUP-1)
+	if (cl.movesequence - cl.ackedmovesequence >= UPDATE_BACKUP-1)
 	{	//lagging like poo.
 		if (!cl.intermission)	//keep the angles working though.
-			VectorCopy (cl.playerview[pnum].viewangles, cl.playerview[pnum].simangles);
+			VectorCopy (cl.playerview[vnum].viewangles, cl.playerview[vnum].simangles);
 		return;
 	}
 
 	// this is the last frame received from the server
-	from = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
+	from = &cl.inframes[cl.validsequence & UPDATE_MASK];
+	cmdfrom = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK];
 
 	if (!cl.intermission)
 	{
-		VectorCopy (cl.playerview[pnum].viewangles, cl.playerview[pnum].simangles);
+		VectorCopy (cl.playerview[vnum].viewangles, cl.playerview[vnum].simangles);
 	}
 
-	vel = from->playerstate[cl.playernum[pnum]].velocity;
-	org = from->playerstate[cl.playernum[pnum]].origin;
+	vel = from->playerstate[cl.playernum[vnum]].velocity;
+	org = from->playerstate[cl.playernum[vnum]].origin;
 
 #ifdef PEXT_SETVIEW
-	if (cl.viewentity[pnum])
+	if (cl.viewentity[vnum] && (cl.viewentity[vnum] != cl.playernum[vnum]+1 || cl.ackedmovesequence == cl.movesequence))
 	{
-		if (cl.viewentity[pnum] < cl.maxlerpents)
+		if (cl.viewentity[vnum] < cl.maxlerpents)
 		{
-			cl.nolocalplayer[pnum] = true;
+			cl.nolocalplayer[vnum] = true;
 //			Con_Printf("Using lerped pos\n");
-			org = cl.lerpents[cl.viewentity[pnum]].origin;
+			org = cl.lerpents[cl.viewentity[vnum]].origin;
 			vel = vec3_origin;
 			goto fixedorg;
 		}
 	}
 #endif
-	if (!from->playerstate[cl.playernum[pnum]].messagenum)
+	if (!from->playerstate[cl.playernum[vnum]].messagenum)
 	{
 		//no player states?? put the view on an ent
-		if (cl.playernum[pnum] < cl.maxlerpents)
+		if (cl.playernum[vnum] < cl.maxlerpents)
 		{
-			cl.nolocalplayer[pnum] = true;
+			cl.nolocalplayer[vnum] = true;
 //			Con_Printf("Using lerped pos\n");
-			org = cl.lerpents[cl.playernum[pnum]+1].origin;
+			org = cl.lerpents[cl.playernum[vnum]+1].origin;
 			vel = vec3_origin;
 			goto fixedorg;
 		}
 	}
 
 
-	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.playerview[pnum].fixangle || cl.paused))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.playerview[vnum].fixangle || cl.paused))
 	{
 		if (cl_lerp_players.ival && !cls.demoplayback)
 		{
 			lerpents_t *le;
-			if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) 
-				le = &cl.lerpents[spec_track[pnum]+1];
+			if (cl.nolocalplayer[vnum]) 
+				le = &cl.lerpents[spec_track[vnum]+1];
 			else
-				le = &cl.lerpplayers[spec_track[pnum]];
+				le = &cl.lerpplayers[spec_track[vnum]];
 			org = le->origin;
 			vel = vec3_origin;
 		}
 
 fixedorg:
-		VectorCopy (vel, cl.playerview[pnum].simvel);
-		VectorCopy (org, cl.playerview[pnum].simorg);
+		VectorCopy (vel, cl.playerview[vnum].simvel);
+		VectorCopy (org, cl.playerview[vnum].simorg);
 
-		to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
+//		to = &cl.inframes[cl.ackedinputsequence & UPDATE_MASK];
 
 
 
-		CL_CatagorizePosition(pnum);
+		CL_CatagorizePosition(vnum);
 		goto out;
 	}
 
 	// predict forward until cl.time <= to->senttime
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers();
-	pmove.skipent = cl.playernum[pnum]+1;
+	pmove.skipent = cl.playernum[vnum]+1;
 
-	to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
+//	Con_Printf("%i<%i  %i\n", cl.ackedmovesequence, cl.movesequence, cl.validsequence);
 
-	if (Cam_TrackNum(pnum)>=0 && CL_MayLerp())
+	to = &cl.inframes[cl.validsequence & UPDATE_MASK];
+	cmdto = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK];
+
+	if (Cam_TrackNum(vnum)>=0 && CL_MayLerp())
 	{
 		float f;
 		if (cl_lerp_players.ival && (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV))
 		{
-			lerpents_t *le = &cl.lerpplayers[spec_track[pnum]];
+			lerpents_t *le = &cl.lerpplayers[spec_track[vnum]];
 			org = le->origin;
 			vel = vec3_origin;
-			VectorCopy(le->angles, cl.playerview[pnum].simangles);
+			VectorCopy(le->angles, cl.playerview[vnum].simangles);
 			goto fixedorg;
 		}
 
-		to = &cl.frames[cl.validsequence & UPDATE_MASK];
-		from = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
+		to = &cl.inframes[cl.validsequence & UPDATE_MASK];
+		from = &cl.inframes[cl.oldvalidsequence & UPDATE_MASK];
 
 		//figure out the lerp factor
 		if (cl.gametime == cl.servertime)
@@ -1046,118 +1078,139 @@ fixedorg:
 		// calculate origin
 		for (i=0 ; i<3 ; i++)
 		{
-			lrp[i] = to->playerstate[spec_track[pnum]].origin[i] +
-			f * (from->playerstate[spec_track[pnum]].origin[i] - to->playerstate[spec_track[pnum]].origin[i]);
+			lrp[i] = to->playerstate[spec_track[vnum]].origin[i] +
+			f * (from->playerstate[spec_track[vnum]].origin[i] - to->playerstate[spec_track[vnum]].origin[i]);
 
-			lrpv[i] = to->playerstate[spec_track[pnum]].velocity[i] +
-			f * (from->playerstate[spec_track[pnum]].velocity[i] - to->playerstate[spec_track[pnum]].velocity[i]);
+			lrpv[i] = to->playerstate[spec_track[vnum]].velocity[i] +
+			f * (from->playerstate[spec_track[vnum]].velocity[i] - to->playerstate[spec_track[vnum]].velocity[i]);
 
-			cl.playerview[pnum].simangles[i] = LerpAngles16(to->playerstate[spec_track[pnum]].command.angles[i], from->playerstate[spec_track[pnum]].command.angles[i], f)*360.0f/65535;
+			cl.playerview[vnum].simangles[i] = LerpAngles16(to->playerstate[spec_track[vnum]].command.angles[i], from->playerstate[spec_track[vnum]].command.angles[i], f)*360.0f/65535;
 		}
 
 		org = lrp;
 		vel = lrpv;
 
-		cl.pmovetype[pnum] = PM_NONE;
+		cl.pmovetype[vnum] = PM_NONE;
 		goto fixedorg;
 	}
 	else
 	{
 		if (cls.demoplayback==DPB_MVD || cls.demoplayback==DPB_EZTV)
 		{
-			to = &cl.frames[(cls.netchan.outgoing_sequence-1) & UPDATE_MASK];
+			to = &cl.inframes[(cls.netchan.outgoing_sequence-1) & UPDATE_MASK];
+			cmdto = &cl.outframes[(cl.movesequence-1) & UPDATE_MASK];
 			to->playerstate->pm_type = PM_SPECTATOR;
 
-			VectorCopy (cl.playerview[pnum].simvel, from->playerstate[cl.playernum[pnum]].velocity);
-			VectorCopy (cl.playerview[pnum].simorg, from->playerstate[cl.playernum[pnum]].origin);
+			VectorCopy (cl.playerview[vnum].simvel, from->playerstate[cl.playernum[vnum]].velocity);
+			VectorCopy (cl.playerview[vnum].simorg, from->playerstate[cl.playernum[vnum]].origin);
 
-			CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]], &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+			CL_PredictUsercmd (vnum, cl.playernum[vnum]+1, &from->playerstate[cl.playernum[vnum]], &to->playerstate[cl.playernum[vnum]], &cmdto->cmd[vnum]);
 		}
 		else
 		{
-			for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedinputsequence+i <
-					cls.netchan.outgoing_sequence; i++)
+			for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedmovesequence+i <
+					cl.movesequence; i++)
 			{
-				to = &cl.frames[(cl.ackedinputsequence+i) & UPDATE_MASK];
-				CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]]
-					, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+				to = &cl.inframes[(cl.validsequence+i) & UPDATE_MASK];
+				cmdto = &cl.outframes[(cl.ackedmovesequence+i) & UPDATE_MASK];
 
-				if (to->senttime >= realtime)
+				CL_PredictUsercmd (vnum, cl.playernum[vnum]+1, &from->playerstate[cl.playernum[vnum]], &to->playerstate[cl.playernum[vnum]], &cmdto->cmd[vnum]);
+
+				if (cmdto->senttime >= simtime)
 					break;
 				from = to;
+				cmdfrom = cmdto;
 			}
 		}
 
-		if (independantphysics[pnum].msec)
+		if (simtime > cmdto->senttime)
 		{
+			float msec;
+			cmdfrom = cmdto;
 			from = to;
-			to = &ind;
-			to->cmd[pnum] = independantphysics[pnum];
-			to->senttime = realtime;
-				CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]]
-				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
-		}
-		cl.onground[pnum] = pmove.onground;
-		cl.pmovetype[pnum] = to->playerstate[cl.playernum[pnum]].pm_type;
-		stepheight = to->playerstate[cl.playernum[pnum]].origin[2] - from->playerstate[cl.playernum[pnum]].origin[2];
+			to = &indstate;
+			cmdto = &indcmd;
+			if (independantphysics[vnum].msec && !cls.demoplayback)
+				cmdto->cmd[vnum] = independantphysics[vnum];
+			else
+				cmdto->cmd[vnum] = cmdfrom->cmd[vnum];
+			cmdto->senttime = simtime;
+			msec = ((cmdto->senttime - cmdfrom->senttime) * 1000) + 0.5;
+			cmdto->cmd[vnum].msec = bound(0, msec, 250);
 
-		if (cl.nolocalplayer[pnum] && cl.maxlerpents > cl.playernum[pnum]+1)
-		{
-			//keep the entity tracking the prediction position, so mirrors don't go all weird
-			VectorCopy(to->playerstate[cl.playernum[pnum]].origin, cl.lerpents[cl.playernum[pnum]+1].origin);
-			VectorScale(to->cmd[pnum].angles, 360.0f / 0xffff, cl.lerpents[cl.playernum[pnum]+1].angles);
-			cl.lerpents[cl.playernum[pnum]+1].angles[0] *= -0.333;
+			CL_PredictUsercmd (vnum, cl.playernum[vnum]+1, &from->playerstate[cl.playernum[vnum]]
+				, &to->playerstate[cl.playernum[vnum]], &cmdto->cmd[vnum]);
 		}
+		cl.onground[vnum] = pmove.onground;
+		cl.pmovetype[vnum] = to->playerstate[cl.playernum[vnum]].pm_type;
+		stepheight = to->playerstate[cl.playernum[vnum]].origin[2] - from->playerstate[cl.playernum[vnum]].origin[2];
+	}
+
+	//backdate it if our simulation time is in the past. this will happen on localhost, but not on 300-ping servers.
+	for (i = 0; cmdfrom->senttime > simtime && i < 16; i++)
+	{
+		to = from;
+		cmdto = cmdfrom;
+		from = &cl.inframes[(cl.validsequence-i) & UPDATE_MASK];
+		cmdfrom = &cl.outframes[(cl.ackedmovesequence-i) & UPDATE_MASK];
 	}
 
 	pmove.numphysent = oldphysent;
 
-	if (1)//!independantphysics.msec)
+//	Con_Printf("%f %f %f\n", cmdfrom->senttime, simtime, cmdto->senttime);
+	if (cmdto->senttime == cmdfrom->senttime)
 	{
-		VectorCopy (to->playerstate[cl.playernum[pnum]].velocity, cl.playerview[pnum].simvel);
-		VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.playerview[pnum].simorg);
+		VectorCopy (to->playerstate[cl.playernum[vnum]].velocity, cl.playerview[vnum].simvel);
+		VectorCopy (to->playerstate[cl.playernum[vnum]].origin, cl.playerview[vnum].simorg);
 	}
 	else
 	{
+		int pnum = cl.playernum[vnum];
 		// now interpolate some fraction of the final frame
-		if (to->senttime == from->senttime)
-			f = 0;
-		else
-		{
-			f = (realtime - from->senttime) / (to->senttime - from->senttime);
+		f = (simtime - cmdfrom->senttime) / (cmdto->senttime - cmdfrom->senttime);
 
-			if (f < 0)
-				f = 0;
-			if (f > 1)
-				f = 1;
-		}
+		if (f < 0)
+			f = 0;
+		if (f > 1)
+			f = 1;
 
 		for (i=0 ; i<3 ; i++)
-			if ( fabs(org[i] - to->playerstate[cl.playernum[pnum]].origin[i]) > 128)
+			if ( fabs(from->playerstate[pnum].origin[i] - to->playerstate[pnum].origin[i]) > 128)
 			{	// teleported, so don't lerp
-				VectorCopy (to->playerstate[cl.playernum[pnum]].velocity, cl.playerview[pnum].simvel);
-				VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.playerview[pnum].simorg);
+				VectorCopy (to->playerstate[pnum].velocity, cl.playerview[vnum].simvel);
+				VectorCopy (to->playerstate[pnum].origin, cl.playerview[vnum].simorg);
 				goto out;
 			}
 
 		for (i=0 ; i<3 ; i++)
 		{
-			cl.playerview[pnum].simorg[i] = org[i]
-				+ f*(to->playerstate[cl.playernum[pnum]].origin[i] - org[i]);
-			cl.playerview[pnum].simvel[i] = vel[i]
-				+ f*(to->playerstate[cl.playernum[pnum]].velocity[i] - vel[i]);
+			cl.playerview[vnum].simorg[i] = (1-f)*from->playerstate[pnum].origin[i]   + f*to->playerstate[pnum].origin[i];
+			cl.playerview[vnum].simvel[i] = (1-f)*from->playerstate[pnum].velocity[i] + f*to->playerstate[pnum].velocity[i];
+
+			if (cl.spectator)
+				cl.playerview[vnum].simangles[i] = LerpAngles16(from->playerstate[pnum].command.angles[i], to->playerstate[pnum].command.angles[i], f) * (360.0/65535);
+			else if (cls.demoplayback == DPB_QUAKEWORLD)
+				cl.playerview[vnum].simangles[i] = LerpAngles16(cmdfrom->cmd[vnum].angles[i], cmdto->cmd[vnum].angles[i], f) * (360.0/65535);
 		}
-		CL_CatagorizePosition(pnum);
+		CL_CatagorizePosition(vnum);
 
 	}
 
+	if (cl.nolocalplayer[vnum] && cl.maxlerpents > cl.playernum[vnum]+1)
+	{
+		//keep the entity tracking the prediction position, so mirrors don't go all weird
+		VectorCopy(to->playerstate[cl.playernum[vnum]].origin, cl.lerpents[cl.playernum[vnum]+1].origin);
+		VectorScale(cmdto->cmd[vnum].angles, 360.0f / 0xffff, cl.lerpents[cl.playernum[vnum]+1].angles);
+		cl.lerpents[cl.playernum[vnum]+1].angles[0] *= -0.333;
+	}
+
 	if (cls.demoplayback)
-		CL_LerpMove (pnum, to->senttime);
+		CL_LerpMove (vnum, cmdto->senttime);
 
 out:
-	CL_CalcCrouch (pnum, stepheight);
-	cl.waterlevel[pnum] = pmove.waterlevel;
-	VectorCopy(pmove.gravitydir, cl.playerview[pnum].gravitydir);
+	CL_CalcCrouch (vnum, stepheight);
+	cl.waterlevel[vnum] = pmove.waterlevel;
+	VectorCopy(pmove.gravitydir, cl.playerview[vnum].gravitydir);
 }
 
 void CL_PredictMove (void)

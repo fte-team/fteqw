@@ -1103,7 +1103,7 @@ void R2D_DrawCrosshair(void)
 	int sc;
 	float sx, sy, sizex, sizey;
 
-	float size, chc;
+	float size;
 
 	if (crosshair.ival < 1)
 		return;
@@ -1112,7 +1112,7 @@ void R2D_DrawCrosshair(void)
 	if (crosshair.ival == 1 && !crosshairimage.string[0])
 	{
 		// adjust console crosshair scale to match default
-		size = crosshairsize.value / 8;
+		size = crosshairsize.value;
 		if (size == 0)
 			size = 8;
 		else if (size < 0)
@@ -1121,8 +1121,8 @@ void R2D_DrawCrosshair(void)
 		{
 			SCR_CrosshairPosition(sc, &x, &y);
 			Font_BeginScaledString(font_conchar, x, y, size, size, &sx, &sy);
-			sx -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
-			sy -= Font_CharHeight()/2;
+			sx -= Font_CharScaleWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			sy -= Font_CharScaleHeight()/2;
 			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
 			Font_DrawScaleChar(sx, sy, '+' | 0xe000 | CON_WHITEMASK);
 			Font_InvalidateColour();
@@ -1138,13 +1138,11 @@ void R2D_DrawCrosshair(void)
 		size = -size;
 		sizex = size;
 		sizey = size;
-		chc = 0;
 	}
 	else
 	{
 		sizex = (size*vid.rotpixelwidth) / (float)vid.width;
 		sizey = (size*vid.rotpixelheight) / (float)vid.height;
-		chc = size / 16.0;
 	}
 
 	sizex = (int)sizex;
@@ -1159,8 +1157,8 @@ void R2D_DrawCrosshair(void)
 		SCR_CrosshairPosition(sc, &x, &y);
 
 		//translate to pixel coord, for rounding
-		x = ((x-sizex-chc)*vid.rotpixelwidth) / (float)vid.width;
-		y = ((y-sizey-chc)*vid.rotpixelheight) / (float)vid.height;
+		x = ((x-sizex+(sizex/CS_WIDTH))*vid.rotpixelwidth) / (float)vid.width;
+		y = ((y-sizey+(sizey/CS_HEIGHT))*vid.rotpixelheight) / (float)vid.height;
 
 		//translate to screen coords
 		sx = ((x)*(int)vid.width) / (float)vid.rotpixelwidth;

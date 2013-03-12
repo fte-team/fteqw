@@ -28,7 +28,7 @@ void Draw_TextBox (int x, int y, int width, int lines)
 	if (!p)	//assume none exist
 	{
 		R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
-		R2D_FillBlock(x, y, width + 16, 8 * (2 + lines));
+		R2D_FillBlock(x, y, width*16 + 16, 8 * (2 + lines));
 		R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 		return;
 	}
@@ -1862,6 +1862,11 @@ void M_Menu_Main_f (void)
 
 	int mgt;
 
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(va("%s %s", Cmd_Argv(0), Cmd_Args)))
+		return;
+#endif
+
 	SCR_EndLoadingPlaque();	//just in case...
 
 /*
@@ -1920,7 +1925,7 @@ void M_Menu_Main_f (void)
 			b->common.tooltip = "Singleplayer.";
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
-			b->common.height = 20;
+			b->common.height = 32;
 #endif
 			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
 			b->common.tooltip = "Multiplayer.";
@@ -1928,19 +1933,19 @@ void M_Menu_Main_f (void)
 			mainm->selecteditem = (menuoption_t *)b;
 #endif
 			b->common.width = 12*20;
-			b->common.height = 20;
+			b->common.height = 32;
 			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
 			b->common.tooltip = "Options.";
 			b->common.width = 12*20;
-			b->common.height = 20;
+			b->common.height = 32;
 			b = MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
 			b->common.tooltip = "Video Options.";
 			b->common.width = 12*20;
-			b->common.height = 20;
+			b->common.height = 32;
 			b = MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
 			b->common.tooltip = "Quit to DOS.";
 			b->common.width = 12*20;
-			b->common.height = 20;
+			b->common.height = 32;
 
 			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 42, mainm->selecteditem->common.posy);
 		}

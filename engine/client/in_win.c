@@ -1981,8 +1981,8 @@ void INS_JoyMove (float *movements, int pnum)
 
 static qbyte        scantokey[128] =
 					{
-//  0           1       2       3       4       5       6       7
-//  8           9       A       B       C       D       E       F
+//  0           1       2			3			4		5			6				7
+//  8           9       A			B			C       D			E				F
 	0  ,		27,		'1',		'2',		'3',	'4',		'5',			'6',
 	'7',		'8',	'9',		'0',		'-',	'=',		K_BACKSPACE,	9,			// 0
 	'q',		'w',	'e',		'r',		't',	'y',		'u',			'i',
@@ -1995,7 +1995,7 @@ static qbyte        scantokey[128] =
 	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4
 	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11,
 	K_F12,		0,		0,			0,			0,		0,			0,				0,			// 5
-	0,			0,		0,			0,			0,		0,			0,				0,
+	0,			0,		0,			0,			0,		'\\',		0,				0,
 	0,			0,		0,			0,			0,		0,			0,				0,			// 6
 	0,			0,		0,			0,			0,		0,			0,				0,
 	0,			0,		0,			0,			0,		0,			0,				0			// 7

@@ -210,7 +210,7 @@ cvar_t	hostname = CVARF("hostname","unnamed", CVAR_SERVERINFO);
 
 cvar_t	secure = CVARF("secure", "", CVAR_SERVERINFO);
 
-extern cvar_t sv_nomsec;
+extern cvar_t sv_nqplayerphysics;
 
 char cvargroup_serverpermissions[] = "server permission variables";
 char cvargroup_serverinfo[] = "serverinfo variables";
@@ -807,7 +807,6 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	float		ping;
 	int			i;
 	int			count;
-	register	client_frame_t *frame;
 
 	if (!cl->frameunion.frames)
 		return 0;
@@ -817,7 +816,24 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	case SCP_BAD:
 		break;
 	case SCP_QUAKE2:
-		break;
+		{
+			q2client_frame_t *frame;
+			ping = 0;
+			count = 0;
+			for (frame = cl->frameunion.q2frames, i=0 ; i<Q2UPDATE_BACKUP ; i++, frame++)
+			{
+				if (frame->ping_time > 0)
+				{
+					ping += frame->ping_time;
+					count++;
+				}
+			}
+			if (!count)
+				return 9999;
+			ping /= count;
+
+		}
+		return ping;
 	case SCP_QUAKE3:
 		break;
 	case SCP_DARKPLACES6:
@@ -826,20 +842,22 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	case SCP_PROQUAKE:
 	case SCP_FITZ666:
 	case SCP_QUAKEWORLD:
-		ping = 0;
-		count = 0;
-		for (frame = cl->frameunion.frames, i=0 ; i<UPDATE_BACKUP ; i++, frame++)
 		{
-			if (frame->ping_time > 0)
+			register	client_frame_t *frame;
+			ping = 0;
+			count = 0;
+			for (frame = cl->frameunion.frames, i=0 ; i<UPDATE_BACKUP ; i++, frame++)
 			{
-				ping += frame->ping_time;
-				count++;
+				if (frame->ping_time > 0)
+				{
+					ping += frame->ping_time;
+					count++;
+				}
 			}
+			if (!count)
+				return 9999;
+			ping /= count;
 		}
-		if (!count)
-			return 9999;
-		ping /= count;
-
 		return ping*1000;
 	}
 	return 0;
@@ -1662,7 +1680,7 @@ void SV_AcceptMessage(int protocol)
 			MSG_WriteByte(&sb, CCREP_ACCEPT);
 			NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
 			MSG_WriteLong(&sb, ShortSwap(localaddr.port));
-			MSG_WriteByte(&sb, 1/*MOD_PROQUAKE*/);
+			MSG_WriteByte(&sb, (protocol==SCP_NETQUAKE)?0:1/*MOD_PROQUAKE*/);
 			MSG_WriteByte(&sb, 10 * 3.50/*MOD_PROQUAKE_VERSION*/);
 			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
@@ -3441,9 +3459,7 @@ void SV_OpenRoute_f(void)
 	netadr_t to;
 	char data[64];
 
-	NET_StringToAdr(Cmd_Argv(1), &to);
-	if (!to.port)
-		to.port = PORT_QWCLIENT;
+	NET_StringToAdr(Cmd_Argv(1), PORT_QWCLIENT, &to);
 
 	sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
 
@@ -3513,7 +3529,6 @@ qboolean SV_ReadPackets (float *delay)
 							SVNQ_ExecuteClientMessage(cl);
 						}
 					}
-					break;
 				}
 				else
 				{
@@ -4343,7 +4358,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_csqcdebug, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_gamespeed, cvargroup_serverphysics);
-	Cvar_Register (&sv_nomsec,	cvargroup_serverphysics);
+	Cvar_Register (&sv_nqplayerphysics,	cvargroup_serverphysics);
 	Cvar_Register (&pr_allowbutton1, cvargroup_servercontrol);
 
 	Cvar_Register (&pausable,	cvargroup_servercontrol);
@@ -4473,7 +4488,7 @@ void Master_Heartbeat (void)
 
 			if (!*sv_masterlist[i].cv.string)
 				sv_masterlist[i].adr.port = 0;
-			else if (!NET_StringToAdr(sv_masterlist[i].cv.string, &sv_masterlist[i].adr))
+			else if (!NET_StringToAdr(sv_masterlist[i].cv.string, 0, &sv_masterlist[i].adr))
 			{
 				sv_masterlist[i].adr.port = 0;
 				Con_Printf ("Couldn't resolve master \"%s\"\n", sv_masterlist[i].cv.string);

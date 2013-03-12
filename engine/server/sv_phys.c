@@ -2041,6 +2041,7 @@ void World_Physics_Frame(world_t *w)
 	int i;
 	qboolean retouch;
 	wedict_t *ent;
+	extern cvar_t sv_nqplayerphysics;
 
 	w->framenum++;
 
@@ -2085,8 +2086,32 @@ void World_Physics_Frame(world_t *w)
 		{
 			if (!svs.clients[i-1].isindependant)
 			{
-				WPhys_RunEntity (w, ent);
-				WPhys_RunNewmis (w);
+				if (sv_nqplayerphysics.ival || svs.clients[i-1].state < cs_spawned)
+				{
+					WPhys_RunEntity (w, ent);
+					WPhys_RunNewmis (w);
+				}
+				else
+				{
+					int newt;
+					int delt;
+					newt = sv.time*1000;
+					delt = newt - svs.clients[i-1].msecs;
+					if (delt > 1000/77 || delt < -10)
+					{
+						float ft = host_frametime;
+						host_client = &svs.clients[i-1];
+						sv_player = svs.clients[i-1].edict;
+						svs.clients[i-1].msecs = newt;
+						SV_PreRunCmd();
+						svs.clients[i-1].last_check = 0;
+						svs.clients[i-1].lastcmd.msec = bound(0, delt, 255);
+						SV_RunCmd (&svs.clients[i-1].lastcmd, true);
+						svs.clients[i-1].lastcmd.impulse = 0;
+						SV_PostRunCmd();
+						*w->g.frametime = host_frametime = ft;
+					}
+				}
 			}
 //			else
 //				World_LinkEdict(w, (wedict_t*)ent, true);

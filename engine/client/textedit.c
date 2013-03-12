@@ -32,6 +32,7 @@ static cvar_t editstripcr = CVARD("edit_stripcr", "1", "remove \\r from eols (on
 static cvar_t editaddcr = CVARD("edit_addcr", editaddcr_default, "make sure that each line ends with a \\r (on save)");
 static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
 cvar_t debugger = CVARD("debugger", debugger_default, "When enabled, QC errors and debug events will enable step-by-step tracing.");
+extern cvar_t pr_sourcedir;
 
 static pubprogfuncs_t *editprogfuncs;
 
@@ -83,6 +84,7 @@ static char OpenEditorFile[256];
 
 
 qboolean editoractive;	//(export)
+keydest_t editor_oldkeydest = key_game;
 qboolean editormodal;	//doesn't return. (export)
 static qboolean madechanges;
 static qboolean editenabled;
@@ -187,7 +189,8 @@ static void CloseEditor(void)
 {
 	fileblock_t *b;
 
-	key_dest = key_game;
+	if (key_dest == key_editor)
+		key_dest = editor_oldkeydest;
 	editoractive = false;
 	editprogfuncs = NULL;
 
@@ -280,6 +283,7 @@ static void EditorNewFile(void)
 	madechanges = true;
 	executionlinenum = -1;
 
+	editor_oldkeydest = key_dest;
 	key_dest = key_editor;
 	editoractive = true;
 	editenabled = true;
@@ -299,7 +303,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 
 	if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
 	{
-		Q_snprintfz(OpenEditorFile, sizeof(OpenEditorFile), "src/%s", name);
+		Q_snprintfz(OpenEditorFile, sizeof(OpenEditorFile), "%s/%s", pr_sourcedir.string, name);
 		if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
 		{
 			Con_Printf("Couldn't open file \"%s\"\nA new file will be created\n", name);
@@ -382,6 +386,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 	executionlinenum = -1;
 	editenabled = !readonly;
 
+	editor_oldkeydest = key_dest;
 	key_dest = key_editor;
 	editoractive = true;
 }
@@ -1066,7 +1071,14 @@ void Editor_Draw(void)
 	fileblock_t *b;
 
 	if (key_dest != key_console)
+	{
+		if (editor_oldkeydest == key_menu && !editormodal)
+		{
+			CloseEditor();
+			return;
+		}
 		key_dest = key_editor;
+	}
 
 	if ((editoractive && cls.state == ca_disconnected) || editormodal)
 		R2D_EditorBackground();
@@ -1211,6 +1223,10 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		f1 += 4;
 	if (!strncmp(f2, "src/", 4))
 		f2 += 4;
+	if (!strncmp(f1, "source/", 7))
+		f1 += 7;
+	if (!strncmp(f2, "source/", 7))
+		f2 += 7;
 
 	stepasm = line < 0;
 
@@ -1263,6 +1279,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 
 	if (!parms)
 	{
+		int oldkeydest = key_dest;
 		double oldrealtime = realtime;
 		editormodal = true;
 
@@ -1280,6 +1297,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		}
 		realtime = oldrealtime;
 
+		key_dest = oldkeydest;
 		editormodal = false;
 	}
 

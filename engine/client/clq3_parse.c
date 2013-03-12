@@ -255,7 +255,7 @@ void CLQ3_ParseSnapshot(void)
 	int				delta;
 	int				len;
 	int				i;
-	frame_t		*frame;
+	outframe_t		*frame;
 //	usercmd_t		*ucmd;
 //	int				commandTime;
 
@@ -329,7 +329,7 @@ void CLQ3_ParseSnapshot(void)
 	snap.ping = 3;
 	for (i=cls.netchan.outgoing_sequence-1 ; i>cls.netchan.outgoing_sequence-Q3UPDATE_BACKUP ; i--)
 	{
-		frame = &cl.frames[i & Q3UPDATE_MASK];
+		frame = &cl.outframes[i & Q3UPDATE_MASK];
 		if (frame->server_message_num == snap.deltaFrame)
 		{
 			snap.ping = Sys_Milliseconds() - frame->client_time;
@@ -873,7 +873,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	int i;
 	char data[MAX_OVERALLMSGLEN];
 	sizebuf_t msg;
-	frame_t *frame, *oldframe;
+	outframe_t *frame, *oldframe;
 	int cmdcount, key;
 	usercmd_t *to, *from;
 	extern int keycatcher;
@@ -905,12 +905,12 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	if (key_dest != key_game || (keycatcher&3))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
-	cl.frames[ccs.currentUserCmdNumber&CMD_MASK].cmd[0] = *cmd;
+	cl.outframes[ccs.currentUserCmdNumber&CMD_MASK].cmd[0] = *cmd;
 	ccs.currentUserCmdNumber++;
 
 
 
-	frame = &cl.frames[cls.netchan.outgoing_sequence & Q3UPDATE_MASK];
+	frame = &cl.outframes[cls.netchan.outgoing_sequence & Q3UPDATE_MASK];
 	frame->cmd_sequence = ccs.currentUserCmdNumber;
 	frame->server_message_num = ccs.serverMessageNum;
 	frame->server_time = cl.gametime;
@@ -938,7 +938,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	}
 
 	i = (cls.netchan.outgoing_sequence - 1);
-	oldframe = &cl.frames[i & Q3UPDATE_MASK];
+	oldframe = &cl.outframes[i & Q3UPDATE_MASK];
 	cmdcount = ccs.currentUserCmdNumber - oldframe->cmd_sequence;
 	if (cmdcount > Q3UPDATE_MASK)
 		cmdcount = Q3UPDATE_MASK;
@@ -964,7 +964,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		from = &nullcmd;
 		for (i = oldframe->cmd_sequence; i < ccs.currentUserCmdNumber; i++)
 		{
-			to = &cl.frames[i&CMD_MASK].cmd[0];
+			to = &cl.outframes[i&CMD_MASK].cmd[0];
 			MSG_Q3_WriteDeltaUsercmd( &msg, key, from, to );
 			from = to;
 		}
@@ -992,7 +992,7 @@ void CLQ3_SendAuthPacket(netadr_t gameserver)
 		if (*key)
 		{
 			Con_Printf("Resolving %s\n", Q3_AUTHORIZE_SERVER_NAME);
-			if (NET_StringToAdr(Q3_AUTHORIZE_SERVER_NAME, &authaddr))
+			if (NET_StringToAdr(Q3_AUTHORIZE_SERVER_NAME, 0, &authaddr))
 			{
 				msg.data = data;
 				msg.cursize = 0;

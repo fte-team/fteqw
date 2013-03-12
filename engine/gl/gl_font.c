@@ -16,7 +16,9 @@ void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
 void Font_Transform(int vx, int vy, int *px, int *py);
 int Font_CharHeight(void);
+float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charcode);
+float Font_CharScaleWidth(unsigned int charcode);
 int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
 float Font_DrawScaleChar(float px, float py, unsigned int charcode); /*avoid using*/
@@ -1241,6 +1243,12 @@ int Font_CharHeight(void)
 	return curfont->charheight;
 }
 
+//obtains the font's row height (each row of chars should be drawn using this increment)
+float Font_CharScaleHeight(void)
+{
+	return curfont->charheight * curfont_scale[1];
+}
+
 /*
 This is where the character ends.
 Note: this function supports tabs - x must always be based off 0, with Font_LineDraw actually used to draw the line.
@@ -1283,6 +1291,25 @@ int Font_CharWidth(unsigned int charcode)
 	}
 
 	return c->advance;
+}
+
+//obtains the width of a character from a given font. This is how wide it is. The next char should be drawn at x + result.
+float Font_CharScaleWidth(unsigned int charcode)
+{
+	struct charcache_s *c;
+	struct font_s *font = curfont;
+	if (charcode&CON_HIDDEN)
+		return 0;
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
+
+	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	if (!c)
+	{
+		return 0;
+	}
+
+	return c->advance * curfont_scale[0];
 }
 
 //for a given font, calculate the line breaks and word wrapping for a block of text

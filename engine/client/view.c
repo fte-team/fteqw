@@ -235,7 +235,7 @@ void V_DriftPitch (int pnum)
 // don't count small mouse motion
 	if (cl.playerview[pnum].nodrift)
 	{
-		if ( fabs(cl.frames[(cls.netchan.outgoing_sequence-1)&UPDATE_MASK].cmd[pnum].forwardmove) < 200)
+		if ( fabs(cl.outframes[(cl.movesequence-1)&UPDATE_MASK].cmd[pnum].forwardmove) < 200)
 			cl.playerview[pnum].driftmove = 0;
 		else
 			cl.playerview[pnum].driftmove += host_frametime;

@@ -146,7 +146,32 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 			if (!s)
 				continue;
 			if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
+			{
+				//does it still make a sound if it cannot be heard?...
+				//technically no...
+				//this code is hacky.
+				if (!s->decoder.decodedata && s->decoder.buf)
+				{
+					scache = s->decoder.buf;
+					ch->pos += (end-sc->paintedtime)*ch->rate;
+					if (ch->pos > scache->length)
+					{
+						ch->pos = 0;
+						if (scache->loopstart != -1)
+							ch->pos = scache->loopstart<<PITCHSHIFT;
+						else if (!ch->looping)
+						{
+							ch->sfx = NULL;
+							if (s->decoder.abort)
+							{
+								if (!S_IsPlayingSomewhere(s))
+									s->decoder.abort(s);
+							}
+						}
+					}
+				}
 				continue;
+			}
 
 			ltime = sc->paintedtime;
 			while (ltime < end)

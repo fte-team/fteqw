@@ -66,7 +66,7 @@ struct pubprogfuncs_s
 
 	void	(PDECL *CloseProgs)					(pubprogfuncs_t *inst);
 
-	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, int addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
+	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, size_t addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
 	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
 	int		(PDECL *InitEnts)					(pubprogfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(PDECL *ExecuteProgram)				(pubprogfuncs_t *prinst, func_t fnum);	//start execution

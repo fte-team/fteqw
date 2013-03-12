@@ -773,7 +773,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 					if (ui_pings[i].type == NA_INVALID)
 					{
 						serverinfo_t *info;
-						NET_StringToAdr(cmdtext + 5, &ui_pings[i]);
+						NET_StringToAdr(cmdtext + 5, 0, &ui_pings[i]);
 						info = Master_InfoForServer(ui_pings[i]);
 						if (info)
 						{

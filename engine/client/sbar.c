@@ -1850,7 +1850,7 @@ void Sbar_DrawScoreboard (void)
 
 #ifndef CLIENTONLY
 	/*no scoreboard in single player (if you want bots, set deathmatch)*/
-	if (sv.state && cls.gamemode == GAME_COOP && sv.allocated_client_slots == 1)
+	if (sv.state && !cls.deathmatch && sv.allocated_client_slots == 1)
 	{
 		return;
 	}
@@ -2474,7 +2474,7 @@ void Sbar_Draw (void)
 				{
 					if (!pnum)
 					{
-						if (cls.gamemode != GAME_DEATHMATCH)
+						if (!cls.deathmatch)
 							Sbar_CoopScoreboard ();
 						else
 							Sbar_SoloScoreboard ();
@@ -3292,7 +3292,7 @@ void Sbar_IntermissionOverlay (void)
 
 	Sbar_Start();
 
-	if (cls.gamemode != GAME_DEATHMATCH)
+	if (!cls.deathmatch)
 		Sbar_CoopIntermission();
 	else if (cl.teamplay > 0 && !sb_showscores)
 		Sbar_TeamOverlay ();

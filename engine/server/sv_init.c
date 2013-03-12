@@ -776,11 +776,17 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 
-
+	sv.state = ss_loading;
 	if (usecinematic)
 	{
+		qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+		extern model_t *loadmodel;
+
 		strcpy (sv.name, server);
 		strcpy (sv.modelname, "");
+
+		loadmodel = sv.world.worldmodel = Mod_FindName (sv.modelname);
+		loadmodel->needload = !Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL);
 	}
 	else
 	{
@@ -794,13 +800,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			else if (COM_FCheckExists(va(exts[2], server)))
 				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[2], server);
 		}
+		sv.world.worldmodel = Mod_ForName (sv.modelname, true);
 	}
-	sv.state = ss_loading;
-	sv.world.worldmodel = Mod_ForName (sv.modelname, true);
 	if (!sv.world.worldmodel || sv.world.worldmodel->needload)
-		Sys_Error("%s is missing or corrupt\n", sv.modelname);
+		Sys_Error("\"%s\" is missing or corrupt\n", sv.modelname);
 	if (sv.world.worldmodel->type != mod_brush && sv.world.worldmodel->type != mod_heightmap)
-		Sys_Error("%s is not a bsp model\n", sv.modelname);
+		Sys_Error("\"%s\" is not a bsp model\n", sv.modelname);
 	sv.state = ss_dead;
 
 #ifndef SERVERONLY

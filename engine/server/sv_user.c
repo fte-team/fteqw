@@ -58,11 +58,11 @@ cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd 
 cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world.");
-cvar_t	sv_nomsec	= CVARD("sv_nomsec", "0", "Ignore client msec times, runs using NQ physics instead.");
+cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disregard player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
 
-cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate standard quakeworld movetypes. Shouldn't be used for any games other than QuakeWorld.");
+cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
 
@@ -416,8 +416,6 @@ void SV_New_f (void)
 	host_client->prespawn_idx = 0;
 }
 
-#define GAME_DEATHMATCH 0
-#define GAME_COOP 1
 void SVNQ_New_f (void)
 {
 	extern cvar_t coop;
@@ -998,6 +996,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				client->prespawn_idx |= 0x80000000;
 		}
 	}
+
 	if (client->prespawn_stage == PRESPAWN_MODELLIST)
 	{
 		started = false;
@@ -4350,9 +4349,9 @@ void Cmd_FPSList_f(void)
 		}
 
 		if (frames)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (min%g max %g), in: %ibps, out: %ibps\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (min%g max %g), c2s: %ibps, s2c: %ibps\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
 		else
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: unknown framerate, in: %ibps, out: %ibps\n", cl->name, (int)cl->inrate, (int)cl->outrate);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: unknown framerate, c2s: %ibps, s2c: %ibps\n", cl->name, (int)cl->inrate, (int)cl->outrate);
 	}
 }
 
@@ -5363,9 +5362,6 @@ int SV_PMTypeForClient (client_t *cl)
 	}
 #endif
 
-	if (!cl->isindependant)
-		return PM_NONE;
-
 	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
 	{								//it prevents bugs from being visible in unsuspecting mods.
 		if (cl->spectator)
@@ -5442,6 +5438,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	// To prevent a infinite loop
 	if (!recurse)
 	{
+		if (!host_client->last_check)
+		{
+			host_client->msecs = 0;
+		    host_client->last_check = realtime;
+		}
 		host_client->msecs += ucmd->msec;
 
 		if ((tmp_time = realtime - host_client->last_check) >= sv_cheatspeedchecktime.value)
@@ -5613,7 +5614,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 
 	if (SV_PlayerPhysicsQC && !host_client->spectator)
-	{	//csqc independant physics support
+	{	//player movement tweaks that fuck over player prediction.
 		pr_global_struct->frametime = host_frametime;
 		pr_global_struct->time = sv.time;
 		WPhys_RunEntity(&sv.world, (wedict_t*)sv_player);
@@ -6296,7 +6297,7 @@ haveannothergo:
 #endif
 					if (!sv.paused)
 					{
-						if (sv_nomsec.ival)
+						if (sv_nqplayerphysics.ival)
 						{
 							cl->isindependant = false;
 							if (!sv_player->v->fixangle)
@@ -6465,6 +6466,24 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 
 	// calc ping time
 	frame = &cl->frameunion.q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
+	if (frame->senttime != -1)
+	{
+		int ping_time = realtime*1000 - frame->senttime;	//no more phenomanally low pings please
+		if (ping_time > sv_minping.value+1)
+		{
+			cl->delay -= 0.001;
+			if (cl->delay < 0)
+				cl->delay = 0;
+		}
+		if (ping_time < sv_minping.value)
+		{
+			cl->delay += 0.001;
+			if (cl->delay > 1)
+				cl->delay = 1;
+		}
+		frame->senttime = -1;
+		frame->ping_time = ping_time;
+	}
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number
@@ -6474,8 +6493,8 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
-	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime;
-//	cl->q2frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
+	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime*1000;
+	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].ping_time = -1;
 
 	host_client = cl;
 	sv_player = host_client->edict;
@@ -6520,7 +6539,8 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 
 
 			lastframe = MSG_ReadLong();
-			if (lastframe != host_client->delta_sequence) {
+			if (lastframe != host_client->delta_sequence)
+			{
 				cl->delta_sequence = lastframe;
 			}
 
@@ -6616,7 +6636,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	frame = &host_client->frameunion.frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
-	if (host_client->protocol == SCP_DARKPLACES7)
+	if (host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PREDINFO))
 		host_client->last_sequence = MSG_ReadLong ();
 	else
 		host_client->last_sequence = 0;
@@ -6665,11 +6685,11 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->sidemove = MSG_ReadShort ();
 	move->upmove = MSG_ReadShort ();
 
-	move->msec=timesincelast*1000;
+	move->msec=bound(0, timesincelast*1000, 255);
 	frame->move_msecs = timesincelast*1000;
 
 // read buttons
-	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
 		bits = MSG_ReadLong();
 	else
 		bits = MSG_ReadByte ();
@@ -6679,7 +6699,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	if (i)
 		move->impulse = i;
 
-	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
 	{
 		SV_ReadPrydonCursor();
 	}
@@ -6702,8 +6722,8 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	}
 
 
-	if (i && SV_FilterImpulse(i, host_client->trustlevel))
-		host_client->edict->v->impulse = i;
+//	if (i && SV_FilterImpulse(i, host_client->trustlevel))
+//		host_client->edict->v->impulse = i;
 
 	host_client->edict->v->button0 = bits & 1;
 	host_client->edict->v->button2 = (bits >> 1) & 1;
@@ -6720,8 +6740,11 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	if (host_client->last_sequence)
 	{
 		host_frametime = timesincelast;
-		WPhys_RunEntity(&sv.world, (wedict_t*)host_client->edict);
+
 		host_client->isindependant = true;
+		SV_PreRunCmd();
+		SV_RunCmd (move, true);
+		SV_PostRunCmd();
 	}
 	else
 		host_client->isindependant = false;

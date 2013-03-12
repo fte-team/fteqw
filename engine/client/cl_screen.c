@@ -1360,7 +1360,7 @@ void SCR_DrawUPS (void)
 		else
 			track = -1;
 		if (track != -1)
-			vel = cl.frames[cl.validsequence&UPDATE_MASK].playerstate[track].velocity;
+			vel = cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[track].velocity;
 		else
 			vel = cl.playerview[0].simvel;
 		lastups = sqrt((vel[0]*vel[0]) + (vel[1]*vel[1]));
@@ -1770,7 +1770,7 @@ void SCR_SetUpToDrawConsole (void)
 			key_dest = key_console;
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen())
+		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			if (cls.state < ca_demostart)
 				key_dest = key_console;

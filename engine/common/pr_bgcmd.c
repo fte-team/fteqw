@@ -2770,7 +2770,7 @@ static void PR_uri_get_callback(struct dl_download *dl)
 {
 	extern pubprogfuncs_t *menuprogs;
 	world_t *w = dl->user_ctx;
-	pubprogfuncs_t *prinst = w?w->progs:menuprogs;
+	pubprogfuncs_t *prinst = w->progs;
 	float id = dl->user_num;
 	func_t func;
 
@@ -2833,6 +2833,17 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	else
 #endif
 		G_FLOAT(OFS_RETURN) = 0;
+}
+void QCBUILTIN PF_netaddress_resolve(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
+	int defaultport = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	netadr_t adr;
+	char result[256];
+	if (NET_StringToAdr(address, defaultport, &adr))
+		RETURN_TSTRING(NET_AdrToString (result, sizeof(result), adr));
+	else
+		RETURN_TSTRING("");
 }
 
 ////////////////////////////////////////////////////
@@ -4069,7 +4080,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatible - previous system failed with -1 skins)
 	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
 	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
-	{"FTE_PEXT_64PLAYERS"},
+	{NULL},
 	{"TEI_SHOWLMP2",					6,	NULL, {"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}},	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
 	{"DP_GFX_QUAKE3MODELTAGS",			1,	NULL, {"setattachment"}},
 	{"FTE_PK3DOWNLOADS"},
@@ -4079,7 +4090,7 @@ lh_extension_t QSG_Extensions[] = {
 
 	{"PEXT_DPFLAGS"},
 
-	//{"EXT_CSQC"},	//this is the base csqc extension. I'm not sure what needs to be separate and what does not.
+	{"EXT_CSQC"},	//this is the base csqc extension. I'm not sure what needs to be separate and what does not.
 	//{"EXT_CSQC_DELTAS"},//this is a separate extension because the feature may be banned in a league due to cheat protection.
 
 //the rest are generic extensions

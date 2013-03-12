@@ -1365,7 +1365,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 			}
 		}
 
-		Skin_FlushPlayers();
+		Skin_FlushAll();
 
 #ifdef CSQC_DAT
 		CSQC_RendererRestarted();

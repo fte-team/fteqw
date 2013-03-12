@@ -75,7 +75,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_SETANGLEDELTA			0x00000004
 #define PEXT2_REPLACEMENTDELTAS		0x00000008
 #define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
-//#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+#define PEXT2_PREDINFO				0x00000020	//movevars, NQ input sequences+acks.
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
@@ -377,6 +377,9 @@ enum clcq2_ops_e
 #define PC_SOUND		0x8000
 #define PC_PARTICLE		0x4000
 #define PC_UNUSED		0xc000
+
+#define GAME_COOP		0
+#define GAME_DEATHMATCH	1
 
 
 // playerinfo flags from server

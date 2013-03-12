@@ -196,6 +196,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 
 		if (pext_replacementdeltas.ival)
 			mask |= PEXT2_REPLACEMENTDELTAS;
+		//mask |= PEXT2_PREDINFO;
 
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
@@ -203,7 +204,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS;
+			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS | PEXT2_PREDINFO;
 		}
 	}
 
@@ -431,13 +432,13 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 	{
 		if (sequence <= chan->incoming_unreliable)
 		{
-			Con_DPrintf("Stale datagram recieved\n");
+			Con_DPrintf("Stale datagram recieved (%i<=%i)\n", sequence, chan->incoming_unreliable);
 			return NQP_ERROR;
 		}
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
 		{
-			Con_DPrintf("Dropped %i datagrams\n", drop);
+			Con_DPrintf("Dropped %i datagrams (%i - %i)\n", chan->incoming_unreliable+1, sequence-1);
 			chan->drop_count += drop;
 		}
 		chan->incoming_unreliable = sequence;

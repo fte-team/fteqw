@@ -8,17 +8,7 @@
 #endif
 
 #if defined(MENU_DAT) || defined(CSQC_DAT)
-
-struct
-{
-	float *drawfont;
-	float *drawfontscale;
-} mp_globs;
-
-
-
-
-
+#include "cl_master.h"
 
 //float	drawfill(vector position, vector size, vector rgb, float alpha, float flag) = #457;
 void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -91,30 +81,15 @@ void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, fl
 	int fontidx = 0;	//default by default...
 	world_t *world = prinst->parms->user;
 	struct font_s *font = font_conchar;
-	if (!world)
+
+	if (world->g.drawfontscale)
 	{
-		//menu progs.
-		if (mp_globs.drawfontscale)
-		{
-			szx *= mp_globs.drawfontscale[0];
-			szy *= mp_globs.drawfontscale[1];
-		}
-		if (mp_globs.drawfont)
-		{
-			fontidx = *mp_globs.drawfont;
-		}
+		szx *= world->g.drawfontscale[0];
+		szy *= world->g.drawfontscale[1];
 	}
-	else
+	if (world->g.drawfont)
 	{
-		if (world->g.drawfontscale)
-		{
-			szx *= world->g.drawfontscale[0];
-			szy *= world->g.drawfontscale[1];
-		}
-		if (world->g.drawfont)
-		{
-			fontidx = *world->g.drawfont;
-		}
+		fontidx = *world->g.drawfont;
 	}
 
 	if (fontidx >= 0 && fontidx < FONT_SLOTS)
@@ -905,164 +880,6 @@ static void QCBUILTIN PF_CopyEntity (pubprogfuncs_t *prinst, struct globalvars_s
 	memcpy(out->fields, in->fields, menuentsize);
 }
 
-#ifdef CL_MASTER
-#include "cl_master.h"
-
-void QCBUILTIN PF_M_gethostcachevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	hostcacheglobal_t hcg = G_FLOAT(OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = 0;
-	switch(hcg)
-	{
-	case SLIST_HOSTCACHEVIEWCOUNT:
-		CL_QueryServers();
-		Master_CheckPollSockets();
-		G_FLOAT(OFS_RETURN) = Master_NumSorted();
-		return;
-	case SLIST_HOSTCACHETOTALCOUNT:
-		CL_QueryServers();
-		Master_CheckPollSockets();
-		G_FLOAT(OFS_RETURN) = Master_TotalCount();
-		return;
-
-	case SLIST_MASTERQUERYCOUNT:
-	case SLIST_MASTERREPLYCOUNT:
-	case SLIST_SERVERQUERYCOUNT:
-	case SLIST_SERVERREPLYCOUNT:
-		G_FLOAT(OFS_RETURN) = 0;
-		return;
-
-	case SLIST_SORTFIELD:
-		G_FLOAT(OFS_RETURN) = Master_GetSortField();
-		return;
-	case SLIST_SORTDESCENDING:
-		G_FLOAT(OFS_RETURN) = Master_GetSortDescending();
-		return;
-	default:
-		return;
-	}
-}
-
-//void 	resethostcachemasks(void) = #615;
-void QCBUILTIN PF_M_resethostcachemasks(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	Master_ClearMasks();
-}
-//void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
-void QCBUILTIN PF_M_sethostcachemaskstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int mask = G_FLOAT(OFS_PARM0);
-	int field = G_FLOAT(OFS_PARM1);
-	char *str = PR_GetStringOfs(prinst, OFS_PARM2);
-	int op = G_FLOAT(OFS_PARM3);
-
-	Master_SetMaskString(mask, field, str, op);
-}
-//void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
-void QCBUILTIN PF_M_sethostcachemasknumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int mask = G_FLOAT(OFS_PARM0);
-	int field = G_FLOAT(OFS_PARM1);
-	int str = G_FLOAT(OFS_PARM2);
-	int op = G_FLOAT(OFS_PARM3);
-
-	Master_SetMaskInteger(mask, field, str, op);
-}
-//void 	resorthostcache(void) = #618;
-void QCBUILTIN PF_M_resorthostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	Master_SortServers();
-}
-//void	sethostcachesort(float fld, float descending) = #619;
-void QCBUILTIN PF_M_sethostcachesort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	Master_SetSortField(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
-}
-//void	refreshhostcache(void) = #620;
-void QCBUILTIN PF_M_refreshhostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	MasterInfo_Refresh();
-}
-//float	gethostcachenumber(float fld, float hostnr) = #621;
-void QCBUILTIN PF_M_gethostcachenumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float ret = 0;
-	int keynum = G_FLOAT(OFS_PARM0);
-	int svnum = G_FLOAT(OFS_PARM1);
-	serverinfo_t *sv;
-	sv = Master_SortedServer(svnum);
-
-	ret = Master_ReadKeyFloat(sv, keynum);
-
-	G_FLOAT(OFS_RETURN) = ret;
-}
-void QCBUILTIN PF_M_gethostcachestring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *ret;
-	int keynum = G_FLOAT(OFS_PARM0);
-	int svnum = G_FLOAT(OFS_PARM1);
-	serverinfo_t *sv;
-
-	sv = Master_SortedServer(svnum);
-	ret = Master_ReadKeyString(sv, keynum);
-
-	RETURN_TSTRING(ret);
-}
-
-//float	gethostcacheindexforkey(string key) = #622;
-void QCBUILTIN PF_M_gethostcacheindexforkey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
-
-	G_FLOAT(OFS_RETURN) = Master_KeyForName(keyname);
-}
-//void	addwantedhostcachekey(string key) = #623;
-void QCBUILTIN PF_M_addwantedhostcachekey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	PF_M_gethostcacheindexforkey(prinst, pr_globals);
-}
-
-void QCBUILTIN PF_M_getextresponse(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	//this does something weird
-	G_INT(OFS_RETURN) = 0;
-}
-
-void QCBUILTIN PF_netaddress_resolve(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
-	netadr_t adr;
-	char result[256];
-	if (NET_StringToAdr(address, &adr))
-		RETURN_TSTRING(NET_AdrToString (result, sizeof(result), adr));
-	else
-		RETURN_TSTRING("");
-}
-#else
-
-void PF_gethostcachevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
-void PF_gethostcachestring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals) {G_INT(OFS_RETURN) = 0;}
-//void 	resethostcachemasks(void) = #615;
-void PF_M_resethostcachemasks(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
-//void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
-void PF_M_sethostcachemaskstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
-//void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
-void PF_M_sethostcachemasknumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
-//void 	resorthostcache(void) = #618;
-void PF_M_resorthostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
-//void	sethostcachesort(float fld, float descending) = #619;
-void PF_M_sethostcachesort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
-//void	refreshhostcache(void) = #620;
-void PF_M_refreshhostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals) {}
-//float	gethostcachenumber(float fld, float hostnr) = #621;
-void PF_M_gethostcachenumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
-//float	gethostcacheindexforkey(string key) = #622;
-void PF_M_gethostcacheindexforkey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
-//void	addwantedhostcachekey(string key) = #623;
-void PF_M_addwantedhostcachekey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
-#endif
-
-
 void QCBUILTIN PF_localsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -1491,6 +1308,11 @@ static struct {
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
 															//gap
+	{"print",					PF_print,					339},
+	{"keynumtostring",			PF_cl_keynumtostring,		340},
+	{"stringtokeynum",			PF_cl_stringtokeynum,		341},
+	{"getkeybind",				PF_cl_getkeybind,			342},
+															//gap
 	{"isdemo",					PF_isdemo,					349},
 															//gap
 	{"findfont",				PF_CL_findfont,				356},
@@ -1585,33 +1407,29 @@ static struct {
 	{"getresolution",			PF_cl_getresolution,		608},
 	{"keynumtostring",			PF_cl_keynumtostring,		609},
 	{"findkeysforcommand",		PF_cl_findkeysforcommand,	610},
-#ifdef CL_MASTER
-	{"gethostcachevalue",		PF_M_gethostcachevalue,		611},
-	{"gethostcachestring",		PF_M_gethostcachestring,	612},
-#endif
+	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
+	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
 	{"parseentitydata",			PF_parseentitydata,			613},
 
 	{"stringtokeynum",			PF_cl_stringtokeynum,		614},
 
-	{"resethostcachemasks",		PF_M_resethostcachemasks,	615},
-	{"sethostcachemaskstring",	PF_M_sethostcachemaskstring,616},
-	{"sethostcachemasknumber",	PF_M_sethostcachemasknumber,617},
-	{"resorthostcache",			PF_M_resorthostcache,		618},
-	{"sethostcachesort",		PF_M_sethostcachesort,		619},
-	{"refreshhostcache",		PF_M_refreshhostcache,		620},
-	{"gethostcachenumber",		PF_M_gethostcachenumber,	621},
-	{"gethostcacheindexforkey",	PF_M_gethostcacheindexforkey,622},
-	{"addwantedhostcachekey",	PF_M_addwantedhostcachekey,	623},
-#ifdef CL_MASTER
-	{"getextresponse",			PF_M_getextresponse,		624},
+	{"resethostcachemasks",		PF_cl_resethostcachemasks,	615},
+	{"sethostcachemaskstring",	PF_cl_sethostcachemaskstring,616},
+	{"sethostcachemasknumber",	PF_cl_sethostcachemasknumber,617},
+	{"resorthostcache",			PF_cl_resorthostcache,		618},
+	{"sethostcachesort",		PF_cl_sethostcachesort,		619},
+	{"refreshhostcache",		PF_cl_refreshhostcache,		620},
+	{"gethostcachenumber",		PF_cl_gethostcachenumber,	621},
+	{"gethostcacheindexforkey",	PF_cl_gethostcacheindexforkey,622},
+	{"addwantedhostcachekey",	PF_cl_addwantedhostcachekey,623},
+	{"getextresponse",			PF_cl_getextresponse,		624},
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
-#endif
 															//gap
 	{"sprintf",					PF_sprintf,					627},
 															//gap
 	{"setkeybind",				PF_Fixme,					630},
-	{"getbindmaps",				PF_Fixme,					631},
-	{"setbindmaps",				PF_Fixme,					632},
+	{"getbindmaps",				PF_cl_GetBindMap,			631},
+	{"setbindmaps",				PF_cl_SetBindMap,			632},
 	{"crypto_getkeyfp",			PF_crypto_getkeyfp,			633},
 	{"crypto_getidfp",			PF_crypto_getidfp,			634},
 	{"crypto_getencryptlevel",	PF_crypto_getencryptlevel,	635},
@@ -1659,10 +1477,10 @@ void M_Init_Internal (void);
 void M_DeInit_Internal (void);
 
 int inmenuprogs;
-pubprogfuncs_t *menuprogs;
 progparms_t menuprogparms;
 menuedict_t *menu_edicts;
 int num_menu_edicts;
+world_t menu_world;
 
 func_t mp_init_function;
 func_t mp_shutdown_function;
@@ -1680,7 +1498,7 @@ void MP_Shutdown (void)
 {
 	extern int mouseusedforgui;
 	func_t temp;
-	if (!menuprogs)
+	if (!menu_world.progs)
 		return;
 /*
 	{
@@ -1695,11 +1513,11 @@ void MP_Shutdown (void)
 	temp = mp_shutdown_function;
 	mp_shutdown_function = 0;
 	if (temp && !inmenuprogs)
-		PR_ExecuteProgram(menuprogs, temp);
+		PR_ExecuteProgram(menu_world.progs, temp);
 
-	PR_Common_Shutdown(menuprogs, false);
-	menuprogs->CloseProgs(menuprogs);
-	menuprogs = NULL;
+	PR_Common_Shutdown(menu_world.progs, false);
+	menu_world.progs->CloseProgs(menu_world.progs);
+	memset(&menu_world, 0, sizeof(menu_world));
 	PR_ResetFonts(true);
 
 #ifdef CL_MASTER
@@ -1732,7 +1550,7 @@ void VARGS Menu_Abort (char *format, ...)
 		char *buffer;
 		int size = 1024*1024*8;
 		buffer = Z_Malloc(size);
-		menuprogs->save_ents(menuprogs, buffer, &size, 3);
+		menu_world.progs->save_ents(menu_world.progs, buffer, &size, 3);
 		COM_WriteFile("menucore.txt", buffer, size);
 		Z_Free(buffer);
 	}
@@ -1749,9 +1567,9 @@ void VARGS Menu_Abort (char *format, ...)
 
 void MP_CvarChanged(cvar_t *var)
 {
-	if (menuprogs)
+	if (menu_world.progs)
 	{
-		PR_AutoCvar(menuprogs, var);
+		PR_AutoCvar(menu_world.progs, var);
 	}
 }
 
@@ -1809,17 +1627,18 @@ qboolean MP_Init (void)
 
 	menuprogparms.useeditor = NULL;//sorry... QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
+	menuprogparms.user = &menu_world;
 
 	menutime = Sys_DoubleTime();
-	if (!menuprogs)
+	if (!menu_world.progs)
 	{
 		Con_DPrintf("Initializing menu.dat\n");
-		menuprogs = InitProgs(&menuprogparms);
-		PR_Configure(menuprogs, 64*1024*1024, 1);
-		if (PR_LoadProgs(menuprogs, "menu.dat", 10020, NULL, 0) < 0) //no per-progs builtins.
+		menu_world.progs = InitProgs(&menuprogparms);
+		PR_Configure(menu_world.progs, 64*1024*1024, 1);
+		if (PR_LoadProgs(menu_world.progs, "menu.dat", 10020, NULL, 0) < 0) //no per-progs builtins.
 		{
 			//failed to load or something
-//			CloseProgs(menuprogs);
+//			CloseProgs(menu_world.progs);
 //			menuprogs = NULL;
 			return false;
 		}
@@ -1831,33 +1650,33 @@ qboolean MP_Init (void)
 		}
 		inmenuprogs++;
 
-		PF_InitTempStrings(menuprogs);
+		PF_InitTempStrings(menu_world.progs);
 
-		mp_time = (float*)PR_FindGlobal(menuprogs, "time", 0, NULL);
+		mp_time = (float*)PR_FindGlobal(menu_world.progs, "time", 0, NULL);
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
 
-		mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
-		mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
+		menu_world.g.drawfont = (float*)PR_FindGlobal(menu_world.progs, "drawfont", 0, NULL);
+		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);
 
-		PR_AutoCvarSetup(menuprogs);
+		PR_AutoCvarSetup(menu_world.progs);
 
-		menuentsize = PR_InitEnts(menuprogs, 8192);
+		menuentsize = PR_InitEnts(menu_world.progs, 8192);
 
 
 		//'world' edict
-//		EDICT_NUM(menuprogs, 0)->readonly = true;
-		EDICT_NUM(menuprogs, 0)->isfree = false;
+//		EDICT_NUM(menu_world.progs, 0)->readonly = true;
+		EDICT_NUM(menu_world.progs, 0)->isfree = false;
 
 
-		mp_init_function = PR_FindFunction(menuprogs, "m_init", PR_ANY);
-		mp_shutdown_function = PR_FindFunction(menuprogs, "m_shutdown", PR_ANY);
-		mp_draw_function = PR_FindFunction(menuprogs, "m_draw", PR_ANY);
-		mp_keydown_function = PR_FindFunction(menuprogs, "m_keydown", PR_ANY);
-		mp_keyup_function = PR_FindFunction(menuprogs, "m_keyup", PR_ANY);
-		mp_toggle_function = PR_FindFunction(menuprogs, "m_toggle", PR_ANY);
+		mp_init_function = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
+		mp_shutdown_function = PR_FindFunction(menu_world.progs, "m_shutdown", PR_ANY);
+		mp_draw_function = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
+		mp_keydown_function = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
+		mp_keyup_function = PR_FindFunction(menu_world.progs, "m_keyup", PR_ANY);
+		mp_toggle_function = PR_FindFunction(menu_world.progs, "m_toggle", PR_ANY);
 		if (mp_init_function)
-			PR_ExecuteProgram(menuprogs, mp_init_function);
+			PR_ExecuteProgram(menu_world.progs, mp_init_function);
 		inmenuprogs--;
 
 		Con_DPrintf("Initialized menu.dat\n");
@@ -1870,20 +1689,20 @@ static void MP_GameCommand_f(void)
 {
 	void *pr_globals;
 	func_t gamecommand;
-	if (!menuprogs)
+	if (!menu_world.progs)
 		return;
-	gamecommand = PR_FindFunction(menuprogs, "GameCommand", PR_ANY);
+	gamecommand = PR_FindFunction(menu_world.progs, "GameCommand", PR_ANY);
 	if (!gamecommand)
 		return;
 
-	pr_globals = PR_globals(menuprogs, PR_CURRENT);
-	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menuprogs, Cmd_Args()));
-	PR_ExecuteProgram (menuprogs, gamecommand);
+	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menu_world.progs, Cmd_Args()));
+	PR_ExecuteProgram (menu_world.progs, gamecommand);
 }
 
 void MP_CoreDump_f(void)
 {
-	if (!menuprogs)
+	if (!menu_world.progs)
 	{
 		Con_Printf("Can't core dump, you need to be running the CSQC progs first.");
 		return;
@@ -1892,7 +1711,7 @@ void MP_CoreDump_f(void)
 	{
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
-		menuprogs->save_ents(menuprogs, buffer, &size, 3);
+		menu_world.progs->save_ents(menu_world.progs, buffer, &size, 3);
 		COM_WriteFile("menucore.txt", buffer, size);
 		BZ_Free(buffer);
 	}
@@ -1911,13 +1730,13 @@ void MP_Breakpoint_f(void)
 	char *filename = Cmd_Argv(1);
 	int line = atoi(Cmd_Argv(2));
 
-	if (!menuprogs)
+	if (!menu_world.progs)
 	{
 		Con_Printf("Menu not running\n");
 		return;
 	}
-	wasset = menuprogs->ToggleBreak(menuprogs, filename, line, 3);
-	isset = menuprogs->ToggleBreak(menuprogs, filename, line, 2);
+	wasset = menu_world.progs->ToggleBreak(menu_world.progs, filename, line, 3);
+	isset = menu_world.progs->ToggleBreak(menu_world.progs, filename, line, 2);
 
 	if (wasset == isset)
 		Con_Printf("Breakpoint was not valid\n");
@@ -1944,7 +1763,7 @@ void MP_RegisterCvarsAndCmds(void)
 
 void MP_Draw(void)
 {
-	if (!menuprogs)
+	if (!menu_world.progs)
 		return;
 	if (setjmp(mp_abort))
 		return;
@@ -1955,7 +1774,7 @@ void MP_Draw(void)
 
 	inmenuprogs++;
 	if (mp_draw_function)
-		PR_ExecuteProgram(menuprogs, mp_draw_function);
+		PR_ExecuteProgram(menu_world.progs, mp_draw_function);
 	inmenuprogs--;
 }
 
@@ -1996,10 +1815,10 @@ void MP_Keydown(int key, int unicode)
 	inmenuprogs++;
 	if (mp_keydown_function)
 	{
-		void *pr_globals = PR_globals(menuprogs, PR_CURRENT);
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoDPCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
-		PR_ExecuteProgram(menuprogs, mp_keydown_function);
+		PR_ExecuteProgram(menu_world.progs, mp_keydown_function);
 	}
 	inmenuprogs--;
 }
@@ -2021,17 +1840,17 @@ void MP_Keyup(int key, int unicode)
 	inmenuprogs++;
 	if (mp_keyup_function)
 	{
-		void *pr_globals = PR_globals(menuprogs, PR_CURRENT);
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoDPCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
-		PR_ExecuteProgram(menuprogs, mp_keyup_function);
+		PR_ExecuteProgram(menu_world.progs, mp_keyup_function);
 	}
 	inmenuprogs--;
 }
 
 qboolean MP_Toggle(void)
 {
-	if (!menuprogs)
+	if (!menu_world.progs)
 		return false;
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -2048,9 +1867,9 @@ qboolean MP_Toggle(void)
 	inmenuprogs++;
 	if (mp_toggle_function)
 	{
-		void *pr_globals = PR_globals(menuprogs, PR_CURRENT);
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = 1;
-		PR_ExecuteProgram(menuprogs, mp_toggle_function);
+		PR_ExecuteProgram(menu_world.progs, mp_toggle_function);
 	}
 	inmenuprogs--;
 

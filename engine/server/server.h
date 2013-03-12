@@ -308,6 +308,7 @@ typedef struct	//merge?
 	int					num_entities;
 	int					first_entity;		// into the circular sv_packet_entities[]
 	int					senttime;			// for ping calculations
+	float				ping_time;
 } q2client_frame_t;
 #endif
 #ifdef Q3SERVER

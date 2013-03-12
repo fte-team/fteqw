@@ -476,7 +476,7 @@ void CL_SendConnectPacket (int mtu,
 
 	t1 = Sys_DoubleTime ();
 
-	if (!NET_StringToAdr (cls.servername, &adr))
+	if (!NET_StringToAdr (cls.servername, PORT_QWSERVER, &adr))
 	{
 		Con_TPrintf (TLC_BADSERVERADDRESS);
 		connect_time = -1;
@@ -493,8 +493,6 @@ void CL_SendConnectPacket (int mtu,
 		return;
 	}
 
-	if (adr.port == 0)
-		adr.port = BigShort (PORT_QWSERVER);
 	t2 = Sys_DoubleTime ();
 
 	cls.resendinfo = false;
@@ -651,7 +649,7 @@ void CL_CheckForResend (void)
 			break;
 #endif
 		default:
-			cl.movemessages = 0;
+			cl.movesequence = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
 				cls.protocol = CP_QUAKEWORLD;
 			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
@@ -692,7 +690,7 @@ void CL_CheckForResend (void)
 
 		if (cls.protocol == CP_NETQUAKE)
 		{
-			if (!NET_StringToAdr (cls.servername, &adr))
+			if (!NET_StringToAdr (cls.servername, connect_defaultport, &adr))
 			{
 				Con_TPrintf (TLC_BADSERVERADDRESS);
 				connect_time = -1;
@@ -762,7 +760,7 @@ void CL_CheckForResend (void)
 		return;
 
 	t1 = Sys_DoubleTime ();
-	if (!NET_StringToAdr (cls.servername, &adr))
+	if (!NET_StringToAdr (cls.servername, connect_defaultport, &adr))
 	{
 		Con_TPrintf (TLC_BADSERVERADDRESS);
 		connect_time = -1;
@@ -777,15 +775,6 @@ void CL_CheckForResend (void)
 		return;
 	}
 
-	if (adr.port == 0)
-	{
-		adr.port = BigShort (connect_defaultport);	//assume a different port for nq
-
-		if (!strchr(cls.servername, ':'))
-		{
-			Q_strncatz(cls.servername, va(":%u", connect_defaultport), sizeof(cls.servername));
-		}
-	}
 	t2 = Sys_DoubleTime ();
 
 	connect_time = realtime+t2-t1;	// for retransmit requests
@@ -1064,9 +1053,7 @@ void CL_Rcon_f (void)
 
 			return;
 		}
-		NET_StringToAdr (rcon_address.string, &to);
-		if (!to.port)
-			to.port = PORT_QWSERVER;
+		NET_StringToAdr (rcon_address.string, PORT_QWSERVER, &to);
 	}
 
 	NET_SendPacket (NS_CLIENT, strlen(message)+1, message
@@ -1129,10 +1116,10 @@ void CL_ClearState (void)
 
 	for (i = 0; i < UPDATE_BACKUP; i++)
 	{
-		if (cl.frames[i].packet_entities.entities)
+		if (cl.inframes[i].packet_entities.entities)
 		{
-			Z_Free(cl.frames[i].packet_entities.entities);
-			cl.frames[i].packet_entities.entities = NULL;
+			Z_Free(cl.inframes[i].packet_entities.entities);
+			cl.inframes[i].packet_entities.entities = NULL;
 		}
 	}
 
@@ -1325,6 +1312,9 @@ void CL_Disconnect (void)
 	Cvar_ForceSet(&cl_servername, "none");
 
 	CL_ClearState();
+
+	//now start up the csqc/menu module again.
+	CSQC_UnconnectedInit();
 }
 
 #undef serverrunning
@@ -1627,10 +1617,7 @@ void CL_CheckServerInfo(void)
 	if (cls.maxfps < 20)
 		cls.maxfps = 72;
 
-	if (!atoi(Info_ValueForKey(cl.serverinfo, "deathmatch")))
-		cls.gamemode = GAME_COOP;
-	else
-		cls.gamemode = GAME_DEATHMATCH;
+	cls.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
 
 	cls.z_ext = atoi(Info_ValueForKey(cl.serverinfo, "*z_ext"));
 
@@ -1926,7 +1913,7 @@ void CL_Packet_f (void)
 		return;
 	}
 
-	if (!NET_StringToAdr (Cmd_Argv(1), &adr))
+	if (!NET_StringToAdr (Cmd_Argv(1), PORT_QWSERVER, &adr))
 	{
 		Con_Printf ("Bad address: %s\n", Cmd_Argv(1));
 		return;
@@ -2780,7 +2767,7 @@ void CL_ReadPackets (void)
 			case NQP_ERROR:
 				break;
 			case NQP_DATAGRAM://datagram
-				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
+//				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
 			case NQP_RELIABLE://reliable
 				MSG_ChangePrimitives(cls.netchan.netprim);
 				CLNQ_ParseServerMessage ();

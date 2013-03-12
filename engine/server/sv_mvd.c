@@ -1601,8 +1601,6 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		{	/*everything*/
 			demo.recorder.fteprotocolextensions = PEXT_CSQC | PEXT_COLOURMOD | PEXT_DPFLAGS | PEXT_CUSTOMTEMPEFFECTS | PEXT_ENTITYDBL | PEXT_ENTITYDBL2 | PEXT_FATNESS | PEXT_HEXEN2 | PEXT_HULLSIZE | PEXT_LIGHTSTYLECOL | PEXT_MODELDBL | PEXT_SCALE | PEXT_SETATTACHMENT | PEXT_SETVIEW | PEXT_SOUNDDBL | PEXT_SPAWNSTATIC2 | PEXT_TRANS | PEXT_VIEW2;
 			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_PRYDONCURSOR | PEXT2_REPLACEMENTDELTAS;
-			/*assume that all playback will be done with a valid csprogs that can correctly decode*/
-			demo.recorder.csqcactive = true;
 			/*enable these, because we might as well (stat ones are always useful)*/
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
 		}
@@ -1616,6 +1614,8 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		//pointless extensions that are redundant with mvds
 		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;
 
+		/*assume that all playback will be done with a valid csprogs that can correctly decode*/
+		demo.recorder.csqcactive = (demo.recorder.fteprotocolextensions & PEXT_CSQC);
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);

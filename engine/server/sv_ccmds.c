@@ -1954,7 +1954,7 @@ void SV_Snap (int uid)
 	{
 		pcxname[strlen(pcxname) - 6] = i/10 + '0';
 		pcxname[strlen(pcxname) - 5] = i%10 + '0';
-		Q_snprintfz (checkname, sizeof(checkname), "%s/snap/%s", gamedirfile, pcxname);
+		Q_snprintfz (checkname, sizeof(checkname), "snap/%s", pcxname);
 		if (!COM_FCheckExists(checkname))
 			break;	// file doesn't exist
 	}

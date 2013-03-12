@@ -57,7 +57,7 @@ void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable)
 	qbyte	*dest, *source;
 	qbyte identityTable[256];
 
-	int pc = Cvar_Get("cl_playerclass", "1", 0, "foo")->value;
+	int pc = Cvar_Get("cl_playerclass", "1", 0, "Hexen2")->value;
 	if (h2playertranslations && pc)
 	{
 		int i;
@@ -196,6 +196,10 @@ void M_ToggleMenu_f (void)
 		return;
 	}
 
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand("togglemenu"))
+		return;
+#endif
 #ifdef MENU_DAT
 	if (MP_Toggle())
 		return;
@@ -1027,6 +1031,8 @@ void M_Reinit(void)
 #endif
 	{
 		M_Init_Internal();
+
+		CSQC_UnconnectedInit();
 	}
 }
 

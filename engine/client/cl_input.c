@@ -277,7 +277,7 @@ void IN_JumpDown (void)
 	else
 #endif
 		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
-		cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[pnum]].messagenum == cl.validsequence && cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
+		cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[pnum]].messagenum == cl.validsequence && cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
 	else if (condition && cl.spectator && Cam_TrackNum(pnum) == -1)
@@ -804,7 +804,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 // always dump the first two message, because it may contain leftover inputs
 // from the last level
 //
-	if (++cl.movemessages <= 2)
+	if (cl.movesequence <= 2)
 	{
 		cmd->buttons = 0;
 		return;
@@ -923,16 +923,13 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 {
 	int i;
 
-	vec3_t cursor_start, cursor_impact;
-	int cursor_entitynumber=0;//I hate warnings as errors
-
 	if (cls.demoplayback!=DPB_NONE)
 		return;	//err... don't bother... :)
 //
 // always dump the first two message, because it may contain leftover inputs
 // from the last level
 //
-	if (++cl.movemessages <= 2 || cls.state == ca_connected)
+	if (cl.movesequence <= 2 || cls.state == ca_connected)
 	{
 		MSG_WriteByte (buf, clc_nop);
 		return;
@@ -940,8 +937,8 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	MSG_WriteByte (buf, clc_move);
 
-	if (cls.protocol_nq >= CPNQ_DP7)
-		MSG_WriteLong(buf, cls.netchan.outgoing_sequence);
+	if (cls.protocol_nq >= CPNQ_DP7 || (cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+		MSG_WriteLong(buf, cl.movesequence);
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 
@@ -961,20 +958,15 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteShort (buf, cmd->sidemove);
 	MSG_WriteShort (buf, cmd->upmove);
 
-	if (cls.protocol_nq >= CPNQ_DP6)
+	if (cls.protocol_nq >= CPNQ_DP6 || (cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
 	{
+		vec3_t cursor_start, cursor_impact;
+		int cursor_entitynumber;
+
 		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
+
 		MSG_WriteLong (buf, cmd->buttons);
-	}
-	else
-		MSG_WriteByte (buf, cmd->buttons);
-
-
-	MSG_WriteByte (buf, cmd->impulse);
-
-
-	if (cls.protocol_nq >= CPNQ_DP6)
-	{
+		MSG_WriteByte (buf, cmd->impulse);
 		MSG_WriteShort (buf, cursor_screen[0] * 32767.0f);
 		MSG_WriteShort (buf, cursor_screen[1] * 32767.0f);
 		MSG_WriteFloat (buf, cursor_start[0]);
@@ -984,6 +976,11 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 		MSG_WriteFloat (buf, cursor_impact[1]);
 		MSG_WriteFloat (buf, cursor_impact[2]);
 		MSG_WriteEntity (buf, cursor_entitynumber);
+	}
+	else
+	{
+		MSG_WriteByte (buf, cmd->buttons);
+		MSG_WriteByte (buf, cmd->impulse);
 	}
 }
 
@@ -1001,14 +998,28 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 void CLNQ_SendCmd(sizebuf_t *buf)
 {
 	int i;
+	usercmd_t *cmd;
 
-//	if (cls.signon == 4)
+	i = cl.movesequence & UPDATE_MASK;
+	cl.outframes[i].senttime = realtime;
+	cmd = &cl.outframes[i].cmd[0];
+	*cmd = independantphysics[0];
+	cmd->lightlevel = 0;
+#ifdef CSQC_DAT
+	CSQC_Input_Frame(0, cmd);
+#endif
+	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+
+
+
+	//inputs are only sent once we receive an entity.
+	if (cls.signon == 4)
 	{
 	// send the unreliable message
 		if (independantphysics[0].impulse && !cls.netchan.message.cursize)
-			CLNQ_SendMove (&independantphysics[0], 0, &cls.netchan.message);
+			CLNQ_SendMove (cmd, 0, &cls.netchan.message);
 		else
-			CLNQ_SendMove (&independantphysics[0], 0, buf);
+			CLNQ_SendMove (cmd, 0, buf);
 	}
 
 	for (i = 0; i < cl.numackframes; i++)
@@ -1017,8 +1028,6 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 		MSG_WriteLong(buf, cl.ackframes[i]);
 	}
 	cl.numackframes = 0;
-
-	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 }
 #else
 void Name_Callback(struct cvar_s *var, char *oldvalue)
@@ -1287,7 +1296,7 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 
 
 	i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
-	cmd = &cl.frames[i].cmd[plnum];
+	cmd = &cl.outframes[i].cmd[plnum];
 	if (cl_c2sImpulseBackup.ival >= 2)
 		dontdrop = dontdrop || cmd->impulse;
 	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd);
@@ -1296,21 +1305,21 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 	i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
 	if (cl_c2sImpulseBackup.ival >= 3)
 		dontdrop = dontdrop || cmd->impulse;
-	cmd = &cl.frames[i].cmd[plnum];
+	cmd = &cl.outframes[i].cmd[plnum];
 	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
 	if (cl_c2sImpulseBackup.ival >= 1)
 		dontdrop = dontdrop || cmd->impulse;
-	cmd = &cl.frames[i].cmd[plnum];
+	cmd = &cl.outframes[i].cmd[plnum];
 	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
 
 	return dontdrop;
 }
 
 #ifdef Q2CLIENT
-qboolean CL_SendCmdQ2 (sizebuf_t *buf)
+qboolean CLQ2_SendCmd (sizebuf_t *buf)
 {
 	int seq_hash;
 	qboolean dontdrop;
@@ -1323,7 +1332,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 // send this and the previous cmds in the message, so
 // if the last packet was dropped, it can be recovered
 	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-	cmd = &cl.frames[i].cmd[0];
+	cmd = &cl.outframes[i].cmd[0];
 
 	if (cls.resendinfo)
 	{
@@ -1349,13 +1358,12 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 //	msecs = msecs - (double)msecstouse;
 
 	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-	cmd = &cl.frames[i].cmd[0];
+	cmd = &cl.outframes[i].cmd[0];
 	*cmd = independantphysics[0];
 	
 	cmd->lightlevel = lightlev;
 
-	cl.frames[i].senttime = realtime;
-	cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+	cl.outframes[i].senttime = realtime;
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 
 	if (cmd->buttons)
@@ -1368,8 +1376,6 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 		buf->data + checksumIndex + 1, buf->cursize - checksumIndex - 1,
 		seq_hash);
 
-	cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
-
 	if (cl.sendprespawn)
 		buf->cursize = 0;	//tastyspleen.net is alergic.
 
@@ -1377,16 +1383,18 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 }
 #endif
 
-qboolean CL_SendCmdQW (sizebuf_t *buf)
+qboolean CLQW_SendCmd (sizebuf_t *buf)
 {
 	int seq_hash;
 	qboolean dontdrop = false;
 	usercmd_t *cmd;
 	int checksumIndex, firstsize, plnum;
 	int clientcount, lost;
-	int curframe = cls.netchan.outgoing_sequence & UPDATE_MASK;
+	int curframe;
 	int st = buf->cursize;
 
+	cl.movesequence = cls.netchan.outgoing_sequence;	//make sure its correct even over map changes.
+	curframe = cls.netchan.outgoing_sequence & UPDATE_MASK;
 	seq_hash = cls.netchan.outgoing_sequence;
 
 // send this and the previous cmds in the message, so
@@ -1399,7 +1407,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 
 	for (plnum = 0; plnum<clientcount; plnum++)
 	{
-		cmd = &cl.frames[curframe].cmd[plnum];
+		cmd = &cl.outframes[curframe].cmd[plnum];
 		*cmd = independantphysics[plnum];
 		
 		cmd->lightlevel = 0;
@@ -1408,15 +1416,13 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 #endif
 		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 	}
-	cl.frames[curframe].senttime = realtime;
-	cl.frames[curframe].receivedtime = -1;		// we haven't gotten a reply yet
-
+	cl.outframes[curframe].senttime = realtime;
 
 	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && (*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
 	{
 		vec3_t cursor_start, cursor_impact;
 		int cursor_entitynumber = 0;
-		cmd = &cl.frames[curframe].cmd[0];
+		cmd = &cl.outframes[curframe].cmd[0];
 		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
 		MSG_WriteByte (buf, clc_prydoncursor);
 		MSG_WriteShort(buf, cursor_screen[0] * 32767.0f);
@@ -1445,7 +1451,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	firstsize=0;
 	for (plnum = 0; plnum<clientcount; plnum++)
 	{
-		cmd = &cl.frames[curframe].cmd[plnum];
+		cmd = &cl.outframes[curframe].cmd[plnum];
 
 		if (plnum)
 			MSG_WriteByte (buf, clc_move);
@@ -1466,15 +1472,16 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
 		cl.validsequence = 0;
 
+	//delta_sequence is the _expected_ previous sequences, so is set before it arrives.
 	if (cl.validsequence && !cl_nodelta.ival && cls.state == ca_active && !cls.demorecording)
 	{
-		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
+		cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
 		MSG_WriteByte (buf, clc_delta);
 //		Con_Printf("%i\n", cl.validsequence);
 		MSG_WriteByte (buf, cl.validsequence&255);
 	}
 	else
-		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
+		cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
 
 	if (cl.sendprespawn)
 		buf->cursize = st;	//tastyspleen.net is alergic.
@@ -1515,10 +1522,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			extern cvar_t cl_splitscreen;
-			cl.ackedinputsequence = cls.netchan.outgoing_sequence;
-			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
-//			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+			cl.ackedmovesequence = cl.movesequence;
+			i = cl.movesequence & UPDATE_MASK;
+			cl.movesequence++;
+			cl.outframes[i].senttime = realtime;		// we haven't gotten a reply yet
+//			cl.outframes[i].receivedtime = -1;		// we haven't gotten a reply yet
 
 			if (cl.splitclients > cl_splitscreen.ival+1)
 			{
@@ -1528,7 +1536,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			}
 			for (plnum = 0; plnum < cl.splitclients; plnum++)
 			{
-				cmd = &cl.frames[i].cmd[plnum];
+				cmd = &cl.outframes[i].cmd[plnum];
 
 				memset(cmd, 0, sizeof(*cmd));
 				msecs += frametime*1000;
@@ -1567,7 +1575,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				clientcmdlist = next;
 			}
 
-			cls.netchan.outgoing_sequence++;
+			cls.netchan.outgoing_sequence = cl.movesequence;
 		}
 
 		IN_Move (NULL, 0);
@@ -1721,26 +1729,17 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #ifdef NQPROT
 		case CP_NETQUAKE:
 			msecs -= (double)msecstouse;
-			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-			cmd = &cl.frames[i].cmd[0];
-			*cmd = independantphysics[0];
-			cl.frames[i].senttime = realtime;
-			cl.frames[i].receivedtime = -1;	// nq doesn't allow us to find our own packetloss
-
-#ifdef CSQC_DAT
-			CSQC_Input_Frame(0, cmd);
-#endif
 			CLNQ_SendCmd (&buf);
 			break;
 #endif
 		case CP_QUAKEWORLD:
 			msecs -= (double)msecstouse;
-			dontdrop = CL_SendCmdQW (&buf);
+			dontdrop = CLQW_SendCmd (&buf);
 			break;
 #ifdef Q2CLIENT
 		case CP_QUAKE2:
 			msecs -= (double)msecstouse;
-			dontdrop = CL_SendCmdQ2 (&buf);
+			dontdrop = CLQ2_SendCmd (&buf);
 			break;
 #endif
 #ifdef Q3CLIENT
@@ -1755,11 +1754,13 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		}
 	}
 
-	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
-	cmd = &cl.frames[i].cmd[0];
+	i = cl.movesequence & UPDATE_MASK;
+	cmd = &cl.outframes[i].cmd[0];
 
 	if (cls.demorecording)
 		CL_WriteDemoCmd(cmd);
+
+	cl.movesequence++;
 
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type == NA_IRC)
@@ -1771,7 +1772,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		else
 		{
 			// don't count this message when calculating PL
-			cl.frames[i].receivedtime = -3;
+			cl.inframes[i].latency = -3;
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;
@@ -1801,7 +1802,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		else
 		{
 			// don't count this message when calculating PL
-			cl.frames[i].receivedtime = -3;
+			cl.inframes[i].latency = -3;
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;

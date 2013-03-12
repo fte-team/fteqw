@@ -369,7 +369,7 @@ void S_Voip_Parse(void)
 	}
 	MSG_ReadData(data, bytes);
 
-	sender &= MAX_CLIENTS-1;
+	sender %= MAX_CLIENTS;
 
 	amp = s_speex.decamp[sender];
 
@@ -906,6 +906,9 @@ void S_Startup (void)
 	S_ClearRaw();
 
 	CL_InitTEntSounds();
+
+	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
+	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 }
 
 void S_SetUnderWater(qboolean underwater)
@@ -930,9 +933,6 @@ void S_DoRestart (void)
 		return;
 
 	S_Startup();
-
-	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
-	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 
 	S_StopAllSounds (true);
 
@@ -1170,16 +1170,6 @@ void S_Init (void)
 
 	known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
 	num_sfx = 0;
-
-// create a piece of DMA memory
-
-	if (sndcardinfo)
-		Con_SafePrintf ("Sound sampling rate: %i\n", sndcardinfo->sn.speed);
-
-	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
-	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
-
-	S_StopAllSounds (true);
 }
 
 
@@ -1278,6 +1268,13 @@ void S_Purge(qboolean retaintouched)
 {
 	sfx_t	*sfx;
 	int i;
+
+	//make sure ambients are kept. silly ambients.
+	if (retaintouched)
+	{
+		ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
+		ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
+	}
 
 	S_LockMixer();
 	for (i=0 ; i < num_sfx ; i++)
@@ -1438,8 +1435,9 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 
 	dist = VectorNormalize(world_vec) * ch->dist_mult;
 
-	listener_vec[1] = DotProduct(listener_right, world_vec);
+	//rotate the world_vec into listener space, so that the audio direction stored in the speakerdir array can be used directly.
 	listener_vec[0] = DotProduct(listener_forward, world_vec);
+	listener_vec[1] = DotProduct(listener_right, world_vec);
 	listener_vec[2] = DotProduct(listener_up, world_vec);
 
 	if (snd_leftisright.ival)
@@ -1447,9 +1445,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-		scale = (1 + DotProduct(listener_vec, sc->speakerdir[i])) / 2;
-		if (scale > 1)
-			scale = 1;
+		scale = 1 + DotProduct(listener_vec, sc->speakerdir[i]);
 		scale = (1.0 - dist) * scale * sc->dist[i];
 		ch->vol[i] = (int) (ch->master_vol * scale);
 		if (ch->vol[i] < 0)
@@ -1813,7 +1809,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		return;
 
 	l = Q1BSP_LeafForPoint(cl.worldmodel, listener_origin);
-	if (!l || !ambient_level.value)
+	if (!l || ambient_level.value <= 0)
 	{
 		for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
 		{

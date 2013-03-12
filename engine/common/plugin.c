@@ -807,24 +807,12 @@ static qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const q
 	int maxcount = VM_LONG(arg[2]);
 
 	netadr_t a;
-	if (localip)
-	{
-		if (!NET_StringToAdr(localip, &a))
-			return -1;
-		NetadrToSockadr(&a, &address);
-	}
-	else
-	{
-		memset(&address, 0, sizeof(address));
-		((struct sockaddr_in*)&address)->sin_family = AF_INET;
-	}
+	if (!localip)
+		localip = "0.0.0.0";	//pass "[::]" for ipv6
 
-	if (((struct sockaddr_in*)&address)->sin_family == AF_INET && !((struct sockaddr_in*)&address)->sin_port)
-		((struct sockaddr_in*)&address)->sin_port = htons(localport);
-#ifdef IPPROTO_IPV6
-	else if (((struct sockaddr_in6*)&address)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&address)->sin6_port)
-		((struct sockaddr_in6*)&address)->sin6_port = htons(localport);
-#endif
+	if (!NET_StringToAdr(localip, localport, &a))
+		return -1;
+	NetadrToSockadr(&a, &address);
 
 	switch(((struct sockaddr*)&address)->sa_family)
 	{
@@ -914,8 +902,8 @@ static qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qint
 //EBUILTIN(int, NET_TCPConnect, (char *ip, int port));
 qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	char *localip = VM_POINTER(arg[0]);
-	unsigned short localport = VM_LONG(arg[1]);
+	char *remoteip = VM_POINTER(arg[0]);
+	unsigned short remoteport = VM_LONG(arg[1]);
 
 	int handle;
 	struct sockaddr_qstorage to, from;
@@ -924,16 +912,9 @@ qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr
 
 	netadr_t a;
 
-	if (!NET_StringToAdr(localip, &a))
+	if (!NET_StringToAdr(remoteip, remoteport, &a))
 		return -1;
 	NetadrToSockadr(&a, &to);
-	if (((struct sockaddr_in*)&to)->sin_family == AF_INET && !((struct sockaddr_in*)&to)->sin_port)
-		((struct sockaddr_in*)&to)->sin_port = htons(localport);
-#ifdef IPPROTO_IPV6
-	else if (((struct sockaddr_in6*)&to)->sin6_family == AF_INET6 && !((struct sockaddr_in6*)&to)->sin6_port)
-		((struct sockaddr_in6*)&to)->sin6_port = htons(localport);
-#endif
-
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{

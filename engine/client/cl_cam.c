@@ -420,7 +420,7 @@ void Cam_SelfTrack(int pnum)
 void Cam_Track(int pnum, usercmd_t *cmd)
 {
 	player_state_t *player, *self;
-	frame_t *frame;
+	inframe_t *frame;
 	vec3_t vec;
 	float len;
 
@@ -443,7 +443,7 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 		return;
 	}
 
-	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
+	frame = &cl.inframes[cl.validsequence & UPDATE_MASK];
 	player = frame->playerstate + spec_track[pnum];
 	self = frame->playerstate + cl.playernum[pnum];
 
@@ -517,7 +517,7 @@ void Cam_SetAutoTrack(int userid)
 
 void Cam_TrackCrosshairedPlayer(int pnum)
 {
-	frame_t *frame;
+	inframe_t *frame;
 	player_state_t *player;
 	int i;
 	float dot = 0.1, bestdot=0;
@@ -525,7 +525,7 @@ void Cam_TrackCrosshairedPlayer(int pnum)
 	vec3_t selforg;
 	vec3_t dir;
 
-	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
+	frame = &cl.inframes[cl.validsequence & UPDATE_MASK];
 	player = frame->playerstate + cl.playernum[pnum];
 	VectorCopy(player->origin, selforg);
 

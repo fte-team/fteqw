@@ -695,6 +695,9 @@ void PM_AirMove (void)
 			blocked = PM_StepSlideMove (true);
 		else
 			blocked = PM_SlideMove ();
+
+		if (blocked & BLOCKED_FLOOR)
+			pmove.onground = true;
 	}
 }
 
@@ -978,6 +981,10 @@ void PM_NudgePosition (void)
 	for (i=0 ; i<3 ; i++)
 		base[i] = ((int)(base[i]*8)) * 0.125;
 
+	if (pmove.velocity[0] || pmove.velocity[1])
+		if (PM_TestPlayerPosition (pmove.origin))
+			return;
+
 	for (z=0 ; z<=4 ; z++)
 	{
 		for (x=0 ; x<=4 ; x++)
@@ -1096,7 +1103,8 @@ void PM_PlayerMove (float gamespeed)
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
 
-	if (pmove.pm_type == PM_NONE || pmove.pm_type == PM_FREEZE) {
+	if (pmove.pm_type == PM_NONE || pmove.pm_type == PM_FREEZE)
+	{
 		PM_CategorizePosition ();
 		return;
 	}

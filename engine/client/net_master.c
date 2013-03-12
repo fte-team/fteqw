@@ -597,7 +597,7 @@ void Master_AddMaster (char *address, int type, char *description)
 	netadr_t adr;
 	master_t *mast;
 
-	if (!NET_StringToAdr(address, &adr))
+	if (!NET_StringToAdr(address, 0, &adr))
 	{
 		Con_Printf("Failed to resolve address \"%s\"\n", address);
 		return;
@@ -805,7 +805,7 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			Master_LoadMasterList(file, servertype, depth);
 		else if (servertype < 0)
 		{
-			if (NET_StringToAdr(line, &net_from))
+			if (NET_StringToAdr(line, 0, &net_from))
 				CL_ReadServerInfo(va("\\hostname\\%s", name), -servertype, true);
 			else
 				Con_Printf("Failed to resolve address - \"%s\"\n", line);
@@ -1160,7 +1160,7 @@ void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 		if (*s == '#')	//hash is a comment, apparently.
 			continue;
 
-		if (!NET_StringToAdr(s, &adr))
+		if (!NET_StringToAdr(s, 80, &adr))
 			continue;
 
 		if ((info = Master_InfoForServer(adr)))	//remove if the server already exists.
@@ -1228,7 +1228,7 @@ char *jsonnode(int level, char *node)
 			if (level == 1)
 			{
 				if (!strcmp(key, "IPAddress"))
-					NET_StringToAdr(com_token, &adr);
+					NET_StringToAdr(com_token, 0, &adr);
 				if (!strcmp(key, "Port"))
 					port = atoi(com_token);
 				if (!strcmp(key, "DNS"))

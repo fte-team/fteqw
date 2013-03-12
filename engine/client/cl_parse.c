@@ -315,26 +315,28 @@ int packet_latency[NET_TIMINGS];
 
 int CL_CalcNet (void)
 {
-	int		a, i;
-	frame_t	*frame;
-	int lost;
+	int		i;
+	inframe_t	*frame;
+	int lost = 0;
 	int percent;
 	int sent;
-	int pending;
 //	char st[80];
 
 	sent = NET_TIMINGS;
 
 	for (i=cls.netchan.outgoing_sequence-UPDATE_BACKUP+1
-		; i <= cls.netchan.outgoing_sequence
+		; i <= (cl_countpendingpl.ival?cls.netchan.outgoing_sequence:cl.parsecount)
 		; i++)
 	{
-		frame = &cl.frames[i&UPDATE_MASK];
-		if (frame->receivedtime == -1)
+		frame = &cl.inframes[i&UPDATE_MASK];
+		if (frame->latency == -1)
+		{
 			packet_latency[i&NET_TIMINGSMASK] = 9999;	// dropped
-		else if (frame->receivedtime == -2)
+			lost++;
+		}
+		else if (frame->latency == -2)
 			packet_latency[i&NET_TIMINGSMASK] = 10000;	// choked
-		else if (frame->receivedtime == -3)
+		else if (frame->latency == -3)
 		{
 			packet_latency[i&NET_TIMINGSMASK] = 9997;	// c2spps
 			sent--;
@@ -342,38 +344,13 @@ int CL_CalcNet (void)
 		else if (frame->invalid)
 			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
 		else
-			packet_latency[i&NET_TIMINGSMASK] = (frame->receivedtime - frame->senttime)*60;
+			packet_latency[i&NET_TIMINGSMASK] = frame->latency * 60;
 	}
 
-	lost = 0;
-	for (a=0 ; a<NET_TIMINGS ; a++)
-	{
-		i = (cls.netchan.outgoing_sequence-a) & NET_TIMINGSMASK;
-		if (packet_latency[i] == 9999)
-			lost++;
-	}
-
-	if (!cl_countpendingpl.ival)
-	{
-		pending = cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence - 1;
-		lost -= pending;
-		sent -= pending;
-
-		if (sent < 1)
-			percent = 100;
-		else
-			percent = lost * 100 / sent;
-
-		if (lost && !percent)	//if they have any confirmed lost packets, report at least 1%
-			percent = 1;
-	}
+	if (sent < 1)
+		percent = 100;	//shouldn't ever happen.
 	else
-	{
-		if (sent < 1)
-			percent = 100;	//shouldn't ever happen.
-		else
-			percent = lost * 100 / sent;
-	}
+		percent = lost * 100 / sent;
 
 	return percent;
 }
@@ -2467,8 +2444,8 @@ void CLQW_ParseServerData (void)
 			cl.playernum[j] = cl.allocated_client_slots + j;
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
-				cl.frames[i].playerstate[cl.playernum[j]].pm_type = PM_SPECTATOR;
-				cl.frames[i].playerstate[cl.playernum[j]].messagenum = 1;
+				cl.inframes[i].playerstate[cl.playernum[j]].pm_type = PM_SPECTATOR;
+				cl.inframes[i].playerstate[cl.playernum[j]].messagenum = 1;
 			}
 		}
 		cl.spectator = true;
@@ -2922,7 +2899,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	}
 
 	//update gamemode
-	if (gametype == 1)
+	if (gametype != GAME_COOP)
 		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "1", sizeof(cl.serverinfo));
 	else
 		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "0", sizeof(cl.serverinfo));
@@ -3923,8 +3900,7 @@ Server information pertaining to this client only, sent every frame
 void CL_ParseClientdata (void)
 {
 	int				i;
-	float		latency;
-	frame_t		*frame;
+	inframe_t		*frame;
 
 // calculate simulated time of message
 	oldparsecountmod = parsecountmod;
@@ -3938,30 +3914,24 @@ void CL_ParseClientdata (void)
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
-
-	if (CPNQ_IS_DP)
-		i = cls.netchan.incoming_sequence & UPDATE_MASK;
 	
-	frame = &cl.frames[i];
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
-		frame->senttime = realtime - host_frametime;
-	parsecounttime = cl.frames[i].senttime;
-
-	frame->receivedtime = realtime;
-	//(cl.gametimemark - cl.oldgametimemark)*20;
+	frame = &cl.inframes[i];
+//	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+//		frame->senttime = realtime - host_frametime;
+	parsecounttime = cl.outframes[i].senttime;
 
 // calculate latency
-	latency = frame->receivedtime - frame->senttime;
+	frame->latency = realtime - parsecounttime;
 
-	if (latency < 0 || latency > 1.0)
+	if (frame->latency < 0 || frame->latency > 1.0)
 	{
 //		Con_Printf ("Odd latency: %5.2f\n", latency);
 	}
 	else
 	{
 	// drift the average latency towards the observed latency
-		if (latency < cls.latency)
-			cls.latency = latency;
+		if (frame->latency < cls.latency)
+			cls.latency = frame->latency;
 		else
 			cls.latency += 0.001;	// drift up, so correction are needed
 	}
@@ -4313,7 +4283,7 @@ void CL_MuzzleFlash (int destsplit)
 	if (i-1 == cl.playernum[destsplit] && cl_muzzleflash.value == 2)
 		return;
 
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
+	pack = &cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities;
 
 	for (pnum=0 ; pnum<pack->num_entities ; pnum++)	//try looking for an entity with that id first
 	{
@@ -4331,7 +4301,7 @@ void CL_MuzzleFlash (int destsplit)
 	{	//that ent number doesn't exist, go for a player with that number
 		if ((unsigned)(i) <= MAX_CLIENTS && i > 0)
 		{
-			pl = &cl.frames[parsecountmod].playerstate[i-1];
+			pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[i-1];
 
 			dl = CL_AllocDlight (-i);
 			VectorCopy (pl->origin,  dl->origin);	//set it's origin
@@ -5664,7 +5634,7 @@ void CLQW_ParseServerMessage (void)
 		case svc_chokecount:		// some preceding packets were choked
 			i = MSG_ReadByte ();
 			for (j=0 ; j<i ; j++)
-				cl.frames[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].receivedtime = -2;
+				cl.inframes[(cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK].latency = -2;
 			break;
 
 		case svc_modellist:
@@ -5685,12 +5655,10 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_packetentities:
 			CLQW_ParsePacketEntities (false);
-			cl.ackedinputsequence = cl.validsequence;
 			break;
 
 		case svc_deltapacketentities:
 			CLQW_ParsePacketEntities (true);
-			cl.ackedinputsequence = cl.validsequence;
 			break;
 		case svcfte_updateentities:
 			CLFTE_ParseEntities();
@@ -6313,25 +6281,25 @@ void CLNQ_ParseServerMessage (void)
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 
-			cl.frames[cl.validsequence&UPDATE_MASK].receivedtime = realtime;
+			cl.inframes[cl.validsequence&UPDATE_MASK].receivedtime = realtime;
 
 			if (CPNQ_IS_DP)
 			{
 				int n = cls.netchan.incoming_sequence&UPDATE_MASK, o = (cls.netchan.incoming_sequence-1)&UPDATE_MASK;
-				cl.frames[n].packet_entities.num_entities = cl.frames[o].packet_entities.num_entities;
-				if (cl.frames[n].packet_entities.max_entities < cl.frames[o].packet_entities.num_entities)
+				cl.inframes[n].packet_entities.num_entities = cl.inframes[o].packet_entities.num_entities;
+				if (cl.inframes[n].packet_entities.max_entities < cl.inframes[o].packet_entities.num_entities)
 				{
-					cl.frames[n].packet_entities.max_entities = cl.frames[o].packet_entities.max_entities;
-					cl.frames[n].packet_entities.entities = BZ_Realloc(cl.frames[n].packet_entities.entities, sizeof(entity_state_t) *  cl.frames[n].packet_entities.max_entities);
+					cl.inframes[n].packet_entities.max_entities = cl.inframes[o].packet_entities.max_entities;
+					cl.inframes[n].packet_entities.entities = BZ_Realloc(cl.inframes[n].packet_entities.entities, sizeof(entity_state_t) *  cl.inframes[n].packet_entities.max_entities);
 				}
-				memcpy(cl.frames[n].packet_entities.entities, cl.frames[o].packet_entities.entities, sizeof(entity_state_t) * cl.frames[o].packet_entities.num_entities);
-				cl.frames[n].packet_entities.servertime = cl.frames[o].packet_entities.servertime;
+				memcpy(cl.inframes[n].packet_entities.entities, cl.inframes[o].packet_entities.entities, sizeof(entity_state_t) * cl.inframes[o].packet_entities.num_entities);
+				cl.inframes[n].packet_entities.servertime = cl.inframes[o].packet_entities.servertime;
 			}
 			else
 			{
-//				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
-				cl.frames[cl.validsequence&UPDATE_MASK].packet_entities.num_entities=0;
-				cl.frames[cl.validsequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
+//				cl.inframes[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.num_entities=0;
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
 			}
 			break;
 

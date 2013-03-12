@@ -1201,9 +1201,9 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 
 	/*start writing the packet*/
 	MSG_WriteByte (msg, svcfte_updateentities);
-	if (ISNQCLIENT(client))
+	if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
-		MSG_WriteLong(msg, client->netchan.incoming_unreliable);
+		MSG_WriteLong(msg, client->last_sequence);
 	}
 //	Con_Printf("Gen sequence %i\n", sequence);
 	MSG_WriteFloat(msg, sv.world.physicstime);
@@ -2842,16 +2842,24 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		}
 	}
 
-	if (ent->v->solid == SOLID_BSP || (ent->v->skin < 0 && ent->v->modelindex))
+	if (client && client->edict && (ent->v->owner == client->edict->entnum))
+		state->solid = 0;
+	else if (ent->v->solid == SOLID_BSP || (ent->v->skin < 0 && ent->v->modelindex))
 		state->solid = ES_SOLID_BSP;
 	else if (ent->v->solid == SOLID_BBOX || ent->v->solid == SOLID_SLIDEBOX || ent->v->skin < 0)
 	{
-		i = bound(0, -ent->v->mins[0]/8, 31);
-		state->solid = i;
-		i = bound(0, -ent->v->mins[2]/8, 31);
-		state->solid |= i<<5;
-		i = bound(0, ((ent->v->maxs[2]+32)/8), 63);	/*up can be negative*/
-		state->solid |= i<<10;
+		unsigned int mdl = ent->v->modelindex;
+		if (mdl < MAX_MODELS && sv.models[mdl] && sv.models[mdl]->type == mod_brush)
+			state->solid = ES_SOLID_BSP;
+		else
+		{
+			i = bound(0, -ent->v->mins[0]/8, 31);
+			state->solid = i;
+			i = bound(0, -ent->v->mins[2]/8, 31);
+			state->solid |= i<<5;
+			i = bound(0, ((ent->v->maxs[2]+32)/8), 63);	/*up can be negative*/
+			state->solid |= i<<10;
+		}
 	}
 	else
 		state->solid = 0;

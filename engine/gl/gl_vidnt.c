@@ -1235,6 +1235,16 @@ qboolean VID_AttachGL (rendererstate_t *info)
 					Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
 				else if (error == (0xc0070000 | ERROR_INVALID_PROFILE_ARB))
 					Con_Printf("Unsupported OpenGL profile (%s).\n", vid_gl_context_es2.ival?"gles":(vid_gl_context_compatibility.ival?"compat":"core"));
+				else if (error == (0xc0070000 | ERROR_INVALID_OPERATION))
+					Con_Printf("wglCreateContextAttribsARB returned invalid operation.\n");
+				else if (error == (0xc0070000 | ERROR_DC_NOT_FOUND))
+					Con_Printf("wglCreateContextAttribsARB returned dc not found.\n");
+				else if (error == (0xc0070000 | ERROR_INVALID_PIXEL_FORMAT))
+					Con_Printf("wglCreateContextAttribsARB returned dc not found.\n");
+				else if (error == (0xc0070000 | ERROR_NO_SYSTEM_RESOURCES))
+					Con_Printf("wglCreateContextAttribsARB ran out of system resources.\n");
+				else if (error == (0xc0070000 | ERROR_INVALID_PARAMETER))
+					Con_Printf("wglCreateContextAttribsARB reported invalid parameter.\n");
 				else
 					Con_Printf("Unknown error creating an OpenGL (%s) Context.\n", vid_gl_context_version.string);
 			}
@@ -1282,6 +1292,8 @@ void GL_BeginRendering (void)
 {
 	vid.pixelwidth = WindowRect.right - WindowRect.left;
 	vid.pixelheight = WindowRect.bottom - WindowRect.top;
+
+	qglDisable(GL_SCISSOR_TEST);
 
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");

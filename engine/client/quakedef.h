@@ -84,6 +84,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #pragma warning( 4 : 4267)	//truncation from const double to float
+#pragma warning( 4 : 4710)	//function not inlined
 
 #pragma warning( error : 4020)
 

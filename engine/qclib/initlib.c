@@ -1,6 +1,12 @@
 #define PROGSUSED
 #include "progsint.h"
 #include <stdlib.h>
+#define STRING_SPECMASK	0xc0000000	//
+#define STRING_TEMP		0x80000000	//temp string, will be collected.
+#define STRING_STATIC	0xc0000000	//pointer to non-qcvm string.
+#define STRING_NORMAL_	0x00000000	//stringtable/mutable. should always be a fallthrough
+#define STRING_NORMAL2_	0x40000000	//stringtable/mutable. should always be a fallthrough
+
 typedef struct prmemb_s {
 	struct prmemb_s *prev;
 	int level;
@@ -384,7 +390,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 //	PR_memvalidate(progfuncs);
 }
 
-void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
+void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 {
 	prinst.addressableused = 0;
 	if (totalammount < 0)	//flush
@@ -440,7 +446,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 edictrun_t tempedict;	//used as a safty buffer
 static float tempedictfields[2048];
 
-void PDECL PR_Configure (pubprogfuncs_t *ppf, int addressable_size, int max_progs)	//can be used to wipe all memory
+void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_progs)	//can be used to wipe all memory
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int i;
@@ -462,8 +468,16 @@ void PDECL PR_Configure (pubprogfuncs_t *ppf, int addressable_size, int max_prog
 	}
 
 	PRHunkFree(progfuncs, 0);	//clear mem - our hunk may not be a real hunk.
-	if (addressable_size<0)
+	if (addressable_size<0 || addressable_size == (size_t)-1)
+	{
+#ifdef _WIN64
+		addressable_size = 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
+#else
 		addressable_size = 8*1024*1024;
+#endif
+	}
+	if (addressable_size > 0x80000000)
+		addressable_size = 0x80000000;
 	PRAddressableFlush(progfuncs, addressable_size);
 
 	pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * max_progs, "progstatetable");
@@ -784,7 +798,7 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, char *str)
 	for (i = prinst.numallocedstrings-1; i >= 0; i--)
 	{
 		if (prinst.allocedstrings[i] == str)
-			return (string_t)((unsigned int)i | 0x80000000);
+			return (string_t)((unsigned int)i | STRING_STATIC);
 		if (!prinst.allocedstrings[i])
 			free = i;
 	}
@@ -793,7 +807,7 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, char *str)
 	{
 		i = free;
 		prinst.allocedstrings[i] = str;
-		return (string_t)((unsigned int)i | 0x80000000);
+		return (string_t)((unsigned int)i | STRING_STATIC);
 	}
 
 	prinst.maxallocedstrings += 1024;
@@ -810,7 +824,7 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, char *str)
 		if (!prinst.allocedstrings[i])
 		{
 			prinst.allocedstrings[i] = str;
-			return (string_t)((unsigned int)i | 0x80000000);
+			return (string_t)((unsigned int)i | STRING_STATIC);
 		}
 	}
 
@@ -824,29 +838,27 @@ char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)
 
 	//input string is expected to be an allocated string
 	//if its a temp, or a constant, just return NULL.
-	if ((unsigned int)str & 0xc0000000)
+	if (((unsigned int)str & STRING_SPECMASK) == STRING_STATIC)
 	{
-		if ((unsigned int)str & 0x80000000)
+		int i = str & ~STRING_SPECMASK;
+		if (i >= prinst.numallocedstrings)
 		{
-			int i = str & ~0x80000000;
-			if (i >= prinst.numallocedstrings)
-			{
-				progfuncs->funcs.pr_trace = 1;
-				return NULL;
-			}
-			if (prinst.allocedstrings[i])
-			{
-				ret = prinst.allocedstrings[i];
-				prinst.allocedstrings[i] = NULL;	//remove it
-				return ret;
-			}
-			else
-			{
-				progfuncs->funcs.pr_trace = 1;
-				return NULL;	//urm, was freed...
-			}
+			progfuncs->funcs.pr_trace = 1;
+			return NULL;
+		}
+		if (prinst.allocedstrings[i])
+		{
+			ret = prinst.allocedstrings[i];
+			prinst.allocedstrings[i] = NULL;	//remove it
+			return ret;
+		}
+		else
+		{
+			progfuncs->funcs.pr_trace = 1;
+			return NULL;	//urm, was freed...
 		}
 	}
+	printf("invalid static string %x\n", str);
 	progfuncs->funcs.pr_trace = 1;
 	return NULL;
 }
@@ -854,40 +866,37 @@ char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)
 char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	if ((unsigned int)str & 0xc0000000)
+	if (((unsigned int)str & STRING_SPECMASK) == STRING_STATIC)
 	{
-		if ((unsigned int)str & 0x80000000)
+		int i = str & ~STRING_SPECMASK;
+		if (i >= prinst.numallocedstrings)
 		{
-			int i = str & ~0x80000000;
-			if (i >= prinst.numallocedstrings)
-			{
-				printf("invalid string %x\n", str);
-				PR_StackTrace(&progfuncs->funcs);
-				progfuncs->funcs.pr_trace = 1;
-				return "";
-			}
-			if (prinst.allocedstrings[i])
-				return prinst.allocedstrings[i];
-			else
-			{
-				printf("invalid string %x\n", str);
-				PR_StackTrace(&progfuncs->funcs);
-				progfuncs->funcs.pr_trace = 1;
-				return "";	//urm, was freed...
-			}
+			printf("invalid string %x\n", str);
+			PR_StackTrace(&progfuncs->funcs);
+			progfuncs->funcs.pr_trace = 1;
+			return "";
 		}
-		if ((unsigned int)str & 0x40000000)
+		if (prinst.allocedstrings[i])
+			return prinst.allocedstrings[i];
+		else
 		{
-			int i = str & ~0x40000000;
-			if (i >= prinst.numtempstrings)
-			{
-				printf("invalid temp string %x\n", str);
-				PR_StackTrace(&progfuncs->funcs);
-				progfuncs->funcs.pr_trace = 1;
-				return "";
-			}
-			return prinst.tempstrings[i];
+			printf("invalid string %x\n", str);
+			PR_StackTrace(&progfuncs->funcs);
+			progfuncs->funcs.pr_trace = 1;
+			return "";	//urm, was freed...
 		}
+	}
+	if (((unsigned int)str & STRING_SPECMASK) == STRING_TEMP)
+	{
+		int i = str & ~STRING_SPECMASK;
+		if (i >= prinst.numtempstrings)
+		{
+			printf("invalid temp string %x\n", str);
+			PR_StackTrace(&progfuncs->funcs);
+			progfuncs->funcs.pr_trace = 1;
+			return "";
+		}
+		return prinst.tempstrings[i];
 	}
 
 	if ((unsigned int)str >= (unsigned int)prinst.addressableused)
@@ -932,7 +941,7 @@ string_t PDECL PR_AllocTempString			(pubprogfuncs_t *ppf, const char *str)
 	prinst.tempstrings[i] = progfuncs->funcs.parms->memalloc(strlen(str)+1);
 	strcpy(prinst.tempstrings[i], str);
 
-	return (string_t)((unsigned int)i | 0x40000000);
+	return (string_t)((unsigned int)i | STRING_TEMP);
 }
 string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigned int len)
 {
@@ -965,7 +974,7 @@ string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigne
 	prinst.tempstrings[i] = progfuncs->funcs.parms->memalloc(len);
 	*str = prinst.tempstrings[i];
 
-	return (string_t)((unsigned int)i | 0x40000000);
+	return (string_t)((unsigned int)i | STRING_TEMP);
 }
 
 void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)

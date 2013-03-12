@@ -1389,10 +1389,17 @@ static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 	int i, m;
 	if (!v2)
 		return false;
-	m = (cl.worldmodel->numleafs-1)>>3;
-	for (i=0 ; i<m ; i++)
+	m = (cl.worldmodel->numleafs+7)>>3;
+
+	for (i=(m&~3) ; i<m ; i++)
 	{
 		if (v1[i] & v2[i])
+			return true;
+	}
+	m>>=2;
+	for (i=0 ; i<m ; i++)
+	{
+		if (((unsigned int*)v1)[i] & ((unsigned int*)v2)[i])
 			return true;
 	}
 	return false;

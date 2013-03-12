@@ -80,6 +80,7 @@ cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
+cvar_t  pr_csqc_formenus = CVAR("pr_csqc_formenus", "1");
 extern cvar_t dpcompat_stats;
 cvar_t  dpcompat_corruptglobals = CVAR("dpcompat_corruptglobals", "0");
 
@@ -2166,7 +2167,7 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 			cmd->angles[f] = ((int)(cl.playerview[csqc_lplayernum].viewangles[f]*65536.0/360)&65535);
 	}
 	else
-		cmd = &cl.frames[f&UPDATE_MASK].cmd[csqc_lplayernum];
+		cmd = &cl.outframes[f&UPDATE_MASK].cmd[csqc_lplayernum];
 
 	cs_set_input_state(cmd);
 
@@ -2313,6 +2314,15 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 		else
 			ret = NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address);
 	}
+	else if (!strcmp(keyname, "state"))
+	{
+		if (cls.state == ca_disconnected)
+			ret = "disconnected";
+		else if (cls.state == ca_active)
+			ret = "active";
+		else
+			ret = "connecting";
+	}
 	else if (!strcmp(keyname, "protocol"))
 	{	//using this is pretty acedemic, really. Not particuarly portable.
 		switch (cls.protocol)
@@ -2366,7 +2376,16 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 	}
 	else
 	{
-		ret = Info_ValueForKey(cl.serverinfo, keyname);
+#ifndef CLIENTONLY
+		if (cls.state < ca_onserver)
+		{
+			ret = Info_ValueForKey(svs.info, keyname);
+			if (!*ret)
+				ret = Info_ValueForKey(localinfo, keyname);
+		}
+		else
+#endif
+			ret = Info_ValueForKey(cl.serverinfo, keyname);
 	}
 
 	if (*ret)
@@ -4035,380 +4054,380 @@ static struct {
 	int ebfsnum;
 }  BuiltinList[] = {
 //0
-	{"makevectors",	PF_cs_makevectors, 1},		// #1 void() makevectors (QUAKE)
-	{"setorigin",	PF_cs_SetOrigin, 2},		// #2 void(entity e, vector org) setorigin (QUAKE)
-	{"setmodel",	PF_cs_SetModel, 3},			// #3 void(entity e, string modl) setmodel (QUAKE)
-	{"setsize",	PF_cs_SetSize, 4},			// #4 void(entity e, vector mins, vector maxs) setsize (QUAKE)
+	{"makevectors",				PF_cs_makevectors, 1},		// #1 void() makevectors (QUAKE)
+	{"setorigin",				PF_cs_SetOrigin, 2},		// #2 void(entity e, vector org) setorigin (QUAKE)
+	{"setmodel",				PF_cs_SetModel, 3},			// #3 void(entity e, string modl) setmodel (QUAKE)
+	{"setsize",					PF_cs_SetSize, 4},			// #4 void(entity e, vector mins, vector maxs) setsize (QUAKE)
 //5
-	{"debugbreak",	PF_cs_break, 6},			// #6 void() debugbreak (QUAKE)
-	{"random",	PF_random,	7},				// #7 float() random (QUAKE)
-	{"sound",	PF_cs_sound,	8},			// #8 void(entity e, float chan, string samp, float vol, float atten) sound (QUAKE)
-	{"normalize",	PF_normalize,	9},			// #9 vector(vector in) normalize (QUAKE)
+	{"debugbreak",				PF_cs_break, 6},			// #6 void() debugbreak (QUAKE)
+	{"random",					PF_random,	7},				// #7 float() random (QUAKE)
+	{"sound",					PF_cs_sound,	8},			// #8 void(entity e, float chan, string samp, float vol, float atten) sound (QUAKE)
+	{"normalize",				PF_normalize,	9},			// #9 vector(vector in) normalize (QUAKE)
 //10
-	{"error",	PF_error,	10},				// #10 void(string errortext) error (QUAKE)
-	{"objerror",	PF_objerror,	11},			// #11 void(string errortext) onjerror (QUAKE)
-	{"vlen",	PF_vlen,	12},				// #12 float(vector v) vlen (QUAKE)
-	{"vectoyaw",	PF_vectoyaw,	13},			// #13 float(vector v) vectoyaw (QUAKE)
-	{"spawn",	PF_Spawn,	14},				// #14 entity() spawn (QUAKE)
-	{"remove",	PF_cs_remove,	15},			// #15 void(entity e) remove (QUAKE)
-	{"traceline",	PF_cs_traceline,	16},		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
-	{"checkclient",	PF_NoCSQC,	17},				// #17 entity() checkclient (QUAKE) (don't support)
-	{"find",	PF_FindString,	18},			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
-	{"precache_sound",	PF_cs_PrecacheSound,	19},	// #19 void(string str) precache_sound (QUAKE)
+	{"error",					PF_error,	10},				// #10 void(string errortext) error (QUAKE)
+	{"objerror",				PF_objerror,	11},			// #11 void(string errortext) onjerror (QUAKE)
+	{"vlen",					PF_vlen,	12},				// #12 float(vector v) vlen (QUAKE)
+	{"vectoyaw",				PF_vectoyaw,	13},			// #13 float(vector v) vectoyaw (QUAKE)
+	{"spawn",					PF_Spawn,	14},				// #14 entity() spawn (QUAKE)
+	{"remove",					PF_cs_remove,	15},			// #15 void(entity e) remove (QUAKE)
+	{"traceline",				PF_cs_traceline,	16},		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
+	{"checkclient",				PF_NoCSQC,	17},				// #17 entity() checkclient (QUAKE) (don't support)
+	{"find",					PF_FindString,	18},			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
+	{"precache_sound",			PF_cs_PrecacheSound,	19},	// #19 void(string str) precache_sound (QUAKE)
 //20
-	{"precache_model",	PF_cs_PrecacheModel,	20},	// #20 void(string str) precache_model (QUAKE)
-	{"stuffcmd",	PF_NoCSQC,	21},		// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
-	{"findradius",	PF_cs_findradius,	22},		// #22 entity(vector org, float rad) findradius (QUAKE)
-	{"bprint",	PF_NoCSQC,	23},				// #23 void(string s, ...) bprint (QUAKE) (don't support)
-	{"sprint",	PF_NoCSQC,	24},				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
-	{"dprint",	PF_dprint,	25},				// #25 void(string s, ...) dprint (QUAKE)
-	{"ftos",	PF_ftos,	26},				// #26 string(float f) ftos (QUAKE)
-	{"vtos",	PF_vtos,	27},				// #27 string(vector f) vtos (QUAKE)
-	{"coredump",	PF_coredump,	28},			// #28 void(void) coredump (QUAKE)
-	{"traceon",	PF_traceon,	29},				// #29 void() traceon (QUAKE)
+	{"precache_model",			PF_cs_PrecacheModel,	20},	// #20 void(string str) precache_model (QUAKE)
+	{"stuffcmd",				PF_NoCSQC,	21},		// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
+	{"findradius",				PF_cs_findradius,	22},		// #22 entity(vector org, float rad) findradius (QUAKE)
+	{"bprint",					PF_NoCSQC,	23},				// #23 void(string s, ...) bprint (QUAKE) (don't support)
+	{"sprint",					PF_NoCSQC,	24},				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
+	{"dprint",					PF_dprint,	25},				// #25 void(string s, ...) dprint (QUAKE)
+	{"ftos",					PF_ftos,	26},				// #26 string(float f) ftos (QUAKE)
+	{"vtos",					PF_vtos,	27},				// #27 string(vector f) vtos (QUAKE)
+	{"coredump",				PF_coredump,	28},			// #28 void(void) coredump (QUAKE)
+	{"traceon",					PF_traceon,	29},				// #29 void() traceon (QUAKE)
 //30
-	{"traceoff",	PF_traceoff,	30},			// #30 void() traceoff (QUAKE)
-	{"eprint",	PF_eprint,	31},				// #31 void(entity e) eprint (QUAKE)
-	{"walkmove",	PF_cs_walkmove,	32},			// #32 float(float yaw, float dist) walkmove (QUAKE)
-	{"?",	PF_Fixme,	33},				// #33
-	{"droptofloor",	PF_cs_droptofloor,	34},		// #34
-	{"lightstyle",	PF_cs_lightstyle,	35},		// #35 void(float lightstyle, string stylestring) lightstyle (QUAKE)
-	{"rint",	PF_rint,	36},				// #36 float(float f) rint (QUAKE)
-	{"floor",	PF_floor,	37},				// #37 float(float f) floor (QUAKE)
-	{"ceil",	PF_ceil,	38},				// #38 float(float f) ceil (QUAKE)
-//	{"?",	PF_Fixme,	39},				// #39
+	{"traceoff",				PF_traceoff,	30},			// #30 void() traceoff (QUAKE)
+	{"eprint",					PF_eprint,	31},				// #31 void(entity e) eprint (QUAKE)
+	{"walkmove",				PF_cs_walkmove,	32},			// #32 float(float yaw, float dist) walkmove (QUAKE)
+	{"?",						PF_Fixme,	33},				// #33
+	{"droptofloor",				PF_cs_droptofloor,	34},		// #34
+	{"lightstyle",				PF_cs_lightstyle,	35},		// #35 void(float lightstyle, string stylestring) lightstyle (QUAKE)
+	{"rint",					PF_rint,	36},				// #36 float(float f) rint (QUAKE)
+	{"floor",					PF_floor,	37},				// #37 float(float f) floor (QUAKE)
+	{"ceil",					PF_ceil,	38},				// #38 float(float f) ceil (QUAKE)
+//	{"?",						PF_Fixme,	39},				// #39
 //40
-	{"checkbottom",	PF_cs_checkbottom,	40},	// #40 float(entity e) checkbottom (QUAKE)
-	{"pointcontents",	PF_cs_pointcontents,	41},	// #41 float(vector org) pointcontents (QUAKE)
-//	{"?",	PF_Fixme,	42},				// #42
-	{"fabs",	PF_fabs,	43},				// #43 float(float f) fabs (QUAKE)
-	{"aim",	PF_NoCSQC,	44},				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
-	{"cvar",	PF_cvar,	45},				// #45 float(string cvarname) cvar (QUAKE)
-	{"localcmd",	PF_localcmd,	46},			// #46 void(string str) localcmd (QUAKE)
-	{"nextent",	PF_nextent,	47},				// #47 entity(entity e) nextent (QUAKE)
-	{"particle",	PF_cs_particle,	48},		// #48 void(vector org, vector dir, float colour, float count) particle (QUAKE)
-	{"changeyaw",	PF_cs_changeyaw,	49},		// #49 void() changeyaw (QUAKE)
+	{"checkbottom",				PF_cs_checkbottom,	40},	// #40 float(entity e) checkbottom (QUAKE)
+	{"pointcontents",			PF_cs_pointcontents,	41},	// #41 float(vector org) pointcontents (QUAKE)
+//	{"?",						PF_Fixme,	42},				// #42
+	{"fabs",					PF_fabs,	43},				// #43 float(float f) fabs (QUAKE)
+	{"aim",						PF_NoCSQC,	44},				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
+	{"cvar",					PF_cvar,	45},				// #45 float(string cvarname) cvar (QUAKE)
+	{"localcmd",				PF_localcmd,	46},			// #46 void(string str) localcmd (QUAKE)
+	{"nextent",					PF_nextent,	47},				// #47 entity(entity e) nextent (QUAKE)
+	{"particle",				PF_cs_particle,	48},		// #48 void(vector org, vector dir, float colour, float count) particle (QUAKE)
+	{"changeyaw",				PF_cs_changeyaw,	49},		// #49 void() changeyaw (QUAKE)
 //50
 //	{"?",	PF_Fixme,	50},				// #50
-	{"vectoangles",	PF_vectoangles,	51},			// #51 vector(vector v) vectoangles (QUAKE)
-//	{"WriteByte",	PF_Fixme,	52},				// #52 void(float to, float f) WriteByte (QUAKE)
-//	{"WriteChar",	PF_Fixme,	53},				// #53 void(float to, float f) WriteChar (QUAKE)
-//	{"WriteShort",	PF_Fixme,	54},				// #54 void(float to, float f) WriteShort (QUAKE)
+	{"vectoangles",				PF_vectoangles,	51},			// #51 vector(vector v) vectoangles (QUAKE)
+//	{"WriteByte",				PF_Fixme,	52},				// #52 void(float to, float f) WriteByte (QUAKE)
+//	{"WriteChar",				PF_Fixme,	53},				// #53 void(float to, float f) WriteChar (QUAKE)
+//	{"WriteShort",				PF_Fixme,	54},				// #54 void(float to, float f) WriteShort (QUAKE)
 
-//	{"WriteLong",	PF_Fixme,	55},				// #55 void(float to, float f) WriteLong (QUAKE)
-//	{"WriteCoord",	PF_Fixme,	56},				// #56 void(float to, float f) WriteCoord (QUAKE)
-//	{"WriteAngle",	PF_Fixme,	57},				// #57 void(float to, float f) WriteAngle (QUAKE)
-//	{"WriteString",	PF_Fixme,	58},				// #58 void(float to, float f) WriteString (QUAKE)
-//	{"WriteEntity",	PF_Fixme,	59},				// #59 void(float to, float f) WriteEntity (QUAKE)
+//	{"WriteLong",				PF_Fixme,	55},				// #55 void(float to, float f) WriteLong (QUAKE)
+//	{"WriteCoord",				PF_Fixme,	56},				// #56 void(float to, float f) WriteCoord (QUAKE)
+//	{"WriteAngle",				PF_Fixme,	57},				// #57 void(float to, float f) WriteAngle (QUAKE)
+//	{"WriteString",				PF_Fixme,	58},				// #58 void(float to, float f) WriteString (QUAKE)
+//	{"WriteEntity",				PF_Fixme,	59},				// #59 void(float to, float f) WriteEntity (QUAKE)
 
 //60
-	{"sin",	PF_Sin,	60},					// #60 float(float angle) sin (DP_QC_SINCOSSQRTPOW)
-	{"cos",	PF_Cos,	61},					// #61 float(float angle) cos (DP_QC_SINCOSSQRTPOW)
-	{"sqrt",	PF_Sqrt,	62},				// #62 float(float value) sqrt (DP_QC_SINCOSSQRTPOW)
-	{"changepitch",	PF_cs_changepitch,	63},		// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
-	{"tracetoss",	PF_cs_tracetoss,	64},		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACETOSS)
+	{"sin",						PF_Sin,	60},					// #60 float(float angle) sin (DP_QC_SINCOSSQRTPOW)
+	{"cos",						PF_Cos,	61},					// #61 float(float angle) cos (DP_QC_SINCOSSQRTPOW)
+	{"sqrt",					PF_Sqrt,	62},				// #62 float(float value) sqrt (DP_QC_SINCOSSQRTPOW)
+	{"changepitch",				PF_cs_changepitch,	63},		// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
+	{"tracetoss",				PF_cs_tracetoss,	64},		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACETOSS)
 
-	{"etos",	PF_etos,	65},				// #65 string(entity ent) etos (DP_QC_ETOS)
-	{"?",	PF_Fixme,	66},				// #66
-	{"movetogoal",	PF_cs_movetogoal,	67},				// #67 void(float step) movetogoal (QUAKE)
-	{"precache_file",	PF_NoCSQC,	68},				// #68 void(string s) precache_file (QUAKE) (don't support)
-	{"makestatic",	PF_cs_makestatic,	69},		// #69 void(entity e) makestatic (QUAKE)
+	{"etos",					PF_etos,	65},				// #65 string(entity ent) etos (DP_QC_ETOS)
+	{"?",						PF_Fixme,	66},				// #66
+	{"movetogoal",				PF_cs_movetogoal,	67},				// #67 void(float step) movetogoal (QUAKE)
+	{"precache_file",			PF_NoCSQC,	68},				// #68 void(string s) precache_file (QUAKE) (don't support)
+	{"makestatic",				PF_cs_makestatic,	69},		// #69 void(entity e) makestatic (QUAKE)
 //70
-	{"changelevel",	PF_NoCSQC,	70},				// #70 void(string mapname) changelevel (QUAKE) (don't support)
-//	{"?",	PF_Fixme,	71},				// #71
-	{"cvar_set",	PF_cvar_set,	72},			// #72 void(string cvarname, string valuetoset) cvar_set (QUAKE)
-	{"centerprint",	PF_NoCSQC,	73},				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
-	{"ambientsound",	PF_cl_ambientsound,	74},		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
+	{"changelevel",				PF_NoCSQC,	70},				// #70 void(string mapname) changelevel (QUAKE) (don't support)
+//	{"?",						PF_Fixme,	71},				// #71
+	{"cvar_set",				PF_cvar_set,	72},			// #72 void(string cvarname, string valuetoset) cvar_set (QUAKE)
+	{"centerprint",				PF_NoCSQC,	73},				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
+	{"ambientsound",			PF_cl_ambientsound,	74},		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
 
-	{"precache_model2",	PF_cs_PrecacheModel,	75},	// #75 void(string str) precache_model2 (QUAKE)
-	{"precache_sound2",	PF_cs_PrecacheSound,	76},	// #76 void(string str) precache_sound2 (QUAKE)
-	{"precache_file2",	PF_NoCSQC,	77},				// #77 void(string str) precache_file2 (QUAKE)
-	{"setspawnparms",	PF_NoCSQC,	78},				// #78 void() setspawnparms (QUAKE) (don't support)
-	{"logfrag",	PF_NoCSQC,	79},				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
+	{"precache_model2",			PF_cs_PrecacheModel,	75},	// #75 void(string str) precache_model2 (QUAKE)
+	{"precache_sound2",			PF_cs_PrecacheSound,	76},	// #76 void(string str) precache_sound2 (QUAKE)
+	{"precache_file2",			PF_NoCSQC,	77},				// #77 void(string str) precache_file2 (QUAKE)
+	{"setspawnparms",			PF_NoCSQC,	78},				// #78 void() setspawnparms (QUAKE) (don't support)
+	{"logfrag",					PF_NoCSQC,	79},				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
 
 //80
-	{"infokey",	PF_NoCSQC,	80},				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
-	{"stof",	PF_stof,	81},				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
-	{"multicast",	PF_NoCSQC,	82},				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
+	{"infokey",					PF_NoCSQC,	80},				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
+	{"stof",					PF_stof,	81},				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
+	{"multicast",				PF_NoCSQC,	82},				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 
 
 //90
-	{"tracebox",	PF_cs_tracebox,	90},
-	{"randomvec",	PF_randomvector,	91},		// #91 vector() randomvec (DP_QC_RANDOMVEC)
-	{"getlight",	PF_cl_getlight,	92},			// #92 vector(vector org) getlight (DP_QC_GETLIGHT)
-	{"registercvar",	PF_registercvar,	93},		// #93 void(string cvarname, string defaultvalue) registercvar (DP_QC_REGISTERCVAR)
-	{"min",	PF_min,	94},				// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
+	{"tracebox",				PF_cs_tracebox,	90},
+	{"randomvec",				PF_randomvector,	91},		// #91 vector() randomvec (DP_QC_RANDOMVEC)
+	{"getlight",				PF_cl_getlight,	92},			// #92 vector(vector org) getlight (DP_QC_GETLIGHT)
+	{"registercvar",			PF_registercvar,	93},		// #93 void(string cvarname, string defaultvalue) registercvar (DP_QC_REGISTERCVAR)
+	{"min",						PF_min,	94},				// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
 
-	{"max",	PF_max,	95},					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
-	{"bound",	PF_bound,	96},				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
-	{"pow",	PF_pow,	97},					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
-	{"findfloat",	PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
-	{"checkextension",	PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
+	{"max",						PF_max,	95},					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
+	{"bound",					PF_bound,	96},				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
+	{"pow",						PF_pow,	97},					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
+	{"findfloat",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
+	{"checkextension",			PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
 
 //110
-	{"fopen",	PF_fopen,	110},				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)
-	{"fclose",	PF_fclose,	111},				// #111 void(float fnum) fclose (FRIK_FILE)
-	{"fgets",	PF_fgets,	112},				// #112 string(float fnum) fgets (FRIK_FILE)
-	{"fputs",	PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
-	{"strlen",	PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
+	{"fopen",					PF_fopen,	110},				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)
+	{"fclose",					PF_fclose,	111},				// #111 void(float fnum) fclose (FRIK_FILE)
+	{"fgets",					PF_fgets,	112},				// #112 string(float fnum) fgets (FRIK_FILE)
+	{"fputs",					PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
+	{"strlen",					PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
-	{"strcat",	PF_strcat,	115},				// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
-	{"substring",	PF_substring,	116},			// #116 string(string str, float start, float length) substring (FRIK_FILE)
-	{"stov",	PF_stov,	117},				// #117 vector(string str) stov (FRIK_FILE)
-	{"strzone",	PF_dupstring,	118},			// #118 string(string str) dupstring (FRIK_FILE)
-	{"strunzone",	PF_forgetstring,	119},		// #119 void(string str) freestring (FRIK_FILE)
+	{"strcat",					PF_strcat,	115},				// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
+	{"substring",				PF_substring,	116},			// #116 string(string str, float start, float length) substring (FRIK_FILE)
+	{"stov",					PF_stov,	117},				// #117 vector(string str) stov (FRIK_FILE)
+	{"strzone",					PF_dupstring,	118},			// #118 string(string str) dupstring (FRIK_FILE)
+	{"strunzone",				PF_forgetstring,	119},		// #119 void(string str) freestring (FRIK_FILE)
 
 //200
-	{"getmodelindex",	PF_cs_PrecacheModel,	200},
-	{"externcall",	PF_externcall,	201},
-	{"addprogs",	PF_cs_addprogs,	202},
-	{"externvalue",	PF_externvalue,	203},
-	{"externset",	PF_externset,	204},
+	{"getmodelindex",			PF_cs_PrecacheModel,	200},
+	{"externcall",				PF_externcall,	201},
+	{"addprogs",				PF_cs_addprogs,	202},
+	{"externvalue",				PF_externvalue,	203},
+	{"externset",				PF_externset,	204},
 
-	{"externrefcall",	PF_externrefcall,	205},
-	{"instr",	PF_instr,	206},
-	{"openportal",	PF_cs_OpenPortal,	207},	//q2bsps
-	{"registertempent",	PF_NoCSQC,	208},//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
-	{"customtempent",	PF_NoCSQC,	209},//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
+	{"externrefcall",			PF_externrefcall,	205},
+	{"instr",					PF_instr,	206},
+	{"openportal",				PF_cs_OpenPortal,	207},	//q2bsps
+	{"registertempent",			PF_NoCSQC,	208},//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
+	{"customtempent",			PF_NoCSQC,	209},//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
 //210
-//	{"fork",	PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
-	{"abort",	PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
-//	{"sleep",	PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
-	{"forceinfokey",	PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
-	{"chat",	PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
+//	{"fork",					PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
+	{"abort",					PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
+//	{"sleep",					PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
+	{"forceinfokey",			PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
+	{"chat",					PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
 
-	{"particle2",	PF_cs_particle2,	215}, //215 (FTE_PEXT_HEXEN2)
-	{"particle3",	PF_cs_particle3,	216}, //216 (FTE_PEXT_HEXEN2)
-	{"particle4",	PF_cs_particle4,	217}, //217 (FTE_PEXT_HEXEN2)
+	{"particle2",				PF_cs_particle2,	215}, //215 (FTE_PEXT_HEXEN2)
+	{"particle3",				PF_cs_particle3,	216}, //216 (FTE_PEXT_HEXEN2)
+	{"particle4",				PF_cs_particle4,	217}, //217 (FTE_PEXT_HEXEN2)
 
 //EXT_DIMENSION_PLANES
-	{"bitshift",	PF_bitshift,	218},		//#218 bitshift (EXT_DIMENSION_PLANES)
-	{"te_lightningblood",	PF_cl_te_lightningblood,	219},// #219 te_lightningblood void(vector org) (FTE_TE_STANDARDEFFECTBUILTINS)
+	{"bitshift",				PF_bitshift,	218},		//#218 bitshift (EXT_DIMENSION_PLANES)
+	{"te_lightningblood",		PF_cl_te_lightningblood,	219},// #219 te_lightningblood void(vector org) (FTE_TE_STANDARDEFFECTBUILTINS)
 
 //220
-//	{"map_builtin",		PF_Fixme,	220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
-	{"strstrofs",	PF_strstrofs,	221},	// #221 float(string s1, string sub) strstrofs (FTE_STRINGS)
-	{"str2chr",	PF_str2chr,	222},		// #222 float(string str, float index) str2chr (FTE_STRINGS)
-	{"chr2str",	PF_chr2str,	223},		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
-	{"strconv",	PF_strconv,	224},		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
+//	{"map_builtin",				PF_Fixme,	220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
+	{"strstrofs",				PF_strstrofs,	221},	// #221 float(string s1, string sub) strstrofs (FTE_STRINGS)
+	{"str2chr",					PF_str2chr,	222},		// #222 float(string str, float index) str2chr (FTE_STRINGS)
+	{"chr2str",					PF_chr2str,	223},		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
+	{"strconv",					PF_strconv,	224},		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
 
-	{"strpad",	PF_strpad,	225},		// #225 string strpad(float pad, string str1, ...) strpad (FTE_STRINGS)
-	{"infoadd",	PF_infoadd,	226},		// #226 string(string old, string key, string value) infoadd
-	{"infoget",	PF_infoget,	227},		// #227 string(string info, string key) infoget
-	{"strncmp",	PF_strncmp,	228},		// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
-	{"strcasecmp",	PF_strcasecmp,	229},	// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
+	{"strpad",					PF_strpad,	225},		// #225 string strpad(float pad, string str1, ...) strpad (FTE_STRINGS)
+	{"infoadd",					PF_infoadd,	226},		// #226 string(string old, string key, string value) infoadd
+	{"infoget",					PF_infoget,	227},		// #227 string(string info, string key) infoget
+	{"strncmp",					PF_strncmp,	228},		// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
+	{"strcasecmp",				PF_strcasecmp,	229},	// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
 
 //230
-	{"strncasecmp",	PF_strncasecmp,	230},	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
-	{"calltimeofday",	PF_calltimeofday,	231},
-	{"clientstat",	PF_NoCSQC,	232},		// #231 clientstat
-	{"runclientphys",	PF_NoCSQC,	233},		// #232 runclientphys
-//	{"isbackbuffered",	PF_NoCSQC,	234},		// #233 float(entity ent) isbackbuffered
+	{"strncasecmp",				PF_strncasecmp,	230},	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
+	{"calltimeofday",			PF_calltimeofday,	231},
+	{"clientstat",				PF_NoCSQC,	232},		// #231 clientstat
+	{"runclientphys",			PF_NoCSQC,	233},		// #232 runclientphys
+//	{"isbackbuffered",			PF_NoCSQC,	234},		// #233 float(entity ent) isbackbuffered
 //I messed up, 234 is meant to be isbackbuffered. luckily that's not present in csqc, but still, this is messy. Don't document this.
-	{"rotatevectorsbytag",	PF_rotatevectorsbytag,	234},	// #234
+	{"rotatevectorsbytag",		PF_rotatevectorsbytag,	234},	// #234
 
 	{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,	235}, // #235
 	{"rotatevectorsbyvectors",	PF_rotatevectorsbymatrix,	236}, // #236
-	{"skinforname",	PF_skinforname,	237},		// #237
-	{"shaderforname",	PF_shaderforname,	238},	// #238
-	{"te_bloodqw",	PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
+	{"skinforname",				PF_skinforname,	237},		// #237
+	{"shaderforname",			PF_shaderforname,	238},	// #238
+	{"te_bloodqw",				PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
 
-//	{"checkpvs",		PF_checkpvs,		240},
-//	{"matchclientname",	PF_matchclient,		241},
-	{"sendpacket",		PF_NoCSQC,			242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
+//	{"checkpvs",				PF_checkpvs,		240},
+//	{"matchclientname",			PF_matchclient,		241},
+	{"sendpacket",				PF_NoCSQC,			242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
 
-//	{"bulleten",		PF_bulleten,		243}, (removed builtin)
-	{"rotatevectorsbytag",	PF_rotatevectorsbytag,	244},
+//	{"bulleten",				PF_bulleten,		243}, (removed builtin)
+	{"rotatevectorsbytag",		PF_rotatevectorsbytag,	244},
 
-	{"sqlconnect",		PF_NoCSQC,			250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
-	{"sqldisconnect",	PF_NoCSQC,			251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
-	{"sqlopenquery",	PF_NoCSQC,			252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
-	{"sqlclosequery",	PF_NoCSQC,			253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
-	{"sqlreadfield",	PF_NoCSQC,			254},	// #254 string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
-	{"sqlerror",		PF_NoCSQC,			255},	// #255 string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
-	{"sqlescape",		PF_NoCSQC,			256},	// #256 string(float serveridx, string data) sqlescape (FTE_SQL)
-	{"sqlversion",		PF_NoCSQC,			257},	// #257 string(float serveridx) sqlversion (FTE_SQL)
-	{"sqlreadfloat",	PF_NoCSQC,			258},	// #258 float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
+	{"sqlconnect",				PF_NoCSQC,			250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
+	{"sqldisconnect",			PF_NoCSQC,			251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
+	{"sqlopenquery",			PF_NoCSQC,			252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
+	{"sqlclosequery",			PF_NoCSQC,			253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
+	{"sqlreadfield",			PF_NoCSQC,			254},	// #254 string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
+	{"sqlerror",				PF_NoCSQC,			255},	// #255 string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
+	{"sqlescape",				PF_NoCSQC,			256},	// #256 string(float serveridx, string data) sqlescape (FTE_SQL)
+	{"sqlversion",				PF_NoCSQC,			257},	// #257 string(float serveridx) sqlversion (FTE_SQL)
+	{"sqlreadfloat",			PF_NoCSQC,			258},	// #258 float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
 
-	{"stoi",			PF_stoi,			259},
-	{"itos",			PF_itos,			260},
-	{"stoh",			PF_stoh,			261},
-	{"htos",			PF_htos,			262},
+	{"stoi",					PF_stoi,			259},
+	{"itos",					PF_itos,			260},
+	{"stoh",					PF_stoh,			261},
+	{"htos",					PF_htos,			262},
 
-	{"skel_create",			PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_find_bone",		PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonerel",	PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_get_boneabs",	PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_set_bone",		PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bone",		PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bones",		PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
-	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_create",				PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",				PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",		PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",		PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",		PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",			PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",		PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",		PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",			PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",			PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",			PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",			PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",				PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",			PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",			PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
-	{"terrain_edit",		PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
-	{"touchtriggers",		PF_touchtriggers,		279},//void() touchtriggers = #279;
-	{"skel_ragupdate",		PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
-	{"skel_mmap",			PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
-	{"skel_set_bone_world",	PF_skel_set_bone_world,	283},
-	{"frametoname",			PF_frametoname,			284},//string(float modidx, float framenum) frametoname
-	{"skintoname",			PF_skintoname,			285},//string(float modidx, float skin) skintoname
+	{"terrain_edit",			PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
+	{"touchtriggers",			PF_touchtriggers,		279},//void() touchtriggers = #279;
+	{"skel_ragupdate",			PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
+	{"skel_mmap",				PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
+	{"skel_set_bone_world",		PF_skel_set_bone_world,	283},
+	{"frametoname",				PF_frametoname,			284},//string(float modidx, float framenum) frametoname
+	{"skintoname",				PF_skintoname,			285},//string(float modidx, float skin) skintoname
 
 //300
-	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
-	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
-	{"addentity",	PF_R_AddEntity,	302},					// #302 void(entity ent) addentity (EXT_CSQC)
-	{"setproperty",	PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
-	{"renderscene",	PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
+	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
+	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
+	{"addentity",				PF_R_AddEntity,	302},					// #302 void(entity ent) addentity (EXT_CSQC)
+	{"setproperty",				PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
+	{"renderscene",				PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
 
-	{"dynamiclight_add",	PF_R_DynamicLight_Add,	305},			// #305 float(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
+	{"dynamiclight_add",		PF_R_DynamicLight_Add,	305},			// #305 float(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
 
-	{"R_BeginPolygon",	PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
-	{"R_PolygonVertex",	PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
-	{"R_EndPolygon",	PF_R_PolygonEnd,	308},				// #308 void() R_EndPolygon (EXT_CSQC_???)
+	{"R_BeginPolygon",			PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
+	{"R_PolygonVertex",			PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
+	{"R_EndPolygon",			PF_R_PolygonEnd,	308},				// #308 void() R_EndPolygon (EXT_CSQC_???)
 
-	{"getproperty",	PF_R_GetViewFlag,	309},				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
+	{"getproperty",				PF_R_GetViewFlag,	309},				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
 
 //310
 //maths stuff that uses the current view settings.
-	{"unproject",	PF_cs_unproject,	310},				// #310 vector (vector v) unproject (EXT_CSQC)
-	{"project",	PF_cs_project,		311},				// #311 vector (vector v) project (EXT_CSQC)
+	{"unproject",				PF_cs_unproject,	310},				// #310 vector (vector v) unproject (EXT_CSQC)
+	{"project",					PF_cs_project,		311},				// #311 vector (vector v) project (EXT_CSQC)
 
 //	{"?",	PF_Fixme,			312},				// #312
 //	{"?",	PF_Fixme,		313},					// #313
 
 //2d (immediate) operations
-//	{"drawtextfield", PF_CL_DrawTextField,  314},
-	{"drawline",	PF_CL_drawline,			315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
-	{"iscachedpic",	PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
-	{"precache_pic",	PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
-	{"drawgetimagesize",	PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
-	{"freepic",	PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
+//	{"drawtextfield",			PF_CL_DrawTextField,  314},
+	{"drawline",				PF_CL_drawline,			315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
+	{"iscachedpic",				PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
+	{"precache_pic",			PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
+	{"drawgetimagesize",		PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
+	{"freepic",					PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
-	{"drawcharacter",	PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
-	{"drawrawstring",	PF_CL_drawrawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
-	{"drawpic",	PF_CL_drawpic,				322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
-	{"drawfill",	PF_CL_drawfill,				323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
-	{"drawsetcliparea",	PF_CL_drawsetcliparea,			324},	// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
-	{"drawresetcliparea",	PF_CL_drawresetcliparea,	325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
+	{"drawcharacter",			PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",			PF_CL_drawrawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",					PF_CL_drawpic,				322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
+	{"drawfill",				PF_CL_drawfill,				323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
+	{"drawsetcliparea",			PF_CL_drawsetcliparea,			324},	// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
+	{"drawresetcliparea",		PF_CL_drawresetcliparea,	325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
 
-	{"drawstring",		PF_CL_drawcolouredstring,						326},	// #326
-	{"stringwidth",		PF_CL_stringwidth,					327},	// #327 EXT_CSQC_'DARKPLACES'
-	{"drawsubpic",		PF_CL_drawsubpic,						328},	// #328 EXT_CSQC_'DARKPLACES'
+	{"drawstring",				PF_CL_drawcolouredstring,						326},	// #326
+	{"stringwidth",				PF_CL_stringwidth,					327},	// #327 EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",				PF_CL_drawsubpic,						328},	// #328 EXT_CSQC_'DARKPLACES'
 //	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
 
 //330
-	{"getstati",		PF_cs_getstati,					330},	// #330 float(float stnum) getstati (EXT_CSQC)
-	{"getstatbits",		PF_cs_getstatbits,					331},	// #331 float(float stnum) getstatbits (EXT_CSQC)
-	{"getstats",		PF_cs_getstats,					332},	// #332 string(float firststnum) getstats (EXT_CSQC)
-	{"setmodelindex",	PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
-	{"modelnameforindex",	PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
+	{"getstati",				PF_cs_getstati,					330},	// #330 float(float stnum) getstati (EXT_CSQC)
+	{"getstatbits",				PF_cs_getstatbits,					331},	// #331 float(float stnum) getstatbits (EXT_CSQC)
+	{"getstats",				PF_cs_getstats,					332},	// #332 string(float firststnum) getstats (EXT_CSQC)
+	{"setmodelindex",			PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
+	{"modelnameforindex",		PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
 
-	{"particleeffectnum",	PF_cs_particleeffectnum,			335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
-	{"trailparticles",	PF_cs_trailparticles,			336},	// #336 void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
-	{"pointparticles",	PF_cs_pointparticles,			337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+	{"particleeffectnum",		PF_cs_particleeffectnum,			335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
+	{"trailparticles",			PF_cs_trailparticles,			336},	// #336 void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
+	{"pointparticles",			PF_cs_pointparticles,			337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
 
-	{"cprint",			PF_cl_cprint,					338},	// #338 void(string s) cprint (EXT_CSQC)
-	{"print",			PF_print,						339},	// #339 void(string s) print (EXT_CSQC)
+	{"cprint",					PF_cl_cprint,					338},	// #338 void(string s) cprint (EXT_CSQC)
+	{"print",					PF_print,						339},	// #339 void(string s) print (EXT_CSQC)
 
 //340
-	{"keynumtostring",	PF_cl_keynumtostring,			340},	// #340 string(float keynum) keynumtostring (EXT_CSQC)
-	{"stringtokeynum",	PF_cl_stringtokeynum,			341},	// #341 float(string keyname) stringtokeynum (EXT_CSQC)
-	{"getkeybind",		PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
+	{"keynumtostring",			PF_cl_keynumtostring,			340},	// #340 string(float keynum) keynumtostring (EXT_CSQC)
+	{"stringtokeynum",			PF_cl_stringtokeynum,			341},	// #341 float(string keyname) stringtokeynum (EXT_CSQC)
+	{"getkeybind",				PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
 //	{"?",	PF_Fixme,						343},	// #343
-	{"getmousepos",	PF_cl_getmousepos,						344},	// #344 This is a DP extension
+	{"getmousepos",				PF_cl_getmousepos,						344},	// #344 This is a DP extension
 
-	{"getinputstate",	PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
+	{"getinputstate",			PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
 	{"setsensitivityscaler",	PF_cs_setsensativityscaler, 	346},	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
 
-	{"runstandardplayerphysics",	PF_cs_runplayerphysics,			347},	// #347 void() runstandardplayerphysics (EXT_CSQC)
+	{"runstandardplayerphysics",PF_cs_runplayerphysics,			347},	// #347 void() runstandardplayerphysics (EXT_CSQC)
 
-	{"getplayerkeyvalue",	PF_cs_getplayerkey,				348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
+	{"getplayerkeyvalue",		PF_cs_getplayerkey,				348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
 
-	{"isdemo",			PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
+	{"isdemo",					PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
 //350
-	{"isserver",		PF_cl_runningserver,			350},	// #350 float() isserver (EXT_CSQC)
+	{"isserver",				PF_cl_runningserver,			350},	// #350 float() isserver (EXT_CSQC)
 
-	{"SetListener",		PF_cs_setlistener, 				351},	// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
-	{"registercommand",	PF_cs_registercommand,			352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
-	{"wasfreed",		PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
+	{"SetListener",				PF_cs_setlistener, 				351},	// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
+	{"registercommand",			PF_cs_registercommand,			352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
+	{"wasfreed",				PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
-	{"serverkey",		PF_cs_serverkey,				354},	// #354 string(string key) serverkey;
-	{"getentitytoken",	PF_cs_getentitytoken,			355},	// #355 string() getentitytoken;
-	{"findfont",		PF_CL_findfont,					356},
-	{"loadfont",		PF_CL_loadfont,					357},
-//	{"?",				PF_Fixme,						358},	// #358
-	{"sendevent",		PF_cs_sendevent,				359},	// #359	void(string evname, string evargs, ...) (EXT_CSQC_1)
+	{"serverkey",				PF_cs_serverkey,				354},	// #354 string(string key) serverkey;
+	{"getentitytoken",			PF_cs_getentitytoken,			355},	// #355 string() getentitytoken;
+	{"findfont",				PF_CL_findfont,					356},
+	{"loadfont",				PF_CL_loadfont,					357},
+//	{"?",						PF_Fixme,						358},	// #358
+	{"sendevent",				PF_cs_sendevent,				359},	// #359	void(string evname, string evargs, ...) (EXT_CSQC_1)
 
 //360
 //note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
-	{"readbyte",		PF_ReadByte,					360},	// #360 float() readbyte (EXT_CSQC)
-	{"readchar",		PF_ReadChar,					361},	// #361 float() readchar (EXT_CSQC)
-	{"readshort",		PF_ReadShort,					362},	// #362 float() readshort (EXT_CSQC)
-	{"readlong",		PF_ReadLong,					363},	// #363 float() readlong (EXT_CSQC)
-	{"readcoord",		PF_ReadCoord,					364},	// #364 float() readcoord (EXT_CSQC)
+	{"readbyte",				PF_ReadByte,					360},	// #360 float() readbyte (EXT_CSQC)
+	{"readchar",				PF_ReadChar,					361},	// #361 float() readchar (EXT_CSQC)
+	{"readshort",				PF_ReadShort,					362},	// #362 float() readshort (EXT_CSQC)
+	{"readlong",				PF_ReadLong,					363},	// #363 float() readlong (EXT_CSQC)
+	{"readcoord",				PF_ReadCoord,					364},	// #364 float() readcoord (EXT_CSQC)
 
-	{"readangle",		PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
-	{"readstring",		PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
-	{"readfloat",		PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
-	{"readentitynum",	PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
+	{"readangle",				PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
+	{"readstring",				PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
+	{"readfloat",				PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
+	{"readentitynum",			PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
 
 //	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
 //	{"readsingleentitystate",	PF_ReadSingleEntityState,		370},
-	{"deltalisten",		PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
+	{"deltalisten",				PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
 
-	{"dynamiclight_get",	PF_R_DynamicLight_Get,	372},
-	{"dynamiclight_set",	PF_R_DynamicLight_Set,	373},
-	{"particleeffectquery",	PF_cs_particleeffectquery,	374},
-	{"adddecal",			PF_R_AddDecal,			375},
+	{"dynamiclight_get",		PF_R_DynamicLight_Get,	372},
+	{"dynamiclight_set",		PF_R_DynamicLight_Set,	373},
+	{"particleeffectquery",		PF_cs_particleeffectquery,	374},
+	{"adddecal",				PF_R_AddDecal,			375},
 
-	{"memalloc",			PF_memalloc,			384},
-	{"memfree",				PF_memfree,				385},
-	{"memcpy",				PF_memcpy,				386},
-	{"memset",				PF_memset,				387},
+	{"memalloc",				PF_memalloc,			384},
+	{"memfree",					PF_memfree,				385},
+	{"memcpy",					PF_memcpy,				386},
+	{"memset",					PF_memset,				387},
 
 //400
-	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
-	{"setcolors",	PF_NoCSQC,				401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
-	{"findchain",	PF_cs_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
-	{"findchainfloat",	PF_cs_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
-	{"effect",	PF_cl_effect,		404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
+	{"copyentity",				PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+	{"setcolors",				PF_NoCSQC,				401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
+	{"findchain",				PF_cs_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+	{"findchainfloat",			PF_cs_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"effect",					PF_cl_effect,		404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
-	{"te_blood",	PF_cl_te_blooddp,		405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
-	{"te_bloodshower",	PF_cl_te_bloodshower,406},		// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
-	{"te_explosionrgb",	PF_cl_te_explosionrgb,	407},	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
-	{"te_particlecube",	PF_cl_te_particlecube,408},		// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
-	{"te_particlerain",	PF_cl_te_particlerain,	409},	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
+	{"te_blood",				PF_cl_te_blooddp,		405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
+	{"te_bloodshower",			PF_cl_te_bloodshower,406},		// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+	{"te_explosionrgb",			PF_cl_te_explosionrgb,	407},	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
+	{"te_particlecube",			PF_cl_te_particlecube,408},		// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+	{"te_particlerain",			PF_cl_te_particlerain,	409},	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
 
-	{"te_particlesnow",	PF_cl_te_particlesnow,410},		// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
-	{"te_spark",	PF_cl_te_spark,		411},		// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
-	{"te_gunshotquad",	PF_cl_te_gunshotquad,	412},	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
-	{"te_spikequad",	PF_cl_te_spikequad,	413},		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
-	{"te_superspikequad",	PF_cl_te_superspikequad,414},	// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
+	{"te_particlesnow",			PF_cl_te_particlesnow,410},		// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
+	{"te_spark",				PF_cl_te_spark,		411},		// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+	{"te_gunshotquad",			PF_cl_te_gunshotquad,	412},	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
+	{"te_spikequad",			PF_cl_te_spikequad,	413},		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
+	{"te_superspikequad",		PF_cl_te_superspikequad,414},	// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
 
-	{"te_explosionquad",	PF_cl_te_explosionquad,	415},	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
-	{"te_smallflash",	PF_cl_te_smallflash,	416},	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
-	{"te_customflash",	PF_cl_te_customflash,	417},	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
-	{"te_gunshot",	PF_cl_te_gunshot,	418},		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_spike",	PF_cl_te_spike,		419},		// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosionquad",		PF_cl_te_explosionquad,	415},	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
+	{"te_smallflash",			PF_cl_te_smallflash,	416},	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+	{"te_customflash",			PF_cl_te_customflash,	417},	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+	{"te_gunshot",				PF_cl_te_gunshot,	418},		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_spike",				PF_cl_te_spike,		419},		// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
 
-	{"te_superspike",	PF_cl_te_superspike,420},		// #420 void(vector org) te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_explosion",	PF_cl_te_explosion,	421},		// #421 void(vector org) te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_tarexplosion",	PF_cl_te_tarexplosion,422},		// #422 void(vector org) te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_wizspike",	PF_cl_te_wizspike,	423},		// #423 void(vector org) te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_knightspike",	PF_cl_te_knightspike,424},		// #424 void(vector org) te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_superspike",			PF_cl_te_superspike,420},		// #420 void(vector org) te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosion",			PF_cl_te_explosion,	421},		// #421 void(vector org) te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_tarexplosion",			PF_cl_te_tarexplosion,422},		// #422 void(vector org) te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_wizspike",				PF_cl_te_wizspike,	423},		// #423 void(vector org) te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_knightspike",			PF_cl_te_knightspike,424},		// #424 void(vector org) te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
 
-	{"te_lavasplash",	PF_cl_te_lavasplash,425},		// #425 void(vector org) te_lavasplash  (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_teleport",	PF_cl_te_teleport,	426},		// #426 void(vector org) te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_explosion2",	PF_cl_te_explosion2,427},		// #427 void(vector org, float color, float colorlength) te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_lightning1",	PF_cl_te_lightning1,	428},	// #428 void(entity own, vector start, vector end) te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_lightning2",	PF_cl_te_lightning2,429},		// #429 void(entity own, vector start, vector end) te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_lavasplash",			PF_cl_te_lavasplash,425},		// #425 void(vector org) te_lavasplash  (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_teleport",				PF_cl_te_teleport,	426},		// #426 void(vector org) te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosion2",			PF_cl_te_explosion2,427},		// #427 void(vector org, float color, float colorlength) te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_lightning1",			PF_cl_te_lightning1,	428},	// #428 void(entity own, vector start, vector end) te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_lightning2",			PF_cl_te_lightning2,429},		// #429 void(entity own, vector start, vector end) te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
 
 	{"te_lightning3",			PF_cl_te_lightning3,				430},		// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
 	{"te_beam",					PF_cl_te_beam,						431},		// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
@@ -4422,82 +4441,82 @@ static struct {
 	{"getsurfacenearpoint",		PF_getsurfacenearpoint,				438},		// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
 	{"getsurfaceclippedpoint",	PF_getsurfaceclippedpoint,			439},			// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 
-	{"clientcommand",	PF_NoCSQC,			440},		// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
-	{"tokenize",	PF_Tokenize,		441},		// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"argv",	PF_ArgV,			442},		// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"setattachment",	PS_cs_setattachment,443},		// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
-	{"search_begin",	PF_search_begin,	444},		// #444 float	search_begin(string pattern, float caseinsensitive, float quiet) (DP_QC_FS_SEARCH)
+	{"clientcommand",			PF_NoCSQC,			440},		// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
+	{"tokenize",				PF_Tokenize,		441},		// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"argv",					PF_ArgV,			442},		// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"setattachment",			PS_cs_setattachment,443},		// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
+	{"search_begin",			PF_search_begin,	444},		// #444 float	search_begin(string pattern, float caseinsensitive, float quiet) (DP_QC_FS_SEARCH)
 
-	{"search_end",	PF_search_end,			445},	// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
-	{"search_getsize",	PF_search_getsize,	446},		// #446 float	search_getsize(float handle) (DP_QC_FS_SEARCH)
-	{"search_getfilename",	PF_search_getfilename,447},		// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
-	{"cvar_string",	PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
-	{"findflags",	PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
+	{"search_end",				PF_search_end,			445},	// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
+	{"search_getsize",			PF_search_getsize,	446},		// #446 float	search_getsize(float handle) (DP_QC_FS_SEARCH)
+	{"search_getfilename",		PF_search_getfilename,447},		// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
+	{"cvar_string",				PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
+	{"findflags",				PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
-	{"findchainflags",	PF_cs_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
-	{"gettagindex",	PF_gettagindex,		451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-	{"gettaginfo",	PF_gettaginfo,		452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-	{"dropclient",	PF_NoCSQC,			453},		// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
-	{"spawnclient",	PF_NoCSQC,			454},		// #454	entity() spawnclient (DP_SV_BOTCLIENT) (don't implement)
+	{"findchainflags",			PF_cs_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
+	{"gettagindex",				PF_gettagindex,		451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+	{"gettaginfo",				PF_gettaginfo,		452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+	{"dropclient",				PF_NoCSQC,			453},		// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
+	{"spawnclient",				PF_NoCSQC,			454},		// #454	entity() spawnclient (DP_SV_BOTCLIENT) (don't implement)
 
-	{"clienttype",	PF_NoCSQC,			455},		// #455 float(entity client) clienttype (DP_SV_BOTCLIENT) (don't implement)
+	{"clienttype",				PF_NoCSQC,			455},		// #455 float(entity client) clienttype (DP_SV_BOTCLIENT) (don't implement)
 
 
 //	{"WriteUnterminatedString",PF_WriteString2,		456},	//writestring but without the null terminator. makes things a little nicer.
 
 //DP_TE_FLAMEJET
-//	{"te_flamejet",		PF_te_flamejet,			457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
+//	{"te_flamejet",				PF_te_flamejet,			457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
 
 	//no 458 documented.
 
 //DP_QC_EDICT_NUM
-	{"edict_num",		PF_edict_for_num,		459},	// #459 entity(float entnum) edict_num
+	{"edict_num",				PF_edict_for_num,		459},	// #459 entity(float entnum) edict_num
 
 //DP_QC_STRINGBUFFERS
-	{"buf_create",		PF_buf_create,		460},	// #460 float() buf_create
-	{"buf_del",			PF_buf_del,				461},	// #461 void(float bufhandle) buf_del
-	{"buf_getsize",		PF_buf_getsize,		462},	// #462 float(float bufhandle) buf_getsize
-	{"buf_copy",		PF_buf_copy,		463},	// #463 void(float bufhandle_from, float bufhandle_to) buf_copy
-	{"buf_sort",		PF_buf_sort,		464},	// #464 void(float bufhandle, float sortpower, float backward) buf_sort
-	{"buf_implode",		PF_buf_implode,		465},	// #465 string(float bufhandle, string glue) buf_implode
-	{"bufstr_get",		PF_bufstr_get,		466},	// #466 string(float bufhandle, float string_index) bufstr_get
-	{"bufstr_set",		PF_bufstr_set,		467},	// #467 void(float bufhandle, float string_index, string str) bufstr_set
-	{"bufstr_add",		PF_bufstr_add,		468},	// #468 float(float bufhandle, string str, float order) bufstr_add
-	{"bufstr_free",		PF_bufstr_free,			469},	// #469 void(float bufhandle, float string_index) bufstr_free
+	{"buf_create",				PF_buf_create,		460},	// #460 float() buf_create
+	{"buf_del",					PF_buf_del,				461},	// #461 void(float bufhandle) buf_del
+	{"buf_getsize",				PF_buf_getsize,		462},	// #462 float(float bufhandle) buf_getsize
+	{"buf_copy",				PF_buf_copy,		463},	// #463 void(float bufhandle_from, float bufhandle_to) buf_copy
+	{"buf_sort",				PF_buf_sort,		464},	// #464 void(float bufhandle, float sortpower, float backward) buf_sort
+	{"buf_implode",				PF_buf_implode,		465},	// #465 string(float bufhandle, string glue) buf_implode
+	{"bufstr_get",				PF_bufstr_get,		466},	// #466 string(float bufhandle, float string_index) bufstr_get
+	{"bufstr_set",				PF_bufstr_set,		467},	// #467 void(float bufhandle, float string_index, string str) bufstr_set
+	{"bufstr_add",				PF_bufstr_add,		468},	// #468 float(float bufhandle, string str, float order) bufstr_add
+	{"bufstr_free",				PF_bufstr_free,			469},	// #469 void(float bufhandle, float string_index) bufstr_free
 
 	//no 470 documented
 
 //DP_QC_ASINACOSATANATAN2TAN
-	{"asin",			PF_asin,			471},	// #471 float(float s) asin
-	{"acos",			PF_acos,			472},	// #472 float(float c) acos
-	{"atan",			PF_atan,			473},	// #473 float(float t) atan
-	{"atan2",			PF_atan2,			474},	// #474 float(float c, float s) atan2
-	{"tan",				PF_tan,				475},	// #475 float(float a) tan
+	{"asin",					PF_asin,			471},	// #471 float(float s) asin
+	{"acos",					PF_acos,			472},	// #472 float(float c) acos
+	{"atan",					PF_atan,			473},	// #473 float(float t) atan
+	{"atan2",					PF_atan2,			474},	// #474 float(float c, float s) atan2
+	{"tan",						PF_tan,				475},	// #475 float(float a) tan
 
 
 ////DP_QC_STRINGCOLORFUNCTIONS
-	{"strlennocol",		PF_strlennocol,		476},	// #476 float(string s) strlennocol
-	{"strdecolorize",	PF_strdecolorize,	477},	// #477 string(string s) strdecolorize
+	{"strlennocol",				PF_strlennocol,		476},	// #476 float(string s) strlennocol
+	{"strdecolorize",			PF_strdecolorize,	477},	// #477 string(string s) strdecolorize
 
 //DP_QC_STRFTIME
-	{"strftime",		PF_strftime,		478},	// #478 string(float uselocaltime, string format, ...) strftime
+	{"strftime",				PF_strftime,		478},	// #478 string(float uselocaltime, string format, ...) strftime
 
 //DP_QC_TOKENIZEBYSEPARATOR
-	{"tokenizebyseparator",PF_tokenizebyseparator,	479},	// #479 float(string s, string separator1, ...) tokenizebyseparator
+	{"tokenizebyseparator",		PF_tokenizebyseparator,	479},	// #479 float(string s, string separator1, ...) tokenizebyseparator
 
 //DP_QC_STRING_CASE_FUNCTIONS
-	{"strtolower",		PF_strtolower,		480},	// #476 string(string s) strtolower
-	{"strtoupper",		PF_strtoupper,		481},	// #476 string(string s) strlennocol
+	{"strtolower",				PF_strtolower,		480},	// #476 string(string s) strtolower
+	{"strtoupper",				PF_strtoupper,		481},	// #476 string(string s) strlennocol
 
 //DP_QC_CVAR_DEFSTRING
-	{"cvar_defstring",	PF_cvar_defstring,	482},	// #482 string(string s) cvar_defstring
+	{"cvar_defstring",			PF_cvar_defstring,	482},	// #482 string(string s) cvar_defstring
 
 //DP_SV_POINTSOUND
-	{"pointsound",		PF_cs_pointsound,		483},	// #483 void(vector origin, string sample, float volume, float attenuation) pointsound
+	{"pointsound",				PF_cs_pointsound,		483},	// #483 void(vector origin, string sample, float volume, float attenuation) pointsound
 
 //DP_QC_STRREPLACE
-	{"strreplace",		PF_strreplace,		484},	// #484 string(string search, string replace, string subject) strreplace
-	{"strireplace",		PF_strireplace,		485},	// #485 string(string search, string replace, string subject) strireplace
+	{"strreplace",				PF_strreplace,		484},	// #484 string(string search, string replace, string subject) strreplace
+	{"strireplace",				PF_strireplace,		485},	// #485 string(string search, string replace, string subject) strireplace
 
 
 //DP_QC_GETSURFACEPOINTATTRIBUTE
@@ -4505,78 +4524,96 @@ static struct {
 
 #ifndef NOMEDIA
 //DP_GECKO_SUPPORT
-	{"gecko_create",	PF_cs_gecko_create,		487},	// #487 float(string name) gecko_create( string name )
-	{"gecko_destroy",	PF_cs_gecko_destroy,	488},	// #488 void(string name) gecko_destroy( string name )
-	{"gecko_navigate",	PF_cs_gecko_navigate,	489},	// #489 void(string name) gecko_navigate( string name, string URI )
-	{"gecko_keyevent",	PF_cs_gecko_keyevent,	490},	// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
-	{"gecko_mousemove",	PF_cs_gecko_mousemove,	491},	// #491 void gecko_mousemove( string name, float x, float y )
-	{"gecko_resize",	PF_cs_gecko_resize,	492},	// #492 void gecko_resize( string name, float w, float h )
+	{"gecko_create",			PF_cs_gecko_create,		487},	// #487 float(string name) gecko_create( string name )
+	{"gecko_destroy",			PF_cs_gecko_destroy,	488},	// #488 void(string name) gecko_destroy( string name )
+	{"gecko_navigate",			PF_cs_gecko_navigate,	489},	// #489 void(string name) gecko_navigate( string name, string URI )
+	{"gecko_keyevent",			PF_cs_gecko_keyevent,	490},	// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
+	{"gecko_mousemove",			PF_cs_gecko_mousemove,	491},	// #491 void gecko_mousemove( string name, float x, float y )
+	{"gecko_resize",			PF_cs_gecko_resize,	492},	// #492 void gecko_resize( string name, float w, float h )
 	{"gecko_get_texture_extent",PF_cs_gecko_get_texture_extent,	493},	// #493 vector gecko_get_texture_extent( string name )
 #endif
 
 //DP_QC_CRC16
-	{"crc16",				PF_crc16,				494},	// #494 float(float caseinsensitive, string s, ...) crc16
+	{"crc16",					PF_crc16,				494},	// #494 float(float caseinsensitive, string s, ...) crc16
 
 //DP_QC_CVAR_TYPE
-	{"cvar_type",			PF_cvar_type,		495},	// #495 float(string name) cvar_type
+	{"cvar_type",				PF_cvar_type,		495},	// #495 float(string name) cvar_type
 
 //DP_QC_ENTITYDATA
-	{"numentityfields",		PF_numentityfields,			496},	// #496 float() numentityfields
-	{"entityfieldname",		PF_entityfieldname,			497},	// #497 string(float fieldnum) entityfieldname
-	{"entityfieldtype",		PF_entityfieldtype,			498},	// #498 float(float fieldnum) entityfieldtype
-	{"getentityfieldstring",PF_getentityfieldstring,	499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
-	{"putentityfieldstring",PF_putentityfieldstring,	500},	// #500 float(float fieldnum, entity ent, string s) putentityfieldstring
+	{"numentityfields",			PF_numentityfields,			496},	// #496 float() numentityfields
+	{"entityfieldname",			PF_entityfieldname,			497},	// #497 string(float fieldnum) entityfieldname
+	{"entityfieldtype",			PF_entityfieldtype,			498},	// #498 float(float fieldnum) entityfieldtype
+	{"getentityfieldstring",	PF_getentityfieldstring,	499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
+	{"putentityfieldstring",	PF_putentityfieldstring,	500},	// #500 float(float fieldnum, entity ent, string s) putentityfieldstring
 
 //DP_SV_WRITEPICTURE
-	{"WritePicture",		PF_ReadPicture,				501},	// #501 void(float to, string s, float sz) WritePicture
+	{"WritePicture",			PF_ReadPicture,				501},	// #501 void(float to, string s, float sz) WritePicture
 
-//	{"boxparticles",		PF_Fixme,					502},
+//	{"boxparticles",			PF_Fixme,					502},
 
 //DP_QC_WHICHPACK
-	{"whichpack",			PF_whichpack,				503},	// #503 string(string filename) whichpack
+	{"whichpack",				PF_whichpack,				503},	// #503 string(string filename) whichpack
 
 //DP_CSQC_QUERYRENDERENTITY
-	{"getentity",			PF_getentity,				504},	// #504 __variant(float entnum, fload fieldnum) getentity
+	{"getentity",				PF_getentity,				504},	// #504 __variant(float entnum, fload fieldnum) getentity
 
 //DP_QC_URI_ESCAPE
-	{"uri_escape",			PF_uri_escape,				510},	// #510 string(string in) uri_escape
-	{"uri_unescape",		PF_uri_unescape,			511},	// #511 string(string in) uri_unescape = #511;
+	{"uri_escape",				PF_uri_escape,				510},	// #510 string(string in) uri_escape
+	{"uri_unescape",			PF_uri_unescape,			511},	// #511 string(string in) uri_unescape = #511;
 
 //DP_QC_NUM_FOR_EDICT
-	{"num_for_edict",		PF_num_for_edict,			512},	// #512 float(entity ent) num_for_edict
+	{"num_for_edict",			PF_num_for_edict,			512},	// #512 float(entity ent) num_for_edict
 
 //DP_QC_URI_GET
-	{"uri_get",				PF_uri_get,					513},	// #513 float(string uril, float id) uri_get
+	{"uri_get",					PF_uri_get,					513},	// #513 float(string uril, float id) uri_get
 
-	{"tokenize_console",	PF_tokenize_console,		514},
-	{"argv_start_index",	PF_argv_start_index,		515},
-	{"argv_end_index",		PF_argv_end_index,			516},
-	{"buf_cvarlist",		PF_buf_cvarlist,			517},
-	{"cvar_description",	PF_cvar_description,		518},
+	{"tokenize_console",		PF_tokenize_console,		514},
+	{"argv_start_index",		PF_argv_start_index,		515},
+	{"argv_end_index",			PF_argv_end_index,			516},
+	{"buf_cvarlist",			PF_buf_cvarlist,			517},
+	{"cvar_description",		PF_cvar_description,		518},
 
-	{"gettime",				PF_cs_gettime,				519},
+	{"gettime",					PF_cs_gettime,				519},
 
-	{"keynumtostring",		PF_cl_keynumtostring,		520},
-	{"findkeysforcommand",	PF_cl_findkeysforcommand,	521},
+	{"keynumtostring",			PF_cl_keynumtostring,		520},
+	{"findkeysforcommand",		PF_cl_findkeysforcommand,	521},
 
-	{"loadfromdata",		PF_loadfromdata,			529},
-	{"loadfromfile",		PF_loadfromfile,			530},
+	{"loadfromdata",			PF_loadfromdata,			529},
+	{"loadfromfile",			PF_loadfromfile,			530},
 
-	{"callfunction",		PF_callfunction,			605},
-	{"writetofile",			PF_writetofile,				606},
-	{"isfunction",			PF_isfunction,				607},
-	{"parseentitydata",		PF_parseentitydata,			608},
-	{"keynumtostring",		PF_cl_keynumtostring,		609},
+	{"callfunction",			PF_callfunction,			605},
+	{"writetofile",				PF_writetofile,				606},
+	{"isfunction",				PF_isfunction,				607},
+	{"parseentitydata",			PF_parseentitydata,			608},
+	{"keynumtostring",			PF_cl_keynumtostring,		609},
 
-	{"findkeysforcommand",	PF_cl_findkeysforcommand,	610},
-	{"stringtokeynum",		PF_cl_stringtokeynum,		614},
+	{"findkeysforcommand",		PF_cl_findkeysforcommand,	610},
+	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
+	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
+	{"parseentitydata",			PF_parseentitydata,			613},
+	{"stringtokeynum",			PF_cl_stringtokeynum,		614},
 
-	{"sprintf",				PF_sprintf,					627},
+	{"resethostcachemasks",		PF_cl_resethostcachemasks,	615},
+	{"sethostcachemaskstring",	PF_cl_sethostcachemaskstring,616},
+	{"sethostcachemasknumber",	PF_cl_sethostcachemasknumber,617},
+	{"resorthostcache",			PF_cl_resorthostcache,		618},
+	{"sethostcachesort",		PF_cl_sethostcachesort,		619},
+	{"refreshhostcache",		PF_cl_refreshhostcache,		620},
+	{"gethostcachenumber",		PF_cl_gethostcachenumber,	621},
+	{"gethostcacheindexforkey",	PF_cl_gethostcacheindexforkey,622},
+	{"addwantedhostcachekey",	PF_cl_addwantedhostcachekey,	623},
+	{"getextresponse",			PF_cl_getextresponse,		624},
+	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 
-	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,628},
-	{"getsurfacetriangle",	PF_getsurfacetriangle,		629},
+	{"sprintf",					PF_sprintf,					627},
+	{"getsurfacenumtriangles",	PF_getsurfacenumtriangles,628},
+	{"getsurfacetriangle",		PF_getsurfacetriangle,		629},
 
-	{"digest_hex",			PF_digest_hex,		639},
+//	{"setkeybind",				PF_Fixme,					630},
+	{"getbindmaps",				PF_cl_GetBindMap,			631},
+	{"setbindmaps",				PF_cl_SetBindMap,			632},
+
+	{"digest_hex",				PF_digest_hex,		639},
 
 	{NULL}
 };
@@ -4904,6 +4941,28 @@ qboolean CSQC_Inited(void)
 	return false;
 }
 
+qboolean CSQC_UnconnectedOkay(qboolean inprinciple)
+{
+	return false;
+
+	if (!inprinciple)
+	{
+		if (!csqcprogs)
+			return false;
+		return true;
+	}
+	else
+	{
+		if (pr_csqc_formenus.ival)
+			return true;
+		return false;
+	}
+}
+qboolean CSQC_UnconnectedInit(void)
+{
+	return false;
+}
+
 double  csqctime;
 qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum)
 {
@@ -4911,6 +4970,8 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	string_t *str;
 	csqcedict_t *worldent;
 	qboolean loaded = false;
+	if (csprogs_promiscuous != anycsqc || csprogs_checksum != checksum)
+		CSQC_Shutdown();
 	csprogs_promiscuous = anycsqc;
 	csprogs_checksum = checksum;
 
@@ -5313,6 +5374,7 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cmd_AddCommandD("cl_cmd", CSQC_GameCommand_f, "Calls the csqc's GameCommand function");
 	Cmd_AddCommand("breakpoint_csqc", CSQC_Breakpoint_f);
 
+	Cvar_Register(&pr_csqc_formenus, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_memsize, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_maxedicts, CSQCPROGSGROUP);
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
@@ -5337,7 +5399,10 @@ qboolean CSQC_DrawView(void)
 
 	csqc_resortfrags = true;
 
-	if (!csqcg.draw_function || !csqcprogs || !cl.worldmodel)
+	if (!csqcg.draw_function || !csqcprogs)
+		return false;
+
+	if (cls.state < (csqcg.loadresource?ca_active:ca_onserver) && !CSQC_UnconnectedOkay(false))
 		return false;
 
 	r_secondaryview = 0;
@@ -5378,18 +5443,18 @@ qboolean CSQC_DrawView(void)
 	if (!cl.paused)
 	{
 		if (csqcg.clientcommandframe)
-			*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
+			*csqcg.clientcommandframe = cl.movesequence;
 		if (csqcg.servercommandframe)
-			*csqcg.servercommandframe = cl.ackedinputsequence;
+			*csqcg.servercommandframe = cl.ackedmovesequence;
 		if (csqcg.gamespeed)
 			*csqcg.gamespeed = cl.gamespeed;
 	}
 	else 
 	{
 		if (csqcg.clientcommandframe)
-			*csqcg.clientcommandframe = cl.ackedinputsequence;
+			*csqcg.clientcommandframe = cl.movesequence;
 		if (csqcg.servercommandframe)
-			*csqcg.servercommandframe = cl.ackedinputsequence;
+			*csqcg.servercommandframe = cl.ackedmovesequence;
 		if (csqcg.gamespeed)
 			*csqcg.gamespeed = 0;
 	}
@@ -5421,8 +5486,11 @@ qboolean CSQC_DrawView(void)
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 {
 	void *pr_globals;
+	extern qboolean editormodal;
 
 	if (!csqcprogs || !csqcg.input_event)
+		return false;
+	if (editormodal)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -5504,6 +5572,8 @@ qboolean CSQC_ConsoleCommand(char *cmd)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.console_command)
+		return false;
+	if (editormodal)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -5685,7 +5755,7 @@ void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd)
 		*csqcg.cltime = cl.time;
 
 	if (csqcg.clientcommandframe)
-		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
+		*csqcg.clientcommandframe = cl.movesequence;
 
 	cs_set_input_state(cmd);
 	PR_ExecuteProgram (csqcprogs, csqcg.input_frame);
@@ -5779,9 +5849,9 @@ void CSQC_ParseEntities(void)
 		*csqcg.cltime = cl.time;
 
 	if (csqcg.clientcommandframe)
-		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
+		*csqcg.clientcommandframe = cl.movesequence;
 	if (csqcg.servercommandframe)
-		*csqcg.servercommandframe = cl.ackedinputsequence;
+		*csqcg.servercommandframe = cl.ackedmovesequence;
 
 	for(;;)
 	{

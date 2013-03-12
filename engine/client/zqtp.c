@@ -523,7 +523,7 @@ static char *Macro_Powerups (void)
 	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVISIBILITY)
 		MacroBuf_strcat_with_separator (tp_name_ring.string);
 
-	effects = cl.frames[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum[SP]].effects;
+	effects = cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum[SP]].effects;
 	if ( (effects & (QWEF_FLAG1|QWEF_FLAG2)) ||		// CTF
 		(cl.teamfortress && cl.playerview[SP].stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
 		MacroBuf_strcat_with_separator (tp_name_flag.string);
@@ -879,7 +879,7 @@ static void CountNearbyPlayers(qboolean dead)
 	if (!cl.oldparsecount || !cl.parsecount || cls.state < ca_active)
 		return;
 
-	state = cl.frames[cl.oldparsecount & UPDATE_MASK].playerstate;
+	state = cl.inframes[cl.oldparsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
 	for (i = 0; i < MAX_CLIENTS; i++, info++, state++) {
 		if (i != cl.playernum[0] && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
@@ -2502,7 +2502,7 @@ static void TP_FindModelNumbers (void)
 // for armors, returns skinnum+1 on success
 static int FindNearestItem (int flags, item_t **pitem)
 {
-	frame_t		*frame;
+	inframe_t		*frame;
 	packet_entities_t	*pak;
 	entity_state_t		*ent;
 	int	i = 0, bestidx = 0, bestskin = 0;
@@ -2510,11 +2510,11 @@ static int FindNearestItem (int flags, item_t **pitem)
 	vec3_t	org, v;
 	item_t	*item;
 
-	VectorCopy (cl.frames[cl.validsequence&UPDATE_MASK]
+	VectorCopy (cl.inframes[cl.validsequence&UPDATE_MASK]
 		.playerstate[cl.playernum[SP]].origin, org);
 
 	// look in previous frame
-	frame = &cl.frames[cl.oldvalidsequence&UPDATE_MASK];
+	frame = &cl.inframes[cl.oldvalidsequence&UPDATE_MASK];
 	pak = &frame->packet_entities;
 	bestdist = 100.0f;
 	bestidx = 0;
@@ -2651,7 +2651,7 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 	{
 		if ((state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && !(oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
-			ExecTookTrigger (tp_name_flag.string, it_flag, cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
+			ExecTookTrigger (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
 		}
 		else if (!(state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && (oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
@@ -2938,7 +2938,7 @@ static void TP_FindPoint (void)
 			pointflags_dmm &= ~it_weapons;
 	}
 
-	pak = &cl.frames[cl.validsequence & UPDATE_MASK].packet_entities;
+	pak = &cl.inframes[cl.validsequence & UPDATE_MASK].packet_entities;
 	for (i = 0,ent = pak->entities; i < pak->num_entities; i++, ent++)
 	{
 		item = model2item[ent->modelindex];
@@ -2972,7 +2972,7 @@ static void TP_FindPoint (void)
 		}
 	}
 
-	state = cl.frames[cl.parsecount & UPDATE_MASK].playerstate;
+	state = cl.inframes[cl.parsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
 	for (j = 0; j < MAX_CLIENTS; j++, info++, state++)
 	{
@@ -3177,7 +3177,7 @@ void TP_StatChanged (int stat, int value)
 			if (cl.teamfortress && !cl.spectator)
 			{
 				ExecTookTrigger (tp_name_flag.string, it_flag,
-						cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
+						cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
 			}
 		}
 

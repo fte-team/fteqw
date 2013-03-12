@@ -3075,7 +3075,7 @@ void CL_UpdateBeams (void)
 		//			VectorSubtract(cl.simorg, b->start, org);
 		//			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
-					pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
+					pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
 					if (pl->messagenum == cl.parsecount || cls.protocol == CP_NETQUAKE)
 					{
 						vec3_t	fwd, org, ang;
@@ -3091,7 +3091,7 @@ void CL_UpdateBeams (void)
 
 						if (cl_truelightning.ival >= 2 && cls.netchan.outgoing_sequence > cl_truelightning.ival)
 						{
-							frame_t *frame = &cl.frames[(cls.netchan.outgoing_sequence-cl_truelightning.ival)&UPDATE_MASK];
+							inframe_t *frame = &cl.inframes[(cls.netchan.outgoing_sequence-cl_truelightning.ival)&UPDATE_MASK];
 							viewang = frame->playerstate[cl.playernum[j]].viewangles;
 							viewang[0] = (frame->playerstate[cl.playernum[j]].command.angles[0] * 360) / 65336.0;
 							viewang[1] = (frame->playerstate[cl.playernum[j]].command.angles[1] * 360) / 65336.0;
@@ -3154,7 +3154,7 @@ void CL_UpdateBeams (void)
 			}
 			else if (b->entity <= cl.allocated_client_slots && b->entity > 0)
 			{
-				pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
+				pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
 				VectorCopy(pl->origin, b->start);
 				b->start[2]+=16;
 			}

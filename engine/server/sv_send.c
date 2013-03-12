@@ -1229,7 +1229,10 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	{
 		MSG_WriteByte (msg, svc_time);
 		MSG_WriteFloat(msg, sv.world.physicstime);
-		client->nextservertimeupdate = sv.world.physicstime;
+
+		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
+			MSG_WriteLong(msg, client->last_sequence);
+
 //		Con_Printf("%f\n", sv.world.physicstime);
 	}
 
@@ -1620,6 +1623,12 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		else
 			statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
 
+		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
+		{
+			statsf[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
+			statsf[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
+			statsf[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
+		}
 		if (client->protocol == SCP_DARKPLACES7)
 		{
 			/*note: statsf is truncated, which would mess things up*/
@@ -1637,7 +1646,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
 			statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
 			statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
-			statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 280;//sv_jumpvelocity.value;	//bah
+			statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 270;//sv_jumpvelocity.value;	//bah
 			statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
 			statsfi[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
 			statsfi[STAT_MOVEVARS_STEPHEIGHT] = 18;
@@ -2400,7 +2409,7 @@ void SV_SendClientMessages (void)
 			}
 			else
 			{
-				if (c->nextservertimeupdate > pt + 0.5*2)
+				if (c->nextservertimeupdate > pt + 0.1)
 					c->nextservertimeupdate = 0;
 
 				c->netchan.nqunreliableonly = false;
@@ -2409,7 +2418,7 @@ void SV_SendClientMessages (void)
 				if (c->nextservertimeupdate < pt && c->state != cs_zombie)
 				{
 					c->send_message = true;
-					c->nextservertimeupdate = pt;
+					c->nextservertimeupdate = pt + 1.0/77;
 				}
 			}
 		}

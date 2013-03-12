@@ -337,7 +337,7 @@ qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 	if (ccs.currentUserCmdNumber - cmdNumber > CMD_MASK)
 		return false; // too old
 
-	cmd = &cl.frames[(cmdNumber) & CMD_MASK].cmd[0];
+	cmd = &cl.outframes[(cmdNumber) & CMD_MASK].cmd[0];
 	ucmd->angles[0] = cmd->angles[0];
 	ucmd->angles[1] = cmd->angles[1];
 	ucmd->angles[2] = cmd->angles[2];

@@ -153,8 +153,8 @@ int reorganisefields;
 //initlib.c
 	int mfreelist;
 	char * addressablehunk;
-	unsigned int addressableused;
-	unsigned int addressablesize;
+	size_t addressableused;
+	size_t addressablesize;
 
 	struct edict_s **edicttable;
 } prinst_t;
@@ -466,7 +466,7 @@ fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name);
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pnum, progsnum_t fromprogs);
 func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, char *funcname, progsnum_t pnum);
-void PDECL PR_Configure (pubprogfuncs_t *progfncs, int addressable_size, int max_progs);
+void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int max_progs);
 int PDECL PR_InitEnts(pubprogfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
 void PDECL QC_ClearEdict (pubprogfuncs_t *progfuncs, struct edict_s *ed);

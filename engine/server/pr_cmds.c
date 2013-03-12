@@ -8859,7 +8859,7 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *contents = PF_VarString(prinst, 1, pr_globals);
 
-	NET_StringToAdr(address, &to);
+	NET_StringToAdr(address, 0, &to);
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
 }
 
@@ -9273,7 +9273,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	"void()"},
 
 //EXT_CSQC
-	{"clientstat",		PF_clientstat,		0,		0,		0,		232,	"void(float num, float type, .void fld)"},	//EXT_CSQC
+	{"clientstat",		PF_clientstat,		0,		0,		0,		232,	"void(float num, float type, .__variant fld)"},	//EXT_CSQC
 	{"globalstat",		PF_globalstat,		0,		0,		0,		233,	"void(float num, float type, string name)"},	//EXT_CSQC_1 actually
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234,	"float(entity player)"},
@@ -9680,14 +9680,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"gethostcacheindexforkey",PF_Fixme,	0,		0,		0,		622,	"float(string key)"},
 	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	"void(string key)"},
 	{"getextresponse",	PF_Fixme,			0,		0,		0,		624,	"string()"},
-	{"netaddress_resolve",PF_Fixme,			0,		0,		0,		625,	"string(string, float)"},
+	{"netaddress_resolve",PF_netaddress_resolve,0,	0,		0,		625,	"string(string dnsname, optional float defport)"},
 //	{"getgamedirinfo",	PF_Fixme,			0,		0,		0,		626,	"string(float n, float prop)"},
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,0,		628,	"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,0,	0,		0,		629,	"vector(entity e, float s, float n)"},
 //	{"setkeybind",		PF_Fixme,			0,		0,		0,		630,	"float(float key, string bind, optional float bindmap)"},
-//	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()"},
-//	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)"},
+	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()" STUB},
+	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)" STUB},
 	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"string(string addr)"  STUB},
 	{"crypto_getidfp",	PF_Fixme,			0,		0,		0,		634,	"string(string addr)"  STUB},
 	{"crypto_getencryptlevel",PF_Fixme,		0,		0,		0,		635,	"string(string addr)"  STUB},
@@ -10214,6 +10214,7 @@ void PR_DumpPlatform_f(void)
 #undef comfieldstring
 #undef comfieldfunction
 
+		{"URI_Get_Callback",		"noref void(float reqid, float responsecode, string resourcebody)",	QW|NQ|CS|MENU},
 		{"SpectatorConnect",		"noref void()", QW|NQ},
 		{"SpectatorDisconnect",		"noref void()", QW|NQ},
 		{"SpectatorThink",			"noref void()", QW|NQ},
@@ -10414,6 +10415,17 @@ void PR_DumpPlatform_f(void)
 		{"MF_TRACER2",			"const float", QW|NQ, EF_MF_TRACER2>>24},
 		{"MF_TRACER3",			"const float", QW|NQ, EF_MF_TRACER3>>24},
 
+		//including these for csqc stat types.
+//		{"EV_VOID",				"const float", QW|NQ, ev_void},
+		{"EV_STRING",			"const float", QW|NQ, ev_string},
+		{"EV_FLOAT",			"const float", QW|NQ, ev_float},
+//		{"EV_VECTOR",			"const float", QW|NQ, ev_vector},
+		{"EV_ENTITY",			"const float", QW|NQ, ev_entity},
+//		{"EV_FIELD",			"const float", QW|NQ, ev_field},
+//		{"EV_FUNCTION",			"const float", QW|NQ, ev_function},
+//		{"EV_POINTER",			"const float", QW|NQ, ev_pointer},
+		{"EV_INTEGER",			"const float", QW|NQ, ev_integer},
+
 		{"STAT_HEALTH",			"const float", CS, STAT_HEALTH},
 		{"STAT_WEAPON",			"const float", CS, STAT_WEAPON},
 		{"STAT_AMMO",			"const float", CS, STAT_AMMO},
@@ -10538,24 +10550,24 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_MESH_KILL",	"const float", CS, ter_mesh_kill},
 		{"TEREDIT_TINT",		"const float", CS, ter_tint},
 
-		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", MENU, SLIST_HOSTCACHEVIEWCOUNT},
-		{"SLIST_HOSTCACHETOTALCOUNT",	"const float", MENU, SLIST_HOSTCACHETOTALCOUNT},
-		{"SLIST_MASTERQUERYCOUNT",		"const float", MENU, SLIST_MASTERQUERYCOUNT},
-		{"SLIST_MASTERREPLYCOUNT",		"const float", MENU, SLIST_MASTERREPLYCOUNT},
-		{"SLIST_SERVERQUERYCOUNT",		"const float", MENU, SLIST_SERVERQUERYCOUNT},
-		{"SLIST_SERVERREPLYCOUNT",		"const float", MENU, SLIST_SERVERREPLYCOUNT},
-		{"SLIST_SORTFIELD",				"const float", MENU, SLIST_SORTFIELD},
-		{"SLIST_SORTDESCENDING",		"const float", MENU, SLIST_SORTDESCENDING},
-		{"SLIST_TEST_CONTAINS",			"const float", MENU, SLIST_TEST_CONTAINS},
-		{"SLIST_TEST_NOTCONTAIN",		"const float", MENU, SLIST_TEST_NOTCONTAIN},
-		{"SLIST_TEST_LESSEQUAL",		"const float", MENU, SLIST_TEST_LESSEQUAL},
-		{"SLIST_TEST_LESS",				"const float", MENU, SLIST_TEST_LESS},
-		{"SLIST_TEST_EQUAL",			"const float", MENU, SLIST_TEST_EQUAL},
-		{"SLIST_TEST_GREATER",			"const float", MENU, SLIST_TEST_GREATER},
-		{"SLIST_TEST_GREATEREQUAL",		"const float", MENU, SLIST_TEST_GREATEREQUAL},
-		{"SLIST_TEST_NOTEQUAL",			"const float", MENU, SLIST_TEST_NOTEQUAL},
-		{"SLIST_TEST_STARTSWITH",		"const float", MENU, SLIST_TEST_STARTSWITH},
-		{"SLIST_TEST_NOTSTARTSWITH",	"const float", MENU, SLIST_TEST_NOTSTARTSWITH},
+		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", CS|MENU, SLIST_HOSTCACHEVIEWCOUNT},
+		{"SLIST_HOSTCACHETOTALCOUNT",	"const float", CS|MENU, SLIST_HOSTCACHETOTALCOUNT},
+		{"SLIST_MASTERQUERYCOUNT",		"const float", CS|MENU, SLIST_MASTERQUERYCOUNT},
+		{"SLIST_MASTERREPLYCOUNT",		"const float", CS|MENU, SLIST_MASTERREPLYCOUNT},
+		{"SLIST_SERVERQUERYCOUNT",		"const float", CS|MENU, SLIST_SERVERQUERYCOUNT},
+		{"SLIST_SERVERREPLYCOUNT",		"const float", CS|MENU, SLIST_SERVERREPLYCOUNT},
+		{"SLIST_SORTFIELD",				"const float", CS|MENU, SLIST_SORTFIELD},
+		{"SLIST_SORTDESCENDING",		"const float", CS|MENU, SLIST_SORTDESCENDING},
+		{"SLIST_TEST_CONTAINS",			"const float", CS|MENU, SLIST_TEST_CONTAINS},
+		{"SLIST_TEST_NOTCONTAIN",		"const float", CS|MENU, SLIST_TEST_NOTCONTAIN},
+		{"SLIST_TEST_LESSEQUAL",		"const float", CS|MENU, SLIST_TEST_LESSEQUAL},
+		{"SLIST_TEST_LESS",				"const float", CS|MENU, SLIST_TEST_LESS},
+		{"SLIST_TEST_EQUAL",			"const float", CS|MENU, SLIST_TEST_EQUAL},
+		{"SLIST_TEST_GREATER",			"const float", CS|MENU, SLIST_TEST_GREATER},
+		{"SLIST_TEST_GREATEREQUAL",		"const float", CS|MENU, SLIST_TEST_GREATEREQUAL},
+		{"SLIST_TEST_NOTEQUAL",			"const float", CS|MENU, SLIST_TEST_NOTEQUAL},
+		{"SLIST_TEST_STARTSWITH",		"const float", CS|MENU, SLIST_TEST_STARTSWITH},
+		{"SLIST_TEST_NOTSTARTSWITH",	"const float", CS|MENU, SLIST_TEST_NOTSTARTSWITH},
 		{NULL}
 	};
 
@@ -10800,8 +10812,10 @@ void PR_DumpPlatform_f(void)
 		{
 			if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
 				nd |= CS;
+#ifdef MENU_DAT
 			if (MP_BuiltinValid(BuiltinList[i].name, idx))
 				nd |= MENU;
+#endif
 			
 			if (!nd)
 			{

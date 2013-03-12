@@ -263,7 +263,7 @@ static char *defaultlanguagetext =
 
 
 
-cvar_t language = SCVAR("language", "uk");
+cvar_t language = SCVAR("language", "en-gb");
 char lastlang[9];
 
 typedef struct trans_s {

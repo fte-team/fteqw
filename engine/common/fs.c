@@ -2382,7 +2382,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 
 #if !defined(NPFTE) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
-	if (poshname)
+	if (poshname && !COM_CheckParm("-manifest"))
 	{
 		char resultpath[MAX_PATH];
 		BROWSEINFO bi;

@@ -880,15 +880,7 @@ char *cleanarg(char *arg)
 			*c = '?';
 	}
 
-	if (*arg)
-	{
-		char *out = malloc(strlen(arg)+3);
-		strcpy(out+1, arg);
-		out[0] = '\"';
-		strcat(out, "\"");
-		return out;
-	}
-	return strdup("\"\"");
+	return strdup(arg);
 }
 
 qboolean Plug_GetBinaryName(char *exe, int exelen, char *basedir, int basedirlen)
@@ -901,9 +893,8 @@ qboolean Plug_GetBinaryName(char *exe, int exelen, char *basedir, int basedirlen
 	*exe = 0;
 	*basedir = 0;
 
-//#ifdef _DEBUG
 //	Q_strncpyz(exe, "C:/Games/Quake/fte_trunk/fteglqw_dbg.exe", exelen);
-//#endif
+//	Q_strncpyz(exe, "/home/david/quake/fte_trunk/engine/debug/fteqw.gl", exelen);
 /*
 	Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, "npfte.txt");
 
@@ -950,8 +941,9 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 		return 0;	//error
 	}
 
-	argv[0] = strdup(exe);
-	argc = 1;
+	argc = 0;
+
+	ADDRARG(exe);
 
 	if (autoupdate)
 	{
@@ -1045,7 +1037,7 @@ qboolean Plug_GenCommandlineString(struct context *ctx, char *cmdline, int cmdli
 	for (i = 0; i < argc; i++)
 	{
 		//add quotes for any arguments with spaces
-		if (strchr(argv[i], ' '))
+		if (strchr(argv[i], ' ') || strchr(arg[i], '\t'))
 		{
 			Q_strncatz(cmdline, "\"", cmdlinelen);
 			Q_strncatz(cmdline, argv[i], cmdlinelen);

@@ -216,6 +216,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	int		dataByte;
 	int		runLength;
 	int fbremap[256];
+	char *skinpath;
 
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
@@ -223,9 +224,9 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	if (skin->failedload)
 		return NULL;
 
-	TEXASSIGN(skin->tex_base, r_nulltex);
-	TEXASSIGN(skin->tex_lower, r_nulltex);
-	TEXASSIGN(skin->tex_upper, r_nulltex);
+	TEXASSIGN(skin->textures.base, r_nulltex);
+	TEXASSIGN(skin->textures.loweroverlay, r_nulltex);
+	TEXASSIGN(skin->textures.upperoverlay, r_nulltex);
 
 	out = Cache_Check (&skin->cache);
 	if (out)
@@ -267,25 +268,55 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
-		Q_snprintfz (name, sizeof(name), "players/%s.pcx", skin->name);
+		skinpath = "players";
 	else
 #endif
-		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
+		skinpath = "skins";
+
+	//favour 24bit+recoloured skins if gl_load24bit is enabled.
+	Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
+	TEXASSIGN(skin->textures.upperoverlay, R_LoadReplacementTexture(name, skinpath, 0));
+	Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
+	TEXASSIGN(skin->textures.loweroverlay, R_LoadReplacementTexture(name, skinpath, 0));
+	if (TEXVALID(skin->textures.upperoverlay) || TEXVALID(skin->textures.loweroverlay))
+	{
+		TEXASSIGN(skin->textures.base, R_LoadReplacementTexture(skin->name, skinpath, IF_NOALPHA));
+		if (TEXVALID(skin->textures.base))
+		{
+			Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
+			TEXASSIGN(skin->textures.fullbright, R_LoadReplacementTexture(skin->name, skinpath, IF_NOALPHA));
+			Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
+			TEXASSIGN(skin->textures.specular, R_LoadReplacementTexture(skin->name, skinpath, 0));
+			skin->failedload = true;
+			return NULL;
+		}
+	}
+
+	Q_snprintfz (name, sizeof(name), "%s/%s.pcx", skinpath, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (!raw)
 	{
+		//use 24bit skins even if gl_load24bit is failed
 		if (strcmp(skin->name, baseskin.string))
 		{
-			TEXASSIGN(skin->tex_base, R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA));
-			if (TEXVALID(skin->tex_base))
+			if (!gl_load24bit.value)
 			{
-				Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
-				TEXASSIGN(skin->tex_upper, R_LoadReplacementTexture(name, "skins", 0));
-				Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
-				TEXASSIGN(skin->tex_lower, R_LoadReplacementTexture(name, "skins", 0));
+				TEXASSIGN(skin->textures.base, R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA));
+				if (TEXVALID(skin->textures.base))
+				{
+					Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
+					TEXASSIGN(skin->textures.upperoverlay, R_LoadHiResTexture(name, skinpath, 0));
+					Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
+					TEXASSIGN(skin->textures.loweroverlay, R_LoadHiResTexture(name, skinpath, 0));
 
-				skin->failedload = true;
-				return NULL;
+					Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
+					TEXASSIGN(skin->textures.fullbright, R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA));
+					Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
+					TEXASSIGN(skin->textures.specular, R_LoadHiResTexture(skin->name, skinpath, 0));
+
+					skin->failedload = true;
+					return NULL;
+				}
 			}
 
 			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
@@ -620,6 +651,7 @@ void	Skin_Skins_f (void)
 		return;
 	}
 
+	GL_GAliasFlushSkinCache();
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (skins[i].cache.data)

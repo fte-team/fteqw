@@ -185,6 +185,14 @@ typedef struct texid_s texid_tf;
 #define TEXASSIGNF(d,s) memcpy(&d,&s,sizeof(d))
 #define TEXVALID(t) 1
 #endif
+typedef struct texnums_s {
+	texid_t base;
+	texid_t bump;
+	texid_t upperoverlay;
+	texid_t loweroverlay;
+	texid_t specular;
+	texid_t fullbright;
+} texnums_t;
 typedef enum uploadfmt
 {
         TF_INVALID,

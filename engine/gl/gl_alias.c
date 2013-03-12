@@ -158,7 +158,27 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 	}
 }
 #endif
-
+/*
+void GL_GAliasFlushOneSkin(char *skinname)
+{
+	int i;
+	bucket_t **l;
+	galiascolourmapped_t *cm;
+	for (i = 0; i < skincolourmapped.numbuckets; i++)
+	{
+		for(l = &skincolourmapped.bucket[i]; *l; )
+		{
+			cm = (*l)->data;
+			if (strstr(cm->name, skinname))
+			{
+				*l = cm->bucket.next;
+				BZ_Free(cm);
+				continue;
+			}
+			l = &(*l)->next;
+		}
+	}
+}*/
 void GL_GAliasFlushSkinCache(void)
 {
 	int i;
@@ -206,9 +226,12 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	{
 		shader_t *s;
 		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
-		if (!TEXVALID(s->defaulttextures.base))
-			s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
-		return s;
+		if (s)
+		{
+			if (!TEXVALID(s->defaulttextures.base))
+				s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
+			return s;
+		}
 	}
 
 
@@ -346,11 +369,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						}
 					}
 
-					if (TEXVALID(plskin->tex_base))
+					if (TEXVALID(plskin->textures.base))
 					{
-						cm->texnum.loweroverlay = plskin->tex_lower;
-						cm->texnum.upperoverlay = plskin->tex_upper;
-						cm->texnum.base = plskin->tex_base;
+						cm->texnum.loweroverlay = plskin->textures.loweroverlay;
+						cm->texnum.upperoverlay = plskin->textures.upperoverlay;
+						cm->texnum.base = plskin->textures.base;
+						cm->texnum.fullbright = plskin->textures.fullbright;
+						cm->texnum.specular = plskin->textures.specular;
 						return shader;
 					}
 
@@ -368,11 +393,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				inwidth = plskin->width;
 				inheight = plskin->height;
 
-				if (!original && TEXVALID(plskin->tex_base))
+				if (!original && TEXVALID(plskin->textures.base))
 				{
-					cm->texnum.loweroverlay = plskin->tex_lower;
-					cm->texnum.upperoverlay = plskin->tex_upper;
-					cm->texnum.base = plskin->tex_base;
+					cm->texnum.loweroverlay = plskin->textures.loweroverlay;
+					cm->texnum.upperoverlay = plskin->textures.upperoverlay;
+					cm->texnum.base = plskin->textures.base;
+					cm->texnum.fullbright = plskin->textures.fullbright;
+					cm->texnum.specular = plskin->textures.specular;
 					return shader;
 				}
 			}

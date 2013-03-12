@@ -242,15 +242,6 @@ typedef struct mplane_s
 	qbyte	pad[2];
 } mplane_t;
 
-typedef struct texnums_s {
-	texid_t base;
-	texid_t bump;
-	texid_t upperoverlay;
-	texid_t loweroverlay;
-	texid_t specular;
-	texid_t fullbright;
-} texnums_t;
-
 typedef struct vboarray_s
 {
 	union

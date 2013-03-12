@@ -28,9 +28,7 @@ typedef struct
 	int			height;
 
 	//for hardware 32bit texture overrides
-	texid_t		tex_base;
-	texid_t		tex_lower;
-	texid_t		tex_upper;
+	texnums_t	textures;
 
 	qboolean	failedload;		// the name isn't a valid skin
 	cache_user_t	cache;

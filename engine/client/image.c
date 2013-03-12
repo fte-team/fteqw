@@ -667,7 +667,11 @@ void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_exp
 void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
 void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
 png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
+#if PNG_LIBPNG_VER > 10400
 void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
+#else
+void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
+#endif
 void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
 void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
 png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 *width, png_uint_32 *height,
@@ -687,6 +691,7 @@ void (PNGAPI *qpng_set_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, pn
 			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
 void (PNGAPI *qpng_set_compression_level) PNGARG((png_structp png_ptr, int level)) PSTATIC(png_set_compression_level);
 void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
+png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_structp png_ptr)) PSTATIC(png_get_io_ptr);
 void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
 png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
 
@@ -707,7 +712,11 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_set_gray_to_rgb,				"png_set_gray_to_rgb"},
 		{(void **) &qpng_set_tRNS_to_alpha,				"png_set_tRNS_to_alpha"},
 		{(void **) &qpng_get_valid,						"png_get_valid"},
+		#if PNG_LIBPNG_VER > 10400
 		{(void **) &qpng_set_expand_gray_1_2_4_to_8,	"png_set_expand_gray_1_2_4_to_8"},
+                #else
+		{(void **) &qpng_set_gray_1_2_4_to_8,	"png_set_gray_1_2_4_to_8"},
+                #endif
 		{(void **) &qpng_set_filler,					"png_set_filler"},
 		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
 		{(void **) &qpng_get_IHDR,						"png_get_IHDR"},
@@ -756,7 +765,7 @@ void PNGAPI png_default_read_data(png_structp png_ptr, png_bytep data, png_size_
 
 void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 {
-	pngreadinfo_t *ri = (pngreadinfo_t*)png_get_io_ptr(png_ptr);
+	pngreadinfo_t *ri = (pngreadinfo_t*)qpng_get_io_ptr(png_ptr);
 	if (ri->readposition+len > ri->filelen)
 	{
 		qpng_error(png_ptr, "unexpected eof");
@@ -829,7 +838,7 @@ error:
 		#if PNG_LIBPNG_VER > 10400
 			qpng_set_expand_gray_1_2_4_to_8(png);
 		#else
-			png_set_gray_1_2_4_to_8(png);
+			qpng_set_gray_1_2_4_to_8(png);
 		#endif
 	}
 

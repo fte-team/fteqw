@@ -18,6 +18,11 @@ void *globalmutex;
 # endif
 #endif
 
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
+{
+	return NULL;
+}
+
 void BZ_Free(void *ptr)
 {
 	free(ptr);
@@ -1037,7 +1042,7 @@ qboolean Plug_GenCommandlineString(struct context *ctx, char *cmdline, int cmdli
 	for (i = 0; i < argc; i++)
 	{
 		//add quotes for any arguments with spaces
-		if (strchr(argv[i], ' ') || strchr(arg[i], '\t'))
+		if (strchr(argv[i], ' ') || strchr(argv[i], '\t'))
 		{
 			Q_strncatz(cmdline, "\"", cmdlinelen);
 			Q_strncatz(cmdline, argv[i], cmdlinelen);

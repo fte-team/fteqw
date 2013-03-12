@@ -1205,10 +1205,12 @@ void SQL_DeInit(void)
 	if (qmysql_library_end)
 		qmysql_library_end();
 
-	Sys_CloseLibrary(mysqlhandle);
+	if (mysqlhandle)
+		Sys_CloseLibrary(mysqlhandle);
 #endif
 #ifdef USE_SQLITE
-	Sys_CloseLibrary(sqlitehandle);
+	if (sqlitehandle)
+		Sys_CloseLibrary(sqlitehandle);
 #endif
 }
 

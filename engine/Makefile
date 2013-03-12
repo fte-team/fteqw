@@ -923,8 +923,8 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
 	NPFTE_DLL_NAME=../npfte$(BITS).so
-	NPFTE_LDFLAGS=$(IMAGELDFLAGS) -shared
-	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC
+	NPFTE_LDFLAGS=-shared
+	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
 	NPFTEB_DIR=npfte_linux$(BITS)
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o sys_linux_threads.o

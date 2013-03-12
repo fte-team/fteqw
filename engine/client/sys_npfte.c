@@ -214,7 +214,48 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	//I would call the previous wndproc... but that crashes firefox
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+#else
+static struct
+{
+	void *x11;
+	void *xt;
 
+	//X11 funcs
+       int (*XSelectInput)(Display *display, Window w, long event_mask);
+
+	//Xt funcs
+	Widget (*XtWindowToWidget)(Display *display, Window window);
+	void (*XtAddEventHandler)(Widget w, EventMask event_mask, Boolean nonmaskable, XtEventHandler proc, XtPointer client_data);
+} x;
+qboolean x_initlibs(void)
+{
+	static dllfunction_t xt_funcs[] =
+	{
+		{(void**)&x.XtWindowToWidget,	"XtWindowToWidget"},
+		{(void**)&x.XtAddEventHandler,	"XtAddEventHandler"},
+		{NULL, NULL}
+	};
+	static dllfunction_t x11_funcs[] =
+	{
+		{(void**)&x.XSelectInput,	"XSelectInput"},
+		{NULL, NULL}
+	};
+	if (!x.xt)
+		x.xt = Sys_LoadLibrary("libXt", xt_funcs);
+	if (!x.xt)
+	{
+		Con_Printf("Please install the appropriate libXt for your browser's cpu archetecture\n");
+		return false;
+	}
+	if (!x.x11)
+		x.x11 = Sys_LoadLibrary("libX11", x11_funcs);
+	if (!x.x11)
+	{
+		Con_Printf("Please install the appropriate libX11 for your browser's cpu archetecture\n");
+		return false;
+	}
+	return true;
+}
 #endif
 
 static const struct browserfuncs npfte_browserfuncs =
@@ -337,9 +378,9 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 #ifdef MOZ_X11
 	Window wnd = (Window)window->window;
 	NPSetWindowCallbackStruct *ws = window->ws_info;
-	Widget xtw = XtWindowToWidget (ws->display, wnd);
-	XSelectInput(ws->display, wnd, ButtonPressMask|ButtonReleaseMask|PointerMotionMask|KeyPressMask|KeyReleaseMask|EnterWindowMask);
-	XtAddEventHandler(xtw, ButtonPressMask|ButtonReleaseMask|PointerMotionMask, FALSE, myxteventcallback, ctx);
+	Widget xtw = x.XtWindowToWidget (ws->display, wnd);
+	x.XSelectInput(ws->display, wnd, ButtonPressMask|ButtonReleaseMask|PointerMotionMask|KeyPressMask|KeyReleaseMask|EnterWindowMask);
+	x.XtAddEventHandler(xtw, ButtonPressMask|ButtonReleaseMask|PointerMotionMask, FALSE, myxteventcallback, ctx);
 
 	if (Plug_ChangeWindow(ctx, window->window, 0, 0, window->width, window->height))
 	{
@@ -772,10 +813,16 @@ NPError OSCALL NP_Initialize(NPNetscapeFuncs* pFuncs)
 #else
 NPError OSCALL NP_Initialize(NPNetscapeFuncs *aNPNFuncs, NPPluginFuncs *aNPPFuncs)
 {
+	NPError err;
 	Plug_GetFuncs(1);
 	browserfuncs = aNPNFuncs;
 	
-	return NP_GetEntryPoints(aNPPFuncs);
+	err = NP_GetEntryPoints(aNPPFuncs);
+	if (err != NPERR_NO_ERROR)
+		return err;
+	if (!x_initlibs())
+		return NPERR_MODULE_LOAD_FAILED_ERROR;
+	return NPERR_NO_ERROR;
 }
 #endif
 

@@ -18,10 +18,57 @@ void *globalmutex;
 # endif
 #endif
 
+#ifdef _WIN32
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	return NULL;
 }
+#else
+#include <dlfcn.h>
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	if (lib)
+		dlclose(lib);
+}
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
+{
+	char soname[MAX_OSPATH];
+        int i;
+        dllhandle_t lib;
+
+        lib = NULL;
+        if (!lib)
+	{
+		Q_snprintfz(soname, sizeof(soname), "%s.so", name);
+                lib = dlopen (soname, RTLD_LAZY);
+	}
+        if (!lib)
+                lib = dlopen (name, RTLD_LAZY);
+        if (!lib)
+        {
+                Con_Printf("%s\n", dlerror());
+                return NULL;
+        }
+
+        if (funcs)
+        {
+                for (i = 0; funcs[i].name; i++)
+                {
+                        *funcs[i].funcptr = dlsym(lib, funcs[i].name);
+                        if (!*funcs[i].funcptr)
+                                break;
+                }
+                if (funcs[i].name)
+                {
+                        Con_Printf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
+                        Sys_CloseLibrary((dllhandle_t*)lib);
+                        lib = NULL;
+                }
+        }
+
+        return (dllhandle_t*)lib;
+}
+#endif
 
 void BZ_Free(void *ptr)
 {
@@ -1155,7 +1202,7 @@ qboolean Plug_CreatePluginProcess(struct context *ctx)
 		//invoke the child and kill ourselves if that failed.
 		write(2, "invoking engine\n", 16);
 		execv(argv[0], argv);
-		write(2, "execv failed\n", 13);
+		fprintf(stderr, "execv failed: %s\n", argv[0]);
 		exit(1);
 	}
 	close(in[1]);

@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t hud_tracking_show;
 
 extern cvar_t com_parseutf8;
-#define CON_ALTMASK (com_parseutf8.ival?(COLOR_MAGENTA<<CON_FGSHIFT):(CON_WHITEMASK|0x80))
+#define CON_ALTMASK (CON_2NDCHARSETTEXT|CON_WHITEMASK)
 
 cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");
 cvar_t scr_scoreboard_forcecolors = SCVAR("scr_scoreboard_forcecolors", "0");	//damn americans
@@ -198,23 +198,6 @@ void Draw_FunStringWidth(int x, int y, const void *str, int width)
 		x = Font_DrawChar(x, y, *w++);
 	}
 	Font_EndString(font_conchar);
-}
-
-//Draws a marked up string with at most $numchars characters. obsolete
-FTE_DEPRECATED void Draw_FunStringLen(int x, int y, void *str, int numchars)
-{
-	conchar_t buffer[2048];
-
-	//so parsefunstring can write out the null
-	numchars++;
-
-	numchars *= sizeof(conchar_t);	//numchars should now be the size of the chars.
-
-	if (numchars > sizeof(buffer))
-		numchars = sizeof(buffer);
-	COM_ParseFunString(CON_WHITEMASK, str, buffer, numchars, false);
-
-	Draw_ExpandedString(x, y, buffer);
 }
 
 static qboolean largegame = false;

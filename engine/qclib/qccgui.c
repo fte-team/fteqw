@@ -280,6 +280,8 @@ typedef struct editor_s {
 	char filename[MAX_PATH];	//abs
 	HWND window;
 	HWND editpane;
+	HWND tooltip;
+	char tooltiptext[1024];
 	pbool modified;
 	time_t filemodifiedtime;
 	struct editor_s *next;
@@ -389,6 +391,79 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	}
 }
 
+char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize)
+{
+	unsigned char linebuf[1024];
+	DWORD charidx;
+	DWORD lineidx;
+	POINT pos;
+	RECT rect;
+	GetCursorPos(&pos);
+	GetWindowRect(editor->editpane, &rect);
+	pos.x -= rect.left;
+	pos.y -= rect.top;
+	charidx = SendMessage(editor->editpane, EM_CHARFROMPOS, 0, (LPARAM)&pos);
+	lineidx = SendMessage(editor->editpane, EM_LINEFROMCHAR, charidx, 0);
+	charidx -= SendMessage(editor->editpane, EM_LINEINDEX, lineidx, 0);
+
+	Edit_GetLine(editor->editpane, lineidx, linebuf, sizeof(linebuf));
+
+	//skip back to the start of the word
+	while(charidx > 0 && (
+		(linebuf[charidx-1] >= 'a' && linebuf[charidx-1] <= 'z') ||
+		(linebuf[charidx-1] >= 'A' && linebuf[charidx-1] <= 'Z') ||
+		(linebuf[charidx-1] >= '0' && linebuf[charidx-1] <= '9') ||
+		linebuf[charidx-1] == '_' ||
+		linebuf[charidx-1] >= 128
+		))
+	{
+		charidx--;
+	}
+
+	//copy the result out
+	lineidx = 0;
+	buffersize--;
+	while (buffersize && 
+		(linebuf[charidx] >= 'a' && linebuf[charidx] <= 'z') ||
+		(linebuf[charidx] >= 'A' && linebuf[charidx] <= 'Z') ||
+		(linebuf[charidx] >= '0' && linebuf[charidx] <= '9') ||
+		linebuf[charidx] == '_' ||
+		linebuf[charidx] >= 128
+		)
+	{
+		buffer[lineidx++] = linebuf[charidx++];
+		buffersize--;
+	}
+
+	buffer[lineidx++] = 0;
+	return buffer;
+}
+char *GetTooltipText(editor_t *editor)
+{
+	char wordbuf[256];
+	char *defname;
+	defname = WordUnderCursor(editor, wordbuf, sizeof(wordbuf));
+	if (!*defname)
+		return NULL;
+	else if (globalstable.numbuckets)
+	{
+		QCC_def_t *def;
+		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, false);
+		if (def)
+		{
+			static char buffer[1024];
+			//note function argument names do not persist beyond the function def. we might be able to read the function's localdefs for them, but that's unreliable/broken with builtins where they're most needed.
+			if (def->comment)
+				_snprintf(buffer, sizeof(buffer)-1, "%s	%s\r\n%s", TypeName(def->type), def->name, def->comment);
+			else
+				_snprintf(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type), def->name);
+			return buffer;
+		}
+		return NULL;
+	}
+	else
+		return NULL;//"Type info not available. Compile first.";
+}
 static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
@@ -449,25 +524,27 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		goto gdefault;
 	case WM_CREATE:
 		editor->editpane = CreateAnEditControl(hWnd);
-		/*
-		editor->editpane=CreateWindowEx(WS_EX_CLIENTEDGE,
-			richedit?RICHEDIT_CLASS:"EDIT",
-			"",
-			WS_CHILD  | WS_VISIBLE | 
-			WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
-			ES_MULTILINE | ES_AUTOVSCROLL,
-			0, 0, 0, 0,
-			hWnd,
-			NULL,
-			ghInstance,
-			NULL);
-*/
 		if (richedit)
 		{
 			SendMessage(editor->editpane, EM_EXLIMITTEXT, 0, 1<<31);
-
 			SendMessage(editor->editpane, EM_SETUNDOLIMIT, 256, 256);
 		}
+
+		editor->tooltip = CreateWindowEx(0, TOOLTIPS_CLASS, NULL, WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hWnd, NULL, ghInstance, NULL);
+		if (editor->tooltip)
+		{                          
+			TOOLINFO toolInfo = { 0 };
+			toolInfo.cbSize = sizeof(toolInfo);
+			toolInfo.hwnd = hWnd;
+			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_TRACK | TTF_ABSOLUTE;
+			toolInfo.uId = (UINT_PTR)editor->editpane;
+			toolInfo.lpszText = "";
+			SendMessage(editor->tooltip, TTM_ADDTOOL, 0, (LPARAM)&toolInfo);
+			SendMessage(editor->tooltip, TTM_SETMAXTIPWIDTH, 0, 500);
+		}
+		goto gdefault;
+	case WM_SETFOCUS:
+		SetFocus(editor->editpane);
 		goto gdefault;
 	case WM_SIZE:
 		GetClientRect(hWnd, &rect);
@@ -479,6 +556,38 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		EndPaint(hWnd,(LPPAINTSTRUCT)&ps);
 		return TRUE;
 		break;
+	case WM_SETCURSOR:
+		{
+			POINT pos;
+			char *newtext;
+			TOOLINFO toolInfo = { 0 };
+			toolInfo.cbSize = sizeof(toolInfo);
+			toolInfo.hwnd = hWnd;
+			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_TRACK;
+			toolInfo.uId = (UINT_PTR)editor->editpane;
+			newtext = GetTooltipText(editor);
+			toolInfo.lpszText = editor->tooltiptext;
+			if (!newtext)
+				newtext = "";
+			if (strcmp(editor->tooltiptext, newtext))
+			{
+				strncpy(editor->tooltiptext, newtext, sizeof(editor->tooltiptext)-1);
+				SendMessage(editor->tooltip, TTM_UPDATETIPTEXT, (WPARAM)0, (LPARAM)&toolInfo);
+				if (*editor->tooltiptext)
+					SendMessage(editor->tooltip, TTM_TRACKACTIVATE, (WPARAM)TRUE, (LPARAM)&toolInfo);
+				else
+					SendMessage(editor->tooltip, TTM_TRACKACTIVATE, (WPARAM)FALSE, (LPARAM)&toolInfo);
+			}
+
+			GetCursorPos(&pos);
+			if (pos.x >= 60)
+				pos.x -= 60;
+			else
+				pos.x = 0;
+			pos.y += 30;
+			SendMessage(editor->tooltip, TTM_TRACKPOSITION, (WPARAM)0, MAKELONG(pos.x, pos.y));
+		}
+		goto gdefault;
 	case WM_COMMAND:
 		if (HIWORD(wParam) == EN_CHANGE && (HWND)lParam == editor->editpane)
 		{
@@ -1044,6 +1153,8 @@ void EditFile(char *name, int line)
 
 int EditorSave(editor_t *edit)
 {
+	DWORD selstart;
+	char title[2048];
 	struct stat sbuf;
 	int len;
 	char *file;
@@ -1066,6 +1177,11 @@ int EditorSave(editor_t *edit)
 	edit->modified = false;
 	stat(edit->filename, &sbuf);
 	edit->filemodifiedtime = sbuf.st_mtime;
+
+	//remove the * in a silly way.
+	SendMessage(edit->editpane, EM_GETSEL, (WPARAM)&selstart, (LPARAM)0);
+	sprintf(title, "%s:%i - FTEQCC Editor", edit->filename, 1+Edit_LineFromChar(edit->editpane, selstart));
+	SetWindowText(edit->window, title);
 
 	return true;
 }
@@ -1650,7 +1766,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 						0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) NULL);
 				ShowWindow(gotodefbox, SW_SHOW);
 
-				gotodefaccept = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "GO",
+				gotodefaccept = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Def",
 						WS_CHILD | WS_CLIPCHILDREN | BS_DEFPUSHBUTTON,
 						0, 0, 320, 200, hWnd, (HMENU) 0x4404, ghInstance, (LPSTR) NULL);
 				ShowWindow(gotodefaccept, SW_SHOW);

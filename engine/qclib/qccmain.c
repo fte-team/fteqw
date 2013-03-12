@@ -3419,9 +3419,19 @@ void QCC_ContinueCompile(void)
 		QCC_FinishCompile();
 
 		PostCompile();
-		if (!PreCompile())
-			return;
-		QCC_main(myargc, myargv);
+
+		if (currentsourcefile < numsourcefiles)
+		{
+			if (!PreCompile())
+				return;
+			QCC_main(myargc, myargv);
+		}
+		else
+		{
+			qcc_compileactive = false;
+			numsourcefiles = 0;
+			currentsourcefile = 0;
+		}
 		return;
 	}
 	s = qcc_token;

@@ -310,6 +310,7 @@ typedef struct QCC_type_s
 	unsigned int arraysize;
 	pbool typedefed;
 	char *name;
+	char *aname;
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 int typecmp_lax(QCC_type_t *a, QCC_type_t *b);
@@ -331,6 +332,7 @@ typedef struct QCC_def_s
 {
 	QCC_type_t		*type;
 	char		*name;
+	char		*comment;		//ui info
 	struct QCC_def_s	*next;
 	struct QCC_def_s	*nextlocal;	//provides a chain of local variables for the opt_locals_marshalling optimisation.
 	gofs_t		ofs;

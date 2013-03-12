@@ -3008,7 +3008,121 @@ void QCC_PR_Expect (char *string)
 }
 #endif
 
+pbool QCC_PR_CheckTokenComment(char *string, char **comment)
+{
+	char c;
+	char *start;
+	int nl;
+	char *old;
+	int oldlen;
+	pbool replace = true;
+	pbool nextcomment = true;
 
+	if (pr_token_type != tt_punct)
+		return false;
+
+	if (STRCMP (string, pr_token))
+		return false;
+
+	if (comment)
+	{
+		// skip whitespace
+		nl = false;
+		while(nextcomment)
+		{
+			nextcomment = false;
+
+			while ((c = *pr_file_p) && qcc_iswhite(c))
+			{
+				if (c=='\n')	//allow new lines, but only if there's whitespace before any tokens, and no double newlines.
+				{
+					if (nl)
+					{
+						QCC_PR_NewLine(false);
+						pr_file_p++;
+						break;
+					}
+					nl = true;
+				}
+				else
+				{
+					pr_file_p++;
+					nl = false;
+				}
+			}
+			if (nl)
+				break;
+
+			// parse // comments
+			if (c=='/' && pr_file_p[1] == '/')
+			{
+				pr_file_p += 2;
+				while (*pr_file_p == ' ' || *pr_file_p == '\t')
+					pr_file_p++;
+				start = pr_file_p;
+				while (*pr_file_p && *pr_file_p != '\n')
+					pr_file_p++;
+
+				if (*pr_file_p == '\n')
+				{
+					QCC_PR_NewLine(true);
+					pr_file_p++;
+				}
+
+				old = replace?NULL:*comment;
+				replace = false;
+				oldlen = old?strlen(old)+1:0;
+				*comment = qccHunkAlloc(oldlen + (pr_file_p-start)+1);
+				if (oldlen)
+				{
+					memcpy(*comment, old, oldlen-1);
+					memcpy(*comment+oldlen-1, "\n", 1);
+				}
+				memcpy(*comment + oldlen, start, pr_file_p - start);
+				oldlen = oldlen+pr_file_p - start;
+				while(oldlen > 0 && ((*comment)[oldlen-1] == '\r' || (*comment)[oldlen-1] == '\n' || (*comment)[oldlen-1] == '\t' || (*comment)[oldlen-1] == ' '))
+					oldlen--;
+				(*comment)[oldlen] = 0;
+				nextcomment = true;	//include the next // too
+				nl = true;
+			}
+			// parse /* comments
+			else if (c=='/' && pr_file_p[1] == '*' && replace)
+			{
+				pr_file_p+=2;
+				start = pr_file_p;
+
+				do
+				{
+					if (pr_file_p[0]=='\n')
+						QCC_PR_NewLine(true);
+					if (pr_file_p[1] == 0)
+					{
+						QCC_PR_ParseError(0, "EOF inside comment\n");
+						pr_file_p++;
+						pr_file_p-=2;
+						break;
+					}
+					pr_file_p++;
+				} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
+
+				old = replace?NULL:*comment;
+				replace = false;
+				oldlen = old?strlen(old):0;
+				*comment = qccHunkAlloc(oldlen + (pr_file_p-start)+1);
+				memcpy(*comment, old, oldlen);
+				memcpy(*comment + oldlen, start, pr_file_p - start);
+				(*comment)[oldlen+pr_file_p - start] = 0;
+
+				pr_file_p+=2;
+			}
+		}
+	}
+
+	//and then do the rest properly.
+	QCC_PR_Lex ();
+	return true;
+}
 /*
 =============
 PR_Check
@@ -3274,6 +3388,11 @@ char *TypeName(QCC_type_t *type)
 			args--;
 
 			strcat(ret, type->name);
+			if (type->aname)
+			{
+				strcat(ret, " ");
+				strcat(ret, type->aname);
+			}
 			type = type->next;
 
 			if (type || varg)
@@ -3472,7 +3591,10 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 				if (STRCMP(pr_token, ",") && STRCMP(pr_token, ")"))
 				{
+					newtype = true;
 					name = QCC_PR_ParseName ();
+					nptype->aname = qccHunkAlloc(strlen(name)+1);
+					strcpy(nptype->aname, name);
 					if (definenames)
 						strcpy (pr_parm_names[numparms], name);
 				}

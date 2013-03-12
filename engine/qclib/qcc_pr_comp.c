@@ -9928,10 +9928,10 @@ void QCC_PR_ParseDefs (char *classname)
 	} while (QCC_PR_CheckToken (","));
 
 	if (type->type == ev_function)
-		QCC_PR_CheckToken (";");
+		QCC_PR_CheckTokenComment (";", &def->comment);
 	else
 	{
-		if (!QCC_PR_CheckToken (";"))
+		if (!QCC_PR_CheckTokenComment (";", &def->comment))
 			QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "Missing semicolon at end of definition");
 	}
 }

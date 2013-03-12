@@ -147,7 +147,7 @@ static const char *imgs[] =
 };
 
 #define FONTCHARS (1<<16)
-#define FONTPLANES 1//(1<<2)	//this is total, not per font.
+#define FONTPLANES (1<<2)	//this is total, not per font.
 #define PLANEIDXTYPE unsigned short
 #define CHARIDXTYPE unsigned short
 
@@ -182,6 +182,7 @@ typedef struct font_s
 		short top;
 		short left;
 	} chars[FONTCHARS];
+	char name[64];
 
 	short charheight;
 	texid_t singletexture;
@@ -941,6 +942,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
+	Q_strncpyz(f->name, fontfilename, sizeof(f->name));
 
 #ifdef DOOMWADS
 	if (!*fontfilename)
@@ -1132,7 +1134,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 //removes a font from memory.
 void Font_Free(struct font_s *f)
 {
-	struct charcache_s **link, *c;
+	struct charcache_s **link, *c, *valid;
 
 	//kill the alt font first.
 	if (f->alt)
@@ -1140,6 +1142,7 @@ void Font_Free(struct font_s *f)
 		Font_Free(f->alt);
 		f->alt = NULL;
 	}
+	valid = NULL;
 	//walk all chars, unlinking any that appear to be within this font's char cache
 	for (link = &fontplanes.oldestchar; *link; )
 	{
@@ -1148,11 +1151,14 @@ void Font_Free(struct font_s *f)
 		{
 			c = c->nextchar;
 			if (!c)
-				fontplanes.newestchar = NULL;
+				fontplanes.newestchar = valid;
 			*link = c;
 		}
 		else
+		{
+			valid = c;
 			link = &c->nextchar;
+		}
 	}
 
 #ifdef AVAIL_FREETYPE

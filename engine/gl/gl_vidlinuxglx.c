@@ -491,19 +491,14 @@ static void install_grabs(void)
 {
 	//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
 	//the grab is purely to constrain the pointer to the window
-	if (!(fullscreenflags & FULLSCREEN_ACTIVE))
-		XUngrabPointer(vid_dpy, CurrentTime);
-	else
-	{	//don't actually grab if we're fullscreen, but do make sure the rest is done.
-		if (GrabSuccess != XGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
-					True,
-					0,
-					GrabModeAsync, GrabModeAsync,
-					vid_window,
-					None,
-					CurrentTime))
-			Con_Printf("Pointer grab failed\n");
-	}
+	if (GrabSuccess != XGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
+				True,
+				0,
+				GrabModeAsync, GrabModeAsync,
+				vid_window,
+				None,
+				CurrentTime))
+		Con_Printf("Pointer grab failed\n");
 
 	if (x11_input_method == XIM_DGA)
 	{

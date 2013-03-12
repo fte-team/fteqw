@@ -76,7 +76,7 @@ static string(int fld, float foredit) readfield =
 	case 2:
 		return vtos(dynamiclight_get(selectedlight, LFIELD_ORIGIN));
 	case 3:
-		return vtos(dynamiclight_get(selectedlight, LFIELD_COLOUR));
+		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_COLOUR));
 	case 4:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_RADIUS));
 	case 5:
@@ -93,7 +93,7 @@ static string(int fld, float foredit) readfield =
 	case 6:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_STYLE));
 	case 7:
-		return vtos(dynamiclight_get(selectedlight, LFIELD_ANGLES));
+		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_ANGLES));
 	case 8:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_FOV));
 	case 9:
@@ -180,6 +180,10 @@ void(vector m) editor_lights_overlay =
 
 	m_y = floor((m_y - 32f) / 8f);
 
+
+	fldname[NUMLFIELDS+2] = strcat("realtime world: ", cvar("r_shadow_realtime_world")?"on":"off");
+	fldname[NUMLFIELDS+3] = strcat("realtime dlight: ", cvar("r_shadow_realtime_dynamic")?"on":"off");
+
 	for (i = 1f; i <= NUMLFIELDS; i++)
 	{
 		if (editfield == i)
@@ -230,11 +234,11 @@ void(vector m) editor_lights_overlay =
 	{
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, "+/- change selected light\n", '8 8 0', '1 1 1', 1); i+=1i;
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, "mouse also selects lights\n", '8 8 0', '1 1 1', 1);	i+=1i;
-		drawrawstring('0 32 0' + '0 8 0' * (float)i, "m moves the light to the crosshair\n", '8 8 0', '1 1 1', 1); i+=1i;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "m moves the light to the cursor\n", '8 8 0', '1 1 1', 1); i+=1i;
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, "i inserts new light\n", '8 8 0', '1 1 1', 1); i+=1i;
-		drawrawstring('0 32 0' + '0 8 0' * (float)i, "@ changes the light's radius\n", '8 8 0', '1 1 1', 1); i+=1i;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "@ sets the light's radius to the cursor\n", '8 8 0', '1 1 1', 1); i+=1i;
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, "# changes the light's shadow flag\n", '8 8 0', '1 1 1', 1); i+=1i;
-		drawrawstring('0 32 0' + '0 8 0' * (float)i, "p points the light to aim at the crosshair\n", '8 8 0', '1 1 1', 1); i+=1i;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "p points the light to aim at the cursor\n", '8 8 0', '1 1 1', 1); i+=1i;
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, "[ and ] move the light towards/away from indicated plane\n", '8 8 0', '1 1 1', 1); i+=1i;
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, "don't forget to save\n", '8 8 0', '1 1 1', 1); i+=1i;
 	}
@@ -370,20 +374,43 @@ float(float keyc, float unic, vector m) editor_lights_key =
 	}
 	else if (unic == 'i' || unic == 'I')
 	{
+		float oldl = selectedlight;
 		for (selectedlight = 32; ; selectedlight++)
 		{
 			if (!(float)dynamiclight_get(selectedlight, LFIELD_RADIUS))
 			{
-				/*reset the light's properties*/
-				dynamiclight_set(selectedlight, LFIELD_RADIUS, 300);
-				dynamiclight_set(selectedlight, LFIELD_COLOUR, '1 1 1');
-				dynamiclight_set(selectedlight, LFIELD_FOV, 0);
-				dynamiclight_set(selectedlight, LFIELD_STYLE, 0);
-				dynamiclight_set(selectedlight, LFIELD_ANGLES, '0 0 0');
-				dynamiclight_set(selectedlight, LFIELD_FLAGS, LFLAG_REALTIMEMODE);
-				dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE, autocvar_r_editlights_import_ambient);
-				dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE, autocvar_r_editlights_import_diffuse);
-				dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE, autocvar_r_editlights_import_specular);
+				if (oldl >= 32 && (!((float)dynamiclight_get(selectedlight, LFIELD_RADIUS) > 50)))
+				{
+					/*dupe the current light*/
+					dynamiclight_set(selectedlight, LFIELD_RADIUS,		dynamiclight_get(oldl, LFIELD_RADIUS));
+					dynamiclight_set(selectedlight, LFIELD_COLOUR,		dynamiclight_get(oldl, LFIELD_COLOUR));
+					dynamiclight_set(selectedlight, LFIELD_FOV,		dynamiclight_get(oldl, LFIELD_FOV));
+					dynamiclight_set(selectedlight, LFIELD_STYLE,		dynamiclight_get(oldl, LFIELD_STYLE));
+					dynamiclight_set(selectedlight, LFIELD_ANGLES,		dynamiclight_get(oldl, LFIELD_ANGLES));
+					dynamiclight_set(selectedlight, LFIELD_FLAGS,		dynamiclight_get(oldl, LFIELD_FLAGS));
+					dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE,	dynamiclight_get(oldl, LFIELD_AMBIENTSCALE));
+					dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE,	dynamiclight_get(oldl, LFIELD_DIFFUSESCALE));
+					dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE,	dynamiclight_get(oldl, LFIELD_SPECULARSCALE));
+					dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	dynamiclight_get(oldl, LFIELD_CUBEMAPNAME));
+					dynamiclight_set(selectedlight, LFIELD_CORONA,		dynamiclight_get(oldl, LFIELD_CORONA));
+					dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	dynamiclight_get(oldl, LFIELD_CORONASCALE));
+				}
+				else
+				{
+					/*reset the light's properties*/
+					dynamiclight_set(selectedlight, LFIELD_RADIUS, 300);
+					dynamiclight_set(selectedlight, LFIELD_COLOUR, '1 1 1');
+					dynamiclight_set(selectedlight, LFIELD_FOV, 0);
+					dynamiclight_set(selectedlight, LFIELD_STYLE, 0);
+					dynamiclight_set(selectedlight, LFIELD_ANGLES, '0 0 0');
+					dynamiclight_set(selectedlight, LFIELD_FLAGS, LFLAG_REALTIMEMODE);
+					dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE, autocvar_r_editlights_import_ambient);
+					dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE, autocvar_r_editlights_import_diffuse);
+					dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE, autocvar_r_editlights_import_specular);
+					dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	"");
+					dynamiclight_set(selectedlight, LFIELD_CORONA,		0);
+					dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	1);
+				}
 
 				/*place it at the pointed location*/
 				traceline(o, t, TRUE, world);
@@ -424,7 +451,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 		dynamiclight_set(selectedlight, LFIELD_RADIUS, dynamiclight_get(selectedlight, LFIELD_RADIUS) - 15);
 	else if (unic == '}')
 		dynamiclight_set(selectedlight, LFIELD_RADIUS, dynamiclight_get(selectedlight, LFIELD_RADIUS) + 15);
-	else if (unic == 127)
+	else if (keyc == 127)
 		dynamiclight_set(selectedlight, LFIELD_RADIUS, 0);
 	else
 		return FALSE;

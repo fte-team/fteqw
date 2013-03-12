@@ -463,17 +463,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu FRAMEBLEND\n"
 "!!permu SKELETAL\n"
 "!!permu FOG\n"
+"!!permu BUMP\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
 
 //standard shader used for models.
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
-
-"#ifdef UPPERLOWER\n"
-"#define UPPER\n"
-"#define LOWER\n"
-"#endif\n"
 
 "varying vec2 tc;\n"
 "varying vec3 light;\n"
@@ -526,8 +522,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t3;\n"
 "#endif\n"
 
-"#if defined(SPECULAR)\n"
+"#if defined(BUMP)\n"
 "uniform sampler2D s_t4;\n"
+"#endif\n"
+
+"#if defined(SPECULAR)\n"
 "uniform sampler2D s_t5;\n"
 "uniform float cvar_gl_specular;\n"
 "#endif\n"
@@ -544,7 +543,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 col, sp;\n"
 
 "#ifdef OFFSETMAPPING\n"
-"vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);\n"
+"vec2 tcoffsetmap = offsetmap(s_t4, tcbase, eyevector);\n"
 "#define tc tcoffsetmap\n"
 "#endif\n"
 
@@ -559,7 +558,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "col.rgb *= light;\n"
 
-"#if defined(SPECULAR)\n"
+"#if defined(BUMP) && defined(SPECULAR)\n"
 "vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);\n"
 "vec4 specs = texture2D(s_t5, tc);\n"
 
@@ -570,7 +569,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef FULLBRIGHT\n"
 "vec4 fb = texture2D(s_t3, tc);\n"
-"col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
+//	col.rgb = mix(col.rgb, fb.rgb, fb.a);
+"col.rgb += fb.rgb * fb.a;\n"
 "#endif\n"
 
 "gl_FragColor = fog4(col * e_colourident);\n"

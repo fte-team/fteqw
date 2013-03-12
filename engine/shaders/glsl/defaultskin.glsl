@@ -3,17 +3,13 @@
 !!permu FRAMEBLEND
 !!permu SKELETAL
 !!permu FOG
+!!permu BUMP
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
 
 //standard shader used for models.
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
-
-#ifdef UPPERLOWER
-#define UPPER
-#define LOWER
-#endif
 
 varying vec2 tc;
 varying vec3 light;
@@ -66,8 +62,11 @@ uniform vec3 e_uppercolour;
 uniform sampler2D s_t3;
 #endif
 
-#if defined(SPECULAR)
+#if defined(BUMP)
 uniform sampler2D s_t4;
+#endif
+
+#if defined(SPECULAR)
 uniform sampler2D s_t5;
 uniform float cvar_gl_specular;
 #endif
@@ -84,7 +83,7 @@ void main ()
 	vec4 col, sp;
 
 #ifdef OFFSETMAPPING
-	vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);
+	vec2 tcoffsetmap = offsetmap(s_t4, tcbase, eyevector);
 #define tc tcoffsetmap
 #endif
 
@@ -99,7 +98,7 @@ void main ()
 #endif
 	col.rgb *= light;
 
-#if defined(SPECULAR)
+#if defined(BUMP) && defined(SPECULAR)
 	vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);
 	vec4 specs = texture2D(s_t5, tc);
 
@@ -110,7 +109,8 @@ void main ()
 
 #ifdef FULLBRIGHT
 	vec4 fb = texture2D(s_t3, tc);
-	col.rgb = mix(col.rgb, fb.rgb, fb.a);
+//	col.rgb = mix(col.rgb, fb.rgb, fb.a);
+	col.rgb += fb.rgb * fb.a;
 #endif
 
 	gl_FragColor = fog4(col * e_colourident);

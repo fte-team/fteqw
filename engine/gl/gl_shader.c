@@ -1057,6 +1057,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			if (p & (1u<<n))
 				permutationdefines[pn++] = permutationname[n];
 		}
+		if (p & PERMUTATION_UPPERLOWER)
+			permutationdefines[pn++] = "#define UPPER\n#define LOWER\n";
 		if (p & PERMUTATION_BUMPMAP)
 		{
 			if (r_glsl_offsetmapping.ival)

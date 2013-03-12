@@ -309,6 +309,9 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 					Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
 					TEXASSIGN(skin->textures.loweroverlay, R_LoadHiResTexture(name, skinpath, 0));
 
+					if (!TEXVALID(skin->textures.upperoverlay) && !TEXVALID(skin->textures.loweroverlay))
+						Con_DPrintf("skin \"%s\" has no colourmapping info\n", skin->name);
+
 					Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
 					TEXASSIGN(skin->textures.fullbright, R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA));
 					Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);

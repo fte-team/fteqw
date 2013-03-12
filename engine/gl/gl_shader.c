@@ -4194,7 +4194,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case -1:	//invisible
 			return (
 				"{\n"
-					"sort blend\n"
 					"surfaceparm nodraw\n"
 					"surfaceparm nodlight\n"
 				"}\n"
@@ -4202,7 +4201,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 0:	//fastturb
 			return (
 				"{\n"
-					"sort blend\n"
 					"{\n"
 						"map $whiteimage\n"
 						"rgbgen const $r_fastturbcolour\n"
@@ -4214,7 +4212,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 1:	//vanilla style
 			return (
 				"{\n"
-					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"program defaultwarp\n"
 					"{\n"
 						"map $diffuse\n"
@@ -4231,7 +4228,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 2:	//refraction of the underwater surface, with a fresnel
 			return (
 				"{\n"
-					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4248,7 +4244,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 3:	//reflections
 			return (
 				"{\n"
-					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4265,7 +4260,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 4:	//ripples
 			return (
 				"{\n"
-					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4285,7 +4279,6 @@ char *Shader_DefaultBSPWater(char *shortname)
 		case 5:	//ripples+reflections
 			return (
 				"{\n"
-					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $refraction\n"
@@ -4931,6 +4924,8 @@ void Shader_DoReload(void)
 	shader_t *s;
 	unsigned int i;
 	char shortname[MAX_QPATH];
+	int oldsort;
+	qboolean resort = false;
 
 	if (shader_rescan_needed && ruleset_allow_shaders.ival)
 	{
@@ -4973,10 +4968,19 @@ void Shader_DoReload(void)
 		}
 		if (s->generator)
 		{
+			oldsort = s->sort;
 			Shader_Reset(s);
 
 			s->generator(shortname, s, s->genargs);
+
+			if (s->sort != oldsort)
+				resort = true;
 		}
+	}
+
+	if (resort)
+	{
+		RMod_ResortShaders();
 	}
 }
 

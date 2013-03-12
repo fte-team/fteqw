@@ -365,6 +365,35 @@ void Mod_RebuildLightmaps (void)
 	}
 }
 
+void RMod_ResortShaders(void)
+{
+	//called when some shader changed its sort key.
+	//this means we have to hunt down all models and update their batches.
+	//really its only bsps that need this.
+	batch_t *oldlists[SHADER_SORT_COUNT], *b;
+	int i, j, bs;
+	model_t	*mod;
+	for (i=0, mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->needload)
+			continue;
+
+		memcpy(oldlists, mod->batches, sizeof(oldlists));
+		memset(mod->batches, 0, sizeof(oldlists));
+	
+		for (j = 0; j < SHADER_SORT_COUNT; j++)
+		{
+			while((b=oldlists[j]))
+			{
+				oldlists[j] = b->next;
+				bs = b->shader?b->shader->sort:j;
+
+				b->next = mod->batches[bs];
+				mod->batches[bs] = b;
+			}
+		}
+	}
+}
 /*
 ===================
 Mod_ClearAll

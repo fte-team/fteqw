@@ -341,6 +341,7 @@ int Mod_SkinNumForName(struct model_s *model, char *name);
 int Mod_FrameNumForName(struct model_s *model, char *name);
 float Mod_FrameDuration(struct model_s *model, int frameno);
 
+void RMod_ResortShaders(void);
 void	RMod_ClearAll (void);
 struct model_s *RMod_ForName (char *name, qboolean crash);
 struct model_s *RMod_FindName (char *name);

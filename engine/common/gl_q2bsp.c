@@ -127,6 +127,7 @@ void ClearBounds (vec3_t mins, vec3_t maxs)
 
 void Mod_SortShaders(void)
 {
+	//surely this isn't still needed?
 	texture_t *textemp;
 	int i, j;
 
@@ -2565,6 +2566,9 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
 */
 	}
+
+	Mod_AccumulateMeshTextureVectors(out->mesh);
+	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
 }
 
 void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
@@ -2575,15 +2579,7 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 
 	if (LittleLong(in->facetype) == MST_PATCH)
 	{
-//		out->mesh->numindexes = 0;
-//		out->mesh->numvertexes = 0;
-		//FIXME
 		GL_CreateMeshForPatch(loadmodel, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
-//		if (out->mesh)
-//		{
-//			Mod_AccumulateMeshTextureVectors(out->mesh);
-//			Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
-//		}
 	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
@@ -2602,35 +2598,6 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 		{
 			out->mesh->indexes[i] = map_surfindexes[fv + i];
 		}
-
-/*		numindexes = LittleLong(in->num_indexes);
-		numverts = LittleLong(in->num_vertices);
-		if (numindexes%3 || numindexes < 0 || numverts < 0)
-		{
-			Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
-			return false;
-		}
-
-		out->mesh = Hunk_Alloc(sizeof(mesh_t));
-		out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
-		out->mesh->snormals_array = map_svector_array + LittleLong(in->firstvertex);
-		out->mesh->tnormals_array = map_tvector_array + LittleLong(in->firstvertex);
-
-		out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
-		out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
-		out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
-		out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
-		out->mesh->lmst_array	= map_vertlstmexcoords + LittleLong(in->firstvertex);
-
-		out->mesh->numindexes = numindexes;
-		out->mesh->numvertexes = numverts;
-
-		if (LittleLong(in->facetype) == MST_PLANAR)
-			if (out->mesh->numindexes == (out->mesh->numvertexes-2)*3)
-				out->mesh->istrifan = true;
-
-		Mod_AccumulateMeshTextureVectors(out->mesh);
-*/
 	}
 	else
 	{
@@ -2669,7 +2636,8 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 */
 	}
 
-
+	Mod_AccumulateMeshTextureVectors(out->mesh);
+	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
 }
 
 qboolean CModQ3_LoadRFaces (lump_t *l)
@@ -2783,10 +2751,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		}
 	}
 
-	Mod_NormaliseTextureVectors(map_normals_array, map_svector_array, map_tvector_array, numvertexes);
-
 	Mod_SortShaders();
-
 	return true;
 }
 
@@ -2900,7 +2865,8 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 			out->mesh->numvertexes = 4;
 		}
 	}
-
+	
+	Mod_SortShaders();
 	return true;
 }
 #endif

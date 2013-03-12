@@ -477,11 +477,12 @@ char *GetTooltipText(editor_t *editor)
 		if (def)
 		{
 			static char buffer[1024];
+			char typebuf[1024];
 			//note function argument names do not persist beyond the function def. we might be able to read the function's localdefs for them, but that's unreliable/broken with builtins where they're most needed.
 			if (def->comment)
-				_snprintf(buffer, sizeof(buffer)-1, "%s	%s\r\n%s", TypeName(def->type), def->name, def->comment);
+				_snprintf(buffer, sizeof(buffer)-1, "%s	%s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, def->comment);
 			else
-				_snprintf(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type), def->name);
+				_snprintf(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name);
 			return buffer;
 		}
 		return NULL;
@@ -1190,7 +1191,7 @@ int EditorSave(editor_t *edit)
 		MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
 		return false;
 	}
-	Edit_GetText(edit->editpane, file, len);
+	Edit_GetText(edit->editpane, file, len+1);
 	if (!QCC_WriteFile(edit->filename, file, len))
 	{
 		MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);

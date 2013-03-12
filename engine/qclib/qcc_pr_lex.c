@@ -3360,15 +3360,18 @@ QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in)
 	return out;
 }
 
-char *TypeName(QCC_type_t *type)
+char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 {
-	static char buffer[2][512];
-	static int op;
 	char *ret;
 
+	if (type->type == ev_pointer)
+	{
+		TypeName(type->aux_type, buffer, buffersize-2);
+		strcat(buffer, " *");
+		return buffer;
+	}
 
-	op++;
-	ret = buffer[op&1];
+	ret = buffer;
 	if (type->type == ev_field)
 	{
 		type = type->aux_type;
@@ -3410,7 +3413,7 @@ char *TypeName(QCC_type_t *type)
 	}
 	else if (type->type == ev_entity && type->parentclass)
 	{
-		ret = buffer[op&1];
+		ret = buffer;
 		*ret = 0;
 		strcat(ret, "class ");
 		strcat(ret, type->name);
@@ -3430,7 +3433,7 @@ char *TypeName(QCC_type_t *type)
 	else
 		strcpy(ret, type->name);
 
-	return buffer[op&1];
+	return buffer;
 }
 //#define typecmp(a, b) (a && ((a)->type==(b)->type) && !STRCMP((a)->name, (b)->name))
 

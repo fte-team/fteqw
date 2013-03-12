@@ -1464,15 +1464,16 @@ static void QCC_fprintfLocals(FILE *f, gofs_t paramstart, gofs_t paramend)
 	QCC_def_t	*var;
 	temp_t *t;
 	int i;
+	char typebuf[1024];
 
 	for (var = pr.localvars; var; var = var->nextlocal)
 	{
 		if (var->ofs >= paramstart && var->ofs < paramend)
 			continue;
 		if (var->arraysize)
-			fprintf(f, "local %s %s[%i];\n", TypeName(var->type), var->name, var->arraysize);
+			fprintf(f, "local %s %s[%i];\n", TypeName(var->type, typebuf, sizeof(typebuf)), var->name, var->arraysize);
 		else
-			fprintf(f, "local %s %s;\n", TypeName(var->type), var->name);
+			fprintf(f, "local %s %s;\n", TypeName(var->type, typebuf, sizeof(typebuf)), var->name);
 	}
 
 	for (t = functemps, i = 0; t; t = t->next, i++)
@@ -3864,13 +3865,16 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 						}
 						if (!inh)
 						{
+							char typebuf1[1024];
+							char typebuf2[1024];
 							if (flag_laxcasts || (p->type == ev_function && e->type->type == ev_function))
 							{
-								QCC_PR_ParseWarning(WARN_LAXCAST, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
+
+								QCC_PR_ParseWarning(WARN_LAXCAST, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type, typebuf1, sizeof(typebuf1)), TypeName(p, typebuf2, sizeof(typebuf2)));
 								QCC_PR_ParsePrintDef(WARN_LAXCAST, func);
 							}
 							else
-								QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type), TypeName(p));
+								QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i - (%s should be %s)", arg+1, TypeName(e->type, typebuf1, sizeof(typebuf1)), TypeName(p, typebuf2, sizeof(typebuf2)));
 						}
 					}
 				}
@@ -7688,12 +7692,13 @@ void QCC_WriteAsmFunction(QCC_def_t	*sc, unsigned int firststatement, gofs_t fir
 	gofs_t o;
 	QCC_type_t *type;
 	QCC_def_t *param;
+	char typebuf[512];
 
 	if (!asmfile)
 		return;
 
 	type = sc->type;
-	fprintf(asmfile, "%s(", TypeName(type->aux_type));
+	fprintf(asmfile, "%s(", TypeName(type->aux_type, typebuf, sizeof(typebuf)));
 	p = type->num_parms;
 	for (o = firstparm, i = 0, type = type->param; i < p; i++, type = type->next)
 	{
@@ -7706,9 +7711,9 @@ void QCC_WriteAsmFunction(QCC_def_t	*sc, unsigned int firststatement, gofs_t fir
 				break;
 		}
 		if (param)
-			fprintf(asmfile, "%s %s", TypeName(type), param->name);
+			fprintf(asmfile, "%s %s", TypeName(type, typebuf, sizeof(typebuf)), param->name);
 		else
-			fprintf(asmfile, "%s", TypeName(type));
+			fprintf(asmfile, "%s", TypeName(type, typebuf, sizeof(typebuf)));
 
 		o += type->size;
 	}
@@ -8407,6 +8412,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 	char newname[256];
 	int a;
 	QCC_def_t *def, *first=NULL;
+	char typebuf[1024];
 
 #define KEYWORD(x) if (!STRCMP(name, #x) && keyword_##x) {if (keyword_##x)QCC_PR_ParseWarning(WARN_KEYWORDDISABLED, "\""#x"\" keyword used as variable name%s", keywords_coexist?" - coexisting":" - disabling");keyword_##x=keywords_coexist;}
 	if (name)
@@ -8558,7 +8564,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 			pHash_Add(&globalstable, first->name, first, qccHunkAlloc(sizeof(bucket_t)));
 
 		if (!scope && asmfile)
-			fprintf(asmfile, "%s %s;\n", TypeName(first->type), first->name);
+			fprintf(asmfile, "%s %s;\n", TypeName(first->type, typebuf, sizeof(typebuf)), first->name);
 	}
 
 	return first;
@@ -8582,6 +8588,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 	QCC_def_t		*def;
 //	char element[MAX_NAME];
 	QCC_def_t *foundstatic = NULL;
+	char typebuf1[1024], typebuf2[1024];
 
 	if (!allocate)
 		arraysize = -1;
@@ -8599,7 +8606,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 			}
 
 			if (type && typecmp(def->type, type))
-				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type), TypeName(def->type));
+				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 			if (def->arraysize != arraysize && arraysize>=0)
 				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
 			if (allocate && scope)
@@ -8638,10 +8645,10 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 				if (typecmp_lax(def->type, type))
 				{
 					//unequal even when we're lax
-					QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type), TypeName(def->type));
+					QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 				}
 				else
-					QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type), TypeName(def->type));
+					QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 			}
 		}
 		if (def->arraysize != arraysize && arraysize>=0)
@@ -8677,7 +8684,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 				}
 
 				if (type && typecmp(def->type, type))
-					QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type), TypeName(def->type));
+					QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 				if (def->arraysize != arraysize && arraysize>=0)
 					QCC_PR_ParseError (ERR_TYPEMISMATCHARRAYSIZE, "Array sizes for redecleration of %s do not match",name);
 				if (allocate && scope)
@@ -8713,13 +8720,14 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 			{
 				if (!pr_scope)
 				{
+					char typebuf1[1024], typebuf2[1024];
 					if (typecmp_lax(def->type, type))
 					{
 						//unequal even when we're lax
-						QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type), TypeName(def->type));
+						QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 					}
 					else
-						QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type), TypeName(def->type));
+						QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 				}
 			}
 			if (def->arraysize != arraysize && arraysize>=0)
@@ -9759,11 +9767,12 @@ void QCC_PR_ParseDefs (char *classname)
 
 		if (classname)
 		{
+			char typebuf[1024];
 			char *membername = name;
 			name = qccHunkAlloc(strlen(classname) + strlen(name) + 3);
 			sprintf(name, "%s::"MEMBERFIELDNAME, classname, membername);
 			if (!QCC_PR_GetDef(NULL, name, NULL, false, 0, false))
-				QCC_PR_ParseError(ERR_NOTANAME, "%s %s is not a member of class %s\n", TypeName(type), membername, classname);
+				QCC_PR_ParseError(ERR_NOTANAME, "%s %s is not a member of class %s\n", TypeName(type, typebuf, sizeof(typebuf)), membername, classname);
 			sprintf(name, "%s::%s", classname, membername);
 
 			pr_classtype = QCC_TypeForName(classname);

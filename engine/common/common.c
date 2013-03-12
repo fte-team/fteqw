@@ -2105,7 +2105,7 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 		do
 		{
 			shift = shift-6;
-			*((unsigned char *)out) += (unsigned char)((unicode>>shift)&0x3f) | 0x80;
+			*((unsigned char *)out) = (unsigned char)((unicode>>shift)&0x3f) | 0x80;
 			out = (char*)out + 1;
 		}
 		while(shift);

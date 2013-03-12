@@ -257,9 +257,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef NACL
 #undef CL_MASTER	//no sockets support
 #undef SV_MASTER	//noone uses this anyway
-#undef VOICECHAT	//not going to compile a speex library - I'm too lazy, but it can be done.
 #undef WEBSERVER	//no sockets support (certainly no servers)
-#undef WEBCLIENT	//no sockets support (could use a different method, but that is non-trivial)
 #undef TCPCONNECT
 #undef IRCCONNECT
 #endif
@@ -555,6 +553,7 @@ STAT_MONSTERS		= 14,		// bumped by svc_killedmonster
 STAT_ITEMS			= 15,
 STAT_VIEWHEIGHT		= 16,	//same as zquake
 STAT_TIME			= 17,	//zquake
+STAT_MATCHSTARTTIME = 18,
 #ifdef SIDEVIEWS
 STAT_VIEW2			= 20,
 #endif

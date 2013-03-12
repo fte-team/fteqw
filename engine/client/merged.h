@@ -150,7 +150,7 @@ void Draw_FunString(int x, int y, const void *str);
 void Draw_AltFunString(int x, int y, const void *str);
 void Draw_FunStringWidth(int x, int y, const void *str, int width);
 
-int r_regsequence;
+extern int r_regsequence;
 
 #ifdef SERVERONLY
 #define Mod_Q1LeafPVS Mod_LeafPVS

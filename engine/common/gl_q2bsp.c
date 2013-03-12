@@ -3334,6 +3334,58 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 }
 
 #ifndef SERVERONLY
+void CModQ3_LoadLighting (lump_t *l)
+{
+	qbyte *in = mod_base + l->fileofs;
+	qbyte *out;
+	unsigned int samples = l->filelen;
+	int m, s;
+	int mapsize = loadmodel->lightmaps.width*loadmodel->lightmaps.height*3;
+	int maps;
+
+	extern cvar_t gl_overbright;
+	extern qbyte lmgamma[256];
+	extern void BuildLightMapGammaTable (float g, float c);
+	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
+
+	//round up the samples, in case the last one is partial.
+	maps = ((samples+mapsize-1)&~(mapsize-1)) / mapsize;
+
+	//q3 maps have built in 4-fold overbright.
+	//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
+	gl_overbright.flags |= CVAR_LATCH;
+	BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
+
+	loadmodel->engineflags |= MDLF_RGBLIGHTING;
+	loadmodel->lightdata = out = Hunk_AllocName(samples, "lit data");
+
+	//be careful here, q3bsp deluxemapping is done using interleaving. we want to unoverbright ONLY lightmaps and not deluxemaps.
+	for (m = 0; m < maps; m++)
+	{
+		if (loadmodel->lightmaps.deluxemapping && (m & 1))
+		{
+			//no gamma for deluxemap
+			for(s = 0; s < mapsize; s+=3)
+			{
+				*out++ = in[0];
+				*out++ = in[1];
+				*out++ = in[2];
+				in += 3;
+			}
+		}
+		else
+		{
+			for(s = 0; s < mapsize; s++)
+			{
+				*out++ = lmgamma[*in++];
+			}
+
+			if (r_lightmap_saturation.value != 1.0f)
+				SaturateR8G8B8(out - mapsize, mapsize, r_lightmap_saturation.value);
+		}
+	}
+}
+
 qboolean CModQ3_LoadLightgrid (lump_t *l)
 {
 	dq3gridlight_t 	*in;
@@ -3849,8 +3901,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 #ifndef SERVERONLY
 		if (qrenderer != QR_NONE)
 		{
-			if (noerrors)
-				RMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 			if (header.version == 1)
 				noerrors = noerrors && CModRBSP_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
 			else
@@ -3881,6 +3931,22 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				if (!loadmodel->textures[i]->shader)
 					loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
 			}
+
+			if (loadmodel->fromgame == fg_quake3)
+			{
+				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (loadmodel->lightmaps.width*loadmodel->lightmaps.height*3);
+				loadmodel->lightmaps.deluxemapping = !(i&1);
+				loadmodel->lightmaps.count = max(loadmodel->lightmaps.count, i);
+
+				for (i = 0; i < loadmodel->numsurfaces && loadmodel->lightmaps.deluxemapping; i++)
+				{
+					if (loadmodel->surfaces[i].lightmaptexturenums[0] >= 0 && (loadmodel->surfaces[i].lightmaptexturenums[0] & 1))
+						loadmodel->lightmaps.deluxemapping = false;
+				}
+			}
+
+			if (noerrors)
+				CModQ3_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 		}
 #endif
 		noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);

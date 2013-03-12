@@ -196,7 +196,7 @@ mpic_t          *scr_turtle;
 int                     clearconsole;
 int                     clearnotify;
 
-int                     sb_lines;
+extern int                     sb_lines;
 
 viddef_t        vid;                            // global video state
 

@@ -45,6 +45,7 @@ void MasterInfo_RemoveAllPlayers(void);
 master_t *master;
 player_t *mplayers;
 serverinfo_t *firstserver;
+struct selectedserver_s selectedserver;
 
 static serverinfo_t **visibleservers;
 static int numvisibleservers;

@@ -516,19 +516,18 @@ typedef struct fpsmenuinfo_s
 static void ApplyPreset (int presetnum)
 {
 	int i;
-	// TODO: work backwards and only set cvars once
-	for (i = 0; i <= presetnum; i++)
-	{
-		Cbuf_AddText(presetexec[i], RESTRICT_LOCAL);
-		Cbuf_AddText("\n", RESTRICT_LOCAL);
-		Cbuf_Execute(); // hack
-	}
+	//this function is written backwards, to ensure things work properly in configs etc.
 
 	//make sure the presets always set up particles correctly for certain other game modes.
 	if (M_GameType() == MGT_HEXEN2)
 	{
-		Cbuf_AddText("r_particledesc $r_particledesc h2part\n", RESTRICT_LOCAL);
-		Cbuf_Execute();
+		Cbuf_InsertText("r_particledesc $r_particledesc h2part\n", RESTRICT_LOCAL, false);
+	}
+
+	// TODO: work backwards and only set cvars once
+	for (i = presetnum; i >= 0; i--)
+	{
+		Cbuf_InsertText(presetexec[i], RESTRICT_LOCAL, true);
 	}
 	forcesaveprompt = true;
 }

@@ -37,11 +37,9 @@ extern int		gl_stencilbits;
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
-entity_t	r_worldentity;
-
 vec3_t		modelorg, r_entorigin;
 
-int			r_visframecount;	// bumped when going to a new PVS
+extern int			r_visframecount;	// bumped when going to a new PVS
 extern int			r_framecount;		// used for dlight push checking
 
 float		r_wateralphaval;	//allowed or not...
@@ -53,12 +51,10 @@ int			c_brush_polys, c_alias_polys;
 //
 // view origin
 //
-vec3_t	vup;
-vec3_t	vpn;
-vec3_t	vright;
-vec3_t	r_origin;
-
-texture_t	*r_notexture_mip;
+//vec3_t	vup;
+//vec3_t	vpn;
+//vec3_t	vright;
+//vec3_t	r_origin;
 
 cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 
@@ -426,7 +422,7 @@ void R_SetupGL (float stereooffset)
 			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
 	#endif
 
-			if (1)//(!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+			if ((!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
 			{
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
@@ -807,14 +803,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 
 	r_refdef.externalview = true;
 
-	if (portaltype == 1)
+	switch(portaltype)
 	{
-		/*explicit mirror*/
+	case 1: /*fbo explicit mirror (fucked depth, working clip plane)*/
 		r_refdef.flipcull ^= true;
 		R_MirrorMatrix(&plane);
-	}
-	else if (portaltype == 2)
-	{
+		break;
+	
+	case 2:	/*fbo refraction (fucked depth, working clip plane)*/
+	case 3:	/*screen copy refraction (screen depth, fucked clip planes)*/
 		/*refraction image (same view, just with things culled*/
 		r_refdef.externalview = oldrefdef.externalview;
 		VectorNegate(plane.normal, plane.normal);
@@ -864,50 +861,54 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 			}
 //			memset(newvis, 0xff, pvsbytes);
 		}
-	}
-	else if (batch->ent != &r_worldentity)
-	{
-		float d;
-		view = batch->ent;
-		d = DotProduct(r_refdef.vieworg, plane.normal) - plane.dist;
-		d-= 0.1;	//nudge it past.
-		VectorAdd(r_refdef.vieworg, view->oldorigin, r_refdef.vieworg);		//trivial offset for the warpzone.
-		VectorMA(r_refdef.vieworg, -d, plane.normal, r_refdef.pvsorigin);	//clip the pvs origin to the plane.
-	}
-	else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
-	{
-		r_refdef.flipcull ^= true;
-		R_MirrorMatrix(&plane);
-	}
-	else
-	{
-		float d;
-		vec3_t paxis[3], porigin, vaxis[3], vorg;
-		void PerpendicularVector( vec3_t dst, const vec3_t src );
+		break;
 
-		/*calculate where the surface is meant to be*/
-		VectorCopy(mesh->normals_array[0], paxis[0]);
-		PerpendicularVector(paxis[1], paxis[0]);
-		CrossProduct(paxis[0], paxis[1], paxis[2]);
-		d = DotProduct(view->origin, plane.normal) - plane.dist;
-		VectorMA(view->origin, -d, paxis[0], porigin);
+	default:	/*q3 portal*/
+		if (batch->ent != &r_worldentity)
+		{
+			float d;
+			view = batch->ent;
+			d = DotProduct(r_refdef.vieworg, plane.normal) - plane.dist;
+			d-= 0.1;	//nudge it past.
+			VectorAdd(r_refdef.vieworg, view->oldorigin, r_refdef.vieworg);		//trivial offset for the warpzone.
+			VectorMA(r_refdef.vieworg, -d, plane.normal, r_refdef.pvsorigin);	//clip the pvs origin to the plane.
+		}
+		else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
+		{
+			r_refdef.flipcull ^= true;
+			R_MirrorMatrix(&plane);
+		}
+		else
+		{
+			float d;
+			vec3_t paxis[3], porigin, vaxis[3], vorg;
+			void PerpendicularVector( vec3_t dst, const vec3_t src );
 
-		/*grab the camera origin*/
-		VectorNegate(view->axis[0], vaxis[0]);
-		VectorNegate(view->axis[1], vaxis[1]);
-		VectorCopy(view->axis[2], vaxis[2]);
-		VectorCopy(view->oldorigin, vorg);
+			/*calculate where the surface is meant to be*/
+			VectorCopy(mesh->normals_array[0], paxis[0]);
+			PerpendicularVector(paxis[1], paxis[0]);
+			CrossProduct(paxis[0], paxis[1], paxis[2]);
+			d = DotProduct(view->origin, plane.normal) - plane.dist;
+			VectorMA(view->origin, -d, paxis[0], porigin);
 
-		VectorCopy(vorg, r_refdef.pvsorigin);
+			/*grab the camera origin*/
+			VectorNegate(view->axis[0], vaxis[0]);
+			VectorNegate(view->axis[1], vaxis[1]);
+			VectorCopy(view->axis[2], vaxis[2]);
+			VectorCopy(view->oldorigin, vorg);
 
-		/*rotate it a bit*/
-		RotatePointAroundVector(vaxis[1], vaxis[0], view->axis[1], sin(realtime)*4);
-		CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+			VectorCopy(vorg, r_refdef.pvsorigin);
 
-		TransformCoord(oldrefdef.vieworg, paxis, porigin, vaxis, vorg, r_refdef.vieworg);
-		TransformDir(vpn, paxis, vaxis, vpn);
-		TransformDir(vright, paxis, vaxis, vright);
-		TransformDir(vup, paxis, vaxis, vup);
+			/*rotate it a bit*/
+			RotatePointAroundVector(vaxis[1], vaxis[0], view->axis[1], sin(realtime)*4);
+			CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+
+			TransformCoord(oldrefdef.vieworg, paxis, porigin, vaxis, vorg, r_refdef.vieworg);
+			TransformDir(vpn, paxis, vaxis, vpn);
+			TransformDir(vright, paxis, vaxis, vright);
+			TransformDir(vup, paxis, vaxis, vup);
+		}
+		break;
 	}
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	VectorAngles(vpn, vup, r_refdef.viewangles);
@@ -939,7 +940,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	frustum[4].normal[1] = plane.normal[1];
 	frustum[4].normal[2] = plane.normal[2];
 	frustum[4].dist	= plane.dist + 0.01;
-	R_ObliqueNearClip(&frustum[4]);
+	if (portaltype == 1 || portaltype == 2)
+		R_ObliqueNearClip(&frustum[4]);
 	R_RenderScene();
 //	if (qglClipPlane)
 //		qglDisable(GL_CLIP_PLANE0);

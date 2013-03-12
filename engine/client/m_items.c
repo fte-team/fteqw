@@ -1636,6 +1636,10 @@ void M_Complex_Key(int key, int unicode)
 	{
 		if (bindingactive)
 		{
+			//don't let key 0 be bound here. unicode-only keys are also not bindable.
+			if (key == 0)
+				return;
+
 			if (mgt == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else

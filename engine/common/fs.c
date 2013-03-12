@@ -1882,7 +1882,10 @@ qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, in
 		{
 			handle = searchpathformats[i].funcs->OpenNew (vfs, localname);
 			if (!handle)
+			{
+				Con_Printf("file %s isn't a %s after all\n", pname, searchpathformats[i].extension);
 				break;
+			}
 			if (crc)
 			{
 				int truecrc = searchpathformats[i].funcs->GeneratePureCRC(handle, 0, false);
@@ -2583,9 +2586,13 @@ void FS_StartupWithGame(int gamenum)
 	i = COM_CheckParm ("-addbasegame");
 	while (i && i < com_argc-1)	//use multiple -addbasegames (this is so the basic dirs don't die)
 	{
-		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
-		if (*com_homedir)
-			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+		//reject various evil path arguments.
+		if (*com_argv[i+1] && !(strchr(com_argv[i+1], '.') || strchr(com_argv[i+1], ':') || strchr(com_argv[i+1], '?') || strchr(com_argv[i+1], '*') || strchr(com_argv[i+1], '/') || strchr(com_argv[i+1], '\\') || strchr(com_argv[i+1], '$')))
+		{
+			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
+			if (*com_homedir)
+				FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+		}
 
 		i = COM_CheckNextParm ("-addbasegame", i);
 	}

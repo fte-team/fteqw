@@ -2036,7 +2036,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #endif
 	case key_game:
 	case key_console:
-		if ((unicode) || key == K_ENTER || key == K_TAB)
+		if ((key && unicode) || key == K_ENTER || key == K_TAB)
 			key_dest = key_console;
 		Key_Console (unicode, key);
 		break;

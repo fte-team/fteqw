@@ -1613,7 +1613,6 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 	}
 }
 
-entity_state_t defaultstate;
 void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
 {
 	edict_t	*ent;
@@ -1661,7 +1660,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		{	// this is a new entity, send it from the baseline... as far as dp understands it...
 			ent = EDICT_NUM(svprogfuncs, newnum);
 //Con_Printf ("baseline %i\n", newnum);
-			SVDP_EmitEntityDelta (&defaultstate, &to->entities[newindex], msg, true);
+			SVDP_EmitEntityDelta (&nullentitystate, &to->entities[newindex], msg, true);
 			newindex++;
 			continue;
 		}

@@ -732,6 +732,61 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "defaultfill",
+"#ifdef VERTEX_SHADER\n"
+"attribute vec4 v_colour;\n"
+"varying vec4 vc;\n"
+
+"void main ()\n"
+"{\n"
+"vc = v_colour;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"varying vec4 vc;\n"
+"void main ()\n"
+"{\n"
+"gl_FragColor = vc;\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultfill",
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_projection, inp.pos);\n"
+"outp.vcol = inp.vcol;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return inp.vcol;\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultsprite",
 "!!permu FOG\n"
 //used by both particles and sprites.

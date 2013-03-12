@@ -11,8 +11,6 @@ struct edict_s;
 #endif
 
 
-vec3_t vec3_origin;
-
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s);
 

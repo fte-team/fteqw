@@ -44,7 +44,7 @@ shader_t *crepuscular_shader;
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
 
 
-struct {
+static struct {
 	int numlights;
 	int shadowsurfcount;
 
@@ -202,6 +202,7 @@ static void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float 
 	v = (sh_shmesh->numverts+numverts*2 + inc)&~(inc-1);	//and a bit of padding
 	if (sh_shmesh->maxverts < v)
 	{
+		v += 1024;
 		sh_shmesh->maxverts = v;
 		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, v * sizeof(*sh_shmesh->verts));
 	}
@@ -226,6 +227,7 @@ static void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float 
 	v = (sh_shmesh->numindicies+idxs*2+inc)&~(inc-1);	//and a bit of padding
 	if (sh_shmesh->maxindicies < v)
 	{
+		v += 1024;
 		sh_shmesh->maxindicies = v;
 		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, v * sizeof(*sh_shmesh->indicies));
 	}
@@ -2141,9 +2143,13 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	else
 	{
 		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, 90, 90, nearplane, l->radius);
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection);
-		qglMatrixMode(GL_MODELVIEW);
+
+		if (!gl_config.nofixedfunc)
+		{
+			qglMatrixMode(GL_PROJECTION);
+			qglLoadMatrixf(r_refdef.m_projection);
+			qglMatrixMode(GL_MODELVIEW);
+		}
 
 		/*generate faces*/
 		for (f = 0; f < 6; f++)
@@ -2159,11 +2165,13 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	qglDisable(GL_POLYGON_OFFSET_FILL);
 
-	qglMatrixMode(GL_PROJECTION);
-	qglLoadMatrixf(r_refdef.m_projection);
-
-	qglMatrixMode(GL_MODELVIEW);
-	qglLoadMatrixf(r_refdef.m_view);
+	if (!gl_config.nofixedfunc)
+	{
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(r_refdef.m_projection);
+		qglMatrixMode(GL_MODELVIEW);
+		qglLoadMatrixf(r_refdef.m_view);
+	}
 
 	qglViewport(r_refdef.pxrect.x, vid.pixelheight - r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 
@@ -2601,7 +2609,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 			if (gl_config.ext_stencil_wrap)
 			{	//minimise damage...
 				sbackfail = GL_INCR_WRAP_EXT;
-				sdecrw = GL_DECR_WRAP_EXT;
+				sfrontfail = GL_DECR_WRAP_EXT;
 			}
 		#else
 			sref = (1<<gl_stencilbits)-1; /*this is halved for two-sided stencil support, just in case there's no wrap support*/
@@ -2623,17 +2631,18 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 				qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 				qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
 				qglDisable(GL_STENCIL_TEST);
-				qglEnable(GL_POLYGON_OFFSET_FILL);
-				qglPolygonOffset(-1, -1);
+//				qglEnable(GL_POLYGON_OFFSET_FILL);
+//				qglPolygonOffset(-1, -1);
 			//	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
-				qglDisable(GL_POLYGON_OFFSET_FILL);
-				qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+//				qglDisable(GL_POLYGON_OFFSET_FILL);
+//				qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
 		#endif
 
 			if (qglStencilOpSeparateATI)
 			{
+				//ATI/GLES/ARB method
 				sref/=2;
 				qglClearStencil(sref);
 				qglClear(GL_STENCIL_BUFFER_BIT);
@@ -2653,8 +2662,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 			}
 			else if (qglActiveStencilFaceEXT)
 			{
+				//Nvidia-specific method.
 				sref/=2;
-				/*personally I prefer the ATI way (nvidia method)*/
 				qglClearStencil(sref);
 				qglClear(GL_STENCIL_BUFFER_BIT);
 				GL_CullFace(0);

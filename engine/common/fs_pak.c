@@ -203,9 +203,8 @@ void *FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 	if (header.id[0] != 'P' || header.id[1] != 'A'
 	|| header.id[2] != 'C' || header.id[3] != 'K')
 	{
-		VFS_CLOSE(packhandle);
+		Con_Printf("%s is not a pak - %c%c%c%c\n", desc, header.id[0], header.id[1], header.id[2], header.id[3]);
 		return NULL;
-//		Sys_Error ("%s is not a packfile", packfile);
 	}
 	header.dirofs = LittleLong (header.dirofs);
 	header.dirlen = LittleLong (header.dirlen);

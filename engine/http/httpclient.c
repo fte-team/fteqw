@@ -4,8 +4,150 @@
 
 #include "netinc.h"
 
-#ifdef WEBCLIENT
+#if defined(WEBCLIENT)
+#if defined(NACL)
+#include <ppapi/c/pp_errors.h>
+#include <ppapi/c/ppb_core.h>
+#include <ppapi/c/pp_file_info.h>
+#include <ppapi/c/ppb_file_system.h>
+#include <ppapi/c/ppb_file_ref.h>
+#include <ppapi/c/ppb_url_request_info.h>
+#include <ppapi/c/ppb_url_response_info.h>
+#include <ppapi/c/pp_var.h>
+#include <ppapi/c/ppb_var.h>
+#include <ppapi/c/ppb_file_io.h>
+#include <ppapi/c/ppb_url_loader.h>
 
+extern PPB_Core *ppb_core;
+extern PPB_URLRequestInfo *urlrequestinfo;
+extern PPB_URLLoader  *urlloader;
+extern PP_Instance pp_instance;
+extern PPB_Var *ppb_var_interface;
+
+struct nacl_dl {
+	char buffer[65536];
+	PP_Resource req;
+};
+
+static void readfinished(void* user_data, int32_t result)
+{
+	struct dl_download *f = user_data;
+	struct nacl_dl *ctx = f->ctx;
+	struct PP_CompletionCallback ccb = {readfinished, f, PP_COMPLETIONCALLBACK_FLAG_NONE};
+
+	//trying to clean up
+	if (!ctx)
+		return;
+
+//	Sys_Printf("lastresult: %i\n", result);
+
+	if (result == PP_OK)
+	{
+//		Sys_Printf("%s completed\n", f->url);
+		ppb_core->ReleaseResource(ctx->req);
+		ctx->req = 0;
+
+		f->status = DL_FINISHED;
+		return;
+	}
+
+	for (; result > 0; result = urlloader->ReadResponseBody(ctx->req, ctx->buffer, sizeof(ctx->buffer), ccb))
+	{
+		//make sure the file is 'open'.
+		if (!f->file)
+		{
+			if (*f->localname)
+			{
+				FS_CreatePath(f->localname, FS_GAME);
+				f->file = FS_OpenVFS(f->localname, "w+b", FS_GAME);
+			}
+			else
+				f->file = FS_OpenTemp();
+		}
+
+//		Sys_Printf("write: %i\n", result);
+		VFS_WRITE(f->file, ctx->buffer, result);
+
+		f->completed += result;
+	}
+
+//	Sys_Printf("result: %i\n", result);
+	if (result != PP_OK_COMPLETIONPENDING)
+	{
+		Sys_Printf("file %s failed or something\n", f->url);
+		ppb_core->ReleaseResource(ctx->req);
+		ctx->req = 0;
+		f->status = DL_FAILED;
+	}
+}
+//urloader->open completed
+static void dlstarted(void* user_data, int32_t result)
+{
+	struct dl_download *f = user_data;
+	struct nacl_dl *ctx = f->ctx;
+
+	struct PP_CompletionCallback ccb = {readfinished, f, PP_COMPLETIONCALLBACK_FLAG_NONE};
+	readfinished(user_data, urlloader->ReadResponseBody(ctx->req, ctx->buffer, sizeof(ctx->buffer), ccb));
+}
+
+static void nadl_cleanup(void* user_data, int32_t result)
+{
+	struct nacl_dl *ctx = user_data;
+
+	if (ctx->req)
+		ppb_core->ReleaseResource(ctx->req);
+	free(ctx);
+}
+
+void NADL_Cleanup(struct dl_download *dl)
+{
+	struct nacl_dl *ctx = dl->ctx;
+
+	//we can't free the ctx memory etc, in case the browser still has requests pending on it before it handles our close.
+	//so set up a callback to do it later
+
+	dl->ctx = NULL;	//orphan
+	struct PP_CompletionCallback ccb = {nadl_cleanup, ctx, PP_COMPLETIONCALLBACK_FLAG_NONE};
+	ppb_core->CallOnMainThread(1000, ccb, 0);
+}
+
+qboolean HTTPDL_Decide(struct dl_download *dl)
+{
+	const char *url = dl->redir;
+	struct nacl_dl *ctx;
+	if (!*url)
+		url = dl->url;
+
+	if (dl->ctx)
+	{
+		if (dl->status == DL_FAILED || dl->status == DL_FINISHED)
+		{
+			NADL_Cleanup(dl);
+			return false;	//safe to destroy it now
+		}
+	}
+	else
+	{
+		PP_Resource dlri;
+
+		dl->status = DL_ACTIVE;
+		dl->abort = NADL_Cleanup;
+		dl->ctx = ctx = Z_Malloc(sizeof(*ctx));
+
+		/*everything goes via nacl, so we might as well just init that here*/
+		ctx->req = urlloader->Create(pp_instance);
+		dlri = urlrequestinfo->Create(pp_instance);
+		urlrequestinfo->SetProperty(dlri, PP_URLREQUESTPROPERTY_ALLOWCROSSORIGINREQUESTS, ppb_var_interface->VarFromUtf8(url, strlen(url)));
+		urlrequestinfo->SetProperty(dlri, PP_URLREQUESTPROPERTY_URL, ppb_var_interface->VarFromUtf8(url, strlen(url)));
+
+		struct PP_CompletionCallback ccb = {dlstarted, dl, PP_COMPLETIONCALLBACK_FLAG_NONE};
+		urlloader->Open(ctx->req, dlri, ccb);
+		ppb_core->ReleaseResource(dlri);
+	}
+
+	return true;
+}
+#else
 qboolean HTTPDL_Decide(struct dl_download *dl);
 
 /*
@@ -477,6 +619,7 @@ qboolean HTTPDL_Decide(struct dl_download *dl)
 	}
 	return true;
 }
+#endif	/*!defined(NACL)*/
 
 #ifdef MULTITHREAD
 static int DL_Thread_Work(void *arg)
@@ -539,9 +682,23 @@ struct dl_download *DL_Create(const char *url)
 
 	return newdl;
 }
+static struct dl_download *showndownload;
+
 /*destroys an entire download context*/
 void DL_Close(struct dl_download *dl)
 {
+#ifndef NPFTE
+	if (showndownload == dl)
+	{
+		if (cls.downloadmethod == DL_HTTP)
+		{
+			cls.downloadmethod = DL_NONE;
+			*cls.downloadlocalname = *cls.downloadremotename = 0;
+		}
+		showndownload = NULL;
+	}
+#endif
+
 #ifdef MULTITHREAD
 	dl->threaddie = true;
 	if (dl->threadctx)
@@ -559,7 +716,6 @@ void DL_Close(struct dl_download *dl)
 #ifndef NPFTE
 
 static struct dl_download *activedownloads;
-static struct dl_download *showndownload;
 unsigned int shownbytestart;
 /*create a download context and add it to the list, for lazy people*/
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl))
@@ -580,69 +736,63 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 
 void HTTP_CL_Think(void)
 {
-	struct dl_download *con = activedownloads;
+	struct dl_download *dl = activedownloads;
 	struct dl_download **link = NULL;
 
 	link = &activedownloads;
 	while (*link)
 	{
-		con = *link;
+		dl = *link;
 #ifdef MULTITHREAD
-		if (con->threadctx)
+		if (dl->threadctx)
 		{
-			if (con->status == DL_FINISHED || con->status == DL_FAILED)
+			if (dl->status == DL_FINISHED || dl->status == DL_FAILED)
 			{
-				Sys_WaitOnThread(con->threadctx);
-				con->threadctx = NULL;
+				Sys_WaitOnThread(dl->threadctx);
+				dl->threadctx = NULL;
 				continue;
 			}
 		}
 		else 
 #endif
-		if (!con->poll(con))
+		if (!dl->poll(dl))
 		{
-			*link = con->next;
-			if (con->file)
-				VFS_SEEK(con->file, 0);
-			if (con->notify)
-				con->notify(con);
-			DL_Close(con);
-
-			if (cls.downloadmethod == DL_HTTP)
-			{
-				if (showndownload == con)
-				{
-					cls.downloadmethod = DL_NONE;
-					*cls.downloadlocalname = *cls.downloadremotename = 0;
-				}
-			}
+			*link = dl->next;
+			if (dl->file)
+				VFS_SEEK(dl->file, 0);
+			if (dl->notify)
+				dl->notify(dl);
+			DL_Close(dl);
 			continue;
 		}
-		link = &con->next;
+		link = &dl->next;
 
-		if (!cls.downloadmethod && *con->localname)
+		if (!cls.downloadmethod)
 		{
 			cls.downloadmethod = DL_HTTP;
-			showndownload = con;
-			strcpy(cls.downloadlocalname, con->localname);
-			strcpy(cls.downloadremotename, con->url);
+			showndownload = dl;
+			if (*dl->localname)
+				strcpy(cls.downloadlocalname, dl->localname);
+			else
+				strcpy(cls.downloadlocalname, dl->url);
+			strcpy(cls.downloadremotename, dl->url);
 			cls.downloadstarttime = Sys_DoubleTime();
 			cls.downloadedbytes = 0;
-			shownbytestart = con->completed;
+			shownbytestart = dl->completed;
 		}
 		if (cls.downloadmethod == DL_HTTP)
 		{
-			if (showndownload == con)
+			if (showndownload == dl)
 			{
-				if (con->status == DL_FINISHED)
+				if (dl->status == DL_FINISHED)
 					cls.downloadpercent = 100;
-				else if (con->status != DL_ACTIVE)
+				else if (dl->status != DL_ACTIVE)
 					cls.downloadpercent = 0;
-				else if (con->totalsize <= 0)
+				else if (dl->totalsize <= 0)
 					cls.downloadpercent = 50;
 				else
-					cls.downloadpercent = con->completed*100.0f/con->totalsize;
-				cls.downloadedbytes = con->completed;
+					cls.downloadpercent = dl->completed*100.0f/dl->totalsize;
+				cls.downloadedbytes = dl->completed;
 			}
 		}
 	}

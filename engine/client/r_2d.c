@@ -312,7 +312,6 @@ mpic_t	*R2D_SafeCachePic (char *path)
 }
 
 
-char *failedpic;	//easier this way
 mpic_t *R2D_SafePicFromWad (char *name)
 {
 	char newnamewad[32];
@@ -330,7 +329,6 @@ mpic_t *R2D_SafePicFromWad (char *name)
 	if (!(s->flags & SHADER_NOIMAGE))
 		return s;
 
-	failedpic = name;
 	return NULL;
 }
 

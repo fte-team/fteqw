@@ -1141,7 +1141,6 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 }
 #ifdef NQPROT
 
-entity_state_t defaultstate;
 void DP5_ParseDelta(entity_state_t *s)
 {
 	int bits;
@@ -1166,7 +1165,7 @@ void DP5_ParseDelta(entity_state_t *s)
 	{
 		int num;
 		num = s->number;
-		*s = defaultstate;
+		*s = nullentitystate;
 		s->trans = 255;
 		s->scale = 16;
 		s->number = num;
@@ -1317,7 +1316,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		if (read >= MAX_EDICTS)
 			Host_EndGame("Too many entities.\n");
 
-		from = &defaultstate;
+		from = &nullentitystate;
 
 		for (oldi=0 ; oldi<oldpack.num_entities ; oldi++)
 		{

@@ -1652,8 +1652,6 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	GLVID_SetPalette(palette);
 	GLVID_ShiftPalette(palette);
 
-	qglGetIntegerv(GL_STENCIL_BITS, &gl_stencilbits);
-
 	InitSig(); // trap evil signals
 
 	//probably going to be resized in the event handler

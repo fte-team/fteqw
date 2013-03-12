@@ -666,7 +666,9 @@ sounddriver pSDL_InitCard;
 sounddriver pWAV_InitCard;
 sounddriver pDroid_InitCard;
 sounddriver pAHI_InitCard;
-sounddriver pPPAPI_InitCard;
+#ifdef NACL
+extern sounddriver pPPAPI_InitCard;
+#endif
 
 typedef struct {
 	char *name;
@@ -680,7 +682,9 @@ sdriver_t drivers[] = {
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
 	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
 	{"AHI", &pAHI_InitCard},		//prefered on morphos
+#ifdef NACL
 	{"PPAPI", &pPPAPI_InitCard},	//google's native client
+#endif
 	{"SNDIO", &pSNDIO_InitCard},	//prefered on OpenBSD
 
 	{"SDL", &pSDL_InitCard},		//prefered on linux

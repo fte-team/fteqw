@@ -1086,6 +1086,7 @@ void CL_ClearState (void)
 	S_StopAllSounds (true);
 	S_UntouchAll();
 	S_ResetFailedLoad();
+	r_regsequence++;
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 

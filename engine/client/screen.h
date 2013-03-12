@@ -31,10 +31,6 @@ extern	qboolean	scr_disabled_for_loading;
 extern	cvar_t		scr_fov;
 extern	cvar_t		scr_viewsize;
 
-extern cvar_t scr_viewsize;
-
-qboolean	scr_skipupdate;
-
 qboolean SCR_RSShot (void);
 
 //void SCR_DrawConsole (qboolean noback);

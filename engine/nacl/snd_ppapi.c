@@ -80,7 +80,11 @@ int PPAPI_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->sn.samplebits = 16;
 	sc->sn.numchannels = 2;
 
+#ifdef PPB_AUDIO_CONFIG_INTERFACE_1_1
+	framecount = audioconfig_interface->RecommendSampleFrameCount(pp_instance, sc->sn.speed, 2048);
+#else
 	framecount = audioconfig_interface->RecommendSampleFrameCount(sc->sn.speed, 2048);
+#endif
 
 	/*the callback paints directly into the caller's buffer, so we don't need a separate 'dma' buffer*/
 	sc->selfpainting = true;

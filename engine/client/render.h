@@ -490,7 +490,7 @@ enum {
 
 	RSPEED_MAX
 };
-int rspeeds[RSPEED_MAX];
+extern int rspeeds[RSPEED_MAX];
 
 enum {
 	RQUANT_MSECS,	//old r_speeds
@@ -506,7 +506,7 @@ enum {
 
 	RQUANT_MAX
 };
-int rquant[RQUANT_MAX];
+extern int rquant[RQUANT_MAX];
 
 #define RQuantAdd(type,quant) rquant[type] += quant
 

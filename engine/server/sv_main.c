@@ -29,14 +29,13 @@ void SV_Loadgame_f (void);
 #define INVIS_CHAR2 (char)138
 #define INVIS_CHAR3 (char)160
 
-quakeparms_t host_parms;
-
-qboolean	host_initialized;		// true if into command execution (compatability)
-
+#ifdef SERVERONLY
 double		host_frametime;
 double		realtime;				// without any filtering or bounding
-
+qboolean	host_initialized;		// true if into command execution (compatability)
+quakeparms_t host_parms;
 int			host_hunklevel;
+#endif
 
 // callbacks
 void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue);

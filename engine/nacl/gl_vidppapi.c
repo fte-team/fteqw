@@ -6,6 +6,7 @@
 #include <ppapi/gles2/gl2ext_ppapi.h>
 #include <ppapi/c/ppb_graphics_3d.h>
 #include <ppapi/c/ppb_instance.h>
+#include <ppapi/c/pp_errors.h>
 
 extern PPB_Core *ppb_core;
 extern PPB_GetInterface sys_gbi;
@@ -14,10 +15,23 @@ extern PP_Instance pp_instance;
 static PP_Resource glcontext;
 extern PPB_Instance* instance_interface;
 int delayedswap = false;
+qboolean swappending;
 
+extern cvar_t		_vid_wait_override;
+
+void FrameEvent(void* user_data, int32_t result);
+qboolean NAGL_SwapPending(void)
+{
+	return swappending;
+}
 void swap_callback(void* user_data, int32_t result)
 {
-//  printf("swap result: %d\n", result);
+	if (swappending)
+	{
+		swappending = false;
+
+		FrameEvent(NULL, 0);
+	}
 }
 void GL_BeginRendering (void)
 {
@@ -26,16 +40,34 @@ void GL_EndRendering (void)
 {
 	delayedswap = true;
 	glFlush();
+
+//	if (!gl_lateswap.value)
+//		GL_DoSwap();
 }
 
 void GL_DoSwap(void)
 {
 	if (delayedswap)
 	{
-		struct PP_CompletionCallback ccb = { swap_callback, NULL, PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
+		qboolean vsync = _vid_wait_override.ival || !*_vid_wait_override.string;
+		struct PP_CompletionCallback ccb = { swap_callback, NULL, vsync?PP_COMPLETIONCALLBACK_FLAG_NONE:PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
 		glFlush();
-		graphics3d_interface->SwapBuffers(glcontext, ccb);
 		delayedswap = false;
+
+		switch(graphics3d_interface->SwapBuffers(glcontext, ccb))
+		{
+		case PP_OK_COMPLETIONPENDING:
+			swappending |= vsync;
+			break;
+		case PP_OK:
+			break;
+		case PP_ERROR_INPROGRESS:
+			Con_DPrintf("chrome can't handle vid_wait 0\n");
+			break;
+		default:
+			Con_DPrintf("unknown error on SwapBuffers call\n");
+			break;
+		}
 	}
 }
 
@@ -227,12 +259,12 @@ void *PPAPI_GetGLSymbol(char *symname)
 void GL_Resized(int width, int height)
 {
 	extern cvar_t vid_conautoscale, vid_conwidth;
+
+	vid.pixelwidth = width;
+	vid.pixelheight = height;
 	if (glcontext)
 	{
 		graphics3d_interface->ResizeBuffers(glcontext, width, height);
-		vid.pixelwidth = width;
-		vid.pixelheight = height;
-
 		Cvar_ForceCallback(&vid_conautoscale);
 		Cvar_ForceCallback(&vid_conwidth);
 	}
@@ -240,10 +272,20 @@ void GL_Resized(int width, int height)
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
-	int32_t attribs[] = {PP_GRAPHICS3DATTRIB_WIDTH, info->width,
-						PP_GRAPHICS3DATTRIB_HEIGHT, info->height,
+	if (!vid.pixelwidth)
+		vid.pixelwidth = info->width;
+	if (!vid.pixelheight)
+		vid.pixelheight = info->height;
+	if (vid.pixelwidth < 320)
+		vid.pixelwidth = 320;
+	if (vid.pixelheight < 200)
+		vid.pixelheight = 200;
+
+	int32_t attribs[] = {PP_GRAPHICS3DATTRIB_WIDTH, vid.pixelwidth,
+						PP_GRAPHICS3DATTRIB_HEIGHT, vid.pixelheight,
 						PP_GRAPHICS3DATTRIB_DEPTH_SIZE, 24,
 						PP_GRAPHICS3DATTRIB_STENCIL_SIZE, 8,
+						PP_GRAPHICS3DATTRIB_SWAP_BEHAVIOR, PP_GRAPHICS3DATTRIB_BUFFER_DESTROYED,
 						PP_GRAPHICS3DATTRIB_NONE};
 
 	glcontext = graphics3d_interface->Create(pp_instance, 0, attribs);
@@ -261,8 +303,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	GL_EndRendering();
 	GL_DoSwap();
 
-	vid.pixelwidth = info->width;
-	vid.pixelheight = info->height;
+//	vid.pixelwidth = info->width;
+//	vid.pixelheight = info->height;
 
     GLVID_SetPalette (palette);
 	GL_Init(PPAPI_GetGLSymbol);

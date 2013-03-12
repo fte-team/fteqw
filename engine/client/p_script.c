@@ -2201,9 +2201,6 @@ static qboolean PScript_InitParticles (void)
 	pscripttmesh.st_array = pscripttexcoords;
 	pscripttmesh.colors4f_array = pscriptcolours;
 	pscripttmesh.indexes = pscripttriindexes;
-
-	if (fallback)
-		fallback->InitParticles();
 	return true;
 }
 
@@ -2237,6 +2234,7 @@ static void PScript_Shutdown (void)
 	BZ_Free (part_type);
 	part_type = NULL;
 	part_run_list = NULL;
+	fallback = NULL;
 
 	BZ_Free (particles);
 	BZ_Free (beams);

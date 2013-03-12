@@ -45,7 +45,7 @@ unsigned		blocklights[3*MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
 lightmapinfo_t **lightmap;
 int numlightmaps;
 
-mleaf_t		*r_vischain;		// linked list of visible leafs
+extern mleaf_t		*r_vischain;		// linked list of visible leafs
 
 extern cvar_t r_stains;
 extern cvar_t r_loadlits;
@@ -2429,6 +2429,12 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 
 	if (!count)
 		return -1;
+
+	if (deluxe && (count & 1))
+	{
+		deluxe = false;
+		Con_Print("WARNING: Deluxemapping with odd number of lightmaps\n");
+	}
 
 	i = numlightmaps + count;
 	lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));

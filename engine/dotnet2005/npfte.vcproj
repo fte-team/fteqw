@@ -53,7 +53,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex"
+				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex;../"
 				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS;NPQTV;MULTITHREAD"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"

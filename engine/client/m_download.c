@@ -804,10 +804,11 @@ void Menu_DownloadStuff_f (void)
 #endif
 
 
-#if defined(AVAIL_ZLIB) && defined(WEBCLIENT)
+#if defined(WEBCLIENT)
 
 static int numbootdownloads;
 #include "fs.h"
+#ifdef AVAIL_ZLIB
 extern searchpathfuncs_t zipfilefuncs;
 static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr)
 {
@@ -863,6 +864,7 @@ static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr)
 	}
 	return true;
 }
+#endif
 
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, qboolean copyprotect, qboolean istemporary, qboolean isexplicit);
 
@@ -870,85 +872,167 @@ void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
 static void CL_BootDownload_Complete(struct dl_download *dl)
 {
 	void *zip;
-	if (dl->status == DL_FINISHED)
-		zip = zipfilefuncs.OpenNew(dl->file, dl->url);
-	else
-		zip = NULL;
-	/*the zip code will have eaten the file handle*/
-	dl->file = NULL;
-	if (zip)
+	char *q = strchr(dl->url, '?');
+	char *ext;
+	if (dl->file && dl->status == DL_FINISHED)
 	{
-		if (dl->user_ctx)
+		if (q) *q = '0';
+		ext = COM_FileExtension(dl->url);
+		if (q) *q = '?';
+		if (!stricmp(ext, "zip"))
 		{
-			vfsfile_t *in, *out;
-			flocation_t loc;
-			qboolean found = false;
-			int crc;
-
-			found = zipfilefuncs.FindFile(zip, &loc, dl->user_ctx, NULL);
-			if (!found)
+#ifdef AVAIL_ZLIB
+			if (dl->status == DL_FINISHED)
+				zip = zipfilefuncs.OpenNew(dl->file, dl->url);
+			else
+				zip = NULL;
+			if (zip)
 			{
-				char *s = COM_SkipPath(dl->user_ctx);
-				if (s != dl->user_ctx)
-					found = zipfilefuncs.FindFile(zip, &loc, s, NULL);
-			}
-
-			if (found)
-			{
-				in = zipfilefuncs.OpenVFS(zip, &loc, "rb");
-				if (in)
+				dl->file = NULL;	//file is now owned by the zip context.
+				if (dl->user_ctx)
 				{
-					char local[MAX_OSPATH];
-					FS_GenCachedPakName(dl->user_ctx, va("%i", dl->user_num), local, sizeof(local));
-					FS_CreatePath(local, FS_ROOT);
-					out = FS_OpenVFS(local, "wb", FS_ROOT);
-					if (out)
+					vfsfile_t *in, *out;
+					flocation_t loc;
+					qboolean found = false;
+					int crc;
+
+					found = zipfilefuncs.FindFile(zip, &loc, dl->user_ctx, NULL);
+					if (!found)
 					{
-						char buffer[8192];
-						int read;
-						for(;;)
+						char *s = COM_SkipPath(dl->user_ctx);
+						if (s != dl->user_ctx)
+							found = zipfilefuncs.FindFile(zip, &loc, s, NULL);
+					}
+
+					if (found)
+					{
+						in = zipfilefuncs.OpenVFS(zip, &loc, "rb");
+						if (in)
 						{
-							read = VFS_READ(in, buffer, sizeof(buffer));
-							if (read <= 0)
-								break;
-							if (VFS_WRITE(out, buffer, read) != read)
+							char local[MAX_OSPATH];
+							FS_GenCachedPakName(dl->user_ctx, va("%i", dl->user_num), local, sizeof(local));
+							FS_CreatePath(local, FS_ROOT);
+							out = FS_OpenVFS(local, "wb", FS_ROOT);
+							if (out)
 							{
-								Con_Printf("write failed writing %s. disk full?\n", local);
-								break;
+								char buffer[8192];
+								int read;
+								for(;;)
+								{
+									read = VFS_READ(in, buffer, sizeof(buffer));
+									if (read <= 0)
+										break;
+									if (VFS_WRITE(out, buffer, read) != read)
+									{
+										Con_Printf("write failed writing %s. disk full?\n", local);
+										break;
+									}
+								}
+								VFS_CLOSE(out);
+								out = FS_OpenVFS(local, "rb", FS_ROOT);
+								crc = dl->user_num;
+								if (!FS_LoadPackageFromFile(out, dl->user_ctx, local, &crc, true, false, true))
+								{
+									if (crc == dl->user_num)
+										Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable.\n", (char*)dl->user_ctx);
+									else
+										Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable or has invalid crc. Stated crc %#x is not calculated crc %#x\n", (char*)dl->user_ctx, dl->user_num, crc);
+									FS_Remove(local, FS_ROOT);
+								}
 							}
 						}
-						VFS_CLOSE(out);
-						out = FS_OpenVFS(local, "rb", FS_ROOT);
-						crc = dl->user_num;
-						if (!FS_LoadPackageFromFile(out, dl->user_ctx, local, &crc, true, false, true))
-						{
-							if (crc == dl->user_num)
-								Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable.\n", dl->user_ctx);
-							else
-								Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable or has invalid crc. Stated crc %#x is not calculated crc %#x\n", dl->user_ctx, dl->user_num, crc);
-							FS_Remove(local, FS_ROOT);
-						}
+						VFS_CLOSE(in);
 					}
-				}
-				VFS_CLOSE(in);
-			}
 
-			free(dl->user_ctx);
+					free(dl->user_ctx);
+				}
+				else
+				{
+					/*scan it to extract its contents*/
+					zipfilefuncs.EnumerateFiles(zip, "*/*.pk3", CL_BootDownload_Extract, zip);
+					zipfilefuncs.EnumerateFiles(zip, "*/*.pak", CL_BootDownload_Extract, zip);
+					zipfilefuncs.EnumerateFiles(zip, "*/*/*.pk3", CL_BootDownload_Extract, zip);
+					zipfilefuncs.EnumerateFiles(zip, "*/*/*.pak", CL_BootDownload_Extract, zip);
+				}
+
+				/*close it, delete the temp file from disk, etc*/
+				zipfilefuncs.ClosePath(zip);
+
+				/*restart the filesystem so those new files can be found*/
+				Cmd_ExecuteString("fs_restart\n", RESTRICT_LOCAL);
+			}
+#endif
 		}
 		else
 		{
-			/*scan it to extract its contents*/
-			zipfilefuncs.EnumerateFiles(zip, "*/*.pk3", CL_BootDownload_Extract, zip);
-			zipfilefuncs.EnumerateFiles(zip, "*/*.pak", CL_BootDownload_Extract, zip);
-			zipfilefuncs.EnumerateFiles(zip, "*/*/*.pk3", CL_BootDownload_Extract, zip);
-			zipfilefuncs.EnumerateFiles(zip, "*/*/*.pak", CL_BootDownload_Extract, zip);
+			//okay, its named directly, write it out as it is
+			vfsfile_t *out;
+			int crc, *crcptr = &crc;
+			char local[MAX_OSPATH];
+
+			qboolean ispackage = (!stricmp(ext, "pak") || !stricmp(ext, "pk3"));
+#ifndef NACL
+			if (ispackage)
+			{
+				FS_GenCachedPakName(dl->user_ctx, va("%i", dl->user_num), local, sizeof(local));
+#else
+			//nacl permits any files to be listed in the manifest file, as there's no prior files to override/conflict, so don't mess about with crcs etc
+			crcptr = NULL;
+			Q_strncpyz(local, dl->user_ctx, sizeof(local));
+			if (1)
+			{
+#endif
+				FS_CreatePath(local, FS_ROOT);
+
+				//write it out
+				out = FS_OpenVFS(local, "wb", FS_ROOT);
+				if (!out)
+					Con_Printf("Unable to open %s for writing\n", local);
+				else
+				{
+					char buffer[65535];
+					int read;
+					for(;;)
+					{
+						read = VFS_READ(dl->file, buffer, sizeof(buffer));
+						if (read <= 0)
+							break;
+						if (VFS_WRITE(out, buffer, read) != read)
+						{
+							Con_Printf("write failed writing %s. disk full?\n", local);
+							break;
+						}
+					}
+					VFS_CLOSE(out);
+
+					if (ispackage)
+					{
+						if (crcptr)
+						{
+							//load it as a package
+							out = FS_OpenVFS(local, "rb", FS_ROOT);
+							if (out)
+							{
+								crc = dl->user_num;
+								if (!FS_LoadPackageFromFile(out, dl->user_ctx, local, crcptr, true, false, true))
+								{
+									if (crc == dl->user_num)
+										Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable.\n", (char*)dl->user_ctx);
+									else
+										Con_Printf(CON_WARNING "Manifest package \"%s\" is unusable or has invalid crc. Stated crc %#x is not calculated crc %#x\n", (char*)dl->user_ctx, dl->user_num, crc);
+									FS_Remove(local, FS_ROOT);
+								}
+								Cmd_ExecuteString("fs_restart\n", RESTRICT_LOCAL);
+							}
+						}
+						else
+							Cmd_ExecuteString("fs_restart\n", RESTRICT_LOCAL);
+					}
+				}
+			}
+			else
+				Con_Printf("File %s isn't a recognised package!\n", (char*)dl->user_ctx);
 		}
-
-		/*close it, delete the temp file from disk, etc*/
-		zipfilefuncs.ClosePath(zip);
-
-		/*restart the filesystem so those new files can be found*/
-		Cmd_ExecuteString("fs_restart\n", RESTRICT_LOCAL);
 	}
 
 	if (!--numbootdownloads)
@@ -963,7 +1047,9 @@ static void CL_BootDownload_Complete(struct dl_download *dl)
 
 static void CL_Manifest_Complete(struct dl_download *dl)
 {
-	if (dl->file)
+	if (!dl->file)
+		Con_Printf("Unable to load manifest from %s\n", dl->url);
+	else
 	{
 		vfsfile_t *f;
 		char buffer[1024];
@@ -1002,16 +1088,30 @@ static void CL_Manifest_Complete(struct dl_download *dl)
 				}
 				else
 				{
-					Con_Printf("Downloading %s from %s\n", fname, Cmd_Argv(2));
-					dl = HTTP_CL_Get(Cmd_Argv(2), "", CL_BootDownload_Complete);
-					if (dl)
+					int args = Cmd_Argc() - 2;
+					if (!args)
+						Con_Printf("No mirrors for \"%s\"\n", fname);
+					else
 					{
-						dl->user_ctx = strdup(fname);
-						dl->user_num = crc;
-			#ifdef MULTITHREAD
-						DL_CreateThread(dl, FS_OpenTemp(), CL_BootDownload_Complete);
-			#endif
-						numbootdownloads++;
+						struct dl_download *ndl;
+#ifdef NACL
+						args = 0;	//nacl currently depends upon the browser's download cache for all file persistance, which means we want the same file every time.
+									//there's only one way to do that, sadly.
+#else
+						args = rand() % args;
+#endif
+						Con_Printf("Downloading \"%s\" from \"%s\"\n", fname, Cmd_Argv(2 + args));
+						ndl = HTTP_CL_Get(Cmd_Argv(2), "", CL_BootDownload_Complete);
+
+						if (ndl)
+						{
+							ndl->user_ctx = strdup(fname);
+							ndl->user_num = crc;
+				#ifdef MULTITHREAD
+							DL_CreateThread(ndl, FS_OpenTemp(), CL_BootDownload_Complete);
+				#endif
+							numbootdownloads++;
+						}
 					}
 				}
 			}
@@ -1040,16 +1140,18 @@ qboolean CL_CheckBootDownloads(void)
 	if (man)
 	{
 		const char *fname = com_argv[man+1];
-
-		Con_Printf("Checking manifest from \"%s\"\n", fname);
-
-		dl = HTTP_CL_Get(fname, token, CL_Manifest_Complete);
-		if (dl)
+		if (*fname)
 		{
-#ifdef MULTITHREAD
-			DL_CreateThread(dl, FS_OpenTemp(), CL_Manifest_Complete);
-#endif
-			numbootdownloads++;
+			Con_Printf("Checking manifest from \"%s\"\n", fname);
+
+			dl = HTTP_CL_Get(fname, "", CL_Manifest_Complete);
+			if (dl)
+			{
+	#ifdef MULTITHREAD
+				DL_CreateThread(dl, FS_OpenTemp(), CL_Manifest_Complete);
+	#endif
+				numbootdownloads++;
+			}
 		}
 	}
 
@@ -1092,7 +1194,7 @@ qboolean CL_CheckBootDownloads(void)
 
 		Con_Printf("Attempting to download %s\n", c);
 
-		dl = HTTP_CL_Get(c, token, CL_BootDownload_Complete);
+		dl = HTTP_CL_Get(c, "", CL_BootDownload_Complete);
 		if (dl)
 		{
 #ifdef MULTITHREAD
@@ -1107,6 +1209,8 @@ qboolean CL_CheckBootDownloads(void)
 #else
 qboolean CL_CheckBootDownloads(void)
 {
+	if (COM_CheckParm("-manifest"))
+		Con_Printf("download manifests not supported in this build\n");
 	return true;
 }
 #endif

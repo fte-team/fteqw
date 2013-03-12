@@ -580,6 +580,9 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		ptop = sys_parenttop;
 		pwidth = sys_parentwidth;
 		pheight = sys_parentheight;
+
+		WindowRect.right = sys_parentwidth;
+		WindowRect.bottom = sys_parentheight;
 	}
 	else
 #endif
@@ -1337,7 +1340,7 @@ void GLVID_Recenter_f(void)
 
 	if (sys_parentwindow && modestate==MS_WINDOWED)
 	{
-		WindowRect = centerrect(sys_parentleft, sys_parenttop, sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
+		WindowRect = centerrect(sys_parentleft, sys_parenttop, sys_parentwidth, sys_parentheight, sys_parentwidth, sys_parentheight);
 		MoveWindow(mainwindow, WindowRect.left, WindowRect.top, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top, FALSE);
 
 		VID_UpdateWindowStatus (mainwindow);
@@ -1386,8 +1389,7 @@ void GL_DoSwap (void)
 		return;
 	screenflush = 0;
 
-	if (!scr_skipupdate)
-		qSwapBuffers(maindc);
+	qSwapBuffers(maindc);
 
 // handle the mouse state when windowed if that's changed
 
@@ -1706,7 +1708,6 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
 				qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
-				gl_stencilbits = pfd.cStencilBits;
 
 				if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
 				{
@@ -1718,7 +1719,6 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 		TRACE(("dbg: ChoosePixelFormat 1: no stencil buffer for us\n"));
 
 		pfd.cStencilBits = 0;
-		gl_stencilbits = 0;
 
 		if ( (pixelformat = qChoosePixelFormat(hDC, &pfd)) == 0 )
 		{

@@ -3392,7 +3392,7 @@ void SV_Pause_f (void)
 
 	if (SV_TogglePause(host_client))
 	{
-		if (sv.paused)
+		if (sv.paused & 1)
 			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTPAUSED, host_client->name);
 		else
 			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTUNPAUSED, host_client->name);

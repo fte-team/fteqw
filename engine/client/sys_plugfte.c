@@ -913,7 +913,7 @@ char *cleanarg(char *arg)
 {
 	unsigned char *c;
 	//skip over any leading spaces.
-	while (*arg <= ' ')
+	while (*arg && *arg <= ' ')
 		arg++;
 
 	//reject anything with a leading + or -
@@ -945,8 +945,13 @@ qboolean Plug_GetBinaryName(char *exe, int exelen, char *basedir, int basedirlen
 	*exe = 0;
 	*basedir = 0;
 
-//	Q_strncpyz(exe, "C:/Games/Quake/fte_trunk/fteglqw_dbg.exe", exelen);
-//	Q_strncpyz(exe, "/home/david/quake/fte_trunk/engine/debug/fteqw.gl", exelen);
+#ifdef _DEBUG
+#ifdef _WIN32
+	Q_strncpyz(exe, "C:/Games/Quake/fte_trunk/fteglqw_dbg.exe", exelen);
+#else
+	Q_strncpyz(exe, "/home/david/quake/fte_trunk/engine/debug/fteqw.gl", exelen);
+#endif
+#endif
 /*
 	Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, "npfte.txt");
 
@@ -1089,7 +1094,7 @@ qboolean Plug_GenCommandlineString(struct context *ctx, char *cmdline, int cmdli
 	for (i = 0; i < argc; i++)
 	{
 		//add quotes for any arguments with spaces
-		if (strchr(argv[i], ' ') || strchr(argv[i], '\t'))
+		if (!*argv[i] || strchr(argv[i], ' ') || strchr(argv[i], '\t'))
 		{
 			Q_strncatz(cmdline, "\"", cmdlinelen);
 			Q_strncatz(cmdline, argv[i], cmdlinelen);

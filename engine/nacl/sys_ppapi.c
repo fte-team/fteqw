@@ -57,6 +57,7 @@ static qboolean mouselocked;
 static qboolean shuttingdown;
 
 qboolean FSPPAPI_Init(int *filenocookie);
+qboolean NAGL_SwapPending(void);
 
 unsigned short htons(unsigned short a)
 {
@@ -177,11 +178,13 @@ void INS_Shutdown(void)
 {
 }
 
+/*
 //nacl supposedly has no way to implement this (other than us writing a listfile in each directory)
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	return 0;
 }
+*/
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
@@ -204,8 +207,7 @@ NORETURN void VARGS Sys_Error (const char *error, ...)
 	vsnprintf (string, sizeof(string)-1, error, argptr);
 	va_end (argptr);
 
-	Sys_Printf("Sys_Error: ");
-	Sys_Printf("%s", string);
+	Sys_Printf("Sys_Error: %s", string);
 	exit(1);
 }
 
@@ -305,30 +307,38 @@ void FrameEvent(void* user_data, int32_t result)
 	}
 	if (pp_instance)
 	{
-		double newtime = Sys_DoubleTime();
-		Host_Frame(newtime - lasttime);
-		lasttime = newtime;
+		if (!NAGL_SwapPending())
+		{
+			double newtime = Sys_DoubleTime();
+//			Sys_Printf("Frame %f\n", newtime);
+			Host_Frame(newtime - lasttime);
+			lasttime = newtime;
+		}
 
-//		Sys_Printf("Frame %f\n", newtime);
-
-		struct PP_CompletionCallback ccb = {FrameEvent, user_data, PP_COMPLETIONCALLBACK_FLAG_NONE};
-		ppb_core->CallOnMainThread(0, ccb, 0);
+		if (!NAGL_SwapPending())
+		{
+			struct PP_CompletionCallback ccb = {FrameEvent, user_data, PP_COMPLETIONCALLBACK_FLAG_NONE};
+			ppb_core->CallOnMainThread(0, ccb, 0);
+		}
 	}
 }
-void startquake(void)
+void startquake(char *manif)
 {
-	const char *args [] =
-	{
-		"ftedroid",
-		"",
-		""
-	};
+	static char *args[16];
 	quakeparms_t parms;
 	memset(&parms, 0, sizeof(parms));
 	parms.basedir = "";	/*filled in later*/
-	parms.argc = 1;
+	parms.argc = 0;
 	parms.argv = args;
-//FIXME: do something with the embed arguments
+
+	//FIXME: generate some sort of commandline properly.
+	args[parms.argc++] = "ftedroid";
+	if (manif)
+	{
+		args[parms.argc++] = "-manifest";
+		args[parms.argc++] = manif;
+	}
+
 	parms.memsize = 16*1024*1024;
 	parms.membase = malloc(parms.memsize);
 	if (!parms.membase)
@@ -355,7 +365,7 @@ void startquake(void)
 void trystartquake(void* user_data, int32_t result)
 {
 	if (FSPPAPI_Init(&result))
-		startquake();
+		startquake(user_data);
 	else
 	{
 		struct PP_CompletionCallback ccb = {trystartquake, user_data, PP_COMPLETIONCALLBACK_FLAG_NONE};
@@ -368,13 +378,20 @@ static PP_Bool Instance_DidCreate(PP_Instance instance,
                                   const char* argn[],
                                   const char* argv[])
 {
+	int i;
 	pp_instance = instance;
+	char *manif = NULL;
 
 //FIXME: do something with the embed arguments
+	for (i = 0; i < argc; i++)
+	{
+		if (!strcasecmp(argn[i], "ftemanifest"))
+			manif = strdup(argv[i]);
+	}
 
 	ppb_inputevent_interface->RequestInputEvents(pp_instance, PP_INPUTEVENT_CLASS_MOUSE | PP_INPUTEVENT_CLASS_KEYBOARD | PP_INPUTEVENT_CLASS_WHEEL);
 
-	trystartquake(NULL, 0);
+	trystartquake(manif, 0);
 
 	return PP_TRUE;
 }
@@ -421,10 +438,24 @@ unsigned int domkeytoquake(unsigned int code)
 	}
 	if (!tab[code])
 		Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
+
+	Con_DPrintf("You just pressed dom key %u, which is quake key %u\n", code, tab[code]);
 	return tab[code];
 }
 
-PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
+static int QuakeButtonForNACLButton(int but)
+{
+	switch(but)
+	{
+	case 1:
+		return K_MOUSE3;
+	case 2:
+		return K_MOUSE2;
+	default:
+		return K_MOUSE1 + but;
+	}
+}
+static PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 {
 	extern cvar_t vid_fullscreen;
 	if (!pp_instance || !host_initialized)
@@ -448,10 +479,10 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 					return PP_TRUE;
 			}
 		}
-		IN_KeyEvent(0, true, K_MOUSE1 + ppb_mouseinputevent_interface->GetButton(resource), 0);
+		IN_KeyEvent(0, true, QuakeButtonForNACLButton(ppb_mouseinputevent_interface->GetButton(resource)), 0);
 		return PP_TRUE;
 	case PP_INPUTEVENT_TYPE_MOUSEUP:
-		IN_KeyEvent(0, false, K_MOUSE1 + ppb_mouseinputevent_interface->GetButton(resource), 0);
+		IN_KeyEvent(0, false, QuakeButtonForNACLButton(ppb_mouseinputevent_interface->GetButton(resource)), 0);
 		return PP_TRUE;
 	case PP_INPUTEVENT_TYPE_MOUSEMOVE:
 		{
@@ -478,20 +509,23 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 		return PP_TRUE;
 	case PP_INPUTEVENT_TYPE_WHEEL:
 		{
+			static float wheelticks;
 			struct PP_FloatPoint p;
 			p = ppb_wheelinputevent_interface->GetTicks(resource);
-			//BUG: the value is fractional.
-			while (p.x >= 1)
+
+			//the value is fractional, so we need some persistant value to track it on high-precision mice.
+			wheelticks += p.y;
+			while (wheelticks > 1)
 			{
 				IN_KeyEvent(0, 1, K_MWHEELUP, 0);
 				IN_KeyEvent(0, 0, K_MWHEELUP, 0);
-				p.x--;
+				wheelticks--;
 			}
-			while (p.x <= -1)
+			while (wheelticks < 0)
 			{
 				IN_KeyEvent(0, 1, K_MWHEELDOWN, 0);
 				IN_KeyEvent(0, 0, K_MWHEELDOWN, 0);
-				p.x++;
+				wheelticks++;
 			}
 		}
 		return PP_TRUE;
@@ -576,8 +610,6 @@ static void Instance_DidDestroy(PP_Instance instance)
 void GL_Resized(int width, int height);
 static void Instance_DidChangeView(PP_Instance instance, PP_Resource view_resource)
 {
-	int newwidth;
-	int newheight;
 	struct PP_Rect rect;
 	ppb_view_instance->GetRect(view_resource, &rect);
 	GL_Resized(rect.size.width, rect.size.height);

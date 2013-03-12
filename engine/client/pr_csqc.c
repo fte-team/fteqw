@@ -4602,7 +4602,9 @@ static struct {
 	{"gethostcachenumber",		PF_cl_gethostcachenumber,	621},
 	{"gethostcacheindexforkey",	PF_cl_gethostcacheindexforkey,622},
 	{"addwantedhostcachekey",	PF_cl_addwantedhostcachekey,	623},
+#ifdef CL_MASTER
 	{"getextresponse",			PF_cl_getextresponse,		624},
+#endif
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 
 	{"sprintf",					PF_sprintf,					627},
@@ -5402,7 +5404,7 @@ qboolean CSQC_DrawView(void)
 	if (!csqcg.draw_function || !csqcprogs)
 		return false;
 
-	if (cls.state < (csqcg.loadresource?ca_active:ca_onserver) && !CSQC_UnconnectedOkay(false))
+	if (cls.state < ca_active && !CSQC_UnconnectedOkay(false))
 		return false;
 
 	r_secondaryview = 0;

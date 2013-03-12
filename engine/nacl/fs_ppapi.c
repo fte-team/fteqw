@@ -70,111 +70,9 @@ typedef struct
 	mfchunk_t *cchunk;
 } vfsmfile_t;
 
-typedef struct
-{
-	PP_Resource dl;
-	char buffer[65536];
-	char *fname;
-	vfsfile_t *out;
-} dlfile_t;
-
-static int activedls;
-static int availdlslots = 2;
-void readfinished(void* user_data, int32_t result)
-{
-	dlfile_t *f = user_data;
-	/*if there was a prior request that didn't finish yet...*/
-	struct PP_CompletionCallback ccb = {readfinished, f, PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
-
-//	Sys_Printf("lastresult: %i\n", result);
-
-	if (result == PP_OK)
-	{
-		Sys_Printf("%s completed\n", f->fname);
-		if (f->out)
-			VFS_CLOSE(f->out);
-		//ppb_core->ReleaseResource(f->dl);
-		activedls--;
-		availdlslots++;
-		free(f);
-		return;
-	}
-
-	for (; result > 0; result = urlloader->ReadResponseBody(f->dl, f->buffer, sizeof(f->buffer), ccb))
-	{
-		if (!f->out)
-		{
-			Sys_Printf("Downloading %s\n", f->fname);
-			f->out = VFSOS_Open(f->fname, "wb");
-		}
-
-//		Sys_Printf("write: %i\n", result);
-		VFS_WRITE(f->out, f->buffer, result);
-	}
-
-//	Sys_Printf("result: %i\n", result);
-	if (result != PP_OK_COMPLETIONPENDING)
-	{
-		Sys_Printf("file %s failed or something\n", f->fname);
-		if (f->out)
-			VFS_CLOSE(f->out);
-		ppb_core->ReleaseResource(f->dl);
-		activedls--;
-		availdlslots++;
-		free(f);
-	}
-}
-void dlstarted(void* user_data, int32_t result)
-{
-	dlfile_t *f = user_data;
-
-	struct PP_CompletionCallback ccb = {readfinished, f, PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
-	readfinished(user_data, urlloader->ReadResponseBody(f->dl, f->buffer, sizeof(f->buffer), ccb));
-}
 qboolean FSPPAPI_Init(int *fileid)
 {
-	dlfile_t *dlf;
-	PP_Resource dlri;
-	static char *dlnames[] =
-	{
-		"id1/pak0.pak",
-//		"id1/gfx/conback.tga",
-//		"id1/gfx/conchars.tga",
-		"id1/pak1.pak",
-//		"id1/bigass1.dem",
-//		"id1/overkill.qwd",
-		"id1/pak2.pak",
-		"id1/pak3.pak",
-		"id1/pak4.pak",
-		NULL
-	};
-	if (availdlslots)
-	{
-		if (!dlnames[*fileid])
-		{
-			if (!activedls)
-				return true;	/*engine has all the content it needs*/
-			return false;		/*still downloading something, don't let it continue just yet*/
-		}
-
-		dlf = malloc(sizeof(*dlf));
-		if (!dlf)
-			return false;
-		dlf->out = NULL;
-
-		activedls++;
-		availdlslots--;
-		dlf->fname = dlnames[*fileid];
-		*fileid+=1;
-		dlf->dl = urlloader->Create(pp_instance);
-		dlri = urlrequestinfo->Create(pp_instance);
-		urlrequestinfo->SetProperty(dlri, PP_URLREQUESTPROPERTY_URL, ppb_var_interface->VarFromUtf8(dlf->fname, strlen(dlf->fname)));
-
-		struct PP_CompletionCallback ccb = {dlstarted, dlf, PP_COMPLETIONCALLBACK_FLAG_NONE};
-		urlloader->Open(dlf->dl, dlri, ccb);
-		ppb_core->ReleaseResource(dlri);
-	}
-	return false;
+	return true;	/*engine has all the content it needs*/
 }
 
 static int preparechunk(vfsmfile_t *f, int bytes, void **data)
@@ -438,14 +336,43 @@ static vfsfile_t *FSPPAPI_OpenVFS(void *handle, flocation_t *loc, const char *mo
 	return VFSPPAPI_Open(diskname, mode);
 }
 
-static void FSPPAPI_PrintPath(void *handle)
+static void FSPPAPI_GetDisplayPath(void *handle, char *outpath, unsigned int pathsize)
 {
-	Con_Printf("%s\n", (char*)handle);
+	Q_strncpyz(outpath, (char*)handle, pathsize);
 }
 static void FSPPAPI_ClosePath(void *handle)
 {
 	Z_Free(handle);
 }
+
+int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	int rootlen = strlen(rootpath);
+	char *sub;
+	mfile_t *f;
+	if (*match == '/')
+		match++;
+	for (f = mfiles; f; f = f->next)
+	{
+		sub = f->name;
+		if (strncmp(sub, rootpath, rootlen))
+			continue;
+		sub += rootlen;
+		if (*sub == '/')
+			sub++;
+		if (wildcmp(match, sub))
+		{
+			if (!func(sub, f->length, parm))
+				return false;
+		}
+	}
+	return true;
+}
+static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	return Sys_EnumerateFiles((char*)handle, match, func, parm);
+}
+
 static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data)
 {
 	if (filename[strlen(filename)-1] == '/')
@@ -456,22 +383,10 @@ static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data)
 		Sys_EnumerateFiles((char*)data, childpath, FSPPAPI_RebuildFSHash, data);
 		return true;
 	}
-	if (!Hash_GetInsensative(&filesystemhash, filename))
-	{
-		bucket_t *bucket = (bucket_t*)BZ_Malloc(sizeof(bucket_t) + strlen(filename)+1);
-		strcpy((char *)(bucket+1), filename);
-//#ifdef _WIN32
-//		Q_strlwr((char *)(bucket+1));
-//#endif
-		Hash_AddInsensative(&filesystemhash, (char *)(bucket+1), data, bucket);
-
-		fs_hash_files++;
-	}
-	else
-		fs_hash_dups++;
+	FS_AddFileHash(0, filename, NULL, data);
 	return true;
 }
-static void FSPPAPI_BuildHash(void *handle)
+static void FSPPAPI_BuildHash(void *handle, int depth)
 {
 	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, handle);
 }
@@ -554,19 +469,29 @@ static void FSPPAPI_ReadFile(void *handle, flocation_t *loc, char *buffer)
 
 	VFS_CLOSE(f);
 }
-static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+
+static void *FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *desc)
 {
-	return Sys_EnumerateFiles(handle, match, func, parm);
+	char *np;
+	int dlen = strlen(desc);
+	if (mustbenull)
+		return NULL;
+	np = Z_Malloc(dlen+1);
+	if (np)
+	{
+		memcpy(np, desc, dlen+1);
+	}
+	return np;
 }
 
 searchpathfuncs_t osfilefuncs = {
-	FSPPAPI_PrintPath,
+	FSPPAPI_GetDisplayPath,
 	FSPPAPI_ClosePath,
 	FSPPAPI_BuildHash,
 	FSPPAPI_FLocate,
 	FSPPAPI_ReadFile,
 	FSPPAPI_EnumerateFiles,
-	NULL,
+	FSPPAPI_OpenPath,
 	NULL,
 	FSPPAPI_OpenVFS
 };

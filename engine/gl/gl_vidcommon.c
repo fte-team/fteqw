@@ -131,6 +131,7 @@ void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoin
 void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 
+void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
@@ -860,7 +861,22 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglFramebufferRenderbufferEXT	= (void *)getglext("glFramebufferRenderbufferEXT");
 		qglCheckFramebufferStatusEXT	= (void *)getglext("glCheckFramebufferStatusEXT");
 	}
-
+/*	//I don't think we care about the differences, so this code should be safe, but I have no way to test that theory right now
+	else if (GL_CheckExtension("GL_OES_framebuffer_object"))
+	{
+		gl_config.ext_framebuffer_objects = true;
+		qglGenFramebuffersEXT			= (void *)getglext("glGenFramebuffersOES");
+		qglDeleteFramebuffersEXT		= (void *)getglext("glDeleteFramebuffersOES");
+		qglBindFramebufferEXT			= (void *)getglext("glBindFramebufferOES");
+		qglGenRenderbuffersEXT			= (void *)getglext("glGenRenderbuffersOES");
+		qglDeleteRenderbuffersEXT		= (void *)getglext("glDeleteRenderbuffersOES");
+		qglBindRenderbufferEXT			= (void *)getglext("glBindRenderbufferOES");
+		qglRenderbufferStorageEXT		= (void *)getglext("glRenderbufferStorageOES");
+		qglFramebufferTexture2DEXT		= (void *)getglext("glFramebufferTexture2DOES");
+		qglFramebufferRenderbufferEXT	= (void *)getglext("glFramebufferRenderbufferOES");
+		qglCheckFramebufferStatusEXT	= (void *)getglext("glCheckFramebufferStatusOES");
+	}
+*/
 #ifdef DEBUG
 	if (GL_CheckExtension("GL_ARB_debug_output"))
 	{
@@ -1580,8 +1596,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
 }
-
-unsigned int	d_8to24rgbtable[256];
 
 
 

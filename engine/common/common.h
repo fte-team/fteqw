@@ -181,7 +181,7 @@ void MSG_WriteDir (sizebuf_t *sb, float *dir);
 
 extern	int			msg_readcount;
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
-struct netprim_s msg_nullnetprim;
+extern struct netprim_s msg_nullnetprim;
 
 void MSG_BeginReading (struct netprim_s prim);
 void MSG_ChangePrimitives(struct netprim_s prim);

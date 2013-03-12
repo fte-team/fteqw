@@ -138,7 +138,7 @@ typedef struct master_s{
 	char name[1];
 } master_t;
 
-struct {
+extern struct selectedserver_s {
 	qboolean inuse;
 	netadr_t adr;
 

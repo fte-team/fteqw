@@ -817,7 +817,7 @@ extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachm
 extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 
-void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
+extern void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 
 /*
 extern qboolean gl_arb_fragment_program;

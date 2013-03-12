@@ -61,18 +61,26 @@ void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
-particleengine_t pe_null;
-particleengine_t pe_classic;
+extern particleengine_t pe_null;
+#ifdef PSET_CLASSIC
+extern particleengine_t pe_classic;
+#endif
 particleengine_t pe_darkplaces;
 particleengine_t pe_qmb;
-particleengine_t pe_script;
+#ifdef PSET_SCRIPT
+extern particleengine_t pe_script;
+#endif
 
 particleengine_t *particlesystem[] =
 {
+#ifdef PSET_SCRIPT
 	&pe_script,
+#endif
 	&pe_darkplaces,
 	&pe_qmb,
+#ifdef PSET_CLASSIC
 	&pe_classic,
+#endif
 	&pe_null,
 	NULL,
 };

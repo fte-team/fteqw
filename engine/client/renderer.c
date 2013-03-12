@@ -11,14 +11,16 @@ refdef_t	r_refdef;
 vec3_t		r_origin, vpn, vright, vup;
 entity_t	r_worldentity;
 entity_t	*currententity;	//nnggh
-model_t		*currentmodel;	//fixme: remove? or fix.
-int			sh_shadowframe;	//index for msurf->shadowframe
 int			r_framecount;
 struct texture_s	*r_notexture_mip;
 
 r_config_t	r_config;
 
 qboolean	r_blockvidrestart;
+int r_regsequence;
+
+int rspeeds[RSPEED_MAX];
+int rquant[RQUANT_MAX];
 
 void R_InitParticleTexture (void);
 
@@ -187,14 +189,15 @@ cvar_t vid_bpp								= CVARF ("vid_bpp", "32",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_desktopsettings					= CVARF ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-#ifdef NPQTV
-cvar_t vid_fullscreen_npqtv					= CVARF ("vid_fullscreen", "1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_fullscreen						= CVARF ("vid_fullscreen_embedded", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+#ifdef NACL
+cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
+												CVAR_ARCHIVE);
 #else
-cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "1",
+//these cvars will be given their names when they're registered, based upon whether -plugin was used. this means code can always use vid_fullscreen without caring, but gets saved properly.
+cvar_t vid_fullscreen						= CVARAF (NULL, "1", "vid_fullscreen",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_fullscreen_alternative			= CVARF (NULL, "1",
+												CVAR_ARCHIVE);
 #endif
 cvar_t vid_height							= CVARF ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
@@ -575,8 +578,18 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
 
-#ifdef NPQTV
-	Cvar_Register (&vid_fullscreen_npqtv, VIDCOMMANDGROUP);
+#ifndef NACL
+	if (COM_CheckParm("-plugin"))
+	{
+		vid_fullscreen.name = "vid_fullscreen_embedded";
+		vid_fullscreen_alternative.name = "vid_fullscreen_standalone";
+	}
+	else
+	{
+		vid_fullscreen.name = "vid_fullscreen_standalone";
+		vid_fullscreen_alternative.name = "vid_fullscreen_embedded";
+	}
+	Cvar_Register (&vid_fullscreen_alternative, VIDCOMMANDGROUP);
 #endif
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
@@ -871,11 +884,17 @@ rendererinfo_t dedicatedrendererinfo = {
 };
 rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
-rendererinfo_t openglrendererinfo;
+#ifdef GLQUAKE
+extern rendererinfo_t openglrendererinfo;
 rendererinfo_t eglrendererinfo;
+#endif
+#ifdef D3DQUAKE
 rendererinfo_t d3d9rendererinfo;
 rendererinfo_t d3d11rendererinfo;
+#endif
+#ifdef SWQUAKE
 rendererinfo_t swrendererinfo;
+#endif
 
 rendererinfo_t *rendererinfo[] =
 {

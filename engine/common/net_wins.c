@@ -880,11 +880,11 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	else
 	{
 		/*code for convienience - no other protocols work anyway*/
-		static qboolean warned;
-		if (!warned)
+		static float warned;
+		if (warned < realtime)
 		{
-			Con_Printf("Note: Native client builds can only connect to websocket servers.\n");
-			warned = true;
+			Con_Printf("Note: Assuming ws:// prefix\n");
+			warned = realtime + 1;
 		}
 		memset (a, 0, sizeof(*a));
 		a->type = NA_WEBSOCKET;
@@ -2447,9 +2447,53 @@ closesvstream:
 					{
 						memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 						st->inlen -= i;
-						resp = va(	"HTTP/1.1 426 Upgrade Required\r\n"
-									"Sec-WebSocket-Version: 13\r\n"
-									"\r\n");
+						if (!strcmp(arg[WCATTR_URL], "/live.html"))
+						{
+							resp = va(	"HTTP/1.1 200 Ok\r\n"
+								"Connection: Close\r\n"
+								"Content-Type: text/html\r\n"
+								"\r\n"
+								"<!DOCTYPE HTML>"
+								"<html>"
+								"<style>"
+								"html, body { height: 100%%; width: 100%%; margin: 0; padding: 0;}"
+								"div { height: 100%%; width: 100%%; }"
+								"</style>"
+								"<div>"
+								"<object	name=\"ieplug\" type=\"application/x-fteplugin\" classid=\"clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb\" width=\"100%%\" height=\"100%%\">"
+									"<param name=\"game\" value=\"q1\">"
+									"<object	name=\"npplug\" type=\"application/x-fteplugin\" width=\"100%%\" height=\"100%%\">"
+										"<param name=\"game\" value=\"q1\">"
+										"Please install a plugin first.<br/>"
+									"</object>"
+								"</object>"
+								"</div>"
+								"</html>"
+								);
+						}
+						/*else if (!strcmp(arg[WCATTR_URL], "/index.html") || !strcmp(arg[WCATTR_URL], "/"))
+						{
+							resp = va(	"HTTP/1.1 200 Ok\r\n"
+										"Connection: Close\r\n"
+										"Content-Type: text/html\r\n"
+										"\r\n"
+
+										"This is a Quake WebSocket server, not an http server.<br/>\r\n"
+										"<a href='"ENGINEWEBSITE"'>"FULLENGINENAME"</a>"
+										);
+						}*/
+						else
+						{
+							resp = va(	"HTTP/1.1 404 Ok\r\n"
+										"Connection: Close\r\n"
+										"Content-Type: text/html\r\n"
+										"\r\n"
+
+										"This is a Quake WebSocket server, not an http server.<br/>\r\n"
+										"<a href='"ENGINEWEBSITE"'>"FULLENGINENAME"</a>"
+										);
+						}
+
 						//send the websocket handshake rejection.
 						send(st->socketnum, resp, strlen(resp), 0);
 
@@ -3675,9 +3719,9 @@ static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, i
 
 	while(length-->0)
 	{
-		/*FIXME: do we need this code?*/
 		if (!*in)
 		{
+			//sends 256 instead of 0
 			*out++ = 0xc0 | (0x100 >> 6);
 			*out++ = 0x80 | (0x100 & 0x3f);
 		}
@@ -3711,7 +3755,7 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolea
 	{
 		return NULL;
 	}
-	if (!NET_StringToAdr(address, &adr))
+	if (!NET_StringToAdr(address, 80, &adr))
 		return NULL;	//couldn't resolve the name
 	newcon = Z_Malloc(sizeof(*newcon));
 	if (newcon)

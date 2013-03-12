@@ -1509,8 +1509,6 @@ void Sys_SendKeyEvents (void)
 	while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
 	{
 	// we always update if there are any event, even if we're paused
-		scr_skipupdate = 0;
-
 		//if (!GetMessage (&msg, NULL, 0, 0))
 		//	break;
 //			Sys_Quit ();

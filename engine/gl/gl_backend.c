@@ -6,7 +6,7 @@ void DumpGLState(void);
 
 #ifdef GLQUAKE
 
-#define r_refract_fboival 1
+#define r_refract_fboival gl_config.ext_framebuffer_objects
 
 #include "glquake.h"
 #include "shader.h"
@@ -191,7 +191,7 @@ struct {
 	batch_t *wbatches;
 } shaderstate;
 
-struct {
+static struct {
 	int numlights;
 	int shadowsurfcount;
 } bench;
@@ -458,7 +458,8 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 			{
 				if (!shaderstate.curcolourpointer && !shaderstate.curcolourvbo)
 				{
-					qglShadeModel(GL_SMOOTH);
+					if (qglShadeModel)
+						qglShadeModel(GL_SMOOTH);
 					bitstoendisable |= (1u<<VATTR_LEG_COLOUR);
 				}
 				shaderstate.curcolourpointer = shaderstate.pendingcolourpointer;
@@ -949,7 +950,8 @@ void GLBE_SetupForShadowMap(texid_t shadowmaptex)
 
 	shaderstate.shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 
-	qglShadeModel(GL_FLAT);
+	if (qglShadeModel)
+		qglShadeModel(GL_FLAT);
 	BE_SetPassBlendMode(0, PBM_REPLACE);
 	GL_ForceDepthWritable();
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -2289,7 +2291,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 		{
 			if ((sbits & SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE| SBITS_DSTBLEND_ZERO) || !(sbits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
 				sbits = (sbits & ~(SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_ATEST_GT0);
 		}
 
 		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
@@ -3878,7 +3880,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 			oldbem = shaderstate.mode;
 
-			if (batch->shader->flags & SHADER_HASREFLECT)
+			if ((batch->shader->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
 				vrect_t orect = r_refdef.vrect;
 				if (!shaderstate.tex_reflection.num)
@@ -3941,9 +3943,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					r_refdef.vrect = orect;
 				}
 				else
-					GLR_DrawPortal(batch, cl.worldmodel->batches, 2);
+					GLR_DrawPortal(batch, cl.worldmodel->batches, 3);
 			}
-			if (batch->shader->flags & SHADER_HASRIPPLEMAP)
+			if ((batch->shader->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
 				vrect_t orect;
 				if (!shaderstate.tex_ripplemap.num)

@@ -4185,6 +4185,10 @@ char *Shader_DefaultBSPWater(char *shortname)
 		wstyle = 1;
 
 	{
+#ifdef GLQUAKE
+		if (wstyle > 2 && !gl_config.ext_framebuffer_objects)
+			wstyle = 2;
+#endif
 		switch(wstyle)
 		{
 		case -1:	//invisible

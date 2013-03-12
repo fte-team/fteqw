@@ -1422,7 +1422,9 @@ static struct {
 	{"gethostcachenumber",		PF_cl_gethostcachenumber,	621},
 	{"gethostcacheindexforkey",	PF_cl_gethostcacheindexforkey,622},
 	{"addwantedhostcachekey",	PF_cl_addwantedhostcachekey,623},
+#ifdef CL_MASTER
 	{"getextresponse",			PF_cl_getextresponse,		624},
+#endif
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 															//gap
 	{"sprintf",					PF_sprintf,					627},

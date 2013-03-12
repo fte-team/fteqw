@@ -148,8 +148,6 @@ extern cvar_t		gl_texturemode, gl_texture_anisotropic_filtering;
 
 extern cvar_t		gl_savecompressedtex;
 
-texid_t			missing_texture;	//texture used when one is missing.
-
 int gl_anisotropy_factor;
 
 mpic_t		*conback;
@@ -268,6 +266,9 @@ void GL_Mipcap_Callback (struct cvar_s *var, char *oldvalue)
 {
 	gltexture_t	*glt;
 	char *s = var->string;
+
+	if (gl_config.gles)
+		return;
 
 	s = COM_Parse(s);
 	gl_mipcap_min = *com_token?atoi(com_token):0;

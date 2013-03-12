@@ -60,6 +60,8 @@ ifeq ($(FTE_TARGET),win32_sdl)
 	FTE_TARGET=win32_SDL
 endif
 
+USER_TARGET:=$(FTE_TARGET)
+
 DROID_NDK_PATH?=~/droid/android-ndk-r6b
 DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
 ANT?=ant
@@ -672,24 +674,56 @@ endif
 ifeq ($(FTE_TARGET),nacl)
 	OGGVORBISLDFLAGS=
 
+	NARCH ?= x86_32
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
-		CC=$(NACL_SDK_ROOT)/toolchain/linux_x86_newlib/bin/i686-nacl-gcc -DNACL -m$(BITS)
-		STRIP=$(NACL_SDK_ROOT)/toolchain/linux_x86_newlib/bin/i686-nacl-strip
+		MYOS=linux
 	else
-		CC=$(NACL_SDK_ROOT)/toolchain/win_x86_newlib/bin/i686-nacl-gcc -DNACL -m$(BITS)
-		STRIP=$(NACL_SDK_ROOT)/toolchain/win_x86_newlib/bin/i686-nacl-strip
+		MYOS=win
+	endif
+
+	CC=
+	STRIP=
+	ifeq ($(NARCH),x86_32)
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-gcc -DNACL -m32
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-strip
+		BITS=
+	endif
+	ifeq ($(NARCH),x86_64)
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-gcc -DNACL -m64
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-strip
+		BITS=
+	endif
+	ifeq ($(NARCH),arm)
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-gcc -DNACL
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-strip
+		BITS=
+	endif
+	ifeq ($(NARCH),pnacl)
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-clang -DNACL
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-strip
+		STRIPFLAGS=
+		DO_LD =/cygdrive/c/Windows/system32/cmd /C $(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-clang -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
+		BITS=
 	endif
 
 	BASELDFLAGS = -lm -lppapi_gles2 -lnosys -lppapi
 	IMAGELDFLAGS =
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
+	GL_CFLAGS+=$(SPEEXCFLAGS)
 
-	GLB_DIR=gl_nacl_x86_$(BITS)
-	GL_EXE_NAME=../fteqw_x86_$(BITS).nexe
-	GLCL_EXE_NAME=../fteqwcl_x86_$(BITS).nexe
-	MINGL_DIR=mingl_nacl_x86_$(BITS)
-	MINGL_EXE_NAME=../fteqw_mingl_x86_$(BITS).nexe
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
+
+	GLB_DIR=gl_nacl_$(NARCH)
+	MINGL_DIR=mingl_nacl_$(NARCH)
+	ifeq ($(NARCH),pnacl)
+		GL_EXE_NAME=../fteqw.pexe
+		GLCL_EXE_NAME=../fteqwcl.pexe
+		MINGL_EXE_NAME=../fteqw_mingl.pexe
+	else
+		GL_EXE_NAME=../fteqw_$(NARCH).nexe
+		GLCL_EXE_NAME=../fteqwcl_$(NARCH).nexe
+		MINGL_EXE_NAME=../fteqw_mingl_$(NARCH).nexe
+	endif
 endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
@@ -1241,32 +1275,6 @@ d3d-profile:
 	@$(MAKE) d3d-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(D3DB_DIR)"
 
 
-
-npfte-tmprel: reldir
-	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(NPFTE_LDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="NPFTE_OBJS"
-npfte-tmpdbg: debugdir
-	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(NPFTE_LDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="NPFTE_OBJS"
-npfte-rel:
-	@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)w32" EXE_NAME="../npfte.dll" PRECOMPHEADERS="" FTE_TARGET=win32
-	@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)l32" EXE_NAME="../npfte32.so" PRECOMPHEADERS="" FTE_TARGET=linux32
-	@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)l64" EXE_NAME="../npfte64.so" PRECOMPHEADERS="" FTE_TARGET=linux64
-	cp $(RELEASE_DIR)/npfte.dll npfte/plugins
-	cp $(RELEASE_DIR)/npfte32.so npfte/plugins
-	cp $(RELEASE_DIR)/npfte64.so npfte/plugins
-	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) install.rdf plugins/npfte.dll plugins/npfte32.so plugins/npfte64.so
-	rm -rf /tmp/npfte
-	mkdir /tmp/npfte
-	cp $(RELEASE_DIR)/npfte.dll /tmp/npfte
-	cp ./npfte/manifest.json /tmp/npfte
-	-cd $(RELEASE_DIR)/ && ../npfte/crxmake.sh /tmp/npfte ../npfte/chrome.pem
-	rm -rf /tmp/npfte
-npfte-dbg:
-	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)w32" EXE_NAME="../npfte.dll" PRECOMPHEADERS="" FTE_TARGET=win32
-	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)l32" EXE_NAME="../npfte32.so" PRECOMPHEADERS="" FTE_TARGET=linux32
-	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)l64" EXE_NAME="../npfte64.so" PRECOMPHEADERS="" FTE_TARGET=linux64
-npfte-profile:
-	@$(MAKE) npfte-tmp TYPE=_npfte-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
-
 glcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 gl-tmp:
@@ -1314,6 +1322,7 @@ m-profile:
 
 .PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg
 
+
 ifdef windir
 debugdir:
 	@-mkdir -p $(subst /,\, $(OUT_DIR))
@@ -1350,18 +1359,19 @@ help:
 	@-echo "'gl-???' (OpenGL rendering + Built-in Server)"
 	@-echo "'m-???' (Merged client, OpenGL & D3D rendering + Dedicated server)"
 	@-echo "'mingl-???' (Minimal featured OpenGL render)"
-	@-echo "'npfte-???' (FTE_TARGET=win32 only, for now) (QuakeTV Firefox/Netscape browser plugin)"
 	@-echo "'d3d-???' (for windows builds)"
 	@-echo "'mcl-???' (currently broken)"
 	@-echo "'glcl-???' (currently broken)"
-	@-echo "'droid-???' (build Android package)"
+	@-echo "'droid-???' (cross compiles Android package)"
+	@-echo "'npfte-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
+	@-echo "'nacl-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
 	@-echo ""
 	@-echo "Cross targets can be specified with FTE_TARGET=blah"
 	@-echo "linux32, linux64 specify specific x86 archs"
 	@-echo "SDL - Attempt to use sdl for the current target"
 	@-echo "win32 - Mingw compile for win32"
 	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
-	@-echo "android is different - use 'make droid-help' for explicit help."
+	@-echo "android, npfte, nacl targets explicitly cross compile, and should generally not be given an FTE_TARGET."
 
 install:
 	-cp debug/*.* /opt/quake/
@@ -1382,6 +1392,54 @@ clean:
 
 distclean: clean
 	-rm -f droid/ftekeystore
+
+
+#################################################
+#npfte
+
+npfte-tmprel: reldir
+	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="NPFTE_OBJS"
+npfte-tmpdbg: debugdir
+	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="NPFTE_OBJS"
+npfte-rel:
+	ifeq ($(USER_TARGET),)
+	@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)w32" EXE_NAME="../npfte.dll" PRECOMPHEADERS="" FTE_TARGET=win32
+	@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)l32" EXE_NAME="../npfte32.so" PRECOMPHEADERS="" FTE_TARGET=linux32
+	@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)l64" EXE_NAME="../npfte64.so" PRECOMPHEADERS="" FTE_TARGET=linux64
+	-cp $(RELEASE_DIR)/npfte.dll npfte/plugins
+	-cp $(RELEASE_DIR)/npfte32.so npfte/plugins
+	-cp $(RELEASE_DIR)/npfte64.so npfte/plugins
+	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) install.rdf plugins/npfte.dll plugins/npfte32.so plugins/npfte64.so
+	rm -rf /tmp/npfte
+	mkdir /tmp/npfte
+	cp $(RELEASE_DIR)/npfte.dll /tmp/npfte
+	cp ./npfte/manifest.json /tmp/npfte
+	-cd $(RELEASE_DIR)/ && ../npfte/crxmake.sh /tmp/npfte ../npfte/chrome.pem
+	rm -rf /tmp/npfte
+npfte-dbg:
+	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)w32" EXE_NAME="../npfte.dll" PRECOMPHEADERS="" FTE_TARGET=win32
+	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)l32" EXE_NAME="../npfte32.so" PRECOMPHEADERS="" FTE_TARGET=linux32
+	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)l64" EXE_NAME="../npfte64.so" PRECOMPHEADERS="" FTE_TARGET=linux64
+npfte-profile:
+	@$(MAKE) npfte-tmp TYPE=_npfte-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
+
+
+#################################################
+#nacl shortcut
+
+nacl-rel:
+	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=x86_32
+	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=x86_64
+	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=arm
+	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=pnacl
+nacl-dbg:
+	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=x86_32
+	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=x86_64
+	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=arm
+	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=pnacl
+
+#################################################
+#android
 
 #building for android will require:
 #download android sdk+ndk

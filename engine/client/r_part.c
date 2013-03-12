@@ -300,7 +300,8 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 	case 0: // check for string, otherwise no trail
 		if (selection->string[0] == '0')
 		{
-			model->particletrail = P_INVALID;		
+			model->particletrail = P_INVALID;
+			model->traildefaultindex = -1;
 			break;
 		}
 		else

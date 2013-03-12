@@ -1285,10 +1285,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	return X11VID_Init(info, palette, PSL_GLX);
 }
+#ifdef USE_EGL
 qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	return X11VID_Init(info, palette, PSL_EGL);
 }
+#endif
 
 void Sys_SendKeyEvents(void)
 {

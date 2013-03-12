@@ -542,6 +542,25 @@ qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 	return false;
 }
 
+void Sys_mkdir (char *path)
+{
+	CreateDirectory (path, NULL);
+}
+static void	Update_CreatePath (char *path)
+{
+	char	*ofs;
+
+	for (ofs = path+1 ; *ofs ; ofs++)
+	{
+		if (*ofs == '/' || *ofs == '\\')
+		{	// create the directory
+			*ofs = 0;
+			Sys_mkdir (path);
+			*ofs = '/';
+		}
+	}
+}
+
 #include "fs.h"
 struct dl_download *enginedownloadactive;
 void Update_Version_Updated(struct dl_download *dl)
@@ -558,6 +577,7 @@ void Update_Version_Updated(struct dl_download *dl)
 			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
 			Q_strncatz(pendingname, DISTRIBUTION BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
 			fullsize = VFS_GETLEN(dl->file);
+			Update_CreatePath(pendingname);
 			pending = fopen(pendingname, "wb");
 			if (pending)
 			{
@@ -578,6 +598,8 @@ void Update_Version_Updated(struct dl_download *dl)
 					dl->status = DL_FAILED;
 				}
 			}
+			else
+				dl->status = DL_FAILED;
 		}
 		VFS_CLOSE(dl->file);
 		dl->file = NULL;
@@ -602,7 +624,7 @@ qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 		{
 			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
 			Update_GetHomeDirectory(temppath, sizeof(temppath));
-			CreateDirectory(temppath, NULL);
+			Update_CreatePath(temppath);
 			Q_strncatz(temppath, "cur" BUILDTYPE EXETYPE".exe", sizeof(temppath));
 			DeleteFile(temppath);
 			if (MoveFile(pendingpath, temppath))
@@ -611,6 +633,8 @@ qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 
 		/*grab the binary to run from the registry*/
 		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, updatedpath, updatedpathlen);
+		if (*updatedpath && INVALID_FILE_ATTRIBUTES==GetFileAttributes(updatedpath))	//make sure its actually still there.
+			*updatedpath = 0;
 		if (!*updatedpath)
 		{
 			/*ooer, its not set, try and download one. updates are handled by the client itself.*/
@@ -756,14 +780,15 @@ char *cleanarg(char *arg)
 qboolean Plug_GetBinaryName(char *exe, int exelen,
 						char *basedir, int basedirlen)
 {
-	char buffer[1024];
-	char cmd[64];
-	char value[1024];
-	FILE *f;
-	Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, "npfte.txt");
+//	char buffer[1024];
+//	char cmd[64];
+//	char value[1024];
+//	FILE *f;
 
 	*exe = 0;
 	*basedir = 0;
+/*
+	Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, "npfte.txt");
 
 	f = fopen(buffer, "rt");
 	if (f)
@@ -782,7 +807,7 @@ qboolean Plug_GetBinaryName(char *exe, int exelen,
 		}
 		fclose(f);
 	}
-
+*/
 	if (!*exe)
 		return Plug_GetDownloadedName(exe, exelen);
 	return false;

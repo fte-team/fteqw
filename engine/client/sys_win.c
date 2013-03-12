@@ -2155,6 +2155,21 @@ void Update_Check(void)
 	}
 }
 
+static void	Update_CreatePath (char *path)
+{
+	char	*ofs;
+
+	for (ofs = path+1 ; *ofs ; ofs++)
+	{
+		if (*ofs == '/')
+		{	// create the directory
+			*ofs = 0;
+			Sys_mkdir (path);
+			*ofs = '/';
+		}
+	}
+}
+
 qboolean Sys_CheckUpdated(void)
 {
 	int ffe = COM_CheckParm("--fromfrontend");
@@ -2183,7 +2198,7 @@ qboolean Sys_CheckUpdated(void)
 		{
 			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
 			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
-			CreateDirectory(updatedpath, NULL);
+			Update_CreatePath(updatedpath);
 			Q_strncatz(updatedpath, "cur" BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
 			DeleteFile(updatedpath);
 			if (MoveFile(pendingpath, updatedpath))

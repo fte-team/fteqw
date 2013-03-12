@@ -898,7 +898,7 @@ ifeq ($(FTE_TARGET),bsd)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lpthread
+	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lpthread
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include 
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
@@ -906,7 +906,7 @@ ifeq ($(FTE_TARGET),bsd)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lpthread
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lpthread
 	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
@@ -923,15 +923,15 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lXxf86vm -lXxf86dga -lz
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lz
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lXxf86vm -lXxf86dga -lz
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lz
 	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)

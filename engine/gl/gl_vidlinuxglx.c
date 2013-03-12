@@ -17,6 +17,26 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+
+/*
+X11 is a huge pile of shit. I don't mean just the old x11 protocol, but all the _current_ standards that don't even try to fix the issues too.
+
+Its fucking retarded the crap that you have to do to get something to work.
+timeouts to ensure alt+tab between two apps doesn't fuck up gamma ramps is NOT a nice thing to have to do.
+_MOUSE_ grabs cause alt+tab to fuck up
+if I use xinput2 to get raw mouse events (so that I don't have to use some random hack to disable acceleration and risk failing to reset it on crashes), then the mouse still moves outside of our window, and trying to fire then looses focus...
+xf86vm extension results in scrolling around a larger viewport. dependant upon the mouse position. even if we constrain the mouse to our window, it'll still scroll.
+warping the pointer still triggers 'raw' mouse move events. in what world does that make any sense?!?
+alt-tab task lists are a window in their own right. that's okay, but what's not okay is that they destroy that window without giving focus to the new window first, so the old one gets focus and that fucks everything up too. yay for timeouts.
+to allow alt-tabbing with window managers that do not respect requests to not shove stuff on us, we have to hide ourselves completely and create a separate window that can still accept focus from the window manager. its fecking vile.
+window managers reparent us too, in much the same way. which is a bad thing because we keep getting reparented and that makes a mess of focus events. its a nightmare.
+
+the whole thing is bloody retarded.
+
+none of these issues will be fixed by a compositing window manager, because there's still a window manager there.
+*/
+
+
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -42,18 +62,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
 
-#ifdef USE_DGA
-#include <X11/extensions/Xxf86dga.h>
-#endif
-
-#ifdef __linux__
-	#define WITH_VMODE	//undefine this if the following include fails.
-#endif
-#ifdef WITH_VMODE
-#include <X11/extensions/xf86vmode.h>
-#endif
-
-
 static Display *vid_dpy = NULL;
 static Cursor vid_nullcursor;
 static Window vid_window;
@@ -72,12 +80,6 @@ static enum
 
 extern cvar_t vid_conautoscale;
 
-static float old_windowed_mouse = 0;
-
-#ifdef USE_DGA
-static int dgamouse = 0;
-#endif
-
 #define KEY_MASK (KeyPressMask | KeyReleaseMask)
 #define MOUSE_MASK (ButtonPressMask | ButtonReleaseMask | \
 		    PointerMotionMask)
@@ -85,7 +87,7 @@ static int dgamouse = 0;
 #define X_MASK (KEY_MASK | MOUSE_MASK | ResizeRequest | StructureNotifyMask | FocusChangeMask | VisibilityChangeMask)
 
 
-#define FULLSCREEN_VMODE	1	//using xf86 vidmode
+#define FULLSCREEN_VMODE	1	//using xf86 vidmode (we can actually change modes)
 #define FULLSCREEN_VMODEACTIVE	2	//xf86 vidmode currently forced
 #define FULLSCREEN_LEGACY	4	//override redirect used
 #define FULLSCREEN_WM		8	//fullscreen hint used
@@ -94,23 +96,193 @@ static int fullscreenflags;
 static int fullscreenwidth;
 static int fullscreenheight;
 
-#ifdef WITH_VMODE
-static int vidmode_ext = 0;
-static XF86VidModeModeInfo **vidmodes;
-static int num_vidmodes;
-static int vidmode_usemode = -1;	//so that it can be reset if they switch away.
-
-static unsigned short originalramps[3][256];
-static qboolean originalapplied;	//states that the origionalramps arrays are valid, and contain stuff that we should revert to on close
-#endif
-
 void X_GoFullscreen(void);
 void X_GoWindowed(void);
 /*when alt-tabbing or whatever, the window manager creates a window, then destroys it again, resulting in weird focus events that trigger mode switches and grabs. using a timer reduces the weirdness and allows alt-tab to work properly. or at least better than it was working. that's the theory anyway*/
 static unsigned int modeswitchtime;
 static int modeswitchpending;
 
+typedef struct
+{
+	unsigned int        dotclock;
+	unsigned short      hdisplay;
+	unsigned short      hsyncstart;
+	unsigned short      hsyncend;
+	unsigned short      htotal;
+	unsigned short      hskew;
+	unsigned short      vdisplay;
+	unsigned short      vsyncstart;
+	unsigned short      vsyncend;
+	unsigned short      vtotal;
+	unsigned int        flags;
+} XF86VidModeModeInfo;	//we don't touch this struct
+
+static struct
+{
+	int opcode, event, error;
+	int vmajor, vminor;
+	void *lib;
+	Bool (*pXF86VidModeQueryVersion)(Display *dpy, int *majorVersion, int *minorVersion);
+	Bool (*pXF86VidModeGetGammaRampSize)(Display *dpy, int screen, int *size);
+	Bool (*pXF86VidModeGetGammaRamp)(Display *dpy, int screen, int size, unsigned short *red, unsigned short *green, unsigned short *blue);
+	Bool (*pXF86VidModeSetGammaRamp)(Display *dpy, int screen, int size, unsigned short *red, unsigned short *green, unsigned short *blue);
+	Bool (*pXF86VidModeSetViewPort)(Display *dpy, int screen, int x, int y);
+	Bool (*pXF86VidModeSwitchToMode)(Display *dpy, int screen, XF86VidModeModeInfo *modeline);
+	Bool (*pXF86VidModeGetAllModeLines)(Display *dpy, int screen, int *modecount, XF86VidModeModeInfo ***modelinesPtr);
+
+	XF86VidModeModeInfo **modes;
+	int num_modes;
+	int usemode;
+	unsigned short originalramps[3][256];
+	qboolean originalapplied;	//states that the origionalramps arrays are valid, and contain stuff that we should revert to on close
+} vm;
+static qboolean VMODE_Init(void)
+{
+	dllfunction_t vm_functable[] =
+	{
+		{(void**)&vm.pXF86VidModeQueryVersion, "XF86VidModeQueryVersion"},
+		{(void**)&vm.pXF86VidModeGetGammaRampSize, "XF86VidModeGetGammaRampSize"},
+		{(void**)&vm.pXF86VidModeGetGammaRamp, "XF86VidModeGetGammaRamp"},
+		{(void**)&vm.pXF86VidModeSetGammaRamp, "XF86VidModeSetGammaRamp"},
+		{(void**)&vm.pXF86VidModeSetViewPort, "XF86VidModeSetViewPort"},
+		{(void**)&vm.pXF86VidModeSwitchToMode, "XF86VidModeSwitchToMode"},
+		{(void**)&vm.pXF86VidModeGetAllModeLines, "XF86VidModeGetAllModeLines"},
+		{NULL, NULL}
+	};
+	vm.vmajor = 0;
+	vm.vminor = 0;
+	vm.usemode = -1;
+	vm.originalapplied = false;
+
+	if (COM_CheckParm("-novmode"))
+		return false;
+
+	if (!XQueryExtension(vid_dpy, "XFree86-VidModeExtension", &vm.opcode, &vm.event, &vm.error))
+	{
+		Con_Printf("DGA extension not available.\n");
+		return false;
+	}
+	
+	if (!vm.lib)
+		vm.lib = Sys_LoadLibrary("libXxf86vm", vm_functable);
+
+	if (vm.lib)
+	{
+	        if (vm.pXF86VidModeQueryVersion(vid_dpy, &vm.vmajor, &vm.vminor))
+      			Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
+		else
+	        {
+      			Con_Printf("No XF86-VidModeExtension support\n");
+			vm.vmajor = 0;
+		        vm.vminor = 0;
+	        }
+	}
+
+	return vm.vmajor;
+}
+
+
+
+
+
 extern cvar_t	_windowed_mouse;
+
+
+static float old_windowed_mouse = 0;
+
+static enum
+{
+	XIM_ORIG,
+	XIM_DGA,
+	XIM_XI2,
+} x11_input_method;
+
+#define XF86DGADirectMouse		0x0004
+static struct
+{
+	int opcode, event, error;
+	void *lib;
+	Status (*pXF86DGADirectVideo) (Display *dpy, int screen, int enable);
+} dgam;
+static qboolean DGAM_Init(void)
+{
+	dllfunction_t dgam_functable[] =
+	{
+		{(void**)&dgam.pXF86DGADirectVideo, "XF86DGADirectVideo"},
+		{NULL, NULL}
+	};
+
+	if (!XQueryExtension(vid_dpy, "XFree86-DGA", &dgam.opcode, &dgam.event, &dgam.error))
+	{
+		Con_Printf("DGA extension not available.\n");
+		return false;
+	}
+	
+	if (!dgam.lib)
+		dgam.lib = Sys_LoadLibrary("libXxf86dga", dgam_functable);
+	return !!dgam.lib;
+}
+
+#include <X11/extensions/XInput2.h>
+static struct
+{
+	int opcode, event, error;
+	int vmajor, vminor;
+	void *libxi;
+
+	Status (*pXIQueryVersion)( Display *display, int *major_version_inout, int *minor_version_inout);
+	int (*pXISelectEvents)(Display *dpy, Window win, XIEventMask *masks, int num_masks);
+} xi2;
+static qboolean XI2_Init(void)
+{
+	dllfunction_t xi2_functable[] =
+	{
+		{(void**)&xi2.pXIQueryVersion, "XIQueryVersion"},
+		{(void**)&xi2.pXISelectEvents, "XISelectEvents"},
+		{NULL, NULL}
+	};
+	XIEventMask evm;
+	unsigned char maskbuf[XIMaskLen(XI_LASTEVENT)];
+
+	if (!XQueryExtension(vid_dpy, "XInputExtension", &xi2.opcode, &xi2.event, &xi2.error))
+	{
+		Con_Printf("XInput extension not available.\n");
+		return false;
+	}
+
+	if (!xi2.libxi)
+	{
+		xi2.libxi = Sys_LoadLibrary("libXi", xi2_functable);
+		if (!xi2.libxi)
+			Con_Printf("XInput library not available.\n");
+	}
+	if (xi2.libxi)
+	{
+		xi2.vmajor = 2;
+		xi2.vminor = 0;
+		if (xi2.pXIQueryVersion(vid_dpy, &xi2.vmajor, &xi2.vminor))
+		{
+			Con_Printf("XInput library or server is too old\n");
+			return false;
+		}
+		evm.deviceid = XIAllMasterDevices;
+		evm.mask_len = sizeof(maskbuf);
+		evm.mask = maskbuf;
+		memset(maskbuf, 0, sizeof(maskbuf));
+		XISetMask(maskbuf, XI_RawMotion);
+		XISetMask(maskbuf, XI_RawButtonPress);
+		XISetMask(maskbuf, XI_RawButtonRelease);
+/*		if (xi2.vmajor >= 2 && xi2.vminor >= 2)
+		{
+	                XISetMask(maskbuf, XI_RawTouchBegin);
+	                XISetMask(maskbuf, XI_RawTouchUpdate);
+	                XISetMask(maskbuf, XI_RawTouchEnd);
+		}
+*/		xi2.pXISelectEvents(vid_dpy, DefaultRootWindow(vid_dpy), &evm, 1);
+		return true;
+	}
+	return false;
+}
 
 /*-----------------------------------------------------------------------*/
 
@@ -317,24 +489,27 @@ static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 
 static void install_grabs(void)
 {
-	XGrabPointer(vid_dpy, vid_window,
-				 True,
-				 0,
-				 GrabModeAsync, GrabModeAsync,
-				 vid_window,
-				 None,
-				 CurrentTime);
+	//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
+	//the grab is purely to constrain the pointer to the window
+	if (!(fullscreenflags & FULLSCREEN_ACTIVE))
+		XUngrabPointer(vid_dpy, CurrentTime);
+	else
+	{	//don't actually grab if we're fullscreen, but do make sure the rest is done.
+		if (GrabSuccess != XGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
+					True,
+					0,
+					GrabModeAsync, GrabModeAsync,
+					vid_window,
+					None,
+					CurrentTime))
+			Con_Printf("Pointer grab failed\n");
+	}
 
-#ifdef USE_DGA
-	// TODO: make this into a cvar, like "in_dgamouse", instead of parameters
-	// TODO: inform the user when DGA is enabled
-	if (!COM_CheckParm("-nodga") && !COM_CheckParm("-nomdga"))
+	if (x11_input_method == XIM_DGA)
 	{
-		XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), XF86DGADirectMouse);
-		dgamouse = 1;
+		dgam.pXF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), XF86DGADirectMouse);
 	}
 	else
-#endif
 	{
 		XWarpPointer(vid_dpy, None, vid_window,
 					 0, 0, 0, 0,
@@ -346,13 +521,10 @@ static void install_grabs(void)
 
 static void uninstall_grabs(void)
 {
-#ifdef USE_DGA
-	if (dgamouse)
+	if (x11_input_method == XIM_DGA)
 	{
-		XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
-		dgamouse = 0;
+		dgam.pXF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
 	}
-#endif
 
 	if (vid_dpy)
 		XUngrabPointer(vid_dpy, CurrentTime);
@@ -384,7 +556,73 @@ static void GetEvent(void)
 
 	XNextEvent(vid_dpy, &event);
 
-	switch (event.type) {
+	switch (event.type)
+	{
+	case GenericEvent:
+		if (XGetEventData(vid_dpy, &event.xcookie))
+		{
+			if (event.xcookie.extension == xi2.opcode)
+			{
+				switch(event.xcookie.evtype)
+				{
+				case XI_RawButtonPress:
+				case XI_RawButtonRelease:
+					if (old_windowed_mouse)
+					{
+						XIRawEvent *raw = event.xcookie.data;
+						int button = raw->detail;	//1-based
+						switch(button)
+						{
+						case 1: button = K_MOUSE1; break;
+						case 2: button = K_MOUSE3; break;
+						case 3: button = K_MOUSE2; break;
+						case 4: button = K_MWHEELUP; break;	//so much for 'raw'.
+						case 5: button = K_MWHEELDOWN; break;
+						case 6: button = K_MOUSE4; break;
+						case 7: button = K_MOUSE5; break;
+						case 8: button = K_MOUSE6; break;
+						case 9: button = K_MOUSE7; break;
+						case 10: button = K_MOUSE8; break;
+						case 11: button = K_MOUSE9; break;
+						case 12: button = K_MOUSE10; break;
+						default:button = 0; break;
+						}
+						if (button)
+				                        IN_KeyEvent(raw->deviceid, (event.xcookie.evtype==XI_RawButtonPress), button, 0);
+					}
+					break;
+				case XI_RawMotion:
+					if (old_windowed_mouse)
+					{
+						XIRawEvent *raw = event.xcookie.data;
+						double *val, *raw_val;
+						double rawx = 0, rawy = 0;
+						int i;
+						val = raw->valuators.values;
+						raw_val = raw->raw_values;
+						for (i = 0; i < raw->valuators.mask_len * 8; i++)
+						{
+							if (XIMaskIsSet(raw->valuators.mask, i))
+							{
+								if (i == 0) rawx = *raw_val;
+								if (i == 1) rawy = *raw_val;
+								val++;
+								raw_val++;
+							}
+						}
+			                        IN_MouseMove(raw->deviceid, false, rawx, rawy, 0, 0);
+					}
+					break;
+				default:
+					Con_Printf("Unknown xinput event %u!\n", event.xcookie.evtype);
+					break;
+				}
+			}
+			else
+				Con_Printf("Unknown generic event!\n");
+		}
+		XFreeEventData(vid_dpy, &event.xcookie);
+		break;
 	case ResizeRequest:
 		vid.pixelwidth = event.xresizerequest.width;
 		vid.pixelheight = event.xresizerequest.height;
@@ -417,24 +655,26 @@ static void GetEvent(void)
 		break;
 
 	case MotionNotify:
-#ifdef USE_DGA
-		if (dgamouse && old_windowed_mouse)
+		if (x11_input_method == XIM_DGA && old_windowed_mouse)
 		{
 			IN_MouseMove(0, false, event.xmotion.x_root, event.xmotion.y_root, 0, 0);
 		}
 		else
-#endif
 		{
 			if (old_windowed_mouse)
 			{
-				int cx = vid.pixelwidth/2, cy=vid.pixelheight/2;
-				IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
+				if (x11_input_method != XIM_XI2)
+				{
+					int cx = vid.pixelwidth/2, cy=vid.pixelheight/2;
 
-				/* move the mouse to the window center again (disabling warp first so we don't see it*/
-				XSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
-				XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
-					cx, cy);
-				XSelectInput(vid_dpy, vid_window, X_MASK);
+					IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
+
+					/* move the mouse to the window center again (disabling warp first so we don't see it*/
+					XSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
+					XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
+						cx, cy);
+					XSelectInput(vid_dpy, vid_window, X_MASK);
+				}
 			}
 			else
 			{
@@ -444,6 +684,8 @@ static void GetEvent(void)
 		break;
 
 	case ButtonPress:
+		if (x11_input_method == XIM_XI2 && old_windowed_mouse)
+			break;	//no dupes!
 		b=-1;
 		if (event.xbutton.button == 1)
 			b = K_MOUSE1;
@@ -545,11 +787,9 @@ static void GetEvent(void)
 			break;
 		}
 
-#ifdef WITH_VMODE
-		if (originalapplied)
-			XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
+		if (vm.originalapplied)
+			vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 
-#endif
 		mw = vid_window;
 		if ((fullscreenflags & FULLSCREEN_LEGACY) && (fullscreenflags & FULLSCREEN_ACTIVE))
 			mw = vid_decoywindow;
@@ -636,11 +876,8 @@ void GLVID_Shutdown(void)
 	if (old_windowed_mouse)
 		uninstall_grabs();
 
-#ifdef WITH_VMODE
-	if (originalapplied)
-		XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
-#endif
-
+	if (vm.originalapplied)
+		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 
 	switch(currentpsl)
 	{
@@ -664,19 +901,17 @@ void GLVID_Shutdown(void)
 		XDestroyWindow(vid_dpy, vid_window);
 	if (vid_nullcursor)
 		XFreeCursor(vid_dpy, vid_nullcursor);
-#ifdef WITH_VMODE
 	if (vid_dpy)
 	{
 		if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
-			XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
+			vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[0]);
 		fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
 
-		if (vidmodes)
-			XFree(vidmodes);
-		vidmodes = NULL;
-		num_vidmodes = 0;
+		if (vm.modes)
+			XFree(vm.modes);
+		vm.modes = NULL;
+		vm.num_modes = 0;
 	}
-#endif
 	XCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
 	vid_window = (Window)NULL;
@@ -741,25 +976,23 @@ static Cursor CreateNullCursor(Display *display, Window root)
 
 void	GLVID_ShiftPalette (unsigned char *palette)
 {
-#ifdef WITH_VMODE
 	extern qboolean gammaworks;
 	extern cvar_t vid_hardwaregamma;
 	extern	unsigned short ramps[3][256];
 
 //	VID_SetPalette (palette);
 
-	if (originalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	if (vm.originalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
 	{
 		if (gammaworks)
 		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-			XF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
+			vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
 			return;
 		}
-		gammaworks = !!XF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
+		gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
 	}
 	else
 		gammaworks = false;
-#endif
 }
 
 void	GLVID_SetPalette (unsigned char *palette)
@@ -1022,13 +1255,8 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	XVisualInfo *visinfo;
 	qboolean fullscreen = false;
 
-#ifdef WITH_VMODE
-	int MajorVersion, MinorVersion;
-
 	if (info->fullscreen)
 		fullscreen = true;
-#endif
-
 
 	S_Startup();
 
@@ -1067,42 +1295,30 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	scrnum = DefaultScreen(vid_dpy);
 	vid_root = RootWindow(vid_dpy, scrnum);
 
-#ifdef WITH_VMODE	//find out if it's supported on this pc.
-	MajorVersion = MinorVersion = 0;
-	if (COM_CheckParm("-novmode") || !XF86VidModeQueryVersion(vid_dpy, &MajorVersion, &MinorVersion))
-	{
-		vidmode_ext = 0;
-	}
-	else
-	{
-		Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", MajorVersion, MinorVersion);
-		vidmode_ext = MajorVersion;
-	}
-#endif
+	VMODE_Init();
 
 	fullscreenflags = 0;
 
-#ifdef WITH_VMODE
-	vidmode_usemode = -1;
-	if (vidmode_ext)
+	vm.usemode = -1;
+	if (vm.vmajor)
 	{
 		int best_fit, best_dist, dist, x, y;
 
-		XF86VidModeGetAllModeLines(vid_dpy, scrnum, &num_vidmodes, &vidmodes);
+		vm.pXF86VidModeGetAllModeLines(vid_dpy, scrnum, &vm.num_modes, &vm.modes);
 		// Are we going fullscreen?  If so, let's change video mode
 		if (fullscreen)
 		{
 			best_dist = 9999999;
 			best_fit = -1;
 
-			for (i = 0; i < num_vidmodes; i++)
+			for (i = 0; i < vm.num_modes; i++)
 			{
-				if (width > vidmodes[i]->hdisplay ||
-					height > vidmodes[i]->vdisplay)
+				if (width > vm.modes[i]->hdisplay ||
+					height > vm.modes[i]->vdisplay)
 					continue;
 
-				x = width - vidmodes[i]->hdisplay;
-				y = height - vidmodes[i]->vdisplay;
+				x = width - vm.modes[i]->hdisplay;
+				y = height - vm.modes[i]->vdisplay;
 				dist = (x * x) + (y * y);
 				if (dist < best_dist)
 				{
@@ -1114,22 +1330,21 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			if (best_fit != -1)
 			{
 				// change to the mode
-				if (XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode=best_fit]))
+				if (vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[vm.usemode=best_fit]))
 				{
-					width = vidmodes[best_fit]->hdisplay;
-					height = vidmodes[best_fit]->vdisplay;
+					width = vm.modes[best_fit]->hdisplay;
+					height = vm.modes[best_fit]->vdisplay;
 					// Move the viewport to top left
-					XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 					XSync(vid_dpy, False);
 
 					fullscreenflags |= FULLSCREEN_VMODE | FULLSCREEN_VMODEACTIVE;
 				}
 				else
-					Con_Printf("Failed to apply mode %i*%i\n", vidmodes[best_fit]->hdisplay, vidmodes[best_fit]->vdisplay);
+					Con_Printf("Failed to apply mode %i*%i\n", vm.modes[best_fit]->hdisplay, vm.modes[best_fit]->vdisplay);
 			}
 		}
 	}
-#endif
 
 	if (fullscreen)
 	{
@@ -1142,7 +1357,8 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			height = xwa.height;
 		}
 
-		if (X_CheckWMFullscreenAvailable())
+		//window managers fuck up too much if we change the video mode and request the windowmanager make us fullscreen.
+		if ((!(fullscreenflags & FULLSCREEN_VMODE) || vm.usemode <= 0) && X_CheckWMFullscreenAvailable())
 			fullscreenflags |= FULLSCREEN_WM;
 		else
                         fullscreenflags |= FULLSCREEN_LEGACY;
@@ -1185,37 +1401,33 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	CL_UpdateWindowTitle();
 	/*make it visible*/
 
-#ifdef WITH_VMODE
 	if (fullscreen & FULLSCREEN_VMODE)
 	{
 		XRaiseWindow(vid_dpy, vid_window);
 		XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 0, 0);
 		XFlush(vid_dpy);
 		// Move the viewport to top left
-		XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+		vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 	}
-#endif
 
 	vid_nullcursor = CreateNullCursor(vid_dpy, vid_window);
 
 	XFlush(vid_dpy);
 
-#ifdef WITH_VMODE
-	if (vidmode_ext >= 2)
+	if (vm.vmajor >= 2)
 	{
 		int rampsize = 256;
-		XF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);
+		vm.pXF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);
 		if (rampsize != 256)
 		{
-			originalapplied = false;
+			vm.originalapplied = false;
 			Con_Printf("Gamma ramps are not of 256 components (but %i).\n", rampsize);
 		}
 		else
-			originalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
+			vm.originalapplied = vm.pXF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 	}
 	else
-		originalapplied = false;
-#endif
+		vm.originalapplied = false;
 
 	switch(currentpsl)
 	{
@@ -1270,6 +1482,23 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 	vid.recalc_refdef = 1;				// force a surface cache flush
 
+	// TODO: make this into a cvar, like "in_dgamouse", instead of parameters
+	if (!COM_CheckParm("-noxi2") && XI2_Init())
+	{
+		x11_input_method = XIM_XI2;
+		Con_Printf("Using XInput2\n");
+	}
+	else if (!COM_CheckParm("-nodga") && !COM_CheckParm("-nomdga") && DGAM_Init())
+	{
+		x11_input_method = XIM_DGA;
+		Con_Printf("Using DGA mouse\n");
+	}
+	else
+	{
+		x11_input_method = XIM_ORIG;
+		Con_Printf("Using X11 mouse\n");
+	}
+
 	if (Cvar_Get("vidx_grabkeyboard", "0", 0, "Additional video options")->value)
 		XGrabKeyboard(vid_dpy, vid_window,
 				  False,
@@ -1317,22 +1546,20 @@ void Sys_SendKeyEvents(void)
 				XUndefineCursor(vid_dpy, vid_window);
 				old_windowed_mouse = false;
 			}
-			if (modeswitchpending > 0)
+			if (modeswitchpending > 0 && !(fullscreenflags & FULLSCREEN_ACTIVE))
 			{
 				//entering fullscreen mode
-#ifdef WITH_VMODE
 				if (fullscreenflags & FULLSCREEN_VMODE)
 				{
 					if (!(fullscreenflags & FULLSCREEN_VMODEACTIVE))
 					{
 						// change to the mode
-						XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode]);
+						vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[vm.usemode]);
 						fullscreenflags |= FULLSCREEN_VMODEACTIVE;
 						// Move the viewport to top left
 					}
-					XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 				}
-#endif
 				Cvar_ForceCallback(&v_gamma);
 
 				/*release the mouse now, because we're paranoid about clip regions*/
@@ -1359,11 +1586,11 @@ void Sys_SendKeyEvents(void)
  					//sounds pointless, works great with two moniters. :D
 					if (fullscreenflags & FULLSCREEN_VMODE)
 					{
-	 					if (originalapplied)
-							XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
+	 					if (vm.originalapplied)
+							vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 						if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
 						{
-							XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
+							vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[0]);
 							fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
 						}
 					}
@@ -1405,10 +1632,7 @@ void Sys_SendKeyEvents(void)
 			{
 				Con_DPrintf("install grabs\n");
 				/* grab the pointer */
-				if (fullscreenflags & FULLSCREEN_ACTIVE)
-					install_grabs();
-				else
-					uninstall_grabs();	//don't grab the mouse when fullscreen. its a: not needed. b: breaks gnome's alt-tab.
+				install_grabs();
 				/*hide the cursor*/
 				XDefineCursor(vid_dpy, vid_window, vid_nullcursor);
 			}

@@ -24,7 +24,6 @@
 #include "quakedef.h"
 
 id _p;
-extern float mouse_x,mouse_y;
 int evcnt = 2;
 
 // Jacek: some keys are bogus, my ibook kb lacks keys and apple's docs lack
@@ -466,8 +465,7 @@ int checkDepth(int d)
 
 	if ([event type] == NSMouseMoved)
 	{
-		mouse_x += [event deltaX];
-		mouse_y += [event deltaY];
+		IN_MouseMove(0, false, [event deltaX], [event deltaY], 0, 0);
 
 		// lame hack to avoid mouse ptr moving to the top of the screen since
 		// a click there causes the mouse to appear and lock the event stream
@@ -480,8 +478,7 @@ int checkDepth(int d)
 
 	if ([event type] == NSLeftMouseDragged)
 	{
-		mouse_x += [event deltaX];
-		mouse_y += [event deltaY];
+		IN_MouseMove(0, false, [event deltaX], [event deltaY], 0, 0);
 		CGDisplayMoveCursorToPoint(kCGDirectMainDisplay,
 			CGPointMake(vid.width - 1,vid.height - 1));
 		return;
@@ -489,8 +486,7 @@ int checkDepth(int d)
 
 	if ([event type] == NSRightMouseDragged)
 	{
-		mouse_x += [event deltaX];
-		mouse_y += [event deltaY];
+		IN_MouseMove(0, false, [event deltaX], [event deltaY], 0, 0);
 		CGDisplayMoveCursorToPoint(kCGDirectMainDisplay,
 			CGPointMake(vid.width - 1,vid.height - 1));
 		return;
@@ -498,8 +494,7 @@ int checkDepth(int d)
 
 	if ([event type] == NSOtherMouseDragged)
 	{
-		mouse_x += [event deltaX];
-		mouse_y += [event deltaY];
+		IN_MouseMove(0, false, [event deltaX], [event deltaY], 0, 0);
 		CGDisplayMoveCursorToPoint(kCGDirectMainDisplay,
 			CGPointMake(vid.width - 1,vid.height - 1));
 		return;

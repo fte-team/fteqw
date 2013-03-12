@@ -1277,6 +1277,8 @@ void QCC_PR_LexString (void)
 						QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
 				}
 			}
+			else if (c == '.')
+				c = 0x1c | texttype;
 			else if (c == '<')
 				c = 29;
 			else if (c == '-')

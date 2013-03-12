@@ -386,6 +386,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, qboolean surfonly)
 
 			dl->worldshadowmesh = sh_shmesh;
 		}
+		memset(sh_shmesh->litleaves, 0, sh_shmesh->leafbytes);
 		dl->rebuildcache = false;
 	}
 	else
@@ -956,7 +957,8 @@ static void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 	if (node->contents != -1)
 	{
 		leaf = (mleaf_t *)node;
-		SHM_Shadow_Cache_Leaf(leaf);
+		if (leaf->cluster >= 0)
+			sh_shmesh->litleaves[leaf->cluster>>3] |= 1<<(leaf->cluster&7);
 
 	// mark the polygons
 		msurf = leaf->firstmarksurface;

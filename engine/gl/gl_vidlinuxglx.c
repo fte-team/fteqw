@@ -223,7 +223,44 @@ static qboolean DGAM_Init(void)
 	return !!dgam.lib;
 }
 
+#if 0
 #include <X11/extensions/XInput2.h>
+#else
+#define XISetMask(ptr, event)   (((unsigned char*)(ptr))[(event)>>3] |=  (1 << ((event) & 7)))
+#define XIMaskIsSet(ptr, event) (((unsigned char*)(ptr))[(event)>>3] &   (1 << ((event) & 7)))
+#define XIMaskLen(event)        (((event + 7) >> 3))
+typedef struct {
+    int           mask_len;
+    unsigned char *mask;
+    double        *values;
+} XIValuatorState;
+typedef struct
+{
+    int                 deviceid;
+    int                 mask_len;
+    unsigned char*      mask;
+} XIEventMask;
+#define XIAllMasterDevices 1
+#define XI_RawButtonPress 15
+#define XI_RawButtonRelease 16
+#define XI_RawMotion 17
+#define XI_LASTEVENT XI_RawMotion
+typedef struct {
+	int           type;         /* GenericEvent */
+	unsigned long serial;       /* # of last request processed by server */
+	Bool          send_event;   /* true if this came from a SendEvent request */
+	Display       *display;     /* Display the event was read from */
+	int           extension;    /* XI extension offset */
+	int           evtype;       /* XI_RawKeyPress, XI_RawKeyRelease, etc. */
+	Time          time;
+	int           deviceid;
+	int           sourceid;     /* Bug: Always 0. https://bugs.freedesktop.org//show_bug.cgi?id=34240 */
+	int           detail;
+	int           flags;
+	XIValuatorState valuators;
+	double        *raw_values;
+} XIRawEvent;
+#endif
 static struct
 {
 	int opcode, event, error;
@@ -254,7 +291,7 @@ static qboolean XI2_Init(void)
 	{
 		xi2.libxi = Sys_LoadLibrary("libXi", xi2_functable);
 		if (!xi2.libxi)
-			Con_Printf("XInput library not available.\n");
+			Con_Printf("XInput library not available or too old.\n");
 	}
 	if (xi2.libxi)
 	{

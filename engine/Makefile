@@ -860,13 +860,11 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	GLB_DIR=gl_mgw$(BITS)
 	GLCL_DIR=glcl_mgw$(BITS)
 
-	NPFTECL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
+	NPFTE_OBJS=httpclient.o image.o sys_win_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
 	NPFTE_DLL_NAME=../npfte$(BITS).dll
-	NPFTECL_DLL_NAME=../npftecl$(BITS).dll
-	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared
-	NPFTE_CFLAGS=$(NPFTECFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
+	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared
+	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD
 	NPFTEB_DIR=npfte_mgw$(BITS)
-	NPFTECL_DIR=npqtvcl_mgw$(BITS)
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(LTO_END) resources.o $(LTO_START)
 	M_EXE_NAME=../fteqw$(BITS).exe
@@ -1234,31 +1232,23 @@ d3d-profile:
 	@$(MAKE) d3d-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(D3DB_DIR)"
 
 
-npqtvcl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPFTECL_DLL_NAME)" WCFLAGS="$(NPFTE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPFTECL_OBJS)"
-npfte-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPFTE_DLL_NAME)" WCFLAGS="$(NPFTE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPFTECL_OBJS)"
 
-npqtvcl-rel:
-	@$(MAKE) npqtvcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPFTECL_DIR)"
-npqtvcl-dbg:
-	@$(MAKE) npqtvcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NPFTECL_DIR)"
-npqtvcl-profile:
-	@$(MAKE) npqtvcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTECL_DIR)"
+npfte-tmp: reldir
+	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS)" OBJS="NPFTE_OBJS"
 npfte-rel:
-	@$(MAKE) npfte-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)"
+	@$(MAKE) npfte-tmp OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)" EXE_NAME="$(NPFTE_DLL_NAME)" PRECOMPHEADERS=
 	cp $(RELEASE_DIR)/npfte.dll npfte/plugins
 	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) install.rdf plugins/npfte.dll
 	rm -rf /tmp/npfte
 	mkdir /tmp/npfte
 	cp $(RELEASE_DIR)/npfte.dll /tmp/npfte
 	cp ./npfte/manifest.json /tmp/npfte
-	cd $(RELEASE_DIR)/ && ../npfte/crxmake.sh /tmp/npfte ../npfte/chrome.pem
+	-cd $(RELEASE_DIR)/ && ../npfte/crxmake.sh /tmp/npfte ../npfte/chrome.pem
 	rm -rf /tmp/npfte
 npfte-dbg:
-	@$(MAKE) npfte-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)"
+	@$(MAKE) npfte-tmp TYPE=_npfte-dbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)"
 npfte-profile:
-	@$(MAKE) npfte-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
+	@$(MAKE) npfte-tmp TYPE=_npfte-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
 
 glcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"

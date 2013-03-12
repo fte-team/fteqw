@@ -1816,6 +1816,42 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "menutint",
+"!!cvari r_menutint_inverse\n"
+"!!cvarv r_menutint\n"
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"varying vec2 texcoord;\n"
+"uniform vec4 e_rendertexturescale;\n"
+"void main(void)\n"
+"{\n"
+"texcoord.x = v_texcoord.x*e_rendertexturescale.x;\n"
+"texcoord.y = (1.0-v_texcoord.y)*e_rendertexturescale.y;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+
+"varying vec2 texcoord;\n"
+"uniform vec3 cvar_r_menutint;\n"
+"uniform sampler2D s_t0;\n"
+"uniform int cvar_r_menutint_inverse;\n"
+"const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\n"
+"const vec3 invertvec = vec3(1.0, 1.0, 1.0);\n"
+"void main(void)\n"
+"{\n"
+"vec3 texcolor = texture2D(s_t0, texcoord).rgb;\n"
+"float luminance = dot(lumfactors, texcolor);\n"
+"texcolor = vec3(luminance, luminance, luminance);\n"
+"texcolor *= cvar_r_menutint;\n"
+"texcolor = (cvar_r_menutint_inverse > 0) ? (invertvec - texcolor) : texcolor;\n"
+"gl_FragColor = vec4(texcolor, 1.0);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "terrain",
 "!!permu FOG\n"
 "#include \"sys/fog.h\"\n"

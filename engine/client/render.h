@@ -186,6 +186,7 @@ extern	entity_t	r_worldentity;
 void BE_GenModelBatches(struct batch_s **batches);
 
 //gl_alias.c
+void GL_GAliasFlushSkinCache(void);
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
 void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);

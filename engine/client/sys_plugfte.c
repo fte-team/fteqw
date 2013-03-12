@@ -5,7 +5,7 @@
 
 static void UnpackAndExtractPakFiles_Complete(struct dl_download *dl);
 static void pscript_property_splash_sets(struct context *ctx, const char *val);
-
+void *globalmutex;
 
 #ifdef _MSC_VER
 # ifdef _WIN64
@@ -254,11 +254,19 @@ dblbreak:
 
 	if (addrfamily)
 		*addrfamily = ((struct sockaddr*)sadr)->sa_family;
-	if (addrsize)
+
+	if (((struct sockaddr*)sadr)->sa_family == AF_INET)
 	{
-		if (((struct sockaddr*)sadr)->sa_family == AF_INET)
+		if (!((struct sockaddr_in *)sadr)->sin_port)
+			((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
+		if (addrsize)
 			*addrsize = sizeof(struct sockaddr_in);
-		else
+	}
+	else
+	{
+		if (!((struct sockaddr_in6 *)sadr)->sin6_port)
+			((struct sockaddr_in6 *)sadr)->sin6_port = htons(defaultport);
+		if (addrsize)
 			*addrsize = sizeof(struct sockaddr_in6);
 	}
 
@@ -443,6 +451,187 @@ vfsfile_t *VFSPIPE_Open(void)
 
 
 
+#if defined(OFFICIAL_RELEASE)
+	#define BUILDTYPE "rel"
+#else
+	#define BUILDTYPE "test"
+	#define UPDATE_URL "http://triptohell.info/moodles/"
+	#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
+	#ifdef _WIN64
+		#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE ".exe"
+	#else
+		#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
+	#endif
+#endif
+
+//#if defined(GLQUAKE) && defined(D3DQUAKE)
+//	#define EXETYPE "qw"
+//#elif defined(GLQUAKE)
+//	#ifdef MINIMAL
+//		#define EXETYPE "minglqw"
+//	#else
+		#define EXETYPE "glqw"
+//	#endif
+//#elif defined(D3DQUAKE)
+//	#define EXETYPE "d3dqw"
+//#elif defined(SWQUAKE)
+//	#define EXETYPE "swqw"
+//#else 	//erm...
+//	#define EXETYPE "qw"
+//#endif
+
+
+qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
+{
+	qboolean result = false;
+	DWORD resultlen = datalen - 1;
+	HKEY subkey;
+	DWORD type = REG_NONE;
+	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
+		RegCloseKey (subkey);
+	}
+
+	if (type == REG_SZ || type == REG_EXPAND_SZ)
+		((char*)data)[datalen] = 0;
+	else
+		((char*)data)[0] = 0;
+	return result;
+}
+
+void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+{
+	HKEY subkey;
+	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
+	{
+		RegSetValueEx(subkey, valuename, 0, type, data, datalen);
+		RegCloseKey (subkey);
+	}
+}
+void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
+{
+	HKEY subkey;
+	if (RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)
+	{
+		RegDeleteValue(subkey, valuename);
+		RegCloseKey (subkey);
+	}
+}
+
+qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
+{
+	HMODULE shfolder = LoadLibrary("shfolder.dll");
+
+	if (shfolder)
+	{
+		HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
+		dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
+		if (dSHGetFolderPath)
+		{
+			char folder[MAX_PATH];
+			// 0x5 == CSIDL_PERSONAL
+			if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
+			{
+				Q_snprintfz(homedir, homedirsize, "%s/My Games/%s/", folder, FULLENGINENAME);
+				return true;
+			}
+		}
+//		FreeLibrary(shfolder);
+	}
+	return false;
+}
+
+#include "fs.h"
+struct dl_download *enginedownloadactive;
+void Update_Version_Updated(struct dl_download *dl)
+{
+	//happens in a thread, avoid va
+	if (dl->file)
+	{
+		if (dl->status == DL_FINISHED)
+		{
+			char buf[8192];
+			unsigned int size = 0, chunk, fullsize;
+			char pendingname[MAX_OSPATH];
+			FILE *pending;
+			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
+			Q_strncatz(pendingname, DISTRIBUTION BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
+			fullsize = VFS_GETLEN(dl->file);
+			pending = fopen(pendingname, "wb");
+			if (pending)
+			{
+				while(1)
+				{
+					chunk = VFS_READ(dl->file, buf, sizeof(buf));
+					if (!chunk)
+						break;
+					size += fwrite(buf, 1, chunk, pending);
+				}
+				fclose(pending);
+				if (fullsize == size)
+				{
+					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
+				}
+				else
+				{
+					dl->status = DL_FAILED;
+				}
+			}
+		}
+		VFS_CLOSE(dl->file);
+		dl->file = NULL;
+	}
+}
+qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
+{
+	char pendingpath[MAX_OSPATH];
+	char temppath[MAX_OSPATH];
+
+	Sys_LockMutex(globalmutex);
+
+	if (!enginedownloadactive || (enginedownloadactive->status == DL_FINISHED || enginedownloadactive->status == DL_FAILED))
+	{
+		if (enginedownloadactive)
+			DL_Close(enginedownloadactive);
+		enginedownloadactive = NULL;
+
+		/*if there's some downloaded binary which isn't running yet, kill the old active one and update it*/
+		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
+		if (*pendingpath)
+		{
+			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
+			Update_GetHomeDirectory(temppath, sizeof(temppath));
+			CreateDirectory(temppath, NULL);
+			Q_strncatz(temppath, "cur" BUILDTYPE EXETYPE".exe", sizeof(temppath));
+			DeleteFile(temppath);
+			if (MoveFile(pendingpath, temppath))
+				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, REG_SZ, temppath, strlen(temppath)+1);
+		}
+
+		/*grab the binary to run from the registry*/
+		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, updatedpath, updatedpathlen);
+		if (!*updatedpath)
+		{
+			/*ooer, its not set, try and download one. updates are handled by the client itself.*/
+			enginedownloadactive = DL_Create(UPDATE_URL_BUILD);
+			if (enginedownloadactive)
+			{
+				enginedownloadactive->user_ctx = NULL;
+				DL_CreateThread(enginedownloadactive, VFSPIPE_Open(), Update_Version_Updated);
+			}
+		}
+	}
+
+	Sys_UnlockMutex(globalmutex);
+
+	return !!*updatedpath;
+}
+
+
+
+
+
 
 
 
@@ -564,7 +753,7 @@ char *cleanarg(char *arg)
 	return strdup("\"\"");
 }
 
-void Plug_GetBinaryName(char *exe, int exelen,
+qboolean Plug_GetBinaryName(char *exe, int exelen,
 						char *basedir, int basedirlen)
 {
 	char buffer[1024];
@@ -572,6 +761,10 @@ void Plug_GetBinaryName(char *exe, int exelen,
 	char value[1024];
 	FILE *f;
 	Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, "npfte.txt");
+
+	*exe = 0;
+	*basedir = 0;
+
 	f = fopen(buffer, "rt");
 	if (f)
 	{
@@ -581,7 +774,7 @@ void Plug_GetBinaryName(char *exe, int exelen,
 			*value = 0;
 			COM_ParseOut(COM_ParseOut(buffer, cmd, sizeof(cmd)), value, sizeof(value));
 			if (!strcmp(cmd, "relexe"))
-				Q_snprintfz(buffer, sizeof(buffer), "%s%s", binarypath, value);
+				Q_snprintfz(exe, exelen, "%s%s", binarypath, value);
 			else if (!strcmp(cmd, "absexe"))
 				Q_strncpyz(exe, value, exelen);
 			else if (!strcmp(cmd, "basedir"))
@@ -589,6 +782,10 @@ void Plug_GetBinaryName(char *exe, int exelen,
 		}
 		fclose(f);
 	}
+
+	if (!*exe)
+		return Plug_GetDownloadedName(exe, exelen);
+	return false;
 }
 
 int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
@@ -598,14 +795,23 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 	char tok[256];
 	char exe[1024];
 	char basedir[1024];
+	qboolean autoupdate;
 
 	Q_snprintfz(exe, sizeof(exe), "%s%s", binarypath, "fteqw");
 	*basedir = 0;
 
-	Plug_GetBinaryName(exe, sizeof(exe), basedir, sizeof(basedir));
+	autoupdate = Plug_GetBinaryName(exe, sizeof(exe), basedir, sizeof(basedir));
+
+	if (!*exe)
+		return 0;	//error
 
 	argv[0] = strdup(exe);
 	argc = 1;
+
+	if (autoupdate)
+	{
+		ADDRARG("-autoupdate");
+	}
 
 	ADDRARG("-plugin");
 
@@ -682,6 +888,8 @@ qboolean Plug_GenCommandlineString(struct context *ctx, char *cmdline, int cmdli
 	char *argv[64];
 	int argc, i;
 	argc = Plug_GenCommandline(ctx, argv, 64);
+	if (!argc)
+		return false;
 	for (i = 0; i < argc; i++)
 	{
 		//add quotes for any arguments with spaces
@@ -712,14 +920,14 @@ void Plug_ExecuteCommand(struct context *ctx, char *message, ...)
 	WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
 }
 
-void Plug_CreatePluginProcess(struct context *ctx)
+qboolean Plug_CreatePluginProcess(struct context *ctx)
 {
 	char cmdline[8192];
 	PROCESS_INFORMATION childinfo;
 	STARTUPINFO startinfo;
 	SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
 	if (!Plug_GenCommandlineString(ctx, cmdline, sizeof(cmdline)))
-		return;
+		return false;
 
 	memset(&startinfo, 0, sizeof(startinfo));
 	startinfo.cb = sizeof(startinfo);
@@ -742,6 +950,8 @@ void Plug_CreatePluginProcess(struct context *ctx)
 	//these ends of the pipes were inherited by now, so we can discard them in the caller.
 	CloseHandle(startinfo.hStdOutput);
 	CloseHandle(startinfo.hStdInput);
+
+	return true;
 }
 
 int Plug_PluginThread(void *ctxptr)
@@ -820,11 +1030,80 @@ int Plug_PluginThread(void *ctxptr)
 	}
 #endif
 
-	Plug_CreatePluginProcess(ctx);
+	if (!Plug_CreatePluginProcess(ctx))
+	{
+		if (!enginedownloadactive)
+		{
+			strcpy(ctx->pub.statusmessage, "Unable to determine engine to run. Plugin is not correctly installed.");
+			if (ctx->bfuncs.StatusChanged)
+				ctx->bfuncs.StatusChanged(ctx->hostinstance);
+			ctx->pub.running = false;
+		}
+		else
+		{
+			int os = -1;
+			while(1)
+			{
+				Sys_LockMutex(globalmutex);
+				if (!enginedownloadactive)
+				{
+					Sys_UnlockMutex(globalmutex);
+					if (!Plug_CreatePluginProcess(ctx))
+						ctx->pub.running = false;
+					break;
+				}
+
+				if (os != enginedownloadactive->status)
+				{
+					os = enginedownloadactive->status;
+					switch(os)
+					{
+					case DL_PENDING:
+						strcpy(ctx->pub.statusmessage, "Download pending.");
+						break;
+
+					case DL_FAILED:
+						strcpy(ctx->pub.statusmessage, "Engine download failed. Try later, or fix internet connection.");
+						os = -2;	//stop trying.
+						ctx->pub.running = false;
+						break;
+
+					case DL_RESOLVING:
+						strcpy(ctx->pub.statusmessage, "Download pending. Resolving hostname.");
+						break;
+
+					case DL_QUERY:
+						strcpy(ctx->pub.statusmessage, "Download pending. Reqeusting file.");
+						break;
+
+					case DL_ACTIVE:
+						Q_snprintfz(ctx->pub.statusmessage, sizeof(ctx->pub.statusmessage), "Download pending. At %u of %u.", enginedownloadactive->completed, enginedownloadactive->totalsize);
+						os = -1;	//keep refreshing
+						break;
+
+					case DL_FINISHED:
+						strcpy(ctx->pub.statusmessage, "Download completed!");
+						DL_Close(enginedownloadactive);
+						enginedownloadactive = NULL;
+						break;
+					}
+					Sys_UnlockMutex(globalmutex);
+					if (ctx->bfuncs.StatusChanged)
+						ctx->bfuncs.StatusChanged(ctx->hostinstance);
+				}
+				else
+					Sys_UnlockMutex(globalmutex);
+				if (os == -2)
+					break;
+				Sleep(1000);
+			}
+		}
+	}
 
 	if (ctx->bfuncs.StatusChanged)
 		ctx->bfuncs.StatusChanged(ctx->hostinstance);
 
+	if (ctx->pub.running)
 	while(1)
 	{
 		DWORD avail;
@@ -837,6 +1116,7 @@ int Plug_PluginThread(void *ctxptr)
 		if (!ReadFile(ctx->pipefromengine, buffer + bufoffs, avail, &avail, NULL) || !avail)
 		{
 			//broken pipe, client died.
+			*ctx->pub.statusmessage = 0;
 			break;
 		}
 		bufoffs += avail;
@@ -887,13 +1167,12 @@ int Plug_PluginThread(void *ctxptr)
 				break;
 		}
 	}
-	ctx->pub.running = false;
-	*ctx->pub.statusmessage = 0;
 	if (ctx->bfuncs.StatusChanged)
 		ctx->bfuncs.StatusChanged(ctx->hostinstance);
 
 	if (ctx == activecontext)
 		activecontext = NULL;
+	ctx->pub.running = false;
 	return 0;
 }
 
@@ -1652,6 +1931,8 @@ static const struct plugfuncs exportedplugfuncs_1 =
 
 const struct plugfuncs *Plug_GetFuncs(int ver)
 {
+	if (!globalmutex)
+		globalmutex = Sys_CreateMutex();
 	if (ver == 1)
 		return &exportedplugfuncs_1;
 	else

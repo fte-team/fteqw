@@ -2024,7 +2024,7 @@ qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *da
 	DWORD resultlen = datalen - 1;
 	HKEY subkey;
 	DWORD type = REG_NONE;
-	if (RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)
+	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
 		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
 		RegCloseKey (subkey);
@@ -2167,18 +2167,25 @@ qboolean Sys_CheckUpdated(void)
 		return false;
 	else if (!COM_CheckParm("-autoupdate") && !COM_CheckParm("--autoupdate"))
 		return false;
+	else if (COM_CheckParm("-plugin"))
+	{
+		//download, but don't invoke. the caller is expected to start us up properly (once installed).
+	}
 	else if (!ffe)
 	{
+		//if we're not from the frontend, we should run the updated build instead
 		char frontendpath[MAX_OSPATH];
 		char pendingpath[MAX_OSPATH];
-		char updatedpath[MAX_QPATH];
+		char updatedpath[MAX_OSPATH];
 
 		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
 		if (*pendingpath)
 		{
 			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
 			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
+			CreateDirectory(updatedpath, NULL);
 			Q_strncatz(updatedpath, "cur" BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
+			DeleteFile(updatedpath);
 			if (MoveFile(pendingpath, updatedpath))
 				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
 		}

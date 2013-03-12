@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,3
- PRODUCTVERSION 1,0,0,3
+ FILEVERSION 1,0,2,0
+ PRODUCTVERSION 1,0,2,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -48,7 +48,7 @@ BEGIN
             VALUE "CompanyName", "Forethought Entertainment\0"
             VALUE "FileDescription", "Quake in a browser\0"
             VALUE "FileExtents", "qtv|mvd\0"
-            VALUE "FileVersion", "1, 0, 0, 3\0"
+            VALUE "FileVersion", "1, 0, 2, 0\0"
             VALUE "InternalName", "npfte\0"
             VALUE "LegalCopyright", "Copyright © 2010\0"
             VALUE "LegalTrademarks", "\0"
@@ -56,7 +56,7 @@ BEGIN
             VALUE "OriginalFilename", "npfte.dll\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "FTE Browser Plugin\0"
-            VALUE "ProductVersion", "1, 0, 0, 3\0"
+            VALUE "ProductVersion", "1, 0, 2, 0\0"
             VALUE "SpecialBuild", "\0"
         END
     END

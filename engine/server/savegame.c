@@ -989,6 +989,16 @@ void SV_Savegame (char *savename)
 		return;
 	}
 
+	if (sv.allocated_client_slots == 1 && svs.gametype == GT_PROGS)
+	{
+		if (svs.clients->state > cs_connected && svs.clients[0].edict->v->health <= 0)
+		{
+			Con_Printf("Refusing to save while dead.\n");
+			return;
+		}
+	}
+	//FIXME: we should probably block saving during intermission too.
+
 	/*catch invalid names*/
 	if (!*savename || strstr(savename, ".."))
 		savename = "quicksav";

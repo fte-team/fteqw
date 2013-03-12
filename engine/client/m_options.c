@@ -2275,7 +2275,7 @@ void M_Menu_Video_f (void)
 			MB_EDITCVARSLIMRETURN("Width", "vid_width", info->width),
 			MB_EDITCVARSLIMRETURN("Height", "vid_height", info->height),
 			MB_EDITCVARSLIMRETURN("Color Depth", "vid_bpp", info->bpp),
-			MB_EDITCVARSLIMRETURN("Refresh Rate", "vid_refreshrate", info->hz),
+			MB_EDITCVARSLIMRETURN("Refresh Rate", "vid_displayfrequency", info->hz),
 			MB_SPACING(4),
 			MB_COMBORETURN("2D Mode", res2dmodeopts, res2dmodechoice, info->res2dmode, "Select method for determining or configuring 2D resolution and scaling. The default option matches the current display resolution, and the scale option scales by a factor of the display resolution."),
 			// scale entry

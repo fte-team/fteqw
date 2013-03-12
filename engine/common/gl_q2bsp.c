@@ -1048,6 +1048,9 @@ qboolean CMod_LoadSubmodels (lump_t *l)
 		out->numsurfaces = LittleLong (in->numfaces);
 	}
 
+	VectorCopy(map_cmodels[0].mins, loadmodel->mins);
+	VectorCopy(map_cmodels[0].maxs, loadmodel->maxs);
+
 	return true;
 }
 

@@ -228,6 +228,7 @@ cvar_t  r_explosionlight = CVARFC("r_explosionlight", "1", CVAR_ARCHIVE, Cvar_Li
 cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
 cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
 cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
+cvar_t	cl_shaftlight = {"gl_shaftlight", "0.8"};
 
 typedef struct {
 	sfx_t **sfx;
@@ -344,6 +345,7 @@ void CL_InitTEnts (void)
 	Cvar_Register (&cl_beam_trace, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 	Cvar_Register (&cl_legacystains, "Temporary entity control");
+	Cvar_Register (&cl_shaftlight, "Temporary entity control");
 }
 
 void CL_ShutdownTEnts (void)
@@ -3241,7 +3243,7 @@ void CL_UpdateBeams (void)
 			VectorCopy (org, ent->origin);
 			ent->model = b->model;
 			ent->drawflags |= MLS_ABSLIGHT;
-			ent->abslight = 192;
+			ent->abslight = 64 + 128 * bound(0, cl_shaftlight.value, 1);
 			ent->shaderRGBAf[3] = b->alpha;
 
 			ent->angles[0] = -pitch;

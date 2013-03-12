@@ -1097,14 +1097,16 @@ fixedorg:
 	{
 		if (cls.demoplayback==DPB_MVD || cls.demoplayback==DPB_EZTV)
 		{
-			to = &cl.inframes[(cls.netchan.outgoing_sequence-1) & UPDATE_MASK];
-			cmdto = &cl.outframes[(cl.movesequence-1) & UPDATE_MASK];
+			from = &cl.inframes[(cl.ackedmovesequence-1) & UPDATE_MASK];
+			to = &cl.inframes[(cl.ackedmovesequence) & UPDATE_MASK];
+			cmdto = &cl.outframes[(cl.ackedmovesequence) & UPDATE_MASK];
 			to->playerstate->pm_type = PM_SPECTATOR;
+			simtime = cmdto->senttime;
 
 			VectorCopy (cl.playerview[vnum].simvel, from->playerstate[cl.playernum[vnum]].velocity);
 			VectorCopy (cl.playerview[vnum].simorg, from->playerstate[cl.playernum[vnum]].origin);
 
-			CL_PredictUsercmd (vnum, cl.playernum[vnum]+1, &from->playerstate[cl.playernum[vnum]], &to->playerstate[cl.playernum[vnum]], &cmdto->cmd[vnum]);
+			CL_PredictUsercmd (vnum, 0, &from->playerstate[cl.playernum[vnum]], &to->playerstate[cl.playernum[vnum]], &cmdto->cmd[vnum]);
 		}
 		else
 		{
@@ -1187,11 +1189,11 @@ fixedorg:
 			cl.playerview[vnum].simorg[i] = (1-f)*from->playerstate[pnum].origin[i]   + f*to->playerstate[pnum].origin[i];
 			cl.playerview[vnum].simvel[i] = (1-f)*from->playerstate[pnum].velocity[i] + f*to->playerstate[pnum].velocity[i];
 
-			if (cl.spectator)
+/*			if (cl.spectator && Cam_TrackNum(vnum) >= 0)
 				cl.playerview[vnum].simangles[i] = LerpAngles16(from->playerstate[pnum].command.angles[i], to->playerstate[pnum].command.angles[i], f) * (360.0/65535);
 			else if (cls.demoplayback == DPB_QUAKEWORLD)
 				cl.playerview[vnum].simangles[i] = LerpAngles16(cmdfrom->cmd[vnum].angles[i], cmdto->cmd[vnum].angles[i], f) * (360.0/65535);
-		}
+*/		}
 		CL_CatagorizePosition(vnum);
 
 	}

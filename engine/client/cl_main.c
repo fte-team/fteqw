@@ -311,8 +311,12 @@ void CL_Quit_f (void)
 {
 	if (forcesaveprompt)
 	{
-		Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
-		return;
+		forcesaveprompt =false;
+		if (Cmd_Exists("menu_quit"))
+		{
+			Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
+			return;
+		}
 	}
 
 	TP_ExecTrigger("f_quit");

@@ -432,7 +432,7 @@ int M_FindKeysForBind (char *command, int *keylist, int total)
 		b = keybindings[j][0];
 		if (!b)
 			continue;
-		if (!strncmp (b, command, l) )
+		if (!strncmp (b, command, l) && (!b[l] || b[l] == ' ' || b[l] == ';'))
 		{
 			keylist[count] = j;
 			count++;
@@ -739,7 +739,7 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 		break;
 
 	default:
-		break;
+		return false;
 	}
 
 	return true;
@@ -772,7 +772,7 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 		break;
 
 	default:
-		break;
+		return false;
 	}
 
 	return true;
@@ -825,12 +825,11 @@ void M_Menu_Quit_f (void)
 		MC_AddWhiteText(quitmenu, 64, 84,	 "You have unsaved settings ", false);
 		MC_AddWhiteText(quitmenu, 64, 92,	 "    Would you like to     ", false);
 		MC_AddWhiteText(quitmenu, 64, 100,	 "      save them now?      ", false);
-		MC_AddWhiteText(quitmenu, 64, 108,	 "         [Y/N/ESC]        ", false);
                         
                 quitmenu->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommand    (quitmenu, 64, 116, "Yes",			       "menu_quit forcesave\n");
-		MC_AddConsoleCommand    (quitmenu, 144,116,           "No",               "menu_quit force\n");
-		MC_AddConsoleCommand    (quitmenu, 224,116,                     "Cancel", "menupop\n");
+		MC_AddConsoleCommand    (quitmenu, 64, 116, "Yes",							"menu_quit forcesave\n");
+		MC_AddConsoleCommand    (quitmenu, 144,116,           "No",					"menu_quit force\n");
+		MC_AddConsoleCommand    (quitmenu, 224,116,                     "Cancel",	"menupop\n");
 
 		MC_AddBox (quitmenu, 56, 76, 25, 5);
 		break;

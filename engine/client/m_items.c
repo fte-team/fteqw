@@ -1508,9 +1508,9 @@ void M_RemoveAllMenus (void)
 }
 void M_MenuPop_f (void)
 {
-	if (!firstmenu)
+	if (!currentmenu)
 		return;
-	M_RemoveMenu(firstmenu);
+	M_RemoveMenu(currentmenu);
 }
 
 void M_Complex_Draw(void)

@@ -425,6 +425,7 @@ const char *presetexec[] =
 	// 286 options (also the first commands to be execed in the chain)
 	"m_preset_chosen 1;"
 	"gl_texturemode nn;"
+	"gl_blendsprites 0;"
 	"r_particlesystem null;"
 	"r_particledesc \"\";"
 	"r_stains 0;"
@@ -489,6 +490,7 @@ const char *presetexec[] =
 	"gl_specular 1;"
 	"r_loadlit 2;"
 	"r_waterstyle 2;"
+	"gl_blendsprites 1;"
 //	"r_fastsky -1;"
 	"r_shadow_realtime_dlight 1;"
 	"gl_detail 1;"

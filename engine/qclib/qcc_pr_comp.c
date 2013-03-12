@@ -3834,8 +3834,8 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 						e = QCC_PR_Statement(pr_opcodes+OP_CONV_FTOI, e, NULL, NULL);
 					else if (p->type == ev_float && e->type->type == ev_integer)	//convert float -> int... is this a constant?
 						e = QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, e, NULL, NULL);
-					else if ((p->type == ev_function || p->type == ev_field || p->type == ev_string || p->type == ev_pointer) && e->type->type == ev_integer && e->constant && !((int*)qcc_pr_globals)[e->ofs])
-					{	//you're allowed to use int 0 to pass a null function/field/string/pointer
+					else if ((p->type == ev_function || p->type == ev_field || p->type == ev_string || p->type == ev_pointer || p->type == ev_entity) && e->type->type == ev_integer && e->constant && !((int*)qcc_pr_globals)[e->ofs])
+					{	//you're allowed to use int 0 to pass a null function/field/string/pointer/entity
 						//this is basically because __NULL__ is defined as 0i (int 0)
 						//note that we don't allow passing 0.0f for null.
 						//WARNING: field 0 is actually a valid field, and is commonly modelindex.

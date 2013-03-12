@@ -84,7 +84,6 @@ static char OpenEditorFile[256];
 
 qboolean editoractive;	//(export)
 qboolean editormodal;	//doesn't return. (export)
-static qboolean editorblocking;
 static qboolean madechanges;
 static qboolean editenabled;
 static qboolean insertkeyhit=true;
@@ -1227,7 +1226,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		firstblock = GenAsm(cursorlinenum);
 		cursorblock = firstblock;
 
-		for (i = cursorlinenum; i > 0 && i > cursorlinenum - 20; i)
+		for (i = cursorlinenum; i > 0 && i > cursorlinenum - 20; )
 		{
 			i--;
 			firstblock->prev = GenAsm(i);

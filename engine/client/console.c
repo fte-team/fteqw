@@ -1680,7 +1680,6 @@ char *Con_CopyConsole(qboolean nomarkup)
 	conchar_t *cur;
 	conline_t *l;
 	conchar_t *lend;
-	conchar_t col = CON_WHITEMASK;
 	char *result;
 	int outlen, maxlen;
 	int finalendoffset;

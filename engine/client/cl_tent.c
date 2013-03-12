@@ -1686,7 +1686,7 @@ void CL_SpawnCustomTEnd(custtentinst_t *info)
 	}
 	else
 	{
-		if (t->netstyle & CTE_CUSTOMVELOCITY|CTE_CUSTOMDIRECTION)
+		if (t->netstyle & (CTE_CUSTOMVELOCITY|CTE_CUSTOMDIRECTION))
 			failed = P_RunParticleEffectType(info->pos, info->dir, info->count, t->particleeffecttype);
 		else
 			failed = P_RunParticleEffectType(info->pos, NULL, info->count, t->particleeffecttype);

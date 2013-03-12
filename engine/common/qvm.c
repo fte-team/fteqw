@@ -565,7 +565,7 @@ static void inline QVM_Return(qvm_t *vm, int size)
 
 	if(fp[1]>=vm->len_cs*2)
 		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)	//this being false causes the program to quit.
-			Sys_Error("VM run time error: program returned to hyperspace (%p, %p)\n", (char*)vm->cs, (char*)fp[1]);
+			Sys_Error("VM run time error: program returned to hyperspace (%p, %#x)\n", (char*)vm->cs, fp[1]);
 	if(fp[1]<0)
 		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)
 			Sys_Error("VM run time error: program returned to negative hyperspace\n");

@@ -2633,7 +2633,7 @@ void Sbar_TeamOverlay (void)
 //	Draw_String(x, y, "------------ ---- ----- -------");
 	x = l;
 #undef COLUMN
-#define COLUMN(title, cwidth, code) {char buf[64*6]; int t = (cwidth)/8; int c=0; while (t-->0) {buf[c++] = '^'; buf[c++] = 'U'; buf[c++] = 'e'; buf[c++] = '0'; buf[c++] = '1'; buf[c++] = (c==5?'d':(!t?'f':'e'));} buf[c] = 0; Draw_FunString(x, y, buf); x += cwidth + 8;}
+#define COLUMN(title, cwidth, code) {char buf[64*6]; int t = (cwidth)/8; int c=0; while (t-->0) {buf[c++] = '^'; buf[c++] = 'U'; buf[c++] = 'e'; buf[c++] = '0'; buf[c++] = '1'; buf[c] = (c==5?'d':(!t?'f':'e')); c++;} buf[c] = 0; Draw_FunString(x, y, buf); x += cwidth + 8;}
 	ALL_TEAM_COLUMNS
 //	Draw_FunString(x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f");
 	y += 8;

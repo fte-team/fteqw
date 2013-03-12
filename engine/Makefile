@@ -117,7 +117,7 @@ ifeq ($(FTE_TARGET),droid)
 
 	STRIP=$(TOOLCHAIN)strip
 	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI) -fno-strict-aliasing
-	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 #correct the gcc build when cross compiling
@@ -287,7 +287,9 @@ ifneq ($(LTO),)
 	LTO_LD=-flto
 endif
 
-DO_CC=@echo $< && $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
+#DO_ECHO=@echo $< && 
+DO_ECHO=@
+DO_CC=$(DO_ECHO) $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
 
 ifeq ($(FTE_TARGET),vc)
 	BASELDFLAGS=
@@ -333,7 +335,7 @@ ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall -Wno-pointer-sign
+	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length
 
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
@@ -781,7 +783,7 @@ ifeq ($(FTE_TARGET),vc)
 	RELEASE_LDFLAGS = /LTCG:PGOPTIMIZE
 
 	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
-	DO_LD=@"$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
+	DO_LD=$(DO_ECHO) "$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
 	NODEPS = 1
 
@@ -1171,7 +1173,7 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
+DO_LD ?=$(DO_ECHO) $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(OUT_DIR)/$(fn)) ) $(LDFLAGS)
 

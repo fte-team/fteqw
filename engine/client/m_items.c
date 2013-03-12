@@ -361,7 +361,7 @@ static void M_CheckMouseMove(void)
 				foundexclusive=true;
 			}
 
-			for(option = menu->options; option; option = option = option->common.next)
+			for(option = menu->options; option; option = option->common.next)
 			{
 				if (mousemoved && !bindingactive && !option->common.ishidden)
 				{
@@ -454,7 +454,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 			if (p) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
 			break;
 		case mt_childwindow:
-			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.data)->options, (menu_t *)option->custom.data);
+			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.dptr)->options, (menu_t *)option->custom.dptr);
 			break;
 		case mt_box:
 			Draw_TextBox(xpos+option->common.posx, ypos+option->common.posy, option->box.width, option->box.height);
@@ -920,14 +920,15 @@ menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
 	return n;
 }
 
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *data)
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint)
 {
 	menucustom_t *n = Z_Malloc(sizeof(menucustom_t));
 	n->common.type = mt_custom;
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
-	n->data = data;
+	n->dptr = dptr;
+	n->dint = dint;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;

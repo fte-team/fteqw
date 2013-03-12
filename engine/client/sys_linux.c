@@ -599,11 +599,11 @@ void alarm_handler(int x)
 
 char *Sys_ConsoleInput(void)
 {
-#if 0
+#if 1
 	static char text[256];
 	int len;
 
-	if (cls.state == ca_dedicated)
+//	if (!qrenderer)
 	{
 		len = read (0, text, sizeof(text));
 		if (len < 1)
@@ -741,6 +741,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #endif
 }
 
+#ifndef GLQUAKE
 #define SYS_CLIPBOARD_SIZE		256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
 
@@ -755,6 +756,7 @@ void Sys_CloseClipboard(char *bf)
 void Sys_SaveClipboard(char *text) {
 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }
+#endif
 
 #ifdef MULTITHREAD
 /* Thread creation calls */

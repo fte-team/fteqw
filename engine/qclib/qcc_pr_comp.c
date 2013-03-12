@@ -3191,7 +3191,7 @@ PR_ParseFunctionCall
 */
 QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could have no name set if it's a field call.
 {
-	QCC_def_t		*e, *d, *old = {0}, *oself, *out; // warning: ‘old’ may be used uninitialized in this function
+	QCC_def_t		*e, *d, *oself, *out;
 	int			arg;
 	QCC_type_t		*t, *p;
 	int extraparms=false;
@@ -3265,13 +3265,16 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				QCC_PR_Lex();
 			}
 			else
+			{
 				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "_() intrinsic accepts only a string immediate", 1);
+				d = NULL;
+			}
 			QCC_PR_Expect(")");
 			return d;
 		}
 		if (!strcmp(func->name, "random"))
 		{
-			old = NULL;
+			QCC_def_t *old = NULL;
 			if (!func->initialized)
 				func->initialized = 3;
 			func->references++;
@@ -3418,6 +3421,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 		if (!strcmp(func->name, "randomv"))
 		{
+			QCC_def_t *old;
 			out = NULL;
 			if (!func->initialized)
 				func->initialized = 3;
@@ -3446,6 +3450,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 
 			if (QCC_OPCodeValid(&pr_opcodes[OP_RANDV0]))
 			{
+				old = NULL;
 				if(def_ret.temp->used)
 					out = QCC_GetTemp(type_vector);
 				else
@@ -3610,6 +3615,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 		else if (!strcmp(func->name, "spawn"))
 		{
+			QCC_def_t *old;
 			QCC_type_t *rettype;
 			if (QCC_PR_CheckToken(")"))
 			{
@@ -4389,6 +4395,8 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 						i = G_INT(tmp->ofs);
 					else if (tmp->type->type == ev_float)
 						i = G_FLOAT(tmp->ofs);
+					else
+						i = -1;
 					if (i < 0 || i >= 3)
 						QCC_PR_ParseErrorPrintDef(0, d, "(vector) array index out of bounds");
 				}
@@ -4410,6 +4418,8 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 					i = G_INT(tmp->ofs);
 				else if (tmp->type->type == ev_float)
 					i = G_FLOAT(tmp->ofs);
+				else
+					i = -1;
 				if (i < 0 || i >= ((!idx)?d->arraysize:t->arraysize))
 					QCC_PR_ParseErrorPrintDef(0, d, "(constant) array index out of bounds");
 			}
@@ -5128,7 +5138,10 @@ QCC_def_t *QCC_PR_Term (int exprflags)
 				e2->type = e->type->aux_type;
 			}
 			else
+			{
+				e2 = NULL;
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
+			}
 			return e2;
 		}
 		else if (QCC_PR_CheckToken ("-"))
@@ -7054,7 +7067,7 @@ static pbool QCC_FuncJumpsTo(int first, int last, int statement)
 	}
 	return false;
 }
-
+/*
 static pbool QCC_FuncJumpsToRange(int first, int last, int firstr, int lastr)
 {
 	int st;
@@ -7105,7 +7118,7 @@ static pbool QCC_FuncJumpsToRange(int first, int last, int firstr, int lastr)
 	}
 	return false;
 }
-
+*/
 #if 0
 void QCC_CompoundJumps(int first, int last)
 {

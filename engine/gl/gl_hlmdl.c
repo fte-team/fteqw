@@ -702,8 +702,6 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
         hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model.header + model.header->bodypartindex) + body;
         int					bodyindex = (0 / bodypart->base) % bodypart->nummodels;
         hlmdl_model_t		*amodel = (hlmdl_model_t *) ((qbyte *) model.header + bodypart->modelindex) + bodyindex;
-        qbyte				*bone = ((qbyte *) model.header + amodel->vertinfoindex);
-        vec3_t				*verts = (vec3_t *) ((qbyte *) model.header + amodel->vertindex);
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 

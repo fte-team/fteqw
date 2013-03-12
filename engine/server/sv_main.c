@@ -2595,8 +2595,8 @@ client_t *SVC_DirectConnect(void)
 
 		if (ISNQCLIENT(newcl))
 		{
-			//FIXME: we should delay this until we actually have a name.
-			SV_BroadcastPrintf(PRINT_LOW, "New client connected\n", newcl->name);
+			//FIXME: we should delay this until we actually have a name, because right now they'll be called unnamed or unconnected or something
+			SV_BroadcastPrintf(PRINT_LOW, "New client connected\n");
 		}
 		else if (redirect)
 		{

@@ -145,28 +145,40 @@ local int unzlocal_getShortSane(vfsfile_t *fin, unsigned short *pi)
 	}
 }
 
-local int unzlocal_getShort(vfsfile_t *fin,unsigned long *pi) {
-    unsigned short c;
+local int unzlocal_getShort(vfsfile_t *fin,unsigned long *pi)
+{
+	unsigned short c;
 	int err = VFS_READ(fin, &c, 2);
-    if (err==2) {
-	    *pi = LittleShort(c);
-        return UNZ_OK;
-    } else {
-        if (VFS_TELL(fin) != VFS_GETLEN(fin)) return UNZ_ERRNO;
-        else return UNZ_EOF;
-    }
+	if (err==2)
+	{
+		*pi = LittleShort(c);
+		return UNZ_OK;
+	}
+	else
+	{
+		*pi = 0;
+		if (VFS_TELL(fin) != VFS_GETLEN(fin)) return UNZ_ERRNO;
+		else return UNZ_EOF;
+	}
 }
 
-local int unzlocal_getLong(vfsfile_t *fin,unsigned long *pi) {
+local int unzlocal_getLong(vfsfile_t *fin,unsigned long *pi)
+{
 	unsigned int c;
 	int err = VFS_READ(fin, &c, 4);
-    if (err==4) {
-	    *pi = LittleLong(c);
-        return UNZ_OK;
-    } else {
-        if (VFS_TELL(fin) != VFS_GETLEN(fin)) return UNZ_ERRNO;
-        else return UNZ_EOF;
-    }
+	if (err==4)
+	{
+		*pi = LittleLong(c);
+		return UNZ_OK;
+	}
+	else
+	{
+		*pi = 0;
+		if (VFS_TELL(fin) != VFS_GETLEN(fin))
+			return UNZ_ERRNO;
+		else
+			return UNZ_EOF;
+	}
 }
 
 

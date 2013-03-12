@@ -605,18 +605,20 @@ int MakeChar (int i)
 
 void CL_ClampPitch (int pnum)
 {
-	vec3_t view[4];
-	vec3_t impact, norm;
-	float mat[16], mat2[16];
-	vec3_t cross;
+	float mat[16];
 	float roll;
-	float dot;
 	static float oldtime;
 	float timestep = realtime - oldtime;
 	oldtime = realtime;
 #if 0
 	if (cl.pmovetype[pnum] == PM_WALLWALK)
 	{
+		vec3_t impact;
+		vec3_t norm;
+		float mat2[16];
+		vec3_t cross;
+		vec3_t view[4];
+		float dot;
 		AngleVectors(cl.viewangles[pnum], view[0], view[1], view[2]);
 		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
 
@@ -654,7 +656,6 @@ void CL_ClampPitch (int pnum)
 		float viewm[16];
 		vec3_t view[4];
 		vec3_t surf[3];
-		vec3_t fwd, up;
 		vec3_t vang;
 		void PerpendicularVector( vec3_t dst, const vec3_t src );
 
@@ -1496,7 +1497,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	int msecstouse;
 	qboolean	dontdrop=false;
 
-	extern cvar_t cl_maxfps;
 	clcmdbuf_t *next;
 
 	if (runningindepphys)

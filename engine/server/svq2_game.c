@@ -550,6 +550,7 @@ static q2trace_t VARGS SVQ2_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 	ret.surface = tr.surface;
 	ret.fraction = tr.fraction;
 	VectorCopy(tr.endpos, ret.endpos);
+	memset(&ret.plane, 0, sizeof(ret.plane));
 	VectorCopy(tr.plane.normal, ret.plane.normal);
 	ret.plane.dist = tr.plane.dist;
 	ret.ent = tr.ent;

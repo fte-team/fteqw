@@ -109,7 +109,9 @@ int		numnails;
 int		nailcount = 0;
 extern	int	sv_nailmodel, sv_supernailmodel, sv_playermodel;
 
+#ifdef SERVER_DEMO_PLAYBACK
 qboolean demonails;
+#endif
 
 static edict_t *csqcent[MAX_EDICTS];
 static int csqcnuments;
@@ -122,7 +124,9 @@ qboolean SV_AddNailUpdate (edict_t *ent)
 	if (sv_nailhack.value)
 		return false;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	demonails = false;
+#endif
 
 	if (numnails == MAX_NAILS)
 		return true;
@@ -131,7 +135,7 @@ qboolean SV_AddNailUpdate (edict_t *ent)
 	numnails++;
 	return true;
 }
-
+#ifdef SERVER_DEMO_PLAYBACK
 qboolean SV_DemoNailUpdate (int i)
 {
 	demonails = true;
@@ -142,6 +146,7 @@ qboolean SV_DemoNailUpdate (int i)
 	numnails++;
 	return true;
 }
+#endif
 
 void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 {
@@ -2891,7 +2896,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->lightpflags = ent->xv->pflags;
 	state->u.q1.traileffectnum = ent->xv->traileffectnum;
 
-	if (!ent->xv->gravitydir[0] && !ent->xv->gravitydir[1] && !ent->xv->gravitydir[2] || (ent->xv->gravitydir[2] == -1))
+	if ((!ent->xv->gravitydir[0] && !ent->xv->gravitydir[1] && !ent->xv->gravitydir[2]) || (ent->xv->gravitydir[2] == -1))
 	{
 		state->u.q1.gravitydir[0] = 0;
 		state->u.q1.gravitydir[1] = 0;

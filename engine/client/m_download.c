@@ -265,7 +265,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	package_t *p;
 	int fl;
-	p = c->data;
+	p = c->dptr;
 	if (p)
 	{
 		Draw_FunString (x+4, y, "^Ue080^Ue082");
@@ -303,7 +303,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key)
 {
 	package_t *p, *p2;
-	p = c->data;
+	p = c->dptr;
 	if (key == K_ENTER || key == K_MOUSE1)
 	{
 		p->flags ^= DPF_WANTTOINSTALL;
@@ -431,7 +431,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 		}
 		else
 		{
-			c = MC_AddCustom(m, 0, y, p);
+			c = MC_AddCustom(m, 0, y, p, 0);
 			c->draw = MD_Draw;
 			c->key = MD_Key;
 			c->common.width = 320;

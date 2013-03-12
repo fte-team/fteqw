@@ -199,7 +199,8 @@ typedef struct {
 
 typedef struct menucustom_s {
 	menucommon_t common;
-	void *data;
+	void *dptr;
+	int dint;
 	void (*draw) (int x, int y, struct menucustom_s *, struct menu_s *);
 	qboolean (*key) (struct menucustom_s *, struct menu_s *, int key);
 } menucustom_t;
@@ -305,7 +306,7 @@ menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*c
 menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name);
 menuedit_t *MC_AddEditCvarSlim(menu_t *menu, int x, int y, char *text, char *name);
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *data);
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint);
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 
 typedef struct menubulk_s {

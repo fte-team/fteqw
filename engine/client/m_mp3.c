@@ -2687,7 +2687,6 @@ qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *f
 {
 	qboolean success = true;
 	int i;
-	static media_decoder_funcs_t deadfuncs;
 
 	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
 	{

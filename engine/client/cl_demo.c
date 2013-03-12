@@ -1689,7 +1689,7 @@ void CL_QTVPoll (void)
 
 	if (qtvrequestsize >= sizeof(qtvrequestbuffer) - 1)
 	{
-		Con_Printf("%i of %i...\n", qtvrequestsize, sizeof(qtvrequestbuffer));
+		Con_Printf("%i of %i...\n", qtvrequestsize, (int)sizeof(qtvrequestbuffer));
 		len = -1;
 	}
 	if (!qtvrequestsize && len == 0)

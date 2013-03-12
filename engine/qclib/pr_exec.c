@@ -129,6 +129,8 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 		arg[1] = ((dstatement32_t*)current_progstate->statements + statementnum)->b;
 		arg[2] = ((dstatement32_t*)current_progstate->statements + statementnum)->c;
 		break;
+	default:
+		return;
 	}
 
 	if (current_progstate->linenums)

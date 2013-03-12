@@ -1198,8 +1198,10 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 	{
 		out->flags = LittleLong (in->flags);
 
-		for (j=0 ; j<8 ; j++)
+		for (j=0 ; j<4 ; j++)
 			out->vecs[0][j] = LittleFloat (in->vecs[0][j]);
+		for (j=0 ; j<4 ; j++)
+			out->vecs[1][j] = LittleFloat (in->vecs[1][j]);
 		len1 = Length (out->vecs[0]);
 		len2 = Length (out->vecs[1]);
 		len1 = (len1 + len2)/2;
@@ -5934,7 +5936,7 @@ qboolean Q2BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 }*/
 unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 {
-	int pc, ret = FTECONTENTS_EMPTY;
+	int pc;
 	pc = CM_PointContents (mod, p);
 	return pc;
 }

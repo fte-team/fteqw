@@ -389,8 +389,6 @@ void GLD3DRenderer_Init(void)
 #if defined(GLQUAKE)
 void GLRenderer_Init(void)
 {
-	extern cvar_t gl_contrast;
-
 	//gl-specific video vars
 	Cvar_Register (&gl_workaround_ati_shadersource, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_version, GLRENDEREROPTIONS);
@@ -1385,6 +1383,11 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		Con_Printf(	"\n"
 					"-----------------------------\n"
 					"Dedicated console created\n");
+		break;
+	case QR_SOFTWARE:
+		Con_Printf(	"\n"
+					"-----------------------------\n"
+					"Software renderer initialized\n");
 		break;
 
 	case QR_OPENGL:

@@ -1642,7 +1642,6 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 	netadr_t adr;
 	char		adrs[MAX_ADR_SIZE];
 	int b;
-	struct hostent *h;
 	int idx = 0;
 
 	if (getsockname (con->thesocket, (struct sockaddr*)&from, &fromsize) != -1)
@@ -1730,6 +1729,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 			else
 #endif
 			{
+				struct hostent *h;
 				h = gethostbyname(adrs);
 				b = 0;
 #ifdef HAVE_IPV4

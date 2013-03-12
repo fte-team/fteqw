@@ -223,7 +223,7 @@ static void FSSTDIO_ClosePath(void *handle)
 }
 static qboolean FSSTDIO_PollChanges(void *handle)
 {
-	stdiopath_t *np = handle;
+//	stdiopath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
 static void *FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)

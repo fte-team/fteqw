@@ -200,7 +200,7 @@ static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[
 	out[10] = vz[2];
 	out[11] = t[2];
 }
-static void bonemat_fromaxisorg(float *out, const vec3_t axis[3], const float t[3])
+static void bonemat_fromaxisorg(float *out, vec3_t axis[3], const float t[3])
 {
 	out[0] = axis[0][0];
 	out[1] = axis[1][0];

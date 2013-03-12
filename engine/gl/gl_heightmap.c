@@ -3253,7 +3253,6 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 	vec3_t skyaxis;
 	char shadername[MAX_QPATH];
 	char skyname[MAX_QPATH];
-	int numsegsx = 0, numsegsy = 0;
 	int sectsize = 0;
 
 	COM_FileBase(mod->name, shadername, sizeof(shadername));

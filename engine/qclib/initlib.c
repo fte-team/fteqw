@@ -108,12 +108,12 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount)
 				prinst.addressablesize = newsize;
 			}
 #else
-			char *newblock;
 			int newsize = (prinst.addressableused + ammount + 1024*1024) & ~(1024*1024-1);
-			newblock = realloc(newblock, prinst.addressablesize);
+			char *newblock = malloc(newsize);
 			if (newblock)
 			{
 				PRAddressableRelocate(progfuncs, prinst.addressablehunk, newblock, prinst.addressableused);
+				free(prinst.addressablehunk);
 				prinst.addressablehunk = newblock;
 				prinst.addressablesize = newsize;
 			}
@@ -163,10 +163,10 @@ static void PF_fmem_unlink(progfuncs_t *pr, qcmemfreeblock_t *p)
 		np->prev = p->prev;
 	}
 }
+/*
 static void PR_memvalidate (progfuncs_t *progfuncs)
 {
 	qcmemfreeblock_t *p;
-	qcmemusedblock_t *ub = NULL;
 	unsigned int b,l;
 
 	b = prinst.mfreelist;
@@ -182,7 +182,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 		p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + b);
 
 		if (p->prev != l ||
-			p->next && p->next < b + p->size ||
+			(p->next && p->next < b + p->size) ||
 			p->next >= prinst.addressableused ||
 			b + p->size >= prinst.addressableused ||
 			p->prev >= b)
@@ -195,6 +195,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 		b = p->next;
 	}
 }
+*/
 static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -216,7 +217,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 		p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + b);
 		if (p->size >= size)
 		{
-			if (p->next && p->next < b + p->size ||
+			if ((p->next && p->next < b + p->size) ||
 				p->next >= prinst.addressableused ||
 				b + p->size >= prinst.addressableused ||
 				p->prev >= b)
@@ -297,10 +298,10 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 		{
 			//the empty string is a point of contention. while we can detect it from fteqcc, its best to not give any special favours (other than nicer debugging, where possible)
 			//we might not actually spot it from other qccs, so warning about it where possible is probably a very good thing.
-			printf("PF_memfree: unable to free the non-null empty string constant\n", ptr, prinst.addressableused);
+			printf("PF_memfree: unable to free the non-null empty string constant at %x\n", ptr);
 		}
 		else
-			printf("PF_memfree: pointer invalid - out of range (%u >= %u)\n", ptr, prinst.addressableused);
+			printf("PF_memfree: pointer invalid - out of range (%x >= %x)\n", ptr, prinst.addressableused);
 		PR_StackTrace(&progfuncs->funcs);
 		return;
 	}
@@ -764,7 +765,7 @@ struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 }
 int PDECL EdictToProgs (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
-	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+//	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	return EDICT_TO_PROG(progfuncs, ed);
 }
 

@@ -215,7 +215,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *si;
-	int thisone = (int)ths->data + info->scrollpos;
+	int thisone = ths->dint + info->scrollpos;
 	servertypes_t stype;
 	char adr[MAX_ADR_SIZE];
 
@@ -407,9 +407,9 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 	if (selectedserver.inuse)
 	{
 		if (selectedserver.detail)
-			if ((int)ths->data < selectedserver.detail->numplayers)
+			if (ths->dint < selectedserver.detail->numplayers)
 			{
-				int i = (int)ths->data;
+				int i = ths->dint;
 				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
 				R2D_FillBlock (x, y, 28, 4);
 				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
@@ -603,7 +603,7 @@ void M_Menu_ServerList2_f(void)
 	info = (serverlist_t*)(menu + 1);
 
 	y = 8;
-	cust = MC_AddCustom(menu, 0, y, 0);
+	cust = MC_AddCustom(menu, 0, y, NULL, 0);
 	cust->draw = SL_TitlesDraw;
 	cust->key = SL_TitlesKey;
 	cust->common.height = 8;
@@ -611,7 +611,7 @@ void M_Menu_ServerList2_f(void)
 
 	info->visibleslots = (vid.height-16 - 64);
 
-	cust = MC_AddCustom(menu, vid.width-8, 16, NULL);
+	cust = MC_AddCustom(menu, vid.width-8, 16, NULL, 0);
 	cust->draw = SL_SliderDraw;
 	cust->key = SL_SliderKey;
 	cust->common.height = info->visibleslots;
@@ -620,7 +620,7 @@ void M_Menu_ServerList2_f(void)
 	info->visibleslots = (info->visibleslots-7)/8;
 	for (i = 0, y = 16; i <= info->visibleslots; y +=8, i++)
 	{
-		cust = MC_AddCustom(menu, 0, y, (void*)i);
+		cust = MC_AddCustom(menu, 0, y, NULL, i);
 		cust->draw = SL_ServerDraw;
 		cust->key = SL_ServerKey;
 		cust->common.height = 8;
@@ -634,7 +634,7 @@ void M_Menu_ServerList2_f(void)
 	{
 		for (y = vid.height-64+8; y < vid.height; y += 8, i++)
 		{
-			cust = MC_AddCustom(menu, x+16, y, (void*)i);
+			cust = MC_AddCustom(menu, x+16, y, NULL, i);
 			cust->draw = SL_ServerPlayer;
 			cust->key = NULL;
 			cust->common.height = 8;
@@ -773,7 +773,7 @@ void M_QuickConnect_f(void)
 	menu->key = M_QuickConnect_Key;
 	menu->remove = M_QuickConnect_Remove;
 
-	cust = MC_AddCustom(menu, 64, 64, NULL);
+	cust = MC_AddCustom(menu, 64, 64, NULL, 0);
 	cust->draw = M_QuickConnect_DrawStatus;
 	cust->common.height = 8;
 	cust->common.width = vid.width-8;

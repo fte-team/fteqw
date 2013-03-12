@@ -363,6 +363,11 @@ skipwhite:
 				data++;
 			}
 			else if (c=='\"'||c=='\0')
+			{
+				if (len < sizeof(qcc_token)-1)
+					qcc_token[len++] = 0;
+				break;
+			}
 			if (len >= sizeof(qcc_token)-1)
 				;
 			else
@@ -888,6 +893,9 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 		w = 4;
 		maxperchar = 4;
 		break;
+	default:
+		*outlen = inbytes;
+		return inputf;
 	}
 	chars = inbytes / w;
 	utf8 = start = qccHunkAlloc(chars * maxperchar + 2);
@@ -895,6 +903,7 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 	{
 		switch(type)
 		{
+		default:
 		case UTF16LE:
 			inc = *inputf++;
 			inc|= (*inputf++)<<8;

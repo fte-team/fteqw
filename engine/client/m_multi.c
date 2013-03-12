@@ -356,7 +356,7 @@ void M_Menu_Setup_f (void)
 			(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
 			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
 			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
-			cu = MC_AddCustom(menu, 172-16, 88+16, NULL);
+			cu = MC_AddCustom(menu, 172-16, 88+16, NULL, 0);
 			cu->draw = MSetupQ2_TransDraw;
 			cu->key = MSetupQ2_ChangeSkin;
 
@@ -420,7 +420,7 @@ void M_Menu_Setup_f (void)
 	else
 		(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
 
-	ci = MC_AddCustom(menu, 172+32, 88, NULL);
+	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0);
 	ci->draw = MSetup_TransDraw;
 	ci->key = NULL;
 

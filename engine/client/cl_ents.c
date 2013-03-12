@@ -2359,7 +2359,6 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 {
 	int num, v;
 	vec3_t tang;
-	float radius = 1;
 	float *verts;
 	float tx, ty, tz;
 	scenetris_t *t;

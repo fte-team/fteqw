@@ -244,7 +244,7 @@ int ParsePrecompilerIf(int level)
 {
 	CompilerConstant_t *c;
 	int eval = 0;
-	pbool notted = false;
+//	pbool notted = false;
 
 	//single term end-of-chain
 	if (level == PPI_VALUE)
@@ -384,7 +384,7 @@ static void QCC_PR_SkipToEndOfLine(void)
 				}
 				if (*pr_file_p == '\n')
 					pr_source_line++;
-				*pr_file_p++;
+				pr_file_p++;
 			}
 		}
 		else if (*pr_file_p == '/' && pr_file_p[1] == '/' && handlecomments)

@@ -78,7 +78,7 @@ void HTTP_ServerShutdown(void)
 }
 
 typedef struct HTTP_active_connections_s {
-	int datasock;
+	SOCKET datasock;
 	vfsfile_t *file;
 	struct HTTP_active_connections_s *next;
 
@@ -88,19 +88,19 @@ typedef struct HTTP_active_connections_s {
 	qboolean close;
 
 	char *inbuffer;
-	int inbuffersize;
-	int inbufferused;
+	unsigned int inbuffersize;
+	unsigned int inbufferused;
 
 	char *outbuffer;
-	int outbuffersize;
-	int outbufferused;
+	unsigned int outbuffersize;
+	unsigned int outbufferused;
 } HTTP_active_connections_t;
 static HTTP_active_connections_t *HTTP_ServerConnections;
 static int httpconnectioncount;
 
-static void ExpandInBuffer(HTTP_active_connections_t *cl, int quant, qboolean fixedsize)
+static void ExpandInBuffer(HTTP_active_connections_t *cl, unsigned int quant, qboolean fixedsize)
 {
-	int newsize;
+	unsigned int newsize;
 	if (fixedsize)
 		newsize = quant;
 	else
@@ -111,9 +111,9 @@ static void ExpandInBuffer(HTTP_active_connections_t *cl, int quant, qboolean fi
 	cl->inbuffer = IWebRealloc(cl->inbuffer, newsize);
 	cl->inbuffersize = newsize;
 }
-static void ExpandOutBuffer(HTTP_active_connections_t *cl, int quant, qboolean fixedsize)
+static void ExpandOutBuffer(HTTP_active_connections_t *cl, unsigned int quant, qboolean fixedsize)
 {
-	int newsize;
+	unsigned int newsize;
 	if (fixedsize)
 		newsize = quant;
 	else
@@ -133,7 +133,7 @@ void HTTP_RunExisting (void)
 	char resource[256];
 	char mode[8];
 	qboolean hostspecified;
-	int contentlen;
+	unsigned int contentlen;
 
 	int HTTPmarkup;	//version
 	int localerrno;
@@ -171,7 +171,7 @@ void HTTP_RunExisting (void)
 		case HTTP_WAITINGFORREQUEST:
 			if (cl->outbufferused)
 				Sys_Error("Persistant connection was waiting for input with unsent output");
-			ammount = cl->inbuffersize - cl->inbufferused - 1;
+			ammount = cl->inbuffersize-1 - cl->inbufferused;
 			if (ammount < 128)
 			{
 				if (cl->inbuffersize>128*1024)
@@ -181,7 +181,7 @@ void HTTP_RunExisting (void)
 				}
 
 				ExpandInBuffer(cl, 1500, false);
-				ammount = cl->inbuffersize - cl->inbufferused - 1;
+				ammount = cl->inbuffersize-1 - cl->inbufferused;
 			}
 			if (cl->modeswitched)
 			{
@@ -278,7 +278,7 @@ cont:
 					if (!strnicmp(msg, "Host: ", 6))	//parse needed header fields
 						hostspecified = true;
 					else if (!strnicmp(msg, "Content-Length: ", 16))	//parse needed header fields
-						contentlen = atoi(msg+16);
+						contentlen = strtoul(msg+16, NULL, 0);
 					else if (!strnicmp(msg, "Transfer-Encoding: ", 18))	//parse needed header fields
 					{
 						cl->closeaftertransaction = true;

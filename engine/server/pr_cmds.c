@@ -7351,7 +7351,7 @@ static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars
 
 static void QCBUILTIN PF_h2endeffect(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int ign = G_FLOAT(OFS_PARM0);
+//	int ign = G_FLOAT(OFS_PARM0);
 	int index = G_FLOAT(OFS_PARM1);
 
 	Con_DPrintf("Stop effect %i\n", index);
@@ -10556,7 +10556,7 @@ void PR_DumpPlatform_f(void)
 		{"SLIST_TEST_NOTEQUAL",			"const float", MENU, SLIST_TEST_NOTEQUAL},
 		{"SLIST_TEST_STARTSWITH",		"const float", MENU, SLIST_TEST_STARTSWITH},
 		{"SLIST_TEST_NOTSTARTSWITH",	"const float", MENU, SLIST_TEST_NOTSTARTSWITH},
-		NULL
+		{NULL}
 	};
 
 	targ = 0;

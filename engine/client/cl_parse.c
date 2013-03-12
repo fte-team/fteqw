@@ -583,9 +583,7 @@ void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int f
 void CL_DownloadFinished(void)
 {
 	int i;
-	extern int mod_numknown;
 	char *ext;
-	extern model_t	mod_known[];
 
 	char *filename = cls.downloadlocalname;
 	char *tempname = cls.downloadtempname;
@@ -659,6 +657,8 @@ void CL_DownloadFinished(void)
 		if (!cl.sendprespawn)
 		{
 /*
+			extern int mod_numknown;
+			extern model_t	mod_known[];
 			for (i = 0; i < mod_numknown; i++)	//go and load this model now.
 			{
 				if (!strcmp(mod_known[i].name, filename))
@@ -1776,7 +1776,7 @@ void CL_ParseChunkedDownload(void)
 	}
 	if (ridx == MAXBLOCKS)
 	{
-		Con_DPrintf("dupe/invalid chunk received\n", chunknum);
+		Con_DPrintf("dupe/invalid chunk received\n");
 		return;
 	}
 	dlblock[ridx].chunkno = ~0;
@@ -2506,6 +2506,8 @@ void CLQW_ParseServerData (void)
 		pnum = MSG_ReadByte ();
 		for (clnum = 0; ; clnum++)
 		{
+			if (clnum == MAX_SPLITS)
+				Host_EndGame("Server sent us too many alternate clients\n");
 			cl.playernum[clnum] = pnum;
 			if (cl.playernum[clnum] & 128)
 			{
@@ -2520,12 +2522,8 @@ void CLQW_ParseServerData (void)
 				break;
 
 			pnum = MSG_ReadByte ();
-
 			if (pnum == 128)
 				break;
-
-			if (clnum == MAX_SPLITS)
-				Host_EndGame("Server sent us too many alternate clients\n");
 		}
 		cl.splitclients = clnum+1;
 	}
@@ -4870,15 +4868,15 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{
-			Q_strncatz(fullchatmessage, va("(^[^7%s%s^d\\player\\%i^])", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("(^[^7%s%s^d\\player\\%i^])", name_coloured?"^m":"", name, (int)(plr-cl.players)), sizeof(fullchatmessage));
 		}
 		else if (cl_standardchat.ival)
 		{
-			Q_strncatz(fullchatmessage, va("^[^7%s%s^d\\player\\%i^]", name_coloured?"^m":"", name, plr-cl.players), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("^[^7%s%s^d\\player\\%i^]", name_coloured?"^m":"", name, (int)(plr-cl.players)), sizeof(fullchatmessage));
 		}
 		else
 		{
-			Q_strncatz(fullchatmessage, va("^[^7%s^%c%s^d\\player\\%i^]", name_coloured?"^m":"", c, name, plr-cl.players), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("^[^7%s^%c%s^d\\player\\%i^]", name_coloured?"^m":"", c, name, (int)(plr-cl.players)), sizeof(fullchatmessage));
 		}
 
 		if (!memessage)
@@ -5032,7 +5030,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 				c = '0' + CL_PlayerColor(p, &coloured);
 
 			// print name
-			Q_strncatz(fullmessage, va("^[%s^%c%s^d\\player\\%i^]", coloured?"^m":"", c, name, p - cl.players), sizeof(fullmessage));
+			Q_strncatz(fullmessage, va("^[%s^%c%s^d\\player\\%i^]", coloured?"^m":"", c, name, (int)(p - cl.players)), sizeof(fullmessage));
 			break;
 		}
 	}

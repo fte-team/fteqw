@@ -164,7 +164,7 @@ static void Display_Ignorelist(void)
 	else if (x)
 		Con_Printf ("\n");
 	
-	if (ignoreteamlist[i][0])
+	if (ignoreteamlist[0][0])
 	{
 		x = 0;
 		Con_Printf ("\x02" "Team Ignore List:\n");

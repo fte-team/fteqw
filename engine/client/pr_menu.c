@@ -716,9 +716,9 @@ qboolean M_Vid_GetMode(int num, int *w, int *h);
 //a bit pointless really
 void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	extern cvar_t vid_fullscreen;
+//	extern cvar_t vid_fullscreen;
 	float mode = G_FLOAT(OFS_PARM0);
-	qboolean forfullscreen = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):vid_fullscreen.ival;
+//	qboolean forfullscreen = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):vid_fullscreen.ival;
 	float *ret = G_VECTOR(OFS_RETURN);
 	int w, h;
 

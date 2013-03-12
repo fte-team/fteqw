@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_master.h"
 #include "cl_ignore.h"
 #include "shader.h"
-
+#include <ctype.h>
 // callbacks
 void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
 void Name_Callback(struct cvar_s *var, char *oldvalue);
@@ -3125,8 +3125,8 @@ void CL_Init (void)
 	cls.state = ca_disconnected;
 
 #ifdef SVNREVISION
-	if (strcmp(SVNREVISION, "-"))
-		ver = va("%s v%i.%02i %s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, SVNREVISION);
+	if (strcmp(STRINGIFY(SVNREVISION), "-"))
+		ver = va("%s v%i.%02i %s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, STRINGIFY(SVNREVISION));
 	else
 #endif
 		ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);

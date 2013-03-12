@@ -59,7 +59,6 @@ needs almost the entire 256k of stack space!
 
 void GLSCR_UpdateScreen (void)
 {
-	extern cvar_t vid_conheight;
 	int uimenu;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;

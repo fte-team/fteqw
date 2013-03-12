@@ -1637,7 +1637,7 @@ void SCR_DrawLoading (void)
 		if (cls.downloadmethod)
 			Draw_FunString(x+8, y+4, va("Downloading %s... %i%%",
 				cls.downloadlocalname,
-				cls.downloadpercent));
+				(int)cls.downloadpercent));
 
 		if (tsize > 1024*1024*16)
 		{
@@ -2234,7 +2234,7 @@ void SCR_BringDownConsole (void)
 void SCR_TileClear (void)
 {
 #ifdef PLUGINS
-	extern cvar_t plug_sbar;
+//	extern cvar_t plug_sbar;
 #endif
 
 	if (cl.splitclients>1)

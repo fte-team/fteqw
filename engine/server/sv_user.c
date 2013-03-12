@@ -425,7 +425,6 @@ void SVNQ_New_f (void)
 	int i;
 	int maxplayers = 0;
 	int op;
-	extern cvar_t	pr_maxedicts;
 	unsigned int protext1 = 0, protext2 = 0, protmain = 0, protfl = 0;
 
 	host_client->send_message = true;
@@ -3494,7 +3493,7 @@ void SV_Rate_f (void)
 	{
 		int rate = SV_RateForClient(host_client);
 		if (!rate)
-			SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate is unlimited\n", rate);
+			SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate is unlimited\n");
 		else
 			SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate %i\n", rate);
 		return;

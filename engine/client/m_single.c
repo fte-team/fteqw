@@ -702,7 +702,7 @@ void M_Menu_Demos_f (void)
 	MC_AddWhiteText(menu, 24, 8, "Choose a Demo", false);
 	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
-	info->list = MC_AddCustom(menu, 0, 32, NULL);
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
 	info->list->draw = M_DemoDraw;
 	info->list->key = M_DemoKey;
 
@@ -744,7 +744,7 @@ void M_Menu_MediaFiles_f (void)
 	MC_AddWhiteText(menu, 24, 8, "Media List", false);
 	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
-	info->list = MC_AddCustom(menu, 0, 32, NULL);
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
 	info->list->draw = M_DemoDraw;
 	info->list->key = M_DemoKey;
 

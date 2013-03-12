@@ -1348,8 +1348,8 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galiasinfo_t 
 		qbyte *fte_restrict bidx = (qbyte*)((char*)inf + inf->ofs_skel_idx);
 		float *fte_restrict xyzin = (float*)((char*)inf + inf->ofs_skel_xyz);
 		float *fte_restrict normin = (float*)((char*)inf + inf->ofs_skel_norm);
-		float *fte_restrict svect = (float*)((char*)inf + inf->ofs_skel_svect);
-		float *fte_restrict tvect = (float*)((char*)inf + inf->ofs_skel_tvect);
+//		float *fte_restrict svect = (float*)((char*)inf + inf->ofs_skel_svect);
+//		float *fte_restrict tvect = (float*)((char*)inf + inf->ofs_skel_tvect);
 		float *fte_restrict weight = (float*)((char*)inf + inf->ofs_skel_weight);
 
 		Alias_TransformVerticies_VN(bonepose, inf->numverts, bidx, weight, xyzin, xyzout, normin, normout);
@@ -4865,7 +4865,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 							if (j == chunk->numrecords)
 							{
 								fail = true;
-								Con_Printf("PSK bone %s does not exist in PSA %s\n", boneinfo[i].name);
+								Con_Printf("PSK bone %s does not exist in PSA %s\n", boneinfo[i].name, basename);
 								break;
 							}
 						}

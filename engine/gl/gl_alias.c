@@ -1153,6 +1153,7 @@ void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lig
 }
 
 #if defined(RTLIGHTS)
+/*
 static void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 {
 	vec3_t dir;
@@ -1216,6 +1217,7 @@ static void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float r
 		}
 	}
 }
+*/
 
 //courtesy of DP
 static void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2, const float *tc0, const float *tc1, const float *tc2, float *svector3f, float *tvector3f, float *normal3f)

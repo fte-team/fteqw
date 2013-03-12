@@ -217,7 +217,7 @@ static void BE_PolyOffset(qboolean pushdepth)
 	}
 
 #ifndef FORCESTATE
-	if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
+	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
 #endif
 	{
 		shaderstate.curpolyoffset = po;
@@ -2534,7 +2534,6 @@ static void BE_SubmitMeshChain(void)
 
 static void DrawPass(const shaderpass_t *pass)
 {
-	extern cvar_t temp1;
 	int i, j, k;
 	int tmu;
 	int lastpass = pass->numMergedPasses;
@@ -3073,6 +3072,8 @@ void GLBE_SelectMode(backendmode_t mode)
 		shaderstate.flags = 0;
 		switch (mode)
 		{
+		default:
+			break;
 		case BEM_DEPTHONLY:
 			GL_DeSelectProgram();
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
@@ -3189,7 +3190,7 @@ void GLBE_SelectEntity(entity_t *ent)
 	shaderstate.lastuniform = 0;
 	shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 }
-
+#if 0
 static void BE_SelectFog(vec3_t colour, float alpha, float density)
 {
 	float zscale;
@@ -3202,7 +3203,7 @@ static void BE_SelectFog(vec3_t colour, float alpha, float density)
 
 	qglColor4f(colour[0], colour[1], colour[2], alpha);
 }
-
+#endif
 #ifdef RTLIGHTS
 static qboolean GLBE_RegisterLightShader(int mode)
 {
@@ -3295,7 +3296,7 @@ void GLBE_PushOffsetShadow(qboolean pushdepth)
 	}
 
 #ifndef FORCESTATE
-	if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
+	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
 #endif
 	{
 		shaderstate.curpolyoffset = po;
@@ -4140,7 +4141,6 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 
 void GLBE_DrawLightPrePass(qbyte *vis)
 {
-	extern cvar_t temp1;
 	if (!shaderstate.initeddepthnorm)
 	{
 		shaderstate.initeddepthnorm = true;

@@ -161,12 +161,14 @@ qboolean Master_CompareInteger(int a, int b, slist_test_t rule)
 		return a<=b;
 	case SLIST_TEST_LESS:
 		return a<b;
+	case SLIST_TEST_STARTSWITH:
 	case SLIST_TEST_EQUAL:
 		return a==b;
 	case SLIST_TEST_GREATER:
 		return a>b;
 	case SLIST_TEST_GREATEREQUAL:
 		return a>=b;
+	case SLIST_TEST_NOTSTARTSWITH:
 	case SLIST_TEST_NOTEQUAL:
 		return a!=b;
 	}
@@ -176,6 +178,10 @@ qboolean Master_CompareString(char *a, char *b, slist_test_t rule)
 {
 	switch(rule)
 	{
+	case SLIST_TEST_STARTSWITH:
+		return strnicmp(a, b, strlen(b))==0;
+	case SLIST_TEST_NOTSTARTSWITH:
+		return strnicmp(a, b, strlen(b))!=0;
 	case SLIST_TEST_CONTAINS:
 		return !!strstr(a, b);
 	case SLIST_TEST_NOTCONTAIN:
@@ -2119,7 +2125,8 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 				((qbyte *)&info->adr.address)[i] = MSG_ReadByte();
 			break;
 
-		// warning: enumeration value ‘NA_*’ not handled in switch
+		// warning: enumeration value 'NA_*' not handled in switch
+		case NA_WEBSOCKET:
 		case NA_INVALID:
 		case NA_LOOPBACK:
 		case NA_BROADCAST_IP:

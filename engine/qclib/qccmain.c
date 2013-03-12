@@ -1363,6 +1363,7 @@ strofs = (strofs+3)&~3;
 		break;
 	case QCF_DARKPLACES:
 	case QCF_FTE:
+	case QCF_FTEH2:
 	case QCF_FTEDEBUG:
 		progs.version = PROG_EXTENDEDVERSION;
 

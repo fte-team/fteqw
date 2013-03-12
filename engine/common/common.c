@@ -2116,7 +2116,7 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen)
 {
 	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-	if (((unicode >= 32 || unicode == '\n' || unicode == '\t' || unicode == '\r') && unicode < 128) || unicode >= 0xe000 && unicode <= 0xe0ff)
+	if (((unicode >= 32 || unicode == '\n' || unicode == '\t' || unicode == '\r') && unicode < 128) || (unicode >= 0xe000 && unicode <= 0xe0ff))
 	{	//quake compatible chars
 		if (maxlen < 1)
 			return 0;
@@ -2671,8 +2671,6 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			{
 				//we don't support the full 12bit colour depth (only 4-bit CGA)
 				//so find the closest that we do support
-				int best = 1;
-				float bd = 255*255*255;
 				int r, g, b;
 				if      (str[2] >= '0' && str[2] <= '9')
 					r = (str[2]-'0');

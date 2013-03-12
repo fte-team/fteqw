@@ -529,10 +529,10 @@ typedef struct client_s
 	qboolean		csqcactive;
 #ifdef PROTOCOL_VERSION_FTE
 	qboolean        pextknown;
-	unsigned long	fteprotocolextensions;
-	unsigned long	fteprotocolextensions2;
+	unsigned int	fteprotocolextensions;
+	unsigned int	fteprotocolextensions2;
 #endif
-	unsigned long	zquake_extensions;
+	unsigned int	zquake_extensions;
 	unsigned int    max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
 	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 

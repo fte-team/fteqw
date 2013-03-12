@@ -287,24 +287,30 @@ static void SH_FreeShadowMesh_(shadowmesh_t *sm)
 
 	switch (qrenderer)
 	{
-#ifdef GLQUAKE
+	case QR_NONE:
+	case QR_SOFTWARE:
+	case QR_DIRECT3D11:
+	default:
+		break;
+
 	case QR_OPENGL:
+#ifdef GLQUAKE
 		if (qglDeleteBuffersARB)
 			qglDeleteBuffersARB(2, sm->vebo);
 		sm->vebo[0] = 0;
 		sm->vebo[1] = 0;
-		break;
 #endif
-#ifdef D3D9QUAKE
+		break;
 	case QR_DIRECT3D9:
+#ifdef D3D9QUAKE
 		if (sm->d3d_ibuffer)
 			IDirect3DIndexBuffer9_Release(sm->d3d_ibuffer);
 		sm->d3d_ibuffer = NULL;
 		if (sm->d3d_vbuffer)
 			IDirect3DVertexBuffer9_Release(sm->d3d_vbuffer);
 		sm->d3d_vbuffer = NULL;
-		break;
 #endif
+		break;
 	}
 }
 void SH_FreeShadowMesh(shadowmesh_t *sm)
@@ -425,8 +431,14 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 	{
 		switch (qrenderer)
 		{
-#ifdef GLQUAKE
+		case QR_NONE:
+		case QR_SOFTWARE:
+		case QR_DIRECT3D11:
+		default:
+			break;
+
 		case QR_OPENGL:
+#ifdef GLQUAKE
 			qglGenBuffersARB(2, sh_shmesh->vebo);
 
 			GL_DeselectVAO();
@@ -435,10 +447,10 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 
 			GL_SelectEBO(sh_shmesh->vebo[1]);
 			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
-			break;
 #endif
-#ifdef D3D9QUAKE
+			break;
 		case QR_DIRECT3D9:
+#ifdef D3D9QUAKE
 			if (sh_shmesh->numindicies && sh_shmesh->numverts)
 			{
 				void *map;
@@ -453,8 +465,8 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 				IDirect3DVertexBuffer9_Unlock(sh_shmesh->d3d_vbuffer);
 
 			}
-			break;
 #endif
+			break;
 		}
 
 		Z_Free(sh_shmesh->verts);
@@ -1429,11 +1441,17 @@ typedef struct
 } srect_t;
 static void Sh_Scissor (srect_t r)
 {
-	float xs = vid.pixelwidth / (float)vid.width, ys = vid.pixelheight / (float)vid.height;
+	//float xs = vid.pixelwidth / (float)vid.width, ys = vid.pixelheight / (float)vid.height;
 	switch(qrenderer)
 	{
-#ifdef GLQUAKE
+	case QR_NONE:
+	case QR_SOFTWARE:
+	case QR_DIRECT3D11:
+	default:
+		break;
+
 	case QR_OPENGL:
+#ifdef GLQUAKE
 		qglScissor(
 			floor(r_refdef.pxrect.x + r.x*r_refdef.pxrect.width),
 			floor((r_refdef.pxrect.y + r.y*r_refdef.pxrect.height) - r_refdef.pxrect.height),
@@ -1446,10 +1464,10 @@ static void Sh_Scissor (srect_t r)
 			qglDepthBoundsEXT(r.dmin, r.dmax);
 			qglEnable(GL_DEPTH_BOUNDS_TEST_EXT);
 		}
-		break;
 #endif
-#ifdef D3D9QUAKE
+		break;
 	case QR_DIRECT3D9:
+#ifdef D3D9QUAKE
 		{
 			RECT rect;
 			rect.left = r.x;
@@ -1458,25 +1476,27 @@ static void Sh_Scissor (srect_t r)
 			rect.bottom = r.y + r.height;
 			IDirect3DDevice9_SetScissorRect(pD3DDev9, &rect);
 		}
-		break;
 #endif
+		break;
 	}
 }
 static void Sh_ScissorOff (void)
 {
 	switch(qrenderer)
 	{
-#ifdef GLQUAKE
+	default:
+		break;
 	case QR_OPENGL:
+#ifdef GLQUAKE
 		qglDisable(GL_SCISSOR_TEST);
 		if (qglDepthBoundsEXT)
 			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
-		break;
 #endif
-#ifdef D3D9QUAKE
+		break;
 	case QR_DIRECT3D9:
-		break;
+#ifdef D3D9QUAKE
 #endif
+		break;
 	}
 }
 
@@ -1532,7 +1552,7 @@ static qboolean Sh_ScissorForSphere(vec3_t center, float radius, vrect_t *rect)
 #define BoxesOverlap(a,b,c,d) ((a)[0] <= (d)[0] && (b)[0] >= (c)[0] && (a)[1] <= (d)[1] && (b)[1] >= (c)[1] && (a)[2] <= (d)[2] && (b)[2] >= (c)[2])
 static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 {
-	static const edge[12][2] =
+	static const int edge[12][2] =
 	{
 		{0, 1}, {0, 2}, {1, 3}, {2, 3},
 		{4, 5}, {4, 6}, {5, 7}, {6, 7},
@@ -1997,16 +2017,18 @@ GL_CullFace(0);
 
 	switch(qrenderer)
 	{
-#ifdef GLQUAKE
+	default:
+		break;
 	case QR_OPENGL:
+#ifdef GLQUAKE
 		GLBE_BaseEntTextures();
-		break;
 #endif
-#ifdef D3D9QUAKE
+		break;
 	case QR_DIRECT3D9:
+#ifdef D3D9QUAKE
 		D3D9BE_BaseEntTextures();
-		break;
 #endif
+		break;
 	}
 
 	r_refdef.externalview = oxv;
@@ -2275,16 +2297,18 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 		switch(qrenderer)
 		{
-#ifdef GLQUAKE
+		default:
+			break;
 		case QR_OPENGL:
+#ifdef GLQUAKE
 			GLBE_BaseEntTextures();
-			break;
 #endif
-#ifdef D3D9QUAKE
+			break;
 		case QR_DIRECT3D9:
+#ifdef D3D9QUAKE
 			D3D9BE_BaseEntTextures();
-			break;
 #endif
+			break;
 		}
 	}
 }
@@ -2416,16 +2440,22 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	{
 		switch (qrenderer)
 		{
-#ifdef D3D9QUAKE
+		case QR_NONE:
+		case QR_SOFTWARE:
+		case QR_DIRECT3D11:
+		default:
+			break;
+
 		case QR_DIRECT3D9:
+#ifdef D3D9QUAKE
 			D3D9BE_RenderShadowBuffer(sm->numverts, sm->d3d_vbuffer, sm->numindicies, sm->d3d_ibuffer);
-			break;
 #endif
-#ifdef GLQUAKE
+			break;
 		case QR_OPENGL:
+#ifdef GLQUAKE
 			GLBE_RenderShadowBuffer(sm->numverts, sm->vebo[0], sm->verts, sm->numindicies, sm->vebo[1], sm->indicies);
-			break;
 #endif
+			break;
 		}
 	}
 	if (!r_drawentities.value)
@@ -2545,6 +2575,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	switch(qrenderer)
 	{
+	default:
+		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		{

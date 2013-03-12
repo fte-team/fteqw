@@ -30,12 +30,6 @@ void SV_MVDStop_f (void);
 
 #define demo_size_padding 0x1000
 
-
-//#define MIN_MVD_MEMORY 0x100000
-//#define MAXSIZE (demobuffer->end < demobuffer->last ? \
-//				demobuffer->start - demobuffer->end : \
-//				demobuffer->maxsize - demobuffer->end)
-
 static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
 cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "0", "If set, demo data will be flushed only periodically");
@@ -2245,7 +2239,7 @@ void SV_MVDEasyRecord_f (void)
 	{
 		char *c;
 		Q_strncpyz (name, Cmd_Argv(1), sizeof(name));
-		while(c = strchr(name, ':'))
+		while((c = strchr(name, ':')))
 			*c = '-';
 	}
 	else

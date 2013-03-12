@@ -160,7 +160,7 @@ skipwhite:
 
 	if (len == MAX_TOKEN_CHARS)
 	{
-		Con_DPrintf ("Token exceeded %i chars, discarded.\n", MAX_TOKEN_CHARS);
+		Con_DPrintf ("Token exceeded %i chars, discarded.\n", (int)MAX_TOKEN_CHARS);
 		len = 0;
 	}
 	com_token[len] = 0;

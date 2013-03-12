@@ -899,6 +899,12 @@ static void QCBUILTIN PF_R_DynamicLight_Add(pubprogfuncs_t *prinst, struct globa
 		dl->corona = 1;
 	else
 		dl->corona = 0;
+	dl->style = style;
+	Q_strncpyz(dl->cubemapname, cubemapname, sizeof(dl->cubemapname));
+	if (*dl->cubemapname)
+		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP);
+	else
+		dl->cubetexture = r_nulltex;
 
 	G_FLOAT(OFS_RETURN) = dl - cl_dlights;
 }

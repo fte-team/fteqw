@@ -900,7 +900,6 @@ void Key_Console (unsigned int unicode, int key)
 
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
-		extern cvar_t vid_conwidth, vid_conheight;
 		int xpos, ypos;
 		xpos = (int)((mousecursor_x*vid.width)/(vid.pixelwidth*8));
 		ypos = (int)((mousecursor_y*vid.height)/(vid.pixelheight*8));

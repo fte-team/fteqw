@@ -65,8 +65,7 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 //options menu.
 void M_Menu_Options_f (void)
 {
-	extern cvar_t cl_standardchat;
-	extern cvar_t cl_standardmsg, crosshair;
+	extern cvar_t crosshair;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
 #endif
@@ -238,7 +237,8 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cv
 void M_Menu_Audio_f (void)
 {
 	menu_t *menu;
-	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate;
+	extern cvar_t nosound, snd_leftisright, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices;
+//	extern cvar_t snd_noextraupdate, snd_eax, precache;
 	extern cvar_t cl_voip_play, cl_voip_send;
 
 	static const char *soundqualityoptions[] = {
@@ -324,9 +324,10 @@ void M_Menu_Audio_f (void)
 void M_Menu_Particles_f (void)
 {
 	menu_t *menu;
-	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_particlesystem, r_grenadetrail, r_rockettrail, r_part_sparks_textured, r_part_sparks_trifan, r_part_rain_quantity, r_particledesc, r_particle_tracelimit, r_part_contentswitch, r_bloodstains;
+	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_grenadetrail, r_rockettrail, r_part_rain_quantity, r_particledesc, r_particle_tracelimit, r_part_contentswitch, r_bloodstains;
+//	extern cvar_t r_part_sparks_trifan, r_part_sparks_textured, r_particlesystem;
 
-	static const char *psystemopts[] =
+/*	static const char *psystemopts[] =
 	{
 		"Classic",
 		"Script",
@@ -340,7 +341,7 @@ void M_Menu_Particles_f (void)
 		"null",
 		NULL
 	};
-
+*/
 	static const char *pdescopts[] =
 	{
 		"Classic",
@@ -889,10 +890,11 @@ void M_Menu_Lighting_f (void)
 	extern cvar_t r_vertexlight, r_vertexdlights;
 #endif
 	extern cvar_t r_stains, r_shadows, r_shadow_realtime_world, r_loadlits, r_dynamic;
-	extern cvar_t r_lightstylesmooth, r_lightstylespeed, r_nolightdir;
-	extern cvar_t r_shadow_realtime_world_lightmaps, r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
-	extern cvar_t r_fb_bmodels, r_fb_models, r_rocketlight, r_powerupglow;
+	extern cvar_t r_lightstylesmooth, r_nolightdir;
+	extern cvar_t r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
+	extern cvar_t r_fb_models, r_rocketlight, r_powerupglow;
 	extern cvar_t v_powerupshell, r_explosionlight;
+	//extern cvar_t r_fb_bmodels, r_shadow_realtime_world_lightmaps, r_lightstylespeed;
 
 	static const char *lightingopts[] =
 	{
@@ -2108,18 +2110,29 @@ qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 
 void M_Menu_Video_f (void)
 {
-	extern cvar_t v_contrast, vid_width, vid_height, vid_conwidth, vid_conheight;
+	extern cvar_t v_contrast, vid_conwidth, vid_conheight;
+//	extern cvar_t vid_width, vid_height, vid_preservegamma, vid_hardwaregamma, vid_desktopgamma;
 	extern cvar_t vid_fullscreen, vid_desktopsettings, vid_conautoscale;
-	extern cvar_t vid_desktopgamma, vid_hardwaregamma, vid_preservegamma;
-	extern cvar_t vid_bpp, vid_refreshrate, vid_renderer, vid_multisample;
+	extern cvar_t vid_bpp, vid_refreshrate, vid_multisample;
 
+#if defined(GLQUAKE) && (defined(D3DQUAKE) || defined(SWQUAKE))
+#define MULTIRENDERER
+#endif
+#ifdef MULTIRENDERER
+	extern cvar_t vid_renderer;
 	static const char *rendererops[] =
 	{
 #ifdef GLQUAKE
 		"OpenGL",
 #endif
-#ifdef D3DQUAKE
-		"Direct3D",
+#ifdef D3D9QUAKE
+		"Direct3D 9",
+#endif
+#ifdef D3D11QUAKE
+		"Direct3D 11",
+#endif
+#ifdef SWQUAKE
+		"Software Rendering",
 #endif
 		NULL
 	};
@@ -2128,11 +2141,18 @@ void M_Menu_Video_f (void)
 #ifdef GLQUAKE
 		"gl",
 #endif
-#ifdef D3DQUAKE
-		"d3d",
+#ifdef D3D9QUAKE
+		"d3d9",
+#endif
+#ifdef D3D11QUAKE
+		"d3d11",
+#endif
+#ifdef SWQUAKE
+		"sw",
 #endif
 		NULL
 	};
+#endif
 
 	static const char *aaopts[] = {
 		"1x",
@@ -2194,7 +2214,7 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 	static const char *scalevalues[] = { "1", "1.5", "2", "2.5", "3", "4", "5", "6", NULL};
-
+/*
 	static const char *vsyncoptions[] =
 	{
 		"Off",
@@ -2202,11 +2222,11 @@ void M_Menu_Video_f (void)
 		"Wait for Display Enable",
 		NULL
 	};
-
+	extern cvar_t _vid_wait_override;
+*/
 	videomenuinfo_t *info;
 	static char current3dres[32]; // enough to fit 1920x1200
 
-	extern cvar_t _vid_wait_override;
 
 	int y;
 	int resmodechoice, res2dmodechoice;
@@ -2251,7 +2271,7 @@ void M_Menu_Video_f (void)
 			MB_COMBOCVARRETURN("Color Depth", vid_bpp, bppopts, bppvalues, info->bppfixed, vid_bpp.description),
 			MB_COMBOCVARRETURN("Refresh Rate", vid_refreshrate, refreshopts, refreshvalues, info->hzfixed, vid_refreshrate.description),
 			MB_SPACING(-24), // really hacky...
-			// custom enteries
+			// custom entries
 			MB_EDITCVARSLIMRETURN("Width", "vid_width", info->width),
 			MB_EDITCVARSLIMRETURN("Height", "vid_height", info->height),
 			MB_EDITCVARSLIMRETURN("Color Depth", "vid_bpp", info->bpp),

@@ -6,6 +6,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include <ctype.h>
 
 void Font_Init(void);
 void Font_Shutdown(void);

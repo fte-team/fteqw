@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <dlfcn.h>
 
 #include "quakedef.h"
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
 #include "glquake.h"
 
 #include <GL/glx.h>
@@ -52,16 +54,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#define WARP_WIDTH              320
-#define WARP_HEIGHT             200
-
 static Display *vid_dpy = NULL;
 static Cursor vid_nullcursor;
 static Window vid_window;
+static Window vid_decoywindow;	//for legacy mode, this is a boring window that we can reparent into as needed
+static Window vid_root;
 static GLXContext ctx = NULL;
-int scrnum;
+static int scrnum;
 
-static qboolean vidglx_fullscreen;
+extern cvar_t vid_conautoscale;
 
 static float old_windowed_mouse = 0;
 
@@ -76,32 +77,42 @@ static int dgamouse = 0;
 #define X_MASK (KEY_MASK | MOUSE_MASK | ResizeRequest | StructureNotifyMask | FocusChangeMask | VisibilityChangeMask)
 
 
+#define FULLSCREEN_VMODE	1	//using xf86 vidmode
+#define FULLSCREEN_VMODEACTIVE	2	//xf86 vidmode currently forced
+#define FULLSCREEN_LEGACY	4	//override redirect used
+#define FULLSCREEN_WM		8	//fullscreen hint used
+#define FULLSCREEN_ACTIVE	16	//currently fullscreen
+static int fullscreenflags;
+static int fullscreenwidth;
+static int fullscreenheight;
+
 #ifdef WITH_VMODE
 static int vidmode_ext = 0;
 static XF86VidModeModeInfo **vidmodes;
 static int num_vidmodes;
-static qboolean vidmode_active = false;
 static int vidmode_usemode = -1;	//so that it can be reset if they switch away.
 
-unsigned short originalramps[3][256];
-qboolean originalapplied;	//states that the origionalramps arrays are valid, and contain stuff that we should revert to on close
+static unsigned short originalramps[3][256];
+static qboolean originalapplied;	//states that the origionalramps arrays are valid, and contain stuff that we should revert to on close
 #endif
+
+void X_GoFullscreen(void);
+void X_GoWindowed(void);
+/*when alt-tabbing or whatever, the window manager creates a window, then destroys it again, resulting in weird focus events that trigger mode switches and grabs. using a timer reduces the weirdness and allows alt-tab to work properly. or at least better than it was working. that's the theory anyway*/
+static unsigned int modeswitchtime;
+static int modeswitchpending;
 
 extern cvar_t	_windowed_mouse;
 
 /*-----------------------------------------------------------------------*/
 
-float		gldepthmin, gldepthmax;
-
-const char *gl_vendor;
-const char *gl_renderer;
-const char *gl_version;
-const char *gl_extensions;
-
-qboolean is8bit = false;
-qboolean isPermedia = false;
-qboolean mouseactive = false;
+//qboolean is8bit = false;
+//qboolean isPermedia = false;
 qboolean ActiveApp = false;
+static qboolean gracefulexit;
+
+#define SYS_CLIPBOARD_SIZE 512
+char clipboard_buffer[SYS_CLIPBOARD_SIZE];
 
 
 /*-----------------------------------------------------------------------*/
@@ -341,7 +352,7 @@ static void uninstall_grabs(void)
 //	XSync(vid_dpy, True);
 }
 
-void ClearAllStates (void)
+static void ClearAllStates (void)
 {
 	int		i;
 
@@ -357,14 +368,11 @@ void ClearAllStates (void)
 
 static void GetEvent(void)
 {
-	XEvent event;
+	XEvent event, rep;
 	int b;
 	unsigned int uc;
-	qboolean wantwindowed;
 	qboolean x11violations = true;
-
-	if (!vid_dpy)
-		return;
+	Window mw;
 
 	XNextEvent(vid_dpy, &event);
 
@@ -372,10 +380,24 @@ static void GetEvent(void)
 	case ResizeRequest:
 		vid.pixelwidth = event.xresizerequest.width;
 		vid.pixelheight = event.xresizerequest.height;
+                Cvar_ForceCallback(&vid_conautoscale);
+//		if (fullscreenflags & FULLSCREEN_ACTIVE)
+//			XMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
 	case ConfigureNotify:
-		vid.pixelwidth = event.xconfigurerequest.width;
-		vid.pixelheight = event.xconfigurerequest.height;
+		if (event.xconfigurerequest.window == vid_window)
+		{
+			vid.pixelwidth = event.xconfigurerequest.width;
+			vid.pixelheight = event.xconfigurerequest.height;
+	                Cvar_ForceCallback(&vid_conautoscale);
+		}
+		else if (event.xconfigurerequest.window == vid_decoywindow)
+		{
+			if (!(fullscreenflags & FULLSCREEN_ACTIVE))
+				XResizeWindow(vid_dpy, vid_window, event.xconfigurerequest.width, event.xconfigurerequest.height);
+		}
+//		if (fullscreenflags & FULLSCREEN_ACTIVE)
+//			XMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
 	case KeyPress:
 		b = XLateKey(&event.xkey, &uc);
@@ -446,14 +468,16 @@ static void GetEvent(void)
 
 		if (b>=0)
 			IN_KeyEvent(0, true, b, 0);
-#ifdef WITH_VMODE
-		if (vidmode_ext && vidmode_usemode>=0)
+
+/*
+		if (fullscreenflags & FULLSCREEN_LEGACY)
+		if (fullscreenflags & FULLSCREEN_VMODE)
 		if (!ActiveApp)
 		{	//KDE doesn't seem to like us, in that you can't alt-tab back or click to activate.
 			//This allows us to steal input focus back from the window manager
 			XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 		}
-#endif
+*/
 		break;
 
 	case ButtonRelease:
@@ -492,43 +516,50 @@ static void GetEvent(void)
 		break;
 
 	case FocusIn:
+		//activeapp is if the game window is focused
 		ActiveApp = true;
-#ifdef WITH_VMODE
-		if (vidmode_ext && vidmode_usemode>=0)
+
+		//but change modes to track the desktop window
+//		if (!(fullscreenflags & FULLSCREEN_ACTIVE) || event.xfocus.window != vid_decoywindow)
 		{
-			if (!vidmode_active)
-			{
-				// change to the mode
-				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode]);
-				vidmode_active = true;
-				// Move the viewport to top left
-			}
-			XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+			modeswitchpending = 1;
+			modeswitchtime = Sys_Milliseconds() + 1500;	/*fairly slow, to make sure*/
 		}
-#endif
-		Cvar_ForceCallback(&v_gamma);
+
+		//we we're focusing onto the game window and we're currently fullscreen, hide the other one so alt-tab won't select that instead of a real alternate app.
+//		if ((fullscreenflags & FULLSCREEN_ACTIVE) && (fullscreenflags & FULLSCREEN_LEGACY) && event.xfocus.window == vid_window)
+//			XUnmapWindow(vid_dpy, vid_decoywindow);
 		break;
 	case FocusOut:
+		//if we're already active, the decoy window shouldn't be focused anyway.
+		if ((fullscreenflags & FULLSCREEN_ACTIVE) && event.xfocus.window == vid_decoywindow)
+		{
+			break;
+		}
+
 #ifdef WITH_VMODE
 		if (originalapplied)
 			XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
 
- 		if (!COM_CheckParm("-stayactive"))
- 		{	//a parameter that leaves the program fullscreen if you taskswitch.
- 			//sounds pointless, works great with two moniters. :D
- 			if (originalapplied)
-				XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
-			if (vidmode_active)
-			{
-				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
-				vidmode_active = false;
-			}
-		}
 #endif
+		mw = vid_window;
+		if ((fullscreenflags & FULLSCREEN_LEGACY) && (fullscreenflags & FULLSCREEN_ACTIVE))
+			mw = vid_decoywindow;
 
-		ActiveApp = false;
-		ClearAllStates();
-
+                if (event.xfocus.window == mw)
+		{
+			ActiveApp = false;
+			if (old_windowed_mouse)
+			{
+				Con_DPrintf("uninstall grabs\n");
+				uninstall_grabs();
+				XUndefineCursor(vid_dpy, vid_window);
+				old_windowed_mouse = false;
+			}
+			ClearAllStates();
+		}
+		modeswitchpending = -1;
+		modeswitchtime = Sys_Milliseconds() + 100;	/*fairly fast, so we don't unapply stuff when switching to other progs with delays*/
 		break;
 	case ClientMessage:
 		{
@@ -537,7 +568,10 @@ static void GetEvent(void)
 			{
 				char *protname = XGetAtomName(vid_dpy, event.xclient.data.l[0]);
 				if (!strcmp(protname, "WM_DELETE_WINDOW"))
-					Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
+				{
+					Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
+					XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+				}
 				else
 					Con_Printf("Got message %s\n", protname);
 				XFree(protname);
@@ -547,36 +581,39 @@ static void GetEvent(void)
 			XFree(name);
 		}
 		break;
+
+#if 1
+	case SelectionRequest:	//needed for copy-to-clipboard
+		{
+			Atom xa_string = XInternAtom(vid_dpy, "UTF8_STRING", false);
+			memset(&rep, 0, sizeof(rep));
+			if (event.xselectionrequest.property == None)
+				event.xselectionrequest.property = XInternAtom(vid_dpy, "foobar2000", false);
+			if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_string)
+			{
+				XChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)clipboard_buffer, strlen(clipboard_buffer));
+				rep.xselection.property = event.xselectionrequest.property;
+			}
+			else
+			{
+				rep.xselection.property = None;
+			}
+			rep.xselection.type = SelectionNotify;
+			rep.xselection.serial = 0;
+			rep.xselection.send_event = true;
+			rep.xselection.display = rep.xselection.display;
+			rep.xselection.requestor = event.xselectionrequest.requestor;
+			rep.xselection.selection = event.xselectionrequest.selection;
+			rep.xselection.target = event.xselectionrequest.target;
+			rep.xselection.time = event.xselectionrequest.time;
+			XSendEvent(vid_dpy, event.xselectionrequest.requestor, 0, 0, &rep);
+		}
+		break;
+#endif
+
 	default:
 //		Con_Printf("%x\n", event.type);
 		break;
-	}
-
-	wantwindowed = !!_windowed_mouse.value;
-	if (!ActiveApp)
-		wantwindowed = false;
-	if (Key_MouseShouldBeFree() && !vidglx_fullscreen)
-		wantwindowed = false;
-
-	if (old_windowed_mouse != wantwindowed)
-	{
-		old_windowed_mouse = wantwindowed;
-
-		if (!wantwindowed)
-		{
-			Con_DPrintf("uninstall grabs\n");
-			/* ungrab the pointer */
-			uninstall_grabs();
-			XUndefineCursor(vid_dpy, vid_window);
-		}
-		else
-		{
-			Con_DPrintf("install grabs\n");
-			/* grab the pointer */
-			install_grabs();
-			/*hide the cursor*/
-			XDefineCursor(vid_dpy, vid_window, vid_nullcursor);
-		}
 	}
 }
 
@@ -610,10 +647,11 @@ void GLVID_Shutdown(void)
 	if (vid_nullcursor)
 		XFreeCursor(vid_dpy, vid_nullcursor);
 #ifdef WITH_VMODE
-	if (vid_dpy) {
-		if (vidmode_active)
+	if (vid_dpy)
+	{
+		if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
 			XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
-		vidmode_active = false;
+		fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
 
 		if (vidmodes)
 			XFree(vidmodes);
@@ -639,11 +677,16 @@ void signal_handler(int sig)
 	Sys_Quit();
 	exit(0);
 }
+void signal_handler_graceful(int sig)
+{
+	gracefulexit = true;
+//	signal(sig, signal_handler);
+}
 
 void InitSig(void)
 {
 	signal(SIGHUP, signal_handler);
-	signal(SIGINT, signal_handler);
+	signal(SIGINT, signal_handler_graceful);
 	signal(SIGQUIT, signal_handler);
 	signal(SIGILL, signal_handler);
 	signal(SIGTRAP, signal_handler);
@@ -712,7 +755,7 @@ void	GLVID_SetPalette (unsigned char *palette)
 //
 // 8 8 8 encoding
 //
-	Con_Printf("Converting 8to24\n");
+	Con_DPrintf("Converting 8to24\n");
 
 	pal = palette;
 	table = d_8to24rgbtable;
@@ -755,13 +798,180 @@ void GL_EndRendering (void)
 #endif
 }
 
-qboolean GLVID_Is8bit(void)
+#include "bymorphed.h"
+void X_StoreIcon(Window wnd)
 {
-	return is8bit;
+	int i;
+	unsigned long data[64*64+2];
+	unsigned int *indata = (unsigned int*)icon.pixel_data;
+	Atom propname = XInternAtom(vid_dpy, "_NET_WM_ICON", false);
+	Atom proptype = XInternAtom(vid_dpy, "CARDINAL", false);
+
+	data[0] = icon.width;
+	data[1] = icon.height;
+	for (i = 0; i < data[0]*data[1]; i++)
+		data[i+2] = indata[i];
+
+	XChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
+}
+
+void X_GoFullscreen(void)
+{
+	XEvent xev;
+	
+	//for NETWM window managers
+	memset(&xev, 0, sizeof(xev));
+	xev.type = ClientMessage;
+	xev.xclient.window = vid_window;
+	xev.xclient.message_type = XInternAtom(vid_dpy, "_NET_WM_STATE", False);
+	xev.xclient.format = 32;
+	xev.xclient.data.l[0] = 1;	//add
+	xev.xclient.data.l[1] = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
+	xev.xclient.data.l[2] = 0;
+	XSync(vid_dpy, False);
+	XSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
+	XSync(vid_dpy, False);
+
+	//for any other window managers, and broken NETWM
+	XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	XSync(vid_dpy, False);
+}
+void X_GoWindowed(void)
+{
+	XEvent xev;
+	XFlush(vid_dpy);
+	XSync(vid_dpy, False);
+
+	memset(&xev, 0, sizeof(xev));
+	xev.type = ClientMessage;
+	xev.xclient.window = vid_window;
+	xev.xclient.message_type = XInternAtom(vid_dpy, "_NET_WM_STATE", False);
+	xev.xclient.format = 32;
+	xev.xclient.data.l[0] = 0;	//remove
+	xev.xclient.data.l[1] = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
+	xev.xclient.data.l[2] = 0;
+	XSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
+	XSync(vid_dpy, False);
+
+	//XMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
+}
+qboolean X_CheckWMFullscreenAvailable(void)
+{
+	//root window must have _NET_SUPPORTING_WM_CHECK which is a Window created by the WM
+	//the WM's window must have _NET_WM_NAME set, which is the name of the window manager
+	//if we can find those, then the window manager has not crashed.
+	//if we can then find _NET_WM_STATE_FULLSCREEN in the _NET_SUPPORTED atom list on the root, then we can get fullscreen mode from the WM
+	//and we'll have no alt-tab issues whatsoever.
+
+	Atom xa_net_supporting_wm_check = XInternAtom(vid_dpy, "_NET_SUPPORTING_WM_CHECK", False);
+	Atom xa_net_wm_name = XInternAtom(vid_dpy, "_NET_WM_NAME", False);
+	Atom xa_net_supported = XInternAtom(vid_dpy, "_NET_SUPPORTED", False);
+	Atom xa_net_wm_state_fullscreen = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
+	Window wmwindow;
+	unsigned char *prop;
+	unsigned long bytes_after, nitems;
+	Atom type;
+	int format;
+	qboolean success = false;
+	unsigned char *wmname;
+	int i;
+	
+
+	if (XGetWindowProperty(vid_dpy, vid_root, xa_net_supporting_wm_check, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
+	{
+		Con_Printf("Window manager not identified\n");
+		return success;
+	}
+	wmwindow = *(Window *)prop;
+	XFree(prop);
+	
+	if (XGetWindowProperty(vid_dpy, wmwindow, xa_net_wm_name, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &wmname) != Success || wmname == NULL)
+	{
+		Con_Printf("Window manager crashed or something\n");
+		return success;
+	}
+	else
+	{
+		if (XGetWindowProperty(vid_dpy, vid_root, xa_net_supported, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
+		{
+			Con_Printf("Window manager \"%s\" support nothing\n", wmname);
+		}
+		else
+		{
+			for (i = 0; i < nitems; i++)
+			{
+//				Con_Printf("supported: %s\n", XGetAtomName(vid_dpy, ((Atom*)prop)[i]));
+				if (((Atom*)prop)[i] == xa_net_wm_state_fullscreen)
+				{
+					success = true;
+					break;
+				}
+			}
+			if (!success)
+				Con_Printf("Window manager \"%s\" does not appear to support fullscreen\n", wmname);
+			else
+				Con_Printf("Window manager \"%s\" supports fullscreen\n", wmname);
+			XFree(prop);
+		}
+		XFree(wmname);
+	}
+	return success;
+}
+
+Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int width, unsigned int height)
+{
+	Window wnd;
+	XSetWindowAttributes attr;
+	XSizeHints szhints;
+	unsigned int mask;
+	Atom prots[1];
+
+	/* window attributes */
+	attr.background_pixel = 0;
+	attr.border_pixel = 0;
+	attr.colormap = XCreateColormap(vid_dpy, vid_root, visinfo->visual, AllocNone);
+	attr.event_mask = X_MASK;
+	attr.backing_store = NotUseful;
+	attr.save_under = False;
+	mask = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWBackingStore |CWSaveUnder;
+
+	// override redirect prevents the windowmanager from finding out about us, and thus will not apply borders to our window.
+	if (override)
+	{
+		mask |= CWOverrideRedirect;
+		attr.override_redirect = True;
+	}
+
+	memset(&szhints, 0, sizeof(szhints));
+	szhints.flags = PMinSize;
+	szhints.min_width = 320;
+	szhints.min_height = 200;
+	szhints.x = 0;
+	szhints.y = 0;
+	szhints.width = width;
+	szhints.height = height;
+
+	wnd = XCreateWindow(vid_dpy, vid_root, 0, 0, width, height,
+						0, visinfo->depth, InputOutput,
+						visinfo->visual, mask, &attr);
+	/*ask the window manager to stop triggering bugs in Xlib*/
+	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(vid_dpy, wnd, prots, sizeof(prots)/sizeof(prots[0]));
+	XSetWMNormalHints(vid_dpy, wnd, &szhints);
+	/*set caption*/
+	XStoreName(vid_dpy, wnd, "FTE QuakeWorld");
+	XSetIconName(vid_dpy, wnd, "FTEQW");
+	X_StoreIcon(wnd);
+	/*make it visible*/
+	XMapWindow(vid_dpy, wnd);
+
+	return wnd;
 }
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
+	int width = info->width;	//can override these if vmode isn't available
+	int height = info->height;
 	int i;
 	int attrib[] = {
 		GLX_RGBA,
@@ -773,15 +983,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		GLX_STENCIL_SIZE, 8,
 		None
 	};
-	XSetWindowAttributes attr;
-	unsigned long mask;
-	Window root;
 #ifdef USE_EGL
 	XVisualInfo vinfodef;
 #endif
 	XVisualInfo *visinfo;
 	qboolean fullscreen = false;
-	Atom prots[1];
 
 #ifdef WITH_VMODE
 	int MajorVersion, MinorVersion;
@@ -807,26 +1013,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-// interpret command-line params
-
-// set vid parameters
-	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.width = Q_atoi(com_argv[i+1]);
-	else
-		vid.width = 640;
-
-	vid.width &= ~7; // make it a multiple of eight
-
-	if (vid.width < 320)
-		vid.width = 320;
-
-	// pick a conheight that matches with correct aspect
-	vid.height = vid.width*3 / 4;
-
-	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.height = Q_atoi(com_argv[i+1]);
-	if (vid.height < 200)
-		vid.height = 200;
 	if (!vid_dpy)
 		vid_dpy = XOpenDisplay(NULL);
 	if (!vid_dpy)
@@ -836,7 +1022,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 
 	scrnum = DefaultScreen(vid_dpy);
-	root = RootWindow(vid_dpy, scrnum);
+	vid_root = RootWindow(vid_dpy, scrnum);
 
 #ifdef WITH_VMODE	//find out if it's supported on this pc.
 	MajorVersion = MinorVersion = 0;
@@ -850,6 +1036,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		vidmode_ext = MajorVersion;
 	}
 #endif
+
+	fullscreenflags = 0;
 
 #ifdef WITH_VMODE
 	vidmode_usemode = -1;
@@ -866,12 +1054,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 			for (i = 0; i < num_vidmodes; i++)
 			{
-				if (info->width > vidmodes[i]->hdisplay ||
-					info->height > vidmodes[i]->vdisplay)
+				if (width > vidmodes[i]->hdisplay ||
+					height > vidmodes[i]->vdisplay)
 					continue;
 
-				x = info->width - vidmodes[i]->hdisplay;
-				y = info->height - vidmodes[i]->vdisplay;
+				x = width - vidmodes[i]->hdisplay;
+				y = height - vidmodes[i]->vdisplay;
 				dist = (x * x) + (y * y);
 				if (dist < best_dist)
 				{
@@ -880,22 +1068,42 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 				}
 			}
 
-			if (best_fit != -1 && (!best_dist || COM_CheckParm("-fullscreen")))
+			if (best_fit != -1)
 			{
 				// change to the mode
-				XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode=best_fit]);
-				vidmode_active = true;
-				// Move the viewport to top left
-				XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+				if (XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode=best_fit]))
+				{
+					width = vidmodes[best_fit]->hdisplay;
+					height = vidmodes[best_fit]->vdisplay;
+					// Move the viewport to top left
+					XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+					XSync(vid_dpy, False);
 
+					fullscreenflags |= FULLSCREEN_VMODE | FULLSCREEN_VMODEACTIVE;
+				}
+				else
+					Con_Printf("Failed to apply mode %i*%i\n", vidmodes[best_fit]->hdisplay, vidmodes[best_fit]->vdisplay);
 			}
-			else
-				fullscreen = 0;
 		}
 	}
 #endif
 
-	vidglx_fullscreen = fullscreen;
+	if (fullscreen)
+	{
+		if (!(fullscreenflags & FULLSCREEN_VMODE))
+		{
+			//if we can't actually change the mode, our fullscreen is the size of the root window
+			XWindowAttributes xwa;
+			XGetWindowAttributes(vid_dpy, DefaultRootWindow(vid_dpy), &xwa);
+			width = xwa.width;
+			height = xwa.height;
+		}
+
+		if (X_CheckWMFullscreenAvailable())
+			fullscreenflags |= FULLSCREEN_WM;
+		else
+                        fullscreenflags |= FULLSCREEN_LEGACY;
+	}
 
 #ifdef USE_EGL
 	visinfo = &vinfodef;
@@ -912,43 +1120,21 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-	/* window attributes */
-	attr.background_pixel = 0;
-	attr.border_pixel = 0;
-	attr.colormap = XCreateColormap(vid_dpy, root, visinfo->visual, AllocNone);
-	attr.event_mask = X_MASK;
-	mask = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
-
-#ifdef WITH_VMODE	//get rid of borders
-	// fullscreen
-	if (vidmode_active) {
-		mask = CWBackPixel | CWColormap | CWSaveUnder | CWBackingStore |
-			CWEventMask | CWOverrideRedirect;
-		attr.override_redirect = True;
-		attr.backing_store = NotUseful;
-		attr.save_under = False;
-	}
-#endif
-
-	vid_window = XCreateWindow(vid_dpy, root, 0, 0, info->width, info->height,
-						0, visinfo->depth, InputOutput,
-						visinfo->visual, mask, &attr);
-
 	ActiveApp = false;
-	/*ask the window manager to stop triggering bugs in Xlib*/
-	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
-	XSetWMProtocols(vid_dpy, vid_window, prots, sizeof(prots)/sizeof(prots[0]));
-	/*set caption*/
-	XStoreName(vid_dpy, vid_window, FULLENGINENAME);
-	/*make it visibl*/
-	XMapWindow(vid_dpy, vid_window);
-	/*put it somewhere*/
-	XMoveWindow(vid_dpy, vid_window, 0, 0);
+	if (fullscreenflags & FULLSCREEN_LEGACY)
+	{
+		vid_decoywindow = X_CreateWindow(false, visinfo, 640, 480);
+		vid_window = X_CreateWindow(true, visinfo, width, height);
+	}
+	else
+		vid_window = X_CreateWindow(false, visinfo, width, height);
 
-	//XFree(visinfo);
+	CL_UpdateWindowTitle();
+	/*make it visible*/
 
 #ifdef WITH_VMODE
-	if (vidmode_active) {
+	if (fullscreen & FULLSCREEN_VMODE)
+	{
 		XRaiseWindow(vid_dpy, vid_window);
 		XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 0, 0);
 		XFlush(vid_dpy);
@@ -1008,17 +1194,19 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	InitSig(); // trap evil signals
 
-	vid.pixelwidth = info->width;
-	vid.pixelheight = info->height;
-
-	if (vid.height > info->height)
-		vid.height = info->height;
-	if (vid.width > info->width)
-		vid.width = info->width;
+	//probably going to be resized in the event handler
+	vid.pixelwidth = fullscreenwidth = width;
+	vid.pixelheight = fullscreenheight = height;
 
 	vid.numpages = 2;
 
-	Con_SafePrintf ("Video mode %dx%d initialized.\n", info->width, info->height);
+	Con_SafePrintf ("Video mode %dx%d initialized.\n", width, height);
+	if (fullscreenflags & FULLSCREEN_WM)
+		X_GoFullscreen();
+	if (fullscreenflags & FULLSCREEN_LEGACY)
+		XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	if (fullscreenflags)
+		fullscreenflags |= FULLSCREEN_ACTIVE;
 
 	vid.recalc_refdef = 1;				// force a surface cache flush
 
@@ -1030,15 +1218,131 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	else
 		XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 	XRaiseWindow(vid_dpy, vid_window);
+	if (fullscreenflags & FULLSCREEN_LEGACY)
+		XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 
 	return true;
 }
 
 void Sys_SendKeyEvents(void)
 {
-	if (vid_dpy && vid_window) {
+	if (gracefulexit)
+	{
+		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+		gracefulexit = false;
+	}
+	if (vid_dpy && vid_window)
+	{
+		qboolean wantwindowed;
+
 		while (XPending(vid_dpy))
 			GetEvent();
+
+		if (modeswitchpending && modeswitchtime < Sys_Milliseconds())
+		{
+			if (old_windowed_mouse)
+			{
+				Con_DPrintf("uninstall grabs\n");
+				uninstall_grabs();
+				XUndefineCursor(vid_dpy, vid_window);
+				old_windowed_mouse = false;
+			}
+			if (modeswitchpending > 0)
+			{
+				//entering fullscreen mode
+#ifdef WITH_VMODE
+				if (fullscreenflags & FULLSCREEN_VMODE)
+				{
+					if (!(fullscreenflags & FULLSCREEN_VMODEACTIVE))
+					{
+						// change to the mode
+						XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[vidmode_usemode]);
+						fullscreenflags |= FULLSCREEN_VMODEACTIVE;
+						// Move the viewport to top left
+					}
+					XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+				}
+#endif
+				Cvar_ForceCallback(&v_gamma);
+
+				/*release the mouse now, because we're paranoid about clip regions*/
+				if (fullscreenflags & FULLSCREEN_WM)
+					X_GoFullscreen();
+				if (fullscreenflags & FULLSCREEN_LEGACY)
+				{
+					XMoveWindow(vid_dpy, vid_window, 0, 0);
+					XReparentWindow(vid_dpy, vid_window, vid_root, 0, 0);
+					//XUnmapWindow(vid_dpy, vid_decoywindow);
+					//make sure we have it
+					XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+					XRaiseWindow(vid_dpy, vid_window);
+					XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+				}
+				if (fullscreenflags)
+					fullscreenflags |= FULLSCREEN_ACTIVE;
+			}
+			if (modeswitchpending < 0)
+			{
+				//leave fullscreen mode
+		 		if (!COM_CheckParm("-stayactive"))
+ 				{	//a parameter that leaves the program fullscreen if you taskswitch.
+ 					//sounds pointless, works great with two moniters. :D
+					if (fullscreenflags & FULLSCREEN_VMODE)
+					{
+	 					if (originalapplied)
+							XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
+						if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
+						{
+							XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
+							fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
+						}
+					}
+				}
+				if (fullscreenflags & FULLSCREEN_WM)
+					X_GoWindowed();
+				if (fullscreenflags & FULLSCREEN_LEGACY)
+				{
+					XMapWindow(vid_dpy, vid_decoywindow);
+					XReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
+					XResizeWindow(vid_dpy, vid_decoywindow, 640, 480);
+				}
+				fullscreenflags &= ~FULLSCREEN_ACTIVE;
+			}
+	                modeswitchpending = 0;
+		}
+
+		if (modeswitchpending)
+			return;
+
+		wantwindowed = !!_windowed_mouse.value;
+		if (!ActiveApp)
+			wantwindowed = false;
+		if (Key_MouseShouldBeFree() && !fullscreenflags)
+			wantwindowed = false;
+
+		if (old_windowed_mouse != wantwindowed)
+		{
+			old_windowed_mouse = wantwindowed;
+
+			if (!wantwindowed)
+			{
+				Con_DPrintf("uninstall grabs\n");
+				/* ungrab the pointer */
+				uninstall_grabs();
+				XUndefineCursor(vid_dpy, vid_window);
+			}
+			else
+			{
+				Con_DPrintf("install grabs\n");
+				/* grab the pointer */
+				if (fullscreenflags & FULLSCREEN_ACTIVE)
+					install_grabs();
+				else
+					uninstall_grabs();	//don't grab the mouse when fullscreen. its a: not needed. b: breaks gnome's alt-tab.
+				/*hide the cursor*/
+				XDefineCursor(vid_dpy, vid_window, vid_nullcursor);
+			}
+		}
 	}
 }
 
@@ -1071,4 +1375,42 @@ void GLVID_SetCaption(char *text)
 {
 	XStoreName(vid_dpy, vid_window, text);
 }
+
+
+#if 1
+char *Sys_GetClipboard(void)
+{
+	Atom xa_clipboard = XInternAtom(vid_dpy, "PRIMARY", false);
+	Atom xa_string = XInternAtom(vid_dpy, "UTF8_STRING", false);
+	Window clipboardowner = XGetSelectionOwner(vid_dpy, xa_clipboard);
+	if (clipboardowner != None && clipboardowner != vid_window)
+	{
+		int fmt;
+		Atom type;
+		unsigned long nitems, bytesleft;
+		unsigned char *data;
+		XConvertSelection(vid_dpy, xa_clipboard, xa_string, None, vid_window, CurrentTime);
+		XFlush(vid_dpy);
+		XGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 0, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
+		
+		return data;
+	}
+        return clipboard_buffer;
+}
+
+void Sys_CloseClipboard(char *bf)
+{
+	if (bf == clipboard_buffer)
+		return;
+
+	XFree(bf);
+}
+
+void Sys_SaveClipboard(char *text)
+{
+	Atom xa_clipboard = XInternAtom(vid_dpy, "PRIMARY", false);
+        Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
+	XSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
+}
+#endif
 

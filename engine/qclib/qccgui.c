@@ -464,6 +464,23 @@ char *GetTooltipText(editor_t *editor)
 	else
 		return NULL;//"Type info not available. Compile first.";
 }
+
+#ifndef TTF_TRACK
+#define TTF_TRACK			0x0020
+#endif
+#ifndef TTF_ABSOLUTE
+#define TTF_ABSOLUTE		0x0080
+#endif
+#ifndef TTM_SETMAXTIPWIDTH
+#define TTM_SETMAXTIPWIDTH	(WM_USER + 24)
+#endif
+#ifndef TTM_TRACKACTIVATE
+#define TTM_TRACKACTIVATE	(WM_USER + 17)
+#endif
+#ifndef TTM_TRACKPOSITION
+#define TTM_TRACKPOSITION	(WM_USER + 18)
+#endif
+
 static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
@@ -563,7 +580,7 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 			TOOLINFO toolInfo = { 0 };
 			toolInfo.cbSize = sizeof(toolInfo);
 			toolInfo.hwnd = hWnd;
-			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_TRACK;
+			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_TRACK | TTF_ABSOLUTE;
 			toolInfo.uId = (UINT_PTR)editor->editpane;
 			newtext = GetTooltipText(editor);
 			toolInfo.lpszText = editor->tooltiptext;

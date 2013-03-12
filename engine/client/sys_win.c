@@ -2006,7 +2006,7 @@ void Win7_TaskListInit(void)
 	#endif
 #elif defined(D3DQUAKE)
 	#define EXETYPE "d3dqw"
-#elif defiend(SWQUAKE)
+#elif defined(SWQUAKE)
 	#define EXETYPE "swqw"
 #else
 	//erm...

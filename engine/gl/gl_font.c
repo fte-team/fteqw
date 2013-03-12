@@ -267,9 +267,8 @@ void Font_Init(void)
 	fontplanes.shader = R_RegisterShader("ftefont",
 		"{\n"
 			"if $nofixed\n"
-			"[\n"
 				"program default2d\n"
-			"]\n"
+			"endif\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $nearest:$diffuse\n"

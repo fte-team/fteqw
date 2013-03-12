@@ -3238,6 +3238,11 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	shaderpass_t *pass;
 	qboolean ignore;
 	static shader_t dummy;
+	int conddepth = 0;
+	int cond[8] = {0};
+#define COND_IGNORE 1
+#define COND_IGNOREPARENT 2
+#define COND_ALLOWELSE 4
 
 	if ( shader->numpasses >= SHADER_PASS_MAX )
 	{
@@ -3273,43 +3278,60 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		{
 			continue;
 		}
-		else if ( token[0] == '}' )
-		{
-			break;
-		}
 		else if (!Q_stricmp(token, "if"))
 		{
-			int nest = 0;
-			qboolean conditionistrue = Shader_EvaluateCondition(shader, ptr);
-
-			while (*ptr)
+			if (conddepth+1 == sizeof(cond)/sizeof(cond[0]))
 			{
-				token = COM_ParseExt (ptr, true, true);
+				Con_Printf("if statements nest too deeply in shader %s\n", shader->name);
+				break;
+			}
+			conddepth++;
+			cond[conddepth] = (Shader_EvaluateCondition(shader, ptr)?0:COND_IGNORE);
+			cond[conddepth] |= COND_ALLOWELSE;
+			if (cond[conddepth-1] & (COND_IGNORE|COND_IGNOREPARENT))
+				cond[conddepth] |= COND_IGNOREPARENT;
+		}
+		else if (!Q_stricmp(token, "endif"))
+		{
+			if (!conddepth)
+			{
+				Con_Printf("endif without if in shader %s\n", shader->name);
+				break;
+			}
+			conddepth--;
+		}
+		else if (!Q_stricmp(token, "else"))
+		{
+			if (cond[conddepth] & COND_ALLOWELSE)
+			{
+				cond[conddepth] ^= COND_IGNORE;
+				cond[conddepth] &= ~COND_ALLOWELSE;
+			}
+			else
+				Con_Printf("unexpected else statement in shader %s\n", shader->name);
+		}
+		else if (cond[conddepth] & (COND_IGNORE|COND_IGNOREPARENT))
+		{
+			//eat it
+			while (ptr)
+			{
+				token = COM_ParseExt(ptr, false, true);
 				if ( !token[0] )
-					continue;
-				else if (token[0] == ']')
-				{
-					if (--nest <= 0)
-					{
-						nest++;
-						if (!strcmp(token, "]["))
-							conditionistrue = !conditionistrue;
-						else
-							break;
-					}
-				}
-				else if (token[0] == '[')
-					nest++;
-				else if (conditionistrue)
-				{
-					Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr);
-				}
+					break;
 			}
 		}
-		else if ( Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr) )
+		else
 		{
-			break;
+			if ( token[0] == '}' )
+				break;
+			else if ( Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr) )
+				break;
 		}
+	}
+
+	if (conddepth)
+	{
+		Con_Printf("if statements without endif in shader %s\n", shader->name);
 	}
 
 	// check some things
@@ -4133,7 +4155,6 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 		builtin = (
 				"{\n"
 /*					"if $deluxmap\n"
-					"[\n"
 						"{\n"
 							"map $normalmap\n"
 							"tcgen base\n"
@@ -4143,34 +4164,30 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 							"map $deluxmap\n"
 							"tcgen lightmap\n"
 						"}\n"
-					"]\n"
-*///					"if !r_fullbright\n"
-//					"[\n"
+					"endif\n"
+*///				"if !r_fullbright\n"
 						"{\n"
 							"map $lightmap\n"
 //							"if $deluxmap\n"
-//							"[\n"
 //								"blendfunc gl_dst_color gl_zero\n"
-//							"]\n"
+//							"endif\n"
 						"}\n"
-//					"]\n"
+//					"endif\n"
 					"{\n"
 						"map $diffuse\n"
 						"tcgen base\n"
 //						"if $deluxmap || !r_fullbright\n"
-//						"[\n"
 //							"blendfunc gl_dst_color gl_zero\n"
 							"blendfunc filter\n"
-//						"]\n"
+//						"endif\n"
 					"}\n"
 					"if gl_fb_bmodels\n"
-					"[\n"
 						"{\n"
 							"map $fullbright\n"
 							"blendfunc add\n"
 							"depthfunc equal\n"
 						"}\n"
-					"]\n"
+					"endif\n"
 				"}\n"
 			);
 
@@ -4251,19 +4268,16 @@ char *Shader_DefaultBSPWater(char *shortname)
 					"map $diffuse\n"
 					"tcmod turb 0.02 0.1 0.5 0.1\n"
 					"if !$#ALPHA\n"
-					"[\n"
 						"if r_wateralpha < 1\n"
-						"[\n"
 							"alphagen const $r_wateralpha\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-						"]\n"
-					"][\n"
+						"endif\n"
+					"else\n"
 						"if $#ALPHA < 1\n"
-						"[\n"
 							"alphagen const $#ALPHA\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-						"]\n"
-					"]\n"
+						"endif\n"
+					"endif\n"
 				"}\n"
 				"surfaceparm nodlight\n"
 			"}\n"
@@ -4479,7 +4493,6 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		builtin = (
 			"{\n"
 		/*		"if $deluxmap\n"
-				"[\n"
 					"{\n"
 						"map $normalmap\n"
 						"tcgen base\n"
@@ -4488,20 +4501,19 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"map $deluxmap\n"
 						"tcgen lightmap\n"
 					"}\n"
-				"]\n"*/
+				"endif\n"*/
 				"{\n"
 					"map $diffuse\n"
 					"tcgen base\n"
 						"alphamask\n"
 				"}\n"
 				"if $lightmap\n"
-				"[\n"
 					"{\n"
 						"map $lightmap\n"
 						"blendfunc gl_dst_color gl_zero\n"
 						"depthfunc equal\n"
 					"}\n"
-				"]\n"
+				"endif\n"
 				"{\n"
 					"map $fullbright\n"
 					"blendfunc add\n"
@@ -4601,11 +4613,10 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 	Shader_DefaultScript(shortname, s,
 		"{\n"
 			"if $lpp\n"
-			"[\n"
 				"program lpp_skin\n"
-			"][\n"
+			"else\n"
 				"program defaultskin\n"
-			"]\n"
+			"endif\n"
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen lightingDiffuse\n"
@@ -4625,14 +4636,13 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 				"blendfunc add\n"
 			"}\n"
 			"if $haveprogram\n"
-			"[\n"
 				"{\n"
 					"map $normalmap\n"
 				"}\n"
 				"{\n"
 					"map $specular\n"
 				"}\n"
-			"]\n"
+			"endif\n"
 		"}\n"
 		);
 }
@@ -4656,9 +4666,8 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 	Shader_DefaultScript(shortname, s,
 		"{\n"
 			"if $nofixed\n"
-			"[\n"
 				"program default2d\n"
-			"]\n"
+			"endif\n"
 			"nomipmaps\n"
 			"{\n"
 				"clampmap $diffuse\n"
@@ -4689,6 +4698,11 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 {
 	char *token;
+	int conddepth = 0;
+	int cond[8] = {0};
+#define COND_IGNORE 1
+#define COND_IGNOREPARENT 2
+#define COND_ALLOWELSE 4
 
 	shaderparsemode = parsemode;
 
@@ -4702,44 +4716,64 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 
 		if ( !token[0] )
 			continue;
-		else if ( token[0] == '}' )
-			break;
 		else if (!Q_stricmp(token, "if"))
 		{
-			int nest = 0;
-			qboolean conditionistrue = Shader_EvaluateCondition(s, &shadersource);
-
-			while (shadersource)
+			if (conddepth+1 == sizeof(cond)/sizeof(cond[0]))
 			{
-				token = COM_ParseExt (&shadersource, true, true);
+				Con_Printf("if statements nest too deeply in shader %s\n", s->name);
+				break;
+			}
+			conddepth++;
+			cond[conddepth] = (!Shader_EvaluateCondition(s, &shadersource)?COND_IGNORE:0);
+			cond[conddepth] |= COND_ALLOWELSE;
+			if (cond[conddepth-1] & (COND_IGNORE|COND_IGNOREPARENT))
+				cond[conddepth] |= COND_IGNOREPARENT;
+		}
+		else if (!Q_stricmp(token, "endif"))
+		{
+			if (!conddepth)
+			{
+				Con_Printf("endif without if in shader %s\n", s->name);
+				break;
+			}
+			conddepth--;
+		}
+		else if (!Q_stricmp(token, "else"))
+		{
+			if (cond[conddepth] & COND_ALLOWELSE)
+			{
+				cond[conddepth] ^= COND_IGNORE;
+				cond[conddepth] &= ~COND_ALLOWELSE;
+			}
+			else
+				Con_Printf("unexpected else statement in shader %s\n", s->name);
+		}
+		else if (cond[conddepth] & (COND_IGNORE|COND_IGNOREPARENT))
+		{
+			//eat it.
+			while (*shadersource)
+			{
+				token = COM_ParseExt(&shadersource, false, true);
 				if ( !token[0] )
-					continue;
-				else if (token[0] == ']')
 				{
-					if (--nest <= 0)
-					{
-						nest++;
-						if (!strcmp(token, "]["))
-							conditionistrue = !conditionistrue;
-						else
-							break;
-					}
-				}
-				else if (token[0] == '[')
-					nest++;
-				else if (conditionistrue)
-				{
-					if (token[0] == '{')
-						Shader_Readpass (s, &shadersource);
-					else
-						Shader_Parsetok (s, NULL, shaderkeys, token, &shadersource);
+					break;
 				}
 			}
 		}
-		else if ( token[0] == '{' )
-			Shader_Readpass ( s, &shadersource );
-		else if ( Shader_Parsetok (s, NULL, shaderkeys, token, &shadersource ) )
-			break;
+		else
+		{
+			if (token[0] == '}')
+				break;
+			else if (token[0] == '{')
+				Shader_Readpass(s, &shadersource);
+			else if (Shader_Parsetok(s, NULL, shaderkeys, token, &shadersource))
+				break;
+		}
+	}
+
+	if (conddepth)
+	{
+		Con_Printf("if statements without endif in shader %s\n", s->name);
 	}
 
 	Shader_Finish ( s );

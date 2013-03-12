@@ -3221,9 +3221,8 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 						"}\n"
 						"program terrain\n"
 						"if r_terraindebug\n"
-						"[\n"
 						"program terraindebug\n"
-						"]\n"
+						"endif\n"
 					"}\n"
 				);
 

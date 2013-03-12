@@ -1020,7 +1020,6 @@ void VARGS Sys_Printf (char *fmt, ...)
 	vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
 
-#ifdef _DEBUG
 	if (debugout)
 	{
 		//msvc debug output
@@ -1037,7 +1036,6 @@ void VARGS Sys_Printf (char *fmt, ...)
 		*out = 0;
 		OutputDebugStringW(wide);
 	}
-#endif
 	if (houtput)
 		WriteFile (houtput, text, strlen(text), &dummy, NULL);
 }

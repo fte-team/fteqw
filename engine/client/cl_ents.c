@@ -4765,9 +4765,9 @@ Made up of: clients, packet_entities, nails, and tents
 */
 void CL_ClearEntityLists(void)
 {
-	if (cl_numvisedicts == cl_maxvisedicts)
+	if (cl_numvisedicts+128 >= cl_maxvisedicts)
 	{
-		int newnum = cl_maxvisedicts + 32;
+		int newnum = cl_maxvisedicts + 256;
 		entity_t *n = BZ_Realloc(cl_visedicts, newnum * sizeof(*n));
 		if (n)
 		{

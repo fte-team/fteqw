@@ -6,6 +6,7 @@ extern model_t *loadmodel;
 extern char loadname[];
 qboolean		r_loadbumpmapping;
 extern cvar_t dpcompat_psa_ungroup;
+extern cvar_t r_noframegrouplerp;
 
 //Common loader function.
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
@@ -744,7 +745,7 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 		frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
 	}
 
-	if (frame1 == frame2)
+	if (frame1 == frame2 || r_noframegrouplerp.ival)
 		mlerp = 0;
 	plerp[l] = (1-mlerp)*(1-lerpfrac);
 	if (plerp[l]>0)
@@ -771,7 +772,7 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 			frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
 			frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
 		}
-		if (frame1 == frame2)
+		if (frame1 == frame2 || r_noframegrouplerp.ival)
 			mlerp = 0;
 		plerp[l] = (1-mlerp)*(lerpfrac);
 		if (plerp[l]>0)
@@ -1630,6 +1631,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 			frame1=lerp;
 			frame2=frame1+1;
 			lerp-=frame1;
+			if (r_noframegrouplerp.ival)
+				lerp = 0;
 			if (g1->loop)
 			{
 				frame1=frame1%g1->numposes;

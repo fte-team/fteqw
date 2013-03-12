@@ -192,8 +192,10 @@ typedef enum uploadfmt
         TF_BGRA32,              /*bgra byte order*/
         TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
 		TF_BGRX32,              /*rgb byte order, with extra wasted byte after blue*/
-        TF_RGB24,               /*bgr byte order, no alpha channel nor pad, and top down*/
+        TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
+		TF_BGR24,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
         TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
+		TF_LUM8,		/*8bit greyscale image*/
         TF_SOLID8,      /*8bit quake-palette image*/
         TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
         TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/

@@ -4665,7 +4665,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		"}\n"
 		);
 
-	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(shortname, NULL, IF_2D|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	if (!TEXVALID(s->defaulttextures.base))
 	{
 		unsigned char data[4*4] = {0};

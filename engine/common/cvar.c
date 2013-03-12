@@ -595,6 +595,10 @@ qboolean Cvar_UnsavedArchive(void)
 {
 	return cvar_archivedvaluechanged;
 }
+void Cvar_ConfigChanged(void)
+{
+	cvar_archivedvaluechanged = true;
+}
 void Cvar_Saved(void)
 {
 	cvar_archivedvaluechanged = false;
@@ -723,7 +727,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 				var->callback(var, latch);
 
 			if ((var->flags & CVAR_ARCHIVE) && !(var->flags & CVAR_SERVEROVERRIDE) && cl_warncmd.ival)
-				cvar_archivedvaluechanged = true;
+				Cvar_ConfigChanged();
 		}
 
 		Z_Free (latch);	// free the old value string

@@ -268,6 +268,8 @@ enum imageflags
 	/*warning: many of these flags only apply the first time it is requested*/
 	IF_CLAMP = 1<<0,
 	IF_NEAREST = 1<<1,
+	IF_2D = 1<<10,	//subject to texturemode2d
+	IF_LINEAR = 1<<11,
 	IF_NOPICMIP = 1<<2,
 	IF_NOMIPMAP = 1<<3,
 	IF_NOALPHA = 1<<4,

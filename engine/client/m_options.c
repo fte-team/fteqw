@@ -2,6 +2,7 @@
 
 #include "quakedef.h"
 #include "winquake.h"
+extern qboolean forcesaveprompt;
 
 menu_t *M_Options_Title(int *y, int infosize)
 {
@@ -528,6 +529,7 @@ static void ApplyPreset (int presetnum)
 		Cbuf_AddText("r_particledesc $r_particledesc h2part\n", RESTRICT_LOCAL);
 		Cbuf_Execute();
 	}
+	forcesaveprompt = true;
 }
 
 void M_Menu_Preset_f (void)
@@ -683,7 +685,7 @@ void M_Menu_Render_f (void)
 	};
 
 	menu_t *menu;
-	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled;
+	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled;
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
 #endif
@@ -696,6 +698,7 @@ void M_Menu_Render_f (void)
 		MB_CHECKBOXCVAR("Calculate VIS", r_novis, 0),
 		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
+		MB_CHECKBOXCVAR("Disable Framegroup Lerp", r_noframegrouplerp, 0),
 		MB_CHECKBOXCVAR("Lerp Images", gl_lerpimages, 0),
 		MB_COMBOCVAR("Water Warp", r_waterwarp, warpopts, warpvalues, NULL),
 		MB_SLIDER("Water Alpha", r_wateralpha, 0, 1, 0.1, NULL),

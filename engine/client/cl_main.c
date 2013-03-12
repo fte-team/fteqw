@@ -95,6 +95,7 @@ cvar_t  localid = SCVAR("localid", "");
 
 cvar_t	r_drawflame = CVARD("r_drawflame", "1", "Set to -1 to disable ALL static entities. Set to 0 to disable only wall torches and standing flame. Set to 1 for everything drawn as normal.");
 
+qboolean forcesaveprompt;
 static qboolean allowremotecmd = true;
 
 extern int			total_loading_size, current_loading_size, loading_stage;
@@ -242,6 +243,7 @@ cvar_t	developer = SCVAR("developer","0");
 #endif
 
 int			fps_count;
+qboolean	forcesaveprompt;
 
 jmp_buf 	host_abort;
 
@@ -307,6 +309,11 @@ CL_Quit_f
 */
 void CL_Quit_f (void)
 {
+	if (forcesaveprompt)
+	{
+		Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
+		return;
+	}
 
 	TP_ExecTrigger("f_quit");
 	Cbuf_Execute();
@@ -4042,6 +4049,7 @@ void Host_Init (quakeparms_t *parms)
 	R_SetRenderer(NULL);//set the renderer stuff to unset...
 
 	host_initialized = true;
+	forcesaveprompt = false;
 
 	Sys_SendKeyEvents();
 

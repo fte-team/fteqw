@@ -1719,6 +1719,7 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				GenerateManifest="false"
 				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
+				GenerateMapFile="true"
 				SubSystem="2"
 				LargeAddressAware="2"
 				OptimizeReferences="2"

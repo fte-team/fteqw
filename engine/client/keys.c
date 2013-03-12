@@ -1100,95 +1100,65 @@ void Key_Console (unsigned int unicode, int key)
 		return;
 	}
 
-	key = unicode;
-	if (!key)
+	if (unicode < ' ')
 		return;
 
+	if (com_parseutf8.ival >= 0)	//don't do this for iso8859-1. the major user of that is hexen2 which doesn't have these chars.
 	{
-		unsigned char c1;
-		unsigned char c2;
-		unsigned char c3;
-
-		if (unicode > ((com_parseutf8.ival<0)?255:127))
+		if (keydown[K_CTRL])
 		{
-			extern cvar_t com_parseutf8;
-			if (com_parseutf8.ival>0)
+			if (unicode >= '0' && unicode <= '9')
+				unicode = unicode - '0' + 0xe012;	// yellow number
+			else switch (unicode)
 			{
-				if (unicode > 0xffff)
-				{
-				}
-				else if (unicode > 0x7ff)
-				{
-					c1 = 0xe0 | ((unicode>>12)&0x0f);
-					c2 = 0x80 | ((unicode>> 6)&0x3f);
-					c3 = 0x80 | ((unicode>> 0)&0x3f);
-					if (key_linepos < MAXCMDLINE-3)
-					{
-						memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-						key_lines[edit_line][key_linepos] = c1;
-						key_linepos++;
-						key_lines[edit_line][key_linepos] = c2;
-						key_linepos++;
-						key_lines[edit_line][key_linepos] = c3;
-						key_linepos++;
-					}
-					return;
-				}
-				else
-				{
-					c1 = 0xc0 | ((unicode>>6)&0x1f);
-					c2 = 0x80 | ((unicode>>0)&0x3f);
-					if (key_linepos < MAXCMDLINE-2)
-					{
-						memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-						key_lines[edit_line][key_linepos] = c1;
-						key_linepos++;
-						key_lines[edit_line][key_linepos] = c2;
-						key_linepos++;
-					}
-					return;
-				}
+				case '[': unicode = 0xe010; break;
+				case ']': unicode = 0xe011; break;
+				case 'g': unicode = 0xe086; break;
+				case 'r': unicode = 0xe087; break;
+				case 'y': unicode = 0xe088; break;
+				case 'b': unicode = 0xe089; break;
+				case '(': unicode = 0xe080; break;
+				case '=': unicode = 0xe081; break;
+				case ')': unicode = 0xe082; break;
+				case 'a': unicode = 0xe083; break;
+				case '<': unicode = 0xe01d; break;
+				case '-': unicode = 0xe01e; break;
+				case '>': unicode = 0xe01f; break;
+				case ',': unicode = 0xe01c; break;
+				case '.': unicode = 0xe09c; break;
+				case 'B': unicode = 0xe08b; break;
+				case 'C': unicode = 0xe08d; break;
+				case 'n': unicode = '\r'; break;
 			}
-			unicode = '?';	//sorry
 		}
+
+		if (keydown[K_ALT] && unicode > 32 && unicode < 128)
+			unicode |= 0xe080;		// red char
 	}
 
-	if (!com_parseutf8.ival)
+	if (com_parseutf8.ival>0 && unicode > 127)
 	{
-		if (keydown[K_CTRL]) {
-			if (key >= '0' && key <= '9')
-					key = key - '0' + 0x12;	// yellow number
-			else switch (key) {
-				case '[': key = 0x10; break;
-				case ']': key = 0x11; break;
-				case 'g': key = 0x86; break;
-				case 'r': key = 0x87; break;
-				case 'y': key = 0x88; break;
-				case 'b': key = 0x89; break;
-				case '(': key = 0x80; break;
-				case '=': key = 0x81; break;
-				case ')': key = 0x82; break;
-				case 'a': key = 0x83; break;
-				case '<': key = 0x1d; break;
-				case '-': key = 0x1e; break;
-				case '>': key = 0x1f; break;
-				case ',': key = 0x1c; break;
-				case '.': key = 0x9c; break;
-				case 'B': key = 0x8b; break;
-				case 'C': key = 0x8d; break;
-				case 'n': key = '\r'; break;
-			}
+		char utf8[8];
+		int l = utf8_encode(utf8, unicode, sizeof(utf8)-1);
+		if (l)
+		{
+			utf8[l] = 0;
+			Key_ConsoleInsert(utf8);
+			return;
 		}
-
-		if (keydown[K_ALT] && key > 32 && key < 128)
-			key |= 128;		// red char
+		unicode = '?';
 	}
-
+	else if (unicode >= 0xe000 && unicode <= 0xe0ff && !com_parseutf8.ival)
+		unicode -= 0xe000;	//text line is quake-safe
+	else if (unicode >= ((com_parseutf8.ival<0)?256:128))
+	{
+		unicode = '?';	//sorry, char cannot be expressed using this encoding.
+	}
 		
 	if (strlen(key_lines[edit_line])+1 < MAXCMDLINE-1)
 	{
 		memmove(key_lines[edit_line]+key_linepos+1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-		key_lines[edit_line][key_linepos] = key;
+		key_lines[edit_line][key_linepos] = unicode;
 		key_linepos++;
 	}
 
@@ -1372,8 +1342,11 @@ void Key_SetBinding (int keynum, int modifier, char *binding, int level)
 		return;
 	}
 			
-	if (keynum == -1)
+	if (keynum < 0 || keynum >= K_MAX)
 		return;
+
+	//just so the quit menu realises it needs to show something.
+	Cvar_ConfigChanged();
 
 // free old bindings
 	if (keybindings[keynum][modifier])

@@ -4031,7 +4031,7 @@ static void BE_UpdateLightmaps(void)
 			lm->modified = false;
 			if (!TEXVALID(lm->lightmap_texture))
 			{
-				TEXASSIGN(lm->lightmap_texture, R_AllocNewTexture("***lightmap***", lm->width, lm->height, 0));
+				TEXASSIGN(lm->lightmap_texture, R_AllocNewTexture("***lightmap***", lm->width, lm->height, IF_LINEAR|IF_NOMIPMAP));
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

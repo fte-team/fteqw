@@ -117,6 +117,7 @@ cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
 cvar_t r_nolerp								= CVARF  ("r_nolerp", "0", CVAR_ARCHIVE);
+cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 cvar_t r_nolightdir							= CVARF  ("r_nolightdir", "0", CVAR_ARCHIVE);
 cvar_t r_novis								= CVARF ("r_novis", "0", CVAR_ARCHIVE);
 cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
@@ -415,6 +416,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_postprocshader, GLRENDEREROPTIONS);
 
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
+	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noportals, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);

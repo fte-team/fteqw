@@ -1613,7 +1613,8 @@ static struct {
 	{"crypto_getmykeyfp",		PF_crypto_getmykeyfp,		636},
 	{"crypto_getmyidfp",		PF_crypto_getmyidfp,		637},
 	{"digest_hex",				PF_digest_hex,				639},
-	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641}
+	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
+	{NULL}
 };
 builtin_t menu_builtins[1024];
 

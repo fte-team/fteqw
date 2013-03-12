@@ -176,7 +176,7 @@ typedef struct gltexture_s
 
 static gltexture_t	*gltextures;
 
-static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h)
+static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h, unsigned int flags)
 {
 	gltexture_t *glt;
 	glt = BZ_Malloc(sizeof(*glt) + sizeof(bucket_t));
@@ -185,7 +185,7 @@ static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h)
 
 	glt->texnum.ref = &glt->com;
 	Q_strncpyz (glt->identifier, ident, sizeof(glt->identifier));
-	glt->flags = IF_NOMIPMAP;
+	glt->flags = flags;
 	glt->width = w;
 	glt->height = h;
 	glt->bpp = 0;
@@ -200,7 +200,7 @@ static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h)
 
 texid_t GL_AllocNewTexture(char *name, int w, int h, unsigned int flags)
 {
-	gltexture_t *glt = GL_AllocNewGLTexture(name, w, h);
+	gltexture_t *glt = GL_AllocNewGLTexture(name, w, h, flags);
 	return glt->texnum;
 }
 
@@ -289,6 +289,36 @@ void GL_Mipcap_Callback (struct cvar_s *var, char *oldvalue)
 		}
 	}
 }
+void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
+{
+	int mag;
+	if (flags & IF_2D)
+	{
+		qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else if (flags & IF_LINEAR)
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		else
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+	}
+	else
+	{
+		if (flags & IF_NEAREST)
+			mag = GL_NEAREST;
+		else if (flags & IF_LINEAR)
+			mag = GL_LINEAR;
+		else
+			mag = gl_filter_max;
+
+		if (flags & IF_NOMIPMAP)
+			qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, mag);
+		else
+			qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, mag);
+	}
+}
+
 /*
 ===============
 Draw_TextureMode_f
@@ -322,7 +352,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 	// change all the existing mipmap texture objects
 	for (glt=gltextures ; glt ; glt=glt->next)
 	{
-		if (!(glt->flags & IF_NOMIPMAP))
+		if (!(glt->flags & IF_2D))
 		{
 			if (glt->flags & IF_CUBEMAP)
 				targ = GL_TEXTURE_CUBE_MAP_ARB;
@@ -330,11 +360,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 				targ = GL_TEXTURE_2D;
 
 			GL_MTBind(0, targ, glt->texnum);
-			qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-			if (glt->flags & IF_NEAREST)
-				qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			else
-				qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+			GL_Texturemode_Apply(targ, glt->flags);
 		}
 	}
 }
@@ -365,14 +391,10 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 	// change all the existing mipmap texture objects
 	for (glt=gltextures ; glt ; glt=glt->next)
 	{
-		if (glt->flags & IF_NOMIPMAP)
+		if (glt->flags & IF_2D)
 		{
 			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-			if (glt->flags & IF_NEAREST)
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			else
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+			GL_Texturemode_Apply(GL_TEXTURE_2D, glt->flags);
 		}
 	}
 }
@@ -1012,22 +1034,7 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 		file += compressed_size;
 	}
 
-	if (!((*out_flags) & IF_NOMIPMAP))
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		if (*out_flags & IF_NEAREST)
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-	}
-	else
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		if (*out_flags & IF_NEAREST)
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
-	}
+	GL_Texturemode_Apply(GL_TEXTURE_2D, *out_flags);
 	return true;
 }
 
@@ -1246,22 +1253,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		qglTexParameteri(targ, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
 	}
 
-	if (!(flags&IF_NOMIPMAP))
-	{
-		qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		if (flags & IF_NEAREST)
-			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		else
-			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-	}
-	else
-	{
-		qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		if (flags & IF_NEAREST)
-			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		else
-			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
-	}
+	GL_Texturemode_Apply(targ, flags);
 
 	if (scaled_width == width && scaled_height == height)
 	{
@@ -1572,22 +1564,7 @@ void GL_Upload8Grey (unsigned char*data, int width, int height, unsigned int fla
 	}
 done: ;
 
-	if (!(flags&IF_NOMIPMAP))
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		if (flags & IF_NEAREST)
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-	}
-	else
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		if (flags & IF_NEAREST)
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
-	}
+	GL_Texturemode_Apply(GL_TEXTURE_2D, flags);
 }
 
 
@@ -1712,7 +1689,7 @@ unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
 }
 
 //PENTA
-void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap, float bumpscale)
+void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, float bumpscale)
 {
     unsigned char	*scaled = uploadmemorybuffer;
 	int			scaled_width, scaled_height;
@@ -2148,7 +2125,7 @@ texid_t GL_LoadTexture (char *identifier, int width, int height, qbyte *data, un
 			return glt->texnum;
 	}
 	if (!glt)
-		glt = GL_AllocNewGLTexture(identifier, width, height);
+		glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 
 TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 
@@ -2181,7 +2158,7 @@ texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, 
 	if (i == width*height)
 		return r_nulltex;	//none found, don't bother uploading.
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 8;
 	glt->flags = flags;
 
@@ -2204,7 +2181,7 @@ texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *da
 			return glt->texnum;
 	}
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 24;
 	glt->flags = flags;
 
@@ -2226,7 +2203,7 @@ texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *da
 			return glt->texnum;
 	}
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 32;
 	glt->flags = flags;
 
@@ -2251,7 +2228,7 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 			return glt->texnum;
 	}
 	if (!glt)
-		glt = GL_AllocNewGLTexture(identifier, width, height);
+		glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 32;
 	glt->flags = flags;
 
@@ -2287,7 +2264,7 @@ texid_t GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned
 			return glt->texnum;
 	}
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 32;
 	glt->flags = flags;
 
@@ -2324,7 +2301,7 @@ texid_t GL_LoadCompressed(char *name)
 	if (!file)
 		return r_nulltex;
 
-	glt = GL_AllocNewGLTexture(name, 0, 0);
+	glt = GL_AllocNewGLTexture(name, 0, 0, 0);
 	glt->bpp = 32;
 	glt->flags = 0;
 
@@ -2352,7 +2329,7 @@ texid_t GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned c
 
 	flags |= IF_NOALPHA;
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 8;
 	glt->flags = flags;
 
@@ -2382,7 +2359,7 @@ texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned c
 
 	TRACE(("dbg: GL_LoadTexture8Bump: new %s\n", identifier));
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	glt = GL_AllocNewGLTexture(identifier, width, height, flags);
 	glt->bpp = 8;
 	glt->flags = flags;
 

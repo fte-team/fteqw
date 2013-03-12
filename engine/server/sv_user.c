@@ -6044,7 +6044,6 @@ void SV_AckEntityFrame(client_t *cl, int framenum)
 	if (cl->lastsequence_acknowledged + UPDATE_BACKUP > framenum)
 	{
 		int i;
-		Con_DPrintf("SV: Acked %i\n", framenum);
 		for (i = cl->lastsequence_acknowledged+1; i < framenum; i++)
 			SV_CSQC_DroppedPacket(cl, i);
 	}

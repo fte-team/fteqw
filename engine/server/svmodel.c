@@ -46,7 +46,8 @@ texture_t	r_notexture_mip_real;
 texture_t	*r_notexture_mip = &r_notexture_mip_real;
 
 cvar_t sv_nogetlight = SCVAR("sv_nogetlight", "0");
-cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
+cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
+cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 
 unsigned *model_checksum;
 
@@ -202,6 +203,7 @@ void Mod_Init (void)
 	memset (mod_novis, 0xff, sizeof(mod_novis));
 	Cvar_Register(&sv_nogetlight, "Memory preservation");
 	Cvar_Register (&dpcompat_psa_ungroup, "Darkplaces compatibility");
+	Cvar_Register (&r_noframegrouplerp, "Oooga booga");
 }
 
 /*

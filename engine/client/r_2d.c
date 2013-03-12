@@ -174,9 +174,9 @@ void R2D_Init(void)
 			"}\n"
 		"}\n");
 	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_NOPICMIP|IF_NOMIPMAP);
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_2D|IF_NOPICMIP|IF_NOMIPMAP);
 	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_NOPICMIP|IF_NOMIPMAP);
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_2D|IF_NOPICMIP|IF_NOMIPMAP);
 
 	shader_draw_fill = R_RegisterShader("fill_opaque",
 		"{\n"
@@ -471,7 +471,7 @@ void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qby
 		translate_shader->defaulttextures.base = translate_texture;
 	}
 	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
-	R_Upload(translate_texture, NULL, TF_RGBA32, trans, NULL, 64, 64, IF_NOMIPMAP|IF_NOGAMMA);
+	R_Upload(translate_texture, NULL, TF_RGBA32, trans, NULL, 64, 64, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 	R2D_ScalePic(x, y, width, height, translate_shader);
 }
 
@@ -1046,7 +1046,7 @@ void R2D_Crosshair_Update(void)
 		return;
 	else if (crosshairimage.string[0] && c == 1)
 	{
-		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_NOMIPMAP|IF_NOGAMMA);
+		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 		if (TEXVALID(shader_crosshair->defaulttextures.base))
 			return;
 	}
@@ -1057,7 +1057,7 @@ void R2D_Crosshair_Update(void)
 	c = c % (sizeof(crosshair_pixels) / (CS_HEIGHT*sizeof(*crosshair_pixels)));
 
 	if (!TEXVALID(ch_int_texture))
-		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT, 0);
+		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT, IF_2D|IF_NOMIPMAP);
 	shader_crosshair->defaulttextures.base = ch_int_texture;
 
 	Q_memset(crossdata, 0, sizeof(crossdata));
@@ -1074,7 +1074,7 @@ void R2D_Crosshair_Update(void)
 		}
 	}
 
-	R_Upload(ch_int_texture, NULL, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_NOMIPMAP|IF_NOGAMMA);
+	R_Upload(ch_int_texture, NULL, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 
 }
 

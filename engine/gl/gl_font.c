@@ -147,7 +147,7 @@ static const char *imgs[] =
 };
 
 #define FONTCHARS (1<<16)
-#define FONTPLANES (1<<2)	//no more than 16 textures per font
+#define FONTPLANES 1//(1<<2)	//this is total, not per font.
 #define PLANEIDXTYPE unsigned short
 #define CHARIDXTYPE unsigned short
 
@@ -256,7 +256,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_NOMIPMAP));
+		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_2D|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont",
@@ -297,7 +297,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_2D|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -366,13 +366,15 @@ void Font_FlushPlane(font_t *f)
 	fontplanes.planerowh = 0;
 	fontplanes.planerowx = 0;
 	fontplanes.planerowy = 0;
-	for (; fontplanes.oldestchar; fontplanes.oldestchar = fontplanes.oldestchar->nextchar)
+
+	while (fontplanes.oldestchar)
 	{
 		if (fontplanes.oldestchar->texplane != fontplanes.activeplane)
 			break;
 
-		//invalidate it
+		//remove it from the list of active chars, and invalidate it
 		fontplanes.oldestchar->texplane = INVALIDPLANE;
+		fontplanes.oldestchar = fontplanes.oldestchar->nextchar;
 	}
 	if (!fontplanes.oldestchar)
 		fontplanes.newestchar = NULL;
@@ -720,15 +722,15 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 	if (TEXVALID(tex))
 		return tex;
 	//q2
-	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 	if (TEXVALID(tex))
 		return tex;
 	//q3
-	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 	if (TEXVALID(tex))
 		return tex;
 	return r_nulltex;
@@ -751,7 +753,7 @@ static texid_t Font_LoadQuakeConchars(void)
 			if (lump[i] == 0)
 				lump[i] = 255;	// proper transparent color
 
-		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_NOMIPMAP|IF_NOGAMMA, 1);
+		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_2D|IF_NOMIPMAP|IF_NOGAMMA, 1);
 	}
 	return r_nulltex;
 }
@@ -837,7 +839,7 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 		for (i=0 ; i<128*128 ; i++)
 			if (outbuf[i] == 0)
 				outbuf[i] = 255;	// proper transparent color
-		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_NOMIPMAP|IF_NOGAMMA, 1);
+		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_2D|IF_NOMIPMAP|IF_NOGAMMA, 1);
 		Z_Free(outbuf);
 		return tex;
 	}
@@ -863,7 +865,7 @@ static texid_t Font_LoadFallbackConchars(void)
 		lump[i*4+1] = 255;
 		lump[i*4+2] = 255;
 	}
-	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
 	BZ_Free(lump);
 	return tex;
 }
@@ -1019,7 +1021,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 			for (x = 0; x < 128; x++)
 				img[x + y*PLANEWIDTH] = w[x + y*128]?d_8to24rgbtable[w[x + y*128]]:0;
 
-		f->singletexture = R_LoadTexture(fontfilename,PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_NOPICMIP|IF_NOMIPMAP);
+		f->singletexture = R_LoadTexture(fontfilename,PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_2D|IF_NOPICMIP|IF_NOMIPMAP);
 		Z_Free(img);
 
 		for (i = 0x00; i <= 0xff; i++)
@@ -1070,7 +1072,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
 	{
 		if (*fontfilename)
-			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_NOMIPMAP);
+			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_2D|IF_NOMIPMAP);
 
 		/*force it to load, even if there's nothing there*/
 		for (; i < 256; i++)
@@ -1130,7 +1132,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 //removes a font from memory.
 void Font_Free(struct font_s *f)
 {
-	struct charcache_s **link;
+	struct charcache_s **link, *c;
 
 	//kill the alt font first.
 	if (f->alt)
@@ -1141,14 +1143,16 @@ void Font_Free(struct font_s *f)
 	//walk all chars, unlinking any that appear to be within this font's char cache
 	for (link = &fontplanes.oldestchar; *link; )
 	{
-		if (*link >= f->chars && *link <= f->chars + FONTCHARS)
+		c = *link;
+		if (c >= f->chars && c <= f->chars + FONTCHARS)
 		{
-			*link = (*link)->nextchar;
-			if (!*link)
+			c = c->nextchar;
+			if (!c)
 				fontplanes.newestchar = NULL;
+			*link = c;
 		}
 		else
-			link = &(*link)->nextchar;
+			link = &c->nextchar;
 	}
 
 #ifdef AVAIL_FREETYPE

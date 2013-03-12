@@ -476,7 +476,7 @@ Returns a string describing *data in a human-readable type specific manner
 */
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 {
-	static char	line[256];
+	static char	line[4096];
 	fdef_t			*fielddef;
 	dfunction_t	*f;
 
@@ -589,7 +589,7 @@ Easier to parse than PR_ValueString
 char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	static char	line[256];
+	static char	line[4096];
 	fdef_t		*fielddef;
 	dfunction_t	*f;
 	int i, j;
@@ -698,7 +698,7 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 //compatible with Q1 (for savegames)
 char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 {
-	static char	line[256];
+	static char	line[4096];
 	fdef_t		*fielddef;
 	dfunction_t	*f;
 
@@ -1427,8 +1427,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 				continue;
 
  add16:
-			AddS (qcva("\"%s\" ", name));
-			AddS (qcva("\"%s\"\n", PR_UglyValueString(&progfuncs->funcs, def16->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
+			AddS("\""); AddS(name); AddS("\" \""); AddS(PR_UglyValueString(&progfuncs->funcs, def16->type&~DEF_SAVEGLOBAL, (eval_t *)v)); AddS("\"\n");
 		}
 		break;
 	case PST_QTEST:
@@ -1481,8 +1480,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 			if (j == type_size[type])
 				continue;
 add32:
-			AddS (qcva("\"%s\" ", name));
-			AddS (qcva("\"%s\"\n", PR_UglyValueString(&progfuncs->funcs, def32->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
+			AddS("\""); AddS(name); AddS("\" \""); AddS(PR_UglyValueString(&progfuncs->funcs, def32->type&~DEF_SAVEGLOBAL, (eval_t *)v)); AddS("\"\n");
 		}
 		break;
 	default:
@@ -1527,14 +1525,12 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 			continue;
 
 		//add it to the file
-		tmp = qcva("\"%s\"\n", name);
-		AddS (tmp);
+		AddS("\""); AddS(name); AddS("\" ");
 		if (q1compatible)
 			tmp = PR_UglyOldValueString(progfuncs, d->type, (eval_t *)v);
 		else
 			tmp = PR_UglyValueString(&progfuncs->funcs, d->type, (eval_t *)v);
-		tmp = qcva("\"%s\"\n", tmp);
-		AddS (tmp);
+		AddS("\""); AddS(tmp); AddS("\"\n");
 	}
 
 	return buffer;
@@ -2309,8 +2305,7 @@ char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, struct edict_
 			continue;
 
 		//add it to the file
-		AddS (qcva("\"%s\" ",name));
-		AddS (qcva("\"%s\"\n", PR_UglyValueString(&progfuncs->funcs, d->type, (eval_t *)v)));
+		AddS("\""); AddS(name); AddS("\" \""); AddS(PR_UglyValueString(&progfuncs->funcs, d->type, (eval_t *)v)); AddS("\"\n");
 	}
 
 	AddS ("}\n");

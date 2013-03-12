@@ -1122,6 +1122,9 @@ qboolean CSQC_DeltaUpdate(entity_state_t *src);
 void CSQC_DeltaEnd(void);
 
 void CSQC_CvarChanged(cvar_t *var);
+#else
+#define CSQC_UnconnectedOkay(inprinciple) false
+#define CSQC_UnconnectedInit() false
 #endif
 
 //

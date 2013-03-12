@@ -61,6 +61,14 @@ static Window vid_decoywindow;	//for legacy mode, this is a boring window that w
 static Window vid_root;
 static GLXContext ctx = NULL;
 static int scrnum;
+static enum
+{
+	PSL_NONE,
+#ifdef USE_EGL
+	PSL_EGL,
+#endif
+	PSL_GLX
+} currentpsl;
 
 extern cvar_t vid_conautoscale;
 
@@ -620,9 +628,6 @@ static void GetEvent(void)
 
 void GLVID_Shutdown(void)
 {
-#ifdef USE_EGL
-	EGL_Shutdown();
-#else
 	printf("GLVID_Shutdown\n");
 	if (!vid_dpy)
 		return;
@@ -631,16 +636,29 @@ void GLVID_Shutdown(void)
 	if (old_windowed_mouse)
 		uninstall_grabs();
 
-	if (ctx)
-	{
-		qglXDestroyContext(vid_dpy, ctx);
-		ctx = NULL;
-	}
-
 #ifdef WITH_VMODE
 	if (originalapplied)
 		XF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);
 #endif
+
+
+	switch(currentpsl)
+	{
+#ifdef USE_EGL
+	case PSL_EGL:
+		EGL_Shutdown();
+		break;
+#endif
+	case PSL_GLX:
+		if (ctx)
+		{
+			qglXDestroyContext(vid_dpy, ctx);
+			ctx = NULL;
+		}
+		break;
+	case PSL_NONE:
+		break;
+	}
 
 	if (vid_window)
 		XDestroyWindow(vid_dpy, vid_window);
@@ -662,7 +680,7 @@ void GLVID_Shutdown(void)
 	XCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
 	vid_window = (Window)NULL;
-#endif
+	currentpsl = PSL_NONE;
 }
 
 void GLVID_DeInit(void)	//FIXME:....
@@ -780,22 +798,37 @@ GL_BeginRendering
 */
 void GL_BeginRendering (void)
 {
+	switch(currentpsl)
+	{
 #ifdef USE_EGL
-	EGL_BeginRendering();
+	case PSL_EGL:
+		EGL_BeginRendering();
+		break;
 #endif
+	case PSL_GLX:
+	case PSL_NONE:
+		break;
+	}
 }
 
 
 void GL_EndRendering (void)
 {
+	switch(currentpsl)
+	{
 #ifdef USE_EGL
-	EGL_EndRendering();
-#else
-//return;
-//we don't need the flush, XSawpBuffers does it for us.
-//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
-	qglXSwapBuffers(vid_dpy, vid_window);
+	case PSL_EGL:
+		EGL_EndRendering();
+		break;
 #endif
+	case PSL_GLX:
+		//we don't need to flush, XSawpBuffers does it for us.
+		//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
+		qglXSwapBuffers(vid_dpy, vid_window);
+		break;
+	case PSL_NONE:
+		break;
+	}
 }
 
 #include "bymorphed.h"
@@ -968,7 +1001,7 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 	return wnd;
 }
 
-qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
+qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 {
 	int width = info->width;	//can override these if vmode isn't available
 	int height = info->height;
@@ -999,19 +1032,29 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	S_Startup();
 
+	currentpsl = psl;
+
+	switch(currentpsl)
+	{
 #ifdef USE_EGL
-	if (!EGL_LoadLibrary(info->glrenderer))
-	{
-		Con_Printf("couldn't load EGL library\n");
-		return false;
-	}
-#else
-	if (!GLX_InitLibrary(info->glrenderer))
-	{
-		Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
-		return false;
-	}
+	case PSL_EGL:
+		if (!EGL_LoadLibrary(info->glrenderer))
+		{
+			Con_Printf("couldn't load EGL library\n");
+			return false;
+		}
+		break;
 #endif
+	case PSL_GLX:
+		if (!GLX_InitLibrary(info->glrenderer))
+		{
+			Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
+			return false;
+		}
+		break;
+	case PSL_NONE:
+		return false;
+	}
 
 	if (!vid_dpy)
 		vid_dpy = XOpenDisplay(NULL);
@@ -1105,20 +1148,28 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
                         fullscreenflags |= FULLSCREEN_LEGACY;
 	}
 
+	switch(currentpsl)
+	{
 #ifdef USE_EGL
-	visinfo = &vinfodef;
-	if (!XMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
-//	if (!XMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
-	{
-		Sys_Error("Couldn't choose visual for EGL\n");
-	}
-#else
-	visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
-	if (!visinfo)
-	{
-		Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
-	}
+	case PSL_EGL:
+		visinfo = &vinfodef;
+		if (!XMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
+	//	if (!XMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+		{
+			Sys_Error("Couldn't choose visual for EGL\n");
+		}
+		break;
 #endif
+	case PSL_GLX:
+		visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
+		if (!visinfo)
+		{
+			Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
+		}
+		break;
+	case PSL_NONE:
+		break;	//erm
+	}
 
 	ActiveApp = false;
 	if (fullscreenflags & FULLSCREEN_LEGACY)
@@ -1147,7 +1198,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	XFlush(vid_dpy);
 
-#ifndef USE_EGL
 #ifdef WITH_VMODE
 	if (vidmode_ext >= 2)
 	{
@@ -1165,27 +1215,35 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		originalapplied = false;
 #endif
 
-	ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);
-	if (!ctx)
+	switch(currentpsl)
 	{
-		Con_Printf("Failed to create GLX context.\n");
-		GLVID_Shutdown();
-		return false;
-	}
+	case PSL_GLX:
+		ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);
+		if (!ctx)
+		{
+			Con_Printf("Failed to create GLX context.\n");
+			GLVID_Shutdown();
+			return false;
+		}
 
-	if (!qglXMakeCurrent(vid_dpy, vid_window, ctx))
-	{
-		Con_Printf("glXMakeCurrent failed\n");
-		GLVID_Shutdown();
-		return false;
-	}
+		if (!qglXMakeCurrent(vid_dpy, vid_window, ctx))
+		{
+			Con_Printf("glXMakeCurrent failed\n");
+			GLVID_Shutdown();
+			return false;
+		}
 
-	GL_Init(&GLX_GetSymbol);
-
-#else
-	EGL_Init(info, palette, vid_window);
-	GL_Init(&EGL_Proc);
+		GL_Init(&GLX_GetSymbol);
+		break;
+#ifdef USE_EGL
+	case PSL_EGL:
+		EGL_Init(info, palette, vid_window, vid_dpy);
+		GL_Init(&EGL_Proc);
+		break;
 #endif
+	case PSL_NONE:
+		break;
+	}
 
 	GLVID_SetPalette(palette);
 	GLVID_ShiftPalette(palette);
@@ -1222,6 +1280,14 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 
 	return true;
+}
+qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	return X11VID_Init(info, palette, PSL_GLX);
+}
+qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	return X11VID_Init(info, palette, PSL_EGL);
 }
 
 void Sys_SendKeyEvents(void)
@@ -1376,6 +1442,84 @@ void GLVID_SetCaption(char *text)
 	XStoreName(vid_dpy, vid_window, text);
 }
 
+#ifdef USE_EGL
+#include "shader.h"
+#include "gl_draw.h"
+rendererinfo_t eglrendererinfo =
+{
+	"EGL",
+	{
+		"egl"
+	},
+	QR_OPENGL,
+
+	GLDraw_Init,
+	GLDraw_DeInit,
+
+	GL_LoadTextureFmt,
+	GL_LoadTexture8Pal24,
+	GL_LoadTexture8Pal32,
+	GL_LoadCompressed,
+	GL_FindTexture,
+	GL_AllocNewTexture,
+	GL_UploadFmt,
+	GL_DestroyTexture,
+
+	GLR_Init,
+	GLR_DeInit,
+	GLR_RenderView,
+
+	GLR_NewMap,
+	GLR_PreNewMap,
+
+	Surf_AddStain,
+	Surf_LessenStains,
+
+	RMod_Init,
+	RMod_Shutdown,
+	RMod_ClearAll,
+	RMod_ForName,
+	RMod_FindName,
+	RMod_Extradata,
+	RMod_TouchModel,
+
+	RMod_NowLoadExternal,
+	RMod_Think,
+
+	Mod_GetTag,
+	Mod_TagNumForName,
+	Mod_SkinNumForName,
+	Mod_FrameNumForName,
+	Mod_FrameDuration,
+
+	EGLVID_Init,
+	GLVID_DeInit,
+	GLVID_SetPalette,
+	GLVID_ShiftPalette,
+	GLVID_GetRGBInfo,
+
+	GLVID_SetCaption,       //setcaption
+
+
+	GLSCR_UpdateScreen,
+
+	GLBE_SelectMode,
+	GLBE_DrawMesh_List,
+	GLBE_DrawMesh_Single,
+	GLBE_SubmitBatch,
+	GLBE_GetTempBatch,
+	GLBE_DrawWorld,
+	GLBE_Init,
+	GLBE_GenBrushModelVBO,
+	GLBE_ClearVBO,
+	GLBE_UploadAllLightmaps,
+	GLBE_SelectEntity,
+	GLBE_SelectDLight,
+	GLBE_LightCullModel,
+
+	""
+};
+#endif
 
 #if 1
 char *Sys_GetClipboard(void)

@@ -920,7 +920,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	SV_LDFLAGS=-lz
 	SV_EXE_NAME=../fteqw.sv$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lXxf86vm -lXxf86dga -lz

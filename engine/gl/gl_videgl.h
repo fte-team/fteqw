@@ -12,6 +12,6 @@ qboolean EGL_LoadLibrary(char *driver);
 void EGL_Shutdown(void);
 void EGL_BeginRendering (void);
 void EGL_EndRendering (void);
-qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window);
+qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window, EGLNativeDisplayType dpy);
 
 #endif

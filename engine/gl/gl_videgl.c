@@ -1,3 +1,5 @@
+#include "bothdefs.h"
+#if defined(GLQUAKE) && defined(USE_EGL)
 #include "gl_videgl.h"
 
 EGLContext eglctx = EGL_NO_CONTEXT;
@@ -88,17 +90,44 @@ void EGL_UnloadLibrary(void)
 qboolean EGL_LoadLibrary(char *driver)
 {
 	/* apps seem to load glesv2 first for dependency issues */
+	Sys_Printf("Attempting to dlopen libGLESv2... ");
 	eslibrary = Sys_LoadLibrary("libGLESv2", NULL);
 	if (!eslibrary)
-		return false;
+	{
+		Sys_Printf("failed\n");
+//		return false;
+	}
+	else
+		Sys_Printf("success\n");
+	if (!eslibrary)
+	{
+		eslibrary = dlopen("libGL", RTLD_NOW|RTLD_GLOBAL);
+		if (eslibrary) Sys_Printf("Loaded libGL\n");
+	}
+	if (!eslibrary)
+	{
+		eslibrary = dlopen("libGL.so.1.2", RTLD_NOW|RTLD_GLOBAL);
+		if (eslibrary) Sys_Printf("Loaded libGL.so.1.2\n");
+	}
+	if (!eslibrary)
+	{
+		eslibrary = dlopen("libGL.so.1", RTLD_NOW|RTLD_GLOBAL);
+		if (eslibrary) Sys_Printf("Loaded libGL.so.1\n");
+	}
+	if (!eslibrary)
+		Sys_Printf("unable to load some libGL\n");
 	
+	Sys_Printf("Attempting to dlopen libEGL... ");
 	egllibrary = Sys_LoadLibrary("libEGL", qeglfuncs);
 	if (!egllibrary)
 	{
+		Sys_Printf("failed\n");
+		Con_Printf("libEGL library not loadable\n");
 		/* TODO: some implementations combine EGL/GLESv2 into single library... */
 		Sys_CloseLibrary(eslibrary);
 		return false;
 	}
+	Sys_Printf("success\n");
 
 	return true;
 }
@@ -132,10 +161,11 @@ void EGL_EndRendering (void)
 	/* TODO: check result? */
 }
 
-qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window)
+qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window, EGLNativeDisplayType dpy)
 {
 	EGLint numconfig;
 	EGLConfig cfg;
+	EGLint major, minor;
 	EGLint attrib[] =
 	{
 		EGL_BUFFER_SIZE, info->bpp,
@@ -152,20 +182,21 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		EGL_NONE, EGL_NONE
 	};
 
-	if (!EGL_LoadLibrary(""))
+/*	if (!EGL_LoadLibrary(""))
 	{
 		Con_Printf(CON_ERROR "EGL: unable to load library!\n");
 		return false;
 	}
-
-	egldpy = qeglGetDisplay(EGL_DEFAULT_DISPLAY);
+*/
+	egldpy = qeglGetDisplay(dpy);
 	if (egldpy == EGL_NO_DISPLAY)
 	{
 		Con_Printf(CON_ERROR "EGL: can't get display!\n");
 		return false;
 	}
 
-	if (!qeglInitialize(egldpy, NULL, NULL))
+	//NOTE: mesa's egl really loves to crash on this call, and I define crash as 'anything that fails to return to caller', which fucks everything up.
+	if (!qeglInitialize(egldpy, &major, &minor))
 	{
 		Con_Printf(CON_ERROR "EGL: can't initialize display!");
 		return false;
@@ -207,3 +238,5 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 
 	return true;
 }
+#endif
+

@@ -872,7 +872,7 @@ rendererinfo_t dedicatedrendererinfo = {
 rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
 rendererinfo_t openglrendererinfo;
-
+rendererinfo_t eglrendererinfo;
 rendererinfo_t d3d9rendererinfo;
 rendererinfo_t d3d11rendererinfo;
 rendererinfo_t swrendererinfo;
@@ -884,6 +884,7 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef GLQUAKE
 	&openglrendererinfo,
+	&eglrendererinfo,
 #endif
 #ifdef D3DQUAKE
 	&d3d9rendererinfo,

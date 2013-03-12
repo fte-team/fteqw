@@ -3,6 +3,7 @@ typedef enum qboolean;
 typedef void *vfsfile_t;
 #endif
 
+struct pipetype;
 struct browserfuncs
 {
 	qboolean (*RequestDownload)(void *ctx, struct pipetype *ftype, char *url);

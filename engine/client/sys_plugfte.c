@@ -97,10 +97,66 @@ void VARGS Con_Printf (const char *fmt, ...)
 
 	OutputDebugString(dest);
 }
+#ifdef _WIN32
+// don't use these functions in MSVC8
+#if (_MSC_VER < 1400)
+int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...)
+{
+#undef _vsnprintf
+	int ret;
+	va_list		argptr;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	va_start (argptr, format);
+	ret = _vsnprintf (buffer,size, format,argptr);
+	va_end (argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+
+int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
+{
+#undef _vsnprintf
+	int ret;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	ret = _vsnprintf (buffer,size, format,argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+#else
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...)
+{
+	int ret;
+	va_list		argptr;
+
+	va_start (argptr, format);
+	ret = vsnprintf_s (buffer,size, _TRUNCATE, format,argptr);
+	va_end (argptr);
+
+	return ret;
+}
+#endif
+
+#endif
 
 #include "netinc.h"
-#ifdef _WIN32
-#include <Wspiapi.h>
+#if 0//def _MSC_VER
+#include <wspiapi.h>
+#define pgetaddrinfo getaddrinfo
+#define pfreeaddrinfo freeaddrinfo
+#else
+#include <ws2tcpip.h>
 #endif
 qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize)
 {
@@ -111,6 +167,17 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 	char *port;
 	char dupbase[256];
 	int len;
+#ifndef pgetaddrinfo
+	int (WINAPI *pgetaddrinfo)(const char *nodename, const char *servname, const struct addrinfo *hints, struct addrinfo **res);
+	void (WINAPI *pfreeaddrinfo)(struct addrinfo *ai);
+	void *lib = LoadLibrary("ws2_32.dll");
+	if (!lib)
+		return false;
+	pgetaddrinfo = (void*)GetProcAddress(lib, "getaddrinfo");
+	pfreeaddrinfo = (void*)GetProcAddress(lib, "freeaddrinfo");
+	if (!pgetaddrinfo || !pfreeaddrinfo)
+		return false;
+#endif
 
 	if (!(*s))
 		return false;
@@ -136,7 +203,7 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 				len = sizeof(dupbase)-1;
 			strncpy(dupbase, s+1, len);
 			dupbase[len] = '\0';
-			error = getaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
+			error = pgetaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
 		}
 	}
 	else
@@ -150,12 +217,12 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 				len = sizeof(dupbase)-1;
 			strncpy(dupbase, s, len);
 			dupbase[len] = '\0';
-			error = getaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
+			error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 		}
 		else
 			error = EAI_NONAME;
 		if (error)	//failed, try string with no port.
-			error = getaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
+			error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 	}
 	if (error)
 	{
@@ -181,7 +248,7 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 		}
 	}
 dblbreak:
-	freeaddrinfo (addrinfo);
+	pfreeaddrinfo (addrinfo);
 	if (!((struct sockaddr*)sadr)->sa_family)	//none suitablefound
 		return false;
 
@@ -668,7 +735,7 @@ void Plug_CreatePluginProcess(struct context *ctx)
 	SetHandleInformation(ctx->pipefromengine, HANDLE_FLAG_INHERIT, 0);
 	SetHandleInformation(ctx->pipetoengine, HANDLE_FLAG_INHERIT, 0);
 
-	Plug_ExecuteCommand(ctx, "vid_recenter %i %i %i %i %#llx\n", ctx->windowleft, ctx->windowtop, ctx->windowwidth, ctx->windowheight, (long long)ctx->windowhnd);
+	Plug_ExecuteCommand(ctx, "vid_recenter %i %i %i %i %#p\n", ctx->windowleft, ctx->windowtop, ctx->windowwidth, ctx->windowheight, (void*)ctx->windowhnd);
 
 	CreateProcess(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, binarypath, &startinfo, &childinfo);
 
@@ -946,7 +1013,7 @@ qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int left, int top, i
 		ctx->resetvideo = true;
 
 	if (ctx->pub.running)
-		Plug_ExecuteCommand(ctx, "vid_recenter %i %i %i %i %#llx\n", ctx->windowleft, ctx->windowtop, ctx->windowwidth, ctx->windowheight, (long long)ctx->windowhnd);
+		Plug_ExecuteCommand(ctx, "vid_recenter %i %i %i %i %#p\n", ctx->windowleft, ctx->windowtop, ctx->windowwidth, ctx->windowheight, (void*)ctx->windowhnd);
 
 	Plug_LockPlugin(ctx, false);
 

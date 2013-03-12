@@ -2,6 +2,7 @@
 //pr_dumpplatform -FFTE -Fdefines -TCS -O csplat
 opts.qc
 csplat.qc
+csfixups.qc
 
 editor_lights.qc
 editor_terrain.qc

@@ -404,6 +404,7 @@ void(float prevprogs) init =
 		orig_input_event = externvalue(0, "CSQC_InputEvent");
 		externset(0, wrap_InputEvent, "CSQC_InputEvent");
 	}
+	csfixups();
 };
 
 void() CSQC_Shutdown =

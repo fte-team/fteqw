@@ -117,6 +117,7 @@ void(vector m) editor_do =
 		else
 			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0);
 		break;
+	case ter_water_set:
 	case ter_height_set:
 	case ter_height_smooth:
 	case ter_height_raise:
@@ -318,14 +319,11 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 	return TRUE;
 };
 
-shared vector v_forward;
-shared vector v_right;
-shared vector v_up;
 void(vector mousepos) editor_terrain_add =
 {
 	float s,c;
 	float r;
-	vector tx, p, col;
+	vector tx, p, col,t;
 	float a;
 	if (mousepos_x < 128)
 		return;
@@ -366,6 +364,7 @@ void(vector mousepos) editor_terrain_add =
 
 		col_x = (sin(gettime(5))+1.5)*0.1;
 
+		t = trace_endpos;
 		R_BeginPolygon("terrainedit");
 		for (a = 0; a < 3.14*2; a += 3.14*2/8)
 		{
@@ -373,9 +372,9 @@ void(vector mousepos) editor_terrain_add =
 			tx_y = cos(a);
 
 			//-1 -1
-			p_x = trace_endpos_x + tx_x*c - tx_y*s;
-			p_y = trace_endpos_y + tx_y*c + tx_x*s;
-					p_z = trace_endpos_z + 5;
+			p_x = t_x + tx_x*c - tx_y*s;
+			p_y = t_y + tx_y*c + tx_x*s;
+			p_z = t_z + 5;
 			tx = (tx*0.5)+'0.5 0.5 0';
 			R_PolygonVertex(p, tx, col, 1);
 		}

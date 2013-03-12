@@ -190,6 +190,8 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 */
 	egldpy = qeglGetDisplay(dpy);
 	if (egldpy == EGL_NO_DISPLAY)
+		egldpy = qeglGetDisplay(EGL_DEFAULT_DISPLAY);
+	if (egldpy == EGL_NO_DISPLAY)
 	{
 		Con_Printf(CON_ERROR "EGL: can't get display!\n");
 		return false;

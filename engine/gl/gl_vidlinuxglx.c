@@ -1483,7 +1483,12 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
-		EGL_Init(info, palette, vid_window, vid_dpy);
+		if (!EGL_Init(info, palette, vid_window, vid_dpy))
+		{
+			Con_Printf("Failed to create EGL context.\n");
+			GLVID_Shutdown();
+			return false;
+		}
 		GL_Init(&EGL_Proc);
 		break;
 #endif

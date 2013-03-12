@@ -60,8 +60,6 @@ static int texwidth[MAXLEVELS], texheight[MAXLEVELS];
 
 
 
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
-
 void R_BloomRegister(void)
 {
 	Cvar_Register (&r_bloom, "bloom");
@@ -194,13 +192,13 @@ void R_BloomBlend (void)
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, r_refdef.pxrect.x, r_refdef.pxrect.y - r_refdef.pxrect.height, r_refdef.pxrect.width, r_refdef.pxrect.height);
 
 	/*filter the screen into a downscaled image*/
-	GLBE_RenderToTexture(scrtex, r_nulltex, pingtex[0][0], false);
+	GLBE_RenderToTexture(scrtex, r_nulltex, pingtex[0][0], r_nulltex, false);
 	qglViewport (0, 0, texwidth[0], texheight[0]);
 	R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
 	/*and downscale that multiple times*/
 	for (i = 1; i < MAXLEVELS; i++)
 	{
-		GLBE_RenderToTexture(pingtex[0][i-1], r_nulltex, pingtex[0][i], false);
+		GLBE_RenderToTexture(pingtex[0][i-1], r_nulltex, pingtex[0][i], r_nulltex, false);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
 	}
@@ -211,7 +209,7 @@ void R_BloomBlend (void)
 		/*must be 1.2th of a pixel*/
 		r_worldentity.glowmod[0] = 1.2 / texwidth[i];
 		r_worldentity.glowmod[1] = 0;
-		GLBE_RenderToTexture(pingtex[0][i], r_nulltex, pingtex[1][i], false);
+		GLBE_RenderToTexture(pingtex[0][i], r_nulltex, pingtex[1][i], r_nulltex, false);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 	}
@@ -219,7 +217,7 @@ void R_BloomBlend (void)
 	{
 		r_worldentity.glowmod[0] = 0;
 		r_worldentity.glowmod[1] = 1.2 / texheight[i];
-		GLBE_RenderToTexture(pingtex[1][i], r_nulltex, pingtex[0][i], false);
+		GLBE_RenderToTexture(pingtex[1][i], r_nulltex, pingtex[0][i], r_nulltex, false);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 	}
@@ -227,7 +225,7 @@ void R_BloomBlend (void)
 	GL_Set2D(false);
 
 	/*combine them onto the screen*/
-	GLBE_RenderToTexture(scrtex, r_nulltex, r_nulltex, false);
+	GLBE_RenderToTexture(scrtex, r_nulltex, r_nulltex, r_nulltex, false);
 	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y + r_refdef.vrect.height, r_refdef.vrect.width, -r_refdef.vrect.height, bloomfinal);
 }
 void R_InitBloomTextures(void)

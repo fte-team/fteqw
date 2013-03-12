@@ -169,7 +169,26 @@ skipwhite:
 	return com_token;
 }
 
+static float Shader_FloatArgument(shader_t *shader, char *arg)
+{
+	char *var;
+	int arglen = strlen(arg);
 
+	//grab an argument instead, otherwise 0
+	var = shader->name;
+	while(var = strchr(var, '#'))
+	{
+		if (!strnicmp(var, arg, arglen))
+		{
+			if (var[arglen] == '=')
+				return strtod(var+arglen+1, NULL);
+			if (var[arglen] == '#' || !var[arglen])
+				return 1;	//present, but no value
+		}
+		var++;
+	}
+	return 0;	//not present.
+}
 
 
 
@@ -207,11 +226,10 @@ void *shader_active_hash_mem;
 //static float	r_skyheight;
 
 char *Shader_Skip( char *ptr );
-static qboolean Shader_Parsetok( shader_t *shader, shaderpass_t *pass, shaderkey_t *keys,
-		char *token, char **ptr );
-static void Shader_ParseFunc( char **args, shaderfunc_t *func );
-static void Shader_MakeCache( char *path );
-static void Shader_GetPathAndOffset( char *name, char **path, unsigned int *offset );
+static qboolean Shader_Parsetok(shader_t *shader, shaderpass_t *pass, shaderkey_t *keys, char *token, char **ptr);
+static void Shader_ParseFunc(shader_t *shader, char **args, shaderfunc_t *func);
+static void Shader_MakeCache(char *path);
+static void Shader_GetPathAndOffset(char *name, char **path, unsigned int *offset);
 static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode);
 
 //===========================================================================
@@ -230,24 +248,26 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 	if (*token == '$')
 	{
 		token++;
-		if (!Q_stricmp(token, "lpp"))
+		if (*token == '#')
+			conditiontrue = conditiontrue == !!Shader_FloatArgument(shader, token);
+		else if (!Q_stricmp(token, "lpp"))
 			conditiontrue = conditiontrue == r_lightprepass.ival;
 		else if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
-		else if (!Q_stricmp(token, "deluxmap") )
+		else if (!Q_stricmp(token, "deluxmap"))
 			conditiontrue = conditiontrue == r_deluxemapping.ival;
 
 		//normalmaps are generated if they're not already known.
-		else if (!Q_stricmp(token, "normalmap") )
+		else if (!Q_stricmp(token, "normalmap"))
 			conditiontrue = conditiontrue == r_loadbumpmapping;
 
-		else if (!Q_stricmp(token, "opengl") )
+		else if (!Q_stricmp(token, "opengl"))
 			conditiontrue = conditiontrue == (qrenderer == QR_OPENGL);
-		else if (!Q_stricmp(token, "d3d9") )
+		else if (!Q_stricmp(token, "d3d9"))
 			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D9);
-		else if (!Q_stricmp(token, "d3d11") )
+		else if (!Q_stricmp(token, "d3d11"))
 			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D11);
-		else if (!Q_stricmp(token, "gles") )
+		else if (!Q_stricmp(token, "gles"))
 		{
 #ifdef GLQUAKE
 			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && !!gl_config.gles);
@@ -255,7 +275,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			conditiontrue = conditiontrue == false;
 #endif
 		}
-		else if (!Q_stricmp(token, "nofixed") )
+		else if (!Q_stricmp(token, "nofixed"))
 		{
 			switch(qrenderer)
 			{
@@ -274,7 +294,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 				break;
 			}
 		}
-		else if (!Q_stricmp(token, "glsl") )
+		else if (!Q_stricmp(token, "glsl"))
 		{
 #ifdef GLQUAKE
 			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && gl_config.arb_shader_objects);
@@ -282,7 +302,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			conditiontrue = conditiontrue == false;
 #endif
 		}
-		else if (!Q_stricmp(token, "hlsl") )
+		else if (!Q_stricmp(token, "hlsl"))
 		{
 			switch(qrenderer)
 			{
@@ -301,11 +321,11 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 				break;
 			}
 		}		
-		else if (!Q_stricmp(token, "haveprogram") )
+		else if (!Q_stricmp(token, "haveprogram"))
 		{
 			conditiontrue = conditiontrue == !!shader->prog;
 		}
-		else if (!Q_stricmp(token, "programs") )
+		else if (!Q_stricmp(token, "programs"))
 		{
 			switch(qrenderer)
 			{
@@ -329,15 +349,15 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 				break;
 			}
 		}
-		else if (!Q_stricmp(token, "diffuse") )
+		else if (!Q_stricmp(token, "diffuse"))
 			conditiontrue = conditiontrue == true;
-		else if (!Q_stricmp(token, "specular") )
+		else if (!Q_stricmp(token, "specular"))
 			conditiontrue = conditiontrue == false;
-		else if (!Q_stricmp(token, "fullbright") )
+		else if (!Q_stricmp(token, "fullbright"))
 			conditiontrue = conditiontrue == false;
-		else if (!Q_stricmp(token, "topoverlay") )
+		else if (!Q_stricmp(token, "topoverlay"))
 			conditiontrue = conditiontrue == false;
-		else if (!Q_stricmp(token, "loweroverlay") )
+		else if (!Q_stricmp(token, "loweroverlay"))
 			conditiontrue = conditiontrue == false;
 		else
 		{
@@ -396,27 +416,23 @@ static char *Shader_ParseExactString(char **ptr)
 {
 	char *token;
 
-	if ( !ptr || !(*ptr) ) {
+	if (!ptr || !(*ptr))
 		return "";
-	}
-	if ( !**ptr || **ptr == '}' ) {
+	if (!**ptr || **ptr == '}')
 		return "";
-	}
 
 	token = COM_ParseExt(ptr, false, false);
 	return token;
 }
 
-static char *Shader_ParseString ( char **ptr )
+static char *Shader_ParseString(char **ptr)
 {
 	char *token;
 
-	if ( !ptr || !(*ptr) ) {
+	if (!ptr || !(*ptr))
 		return "";
-	}
-	if ( !**ptr || **ptr == '}' ) {
+	if (!**ptr || **ptr == '}')
 		return "";
-	}
 
 	token = COM_ParseExt(ptr, false, true);
 	Q_strlwr ( token );
@@ -424,52 +440,53 @@ static char *Shader_ParseString ( char **ptr )
 	return token;
 }
 
-static char *Shader_ParseSensString ( char **ptr )
+static char *Shader_ParseSensString(char **ptr)
 {
 	char *token;
 
-	if ( !ptr || !(*ptr) ) {
+	if (!ptr || !(*ptr))
 		return "";
-	}
-	if ( !**ptr || **ptr == '}' ) {
+	if (!**ptr || **ptr == '}')
 		return "";
-	}
 
 	token = COM_ParseExt(ptr, false, true);
 
 	return token;
 }
 
-static float Shader_ParseFloat(char **ptr)
+static float Shader_ParseFloat(shader_t *shader, char **ptr)
 {
 	char *token;
 	if (!ptr || !(*ptr))
-	{
 		return 0;
-	}
 	if (!**ptr || **ptr == '}')
-	{
 		return 0;
-	}
 
 	token = COM_ParseExt(ptr, false, true);
 	if (*token == '$')
 	{
-		cvar_t *var;
-		var = Cvar_FindVar(token+1);
-		if (var)
-			return var->value;
+		if (token[1] == '#')
+		{
+			return Shader_FloatArgument(shader, token+1);
+		}
+		else
+		{
+			cvar_t *var;
+			var = Cvar_FindVar(token+1);
+			if (var)
+				return var->value;
+		}
 	}
 	return atof(token);
 }
 
-static void Shader_ParseVector ( char **ptr, vec3_t v )
+static void Shader_ParseVector(shader_t *shader, char **ptr, vec3_t v)
 {
 	char *scratch;
 	char *token;
 	qboolean bracket;
 
-	token = Shader_ParseString ( ptr );
+	token = Shader_ParseString(ptr);
 	if (*token == '$')
 	{
 		cvar_t *var;
@@ -485,20 +502,23 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 		ptr = &scratch;
 		scratch = var->string;
 
-		token = Shader_ParseString ( ptr );
+		token = Shader_ParseString( ptr);
 	}
-	if ( !Q_stricmp (token, "(") ) {
+	if (!Q_stricmp (token, "("))
+	{
 		bracket = true;
-		token = Shader_ParseString ( ptr );
-	} else if ( token[0] == '(' ) {
+		token = Shader_ParseString(ptr);
+	}
+	else if (token[0] == '(')
+	{
 		bracket = true;
 		token = &token[1];
-	} else {
-		bracket = false;
 	}
+	else
+		bracket = false;
 
 	v[0] = atof ( token );
-	v[1] = Shader_ParseFloat ( ptr );
+	v[1] = Shader_ParseFloat (shader, ptr );
 
 	token = Shader_ParseString ( ptr );
 	if ( !token[0] ) {
@@ -582,29 +602,28 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 	return allokay;
 }
 
-static void Shader_ParseFunc ( char **ptr, shaderfunc_t *func )
+static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
 {
 	char *token;
 
-	token = Shader_ParseString ( ptr );
-	if ( !Q_stricmp (token, "sin") ) {
+	token = Shader_ParseString (ptr);
+	if (!Q_stricmp (token, "sin"))
 	    func->type = SHADER_FUNC_SIN;
-	} else if ( !Q_stricmp (token, "triangle") ) {
+	else if (!Q_stricmp (token, "triangle"))
 	    func->type = SHADER_FUNC_TRIANGLE;
-	} else if ( !Q_stricmp (token, "square") ) {
+	else if (!Q_stricmp (token, "square"))
 	    func->type = SHADER_FUNC_SQUARE;
-	} else if ( !Q_stricmp (token, "sawtooth") ) {
+	else if (!Q_stricmp (token, "sawtooth"))
 	    func->type = SHADER_FUNC_SAWTOOTH;
-	} else if (!Q_stricmp (token, "inversesawtooth") ) {
+	else if (!Q_stricmp (token, "inversesawtooth"))
 	    func->type = SHADER_FUNC_INVERSESAWTOOTH;
-	} else if (!Q_stricmp (token, "noise") ) {
+	else if (!Q_stricmp (token, "noise"))
 	    func->type = SHADER_FUNC_NOISE;
-	}
 
-	func->args[0] = Shader_ParseFloat ( ptr );
-	func->args[1] = Shader_ParseFloat ( ptr );
-	func->args[2] = Shader_ParseFloat ( ptr );
-	func->args[3] = Shader_ParseFloat ( ptr );
+	func->args[0] = Shader_ParseFloat (shader, ptr);
+	func->args[1] = Shader_ParseFloat (shader, ptr);
+	func->args[2] = Shader_ParseFloat (shader, ptr);
+	func->args[3] = Shader_ParseFloat (shader, ptr);
 }
 
 //===========================================================================
@@ -697,46 +716,52 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 	char *token;
 	deformv_t *deformv;
 
-	if ( shader->numdeforms >= SHADER_DEFORM_MAX ) {
+	if ( shader->numdeforms >= SHADER_DEFORM_MAX )
 		return;
-	}
 
 	deformv = &shader->deforms[shader->numdeforms];
 
 	token = Shader_ParseString ( ptr );
-	if ( !Q_stricmp (token, "wave") ) {
+	if ( !Q_stricmp (token, "wave") )
+	{
 		deformv->type = DEFORMV_WAVE;
-		deformv->args[0] = Shader_ParseFloat ( ptr );
-		if ( deformv->args[0] ) {
+		deformv->args[0] = Shader_ParseFloat (shader, ptr);
+		if (deformv->args[0])
 			deformv->args[0] = 1.0f / deformv->args[0];
-		}
-
-		Shader_ParseFunc ( ptr, &deformv->func );
-	} else if ( !Q_stricmp (token, "normal") ) {
+		Shader_ParseFunc (shader, ptr, &deformv->func );
+	}
+	else if ( !Q_stricmp (token, "normal") )
+	{
 		deformv->type = DEFORMV_NORMAL;
-		deformv->args[0] = Shader_ParseFloat ( ptr );
-		deformv->args[1] = Shader_ParseFloat ( ptr );
-	} else if ( !Q_stricmp (token, "bulge") ) {
+		deformv->args[0] = Shader_ParseFloat (shader, ptr );
+		deformv->args[1] = Shader_ParseFloat (shader, ptr );
+	}
+	else if ( !Q_stricmp (token, "bulge") )
+	{
 		deformv->type = DEFORMV_BULGE;
-
-		Shader_ParseVector ( ptr, deformv->args );
+		Shader_ParseVector (shader, ptr, deformv->args );
 		shader->flags |= SHADER_DEFORMV_BULGE;
-	} else if ( !Q_stricmp (token, "move") ) {
+	}
+	else if ( !Q_stricmp (token, "move") )
+	{
 		deformv->type = DEFORMV_MOVE;
-
-		Shader_ParseVector ( ptr, deformv->args );
-		Shader_ParseFunc ( ptr, &deformv->func );
-	} else if ( !Q_stricmp (token, "autosprite") ) {
+		Shader_ParseVector (shader, ptr, deformv->args );
+		Shader_ParseFunc (shader, ptr, &deformv->func );
+	}
+	else if ( !Q_stricmp (token, "autosprite") )
+	{
 		deformv->type = DEFORMV_AUTOSPRITE;
 		shader->flags |= SHADER_AUTOSPRITE;
-	} else if ( !Q_stricmp (token, "autosprite2") ) {
+	}
+	else if ( !Q_stricmp (token, "autosprite2") )
+	{
 		deformv->type = DEFORMV_AUTOSPRITE2;
 		shader->flags |= SHADER_AUTOSPRITE;
-	} else if ( !Q_stricmp (token, "projectionShadow") ) {
-		deformv->type = DEFORMV_PROJECTION_SHADOW;
-	} else {
-		return;
 	}
+	else if ( !Q_stricmp (token, "projectionShadow") )
+		deformv->type = DEFORMV_PROJECTION_SHADOW;
+	else
+		return;
 
 	shader->numdeforms++;
 }
@@ -759,7 +784,7 @@ static void Shader_SkyParms(shader_t *shader, shaderpass_t *pass, char **ptr)
 	boxname = Shader_ParseString(ptr);
 	Shader_ParseSkySides(shader->name, boxname, skydome->farbox_textures);
 
-	skyheight = Shader_ParseFloat(ptr);
+	skyheight = Shader_ParseFloat(shader, ptr);
 	if (!skyheight)
 	{
 		skyheight = 512.0f;
@@ -782,7 +807,7 @@ static void Shader_FogParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 //	else
 		div = 1.0f;
 
-	Shader_ParseVector ( ptr, color );
+	Shader_ParseVector (shader, ptr, color );
 	VectorScale ( color, div, color );
 	ColorNormalize ( color, fcolor );
 
@@ -790,7 +815,7 @@ static void Shader_FogParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 	shader->fog_color[1] = FloatToByte ( fcolor[1] );
 	shader->fog_color[2] = FloatToByte ( fcolor[2] );
 	shader->fog_color[3] = 255;
-	shader->fog_dist = Shader_ParseFloat ( ptr );
+	shader->fog_dist = Shader_ParseFloat (shader, ptr );
 
 	if ( shader->fog_dist <= 0.0f ) {
 		shader->fog_dist = 128.0f;
@@ -1519,14 +1544,14 @@ void Shader_WriteOutGenerics_f(void)
 		if (sbuiltins[i].qrtype == QR_OPENGL)
 		{
 			if (sbuiltins[i].apiver == 100)
-				name = va("gles/%s.glsl", sbuiltins[i].name);
+				name = va("gles/eg_%s.glsl", sbuiltins[i].name);
 			else
-				name = va("glsl/%s.glsl", sbuiltins[i].name);
+				name = va("glsl/eg_%s.glsl", sbuiltins[i].name);
 		}
 		else if (sbuiltins[i].qrtype == QR_DIRECT3D9)
-			name = va("hlsl/%s.hlsl", sbuiltins[i].name);
+			name = va("hlsl/eg_%s.hlsl", sbuiltins[i].name);
 		else if (sbuiltins[i].qrtype == QR_DIRECT3D11)
-			name = va("hlsl11/%s.hlsl", sbuiltins[i].name);
+			name = va("hlsl11/eg_%s.hlsl", sbuiltins[i].name);
 
 		if (name)
 		{
@@ -1609,6 +1634,7 @@ struct shader_field_names_s shader_unif_names[] =
 	{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},
 	{"l_projmatrix",			SP_LIGHTPROJMATRIX},
 	{"l_cubematrix",			SP_LIGHTCUBEMATRIX},
+	{"l_shadowmapinfo",			SP_LIGHTSHADOWMAPINFO},
 
 	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
 	{NULL}
@@ -2195,6 +2221,12 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 		pass->texgen = T_GEN_REFRACTION;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
 	}
+	else if (!Q_stricmp (tname, "$refractiondepth"))
+	{
+		shader->flags |= SHADER_HASREFRACT;
+		pass->texgen = T_GEN_REFRACTIONDEPTH;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
 	else if (!Q_stricmp (tname, "$ripplemap"))
 	{
 		shader->flags |= SHADER_HASRIPPLEMAP;
@@ -2238,7 +2270,7 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 	pass->tcgen = TC_GEN_BASE;
 	pass->flags |= SHADER_PASS_ANIMMAP;
 	pass->texgen = T_GEN_ANIMMAP;
-	pass->anim_fps = (int)Shader_ParseFloat (ptr);
+	pass->anim_fps = (int)Shader_ParseFloat (shader, ptr);
 	pass->anim_numframes = 0;
 
 	for ( ; ; )
@@ -2340,7 +2372,7 @@ static void Shaderpass_RGBGen (shader_t *shader, shaderpass_t *pass, char **ptr)
 	else if (!Q_stricmp (token, "wave"))
 	{
 		pass->rgbgen = RGB_GEN_WAVE;
-		Shader_ParseFunc ( ptr, &pass->rgbgen_func);
+		Shader_ParseFunc (shader, ptr, &pass->rgbgen_func);
 	}
 	else if (!Q_stricmp(token, "entity"))
 		pass->rgbgen = RGB_GEN_ENTITY;
@@ -2359,7 +2391,7 @@ static void Shaderpass_RGBGen (shader_t *shader, shaderpass_t *pass, char **ptr)
 		pass->rgbgen = RGB_GEN_CONST;
 		pass->rgbgen_func.type = SHADER_FUNC_CONSTANT;
 
-		Shader_ParseVector (ptr, pass->rgbgen_func.args);
+		Shader_ParseVector (shader, ptr, pass->rgbgen_func.args);
 	}
 	else if (!Q_stricmp (token, "topcolor"))
 		pass->rgbgen = RGB_GEN_TOPCOLOR;
@@ -2375,7 +2407,7 @@ static void Shaderpass_AlphaGen (shader_t *shader, shaderpass_t *pass, char **pt
 	if (!Q_stricmp (token, "portal"))
 	{
 		pass->alphagen = ALPHA_GEN_PORTAL;
-		shader->portaldist = Shader_ParseFloat(ptr);
+		shader->portaldist = Shader_ParseFloat(shader, ptr);
 		if (!shader->portaldist)
 			shader->portaldist = 256;
 		shader->flags |= SHADER_AGEN_PORTAL;
@@ -2392,7 +2424,7 @@ static void Shaderpass_AlphaGen (shader_t *shader, shaderpass_t *pass, char **pt
 	{
 		pass->alphagen = ALPHA_GEN_WAVE;
 
-		Shader_ParseFunc (ptr, &pass->alphagen_func);
+		Shader_ParseFunc (shader, ptr, &pass->alphagen_func);
 	}
 	else if ( !Q_stricmp (token, "lightingspecular"))
 	{
@@ -2402,7 +2434,7 @@ static void Shaderpass_AlphaGen (shader_t *shader, shaderpass_t *pass, char **pt
 	{
 		pass->alphagen = ALPHA_GEN_CONST;
 		pass->alphagen_func.type = SHADER_FUNC_CONSTANT;
-		pass->alphagen_func.args[0] = fabs(Shader_ParseFloat(ptr));
+		pass->alphagen_func.args[0] = fabs(Shader_ParseFloat(shader, ptr));
 	}
 }
 static void Shaderpass_AlphaShift (shader_t *shader, shaderpass_t *pass, char **ptr)	//for alienarena
@@ -2419,9 +2451,9 @@ static void Shaderpass_AlphaShift (shader_t *shader, shaderpass_t *pass, char **
 	//arg2 = timeshift
 	//arg3 = timescale
 
-	speed = Shader_ParseFloat(ptr);
-	min = Shader_ParseFloat(ptr);
-	max = Shader_ParseFloat(ptr);
+	speed = Shader_ParseFloat(shader, ptr);
+	min = Shader_ParseFloat(shader, ptr);
+	max = Shader_ParseFloat(shader, ptr);
 
 	pass->alphagen_func.args[0] = min + (max - min)/2;
 	pass->alphagen_func.args[1] = (max - min)/2;
@@ -2597,7 +2629,7 @@ static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
 	token = Shader_ParseString (ptr);
 	if (!Q_stricmp (token, "rotate"))
 	{
-		tcmod->args[0] = -Shader_ParseFloat(ptr) / 360.0f;
+		tcmod->args[0] = -Shader_ParseFloat(shader, ptr) / 360.0f;
 		if (!tcmod->args[0])
 		{
 			return;
@@ -2607,21 +2639,21 @@ static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
 	}
 	else if ( !Q_stricmp (token, "scale") )
 	{
-		tcmod->args[0] = Shader_ParseFloat (ptr);
-		tcmod->args[1] = Shader_ParseFloat (ptr);
+		tcmod->args[0] = Shader_ParseFloat (shader, ptr);
+		tcmod->args[1] = Shader_ParseFloat (shader, ptr);
 		tcmod->type = SHADER_TCMOD_SCALE;
 	}
 	else if ( !Q_stricmp (token, "scroll") )
 	{
-		tcmod->args[0] = Shader_ParseFloat (ptr);
-		tcmod->args[1] = Shader_ParseFloat (ptr);
+		tcmod->args[0] = Shader_ParseFloat (shader, ptr);
+		tcmod->args[1] = Shader_ParseFloat (shader, ptr);
 		tcmod->type = SHADER_TCMOD_SCROLL;
 	}
 	else if (!Q_stricmp(token, "stretch"))
 	{
 		shaderfunc_t func;
 
-		Shader_ParseFunc(ptr, &func);
+		Shader_ParseFunc(shader, ptr, &func);
 
 		tcmod->args[0] = func.type;
 		for (i = 1; i < 5; ++i)
@@ -2631,13 +2663,13 @@ static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
 	else if (!Q_stricmp (token, "transform"))
 	{
 		for (i = 0; i < 6; ++i)
-			tcmod->args[i] = Shader_ParseFloat (ptr);
+			tcmod->args[i] = Shader_ParseFloat (shader, ptr);
 		tcmod->type = SHADER_TCMOD_TRANSFORM;
 	}
 	else if (!Q_stricmp (token, "turb"))
 	{
 		for (i = 0; i < 4; i++)
-			tcmod->args[i] = Shader_ParseFloat (ptr);
+			tcmod->args[i] = Shader_ParseFloat (shader, ptr);
 		tcmod->type = SHADER_TCMOD_TURB;
 	}
 	else
@@ -2658,10 +2690,10 @@ static void Shaderpass_Scale ( shader_t *shader, shaderpass_t *pass, char **ptr 
 
 	tcmod->type = SHADER_TCMOD_SCALE;
 
-	token = Shader_ParseString ( ptr );
+	token = Shader_ParseString (ptr);
 	if (!strcmp(token, "static"))
 	{
-		tcmod->args[0] = Shader_ParseFloat ( ptr );
+		tcmod->args[0] = Shader_ParseFloat (shader, ptr);
 	}
 	else
 	{
@@ -2673,10 +2705,10 @@ static void Shaderpass_Scale ( shader_t *shader, shaderpass_t *pass, char **ptr 
 	if (**ptr == ',')
 		*ptr+=1;
 
-	token = Shader_ParseString ( ptr );
+	token = Shader_ParseString (ptr);
 	if (!strcmp(token, "static"))
 	{
-		tcmod->args[1] = Shader_ParseFloat ( ptr );
+		tcmod->args[1] = Shader_ParseFloat (shader, ptr);
 	}
 	else
 	{
@@ -2686,7 +2718,7 @@ static void Shaderpass_Scale ( shader_t *shader, shaderpass_t *pass, char **ptr 
 	pass->numtcmods++;
 }
 
-static void Shaderpass_Scroll ( shader_t *shader, shaderpass_t *pass, char **ptr )
+static void Shaderpass_Scroll (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	//seperate x and y
 	char *token;
@@ -2698,7 +2730,7 @@ static void Shaderpass_Scroll ( shader_t *shader, shaderpass_t *pass, char **ptr
 	if (!strcmp(token, "static"))
 	{
 		tcmod->type = SHADER_TCMOD_SCROLL;
-		tcmod->args[0] = Shader_ParseFloat ( ptr );
+		tcmod->args[0] = Shader_ParseFloat (shader, ptr );
 	}
 	else
 	{
@@ -2710,7 +2742,7 @@ static void Shaderpass_Scroll ( shader_t *shader, shaderpass_t *pass, char **ptr
 	if (!strcmp(token, "static"))
 	{
 		tcmod->type = SHADER_TCMOD_SCROLL;
-		tcmod->args[1] = Shader_ParseFloat ( ptr );
+		tcmod->args[1] = Shader_ParseFloat (shader, ptr );
 	}
 	else
 	{
@@ -2767,22 +2799,22 @@ static void Shaderpass_NoLightMap ( shader_t *shader, shaderpass_t *pass, char *
 static void Shaderpass_Red(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	pass->rgbgen = RGB_GEN_CONST;
-	pass->rgbgen_func.args[0] = Shader_ParseFloat(ptr);
+	pass->rgbgen_func.args[0] = Shader_ParseFloat(shader, ptr);
 }
 static void Shaderpass_Green(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	pass->rgbgen = RGB_GEN_CONST;
-	pass->rgbgen_func.args[1] = Shader_ParseFloat(ptr);
+	pass->rgbgen_func.args[1] = Shader_ParseFloat(shader, ptr);
 }
 static void Shaderpass_Blue(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	pass->rgbgen = RGB_GEN_CONST;
-	pass->rgbgen_func.args[2] = Shader_ParseFloat(ptr);
+	pass->rgbgen_func.args[2] = Shader_ParseFloat(shader, ptr);
 }
 static void Shaderpass_Alpha(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	pass->alphagen = ALPHA_GEN_CONST;
-	pass->alphagen_func.args[0] = Shader_ParseFloat(ptr);
+	pass->alphagen_func.args[0] = Shader_ParseFloat(shader, ptr);
 }
 static void Shaderpass_MaskColor(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2806,7 +2838,7 @@ static void Shaderpass_MaskAlpha(shader_t *shader, shaderpass_t *pass, char **pt
 }
 static void Shaderpass_AlphaTest(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	if (Shader_ParseFloat(ptr) == 0.5)
+	if (Shader_ParseFloat(shader, ptr) == 0.5)
 		pass->shaderbits |= SBITS_ATEST_GE128;
 	else
 		Con_Printf("unsupported alphatest value\n");
@@ -4171,6 +4203,7 @@ void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args)
 char *Shader_DefaultBSPWater(char *shortname)
 {
 	int wstyle;
+
 	if (r_wateralpha.value == 0)
 		wstyle = -1;
 	else if (r_fastturb.ival)
@@ -4184,118 +4217,137 @@ char *Shader_DefaultBSPWater(char *shortname)
 	else
 		wstyle = 1;
 
-	{
 #ifdef GLQUAKE
-		if (wstyle > 2 && !gl_config.ext_framebuffer_objects)
-			wstyle = 2;
+	if (wstyle > 2 && !gl_config.ext_framebuffer_objects)
+		wstyle = 2;
 #endif
-		switch(wstyle)
-		{
-		case -1:	//invisible
-			return (
+	switch(wstyle)
+	{
+	case -1:	//invisible
+		return (
+			"{\n"
+				"surfaceparm nodraw\n"
+				"surfaceparm nodlight\n"
+			"}\n"
+		);
+	case 0:	//fastturb
+		return (
+			"{\n"
 				"{\n"
-					"surfaceparm nodraw\n"
-					"surfaceparm nodlight\n"
+					"map $whiteimage\n"
+					"rgbgen const $r_fastturbcolour\n"
 				"}\n"
-			);
-		case 0:	//fastturb
-			return (
+				"surfaceparm nodlight\n"
+			"}\n"
+		);
+	default:
+	case 1:	//vanilla style
+		return (
+			"{\n"
+				"program defaultwarp\n"
 				"{\n"
-					"{\n"
-						"map $whiteimage\n"
-						"rgbgen const $r_fastturbcolour\n"
-					"}\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
-		default:
-		case 1:	//vanilla style
-			return (
-				"{\n"
-					"program defaultwarp\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0.02 0.1 0.5 0.1\n"
-						"if r_wateralpha != 1\n"
+					"map $diffuse\n"
+					"tcmod turb 0.02 0.1 0.5 0.1\n"
+					"if !$#ALPHA\n"
+					"[\n"
+						"if r_wateralpha < 1\n"
 						"[\n"
 							"alphagen const $r_wateralpha\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 						"]\n"
-					"}\n"
-					"surfaceparm nodlight\n"
+					"][\n"
+						"if $#ALPHA < 1\n"
+						"[\n"
+							"alphagen const $#ALPHA\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+						"]\n"
+					"]\n"
 				"}\n"
-			);
-		case 2:	//refraction of the underwater surface, with a fresnel
-			return (
+				"surfaceparm nodlight\n"
+			"}\n"
+		);
+	case 2:	//refraction of the underwater surface, with a fresnel
+		return (
+			"{\n"
+				"surfaceparm nodlight\n"
 				"{\n"
-					"surfaceparm nodlight\n"
-					"{\n"
-						"map $refraction\n"
-					"}\n"
-					"{\n"
-						"map $normalmap\n"
-					"}\n"
-					"{\n"
-						"map $diffuse\n"
-					"}\n"
-					"program altwater#FRESNEL=4\n"
+					"map $refraction\n"
 				"}\n"
-			);
-		case 3:	//reflections
-			return (
 				"{\n"
-					"surfaceparm nodlight\n"
-					"{\n"
-						"map $refraction\n"
-					"}\n"
-					"{\n"
-						"map $normalmap\n"
-					"}\n"
-					"{\n"
-						"map $reflection\n"
-					"}\n"
-					"program altwater#REFLECT#FRESNEL=4\n"
+					"map $normalmap\n"
 				"}\n"
-			);
-		case 4:	//ripples
-			return (
 				"{\n"
-					"surfaceparm nodlight\n"
-					"{\n"
-						"map $refraction\n"
-					"}\n"
-					"{\n"
-						"map $normalmap\n"
-					"}\n"
-					"{\n"
-						"map $diffuse\n"
-					"}\n"
-					"{\n"
-						"map $ripplemap\n"
-					"}\n"
-					"program altwater#RIPPLEMAP#FRESNEL=4\n"
+					"map $diffuse\n"
 				"}\n"
-			);
-		case 5:	//ripples+reflections
-			return (
+//				"{\n"
+//					"map $refractiondepth\n"
+//				"}\n"
+				"program altwater#FRESNEL=4\n"
+			"}\n"
+		);
+	case 3:	//reflections
+		return (
+			"{\n"
+				"surfaceparm nodlight\n"
 				"{\n"
-					"surfaceparm nodlight\n"
-					"{\n"
-						"map $refraction\n"
-					"}\n"
-					"{\n"
-						"map $normalmap\n"
-					"}\n"
-					"{\n"
-						"map $reflection\n"
-					"}\n"
-					"{\n"
-						"map $ripplemap\n"
-					"}\n"
-					"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
+					"map $refraction\n"
 				"}\n"
-			);
-		}
+				"{\n"
+					"map $normalmap\n"
+				"}\n"
+				"{\n"
+					"map $reflection\n"
+				"}\n"
+//				"{\n"
+//					"map $refractiondepth\n"
+//				"}\n"
+				"program altwater#REFLECT#FRESNEL=4\n"
+			"}\n"
+		);
+	case 4:	//ripples
+		return (
+			"{\n"
+				"surfaceparm nodlight\n"
+				"{\n"
+					"map $refraction\n"
+				"}\n"
+				"{\n"
+					"map $normalmap\n"
+				"}\n"
+				"{\n"
+					"map $diffuse\n"
+				"}\n"
+//				"{\n"
+//					"map $refractiondepth\n"
+//				"}\n"
+				"{\n"
+					"map $ripplemap\n"
+				"}\n"
+				"program altwater#RIPPLEMAP#FRESNEL=4\n"
+			"}\n"
+		);
+	case 5:	//ripples+reflections
+		return (
+			"{\n"
+				"surfaceparm nodlight\n"
+				"{\n"
+					"map $refraction\n"
+				"}\n"
+				"{\n"
+					"map $normalmap\n"
+				"}\n"
+				"{\n"
+					"map $reflection\n"
+				"}\n"
+//				"{\n"
+//					"map $refractiondepth\n"
+//				"}\n"
+				"{\n"
+					"map $ripplemap\n"
+				"}\n"
+				"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
+			"}\n"
+		);
 	}
 }
 
@@ -4310,62 +4362,16 @@ void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 	}
-	else if (!strncmp(shortname, "warp/", 5))
+	else if (!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
 	{
 		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(shortname));
 	}
-	else if (!strncmp(shortname, "warp33/", 7))
-	{
+	else if (!strncmp(shortname, "trans/", 6))
 		Shader_DefaultScript(shortname, s,
 				"{\n"
 					"{\n"
 						"map $diffuse\n"
-						"tcmod turb 0 0.01 0.5 0\n"
-						"alphagen const 0.333\n"
-						"blendfunc blend\n"
-					"}\n"
-				"}\n"
-			);
-	}
-	else if (!strncmp(shortname, "warp66/", 7))
-	{
-		Shader_DefaultScript(shortname, s,
-				"{\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0 0.01 0.5 0\n"
-						"alphagen const 0.666\n"
-						"blendfunc blend\n"
-					"}\n"
-				"}\n"
-			);
-	}
-	else if (!strncmp(shortname, "trans/", 7))
-		Shader_DefaultScript(shortname, s,
-				"{\n"
-					"{\n"
-						"map $diffuse\n"
-						"alphagen const 1\n"
-						"blendfunc blend\n"
-					"}\n"
-				"}\n"
-			);
-	else if (!strncmp(shortname, "trans33/", 7))
-		Shader_DefaultScript(shortname, s,
-				"{\n"
-					"{\n"
-						"map $diffuse\n"
-						"alphagen const 0.333\n"
-						"blendfunc blend\n"
-					"}\n"
-				"}\n"
-			);
-	else if (!strncmp(shortname, "trans66/", 7))
-		Shader_DefaultScript(shortname, s,
-				"{\n"
-					"{\n"
-						"map $diffuse\n"
-						"alphagen const 0.666\n"
+						"alphagen const $#ALPHA\n"
 						"blendfunc blend\n"
 					"}\n"
 				"}\n"
@@ -4798,8 +4804,15 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	if (!*name)
 		name = "gfx/white";
 
-	*(int*)shortname = 0;
-	COM_StripExtension ( name, shortname, sizeof(shortname));
+	if (strchr(name, '#'))
+	{
+		Q_strncpyz(shortname, name, sizeof(shortname));
+	}
+	else
+	{
+		*(int*)shortname = 0;
+		COM_StripExtension ( name, shortname, sizeof(shortname));
+	}
 
 	COM_CleanUpPath(shortname);
 

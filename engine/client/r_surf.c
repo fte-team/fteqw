@@ -1942,7 +1942,7 @@ void Surf_SetupFrame(void)
 			leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
-		r_viewcontents = 0;//leaf->contents;
+		r_viewcontents = leaf->contents & (FTECONTENTS_LAVA|FTECONTENTS_SLIME|FTECONTENTS_WATER);
 
 		// check above and below so crossing solid water doesn't draw wrong
 		if (!leaf->contents)

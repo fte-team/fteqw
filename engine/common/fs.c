@@ -1785,6 +1785,8 @@ void COM_Gamedir (const char *dir)
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2*/
 #define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
+/*yay q2!*/
+#define Q2CFG "gl_font \":?col=0.44 1 0.2\"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "gl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\n"
 #define RMQCFG "sv_bigcoords 1\n"
@@ -1825,7 +1827,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
 														 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},	"Hexen II MP"},
 	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},	"Hexen II"},
-	{"-q2",			"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
+	{"-q2",			"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},	Q2CFG,	{"baseq2",						"fteq2"},	"Quake II"},
 	{"-q3",			"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 
 	//can run in windows, needs 

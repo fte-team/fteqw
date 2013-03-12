@@ -285,7 +285,6 @@ typedef struct dlight_s
 	} face [6];
 	int style;	//multiply by style values if > 0
 	float	fov; //spotlight
-	float	dist;
 	struct dlight_s *next;
 } dlight_t;
 

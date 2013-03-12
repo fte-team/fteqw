@@ -1940,14 +1940,12 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 	}
 }
 
-static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float proj[16])
+static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int smsize, float proj[16])
 {
 	qboolean oxv;
 	vec3_t t1,t2, t3;
 	texture_t *tex;
 	int tno;
-
-	int smsize = SHADOWMAP_SIZE;
 
 //FIXME: figure out the four lines bounding the light cone by just adding its +forward+/-right+/-up values. if any point towards a plane (and starts outside that plane), and the point of intersection with that line and the frustum side plane is infront of the near clip plane, then that light frustum needs to be rendered...
 	switch(face)
@@ -1998,7 +1996,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		qglViewport (0, 0, smsize, smsize);
 	else
 	{
-		qglViewport ((face%3 * smsize), ((face>=3)*smsize), smsize, smsize);
+		qglViewport ((face%3 * SHADOWMAP_SIZE) + (SHADOWMAP_SIZE-smsize)/2, ((face>=3)*SHADOWMAP_SIZE) + (SHADOWMAP_SIZE-smsize)/2, smsize, smsize);
 	}
 
 	//fixme
@@ -2082,22 +2080,22 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	{
 		if (isspot)
 		{
-			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize, smsize, 0);
+			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap2dspot***", SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0);
 			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 #ifdef DBG_COLOURNOTDEPTH
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 #endif
 		}
 		else
 		{
-			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap***", smsize*3, smsize*2, 0);
+			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap2dcube***", SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0);
 			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 #ifdef DBG_COLOURNOTDEPTH
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize*3, smsize*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize*3, smsize*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 #endif
 		}
 
@@ -2121,7 +2119,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	/*set framebuffer*/
 	GL_BeginRenderBuffer_DepthOnly(shadowmap[isspot]);
-	GLBE_SetupForShadowMap(shadowmap[isspot]);
+	GLBE_SetupForShadowMap(shadowmap[isspot], isspot?smsize:smsize*3, isspot?smsize:smsize*2, smsize / (float)SHADOWMAP_SIZE);
 
 	qglViewport(0, 0, smsize*3, smsize*2);
 	qglClear (GL_DEPTH_BUFFER_BIT);
@@ -2135,17 +2133,19 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	if (l->fov)
 	{
 		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, l->fov, l->fov, nearplane, l->radius);
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection);
-		qglMatrixMode(GL_MODELVIEW);
+		if (!gl_config.nofixedfunc)
+		{
+			qglMatrixMode(GL_PROJECTION);
+			qglLoadMatrixf(r_refdef.m_projection);
+			qglMatrixMode(GL_MODELVIEW);
+		}
 
 		/*single face*/
-		Sh_GenShadowFace(l, smesh, 0, r_refdef.m_projection);
+		Sh_GenShadowFace(l, smesh, 0, smsize, r_refdef.m_projection);
 	}
 	else
 	{
 		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, 90, 90, nearplane, l->radius);
-
 		if (!gl_config.nofixedfunc)
 		{
 			qglMatrixMode(GL_PROJECTION);
@@ -2156,7 +2156,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 		/*generate faces*/
 		for (f = 0; f < 6; f++)
 		{
-			Sh_GenShadowFace(l, smesh, f, r_refdef.m_projection);
+			Sh_GenShadowFace(l, smesh, f, smsize, r_refdef.m_projection);
 		}
 	}
 	/*end framebuffer*/
@@ -2210,7 +2210,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 	if (vvis)
 	{
-		if (l->worldshadowmesh)
+		if (!l->rebuildcache && l->worldshadowmesh)
 		{
 			lvis = l->worldshadowmesh->litleaves;
 			//fixme: check head node first?
@@ -2831,7 +2831,6 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 }
 
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 
 void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 {
@@ -2903,19 +2902,19 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	Sh_ScissorOff();
 
-	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, false);
+	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, r_nulltex, false);
 
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours);
 	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
-	GLBE_RenderToTexture(crepuscular_texture_id, r_nulltex, r_nulltex, false);
+	GLBE_RenderToTexture(crepuscular_texture_id, r_nulltex, r_nulltex, r_nulltex, false);
 
 	BE_SelectMode(BEM_STANDARD);
 
 	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
 
-	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 #endif
 }
 

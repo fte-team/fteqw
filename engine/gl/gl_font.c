@@ -194,6 +194,7 @@ typedef struct font_s
 	void *membuf;
 #endif
 	struct font_s *alt;
+	vec3_t alttint;
 } font_t;
 
 typedef struct {
@@ -962,6 +963,8 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	f->charheight = height;
 	Q_strncpyz(f->name, fontfilename, sizeof(f->name));
 
+	VectorSet(f->alttint, 1.16, 0.54, 0.41);
+
 #ifdef DOOMWADS
 	if (!*fontfilename)
 	{
@@ -1087,7 +1090,17 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	if (aname)
 	{
 		*aname = 0;
-		f->alt = Font_LoadFont(vheight, aname+1);
+		if (!strncmp(aname+1, "?col=", 5))
+		{
+			char *t = aname+6;
+			f->alttint[0] = strtod(t, &t);
+			if (*t == ' ') t++;
+			f->alttint[1] = strtod(t, &t);
+			if (*t == ' ') t++;
+			f->alttint[2] = strtod(t, &t);
+		}
+		else
+			f->alt = Font_LoadFont(vheight, aname+1);
 	}
 	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
 	{
@@ -1507,9 +1520,9 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 			if (charcode & CON_2NDCHARSETTEXT)
 			{
-				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
-				font_forecolour[1] *= 0.54;
-				font_forecolour[2] *= 0.41;
+				font_forecolour[0] = min(font_forecolour[0]*font->alttint[0], 255);
+				font_forecolour[1] = min(font_forecolour[1]*font->alttint[1], 255);
+				font_forecolour[2] = min(font_forecolour[2]*font->alttint[2], 255);
 			}
 		}
 	}
@@ -1678,9 +1691,9 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 
 			if (charcode & CON_2NDCHARSETTEXT)
 			{
-				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
-				font_forecolour[1] *= 0.54;
-				font_forecolour[2] *= 0.41;
+				font_forecolour[0] = min(font_forecolour[0]*font->alttint[0], 255);
+				font_forecolour[1] = min(font_forecolour[1]*font->alttint[1], 255);
+				font_forecolour[2] = min(font_forecolour[2]*font->alttint[2], 255);
 			}
 		}
 	}

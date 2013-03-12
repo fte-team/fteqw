@@ -27,6 +27,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifndef TINT\n"
 "#define TINT vec3(0.7, 0.8, 0.7)\n"
 "#endif\n"
+"#ifndef FOGTINT\n"
+"#define FOGTINT vec3(0.2, 0.3, 0.2)\n"
+"#endif\n"
 
 "varying vec2 tc;\n"
 "varying vec4 tf;\n"
@@ -49,17 +52,27 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t0; //refract\n"
 "uniform sampler2D s_t1; //normalmap\n"
 "uniform sampler2D s_t2; //diffuse/reflection\n"
+"#ifdef DEPTH\n"
+"uniform sampler2D s_t3;  //refraction depth\n"
+"#ifdef RIPPLEMAP\n"
+"uniform sampler2D s_t4;  //ripplemap\n"
+"#endif\n"
+"#else\n"
 "#ifdef RIPPLEMAP\n"
 "uniform sampler2D s_t3;  //ripplemap\n"
+"#endif\n"
 "#endif\n"
 
 "uniform float e_time;\n"
 "void main (void)\n"
 "{\n"
 "vec2 stc, ntc;\n"
-"vec3 n, refr, refl, fres;\n"
-"float f;\n"
+"vec3 n, refr, refl;\n"
+"float fres;\n"
+"float depth;\n"
 "stc = (1.0 + (tf.xy / tf.w)) * 0.5;\n"
+//hack the texture coords slightly so that there are no obvious gaps
+"stc.t -= 1.5*norm.z/1080.0;\n"
 
 //apply q1-style warp, just for kicks
 "ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
@@ -71,25 +84,61 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "n -= 1.0 - 4.0/256.0;\n"
 
 "#ifdef RIPPLEMAP\n"
-"n += texture2D(s_t3, stc).rgb*3.0;\n"
+"n += texture2D(s_t4, stc).rgb*3.0;\n"
 "#endif\n"
 
 //the fresnel term decides how transparent the water should be
-"f = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));\n"
+"fres = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));\n"
 
+"#ifdef DEPTH\n"
+"float far = #include \"cvar/gl_maxdist\";\n"
+"float near = #include \"cvar/gl_mindist\";\n"
+//get depth value at the surface
+"float sdepth = gl_FragCoord.z;\n"
+"sdepth = (2.0*near) / (far + near - sdepth * (far - near));\n"
+"sdepth = mix(near, far, sdepth);\n"
+
+//get depth value at the ground beyond the surface.
+"float gdepth = texture2D(s_t3, stc).x;\n"
+"gdepth = (2.0*near) / (far + near - gdepth * (far - near));\n"
+"if (gdepth >= 0.5)\n"
+"{\n"
+"gdepth = sdepth;\n"
+"depth = 0.0;\n"
+"}\n"
+"else\n"
+"{\n"
+"gdepth = mix(near, far, gdepth);\n"
+"depth = gdepth - sdepth;\n"
+"}\n"
+
+//reduce the normals in shallow water (near walls, reduces the pain of linear sampling)
+"if (depth < 100)\n"
+"n *= depth/100.0;\n"
+"#else\n"
+"depth = 1;\n"
+"#endif \n"
+
+
+//refraction image (and water fog, if possible)
 "refr = texture2D(s_t0, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;\n"
+"#ifdef DEPTH\n"
+"refr = mix(refr, FOGTINT, min(depth/4096, 1));\n"
+"#endif\n"
+
+//reflection/diffuse
 "#ifdef REFLECT\n"
 "refl = texture2D(s_t2, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;\n"
 "#else\n"
 "refl = texture2D(s_t2, ntc).xyz;\n"
 "#endif\n"
-//	refl += 0.1*pow(dot(n, vec3(0.0,0.0,1.0)), 64.0);
+//FIXME: add specular
 
-"fres = refr * (1.0-f) + refl*f;\n"
+//interplate by fresnel
+"refr = mix(refr, refl, fres);\n"
 
-//	fres = texture2D(s_t2, stc).xyz;
-
-"gl_FragColor = vec4(fres, 1.0);\n"
+//done
+"gl_FragColor = vec4(refr, 1.0);\n"
 "}\n"
 "#endif\n"
 },
@@ -1090,14 +1139,19 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 "uniform sampler2D s_t0;\n"
 "uniform float e_time;\n"
+"#ifndef ALPHA\n"
 "uniform float cvar_r_wateralpha;\n"
+"#define USEALPHA cvar_r_wateralpha\n"
+"#else\n"
+"#define USEALPHA float(ALPHA)\n"
+"#endif\n"
 "void main ()\n"
 "{\n"
 "vec2 ntc;\n"
 "ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 "vec3 ts = vec3(texture2D(s_t0, ntc));\n"
-"gl_FragColor = fog4(vec4(ts, cvar_r_wateralpha));\n"
+"gl_FragColor = fog4(vec4(ts, USEALPHA));\n"
 "}\n"
 "#endif\n"
 },
@@ -1584,6 +1638,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform float l_lightradius;\n"
 "uniform vec3 l_lightcolour;\n"
 "uniform vec3 l_lightcolourscale;\n"
+"#ifdef PCF\n"
+"uniform vec4 l_shadowmapinfo; //xy are the texture scale, z is 1, w is the scale.\n"
+"#endif\n"
 
 
 
@@ -1593,12 +1650,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "float ShadowmapFilter(void)\n"
 "{\n"
-"#ifdef SPOT\n"
-"const vec3 texscale = vec3(1.0/512.0, 1.0/512.0, 1.0);\n"
-"#else\n"
-"const vec3 texscale = vec3(1.0/(512.0*3.0), 1.0/(512.0*2.0), 1.0);\n"
-"#endif\n"
-
 //dehomogonize input
 "vec3 shadowcoord = (vtexprojcoord.xyz / vtexprojcoord.w);\n"
 
@@ -1644,6 +1695,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 nsc =l_projmatrix*vec4(t, 1.0);\n"
 "shadowcoord = (nsc.xyz / nsc.w);\n"
 
+//scale to match the light's precision and pinch inwards, so we never sample over the edge
+"shadowcoord.st *= l_shadowmapinfo.w * (1.0-l_shadowmapinfo.st);\n"
+
 //now bias and relocate it
 "shadowcoord = (shadowcoord + axis.xyz) * vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
 "#endif\n"
@@ -1663,7 +1717,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0)); //blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.\n"
 
 "#else\n"
-"#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*texscale.xyz)).r\n"
+"#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapinfo.xyz)).r\n"
 "float s = 0.0;\n"
 "s += dosamp(-1.0, -1.0);\n"
 "s += dosamp(-1.0, 0.0);\n"
@@ -1854,18 +1908,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform float cvar_r_waterwarp;\n"
 "void main ()\n"
 "{\n"
-"float amptemp;\n"
-"vec3 edge;\n"
-"edge = texture2D( s_t2, v_edge ).rgb;\n"
-"amptemp = (0.010 / 0.625) * cvar_r_waterwarp * edge.x;\n"
-"vec3 offset;\n"
-"offset = texture2D( s_t1, v_warp ).rgb;\n"
-"offset.x = (offset.x - 0.5) * 2.0;\n"
-"offset.y = (offset.y - 0.5) * 2.0;\n"
-"vec2 temp;\n"
-"temp.x = v_stc.x + offset.x * amptemp;\n"
-"temp.y = v_stc.y + offset.y * amptemp;\n"
-"gl_FragColor = texture2D( s_t0, temp*e_rendertexturescale.st );\n"
+"vec2 amp  = (0.010 / 0.625) * cvar_r_waterwarp * texture2D(s_t2, v_edge).rg;\n"
+"vec3 offset = (texture2D(s_t1, v_warp).rgb - 0.5) * 2.0;\n"
+"vec2 temp  = v_stc + offset.xy * amp;\n"
+"gl_FragColor = texture2D(s_t0, temp*e_rendertexturescale.st);\n"
 "}\n"
 "#endif\n"
 },

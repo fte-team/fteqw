@@ -1221,7 +1221,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 		if (out->flags & TI_SKY)
 			snprintf(sname, sizeof(sname), "sky/%s", in->texture);
 		else if (out->flags & (TI_WARP|TI_TRANS33|TI_TRANS66))
-			snprintf(sname, sizeof(sname), "%s%s/%s", ((out->flags&TI_WARP)?"warp":"trans"), ((out->flags&TI_TRANS66)?"66":(out->flags&TI_TRANS33?"33":"")), in->texture);
+			snprintf(sname, sizeof(sname), "%s/%s#ALPHA=%s", ((out->flags&TI_WARP)?"warp":"trans"), in->texture, ((out->flags&TI_TRANS66)?"0.66":(out->flags&TI_TRANS33?"0.33":"1")));
 		else
 			snprintf(sname, sizeof(sname), "wall/%s", in->texture);
 

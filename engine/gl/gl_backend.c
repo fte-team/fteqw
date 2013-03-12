@@ -70,7 +70,6 @@ enum
 extern cvar_t r_glsl_offsetmapping, r_noportals;
 
 static void BE_SendPassBlendDepthMask(unsigned int sbits);
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 void GLBE_SubmitBatch(batch_t *batch);
 static qboolean GLBE_RegisterLightShader(int mode);
 
@@ -103,6 +102,7 @@ struct {
 		int fbo_reflection;
 		texid_t tex_reflection;	/*basically a portal rendered to texture*/
 		texid_t tex_refraction;	/*the (culled) underwater view*/
+		texid_t tex_refractiondepth;	/*the (culled) underwater view*/
 		texid_t tex_ripplemap;	/*temp image for waves and things.*/
 
 		qboolean force2d;
@@ -184,6 +184,7 @@ struct {
 		texid_t lighttexture;
 		texid_t lightcubemap;
 		float lightprojmatrix[16]; /*world space*/
+		vec4_t lightshadowmapinfo;
 	};
 
 	int wbatch;
@@ -940,8 +941,13 @@ void R_IBrokeTheArrays(void)
 
 #ifdef RTLIGHTS
 //called from gl_shadow
-void GLBE_SetupForShadowMap(texid_t shadowmaptex)
+void GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale)
 {
+	shaderstate.lightshadowmapinfo[0] = 1.0/texwidth;
+	shaderstate.lightshadowmapinfo[1] = 1.0/texwidth;
+	shaderstate.lightshadowmapinfo[2] = 1.0;
+	shaderstate.lightshadowmapinfo[3] = shadowscale;
+
 	shaderstate.curshadowmap = shadowmaptex;
 	while(shaderstate.lastpasstmus>0)
 	{
@@ -1100,6 +1106,9 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			return;
 		}
 		t = shaderstate.tex_refraction;
+		break;
+	case T_GEN_REFRACTIONDEPTH:
+		t = shaderstate.tex_refractiondepth;
 		break;
 	case T_GEN_RIPPLEMAP:
 		t = shaderstate.tex_ripplemap;
@@ -2893,6 +2902,9 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				qglUniformMatrix4fvARB(ph, 1, false, t);
 			}
 			break;
+		case SP_LIGHTSHADOWMAPINFO:
+			qglUniform4fvARB(ph, 1, shaderstate.lightshadowmapinfo);
+			break;
 
 		/*static lighting info*/
 		case SP_E_L_DIR:
@@ -3882,7 +3894,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 			if ((batch->shader->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
-				vrect_t orect = r_refdef.vrect;
+				vrect_t orect = r_refdef.vrect, oprect = r_refdef.pxrect;
 				if (!shaderstate.tex_reflection.num)
 				{
 					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -3894,25 +3906,32 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
 				GL_ForceDepthWritable();
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, true);
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, r_nulltex, true);
 				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.width/2;
 				r_refdef.vrect.height = vid.height/2;
+				r_refdef.pxrect.x = 0;
+				r_refdef.pxrect.width = vid.pixelwidth/2;
+				r_refdef.pxrect.height = vid.pixelheight/2;
+				r_refdef.pxrect.y = r_refdef.pxrect.height;
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				GLR_DrawPortal(batch, cl.worldmodel->batches, 1);
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 				r_refdef.vrect = orect;
+				r_refdef.pxrect = oprect;
 			}
-			if (batch->shader->flags & SHADER_HASREFRACT)
+			if (batch->shader->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
 			{
 				if (r_refract_fboival)
 				{
-					vrect_t orect;
+					vrect_t ovrect = r_refdef.vrect, oprect = r_refdef.pxrect;
+					GL_ForceDepthWritable();
+
 					if (!shaderstate.tex_refraction.num)
 					{
 						shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -3923,31 +3942,49 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 					}
-					GL_ForceDepthWritable();
-					GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, true);
+					if (batch->shader->flags & SHADER_HASREFRACTDEPTH)
+					{
+						if (!shaderstate.tex_refractiondepth.num)
+						{
+							shaderstate.tex_refractiondepth = GL_AllocNewTexture("***tex_refractiondepth***", vid.pixelwidth/2, vid.pixelheight/2, 0);
+							GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refractiondepth);
+							qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+						}
+						GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, shaderstate.tex_refractiondepth, true);
+					}
+					else
+						GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, r_nulltex, true);
 
 					qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
-					orect = r_refdef.vrect;
 					r_refdef.vrect.x = 0;
 					r_refdef.vrect.y = 0;
 					r_refdef.vrect.width = vid.width/2;
 					r_refdef.vrect.height = vid.height/2;
+					r_refdef.pxrect.x = 0;
+					r_refdef.pxrect.width = vid.pixelwidth/2;
+					r_refdef.pxrect.height = vid.pixelheight/2;
+					r_refdef.pxrect.y = r_refdef.pxrect.height;
 
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-					GLR_DrawPortal(batch, cl.worldmodel->batches, 2);
-					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+					GLR_DrawPortal(batch, cl.worldmodel->batches, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
+					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
 					qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
-					r_refdef.vrect = orect;
+					r_refdef.vrect = ovrect;
+					r_refdef.pxrect = oprect;
 				}
 				else
 					GLR_DrawPortal(batch, cl.worldmodel->batches, 3);
 			}
 			if ((batch->shader->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
-				vrect_t orect;
+				vrect_t orect = r_refdef.vrect, oprect = r_refdef.pxrect;
 				if (!shaderstate.tex_ripplemap.num)
 				{
 					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -3958,13 +3995,16 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_ripplemap, false);
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_ripplemap, r_nulltex, false);
 				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
-				orect = r_refdef.vrect;
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.width/2;
 				r_refdef.vrect.height = vid.height/2;
+				r_refdef.pxrect.x = 0;
+				r_refdef.pxrect.width = vid.pixelwidth/2;
+				r_refdef.pxrect.height = vid.pixelheight/2;
+				r_refdef.pxrect.y = r_refdef.pxrect.height;
 
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT);
@@ -3974,10 +4014,11 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.recurse = true; //paranoid, should stop potential infinite loops
 				GLBE_SubmitMeshes(true, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
 				r_refdef.recurse = false;
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
 				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 				r_refdef.vrect = orect;
+				r_refdef.pxrect = oprect;
 			}
 			BE_SelectMode(oldbem);
 		}
@@ -4084,7 +4125,7 @@ void GLBE_BaseEntTextures(void)
 }
 #endif
 
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth)
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth)
 {
 	shaderstate.tex_sourcecol = sourcecol;
 	shaderstate.tex_sourcedepth = sourcedepth;
@@ -4109,11 +4150,12 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 				}
 				else
 				{
+					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2);
+
 					qglGenRenderbuffersEXT(1, &shaderstate.rb_stencil);
+					qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
 					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, vid.pixelwidth/2, vid.pixelheight/2);
 					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
-					
-					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2);
 				}
 				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
 
@@ -4122,6 +4164,11 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 			}
 			else
 				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
+
+			if (destdepth.num)
+				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, destdepth.num, 0);
+			else
+				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
 		}
 		else
 		{
@@ -4302,6 +4349,11 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		{
 			R_DestroyTexture(shaderstate.tex_refraction);
 			shaderstate.tex_refraction = r_nulltex;
+		}
+		if (shaderstate.tex_refractiondepth.num)
+		{
+			R_DestroyTexture(shaderstate.tex_refractiondepth);
+			shaderstate.tex_refractiondepth = r_nulltex;
 		}
 		if (shaderstate.temptexture.num)
 		{

@@ -153,8 +153,8 @@ void GL_SetupSceneProcessingTextures (void)
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0));
-	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0));
+	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA));
+	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA));
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -197,7 +197,7 @@ void GL_SetupSceneProcessingTextures (void)
 			{
 				fx = (PP_AMP_TEX_SIZE - (float)x) / PP_AMP_TEX_BORDER;
 			}
-
+			
 			if (y < PP_AMP_TEX_BORDER)
 			{
 				fy = (float)y / PP_AMP_TEX_BORDER;
@@ -207,16 +207,20 @@ void GL_SetupSceneProcessingTextures (void)
 				fy = (PP_AMP_TEX_SIZE - (float)y) / PP_AMP_TEX_BORDER;
 			}
 
-			if (fx < fy)
-			{
-				fy = fx;
-			}
+			//avoid any sudden changes.
+			fx=sin(fx*M_PI*0.5);
+			fy=sin(fy*M_PI*0.5);
 
-			pp_edge_tex[i  ] = fy * 255;
-			pp_edge_tex[i+1] = 0;
+			//lame
+			fx = fy = min(fx, fy);
+
+			pp_edge_tex[i  ] = fx * 255;
+			pp_edge_tex[i+1] = fy * 255;
 			pp_edge_tex[i+2] = 0;
 		}
 	}
+
+//	scenepp_texture_edge = R_LoadTexture32("***postprocess_edge***", PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, pp_edge_tex, IF_NOMIPMAP|IF_NOGAMMA|IF_NOPICMIP);
 
 	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_edge);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -420,6 +424,8 @@ void R_SetupGL (float stereooffset)
 	#ifdef RTLIGHTS
 			stencilshadows |= r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival;
 			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
+			//if (r_shadow_shadowmapping.ival)
+				stencilshadows = false;
 	#endif
 
 			if ((!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
@@ -1058,7 +1064,6 @@ void GLR_SetupFog (void)
 }
 #endif
 
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 static void R_RenderMotionBlur(void)
 {
 	int vwidth = 1, vheight = 1;
@@ -1097,10 +1102,10 @@ static void R_RenderMotionBlur(void)
 			"}\n"
 		"}\n"
 		);
-	GLBE_RenderToTexture(sceneblur_texture, r_nulltex, r_nulltex, false);
+	GLBE_RenderToTexture(sceneblur_texture, r_nulltex, r_nulltex, r_nulltex, false);
 	R2D_ImageColours(1, 1, 1, gl_motionblur.value);
 	R2D_Image(0, 0, vid.width, vid.height, cs-vs, ct+vt, cs+vs, ct-vt, shader);
-	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
 	//grab the current image so we can feed that back into the next frame.
 	GL_MTBind(0, GL_TEXTURE_2D, sceneblur_texture);

@@ -106,6 +106,9 @@ uniform vec3 e_uppercolour;
 uniform float l_lightradius;
 uniform vec3 l_lightcolour;
 uniform vec3 l_lightcolourscale;
+#ifdef PCF
+uniform vec4 l_shadowmapinfo;	//xy are the texture scale, z is 1, w is the scale.
+#endif
 
 
 
@@ -115,12 +118,6 @@ uniform vec3 l_lightcolourscale;
 
 float ShadowmapFilter(void)
 {
-#ifdef SPOT
-	const vec3 texscale = vec3(1.0/512.0, 1.0/512.0, 1.0);
-#else
-	const vec3 texscale = vec3(1.0/(512.0*3.0), 1.0/(512.0*2.0), 1.0);
-#endif
-
 	//dehomogonize input
 	vec3 shadowcoord = (vtexprojcoord.xyz / vtexprojcoord.w);
 
@@ -166,6 +163,9 @@ float ShadowmapFilter(void)
 	vec4 nsc =l_projmatrix*vec4(t, 1.0);
 	shadowcoord = (nsc.xyz / nsc.w);
 
+	//scale to match the light's precision and pinch inwards, so we never sample over the edge
+	shadowcoord.st *= l_shadowmapinfo.w * (1.0-l_shadowmapinfo.st);
+
 	//now bias and relocate it
 	shadowcoord = (shadowcoord + axis.xyz) * vec3(0.5/3.0, 0.5/2.0, 0.5);
 #endif
@@ -185,7 +185,7 @@ float ShadowmapFilter(void)
 		return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0));	//blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.
 
 	#else
-		#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*texscale.xyz)).r
+		#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapinfo.xyz)).r
 		float s = 0.0;
 		s += dosamp(-1.0, -1.0);
 		s += dosamp(-1.0, 0.0);

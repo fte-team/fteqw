@@ -1826,6 +1826,7 @@ void CLQ2_CalcViewValues (void)
 	q2centity_t	*ent;
 	q2frame_t		*oldframe;
 	q2player_state_t	*ps, *ops;
+	extern cvar_t gl_cshiftenabled;
 
 	r_refdef.useperspective = true;
 
@@ -1900,8 +1901,9 @@ void CLQ2_CalcViewValues (void)
 	r_refdef.fov_x = ops->fov + lerp * (ps->fov - ops->fov);
 
 	// don't interpolate blend color
-	for (i=0 ; i<4 ; i++)
+	for (i=0 ; i<3 ; i++)
 		sw_blend[i] = ps->blend[i];
+	sw_blend[3] = ps->blend[3]*gl_cshiftenabled.value;
 
 	// add the weapon
 	CLQ2_AddViewWeapon (ps, ops);

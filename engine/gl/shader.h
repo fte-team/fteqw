@@ -229,6 +229,7 @@ typedef struct shaderpass_s {
 
 		T_GEN_REFLECTION,	//reflection image (mirror-as-fbo)
 		T_GEN_REFRACTION,	//refraction image (portal-as-fbo)
+		T_GEN_REFRACTIONDEPTH,	//refraction image (portal-as-fbo)
 		T_GEN_RIPPLEMAP,	//ripplemap image (water surface distortions-as-fbo)
 
 		T_GEN_SOURCECUBE,	//used for render-to-texture targets
@@ -337,6 +338,7 @@ typedef struct {
 		SP_LIGHTSCREEN,
 		SP_LIGHTPROJMATRIX,
 		SP_LIGHTCUBEMATRIX,
+		SP_LIGHTSHADOWMAPINFO,
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
@@ -430,9 +432,10 @@ struct shader_s
 		SHADER_STATICDATA		= 1 << 18,	//set if true: no deforms, no tcgen, rgbgen=identitylighting, alphagen=identity, tmu0=st + tmu1=lm(if available) for every pass, no norms
 		SHADER_HASREFLECT		= 1 << 19,	//says that we need to generate a reflection image first
 		SHADER_HASREFRACT		= 1 << 20,	//says that we need to generate a refraction image first
-		SHADER_HASNORMALMAP		= 1 << 21,	//says that we need to load a normalmap texture
-		SHADER_HASRIPPLEMAP		= 1 << 22,	//water surface disturbances for water splashes
-		SHADER_HASGLOSS			= 1 << 23,	//
+		SHADER_HASREFRACTDEPTH	= 1 << 21,	//refraction generation needs to generate a depth texture too.
+		SHADER_HASNORMALMAP		= 1 << 22,	//says that we need to load a normalmap texture
+		SHADER_HASRIPPLEMAP		= 1 << 23,	//water surface disturbances for water splashes
+		SHADER_HASGLOSS			= 1 << 24,	//
 	} flags;
 
 	program_t *prog;
@@ -510,6 +513,7 @@ qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
 #endif
 #ifdef D3D9QUAKE
 void D3D9BE_Init(void);
@@ -566,7 +570,7 @@ void BE_GenerateProgram(shader_t *shader);
 //
 void GLBE_PushOffsetShadow(qboolean foobar);
 //sets up gl for depth-only FIXME
-void GLBE_SetupForShadowMap(texid_t shadowmaptex);
+void GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale);
 //Called from shadowmapping code into backend
 void GLBE_BaseEntTextures(void);
 void D3D9BE_BaseEntTextures(void);

@@ -158,7 +158,7 @@ void Skin_Find (player_info_t *sc)
 		*s = '\0';
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2)
-			model = Mod_ForName(va("players/%s/tris.mdl", name), false);
+			model = Mod_ForName(va("players/%s/tris.md2", name), false);
 		else
 #endif
 			model = NULL;//Mod_ForName(va("models/players/%s.mdl", name), false);

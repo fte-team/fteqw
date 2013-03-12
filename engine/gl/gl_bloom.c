@@ -94,7 +94,7 @@ static void R_SetupBloomTextures(int w, int h)
 
 	/*we should be doing this outside of this code*/
 	if (!TEXVALID(scrtex))
-		scrtex = GL_AllocNewTexture("", scrwidth, scrheight, 0);
+		scrtex = GL_AllocNewTexture("", scrwidth, scrheight, IF_NOMIPMAP|IF_NOPICMIP);
 	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scrwidth, scrheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	/*top level uses nearest sampling*/
@@ -111,7 +111,7 @@ static void R_SetupBloomTextures(int w, int h)
 			if (!TEXVALID(pingtex[i][j]))
 			{
 				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
-				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j], 0));
+				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j], IF_NOMIPMAP|IF_NOPICMIP));
 			}
 			GL_MTBind(0, GL_TEXTURE_2D, pingtex[i][j]);
 			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, texwidth[j], texheight[j], 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -190,31 +190,38 @@ void R_BloomBlend (void)
 	/*grab the screen, because we failed to do it earlier*/
 	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, r_refdef.pxrect.x, r_refdef.pxrect.y - r_refdef.pxrect.height, r_refdef.pxrect.width, r_refdef.pxrect.height);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	/*filter the screen into a downscaled image*/
-	GLBE_RenderToTexture(scrtex, r_nulltex, pingtex[0][0], r_nulltex, false);
-	qglViewport (0, 0, texwidth[0], texheight[0]);
-	R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
-	/*and downscale that multiple times*/
-	for (i = 1; i < MAXLEVELS; i++)
-	{
-		GLBE_RenderToTexture(pingtex[0][i-1], r_nulltex, pingtex[0][i], r_nulltex, false);
-		qglViewport (0, 0, texwidth[i], texheight[i]);
-		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
-	}
-
-	/*gaussian filter the mips to bloom more smoothly*/
 	for (i = 0; i < MAXLEVELS; i++)
 	{
-		/*must be 1.2th of a pixel*/
+		if (i == 0)
+		{
+			/*filter the screen into a downscaled image*/
+			GLBE_RenderToTexture(scrtex, r_nulltex, pingtex[0][0], r_nulltex, false);
+			qglViewport (0, 0, texwidth[0], texheight[0]);
+			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
+		}
+		else
+		{
+			/*simple downscale that multiple times*/
+			GLBE_RenderToTexture(pingtex[0][i-1], r_nulltex, pingtex[0][i], r_nulltex, false);
+			qglViewport (0, 0, texwidth[i], texheight[i]);
+			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
+		}
+//	}
+//	for (i = 0; i < MAXLEVELS; i++)
+//	{
+		/*gaussian filter the mips to bloom more smoothly
+		the blur is done with two passes. first samples horizontally then vertically.
+		the 1.2 pixels thing gives us a 5*5 filter by weighting the edge accordingly
+		*/
 		r_worldentity.glowmod[0] = 1.2 / texwidth[i];
 		r_worldentity.glowmod[1] = 0;
 		GLBE_RenderToTexture(pingtex[0][i], r_nulltex, pingtex[1][i], r_nulltex, false);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
-	}
-	for (i = 0; i < MAXLEVELS; i++)
-	{
+
 		r_worldentity.glowmod[0] = 0;
 		r_worldentity.glowmod[1] = 1.2 / texheight[i];
 		GLBE_RenderToTexture(pingtex[1][i], r_nulltex, pingtex[0][i], r_nulltex, false);

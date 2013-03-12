@@ -598,9 +598,9 @@ void GL_Set2D (qboolean flipped)
 		Matrix4x4_Identity(r_refdef.m_view);
 	}
 	r_refdef.pxrect.x = 0;
-	r_refdef.pxrect.y = 0;
-	r_refdef.pxrect.width = vid.width;
-	r_refdef.pxrect.height = vid.height;
+	r_refdef.pxrect.width = vid.pixelwidth;
+	r_refdef.pxrect.height = vid.pixelheight;
+	r_refdef.pxrect.y = r_refdef.pxrect.height;
 	r_refdef.time = realtime;
 	/*flush that gl state*/
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);

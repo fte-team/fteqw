@@ -3038,8 +3038,8 @@ pbool QCC_PR_CheckTokenComment(char *string, char **comment)
 				{
 					if (nl)
 					{
-						QCC_PR_NewLine(false);
 						pr_file_p++;
+						QCC_PR_NewLine(false);
 						break;
 					}
 					nl = true;
@@ -3065,8 +3065,8 @@ pbool QCC_PR_CheckTokenComment(char *string, char **comment)
 
 				if (*pr_file_p == '\n')
 				{
-					QCC_PR_NewLine(true);
 					pr_file_p++;
+					QCC_PR_NewLine(true);
 				}
 
 				old = replace?NULL:*comment;
@@ -3095,15 +3095,19 @@ pbool QCC_PR_CheckTokenComment(char *string, char **comment)
 				do
 				{
 					if (pr_file_p[0]=='\n')
+					{
+						pr_file_p++;
 						QCC_PR_NewLine(true);
-					if (pr_file_p[1] == 0)
+					}
+					else if (pr_file_p[1] == 0)
 					{
 						QCC_PR_ParseError(0, "EOF inside comment\n");
 						pr_file_p++;
 						pr_file_p-=2;
 						break;
 					}
-					pr_file_p++;
+					else
+						pr_file_p++;
 				} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
 
 				old = replace?NULL:*comment;

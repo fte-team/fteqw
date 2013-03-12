@@ -51,6 +51,7 @@ qboolean isDedicated = false;
 #endif
 extern qboolean isPlugin;
 qboolean debugout;
+float gammapending;	//to cope with ATI. When it times out, v_gamma is reforced in order to correct/update gamma now the drivers think that they have won.
 
 HWND sys_parentwindow;
 unsigned int sys_parentleft;	//valid if sys_parentwindow is set
@@ -1504,6 +1505,16 @@ void Sys_SendKeyEvents (void)
 		SV_GetConsoleCommands ();
 #endif
 		return;
+	}
+
+	if (gammapending)
+	{
+		gammapending -= host_frametime;
+		if (gammapending < host_frametime)
+		{
+			gammapending = 0;
+			Cvar_ForceCallback(&v_gamma);
+		}
 	}
 
 	while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))

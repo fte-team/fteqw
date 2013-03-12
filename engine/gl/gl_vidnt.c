@@ -143,6 +143,8 @@ viddef_t	vid;				// global video state
 
 modestate_t	modestate = MS_UNINIT;
 
+extern float gammapending;
+
 
 LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 qboolean GLAppActivate(BOOL fActive, BOOL minimize);
@@ -1821,7 +1823,8 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			}
 		}
 
-		Cvar_ForceCallback(&v_gamma);
+		gammapending = 0.5;				//delayed gamma force
+		Cvar_ForceCallback(&v_gamma);	//so the delay isn't so blatent when you have decent graphics drivers that don't break things.
 	}
 
 	if (!fActive)
@@ -1834,7 +1837,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			}
 		}
 
-		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
+//		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
 
 		if (qSetDeviceGammaRamp)
 		{

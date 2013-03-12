@@ -1280,6 +1280,9 @@ void S_Purge(qboolean retaintouched)
 		ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 	}
 
+	if (!num_sfx)
+		return;
+
 	S_LockMixer();
 	for (i=0 ; i < num_sfx ; i++)
 	{

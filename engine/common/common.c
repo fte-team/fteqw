@@ -405,7 +405,6 @@ char *Q_strlwr(char *s)
 
 int wildcmp(const char *wild, const char *string)
 {
-	const char *cp=NULL, *mp=NULL;
 /*
 	while ((*string) && (*wild != '*'))
 	{
@@ -2093,16 +2092,21 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 
 	//output it.
 	if (bcount == 1)
-		*((unsigned char *)out)++ = (unsigned char)(unicode&0x7f);
+	{
+		*((unsigned char *)out) = (unsigned char)(unicode&0x7f);
+		out = (char*)out + 1;
+	}
 	else
 	{
 		shift = bcount*6;
 		shift = shift-6;
-		*((unsigned char *)out)++ = (unsigned char)((unicode>>shift)&(0x0000007f>>bcount)) | (0xffffff00 >> bcount);
+		*((unsigned char *)out) = (unsigned char)((unicode>>shift)&(0x0000007f>>bcount)) | (0xffffff00 >> bcount);
+		out = (char*)out + 1;
 		do
 		{
 			shift = shift-6;
-			*((unsigned char *)out)++ = (unsigned char)((unicode>>shift)&0x3f) | 0x80;
+			*((unsigned char *)out) += (unsigned char)((unicode>>shift)&0x3f) | 0x80;
+			out = (char*)out + 1;
 		}
 		while(shift);
 	}

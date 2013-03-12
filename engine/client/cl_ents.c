@@ -2746,7 +2746,6 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			sold = &oldpack->entities[oldpnum];
 			if (sold->number >= snew->number)
 			{
-				oldpnum++;
 				if (sold->number > snew->number)
 					sold = NULL;	//woo, it's a new entity.
 				break;
@@ -3043,7 +3042,7 @@ void CL_LinkPacketEntities (void)
 	packet_entities_t	*pack;
 	entity_state_t		*state;
 	lerpents_t		*le;
-	model_t				*model;
+	model_t				*model, *model2;
 	vec3_t				old_origin;
 	float				autorotate;
 	int					i;
@@ -3191,6 +3190,21 @@ void CL_LinkPacketEntities (void)
 			continue;
 		}
 
+		if (cl.model_precache_vwep[0])
+		{
+			if (state->modelindex == cl_playerindex)
+			{
+				model = cl.model_precache_vwep[0];
+				model2 = cl.model_precache_vwep[state->modelindex2];
+			}
+			else
+				model2 = NULL;
+		}
+		else if (state->modelindex2)
+			model2 = cl.model_precache[state->modelindex2];
+		else
+			model2 = NULL;
+
 		cl_numvisedicts++;
 
 		ent->externalmodelview = 0;
@@ -3318,6 +3332,9 @@ void CL_LinkPacketEntities (void)
 		if (ent->model->dollinfo)
 			rag_updatedeltaent(ent, le);
 #endif
+
+		if (model2)
+			CL_AddVWeapModel (ent, model2);
 
 		// add automatic particle trails
 		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))
@@ -4099,6 +4116,7 @@ void CL_LinkPlayers (void)
 	static int		flickertime;
 	static int		flicker;
 	float			predictmsmult = 1000*cl_predict_players_frac.value;
+	int				modelindex2;
 
 	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
@@ -4138,10 +4156,16 @@ void CL_LinkPlayers (void)
 			continue;
 
 		//the extra modelindex check is to stop lame mods from using vweps with rings
-		if (state->command.impulse && cl.model_precache_vwep[0] && state->modelindex == cl_playerindex)
+		if (state->command.impulse && cl.model_precache_vwep[0] && cl.model_precache_vwep[0]->type != mod_dummy && state->modelindex == cl_playerindex)
+		{
 			model = cl.model_precache_vwep[0];
+			modelindex2 = state->command.impulse;
+		}
 		else
+		{
 			model = cl.model_precache[state->modelindex];
+			modelindex2 = 0;
+		}
 
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0])
@@ -4333,8 +4357,8 @@ void CL_LinkPlayers (void)
 			CL_AddFlagModels (ent, 0);
 		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
-		if (state->command.impulse)
-			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
+		if (modelindex2)
+			CL_AddVWeapModel (ent, cl.model_precache_vwep[modelindex2]);
 
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);

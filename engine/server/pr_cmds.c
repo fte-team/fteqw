@@ -9645,7 +9645,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	{
 		for (i = 0; BuiltinList[i].name; i++)
 		{
-			if (BuiltinList[i].ebfsnum && !BuiltinList[i].obsolete)
+			if (BuiltinList[i].ebfsnum && !BuiltinList[i].obsolete && BuiltinList[i].bifunc != PF_Fixme)
 				builtincount[BuiltinList[i].ebfsnum]++;
 		}
 		for (i = 0; BuiltinList[i].name; i++)

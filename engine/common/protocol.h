@@ -572,7 +572,62 @@ enum clcq2_ops_e
 
 
 #ifdef NQPROT
+//NQ svc_clientdata stat updates.
+#define	SU_VIEWHEIGHT	(1<<0)
+#define	SU_IDEALPITCH	(1<<1)
+#define	SU_PUNCH1		(1<<2)
+#define	SU_PUNCH2		(1<<3)
+#define	SU_PUNCH3		(1<<4)
+#define	SU_VELOCITY1	(1<<5)
+#define	SU_VELOCITY2	(1<<6)
+#define	SU_VELOCITY3	(1<<7)
+//define	SU_AIMENT		(1<<8)  AVAILABLE BIT
+#define	SU_ITEMS		(1<<9)
+#define	SU_ONGROUND		(1<<10)		// no data follows, the bit is it
+#define	SU_INWATER		(1<<11)		// no data follows, the bit is it
+#define	SU_WEAPONFRAME	(1<<12)
+#define	SU_ARMOR		(1<<13)
+#define	SU_WEAPONMODEL	(1<<14)
+#define	SU_EXTEND1		(1<<15)
 
+#define FITZSU_WEAPONMODEL2	(1<<16) // 1 byte, this is .weaponmodel & 0xFF00 (second byte)
+#define FITZSU_ARMOR2		(1<<17) // 1 byte, this is .armorvalue & 0xFF00 (second byte)
+#define FITZSU_AMMO2		(1<<18) // 1 byte, this is .currentammo & 0xFF00 (second byte)
+#define FITZSU_SHELLS2		(1<<19) // 1 byte, this is .ammo_shells & 0xFF00 (second byte)
+#define FITZSU_NAILS2		(1<<20) // 1 byte, this is .ammo_nails & 0xFF00 (second byte)
+#define FITZSU_ROCKETS2		(1<<21) // 1 byte, this is .ammo_rockets & 0xFF00 (second byte)
+#define FITZSU_CELLS2		(1<<22) // 1 byte, this is .ammo_cells & 0xFF00 (second byte)
+#define SU_EXTEND2		(1<<23) // another byte to follow
+
+#define FITZSU_WEAPONFRAME2	(1<<24) // 1 byte, this is .weaponframe & 0xFF00 (second byte)
+#define FITZSU_WEAPONALPHA	(1<<25) // 1 byte, this is alpha for weaponmodel, uses ENTALPHA_ENCODE, not sent if ENTALPHA_DEFAULT
+#define FITZSU_UNUSED26		(1<<26)
+#define FITZSU_UNUSED27		(1<<27)
+#define FITZSU_UNUSED28		(1<<28)
+#define FITZSU_UNUSED29		(1<<29)
+#define FITZSU_UNUSED30		(1<<30)
+#define SU_EXTEND3		(1<<31) // another byte to follow, future expansion
+
+// first extend byte
+#define DPSU_PUNCHVEC1		(1<<16)
+#define DPSU_PUNCHVEC2		(1<<17)
+#define DPSU_PUNCHVEC3		(1<<18)
+#define DPSU_VIEWZOOM		(1<<19) // byte factor (0 = 0.0 (not valid), 255 = 1.0)
+#define DPSU_UNUSED20		(1<<20)
+#define DPSU_UNUSED21		(1<<21)
+#define DPSU_UNUSED22		(1<<22)
+// second extend byte
+#define DPSU_UNUSED24		(1<<24)
+#define DPSU_UNUSED25		(1<<25)
+#define DPSU_UNUSED26		(1<<26)
+#define DPSU_UNUSED27		(1<<27)
+#define DPSU_UNUSED28		(1<<28)
+#define DPSU_UNUSED29		(1<<29)
+#define DPSU_UNUSED30		(1<<30)
+
+
+
+//NQ fast updates
 #define	NQU_MOREBITS	(1<<0)
 #define	NQU_ORIGIN1	(1<<1)
 #define	NQU_ORIGIN2	(1<<2)

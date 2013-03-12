@@ -858,6 +858,9 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (to->u.q1.traileffectnum != from->u.q1.traileffectnum)
 		bits |= UF_TRAILEFFECT;
 
+	if (to->modelindex2 != from->modelindex2)
+		bits |= UF_MODELINDEX2;
+
 	if (to->u.q1.gravitydir[0] != from->u.q1.gravitydir[0] || to->u.q1.gravitydir[1] != from->u.q1.gravitydir[1])
 		bits |= UF_GRAVITYDIR;
 

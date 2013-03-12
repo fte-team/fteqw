@@ -92,6 +92,130 @@ extern long    sys_parentwindow;
 
 #define X_MASK (KEY_MASK | MOUSE_MASK | ResizeRequest | StructureNotifyMask | FocusChangeMask | VisibilityChangeMask)
 
+static struct
+{
+	void *lib;
+	int	 (*pXChangeProperty)(Display *display, Window w, Atom property, Atom type, int format, int mode, unsigned char *data, int nelements);
+	int	 (*pXCloseDisplay)(Display *display);
+	int 	 (*pXConvertSelection)(Display *display, Atom selection, Atom target, Atom property, Window requestor, Time time);
+	Colormap (*pXCreateColormap)(Display *display, Window w, Visual *visual, int alloc);
+	GC	 (*pXCreateGC)(Display *display, Drawable d, unsigned long valuemask, XGCValues *values);
+	Pixmap	 (*pXCreatePixmap)(Display *display, Drawable d, unsigned int width, unsigned int height, unsigned int depth);
+	Cursor	 (*pXCreatePixmapCursor)(Display *display, Pixmap source, Pixmap mask, XColor *foreground_color, XColor *background_color, unsigned int x, unsigned int y);
+	Window	 (*pXCreateWindow)(Display *display, Window parent, int x, int y, unsigned int width, unsigned int height, unsigned int border_width, int depth, unsigned int class, Visual *visual, unsigned long valuemask, XSetWindowAttributes *attributes);
+	int	 (*pXDefineCursor)(Display *display, Window w, Cursor cursor);
+	int	 (*pXDestroyWindow)(Display *display, Window w);
+	int	 (*pXFillRectangle)(Display *display, Drawable d, GC gc, int x, int y, unsigned int width, unsigned int height);
+	int 	 (*pXFlush)(Display *display);
+	int 	 (*pXFree)(void *data);
+	int	 (*pXFreeCursor)(Display *display, Cursor cursor);
+	void	 (*pXFreeEventData)(Display *display, XGenericEventCookie *cookie);
+	int	 (*pXFreeGC)(Display *display, GC gc);
+	int	 (*pXFreePixmap)(Display *display, Pixmap pixmap);
+	char	*(*pXGetAtomName)(Display *display, Atom atom);
+	Bool	 (*pXGetEventData)(Display *display, XGenericEventCookie *cookie);
+	Window 	 (*pXGetSelectionOwner)(Display *display, Atom selection);
+	Status	 (*pXGetWindowAttributes)(Display *display, Window w, XWindowAttributes *window_attributes_return);
+	int	 (*pXGetWindowProperty)(Display *display, Window w, Atom property, long long_offset, long long_length, Bool delete, Atom req_type, Atom *actual_type_return, int *actual_format_return, unsigned long *nitems_return, unsigned long *bytes_after_return, unsigned char **prop_return);
+	int	 (*pXGrabKeyboard)(Display *display, Window grab_window, Bool owner_events, int pointer_mode, int keyboard_mode, Time time);
+	int	 (*pXGrabPointer)(Display *display, Window grab_window, Bool owner_events, unsigned int event_mask, int pointer_mode, int keyboard_mode, Window confine_to, Cursor cursor, Time time);
+	Atom 	 (*pXInternAtom)(Display *display, char *atom_name, Bool only_if_exists);
+	KeySym	 (*pXLookupKeysym)(XKeyEvent *key_event, int index);
+	int	 (*pXLookupString)(XKeyEvent *event_struct, char *buffer_return, int bytes_buffer, KeySym *keysym_return, XComposeStatus *status_in_out);
+	int	 (*pXMapWindow)(Display *display, Window w);
+	int	 (*pXMoveResizeWindow)(Display *display, Window w, int x, int y, unsigned width, unsigned height);
+	int	 (*pXMoveWindow)(Display *display, Window w, int x, int y);
+	int	 (*pXNextEvent)(Display *display, XEvent *event_return);
+	Display *(*pXOpenDisplay)(char *display_name);
+	int 	 (*pXPending)(Display *display);
+	Bool 	 (*pXQueryExtension)(Display *display, const char *name, int *major_opcode_return, int *first_event_return, int *first_error_return);
+	int 	 (*pXRaiseWindow)(Display *display, Window w);
+	int	 (*pXReparentWindow)(Display *display, Window w, Window parent, int x, int y);
+	int	 (*pXResizeWindow)(Display *display, Window w, unsigned width, unsigned height);
+	int	 (*pXSelectInput)(Display *display, Window w, long event_mask);
+	Status 	 (*pXSendEvent)(Display *display, Window w, Bool propagate, long event_mask, XEvent *event_send);
+	int	 (*pXSetIconName)(Display *display, Window w, char *icon_name);
+	int	 (*pXSetInputFocus)(Display *display, Window focus, int revert_to, Time time);
+	int 	 (*pXSetSelectionOwner)(Display *display, Atom selection, Window owner, Time time);
+	void	 (*pXSetWMNormalHints)(Display *display, Window w, XSizeHints *hints);
+	Status	 (*pXSetWMProtocols)(Display *display, Window w, Atom *protocols, int count);
+	int	 (*pXStoreName)(Display *display, Window w, char *window_name);
+	int 	 (*pXSync)(Display *display, Bool discard);
+	int	 (*pXUndefineCursor)(Display *display, Window w);
+	int	 (*pXUngrabKeyboard)(Display *display, Time time);
+	int	 (*pXUngrabPointer)(Display *display, Time time);
+	int 	 (*pXWarpPointer)(Display *display, Window src_w, Window dest_w, int src_x, int src_y, unsigned int src_width, unsigned int src_height, int dest_x, int dest_y);
+} x11;
+static qboolean x11_initlib(void)
+{
+	dllfunction_t x11_functable[] =
+	{
+		{(void**)&x11.pXChangeProperty,		"XChangeProperty"},
+		{(void**)&x11.pXCloseDisplay,		"XCloseDisplay"},
+		{(void**)&x11.pXConvertSelection,	"XConvertSelection"},
+		{(void**)&x11.pXCreateColormap,		"XCreateColormap"},
+		{(void**)&x11.pXCreateGC,		"XCreateGC"},
+		{(void**)&x11.pXCreatePixmap,		"XCreatePixmap"},
+		{(void**)&x11.pXCreatePixmapCursor,	"XCreatePixmapCursor"},
+		{(void**)&x11.pXCreateWindow,		"XCreateWindow"},
+		{(void**)&x11.pXDefineCursor,		"XDefineCursor"},
+		{(void**)&x11.pXDestroyWindow,		"XDestroyWindow"},
+		{(void**)&x11.pXFillRectangle,		"XFillRectangle"},
+		{(void**)&x11.pXFlush,			"XFlush"},
+		{(void**)&x11.pXFree,			"XFree"},
+		{(void**)&x11.pXFreeCursor,		"XFreeCursor"},
+		{(void**)&x11.pXFreeGC,			"XFreeGC"},
+		{(void**)&x11.pXFreePixmap,		"XFreePixmap"},
+		{(void**)&x11.pXGetAtomName,		"XGetAtomName"},
+		{(void**)&x11.pXGetSelectionOwner,	"XGetSelectionOwner"},
+		{(void**)&x11.pXGetWindowAttributes,	"XGetWindowAttributes"},
+		{(void**)&x11.pXGetWindowProperty,	"XGetWindowProperty"},
+		{(void**)&x11.pXGrabKeyboard,		"XGrabKeyboard"},
+		{(void**)&x11.pXGrabPointer,		"XGrabPointer"},
+		{(void**)&x11.pXInternAtom,		"XInternAtom"},
+		{(void**)&x11.pXLookupKeysym,		"XLookupKeysym"},
+		{(void**)&x11.pXLookupString,		"XLookupString"},
+		{(void**)&x11.pXMapWindow,		"XMapWindow"},
+		{(void**)&x11.pXMoveResizeWindow,	"XMoveResizeWindow"},
+		{(void**)&x11.pXMoveWindow,		"XMoveWindow"},
+		{(void**)&x11.pXNextEvent,		"XNextEvent"},
+		{(void**)&x11.pXOpenDisplay,		"XOpenDisplay"},
+		{(void**)&x11.pXPending,		"XPending"},
+		{(void**)&x11.pXQueryExtension,		"XQueryExtension"},
+		{(void**)&x11.pXRaiseWindow,		"XRaiseWindow"},
+		{(void**)&x11.pXReparentWindow,		"XReparentWindow"},
+		{(void**)&x11.pXResizeWindow,		"XResizeWindow"},
+		{(void**)&x11.pXSelectInput,		"XSelectInput"},
+		{(void**)&x11.pXSendEvent,		"XSendEvent"},
+		{(void**)&x11.pXSetIconName,		"XSetIconName"},
+		{(void**)&x11.pXSetInputFocus,		"XSetInputFocus"},
+		{(void**)&x11.pXSetSelectionOwner,	"XSetSelectionOwner"},
+		{(void**)&x11.pXSetWMNormalHints,	"XSetWMNormalHints"},
+		{(void**)&x11.pXSetWMProtocols,		"XSetWMProtocols"},
+		{(void**)&x11.pXStoreName,		"XStoreName"},
+		{(void**)&x11.pXSync,			"XSync"},
+		{(void**)&x11.pXUndefineCursor,		"XUndefineCursor"},
+		{(void**)&x11.pXUngrabKeyboard,		"XUngrabKeyboard"},
+		{(void**)&x11.pXUngrabPointer,		"XUngrabPointer"},
+		{(void**)&x11.pXWarpPointer,		"XWarpPointer"},
+		{NULL, NULL}
+	};
+
+	if (!x11.lib)
+	{
+		x11.lib = Sys_LoadLibrary("libX11", x11_functable);
+
+		//these ones are extensions, and the reason we're doing this.
+		if (x11.lib)
+		{
+			x11.pXGetEventData = Sys_GetAddressForName(x11.lib, "XGetEventData");
+			x11.pXFreeEventData = Sys_GetAddressForName(x11.lib, "XFreeEventData");
+		}
+	}
+	
+
+	return !!x11.lib;
+}
 
 #define FULLSCREEN_VMODE	1	//using xf86 vidmode (we can actually change modes)
 #define FULLSCREEN_VMODEACTIVE	2	//xf86 vidmode currently forced
@@ -163,7 +287,7 @@ static qboolean VMODE_Init(void)
 	if (COM_CheckParm("-novmode"))
 		return false;
 
-	if (!XQueryExtension(vid_dpy, "XFree86-VidModeExtension", &vm.opcode, &vm.event, &vm.error))
+	if (!x11.pXQueryExtension(vid_dpy, "XFree86-VidModeExtension", &vm.opcode, &vm.event, &vm.error))
 	{
 		Con_Printf("DGA extension not available.\n");
 		return false;
@@ -218,7 +342,7 @@ static qboolean DGAM_Init(void)
 		{NULL, NULL}
 	};
 
-	if (!XQueryExtension(vid_dpy, "XFree86-DGA", &dgam.opcode, &dgam.event, &dgam.error))
+	if (!x11.pXQueryExtension(vid_dpy, "XFree86-DGA", &dgam.opcode, &dgam.event, &dgam.error))
 	{
 		Con_Printf("DGA extension not available.\n");
 		return false;
@@ -287,7 +411,7 @@ static qboolean XI2_Init(void)
 	XIEventMask evm;
 	unsigned char maskbuf[XIMaskLen(XI_LASTEVENT)];
 
-	if (!XQueryExtension(vid_dpy, "XInputExtension", &xi2.opcode, &xi2.event, &xi2.error))
+	if (!x11.pXQueryExtension(vid_dpy, "XInputExtension", &xi2.opcode, &xi2.event, &xi2.error))
 	{
 		Con_Printf("XInput extension not available.\n");
 		return false;
@@ -406,8 +530,8 @@ static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 
 	key = 0;
 
-	keysym = XLookupKeysym(ev, 0);
-	XLookupString(ev, buf, sizeof buf, &shifted, 0);
+	keysym = x11.pXLookupKeysym(ev, 0);
+	x11.pXLookupString(ev, buf, sizeof buf, &shifted, 0);
 	if (unicode)
 		*unicode = buf[0];
 
@@ -534,7 +658,7 @@ static void install_grabs(void)
 {
 	//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
 	//the grab is purely to constrain the pointer to the window
-	if (GrabSuccess != XGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
+	if (GrabSuccess != x11.pXGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
 				True,
 				0,
 				GrabModeAsync, GrabModeAsync,
@@ -549,12 +673,12 @@ static void install_grabs(void)
 	}
 	else
 	{
-		XWarpPointer(vid_dpy, None, vid_window,
+		x11.pXWarpPointer(vid_dpy, None, vid_window,
 					 0, 0, 0, 0,
 					 vid.width / 2, vid.height / 2);
 	}
 
-//	XSync(vid_dpy, True);
+//	x11.pXSync(vid_dpy, True);
 }
 
 static void uninstall_grabs(void)
@@ -565,9 +689,9 @@ static void uninstall_grabs(void)
 	}
 
 	if (vid_dpy)
-		XUngrabPointer(vid_dpy, CurrentTime);
+		x11.pXUngrabPointer(vid_dpy, CurrentTime);
 
-//	XSync(vid_dpy, True);
+//	x11.pXSync(vid_dpy, True);
 }
 
 static void ClearAllStates (void)
@@ -592,12 +716,12 @@ static void GetEvent(void)
 	qboolean x11violations = true;
 	Window mw;
 
-	XNextEvent(vid_dpy, &event);
+	x11.pXNextEvent(vid_dpy, &event);
 
 	switch (event.type)
 	{
 	case GenericEvent:
-		if (XGetEventData(vid_dpy, &event.xcookie))
+		if (x11.pXGetEventData(vid_dpy, &event.xcookie))
 		{
 			if (event.xcookie.extension == xi2.opcode)
 			{
@@ -659,14 +783,14 @@ static void GetEvent(void)
 			else
 				Con_Printf("Unknown generic event!\n");
 		}
-		XFreeEventData(vid_dpy, &event.xcookie);
+		x11.pXFreeEventData(vid_dpy, &event.xcookie);
 		break;
 	case ResizeRequest:
 		vid.pixelwidth = event.xresizerequest.width;
 		vid.pixelheight = event.xresizerequest.height;
                 Cvar_ForceCallback(&vid_conautoscale);
 //		if (fullscreenflags & FULLSCREEN_ACTIVE)
-//			XMoveWindow(vid_dpy, vid_window, 0, 0);
+//			x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
 	case ConfigureNotify:
 		if (event.xconfigurerequest.window == vid_window)
@@ -678,10 +802,10 @@ static void GetEvent(void)
 		else if (event.xconfigurerequest.window == vid_decoywindow)
 		{
 			if (!(fullscreenflags & FULLSCREEN_ACTIVE))
-				XResizeWindow(vid_dpy, vid_window, event.xconfigurerequest.width, event.xconfigurerequest.height);
+				x11.pXResizeWindow(vid_dpy, vid_window, event.xconfigurerequest.width, event.xconfigurerequest.height);
 		}
 //		if (fullscreenflags & FULLSCREEN_ACTIVE)
-//			XMoveWindow(vid_dpy, vid_window, 0, 0);
+//			x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
 	case KeyPress:
 		b = XLateKey(&event.xkey, &uc);
@@ -708,10 +832,10 @@ static void GetEvent(void)
 					IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
 
 					/* move the mouse to the window center again (disabling warp first so we don't see it*/
-					XSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
-					XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
+					x11.pXSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
+					x11.pXWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
 						cx, cy);
-					XSelectInput(vid_dpy, vid_window, X_MASK);
+					x11.pXSelectInput(vid_dpy, vid_window, X_MASK);
 				}
 			}
 			else
@@ -763,7 +887,7 @@ static void GetEvent(void)
 		if (!ActiveApp)
 		{	//KDE doesn't seem to like us, in that you can't alt-tab back or click to activate.
 			//This allows us to steal input focus back from the window manager
-			XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+			x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 		}
 */
 		break;
@@ -816,7 +940,7 @@ static void GetEvent(void)
 
 		//we we're focusing onto the game window and we're currently fullscreen, hide the other one so alt-tab won't select that instead of a real alternate app.
 //		if ((fullscreenflags & FULLSCREEN_ACTIVE) && (fullscreenflags & FULLSCREEN_LEGACY) && event.xfocus.window == vid_window)
-//			XUnmapWindow(vid_dpy, vid_decoywindow);
+//			x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
 		break;
 	case FocusOut:
 		//if we're already active, the decoy window shouldn't be focused anyway.
@@ -839,7 +963,7 @@ static void GetEvent(void)
 			{
 				Con_DPrintf("uninstall grabs\n");
 				uninstall_grabs();
-				XUndefineCursor(vid_dpy, vid_window);
+				x11.pXUndefineCursor(vid_dpy, vid_window);
 				old_windowed_mouse = false;
 			}
 			ClearAllStates();
@@ -849,35 +973,35 @@ static void GetEvent(void)
 		break;
 	case ClientMessage:
 		{
-			char *name = XGetAtomName(vid_dpy, event.xclient.message_type);
+			char *name = x11.pXGetAtomName(vid_dpy, event.xclient.message_type);
 			if (!strcmp(name, "WM_PROTOCOLS") && event.xclient.format == 32)
 			{
-				char *protname = XGetAtomName(vid_dpy, event.xclient.data.l[0]);
+				char *protname = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[0]);
 				if (!strcmp(protname, "WM_DELETE_WINDOW"))
 				{
 					Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
-					XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 				}
 				else
 					Con_Printf("Got message %s\n", protname);
-				XFree(protname);
+				x11.pXFree(protname);
 			}
 			else
 				Con_Printf("Got message %s\n", name);
-			XFree(name);
+			x11.pXFree(name);
 		}
 		break;
 
 #if 1
 	case SelectionRequest:	//needed for copy-to-clipboard
 		{
-			Atom xa_string = XInternAtom(vid_dpy, "UTF8_STRING", false);
+			Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
 			memset(&rep, 0, sizeof(rep));
 			if (event.xselectionrequest.property == None)
-				event.xselectionrequest.property = XInternAtom(vid_dpy, "foobar2000", false);
+				event.xselectionrequest.property = x11.pXInternAtom(vid_dpy, "foobar2000", false);
 			if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_string)
 			{
-				XChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)clipboard_buffer, strlen(clipboard_buffer));
+				x11.pXChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)clipboard_buffer, strlen(clipboard_buffer));
 				rep.xselection.property = event.xselectionrequest.property;
 			}
 			else
@@ -892,7 +1016,7 @@ static void GetEvent(void)
 			rep.xselection.selection = event.xselectionrequest.selection;
 			rep.xselection.target = event.xselectionrequest.target;
 			rep.xselection.time = event.xselectionrequest.time;
-			XSendEvent(vid_dpy, event.xselectionrequest.requestor, 0, 0, &rep);
+			x11.pXSendEvent(vid_dpy, event.xselectionrequest.requestor, 0, 0, &rep);
 		}
 		break;
 #endif
@@ -910,7 +1034,7 @@ void GLVID_Shutdown(void)
 	if (!vid_dpy)
 		return;
 
-	XUngrabKeyboard(vid_dpy, CurrentTime);
+	x11.pXUngrabKeyboard(vid_dpy, CurrentTime);
 	if (old_windowed_mouse)
 		uninstall_grabs();
 
@@ -936,9 +1060,9 @@ void GLVID_Shutdown(void)
 	}
 
 	if (vid_window)
-		XDestroyWindow(vid_dpy, vid_window);
+		x11.pXDestroyWindow(vid_dpy, vid_window);
 	if (vid_nullcursor)
-		XFreeCursor(vid_dpy, vid_nullcursor);
+		x11.pXFreeCursor(vid_dpy, vid_nullcursor);
 	if (vid_dpy)
 	{
 		if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
@@ -946,11 +1070,11 @@ void GLVID_Shutdown(void)
 		fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
 
 		if (vm.modes)
-			XFree(vm.modes);
+			x11.pXFree(vm.modes);
 		vm.modes = NULL;
 		vm.num_modes = 0;
 	}
-	XCloseDisplay(vid_dpy);
+	x11.pXCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
 	vid_window = (Window)NULL;
 	currentpsl = PSL_NONE;
@@ -998,17 +1122,17 @@ static Cursor CreateNullCursor(Display *display, Window root)
     XColor dummycolour;
     Cursor cursor;
 
-    cursormask = XCreatePixmap(display, root, 1, 1, 1/*depth*/);
+    cursormask = x11.pXCreatePixmap(display, root, 1, 1, 1/*depth*/);
     xgc.function = GXclear;
-    gc =  XCreateGC(display, cursormask, GCFunction, &xgc);
-    XFillRectangle(display, cursormask, gc, 0, 0, 1, 1);
+    gc =  x11.pXCreateGC(display, cursormask, GCFunction, &xgc);
+    x11.pXFillRectangle(display, cursormask, gc, 0, 0, 1, 1);
     dummycolour.pixel = 0;
     dummycolour.red = 0;
     dummycolour.flags = 04;
-    cursor = XCreatePixmapCursor(display, cursormask, cursormask,
+    cursor = x11.pXCreatePixmapCursor(display, cursormask, cursormask,
           &dummycolour,&dummycolour, 0,0);
-    XFreePixmap(display,cursormask);
-    XFreeGC(display,gc);
+    x11.pXFreePixmap(display,cursormask);
+    x11.pXFreeGC(display,gc);
     return cursor;
 }
 
@@ -1108,15 +1232,15 @@ void X_StoreIcon(Window wnd)
 	int i;
 	unsigned long data[64*64+2];
 	unsigned int *indata = (unsigned int*)icon.pixel_data;
-	Atom propname = XInternAtom(vid_dpy, "_NET_WM_ICON", false);
-	Atom proptype = XInternAtom(vid_dpy, "CARDINAL", false);
+	Atom propname = x11.pXInternAtom(vid_dpy, "_NET_WM_ICON", false);
+	Atom proptype = x11.pXInternAtom(vid_dpy, "CARDINAL", false);
 
 	data[0] = icon.width;
 	data[1] = icon.height;
 	for (i = 0; i < data[0]*data[1]; i++)
 		data[i+2] = indata[i];
 
-	XChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
+	x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
 }
 
 void X_GoFullscreen(void)
@@ -1127,37 +1251,37 @@ void X_GoFullscreen(void)
 	memset(&xev, 0, sizeof(xev));
 	xev.type = ClientMessage;
 	xev.xclient.window = vid_window;
-	xev.xclient.message_type = XInternAtom(vid_dpy, "_NET_WM_STATE", False);
+	xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "_NET_WM_STATE", False);
 	xev.xclient.format = 32;
 	xev.xclient.data.l[0] = 1;	//add
-	xev.xclient.data.l[1] = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
+	xev.xclient.data.l[1] = x11.pXInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
 	xev.xclient.data.l[2] = 0;
-	XSync(vid_dpy, False);
-	XSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
-	XSync(vid_dpy, False);
+	x11.pXSync(vid_dpy, False);
+	x11.pXSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
+	x11.pXSync(vid_dpy, False);
 
 	//for any other window managers, and broken NETWM
-	XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
-	XSync(vid_dpy, False);
+	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	x11.pXSync(vid_dpy, False);
 }
 void X_GoWindowed(void)
 {
 	XEvent xev;
-	XFlush(vid_dpy);
-	XSync(vid_dpy, False);
+	x11.pXFlush(vid_dpy);
+	x11.pXSync(vid_dpy, False);
 
 	memset(&xev, 0, sizeof(xev));
 	xev.type = ClientMessage;
 	xev.xclient.window = vid_window;
-	xev.xclient.message_type = XInternAtom(vid_dpy, "_NET_WM_STATE", False);
+	xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "_NET_WM_STATE", False);
 	xev.xclient.format = 32;
 	xev.xclient.data.l[0] = 0;	//remove
-	xev.xclient.data.l[1] = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
+	xev.xclient.data.l[1] = x11.pXInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
 	xev.xclient.data.l[2] = 0;
-	XSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
-	XSync(vid_dpy, False);
+	x11.pXSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
+	x11.pXSync(vid_dpy, False);
 
-	//XMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
+	//x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
 }
 qboolean X_CheckWMFullscreenAvailable(void)
 {
@@ -1167,10 +1291,10 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	//if we can then find _NET_WM_STATE_FULLSCREEN in the _NET_SUPPORTED atom list on the root, then we can get fullscreen mode from the WM
 	//and we'll have no alt-tab issues whatsoever.
 
-	Atom xa_net_supporting_wm_check = XInternAtom(vid_dpy, "_NET_SUPPORTING_WM_CHECK", False);
-	Atom xa_net_wm_name = XInternAtom(vid_dpy, "_NET_WM_NAME", False);
-	Atom xa_net_supported = XInternAtom(vid_dpy, "_NET_SUPPORTED", False);
-	Atom xa_net_wm_state_fullscreen = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
+	Atom xa_net_supporting_wm_check = x11.pXInternAtom(vid_dpy, "_NET_SUPPORTING_WM_CHECK", False);
+	Atom xa_net_wm_name = x11.pXInternAtom(vid_dpy, "_NET_WM_NAME", False);
+	Atom xa_net_supported = x11.pXInternAtom(vid_dpy, "_NET_SUPPORTED", False);
+	Atom xa_net_wm_state_fullscreen = x11.pXInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
 	Window wmwindow;
 	unsigned char *prop;
 	unsigned long bytes_after, nitems;
@@ -1181,22 +1305,22 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	int i;
 	
 
-	if (XGetWindowProperty(vid_dpy, vid_root, xa_net_supporting_wm_check, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
+	if (x11.pXGetWindowProperty(vid_dpy, vid_root, xa_net_supporting_wm_check, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
 	{
 		Con_Printf("Window manager not identified\n");
 		return success;
 	}
 	wmwindow = *(Window *)prop;
-	XFree(prop);
+	x11.pXFree(prop);
 	
-	if (XGetWindowProperty(vid_dpy, wmwindow, xa_net_wm_name, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &wmname) != Success || wmname == NULL)
+	if (x11.pXGetWindowProperty(vid_dpy, wmwindow, xa_net_wm_name, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &wmname) != Success || wmname == NULL)
 	{
 		Con_Printf("Window manager crashed or something\n");
 		return success;
 	}
 	else
 	{
-		if (XGetWindowProperty(vid_dpy, vid_root, xa_net_supported, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
+		if (x11.pXGetWindowProperty(vid_dpy, vid_root, xa_net_supported, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
 		{
 			Con_Printf("Window manager \"%s\" support nothing\n", wmname);
 		}
@@ -1204,7 +1328,7 @@ qboolean X_CheckWMFullscreenAvailable(void)
 		{
 			for (i = 0; i < nitems; i++)
 			{
-//				Con_Printf("supported: %s\n", XGetAtomName(vid_dpy, ((Atom*)prop)[i]));
+//				Con_Printf("supported: %s\n", x11.pXGetAtomName(vid_dpy, ((Atom*)prop)[i]));
 				if (((Atom*)prop)[i] == xa_net_wm_state_fullscreen)
 				{
 					success = true;
@@ -1215,9 +1339,9 @@ qboolean X_CheckWMFullscreenAvailable(void)
 				Con_Printf("Window manager \"%s\" does not appear to support fullscreen\n", wmname);
 			else
 				Con_Printf("Window manager \"%s\" supports fullscreen\n", wmname);
-			XFree(prop);
+			x11.pXFree(prop);
 		}
-		XFree(wmname);
+		x11.pXFree(wmname);
 	}
 	return success;
 }
@@ -1234,7 +1358,7 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 	/* window attributes */
 	attr.background_pixel = 0;
 	attr.border_pixel = 0;
-	attr.colormap = XCreateColormap(vid_dpy, vid_root, visinfo->visual, AllocNone);
+	attr.colormap = x11.pXCreateColormap(vid_dpy, vid_root, visinfo->visual, AllocNone);
 	attr.event_mask = X_MASK;
 	attr.backing_store = NotUseful;
 	attr.save_under = False;
@@ -1270,19 +1394,19 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 		y = 0;
 	}
 
-	wnd = XCreateWindow(vid_dpy, parent, x, y, width, height,
+	wnd = x11.pXCreateWindow(vid_dpy, parent, x, y, width, height,
 						0, visinfo->depth, InputOutput,
 						visinfo->visual, mask, &attr);
 	/*ask the window manager to stop triggering bugs in Xlib*/
-	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
-	XSetWMProtocols(vid_dpy, wnd, prots, sizeof(prots)/sizeof(prots[0]));
-	XSetWMNormalHints(vid_dpy, wnd, &szhints);
+	prots[0] = x11.pXInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
+	x11.pXSetWMProtocols(vid_dpy, wnd, prots, sizeof(prots)/sizeof(prots[0]));
+	x11.pXSetWMNormalHints(vid_dpy, wnd, &szhints);
 	/*set caption*/
-	XStoreName(vid_dpy, wnd, "FTE QuakeWorld");
-	XSetIconName(vid_dpy, wnd, "FTEQW");
+	x11.pXStoreName(vid_dpy, wnd, "FTE QuakeWorld");
+	x11.pXSetIconName(vid_dpy, wnd, "FTEQW");
 	X_StoreIcon(wnd);
 	/*make it visible*/
-	XMapWindow(vid_dpy, wnd);
+	x11.pXMapWindow(vid_dpy, wnd);
 
 	return wnd;
 }
@@ -1308,10 +1432,11 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	XVisualInfo *visinfo;
 	qboolean fullscreen = false;
 
+	if (!x11_initlib())
+		return false;
+
 	if (info->fullscreen)
 		fullscreen = true;
-
-	S_Startup();
 
 	currentpsl = psl;
 
@@ -1338,7 +1463,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	}
 
 	if (!vid_dpy)
-		vid_dpy = XOpenDisplay(NULL);
+		vid_dpy = x11.pXOpenDisplay(NULL);
 	if (!vid_dpy)
 	{
 		Con_Printf(CON_ERROR "Error: couldn't open the X display\n");
@@ -1389,7 +1514,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 					height = vm.modes[best_fit]->vdisplay;
 					// Move the viewport to top left
 					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
-					XSync(vid_dpy, False);
+					x11.pXSync(vid_dpy, False);
 
 					fullscreenflags |= FULLSCREEN_VMODE | FULLSCREEN_VMODEACTIVE;
 				}
@@ -1405,7 +1530,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		{
 			//if we can't actually change the mode, our fullscreen is the size of the root window
 			XWindowAttributes xwa;
-			XGetWindowAttributes(vid_dpy, DefaultRootWindow(vid_dpy), &xwa);
+			x11.pXGetWindowAttributes(vid_dpy, DefaultRootWindow(vid_dpy), &xwa);
 			width = xwa.width;
 			height = xwa.height;
 		}
@@ -1429,8 +1554,8 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 #ifdef USE_EGL
 	case PSL_EGL:
 		visinfo = &vinfodef;
-		if (!XMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
-	//	if (!XMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
+	//	if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
 		{
 			Sys_Error("Couldn't choose visual for EGL\n");
 		}
@@ -1463,16 +1588,16 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 	if (fullscreen & FULLSCREEN_VMODE)
 	{
-		XRaiseWindow(vid_dpy, vid_window);
-		XWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 0, 0);
-		XFlush(vid_dpy);
+		x11.pXRaiseWindow(vid_dpy, vid_window);
+		x11.pXWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 0, 0);
+		x11.pXFlush(vid_dpy);
 		// Move the viewport to top left
 		vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 	}
 
 	vid_nullcursor = CreateNullCursor(vid_dpy, vid_window);
 
-	XFlush(vid_dpy);
+	x11.pXFlush(vid_dpy);
 
 	if (vm.vmajor >= 2)
 	{
@@ -1541,7 +1666,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	if (fullscreenflags & FULLSCREEN_WM)
 		X_GoFullscreen();
 	if (fullscreenflags & FULLSCREEN_LEGACY)
-		XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 	if (fullscreenflags)
 		fullscreenflags |= FULLSCREEN_ACTIVE;
 
@@ -1565,15 +1690,15 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	}
 
 	if (Cvar_Get("vidx_grabkeyboard", "0", 0, "Additional video options")->value)
-		XGrabKeyboard(vid_dpy, vid_window,
+		x11.pXGrabKeyboard(vid_dpy, vid_window,
 				  False,
 				  GrabModeAsync, GrabModeAsync,
 				  CurrentTime);
 	else
-		XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
-	XRaiseWindow(vid_dpy, vid_window);
+		x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+	x11.pXRaiseWindow(vid_dpy, vid_window);
 	if (fullscreenflags & FULLSCREEN_LEGACY)
-		XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 
 	return true;
 }
@@ -1603,7 +1728,7 @@ void Sys_SendKeyEvents(void)
 	{
 		qboolean wantwindowed;
 
-		while (XPending(vid_dpy))
+		while (x11.pXPending(vid_dpy))
 			GetEvent();
 
 		if (modeswitchpending && modeswitchtime < Sys_Milliseconds())
@@ -1612,7 +1737,7 @@ void Sys_SendKeyEvents(void)
 			{
 				Con_DPrintf("uninstall grabs\n");
 				uninstall_grabs();
-				XUndefineCursor(vid_dpy, vid_window);
+				x11.pXUndefineCursor(vid_dpy, vid_window);
 				old_windowed_mouse = false;
 			}
 			if (modeswitchpending > 0 && !(fullscreenflags & FULLSCREEN_ACTIVE))
@@ -1636,13 +1761,13 @@ void Sys_SendKeyEvents(void)
 					X_GoFullscreen();
 				if (fullscreenflags & FULLSCREEN_LEGACY)
 				{
-					XMoveWindow(vid_dpy, vid_window, 0, 0);
-					XReparentWindow(vid_dpy, vid_window, vid_root, 0, 0);
-					//XUnmapWindow(vid_dpy, vid_decoywindow);
+					x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
+					x11.pXReparentWindow(vid_dpy, vid_window, vid_root, 0, 0);
+					//x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
 					//make sure we have it
-					XSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
-					XRaiseWindow(vid_dpy, vid_window);
-					XMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+					x11.pXRaiseWindow(vid_dpy, vid_window);
+					x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 				}
 				if (fullscreenflags)
 					fullscreenflags |= FULLSCREEN_ACTIVE;
@@ -1668,9 +1793,9 @@ void Sys_SendKeyEvents(void)
 					X_GoWindowed();
 				if (fullscreenflags & FULLSCREEN_LEGACY)
 				{
-					XMapWindow(vid_dpy, vid_decoywindow);
-					XReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
-					XResizeWindow(vid_dpy, vid_decoywindow, 640, 480);
+					x11.pXMapWindow(vid_dpy, vid_decoywindow);
+					x11.pXReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
+					x11.pXResizeWindow(vid_dpy, vid_decoywindow, 640, 480);
 				}
 				fullscreenflags &= ~FULLSCREEN_ACTIVE;
 			}
@@ -1695,7 +1820,7 @@ void Sys_SendKeyEvents(void)
 				Con_DPrintf("uninstall grabs\n");
 				/* ungrab the pointer */
 				uninstall_grabs();
-				XUndefineCursor(vid_dpy, vid_window);
+				x11.pXUndefineCursor(vid_dpy, vid_window);
 			}
 			else
 			{
@@ -1703,7 +1828,7 @@ void Sys_SendKeyEvents(void)
 				/* grab the pointer */
 				install_grabs();
 				/*hide the cursor*/
-				XDefineCursor(vid_dpy, vid_window, vid_nullcursor);
+				x11.pXDefineCursor(vid_dpy, vid_window, vid_nullcursor);
 			}
 		}
 	}
@@ -1736,7 +1861,7 @@ void GL_DoSwap(void) {}
 
 void GLVID_SetCaption(char *text)
 {
-	XStoreName(vid_dpy, vid_window, text);
+	x11.pXStoreName(vid_dpy, vid_window, text);
 }
 
 #ifdef USE_EGL
@@ -1821,18 +1946,18 @@ rendererinfo_t eglrendererinfo =
 #if 1
 char *Sys_GetClipboard(void)
 {
-	Atom xa_clipboard = XInternAtom(vid_dpy, "PRIMARY", false);
-	Atom xa_string = XInternAtom(vid_dpy, "UTF8_STRING", false);
-	Window clipboardowner = XGetSelectionOwner(vid_dpy, xa_clipboard);
+	Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
+	Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
+	Window clipboardowner = x11.pXGetSelectionOwner(vid_dpy, xa_clipboard);
 	if (clipboardowner != None && clipboardowner != vid_window)
 	{
 		int fmt;
 		Atom type;
 		unsigned long nitems, bytesleft;
 		unsigned char *data;
-		XConvertSelection(vid_dpy, xa_clipboard, xa_string, None, vid_window, CurrentTime);
-		XFlush(vid_dpy);
-		XGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 0, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
+		x11.pXConvertSelection(vid_dpy, xa_clipboard, xa_string, None, vid_window, CurrentTime);
+		x11.pXFlush(vid_dpy);
+		x11.pXGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 0, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
 		
 		return data;
 	}
@@ -1844,14 +1969,38 @@ void Sys_CloseClipboard(char *bf)
 	if (bf == clipboard_buffer)
 		return;
 
-	XFree(bf);
+	x11.pXFree(bf);
 }
 
 void Sys_SaveClipboard(char *text)
 {
-	Atom xa_clipboard = XInternAtom(vid_dpy, "PRIMARY", false);
+	Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
         Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
-	XSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
+	x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
 }
 #endif
 
+qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
+{
+        Display *xtemp;
+        int scr;
+
+	if (!x11_initlib())
+		return false;
+
+        xtemp = x11.pXOpenDisplay(NULL);
+
+        if (!xtemp)
+                return false;
+
+        scr = DefaultScreen(xtemp);
+
+        *width = DisplayWidth(xtemp, scr);
+        *height = DisplayHeight(xtemp, scr);
+        *bpp = DefaultDepth(xtemp, scr);
+        *refreshrate = 0;
+
+        x11.pXCloseDisplay(xtemp);
+
+        return true;
+}

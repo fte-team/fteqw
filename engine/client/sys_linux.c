@@ -748,6 +748,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 //this about sums up the problem with this function
 	return false;
 #else
+	return X11_GetDesktopParameters(width, height, bpp, refreshrate);
 
 	Display *xtemp;
 	int scr;

@@ -70,9 +70,6 @@ int demomsgtype;
 int demomsgto;
 static char demomsgbuf[MAX_OVERALLMSGLEN];
 
-entity_state_t demo_entities[UPDATE_MASK+1][MAX_MVDPACKET_ENTITIES];
-client_frame_t demo_frames[UPDATE_MASK+1];
-
 mvddest_t *singledest;
 
 mvddest_t *SV_InitStream(int socket);
@@ -80,6 +77,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest);
 char *SV_MVDName2Txt(char *name);
 extern cvar_t qtv_password;
 
+//does not unlink.
 void DestClose(mvddest_t *d, qboolean destroyfiles)
 {
 	char path[MAX_OSPATH];
@@ -337,6 +335,8 @@ void SV_MVD_RunPendingConnections(void)
 //COMPRESSION: Suggests a compression method (multiple are allowed). You'll get a COMPRESSION response, and compression will begin with the binary data.
 
 							start = start+1;
+							while(*start == ' ' || *start == '\t')
+								start++;
 							Con_Printf("qtv, got (%s) (%s)\n", com_token, start);
 							if (!strcmp(com_token, "VERSION"))
 							{
@@ -1292,6 +1292,25 @@ static char *SV_PrintTeams(void)
 	return va("%s",buf);
 }
 
+
+mvddest_t *SV_FindRecordFile(char *match, mvddest_t ***link_out)
+{
+	mvddest_t **link, *f;
+	for (link = &demo.dest; *link; link = &(*link)->nextdest)
+	{
+		f = *link;
+		if (f->desttype == DEST_FILE || f->desttype == DEST_BUFFEREDFILE)
+		{
+			if (!match || !strcmp(match, f->name))
+			{
+				if (link_out)
+					*link_out = link;
+				return f;
+			}
+		}
+	}
+	return NULL;
+}
 /*
 ====================
 SV_InitRecord
@@ -1338,8 +1357,8 @@ mvddest_t *SV_InitRecordFile (char *name)
 	Q_strncpyz(dst->name, s+1, sizeof(dst->name));
 	Q_strncpyz(dst->path, sv_demoDir.string, sizeof(dst->path));
 
-	if (!*demo.path)
-		Q_strncpyz(demo.path, ".", MAX_OSPATH);
+	if (!*dst->path)
+		Q_strncpyz(dst->path, ".", MAX_OSPATH);
 
 	SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", (dst->desttype == DEST_BUFFEREDFILE) ? "memory" : "disk", name);
 	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
@@ -1560,17 +1579,6 @@ void SV_WriteSetMVDMessage (void)
 void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 static qboolean SV_MVD_Record (mvddest_t *dest)
 {
-/*	sizebuf_t	buf;
-	char buf_data[MAX_QWMSGLEN];
-	int n, i;
-	char *s, info[MAX_INFO_STRING];
-
-	client_t *player;
-	char *gamedir;
-	int seq = 1;
-*/
-	int i;
-
 	if (!dest)
 		return false;
 
@@ -1579,14 +1587,8 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	if (!sv.mvdrecording)
 	{
 		memset(&demo, 0, sizeof(demo));
-		demo.recorder.frameunion.frames = demo_frames;
 		demo.recorder.protocol = SCP_QUAKEWORLD;
 		demo.recorder.netchan.netprim = sv.datagram.prim;
-		for (i = 0; i < UPDATE_BACKUP; i++)
-		{
-			demo.recorder.frameunion.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
-			demo.recorder.frameunion.frames[i].entities.entities = demo_entities[i];
-		}
 
 		demo.datagram.maxsize = sizeof(demo.datagram_data);
 		demo.datagram.data = demo.datagram_data;
@@ -1604,7 +1606,7 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		else if (sv_demoExtensions.ival)
 		{	/*everything*/
 			demo.recorder.fteprotocolextensions = PEXT_CSQC | PEXT_COLOURMOD | PEXT_DPFLAGS | PEXT_CUSTOMTEMPEFFECTS | PEXT_ENTITYDBL | PEXT_ENTITYDBL2 | PEXT_FATNESS | PEXT_HEXEN2 | PEXT_HULLSIZE | PEXT_LIGHTSTYLECOL | PEXT_MODELDBL | PEXT_SCALE | PEXT_SETATTACHMENT | PEXT_SETVIEW | PEXT_SOUNDDBL | PEXT_SPAWNSTATIC2 | PEXT_TRANS | PEXT_VIEW2;
-			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_PRYDONCURSOR;
+			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_PRYDONCURSOR | PEXT2_REPLACEMENTDELTAS;
 			/*assume that all playback will be done with a valid csprogs that can correctly decode*/
 			demo.recorder.csqcactive = true;
 			/*enable these, because we might as well (stat ones are always useful)*/
@@ -1620,19 +1622,6 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		//pointless extensions that are redundant with mvds
 		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;
 
-		demo.recorder.max_net_ents = 512;
-		if (demo.recorder.fteprotocolextensions & PEXT_ENTITYDBL)
-			demo.recorder.max_net_ents += 512;
-		if (demo.recorder.fteprotocolextensions & PEXT_ENTITYDBL2)
-			demo.recorder.max_net_ents += 1024;
-
-		if (demo.recorder.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-			demo.recorder.max_net_ents = 32767;
-
-		if (demo.recorder.fteprotocolextensions & PEXT_MODELDBL)
-			demo.recorder.maxmodels = MAX_MODELS;
-		else
-			demo.recorder.maxmodels = 256;
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);
@@ -1640,9 +1629,12 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	dest->nextdest = demo.dest;
 	demo.dest = dest;
 
+	SV_ClientProtocolExtensionsChanged(&demo.recorder);
+
 	SV_MVD_SendInitialGamestate(dest);
 	return true;
 }
+void SV_EnableClientsCSQC(void);
 void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 {
 	sizebuf_t	buf;
@@ -1657,6 +1649,10 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		return;
 
 	sv.mvdrecording = true;
+
+	host_client = &demo.recorder;
+	if (host_client->fteprotocolextensions & PEXT_CSQC)
+		SV_EnableClientsCSQC();
 
 
 	demo.pingtime = demo.time = sv.time;
@@ -1817,7 +1813,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			if (demo.recorder.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&buf, svcfte_spawnbaseline2);
-				SVQW_WriteDelta(&from, state, &buf, true, demo.recorder.fteprotocolextensions);
+				SVFTE_EmitBaseline(state, true, &buf);
 			}
 			else if (!ent)
 			{
@@ -1917,7 +1913,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			if (!sv.strings.lightstyles[i])
 				continue;
 #ifdef PEXT_LIGHTSTYLECOL
-		if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7)
+		if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7 && sv.strings.lightstyles[i])
 		{
 			MSG_WriteByte (&buf, svcfte_lightstylecol);
 			MSG_WriteByte (&buf, (unsigned char)i);
@@ -2588,6 +2584,7 @@ void SV_MVDRemove_f (void)
 	char name[MAX_MVD_NAME], *ptr;
 	char path[MAX_OSPATH];
 	int i;
+	mvddest_t *active;
 
 	if (Cmd_Argc() != 2)
 	{
@@ -2610,7 +2607,8 @@ void SV_MVDRemove_f (void)
 		{
 			if (strstr(list->name, ptr))
 			{
-				if (sv.mvdrecording && !strcmp(list->name, demo.name))
+				mvddest_t *active = SV_FindRecordFile(list->name, NULL);
+				if (active)
 					SV_MVDStop_f();
 
 				// stop recording first;
@@ -2643,7 +2641,8 @@ void SV_MVDRemove_f (void)
 
 	snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, name);
 
-	if (sv.mvdrecording && !strcmp(name, demo.name))
+	active = SV_FindRecordFile(name, NULL);
+	if (active)
 		SV_MVDStop_f();
 
 	if (FS_Remove(path, FS_GAMEONLY))
@@ -2680,7 +2679,8 @@ void SV_MVDRemoveNum_f (void)
 
 	if (name != NULL)
 	{
-		if (sv.mvdrecording && !strcmp(name, demo.name))
+		mvddest_t *active = SV_FindRecordFile(name, NULL);
+		if (active)
 			SV_MVDStop_f();
 
 		snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, name);
@@ -2710,13 +2710,14 @@ void SV_MVDInfoAdd_f (void)
 
 	if (!strcmp(Cmd_Argv(1), "*"))
 	{
-		if (!sv.mvdrecording)
+		mvddest_t *active = SV_FindRecordFile(NULL, NULL);
+		if (!active)
 		{
 			Con_Printf("Not recording demo!\n");
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s", demo.path, SV_MVDName2Txt(demo.name));
+		snprintf(path, MAX_OSPATH, "%s/%s", active->path, SV_MVDName2Txt(active->name));
 	}
 	else
 	{
@@ -2761,13 +2762,14 @@ void SV_MVDInfoRemove_f (void)
 
 	if (!strcmp(Cmd_Argv(1), "*"))
 	{
-		if (!sv.mvdrecording)
+		mvddest_t *active = SV_FindRecordFile(NULL, NULL);
+		if (!active)
 		{
 			Con_Printf("Not recording demo!\n");
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s", demo.path, SV_MVDName2Txt(demo.name));
+		snprintf(path, MAX_OSPATH, "%s/%s", active->path, SV_MVDName2Txt(active->name));
 	}
 	else
 	{
@@ -2802,13 +2804,14 @@ void SV_MVDInfo_f (void)
 
 	if (!strcmp(Cmd_Argv(1), "*"))
 	{
-		if (!sv.mvdrecording)
+		mvddest_t *active = SV_FindRecordFile(NULL, NULL);
+		if (!active)
 		{
 			Con_Printf("Not recording demo!\n");
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s", demo.path, SV_MVDName2Txt(demo.name));
+		snprintf(path, MAX_OSPATH, "%s/%s", active->path, SV_MVDName2Txt(active->name));
 	}
 	else
 	{

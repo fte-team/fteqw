@@ -1310,7 +1310,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		}
 
 #ifdef CSQC_DAT
-		for (i=1 ; i<MAX_CSQCMODELS ; i++)
+		for (i=1 ; i<MAX_CSMODELS ; i++)
 		{
 			if (!cl.model_csqcname[i][0])
 				break;
@@ -1356,7 +1356,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 			cl_static_entities[i].ent.model = NULL;
 			if (cl_static_entities[i].mdlidx < 0)
 			{
-				if (cl_static_entities[i].mdlidx > -MAX_CSQCMODELS)
+				if (cl_static_entities[i].mdlidx > -MAX_CSMODELS)
 					cl_static_entities[i].ent.model = cl.model_csqcprecache[-cl_static_entities[i].mdlidx];
 			}
 			else

@@ -534,6 +534,7 @@ reeval:
 		break;
 
 	//load a field to a value
+	case OP_LOAD_P:
 	case OP_LOAD_I:
 	case OP_LOAD_F:
 	case OP_LOAD_FLD:

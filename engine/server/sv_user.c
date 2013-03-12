@@ -1092,6 +1092,27 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		return;
 	}
 
+	if (client->prespawn_stage == PRESPAWN_PARTICLES)
+	{
+		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
+		{
+			if (client->prespawn_idx >= MAX_SSPARTICLESPRE)
+			{
+				client->prespawn_stage++;
+				client->prespawn_idx = 0;
+				break;
+			}
+
+			if (*sv.strings.particle_precache[client->prespawn_idx])
+			{
+				ClientReliableWrite_Begin (client, ISNQCLIENT(client)?svcdp_precache:svcfte_precache, 4 + strlen(sv.strings.particle_precache[client->prespawn_idx]));
+				ClientReliableWrite_Short (client, client->prespawn_idx | PC_PARTICLE);
+				ClientReliableWrite_String (client, sv.strings.particle_precache[client->prespawn_idx]);
+			}
+			client->prespawn_idx++;
+		}
+	}
+
 	if (client->prespawn_stage == PRESPAWN_CUSTOMTENTS)
 	{
 		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
@@ -2482,7 +2503,7 @@ qboolean SV_AllowDownload (const char *name)
 	name = cleanname;
 
 	//allowed at all?
-	if (!allow_download.value)
+	if (!allow_download.ival)
 		return false;
 
 	//no subdirs?
@@ -2499,11 +2520,11 @@ qboolean SV_AllowDownload (const char *name)
 	{
 		if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
 		{
+			if (!allow_download_packages.ival)
+				return false;
 			/*do not permit 'id1/pak1.pak' or 'baseq3/pak0.pk3' or any similarly named packages. such packages would violate copyright, and must be obtained through other means (like buying the damn game)*/
 			if (FS_GetPackageDownloadable(name+8))
-				return !!allow_download_packages.value;
-			else
-				return !!allow_download_copyrighted.ival;
+				return !!allow_download_packages.ival;
 		}
 		return false;
 	}
@@ -2579,7 +2600,10 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	
 
 	if (!SV_AllowDownload(name))
+	{
+		Sys_Printf ("%s denied download of %s due to path/name rules\n", host_client->name, name);
 		return -2;	//not permitted (even if it exists).
+	}
 
 	//mvdsv demo downloading support demonum/ -> demos/XXXX (sets up the client paths)
 	if (!strncmp(name, "demonum/", 8))
@@ -2662,7 +2686,10 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		if (protectedpak)
 		{
 			if (!allow_download_anymap.value && !strncmp(name, "maps/", 5))
+			{
+				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
 				return -2;
+			}
 		}
 
 		if (replacementname)
@@ -2685,7 +2712,10 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		if (protectedpak)
 		{	//if its in a pak file, don't allow downloads if we don't allow the contents of paks to be sent.
 			if (!allow_download_pakcontents.value)
+			{
+				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
 				return -2;
+			}
 		}
 
 		if (replacementname && *replacementname)

@@ -231,7 +231,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		bc = e->bottomcolour;
 		pc = e->h2playerclass;
 
-		if (forced || tc != 1 || bc != 1 || plskin)
+		if (forced || tc != TOP_DEFAULT || bc != BOTTOM_DEFAULT || plskin)
 		{
 			int			inwidth, inheight;
 			int			tinwidth, tinheight;
@@ -532,10 +532,15 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						frac += fracstep;
 					}
 				}
-				cm->texnum.base = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, IF_NOMIPMAP);
+				cm->texnum.base = R_LoadTexture(va("base$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
+								scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, IF_NOMIPMAP);
 
-				if (!h2playertranslations)
+				cm->texnum.bump = shader->defaulttextures.bump;
+				cm->texnum.fullbright = shader->defaulttextures.fullbright;
+				cm->texnum.specular = shader->defaulttextures.specular;
+				/*if (!h2playertranslations)
 				{
+					qboolean valid = false;
 					//now do the fullbrights.
 					out = pixels;
 					fracstep = tinwidth*0x10000/scaled_width;
@@ -547,11 +552,15 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						{
 							if (inrow[frac>>16] < 255-vid.fullbright)
 								((char *) (&out[j]))[3] = 0;	//alpha 0
+							else
+								valid = true;
 							frac += fracstep;
 						}
 					}
-					cm->texnum.fullbright = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, IF_NOMIPMAP);
-				}
+					if (valid)
+						cm->texnum.fullbright = R_LoadTexture(va("fb$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
+										scaled_width, scaled_height, TF_RGBA32, pixels, IF_NOMIPMAP);
+				}*/
 			}
 			else
 			{

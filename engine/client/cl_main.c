@@ -140,7 +140,7 @@ cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 
 cvar_t	cl_download_csprogs = CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available.");
-cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "0", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files.");
+cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files.");
 cvar_t  cl_download_mapsrc = CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
 cvar_t	cl_download_packages = CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads = CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
@@ -2900,7 +2900,7 @@ void CL_Download_f (void)
 
 	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
-		if (!strnicmp(url, "game", 4) || !stricmp(url, "progs.dat") || !stricmp(url, "menu.dat") || !stricmp(url, "csprogs.dat") || !stricmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".dll") || strstr(url, ".so"))
+		if (!strnicmp(url, "game", 4) || !stricmp(url, "progs.dat") || !stricmp(url, "menu.dat") || !stricmp(url, "csprogs.dat") || !stricmp(url, "qwprogs.dat") || strstr(url, "..") || strstr(url, ".qvm") || strstr(url, ".dll") || strstr(url, ".so"))
 		{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
 			Con_Printf("Ignoring stuffed download of \"%s\" due to possible security risk\n", url);
 			return;
@@ -2941,18 +2941,27 @@ void CL_DownloadSize_f(void)
 		}
 	}
 	else if (!strcmp(size, "r"))
-	{
+	{	//'download this file instead'
+		int allow = cl_download_redirection.ival;
 		redirection = Cmd_Argv(3);
 
 		dl = CL_DownloadFailed(rname, false);
 
-		if (cl_download_redirection.ival)
+		if (allow == 2)
+		{
+			char *ext = COM_FileExtension(redirection);
+			if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
+				allow = true;
+			else
+				allow = false;
+		}
+		if (allow)
 		{
 			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 		}
 		else
-			Con_Printf("Download of \"%s\" redirected to \"%s\". Prevented by allow_download_redirection.\n", rname, redirection);
+			Con_Printf("Download of \"%s\" redirected to \"%s\". Prevented by cl_download_redirection.\n", rname, redirection);
 	}
 	else
 	{
@@ -3111,10 +3120,18 @@ void CL_Init (void)
 	extern void CL_SayTeam_f (void);
 	extern	cvar_t		baseskin;
 	extern	cvar_t		noskins;
+	char *ver;
 
 	cls.state = ca_disconnected;
 
-	Info_SetValueForStarKey (cls.userinfo[0], "*ver", version_string(), sizeof(cls.userinfo[0]));
+#ifdef SVNREVISION
+	if (strcmp(SVNREVISION, "-"))
+		ver = va("%s v%i.%02i %s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, SVNREVISION);
+	else
+#endif
+		ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+
+	Info_SetValueForStarKey (cls.userinfo[0], "*ver", ver, sizeof(cls.userinfo[0]));
 	Info_SetValueForStarKey (cls.userinfo[1], "*ss", "1", sizeof(cls.userinfo[1]));
 	Info_SetValueForStarKey (cls.userinfo[2], "*ss", "1", sizeof(cls.userinfo[2]));
 	Info_SetValueForStarKey (cls.userinfo[3], "*ss", "1", sizeof(cls.userinfo[3]));
@@ -3159,6 +3176,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_anglespeedkey, cl_inputgroup);
 	Cvar_Register (&cl_shownet,	cl_screengroup);
 	Cvar_Register (&cl_sbar,	cl_screengroup);
+	Cvar_Register (&cl_pure,	cl_screengroup);
 	Cvar_Register (&cl_hudswap,	cl_screengroup);
 	Cvar_Register (&cl_maxfps,	cl_screengroup);
 	Cvar_Register (&cl_idlefps, cl_screengroup);

@@ -165,13 +165,13 @@ m*_t structures are in-memory
 #define _DPEF_SELECTABLE		(1<<14)	//highlights when prydoncursored
 #define _DPEF_DOUBLESIDED		(1<<15)	//disables culling
 #define _DPEF_NOSELFSHADOW		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
-#define EF_UNUSED17				(1<<17)
+#define _DPEF_DYNAMICMODELLIGHT	(1<<17)
 #define EF_UNUSED18				(1<<18)
 #define EF_UNUSED19				(1<<19)
 #define _DPEF_RESTARTANIM_BIT	(1<<20)	//exact semantics seems odd
 #define _DPEF_TELEPORT_BIT		(1<<21)	//disable lerping while set
 #define DPEF_LOWPRECISION		(1<<22) //part of the protocol/server, not the client itself.
-#define _DPEF_NOMODELFLAGS		(1<<23)
+#define EF_NOMODELFLAGS			(1<<23)
 #define EF_MF_ROCKET			(1<<24)
 #define EF_MF_GRENADE			(1<<25)
 #define EF_MF_GIB				(1<<26)

@@ -1281,7 +1281,7 @@ TP_ParseFunChars
 Doesn't check for overflows, so strlen(s) should be < MAX_MACRO_STRING
 ==============
 */
-static char *TP_ParseFunChars (char *s, qbool chat)
+static char *TP_ParseFunChars (char *s)
 {
 	static char	 buf[MAX_MACRO_STRING];
 	char		*out = buf;
@@ -1345,11 +1345,6 @@ static char *TP_ParseFunChars (char *s, qbool chat)
 				s += 2;
 				continue;
 			}
-		}
-		if (!chat && *s == '^' && s[1] && s[1] != ' ') {
-			*out++ = s[1] | CON_HIGHCHARSMASK;
-			s += 2;
-			continue;
 		}
 skip:
 		*out++ = *s++;
@@ -3453,7 +3448,7 @@ void CL_Say (qboolean team, char *extra)
 	suppress = false;
 
 	s = TP_ParseMacroString (Cmd_Args());
-	Q_strncpyz (text, TP_ParseFunChars (s, true), sizeof(text));
+	Q_strncpyz (text, TP_ParseFunChars (s), sizeof(text));
 
 	sendtext[0] = 0;
 	if (team && !cl.spectator && cl_fakename.string[0] &&
@@ -3462,7 +3457,7 @@ void CL_Say (qboolean team, char *extra)
 		char buf[1024];
 		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel, true, true);
 		strcpy (buf, TP_ParseMacroString (buf));
-		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
+		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf));
 	}
 
 	strlcat (sendtext, text, sizeof(sendtext));

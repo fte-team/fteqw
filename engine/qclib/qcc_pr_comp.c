@@ -8088,6 +8088,7 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 	numslots = array->arraysize*array->type->size;
 	numslots = (numslots+2)/3;
 
+	s_file = array->s_file;
 	func = QCC_PR_GetDef(type_function, qcva("ArrayGetVec*%s", array->name), NULL, true, 0, false);
 
 	pr_scope = func;
@@ -8143,6 +8144,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	else
 		fasttrackpossible = NULL;
 
+	s_file = scope->s_file;
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0, false);
 
 	if (def->type->type == ev_vector)
@@ -8316,6 +8318,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 	else
 		fasttrackpossible = NULL;
 
+	s_file = scope->s_file;
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0, false);
 	pr_scope = scope;
 

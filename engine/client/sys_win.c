@@ -733,7 +733,13 @@ void Sys_mkdir (char *path)
 
 qboolean Sys_remove (char *path)
 {
-	remove (path);
+	if (remove (path) != 0)
+	{
+		int e = errno;
+		if (e == ENOENT)
+			return true;	//return success if it doesn't already exist.
+		return false;
+	}
 
 	return true;
 }

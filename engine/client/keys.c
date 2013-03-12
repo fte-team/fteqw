@@ -352,6 +352,24 @@ void CompleteCommand (qboolean force)
 void Con_ExecuteLine(console_t *con, char *line)
 {
 	qboolean waschat = false;
+	char deutf8[1024];
+	extern cvar_t com_parseutf8;
+	if (com_parseutf8.ival <= 0)
+	{
+		unsigned int unicode;
+		int err;
+		int len = 0;
+		while(*line)
+		{
+			unicode = utf8_decode(&err, line, &line);
+			if (com_parseutf8.ival < 0)
+				len += iso88591_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
+			else
+				len += qchar_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
+		}
+		deutf8[len] = 0;
+		line = deutf8;
+	}
 
 	con_commandmatch=1;
 	Con_Footerf(false, "");
@@ -754,14 +772,26 @@ void Key_ConsoleRelease(int key, int unicode)
 
 	}
 }
-
-//move the cursor one char to the left. cursor must be within the 'start' string.
-unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
+//if the referenced (trailing) chevron is doubled up, then it doesn't act as part of any markup and should be ignored for such things.
+static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
 {
-	extern cvar_t com_parseutf8;
+	int count = 0;
+	while (chev >= start)
+	{
+		if (*chev-- == '^')
+			count++;
+		else
+			break;
+	}
+	return count&1;
+}
+//move the cursor one char to the left. cursor must be within the 'start' string.
+static unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
+{
+//	extern cvar_t com_parseutf8;
 	if (cursor == start)
 		return cursor;
-	if (com_parseutf8.ival>0)
+	if (1)//com_parseutf8.ival>0)
 	{
 		cursor--;
 		while ((*cursor & 0xc0) == 0x80 && cursor > start)
@@ -770,14 +800,16 @@ unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
 	else
 		cursor--;
 
-	if (*cursor == ']' && cursor > start && cursor[-1] == '^')
+	//FIXME: should verify that the ^ isn't doubled.
+	if (*cursor == ']' && cursor > start && utf_specialchevron(start, cursor-1))
 	{
 		//just stepped onto a link
 		unsigned char *linkstart;
 		linkstart = cursor-1;
 		while(linkstart >= start)
 		{
-			if (linkstart[0] == '^' && linkstart[1] == '[')
+			//FIXME: should verify that the ^ isn't doubled.
+			if (utf_specialchevron(start, linkstart) && linkstart[1] == '[')
 				return linkstart;
 			linkstart--;
 		}
@@ -787,20 +819,19 @@ unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
 }
 
 //move the cursor one char to the right.
-unsigned char *utf_right(unsigned char *cursor)
+static unsigned char *utf_right(unsigned char *start, unsigned char *cursor)
 {
-	extern cvar_t com_parseutf8;
+//	extern cvar_t com_parseutf8;
 
-	if (*cursor == '^' && cursor[1] == '[')
+	//FIXME: should make sure this is not doubled.
+	if (utf_specialchevron(start, cursor) && cursor[1] == '[')
 	{
 		//just stepped over a link
 		char *linkend;
 		linkend = cursor+2;
 		while(*linkend)
 		{
-			if (linkend[0] == '^' && linkend[1] == '^')
-				linkend += 2;
-			else if (linkend[0] == '^' && linkend[1] == ']')
+			if (utf_specialchevron(start, linkend) && linkend[1] == ']')
 				return linkend+2;
 			else
 				linkend++;
@@ -808,7 +839,7 @@ unsigned char *utf_right(unsigned char *cursor)
 		return linkend;
 	}
 
-	if (com_parseutf8.ival>0)
+	if (1)//com_parseutf8.ival>0)
 	{
 		int skip = 1;
 		//figure out the length of the char
@@ -851,6 +882,7 @@ void Key_Console (unsigned int unicode, int key)
 {
 	extern cvar_t com_parseutf8;
 	char	*clipText;
+	char utf8[8];
 
 	if (con_current->redirect)
 	{
@@ -914,6 +946,7 @@ void Key_Console (unsigned int unicode, int key)
 
 		if (con_current->linebuffered)
 			con_current->linebuffered(con_current, key_lines[oldl]+1);
+		con_commandmatch = 0;
 
 		return;
 	}
@@ -954,7 +987,7 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key_lines[edit_line][key_linepos])
 		{
-			key_linepos = utf_right(key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+			key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
 			return;
 		}
 		else
@@ -965,7 +998,7 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key_lines[edit_line][key_linepos])
 		{
-			int charlen = utf_right(key_lines[edit_line] + key_linepos) - (key_lines[edit_line] + key_linepos);
+			int charlen = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - (key_lines[edit_line] + key_linepos);
 			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+1);
 			return;
 		}
@@ -981,6 +1014,8 @@ void Key_Console (unsigned int unicode, int key)
 			memmove(key_lines[edit_line]+key_linepos-charlen, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
 			key_linepos -= charlen;
 		}
+		if (!key_lines[edit_line][1])
+			con_commandmatch = 0;
 		return;
 	}
 
@@ -997,6 +1032,8 @@ void Key_Console (unsigned int unicode, int key)
 		key_linepos = Q_strlen(key_lines[edit_line]);
 
 		key_lines[edit_line][0] = ']';
+		if (!key_lines[edit_line][1])
+			con_commandmatch = 0;
 		return;
 	}
 
@@ -1007,6 +1044,7 @@ void Key_Console (unsigned int unicode, int key)
 			key_lines[edit_line][0] = ']';
 			key_lines[edit_line][1] = '\0';
 			key_linepos=1;
+			con_commandmatch = 0;
 			return;
 		}
 		do
@@ -1136,32 +1174,12 @@ void Key_Console (unsigned int unicode, int key)
 			unicode |= 0xe080;		// red char
 	}
 
-	if (com_parseutf8.ival>0 && unicode > 127)
+	unicode = utf8_encode(utf8, unicode, sizeof(utf8)-1);
+	if (unicode)
 	{
-		char utf8[8];
-		int l = utf8_encode(utf8, unicode, sizeof(utf8)-1);
-		if (l)
-		{
-			utf8[l] = 0;
-			Key_ConsoleInsert(utf8);
-			return;
-		}
-		unicode = '?';
+		utf8[unicode] = 0;
+		Key_ConsoleInsert(utf8);
 	}
-	else if (unicode >= 0xe000 && unicode <= 0xe0ff && !com_parseutf8.ival)
-		unicode -= 0xe000;	//text line is quake-safe
-	else if (unicode >= ((com_parseutf8.ival<0)?256:128))
-	{
-		unicode = '?';	//sorry, char cannot be expressed using this encoding.
-	}
-		
-	if (strlen(key_lines[edit_line])+1 < MAXCMDLINE-1)
-	{
-		memmove(key_lines[edit_line]+key_linepos+1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-		key_lines[edit_line][key_linepos] = unicode;
-		key_linepos++;
-	}
-
 }
 
 //============================================================================

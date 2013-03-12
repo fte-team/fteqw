@@ -191,7 +191,7 @@ typedef enum
 	GAME_EDICT_BLOCKED,                     //(self,other)
 	GAME_CLIENT_SAY, 		//(int isteam)
 	GAME_PAUSED_TIC,		//(int milliseconds)
-} gameExport_t;
+} q1qvmgameExport_t;
 
 
 typedef enum

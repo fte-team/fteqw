@@ -5005,6 +5005,9 @@ cin_t *R_ShaderFindCinematic(char *name)
 	int i;
 	char shortname[MAX_QPATH];
 
+	if (!r_shaders)
+		return NULL;
+
 	COM_StripExtension ( name, shortname, sizeof(shortname));
 
 	COM_CleanUpPath(shortname);

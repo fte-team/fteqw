@@ -369,8 +369,15 @@ enum clcq2_ops_e
 #define clc_prydoncursor	82
 #define clc_voicechat		83
 
-
 //==============================================
+
+//these flags are sent as part of the svc_precache index, for any-time precaches. using the upper two bits means we still have 16k available models/sounds/etc
+#define PC_TYPE			0xc000
+#define PC_MODEL		0x0000
+#define PC_SOUND		0x8000
+#define PC_PARTICLE		0x4000
+#define PC_UNUSED		0xc000
+
 
 // playerinfo flags from server
 // playerinfo always sends: playernum, flags, origin[] and framenumber

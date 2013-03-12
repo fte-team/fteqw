@@ -726,8 +726,13 @@ void CLFTE_ParseEntities(void)
 //		Con_Printf("CL: Dropped %i\n", i);
 //	}
 
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
+		cls.netchan.incoming_sequence++;
+		cls.netchan.incoming_acknowledged++;
+	}
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE)
+	else if (cls.protocol == CP_NETQUAKE)
 	{
 		int i;
 		for (i = 0; i < MAX_SPLITS; i++)
@@ -740,12 +745,15 @@ void CLFTE_ParseEntities(void)
 
 		if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
 			cl.numackframes--;
-		cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
+		if (!cl.validsequence)
+			cl.ackframes[cl.numackframes++] = -1;
+		else
+			cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
 
 		cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
 
-		if (cl.validsequence != cls.netchan.incoming_sequence-1)
-			Con_Printf("CLIENT: Dropped a frame\n");
+//		if (cl.validsequence != cls.netchan.incoming_sequence-1)
+//			Con_Printf("CLIENT: Dropped a frame\n");
 	}
 #endif
 
@@ -2977,7 +2985,7 @@ void CL_TransitionEntities (void)
 	packnew = &cl.frames[newf].packet_entities;
 	packold = &cl.frames[oldf].packet_entities;
 
-//	Con_Printf("%f %f %f\n", packold->servertime, servertime, packnew->servertime);
+//	Con_Printf("%f %f %f (%i)\n", packold->servertime, servertime, packnew->servertime, newff);
 //	Con_Printf("%f %f %f\n", cl.oldgametime, servertime, cl.gametime);
 
 	CL_TransitionPacketEntities(newff, packnew, packold, servertime);
@@ -3053,6 +3061,7 @@ void CL_LinkPacketEntities (void)
 	static int flickertime;
 	static int flicker;
 	int trailef;
+	int modelflags;
 
 	pack = cl.currentpackentities;
 	if (!pack)
@@ -3189,6 +3198,14 @@ void CL_LinkPacketEntities (void)
 			Con_DPrintf("Bad modelindex (%i)\n", state->modelindex);
 			continue;
 		}
+		
+		//DP extension. .modelflags (which is sent in the high parts of effects) allows to specify exactly the q1-compatible flags.
+		//the extra bit allows for setting to 0.
+		//note that hexen2 has additional flags which cannot be expressed.
+		if (state->effects & 0xff800000)
+			modelflags = state->effects>>24;
+		else
+			modelflags = model->flags;
 
 		if (cl.model_precache_vwep[0])
 		{
@@ -3276,7 +3293,7 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		// rotate binary objects locally
-		if (model && model->flags & MF_ROTATE)
+		if (modelflags & MF_ROTATE)
 		{
 			angles[0] = 0;
 			angles[1] = autorotate;
@@ -3337,10 +3354,10 @@ void CL_LinkPacketEntities (void)
 			CL_AddVWeapModel (ent, model2);
 
 		// add automatic particle trails
-		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))
+		if (!model || (!(modelflags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))
 			continue;
 
-		if (!cls.allow_anyparticles && !(model->flags & ~MF_ROTATE))
+		if (!cls.allow_anyparticles && !(modelflags & ~MF_ROTATE))
 			continue;
 
 		if (le->isnew)
@@ -3387,7 +3404,7 @@ void CL_LinkPacketEntities (void)
 			dclr[1] = 1.0;
 			dclr[2] = 0.25;
 
-			if (model->flags & MF_ROCKET)
+			if (modelflags & MF_ROCKET)
 			{
 #ifdef warningmsg
 #pragma warningmsg("Replace this flag on load for hexen2 models")
@@ -3398,17 +3415,17 @@ void CL_LinkPacketEntities (void)
 					rad += r_lightflicker.value?((flicker + state->number)&31):0;
 				}
 			}
-			else if (model->flags & MFH2_FIREBALL)
+			else if (modelflags & MFH2_FIREBALL)
 			{
 				rad = 120 - (rand() % 20);
 			}
-			else if (model->flags & MFH2_ACIDBALL)
+			else if (modelflags & MFH2_ACIDBALL)
 			{
 				rad = 120 - (rand() % 20);
 				dclr[0] = 0.1;
 				dclr[1] = 0.2;
 			}
-			else if (model->flags & MFH2_SPIT)
+			else if (modelflags & MFH2_SPIT)
 			{
 				// as far as I can tell this effect inverses the light...
 				dclr[0] = -dclr[0];
@@ -3423,7 +3440,7 @@ void CL_LinkPacketEntities (void)
 				memcpy(dl->axis, ent->axis, sizeof(dl->axis));
 				VectorCopy (ent->origin, dl->origin);
 				dl->die = (float)cl.time;
-				if (model->flags & MF_ROCKET)
+				if (modelflags & MF_ROCKET)
 					dl->origin[2] += 1; // is this even necessary
 				dl->radius = rad * r_rocketlight.value;
 				VectorCopy(dclr, dl->color);

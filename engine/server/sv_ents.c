@@ -467,7 +467,7 @@ void SV_CSQC_DropAll(client_t *client)
 
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
-		Con_Printf("Reset all\n");
+//		Con_Printf("Reset all\n");
 		client->pendingentbits[0] = UF_REMOVE;
 	}
 

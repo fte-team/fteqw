@@ -1879,6 +1879,23 @@ void CL_RefreshCustomTEnts(void)
 	int i;
 	for (i = 0; i < sizeof(customtenttype)/sizeof(customtenttype[0]); i++)
 		customtenttype[i].particleeffecttype = (!*customtenttype[i].name)?-1:P_FindParticleType(customtenttype[i].name);
+
+	if (cl.particle_ssprecaches)
+	{
+		for (i = 0; i <= MAX_SSPARTICLESPRE; i++)
+		{
+			if (cl.particle_ssname[i])
+				cl.particle_ssprecache[i] = 1+P_FindParticleType(cl.particle_ssname[i]);
+		}
+	}
+	if (cl.particle_csprecaches)
+	{
+		for (i = 0; i <= MAX_CSPARTICLESPRE; i++)
+		{
+			if (cl.particle_csname[i])
+				cl.particle_csprecache[i] = 1+P_FindParticleType(cl.particle_csname[i]);
+		}
+	}
 }
 void CL_ClearCustomTEnts(void)
 {
@@ -1897,18 +1914,26 @@ void CL_ClearCustomTEnts(void)
 	}
 }
 
-int CL_TranslateParticleFromServer(int sveffect)
+int CL_TranslateParticleFromServer(int qceffect)
 {
-	if (cl.maxparticleprecaches)
+	if (cl.particle_ssprecaches && qceffect >= 0 && qceffect < MAX_SSPARTICLESPRE)
 	{
 		/*proper precaches*/
-		return cl.particle_precache[sveffect].num;
+		return cl.particle_ssprecache[qceffect]-1;
+	}
+	else if (-qceffect >= 0 && -qceffect < MAX_CSPARTICLESPRE)
+	{
+		qceffect = -qceffect;
+		return cl.particle_csprecache[qceffect]-1;
 	}
 	else
-	{
+		return -1;
+
+//	else
+//	{
 		/*server and client must share an identical effectinfo list file (just "effect $name\n" lines)*/
-		return P_FindParticleType(COM_Effectinfo_ForNumber(sveffect));
-	}
+//		return P_FindParticleType(COM_Effectinfo_ForNumber(qceffect));
+//	}
 }
 
 void CL_ParseTrailParticles(void)

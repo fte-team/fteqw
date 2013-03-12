@@ -256,7 +256,7 @@ int readdemobytes(int *readpos, void *data, int len)
 			endofdemo = true;
 			return 0;
 		}
-		len = demobuffersize;
+//		len = demobuffersize;
 		return 0;
 	}
 	memcpy(data, demobuffer+*readpos, len);
@@ -503,6 +503,7 @@ readnext:
 		demo_flushbytes(demopos);
 		demopos = 0;
 	}
+
 	// read the time from the packet
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
@@ -521,6 +522,7 @@ readnext:
 			Con_DPrintf("Not enough buffered\n");
 			demotime = olddemotime;
 			nextdemotime = demotime;
+			return 0;
 		}
 		else
 		{
@@ -596,8 +598,11 @@ readnext:
 	{
 		if ((msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime)
 		{
-			cls.netchan.incoming_sequence++;
-			cls.netchan.incoming_acknowledged++;
+			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+			{
+				cls.netchan.incoming_sequence++;
+				cls.netchan.incoming_acknowledged++;
+			}
 			cls.netchan.frame_latency = 0;
 			cls.netchan.last_received = realtime; // just to happy timeout check
 		}
@@ -607,18 +612,21 @@ readnext:
 		Host_Error ("CL_GetDemoMessage: cls.state != ca_active");
 
 	// get the msg type
-	if (!readdemobytes (&demopos, &c, sizeof(c)))
+	if (readdemobytes (&demopos, &c, sizeof(c)) != sizeof(c))
 	{
 		Con_DPrintf("Not enough buffered\n");
 		olddemotime = demtime+1;
 		return 0;
 	}
-//	Con_Printf("demo packet %x\n", (int)c);
 	switch (c&7)
 	{
 	case dem_cmd :
-/*		if (cls.demoplayback == DPB_MVD)
+		if (cls.demoplayback == DPB_MVD)
 		{
+			Con_Printf("mvd demos/qtv streams should not contain dem_cmd\n");
+			olddemotime = demtime+1;
+			CL_StopPlayback ();
+	/*
 			unsigned short samps;
 			unsigned char bits;
 			unsigned char rateid;
@@ -653,11 +661,11 @@ readnext:
 					}
 				}
 			}
-
+*/
 			return 0;
 		}
 		else
-		{*/
+		{
 			// user sent input
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			pcmd = &cl.frames[i].cmd[0];
@@ -691,7 +699,7 @@ readnext:
 				cl.playerview[0].viewangles[i] = LittleFloat (f);
 			}
 			goto readnext;
-/*		}*/
+		}
 		break;
 
 	case dem_read:
@@ -755,9 +763,17 @@ readit:
 		break;
 
 	case dem_set :
-		readdemobytes (&demopos, &i, 4);
-		cls.netchan.outgoing_sequence = LittleLong(i);
-		readdemobytes (&demopos, &i, 4);
+		if (readdemobytes (&demopos, &j, 4) != 4)
+		{
+			olddemotime = demtime;
+			return 0;
+		}
+		if (readdemobytes (&demopos, &i, 4) != 4)
+		{
+			olddemotime = demtime;
+			return 0;
+		}
+		cls.netchan.outgoing_sequence = LittleLong(j);
 		cls.netchan.incoming_sequence = LittleLong(i);
 
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -1307,7 +1323,7 @@ void CL_Record_f (void)
 				continue;
 
 #ifdef PEXT_LIGHTSTYLECOL
-		if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && cl_lightstyle[i].colour!=7)
+		if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && cl_lightstyle[i].colour!=7 && *cl_lightstyle[i].map)
 		{
 			MSG_WriteByte (&buf, svcfte_lightstylecol);
 			MSG_WriteByte (&buf, (unsigned char)i);
@@ -1766,7 +1782,7 @@ void CL_QTVPoll (void)
 				if (*colon)
 					Con_Printf("streaming \"%s\" from qtv\n", colon);
 				else
-					Con_Printf("qtv connection established to %s\n", colon);
+					Con_Printf("qtv connection established to %s\n", qtvhostname);
 				streamavailable = true;
 			}
 

@@ -381,18 +381,6 @@ void Font_FlushPlane(font_t *f)
 		fontplanes.newestchar = NULL;
 }
 
-//obtains a cached char, null if not cached
-static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
-{
-	struct charcache_s *c = &f->chars[charidx];
-	if (c->texplane == INVALIDPLANE)
-	{
-		//not cached, can't get.
-		return NULL;
-	}
-	return c;
-}
-
 //loads a new image into a given character slot for the given font.
 //note: make sure it doesn't already exist or things will get cyclic
 //alphaonly says if its a greyscale image. false means rgba.
@@ -607,6 +595,33 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 	return NULL;
 }
 
+//obtains a cached char, null if not cached
+static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
+{
+	struct charcache_s *c = &f->chars[charidx];
+	if (c->texplane == INVALIDPLANE)
+	{
+		//not cached, can't get.
+		c = Font_TryLoadGlyph(f, charidx);
+
+		if (!c)
+		{
+			charidx = 0xfffd;	//unicode's replacement char
+			c = &f->chars[charidx];
+			if (c->texplane == INVALIDPLANE)
+				c = Font_TryLoadGlyph(f, charidx);
+		}
+		if (!c)
+		{
+			charidx = '?';	//meh
+			c = &f->chars[charidx];
+			if (c->texplane == INVALIDPLANE)
+				c = Font_TryLoadGlyph(f, charidx);
+		}
+	}
+	return c;
+}
+
 qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 {
 #ifdef AVAIL_FREETYPE
@@ -695,9 +710,9 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		}
 		if (*fontdir)
 		{
-			error = pFT_New_Face(fontlib, va("%s/%s.ttf", fontdir, fontfilename), 0, &face);
+			error = pFT_New_Face(fontlib, va("%s/%s", fontdir, fontfilename), 0, &face);
 			if (error)
-				error = pFT_New_Face(fontlib, va("%s/%s", fontdir, fontfilename), 0, &face);
+				error = pFT_New_Face(fontlib, va("%s/%s.ttf", fontdir, fontfilename), 0, &face);
 		}
 	}
 #endif
@@ -1073,11 +1088,16 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	}
 	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
 	{
+		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
 			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_2D|IF_NOMIPMAP);
 
+		for ( ; i < 32; i++)
+		{
+			f->chars[i].texplane = INVALIDPLANE;
+		}
 		/*force it to load, even if there's nothing there*/
-		for (; i < 256; i++)
+		for ( ; i < 128; i++)
 		{
 			f->chars[i].advance = f->charheight;
 			f->chars[i].bmh = PLANEWIDTH/16;
@@ -1233,20 +1253,13 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
 	if ((charcode&CON_CHARMASK) == '\t')
 		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
 
-	if (charcode & CON_2NDCHARSETTEXT)
-	{
-		if (font->alt)
-			font = font->alt;
-		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
-			charcode |= 0xe000;
-	}
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
 
 	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
-		if (!c)
-			return x+0;
+		return x+0;
 	}
 
 	return x+c->advance;
@@ -1259,20 +1272,13 @@ int Font_CharWidth(unsigned int charcode)
 	struct font_s *font = curfont;
 	if (charcode&CON_HIDDEN)
 		return 0;
-	if (charcode & CON_2NDCHARSETTEXT)
-	{
-		if (font->alt)
-			font = font->alt;
-		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
-			charcode |= 0xe000;
-	}
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
 
 	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
-		if (!c)
-			return 0;
+		return 0;
 	}
 
 	return c->advance;
@@ -1396,19 +1402,18 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	if (charcode & CON_2NDCHARSETTEXT)
 	{
 		if (font->alt)
+		{
 			font = font->alt;
-		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
-			charcode |= 0xe000;
+			charcode &= ~CON_2NDCHARSETTEXT;
+		}
+		else if ((charcode&CON_CHARMASK) >= 0xe000 && (charcode&CON_CHARMASK) <= 0xe0ff)
+			charcode &= ~CON_2NDCHARSETTEXT;	//don't double-dip
 	}
 
 	//crash if there is no current font.
 	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
-	{
-		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
-		if (!c)
-			return px;
-	}
+		return px;
 
 	nextx = px + c->advance;
 
@@ -1426,7 +1431,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 	if (charcode & CON_RICHFORECOLOUR)
 	{
-		col = charcode & (CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		col = charcode & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
 			if (font_colourmask & CON_NONCLEARBG)
@@ -1442,11 +1447,18 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			font_backcolour[1] = 0;
 			font_backcolour[2] = 0;
 			font_backcolour[3] = 0;
+
+			if (charcode & CON_2NDCHARSETTEXT)
+			{
+				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
+				font_forecolour[1] *= 0.54;
+				font_forecolour[2] *= 0.41;
+			}
 		}
 	}
 	else
 	{
-		col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 		if (col != font_colourmask)
 		{
 			if ((col ^ font_colourmask) & CON_NONCLEARBG)
@@ -1464,6 +1476,13 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			font_backcolour[1] = consolecolours[col].fg*255;
 			font_backcolour[2] = consolecolours[col].fb*255;
 			font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+
+			if (charcode & CON_2NDCHARSETTEXT)
+			{
+				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
+				font_forecolour[1] *= 0.54;
+				font_forecolour[2] *= 0.41;
+			}
 		}
 	}
 
@@ -1553,9 +1572,12 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 	if (charcode & CON_2NDCHARSETTEXT)
 	{
 		if (font->alt)
+		{
 			font = font->alt;
-		else if ((charcode & CON_CHARMASK) >= 0x20 && (charcode&CON_CHARMASK) < 0x80)
-			charcode |= 0xe000;
+			charcode &= ~CON_2NDCHARSETTEXT;
+		}
+		else if ((charcode&CON_CHARMASK) >= 0xe000 && (charcode&CON_CHARMASK) <= 0xe0ff)
+			charcode &= ~CON_2NDCHARSETTEXT;	//don't double-dip
 	}
 
 	cw = curfont_scale[0];
@@ -1564,11 +1586,7 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 	//crash if there is no current font.
 	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
-	{
-		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
-		if (!c)
-			return px;
-	}
+		return px;
 
 	nextx = px + c->advance*cw;
 
@@ -1584,7 +1602,7 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 
 	if (charcode & CON_RICHFORECOLOUR)
 	{
-		col = charcode & (CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		col = charcode & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
 			if (font_backcolour[3])
@@ -1600,11 +1618,18 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 			font_backcolour[1] = 0;
 			font_backcolour[2] = 0;
 			font_backcolour[3] = 0;
+
+			if (charcode & CON_2NDCHARSETTEXT)
+			{
+				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
+				font_forecolour[1] *= 0.54;
+				font_forecolour[2] *= 0.41;
+			}
 		}
 	}
 	else
 	{
-		col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 		if (col != font_colourmask)
 		{
 			if (font_backcolour[3] != ((charcode & CON_NONCLEARBG)?127:0))
@@ -1622,6 +1647,13 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 			font_backcolour[1] = consolecolours[col].fg*255;
 			font_backcolour[2] = consolecolours[col].fb*255;
 			font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+
+			if (charcode & CON_2NDCHARSETTEXT)
+			{
+				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
+				font_forecolour[1] *= 0.54;
+				font_forecolour[2] *= 0.41;
+			}
 		}
 	}
 

@@ -73,6 +73,7 @@ cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH,
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
 
+cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
 cvar_t	pr_ssqc_progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
 cvar_t	qc_nonetaccess = CVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 cvar_t	qc_netpreparse = CVAR("qc_netpreparse", "1");	//server-side writebyte protocol translation
@@ -140,6 +141,7 @@ struct {
 
 	func_t ClassChangeWeapon;//hexen2 support
 	func_t AddDebugPolygons;
+	func_t CheckRejectConnection;
 } gfuncs;
 func_t SpectatorConnect;	//QW
 func_t SpectatorThink;	//QW
@@ -446,7 +448,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 		f = NULL;	//faster.
 	if (!f)
 	{
-		Q_snprintfz(buffer, sizeof(buffer), "src/%s", filename);
+		Q_snprintfz(buffer, sizeof(buffer), "%s/%s", pr_sourcedir.string, filename);
 		f = FS_OpenVFS(buffer, "rb", FS_GAME);
 	}
 	if (!f)
@@ -797,6 +799,7 @@ void PR_LoadGlabalStruct(void)
 	gfuncs.ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
 	gfuncs.RunClientCommand = PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY);
 	gfuncs.AddDebugPolygons = PR_FindFunction(svprogfuncs, "SV_AddDebugPolygons", PR_ANY);
+	gfuncs.CheckRejectConnection = PR_FindFunction(svprogfuncs, "SV_CheckRejectConnection", PR_ANY);
 
 	if (pr_no_playerphysics.ival)
 		SV_PlayerPhysicsQC = 0;
@@ -1025,7 +1028,7 @@ void PR_Compile_f(void)
 {
 	int argc=3;
 	double time = Sys_DoubleTime();
-	char *argv[64] = {"", "-src", "src", "-srcfile", "progs.src"};
+	char *argv[64] = {"", "-src", pr_sourcedir.string, "-srcfile", "progs.src"};
 
 	if (Cmd_Argc()>2)
 	{
@@ -1235,6 +1238,7 @@ void PR_Init(void)
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
 
+	Cvar_Register(&pr_sourcedir, cvargroup_progs);
 	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_no_playerphysics, cvargroup_progs);
 	Cvar_Register(&pr_no_parsecommand, cvargroup_progs);
@@ -3639,13 +3643,67 @@ void PR_CheckEmptyString (char *s)
 		PR_RunError ("Bad string");
 }
 */
+
+//float(string effectname) particleeffectnum (EXT_CSQC)
+static void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+/*
+#ifdef PEXT_CSQC
+#ifdef warningmsg
+#pragma warningmsg("PF_sv_particleeffectnum: which effect index values to use?")
+#endif
+	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
+#else
+	G_FLOAT(OFS_RETURN) = -1;
+#endif
+*/
+	int		i;
+
+	if (s[0] <= ' ')
+	{
+		PR_BIError (prinst, "PF_precache_particles: Bad string");
+		return;
+	}
+
+	G_FLOAT(OFS_RETURN) = 0;
+
+	for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
+	{
+		if (!*sv.strings.particle_precache[i])
+		{
+			strcpy(sv.strings.particle_precache[i], s);
+
+			if (sv.state != ss_loading)
+			{
+				Con_DPrintf("Delayed particle precache: %s\n", s);
+				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i|PC_PARTICLE);
+				MSG_WriteString(&sv.reliable_datagram, s);
+#ifdef NQPROT
+				MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.nqreliable_datagram, i|PC_PARTICLE);
+				MSG_WriteString(&sv.nqreliable_datagram, s);
+#endif
+			}
+		}
+		if (!strcmp(sv.strings.particle_precache[i], s))
+		{
+			G_FLOAT(OFS_RETURN) = i;
+			return;
+		}
+	}
+	PR_BIError (prinst, "PF_precache_particles: overflow");
+}
+
 static void QCBUILTIN PF_precache_file (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	// precache_file is only used to copy files with qcc, it does nothing
 	char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
-	/*touch the file, so any packs will be referenced. this is fte behaviour.*/
+	/*touch the file, so any packs will be referenced. this is fte-specific behaviour.*/
 	FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
 }
 
@@ -3672,11 +3730,11 @@ void PF_precache_sound_Internal (pubprogfuncs_t *prinst, char *s)
 			{
 				Con_DPrintf("Delayed sound precache: %s\n", s);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
-				MSG_WriteShort(&sv.reliable_datagram, i+32768);
+				MSG_WriteShort(&sv.reliable_datagram, i+PC_SOUND);
 				MSG_WriteString(&sv.reliable_datagram, s);
 #ifdef NQPROT
 				MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
-				MSG_WriteShort(&sv.nqreliable_datagram, i+32768);
+				MSG_WriteShort(&sv.nqreliable_datagram, i+PC_SOUND);
 				MSG_WriteString(&sv.nqreliable_datagram, s);
 #endif
 			}
@@ -5680,7 +5738,7 @@ int PR_EnableEBFSBuiltin(char *name, int binum)
 	int i;
 	for (i = 0;BuiltinList[i].name;i++)
 	{
-		if (!strcmp(BuiltinList[i].name, name))
+		if (!strcmp(BuiltinList[i].name, name) && BuiltinList[i].bifunc != PF_Fixme)
 		{
 			if (!binum)
 				binum = BuiltinList[i].ebfsnum;
@@ -6438,6 +6496,104 @@ static void QCBUILTIN PF_h2advanceweaponframe (pubprogfuncs_t *prinst, struct gl
 	G_FLOAT(OFS_RETURN) = state;
 }
 
+char *SV_CheckRejectConnection(netadr_t adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid)
+{
+	char addrstr[256];
+	char clfeatures[4096], *bp;
+	char *ret = NULL;
+	if (gfuncs.CheckRejectConnection)
+	{
+		globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+		NET_AdrToString(addrstr, sizeof(addrstr), adr);
+
+		*clfeatures = 0;
+		switch(protocol)
+		{
+		default:				bp = "unknown";		break;
+		case SCP_QUAKEWORLD:	bp = "qw";			break;
+		case SCP_QUAKE2:		bp = "q2";			break;
+		case SCP_QUAKE3:		bp = "q3";			break;
+		case SCP_NETQUAKE:		bp = "nq";			break;
+		case SCP_PROQUAKE:		bp = "nq";			break;	//not nuff difference for it to be meaningful
+		case SCP_FITZ666:		bp = "fitz666";		break;
+		case SCP_DARKPLACES6:	bp = "dp6";			break;
+		case SCP_DARKPLACES7:	bp = "dp7";			break;
+		}
+		Info_SetValueForKey(clfeatures, "basicprotocol", bp, sizeof(clfeatures));
+		Info_SetValueForKey(clfeatures, "guid", guid, sizeof(clfeatures));
+		Info_SetValueForKey(clfeatures, "maxsounds", "256", sizeof(clfeatures));
+		Info_SetValueForKey(clfeatures, "maxmodels", "256", sizeof(clfeatures));
+
+		//this is not the limits of the client itself, but the limits that the server is able and willing to send to them.
+
+		if ((pext1 & PEXT_SOUNDDBL) || (protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "maxsounds", va("%i", MAX_SOUNDS), sizeof(clfeatures));
+		else
+			Info_SetValueForKey(clfeatures, "maxsounds", "256", sizeof(clfeatures));
+
+		if ((pext1 & PEXT_MODELDBL) || (protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "maxmodels", va("%i", MAX_MODELS), sizeof(clfeatures));
+		else
+			Info_SetValueForKey(clfeatures, "maxmodels", "256", sizeof(clfeatures));
+
+		if (pext2 & PEXT2_REPLACEMENTDELTAS)
+			Info_SetValueForKey(clfeatures, "maxentities", va("%i", MAX_EDICTS), sizeof(clfeatures));
+		else if (protocol == SCP_FITZ666)
+//			Info_SetValueForKey(clfeatures, "maxentities", "65535", sizeof(clfeatures));
+			Info_SetValueForKey(clfeatures, "maxentities", "32767", sizeof(clfeatures));
+		else if (protocol == SCP_DARKPLACES6 || protocol == SCP_DARKPLACES7)
+			Info_SetValueForKey(clfeatures, "maxentities", "32767", sizeof(clfeatures));
+		else if (protocol == SCP_NETQUAKE)
+			Info_SetValueForKey(clfeatures, "maxentities", "600", sizeof(clfeatures));
+		else //if (protocol == SCP_QUAKEWORLD)
+			Info_SetValueForKey(clfeatures, "maxentities", "512", sizeof(clfeatures));
+
+		if (pext2 & PEXT2_REPLACEMENTDELTAS)			//limited by packetlog/size, but server can track the whole lot, assuming they're not all sent in a single packet.
+			Info_SetValueForKey(clfeatures, "maxvisentities", va("%i", MAX_EDICTS), sizeof(clfeatures));
+		else if (protocol == SCP_DARKPLACES6 || protocol == SCP_DARKPLACES7)	//deltaing protocol allows all ents to be visible at once
+			Info_SetValueForKey(clfeatures, "maxvisentities", "32767", sizeof(clfeatures));
+		else if (pext1 & PEXT_256PACKETENTITIES)
+			Info_SetValueForKey(clfeatures, "maxvisentities", "256", sizeof(clfeatures));
+		else if (protocol == SCP_QUAKEWORLD)
+			Info_SetValueForKey(clfeatures, "maxvisentities", "64", sizeof(clfeatures));
+		//others are limited by packet sizes, so the count can vary...
+
+		//features
+		if (pext1 & PEXT_VIEW2)
+			Info_SetValueForKey(clfeatures, "PEXT_VIEW2", "1", sizeof(clfeatures));
+		if (pext1 & PEXT_LIGHTSTYLECOL)
+			Info_SetValueForKey(clfeatures, "PEXT_LIGHTSTYLECOL", "1", sizeof(clfeatures));
+		if ((pext1 & PEXT_CSQC) || (protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "PEXT_CSQC", "1", sizeof(clfeatures));
+		if ((pext1 & PEXT_FLOATCOORDS) || (protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "PEXT_FLOATCOORDS", "1", sizeof(clfeatures));
+		if ((pext1 & PEXT_ENTITYDBL) || (pext2 & PEXT2_REPLACEMENTDELTAS) || (protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "PEXT_ENTITYDBL", "1", sizeof(clfeatures));
+		if (pext1 & PEXT_HEXEN2)
+			Info_SetValueForKey(clfeatures, "PEXT_HEXEN2", "1", sizeof(clfeatures));
+		if ((pext1 & PEXT_SETATTACHMENT) || (protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "PEXT_SETATTACHMENT", "1", sizeof(clfeatures));
+		if (pext1 & PEXT_CUSTOMTEMPEFFECTS)
+			Info_SetValueForKey(clfeatures, "PEXT_CUSTOMTEMPEFFECTS", "1", sizeof(clfeatures));
+		if ((pext2 & PEXT2_PRYDONCURSOR) || (protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+			Info_SetValueForKey(clfeatures, "PEXT2_PRYDONCURSOR", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_VOICECHAT)
+			Info_SetValueForKey(clfeatures, "PEXT2_VOICECHAT", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_REPLACEMENTDELTAS)
+			Info_SetValueForKey(clfeatures, "PEXT2_REPLACEMENTDELTAS", "1", sizeof(clfeatures));
+
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
+		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, addrstr);
+		G_INT(OFS_PARM1) = (int)PR_TempString(svprogfuncs, uinfo);
+		G_INT(OFS_PARM2) = (int)PR_TempString(svprogfuncs, clfeatures);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.CheckRejectConnection);
+		ret = PR_GetStringOfs(svprogfuncs, OFS_RETURN);
+		if (!*ret)
+			ret = NULL;
+	}
+	return ret;
+}
 void SV_AddDebugPolygons(void)
 {
 	int i;
@@ -7381,19 +7537,6 @@ static void QCBUILTIN PF_CustomTEnt(pubprogfuncs_t *prinst, struct globalvars_s 
 	SV_MulticastProtExt (org, mcd, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
 }
 
-//float(string effectname) particleeffectnum (EXT_CSQC)
-static void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-#ifdef PEXT_CSQC
-#ifdef warningmsg
-#pragma warningmsg("PF_sv_particleeffectnum: which effect index values to use?")
-#endif
-	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
-#else
-	G_FLOAT(OFS_RETURN) = -1;
-#endif
-}
 //void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
 static void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -7444,13 +7587,13 @@ static void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct global
 #ifdef PEXT_CSQC
 	int efnum = G_FLOAT(OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
-	float *vel = G_VECTOR(OFS_PARM2);
-	int count = G_FLOAT(OFS_PARM3);
+	float *vel = (prinst->callargc < 3)?vec3_origin:G_VECTOR(OFS_PARM2);
+	int count = (prinst->callargc < 4)?1:G_FLOAT(OFS_PARM3);
 
 	if (count > 65535)
 		count = 65535;
 
-	if (count == 1 && DotProduct(org, org) == 0)
+	if (count == 1 && DotProduct(vel, vel) == 0)
 	{
 		MSG_WriteByte(&sv.multicast, svcfte_pointparticles1);
 		MSG_WriteShort(&sv.multicast, efnum);
@@ -9221,7 +9364,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	"void(float width, vector pos1, vector pos2)"},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	"float(string name)"},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	"string(string name, optional float trywad)"},// (EXT_CSQC)
-	{"draw_getimagesize",PF_Fixme,	0,		0,		0,		318,	"vector(string picname)"},// (EXT_CSQC)
+	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	"#define draw_getimagesize drawgetimagesize\nvector(string picname)"},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	"void(string name)"},// (EXT_CSQC)
 //320
 	{"drawcharacter",	PF_Fixme,	0,		0,		0,		320,	"float(vector position, float character, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
@@ -10074,7 +10217,7 @@ void PR_DumpPlatform_f(void)
 		{"SpectatorConnect",		"noref void()", QW|NQ},
 		{"SpectatorDisconnect",		"noref void()", QW|NQ},
 		{"SpectatorThink",			"noref void()", QW|NQ},
-		{"SV_ParseClientCommand",	"noref void()", QW|NQ},
+		{"SV_ParseClientCommand",	"noref void(string cmd)", QW|NQ},
 		{"SV_ParseConnectionlessPacket", "noref void()", QW|NQ},
 		{"SV_PausedTic",			"noref void()", QW|NQ},
 		{"SV_ShouldPause",			"noref void()", QW|NQ},
@@ -10083,6 +10226,7 @@ void PR_DumpPlatform_f(void)
 		{"SV_AddDebugPolygons",		"noref void()", QW|NQ},
 		{"SV_PlayerPhysics",		"noref void()", QW|NQ},
 		{"EndFrame",				"noref void()", QW|NQ},
+		{"SV_CheckRejectConnection","noref string(string addr, string uinfo, string features) ", QW|NQ},
 		/* //mvdsv compat
 		{"UserInfo_Changed",		"//noref void()", QW},
 		{"localinfoChanged",		"//noref void()", QW},
@@ -10247,17 +10391,28 @@ void PR_DumpPlatform_f(void)
 		{"MOVE_LAGGED",			"const float", QW|NQ, MOVE_LAGGED},
 		{"MOVE_ENTCHAIN",		"const float", QW|NQ|CS, MOVE_ENTCHAIN},
 
-		{"EF_BRIGHTFIELD",	"const float", QW|NQ|CS, EF_BRIGHTFIELD},
-		{"EF_MUZZLEFLASH",	"const float",    NQ|CS, EF_MUZZLEFLASH},
-		{"EF_BRIGHTLIGHT",	"const float", QW|NQ|CS, EF_BRIGHTLIGHT},
-		{"EF_DIMLIGHT",		"const float", QW|NQ|CS, EF_DIMLIGHT},
-		{"EF_FLAG1",		"const float", QW      , QWEF_FLAG1},
-		{"EF_FLAG2",		"const float", QW      , QWEF_FLAG2},
-		{"EF_ADDITIVE",		"const float",    NQ|CS, NQEF_ADDITIVE},
-		{"EF_BLUE",			"const float", QW|NQ|CS, EF_BLUE},
-		{"EF_RED",			"const float", QW|NQ|CS, EF_RED},
-		{"EF_FULLBRIGHT",	"const float", QW|NQ|CS, EF_FULLBRIGHT},
-		{"EF_NODEPTHTEST",	"const float", QW|NQ|CS, EF_NODEPTHTEST},
+		{"EF_BRIGHTFIELD",		"const float", QW|NQ|CS, EF_BRIGHTFIELD},
+		{"EF_MUZZLEFLASH",		"const float",    NQ|CS, EF_MUZZLEFLASH},
+		{"EF_BRIGHTLIGHT",		"const float", QW|NQ|CS, EF_BRIGHTLIGHT},
+		{"EF_DIMLIGHT",			"const float", QW|NQ|CS, EF_DIMLIGHT},
+		{"EF_FLAG1",			"const float", QW      , QWEF_FLAG1},
+		{"EF_FLAG2",			"const float", QW      , QWEF_FLAG2},
+		{"EF_ADDITIVE",			"const float",    NQ|CS, NQEF_ADDITIVE},
+		{"EF_BLUE",				"const float", QW|NQ|CS, EF_BLUE},
+		{"EF_RED",				"const float", QW|NQ|CS, EF_RED},
+		{"EF_FULLBRIGHT",		"const float", QW|NQ|CS, EF_FULLBRIGHT},
+		{"EF_NODEPTHTEST",		"const float", QW|NQ|CS, EF_NODEPTHTEST},
+
+		{"EF_NOMODELFLAGS",		"const float", QW|NQ, EF_NOMODELFLAGS},
+
+		{"MF_ROCKET",			"const float", QW|NQ, EF_MF_ROCKET>>24},
+		{"MF_GRENADE",			"const float", QW|NQ, EF_MF_GRENADE>>24},
+		{"MF_GIB",				"const float", QW|NQ, EF_MF_GIB>>24},
+		{"MF_ROTATE",			"const float", QW|NQ, EF_MF_ROTATE>>24},
+		{"MF_TRACER",			"const float", QW|NQ, EF_MF_TRACER>>24},
+		{"MF_ZOMGIB",			"const float", QW|NQ, EF_MF_ZOMGIB>>24},
+		{"MF_TRACER2",			"const float", QW|NQ, EF_MF_TRACER2>>24},
+		{"MF_TRACER3",			"const float", QW|NQ, EF_MF_TRACER3>>24},
 
 		{"STAT_HEALTH",			"const float", CS, STAT_HEALTH},
 		{"STAT_WEAPON",			"const float", CS, STAT_WEAPON},
@@ -10431,7 +10586,7 @@ void PR_DumpPlatform_f(void)
 
 	if (!*fname)
 		fname = "fteextensions";
-	fname = va("src/%s.qc", fname);
+	fname = va("%s/%s.qc", pr_sourcedir.string, fname);
 	FS_NativePath(fname, FS_GAMEONLY, dbgfname, sizeof(dbgfname));
 	FS_CreatePath(fname, FS_GAMEONLY);
 	f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);

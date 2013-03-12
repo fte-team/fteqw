@@ -3945,7 +3945,18 @@ int TCP_OpenStream (netadr_t remoteaddr)
 
 	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
 	{
-		Con_Printf ("TCP_OpenStream: connect: error %i\n", qerrno);
+		int err = qerrno;
+		if (err == EADDRNOTAVAIL)
+		{
+			char buf[128];
+			NET_AdrToString(buf, sizeof(buf), remoteaddr);
+			if (remoteaddr.port == 0 && (remoteaddr.type == NA_IP || remoteaddr.type == NA_IPV6))
+				Con_Printf ("TCP_OpenStream: no port specified\n");
+			else
+				Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
+		}
+		else
+			Con_Printf ("TCP_OpenStream: connect: error %i\n", err);
 		closesocket(newsocket);
 		return INVALID_SOCKET;
 	}

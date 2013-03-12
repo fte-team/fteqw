@@ -949,9 +949,10 @@ int Con_DrawInput (int left, int right, int y, qboolean selactive, int selsx, in
 
 	i = text[key_linepos];
 	text[key_linepos] = 0;
-	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), true);
+	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
 	text[key_linepos] = i;
-	endmtext = COM_ParseFunString(CON_WHITEMASK, text+key_linepos, cursor, ((char*)maskedtext)+sizeof(maskedtext) - (char*)(cursor+1), true);
+	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+//	endmtext = COM_ParseFunString(CON_WHITEMASK, text+key_linepos, cursor, ((char*)maskedtext)+sizeof(maskedtext) - (char*)(cursor+1), PFS_KEEPMARKUP | PFS_FORCEUTF8);
 
 	endmtext[1] = 0;
 
@@ -1055,7 +1056,11 @@ int Con_DrawInput (int left, int right, int y, qboolean selactive, int selsx, in
 		{
 			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i, NULL);
 			if (!cmd)
+			{
+				if (i <= 2)
+					con_commandmatch = 0;
 				break;
+			}
 
 			end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("%s\t", cmd), end, (maskedtext+sizeof(maskedtext)/sizeof(maskedtext[0])-1-end)*sizeof(maskedtext[0]), true);
 		}
@@ -1549,6 +1554,8 @@ static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qb
 								selendoffset = (s+i+1) - (conchar_t*)(l+1);
 							else
 								selendoffset = 0;
+							if (selendoffset > linelength)
+								selendoffset = linelength;
 						}
 						if (y <= selsy)
 						{

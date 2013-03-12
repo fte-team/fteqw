@@ -402,7 +402,7 @@ typedef enum {
 	BOTLIB_PC_READ_TOKEN,
 	BOTLIB_PC_SOURCE_FILE_AND_LINE
 
-} gameImport_t;
+} q3ggameImport_t;
 
 
 //

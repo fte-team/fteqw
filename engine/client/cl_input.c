@@ -102,6 +102,8 @@ void CL_SplitA_f(void)
 	char *c, *args;
 	c = Cmd_Argv(0);
 	args = COM_Parse(Cmd_Args());
+	if (!args)
+		return;
 	while(*args == ' ' || *args == '\t')
 		args++;
 	tmp = con_splitmodifier;

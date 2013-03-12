@@ -133,6 +133,7 @@ typedef struct
 		struct {
 			char		*vw_model_precache[32];
 			char		*model_precache[MAX_MODELS];	// NULL terminated
+			char		particle_precache[MAX_SSPARTICLESPRE][MAX_QPATH];	// NULL terminated
 			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
 			char		*lightstyles[MAX_LIGHTSTYLES];
 			char		lightstylecolours[MAX_LIGHTSTYLES];
@@ -339,6 +340,7 @@ enum
 	PRESPAWN_SOUNDLIST,	//nq skips these
 	PRESPAWN_MODELLIST,
 	PRESPAWN_MAPCHECK,	//wait for old prespawn command
+	PRESPAWN_PARTICLES,
 	PRESPAWN_CUSTOMTENTS,
 	PRESPAWN_SIGNON_BUF,
 	PRESPAWN_SPAWNSTATIC,
@@ -679,7 +681,6 @@ typedef struct
 	qboolean	fixangle[MAX_CLIENTS];
 	float		fixangletime[MAX_CLIENTS];
 	vec3_t		angles[MAX_CLIENTS];
-	char		name[MAX_OSPATH], path[MAX_OSPATH];
 	int			parsecount;
 	int			lastwritten;
 	demo_frame_t	frames[DEMO_FRAMES];
@@ -925,6 +926,7 @@ extern	vfsfile_t	*sv_fraglogfile;
 //===========================================================
 
 void SV_AddDebugPolygons(void);
+char *SV_CheckRejectConnection(netadr_t adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
 
 //
 // sv_main.c

@@ -2113,6 +2113,115 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 	return bcount;
 }
 
+unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen)
+{
+	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+	if (((unicode >= 32 || unicode == '\n' || unicode == '\t' || unicode == '\r') && unicode < 128) || unicode >= 0xe000 && unicode <= 0xe0ff)
+	{	//quake compatible chars
+		if (maxlen < 1)
+			return 0;
+		*out++ = unicode;
+		return 1;
+	}
+	else if (unicode > 0xffff)
+	{	//chars longer than 16 bits
+		char *o = out;
+		if (maxlen < 11)
+			return 0;
+		*out++ = '^';
+		*out++ = '{';
+		if (unicode > 0xfffffff)
+			*out++ = hex[(unicode>>28)&15];
+		if (unicode > 0xffffff)
+			*out++ = hex[(unicode>>24)&15];
+		if (unicode > 0xfffff)
+			*out++ = hex[(unicode>>20)&15];
+		if (unicode > 0xffff)
+			*out++ = hex[(unicode>>16)&15];
+		if (unicode > 0xfff)
+			*out++ = hex[(unicode>>12)&15];
+		if (unicode > 0xff)
+			*out++ = hex[(unicode>>8)&15];
+		if (unicode > 0xf)
+			*out++ = hex[(unicode>>4)&15];
+		if (unicode > 0x0)
+			*out++ = hex[(unicode>>0)&15];
+		*out++ = '}';
+		return out - o;
+	}
+	else
+	{	//16bit chars
+		if (maxlen < 6)
+			return 0;
+		*out++ = '^';
+		*out++ = 'U';
+		*out++ = hex[(unicode>>12)&15];
+		*out++ = hex[(unicode>>8)&15];
+		*out++ = hex[(unicode>>4)&15];
+		*out++ = hex[(unicode>>0)&15];
+		return 6;
+	}
+}
+
+unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen)
+{
+	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+	if (unicode < 256)
+	{	//iso8859-1 compatible chars
+		if (maxlen < 1)
+			return 0;
+		*out++ = unicode;
+		return 1;
+	}
+	else if (unicode > 0xffff)
+	{	//chars longer than 16 bits
+		char *o = out;
+		if (maxlen < 11)
+			return 0;
+		*out++ = '^';
+		*out++ = '{';
+		if (unicode > 0xfffffff)
+			*out++ = hex[(unicode>>28)&15];
+		if (unicode > 0xffffff)
+			*out++ = hex[(unicode>>24)&15];
+		if (unicode > 0xfffff)
+			*out++ = hex[(unicode>>20)&15];
+		if (unicode > 0xffff)
+			*out++ = hex[(unicode>>16)&15];
+		if (unicode > 0xfff)
+			*out++ = hex[(unicode>>12)&15];
+		if (unicode > 0xff)
+			*out++ = hex[(unicode>>8)&15];
+		if (unicode > 0xf)
+			*out++ = hex[(unicode>>4)&15];
+		if (unicode > 0x0)
+			*out++ = hex[(unicode>>0)&15];
+		*out++ = '}';
+		return out - o;
+	}
+	else
+	{	//16bit chars
+		if (maxlen < 6)
+			return 0;
+		*out++ = '^';
+		*out++ = 'U';
+		*out++ = hex[(unicode>>12)&15];
+		*out++ = hex[(unicode>>8)&15];
+		*out++ = hex[(unicode>>4)&15];
+		*out++ = hex[(unicode>>0)&15];
+		return 6;
+	}
+}
+
+unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen)
+{
+	if (com_parseutf8.ival > 0)
+		return utf8_encode(out, unicode, maxlen);
+	else if (com_parseutf8.ival)
+		return iso88591_encode(out, unicode, maxlen);
+	else
+		return qchar_encode(out, unicode, maxlen);
+}
 
 ///=====================================
 
@@ -2291,61 +2400,11 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 			if (ignoreflags && (*str & CON_HIDDEN))
 				continue;
 
-			c = *str++ & 0xffff;
-			if (com_parseutf8.ival > 0)
-			{
-				c = utf8_encode(out, c, outsize);
-				if (!c)
-					break;
-				outsize -= c;
-				out += c;
-			}
-			else if (com_parseutf8.ival)
-			{
-				//iso8859-1
-				if ((c >= 0 && c < 255) || (c >= 0xe000+32 && c < 0xe000+127))	//quake chars between 32 and 127 are identical to iso8859-1
-				{
-					if (!--outsize)
-						break;
-					*out++ = (unsigned char)(c&255);
-				}
-				else	//any other (quake?) char is not iso8859-1
-				{
-					const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-					if (outsize<=6)
-						break;
-					outsize -= 6;
-					*out++ = '^';
-					*out++ = 'U';
-					*out++ = hex[(c>>12)&15];
-					*out++ = hex[(c>>8)&15];
-					*out++ = hex[(c>>4)&15];
-					*out++ = hex[(c>>0)&15];
-				}
-			}
-			else
-			{
-				//quake chars
-				if (c == '\n' || c == '\r' || c == '\t' || (c >= 32 && c < 127) || (c >= 0xe000 && c < 0xe100))	//quake chars between 32 and 127 are identical to iso8859-1
-				{
-					if (!--outsize)
-						break;
-					*out++ = (unsigned char)(c&255);
-				}
-				else	//any other char is not quake
-				{
-					const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-					if (outsize<=6)
-						break;
-					outsize -= 6;
-					*out++ = '^';
-					*out++ = 'U';
-					*out++ = hex[(c>>12)&15];
-					*out++ = hex[(c>>8)&15];
-					*out++ = hex[(c>>4)&15];
-					*out++ = hex[(c>>0)&15];
-				}
-			}
+			c = unicode_encode(out, (*str++ & CON_CHARMASK), outsize-1);
+			if (!c)
+				break;
+			outsize -= c;
+			out += c;
 		}
 		*out = 0;
 	}
@@ -2364,17 +2423,21 @@ static int dehex(int i)
 
 //Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
 //outsize parameter is in _BYTES_ (so sizeof is safe).
-conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup)
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int flags)
 {
 	conchar_t extstack[4];
 	int extstackdepth = 0;
 	unsigned int uc;
 	int utf8 = com_parseutf8.ival;
 	conchar_t linkinitflags = CON_WHITEMASK;/*doesn't need the init, but msvc is stupid*/
+	qboolean keepmarkup = flags & PFS_KEEPMARKUP;
 	qboolean linkkeep = keepmarkup;
 	conchar_t *linkstart = NULL;
 
 	conchar_t ext;
+
+	if (flags & PFS_FORCEUTF8)
+		utf8 = 2;
 
 	outsize /= sizeof(conchar_t);
 	if (!outsize)
@@ -2392,10 +2455,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	if (*str == 1 || *str == 2)
 	{
-		if (com_parseutf8.ival)
-			defaultflags = (defaultflags&~CON_FGMASK) | ((com_highlightcolor.ival&15)<<CON_FGSHIFT);
-		else
-			defaultflags |= CON_HIGHCHARSMASK;
+		defaultflags ^= CON_2NDCHARSETTEXT;
 		str++;
 	}
 
@@ -2416,7 +2476,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			else
 			{
-				if (uc > 0xffff)
+				if (uc > CON_CHARMASK)
 					uc = 0xfffd;
 				if (!--outsize)
 					break;
@@ -2514,21 +2574,9 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 					ext = defaultflags;
 			}
 			else if (str[1] == 'm')
-			{
-				if (com_parseutf8.ival)
-				{
-					if ((ext & CON_FGMASK) != (COLOR_MAGENTA<<CON_FGSHIFT))
-						ext = (ext&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
-					else
-						ext = (ext&~CON_FGMASK) | (CON_WHITEMASK);
-				}
-				else
-					ext ^= CON_HIGHCHARSMASK;
-			}
+				ext ^= CON_2NDCHARSETTEXT;
 			else if (str[1] == 'h')
-			{
 				ext ^= CON_HALFALPHA;
-			}
 			else if (str[1] == 's')	//store on stack (it's great for names)
 			{
 				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
@@ -2557,8 +2605,35 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 					if (!--outsize)
 						break;
-					*out++ = uc | (ext&~CON_HIGHCHARSMASK);
+					*out++ = uc | ext;
 					str += 6;
+
+					continue;
+				}
+			}
+			else if (str[1] == '{')	//unicode (Xbit) char ^{xxxx}
+			{
+				if (!keepmarkup)
+				{
+					int len;
+					uc = 0;
+					for (len = 2; (str[len] >= '0' && str[len] <= '9') || (str[len] >= 'a' && str[len] <= 'f') || (str[len] >= 'A' && str[len] <= 'F'); len++)
+					{
+						uc <<= 4;
+						uc |= dehex(str[len]);
+					}
+
+					//and eat the close too. oh god I hope its there.
+					if (str[len] == '}')
+						len++;
+
+					if (uc > CON_CHARMASK)
+						uc = 0xfffd;
+
+					if (!--outsize)
+						break;
+					*out++ = uc | ext;
+					str += len;
 
 					continue;
 				}
@@ -2569,10 +2644,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				{
 					if (!--outsize)
 						break;
-					if (com_parseutf8.ival)
-						*out++ = (unsigned char)(*str) | ext;
-					else
-						*out++ = (unsigned char)(*str) | ext | 0xe000;
+					*out++ = (unsigned char)(*str) | ext;
 				}
 				str++;
 
@@ -2647,16 +2719,19 @@ messedup:
 			break;
 		uc = (unsigned char)(*str++);
 		if (utf8)
+		{
+			//utf8/iso8859-1 has it easy.
 			*out++ = uc | ext;
+		}
 		else
 		{
 			if (uc == '\n' || uc == '\r' || uc == '\t' || uc == ' ')
-				*out++ = uc | (ext&~CON_HIGHCHARSMASK);
-			else if (uc >= 32 && uc < 127 && !(ext&CON_HIGHCHARSMASK))
 				*out++ = uc | ext;
-			else if (uc >= 0x80+32 && uc < 0x80+127)
-				*out++ = (uc&127) | ext ^ CON_2NDCHARSETTEXT;
-			else
+			else if (uc >= 32 && uc < 127)
+				*out++ = uc | ext;
+			else if (uc >= 0x80+32 && uc <= 0xff)	//anything using high chars is ascii, with the second charset
+				*out++ = ((uc&127) | ext) | CON_2NDCHARSETTEXT;
+			else	//(other) control chars are regular printables in quake, and are not ascii. These ALWAYS use the bitmap/fallback font.
 				*out++ = uc | ext | 0xe000;
 		}
 	}

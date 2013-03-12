@@ -2391,6 +2391,15 @@ client_t *SVC_DirectConnect(void)
 #endif
 		temp.edict = ent;
 
+		{
+			char *reject = SV_CheckRejectConnection(adr, userinfo[0], protocol, protextsupported, protextsupported2, guid);
+			if (reject)
+			{
+				SV_RejectMessage(protocol, "%s", reject);
+				return NULL;
+			}
+		}
+
 		break;
 
 #ifdef Q2SERVER
@@ -3116,10 +3125,10 @@ void SVNQ_ConnectionlessPacket(void)
 						continue;
 					case clc_stringcmd:
 						numnonnops++;
-						Cmd_TokenizeString(MSG_ReadString(), false, false);
-						if (!strcmp("challengeconnect", Cmd_Argv(0)))
+						if (msg_readcount+17 <= net_message.cursize && !strncmp("challengeconnect ", &net_message.data[msg_readcount], 17))
 						{
 							client_t *newcl;
+							Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
 							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
 							Cmd_TokenizeString (str, false, false);
@@ -3131,6 +3140,8 @@ void SVNQ_ConnectionlessPacket(void)
 							/*if there is anything else in the packet, we don't actually care. its reliable, so they'll resend*/
 							return;
 						}
+						else
+							MSG_ReadString();
 						continue;
 					case -1:
 						break;

@@ -678,7 +678,7 @@ void CL_DownloadFinished(void)
 					break;
 				}
 			}
-			for (i = 0; i < MAX_CSQCMODELS; i++)	//go and load this model now.
+			for (i = 0; i < MAX_CSMODELS; i++)	//go and load this model now.
 			{
 				if (!strcmp(cl.model_csqcname[i], filename))
 				{
@@ -1186,7 +1186,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		endstage();
 	}
 
-	for (i=1 ; i<MAX_CSQCMODELS ; i++)
+	for (i=1 ; i<MAX_CSMODELS ; i++)
 	{
 		if (!cl.model_csqcname[i][0])
 			continue;
@@ -4900,7 +4900,23 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 		while ((t = strchr(msg, '{')))
 		{
-			u = strchr(msg, '}');
+			int c;
+			if (t > msg && t[-1] == '^')
+			{
+				for (c = 1; t-c > msg; c++)
+				{
+					if (t[-c] == '^')
+						break;
+				}
+				if (c & 1)
+				{
+					*t = '\0';
+					Q_strncatz(fullchatmessage, va("%s{", msg), sizeof(fullchatmessage));
+					msg = t+1;
+					continue;
+				}
+			}
+			u = strchr(t, '}');
 			if (u)
 			{
 				*t = 0;
@@ -5143,10 +5159,10 @@ void CL_ParsePrecache(void)
 {
 	int i, code = (unsigned short)MSG_ReadShort();
 	char *s = MSG_ReadString();
-	i = code & 0x1fff;
-	switch(code & 0xe000)
+	i = code & ~PC_TYPE;
+	switch(code & PC_TYPE)
 	{
-	case 0x0000:
+	case PC_MODEL:
 		if (i >= 1 && i < MAX_MODELS)
 		{
 			model_t *model;
@@ -5162,9 +5178,9 @@ void CL_ParsePrecache(void)
 		else
 			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
 		break;
-	case 0x4000:
+	case PC_UNUSED:
 		break;
-	case 0x8000:
+	case PC_SOUND:
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
 			sfx_t *sfx;
@@ -5179,10 +5195,17 @@ void CL_ParsePrecache(void)
 		else
 			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
 		break;
-	case 0xC000:
-		if (i >= 1 && i < 1024)
+	case PC_PARTICLE:
+		if (i >= 1 && i < MAX_SSPARTICLESPRE)
 		{
+			if (cl.particle_ssname[i])
+				free(cl.particle_ssname[i]);
+			cl.particle_ssname[i] = strdup(s);
+			cl.particle_ssprecache[i] = 1+P_FindParticleType(s);
+			cl.particle_ssprecaches = true;
 		}
+		else
+			Con_Printf("svc_precache: particle index %i outside range %i...%i\n", i, 1, MAX_SSPARTICLESPRE);
 		break;
 	}
 }

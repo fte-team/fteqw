@@ -112,7 +112,7 @@ private:
 				if (dy > 0)
 				{
 					//if we're moving downwards, we need to write the bottom before the top (so we don't overwrite the data before its copied)
-					for (y = h; y >= 0; y--)
+					for (y = h-1; y >= 0; y--)
 					{
 						memmove(ctx->buffer + (dl + (dt+y)*ctx->width), ctx->buffer + (sl + (st+y)*ctx->width), w*4);
 					}
@@ -244,7 +244,11 @@ static void Dec_GetSize (void *vctx, int *width, int *height)
 static qboolean Dec_SetSize (void *vctx, int width, int height)
 {
 	decctx *ctx = (decctx*)vctx;
-	if (ctx->width == width || ctx->height == height)
+	if (width < 4)
+		width = 4;
+	if (height < 4)
+		height = 4;
+	if (ctx->width == width && ctx->height == height)
 		return qtrue;	//no point
 
 	//there's no resize notification. apparently javascript cannot resize windows. yay.

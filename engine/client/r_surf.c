@@ -2710,7 +2710,7 @@ void Surf_BuildLightmaps (void)
 			break;
 		Surf_BuildModelLightmaps(m);
 	}
-	for (j=1 ; j<MAX_CSQCMODELS ; j++)
+	for (j=1 ; j<MAX_CSMODELS ; j++)
 	{
 		m = cl.model_csqcprecache[j];
 		if (!m)

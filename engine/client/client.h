@@ -630,24 +630,22 @@ typedef struct
 	char		model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
 	char		model_name[MAX_MODELS][MAX_QPATH];
 	char		sound_name[MAX_SOUNDS][MAX_QPATH];
+	char		*particle_ssname[MAX_SSPARTICLESPRE];
 	char		image_name[Q2MAX_IMAGES][MAX_QPATH];
 
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
 	struct model_s		*model_precache[MAX_MODELS];
 	struct sfx_s		*sound_precache[MAX_SOUNDS];
+	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
 
-	char				model_csqcname[MAX_CSQCMODELS][MAX_QPATH];
-	struct model_s		*model_csqcprecache[MAX_CSQCMODELS];
+	char				model_csqcname[MAX_CSMODELS][MAX_QPATH];
+	struct model_s		*model_csqcprecache[MAX_CSMODELS];
+	char				*particle_csname[MAX_CSPARTICLESPRE];
+	int					particle_csprecache[MAX_CSPARTICLESPRE];	//these are actually 1-based, so we can be lazy and do a simple negate.
 
 	qboolean			model_precaches_added;
-
-	struct
-	{
-		int num;
-		char *name;
-	}					*particle_precache;
-	unsigned int		maxparticleprecaches;
-
+	qboolean			particle_ssprecaches;	//says to not try to do any dp-compat hacks.
+	qboolean			particle_csprecaches;	//says to not try to do any dp-compat hacks.
 
 	//used for q2 sky/configstrings
 	char skyname[MAX_QPATH];

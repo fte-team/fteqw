@@ -292,9 +292,13 @@ void COM_ParsePlusSets (void);
 
 typedef unsigned int conchar_t;
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
-conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
+#define PFS_KEEPMARKUP 1
+#define PFS_FORCEUTF8 2
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 unsigned int utf8_decode(int *error, const void *in, char **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
+unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen);
+unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);

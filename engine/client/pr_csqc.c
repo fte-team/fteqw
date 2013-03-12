@@ -559,7 +559,7 @@ static model_t *CSQC_GetModelForIndex(int index)
 		return NULL;
 	else if (index > 0 && index < MAX_MODELS)
 		return cl.model_precache[index];
-	else if (index < 0 && index > -MAX_CSQCMODELS)
+	else if (index < 0 && index > -MAX_CSMODELS)
 	{
 		if (!cl.model_csqcprecache[-index])
 			cl.model_csqcprecache[-index] = Mod_ForName(cl.model_csqcname[-index], false);
@@ -1391,7 +1391,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 	case VF_VIEWPORT:
 		r_refdef.vrect.x = p[0];
 		r_refdef.vrect.y = p[1];
-		p+=3;
+		p = G_VECTOR(OFS_PARM2);
 		r_refdef.vrect.width = p[0];
 		r_refdef.vrect.height = p[1];
 		break;
@@ -1701,7 +1701,7 @@ static int FindModel(char *name, int *free)
 	if (!name || !*name)
 		return 0;
 
-	for (i = 1; i < MAX_CSQCMODELS; i++)
+	for (i = 1; i < MAX_CSMODELS; i++)
 	{
 		if (!*cl.model_csqcname[i])
 		{
@@ -1726,7 +1726,7 @@ static void csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int modelind
 	ent->v->modelindex = modelindex;
 	if (modelindex < 0)
 	{
-		if (modelindex <= -MAX_CSQCMODELS)
+		if (modelindex <= -MAX_CSMODELS)
 			return;
 		ent->v->model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
 		if (!cl.model_csqcprecache[-modelindex])
@@ -1936,6 +1936,7 @@ static void QCBUILTIN PF_cs_pointparticles (pubprogfuncs_t *prinst, struct globa
 	if (prinst->callargc < 4)
 		count = 1;
 
+	effectnum = CL_TranslateParticleFromServer(effectnum);
 	P_RunParticleEffectType(org, vel, count, effectnum);
 }
 
@@ -1950,14 +1951,13 @@ static void QCBUILTIN PF_cs_trailparticles (pubprogfuncs_t *prinst, struct globa
 	{
 		efnum = G_FLOAT(OFS_PARM1);
 		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-
-		efnum = CL_TranslateParticleFromServer(efnum);
 	}
 	else
 	{
 		efnum = G_FLOAT(OFS_PARM0)-1;
 		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 	}
+	efnum = CL_TranslateParticleFromServer(efnum);
 
 	if (!ent->entnum)	//world trails are non-state-based.
 		pe->ParticleTrail(start, end, efnum, 0, NULL);
@@ -1967,8 +1967,35 @@ static void QCBUILTIN PF_cs_trailparticles (pubprogfuncs_t *prinst, struct globa
 
 static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int i;
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
 
+	//use the server's index first.
+	for (i = 1; i < MAX_SSPARTICLESPRE && cl.particle_ssname[i]; i++)
+	{
+		if (!strcmp(cl.particle_ssname[i], effectname))
+		{
+			G_FLOAT(OFS_RETURN) = i;
+			return;
+		}
+	}
+	//use the server's index first.
+	for (i = 1; i < MAX_CSPARTICLESPRE && cl.particle_csname[i]; i++)
+	{
+		if (!strcmp(cl.particle_csname[i], effectname))
+		{
+			G_FLOAT(OFS_RETURN) = -i;
+			return;
+		}
+	}
+	if (i < MAX_CSPARTICLESPRE)
+	{
+		free(cl.particle_csname[i]);
+		cl.particle_csname[i] = NULL;
+		cl.particle_csprecache[i] = 1+P_FindParticleType(effectname);
+		if (cl.particle_csprecache[i])
+			cl.particle_csname[i] = strdup(effectname);
+	}
 	if (csqc_isdarkplaces)
 	{
 		//keep the effectinfo synced between server and client.
@@ -1986,13 +2013,7 @@ static void QCBUILTIN PF_cs_particleeffectquery (pubprogfuncs_t *prinst, struct 
 	qboolean body = G_FLOAT(OFS_PARM1);
 	char retstr[8192];
 
-	if (csqc_isdarkplaces)
-	{
-		//keep the effectinfo synced between server and client.
-		id = CL_TranslateParticleFromServer(id);
-	}
-	else
-		id = id - 1;
+	id = CL_TranslateParticleFromServer(id);
 
 	if (pe->ParticleQuery && pe->ParticleQuery(id, body, retstr, sizeof(retstr)))
 	{
@@ -2370,7 +2391,7 @@ static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalv
 
 	if (pnum < 0 || pnum >= cl.allocated_client_slots)
 		ret = "";
-	else if (!strcmp(keyname, "viewentity"))	//compat with DP. Yes, I know this is in the wrong place.
+	else if (!strcmp(keyname, "viewentity"))	//compat with DP. Yes, I know this is in the wrong place. This is an evil hack.
 	{
 		ret = buffer;
 		sprintf(ret, "%i", pnum+1);
@@ -2388,6 +2409,11 @@ static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalv
 	{
 		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].frags);
+	}
+	else if (!strcmp(keyname, "userid"))
+	{
+		ret = buffer;
+		sprintf(ret, "%i", cl.players[pnum].userid);
 	}
 	else if (!strcmp(keyname, "pl"))	//packet loss
 	{
@@ -4255,7 +4281,7 @@ static struct {
 	{"drawline",	PF_CL_drawline,			315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
 	{"iscachedpic",	PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
 	{"precache_pic",	PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
-	{"draw_getimagesize",	PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
+	{"drawgetimagesize",	PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
 	{"freepic",	PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
 	{"drawcharacter",	PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
@@ -5085,7 +5111,7 @@ void CSQC_RendererRestarted(void)
 
 	csqc_world.worldmodel = cl.worldmodel;
 
-	for (i = 0; i < MAX_CSQCMODELS; i++)
+	for (i = 0; i < MAX_CSMODELS; i++)
 	{
 		cl.model_csqcprecache[i] = NULL;
 	}
@@ -5303,6 +5329,8 @@ qboolean CSQC_DrawView(void)
 	float mintic = 0.01;
 	double clframetime = host_frametime;
 
+	csqc_resortfrags = true;
+
 	if (!csqcg.draw_function || !csqcprogs || !cl.worldmodel)
 		return false;
 
@@ -5340,8 +5368,6 @@ qboolean CSQC_DrawView(void)
 	DropPunchAngle (0);
 	if (cl.worldmodel)
 		R_LessenStains();
-
-	csqc_resortfrags = true;
 
 	if (!cl.paused)
 	{

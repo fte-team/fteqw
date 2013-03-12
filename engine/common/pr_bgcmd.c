@@ -3994,7 +3994,7 @@ void PR_AutoCvar(pubprogfuncs_t *prinst, cvar_t *var)
 	}
 }
 
-void PDECL PR_FoundPrefixedGlobals(pubprogfuncs_t *progfuncs, char *name, eval_t *val, etype_t type)
+void PDECL PR_FoundAutoCvarGlobal(pubprogfuncs_t *progfuncs, char *name, eval_t *val, etype_t type)
 {
 	cvar_t *var;
 	char *vals;
@@ -4009,13 +4009,13 @@ void PDECL PR_FoundPrefixedGlobals(pubprogfuncs_t *progfuncs, char *name, eval_t
 		if(nlen >= 2 && name[nlen-2] == '_' && (name[nlen-1] == 'x' || name[nlen-1] == 'y' || name[nlen-1] == 'z'))
 			return;
 
-		vals = va("%f", val->_float);
+		vals = va("%g", val->_float);
 		break;
 	case ev_integer:
 		vals = va("%i", val->_int);
 		break;
 	case ev_vector:
-		vals = va("%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
+		vals = va("%g %g %g", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	case ev_string:
 		vals = PR_GetString(progfuncs, val->string);
@@ -4035,7 +4035,7 @@ void PDECL PR_FoundPrefixedGlobals(pubprogfuncs_t *progfuncs, char *name, eval_t
 
 void PR_AutoCvarSetup(pubprogfuncs_t *prinst)
 {
-	prinst->FindPrefixGlobals (prinst, "autocvar_", PR_FoundPrefixedGlobals);
+	prinst->FindPrefixGlobals (prinst, "autocvar_", PR_FoundAutoCvarGlobal);
 }
 
 lh_extension_t QSG_Extensions[] = {

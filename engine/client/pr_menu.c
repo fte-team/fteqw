@@ -674,6 +674,10 @@ static void QCBUILTIN PF_menu_cvar (pubprogfuncs_t *prinst, struct globalvars_s 
 		G_FLOAT(OFS_RETURN) = vid.width;
 	else if (!strcmp(str, "vid_conheight"))
 		G_FLOAT(OFS_RETURN) = vid.height;
+	else if (!strcmp(str, "vid_pixwidth"))
+		G_FLOAT(OFS_RETURN) = vid.pixelwidth;
+	else if (!strcmp(str, "vid_pixheight"))
+		G_FLOAT(OFS_RETURN) = vid.pixelheight;
 	else
 	{
 		str = RemapCvarNameFromDPToFTE(str);
@@ -884,6 +888,7 @@ static void QCBUILTIN PF_Remove_ (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (ed->isfree)
 	{
 		Con_DPrintf("Tried removing free entity\n");
+		PR_StackTrace(prinst);
 		return;
 	}
 
@@ -1899,11 +1904,36 @@ void MP_Reload_f(void)
 	M_Reinit();
 }
 
+void MP_Breakpoint_f(void)
+{
+	int wasset;
+	int isset;
+	char *filename = Cmd_Argv(1);
+	int line = atoi(Cmd_Argv(2));
+
+	if (!menuprogs)
+	{
+		Con_Printf("Menu not running\n");
+		return;
+	}
+	wasset = menuprogs->ToggleBreak(menuprogs, filename, line, 3);
+	isset = menuprogs->ToggleBreak(menuprogs, filename, line, 2);
+
+	if (wasset == isset)
+		Con_Printf("Breakpoint was not valid\n");
+	else if (isset)
+		Con_Printf("Breakpoint has been set\n");
+	else
+		Con_Printf("Breakpoint has been cleared\n");
+
+}
+
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_restart", MP_Reload_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
+	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);

@@ -2463,6 +2463,7 @@ void SV_SendClientMessages (void)
 #pragma optimize( "", on )
 #endif
 
+void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 
 void DemoWriteQTVTimePad(int msecs);
 #define Max(a, b) ((a>b)?a:b)
@@ -2618,29 +2619,34 @@ void SV_SendMVDMessage(void)
 	if (!demo.recorder.delta_sequence)
 		demo.recorder.delta_sequence = -1;
 
-	SV_WriteEntitiesToClient (&demo.recorder, &msg, true);
-
-	dmsg = MVDWrite_Begin(dem_all, 0, msg.cursize);
-	SZ_Write (dmsg, msg.data, msg.cursize);
 	// copy the accumulated multicast datagram
 	// for this client out to the message
-	if (demo.datagram.cursize)
+	if (demo.datagram.cursize && sv.mvdrecording)
 	{
 		dmsg = MVDWrite_Begin(dem_all, 0, demo.datagram.cursize);
 		SZ_Write (dmsg, demo.datagram.data, demo.datagram.cursize);
 		SZ_Clear (&demo.datagram);
 	}
 
-	demo.recorder.delta_sequence = demo.recorder.netchan.incoming_sequence&255;
-	demo.recorder.netchan.incoming_sequence++;
-	demo.frames[demo.parsecount&DEMO_FRAMES_MASK].time = demo.time = sv.time;
-
-	if (demo.parsecount - demo.lastwritten > 60) // that's a backup of 3sec in 20fps, should be enough
+	while (demo.lastwritten < demo.parsecount-1 && sv.mvdrecording)
 	{
 		SV_MVDWritePackets(1);
 	}
 
+	demo.recorder.delta_sequence = demo.recorder.netchan.incoming_sequence&255;
+	demo.recorder.netchan.incoming_sequence++;
+	demo.frames[demo.parsecount&DEMO_FRAMES_MASK].time = demo.time = sv.time;
+
+	if (sv.mvdrecording)
+	{
+		SV_WriteEntitiesToClient (&demo.recorder, &msg, true);
+		SV_WriteMVDMessage(&msg, dem_all, 0, sv.time);
+//		dmsg = MVDWrite_Begin(dem_all, 0, msg.cursize);
+//		SZ_Write (dmsg, msg.data, msg.cursize);
+	}
+
 	demo.parsecount++;
+
 //	MVDSetMsgBuf(demo.dbuf,&demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf);
 }
 

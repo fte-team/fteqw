@@ -639,7 +639,7 @@ void CL_CalcClientTime(void)
 	{
 		float oldst = realtime;
 
-		if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
+		if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 		{
 			extern float nextdemotime, olddemotime, demtime;
 			float f;

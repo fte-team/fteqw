@@ -39,7 +39,7 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_BLINKTEXT		0x00040000
 #define CON_2NDCHARSETTEXT	0x00020000
 #define CON_RICHFORECOLOUR	0x00010000	//
-#define CON_HIGHCHARSMASK	0x00000080 // Quake's alternative mask
+//#define CON_HIGHCHARSMASK	0x00000080 // Quake's alternative mask
 
 #define CON_FLAGSMASK		0xFFFF0000
 #define CON_CHARMASK		0x0000FFFF

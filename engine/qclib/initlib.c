@@ -393,7 +393,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 {
 	prinst.addressableused = 0;
-	if (totalammount < 0)	//flush
+	if (totalammount <= 0)	//flush
 	{
 		totalammount = prinst.addressablesize;
 //		return;

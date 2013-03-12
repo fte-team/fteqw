@@ -2052,7 +2052,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, char *file, float killonspawnflags)
 					printf("Unable to alloc %i bytes\n", pr_progstate[0].globals_size);
 			}
 
-			PRAddressableFlush(progfuncs, -1);
+			PRAddressableFlush(progfuncs, 0);
 			resethunk=true;
 
 			pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * maxprogs, "progstatetable");

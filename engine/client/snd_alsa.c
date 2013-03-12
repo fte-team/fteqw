@@ -53,9 +53,11 @@ int (*psnd_pcm_sw_params_set_stop_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_
 int (*psnd_pcm_sw_params)			(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
 int (*psnd_pcm_hw_params_get_buffer_size)	(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
 int (*psnd_pcm_hw_params_set_buffer_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
+int (*psnd_pcm_set_params)			(snd_pcm_t *pcm, snd_pcm_format_t format, snd_pcm_access_t access, unsigned int channels, unsigned int rate, int soft_resample, unsigned int latency);
 snd_pcm_sframes_t (*psnd_pcm_avail_update)	(snd_pcm_t *pcm);
 snd_pcm_state_t (*psnd_pcm_state)		(snd_pcm_t *pcm);
 int (*psnd_pcm_start)				(snd_pcm_t *pcm);
+int (*psnd_pcm_recover)				(snd_pcm_t *pcm, int err, int silent);
 
 size_t (*psnd_pcm_hw_params_sizeof)		(void);
 size_t (*psnd_pcm_sw_params_sizeof)		(void);
@@ -113,6 +115,12 @@ static unsigned int ALSA_RW_GetDMAPos (soundcardinfo_t *sc)
 {
 	int frames;
 	frames = psnd_pcm_avail_update(sc->handle);
+	if (frames < 0)
+	{
+		psnd_pcm_start (sc->handle);
+		psnd_pcm_recover(sc->handle, frames, true);
+		frames = psnd_pcm_avail_update(sc->handle);
+	}
 	if (frames >= 0)
 	{
 		sc->sn.samplepos = (sc->snd_sent + frames) * sc->sn.numchannels;
@@ -121,45 +129,47 @@ static unsigned int ALSA_RW_GetDMAPos (soundcardinfo_t *sc)
 }
 static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
 {
-	int			state;
+//	int			state;
 	unsigned int frames, offset, ringsize;
 	unsigned chunk;
 	int result;
 	int stride = sc->sn.numchannels * (sc->sn.samplebits/8);
 
-	/*we can't change the data that was already written*/
-	frames = end - sc->snd_sent;
-	if (!frames)
-		return;
-
-	state = psnd_pcm_state (sc->handle);
-
-	ringsize = sc->sn.samples / sc->sn.numchannels;
-
-	chunk = frames;
-	offset = sc->snd_sent % ringsize;
-
-	if (offset + chunk >= ringsize)
-		chunk = ringsize - offset;
-	result = psnd_pcm_writei(sc->handle, sc->sn.buffer + offset*stride, chunk);
-	if (result < chunk)
+	while(1)
 	{
-		if (result >= 0)
-			sc->snd_sent += result;
-		return;
-	}
-	sc->snd_sent += chunk;
+		/*we can't change the data that was already written*/
+		frames = end - sc->snd_sent;
+		if (frames <= 0)
+			return;
 
-	chunk = frames - chunk;
-	if (chunk)
-	{
-		result = psnd_pcm_writei(sc->handle, sc->sn.buffer, chunk);
-		if (result > 0)
-			sc->snd_sent += result;
-	}
+//		state = psnd_pcm_state (sc->handle);
 
-	if (state == SND_PCM_STATE_PREPARED)
-		psnd_pcm_start (sc->handle);
+		ringsize = sc->sn.samples / sc->sn.numchannels;
+
+		chunk = frames;
+		offset = sc->snd_sent % ringsize;
+
+		if (offset + chunk >= ringsize)
+			chunk = ringsize - offset;
+		result = psnd_pcm_writei(sc->handle, sc->sn.buffer + offset*stride, chunk);
+		if (result < chunk)
+		{
+			if (result < 0)
+				return;
+		}
+		sc->snd_sent += chunk;
+
+		chunk = frames - chunk;
+		if (chunk)
+		{
+			result = psnd_pcm_writei(sc->handle, sc->sn.buffer, chunk);
+			if (result > 0)
+				sc->snd_sent += result;
+		}
+
+//		if (state == SND_PCM_STATE_PREPARED)
+//			psnd_pcm_start (sc->handle);
+	};
 }
 
 static void ALSA_Shutdown (soundcardinfo_t *sc)
@@ -221,6 +231,8 @@ static qboolean Alsa_InitAlsa(void)
 	psnd_pcm_avail_update			= dlsym(alsasharedobject, "snd_pcm_avail_update");
 	psnd_pcm_state				= dlsym(alsasharedobject, "snd_pcm_state");
 	psnd_pcm_start				= dlsym(alsasharedobject, "snd_pcm_start");
+	psnd_pcm_recover			= dlsym(alsasharedobject, "snd_pcm_recover");
+	psnd_pcm_set_params			= dlsym(alsasharedobject, "snd_pcm_set_params");
 	psnd_pcm_hw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_hw_params_sizeof");
 	psnd_pcm_sw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_sw_params_sizeof");
 	psnd_pcm_hw_params_set_buffer_size_near = dlsym(alsasharedobject, "snd_pcm_hw_params_set_buffer_size_near");
@@ -314,8 +326,24 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 	Con_Printf ("ALSA: Using PCM %s.\n", pcmname);
 
+#if 1
+	err = psnd_pcm_set_params(pcm, ((sc->sn.samplebits==8)?SND_PCM_FORMAT_U8:SND_PCM_FORMAT_S16), (mmap?SND_PCM_ACCESS_MMAP_INTERLEAVED:SND_PCM_ACCESS_RW_INTERLEAVED), sc->sn.numchannels, sc->sn.speed, true, 0.04*1000000);
+	if (0 > err)
+	{
+		Con_Printf (CON_ERROR "ALSA: error setting params. %s\n",
+					psnd_strerror (err));
+		goto error;
+	}
+
+//	sc->sn.numchannels = stereo;
+//	sc->sn.samplepos = 0;
+//	sc->sn.samplebits = bps;
+
+	sc->samplequeue = buffer_size = 2048;
+#else	
 	err = psnd_pcm_hw_params_any (pcm, hw);
-	if (0 > err) {
+	if (0 > err)
+	{
 		Con_Printf (CON_ERROR "ALSA: error setting hw_params_any. %s\n",
 					psnd_strerror (err));
 		goto error;
@@ -401,7 +429,8 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		frag_size = 8 * bps;
 
 	err = psnd_pcm_hw_params_set_period_size_near (pcm, hw, &frag_size, 0);
-	if (0 > err) {
+	if (0 > err)
+	{
 		Con_Printf (CON_ERROR "ALSA: unable to set period size near %i. %s\n",
 					(int) frag_size, psnd_strerror (err));
 		goto error;
@@ -458,9 +487,10 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 					psnd_strerror (err));
 		goto error;
 	}
+	sc->sn.speed = rate;
+#endif
 
 	sc->sn.samples = buffer_size * sc->sn.numchannels;		// mono samples in buffer
-	sc->sn.speed = rate;
 	sc->handle = pcm;
 
 	sc->Lock		= ALSA_LockBuffer;

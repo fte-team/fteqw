@@ -1047,7 +1047,7 @@ void SQL_Killall_f (void)
 	SQL_KillServers();
 }
 
-void SQL_ServerCycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void SQL_ServerCycle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 

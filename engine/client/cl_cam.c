@@ -571,22 +571,25 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 		nb |= (cmd->forwardmove>0)?32:0;
 		nb |= (cmd->upmove<0)?64:0;
 		nb |= (cmd->upmove>0)?128:0;
-		if (nb & (nb ^ oldbuttons[pnum]) & 4)
-			Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
-		if (nb & (nb ^ oldbuttons[pnum]) & 8)
-			Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
-		if (nb & (nb ^ oldbuttons[pnum]) & (4|8))
-			Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
-		if (nb & (nb ^ oldbuttons[pnum]) & 16)
-			Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
-		if (nb & (nb ^ oldbuttons[pnum]) & 32)
-			Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);
-		if (nb & (nb ^ oldbuttons[pnum]) & (4|8))
-			Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
-		if (nb & (nb ^ oldbuttons[pnum]) & 64)
-			Cvar_SetValue(&cl_splitscreen, max(cl_splitscreen.ival - 1, 0));
-		if (nb & (nb ^ oldbuttons[pnum]) & 128)
-			Cvar_SetValue(&cl_splitscreen, min(cl_splitscreen.ival + 1, MAX_SPLITS-1));
+		if (Cam_TrackNum(pnum) >= 0)
+		{
+			if (nb & (nb ^ oldbuttons[pnum]) & 4)
+				Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
+			if (nb & (nb ^ oldbuttons[pnum]) & 8)
+				Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
+			if (nb & (nb ^ oldbuttons[pnum]) & (4|8))
+				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+			if (nb & (nb ^ oldbuttons[pnum]) & 16)
+				Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
+			if (nb & (nb ^ oldbuttons[pnum]) & 32)
+				Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);
+			if (nb & (nb ^ oldbuttons[pnum]) & (4|8))
+				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+			if (nb & (nb ^ oldbuttons[pnum]) & 64)
+				Cvar_SetValue(&cl_splitscreen, max(cl_splitscreen.ival - 1, 0));
+			if (nb & (nb ^ oldbuttons[pnum]) & 128)
+				Cvar_SetValue(&cl_splitscreen, min(cl_splitscreen.ival + 1, MAX_SPLITS-1));
+		}
 		oldbuttons[pnum] = (oldbuttons[pnum] & 3) | (nb & ~3);
 		if (cmd->impulse)
 		{

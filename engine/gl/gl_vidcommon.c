@@ -525,7 +525,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qglRenderbufferStorageEXT	= NULL;
 	qglFramebufferTexture2DEXT	= NULL;
 
-	gl_config.arb_texture_non_power_of_two = false;
+	r_config.texture_non_power_of_two = false;
 	gl_config.sgis_generate_mipmap = false;
 
 	gl_config.tex_env_combine = false;
@@ -551,7 +551,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 
 	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two") || GL_CheckExtension("GL_OES_texture_npot"))
-		gl_config.arb_texture_non_power_of_two = true;
+		r_config.texture_non_power_of_two = true;
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
 

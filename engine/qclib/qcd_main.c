@@ -156,8 +156,9 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 }
 #endif
 
-char *filefromprogs(progfuncs_t *progfuncs, progsnum_t prnum, char *fname, int *size, char *buffer)
+char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, int *size, char *buffer)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int num;
 	includeddatafile_t *s;
 	if (!pr_progstate[prnum].progs)

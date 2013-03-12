@@ -1529,12 +1529,13 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
 {	//quad marks a full, independant quad
 	int p;
+	float r;
 	fragmentdecal_t dec;
 
 	VectorCopy(center, dec.center);
 	VectorCopy(normal, dec.normal);
-	dec.radius = size/2;
 	dec.numtris = 0;
+	dec.radius = 0;
 
 	VectorCopy(tangent1,	dec.planenorm[0]);
 	VectorNegate(tangent1,	dec.planenorm[1]);
@@ -1543,7 +1544,14 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 	VectorCopy(dec.normal,		dec.planenorm[4]);
 	VectorNegate(dec.normal,	dec.planenorm[5]);
 	for (p = 0; p < 6; p++)
-		dec.planedist[p] = -(dec.radius - DotProduct(dec.center, dec.planenorm[p]));
+	{
+		r = sqrt(DotProduct(dec.planenorm[p], dec.planenorm[p]));
+		VectorScale(dec.planenorm[p], 1/r, dec.planenorm[p]);
+		r*= size/2;
+		if (r > dec.radius)
+			dec.radius = r;
+		dec.planedist[p] = -(r - DotProduct(dec.center, dec.planenorm[p]));
+	}
 	dec.numplanes = 6;
 
 	sh_shadowframe++;

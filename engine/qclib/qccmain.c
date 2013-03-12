@@ -6,6 +6,7 @@
 #ifdef _WIN32
 #include <direct.h>
 #endif
+#include <time.h>
 
 #include "errno.h"
 
@@ -17,7 +18,6 @@ extern int optres_test1;
 extern int optres_test2;
 
 int writeasm;
-static pbool pr_werror;
 pbool verbose;
 
 
@@ -45,6 +45,7 @@ int numtemps;
 char sourcefileslist[MAXSOURCEFILESLIST][1024];
 int currentsourcefile;
 int numsourcefiles;
+extern char *compilingfile;
 
 void QCC_PR_ResetErrorScope(void);
 
@@ -105,7 +106,7 @@ hashtable_t stringconstdefstable;
 hashtable_t stringconstdefstable_trans;
 extern int dotranslate_count;
 
-pbool qccwarningdisabled[WARN_MAX];
+unsigned char qccwarningaction[WARN_MAX];	//0 = disabled, 1 = warn, 2 = error.
 
 qcc_targetformat_t qcc_targetformat;
 
@@ -121,22 +122,48 @@ struct {
 	int index;
 } warningnames[] =
 {
-	{"Q302", WARN_NOTREFERENCED},
 //	{"", WARN_NOTREFERENCEDCONST},
 //	{"", WARN_CONFLICTINGRETURNS},
-	{"Q105", WARN_TOOFEWPARAMS},
-	{"Q101", WARN_TOOMANYPARAMS},
+	{" Q100", WARN_PRECOMPILERMESSAGE},
+	{" Q101", WARN_TOOMANYPARAMS},
+	//102: Indirect function: too many parameters
+	//103: vararg func cannot have more than 
+	//104: type mismatch on parm %i
+	{" Q105", WARN_TOOFEWPARAMS},
 //	{"", WARN_UNEXPECTEDPUNCT},
-	{"Q106", WARN_ASSIGNMENTTOCONSTANT},
-	{"Q203", WARN_MISSINGRETURNVALUE},
-	{"Q204", WARN_WRONGRETURNTYPE},
-	{"Q205", WARN_POINTLESSSTATEMENT},
-	{"Q206", WARN_MISSINGRETURN},
-	{"Q207", WARN_DUPLICATEDEFINITION},
-	{"Q100", WARN_PRECOMPILERMESSAGE},
+	{" Q106", WARN_ASSIGNMENTTOCONSTANT},
+	//107: Array index should be type int
+	//108: Mixed float and int types
+	//109: Expecting int, float a parameter found
+	//110: Expecting int, float b parameter found
+	//112: Null 'if' statement
+	//113: Null 'else' statement
+	//114: Type mismatch on redeclaration 
+	//115: redeclared with different number of parms 
+	//116: Local %s redeclared
+	//117: too many initializers
+	//118: Too many closing braces
+	//119: Too many #endifs
+	{" Q120", WARN_BADPRAGMA},
+	//121: unknown directive
+	//122: strofs exceeds limit
+	//123: numstatements exceeds limit 
+	//124: numfunctions exceeds limit 
+	//125: numglobaldefs exceeds limit 
+	//126: numfielddefs exceeds limit 
+	//127: numpr_globals exceeds limit 
+	//128: rededeclared with different parms 
+	{" Q203", WARN_MISSINGRETURNVALUE},
+	{" Q204", WARN_WRONGRETURNTYPE},
+	{" Q205", WARN_POINTLESSSTATEMENT},
+	{" Q206", WARN_MISSINGRETURN},
+	{" Q207", WARN_DUPLICATEDEFINITION},	//redeclared different scope
+	{" Q208", WARN_SYSTEMCRC},
 //	{"", WARN_STRINGTOOLONG},
 //	{"", WARN_BADTARGET},
-	{"Q120", WARN_BADPRAGMA},
+	//301: %s defined as local in %s
+	{" Q302", WARN_NOTREFERENCED},			//302: Unreferenced local variable %s from line %i
+	//401: In function %s parameter %s is unused
 //	{"", WARN_HANGINGSLASHR},
 //	{"", WARN_NOTDEFINED},
 //	{"", WARN_SWITCHTYPEMISMATCH},
@@ -145,18 +172,41 @@ struct {
 //	{"", WARN_ENUMFLAGS_NOTINTEGER},
 //	{"", WARN_ENUMFLAGS_NOTBINARY},
 //	{"", WARN_CASEINSENSATIVEFRAMEMACRO},
-	{"Q111", WARN_DUPLICATELABEL},
-	{"Q201", WARN_ASSIGNMENTINCONDITIONAL},
-	{"F300", WARN_DEADCODE},
+	{" Q111", WARN_DUPLICATELABEL},
+	{" Q201", WARN_ASSIGNMENTINCONDITIONAL},
+	{" F300", WARN_DEADCODE},
+
+	//frikqcc errors
+	//Q608: PrecacheSound: numsounds
+	//Q609: PrecacheModels: nummodels
+	//Q610: PrecacheFile: numfiles
+	//Q611: Bad parm order
+	//Q612: PR_CompileFile: Didn't clear (internal error)
+	//Q614: PR_DefForFieldOfs: couldn't find
+	//Q613: Error writing error.log
+	//Q615: Error writing
+	//Q616: No function named
+	//Q617: Malloc failure
+	//Q618: Ran out of mem pointer space (malloc failure again)
 	{NULL}
 };
 
+char *QCC_NameForWarning(int idx)
+{
+	int i;
+	for (i = 0; warningnames[i].name; i++)
+	{
+		if (warningnames[i].index == idx)
+			return warningnames[i].name;
+	}
+	return NULL;
+}
 int QCC_WarningForName(char *name)
 {
 	int i;
 	for (i = 0; warningnames[i].name; i++)
 	{
-		if (!stricmp(name, warningnames[i].name))
+		if (!stricmp(name, warningnames[i].name+1))
 			return warningnames[i].index;
 	}
 	return -1;
@@ -266,6 +316,7 @@ struct {
 	{QCF_KK7,		"version7"},
 	{QCF_KK7,		"kkqwsv"},
 	{QCF_FTE,		"fte"},
+	{QCF_FTEH2,		"fteh2"},
 	{QCF_DARKPLACES,"darkplaces"},
 	{QCF_DARKPLACES,"dp"},
 	{QCF_QTEST,		"qtest"},
@@ -617,23 +668,29 @@ pbool QCC_WriteData (int crc)
 			printf("Forcing target to FTE32 due to numpr_globals\n");
 			outputsttype = PST_FTE32;
 		}
+		else if (qcc_targetformat == QCF_FTEH2)
+		{
+			printf("Progs execution will require FTE\n");
+			break;
+		}
 		else if (qcc_targetformat == QCF_HEXEN2)
 		{
-			printf("Progs execution requires a Hexen2 compatible engine\n");
+			printf("Progs execution requires a Hexen2 compatible HCVM\n");
 			break;
 		}
 		else
 		{
 			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
-				printf("An enhanced executor will be required (FTE/QF/KK)\n");
+				printf("An enhanced QCVM will be required (FTE/QF/KK)\n");
 			else
-				printf("Progs should run on any Quake executor\n");
+				printf("Progs should run on any QuakeC VM\n");
 			break;
 		}
-		//intentional
-		qcc_targetformat = QCF_FTE;
+		qcc_targetformat = (qcc_targetformat==QCF_HEXEN2)?QCF_FTEH2:QCF_FTE;
+		//intentional fallthrough
 	case QCF_FTEDEBUG:
 	case QCF_FTE:
+	case QCF_FTEH2:
 	case QCF_DARKPLACES:
 		if (qcc_targetformat == QCF_FTEDEBUG)
 			debugtarget = true;
@@ -950,7 +1007,7 @@ strofs = (strofs+3)&~3;
 	progs.ofs_statements = SafeSeek (h, 0, SEEK_CUR);
 	progs.numstatements = numstatements;
 
-	if (qcc_targetformat == QCF_HEXEN2)
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
 	{
 		for (i=0 ; i<numstatements ; i++)
 		{
@@ -1746,7 +1803,6 @@ int QCC_PR_FinishCompilation (void)
 //			if (!f || (!f->code && !f->builtin) )
 			if (d->initialized==0)
 			{
-				s_file = d->s_file;
 				if (!strncmp(d->name, "ArrayGet*", 9))
 				{
 					QCC_PR_EmitArrayGetFunction(d, d->name+9);
@@ -1764,12 +1820,11 @@ int QCC_PR_FinishCompilation (void)
 				}
 				else
 				{
-					QCC_PR_ParseWarning(ERR_NOFUNC, "function %s was not defined",d->name);
+					QCC_PR_Warning(ERR_NOFUNC, strings + d->s_file, d->s_line, "function %s has no body",d->name);
 					QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
 					bodylessfuncs = true;
 					errors = true;
 				}
-				s_file = 0;
 //				errors = true;
 			}
 			else if (d->initialized==2)
@@ -1916,7 +1971,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	//ADD3: crc but don't dump
 
 	ADD("\n/* ");
-	if (qcc_targetformat == QCF_HEXEN2)
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
 		ADD3("generated by hcc, do not modify");
 	else
 		ADD3("file generated by qcc, do not modify");
@@ -2084,10 +2139,10 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		break;
 	case 17105:
 	case 32199:	//outdated ext_csqc
-		printf("Recognised progs as outdated CSQC module\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "Recognised progs as outdated CSQC module\n");
 		break;
-	case 52195:
-		printf("Recognised progs as outdated CSQC module\n");
+	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
+		printf("Recognised progs as DP-specific CSQC module\n");
 		break;
 	case 10020:
 		if (verbose)
@@ -2095,10 +2150,10 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		break;
 
 	case 32401:
-		printf("Warning: please update your tenebrae system defs.\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "Warning: please update your tenebrae system defs.\n");
 		break;
 	default:
-		printf("Warning: progs CRC not recognised from quake nor clones\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "Warning: progs CRC not recognised from quake nor clones\n");
 		break;
 	}
 
@@ -2514,8 +2569,9 @@ void QCC_CopyFiles (void)
 void QCC_PR_CommandLinePrecompilerOptions (void)
 {
 	CompilerConstant_t *cnst;
-	int             i, p;
+	int             i, j, p;
 	char *name, *val;
+	pbool werror = false;
 
 	for (i = 1;i<myargc;i++)
 	{
@@ -2641,55 +2697,70 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		else if ( !strnicmp(myargv[i], "-W", 2) || !strnicmp(myargv[i], "/W", 2) )
 		{
 			if (!stricmp(myargv[i]+2, "all"))
-				memset(qccwarningdisabled, 0, sizeof(qccwarningdisabled));
+			{
+				for (j = 0; j < ERR_PARSEERRORS; j++)
+					qccwarningaction[j] = WA_WARN;
+			}
 			else if (!stricmp(myargv[i]+2, "none"))
-				memset(qccwarningdisabled, 1, sizeof(qccwarningdisabled));
+			{
+				for (j = 0; j < ERR_PARSEERRORS; j++)
+					qccwarningaction[j] = WA_IGNORE;
+			}
 			else if(!stricmp(myargv[i]+2, "error"))
-				pr_werror = true;
+			{
+				werror = true;
+			}
 			else if (!stricmp(myargv[i]+2, "no-mundane"))
 			{	//disable mundane performance/efficiency/blah warnings that don't affect code.
-				qccwarningdisabled[WARN_SAMENAMEASGLOBAL] = true;
-				qccwarningdisabled[WARN_DUPLICATEDEFINITION] = true;
-				qccwarningdisabled[WARN_CONSTANTCOMPARISON] = true;
-				qccwarningdisabled[WARN_ASSIGNMENTINCONDITIONAL] = true;
-				qccwarningdisabled[WARN_DEADCODE] = true;
-				qccwarningdisabled[WARN_NOTREFERENCEDCONST] = true;
-				qccwarningdisabled[WARN_NOTREFERENCED] = true;
-				qccwarningdisabled[WARN_POINTLESSSTATEMENT] = true;
-				qccwarningdisabled[WARN_ASSIGNMENTTOCONSTANTFUNC] = true;
-				qccwarningdisabled[WARN_BADPRAGMA] = true;	//C specs say that these should be ignored. We're close enough to C that I consider that a valid statement.
-				qccwarningdisabled[WARN_IDENTICALPRECOMPILER] = true;
-				qccwarningdisabled[WARN_UNDEFNOTDEFINED] = true;
-				qccwarningdisabled[WARN_FIXEDRETURNVALUECONFLICT] = true;
-				qccwarningdisabled[WARN_EXTRAPRECACHE] = true;
-				qccwarningdisabled[WARN_CORRECTEDRETURNTYPE] = true;
+				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;
+				qccwarningaction[WARN_DUPLICATEDEFINITION] = WA_IGNORE;
+				qccwarningaction[WARN_CONSTANTCOMPARISON] = WA_IGNORE;
+				qccwarningaction[WARN_ASSIGNMENTINCONDITIONAL] = WA_IGNORE;
+				qccwarningaction[WARN_DEADCODE] = WA_IGNORE;
+				qccwarningaction[WARN_NOTREFERENCEDCONST] = WA_IGNORE;
+				qccwarningaction[WARN_NOTREFERENCED] = WA_IGNORE;
+				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;
+				qccwarningaction[WARN_ASSIGNMENTTOCONSTANTFUNC] = WA_IGNORE;
+				qccwarningaction[WARN_BADPRAGMA] = WA_IGNORE;	//C specs say that these should be ignored. We're close enough to C that I consider that a valid statement.
+				qccwarningaction[WARN_IDENTICALPRECOMPILER] = WA_IGNORE;
+				qccwarningaction[WARN_UNDEFNOTDEFINED] = WA_IGNORE;
+				qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
+				qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
+				qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
 			}
 			else
 			{
-				p = 0;
-				if (!strnicmp(myargv[i]+2, "no-", 3))
+				p = -1;
+				if (!strnicmp(myargv[i]+2, "error-", 6))
 				{
-					for (p = 0; warningnames[p].name; p++)
-						if (!strcmp(myargv[i]+5, warningnames[p].name))
-						{
-							qccwarningdisabled[warningnames[p].index] = true;
-							break;
-						}
+					p = QCC_WarningForName(myargv[i]+8);
+					if (p >= 0)
+						qccwarningaction[p] = WA_ERROR;
+				}
+				else if (!strnicmp(myargv[i]+2, "no-", 3))
+				{
+					p = QCC_WarningForName(myargv[i]+5);
+					if (p >= 0)
+						qccwarningaction[p] = WA_IGNORE;
 				}
 				else
 				{
-					for (p = 0; warningnames[p].name; p++)
-						if (!stricmp(myargv[i]+2, warningnames[p].name))
-						{
-							qccwarningdisabled[warningnames[p].index] = false;
-							break;
-						}
+					p = QCC_WarningForName(myargv[i]+2);
+					if (p >= 0)
+						qccwarningaction[p] = WA_WARN;
 				}
 
-				if (!warningnames[p].name)
+				if (p < 0)
 					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised warning parameter (%s)", myargv[i]);
 			}
 		}
+	}
+
+	if (werror)
+	{
+		for (j = 0; j < ERR_PARSEERRORS; j++)
+			if (qccwarningaction[j])
+				qccwarningaction[j] = WA_ERROR;
 	}
 }
 
@@ -2773,6 +2844,8 @@ void QCC_SetDefaultProperties (void)
 		qcc_targetformat = QCF_HEXEN2;
 	else if (QCC_CheckParm ("-fte"))
 		qcc_targetformat = QCF_FTE;
+	else if (QCC_CheckParm ("-fteh2"))
+		qcc_targetformat = QCF_FTEH2;
 	else if (QCC_CheckParm ("-dp"))
 		qcc_targetformat = QCF_DARKPLACES;
 	else
@@ -2780,36 +2853,32 @@ void QCC_SetDefaultProperties (void)
 
 
 	//enable all warnings
-	memset(qccwarningdisabled, 0, sizeof(qccwarningdisabled));
+	for (i = 0; i < ERR_PARSEERRORS; i++)
+		qccwarningaction[i] = WA_WARN;
+	for (; i < WARN_MAX; i++)
+		qccwarningaction[i] = WA_ERROR;
 
 	//play with default warnings.
-	qccwarningdisabled[WARN_NOTREFERENCEDCONST] = true;
-	qccwarningdisabled[WARN_MACROINSTRING] = true;
-//	qccwarningdisabled[WARN_ASSIGNMENTTOCONSTANT] = true;
-	qccwarningdisabled[WARN_FIXEDRETURNVALUECONFLICT] = true;
-	qccwarningdisabled[WARN_EXTRAPRECACHE] = true;
-	qccwarningdisabled[WARN_DEADCODE] = true;
-	qccwarningdisabled[WARN_INEFFICIENTPLUSPLUS] = true;
-	qccwarningdisabled[WARN_FTE_SPECIFIC] = true;
-	qccwarningdisabled[WARN_EXTENSION_USED] = true;
-	qccwarningdisabled[WARN_IFSTRING_USED] = true;
-	qccwarningdisabled[WARN_CORRECTEDRETURNTYPE] = true;
-
-
-
-	if (QCC_CheckParm("-nowarn") || QCC_CheckParm("-Wnone"))
-		memset(qccwarningdisabled, 1, sizeof(qccwarningdisabled));
-	if (QCC_CheckParm("-Wall"))
-		memset(qccwarningdisabled, 0, sizeof(qccwarningdisabled));
+	qccwarningaction[WARN_NOTREFERENCEDCONST] = WA_IGNORE;
+	qccwarningaction[WARN_MACROINSTRING] = WA_IGNORE;
+//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = true;
+	qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
+	qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
+	qccwarningaction[WARN_DEADCODE] = WA_IGNORE;
+	qccwarningaction[WARN_INEFFICIENTPLUSPLUS] = WA_IGNORE;
+	qccwarningaction[WARN_FTE_SPECIFIC] = WA_IGNORE;
+	qccwarningaction[WARN_EXTENSION_USED] = WA_IGNORE;
+	qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;
+	qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
 
 	if (QCC_CheckParm("-h2"))
-		qccwarningdisabled[WARN_CASEINSENSATIVEFRAMEMACRO] = true;
+		qccwarningaction[WARN_CASEINSENSATIVEFRAMEMACRO] = WA_IGNORE;
 
 	//Check the command line
 	QCC_PR_CommandLinePrecompilerOptions();
 
 
-	if (qcc_targetformat == QCF_HEXEN2)	//force on the thinktime keyword if hexen2 progs.
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)	//force on the thinktime keyword if hexen2 progs.
 		keyword_thinktime = true;
 
 	if (QCC_CheckParm("/Debug"))	//disable any debug optimisations
@@ -2886,6 +2955,7 @@ char *originalqccmsrc;	//for autoprototype.
 void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
 	extern int			pr_bracelevel;
+	time_t long_time;
 
 	int		p;
 
@@ -2972,7 +3042,8 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	}
 	*/
 
-	strcpy(QCC_copyright, "This file was created with ForeThought's modified QuakeC compiler\nThanks to ID Software");
+	time(&long_time);
+	strftime(QCC_copyright, sizeof(QCC_copyright),  "Compiled [%Y/%m/%d]", localtime( &long_time ));
 	for (p = 0; p < 5; p++)
 		strcpy(QCC_Packname[p], "");
 
@@ -2980,7 +3051,6 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	{
 		*compiler_flag[p].enabled = compiler_flag[p].flags & FLAG_ASDEFAULT;
 	}
-	pr_werror = false;
 
 	QCC_SetDefaultProperties();
 
@@ -3047,22 +3117,22 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
-	precache_sounds = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*MAX_SOUNDS);
-	precache_sounds_block = (void *)qccHunkAlloc(sizeof(int)*MAX_SOUNDS);
-	precache_sounds_used = (void *)qccHunkAlloc(sizeof(int)*MAX_SOUNDS);
+	precache_sounds = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_SOUNDS);
+	precache_sounds_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_SOUNDS);
+	precache_sounds_used = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_SOUNDS);
 	numsounds=0;
 
-	precache_textures = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*MAX_TEXTURES);
-	precache_textures_block = (void *)qccHunkAlloc(sizeof(int)*MAX_TEXTURES);
+	precache_textures = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_TEXTURES);
+	precache_textures_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_TEXTURES);
 	numtextures=0;
 
-	precache_models = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*MAX_MODELS);
-	precache_models_block = (void *)qccHunkAlloc(sizeof(int)*MAX_MODELS);
-	precache_models_used = (void *)qccHunkAlloc(sizeof(int)*MAX_MODELS);
+	precache_models = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_MODELS);
+	precache_models_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_MODELS);
+	precache_models_used = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_MODELS);
 	nummodels=0;
 
-	precache_files = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*MAX_FILES);
-	precache_files_block = (void *)qccHunkAlloc(sizeof(int)*MAX_FILES);
+	precache_files = (void *)qccHunkAlloc(sizeof(char)*MAX_DATA_PATH*QCC_MAX_FILES);
+	precache_files_block = (void *)qccHunkAlloc(sizeof(int)*QCC_MAX_FILES);
 	numfiles = 0;
 
 	qcc_typeinfo = (void *)qccHunkAlloc(sizeof(QCC_type_t)*maxtypeinfos);
@@ -3129,6 +3199,8 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	QCC_PR_BeginCompilation ((void *)qccHunkAlloc (0x100000), 0x100000);
 
+	QCC_PR_ClearGrabMacros (false);
+
 	if (flag_acc)
 	{
 		if (!QCC_FindQCFiles())
@@ -3185,8 +3257,6 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 #endif
 
 	newstylesource = false;
-	while(*qccmsrc && *qccmsrc < ' ')
-		qccmsrc++;
 	pr_file_p = QCC_COM_Parse(qccmsrc);
 
 	if (QCC_CheckParm ("-qc"))
@@ -3202,6 +3272,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		goto newstyle;
 	}
 
+	compilingfile = qccmprogsdat;
 	if (*qcc_token == '#')
 	{
 		void StartNewStyleCompile(void);
@@ -3414,9 +3485,6 @@ void QCC_FinishCompile(void)
 		}
 	}*/
 
-	if (pr_werror && pr_warning_count != 0)
-		QCC_Error (ERR_PARSEERRORS, "compilation errors");
-
 // write progdefs.h
 	crc = QCC_PR_WriteProgdefs ("progdefs.h");
 
@@ -3495,7 +3563,6 @@ void QCC_FinishCompile(void)
 
 
 
-extern char *compilingfile;
 extern QCC_string_t	s_file, s_file2;
 extern char		*pr_file_p;
 extern int			pr_source_line;
@@ -3519,9 +3586,6 @@ void StartNewStyleCompile(void)
 		if (pr_token_type == tt_eof)
 			return;
 	}
-
-
-	QCC_PR_ClearGrabMacros ();	// clear the frame macros
 
 	compilingfile = qccmprogsdat;
 

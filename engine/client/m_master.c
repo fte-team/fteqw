@@ -92,7 +92,6 @@ static void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboo
 static void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
 	int sf = Master_GetSortField();
-	extern int mousecursor_x, mousecursor_y;
 	int mx = mousecursor_x;
 	qboolean filldraw = false;
 	qbyte clr;
@@ -117,7 +116,6 @@ static void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
 {
 	int x;
-	extern int mousecursor_x, mousecursor_y;
 	int mx = mousecursor_x/8;
 	int sortkey;
 
@@ -215,7 +213,6 @@ static servertypes_t flagstoservertype(int flags)
 
 static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
-	extern int mousecursor_x, mousecursor_y;
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *si;
 	int thisone = (int)ths->data + info->scrollpos;
@@ -264,7 +261,6 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 	static int lastclick;
 	int curtime;
 	int oldselection;
-	extern int mousecursor_x, mousecursor_y;
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *server;
 	char adr[MAX_ADR_SIZE];
@@ -465,7 +461,6 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		extern qboolean	keydown[K_MAX];
 		if (keydown[K_MOUSE1])
 		{
-			extern int mousecursor_x, mousecursor_y;
 			float my;
 			serverlist_t *info = (serverlist_t*)(menu + 1);
 
@@ -495,7 +490,6 @@ static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
 {
 	if (key == K_MOUSE1)
 	{
-		extern int mousecursor_x, mousecursor_y;
 		float my;
 		serverlist_t *info = (serverlist_t*)(menu + 1);
 
@@ -658,10 +652,16 @@ void M_Menu_ServerList2_f(void)
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*6, "Fraglimit", &sb_showfraglimit, 1);
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*7, "Timelimit", &sb_showtimelimit, 1);
 
+#ifdef NQPROT
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*1, "List NQ   ", SL_ReFilter, 1);
+#endif
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*2, "List QW   ", SL_ReFilter, 2);
+#ifdef Q2CLIENT
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*3, "List Q2   ", SL_ReFilter, 3);
+#endif
+#ifdef Q3CLIENT
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*4, "List Q3   ", SL_ReFilter, 4);
+#endif
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);

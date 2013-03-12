@@ -954,7 +954,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 			MSG_WriteByte (&sv.multicast, pitchadj);
 		if (extfield_mask & DPSND_LARGEENTITY)
 		{
-			MSG_WriteShort (&sv.multicast, ent);
+			MSG_WriteEntity (&sv.multicast, ent);
 			MSG_WriteByte (&sv.multicast, channel);
 		}
 		else
@@ -1009,7 +1009,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		MSG_WriteByte (&sv.nqmulticast, pitchadj);
 	if (extfield_mask & DPSND_LARGEENTITY)
 	{
-		MSG_WriteShort (&sv.nqmulticast, ent);
+		MSG_WriteEntity (&sv.nqmulticast, ent);
 		MSG_WriteByte (&sv.nqmulticast, channel);
 	}
 	else
@@ -1809,7 +1809,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	msg.overflowed = false;
 	msg.prim = client->datagram.prim;
 
-	if (!client->netchan.fragmentsize)
+	if (client->protocol != SCP_FITZ666 && !client->netchan.fragmentsize)
 		msg.maxsize = MAX_DATAGRAM;
 
 	if (sv.world.worldmodel && !client->controller)
@@ -1995,7 +1995,7 @@ void SV_UpdateToReliableMessages (void)
 				Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", (int)host_client->edict->xv->clientcolors/16), sizeof(host_client->userinfo));
 				Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", (int)host_client->edict->xv->clientcolors&15), sizeof(host_client->userinfo));
 				{
-					SV_ExtractFromUserinfo (host_client);	//this will take care of nq for us anyway.
+					SV_ExtractFromUserinfo (host_client, true);	//this will take care of nq for us anyway.
 
 					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 					MSG_WriteByte (&sv.reliable_datagram, i);
@@ -2019,7 +2019,7 @@ void SV_UpdateToReliableMessages (void)
 
 					Con_DPrintf("Client %s programatically renamed to %s\n", host_client->name, name);
 					Info_SetValueForKey(host_client->userinfo, "name", name, sizeof(host_client->userinfo));
-					SV_ExtractFromUserinfo (host_client);
+					SV_ExtractFromUserinfo (host_client, true);
 
 					if (strcmp(oname, host_client->name))
 					{
@@ -2383,6 +2383,8 @@ void SV_SendClientMessages (void)
 			SV_SendClientDatagram (c);
 		else
 		{
+			SV_SendClientPrespawnInfo(c);
+
 			SV_DarkPlacesDownloadChunk(c, &c->datagram);
 			fnum = c->netchan.outgoing_sequence;
 			sentbytes = Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable

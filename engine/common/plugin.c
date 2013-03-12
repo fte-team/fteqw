@@ -1477,6 +1477,7 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
 	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 	Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
+	Plug_RegisterBuiltin("Plug_GetPluginName",		Plug_GetPluginName, 0);
 	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
 	Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
 	Plug_RegisterBuiltin("Sys_Milliseconds",		Plug_Sys_Milliseconds, 0);
@@ -1622,13 +1623,12 @@ qboolean Plug_Menu_Event(int eventtype, int param)	//eventtype = draw/keydown/ke
 {
 	plugin_t *oc=currentplug;
 	qboolean ret;
-	extern int mousecursor_x, mousecursor_y;
 
 	if (!menuplug)
 		return false;
 
 	currentplug = menuplug;
-	ret = VM_Call(menuplug->vm, menuplug->menufunction, eventtype, param, mousecursor_x, mousecursor_y);
+	ret = VM_Call(menuplug->vm, menuplug->menufunction, eventtype, param, (int)mousecursor_x, (int)mousecursor_y);
 	currentplug=oc;
 	return ret;
 }

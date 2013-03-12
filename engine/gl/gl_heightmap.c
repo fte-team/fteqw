@@ -729,7 +729,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	//kill the haswater flag if its entirely above any possible water anyway.
 	if (s->waterheight < s->minh)
 		ds.flags &= ~TSF_HASWATER;
-	ds.flags &= TSF_HASCOLOURS;	//recalculate
+	ds.flags &= ~TSF_HASCOLOURS;	//recalculated
 
 	Q_strncpyz(ds.texname[0], s->texname[0], sizeof(ds.texname[0]));
 	Q_strncpyz(ds.texname[1], s->texname[1], sizeof(ds.texname[1]));
@@ -832,8 +832,8 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, qboolean dolo
 	{
 		if (doload)
 		{
-			while (hm->activesections > TERRAINACTIVESECTIONS)
-				Terr_Collect(hm);
+//			while (hm->activesections > TERRAINACTIVESECTIONS)
+//				Terr_Collect(hm);
 			section = cluster->section[sx + sy*MAXSECTIONS] = Terr_LoadSection(hm, section, x, y);
 		}
 	}
@@ -972,17 +972,22 @@ static void Terr_Collect(heightmap_t *hm)
 	for (ln = &hm->recycle; ln->next != &hm->recycle; )
 	{
 		s = (hmsection_t*)ln->next;
-		cx = s->sx/MAXSECTIONS;
-		cy = s->sy/MAXSECTIONS;
-		c = hm->cluster[cx + cy*MAXSECTIONS];
-		sx = s->sx & (MAXSECTIONS-1);
-		sy = s->sy & (MAXSECTIONS-1);
-		if (c->section[sx+sy*MAXSECTIONS] != s)
-			Sys_Error("invalid section collection");
-		c->section[sx+sy*MAXSECTIONS] = NULL;
+		if (s->flags & TSF_EDITED)
+			ln = &s->recycle;
+		else
+		{
+			cx = s->sx/MAXSECTIONS;
+			cy = s->sy/MAXSECTIONS;
+			c = hm->cluster[cx + cy*MAXSECTIONS];
+			sx = s->sx & (MAXSECTIONS-1);
+			sy = s->sy & (MAXSECTIONS-1);
+			if (c->section[sx+sy*MAXSECTIONS] != s)
+				Sys_Error("invalid section collection");
+			c->section[sx+sy*MAXSECTIONS] = NULL;
 
-		Terr_DestroySection(hm, s, true);
-		return;
+			Terr_DestroySection(hm, s, true);
+			return;
+		}
 	}
 }
 
@@ -1049,8 +1054,9 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, float waterz, float r, float g, float b, float a)
 {
 	scenetris_t *t;
+	int flags = BEF_NOSHADOWS;
 	
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == hm->watershader)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == hm->watershader && cl_stris[cl_numstris-1].flags == flags)
 	{
 		t = &cl_stris[cl_numstris-1];
 	}
@@ -1063,6 +1069,7 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, float wate
 		}
 		t = &cl_stris[cl_numstris++];
 		t->shader = hm->watershader;
+		t->flags = flags;
 		t->firstidx = cl_numstrisidx;
 		t->firstvert = cl_numstrisvert;
 		t->numvert = 0;
@@ -1504,7 +1511,6 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 {
 	vec3_t mins, maxs;
 	hmsection_t *s;
-	mesh_t *mesh;
 	int i;
 	batch_t *b;
 	heightmap_t *hm = ctx->hm;
@@ -1539,7 +1545,6 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			}
 		}
 
-		mesh = &s->mesh;
 		if (s->flags & TSF_DIRTY)
 		{
 			s->flags &= ~TSF_DIRTY;
@@ -1580,7 +1585,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		b->shader = hm->shader;
 		b->flags = 0;
 		b->mesh = &s->amesh;
-		b->mesh[0] = mesh;
+		b->mesh[0] = &s->mesh;
 		b->meshes = 1;
 		b->buildmeshes = NULL;
 		b->skin = &s->textures;
@@ -1637,6 +1642,10 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	batch_t *b;
 	int bounds[4];
 	struct tdibctx tdibctx;
+
+	if (!r_refdef.recurse)
+		while (hm->activesections > TERRAINACTIVESECTIONS)
+			Terr_Collect(hm);
 	
 	if (hm->relight)
 		ted_dorelight(hm);
@@ -2136,11 +2145,14 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	hmsection_t *s;
 	unsigned int holebit;
 
-	if (tx < 0 || tx >= CHUNKLIMIT*(SECTHEIGHTSIZE-1))
-		return;
-	if (ty < 0 || ty >= CHUNKLIMIT*(SECTHEIGHTSIZE-1))
-		return;
-	s = Terr_GetSection(tr->hm, tx/(SECTHEIGHTSIZE-1), ty/(SECTHEIGHTSIZE-1), true);
+	sx = tx/(SECTHEIGHTSIZE-1);
+	sy = ty/(SECTHEIGHTSIZE-1);
+	if (sx < tr->hm->firstsegx || sx >= tr->hm->maxsegx)
+		s = NULL;
+	else if (sy < tr->hm->firstsegy || sy >= tr->hm->maxsegy)
+		s = NULL;
+	else
+		s = Terr_GetSection(tr->hm, sx, sy, true);
 
 	if (!s)
 	{
@@ -2853,7 +2865,7 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 	}
 }
 
-void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *vmw = prinst->parms->user;
 	int action = G_FLOAT(OFS_PARM0);
@@ -3107,7 +3119,7 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 #else
-void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = 0;
 }

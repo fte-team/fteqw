@@ -67,6 +67,7 @@ static int pe_default = P_INVALID;
 static int pe_size2 = P_INVALID;
 static int pe_size3 = P_INVALID;
 static int pe_defaulttrail = P_INVALID;
+static qboolean pe_script_enabled;
 
 static float psintable[256];
 
@@ -481,7 +482,7 @@ static int PScript_FindParticleType(char *name)
 
 static void P_SetModified(void)	//called when the particle system changes (from console).
 {
-	if (Cmd_FromGamecode())
+	if (Cmd_IsInsecure())
 		return;	//server stuffed particle descriptions don't count.
 
 	f_modified_particles = true;
@@ -695,6 +696,28 @@ static void P_ParticleEffect_f(void)
 	{
 		Cbuf_InsertText(buf, Cmd_ExecLevel, true);
 		Con_Printf("This is a multiline command and should be used within config files\n");
+		return;
+	}
+
+	if (!pe_script_enabled)
+	{
+		int depth = 1;
+		while(1)
+		{
+			buf = Cbuf_GetNext(Cmd_ExecLevel, false);
+			if (!*buf)
+				return;
+
+			while (*buf && *buf <= ' ')
+				buf++;	//no whitespace please.
+			if (*buf == '{')
+				depth++;
+			else if (*buf == '}')
+			{
+				if (--depth == 0)
+					break;
+			}
+		}
 		return;
 	}
 
@@ -2124,6 +2147,7 @@ static qboolean PScript_InitParticles (void)
 	Cmd_AddCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
 	Cmd_AddCommand("r_part", P_ParticleEffect_f);
+	pe_script_enabled = true;
 
 	Cmd_AddCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
 	Cmd_AddCommand("r_importeffectinfo", P_ImportEffectInfo_f);
@@ -2174,14 +2198,14 @@ static qboolean PScript_InitParticles (void)
 
 static void PScript_Shutdown (void)
 {
+	pe_script_enabled = false;
+
 	if (fallback)
 		fallback->ShutdownParticles();
 
 	Cvar_Unhook(&r_particledesc);
 
 	Cmd_RemoveCommand("pointfile");	//load the leak info produced from qbsp into the particle system to show a line. :)
-
-	Cmd_RemoveCommand("r_part");
 
 	Cmd_RemoveCommand("r_exportbuiltinparticles");
 	Cmd_RemoveCommand("r_importeffectinfo");
@@ -4456,37 +4480,40 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 	}
 }
 
-static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *type)
+static void R_AddLineSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 {
-#ifdef warningmsg
-#pragma warningmsg("fixme: no line sparks")
-#endif
-#if 0
-	particle_t *p;
+	vec3_t v, cr, o2;
+	float scale;
 
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_LINES);
-
-	while (count--)
+	if (cl_numstrisvert+2 > cl_maxstrisvert)
 	{
-		p = *plist++;
-
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
-		qglVertex3f (p->org[0], p->org[1], p->org[2]);
-
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					0);
-		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+		cl_maxstrisvert+=64*2;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
 	}
-	qglEnd();
-#endif
+
+	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
+	VectorCopy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
+	cl_strisvertc[cl_numstrisvert+1][3] = 0;
+	Vector2Set(cl_strisvertt[cl_numstrisvert+0], p->s1, p->t1);
+	Vector2Set(cl_strisvertt[cl_numstrisvert+1], p->s2, p->t2);
+
+	VectorCopy(p->org, cl_strisvertv[cl_numstrisvert+0]);
+	VectorMA(p->org, -1/10, p->vel, cl_strisvertv[cl_numstrisvert+1]);
+	
+	if (cl_numstrisidx+2 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx += 64*2;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 1;
+
+	cl_numstrisvert += 2;
+
+	t->numvert += 2;
+	t->numidx += 2;
 }
 
 static void R_AddTSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
@@ -4892,9 +4919,9 @@ static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 
 static void PScript_DrawParticleTypes (void)
 {
-	void (*sparklineparticles)(int count, particle_t **,plooks_t*)=GL_DrawLineSparkParticle;
-	void (*sparkfanparticles)(int count, particle_t **,plooks_t*)=GL_DrawTrifanParticle;
-	void (*sparktexturedparticles)(int count, particle_t **,plooks_t*)=GL_DrawTexturedSparkParticle;
+	void (*sparklineparticles)(scenetris_t *t, particle_t *p, plooks_t *type)=R_AddLineSparkParticle;
+	void (*sparkfanparticles)(scenetris_t *t, particle_t *p, plooks_t *type)=GL_DrawTrifanParticle;
+	void (*sparktexturedparticles)(scenetris_t *t, particle_t *p, plooks_t *type)=GL_DrawTexturedSparkParticle;
 
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
@@ -4984,7 +5011,7 @@ static void PScript_DrawParticleTypes (void)
 	{
 		if (type->clippeddecals)
 		{
-			if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader)
+			if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
 				scenetri = &cl_stris[cl_numstris-1];
 			else
 			{
@@ -4995,6 +5022,7 @@ static void PScript_DrawParticleTypes (void)
 				}
 				scenetri = &cl_stris[cl_numstris++];
 				scenetri->shader = type->looks.shader;
+				scenetri->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 				scenetri->firstidx = cl_numstrisidx;
 				scenetri->firstvert = cl_numstrisvert;
 				scenetri->numvert = 0;
@@ -5096,7 +5124,7 @@ static void PScript_DrawParticleTypes (void)
 
 		if (!tdraw || type->looks.shader->sort == SHADER_SORT_BLEND)
 			scenetri = NULL;
-		else if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader)
+		else if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
 			scenetri = &cl_stris[cl_numstris-1];
 		else
 		{
@@ -5109,6 +5137,7 @@ static void PScript_DrawParticleTypes (void)
 			scenetri->shader = type->looks.shader;
 			scenetri->firstidx = cl_numstrisidx;
 			scenetri->firstvert = cl_numstrisvert;
+			scenetri->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 			scenetri->numvert = 0;
 			scenetri->numidx = 0;
 		}

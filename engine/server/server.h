@@ -293,7 +293,7 @@ typedef struct
 	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
 	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
 	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
-	unsigned short		*resendentnum;	//the number of each entity that was sent in this frame
+	unsigned int		*resendentnum;	//the number of each entity that was sent in this frame
 	unsigned int		*resendentbits;	//the bits of each entity that were sent in this frame
 } client_frame_t;
 
@@ -331,9 +331,26 @@ typedef struct	//merge?
 
 #define MAX_BACK_BUFFERS 16
 
+enum
+{
+	PRESPAWN_INVALID=0,
+	PRESPAWN_SERVERINFO,
+	PRESPAWN_SOUNDLIST,	//nq skips these
+	PRESPAWN_MODELLIST,
+	PRESPAWN_MAPCHECK,	//wait for old prespawn command
+	PRESPAWN_CUSTOMTENTS,
+	PRESPAWN_SIGNON_BUF,
+	PRESPAWN_SPAWNSTATIC,
+	PRESPAWN_BASELINES,
+	PRESPAWN_DONE
+};
+
 typedef struct client_s
 {
 	client_conn_state_t	state;
+
+	unsigned int	prespawn_stage;
+	unsigned int	prespawn_idx;
 
 	int				spectator;			// non-interactive
 	int				redirect;
@@ -445,8 +462,8 @@ typedef struct client_s
 #endif
 #ifdef PEXT_CSQC
 	int				csqclastsentsequence;
-	int				csqcentsequence[MAX_EDICTS];//the sequence number a csqc entity was sent in
-	int				csqcentversions[MAX_EDICTS];//the version of the entity when it was sent in that sequenced packet.
+	int				*csqcentsequence;//the sequence number a csqc entity was sent in
+	int				*csqcentversions;//the version of the entity when it was sent in that sequenced packet.
 #endif
 
 	//true/false/persist
@@ -546,9 +563,9 @@ typedef struct client_s
 
 	int language;	//the clients language
 
-	struct {
-		qbyte vweap;
-	} otherclientsknown[MAX_CLIENTS];	//updated as needed. Flag at a time, or all flags.
+//	struct {
+//		qbyte vweap;
+//	} otherclientsknown[MAX_CLIENTS];	//updated as needed. Flag at a time, or all flags.
 
 	struct client_s *controller;	/*first in splitscreen chain, NULL=nosplitscreen*/
 	struct client_s *controlled;	/*next in splitscreen chain*/
@@ -906,6 +923,8 @@ extern	vfsfile_t	*sv_fraglogfile;
 
 //===========================================================
 
+void SV_AddDebugPolygons(void);
+
 //
 // sv_main.c
 //
@@ -938,7 +957,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC);
 void SV_InitOperatorCommands (void);
 
 void SV_SendServerinfo (client_t *client);
-void SV_ExtractFromUserinfo (client_t *cl);
+void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose);
 
 void SV_SaveInfos(vfsfile_t *f);
 
@@ -988,11 +1007,9 @@ qboolean SVQ3_Command(void);
 //
 // sv_phys.c
 //
-void WPhys_Init(void);
 void SV_SetMoveVars(void);
 void WPhys_RunNewmis (world_t *w);
 qboolean SV_Physics (void);
-void World_Physics_Frame(world_t *w);
 void WPhys_CheckVelocity (world_t *w, wedict_t *ent);
 trace_t WPhys_Trace_Toss (world_t *w, wedict_t *ent, wedict_t *ignore);
 void SV_ProgStartFrame (void);
@@ -1063,6 +1080,8 @@ void SV_PreRunCmd(void);
 void SV_RunCmd (usercmd_t *ucmd, qboolean recurse);
 void SV_PostRunCmd(void);
 
+void SV_SendClientPrespawnInfo(client_t *client);
+
 //sv_master.c
 void SVM_Think(int port);
 
@@ -1117,6 +1136,7 @@ void ClientReliableWrite_Float(client_t *cl, float f);
 void ClientReliableWrite_Coord(client_t *cl, float f);
 void ClientReliableWrite_Long(client_t *cl, int c);
 void ClientReliableWrite_Short(client_t *cl, int c);
+void ClientReliableWrite_Entity(client_t *cl, int c);
 void ClientReliableWrite_String(client_t *cl, char *s);
 void ClientReliableWrite_SZ(client_t *cl, void *data, int len);
 

@@ -1548,6 +1548,9 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 	if (!sfx || !*sfx->name)	//no named sounds would need specific starting.
 		return;
 
+	if (cls.demoseeking)
+		return;
+
 	S_LockMixer();
 	for (sc = sndcardinfo; sc; sc = sc->next)
 		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, -(int)(timeofs * sc->sn.speed), pitchadj);

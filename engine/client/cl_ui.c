@@ -420,7 +420,7 @@ void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts)
 	unsigned int v;
 	scenetris_t *t;
 	/*reuse the previous trigroup if its the same shader*/
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == s)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == s && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
 		t = &cl_stris[cl_numstris-1];
 	else
 	{
@@ -431,6 +431,7 @@ void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts)
 		}
 		t = &cl_stris[cl_numstris++];
 		t->shader = s;
+		t->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 		t->numidx = 0;
 		t->numvert = 0;
 		t->firstidx = cl_numstrisidx;
@@ -856,10 +857,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene
-		cl_numvisedicts = 0;
-		cl_numstrisidx = 0;
-		cl_numstrisvert = 0;
-		cl_numstris = 0;
+		CL_ClearEntityLists();
 		break;
 	case UI_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));

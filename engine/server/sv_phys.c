@@ -70,19 +70,19 @@ cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
 {
-        Cvar_Register (&sv_maxvelocity,                 cvargroup_serverphysics);
-        Cvar_Register (&sv_gravity,                             cvargroup_serverphysics);
-        Cvar_Register (&sv_stopspeed,                   cvargroup_serverphysics);
-        Cvar_Register (&sv_maxspeed,                    cvargroup_serverphysics);
-        Cvar_Register (&sv_spectatormaxspeed,   cvargroup_serverphysics);
-        Cvar_Register (&sv_accelerate,                  cvargroup_serverphysics);
-        Cvar_Register (&sv_airaccelerate,               cvargroup_serverphysics);
-        Cvar_Register (&sv_wateraccelerate,             cvargroup_serverphysics);
-        Cvar_Register (&sv_friction,                    cvargroup_serverphysics);
-        Cvar_Register (&sv_waterfriction,               cvargroup_serverphysics);
-        Cvar_Register (&sv_sound_watersplash,   cvargroup_serverphysics);
-        Cvar_Register (&sv_sound_land,                  cvargroup_serverphysics);
-        Cvar_Register (&sv_stepheight,                  cvargroup_serverphysics);
+    Cvar_Register (&sv_maxvelocity,                 cvargroup_serverphysics);
+    Cvar_Register (&sv_gravity,                             cvargroup_serverphysics);
+    Cvar_Register (&sv_stopspeed,                   cvargroup_serverphysics);
+    Cvar_Register (&sv_maxspeed,                    cvargroup_serverphysics);
+    Cvar_Register (&sv_spectatormaxspeed,   cvargroup_serverphysics);
+    Cvar_Register (&sv_accelerate,                  cvargroup_serverphysics);
+    Cvar_Register (&sv_airaccelerate,               cvargroup_serverphysics);
+    Cvar_Register (&sv_wateraccelerate,             cvargroup_serverphysics);
+    Cvar_Register (&sv_friction,                    cvargroup_serverphysics);
+    Cvar_Register (&sv_waterfriction,               cvargroup_serverphysics);
+    Cvar_Register (&sv_sound_watersplash,   cvargroup_serverphysics);
+    Cvar_Register (&sv_sound_land,                  cvargroup_serverphysics);
+    Cvar_Register (&sv_stepheight,                  cvargroup_serverphysics);
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,	cvargroup_serverphysics);
@@ -692,13 +692,14 @@ SV_Push
 */
 static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
 {
+#define PUSHABLE_LIMIT 32768
 	int			i, e;
 	wedict_t	*check, *block;
 	vec3_t		mins, maxs;
 	vec3_t		pushorig;
 	int			num_moved;
-	wedict_t	*moved_edict[MAX_EDICTS];
-	vec3_t		moved_from[MAX_EDICTS];
+	wedict_t	*moved_edict[PUSHABLE_LIMIT];
+	vec3_t		moved_from[PUSHABLE_LIMIT];
 	float oldsolid;
 
 	if (amove[0] || amove[1] || amove[2])
@@ -757,6 +758,9 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 		pusher->v->solid = oldsolid;
 		if (block)
 			continue;
+
+		if (num_moved == PUSHABLE_LIMIT)
+			break;
 
 		VectorCopy (check->v->origin, moved_from[num_moved]);
 		moved_edict[num_moved] = check;

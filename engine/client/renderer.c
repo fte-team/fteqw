@@ -16,6 +16,8 @@ int			sh_shadowframe;	//index for msurf->shadowframe
 int			r_framecount;
 struct texture_s	*r_notexture_mip;
 
+r_config_t	r_config;
+
 qboolean	r_blockvidrestart;
 
 void R_InitParticleTexture (void);
@@ -1060,6 +1062,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	pmove.numphysent = 0;
 
+	memset(&r_config, 0, sizeof(r_config));
+
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{
 		qbyte *data;
@@ -1269,10 +1273,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)
 	{
 		cl.worldmodel = NULL;
-		cl_numvisedicts = 0;
-		cl_numstrisidx = 0;
-		cl_numstrisvert = 0;
-		cl_numstris = 0;
+		CL_ClearEntityLists();	//shouldn't really be needed, but we're paranoid
 
 TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=1 ; i<MAX_MODELS ; i++)
@@ -2504,7 +2505,7 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
 		}
 	}
-	balltexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+	balltexture = R_LoadTexture32("balltexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)

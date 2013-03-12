@@ -50,6 +50,14 @@ typedef enum {
 } shadersort_t;
 
 #define MAX_BONES 128
+struct doll_s;
+void rag_flushdolls(qboolean force);
+void rag_freedoll(struct doll_s *doll);
+struct doll_s *rag_createdollfromstring(struct model_s *mod, char *fname, int numbones, char *file);
+struct world_s;
+void rag_doallanimations(struct world_s *world);
+void rag_removedeltaent(lerpents_t *le);
+void rag_updatedeltaent(entity_t *ent, lerpents_t *le);
 
 typedef struct mesh_s
 {
@@ -954,6 +962,8 @@ typedef struct model_s
 	qbyte		*deluxdata;
 	q3lightgridinfo_t *lightgrid;
 	char		*entities;
+
+	struct doll_s		*dollinfo;
 
 	struct {
 		texture_t *tex;

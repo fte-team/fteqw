@@ -44,6 +44,12 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
+//optional features common to all renderers, so I don't have to check to see which one it is all the time.
+typedef struct {
+	qboolean texture_non_power_of_two;
+} r_config_t;
+extern r_config_t r_config;
+
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
 		#if 1
@@ -185,7 +191,6 @@ typedef struct {
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
 
-	qboolean arb_texture_non_power_of_two;
 	qboolean sgis_generate_mipmap;
 
 	qboolean arb_texture_env_combine;

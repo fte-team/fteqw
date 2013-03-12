@@ -76,9 +76,9 @@ qbyte FloatToByte( float x )
 
 cvar_t r_detailtextures;
 
-#define MAX_TOKEN_CHARS 1024
+#define MAX_TOKEN_CHARS sizeof(com_token)
 
-char *COM_ParseExt (char **data_p, qboolean nl)
+char *COM_ParseExt (char **data_p, qboolean nl, qboolean comma)
 {
 	int		c;
 	int		len;
@@ -154,13 +154,13 @@ skipwhite:
 		}
 		data++;
 		c = *data;
-		if (c == ',' && len)
+		if (c == ',' && len && comma)
 			break;
 	} while (c>32);
 
 	if (len == MAX_TOKEN_CHARS)
 	{
-//		Com_Printf ("Token exceeded %i chars, discarded.\n", MAX_TOKEN_CHARS);
+		Con_DPrintf ("Token exceeded %i chars, discarded.\n", MAX_TOKEN_CHARS);
 		len = 0;
 	}
 	com_token[len] = 0;
@@ -216,12 +216,12 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode);
 
 //===========================================================================
 
-static qboolean Shader_EvaluateCondition(char **ptr)
+static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 {
 	char *token;
 	cvar_t *cv;
 	qboolean conditiontrue = true;
-	token = COM_ParseExt ( ptr, false );
+	token = COM_ParseExt(ptr, false, false);
 	if (*token == '!')
 	{
 		conditiontrue = false;
@@ -300,9 +300,34 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 				conditiontrue = conditiontrue == false;
 				break;
 			}
-#ifdef warningmsg
-#pragma warningmsg("shader fixme")
+		}		
+		else if (!Q_stricmp(token, "haveprogram") )
+		{
+			conditiontrue = conditiontrue == !!shader->prog;
+		}
+		else if (!Q_stricmp(token, "programs") )
+		{
+			switch(qrenderer)
+			{
+#ifdef GLQUAKE
+			case QR_OPENGL:
+				conditiontrue = conditiontrue == gl_config.arb_shader_objects;	//FIXME
+				break;
 #endif
+#ifdef D3D9QUAKE
+			case QR_DIRECT3D9:
+				conditiontrue = conditiontrue == true;	//FIXME
+				break;
+#endif
+#ifdef D3D11QUAKE
+			case QR_DIRECT3D11:
+				conditiontrue = conditiontrue == true;
+				break;
+#endif
+			default:
+				conditiontrue = conditiontrue == false;
+				break;
+			}
 		}
 		else if (!Q_stricmp(token, "diffuse") )
 			conditiontrue = conditiontrue == true;
@@ -328,14 +353,14 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 			Con_Printf("Shader_EvaluateCondition: '%s' is not a cvar\n", token);
 			return conditiontrue;
 		}
-		token = COM_ParseExt ( ptr, false );
+		token = COM_ParseExt(ptr, false, false);
 		cv->flags |= CVAR_SHADERSYSTEM;
 		if (*token)
 		{
 			float rhs;
 			char cmp[4];
 			memcpy(cmp, token, 4);
-			token = COM_ParseExt ( ptr, false );
+			token = COM_ParseExt(ptr, false, false);
 			rhs = atof(token);
 			if (!strcmp(cmp, "!="))
 				conditiontrue = cv->value != rhs;
@@ -358,13 +383,28 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 				conditiontrue = conditiontrue == !!cv->value;
 		}
 	}
-	token = COM_ParseExt ( ptr, false );
+	token = COM_ParseExt(ptr, false, false);
 	if (!strcmp(token, "&&"))
-		return Shader_EvaluateCondition(ptr) && conditiontrue;
+		return Shader_EvaluateCondition(shader, ptr) && conditiontrue;
 	if (!strcmp(token, "||"))
-		return Shader_EvaluateCondition(ptr) || conditiontrue;
+		return Shader_EvaluateCondition(shader, ptr) || conditiontrue;
 
 	return conditiontrue;
+}
+
+static char *Shader_ParseExactString(char **ptr)
+{
+	char *token;
+
+	if ( !ptr || !(*ptr) ) {
+		return "";
+	}
+	if ( !**ptr || **ptr == '}' ) {
+		return "";
+	}
+
+	token = COM_ParseExt(ptr, false, false);
+	return token;
 }
 
 static char *Shader_ParseString ( char **ptr )
@@ -378,7 +418,7 @@ static char *Shader_ParseString ( char **ptr )
 		return "";
 	}
 
-	token = COM_ParseExt ( ptr, false );
+	token = COM_ParseExt(ptr, false, true);
 	Q_strlwr ( token );
 
 	return token;
@@ -395,7 +435,7 @@ static char *Shader_ParseSensString ( char **ptr )
 		return "";
 	}
 
-	token = COM_ParseExt ( ptr, false );
+	token = COM_ParseExt(ptr, false, true);
 
 	return token;
 }
@@ -412,7 +452,7 @@ static float Shader_ParseFloat(char **ptr)
 		return 0;
 	}
 
-	token = COM_ParseExt(ptr, false);
+	token = COM_ParseExt(ptr, false, true);
 	if (*token == '$')
 	{
 		cvar_t *var;
@@ -880,6 +920,22 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
 			{
 				cvartypes[cvarcount] = SP_CVARF;
+				cvarnames[cvarcount++] = script;
+				cvarnames[cvarcount] = NULL;
+			}
+			script = end;
+		}
+		else if (!strncmp(script, "!!cvari", 7))
+		{
+			script += 7;
+			while (*script == ' ' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
+			{
+				cvartypes[cvarcount] = SP_CVARI;
 				cvarnames[cvarcount++] = script;
 				cvarnames[cvarcount] = NULL;
 			}
@@ -1539,8 +1595,8 @@ struct shader_field_names_s shader_unif_names[] =
 	{"e_colour",				SP_E_COLOURS},
 	{"e_colourident",			SP_E_COLOURSIDENT},
 	{"e_glowmod",				SP_E_GLOWMOD},
-	{"e_topcolour",				SP_E_TOPCOLOURS},
-	{"e_bottomcolour",			SP_E_BOTTOMCOLOURS},
+	{"e_uppercolour",			SP_E_TOPCOLOURS},
+	{"e_lowercolour",			SP_E_BOTTOMCOLOURS},
 	{"e_light_dir",				SP_E_L_DIR},
 	{"e_light_mul",				SP_E_L_MUL},
 	{"e_light_ambient",			SP_E_L_AMBIENT},
@@ -1648,7 +1704,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 				{
-					qglUniform1fARB(uniformloc, cvar->value);
+					//qglUniform1fARB(uniformloc, cvar->value);
 					found = true;
 				}
 				prog->permu[p].parm[prog->numparams] = uniformloc;
@@ -1813,11 +1869,11 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	{
 		//pass the # postfixes from the shader name onto the generic glsl to use
 		char newname[512];
-		Q_snprintfz(newname, sizeof(newname), "%s%s", Shader_ParseString(ptr), hash);
+		Q_snprintfz(newname, sizeof(newname), "%s%s", Shader_ParseExactString(ptr), hash);
 		shader->prog = Shader_FindGeneric(newname, qrtype);
 	}
 	else
-		shader->prog = Shader_FindGeneric(Shader_ParseString(ptr), qrtype);
+		shader->prog = Shader_FindGeneric(Shader_ParseExactString(ptr), qrtype);
 }
 
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2947,7 +3003,7 @@ static void Shader_MakeCache ( char *path )
 		if ( ptr - buf >= size )
 			break;
 
-		token = COM_ParseExt ( &ptr, true );
+		token = COM_ParseExt (&ptr, true, true);
 		if ( !token[0] || ptr - buf >= size )
 			break;
 
@@ -2982,19 +3038,19 @@ char *Shader_Skip ( char *ptr )
 	int brace_count;
 
     // Opening brace
-	tok = COM_ParseExt ( &ptr, true );
+	tok = COM_ParseExt(&ptr, true, true);
 
 	if (!ptr)
 		return NULL;
 
 	if ( tok[0] != '{' )
 	{
-		tok = COM_ParseExt ( &ptr, true );
+		tok = COM_ParseExt (&ptr, true, true);
 	}
 
 	for (brace_count = 1; brace_count > 0 ; ptr++)
 	{
-		tok = COM_ParseExt ( &ptr, true );
+		tok = COM_ParseExt (&ptr, true, true);
 
 		if ( !tok[0] )
 			return NULL;
@@ -3177,7 +3233,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 
 	while ( *ptr )
 	{
-		token = COM_ParseExt (ptr, true);
+		token = COM_ParseExt (ptr, true, true);
 
 		if ( !token[0] )
 		{
@@ -3190,11 +3246,11 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		else if (!Q_stricmp(token, "if"))
 		{
 			int nest = 0;
-			qboolean conditionistrue = Shader_EvaluateCondition(ptr);
+			qboolean conditionistrue = Shader_EvaluateCondition(shader, ptr);
 
 			while (*ptr)
 			{
-				token = COM_ParseExt (ptr, true);
+				token = COM_ParseExt (ptr, true, true);
 				if ( !token[0] )
 					continue;
 				else if (token[0] == ']')
@@ -3293,7 +3349,7 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 	// Next Line
 	while (ptr)
 	{
-		token = COM_ParseExt ( ptr, false );
+		token = COM_ParseExt(ptr, false, true);
 		if ( !token[0] )
 		{
 			break;
@@ -4563,6 +4619,15 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 				"map $fullbright\n"
 				"blendfunc add\n"
 			"}\n"
+			"if $haveprogram\n"
+			"[\n"
+				"{\n"
+					"map $normalmap\n"
+				"}\n"
+				"{\n"
+					"map $specular\n"
+				"}\n"
+			"]\n"
 		"}\n"
 		);
 }
@@ -4628,7 +4693,7 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 
 	while (shadersource)
 	{
-		token = COM_ParseExt (&shadersource, true);
+		token = COM_ParseExt (&shadersource, true, true);
 
 		if ( !token[0] )
 			continue;
@@ -4637,11 +4702,11 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 		else if (!Q_stricmp(token, "if"))
 		{
 			int nest = 0;
-			qboolean conditionistrue = Shader_EvaluateCondition(&shadersource);
+			qboolean conditionistrue = Shader_EvaluateCondition(s, &shadersource);
 
 			while (shadersource)
 			{
-				token = COM_ParseExt (&shadersource, true);
+				token = COM_ParseExt (&shadersource, true, true);
 				if ( !token[0] )
 					continue;
 				else if (token[0] == ']')
@@ -4702,7 +4767,7 @@ static qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 
 
 		file = buf + offset;
-		token = COM_ParseExt (&file, true);
+		token = COM_ParseExt (&file, true, true);
 		if ( !file || token[0] != '{' )
 		{
 			FS_FreeFile(buf);

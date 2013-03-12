@@ -784,10 +784,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene (not rtlights, only dynamic ones)
-		cl_numvisedicts = 0;
-		cl_numstrisidx = 0;
-		cl_numstrisvert = 0;
-		cl_numstris = 0;
+		CL_ClearEntityLists();
 		rtlights_first = RTL_FIRST;
 		break;
 	case CG_R_ADDPOLYTOSCENE:

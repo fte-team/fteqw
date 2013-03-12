@@ -773,7 +773,7 @@ void CL_ParseBeam (int tent)
 	int		ent;
 	vec3_t	start, end;
 
-	ent = MSG_ReadShort ();
+	ent = MSGCL_ReadEntity ();
 
 	start[0] = MSG_ReadCoord ();
 	start[1] = MSG_ReadCoord ();
@@ -795,7 +795,7 @@ void CL_ParseStream (int type)
 	float duration;
 	int skin;
 
-	ent = MSG_ReadShort();
+	ent = MSGCL_ReadEntity();
 	flags = MSG_ReadByte();
 	tag = flags&15;
 	flags-=tag;
@@ -1334,6 +1334,10 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, ptqw_lightningblood))
 			P_RunParticleEffect (pos, vec3_origin, 225, 50);
 
+		break;
+
+	case TEQW_BEAM:
+		CL_ParseBeam (5);
 		break;
 
 	case TE_RAILTRAIL:
@@ -1914,7 +1918,7 @@ void CL_ParseTrailParticles(void)
 	vec3_t start, end;
 	trailstate_t **ts;
 
-	entityindex = (unsigned short)MSG_ReadShort();
+	entityindex = MSGCL_ReadEntity();
 	effectindex = (unsigned short)MSG_ReadShort();
 
 	start[0] = MSG_ReadCoord();
@@ -2972,13 +2976,17 @@ entity_t *CL_NewTempEntity (void)
 {
 	entity_t	*ent;
 
-	if (cl_numvisedicts == MAX_VISEDICTS)
+	if (cl_numvisedicts == cl_maxvisedicts)
 		return NULL;
 	ent = &cl_visedicts[cl_numvisedicts];
 	cl_numvisedicts++;
 	ent->keynum = 0;
 
 	memset (ent, 0, sizeof(*ent));
+	ent->playerindex = -1;
+	ent->topcolour = TOP_DEFAULT;
+	ent->bottomcolour = BOTTOM_DEFAULT;
+	ent->h2playerclass = 0;
 
 #ifdef PEXT_SCALE
 	ent->scale = 1;

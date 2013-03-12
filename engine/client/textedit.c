@@ -33,9 +33,7 @@ static cvar_t editaddcr = CVARD("edit_addcr", editaddcr_default, "make sure that
 static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
 cvar_t debugger = CVARD("debugger", debugger_default, "When enabled, QC errors and debug events will enable step-by-step tracing.");
 
-#undef pr_trace
-
-static progfuncs_t *editprogfuncs;
+static pubprogfuncs_t *editprogfuncs;
 
 typedef struct fileblock_s {
 	struct fileblock_s *next;
@@ -64,13 +62,14 @@ static void E_Free(void *mem)
 
 #define GETBLOCK(s, ret) ret = (void *)E_Malloc(sizeof(fileblock_t) + s);ret->allocatedlength = s;ret->data = (char *)ret + sizeof(fileblock_t)
 
-void PR_GenerateStatementString (progfuncs_t *progfuncs, int statementnum, char *out, int outlen);
 fileblock_t *GenAsm(int statement)
 {
 	char linebuf[256];
 	fileblock_t *b;
 	int l;
-	PR_GenerateStatementString(editprogfuncs, statement, linebuf, sizeof(linebuf));
+	if (!editprogfuncs)
+		return NULL;
+	editprogfuncs->GenerateStatementString(editprogfuncs, statement, linebuf, sizeof(linebuf));
 	l = strlen(linebuf);
 	b = E_Malloc(sizeof(fileblock_t) + l);
 	b->allocatedlength = l;
@@ -221,6 +220,12 @@ static qboolean EditorSaveFile(char *s)	//returns true if succesful
 	int len=0;
 	int pos=0;
 	char *data;
+	char native[MAX_OSPATH];
+
+	if (!FS_NativePath(s, FS_GAMEONLY, native, sizeof(native)))
+		Con_Printf("Not saving.\n");
+
+	Con_Printf("Saving to \"%s\"\n", native);
 
 	for (b = firstblock; b; b = b->next)	//find total length required.
 	{
@@ -244,16 +249,7 @@ static qboolean EditorSaveFile(char *s)	//returns true if succesful
 	}
 
 	COM_WriteFile(s, data, len);
-/*
-	F = fopen(s, "wt");
-	if (!F)
-		return false;
-	for (b = firstblock; b; b = b->next)
-	{
-		fprintf(F, "%s\n", b->data);
-	}
-	fclose(F);
-*/
+
 	madechanges = false;
 	editenabled = true;
 	executionlinenum = -1;
@@ -447,7 +443,7 @@ void Editor_Key(int key, int unicode)
 		{
 		case K_ESCAPE:
 			if (editprogfuncs)
-				*editprogfuncs->pr_trace = 0;
+				editprogfuncs->pr_trace = 0;
 			useeval = false;
 			return;
 		case K_F3:
@@ -552,11 +548,14 @@ void Editor_Key(int key, int unicode)
 				}
 				else
 				{
-					cursorlinenum++;
-					nb = GenAsm(cursorlinenum);
-					nb->prev = cursorblock;
-					cursorblock->next = nb;
-					cursorblock = nb;
+					nb = GenAsm(cursorlinenum+1);
+					if (nb)
+					{
+						cursorlinenum++;
+						nb->prev = cursorblock;
+						cursorblock->next = nb;
+						cursorblock = nb;
+					}
 				}
 			}
 		}
@@ -565,7 +564,23 @@ void Editor_Key(int key, int unicode)
 
 //	case K_BACK:
 	case K_F1:
-//		Editor_f();
+		Con_Printf(
+			"Editor help:\n"
+			"F1: Show help\n"
+			"F2: Open file named on cursor line\n"
+			"F3: Toggle expression evaluator\n"
+			"F4: Save file\n"
+			"F5: Stop tracing (run)\n"
+			"F6: Print stack trace\n"
+			"F7: Save file and recompile\n"
+			"F8: Change current point of execution\n"
+			"F9: Set breakpoint\n"
+			"F10: Save file, recompile, reload vm\n"
+			"F11: Single step\n"
+			"F12: \n"
+			"Escape: Abort call, close editor\n"
+			);
+		Cbuf_AddText("toggleconsole\n", RESTRICT_LOCAL);
 		break;
 //	case K_FORWARD:
 	case K_F2:
@@ -597,7 +612,7 @@ void Editor_Key(int key, int unicode)
 	case K_F5:	/*stop debugging*/
 		editormodal = false;
 		if (editprogfuncs)
-			*editprogfuncs->pr_trace = false;
+			editprogfuncs->pr_trace = false;
 		break;
 	case K_F6:
 		if (editprogfuncs)
@@ -605,8 +620,8 @@ void Editor_Key(int key, int unicode)
 		break;
 	case K_F7: /*save+recompile*/
 		EditorSaveFile(OpenEditorFile);
-		if (editprogfuncs)
-			Cbuf_AddText("compile\n", RESTRICT_LOCAL);
+		if (!editprogfuncs)
+			Cbuf_AddText("compile; toggleconsole\n", RESTRICT_LOCAL);
 		break;
 	case K_F8:	/*move execution point to here - I hope you move to the same function!*/
 		executionlinenum = cursorlinenum;
@@ -850,12 +865,11 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 {
 	int nx = 0;
 	int y;
-	char *tooltip = NULL;
+	char *tooltip = NULL, *t;
 	int nnx;
 	qbyte *d = b->data;
 	qbyte *c;
 	int i;
-	extern int mousecursor_x, mousecursor_y;
 	int smx = (mousecursor_x * vid.pixelwidth) / vid.width, smy = (mousecursor_y * vid.pixelheight) / vid.height;
 	unsigned int colour;
 
@@ -999,16 +1013,28 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 
 	if (tooltip)
 	{
+		nx = ((mousecursor_x+16) * vid.pixelwidth) / vid.width;
 		while(*tooltip)
 		{
-			if (*tooltip == '\n')
+			for (t = tooltip, smx = nx; *tooltip; tooltip++)
 			{
-				smy += Font_CharHeight();
-				smx = (mousecursor_x * vid.pixelwidth) / vid.width;
-				tooltip++;
+				if (*tooltip == '\n')
+					break;
+				smx = Font_CharEndCoord(font_conchar, smx, *tooltip);
 			}
-			else
-				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT) | (COLOR_BLACK<<CON_BGSHIFT) | CON_NONCLEARBG | *tooltip++);
+			y = Font_CharHeight();
+			Font_EndString(font_conchar);
+			R2D_ImageColours(0, 0, 0, 1);
+			R2D_FillBlock(((nx)*vid.width) / vid.pixelwidth, ((smy)*vid.height) / vid.pixelheight, ((smx - nx)*vid.width) / vid.pixelwidth, (y*vid.height) / vid.pixelheight);
+			R2D_ImageColours(1, 1, 1, 1);
+			Font_BeginString(font_conchar, nx, vy, &y, &y);
+			for(smx = nx; t < tooltip; t++)
+			{
+				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT) | *t);
+			}
+			if (*tooltip == '\n')
+				tooltip++;
+			smy += Font_CharHeight();
 		}
 	}
 	Font_EndString(font_conchar);
@@ -1145,7 +1171,7 @@ void Editor_Draw(void)
 	*/
 }
 
-int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int statement, int nump, char **parms)
+int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement, int nump, char **parms)
 {
 	char *f1, *f2;
 	if (editormodal || (line < 0 && !statement) || !debugger.ival)
@@ -1264,7 +1290,7 @@ int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int statement, in
 		return executionlinenum;
 }
 
-void Editor_ProgsKilled(progfuncs_t *dead)
+void Editor_ProgsKilled(pubprogfuncs_t *dead)
 {
 	if (editprogfuncs == dead)
 	{
@@ -1275,9 +1301,10 @@ void Editor_ProgsKilled(progfuncs_t *dead)
 
 static void Editor_f(void)
 {
-	if (Cmd_Argc() != 2)
+	int argc = Cmd_Argc();
+	if (argc != 2 && argc != 3)
 	{
-		Con_Printf("edit <filename>\n");
+		Con_Printf("edit <filename> [line]\n");
 		return;
 	}
 
@@ -1288,6 +1315,13 @@ static void Editor_f(void)
 		EditorSaveFile(OpenEditorFile);
 	EditorOpenFile(Cmd_Argv(1), false);
 //	EditorNewFile();
+
+	if (argc == 3)
+	{
+		int line = atoi(Cmd_Argv(2));
+		for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
+			cursorblock=cursorblock->next;
+	}
 }
 
 void Editor_Init(void)

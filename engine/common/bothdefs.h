@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // release version
 #define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 1
+#define FTE_VER_MINOR 2
 
 //#define	VERSION		2.56
 #ifndef DISTRIBUTION
@@ -191,6 +191,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define INTERQUAKEMODELS
+		#define RAGDOLL
 
 		#define HUFFNETWORK		//huffman network compression
 		#define DOOMWADS		//doom wad/sprite support
@@ -329,6 +330,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBSERVER
 	#undef VM_Q1
 	#undef SQL
+#endif
+
+
+#if defined(CSQC_DAT) || !defined(CLIENTONLY)	//use ode only if we have a constant world state, and the library is enbled in some form.
+	#define USEODE 1
+	#if !(defined(ODE_STATIC) || defined(ODE_DYNAMIC))
+		#undef USEODE
+	#endif
+#endif
+
+#if  defined(ZYMOTICMODELS) || defined(MD5MODELS) || defined(DPMMODELS) || defined(PSKMODELS) || defined(INTERQUAKEMODELS) 
+	#define SKELETALMODELS	//defined if we have a skeletal model.
+#endif
+#if (defined(CSQC_DAT) || !defined(CLIENTONLY)) && defined(SKELETALMODELS)
+	#define SKELETALOBJECTS	//the skeletal objects API is only used if we actually have skeletal models, and gamecode that uses the builtins.
+#endif
+#if !defined(USEODE) || !defined(SKELETALMODELS)
+	#undef RAGDOLL	//not possible to ragdoll if we don't have certain other features.
 #endif
 
 //remove any options that depend upon GL.
@@ -495,7 +514,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // per-level limits
 //
-#define	MAX_EDICTS		32767			// FIXME: ouch! ouch! ouch!
+//#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
+#define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
 #define	MAX_LIGHTSTYLES	255
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_MODELS		1024			// these are sent over the net as bytes
@@ -507,6 +527,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	SAVEGAME_COMMENT_LENGTH	39
 
 #define	MAX_STYLESTRING	64
+
+#define MAX_Q2EDICTS 1024
 
 //
 // stats are integers communicated to the client by the server

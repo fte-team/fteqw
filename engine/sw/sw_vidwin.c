@@ -276,7 +276,7 @@ qboolean SWAppActivate(BOOL fActive, BOOL minimize)
 		sound_active = true;
 	}
 
-	IN_UpdateGrabs(false, ActiveApp);
+	INS_UpdateGrabs(false, ActiveApp);
 
 /*
 	if (fActive)
@@ -542,7 +542,7 @@ LONG WINAPI MainWndProc (
 				if (wParam & MK_XBUTTON7)
 					temp |= 512;
 
-				IN_MouseEvent (temp);
+				INS_MouseEvent (temp);
 			}
 			break;
 		// JACK: This is the mouse wheel with the Intellimouse
@@ -564,7 +564,7 @@ LONG WINAPI MainWndProc (
 			break;
 		case WM_INPUT:
 			// raw input handling
-			IN_RawInput_Read((HANDLE)lParam);
+			INS_RawInput_Read((HANDLE)lParam);
 			break;
 /*		case WM_DISPLAYCHANGE:
 			if (!in_mode_set && (modestate == MS_WINDOWED) && !vid_fulldib_on_focus_mode)
@@ -711,7 +711,7 @@ void SW_VID_SwapBuffers(void)
 	DIB_SwapBuffers();
 	framenumber++;
 
-	IN_UpdateGrabs(false, ActiveApp);
+	INS_UpdateGrabs(false, ActiveApp);
 
 //	memset( pDIBBase, 0, vid.pixelwidth * vid.pixelheight * 4);
 
@@ -753,7 +753,23 @@ void SW_VID_ShiftPalette(unsigned char *palette)
 }
 char *SW_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
 {
-	return NULL;
+	char *buf = NULL;
+	char *src, *dst;
+	int w, h;
+	buf = BZ_Malloc(prepad + (vid.pixelwidth * vid.pixelheight * 3));
+	dst = buf + prepad;
+	for (h = 0; h < vid.pixelheight; h++)
+	{
+		for (w = 0, src = (char*)screenbuffer + (h * vid.pixelwidth*4); w < vid.pixelwidth; w++, dst += 3, src += 4)
+		{
+			dst[0] = src[2];
+			dst[1] = src[1];
+			dst[2] = src[0];
+		}
+	}
+	*truevidwidth = vid.pixelwidth;
+	*truevidheight = vid.pixelheight;
+	return buf;
 }
 void SW_VID_SetWindowCaption(char *msg)
 {

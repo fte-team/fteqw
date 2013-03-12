@@ -229,14 +229,12 @@ char *QCC_COM_Parse (char *data)
 
 // skip whitespace
 skipwhite:
-	while ( (c = *data) <= ' ')
-	{
-		if (c == 0)
-		{
-			qcc_eof = true;
-			return NULL;			// end of file;
-		}
+	while ((c = *data) && qcc_iswhite(c))
 		data++;
+	if (!c)
+	{
+		qcc_eof = true;
+		return NULL;
 	}
 
 // skip // comments
@@ -283,7 +281,10 @@ skipwhite:
 				qcc_token[len] = 0;
 				return data;
 			}
-			qcc_token[len] = c;
+			if (len >= sizeof(qcc_token)-1)
+				;
+			else
+				qcc_token[len] = c;
 			len++;
 		} while (1);
 	}
@@ -300,13 +301,16 @@ skipwhite:
 // parse a regular word
 	do
 	{
-		qcc_token[len] = c;
+		if (len >= sizeof(qcc_token)-1)
+			;
+		else
+			qcc_token[len] = c;
 		data++;
 		len++;
 		c = *data;
 		if (c=='{' || c=='}'|| c==')'|| c=='(' || c=='\'' || c==':' || c=='\"' || c==',')
 			break;
-	} while (c>32);
+	} while (!qcc_iswhite(c));
 
 	qcc_token[len] = 0;
 	return data;
@@ -326,14 +330,12 @@ char *QCC_COM_Parse2 (char *data)
 
 // skip whitespace
 skipwhite:
-	while ( (c = *data) <= ' ')
-	{
-		if (c == 0)
-		{
-			qcc_eof = true;
-			return NULL;			// end of file;
-		}
+	while ((c = *data) && qcc_iswhite(c))
 		data++;
+	if (!c)
+	{
+		qcc_eof = true;
+		return NULL;
 	}
 
 // skip // comments
@@ -362,7 +364,10 @@ skipwhite:
 				data++;
 			}
 			else if (c=='\"'||c=='\0')
-			qcc_token[len] = c;
+			if (len >= sizeof(qcc_token)-1)
+				;
+			else
+				qcc_token[len] = c;
 			len++;
 		} while (1);
 	}
@@ -391,7 +396,10 @@ skipwhite:
 		{
 			for(;;)
 			{	//parse regular number
-				qcc_token[len] = c;
+				if (len >= sizeof(qcc_token)-1)
+					;
+				else
+					qcc_token[len] = c;
 				data++;
 				len++;
 				c = *data;
@@ -408,7 +416,10 @@ skipwhite:
 	{
 		do
 		{
-			qcc_token[len] = c;
+			if (len >= sizeof(qcc_token)-1)
+				;
+			else
+				qcc_token[len] = c;
 			data++;
 			len++;
 			c = *data;
@@ -807,7 +818,7 @@ void ResizeBuf(int hand, int newsize)
 //	if (wasmal)
 		free(qccfile[hand].buff);
 //	else
-//		memfree(qccfile[hand].buff);
+//		externs->memfree(qccfile[hand].buff);
 	qccfile[hand].buff = nb;
 	qccfile[hand].buffsize = newsize;
 }
@@ -840,11 +851,108 @@ void SafeClose(int hand)
 //	if (qccfile[hand].buffismalloc)
 		free(qccfile[hand].buff);
 //	else
-//		memfree(qccfile[hand].buff);
+//		externs->memfree(qccfile[hand].buff);
 	qccfile[hand].buff = NULL;
 }
 
 qcc_cachedsourcefile_t *qcc_sourcefile;
+
+enum
+{
+	UTF16LE,
+	UTF16BE,
+	UTF32LE,
+	UTF32BE,
+};
+//read utf-16 chars and output the 'native' utf-8.
+//we don't expect essays written in code, so we don't need much actual support for utf-8.
+static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, int *outlen)
+{
+	char *utf8, *start;
+	unsigned int inc;
+	unsigned int chars, i;
+	int w, maxperchar;
+	switch(type)
+	{
+	case UTF16LE:
+		w = 2;
+		maxperchar = 3;
+		break;
+	case UTF16BE:
+		w = 2;
+		maxperchar = 3;
+		break;
+	case UTF32LE:
+		w = 4;
+		maxperchar = 4;	//we adhere to RFC3629 and clamp to U+10FFFF, which is only 4 bytes.
+		break;
+	case UTF32BE:
+		w = 4;
+		maxperchar = 4;
+		break;
+	}
+	chars = inbytes / w;
+	utf8 = start = qccHunkAlloc(chars * maxperchar + 2);
+	for (i = 0; i < chars; i++)
+	{
+		switch(type)
+		{
+		case UTF16LE:
+			inc = *inputf++;
+			inc|= (*inputf++)<<8;
+			break;
+		case UTF16BE:
+			inc = (*inputf++)<<8;
+			inc|= *inputf++;
+			break;
+		case UTF32LE:
+			inc = *inputf++;
+			inc|= (*inputf++)<<8;
+			inc|= (*inputf++)<<16;
+			inc|= (*inputf++)<<24;
+			break;
+		case UTF32BE:
+			inc = (*inputf++)<<24;
+			inc|= (*inputf++)<<16;
+			inc|= (*inputf++)<<8;
+			inc|= *inputf++;
+			break;
+		}
+		if (inc > 0x10FFFF)
+			inc = 0xFFFD;
+
+		if (inc <= 127)
+			*utf8++ = inc;
+		else if (inc <= 0x7ff)
+		{
+			*utf8++ = ((inc>>6) & 0x1f) | 0xc0;
+			*utf8++ = ((inc>>0) & 0x3f) | 0x80;
+		}
+		else if (inc <= 0xffff)
+		{
+			*utf8++ = ((inc>>12) & 0xf) | 0xe0;
+			*utf8++ = ((inc>>6) & 0x3f) | 0x80;
+			*utf8++ = ((inc>>0) & 0x3f) | 0x80;
+		}
+		else if (inc <= 0x1fffff)
+		{
+			*utf8++ = ((inc>>18) & 0x07) | 0xf0;
+			*utf8++ = ((inc>>12) & 0x3f) | 0x80;
+			*utf8++ = ((inc>> 6) & 0x3f) | 0x80;
+			*utf8++ = ((inc>> 0) & 0x3f) | 0x80;
+		}
+		else
+		{
+			inc = 0xFFFD;
+			*utf8++ = ((inc>>12) & 0xf) | 0xe0;
+			*utf8++ = ((inc>>6) & 0x3f) | 0x80;
+			*utf8++ = ((inc>>0) & 0x3f) | 0x80;
+		}
+	}
+	*outlen = utf8 - start;
+	return start;
+}
+
 long	QCC_LoadFile (char *filename, void **bufferptr)
 {
 	char *mem;
@@ -853,23 +961,44 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	if (len < 0)
 	{
 		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
-//		if (!Abort)
+//		if (!externs->Abort)
 			return -1;
-//		Abort("failed to find file %s", filename);
+//		externs->Abort("failed to find file %s", filename);
 	}
 	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+2);
 
 	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
 	qcc_sourcefile = (qcc_cachedsourcefile_t*)mem;
-	qcc_sourcefile->size = len;
 	mem += sizeof(qcc_cachedsourcefile_t);
+
+	externs->ReadFile(filename, mem, len+2);
+
+	if (len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
+		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len);
+	else if (len >= 4 && mem[0] == '\x00' && mem[1] == '\x00' && mem[2] == '\xfe' && mem[3] == '\xff')
+		mem = decodeUTF(UTF32BE, (unsigned char*)mem+4, len-4, &len);
+	else if (len >= 2 && mem[0] == '\xff' && mem[1] == '\xfe')
+		mem = decodeUTF(UTF16LE, (unsigned char*)mem+2, len-2, &len);
+	else if (len >= 2 && mem[0] == '\xfe' && mem[1] == '\xff')
+		mem = decodeUTF(UTF16BE, (unsigned char*)mem+2, len-2, &len);
+	//utf-8 BOM, for compat with broken text editors (like windows notepad).
+	else if (len >= 3 && mem[0] == '\xef' && mem[1] == '\xbb' && mem[2] == '\xbf')
+	{
+		mem += 3;
+		len -= 3;
+	}
+	//actual utf-8 handling is somewhat up to the engine. the qcc can only ensure that utf8 works in symbol names etc.
+	//its only in strings where it actually makes a difference, and the interpretation of those is basically entirely up to the engine.
+	//that said, we could insert a utf-8 BOM into ones with utf-8 chars, but that would mess up a lot of builtins+mods, so we won't.
+
+	mem[len] = '\n';
+	mem[len+1] = '\0';
+
 	strcpy(qcc_sourcefile->filename, filename);
+	qcc_sourcefile->size = len;
 	qcc_sourcefile->file = mem;
 	qcc_sourcefile->type = FT_CODE;
 
-	externs->ReadFile(filename, mem, len+2);
-	mem[len] = '\n';
-	mem[len+1] = '\0';
 	*bufferptr=mem;
 
 	return len;
@@ -880,7 +1009,7 @@ void	QCC_AddFile (char *filename)
 	int len;
 	len = externs->FileSize(filename);
 	if (len < 0)
-		Abort("failed to find file %s", filename);
+		externs->Abort("failed to find file %s", filename);
 	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+1);
 
 	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
@@ -899,14 +1028,14 @@ void *FS_ReadToMem(char *filename, void *mem, int *len)
 	if (!mem)
 	{
 		*len = externs->FileSize(filename);
-		mem = memalloc(*len);
+		mem = externs->memalloc(*len);
 	}
 	return externs->ReadFile(filename, mem, *len);
 }
 
 void FS_CloseFromMem(void *mem)
 {
-	memfree(mem);
+	externs->memfree(mem);
 }
 
 

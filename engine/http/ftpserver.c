@@ -20,11 +20,9 @@
 
 #include "netinc.h"
 
-int ftpfilelistsocket;
-
 static iwboolean ftpserverinitied = false;
-iwboolean ftpserverfailed = false;
-static int	ftpserversocket;
+static int	ftpserversocket = INVALID_SOCKET;
+qboolean ftpserverfailed;
 
 
 typedef struct FTPclient_s{
@@ -51,55 +49,75 @@ typedef struct FTPclient_s{
 
 FTPclient_t *FTPclient;
 
-qboolean FTP_ServerInit(int port)
+int FTP_BeginListening(int aftype, int port)
 {
-	struct sockaddr_in address;
+	struct sockaddr_qstorage address;
 	unsigned long _true = true;
+	unsigned long _false = false;
 	int i;
+	int sock;
 
-	if ((ftpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	if ((sock = socket ((aftype!=1)?PF_INET6:PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		IWebPrintf ("FTP_TCP_OpenSocket: socket: %s\n", strerror(qerrno));
-		ftpserverfailed = true;
-		return false;
+		IWebPrintf ("FTP_BeginListening: socket: %s\n", strerror(qerrno));
+		return INVALID_SOCKET;
 	}
 
-	if (ioctlsocket (ftpserversocket, FIONBIO, &_true) == -1)
+	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
 	{
-		IWebPrintf ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
-		ftpserverfailed = true;
-		return false;
+		IWebPrintf ("FTP_BeginListening: ioctl FIONBIO: %s", strerror(qerrno));
+		return INVALID_SOCKET;
 	}
 
-	address.sin_family = AF_INET;
-//ZOID -- check for interface binding option
-	if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
-		address.sin_addr.s_addr = inet_addr(com_argv[i+1]);
-		Con_TPrintf(TL_NETBINDINTERFACE,
-				inet_ntoa(address.sin_addr));
-	} else
-		address.sin_addr.s_addr = INADDR_ANY;
+	if (aftype == 1)
+	{
+		//1=ipv4 only
+		((struct sockaddr_in*)&address)->sin_family = AF_INET;
+	//ZOID -- check for interface binding option
+		if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
+			((struct sockaddr_in*)&address)->sin_addr.s_addr = inet_addr(com_argv[i+1]);
+			Con_TPrintf(TL_NETBINDINTERFACE,
+					inet_ntoa(((struct sockaddr_in*)&address)->sin_addr));
+		} else
+			((struct sockaddr_in*)&address)->sin_addr.s_addr = INADDR_ANY;
 
-	if (port == PORT_ANY)
-		address.sin_port = 0;
+		if (port == PORT_ANY)
+			((struct sockaddr_in*)&address)->sin_port = 0;
+		else
+			((struct sockaddr_in*)&address)->sin_port = htons((short)port);
+	}
 	else
-		address.sin_port = htons((short)port);
-
-	if( bind (ftpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
-		IWebPrintf("FTP_ServerInit: failed to bind socket\n");
-		closesocket(ftpserversocket);
-		ftpserverfailed = true;
-		return false;
+		//0=ipv4+ipv6
+		//2=ipv6 only
+		if (aftype == 0)
+		{
+			if (0 > setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_false, sizeof(_false)))
+			{
+				//abort and do ipv4 only if hybrid sockets don't work.
+				closesocket(sock);
+				return FTP_BeginListening(1, port);
+			}
+		}
+
+		memset(&address, 0, sizeof(address));
+		((struct sockaddr_in6*)&address)->sin6_family = AF_INET6;
+		if (port == PORT_ANY)
+			((struct sockaddr_in6*)&address)->sin6_port = 0;
+		else
+			((struct sockaddr_in6*)&address)->sin6_port = htons((short)port);
 	}
 
-	listen(ftpserversocket, 3);
+	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	{
+		IWebPrintf("FTP_BeginListening: failed to bind socket\n");
+		closesocket(ftpserversocket);
+		return INVALID_SOCKET;
+	}
 
-	ftpserverinitied = true;
-	ftpserverfailed = false;
+	listen(sock, 3);
 
-	IWebPrintf("FTP server is running\n");
-	return true;
+	return sock;
 }
 
 void FTP_ServerShutdown(void)
@@ -109,9 +127,10 @@ void FTP_ServerShutdown(void)
 	IWebPrintf("FTP server is deactivated\n");
 }
 
+//we ought to filter this to remove duplicates.
 static int SendFileNameTo(const char *rawname, int size, void *param)
 {
-	int socket = ftpfilelistsocket;	//64->32... this is safe due to where it's called from. It's just not so portable.
+	int socket = *(int*)param;
 //	int i;
 	char buffer[256+1];
 	char *slash;
@@ -186,27 +205,65 @@ int FTP_SV_makelistensocket(unsigned long nblocking)
 
 	return sock;
 }
-iwboolean	FTP_SVSocketToString (int socket, char *s)
+iwboolean	FTP_SVSocketPortToString (int socket, char *s)
 {
-	struct sockaddr_in addr;
+	struct sockaddr_qstorage addr;
 	int adrlen = sizeof(addr);
 
 	if (getsockname(socket, (struct sockaddr*)&addr, &adrlen) == -1)
 		return false;
 
-	sprintf(s, "%i,%i,%i,%i,%i,%i", ((qbyte *)&addr.sin_addr)[0], ((qbyte *)&addr.sin_addr)[1], ((qbyte *)&addr.sin_addr)[2], ((qbyte *)&addr.sin_addr)[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
+	if (((struct sockaddr_in*)&addr)->sin_family == AF_INET6)
+		sprintf(s, "%i", ntohs(((struct sockaddr_in6*)&addr)->sin6_port));
+	else
+		sprintf(s, "%i", ntohs(((struct sockaddr_in*)&addr)->sin_port));
 	return true;
 }
-iwboolean	FTP_SVRemoteSocketToString (int socket, char *s)
+//only to be used for ipv4 sockets.
+iwboolean	FTP_SVSocketToString (int socket, char *s)
 {
 	struct sockaddr_in addr;
+	qbyte *baddr;
 	int adrlen = sizeof(addr);
+	char name[256];
 
-	addr.sin_family = AF_INET;
-	if (getpeername(socket, (struct sockaddr*)&addr, &adrlen) == -1)
+	//get the port.
+	if (getsockname(socket, (struct sockaddr*)&addr, &adrlen) == -1)
 		return false;
 
-	sprintf(s, "%i,%i,%i,%i,%i,%i", ((qbyte *)&addr.sin_addr)[0], ((qbyte *)&addr.sin_addr)[1], ((qbyte *)&addr.sin_addr)[2], ((qbyte *)&addr.sin_addr)[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
+	baddr = (qbyte *)&addr.sin_addr;
+	
+	if (gethostname(name, sizeof(name)) != -1)
+	{
+		struct hostent *hent = gethostbyname(name);
+		if (hent)
+			baddr = hent->h_addr_list[0];
+	}
+
+	sprintf(s, "%i,%i,%i,%i,%i,%i", baddr[0], baddr[1], baddr[2], baddr[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
+	return true;
+}
+iwboolean	FTP_SVRemoteSocketToString (int socket, char *s, int slen)
+{
+	struct sockaddr_qstorage addr;
+	netadr_t na;
+	int adrlen = sizeof(addr);
+
+//	addr.sin_family = AF_INET;
+	if (getpeername(socket, (struct sockaddr*)&addr, &adrlen) == -1)
+	{
+		*s = 0;
+		return false;
+	}
+
+	SockadrToNetadr(&addr, &na);
+	NET_AdrToString(s, slen, na);
+
+//	if (((struct sockaddr_in*)&addr)->sin_family == AF_INET6)
+//	{
+//	}
+//	else
+//		sprintf(s, "%i,%i,%i,%i,%i,%i", ((qbyte *)&addr.sin_addr)[0], ((qbyte *)&addr.sin_addr)[1], ((qbyte *)&addr.sin_addr)[2], ((qbyte *)&addr.sin_addr)[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
 	return true;
 }
 /*
@@ -249,7 +306,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 	char *msg, *line;
 
 	char mode[64];
-	static char resource[8192];
+	char resource[8192];
 	int _true = true;
 
 	if (cl->datadir == 1)
@@ -444,6 +501,33 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				*p = '\0';
 			QueueMessage (cl, "200 directory changed.\r\n");
 		}
+		else if (!stricmp(mode, "EPSV"))
+		{
+			int aftype = 0;
+			//one argument, "1"=ipv4, "2"=ipv6. if not present, use same as control connection
+			//reply: "229 Entering Extended Passive Mode (|||$PORTNUM|)\r\n"
+
+			if (!cl->auth)
+			{
+				QueueMessage (cl, "530 Not logged in.\r\n");
+				continue;
+			}
+			if (cl->datasock != INVALID_SOCKET)
+			{
+				closesocket(cl->datasock);
+				cl->datasock = INVALID_SOCKET;
+			}
+
+			cl->datasock = FTP_BeginListening(aftype, 0);
+			if (cl->datasock == INVALID_SOCKET)
+				QueueMessage (cl, "425 server was unable to make a listen socket\r\n");
+			else
+			{
+				FTP_SVSocketPortToString(cl->datasock, resource);
+				QueueMessageva (cl, "229 Entering Extended Passive Mode (|||%s|).\r\n", resource);
+			}
+			cl->dataislisten = true;
+		}
 		else if (!stricmp(mode, "PASV"))
 		{
 			if (!cl->auth)
@@ -457,7 +541,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				cl->datasock = INVALID_SOCKET;
 			}
 
-			cl->datasock = FTP_SV_makelistensocket(true);
+			cl->datasock = FTP_BeginListening(1, 0);
 			if (cl->datasock == INVALID_SOCKET)
 				QueueMessage (cl, "425 server was unable to make a listen socket\r\n");
 			else
@@ -467,6 +551,14 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			}
 			cl->dataislisten = true;
 		}
+//		else if (!stricmp(mode, "EPRT"))
+//		{
+			//eg: one of:
+			//EPRT |1|132.235.1.2|6275|
+			//EPRT |2|1080::8:800:200C:417A|5282|
+
+			//reply: 522 Network protocol not supported, use (1,2)
+//		}
 		else if (!stricmp(mode, "PORT"))
 		{
 			if (!cl->auth)
@@ -528,7 +620,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				int err;
 				int _true = true;
 				int temp;
-				struct sockaddr_in adr;
+				struct sockaddr_qstorage adr;
 				int adrlen = sizeof(adr);
 				temp = accept(cl->datasock, (struct sockaddr *)&adr, &adrlen);
 				err = qerrno;
@@ -538,7 +630,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 				if (cl->datasock == INVALID_SOCKET)
 				{
-					QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", err);
+					QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", err);
 					continue;
 				}
 				else
@@ -561,8 +653,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			strcat(buffer, "*");
 			QueueMessage (cl, "125 Opening FAKE ASCII mode data connection for file.\r\n");
 
-			ftpfilelistsocket = cl->datasock;
-			COM_EnumerateFiles(buffer, SendFileNameTo, NULL);
+			COM_EnumerateFiles(buffer, SendFileNameTo, &cl->datasock);
 
 			QueueMessage (cl, "226 Transfer complete.\r\n");
 
@@ -593,7 +684,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 				if (cl->datasock == INVALID_SOCKET)
 				{
-					QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", qerrno);
+					QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", qerrno);
 					continue;
 				}
 				else
@@ -672,7 +763,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 					if (cl->datasock == INVALID_SOCKET)
 					{
-						QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", qerrno);
+						QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", qerrno);
 						continue;
 					}
 					else
@@ -776,7 +867,7 @@ unsigned int WINAPI BlockingClient(FTPclient_t *cl)
 iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port)
 {
 	FTPclient_t *cl, *prevcl;
-	struct sockaddr_in	from;
+	struct sockaddr_qstorage	from;
 	int		fromlen;
 	int clientsock;
 unsigned long _true = true;
@@ -784,7 +875,15 @@ unsigned long _true = true;
 	if (!ftpserverinitied)
 	{
 		if (ftpserverwanted)
-			return FTP_ServerInit(port);
+		{
+			ftpserversocket = FTP_BeginListening(0, port);
+			if (ftpserversocket == INVALID_SOCKET)
+			{
+				ftpserverfailed = true;
+				IWebPrintf("Unable to establish listening FTP socket\n");
+			}
+			ftpserverinitied = true;
+		}
 		return false;
 	}
 	else if (!ftpserverwanted)
@@ -827,9 +926,12 @@ unsigned long _true = true;
 	}
 
 	fromlen = sizeof(from);
-	clientsock = accept(ftpserversocket, (struct sockaddr *)&from, &fromlen);
+	if (ftpserversocket == INVALID_SOCKET)
+		clientsock = INVALID_SOCKET;
+	else
+		clientsock = accept(ftpserversocket, (struct sockaddr *)&from, &fromlen);
 
-	if (clientsock == -1)
+	if (clientsock == INVALID_SOCKET)
 	{
 		if (qerrno == EWOULDBLOCK)
 			return false;
@@ -860,7 +962,7 @@ unsigned long _true = true;
 	}
 	{
 		char resource[256];
-		FTP_SVRemoteSocketToString(clientsock, resource);
+		FTP_SVRemoteSocketToString(clientsock, resource, sizeof(resource));
 		IWebPrintf("FTP connect from %s\n", resource);
 	}
 	cl->controlsock = clientsock;
@@ -869,7 +971,7 @@ unsigned long _true = true;
 	cl->blocking = false;
 	strcpy(cl->path, "/");
 
-	QueueMessage(cl, "220-QuakeWorld FTP Server.\r\n220 Welcomes all new users.\r\n");
+	QueueMessage(cl, "220-" FULLENGINENAME " FTP Server.\r\n220 Welcomes all new users.\r\n");
 
 #if defined(WEBSVONLY) && defined(_WIN32)
 	if (!CreateThread(NULL, 128, BlockingClient, cl, 0, NULL))

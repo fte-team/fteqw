@@ -620,7 +620,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 
 	if (var->flags & CVAR_SERVEROVERRIDE && !force)
 		latch = "variable %s is under server control - latched\n";
-	else if (var->flags & CVAR_LATCH)
+	else if (var->flags & CVAR_LATCH && (sv_state || cls_state))
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
 //	else if (var->flags & CVAR_LATCHFLUSH)
 //		latch = "variable %s is latched (type flush)\n";
@@ -1110,7 +1110,7 @@ qboolean	Cvar_Command (int level)
 		return true;
 	}
 
-	if (v->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
+	if (v->flags & CVAR_NOTFROMSERVER && Cmd_IsInsecure())
 	{
 		Con_Printf ("Server tried setting %s cvar\n", v->name);
 		return true;
@@ -1118,10 +1118,35 @@ qboolean	Cvar_Command (int level)
 // perform a variable print or set
 	if (Cmd_Argc() == 1)
 	{
-		Con_Printf ("\"%s\" is \"%s\"\n", v->name, v->string);
 		if (v->latched_string)
-			Con_Printf ("Latched as \"%s\"\n", v->latched_string);
-		Con_Printf("Default: \"%s\"\n", v->defaultstr);
+		{
+			if (v->flags & CVAR_LATCH)
+			{
+				Con_Printf ("\"%s\" is currently \"%s\"\n", v->name, v->string);
+				Con_Printf ("Will be changed to \"%s\" on the next map\n", v->latched_string);
+			}
+			else if (v->flags & CVAR_RENDERERLATCH)
+			{
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, v->string);
+				Con_Printf ("Will be changed to \"%s\" on vid_restart\n", v->latched_string);
+			}
+			else
+			{
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, v->latched_string);
+				Con_Printf ("Effective value is \"%s\"\n", v->string);
+			}
+			Con_Printf("Default: \"%s\"\n", v->defaultstr);
+		}
+		else
+		{
+			if (!strcmp(v->string, v->defaultstr))
+				Con_Printf ("\"%s\" is \"%s\" (default)\n", v->name, v->string);
+			else
+			{
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, v->string);
+				Con_Printf("Default: \"%s\"\n", v->defaultstr);
+			}
+		}
 		return true;
 	}
 

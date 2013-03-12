@@ -689,10 +689,10 @@ NPError OSCALL NP_GetValue(void *instance, NPPVariable variable, void *value)
 	switch(variable)
 	{
 	case NPPVpluginNameString:
-		*(char**)value = "FTE QuakeWorld";
+		*(char**)value = FULLENGINENAME;
 		break;
 	case NPPVpluginDescriptionString:
-		*(char**)value = "FTE QuakeWorld";
+		*(char**)value = FULLENGINENAME;
 		break;
 	default:
 		return NPERR_INVALID_PARAM;

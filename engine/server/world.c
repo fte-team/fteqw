@@ -1293,13 +1293,13 @@ static model_t *WorldQ2_ModelForEntity (world_t *w, q2edict_t *ent)
 void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip )
 {
 	int			i, num;
-	q2edict_t		*touchlist[MAX_EDICTS], *touch;
+	q2edict_t		*touchlist[MAX_Q2EDICTS], *touch;
 	trace_t		trace;
 	model_t		*model;
 	float		*angles;
 
 	num = WorldQ2_AreaEdicts (w, clip->boxmins, clip->boxmaxs, touchlist
-		, MAX_EDICTS, AREA_SOLID);
+		, MAX_Q2EDICTS, AREA_SOLID);
 
 	// be careful, it is possible to have an entity in this
 	// list removed before we get to it (killtriggered)

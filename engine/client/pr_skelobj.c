@@ -35,8 +35,7 @@ qc must build the skeletal object still, which fills the skeletal object from th
 
 #include "quakedef.h"
 
-#if defined(CSQC_DAT) || !defined(CLIENTONLY)
-#define RAGDOLL
+#if defined(RAGDOLL) || defined(SKELETALOBJECTS)
 
 #include "pr_common.h"
 #include "com_mesh.h"
@@ -52,14 +51,12 @@ typedef struct doll_s
 	model_t *model;
 	struct doll_s *next;
 
+	qboolean drawn:1;
+	int numdefaultanimated;
 	int numbodies;
 	int numjoints;
 	int numbones;
-	struct
-	{
-		char name[32];
-		int bone;
-	} *body;
+	odebodyinfo_t *body;
 	odejointinfo_t *joint;
 	struct
 	{
@@ -69,20 +66,16 @@ typedef struct doll_s
 	} *bone;
 } doll_t;
 
-enum
-{
-	BF_ACTIVE, /*used to avoid traces if doll is stationary*/
-	BF_INSOLID
-};
 typedef struct
 {
 	odebody_t odebody;
 
-	int ownerent;	/*multiple of 12*/
-	int flags;
+//	int ownerent;	/*multiple of 12*/
+//	int flags;
 
-	float moment[12];
-	float matrix[12];
+//	float moment[12];
+	float animstrength;
+	float animmatrix[12];
 } body_t;
 #endif
 
@@ -103,19 +96,78 @@ typedef struct skelobject_s
 	float *bonematrix;
 
 #ifdef RAGDOLL
+	int numanimated;
 	struct skelobject_s *animsource;
 	unsigned int numbodies;
 	body_t *body;
 	int numjoints;
 	odejoint_t *joint;
 	doll_t *doll;
+	wedict_t *entity;	//only valid for dolls.
 #endif
 } skelobject_t;
 
+#ifdef RAGDOLL
 static doll_t *dolllist;
+#endif
 static skelobject_t skelobjects[MAX_SKEL_OBJECTS];
 static int numskelobjectsused;
 
+//copes with src==dst to convert rel->abs
+void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, int startbone, int endbone)
+{
+	galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model);
+	if (!boneinfo)
+		return;
+	if (skelobjsrc->type == SKOT_ABSOLUTE)
+	{
+		if (skelobjsrc != skelobjdst)
+		{
+			while(startbone < endbone)
+			{
+				Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
+				Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
+				Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
+				startbone++;
+			}
+		}
+	}
+	else
+	{
+		if (skelobjsrc != skelobjdst)
+		{
+			while(startbone < endbone)
+			{
+				if (boneinfo[startbone].parent >= 0)
+				{
+					Matrix3x4_Multiply(skelobjsrc->bonematrix+12*startbone, skelobjdst->bonematrix+12*boneinfo[startbone].parent, skelobjdst->bonematrix+12*startbone);
+				}
+				else
+				{
+					Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
+					Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
+					Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
+				}
+				startbone++;
+			}
+		}
+		else
+		{
+			float tmpmat[12];
+			while(startbone < endbone)
+			{
+				if (boneinfo[startbone].parent >= 0)
+				{
+					Matrix3x4_Multiply(skelobjsrc->bonematrix+12*startbone, skelobjdst->bonematrix+12*boneinfo[startbone].parent, tmpmat);
+					memcpy(skelobjdst->bonematrix+12*startbone, tmpmat, sizeof(tmpmat));
+				}
+				startbone++;
+			}
+		}
+	}
+
+	skelobjdst->type = SKOT_ABSOLUTE;
+}
 static void bonemat_fromidentity(float *out)
 {
 	out[0] = 1;
@@ -147,6 +199,21 @@ static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[
 	out[9] = -vy[2];
 	out[10] = vz[2];
 	out[11] = t[2];
+}
+static void bonemat_fromaxisorg(float *out, const vec3_t axis[3], const float t[3])
+{
+	out[0] = axis[0][0];
+	out[1] = axis[1][0];
+	out[2] = axis[2][0];
+	out[3] = t[0];
+	out[4] = axis[0][1];
+	out[5] = axis[1][1];
+	out[6] = axis[2][1];
+	out[7] = t[1];
+	out[8] = axis[0][2];
+	out[9] = axis[1][2];
+	out[10]= axis[2][2];
+	out[11]= t[2];
 }
 static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
 {
@@ -218,16 +285,343 @@ int rag_finddolljoint(doll_t *d, char *name)
 	}
 	return -1;
 }
-doll_t *rag_loaddoll(model_t *mod, char *fname, int numbones)
+
+typedef struct {
+	qboolean errors;
+	doll_t *d;
+	galiasbone_t *bones;
+
+	odebodyinfo_t *body;
+	odejointinfo_t *joint;
+
+	odebodyinfo_t defbody;
+	odejointinfo_t defjoint;
+} dollcreatectx_t;
+dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
+{
+	int i;
+	dollcreatectx_t *ctx;
+	int nummodbones = Mod_GetNumBones(mod, false);
+	if (nummodbones != numbones || !numbones)
+		return NULL;
+
+	ctx = malloc(sizeof(*ctx));
+
+	ctx->bones = Mod_GetBoneInfo(mod);
+	ctx->errors = 0;
+
+	memset(&ctx->defbody, 0, sizeof(ctx->defbody));
+	ctx->defbody.animate = true;
+	ctx->defbody.shape = SOLID_PHYSICS_BOX;
+	ctx->defbody.dimensions[0] = 4;
+	ctx->defbody.dimensions[1] = 4;
+	ctx->defbody.dimensions[2] = 4;
+	ctx->defbody.mass = 1;
+	ctx->defbody.orient = false;
+
+	memset(&ctx->defjoint, 0, sizeof(ctx->defjoint));
+	ctx->defjoint.axis[1] = 1;
+	ctx->defjoint.axis2[2] = 1;
+	ctx->defjoint.ERP = 0.2;	//use ODE defaults
+	ctx->defjoint.ERP2 = 0.2;
+	ctx->defjoint.CFM = 1e-5;
+	ctx->defjoint.CFM2 = 1e-5;
+
+	ctx->d = BZ_Malloc(sizeof(*ctx->d));
+	ctx->d->next = dolllist;
+	ctx->d->name = strdup(fname);
+	ctx->d->model = mod;
+	ctx->d->numbodies = 0;
+	ctx->d->body = NULL;
+	ctx->d->numjoints = 0;
+	ctx->d->uses = 0;
+	ctx->d->joint = NULL;
+
+	ctx->d->numbones = numbones;
+	ctx->d->bone = BZ_Malloc(sizeof(*ctx->d->bone) * ctx->d->numbones);
+	for (i = 0; i < ctx->d->numbones; i++)
+		ctx->d->bone[i].bodyidx = -1;
+
+	return ctx;
+}
+//returns true if the command was recognised. false if the command is for something else.
+qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
+{
+	int i;
+	int argc;
+	char *cmd, *val;
+	doll_t *d = ctx->d;
+
+	argc = Cmd_Argc();
+	cmd = Cmd_Argv(0);
+	val = Cmd_Argv(1);
+
+	if (!argc)
+	{
+	}
+	//create a new body
+	else if (argc == 3 && !stricmp(cmd, "body"))
+	{
+		int boneidx = Mod_TagNumForName(d->model, Cmd_Argv(2))-1;
+		ctx->joint = NULL;
+		ctx->body = NULL;
+		if (boneidx >= 0)
+		{
+			d->body = BZ_Realloc(d->body, sizeof(*d->body)*(d->numbodies+1));
+			ctx->body = &d->body[d->numbodies];
+			d->bone[boneidx].bodyidx = d->numbodies;
+			d->numbodies++;
+
+			*ctx->body = ctx->defbody;
+			Q_strncpyz(ctx->body->name, Cmd_Argv(1), sizeof(ctx->body->name));
+			ctx->body->bone = boneidx;
+		}
+		else if (!ctx->errors++)
+			Con_Printf("^[Unable to create body \"%s\" because bone \"%s\" does not exist in %s\\edit\\%s %i^]\n", Cmd_Argv(1), Cmd_Argv(2), d->model->name, d->name, linenum);
+	}
+	//create a new joint
+	else if (argc >= 2 && !stricmp(cmd, "joint"))
+	{
+		char *name;
+		ctx->joint = NULL;
+		ctx->body = NULL;
+		d->joint = BZ_Realloc(d->joint, sizeof(*d->joint)*(d->numjoints+1));
+		ctx->joint = &d->joint[d->numjoints];
+		*ctx->joint = ctx->defjoint;
+		Q_strncpyz(ctx->joint->name, Cmd_Argv(1), sizeof(ctx->joint->name));
+		name = Cmd_Argv(2);
+		ctx->joint->body1 = *name?rag_finddollbody(d, name):-1;
+		if (*name && ctx->joint->body1 < 0)
+		{
+			if (!ctx->errors++)
+				Con_Printf("^[Joint \"%s\" joins invalid body \"%s\"\\edit\\%s %i^]\n", ctx->joint->name, name, d->name, linenum);
+			return true;
+		}
+		name = Cmd_Argv(3);
+		ctx->joint->body2 = *name?rag_finddollbody(d, name):-1;
+		if (*name && (ctx->joint->body2 < 0 || ctx->joint->body2 == ctx->joint->body1))
+		{
+			if (!ctx->errors++)
+			{
+				if (ctx->joint->body2 == ctx->joint->body1)
+					Con_Printf("^[Joint \"%s\" joints body \"%s\" to itself\\edit\\%s %i^]\n", ctx->joint->name, name, d->name, linenum);
+				else
+					Con_Printf("^[Joint \"%s\" joints invalid body \"%s\"\\edit\\%s %i^]\n", ctx->joint->name, name, d->name, linenum);
+			}
+			return true;
+		}
+		ctx->joint->bonepivot = d->body[(ctx->joint->body2 >= 0)?ctx->joint->body2:ctx->joint->body1].bone;	//default the pivot object to the bone of the second object.
+
+		if (ctx->joint->body1 >= 0 || ctx->joint->body2 >= 0)
+			d->numjoints++;
+		else if (!ctx->errors++)
+			Con_Printf("^[Joint property \"%s\" not recognised\\edit\\%s %i^]\n", ctx->joint->name, d->name, linenum);
+	}
+	else if (argc == 2 && !stricmp(cmd, "updatebody"))
+	{
+		ctx->joint = NULL;
+		ctx->body = NULL;
+		if (!strcmp(val, "default"))
+			ctx->body = &ctx->defbody;
+		else
+		{
+			i = rag_finddollbody(d, val);
+			if (i >= 0)
+				ctx->body = &d->body[i];
+			else if (!ctx->errors++)
+				Con_Printf("^[Cannot update body \"%s\"\\edit\\%s %i^]\n", ctx->body->name, d->name, linenum);
+		}
+	}
+	else if (argc == 2 && !stricmp(cmd, "updatejoint"))
+	{
+		ctx->joint = NULL;
+		ctx->body = NULL;
+		if (!strcmp(val, "default"))
+			ctx->joint = &ctx->defjoint;
+		else
+		{
+			i = rag_finddolljoint(d, val);
+			if (i >= 0)
+				ctx->joint = &d->joint[i];
+			else if (!ctx->errors++)
+				Con_Printf("^[Cannot update joint \"%s\"\\edit\\%s %i^]\n", ctx->joint->name, d->name, linenum);
+		}
+	}
+
+	//body properties
+	else if (ctx->body && argc == 2 && !stricmp(cmd, "shape"))
+	{
+		if (!stricmp(val, "box"))
+			ctx->body->shape = SOLID_PHYSICS_BOX;
+		else if (!stricmp(val, "sphere"))
+			ctx->body->shape = SOLID_PHYSICS_SPHERE;
+		else if (!stricmp(val, "cylinder"))
+			ctx->body->shape = SOLID_PHYSICS_CYLINDER;
+		else if (!stricmp(val, "capsule"))
+			ctx->body->shape = SOLID_PHYSICS_CAPSULE;
+		else if (!ctx->errors++)
+			Con_Printf("^[Joint shape \"%s\" not recognised\\edit\\%s %i^]\n", val, d->name, linenum);
+	}
+	else if (ctx->body && argc == 2 && !stricmp(cmd, "animate"))
+		ctx->body->animate = atof(val);
+	else if (ctx->body && argc == 2 && !stricmp(cmd, "draw"))
+		ctx->body->draw = atoi(val);
+	else if (ctx->body && argc == 2 && !stricmp(cmd, "mass"))
+		ctx->body->mass = atof(val);
+	else if (ctx->body && argc == 2 && (!stricmp(cmd, "dimensions") || !stricmp(cmd, "size")))
+		ctx->body->dimensions[0] = ctx->body->dimensions[1] = ctx->body->dimensions[2] = atof(val);
+	else if (ctx->body && argc == 3 && (!stricmp(cmd, "dimensions") || !stricmp(cmd, "size")))
+	{
+		ctx->body->dimensions[0] = ctx->body->dimensions[1] = atof(val);
+		ctx->body->dimensions[2] = atoi(Cmd_Argv(2));
+	}
+	else if (ctx->body && argc == 4 && (!stricmp(cmd, "dimensions") || !stricmp(cmd, "size")))
+	{
+		ctx->body->dimensions[0] = atof(val);
+		ctx->body->dimensions[1] = atof(Cmd_Argv(2));
+		ctx->body->dimensions[2] = atof(Cmd_Argv(3));
+	}
+
+	//joint properties
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "type"))
+	{
+		if (!stricmp(val, "fixed"))
+			ctx->joint->type = JOINTTYPE_FIXED;
+		else if (!stricmp(val, "point"))
+			ctx->joint->type = JOINTTYPE_POINT;
+		else if (!stricmp(val, "hinge"))
+			ctx->joint->type = JOINTTYPE_HINGE;
+		else if (!stricmp(val, "slider"))
+			ctx->joint->type = JOINTTYPE_SLIDER;
+		else if (!stricmp(val, "universal"))
+			ctx->joint->type = JOINTTYPE_UNIVERSAL;
+		else if (!stricmp(val, "hinge2"))
+			ctx->joint->type = JOINTTYPE_HINGE2;
+	}
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "draw"))
+		ctx->joint->draw = atoi(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "ERP"))
+		ctx->joint->ERP = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "ERP2"))
+		ctx->joint->ERP2 = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "CFM"))
+		ctx->joint->CFM = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "CFM2"))
+		ctx->joint->CFM2 = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "FMax"))
+		ctx->joint->FMax = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "FMax2"))
+		ctx->joint->FMax2 = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "HiStop"))
+		ctx->joint->HiStop = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "HiStop2"))
+		ctx->joint->HiStop2 = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "LoStop"))
+		ctx->joint->LoStop = atof(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "LoStop2"))
+		ctx->joint->LoStop2 = atof(val);
+	else if (ctx->joint && argc == 4 && !stricmp(cmd, "axis"))
+	{
+		ctx->joint->axis[0] = atof(val);
+		ctx->joint->axis[1] = atof(Cmd_Argv(2));
+		ctx->joint->axis[2] = atof(Cmd_Argv(3));
+	}
+	else if (ctx->joint && argc == 4 && !stricmp(cmd, "axis2"))
+	{
+		ctx->joint->axis2[0] = atof(val);
+		ctx->joint->axis2[1] = atof(Cmd_Argv(2));
+		ctx->joint->axis2[2] = atof(Cmd_Argv(3));
+	}
+	else if (ctx->joint && argc == 4 && !stricmp(cmd, "offset"))
+	{
+		ctx->joint->offset[0] = atof(val);
+		ctx->joint->offset[1] = atof(Cmd_Argv(2));
+		ctx->joint->offset[2] = atof(Cmd_Argv(3));
+	}
+	else if (ctx->joint && ctx->joint != &ctx->defjoint && (argc == 2 || argc == 5) && !stricmp(cmd, "pivot"))
+	{
+		//the origin is specified in base-frame model space
+		//we need to make it relative to the joint's bodies
+		char *bone = val;
+		i = Mod_TagNumForName(d->model, bone)-1;
+		if (argc > 2)
+		{
+			ctx->joint->offset[0] = atof(Cmd_Argv(2));
+			ctx->joint->offset[1] = atof(Cmd_Argv(3));
+			ctx->joint->offset[2] = atof(Cmd_Argv(4));
+		}
+		if (i >= 0)
+		{
+			ctx->joint->bonepivot = i;
+			//Matrix3x4_Multiply(omat, bones[i].inverse, joint->orgmatrix);
+		}
+		else if (!ctx->errors++)
+			Con_Printf("^[Directive \"%s\" not understood or invalid\\edit\\%s %i^]\n", cmd, d->name, linenum);
+	}
+	else
+		return false;
+
+	return true;
+};
+doll_t *rag_finishdoll(dollcreatectx_t *ctx)
+{
+	doll_t *d = ctx->d;
+	int i;
+
+	d->drawn = false;
+	for (i = 0; i < d->numbodies; i++)
+	{
+		if (d->body[i].draw)
+		{
+			d->drawn = true;
+			break;
+		}
+	}
+	if (i == d->numbodies)
+	for (i = 0; i < d->numjoints; i++)
+	{
+		if (d->joint[i].draw)
+		{
+			d->drawn = true;
+			break;
+		}
+	}
+
+	free(ctx);
+
+	if (!d->numbodies)
+	{
+		rag_freedoll(d);
+		return NULL;
+	}
+	return d;
+};
+
+doll_t *rag_createdollfromstring(model_t *mod, char *fname, int numbones, char *file)
+{
+	int linenum = 0;
+	dollcreatectx_t *ctx;
+	ctx = rag_createdoll(mod, fname, numbones);
+	if (!ctx)
+		return NULL;
+	
+	while(file && *file)
+	{
+		linenum++;
+		file = Cmd_TokenizeString(file, false, false);
+
+		if (!rag_dollline(ctx, linenum))
+			if (!ctx->errors++)
+				Con_Printf("^[Directive \"%s\" not understood or invalid\\edit\\%s %i^]\n", Cmd_Argv(0), ctx->d->name, linenum);
+	}
+	return rag_finishdoll(ctx);
+}
+
+static doll_t *rag_loaddoll(model_t *mod, char *fname, int numbones)
 {
 	doll_t *d;
 	void *fptr = NULL;
-	char *file;
 	int fsize;
-	int i;
-	char *cmd;
-	galiasbone_t *bones;
-	int errors = 0;
 
 	for (d = dolllist; d; d = d->next)
 	{
@@ -236,168 +630,58 @@ doll_t *rag_loaddoll(model_t *mod, char *fname, int numbones)
 				return d;
 	}
 
-	bones = Mod_GetBoneInfo(mod);
-	if (!bones)
-	{
-		//model not skeletal.
-		return NULL;
-	}
-
 	fsize = FS_LoadFile(fname, &fptr);
 	if (!fptr)
-		return NULL;
-
-	d = malloc(sizeof(*d));
-	d->next = dolllist;
-	dolllist = d;
-	d->name = strdup(fname);
-	d->model = mod;
-	d->numbodies = 0;
-	d->body = NULL;
-	d->numjoints = 0;
-	d->uses = 0;
-	d->joint = NULL;
-	d->numbones = numbones;
-	d->bone = malloc(sizeof(*d->bone) * d->numbones);
-	for (i = 0; i < d->numbones; i++)
-		d->bone[i].bodyidx = -1;
-	file = fptr;
-	while(file && *file)
 	{
-		file = Cmd_TokenizeString(file, false, false);
-		cmd = Cmd_Argv(0);
-
-		if (!stricmp(cmd, "body"))
-		{
-			int boneidx;
-			boneidx = Mod_TagNumForName(d->model, Cmd_Argv(2))-1;
-			if (boneidx >= 0)
-			{
-				d->body = realloc(d->body, sizeof(*d->body)*(d->numbodies+1));
-				Q_strncpyz(d->body[d->numbodies].name, Cmd_Argv(1), sizeof(d->body[d->numbodies].name));
-				d->bone[boneidx].bodyidx = d->numbodies;
-				d->body[d->numbodies].bone = boneidx;
-				d->numbodies++;
-			}
-			else if (!errors++)
-				Con_Printf("Unable to create body \"%s\" because bone \"%s\" does not exist in \"%s\"\n", Cmd_Argv(1), Cmd_Argv(2), mod->name);
-		}
-		else if (!stricmp(cmd, "joint"))
-		{
-			odejointinfo_t *joint;
-			char *name;
-			d->joint = realloc(d->joint, sizeof(*d->joint)*(d->numjoints+1));
-			joint = &d->joint[d->numjoints];
-			memset(joint, 0, sizeof(*joint));
-			Q_strncpyz(joint->name, Cmd_Argv(1), sizeof(joint->name));
-			name = Cmd_Argv(2);
-			joint->body1 = *name?rag_finddollbody(d, name):-1;
-			if (*name && joint->body1 < 0 && !errors++)
-			{
-				Con_Printf("Joint \"%s\" joints invalid body \"%s\" in \"%s\"\n", joint->name, name, fname);
-				continue;
-			}
-			name = Cmd_Argv(3);
-			joint->body2 = *name?rag_finddollbody(d, name):-1;
-			if (*name && (joint->body2 < 0 || joint->body2 == joint->body1) && !errors++)
-			{
-				if (joint->body2 == joint->body1)
-					Con_Printf("Joint \"%s\" joints body \"%s\" to itself in \"%s\"\n", joint->name, name, fname);
-				else
-					Con_Printf("Joint \"%s\" joints invalid body \"%s\" in \"%s\"\n", joint->name, name, fname);
-				continue;
-			}
-			joint->orgmatrix[0] = 1;
-			joint->orgmatrix[4] = 1;
-			joint->orgmatrix[8] = 1;
-			joint->bonepivot = d->body[(joint->body2 >= 0)?joint->body2:joint->body1].bone;	//default the pivot object to the bone of the second object.
-
-			joint->ERP = 0.4;
-			joint->ERP2 = 0.4;
-			joint->CFM = 0.1;
-			joint->CFM2 = 0.1;
-
-			if (joint->body1 >= 0 || joint->body2 >= 0)
-				d->numjoints++;
-			else if (!errors++)
-				Con_Printf("Joint property \"%s\" not recognised in \"%s\"\n", joint->name, fname);
-		}
-		else if (!stricmp(cmd, "setjoint"))
-		{
-			int j = rag_finddolljoint(d, Cmd_Argv(1));
-			if (j >= 0)
-			{
-				odejointinfo_t *joint = &d->joint[j];
-				char *prop = Cmd_Argv(2);
-				char *val = Cmd_Argv(3);
-				if (!stricmp(prop, "type"))
-				{
-					if (!stricmp(val, "fixed"))
-						joint->type = JOINTTYPE_FIXED;
-					else if (!stricmp(val, "point"))
-						joint->type = JOINTTYPE_POINT;
-					else if (!stricmp(val, "hinge"))
-						joint->type = JOINTTYPE_HINGE;
-					else if (!stricmp(val, "slider"))
-						joint->type = JOINTTYPE_SLIDER;
-					else if (!stricmp(val, "universal"))
-						joint->type = JOINTTYPE_UNIVERSAL;
-					else if (!stricmp(val, "hinge2"))
-						joint->type = JOINTTYPE_HINGE2;
-				}
-				else if (!stricmp(prop, "ERP"))
-					joint->ERP = atof(val);
-				else if (!stricmp(prop, "ERP2"))
-					joint->ERP2 = atof(val);
-				else if (!stricmp(prop, "CFM"))
-					joint->CFM = atof(val);
-				else if (!stricmp(prop, "CFM2"))
-					joint->CFM2 = atof(val);
-				else if (!stricmp(prop, "FMax"))
-					joint->FMax = atof(val);
-				else if (!stricmp(prop, "FMax2"))
-					joint->FMax2 = atof(val);
-				else if (!stricmp(prop, "HiStop"))
-					joint->HiStop = atof(val);
-				else if (!stricmp(prop, "HiStop2"))
-					joint->HiStop2 = atof(val);
-				else if (!stricmp(prop, "LoStop"))
-					joint->LoStop = atof(val);
-				else if (!stricmp(prop, "LoStop2"))
-					joint->LoStop2 = atof(val);
-				else if (!stricmp(prop, "origin") || !stricmp(prop, "pivot"))
-				{
-					//the origin is specified in base-frame model space
-					//we need to make it relative to the joint's bodies
-					float omat[12] = {	1,	0,	0,	atoi(Cmd_Argv(3)),
-										0,	1,	0,	atoi(Cmd_Argv(4)),
-										0,	0,	1,	atoi(Cmd_Argv(5))};
-					char *bone = Cmd_Argv(6);
-					i = Mod_TagNumForName(d->model, Cmd_Argv(2))-1;
-					joint->bonepivot = i;
-					Matrix3x4_Multiply(omat, bones[i].inverse, joint->orgmatrix);
-				}
-				else if (!errors++)
-					Con_Printf("Joint property \"%s\" not recognised in \"%s\"\n", prop, fname);
-			}
-			else if (!errors++)
-				Con_Printf("Joint \"%s\" not yet defined in \"%s\"\n", Cmd_Argv(1), fname);
-		}
+#ifndef SERVERONLY
+		CL_CheckOrEnqueDownloadFile(fname, NULL, 0);
+#endif
+		return NULL;
 	}
+
+	d = rag_createdollfromstring(mod, fname, numbones, fptr);
 	FS_FreeFile(fptr);
+
+	if (d)
+	{
+		d->next = dolllist;
+		dolllist = d;
+	}
 	return d;
 }
 void rag_freedoll(doll_t *doll)
 {
-	free(doll->bone);
-	free(doll->body);
-	free(doll->joint);
-	free(doll);
+	int i;
+	if (doll->uses)
+	{
+		for (i = 0; i < numskelobjectsused; i++)
+		{
+			if (skelobjects[i].doll == doll)
+			{
+				rag_uninstanciate(&skelobjects[i]);
+				if (!doll->uses)
+					break;
+			}
+		}
+	}
+	BZ_Free(doll->bone);
+	BZ_Free(doll->body);
+	BZ_Free(doll->joint);
+	free(doll->name);
+	BZ_Free(doll);
 }
 
-void rag_flushdolls(void)
+void rag_flushdolls(qboolean force)
 {
 	doll_t *d, **link;
+	int i;
+	if (force)
+	{
+		for (i = 0; i < numskelobjectsused; i++)
+		{
+			rag_uninstanciate(&skelobjects[i]);
+		}
+	}
 	for (link = &dolllist; *link; )
 	{
 		d = *link;
@@ -411,7 +695,7 @@ void rag_flushdolls(void)
 	}
 }
 
-void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelobjsrc, float ft, float mmat[12])
+void skel_integrate(pubprogfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelobjsrc, float ft, float mmat[12])
 {
 #if 0
 	trace_t t;
@@ -531,13 +815,13 @@ void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelob
 #endif
 
 /*destroys all skeletons*/
-void skel_reset(progfuncs_t *prinst)
+void skel_reset(pubprogfuncs_t *prinst)
 {
 	int i;
 
 	for (i = 0; i < numskelobjectsused; i++)
 	{
-		if (skelobjects[i].world = prinst->parms->user)
+		if (skelobjects[i].world == prinst->parms->user)
 		{
 			rag_uninstanciate(&skelobjects[i]);
 			skelobjects[i].numbones = 0;
@@ -548,11 +832,11 @@ void skel_reset(progfuncs_t *prinst)
 
 	while (numskelobjectsused && !skelobjects[numskelobjectsused-1].inuse)
 		numskelobjectsused--;
-	rag_flushdolls();
+	rag_flushdolls(false);
 }
 
 /*deletes any skeletons marked for deletion*/
-void skel_dodelete(progfuncs_t *prinst)
+void skel_dodelete(pubprogfuncs_t *prinst)
 {
 	int skelidx;
 	if (!pendingkill)
@@ -572,58 +856,57 @@ void skel_dodelete(progfuncs_t *prinst)
 		numskelobjectsused--;
 }
 
-skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
+skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 {
-	if (skelidx == 0)
-	{
-		//allocation
-		if (!bonecount)
-			return NULL;
-
-		for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
-		{
-			if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount && skelobjects[skelidx].world == prinst->parms->user)
-				return &skelobjects[skelidx];
-		}
-
-		for (skelidx = 0; skelidx <= MAX_SKEL_OBJECTS; skelidx++)
-		{
-			if (!skelobjects[skelidx].inuse &&
-				(!skelobjects[skelidx].numbones || skelobjects[skelidx].numbones == bonecount) &&
-				(!skelobjects[skelidx].world || skelobjects[skelidx].world == prinst->parms->user))
-			{
-				if (!skelobjects[skelidx].numbones)
-				{
-					skelobjects[skelidx].numbones = bonecount;
-					skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
-				}
-				skelobjects[skelidx].world = prinst->parms->user;
-				if (numskelobjectsused <= skelidx)
-					numskelobjectsused = skelidx + 1;
-				skelobjects[skelidx].model = NULL;
-				skelobjects[skelidx].inuse = 1;
-				return &skelobjects[skelidx];
-			}
-		}
-
+	unsigned int skelidx;
+	//invalid if the bonecount is not set...
+	if (bonecount <= 0 || bonecount > MAX_BONES)
 		return NULL;
-	}
-	else
+
+	for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
 	{
-		skelidx--;
-		if ((unsigned int)skelidx >= numskelobjectsused)
-			return NULL;
-		if (skelobjects[skelidx].inuse != 1)
-			return NULL;
-		if (bonecount && skelobjects[skelidx].numbones != bonecount)
-			return NULL;
-		return &skelobjects[skelidx];
+		if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount && skelobjects[skelidx].world == prinst->parms->user)
+		{
+			skelobjects[skelidx].inuse = 1;
+			return &skelobjects[skelidx];
+		}
 	}
+
+	for (skelidx = 0; skelidx <= MAX_SKEL_OBJECTS; skelidx++)
+	{
+		if (!skelobjects[skelidx].inuse &&
+			(!skelobjects[skelidx].numbones || skelobjects[skelidx].numbones == bonecount) &&
+			(!skelobjects[skelidx].world || skelobjects[skelidx].world == prinst->parms->user))
+		{
+			if (!skelobjects[skelidx].numbones)
+			{
+				skelobjects[skelidx].numbones = bonecount;
+				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
+			}
+			skelobjects[skelidx].world = prinst->parms->user;
+			if (numskelobjectsused <= skelidx)
+				numskelobjectsused = skelidx + 1;
+			skelobjects[skelidx].model = NULL;
+			skelobjects[skelidx].inuse = 1;
+			return &skelobjects[skelidx];
+		}
+	}
+
+	return NULL;
+}
+skelobject_t *skel_get(pubprogfuncs_t *prinst, int skelidx)
+{
+	skelidx--;
+	if ((unsigned int)skelidx >= numskelobjectsused)
+		return NULL;
+	if (skelobjects[skelidx].inuse != 1)
+		return NULL;
+	return &skelobjects[skelidx];
 }
 
-void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out)
+void skel_lookup(pubprogfuncs_t *prinst, int skelidx, framestate_t *out)
 {
-	skelobject_t *sko = skel_get(prinst, skelidx, 0);
+	skelobject_t *sko = skel_get(prinst, skelidx);
 	if (sko && sko->inuse)
 	{
 		out->boneabs = sko->type;
@@ -632,10 +915,10 @@ void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out)
 	}
 }
 
-void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_mmap(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
-	skelobject_t *sko = skel_get(prinst, skelidx, 0);
+	skelobject_t *sko = skel_get(prinst, skelidx);
 	if (!sko || sko->world != prinst->parms->user)
 		G_INT(OFS_RETURN) = 0;
 	else
@@ -653,7 +936,7 @@ void rag_uninstanciate(skelobject_t *sko)
 	{
 		World_ODE_RagDestroyBody(sko->world, &sko->body[i].odebody);
 	}
-	free(sko->body);
+	BZ_Free(sko->body);
 	sko->body = NULL;
 	sko->numbodies = 0;
 
@@ -661,12 +944,42 @@ void rag_uninstanciate(skelobject_t *sko)
 	{
 		World_ODE_RagDestroyJoint(sko->world, &sko->joint[i]);
 	}
-	free(sko->joint);
+	BZ_Free(sko->joint);
 	sko->joint = NULL;
 	sko->numjoints = 0;
 
 	sko->doll->uses--;
 	sko->doll = NULL;
+}
+void rag_genbodymatrix(skelobject_t *sko, odebodyinfo_t *dollbody, float *emat, float *result)
+{
+	float *bmat;
+	int bone = dollbody->bone;
+	bmat = sko->bonematrix + bone*12;
+	R_ConcatTransforms((void*)emat, (void*)bmat, (void*)result);
+
+	if (dollbody->orient)
+	{
+		float peer[12];
+		bone = dollbody->orientpeer;
+		bmat = sko->bonematrix + bone*12;
+		
+		R_ConcatTransforms((void*)emat, (void*)bmat, (void*)peer);
+	}
+
+	//FIXME: handle biasing it to point away from the parent bone towards an orientation bone
+}
+qboolean rag_animate(skelobject_t *sko, doll_t *doll, float *emat)
+{
+	//drive the various animated bodies to their updated positions
+	int i;
+	for (i = 0; i < sko->numbodies; i++)
+	{
+		if (!doll->body[i].animate)
+			continue;
+		rag_genbodymatrix(sko, &doll->body[i], emat, sko->body[i].animmatrix);
+	}
+	return true;
 }
 qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t *ent)
 {
@@ -679,21 +992,28 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 	odebody_t *body1, *body2;
 	odejointinfo_t *j;
 	sko->numbodies = doll->numbodies;
-	sko->body = malloc(sizeof(*sko->body) * sko->numbodies);
+	sko->body = BZ_Malloc(sizeof(*sko->body) * sko->numbodies);
 	sko->doll = doll;
 	doll->uses++;
+	sko->numanimated = 0;
 	for (i = 0; i < sko->numbodies; i++)
 	{
 		memset(&sko->body[i], 0, sizeof(sko->body[i]));
 
-		bone = doll->body[i].bone;
-		bmat = sko->bonematrix + bone*12;
-		R_ConcatTransforms((void*)emat, (void*)bmat, (void*)bodymat);
-		if (!World_ODE_RagCreateBody(sko->world, &sko->body[i].odebody, bodymat, ent))
+		sko->body[i].animstrength = doll->body[i].animate;
+		if (sko->body[i].animstrength)
+			sko->numanimated++;
+
+		//spawn the body in the base pose, so we can add joints etc (also ignoring the entity matrix, we'll fix all that up later).
+		if (1)
+			Matrix3x4_Invert_Simple(bones[doll->body[i].bone].inverse, bodymat);
+		else
+			rag_genbodymatrix(sko, &doll->body[i], emat, bodymat);
+		if (!World_ODE_RagCreateBody(sko->world, &sko->body[i].odebody, &doll->body[i], bodymat, ent))
 			return false;
 	}
 	sko->numjoints = doll->numjoints;
-	sko->joint = malloc(sizeof(*sko->joint) * sko->numjoints);
+	sko->joint = BZ_Malloc(sizeof(*sko->joint) * sko->numjoints);
 	memset(sko->joint, 0, sizeof(*sko->joint) * sko->numjoints);
 	for(i = 0; i < sko->numjoints; i++)
 	{
@@ -704,28 +1024,42 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 		bone = j->bonepivot;
 		bmat = sko->bonematrix + bone*12;
 
-		R_ConcatTransforms((void*)bmat, (void*)j->orgmatrix, (void*)bodymat);
-		R_ConcatTransforms((void*)emat, (void*)bodymat, (void*)worldmat);
+		if (1)
+		{
+			Matrix3x4_Invert_Simple(bones[j->bonepivot].inverse, worldmat);
+		}
+		else
+		{
+			memcpy(bodymat, bmat, sizeof(bodymat));
+			bodymat[3] += j->offset[0];
+			bodymat[3+4] += j->offset[1];
+			bodymat[3+8] += j->offset[2];
+			R_ConcatTransforms((void*)emat, (void*)bodymat, (void*)worldmat);
+		}
 		aaa2[0][0] = worldmat[3];
 		aaa2[0][1] = worldmat[3+4];
 		aaa2[0][2] = worldmat[3+8];
-//		P_RunParticleEffectTypeString(aaa2[0], vec3_origin, 1, "te_spike");
+		VectorNormalize2(j->axis, aaa2[1]);
+		VectorNormalize2(j->axis2, aaa2[2]);
 
-		aaa2[1][0] = 1;
-		aaa2[1][1] = 0;
-		aaa2[1][2] = 0;
-		
-		aaa2[2][0] = 0;
-		aaa2[2][1] = 1;
-		aaa2[2][2] = 0;
-
-//		VectorCopy(j->offset, aaa2[0]);	//fixme: transform these vectors into world space, and transform to match the current positions of the bones.
-//		VectorCopy(j->axis, aaa2[1]);
-//		VectorCopy(j->axis2, aaa2[2]);
 		World_ODE_RagCreateJoint(sko->world, &sko->joint[i], j, body1, body2, aaa2);
 	}
+
+	//now the joints have all their various properties, move the bones to their real positions.
+	//this might result in the body flying across the room...
+	for (i = 0; i < sko->numbodies; i++)
+	{
+		rag_genbodymatrix(sko, &doll->body[i], emat, bodymat);
+		World_ODE_RagMatrixToBody(&sko->body[i].odebody, bodymat);
+	}
+
+	sko->doll->numdefaultanimated = sko->numanimated;
 	return true;
 }
+
+void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a);
+void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a);
+void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, float b, float a);
 void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 {
 	doll_t *doll = sko->doll;
@@ -734,19 +1068,106 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 	galiasbone_t *bones = Mod_GetBoneInfo(sko->model);
 	int i;
 	float invemat[12];
-	float bodymat[12];
+	float bodymat[12], rel[12];
 
 	Matrix3x4_Invert(emat, invemat);
 
+#ifndef SERVERONLY
+	if (doll->drawn)
+	{
+		float rad;
+		vec3_t mins, maxs;
+		shader_t *debugshader = NULL;
+		shader_t *lineshader = NULL;
+		vec3_t start, end;
+		for (i = 0; i < sko->numbodies; i++)
+		{
+			if (!doll->body[i].draw)
+				continue;
+
+			if (!debugshader)
+				debugshader = R_RegisterShader("boneshader",
+					"{\n"
+					"polygonoffset\n"
+					"{\n"
+					"map $whiteimage\n"
+					"blendfunc add\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+					"}\n"
+					"}\n");
+			
+			World_ODE_RagMatrixFromBody(sko->world, &sko->body[i].odebody, bodymat);
+
+			switch(doll->body[i].shape)
+			{
+			default:
+			case SOLID_PHYSICS_BOX:
+				VectorScale(doll->body[i].dimensions, -0.5, mins);
+				VectorScale(doll->body[i].dimensions, 0.5, maxs);
+				CLQ1_AddOrientedCube(debugshader, mins, maxs, bodymat, 0.2, 0.2, 0.2, 1);
+				break;
+			case SOLID_PHYSICS_CYLINDER:
+				rad = (doll->body[i].dimensions[0] + doll->body[i].dimensions[1])*0.5;
+				CLQ1_AddOrientedCylinder(debugshader, rad, doll->body[i].dimensions[2], false, bodymat, 0.2, 0.2, 0.2, 1);
+				break;
+			case SOLID_PHYSICS_CAPSULE:
+				rad = (doll->body[i].dimensions[0] + doll->body[i].dimensions[1])*0.5;
+				CLQ1_AddOrientedCylinder(debugshader, rad, doll->body[i].dimensions[2], true, bodymat, 0.2, 0.2, 0.2, 1);
+				break;
+			case SOLID_PHYSICS_SPHERE:
+				rad = (doll->body[i].dimensions[0] + doll->body[i].dimensions[1] + doll->body[i].dimensions[2])/3;
+				CLQ1_AddOrientedCylinder(debugshader, rad, rad, true, bodymat, 0.2, 0.2, 0.2, 1);
+				break;
+			}
+		}
+		mins[0] = mins[1] = mins[2] = -1;
+		maxs[0] = maxs[1] = maxs[2] = 1;
+		for (i = 0; i < doll->numjoints; i++)
+		{
+			if (!doll->joint[i].draw)
+				continue;
+			World_ODE_RagMatrixFromJoint(&sko->joint[i], &doll->joint[i], bodymat);
+	//		CLQ1_AddOrientedCube(debugshader, mins, maxs, bodymat, 0, 0.2, 0, 1);
+
+			if (!lineshader)
+				lineshader = R_RegisterShader("lineshader",
+					"{\n"
+					"polygonoffset\n"
+					"{\n"
+					"map $whiteimage\n"
+					"blendfunc add\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+					"}\n"
+					"}\n");
+			start[0] = bodymat[3];
+			start[1] = bodymat[7];
+			start[2] = bodymat[11];
+			end[0] = bodymat[3] + bodymat[8]*4;
+			end[1] = bodymat[7] + bodymat[9]*4;
+			end[2] = bodymat[11] + bodymat[10]*4;
+			CLQ1_DrawLine(lineshader, start, end, 0, 1, 1, 1);
+			start[0] = bodymat[3] + bodymat[4]*-2;
+			start[1] = bodymat[7] + bodymat[5]*-2;
+			start[2] = bodymat[11] + bodymat[6]*-2;
+			end[0] = bodymat[3] + bodymat[4]*2;
+			end[1] = bodymat[7] + bodymat[5]*2;
+			end[2] = bodymat[11] + bodymat[6]*2;
+			CLQ1_DrawLine(lineshader, start, end, 1, 1, 0, 1);
+		}
+	}
+#endif
 	for (i = 0; i < doll->numbones; i++)
 	{
 		if (doll->bone[i].bodyidx >= 0)
 		{
+			//bones with a body are given an absolute pose matching that body.
 			World_ODE_RagMatrixFromBody(sko->world, &sko->body[doll->bone[i].bodyidx].odebody, bodymat);
 			//that body matrix is in world space, so transform to model space for our result
 			R_ConcatTransforms((void*)invemat, (void*)bodymat, (void*)((float*)bmat+i*12));
 		}
-		else if (amat)
+		else if (amat)	//FIXME: don't do this when the bone has an unanimated child body.
 		{
 			//this bone has no joint object, use the anim sko's relative pose info instead
 			if (bones[i].parent >= 0)
@@ -754,43 +1175,174 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 			else
 				memcpy((void*)((float*)bmat+i*12), (void*)((float*)amat+i*12), sizeof(float)*12);
 		}
+		else
+		{
+			//copy from the base pose
+			Matrix3x4_Invert_Simple(bones[i].inverse, bodymat);
+			//that's the absolute pose...
+			if (bones[i].parent >= 0)
+			{
+				R_ConcatTransforms((void*)(bones[bones[i].parent].inverse), (void*)bodymat, (void*)rel);
+				R_ConcatTransforms((void*)(bmat + bones[i].parent*12), (void*)rel, (void*)((float*)bmat+i*12));
+			}
+			else
+			{
+				//its all absolute when its the root.
+				memcpy((void*)((float*)bmat+i*12), bodymat, sizeof(float)*12);
+			}
+		}
+	}
+
+	//if it wasn't before, it definitely is now.
+	sko->type = SKOT_ABSOLUTE;
+}
+
+//called each physics frame to update the body velocities for animation
+void rag_doallanimations(world_t *world)
+{
+	int i, j;
+	doll_t *doll;
+	skelobject_t *sko;
+	for (i = 0; i < numskelobjectsused; i++)
+	{
+		sko = &skelobjects[i];
+		if (sko->world != world)
+			continue;
+		doll = sko->doll;
+		if (!doll || !sko->numanimated)
+			continue;
+
+		for (j = 0; j < sko->numbodies; j++)
+		{
+			if (!doll->body[j].animate)
+				continue;
+			World_ODE_RagMatrixToBody(&sko->body[j].odebody, sko->body[j].animmatrix);
+		}
 	}
 }
 
+#ifndef SERVERONLY
+void rag_removedeltaent(lerpents_t *le)
+{
+	extern world_t csqc_world;
+	int skelidx = le->skeletalobject;
+	skelobject_t *skelobj;
+
+	if (!skelidx)
+		return;
+	le->skeletalobject = 0;
+
+	skelobj = skel_get(csqc_world.progs, skelidx);
+	if (skelobj)
+	{
+		skelobj->inuse = 2;	//2 means don't reuse yet.
+		skelobj->model = NULL;
+		pendingkill = true;
+	}
+}
+
+void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
+{
+	extern world_t csqc_world;
+	world_t *w;
+	model_t *mod = ent->model;
+	skelobject_t *sko;
+	float emat[12];
+	skelobject_t skorel = {0};
+	float relmat[MAX_BONES*12];
+	skorel.bonematrix = relmat;
+	skorel.type = SKOT_RELATIVE;
+
+	if (mod->dollinfo)
+	{
+		w = &csqc_world;
+		if (!w->ode.ode)
+			return;
+
+		if (!le->skeletalobject)
+		{
+			sko = skel_create(w->progs, Mod_GetNumBones(mod, false));
+			if (!sko)
+				return;	//couldn't get one, ran out of memory or something?
+			sko->model = mod;
+			sko->type = SKOT_RELATIVE;
+			le->skeletalobject = (sko - skelobjects) + 1;
+		}
+		else
+		{
+			sko = skel_get(w->progs, le->skeletalobject);
+			if (!sko)
+			{
+				le->skeletalobject = 0;
+				return;	//couldn't get one, ran out of memory or something?
+			}
+		}
+
+		skorel.numbones = sko->numbones;
+
+		//FIXME: provide some way for the animation to auto-trigger ragdoll (so framegroups can work automagically)
+		if (ent->framestate.g[FS_REG].frame[0] == 65535 || ent->framestate.g[FS_REG].frame[1] == 65535)
+			sko->numanimated = 0;
+		else if (sko->doll)
+			sko->numanimated = sko->doll->numdefaultanimated;
+		Mod_GetBoneRelations(mod, 0, skorel.numbones, &ent->framestate, skorel.bonematrix);
+		skorel.model = sko->model;
+		if (sko->numanimated || sko->doll != mod->dollinfo)
+		{
+			skel_copy_toabs(sko, &skorel, 0, sko->numbones);
+		}
+
+		bonemat_fromaxisorg(emat, ent->axis, ent->origin);
+
+		if (sko->doll != mod->dollinfo)
+		{
+			rag_uninstanciate(sko);
+			rag_instanciate(sko, mod->dollinfo, emat, NULL);
+		}
+		if (sko->numanimated)
+			rag_animate(sko, sko->doll, emat);
+
+		rag_derive(sko, sko->numanimated?&skorel:NULL, emat);
+
+		ent->framestate.bonestate = sko->bonematrix;
+		ent->framestate.bonecount = sko->numbones;
+		ent->framestate.boneabs = sko->type == SKOT_ABSOLUTE;
+	}
+}
+#endif
+#endif
+
+#ifdef SKELETALOBJECTS
 //update a skeletal object to track its ragdoll/apply a ragdoll to a skeletal object.
-void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//do we want to be able to generate a ragdoll object with this function too?
 #ifdef RAGDOLL
 	wedict_t *wed = (wedict_t*)G_EDICT(prinst, OFS_PARM0);
 	char *ragname = PR_GetStringOfs(prinst, OFS_PARM1);
 	int parentskel = G_FLOAT(OFS_PARM2);
-	int skelidx = wed->xv->skeletonindex;
+	int skelidx;
 	skelobject_t *sko, *psko;
 	doll_t *doll;
-	int i;
 	float emat[12];
-	extern cvar_t temp1;
 
-	{
-		vec3_t d[3], a;
-		//fixme: respond to renderflags&USEAXIS? scale?
-		a[0] = wed->v->angles[0] * -1; /*mod_alias bug*/
-		a[1] = wed->v->angles[1];
-		a[2] = wed->v->angles[2];
-		AngleVectors(a, d[0], d[1], d[2]);
-		bonemat_fromqcvectors(emat, d[0], d[1], d[2], wed->v->origin);
-		skelidx = wed->xv->skeletonindex;
-	}
+	vec3_t d[3], a;
+	//fixme: respond to renderflags&USEAXIS? scale?
+	a[0] = wed->v->angles[0] * -1; /*mod_alias bug*/
+	a[1] = wed->v->angles[1];
+	a[2] = wed->v->angles[2];
+	AngleVectors(a, d[0], d[1], d[2]);
+	bonemat_fromqcvectors(emat, d[0], d[1], d[2], wed->v->origin);
+	skelidx = wed->xv->skeletonindex;
 
 	G_FLOAT(OFS_RETURN) = 0;
 
 	//the parent skeletal object must be relative, if specified.
-	psko = skel_get(prinst, parentskel, 0);
+	psko = skel_get(prinst, parentskel);
 	if (psko && psko->type != SKOT_RELATIVE)
 		return;
 
-	sko = skel_get(prinst, skelidx, 0);
+	sko = skel_get(prinst, skelidx);
 	if (!sko)
 	{
 		Con_DPrintf("PF_skel_ragedit: invalid skeletal object\n");
@@ -803,47 +1355,86 @@ void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		return;
 	}
 
+	if (sko->doll)	//use the current doll
+		doll = sko->doll;
+	else if (sko->model) //
+		doll = sko->model->dollinfo;
+	else
+		doll = NULL;
+
 	if (*ragname)
 	{
-		if (sko->doll && !strcmp(sko->doll->name, ragname))
-			doll = sko->doll;
-		else
-			doll = rag_loaddoll(sko->model, ragname, sko->numbones);
-		if (!doll)
+		int idx;
+		char *cmd;
+
+		ragname = Cmd_TokenizeString(ragname, false, false);
+		cmd = Cmd_Argv(0);
+		if (!stricmp(cmd, "enablejoint"))
 		{
-			Con_DPrintf("PF_skel_ragedit: invalid doll\n");
+			idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
+			World_ODE_RagEnableJoint(&sko->joint[idx], atoi(Cmd_Argv(2)));
+			G_FLOAT(OFS_RETURN) = 1;
+			return;
+		}
+		else if (!stricmp(cmd, "animatebody"))
+		{
+			int body = rag_finddollbody(sko->doll, Cmd_Argv(1));
+			float strength = atof(Cmd_Argv(2));
+			if (body >= 0)
+			{
+				if (sko->body[body].animstrength)
+					sko->numanimated--;
+				sko->body[body].animstrength = strength;
+				if (sko->body[body].animstrength)
+					sko->numanimated++;
+			}
+			G_FLOAT(OFS_RETURN) = sko->numanimated;
+			return;
+		}
+		else if (!stricmp(cmd, "animate"))
+		{
+			float strength = atof(Cmd_Argv(1));
+			int i;
+			sko->numanimated = 0;
+
+			for (i = 0; i < sko->numbodies; i++)
+			{
+				sko->body[i].animstrength = sko->doll->body[i].animate * strength;
+				if (sko->body[i].animstrength)
+					sko->numanimated++;
+			}
+
+			if (sko->numanimated)
+			{
+				//make sure the animation target is valid.
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				rag_animate(sko, sko->doll, emat);
+			}
+			G_FLOAT(OFS_RETURN) = 1;
+			return;
+		}
+		else if (!stricmp(cmd, "doll"))
+			doll = rag_loaddoll(sko->model, Cmd_Argv(1), sko->numbones);
+		else if (!stricmp(cmd, "dollstring"))
+			doll = rag_createdollfromstring(sko->model, "", sko->numbones, ragname);
+		else if (!stricmp(cmd, "cleardoll"))
+			doll = NULL;
+		else
+		{
+			Con_Printf("PF_skel_ragedit: Unsupported command.\n");
 			return;
 		}
 	}
-	else
-	{
-		/*no doll name makes it revert to a normal skeleton*/
-		rag_uninstanciate(sko);
-		G_FLOAT(OFS_RETURN) = 1;
-		return;
-	}
 
-	if (sko->type != SKOT_ABSOLUTE)
+	if (sko->doll != doll)
 	{
-		float tmp[12];
-		float *bmat = sko->bonematrix;
-		galiasbone_t *bones = Mod_GetBoneInfo(sko->model);
-		for (i = 0; i < sko->numbones; i++)
+		rag_uninstanciate(sko);
+		if (!doll)
 		{
-			//bones without parents are technically already absolute
-			if (bones[i].parent >= 0)
-			{
-				//write to a tmp to avoid premature clobbering
-				R_ConcatTransforms((void*)(bmat + bones[i].parent*12), (void*)((float*)bmat+i*12), (void*)tmp);
-				memcpy((void*)(bmat+i*12), tmp, sizeof(tmp));
-			}
+			G_FLOAT(OFS_RETURN) = 1;	//technically success.
+			return;
 		}
-		sko->type = SKOT_ABSOLUTE;
-	}
-
-	if (sko->doll != doll || temp1.ival)
-	{
-		rag_uninstanciate(sko);
+		skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
 		if (!rag_instanciate(sko, doll, emat, wed))
 		{
 			rag_uninstanciate(sko);
@@ -851,17 +1442,27 @@ void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 			G_FLOAT(OFS_RETURN) = 0;
 			return;
 		}
+		if (sko->numanimated)
+			rag_animate(sko, doll, emat);
+	}
+	else if (!doll)
+	{
+		G_FLOAT(OFS_RETURN) = 1;	//technically success.
+		return;
+	}
+	else if (sko->numanimated)
+	{
+		skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+		rag_animate(sko, doll, emat);
 	}
 
 	rag_derive(sko, psko, emat);
-//	skel_integrate(prinst, sko, psko, host_frametime, emat);
-
 	G_FLOAT(OFS_RETURN) = 1;
 #endif
 }
 
 //float(float modelindex) skel_create (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 
@@ -872,7 +1473,7 @@ void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	int type;
 
 	midx = G_FLOAT(OFS_PARM0);
-	type = (*prinst->callargc > 1)?G_FLOAT(OFS_PARM1):SKOT_RELATIVE;
+	type = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):SKOT_RELATIVE;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -890,7 +1491,7 @@ void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_glob
 			return;	//this isn't a skeletal model.
 	}
 
-	skelobj = skel_get(prinst, 0, numbones);
+	skelobj = skel_create(prinst, numbones);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
 
@@ -910,7 +1511,7 @@ void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 
 //float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -919,7 +1520,7 @@ void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_global
 	float retainfrac = G_FLOAT(OFS_PARM3);
 	int firstbone = G_FLOAT(OFS_PARM4)-1;
 	int lastbone = G_FLOAT(OFS_PARM5)-1;
-	float addition = (*prinst->callargc>6)?G_FLOAT(OFS_PARM6):1-retainfrac;
+	float addition = (prinst->callargc>6)?G_FLOAT(OFS_PARM6):1-retainfrac;
 
 	int i, j;
 	int numbones;
@@ -946,7 +1547,10 @@ void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_global
 		return;	//this isn't a skeletal model.
 	}
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	if (!skelidx)
+		skelobj = skel_create(prinst, numbones);
+	else
+		skelobj = skel_get(prinst, skelidx);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
 
@@ -956,6 +1560,8 @@ void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_global
 		lastbone = numbones;
 	if (firstbone < 0)
 		firstbone = 0;
+	if (lastbone < firstbone)
+		lastbone = firstbone;
 
 	if (skelobj->type != SKOT_RELATIVE)
 	{
@@ -969,9 +1575,10 @@ void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	if (retainfrac == 0)
 	{
-		/*replace everything*/
-		if (addition == 1)
+		if (addition == 1) /*replace everything*/
 			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
+		else if (addition == 0) /*wipe it*/
+			memset(skelobj->bonematrix + firstbone*12, 0, sizeof(float)*12*(lastbone-firstbone));
 		else
 		{
 			//scale new
@@ -1023,12 +1630,12 @@ void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_global
 }
 
 //float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_get_numbones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -1037,13 +1644,13 @@ void QCBUILTIN PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *p
 }
 
 //string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-void QCBUILTIN PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_get_bonename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 
 	if (!skelobj)
 		G_INT(OFS_RETURN) = 0;
@@ -1054,13 +1661,13 @@ void QCBUILTIN PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *p
 }
 
 //float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_get_boneparent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -1069,13 +1676,13 @@ void QCBUILTIN PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s 
 }
 
 //float(float skel, string tagname) skel_find_bone (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_find_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	char *bname = PR_GetStringOfs(prinst, OFS_PARM1);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
@@ -1083,12 +1690,12 @@ void QCBUILTIN PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_g
 }
 
 //vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_get_bonerel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	skelobject_t *skelobj = skel_get(prinst, skelidx, 0);
+	skelobject_t *skelobj = skel_get(prinst, skelidx);
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
 	else if (skelobj->type!=SKOT_RELATIVE)
@@ -1107,14 +1714,14 @@ void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr
 }
 
 //vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_get_boneabs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
 	float workingm[12], tempmatrix[3][4];
 	int i;
-	skelobject_t *skelobj = skel_get(prinst, skelidx, 0);
+	skelobject_t *skelobj = skel_get(prinst, skelidx);
 
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
@@ -1149,7 +1756,7 @@ void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr
 }
 
 //void(entity ent, float bonenum, vector org, optional fwd, right, up) skel_set_bone_world (FTE_CSQC_SKELETONOBJECTS2) (reads v_forward etc)
-void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
@@ -1160,7 +1767,7 @@ void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s 
 	float childworld[12], parentinv[12];
 
 	/*sort out the parameters*/
-	if (*prinst->callargc == 4)
+	if (prinst->callargc == 4)
 	{
 		vec3_t d[3], a;
 		a[0] = G_VECTOR(OFS_PARM3)[0] * -1; /*mod_alias bug*/
@@ -1171,7 +1778,7 @@ void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s 
 	}
 	else
 	{
-		if (*prinst->callargc > 5)
+		if (prinst->callargc > 5)
 		{
 			matrix[0] = G_VECTOR(OFS_PARM3);
 			matrix[1] = G_VECTOR(OFS_PARM4);
@@ -1187,7 +1794,7 @@ void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s 
 	}
 
 	/*make sure the skeletal object is correct*/
-	skelobj = skel_get(prinst, ent->xv->skeletonindex, 0);
+	skelobj = skel_get(prinst, ent->xv->skeletonindex);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 
@@ -1216,7 +1823,7 @@ void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s 
 }
 
 //void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_set_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -1225,7 +1832,7 @@ void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	skelobject_t *skelobj;
 	float *bone;
 
-	if (*prinst->callargc > 5)
+	if (prinst->callargc > 5)
 	{
 		matrix[0] = G_VECTOR(OFS_PARM3);
 		matrix[1] = G_VECTOR(OFS_PARM4);
@@ -1238,7 +1845,7 @@ void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 		matrix[2] = w->g.v_up;
 	}
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 
@@ -1247,7 +1854,7 @@ void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 }
 
 //void(float skel, float bonenum, vector org [, vector fwd, vector right, vector up]) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_mul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -1255,12 +1862,12 @@ void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	float temp[3][4];
 	float mult[3][4];
 	skelobject_t *skelobj;
-	if (*prinst->callargc > 5)
+	if (prinst->callargc > 5)
 		bonemat_fromqcvectors((float*)mult, G_VECTOR(OFS_PARM3), G_VECTOR(OFS_PARM4), G_VECTOR(OFS_PARM5), G_VECTOR(OFS_PARM2));
 	else
 		bonemat_fromqcvectors((float*)mult, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_PARM2));
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 //testme
@@ -1271,7 +1878,7 @@ void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 }
 
 //void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_mul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -1280,12 +1887,12 @@ void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_g
 	float temp[3][4];
 	float mult[3][4];
 	skelobject_t *skelobj;
-	if (*prinst->callargc > 6)
+	if (prinst->callargc > 6)
 		bonemat_fromqcvectors((float*)mult, G_VECTOR(OFS_PARM4), G_VECTOR(OFS_PARM5), G_VECTOR(OFS_PARM6), G_VECTOR(OFS_PARM3));
 	else
 		bonemat_fromqcvectors((float*)mult, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_PARM3));
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 	if (!skelobj)
 		return;
 
@@ -1308,7 +1915,7 @@ void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_g
 }
 
 //void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skeldst = G_FLOAT(OFS_PARM0);
 	int skelsrc = G_FLOAT(OFS_PARM1);
@@ -1318,8 +1925,8 @@ void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_g
 	skelobject_t *skelobjdst;
 	skelobject_t *skelobjsrc;
 
-	skelobjdst = skel_get(prinst, skeldst, 0);
-	skelobjsrc = skel_get(prinst, skelsrc, 0);
+	skelobjdst = skel_get(prinst, skeldst);
+	skelobjsrc = skel_get(prinst, skelsrc);
 	if (!skelobjdst || !skelobjsrc)
 		return;
 	if (startbone == -1)
@@ -1345,35 +1952,22 @@ void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_g
 	else if (skelobjsrc->type == SKOT_RELATIVE && skelobjdst->type == SKOT_ABSOLUTE)
 	{
 		/*copy from relative to absolute*/
-
-		galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model);
-		if (!boneinfo)
-			return;
-		while(startbone < endbone)
-		{
-			if (boneinfo[startbone].parent >= 0)
-			{
-				Matrix3x4_Multiply(skelobjsrc->bonematrix+12*startbone, skelobjdst->bonematrix+12*boneinfo[startbone].parent, skelobjdst->bonematrix+12*startbone);
-			}
-			else
-			{
-				Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
-				Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
-				Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
-			}
-
-			startbone++;
-		}
+		skel_copy_toabs(skelobjdst, skelobjsrc, startbone, endbone);
+	}
+	else
+	{
+		/*copy from absolute to relative*/
+		//FIXME
 	}
 }
 
 //void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
-void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx, 0);
+	skelobj = skel_get(prinst, skelidx);
 	if (skelobj)
 	{
 		skelobj->inuse = 2;	//2 means don't reuse yet.
@@ -1383,7 +1977,7 @@ void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 
 //vector(entity ent, float tag) gettaginfo (DP_MD3_TAGSINFO)
-void QCBUILTIN PF_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
@@ -1421,7 +2015,7 @@ void QCBUILTIN PF_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globa
 }
 
 //vector(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-void QCBUILTIN PF_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
@@ -1437,7 +2031,7 @@ const char *Mod_FrameNameForNum(model_t *model, int num);
 const char *Mod_SkinNameForNum(model_t *model, int num);
 
 //string(float modidx, float framenum) frametoname
-void QCBUILTIN PF_frametoname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
@@ -1452,7 +2046,7 @@ void QCBUILTIN PF_frametoname (progfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 
 //string(float modidx, float skinnum) skintoname
-void QCBUILTIN PF_skintoname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
@@ -1466,7 +2060,7 @@ void QCBUILTIN PF_skintoname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		G_INT(OFS_RETURN) = 0;	//null string (which is also empty in qc)
 }
 
-void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
@@ -1478,7 +2072,7 @@ void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	else
 		G_FLOAT(OFS_RETURN) = -1;
 }
-void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
@@ -1490,7 +2084,7 @@ void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }
-void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifndef SERVERONLY
 	world_t *w = prinst->parms->user;

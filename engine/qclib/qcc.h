@@ -52,10 +52,10 @@ extern int	MAX_FIELDS;
 extern int	MAX_STATEMENTS;
 extern int	MAX_FUNCTIONS;
 
-#define	MAX_SOUNDS		1024	//convert to int?
-#define MAX_TEXTURES	1024	//convert to int?
-#define	MAX_MODELS		1024	//convert to int?
-#define	MAX_FILES		1024	//convert to int?
+#define	QCC_MAX_SOUNDS		1024	//convert to int?
+#define QCC_MAX_TEXTURES	1024	//convert to int?
+#define	QCC_MAX_MODELS		1024	//convert to int?
+#define	QCC_MAX_FILES		1024	//convert to int?
 #define	MAX_DATA_PATH	64
 
 extern int MAX_CONSTANTS;
@@ -63,7 +63,7 @@ extern int MAX_CONSTANTS;
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 32
 
-typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
+typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
 
 
@@ -310,6 +310,7 @@ typedef struct QCC_type_s
 	char *name;
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
+int typecmp_lax(QCC_type_t *a, QCC_type_t *b);
 
 typedef struct temp_s {
 	gofs_t ofs;
@@ -562,13 +563,14 @@ void QCC_PR_Expect (char *string);
 pbool QCC_PR_CheckKeyword(int keywordenabled, char *string);
 #endif
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
-void VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
+pbool VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
 pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);
 void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...);
 void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
 void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...);
 
 int QCC_WarningForName(char *name);
+char *QCC_NameForWarning(int idx);
 
 //QccMain.c must be changed if this is changed.
 enum {
@@ -627,6 +629,7 @@ enum {
 	WARN_CONSTANTCOMPARISON,
 	WARN_UNSAFEFUNCTIONRETURNTYPE,
 	WARN_MISSINGOPTIONAL,
+	WARN_SYSTEMCRC,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -753,7 +756,10 @@ typedef struct {
 } compiler_flag_t;
 extern compiler_flag_t compiler_flag[];
 
-extern pbool qccwarningdisabled[WARN_MAX];
+#define WA_IGNORE 0
+#define WA_WARN 1
+#define WA_ERROR 2
+extern unsigned char qccwarningaction[WARN_MAX];
 
 extern	jmp_buf		pr_parse_abort;		// longjump with this on parse error
 extern	int			pr_source_line;
@@ -789,7 +795,6 @@ extern QCC_def_t *extra_parms[MAX_EXTRA_PARMS];
 #else
 extern	char		pr_parm_names[MAX_PARMS][MAX_NAME];
 #endif
-extern	pbool	pr_trace;
 
 #define	G_FLOAT(o) (qcc_pr_globals[o])
 #define	G_INT(o) (*(int *)&qcc_pr_globals[o])
@@ -799,7 +804,7 @@ extern	pbool	pr_trace;
 
 char *QCC_PR_ValueString (etype_t type, void *val);
 
-void QCC_PR_ClearGrabMacros (void);
+void QCC_PR_ClearGrabMacros (pbool newfile);
 
 pbool	QCC_PR_CompileFile (char *string, char *filename);
 void QCC_PR_ResetErrorScope(void);
@@ -929,6 +934,7 @@ void editbadfile(char *fname, int line);
 char *TypeName(QCC_type_t *type);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
 void QCC_PR_IncludeChunkEx(char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
+void QCC_PR_CloseProcessor(void);
 pbool QCC_PR_UnInclude(void);
 extern void *(*pHash_Get)(hashtable_t *table, const char *name);
 extern void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);

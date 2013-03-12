@@ -243,7 +243,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svcfte_modellistshort	60		// [strings]
 #endif
 
-#define svc_ftesetclientpersist	61	//ushort DATA
+//#define svc_ftesetclientpersist	61	//ushort DATA
 
 #define svc_setportalstate 62
 
@@ -517,12 +517,13 @@ enum clcq2_ops_e
 
 #endif
 
-//first byte contains the stuff that's most likely to change constantly*/
+//FTE Replacement Deltas
+//first byte contains the stuff that's most likely to change constantly
 #define UF_FRAME		(1u<<0)
 #define UF_ORIGINXY		(1u<<1)
 #define UF_ORIGINZ		(1u<<2)
-#define UF_ANGLESXZ		(1u<<4)
-#define UF_ANGLESY		(1u<<3)
+#define UF_ANGLESXZ		(1u<<3)
+#define UF_ANGLESY		(1u<<4)
 #define UF_EFFECTS		(1u<<5)
 #define UF_PREDINFO		(1u<<6)	/*ent is predicted, probably a player*/
 #define UF_EXTEND1		(1u<<7)
@@ -548,7 +549,7 @@ enum clcq2_ops_e
 #define UF_EXTEND3		(1u<<23)
 
 #define UF_COLORMOD		(1u<<24)
-#define UF_GLOWMOD		(1u<<25)
+#define UF_GLOW			(1u<<25)
 #define UF_FATNESS		(1u<<26)
 #define UF_MODELINDEX2  (1u<<27)
 #define UF_GRAVITYDIR	(1u<<28)
@@ -674,6 +675,12 @@ enum clcq2_ops_e
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0
 
+//baseline flags
+#define FITZ_B_LARGEMODEL	(1<<0)
+#define FITZ_B_LARGEFRAME	(1<<1)
+#define FITZ_B_ALPHA		(1<<2)
+#define RMQFITZ_B_SCALE		(1<<3)
+
 
 #define	DEFAULT_VIEWHEIGHT	22
 
@@ -701,17 +708,19 @@ enum {
 	TE_LAVASPLASH		= 10,
 	TE_TELEPORT			= 11,
 
-	TEQW_BLOOD			= 12,
-	TENQ_EXPLOSION2		= 12,
-	TEQW_LIGHTNINGBLOOD	= 13,
-	TENQ_BEAM			= 13,
+	TEQW_BLOOD			= 12,	//implemented as a particle() in nq
+	TENQ_EXPLOSION2		= 12,	//remapped to TEQW_EXPLOSION2 for qw
+	TEQW_LIGHTNINGBLOOD	= 13,	//implemented as a particle() in nq
+	TENQ_BEAM			= 13,	//remapped to TEQW_BEAM for qw
 
 #ifdef PEXT_TE_BULLET
 	TE_BULLET			= 14,
 	TE_SUPERBULLET		= 15,
 #endif
 
-	TE_RAILTRAIL		= 17,
+	TE_RAILTRAIL		= 17,	//use the builtin, luke.
+	TEQW_BEAM			= 18,	//use the builtin, luke.
+	TEQW_EXPLOSION2		= 19,	//use the builtin, luke.
 
 	// hexen 2
 	TEH2_STREAM_LIGHTNING_SMALL	= 24,
@@ -796,10 +805,12 @@ enum {
 
 typedef struct entity_state_s
 {
-	unsigned short		number;			// edict index
-	unsigned short		modelindex;
+	unsigned int		number;			// edict index
 
-	unsigned int		flags;			// nolerp, etc
+	unsigned short		modelindex;
+	unsigned short		inactiveflag;
+
+//	unsigned int		eflags;			// nolerp, etc
 
 	unsigned int		effects;
 
@@ -812,6 +823,7 @@ typedef struct entity_state_s
 		{
 			int		renderfx;		//q2
 			vec3_t	old_origin;		//q2/q3
+
 			qbyte		modelindex3;	//q2
 			qbyte		modelindex4;	//q2
 			qbyte		sound;			//q2
@@ -824,8 +836,10 @@ typedef struct entity_state_s
 			qbyte pmovetype;
 			qbyte msec;
 			unsigned short weaponframe;
+
 			short movement[3];
 			short velocity[3]; // 1/8th
+
 			unsigned char gravitydir[2];	//pitch/yaw, no roll
 			unsigned short traileffectnum;
 		} q1;
@@ -1441,7 +1455,3 @@ typedef struct q1usercmd_s
 #define E5_EXTEND4 (1<<31)
 
 #define E5_ALLUNUSED (E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
-
-#define FITZB_LARGEMODEL	(1<<0)	// modelindex is short instead of byte
-#define FITZB_LARGEFRAME	(1<<1)	// frame is short instead of byte
-#define FITZB_ALPHA			(1<<2)	// 1 byte, uses ENTALPHA_ENCODE, not sent if ENTALPHA_DEFAULT

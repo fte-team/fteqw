@@ -2,8 +2,7 @@
 #include "hash.h"
 #include "shader.h"
 
-#if defined(ZYMOTICMODELS) || defined(MD5MODELS)
-#define SKELETALMODELS
+#ifdef SKELETALMODELS
 #include <stdlib.h>
 #endif
 

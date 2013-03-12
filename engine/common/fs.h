@@ -10,7 +10,7 @@ extern int fs_hash_files;	//for tracking efficiency. no functional use.
 
 
 typedef struct {
-	void	(*PrintPath)(void *handle);
+	void	(*GetDisplayPath)(void *handle, char *outpath, unsigned int pathsize);
 	void	(*ClosePath)(void *handle);
 	void	(*BuildHash)(void *handle, int depth);
 	qboolean (*FindFile)(void *handle, flocation_t *loc, const char *name, void *hashedresult);	//true if found (hashedresult can be NULL)

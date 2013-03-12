@@ -177,6 +177,8 @@ static void pp_identity_flush(client_t *cl, sizebuf_t *msg, enum protocol_type *
 			MSG_WriteByte(msg, pd[i].id);
 			break;
 		case PPT_ENT:
+			MSG_WriteEntity(msg, pd[i].id);
+			break;
 		case PPT_SHORT:
 			MSG_WriteShort(msg, pd[i].id);
 			break;
@@ -304,7 +306,7 @@ void NPP_NQWriteEntity(int dest, short data)
 {
 	union protocol_data pd;
 	pd.id = (unsigned short)data;
-	pp_entry(dest, PPT_COORD, pd);
+	pp_entry(dest, PPT_ENTITY, pd);
 }
 
 void NPP_QWWriteByte(int dest, qbyte data)
@@ -355,7 +357,7 @@ static void pp_svc_temp_entity_beam_flush(client_t *cl, sizebuf_t *msg, enum pro
 {
 	MSG_WriteByte(msg, pd[0].id);
 	MSG_WriteByte(msg, pd[1].id);
-	MSG_WriteShort(msg, pd[2].id);
+	MSG_WriteEntity(msg, pd[2].id);
 	MSG_WriteCoord(msg, pd[3].fd);
 	MSG_WriteCoord(msg, pd[4].fd);
 	MSG_WriteCoord(msg, pd[5].fd);
@@ -607,7 +609,7 @@ void NPP_SetInfo(client_t *cl, char *key, char *value)
 	if (!*Info_ValueForKey (cl->userinfo, "name"))
 		cl->name[0] = '\0';
 	else // process any changed values
-		SV_ExtractFromUserinfo (cl);
+		SV_ExtractFromUserinfo (cl, false);
 
 	i = cl - svs.clients;
 	MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
@@ -996,7 +998,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			switch(data)
 			{
 			case TENQ_BEAM:
-				data = TE_LIGHTNING1;	//QW doesn't do te_beam. Replace with lightning1.
+				data = TEQW_BEAM;	//QW doesn't do te_beam. Replace with lightning1.
 						//fallthrough
 			case TE_LIGHTNING1:
 			case TE_LIGHTNING2:
@@ -1035,6 +1037,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				ignoreprotocol = true;
 				break;
 			case TENQ_EXPLOSION2:
+				data = TEQW_EXPLOSION2;
 				protocollen = sizeof(qbyte)*4 + destprim->coordsize*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS_R;
@@ -1362,13 +1365,13 @@ void NPP_NQWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 			else if (!ISQWCLIENT(cl))
 			{
 				ClientReliableCheckBlock(cl, sizeof(short));
-				ClientReliableWrite_Short(cl, data);
+				ClientReliableWrite_Entity(cl, data);
 				return;
 			}
 		}
 	}
 	else
-		MSG_WriteShort (NQWriteDest(dest), data);
+		MSG_WriteEntity (NQWriteDest(dest), data);
 #endif
 
 	NPP_AddData(&data, sizeof(short));
@@ -1503,7 +1506,7 @@ void NPP_QWFlush(void)
 			{
 				Q_strncpyz(svs.clients[j].userinfo, (buffer+6), sizeof(svs.clients[j].userinfo));
 				if (*Info_ValueForKey(svs.clients[j].userinfo, "name"))
-					SV_ExtractFromUserinfo(&svs.clients[j]);
+					SV_ExtractFromUserinfo(&svs.clients[j], false);
 				else
 					*svs.clients[j].name = '\0';
 			}
@@ -1874,9 +1877,14 @@ void NPP_QWWriteShort(int dest, short data)	//replacement write func (nq to qw)
 		qbyte b[2];
 		short s;
 	} u;
-	u.s = LittleShort(data);
-	NPP_QWWriteByte(dest, u.b[0]);
-	NPP_QWWriteByte(dest, u.b[1]);
+	if (bufferlen == 2 && majortype == svc_temp_entity)
+		NPP_QWWriteEntity(dest, data);
+	else
+	{
+		u.s = LittleShort(data);
+		NPP_QWWriteByte(dest, u.b[0]);
+		NPP_QWWriteByte(dest, u.b[1]);
+	}
 }
 
 void NPP_QWWriteFloat(int dest, float data)	//replacement write func (nq to qw)
@@ -1978,17 +1986,18 @@ void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
 }
 void NPP_QWWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 {
-	union {
-		qbyte b[2];
-		short s;
-	} u;
-	u.s = LittleShort(data);
-	NPP_QWWriteByte(dest, u.b[0]);
-	NPP_QWWriteByte(dest, u.b[1]);
+	if (data >= 0x8000)
+	{
+		NPP_QWWriteByte(dest, ((data>> 0) & 0xff));
+		NPP_QWWriteByte(dest, ((data>> 8) & 0x7f) | 0x80);
+		NPP_QWWriteByte(dest, ((data>>15) & 0xff));
+	}
+	else
+	{
+		NPP_QWWriteByte(dest, (data>>0) & 0xff);
+		NPP_QWWriteByte(dest, (data>>8) & 0x7f);
+	}
 }
-
-
-
 #endif
 
 

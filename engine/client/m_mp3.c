@@ -2241,10 +2241,7 @@ qboolean Media_ShowFilm(void)
 		else
 		{
 			if (cin->cursormove)
-			{
-				extern int mousecursor_x, mousecursor_y;
 				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
-			}
 			if (cin->setsize)
 				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
 
@@ -3794,7 +3791,7 @@ void Media_Init(void)
 	Cvar_Register(&capturesoundbits,	"AVI capture controls");
 	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
 
-//	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
+	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
 #endif
 
 #endif

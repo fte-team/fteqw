@@ -362,20 +362,27 @@ comextqcfields
 } comentvars_t;
 #endif
 
-
-#if defined(CSQC_DAT) || !defined(CLIENTONLY)
-	#define USEODE 1
-	#if !(defined(ODE_STATIC) || defined(ODE_DYNAMIC))
-		#undef USEODE
-	#endif
-#endif
-
 #ifdef USEODE
 typedef struct
 {
 	void *ode_body;
 	void *ode_geom;
 } odebody_t;
+typedef struct
+{
+	//doll info
+	char name[32];
+	int bone;
+	float animate;
+	qboolean draw:1;
+	qboolean orient:1;
+	int orientpeer;
+
+	//ode info
+	int shape;
+	vec3_t dimensions;
+	float mass;
+} odebodyinfo_t;
 
 typedef struct
 {
@@ -383,7 +390,12 @@ typedef struct
 } odejoint_t;
 typedef struct
 {
+	//doll info
 	char name[32];
+//	unsigned int disablebits;
+	qboolean draw:1;
+
+	//ode info
 	int type;
 	int body1;	//handled by the ragdoll code, rather than the physics library.
 	int body2;	//handled by the ragdoll code.
@@ -397,8 +409,6 @@ typedef struct
 	float Vel,		Vel2;
 	vec3_t offset,	offset2;
 	vec3_t axis,	axis2;
-
-	float orgmatrix[12];
 } odejointinfo_t;
 
 typedef struct
@@ -424,7 +434,6 @@ typedef struct
 	vec_t ode_movelimit; // smallest component of (maxs[]-mins[])
 	float ode_offsetmatrix[16];
 	float ode_offsetimatrix[16];
-	float ode_friction;
 	int ode_joint_type;
 	int ode_joint_enemy;
 	int ode_joint_aiment;

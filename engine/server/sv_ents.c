@@ -252,13 +252,29 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 #endif
 }
 sizebuf_t csqcmsgbuffer;
+
+static void SV_EmitDeltaEntIndex(sizebuf_t *msg, unsigned int entnum, qboolean remove, qboolean big)
+{
+	unsigned int rflag = remove?0x8000:0;
+	if (big)
+	{
+		if (entnum >= 0x4000)
+		{
+			MSG_WriteShort(msg, (entnum&0x3fff) | 0x4000 | rflag);
+			MSG_WriteByte(msg, entnum >> 14);
+		}
+		else
+			MSG_WriteShort(msg, entnum | rflag);
+	}
+	else
+		MSG_WriteShort(msg, entnum | rflag);
+}
 void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 {
 #ifdef PEXT_CSQC
 	qbyte messagebuffer[1024];
 	int en;
 	int currentsequence = client->netchan.outgoing_sequence;
-	unsigned short mask;
 	globalvars_t *pr_globals;
 	edict_t *ent;
 	qboolean writtenheader = false;
@@ -287,6 +303,24 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 	{
 		ent = csqcent[en];
 
+#if 0
+		if ((int)ent->xv->Version != sv.csqcentversion[ent->entnum])
+		{
+			sv.csqcentversion[ent->entnum] = (int)ent->xv->Version;
+			for (j = 0; j < sv.allocated_client_slots; j++)
+				svs.client[j].pendingentbits[j] = 0xffffffff;
+		}
+
+		if (!client->pendingentbits[j])
+			continue;
+
+		csqcmsgbuffer.cursize = 0;
+		csqcmsgbuffer.currentbit = 0;
+		//Ask CSQC to write a buffer for it.
+		G_INT(OFS_PARM0) = viewerent;
+		G_FLOAT(OFS_PARM1) = client->pendingentbits[j];	//psudo compatibility with SendFlags (fte doesn't support properly)
+		client->pendingentbits[j] = 0;
+#else
 		if (ent->xv->SendFlags)
 		{
 			ent->xv->SendFlags = 0;
@@ -308,6 +342,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = viewerent;
 		G_FLOAT(OFS_PARM1) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
+#endif
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
@@ -323,7 +358,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 				writtenheader=true;
 				MSG_WriteByte(msg, svcnumber);
 			}
-			MSG_WriteShort(msg, ent->entnum);
+			SV_EmitDeltaEntIndex(msg, ent->entnum, false, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
 			if (sv.csqcdebug)	//optional extra.
 			{
 				if (!csqcmsgbuffer.cursize)
@@ -343,15 +378,14 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 				MSG_WriteByte(msg, svcfte_csqcentities);
 			}
 
-			mask = (unsigned)ent->entnum | 0x8000;
-			MSG_WriteShort(msg, mask);
+			SV_EmitDeltaEntIndex(msg, ent->entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
 //			Con_Printf("Sending remove 2 packet\n");
 		}
 		client->csqcentversions[ent->entnum] = sv.csqcentversion[ent->entnum];
 		client->csqcentsequence[ent->entnum] = currentsequence;
 	}
 	//now remove any out dated ones
-	for (en = 1; en < sv.world.num_edicts; en++)
+	for (en = 1; en < sv.world.num_edicts && en < client->max_net_ents; en++)
 	{
 		ent = EDICT_NUM(svprogfuncs, en);
 		if (client->csqcentversions[en] > 0 && client->csqcentversions[en] != ent->xv->Version)
@@ -371,8 +405,9 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 				}
 
 //				Con_Printf("Sending remove packet %i\n", en);
-				mask = (unsigned)en | 0x8000;
-				MSG_WriteShort(msg, mask);
+
+
+				SV_EmitDeltaEntIndex(msg, en, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
 
 				client->csqcentversions[en] = 0;
 				client->csqcentsequence[en] = currentsequence;
@@ -403,7 +438,7 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
 		unsigned int *f = client->frameunion.frames[sequence & UPDATE_MASK].resendentbits;
-		unsigned short *n = client->frameunion.frames[sequence & UPDATE_MASK].resendentnum;
+		unsigned int *n = client->frameunion.frames[sequence & UPDATE_MASK].resendentnum;
 //		Con_Printf("SV: Resend %i\n", sequence);
 		i = client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities;
 		while (i > 0)
@@ -569,7 +604,7 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 		evenmorebits |= U_COLOURMOD;
 
 	if (to->glowsize != from->glowsize)
-		to->dpflags |= 2; // RENDER_GLOWTRAIL
+		to->dpflags |= RENDER_GLOWTRAIL;
 
 	if (to->dpflags != from->dpflags && (protext & PEXT_DPFLAGS))
 		evenmorebits |= U_DPFLAGS;
@@ -693,7 +728,7 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 
 	if (evenmorebits & U_TAGINFO)
 	{
-		MSG_WriteShort (msg, to->tagentity);
+		MSG_WriteEntity (msg, to->tagentity);
 		MSG_WriteShort (msg, to->tagindex);
 	}
 
@@ -811,8 +846,8 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2])
 		bits |= UF_COLORMOD;
 
-	if (to->glowmod[0]!=from->glowmod[0]||to->glowmod[1]!=from->glowmod[1]||to->glowmod[2]!=from->glowmod[2])
-		bits |= UF_GLOWMOD;
+	if (to->glowsize!=from->glowsize||to->glowcolour!=from->glowcolour||to->glowmod[0]!=from->glowmod[0]||to->glowmod[1]!=from->glowmod[1]||to->glowmod[2]!=from->glowmod[2])
+		bits |= UF_GLOW;
 
 	if (to->tagentity != from->tagentity || to->tagindex != from->tagindex)
 		bits |= UF_TAGINFO;
@@ -985,7 +1020,7 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte(msg, state->hexen2flags);
 	if (bits & UF_TAGINFO)
 	{
-		MSG_WriteShort(msg, state->tagentity);
+		MSG_WriteEntity(msg, state->tagentity);
 		MSG_WriteByte(msg, state->tagindex);
 	}
 	if (bits & UF_LIGHT)
@@ -1006,8 +1041,10 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte(msg, state->colormod[1]);
 		MSG_WriteByte(msg, state->colormod[2]);
 	}
-	if (bits & UF_GLOWMOD)
+	if (bits & UF_GLOW)
 	{
+		MSG_WriteByte(msg, state->glowsize);
+		MSG_WriteByte(msg, state->glowcolour);
 		MSG_WriteByte(msg, state->glowmod[0]);
 		MSG_WriteByte(msg, state->glowmod[1]);
 		MSG_WriteByte(msg, state->glowmod[2]);
@@ -1034,7 +1071,7 @@ void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_
 {
 	unsigned int bits;
 	if (numberisimportant)
-		MSG_WriteShort(msg, to->number);
+		MSG_WriteEntity(msg, to->number);
 	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, to);
 	SVFTE_WriteUpdate(bits, to, msg);
 }
@@ -1052,7 +1089,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	unsigned int j;
 	unsigned int bits;
 	unsigned int *resendbits;
-	unsigned short *resendnum;
+	unsigned int *resendnum;
 	unsigned int outno, outmax;
 	qboolean reset = (client->delta_sequence == -1) || (client->pendingentbits[0] & UF_REMOVE);
 
@@ -1150,7 +1187,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 
 		if (bits & UF_REMOVE)
 		{
-			MSG_WriteShort(msg, j | 0x8000);
+			SV_EmitDeltaEntIndex(msg, j, true, true);
 			resendbits[outno] = UF_REMOVE;
 //			Con_Printf("REMOVE %i @ %i\n", j, client->netchan.incoming_sequence);
 		}
@@ -1173,7 +1210,8 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			}
 			else
 				resendbits[outno] = bits;
-			MSG_WriteShort(msg, j);
+
+			SV_EmitDeltaEntIndex(msg, j, false, true);
 			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg);
 		}
 		resendnum[outno++] = j;
@@ -1516,7 +1554,7 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 		MSG_WriteByte(msg, to->colormap);
 	if (bits & E5_ATTACHMENT)
 	{
-		MSG_WriteShort(msg, to->tagentity);
+		MSG_WriteEntity(msg, to->tagentity);
 		MSG_WriteByte(msg, to->tagindex);
 	}
 	if (bits & E5_LIGHT)
@@ -1726,7 +1764,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		if (ent->spectator == 2 && ent->weaponframe)	//it's not us, but we are spectating, so we need the correct weaponframe
 			pflags |= PF_WEAPONFRAME;
 
-		if (!ent->isself || ent->fteext & PEXT_SPLITSCREEN)
+		if (!ent->isself || (ent->fteext & PEXT_SPLITSCREEN))
 		{
 #ifdef PEXT_SCALE	//this is graphics, not physics
 			if (ent->fteext & PEXT_SCALE)
@@ -1950,7 +1988,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 	int			j;
 	client_t	*cl;
 	edict_t		*ent, *vent;
-	int			pflags;
+//	int			pflags;
 
 	demo_frame_t *demo_frame;
 	demo_client_t *dcl;
@@ -2334,7 +2372,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 
 //FIXME: Name flags
 		//player is visible, now would be a good time to update what the player is like.
-		pflags = 0;
+/*		pflags = 0;
 #ifdef PEXT_VWEAP
 		if (client->fteprotocolextensions & PEXT_VWEAP && client->otherclientsknown[j].vweap != ent->xv->vweapmodelindex)
 		{
@@ -2349,13 +2387,15 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			if (pflags & 1)
 				ClientReliableWrite_Short(client, client->otherclientsknown[j].vweap);
 		}
+*/
 	}
 }
 
 
 void SVNQ_EmitEntityState(sizebuf_t *msg, entity_state_t *ent)
 {
-	entity_state_t *baseline = &EDICT_NUM(svprogfuncs, ent->number)->baseline;
+	edict_t *ed = EDICT_NUM(svprogfuncs, ent->number);
+	entity_state_t *baseline = &ed->baseline;
 
 int i, eff;
 float miss;
@@ -2403,7 +2443,24 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		bits |= NQU_LONGENTITY;
 
 
-	if (0)
+	if (host_client->protocol == SCP_FITZ666)
+	{
+		if (baseline->trans != ent->trans)
+			bits |= FITZU_ALPHA;
+
+		if (baseline->scale != ent->scale)
+			bits |= RMQU_SCALE;
+
+		if ((baseline->frame&0xff00) != (ent->frame&0xff00))
+			bits |= FITZU_FRAME2;
+
+		if ((baseline->modelindex&0xff00) != (ent->modelindex&0xff00))
+			bits |= FITZU_MODEL2;
+
+		if (baseline->dpflags & RENDER_STEP)
+			bits |= FITZU_LERPFINISH;
+	}
+	else if (0)
 	{
 #if 0
 		if (baseline.trans != ent->xv->alpha)
@@ -2488,14 +2545,25 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->origin[2]);
 	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->angles[2]);
 
-	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->trans*255);
-	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale*16);
-	if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
-	if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
-	if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
-	if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colourmod);
-	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->frame >> 8);
-	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->modelindex >> 8);
+	if (host_client->protocol == SCP_FITZ666)
+	{
+		if (bits & FITZU_ALPHA)		MSG_WriteByte(msg, ent->trans);
+		if (bits & RMQU_SCALE)		MSG_WriteByte(msg, ent->scale);
+		if (bits & FITZU_FRAME2)	MSG_WriteByte(msg, ent->frame>>8);
+		if (bits & FITZU_MODEL2)	MSG_WriteByte(msg, ent->modelindex>>8);
+		if (bits & FITZU_LERPFINISH)MSG_WriteByte(msg, (ed->v->nextthink - sv.world.physicstime) * 255);
+	}
+	else
+	{
+		if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->trans*255);
+		if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale*16);
+		if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
+		if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
+		if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
+		if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colourmod);
+		if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->frame >> 8);
+		if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->modelindex >> 8);
+	}
 }
 
 typedef struct gibfilter_s {
@@ -2772,7 +2840,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (ent->v->movetype == MOVETYPE_STEP)
 		state->dpflags |= RENDER_STEP;
 
-	state->flags = 0;
 	VectorCopy (ent->v->origin, state->origin);
 	VectorCopy (ent->v->angles, state->angles);
 	state->modelindex = ent->v->modelindex;
@@ -3406,7 +3473,7 @@ void SV_CleanupEnts(void)
 			ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
 
 			MSG_WriteByte(&sv.multicast, svc_muzzleflash);
-			MSG_WriteShort(&sv.multicast, e);
+			MSG_WriteEntity(&sv.multicast, e);
 			VectorCopy(ent->v->origin, org);
 			if (progstype == PROG_H2)
 				org[2] += 24;

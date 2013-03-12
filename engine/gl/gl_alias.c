@@ -191,6 +191,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 {
 	galiasskin_t *skins;
 	shader_t *shader;
+	skin_t *plskin;
 	int frame;
 	unsigned int subframe;
 	extern int cl_playerindex;	//so I don't have to strcmp
@@ -218,22 +219,19 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	if (!gl_nocolors.ival || forced)
 	{
-		if (e->scoreboard)
+		if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)
 		{
-			if (!e->scoreboard->skin)
-				Skin_Find(e->scoreboard);
-			tc = e->scoreboard->ttopcolor;
-			bc = e->scoreboard->tbottomcolor;
-			pc = e->scoreboard->h2playerclass;
+			if (!cl.players[e->playerindex].skin)
+				Skin_Find(&cl.players[e->playerindex]);
+			plskin = cl.players[e->playerindex].skin;
 		}
 		else
-		{
-			tc = 1;
-			bc = 1;
-			pc = 0;
-		}
+			plskin = NULL;
+		tc = e->topcolour;
+		bc = e->bottomcolour;
+		pc = e->h2playerclass;
 
-		if (forced || tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
+		if (forced || tc != 1 || bc != 1 || plskin)
 		{
 			int			inwidth, inheight;
 			int			tinwidth, tinheight;
@@ -242,9 +240,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			galiascolourmapped_t *cm;
 			char hashname[512];
 
-			if (e->scoreboard && e->scoreboard->skin)
+			if (plskin)
 			{
-				snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, e->scoreboard->skin->name, surfnum);
+				snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, plskin->name, surfnum);
 				skinname = hashname;
 			}
 			else if (surfnum)
@@ -314,6 +312,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			cm->subframe = subframe;
 			cm->texnum.fullbright = r_nulltex;
 			cm->texnum.base = r_nulltex;
+			cm->texnum.bump = r_nulltex;
+			cm->texnum.specular = r_nulltex;
 			cm->texnum.loweroverlay = r_nulltex;
 			cm->texnum.upperoverlay = r_nulltex;
 
@@ -321,58 +321,58 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{	//model has no shaders, so just the skin directly
 				shader = R_RegisterSkin(skinname, NULL);
 
-				if (e->scoreboard && e->scoreboard->skin)
+				if (plskin)
 				{
 					if (cls.protocol == CP_QUAKE2)
 					{
-						original = Skin_Cache32(e->scoreboard->skin);
+						original = Skin_Cache32(plskin);
 						if (original)
 						{
-							inwidth = e->scoreboard->skin->width;
-							inheight = e->scoreboard->skin->height;
-							cm->texnum.base = R_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
+							inwidth = plskin->width;
+							inheight = plskin->height;
+							cm->texnum.base = R_LoadTexture32(plskin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
 							return shader;
 						}
 					}
 					else
 					{
-						original = Skin_Cache8(e->scoreboard->skin);
+						original = Skin_Cache8(plskin);
 						if (original)
 						{
-							inwidth = e->scoreboard->skin->width;
-							inheight = e->scoreboard->skin->height;
-							cm->texnum.base = R_LoadTexture8(e->scoreboard->skin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
+							inwidth = plskin->width;
+							inheight = plskin->height;
+							cm->texnum.base = R_LoadTexture8(plskin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
 							return shader;
 						}
 					}
 
-					if (TEXVALID(e->scoreboard->skin->tex_base))
+					if (TEXVALID(plskin->tex_base))
 					{
-						cm->texnum.loweroverlay = e->scoreboard->skin->tex_lower;
-						cm->texnum.upperoverlay = e->scoreboard->skin->tex_upper;
-						cm->texnum.base = e->scoreboard->skin->tex_base;
+						cm->texnum.loweroverlay = plskin->tex_lower;
+						cm->texnum.upperoverlay = plskin->tex_upper;
+						cm->texnum.base = plskin->tex_base;
 						return shader;
 					}
 
-					cm->texnum.base = R_LoadHiResTexture(e->scoreboard->skin->name, "skins", IF_NOALPHA);
+					cm->texnum.base = R_LoadHiResTexture(plskin->name, "skins", IF_NOALPHA);
 					return shader;
 				}
 				return shader;
 			}
 
 			cm->texnum.bump = shader->defaulttextures.bump;	//can't colour bumpmapping
-			if (cls.protocol != CP_QUAKE2 && ((model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0]) && e->scoreboard && e->scoreboard->skin))
+			if (cls.protocol != CP_QUAKE2 && ((model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0]) && plskin))
 			{
 				/*q1 only reskins the player model, not gibbed heads (which have the same colourmap)*/
-				original = Skin_Cache8(e->scoreboard->skin);
-				inwidth = e->scoreboard->skin->width;
-				inheight = e->scoreboard->skin->height;
+				original = Skin_Cache8(plskin);
+				inwidth = plskin->width;
+				inheight = plskin->height;
 
-				if (!original && TEXVALID(e->scoreboard->skin->tex_base))
+				if (!original && TEXVALID(plskin->tex_base))
 				{
-					cm->texnum.loweroverlay = e->scoreboard->skin->tex_lower;
-					cm->texnum.upperoverlay = e->scoreboard->skin->tex_upper;
-					cm->texnum.base = e->scoreboard->skin->tex_base;
+					cm->texnum.loweroverlay = plskin->tex_lower;
+					cm->texnum.upperoverlay = plskin->tex_upper;
+					cm->texnum.base = plskin->tex_base;
 					return shader;
 				}
 			}
@@ -386,7 +386,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{
 				if (skins->ofstexels)
 				{
-					original = (qbyte *)skins + skins->ofstexels;
+					int *offsets;
+					offsets = (int*)((qbyte *)skins + skins->ofstexels);
+					original = (qbyte*)offsets + offsets[subframe];
 					inwidth = skins->skinwidth;
 					inheight = skins->skinheight;
 				}
@@ -424,21 +426,29 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					tinheight = inheight;
 
 				//don't make scaled width any larger than it needs to be
-				for (i = 0; i < 10; i++)
+				if (r_config.texture_non_power_of_two)
 				{
-					scaled_width = (1<<i);
-					if (scaled_width >= tinwidth)
-						break;	//its covered
+					scaled_width = tinwidth;
+					scaled_height = tinheight;
 				}
+				else
+				{
+					for (i = 0; i < 10; i++)
+					{
+						scaled_width = (1<<i);
+						if (scaled_width >= tinwidth)
+							break;	//its covered
+					}
+					for (i = 0; i < 10; i++)
+					{
+						scaled_height = (1<<i);
+						if (scaled_height >= tinheight)
+							break;	//its covered
+					}
+				}
+
 				if (scaled_width > gl_max_size.value)
 					scaled_width = gl_max_size.value;	//whoops, we made it too big
-
-				for (i = 0; i < 10; i++)
-				{
-					scaled_height = (1<<i);
-					if (scaled_height >= tinheight)
-						break;	//its covered
-				}
 				if (scaled_height > gl_max_size.value)
 					scaled_height = gl_max_size.value;	//whoops, we made it too big
 
@@ -966,9 +976,9 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	/*switch model if we're the player model, and the player skin says a new model*/
 	{
 		extern int cl_playerindex;
-		if (e->scoreboard && e->model == cl.model_precache[cl_playerindex])
+		if (e->playerindex >= 0 && e->model == cl.model_precache[cl_playerindex])
 		{
-			clmodel = e->scoreboard->model;
+			clmodel = cl.players[e->playerindex].model;
 			if (clmodel && clmodel->type == mod_alias)
 				e->model = clmodel;
 		}
@@ -1930,7 +1940,7 @@ void BE_GenPolyBatches(batch_t **batches)
 		b->lightmap[2] = -1;
 		b->lightmap[3] = -1;
 		b->surf_first = i;
-		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS | cl_stris[i].flags;
 		b->vbo = 0;
 		b->next = batches[shader->sort];
 		batches[shader->sort] = b;
@@ -1942,18 +1952,24 @@ void BE_GenModelBatches(batch_t **batches)
 {
 	int		i;
 	entity_t *ent;
+	unsigned int orig_numstris = cl_numstris;
+	unsigned int orig_numvisedicts = cl_numvisedicts;
 
 	/*clear the batch list*/
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
 		batches[i] = NULL;
 
 #if defined(TERRAIN)
-	if (cl.worldmodel && cl.worldmodel->terrain)
+	if (cl.worldmodel && cl.worldmodel->terrain && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		Terr_DrawTerrainModel(batches, &r_worldentity);
 #endif
 
 	if (!r_drawentities.ival)
 		return;
+
+#ifndef CLIENTONLY
+	SV_AddDebugPolygons();
+#endif
 
 	Alias_FlushCache();
 
@@ -2042,6 +2058,9 @@ void BE_GenModelBatches(batch_t **batches)
 
 	if (cl_numstris)
 		BE_GenPolyBatches(batches);
+
+	cl_numstris = orig_numstris;
+	cl_numvisedicts = orig_numvisedicts;
 }
 
 #endif	// defined(GLQUAKE)

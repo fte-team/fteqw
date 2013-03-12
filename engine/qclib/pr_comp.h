@@ -8,12 +8,8 @@ Setting them should be fine.
 #define __PR_COMP_H__
 
 
-/*this distinction is made as the execution uses c pointers while compiler uses pointers from the start of the string table of the current progs*/
-#ifdef COMPILER
-typedef int QCC_string_t;
-#else
-//typedef char *string_t;
-#endif
+typedef int dstring_t;
+#define QCC_string_t dstring_t
 
 //typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_struct, ev_union} etype_t;
 //				0			1		2			3			4		5			6				7			8		9			10
@@ -356,6 +352,9 @@ enum qcop_e {
 	OP_LOADA_STRUCT,
 	OP_STOREP_P,
 
+	OP_BINARYNOT_F,
+	OP_BINARYNOT_I,
+
 	OP_NUMOPS
 };
 
@@ -391,7 +390,6 @@ typedef struct qtest_function_s
 	int		parm_size[MAX_PARMS]; // ints instead of bytes...
 } qtest_function_t;
 
-#ifndef COMPILER
 typedef struct statement16_s
 {
 	unsigned short	op;
@@ -402,22 +400,11 @@ typedef struct statement32_s
 	unsigned int	op;
 	unsigned int	a,b,c;
 } dstatement32_t;
-#else
-typedef struct QCC_statement16_s
-{
-	unsigned short	op;
-	unsigned short	a,b,c;
-} QCC_dstatement16_t;
-typedef struct QCC_statement32_s
-{
-	unsigned int	op;
-	unsigned int	a,b,c;
-} QCC_dstatement32_t;
-#define QCC_dstatement_t QCC_dstatement32_t
-#endif
+#define QCC_dstatement16_t dstatement16_t
+#define QCC_dstatement_t dstatement32_t
+#define QCC_dstatement32_t dstatement32_t
 
 //these should be the same except the string type
-#ifndef COMPILER
 typedef struct ddef16_s
 {
 	unsigned short	type;		// if DEF_SAVEGLOBAL bit is set
@@ -435,7 +422,7 @@ typedef struct ddef32_s
 } ddef32_t;
 
 typedef void *ddefXX_t;
-#else
+
 typedef struct QCC_ddef16_s
 {
 	unsigned short	type;		// if DEF_SAVEGLOBAL bit is set
@@ -451,14 +438,11 @@ typedef struct QCC_ddef32_s
 	unsigned int	ofs;
 	QCC_string_t		s_name;
 } QCC_ddef32_t;
-
 #define QCC_ddef_t QCC_ddef32_t
-#endif
 
 #define	DEF_SAVEGLOBAL 		(1<<15)
 #define	DEF_SHARED 		(1<<14)
 
-#ifndef COMPILER
 typedef struct
 {
 	int		first_statement;	// negative numbers are builtins
@@ -473,7 +457,6 @@ typedef struct
 	int		numparms;
 	qbyte	parm_size[MAX_PARMS];
 } dfunction_t;
-#else
 typedef struct
 {
 	unsigned int		first_statement;	// negative numbers are builtins
@@ -488,7 +471,6 @@ typedef struct
 	int		numparms;
 	qbyte	parm_size[MAX_PARMS];
 } QCC_dfunction_t;
-#endif
 
 #define PROG_QTESTVERSION	3
 #define	PROG_VERSION	6

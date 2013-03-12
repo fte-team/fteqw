@@ -12,13 +12,13 @@ void Font_Shutdown(void);
 struct font_s *Font_LoadFont(int height, char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
-void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py); /*avoid using*/
+void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
 void Font_Transform(int vx, int vy, int *px, int *py);
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
 int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
-float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode); /*avoid using*/
+float Font_DrawScaleChar(float px, float py, unsigned int charcode); /*avoid using*/
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 struct font_s *font_conchar;
@@ -225,6 +225,8 @@ static byte_vec4_t font_forecolour;
 static byte_vec4_t font_backcolour;
 
 static struct font_s *curfont;
+static float curfont_scale[2];
+static qboolean curfont_scaled;
 
 //called at load time - initalises font buffers
 void Font_Init(void)
@@ -656,7 +658,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 			f = FS_OpenReadLocation(&loc);
 			if (f && loc.len > 0)
 			{
-				fbase = malloc(loc.len);
+				fbase = BZ_Malloc(loc.len);
 				VFS_READ(f, fbase, loc.len);
 				VFS_CLOSE(f);
 
@@ -708,7 +710,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		}
 	}
 	if (fbase)
-		free(fbase);
+		BZ_Free(fbase);
 #endif
 
 	return false;
@@ -927,12 +929,13 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(int height, char *fontfilename)
+struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 {
 	struct font_s *f;
 	int i = 0;
 	int defaultplane;
 	char *aname;
+	int height = (vheight * vid.rotpixelheight)/vid.height;
 
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
@@ -1062,7 +1065,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	if (aname)
 	{
 		*aname = 0;
-		f->alt = Font_LoadFont(height, aname+1);
+		f->alt = Font_LoadFont(vheight, aname+1);
 	}
 	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
 	{
@@ -1129,11 +1132,13 @@ void Font_Free(struct font_s *f)
 {
 	struct charcache_s **link;
 
+	//kill the alt font first.
 	if (f->alt)
 	{
 		Font_Free(f->alt);
 		f->alt = NULL;
 	}
+	//walk all chars, unlinking any that appear to be within this font's char cache
 	for (link = &fontplanes.oldestchar; *link; )
 	{
 		if (*link >= f->chars && *link <= f->chars + FONTCHARS)
@@ -1150,9 +1155,9 @@ void Font_Free(struct font_s *f)
 	if (f->face)
 		pFT_Done_Face(f->face);
 	if (f->membuf)
-		free(f->membuf);
+		BZ_Free(f->membuf);
 #endif
-	free(f);
+	Z_Free(f);
 }
 
 //maps a given virtual screen coord to a pixel coord, which matches the font's height/width values
@@ -1161,6 +1166,10 @@ void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
 	curfont = font;
 	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
 	*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
+
+	curfont_scale[0] = curfont->charheight;
+	curfont_scale[1] = curfont->charheight;
+	curfont_scaled = false;
 }
 void Font_Transform(int vx, int vy, int *px, int *py)
 {
@@ -1169,11 +1178,24 @@ void Font_Transform(int vx, int vy, int *px, int *py)
 	if (py)
 		*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
 }
-void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py)
+void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py)
 {
 	curfont = font;
-	*px = vx;
-	*py = vy;
+	*px = (vx*(float)vid.rotpixelwidth) / (float)vid.width;
+	*py = (vy*(float)vid.rotpixelheight) / (float)vid.height;
+
+	//now that its in pixels, clamp it so the text is at least consistant with its position.
+	//an individual char may end straddling a pixel boundary, but at least the pixels won't jiggle around as the text moves.
+	*px = (int)*px;
+	*py = (int)*py;
+
+	if ((int)(szx * vid.rotpixelheight/vid.height) == curfont->charheight && (int)(szy * vid.rotpixelheight/vid.height) == curfont->charheight)
+		curfont_scaled = false;
+	else
+		curfont_scaled = true;
+
+	curfont_scale[0] = (szx * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
+	curfont_scale[1] = (szy * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
 }
 
 void Font_EndString(struct font_s *font)
@@ -1392,24 +1414,47 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 				return nextx;
 	}
 
-	col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
-	if (col != font_colourmask)
+	if (charcode & CON_RICHFORECOLOUR)
 	{
-		if ((col ^ font_colourmask) & CON_NONCLEARBG)
-			Font_Flush();
-		font_colourmask = col;
+		col = charcode & (CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		if (col != font_colourmask)
+		{
+			if (font_colourmask & CON_NONCLEARBG)
+				Font_Flush();
+			font_colourmask = col;
 
-		col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
-		font_forecolour[0] = consolecolours[col].fr*255;
-		font_forecolour[1] = consolecolours[col].fg*255;
-		font_forecolour[2] = consolecolours[col].fb*255;
-		font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
+			font_forecolour[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
+			font_forecolour[1] = ((col>>CON_RICHGSHIFT)&0xf)*0x11;
+			font_forecolour[2] = ((col>>CON_RICHBSHIFT)&0xf)*0x11;
+			font_forecolour[3] = 255;
 
-		col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
-		font_backcolour[0] = consolecolours[col].fr*255;
-		font_backcolour[1] = consolecolours[col].fg*255;
-		font_backcolour[2] = consolecolours[col].fb*255;
-		font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+			font_backcolour[0] = 0;
+			font_backcolour[1] = 0;
+			font_backcolour[2] = 0;
+			font_backcolour[3] = 0;
+		}
+	}
+	else
+	{
+		col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+		if (col != font_colourmask)
+		{
+			if ((col ^ font_colourmask) & CON_NONCLEARBG)
+				Font_Flush();
+			font_colourmask = col;
+
+			col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
+			font_forecolour[0] = consolecolours[col].fr*255;
+			font_forecolour[1] = consolecolours[col].fg*255;
+			font_forecolour[2] = consolecolours[col].fb*255;
+			font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
+
+			col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
+			font_backcolour[0] = consolecolours[col].fr*255;
+			font_backcolour[1] = consolecolours[col].fg*255;
+			font_backcolour[2] = consolecolours[col].fb*255;
+			font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+		}
 	}
 
 	s0 = (float)c->bmx/PLANEWIDTH;
@@ -1480,7 +1525,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 }
 
 /*there is no sane way to make this pixel-correct*/
-float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode)
+float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 {
 	struct charcache_s *c;
 	float s0, s1;
@@ -1490,6 +1535,11 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	int col;
 	int v;
 	struct font_s *font = curfont;
+	float cw, ch;
+
+//	if (!curfont_scaled)
+//		return Font_DrawChar(px, py, charcode);
+
 	if (charcode & CON_2NDCHARSETTEXT)
 	{
 		if (font->alt)
@@ -1498,9 +1548,8 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 			charcode |= 0xe000;
 	}
 
-	cw /= font->charheight;
-	ch /= font->charheight;
-
+	cw = curfont_scale[0];
+	ch = curfont_scale[1];
 
 	//crash if there is no current font.
 	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
@@ -1523,24 +1572,47 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 				return nextx;
 	}
 
-	col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
-	if (col != font_colourmask)
+	if (charcode & CON_RICHFORECOLOUR)
 	{
-		if ((col ^ font_colourmask) & CON_NONCLEARBG)
-			Font_Flush();
-		font_colourmask = col;
+		col = charcode & (CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		if (col != font_colourmask)
+		{
+			if (font_backcolour[3])
+				Font_Flush();
+			font_colourmask = col;
 
-		col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
-		font_forecolour[0] = consolecolours[col].fr*255;
-		font_forecolour[1] = consolecolours[col].fg*255;
-		font_forecolour[2] = consolecolours[col].fb*255;
-		font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
+			font_forecolour[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
+			font_forecolour[1] = ((col>>CON_RICHGSHIFT)&0xf)*0x11;
+			font_forecolour[2] = ((col>>CON_RICHBSHIFT)&0xf)*0x11;
+			font_forecolour[3] = 255;
 
-		col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
-		font_backcolour[0] = consolecolours[col].fr*255;
-		font_backcolour[1] = consolecolours[col].fg*255;
-		font_backcolour[2] = consolecolours[col].fb*255;
-		font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+			font_backcolour[0] = 0;
+			font_backcolour[1] = 0;
+			font_backcolour[2] = 0;
+			font_backcolour[3] = 0;
+		}
+	}
+	else
+	{
+		col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+		if (col != font_colourmask)
+		{
+			if (font_backcolour[3] != ((charcode & CON_NONCLEARBG)?127:0))
+				Font_Flush();
+			font_colourmask = col;
+
+			col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
+			font_forecolour[0] = consolecolours[col].fr*255;
+			font_forecolour[1] = consolecolours[col].fg*255;
+			font_forecolour[2] = consolecolours[col].fb*255;
+			font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
+
+			col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
+			font_backcolour[0] = consolecolours[col].fr*255;
+			font_backcolour[1] = consolecolours[col].fg*255;
+			font_backcolour[2] = consolecolours[col].fb*255;
+			font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+		}
 	}
 
 	s0 = (float)c->bmx/PLANEWIDTH;
@@ -1550,8 +1622,8 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 
 	if (c->texplane >= DEFAULTPLANE)
 	{
-		sx = ((px+c->left));
-		sy = ((py+c->top));
+		sx = ((px+c->left*cw));
+		sy = ((py+c->top*ch));
 		sw = ((font->charheight*cw));
 		sh = ((font->charheight*ch));
 
@@ -1562,12 +1634,17 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	}
 	else
 	{
-		sx = ((px+(c->left*(int)vid.width) / (float)vid.rotpixelwidth));
-		sy = ((py+(c->top*(int)vid.height) / (float)vid.rotpixelheight));
+		sx = (px+c->left*cw);
+		sy = (py+c->top*ch);
 		sw = ((c->bmw*cw));
 		sh = ((c->bmh*ch));
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
 	}
+
+	sx *= (int)vid.width / (float)vid.rotpixelwidth;
+	sy *= (int)vid.height / (float)vid.rotpixelheight;
+	sw *= (int)vid.width / (float)vid.rotpixelwidth;
+	sh *= (int)vid.height / (float)vid.rotpixelheight;
 
 	font_texcoord[v+0][0] = s0;
 	font_texcoord[v+0][1] = t0;

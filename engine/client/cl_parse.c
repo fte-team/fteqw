@@ -1222,7 +1222,8 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		SCR_SetLoadingFile("csqc init");
 		if (CSQC_Inited())
 		{
-			CL_SendClientCommand(true, "enablecsqc");
+			if (cls.fteprotocolextensions & PEXT_CSQC)
+				CL_SendClientCommand(true, "enablecsqc");
 		}
 		else
 		{
@@ -1451,7 +1452,7 @@ void CL_RequestNextDownload (void)
 			if (cls.demoplayback == DPB_EZTV)
 			{
 				if (CL_RemoveClientCommands("qtvspawn"))
-					Con_Printf("Multiple prespawns\n");
+					Con_DPrintf("Multiple prespawns\n");
 				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
 				SCR_SetLoadingStage(LS_NONE);
 			}
@@ -1459,9 +1460,14 @@ void CL_RequestNextDownload (void)
 			{
 		// done with modellist, request first of static signon messages
 				if (CL_RemoveClientCommands("prespawn"))
-					Con_Printf("Multiple prespawns\n");
-	//			CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-				CL_SendClientCommand(true, prespawn_name, cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
+					Con_DPrintf("Multiple prespawns\n");
+				if (cls.protocol == CP_NETQUAKE)
+					CL_SendClientCommand(true, "prespawn");
+				else
+				{
+		//			CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+					CL_SendClientCommand(true, prespawn_name, cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
+				}
 			}
 		}
 
@@ -2532,7 +2538,7 @@ void CLQW_ParseServerData (void)
 	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)	//instead of going for a soundlist, go for the pk3 list instead. The server will make us go for the soundlist after.
 	{
 		if (CL_RemoveClientCommands("pk3list"))
-			Con_Printf("Multiple pk3lists\n");
+			Con_DPrintf("Multiple pk3lists\n");
 		CL_SendClientCommand ("pk3list %i 0", cl.servercount, 0);
 	}
 	else
@@ -2541,13 +2547,13 @@ void CLQW_ParseServerData (void)
 		if (cls.demoplayback == DPB_EZTV)
 		{
 			if (CL_RemoveClientCommands("qtvsoundlist"))
-				Con_Printf("Multiple soundlists\n");
+				Con_DPrintf("Multiple soundlists\n");
 			CL_SendClientCommand (true, "qtvsoundlist %i 0", cl.servercount);
 		}
 		else
 		{
 			if (CL_RemoveClientCommands("soundlist"))
-				Con_Printf("Multiple soundlists\n");
+				Con_DPrintf("Multiple soundlists\n");
 			// ask for the sound list next
 //			CL_SendClientCommand ("soundlist %i 0", cl.servercount);
 			CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
@@ -3161,7 +3167,7 @@ void CL_ParseSoundlist (qboolean lots)
 		if (cls.demoplayback != DPB_EZTV)
 		{
 			if (CL_RemoveClientCommands("soundlist"))
-				Con_Printf("Multiple soundlists\n");
+				Con_DPrintf("Multiple soundlists\n");
 //			CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
 			CL_SendClientCommand(true, soundlist_name, cl.servercount, (numsounds&0xff00) + n);
 		}
@@ -3183,13 +3189,13 @@ void CL_ParseSoundlist (qboolean lots)
 		if (cls.demoplayback == DPB_EZTV)
 		{
 			if (CL_RemoveClientCommands("qtvmodellist"))
-				Con_Printf("Multiple modellists\n");
+				Con_DPrintf("Multiple modellists\n");
 			CL_SendClientCommand (true, "qtvmodellist %i 0", cl.servercount);
 		}
 		else
 		{
 			if (CL_RemoveClientCommands("modellist"))
-				Con_Printf("Multiple modellists\n");
+				Con_DPrintf("Multiple modellists\n");
 //			CL_SendClientCommand ("modellist %i 0", cl.servercount);
 			CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
 		}
@@ -3256,7 +3262,7 @@ void CL_ParseModellist (qboolean lots)
 		if (cls.demoplayback != DPB_EZTV)
 		{
 			if (CL_RemoveClientCommands("modellist"))
-				Con_Printf("Multiple modellists\n");
+				Con_DPrintf("Multiple modellists\n");
 //			CL_SendClientCommand("modellist %i %i", cl.servercount, n);
 			CL_SendClientCommand(true, modellist_name, cl.servercount, (nummodels&0xff00) + n);
 		}
@@ -3497,8 +3503,8 @@ void CLFitz_ParseBaseline2 (entity_state_t *es)
 	memcpy(es, &nullentitystate, sizeof(entity_state_t));
 
 	bits = MSG_ReadByte();
-	es->modelindex = (bits & FITZB_LARGEMODEL) ? MSG_ReadShort() : MSG_ReadByte();
-	es->frame = (bits & FITZB_LARGEFRAME) ? MSG_ReadShort() : MSG_ReadByte();
+	es->modelindex = (bits & FITZ_B_LARGEMODEL) ? MSG_ReadShort() : MSG_ReadByte();
+	es->frame = (bits & FITZ_B_LARGEFRAME) ? MSG_ReadShort() : MSG_ReadByte();
 	es->colormap = MSG_ReadByte();
 	es->skinnum = MSG_ReadByte();
 
@@ -3508,7 +3514,8 @@ void CLFitz_ParseBaseline2 (entity_state_t *es)
 		es->angles[i] = MSG_ReadAngle ();
 	}
 
-	es->trans = (bits & FITZB_ALPHA) ? MSG_ReadByte() : 255;
+	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
+	es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
 }
 
 void CLQ2_Precache_f (void)
@@ -3552,7 +3559,7 @@ void CL_ParseStatic (int version)
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			CLFTE_ParseBaseline(&es, false);
 		else
-			CLQW_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
+			CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
 
 		if (!es.number)
 			i = cl.num_statics++;
@@ -3582,7 +3589,7 @@ void CL_ParseStatic (int version)
 	cl_static_entities[i].emit = NULL;
 
 	ent = &cl_static_entities[i].ent;
-	memset(ent, 0, sizeof(*ent));
+	V_ClearEntity(ent);
 	memset(&cl_static_entities[i].pvscache, 0, sizeof(cl_static_entities[i].pvscache));
 
 	ent->keynum = es.number;
@@ -3604,7 +3611,11 @@ void CL_ParseStatic (int version)
 	ent->fatness = es.fatness/16.0;
 	ent->abslight = es.abslight;
 
-	ent->flags = es.flags;
+	ent->flags = 0;
+	if (es.dpflags & RENDER_VIEWMODEL)
+		ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+	if (es.dpflags & RENDER_EXTERIORMODEL)
+		ent->flags |= Q2RF_EXTERNALMODEL;
 	if (es.effects & NQEF_ADDITIVE)
 		ent->flags |= Q2RF_ADDITIVE;
 	if (es.effects & EF_NODEPTHTEST)
@@ -3682,7 +3693,7 @@ ACTION MESSAGES
 CL_ParseStartSoundPacket
 ==================
 */
-void CL_ParseStartSoundPacket(void)
+void CLQW_ParseStartSoundPacket(void)
 {
     vec3_t  pos;
     int 	channel, ent;
@@ -3838,7 +3849,7 @@ void CLNQ_ParseStartSoundPacket(void)
 
 	if (field_mask & DPSND_LARGEENTITY)
 	{
-		ent = (unsigned short)MSG_ReadShort();
+		ent = MSGCL_ReadEntity();
 		channel = MSG_ReadByte();
 	}
 	else
@@ -4269,7 +4280,7 @@ void CL_MuzzleFlash (int destsplit)
 
 	extern cvar_t cl_muzzleflash;
 
-	i = MSG_ReadShort ();
+	i = MSGCL_ReadEntity ();
 
 	//was it us?
 	if (!cl_muzzleflash.ival) // remove all muzzleflashes
@@ -4606,9 +4617,11 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	if (flags == 2 || (!cl.teamplay && flags))
 		suppress_talksound = TP_CheckSoundTrigger (text + offset);
 
-	if (!cl_chatsound.value ||		// no sound at all
+	if (cls.demoseeking ||
+		!cl_chatsound.value ||		// no sound at all
 		(cl_chatsound.value == 2 && flags != 2))	// only play sound in mm2
 		suppress_talksound = true;
+
 
 	if (!suppress_talksound)
 	{
@@ -5297,7 +5310,8 @@ void CLQW_ParseServerMessage (void)
 				if ((msg = CL_ParseChat(s, &plr)))
 				{
 					CL_ParsePrint(s, i);
-					CL_PrintChat(plr, s, msg, msgflags);
+					if (!cls.demoseeking)
+						CL_PrintChat(plr, s, msg, msgflags);
 				}
 			}
 			else
@@ -5307,7 +5321,8 @@ void CLQW_ParseServerMessage (void)
 #endif
 				{
 					CL_ParsePrint(s, i);
-					CL_PrintStandardMessage(s, i);
+					if (!cls.demoseeking)
+						CL_PrintStandardMessage(s, i);
 				}
 			}
 			break;
@@ -5340,7 +5355,7 @@ void CLQW_ParseServerMessage (void)
 		case svc_setview:
 			if (!(cls.fteprotocolextensions & PEXT_SETVIEW))
 				Con_Printf("^1PEXT_SETVIEW is meant to be disabled\n");
-			cl.viewentity[destsplit]=MSG_ReadShort();
+			cl.viewentity[destsplit]=MSGCL_ReadEntity();
 			if (cl.viewentity[destsplit] == cl.playernum[destsplit]+1)
 				cl.viewentity[destsplit] = 0;
 			break;
@@ -5399,7 +5414,7 @@ void CLQW_ParseServerMessage (void)
 #endif
 
 		case svc_sound:
-			CL_ParseStartSoundPacket();
+			CLQW_ParseStartSoundPacket();
 			break;
 #ifdef PEXT_SOUNDDBL
 		case svcfte_soundextended:
@@ -5449,7 +5464,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_spawnbaseline:
-			i = MSG_ReadShort ();
+			i = MSGCL_ReadEntity ();
 			if (!CL_CheckBaselines(i))
 				Host_EndGame("CL_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
 			CL_ParseBaseline (cl_baselines + i);
@@ -5620,12 +5635,12 @@ void CLQW_ParseServerMessage (void)
 #endif
 
 		case svc_packetentities:
-			CL_ParsePacketEntities (false);
+			CLQW_ParsePacketEntities (false);
 			cl.ackedinputsequence = cl.validsequence;
 			break;
 
 		case svc_deltapacketentities:
-			CL_ParsePacketEntities (true);
+			CLQW_ParsePacketEntities (true);
 			cl.ackedinputsequence = cl.validsequence;
 			break;
 		case svcfte_updateentities:
@@ -5648,9 +5663,9 @@ void CLQW_ParseServerMessage (void)
 				CDAudio_Resume ();
 			break;
 
-		case svc_ftesetclientpersist:
-			CL_ParseClientPersist();
-			break;
+//		case svc_ftesetclientpersist:
+//			CL_ParseClientPersist();
+//			break;
 #ifdef Q2BSPS
 		case svc_setportalstate:
 			i = MSG_ReadByte();
@@ -6176,7 +6191,7 @@ void CLNQ_ParseServerMessage (void)
 		case svc_setview:
 			if (!cl.viewentity[0])
 			{
-				cl.playernum[0] = (cl.viewentity[0] = MSG_ReadShort())-1;
+				cl.playernum[0] = (cl.viewentity[0] = MSGCL_ReadEntity())-1;
 				if (cl.playernum[0] >= cl.allocated_client_slots)
 				{
 					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", cl.playernum[0]);
@@ -6184,7 +6199,7 @@ void CLNQ_ParseServerMessage (void)
 				}
 			}
 			else
-				cl.viewentity[0]=MSG_ReadShort();
+				cl.viewentity[0]=MSGCL_ReadEntity();
 			break;
 
 		case svc_signonnum:
@@ -6212,7 +6227,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_spawnbaseline:
-			i = MSG_ReadShort ();
+			i = MSGCL_ReadEntity ();
 			if (!CL_CheckBaselines(i))
 				Host_EndGame("CLNQ_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
 			CL_ParseBaseline (cl_baselines + i);
@@ -6234,6 +6249,8 @@ void CLNQ_ParseServerMessage (void)
 			cl.oldgametimemark = cl.gametimemark;
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
+
+			cl.frames[cl.validsequence&UPDATE_MASK].receivedtime = realtime;
 
 			if (CPNQ_IS_DP)
 			{
@@ -6406,7 +6423,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.fog_locked = !!cl.fog_density;
 			break;
 		case svcfitz_spawnbaseline2:
-			i = MSG_ReadShort ();
+			i = MSGCL_ReadEntity ();
 			if (!CL_CheckBaselines(i))
 				Host_EndGame("CLNQ_ParseServerMessage: svcfitz_spawnbaseline2 failed with ent %i", i);
 			CLFitz_ParseBaseline2 (cl_baselines + i);

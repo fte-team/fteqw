@@ -48,6 +48,7 @@ void PostCompile(void)
 {
 	if (!qccpersisthunk)
 		qccClearHunk();
+	QCC_PR_CloseProcessor();
 
 	if (asmfile)
 	{
@@ -92,7 +93,7 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 			if (!externs->useeditor)
 				printf("Error in %s on line %i\n", errorfile, errorline);
 			else
-				externs->useeditor(progfuncs, errorfile, errorline, 0, nump, parms);
+				externs->useeditor(&progfuncs->funcs, errorfile, errorline, 0, nump, parms);
 		}
 		return false;
 	}
@@ -108,17 +109,17 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 
 	return true;
 }
-int Comp_Begin(progfuncs_t *progfuncs, int nump, char **parms)
+int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, char **parms)
 {
 	comp_nump = nump;
 	comp_parms = parms;
-	qccprogfuncs = progfuncs;
+	qccprogfuncs = (progfuncs_t*)progfuncs;
 	*errorfile = '\0';
 	if (setjmp(qcccompileerror))
 	{
 		PostCompile();
 		if (*errorfile)
-			externs->useeditor(progfuncs, errorfile, errorline, 0, nump, parms);
+			progfuncs->parms->useeditor(&qccprogfuncs->funcs, errorfile, errorline, 0, nump, parms);
 		return false;
 	}
 
@@ -128,14 +129,14 @@ int Comp_Begin(progfuncs_t *progfuncs, int nump, char **parms)
 
 	return true;
 }
-int Comp_Continue(progfuncs_t *progfuncs)
+int PDECL Comp_Continue(pubprogfuncs_t *progfuncs)
 {	
-	qccprogfuncs = progfuncs;
+	qccprogfuncs = (progfuncs_t *)progfuncs;
 	if (setjmp(qcccompileerror))
 	{
 		PostCompile();
-		if (*errorfile && externs->useeditor)
-			externs->useeditor(progfuncs, errorfile, errorline, 0, comp_nump, comp_parms);
+		if (*errorfile && progfuncs->parms->useeditor)
+			progfuncs->parms->useeditor(progfuncs, errorfile, errorline, 0, comp_nump, comp_parms);
 		return false;
 	}
 
@@ -145,8 +146,8 @@ int Comp_Continue(progfuncs_t *progfuncs)
 	{
 		PostCompile();
 
-		if (*errorfile && externs->useeditor)
-			externs->useeditor(progfuncs, errorfile, errorline, 0 , comp_nump, comp_parms);
+		if (*errorfile && progfuncs->parms->useeditor)
+			progfuncs->parms->useeditor(progfuncs, errorfile, errorline, 0 , comp_nump, comp_parms);
 
 		return false;
 	}

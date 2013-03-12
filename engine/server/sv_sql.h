@@ -89,7 +89,7 @@ void SQL_Disconnect(sqlserver_t *server);
 void SQL_Escape(sqlserver_t *server, char *src, char *dst, int dstlen);
 const char *SQL_Info(sqlserver_t *server);
 qboolean SQL_Available(void);
-void SQL_ServerCycle (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void SQL_ServerCycle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 extern cvar_t sql_driver;
 extern cvar_t sql_host;

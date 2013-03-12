@@ -56,13 +56,13 @@ extern pbool expandedemptymacro;
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "++", "--", "->", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "++", "--", "->", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", "~", ":", NULL};
 
 char *pr_punctuationremap[] =	//a nice bit of evilness.
 //(+) -> |=
 //-> -> .
 //(-) -> &~=
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "++", "--", ".", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "++", "--", ".", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", "~", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;// = {ev_void/*, &def_void*/};
@@ -103,6 +103,10 @@ void QCC_PR_LexWhitespace (void);
 //for compiler constants and file includes.
 
 qcc_includechunk_t *currentchunk;
+void QCC_PR_CloseProcessor(void)
+{
+	currentchunk = NULL;
+}
 void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst)
 {
 	qcc_includechunk_t *chunk = qccHunkAlloc(sizeof(qcc_includechunk_t));
@@ -195,7 +199,10 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 	strcpy(end, currentfile);
 	end = end+strlen(end);
 #else
-	strcpy(fullname, currentfile);
+	if (currentfile)
+		strcpy(fullname, currentfile);
+	else
+		*fullname = 0;
 	end = fullname+strlen(fullname);
 #endif
 
@@ -227,91 +234,172 @@ void	QCC_AddFile (char *filename);
 void QCC_PR_LexString (void);
 pbool QCC_PR_SimpleGetToken (void);
 
-int ParsePrecompilerIf(void)
+#define PPI_VALUE 0
+#define PPI_NOT 1
+#define PPI_DEFINED 2
+#define PPI_COMPARISON 3
+#define PPI_LOGICAL 4
+#define PPI_TOPLEVEL 5
+int ParsePrecompilerIf(int level)
 {
 	CompilerConstant_t *c;
 	int eval = 0;
 	pbool notted = false;
-	
-	/*skip whitespace*/
-	while (*pr_file_p && *pr_file_p <= ' ' && *pr_file_p != '\n')
+
+	//single term end-of-chain
+	if (level == PPI_VALUE)
 	{
-		pr_file_p++;
-	}
-	if (*pr_file_p == '!')
-	{
-		pr_file_p++;
-		notted = true;
-		while (*pr_file_p && *pr_file_p <= ' ' && *pr_file_p != '\n')
+		/*skip whitespace*/
+		while (*pr_file_p && qcc_iswhite(*pr_file_p) && *pr_file_p != '\n')
 		{
 			pr_file_p++;
 		}
-	}
 
-	if (!QCC_PR_SimpleGetToken())
-	{
 		if (*pr_file_p == '(')
-		{
+		{	//try brackets
 			pr_file_p++;
-			eval = ParsePrecompilerIf();
+			eval = ParsePrecompilerIf(PPI_TOPLEVEL);
 			while (*pr_file_p == ' ' || *pr_file_p == '\t')
 				pr_file_p++;
 			if (*pr_file_p != ')')
 				QCC_PR_ParseError(ERR_EXPECTED, "unclosed bracket condition\n");
 			pr_file_p++;
 		}
-		else
-			QCC_PR_ParseError(ERR_EXPECTED, "expected bracket or constant\n");
-	}
-	else if (!strcmp(pr_token, "defined"))
-	{
-		while (*pr_file_p == ' ' || *pr_file_p == '\t')
+		else if (*pr_file_p == '!')
+		{	//try brackets
 			pr_file_p++;
-		if (*pr_file_p != '(')
-			QCC_PR_ParseError(ERR_EXPECTED, "no opening bracket after defined\n");
-		else
-		{
-			pr_file_p++;
-
-			QCC_PR_SimpleGetToken();
-			eval = !!QCC_PR_CheckCompConstDefined(pr_token);
-
-			while (*pr_file_p == ' ' || *pr_file_p == '\t')
-				pr_file_p++;
-			if (*pr_file_p != ')')
-				QCC_PR_ParseError(ERR_EXPECTED, "unclosed defined condition\n");
-			pr_file_p++;
+			eval = !ParsePrecompilerIf(PPI_NOT);
 		}
-	}
-	else
-	{
-		c = QCC_PR_CheckCompConstDefined(pr_token);
-		if (!c)
-			eval = atoi(pr_token);
 		else
-			eval = atoi(c->value);
+		{	//simple token...
+			if (!strncmp(pr_file_p, "defined", 7))
+			{
+				pr_file_p+=7;
+				while (*pr_file_p == ' ' || *pr_file_p == '\t')
+					pr_file_p++;
+				if (*pr_file_p != '(')
+				{
+					eval = false;
+					QCC_PR_ParseError(ERR_EXPECTED, "no opening bracket after defined\n");
+				}
+				else
+				{
+					pr_file_p++;
+
+					QCC_PR_SimpleGetToken();
+					eval = !!QCC_PR_CheckCompConstDefined(pr_token);
+
+					while (*pr_file_p == ' ' || *pr_file_p == '\t')
+						pr_file_p++;
+					if (*pr_file_p != ')')
+						QCC_PR_ParseError(ERR_EXPECTED, "unclosed defined condition\n");
+					pr_file_p++;
+				}
+			}
+			else
+			{
+				if (!QCC_PR_SimpleGetToken())
+					QCC_PR_ParseError(ERR_EXPECTED, "unexpected end-of-line\n");
+				c = QCC_PR_CheckCompConstDefined(pr_token);
+				if (!c)
+					eval = atoi(pr_token);
+				else
+					eval = atoi(c->value);
+			}
+		}
+		return eval;
 	}
 
-	if (notted)
-		eval = !eval;
+	eval = ParsePrecompilerIf(level-1);
 
-	QCC_PR_SimpleGetToken();
-	if (!strcmp(pr_token, "||"))
-		eval = ParsePrecompilerIf()||eval;
-	else if (!strcmp(pr_token, "&&"))
-		eval = ParsePrecompilerIf()&&eval;
-	else if (!strcmp(pr_token, "<="))
-		eval = eval <= ParsePrecompilerIf();
-	else if (!strcmp(pr_token, ">="))
-		eval = eval >= ParsePrecompilerIf();
-	else if (!strcmp(pr_token, "<"))
-		eval = eval < ParsePrecompilerIf();
-	else if (!strcmp(pr_token, ">"))
-		eval = eval > ParsePrecompilerIf();
-	else if (!strcmp(pr_token, "!="))
-		eval = eval != ParsePrecompilerIf();
+	while (*pr_file_p && qcc_iswhite(*pr_file_p) && *pr_file_p != '\n')
+	{
+		pr_file_p++;
+	}
 
+	switch(level)
+	{
+	case PPI_LOGICAL:
+		if (!strncmp(pr_file_p, "||", 2))
+		{
+			pr_file_p+=2;
+			eval = ParsePrecompilerIf(level)||eval;
+		}
+		else if (!strncmp(pr_file_p, "&&", 2))
+		{
+			pr_file_p+=2;
+			eval = ParsePrecompilerIf(level)&&eval;
+		}
+		break;
+	case PPI_COMPARISON:
+		if (!strncmp(pr_file_p, "<=", 2))
+		{
+			pr_file_p+=2;
+			eval = eval <= ParsePrecompilerIf(level);
+		}
+		else if (!strncmp(pr_file_p, ">=", 2))
+		{
+			pr_file_p += 2;
+			eval = eval >= ParsePrecompilerIf(level);
+		}
+		else if (!strncmp(pr_file_p, "<", 1))
+		{
+			pr_file_p += 1;
+			eval = eval < ParsePrecompilerIf(level);
+		}
+		else if (!strncmp(pr_file_p, ">", 1))
+		{
+			pr_file_p += 1;
+			eval = eval > ParsePrecompilerIf(level);
+		}
+		else if (!strncmp(pr_file_p, "!=", 2))
+		{
+			pr_file_p += 2;
+			eval = eval != ParsePrecompilerIf(level);
+		}
+		else if (!strncmp(pr_file_p, "==", 2))
+		{
+			pr_file_p += 2;
+			eval = eval == ParsePrecompilerIf(level);
+		}
+		break;
+	}
 	return eval;
+}
+
+static void QCC_PR_SkipToEndOfLine(void)
+{
+	while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+	{
+		if (*pr_file_p == '/' && pr_file_p[1] == '*')
+		{
+			pr_file_p += 2;
+			while(*pr_file_p)
+			{
+				if (*pr_file_p == '*' && pr_file_p[1] == '/')
+				{
+					pr_file_p+=2;
+					break;
+				}
+				if (*pr_file_p == '\n')
+					pr_source_line++;
+				*pr_file_p++;
+			}
+		}
+		else if (*pr_file_p == '\\' && pr_file_p[1] == '\r' && pr_file_p[2] == '\n')
+		{	/*windows endings*/
+			pr_file_p+=3;
+			pr_source_line++;
+		}
+		else if (*pr_file_p == '\\' && pr_file_p[1] == '\n')
+		{	/*linux endings*/
+			pr_file_p+=2;
+
+			pr_source_line++;
+		}
+		else
+			pr_file_p++;
+	}
 }
 /*
 ==============
@@ -343,39 +431,33 @@ pbool QCC_PR_Precompiler(void)
 		{
 			pr_file_p = directive;
 			QCC_PR_ConditionCompilation();
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 		}
 		else if (!strncmp(directive, "undef", 5))
 		{
 			pr_file_p = directive+5;
-			while(*pr_file_p <= ' ')
+			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			QCC_PR_SimpleGetToken ();
 			QCC_PR_UndefineName(pr_token);
 
 	//		QCC_PR_ConditionCompilation();
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 		}
 		else if (!strncmp(directive, "if", 2))
 		{
 			int originalline = pr_source_line;
  			pr_file_p = directive+2;
-			if (!strncmp(pr_file_p, "def ", 4))
+			if (!strncmp(pr_file_p, "def", 3))
 			{
 				ifmode = 0;
-				pr_file_p+=4;
+				pr_file_p+=3;
 			}
-			else if (!strncmp(pr_file_p, "ndef ", 5))
+			else if (!strncmp(pr_file_p, "ndef", 4))
 			{
 				ifmode = 1;
-				pr_file_p+=5;
+				pr_file_p+=4;
 			}
 			else
 			{
@@ -384,77 +466,78 @@ pbool QCC_PR_Precompiler(void)
 				//QCC_PR_ParseError("bad \"#if\" type");
 			}
 
-			if (ifmode == 2)
+			if (!qcc_iswhite(*pr_file_p))
 			{
-				eval = ParsePrecompilerIf();
-
-				if(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-				{
-					QCC_PR_ParseError (ERR_NOENDIF, "junk on the end of #if line");
-				}
-			}
-			else
-			{
+				pr_file_p = directive;
 				QCC_PR_SimpleGetToken ();
-
-	//			if (!STRCMP(pr_token, "COOP_MODE"))
-	//				eval = false;
-				if (QCC_PR_CheckCompConstDefined(pr_token))
-					eval = true;
-
-				if (ifmode == 1)
-					eval = eval?false:true;
+				QCC_PR_ParseWarning(WARN_BADPRAGMA, "Unknown pragma \'%s\'", qcc_token);
 			}
-
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
-			level = 1;
-
-			if (eval)
-				ifs+=1;
 			else
 			{
-				while (1)
+				if (ifmode == 2)
 				{
-					while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
-						pr_file_p++;
+					eval = ParsePrecompilerIf(PPI_TOPLEVEL);
 
-					if (!*pr_file_p)
+					if(*pr_file_p != '\r' && *pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 					{
-						pr_source_line = originalline;
-						QCC_PR_ParseError (ERR_NOENDIF, "#if with no endif");
+						QCC_PR_ParseError (ERR_NOENDIF, "junk on the end of #if line");
 					}
+				}
+				else
+				{
+					QCC_PR_SimpleGetToken ();
 
-					if (*pr_file_p == '#')
+		//			if (!STRCMP(pr_token, "COOP_MODE"))
+		//				eval = false;
+					if (QCC_PR_CheckCompConstDefined(pr_token))
+						eval = true;
+
+					if (ifmode == 1)
+						eval = eval?false:true;
+				}
+
+				QCC_PR_SkipToEndOfLine();
+				level = 1;
+
+				if (eval)
+					ifs+=1;
+				else
+				{
+					while (1)
 					{
-						pr_file_p++;
-						while(*pr_file_p==' ' || *pr_file_p == '\t')
+						while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
 							pr_file_p++;
-						if (!strncmp(pr_file_p, "endif", 5))
-							level--;
-						if (!strncmp(pr_file_p, "if", 2))
-							level++;
-						if (!strncmp(pr_file_p, "else", 4) && level == 1)
-						{
-							ifs+=1;
-							while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-							{
-								pr_file_p++;
-							}
-							break;
-						}
-					}
 
-					while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-					{
-						pr_file_p++;
+						if (!*pr_file_p)
+						{
+							pr_source_line = originalline;
+							QCC_PR_ParseError (ERR_NOENDIF, "#if with no endif");
+						}
+
+						if (*pr_file_p == '#')
+						{
+							pr_file_p++;
+							while(*pr_file_p==' ' || *pr_file_p == '\t')
+								pr_file_p++;
+							if (!strncmp(pr_file_p, "endif", 5))
+								level--;
+							if (!strncmp(pr_file_p, "if", 2))
+								level++;
+							if (!strncmp(pr_file_p, "else", 4) && level == 1)
+							{
+								ifs+=1;
+								QCC_PR_SkipToEndOfLine();
+								break;
+							}
+						}
+
+						QCC_PR_SkipToEndOfLine();
+
+						if (level <= 0)
+							break;
+						pr_file_p++;	//next line
+						pr_source_line++;
 					}
-					if (level <= 0)
-						break;
-					pr_file_p++;	//next line
-					pr_source_line++;
 				}
 			}
 		}
@@ -465,10 +548,7 @@ pbool QCC_PR_Precompiler(void)
 			ifs -= 1;
 			level = 1;
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 			while (1)
 			{
 				while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
@@ -497,10 +577,7 @@ pbool QCC_PR_Precompiler(void)
 					}
 				}
 
-				while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-				{
-					pr_file_p++;
-				}
+				QCC_PR_SkipToEndOfLine();
 				if (level <= 0)
 					break;
 				pr_file_p++;	//go off the end
@@ -509,10 +586,7 @@ pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "endif", 5))
 		{
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 			if (ifs <= 0)
 				QCC_PR_ParseError(ERR_NOPRECOMPILERIF, "unmatched #endif");
 			else
@@ -531,10 +605,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a] = '\0';
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line, yes, I KNOW we are going to register an error, and not properly leave this function tree, but...
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 
 			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s", msg);
 		}
@@ -546,10 +617,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a-1] = '\0';
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 
 			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s", msg);
 		}
@@ -561,10 +629,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a-1] = '\0';
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 
 			printf("#message: %s\n", msg);
 		}
@@ -576,10 +641,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a-1] = '\0';
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 
 			if (strlen(msg) >= sizeof(QCC_copyright))
 				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
@@ -628,17 +690,18 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a-1] = '\0';
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 		}
 		else if (!strncmp(directive, "includelist", 11))
 		{
 			pr_file_p=directive+11;
 
-			while(*pr_file_p <= ' ')
+			while(qcc_iswhite(*pr_file_p))
+			{
+				if (*pr_file_p == '\n')
+					pr_source_line++;
 				pr_file_p++;
+			}
 
 			while(1)
 			{
@@ -662,16 +725,10 @@ pbool QCC_PR_Precompiler(void)
 				if (*pr_file_p == '\r')
 					pr_file_p++;
 
-				while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-				{
-					pr_file_p++;
-				}
+				QCC_PR_SkipToEndOfLine();
 			}
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 		}
 		else if (!strncmp(directive, "include", 7))
 		{
@@ -679,7 +736,7 @@ pbool QCC_PR_Precompiler(void)
 
 			pr_file_p=directive+7;
 
-			while(*pr_file_p <= ' ')
+			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			msg[0] = '\0';
@@ -710,20 +767,17 @@ pbool QCC_PR_Precompiler(void)
 
 			pr_file_p++;
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0' && *pr_file_p <= ' ')
+			while(*pr_file_p != '\n' && *pr_file_p != '\0' && qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine();
 		}
 		else if (!strncmp(directive, "datafile", 8))
 		{
 			pr_file_p=directive+8;
 
-			while(*pr_file_p <= ' ')
+			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			QCC_PR_LexString();
@@ -747,7 +801,7 @@ pbool QCC_PR_Precompiler(void)
 			extern char		destfile[1024];
 			pr_file_p=directive+6;
 
-			while(*pr_file_p <= ' ')
+			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			QCC_PR_LexString();
@@ -769,7 +823,7 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "pragma", 6))
 		{
 			pr_file_p=directive+6;
-			while(*pr_file_p <= ' ')
+			while(qcc_iswhitesameline(*pr_file_p))
 				pr_file_p++;
 
 			qcc_token[0] = '\0';
@@ -788,7 +842,7 @@ pbool QCC_PR_Precompiler(void)
 			msg[a] = '\0';
 			{
 				char *end;
-				for (end = msg + a-1; end>=msg && *end <= ' '; end--)
+				for (end = msg + a-1; end>=msg && qcc_iswhite(*end); end--)
 					*end = '\0';
 			}
 
@@ -800,7 +854,7 @@ pbool QCC_PR_Precompiler(void)
 
 			{
 				char *end;
-				for (end = msg + a-1; end>=msg && *end <= ' '; end--)
+				for (end = msg + a-1; end>=msg && qcc_iswhite(*end); end--)
 					*end = '\0';
 			}
 
@@ -874,31 +928,37 @@ pbool QCC_PR_Precompiler(void)
 			}
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
-				if (qcc_targetformat == QCF_HEXEN2 && numstatements)
-					QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
-				else if (!QC_strcasecmp(msg, "H2") || !QC_strcasecmp(msg, "HEXEN2"))
-				{
-					if (numstatements)
-						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\'. Ignored.", msg);
-					else
-						qcc_targetformat = QCF_HEXEN2;
-				}
+				int newtype = qcc_targetformat;
+				if (!QC_strcasecmp(msg, "H2") || !QC_strcasecmp(msg, "HEXEN2"))
+					newtype = QCF_HEXEN2;
 				else if (!QC_strcasecmp(msg, "KK7"))
-					qcc_targetformat = QCF_KK7;
+					newtype = QCF_KK7;
 				else if (!QC_strcasecmp(msg, "DP") || !QC_strcasecmp(msg, "DARKPLACES"))
-					qcc_targetformat = QCF_DARKPLACES;
+					newtype = QCF_DARKPLACES;
 				else if (!QC_strcasecmp(msg, "FTEDEBUG"))
-					qcc_targetformat = QCF_FTEDEBUG;
+					newtype = QCF_FTEDEBUG;
 				else if (!QC_strcasecmp(msg, "FTE"))
-					qcc_targetformat = QCF_FTE;
+					newtype = QCF_FTE;
+				else if (!QC_strcasecmp(msg, "FTEH2"))
+					newtype = QCF_FTEH2;
 				else if (!QC_strcasecmp(msg, "STANDARD") || !QC_strcasecmp(msg, "ID"))
-					qcc_targetformat = QCF_STANDARD;
+					newtype = QCF_STANDARD;
 				else if (!QC_strcasecmp(msg, "DEBUG"))
-					qcc_targetformat = QCF_FTEDEBUG;
+					newtype = QCF_FTEDEBUG;
 				else if (!QC_strcasecmp(msg, "QTEST"))
-					qcc_targetformat = QCF_QTEST;
+					newtype = QCF_QTEST;
 				else
 					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", msg);
+
+				if (numstatements > 1)
+				{
+					if ((qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2) && (newtype != QCF_HEXEN2 && newtype != QCF_FTEH2))
+						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
+					if ((newtype == QCF_HEXEN2 || newtype == QCF_FTEH2) && (qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_FTEH2))
+						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\'. Ignored.", msg);
+				}
+
+				qcc_targetformat = newtype;
 			}
 			else if (!QC_strcasecmp(qcc_token, "PROGS_SRC"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
@@ -994,11 +1054,13 @@ pbool QCC_PR_Precompiler(void)
 				char *s;
 				s = QCC_COM_Parse(msg);
 				if (!stricmp(qcc_token, "enable") || !stricmp(qcc_token, "on"))
-					st = 0;
-				else if (!stricmp(qcc_token, "disable") || !stricmp(qcc_token, "off"))
-					st = 1;
+					st = WA_WARN;
+				else if (!stricmp(qcc_token, "disable") || !stricmp(qcc_token, "off") || !stricmp(qcc_token, "ignore"))
+					st = WA_IGNORE;
+				else if (!stricmp(qcc_token, "error"))
+					st = WA_ERROR;
 				else if (!stricmp(qcc_token, "toggle"))
-					st = 2;
+					st = 3;
 				else
 				{
 					QCC_PR_ParseWarning(WARN_BADPRAGMA, "warning state not recognised");
@@ -1013,10 +1075,10 @@ pbool QCC_PR_Precompiler(void)
 						QCC_PR_ParseWarning(WARN_BADPRAGMA, "warning id not recognised");
 					else
 					{
-						if (st == 2)	//toggle
-							qccwarningdisabled[wn] = true - qccwarningdisabled[wn];
+						if (st == 3)	//toggle
+							qccwarningaction[wn] = !!qccwarningaction[wn];
 						else
-							qccwarningdisabled[wn] = st;
+							qccwarningaction[wn] = st;
 					}
 				}
 			}
@@ -1180,22 +1242,24 @@ void QCC_PR_LexString (void)
 			else if (c == '"')
 				c = '"';
 			else if (c == 't')
-				c = '\t';
+				c = '\t';	//tab
 			else if (c == 'a')
-				c = '\a';
+				c = '\a';	//bell
 			else if (c == 'v')
-				c = '\v';
+				c = '\v';	//vertical tab
 			else if (c == 'f')
-				c = '\f';
+				c = '\f';	//form feed
 			else if (c == 's' || c == 'b')
 			{
 				texttype ^= 128;
 				continue;
 			}
+			//else if (c == 'b')
+			//	c = '\b';
 			else if (c == '[')
-				c = 16;
+				c = 16;	//quake specific
 			else if (c == ']')
-				c = 17;
+				c = 17;	//quake specific
 			else if (c == '{')
 			{
 				int d;
@@ -1213,6 +1277,60 @@ void QCC_PR_LexString (void)
 				c = 30;
 			else if (c == '>')
 				c = 31;
+			else if (c == 'u' || c == 'U')
+			{
+				//lower case u specifies exactly 4 nibbles.
+				//upper case U specifies variable length. terminate with a double-doublequote pair, or some other non-hex char.
+				int count = 0;
+				unsigned long d;
+				unsigned long unicode;
+				unicode = 0;
+				for(;;)
+				{
+					d = (unsigned char)*pr_file_p;
+					if (d >= '0' && d <= '9')
+						unicode = (unicode*16) + (d - '0');
+					else if (d >= 'A' && d <= 'F')
+						unicode = (unicode*16) + (d - 'A') + 10;
+					else if (d >= 'a' && d <= 'f')
+						unicode = (unicode*16) + (d - 'a') + 10;
+					else
+						break;
+					count++;
+					pr_file_p++;
+				}
+				if (!count || ((c=='u')?(count!=4):(count>8)) || unicode > 0x10FFFFu)	//RFC 3629 imposes the same limit as UTF-16 surrogate pairs.
+					QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Bad character code");
+
+				//figure out the count of bytes required to encode this char
+				count = 1;
+				d = 0x7f;
+				while (unicode > d)
+				{
+					count++;
+					d = (d<<5) | 0x1f;
+				}
+
+				//error if needed
+				if (len+count >= sizeof(pr_token))
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+
+				//output it.
+				if (count == 1)
+					pr_token[len++] = (unsigned char)(c&0x7f);
+				else
+				{
+					c = count*6;
+					pr_token[len++] = (unsigned char)((unicode>>c)&(0x0000007f>>count)) | (0xffffff00 >> count);
+					do
+					{
+						c = c-6;
+						pr_token[len++] = (unsigned char)((unicode>>c)&0x3f) | 0x80;
+					}
+					while(c);
+				}
+				continue;
+			}
 			else if (c == 'x' || c == 'X')
 			{
 				int d;
@@ -1244,7 +1362,7 @@ void QCC_PR_LexString (void)
 				c = '\\';
 			else if (c == '\'')
 				c = '\'';
-			else if (c >= '0' && c <= '9')
+			else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
 				c = 18 + c - '0';
 			else if (c == '\r')
 			{	//sigh
@@ -1265,7 +1383,7 @@ void QCC_PR_LexString (void)
 			if (len >= sizeof(pr_immediate_string)-1)
 				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
 
-			while(*pr_file_p && *pr_file_p <= ' ')
+			while(*pr_file_p && qcc_iswhite(*pr_file_p))
 			{
 				if (*pr_file_p == '\n')
 				{
@@ -1290,7 +1408,7 @@ void QCC_PR_LexString (void)
 		{
 			for (end = pr_file_p; ; end++)
 			{
-				if (*end <= ' ')
+				if (qcc_iswhite(*end))
 					break;
 
 				if (*end == ')'
@@ -1673,7 +1791,7 @@ void QCC_PR_LexWhitespace (void)
 	while (1)
 	{
 	// skip whitespace
-		while ( (c = *pr_file_p) <= ' ')
+		while ((c = *pr_file_p) && qcc_iswhite(c))
 		{
 			if (c=='\n')
 			{
@@ -1683,12 +1801,10 @@ void QCC_PR_LexWhitespace (void)
 					return;
 			}
 			else
-			{
-				if (c == 0)
-					return;		// end of file
 				pr_file_p++;
-			}
 		}
+		if (c == 0)
+			return;		// end of file
 
 	// skip // comments
 		if (c=='/' && pr_file_p[1] == '/')
@@ -1738,10 +1854,11 @@ int		pr_nummacros, pr_oldmacros;
 int		pr_macrovalue;
 int		pr_savedmacro;
 
-void QCC_PR_ClearGrabMacros (void)
+void QCC_PR_ClearGrabMacros (pbool newfile)
 {
+	if (!newfile)
+		pr_nummacros = 0;
 	pr_oldmacros = pr_nummacros;
-//	pr_nummacros = 0;
 	pr_macrovalue = 0;
 	pr_savedmacro = -1;
 }
@@ -1790,12 +1907,14 @@ pbool QCC_PR_SimpleGetToken (void)
 	pr_token[0] = 0;
 
 // skip whitespace
-	while ( (c = *pr_file_p) <= ' ')
+	while ((c = *pr_file_p) && qcc_iswhite(c))
 	{
-		if (c=='\n' || c == 0)
+		if (c=='\n')
 			return false;
 		pr_file_p++;
 	}
+	if (c == 0)	//eof
+		return false;
 	if (pr_file_p[0] == '/')
 	{
 		if (pr_file_p[1] == '/')
@@ -1809,8 +1928,10 @@ pbool QCC_PR_SimpleGetToken (void)
 	}
 
 	i = 0;
-	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']')
+	while ((c = *pr_file_p) && !qcc_iswhite(c) && c != ',' && c != ';' && c != ')' && c != '(' && c != ']')
 	{
+		if (i == sizeof(qcc_token)-1)
+			QCC_Error (ERR_INTERNAL, "token exceeds %i chars", i);
 		pr_token[i] = c;
 		i++;
 		pr_file_p++;
@@ -1827,12 +1948,14 @@ pbool QCC_PR_LexMacroName(void)
 	pr_token[0] = 0;
 
 // skip whitespace
-	while ( (c = *pr_file_p) <= ' ')
+	while ((c = *pr_file_p) && qcc_iswhite(c))
 	{
-		if (c=='\n' || c == 0)
+		if (c=='\n')
 			return false;
 		pr_file_p++;
 	}
+	if (!c)
+		return false;
 	if (pr_file_p[0] == '/')
 	{
 		if (pr_file_p[1] == '/')
@@ -1848,6 +1971,8 @@ pbool QCC_PR_LexMacroName(void)
 	i = 0;
 	while ( (c = *pr_file_p) > ' ' && c != '\n' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && !(pr_file_p[0] == '.' && pr_file_p[1] == '.'))
 	{
+		if (i == sizeof(qcc_token)-1)
+			QCC_Error (ERR_INTERNAL, "token exceeds %i chars", i);
 		pr_token[i] = c;
 		i++;
 		pr_file_p++;
@@ -1903,7 +2028,7 @@ void QCC_PR_LexGrab (void)
 	pr_file_p++;	// skip the $
 //	if (!QCC_PR_SimpleGetToken ())
 //		QCC_PR_ParseError ("hanging $");
-	if (*pr_file_p <= ' ')
+	if (qcc_iswhite(*pr_file_p))
 		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "hanging $");
 	QCC_PR_LexMacroName();
 	if (!*pr_token)
@@ -1929,7 +2054,7 @@ void QCC_PR_LexGrab (void)
 	}
 	else if (!STRCMP (pr_token, "flush"))
 	{
-		QCC_PR_ClearGrabMacros();
+		QCC_PR_ClearGrabMacros(true);
 		while (QCC_PR_LexMacroName ())
 		;
 		QCC_PR_Lex ();
@@ -2194,7 +2319,7 @@ int QCC_PR_CheckCompConst(void)
 	char *end;
 	for (end = pr_file_p; ; end++)
 	{
-		if (*end <= ' ')
+		if (!*end || qcc_iswhite(*end))
 			break;
 
 		if (*end == ')'
@@ -2305,7 +2430,7 @@ int QCC_PR_CheckCompConst(void)
 				{
 					whitestart = bufferlen;
 					starttok = pr_file_p;
-					while(*pr_file_p <= ' ')	//copy across whitespace
+					while(qcc_iswhite(*pr_file_p))	//copy across whitespace
 					{
 						if (!*pr_file_p)
 							break;
@@ -2570,7 +2695,7 @@ void QCC_PR_Lex (void)
 
 // if the first character is a valid identifier, parse until a non-id
 // character is reached
-	if ( c == '~' || c == '%')	//let's see which one we make into an operator first... possibly both...
+	if ((c == '~' || c == '%') && pr_file_p[1] >= '0' && pr_file_p[1] <= '9')	//let's see which one we make into an operator first... possibly both...
 	{
 		QCC_PR_ParseWarning(0, "~ or %% prefixes to denote integers are deprecated. Please use a postfix of 'i'");
 		pr_file_p++;
@@ -2640,7 +2765,7 @@ void QCC_PR_Lex (void)
 
 void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 {
-	if (qccwarningdisabled[type])
+	if (!qccwarningaction[type])
 		return;
 	if (def->s_file)
 	{
@@ -2680,6 +2805,7 @@ Aborts the current file load
 #ifndef QCC
 void editbadfile(char *file, int line);
 #endif
+//will abort.
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...)
 {
 	va_list		argptr;
@@ -2701,6 +2827,7 @@ void VARGS QCC_PR_ParseError (int errortype, char *error, ...)
 
 	longjmp (pr_parse_abort, 1);
 }
+//will abort.
 void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...)
 {
 	va_list		argptr;
@@ -2723,86 +2850,96 @@ void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error
 
 	longjmp (pr_parse_abort, 1);
 }
-void VARGS QCC_PR_ParseWarning (int type, char *error, ...)
+
+pbool VARGS QCC_PR_PrintWarning (int type, char *file, int line, char *string)
 {
-	va_list		argptr;
-	char		string[1024];
-
-	if (type < ERR_PARSEERRORS && qccwarningdisabled[type])
-		return;
-
-	va_start (argptr,error);
-	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
-	va_end (argptr);
+	char *wnam = QCC_NameForWarning(type);
+	if (!wnam)
+		wnam = "";
 
 	QCC_PR_PrintScope();
 	if (type >= ERR_PARSEERRORS)
 	{
-		if (flag_msvcstyle)
-			printf ("%s(%i) : error: %s\n", strings + s_file, pr_source_line, string);
+		if (!file)
+			printf ("error%s: %s\n", wnam, string);
+		else if (flag_msvcstyle)
+			printf ("%s(%i) : error%s: %s\n", file, line, wnam, string);
 		else
-			printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
+			printf ("%s:%i: error%s: %s\n", file, line, wnam, string);
+		pr_error_count++;
+	}
+	else if (qccwarningaction[type] == 2)
+	{	//-werror
+		if (!file)
+			printf ("werror%s: %s\n", wnam, string);
+		else if (flag_msvcstyle)
+			printf ("%s(%i) : werror%s: %s\n", file, line, wnam, string);
+		else
+			printf ("%s:%i: werror%s: %s\n", file, line, wnam, string);
 		pr_error_count++;
 	}
 	else
 	{
-		if (flag_msvcstyle)
-			printf ("%s(%i) : warning: %s\n", strings + s_file, pr_source_line, string);
+		if (!file)
+			printf ("warning%s: %s\n", wnam, string);
+		else if (flag_msvcstyle)
+			printf ("%s(%i) : warning%s: %s\n", file, line, wnam, string);
 		else
-			printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
+			printf ("%s:%i: warning%s: %s\n", file, line, wnam, string);
 		pr_warning_count++;
 	}
+	return true;
 }
-
-void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...)
-{
-		va_list		argptr;
-	char		string[1024];
-
-	if (qccwarningdisabled[type])
-		return;
-
-	va_start (argptr,error);
-	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
-	va_end (argptr);
-
-	QCC_PR_PrintScope();
-	if (file)
-	{
-		if (flag_msvcstyle)
-			printf ("%s(%i) : note: %s\n", file, line, string);
-		else
-			printf ("%s:%i: note: %s\n", file, line, string);
-	}
-	else
-		printf ("note: %s\n", string);
-}
-
 pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
 
-	if (qccwarningdisabled[type])
+	if (!qccwarningaction[type])
 		return false;
 
 	va_start (argptr,error);
 	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
-	QCC_PR_PrintScope();
-	if (file)
-	{
-		if (flag_msvcstyle)
-			printf ("%s(%i) : warning: %s\n", file, line, string);
-		else
-			printf ("%s:%i: warning: %s\n", file, line, string);
-	}
-	else
-		printf ("warning: %s\n", string);
-	pr_warning_count++;
+	return QCC_PR_PrintWarning(type, file, line, string);
+}
 
-	return true;
+//can be used for errors, qcc execution will continue.
+pbool VARGS QCC_PR_ParseWarning (int type, char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	if (!qccwarningaction[type])
+		return false;
+
+	va_start (argptr,error);
+	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	return QCC_PR_PrintWarning(type, strings + s_file, pr_source_line, string);
+}
+
+void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	if (!qccwarningaction[type])
+		return;
+
+	va_start (argptr,error);
+	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	QCC_PR_PrintScope();
+	if (!file)
+		printf ("note: %s\n", string);
+	else if (flag_msvcstyle)
+		printf ("%s(%i) : note: %s\n", file, line, string);
+	else
+		printf ("%s:%i: note: %s\n", file, line, string);
 }
 
 

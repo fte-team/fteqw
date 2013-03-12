@@ -179,7 +179,7 @@ void R_BloomBlend (void)
 		return;
 	if (!gl_config.arb_shader_objects)
 		return;
-	if (!gl_config.arb_texture_non_power_of_two)
+	if (!r_config.texture_non_power_of_two)
 		return;
 
 	/*whu?*/

@@ -98,7 +98,10 @@ typedef struct entity_s
 	struct model_s			*model;			// NULL = no model
 	int						skinnum;		// for Alias models
 
-	struct player_info_s	*scoreboard;	// identify player
+	int						playerindex;	//for qw skins
+	int						topcolour;		//colourmapping
+	int						bottomcolour;	//colourmapping
+	int						h2playerclass;	//hexen2's quirky colourmapping
 
 //	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
 //	int						visframe;		// last frame this entity was
@@ -427,6 +430,7 @@ extern	cvar_t	r_shadow_realtime_dlight_ambient;
 extern	cvar_t	r_shadow_realtime_dlight_diffuse;
 extern	cvar_t	r_shadow_realtime_dlight_specular;
 extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows;
+extern	cvar_t	r_shadow_shadowmapping;
 extern	cvar_t	r_editlights_import_radius;
 extern	cvar_t	r_editlights_import_ambient;
 extern	cvar_t	r_editlights_import_diffuse;

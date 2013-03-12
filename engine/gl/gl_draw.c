@@ -312,7 +312,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 	}
 	if (i == sizeof(modes)/sizeof(modes[0]))
 	{
-		Con_Printf ("bad gl_texturemode name\n");
+		Con_Printf ("bad gl_texturemode name - %s\n", var->string);
 		return;
 	}
 
@@ -574,6 +574,10 @@ void GL_Set2D (qboolean flipped)
 			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
 		Matrix4x4_Identity(r_refdef.m_view);
 	}
+	r_refdef.pxrect.x = 0;
+	r_refdef.pxrect.y = 0;
+	r_refdef.pxrect.width = vid.width;
+	r_refdef.pxrect.height = vid.height;
 	r_refdef.time = realtime;
 	/*flush that gl state*/
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
@@ -1030,7 +1034,7 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 
 void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
 {
-	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	if (r_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
 	}

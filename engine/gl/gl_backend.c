@@ -49,6 +49,12 @@ static const char LIGHTPASS_SHADER[] = "\
 	{\n\
 		map $shadowmap\n\
 	}\n\
+	{\n\
+		map $loweroverlay\n\
+	}\n\
+	{\n\
+		map $upperoverlay\n\
+	}\n\
 }";
 
 
@@ -66,6 +72,7 @@ extern cvar_t r_glsl_offsetmapping, r_noportals;
 static void BE_SendPassBlendDepthMask(unsigned int sbits);
 void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 void GLBE_SubmitBatch(batch_t *batch);
+static qboolean GLBE_RegisterLightShader(int mode);
 
 struct {
 	//internal state
@@ -399,19 +406,29 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 		GL_SelectTexture(tmu);
 
 		shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
-		if (target)
-			bindTexFunc (target, texnum.num);
 
 #ifndef FORCESTATE
-		if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
+		if (shaderstate.curtexturetype[tmu] != target)
 #endif
 		{
 			if (shaderstate.curtexturetype[tmu])
-				qglDisable(shaderstate.curtexturetype[tmu]);
-			shaderstate.curtexturetype[tmu] = target;
-			if (target)
-				qglEnable(target);
+				bindTexFunc (shaderstate.curtexturetype[tmu], texnum.num);
+			if (gl_config.nofixedfunc)
+			{
+				shaderstate.curtexturetype[tmu] = target;
+			}
+			else
+			{
+				if (shaderstate.curtexturetype[tmu])
+					qglDisable(shaderstate.curtexturetype[tmu]);
+				shaderstate.curtexturetype[tmu] = target;
+				if (target)
+					qglEnable(target);
+			}
 		}
+
+		if (target)
+			bindTexFunc (target, texnum.num);
 	}
 }
 
@@ -804,11 +821,17 @@ void GL_CullFace(unsigned int sflags)
 void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 {
 	int i;
+	unsigned int cv = shaderstate.curentity->topcolour;
 
-	if (shaderstate.curentity->scoreboard)
+	if (cv >= 16)
 	{
-		i = shaderstate.curentity->scoreboard->ttopcolor;
+		*retred = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0))>>8;
+		*retgreen = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1))>>8;
+		*retblue = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2))>>8;
+		return;
 	}
+	if (cv >= 0)
+		i = cv;
 	else
 		i = TOP_RANGE>>4;
 	if (i > 8)
@@ -834,11 +857,17 @@ void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
 {
 	int i;
+	unsigned int cv = shaderstate.curentity->bottomcolour;
 
-	if (shaderstate.curentity->scoreboard)
+	if (cv >= 16)
 	{
-		i = shaderstate.curentity->scoreboard->tbottomcolor;
+		*retred = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0))>>8;
+		*retgreen = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1))>>8;
+		*retblue = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2))>>8;
+		return;
 	}
+	if (cv >= 0)
+		i = cv;
 	else
 		i = BOTTOM_RANGE>>4;
 	if (i > 8)
@@ -935,7 +964,7 @@ static void T_Gen_CurrentRender(int tmu)
 	if (r_refdef.recurse)
 		return;
 
-	if (gl_config.arb_texture_non_power_of_two)
+	if (r_config.texture_non_power_of_two)
 	{
 		vwidth = vid.pixelwidth;
 		vheight = vid.pixelheight;
@@ -1240,17 +1269,13 @@ void GLBE_Init(void)
 	for (i = 0; i < MAXLIGHTMAPS; i++)
 		shaderstate.dummybatch.lightmap[i] = -1;
 
-#if FIXME
-	/*normally we load these lazily, but if they're probably going to be used anyway, load them now to avoid stalls.*/
-	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_rtlight && gl_config.arb_shader_objects)
+#ifdef RTLIGHTS
+	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
-		shaderstate.inited_shader_rtlight = true;
-		shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
-	}
-	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_cubeproj && gl_config.arb_shader_objects)
-	{
-		shaderstate.inited_shader_cubeproj = true;
-		shaderstate.shader_cubeproj = R_RegisterCustom("rtlight_cubeproj", Shader_LightPass_CubeProj, NULL);
+		if (r_shadow_shadowmapping.ival)
+			GLBE_RegisterLightShader(LSHADER_SMAP);
+		else
+			GLBE_RegisterLightShader(0);
 	}
 #endif
 
@@ -2405,6 +2430,10 @@ static void BE_SubmitMeshChain(void)
 	int startv, starti, endv, endi;
 	int m;
 	mesh_t *mesh;
+	int batchtype = GL_TRIANGLES;
+
+	if (shaderstate.flags & BEF_LINES)
+		batchtype = GL_LINES;
 
 #if 0
 	if (!shaderstate.currentebo)
@@ -2412,7 +2441,7 @@ static void BE_SubmitMeshChain(void)
 	if (shaderstate.meshcount == 1)
 	{
 		mesh = shaderstate.meshes[0];
-		qglDrawRangeElements(GL_TRIANGLES, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + mesh->vbofirstelement);
+		qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + mesh->vbofirstelement);
 		RQuantAdd(RQUANT_DRAWS, 1);
 		return;
 	}
@@ -2443,7 +2472,7 @@ static void BE_SubmitMeshChain(void)
 			for (starti = 0; starti < mesh->numindexes; )
 				ilst[endi++] = mesh->vbofirstvert + mesh->indexes[starti++];
 		}
-		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi, GL_INDEX_TYPE, ilst);
+		qglDrawRangeElements(batchtype, startv, endv, endi, GL_INDEX_TYPE, ilst);
 		RQuantAdd(RQUANT_DRAWS, 1);
 	}
 
@@ -2494,7 +2523,7 @@ static void BE_SubmitMeshChain(void)
 			}
 		}
 
-		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
+		qglDrawRangeElements(batchtype, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
 		RQuantAdd(RQUANT_DRAWS, 1);
  	}
 /*
@@ -2627,7 +2656,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, qboolean entunchanged)
 {
-	vec3_t param3;
+	vec4_t param4;
 	int r, g, b;
 	int i;
 	unsigned int ph;
@@ -2762,24 +2791,24 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 		case SP_E_TOPCOLOURS:
 			R_FetchTopColour(&r, &g, &b);
-			param3[0] = r/255.0f;
-			param3[1] = g/255.0f;
-			param3[2] = b/255.0f;
-			qglUniform3fvARB(ph, 1, param3);
+			param4[0] = r/255.0f;
+			param4[1] = g/255.0f;
+			param4[2] = b/255.0f;
+			qglUniform3fvARB(ph, 1, param4);
 			break;
 		case SP_E_BOTTOMCOLOURS:
 			R_FetchBottomColour(&r, &g, &b);
-			param3[0] = r/255.0f;
-			param3[1] = g/255.0f;
-			param3[2] = b/255.0f;
-			qglUniform3fvARB(ph, 1, param3);
+			param4[0] = r/255.0f;
+			param4[1] = g/255.0f;
+			param4[2] = b/255.0f;
+			qglUniform3fvARB(ph, 1, param4);
 			break;
 
 		case SP_RENDERTEXTURESCALE:
-			if (gl_config.arb_texture_non_power_of_two)
+			if (r_config.texture_non_power_of_two)
 			{
-				param3[0] = 1;
-				param3[1] = 1;
+				param4[0] = 1;
+				param4[1] = 1;
 			}
 			else
 			{
@@ -2789,11 +2818,12 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 					r *= 2;
 				while (g < vid.pixelheight)
 					g *= 2;
-				param3[0] = vid.pixelwidth/(float)r;
-				param3[1] = vid.pixelheight/(float)g;
+				param4[0] = vid.pixelwidth/(float)r;
+				param4[1] = vid.pixelheight/(float)g;
 			}
-			param3[2] = 1;
-			qglUniform3fvARB(ph, 1, param3);
+			param4[2] = 0;
+			param4[3] = 0;
+			qglUniform4fvARB(ph, 1, param4);
 			break;
 
 		case SP_LIGHTSCREEN:
@@ -2895,12 +2925,12 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				cvar_t *var = (cvar_t*)p->pval;
 				char *vs = var->string;
 				vs = COM_Parse(vs);
-				param3[0] = atof(com_token);
+				param4[0] = atof(com_token);
 				vs = COM_Parse(vs);
-				param3[1] = atof(com_token);
+				param4[1] = atof(com_token);
 				vs = COM_Parse(vs);
-				param3[2] = atof(com_token);
-				qglUniform3fvARB(ph, 1, param3);
+				param4[2] = atof(com_token);
+				qglUniform3fvARB(ph, 1, param4);
 			}
 			break;
 
@@ -3004,7 +3034,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 {
 #ifdef RTLIGHTS
-	if ((shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL))
+	if ((shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL || shaderstate.mode == BEM_DEPTHONLY))
 	{
 		float dist;
 		vec3_t disp;
@@ -3805,7 +3835,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
 				continue;
 		if (batch->flags & BEF_NOSHADOWS)
-			if (shaderstate.mode == BEM_STENCIL)
+			if (shaderstate.mode == BEM_STENCIL || shaderstate.mode == BEM_DEPTHONLY)	//fixme: depthonly is not just shadows.
 				continue;
 
 		if (batch->buildmeshes)

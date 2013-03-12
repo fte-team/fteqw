@@ -27,7 +27,7 @@ pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 			current_progstate = NULL;
 			return true;
 		}
-		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", type);
+		PR_RunError(&progfuncs->funcs, "QCLIB: Bad prog type - %i", type);
 //		Sys_Error("Bad prog type - %i", type);
 	}
 
@@ -93,8 +93,9 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	return PR_SwitchProgs(progfuncs, newpr);
 }
 
-progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_t *builtins, int numbuiltins)
+progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, char *s, int headercrc, builtin_t *builtins, int numbuiltins)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int a;
 	progsnum_t oldtype;
 	oldtype = pr_typecurrent;	
@@ -108,8 +109,8 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 			{
 				current_progstate->builtins = builtins;
 				current_progstate->numbuiltins = numbuiltins;
-				if (a <= progfuncs->numprogs)
-					progfuncs->numprogs = a+1;
+				if (a <= progfuncs->funcs.numprogs)
+					progfuncs->funcs.numprogs = a+1;
 
 #ifdef QCJIT
 				current_progstate->jit = PR_GenerateJit(progfuncs);
@@ -154,11 +155,12 @@ void QC_StartShares(progfuncs_t *progfuncs)
 	numshares = 0;
 	maxshares = 32;
 	if (shares)
-		memfree(shares);
-	shares = memalloc(sizeof(sharedvar_t)*maxshares);
+		externs->memfree(shares);
+	shares = externs->memalloc(sizeof(sharedvar_t)*maxshares);
 }
-void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size)	//fixme: make offset per progs and optional
+void PDECL QC_AddSharedVar(pubprogfuncs_t *ppf, int start, int size)	//fixme: make offset per progs and optional
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int ofs;
 	unsigned int a;
 
@@ -167,11 +169,11 @@ void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size)	//fixme: make 
 		void *buf;
 		buf = shares;
 		maxshares += 16;		
-		shares = memalloc(sizeof(sharedvar_t)*maxshares);
+		shares = externs->memalloc(sizeof(sharedvar_t)*maxshares);
 
 		memcpy(shares, buf, sizeof(sharedvar_t)*numshares);
 
-		memfree(buf);
+		externs->memfree(buf);
 	}
 	ofs = start;
 	for (a = 0; a < numshares; a++)
@@ -197,14 +199,14 @@ void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size)	//fixme: make 
 void QC_InitShares(progfuncs_t *progfuncs)
 {
 //	ShowWatch();
-	if (!field)	//don't make it so we will just need to remalloc everything
+	if (!prinst.field)	//don't make it so we will just need to remalloc everything
 	{
-		maxfields = 64;
-		field = memalloc(sizeof(fdef_t) * maxfields);
+		prinst.maxfields = 64;
+		prinst.field = externs->memalloc(sizeof(fdef_t) * prinst.maxfields);
 	}
 
-	numfields = 0;
-	progfuncs->fieldadjust = 0;
+	prinst.numfields = 0;
+	progfuncs->funcs.fieldadjust = 0;
 }
 
 void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
@@ -212,8 +214,8 @@ void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
 	//fields are matched by name to other progs
 	//not by offset
 	unsigned int i;
-	for (i = 0; i < numfields; i++)
-		field[i].progsofs = -1;
+	for (i = 0; i < prinst.numfields; i++)
+		prinst.field[i].progsofs = -1;
 }
 
 
@@ -227,8 +229,9 @@ void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
 //origionaloffs is used to track matching field offsets. fields with the same progs offset overlap
 
 //note: we probably suffer from progs with renamed system globals.
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, signed long engineofs, signed long progsofs)
+int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name, signed long engineofs, signed long progsofs)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 //	progstate_t *p;
 //	int pnum;
 	unsigned int i;
@@ -239,73 +242,73 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, s
 
 	if (!name)	//engine can use this to offset all progs fields
 	{			//which fixes constant field offsets (some ktpro arrays)
-		progfuncs->fieldadjust = fields_size/4;
+		progfuncs->funcs.fieldadjust = fields_size/4;
 		return 0;
 	}
 
 
-	prinst->reorganisefields = true;
+	prinst.reorganisefields = true;
 
 	//look for an existing match
-	for (i = 0; i < numfields; i++)
+	for (i = 0; i < prinst.numfields; i++)
 	{		
-		if (!strcmp(name, field[i].name))
+		if (!strcmp(name, prinst.field[i].name))
 		{
-			if (field[i].type != type)
+			if (prinst.field[i].type != type)
 			{
 				/*Hexen2/DP compat hack: if the new type is a float and the original type is a vector, make the new def alias to the engine's _x field
 				this 'works around' the unused .vector color field used for rtlight colours vs the .float color used for particle colours (the float initialisers in map files will expand into the x slot safely).
 				qc/hc can work around this by just using .vector color/color_x instead, which is the same as this hack, but would resolve defs to allow rtlight colours.
 				*/
-				if (field[i].type != ev_vector || type != ev_float)
+				if (prinst.field[i].type != ev_vector || type != ev_float)
 				{
-					printf("Field type mismatch on \"%s\". %i != %i\n", name, field[i].type, type);
+					printf("Field type mismatch on \"%s\". %i != %i\n", name, prinst.field[i].type, type);
 					continue;
 				}
 			}
-			if (!progfuncs->fieldadjust && engineofs>=0)
-				if ((unsigned)engineofs/4 != field[i].ofs)
+			if (!progfuncs->funcs.fieldadjust && engineofs>=0)
+				if ((unsigned)engineofs/4 != prinst.field[i].ofs)
 					Sys_Error("Field %s at wrong offset", name);
 
-			if (field[i].progsofs == -1)
-				field[i].progsofs = progsofs;
-//			printf("Dupfield %s %i -> %i\n", name, field[i].progsofs,field[i].ofs);
-			return field[i].ofs-progfuncs->fieldadjust;	//got a match
+			if (prinst.field[i].progsofs == -1)
+				prinst.field[i].progsofs = progsofs;
+//			printf("Dupfield %s %i -> %i\n", name, prinst.field[i].progsofs,field[i].ofs);
+			return prinst.field[i].ofs-progfuncs->funcs.fieldadjust;	//got a match
 		}
 	}
 
-	if (numfields+1>maxfields)
+	if (prinst.numfields+1>prinst.maxfields)
 	{
 		fdef_t *nf;
-		i = maxfields;
-		maxfields += 32;
-		nf = memalloc(sizeof(fdef_t) * maxfields);
-		memcpy(nf, field, sizeof(fdef_t) * i);
-		memfree(field);
-		field = nf;
+		i = prinst.maxfields;
+		prinst.maxfields += 32;
+		nf = externs->memalloc(sizeof(fdef_t) * prinst.maxfields);
+		memcpy(nf, prinst.field, sizeof(fdef_t) * i);
+		externs->memfree(prinst.field);
+		prinst.field = nf;
 	}
 
 	//try to add a new one
-	fnum = numfields;
-	numfields++;
-	field[fnum].name = name;	
+	fnum = prinst.numfields;
+	prinst.numfields++;
+	prinst.field[fnum].name = name;	
 	if (type == ev_vector)
 	{
 		char *n;		
 		namelen = strlen(name)+5;	
 
-		n=PRHunkAlloc(progfuncs, namelen);
+		n=PRHunkAlloc(progfuncs, namelen, "str");
 		sprintf(n, "%s_x", name);
-		ofs = QC_RegisterFieldVar(progfuncs, ev_float, n, engineofs, progsofs);
-		field[fnum].ofs = ofs+progfuncs->fieldadjust;
+		ofs = QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, engineofs, progsofs);
+		prinst.field[fnum].ofs = ofs+progfuncs->funcs.fieldadjust;
 
-		n=PRHunkAlloc(progfuncs, namelen);
+		n=PRHunkAlloc(progfuncs, namelen, "str");
 		sprintf(n, "%s_y", name);
-		QC_RegisterFieldVar(progfuncs, ev_float, n, (engineofs==-1)?-1:(engineofs+4), (progsofs==-1)?-1:progsofs+1);
+		QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, (engineofs==-1)?-1:(engineofs+4), (progsofs==-1)?-1:progsofs+1);
 
-		n=PRHunkAlloc(progfuncs, namelen);
+		n=PRHunkAlloc(progfuncs, namelen, "str");
 		sprintf(n, "%s_z", name);
-		QC_RegisterFieldVar(progfuncs, ev_float, n, (engineofs==-1)?-1:(engineofs+8), (progsofs==-1)?-1:progsofs+2);
+		QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, (engineofs==-1)?-1:(engineofs+8), (progsofs==-1)?-1:progsofs+2);
 	}
 	else if (engineofs >= 0)
 	{	//the engine is setting up a list of required field indexes.
@@ -326,21 +329,21 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, s
 		}*/
 		if (engineofs&3)
 			Sys_Error("field %s is %i&3", name, (int)engineofs);
-		field[fnum].ofs = ofs = engineofs/4;
+		prinst.field[fnum].ofs = ofs = engineofs/4;
 	}
 	else
 	{	//we just found a new fieldname inside a progs
-		field[fnum].ofs = ofs = fields_size/4;	//add on the end
+		prinst.field[fnum].ofs = ofs = fields_size/4;	//add on the end
 
 		//if the progs field offset matches annother offset in the same progs, make it match up with the earlier one.
 		if (progsofs>=0)
 		{
-			for (i = 0; i < numfields-1; i++)
+			for (i = 0; i < prinst.numfields-1; i++)
 			{
-				if (field[i].progsofs == (unsigned)progsofs)
+				if (prinst.field[i].progsofs == (unsigned)progsofs)
 				{
 //					printf("found union field %s %i -> %i\n", field[i].name, field[i].progsofs, field[i].ofs);
-					field[fnum].ofs = ofs = field[i].ofs;
+					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs;
 					break;
 				}
 			}
@@ -352,20 +355,21 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, s
 
 	if (max_fields_size && fields_size > max_fields_size)
 		Sys_Error("Allocated too many additional fields after ents were inited.");
-	field[fnum].type = type;
+	prinst.field[fnum].type = type;
 
-	field[fnum].progsofs = progsofs;
+	prinst.field[fnum].progsofs = progsofs;
 
 //	printf("Field %s %i -> %i\n", name, field[fnum].progsofs,field[fnum].ofs);
 	
 	//we've finished setting the structure	
-	return ofs - progfuncs->fieldadjust;
+	return ofs - progfuncs->funcs.fieldadjust;
 }
 
 
 //called if a global is defined as a field
-void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
+void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 //	progstate_t *p;
 //	int pnum;
 	unsigned int i, o;
@@ -396,7 +400,7 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 			if (!strcmp(pr_fielddefs16[i].s_name+stringtable, pr_globaldefs16[num].s_name+stringtable))
 			{
 //				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
-				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(&progfuncs->funcs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 
 //				printf("Field %s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 				return;
@@ -405,13 +409,13 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 
 		s = pr_globaldefs16[num].s_name+stringtable;
 
-		for (i = 0; i < numfields; i++)
+		for (i = 0; i < prinst.numfields; i++)
 		{
-			o = field[i].progsofs;
+			o = prinst.field[i].progsofs;
 			if (o == *(unsigned int *)&pr_globals[pr_globaldefs16[num].ofs])
 			{
 //				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
-				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = field[i].ofs-progfuncs->fieldadjust;
+				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
 //				printf("Field %s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 				return;
 			}
@@ -427,19 +431,19 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 		{
 			if (!strcmp(pr_fielddefs32[i].s_name+stringtable, pr_globaldefs32[num].s_name+stringtable))
 			{
-				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(progfuncs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
+				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(&progfuncs->funcs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
 				return;
 			}
 		}
 
 		s = pr_globaldefs32[num].s_name+stringtable;
 
-		for (i = 0; i < numfields; i++)
+		for (i = 0; i < prinst.numfields; i++)
 		{
-			o = field[i].progsofs;
+			o = prinst.field[i].progsofs;
 			if (o == *(unsigned int *)&pr_globals[pr_globaldefs32[num].ofs])
 			{
-				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = field[i].ofs-progfuncs->fieldadjust;
+				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
 				return;
 			}
 		}

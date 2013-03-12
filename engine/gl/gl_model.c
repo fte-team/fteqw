@@ -430,10 +430,6 @@ void RMod_Init (void)
 	Cmd_AddCommand("mod_batchlist", RMod_BatchList_f);
 	Cmd_AddCommand("mod_texturelist", RMod_TextureList_f);
 	Cmd_AddCommand("mod_usetexture", RMod_BlockTextureColour_f);
-
-#ifdef TERRAIN
-	Terr_Init();
-#endif
 }
 
 void RMod_Shutdown (void)
@@ -618,6 +614,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		return mod;
 	}
 	
+#ifdef RAGDOLL
+	if (mod->dollinfo)
+	{
+		rag_freedoll(mod->dollinfo);
+		mod->dollinfo = NULL;
+	}
+#endif
+
 //
 // load the file
 //
@@ -877,6 +881,19 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
 
 		TRACE(("RMod_LoadModel: Loaded\n"));
+
+#ifdef RAGDOLL
+		{
+			int numbones = Mod_GetNumBones(mod, false);
+			if (numbones)
+			{
+				char *dollname = va("%s.doll", mod->name);
+				buf = (unsigned *)COM_LoadStackFile (dollname, stackbuf, sizeof(stackbuf));
+				if (buf)
+					mod->dollinfo = rag_createdollfromstring(mod, dollname, numbones, (char*)buf);
+			}
+		}
+#endif
 
 		return mod;
 	}
@@ -1721,9 +1738,15 @@ void RMod_LoadLighting (lump_t *l)
 		else if (litdata[0] == 'Q' && litdata[1] == 'L' && litdata[2] == 'I' && litdata[3] == 'T')
 		{
 			if (LittleLong(*(int *)&litdata[4]) == 1 && l->filelen && samples*3 != (com_filesize-8))
+			{
+				litdata = NULL;
 				Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
+			}
 			else if (LittleLong(*(int *)&litdata[4]) != 1)
+			{
 				Con_Printf("lit \"%s\" isn't version 1.\n", litname);
+				litdata = NULL;
+			}
 			else if (lumdata)
 			{
 				float prop;
@@ -2787,6 +2810,9 @@ void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *m
 	batch_t *batch;
 
 	currentmodel = mod;
+
+	if (!mod->textures)
+		return;
 
 	if (meshlist)
 		meshlist += mod->firstmodelsurface;

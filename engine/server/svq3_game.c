@@ -858,7 +858,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 
 	case G_SET_USERINFO://int num, char *buffer										20
 		Q_strncpyz(svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), sizeof(svs.clients[0].userinfo));
-		SV_ExtractFromUserinfo(&svs.clients[VM_LONG(arg[0])]);
+		SV_ExtractFromUserinfo(&svs.clients[VM_LONG(arg[0])], false);
 		break;
 
 	case G_LINKENTITY:		// ( gentity_t *ent );													30
@@ -2373,7 +2373,7 @@ void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 	q3->legsAnim = 0;
 	q3->groundEntityNum = 0;
 	q3->pos.trType = 0;
-	q3->eFlags = q1->flags;
+	q3->eFlags = 0;
 	q3->otherEntityNum = 0;
 	q3->weapon = 0;
 	q3->clientNum = q1->colormap;
@@ -2895,7 +2895,7 @@ void SVQ3_UpdateUserinfo_f(client_t *cl)
 {
 	Q_strncpyz(cl->userinfo, Cmd_Argv(1), sizeof(cl->userinfo));
 
-	SV_ExtractFromUserinfo (cl);
+	SV_ExtractFromUserinfo (cl, true);
 
 	if (svs.gametype == GT_QUAKE3)
 		VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
@@ -3180,7 +3180,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	cl->state = cs_connected;
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
-	SV_ExtractFromUserinfo(cl);
+	SV_ExtractFromUserinfo(cl, true);
 	Netchan_Setup(NS_SERVER, &cl->netchan, net_from, qport);
 	cl->netchan.outgoing_sequence = 1;
 

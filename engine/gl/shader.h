@@ -492,6 +492,7 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 #define BEF_NODLIGHT            64  //don't use a dlight pass
 #define BEF_NOSHADOWS			128 //don't appear in shadows
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
+#define BEF_LINES				512	//draw line pairs instead of triangles.
 
 #ifdef GLQUAKE
 void GLBE_Init(void);

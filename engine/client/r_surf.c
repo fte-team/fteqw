@@ -2380,6 +2380,10 @@ void Surf_LightmapMode(void)
 
 	switch(qrenderer)
 	{
+	case QR_SOFTWARE:
+		lightmap_bytes = 4;
+		lightmap_bgra = true;
+		break;
 #ifdef D3DQUAKE
 	case QR_DIRECT3D9:
 	case QR_DIRECT3D11:

@@ -167,8 +167,9 @@ qboolean D3D9Shader_CreateProgram (program_t *prog, char *sname, int permu, char
 	if (pD3DXCompileShader)
 	{
 		int consts;
-		for (consts = 2; precompilerconstants[consts]; consts++)
+		for (consts = 0; precompilerconstants[consts]; consts++)
 			;
+		consts+=2;
 		if (consts >= sizeof(defines) / sizeof(defines[0]))
 			return success;
 

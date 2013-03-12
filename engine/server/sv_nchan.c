@@ -172,6 +172,16 @@ void ClientReliableWrite_Short(client_t *cl, int c)
 	else
 		MSG_WriteShort(&cl->netchan.message, c);
 }
+void ClientReliableWrite_Entity(client_t *cl, int c)
+{
+	if (cl->num_backbuf)
+	{
+		MSG_WriteEntity(&cl->backbuf, c);
+		ClientReliable_FinishWrite(cl);
+	}
+	else
+		MSG_WriteEntity(&cl->netchan.message, c);
+}
 
 void ClientReliableWrite_String(client_t *cl, char *s)
 {

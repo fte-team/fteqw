@@ -123,7 +123,7 @@ int			sb_lines;			// scan lines to draw
 
 void Sbar_DeathmatchOverlay (int start);
 void Sbar_TeamOverlay (void);
-void Sbar_MiniDeathmatchOverlay (void);
+static void Sbar_MiniDeathmatchOverlay (int pnum);
 void Sbar_ChatModeOverlay(void);
 
 int Sbar_PlayerNum(void)
@@ -1028,7 +1028,7 @@ void Draw_TinyString (int x, int y, const qbyte *str)
 
 	if (!font_tiny)
 	{
-		font_tiny = Font_LoadFont(6*vid.pixelheight/vid.height, "gfx/tinyfont");
+		font_tiny = Font_LoadFont(6, "gfx/tinyfont");
 		if (!font_tiny)
 			return;
 	}
@@ -2176,7 +2176,7 @@ void Sbar_Hexen2DrawMinimal(int pnum)
 }
 
 
-void Sbar_DrawTeamStatus(void)
+static void Sbar_DrawTeamStatus(int pnum)
 {
 	int p;
 	int y;
@@ -2186,13 +2186,13 @@ void Sbar_DrawTeamStatus(void)
 		return;
 	y = -32;
 
-	track = Cam_TrackNum(0);
+	track = Cam_TrackNum(pnum);
 	if (track == -1 || !cl.spectator)
-		track = cl.playernum[0];
+		track = cl.playernum[pnum];
 
 	for (p = 0; p < MAX_CLIENTS; p++)
 	{
-		if (cl.playernum[0] == p)	//self is not shown
+		if (cl.playernum[pnum] == p)	//self is not shown
 			continue;
 		if (track == p)	//nor is the person you are tracking
 			continue;
@@ -2346,6 +2346,9 @@ void Sbar_Draw (void)
 	qboolean headsup;
 	char st[512];
 	int pnum;
+	int sbarwidth;
+	qboolean minidmoverlay;
+	extern cvar_t scr_centersbar;
 
 
 
@@ -2382,29 +2385,40 @@ void Sbar_Draw (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
+		minidmoverlay = cl.deathmatch;
 		if (cl.splitclients>1 || scr_chatmode)
 		{
 			SCR_VRectForPlayer(&sbar_rect, pnum);
 		}
 		else
 		{	//single player sbar takes full screen
-
-			extern cvar_t scr_centersbar;
-
 			sbar_rect.width = vid.width;
 			sbar_rect.height = vid.height;
 			sbar_rect.x = 0;
 			sbar_rect.y = 0;
-
-			if (scr_centersbar.ival || (scr_centersbar.ival == 2 && !cl.deathmatch))
-			{
-				sbar_rect.x = (vid.width - 320)/2;
-				sbar_rect.width -= sbar_rect.x;
-			}
 		}
+
+		sbarwidth = 320;
+		if (minidmoverlay && vid.width >= 640 && cl.teamplay)
+			sbarwidth += 320;
+		else if (minidmoverlay && vid.width >= 512)
+			sbarwidth += 192;
+		else
+			minidmoverlay = 0;
+
+		if (scr_centersbar.ival)
+		{
+			int ofs = (sbar_rect.width - sbarwidth)/2;
+			sbar_rect.x += ofs;
+			sbar_rect.width -= ofs;
+		}
+
+		sb_updates++;
+
 
 		if (sbar_hexen2)
 		{
+			//hexen2 hud
 			if (sb_lines > 24 || sb_hexen2_extra_info[pnum])
 			{
 				Sbar_Hexen2DrawExtra(pnum);
@@ -2415,12 +2429,12 @@ void Sbar_Draw (void)
 			Sbar_Hexen2DrawInventory(pnum);
 
 			if (cl.deathmatch)
-				Sbar_MiniDeathmatchOverlay ();
+				Sbar_MiniDeathmatchOverlay (pnum);
 			continue;
 		}
-
-		if (sbarfailed)	//files failed to load.
+		else if (sbarfailed)	//files failed to load.
 		{
+			//fallback hud
 			if (cl.playerview[pnum].stats[STAT_HEALTH] <= 0)	//when dead, show nothing
 				continue;
 
@@ -2433,66 +2447,74 @@ void Sbar_Draw (void)
 			Sbar_Voice(-24);
 			continue;
 		}
-
-		sb_updates++;
-
-	// top line
-		if (sb_lines > 24)
+		else
 		{
-			if (!cl.spectator || autocam[pnum] == CAM_TRACK)
-				Sbar_DrawInventory (pnum);
-			if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
-				Sbar_DrawFrags ();
-		}
-
-	// main area
-		if (sb_lines > 0)
-		{
-			if (cl.spectator)
+			//standard quake(world) hud.
+		// top line
+			if (sb_lines > 24)
 			{
-				if (autocam[pnum] != CAM_TRACK)
-				{
-					Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
-					Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
-					Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
-				}
-				else
-				{
-					if (sb_showscores || sb_showteamscores || cl.playerview[pnum].stats[STAT_HEALTH] <= 0)
-						Sbar_SoloScoreboard ();
-//					else if (cls.gamemode != GAME_DEATHMATCH)
-//						Sbar_CoopScoreboard ();
-					else
-						Sbar_DrawNormal (pnum);
+				if (!cl.spectator || autocam[pnum] == CAM_TRACK)
+					Sbar_DrawInventory (pnum);
+				if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
+					Sbar_DrawFrags ();
+			}
 
-					if (hud_tracking_show.ival)
+		// main area
+			if (sb_lines > 0)
+			{
+				if (cl.spectator)
+				{
+					if (autocam[pnum] != CAM_TRACK)
 					{
-						Q_snprintfz(st, sizeof(st), "Tracking %-.64s",
-							cl.players[spec_track[pnum]].name);
-						Sbar_DrawString(0, -8, st);
+						Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
+						Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
+						Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
+					}
+					else
+					{
+						if (sb_showscores || sb_showteamscores || cl.playerview[pnum].stats[STAT_HEALTH] <= 0)
+							Sbar_SoloScoreboard ();
+	//					else if (cls.gamemode != GAME_DEATHMATCH)
+	//						Sbar_CoopScoreboard ();
+						else
+							Sbar_DrawNormal (pnum);
+
+						if (hud_tracking_show.ival)
+						{
+							Q_snprintfz(st, sizeof(st), "Tracking %-.64s",
+								cl.players[spec_track[pnum]].name);
+							Sbar_DrawString(0, -8, st);
+						}
 					}
 				}
-			}
-			else if (sb_showscores || sb_showteamscores || (cl.playerview[pnum].stats[STAT_HEALTH] <= 0 && cl.splitclients == 1))
-			{
-				if (!pnum)
+				else if (sb_showscores || sb_showteamscores || (cl.playerview[pnum].stats[STAT_HEALTH] <= 0 && cl.splitclients == 1))
 				{
-					if (cls.gamemode != GAME_DEATHMATCH)
-						Sbar_CoopScoreboard ();
-					else
-						Sbar_SoloScoreboard ();
+					if (!pnum)
+					{
+						if (cls.gamemode != GAME_DEATHMATCH)
+							Sbar_CoopScoreboard ();
+						else
+							Sbar_SoloScoreboard ();
+					}
 				}
+				else
+					Sbar_DrawNormal (pnum);
 			}
-			else
-				Sbar_DrawNormal (pnum);
-		}
 
-		if (sb_lines > 24)
-			Sbar_Voice(-32);
-		else if (sb_lines > 0)
-			Sbar_Voice(-8);
-		else
-			Sbar_Voice(16);
+			if (sb_lines > 24)
+				Sbar_Voice(-32);
+			else if (sb_lines > 0)
+				Sbar_Voice(-8);
+			else
+				Sbar_Voice(16);
+
+			if (minidmoverlay)
+				Sbar_MiniDeathmatchOverlay (pnum);
+
+			if (sb_lines > 0)
+				Sbar_DrawTeamStatus(pnum);
+			R2D_ImageColours (1, 1, 1, 1);
+		}
 	}
 
 	if (cl_sbar.value == 1 || scr_viewsize.value<100)
@@ -2504,13 +2526,6 @@ void Sbar_Draw (void)
 		if (sbar_rect.x + 320 <= sbar_rect.width && !headsup)
 			R2D_TileClear (sbar_rect.x + 320, sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
 	}
-
-
-	if (sb_lines > 0)
-		Sbar_DrawTeamStatus();
-
-	if (sb_lines > 0 && cl.deathmatch)
-		Sbar_MiniDeathmatchOverlay ();
 
 	{
 		extern int scr_chatmode;
@@ -3115,7 +3130,7 @@ frags team name
 displayed to right of status bar if there's room
 ==================
 */
-void Sbar_MiniDeathmatchOverlay (void)
+static void Sbar_MiniDeathmatchOverlay (int pnum)
 {
 	int				i, k;
 	int				top, bottom;
@@ -3126,9 +3141,6 @@ void Sbar_MiniDeathmatchOverlay (void)
 	char			name[64+1];
 	team_t			*tm;
 
-	if (sbar_rect.width < 512 || !sb_lines)
-		return; // not enuff room
-
 // scores
 	Sbar_SortFrags (false, false);
 	if (sbar_rect.width >= 640)
@@ -3138,14 +3150,14 @@ void Sbar_MiniDeathmatchOverlay (void)
 		return; // no one there?
 
 // draw the text
-	y = sbar_rect.height - sb_lines - 1;
+	y = sbar_rect.y + sbar_rect.height - sb_lines - 1;
 	numlines = sb_lines/8;
 	if (numlines < 3)
 		return; // not enough room
 
 	// find us
 	for (i=0 ; i < scoreboardlines; i++)
-		if (fragsort[i] == cl.playernum[0])
+		if (fragsort[i] == cl.playernum[pnum])
 			break;
 
 	if (i == scoreboardlines) // we're not there, we are probably a spectator, just display top
@@ -3158,9 +3170,9 @@ void Sbar_MiniDeathmatchOverlay (void)
 	if (i < 0)
 		i = 0;
 
-	x = 324;
+	x = sbar_rect.x + 320 + 4;
 
-	for (/* */ ; i < scoreboardlines && y < sbar_rect.height - 8 + 1; i++)
+	for (/* */ ; i < scoreboardlines && y < sbar_rect.y + sbar_rect.height - 8 + 1; i++)
 	{
 		k = fragsort[i];
 		s = &cl.players[k];
@@ -3185,8 +3197,8 @@ void Sbar_MiniDeathmatchOverlay (void)
 		Font_BeginString(font_conchar, x+24, y, &px, &py);
 		Font_DrawChar ( px, py, num[2] | 0xe000 | CON_WHITEMASK);
 
-		if ((cl.spectator && k == spec_track[0]) ||
-			(!cl.spectator && k == cl.playernum[0]))
+		if ((cl.spectator && k == spec_track[pnum]) ||
+			(!cl.spectator && k == cl.playernum[pnum]))
 		{
 			Font_BeginString(font_conchar, x, y, &px, &py);
 			Font_DrawChar ( px, py, 16 | 0xe000 | CON_WHITEMASK);
@@ -3230,7 +3242,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 		sprintf (num, "%5i", tm->frags);
 		Draw_FunString(x + 40, y, num);
 
-		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16))
+		if (!strncmp(cl.players[cl.playernum[pnum]].team, tm->team, 16))
 		{
 			Font_BeginString(font_conchar, x-8, y, &px, &py);
 			Font_DrawChar(px, py, 16|0xe000|CON_WHITEMASK);

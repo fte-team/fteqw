@@ -56,12 +56,16 @@ static cvar_t	m_filter = CVAR("m_filter","0");
 static cvar_t  m_accel = CVAR("m_accel", "0");
 static cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
 static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
+static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
 
 static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
 
 static cvar_t	cl_keypad = CVAR("cl_keypad", "0");
 extern cvar_t cl_forcesplitclient;
+
+extern float multicursor_x[8], multicursor_y[8];
+extern qboolean multicursor_active[8];
 
 typedef struct {
 	union {
@@ -509,7 +513,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 
 	if (!activeapp)
 		grabmouse = false;
-	else if (fullscreen)
+	else if (fullscreen || in_simulatemultitouch.ival)
 		grabmouse = true;
 	else if (_windowed_mouse.value)
 	{
@@ -781,6 +785,7 @@ void INS_RawInput_DeInit(void)
 		Z_Free(rawkbd);
 		rawkbdcount = 0;
 	}
+	memset(multicursor_active, 0, sizeof(multicursor_active));
 }
 #endif
 
@@ -1089,6 +1094,7 @@ void INS_Init (void)
 
 	Cvar_Register (&in_dinput, "Input Controls");
 	Cvar_Register (&in_builtinkeymap, "Input Controls");
+	Cvar_Register (&in_simulatemultitouch, "Input Controls");
 
 	Cvar_Register (&m_accel_noforce, "Input Controls");
 	Cvar_Register (&m_threshold_noforce, "Input Controls");
@@ -1214,7 +1220,6 @@ INS_MouseMove
 */
 void INS_MouseMove (float *movements, int pnum)
 {
-	extern int mousecursor_x, mousecursor_y;
 	extern int window_x, window_y;
 
 #ifdef AVAIL_DINPUT
@@ -1327,7 +1332,7 @@ potentially called multiple times per frame.
 */
 void INS_Accumulate (void)
 {
-	POINT		current_pos;
+	static POINT		current_pos;	//static to avoid bugs in vista with largeaddressaware (this is fixed in win7). fixed exe base address prevents this from going above 2gb.
 
 	if (mouseactive && !dinput)
 	{
@@ -1372,14 +1377,32 @@ void INS_RawInput_MouseRead(void)
 		return;
 	mouse = &rawmice[i];
 
+	multicursor_active[mouse->qdeviceid&7] = 0;
+
 	// movement
 	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 	{
+		if (in_simulatemultitouch.ival)
+		{
+			multicursor_active[mouse->qdeviceid&7] = true;
+			multicursor_x[mouse->qdeviceid&7] = raw->data.mouse.lLastX;
+			multicursor_y[mouse->qdeviceid&7] = raw->data.mouse.lLastY;
+		}
 		IN_MouseMove(mouse->qdeviceid, true, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 	}
 	else // RELATIVE
 	{
-		IN_MouseMove(mouse->qdeviceid, false, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
+		if (in_simulatemultitouch.ival)
+		{
+			multicursor_active[mouse->qdeviceid&7] = true;
+			multicursor_x[mouse->qdeviceid&7] += raw->data.mouse.lLastX;
+			multicursor_y[mouse->qdeviceid&7] += raw->data.mouse.lLastY;
+			multicursor_x[mouse->qdeviceid&7] = bound(0, multicursor_x[mouse->qdeviceid&7], vid.pixelwidth);
+			multicursor_y[mouse->qdeviceid&7] = bound(0, multicursor_y[mouse->qdeviceid&7], vid.pixelheight);
+			IN_MouseMove(mouse->qdeviceid, true, multicursor_x[mouse->qdeviceid&7], multicursor_y[mouse->qdeviceid&7], 0, 0);
+		}
+		else
+			IN_MouseMove(mouse->qdeviceid, false, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 	}
 
 	// buttons

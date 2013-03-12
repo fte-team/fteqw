@@ -305,7 +305,7 @@ void *Sys_GetGameAPI (void *parms)
 #endif
 
 
-#define MINIMUM_WIN_MEMORY	0x0800000
+#define MINIMUM_WIN_MEMORY	MINIMUM_MEMORY
 #define MAXIMUM_WIN_MEMORY	0x8000000
 
 int		starttime;
@@ -1143,11 +1143,47 @@ double Sys_DoubleTime (void)
 /////////////////////////////////////////////////////////////
 //clipboard
 HANDLE	clipboardhandle;
+char *cliputf8;
 char *Sys_GetClipboard(void)
 {
 	char *clipText;
+	unsigned short *clipWText;
 	if (OpenClipboard(NULL))
 	{
+		extern cvar_t com_parseutf8;
+		//windows programs interpret CF_TEXT as ansi (aka: gibberish)
+		//so grab utf-16 text and convert it to utf-8 if our console parsing is set to accept that.
+		if (com_parseutf8.ival > 0)
+		{
+			clipboardhandle = GetClipboardData(CF_UNICODETEXT);
+			if (clipboardhandle)
+			{
+				clipWText = GlobalLock(clipboardhandle);
+				if (clipWText)
+				{
+					unsigned int l, c;
+					for (l = 0; clipWText[l]; l++)
+						;
+					l = l*4 + 1;
+					clipText = cliputf8 = malloc(l);
+					while(*clipWText)
+					{
+						c = utf8_encode(clipText, *clipWText++, l);
+						if (!c)
+							break;
+						l -= c;
+						clipText += c;
+					}
+					*clipText = 0;
+					return cliputf8;
+				}
+
+				//failed at the last hurdle
+
+				GlobalUnlock(clipboardhandle);
+			}
+		}
+
 		clipboardhandle = GetClipboardData(CF_TEXT);
 		if (clipboardhandle)
 		{
@@ -1170,6 +1206,8 @@ void Sys_CloseClipboard(char *bf)
 {
 	if (clipboardhandle)
 	{
+		free(cliputf8);
+		cliputf8 = NULL;
 		GlobalUnlock(clipboardhandle);
 		CloseClipboard();
 		clipboardhandle = NULL;
@@ -1179,6 +1217,8 @@ void Sys_SaveClipboard(char *text)
 {
 	HANDLE glob;
 	char *temp;
+	unsigned short *tempw;
+	extern cvar_t com_parseutf8;
 	if (!OpenClipboard(NULL))
 		return;
     EmptyClipboard();
@@ -1190,15 +1230,40 @@ void Sys_SaveClipboard(char *text)
         return;
     }
 
-	temp = GlobalLock(glob);
-	if (temp != NULL)
+	if (com_parseutf8.ival > 0)
 	{
-		strcpy(temp, text);
-		GlobalUnlock(glob);
-		SetClipboardData(CF_TEXT, glob);
+		glob = GlobalAlloc(GMEM_MOVEABLE, (strlen(text) + 1)*2);
+		if (glob)
+		{
+			tempw = GlobalLock(glob);
+			if (tempw != NULL)
+			{
+				int error;
+				while(*text)
+				{
+					*tempw++ = utf8_decode(&error, text, &text);
+				}
+				*tempw = 0;
+				GlobalUnlock(glob);
+				SetClipboardData(CF_UNICODETEXT, glob);
+			}
+			else
+				GlobalFree(glob);
+		}
 	}
 	else
-		GlobalFree(glob);
+	{
+		//yes, quake chars will get mangled horribly.
+		temp = GlobalLock(glob);
+		if (temp != NULL)
+		{
+			strcpy(temp, text);
+			GlobalUnlock(glob);
+			SetClipboardData(CF_TEXT, glob);
+		}
+		else
+			GlobalFree(glob);
+	}
 
 	CloseClipboard();
 }
@@ -1236,8 +1301,16 @@ char *Sys_ConsoleInput (void)
 		if (numevents <= 0)
 			break;
 
-		if (!ReadConsoleInput(hinput, recs, 1, &numread))
-			Sys_Error ("Error reading console input");
+		if (WinNT)
+		{
+			if (!ReadConsoleInputW(hinput, recs, 1, &numread))
+				Sys_Error ("Error reading console input");
+		}
+		else
+		{
+			if (!ReadConsoleInputA(hinput, recs, 1, &numread))
+				Sys_Error ("Error reading console input");
+		}
 
 		if (numread != 1)
 			Sys_Error ("Couldn't read console input");
@@ -1246,7 +1319,7 @@ char *Sys_ConsoleInput (void)
 		{
 			if (recs[0].Event.KeyEvent.bKeyDown)
 			{
-				ch = recs[0].Event.KeyEvent.uChar.AsciiChar;
+				ch = recs[0].Event.KeyEvent.uChar.UnicodeChar;
 
 				switch (ch)
 				{
@@ -1300,9 +1373,9 @@ char *Sys_ConsoleInput (void)
 							}
 						} else if (ch >= ' ')
 						{
-							WriteFile(houtput, &ch, 1, &dummy, NULL);
-							text[len] = ch;
-							len = (len + 1) & 0xff;
+							i = utf8_encode(text+len, ch, sizeof(text)-1-len);
+							WriteFile(houtput, text+len, i, &dummy, NULL);
+							len += i;
 						}
 
 						break;
@@ -1331,8 +1404,12 @@ BOOL WINAPI HandlerRoutine (DWORD dwCtrlType)
 	return false;
 }
 
+#ifndef CP_UTF8
+#define CP_UTF8                   65001
+#endif
 qboolean Sys_InitTerminal (void)
 {
+	DWORD m;
 	if (!AllocConsole())
 		return false;
 
@@ -1345,9 +1422,14 @@ qboolean Sys_InitTerminal (void)
 #endif
 
 	SetConsoleCtrlHandler (HandlerRoutine, TRUE);
+	SetConsoleCP(CP_UTF8);
+	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleTitle (FULLENGINENAME " dedicated server");
 	hinput = GetStdHandle (STD_INPUT_HANDLE);
 	houtput = GetStdHandle (STD_OUTPUT_HANDLE);
+
+	GetConsoleMode(hinput, &m);
+	SetConsoleMode(hinput, m | 0x40 | 0x80);
 
 	return true;
 }
@@ -1896,6 +1978,212 @@ void Win7_TaskListInit(void)
 }
 #endif
 
+
+#if defined(SVNREVISION)
+	#if defined(OFFICIAL_RELEASE)
+		#define BUILDTYPE "dev"
+		#define UPDATE_URL "http://triptohell.info/moodles/"
+		#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
+		#ifdef _WIN64
+			#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE ".exe"
+		#else
+			#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
+		#endif
+	#else
+		#define BUILDTYPE "rel"
+	#endif
+#endif
+
+#if defined(SERVERONLY)
+	#define EXETYPE "qwsv"	//not gonna happen, but whatever.
+#elif defined(GLQUAKE) && defined(D3DQUAKE)
+	#define EXETYPE "qw"
+#elif defined(GLQUAKE)
+	#ifdef MINIMAL
+		#define EXETYPE "minglqw"
+	#else
+		#define EXETYPE "glqw"
+	#endif
+#elif defiend(D3DQUAKE)
+	#define EXETYPE "d3dqw"
+#elif defiend(SWQUAKE)
+	#define EXETYPE "swqw"
+#else
+	//erm...
+	#define EXETYPE "qw"
+#endif
+
+#ifdef UPDATE_URL
+
+void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+{
+	HKEY subkey;
+	RegOpenKeyEx(HKEY_CURRENT_USER,keyname, 0, KEY_WRITE, &subkey);
+	RegSetValueEx(subkey, valuename, 0, type, data, datalen);
+	RegCloseKey (subkey);
+}
+void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
+{
+	HKEY subkey;
+	RegOpenKeyEx(HKEY_CURRENT_USER,keyname, 0, KEY_WRITE, &subkey);
+	RegDeleteValue(subkey, valuename);
+	RegCloseKey (subkey);
+}
+
+qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
+{
+	HMODULE shfolder = LoadLibrary("shfolder.dll");
+	DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
+
+	if (shfolder)
+	{
+		HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
+		dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
+		if (dSHGetFolderPath)
+		{
+			char folder[MAX_PATH];
+			// 0x5 == CSIDL_PERSONAL
+			if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
+			{
+				Q_snprintfz(homedir, homedirsize, "%s/My Games/%s/", folder, FULLENGINENAME);
+				return true;
+			}
+		}
+//		FreeLibrary(shfolder);
+	}
+	return false;
+}
+
+#include "fs.h"
+void Update_Version_Updated(struct dl_download *dl)
+{
+	//happens in a thread, avoid va
+	if (dl->file)
+	{
+		if (dl->status == DL_FINISHED)
+		{
+			char buf[8192];
+			unsigned int size = 0, chunk;
+			char pendingname[MAX_OSPATH];
+			vfsfile_t *pending;
+			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
+			Q_strncatz(pendingname, DISTRIBUTION BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
+			pending = VFSOS_Open(pendingname, "wb");
+			if (pending)
+			{
+				while(1)
+				{
+					chunk = VFS_READ(dl->file, buf, sizeof(buf));
+					if (!chunk)
+						break;
+					size += VFS_WRITE(pending, buf, chunk);
+				}
+				VFS_CLOSE(pending);
+				if (VFS_GETLEN(dl->file) == size)
+				{
+					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
+				}
+			}
+		}
+	}
+}
+void Update_Versioninfo_Available(struct dl_download *dl)
+{
+	if (dl->file)
+	{
+		if (dl->status == DL_FINISHED)
+		{
+			char linebuf[1024];
+			while(VFS_GETS(dl->file, linebuf, sizeof(linebuf)))
+			{
+				if (!strnicmp(linebuf, "Revision: ", 10))
+				{
+					if (atoi(linebuf+10) > atoi(SVNREVISION))
+					{
+						struct dl_download *dl;
+						Con_Printf("Downloading update: revision %i\n", atoi(linebuf+10));
+						dl = HTTP_CL_Get(UPDATE_URL_BUILD, NULL, Update_Version_Updated);
+						dl->file = FS_OpenTemp();
+#ifdef MULTITHREAD
+						DL_CreateThread(dl, NULL, NULL);
+#endif
+					}
+				}
+			}
+		}
+	}
+}
+static qboolean doupdatecheck;
+void Update_Check(void)
+{
+	struct dl_download *dl;
+	if (doupdatecheck)
+	{
+		doupdatecheck = false;
+		dl = HTTP_CL_Get(UPDATE_URL_VERSION, NULL, Update_Versioninfo_Available);
+		dl->file = FS_OpenTemp();
+#ifdef MULTITHREAD
+		DL_CreateThread(dl, NULL, NULL);
+#endif
+	}
+}
+
+qboolean Sys_CheckUpdated(void)
+{
+	if (!strcmp(SVNREVISION, "-"))
+		return false;	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
+	else if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate"))
+		return false;
+	else if (!COM_CheckParm("-autoupdate") && !COM_CheckParm("--autoupdate"))
+		return false;
+	else if (!COM_CheckParm("--fromfrontend"))
+	{
+		char pendingpath[MAX_OSPATH];
+		char updatedpath[MAX_QPATH];
+		DWORD bufsz;
+
+		PROCESS_INFORMATION childinfo;
+		STARTUPINFO startinfo;
+		char *cmdline = GetCommandLineA();
+
+		memset(&startinfo, 0, sizeof(startinfo));
+		startinfo.cb = sizeof(startinfo);
+
+		bufsz = sizeof(pendingpath);
+		*pendingpath = 0;
+		RegGetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, RRF_RT_REG_SZ, NULL, pendingpath, &bufsz);
+		if (*pendingpath)
+		{
+			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
+			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
+			Q_strncatz(updatedpath, "cur" BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
+			if (MoveFile(pendingpath, updatedpath))
+				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
+		}
+
+		bufsz = sizeof(updatedpath);
+		*updatedpath = 0;
+		RegGetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, RRF_RT_REG_SZ, NULL, updatedpath, &bufsz);
+		
+		if (*updatedpath)
+		{
+			if (CreateProcess(updatedpath, va("%s --fromfrontend", COM_Parse(cmdline)), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+				return true;
+		}
+	}
+	doupdatecheck = true;
+	return false;
+}
+#else
+qboolean Sys_CheckUpdated(void)
+{
+	return false;
+}
+void Update_Check(void)
+{
+}
+#endif
+
 /*
 #ifdef _MSC_VER
 #include <signal.h>
@@ -2027,6 +2315,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		COM_InitArgv (parms.argc, parms.argv);
 
+		if (Sys_CheckUpdated())
+			return true;
+
 		isPlugin = !!COM_CheckParm("-plugin");
 		if (isPlugin)
 		{
@@ -2036,7 +2327,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (COM_CheckParm("--version") || COM_CheckParm("-v"))
 		{
-			printf("version " DISTRIBUTION " " __TIME__ " " __DATE__ "\n");
+			printf("version: %s\n", version_string());
 			return true;
 		}
 		if (COM_CheckParm("-outputdebugstring"))
@@ -2147,6 +2438,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			printf("status Running!\n");
 			fflush(stdout);
 		}
+
+		Update_Check();
 
 		/* main window message loop */
 		while (1)

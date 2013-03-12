@@ -1091,9 +1091,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	Media_RecordFrame();
 #endif
 
-	if (Key_MouseShouldBeFree())
-		SCR_DrawCursor(0);
-
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
 

@@ -159,7 +159,7 @@ struct world_s
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
 /*FTE_DEPRECATED*/	unsigned int	edict_size; //still used in copyentity
 	wedict_t		*edicts;			// can NOT be array indexed.
-	struct progfuncs_s *progs;
+	struct pubprogfuncs_s *progs;
 	qboolean		usesolidcorpse;	//to disable SOLID_CORPSE when running hexen2 due to conflict.
 	model_t			*worldmodel;
 	areanode_t	areanodes[AREA_NODES];
@@ -189,6 +189,10 @@ struct world_s
 		float	*v_forward;
 		float	*v_right;
 		float	*v_up;
+
+		//used by menu+csqc.
+		float *drawfont;
+		float *drawfontscale;
 	} g;
 
 #ifdef USEODE
@@ -208,10 +212,13 @@ void World_ODE_Start(world_t *world);
 void World_ODE_End(world_t *world);
 void World_ODE_Shutdown(void);
 
-qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, float *mat, wedict_t *ed);
-void World_ODE_RagDestroyBody(world_t *world, odebody_t *bodyptr);
+qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, odebodyinfo_t *bodyinfo, float *mat, wedict_t *ent);
+qboolean World_ODE_RagMatrixToBody(odebody_t *bodyptr, float *mat);
 void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat);
+void World_ODE_RagDestroyBody(world_t *world, odebody_t *bodyptr);
 void World_ODE_RagCreateJoint(world_t *world, odejoint_t *joint, odejointinfo_t *info, odebody_t *body1, odebody_t *body2, vec3_t aaa2[3]);
+void World_ODE_RagEnableJoint(odejoint_t *joint, qboolean enabled);
+void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float *mat);
 void World_ODE_RagDestroyJoint(world_t *world, odejoint_t *joint);
 #endif
 
@@ -275,3 +282,5 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent);
 qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, void (*set_move_trace)(trace_t *trace, struct globalvars_s *pr_globals), struct globalvars_s *set_trace_globs);
 qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist);
 
+void WPhys_Init(void);
+void World_Physics_Frame(world_t *w);

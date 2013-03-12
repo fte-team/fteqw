@@ -1002,6 +1002,9 @@ static struct {
 static void SHM_Shutdown(void)
 {
 	SH_FreeShadowMesh_(&sh_tempshmesh);
+	BZ_Free(sh_tempshmesh.litleaves);
+	sh_tempshmesh.litleaves = NULL;
+	sh_tempshmesh.leafbytes = 0;
 	free(cv.tris);
 	free(cv.edges);
 	free(cv.points);
@@ -1417,20 +1420,25 @@ static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
 
 typedef struct
 {
-	int x;
-	int y;
-	int width;
-	int height;
+	float x;
+	float y;
+	float width;
+	float height;
 	double dmin;
 	double dmax;
 } srect_t;
 static void Sh_Scissor (srect_t r)
 {
+	float xs = vid.pixelwidth / (float)vid.width, ys = vid.pixelheight / (float)vid.height;
 	switch(qrenderer)
 	{
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		qglScissor(r.x, r.y, r.width, r.height);
+		qglScissor(
+			floor(r_refdef.pxrect.x + r.x*r_refdef.pxrect.width),
+			floor((r_refdef.pxrect.y + r.y*r_refdef.pxrect.height) - r_refdef.pxrect.height),
+			ceil(r.width * r_refdef.pxrect.width),
+			ceil(r.height * r_refdef.pxrect.height));
 		qglEnable(GL_SCISSOR_TEST);
 
 		if (qglDepthBoundsEXT)
@@ -1548,8 +1556,8 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 
 	r->x = 0;
 	r->y = 0;
-	r->width = vid.pixelwidth;
-	r->height = vid.pixelheight;
+	r->width = 1;
+	r->height = 1;
 	r->dmin = 0;
 	r->dmax = 1;
 	if (0)//!r_shadow_scissor.integer)
@@ -1616,10 +1624,10 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 		if (z < z1) z1 = z;
 		if (z > z2) z2 = z;
 	}
-	x1 = ((1+x1) * r_refdef.vrect.width * vid.pixelwidth) / (vid.width * 2);
-	x2 = ((1+x2) * r_refdef.vrect.width * vid.pixelwidth) / (vid.width * 2);
-	y1 = ((1+y1) * r_refdef.vrect.height * vid.pixelheight) / (vid.height * 2);
-	y2 = ((1+y2) * r_refdef.vrect.height * vid.pixelheight) / (vid.height * 2);
+	x1 = (1+x1) / 2;
+	x2 = (1+x2) / 2;
+	y1 = (1+y1) / 2;
+	y2 = (1+y2) / 2;
 	z1 = (1+z1) / 2;
 	z2 = (1+z2) / 2;
 
@@ -1631,21 +1639,21 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 		x2 = 0;
 	if (y2 < 0)
 		y2 = 0;
-	if (x1 > r_refdef.vrect.width * vid.pixelwidth / vid.width)
-		x1 = r_refdef.vrect.width * vid.pixelwidth / vid.width;
-	if (y1 > r_refdef.vrect.height * vid.pixelheight / vid.height)
-		y1 = r_refdef.vrect.height * vid.pixelheight / vid.height;
-	if (x2 > r_refdef.vrect.width * vid.pixelwidth / vid.width)
-		x2 = r_refdef.vrect.width * vid.pixelwidth / vid.width;
-	if (y2 > r_refdef.vrect.height * vid.pixelheight / vid.height)
-		y2 = r_refdef.vrect.height * vid.pixelheight / vid.height;
-	r->x = floor(x1);
-	r->y = floor(y1);
-	r->width  = ceil(x2) - r->x;
-	r->height = ceil(y2) - r->y;
+	if (x1 > 1)
+		x1 = 1;
+	if (y1 > 1)
+		y1 = 1;
+	if (x2 > 1)
+		x2 = 1;
+	if (y2 > 1)
+		y2 = 1;
+	r->x = x1;
+	r->y = y1;
+	r->width  = x2 - r->x;
+	r->height = y2 - r->y;
+	if (r->width == 0 || r->height == 0)
+		return true;	//meh
 
-	r->x += r_refdef.vrect.x;
-	r->y += r_refdef.vrect.y;
 	r->dmin = z1;
 	r->dmax = z2;
 	return false;
@@ -1910,13 +1918,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 
 	int smsize = SHADOWMAP_SIZE;
 
-	if (l->fov)
-		qglViewport (0, 0, smsize, smsize);
-	else
-	{
-		qglViewport ((face%3 * smsize), ((face>=3)*smsize), smsize, smsize);
-	}
-
+//FIXME: figure out the four lines bounding the light cone by just adding its +forward+/-right+/-up values. if any point towards a plane (and starts outside that plane), and the point of intersection with that line and the frustum side plane is infront of the near clip plane, then that light frustum needs to be rendered...
 	switch(face)
 	{
 	case 0:
@@ -1960,6 +1962,14 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		r_refdef.flipcull = false;
 		break;
 	}
+
+	if (l->fov)
+		qglViewport (0, 0, smsize, smsize);
+	else
+	{
+		qglViewport ((face%3 * smsize), ((face>=3)*smsize), smsize, smsize);
+	}
+
 	//fixme
 GL_CullFace(0);
 	R_SetFrustum(proj, r_refdef.m_view);

@@ -71,14 +71,14 @@ typedef struct lh_extension_s {
 extern lh_extension_t QSG_Extensions[];
 extern unsigned int QSG_Extensions_count;
 
-pbool QC_WriteFile(const char *name, void *data, int len);
+pbool QDECL QC_WriteFile(const char *name, void *data, int len);
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
 void VARGS PR_CB_Free(void *mem);
 
-
-void PF_InitTempStrings(progfuncs_t *prinst);
-string_t PR_TempString(progfuncs_t *prinst, const char *str);	//returns a tempstring containing str
-char *PF_TempStr(progfuncs_t *prinst);	//returns a tempstring which can be filled in with whatever junk you want.
+int PR_Printf (const char *fmt, ...);
+void PF_InitTempStrings(pubprogfuncs_t *prinst);
+string_t PR_TempString(pubprogfuncs_t *prinst, const char *str);	//returns a tempstring containing str
+char *PF_TempStr(pubprogfuncs_t *prinst);	//returns a tempstring which can be filled in with whatever junk you want.
 
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 #define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_TempString(prinst, s))	//temp (static but cycle buffers)
@@ -89,233 +89,274 @@ int MP_TranslateFTEtoDPCodes(int code);
 int MP_TranslateDPtoFTECodes(int code);
 
 //pr_cmds.c builtins that need to be moved to a common.
-void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
-void QCBUILTIN PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_rint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_floor (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ceil (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_tokenizebyseparator  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_tokenize_console  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_argv_start_index  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_argv_end_index  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_Sin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_Cos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_Sqrt (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_bound (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strlen(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ftos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fabs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_stof (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_stov (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_Spawn (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_min (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_max (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_pow (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_asin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_acos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_atan (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_atan2 (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_tan (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_sprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_random (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_vectoyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void search_close_progs(progfuncs_t *prinst, qboolean complain);
-void QCBUILTIN PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_writetofile(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WasFreed (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_crc16 (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cvar_type (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_uri_escape  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_uri_get  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_itos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_stoi (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_stoh (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_htos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PR_fclose_progs (progfuncs_t *prinst);
-char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
-void PR_AutoCvarSetup(progfuncs_t *prinst);
-void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var);
-void QCBUILTIN PF_numentityfields (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_entityfieldname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_entityfieldtype (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getentityfieldstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_putentityfieldstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
+void QCBUILTIN PF_print (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_dprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_error (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_rint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_floor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ceil (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Tokenize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_tokenize_console  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ArgV  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_argv_start_index  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_argv_end_index  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_nextent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Sin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Cos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Sqrt (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_bound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strlen(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ftos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fabs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_vtos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_etos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_stof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_mod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_stov (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_dupstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_forgetstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_min (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_max (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_pow (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_asin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_acos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_atan (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_atan2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_tan (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_normalize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_vlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_vectoyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_vectoangles (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_rotatevectorsbyangles (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_rotatevectorsbymatrix (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_traceon (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_traceoff (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_search_end (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_search_getsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_search_getfilename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_isfunction (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_callfunction (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_writetofile(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_loadfromfile (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_loadfromdata (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WasFreed (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_crc16 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_uri_escape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_uri_unescape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_itos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_stoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_stoh (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_htos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PR_fclose_progs (pubprogfuncs_t *prinst);
+char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
+void PR_AutoCvarSetup(pubprogfuncs_t *prinst);
+void PR_AutoCvar(pubprogfuncs_t *prinst, cvar_t *var);
+void QCBUILTIN PF_numentityfields (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_entityfieldname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_entityfieldtype (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_putentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
-void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacenumtriangles(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacetriangle(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getsurfacepointattribute(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_build (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_frametoname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skintoname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out);
-void skel_dodelete(progfuncs_t *prinst);
-void skel_reset(progfuncs_t *prinst);
-void QCBUILTIN PF_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenumpoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacepoint(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenormal(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacetexture(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfaceclippedpoint(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenumtriangles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacetriangle(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+#ifndef SKELETALOBJECTS
+	#define PF_gettaginfo			PF_Fixme
+	#define PF_gettagindex			PF_Fixme
+	#define PF_skintoname			PF_Fixme
+	#define PF_frametoname			PF_Fixme
+	#define PF_skel_set_bone_world	PF_Fixme
+	#define PF_skel_mmap			PF_Fixme
+	#define PF_skel_ragedit			PF_Fixme
+	#define PF_frameduration		PF_Fixme
+	#define PF_frameforname			PF_Fixme
+	#define PF_skel_delete			PF_Fixme
+	#define PF_skel_copybones		PF_Fixme
+	#define PF_skel_mul_bones		PF_Fixme
+	#define PF_skel_mul_bone		PF_Fixme
+	#define PF_skel_set_bone		PF_Fixme
+	#define PF_skel_get_boneabs		PF_Fixme
+	#define PF_skel_get_bonerel		PF_Fixme
+	#define PF_skel_find_bone		PF_Fixme
+	#define PF_skel_get_boneparent	PF_Fixme
+	#define PF_skel_get_bonename	PF_Fixme
+	#define PF_skel_get_numbones	PF_Fixme
+	#define PF_skel_build			PF_Fixme
+	#define PF_skel_create			PF_Fixme
+	#define PF_skinforname			PF_Fixme
+#else
+	void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_mmap(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_build (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_get_numbones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_get_bonename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_get_boneparent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_find_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_get_bonerel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_get_boneabs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_set_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_mul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_mul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#endif
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	void skel_lookup(pubprogfuncs_t *prinst, int skelidx, framestate_t *out);
+	void skel_dodelete(pubprogfuncs_t *prinst);
+	void skel_reset(pubprogfuncs_t *prinst);
+#endif
+void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //pr_cmds.c builtins that need to be moved to a common.
-void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
-void QCBUILTIN PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ArgC (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_randomvec (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strreplace (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strireplace (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_randomvector (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
+void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cvar_set (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cvar_setf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ArgC (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_randomvec (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strreplace (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strireplace (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_randomvector (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_bitshift(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_bitshift(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_Abort(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_externcall (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_externrefcall (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_externvalue (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_externset (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_instr (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Abort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_externrefcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_externset (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_instr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_strlennocol (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strtolower (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strtoupper (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strftime (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strlennocol (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strdecolorize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strtolower (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strtoupper (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strstrofs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strconv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_infoadd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_infoget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strncmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strcasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strncasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_edict_for_num (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_num_for_edict (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cvar_defstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cvar_description (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+void QCBUILTIN PF_edict_for_num (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_num_for_edict (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //these functions are from pr_menu.dat
-void QCBUILTIN PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_stringwidth (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_free_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawgetimagesize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_stringwidth (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_findfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
+void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_R_PolygonVertex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#else
+#define PF_R_PolygonBegin PF_Fixme
+#define PF_R_PolygonVertex PF_Fixme
+#define PF_R_PolygonEnd PF_Fixme
+#endif
 
-void QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getmousepos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void search_close_progs(progfuncs_t *prinst, qboolean complain);
+void search_close_progs(pubprogfuncs_t *prinst, qboolean complain);
 
-void QCBUILTIN PF_buf_create  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_buf_del  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_buf_getsize  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_buf_copy  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_buf_sort  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_buf_implode  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_bufstr_get  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_bufstr_set  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_getsize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_copy  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_implode  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_memalloc (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_memfree (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_memcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_memset (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memalloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memset (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void QCBUILTIN PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void PF_fclose_progs (progfuncs_t *prinst);
-int QCEditor (progfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
+int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
+void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored);
 
 
 
@@ -325,33 +366,33 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int statement, int 
 #ifdef VM_Q1
 model_t *SVPR_GetCModel(world_t *w, int modelindex);
 void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o);
-void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_changelevel (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_applylightstyle(int style, char *val, int col);
 void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuation);
-void QCBUILTIN PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_precache_vwep_model(progfuncs_t *prinst, struct globalvars_s *pr_globals);
-int PF_checkclient_Internal (progfuncs_t *prinst);
-void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
-int PF_precache_model_Internal (progfuncs_t *prinst, char *s, qboolean queryonly);
-void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
+void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ExecuteCommand  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_setspawnparms (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ForceInfoKey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_precache_vwep_model(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+int PF_checkclient_Internal (pubprogfuncs_t *prinst);
+void PF_precache_sound_Internal (pubprogfuncs_t *prinst, char *s);
+int PF_precache_model_Internal (pubprogfuncs_t *prinst, char *s, qboolean queryonly);
+void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, char *m);
 char *PF_infokey_Internal (int entnum, char *value);
 void PF_centerprint_Internal (int entnum, qboolean plaque, char *s);
 void PF_WriteString_Internal (int target, char *str);
-pbool ED_CanFree (edict_t *ed);
+pbool QDECL ED_CanFree (edict_t *ed);
 #endif
 
 #define	MOVETYPE_NONE			0		// never moves
@@ -384,6 +425,7 @@ pbool ED_CanFree (edict_t *ed);
 #define	SOLID_PHYSICS_BOX		32		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
 #define	SOLID_PHYSICS_SPHERE	33		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
 #define	SOLID_PHYSICS_CAPSULE	34		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+#define SOLID_PHYSICS_CYLINDER  35
 
 
 #define JOINTTYPE_POINT 1
@@ -396,6 +438,11 @@ pbool ED_CanFree (edict_t *ed);
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
 #define	DAMAGE_AIM				2
+
+#define CLIENTTYPE_DISCONNECTED	0
+#define CLIENTTYPE_REAL			1
+#define CLIENTTYPE_BOT			2
+#define CLIENTTYPE_NOTACLIENT	3
 
 //shared constants
 typedef enum

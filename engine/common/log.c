@@ -96,6 +96,7 @@ void Log_String (logtype_t lognum, char *s)
 	char *t;
 	char logbuf[1024];
 	int i;
+	char fname[MAX_QPATH];
 
 	if (!log_enable[lognum].value)
 		return;
@@ -179,7 +180,7 @@ void Log_String (logtype_t lognum, char *s)
 
 	*t = 0;
 
-	f = va("%s/%s.log",d,f); // temp string in va()
+	Q_snprintfz(fname, sizeof(fname), "%s/%s.log",d,f);
 
 	// file rotation
 	if (log_rotate_size.value >= 4096 && log_rotate_files.value >= 1)
@@ -188,7 +189,7 @@ void Log_String (logtype_t lognum, char *s)
 		vfsfile_t *fi;
 
 		// check file size, use x as temp
-		if ((fi = FS_OpenVFS(f, "rb", FS_ROOT)))
+		if ((fi = FS_OpenVFS(fname, "rb", FS_ROOT)))
 		{
 			x = VFS_GETLEN(fi);
 			VFS_CLOSE(fi);

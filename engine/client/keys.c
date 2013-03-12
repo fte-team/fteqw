@@ -411,8 +411,6 @@ void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 
 qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 {
-	extern int mousecursor_x, mousecursor_y;
-
 	*sx = *sy = *ex = *ey = 0;
 
 	if (con_mousedown[2] == 1)
@@ -641,6 +639,12 @@ void Key_DefaultLinkClicked(char *text, char *info)
 		Cbuf_AddText(va("\ncmd %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+	c = Info_ValueForKey(info, "edit");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nedit %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
 	c = Info_ValueForKey(info, "impulse");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
@@ -657,7 +661,6 @@ void Key_DefaultLinkClicked(char *text, char *info)
 
 void Key_ConsoleRelease(int key, int unicode)
 {
-	extern int mousecursor_x, mousecursor_y;
 	char *buffer;
 	if (key == K_MOUSE1)
 	{
@@ -860,7 +863,6 @@ void Key_Console (unsigned int unicode, int key)
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
 		extern cvar_t vid_conwidth, vid_conheight;
-		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos;
 		xpos = (int)((mousecursor_x*vid.width)/(vid.pixelwidth*8));
 		ypos = (int)((mousecursor_y*vid.height)/(vid.pixelheight*8));

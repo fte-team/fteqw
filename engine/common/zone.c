@@ -29,9 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define NOZONE
 #define NOCACHE
-#ifdef _WIN32
-#define NOHIGH
-#endif
 
 void Cache_FreeLow (int new_low_hunk);
 void Cache_FreeHigh (int new_high_hunk);
@@ -1204,15 +1201,24 @@ typedef struct
 	int		size;		// including sizeof(hunk_t), -1 = not allocated
 	char	name[8];
 } hunk_t;
+typedef struct hunkoverflow_s
+{
+	struct hunkoverflow_s *prev;
+	struct hunkoverflow_s *next;
+	hunk_t hunk[0];
+} hunkoverflow_t;
 
-qbyte	*hunk_base;
-int		hunk_size;
+static hunkoverflow_t *hunkoverflow_first;
+static hunkoverflow_t *hunkoverflow_top;
 
-int		hunk_low_used;
-int		hunk_high_used;
+static qbyte	*hunk_base;
+static int		hunk_size;
 
-qboolean	hunk_tempactive;
-int		hunk_tempmark;
+static int		hunk_low_used;
+static int		hunk_high_used;
+
+static qboolean	hunk_tempactive;
+static int		hunk_tempmark;
 
 void R_FreeTextures (void);
 
@@ -1363,10 +1369,8 @@ Hunk_AllocName
 */
 void *Hunk_AllocName (int size, char *name)
 {
-#ifdef NOHIGH
 	int roundup;
 	int roundupold;
-#endif
 	hunk_t	*h;
 	
 #ifdef PARANOID
@@ -1375,39 +1379,54 @@ void *Hunk_AllocName (int size, char *name)
 
 	if (size < 0)
 		Sys_Error ("Hunk_Alloc: bad size: %i", size);
-		
-	size = sizeof(hunk_t) + HUNKDEBUG*2 + ((size+15)&~15);
+
+	size = sizeof(hunk_t) + HUNKDEBUG*2 + size;
+	size = (size + 15) & ~15;
 	
-#ifndef _WIN32
 	if (hunk_size - hunk_low_used - hunk_high_used < size)
-//		Sys_Error ("Hunk_Alloc: failed on %i bytes",size);
-#ifdef _WIN32
-	  	Sys_Error ("Not enough RAM allocated on allocation of \"%s\".  Try starting using \"-heapsize 16000\" on the QuakeWorld command line.", name);
-#else
-	  	Sys_Error ("Not enough RAM allocated.  Try starting using \"-mem %u\" on the QuakeWorld command line.", (hunk_size + 8*1024*1024) / 1024*1024);
-#endif
-#endif
+	{
+	  	Sys_Error ("Not enough RAM allocated.  Try starting using \"-mem %u\" on the " FULLENGINENAME " command line.", (hunk_size + 8*1024*1024) / 1024*1024);
+	}
 
 	h = (hunk_t *)(hunk_base + hunk_low_used);
 
-#ifdef NOHIGH
-
-	roundupold = hunk_low_used+sizeof(hunk_t);
+	roundupold = hunk_low_used;
 	roundupold += 1024*128;
 	roundupold &= ~(1024*128 - 1);
 
-	roundup = hunk_low_used+size+sizeof(hunk_t);
+	roundup = hunk_low_used+size;
 	roundup += 1024*128;
 	roundup &= ~(1024*128 - 1);
 
-
-	if (!hunk_low_used || roundup != roundupold)
-	if (!VirtualAlloc (hunk_base, roundup, MEM_COMMIT, PAGE_READWRITE))
+	if (hunkoverflow_top || roundup > hunk_size)
 	{
-		char *buf;
-		Hunk_Print(true);
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR) &buf, 0, NULL);
-		Sys_Error ("VirtualCommit failed\nNot enough RAM allocated on allocation of \"%s\".  Try starting using \"-heapsize %i\" on the QuakeWorld command line.", name, roundupold/512);
+		hunkoverflow_t *newtop;
+		newtop = BZ_Malloc(sizeof(*newtop)+size);
+		newtop->next = NULL;
+		if (!hunkoverflow_top)
+		{
+			hunkoverflow_top = hunkoverflow_first = newtop;
+			newtop->prev = NULL;
+		}
+		else
+		{
+			hunkoverflow_top->next = newtop;
+			newtop->prev = hunkoverflow_top;
+			hunkoverflow_top = newtop;
+		}
+		h = newtop->hunk;
+	}
+#ifdef _WIN32
+	else
+	{
+		if (!hunk_low_used || roundup != roundupold)
+		if (!VirtualAlloc (hunk_base, roundup, MEM_COMMIT, PAGE_READWRITE))
+		{
+			char *buf;
+			Hunk_Print(true);
+			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR) &buf, 0, NULL);
+			Sys_Error ("VirtualCommit failed\nNot enough RAM allocated on allocation of \"%s\".  Try starting using \"-heapsize %i\" on the " FULLENGINENAME " command line.", name, roundupold/512);
+		}
 	}
 #endif
 
@@ -1453,10 +1472,26 @@ void Hunk_FreeToLowMark (int mark)
 {
 	if (mark < 0 || mark > hunk_low_used)
 		Sys_Error ("Hunk_FreeToLowMark: bad mark %i", mark);
+
+	while(hunkoverflow_top)
+	{
+		if (mark > hunk_size)
+		{
+			hunkoverflow_t *top = hunkoverflow_top; 
+			mark -= top->hunk[0].size;
+			hunk_low_used -= top->hunk[0].size;
+			hunkoverflow_top = top->prev;
+			hunkoverflow_top->next = NULL;
+			BZ_Free(top);
+		}
+		else
+			return;
+	}
+
 	memset (hunk_base + mark, 0, hunk_low_used - mark);
 	hunk_low_used = mark;
 
-#ifdef NOHIGH
+#ifdef _WIN32
 	if (!VirtualAlloc (hunk_base, hunk_low_used+sizeof(hunk_t), MEM_COMMIT, PAGE_READWRITE))
 	{
 		char *buf;
@@ -1466,81 +1501,6 @@ void Hunk_FreeToLowMark (int mark)
 #endif
 }
 
-int	Hunk_HighMark (void)
-{
-	if (hunk_tempactive)
-	{
-		hunk_tempactive = false;
-		Hunk_FreeToHighMark (hunk_tempmark);
-	}
-
-	return hunk_high_used;
-}
-
-void Hunk_FreeToHighMark (int mark)
-{
-	if (hunk_tempactive)
-	{
-		hunk_tempactive = false;
-		Hunk_FreeToHighMark (hunk_tempmark);
-	}
-	if (mark < 0 || mark > hunk_high_used)
-		Sys_Error ("Hunk_FreeToHighMark: bad mark %i", mark);
-	memset (hunk_base + hunk_size - hunk_high_used, 0, hunk_high_used - mark);
-	hunk_high_used = mark;
-}
-
-
-/*
-===================
-Hunk_HighAllocName
-===================
-*/
-void *Hunk_HighAllocName (int size, char *name)
-{
-#ifdef NOHIGH
-	Sys_Error("High hunk was disabled");
-	return NULL;
-#else
-
-	hunk_t	*h;
-
-	if (size < 0)
-		Sys_Error ("Hunk_HighAllocName: bad size: %i", size);
-
-	if (hunk_tempactive)
-	{
-		Hunk_FreeToHighMark (hunk_tempmark);
-		hunk_tempactive = false;
-	}
-
-#ifdef PARANOID
-	Hunk_Check ();
-#endif
-
-	size = sizeof(hunk_t) + ((size+15)&~15);
-
-	if (hunk_size - hunk_low_used - hunk_high_used < size)
-	{
-		Con_Printf ("Hunk_HighAlloc: failed on %i bytes\n",size);
-		return NULL;
-	}
-
-	hunk_high_used += size;
-	Cache_FreeHigh (hunk_high_used);
-
-	h = (hunk_t *)(hunk_base + hunk_size - hunk_high_used);
-
-	memset (h, 0, size);
-	h->size = size;
-	h->sentinal = HUNK_SENTINAL;
-	Q_strncpyz (h->name, name, sizeof(h->name));
-
-	return (void *)(h+1);
-#endif
-}
-
-
 /*
 =================
 Hunk_TempAlloc
@@ -1549,7 +1509,6 @@ Return space from the top of the hunk
 clears old temp.
 =================
 */
-#ifdef NOHIGH
 typedef struct hnktemps_s {
 	struct hnktemps_s *next;
 #if TEMPDEBUG>0
@@ -1589,7 +1548,6 @@ void Hunk_TempFree(void)
 		hnktemps = nt;
 	}
 }
-#endif
 
 
 //allocates without clearing previous temp.
@@ -1597,7 +1555,6 @@ void Hunk_TempFree(void)
 void *Hunk_TempAllocMore (int size)
 {
 	void	*buf;
-#ifdef NOHIGH
 #if TEMPDEBUG>0
 	hnktemps_t *nt;
 	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t) + TEMPDEBUG*2);
@@ -1623,48 +1580,14 @@ void *Hunk_TempAllocMore (int size)
 	memset(buf, 0, size);
 	return buf;
 #endif
-#else
-	
-	if (!hunk_tempactive)
-		return Hunk_TempAlloc(size);
-
-	size = (size+15)&~15;
-
-	hunk_tempactive = false;	//so it doesn't wipe old temp.
-	buf = Hunk_HighAllocName (size, "mtmp");
-	hunk_tempactive = true;
-
-	return buf;
-#endif
 }
 
 
 void *Hunk_TempAlloc (int size)
 {
-#ifdef NOHIGH
-
 	Hunk_TempFree();
 
 	return Hunk_TempAllocMore(size);
-#else
-	void	*buf;
-
-	size = (size+15)&~15;
-	
-	if (hunk_tempactive)
-	{
-		Hunk_FreeToHighMark (hunk_tempmark);
-		hunk_tempactive = false;
-	}
-	
-	hunk_tempmark = Hunk_HighMark ();
-
-	buf = Hunk_HighAllocName (size, "temp");
-
-	hunk_tempactive = true;
-
-	return buf;
-#endif
 }
 
 /*
@@ -1743,6 +1666,10 @@ void *Cache_Check(cache_user_t *c)
 
 void Cache_Flush(void)
 {
+	//this generically named function is hyjacked to flush models and sounds, as well as ragdolls etc
+#ifdef RAGDOLL
+	rag_flushdolls(true);
+#endif
 #ifndef SERVERONLY
 	S_Purge(false);
 #endif
@@ -1756,31 +1683,57 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name)
 {
 	void	*buf;
 	cache_system_t *nt;
-
-	if (c->data)
-		Sys_Error ("Cache_Alloc: already allocated");
+	qboolean resize = false;
 
 	if (size <= 0)
 		Sys_Error ("Cache_Alloc: size %i", size);
 
-//	size = (size + 15) & ~15;
+	if (c->data)
+	{
+		Sys_Error ("Cache_Alloc: %s already allocated", name);
+/*
+		//resize instead
+		nt = c->data;
+		nt--;
+		nt = (cache_system_t*)BZ_Realloc(nt, size + sizeof(cache_system_t) + CACHEDEBUG*2);
 
-	nt = (cache_system_t*)BZ_Malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
+		resize = true;*/
+	}
+	else
+	{
+//	size = (size + 15) & ~15;
+		nt = (cache_system_t*)BZ_Malloc(size + sizeof(cache_system_t) + CACHEDEBUG*2);
+	}
+
 	if (!nt)
 		Sys_Error("Cache_Alloc: failed on allocation of %i bytes", size);
-	nt->next = cache_head;
-	nt->prev = NULL;
+
+	if (resize)
+	{
+		if (nt->next)
+			nt->next->prev = nt;
+		if (nt->prev)
+			nt->prev->next = nt;
+		else
+			cache_head = nt;
+	}
+	else
+	{
+		nt->next = cache_head;
+		nt->prev = NULL;
+		if (cache_head)
+			cache_head->prev = nt;
+		cache_head = nt;
+	}
 	nt->user = c;
 	nt->size = size;
 	Q_strncpyz(nt->name, name, sizeof(nt->name));
-	if (cache_head)
-		cache_head->prev = nt;
-	cache_head = nt;
 	nt->user->fake = false;
 	buf = (void *)(nt+1);
 	memset(buf, sentinalkey, CACHEDEBUG);
 	buf = (char*)buf+CACHEDEBUG;
-	memset(buf, 0, size);
+	if (!resize)
+		memset(buf, 0, size);
 	memset((char *)buf+size, sentinalkey, CACHEDEBUG);
 	c->data = buf;
 	return c->data;
@@ -2258,9 +2211,7 @@ void Memory_Init (void *buf, int size)
 
 void Memory_DeInit(void)
 {
-#ifdef NOHIGH
 	Hunk_TempFree();
-#endif
 	Cache_Flush();
 
 #ifdef MULTITHREAD

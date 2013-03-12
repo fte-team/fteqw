@@ -1124,7 +1124,7 @@ void SV_ForceName_f (void)
 	{
 		Info_SetValueForKey(cl->userinfo, "name", Cmd_Argv(2), MAX_INFO_STRING);
 		SV_LogPlayer(cl, "name forced");
-		SV_ExtractFromUserinfo(cl);
+		SV_ExtractFromUserinfo(cl, true);
 		Q_strncpyz(cl->name, Cmd_Argv(2), sizeof(cl->namebuf));
 		i = cl - svs.clients;
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);

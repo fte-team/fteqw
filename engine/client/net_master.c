@@ -1550,7 +1550,6 @@ void MasterInfo_Refresh(void)
 			//Master_AddMaster("telefrag.me:27000",MT_MASTERQW, "Telefrag.ME");
 			//Master_AddMaster("master.teamdamage.com:27000",		MT_MASTERQW, "TeamDamage");
 			Master_AddMaster("master.quakeservers.net:27000",	MT_MASTERQW, "QuakeServers.net");
-			Master_AddMaster("qwmaster.fodquake.net:27000",		MT_MASTERQW, "Fodquake.net");
 			Master_AddMaster("masterserver.exhale.de:27000",	MT_MASTERQW, "team exhale");
 			Master_AddMaster("qwmaster.fodquake.net:27000",		MT_MASTERQW, "Fodquake master server.");
 			Master_AddMaster("qwmaster.ocrana.de:27000",		MT_MASTERQW, "Ocrana2 master server.");

@@ -356,7 +356,7 @@ PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS=-DGLQUAKE
-D3DCFLAGS=-DD3D9QUAKE -DD3D11QUAKE
+D3DCFLAGS=-DD3D9QUAKE
 NPFTECFLAGS=-DNPFTE
 SPEEXCFLAGS=-DSPEEX_STATIC -I$(BASE_DIR)/libs/speex/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
 
@@ -780,7 +780,7 @@ ifeq ($(FTE_TARGET),vc)
 	RELEASE_LDFLAGS = /LTCG:PGOPTIMIZE
 
 	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
-	DO_LD=@"$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
+	DO_LD=@"$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
 	NODEPS = 1
 
@@ -803,6 +803,9 @@ ifeq ($(FTE_TARGET),vc)
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
 	GLCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o fs_win32.o in_win.o sys_win.o sys_win_threads.o resources.o
 	GL_OBJS=
+
+	MINGL_DIR=mingl_vc$(BITS)
+	MINGL_EXE_NAME=../fteminglqw$(BITS).exe
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(D3DGL_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3dqw$(BITS).exe

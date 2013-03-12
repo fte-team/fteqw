@@ -1211,7 +1211,10 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.glowmod[1] = 1;
 		ent.glowmod[2] = 1;
 		ent.fatness = 0;
-		ent.scoreboard = NULL;
+		ent.topcolour = 1;
+		ent.bottomcolour = 1;
+		ent.h2playerclass = 0;
+		ent.playerindex = -1;
 
 			// set frame
 		if (effects & Q2EF_ANIM01)
@@ -1305,7 +1308,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					if (!ent.model || ent.model->needload)
 						ent.model = Mod_ForName("players/male/tris.md2", false);
 				}
-				ent.scoreboard = player;
+				ent.playerindex = s1->skinnum%MAX_CLIENTS;
 				player->model = ent.model;
 /*				ci = &cl.clientinfo[s1->skinnum & 0xff];
 //				ent.skin = ci->skin;
@@ -1920,10 +1923,6 @@ void CLQ2_AddEntities (void)
 
 	r_refdef.currentplayernum = 0;
 
-	cl_numvisedicts = 0;
-	cl_numstrisidx = 0;
-	cl_numstrisvert = 0;
-	cl_numstris = 0;
 
 	if (cl.time*1000 > cl.q2frame.servertime)
 	{
@@ -1954,7 +1953,7 @@ void CL_GetNumberedEntityInfo (int num, float *org, float *ang)
 {
 	q2centity_t	*ent;
 
-	if (num < 0 || num >= MAX_EDICTS)
+	if (num < 0 || num >= MAX_Q2EDICTS)
 		Host_EndGame ("CL_GetNumberedEntityInfo: bad ent");
 	ent = &cl_entities[num];
 

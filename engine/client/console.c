@@ -1220,12 +1220,30 @@ void Con_PrintToSys(void)
 	conline_t *l;
 	int i;
 	conchar_t *t;
+	char buf[16];
+	extern cvar_t com_parseutf8;
+
 	for (l = curcon->oldest; l; l = l->newer)
 	{
 		t = (conchar_t*)(l+1);
 		//fixme: utf8?
 		for (i = 0; i < l->length; i++)
-			Sys_Printf("%c", t[i]&0xff);
+		{
+			if (!(t[i] & CON_HIDDEN))
+			{
+				if (com_parseutf8.ival>0)
+				{
+					int cl = utf8_encode(buf, t[i]&CON_CHARMASK, sizeof(buf)-1);
+					if (cl)
+					{
+						buf[cl] = 0;
+						Sys_Printf("%s", buf);
+					}
+				}
+				else
+					Sys_Printf("%c", t[i]&0xff);
+			}
+		}
 		Sys_Printf("\n");
 	}
 }

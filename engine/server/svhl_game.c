@@ -600,7 +600,7 @@ void QDECL GHL_WriteString(char *string)
 }
 void QDECL GHL_WriteEntity(int entnum)
 {
-	MSG_WriteShort(&sv.multicast, entnum);
+	MSG_WriteEntity(&sv.multicast, entnum);
 }
 
 

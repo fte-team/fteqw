@@ -988,11 +988,11 @@ void CLQ3_SendAuthPacket(netadr_t gameserver)
 	{
 		char *key = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth")->string;
 		netadr_t authaddr;
-#define	AUTHORIZE_SERVER_NAME	"authorize.quake3arena.com:27952"
+#define	Q3_AUTHORIZE_SERVER_NAME	"authorize.quake3arena.com:27952"
 		if (*key)
 		{
-			Con_Printf("Resolving %s\n", AUTHORIZE_SERVER_NAME);
-			if (NET_StringToAdr(AUTHORIZE_SERVER_NAME, &authaddr))
+			Con_Printf("Resolving %s\n", Q3_AUTHORIZE_SERVER_NAME);
+			if (NET_StringToAdr(Q3_AUTHORIZE_SERVER_NAME, &authaddr))
 			{
 				msg.data = data;
 				msg.cursize = 0;

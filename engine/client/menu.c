@@ -1076,7 +1076,11 @@ void M_Draw (int uimenu)
 
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
-		R2D_FadeScreen ();
+		extern menu_t *firstmenu;
+		if (m_state == m_complex && firstmenu && firstmenu->selecteditem && firstmenu->selecteditem->common.type == mt_slider && (firstmenu->selecteditem->slider.var == &v_gamma || firstmenu->selecteditem->slider.var == &v_contrast))
+			/*no menu tint if we're trying to adjust gamma*/;
+		else
+			R2D_FadeScreen ();
 	}
 	else
 	{

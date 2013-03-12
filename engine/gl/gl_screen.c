@@ -198,9 +198,6 @@ void GLSCR_UpdateScreen (void)
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
-	if (Key_MouseShouldBeFree())
-		SCR_DrawCursor(0);
-
 	V_UpdatePalette (false);
 	R2D_BrightenScreen();
 

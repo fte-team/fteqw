@@ -525,7 +525,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
 			if (svs.clients[i].state)
-				SV_DropClient(svs.clients+i);
+				SV_DropClient(&svs.clients[i]);
 		}
 		PR_Deinit();
 #ifdef Q2SERVER
@@ -876,7 +876,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		if (svprogfuncs)	//we don't want the q1 stuff anymore.
 		{
-			CloseProgs(svprogfuncs);
+			svprogfuncs->CloseProgs(svprogfuncs);
 			sv.world.progs = svprogfuncs = NULL;
 		}
 	}
@@ -1074,8 +1074,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			}
 
 #ifdef PEXT_CSQC
-			memset(svs.clients[i].csqcentsequence, 0, sizeof(svs.clients[i].csqcentsequence));
-			memset(svs.clients[i].csqcentversions, 0, sizeof(svs.clients[i].csqcentversions));
+			if (svs.clients[i].csqcentsequence)
+				memset(svs.clients[i].csqcentsequence, 0, sizeof(svs.clients[i].csqcentsequence));
+			if (svs.clients[i].csqcentversions)
+				memset(svs.clients[i].csqcentversions, 0, sizeof(svs.clients[i].csqcentversions));
 #endif
 		}
 		for (; i < MAX_CLIENTS; i++)
@@ -1438,7 +1440,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			if (host_client->state == cs_connected && host_client->protocol == SCP_BAD)
 			{
 				sv_player = host_client->edict;
-				SV_ExtractFromUserinfo(host_client);
+				SV_ExtractFromUserinfo(host_client, true);
 
 				// copy spawn parms out of the client_t
 				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)

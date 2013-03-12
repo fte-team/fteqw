@@ -321,7 +321,7 @@ typedef enum {
 
 static char *q1qvmentstring;
 static vm_t *q1qvm;
-static progfuncs_t q1qvmprogfuncs;
+static pubprogfuncs_t q1qvmprogfuncs;
 static edict_t *q1qvmedicts[MAX_Q1QVM_EDICTS];
 
 
@@ -329,7 +329,7 @@ static void *evars;	//pointer to the gamecodes idea of an edict_t
 static qintptr_t vevars;	//offset into the vm base of evars
 
 /*
-static char *Q1QVMPF_AddString(progfuncs_t *pf, char *base, int minlength)
+static char *Q1QVMPF_AddString(pubprogfuncs_t *pf, char *base, int minlength)
 {
 	char *n;
 	int l = strlen(base);
@@ -341,7 +341,7 @@ static char *Q1QVMPF_AddString(progfuncs_t *pf, char *base, int minlength)
 }
 */
 
-static edict_t *Q1QVMPF_EdictNum(progfuncs_t *pf, unsigned int num)
+static edict_t *QDECL Q1QVMPF_EdictNum(pubprogfuncs_t *pf, unsigned int num)
 {
 	edict_t *e;
 
@@ -359,16 +359,16 @@ static edict_t *Q1QVMPF_EdictNum(progfuncs_t *pf, unsigned int num)
 	return e;
 }
 
-static unsigned int Q1QVMPF_NumForEdict(progfuncs_t *pf, edict_t *e)
+static unsigned int QDECL Q1QVMPF_NumForEdict(pubprogfuncs_t *pf, edict_t *e)
 {
 	return e->entnum;
 }
 
-static int Q1QVMPF_EdictToProgs(progfuncs_t *pf, edict_t *e)
+static int QDECL Q1QVMPF_EdictToProgs(pubprogfuncs_t *pf, edict_t *e)
 {
 	return e->entnum*sv.world.edict_size;
 }
-static edict_t *Q1QVMPF_ProgsToEdict(progfuncs_t *pf, int num)
+static edict_t *QDECL Q1QVMPF_ProgsToEdict(pubprogfuncs_t *pf, int num)
 {
 	if (num % sv.world.edict_size)
 		Con_Printf("Edict To Progs with remainder\n");
@@ -386,7 +386,7 @@ void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 	e->entnum = num;
 }
 
-static void Q1QVMPF_EntRemove(progfuncs_t *pf, edict_t *e)
+static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e)
 {
 	if (!ED_CanFree(e))
 		return;
@@ -394,7 +394,7 @@ static void Q1QVMPF_EntRemove(progfuncs_t *pf, edict_t *e)
 	e->freetime = sv.time;
 }
 
-static edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
+static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf)
 {
 	int i;
 	edict_t *e;
@@ -445,7 +445,7 @@ static edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
 	return (struct edict_s *)e;
 }
 
-static int Q1QVMPF_LoadEnts(progfuncs_t *pf, char *mapstring, float spawnflags)
+static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, char *mapstring, float spawnflags)
 {
 	q1qvmentstring = mapstring;
 	VM_Call(q1qvm, GAME_LOADENTS);
@@ -453,7 +453,7 @@ static int Q1QVMPF_LoadEnts(progfuncs_t *pf, char *mapstring, float spawnflags)
 	return sv.world.edict_size;
 }
 
-static eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
+static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
 {
 	if (!strcmp(fieldname, "message"))
 	{
@@ -462,22 +462,22 @@ static eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fie
 	return NULL;
 }
 
-static eval_t	*Q1QVMPF_FindGlobal		(progfuncs_t *prinst, char *name, progsnum_t num, etype_t *type)
+static eval_t	*QDECL Q1QVMPF_FindGlobal		(pubprogfuncs_t *prinst, char *name, progsnum_t num, etype_t *type)
 {
 	return NULL;
 }
 
-static globalvars_t *Q1QVMPF_Globals(progfuncs_t *prinst, int prnum)
+static globalvars_t *QDECL Q1QVMPF_Globals(pubprogfuncs_t *prinst, int prnum)
 {
 	return NULL;
 }
 
-static string_t Q1QVMPF_StringToProgs(progfuncs_t *prinst, char *str)
+static string_t QDECL Q1QVMPF_StringToProgs(pubprogfuncs_t *prinst, char *str)
 {
 	return (string_t)(str - (char*)VM_MemoryBase(q1qvm));
 }
 
-static char *ASMCALL Q1QVMPF_StringToNative(progfuncs_t *prinst, string_t str)
+static char *ASMCALL QDECL Q1QVMPF_StringToNative(pubprogfuncs_t *prinst, string_t str)
 {
 	return (char*)VM_MemoryBase(q1qvm) + str;
 }
@@ -511,7 +511,7 @@ static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qi
 			break;
 		}
 	}
-	svprogfuncs->callargc = &argnum;
+	svprogfuncs->callargc = argnum;
 	gv.ret.i = 0;
 	func(svprogfuncs, &gv);
 	return gv.ret.i;

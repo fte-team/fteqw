@@ -1,5 +1,5 @@
 //These are defined later in the source tree. This file should probably be moved to a later spot.
-struct progfuncs_s;
+struct pubprogfuncs_s;
 struct globalvars_s;
 struct texture_s;
 struct texnums_s;
@@ -30,7 +30,7 @@ typedef struct {
 #endif
 
 		int endbone;
-	} g[2];
+	} g[FS_COUNT];
 
 	float *bonestate;
 	int bonecount;

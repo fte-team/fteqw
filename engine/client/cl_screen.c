@@ -162,8 +162,11 @@ extern cvar_t scr_chatmodecvar;
 
 
 int mouseusedforgui;
-int mousecursor_x, mousecursor_y;
-int mousemove_x, mousemove_y;
+float mousecursor_x, mousecursor_y;
+float mousemove_x, mousemove_y;
+
+float multicursor_x[8], multicursor_y[8];
+qboolean multicursor_active[8];
 
 float           scr_con_current;
 float           scr_conlines;           // lines of console to display
@@ -415,7 +418,7 @@ void SCR_EraseCenterString (void)
 }
 
 #define MAX_CPRINT_LINES 128
-void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
+void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 {
 	int             l;
 	int             y, x;
@@ -483,8 +486,8 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 		}
 	}
 
-	Font_BeginString(font_conchar, rect->x, y, &left, &top);
-	Font_BeginString(font_conchar, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
+	Font_BeginString(font, rect->x, y, &left, &top);
+	Font_BeginString(font, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, right - left, MAX_CPRINT_LINES, line_start, line_end);
 
 	if (p->flags & CPRINT_TALIGN)
@@ -542,7 +545,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 		}
 		Font_LineDraw(x, y, line_start[l], line_end[l]);
 	}
-	Font_EndString(font_conchar);
+	Font_EndString(font);
 }
 
 void SCR_CheckDrawCenterString (void)
@@ -568,7 +571,7 @@ extern qboolean sb_showscores;
 			continue;
 
 		SCR_VRectForPlayer(&rect, pnum);
-		SCR_DrawCenterString(&rect, p);
+		SCR_DrawCenterString(&rect, p, font_conchar);
 	}
 }
 
@@ -587,13 +590,12 @@ void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaul
 	p.time_off = scr_centertime.value;
 	p.time_start = cl.time;
 
-	SCR_DrawCenterString(&r, &p);
+	SCR_DrawCenterString(&r, &p, font_conchar);
 }
 
 void SCR_DrawCursor(int prydoncursornum)
 {
 	extern cvar_t cl_cursor, cl_cursorbias, cl_cursorsize;
-	extern int mousecursor_x, mousecursor_y;
 	mpic_t *p;
 	if (!*cl_cursor.string || prydoncursornum>1)
 		p = R2D_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
@@ -608,14 +610,29 @@ void SCR_DrawCursor(int prydoncursornum)
 	}
 	else
 	{
-		int x, y;
-		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &x, &y);
+		float x, y;
+		Font_BeginScaledString(font_conchar, mousecursor_x, mousecursor_y, 8, 8, &x, &y);
 		x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
 		y -= Font_CharHeight()/2;
-		Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+		Font_DrawScaleChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
 		Font_EndString(font_conchar);
 	}
-
+}
+static void SCR_DrawSimMTouchCursor(void)
+{
+	int i;
+	float x, y;
+	for (i = 0; i < 8; i++)
+	{
+		if (multicursor_active[i])
+		{
+			Font_BeginScaledString(font_conchar, multicursor_x[i], multicursor_y[i], 8, 8, &x, &y);
+			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			y -= Font_CharHeight()/2;
+			Font_DrawScaleChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+			Font_EndString(font_conchar);
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////
@@ -2366,6 +2383,10 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 	if (key_dest == key_console)
 		SCR_DrawConsole (false);
+
+	if (Key_MouseShouldBeFree())
+		SCR_DrawCursor(0);
+	SCR_DrawSimMTouchCursor();
 
 	RSpeedEnd(RSPEED_2D);
 }

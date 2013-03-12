@@ -1594,7 +1594,10 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 		if (sv_demoExtensions.ival == 2)
 		{	/*more limited subset supported by ezquake*/
-			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|PEXT_FLOATCOORDS|PEXT_ACCURATETIMINGS|PEXT_TRANS|PEXT_HLBSP|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
+			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|PEXT_FLOATCOORDS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
+//			demo.recorder.fteprotocolextensions |= PEXT_HLBSP;	/*ezquake DOES have this, but it is pointless and should have been in some feature mask rather than protocol extensions*/
+//			demo.recorder.fteprotocolextensions |= PEXT_ACCURATETIMINGS;	/*ezquake does not support this any more*/
+//			demo.recorder.fteprotocolextensions |= PEXT_TRANS;	/*ezquake has no support for .alpha*/
 			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT;
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
 		}

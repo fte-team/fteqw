@@ -183,7 +183,8 @@ void R2D_Init(void)
 			"program defaultfill\n"
 			"{\n"
 				"map $whiteimage\n"
-				"rgbgen vertex\n"
+				"rgbgen exactvertex\n"
+				"alphagen vertex\n"
 			"}\n"
 		"}\n");
 	shader_draw_fill_trans = R_RegisterShader("fill_trans",
@@ -247,44 +248,7 @@ void R2D_Init(void)
 		"{\n"
 			"if $glsl && gl_menutint_shader != 0\n"
 			"[\n"
-				"glslprogram\n"
-				"{\n"
-			"#ifdef VERTEX_SHADER\n"
-			"\
-					attribute vec2 v_texcoord;\
-					varying vec2 texcoord;\
-					uniform vec3 rendertexturescale;\
-					void main(void)\
-					{\
-						texcoord.x = v_texcoord.x*rendertexturescale.x;\
-						texcoord.y = (1.0-v_texcoord.y)*rendertexturescale.y;\
-						gl_Position = ftetransform();\
-					}\
-			\n"
-			"#endif\n"
-			"#ifdef FRAGMENT_SHADER\n"
-			"\
-					varying vec2 texcoord;\
-					uniform vec3 colorparam;\
-					uniform sampler2D s_t0;\
-					uniform int invert;\
-					const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
-					const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
-					void main(void)\
-					{\
-						vec3 texcolor = texture2D(s_t0, texcoord).rgb;\
-						float luminance = dot(lumfactors, texcolor);\
-						texcolor = vec3(luminance, luminance, luminance);\
-						texcolor *= colorparam;\
-						texcolor = (invert > 0) ? (invertvec - texcolor) : texcolor;\
-						gl_FragColor = vec4(texcolor, 1.0);\
-					}\n"
-			"#endif\n"
-				"}\n"
-				"param cvari r_menutint_inverse invert\n"
-				"param cvar3f r_menutint colorparam\n"
-				"param rendertexturescale rendertexturescale\n"
-
+				"program menutint\n"
 				"{\n"
 					"map $currentrender\n"
 				"}\n"
@@ -631,20 +595,58 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (font_conchar)
 		Font_Free(font_conchar);
+	font_conchar = NULL;
 
 	if (qrenderer == QR_NONE)
+		return;
+
+#ifdef _WIN32
+	if (!strcmp(var->string, "?"))
 	{
-		font_conchar = NULL;
+		LOGFONT lf = {0};
+		CHOOSEFONT cf = {sizeof(cf)};
+		extern HWND	mainwindow;
+		extern qboolean	WinNT;
+		font_conchar = Font_LoadFont(8, "");
+
+		cf.hwndOwner = mainwindow;
+		cf.iPointSize = (8 * vid.rotpixelheight)/vid.height;
+		cf.Flags = CF_FORCEFONTEXIST | CF_TTONLY;
+		cf.lpLogFont = &lf;
+					
+		if (ChooseFont(&cf))
+		{
+			char fname[MAX_OSPATH];
+			DWORD bufsz = sizeof(fname);
+			char *keyname;
+			keyname = va("%s%s%s (TrueType)", lf.lfFaceName, lf.lfWeight>=FW_BOLD?" Bold":"", lf.lfItalic?" Italic":"");
+			if (ERROR_SUCCESS == RegGetValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, RRF_RT_REG_SZ, NULL, fname, &bufsz))
+			{
+				Cvar_Set(var, fname);
+				return;
+			}
+			keyname = va("%s (OpenType)", lf.lfFaceName);
+			if (ERROR_SUCCESS == RegGetValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, RRF_RT_REG_SZ, NULL, fname, &bufsz))
+			{
+				Cvar_Set(var, fname);
+				return;
+			}
+		}
+		Cvar_Set(var, "");
 		return;
 	}
+#endif
 
-	font_conchar = Font_LoadFont(8*vid.rotpixelheight/vid.height, var->string);
+	font_conchar = Font_LoadFont(8, var->string);
 	if (!font_conchar && *var->string)
-		font_conchar = Font_LoadFont(8*vid.rotpixelheight/vid.height, "");
+		font_conchar = Font_LoadFont(8, "");
 }
 
 // console size manipulation callbacks
@@ -725,6 +727,10 @@ void R2D_Console_Resize(void)
 	font_conchar = NULL;
 
 	Cvar_ForceCallback(&gl_font);
+
+#if defined(MENU_DAT) || defined(CSQC_DAT)
+	PR_ResetFonts(false);
+#endif
 
 #ifdef PLUGINS
 	Plug_ResChanged();
@@ -1106,13 +1112,11 @@ void R2D_DrawCrosshair(void)
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
 			SCR_CrosshairPosition(sc, &x, &y);
-			Font_BeginScaledString(font_conchar, x, y, &sx, &sy);
-			sizex = Font_CharWidth('+' | 0xe000 | CON_WHITEMASK) * size;
-			sizey = Font_CharHeight() * size;
-			sx -= sizex/2;
-			sy -= sizey/2;
+			Font_BeginScaledString(font_conchar, x, y, size, size, &sx, &sy);
+			sx -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			sy -= Font_CharHeight()/2;
 			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
-			Font_DrawScaleChar(sx, sy, sizex, sizey, '+' | 0xe000 | CON_WHITEMASK);
+			Font_DrawScaleChar(sx, sy, '+' | 0xe000 | CON_WHITEMASK);
 			Font_InvalidateColour();
 			Font_EndString(font_conchar);
 		}

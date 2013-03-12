@@ -147,7 +147,7 @@ texid_tf SW_LoadTexture8Pal24(char *identifier, int width, int height, qbyte *da
 texid_tf SW_LoadTexture8Pal32(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_tf SW_LoadCompressed(char *name);
 texid_tf SW_FindTexture(char *identifier, unsigned int flags);
-texid_tf SW_AllocNewTexture(char *identifier, int w, int h);
+texid_tf SW_AllocNewTexture(char *identifier, int w, int h, unsigned int flags);
 void SW_Upload(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void SW_DestroyTexture(texid_t tex);
 

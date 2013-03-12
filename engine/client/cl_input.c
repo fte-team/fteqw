@@ -854,8 +854,6 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	vec3_t temp;
 	vec3_t cursor_impact_normal;
 
-	extern int mousecursor_x, mousecursor_y;
-
 	cursor_active = true;
 
 	if (!cl_prydoncursor.ival)
@@ -982,7 +980,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 		MSG_WriteFloat (buf, cursor_impact[0]);
 		MSG_WriteFloat (buf, cursor_impact[1]);
 		MSG_WriteFloat (buf, cursor_impact[2]);
-		MSG_WriteShort (buf, cursor_entitynumber);
+		MSG_WriteEntity (buf, cursor_entitynumber);
 	}
 }
 
@@ -1425,7 +1423,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 		MSG_WriteFloat(buf, cursor_impact[0]);
 		MSG_WriteFloat(buf, cursor_impact[1]);
 		MSG_WriteFloat(buf, cursor_impact[2]);
-		MSG_WriteShort(buf, cursor_entitynumber);
+		MSG_WriteEntity(buf, cursor_entitynumber);
 	}
 	else
 		cursor_active = false;
@@ -1527,7 +1525,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			}
 			for (plnum = 0; plnum < cl.splitclients; plnum++)
 			{
-				cmd = &cl.frames[i].cmd[0];
+				cmd = &cl.frames[i].cmd[plnum];
 
 				memset(cmd, 0, sizeof(*cmd));
 				msecs += frametime*1000;

@@ -369,6 +369,20 @@ void VARGS Host_Error (char *error, ...)
 }
 #endif
 
+#ifdef SERVERONLY
+void VARGS Host_EndGame (char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	SV_Error("%s", string);
+}
+#endif
+
 /*
 ==================
 SV_FinalMessage
@@ -617,6 +631,14 @@ void SV_DropClient (client_t *drop)
 		Z_Free(drop->sentents.entities);
 		memset(&drop->sentents.entities, 0, sizeof(drop->sentents.entities));
 	}
+
+	if (drop->csqcentversions)
+		Z_Free(drop->csqcentversions);
+	drop->csqcentversions = NULL;
+	if (drop->csqcentsequence)
+		Z_Free(drop->csqcentsequence);
+	drop->csqcentsequence = NULL;
+	drop->csqcactive = false;
 
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)	//gamecode should do it all for us.
 	{
@@ -1404,7 +1426,7 @@ void SVC_GetChallenge (void)
 #ifdef PROTOCOL_VERSION_FTE
 			unsigned int mask;
 			//tell the client what fte extensions we support
-			mask = Net_PextMask(1);
+			mask = Net_PextMask(1, false);
 			if (mask)
 			{
 				lng = LittleLong(PROTOCOL_VERSION_FTE);
@@ -1416,7 +1438,7 @@ void SVC_GetChallenge (void)
 				over+=sizeof(lng);
 			}
 			//tell the client what fte extensions we support
-			mask = Net_PextMask(2);
+			mask = Net_PextMask(2, false);
 			if (mask)
 			{
 				lng = LittleLong(PROTOCOL_VERSION_FTE2);
@@ -1735,7 +1757,7 @@ client_t *SVC_DirectConnect(void)
 
 	unsigned int protextsupported=0;
 	unsigned int protextsupported2=0;
-	extern cvar_t pr_maxedicts;
+	extern cvar_t pr_maxedicts, sv_protocol_nq;
 
 
 	char *name;
@@ -1842,6 +1864,8 @@ client_t *SVC_DirectConnect(void)
 			protocol = SCP_NETQUAKE; //because we can
 			if (atoi(Info_ValueForKey(Cmd_Argv(4), "mod")) == 1)
 				protocol = SCP_PROQUAKE;
+			else if (atoi(Info_ValueForKey(Cmd_Argv(4), "mod")) == 666)
+				protocol = SCP_FITZ666;
 		}
 		else if (version != PROTOCOL_VERSION_QW)
 		{
@@ -1985,6 +2009,34 @@ client_t *SVC_DirectConnect(void)
 	newcl = &temp;
 	memset (newcl, 0, sizeof(client_t));
 
+
+	if (protocol >= SCP_NETQUAKE && protocol < SCP_DARKPLACES6)
+	{	//NQ protocols lack stuff like protocol extensions.
+		//its the wild west where nothing is known about the client and everything breaks.
+		switch(sv_protocol_nq.ival)
+		{
+		case RMQ_PROTOCOL_VERSION:
+		case FITZ_PROTOCOL_VERSION:
+			protocol = SCP_FITZ666;
+			break;
+		case 15:
+			//don't trip up on proquake's angle change.
+			protocol = (protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;
+			break;
+		case DP6_PROTOCOL_VERSION:
+			protocol = SCP_DARKPLACES6;
+			break;
+		case DP7_PROTOCOL_VERSION:
+			protocol = SCP_DARKPLACES7;
+			break;
+		default:
+			Con_Printf("sv_protocol_nq set incorrectly\n");
+		case 0:
+			//change nothing
+			break;
+		}
+	}
+
 	newcl->userid = nextuserid;
 	newcl->fteprotocolextensions = protextsupported;
 	newcl->fteprotocolextensions2 = protextsupported2;
@@ -1997,7 +2049,7 @@ client_t *SVC_DirectConnect(void)
 		if (newcl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		{
 			//you need to reconnect for this to update, of course. so make sure its not *too* low...
-			newcl->max_net_ents =  bound(512, pr_maxedicts.ival, 32768);
+			newcl->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
 			newcl->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
 		}
 		else
@@ -2015,10 +2067,16 @@ client_t *SVC_DirectConnect(void)
 	else if (ISDPCLIENT(newcl))
 	{
 		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
-		newcl->maxmodels = 1024;	//protocol limit of 16bits. 15bits for late precaches. client limit of 1k
+		newcl->maxmodels = 1024;	//protocol limit of 16 bits. 15 bits for late precaches. client limit of 1k
+	}
+	else if (newcl->protocol == SCP_FITZ666)
+	{
+		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently.
+		newcl->maxmodels = 1024;
+		maxpacketentities = 512;
 	}
 	else
-		newcl->max_net_ents = 600;
+		newcl->max_net_ents = bound(512, pr_maxedicts.ival, 600);
 
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;
@@ -2313,7 +2371,7 @@ client_t *SVC_DirectConnect(void)
 			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
 							sizeof(*temp.pendingentbits)*temp.max_net_ents+
 							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
-							sizeof(unsigned short)*maxents*UPDATE_BACKUP);
+							sizeof(unsigned int)*maxents*UPDATE_BACKUP);
 			temp.frameunion.frames = (void*)ptr;
 			ptr += sizeof(*temp.frameunion.frames)*UPDATE_BACKUP;
 			temp.pendingentbits = (void*)ptr;
@@ -2399,7 +2457,7 @@ client_t *SVC_DirectConnect(void)
 		newcl->playerclass = newcl->edict->xv->playerclass;
 
 	// parse some info from the info strings
-	SV_ExtractFromUserinfo (newcl);
+	SV_ExtractFromUserinfo (newcl, true);
 	SV_GenerateBasicUserInfo (newcl);
 
 	// JACK: Init the floodprot stuff.
@@ -2605,7 +2663,7 @@ client_t *SVC_DirectConnect(void)
 		else
 			Info_RemoveKey (cl->userinfo, "*spectator");
 
-		SV_ExtractFromUserinfo (cl);
+		SV_ExtractFromUserinfo (cl, true);
 
 		SV_GetNewSpawnParms(cl);
 	}
@@ -4664,7 +4722,7 @@ Pull specific info from a newly changed userinfo string
 into a more C freindly form.
 =================
 */
-void SV_ExtractFromUserinfo (client_t *cl)
+void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 {
 	char	*val, *p;
 	int		i;
@@ -4722,7 +4780,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 
 	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{
-		if (cl->ismuted && *cl->name)
+		if (cl->ismuted && *cl->name && verbose)	//!verbose is a gamecode-forced update, where the gamecode is expected to know what its doing.
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_NONAMEASMUTE);
 		else
 		{
@@ -4735,7 +4793,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 					cl->lastnamecount = 0;
 					cl->lastnametime = realtime;
 				}
-				else if (cl->lastnamecount++ > 4)
+				else if (cl->lastnamecount++ > 4 && verbose)
 				{
 					SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTKICKEDNAMESPAM, cl->name);
 					SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKEDNAMESPAM);
@@ -4744,7 +4802,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 				}
 			}
 
-			if (*cl->name && cl->state >= cs_spawned && !cl->spectator)
+			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
 			{
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, newname);
 			}
@@ -4757,7 +4815,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 #endif
 #ifdef SVRANKING
 			}
-			else if (cl->state >= cs_spawned && *rank_filename.string)
+			else if (cl->state >= cs_spawned && *rank_filename.string && verbose)
 				SV_ClientPrintf(cl, PRINT_HIGH, "Your rankings name has not been changed\n");
 #endif
 		}
@@ -4869,9 +4927,7 @@ void SV_Demo_Init(void);
 void SV_Init (quakeparms_t *parms)
 {
 	int i;
-#ifndef SERVERONLY
 	if (isDedicated)
-#endif
 	{
 		COM_InitArgv (parms->argc, parms->argv);
 
@@ -4897,12 +4953,22 @@ void SV_Init (quakeparms_t *parms)
 		R_SetRenderer(NULL);
 #endif
 		COM_Init ();
-		Mod_Init ();
-	}
-
-#if defined(SERVERONLY) || !(defined(CSQC_DAT) || defined(MENU_DAT))
-	PF_Common_RegisterCvars();
+#ifdef Q2BSPS
+		CM_Init();
 #endif
+#ifdef TERRAIN
+		Terr_Init();
+#endif
+		Mod_Init ();
+
+		PF_Common_RegisterCvars();
+	}
+	else
+	{
+#if defined(SERVERONLY) || !(defined(CSQC_DAT) || defined(MENU_DAT))
+		PF_Common_RegisterCvars();
+#endif
+	}
 
 	PR_Init ();
 

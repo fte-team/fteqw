@@ -1540,18 +1540,20 @@ BOOL CheckForcePixelFormat(rendererstate_t *info)
 		float fAttributes[] = {0,0};
 		UINT numFormats;
 		int pixelformat;
-		int iAttributes[] = { WGL_DRAW_TO_WINDOW_ARB,GL_TRUE,
-				WGL_SUPPORT_OPENGL_ARB,GL_TRUE,
-				WGL_ACCELERATION_ARB,WGL_FULL_ACCELERATION_ARB,
-				WGL_COLOR_BITS_ARB,info->bpp,
-				WGL_ALPHA_BITS_ARB,8,
-				WGL_DEPTH_BITS_ARB,16,
-				WGL_STENCIL_BITS_ARB,8,
-				WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
-				WGL_SAMPLE_BUFFERS_ARB,GL_TRUE,
-				WGL_SAMPLES_ARB, info->multisample,						// Check For 4x Multisampling
-				WGL_STEREO_ARB,	 info->stereo,
-				0,0};
+		int iAttributes[] = {
+				WGL_DRAW_TO_WINDOW_ARB,	GL_TRUE,
+				WGL_SUPPORT_OPENGL_ARB,	GL_TRUE,
+				WGL_ACCELERATION_ARB,	WGL_FULL_ACCELERATION_ARB,
+				WGL_COLOR_BITS_ARB,		info->bpp,
+				WGL_ALPHA_BITS_ARB,		8,
+				WGL_DEPTH_BITS_ARB,		16,
+				WGL_STENCIL_BITS_ARB,	8,
+				WGL_DOUBLE_BUFFER_ARB,	GL_TRUE,
+				WGL_SAMPLE_BUFFERS_ARB,	GL_TRUE,
+				WGL_SAMPLES_ARB,		info->multisample,						// Check For 4x Multisampling
+				WGL_STEREO_ARB,			info->stereo,
+				0,						0
+		};
 
 		TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 4)\n"));
 		hDC = GetDC(mainwindow);
@@ -1642,7 +1644,7 @@ void FixPaletteInDescriptor(HDC hDC, PIXELFORMATDESCRIPTOR *pfd)
 
 BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 {
-    static PIXELFORMATDESCRIPTOR pfd = {
+    PIXELFORMATDESCRIPTOR pfd = {
 	sizeof(PIXELFORMATDESCRIPTOR),	// size of this pfd
 	1,				// version number
 	PFD_DRAW_TO_WINDOW 		// support window
@@ -1712,6 +1714,8 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 			return FALSE;
 		}
 	}
+
+	qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 
     if (qSetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {

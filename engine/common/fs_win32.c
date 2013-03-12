@@ -191,10 +191,10 @@ static vfsfile_t *VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mod
 	return VFSW32_Open(loc->rawname, mode);
 }
 
-static void VFSW32_PrintPath(void *handle)
+static void VFSW32_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	vfsw32path_t *wp = handle;
-	Con_Printf("%s\n", wp->rootpath);
+	Q_strncpyz(out, wp->rootpath, outlen);
 }
 static void VFSW32_ClosePath(void *handle)
 {
@@ -323,7 +323,7 @@ static int VFSW32_EnumerateFiles (void *handle, const char *match, int (*func)(c
 
 
 searchpathfuncs_t w32filefuncs = {
-	VFSW32_PrintPath,
+	VFSW32_GetDisplayPath,
 	VFSW32_ClosePath,
 	VFSW32_BuildHash,
 	VFSW32_FLocate,

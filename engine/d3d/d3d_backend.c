@@ -33,7 +33,7 @@ Things to improve:
 
 
 
-#define FORCESTATE
+//#define FORCESTATE
 
 #ifdef FORCESTATE
 #pragma warningmsg("D3D9 FORCESTATE is active")
@@ -156,6 +156,7 @@ typedef struct
 	float		curtime;
 	const entity_t	*curentity;
 	const dlight_t	*curdlight;
+	batch_t		*curbatch, dummybatch;
 	vec3_t		curdlight_colours;
 	shader_t	*curshader;
 	texnums_t	*curtexnums;
@@ -192,6 +193,10 @@ typedef struct
 	IDirect3DVertexBuffer9 *dyncol_buff;
 	unsigned int dyncol_offs;
 	unsigned int dyncol_size;
+
+	IDirect3DVertexBuffer9 *dynnorm_buff;
+	unsigned int dynnorm_offs;
+	unsigned int dynnorm_size;
 
 	IDirect3DIndexBuffer9 *dynidx_buff;
 	unsigned int dynidx_offs;
@@ -449,6 +454,9 @@ void D3D9BE_Reset(qboolean before)
 				IDirect3DVertexBuffer9_Release(shaderstate.dynst_buff[tmu]);
 			shaderstate.dynst_buff[tmu] = NULL;
 		}
+		if (shaderstate.dynnorm_buff)
+			IDirect3DVertexBuffer9_Release(shaderstate.dynnorm_buff);
+		shaderstate.dynnorm_buff = NULL;
 		if (shaderstate.dyncol_buff)
 			IDirect3DVertexBuffer9_Release(shaderstate.dyncol_buff);
 		shaderstate.dyncol_buff = NULL;
@@ -559,6 +567,7 @@ void D3D9BE_Reset(qboolean before)
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynxyz_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynxyz_buff, NULL);
 		for (tmu = 0; tmu < D3D_VDEC_ST0; tmu++)
 			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
+		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynnorm_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynnorm_buff, NULL);
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
 		IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, shaderstate.dynidx_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, D3DFMT_QINDEX, D3DPOOL_DEFAULT, &shaderstate.dynidx_buff, NULL);
 
@@ -599,6 +608,7 @@ void D3D9BE_Init(void)
 
 	shaderstate.dynxyz_size = sizeof(vecV_t) * DYNVBUFFSIZE;
 	shaderstate.dyncol_size = sizeof(byte_vec4_t) * DYNVBUFFSIZE;
+	shaderstate.dynnorm_size = sizeof(vec3_t)*3 * DYNVBUFFSIZE;
 	shaderstate.dynst_size = sizeof(vec2_t) * DYNVBUFFSIZE;
 	shaderstate.dynidx_size = sizeof(index_t) * DYNIBUFFSIZE;
 
@@ -1680,9 +1690,9 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		case SP_M_VIEW:
 			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, r_refdef.m_view, 4);
 			break;
-//		case SP_M_MODEL:
-//			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, r_refdef.m_view, 4);
-//			break;
+		case SP_M_MODEL:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.m_model, 4);
+			break;
 
 		case SP_V_EYEPOS:
 			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_origin, 1);
@@ -1720,7 +1730,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 
 				Matrix4_Invert(shaderstate.m_model, inv);
 				Matrix4x4_CM_Transform3(inv, shaderstate.curdlight->origin, t2);
-				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, t2, 3);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, t2, 1);
 				break;
 			}
 
@@ -1728,19 +1738,35 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, &shaderstate.curdlight->radius, 1);
 			break;
 		case SP_LIGHTCOLOUR:
-			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curdlight_colours, 3);
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curdlight_colours, 1);
+			break;
+
+		case SP_E_L_DIR:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.curentity->light_dir, 1);
+			break;
+		case SP_E_L_MUL:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.curentity->light_range, 1);
+			break;
+		case SP_E_L_AMBIENT:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.curentity->light_avg, 1);
 			break;
 
 		case SP_E_COLOURS:
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curentity->shaderRGBAf, 1);
+			break;
 		case SP_E_COLOURSIDENT:
+			if (shaderstate.flags & BEF_FORCECOLOURMOD)
+			{
+				vec4_t tmp = {1, 1, 1, shaderstate.curentity->shaderRGBAf[3]};
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, tmp, 1);
+			}
+			else
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curentity->shaderRGBAf, 1);
+			break;
 		case SP_E_TOPCOLOURS:
 		case SP_E_BOTTOMCOLOURS:
-		case SP_E_L_DIR:
-		case SP_E_L_MUL:
-		case SP_E_L_AMBIENT:
 
 		case SP_M_ENTBONES:
-		case SP_M_MODEL:
 		case SP_M_MODELVIEW:
 
 		case SP_RENDERTEXTURESCALE:
@@ -1766,6 +1792,13 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 
 	program_t *p = s->prog;
 
+	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
+	{
+		if (p->permu[perm|PERMUTATION_SKELETAL].handle.glsl)
+			perm |= PERMUTATION_SKELETAL;
+		else
+			return;
+	}
 	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.hlsl.vert)
 		perm |= PERMUTATION_BUMPMAP;
 	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
@@ -1774,8 +1807,12 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.gfog_rgbd[3] && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
 		perm |= PERMUTATION_FOG;
-//	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)
-//		perm |= PERMUTATION_OFFSET;
+	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.hlsl.vert && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
+		perm |= PERMUTATION_FRAMEBLEND;
+	if (p->permu[perm|PERMUTATION_DELUXE].handle.hlsl.vert && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+		perm |= PERMUTATION_DELUXE;
+	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.hlsl.vert)
+		perm |= PERMUTATION_LIGHTSTYLES;
 
 	BE_ApplyUniforms(p, perm);
 
@@ -1885,18 +1922,44 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vbovdata_t)));
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vbovdata_t)));
 		}
-		else
+		else if (shaderstate.meshlist[0]->normals_array && shaderstate.meshlist[0]->snormals_array && shaderstate.meshlist[0]->tnormals_array)
 		{
-		/*FIXME*/
-		vdec &= ~D3D_VDEC_NORM;
+			int mno;
+			void *map;
+			mesh_t *m;
+			int tv = vertcount;
+
+			allocvertexbuffer(shaderstate.dynnorm_buff, shaderstate.dynnorm_size, &shaderstate.dynnorm_offs, &map, vertcount*3*sizeof(vec3_t));
+			for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
+			{
+				float *dest;
+				m = shaderstate.meshlist[mno];
+
+				dest = (float*)((char*)map+vertcount*sizeof(vec3_t));
+				memcpy(dest, m->normals_array, m->numvertexes*sizeof(vec3_t));
+
+				dest += tv*3;
+				memcpy(dest, m->snormals_array, m->numvertexes*sizeof(vec3_t));
+
+				dest += tv*3;
+				memcpy(dest, m->tnormals_array, m->numvertexes*sizeof(vec3_t));
+
+				vertcount += m->numvertexes;
+			}
+			d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynnorm_buff));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.dynnorm_buff, shaderstate.dynnorm_offs - vertcount*sizeof(vec3_t)*3, sizeof(vec3_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.dynnorm_buff, shaderstate.dynnorm_offs - vertcount*sizeof(vec3_t)*2, sizeof(vec3_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.dynnorm_buff, shaderstate.dynnorm_offs - vertcount*sizeof(vec3_t)*1, sizeof(vec3_t)));
 		}
+		else
+			vdec &= ~D3D_VDEC_NORM;
 	}
 
 	/*bone weights+indexes*/
 	if (vdec & D3D_VDEC_SKEL)
 	{
 		/*FIXME*/
-		vdec &= ~D3D_VDEC_NORM;
+		vdec &= ~D3D_VDEC_SKEL;
 	}
 
 	if (vdec != shaderstate.curvertdecl)
@@ -2599,9 +2662,9 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		Matrix4x4_CM_NewRotation(90, 1, 0, 0);
 		Matrix4_Multiply(iv, m, mv);
 		Matrix4_Multiply(mv, Matrix4x4_CM_NewRotation(-90, 1, 0, 0), iv);
-		Matrix4_Multiply(iv, Matrix4x4_CM_NewRotation(90, 0, 0, 1), mv);
+		Matrix4_Multiply(iv, Matrix4x4_CM_NewRotation(90, 0, 0, 1), m);
 
-		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)mv);
+		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
 	}
 	else
 	{
@@ -2630,6 +2693,7 @@ void D3D9BE_SubmitBatch(batch_t *batch)
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = batch->shader;
 	shaderstate.curtexnums = batch->skin;
+	shaderstate.curbatch = batch;
 	shaderstate.flags = batch->flags;
 	if (batch->lightmap[0] < 0)
 		shaderstate.curlightmap = r_nulltex;
@@ -2645,6 +2709,7 @@ void D3D9BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vb
 	shaderstate.curshader = shader;
 	shaderstate.curtexnums = texnums;
 	shaderstate.curlightmap = r_nulltex;
+	shaderstate.curbatch = &shaderstate.dummybatch;
 	shaderstate.meshlist = meshlist;
 	shaderstate.nummeshes = nummeshes;
 	shaderstate.flags = beflags;

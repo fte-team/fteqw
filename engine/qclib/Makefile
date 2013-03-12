@@ -86,5 +86,7 @@ test.o: test.c
 testapp.bin: qcvm.so test.o
 	$(CC) $(BASE_CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) qcvm.so test.o
 
-regressiontest: testapp.bin
-	./testapp.bin regression.dat -srcfile regression.src
+tests: testapp.bin
+	@$(foreach a,$(wildcard tests/*.src), echo TEST: $a; ./testapp.bin progs.dat -srcfile $a; echo; echo)
+
+.PHONY: tests

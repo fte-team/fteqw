@@ -72,6 +72,7 @@ void CL_StopPlayback (void)
 	cls.demoinfile = NULL;
 	cls.state = ca_disconnected;
 	cls.demoplayback = DPB_NONE;
+	cls.demoseeking = false;	//just in case
 
 	if (cls.timedemo)
 		CL_FinishTimeDemo ();
@@ -310,7 +311,7 @@ void CL_ProgressDemoTime(void)
 		return;
 	}
 
-	if (cl_demospeed.value >= 0)
+	if (cl_demospeed.value >= 0 && cls.state == ca_active)
 		demtime += host_frametime*cl_demospeed.value;
 	else
 		demtime += host_frametime;
@@ -347,17 +348,20 @@ void CL_DemoJump_f(void)
 		else
 			newtime = atoi(s);
 	}
+	if (newtime < 0)
+		newtime = 0;
 
 	if (newtime >= demtime)
-		demtime = newtime;
+		cls.demoseektime = newtime;
 	else
 	{
 		Con_Printf("Rewinding demo\n");
 		CL_PlayDemo(lastdemoname);
 
 		//now fastparse it.
-		demtime = newtime;
+		cls.demoseektime = newtime;
 	}
+	cls.demoseeking = true;
 }
 
 /*
@@ -544,7 +548,13 @@ readnext:
 
 
 // decide if it is time to grab the next message
-	if (cls.timedemo)
+	if (cls.demoseeking)
+	{
+		demtime = demotime;	//warp
+		if (demtime >= cls.demoseektime)
+			cls.demoseeking = false;
+	}
+	else if (cls.timedemo)
 	{
 		if (cls.td_lastframe < 0)
 			cls.td_lastframe = demotime;
@@ -1226,7 +1236,7 @@ void CL_Record_f (void)
 		if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
 		{
 			MSG_WriteByte (&buf,svc_spawnbaseline);
-			MSG_WriteShort (&buf, i);
+			MSG_WriteEntity (&buf, i);
 
 			MSG_WriteByte (&buf, es->modelindex);
 			MSG_WriteByte (&buf, es->frame);

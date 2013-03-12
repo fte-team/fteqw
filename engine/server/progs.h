@@ -35,7 +35,7 @@ void PR_LoadGlabalStruct(void);
 void Q_InitProgs(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
-void ED_Spawned (struct edict_s *ent, int loading);
+void QDECL ED_Spawned (struct edict_s *ent, int loading);
 qboolean SV_RunFullQCMovement(struct client_s *client, usercmd_t *ucmd);
 qboolean PR_KrimzonParseCommand(char *s);
 qboolean PR_UserCmd(char *cmd);
@@ -106,7 +106,7 @@ typedef struct edict_s
 
 extern globalptrs_t *pr_global_ptrs;
 
-extern progfuncs_t *svprogfuncs;	//instance
+extern pubprogfuncs_t *svprogfuncs;	//instance
 extern progparms_t svprogparms;
 extern progsnum_t svmainprogs;
 extern progsnum_t clmainprogs;
@@ -125,7 +125,7 @@ qboolean PR_QCChat(char *text, int say_type);
 
 void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue);
 void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue);
-void PF_InitTempStrings(progfuncs_t *prinst);
+void PF_InitTempStrings(pubprogfuncs_t *prinst);
 
 #ifdef VM_Q1
 struct client_s;

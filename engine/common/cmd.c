@@ -498,7 +498,7 @@ Cmd_Exec_f
 */
 void Cmd_Exec_f (void)
 {
-	char	*f;
+	char	*f, *s;
 	char	name[256];
 
 	if (Cmd_Argc () != 2)
@@ -531,8 +531,14 @@ void Cmd_Exec_f (void)
 	if (cl_warncmd.ival || developer.ival)
 		Con_TPrintf (TL_EXECING,name);
 
+	s = f;
+	if (s[0] == '\xef' && s[1] == '\xbb' && s[2] == '\xbf')
+	{
+		Con_DPrintf("Ignoring UTF-8 BOM\n");
+		s+=3;
+	}
 	// don't execute anything as if it was from server
-	Cbuf_InsertText (f, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel, true);
+	Cbuf_InsertText (s, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel, true);
 	FS_FreeFile(f);
 }
 
@@ -638,7 +644,7 @@ void Cmd_Alias_f (void)
 	{
 		if (Cvar_FindVar (s))
 		{
-			if (Cmd_FromGamecode())
+			if (Cmd_IsInsecure())
 			{
 				snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf ("Can't register alias, %s is a cvar\nAlias has been named %s instead\n", s, cmd);
@@ -654,7 +660,7 @@ void Cmd_Alias_f (void)
 	// check for overlap with a command
 		if (Cmd_Exists (s))
 		{
-			if (Cmd_FromGamecode())
+			if (Cmd_IsInsecure())
 			{
 				snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf ("Can't register alias, %s is a command\nAlias has been named %s instead\n", s, cmd);
@@ -1117,9 +1123,6 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 
 	result = strtol(cvarname, &end, 10); // do something with result
 
-	if (result == 0)
-		Con_DPrintf("Cmd_ExpandCvar() strtol returned zero cvar: %s\n", cvarname);
-
 	if (fixval && *end == '\0') //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
 	{	//purely numerical
 		ret = Cmd_Argv(atoi(cvarname));
@@ -1286,6 +1289,11 @@ char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
 			if (data[1] == '%')
 			{
 				str = "%";
+				old_len = 2;
+			}
+			else if (data[1] == '#')
+			{
+				str = va("\"%s\"", Cmd_Args());
 				old_len = 2;
 			}
 			else if (data[1] == '*')
@@ -1817,7 +1825,8 @@ void Cmd_ForwardToServer (void)
 {
 	if (cls.state == ca_disconnected)
 	{
-		Con_TPrintf (TL_CANTXNOTCONNECTED, Cmd_Argv(0));
+		if (cl_warncmd.ival)
+			Con_TPrintf (TL_CANTXNOTCONNECTED, Cmd_Argv(0));
 		return;
 	}
 
@@ -2618,16 +2627,29 @@ void Cmd_set_f(void)
 
 	Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if (Cmd_FromGamecode())	//AAHHHH!!! Q2 set command is different
+	if (!strcmp(Cmd_Argv(0), "setfl") || Cmd_FromGamecode())	//AAHHHH!!! Q2 set command is different
 	{
 		text = Cmd_Argv(3);
-		if (!strcmp(text, "u"))
-			forceflags = CVAR_USERINFO;
-		else if (!strcmp(text, "s"))
-			forceflags = CVAR_SERVERINFO;
-		else if (*text) //err
-			return;
+		while(*text)
+		{
+			switch(*text++)
+			{
+			case 'u':
+				forceflags |= CVAR_USERINFO;
+				break;
+			case 's':
+				forceflags |= CVAR_SERVERINFO;
+				break;
+			case 'a':
+				forceflags |= CVAR_ARCHIVE;
+				break;
+			default:
+				return;
+			}
+		}
 		text = Cmd_Argv(2);
+
+		/*desc = Cmd_Argv(4)*/
 	}
 	else if (dpcompat_set.ival && !docalc)
 	{
@@ -2667,7 +2689,7 @@ void Cmd_set_f(void)
 
 	if (var)
 	{
-		if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
+		if (var->flags & CVAR_NOTFROMSERVER && Cmd_IsInsecure())
 		{
 			Con_Printf ("Server tried setting %s cvar\n", var->name);
 			return;
@@ -2687,7 +2709,7 @@ void Cmd_set_f(void)
 			if (docalc)
 				text = If_Token(text, &end);
 			Cvar_Set(var, text);
-			var->flags |= CVAR_USERCREATED;
+			var->flags |= CVAR_USERCREATED | forceflags;
 
 			if (!stricmp(Cmd_Argv(0), "seta"))
 				var->flags |= CVAR_ARCHIVE;
@@ -2733,7 +2755,7 @@ void Cvar_Inc_f (void)
 		Con_Printf ("Unknown variable \"%s\"\n", Cmd_Argv(1));
 		return;
 	}
-	if (var->flags & CVAR_NOTFROMSERVER && Cmd_FromGamecode())
+	if (var->flags & CVAR_NOTFROMSERVER && Cmd_IsInsecure())
 	{
 		Con_Printf ("Server tried setting %s cvar\n", var->name);
 		return;
@@ -2985,6 +3007,7 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("toggle", Cmd_toggle_f);
 	Cmd_AddCommand ("set", Cmd_set_f);
+	Cmd_AddCommand ("setfl", Cmd_set_f);
 	Cmd_AddCommand ("set_calc", Cmd_set_f);
 	Cmd_AddCommand ("seta", Cmd_set_f);
 	Cmd_AddCommand ("seta_calc", Cmd_set_f);

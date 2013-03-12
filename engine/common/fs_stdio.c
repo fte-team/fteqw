@@ -212,10 +212,10 @@ static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mo
 	return f;
 }
 
-static void FSSTDIO_PrintPath(void *handle)
+static void FSSTDIO_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	stdiopath_t *np = handle;
-	Con_Printf("%s\n", np->rootpath);
+	Q_strncpyz(out, np->rootpath, outlen);
 }
 static void FSSTDIO_ClosePath(void *handle)
 {
@@ -333,7 +333,7 @@ static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(
 }
 
 searchpathfuncs_t stdiofilefuncs = {
-	FSSTDIO_PrintPath,
+	FSSTDIO_GetDisplayPath,
 	FSSTDIO_ClosePath,
 	FSSTDIO_BuildHash,
 	FSSTDIO_FLocate,

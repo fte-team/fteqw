@@ -957,6 +957,79 @@ void MSG_WriteAngle (sizebuf_t *sb, float f)
 		MSG_WriteAngle8 (sb, f);
 }
 
+static unsigned int MSG_ReadEntity(void)
+{
+	unsigned int num;
+	num = MSG_ReadShort();
+	if (num & 0x8000)
+	{
+		num = (num & 0x7fff) << 8;
+		num |= MSG_ReadByte();
+	}
+	return num;
+}
+//we use the high bit of the entity number to state that this is a large entity.
+#ifndef CLIENTONLY
+unsigned int MSGSV_ReadEntity(client_t *fromclient)
+{
+	unsigned int num;
+	if (fromclient->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		num = MSG_ReadEntity();
+	else
+		num = (unsigned short)(short)MSG_ReadEntity();
+	if (num >= sv.world.max_edicts)
+	{
+		Con_Printf("client %s sent invalid entity\n", fromclient->name);
+		fromclient->drop = true;
+		return 0;
+	}
+	return num;
+}
+#endif
+#ifndef SERVERONLY
+unsigned int MSGCL_ReadEntity(void)
+{
+	unsigned int num;
+	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		num = MSG_ReadEntity();
+	else
+		num = (unsigned short)(short)MSG_ReadShort();
+	return num;
+}
+//compat for ktx/ezquake's railgun
+unsigned int MSGCLF_ReadEntity(qboolean *flagged)
+{
+	int s;
+	*flagged = false;
+	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		return MSG_ReadEntity();
+	else
+	{
+		s = MSG_ReadShort();
+		if (s < 0)
+		{
+			*flagged = true;
+			return -1 -s;
+		}
+		else
+			return s;
+	}
+}
+#endif
+void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
+{
+	if (entnum > MAX_EDICTS)
+		Host_EndGame("index %#x is not a valid entity\n", entnum);
+
+	if (entnum >= 0x8000)
+	{
+		MSG_WriteShort(sb, (entnum>>8) | 0x8000);
+		MSG_WriteByte(sb, entnum & 0xff);
+	}
+	else
+		MSG_WriteShort(sb, entnum);
+}
+
 void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 {
 	int		bits;
@@ -1617,6 +1690,23 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 
 //============================================================================
 
+char *COM_TrimString(char *str)
+{
+	int i;
+	static char buffer[256];
+	while (*str <= ' ' && *str>'\0')
+		str++;
+
+	for (i = 0; i < 255; i++)
+	{
+		if (*str <= ' ')
+			break;
+		buffer[i] = *str++;
+	}
+	buffer[i] = '\0';
+	return buffer;
+}
+
 /*
 ============
 COM_SkipPath
@@ -1826,6 +1916,199 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 
 
 
+//errors:
+//1 sequence error
+//2 over-long
+//3 invalid unicode char
+//4 invalid utf-16 lead/high surrogate
+//5 invalid utf-16 tail/low surrogate
+unsigned int utf8_decode(int *error, const void *in, void **out)
+{
+	//uc is the output unicode char
+	unsigned int uc = 0xfffdu;	//replacement character
+	//l is the length
+	unsigned int l = 1;
+	const unsigned char *str = in;
+
+	if ((*str & 0xe0) == 0xc0)
+	{
+		if ((str[1] & 0xc0) == 0x80)
+		{
+			l = 2;
+			uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
+			if (uc >= (1u<<7))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xf0) == 0xe0)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80)
+		{
+			l = 3;
+			uc = ((str[0] & 0x0f)<<12) | ((str[1] & 0x3f)<<6) | ((str[2] & 0x3f)<<0);
+			if (uc >= (1u<<11))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xf8) == 0xf0)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80)
+		{
+			l = 4;
+			uc = ((str[0] & 0x07)<<18) | ((str[1] & 0x3f)<<12) | ((str[2] & 0x3f)<<6) | ((str[3] & 0x3f)<<0);
+			if (uc >= (1u<<16))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xfc) == 0xf8)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 5;
+			uc = ((str[0] & 0x03)<<24) | ((str[1] & 0x3f)<<18) | ((str[2] & 0x3f)<<12) | ((str[3] & 0x3f)<<6) | ((str[4] & 0x3f)<<0);
+			if (uc >= (1u<<21))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xfe) == 0xfc)
+	{
+		//six bytes
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 6;
+			uc = ((str[0] & 0x01)<<30) | ((str[1] & 0x3f)<<24) | ((str[2] & 0x3f)<<18) | ((str[3] & 0x3f)<<12) | ((str[4] & 0x3f)<<6) | ((str[5] & 0x3f)<<0);
+			if (uc >= (1u<<26))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	//0xfe and 0xff, while plausable leading bytes, are not permitted.
+#if 0
+	else if ((*str & 0xff) == 0xfe)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 7;
+			uc = 0 | ((str[1] & 0x3f)<<30) | ((str[2] & 0x3f)<<24) | ((str[3] & 0x3f)<<18) | ((str[4] & 0x3f)<<12) | ((str[5] & 0x3f)<<6) | ((str[6] & 0x3f)<<0);
+			if (uc >= (1u<<31))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xff) == 0xff)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 8;
+			uc = 0 | ((str[1] & 0x3f)<<36) | ((str[2] & 0x3f)<<30) | ((str[3] & 0x3f)<<24) | ((str[4] & 0x3f)<<18) | ((str[5] & 0x3f)<<12) | ((str[6] & 0x3f)<<6) | ((str[7] & 0x3f)<<0);
+			if (uc >= (1llu<<36))
+				*error = false;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+#endif
+	else if (*str & 0x80)
+	{
+		//sequence error
+		*error = 1;
+		uc = 0xe000u + *str;
+	}
+	else 
+	{
+		//ascii char
+		*error = 0;
+		uc = *str;
+	}
+
+	*out = (void*)(str + l);
+
+	if (!*error)
+	{
+		//try to deal with surrogates by decoding the low if we see a high.
+		if (uc >= 0xd800u && uc < 0xdc00u)
+		{
+#if 0
+			//cesu-8
+			void *lowend;
+			unsigned int lowsur = utf_decode(&error, str + l, &lowend);
+			if (*error == 4 && lowsur >= 0xdc00u && lowsur < 0xe000u)
+			{
+				*out = lowend;
+				uc = (((uc&0x3ff) << 10) || (lowsur&0x3ff)) + 0x10000;
+				*error = false;
+			}
+			else
+#endif
+			{
+				*error = 3;	//bad lead surrogate.
+			}
+		}
+		if (uc >= 0xd800u && uc < 0xdc00u)
+			*error = 4;	//bad tail surrogate
+
+		//these are meant to be illegal too
+		if (uc == 0xfffeu || uc == 0xffffu || uc > 0x10ffff)
+			*error = 2;	//illegal code
+	}
+
+	return uc;
+}
+unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
+{
+	unsigned int bcount = 1;
+	unsigned int lim = 0x80;
+	unsigned int shift;
+	while (unicode >= lim)
+	{
+		if (bcount == 1)
+			lim <<= 4;
+		else if (bcount < 7)
+			lim <<= 5;
+		else
+			lim <<= 6;
+		bcount++;
+	}
+
+	//error if needed
+	if (maxlen < bcount)
+		return 0;
+
+	//output it.
+	if (bcount == 1)
+		*((unsigned char *)out)++ = (unsigned char)(unicode&0x7f);
+	else
+	{
+		shift = bcount*6;
+		shift = shift-6;
+		*((unsigned char *)out)++ = (unsigned char)((unicode>>shift)&(0x0000007f>>bcount)) | (0xffffff00 >> bcount);
+		do
+		{
+			shift = shift-6;
+			*((unsigned char *)out)++ = (unsigned char)((unicode>>shift)&0x3f) | 0x80;
+		}
+		while(shift);
+	}
+	return bcount;
+}
+
 
 ///=====================================
 
@@ -2007,33 +2290,11 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 			c = *str++ & 0xffff;
 			if (com_parseutf8.ival > 0)
 			{
-				//utf-8
-				if (c > 0x7ff)
-				{
-					if (outsize<=3)
-						break;
-					outsize -= 3;
-
-					*out++ = (unsigned char)((c>>12)&0x0f) | 0xe0;
-					*out++ = (unsigned char)((c>>6)&0x3f) | 0x80;
-					*out++ = (unsigned char)(c&0x3f) | 0x80;
-				}
-				else if (c > 0x7f)
-				{
-					if (outsize<=2)
-						break;
-					outsize -= 2;
-
-					*out++ = (unsigned char)((c>>6)&0x1f) | 0xc0;
-					*out++ = (unsigned char)(c&0x3f) | 0x80;
-				}
-				else
-				{
-					if (outsize<=1)
-						break;
-					outsize -= 1;
-					*out++ = (unsigned char)(c&0x7f);
-				}
+				c = utf8_encode(out, c, outsize);
+				if (!c)
+					break;
+				outsize -= c;
+				out += c;
 			}
 			else if (com_parseutf8.ival)
 			{
@@ -2044,7 +2305,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 						break;
 					*out++ = (unsigned char)(c&255);
 				}
-				else	//any other quake char is not iso8859-1
+				else	//any other (quake?) char is not iso8859-1
 				{
 					const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 					if (outsize<=6)
@@ -2103,7 +2364,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 {
 	conchar_t extstack[4];
 	int extstackdepth = 0;
-	unsigned int uc, l;
+	unsigned int uc;
 	int utf8 = com_parseutf8.ival;
 	conchar_t linkinitflags = CON_WHITEMASK;/*doesn't need the init, but msvc is stupid*/
 	qboolean linkkeep = keepmarkup;
@@ -2140,107 +2401,41 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	{
 		if (*str & 0x80 && utf8 > 0)
 		{	//check for utf-8
-
-			//uc is the output unicode char
-			uc = 0;
-			//l is the length
-			l = 0;
-
-			if ((*str & 0xc0) == 0x80)
+			int decodeerror;
+			void *end;
+			uc = utf8_decode(&decodeerror, str, &end);
+			if (decodeerror)
 			{
-				//one byte... malformed
-				uc = '?';
-			}
-			else if ((*str & 0xe0) == 0xc0)
-			{
-				//two bytes
-				if ((str[1] & 0xc0) == 0x80)
-				{
-					uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
-					if (uc > 0x7f)
-						l = 2;
-				}
-			}
-			else if ((*str & 0xf0) == 0xe0)
-			{
-				//three bytes
-				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80)
-				{
-					uc = ((str[0] & 0x0f)<<12) | ((str[1] & 0x3f)<<6) | ((str[2] & 0x3f)<<0);
-					if (uc > 0x7ff)
-						l = 3;
-				}
-			}
-			else if ((*str & 0xf8) == 0xf0)
-			{
-				//four bytes
-				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80)
-				{
-					uc = ((str[0] & 0x07)<<18) | ((str[1] & 0x3f)<<12) | ((str[2] & 0x3f)<<6) | ((str[3] & 0x3f)<<0);
-					if (uc > 0xffff)
-						l = 4;
-				}
-			}
-			else if ((*str & 0xfc) == 0xf8)
-			{
-				//five bytes
-				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
-				{
-					uc = ((str[0] & 0x03)<<24) | ((str[1] & 0x3f)<<18) | ((str[2] & 0x3f)<<12) | ((str[3] & 0x3f)<<6) | ((str[4] & 0x3f)<<0);
-					if (uc > 0x1fffff)
-						l = 5;
-				}
-			}
-			else if ((*str & 0xfe) == 0xfc)
-			{
-				//six bytes
-				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
-				{
-					uc = ((str[0] & 0x01)<<30) | ((str[1] & 0x3f)<<24) | ((str[2] & 0x3f)<<18) | ((str[3] & 0x3f)<<12) | ((str[4] & 0x3f)<<6) | ((str[5] & 0x3f)<<0);
-					if (uc > 0x3ffffff)
-						l = 6;
-				}
-			}
-			//0xfe and 0xff, while plausable leading bytes, are not permitted.
-
-			if (l)
-			{
-				//note that we don't support utf-16 surrogates
-				if (uc == 0xd800 || uc == 0xdb7f || uc == 0xdb80 || uc == 0xdbff || uc == 0xdc00 || uc == 0xdf80 || uc == 0xdfff)
-					l = 0;
-				//these are meant to be illegal too
-				else if (uc == 0xfffe || uc == 0xffff)
-					uc = '?';
-				//too big for our data types
-				else if (uc & ~CON_CHARMASK)
-					l = 0;
+				utf8 &= ~1;
+				//malformed encoding we just drop through and stop trying to decode.
+				//if its just a malformed or overlong string, we end up with a chunk of 'red' chars.
 			}
 			else
-				utf8 &= ~1;
-
-			//l is set if we got a valid utf-8 byte sequence
-			if (l)
 			{
+				if (uc > 0xffff)
+					uc = 0xfffd;
 				if (!--outsize)
 					break;
 				*out++ = uc | ext;
-				str += l;
+				str = end;
 				continue;
 			}
-
-			//malformed encoding we just drop through
-			//if its just a malformed or overlong string, we end up with a chunk of 'red' chars.
 		}
 		if (*str == '^')
 		{
 			if (str[1] >= '0' && str[1] <= '9')
 			{
+				if (ext & CON_RICHFORECOLOUR)
+					ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
 				ext = q3codemasks[str[1]-'0'] | (ext&~CON_Q3MASK); //change colour only.
 			}
 			else if (str[1] == '&') // extended code
 			{
 				if (isextendedcode(str[2]) && isextendedcode(str[3]))
 				{
+					if (ext & CON_RICHFORECOLOUR)
+						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
+
 					// foreground char
 					if (str[2] == '-') // default for FG
 						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
@@ -2403,38 +2598,30 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				int best = 1;
 				float bd = 255*255*255, d;
 				int c;
-				float r, g, b;
+				int r, g, b;
 				if      (str[2] >= '0' && str[2] <= '9')
-					r = (str[2]-'0') / (float)0xf;
+					r = (str[2]-'0');
 				else if (str[2] >= 'A' && str[2] <= 'F')
-					r = (str[2]-'A'+10) / (float)0xf;
+					r = (str[2]-'A'+10);
 				else
-					r = (str[2]-'a'+10) / (float)0xf;
+					r = (str[2]-'a'+10);
 				if      (str[3] >= '0' && str[3] <= '9')
-					g = (str[3]-'0') / (float)0xf;
+					g = (str[3]-'0');
 				else if (str[3] >= 'A' && str[3] <= 'F')
-					g = (str[3]-'A'+10) / (float)0xf;
+					g = (str[3]-'A'+10);
 				else
-					g = (str[3]-'a'+10) / (float)0xf;
+					g = (str[3]-'a'+10);
 				if      (str[4] >= '0' && str[4] <= '9')
-					b = (str[4]-'0') / (float)0xf;
+					b = (str[4]-'0');
 				else if (str[4] >= 'A' && str[4] <= 'F')
-					b = (str[4]-'A'+10) / (float)0xf;
+					b = (str[4]-'A'+10);
 				else
-					b = (str[4]-'a'+10) / (float)0xf;
+					b = (str[4]-'a'+10);
 
-				for (c = 0; c < sizeof(consolecolours)/sizeof(consolecolours[0]); c++)
-				{
-					d = (consolecolours[c].fr-r)*(consolecolours[c].fr-r) +
-						(consolecolours[c].fg-g)*(consolecolours[c].fg-g) +
-						(consolecolours[c].fb-b)*(consolecolours[c].fb-b);
-					if (d < bd)
-					{
-						best = c;
-						bd = d;
-					}
-				}
-				ext = (best << CON_FGSHIFT) | (ext&~CON_FGMASK);
+				ext = (ext & ~CON_RICHFOREMASK) | CON_RICHFORECOLOUR;
+				ext |= r<<CON_RICHRSHIFT;
+				ext |= g<<CON_RICHGSHIFT;
+				ext |= b<<CON_RICHBSHIFT;
 
 				if (!keepmarkup)
 				{
@@ -2445,7 +2632,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		}
 		else if (*str == '&' && str[1] == 'r')
 		{
-			ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
+			ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
 			if (!keepmarkup)
 			{
 				str+=2;
@@ -2767,13 +2954,14 @@ skipwhite:
 					token[len] = 0;
 					return (char*)data;
 				}
-				while (c=='\"')
+				data++;
+/*				while (c=='\"')
 				{
 					token[len] = c;
 					len++;
-					data++;
-					c = *(data+1);
+					c = *++data;
 				}
+*/
 			}
 			if (!c)
 			{
@@ -3303,7 +3491,8 @@ void COM_Version_f (void)
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 
 #ifdef SVNREVISION
-	Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
+	if (strcmp(STRINGIFY(SVNREVISION), "-"))
+		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
 #endif
 
 #ifdef _DEBUG
@@ -4591,9 +4780,12 @@ char *version_string(void)
 	{
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
-#elif defined(SVNREVISION)
-		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
 #else
+#if defined(SVNREVISION)
+		if (strcmp(STRINGIFY(SVNREVISION), "-"))
+			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
+		else
+#endif
 		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
 #endif
 		done = true;

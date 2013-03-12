@@ -1924,6 +1924,48 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 #endif
 }
 
+typedef struct
+{
+	int firstpose;
+	int posecount;
+	float fps;
+	qboolean loop;
+	char name[MAX_QPATH];
+} frameinfo_t;
+static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
+{
+	int count = 0;
+	int maxcount = 0;
+	char *line, *file;
+	frameinfo_t *frames = NULL;
+	line = file = FS_LoadMallocFile(va("%s.framegroups", modelname));
+	if (!file)
+		return NULL;
+	while(line && *line)
+	{
+		line = Cmd_TokenizeString(line, false, false);
+		if (Cmd_Argc())
+		{
+			if (count == maxcount)
+			{
+				maxcount += 32;
+				frames = realloc(frames, sizeof(*frames)*maxcount);
+			}
+
+			frames[count].firstpose = atoi(Cmd_Argv(0));
+			frames[count].posecount = atoi(Cmd_Argv(1));
+			frames[count].fps = atof(Cmd_Argv(2));
+			frames[count].loop = !!atoi(Cmd_Argv(3));
+			Q_strncpyz(frames[count].name, Cmd_Argv(4), sizeof(frames[count].name));
+			count++;
+		}
+	}
+	BZ_Free(file);
+
+	*numgroups = count;
+	return frames;
+}
+
 void Mod_BuildTextureVectors(galiasinfo_t *galias)
 //vec3_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx, int numverts)
 {
@@ -2455,6 +2497,7 @@ static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, qboolean alpha)
 static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintranstype)
 {
 	shader_t **shaders;
+	int *ofstexels;
 	char skinname[MAX_QPATH];
 	int i;
 	int s, t;
@@ -2515,9 +2558,11 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			if (!TEXVALID(texture) || (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
 			{
 				//we're not using 24bits
-				shaders = Hunk_Alloc(sizeof(*shaders)+s);
-				saved = (qbyte*)(shaders+1);
-				outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
+				shaders = Hunk_Alloc(sizeof(*shaders)+sizeof(*ofstexels)+s);
+				ofstexels = (int*)(shaders+1);
+				saved = (qbyte*)(ofstexels+1);
+				outskin->ofstexels = (qbyte *)ofstexels - (qbyte *)outskin;
+				ofstexels[0] = (qbyte *)saved - (qbyte *)ofstexels;
 				memcpy(saved, pskintype+1, s);
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 
@@ -2621,9 +2666,10 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			intervals = (daliasskininterval_t *)(count+1);
 			outskin->numshaders = LittleLong(count->numskins);
 			data = (qbyte *)(intervals + outskin->numshaders);
-			shaders = Hunk_Alloc(sizeof(*shaders)*outskin->numshaders);
+			shaders = Hunk_Alloc(sizeof(*shaders)*outskin->numshaders + sizeof(*ofstexels)*outskin->numshaders);
+			ofstexels = (int*)(shaders+outskin->numshaders);
 			outskin->ofsshaders = (char *)shaders - (char *)outskin;
-			outskin->ofstexels = 0;
+			outskin->ofstexels = (char *)ofstexels - (char *)outskin;
 			sinter = LittleFloat(intervals[0].interval);
 			if (sinter <= 0)
 				sinter = 0.1;
@@ -2660,13 +2706,8 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 
 				if (!TEXVALID(texture) || (!TEXVALID(fbtexture) && r_fb_models.ival))
 				{
-					if (t == 0)
-					{
-						saved = Hunk_Alloc(s);
-						outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
-					}
-					else
-						saved = BZ_Malloc(s);
+					saved = Hunk_Alloc(s);
+					ofstexels[t] = (qbyte *)(saved) - (qbyte *)ofstexels;
 					memcpy(saved, data, s);
 					Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 					if (!TEXVALID(texture))
@@ -2681,9 +2722,6 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma", loadname, i, t);
 						fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
 					}
-
-					if (t != 0)	//only keep the first.
-						BZ_Free(saved);
 				}
 
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
@@ -2810,7 +2848,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	switch(qrenderer)
 	{
 	default:
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 		pinstverts = (dstvert_t *)Q1_LoadSkins_GL(skinstart, skintranstype);
 		break;
 #endif
@@ -4631,10 +4669,11 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 #endif
 	galiasbone_t *bones;
 	galiasgroup_t *group;
-	float *animmatrix, *basematrix, *basematrix_inverse;
+	float *animmatrix, *basematrix;
 	index_t *indexes;
 	float vrad;
 	int bonemap[MAX_BONES];
+	char *e;
 
 	pskpnts_t *pnts = NULL;
 	pskvtxw_t *vtxw = NULL;
@@ -4904,6 +4943,9 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	for (i = 0; i < num_boneinfo; i++)
 	{
 		Q_strncpyz(bones[i].name, boneinfo[i].name, sizeof(bones[i].name));
+		e = bones[i].name + strlen(bones[i].name);
+		while(e > bones[i].name && e[-1] == ' ')
+			*--e = 0;
 		bones[i].parent = boneinfo[i].parent;
 		if (i == 0 && bones[i].parent == 0)
 			bones[i].parent = -1;
@@ -4928,10 +4970,9 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 			R_ConcatTransforms((void*)(basematrix + bones[i].parent*12), (void*)tmp, (void*)(basematrix+i*12));
 	}
 
-	basematrix_inverse = Hunk_TempAllocMore(num_boneinfo*sizeof(float)*16);
 	for (i = 0; i < num_boneinfo; i++)
 	{
-		Matrix3x4_InvertTo4x4_Simple(basematrix+i*12, basematrix_inverse+i*16);
+		Matrix3x4_Invert_Simple(basematrix+i*12, bones[i].inverse);
 	}
 
 	
@@ -4960,7 +5001,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				vec3_t tmp;
 				trans[num_trans].vertexindex = i;
 				trans[num_trans].boneindex = rawweights[j].boneindex;
-				VectorTransform(pnts[rawweights[j].pntsindex].origin, (void*)(basematrix_inverse + rawweights[j].boneindex*16), tmp);
+				VectorTransform(pnts[rawweights[j].pntsindex].origin, (void*)bones[rawweights[j].boneindex].inverse, tmp);
 				VectorScale(tmp, rawweights[j].weight, trans[num_trans].org);
 				trans[num_trans].org[3] = rawweights[j].weight;
 				num_trans++;
@@ -5028,7 +5069,29 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 	if (animinfo && animkeys)
 	{
-		if (dpcompat_psa_ungroup.ival)
+		int numgroups = 0;
+		frameinfo_t *frameinfo = ParseFrameInfo(mod->name, &numgroups);
+		if (numgroups)
+		{
+			/*externally supplied listing of frames. ignore all framegroups in the model and use only the pose info*/
+			group = Hunk_Alloc(sizeof(galiasgroup_t)*numgroups + num_animkeys*sizeof(float)*12);
+			animmatrix = (float*)(group+numgroups);
+			for (j = 0; j < numgroups; j++)
+			{
+				//FIXME: bound check
+				group[j].poseofs = ((char*)animmatrix - (char*)&group[j]) + sizeof(float)*12*num_boneinfo*frameinfo[j].firstpose;
+				group[j].numposes = frameinfo[j].posecount;
+				if (*frameinfo[j].name)
+					snprintf(group[j].name, sizeof(group[j].name), "%s", frameinfo[j].name);
+				else
+					snprintf(group[j].name, sizeof(group[j].name), "frame_%i", j);
+				group[j].loop = frameinfo[j].loop;
+				group[j].rate = frameinfo[j].fps;
+				group[j].isheirachical = true;
+			}
+			num_animinfo = numgroups;
+		}
+		else if (dpcompat_psa_ungroup.ival)
 		{
 			/*unpack each frame of each animation to be a separate framegroup*/
 			unsigned int iframe;	/*individual frame count*/
@@ -5552,8 +5615,6 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 #endif	//DPMMODELS
 
 
-
-
 #ifdef INTERQUAKEMODELS
 #define IQM_MAGIC "INTERQUAKEMODEL"
 #define IQM_VERSION1 1
@@ -5721,7 +5782,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	vec3_t *onorm1, *onorm2, *onorm3;
 	vec4_t *oweight;
 	byte_vec4_t *oindex;
-	float *opose;
+	float *opose,*oposebase;
 	vec2_t *otcoords;
 
 
@@ -5734,8 +5795,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	galiasbone_t *bones;
 	index_t *idx;
 	float basepose[12 * MAX_BONES];
-	qboolean baseposeonly;
 	qboolean noweights;
+	frameinfo_t *framegroups;
+	int numgroups;
 
 	if (memcmp(h->magic, IQM_MAGIC, sizeof(h->magic)))
 	{
@@ -5779,6 +5841,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	if (!h->num_meshes)
 		return NULL;
 
+	//a mesh must contain vertex coords or its not much of a mesh.
+	//we also require texcoords because we can.
+	//we don't require normals
+	//we don't require weights, but such models won't animate.
 	if (h->num_vertexes > 0 && (!vpos || !tcoord))
 	{
 		Con_Printf("%s is missing vertex array data\n", loadmodel->name);
@@ -5791,9 +5857,39 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			return NULL;
 	}
 
-	baseposeonly = !h->num_anims;
-
 	strings = buffer + h->ofs_text;
+
+	/*try to completely disregard all the info the creator carefully added to their model...*/
+	numgroups = 0;
+	framegroups = NULL;
+	if (!numgroups)
+		framegroups = ParseFrameInfo(loadmodel->name, &numgroups);
+	if (!numgroups && h->num_anims)
+	{
+		/*use the model's framegroups*/
+		numgroups = h->num_anims;
+		framegroups = malloc(sizeof(*framegroups)*numgroups);
+
+		anim = (struct iqmanim*)(buffer + h->ofs_anims);
+		for (i = 0; i < numgroups; i++)
+		{
+			framegroups[i].firstpose = LittleLong(anim[i].first_frame);
+			framegroups[i].posecount = LittleLong(anim[i].num_frames);
+			framegroups[i].fps = LittleFloat(anim[i].framerate);
+			framegroups[i].loop = !!(LittleLong(anim[i].flags) & IQM_LOOP);
+			Q_strncpyz(framegroups[i].name, strings+anim[i].name, sizeof(fgroup[i].name));
+		}
+	}
+	if (!numgroups)
+	{	/*base frame only*/
+		numgroups = 1;
+		framegroups = malloc(sizeof(*framegroups));
+		framegroups->firstpose = -1;
+		framegroups->posecount = 1;
+		framegroups->fps = 10;
+		framegroups->loop = 1;
+		strcpy(framegroups->name, "base");
+	}
 
 	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
@@ -5802,7 +5898,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 #ifndef SERVERONLY
 		sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes + 
 #endif
-		sizeof(*fgroup)*(baseposeonly?1:h->num_anims) + sizeof(float)*12*(baseposeonly?h->num_joints:(h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
+		sizeof(*fgroup)*numgroups + sizeof(float)*12*(h->num_joints + (h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
 		(sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
 	bones = (galiasbone_t*)(gai + h->num_meshes);
 	opos = (vecV_t*)(bones + h->num_joints);
@@ -5822,9 +5918,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		otcoords = (vec2_t*)(oweight + h->num_vertexes);
 	}
 	fgroup = (galiasgroup_t*)(otcoords + h->num_vertexes);
-	opose = (float*)(fgroup + (baseposeonly?1:h->num_anims));
+	oposebase = (float*)(fgroup + numgroups);
+	opose = oposebase + 12*h->num_joints;
 #ifndef SERVERONLY
-	skin = (galiasskin_t*)(opose + 12*(baseposeonly?h->num_joints:h->num_poses*h->num_frames));
+	skin = (galiasskin_t*)(opose + 12*(h->num_poses*h->num_frames));
 	shaders = (shader_t**)(skin + h->num_meshes);
 #endif
 
@@ -5841,6 +5938,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		vec3_t scale;
 		float mat[12];
 
+		//joint info (mesh)
 		for (i = 0; i < h->num_joints; i++)
 		{
 			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(bones[i].name));
@@ -5855,6 +5953,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			Matrix3x4_Invert_Simple(&basepose[i*12], bones[i].inverse);
 		}
 
+		//pose info (anim)
 		for (i = 0; i < h->num_frames; i++)
 		{
 			for (j = 0, p = ipose; j < h->num_poses; j++, p++)
@@ -5884,6 +5983,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		vec3_t scale;
 		float mat[12];
 
+		//joint info (mesh)
 		for (i = 0; i < h->num_joints; i++)
 		{
 			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(bones[i].name));
@@ -5898,6 +5998,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			Matrix3x4_Invert_Simple(&basepose[i*12], bones[i].inverse);
 		}
 
+		//pose info (anim)
 		for (i = 0; i < h->num_frames; i++)
 		{
 			for (j = 0, p = ipose; j < h->num_poses; j++, p++)
@@ -5917,34 +6018,33 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			}
 		}
 	}
+	//basepose
+	memcpy(oposebase, basepose, sizeof(float)*12 * h->num_joints);
 
-	if (baseposeonly)
+	//now generate the animations.
+	for (i = 0; i < numgroups; i++)
 	{
-		fgroup->isheirachical = false;
-		fgroup->loop = true;
-		Q_strncpyz(fgroup->name, "base", sizeof(fgroup->name));
-		fgroup->numposes = 1;
-		fgroup->poseofs = (char*)opose - (char*)fgroup;
-		fgroup->rate = 10;
-
-		memcpy(opose, basepose, sizeof(float)*12 * h->num_joints);
-	}
-	else
-	{
-		/*load the framegroup info*/
-		anim = (struct iqmanim*)(buffer + h->ofs_anims);
-		for (i = 0; i < h->num_anims; i++)
+		if ((unsigned)framegroups[i].firstpose >= h->num_frames)
+		{
+			//invalid/basepose
+			fgroup[i].isheirachical = false;
+			fgroup[i].poseofs = (char*)oposebase - (char*)&fgroup[i];
+			fgroup[i].numposes = 1;
+		}
+		else
 		{
 			fgroup[i].isheirachical = true;
-			fgroup[i].loop = !!(LittleLong(anim[i].flags) & IQM_LOOP);
-			Q_strncpyz(fgroup[i].name, strings+anim[i].name, sizeof(fgroup[i].name));
-			fgroup[i].numposes = LittleLong(anim[i].num_frames);
-			fgroup[i].poseofs = (char*)(opose+LittleLong(anim[i].first_frame)*12*h->num_poses) - (char*)&fgroup[i];
-			fgroup[i].rate = LittleFloat(anim[i].framerate);
-			if (!fgroup[i].rate)
-				fgroup[i].rate = 10;
+			fgroup[i].poseofs = (char*)(opose + framegroups[i].firstpose*12*h->num_poses) - (char*)&fgroup[i];
+			fgroup[i].numposes = framegroups[i].posecount;
 		}
+		fgroup[i].loop = framegroups[i].loop;
+		fgroup[i].rate = framegroups[i].fps;
+		Q_strncpyz(fgroup[i].name, framegroups[i].name, sizeof(fgroup[i].name));
+	
+		if (fgroup[i].rate <= 0)
+			fgroup[i].rate = 10;
 	}
+	free(framegroups);
 
 	for (i = 0; i < h->num_meshes; i++)
 	{
@@ -5954,7 +6054,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		gai[i].shares_bones = 0;
 		gai[i].numbones = h->num_joints;
 		gai[i].ofsbones = (char*)bones - (char*)&gai[i];
-		gai[i].groups = baseposeonly?1:h->num_anims;
+		gai[i].groups = numgroups;
 		gai[i].groupofs = (char*)fgroup - (char*)&gai[i];
 		
 		offset = LittleLong(mesh[i].first_vertex);
@@ -6006,6 +6106,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		{
 			Vector4Copy(vbone+i*4, oindex[i]);
 			Vector4Scale(vweight+i*4, 1/255.0, oweight[i]);
+
+			//FIXME: should we be normalising?
+			if (!oweight[i][0] && !oweight[i][1] && !oweight[i][2] && !oweight[i][3])
+				oweight[i][0] = 1;
 		}
 	}
 	for (i = 0; i < h->num_vertexes; i++)
@@ -6698,7 +6802,7 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 /*
 EXTERNALANIM
 
-//File what specifies md5 model/anim stuff.
+//File that specifies md5 model/anim stuff.
 
 model test/imp.md5mesh
 

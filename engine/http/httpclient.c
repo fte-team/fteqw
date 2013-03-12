@@ -513,8 +513,10 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 	if (!dl)
 		return false;
 
-	dl->file = file;
-	dl->notify = NotifyFunction;
+	if (file)
+		dl->file = file;
+	if (NotifyFunction)
+		dl->notify = NotifyFunction;
 
 	dl->threadctx = Sys_CreateThread("download", DL_Thread_Work, dl, THREADP_NORMAL, 0);
 	if (!dl->threadctx)
@@ -599,11 +601,11 @@ void HTTP_CL_Think(void)
 #endif
 		if (!con->poll(con))
 		{
+			*link = con->next;
 			if (con->file)
 				VFS_SEEK(con->file, 0);
 			if (con->notify)
 				con->notify(con);
-			*link = con->next;
 			DL_Close(con);
 
 			if (cls.downloadmethod == DL_HTTP)

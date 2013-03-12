@@ -18,20 +18,26 @@
 //#define QCJIT
 #endif
 
+#define QCBUILTIN ASMCALL
+
+#ifdef _WIN32
+#define PDECL __cdecl
+#else
+#define PDECL
+#endif
+
 #ifdef QCJIT
 #define ASMCALL VARGS
 #else
-#define ASMCALL
+#define ASMCALL PDECL
 #endif
-#define QCBUILTIN ASMCALL
-
 
 struct edict_s;
 struct entvars_s;
 struct globalvars_s;
 struct qcthread_s;
-typedef struct progfuncs_s progfuncs_t;
-typedef void (ASMCALL *builtin_t) (progfuncs_t *prinst, struct globalvars_s *gvars);
+typedef struct pubprogfuncs_s pubprogfuncs_t;
+typedef void (ASMCALL *builtin_t) (pubprogfuncs_t *prinst, struct globalvars_s *gvars);
 
 //used by progs engine. All nulls is reset.
 typedef struct {
@@ -54,130 +60,138 @@ typedef struct fdef_s
 
 //the number of pointers to variables (as opposed to functions - those are fine) in these structures is excessive.
 //Many of the functions are also obsolete.
-struct progfuncs_s {
+struct pubprogfuncs_s
+{
 	int progsversion;	//PROGSTRUCT_VERSION
 
+	void	(PDECL *CloseProgs)					(pubprogfuncs_t *inst);
 
-	void	(*Configure)				(progfuncs_t *prinst, int addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
-	progsnum_t	(*LoadProgs)			(progfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
-	int		(*InitEnts)					(progfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
-	void	(*ExecuteProgram)			(progfuncs_t *prinst, func_t fnum);	//start execution
-	pbool	(*SwitchProgs)				(progfuncs_t *prinst, progsnum_t num);	//switch to a different progs - this should be obsolete.
-	struct globalvars_s	*(*globals)		(progfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
-	struct entvars_s	*(*entvars)		(progfuncs_t *prinst, struct edict_s *ent);	//return a pointer to the entvars of an ent. can be achieved via the edict_t structure instead, so obsolete.
+	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, int addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
+	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
+	int		(PDECL *InitEnts)					(pubprogfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
+	void	(PDECL *ExecuteProgram)				(pubprogfuncs_t *prinst, func_t fnum);	//start execution
+	struct globalvars_s	*(PDECL *globals)		(pubprogfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
+	struct entvars_s	*(PDECL *entvars)		(pubprogfuncs_t *prinst, struct edict_s *ent);	//return a pointer to the entvars of an ent. can be achieved via the edict_t structure instead, so obsolete.
 
-	void	(VARGS *RunError)			(progfuncs_t *prinst, char *msg, ...) LIKEPRINTF(2);		//builtins call this to say there was a problem
-	void	(*PrintEdict)				(progfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
+	void	(VARGS *RunError)					(pubprogfuncs_t *prinst, char *msg, ...) LIKEPRINTF(2);		//builtins call this to say there was a problem
+	void	(PDECL *PrintEdict)					(pubprogfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
 
-	struct edict_s	*(*EntAlloc)		(progfuncs_t *prinst);
-	void	(*EntFree)					(progfuncs_t *prinst, struct edict_s *ed);
+	struct edict_s	*(PDECL *EntAlloc)			(pubprogfuncs_t *prinst);
+	void	(PDECL *EntFree)					(pubprogfuncs_t *prinst, struct edict_s *ed);
 
-	struct edict_s	*(*EDICT_NUM)		(progfuncs_t *prinst, unsigned int n);		//get the nth edict
-	unsigned int		(*NUM_FOR_EDICT)			(progfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
+	struct edict_s	*(PDECL *EDICT_NUM)			(pubprogfuncs_t *prinst, unsigned int n);		//get the nth edict
+	unsigned int		(PDECL *NUM_FOR_EDICT)	(pubprogfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
 
-	void	(*SetGlobalEdict)			(progfuncs_t *prinst, struct edict_s *ed, int ofs);	//set a global to an edict (partially obsolete)
+	void	(PDECL *SetGlobalEdict)				(pubprogfuncs_t *prinst, struct edict_s *ed, int ofs);	//set a global to an edict (partially obsolete)
 
-	char	*(*VarString)				(progfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
+	char	*(PDECL *VarString)					(pubprogfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
 
 	struct progstate_s **progstate;	//internal to the library.
 
-	func_t	(*FindFunction)				(progfuncs_t *prinst, char *funcname, progsnum_t num);
+	func_t	(PDECL *FindFunction)				(pubprogfuncs_t *prinst, char *funcname, progsnum_t num);
 
-	int		(*StartCompile)				(progfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
-	int		(*ContinueCompile)			(progfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed
+	int		(PDECL *StartCompile)				(pubprogfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
+	int		(PDECL *ContinueCompile)			(pubprogfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed
 
-	char	*(*filefromprogs)			(progfuncs_t *prinst, progsnum_t prnum, char *fname, int *size, char *buffer);	//reveals encoded/added files from already loaded progs
-	char	*(*filefromnewprogs)		(progfuncs_t *prinst, char *prname, char *fname, int *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
+	char	*(PDECL *filefromprogs)				(pubprogfuncs_t *prinst, progsnum_t prnum, char *fname, int *size, char *buffer);	//reveals encoded/added files from already loaded progs
+	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, char *prname, char *fname, int *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
 
-	char	*(*save_ents)				(progfuncs_t *prinst, char *buf, int *size, int mode);	//dump the entire progs info into one big self allocated string
-	int		(*load_ents)				(progfuncs_t *prinst, char *s, float killonspawnflags);	//restore the entire progs state (or just add some more ents) (returns edicts ize)
+	void	(PDECL *ED_Print)					(pubprogfuncs_t *prinst, struct edict_s *ed);
+	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, int *size, int mode);	//dump the entire progs info into one big self allocated string
+	int		(PDECL *load_ents)					(pubprogfuncs_t *prinst, char *s, float killonspawnflags);	//restore the entire progs state (or just add some more ents) (returns edicts ize)
 
-	char	*(*saveent)					(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will save just one entities vars
-	struct edict_s	*(*restoreent)		(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
+	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will save just one entities vars
+	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
-	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
-	char	*(*AddString)				(progfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
-	void	*(*Tempmem)					(progfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
+	union eval_s	*(PDECL *FindGlobal)		(pubprogfuncs_t *prinst, char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
+	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
+	void	*(PDECL *Tempmem)					(pubprogfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 
-	union eval_s	*(*GetEdictFieldValue)	(progfuncs_t *prinst, struct edict_s *ent, char *name, evalc_t *s); //get an entityvar (cache it) and return the possible values
-	struct edict_s	*(*ProgsToEdict)	(progfuncs_t *prinst, int progs);	//edicts are stored as ints and need to be adjusted
-	int		(*EdictToProgs)				(progfuncs_t *prinst, struct edict_s *ed);		//edicts are stored as ints and need to be adjusted
+	union eval_s	*(PDECL *GetEdictFieldValue)(pubprogfuncs_t *prinst, struct edict_s *ent, char *name, evalc_t *s); //get an entityvar (cache it) and return the possible values
+	struct edict_s	*(PDECL *ProgsToEdict)		(pubprogfuncs_t *prinst, int progs);	//edicts are stored as ints and need to be adjusted
+	int		(PDECL *EdictToProgs)				(pubprogfuncs_t *prinst, struct edict_s *ed);		//edicts are stored as ints and need to be adjusted
 
-	char	*(*EvaluateDebugString)		(progfuncs_t *prinst, char *key);	//evaluate a string and return it's value (according to current progs) (expands edict vars)
+	char	*(PDECL *EvaluateDebugString)		(pubprogfuncs_t *prinst, char *key);	//evaluate a string and return it's value (according to current progs) (expands edict vars)
 
-	int		*pr_trace;	//start calling the editor for each line executed	
+	int		pr_trace;	//start calling the editor for each line executed	
 
-	void	(*StackTrace)				(progfuncs_t *prinst);
+	void	(PDECL *StackTrace)					(pubprogfuncs_t *prinst);
 	
-	int		(*ToggleBreak)				(progfuncs_t *prinst, char *filename, int linenum, int mode);
+	int		(PDECL *ToggleBreak)				(pubprogfuncs_t *prinst, char *filename, int linenum, int mode);
 
 	int		numprogs;
 
 	struct	progexterns_s *parms;	//these are the initial parms, they may be changed
 
-	pbool	(*Decompile)				(progfuncs_t *prinst, char *fname);
+	pbool	(PDECL *Decompile)					(pubprogfuncs_t *prinst, char *fname);
 
-
-	struct prinst_s	*inst;	//internal variables. Leave alone.
-
-	int		*callargc;	//number of args of built-in call
-	void	(*RegisterBuiltin)			(progfuncs_t *prinst, char *, builtin_t);
+	int		callargc;	//number of args of built-in call
+	void	(PDECL *RegisterBuiltin)			(pubprogfuncs_t *prinst, char *, builtin_t);
 
 	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
+	int stringtablesize;
 	int fieldadjust;	//FrikQCC style arrays can cause problems due to field remapping. This causes us to leave gaps but offsets identical.
 
-	struct qcthread_s *(*Fork)			(progfuncs_t *prinst);	//returns a pointer to a thread which can be resumed via RunThread.
-	void	(*RunThread)				(progfuncs_t *prinst, struct qcthread_s *thread);
-	void	(*AbortStack)				(progfuncs_t *prinst);	//annigilates the current stack, positioning on a return statement. It is expected that this is only used via a builtin!
+	struct qcthread_s *(PDECL *Fork)			(pubprogfuncs_t *prinst);	//returns a pointer to a thread which can be resumed via RunThread.
+	void	(PDECL *RunThread)					(pubprogfuncs_t *prinst, struct qcthread_s *thread);
+	void	(PDECL *AbortStack)					(pubprogfuncs_t *prinst);	//annigilates the current stack, positioning on a return statement. It is expected that this is only used via a builtin!
 
 	int lastcalledbuiltinnumber;			//useful with non-implemented opcodes.
 
-	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
+	int (PDECL *RegisterFieldVar)				(pubprogfuncs_t *prinst, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 
 	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
 	int		tempstringnum;			//for engine's use.
 
-	string_t (*TempString)				(progfuncs_t *prinst, const char *str);
+	string_t (PDECL *TempString)				(pubprogfuncs_t *prinst, const char *str);
 
-	string_t (*StringToProgs)			(progfuncs_t *prinst, char *str);
-	char *(ASMCALL *StringToNative)				(progfuncs_t *prinst, string_t str);
-	int stringtablesize;
+	string_t (PDECL *StringToProgs)				(pubprogfuncs_t *prinst, char *str);
+	char *(ASMCALL *StringToNative)				(pubprogfuncs_t *prinst, string_t str);
 
-	int (*QueryField)					(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
+	int (PDECL *QueryField)						(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 
-	void (*EntClear)					(progfuncs_t *progfuncs, struct edict_s *e);
-	void (*FindPrefixGlobals)			(progfuncs_t *progfuncs, char *prefix, void (*found) (progfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
+	void (PDECL *EntClear)						(pubprogfuncs_t *progfuncs, struct edict_s *e);
+	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
 
-	void *(*AddressableAlloc)			(progfuncs_t *progfuncs, unsigned int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
+	void *(PDECL *AddressableAlloc)				(pubprogfuncs_t *progfuncs, unsigned int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
 
-	string_t (*AllocTempString)			(progfuncs_t *prinst, char **str, unsigned int len);
-	void (*AddressableFree)				(progfuncs_t *progfuncs, void *mem); /*frees a block of addressable memory*/
-	pbool (*SetWatchPoint)				(progfuncs_t *prinst, char *key);
+	string_t (PDECL *AllocTempString)			(pubprogfuncs_t *prinst, char **str, unsigned int len);
+	void (PDECL *AddressableFree)				(pubprogfuncs_t *progfuncs, void *mem); /*frees a block of addressable memory*/
+	pbool (PDECL *SetWatchPoint)				(pubprogfuncs_t *prinst, char *key);
+
+	void (PDECL *AddSharedVar)					(pubprogfuncs_t *progfuncs, int start, int size);
+	void (PDECL *AddSharedFieldVar)				(pubprogfuncs_t *progfuncs, int num, char *relstringtable);
+	char *(PDECL *RemoveProgsString)			(pubprogfuncs_t *progfuncs, string_t str);
+	int (PDECL *GetFuncArgCount)				(pubprogfuncs_t *progfuncs, func_t func);
+	void (PDECL *GenerateStatementString)		(pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);
+	fdef_t *(PDECL *FieldInfo)					(pubprogfuncs_t *progfuncs, unsigned int *count);
+	char *(PDECL *UglyValueString)				(pubprogfuncs_t *progfuncs, etype_t type, union eval_s *val);
+	pbool (PDECL *ParseEval)					(pubprogfuncs_t *progfuncs, union eval_s *eval, int type, char *s);
 };
 
 typedef struct progexterns_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
-	unsigned char *(*ReadFile) (const char *fname, void *buffer, int len);
-	int (*FileSize) (const char *fname);	//-1 if file does not exist
-	pbool (*WriteFile) (const char *name, void *data, int len);
-	int (VARGS *printf) (const char *, ...) LIKEPRINTF(1);
+	unsigned char *(PDECL *ReadFile) (const char *fname, void *buffer, int len);
+	int (PDECL *FileSize) (const char *fname);	//-1 if file does not exist
+	pbool (PDECL *WriteFile) (const char *name, void *data, int len);
+	int (VARGS *Printf) (const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error) (const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Abort) (char *, ...) LIKEPRINTF(1);
 	int edictsize;	//size of edict_t
 
-	void (*entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
-	pbool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
-	void (ASMCALL *stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
-	void (ASMCALL *cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
-	void (ASMCALL *cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
-	void (ASMCALL *thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
+	void (PDECL *entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
+	pbool (PDECL *entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
+	void (ASMCALL *stateop) (pubprogfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
+	void (ASMCALL *cstateop) (pubprogfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
+	void (ASMCALL *cwstateop) (pubprogfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
+	void (ASMCALL *thinktimeop) (pubprogfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
 
 
 	//used when loading a game
-	builtin_t *(*builtinsfor) (int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
-	void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
-	pbool (*badfield)(progfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
+	builtin_t *(PDECL *builtinsfor) (int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
+	void (PDECL *loadcompleate) (int edictsize);	//notification to reset any pointers.
+	pbool (PDECL *badfield)(pubprogfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
 
 	void *(VARGS *memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use malloc if you want)
 	void (VARGS *memfree) (void * mem);
@@ -193,29 +207,17 @@ typedef struct progexterns_s {
 	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
 	unsigned int *sv_num_edicts;		//pointer to the engine's edict count.
 
-	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
-	void (*addressablerelocated) (progfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
+	int (PDECL *useeditor) (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
+	void (PDECL *addressablerelocated) (pubprogfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
 
 	void *user;	/*contains the owner's world reference in FTE*/
 } progparms_t, progexterns_t;
 
-//FIXMEs
-void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);
-void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *relstringtable);
-void ED_Print(progfuncs_t *progfuncs, struct edict_s *ed);
-char *PR_RemoveProgsString(progfuncs_t *progfuncs, string_t str);
-int PR_GetFuncArgCount(progfuncs_t *progfuncs, func_t func);
-
 #if defined(QCLIBDLL_EXPORTS)
 __declspec(dllexport)
 #endif
-progfuncs_t * InitProgs(progparms_t *ext);
-#if defined(QCLIBDLL_EXPORTS)
-__declspec(dllexport)
-#endif
-void CloseProgs(progfuncs_t *inst);
+pubprogfuncs_t * PDECL InitProgs(progparms_t *ext);
 
-#ifndef COMPILER
 typedef union eval_s
 {
 	string_t		string;
@@ -226,7 +228,6 @@ typedef union eval_s
 	int				edict;
 	float		prog;	//so it can easily be changed
 } eval_t;
-#endif
 
 #define PR_CURRENT	-1
 #define PR_ANY	-2	//not always valid. Use for finding funcs
@@ -239,7 +240,6 @@ typedef union eval_s
 #define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->LoadProgs)			(pf, s, headercrc, builtins, numb)
 #define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
 #define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)
-#define PR_SwitchProgs(pf, num)								(*pf->SwitchProgs)			(pf, num)
 #define PR_globals(pf, num)									(*pf->globals)				(pf, num)
 #define PR_entvars(pf, ent)									(*pf->entvars)				(pf, ent)
 

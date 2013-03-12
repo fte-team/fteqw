@@ -987,7 +987,7 @@ void R_Clear (void)
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
-		if (r_clear.ival && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && !r_secondaryview && !r_refdef.currentplayernum && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		{
 			qglClearColor(1, 0, 0, 0);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1065,7 +1065,7 @@ static void R_RenderMotionBlur(void)
 
 #if !defined(ANDROID) && !defined(NACL)
 	//figure out the size of our texture.
-	if (gl_config.arb_texture_non_power_of_two)
+	if (r_config.texture_non_power_of_two)
 	{	//we can use any size, supposedly
 		vwidth = vid.pixelwidth;
 		vheight = vid.pixelheight;
@@ -1181,7 +1181,7 @@ qboolean R_RenderScene_Cubemap(void)
 	prect.y = (vrect.y * vid.pixelheight)/vid.height;
 	prect.height = (vrect.height * vid.pixelheight)/vid.height;
 
-	if (gl_config.arb_texture_non_power_of_two)
+	if (r_config.texture_non_power_of_two)
 	{
 		if (prect.width < prect.height)
 			cmapsize = prect.width;
@@ -1369,10 +1369,10 @@ void GLR_RenderView (void)
 
 	checkglerror();
 
+	GL_Set2D (false);
+
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
-
-	GL_Set2D (false);
 
 	if (r_bloom.value)
 		R_BloomBlend();

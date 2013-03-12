@@ -2,12 +2,6 @@
 
 #ifndef CLIENTONLY
 
-#if defined(_WIN32) && !defined(MINGW)
-#define inline //_inline	//fix for stupid VC
-#elif defined(CLANG)
-#define inline // fix for stupid clang
-#endif
-
 #ifdef SVRANKING
 
 typedef struct {
@@ -35,7 +29,7 @@ char rank_cvargroup[] = "server rankings";
 #define RANKFILE_VERSION ((NUM_RANK_SPAWN_PARMS==32)?0:0x00000001)
 #define RANKFILE_IDENT	*(int*)"RANK"
 
-void inline READ_PLAYERSTATS(int x, rankstats_t *os)
+static void READ_PLAYERSTATS(int x, rankstats_t *os)
 {
 	int i;
 	size_t result;
@@ -57,7 +51,7 @@ void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 //	os->pad3 = (os->pad3);
 }
 
-void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
+static void WRITE_PLAYERSTATS(int x, rankstats_t *os)
 {
 	rankstats_t ns;
 	int i;
@@ -77,7 +71,7 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 	VFS_WRITE(rankfile, &ns, sizeof(rankstats_t));
 }
 
-void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
+static void READ_PLAYERHEADER(int x, rankheader_t *oh)
 {
 	size_t result;
 
@@ -95,7 +89,7 @@ void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 	oh->score = swapfloat(oh->score);
 }
 
-void inline WRITE_PLAYERHEADER(int x, rankheader_t *oh)
+static void WRITE_PLAYERHEADER(int x, rankheader_t *oh)
 {
 	rankheader_t nh;
 
@@ -110,13 +104,13 @@ void inline WRITE_PLAYERHEADER(int x, rankheader_t *oh)
 	VFS_WRITE(rankfile, &nh, sizeof(rankheader_t));
 }
 
-void inline READ_PLAYERINFO(int x, rankinfo_t *inf)
+static void READ_PLAYERINFO(int x, rankinfo_t *inf)
 {
 	READ_PLAYERHEADER(x, &inf->h);
 	READ_PLAYERSTATS(x, &inf->s);
 }
 
-void inline WRITEHEADER(void)
+static void WRITEHEADER(void)
 {
 	rankfileheader_t nh;
 
@@ -165,7 +159,7 @@ qboolean Rank_OpenRankings(void)
 		result = VFS_READ(rankfile, &rankfileheader, sizeof(rankfileheader_t));
 
 		if (result != sizeof(rankfileheader_t))
-			Con_Printf("Rank_OpenRankings() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankfileheader_t),(unsigned int)result);
+			Con_Printf("Rank_OpenRankings() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankfileheader_t),(unsigned int)result, rank_filename.string);
 
 		rankfileheader.version		= swaplong(rankfileheader.version);
 		rankfileheader.usedslots	= swaplong(rankfileheader.usedslots);

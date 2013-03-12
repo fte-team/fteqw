@@ -89,12 +89,12 @@ cvar_t	net_mtu = CVARD("net_mtu", "1450", "Specifies a maximum udp payload size,
 cvar_t	pext_replacementdeltas = CVAR("debug_pext_replacementdeltas", "0");	/*rename once the extension is finalized*/
 
 /*returns the entire bitmask of supported+enabled extensions*/
-unsigned int Net_PextMask(int maskset)
+unsigned int Net_PextMask(int maskset, qboolean fornq)
 {
 	unsigned int mask = 0;
 	if (maskset == 1) /*FTEX*/
 	{
-	#ifdef PEXT_SCALE	//dmw - protocol extensions
+	#ifdef PEXT_SCALE
 		mask |= PEXT_SCALE;
 	#endif
 	#ifdef PEXT_LIGHTSTYLECOL
@@ -166,6 +166,15 @@ unsigned int Net_PextMask(int maskset)
 	#ifdef PEXT_DPFLAGS
 		mask |= PEXT_DPFLAGS;
 	#endif
+
+		if (fornq)
+		{
+			//only ones that are tested
+			mask &= PEXT_CSQC | PEXT_FLOATCOORDS | PEXT_HLBSP | PEXT_Q2BSP | PEXT_Q3BSP;
+
+			//these all depend fully upon the player/entity deltas, and don't make sense for NQ. Implement PEXT2_REPLACEMENTDELTAS instead.
+			mask &= ~(PEXT_SCALE|PEXT_TRANS|PEXT_ACCURATETIMINGS|PEXT_FATNESS|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_COLOURMOD|PEXT_SPAWNSTATIC2|PEXT_256PACKETENTITIES|PEXT_SETATTACHMENT|PEXT_DPFLAGS); 
+		}
 	}
 	else if (maskset == 2)
 	{
@@ -180,6 +189,12 @@ unsigned int Net_PextMask(int maskset)
 
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
+
+		if (fornq)
+		{
+			//only ones that are tested
+			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS;
+		}
 	}
 
 	return mask;

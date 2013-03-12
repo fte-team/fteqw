@@ -215,11 +215,11 @@ void M_MenuS_TextBig_f (void)
 		Con_Printf("%s with no active menu\n", Cmd_Argv(0));
 		return;
 	}
-	if (*command)
+	if (!*command)
 		MC_AddConsoleCommandQBigFont(menu_script, x, y, text, command);
 	else
 	{
-		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, y, text, va("set option %s\n%s\n", command, menualias.string));
+		option = (menuoption_t *)MC_AddConsoleCommandQBigFont(menu_script, x, y, text, va("set option %s\n%s\n", command, menualias.string));
 		if (selectitem-- == 0)
 			menu_script->selecteditem = option;
 	}

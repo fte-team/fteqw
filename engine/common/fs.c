@@ -176,7 +176,7 @@ searchpath_t	*com_searchpaths;
 searchpath_t	*com_purepaths;
 searchpath_t	*com_base_searchpaths;	// without gamedirs
 
-int COM_FileSize(const char *path)
+int QDECL COM_FileSize(const char *path)
 {
 	int len;
 	flocation_t loc;
@@ -192,6 +192,7 @@ COM_Path_f
 */
 void COM_Path_f (void)
 {
+	char path[MAX_OSPATH];
 	searchpath_t	*s;
 
 	Con_TPrintf (TL_CURRENTSEARCHPATH);
@@ -201,9 +202,8 @@ void COM_Path_f (void)
 		Con_Printf ("Pure paths:\n");
 		for (s=com_purepaths ; s ; s=s->nextpure)
 		{
-			if (s->referenced)
-				Con_Printf("*");
-			s->funcs->PrintPath(s->handle);
+			s->funcs->GetDisplayPath(s->handle, path, sizeof(path));
+			Con_Printf("%s  %s%s%s\n", path, s->referenced?"(ref)":"", s->istemporary?"(temp)":"", s->copyprotected?"(c)":"");
 		}
 		Con_Printf ("----------\n");
 		Con_Printf ("Impure paths:\n");
@@ -215,9 +215,8 @@ void COM_Path_f (void)
 		if (s == com_base_searchpaths)
 			Con_Printf ("----------\n");
 
-		if (s->referenced)
-			Con_Printf("*");
-		s->funcs->PrintPath(s->handle);
+		s->funcs->GetDisplayPath(s->handle, path, sizeof(path));
+		Con_Printf("%s  %s%s%s\n", path, s->referenced?"(ref)":"", s->istemporary?"(temp)":"", s->copyprotected?"(c)":"");
 	}
 }
 
@@ -260,18 +259,18 @@ COM_Locate_f
 */
 void COM_Locate_f (void)
 {
+	char path[MAX_OSPATH];
 	flocation_t loc;
 	if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_LENGTH, &loc)>=0)
 	{
+		loc.search->funcs->GetDisplayPath(loc.search->handle, path, sizeof(path));
 		if (!*loc.rawname)
 		{
-			Con_Printf("File is %i bytes compressed inside ", loc.len);
-			loc.search->funcs->PrintPath(loc.search->handle);
+			Con_Printf("File is %i bytes compressed inside %s\n", loc.len, path);
 		}
 		else
 		{
-			Con_Printf("Inside %s (%i bytes)\n", loc.rawname, loc.len);
-			loc.search->funcs->PrintPath(loc.search->handle);
+			Con_Printf("Inside %s (%i bytes)\n  %s\n", loc.rawname, loc.len, path);
 		}
 	}
 	else
@@ -608,12 +607,11 @@ qboolean FS_GetPackageDownloadable(const char *package)
 {
 	searchpath_t	*search;
 
-	for (search = com_purepaths ; search ; search = search->nextpure)
+	for (search = com_searchpaths ; search ; search = search->next)
 	{
 		if (!strcmp(package, search->purepath))
 			return !search->copyprotected;
 	}
-
 	return false;
 }
 
@@ -691,7 +689,13 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 				if (referencedonly == 0 && !search->referenced)
 					continue;
 				if (referencedonly == 2 && search->referenced)
-					Q_strncatz(buffer, "*", buffersize);
+				{
+					// '*' prefix is meant to mean 'referenced'.
+					//really all that means to the client is that it definitely wants to download it.
+					//if its copyrighted, the client shouldn't try to do so, as it won't be allowed.
+					if (search->copyprotected)
+						Q_strncatz(buffer, "*", buffersize);
+				}
 
 				if (!ext)
 				{
@@ -1183,7 +1187,7 @@ void COM_LoadCacheFile (const char *path, struct cache_user_s *cu)
 }
 
 // uses temp hunk if larger than bufsize
-qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize)
+qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize)
 {
 	qbyte	*buf;
 
@@ -1375,7 +1379,7 @@ static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
 		snprintf (purefile, sizeof(purefile), "%s/%s", param->puredesc, descriptor);
 	else
 		Q_strncpyz(purefile, descriptor, sizeof(purefile));
-	FS_AddPathHandle(purefile, pakfile, funcs, pak, true, false, false, (unsigned int)-1);
+	FS_AddPathHandle(purefile, pakfile, funcs, pak, !Q_strcasecmp(descriptor, "pak"), false, false, (unsigned int)-1);
 
 	return true;
 }
@@ -1802,12 +1806,15 @@ const gamemode_info_t gamemode_info[] = {
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
 
-//rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
+//mission packs should generally come after the main game to avoid prefering the main game. we violate this for hexen2 as the mission pack is mostly a superset.
+//whereas the quake mission packs replace start.bsp making the original episodes unreachable.
+//for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
+
 	//cmdline switch exename    protocol name(dpmaster)  identifying file		exec     dir1       dir2    dir3       dir(fte)     full name
 	{"-quake",		"q1",		"DarkPlaces-Quake",		{"id1/pak0.pak",
 														 "id1/quake.rc"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"/*,    "id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
-	{"-hipnotic",	"hipnotic",	"Darkplaces-Hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
-	{"-rogue",		"rogue",	"Darkplaces-Rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
+	{"-hipnotic",	"hipnotic",	"Darkplaces-Hipnotic",	{"hipnotic/pak0.pak"},	NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
+	{"-rogue",		"rogue",	"Darkplaces-Rogue",		{"rogue/pak0.pak"},		NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
 	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic",	"data/xonotic-20120308-data.pk3|http://localhost/xonotic-0.6.0.zip"},
 	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",

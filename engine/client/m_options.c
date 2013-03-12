@@ -87,6 +87,7 @@ void M_Menu_Options_f (void)
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
 		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
+		MB_CONSOLECMD("Graphics Presets", "fps_preset\n", "Choose a different graphical preset to use."),
 		MB_CONSOLECMD("Audio Options", "menu_audio\n", "Set audio quality and speaker setup options."),
 		MB_SPACING(4),
 		MB_CONSOLECMD("FPS Options", "menu_fps\n", "Set model filtering and graphical profile options."),

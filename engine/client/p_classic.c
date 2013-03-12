@@ -380,7 +380,7 @@ static void PClassic_DrawParticles(void)
 	dvel = 4 * frametime;
 
 #ifdef POLYS
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == classicshader)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == classicshader && cl_stris[cl_numstris-1].numvert + 8 <= MAX_INDICIES)
 		scenetri = &cl_stris[cl_numstris-1];
 	else
 	{
@@ -391,6 +391,7 @@ static void PClassic_DrawParticles(void)
 		}
 		scenetri = &cl_stris[cl_numstris++];
 		scenetri->shader = classicshader;
+		scenetri->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 		scenetri->firstidx = cl_numstrisidx;
 		scenetri->firstvert = cl_numstrisvert;
 		scenetri->numvert = 0;

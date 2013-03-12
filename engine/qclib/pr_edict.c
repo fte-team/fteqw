@@ -23,8 +23,9 @@ QC_ClearEdict
 Sets everything to NULL
 =================
 */
-void QC_ClearEdict (progfuncs_t *progfuncs, struct edict_s *ed)
+void PDECL QC_ClearEdict (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e = (edictrun_t *)ed;
 	int num = e->entnum;
 	memset (e->fields, 0, fields_size);
@@ -36,11 +37,11 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num)
 {
 	edictrun_t *e;
 
-	prinst->edicttable[num] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
+	prinst.edicttable[num] = *(struct edict_s **)&e = (void*)externs->memalloc(externs->edictsize);
 	memset(e, 0, externs->edictsize);
 	e->fields = PRAddressableExtend(progfuncs, fields_size);
 	e->entnum = num;
-	QC_ClearEdict(progfuncs, (struct edict_s*)e);
+	QC_ClearEdict(&progfuncs->funcs, (struct edict_s*)e);
 
 	return e;
 }
@@ -56,12 +57,16 @@ instead of being removed and recreated, which can cause interpolated
 angles and bad trails.
 =================
 */
-struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
+struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int			i;
 	edictrun_t		*e;
 
-	for ( i=0 ; i<sv_num_edicts ; i++)
+	//define this to wastefully allocate extra ents, to test network capabilities.
+#define STEP 1//((i <= 32)?1:8)
+
+	for ( i=0 ; i<sv_num_edicts ; i+=STEP)
 	{
 		e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 		// the first couple seconds of server time can involve a lot of
@@ -71,7 +76,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			if (!e)
 				e = ED_AllocIntoTable(progfuncs, i);
 			else
-				QC_ClearEdict (progfuncs, (struct edict_s*)e);
+				QC_ClearEdict (&progfuncs->funcs, (struct edict_s*)e);
 
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) e, false);
@@ -81,7 +86,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 
 	if (i >= maxedicts-1)	//try again, but use timed out ents.
 	{
-		for ( i=0 ; i<sv_num_edicts ; i++)
+		for ( i=0 ; i<sv_num_edicts ; i+=STEP)
 		{
 			e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 			// the first couple seconds of server time can involve a lot of
@@ -91,7 +96,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 				if (!e)
 					e = ED_AllocIntoTable(progfuncs, i);
 				else
-					QC_ClearEdict (progfuncs, (struct edict_s*)e);
+					QC_ClearEdict (&progfuncs->funcs, (struct edict_s*)e);
 
 				if (externs->entspawn)
 					externs->entspawn((struct edict_s *) e, false);
@@ -102,25 +107,37 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		if (i >= maxedicts-2)
 		{
 			printf("Running out of edicts\n");
-			pr_trace = 1;	//trip the debugger whilst it's still valid
+			progfuncs->funcs.pr_trace = 1;	//trip the debugger whilst it's still valid
 		}
 		if (i >= maxedicts-1)
 		{
 			int size;
 			char *buf;
-			buf = progfuncs->save_ents(progfuncs, NULL, &size, 0);
-			progfuncs->parms->WriteFile("edalloc.dump", buf, size);
-			Sys_Error ("ED_Alloc: no free edicts (max is %i)", sv_num_edicts);
+			buf = PR_SaveEnts(&progfuncs->funcs, NULL, &size, 0);
+			progfuncs->funcs.parms->WriteFile("edalloc.dump", buf, size);
+			Sys_Error ("ED_Alloc: no free edicts (max is %i)", maxedicts);
 		}
 	}
 
+	while(sv_num_edicts < i)
+	{
+		e = (edictrun_t*)EDICT_NUM(progfuncs, sv_num_edicts);
+		if (!e)
+		{
+			e = ED_AllocIntoTable(progfuncs, sv_num_edicts);
+			if (externs->entspawn)
+				externs->entspawn((struct edict_s *) e, false);
+			e->isfree = true;
+		}
+		sv_num_edicts++;
+	}
 	sv_num_edicts++;
 	e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 
 	if (!e)
 		e = ED_AllocIntoTable(progfuncs, i);
 	else
-		QC_ClearEdict (progfuncs, (struct edict_s*)e);
+		QC_ClearEdict (&progfuncs->funcs, (struct edict_s*)e);
 
 	if (externs->entspawn)
 		externs->entspawn((struct edict_s *) e, false);
@@ -136,19 +153,20 @@ Marks the edict as free
 FIXME: walk all entities and NULL out references to this entity
 =================
 */
-void ED_Free (progfuncs_t *progfuncs, struct edict_s *ed)
+void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e = (edictrun_t *)ed;
 //	SV_UnlinkEdict (ed);		// unlink from world bsp
 
 	if (e->isfree)	//this happens on start.bsp where an onlyregistered trigger killtargets itself (when all of this sort die after 1 trigger anyway).
 	{
 		if (pr_depth)
-			printf("Tried to free free entity within %s\n", pr_xfunction->s_name+progfuncs->stringtable);
+			printf("Tried to free free entity within %s\n", pr_xfunction->s_name+progfuncs->funcs.stringtable);
 		else
 			printf("Engine tried to free free entity\n");
 //		if (developer.value == 1)
-//			pr_trace = true;
+//			progfuncs->funcs.pr_trace = true;
 		return;
 	}
 
@@ -217,17 +235,18 @@ fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs)
 //	ddef_t		*def;
 	unsigned int			i;
 
-	for (i=0 ; i<numfields ; i++)
+	for (i=0 ; i<prinst.numfields ; i++)
 	{
-		if (field[i].ofs == ofs)
-			return &field[i];
+		if (prinst.field[i].ofs == ofs)
+			return &prinst.field[i];
 	}
 	return NULL;
 }
-fdef_t *ED_FieldInfo (progfuncs_t *progfuncs, unsigned int *count)
+fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *ppf, unsigned int *count)
 {
-	*count = numfields;
-	return field;
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	*count = prinst.numfields;
+	return prinst.field;
 }
 /*
 ============
@@ -238,10 +257,10 @@ fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name)
 {
 	unsigned int			i;
 
-	for (i=0 ; i<numfields ; i++)
+	for (i=0 ; i<prinst.numfields ; i++)
 	{
-		if (!strcmp(field[i].name, name) )
-			return &field[i];
+		if (!strcmp(prinst.field[i].name, name) )
+			return &prinst.field[i];
 	}
 	return NULL;
 }
@@ -260,7 +279,7 @@ ddef16_t *ED_FindGlobal16 (progfuncs_t *progfuncs, char *name)
 	for (i=1 ; i<pr_progs->numglobaldefs ; i++)
 	{
 		def = &pr_globaldefs16[i];
-		if (!strcmp(def->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable,name) )
 			return def;
 	}
 	return NULL;
@@ -273,7 +292,7 @@ ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name)
 	for (i=1 ; i<pr_progs->numglobaldefs ; i++)
 	{
 		def = &pr_globaldefs32[i];
-		if (!strcmp(def->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable,name) )
 			return def;
 	}
 	return NULL;
@@ -306,7 +325,7 @@ ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum
 	for (i=1 ; i<pr_progstate[prnum].progs->numglobaldefs ; i++)
 	{
 		def = &pr_progstate[prnum].globaldefs16[i];
-		if (!strcmp(def->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable,name) )
 			return def;
 	}
 	return NULL;
@@ -319,7 +338,7 @@ ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum
 	for (i=1 ; i<pr_progstate[prnum].progs->numglobaldefs ; i++)
 	{
 		def = &pr_progstate[prnum].globaldefs32[i];
-		if (!strcmp(def->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable,name) )
 			return def;
 	}
 	return NULL;
@@ -333,7 +352,7 @@ ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, prog
 	for (i=1 ; i<pr_progstate[prnum].progs->numglobaldefs ; i++)
 	{
 		def = &pr_progstate[prnum].globaldefs16[i];
-		if (!strcmp(def->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable,name) )
 		{
 			if (pr_progstate[prnum].types)
 			{
@@ -357,7 +376,7 @@ ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, prog
 	for (i=1 ; i<pr_progstate[prnum].progs->numglobaldefs ; i++)
 	{
 		def = &pr_progstate[prnum].globaldefs32[i];
-		if (!strcmp(def->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable,name) )
 		{
 			if (pr_progstate[prnum].types)
 			{
@@ -442,7 +461,7 @@ dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pr
 	for (i=1 ; i<pr_progstate[pnum].progs->numfunctions ; i++)
 	{
 		func = &pr_progstate[pnum].functions[i];
-		if (!strcmp(func->s_name+progfuncs->stringtable,name) )
+		if (!strcmp(func->s_name+progfuncs->funcs.stringtable,name) )
 			return func;
 	}
 	return NULL;
@@ -452,7 +471,7 @@ dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pr
 ============
 PR_ValueString
 
-Returns a string describing *data in a type specific manner
+Returns a string describing *data in a human-readable type specific manner
 =============
 */
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
@@ -477,7 +496,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "union");
 		break;
 	case ev_string:
-		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
+		sprintf (line, "%s", PR_StringToNative(&progfuncs->funcs, val->string));
 		break;
 	case ev_entity:
 		fielddef = ED_FindField(progfuncs, "classname");
@@ -487,7 +506,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 			string_t *v;
 			ed = (edictrun_t *)EDICT_NUM(progfuncs, val->edict);
 			v = (string_t *)((char *)edvars(ed) + fielddef->ofs*4);
-			sprintf (line, "entity %i(%s)", val->edict, PR_StringToNative(progfuncs, *v));
+			sprintf (line, "entity %i(%s)", val->edict, PR_StringToNative(&progfuncs->funcs, *v));
 		}
 		else
 			sprintf (line, "entity %i", val->edict);
@@ -506,7 +525,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 				else
 				{
 					f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-					sprintf (line, "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->stringtable);
+					sprintf (line, "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->funcs.stringtable);
 				}
 			}
 		}
@@ -522,13 +541,13 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "void type");
 		break;
 	case ev_float:
-		sprintf (line, "%5.1f", val->_float);
+		sprintf (line, "%g", val->_float);
 		break;
 	case ev_integer:
 		sprintf (line, "%i", val->_int);
 		break;
 	case ev_vector:
-		sprintf (line, "'%5.1f %5.1f %5.1f'", val->_vector[0], val->_vector[1], val->_vector[2]);
+		sprintf (line, "'%g %g %g'", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	case ev_pointer:
 		sprintf (line, "pointer");
@@ -567,8 +586,9 @@ Returns a string describing *data in a type specific manner
 Easier to parse than PR_ValueString
 =============
 */
-char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
+char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	static char	line[256];
 	fdef_t		*fielddef;
 	dfunction_t	*f;
@@ -593,7 +613,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		{
 			char *outs = line;
 			int outb = sizeof(line)-2;
-			char *ins = PR_StringToNative(progfuncs, val->string);
+			char *ins = PR_StringToNative(&progfuncs->funcs, val->string);
 			//markup the output string.
 			while(*ins && outb > 0)
 			{
@@ -641,7 +661,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 			else
 			{
 				f = pr_progstate[(unsigned)i].functions + j;
-				sprintf (line, "%i:%s", i, f->s_name+progfuncs->stringtable);
+				sprintf (line, "%i:%s", i, f->s_name+progfuncs->funcs.stringtable);
 			}
 		}
 		break;
@@ -698,14 +718,14 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "unions cannot yet be saved");
 		break;
 	case ev_string:
-		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
+		sprintf (line, "%s", PR_StringToNative(&progfuncs->funcs, val->string));
 		break;
 	case ev_entity:
 		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
 		break;
 	case ev_function:
 		f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-		sprintf (line, "%s", f->s_name+progfuncs->stringtable);
+		sprintf (line, "%s", f->s_name+progfuncs->funcs.stringtable);
 		break;
 	case ev_field:
 		fielddef = ED_FieldAtOfs (progfuncs, val->_int );
@@ -802,7 +822,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 		else
 		{
 			s = PR_ValueString (progfuncs, def16->type, val);
-			sprintf (line,"%i(%s)%s", ofs, def16->s_name+progfuncs->stringtable, s);
+			sprintf (line,"%i(%s)%s", ofs, def16->s_name+progfuncs->funcs.stringtable, s);
 		}
 
 		i = strlen(line);
@@ -819,7 +839,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 		else
 		{
 			s = PR_ValueString (progfuncs, def32->type, val);
-			sprintf (line,"%i(%s)%s", ofs, def32->s_name+progfuncs->stringtable, s);
+			sprintf (line,"%i(%s)%s", ofs, def32->s_name+progfuncs->funcs.stringtable, s);
 		}
 
 		i = strlen(line);
@@ -847,7 +867,7 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 		if (!def16)
 			sprintf (line,"%i(?""?""?)", ofs);
 		else
-			sprintf (line,"%i(%s)", ofs, def16->s_name+progfuncs->stringtable);
+			sprintf (line,"%i(%s)", ofs, def16->s_name+progfuncs->funcs.stringtable);
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
@@ -855,7 +875,7 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 		if (!def32)
 			sprintf (line,"%i(?""?""?)", ofs);
 		else
-			sprintf (line,"%i(%s)", ofs, def32->s_name+progfuncs->stringtable);
+			sprintf (line,"%i(%s)", ofs, def32->s_name+progfuncs->funcs.stringtable);
 		break;
 	default:
 		Sys_Error("Bad struct type in PR_GlobalStringNoContents");
@@ -877,8 +897,9 @@ ED_Print
 For debugging
 =============
 */
-void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed)
+void PDECL ED_Print (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int		l;
 	fdef_t	*d;
 	int		*v;
@@ -893,9 +914,9 @@ void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed)
 	}
 
 	printf("\nEDICT %i:\n", NUM_FOR_EDICT(progfuncs, (struct edict_s *)ed));
-	for (i=1 ; i<numfields ; i++)
+	for (i=1 ; i<prinst.numfields ; i++)
 	{
-		d = &field[i];
+		d = &prinst.field[i];
 		name = d->name;
 		l = strlen(name);
 		if (l >= 2 && name[l-2] == '_')
@@ -927,7 +948,7 @@ void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed)
 
 void ED_PrintNum (progfuncs_t *progfuncs, int ent)
 {
-	ED_Print (progfuncs, EDICT_NUM(progfuncs, ent));
+	ED_Print (&progfuncs->funcs, EDICT_NUM(progfuncs, ent));
 }
 
 /*
@@ -992,8 +1013,9 @@ void ED_Count (progfuncs_t *progfuncs)
 ED_NewString
 =============
 */
-char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength)
+char *PDECL ED_NewString (pubprogfuncs_t *ppf, char *string, int minlength)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	char	*newc, *new_p;
 	int		i,l;
 
@@ -1001,9 +1023,9 @@ char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength)
 
 	l = strlen(string) + 1;
 
-	newc = progfuncs->AddressableAlloc (progfuncs, l<minlength?minlength:l);
+	newc = progfuncs->funcs.AddressableAlloc (&progfuncs->funcs, l<minlength?minlength:l);
 	if (!newc)
-		return progfuncs->stringtable;
+		return progfuncs->funcs.stringtable;
 
 	new_p = newc;
 
@@ -1033,8 +1055,9 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-pbool	ED_ParseEval (progfuncs_t *progfuncs, eval_t *eval, int type, char *s)
+pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, char *s)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int		i;
 	char	string[128];
 	fdef_t	*def;
@@ -1045,7 +1068,7 @@ pbool	ED_ParseEval (progfuncs_t *progfuncs, eval_t *eval, int type, char *s)
 	switch (type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_string:
-		st = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, s, 0));
+		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0));
 		eval->string = st;
 		break;
 
@@ -1129,16 +1152,16 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 	switch (type)
 	{
 	case ev_string:
-		st = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, s, 0));
-		*(string_t *)(progfuncs->stringtable + qcptr) = st;
+		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0));
+		*(string_t *)(progfuncs->funcs.stringtable + qcptr) = st;
 		break;
 
 	case ev_float:
-		*(float *)(progfuncs->stringtable + qcptr) = (float)atof (s);
+		*(float *)(progfuncs->funcs.stringtable + qcptr) = (float)atof (s);
 		break;
 
 	case ev_integer:
-		*(int *)(progfuncs->stringtable + qcptr) = atoi (s);
+		*(int *)(progfuncs->funcs.stringtable + qcptr) = atoi (s);
 		break;
 
 	case ev_vector:
@@ -1151,20 +1174,20 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 				v++;
 			if (!*v)
 			{
-				((float *)(progfuncs->stringtable + qcptr))[i] = (float)atof (w);
+				((float *)(progfuncs->funcs.stringtable + qcptr))[i] = (float)atof (w);
 				w = v;
 			}
 			else
 			{
 				*v = 0;
-				((float *)(progfuncs->stringtable + qcptr))[i] = (float)atof (w);
+				((float *)(progfuncs->funcs.stringtable + qcptr))[i] = (float)atof (w);
 				w = v = v+1;
 			}
 		}
 		break;
 
 	case ev_entity:
-		*(int *)(progfuncs->stringtable + qcptr) = atoi (s);
+		*(int *)(progfuncs->funcs.stringtable + qcptr) = atoi (s);
 		break;
 
 	case ev_field:
@@ -1174,13 +1197,13 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 			printf ("Can't find field %s\n", s);
 			return false;
 		}
-		*(int *)(progfuncs->stringtable + qcptr) = def->ofs;
+		*(int *)(progfuncs->funcs.stringtable + qcptr) = def->ofs;
 		break;
 
 	case ev_function:
 		if (s[1]==':'&&s[2]=='\0')
 		{
-			*(func_t *)(progfuncs->stringtable + qcptr) = 0;
+			*(func_t *)(progfuncs->funcs.stringtable + qcptr) = 0;
 			return true;
 		}
 		func = ED_FindFunction (progfuncs, s, &i, -1);
@@ -1189,7 +1212,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 			printf ("Can't find function %s\n", s);
 			return false;
 		}
-		*(func_t *)(progfuncs->stringtable + qcptr) = (func - pr_progstate[i].functions) | (i<<24);
+		*(func_t *)(progfuncs->funcs.stringtable + qcptr) = (func - pr_progstate[i].functions) | (i<<24);
 		break;
 
 	default:
@@ -1291,14 +1314,14 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 			if (!strcmp(keyname, "light"))	//Quake lighthack - allows a field name and a classname to go by the same thing in the level editor
 				if ((key = ED_FindField (progfuncs, "light_lev")))
 					goto cont;
-			if (externs->badfield && externs->badfield(progfuncs, (struct edict_s*)ent, keyname, qcc_token))
+			if (externs->badfield && externs->badfield(&progfuncs->funcs, (struct edict_s*)ent, keyname, qcc_token))
 				continue;
 			printf ("'%s' is not a field\n", keyname);
 			continue;
 		}
 
 cont:
-		if (!ED_ParseEpair (progfuncs, (char*)ent->fields - progfuncs->stringtable, key->ofs, key->type, qcc_token))
+		if (!ED_ParseEpair (progfuncs, (char*)ent->fields - progfuncs->funcs.stringtable, key->ofs, key->type, qcc_token))
 		{
 			continue;
 //			Sys_Error ("ED_ParseEdict: parse error on entities");
@@ -1347,7 +1370,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			def16 = &pr_globaldefs16[i];
-			name = def16->s_name + progfuncs->stringtable;
+			name = def16->s_name + progfuncs->funcs.stringtable;
 			len = strlen(name);
 			if (!*name)
 				continue;
@@ -1368,9 +1391,9 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 				v = (int *)&current_progstate->globals[def16->ofs];
 				if ((v[0]&0xff000000)>>24 == (unsigned)curprogs)	//same progs
 				{
-					if (!progfuncs->stringtable[current_progstate->functions[v[0]&0x00ffffff].s_name])
+					if (!progfuncs->funcs.stringtable[current_progstate->functions[v[0]&0x00ffffff].s_name])
 						continue;
-					else if (!strcmp(current_progstate->functions[v[0]&0x00ffffff].s_name+ progfuncs->stringtable, name))	//names match. Assume function is at initial value.
+					else if (!strcmp(current_progstate->functions[v[0]&0x00ffffff].s_name+ progfuncs->funcs.stringtable, name))	//names match. Assume function is at initial value.
 						continue;
 				}
 
@@ -1378,9 +1401,9 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 				if ((v[0]&0xff000000)>>24 == 0)
 					if (!ED_FindFunction(progfuncs, name, NULL, curprogs))	//defined as extern
 					{
-						if (!progfuncs->stringtable[pr_progstate[0].functions[v[0]&0x00ffffff].s_name])
+						if (!progfuncs->funcs.stringtable[pr_progstate[0].functions[v[0]&0x00ffffff].s_name])
 							continue;
-						else if (!strcmp(pr_progstate[0].functions[v[0]&0x00ffffff].s_name + progfuncs->stringtable, name))	//same name.
+						else if (!strcmp(pr_progstate[0].functions[v[0]&0x00ffffff].s_name + progfuncs->funcs.stringtable, name))	//same name.
 							continue;
 					}
 
@@ -1405,7 +1428,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 
  add16:
 			AddS (qcva("\"%s\" ", name));
-			AddS (qcva("\"%s\"\n", PR_UglyValueString(progfuncs, def16->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
+			AddS (qcva("\"%s\"\n", PR_UglyValueString(&progfuncs->funcs, def16->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
 		}
 		break;
 	case PST_QTEST:
@@ -1413,7 +1436,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			def32 = &pr_globaldefs32[i];
-			name = def32->s_name + progfuncs->stringtable;
+			name = def32->s_name + progfuncs->funcs.stringtable;
 			if (name[strlen(name)-2] == '_')
 				continue;	// skip _x, _y, _z vars (vector components, which are saved as one vector not 3 floats)
 
@@ -1430,13 +1453,13 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 			{
 				v = (int *)&current_progstate->globals[def32->ofs];
 				if ((v[0]&0xff000000)>>24 == (unsigned)curprogs)	//same progs
-					if (!strcmp(current_progstate->functions[v[0]&0x00ffffff].s_name+ progfuncs->stringtable, name))	//names match. Assume function is at initial value.
+					if (!strcmp(current_progstate->functions[v[0]&0x00ffffff].s_name+ progfuncs->funcs.stringtable, name))	//names match. Assume function is at initial value.
 						continue;
 
 				if (curprogs!=0)
 				if ((v[0]&0xff000000)>>24 == 0)
 					if (!ED_FindFunction(progfuncs, name, NULL, curprogs))	//defined as extern
-						if (!strcmp(pr_progstate[0].functions[v[0]&0x00ffffff].s_name+ progfuncs->stringtable, name))	//same name.
+						if (!strcmp(pr_progstate[0].functions[v[0]&0x00ffffff].s_name+ progfuncs->funcs.stringtable, name))	//same name.
 							continue;
 
 				//else function has been redirected externally.
@@ -1459,7 +1482,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 				continue;
 add32:
 			AddS (qcva("\"%s\" ", name));
-			AddS (qcva("\"%s\"\n", PR_UglyValueString(progfuncs, def32->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
+			AddS (qcva("\"%s\"\n", PR_UglyValueString(&progfuncs->funcs, def32->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
 		}
 		break;
 	default:
@@ -1478,10 +1501,11 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 	char	*name;
 	int		type;
 	int len;
+	char *tmp;
 
-	for (i=0 ; i<numfields ; i++)
+	for (i=0 ; i<prinst.numfields ; i++)
 	{
-		d = &field[i];
+		d = &prinst.field[i];
 		name = d->name;
 		len = strlen(name);
 		if (len>4 && (name[len-2] == '_' && (name[len-1] == 'x' || name[len-1] == 'y' || name[len-1] == 'z')))
@@ -1503,8 +1527,14 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 			continue;
 
 		//add it to the file
-		AddS (qcva("\"%s\" ",name));
-		AddS (qcva("\"%s\"\n", (q1compatible?PR_UglyOldValueString:PR_UglyValueString)(progfuncs, d->type, (eval_t *)v)));
+		tmp = qcva("\"%s\"\n", name);
+		AddS (tmp);
+		if (q1compatible)
+			tmp = PR_UglyOldValueString(progfuncs, d->type, (eval_t *)v);
+		else
+			tmp = PR_UglyValueString(&progfuncs->funcs, d->type, (eval_t *)v);
+		tmp = qcva("\"%s\"\n", tmp);
+		AddS (tmp);
 	}
 
 	return buffer;
@@ -1551,9 +1581,9 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *s)
 				AddS (buffer);
 			}
 			if (!f->s_file)
-				sprintf(buffer, "\t\"%i:%s\"\n", progs, f->s_name+progfuncs->stringtable);
+				sprintf(buffer, "\t\"%i:%s\"\n", progs, f->s_name+progfuncs->funcs.stringtable);
 			else
-				sprintf(buffer, "\t\"%i:%s\" //%s\n", progs, f->s_name+progfuncs->stringtable, f->s_file+progfuncs->stringtable);
+				sprintf(buffer, "\t\"%i:%s\" //%s\n", progs, f->s_name+progfuncs->funcs.stringtable, f->s_file+progfuncs->funcs.stringtable);
 			AddS (buffer);
 
 			AddS ("\t{\n");
@@ -1567,10 +1597,10 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *s)
 				{
 					if (local->type == ev_entity)
 					{
-						sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name+progfuncs->stringtable, ((eval_t*)(globalbase - f->locals+arg))->edict);
+						sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name+progfuncs->funcs.stringtable, ((eval_t*)(globalbase - f->locals+arg))->edict);
 					}
 					else
-						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", local->s_name+progfuncs->stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
+						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
 
 					if (local->type == ev_vector)
 						arg+=2;
@@ -1592,8 +1622,9 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *s)
 //there are two ways of saving everything.
 //0 is to save just the entities.
 //1 is to save the entites, and all the progs info so that all the variables are saved off, and it can be reloaded to exactly how it was (provided no files or data has been changed outside, like the progs.dat for example)
-char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
+char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *mem, int *len, int alldata)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 #define AddS(str) strcpy(s, str);s+=strlen(str);
 	char *s, *os;
 	unsigned int a;
@@ -1604,7 +1635,7 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 		os = s = mem;
 	}
 	else
-		os = s = memalloc(5*1024*1024);
+		os = s = externs->memalloc(5*1024*1024);
 
 	if (alldata == 2)
 	{	//special Q1 savegame compatability mode.
@@ -1618,7 +1649,7 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 		}
 		if (!pr_progstate[0].progs || a != maxprogs)	//the state of the progs wasn't Q1 compatible.
 		{
-			memfree(os);
+			externs->memfree(os);
 			return NULL;
 		}
 
@@ -1705,7 +1736,7 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 	{
 		edictrun_t *ed = (edictrun_t *)EDICT_NUM(progfuncs, a);
 
-		if (ed->isfree)
+		if (!ed || ed->isfree)
 			continue;
 
 		AddS (qcva("entity %i{\n", a));
@@ -1724,8 +1755,9 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 int header_crc;
 
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
-int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
+int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, char *file, float killonspawnflags)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	eval_t *fulldata;	//this is part of FTE_FULLSPAWNDATA
 	char *datastart;
 
@@ -1761,7 +1793,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 	{
 		isloadgame = false;
 
-		fulldata = PR_FindGlobal(progfuncs, "__fullspawndata", PR_ANY, NULL);
+		fulldata = PR_FindGlobal(&progfuncs->funcs, "__fullspawndata", PR_ANY, NULL);
 	}
 
 	while(1)
@@ -1779,7 +1811,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 		{
 			if (entsize == 0 && resethunk)	//edicts have not yet been initialized, and this is a compleate load (memsize has been set)
 			{
-				entsize = PR_InitEnts(progfuncs, maxedicts);
+				entsize = PR_InitEnts(&progfuncs->funcs, maxedicts);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)
@@ -1802,7 +1834,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			if (qcc_token[0] != '{')
 				Sys_Error("Progs loading found %s, not '{'", qcc_token);
 			if (!resethunk)
-				ed = (edictrun_t *)ED_Alloc(progfuncs);
+				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
 			else
 			{
 				ed = (edictrun_t *)EDICT_NUM(progfuncs, num);
@@ -1820,7 +1852,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 			if (killonspawnflags)
 			{
-				var = GetEdictFieldValue (progfuncs, (struct edict_s *)&ed, "spawnflags", &spawnflagscache);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)&ed, "spawnflags", &spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -1834,14 +1866,14 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			if (!resethunk)
 			{
 				dfunction_t *f;
-				if ((var = GetEdictFieldValue (progfuncs, (struct edict_s *)ed, "classname", NULL)))
+				if ((var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", NULL)))
 				{
-					f = ED_FindFunction(progfuncs, var->string + progfuncs->stringtable, NULL, -1);
+					f = ED_FindFunction(progfuncs, var->string + progfuncs->funcs.stringtable, NULL, -1);
 					if (f)
 					{
 						var = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
 						var->edict = EDICT_TO_PROG(progfuncs, ed);
-						PR_ExecuteProgram(progfuncs, f-pr_functions);
+						PR_ExecuteProgram(&progfuncs->funcs, f-pr_functions);
 					}
 				}
 			}
@@ -1904,7 +1936,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 		{
 			if (entsize == 0 && resethunk)	//by the time we parse some globals, we MUST have loaded all progs
 			{
-				entsize = PR_InitEnts(progfuncs, maxedicts);
+				entsize = PR_InitEnts(&progfuncs->funcs, maxedicts);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)
@@ -1950,7 +1982,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d16->ofs, d16->type, qcc_token);
+						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->funcs.stringtable, d16->ofs, d16->type, qcc_token);
 					}
 					break;
 				case PST_QTEST:
@@ -1963,7 +1995,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d32->ofs, d32->type, qcc_token);
+						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->funcs.stringtable, d32->ofs, d32->type, qcc_token);
 					}
 					break;
 				default:
@@ -2027,12 +2059,12 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			PRAddressableFlush(progfuncs, -1);
 			resethunk=true;
 
-			pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * maxprogs);
+			pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * maxprogs, "progstatetable");
 			pr_typecurrent=0;
 
 			sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 			sv_edicts=(struct edict_s *)&tempedict;
-			prinst->edicttable = &sv_edicts;
+			prinst.edicttable = &sv_edicts;
 
 
 			sv_num_edicts = numents;	//should be fine
@@ -2065,7 +2097,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d16->ofs, d16->type, qcc_token);
+								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->funcs.stringtable, d16->ofs, d16->type, qcc_token);
 							}
 							break;
 						case PST_QTEST:
@@ -2078,7 +2110,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d32->ofs, d32->type, qcc_token);
+								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->funcs.stringtable, d32->ofs, d32->type, qcc_token);
 							}
 							break;
 						default:
@@ -2105,7 +2137,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 			if (entsize == 0 && resethunk)	//edicts have not yet been initialized, and this is a compleate load (memsize has been set)
 			{
-				entsize = PR_InitEnts(progfuncs, maxedicts);
+				entsize = PR_InitEnts(&progfuncs->funcs, maxedicts);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)
@@ -2123,7 +2155,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			if (!ed)	//first entity
 				ed = (edictrun_t *)EDICT_NUM(progfuncs, 0);
 			else
-				ed = (edictrun_t *)ED_Alloc(progfuncs);
+				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
 			ed->isfree = false;
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) ed, true);
@@ -2131,7 +2163,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 			if (killonspawnflags)
 			{
-				var = GetEdictFieldValue (progfuncs, (struct edict_s *)ed, "spawnflags", &spawnflagscache);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "spawnflags", &spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -2148,13 +2180,13 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				char *eclassname;
 				func_t f;
 				if (!CheckSpawn)
-					CheckSpawn = PR_FindFunc(progfuncs, "CheckSpawn", -2);
+					CheckSpawn = PR_FindFunc(&progfuncs->funcs, "CheckSpawn", -2);
 
-				var = GetEdictFieldValue (progfuncs, (struct edict_s *)ed, "classname", NULL);
-				if (!var || !var->string || !*PR_StringToNative(progfuncs, var->string))
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", NULL);
+				if (!var || !var->string || !*PR_StringToNative(&progfuncs->funcs, var->string))
 				{
 					printf("No classname\n");
-					ED_Free(progfuncs, (struct edict_s *)ed);
+					ED_Free(&progfuncs->funcs, (struct edict_s *)ed);
 				}
 				else
 				{
@@ -2163,52 +2195,52 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					{	//essentually, it passes the ent's spawn info to the ent.
 						char *nl;	//otherwise it sees only the named fields of
 						char *spawndata;//a standard quake ent.
-						spawndata = PRHunkAlloc(progfuncs, file - datastart +1);
+						spawndata = PRHunkAlloc(progfuncs, file - datastart +1, "fullspawndata");
 						strncpy(spawndata, datastart, file - datastart);
 						spawndata[file - datastart] = '\0';
 						for (nl = spawndata; *nl; nl++)
 							if (*nl == '\n')
 								*nl = '\t';
-						fulldata->string = PR_StringToProgs(progfuncs, spawndata);
+						fulldata->string = PR_StringToProgs(&progfuncs->funcs, spawndata);
 					}
 
 					if (!selfvar)
-						selfvar = PR_FindGlobal(progfuncs, "self", PR_ANY, NULL);
+						selfvar = PR_FindGlobal(&progfuncs->funcs, "self", PR_ANY, NULL);
 					if (selfvar)
 						selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
 
 					//DP_SV_SPAWNFUNC_PREFIX support
-					eclassname = PR_StringToNative(progfuncs, var->string);
+					eclassname = PR_StringToNative(&progfuncs->funcs, var->string);
 #ifdef _WIN32
 					_snprintf(filename, sizeof(filename), "spawnfunc_%s", eclassname);
 					filename[sizeof(filename)-1] = 0;
 #else
 					snprintf(filename, sizeof(filename), "spawnfunc_%s", eclassname);
 #endif
-					f = PR_FindFunc(progfuncs, filename, PR_ANYBACK);
+					f = PR_FindFunc(&progfuncs->funcs, filename, PR_ANYBACK);
 					if (!f)
-						f = PR_FindFunc(progfuncs, eclassname, PR_ANYBACK);
+						f = PR_FindFunc(&progfuncs->funcs, eclassname, PR_ANYBACK);
 					if (f)
 					{
 						if (CheckSpawn)
 						{
 							G_INT(OFS_PARM0) = f;
-							PR_ExecuteProgram(progfuncs, CheckSpawn);
+							PR_ExecuteProgram(&progfuncs->funcs, CheckSpawn);
 							//call the spawn func or remove.
 						}
 						else
-							PR_ExecuteProgram(progfuncs, f);
+							PR_ExecuteProgram(&progfuncs->funcs, f);
 					}
 					else if (CheckSpawn)
 					{
 						G_INT(OFS_PARM0) = 0;
-						PR_ExecuteProgram(progfuncs, CheckSpawn);
+						PR_ExecuteProgram(&progfuncs->funcs, CheckSpawn);
 						//the mod is responsible for freeing unrecognised ents.
 					}
 					else
 					{
-						printf("Couldn't find spawn function %s\n", PR_StringToNative(progfuncs, var->string));
-						ED_Free(progfuncs, (struct edict_s *)ed);
+						printf("Couldn't find spawn function %s\n", PR_StringToNative(&progfuncs->funcs, var->string));
+						ED_Free(&progfuncs->funcs, (struct edict_s *)ed);
 					}
 				}
 			}
@@ -2239,8 +2271,9 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 #define AddS(str) strcpy(s, str);s+=strlen(str);
 
-char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
+char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, struct edict_s *ed)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	fdef_t	*d;
 	int		*v;
 	unsigned int		i;unsigned int j;
@@ -2255,11 +2288,11 @@ char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
 	AddS ("{\n");
 
 
-	for (i=0 ; i<numfields ; i++)
+	for (i=0 ; i<prinst.numfields ; i++)
 	{
 		int len;
 
-		d = &field[i];
+		d = &prinst.field[i];
 		name = d->name;
 		len = strlen(name); // should we skip vars with no name?
 		if (len > 2 && name[len-2] == '_')
@@ -2277,7 +2310,7 @@ char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
 
 		//add it to the file
 		AddS (qcva("\"%s\" ",name));
-		AddS (qcva("\"%s\"\n", PR_UglyValueString(progfuncs, d->type, (eval_t *)v)));
+		AddS (qcva("\"%s\"\n", PR_UglyValueString(&progfuncs->funcs, d->type, (eval_t *)v)));
 	}
 
 	AddS ("}\n");
@@ -2286,8 +2319,9 @@ char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
 
 	return buf;
 }
-struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
+struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, char *buf, int *size, struct edict_s *ed)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *ent;
 	char *start = buf;
 
@@ -2299,7 +2333,7 @@ struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct
 		Sys_Error("Restore Ent with no opening brace");
 
 	if (!ed)
-		ent = (edictrun_t *)ED_Alloc(progfuncs);
+		ent = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
 	else
 		ent = (edictrun_t *)ed;
 	ent->isfree = false;
@@ -2360,7 +2394,7 @@ void PR_TestForWierdness(progfuncs_t *progfuncs)
 		if ((pr_globaldefs16[i].type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
 		{
 			if (G_INT(pr_globaldefs16[i].ofs) < 0 || G_INT(pr_globaldefs16[i].ofs) >= addressableused)
-				printf("String type irregularity on \"%s\" \"%s\"\n", pr_globaldefs16[i].s_name+progfuncs->stringtable, G_INT(pr_globaldefs16[i].ofs)+progfuncs->stringtable);
+				printf("String type irregularity on \"%s\" \"%s\"\n", pr_globaldefs16[i].s_name+progfuncs->funcs.stringtable, G_INT(pr_globaldefs16[i].ofs)+progfuncs->funcs.stringtable);
 		}
 	}
 
@@ -2374,7 +2408,7 @@ void PR_TestForWierdness(progfuncs_t *progfuncs)
 				if (ed->isfree)
 					continue;
 				if (((int *)ed->fields)[field[i].ofs] < 0 || ((int *)ed->fields)[field[i].ofs] >= addressableused)
-					printf("String type irregularity \"%s\" \"%s\"\n", field[i].name, ((int *)ed->fields)[field[i].ofs]+progfuncs->stringtable);
+					printf("String type irregularity \"%s\" \"%s\"\n", field[i].name, ((int *)ed->fields)[field[i].ofs]+progfuncs->funcs.stringtable);
 			}
 		}
 	}
@@ -2412,7 +2446,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, char *filename, int headercrc, p
 
 	int hmark=0xffffffff;
 
-	int reorg = prinst->reorganisefields || numfields;
+	int reorg = prinst.reorganisefields || prinst.numfields;
 
 	int stringadjust;
 
@@ -2462,7 +2496,7 @@ retry:
 	}
 
 	hmark = PRHunkMark(progfuncs);
-	pr_progs = PRHunkAlloc(progfuncs, len+1);
+	pr_progs = PRHunkAlloc(progfuncs, len+1, "proginfo");
 	if (!externs->ReadFile(filename, pr_progs, len+1))
 	{
 		if (!complain)
@@ -2595,7 +2629,7 @@ retry:
 			default:
 				Sys_Error("Bad struct type");
 			}
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dstatements");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_statements16), len, 2, (char *)(((int *)pr_statements16)+1), s);
 
 			current_progstate->statements = (dstatement16_t *)s;
@@ -2613,7 +2647,7 @@ retry:
 			default:
 				Sys_Error("Bad struct type");
 			}
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dglobaldefs");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globaldefs16), len, 2, (char *)(((int *)pr_globaldefs16)+1), s);
 
 			gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)s;
@@ -2631,7 +2665,7 @@ retry:
 			default:
 				Sys_Error("Bad struct type");
 			}
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "progfieldtable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_fielddefs16), len, 2, (char *)(((int *)pr_fielddefs16)+1), s);
 
 			*(ddef16_t**)&current_progstate->fielddefs = (ddef16_t *)s;
@@ -2639,7 +2673,7 @@ retry:
 		if (pr_progs->blockscompressed & 8)	//functions
 		{
 			len=sizeof(dfunction_t)*pr_progs->numfunctions;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dfunctiontable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_functions), len, 2, (char *)(((int *)pr_functions)+1), s);
 
 			fnc = pr_functions = (dfunction_t *)s;
@@ -2647,7 +2681,7 @@ retry:
 		if (pr_progs->blockscompressed & 16)	//string table
 		{
 			len=sizeof(char)*pr_progs->numstrings;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dstringtable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_strings), len, 2, (char *)(((int *)pr_strings)+1), s);
 
 			pr_strings = (char *)s;
@@ -2655,7 +2689,7 @@ retry:
 		if (pr_progs->blockscompressed & 32)	//globals
 		{
 			len=sizeof(float)*pr_progs->numglobals;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dglobaltable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globals), len, 2, (char *)(((int *)pr_globals)+1), s);
 
 			glob = pr_globals = (float *)s;
@@ -2663,7 +2697,7 @@ retry:
 		if (pr_linenums && pr_progs->blockscompressed & 64)	//line numbers
 		{
 			len=sizeof(int)*pr_progs->numstatements;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dlinenumtable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_linenums), len, 2, (char *)(((int *)pr_linenums)+1), s);
 
 			pr_linenums = (int *)s;
@@ -2671,7 +2705,7 @@ retry:
 		if (pr_types && pr_progs->blockscompressed & 128)	//types
 		{
 			len=sizeof(typeinfo_t)*pr_progs->numtypes;
-			s = PRHunkAlloc(progfuncs, len);
+			s = PRHunkAlloc(progfuncs, len, "dtypes");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_types), len, 2, (char *)(((int *)pr_types)+1), s);
 
 			pr_types = (typeinfo_t *)s;
@@ -2688,8 +2722,8 @@ retry:
 	memcpy(s, pr_globals, len);
 	glob = pr_globals = (float *)s;
 
-	if (progfuncs->stringtable)
-		stringadjust = pr_strings - progfuncs->stringtable;
+	if (progfuncs->funcs.stringtable)
+		stringadjust = pr_strings - progfuncs->funcs.stringtable;
 	else
 		stringadjust = 0;
 
@@ -2707,7 +2741,7 @@ retry:
 		strcat(lnoname, ".lno");
 		if ((len=externs->FileSize(lnoname))>0)
 		{
-			file = PRHunkAlloc(progfuncs, len+1);
+			file = PRHunkAlloc(progfuncs, len+1, "line numbers");
 			if (externs->ReadFile(lnoname, file, len+1))
 			{
 				if (	file[0] != lnotype
@@ -2844,26 +2878,26 @@ retry:
 				else
 					type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 
-				if (progfuncs->fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
-					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->fieldadjust), -1);
+				if (progfuncs->funcs.fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
+					QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->funcs.fieldadjust), -1);
 				else if (type == ev_vector)	//emit vector vars early, so their fields cannot be alocated before the vector itself. (useful against scramblers)
 				{
-					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, -1, fld16[i].ofs);
+					QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings, -1, fld16[i].ofs);
 				}
 			}
 			else
 			{
 				fdef_t *nf;
-				if (numfields+1>maxfields)
+				if (prinst.numfields+1>prinst.maxfields)
 				{
-					i = maxfields;
-					maxfields += 32;
-					nf = memalloc(sizeof(fdef_t) * maxfields);
-					memcpy(nf, field, sizeof(fdef_t) * i);
-					memfree(field);
-					field = nf;
+					i = prinst.maxfields;
+					prinst.maxfields += 32;
+					nf = externs->memalloc(sizeof(fdef_t) * prinst.maxfields);
+					memcpy(nf, prinst.field, sizeof(fdef_t) * i);
+					externs->memfree(prinst.field);
+					prinst.field = nf;
 				}
-				nf = &field[numfields];
+				nf = &prinst.field[prinst.numfields];
 				nf->name = fld16[i].s_name+pr_strings;
 				nf->type = fld16[i].type;
 				nf->progsofs = fld16[i].ofs;
@@ -2872,11 +2906,11 @@ retry:
 				if (fields_size < (nf->ofs+type_size[nf->type])*4)
 					fields_size = (nf->ofs+type_size[nf->type])*4;
 
-				numfields++;
+				prinst.numfields++;
 			}
 			fld16[i].s_name += stringadjust;
 		}
-		if (reorg && !(progfuncs->fieldadjust && !pr_typecurrent))
+		if (reorg && !(progfuncs->funcs.fieldadjust && !pr_typecurrent))
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 			if (pr_types)
@@ -2884,7 +2918,7 @@ retry:
 			else
 				type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 			if (type != ev_vector)
-				QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings-stringadjust, -1, fld16[i].ofs);
+				QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings-stringadjust, -1, fld16[i].ofs);
 		}
 
 		break;
@@ -2932,14 +2966,14 @@ retry:
 					type = pr_types[pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
 				else
 					type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
-				if (progfuncs->fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
-					QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings, 4*(pr_fielddefs32[i].ofs+progfuncs->fieldadjust), -1);
+				if (progfuncs->funcs.fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
+					QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings, 4*(pr_fielddefs32[i].ofs+progfuncs->funcs.fieldadjust), -1);
 				else if (type == ev_vector)
-					QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings, -1, pr_fielddefs32[i].ofs);
+					QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings, -1, pr_fielddefs32[i].ofs);
 			}
 			pr_fielddefs32[i].s_name += stringadjust;
 		}
-		if (reorg && !(progfuncs->fieldadjust && !pr_typecurrent))
+		if (reorg && !(progfuncs->funcs.fieldadjust && !pr_typecurrent))
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 			if (pr_types)
@@ -2947,7 +2981,7 @@ retry:
 			else
 				type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 			if (type != ev_vector)
-				QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings-stringadjust, -1, pr_fielddefs32[i].ofs);
+				QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings-stringadjust, -1, pr_fielddefs32[i].ofs);
 		}
 		break;
 	default:
@@ -3068,15 +3102,15 @@ retry:
 			{
 				gd16[i].type &= ~DEF_SHARED;
 				if (pr_types)
-					QC_AddSharedVar(progfuncs, gd16[i].ofs, pr_types[gd16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].size);
+					QC_AddSharedVar(&progfuncs->funcs, gd16[i].ofs, pr_types[gd16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].size);
 				else
-					QC_AddSharedVar(progfuncs, gd16[i].ofs, type_size[type]);
+					QC_AddSharedVar(&progfuncs->funcs, gd16[i].ofs, type_size[type]);
 			}
 			switch(type)
 			{
 			case ev_field:
 				if (reorg)
-					QC_AddSharedFieldVar(progfuncs, i, pr_strings - stringadjust);
+					QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
 			case ev_string:
 				if (((unsigned int *)glob)[gd16[i].ofs]>=progstate->progs->numstrings)
@@ -3115,14 +3149,14 @@ retry:
 			{
 				pr_globaldefs32[i].type &= ~DEF_SHARED;
 				if (pr_types)
-					QC_AddSharedVar(progfuncs, pr_globaldefs32[i].ofs, pr_types[pr_globaldefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].size);
+					QC_AddSharedVar(&progfuncs->funcs, pr_globaldefs32[i].ofs, pr_types[pr_globaldefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].size);
 				else
-					QC_AddSharedVar(progfuncs, pr_globaldefs32[i].ofs, type_size[type]);
+					QC_AddSharedVar(&progfuncs->funcs, pr_globaldefs32[i].ofs, type_size[type]);
 			}
 			switch(type)
 			{
 			case ev_field:
-				QC_AddSharedFieldVar(progfuncs, i, pr_strings - stringadjust);
+				QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
 			case ev_string:
 				if (pr_strings[((int *)glob)[pr_globaldefs32[i].ofs]])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
@@ -3168,13 +3202,13 @@ retry:
 	}
 
 	pr_strings+=stringadjust;
-	if (!progfuncs->stringtable)
-		progfuncs->stringtable = pr_strings;
+	if (!progfuncs->funcs.stringtable)
+		progfuncs->funcs.stringtable = pr_strings;
 
-	if (progfuncs->stringtablesize + progfuncs->stringtable < pr_strings + pr_progs->numstrings)
-		progfuncs->stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->stringtable;
+	if (progfuncs->funcs.stringtablesize + progfuncs->funcs.stringtable < pr_strings + pr_progs->numstrings)
+		progfuncs->funcs.stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->funcs.stringtable;
 
-	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype, NULL);
+	eval = PR_FindGlobal(&progfuncs->funcs, "thisprogs", progstype, NULL);
 	if (eval)
 		eval->prog = progstype;
 
@@ -3195,7 +3229,7 @@ retry:
 					return false;
 				}
 
-				((int *)glob)[d16->ofs] = PR_FindFunc(progfuncs, s, PR_ANY);
+				((int *)glob)[d16->ofs] = PR_FindFunc(&progfuncs->funcs, s, PR_ANY);
 				if (!((int *)glob)[d16->ofs])
 					printf("Warning: Runtime-linked function %s could not be found (loading %s)\n", s, filename);
 				/*
@@ -3236,7 +3270,7 @@ retry:
 		break;
 	}
 
-	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT, NULL);
+	eval = PR_FindGlobal(&progfuncs->funcs, "__ext__fasttrackarrays", PR_CURRENT, NULL);
 	if (eval)	//we support these opcodes
 		eval->_float = true;
 
@@ -3245,16 +3279,18 @@ retry:
 
 
 
-struct edict_s *EDICT_NUM(progfuncs_t *progfuncs, unsigned int n)
+struct edict_s *PDECL QC_EDICT_NUM(pubprogfuncs_t *ppf, unsigned int n)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if (n >= maxedicts)
 		Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
 
-	return prinst->edicttable[n];
+	return prinst.edicttable[n];
 }
 
-unsigned int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e)
+unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *ppf, struct edict_s *e)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *er = (edictrun_t*)e;
 	if (er->entnum >= maxedicts)
 		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%p)", e);

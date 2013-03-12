@@ -77,23 +77,23 @@ cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "0", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
 cvar_t	cl_predict_players = CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
 cvar_t	cl_predict_players_frac = CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
-cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
+cvar_t	cl_solid_players = CVARD("cl_solid_players", "1", "Consider other players as solid for player prediction.");
 cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feature.");
-cvar_t	cl_servername = CVAR("cl_servername", "none");
-cvar_t	cl_serveraddress = CVAR("cl_serveraddress", "none");
+cvar_t	cl_servername = CVARD("cl_servername", "none", "The hostname of the last server you connected to");
+cvar_t	cl_serveraddress = CVARD("cl_serveraddress", "none", "The address of the last server you connected to");
 cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
 cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
 cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
 
-cvar_t cl_loopbackprotocol = CVAR("cl_loopbackprotocol", "qw");
+cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, nqid, nq, fitz, dp6, dp7.");
 
 
 cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
 
 cvar_t  localid = SCVAR("localid", "");
 
-cvar_t	r_drawflame = CVAR("r_drawflame", "1");
+cvar_t	r_drawflame = CVARD("r_drawflame", "1", "Set to -1 to disable ALL static entities. Set to 0 to disable only wall torches and standing flame. Set to 1 for everything drawn as normal.");
 
 static qboolean allowremotecmd = true;
 
@@ -110,10 +110,10 @@ cvar_t	skin = CVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	model = CVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	topcolor = CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	bottomcolor = CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	rate = CVARF("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	drate = CVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
+cvar_t	rate = CVARFD("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while playing. Too high a value may result in 'buffer bloat'.");
+cvar_t	drate = CVARFD("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading.");		// :)
 cvar_t	noaim = CVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	msg = CVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	msg = CVARFD("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
 cvar_t	b_switch = CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	w_switch = CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	cl_nofake = CVARD("cl_nofake",		"2", "value 0: permits \\r chars in chat messages\nvalue 1: blocks all \\r chars\nvalue 2: allows \\r chars, but only from teammates");
@@ -149,12 +149,12 @@ cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 cvar_t	cl_item_bobbing = CVARF("cl_model_bobbing", "0", CVAR_ARCHIVE);
 cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
 
-cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
-cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
-cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
+cvar_t	cl_standardchat = CVARFD("cl_standardchat", "0", CVAR_ARCHIVE, "Disables auto colour coding in chat messages.");
+cvar_t	msg_filter = CVARD("msg_filter", "0", "Filter out chat messages: 0=neither. 1=broadcast chat. 2=team chat. 3=all chat.");
+cvar_t  cl_standardmsg = CVARFD("cl_standardmsg", "0", CVAR_ARCHIVE, "Disables auto colour coding in console prints.");
 cvar_t  cl_parsewhitetext = CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
 
-cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
+cvar_t	cl_dlemptyterminate = CVAR("cl_dlemptyterminate", "1");
 
 cvar_t	host_mapname = CVARAF("mapname", "",
 							  "host_mapname", 0);
@@ -200,7 +200,8 @@ int rtlights_first, rtlights_max;
 // this is double buffered so the last frame
 // can be scanned for oldorigins of trailing objects
 int				cl_numvisedicts;
-entity_t		cl_visedicts[MAX_VISEDICTS];
+int				cl_maxvisedicts;
+entity_t		*cl_visedicts;
 
 scenetris_t		*cl_stris;
 vecV_t			*cl_strisvertv;
@@ -344,8 +345,8 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 	unsigned int fteprotextsupported = 0;
 	unsigned int fteprotextsupported2 = 0;
 
-	fteprotextsupported = Net_PextMask(1);
-	fteprotextsupported2 = Net_PextMask(2);
+	fteprotextsupported = Net_PextMask(1, false);
+	fteprotextsupported2 = Net_PextMask(2, false);
 
 	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
@@ -642,6 +643,11 @@ void CL_CheckForResend (void)
 			cl.movemessages = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
 				cls.protocol = CP_QUAKEWORLD;
+			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
+			{
+				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_FITZ666;
+			}
 			else if (!strcmp(cl_loopbackprotocol.string, "nq"))	//actually proquake, because we might as well use the extra angles
 			{
 				cls.protocol = CP_NETQUAKE;
@@ -687,11 +693,20 @@ void CL_CheckForResend (void)
 			while(NET_GetPacket (NS_SERVER, 0) >= 0)
 			{
 			}
+			net_message.packing = SZ_RAWBYTES;
+			net_message.cursize = 0;
 
 			if (cls.protocol_nq == CPNQ_ID)
 			{
 				net_from = adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
+
+				SVC_DirectConnect();
+			}
+			else if (cls.protocol_nq == CPNQ_FITZ666)
+			{
+				net_from = adr;
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\666\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
@@ -706,7 +721,7 @@ void CL_CheckForResend (void)
 				CL_ConnectToDarkPlaces("", adr);
 		}
 		else
-			CL_SendConnectPacket (8192-16, Net_PextMask(1), Net_PextMask(2), false);
+			CL_SendConnectPacket (8192-16, Net_PextMask(1, false), Net_PextMask(2, false), false);
 		return;
 	}
 #endif
@@ -3685,8 +3700,8 @@ double Host_Frame (double time)
 		SV_Frame();
 		RSpeedEnd(RSPEED_SERVER);
 		host_frametime = ohft;
-		if (cls.protocol != CP_QUAKE3 && cls.protocol != CP_QUAKE2)
-			CL_ReadPackets ();	//q3's cgame cannot cope with input commands with the same time as the most recent snapshot value
+//		if (cls.protocol != CP_QUAKE3 && cls.protocol != CP_QUAKE2)
+//			CL_ReadPackets ();	//q3's cgame cannot cope with input commands with the same time as the most recent snapshot value
 	}
 #endif
 	CL_CalcClientTime();
@@ -3969,6 +3984,9 @@ void Host_Init (quakeparms_t *parms)
 #ifdef Q2BSPS
 	CM_Init();
 #endif
+#ifdef TERRAIN
+	Terr_Init();
+#endif
 	Host_FixupModelNames();
 
 	NET_Init ();
@@ -4095,6 +4113,7 @@ void Host_Shutdown(void)
 	MasterInfo_Shutdown();
 #endif
 	CL_FreeDlights();
+	CL_FreeVisEdicts();
 	M_Shutdown();
 #ifndef CLIENTONLY
 	SV_Shutdown();

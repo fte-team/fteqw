@@ -239,14 +239,14 @@ typedef struct zipfile_s
 } zipfile_t;
 
 
-static void FSZIP_PrintPath(void *handle)
+static void FSZIP_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	zipfile_t *zip = handle;
 
 	if (zip->references != 1)
-		Con_Printf("%s (%i)\n", zip->filename, zip->references-1);
+		Q_snprintfz(out, outlen, "%s (%i)\n", zip->filename, zip->references-1);
 	else
-		Con_Printf("%s\n", zip->filename);
+		Q_strncpyz(out, zip->filename, outlen);
 }
 static void FSZIP_ClosePath(void *handle)
 {
@@ -696,7 +696,7 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 }
 
 searchpathfuncs_t zipfilefuncs = {
-	FSZIP_PrintPath,
+	FSZIP_GetDisplayPath,
 	FSZIP_ClosePath,
 	FSZIP_BuildHash,
 	FSZIP_FLocate,

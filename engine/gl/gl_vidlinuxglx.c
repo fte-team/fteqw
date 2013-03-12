@@ -939,7 +939,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
 	XSetWMProtocols(vid_dpy, vid_window, prots, sizeof(prots)/sizeof(prots[0]));
 	/*set caption*/
-	XStoreName(vid_dpy, vid_window, "FTE QuakeWorld");
+	XStoreName(vid_dpy, vid_window, FULLENGINENAME);
 	/*make it visibl*/
 	XMapWindow(vid_dpy, vid_window);
 	/*put it somewhere*/

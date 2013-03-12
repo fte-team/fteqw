@@ -1652,7 +1652,8 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			}
 		}
 		break;
-
+	case WM_CTLCOLORBTN:
+		return GetSysColorBrush(COLOR_HIGHLIGHT);//COLOR_BACKGROUND;
 	case WM_DESTROY:
 		mainwindow = NULL;
 		break;
@@ -1781,7 +1782,6 @@ static LONG CALLBACK OutputWindowProc(HWND hWnd,UINT message,
 	case WM_SIZE:
 		GetClientRect(hWnd, &rect);
 		SetWindowPos(outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top, 0);
-
 	default:
 		return DefMDIChildProc(hWnd,message,wParam,lParam);
 	}
@@ -1847,10 +1847,12 @@ int GUIEmitOutputText(HWND wnd, int start, char *text, int len, DWORD colour)
 	cf.crTextColor = colour;
 	SendMessage(wnd, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 	Edit_SetSel(wnd,start+len,start+len);
+	Edit_ScrollCaret(wnd);
 
 	return start + len;
 }
 int outlen;
+int outstatus;
 int GUIprintf(const char *msg, ...)
 {
 	va_list		argptr;
@@ -1872,15 +1874,38 @@ int GUIprintf(const char *msg, ...)
 
 	if (!*buf)
 	{
+		/*clear text*/
 		SetWindowText(outputbox,"");
 		outlen = 0;
+
+		/*make sure its active so we can actually scroll. stupid windows*/
+		SetFocus(outputwindow);
+		SetFocus(outputbox);
+
+		/*colour background to default*/
+		TreeView_SetBkColor(projecttree, -1);
+		outstatus = 0;
 		return 0;
 	}
 
 	if (strstr(buf, "warning: "))
+	{
+		if (outstatus < 1)
+		{
+			TreeView_SetBkColor(projecttree, RGB(255, 255, 0));
+			outstatus = 1;
+		}
 		col = RGB(128, 128, 0);
+	}
 	else if (strstr(buf, "error: "))
+	{
+		if (outstatus < 2)
+		{
+			TreeView_SetBkColor(projecttree, RGB(255, 0, 0));
+			outstatus = 2;
+		}
 		col = RGB(255, 0, 0);
+	}
 	else
 		col = RGB(0, 0, 0);
 
@@ -1975,13 +2000,13 @@ void RunCompiler(char *args)
 	}
 
 	memset(&funcs, 0, sizeof(funcs));
-	funcs.parms = &ext;
+	funcs.funcs.parms = &ext;
 	memset(&ext, 0, sizeof(ext));
-	funcs.parms->ReadFile = GUIReadFile;
-	funcs.parms->FileSize = GUIFileSize;
-	funcs.parms->WriteFile = QCC_WriteFile;
-	funcs.parms->printf = GUIprintf;
-	funcs.parms->Sys_Error = Sys_Error;
+	ext.ReadFile = GUIReadFile;
+	ext.FileSize = GUIFileSize;
+	ext.WriteFile = QCC_WriteFile;
+	ext.Printf = GUIprintf;
+	ext.Sys_Error = Sys_Error;
 	GUIprintf("");
 	
 	if (logfile)

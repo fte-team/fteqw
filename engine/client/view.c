@@ -1316,6 +1316,7 @@ void R2D_PolyBlend (void);
 void V_RenderPlayerViews(int plnum)
 {
 	int oldnuments;
+	int oldstris;
 #ifdef SIDEVIEWS
 	int viewnum;
 #endif
@@ -1335,6 +1336,7 @@ void V_RenderPlayerViews(int plnum)
 	}
 
 	oldnuments = cl_numvisedicts;
+	oldstris = cl_numstris;
 	CL_LinkViewModel ();
 
 	Cam_SelfTrack(plnum);
@@ -1343,6 +1345,7 @@ void V_RenderPlayerViews(int plnum)
 	R_DrawNameTags();
 
 	cl_numvisedicts = oldnuments;
+	cl_numstris = oldstris;
 
 	if (scr_chatmode == 2)
 	{

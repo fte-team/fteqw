@@ -89,5 +89,8 @@ extern	char	qcc_token[1024];
 extern	int		qcc_eof;
 
 
+#define qcc_iswhite(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t' || (c) == '\v')
+#define qcc_iswhitesameline(c) ((c) == ' ' || (c) == '\t')
+
 
 #endif

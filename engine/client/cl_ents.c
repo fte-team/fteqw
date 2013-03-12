@@ -94,9 +94,10 @@ void CL_FreeDlights(void)
 {
 #ifdef RTLIGHTS
 	int i;
-	for (i = 0; i < rtlights_max; i++)
-		if (cl_dlights[i].worldshadowmesh)
-			SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
+	if (cl_dlights)
+		for (i = 0; i < rtlights_max; i++)
+			if (cl_dlights[i].worldshadowmesh)
+				SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
 #endif
 
 	rtlights_max = cl_maxdlights = 0;
@@ -422,11 +423,6 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboole
 
 		i = MSG_ReadByte();
 		to->dpflags = i;
-		to->flags = 0;
-		if (i & RENDER_VIEWMODEL)
-			to->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
-		if (i & RENDER_EXTERIORMODEL)
-			to->flags |= Q2RF_EXTERNALMODEL;
 	}
 	if (!(cls.fteprotocolextensions & PEXT_DPFLAGS))
 	{
@@ -649,7 +645,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->hexen2flags = MSG_ReadByte();
 	if (bits & UF_TAGINFO)
 	{
-		news->tagentity = MSG_ReadShort();
+		news->tagentity = MSGCL_ReadEntity();
 		news->tagindex = MSG_ReadByte();
 	}
 	if (bits & UF_LIGHT)
@@ -670,8 +666,10 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->colormod[1] = MSG_ReadByte();
 		news->colormod[2] = MSG_ReadByte();
 	}
-	if (bits & UF_GLOWMOD)
+	if (bits & UF_GLOW)
 	{
+		news->glowsize = MSG_ReadByte();
+		news->glowcolour = MSG_ReadByte();
 		news->glowmod[0] = MSG_ReadByte();
 		news->glowmod[1] = MSG_ReadByte();
 		news->glowmod[2] = MSG_ReadByte();
@@ -696,7 +694,7 @@ void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant)
 {
 	int entnum = 0;
 	if (numberisimportant)
-		entnum = MSG_ReadShort();
+		entnum = MSGCL_ReadEntity();
 	CLFTE_ReadDelta(entnum, es, &nullentitystate, &nullentitystate);
 }
 
@@ -708,10 +706,11 @@ void CLFTE_ParseEntities(void)
 {
 	int			oldpacket, newpacket;
 	packet_entities_t	*oldp, *newp, nullp;
-	unsigned short newnum, oldnum;
+	unsigned int newnum, oldnum;
 	int			oldindex;
 	qboolean	isvalid = false;
 	entity_state_t *e;
+	qboolean removeflag;
 
 //	int i;
 //	for (i = cl.validsequence+1; i < cls.netchan.incoming_sequence; i++)
@@ -747,8 +746,15 @@ void CLFTE_ParseEntities(void)
 	oldindex = 0;
 	while(1)
 	{
-		newnum = MSG_ReadShort();
-		if (!newnum || msg_badread)
+		//high bit means remove, second high bit means 22bit index
+		newnum = (unsigned short)(short)MSG_ReadShort();
+		removeflag = !!(newnum & 0x8000);
+		if (newnum & 0x4000)
+			newnum = (newnum & 0x3fff) | (MSG_ReadByte()<<14);
+		else
+			newnum &= ~0x8000;
+
+		if ((!newnum && !removeflag) || msg_badread)
 		{
 			/*reached the end, don't forget old entities*/
 			while(oldindex < oldp->num_entities)
@@ -762,20 +768,11 @@ void CLFTE_ParseEntities(void)
 			}
 			break;
 		}
-		if (newnum == 0x8000)
-		{
-			/*removal of world - means forget all entities*/
-			if (cl_shownet.ival >= 3)
-				Con_Printf("%3i: Reset all\n", msg_readcount);
-			newp->num_entities = 0;
-			isvalid = true;
-			continue;
-		}
 
-		oldnum = oldindex >= oldp->num_entities ? 0xffff : oldp->entities[oldindex].number;
+		oldnum = (oldindex >= oldp->num_entities) ? 0xffffffff : oldp->entities[oldindex].number;
 
 		/*if we skipped some, then they were unchanged*/
-		while ((newnum&0x7fff) > oldnum)
+		while (newnum > oldnum)
 		{
 			if (newp->num_entities >= newp->max_entities)
 			{
@@ -784,14 +781,25 @@ void CLFTE_ParseEntities(void)
 			}
 			newp->entities[newp->num_entities++] = oldp->entities[oldindex++];
 
-			oldnum = oldindex >= oldp->num_entities ? 0xffff : oldp->entities[oldindex].number;
+			oldnum = (oldindex >= oldp->num_entities) ? 0xffffffff : oldp->entities[oldindex].number;
 		}
 
-		if (newnum & 0x8000)
+		if (removeflag)
 		{
 			if (cl_shownet.ival >= 3)
-				Con_Printf("%3i: Remove %i @ %i\n", msg_readcount, (newnum&32767), cls.netchan.incoming_sequence);
-			if (oldnum == (newnum&0x7fff))
+				Con_Printf("%3i: Remove %i @ %i\n", msg_readcount, newnum, cls.netchan.incoming_sequence);
+
+			if (!newnum)
+			{
+				/*removal of world - means forget all entities*/
+				if (cl_shownet.ival >= 3)
+					Con_Printf("%3i: Reset all\n", msg_readcount);
+				newp->num_entities = 0;
+				isvalid = true;
+				continue;
+			}
+
+			if (oldnum == newnum)
 				oldindex++;
 			continue;
 		}
@@ -853,7 +861,7 @@ An svc_packetentities has just been parsed, deal with the
 rest of the data stream.
 ==================
 */
-void CL_ParsePacketEntities (qboolean delta)
+void CLQW_ParsePacketEntities (qboolean delta)
 {
 	int			oldpacket, newpacket;
 	packet_entities_t	*oldp, *newp, dummy;
@@ -1130,11 +1138,6 @@ void DP5_ParseDelta(entity_state_t *s)
 	{
 		int i = MSG_ReadByte();
 		s->dpflags = i;
-		s->flags = 0;
-		if (i & RENDER_VIEWMODEL)
-			s->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
-		if (i & RENDER_EXTERIORMODEL)
-			s->flags |= Q2RF_EXTERNALMODEL;
 	}
 	if (bits & E5_ORIGIN)
 	{
@@ -1199,7 +1202,7 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->colormap = MSG_ReadByte();
 	if (bits & E5_ATTACHMENT)
 	{
-		s->tagentity = MSG_ReadShort();
+		s->tagentity = MSGCL_ReadEntity();
 		s->tagindex = MSG_ReadByte();
 	}
 	if (bits & E5_LIGHT)
@@ -1278,7 +1281,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			if (read == oldpack.entities[oldi].number)
 			{
 				from = &oldpack.entities[oldi];
-				from->flags |= 0x80000000;	//so we don't copy it.
+				from->inactiveflag |= 1;	//so we don't copy it.
 				break;
 			}
 		}
@@ -1300,7 +1303,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		memcpy(to, from, sizeof(*to));
 		to->number = read;
 		DP5_ParseDelta(to);
-		to->flags &= ~0x80000000;
+		to->inactiveflag &= ~1;
 	}
 
 	/*we're writing into the old one, clear it out prematurely (to make the malloc below trigger, and free it at the end)*/
@@ -1324,7 +1327,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		else
 		{
 			from = &oldpack.entities[oldi];
-			if (from->flags & 0x80000000)
+			if (from->inactiveflag & 1)
 			{
 				oldi++;
 				continue;
@@ -1336,7 +1339,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			lowestv = 0x7ffffffe;
 			for(newi = 0; newi < newpack.num_entities; newi++)
 			{
-				if (newpack.entities[newi].flags & 0x80000000)
+				if (newpack.entities[newi].inactiveflag & 1)
 					continue;
 				if (newpack.entities[newi].number < lowestv)
 				{
@@ -1350,7 +1353,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		if (!from || (from->number > lowestv && lowestv))
 		{
 			from = &newpack.entities[lowesti];
-			from->flags |= 0x80000000;
+			from->inactiveflag |= 1;
 			lowestv = 0;	/*find the next oldest*/
 			newremaining--;
 		}
@@ -1360,7 +1363,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		to = &pack->entities[pack->num_entities];
 		pack->num_entities++;
 		memcpy(to, from, sizeof(*to));
-		to->flags &= ~0x80000000;
+		to->inactiveflag &= ~1;
 	}
 
 	BZ_Free(oldpack.entities);
@@ -1400,7 +1403,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	}
 
 	if (bits & NQU_LONGENTITY)
-		num = MSG_ReadShort ();
+		num = MSGCL_ReadEntity ();
 	else
 		num = MSG_ReadByte ();
 
@@ -1696,9 +1699,8 @@ void V_AddAxisEntity(entity_t *in)
 {
 	entity_t *ent;
 
-	if (cl_numvisedicts == MAX_VISEDICTS)
+	if (cl_numvisedicts == cl_maxvisedicts)
 	{
-		Con_DPrintf("Visedict list is full!\n");
 		return;		// object list is full
 	}
 	ent = &cl_visedicts[cl_numvisedicts];
@@ -1706,13 +1708,20 @@ void V_AddAxisEntity(entity_t *in)
 
 	*ent = *in;
 }
+void V_ClearEntity(entity_t *e)
+{
+	memset(e, 0, sizeof(*e));
+	e->playerindex = -1;
+	e->topcolour = TOP_DEFAULT;
+	e->bottomcolour = BOTTOM_DEFAULT;
+	e->h2playerclass = 0;
+}
 entity_t *V_AddEntity(entity_t *in)
 {
 	entity_t *ent;
 
-	if (cl_numvisedicts == MAX_VISEDICTS)
+	if (cl_numvisedicts == cl_maxvisedicts)
 	{
-		Con_DPrintf("Visedict list is full!\n");
 		return NULL;		// object list is full
 	}
 	ent = &cl_visedicts[cl_numvisedicts];
@@ -1761,18 +1770,24 @@ int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float 
 	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;
 }
 
-static void CLQ1_AddCube(shader_t *shader, vec3_t mins, vec3_t maxs, float r, float g, float b, float a)
+void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a)
 {
-	int v;
+	//use simple algo
+	//a series of cylinders that gets progressively narrower
+	int latsteps = 16;
+	int lngsteps = 16;
+	float cradius;
+	int v, i, j;
 	scenetris_t *t;
+	vec3_t corner;
+	float x,y;
+	int flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 
 	if (!r && !g && !b)
 		return;
-	if (g && !b)
-		b = 0;
 
 	/*reuse the previous trigroup if its the same shader*/
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags)
 		t = &cl_stris[cl_numstris-1];
 	else
 	{
@@ -1787,12 +1802,297 @@ static void CLQ1_AddCube(shader_t *shader, vec3_t mins, vec3_t maxs, float r, fl
 		t->numvert = 0;
 		t->firstidx = cl_numstrisidx;
 		t->firstvert = cl_numstrisvert;
+		t->flags = flags;
+	}
+
+	if (cl_numstrisvert + latsteps*lngsteps > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + latsteps*lngsteps;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+latsteps*(lngsteps-1)*6)
+	{
+		cl_maxstrisidx = cl_numstrisidx+latsteps*(lngsteps-1)*6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+	for (i = 0; i < latsteps; i++)
+	{
+		x = sin(i * 2 * M_PI / latsteps);
+		y = cos(i * 2 * M_PI / latsteps);
+		for (j = 0; j < lngsteps; j++)
+		{
+			v = i*lngsteps + j;
+			cradius = sin(j * 0.5 * M_PI / (lngsteps-1))*radius;
+			corner[0] = x*cradius;
+			corner[1] = y*cradius;
+			corner[2] = (cos(j * 0.5 * M_PI / (lngsteps-1))*-radius) - gap;
+			Matrix3x4_RM_Transform3(matrix, corner, cl_strisvertv[cl_numstrisvert+v]);
+
+			cl_strisvertt[cl_numstrisvert+v][0] = 0;
+			cl_strisvertt[cl_numstrisvert+v][1] = 0;
+
+			cl_strisvertc[cl_numstrisvert+v][0] = r;
+			cl_strisvertc[cl_numstrisvert+v][1] = g;
+			cl_strisvertc[cl_numstrisvert+v][2] = b;
+			cl_strisvertc[cl_numstrisvert+v][3] = a;
+		}
+	}
+
+	if (radius < 0)
+	{
+		for (i = 0; i < lngsteps-1; i++)
+		{
+			v = latsteps-1;
+			for (v = 0; v < latsteps-1; v++)
+			{
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps+1	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
+			}
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
+		}
+	}
+	else
+	{
+		for (i = 0; i < lngsteps-1; i++)
+		{
+			v = latsteps-1;
+			for (v = 0; v < latsteps-1; v++)
+			{
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps+1	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
+			}
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
+		}
+	}
+
+	t->numvert += lngsteps*latsteps;
+	t->numidx = cl_numstrisidx - t->firstidx;
+	cl_numstrisvert += lngsteps*latsteps;
+}
+
+void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a)
+{
+	int sides = 16;
+	int v;
+	scenetris_t *t;
+	vec3_t corner;
+	int flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+
+	if (!r && !g && !b)
+		return;
+
+	radius *= 0.5;
+	height *= 0.5;
+
+	if (capsule)
+		height -= radius;
+
+	if (height > 0)
+	{
+		/*reuse the previous trigroup if its the same shader*/
+		if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags)
+			t = &cl_stris[cl_numstris-1];
+		else
+		{
+			if (cl_numstris == cl_maxstris)
+			{
+				cl_maxstris += 8;
+				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+			}
+			t = &cl_stris[cl_numstris++];
+			t->shader = shader;
+			t->numidx = 0;
+			t->numvert = 0;
+			t->firstidx = cl_numstrisidx;
+			t->firstvert = cl_numstrisvert;
+			t->flags = flags;
+		}
+
+		if (cl_numstrisvert + sides*2 > cl_maxstrisvert)
+		{
+			cl_maxstrisvert = cl_numstrisvert + sides*2;
+
+			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+		}
+		if (cl_maxstrisidx < cl_numstrisidx+sides*6)
+		{
+			cl_maxstrisidx = cl_numstrisidx+sides*6 + 64;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+
+
+		for (v = 0; v < sides*2; v++)
+		{
+			corner[0] = sin((v>>1) * 2 * M_PI / sides)*radius;
+			corner[1] = cos((v>>1) * 2 * M_PI / sides)*radius;
+			corner[2] = (v & 1)?height:-height;
+			Matrix3x4_RM_Transform3(matrix, corner, cl_strisvertv[cl_numstrisvert+v]);
+
+			cl_strisvertt[cl_numstrisvert+v][0] = 0;
+			cl_strisvertt[cl_numstrisvert+v][1] = 0;
+
+			cl_strisvertc[cl_numstrisvert+v][0] = r;
+			cl_strisvertc[cl_numstrisvert+v][1] = g;
+			cl_strisvertc[cl_numstrisvert+v][2] = b;
+			cl_strisvertc[cl_numstrisvert+v][3] = a;
+		}
+		for (v = 0; v < sides-1; v++)
+		{
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 + v*2;
+		}
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 + v*2;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+
+		if (!capsule)
+		{
+			for (v = 4; v < sides*2; v+=2)
+			{
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+(v-2);
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+(v-2)+1;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v+1;
+			}
+		}
+
+		t->numvert += sides*2;
+		t->numidx = cl_numstrisidx - t->firstidx;
+		cl_numstrisvert += sides*2;
+	}
+
+	if (capsule)
+	{
+		CLQ1_AddOrientedHalfSphere(shader, radius, height, matrix, r, g, b, a);
+		CLQ1_AddOrientedHalfSphere(shader, -radius, -height, matrix, r, g, b, a);
+	}
+}
+void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, float b, float a)
+{
+	scenetris_t *t;
+	int flags = BEF_NODLIGHT|BEF_NOSHADOWS|BEF_LINES;
+
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		t->flags = flags;
+	}
+	if (cl_numstrisvert + 2 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + 2;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+2)
+	{
+		cl_maxstrisidx = cl_numstrisidx+2;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+	VectorCopy(v1, cl_strisvertv[cl_numstrisvert+0]);
+	cl_strisvertt[cl_numstrisvert+0][0] = 0;
+	cl_strisvertt[cl_numstrisvert+0][1] = 0;
+	cl_strisvertc[cl_numstrisvert+0][0] = r;
+	cl_strisvertc[cl_numstrisvert+0][1] = g;
+	cl_strisvertc[cl_numstrisvert+0][2] = b;
+	cl_strisvertc[cl_numstrisvert+0][3] = a;
+
+	VectorCopy(v2, cl_strisvertv[cl_numstrisvert+1]);
+	cl_strisvertt[cl_numstrisvert+1][0] = 0;
+	cl_strisvertt[cl_numstrisvert+1][1] = 0;
+	cl_strisvertc[cl_numstrisvert+1][0] = r;
+	cl_strisvertc[cl_numstrisvert+1][1] = g;
+	cl_strisvertc[cl_numstrisvert+1][2] = b;
+	cl_strisvertc[cl_numstrisvert+1][3] = a;
+
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1;
+
+	t->numvert += 2;
+	t->numidx = cl_numstrisidx - t->firstidx;
+	cl_numstrisvert += 2;
+}
+void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a)
+{
+	int v;
+	scenetris_t *t;
+	vec3_t corner;
+	int flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+
+	if (!r && !g && !b)
+		return;
+
+	/*reuse the previous trigroup if its the same shader*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags && cl_stris[cl_numstris-1].numvert + 8 <= MAX_INDICIES)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		t->flags = flags;
 	}
 
 
 	if (cl_numstrisvert + 8 > cl_maxstrisvert)
 	{
-		cl_maxstrisvert = cl_numstrisvert + 8;
+		cl_maxstrisvert = cl_numstrisvert + 8 + 1024;
 
 		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
 		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
@@ -1800,16 +2100,20 @@ static void CLQ1_AddCube(shader_t *shader, vec3_t mins, vec3_t maxs, float r, fl
 	}
 	if (cl_maxstrisidx < cl_numstrisidx+6*6)
 	{
-		cl_maxstrisidx = cl_numstrisidx+6*6 + 64;
+		cl_maxstrisidx = cl_numstrisidx + 6*6 + 1024;
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 
 
 	for (v = 0; v < 8; v++)
 	{
-		cl_strisvertv[cl_numstrisvert+v][0] = (v & 1)?mins[0]:maxs[0];
-		cl_strisvertv[cl_numstrisvert+v][1] = (v & 2)?mins[1]:maxs[1];
-		cl_strisvertv[cl_numstrisvert+v][2] = (v & 4)?mins[2]:maxs[2];
+		corner[0] = (v & 1)?mins[0]:maxs[0];
+		corner[1] = (v & 2)?mins[1]:maxs[1];
+		corner[2] = (v & 4)?mins[2]:maxs[2];
+		if (matrix)
+			Matrix3x4_RM_Transform3(matrix, corner, cl_strisvertv[cl_numstrisvert+v]);
+		else
+			VectorCopy(corner, cl_strisvertv[cl_numstrisvert+v]);
 
 		cl_strisvertt[cl_numstrisvert+v][0] = 0;
 		cl_strisvertt[cl_numstrisvert+v][1] = 0;
@@ -1821,52 +2125,52 @@ static void CLQ1_AddCube(shader_t *shader, vec3_t mins, vec3_t maxs, float r, fl
 	}
 
 	/*top*/
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 - t->firstvert;
 
 	/*bottom*/
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7 - t->firstvert;
 
 	/*'left'*/
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 - t->firstvert;
 
 	/*right*/
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3 - t->firstvert;
 
 	/*urm, the other way*/
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 - t->firstvert;
 
 	/*and its oposite*/
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
-	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3 - t->firstvert;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5 - t->firstvert;
 
 	t->numvert += 8;
 	t->numidx = cl_numstrisidx - t->firstidx;
@@ -1935,7 +2239,7 @@ void CLQ1_AddVisibleBBoxes(void)
 						mod = cl.model_precache[state->modelindex];
 						VectorAdd(state->origin, mod->mins, min);
 						VectorAdd(state->origin, mod->maxs, max);
-						CLQ1_AddCube(s, min, max, 0.1, 0, 0, 1);
+						CLQ1_AddOrientedCube(s, min, max, NULL, 0.1, 0, 0, 1);
 					}
 				}
 				else
@@ -1947,7 +2251,7 @@ void CLQ1_AddVisibleBBoxes(void)
 					max[2] = 8*((state->solid>>10) & 63) - 32;
 					VectorAdd(state->origin, min, min);
 					VectorAdd(state->origin, max, max);
-					CLQ1_AddCube(s, min, max, 0.1, 0, 0, 1);
+					CLQ1_AddOrientedCube(s, min, max, NULL, 0.1, 0, 0, 1);
 				}
 			}
 		}
@@ -2002,8 +2306,97 @@ void CLQ1_AddVisibleBBoxes(void)
 			VectorCopy(e->v->absmin, min);
 			VectorCopy(e->v->absmax, max);
 		}
-		CLQ1_AddCube(s, min, max, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
 	}
+}
+
+void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue)
+{
+	int num, v;
+	vec3_t tang;
+	float radius = 1;
+	float *verts;
+	float tx, ty, tz;
+	scenetris_t *t;
+	float l, s;
+
+	VectorNegate(up, up);
+	CrossProduct(up, side, tang);
+
+	s = sqrt(DotProduct(side, side));
+	l = sqrt(DotProduct(tang, tang));
+
+	VectorScale(tang, s/l, tang);
+
+	num = Q1BSP_ClipDecal(origin, up, side, tang, 2, &verts);
+
+	if (!num)
+		return;
+	num*=3;
+
+	VectorScale(tang, 0.5/(s*s), tang);
+	VectorScale(side, 0.5/(s*s), side);
+	l = sqrt(DotProduct(up, up));
+	VectorScale(up, 1/(l*l), up);
+
+	tx = DotProduct(origin, tang) + 0.5;
+	ty = DotProduct(origin, side) + 0.5;
+	tz = DotProduct(origin, up);
+
+	/*reuse the previous trigroup if its the same shader*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+	}
+
+
+	if (cl_numstrisvert + num > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + num;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+num)
+	{
+		cl_maxstrisidx = cl_numstrisidx+num + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+
+	for (v = 0; v < num; v++)
+	{
+		VectorCopy(verts, cl_strisvertv[cl_numstrisvert+v]);
+		cl_strisvertt[cl_numstrisvert+v][0] = (DotProduct(verts, tang) - tx);
+		cl_strisvertt[cl_numstrisvert+v][1] = -(DotProduct(verts, side) - ty);
+		cl_strisvertc[cl_numstrisvert+v][0] = rgbvalue[0];
+		cl_strisvertc[cl_numstrisvert+v][1] = rgbvalue[1];
+		cl_strisvertc[cl_numstrisvert+v][2] = rgbvalue[2];
+		cl_strisvertc[cl_numstrisvert+v][3] = alphavalue * (1-(DotProduct(verts, up) - tz));
+		verts+=3;
+	}
+	for (v = 0; v < num; v++)
+	{
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v - t->firstvert;
+	}
+
+	t->numvert += num;
+	t->numidx += num;
+	cl_numstrisvert += num;
 }
 
 void CLQ1_AddShadow(entity_t *ent)
@@ -2063,7 +2456,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	tz = DotProduct(shadoworg, axis[2]);
 
 	/*reuse the previous trigroup if its the same shader*/
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == s)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == s && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
 		t = &cl_stris[cl_numstris-1];
 	else
 	{
@@ -2074,6 +2467,7 @@ void CLQ1_AddShadow(entity_t *ent)
 		}
 		t = &cl_stris[cl_numstris++];
 		t->shader = s;
+		t->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 		t->numidx = 0;
 		t->numvert = 0;
 		t->firstidx = cl_numstrisidx;
@@ -2122,7 +2516,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 	if (!(effects & (EF_BLUE | EF_RED)) || !v_powerupshell.value || !ent)
 		return;
 
-	if (cl_numvisedicts == MAX_VISEDICTS)
+	if (cl_numvisedicts == cl_maxvisedicts)
 		return;		// object list is full
 	shell = &cl_visedicts[cl_numvisedicts++];
 
@@ -2231,7 +2625,7 @@ void CL_LinkStaticEntities(void *pvs)
 
 	for (i = 0; i < cl.num_statics; i++)
 	{
-		if (cl_numvisedicts == MAX_VISEDICTS)
+		if (cl_numvisedicts == cl_maxvisedicts)
 			break;
 		stat = &cl_static_entities[i].ent;
 
@@ -2315,10 +2709,17 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			sold = &oldpack->entities[oldpnum];
 			if (sold->number >= snew->number)
 			{
+				oldpnum++;
 				if (sold->number > snew->number)
 					sold = NULL;	//woo, it's a new entity.
 				break;
 			}
+
+#ifdef RAGDOLL
+			le = &cl.lerpents[sold->number];
+			if (le->skeletalobject)
+				rag_removedeltaent(le);
+#endif
 		}
 		if (!sold)	//I'm lazy
 			sold = snew;
@@ -2637,9 +3038,8 @@ void CL_LinkPacketEntities (void)
 
 
 
-		if (cl_numvisedicts == MAX_VISEDICTS)
+		if (cl_numvisedicts == cl_maxvisedicts)
 		{
-			Con_Printf("Too many visible entities\n");
 			break;
 		}
 
@@ -2649,6 +3049,10 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		ent = &cl_visedicts[cl_numvisedicts];
+		ent->playerindex = -1;
+		ent->topcolour = TOP_DEFAULT;
+		ent->bottomcolour = BOTTOM_DEFAULT;
+		ent->h2playerclass = 0;
 		ent->light_known = 0;
 		ent->forcedshader = NULL;
 
@@ -2737,10 +3141,6 @@ void CL_LinkPacketEntities (void)
 		if (state->modelindex<1)
 			continue;
 
-		// create a new entity
-		if (cl_numvisedicts == MAX_VISEDICTS)
-			break;		// object list is full
-
 		if (CL_FilterModelindex(state->modelindex, state->frame))
 			continue;
 
@@ -2763,7 +3163,11 @@ void CL_LinkPacketEntities (void)
 		else
 			ent->model = model;
 
-		ent->flags = state->flags;
+		ent->flags = 0;
+		if (state->dpflags & RENDER_VIEWMODEL)
+			ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+		if (state->dpflags & RENDER_EXTERIORMODEL)
+			ent->flags |= Q2RF_EXTERNALMODEL;
 		if (state->effects & NQEF_ADDITIVE)
 			ent->flags |= Q2RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
@@ -2783,15 +3187,15 @@ void CL_LinkPacketEntities (void)
 		}
 */
 		// set colormap
-		if (state->colormap && (state->colormap <= MAX_CLIENTS)
-			&& (gl_nocolors.value == -1 || (ent->model/* && state->modelindex == cl_playerindex*/)))
+		if (state->dpflags & RENDER_COLORMAPPED)
 		{
-			// TODO: DP colormap/colormod extension?
-			ent->scoreboard = &cl.players[state->colormap-1];
+			ent->topcolour    = (state->colormap>>4) & 0xf;
+			ent->bottomcolour = (state->colormap>>0) & 0xf;
 		}
-		else
+		else if (state->colormap > 0 && state->colormap <= MAX_CLIENTS)
 		{
-			ent->scoreboard = NULL;
+			ent->topcolour    = cl.players[state->colormap-1].ttopcolor;
+			ent->bottomcolour = cl.players[state->colormap-1].tbottomcolor;
 		}
 
 		// set skin
@@ -2868,6 +3272,11 @@ void CL_LinkPacketEntities (void)
 
 			VectorMA(dl->origin, 16, dl->axis[0], dl->origin);
 		}
+
+#ifdef RAGDOLL
+		if (ent->model->dollinfo)
+			rag_updatedeltaent(ent, le);
+#endif
 
 		// add automatic particle trails
 		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))
@@ -3049,7 +3458,7 @@ void CL_LinkProjectiles (void)
 	for (i=0, pr=cl_projectiles ; i<cl_num_projectiles ; i++, pr++)
 	{
 		// grab an entity to fill in
-		if (cl_numvisedicts == MAX_VISEDICTS)
+		if (cl_numvisedicts == cl_maxvisedicts)
 			break;		// object list is full
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
@@ -3064,7 +3473,10 @@ void CL_LinkProjectiles (void)
 		ent->skinnum = 0;
 		memset(&ent->framestate, 0, sizeof(ent->framestate));
 		ent->flags = 0;
-		ent->scoreboard = NULL;
+		ent->playerindex = -1;
+		ent->topcolour = TOP_DEFAULT;
+		ent->bottomcolour = BOTTOM_DEFAULT;
+		ent->h2playerclass = 0;
 #ifdef PEXT_SCALE
 		ent->scale = 1;
 #endif
@@ -3268,7 +3680,7 @@ void CL_ParsePlayerinfo (void)
 			}
 		}
 
-		if (cl.splitclients < MAX_SPLITS)
+		if (cl.splitclients < MAX_SPLITS && !cl.players[num].spectator)
 		{
 			extern cvar_t cl_splitscreen;
 			if (cl.splitclients < cl_splitscreen.value+1)
@@ -3282,6 +3694,7 @@ void CL_ParsePlayerinfo (void)
 					autocam[cl.splitclients] = CAM_TRACK;
 					spec_track[cl.splitclients] = num;
 					cl.splitclients++;
+					Cam_Lock(i, num);
 				}
 			}
 		}
@@ -3515,6 +3928,7 @@ guess_pm_type:
 		VectorCopy (state->origin, state->predorigin);
 }
 
+/*
 void CL_ParseClientPersist(void)
 {
 	player_info_t	*info;
@@ -3524,7 +3938,7 @@ void CL_ParseClientPersist(void)
 	if (flags & 1)
 		info->vweapindex = MSG_ReadShort();
 }
-
+*/
 
 /*
 ================
@@ -3765,7 +4179,7 @@ void CL_LinkPlayers (void)
 			continue;
 */
 		// grab an entity to fill in
-		if (cl_numvisedicts == MAX_VISEDICTS)
+		if (cl_numvisedicts == cl_maxvisedicts)
 			break;		// object list is full
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
@@ -3779,10 +4193,11 @@ void CL_LinkPlayers (void)
 
 		CL_LerpNetFrameState(FS_REG, &ent->framestate,	&cl.lerpplayers[j]);
 
-//		if (state->modelindex == cl_playerindex)
-			ent->scoreboard = info;		// use custom skin
-//		else
-//			ent->scoreboard = NULL;
+		// set colormap
+		ent->playerindex = j;
+		ent->topcolour	  = info->ttopcolor;
+		ent->bottomcolour = info->tbottomcolor;
+		ent->h2playerclass = info->h2playerclass;
 
 #ifdef PEXT_SCALE
 		ent->scale = state->scale;
@@ -3877,9 +4292,7 @@ void CL_LinkPlayers (void)
 			CL_AddFlagModels (ent, 0);
 		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
-		if (info->vweapindex)
-			CL_AddVWeapModel (ent, cl.model_precache[info->vweapindex]);
-		else if (state->command.impulse)
+		if (state->command.impulse)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
 
 		CLQ1_AddShadow(ent);
@@ -3951,7 +4364,7 @@ void CL_LinkViewModel(void)
 	if (alpha <= 0)
 		return;
 
-	memset(&ent, 0, sizeof(ent));
+	V_ClearEntity(&ent);
 
 	ent.model = cl.viewent[r_refdef.currentplayernum].model;
 	if (!ent.model)
@@ -4285,12 +4698,29 @@ Builds the visedicts array for cl.time
 Made up of: clients, packet_entities, nails, and tents
 ===============
 */
-void CL_SwapEntityLists(void)
+void CL_ClearEntityLists(void)
 {
+	if (cl_numvisedicts == cl_maxvisedicts)
+	{
+		int newnum = cl_maxvisedicts + 32;
+		entity_t *n = BZ_Realloc(cl_visedicts, newnum * sizeof(*n));
+		if (n)
+		{
+			cl_visedicts = n;
+			cl_maxvisedicts = newnum;
+		}
+	}
 	cl_numvisedicts = 0;
 	cl_numstrisidx = 0;
 	cl_numstrisvert = 0;
 	cl_numstris = 0;
+}
+void CL_FreeVisEdicts(void)
+{
+	BZ_Free(cl_visedicts);
+	cl_visedicts = NULL;
+	cl_maxvisedicts = 0;
+	cl_numvisedicts = 0;
 }
 /*
 static void CL_WaterSplashes(void)
@@ -4333,6 +4763,7 @@ void CL_EmitEntities (void)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
+		CL_ClearEntityLists();
 		CLQ2_AddEntities();
 		return;
 	}
@@ -4340,7 +4771,7 @@ void CL_EmitEntities (void)
 	if (!cl.validsequence)
 		return;
 
-	CL_SwapEntityLists();
+	CL_ClearEntityLists();
 
 	CL_LinkPlayers ();
 	CL_LinkPacketEntities ();

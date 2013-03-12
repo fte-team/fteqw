@@ -336,13 +336,12 @@ static qboolean MI_Selectable(menuoption_t *op)
 
 static void M_CheckMouseMove(void)
 {
-	extern int mousecursor_x, mousecursor_y;
 	qboolean foundexclusive = false;
 	int mgt;
 	menu_t *menu;
 	menuoption_t *option;
 
-	if (omousex != mousecursor_x || omousey != mousecursor_y)
+	if (omousex != (int)mousecursor_x || omousey != (int)mousecursor_y)
 		mousemoved = true;
 	else
 		mousemoved = false;
@@ -1512,31 +1511,6 @@ void M_MenuPop_f (void)
 	if (!firstmenu)
 		return;
 	M_RemoveMenu(firstmenu);
-}
-
-
-void DrawCursor(int prydoncursornum)
-{
-	extern int mousecursor_x, mousecursor_y;
-	mpic_t *p;
-	if (!*cl_cursor.string)
-		p = NULL;
-	else
-		p = R2D_SafeCachePic(cl_cursor.string);
-	if (p)
-	{
-		R2D_ImageColours(1, 1, 1, 1);
-		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
-	}
-	else
-	{
-		int x, y;
-		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &x, &y);
-		x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
-		y -= Font_CharHeight()/2;
-		Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
-		Font_EndString(font_conchar);
-	}
 }
 
 void M_Complex_Draw(void)

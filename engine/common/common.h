@@ -52,6 +52,18 @@ typedef enum {false, true}	qboolean;
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
+#ifdef SERVERONLY
+#define cls_state 0
+#else
+#define cls_state cls.state
+#endif
+
+#ifdef CLIENTONLY
+#define sv_state 0
+#else
+#define sv_state sv.state
+#endif
+
 struct netprim_s
 {
 	int coordsize;
@@ -156,6 +168,7 @@ void MSG_WriteChar (sizebuf_t *sb, int c);
 void MSG_WriteByte (sizebuf_t *sb, int c);
 void MSG_WriteShort (sizebuf_t *sb, int c);
 void MSG_WriteLong (sizebuf_t *sb, int c);
+void MSG_WriteEntity (sizebuf_t *sb, unsigned int e);
 void MSG_WriteFloat (sizebuf_t *sb, float f);
 void MSG_WriteString (sizebuf_t *sb, const char *s);
 void MSG_WriteCoord (sizebuf_t *sb, float f);
@@ -178,6 +191,8 @@ int MSG_ReadBits(int bits);
 int MSG_ReadByte (void);
 int MSG_ReadShort (void);
 int MSG_ReadLong (void);
+unsigned int MSGSV_ReadEntity (struct client_s *fromclient);
+unsigned int MSGCL_ReadEntity (void);
 float MSG_ReadFloat (void);
 char *MSG_ReadString (void);
 char *MSG_ReadStringLine (void);
@@ -277,12 +292,14 @@ void COM_ParsePlusSets (void);
 typedef unsigned int conchar_t;
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
+unsigned int utf8_decode(int *error, void *in, void **out);
+unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
 void COM_StripAllExtensions (char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
-int COM_FileSize(const char *path);
+int QDECL COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
 char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
@@ -390,7 +407,7 @@ void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 
 
-qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
+qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
 qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more without freeing old temp
 qbyte *COM_LoadHunkFile (const char *path);

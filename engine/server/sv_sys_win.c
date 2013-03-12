@@ -769,107 +769,12 @@ void Sys_Printf (char *fmt, ...)
 
 		if (sys_colorconsole.value && hconsoleout)
 		{
-#if 1
 			conchar_t out[MAXPRINTMSG], *c, *end;
 			end = COM_ParseFunString(CON_WHITEMASK, msg, out, sizeof(out), false);
 
 			for (c = out; c < end; c++) 
 				Sys_PrintColouredChar (*c);
-#else
 
-			int ext = CON_WHITEMASK;
-			int extstack[4];
-			int extstackdepth = 0;
-			unsigned char *str = (unsigned char*)msg;
-
-
-			while(*str)
-			{
-				if (*str == '^')
-				{
-					str++;
-					if (*str >= '0' && *str <= '9')
-					{
-						ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK);	//change colour only.
-						continue;
-					}
-					else if (*str == '&') // extended code
-					{
-						if (isextendedcode(str[1]) && isextendedcode(str[2]))
-						{
-							str++; // foreground char
-							if (*str == '-') // default for FG
-								ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
-							else if (*str >= 'A')
-								ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
-							else
-								ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-							str++; // background char
-							if (*str == '-') // default (clear) for BG
-								ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
-							else if (*str >= 'A')
-								ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-							else
-								ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-							str++;
-							continue;
-						}
-						Sys_PrintColouredChar('^' | ext);
-						// else invalid code
-					}
-					else if (*str == 'a')
-					{
-						str++;
-						ext ^= CON_2NDCHARSETTEXT;
-						continue;
-					}
-					else if (*str == 'b')
-					{
-						str++;
-						ext ^= CON_BLINKTEXT;
-						continue;
-					}
-					else if (*str == 'h')
-					{
-						str++;
-						ext ^= CON_HALFALPHA;
-						continue;
-					}
-					else if (*str == 's')	//store on stack (it's great for names)
-					{
-						str++;
-						if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
-						{
-							extstack[extstackdepth] = ext;
-							extstackdepth++;
-						}
-						continue;
-					}
-					else if (*str == 'r')	//restore from stack (it's great for names)
-					{
-						str++;
-						if (extstackdepth)
-						{
-							extstackdepth--;
-							ext = extstack[extstackdepth];
-						}
-						continue;
-					}
-					else if (*str == '^')
-					{
-						Sys_PrintColouredChar('^' | ext);
-						str++;
-					}
-					else
-					{
-						Sys_PrintColouredChar('^' | ext);
-						Sys_PrintColouredChar ((*str++) | ext);
-					}
-					continue;
-				}
-				Sys_PrintColouredChar ((*str++) | ext);
-			}
-#endif
 			ApplyColour(CON_WHITEMASK);
 		}
 		else

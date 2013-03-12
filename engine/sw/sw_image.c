@@ -4,7 +4,7 @@
 
 
 
-texid_tf SW_AllocNewTexture(char *identifier, int w, int h)
+texid_tf SW_AllocNewTexture(char *identifier, int w, int h, unsigned int flags)
 {
 	texid_t n;
 	swimage_t *img;
@@ -72,7 +72,7 @@ texid_tf SW_LoadTexture(char *identifier, int width, int height, uploadfmt_t fmt
 {
 	texid_t img = SW_FindTexture(identifier, flags);
 	if (!img.ptr)
-		img = SW_AllocNewTexture(identifier, width, height);
+		img = SW_AllocNewTexture(identifier, width, height, flags);
 	if (!img.ptr)
 		return r_nulltex;
 	switch(fmt)

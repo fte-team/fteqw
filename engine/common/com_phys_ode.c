@@ -270,7 +270,7 @@ void            (ODE_API *dMassSetSphereTotal)(dMass *, dReal total_mass, dReal 
 //void            (ODE_API *dMassSetCapsule)(dMass *, dReal density, int direction, dReal radius, dReal length);
 void            (ODE_API *dMassSetCapsuleTotal)(dMass *, dReal total_mass, int direction, dReal radius, dReal length);
 //void            (ODE_API *dMassSetCylinder)(dMass *, dReal density, int direction, dReal radius, dReal length);
-//void            (ODE_API *dMassSetCylinderTotal)(dMass *, dReal total_mass, int direction, dReal radius, dReal length);
+void            (ODE_API *dMassSetCylinderTotal)(dMass *, dReal total_mass, int direction, dReal radius, dReal length);
 //void            (ODE_API *dMassSetBox)(dMass *, dReal density, dReal lx, dReal ly, dReal lz);
 void            (ODE_API *dMassSetBoxTotal)(dMass *, dReal total_mass, dReal lx, dReal ly, dReal lz);
 //void            (ODE_API *dMassSetTrimesh)(dMass *, dReal density, dGeomID g);
@@ -431,8 +431,8 @@ void            (ODE_API *dJointGroupDestroy)(dJointGroupID);
 void            (ODE_API *dJointGroupEmpty)(dJointGroupID);
 //int             (ODE_API *dJointGetNumBodies)(dJointID);
 void            (ODE_API *dJointAttach)(dJointID, dBodyID body1, dBodyID body2);
-//void            (ODE_API *dJointEnable)(dJointID);
-//void            (ODE_API *dJointDisable)(dJointID);
+void            (ODE_API *dJointEnable)(dJointID);
+void            (ODE_API *dJointDisable)(dJointID);
 //int             (ODE_API *dJointIsEnabled)(dJointID);
 void            (ODE_API *dJointSetData)(dJointID, void *data);
 void *          (ODE_API *dJointGetData)(dJointID);
@@ -496,31 +496,31 @@ void            (ODE_API *dJointSetFixed)(dJointID);
 //void            (ODE_API *dJointSetPlane2DXParam)(dJointID, int parameter, dReal value);
 //void            (ODE_API *dJointSetPlane2DYParam)(dJointID, int parameter, dReal value);
 //void            (ODE_API *dJointSetPlane2DAngleParam)(dJointID, int parameter, dReal value);
-//void            (ODE_API *dJointGetBallAnchor)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetBallAnchor)(dJointID, dVector3 result);
 //void            (ODE_API *dJointGetBallAnchor2)(dJointID, dVector3 result);
 //dReal           (ODE_API *dJointGetBallParam)(dJointID, int parameter);
-//void            (ODE_API *dJointGetHingeAnchor)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetHingeAnchor)(dJointID, dVector3 result);
 //void            (ODE_API *dJointGetHingeAnchor2)(dJointID, dVector3 result);
-//void            (ODE_API *dJointGetHingeAxis)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetHingeAxis)(dJointID, dVector3 result);
 //dReal           (ODE_API *dJointGetHingeParam)(dJointID, int parameter);
 //dReal           (ODE_API *dJointGetHingeAngle)(dJointID);
 //dReal           (ODE_API *dJointGetHingeAngleRate)(dJointID);
 //dReal           (ODE_API *dJointGetSliderPosition)(dJointID);
 //dReal           (ODE_API *dJointGetSliderPositionRate)(dJointID);
-//void            (ODE_API *dJointGetSliderAxis)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetSliderAxis)(dJointID, dVector3 result);
 //dReal           (ODE_API *dJointGetSliderParam)(dJointID, int parameter);
-//void            (ODE_API *dJointGetHinge2Anchor)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetHinge2Anchor)(dJointID, dVector3 result);
 //void            (ODE_API *dJointGetHinge2Anchor2)(dJointID, dVector3 result);
-//void            (ODE_API *dJointGetHinge2Axis1)(dJointID, dVector3 result);
-//void            (ODE_API *dJointGetHinge2Axis2)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetHinge2Axis1)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetHinge2Axis2)(dJointID, dVector3 result);
 //dReal           (ODE_API *dJointGetHinge2Param)(dJointID, int parameter);
 //dReal           (ODE_API *dJointGetHinge2Angle1)(dJointID);
 //dReal           (ODE_API *dJointGetHinge2Angle1Rate)(dJointID);
 //dReal           (ODE_API *dJointGetHinge2Angle2Rate)(dJointID);
-//void            (ODE_API *dJointGetUniversalAnchor)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetUniversalAnchor)(dJointID, dVector3 result);
 //void            (ODE_API *dJointGetUniversalAnchor2)(dJointID, dVector3 result);
-//void            (ODE_API *dJointGetUniversalAxis1)(dJointID, dVector3 result);
-//void            (ODE_API *dJointGetUniversalAxis2)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetUniversalAxis1)(dJointID, dVector3 result);
+void            (ODE_API *dJointGetUniversalAxis2)(dJointID, dVector3 result);
 //dReal           (ODE_API *dJointGetUniversalParam)(dJointID, int parameter);
 //void            (ODE_API *dJointGetUniversalAngles)(dJointID, dReal *angle1, dReal *angle2);
 //dReal           (ODE_API *dJointGetUniversalAngle1)(dJointID);
@@ -659,7 +659,7 @@ dGeomID         (ODE_API *dCreateCapsule)(dSpaceID space, dReal radius, dReal le
 //void            (ODE_API *dGeomCapsuleGetParams)(dGeomID ccylinder, dReal *radius, dReal *length);
 //dReal           (ODE_API *dGeomCapsulePointDepth)(dGeomID ccylinder, dReal x, dReal y, dReal z);
 //
-//dGeomID         (ODE_API *dCreateCylinder)(dSpaceID space, dReal radius, dReal length);
+dGeomID         (ODE_API *dCreateCylinder)(dSpaceID space, dReal radius, dReal length);
 //void            (ODE_API *dGeomCylinderSetParams)(dGeomID cylinder, dReal radius, dReal length);
 //void            (ODE_API *dGeomCylinderGetParams)(dGeomID cylinder, dReal *radius, dReal *length);
 //
@@ -735,7 +735,7 @@ static dllfunction_t odefuncs[] =
 //	{"dMassSetCapsule",								(void **) &dMassSetCapsule},
 	{(void **) &dMassSetCapsuleTotal,				"dMassSetCapsuleTotal"},
 //	{"dMassSetCylinder",							(void **) &dMassSetCylinder},
-//	{"dMassSetCylinderTotal",						(void **) &dMassSetCylinderTotal},
+	{(void **) &dMassSetCylinderTotal,				"dMassSetCylinderTotal"},
 //	{"dMassSetBox",									(void **) &dMassSetBox},
 	{(void **) &dMassSetBoxTotal,					"dMassSetBoxTotal"},
 //	{"dMassSetTrimesh",								(void **) &dMassSetTrimesh},
@@ -896,8 +896,8 @@ static dllfunction_t odefuncs[] =
 	{(void **) &dJointGroupEmpty,					"dJointGroupEmpty"},
 //	{"dJointGetNumBodies",							(void **) &dJointGetNumBodies},
 	{(void **) &dJointAttach,						"dJointAttach"},
-//	{"dJointEnable",								(void **) &dJointEnable},
-//	{"dJointDisable",								(void **) &dJointDisable},
+	{(void **) &dJointEnable,						"dJointEnable"},
+	{(void **) &dJointDisable,						"dJointDisable"},
 //	{"dJointIsEnabled",								(void **) &dJointIsEnabled},
 	{(void **) &dJointSetData,						"dJointSetData"},
 	{(void **) &dJointGetData,						"dJointGetData"},
@@ -961,31 +961,31 @@ static dllfunction_t odefuncs[] =
 //	{"dJointSetPlane2DXParam",						(void **) &dJointSetPlane2DXParam},
 //	{"dJointSetPlane2DYParam",						(void **) &dJointSetPlane2DYParam},
 //	{"dJointSetPlane2DAngleParam",					(void **) &dJointSetPlane2DAngleParam},
-//	{"dJointGetBallAnchor",							(void **) &dJointGetBallAnchor},
+	{(void **) &dJointGetBallAnchor,				"dJointGetBallAnchor"},
 //	{"dJointGetBallAnchor2",						(void **) &dJointGetBallAnchor2},
 //	{"dJointGetBallParam",							(void **) &dJointGetBallParam},
-//	{"dJointGetHingeAnchor",						(void **) &dJointGetHingeAnchor},
+	{(void **) &dJointGetHingeAnchor,				"dJointGetHingeAnchor"},
 //	{"dJointGetHingeAnchor2",						(void **) &dJointGetHingeAnchor2},
-//	{"dJointGetHingeAxis",							(void **) &dJointGetHingeAxis},
+	{(void **) &dJointGetHingeAxis,					"dJointGetHingeAxis"},
 //	{"dJointGetHingeParam",							(void **) &dJointGetHingeParam},
 //	{"dJointGetHingeAngle",							(void **) &dJointGetHingeAngle},
 //	{"dJointGetHingeAngleRate",						(void **) &dJointGetHingeAngleRate},
 //	{"dJointGetSliderPosition",						(void **) &dJointGetSliderPosition},
 //	{"dJointGetSliderPositionRate",					(void **) &dJointGetSliderPositionRate},
-//	{"dJointGetSliderAxis",							(void **) &dJointGetSliderAxis},
+	{(void **) &dJointGetSliderAxis,				"dJointGetSliderAxis"},
 //	{"dJointGetSliderParam",						(void **) &dJointGetSliderParam},
 //	{"dJointGetHinge2Anchor",						(void **) &dJointGetHinge2Anchor},
 //	{"dJointGetHinge2Anchor2",						(void **) &dJointGetHinge2Anchor2},
-//	{"dJointGetHinge2Axis1",						(void **) &dJointGetHinge2Axis1},
-//	{"dJointGetHinge2Axis2",						(void **) &dJointGetHinge2Axis2},
+	{(void **) &dJointGetHinge2Axis1,				"dJointGetHinge2Axis1"},
+	{(void **) &dJointGetHinge2Axis2,				"dJointGetHinge2Axis2"},
 //	{"dJointGetHinge2Param",						(void **) &dJointGetHinge2Param},
 //	{"dJointGetHinge2Angle1",						(void **) &dJointGetHinge2Angle1},
 //	{"dJointGetHinge2Angle1Rate",					(void **) &dJointGetHinge2Angle1Rate},
 //	{"dJointGetHinge2Angle2Rate",					(void **) &dJointGetHinge2Angle2Rate},
-//	{"dJointGetUniversalAnchor",					(void **) &dJointGetUniversalAnchor},
+	{(void **) &dJointGetUniversalAnchor,			"dJointGetUniversalAnchor"},
 //	{"dJointGetUniversalAnchor2",					(void **) &dJointGetUniversalAnchor2},
-//	{"dJointGetUniversalAxis1",						(void **) &dJointGetUniversalAxis1},
-//	{"dJointGetUniversalAxis2",						(void **) &dJointGetUniversalAxis2},
+	{(void **) &dJointGetUniversalAxis1,			"dJointGetUniversalAxis1"},
+	{(void **) &dJointGetUniversalAxis2,			"dJointGetUniversalAxis2"},
 //	{"dJointGetUniversalParam",						(void **) &dJointGetUniversalParam},
 //	{"dJointGetUniversalAngles",					(void **) &dJointGetUniversalAngles},
 //	{"dJointGetUniversalAngle1",					(void **) &dJointGetUniversalAngle1},
@@ -1115,7 +1115,7 @@ static dllfunction_t odefuncs[] =
 //	{"dGeomCapsuleSetParams",						(void **) &dGeomCapsuleSetParams},
 //	{"dGeomCapsuleGetParams",						(void **) &dGeomCapsuleGetParams},
 //	{"dGeomCapsulePointDepth",						(void **) &dGeomCapsulePointDepth},
-//	{"dCreateCylinder",								(void **) &dCreateCylinder},
+	{(void **) &dCreateCylinder,					"dCreateCylinder"},
 //	{"dGeomCylinderSetParams",						(void **) &dGeomCylinderSetParams},
 //	{"dGeomCylinderGetParams",						(void **) &dGeomCylinderGetParams},
 //	{"dCreateRay",									(void **) &dCreateRay},
@@ -1771,16 +1771,9 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	return true;
 }
 
-qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, float *mat, wedict_t *ent)
+qboolean World_ODE_RagMatrixToBody(odebody_t *bodyptr, float *mat)
 {
 	dVector3 r[3];
-
-	if (!world->ode.ode_space)
-		return false;
-	bodyptr->ode_geom = dCreateBox(world->ode.ode_space, 3, 3, 3);
-	bodyptr->ode_body = dBodyCreate(world->ode.ode_world);
-	dGeomSetBody(bodyptr->ode_geom, bodyptr->ode_body);
-	dGeomSetData(bodyptr->ode_geom, (void*)ent);
 
 	r[0][0] = mat[0];
 	r[0][1] = mat[1];
@@ -1796,7 +1789,140 @@ qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, float *mat,
 	dBodySetRotation(bodyptr->ode_body, r[0]);
 	dBodySetLinearVel(bodyptr->ode_body, 0, 0, 0);
 	dBodySetAngularVel(bodyptr->ode_body, 0, 0, 0);
+
 	return true;
+}
+qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, odebodyinfo_t *bodyinfo, float *mat, wedict_t *ent)
+{
+	dMass mass;
+	float radius;
+	if (!world->ode.ode_space)
+		return false;
+	world->ode.hasodeents = true;	//I don't like this, but we need the world etc to be solid.
+	world->ode.hasextraobjs = true;
+	
+	switch(bodyinfo->shape)
+	{
+	case SOLID_PHYSICS_CAPSULE:
+		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
+		bodyptr->ode_geom = (void *)dCreateCapsule(world->ode.ode_space, radius, bodyinfo->dimensions[2]);
+		dMassSetCapsuleTotal(&mass, bodyinfo->mass, 3, radius, bodyinfo->dimensions[2]);
+		//aligned along the geom's local z axis
+		break;
+	case SOLID_PHYSICS_SPHERE:
+		//radius
+		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1] + bodyinfo->dimensions[2]) / 3;
+		bodyptr->ode_geom = dCreateSphere(world->ode.ode_space, radius);
+		dMassSetSphereTotal(&mass, bodyinfo->mass, radius);
+		//aligned along the geom's local z axis
+		break;
+	case SOLID_PHYSICS_CYLINDER:
+		//radius, length
+		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
+		bodyptr->ode_geom = dCreateCylinder(world->ode.ode_space, radius, bodyinfo->dimensions[2]);
+		dMassSetCylinderTotal(&mass, bodyinfo->mass, 3, radius, bodyinfo->dimensions[2]);
+		//alignment is irreleevnt, thouse I suppose it might be scaled wierdly.
+		break;
+	default:
+	case SOLID_PHYSICS_BOX:
+		//diameter
+		bodyptr->ode_geom = dCreateBox(world->ode.ode_space, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
+		dMassSetBoxTotal(&mass, bodyinfo->mass, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
+		//monkey
+		break;
+	}
+	bodyptr->ode_body = dBodyCreate(world->ode.ode_world);
+	dBodySetMass(bodyptr->ode_body, &mass);
+	dGeomSetBody(bodyptr->ode_geom, bodyptr->ode_body);
+	dGeomSetData(bodyptr->ode_geom, (void*)ent);
+
+	return World_ODE_RagMatrixToBody(bodyptr, mat);
+}
+
+void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float *mat)
+{
+	dVector3 dr3;
+	switch(info->type)
+	{
+	case JOINTTYPE_POINT:
+		dJointGetBallAnchor(joint->ode_joint, dr3);
+		mat[3] = dr3[0];
+		mat[7] = dr3[1];
+		mat[11] = dr3[2];
+		VectorClear(mat+4);
+		VectorClear(mat+8);
+		break;
+
+	case JOINTTYPE_HINGE:
+		dJointGetHingeAnchor(joint->ode_joint, dr3);
+		mat[3] = dr3[0];
+		mat[7] = dr3[1];
+		mat[11] = dr3[2];
+
+		dJointGetHingeAxis(joint->ode_joint, dr3);
+		VectorCopy(dr3, mat+4);
+		VectorClear(mat+8);
+
+		CrossProduct(mat+4, mat+8, mat+0);
+		return;
+		break;
+	case JOINTTYPE_HINGE2:
+		dJointGetHinge2Anchor(joint->ode_joint, dr3);
+		mat[3] = dr3[0];
+		mat[7] = dr3[1];
+		mat[11] = dr3[2];
+
+		dJointGetHinge2Axis1(joint->ode_joint, dr3);
+		VectorCopy(dr3, mat+4);
+		dJointGetHinge2Axis2(joint->ode_joint, dr3);
+		VectorCopy(dr3, mat+8);
+		break;
+
+	case JOINTTYPE_SLIDER:
+		//no anchor point...
+		//get the two bodies and average their origin for a somewhat usable representation of an anchor.
+		{
+			const dReal *p1, *p2;
+			dReal n[3];
+			dBodyID b1 = dJointGetBody(joint->ode_joint, 0), b2 = dJointGetBody(joint->ode_joint, 1);
+			if (b1)
+				p1 = dBodyGetPosition(b1);
+			else
+			{
+				p1 = n;
+				VectorClear(n);
+			}
+			if (b2)
+				p2 = dBodyGetPosition(b2);
+			else
+				p2 = p1;
+			dJointGetSliderAxis(joint->ode_joint, dr3 + 0);
+			VectorInterpolate(p1, 0.5, p2, dr3);
+			mat[3] = dr3[0];
+			mat[7] = dr3[1];
+			mat[11] = dr3[2];
+
+			VectorClear(mat+4);
+			VectorClear(mat+8);
+		}
+		break;
+
+	case JOINTTYPE_UNIVERSAL:
+		dJointGetUniversalAnchor(joint->ode_joint, dr3);
+		mat[3] = dr3[0];
+		mat[7] = dr3[1];
+		mat[11] = dr3[2];
+
+		dJointGetUniversalAxis1(joint->ode_joint, dr3);
+		VectorCopy(dr3, mat+4);
+		dJointGetUniversalAxis2(joint->ode_joint, dr3);
+		VectorCopy(dr3, mat+8);
+
+		CrossProduct(mat+4, mat+8, mat+0);
+		return;
+		break;
+	}
+	AngleVectorsFLU(vec3_origin, mat+0, mat+4, mat+8);
 }
 
 void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat)
@@ -1818,7 +1944,13 @@ void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat)
 	mat[10] = r[10];
 	mat[11] = o[2];
 }
-
+void World_ODE_RagEnableJoint(odejoint_t *joint, qboolean enabled)
+{
+	if (enabled)
+		dJointEnable(joint->ode_joint);
+	else
+		dJointDisable(joint->ode_joint);
+}
 void World_ODE_RagCreateJoint(world_t *world, odejoint_t *joint, odejointinfo_t *info, odebody_t *body1, odebody_t *body2, vec3_t aaa2[3])
 {
 	switch(info->type)
@@ -2022,12 +2154,6 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 
 	if (movetype != MOVETYPE_PHYSICS)
 		massval = 1.0f;
-
-	// get friction from entity
-	if (ed->xv->friction)
-		ed->ode.ode_friction = ed->xv->friction;
-	else
-		ed->ode.ode_friction = 1.0;
 
 	// check if we need to create or replace the geom
 	if (!ed->ode.ode_physics
@@ -2380,9 +2506,17 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 		return;
 
 	ed1 = (wedict_t *) dGeomGetData(o1);
+	ed2 = (wedict_t *) dGeomGetData(o2);
+	if (ed1 == ed2 && ed1)
+	{
+		//ragdolls don't make contact with the bbox of the doll entity
+		//the origional entity should probably not be solid anyway.
+		//these bodies should probably not collide against bboxes of other entities with ragdolls either, but meh.
+		if (ed1->ode.ode_body == b1 || ed2->ode.ode_body == b2)
+			return;
+	}
 	if(!ed1 || ed1->isfree)
 		ed1 = world->edicts;
-	ed2 = (wedict_t *) dGeomGetData(o2);
 	if(!ed2 || ed2->isfree)
 		ed2 = world->edicts;
 
@@ -2454,7 +2588,12 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 									(physics_ode_contact_erp.value != -1 ? dContactSoftERP : 0) |
 									(physics_ode_contact_cfm.value != -1 ? dContactSoftCFM : 0) |
 									(bouncefactor1 > 0 ? dContactBounce : 0);
-		contact[i].surface.mu = physics_ode_contact_mu.value * ed1->ode.ode_friction * ed2->ode.ode_friction;
+		contact[i].surface.mu = physics_ode_contact_mu.value;
+		if (ed1->xv->friction)
+			contact[i].surface.mu *= ed1->xv->friction;
+		if (ed2->xv->friction)
+			contact[i].surface.mu *= ed2->xv->friction;
+		contact[i].surface.mu2 = 0;
 		contact[i].surface.soft_erp = physics_ode_contact_erp.value + erp;
 		contact[i].surface.soft_cfm = physics_ode_contact_cfm.value;
 		contact[i].surface.bounce = bouncefactor1;
@@ -2475,7 +2614,7 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 		world->ode.ode_step = frametime / world->ode.ode_iterations;
 		world->ode.ode_movelimit = physics_ode_movelimit.value / world->ode.ode_step;
 
-		if (world->ode.hasodeents)
+		if (world->ode.hasodeents || world->ode.hasextraobjs)
 		{
 			// copy physics properties from entities to physics engine
 			for (i = 0;i < world->num_edicts;i++)
@@ -2495,6 +2634,12 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 
 		for (i = 0;i < world->ode.ode_iterations;i++)
 		{
+			if (world->ode.hasextraobjs)
+			{
+#ifdef RAGDOLL
+				rag_doallanimations(world);
+#endif
+			}
 			// set the gravity
 			dWorldSetGravity(world->ode.ode_world, 0, 0, -gravity);
 			// set the tolerance for closeness of objects

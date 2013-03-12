@@ -61,7 +61,7 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
 jmp_buf decompilestatementfailure;
 
 #if 0
-pbool Decompile(progfuncs_t *progfuncs, char *fname)
+pbool QC_Decompile(progfuncs_t *progfuncs, char *fname)
 {
 	return false;
 }
@@ -86,7 +86,6 @@ void VARGS writes(int hand, char *msg, ...)
 	SafeWrite(hand, buf, strlen(buf));
 };
 
-char *PR_UglyValueString (etype_t type, eval_t *val);
 ddef16_t *ED_GlobalAtOfs16 (progfuncs_t *progfuncs, int ofs);
 char *VarAtOfs(progfuncs_t *progfuncs, int ofs)
 {
@@ -119,7 +118,7 @@ char *VarAtOfs(progfuncs_t *progfuncs, int ofs)
 		}
 		return buf;
 	}
-	if (!def->s_name[progfuncs->stringtable] || !strcmp(progfuncs->stringtable+def->s_name, "IMMEDIATE"))
+	if (!def->s_name[progfuncs->funcs.stringtable] || !strcmp(progfuncs->funcs.stringtable+def->s_name, "IMMEDIATE"))
 	{
 		if (current_progstate->types)
 			typen = current_progstate->types[def->type & ~DEF_SHARED].type;
@@ -180,7 +179,7 @@ evaluateimmediate:
 			return buf;
 		}
 	}
-	return def->s_name+progfuncs->stringtable;
+	return def->s_name+progfuncs->funcs.stringtable;
 }
 
 
@@ -314,10 +313,10 @@ void WriteStatementProducingOfs(progfuncs_t *progfuncs, progstate_t *progs, int 
 	def = ED_GlobalAtOfs16(progfuncs, ofs);
 	if (def)
 	{
-		if (!strcmp(def->s_name+progfuncs->stringtable, "IMMEDIATE"))
+		if (!strcmp(def->s_name+progfuncs->funcs.stringtable, "IMMEDIATE"))
 			writes(file, "%s", VarAtOfs(progfuncs, ofs));
 		else
-			writes(file, "%s", progfuncs->stringtable+def->s_name);
+			writes(file, "%s", progfuncs->funcs.stringtable+def->s_name);
 	}
 	else
 		writes(file, "%s", VarAtOfs(progfuncs, ofs));
@@ -464,12 +463,12 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 				writes(f, ", ");
 			st = (void *)0xffff;
 
-			if (!def->s_name[progfuncs->stringtable])
+			if (!def->s_name[progfuncs->funcs.stringtable])
 			{
 				char mem[64];
 				sprintf(mem, "_p_%i", def->ofs);
-				def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->stringtable;
-				strcpy(def->s_name+progfuncs->stringtable, mem);
+				def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->funcs.stringtable;
+				strcpy(def->s_name+progfuncs->funcs.stringtable, mem);
 			}
 
 			if (current_progstate->types)
@@ -478,19 +477,19 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 				switch(def->type&~(DEF_SHARED|DEF_SAVEGLOBAL))
 				{
 				case ev_string:
-					writes(f, "%s %s", "string", progfuncs->stringtable+def->s_name);
+					writes(f, "%s %s", "string", progfuncs->funcs.stringtable+def->s_name);
 					break;
 				case ev_float:
-					writes(f, "%s %s", "float", progfuncs->stringtable+def->s_name);
+					writes(f, "%s %s", "float", progfuncs->funcs.stringtable+def->s_name);
 					break;
 				case ev_entity:
-					writes(f, "%s %s", "entity", progfuncs->stringtable+def->s_name);
+					writes(f, "%s %s", "entity", progfuncs->funcs.stringtable+def->s_name);
 					break;
 				case ev_vector:
-					writes(f, "%s %s", "vector", progfuncs->stringtable+def->s_name);
+					writes(f, "%s %s", "vector", progfuncs->funcs.stringtable+def->s_name);
 					break;
 				default:
-					writes(f, "%s %s", "randomtype", progfuncs->stringtable+def->s_name);
+					writes(f, "%s %s", "randomtype", progfuncs->funcs.stringtable+def->s_name);
 					break;
 				}
 		}
@@ -498,23 +497,23 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 	for (ofs = progs->functions[num].parm_start+progs->functions[num].numparms, i = progs->functions[num].numparms; i < progs->functions[num].locals; i++, ofs+=1)
 		ofsflags[ofs] |= 4;
 
-	if (!progfuncs->stringtable[progs->functions[num].s_name])
+	if (!progfuncs->funcs.stringtable[progs->functions[num].s_name])
 	{
 		char mem[64];
 		if (!functionname)
 		{
 			sprintf(mem, "_bi_%i", num);
-			progs->functions[num].s_name = (char*)malloc(strlen(mem)+1)-progfuncs->stringtable;
-			strcpy(progs->functions[num].s_name+progfuncs->stringtable, mem);
+			progs->functions[num].s_name = (char*)malloc(strlen(mem)+1)-progfuncs->funcs.stringtable;
+			strcpy(progs->functions[num].s_name+progfuncs->funcs.stringtable, mem);
 		}
 		else
 		{
-			progs->functions[num].s_name = (char*)malloc(strlen(functionname)+1)-progfuncs->stringtable;
-			strcpy(progs->functions[num].s_name+progfuncs->stringtable, functionname);
+			progs->functions[num].s_name = (char*)malloc(strlen(functionname)+1)-progfuncs->funcs.stringtable;
+			strcpy(progs->functions[num].s_name+progfuncs->funcs.stringtable, functionname);
 		}
 	}
 
-	writes(f, ") %s", progfuncs->stringtable+progs->functions[num].s_name);
+	writes(f, ") %s", progfuncs->funcs.stringtable+progs->functions[num].s_name);
 
 	if (stn < 0)
 	{
@@ -579,34 +578,34 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 					writes(f, "\tlocal %s %s;\r\n", current_progstate->types[def->type&~(DEF_SHARED|DEF_SAVEGLOBAL)].name, def->s_name);
 				else
 				{
-					if (!progfuncs->stringtable[def->s_name])
+					if (!progfuncs->funcs.stringtable[def->s_name])
 					{
 						char mem[64];
 						sprintf(mem, "_l_%i", def->ofs);
-						def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->stringtable;
-						strcpy(def->s_name+progfuncs->stringtable, mem);
+						def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->funcs.stringtable;
+						strcpy(def->s_name+progfuncs->funcs.stringtable, mem);
 					}
 
 					switch(def->type&~(DEF_SHARED|DEF_SAVEGLOBAL))
 					{
 					case ev_string:
-						writes(f, "\tlocal %s %s;\r\n", "string", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "string", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					case ev_float:
-						writes(f, "\tlocal %s %s;\r\n", "float", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "float", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					case ev_entity:
-						writes(f, "\tlocal %s %s;\r\n", "entity", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "entity", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					case ev_vector:
 						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
-							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
+							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->funcs.stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 						else
-							writes(f, "\tlocal %s %s;\r\n", "vector", progfuncs->stringtable+def->s_name);
+							writes(f, "\tlocal %s %s;\r\n", "vector", progfuncs->funcs.stringtable+def->s_name);
 						ofs+=2;	//skip floats;
 						break;
 					default:
-						writes(f, "\tlocal %s %s;\r\n", "randomtype", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "randomtype", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					}
 				}
@@ -677,7 +676,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 	}
 	else
 	{
-		if (!strcmp(progfuncs->stringtable+progs->functions[num].s_name, "SUB_Remove"))
+		if (!strcmp(progfuncs->funcs.stringtable+progs->functions[num].s_name, "SUB_Remove"))
 			file = 0;
 		file = f;
 
@@ -695,34 +694,34 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 					writes(f, "\tlocal %s %s;\r\n", current_progstate->types[def->type&~(DEF_SHARED|DEF_SAVEGLOBAL)].name, def->s_name);
 				else
 				{
-					if (!def->s_name[progfuncs->stringtable])
+					if (!def->s_name[progfuncs->funcs.stringtable])
 					{
 						char mem[64];
 						sprintf(mem, "_l_%i", def->ofs);
-						def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->stringtable;
-						strcpy(def->s_name+progfuncs->stringtable, mem);
+						def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->funcs.stringtable;
+						strcpy(def->s_name+progfuncs->funcs.stringtable, mem);
 					}
 
 					switch(def->type&~(DEF_SHARED|DEF_SAVEGLOBAL))
 					{
 					case ev_string:
-						writes(f, "\tlocal %s %s;\r\n", "string", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "string", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					case ev_float:
-						writes(f, "\tlocal %s %s;\r\n", "float", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "float", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					case ev_entity:
-						writes(f, "\tlocal %s %s;\r\n", "entity", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "entity", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					case ev_vector:
 						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
-							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
+							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->funcs.stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 						else
-							writes(f, "\tlocal %s %s;\r\n", "vector",progfuncs->stringtable+def->s_name);
+							writes(f, "\tlocal %s %s;\r\n", "vector",progfuncs->funcs.stringtable+def->s_name);
 						ofs+=2;	//skip floats;
 						break;
 					default:
-						writes(f, "\tlocal %s %s;\r\n", "randomtype", progfuncs->stringtable+def->s_name);
+						writes(f, "\tlocal %s %s;\r\n", "randomtype", progfuncs->funcs.stringtable+def->s_name);
 						break;
 					}
 				}
@@ -848,8 +847,9 @@ void FigureOutTypes(progfuncs_t *progfuncs)
 	}
 }
 
-pbool Decompile(progfuncs_t *progfuncs, char *fname)
+pbool PDECL QC_Decompile(pubprogfuncs_t *ppf, char *fname)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	extern progfuncs_t *qccprogfuncs;
 	unsigned int i;
 	unsigned int fld=0;
@@ -875,7 +875,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 
 	for (i = 1; i < progs.progs->numglobaldefs; i++)
 	{
-		if (!strcmp(progfuncs->stringtable+pr_globaldefs16[i].s_name, "IMMEDIATE"))
+		if (!strcmp(progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name, "IMMEDIATE"))
 			continue;
 
 		if (ofsflags[pr_globaldefs16[i].ofs] & 4)
@@ -887,7 +887,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			type = pr_globaldefs16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 		v = (eval_t *)&((int *)progs.globals)[pr_globaldefs16[i].ofs];
 
-		if (!progfuncs->stringtable[pr_globaldefs16[i].s_name])
+		if (!progfuncs->funcs.stringtable[pr_globaldefs16[i].s_name])
 		{
 			char mem[64];
 			if (ofsflags[pr_globaldefs16[i].ofs] & 3)
@@ -897,36 +897,36 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			}
 
 			sprintf(mem, "_g_%i", pr_globaldefs16[i].ofs);
-			pr_globaldefs16[i].s_name = (char*)malloc(strlen(mem)+1)-progfuncs->stringtable;
-			strcpy(pr_globaldefs16[i].s_name+progfuncs->stringtable, mem);
+			pr_globaldefs16[i].s_name = (char*)malloc(strlen(mem)+1)-progfuncs->funcs.stringtable;
+			strcpy(pr_globaldefs16[i].s_name+progfuncs->funcs.stringtable, mem);
 		}
 
 		switch(type)
 		{
 		case ev_void:
-			writes(f, "void %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+			writes(f, "void %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_string:
 			if (v->string && *(pr_strings+v->_int))
-				writes(f, "string %s = \"%s\";\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, pr_strings+v->_int);
+				writes(f, "string %s = \"%s\";\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name, pr_strings+v->_int);
 			else
-				writes(f, "string %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, "string %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_float:
 			if (v->_float)
-				writes(f, "float %s = %f;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, v->_float);
+				writes(f, "float %s = %f;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name, v->_float);
 			else
-				writes(f, "float %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, "float %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_vector:
 			if (v->_vector[0] || v->_vector[1] || v->_vector[2])
-				writes(f, "vector %s = '%f %f %f';\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
+				writes(f, "vector %s = '%f %f %f';\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 			else
-				writes(f, "vector %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, "vector %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			i+=3;//skip the floats
 			break;
 		case ev_entity:
-			writes(f, "entity %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+			writes(f, "entity %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_field:
 //wierd
@@ -936,27 +936,27 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			switch(pr_fielddefs16[fld].type)
 			{
 			case ev_string:
-				writes(f, ".string %s;", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, ".string %s;", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 				break;
 
 			case ev_float:
-				writes(f, ".float %s;", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, ".float %s;", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 				break;
 
 			case ev_vector:
-				writes(f, ".float %s;", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, ".float %s;", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 				break;
 
 			case ev_entity:
-				writes(f, ".float %s;", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, ".float %s;", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 				break;
 
 			case ev_function:
-				writes(f, ".void() %s;", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, ".void() %s;", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 				break;
 
 			default:
-				writes(f, "field %s;", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+				writes(f, "field %s;", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 				break;
 			}
 			if (v->_int)
@@ -966,21 +966,21 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 
 		case ev_function:
 //wierd
-			WriteAsmStatements(progfuncs, &progs, ((int *)progs.globals)[pr_globaldefs16[i].ofs], f, pr_globaldefs16[i].s_name+progfuncs->stringtable);
+			WriteAsmStatements(progfuncs, &progs, ((int *)progs.globals)[pr_globaldefs16[i].ofs], f, pr_globaldefs16[i].s_name+progfuncs->funcs.stringtable);
 			break;
 
 		case ev_pointer:
-			writes(f, "pointer %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+			writes(f, "pointer %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_integer:
-			writes(f, "integer %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+			writes(f, "integer %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 
 		case ev_union:
-			writes(f, "union %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+			writes(f, "union %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_struct:
-			writes(f, "struct %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
+			writes(f, "struct %s;\r\n", progfuncs->funcs.stringtable+pr_globaldefs16[i].s_name);
 			break;
 		default:
 			break;

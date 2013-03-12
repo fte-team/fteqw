@@ -16,9 +16,6 @@ static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "5", CVAR_ARCHIVE, "
 extern cvar_t cl_forcesplitclient;	//all devices claim to be a single player
 extern cvar_t _windowed_mouse;
 
-int mousecursor_x, mousecursor_y;	/*absolute position*/
-extern int mousemove_x, mousemove_y;
-
 
 #define EVENTQUEUELENGTH 128
 struct eventlist_s
@@ -257,9 +254,6 @@ void IN_Commands(void)
 
 void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 {
-	extern int mousecursor_x, mousecursor_y;
-	extern int mousemove_x, mousemove_y;
-
 	int mx, my;
 	double mouse_x, mouse_y, mouse_deltadist;
 	int mfwt;
@@ -318,20 +312,23 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 
 	if (Key_MouseShouldBeFree())
 	{
-		mousecursor_x += mx;
-		mousecursor_y += my;
+		if (mx || my)
+		{
+			mousecursor_x += mx;
+			mousecursor_y += my;
 
-		if (mousecursor_y<0)
-			mousecursor_y=0;
-		if (mousecursor_x<0)
-			mousecursor_x=0;
+			if (mousecursor_y<0)
+				mousecursor_y=0;
+			if (mousecursor_x<0)
+				mousecursor_x=0;
 
-		if (mousecursor_x >= vid.width)
-			mousecursor_x = vid.width - 1;
+			if (mousecursor_x >= vid.width)
+				mousecursor_x = vid.width - 1;
 
-		if (mousecursor_y >= vid.height)
-			mousecursor_y = vid.height - 1;
-		mx=my=0;
+			if (mousecursor_y >= vid.height)
+				mousecursor_y = vid.height - 1;
+			mx=my=0;
+		}
 
 #ifdef PEXT_CSQC
 		CSQC_MousePosition(mousecursor_x, mousecursor_y, mouse->qdeviceid);

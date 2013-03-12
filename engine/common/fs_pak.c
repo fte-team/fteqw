@@ -54,14 +54,14 @@ typedef struct
 
 #define	MAX_FILES_IN_PACK	2048
 
-void FSPAK_PrintPath(void *handle)
+void FSPAK_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	pack_t *pak = handle;
 
 	if (pak->references != 1)
-		Con_Printf("%s (%i)\n", pak->descname, pak->references-1);
+		Q_snprintfz(out, outlen, "%s (%i)", pak->descname, pak->references-1);
 	else
-		Con_Printf("%s\n", pak->descname);
+		Q_snprintfz(out, outlen, "%s", pak->descname);
 }
 void FSPAK_ClosePath(void *handle)
 {
@@ -373,7 +373,7 @@ void FSPAK_ReadFile(void *handle, flocation_t *loc, char *buffer)
 }
 
 searchpathfuncs_t packfilefuncs = {
-	FSPAK_PrintPath,
+	FSPAK_GetDisplayPath,
 	FSPAK_ClosePath,
 	FSPAK_BuildHash,
 	FSPAK_FLocate,
@@ -559,7 +559,7 @@ newsection:
 	return pack;
 }
 searchpathfuncs_t doomwadfilefuncs = {
-	FSPAK_PrintPath,
+	FSPAK_GetDisplayPath,
 	FSPAK_ClosePath,
 	FSPAK_BuildHash,
 	FSPAK_FLocate,

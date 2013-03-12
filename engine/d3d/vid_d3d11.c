@@ -1159,8 +1159,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 	V_UpdatePalette (false);
 
-	if (Key_MouseShouldBeFree())
-		SCR_DrawCursor(0);
 #if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif

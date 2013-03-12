@@ -18,7 +18,7 @@
 
 
 //builtins and builtin management.
-void PF_prints (progfuncs_t *prinst, struct globalvars_s *gvars)
+void PF_prints (pubprogfuncs_t *prinst, struct globalvars_s *gvars)
 {
 	char *s;
 	s = prinst->VarString(prinst, 0);
@@ -26,18 +26,18 @@ void PF_prints (progfuncs_t *prinst, struct globalvars_s *gvars)
 	printf("%s", s);
 }
 
-void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_printv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	printf("%f %f %f\n", G_FLOAT(OFS_PARM0+0), G_FLOAT(OFS_PARM0+1), G_FLOAT(OFS_PARM0+2));
 }
 
-void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_printf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	printf("%f\n", G_FLOAT(OFS_PARM0));
 }
 
 
-void PF_bad (progfuncs_t *prinst, struct globalvars_s *gvars)
+void PF_bad (pubprogfuncs_t *prinst, struct globalvars_s *gvars)
 {
 	printf("bad builtin\n");
 }
@@ -118,7 +118,7 @@ pbool Sys_WriteFile (char *fname, void *data, int len)
 
 void runtest(char *progsname)
 {
-	progfuncs_t *pf;
+	pubprogfuncs_t *pf;
 	func_t func;
 	progsnum_t pn;
 
@@ -129,7 +129,7 @@ void runtest(char *progsname)
 	ext.ReadFile = Sys_ReadFile;
 	ext.FileSize= Sys_FileSize;
 	ext.Abort = Sys_Abort;
-	ext.printf = printf;
+	ext.Printf = printf;
 
 	ext.numglobalbuiltins = sizeof(builtins)/sizeof(builtins[0]);
 	ext.globalbuiltins = builtins;
@@ -155,7 +155,7 @@ void runtest(char *progsname)
 		else
 			pf->ExecuteProgram(pf, func);			//call the function
 	}
-	CloseProgs(pf);
+	pf->CloseProgs(pf);
 }
 
 
@@ -163,7 +163,7 @@ void runtest(char *progsname)
 //Note that this could be done with an autocompile of PR_COMPILEALWAYS.
 void compile(int argc, char **argv)
 {
-	progfuncs_t *pf;
+	pubprogfuncs_t *pf;
 
 	progparms_t ext;
 
@@ -190,7 +190,7 @@ void compile(int argc, char **argv)
 	ext.FileSize= Sys_FileSize;
 	ext.WriteFile= Sys_WriteFile;
 	ext.Abort = Sys_Abort;
-	ext.printf = printf;
+	ext.Printf = printf;
 
 	pf = InitProgs(&ext);
 	if (pf->StartCompile)
@@ -203,7 +203,7 @@ void compile(int argc, char **argv)
 	}
 	else
 		printf("no compiler in this qcvm build\n");
-	CloseProgs(pf);
+	pf->CloseProgs(pf);
 }
 
 int main(int argc, char **argv)

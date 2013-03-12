@@ -33,6 +33,9 @@ void IN_Move (float *movements, int pnum);
 
 extern cvar_t in_xflip;
 
+extern float mousecursor_x, mousecursor_y;
+extern float mousemove_x, mousemove_y;
+
 #ifdef _SDL
 void IN_ActivateMouse(void);
 void IN_DeactivateMouse(void);

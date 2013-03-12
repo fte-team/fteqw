@@ -175,7 +175,7 @@ typedef struct player_info_s
 
 	struct model_s	*model;
 
-	unsigned short vweapindex;
+//	unsigned short vweapindex;
 	unsigned char h2playerclass;
 
 	int prevcount;
@@ -403,6 +403,8 @@ typedef struct
 		DPB_QUAKE2
 #endif
 	}	demoplayback;
+	qboolean	demoseeking;
+	float		demoseektime;
 	qboolean	timedemo;
 	vfsfile_t	*demoinfile;
 	float		td_lastframe;		// to meter out one message a frame
@@ -483,7 +485,8 @@ typedef struct {
 	vec3_t oldangle;
 
 	//for further info
-	int sequence;
+	int skeletalobject;
+	int sequence;	/*so csqc code knows that the ent is still valid*/
 	entity_state_t *entstate;
 } lerpents_t;
 //
@@ -829,9 +832,9 @@ char *CL_TryingToConnect(void);
 void CL_ExecInitialConfigs(void);
 qboolean CL_CheckBootDownloads(void);
 
-#define			MAX_VISEDICTS	2048
 extern	int				cl_numvisedicts;
-extern	entity_t		cl_visedicts[];
+extern	int				cl_maxvisedicts;
+extern	entity_t		*cl_visedicts;
 
 /*these are for q3 really*/
 typedef struct {
@@ -840,6 +843,7 @@ typedef struct {
 	int firstidx;
 	int numvert;
 	int numidx;
+	unsigned int flags;
 } scenetris_t;
 extern scenetris_t		*cl_stris;
 extern vecV_t			*cl_strisvertv;
@@ -1042,14 +1046,15 @@ void CL_TransitionEntities (void); /*call at the start of the frame*/
 void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);
 void CL_ParseProjectiles (int modelindex, qboolean nails2);
-void CL_ParsePacketEntities (qboolean delta);
+void CLQW_ParsePacketEntities (qboolean delta);
 void CLFTE_ParseEntities (void);
 void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant);
 void CL_SetSolidEntities (void);
 void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
 //these last ones are needed for csqc handling of engine-bound ents.
-void CL_SwapEntityLists(void);
+void CL_ClearEntityLists(void);
+void CL_FreeVisEdicts(void);
 void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);
 void CL_LinkPacketEntities (void);
@@ -1283,8 +1288,8 @@ extern qboolean editoractive;
 extern qboolean editormodal;
 void Editor_Draw(void);
 void Editor_Init(void);
-struct progfuncs_s;
-void Editor_ProgsKilled(struct progfuncs_s *dead);
+struct pubprogfuncs_s;
+void Editor_ProgsKilled(struct pubprogfuncs_s *dead);
 #endif
 
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);

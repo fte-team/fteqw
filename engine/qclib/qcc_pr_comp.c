@@ -8640,15 +8640,28 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 
 		if (type && typecmp(def->type, type))
 		{
-			if (!pr_scope)
+			if (pr_scope || typecmp_lax(def->type, type))
 			{
-				if (typecmp_lax(def->type, type))
+				//unequal even when we're lax
+				QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+			}
+			else
+			{
+				int d=0, t=0;
+				QCC_type_t *p;
+				QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+				QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
+
+				if (type->type == ev_function)
 				{
-					//unequal even when we're lax
-					QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+					//update the def's type to the new one if the mandatory argument count is longer
+					for (p = def->type->param; p; p = p->next)
+						d++;
+					for (p = type->param; p; p = p->next)
+						t++;
+					if (t > d)
+						def->type = type;
 				}
-				else
-					QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 			}
 		}
 		if (def->arraysize != arraysize && arraysize>=0)

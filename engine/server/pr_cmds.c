@@ -9007,8 +9007,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	"void(vector v1, vector v2, float nomonsters, entity ent)"},
 	{"checkclient",		PF_checkclient,		17,		17,		17,		0,	"entity()"},
 	{"find",			PF_FindString,		18,		18,		18,		0,	"entity(entity start, .string fld, string match)"},
-	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	"void(string s)"},
-	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	"void(string s)"},
+	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	"string(string s)"},
+	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	"string(string s)"},
 	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	"void(entity client, string s)"},
 	{"findradius",		PF_findradius,		22,		22,		22,		0,	"entity(vector org, float rad)"},
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
@@ -9097,7 +9097,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"etos",			PF_etos,			0,		0,		0,		65,	"string(entity ent)"},
 
 	{"movetogoal",		PF_sv_movetogoal,	67,		67,		67,		0,	"void(float step)"},	//67
-	{"precache_file",	PF_precache_file,	68,		68,		68,		0,	"void(string s)"},	//68
+	{"precache_file",	PF_precache_file,	68,		68,		68,		0,	"string(string s)"},	//68
 	{"makestatic",		PF_makestatic,		69,		69,		69,		0,	"void(entity e)"},	//69
 
 	{"changelevel",		PF_changelevel,		70,		70,		70,		0,	"void(string mapname, optional string newmapstartspot)"},	//70
@@ -9108,9 +9108,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"ambientsound",	PF_ambientsound,	74,		74,		74,		0,	"void (vector pos, string samp, float vol, float atten)"},	//74
 
-	{"precache_model2",	PF_precache_model,	75,		75,		75,		0,	"void(string str)"},	//75
-	{"precache_sound2",	PF_precache_sound,	76,		76,		76,		0,	"void(string str)"},	//76	// precache_sound2 is different only for qcc
-	{"precache_file2",	PF_precache_file,	77,		77,		0,		0,	"void(string str)"},	//77
+	{"precache_model2",	PF_precache_model,	75,		75,		75,		0,	"string(string str)"},	//75
+	{"precache_sound2",	PF_precache_sound,	76,		76,		76,		0,	"string(string str)"},	//76	// precache_sound2 is different only for qcc
+	{"precache_file2",	PF_precache_file,	77,		77,		0,		0,	"string(string str)"},	//77
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78,		0,	"void(entity player)"},	//78
 	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79,		0,	"void(entity targ, float stringno)"},	//79
@@ -9474,7 +9474,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_COPYENTITY
 	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	"void(entity from, entity to)"},// (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
-	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	"void(entity from, entity to)"},//DP_SV_SETCOLOR
+	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	"void(entity ent, float colours)"},//DP_SV_SETCOLOR
 //DP_QC_FINDCHAIN
 	{"findchain",		PF_sv_findchain,	0,		0,		0,		402,	"entity(.string field, string match)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT

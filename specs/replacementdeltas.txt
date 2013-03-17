@@ -1,0 +1,236 @@
+Establishment:
+	Useful defines:
+		#define PROTOCOL_VERSION_FTE		(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))
+		#define PEXT_FLOATCOORDS		0x00008000
+
+		#define PROTOCOL_VERSION_FTE2		(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))
+		#define PEXT2_REPLACEMENTDELTAS		0x00000008
+
+	QW: Extensions are established during the handshake.
+		CL: "\xff\xff\xff\xffgetchallenge\n"
+		SV: "\xff\xff\xff\xffc$challenge\0<binary key value pairs>"
+		CL: "\xff\xff\xff\xffconnect $ver $qport $challenge \"$userinfo\"\n%#x %#x\n%#x %#x\n", key1, value1, key2, value2
+		SV: "\xff\xff\xff\xffj\n"
+		See the 'both' part for additional info.
+		This handshake will be stripped by proxies. This is by design. It prevents qizmo and similar proxies from erroring on extensions.
+		
+	NQ: At connection, the server will stuffcmd 'cmd pext\n'.
+		This must be explicitly parsed clientside, and effectively replaced with:
+			va("cmd pext %#x %#x %#x %#x\n", PROTOCOL_VERSION_FTE, 0|PEXT_FLOATCOORDS, PROTOCOL_VERSION_FTE2, 0|PEXT2_REPLACEMENTDELTAS)
+		You are free to add additional/private extensions there, but they MUST be sent as KEY VALUE pairs. The value may be quoted and freely contain whitespace as required, but the key MUST be hex.
+		See the 'both' part for additional info.
+
+	Both:
+		The server will update the svc_serverinfo message to have this ordering:
+		byte svcqw_serverdata / svcnq_serverinfo 
+		optional long PROTOCOL_VERSION_FTE
+		optional long flags
+		optional long PROTOCOL_VERSION_FTE2
+		optional long flags
+		long PROTOCOL_VERSION
+		...
+		The protocol version should be parsed in a loop, stopping on unrecognised or non-extension-bits protocols.
+		The server must mask the extension bits with those that it supports, to avoid future extensions appearing active on servers that don't support them.
+		If the extension bits are not echoed from the server in the list, those extensions WILL NOT be used.
+		This mechanism allows the server to mask the client's extensions with the extensionbits that it supports, and to tell the client which protocol bits will actually be used for each map.
+		The server may kick the client if the client does not support extensions required by the server, just as a server sending an unsupported protocol version would result in a client getting kicked, but at least the server has the chance to run without.
+		I've included PEXT_FLOATCOORDS above as an example of stating more than one set of extensions. You should remove those tokens if you do not wish to support that extension. FTE servers may very well not utilize it on every map, and it will only be active if sv_bigcoords 1 is set.
+
+Updated network primitives:
+	Entity numbers:
+		Entities are no longer coded as just a short.
+		Instead, they are coded as:
+			short. bit15=remove flag. bits14to0=entity number bits 14 - 0.
+			optional byte. bits0to7=entity number bits 22-15.
+		bit 22 should never be set.
+		This coding gives compatibility with mods using writeshort up to ent 32767.
+		Certain QuakeWorld mods already use writeshort hacks to pass entities less than 0. This practise should be discouraged. If you want a railgun effect, use TE=17 or a call to trailparticles.
+	Entity deltas:
+		The entity index is not considered part of the delta. It generally does not use the entity coding above, but reserves an extra bit as a remove flag, which is why bit 22 of the entity number should always be 0.
+		In the information below, the number in brackets denotes the bit value of the named flag. predinfo has its own 8bit set of bits, otherwise its the main set of 32bit bits.
+
+		byte - bits&0xff
+		UF_EXTEND1(7): byte - bits&0xff00
+		UF_EXTEND2(15): byte - bits&0xff0000
+		UF_EXTEND3(23): byte - bits&0xff000000
+
+		UF_FRAME(0): updated frame index:
+			UF_16BIT: short
+			otherwise: byte
+		UF_ORIGINXY(1): coord - origin[0]
+		UF_ORIGINXY(1): coord - origin[1]
+		UF_ORIGINZ(2):  coord - origin[2]
+		UF_ANGLESXZ(3): angles[0], angles[2]
+			UF_PREDINFO: shortangle, shortangle
+			otherwise: angle, angle
+		UF_ANGLESY(4): angle[1]
+			UF_PREDINFO: shortangle
+			otherwise: stdangle
+		one of: entity effects
+			UF_EFFECTS(5)|UF_EFFECTS2(29): long
+			UF_EFFECTS2(29): short
+			UF_EFFECTS(5): byte
+			otherwise: nothing
+		UF_PREDINFO(6):
+			the bits listed here are stored within the predbits byte.
+			movetype and weaponframe are the only parts that are deltaed. the other fields all reset to 0 if their bit is not set.
+			WARNING: at this time, only players will have this set. a future version will enable this for rockets/nails also.
+				this means that nq engines will need to support MOVETYPE_FLY as a simple VectorMA projection, but should otherwise be able to use interpolation for all other movetypes.
+			byte - predbits
+			UFP_FORWARD(0): short, otherwise 0 - +forwards/+back speed
+			UFP_SIDE(1): short, otherwise 0 - +right/+left speed
+			UFP_UP(2): short, otherwise 0 - +moveup/+movedown speed
+			UFP_MOVETYPE(3): byte - .movetype
+			UFP_VELOCITYXY(4): short, otherwise 0 - .velocity[0]*8, .velocity[1]*8.
+			UFP_VELOCITYZ(5): short, otherwise 0 - .velocity[2]*8.
+			UFP_MSEC(6): byte, otherwise 0 - how long since the server received an update from this player. Clients should internally add half of their own latency to this value.
+			UFP_WEAPONFRAME(7): byte - bits 0-6 of .weaponframe. If it has bit 7 set, read another byte for the high bits
+					 optional byte - the high bits
+		UF_EXTEND1(7): nothing here - already sent. listed for completeness.
+
+		UF_RESET(8): nothing - if bit is set, reset from baseline before parsing data. First two updates containing this entity will always contain this bit set.
+		UF_16BIT(9): nothing itself - merely extends the size of other bits of info (model, skin, frame)
+		UF_MODEL(10): modelindex. bit 15 enables full ragdoll, and should otherwise be ignored.
+			UF_16BIT: short
+			otherwise: byte
+		UF_SKIN(11): modelindex
+			UF_16BIT: short
+			otherwise: byte
+		UF_COLORMAP(12): byte - normally the 1-basedentity player slot of owning player, or 0 for world. treat-as-0 if invalid.
+		UF_SOLID(13): short - encoding of bbox size.
+		UF_FLAGS(14): byte - some misc flags, yay. Flags are consistant with the DP5+ protocol.
+			1 = stepping.
+			2 = glowtrail. leaves a trail the same colour as the glowmod stuff.
+			4 = viewmodelforclient was set
+			8 = exteriormodelforclient was set
+			16 = low precision.
+			32 = specific colourmap. UF_COLORMAP byte's low 4 bits are pants. high 4 bits are shirt.
+			64 = act as if part of world.
+			128 = complex animation. If set, there are more bytes following. This is not implemented by FTE at this time.
+		UF_EXTEND2(15): nothing here - already sent. listed for completeness.
+
+		UF_ALPHA(16): byte - 0-255 expresses effective range of 0-1. 0 is invisible. 255 is fully visible and default.
+		UF_SCALE(17): byte - default value 16 is equivelent to scale=1. 0 means scaled by 0.
+		UF_UNUSED(18): not used
+		UF_DRAWFLAGS(19):
+			byte - various flags to affect scale, abslight, etc. required for hexen2 compat.
+			optional byte - abslight. sent+used if (drawflags&7)==7.
+		UF_TAGINFO(20):
+			entityidx - tagentity. 0 = disable.
+			byte - tagindex. 0 = use tagentity's origin
+		UF_LIGHT(21):
+			short - red light scale
+			short - green light scale
+			short - blue light scale
+			short - light radius
+			byte - light style.
+			byte - light flags.
+		UF_TRAILEFFECT(22): short - particleffect num to attach and use as this entity's particle trail. the effect index value is compatible with DP_SV_POINTPARTICLES.
+		UF_EXTEND3(23): nothing here - already sent. listed for completeness.
+
+		UF_COLORMOD(24): discolours the entity. default byte value 32 is equivelent to 1.0.
+			byte - red
+			byte - green
+			byte - blue
+		UF_GLOW(25): gives a 'flashblend' type effect.
+			byte - size/4
+			byte - colour
+			byte - red, default byte value 32 is equivelent to 1.0.
+			byte - green
+			byte - blue
+		UF_FATNESS(26): byte - how many qu/16 to move expand models by (move them outwards along their normal)
+		UF_MODELINDEX2(27): second modelindex to use for the entity. for visible weapon models or some such. Note: uses the same frame as the normal entity. For compatibility, if qw vweaps were sent then this uses those instead (and changes the normal modelindex to a weapon-less player as appropriate too).
+			UF_16BIT: short
+			otherwise: byte
+		UF_GRAVITYDIR(28): both bytes=0 correlates to normal gravity.
+			byte - ((pitch/360) * 256) - 192
+			byte - (yaw/360) * 256
+		UF_EFFECTS2(29): nothing here - sent combined with UF_EFFECTS. mentioned for documentation.
+		UF_UNUSED(30): not used.
+		UF_EXTEND4(31): not used.
+		
+		FIXME weirdness:
+			predicting non-players? yes please.
+			player angles are a huge wtf. this protocol uses view angles then divides the angle by 1/3rd post-prediction for MOVETYPE_WALK/STEP entities.
+			there is no information regarding the nextthink of entities. It *should* be possible to guess well enough without it.
+				Either way it is rare enough that engines already need to interpolate well enough without this info, making it somewhat redundant, imho.
+
+		the first 7 bits are the bits that are normally going to be encountered every update.
+		the 6 bits following those are often used only when an entity first becomes visible. the 16bit flag allows for more modelindicies etc and is used as a general 'whoa dude' flag.
+		the 2 bits after that are generally considered extensions (solid+flags), although the 'stepping' hint is useful.
+			either way, these bits are likely to be present in a vanilla progs, and common during entity setup.
+		the following 2 bits are required for many fairly generic custom maps now, that target fitzquake (alpha).
+		the 13 bits after those are much more rarely used. You can justifyably get away with not implementing them (assuming you error if you do receive any), though its prefered to parse and ignore the results.
+		the final 2 bits are reserved for future expansion. yay.
+
+		The information is sent in the unreliable channel. QuakeWorld clients have always acknowledged the server's unreliable sequence with every single packet.
+		This means that the server can directly detect packets which are not mentioned. Such unmentioned packets are assumed to be dropped.
+		The server keeps a log of the entities and updated bits that were sent with each outgoing packet. Once a packet has been detected as dropped, the ents+bits in that packet are folded back into the current outgoing state (taking care of added/removed entities). If too many packets are dropped, the server cannot track the entities which were sent and will drop ALL entities, starting from scratch.
+		When a bit is resent, current information is used, rather than the stale information that was previously sent, thus its possible to not see an update.
+		This all means that the server needs to track one set of previous state (maximum visible at once), and 64 or so sets of ent+bits (maximum updatable in a single packet). This can be used to keep memory use down when there are 4 million potential ents on the server.
+
+
+Modified/Added SVCs:
+	svcfte_spawnstatic2=21
+		Instead of the standard baseline info, the packet will contain only a delta from the null entity state. This allows transparent entities etc.
+	svcfte_spawnbaseline2=66
+		Instead of the standard baseline info, the packet will contain an entity number followed by a delta from the null entity state. Yay for transparent ents.
+		Otherwise identical to the regular svc_spawnbaseline in purpose.
+	svcfte_updateentities=86
+		NQ: Replaces fast updates, svc_time.
+		QW: Replaces svc_[delta]packetentities, svc_playerinfo
+		The contents of this packet are:
+			NQ: inputack (this is an ack of the client's input sequence. for QW, use the netchan's ack sequence instead).
+			servertime of update, as a float32.
+			optional short=0x8000. (ie: when the entity index reads as 0 with the remove flag set) If present, remove ALL entities.
+			[
+				entity index.
+					short. bit15=remove flag. bit14=largeentity. bits13to0=entity number bits 13 - 0.
+					optional byte. bits0to7=entity number bits 21-14.
+					This coding gives max 22 bit entity indicies (about 4 million ents max, and up to 16384 using just shorts).
+				newdelta.
+					only present if the entity index does not contain the remove flag.
+					otherwise contains the changed fields.
+					if the ent was not previously known, copy it from its baseline before deltaing and hope it contains a model update...
+					beware of the special handling for entity number 0 required by
+			]
+			short=0 (ie: when the entity index reads as 0)
+		Unlike svc_deltapacketentities, there is no specific previous frame. The previous state to be used is merely the last state received.
+	svcfte_csqcentities=76
+		If supported, the entity index coding in this packet matches that of svcfte_updateentities.
+
+Modified/Added CLCs:
+	clcfte_ackframe=50    (note: same clc+data as dp)
+		Message data consists of a single 32bit integer, which is the entity frame that is being acked.
+		Frames not mentioned are assumed to be dropped. Acks MUST arrive at the server in ascending order, and should be sent unreliably to reduce latency (even though this is more likely to result in resending the frame).
+		You may ack multiple entity frames within a single packet.
+		QuakeWorld packets contain an ack sequence in the packet header itself. This sequence will be acked automatically after any acks within contents of the packet, and does not need an explicit ackframe inside.
+		Because of this fact and typical packet sequences, QuakeWorld clients can omit sending these entirely.
+		If frame ~0u is 'acked', the server will reset and resend all ents
+
+Information:
+	Player prediction is implemented by building a log of all the input frames clientside.
+	Each video frame, all input frames from ack+1 to latest are applied to the player's entity, according to its movetype+velocity, etc.
+	(as an optimisation, you instead apply new input frames since last video frame to the previous video frame's results, so long as you still rewind when a new entity state is received).
+	QW: the client's outgoing packet sequence specifies the 'latest' input frame available. the server's outgoing sequence specifies the last input frame applied as well as the entity frame to ack.
+		
+Conflicts:
+	PEXT_SPAWNSTATIC2 defines both svc_spawnstatic2+svc_baseline2. It defines these as containing a QW entity delta.
+	PEXT2_REPLACEMENTDELTAS states that these svcs exist, and that use replacement deltas.
+	PEXT2_REPLACEMENTDELTAS takes precidence, due to practicality.
+
+	MSG_WriteEntity's index coding is updated (and separated from writeshort).
+	PEXT_CSQC's entity index coding is updated.
+
+	PEXT_FLOATCOORDS is a separate extension that changes the network's primitives. Specifically that angles become 16bit and coords become 32bit floats. The two extensions do not otherwise interact.
+
+	PEXT2_REPLACEMENTDELTAS thus obsoletes PEXT_SCALE, PEXT_TRANS, PEXT_ACCURATETIMINGS, PEXT_FATNESS, PEXT_HULLSIZE, PEXT_MODELDBL, PEXT_ENTITYDBL, PEXT_ENTITYDBL2, PEXT_COLOURMOD, PEXT_SPAWNSTATIC2, PEXT_256PACKETENTITIES, PEXT_SETATTACHMENT, and PEXT_DPFLAGS. Not bad. :s
+
+Things not updated:
+	NQ stats are not changed, and cannot exceed the value 256. FTE might send an svc_updatestat to force it, but this would be needlessly spammy.
+	Soundindex limits are not changed. That's an independant extension.
+
+Hack Zone:
+	FTE servers will not wait for modellist/soundlist/prespawn commands to be acked before sending the next part of data, other than to correctly parse the map checksum. FTE servers will only burst all this information if ReplacementDeltas is supported. It was found that certain clients (namely FTE) was triggering some code to detect messed up ordering - messed up ordering that is fixed having the server track progress instead of relying on echos.
+This extension is simply a handy check to see if the client can cope and without spamming the console.
+Vanilla QuakeWorld clients appeared to be able to cope with this, but there are indeed certain ways it can fail, like if the client tries to pause for downloads.

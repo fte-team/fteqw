@@ -650,7 +650,7 @@ void CL_ClampPitch (int pnum)
 	}
 #endif
 #if 1
-	if (0)
+	if ((cl.playerview[pnum].gravitydir[2] != -1 || cl.playerview[pnum].viewangles[2]) && !cl.playerview[pnum].fixangles && !cl.intermission)
 	{
 		float surfm[16], invsurfm[16];
 		float viewm[16];

@@ -434,6 +434,12 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 {
 	int i;
 	int m;
+	if (!client->frameunion.frames)
+	{
+		Con_Printf("BLAME %s\n", client->state?client->name:"a zombie");
+		return;
+	}
+
 	//skip it if we never generated that frame, to avoid pulling in stale data
 	if (client->frameunion.frames[sequence & UPDATE_MASK].sequence != sequence)
 	{

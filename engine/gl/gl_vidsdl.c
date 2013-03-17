@@ -113,8 +113,7 @@ void GL_DoSwap (void)
 		return;
 	screenflush = 0;
 
-	if (!scr_skipupdate)
-		 SDL_GL_SwapBuffers( );
+	SDL_GL_SwapBuffers( );
 
 
 	if (!vid_isfullscreen)

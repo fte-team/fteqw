@@ -657,7 +657,7 @@ reeval:
 			//if it's an external call, switch now (before any function pointers are used)
 			if (!PR_SwitchProgsParms(progfuncs, newpr) || !fnum || fnum > pr_progs->numfunctions)
 			{
-				char *msg = fnum?"OP_CALL references invalid function in %s\n":"NULL function from qc (%s).\n";
+				char *msg = fnum?"OP_CALL references invalid function in %s\n":"NULL function from qc (inside %s).\n";
 				PR_SwitchProgsParms(progfuncs, callerprogs);
 
 				//break/skip the instruction.

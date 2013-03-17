@@ -47,13 +47,12 @@ uniform sampler2D s_t1;	//normalmap
 uniform sampler2D s_t2;	//diffuse/reflection
 #ifdef DEPTH
 uniform sampler2D s_t3; 	//refraction depth
-#ifdef RIPPLEMAP
-uniform sampler2D s_t4; 	//ripplemap
-#endif
+#define s_ripplemap s_t4
 #else
-#ifdef RIPPLEMAP
-uniform sampler2D s_t3; 	//ripplemap
+#define s_ripplemap s_t3
 #endif
+#ifdef RIPPLEMAP
+uniform sampler2D s_ripplemap; 	//ripplemap
 #endif
 
 uniform float e_time;
@@ -77,7 +76,7 @@ void main (void)
 	n -= 1.0 - 4.0/256.0;
 
 #ifdef RIPPLEMAP
-	n += texture2D(s_t4, stc).rgb*3.0;
+	n += texture2D(s_ripplemap, stc).rgb*3.0;
 #endif
 
 	//the fresnel term decides how transparent the water should be

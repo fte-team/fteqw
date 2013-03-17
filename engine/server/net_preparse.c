@@ -1023,10 +1023,14 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicasttype=MULTICAST_PHS_R;
 				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
 				break;
+			case TE_LAVASPLASH:
+				multicastpos=2;
+				multicasttype=MULTICAST_ALL;
+				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				break;
 			case TE_TAREXPLOSION:
 			case TE_WIZSPIKE:
 			case TE_KNIGHTSPIKE:
-			case TE_LAVASPLASH:
 			case TE_TELEPORT:
 				multicastpos=2;
 				multicasttype=MULTICAST_PVS;

@@ -433,6 +433,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 {
 	int i;
+	int m;
 	//skip it if we never generated that frame, to avoid pulling in stale data
 	if (client->frameunion.frames[sequence & UPDATE_MASK].sequence != sequence)
 	{
@@ -462,7 +463,8 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
 		return;
 
-	for (i = 0; i < sv.world.num_edicts; i++)
+	m = min(sv.world.num_edicts, client->max_net_ents);
+	for (i = 0; i < m; i++)
 		if (client->csqcentsequence[i] == sequence)
 			client->csqcentversions[i]--;	//do that update thang (but later).
 }

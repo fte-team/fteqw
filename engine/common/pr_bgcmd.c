@@ -4113,6 +4113,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
 	{"DP_EF_RED"},
 	{"DP_ENT_COLORMOD"},
+	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},

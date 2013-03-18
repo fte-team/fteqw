@@ -2036,6 +2036,12 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 #define DF_DEAD		(1<<8)
 #define DF_GIB		(1<<9)
 
+	if (client->state < cs_spawned)
+	{
+		Con_Printf("SV_WritePlayersToClient: not spawned yet\n", client->namebuf);
+		return;
+	}
+
 	if (clent == NULL)	//write to demo file. (no PVS)
 	{
 		demo_frame = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK];

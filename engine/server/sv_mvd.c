@@ -1613,9 +1613,6 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 		//pointless extensions that are redundant with mvds
 		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;
-
-		/*assume that all playback will be done with a valid csprogs that can correctly decode*/
-		demo.recorder.csqcactive = (demo.recorder.fteprotocolextensions & PEXT_CSQC);
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);

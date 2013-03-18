@@ -2276,7 +2276,7 @@ qboolean Sys_CheckUpdated(void)
 		if (*updatedpath)
 		{
 			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
-			if (CreateProcess(updatedpath, va("\"%s\" %s --fromfrontend \"%s\" \"%s\" %s", frontendpath, COM_Parse(GetCommandLineA(), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+			if (CreateProcess(updatedpath, va("\"%s\" %s --fromfrontend \"%s\" \"%s\" %s", frontendpath, COM_ParseOut(GetCommandLineA()), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
 	}

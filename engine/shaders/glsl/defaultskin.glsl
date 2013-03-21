@@ -83,7 +83,7 @@ void main ()
 	vec4 col, sp;
 
 #ifdef OFFSETMAPPING
-	vec2 tcoffsetmap = offsetmap(s_t4, tcbase, eyevector);
+	vec2 tcoffsetmap = offsetmap(s_t4, tc, eyevector);
 #define tc tcoffsetmap
 #endif
 

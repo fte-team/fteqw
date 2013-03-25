@@ -2057,7 +2057,7 @@ void Win7_TaskListInit(void)
 		#define UPDATE_URL "http://triptohell.info/moodles/"
 		#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
 		#ifdef _WIN64
-			#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE ".exe"
+			#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE "64.exe"
 		#else
 			#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
 		#endif

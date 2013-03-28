@@ -2036,7 +2036,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 #define DF_DEAD		(1<<8)
 #define DF_GIB		(1<<9)
 
-	if (client->state < cs_spawned)
+	if (client->state < cs_spawned && pvs)
 	{
 		Con_Printf("SV_WritePlayersToClient: not spawned yet\n", client->namebuf);
 		return;

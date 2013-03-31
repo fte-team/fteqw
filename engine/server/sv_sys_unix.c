@@ -747,7 +747,7 @@ int main(int argc, char *argv[])
 
 
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *sparm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];
@@ -805,7 +805,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 				{
 					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
 
-					if (!func(file, st.st_size, parm, sparm))
+					if (!func(file, st.st_size, parm, spath))
 					{
 						closedir(dir);
 						return false;

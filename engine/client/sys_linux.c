@@ -451,7 +451,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 				{
 					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
 
-					if (!func(file, st.st_size, parm))
+					if (!func(file, st.st_size, parm, spath))
 					{
 						closedir(dir);
 						return false;

@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 #include "pr_common.h"
 #ifndef CLIENTONLY
 
@@ -436,7 +436,7 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 	int m;
 	if (!client->frameunion.frames)
 	{
-		Con_Printf("BLAME %s\n", client->state?client->name:"a zombie");
+		Con_Printf("Server bug: No frames!\n");
 		return;
 	}
 

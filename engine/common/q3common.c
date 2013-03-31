@@ -186,7 +186,7 @@ typedef struct {
 	int bufferleft;
 	int skip;
 } vmsearch_t;
-static int VMEnum(const char *match, int size, void *args)
+static int VMEnum(const char *match, int size, void *args, void *spath)
 {
 	char *check;
 	int newlen;
@@ -210,13 +210,13 @@ static int VMEnum(const char *match, int size, void *args)
 	return true;
 }
 
-static int IfFound(const char *match, int size, void *args)
+static int IfFound(const char *match, int size, void *args, void *spath)
 {
 	*(qboolean*)args = true;
 	return true;
 }
 
-static int VMEnumMods(const char *match, int size, void *args)
+static int VMEnumMods(const char *match, int size, void *args, void *spath)
 {
 	char *check;
 	char desc[1024];
@@ -238,7 +238,7 @@ static int VMEnumMods(const char *match, int size, void *args)
 		return true;	//we don't want baseq3
 
 	foundone = false;
-	Sys_EnumerateFiles(va("%s%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone);
+	Sys_EnumerateFiles(va("%s%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone, spath);
 	if (foundone == false)
 		return true;	//we only count directories with a pk3 file
 
@@ -286,9 +286,9 @@ int VM_GetFileList(char *path, char *ext, char *output, int buffersize)
 	if (!strcmp(path, "$modlist"))
 	{
 		vms.skip=0;
-		Sys_EnumerateFiles((vms.dir=com_quakedir), "*", VMEnumMods, &vms);
+		Sys_EnumerateFiles((vms.dir=com_quakedir), "*", VMEnumMods, &vms, NULL);
 		if (*com_homedir)
-			Sys_EnumerateFiles((vms.dir=com_homedir), "*", VMEnumMods, &vms);
+			Sys_EnumerateFiles((vms.dir=com_homedir), "*", VMEnumMods, &vms, NULL);
 	}
 	else if (*(char *)ext == '.' || *(char *)ext == '/')
 		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);

@@ -83,7 +83,7 @@ void Sys_ServerActivity(void);
 void Sys_SendKeyEvents (void);
 // Perform Key_Event () callbacks until the input que is empty
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm);
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath);
 
 void Sys_Vibrate(int count);
 

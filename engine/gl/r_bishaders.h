@@ -54,13 +54,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t2; //diffuse/reflection\n"
 "#ifdef DEPTH\n"
 "uniform sampler2D s_t3;  //refraction depth\n"
-"#ifdef RIPPLEMAP\n"
-"uniform sampler2D s_t4;  //ripplemap\n"
-"#endif\n"
+"#define s_ripplemap s_t4\n"
 "#else\n"
-"#ifdef RIPPLEMAP\n"
-"uniform sampler2D s_t3;  //ripplemap\n"
+"#define s_ripplemap s_t3\n"
 "#endif\n"
+"#ifdef RIPPLEMAP\n"
+"uniform sampler2D s_ripplemap;  //ripplemap\n"
 "#endif\n"
 
 "uniform float e_time;\n"
@@ -84,7 +83,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "n -= 1.0 - 4.0/256.0;\n"
 
 "#ifdef RIPPLEMAP\n"
-"n += texture2D(s_t4, stc).rgb*3.0;\n"
+"n += texture2D(s_ripplemap, stc).rgb*3.0;\n"
 "#endif\n"
 
 //the fresnel term decides how transparent the water should be
@@ -543,7 +542,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 col, sp;\n"
 
 "#ifdef OFFSETMAPPING\n"
-"vec2 tcoffsetmap = offsetmap(s_t4, tcbase, eyevector);\n"
+"vec2 tcoffsetmap = offsetmap(s_t4, tc, eyevector);\n"
 "#define tc tcoffsetmap\n"
 "#endif\n"
 

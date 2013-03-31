@@ -3847,8 +3847,8 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 						//note that we don't allow passing 0.0f for null.
 						//WARNING: field 0 is actually a valid field, and is commonly modelindex.
 					}
-					else if (p->type == ev_field && e->type->type == ev_field && (p->aux_type->type == ev_variant || e->type->aux_type->type == ev_variant))
-					{	//allow passing variant fields etc
+					else if ((p->type == ev_field || p->type == ev_pointer) && e->type->type == p->type && (p->aux_type->type == ev_variant || e->type->aux_type->type == ev_variant || p->aux_type->type == ev_void || e->type->aux_type->type == ev_void))
+					{	//allow passing variant fields etc (also allow .void or *void as universal/variant field/pointer types)
 					}
 					else if ((p->type == ev_vector) && e->type->type == ev_integer && e->constant && !((int*)qcc_pr_globals)[e->ofs])
 					{

@@ -568,7 +568,8 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
 
 #ifdef PRINTGLARRAYS
-	DumpGLState();
+	if (qrenderer == QR_OPENGL)
+		DumpGLState();
 #endif
 
 	hKernel = LoadLibrary ("kernel32");
@@ -750,7 +751,7 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (*func)(const char *, int, void *), void *parm)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;
@@ -771,7 +772,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 		char file[MAX_OSPATH];
 
 		if (!wild)
-			return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm);
+			return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
 
 		if (nest-neststart+1> MAX_OSPATH)
 			return 1;
@@ -802,7 +803,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
 						newnest = strlen(file);
 						strcpy(file+newnest, match+nest);
-						go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm);
+						go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
 					}
 				}
 			}
@@ -835,7 +836,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
 					{
 						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
-						go = func(file, fd.nFileSizeLow, parm);
+						go = func(file, fd.nFileSizeLow, parm, spath);
 					}
 				}
 			}
@@ -846,7 +847,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
 					{
 						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
-						go = func(file, fd.nFileSizeLow, parm);
+						go = func(file, fd.nFileSizeLow, parm, spath);
 					}
 				}
 			}
@@ -856,7 +857,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 
 	return go;
 }
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
 {
 	char fullmatch[MAX_OSPATH];
 	int start;
@@ -869,7 +870,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 		fullmatch[start++] = '/';
 	fullmatch[start] = 0;
 	strcat(fullmatch, match);
-	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm);
+	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm, spath);
 }
 
 /*
@@ -1077,6 +1078,10 @@ void VARGS Sys_Printf (char *fmt, ...)
 	char		text[1024];
 	DWORD		dummy;
 
+	conchar_t msg[1024], *end, *in;
+	wchar_t wide[1024], *out;
+	int wlen;
+
 	if (!houtput && !debugout)
 		return;
 
@@ -1084,24 +1089,24 @@ void VARGS Sys_Printf (char *fmt, ...)
 	vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
 
-	if (debugout)
+	end = COM_ParseFunString(CON_WHITEMASK, text, msg, sizeof(msg), false);
+	out = wide;
+	in = msg;
+	wlen = 0;
+	for (in = msg; in < end; in++)
 	{
-		//msvc debug output
-		conchar_t msg[1024], *end, *in;
-		wchar_t wide[1024], *out;
-		end = COM_ParseFunString(CON_WHITEMASK, text, msg, sizeof(msg), false);
-		out = wide;
-		in = msg;
-		for (in = msg; in < end; in++)
+		if (!(*in & CON_HIDDEN))
 		{
-			if (!(*in & CON_HIDDEN))
-				*out++ = dequake(*in & CON_CHARMASK);
+			*out++ = dequake(*in & CON_CHARMASK);
+			wlen++;
 		}
-		*out = 0;
-		OutputDebugStringW(wide);
 	}
+	*out = 0;
+
+	if (debugout)
+		OutputDebugStringW(wide);
 	if (houtput)
-		WriteFile (houtput, text, strlen(text), &dummy, NULL);
+		WriteConsoleW(houtput, wide, wlen, &dummy, NULL);
 }
 
 void Sys_Quit (void)
@@ -1435,8 +1440,8 @@ char *Sys_ConsoleInput (void)
 							}
 						} else if (ch >= ' ')
 						{
-							i = utf8_encode(text+len, ch, sizeof(text)-1-len);
-							WriteFile(houtput, text+len, i, &dummy, NULL);
+							wchar_t wch = ch;
+							WriteConsoleW(houtput, &wch, 1, &dummy, NULL);
 							len += i;
 						}
 

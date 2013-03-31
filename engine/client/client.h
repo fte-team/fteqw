@@ -768,7 +768,9 @@ extern cvar_t ruleset_allow_sensative_texture_replacements;
 extern cvar_t ruleset_allow_localvolume;
 extern cvar_t ruleset_allow_shaders;
 
+#ifndef SERVERONLY
 extern	client_state_t	cl;
+#endif
 
 typedef struct
 {

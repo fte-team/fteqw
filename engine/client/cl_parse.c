@@ -1650,6 +1650,8 @@ int CL_DownloadRate(void)
 	return cls.downloadedbytes/(Sys_DoubleTime() - cls.downloadstarttime);
 }
 
+qboolean CL_AllowArbitaryDownload(char *localfile);
+
 void CL_ParseChunkedDownload(void)
 {
 	qbyte	*svname;
@@ -1659,7 +1661,7 @@ void CL_ParseChunkedDownload(void)
 	char data[DLBLOCKSIZE];
 
 	chunknum = MSG_ReadLong();
-	if (chunknum < 0)
+	if (chunknum == -1)
 	{
 		totalsize = MSG_ReadLong();
 		svname = MSG_ReadString();
@@ -1680,7 +1682,17 @@ void CL_ParseChunkedDownload(void)
 
 		if (totalsize < 0)
 		{
-			if (totalsize == -3)
+			if (totalsize == -4)
+			{
+				if (CL_AllowArbitaryDownload(svname))
+				{
+					Con_Printf("Download of \"%s\" redirected to \"%s\"\n", cls.downloadremotename, svname);
+					if (CL_CheckOrEnqueDownloadFile(svname, NULL, 0))
+						Con_Printf("However, \"%s\" already exists. You may need to delete it.\n", svname);
+				}
+				svname = cls.downloadremotename;
+			}
+			else if (totalsize == -3)
 				Con_Printf("Server reported an error when downloading file \"%s\"\n", svname);
 			else if (totalsize == -2)
 				Con_Printf("Server permissions deny downloading file \"%s\"\n", svname);
@@ -1698,7 +1710,10 @@ void CL_ParseChunkedDownload(void)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
 		if (stricmp(cls.downloadremotename, svname))
+		{
+			//fixme: we should allow extension changes, in the case of ogg/mp3/wav, or tga/png/jpg/pcx, or the addition of .gz or whatever
 			Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadremotename);
+		}
 
 
 		//start the new download
@@ -1748,6 +1763,9 @@ void CL_ParseChunkedDownload(void)
 //	Con_Printf("Received dl block %i: ", chunknum);
 
 	MSG_ReadData(data, DLBLOCKSIZE);
+
+	if (chunknum*DLBLOCKSIZE > downloadsize+DLBLOCKSIZE)
+		return;
 
 	if (!cls.downloadqw)
 		return;

@@ -965,13 +965,13 @@ void CLNQ_Connect_f (void)
 	CL_BeginServerConnect(26000);
 }
 #endif
-
+ 
 #ifdef IRCCONNECT
 void CL_IRCConnect_f (void)
 {
 	CL_Disconnect_f ();
 
-	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), FTENET_IRCConnect_EstablishConnection, false))
+	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), NA_IRC, false))
 	{
 		char *server;
 		server = Cmd_Argv (1);
@@ -1307,7 +1307,7 @@ void CL_Disconnect (void)
 
 #ifdef TCPCONNECT
 	//disconnects it, without disconnecting the others.
-	FTENET_AddToCollection(cls.sockets, "TCP", NULL, NULL, false);
+	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, false);
 #endif
 
 	Cvar_ForceSet(&cl_servername, "none");
@@ -2855,11 +2855,17 @@ qboolean CL_AllowArbitaryDownload(char *localfile)
 	{
 		char *ext = COM_FileExtension(localfile);
 		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
-			allow = true;
+			return true;
 		else
-			allow = false;
+		{
+			Con_Printf("Ignoring non-package download redirection to \"%s\"\n", localfile);
+			return false;
+		}
 	}
-	return !!allow;
+	if (allow)
+		return true;
+	Con_Printf("Ignoring download redirection to \"%s\". This server may require you to set cl_download_redirection to 2.\n", localfile);
+	return false;
 }
 
 /*
@@ -2952,10 +2958,7 @@ void CL_DownloadSize_f(void)
 		redirection = Cmd_Argv(3);
 
 		if (!CL_AllowArbitaryDownload(redirection))
-		{
-			Con_Printf("Ignoring redirection of %s to %s\n", rname, redirection);
 			return;
-		}
 
 		dl = CL_DownloadFailed(rname, false);
 		Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);

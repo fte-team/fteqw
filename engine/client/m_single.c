@@ -494,7 +494,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 	return false;
 }
 
-static int DemoAddItem(const char *filename, int size, void *parm)
+static int DemoAddItem(const char *filename, int size, void *parm, void *spath)
 {
 	int extnum;
 	demomenu_t *menu = parm;
@@ -667,7 +667,7 @@ static void ShowDemoMenu (menu_t *menu, char *path)
 	if (*path)
 	{
 		Q_snprintfz(match, sizeof(match), "%s../", path);
-		DemoAddItem(match, 0, menu->data);
+		DemoAddItem(match, 0, menu->data, NULL);
 	}
 	Q_snprintfz(match, sizeof(match), "%s*", path);
 

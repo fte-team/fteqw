@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // sv_user.c -- server code for moving users
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #ifndef CLIENTONLY
 #include "pr_common.h"
@@ -1458,7 +1458,7 @@ void SVQW_Spawn_f (void)
 
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients ; i<MAX_CLIENTS ; i++, client++)
-		SV_FullClientUpdateToClient (client, host_client);
+		SV_FullClientUpdate(client, host_client);
 	SV_MVD_FullClientUpdate(NULL, host_client);
 
 // send all current light styles
@@ -2797,6 +2797,7 @@ void SV_BeginDownload_f(void)
 
 	if (result == -5)
 	{
+		//package download
 		result = 0;
 		host_client->download = FS_OpenVFS(name+8, "rb", FS_ROOT);
 	}
@@ -2805,6 +2806,15 @@ void SV_BeginDownload_f(void)
 		//redirection protocol-specific code goes here.
 		if (result == -4)
 		{
+#ifdef PEXT_CHUNKEDDOWNLOADS
+			if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+			{
+				//redirect the client (before the message saying download failed)
+				char *s = va("dlsize \"%s\" r \"%s\"\n", name, redirection);
+				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
+				ClientReliableWrite_String (host_client, s);
+			}
+#endif
 		}
 
 		if (result == 0)
@@ -2830,18 +2840,11 @@ void SV_BeginDownload_f(void)
 			break;
 		case -4:
 			result = -1;
-			error = "";
+			error = "Package contents not available individually\n";
 			break;
 		}
-		if (ISNQCLIENT(host_client))
-		{
-			SV_PrintToClient(host_client, PRINT_HIGH, error);
-
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
-			ClientReliableWrite_String (host_client, "\nstopdownload\n");
-		}
 #ifdef PEXT_CHUNKEDDOWNLOADS
-		else if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 		{
 			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
 			ClientReliableWrite_Long (host_client, -1);
@@ -2850,21 +2853,20 @@ void SV_BeginDownload_f(void)
 		}
 		else
 #endif
+		if (ISNQCLIENT(host_client))
+		{
+			SV_PrintToClient(host_client, PRINT_HIGH, error);
+
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
+			ClientReliableWrite_String (host_client, "\nstopdownload\n");
+		}
+		else
 		{
 			SV_PrintToClient(host_client, PRINT_HIGH, error);
 
 			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
 			ClientReliableWrite_Byte (host_client, 0);
-		}
-
-		//it errored because it was a redirection.
-		//ask the client to grab the alternate file instead.
-		if (redirection)
-		{
-			//tell the client to download the new one.
-			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_stufftext:svc_stufftext, 2+strlen(redirection));
-			ClientReliableWrite_String (host_client, va("\ndownload \"%s\"\n", redirection));
 		}
 		return;
 	}
@@ -4418,7 +4420,7 @@ void SVNQ_Spawn_f (void)
 
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients; i<sv.allocated_client_slots ; i++, client++)
-		SV_FullClientUpdateToClient (client, host_client);
+		SV_FullClientUpdate(client, host_client);
 	SV_MVD_FullClientUpdate(NULL, host_client);
 
 // send all current light styles

@@ -564,8 +564,20 @@ SERVERONLY_OBJS =		\
 
 WINDOWSSERVERONLY_OBJS = \
 	svmodel.o	\
+	net_ssl_winsspi.o \
 	sv_sys_win.o	\
 	sys_win_threads.o
+
+WINDOWS_OBJS = \
+	snd_win.o \
+	snd_directx.o \
+	cd_win.o \
+	fs_win32.o \
+	in_win.o \
+	sys_win.o \
+	sys_win_threads.o \
+	net_ssl_winsspi.o \
+	$(LTO_END) resources.o $(LTO_START)
 
 COMMON_OBJS = \
 	gl_alias.o		\
@@ -839,13 +851,13 @@ ifeq ($(FTE_TARGET),vc)
 	GLCL_DIR=glcl_vc$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
-	GLCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o fs_win32.o in_win.o sys_win.o sys_win_threads.o resources.o
+	GLCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_OBJS=
 
 	MINGL_DIR=mingl_vc$(BITS)
 	MINGL_EXE_NAME=../fteminglqw$(BITS).exe
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(D3DGL_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(SPEEX_OBJS) $(WINDOWS_OBJS)
 	D3D_EXE_NAME=../fted3dqw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
 	D3D_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
@@ -854,7 +866,7 @@ ifeq ($(FTE_TARGET),vc)
 	D3DCL_DIR=d3dcl_vc$(BITS)
 	
 	M_EXE_NAME=../fteqw$(BITS).exe
-	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(D3DQUAKE_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o resources.o
+	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(D3DQUAKE_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(SPEEX_OBJS) $(WINDOWS_OBJS)
 	M_CFLAGS=$(D3DCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
 	MB_DIR=m_vc$(BITS)
 	M_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
@@ -889,32 +901,32 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(LTO_END) resources.o $(LTO_START)
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_EXE_NAME=../fteglqw$(BITS).exe
 	GLCL_EXE_NAME=../fteglqwcl$(BITS).exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	GLB_DIR=gl_mgw$(BITS)
 	GLCL_DIR=glcl_mgw$(BITS)
 
 	NPFTE_OBJS=httpclient.o image.o sys_win_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
 	NPFTE_DLL_NAME=../npfte$(BITS).dll
-	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared
+	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared -Wl,--subsystem,windows
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD
 	NPFTEB_DIR=npfte_mgw$(BITS)
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(LTO_END) resources.o $(LTO_START)
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	M_EXE_NAME=../fteqw$(BITS).exe
 	MCL_EXE_NAME=../fteqwcl$(BITS).exe
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	MB_DIR=m_mgw$(BITS)
 	MCL_DIR=mcl_mgw$(BITS)
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_win_threads.o $(D3DGL_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(SPEEX_OBJS) $(WINDOWS_OBJS)
 	D3D_EXE_NAME=../fted3dqw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
-	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)

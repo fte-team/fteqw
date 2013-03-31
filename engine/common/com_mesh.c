@@ -2115,7 +2115,7 @@ static qboolean VARGS Mod_TryAddSkin(const char *skinname, ...)
 	return true;
 }
 
-int Mod_EnumerateSkins(const char *name, int size, void *param)
+int Mod_EnumerateSkins(const char *name, int size, void *param, void *spath)
 {
 	Mod_TryAddSkin(name);
 	return true;

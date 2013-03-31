@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // sv_main.c -- server main program
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #ifndef CLIENTONLY
 
@@ -2147,7 +2147,7 @@ void SV_UpdateToReliableMessages (void)
 			if (host_client->sendinfo)
 			{
 				host_client->sendinfo = false;
-				SV_FullClientUpdate (host_client, &sv.reliable_datagram, host_client->fteprotocolextensions);
+				SV_FullClientUpdate (host_client, NULL);
 			}
 			if (host_client->old_frags != curfrags)
 			{

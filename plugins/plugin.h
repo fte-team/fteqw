@@ -6,6 +6,9 @@
 typedef int qintptr_t;
 typedef unsigned int quintptr_t;
 
+typedef unsigned int size_t;
+typedef signed int ssize_t;
+
 #define TESTBI 1
 #ifdef TESTBI
 #	define EBUILTIN(t, n, args) extern t (*n) args
@@ -139,7 +142,7 @@ EBUILTIN(qboolean, Plug_ExportNative, (const char *funcname, void *func));	//set
 #endif
 EBUILTIN(void, Con_Print, (const char *text));	//on to main console.
 
-EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
+EBUILTIN(void, Con_SubPrint, (const char *subname, const char *text));	//on to sub console.
 EBUILTIN(void, Con_RenameSub, (char *oldname, char *newname));	//rename a console.
 EBUILTIN(int, Con_IsActive, (char *conname));
 EBUILTIN(void, Con_SetActive, (char *conname));
@@ -165,7 +168,7 @@ EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stri
 
 EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (char *soundname));
-EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
+EBUILTIN(int, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 
 EBUILTIN(int, LocalPlayerNumber, (void));

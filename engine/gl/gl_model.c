@@ -4686,7 +4686,7 @@ typedef struct {
 	short xpos;
 	short ypos;
 } doomimage_t;
-static int FindDoomSprites(const char *name, int size, void *param)
+static int FindDoomSprites(const char *name, int size, void *param, void *spath)
 {
 	if (*(int *)param + strlen(name)+1 > 16000)
 		Sys_Error("Too many doom sprites\n");

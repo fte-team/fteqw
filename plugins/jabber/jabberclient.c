@@ -1,16 +1,22 @@
 //Released under the terms of the gpl as this file uses a bit of quake derived code. All sections of the like are marked as such
 
 #include "../plugin.h"
+#include <time.h>
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
-#define JCL_BUILD "1"
+#define JCL_BUILD "2"
 
 
-#define ARGNAMES ,sock
-BUILTINR(int, Net_SetTLSClient, (qhandle_t sock));
+#define ARGNAMES ,sock,certhostname
+BUILTINR(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
 #undef ARGNAMES
 
+void (*Con_TrySubPrint)(const char *conname, const char *message);
+void Fallback_ConPrint(const char *conname, const char *message)
+{
+	Con_Print(message);
+}
 
 void Con_SubPrintf(char *subname, char *format, ...)
 {
@@ -21,7 +27,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	Con_SubPrint(subname, string);
+	Con_TrySubPrint(subname, string);
 }
 
 
@@ -123,7 +129,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 void JCL_Command(void);
 
-int JCL_ExecuteCommand(int *args)
+qintptr_t JCL_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
 	Cmd_Argv(0, cmd, sizeof(cmd));
@@ -135,13 +141,11 @@ int JCL_ExecuteCommand(int *args)
 	return false;
 }
 
-int JCL_ConExecuteCommand(int *args);
+qintptr_t JCL_ConExecuteCommand(qintptr_t *args);
 
-int JCL_Frame(int *args);
+qintptr_t JCL_Frame(qintptr_t *args);
 
-int (*Con_TrySubPrint)(char *conname, char *message);
-
-int Plug_Init(int *args)
+qintptr_t Plug_Init(qintptr_t *args)
 {
 	if (	Plug_Export("Tick", JCL_Frame) &&
 		Plug_Export("ExecuteCommand", JCL_ExecuteCommand))
@@ -155,7 +159,7 @@ int Plug_Init(int *args)
 		if (!Plug_Export("ConExecuteCommand", JCL_ConExecuteCommand))
 		{
 			Con_Printf("Jabber client plugin in single-console mode\n");
-			Con_TrySubPrint = Con_Print;
+			Con_TrySubPrint = Fallback_ConPrint;
 		}
 		else
 			Con_TrySubPrint = Con_SubPrint;
@@ -182,7 +186,7 @@ int Plug_Init(int *args)
 //but never used cos it breaks strings
 
 
-#define JCL_MAXMSGLEN 2048
+#define JCL_MAXMSGLEN 10000
 
 
 typedef struct {
@@ -193,7 +197,9 @@ typedef struct {
 	qhandle_t inlog;
 	qhandle_t outlog;
 
-	char bufferedinmessage[JCL_MAXMSGLEN+1];	//there is a max size for protocol. (conveinient eh?) (and it's text format)
+	char bufferedinmessage[JCL_MAXMSGLEN+1];	//servers are required to be able to handle messages no shorter than a specific size.
+												//which means we need to be able to handle messages when they get to us.
+												//servers can still handle larger messages if they choose, so this might not be enough.
 	int bufferedinammount;
 
 	char defaultdest[256];
@@ -207,12 +213,16 @@ typedef struct {
 	int openbracket;
 	int instreampos;
 
-	qboolean noplain;
-	qboolean issecure;
+	qboolean connected;	//fully on server and authed and everything.
+	qboolean noplain;	//block plain-text password exposure
+	qboolean issecure;	//tls enabled
+
+	char curquakeserver[2048];
+	char defaultnamespace[2048];	//should be 'jabber:client' or blank (and spammy with all the extra xmlns attribs)
 } jclient_t;
 jclient_t *jclient;
 
-int JCL_ConExecuteCommand(int *args)
+qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 {
 	if (!jclient)
 	{
@@ -229,7 +239,7 @@ int JCL_ConExecuteCommand(int *args)
 void JCL_AddClientMessage(jclient_t *jcl, char *msg, int datalen)
 {
 	Net_Send(jcl->socket, msg, datalen);	//FIXME: This needs rewriting to cope with errors.
-	Con_Printf(COLOURYELLOW "<< %s \n",msg);
+	Con_SubPrintf("xmppout", COLOURYELLOW "%s \n",msg);
 }
 void JCL_AddClientMessageString(jclient_t *jcl, char *msg)
 {
@@ -275,7 +285,7 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 
 	if (usesecure)
 	{
-		if (Net_SetTLSClient(jcl->socket)<0)
+		if (Net_SetTLSClient(jcl->socket, server)<0)
 		{
 			Net_Close(jcl->socket);
 			free(jcl);
@@ -299,7 +309,7 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 	strlcpy(jcl->domain, at+1, sizeof(jcl->domain));
 	strlcpy(jcl->password, password, sizeof(jcl->password));
 
-	strcpy(jcl->resource, "Quake");
+	strlcpy(jcl->resource, "Quake", sizeof(jcl->password));
 
 	Con_Printf("Trying to connect\n");
 	JCL_AddClientMessageString(jcl,
@@ -320,6 +330,8 @@ typedef struct xmlparams_s {
 
 typedef struct subtree_s {
 	char name[64];
+	char xmlns[64];			//namespace of the element
+	char xmlns_dflt[64];	//default namespace of children
 	char body[2048];
 
 	xmlparams_t *params;
@@ -329,7 +341,18 @@ typedef struct subtree_s {
 } xmltree_t;
 
 void XML_Destroy(xmltree_t *t);
-xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronly)
+
+char *XML_ParameterOfTree(xmltree_t *t, char *paramname)
+{
+	xmlparams_t *p;
+	for (p = t->params; p; p = p->next)
+		if (!strcmp(p->name, paramname))
+			return p->val;
+	return NULL;
+}
+
+//fixme: we should accept+parse the default namespace
+xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronly, char *defaultnamespace)
 {
 	xmlparams_t *p;
 	xmltree_t *child;
@@ -338,12 +361,19 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 	int pos;
 	char *tagend;
 	char *tagstart;
+	char *ns;
 	pos = *startpos;
 	while (buffer[pos] >= '\0' && buffer[pos] <= ' ')
 	{
 		if (pos >= maxpos)
 			break;
 		pos++;
+	}
+
+	if (pos == maxpos)
+	{
+		*startpos = pos;
+		return NULL;	//nothing anyway.
 	}
 
 	//expect a <
@@ -384,9 +414,23 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 
 	ret = malloc(sizeof(xmltree_t));
 	memset(ret, 0, sizeof(*ret));
-	strlcpy(ret->name, com_token, sizeof(ret->name));
 
-	// FIXME:parse the parameters
+	ns = strchr(com_token, ':');
+	if (ns)
+	{
+		*ns = 0;
+		ns++;
+
+		memcpy(ret->xmlns, "xmlns:", 6);
+		strlcpy(ret->xmlns+6, com_token, sizeof(ret->xmlns)-6);
+		strlcpy(ret->name, ns, sizeof(ret->name));
+	}
+	else
+	{
+		strlcpy(ret->xmlns, "xmlns", sizeof(ret->xmlns));
+		strlcpy(ret->name, com_token, sizeof(ret->name));
+	}
+
 	while(*tagstart)
 	{
 		int nlen;
@@ -463,6 +507,12 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		ret->params = p;
 	}
 
+	ns = XML_ParameterOfTree(ret, ret->xmlns);
+	strlcpy(ret->xmlns, ns?ns:"", sizeof(ret->xmlns));
+
+	ns = XML_ParameterOfTree(ret, "xmlns");
+	strlcpy(ret->xmlns_dflt, ns?ns:defaultnamespace, sizeof(ret->xmlns_dflt));
+
 	tagend[-1] = '>';
 
 	if (tagend[-2] == '/')
@@ -516,7 +566,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 				break;
 			}
 
-			child = XML_Parse(buffer, &pos, maxpos, false);
+			child = XML_Parse(buffer, &pos, maxpos, false, ret->xmlns_dflt);
 			if (!child)
 			{
 				Con_Printf("Child block is unparsable\n");
@@ -526,23 +576,18 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 			child->sibling = ret->child;
 			ret->child = child;
 		}
-		else
-			ret->body[bodypos++] = buffer[pos++];
+		else 
+		{
+			char c = buffer[pos++];
+			if (bodypos < sizeof(ret->body)-1)
+				ret->body[bodypos++] = c;
+		}
 	}
 	ret->body[bodypos++] = '\0';
 
 	*startpos = pos;
 
 	return ret;
-}
-
-char *XML_ParameterOfTree(xmltree_t *t, char *paramname)
-{
-	xmlparams_t *p;
-	for (p = t->params; p; p = p->next)
-		if (!strcmp(p->name, paramname))
-			return p->val;
-	return NULL;
 }
 
 void XML_Destroy(xmltree_t *t)
@@ -631,7 +676,7 @@ void Base64_Byte(unsigned int byt)
 		base64[base64_len++] = Base64_From64((base64_cur>>6)&63);
 		base64[base64_len++] = Base64_From64((base64_cur>>0)&63);
 		base64[base64_len] = '\0';
-		Con_Printf("base64: %s\n", base64+base64_len-4);
+//		Con_Printf("base64: %s\n", base64+base64_len-4);
 		base64_bits = 0;
 		base64_cur = 0;
 	}
@@ -714,25 +759,22 @@ int JCL_ClientFrame(jclient_t *jcl)
 	ret = Net_Recv(jcl->socket, jcl->bufferedinmessage+jcl->bufferedinammount, sizeof(jcl->bufferedinmessage)-1 - jcl->bufferedinammount);
 	if (ret == 0)
 	{
-		Con_Printf("JCL: Remote host disconnected\n");
-		return JCL_KILL;
+		if (!jcl->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
+			return JCL_DONE;	//remove
 	}
 	if (ret < 0)
 	{
-		if (ret == N_WOULDBLOCK)
-		{
-			if (!jcl->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
-				return JCL_DONE;	//remove
-		}
-		else
-		{
-			Con_Printf("JCL: socket error\n");
-			return JCL_KILL;
-		}
+		Con_Printf("JCL: socket error\n");
+		return JCL_KILL;
 	}
 
 	if (ret>0)
+	{
 		jcl->bufferedinammount+=ret;
+
+		jcl->bufferedinmessage[jcl->bufferedinammount] = 0;
+		Con_TrySubPrint("xmppin", jcl->bufferedinmessage+jcl->bufferedinammount-ret);
+	}
 
 	olddepth = jcl->tagdepth;
 
@@ -771,11 +813,11 @@ int JCL_ClientFrame(jclient_t *jcl)
 	{	//first bit of info
 
 		pos = 0;
-		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true);
+		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true, "");
 		while (tree && !strcmp(tree->name, "?xml"))
 		{
 			XML_Destroy(tree);
-			tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true);
+			tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true, "");
 		}
 
 		if (!tree)
@@ -783,17 +825,19 @@ int JCL_ClientFrame(jclient_t *jcl)
 			Con_Printf("Not an xml stream\n");
 			return JCL_KILL;
 		}
-		if (strcmp(tree->name, "stream:stream"))
+		if (strcmp(tree->name, "stream") || strcmp(tree->xmlns, "http://etherx.jabber.org/streams"))
 		{
 			Con_Printf("Not an xmpp stream\n");
 			return JCL_KILL;
 		}
+		strlcpy(jcl->defaultnamespace, tree->xmlns_dflt, sizeof(jcl->defaultnamespace));
 
 		ot = tree;
 		tree = tree->child;
 		ot->child = NULL;
-		Con_Printf("Discard\n");
-		XML_ConPrintTree(ot, 0);
+
+//		Con_Printf("Discard\n");
+//		XML_ConPrintTree(ot, 0);
 		XML_Destroy(ot);
 
 		if (!tree)
@@ -818,7 +862,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 		}
 
 		pos = 0;
-		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, false);
+		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, false, jcl->defaultnamespace);
 
 		if (!tree)
 		{
@@ -827,12 +871,12 @@ int JCL_ClientFrame(jclient_t *jcl)
 		}
 	}
 
-	Con_Printf("read\n");
-	XML_ConPrintTree(tree, 0);
+//	Con_Printf("read\n");
+//	XML_ConPrintTree(tree, 0);
 
 
 	unparsable = true;
-	if (!strcmp(tree->name, "stream:features"))
+	if (!strcmp(tree->name, "features"))
 	{
 		if ((ot=XML_ChildOfTree(tree, "bind", 0)))
 		{
@@ -846,6 +890,9 @@ int JCL_ClientFrame(jclient_t *jcl)
 			unparsable = false;
 			JCL_AddClientMessageString(jcl, "<iq type='set' id='H_1'><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>");
 			JCL_AddClientMessageString(jcl, "<presence/>");
+			jcl->connected = true;
+
+			JCL_AddClientMessageString(jcl, "<iq type='get' to='gmail.com' id='H_2'><query xmlns='http://jabber.org/protocol/disco#info'/></iq>");
 		}
 
 
@@ -853,6 +900,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 		{
 			if ((!jclient->issecure) && BUILTINISVALID(Net_SetTLSClient) && XML_ChildOfTree(tree, "starttls", 0) != NULL)
 			{
+				Con_Printf("Attempting to switch to TLS\n");
 				JCL_AddClientMessageString(jcl, "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls' />");
 				unparsable = false;
 			}
@@ -862,24 +910,28 @@ int JCL_ClientFrame(jclient_t *jcl)
 				{
 					if (!strcmp(ot->body, "PLAIN"))
 					{
+						char msg[2048];
 						if (jclient->noplain && !jclient->issecure)	//probably don't send plain without tls.
 						{
 							//plain can still be read with man-in-the-middle attacks, of course, even with stl.
 							Con_Printf("Ignoring auth \'%s\'\n", ot->body);
 							continue;
 						}
-						Con_Printf("Authing with \'%s\'\n", ot->body);
-						JCL_AddClientMessageString(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>");
-						Base64_Add(jclient->username, strlen(jcl->username));
-						Base64_Add("@", 1);
-						Base64_Add(jclient->domain, strlen(jcl->domain));
+						Con_Printf("Authing with \'%s\'%s\n", ot->body, jclient->issecure?" over tls/ssl":"");
+						
+//						Base64_Add(jclient->username, strlen(jcl->username));
+//						Base64_Add("@", 1);
+//						Base64_Add(jclient->domain, strlen(jcl->domain));
 						Base64_Add("", 1);
 						Base64_Add(jclient->username, strlen(jcl->username));
 						Base64_Add("", 1);
 						Base64_Add(jcl->password, strlen(jcl->password));
 						Base64_Finish();
-						JCL_AddClientMessageString(jcl, base64);
-						JCL_AddClientMessageString(jcl, "</auth>");
+						snprintf(msg, sizeof(msg), "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>%s</auth>", base64);
+						JCL_AddClientMessageString(jcl, msg);
+//						JCL_AddClientMessageString(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>");
+//						JCL_AddClientMessageString(jcl, base64);
+//						JCL_AddClientMessageString(jcl, "</auth>");
 						unparsable = false;
 						break;
 					}
@@ -911,12 +963,14 @@ int JCL_ClientFrame(jclient_t *jcl)
 		if (!BUILTINISVALID(Net_SetTLSClient))
 		{
 			Con_Printf("JCL: proceed without TLS\n");
+			XML_Destroy(tree);
 			return JCL_KILL;
 		}
 
-		if (Net_SetTLSClient(jcl->socket)<0)
+		if (Net_SetTLSClient(jcl->socket, jcl->domain)<0)
 		{
 			Con_Printf("JCL: failed to switch to TLS\n");
+			XML_Destroy(tree);
 			return JCL_KILL;
 		}
 		jclient->issecure = true;
@@ -927,6 +981,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 		JCL_AddClientMessageString(jcl, jcl->domain);
 		JCL_AddClientMessageString(jcl, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>");
 
+		XML_Destroy(tree);
 		return JCL_DONE;
 	}
 	else if (!strcmp(tree->name, "stream:error"))
@@ -938,6 +993,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 			Con_Printf("JCL: Failure: %s\n", tree->child->name);
 		else
 			Con_Printf("JCL: Unknown failure\n");
+		XML_Destroy(tree);
 		return JCL_KILL;
 	}
 	else if (!strcmp(tree->name, "success"))
@@ -960,7 +1016,6 @@ int JCL_ClientFrame(jclient_t *jcl)
 		char *from;
 		char *to;
 		char *id;
-		unparsable = false;
 
 		id = XML_ParameterOfTree(tree, "id");
 		from = XML_ParameterOfTree(tree, "from");
@@ -972,55 +1027,213 @@ int JCL_ClientFrame(jclient_t *jcl)
 			ot = XML_ChildOfTree(tree, "query", 0);
 			if (ot)
 			{
-				f = XML_ParameterOfTree(tree, "xmlns");
-				if (f && to && from && !strcmp(f, "jabber:iq:version"))
-				{	//client->client version request
-					JCL_AddClientMessageString(jcl, "<iq type='result' to='");
-					JCL_AddClientMessageString(jcl, from);
-					JCL_AddClientMessageString(jcl, "' from='");
-					JCL_AddClientMessageString(jcl, to);
-					JCL_AddClientMessageString(jcl, "' id='");
-					JCL_AddClientMessageString(jcl, id);
-					JCL_AddClientMessageString(jcl, "'>");
+				if (from && !strcmp(ot->xmlns, "http://jabber.org/protocol/disco#info"))
+				{	//http://xmpp.org/extensions/xep-0030.html
+					char msg[2048];
+					int idletime = 0;
+					unparsable = false;
 
-					JCL_AddClientMessageString(jcl,	"<query xmlns='jabber:iq:version'>"
-										"<name>FTEQW Jabber Plugin</name>"
-										"<version>"JCL_BUILD"</version>"
-#ifdef Q3_VM
-										"<os>QVM plugin</os>"
-#endif
-									"</query>");
-
-					JCL_AddClientMessageString(jcl, "</iq>");
+					snprintf(msg, sizeof(msg),
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#info'>"
+								    "<identity category='client' type='pc' name='FTEQW'/>"
+									"<feature var='jabber:iq:version'/>"
+#ifndef Q3_VM
+									"<feature var='urn:xmpp:time'/>"
+#endif			
+								"</query>"
+							"</iq>", from, id, idletime);
+					
+					JCL_AddClientMessageString(jcl, msg);
 				}
+				else if (from && !strcmp(ot->xmlns, "jabber:iq:version"))
+				{	//client->client version request
+					char msg[2048];
+					unparsable = false;
+
+					snprintf(msg, sizeof(msg),
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='jabber:iq:version'>"
+									"<name>FTEQW Jabber Plugin</name>"
+									"<version>V"JCL_BUILD"</version>"
+#ifdef Q3_VM
+									"<os>QVM plugin</os>"
+#endif
+								"</query>"
+							"</iq>", from, id);
+
+					JCL_AddClientMessageString(jcl, msg);
+				}
+/*				else if (from && !strcmp(ot->xmlns, "jabber:iq:last"))
+				{	//http://xmpp.org/extensions/xep-0012.html
+					char msg[2048];
+					int idletime = 0;
+					unparsable = false;
+
+					//last activity
+					snprintf(msg, sizeof(msg),
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='jabber:iq:last' seconds='%i'/>"
+							"</iq>", from, id, idletime);
+					
+					JCL_AddClientMessageString(jcl, msg);
+				}
+*/
+			}
+#ifndef Q3_VM
+			ot = XML_ChildOfTree(tree, "time", 0);
+			if (ot && !strcmp(ot->xmlns, "urn:xmpp:time"))
+			{	//http://xmpp.org/extensions/xep-0202.html
+				char msg[2048];
+				char tz[256];
+				char timestamp[256];
+				int idletime = 0;
+				struct tm * timeinfo;
+				int tzs;
+				time_t rawtime;
+				time (&rawtime);
+				timeinfo = gmtime (&rawtime);
+				tzs = _timezone;
+				tzs *= -1;
+				snprintf(tz, sizeof(tz), "%+i:%i", tzs/(60*60), abs(tzs/60) % 60);
+				strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", timeinfo);
+				unparsable = false;
+				//strftime
+				snprintf(msg, sizeof(msg),
+						"<iq type='result' to='%s' id='%s'>"
+							"<time xmlns='urn:xmpp:time'>"
+								"<tzo>+00:00</tzo>"
+								"<utc>2006-12-19T17:58:35Z</utc>"
+							"</time>"
+						"</iq>", from, id, tz, timestamp);
+				JCL_AddClientMessageString(jcl, msg);
+			}
+#endif
+				
+			if (unparsable)
+			{	//unsupported stuff
+				char msg[2048];
+				unparsable = false;
+
+				Con_Print("Unsupported iq get\n");
+				XML_ConPrintTree(tree, 0);
+
+				//tell them OH NOES, instead of requiring some timeout.
+				snprintf(msg, sizeof(msg),
+						"<iq type='error' to='%s' id='%s'>"
+							"<error type='cancel'>"
+								"<service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+							"</error>"
+						"</iq>", from, id);
+				JCL_AddClientMessageString(jcl, msg);
 			}
 		}
-		else
+		else if (f && !strcmp(f, "result"))
+		{
+			xmltree_t *c, *v;
+			unparsable = false;
+			c = XML_ChildOfTree(tree, "bind", 0);
+			if (c)
+			{
+				v = XML_ChildOfTree(c, "jid", 0);
+				if (v)
+					Con_Printf("Bound to jid \"%s\"\n", v->body);
+			}
+			else
+			{
+				Con_Print("Unrecognised iq result\n");
+				XML_ConPrintTree(tree, 0);
+			}
+		}
+		
+		if (unparsable)
+		{
+			unparsable = false;
 			Con_Print("Unrecognised iq type\n");
+			XML_ConPrintTree(tree, 0);
+		}
 	}
 	else if (!strcmp(tree->name, "message"))
 	{
-		unparsable = false;
+		f = XML_ParameterOfTree(tree, "from");
+
+		if (f)
+		{
+			strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
+			RenameConsole(f);
+		}
+
+		if (f)
+		{
+			ot = XML_ChildOfTree(tree, "composing", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s is typing\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "paused", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s has stopped typing\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "inactive", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s has become inactive\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "active", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "gone", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s has gone away\r", f);
+			}
+		}
+
 		ot = XML_ChildOfTree(tree, "body", 0);
 		if (ot)
 		{
-			f = XML_ParameterOfTree(tree, "from");
+			unparsable = false;
 			if (f)
-			{
-				strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
-				RenameConsole(f);
 				Con_SubPrintf(f, "%s: %s\n", f, ot->body);
-			}
 			else
 				Con_Print(ot->body);
 
 			LocalSound("misc/talk.wav");
 		}
-		else
+
+		if (unparsable)
+		{
+			unparsable = false;
 			Con_Print("Received a message without a body\n");
+			XML_ConPrintTree(tree, 0);
+		}
 	}
 	else if (!strcmp(tree->name, "presence"))
 	{
+		char *from = XML_ParameterOfTree(tree, "from");
+		xmltree_t *show = XML_ChildOfTree(tree, "show", 0);
+		xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
+		xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
+		xmltree_t *serverip = NULL;
+
+		if (quake && !strcmp(quake->xmlns, "fteqw.com:game"))
+			serverip = XML_ChildOfTree(quake, "serverip", 0);
+
+		if (serverip && *serverip->body)
+			Con_Printf("%s is now playing quake! ^[JOIN THEM!\\join\\%s^]\n", from, serverip->body);
+		else if (status && *status->body)
+			Con_Printf("%s is now %s: %s\n", from, show?show->body:"present", status->body);
+		else
+			Con_Printf("%s is now %s\n", from, show?show->body:"present");
+
 		//we should keep a list of the people that we know of.
 		unparsable = false;
 	}
@@ -1054,11 +1267,40 @@ void JCL_CloseConnection(jclient_t *jcl)
 //functions above this line allow connections to multiple servers.
 //it is just the control functions that only allow one server.
 
-int JCL_Frame(int *args)
+qintptr_t JCL_Frame(qintptr_t *args)
 {
 	int stat = JCL_CONTINUE;
 	if (jclient)
 	{
+		if (jclient->connected)
+		{
+			int dummystat;
+			char serveraddr[1024*16];
+			//get the last server address
+			if (!Cvar_GetString("cl_serveraddress", serveraddr, sizeof(serveraddr)))
+				serveraddr[0] = 0;
+			//if we can't get any stats, its because we're not actually on the server.
+			if (!CL_GetStats(0, &dummystat, 1))
+				serveraddr[0] = 0;
+
+			if (strcmp(jclient->curquakeserver, serveraddr))
+			{
+				char msg[1024];
+				strlcpy(jclient->curquakeserver, serveraddr, sizeof(jclient->curquakeserver));
+				if (!*jclient->curquakeserver)
+					strlcpy(msg, "<presence/>", sizeof(msg));
+				else
+					snprintf(msg, sizeof(msg), 
+						"<presence>"
+							"<quake xmlns='fteqw.com:game'>"
+								 "<serverip>sha1-hash-of-image</serverip>"
+							"</quake>"
+						"</presence>"
+						);
+				JCL_AddClientMessageString(jclient, msg);
+			}
+		}
+
 		while(stat == JCL_CONTINUE)
 			stat = JCL_ClientFrame(jclient);
 		if (stat == JCL_KILL)
@@ -1162,6 +1404,10 @@ void JCL_Command(void)
 			JCL_AddClientMessageString(jclient, "</body></message>");
 
 			Con_SubPrintf(jclient->defaultdest, "%s: "COLOURYELLOW"%s\n", ">>", msg);
+		}
+		else if (!strcmp(arg[0]+1, "raw"))
+		{
+			JCL_AddClientMessageString(jclient, arg[1]);
 		}
 		else
 			Con_Printf("Unrecognised command: %s\n", arg[0]);

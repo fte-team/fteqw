@@ -2469,7 +2469,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			int decodeerror;
 			char *end;
 			uc = utf8_decode(&decodeerror, str, &end);
-			if (decodeerror)
+			if (decodeerror && !(utf8 & 2))
 			{
 				utf8 &= ~1;
 				//malformed encoding we just drop through and stop trying to decode.
@@ -2486,7 +2486,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-		if (*str == '^')
+		if (*str == '^' && !(flags & PFS_NOMARKUP))
 		{
 			if (str[1] >= '0' && str[1] <= '9')
 			{
@@ -2664,7 +2664,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-		else if (*str == '&' && str[1] == 'c')
+		else if (*str == '&' && str[1] == 'c' && !(flags & PFS_NOMARKUP))
 		{
 			// ezQuake color codes
 
@@ -2704,7 +2704,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				}
 			}
 		}
-		else if (*str == '&' && str[1] == 'r')
+		else if (*str == '&' && str[1] == 'r' && !(flags & PFS_NOMARKUP))
 		{
 			ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
 			if (!keepmarkup)

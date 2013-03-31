@@ -412,7 +412,7 @@ void M_Media_Draw (void)
 char compleatenamepath[MAX_OSPATH];
 char compleatenamename[MAX_OSPATH];
 qboolean compleatenamemultiple;
-int Com_CompleatenameCallback(const char *name, int size, void *data)
+int Com_CompleatenameCallback(const char *name, int size, void *data, void *spath)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
@@ -431,8 +431,8 @@ void Com_CompleateOSFileName(char *name)
 		ending[-1] = '\0';	//strip a slash
 	*compleatenamename='\0';
 
-	Sys_EnumerateFiles(NULL, va("%s*", name), Com_CompleatenameCallback, NULL);
-	Sys_EnumerateFiles(NULL, va("%s*.*", name), Com_CompleatenameCallback, NULL);
+	Sys_EnumerateFiles(NULL, va("%s*", name), Com_CompleatenameCallback, NULL, NULL);
+	Sys_EnumerateFiles(NULL, va("%s*.*", name), Com_CompleatenameCallback, NULL, NULL);
 
 	if (*compleatenamename)
 		strcpy(name, compleatenamename);

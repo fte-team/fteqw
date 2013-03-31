@@ -292,8 +292,9 @@ void COM_ParsePlusSets (void);
 
 typedef unsigned int conchar_t;
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
-#define PFS_KEEPMARKUP 1
-#define PFS_FORCEUTF8 2
+#define PFS_KEEPMARKUP 1	//leave markup in the final string (but do parse it)
+#define PFS_FORCEUTF8 2		//force utf-8 decoding
+#define PFS_NOMARKUP 4		//strip markup completely
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 unsigned int utf8_decode(int *error, const void *in, char **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
@@ -406,7 +407,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
 vfsfile_t *FS_OpenTemp(void);
-vfsfile_t *FS_OpenTCP(const char *name);
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
@@ -441,7 +442,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk);
 qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);
 
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm);
+void COM_EnumerateFiles (const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm);
 
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove

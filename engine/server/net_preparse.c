@@ -1,4 +1,4 @@
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #ifndef CLIENTONLY
 /*Testing this code should typically be done with the three following mods:

@@ -1426,7 +1426,7 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int search_enumerate(const char *name, int fsize, void *parm)
+int search_enumerate(const char *name, int fsize, void *parm, struct searchpath_s *spath)
 {
 	prvmsearch_t *s = parm;
 

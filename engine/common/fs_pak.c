@@ -126,7 +126,7 @@ qboolean FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, voi
 	}
 	return false;
 }
-int FSPAK_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+int FSPAK_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
 {
 	pack_t	*pak = handle;
 	int		num;
@@ -135,7 +135,7 @@ int FSPAK_EnumerateFiles (void *handle, const char *match, int (*func)(const cha
 	{
 		if (wildcmp(match, pak->files[num].name))
 		{
-			if (!func(pak->files[num].name, pak->files[num].filelen, parm))
+			if (!func(pak->files[num].name, pak->files[num].filelen, parm, handle))
 				return false;
 		}
 	}

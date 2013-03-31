@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #ifndef CLIENTONLY
 
@@ -374,7 +374,7 @@ void SV_Give_f (void)
 	}
 }
 
-int ShowMapList (const char *name, int flags, void *parm)
+int ShowMapList (const char *name, int flags, void *parm, struct searchpath_s *spath)
 {
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
@@ -1454,6 +1454,18 @@ void SV_Status_f (void)
 		Con_Printf ("current map      : %s\n", sv.name);
 
 	Con_Printf("entities         : %i/%i\n", sv.world.num_edicts, sv.world.max_edicts);
+	if (svs.gametype == GT_PROGS)
+	{
+		int count = 0;
+		for (count = 1; count < MAX_MODELS; count++)
+			if (!sv.strings.model_precache[count])
+				break;
+		Con_Printf("models           : %i/%i\n", count, MAX_MODELS);
+		for (count = 1; count < MAX_SOUNDS; count++)
+			if (!*sv.strings.sound_precache[count])
+				break;
+		Con_Printf("sounds           : %i/%i\n", count, MAX_SOUNDS);
+	}
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir());
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");

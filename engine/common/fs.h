@@ -8,7 +8,7 @@ extern hashtable_t filesystemhash;	//this table is the one to build your hash re
 extern int fs_hash_dups;	//for tracking efficiency. no functional use.
 extern int fs_hash_files;	//for tracking efficiency. no functional use.
 
-
+struct searchpath_s;
 typedef struct {
 	void	(*GetDisplayPath)(void *handle, char *outpath, unsigned int pathsize);
 	void	(*ClosePath)(void *handle);
@@ -17,7 +17,7 @@ typedef struct {
 		//note that if rawfile and offset are set, many Com_FileOpens will read the raw file
 		//otherwise ReadFile will be called instead.
 	void	(*ReadFile)(void *handle, flocation_t *loc, char *buffer);	//reads the entire file in one go (size comes from loc, so make sure the loc is valid, this is for performance with compressed archives)
-	int		(*EnumerateFiles)(void *handle, const char *match, int (*func)(const char *, int, void *), void *parm);
+	int		(*EnumerateFiles)(void *handle, const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm);
 
 	void	*(*OpenNew)(vfsfile_t *file, const char *desc);	//returns a handle to a new pak/path
 

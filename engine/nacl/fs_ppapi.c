@@ -345,7 +345,7 @@ static void FSPPAPI_ClosePath(void *handle)
 	Z_Free(handle);
 }
 
-int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
 {
 	int rootlen = strlen(rootpath);
 	char *sub;
@@ -362,33 +362,33 @@ int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(con
 			sub++;
 		if (wildcmp(match, sub))
 		{
-			if (!func(sub, f->length, parm))
+			if (!func(sub, f->length, parm, spath))
 				return false;
 		}
 	}
 	return true;
 }
-static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
 {
-	return Sys_EnumerateFiles((char*)handle, match, func, parm);
+	return Sys_EnumerateFiles((char*)handle, match, func, parm, spath);
 }
 
-static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data)
+static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data, void *handle)
 {
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles((char*)data, childpath, FSPPAPI_RebuildFSHash, data);
+		Sys_EnumerateFiles((char*)data, childpath, FSPPAPI_RebuildFSHash, data, handle);
 		return true;
 	}
-	FS_AddFileHash(0, filename, NULL, data);
+	FS_AddFileHash(0, filename, NULL, handle);
 	return true;
 }
 static void FSPPAPI_BuildHash(void *handle, int depth)
 {
-	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, handle);
+	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, handle, handle);
 }
 
 /*

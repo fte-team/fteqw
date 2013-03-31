@@ -176,6 +176,12 @@ typedef struct part_type_s {
 	int nummodels;
 	partmodels_t *models;
 
+	char soundname[MAX_QPATH];
+	float soundvol;
+	float soundattn;
+	float sounddelay;
+	float soundpitch;
+
 	vec3_t rgb;	//initial colour
 	float alpha;
 	vec3_t rgbchange;	//colour delta (per second)
@@ -1401,6 +1407,23 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "nospreadlast"))
 			ptype->flags |= PT_NOSPREADLAST;
 
+		else if (!strcmp(var, "sound"))
+		{
+			Q_strncpyz(ptype->soundname, value, sizeof(ptype->soundname));
+			ptype->soundvol = atof(Cmd_Argv(2));
+			if (!ptype->soundvol)
+				ptype->soundvol = 1;
+			ptype->soundattn = atof(Cmd_Argv(3));
+			if (!ptype->soundattn)
+				ptype->soundattn = 1;
+			ptype->soundpitch = atof(Cmd_Argv(4));
+			if (!ptype->soundpitch)
+				ptype->soundpitch = 100;
+			ptype->sounddelay = atof(Cmd_Argv(5));
+			if (!ptype->sounddelay)
+				ptype->sounddelay = 0;
+		}
+
 		else if (!strcmp(var, "lightradius"))
 			ptype->dl_radius = atof(value);
 		else if (!strcmp(var, "lightradiusfade"))
@@ -1554,12 +1577,15 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("spawnvel %g %g\n", ptype->spawnvel, ptype->spawnvelvert), outstrlen);
 
 		if (ptype->assoc != P_INVALID)
-			Q_strncatz(outstr, va("assoc %s\n", part_type[ptype->assoc].name), outstrlen);
+			Q_strncatz(outstr, va("assoc \"%s\"\n", part_type[ptype->assoc].name), outstrlen);
 
 		Q_strncatz(outstr, va("tcoords %g %g %g %g %g %i %g\n", ptype->s1, ptype->t1, ptype->s2, ptype->t2, 1.0f, ptype->randsmax, ptype->texsstride), outstrlen);
 
 		Q_strncatz(outstr, va("rotationstart %g %g\n", ptype->rotationstartmin*180/M_PI, (ptype->rotationstartmin+ptype->rotationstartrand)*180/M_PI), outstrlen);
 		Q_strncatz(outstr, va("rotationspeed %g %g\n", ptype->rotationmin*180/M_PI, (ptype->rotationmin+ptype->rotationrand)*180/M_PI), outstrlen);
+
+		if (ptype->soundvol)
+			Q_strncatz(outstr, va("sound \"%s\" %g %g %g %g\n", ptype->soundname, ptype->soundvol, ptype->soundattn, ptype->soundpitch, ptype->sounddelay), outstrlen);
 
 		if (ptype->dl_radius)
 		{
@@ -2993,6 +3019,10 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 			dl->flags |= LFLAG_NOSHADOWS;
 		if (ptype->dl_cubemapnum)
 			snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
+	}
+	if (*ptype->soundname)
+	{
+		S_StartSound(0, 0, S_PrecacheSound(ptype->soundname), org, ptype->soundvol, ptype->soundattn, ptype->sounddelay, ptype->soundpitch);
 	}
 	if (ptype->stain_radius)
 		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);

@@ -176,7 +176,7 @@ typedef struct heightmap_s
 
 
 static void ted_dorelight(heightmap_t *hm);
-static void Terr_Collect(heightmap_t *hm);
+static qboolean Terr_Collect(heightmap_t *hm);
 
 
 #ifndef SERVERONLY
@@ -241,7 +241,7 @@ static void Terr_InitLightmap(hmsection_t *s)
 		lm = Surf_NewLightmaps(1, SECTTEXSIZE*LMCHUNKS, SECTTEXSIZE*LMCHUNKS, false);
 		for (i = 0; i < LMCHUNKS*LMCHUNKS; i++)
 		{
-			lms = malloc(sizeof(*lms));
+			lms = BZ_Malloc(sizeof(*lms));
 			lms->lm = lm;
 			lms->x = (i & (LMCHUNKS-1))*SECTTEXSIZE;
 			lms->y = (i / LMCHUNKS)*SECTTEXSIZE;
@@ -257,7 +257,7 @@ static void Terr_InitLightmap(hmsection_t *s)
 	s->lmx = lms->x;
 	s->lmy = lms->y;
 
-	free(lms);
+	Z_Free(lms);
 }
 #endif
 
@@ -344,7 +344,7 @@ static qboolean Terr_IsSectionFName(heightmap_t *hm, char *fname, int *sx, int *
 }
 static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, dsection_t *ds, unsigned int dslen)
 {
-	int i;
+	int i, j;
 #ifndef SERVERONLY
 	dsmesh_t *dm;
 	unsigned char *lm;
@@ -365,13 +365,12 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 
 	if (!s)
 	{
-		s = malloc(sizeof(*s));
+		s = Z_Malloc(sizeof(*s));
 		if (!s)
 		{
 			FS_FreeFile(ds);
 			return NULL;
 		}
-		memset(s, 0, sizeof(*s));
 
 		InsertLinkBefore(&s->recycle, &hm->recycle);
 		s->sx = sx;
@@ -468,12 +467,11 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		s->numents = ds->ents_num;
 		s->maxents = s->numents;
 		if (s->maxents)
-			s->ents = malloc(sizeof(*s->ents) * s->maxents);
+			s->ents = Z_Malloc(sizeof(*s->ents) * s->maxents);
 		else
 			s->ents = NULL;
 		if (!s->ents)
 			s->numents = s->maxents = 0;
-		memset(s->ents, 0, sizeof(*s->ents) * s->maxents);
 		for (i = 0, dm = (dsmesh_t*)ptr; i < s->numents; i++, dm = (dsmesh_t*)((qbyte*)dm + dm->size))
 		{
 			s->ents[i].model = Mod_ForName((char*)(dm + 1), false);
@@ -499,7 +497,7 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	}
 	else
 	{
-		s->flags |= TSF_RELIGHT;
+//		s->flags |= TSF_RELIGHT;
 
 #ifndef SERVERONLY
 		if (s->lightmap >= 0)
@@ -508,7 +506,13 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
 			for (i = 0; i < SECTTEXSIZE; i++)
 			{
-				memset(lm, 0, sizeof(byte_vec4_t)*SECTTEXSIZE);
+				for (j = 0; j < SECTTEXSIZE; j++)
+				{
+					lm[j*4+0] = 0;
+					lm[j*4+0] = 0;
+					lm[j*4+0] = 0;
+					lm[j*4+3] = 255;
+				}
 				lm += (HMLMSTRIDE)*lightmap_bytes;
 			}
 			lightmap[s->lightmap]->modified = true;
@@ -644,12 +648,9 @@ qboolean Terr_DownloadedSection(char *fname)
 			hmcluster_t *cluster = hm->cluster[cx + cy*MAXSECTIONS];
 			if (!cluster)
 			{
-				cluster = malloc(sizeof(*cluster));
+				cluster = Z_Malloc(sizeof(*cluster));
 				if (cluster)
-				{
-					memset(cluster, 0, sizeof(*cluster));
 					hm->cluster[cx + cy*MAXSECTIONS] = cluster;
-				}
 			}
 			if (cluster)
 				cluster->section[sx + sy*MAXSECTIONS] = Terr_ReadSection(hm, cluster->section[sx + sy*MAXSECTIONS], x, y, fileptr, len);
@@ -663,7 +664,7 @@ qboolean Terr_DownloadedSection(char *fname)
 }
 #endif
 
-static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
+static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, qboolean force)
 {
 	hmsection_t *sect;
 	void *diskimage;
@@ -685,9 +686,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	/*queue the file for download if we don't have it yet*/
 	if (len < 0)
 	{
-#ifndef CLIENTONLY
-		if (!sv.state)	//server ignores any load errors, and will load a dummy section.
-#endif
+		if (!force)
 		{
 #ifndef SERVERONLY
 			if (!cl.downloadlist)
@@ -805,7 +804,10 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 }
 
 /*convienience function*/
-static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, qboolean doload)
+#define TGS_NOLOAD		0
+#define TGS_LOAD		1
+#define TGS_FORCELOAD	2
+static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags)
 {
 	hmcluster_t *cluster;
 	hmsection_t *section;
@@ -816,12 +818,11 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, qboolean dolo
 	cluster = hm->cluster[cx + cy*MAXSECTIONS];
 	if (!cluster)
 	{
-		if (doload)
+		if (flags & (TGS_LOAD|TGS_FORCELOAD))
 		{
-			cluster = malloc(sizeof(*cluster));
+			cluster = Z_Malloc(sizeof(*cluster));
 			if (!cluster)
 				return NULL;
-			memset(cluster, 0, sizeof(*cluster));
 			hm->cluster[cx + cy*MAXSECTIONS] = cluster;
 		}
 		else
@@ -830,13 +831,27 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, qboolean dolo
 	section = cluster->section[sx + sy*MAXSECTIONS];
 	if (!section)
 	{
-		if (doload)
+		if (flags & (TGS_LOAD|TGS_FORCELOAD))
 		{
 //			while (hm->activesections > TERRAINACTIVESECTIONS)
 //				Terr_Collect(hm);
-			section = cluster->section[sx + sy*MAXSECTIONS] = Terr_LoadSection(hm, section, x, y);
+			section = cluster->section[sx + sy*MAXSECTIONS] = Terr_LoadSection(hm, section, x, y, !!(flags & TGS_FORCELOAD));
 		}
 	}
+#ifndef SERVERONLY
+	//when using networked terrain, the client will never load a section from disk, but only loading it from the server
+	if (section && (section->flags & TSF_NOTIFY) && mod_terrain_networked.ival && !sv.state)
+	{
+		//try to download it now...
+		if (!cl.downloadlist)
+		{
+			CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, x, y), Terr_TempDiskSectionName(hm, x, y), DLLF_OVERWRITE|DLLF_TEMPORARY);
+
+			section->flags &= ~TSF_NOTIFY;
+		}
+	}
+#endif
+
 	return section;
 }
 
@@ -850,7 +865,7 @@ int Heightmap_Save(heightmap_t *hm)
 	{
 		for (y = hm->firstsegy; y < hm->maxsegy; y++)
 		{
-			s = Terr_GetSection(hm, x, y, false);
+			s = Terr_GetSection(hm, x, y, TGS_NOLOAD);
 			if (!s)
 				continue;
 			if (s->flags & TSF_EDITED)
@@ -868,16 +883,6 @@ int Heightmap_Save(heightmap_t *hm)
 }
 
 #ifndef CLIENTONLY
-static int dehex(int i)
-{
-	if      (i >= '0' && i <= '9')
-		return (i-'0');
-	else if (i >= 'A' && i <= 'F')
-		return (i-'A'+10);
-	else
-		return (i-'a'+10);
-}
-
 //on servers, we can get requests to download current map sections. if so, give them it.
 qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 {
@@ -896,22 +901,11 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 	if (!Terr_IsSectionFName(hm, name, &x, &y))
 		return false;
 
-	x = dehex(name[nlen-17+ 6])<<8;
-	x|= dehex(name[nlen-17+ 7])<<4;
-	x|= dehex(name[nlen-17+ 8])<<0;
-
-	y = dehex(name[nlen-17+10])<<8;
-	y|= dehex(name[nlen-17+11])<<4;
-	y|= dehex(name[nlen-17+12])<<0;
-
-	x += CHUNKBIAS;
-	y += CHUNKBIAS;
-
 	//verify that its valid
 	if (strcmp(name, Terr_DiskSectionName(hm, x, y)))
 		return false;
 
-	s = Terr_GetSection(hm, x, y, false);
+	s = Terr_GetSection(hm, x, y, TGS_NOLOAD);
 	if (!s || !(s->flags & TSF_EDITED))
 		return false;	//its not been edited, might as well just use the regular file
 
@@ -931,7 +925,7 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	{
 		struct lmsect_s *lms;
 
-		lms = malloc(sizeof(*lms));
+		lms = BZ_Malloc(sizeof(*lms));
 		lms->lm = s->lightmap;
 		lms->x = s->lmx;
 		lms->y = s->lmy;
@@ -950,18 +944,56 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	}
 #endif
 
-	free(s->ents);
-	free(s->mesh.xyz_array);
-	free(s->mesh.indexes);
+	Z_Free(s->ents);
+	Z_Free(s->mesh.xyz_array);
+	Z_Free(s->mesh.indexes);
 #endif
 
-	free(s);
+	Z_Free(s);
 
 	hm->activesections--;
 }
 
+static void Terr_DoEditNotify(heightmap_t *hm)
+{
+	int i;
+	char *cmd;
+	hmsection_t *s;
+	link_t *ln = &hm->recycle;
+
+	if (!sv.state)
+		return;
+
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].state > cs_zombie && svs.clients[i].netchan.remote_address.type != NA_LOOPBACK)
+		{
+			if (svs.clients[i].backbuf.cursize)
+				return;
+		}
+	}
+
+	for (ln = &hm->recycle; ln->next != &hm->recycle; ln = &s->recycle)
+	{
+		s = (hmsection_t*)ln->next;
+		if (s->flags & TSF_NOTIFY)
+		{
+			s->flags &= ~TSF_NOTIFY;
+			cmd = va("mod_terrain_reload %s %i %i\n", hm->path, s->sx - CHUNKBIAS, s->sy - CHUNKBIAS);
+			for (i = 0; i < sv.allocated_client_slots; i++)
+			{
+				if (svs.clients[i].state > cs_zombie && svs.clients[i].netchan.remote_address.type != NA_LOOPBACK)
+				{
+					SV_StuffcmdToClient(&svs.clients[i], cmd);
+				}
+			}
+			return;
+		}
+	}
+}
+
 //garbage collect the oldest section, to make space for another
-static void Terr_Collect(heightmap_t *hm)
+static qboolean Terr_Collect(heightmap_t *hm)
 {
 	hmcluster_t *c;
 	hmsection_t *s;
@@ -986,9 +1018,10 @@ static void Terr_Collect(heightmap_t *hm)
 			c->section[sx+sy*MAXSECTIONS] = NULL;
 
 			Terr_DestroySection(hm, s, true);
-			return;
+			return true;
 		}
 	}
+	return false;
 }
 
 /*purge all sections
@@ -1034,7 +1067,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 		if (!lightmapsonly)
 		{
 			hm->cluster[cx + cy*MAXSECTIONS] = NULL;
-			free(c);
+			BZ_Free(c);
 		}
 	}
 #ifndef SERVERONLY
@@ -1045,7 +1078,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 			struct lmsect_s *lms;
 			lms = hm->unusedlmsects;
 			hm->unusedlmsects = lms->next;
-			free(lms);
+			BZ_Free(lms);
 		}
 	}
 #endif
@@ -1528,11 +1561,11 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		if (R_CullBox(mins, maxs))
 			return;
 
-		s = Terr_GetSection(hm, x, y, true);
+		s = Terr_GetSection(hm, x, y, TGS_LOAD);
 		if (!s)
 			return;
 		if (s->lightmap < 0)
-			Terr_LoadSection(hm, s, x, y);
+			Terr_LoadSection(hm, s, x, y, false);
 
 		if (s->flags & TSF_RELIGHT)
 		{
@@ -1644,8 +1677,15 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	struct tdibctx tdibctx;
 
 	if (!r_refdef.recurse)
+	{
+		Terr_DoEditNotify(hm);
+//		while (hm->activesections > 0)
+//			if (!Terr_Collect(hm))
+//				break;
 		while (hm->activesections > TERRAINACTIVESECTIONS)
-			Terr_Collect(hm);
+			if (!Terr_Collect(hm))
+				break;
+	}
 	
 	if (hm->relight)
 		ted_dorelight(hm);
@@ -1729,7 +1769,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 			mins[1] = (y+0 - CHUNKBIAS)*hm->sectionsize;
 			maxs[1] = (y+1 - CHUNKBIAS)*hm->sectionsize;
 
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_LOAD);
 			if (!s)
 				continue;
 			if (s->lightmap < 0)
@@ -1829,7 +1869,7 @@ void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_
 	{
 		for (x = min[0]; x < max[0]; x++)
 		{
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_LOAD);
 			if (!s)
 				continue;
 
@@ -1912,7 +1952,7 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 		return hm->exteriorcontents;
 	if (sx >= hm->maxsegx || sy >= hm->maxsegy)
 		return hm->exteriorcontents;
-	s = Terr_GetSection(hm, sx, sy, true);
+	s = Terr_GetSection(hm, sx, sy, TGS_LOAD);
 	if (!s)
 	{
 		return FTECONTENTS_SOLID;
@@ -2002,7 +2042,7 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 		return;
 	if (sx >= hm->maxsegx || sy >= hm->maxsegy)
 		return;
-	s = Terr_GetSection(hm, sx, sy, true);
+	s = Terr_GetSection(hm, sx, sy, TGS_LOAD);
 	if (!s)
 		return;
 
@@ -2152,7 +2192,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	else if (sy < tr->hm->firstsegy || sy >= tr->hm->maxsegy)
 		s = NULL;
 	else
-		s = Terr_GetSection(tr->hm, sx, sy, true);
+		s = Terr_GetSection(tr->hm, sx, sy, TGS_LOAD);
 
 	if (!s)
 	{
@@ -2501,7 +2541,7 @@ static unsigned char *ted_getlightmap(hmsection_t *s, int idx)
 	int x = idx % SECTTEXSIZE, y = idx / SECTTEXSIZE;
 	if (s->lightmap < 0)
 	{
-		Terr_LoadSection(s->hmmod, s, x, y);
+		Terr_LoadSection(s->hmmod, s, x, y, true);
 		if (s->lightmap < 0)
 			Terr_InitLightmap(s);
 	}
@@ -2832,7 +2872,7 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 	{
 		for (sx = min[0]; sx < max[0]; sx++)
 		{
-			s = Terr_GetSection(hm, sx, sy, true);
+			s = Terr_GetSection(hm, sx, sy, TGS_FORCELOAD);
 			if (!s)
 				continue;
 
@@ -2907,7 +2947,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx*4, x, hm->maxsegy*4-1);
 			y = bound(hm->firstsegy*4, y, hm->maxsegy*4-1);
 		
-			s = Terr_GetSection(hm, x/4, y/4, true);
+			s = Terr_GetSection(hm, x/4, y/4, TGS_FORCELOAD);
 			if (!s)
 				return;
 			ted_sethole(&quant, s, (x&3) + (y&3)*4, x/4, y/4, 0);
@@ -2953,7 +2993,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegy-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_LOAD);
 			if (!s)
 				return;
 			s->flags |= TSF_HASWATER|TSF_EDITED;
@@ -2995,7 +3035,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegy-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_LOAD);
 			if (!s)
 				return;
 			x = bound(0, quant, 3);
@@ -3012,7 +3052,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegy-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_FORCELOAD);
 			if (!s)
 				return;
 			s->flags |= TSF_EDITED;
@@ -3070,7 +3110,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegy-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_FORCELOAD);
 			if (!s)
 				return;
 
@@ -3106,7 +3146,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegy-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, true);
+			s = Terr_GetSection(hm, x, y, TGS_FORCELOAD);
 			if (!s)
 				return;
 
@@ -3354,8 +3394,70 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname)
 	return hm;
 }
 
+void Mod_Terrain_Create_f(void)
+{
+	char *mname;
+	char *mdata;
+	mname = va("maps/%s.hmp", Cmd_Argv(1));
+	mdata = va(
+		"terrain\n"
+		"{\n"
+			"classname worldspawn\n"
+			"_segmentsize 1024\n"
+			"_minxsegment -2048\n"
+			"_minysegment -2048\n"
+			"_maxxsegment 2048\n"
+			"_maxysegment 2048\n"
+			"_segmentsize 1024\n"
+//			"_tiles 64 64 8 8\n"
+		"}\n"
+		"{\n"
+			"classname info_player_start\n"
+			"origin \"0 0 1024\"\n"
+		"}\n"
+		, mname);
+	COM_WriteFile(mname, mdata, strlen(mdata));
+}
+void Mod_Terrain_Reload_f(void)
+{
+	model_t *mod;
+	heightmap_t *hm;
+	if (Cmd_Argc() >= 2)
+		mod = Mod_FindName(va("maps/%s.hmp", Cmd_Argv(1)));
+#ifndef SERVERONLY
+	else if (cls.state)
+		mod = cl.worldmodel;
+#endif
+	else
+		mod = NULL;
+	if (!mod || mod->type == mod_dummy)
+		return;
+	hm = mod->terrain;
+	if (!hm)
+		return;
+
+	if (Cmd_Argc() >= 4)
+	{
+		hmsection_t *s;
+		int sx = atoi(Cmd_Argv(2)) + CHUNKBIAS;
+		int sy = atoi(Cmd_Argv(3)) + CHUNKBIAS;
+		if (hm)
+		{
+			s = Terr_GetSection(hm, sx, sy, TGS_NOLOAD);
+			if (s)
+			{
+				s->flags |= TSF_NOTIFY;
+			}
+		}
+	}
+	else
+		Terr_PurgeTerrainModel(mod, false, true);
+}
+
 void Terr_Init(void)
 {
 	Cvar_Register(&mod_terrain_networked, "Terrain");
+	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
+	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
 }
 #endif

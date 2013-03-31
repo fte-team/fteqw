@@ -344,7 +344,7 @@ plugin_t *Plug_Load(char *file)
 	return newplug;
 }
 
-static int Plug_Emumerated (const char *name, int size, void *param)
+static int Plug_Emumerated (const char *name, int size, void *param, struct searchpath_s *spath)
 {
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
@@ -745,14 +745,14 @@ typedef enum{
 	STREAM_NONE,
 	STREAM_SOCKET,
 	STREAM_TLS,
-	STREAM_OSFILE,
-	STREAM_FILE
+	STREAM_VFS
 } plugstream_e;
 
 typedef struct {
 	plugin_t *plugin;
 	plugstream_e type;
 	int socket;
+	vfsfile_t *vfs;
 	struct {
 		char filename[MAX_QPATH];
 		qbyte *buffer;
@@ -770,7 +770,7 @@ int pluginstreamarraylen;
 static int Plug_NewStreamHandle(plugstream_e type)
 {
 	int i;
-	for (i = 1; i < pluginstreamarraylen; i++)
+	for (i = 0; i < pluginstreamarraylen; i++)
 	{
 		if (!pluginstreamarray[i].plugin)
 			break;
@@ -906,50 +906,49 @@ qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr
 	unsigned short remoteport = VM_LONG(arg[1]);
 
 	int handle;
-	struct sockaddr_qstorage to, from;
-	int sock;
-	int _true = 1;
-
-	netadr_t a;
-
-	if (!NET_StringToAdr(remoteip, remoteport, &a))
+	vfsfile_t *stream = FS_OpenTCP(remoteip, remoteport);
+	if (!stream)
 		return -1;
-	NetadrToSockadr(&a, &to);
-
-	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-	{
-		return -2;
-	}
-
-	memset(&from, 0, sizeof(from));
-	((struct sockaddr*)&from)->sa_family = ((struct sockaddr*)&to)->sa_family;
-	if (bind(sock, (struct sockaddr *)&from, sizeof(from)) == -1)
-	{
-		return -2;
-	}
-
-	//not yet blocking. So no frequent attempts please...
-	//non blocking prevents connect from returning worthwhile sensible value.
-	if (connect(sock, (struct sockaddr *)&to, sizeof(to)) == -1)
-	{
-		closesocket(sock);
-		return -2;
-	}
-
-	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)	//now make it non blocking.
-	{
-		return -1;
-	}
-
-	handle = Plug_NewStreamHandle(STREAM_SOCKET);
-	pluginstreamarray[handle].socket = sock;
-
+	handle = Plug_NewStreamHandle(STREAM_VFS);
+	pluginstreamarray[handle].vfs = stream;
 	return handle;
+
 }
+
+
+void Plug_Net_Close_Internal(int handle);
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
+#ifdef HAVE_SSL
+qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	pluginstream_t *stream;
+	int handle = VM_LONG(arg[0]);
+	qboolean anon = false;
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+	{
+		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
+		return -2;
+	}
+	stream = &pluginstreamarray[handle];
+	if (stream->type != STREAM_VFS)
+	{	//not a socket - invalid
+		Con_Printf("Plug_Net_SetTLSClient: Not a socket handle\n");
+		return -2;
+	}
+
+	stream->vfs = FS_OpenSSL(VM_POINTER(arg[1]), stream->vfs, false);
+	if (!stream->vfs)
+	{
+		Plug_Net_Close_Internal(handle);
+		return -1;
+	}
+	return 0;
+}
+#endif
 
 #ifdef GNUTLS
 
-qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const qintptr_t *arg)
+qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	static gnutls_anon_client_credentials anoncred;
 	static gnutls_certificate_credentials xcred;
@@ -1058,47 +1057,32 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 
 	int handle;
 	int *ret;
-	char *data;
+	//char *data;
+	char *mode;
+	vfsfile_t *f;
 
 	if (VM_OOB(arg[1], sizeof(int)))
 		return -2;
 	ret = VM_POINTER(arg[1]);
 
-	if (arg[2] == 1)
+	switch(arg[2])
 	{
-		FS_LoadFile(VM_POINTER(arg[0]), (void**)&data);
-		if (!data)
-			return -1;
-
-		handle = Plug_NewStreamHandle(STREAM_FILE);
-		pluginstreamarray[handle].file.buffer = data;
-		pluginstreamarray[handle].file.curpos = 0;
-		pluginstreamarray[handle].file.curlen = com_filesize;
-		pluginstreamarray[handle].file.buflen = com_filesize;
-
-		*ret = handle;
-
-		return com_filesize;
-	}
-	else if (arg[2] == 2)
-	{
-		data = BZ_Malloc(8192);
-		if (!data)
-			return -1;
-
-		handle = Plug_NewStreamHandle(STREAM_FILE);
-		Q_strncpyz(pluginstreamarray[handle].file.filename, VM_POINTER(arg[0]), MAX_QPATH);
-		pluginstreamarray[handle].file.buffer = data;
-		pluginstreamarray[handle].file.curpos = 0;
-		pluginstreamarray[handle].file.curlen = 0;
-		pluginstreamarray[handle].file.buflen = 8192;
-
-		*ret = handle;
-
-		return com_filesize;
-	}
-	else
+	case 1:
+		mode = "rb";
+		break;
+	case 2:
+		mode = "wb";
+		break;
+	default:
 		return -2;
+	}
+	f = FS_OpenVFS(VM_POINTER(arg[0]), mode, FS_GAME);
+	if (!f)
+		return -1;
+	handle = Plug_NewStreamHandle(STREAM_VFS);
+	pluginstreamarray[handle].vfs = f;
+	*ret = handle;
+	return VFS_GETLEN(pluginstreamarray[handle].vfs);
 }
 
 qintptr_t VARGS Plug_memset(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1171,6 +1155,34 @@ qintptr_t VARGS Plug_atan2(void *offset, quintptr_t mask, const qintptr_t *arg)
 	return ret;
 }
 
+void Plug_Net_Close_Internal(int handle)
+{
+	switch(pluginstreamarray[handle].type)
+	{
+	case STREAM_NONE:
+		break;
+	case STREAM_VFS:
+		if (pluginstreamarray[handle].vfs)
+			VFS_CLOSE(pluginstreamarray[handle].vfs);
+		pluginstreamarray[handle].vfs = NULL;
+		break;
+	case STREAM_SOCKET:
+#ifndef NACL
+		closesocket(pluginstreamarray[handle].socket);
+#endif
+		break;
+	case STREAM_TLS:
+#ifdef GNUTLS
+		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
+		pluginstreamarray[handle].type = STREAM_SOCKET;
+		Plug_Net_Close_Internal(handle);
+		return;
+#endif
+		break;
+	}
+
+	pluginstreamarray[handle].plugin = NULL;
+}
 qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int read;
@@ -1217,16 +1229,8 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 			return -2;	//closed by remote connection.
 		return read;
 #endif
-	case STREAM_FILE:
-		if (pluginstreamarray[handle].file.curlen - pluginstreamarray[handle].file.curpos < destlen)
-		{
-			destlen = pluginstreamarray[handle].file.curlen - pluginstreamarray[handle].file.curpos;
-			if (destlen < 0)
-				return -2;
-		}
-		memcpy(dest, pluginstreamarray[handle].file.buffer + pluginstreamarray[handle].file.curpos, destlen);
-		pluginstreamarray[handle].file.curpos += destlen;
-		return destlen;
+	case STREAM_VFS:
+		return VFS_READ(pluginstreamarray[handle].vfs, dest, destlen);
 	default:
 		return -2;
 	}
@@ -1273,18 +1277,8 @@ qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *ar
 			return -2;	//closed by remote connection.
 		return written;
 #endif
-	case STREAM_FILE:
-		if (pluginstreamarray[handle].file.buflen < pluginstreamarray[handle].file.curpos + srclen)
-		{
-			pluginstreamarray[handle].file.buflen = pluginstreamarray[handle].file.curpos + srclen+8192;
-			pluginstreamarray[handle].file.buffer =
-				BZ_Realloc(pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.buflen);
-		}
-		memcpy(pluginstreamarray[handle].file.buffer + pluginstreamarray[handle].file.curpos, src, srclen);
-		pluginstreamarray[handle].file.curpos += srclen;
-		if (pluginstreamarray[handle].file.curpos > pluginstreamarray[handle].file.curlen)
-			pluginstreamarray[handle].file.curlen = pluginstreamarray[handle].file.curpos;
-		return -2;
+	case STREAM_VFS:
+		return VFS_WRITE(pluginstreamarray[handle].vfs, src, srclen);
 
 	default:
 		return -2;
@@ -1330,41 +1324,6 @@ qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *
 	default:
 		return -2;
 	}
-}
-
-void Plug_Net_Close_Internal(int handle)
-{
-	switch(pluginstreamarray[handle].type)
-	{
-	case STREAM_FILE:
-		if (*pluginstreamarray[handle].file.filename)
-		{
-			COM_WriteFile(pluginstreamarray[handle].file.filename, pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.curlen);
-			BZ_Free(pluginstreamarray[handle].file.buffer);
-		}
-		else
-			FS_FreeFile(pluginstreamarray[handle].file.buffer);
-		break;
-	case STREAM_NONE:
-		break;
-	case STREAM_OSFILE:
-		break;
-	case STREAM_SOCKET:
-#ifndef NACL
-		closesocket(pluginstreamarray[handle].socket);
-#endif
-		break;
-	case STREAM_TLS:
-#ifdef GNUTLS
-		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
-		pluginstreamarray[handle].type = STREAM_SOCKET;
-		Plug_Net_Close_Internal(handle);
-		return;
-#endif
-		break;
-	}
-
-	pluginstreamarray[handle].plugin = NULL;
 }
 qintptr_t VARGS Plug_Net_Close(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1484,6 +1443,9 @@ void Plug_Init(void)
 #ifdef GNUTLS
 	if (Init_GNUTLS())
 		Plug_RegisterBuiltin("Net_SetTLSClient",				Plug_Net_SetTLSClient, 0);
+#endif
+#ifdef HAVE_SSL
+	Plug_RegisterBuiltin("Net_SetTLSClient",		Plug_Net_SetTLSClient, 0);
 #endif
 	Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
 	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
@@ -1775,6 +1737,7 @@ qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
 
 void Plug_Close(plugin_t *plug)
 {
+	int i;
 	if (plug->blockcloses)
 	{
 		Con_Printf("Plugin %s provides driver features, and cannot safely be unloaded\n", plug->name);
@@ -1803,6 +1766,14 @@ void Plug_Close(plugin_t *plug)
 	if (plug->shutdown)
 		VM_Call(plug->vm, plug->shutdown);
 	VM_Destroy(plug->vm);
+
+	for (i = 0; i < pluginstreamarraylen; i++)
+	{
+		if (pluginstreamarray[i].plugin == plug)
+		{
+			Plug_Net_Close_Internal(i);
+		}
+	}
 
 	Plug_FreeConCommands(plug);
 
@@ -1883,6 +1854,10 @@ void Plug_Shutdown(void)
 		Plug_Close(plugs);
 	}
 
+	BZ_Free(pluginstreamarray);
+	pluginstreamarray = NULL;
+	pluginstreamarraylen = 0;
+
 	numplugbuiltins = 0;
 	BZ_Free(plugbuiltins);
 	plugbuiltins = NULL;
@@ -1894,6 +1869,10 @@ void Plug_Shutdown(void)
 	plugincommandarraylen = 0;
 	BZ_Free(plugincommandarray);
 	plugincommandarray = NULL;
+
+#ifndef SERVERONLY
+	Plug_Client_Shutdown();
+#endif
 }
 
 #endif

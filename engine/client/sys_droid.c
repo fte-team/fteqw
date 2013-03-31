@@ -468,78 +468,78 @@ void Sys_SaveClipboard(char *text)
 {
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
 {
-        DIR *dir;
-        char apath[MAX_OSPATH];
-        char file[MAX_OSPATH];
-        char truepath[MAX_OSPATH];
-        char *s;
-        struct dirent *ent;
-        struct stat st;
+	DIR *dir;
+	char apath[MAX_OSPATH];
+	char file[MAX_OSPATH];
+	char truepath[MAX_OSPATH];
+	char *s;
+	struct dirent *ent;
+	struct stat st;
 
-//printf("path = %s\n", gpath);
-//printf("match = %s\n", match);
+	//printf("path = %s\n", gpath);
+	//printf("match = %s\n", match);
 
-        if (!gpath)
-                gpath = "";
-        *apath = '\0';
+	if (!gpath)
+		gpath = "";
+	*apath = '\0';
 
-        Q_strncpyz(apath, match, sizeof(apath));
-        for (s = apath+strlen(apath)-1; s >= apath; s--)
-        {
-                if (*s == '/')
-                {
-                        s[1] = '\0';
-                        match += s - apath+1;
-                        break;
-                }
-        }
-        if (s < apath)  //didn't find a '/' 
-                *apath = '\0'; 
- 
-        Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath); 
- 
- 
-//printf("truepath = %s\n", truepath); 
-//printf("gamepath = %s\n", gpath); 
-//printf("apppath = %s\n", apath); 
-//printf("match = %s\n", match); 
-        dir = opendir(truepath); 
-        if (!dir) 
-        { 
-                Con_DPrintf("Failed to open dir %s\n", truepath); 
-                return true; 
-        } 
-        do 
-        { 
-                ent = readdir(dir); 
-                if (!ent) 
-                        break; 
-                if (*ent->d_name != '.') 
-                { 
-                        if (wildcmp(match, ent->d_name)) 
-                        { 
-                                Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name); 
- 
-                                if (stat(file, &st) == 0) 
-                                { 
-                                        Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":""); 
- 
-                                        if (!func(file, st.st_size, parm)) 
-                                        { 
-                                                closedir(dir); 
-                                                return false; 
-                                        } 
-                                } 
-                                else 
-                                        printf("Stat failed for \"%s\"\n", file); 
-                        } 
-                } 
-        } while(1); 
-        closedir(dir); 
- 
-        return true; 
+	Q_strncpyz(apath, match, sizeof(apath));
+	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	{
+		if (*s == '/')
+		{
+			s[1] = '\0';
+			match += s - apath+1;
+			break;
+		}
+	}
+	if (s < apath)  //didn't find a '/' 
+		*apath = '\0'; 
+
+	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath); 
+
+
+	//printf("truepath = %s\n", truepath); 
+	//printf("gamepath = %s\n", gpath); 
+	//printf("apppath = %s\n", apath); 
+	//printf("match = %s\n", match); 
+	dir = opendir(truepath); 
+	if (!dir) 
+	{ 
+		Con_DPrintf("Failed to open dir %s\n", truepath); 
+		return true; 
+	} 
+	do 
+	{ 
+		ent = readdir(dir); 
+		if (!ent) 
+			break; 
+		if (*ent->d_name != '.') 
+		{ 
+			if (wildcmp(match, ent->d_name)) 
+			{ 
+				Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name); 
+
+				if (stat(file, &st) == 0) 
+				{ 
+					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":""); 
+
+					if (!func(file, st.st_size, parm, spath)) 
+					{ 
+						closedir(dir); 
+						return false; 
+					} 
+				} 
+				else 
+					printf("Stat failed for \"%s\"\n", file); 
+			} 
+		} 
+	} while(1); 
+	closedir(dir); 
+
+	return true; 
 }
 
 #if 0

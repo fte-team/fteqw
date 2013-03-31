@@ -25,7 +25,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define HAVE_WEBSOCKCL
 #endif
 
-typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_IRC, NA_WEBSOCKET} netadrtype_t;
+//FIXME: should split this into loopback/dgram/stream/irc
+//with the ipv4/v6/x as a separate parameter
+typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_IRC, NA_WEBSOCKET, NA_NATPMP} netadrtype_t;
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
 
@@ -80,10 +82,12 @@ int TCP_OpenStream (netadr_t remoteaddr);	//makes things easier
 
 struct ftenet_connections_s;
 void		NET_Init (void);
+void		SVNET_RegisterCvars(void);
 void		NET_InitClient (void);
 void		NET_InitServer (void);
+qboolean	NET_WasSpecialPacket(void);
 void		NET_CloseServer (void);
-void UDP_CloseSocket (int socket);
+void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 int			NET_GetPacket (netsrc_t netsrc, int firstsock);
 void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t to);
@@ -98,6 +102,7 @@ char		*NET_AdrToString (char *s, int len, netadr_t a);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t a);
 qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize);
 qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a);
+qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 
 qboolean	NET_IsLoopBackAddress (netadr_t adr);
@@ -107,9 +112,7 @@ char	*NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);
 
-
-struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address);
-qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, struct ftenet_generic_connection_s *(*establish)(qboolean isserver, const char *address), qboolean islisten);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
 
 //============================================================================
 

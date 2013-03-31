@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-#include "qwsvdef.h"
+#include "quakedef.h"
 #include <sys/types.h>
 #include <sys/timeb.h>
 
@@ -425,7 +425,7 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;
@@ -457,13 +457,13 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 			if (*fd.cFileName != '.')
 			{
 				Q_snprintfz(file, sizeof(file), "%s%s/", apath, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, parm);
+				go = func(file, fd.nFileSizeLow, parm, spath);
 			}
 		}
 		else
 		{
 			Q_snprintfz(file, sizeof(file), "%s%s", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm);
+			go = func(file, fd.nFileSizeLow, parm, spath);
 		}
 	}
 	while(FindNextFile(r, &fd) && go);
@@ -731,11 +731,15 @@ void ApplyColour(unsigned int chr)
 
 void Sys_PrintColouredChar(unsigned int chr)
 {
+	DWORD dummy;
+	wchar_t wc;
+
 	if (chr & CON_HIDDEN)
 		return;
 	ApplyColour(chr);
 
-	printf("%c", chr & CON_CHARMASK);
+	wc = chr & CON_CHARMASK;
+	WriteConsoleW(hconsoleout, &wc, 1, &dummy, NULL);
 }
 
 /*
@@ -1003,6 +1007,9 @@ void Sys_Init (void)
 	Cmd_AddCommand("hide", Sys_HideConsole);
 
 	hconsoleout = GetStdHandle(STD_OUTPUT_HANDLE);
+
+//	SetConsoleCP(CP_UTF8);
+//	SetConsoleOutputCP(CP_UTF8);
 }
 
 void Sys_Shutdown (void)
@@ -1335,5 +1342,29 @@ void CreateSampleService(qboolean create)
 void Sys_Sleep (double seconds)
 {
 	Sleep(seconds * 1000);
+}
+
+/*
+================
+Sys_RandomBytes
+================
+*/
+#include <wincrypt.h>
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+	HCRYPTPROV  prov;
+
+	if(!CryptAcquireContext( &prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+	{
+		return false;
+	}
+
+	if(!CryptGenRandom(prov, len, (BYTE *)string))
+	{
+		CryptReleaseContext( prov, 0);
+		return false;
+	}
+	CryptReleaseContext(prov, 0);
+	return true;
 }
 #endif

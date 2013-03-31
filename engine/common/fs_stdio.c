@@ -240,7 +240,7 @@ static void *FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
 	}
 	return np;
 }
-static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
+static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, void *spath)
 {
 	stdiopath_t *sp = data;
 	if (filename[strlen(filename)-1] == '/')
@@ -248,7 +248,7 @@ static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles(sp->rootpath, childpath, FSSTDIO_RebuildFSHash, data);
+		Sys_EnumerateFiles(sp->rootpath, childpath, FSSTDIO_RebuildFSHash, data, spath);
 		return true;
 	}
 	FS_AddFileHash(sp->depth, filename, NULL, sp);
@@ -258,7 +258,7 @@ static void FSSTDIO_BuildHash(void *handle, int depth)
 {
 	stdiopath_t *sp = handle;
 	sp->depth = depth;
-	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, handle);
+	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, handle, handle);
 }
 static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
@@ -326,10 +326,10 @@ static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 
 	fclose(f);
 }
-static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
 {
 	stdiopath_t *sp = handle;
-	return Sys_EnumerateFiles(sp->rootpath, match, func, parm);
+	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);
 }
 
 searchpathfuncs_t stdiofilefuncs = {

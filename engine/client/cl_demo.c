@@ -2066,7 +2066,7 @@ void CL_QTVPlay_f (void)
 	if (connrequest)
 		host = connrequest+1;
 	Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
-	newf = FS_OpenTCP(qtvhostname);
+	newf = FS_OpenTCP(qtvhostname, 27599);
 
 	if (!newf)
 	{
@@ -2148,7 +2148,7 @@ void CL_QTVList_f (void)
 {
 	char *connrequest;
 	vfsfile_t *newf;
-	newf = FS_OpenTCP(qtvhostname);
+	newf = FS_OpenTCP(qtvhostname, 27599);
 
 	if (!newf)
 	{
@@ -2182,7 +2182,7 @@ void CL_QTVDemos_f (void)
 {
 	char *connrequest;
 	vfsfile_t *newf;
-	newf = FS_OpenTCP(Cmd_Argv(1));
+	newf = FS_OpenTCP(Cmd_Argv(1), 27599);
 
 	if (!newf)
 	{

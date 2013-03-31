@@ -68,9 +68,9 @@ iwboolean IWebAllowUpLoad(char *fname, char *uname);
 vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength);
 
 
-
 char *COM_ParseOut (const char *data, char *out, int outlen);
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm);
+//struct searchpath_s;
+//void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *, struct searchpath_s *), void *parm);
 
 
 char *Q_strcpyline(char *out, const char *in, int maxlen);

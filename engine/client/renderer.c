@@ -211,7 +211,7 @@ cvar_t vid_width							= CVARF ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far your eyes are apart, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
-cvar_t	r_stereo_method						= CVARD("r_stereo_method", "0", "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue. Value 4=red/green");
+cvar_t	r_stereo_method						= CVARD("r_stereo_method", "0", "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue.\nValue 4=red/green.\nValue 5=eye strain.");
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;

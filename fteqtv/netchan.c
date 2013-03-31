@@ -229,6 +229,7 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, net
 	}
 }
 
+#if 0
 int Netchan_IsLocal (netadr_t adr)
 {
 	struct sockaddr_in *sadr = (struct sockaddr_in *)&adr;
@@ -267,7 +268,7 @@ int Netchan_IsLocal (netadr_t adr)
 		return false;
 	}
 }
-
+#endif
 
 
 

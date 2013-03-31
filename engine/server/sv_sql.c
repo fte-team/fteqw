@@ -131,27 +131,30 @@ queryresult_t *SQL_PullResult(sqlserver_t *server)
 	return qres;
 }
 
+//called by main thread
 void SQL_PushRequest(sqlserver_t *server, queryrequest_t *qreq)
 {
+	qreq->state = SR_PENDING;
 	Sys_LockConditional(server->requestcondv);
-	qreq->next = NULL;
+	qreq->nextqueue = NULL;
 	if (!server->requestslast)
-		server->requests = server->requestslast = qreq;
+		server->requestqueue = server->requestslast = qreq;
 	else
-		server->requestslast = server->requestslast->next = qreq;
+		server->requestslast = server->requestslast->nextqueue = qreq;
 	Sys_UnlockConditional(server->requestcondv);
 }
 
+//called by sql worker thread
 queryrequest_t *SQL_PullRequest(sqlserver_t *server, qboolean lock)
 {
 	queryrequest_t *qreq;
 	if (lock)
 		Sys_LockConditional(server->requestcondv);
-	qreq = server->requests;
+	qreq = server->requestqueue;
 	if (qreq)
 	{
-		server->requests = qreq->next;
-		if (!server->requests)
+		server->requestqueue = qreq->nextqueue;
+		if (!server->requestqueue)
 			server->requestslast = NULL;
 	}
 	Sys_UnlockConditional(server->requestcondv);
@@ -249,7 +252,7 @@ int sql_serverworker(void *sref)
 	while (allokay)
 	{	
 		Sys_LockConditional(server->requestcondv);
-		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
+		if (!server->requestqueue) // this is needed for thread startup and to catch any "lost" changes
 			Sys_ConditionWait(server->requestcondv);
 		needlock = false; // so we don't try to relock first round
 
@@ -313,7 +316,6 @@ int sql_serverworker(void *sref)
 					qres->columns = columns;
 					qres->request = qreq;
 					qres->eof = true; // store result has no more rows to read afterwards
-					qreq->next = NULL;
 
 					SQL_PushResult(server, qres);
 				}
@@ -363,7 +365,7 @@ int sql_serverworker(void *sref)
 									qres->request = qreq;
 									qres->firstrow = totalrows;
 									qres->eof = false;
-									qreq->next = NULL;
+									qreq->nextqueue = NULL;
 
 									//headers technically take a row.
 									for (i = 0; i < columns; i++)
@@ -428,7 +430,7 @@ int sql_serverworker(void *sref)
 								qres->firstrow = totalrows;
 								qres->request = qreq;
 								qres->eof = true;
-								qreq->next = NULL;
+								qreq->nextqueue = NULL;
 
 								SQL_PushResult(server, qres);
 							}
@@ -495,16 +497,26 @@ sqlserver_t *SQL_GetServer (int serveridx, qboolean inactives)
 	return sqlservers[serveridx];
 }
 
-queryresult_t *SQL_GetQueryResult (sqlserver_t *server, int queryidx)
+queryrequest_t *SQL_GetQueryRequest (sqlserver_t *server, int queryidx)
+{
+	queryrequest_t *qreq;
+	for (qreq = server->requests; qreq; qreq = qreq->nextreq)
+	{
+		if (qreq->num == queryidx)
+			return qreq;
+	}
+
+	return NULL;
+}
+
+queryresult_t *SQL_GetQueryResult (sqlserver_t *server, int queryidx, int row)
 {
 	queryresult_t *qres;
+	queryrequest_t *qreq;
 
-	qres = server->currentresult;
-	if (qres && qres->request && qres->request->num == queryidx)
-		return qres;
-
-	for (qres = server->persistresults; qres; qres = qres->next)
-		if (qres->request && qres->request->num == queryidx)
+	qreq = SQL_GetQueryRequest(server, queryidx);
+	for (qres = qreq->results; qres; qres = qres->next)
+		if (qres->request && qres->request->num == queryidx && row >= qres->firstrow && row < qres->firstrow + qres->rows)
 			return qres;
 
 	return NULL;
@@ -533,20 +545,18 @@ static void SQL_DeallocResult(sqlserver_t *server, queryresult_t *qres)
 		break;
 #endif
 	}
-	if (qres->request)
-		Z_Free(qres->request);
 
 	Z_Free(qres);
 }
 
-void SQL_ClosePersistantResult(sqlserver_t *server, queryresult_t *qres)
+static void SQL_CloseRequestResult(sqlserver_t *server, queryresult_t *qres)
 {
 	queryresult_t *prev, *cur;
 
-	prev = server->persistresults;
+	prev = qres->request->results;
 	if (prev == qres)
 	{
-		server->persistresults = prev->next;
+		qres->request->results = prev->next;
 		SQL_DeallocResult(server, prev);
 		return;
 	}
@@ -562,25 +572,62 @@ void SQL_ClosePersistantResult(sqlserver_t *server, queryresult_t *qres)
 	}
 }
 
+//MT only. flush a result without discarding the request. will result in gaps.
 void SQL_CloseResult(sqlserver_t *server, queryresult_t *qres)
 {
 	if (!qres)
 		return;
-	if (qres == server->currentresult)
+/*	if (qres == server->currentresult)
 	{
 		SQL_DeallocResult(server, server->currentresult);
 		server->currentresult = NULL;
 		return;
 	}
+*/
 	// else we have a persistant query
-	SQL_ClosePersistantResult(server, qres);
+	SQL_CloseRequestResult(server, qres);
 }
 
-void SQL_CloseAllResults(sqlserver_t *server)
+//MT only. releases the request.
+void SQL_CloseRequest(sqlserver_t *server, queryrequest_t *qreq, qboolean force)
+{
+	while(qreq->results)
+	{
+		SQL_CloseResult(server, qreq->results);
+	}
+	//if the worker thread is still active with it for whatever reason, flag it as aborted but keep it otherwise valid. actually close it later on when we get the results back.
+	if (qreq->state != SR_FINISHED && qreq->state != SR_NEW)
+		qreq->state = SR_ABORTED;
+	else
+	{
+		queryrequest_t *prev, *cur;
+
+		//unlink and free it now that its complete.
+		prev = server->requests;
+		if (prev == qreq)
+			server->requests = prev->nextreq;
+		else
+		{
+			for (cur = prev->nextreq; cur; prev = cur, cur = prev->nextreq)
+			{
+				if (cur == qreq)
+				{
+					prev->nextreq = cur->nextreq;
+					break;
+				}
+			}
+		}
+		Z_Free(qreq);
+	}
+}
+
+void SQL_CloseAllRequests(sqlserver_t *server)
 {
 	queryresult_t *oldqres, *qres;
 
-	// close orphaned results (we assume the lock is active or non-existant at this point)
+	//we assume lock is either held or the thread has already died. this function isn't (worker)thread safe.
+
+	// close pending results
 	qres = server->results;
 	while (qres)
 	{
@@ -588,21 +635,13 @@ void SQL_CloseAllResults(sqlserver_t *server)
 		qres = qres->next;
 		SQL_DeallocResult(server, oldqres);
 	}
-	// close current
-	if (server->currentresult)
+
+	//now terminate all the requests
+	while(server->requests)
 	{
-		SQL_DeallocResult(server, server->currentresult);
-		server->currentresult = NULL;
+		SQL_CloseRequest(server, server->requests, true);
 	}
-	// close persistant results
-	qres = server->persistresults;
-	while (qres)
-	{
-		oldqres = qres;
-		qres = qres->next;
-		SQL_DeallocResult(server, oldqres);
-	}
-	server->persistresults = NULL;
+
 	// close server result
 	if (server->serverresult)
 	{
@@ -613,10 +652,11 @@ void SQL_CloseAllResults(sqlserver_t *server)
 
 char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields)
 {
-	if (!qres->result) // TODO: partial resultset logic not implemented yet
+	if (!qres->result)
 		return NULL;
 	else
 	{ // store_result query
+		row -= qres->firstrow;
 		if (qres->rows < row || qres->columns < col || col < 0)
 			return NULL;
 
@@ -705,15 +745,15 @@ void SQL_CleanupServer(sqlserver_t *server)
 		Sys_DestroyMutex(server->resultlock);
 	
 	// close orphaned requests
-	qreq = server->requests;
+	qreq = server->requestqueue;
 	while (qreq)
 	{
 		oldqreq = qreq;
-		qreq = qreq->next;
+		qreq = qreq->nextqueue;
 		Z_Free(oldqreq);
 	}
 
-	SQL_CloseAllResults(server);
+	SQL_CloseAllRequests(server);
 
 	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
 		Z_Free(server->connectparams[i]);
@@ -833,7 +873,7 @@ int SQL_NewServer(char *driver, char **paramstr)
 	return serverref;
 }
 
-int SQL_NewQuery(sqlserver_t *server, int callfunc, int type, int self, float selfid, int other, float otherid, char *str)
+int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), char *str, queryrequest_t **reqout)
 {
 	int qsize = Q_strlen(str);
 	queryrequest_t *qreq;
@@ -842,27 +882,32 @@ int SQL_NewQuery(sqlserver_t *server, int callfunc, int type, int self, float se
 	qreq = (queryrequest_t *)ZF_Malloc(sizeof(queryrequest_t) + qsize);
 	if (qreq)
 	{
-		qreq->persistant = (type == 1);
-		qreq->callback = callfunc;
-
-		qreq->selfent = self;
-		qreq->selfid = selfid;
-		qreq->otherent = other;
-		qreq->otherid = otherid;
-
+		qreq->state = SR_NEW;
 		querynum = qreq->num = server->querynum;
 		// prevent the reference num from getting too big to prevent FP problems
-		if (++server->querynum > 1000000)
-			server->querynum = 1; 
-				
+		while(1)
+		{
+			if (++server->querynum > (1<<21))
+				server->querynum = 1; 
+
+			if (!SQL_GetQueryRequest(server, server->querynum))
+				break;
+		}
+		
+		qreq->callback = callback;
 		Q_strncpy(qreq->query, str, qsize);
+
+		qreq->nextreq = server->requests;
+		server->requests = qreq;
 
 		SQL_PushRequest(server, qreq);
 		Sys_ConditionSignal(server->requestcondv);
 
+		*reqout = qreq;
 		return querynum;
 	}
 
+	*reqout = NULL;
 	return -1;
 }
 
@@ -945,6 +990,7 @@ qboolean SQL_Available(void)
 void SQL_Status_f(void)
 {
 	int i;
+	char *stat;
 
 	if (!SQL_Available())
 		Con_Printf("No SQL library available.\n");
@@ -964,7 +1010,7 @@ void SQL_Status_f(void)
 
 		Sys_LockMutex(server->resultlock);
 		Sys_LockConditional(server->requestcondv);
-		for (qreq = server->requests; qreq; qreq = qreq->next)
+		for (qreq = server->requests; qreq; qreq = qreq->nextreq)
 			reqnum++;
 		for (qres = server->results; qres; qres = qres->next)
 			resnum++;
@@ -988,11 +1034,21 @@ void SQL_Status_f(void)
 
 		if (reqnum)
 		{
-			Con_Printf ("- %i requests\n");
-			for (qreq = server->requests; qreq; qreq = qreq->next)
+			Con_Printf ("- %i requests\n", reqnum);
+			for (qreq = server->requests; qreq; qreq = qreq->nextqueue)
 			{
-				Con_Printf ("  query #%i: %s\n",
+				switch (qreq->state)
+				{
+				case SR_NEW:		stat = "new";		break;
+				case SR_PENDING:	stat = "pending";	break;
+				case SR_PARTIAL:	stat = "partial";	break;
+				case SR_FINISHED:	stat = "finished";	break;
+				case SR_ABORTED:	stat = "aborted";	break;
+				default:			stat = "???";		break;
+				}
+				Con_Printf ("  query #%i (%s): %s\n",
 					qreq->num,
+					stat,
 					qreq->query);
 				// TODO: function lookup?
 			}
@@ -1000,7 +1056,7 @@ void SQL_Status_f(void)
 
 		if (resnum)
 		{
-			Con_Printf ("- %i results\n");
+			Con_Printf ("- %i pending results\n", resnum);
 			for (qres = server->results; qres; qres = qres->next)
 			{
 				Con_Printf ("  * %i rows, %i columns", 
@@ -1047,7 +1103,7 @@ void SQL_Killall_f (void)
 	SQL_KillServers();
 }
 
-void SQL_ServerCycle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void SQL_ServerCycle (void)
 {
 	int i;
 
@@ -1055,9 +1111,54 @@ void SQL_ServerCycle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		sqlserver_t *server = sqlservers[i];
 		queryresult_t *qres;
+		queryrequest_t *qreq;
 
 		if (!server)
 			continue;
+
+		while (qres = SQL_PullResult(server))
+		{
+			qreq = qres->request;
+			qres->next = NULL;
+			if (qreq && qreq->callback)
+			{
+				qboolean persist;
+
+				//save it for later.
+				qres->next = qreq->results;
+				qreq->results = qres;
+
+				if (qreq->state == SR_ABORTED)
+				{
+					persist = false;
+					if (qres->eof)
+						SQL_CloseRequest(server, qreq, true);
+				}
+				else
+				{
+					if (qreq->state == SR_FINISHED)
+						Sys_Error("SQL: Results after finished!\n");
+					if (qreq->state == SR_PENDING)
+						qreq->state = SR_PARTIAL;
+					if (qres->eof)
+						qreq->state = SR_FINISHED;
+					persist = qreq->callback(qreq, qres->firstrow, qres->rows, qres->columns, qres->eof);
+				}
+
+				if (!persist)
+				{
+					SQL_CloseResult(server, qres);
+					if (qreq->state == SR_FINISHED)
+						SQL_CloseRequest(server, qreq, false);
+				}
+			}
+			else // error or server-only result
+			{
+				if (server->serverresult)
+					SQL_CloseResult(server, server->serverresult);
+				server->serverresult = qres;
+			}
+		}
 
 		if (server->terminated)
 		{
@@ -1065,59 +1166,6 @@ void SQL_ServerCycle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 			SQL_CleanupServer(server);
 			continue;
 		}
-
-		while (qres = SQL_PullResult(server))
-		{
-			qres->next = NULL;
-			if (qres->request && qres->request->callback)
-			{
-				if (server->active)
-				{ // only process results to callback if server is active
-					edict_t *ent;
-
-					server->currentresult = qres;
-					G_FLOAT(OFS_PARM0) = i;
-					G_FLOAT(OFS_PARM1) = qres->request->num;
-					G_FLOAT(OFS_PARM2) = qres->rows;
-					G_FLOAT(OFS_PARM3) = qres->columns;
-					G_FLOAT(OFS_PARM4) = qres->eof;
-					G_FLOAT(OFS_PARM5) = qres->firstrow;
-
-					// recall self and other references
-					ent = PROG_TO_EDICT(prinst, qres->request->selfent);
-					if (ent->isfree || ent->xv->uniquespawnid != qres->request->selfid)
-						pr_global_struct->self = pr_global_struct->world;
-					else
-						pr_global_struct->self = qres->request->selfent;
-					ent = PROG_TO_EDICT(prinst, qres->request->otherent);
-					if (ent->isfree || ent->xv->uniquespawnid != qres->request->otherid)
-						pr_global_struct->other = pr_global_struct->world;
-					else
-						pr_global_struct->other = qres->request->otherent;
-
-					PR_ExecuteProgram(prinst, qres->request->callback);
-
-					if (server->currentresult)
-					{
-						if (server->currentresult->request && server->currentresult->request->persistant)
-						{
-							// move into persistant list
-							server->currentresult->next = server->persistresults;
-							server->persistresults = server->currentresult;
-						}
-						else // just close the query
-							SQL_CloseResult(server, server->currentresult);
-					}
-				}
-			}
-			else // error or server-only result
-			{
-				if (server->serverresult)
-					Z_Free(server->serverresult);
-				server->serverresult = qres;
-			}
-		}
-		server->currentresult = NULL;
 	}
 }
 

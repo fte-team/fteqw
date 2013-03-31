@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-#include "qwsvdef.h"
+#include "quakedef.h"
 #include "netinc.h"
 #include <sys/types.h>
 #ifndef CLIENTONLY
@@ -150,22 +150,6 @@ cvar_t sv_masterport = CVAR("sv_masterport", "0");
 cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
-#ifdef TCPCONNECT
-cvar_t	sv_port_tcp = CVARC("sv_port_tcp", "", SV_Tcpport_Callback);
-#ifdef IPPROTO_IPV6
-cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
-#endif
-#endif
-#ifdef HAVE_IPV4
-cvar_t  sv_port_ipv4 = CVARC("sv_port", "27500", SV_Port_Callback);
-#endif
-#ifdef IPPROTO_IPV6
-cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "", SV_PortIPv6_Callback);
-#endif
-#ifdef USEIPX
-cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "", SV_PortIPX_Callback);
-#endif
-
 cvar_t pausable	= CVAR("pausable", "1");
 
 
@@ -646,10 +630,7 @@ void SV_DropClient (client_t *drop)
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)	//gamecode should do it all for us.
 	{
 // send notification to all remaining clients
-		SV_FullClientUpdate (drop, &sv.reliable_datagram, 0);
-#ifdef NQPROT
-		SVNQ_FullClientUpdate (drop, &sv.nqreliable_datagram);
-#endif
+		SV_FullClientUpdate (drop, NULL);
 		SV_MVD_FullClientUpdate(NULL, drop);
 	}
 
@@ -732,10 +713,10 @@ void PIN_SaveMessages(void)
 	pinnedmessages_t *p;
 	vfsfile_t *f;
 
-	f = FS_OpenVFS("pinned.txt", "wt", FS_GAMEONLY);
+	f = FS_OpenVFS("pinned.txt", "wb", FS_GAMEONLY);
 	if (!f)
 	{
-		Con_Printf("couldn't write anything\n");
+		Con_Printf("couldn't write to %s\n", "pinned.txt");
 		return;
 	}
 
@@ -746,7 +727,11 @@ void PIN_SaveMessages(void)
 }
 void PIN_DeleteOldestMessage(void)
 {
-	pinnedmessages_t *old = pinned;
+	pinnedmessages_t *old;
+	if (dopinnedload)
+		PIN_LoadMessages();
+
+	old = pinned;
 	if (old)
 	{
 		pinned = pinned->next;
@@ -757,6 +742,9 @@ void PIN_MakeMessage(char *from, char *msg)
 {
 	pinnedmessages_t *p;
 	pinnedmessages_t *newp;
+
+	if (dopinnedload)
+		PIN_LoadMessages();
 
 	newp = BZ_Malloc(sizeof(pinnedmessages_t));
 	Q_strncpyz(newp->setby, from, sizeof(newp->setby));
@@ -884,155 +872,88 @@ void SV_GenerateBasicUserInfo(client_t *cl)
 ===================
 SV_FullClientUpdate
 
-Writes all update values to a sizebuf
+Writes all update values to client. use to=NULL to broadcast.
 ===================
 */
-void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext)
+void SV_FullClientUpdate (client_t *client, client_t *to)
 {
 	int		i;
 	char	info[MAX_INFO_STRING];
 
+	if (!to)
+	{
+		for (i = 0; i < sv.allocated_client_slots; i++)
+		{
+			SV_FullClientUpdate(client, &svs.clients[i]); 
+		}
+		return;
+	}
+
 	i = client - svs.clients;
 
-#ifdef SERVER_DEMO_PLAYBACK
-	if (sv.demofile)
+//Sys_Printf("SV_FullClientUpdate:  Updated frags for client %d\n", i);
+
+	if (ISQWCLIENT(to))
 	{
-		MSG_WriteByte (buf, svc_updatefrags);
-		MSG_WriteByte (buf, i);
-		MSG_WriteShort (buf, sv.recordedplayer[i].frags);
+		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Short(to, client->old_frags);
 
-		MSG_WriteByte (buf, svc_updateping);
-		MSG_WriteByte (buf, i);
-		MSG_WriteShort (buf, sv.recordedplayer[i].ping);
+		ClientReliableWrite_Begin (to, svc_updateping, 4);
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Short (to, SV_CalcPing (client, false));
 
-		MSG_WriteByte (buf, svc_updatepl);
-		MSG_WriteByte (buf, i);
-		MSG_WriteByte (buf, sv.recordedplayer[i].pl);
+		ClientReliableWrite_Begin (to, svc_updatepl, 3);
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Byte (to, client->lossage);
 
-		MSG_WriteByte (buf, svc_updateentertime);
-		MSG_WriteByte (buf, i);
-		MSG_WriteFloat (buf, 0);
+		ClientReliableWrite_Begin (to, svc_updateentertime, 6);
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Float (to, realtime - client->connection_started);
 
-		Q_strncpyz (info, sv.recordedplayer[i].userinfo, sizeof(info));
+		if ((to->fteprotocolextensions) & PEXT_BIGUSERINFOS)
+			Q_strncpyz (info, client->userinfo, sizeof(info));
+		else
+			Q_strncpyz (info, client->userinfobasic, sizeof(info));
 		Info_RemoveKey(info, "password");		//main password key
-		Info_RemoveKey(info, "*ip");		//don't broadcast this in playback
 		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
 
-		MSG_WriteByte (buf, svc_updateuserinfo);
-		MSG_WriteByte (buf, i);
-		MSG_WriteLong (buf, sv.recordedplayer[i].userid);
-		MSG_WriteString (buf, info);
-		return;
+		ClientReliableWrite_Begin(to, svc_updateuserinfo, 7 + strlen(info));
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Long (to, client->userid);
+		ClientReliableWrite_String(to, info);
 	}
-#endif
-
-//Sys_Printf("SV_FullClientUpdate:  Updated frags for client %d\n", i);
-
-	MSG_WriteByte (buf, svc_updatefrags);
-	MSG_WriteByte (buf, i);
-	MSG_WriteShort (buf, client->old_frags);
-
-	MSG_WriteByte (buf, svc_updateping);
-	MSG_WriteByte (buf, i);
-	MSG_WriteShort (buf, SV_CalcPing (client, false));
-
-	MSG_WriteByte (buf, svc_updatepl);
-	MSG_WriteByte (buf, i);
-	MSG_WriteByte (buf, client->lossage);
-
-	MSG_WriteByte (buf, svc_updateentertime);
-	MSG_WriteByte (buf, i);
-	MSG_WriteFloat (buf, realtime - client->connection_started);
-
-#ifdef warningmsg
-#pragma warningmsg("this is a bug: it can be broadcast to all qw clients")
-#endif
-	if (ftepext & PEXT_BIGUSERINFOS)
-		Q_strncpyz (info, client->userinfo, sizeof(info));
-	else
-		Q_strncpyz (info, client->userinfobasic, sizeof(info));
-	Info_RemoveKey(info, "password");		//main password key
-	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
-
-	MSG_WriteByte (buf, svc_updateuserinfo);
-	MSG_WriteByte (buf, i);
-	MSG_WriteLong (buf, client->userid);
-	MSG_WriteString (buf, info);
-}
-#ifdef NQPROT
-void SVNQ_FullClientUpdate (client_t *client, sizebuf_t *buf)
-{
-	int playercolor, top, bottom;
-	int		i;
-
-	i = client - svs.clients;
-
-	if (i >= 16)
-		return;
-
-//Sys_Printf("SV_FullClientUpdate:  Updated frags for client %d\n", i);
-
-	MSG_WriteByte (buf, svc_updatefrags);
-	MSG_WriteByte (buf, i);
-	MSG_WriteShort (buf, client->old_frags);
-
-	MSG_WriteByte (buf, svc_updatename);
-	MSG_WriteByte (buf, i);
-	MSG_WriteString (buf, Info_ValueForKey(client->userinfo, "name"));
-
-	top = atoi(Info_ValueForKey(client->userinfo, "topcolor"));
-	bottom = atoi(Info_ValueForKey(client->userinfo, "bottomcolor"));
-	top &= 15;
-	if (top > 13)
-		top = 13;
-	bottom &= 15;
-	if (bottom > 13)
-		bottom = 13;
-	playercolor = top*16 + bottom;
-	MSG_WriteByte (buf, svc_updatecolors);
-	MSG_WriteByte (buf, i);
-	MSG_WriteByte (buf, playercolor);
-}
-#endif
-/*
-===================
-SV_FullClientUpdateToClient
-
-Writes all update values to a client's reliable stream
-===================
-*/
-void SV_FullClientUpdateToClient (client_t *client, client_t *cl)
-{
-#ifdef NQPROT
-	if (!ISQWCLIENT(cl))
+	else if (ISNQCLIENT(to))
 	{
-		ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
-		if (cl->num_backbuf) {
-			SVNQ_FullClientUpdate (client, &cl->backbuf);
-			ClientReliable_FinishWrite(cl);
-		} else
-			SVNQ_FullClientUpdate (client, &cl->netchan.message);
-	}
-	else
-#endif
-	{
-#ifdef SERVER_DEMO_PLAYBACK
-		if (sv.demofile)
-		{
-			int i = client - svs.clients;
-			ClientReliableCheckBlock(cl, 24 + strlen(sv.recordedplayer[i].userinfo));
-		}
-		else
-#endif
-			ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
-		if (cl->num_backbuf) {
-			SV_FullClientUpdate (client, &cl->backbuf, cl->fteprotocolextensions);
-			ClientReliable_FinishWrite(cl);
-		} else
-			SV_FullClientUpdate (client, &cl->netchan.message, cl->fteprotocolextensions);
+		int top, bottom, playercolor;
+		char *nam = Info_ValueForKey(client->userinfo, "name");
+
+		if (i >= 16)
+			return;	//NQ clients will crash if they see a player index above 16.
+
+		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Short(to, client->old_frags);
+
+		ClientReliableWrite_Begin(to, svc_updatename, 3 + strlen(nam));
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_String(to, nam);
+
+		top = atoi(Info_ValueForKey(client->userinfo, "topcolor"));
+		bottom = atoi(Info_ValueForKey(client->userinfo, "bottomcolor"));
+		top &= 15;
+		if (top > 13)
+			top = 13;
+		bottom &= 15;
+		if (bottom > 13)
+			bottom = 13;
+		playercolor = top*16 + bottom;
+
+		ClientReliableWrite_Begin (to, svc_updatecolors, 3);
+		ClientReliableWrite_Byte (to, i);
+		ClientReliableWrite_Byte (to, playercolor);
 	}
 }
-
 
 /*
 ==============================================================================
@@ -3101,7 +3022,7 @@ qboolean SV_ConnectionlessPacket (void)
 }
 
 #ifdef NQPROT
-void SVNQ_ConnectionlessPacket(void)
+qboolean SVNQ_ConnectionlessPacket(void)
 {
 	sizebuf_t sb;
 	int header;
@@ -3113,15 +3034,16 @@ void SVNQ_ConnectionlessPacket(void)
 	char buffer[256], buffer2[256];
 	netadr_t localaddr;
 	if (net_from.type == NA_LOOPBACK)
-		return;
+		return false;
 
 	if (!sv_listen_nq.value)
-		return;
+		return false;
 
 	MSG_BeginReading(svs.netprim);
 	header = LongSwap(MSG_ReadLong());
 	if (!(header & NETFLAG_CTL))
 	{
+		//this nasty chunk of code is to try to handle challenges with nq's challengeless protocol, by using stringcmds. woo. evil hacks.
 		if (sv_listen_nq.ival == 2)
 		if ((header & (NETFLAG_DATA|NETFLAG_EOM)) == (NETFLAG_DATA|NETFLAG_EOM))
 		{
@@ -3154,7 +3076,7 @@ void SVNQ_ConnectionlessPacket(void)
 								newcl->netchan.incoming_reliable_sequence = sequence;
 
 							/*if there is anything else in the packet, we don't actually care. its reliable, so they'll resend*/
-							return;
+							return true;
 						}
 						else
 							MSG_ReadString();
@@ -3193,15 +3115,17 @@ void SVNQ_ConnectionlessPacket(void)
 
 					*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
 					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+
+					return true;
 				}
 			}
 		}
-		return;	//no idea what it is.
+		return false;	//no idea what it is.
 	}
 
 	length = header & NETFLAG_LENGTH_MASK;
 	if (length != net_message.cursize)
-		return;	//corrupt or not ours
+		return false;	//corrupt or not ours
 
 	switch(MSG_ReadByte())
 	{
@@ -3216,7 +3140,7 @@ void SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString(&sb, "Incorrect game\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-			return;	//not our game.
+			return false;	//not our game.
 		}
 		if (MSG_ReadByte() != NET_PROTOCOL_VERSION)
 		{
@@ -3226,7 +3150,7 @@ void SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString(&sb, "Incorrect version\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-			return;	//not our version...
+			return false;	//not our version...
 		}
 		mod = MSG_ReadByte();
 		modver = MSG_ReadByte();
@@ -3272,10 +3196,10 @@ void SVNQ_ConnectionlessPacket(void)
 				SVC_DirectConnect();
 			}
 		}
-		break;
+		return true;
 	case CCREQ_SERVER_INFO:
 		if (Q_strcmp (MSG_ReadString(), NET_GAMENAME_NQ) != 0)
-			break;
+			return false;
 
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
@@ -3298,7 +3222,7 @@ void SVNQ_ConnectionlessPacket(void)
 		MSG_WriteByte (&sb, NET_PROTOCOL_VERSION);
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-		break;
+		return true;
 	case CCREQ_PLAYER_INFO:
 		/*one request per player, ouch ouch ouch, what will it make of 32 players, I wonder*/
 		sb.maxsize = sizeof(buffer);
@@ -3326,7 +3250,7 @@ void SVNQ_ConnectionlessPacket(void)
 		}
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-		break;
+		return true;
 	case CCREQ_RULE_INFO:
 		/*lol, nq is evil*/
 		sb.maxsize = sizeof(buffer);
@@ -3366,8 +3290,9 @@ void SVNQ_ConnectionlessPacket(void)
 		}
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-		break;
+		return true;
 	}
+	return false;
 }
 #endif
 
@@ -3476,7 +3401,6 @@ SV_ReadPackets
 //FIMXE: move to header
 qboolean SV_GetPacket (void);
 #endif
-
 qboolean SV_ReadPackets (float *delay)
 {
 	int			i;
@@ -3518,7 +3442,7 @@ qboolean SV_ReadPackets (float *delay)
 
 				if (ISNQCLIENT(cl))
 				{
-					if (cl->state != cs_zombie)
+					if (cl->state > cs_zombie)
 					{
 						if (NQNetChan_Process(&cl->netchan))
 						{
@@ -3695,8 +3619,12 @@ dominping:
 #endif
 
 #ifdef NQPROT
-		SVNQ_ConnectionlessPacket();
+		if (SVNQ_ConnectionlessPacket())
+			continue;
 #endif
+
+		if (NET_WasSpecialPacket())
+			continue;
 
 		// packet is not from a known client
 		//	Con_Printf ("%s:sequenced packet without connection\n"
@@ -4297,26 +4225,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_listen_q3,	cvargroup_servercontrol);
 	sv_listen_qw.restriction = RESTRICT_MAX;
 
-#ifdef TCPCONNECT
-	Cvar_Register (&sv_port_tcp,	cvargroup_servercontrol);
-	sv_port_tcp.restriction = RESTRICT_MAX;
-#ifdef IPPROTO_IPV6
-	Cvar_Register (&sv_port_tcp6,	cvargroup_servercontrol);
-	sv_port_tcp6.restriction = RESTRICT_MAX;
-#endif
-#endif
-#ifdef IPPROTO_IPV6
-	Cvar_Register (&sv_port_ipv6,	cvargroup_servercontrol);
-	sv_port_ipv6.restriction = RESTRICT_MAX;
-#endif
-#ifdef USEIPX
-	Cvar_Register (&sv_port_ipx,	cvargroup_servercontrol);
-	sv_port_ipx.restriction = RESTRICT_MAX;
-#endif
-#ifdef HAVE_IPV4
-	Cvar_Register (&sv_port_ipv4,	cvargroup_servercontrol);
-	sv_port_ipv4.restriction = RESTRICT_MAX;
-#endif
+	SVNET_RegisterCvars();
 
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 
@@ -4397,32 +4306,7 @@ void SV_InitLocal (void)
 	svs.log[1].cursize = 0;
 	svs.log[1].allowoverflow = true;
 
-
 	svs.free_lagged_packet = NULL;
-
-	// parse params for cvars
-	p = COM_CheckParm ("-port");
-	if (!p)
-		p = COM_CheckParm ("-svport");
-	if (p && p < com_argc)
-	{
-		int port = atoi(com_argv[p+1]);
-		if (!port)
-			port = PORT_QWSERVER;
-#ifdef HAVE_IPV4
-		if (*sv_port_ipv4.string)
-			Cvar_SetValue(&sv_port_ipv4, port);
-#endif
-#ifdef IPPROTO_IPV6
-		if (*sv_port_ipv6.string)
-			Cvar_SetValue(&sv_port_ipv6, port);
-#endif
-#ifdef USEIPX
-		if (*sv_port_ipx.string)
-			Cvar_SetValue(&sv_port_ipx, port);
-#endif
-	}
-
 }
 
 

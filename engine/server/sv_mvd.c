@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 #ifndef CLIENTONLY
 
 #include "winquake.h"
@@ -683,7 +683,7 @@ typedef struct
 #define SORT_NO 0
 #define SORT_BY_DATE 1
 
-int Sys_listdirFound(const char *fname, int fsize, void *uptr)
+int Sys_listdirFound(const char *fname, int fsize, void *uptr, struct searchpath_s *spath)
 {
 	file_t *f;
 	dir_t *dir = uptr;

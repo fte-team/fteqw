@@ -1,4 +1,4 @@
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #define Q2NUM_FOR_EDICT(ent) (((char *)ent - (char *)ge->edicts) / ge->edict_size)
 

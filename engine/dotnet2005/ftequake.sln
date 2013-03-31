@@ -2,6 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake", "ftequake.vcproj", "{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}"
 	ProjectSection(ProjectDependencies) = postProject
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA} = {9767E236-8454-44E9-8999-CD5BDAFBE9BA}
 		{0018E098-B12A-4E4D-9B22-6772DA287080} = {0018E098-B12A-4E4D-9B22-6772DA287080}
 	EndProjectSection
 EndProject
@@ -29,6 +30,10 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "avplug", "..\..\plugins\avplug\avplug.vcproj", "{32B12987-DF8C-4E40-B07C-B18586A4CA65}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "droid", "droid.vcproj", "{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "plugins", "plugins", "{8CED01C6-2C61-4EC5-90B6-574D9756D773}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "jabbercl", "..\..\plugins\jabber\jabbercl.vcproj", "{9767E236-8454-44E9-8999-CD5BDAFBE9BA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -437,9 +442,51 @@ Global
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.Release|Win32.ActiveCfg = Release|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.Release|Win32.Build.0 = Release|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.Release|x64.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.D3DDebug|Win32.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.D3DDebug|Win32.Build.0 = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.D3DDebug|x64.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.D3DRelease|Win32.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.D3DRelease|Win32.Build.0 = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.D3DRelease|x64.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Debug Dedicated Server|Win32.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Debug Dedicated Server|Win32.Build.0 = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Debug Dedicated Server|x64.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Debug|Win32.Build.0 = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Debug|x64.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.GLDebug|Win32.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.GLDebug|Win32.Build.0 = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.GLDebug|x64.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.GLRelease|Win32.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.GLRelease|Win32.Build.0 = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.GLRelease|x64.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MDebug|Win32.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MDebug|Win32.Build.0 = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MDebug|x64.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MinGLDebug|Win32.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MinGLDebug|Win32.Build.0 = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MinGLDebug|x64.ActiveCfg = Debug|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MinGLRelease|Win32.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MinGLRelease|Win32.Build.0 = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MinGLRelease|x64.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MRelease|Win32.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MRelease|Win32.Build.0 = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.MRelease|x64.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Release Dedicated Server|Win32.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Release Dedicated Server|Win32.Build.0 = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Release Dedicated Server|x64.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Release|Win32.ActiveCfg = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Release|Win32.Build.0 = Release|Win32
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4877586B-E85B-4DF8-BCCE-59D31514D240} = {8CED01C6-2C61-4EC5-90B6-574D9756D773}
+		{32B12987-DF8C-4E40-B07C-B18586A4CA65} = {8CED01C6-2C61-4EC5-90B6-574D9756D773}
+		{873CCE24-3549-49D4-A4B4-653F91B1532A} = {8CED01C6-2C61-4EC5-90B6-574D9756D773}
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA} = {8CED01C6-2C61-4EC5-90B6-574D9756D773}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		AMDCaProjectFile = C:\Games\Quake\wip\engine\dotnet2005\CodeAnalyst\ftequake.caw

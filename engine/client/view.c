@@ -1193,6 +1193,8 @@ entity_t *CL_EntityNum(int num)
 float CalcFov (float fov_x, float width, float height);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 {
+	float ws;
+	extern cvar_t r_stereo_method, r_stereo_separation;
 #if MAX_SPLITS > 4
 #pragma warning "Please change this function to cope with the new MAX_SPLITS value"
 #endif
@@ -1250,15 +1252,19 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	if (cl.playerview[pnum].stats[STAT_VIEWZOOM])
 		r_refdef.fov_x *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
 
-	if (vrect->width < (vrect->height*640)/432)
+	ws = 1;
+	if (r_stereo_method.ival == 5 && r_stereo_separation.value)
+		ws = 0.5;
+
+	if (ws*vrect->width < (vrect->height*640)/432)
 	{
-		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (vrect->width*vid.pixelwidth)/vid.width, (vrect->height*vid.pixelheight)/vid.height);
+		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (ws*vrect->width*vid.pixelwidth)/vid.width, (vrect->height*vid.pixelheight)/vid.height);
 //		r_refdef.fov_x = CalcFov(r_refdef.fov_y, 432, 640);
 	}
 	else
 	{
 		r_refdef.fov_y = CalcFov(r_refdef.fov_x, 640, 432);
-		r_refdef.fov_x = CalcFov(r_refdef.fov_y, vrect->height, vrect->width);
+		r_refdef.fov_x = CalcFov(r_refdef.fov_y, vrect->height, vrect->width*ws);
 	}
 }
 

@@ -227,9 +227,19 @@ COM_Dir_f
 
 ============
 */
-static int COM_Dir_List(const char *name, int size, void *parm)
+static int COM_Dir_List(const char *name, int size, void *parm, void *spath)
 {
-	Con_Printf("%s  (%i)\n", name, size);
+	char pbuf[MAX_OSPATH] = "??";
+	searchpath_t	*s;
+	for (s=com_searchpaths ; s ; s=s->next)
+	{
+		if (s->handle == spath)
+		{
+			s->funcs->GetDisplayPath(s->handle, pbuf, sizeof(pbuf));
+			break;
+		}
+	}
+	Con_Printf("%s  (%i) (%s)\n", name, size, pbuf);
 	return 1;
 }
 
@@ -693,7 +703,7 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 					// '*' prefix is meant to mean 'referenced'.
 					//really all that means to the client is that it definitely wants to download it.
 					//if its copyrighted, the client shouldn't try to do so, as it won't be allowed.
-					if (search->copyprotected)
+					if (!search->copyprotected)
 						Q_strncatz(buffer, "*", buffersize);
 				}
 
@@ -1214,7 +1224,7 @@ void FS_FreeFile(void *file)
 
 
 
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm)
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *, void *), void *parm)
 {
 	searchpath_t    *search;
 	for (search = com_searchpaths; search ; search = search->next)
@@ -1338,7 +1348,7 @@ typedef struct {
 	const char *puredesc;
 } wildpaks_t;
 
-static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
+static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam, struct searchpath_s *path)
 {
 	wildpaks_t *param = vparam;
 	vfsfile_t *vfs;

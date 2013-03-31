@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 #ifndef CLIENTONLY
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);

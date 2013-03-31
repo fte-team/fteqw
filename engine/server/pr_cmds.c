@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #ifdef SQL
 #include "sv_sql.h"
@@ -105,6 +105,21 @@ void PF_InitTempStrings(pubprogfuncs_t *prinst);
 
 void PR_DumpPlatform_f(void);
 
+typedef struct qcstate_s
+{
+	float resumetime;
+	qboolean waiting;
+	struct qcthread_s *thread;
+	int self;
+	int selfid;
+	int other;
+	int otherid;
+	float returnval;
+
+	struct qcstate_s *next;
+} qcstate_t;
+qcstate_t *qcthreads;
+
 typedef struct {
 	//for func finding and swapping.
 	char *name;
@@ -163,9 +178,22 @@ progstype_t progstype;
 void PR_RegisterFields(void);
 void PR_ResetBuiltins(progstype_t type);
 
-char *QC_ProgsNameForEnt(edict_t *ent)
+static qcstate_t *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float resumetime, qboolean wait)
 {
-	return "?";
+	qcstate_t *state;
+
+	state = prinst->parms->memalloc(sizeof(qcstate_t));
+	state->next = qcthreads;
+	qcthreads = state;
+	state->resumetime = resumetime;
+	state->self = NUM_FOR_EDICT(prinst, PROG_TO_EDICT(prinst, pr_global_struct->self));
+	state->selfid = PROG_TO_EDICT(prinst, state->self)->xv->uniquespawnid;
+	state->other = NUM_FOR_EDICT(prinst, PROG_TO_EDICT(prinst, pr_global_struct->other));
+	state->otherid = PROG_TO_EDICT(prinst, state->other)->xv->uniquespawnid;
+	state->thread = prinst->Fork(prinst);
+	state->waiting = wait;
+	state->returnval = retval;
+	return state;
 }
 
 void PDECL ED_Spawned (struct edict_s *ent, int loading)
@@ -5550,35 +5578,83 @@ void QCBUILTIN PF_sqldisconnect (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	}
 }
 
+static qboolean PR_SQLResultAvailable(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
+{
+	edict_t *ent;
+	pubprogfuncs_t *prinst = svprogfuncs;
+	struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
+
+	if (req->user.qccallback)
+	{
+		G_FLOAT(OFS_PARM0) = req->srvid;
+		G_FLOAT(OFS_PARM1) = req->num;
+		G_FLOAT(OFS_PARM2) = numrows;
+		G_FLOAT(OFS_PARM3) = numcols;
+		G_FLOAT(OFS_PARM4) = eof;
+		G_FLOAT(OFS_PARM5) = firstrow;
+
+		// recall self and other references
+		ent = PROG_TO_EDICT(prinst, req->user.selfent);
+		if (ent->isfree || ent->xv->uniquespawnid != req->user.selfid)
+			pr_global_struct->self = pr_global_struct->world;
+		else
+			pr_global_struct->self = req->user.selfent;
+		ent = PROG_TO_EDICT(prinst, req->user.otherent);
+		if (ent->isfree || ent->xv->uniquespawnid != req->user.otherid)
+			pr_global_struct->other = pr_global_struct->world;
+		else
+			pr_global_struct->other = req->user.otherent;
+
+		PR_ExecuteProgram(svprogfuncs, req->user.qccallback);
+	}
+	if (eof && req->user.thread)
+	{
+		qcstate_t *thread = req->user.thread;
+		req->user.thread = NULL;
+		if (thread)
+			thread->waiting = false;
+	}
+
+	return req->user.persistant;
+}
+
 void QCBUILTIN PF_sqlopenquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	int callfunc = G_INT(OFS_PARM1);
 	int querytype = G_FLOAT(OFS_PARM2);
 	char *querystr = PF_VarString(prinst, 3, pr_globals);
-	int qself, qother;
-	float qselfid, qotherid;
 
 	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			// save self and other references
-			if (PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree)
-				qself = pr_global_struct->world;
-			else
-				qself = pr_global_struct->self;
-			qselfid = PROG_TO_EDICT(prinst, qself)->xv->uniquespawnid;
-			if (PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree)
-				qother = pr_global_struct->world;
-			else
-				qother = pr_global_struct->other;
-			qotherid = PROG_TO_EDICT(prinst, qother)->xv->uniquespawnid;
+			queryrequest_t *qreq;
 
 			Con_DPrintf("SQL Query: %s\n", querystr);
 
-			G_FLOAT(OFS_RETURN) = SQL_NewQuery(server, callfunc, querytype, qself, qselfid, qother, qotherid, querystr);
+			G_FLOAT(OFS_RETURN) = SQL_NewQuery(server, PR_SQLResultAvailable, querystr, &qreq);
+
+			if (qreq)
+			{
+				//so our C callback knows what to do
+				qreq->user.persistant = querytype > 0;
+				qreq->user.qccallback = callfunc;
+
+				// save self and other references
+				qreq->user.selfent = PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree?pr_global_struct->world:pr_global_struct->self;
+				qreq->user.selfid = PROG_TO_EDICT(prinst, qreq->user.selfent)->xv->uniquespawnid;
+				qreq->user.otherent = PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree?pr_global_struct->world:pr_global_struct->other;
+				qreq->user.otherid = PROG_TO_EDICT(prinst, qreq->user.otherent)->xv->uniquespawnid;
+
+				if (querytype & 2)
+				{
+					qreq->user.thread = PR_CreateThread(prinst, G_FLOAT(OFS_RETURN), 0, true);
+
+					svprogfuncs->AbortStack(prinst);
+				}
+			}
 			return;
 		}
 	}
@@ -5589,20 +5665,21 @@ void QCBUILTIN PF_sqlopenquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_sqlclosequery (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
-	queryresult_t *qres;
+	queryrequest_t *qreq;
 
 	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
-			if (qres)
+			qreq = SQL_GetQueryRequest(server, G_FLOAT(OFS_PARM1));
+			if (qreq)
 			{
-				// TODO: partial resultset logic not implemented yet
-				SQL_CloseResult(server, qres);
+				SQL_CloseRequest(server, qreq, false);
 				return;
 			}
+			else 
+				Con_Printf("Invalid sql request\n");
 		}
 	}
 	// else nothing to close
@@ -5619,7 +5696,7 @@ void QCBUILTIN PF_sqlreadfield (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
+			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1), G_FLOAT(OFS_PARM2));
 			if (qres)
 			{
 				data = SQL_ReadField(server, qres, G_FLOAT(OFS_PARM2), G_FLOAT(OFS_PARM3), true);
@@ -5628,6 +5705,10 @@ void QCBUILTIN PF_sqlreadfield (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 					RETURN_TSTRING(data);
 					return;
 				}
+			}
+			else
+			{
+				Con_Printf("Invalid sql request/row\n");
 			}
 		}
 	}
@@ -5638,6 +5719,7 @@ void QCBUILTIN PF_sqlreadfield (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_sqlreadfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
+	queryrequest_t *qreq;
 	queryresult_t *qres;
 	char *data;
 
@@ -5646,14 +5728,49 @@ void QCBUILTIN PF_sqlreadfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
-			if (qres)
+			if (G_FLOAT(OFS_PARM2) < 0)
 			{
-				data = SQL_ReadField(server, qres, G_FLOAT(OFS_PARM2), G_FLOAT(OFS_PARM3), true);
-				if (data)
+				qreq = SQL_GetQueryRequest(server, G_FLOAT(OFS_PARM1));
+				if (qreq->results)
 				{
-					G_FLOAT(OFS_RETURN) = Q_atof(data);
+					if (G_FLOAT(OFS_PARM2) == -2)
+						G_FLOAT(OFS_RETURN) = qreq->results->columns;
+					else if (G_FLOAT(OFS_PARM2) == -3)
+						G_FLOAT(OFS_RETURN) = qreq->results->rows + qreq->results->firstrow;
+					else
+					{
+						Con_Printf("Invalid sql row\n");
+						G_FLOAT(OFS_RETURN) = 0;
+					}
 					return;
+				}
+			}
+			else
+			{
+				qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1), G_FLOAT(OFS_PARM2));
+				if (qres)
+				{
+					if (G_FLOAT(OFS_PARM2) == -1)
+					{
+						G_FLOAT(OFS_RETURN) = qres->columns;
+						return;
+					}
+					if (G_FLOAT(OFS_PARM2) == -2)
+					{
+						G_FLOAT(OFS_RETURN) = qres->rows;
+						return;
+					}
+
+					data = SQL_ReadField(server, qres, G_FLOAT(OFS_PARM2), G_FLOAT(OFS_PARM3), true);
+					if (data)
+					{
+						G_FLOAT(OFS_RETURN) = Q_atof(data);
+						return;
+					}
+				}
+				else
+				{
+					Con_Printf("Invalid sql request/row\n");
 				}
 			}
 		}
@@ -5676,7 +5793,7 @@ void QCBUILTIN PF_sqlerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			{ // query-specific error request
 				if (server->active) // didn't check this earlier so check it now
 				{
-					queryresult_t *qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
+					queryresult_t *qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1), G_FLOAT(OFS_PARM2));
 					if (qres)
 					{
 						RETURN_TSTRING(qres->error);
@@ -5738,14 +5855,9 @@ void QCBUILTIN PF_sqlversion (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 void PR_SQLCycle(void)
 {
-	globalvars_t *pr_globals;
-
-	if (!SQL_Available() || !svprogfuncs)
+	if (!SQL_Available())
 		return;
-
-	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-
-	SQL_ServerCycle(svprogfuncs, pr_globals);
+	SQL_ServerCycle();
 }
 #endif
 
@@ -7653,17 +7765,6 @@ static void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct global
 #endif
 }
 
-
-typedef struct qcstate_s {
-	float resumetime;
-	struct qcthread_s *thread;
-	int self;
-	int other;
-
-	struct qcstate_s *next;
-} qcstate_t;
-
-qcstate_t *qcthreads;
 void PRSV_RunThreads(void)
 {
 	struct globalvars_s *pr_globals;
@@ -7674,7 +7775,7 @@ void PRSV_RunThreads(void)
 	{
 		next = state->next;
 
-		if (state->resumetime > sv.time)
+		if (state->resumetime > sv.time || state->waiting)
 		{	//not time yet, reform original list.
 			state->next = qcthreads;
 			qcthreads = state;
@@ -7685,7 +7786,7 @@ void PRSV_RunThreads(void)
 
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, state->self));
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, state->other));
-			G_FLOAT(OFS_RETURN) = 1;
+			G_FLOAT(OFS_RETURN) = state->returnval;
 
 			svprogfuncs->RunThread(svprogfuncs, state->thread);
 			svprogfuncs->parms->memfree(state->thread);
@@ -7713,29 +7814,17 @@ static void PRSV_ClearThreads(void)
 
 static void QCBUILTIN PF_Sleep(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	qcstate_t *state;
-	struct qcthread_s *thread;
 	float sleeptime;
 
 	sleeptime = G_FLOAT(OFS_PARM0);
 
-	thread = svprogfuncs->Fork(svprogfuncs);
+	PR_CreateThread(prinst, 1, sv.time + sleeptime, false);
 
-	state = svprogfuncs->parms->memalloc(sizeof(qcstate_t));
-	state->next = qcthreads;
-	qcthreads = state;
-	state->resumetime = sv.time + sleeptime;
-	state->self = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->self));
-	state->other = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->other));
-	state->thread = thread;
-
-	svprogfuncs->AbortStack(svprogfuncs);
+	prinst->AbortStack(prinst);
 }
 
 static void QCBUILTIN PF_Fork(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	qcstate_t *state;
-	struct qcthread_s *thread;
 	float sleeptime;
 
 	if (svprogfuncs->callargc >= 1)
@@ -7743,15 +7832,7 @@ static void QCBUILTIN PF_Fork(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	else
 		sleeptime = 0;
 
-	thread = svprogfuncs->Fork(svprogfuncs);
-
-	state = svprogfuncs->parms->memalloc(sizeof(qcstate_t));
-	state->next = qcthreads;
-	qcthreads = state;
-	state->resumetime = sv.time + sleeptime;
-	state->self = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->self));
-	state->other = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->other));
-	state->thread = thread;
+	PR_CreateThread(prinst, 1, sv.time + sleeptime, false);
 
 	PRSV_RunThreads();
 

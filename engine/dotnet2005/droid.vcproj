@@ -73,6 +73,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\client\in_generic.c"
+				>
+			</File>
+			<File
 				RelativePath="..\client\snd_droid.c"
 				>
 			</File>

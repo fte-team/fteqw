@@ -337,7 +337,7 @@ static void FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	return;
 }
 
-static int FSZIP_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int FSZIP_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
 {
 	zipfile_t *zip = handle;
 	int		num;
@@ -346,7 +346,7 @@ static int FSZIP_EnumerateFiles (void *handle, const char *match, int (*func)(co
 	{
 		if (wildcmp(match, zip->files[num].name))
 		{
-			if (!func(zip->files[num].name, zip->files[num].filelen, parm))
+			if (!func(zip->files[num].name, zip->files[num].filelen, parm, handle))
 				return false;
 		}
 	}

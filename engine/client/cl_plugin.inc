@@ -141,7 +141,7 @@ void Plug_DrawReloadImages(void)
 	}
 }
 
-void Plug_FreePlugImages(plugin_t *plug)
+static void Plug_FreePlugImages(plugin_t *plug)
 {
 	int i;
 	for (i = 0; i < pluginimagearraylen; i++)
@@ -277,8 +277,8 @@ qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t 
 	if (VM_OOB(arg[1], arg[2]*4))
 		return 0;
 
-	if (qrenderer == QR_NONE)
-		return false;
+	if (qrenderer == QR_NONE || !cls.state)
+		return 0;
 
 	max = pluginstats;
 	if (max > MAX_CL_STATS)
@@ -536,7 +536,12 @@ void Plug_Client_Close(plugin_t *plug)
 	}
 }
 
-
+void Plug_Client_Shutdown(void)
+{
+	BZ_Free(pluginimagearray);
+	pluginimagearray = NULL;
+	pluginimagearraylen = 0;
+}
 
 
 

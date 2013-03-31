@@ -401,15 +401,22 @@ void R_SetupGL (float stereooffset)
 		w = x2 - x;
 		h = y - y2;
 
+		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+
+		if (stereooffset && r_stereo_method.ival == 5)
+		{
+			w /= 2;
+			if (stereooffset > 0)
+				x += vid.pixelwidth/2;
+		}
+
 		r_refdef.pxrect.x = x;
 		r_refdef.pxrect.y = y;
 		r_refdef.pxrect.width = w;
 		r_refdef.pxrect.height = h;
 
 		qglViewport (x, y2, w, h);
-
-		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
 		if (r_waterwarp.value<0 && (r_viewcontents & FTECONTENTS_FLUID))
 		{
@@ -556,7 +563,8 @@ void R_RenderScene (void)
 			else
 				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_TRUE);
 			break;
-
+		case 5:	//eyestrain
+			break;
 		}
 		if (i)
 			qglClear (GL_DEPTH_BUFFER_BIT);
@@ -595,12 +603,20 @@ void R_RenderScene (void)
 	case 1:
 		qglDrawBuffer(GL_BACK);
 		break;
-	case 2:
 	case 3:
-	case 4:
+		qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+		qglClear(GL_COLOR_BUFFER_BIT);
 		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		break;
-
+	case 4:
+		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+		qglClear(GL_COLOR_BUFFER_BIT);
+		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	case 2:
+		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		break;
+	case 5:
+		break;
 	}
 }
 /*generates a new modelview matrix, as well as vpn vectors*/

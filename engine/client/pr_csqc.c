@@ -1056,7 +1056,6 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (csqc_poly_flags & 4)
 	{
 		mesh_t mesh;
-		int i;
 		memset(&mesh, 0, sizeof(mesh));
 		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
 

@@ -775,7 +775,7 @@ qboolean S_LoadSound (sfx_t *s)
 		return false;	//it failed to load once before, don't bother trying again.
 
 // see if still in memory
-	if (s->decoder.buf)
+	if (s->decoder.buf || s->decoder.decodedata)
 		return true;
 
 	if (name[1] == ':' && name[2] == '\\')

@@ -2096,7 +2096,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2106,7 +2105,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2116,7 +2114,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2126,7 +2123,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2136,7 +2132,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2146,7 +2141,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2156,7 +2150,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2166,7 +2159,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2176,7 +2168,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2186,7 +2177,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2196,7 +2186,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2206,7 +2195,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2216,7 +2204,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2226,7 +2213,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2236,7 +2222,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2246,7 +2231,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2256,7 +2240,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2266,7 +2249,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2276,7 +2258,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2286,7 +2267,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -2300,7 +2280,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2310,7 +2289,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2320,7 +2298,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2330,7 +2307,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2340,7 +2316,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2350,7 +2325,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2360,7 +2334,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2370,7 +2343,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2380,7 +2352,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2390,7 +2361,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2400,7 +2370,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2410,7 +2379,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2420,7 +2388,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2430,7 +2397,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2440,7 +2406,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2450,7 +2415,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2460,7 +2424,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2470,7 +2433,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2480,7 +2442,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2490,7 +2451,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -2508,7 +2468,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2518,7 +2477,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2528,7 +2486,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2538,7 +2495,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2548,7 +2504,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2558,7 +2513,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2568,7 +2522,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2578,7 +2531,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2588,7 +2540,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2598,7 +2549,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2608,7 +2558,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2618,7 +2567,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2628,7 +2576,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2638,7 +2585,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2648,7 +2594,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2658,7 +2603,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2668,7 +2612,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2678,7 +2621,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2688,7 +2630,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2698,7 +2639,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -2712,7 +2652,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2722,7 +2661,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2732,7 +2670,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2742,7 +2679,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2752,7 +2688,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2762,7 +2697,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2772,7 +2706,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2782,7 +2715,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2792,7 +2724,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2802,7 +2733,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2812,7 +2742,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2822,7 +2751,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2832,7 +2760,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2842,7 +2769,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2852,7 +2778,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2862,7 +2787,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2872,7 +2796,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2882,7 +2805,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2892,7 +2814,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2902,7 +2823,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -2916,7 +2836,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2926,7 +2845,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2936,7 +2854,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2946,7 +2863,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2956,7 +2872,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2966,7 +2881,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2976,7 +2890,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2986,7 +2899,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -2996,7 +2908,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3006,7 +2917,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3016,7 +2926,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3026,7 +2935,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3036,7 +2944,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3046,7 +2953,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3056,7 +2962,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3066,7 +2971,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3076,7 +2980,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3086,7 +2989,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3096,7 +2998,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3106,7 +3007,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -3120,7 +3020,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3130,7 +3029,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3140,7 +3038,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3150,7 +3047,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3160,7 +3056,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3170,7 +3065,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3180,7 +3074,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3190,7 +3083,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3200,7 +3092,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3210,7 +3101,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3220,7 +3110,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3230,7 +3119,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3240,7 +3128,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3250,7 +3137,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3260,7 +3146,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3270,7 +3155,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3280,7 +3164,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3290,7 +3173,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3300,7 +3182,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3310,7 +3191,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -3324,7 +3204,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3334,7 +3213,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3344,7 +3222,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3354,7 +3231,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3364,7 +3240,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3374,7 +3249,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3384,7 +3258,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3394,7 +3267,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3404,7 +3276,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3414,7 +3285,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3424,7 +3294,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3434,7 +3303,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3444,7 +3312,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3454,7 +3321,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3464,7 +3330,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3474,7 +3339,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3484,7 +3348,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3494,7 +3357,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3504,7 +3366,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3514,7 +3375,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -3528,7 +3388,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3538,7 +3397,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3548,7 +3406,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3558,7 +3415,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3568,7 +3424,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3578,7 +3433,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3588,7 +3442,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3598,7 +3451,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3608,7 +3460,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3618,7 +3469,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3628,7 +3478,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3638,7 +3487,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3648,7 +3496,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3658,7 +3505,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3668,7 +3514,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3678,7 +3523,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3688,7 +3532,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3698,7 +3541,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3708,7 +3550,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3718,7 +3559,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -3732,7 +3572,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3742,7 +3581,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3752,7 +3590,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3762,7 +3599,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3772,7 +3608,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3782,7 +3617,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3792,7 +3626,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3802,7 +3635,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3812,7 +3644,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3822,7 +3653,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3832,7 +3662,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3842,7 +3671,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3852,7 +3680,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3862,7 +3689,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3872,7 +3698,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3882,7 +3707,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3892,7 +3716,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3902,7 +3725,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3912,7 +3734,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3922,7 +3743,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -3936,7 +3756,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3946,7 +3765,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3956,7 +3774,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3966,7 +3783,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3976,7 +3792,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3986,7 +3801,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -3996,7 +3810,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4006,7 +3819,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4016,7 +3828,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4026,7 +3837,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4036,7 +3846,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4046,7 +3855,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4056,7 +3864,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4066,7 +3873,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4076,7 +3882,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4086,7 +3891,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4096,7 +3900,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4106,7 +3909,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4116,7 +3918,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4126,7 +3927,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -4140,7 +3940,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4150,7 +3949,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4160,7 +3958,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4170,7 +3967,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4180,7 +3976,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4190,7 +3985,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4200,7 +3994,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4210,7 +4003,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4220,7 +4012,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4230,7 +4021,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4240,7 +4030,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4250,7 +4039,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4260,7 +4048,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4270,7 +4057,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4280,7 +4066,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4290,7 +4075,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4300,7 +4084,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4310,7 +4093,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4320,7 +4102,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4330,7 +4111,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -4344,7 +4124,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4354,7 +4133,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4364,7 +4142,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4374,7 +4151,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4384,7 +4160,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4394,7 +4169,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4404,7 +4178,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4414,7 +4187,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4424,7 +4196,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4434,7 +4205,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4444,7 +4214,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4454,7 +4223,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4464,7 +4232,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4474,7 +4241,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4484,7 +4250,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4494,7 +4259,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4504,7 +4268,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4514,7 +4277,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4524,7 +4286,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4534,7 +4295,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -4548,7 +4308,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4558,7 +4317,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4568,7 +4326,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4578,7 +4335,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4588,7 +4344,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4598,7 +4353,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4608,7 +4362,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4618,7 +4371,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4628,7 +4380,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4638,7 +4389,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4648,7 +4398,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4658,7 +4407,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4668,7 +4416,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4678,7 +4425,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4688,7 +4434,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4698,7 +4443,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4708,7 +4452,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4718,7 +4461,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4728,7 +4470,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4738,7 +4479,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -4752,7 +4492,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4762,7 +4501,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4772,7 +4510,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4782,7 +4519,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4792,7 +4528,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4802,7 +4537,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4812,7 +4546,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4822,7 +4555,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4832,7 +4564,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4842,7 +4573,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4852,7 +4582,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4862,7 +4591,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4872,7 +4600,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4882,7 +4609,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4892,7 +4618,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4902,7 +4627,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4912,7 +4636,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4922,7 +4645,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4932,7 +4654,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4942,7 +4663,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -4960,7 +4680,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4970,7 +4689,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4980,7 +4698,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -4990,7 +4707,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5000,7 +4716,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5010,7 +4725,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5020,7 +4734,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5030,7 +4743,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5040,7 +4752,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5050,7 +4761,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5060,7 +4770,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5070,7 +4779,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5080,7 +4788,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5090,7 +4797,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5100,7 +4806,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5110,7 +4815,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5120,7 +4824,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5130,7 +4833,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5140,7 +4842,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5150,501 +4851,20 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svhl_game.c"
 					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svhl_phys.c"
 					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svhl_world.c"
 					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svq2_ents.c"
@@ -5656,7 +4876,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5666,7 +4885,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5676,7 +4894,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5686,7 +4903,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5696,7 +4912,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5706,7 +4921,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5716,7 +4930,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5726,7 +4939,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5736,7 +4948,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5746,7 +4957,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5756,7 +4966,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5766,7 +4975,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5776,7 +4984,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5786,7 +4993,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5796,7 +5002,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5806,7 +5011,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5816,7 +5020,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5826,7 +5029,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5836,7 +5038,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5846,7 +5047,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -5860,7 +5060,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5870,7 +5069,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5880,7 +5078,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5890,7 +5087,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5900,7 +5096,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5910,7 +5105,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5920,7 +5114,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5930,7 +5123,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5940,7 +5132,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5950,7 +5141,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5960,7 +5150,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5970,7 +5159,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5980,7 +5168,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -5990,7 +5177,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6000,7 +5186,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6010,7 +5195,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6020,7 +5204,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6030,7 +5213,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6040,7 +5222,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6050,7 +5231,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -6065,7 +5245,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6076,7 +5255,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6086,7 +5264,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6096,7 +5273,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6107,7 +5283,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6118,7 +5293,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6128,7 +5302,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6138,7 +5311,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6148,7 +5320,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6158,7 +5329,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6168,7 +5338,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6178,7 +5347,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6188,7 +5356,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6198,7 +5365,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6208,7 +5374,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6218,7 +5383,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6228,7 +5392,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6238,7 +5401,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6248,7 +5410,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -6258,7 +5419,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -17440,7 +16600,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17450,7 +16609,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17480,7 +16638,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17490,7 +16647,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17644,7 +16800,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17654,7 +16809,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17684,7 +16838,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -17694,7 +16847,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -29166,6 +28318,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\common\net_ssl_winsspi.c"
+					>
+				</File>
+				<File
 					RelativePath="..\common\net_wins.c"
 					>
 					<FileConfiguration
@@ -31020,206 +30176,6 @@
 				<File
 					RelativePath="..\server\sv_phys.c"
 					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\sys_win_threads.c"

@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // sv_phys.c
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 #if !defined(CLIENTONLY) || defined(CSQC_DAT)
 
 #include "pr_common.h"

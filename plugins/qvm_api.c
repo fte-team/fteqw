@@ -57,7 +57,7 @@ retry:
 				precision=precision*10+*format-'0';
 				goto retry;
 			case '%':	/*emit a %*/
-				if (--maxlen < 0) 
+				if (maxlen-- == 0) 
 					{*buffer++='\0';return tokens;}
 				*buffer++ = *format;
 				break;
@@ -69,7 +69,7 @@ retry:
 				{
 					while (*string && precision--)
 					{
-						if (--maxlen < 0) 
+						if (maxlen-- == 0) 
 							{*buffer++='\0';return tokens;}
 						*buffer++ = *string++;
 					}
@@ -78,7 +78,7 @@ retry:
 				{
 					while (*string)
 					{
-						if (--maxlen < 0) 
+						if (maxlen-- == 0) 
 							{*buffer++='\0';return tokens;}
 						*buffer++ = *string++;
 					}
@@ -87,7 +87,7 @@ retry:
 				break;
 			case 'c':
 				_int = va_arg(vargs, int);
-				if (--maxlen < 0) 
+				if (maxlen-- == 0) 
 					{*buffer++='\0';return tokens;}
 				*buffer++ = _int;
 				tokens++;
@@ -96,7 +96,7 @@ retry:
 				_int = va_arg(vargs, int);
 				if (_int < 0)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = '-';
 					_int *= -1;
@@ -134,7 +134,7 @@ retry:
 
 				while (*string)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = *string++;
 				}
@@ -178,7 +178,7 @@ Con_Printf("%i bytes left\n", maxlen);
 */
 				if (_int < 0)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = '-';
 					_int *= -1;
@@ -211,7 +211,7 @@ Con_Printf("%i bytes left\n", maxlen);
 */
 				while(precision>0)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					if (use0s)
 						*buffer++ = '0';
@@ -222,7 +222,7 @@ Con_Printf("%i bytes left\n", maxlen);
 
 				while (*string)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = *string++;
 				}
@@ -235,7 +235,7 @@ Con_Printf("%i bytes left\n", maxlen);
 				_int = (int)_float;
 				if (_int < 0)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = '-';
 					_int *= -1;
@@ -257,7 +257,7 @@ Con_Printf("%i bytes left\n", maxlen);
 				string = tempbuffer+i+1;
 				while (*string)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = *string++;
 				}
@@ -287,7 +287,7 @@ Con_Printf("%i bytes left\n", maxlen);
 				string = tempbuffer;
 				while (*string)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = *string++;
 				}
@@ -298,7 +298,7 @@ Con_Printf("%i bytes left\n", maxlen);
 				string = "ERROR IN FORMAT";
 				while (*string)
 				{
-					if (--maxlen < 0) 
+					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = *string++;
 				}
@@ -306,7 +306,7 @@ Con_Printf("%i bytes left\n", maxlen);
 			}
 			break;
 		default:
-			if (--maxlen < 0) 
+			if (maxlen-- == 0) 
 				{*buffer++='\0';return tokens;}
 			*buffer++ = *format;
 			break;

@@ -243,7 +243,7 @@ static void *VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
 	}
 	return np;
 }
-static int VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle)
+static int VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, void *spath)
 {
 	vfsw32path_t *wp = handle;
 	if (filename[strlen(filename)-1] == '/')
@@ -251,7 +251,7 @@ static int VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles(wp->rootpath, childpath, VFSW32_RebuildFSHash, wp);
+		Sys_EnumerateFiles(wp->rootpath, childpath, VFSW32_RebuildFSHash, wp, handle);
 		return true;
 	}
 
@@ -262,7 +262,7 @@ static void VFSW32_BuildHash(void *handle, int hashdepth)
 {
 	vfsw32path_t *wp = handle;
 	wp->hashdepth = hashdepth;
-	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, handle);
+	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, handle, handle);
 }
 static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
@@ -315,10 +315,10 @@ static void VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
-static int VFSW32_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int VFSW32_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
 {
 	vfsw32path_t *wp = handle;
-	return Sys_EnumerateFiles(wp->rootpath, match, func, parm);
+	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);
 }
 
 

@@ -1,4 +1,4 @@
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 #ifdef SV_MASTER
 

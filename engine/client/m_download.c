@@ -810,7 +810,7 @@ static int numbootdownloads;
 #include "fs.h"
 #ifdef AVAIL_ZLIB
 extern searchpathfuncs_t zipfilefuncs;
-static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr)
+static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr, void *spath)
 {
 	char buffer[512*1024];
 	int read;

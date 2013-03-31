@@ -1,4 +1,4 @@
-#include "qwsvdef.h"
+#include "quakedef.h"
 
 /*
 I think globals.maxentities is the hard cap, rather than current max like in q1.

@@ -2770,13 +2770,13 @@ I've removed the following from this function as it covered the menu (~Moodles):
 tuiadmin:
 		if (!*cluster->adminpassword)
 		{
-			if (Netchan_IsLocal(v->netchan.remote_address))
+			/*if (Netchan_IsLocal(v->netchan.remote_address))
 			{
 				Sys_Printf(cluster, "Local player %s logs in as admin\n", v->name);
 				QW_SetMenu(v, MENU_ADMIN);
 				v->isadmin = true;
 			}
-			else
+			else*/
 				QW_PrintfToViewer(v, "There is no admin password set\nYou may not log in.\n");
 		}
 		else if (v->isadmin)

@@ -146,140 +146,141 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // server to client
 //
-#define	svc_bad				0
-#define	svc_nop				1
-#define	svc_disconnect		2
-#define	svcqw_updatestatbyte	3	// [qbyte] [qbyte]
-#define	svcnq_updatestatlong	3	// [qbyte] [long]
-#define	svc_version			4	// [long] server version
-#define	svc_setview			5	// [short] entity number
-#define	svc_sound			6	// <see code>
-#define	svc_time			7	// [float] server time
-#define	svc_print			8	// [qbyte] id [string] null terminated string
-#define	svc_stufftext		9	// [string] stuffed into client's console buffer
-								// the string should be \n terminated
-#define	svc_setangle		10	// [angle3] set the view angle to this absolute value
+#define	svc_bad						0
+#define	svc_nop						1
+#define	svc_disconnect				2
+#define	svcqw_updatestatbyte		3	// [qbyte] [qbyte]
+#define	svcnq_updatestatlong		3	// [qbyte] [long]
+#define	svc_version					4	// [long] server version
+#define	svc_setview					5	// [short] entity number
+#define	svc_sound					6	// <see code>
+#define	svc_time					7	// [float] server time
+#define	svc_print					8	// [qbyte] id [string] null terminated string
+#define	svc_stufftext				9	// [string] stuffed into client's console buffer
+										// the string should be \n terminated
+#define	svc_setangle				10	// [angle3] set the view angle to this absolute value
 
-#define	svc_serverdata		11	// [long] protocol ...
-#define	svc_lightstyle		12	// [qbyte] [string]
-#define	svc_updatename		13	// [qbyte] [string]
-#define	svc_updatefrags		14	// [qbyte] [short]
-#define	svc_clientdata		15	// <shortbits + data>
-#define	svc_stopsound		16	// <see code>
-#define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
-#define	svc_particle		18	// [vec3] <variable>
-#define	svc_damage			19
+#define	svc_serverdata				11	// [long] protocol ...
+#define	svc_lightstyle				12	// [qbyte] [string]
+#define	svc_updatename				13	// [qbyte] [string]
+#define	svc_updatefrags				14	// [qbyte] [short]
+#define	svc_clientdata				15	// <shortbits + data>
+#define	svc_stopsound				16	// <see code>
+#define	svc_updatecolors			17	// [qbyte] [qbyte] [qbyte]
+#define	svc_particle				18	// [vec3] <variable>
+#define	svc_damage					19
 
-#define	svc_spawnstatic		20
-#define	svcfte_spawnstatic2	21
-#define	svc_spawnbaseline	22
+#define	svc_spawnstatic				20
+#define	svcfte_spawnstatic2			21
+#define	svc_spawnbaseline			22
 
-#define	svc_temp_entity		23	// variable
-#define	svc_setpause		24	// [qbyte] on / off
-#define	svc_signonnum		25	// [qbyte]  used for the signon sequence
+#define	svc_temp_entity				23	// variable
+#define	svc_setpause				24	// [qbyte] on / off
+#define	svc_signonnum				25	// [qbyte]  used for the signon sequence
 
-#define	svc_centerprint		26	// [string] to put in center of the screen
+#define	svc_centerprint				26	// [string] to put in center of the screen
 
-#define	svc_killedmonster	27
-#define	svc_foundsecret		28
+#define	svc_killedmonster			27
+#define	svc_foundsecret				28
 
-#define	svc_spawnstaticsound	29	// [coord3] [qbyte] samp [qbyte] vol [qbyte] aten
+#define	svc_spawnstaticsound		29	// [coord3] [qbyte] samp [qbyte] vol [qbyte] aten
 
-#define	svc_intermission	30		// [vec3_t] origin [vec3_t] angle
-#define	svc_finale			31		// [string] text
+#define	svc_intermission			30		// [vec3_t] origin [vec3_t] angle
+#define	svc_finale					31		// [string] text
 
-#define	svc_cdtrack			32		// [qbyte] track
-#define svc_sellscreen		33
+#define	svc_cdtrack					32		// [qbyte] track
+#define svc_sellscreen				33
 
-#define svc_cutscene		34	//hmm... nq only... added after qw tree splitt?
+#define svc_cutscene				34	//hmm... nq only... added after qw tree splitt?
 
 
 
 //QW svcs
-#define	svc_smallkick		34		// set client punchangle to 2
-#define	svc_bigkick			35		// set client punchangle to 4
+#define	svc_smallkick				34		// set client punchangle to 2
+#define	svc_bigkick					35		// set client punchangle to 4
 
-#define	svc_updateping		36		// [qbyte] [short]
-#define	svc_updateentertime	37		// [qbyte] [float]
+#define	svc_updateping				36		// [qbyte] [short]
+#define	svc_updateentertime			37		// [qbyte] [float]
 
-#define	svcqw_updatestatlong	38		// [qbyte] [long]
+#define	svcqw_updatestatlong		38		// [qbyte] [long]
 
-#define	svc_muzzleflash		39		// [short] entity
+#define	svc_muzzleflash				39		// [short] entity
 
-#define	svc_updateuserinfo	40		// [qbyte] slot [long] uid
-									// [string] userinfo
+#define	svc_updateuserinfo			40		// [qbyte] slot [long] uid [string] userinfo
 
-#define	svc_download		41		// [short] size [size bytes]
-#define	svc_playerinfo		42		// variable
-#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
-#define	svc_chokecount		44		// [qbyte] packets choked
-#define	svc_modellist		45		// [strings]
-#define	svc_soundlist		46		// [strings]
-#define	svc_packetentities	47		// [...]
-#define	svc_deltapacketentities	48		// [...]
-#define svc_maxspeed		49		// maxspeed change, for prediction
-#define svc_entgravity		50		// gravity change, for prediction
-#define svc_setinfo			51		// setinfo on a client
-#define svc_serverinfo		52		// serverinfo
-#define svc_updatepl		53		// [qbyte] [qbyte]
+#define	svc_download				41		// [short] size [size bytes]
+#define	svc_playerinfo				42		// variable
+#define	svc_nails					43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
+#define	svc_chokecount				44		// [qbyte] packets choked
+#define	svc_modellist				45		// [strings]
+#define	svc_soundlist				46		// [strings]
+#define	svc_packetentities			47		// [...]
+#define	svc_deltapacketentities		48		// [...]
+#define svc_maxspeed				49		// maxspeed change, for prediction
+#define svc_entgravity				50		// gravity change, for prediction
+#define svc_setinfo					51		// setinfo on a client
+#define svc_serverinfo				52		// serverinfo
+#define svc_updatepl				53		// [qbyte] [qbyte]
 
 //mvdsv extended svcs (for mvd playback)
-#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
+#define svc_nails2					54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
 //FTE extended svcs
 #ifdef PEXT_SOUNDDBL
-#define svcfte_soundextended			55
-#define svcfte_soundlistshort			56
+#define svcfte_soundextended		55
+#define svcfte_soundlistshort		56
 #endif
 #ifdef PEXT_LIGHTSTYLECOL
-#define svcfte_lightstylecol	57
+#define svcfte_lightstylecol		57
 #endif
 
-//#define svcfte_svcremoved	58
+//#define svcfte_svcremoved			58
 
 //#define	svcfte_svcremoved		59
 
 #ifdef PEXT_MODELDBL
-#define	svcfte_modellistshort	60		// [strings]
+#define	svcfte_modellistshort		60		// [strings]
 #endif
 
 //#define svc_ftesetclientpersist	61	//ushort DATA
 
-#define svc_setportalstate 62
+#define svc_setportalstate			62
 
-#define	svcfte_particle2		63
-#define	svcfte_particle3		64
-#define	svcfte_particle4		65
-#define svcfte_spawnbaseline2	66
+#define	svcfte_particle2			63
+#define	svcfte_particle3			64
+#define	svcfte_particle4			65
+#define svcfte_spawnbaseline2		66
 
-#define	svcfte_customtempent	67
+#define	svcfte_customtempent		67
 
-#define svcfte_choosesplitclient 68
-#define svcfte_showpic			69
-#define svcfte_hidepic			70
-#define svcfte_movepic			71
-#define svcfte_updatepic		72
+#define svcfte_choosesplitclient	68
+#define svcfte_showpic				69
+#define svcfte_hidepic				70
+#define svcfte_movepic				71
+#define svcfte_updatepic			72
 
-#define svcfte_effect			74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
-#define svcfte_effect2			75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
+//73
+
+#define svcfte_effect				74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+#define svcfte_effect2				75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 
 #ifdef PEXT_CSQC
-#define svcfte_csqcentities	76	//entity lump for csqc
+#define svcfte_csqcentities			76	//entity lump for csqc
 #endif
 
-#define svcfte_precache		77
+#define svcfte_precache				77
 
-#define svcfte_updatestatstring 78
-#define svcfte_updatestatfloat 79
+#define svcfte_updatestatstring		78
+#define svcfte_updatestatfloat		79
 
-#define svcfte_trailparticles	80		// [short] entnum [short] effectnum [vector] start [vector] end
-#define svcfte_pointparticles	81		// [short] effectnum [vector] start [vector] velocity [short] count
-#define svcfte_pointparticles1	82		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
+#define svcfte_trailparticles		80		// [short] entnum [short] effectnum [vector] start [vector] end
+#define svcfte_pointparticles		81		// [short] effectnum [vector] start [vector] velocity [short] count
+#define svcfte_pointparticles1		82		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
 
-#define svcfte_cgamepacket	83
-#define svcfte_voicechat	84
+#define svcfte_cgamepacket			83
+#define svcfte_voicechat			84
 #define	svcfte_setangledelta		85	// [angle3] add this to the current viewangles
-#define svcfte_updateentities 86
+#define svcfte_updateentities		86
 
 
 //fitz svcs
@@ -291,18 +292,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfitz_spawnstaticsound2	44
 
 //DP extended svcs
-#define svcdp_downloaddata	50
-#define svcdp_updatestatbyte	51
-#define svcnq_effect		52		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
-#define svcnq_effect2		53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
-#define	svcdp_precache		54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
-#define svcdp_spawnbaseline2	55
-#define svcdp_entities		57
-#define svcdp_csqcentities 58
-#define	svcdp_spawnstaticsound2	59	// [coord3] [short] samp [byte] vol [byte] aten
-#define svcdp_trailparticles	60		// [short] entnum [short] effectnum [vector] start [vector] end
-#define svcdp_pointparticles	61		// [short] effectnum [vector] start [vector] velocity [short] count
-#define svcdp_pointparticles1	62		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
+#define svcdp_downloaddata			50
+#define svcdp_updatestatbyte		51
+#define svcnq_effect				52		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+#define svcnq_effect2				53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
+#define	svcdp_precache				54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
+#define svcdp_spawnbaseline2		55
+#define svcdp_entities				57
+#define svcdp_csqcentities			58
+#define	svcdp_spawnstaticsound2		59	// [coord3] [short] samp [byte] vol [byte] aten
+#define svcdp_trailparticles		60		// [short] entnum [short] effectnum [vector] start [vector] end
+#define svcdp_pointparticles		61		// [short] effectnum [vector] start [vector] velocity [short] count
+#define svcdp_pointparticles1		62		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
 
 
 

@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // sv_nchan.c, user reliable data stream writes
 
-#include "qwsvdef.h"
+#include "quakedef.h"
 #ifndef CLIENTONLY
 
 // check to see if client block will fit, if not, rotate buffers

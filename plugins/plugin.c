@@ -55,7 +55,7 @@ BUILTIN(void, Con_Print, (const char *text));	//on to main console.
 #undef ARGNAMES
 
 #define ARGNAMES ,conname,text
-BUILTIN(void, Con_SubPrint, (char *conname, char *text));	//on to named sub console (creating it too).
+BUILTIN(void, Con_SubPrint, (const char *conname, const char *text));	//on to named sub console (creating it too).
 #undef ARGNAMES
 #define ARGNAMES ,old,new
 BUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a subconsole
@@ -120,7 +120,7 @@ BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stri
 #undef ARGNAMES
 
 #define ARGNAMES ,pnum,stats,maxstats
-BUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
+BUILTINR(int, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 #undef ARGNAMES
 #define ARGNAMES ,pnum,info
 BUILTINR(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));

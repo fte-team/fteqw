@@ -164,7 +164,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 			ClientReliableWrite_String(client, "Couldn't determine your real ip\n");
 		if (sv_realip_kick.value > host_client->realip_status)
 		{
-			SV_DropClient(client);
+			client->drop = true;
 			return false;
 		}
 		if (!client->realip_status)
@@ -3418,14 +3418,17 @@ void SV_Drop_f (void)
 	extern cvar_t sv_fullredirect;
 
 	SV_EndRedirect ();
-	if (host_client->redirect)
-		SV_BroadcastPrintf (PRINT_HIGH, "%s redirected to %s\n", host_client->name, sv_fullredirect.string);
-	else
+	if (!host_client->drop)
 	{
-		if (!host_client->spectator)
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTDROPPED, host_client->name);
+		if (host_client->redirect)
+			SV_BroadcastPrintf (PRINT_HIGH, "%s redirected to %s\n", host_client->name, sv_fullredirect.string);
+		else
+		{
+			if (!host_client->spectator)
+				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTDROPPED, host_client->name);
+		}
+		host_client->drop = true;
 	}
-	SV_DropClient (host_client);
 }
 
 /*

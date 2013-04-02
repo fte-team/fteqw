@@ -166,3 +166,7 @@
 	#define INADDR_LOOPBACK 0x7f000001
 #endif
 
+#if defined(FTE_TARGET_WEB)
+	#undef IPPROTO_IPV6
+#endif
+

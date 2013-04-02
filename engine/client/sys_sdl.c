@@ -405,7 +405,7 @@ int	Sys_FileTime (char *path)
 
 void Sys_Init(void)
 {
-	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_CDROM | SDL_INIT_NOPARACHUTE);
+	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
 }
 void Sys_Shutdown(void)
 {
@@ -476,6 +476,21 @@ void Sys_CloseTerminal (void)
 
 #include <windows.h>
 #endif
+
+#ifdef FTE_TARGET_WEB
+void Sys_MainLoop(void)
+{
+	static float oldtime;
+	float newtime, time;
+	newtime = Sys_DoubleTime ();
+	if (!oldtime)
+		oldtime = newtime;
+	time = newtime - oldtime;
+	Host_Frame (time);
+	oldtime = newtime;
+}
+#endif
+
 int QDECL main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
@@ -534,6 +549,10 @@ int QDECL main(int argc, char **argv)
 	oldtime = Sys_DoubleTime ();
 
 
+#ifdef FTE_TARGET_WEB
+	//-1 fps should give vsync
+	emscripten_set_main_loop(Sys_MainLoop, -1, false);
+#else
 //client console should now be initialized.
 
     /* main window message loop */
@@ -568,6 +587,7 @@ int QDECL main(int argc, char **argv)
 			Sys_Sleep(sleeptime);
 		}
 	}
+#endif
 	return 0;
 }
 
@@ -707,4 +727,45 @@ void Sys_Sleep (double seconds)
 {
 	SDL_Delay(seconds * 1000);
 }
+
+#ifdef FTE_TARGET_WEB
+//emscripten does not support the full set of sdl functions, so we stub the extras.
+int SDL_GetGammaRamp(Uint16 *redtable, Uint16 *greentable, Uint16 *bluetable)
+{
+	return -1;
+}
+int SDL_SetGammaRamp(const Uint16 *redtable, const Uint16 *greentable, const Uint16 *bluetable)
+{
+	return -1;
+}
+//SDL_GL_GetAttribute
+void SDL_UnloadObject(void *object)
+{
+}
+void *SDL_LoadObject(const char *sofile)
+{
+	return NULL;
+}
+void *SDL_LoadFunction(void *handle, const char *name)
+{
+	return NULL;
+}
+Uint8 SDL_GetAppState(void)
+{
+	return SDL_APPACTIVE;
+}
+#define socklen_t int
+int getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	return -1;
+}
+int getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	return -1;
+}
+ssize_t sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
+{
+	return -1;
+}
+#endif
 

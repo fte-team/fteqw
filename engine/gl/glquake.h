@@ -86,7 +86,7 @@ extern r_config_t r_config;
 	#elif defined(__MACOSX__)
 		//apple, you suck.
 		#include <AGL/agl.h>
-	#elif defined(NACL)
+	#elif defined(NACL) || defined(FTE_TARGET_WEB)
 		#include <GLES2/gl2.h>
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
@@ -171,10 +171,12 @@ typedef void		(APIENTRYP FTEPFNGLUNIFORM1FARBPROC)			(GLint location, GLfloat v0
 typedef void (APIENTRY * FTEPFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
 typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);
 
-extern	BINDTEXFUNCPTR bindTexFunc;
+#ifndef GL_STATIC
+extern	BINDTEXFUNCPTR qglBindTexture;
 extern	DELTEXFUNCPTR delTexFunc;
 extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
 extern void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+#endif
 extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
@@ -321,16 +323,8 @@ void GL_TexEnv(GLenum mode);
 #define    GL_TEXTURE0_SGIS				0x835E
 #define    GL_TEXTURE1_SGIS				0x835F
 
-typedef void (APIENTRY *lpMTexFUNC) (GLenum en, GLfloat f1, GLfloat f2);
-typedef void (APIENTRY *lpSelTexFUNC) (GLenum en);
-extern lpMTexFUNC qglMTexCoord2fSGIS;
-extern lpSelTexFUNC qglSelectTextureSGIS;
 
 extern	int gl_stencilbits;
-extern FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
-
-extern lpMTexFUNC qglMTexCoord2fSGIS;
-extern lpSelTexFUNC qglSelectTextureSGIS;
 
 
 extern int gl_mtexarbable;	//max texture units
@@ -439,23 +433,236 @@ void R_NetGraph (void);
 
 #if defined(GLQUAKE)
 
+#ifdef GL_STATIC
+//these are the functions that are valid in gles2.
+//other functions should never actually be used.
+#define qglActiveTexture glActiveTexture
+#define qglAttachShader glAttachShader
+#define qglBindAttribLocation glBindAttribLocation
+#define qglBindBuffer glBindBuffer
+#define qglBindFramebuffer glBindFramebuffer
+#define qglBindRenderbuffer glBindRenderbuffer
+#define qglBindTexture glBindTexture
+#define qglBlendColor glBlendColor
+#define qglBlendEquation glBlendEquation
+#define qglBlendEquationSeparate glBlendEquationSeparate
+#define qglBlendFunc glBlendFunc
+#define qglBlendFuncSeparate glBlendFuncSeparate
+#define qglBufferData glBufferData
+#define qglBufferSubData glBufferSubData
+#define qglCheckFramebufferStatus glCheckFramebufferStatus
+#define qglClear glClear
+#define qglClearColor glClearColor
+#define qglClearDepthf glClearDepthf
+#define qglClearStencil glClearStencil
+#define qglColorMask glColorMask
+#define qglCompileShader glCompileShader
+#define qglCompressedTexImage2D glCompressedTexImage2D
+#define qglCompressedTexSubImage2D glCompressedTexSubImage2D
+#define qglCopyTexImage2D glCopyTexImage2D
+#define qglCopyTexSubImage2D glCopyTexSubImage2D
+#define qglCreateProgram glCreateProgram
+#define qglCreateShader glCreateShader
+#define qglCullFace glCullFace
+#define qglDeleteBuffers glDeleteBuffers
+#define qglDeleteFramebuffers glDeleteFramebuffers
+#define qglDeleteProgram glDeleteProgram
+#define qglDeleteRenderbuffers glDeleteRenderbuffers
+#define qglDeleteShader glDeleteShader
+#define qglDeleteTextures glDeleteTextures
+#define qglDepthFunc glDepthFunc
+#define qglDepthMask glDepthMask
+#define qglDepthRangef glDepthRangef
+#define qglDetachShader glDetachShader
+#define qglDisable glDisable
+#define qglDisableVertexAttribArray glDisableVertexAttribArray
+#define qglDrawArrays glDrawArrays
+#define qglDrawElements glDrawElements
+#define qglEnable glEnable
+#define qglEnableVertexAttribArray glEnableVertexAttribArray
+#define qglFinish glFinish
+#define qglFlush glFlush
+#define qglFramebufferRenderbuffer glFramebufferRenderbuffer
+#define qglFramebufferTexture2D glFramebufferTexture2D
+#define qglFrontFace glFrontFace
+#define qglGenBuffers glGenBuffers
+#define qglGenerateMipmap glGenerateMipmap
+#define qglGenFramebuffers glGenFramebuffers
+#define qglGenRenderbuffers glGenRenderbuffers
+#define qglGenTextures glGenTextures
+#define qglGetActiveAttrib glGetActiveAttrib
+#define qglGetActiveUniform glGetActiveUniform
+#define qglGetAttachedShaders glGetAttachedShaders
+#define qglGetAttribLocation glGetAttribLocation
+#define qglGetBooleanv glGetBooleanv
+#define qglGetBufferParameteriv glGetBufferParameteriv
+#define qglGetError glGetError
+#define qglGetFloatv glGetFloatv
+#define qglGetFramebufferAttachmentParameteriv glGetFramebufferAttachmentParameteriv
+#define qglGetIntegerv glGetIntegerv
+#define qglGetProgramiv glGetProgramiv
+#define qglGetProgramInfoLog glGetProgramInfoLog
+#define qglGetRenderbufferParameteriv glGetRenderbufferParameteriv
+#define qglGetShaderiv glGetShaderiv
+#define qglGetShaderInfoLog glGetShaderInfoLog
+#define qglGetShaderPrecisionFormat glGetShaderPrecisionFormat
+#define qglGetShaderSource glGetShaderSource
+#define qglGetString glGetString
+#define qglGetTexParameterfv glGetTexParameterfv
+#define qglGetTexParameteriv glGetTexParameteriv
+#define qglGetUniformfv glGetUniformfv
+#define qglGetUniformiv glGetUniformiv
+#define qglGetUniformLocation glGetUniformLocation
+#define qglGetVertexAttribfv glGetVertexAttribfv
+#define qglGetVertexAttribiv glGetVertexAttribiv
+#define qglGetVertexAttribPointerv glGetVertexAttribPointerv
+#define qglHint glHint
+#define qglIsBuffer glIsBuffer
+#define qglIsEnabled glIsEnabled
+#define qglIsFramebuffer glIsFramebuffer
+#define qglIsProgram glIsProgram
+#define qglIsRenderbuffer glIsRenderbuffer
+#define qglIsShader glIsShader
+#define qglIsTexture glIsTexture
+#define qglLineWidth glLineWidth
+#define qglLinkProgram glLinkProgram
+#define qglPixelStorei glPixelStorei
+#define qglPolygonOffset glPolygonOffset
+#define qglReadPixels glReadPixels
+#define qglReleaseShaderCompiler glReleaseShaderCompiler
+#define qglRenderbufferStorage glRenderbufferStorage
+#define qglSampleCoverage glSampleCoverage
+#define qglScissor glScissor
+#define qglShaderBinary glShaderBinary
+#define qglShaderSource glShaderSource
+#define qglStencilFunc glStencilFunc
+#define qglStencilFuncSeparate glStencilFuncSeparate
+#define qglStencilMask glStencilMask
+#define qglStencilMaskSeparate glStencilMaskSeparate
+#define qglStencilOp glStencilOp
+#define qglStencilOpSeparate glStencilOpSeparate
+#define qglTexImage2D glTexImage2D
+#define qglTexParameterf glTexParameterf
+#define qglTexParameterfv glTexParameterfv
+#define qglTexParameteri glTexParameteri
+#define qglTexParameteriv glTexParameteriv
+#define qglTexSubImage2D glTexSubImage2D
+#define qglUniform1f glUniform1f
+#define qglUniform1fv glUniform1fv
+#define qglUniform1i glUniform1i
+#define qglUniform1iv glUniform1iv
+#define qglUniform2f glUniform2f
+#define qglUniform2fv glUniform2fv
+#define qglUniform2i glUniform2i
+#define qglUniform2iv glUniform2iv
+#define qglUniform3f glUniform3f
+#define qglUniform3fv glUniform3fv
+#define qglUniform3i glUniform3i
+#define qglUniform3iv glUniform3iv
+#define qglUniform4f glUniform4f
+#define qglUniform4fv glUniform4fv
+#define qglUniform4i glUniform4i
+#define qglUniform4iv glUniform4iv
+#define qglUniformMatrix2fv glUniformMatrix2fv
+#define qglUniformMatrix3fv glUniformMatrix3fv
+#define qglUniformMatrix4fv glUniformMatrix4fv
+#define qglUseProgram glUseProgram
+#define qglValidateProgram glValidateProgram
+#define qglVertexAttrib1f glVertexAttrib1f
+#define qglVertexAttrib1fv glVertexAttrib1fv
+#define qglVertexAttrib2f glVertexAttrib2f
+#define qglVertexAttrib2fv glVertexAttrib2fv
+#define qglVertexAttrib3f glVertexAttrib3f
+#define qglVertexAttrib3fv glVertexAttrib3fv
+#define qglVertexAttrib4f glVertexAttrib4f
+#define qglVertexAttrib4fv glVertexAttrib4fv
+#define qglVertexAttribPointer glVertexAttribPointer
+#define qglViewport glViewport
+
+#define qglStencilOpSeparateATI qglStencilOpSeparate
+#define qglGenFramebuffersEXT qglGenFramebuffers
+#define qglBindFramebufferEXT qglBindFramebuffer
+#define qglFramebufferTexture2DEXT qglFramebufferTexture2D
+#define qglDeleteRenderbuffersEXT qglDeleteRenderbuffers
+//#define qglCompressedTexImage2DARB qglCompressedTexImage2D
+#else
+extern void (APIENTRY *qglBindTexture) (GLenum target, GLuint texture);
+extern void (APIENTRY *qglBlendFunc) (GLenum sfactor, GLenum dfactor);
+extern void (APIENTRY *qglClear) (GLbitfield mask);
+extern void (APIENTRY *qglClearColor) (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
+extern void (APIENTRY *qglClearDepthf) (GLclampf depth);
+extern void (APIENTRY *qglClearStencil) (GLint s);
+extern void (APIENTRY *qglColorMask) (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
+extern void (APIENTRY *qglCopyTexImage2D) (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+extern void (APIENTRY *qglCopyTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+extern void (APIENTRY *qglCullFace) (GLenum mode);
+extern void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
+extern void (APIENTRY *qglDepthFunc) (GLenum func);
+extern void (APIENTRY *qglDepthMask) (GLboolean flag);
+extern void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
+extern void (APIENTRY *qglDisable) (GLenum cap);
+extern void (APIENTRY *qglDrawArrays) (GLenum mode, GLint first, GLsizei count);
+extern void (APIENTRY *qglDrawElements) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
+extern void (APIENTRY *qglEnable) (GLenum cap);
+extern void (APIENTRY *qglFinish) (void);
+extern void (APIENTRY *qglFlush) (void);
+extern void (APIENTRY *qglFrontFace) (GLenum mode);
+extern void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
+extern void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
+extern GLenum (APIENTRY *qglGetError) (void);
+extern void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
+extern void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
+extern const GLubyte * (APIENTRY *qglGetString) (GLenum name);
+extern void (APIENTRY *qglGetTexParameterfv) (GLenum target, GLenum pname, GLfloat *params);
+extern void (APIENTRY *qglGetTexParameteriv) (GLenum target, GLenum pname, GLint *params);
+extern void (APIENTRY *qglHint) (GLenum target, GLenum mode);
+extern GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
+extern GLboolean (APIENTRY *qglIsTexture) (GLuint texture);
+extern void (APIENTRY *qglLineWidth) (GLfloat width);
+extern void (APIENTRY *qglPixelStorei) (GLenum pname, GLint param);
+extern void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
+extern void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
+extern void (APIENTRY *qglScissor) (GLint x, GLint y, GLsizei width, GLsizei height);
+extern void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
+extern void (APIENTRY *qglStencilMask) (GLuint mask);
+extern void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
+extern void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+extern void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
+extern void (APIENTRY *qglTexParameterfv) (GLenum target, GLenum pname, const GLfloat *params);
+extern void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);
+extern void (APIENTRY *qglTexParameteriv) (GLenum target, GLenum pname, const GLint *params);
+extern void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
+extern void (APIENTRY *qglViewport) (GLint x, GLint y, GLsizei width, GLsizei height);
+
+extern void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
+extern void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
+extern void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
+extern void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
+extern void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
+extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
+extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
+extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
+
+extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
+extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
+extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
+extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
+
+#endif
+
+//non-gles2 gl functions
 extern void (APIENTRY *qglAccum) (GLenum op, GLfloat value);
 extern void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
 extern GLboolean (APIENTRY *qglAreTexturesResident) (GLsizei n, const GLuint *textures, GLboolean *residences);
 extern void (APIENTRY *qglArrayElement) (GLint i);
-extern void (APIENTRY *qglBegin) (GLenum mode);
-extern void (APIENTRY *qglBindTexture) (GLenum target, GLuint texture);
 extern void (APIENTRY *qglBitmap) (GLsizei width, GLsizei height, GLfloat xorig, GLfloat yorig, GLfloat xmove, GLfloat ymove, const GLubyte *bitmap);
-extern void (APIENTRY *qglBlendFunc) (GLenum sfactor, GLenum dfactor);
 extern void (APIENTRY *qglCallList) (GLuint list);
 extern void (APIENTRY *qglCallLists) (GLsizei n, GLenum type, const GLvoid *lists);
-extern void (APIENTRY *qglClear) (GLbitfield mask);
 extern void (APIENTRY *qglClearAccum) (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
-extern void (APIENTRY *qglClearColor) (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
-extern void (APIENTRY *qglClearDepthf) (GLclampf depth);
 extern void (APIENTRY *qglClearDepth) (GLclampd depth);
 extern void (APIENTRY *qglClearIndex) (GLfloat c);
-extern void (APIENTRY *qglClearStencil) (GLint s);
 extern void (APIENTRY *qglClipPlane) (GLenum plane, const GLdouble *equation);
 extern void (APIENTRY *qglColor3b) (GLbyte red, GLbyte green, GLbyte blue);
 extern void (APIENTRY *qglColor3bv) (const GLbyte *v);
@@ -489,33 +696,19 @@ extern void (APIENTRY *qglColor4ui) (GLuint red, GLuint green, GLuint blue, GLui
 extern void (APIENTRY *qglColor4uiv) (const GLuint *v);
 extern void (APIENTRY *qglColor4us) (GLushort red, GLushort green, GLushort blue, GLushort alpha);
 extern void (APIENTRY *qglColor4usv) (const GLushort *v);
-extern void (APIENTRY *qglColorMask) (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
 extern void (APIENTRY *qglColorMaterial) (GLenum face, GLenum mode);
 extern void (APIENTRY *qglColorPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 extern void (APIENTRY *qglCopyPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum type);
 extern void (APIENTRY *qglCopyTexImage1D) (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLint border);
-extern void (APIENTRY *qglCopyTexImage2D) (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
 extern void (APIENTRY *qglCopyTexSubImage1D) (GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLsizei width);
-extern void (APIENTRY *qglCopyTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
-extern void (APIENTRY *qglCullFace) (GLenum mode);
 extern void (APIENTRY *qglDeleteLists) (GLuint list, GLsizei range);
-extern void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
-extern void (APIENTRY *qglDepthFunc) (GLenum func);
-extern void (APIENTRY *qglDepthMask) (GLboolean flag);
 extern void (APIENTRY *qglDepthRange) (GLclampd zNear, GLclampd zFar);
-extern void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
-extern void (APIENTRY *qglDisable) (GLenum cap);
 extern void (APIENTRY *qglDisableClientState) (GLenum array);
-extern void (APIENTRY *qglDrawArrays) (GLenum mode, GLint first, GLsizei count);
 extern void (APIENTRY *qglDrawBuffer) (GLenum mode);
-extern void (APIENTRY *qglDrawElements) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 extern void (APIENTRY *qglDrawPixels) (GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglEdgeFlag) (GLboolean flag);
 extern void (APIENTRY *qglEdgeFlagPointer) (GLsizei stride, const GLvoid *pointer);
 extern void (APIENTRY *qglEdgeFlagv) (const GLboolean *flag);
-extern void (APIENTRY *qglEnable) (GLenum cap);
-extern void (APIENTRY *qglEnableClientState) (GLenum array);
-extern void (APIENTRY *qglEnd) (void);
 extern void (APIENTRY *qglEndList) (void);
 extern void (APIENTRY *qglEvalCoord1d) (GLdouble u);
 extern void (APIENTRY *qglEvalCoord1dv) (const GLdouble *u);
@@ -530,22 +723,14 @@ extern void (APIENTRY *qglEvalMesh2) (GLenum mode, GLint i1, GLint i2, GLint j1,
 extern void (APIENTRY *qglEvalPoint1) (GLint i);
 extern void (APIENTRY *qglEvalPoint2) (GLint i, GLint j);
 extern void (APIENTRY *qglFeedbackBuffer) (GLsizei size, GLenum type, GLfloat *buffer);
-extern void (APIENTRY *qglFinish) (void);
-extern void (APIENTRY *qglFlush) (void);
 extern void (APIENTRY *qglFogf) (GLenum pname, GLfloat param);
 extern void (APIENTRY *qglFogfv) (GLenum pname, const GLfloat *params);
 extern void (APIENTRY *qglFogi) (GLenum pname, GLint param);
 extern void (APIENTRY *qglFogiv) (GLenum pname, const GLint *params);
-extern void (APIENTRY *qglFrontFace) (GLenum mode);
 extern void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 extern GLuint (APIENTRY *qglGenLists) (GLsizei range);
-extern void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
-extern void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
 extern void (APIENTRY *qglGetClipPlane) (GLenum plane, GLdouble *equation);
 extern void (APIENTRY *qglGetDoublev) (GLenum pname, GLdouble *params);
-extern GLenum (APIENTRY *qglGetError) (void);
-extern void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
-extern void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
 extern void (APIENTRY *qglGetLightfv) (GLenum light, GLenum pname, GLfloat *params);
 extern void (APIENTRY *qglGetLightiv) (GLenum light, GLenum pname, GLint *params);
 extern void (APIENTRY *qglGetMapdv) (GLenum target, GLenum query, GLdouble *v);
@@ -558,7 +743,6 @@ extern void (APIENTRY *qglGetPixelMapuiv) (GLenum map, GLuint *values);
 extern void (APIENTRY *qglGetPixelMapusv) (GLenum map, GLushort *values);
 extern void (APIENTRY *qglGetPointerv) (GLenum pname, GLvoid* *params);
 extern void (APIENTRY *qglGetPolygonStipple) (GLubyte *mask);
-extern const GLubyte * (APIENTRY *qglGetString) (GLenum name);
 extern void (APIENTRY *qglGetTexEnvfv) (GLenum target, GLenum pname, GLfloat *params);
 extern void (APIENTRY *qglGetTexEnviv) (GLenum target, GLenum pname, GLint *params);
 extern void (APIENTRY *qglGetTexGendv) (GLenum coord, GLenum pname, GLdouble *params);
@@ -567,9 +751,6 @@ extern void (APIENTRY *qglGetTexGeniv) (GLenum coord, GLenum pname, GLint *param
 extern void (APIENTRY *qglGetTexImage) (GLenum target, GLint level, GLenum format, GLenum type, GLvoid *pixels);
 extern void (APIENTRY *qglGetTexLevelParameterfv) (GLenum target, GLint level, GLenum pname, GLfloat *params);
 extern void (APIENTRY *qglGetTexLevelParameteriv) (GLenum target, GLint level, GLenum pname, GLint *params);
-extern void (APIENTRY *qglGetTexParameterfv) (GLenum target, GLenum pname, GLfloat *params);
-extern void (APIENTRY *qglGetTexParameteriv) (GLenum target, GLenum pname, GLint *params);
-extern void (APIENTRY *qglHint) (GLenum target, GLenum mode);
 extern void (APIENTRY *qglIndexMask) (GLuint mask);
 extern void (APIENTRY *qglIndexPointer) (GLenum type, GLsizei stride, const GLvoid *pointer);
 extern void (APIENTRY *qglIndexd) (GLdouble c);
@@ -584,9 +765,7 @@ extern void (APIENTRY *qglIndexub) (GLubyte c);
 extern void (APIENTRY *qglIndexubv) (const GLubyte *c);
 extern void (APIENTRY *qglInitNames) (void);
 extern void (APIENTRY *qglInterleavedArrays) (GLenum format, GLsizei stride, const GLvoid *pointer);
-extern GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
 extern GLboolean (APIENTRY *qglIsList) (GLuint list);
-extern GLboolean (APIENTRY *qglIsTexture) (GLuint texture);
 extern void (APIENTRY *qglLightModelf) (GLenum pname, GLfloat param);
 extern void (APIENTRY *qglLightModelfv) (GLenum pname, const GLfloat *params);
 extern void (APIENTRY *qglLightModeli) (GLenum pname, GLint param);
@@ -596,7 +775,6 @@ extern void (APIENTRY *qglLightfv) (GLenum light, GLenum pname, const GLfloat *p
 extern void (APIENTRY *qglLighti) (GLenum light, GLenum pname, GLint param);
 extern void (APIENTRY *qglLightiv) (GLenum light, GLenum pname, const GLint *params);
 extern void (APIENTRY *qglLineStipple) (GLint factor, GLushort pattern);
-extern void (APIENTRY *qglLineWidth) (GLfloat width);
 extern void (APIENTRY *qglListBase) (GLuint base);
 extern void (APIENTRY *qglLoadIdentity) (void);
 extern void (APIENTRY *qglLoadMatrixd) (const GLdouble *m);
@@ -636,13 +814,11 @@ extern void (APIENTRY *qglPixelMapfv) (GLenum map, GLsizei mapsize, const GLfloa
 extern void (APIENTRY *qglPixelMapuiv) (GLenum map, GLsizei mapsize, const GLuint *values);
 extern void (APIENTRY *qglPixelMapusv) (GLenum map, GLsizei mapsize, const GLushort *values);
 extern void (APIENTRY *qglPixelStoref) (GLenum pname, GLfloat param);
-extern void (APIENTRY *qglPixelStorei) (GLenum pname, GLint param);
 extern void (APIENTRY *qglPixelTransferf) (GLenum pname, GLfloat param);
 extern void (APIENTRY *qglPixelTransferi) (GLenum pname, GLint param);
 extern void (APIENTRY *qglPixelZoom) (GLfloat xfactor, GLfloat yfactor);
 extern void (APIENTRY *qglPointSize) (GLfloat size);
 extern void (APIENTRY *qglPolygonMode) (GLenum face, GLenum mode);
-extern void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
 extern void (APIENTRY *qglPolygonStipple) (const GLubyte *mask);
 extern void (APIENTRY *qglPopAttrib) (void);
 extern void (APIENTRY *qglPopClientAttrib) (void);
@@ -677,8 +853,6 @@ extern void (APIENTRY *qglRasterPos4i) (GLint x, GLint y, GLint z, GLint w);
 extern void (APIENTRY *qglRasterPos4iv) (const GLint *v);
 extern void (APIENTRY *qglRasterPos4s) (GLshort x, GLshort y, GLshort z, GLshort w);
 extern void (APIENTRY *qglRasterPos4sv) (const GLshort *v);
-extern void (APIENTRY *qglReadBuffer) (GLenum mode);
-extern void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
 extern void (APIENTRY *qglRectd) (GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2);
 extern void (APIENTRY *qglRectdv) (const GLdouble *v1, const GLdouble *v2);
 extern void (APIENTRY *qglRectf) (GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);
@@ -692,12 +866,8 @@ extern void (APIENTRY *qglRotated) (GLdouble angle, GLdouble x, GLdouble y, GLdo
 extern void (APIENTRY *qglRotatef) (GLfloat angle, GLfloat x, GLfloat y, GLfloat z);
 extern void (APIENTRY *qglScaled) (GLdouble x, GLdouble y, GLdouble z);
 extern void (APIENTRY *qglScalef) (GLfloat x, GLfloat y, GLfloat z);
-extern void (APIENTRY *qglScissor) (GLint x, GLint y, GLsizei width, GLsizei height);
 extern void (APIENTRY *qglSelectBuffer) (GLsizei size, GLuint *buffer);
 extern void (APIENTRY *qglShadeModel) (GLenum mode);
-extern void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
-extern void (APIENTRY *qglStencilMask) (GLuint mask);
-extern void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
 extern void (APIENTRY *qglTexCoord1d) (GLdouble s);
 extern void (APIENTRY *qglTexCoord1dv) (const GLdouble *v);
 extern void (APIENTRY *qglTexCoord1f) (GLfloat s);
@@ -742,42 +912,10 @@ extern void (APIENTRY *qglTexGenfv) (GLenum coord, GLenum pname, const GLfloat *
 extern void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
 extern void (APIENTRY *qglTexGeniv) (GLenum coord, GLenum pname, const GLint *params);
 extern void (APIENTRY *qglTexImage1D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
-extern void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglTexImage3D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
-extern void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
-extern void (APIENTRY *qglTexParameterfv) (GLenum target, GLenum pname, const GLfloat *params);
-extern void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);
-extern void (APIENTRY *qglTexParameteriv) (GLenum target, GLenum pname, const GLint *params);
 extern void (APIENTRY *qglTexSubImage1D) (GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const GLvoid *pixels);
-extern void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglTranslated) (GLdouble x, GLdouble y, GLdouble z);
 extern void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
-extern void (APIENTRY *qglVertex2d) (GLdouble x, GLdouble y);
-extern void (APIENTRY *qglVertex2dv) (const GLdouble *v);
-extern void (APIENTRY *qglVertex2f) (GLfloat x, GLfloat y);
-extern void (APIENTRY *qglVertex2fv) (const GLfloat *v);
-extern void (APIENTRY *qglVertex2i) (GLint x, GLint y);
-extern void (APIENTRY *qglVertex2iv) (const GLint *v);
-extern void (APIENTRY *qglVertex2s) (GLshort x, GLshort y);
-extern void (APIENTRY *qglVertex2sv) (const GLshort *v);
-extern void (APIENTRY *qglVertex3d) (GLdouble x, GLdouble y, GLdouble z);
-extern void (APIENTRY *qglVertex3dv) (const GLdouble *v);
-extern void (APIENTRY *qglVertex3f) (GLfloat x, GLfloat y, GLfloat z);
-extern void (APIENTRY *qglVertex3fv) (const GLfloat *v);
-extern void (APIENTRY *qglVertex3i) (GLint x, GLint y, GLint z);
-extern void (APIENTRY *qglVertex3iv) (const GLint *v);
-extern void (APIENTRY *qglVertex3s) (GLshort x, GLshort y, GLshort z);
-extern void (APIENTRY *qglVertex3sv) (const GLshort *v);
-extern void (APIENTRY *qglVertex4d) (GLdouble x, GLdouble y, GLdouble z, GLdouble w);
-extern void (APIENTRY *qglVertex4dv) (const GLdouble *v);
-extern void (APIENTRY *qglVertex4f) (GLfloat x, GLfloat y, GLfloat z, GLfloat w);
-extern void (APIENTRY *qglVertex4fv) (const GLfloat *v);
-extern void (APIENTRY *qglVertex4i) (GLint x, GLint y, GLint z, GLint w);
-extern void (APIENTRY *qglVertex4iv) (const GLint *v);
-extern void (APIENTRY *qglVertex4s) (GLshort x, GLshort y, GLshort z, GLshort w);
-extern void (APIENTRY *qglVertex4sv) (const GLshort *v);
-extern void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
-extern void (APIENTRY *qglViewport) (GLint x, GLint y, GLsizei width, GLsizei height);
 
 #ifdef _WIN32
 extern BOOL  (WINAPI *qwglCopyContext)(HGLRC, HGLRC, UINT);
@@ -791,33 +929,7 @@ extern BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 #endif
 
-extern void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
-
-extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
-extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
-extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
-extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
-extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
-
-extern void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
-extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
-
 extern const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
-
-extern void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
-extern void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
-extern void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
-extern void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
-extern void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
-extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
-extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
-extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
-
-extern void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 
 /*
 extern qboolean gl_arb_fragment_program;
@@ -843,10 +955,6 @@ extern FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
 extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
 extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
 extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
-extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
-extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
-extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
-extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4fvARB;
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
@@ -858,6 +966,64 @@ extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
 extern FTEPFNGLUNIFORM2FVARBPROC			qglUniform2fvARB;
 extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
+
+extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
+extern FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
+
+typedef void (APIENTRY *lpMTexFUNC) (GLenum en, GLfloat f1, GLfloat f2);
+typedef void (APIENTRY *lpSelTexFUNC) (GLenum en);
+extern lpMTexFUNC qglMTexCoord2fSGIS;
+extern lpSelTexFUNC qglSelectTextureSGIS;
+
+//these functions are not available in gles2, for one reason or another
+extern void (APIENTRY *qglBegin) (GLenum mode);
+extern void (APIENTRY *qglVertex2d) (GLdouble x, GLdouble y);
+extern void (APIENTRY *qglVertex2dv) (const GLdouble *v);
+extern void (APIENTRY *qglVertex2f) (GLfloat x, GLfloat y);
+extern void (APIENTRY *qglVertex2fv) (const GLfloat *v);
+extern void (APIENTRY *qglVertex2i) (GLint x, GLint y);
+extern void (APIENTRY *qglVertex2iv) (const GLint *v);
+extern void (APIENTRY *qglVertex2s) (GLshort x, GLshort y);
+extern void (APIENTRY *qglVertex2sv) (const GLshort *v);
+extern void (APIENTRY *qglVertex3d) (GLdouble x, GLdouble y, GLdouble z);
+extern void (APIENTRY *qglVertex3dv) (const GLdouble *v);
+extern void (APIENTRY *qglVertex3f) (GLfloat x, GLfloat y, GLfloat z);
+extern void (APIENTRY *qglVertex3fv) (const GLfloat *v);
+extern void (APIENTRY *qglVertex3i) (GLint x, GLint y, GLint z);
+extern void (APIENTRY *qglVertex3iv) (const GLint *v);
+extern void (APIENTRY *qglVertex3s) (GLshort x, GLshort y, GLshort z);
+extern void (APIENTRY *qglVertex3sv) (const GLshort *v);
+extern void (APIENTRY *qglVertex4d) (GLdouble x, GLdouble y, GLdouble z, GLdouble w);
+extern void (APIENTRY *qglVertex4dv) (const GLdouble *v);
+extern void (APIENTRY *qglVertex4f) (GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+extern void (APIENTRY *qglVertex4fv) (const GLfloat *v);
+extern void (APIENTRY *qglVertex4i) (GLint x, GLint y, GLint z, GLint w);
+extern void (APIENTRY *qglVertex4iv) (const GLint *v);
+extern void (APIENTRY *qglVertex4s) (GLshort x, GLshort y, GLshort z, GLshort w);
+extern void (APIENTRY *qglVertex4sv) (const GLshort *v);
+extern void (APIENTRY *qglEnd) (void);
+extern void (APIENTRY *qglReadBuffer) (GLenum mode);
+
+//misc extensions
+extern FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
+extern void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
+
+extern void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
+extern void (APIENTRY *qglEnableClientState) (GLenum array);
+extern void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+
+extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
+extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
+extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
+extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+
+extern void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
+extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
+
+
 
 //glslang helper api
 GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag, qboolean silent);
@@ -880,8 +1046,6 @@ void GL_SelectProgram(int program);
 
 
 
-extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
-extern FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
 void GL_Init(void *(*getglfunction) (char *name));
 

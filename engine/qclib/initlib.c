@@ -1021,7 +1021,7 @@ pubprogfuncs_t deffuncs = {
 
 	NULL,	//progstate
 	PR_FindFunc,
-#ifdef MINIMAL
+#if defined(MINIMAL) || defined(OMIT_QCC)
 	NULL,
 	NULL,
 #else
@@ -1055,7 +1055,7 @@ pubprogfuncs_t deffuncs = {
 	PR_ToggleBreakpoint,
 	0,	//numprogs
 	NULL,	//parms
-#ifdef MINIMAL
+#if defined(MINIMAL) || defined(OMIT_QCC)
 	NULL,	//decompile
 #else
 	QC_Decompile,

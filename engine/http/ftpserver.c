@@ -57,7 +57,11 @@ int FTP_BeginListening(int aftype, int port)
 	int i;
 	int sock;
 
+#ifdef IPPROTO_IPV6
 	if ((sock = socket ((aftype!=1)?PF_INET6:PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+#else
+	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+#endif
 	{
 		IWebPrintf ("FTP_BeginListening: socket: %s\n", strerror(qerrno));
 		return INVALID_SOCKET;
@@ -69,24 +73,8 @@ int FTP_BeginListening(int aftype, int port)
 		return INVALID_SOCKET;
 	}
 
-	if (aftype == 1)
-	{
-		//1=ipv4 only
-		((struct sockaddr_in*)&address)->sin_family = AF_INET;
-	//ZOID -- check for interface binding option
-		if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
-			((struct sockaddr_in*)&address)->sin_addr.s_addr = inet_addr(com_argv[i+1]);
-			Con_TPrintf(TL_NETBINDINTERFACE,
-					inet_ntoa(((struct sockaddr_in*)&address)->sin_addr));
-		} else
-			((struct sockaddr_in*)&address)->sin_addr.s_addr = INADDR_ANY;
-
-		if (port == PORT_ANY)
-			((struct sockaddr_in*)&address)->sin_port = 0;
-		else
-			((struct sockaddr_in*)&address)->sin_port = htons((short)port);
-	}
-	else
+#ifdef IPPROTO_IPV6
+	if (aftype != 1)
 	{
 		//0=ipv4+ipv6
 		//2=ipv6 only
@@ -106,6 +94,24 @@ int FTP_BeginListening(int aftype, int port)
 			((struct sockaddr_in6*)&address)->sin6_port = 0;
 		else
 			((struct sockaddr_in6*)&address)->sin6_port = htons((short)port);
+	}
+	else
+#endif
+	{
+		//1=ipv4 only
+		((struct sockaddr_in*)&address)->sin_family = AF_INET;
+	//ZOID -- check for interface binding option
+		if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
+			((struct sockaddr_in*)&address)->sin_addr.s_addr = inet_addr(com_argv[i+1]);
+			Con_TPrintf(TL_NETBINDINTERFACE,
+					inet_ntoa(((struct sockaddr_in*)&address)->sin_addr));
+		} else
+			((struct sockaddr_in*)&address)->sin_addr.s_addr = INADDR_ANY;
+
+		if (port == PORT_ANY)
+			((struct sockaddr_in*)&address)->sin_port = 0;
+		else
+			((struct sockaddr_in*)&address)->sin_port = htons((short)port);
 	}
 
 	if( bind (sock, (void *)&address, sizeof(address)) == -1)

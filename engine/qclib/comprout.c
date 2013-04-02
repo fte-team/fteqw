@@ -17,7 +17,7 @@ void QCC_PR_ResetErrorScope(void);
 
 
 
-#ifdef MINIMAL
+#if defined(MINIMAL) || defined(OMIT_QCC)
 
 #else
 
@@ -157,7 +157,7 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs)
 #endif
 pbool CompileFile(progfuncs_t *progfuncs, char *filename)
 {	
-#ifdef MINIMAL
+#if defined(MINIMAL) || defined(OMIT_QCC)
 	return false;
 #else
 	char srcfile[32];

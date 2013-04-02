@@ -134,7 +134,7 @@ void SetEndian(void)
 
 
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 /*
 ================
 I_FloatTime
@@ -453,7 +453,7 @@ char *VARGS qcva (char *text, ...)
 }
 
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 
 char *QC_strupr (char *start)
 {

@@ -251,7 +251,22 @@ void Sys_SendKeyEvents(void)
 
 		case SDL_KEYUP:
 		case SDL_KEYDOWN:
-			IN_KeyEvent(0, event.key.state, tbl_sdltoquake[event.key.keysym.sym], event.key.keysym.unicode);
+			{
+				int u = event.key.keysym.unicode;
+				int s = event.key.keysym.sym;
+				int qs;
+				if (s < sizeof(tbl_sdltoquake) / sizeof(tbl_sdltoquake[0]))
+					qs = tbl_sdltoquake[s];
+				else 
+					qs = 0;
+#ifdef FTE_TARGET_WEB
+				//emscripten doesn't support unicode, but does pretend to. override it so we get something usable.
+				u = qs;
+				if (u < 32 || u > 127)
+					u = 0;
+#endif
+				IN_KeyEvent(0, event.key.state, s, u);
+			}
 			break;
 
 		case SDL_MOUSEMOTION:

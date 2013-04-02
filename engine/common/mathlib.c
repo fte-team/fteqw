@@ -428,7 +428,7 @@ int Vector4Compare (const vec4_t v1, const vec4_t v2)
 			
 	return 1;
 }
-
+/*
 void _VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc)
 {
 	vecc[0] = veca[0] + scale*vecb[0];
@@ -462,7 +462,7 @@ void _VectorCopy (vec3_t in, vec3_t out)
 	out[1] = in[1];
 	out[2] = in[2];
 }
-
+*/
 void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
 {
 	cross[0] = v1[1]*v2[2] - v1[2]*v2[1];

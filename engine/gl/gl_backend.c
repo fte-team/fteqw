@@ -384,7 +384,7 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 
 	shaderstate.currenttextures[tmu] = texnum.num;
 	if (target)
-		bindTexFunc (target, texnum.num);
+		qglBindTexture (target, texnum.num);
 
 #ifndef FORCESTATE
 	if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
@@ -413,7 +413,7 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 #endif
 		{
 			if (shaderstate.curtexturetype[tmu])
-				bindTexFunc (shaderstate.curtexturetype[tmu], texnum.num);
+				qglBindTexture (shaderstate.curtexturetype[tmu], texnum.num);
 			if (gl_config.nofixedfunc)
 			{
 				shaderstate.curtexturetype[tmu] = target;
@@ -429,7 +429,7 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 		}
 
 		if (target)
-			bindTexFunc (target, texnum.num);
+			qglBindTexture (target, texnum.num);
 	}
 }
 

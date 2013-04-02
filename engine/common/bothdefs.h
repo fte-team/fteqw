@@ -58,6 +58,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_ZLIB
 #endif
 
+#ifdef FTE_TARGET_WEB
+	//no Sys_LoadLibrary support, so we might as well kill this stuff off.
+	#define NO_PNG
+	#define NO_JPEG
+	#define NO_OGG
+	#define NO_ZLIB
+	#define NO_FREETYPE
+#endif
+
 #ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
 #else
@@ -249,6 +258,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //these things were moved to plugins.
 	#endif
 
+#endif
+
+#ifdef FTE_TARGET_WEB
+#undef VOICECHAT
 #endif
 
 #ifdef ANDROID

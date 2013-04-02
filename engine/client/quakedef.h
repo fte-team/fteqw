@@ -128,7 +128,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#include <png.h>
 	#endif
 #else
-#include <setjmp.h>
+	#ifdef FTE_TARGET_WEB
+		#define setjmp(x) 0
+		#define longjmp(b,r) abort()
+		typedef int jmp_buf;
+	#else
+		#include <setjmp.h>
+	#endif
 #endif
 #include <time.h>
 #ifdef __cplusplus

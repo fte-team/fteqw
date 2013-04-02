@@ -343,7 +343,9 @@ else
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
-BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I$(BOTLIB_DIR) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex -DBOTLIB $(SVNREVISION)
+SDL_INCLUDES=-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL
+BOTLIB_CFLAGS=-I$(BOTLIB_DIR) -DBOTLIB
+BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(BOTLIB_CFLAGS) $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -1114,6 +1116,38 @@ ifeq ($(FTE_TARGET),droid)
 	GL_EXE_NAME=libftedroid.so
 endif
 
+ifeq ($(FTE_TARGET),web)
+	RELEASE_CFLAGS=-O1 -DOMIT_QCC -DGL_STATIC
+	CC=emcc -DFTE_TARGET_WEB -s TOTAL_MEMORY=268435456 -s FULL_ES2=1
+	#-s ASM_JS=1
+	#BASELDFLAGS=
+
+	#mostly we inherit the sdl defaults. because we can, however emscripten does not support sdl cd code.
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_null.o sys_sdl.o in_sdl.o
+	SDL_INCLUDES=
+
+	SV_DIR=sv_web
+	#SV_LDFLAGS=-lz
+	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o
+	SV_EXE_NAME=libftesv.js
+
+	#SV_LDFLAGS=
+
+	STRIP=echo
+	SPEEXCFLAGS=
+	SPEEX_OBS=
+	#GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) cd_null.o
+	#GL_LDFLAGS=$(GLLDFLAGS)
+	GLB_DIR=gl_web
+	GL_EXE_NAME=../ftewebgl.html
+
+	IMAGELDFLAGS=
+	OGGVORBISLDFLAGS=
+
+	BOTLIB_CFLAGS=
+	NODEPS = 1
+endif
+
 SV_DIR?=sv_sdl
 
 -include Makefile_private
@@ -1157,8 +1191,7 @@ VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) 
 
 ifneq ($(findstring -DSPEEX_STATIC, $(CFLAGS)),)
 	#add these to statically link libspeex
-	VPATH += : $(BASE_DIR)/libs/speex/libspeex
-	BASE_CFLAGS += -DSPEEX_STATIC -I$(BASE_DIR)/libs/speex/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
+	BASE_CFLAGS += $(SPEEXCFLAGS)
 	CLIENT_OBJS += $(SPEEX_OBJS)
 endif
 

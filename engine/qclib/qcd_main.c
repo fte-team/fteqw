@@ -85,7 +85,7 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *
 	return buffer;
 }
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 void SafeWrite(int hand, void *buf, long count);
 int SafeSeek(int hand, int ofs, int mode);
 //we are allowed to trash our input here.

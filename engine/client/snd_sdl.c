@@ -102,12 +102,20 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 	desired.userdata = sc;
 	memcpy(&obtained, &desired, sizeof(obtained));
 
-
+#ifdef FTE_TARGET_WEB
+	if ( SDL_OpenAudio(&desired, NULL) < 0 )
+	{
+		Con_Printf("SDL: SNDDMA_Init: couldn't open sound device (%s).\n", SDL_GetError());
+		return false;
+	}
+	obtained = desired;
+#else
 	if ( SDL_OpenAudio(&desired, &obtained) < 0 )
 	{
 		Con_Printf("SDL: SNDDMA_Init: couldn't open sound device (%s).\n", SDL_GetError());
 		return false;
 	}
+#endif
 	sc->sn.numchannels = obtained.channels;
 	sc->sn.speed = obtained.freq;
 	sc->sn.samplebits = obtained.format&0xff;

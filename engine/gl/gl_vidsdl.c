@@ -34,7 +34,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Con_Printf("SDL GLVID_Init\n");
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
+#ifndef FTE_TARGET_WEB
 	SDL_SetVideoMode( 0, 0, 0, 0 );	//to get around some SDL bugs
+#endif
 
 	SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 5 );
 	SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 5 );
@@ -69,8 +71,6 @@ Con_Printf("Getting gamma\n");
 		Con_Printf("Couldn't set GL mode: %s\n", SDL_GetError());
 		return false;
 	}
-
-	SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &gl_stencilbits);
 
 	ActiveApp = true;
 

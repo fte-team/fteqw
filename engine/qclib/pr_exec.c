@@ -54,7 +54,7 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 		break;
 	}
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 	if ( (unsigned)op < OP_NUMOPS)
 	{
 		int i;
@@ -146,7 +146,7 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 		out += strlen(out);
 	}
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 	if ( (unsigned)op < OP_NUMOPS)
 	{
 		int i;

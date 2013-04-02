@@ -1,4 +1,4 @@
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 
 #define PROGSUSED
 #include "qcc.h"

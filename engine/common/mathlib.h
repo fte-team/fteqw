@@ -113,10 +113,10 @@ typedef struct {
 
 
 
-vec_t		_DotProduct (vec3_t v1, vec3_t v2);
-void		_VectorAdd (vec3_t veca, vec3_t vecb, vec3_t out);
-void		_VectorCopy (vec3_t in, vec3_t out);
-void		_VectorSubtract (vec3_t veca, vec3_t vecb, vec3_t out);
+//vec_t		_DotProduct (vec3_t v1, vec3_t v2);
+//void		_VectorAdd (vec3_t veca, vec3_t vecb, vec3_t out);
+//void		_VectorCopy (vec3_t in, vec3_t out);
+//void		_VectorSubtract (vec3_t veca, vec3_t vecb, vec3_t out);
 void		AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 float		anglemod (float a);
 void		QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);

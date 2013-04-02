@@ -22,6 +22,7 @@ struct sockaddr;
 
 #include "quakedef.h"
 #include "netinc.h"
+#include <sys/time.h>
 
 #ifdef _WIN32
 #define USE_GETHOSTNAME_LOCALLISTING
@@ -137,7 +138,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in*)s)->sin_family = AF_INET;
 
-		*(int *)&((struct sockaddr_in*)s)->sin_addr = INADDR_BROADCAST;
+		*(int *)&((struct sockaddr_in*)s)->sin_addr = 0xffffffff;//INADDR_BROADCAST;
 		((struct sockaddr_in*)s)->sin_port = a->port;
 		return sizeof(struct sockaddr_in);
 

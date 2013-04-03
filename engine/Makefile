@@ -65,17 +65,8 @@ USER_TARGET:=$(FTE_TARGET)
 DROID_NDK_PATH?=~/droid/android-ndk-r6b
 DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
 ANT?=ant
-JAVATOOL="$(JAVA_HOME)"/bin/
+JAVATOOL=$(JAVA_HOME)/bin/
 ANDROID_SCRIPT=android
-
-ifeq ($(WHOAMI),moodles)
-	ANT_HOME=/home/moodles/apache-ant-1.8.2/
-	ANT=/home/moodles/apache-ant-1.8.2/bin/ant
-	JAVA_HOME=/home/moodles/jdk1.6.0_25/
-	DROID_NDK_PATH=/home/moodles/android_ndk
-	DROID_SDK_PATH=/home/moodles/android_sdk
-	JARSIGNARGS="-storepass fteqw1"
-endif
 
 ifeq ($(DROID_ARCH),)
 	DROID_ARCH=armeabi
@@ -1498,6 +1489,7 @@ droid/build.xml:
 
 #build FTE as a library, then build the java+package (release)
 droid/ftekeystore:
+ifeq ($(KEYTOOLARGS),)
 	@echo
 	@echo In order to build a usable APK file it must be signed. That requires a private key.
 	@echo Creation of a private key requries various bits of info...
@@ -1509,6 +1501,10 @@ droid/ftekeystore:
 	@echo Morality warning: never distribute droid/ftekeystore - always do make distclean before distributing.
 	@echo
 	$(JAVATOOL)keytool -genkey -v -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000
+else
+	@echo Generating keystore
+	@$(JAVATOOL)keytool -genkey -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000 -noprompt $(KEYTOOLARGS)
+endif
 
 droid-rel: droid/build.xml droid/ftekeystore
 	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-rel DROID_ARCH=$a; )

@@ -5,6 +5,10 @@
 #define HAVE_PACKET	//if we have the socket api at all...
 #endif
 
+#ifdef FTE_TARGET_WEB
+#undef HAVE_PACKET	//no udp packet interface.
+#endif
+
 #ifdef NACL
 
 	struct sockaddr

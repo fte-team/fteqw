@@ -1797,6 +1797,9 @@ static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connectio
 				else
 					pmp->pmpaddr = pmp->reqpmpaddr;
 
+				if (*(int*)pmp->pmpaddr.address.ip == INADDR_ANY)
+					continue;
+
 				//get the public ip.
 				pmpreqmsg.op = 0;
 				NET_SendPacket(NS_SERVER, 2, &pmpreqmsg, pmp->pmpaddr);
@@ -1804,6 +1807,8 @@ static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connectio
 				//open the firewall/nat.
 				pmpreqmsg.op = 1;
 				NET_SendPacket(NS_SERVER, sizeof(pmpreqmsg), &pmpreqmsg, pmp->pmpaddr);
+
+				break;
 			}
 		}
 	}
@@ -1824,6 +1829,7 @@ qboolean FTENET_NATPMP_GetPacket(struct ftenet_generic_connection_s *con)
 	unsigned int now = Sys_Milliseconds();
 	if (now - pmp->refreshtime > PMP_POLL_TIME)	//weird logic to cope with wrapping
 	{
+Con_Printf("nat-pmp refresh (%u - %u > %u)\n", now, pmp->refreshtime, PMP_POLL_TIME);
 		pmp->refreshtime = now;
 		FTENET_NATPMP_Refresh(pmp, pmp->natadr.port, pmp->col);
 	}
@@ -1833,11 +1839,10 @@ qboolean FTENET_NATPMP_SendPacket(struct ftenet_generic_connection_s *con, int l
 {
 	return false;
 }
-qboolean FTENET_NATPMP_Close(struct ftenet_generic_connection_s *con)
+void FTENET_NATPMP_Close(struct ftenet_generic_connection_s *con)
 {
 	//FIXME: we should send a packet to close the port
 	Z_Free(con);
-	return true;
 }
 ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address)
 {
@@ -2479,6 +2484,7 @@ typedef struct ftenet_tcpconnect_stream_s {
 	enum
 	{
 		TCPC_UNKNOWN,
+		TCPC_UNFRAMED,	//something else is doing the framing (ie: we're running in emscripten and over some hidden websocket connection)
 		TCPC_QIZMO,
 		TCPC_WEBSOCKET
 	} clienttype;
@@ -2870,6 +2876,17 @@ handshakeerror:
 			net_from = st->remoteaddr;
 
 			return true;
+		case TCPC_UNFRAMED:
+			if (!st->inlen)
+				continue;
+			net_message.cursize = st->inlen;
+			memcpy(net_message_buffer, st->inbuffer, net_message.cursize);
+			st->inlen = 0;
+			
+			net_message.packing = SZ_RAWBYTES;
+			net_message.currentbit = 0;
+			net_from = st->remoteaddr;
+			return true;
 		case TCPC_WEBSOCKET:
 			while (st->inlen >= 2)
 			{
@@ -3094,6 +3111,14 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 						}
 					}
 					break;
+				case TCPC_UNFRAMED:
+					if (length > sizeof(st->outbuffer))
+					{
+						Con_DPrintf("FTENET_TCPConnect_SendPacket: outgoing overflow\n");
+					}
+					memcpy(st->outbuffer, data, length);
+					st->outlen = length;
+					break;
 				case TCPC_WEBSOCKET:
 					{
 						/*as a server, we don't need the mask stuff*/
@@ -3185,6 +3210,7 @@ void FTENET_TCPConnect_Close(ftenet_generic_connection_t *gcon)
 	FTENET_Generic_Close(gcon);
 }
 
+#ifdef HAVE_PACKET
 int FTENET_TCPConnect_SetReceiveFDSet(ftenet_generic_connection_t *gcon, fd_set *fdset)
 {
 	int maxfd = 0;
@@ -3207,6 +3233,7 @@ int FTENET_TCPConnect_SetReceiveFDSet(ftenet_generic_connection_t *gcon, fd_set 
 	}
 	return maxfd;
 }
+#endif
 
 ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily, qboolean isserver, const char *address)
 {
@@ -3221,9 +3248,17 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 	int family;
 	if (!strncmp(address, "tcp://", 6))
 		address += 6;
+	if (!strncmp(address, "ws://", 5))
+		address += 5;
+	if (!strncmp(address, "wss://", 6))
+		address += 6;
 
 	if (isserver)
 	{
+#ifndef HAVE_PACKET
+		//unable to listen on tcp if we have no packet interface
+		return NULL;
+#else
 		if (!NET_PortToAdr(affamily, address, &adr))
 			return NULL;	//couldn't resolve the name
 		if (adr.type == NA_IP)
@@ -3250,10 +3285,11 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 
 		if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 			Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+#endif
 	}
 	else
 	{
-		if (!NET_PortToAdr(affamily, address, &adr))
+		if (!NET_StringToAdr(address, 0, &adr))
 			return NULL;	//couldn't resolve the name
 
 		if (adr.type == NA_IP)
@@ -3274,7 +3310,9 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 		newcon->generic.GetPacket = FTENET_TCPConnect_GetPacket;
 		newcon->generic.SendPacket = FTENET_TCPConnect_SendPacket;
 		newcon->generic.Close = FTENET_TCPConnect_Close;
+#ifdef HAVE_PACKET
 		newcon->generic.SetReceiveFDSet = FTENET_TCPConnect_SetReceiveFDSet;
+#endif
 
 		newcon->generic.islisten = isserver;
 		newcon->generic.addrtype[0] = adr.type;
@@ -3288,15 +3326,19 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 
 			newcon->active++;
 			newcon->tcpstreams = Z_Malloc(sizeof(*newcon->tcpstreams));
-			newcon->tcpstreams->clienttype = TCPC_UNKNOWN;
 			newcon->tcpstreams->next = NULL;
 			newcon->tcpstreams->socketnum = newsocket;
 			newcon->tcpstreams->inlen = 0;
 
 			newcon->tcpstreams->remoteaddr = adr;
 
+#ifdef FTE_TARGET_WEB
+			newcon->tcpstreams->clienttype = TCPC_UNFRAMED;
+#else
 			//send the qizmo greeting.
+			newcon->tcpstreams->clienttype = TCPC_UNKNOWN;
 			send(newsocket, "qizmo\n", 6, 0);
+#endif
 
 			newcon->tcpstreams->timeouttime = Sys_DoubleTime() + 30;
 		}
@@ -5054,7 +5096,7 @@ void NET_InitServer(void)
 #ifdef USEIPX
 		Cvar_ForceCallback(&sv_port_ipx);
 #endif
-#ifdef TCPCONNECT
+#if defined(TCPCONNECT) && defined(HAVE_TCP)
 		Cvar_ForceCallback(&sv_port_tcp);
 #ifdef IPPROTO_IPV6
 		Cvar_ForceCallback(&sv_port_tcp6);

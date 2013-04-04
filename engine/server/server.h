@@ -269,7 +269,7 @@ typedef struct
 
 	svcustomtents_t customtents[255];
 
-	int				csqcentversion[MAX_EDICTS];//prevents ent versions from going backwards
+	int		*csqcentversion;//prevents ent versions from going backwards
 } server_t;
 
 typedef enum

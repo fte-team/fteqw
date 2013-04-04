@@ -57,6 +57,37 @@ void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail
 
 //quick hack that made quake work on both 1+ext and 1.1 gl implementations.
 BINDTEXFUNCPTR qglBindTexture;
+
+
+/*glslang - arb_shader_objects
+gl core uses different names/distinctions from the extension
+*/
+FTEPFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
+FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
+FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
+FTEPFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
+FTEPFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
+FTEPFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
+FTEPFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
+FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetShaderParameteriv_;
+FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetProgramParameteriv_;
+FTEPFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
+FTEPFNGLGETINFOLOGARBPROC           qglGetShaderInfoLog_;
+FTEPFNGLGETINFOLOGARBPROC           qglGetProgramInfoLog_;
+FTEPFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
+FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
+FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
+FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4fvARB;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
+FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
+FTEPFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
+FTEPFNGLUNIFORM3FARBPROC            qglUniform3fARB;
+FTEPFNGLUNIFORM3FVARBPROC           qglUniform3fvARB;
+FTEPFNGLUNIFORM4FVARBPROC           qglUniform2fvARB;
+FTEPFNGLUNIFORM1IARBPROC            qglUniform1iARB;
+FTEPFNGLUNIFORM1FARBPROC            qglUniform1fARB;
 #endif
 //standard 1.1 opengl calls
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
@@ -152,35 +183,6 @@ PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
-/*glslang - arb_shader_objects
-gl core uses different names/distinctions from the extension
-*/
-FTEPFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
-FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
-FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
-FTEPFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
-FTEPFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
-FTEPFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
-FTEPFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetShaderParameteriv_;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetProgramParameteriv_;
-FTEPFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
-FTEPFNGLGETINFOLOGARBPROC           qglGetShaderInfoLog_;
-FTEPFNGLGETINFOLOGARBPROC           qglGetProgramInfoLog_;
-FTEPFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
-FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
-FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
-FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4fvARB;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
-FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
-FTEPFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
-FTEPFNGLUNIFORM3FARBPROC            qglUniform3fARB;
-FTEPFNGLUNIFORM3FVARBPROC           qglUniform3fvARB;
-FTEPFNGLUNIFORM4FVARBPROC           qglUniform2fvARB;
-FTEPFNGLUNIFORM1IARBPROC            qglUniform1iARB;
-FTEPFNGLUNIFORM1FARBPROC            qglUniform1fARB;
 
 //extensions
 //arb multitexture
@@ -395,11 +397,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	else
 		gl_config.gles = false;
 
-	if (webgl)
-	{
-		gl_major_version = 2;
-		gl_minor_version = 0;
-	}
 	if (!gl_config.gles)
 	{
 		if (qglGetError())
@@ -420,6 +417,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			s++;
 		gl_minor_version = atoi(s);
 	}
+	if (webgl)
+		gl_major_version+=1;
 	//yes, I know, this can't cope with minor versions of 10+... I don't care yet.
 	gl_config.glversion += gl_major_version + (gl_minor_version/10.f);
 
@@ -720,7 +719,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
 
-#ifndef GL_STATIC
+#ifdef GL_STATIC
+	gl_config.arb_shader_objects = true;
+#else
 	if (Cvar_Get("gl_blacklist_debug_glsl", "0", CVAR_RENDERERLATCH, "gl blacklists")->ival && !gl_config.nofixedfunc)
 	{
 		Con_Printf(CON_NOTICE "GLSL disabled\n");
@@ -788,10 +789,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglLinkProgramARB			= (void *)getglext("glLinkProgram");
 		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocation");
 		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocation");
-		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
-		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
-		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
-		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocation");
 		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fv");
 		qglUniformMatrix3x4fv		= (void *)getglext("glUniformMatrix3x4fv");
@@ -803,6 +800,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform2fvARB			= (void *)getglext("glUniform2fv");
 		qglUniform1iARB				= (void *)getglext("glUniform1i");
 		qglUniform1fARB				= (void *)getglext("glUniform1f");
+		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
+		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
+		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
+		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
 		Con_DPrintf("GLSL available\n");
 	}
 	else if (GL_CheckExtension("GL_ARB_fragment_shader")
@@ -1181,10 +1182,15 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 		/*required version not supported, don't even try*/
 		if (ver > gl_config.maxglslversion)
 			return 0;
-
-		prstrings[strings] = va("#version %u\n", ver);
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+#ifdef FTE_TARGET_WEB
+		//emscripten prefixes our shader with a precision specifier, and then the browser bitches as the (otherwise valid) #version, so don't say anything at all if its ver 100, and the browser won't complain
+		if (ver != 100)
+#endif
+		{
+			prstrings[strings] = va("#version %u\n", ver);
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
+		}
 	}
 
 	while(*precompilerconstants)
@@ -1484,6 +1490,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglScissor			= (void *)getglcore("glScissor");
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
 #endif
+#ifndef FTE_TARGET_WEB
 	qglAlphaFunc		= (void *)getglcore("glAlphaFunc");
 	qglBegin			= (void *)getglcore("glBegin");
 	qglClearDepth		= (void *)getglcore("glClearDepth");
@@ -1527,7 +1534,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglVertex2f			= (void *)getglcore("glVertex2f");
 	qglVertex3f			= (void *)getglcore("glVertex3f");
 	qglVertex3fv		= (void *)getglcore("glVertex3fv");
-
+#endif
 
 	//various vertex array stuff.
 	qglArrayElement			= (void *)getglcore("glArrayElement");

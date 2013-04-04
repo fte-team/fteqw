@@ -74,7 +74,7 @@ unsigned int Sys_Milliseconds(void)
 	if (newtime < oldtime)
 		Con_Printf("Sys_Milliseconds stepped backwards!\n");
 	else
-		curtime += oldtime - newtime;
+		curtime += newtime - oldtime;
 	oldtime = newtime;
 	return curtime;
 }
@@ -82,6 +82,8 @@ unsigned int Sys_Milliseconds(void)
 //return the current time, in the form of a double
 double Sys_DoubleTime (void)
 {
+	return Sys_Milliseconds() / 1000.0;
+/*
 	static int first = true;
 	static double oldtime = 0.0, curtime = 0.0;
 	double newtime;
@@ -106,6 +108,7 @@ double Sys_DoubleTime (void)
 	oldtime = newtime;
 
 	return curtime;
+*/
 }
 
 //create a directory
@@ -500,12 +503,15 @@ int QDECL main(int argc, char **argv)
 
 	memset(&parms, 0, sizeof(parms));
 
-	parms.argv = argv;
 
+#ifdef FTE_TARGET_WEB
+	parms.basedir = "";
+#else
 	parms.basedir = ".";
+#endif
 
 	parms.argc = argc;
-	parms.argv = argv;
+	parms.argv = (const char**)argv;
 
 #ifndef WIN32
 	fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);

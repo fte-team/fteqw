@@ -42,7 +42,16 @@ typedef vec4_t avec4_t;
 typedef qbyte byte_vec4_t[4];
 #endif
 
-#define vecV_t avec4_t
+//VECV_STRIDE is used only as an argument for opengl.
+#ifdef FTE_TARGET_WEB
+	//emscripten is alergic to explicit strides without packed attributes, at least in emulated code.
+	//so we need to keep everything packed. screw sse-friendly packing.
+	#define vecV_t vec3_t
+	#define VECV_STRIDE 0
+#else
+	#define vecV_t avec4_t
+	#define VECV_STRIDE sizeof(vecV_t)
+#endif
 
 typedef	int	fixed4_t;
 typedef	int	fixed8_t;

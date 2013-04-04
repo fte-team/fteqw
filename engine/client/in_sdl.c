@@ -397,6 +397,12 @@ void Sys_SendKeyEvents(void)
 			case QR_OPENGL:
 				vid.pixelwidth = event.resize.w;
 				vid.pixelheight = event.resize.h;
+				{
+				extern cvar_t vid_conautoscale, vid_conwidth;	//make sure the screen is updated properly.
+				Cvar_ForceCallback(&vid_conautoscale);
+		                Cvar_ForceCallback(&vid_conwidth);
+				}
+
 				break;
 #endif
 			}

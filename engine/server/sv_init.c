@@ -537,6 +537,11 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		sv.world.worldmodel = NULL;
 		sv.state = ss_dead;
 		*sv.name = '\0';
+		if (sv.csqcentversion)
+		{
+			BZ_Free(sv.csqcentversion);
+			sv.csqcentversion = NULL;
+		}
 	}
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -565,6 +570,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 {
 	func_t f;
 	char *file;
+	extern cvar_t pr_maxedicts;
 
 	gametype_e newgametype;
 
@@ -677,6 +683,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	Hunk_FreeToLowMark (host_hunklevel);
 
 	PR_Deinit();
+
+	if (sv.csqcentversion)
+		BZ_Free(sv.csqcentversion);
 
 	// wipe the entire per-level structure
 	memset (&sv, 0, sizeof(sv));
@@ -888,6 +897,15 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	sv.state = ss_loading;
 
+	sv.world.max_edicts = pr_maxedicts.value;
+	if (sv.world.max_edicts > MAX_EDICTS)
+		sv.world.max_edicts = MAX_EDICTS;
+#ifdef PEXT_CSQC
+	sv.csqcentversion = BZ_Malloc(sizeof(*sv.csqcentversion) * sv.world.max_edicts);
+	for (i=0 ; i<sv.world.max_edicts ; i++)
+		sv.csqcentversion[i] = 1;	//force all csqc edicts to start off as version 1
+#endif
+
 	newgametype = svs.gametype;
 #ifdef HLSERVER
 	if (SVHL_InitGame())
@@ -1080,9 +1098,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifdef PEXT_CSQC
 			if (svs.clients[i].csqcentsequence)
-				memset(svs.clients[i].csqcentsequence, 0, sizeof(svs.clients[i].csqcentsequence));
+				memset(svs.clients[i].csqcentsequence, 0, sizeof(*svs.clients[i].csqcentsequence) * svs.clients[i].max_net_ents);
 			if (svs.clients[i].csqcentversions)
-				memset(svs.clients[i].csqcentversions, 0, sizeof(svs.clients[i].csqcentversions));
+				memset(svs.clients[i].csqcentversions, 0, sizeof(*svs.clients[i].csqcentversions) * svs.clients[i].max_net_ents);
 #endif
 		}
 		for (; i < MAX_CLIENTS; i++)
@@ -1091,11 +1109,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				SV_DropClient(&svs.clients[i]);
 			svs.clients[i].namebuf[0] = '\0';						//kill all bots
 		}
-#ifdef PEXT_CSQC
-		for (i=0 ; i<MAX_EDICTS ; i++)
-			sv.csqcentversion[i] = 1;	//force all csqc edicts to start off as version 1
-#endif
-
 		break;
 	case GT_QUAKE2:
 #ifdef Q2SERVER

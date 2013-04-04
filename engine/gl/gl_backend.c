@@ -386,10 +386,13 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 	if (target)
 		qglBindTexture (target, texnum.num);
 
+	if (
 #ifndef FORCESTATE
-	if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
+	shaderstate.curtexturetype[tmu] != target &&
 #endif
+ !gl_config.nofixedfunc)
 	{
+
 		if (shaderstate.curtexturetype[tmu])
 			qglDisable(shaderstate.curtexturetype[tmu]);
 		shaderstate.curtexturetype[tmu] = target;
@@ -520,7 +523,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 			shaderstate.curvertexpointer = shaderstate.pendingvertexpointer;
 			shaderstate.curvertexvbo = shaderstate.pendingvertexvbo;
 			GL_SelectVBO(shaderstate.curvertexvbo);
-			qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), shaderstate.curvertexpointer);
+			qglVertexPointer(3, GL_FLOAT, VECV_STRIDE, shaderstate.curvertexpointer);
 		}
 		if ((bitstoendisable) & (1u<<VATTR_LEG_VERTEX))
 		{
@@ -547,18 +550,18 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 			case VATTR_VERTEX1:
 				/*we still do vertex transforms for billboards and shadows and such*/
 				GL_SelectVBO(shaderstate.pendingvertexvbo);
-				qglVertexAttribPointer(i, 3, GL_FLOAT, GL_FALSE, sizeof(vecV_t), shaderstate.pendingvertexpointer);
+				qglVertexAttribPointer(i, 3, GL_FLOAT, GL_FALSE, VECV_STRIDE, shaderstate.pendingvertexpointer);
 				break;
 			case VATTR_VERTEX2:
 				if (!shaderstate.sourcevbo->coord2.gl.vbo && !shaderstate.sourcevbo->coord2.gl.addr)
 				{
 					GL_SelectVBO(shaderstate.pendingvertexvbo);
-					qglVertexAttribPointer(i, 3, GL_FLOAT, GL_FALSE, sizeof(vecV_t), shaderstate.pendingvertexpointer);
+					qglVertexAttribPointer(i, 3, GL_FLOAT, GL_FALSE, VECV_STRIDE, shaderstate.pendingvertexpointer);
 				}
 				else
 				{
 					GL_SelectVBO(shaderstate.sourcevbo->coord2.gl.vbo);
-					qglVertexAttribPointer(VATTR_VERTEX2, 3, GL_FLOAT, GL_FALSE, sizeof(vecV_t), shaderstate.sourcevbo->coord2.gl.addr);
+					qglVertexAttribPointer(VATTR_VERTEX2, 3, GL_FLOAT, GL_FALSE, VECV_STRIDE, shaderstate.sourcevbo->coord2.gl.addr);
 				}
 				break;
 			case VATTR_COLOUR:
@@ -571,31 +574,31 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				break;
 			case VATTR_TEXCOORD:
 				GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-				qglVertexAttribPointer(VATTR_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
+				qglVertexAttribPointer(VATTR_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->texcoord.gl.addr);
 				break;
 			case VATTR_LMCOORD:
 				if (!shaderstate.sourcevbo->lmcoord[0].gl.vbo && !shaderstate.sourcevbo->lmcoord[0].gl.addr)
 				{
 					GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-					qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
+					qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->texcoord.gl.addr);
 				}
 				else
 				{
 					GL_SelectVBO(shaderstate.sourcevbo->lmcoord[0].gl.vbo);
-					qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord[0].gl.addr);
+					qglVertexAttribPointer(VATTR_LMCOORD, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->lmcoord[0].gl.addr);
 				}
 				break;
 			case VATTR_LMCOORD2:
 				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[1].gl.vbo);
-				qglVertexAttribPointer(VATTR_LMCOORD2, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord[1].gl.addr);
+				qglVertexAttribPointer(VATTR_LMCOORD2, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->lmcoord[1].gl.addr);
 				break;
 			case VATTR_LMCOORD3:
 				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[2].gl.vbo);
-				qglVertexAttribPointer(VATTR_LMCOORD3, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord[2].gl.addr);
+				qglVertexAttribPointer(VATTR_LMCOORD3, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->lmcoord[2].gl.addr);
 				break;
 			case VATTR_LMCOORD4:
 				GL_SelectVBO(shaderstate.sourcevbo->lmcoord[3].gl.vbo);
-				qglVertexAttribPointer(VATTR_LMCOORD4, 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord[3].gl.addr);
+				qglVertexAttribPointer(VATTR_LMCOORD4, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->lmcoord[3].gl.addr);
 				break;
 			case VATTR_NORMALS:
 				if (!shaderstate.sourcevbo->normals.gl.addr)
@@ -605,7 +608,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 					continue;
 				}
 				GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
-				qglVertexAttribPointer(VATTR_NORMALS, 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->normals.gl.addr);
+				qglVertexAttribPointer(VATTR_NORMALS, 3, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->normals.gl.addr);
 				break;
 			case VATTR_SNORMALS:
 				if (!shaderstate.sourcevbo->svector.gl.addr)
@@ -615,7 +618,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 					continue;
 				}
 				GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
-				qglVertexAttribPointer(VATTR_SNORMALS, 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->svector.gl.addr);
+				qglVertexAttribPointer(VATTR_SNORMALS, 3, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->svector.gl.addr);
 				break;
 			case VATTR_TNORMALS:
 				if (!shaderstate.sourcevbo->tvector.gl.addr)
@@ -625,15 +628,15 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 					continue;
 				}
 				GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
-				qglVertexAttribPointer(VATTR_TNORMALS, 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector.gl.addr);
+				qglVertexAttribPointer(VATTR_TNORMALS, 3, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->tvector.gl.addr);
 				break;
 			case VATTR_BONENUMS:
 				GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
-				qglVertexAttribPointer(VATTR_BONENUMS, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(byte_vec4_t), shaderstate.sourcevbo->bonenums.gl.addr);
+				qglVertexAttribPointer(VATTR_BONENUMS, 4, GL_UNSIGNED_BYTE, GL_FALSE, 0, shaderstate.sourcevbo->bonenums.gl.addr);
 				break;
 			case VATTR_BONEWEIGHTS:
 				GL_SelectVBO(shaderstate.sourcevbo->boneweights.gl.vbo);
-				qglVertexAttribPointer(VATTR_BONEWEIGHTS, 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->boneweights.gl.addr);
+				qglVertexAttribPointer(VATTR_BONEWEIGHTS, 4, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->boneweights.gl.addr);
 				break;
 			}
 			if ((bitstoendisable) & (1u<<i))
@@ -3497,6 +3500,13 @@ static void DrawMeshes(void)
 		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 	}
+
+#ifdef FTE_TARGET_WEB
+	if (!shaderstate.pendingvertexvbo)
+		return;
+	if (!shaderstate.sourcevbo->indicies.gl.vbo)
+		return;
+#endif
 
 	BE_PolyOffset(shaderstate.flags & BEF_PUSHDEPTH);
 	switch(shaderstate.mode)

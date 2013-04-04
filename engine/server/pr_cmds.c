@@ -1684,9 +1684,6 @@ void Q_InitProgs(void)
 //	svprogfuncs->ToggleBreak(svprogfuncs, "", 0, 2);
 //	svprogfuncs->SetWatchPoint(svprogfuncs, "");
 
-	sv.world.max_edicts = pr_maxedicts.value;
-	if (sv.world.max_edicts > MAX_EDICTS)
-		sv.world.max_edicts = MAX_EDICTS;
 	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
 	if (progstype == PROG_QW)

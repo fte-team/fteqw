@@ -350,7 +350,11 @@ cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
+#ifdef FTE_TARGET_WEB
+cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "0", CVAR_ARCHIVE);
+#else
 cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
+#endif
 cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight_ambient		= SCVAR ("r_shadow_realtime_dlight_ambient", "0");
 cvar_t r_shadow_realtime_dlight_diffuse		= SCVAR ("r_shadow_realtime_dlight_diffuse", "1");

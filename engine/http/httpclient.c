@@ -5,7 +5,149 @@
 #include "netinc.h"
 
 #if defined(WEBCLIENT)
-#if defined(NACL)
+
+#if defined(FTE_TARGET_WEB)
+#include <emscripten/emscripten.h>
+
+typedef struct 
+{
+	vfsfile_t funcs;
+	unsigned long offset;
+	unsigned long length;
+	char data[];
+} mfile_t;
+static int VFSMEM_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	mfile_t *f = (mfile_t*)file;
+	if (f->offset >= f->length)
+		return -1;	//eof!
+	if (bytestoread > f->length - f->offset)
+		bytestoread = f->length - f->offset;	//eof!
+	memcpy(buffer, &f->data[f->offset], bytestoread);
+	f->offset += bytestoread;
+	return bytestoread;
+}
+static int VFSMEM_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
+{
+	return 0;
+}
+static qboolean VFSMEM_Seek (struct vfsfile_s *file, unsigned long pos)
+{
+	mfile_t *f = (mfile_t*)file;
+	f->offset = pos;
+	return true;
+}
+static unsigned long VFSMEM_Tell (struct vfsfile_s *file)
+{
+	mfile_t *f = (mfile_t*)file;
+	return f->offset;
+}
+static unsigned long VFSMEM_GetSize (struct vfsfile_s *file)
+{
+	mfile_t *f = (mfile_t*)file;
+	return f->length;
+}
+static void VFSMEM_Close(vfsfile_t *file)
+{
+	free(file);
+}
+static void VFSMEM_Flush(struct vfsfile_s *file)
+{
+}
+static vfsfile_t *VFSMEM_File(void *data, unsigned int datasize)
+{
+       /*create a file which is already unlinked*/
+        mfile_t *f;
+        f = malloc(sizeof(*f) + datasize);
+        if (!f)
+                return NULL;
+	f->funcs.ReadBytes = VFSMEM_ReadBytes;
+	f->funcs.WriteBytes = VFSMEM_WriteBytes;
+	f->funcs.Seek = VFSMEM_Seek;
+	f->funcs.Tell = VFSMEM_Tell;
+	f->funcs.GetLen = VFSMEM_GetSize;
+	f->funcs.Close = VFSMEM_Close;
+	f->funcs.Flush = VFSMEM_Flush;
+	f->offset = 0;
+	f->length = datasize;
+	memcpy(f->data, data, datasize);
+
+	return &f->funcs;
+}
+
+static void DL_Abort(struct dl_download *dl)
+{
+	dl->ctx = NULL;
+}
+static void DL_OnLoad(void *c, void *data, int datasize)
+{
+	struct dl_download *dl = c;
+	Con_Printf("download %p: success\n", dl);
+
+	//make sure the file is 'open'.
+	if (!dl->file)
+	{
+		if (*dl->localname)
+		{
+	Con_Printf("create file\n");
+			FS_CreatePath(dl->localname, FS_GAME);
+			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
+		}
+		else
+		{
+			//emscripten does not close the file. plus we seem to end up with infinite loops.
+	Con_Printf("temp file\n");
+			dl->file = VFSMEM_File(data, datasize);
+		}
+	}
+
+	if (dl->file)
+	{
+		Con_Printf("writing to file\n");
+		VFS_WRITE(dl->file, data, datasize);
+	}
+
+	dl->replycode = 200;
+	dl->completed += datasize;
+	dl->status = DL_FINISHED;
+}
+static void DL_OnError(void *c)
+{
+	struct dl_download *dl = c;
+	Con_Printf("download %p: error\n", dl);
+
+	dl->replycode = 404;	//we don't actually know. should we not do this?
+	dl->status = DL_FAILED;
+}
+
+//this becomes a poll function. the main thread will call this once a frame or so.
+qboolean HTTPDL_Decide(struct dl_download *dl)
+{
+	const char *url = dl->redir;
+	if (!*url)
+		url = dl->url;
+
+	if (dl->ctx)
+	{
+		if (dl->status == DL_FAILED || dl->status == DL_FINISHED)
+		{
+			DL_Abort(dl);
+			return false;	//safe to destroy it now
+		}
+	}
+	else
+	{
+		dl->status = DL_ACTIVE;
+		dl->abort = DL_Abort;
+		dl->ctx = dl;
+
+		Con_Printf("Sending %p request for %s\n", dl, url);
+		emscripten_async_wget_data(url, dl, DL_OnLoad, DL_OnError);
+	}
+
+	return true;
+}
+#elif defined(NACL)
 #include <ppapi/c/pp_errors.h>
 #include <ppapi/c/ppb_core.h>
 #include <ppapi/c/pp_file_info.h>

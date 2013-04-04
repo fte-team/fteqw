@@ -114,6 +114,10 @@ extern r_config_t r_config;
 
 	#else
 		#include <GL/gl.h>
+		#ifdef GL_STATIC
+			#define GL_GLEXT_PROTOTYPES
+			#include <GL/glext.h>
+		#endif
 	#endif
 //#include <GL/glu.h>
 #include "glsupp.h"
@@ -585,6 +589,32 @@ void R_NetGraph (void);
 #define qglFramebufferTexture2DEXT qglFramebufferTexture2D
 #define qglDeleteRenderbuffersEXT qglDeleteRenderbuffers
 //#define qglCompressedTexImage2DARB qglCompressedTexImage2D
+
+#define qglCreateProgramObjectARB	glCreateProgram
+#define qglDeleteProgramObject_		glDeleteProgram
+#define qglDeleteShaderObject_		glDeleteShader
+#define qglUseProgramObjectARB		glUseProgram
+#define qglCreateShaderObjectARB	glCreateShader
+#define qglShaderSourceARB		glShaderSource
+#define qglCompileShaderARB		glCompileShader
+#define qglGetProgramParameteriv_	glGetProgramiv
+#define qglGetShaderParameteriv_	glGetShaderiv
+#define qglAttachObjectARB		glAttachShader
+#define qglGetProgramInfoLog_		glGetProgramInfoLog
+#define qglGetShaderInfoLog_		glGetShaderInfoLog
+#define qglLinkProgramARB		glLinkProgram
+#define qglBindAttribLocationARB	glBindAttribLocation
+#define qglGetAttribLocationARB		glGetAttribLocation
+#define qglGetUniformLocationARB	glGetUniformLocation
+#define qglUniformMatrix4fvARB		glUniformMatrix4fv
+#define qglUniform4fARB			glUniform4f
+#define qglUniform4fvARB		glUniform4fv
+#define qglUniform3fARB			glUniform3f
+#define qglUniform3fvARB		glUniform3fv
+#define qglUniform2fvARB		glUniform2fv
+#define qglUniform1iARB			glUniform1i
+#define qglUniform1fARB			glUniform1f
+
 #else
 extern void (APIENTRY *qglBindTexture) (GLenum target, GLuint texture);
 extern void (APIENTRY *qglBlendFunc) (GLenum sfactor, GLenum dfactor);
@@ -645,6 +675,32 @@ extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachm
 extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 
+
+//glslang - arb_shader_objects
+extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
+extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
+extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
+extern FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
+extern FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
+extern FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
+extern FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
+extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetProgramParameteriv_;
+extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetShaderParameteriv_;
+extern FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
+extern FTEPFNGLGETINFOLOGARBPROC			qglGetProgramInfoLog_;
+extern FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
+extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
+extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
+extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
+extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4fvARB;
+extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
+extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
+extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
+extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
+extern FTEPFNGLUNIFORM2FVARBPROC			qglUniform2fvARB;
+extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
+extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
 extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
@@ -917,6 +973,9 @@ extern void (APIENTRY *qglTexSubImage1D) (GLenum target, GLint level, GLint xoff
 extern void (APIENTRY *qglTranslated) (GLdouble x, GLdouble y, GLdouble z);
 extern void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3x4fv;
+
 #ifdef _WIN32
 extern BOOL  (WINAPI *qwglCopyContext)(HGLRC, HGLRC, UINT);
 extern HGLRC (WINAPI *qwglCreateContext)(HDC);
@@ -938,34 +997,6 @@ extern PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 extern PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 */
-
-//glslang - arb_shader_objects
-extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
-extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
-extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
-extern FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
-extern FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
-extern FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
-extern FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
-extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetProgramParameteriv_;
-extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetShaderParameteriv_;
-extern FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
-extern FTEPFNGLGETINFOLOGARBPROC			qglGetProgramInfoLog_;
-extern FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
-extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
-extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
-extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
-extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4fvARB;
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3x4fv;
-extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
-extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
-extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
-extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
-extern FTEPFNGLUNIFORM2FVARBPROC			qglUniform2fvARB;
-extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
-extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 extern FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;

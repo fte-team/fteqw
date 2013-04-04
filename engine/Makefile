@@ -718,6 +718,9 @@ ifeq ($(FTE_TARGET),nacl)
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
 
+	GL_LDFLAGS=$(GLLDFLAGS) $(OGGVORBISLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(OGGVORBISLDFLAGS)
+	
 	GLB_DIR=gl_nacl_$(NARCH)
 	MINGL_DIR=mingl_nacl_$(NARCH)
 	ifeq ($(NARCH),pnacl)
@@ -1121,7 +1124,7 @@ ifeq ($(FTE_TARGET),web)
 	SV_DIR=sv_web
 	#SV_LDFLAGS=-lz
 	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o
-	SV_EXE_NAME=libftesv.js
+	SV_EXE_NAME=../libftesv.js
 
 	#SV_LDFLAGS=
 

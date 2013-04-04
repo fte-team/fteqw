@@ -1031,7 +1031,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	else
 		model = NULL;
 
-	if (!model);
+	if (!model)
 	{
 		vec3_t boxmins, boxmaxs;
 		VectorSubtract (ent->v->mins, maxs, boxmins);

@@ -320,10 +320,7 @@ IMAGELDFLAGS ?= -lpng -ljpeg
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 
 #BASELDFLAGS=-lm  -lz
-GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
-GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
 XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
-SLDFLAGS=-lvga
 
 ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
@@ -941,7 +938,7 @@ ifeq ($(FTE_TARGET),bsd)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lpthread
+	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include 
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
@@ -949,7 +946,7 @@ ifeq ($(FTE_TARGET),bsd)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lpthread
+	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lpthread
 	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
@@ -972,7 +969,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lz
+	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS) -lz
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
@@ -980,7 +977,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS) -lz
+	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS) -lz
 	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
@@ -1075,7 +1072,7 @@ ifeq ($(FTE_TARGET),cygwin)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqwglcyg.exe
 	GLCL_EXE_NAME=../fteqwclglcyg.exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
@@ -1083,7 +1080,7 @@ ifeq ($(FTE_TARGET),cygwin)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqwcyg.exe
 	MCL_EXE_NAME=../fteqwclcyg.exe
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) $(OGGVORBISLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
 	M_CFLAGS=$(GLCFLAGS) $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin
@@ -1111,8 +1108,13 @@ ifeq ($(FTE_TARGET),droid)
 endif
 
 ifeq ($(FTE_TARGET),web)
-	RELEASE_CFLAGS=-O1 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB --pre-js web/prejs.js
-	DEBUG_CFLAGS=-O0 -g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB --pre-js web/prejs.js
+	ifneq ($(WEB_PREJS),)
+		WEB_PREJS=--pre-js $(WEB_PREJS)
+	else
+		WEB_PREJS=--pre-js web/prejs.js
+	endif
+	RELEASE_CFLAGS=-O1 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
+	DEBUG_CFLAGS=-O0 -g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
 	CC=emcc -s TOTAL_MEMORY=268435456
 	#-s ASM_JS=1
 	#BASELDFLAGS=

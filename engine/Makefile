@@ -1108,11 +1108,7 @@ ifeq ($(FTE_TARGET),droid)
 endif
 
 ifeq ($(FTE_TARGET),web)
-	ifneq ($(WEB_PREJS),)
-		WEB_PREJS=--pre-js $(WEB_PREJS)
-	else
-		WEB_PREJS=--pre-js web/prejs.js
-	endif
+	WEB_PREJS ?= --pre-js web/prejs.js
 	RELEASE_CFLAGS=-O1 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
 	DEBUG_CFLAGS=-O0 -g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
 	CC=emcc -s TOTAL_MEMORY=268435456

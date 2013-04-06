@@ -145,10 +145,11 @@ struct {
 		int curvertexvbo;
 		void *curvertexpointer;
 
-		int streamvbo;
-		unsigned int streamvbo_offset;
-		unsigned int streamvbo_length;
-		int streamebo;
+#ifdef FTE_TARGET_WEB
+		int streamvbo[64];
+		int streamebo[64];
+		int streamid;
+#endif
 
 		int pendingtexcoordparts[SHADER_TMU_MAX];
 		int pendingtexcoordvbo[SHADER_TMU_MAX];
@@ -1326,11 +1327,10 @@ void GLBE_Init(void)
 
 #ifdef FTE_TARGET_WEB
 	//only do this where we have to.
-	if (qglBufferSubDataARB)
+	if (qglBufferDataARB)
 	{
-		qglGenBuffersARB(1, &shaderstate.streamvbo);
-		qglGenBuffersARB(1, &shaderstate.streamebo);
-		shaderstate.streamvbo_length = shaderstate.streamvbo_offset = 65536*16 * 64*sizeof(vec_t);
+		qglGenBuffersARB(sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]), shaderstate.streamvbo);
+		qglGenBuffersARB(sizeof(shaderstate.streamebo)/sizeof(shaderstate.streamebo[0]), shaderstate.streamebo);
 	}
 #endif
 }
@@ -3259,7 +3259,7 @@ static qboolean GLBE_RegisterLightShader(int mode)
 		}
 	}
 
-	if (shaderstate.shader_light[mode]);
+	if (shaderstate.shader_light[mode])
 		return true;
 	return false;
 }
@@ -3683,116 +3683,67 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 	int i;
 	*vbo = &shaderstate.dummyvbo;
 
+#ifdef FTE_TARGET_WEB
 	//this code is shit shit shit.
-	if (shaderstate.streamvbo)
+	if (shaderstate.streamvbo[0])
 	{
-		//chances are that these will stay active.
+		//use a local. can't use a static, that crashes the compiler due to memory use, so lets eat the malloc or stack or whatever because we really don't have a choice.
+		char buffer[65536 * 33 * sizeof(float)];
+		int len = 0;
+
+		//we're not doing vao... but just in case someone added that as an extension...
 		GL_DeselectVAO();
-		GL_SelectVBO(shaderstate.streamvbo);
-		GL_SelectEBO(shaderstate.streamebo);
 
-		//orphan the old buffer if we're about to overflow it.
-		//fixme: we should bufferflip.
-		if (shaderstate.streamvbo_offset + 4*33*m->numvertexes)
-		{
-			qglBufferDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_length, NULL, GL_STREAM_DRAW_ARB);
-			shaderstate.streamvbo_offset = 0;
-		}
+		//cycle the vbo. this reduces the likelyhood that we'll have to wait for the vbo to no longer be in use.
+		//remember, we can't do nice things like orphan in webgl. we have to create a new buffer every single time.
+		//we can't stream with BufferSubData, because browsers are pure shite, and probably mmap and read back huge blocks of code as they translate the calls to direct3d nonsense.
+		//we can't use client memory and let the driver do the right thing, because lets face it, our driver is technically a browser. its safer to run everything in a scripted language than to fight the nonsense.
+		//how many buffers do we need? no idea. all this memory allocation is going to be shit for performance.
+		//but we really do not have a choice. This is the only way to 'stream' without dropping down to <1fps.
+		//although arguably we should build our entire hud+2d stuff into a single vbo each frame... meh. At least this keeps the memory use in the driver's 64bit memory space instead of the browser's 32bit one...
+		shaderstate.streamid = (shaderstate.streamid + 1) & (sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]) - 1);
+		GL_SelectVBO(shaderstate.streamvbo[shaderstate.streamid]);
+		GL_SelectEBO(shaderstate.streamebo[shaderstate.streamid]);
 
-		qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->xyz_array) * m->numvertexes, m->xyz_array);
-		shaderstate.dummyvbo.coord.gl.addr = (void*)shaderstate.streamvbo_offset;
-		shaderstate.dummyvbo.coord.gl.vbo = shaderstate.streamvbo;
-		shaderstate.streamvbo_offset += sizeof(*m->xyz_array) * m->numvertexes;
+		memcpy(buffer+len, m->xyz_array, sizeof(*m->xyz_array) * m->numvertexes);
+		shaderstate.dummyvbo.coord.gl.addr = (void*)len;
+		shaderstate.dummyvbo.coord.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+		len += sizeof(*m->xyz_array) * m->numvertexes;
+
 		if (m->xyz2_array)
 		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->xyz2_array) * m->numvertexes, m->xyz2_array);
-			shaderstate.dummyvbo.coord2.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.coord2.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->xyz2_array) * m->numvertexes;
+			memcpy(buffer+len, m->xyz2_array, sizeof(*m->xyz2_array) * m->numvertexes);
+			shaderstate.dummyvbo.coord2.gl.addr = (void*)len;
+			shaderstate.dummyvbo.coord2.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->xyz2_array) * m->numvertexes;
 		}
 		else
 		{
 			shaderstate.dummyvbo.coord2.gl.addr = NULL;
 			shaderstate.dummyvbo.coord2.gl.vbo = 0;
 		}
-		if (m->st_array)
-		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->st_array) * m->numvertexes, m->st_array);
-			shaderstate.dummyvbo.texcoord.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.texcoord.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->st_array) * m->numvertexes;
-		}
-		else
-		{
-			shaderstate.dummyvbo.texcoord.gl.addr = NULL;
-			shaderstate.dummyvbo.texcoord.gl.vbo = 0;
-		}
-		for (i = 0; i < MAXLIGHTMAPS; i++)
-		{
-			if (m->lmst_array[i])
-			{
-				qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->lmst_array[i]) * m->numvertexes, m->lmst_array[i]);
-				shaderstate.dummyvbo.lmcoord[i].gl.addr = (void*)shaderstate.streamvbo_offset;
-				shaderstate.dummyvbo.lmcoord[i].gl.vbo = shaderstate.streamvbo;
-				shaderstate.streamvbo_offset += sizeof(*m->lmst_array[i]) * m->numvertexes;
-			}
-			else
-			{
-				shaderstate.dummyvbo.lmcoord[i].gl.addr = NULL;
-				shaderstate.dummyvbo.lmcoord[i].gl.vbo = 0;
-			}
-		}
 
-		if (m->normals_array)
-		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->normals_array) * m->numvertexes, m->normals_array);
-			shaderstate.dummyvbo.normals.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.normals.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->normals_array) * m->numvertexes;
-		}
-		else
-		{
-			shaderstate.dummyvbo.normals.gl.addr = NULL;
-			shaderstate.dummyvbo.normals.gl.vbo = 0;
-		}
-		if (m->snormals_array)
-		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->snormals_array) * m->numvertexes, m->snormals_array);
-			shaderstate.dummyvbo.svector.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.svector.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->snormals_array) * m->numvertexes;
-		}
-		else
-		{
-			shaderstate.dummyvbo.svector.gl.addr = NULL;
-			shaderstate.dummyvbo.svector.gl.vbo = 0;
-		}
-		if (m->tnormals_array)
-		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->tnormals_array) * m->numvertexes, m->tnormals_array);
-			shaderstate.dummyvbo.tvector.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.tvector.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->tnormals_array) * m->numvertexes;
-		}
-		else
-		{
-			shaderstate.dummyvbo.tvector.gl.addr = NULL;
-			shaderstate.dummyvbo.tvector.gl.vbo = 0;
-		}
+		memcpy(buffer+len, m->st_array, sizeof(*m->st_array) * m->numvertexes);
+		shaderstate.dummyvbo.texcoord.gl.addr = (void*)len;
+		shaderstate.dummyvbo.texcoord.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+		len += sizeof(*m->st_array) * m->numvertexes;
+
+		//FIXME: lightmaps
+
 		if (m->colors4f_array)
 		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->colors4f_array) * m->numvertexes, m->colors4f_array);
-			shaderstate.dummyvbo.colours.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.colours.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->colors4f_array) * m->numvertexes;
+			memcpy(buffer+len, m->colors4f_array, sizeof(*m->colors4f_array) * m->numvertexes);
+			shaderstate.dummyvbo.colours.gl.addr = (void*)len;
+			shaderstate.dummyvbo.colours.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->colors4f_array) * m->numvertexes;
 			shaderstate.colourarraytype = GL_FLOAT;
 		}
 		else if (m->colors4b_array)
 		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->colors4b_array) * m->numvertexes, m->colors4b_array);
-			shaderstate.dummyvbo.colours.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.colours.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->colors4b_array) * m->numvertexes;
+			memcpy(buffer+len, m->colors4b_array, sizeof(*m->colors4b_array) * m->numvertexes);
+			shaderstate.dummyvbo.colours.gl.addr = (void*)len;
+			shaderstate.dummyvbo.colours.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->colors4b_array) * m->numvertexes;
 			shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
 		}
 		else
@@ -3801,39 +3752,23 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 			shaderstate.dummyvbo.colours.gl.vbo = 0;
 			shaderstate.colourarraytype = GL_FLOAT;
 		}
-		if (m->bonenums)
-		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->bonenums) * m->numvertexes, m->bonenums);
-			shaderstate.dummyvbo.bonenums.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.bonenums.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->bonenums) * m->numvertexes;
-		}
-		else
-		{
-			shaderstate.dummyvbo.bonenums.gl.addr = NULL;
-			shaderstate.dummyvbo.bonenums.gl.vbo = 0;
-		}
-		if (m->boneweights)
-		{
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, shaderstate.streamvbo_offset, sizeof(*m->boneweights) * m->numvertexes, m->boneweights);
-			shaderstate.dummyvbo.boneweights.gl.addr = (void*)shaderstate.streamvbo_offset;
-			shaderstate.dummyvbo.boneweights.gl.vbo = shaderstate.streamvbo;
-			shaderstate.streamvbo_offset += sizeof(*m->boneweights) * m->numvertexes;
-		}
-		else
-		{
-			shaderstate.dummyvbo.boneweights.gl.addr = NULL;
-			shaderstate.dummyvbo.boneweights.gl.vbo = 0;
-		}
+
+		//FIXME: normals, svector, tvector, bone nums, bone weights
+
+		//now we've got a single buffer in a single place, update the buffer
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, len, buffer, GL_STREAM_DRAW_ARB);
+
+
 
 		//and finally the elements array, which is a much simpler affair
 		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*m->indexes) * m->numindexes, m->indexes, GL_STREAM_DRAW_ARB);
 		shaderstate.dummyvbo.indicies.gl.addr = (void*)NULL;
-		shaderstate.dummyvbo.indicies.gl.vbo = shaderstate.streamebo;
+		shaderstate.dummyvbo.indicies.gl.vbo = shaderstate.streamebo[shaderstate.streamid];
 	}
 	else
+#endif
 	{
-		//client memory. may be slower. may be faster.
+		//client memory. may be slower. will probably be faster.
 		shaderstate.dummyvbo.coord.gl.addr = m->xyz_array;
 		shaderstate.dummyvbo.coord2.gl.addr = m->xyz2_array;
 		shaderstate.dummyvbo.texcoord.gl.addr = m->st_array;
@@ -3859,179 +3794,6 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 	shaderstate.meshcount = 1;
 	shaderstate.meshes = &m;
 
-	/*
-	static vbo_t tmpvbo;
-	D3D11_MAPPED_SUBRESOURCE msr;
-	int i;
-
-	D3D11_MAP type;
-	int sz;
-
-	//vbo first
-	{
-		vbovdata_t *out;
-
-		sz = sizeof(*out) * mesh->numvertexes;
-		if (shaderstate.purgevertexstream || shaderstate.vertexstreamoffset + sz > VERTEXSTREAMSIZE)
-		{
-			shaderstate.purgevertexstream = false;
-			shaderstate.vertexstreamoffset = 0;
-			type = D3D11_MAP_WRITE_DISCARD;
-		}
-		else
-		{
-			type = D3D11_MAP_WRITE_NO_OVERWRITE;	//yes sir, sorry sir, we promise to not break anything
-		}
-		if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)shaderstate.vertexstream, 0, type, 0, &msr)))
-		{
-			Con_Printf("BE_RotateForEntity: failed to map vertex stream buffer start\n");
-			return false;
-		}
-
-		//figure out where our pointer is and mark it as consumed
-		out = (vbovdata_t*)((qbyte*)msr.pData + shaderstate.vertexstreamoffset);
-		//FIXME: do we actually need to bother setting all this junk?
-		tmpvbo.coord.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.coord.d3d.offs = (quintptr_t)&out[0].coord - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.texcoord.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.texcoord.d3d.offs = (quintptr_t)&out[0].tex - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.lmcoord[0].d3d.buff = shaderstate.vertexstream;
-		tmpvbo.lmcoord[0].d3d.offs = (quintptr_t)&out[0].lm - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.normals.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.normals.d3d.offs = (quintptr_t)&out[0].ndir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.svector.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.svector.d3d.offs = (quintptr_t)&out[0].sdir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.tvector.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.tvector.d3d.offs = (quintptr_t)&out[0].tdir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.colours.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.colours.d3d.offs = (quintptr_t)&out[0].colorsb - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		//consumed
-		shaderstate.vertexstreamoffset += sz;
-		
-		//now vomit into the buffer
-		if (!mesh->normals_array && mesh->colors4f_array)
-		{
-			//2d drawing
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-				VectorClear(out[i].ndir);
-				VectorClear(out[i].sdir);
-				VectorClear(out[i].tdir);
-				Vector4Scale(mesh->colors4f_array[i], 255, out[i].colorsb);
-			}
-		}
-		else if (!mesh->normals_array && mesh->colors4b_array)
-		{
-			//2d drawing, ish
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-				VectorClear(out[i].ndir);
-				VectorClear(out[i].sdir);
-				VectorClear(out[i].tdir);
-				*(unsigned int*)out[i].colorsb = *(unsigned int*)mesh->colors4b_array[i];
-			}
-		}
-		else if (mesh->normals_array && !mesh->colors4f_array && !mesh->colors4b_array)
-		{
-			//hlsl-lit models
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-				VectorCopy(mesh->normals_array[i], out[i].ndir);
-				VectorCopy(mesh->snormals_array[i], out[i].sdir);
-				VectorCopy(mesh->tnormals_array[i], out[i].tdir);
-				*(unsigned int*)out[i].colorsb = 0xffffffff;	//write colours to ensure nothing is read back within the cpu cache block.
-			}
-		}
-		else
-		{
-			//common stuff
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-			}
-			//not so common stuff
-			if (mesh->normals_array)
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					VectorCopy(mesh->normals_array[i], out[i].ndir);
-					VectorCopy(mesh->snormals_array[i], out[i].sdir);
-					VectorCopy(mesh->tnormals_array[i], out[i].tdir);
-				}
-			}
-			//some sort of colours
-			if (mesh->colors4b_array)
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					Vector4Copy(mesh->colors4b_array[i], out[i].colorsb);
-				}
-			}
-			else if (mesh->colors4f_array)
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					Vector4Scale(mesh->colors4f_array[i], 255, out[i].colorsb);
-				}
-			}
-			else
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					Vector4Set(out[i].colorsb, 255, 255, 255, 255);
-				}
-			}
-		}
-
-		//and we're done
-		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)shaderstate.vertexstream, 0);
-	}
-
-	//now ebo
-	{
-		index_t *out;
-		sz = sizeof(*out) * mesh->numindexes;
-		if (shaderstate.purgeindexstream || shaderstate.indexstreamoffset + sz > VERTEXSTREAMSIZE)
-		{
-			shaderstate.purgeindexstream = false;
-			shaderstate.indexstreamoffset = 0;
-			type = D3D11_MAP_WRITE_DISCARD;
-		}
-		else
-		{
-			type = D3D11_MAP_WRITE_NO_OVERWRITE;
-		}
-		if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)shaderstate.indexstream, 0, type, 0, &msr)))
-		{
-			Con_Printf("BE_RotateForEntity: failed to map vertex stream buffer start\n");
-			return false;
-		}
-
-		out = (index_t*)((qbyte*)msr.pData + shaderstate.indexstreamoffset);
-		tmpvbo.indicies.d3d.buff = shaderstate.indexstream;
-		tmpvbo.indicies.d3d.offs = shaderstate.indexstreamoffset;
-		//consumed
-		shaderstate.indexstreamoffset += sz;
-
-		memcpy(out, mesh->indexes, sz);
-
-		//and we're done
-		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)shaderstate.indexstream, 0);
-	}
-
-	tmpvbo.indexcount = mesh->numindexes;
-	tmpvbo.vertcount = mesh->numvertexes;
-	tmpvbo.next = NULL;
-
-	*vbo = &tmpvbo;
-*/
 	return true;
 }
 

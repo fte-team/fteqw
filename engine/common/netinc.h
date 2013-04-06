@@ -126,6 +126,7 @@
 	#include <netdb.h>
 	#include <sys/ioctl.h>
 	#include <sys/uio.h>
+	#include <sys/time.h>
 	#include <arpa/inet.h>
 	#include <errno.h>
 

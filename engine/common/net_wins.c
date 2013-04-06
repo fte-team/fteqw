@@ -22,7 +22,6 @@ struct sockaddr;
 
 #include "quakedef.h"
 #include "netinc.h"
-#include <sys/time.h>
 
 #ifdef _WIN32
 #define USE_GETHOSTNAME_LOCALLISTING
@@ -1829,7 +1828,6 @@ qboolean FTENET_NATPMP_GetPacket(struct ftenet_generic_connection_s *con)
 	unsigned int now = Sys_Milliseconds();
 	if (now - pmp->refreshtime > PMP_POLL_TIME)	//weird logic to cope with wrapping
 	{
-Con_Printf("nat-pmp refresh (%u - %u > %u)\n", now, pmp->refreshtime, PMP_POLL_TIME);
 		pmp->refreshtime = now;
 		FTENET_NATPMP_Refresh(pmp, pmp->natadr.port, pmp->col);
 	}
@@ -2483,13 +2481,16 @@ typedef struct ftenet_tcpconnect_stream_s {
 
 	enum
 	{
-		TCPC_UNKNOWN,
-		TCPC_UNFRAMED,	//something else is doing the framing (ie: we're running in emscripten and over some hidden websocket connection)
-		TCPC_QIZMO,
-		TCPC_WEBSOCKET
+		TCPC_UNKNOWN,		//waiting to see what they send us.
+		TCPC_UNFRAMED,		//something else is doing the framing (ie: we're running in emscripten and over some hidden websocket connection)
+		TCPC_HTTPCLIENT,	//we're sending a file to this victim.
+		TCPC_QIZMO,			//'qizmo\n' handshake, followed by packets prefixed with a 16bit packet length.
+		TCPC_WEBSOCKETU,	//utf-8 encoded data.
+		TCPC_WEBSOCKETB,	//binary encoded data (subprotocol = 'binary')
 	} clienttype;
 	char inbuffer[3000];
 	char outbuffer[3000];
+	vfsfile_t *file;
 	float timeouttime;
 	netadr_t remoteaddr;
 	struct ftenet_tcpconnect_stream_s *next;
@@ -2537,6 +2538,7 @@ void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 	*out = 0;
 }
 
+#include "fs.h"
 int SHA1(char *digest, int maxdigestsize, char *string);
 qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 {
@@ -2574,11 +2576,17 @@ qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 //due to the above checks about invalid sockets, the socket is always open for st below.
 
 		if (st->timeouttime < timeval)
+		{
+			Con_Printf ("tcp peer %s timed out\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 			goto closesvstream;
+		}
 
 		ret = recv(st->socketnum, st->inbuffer+st->inlen, sizeof(st->inbuffer)-st->inlen, 0);
 		if (ret == 0)
+		{
+			Con_Printf ("tcp peer %s closed connection\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 			goto closesvstream;
+		}
 		else if (ret == -1)
 		{
 			err = qerrno;
@@ -2748,12 +2756,12 @@ closesvstream:
 					//optionally will be Origin=url, Sec-WebSocket-Protocol=FTEWebSocket, Sec-WebSocket-Extensions
 					//other fields will be ignored.
 
-					//FIXME: reply with 426 Upgrade Required if wsversion is not supported
-
-					if (!stricmp(arg[WCATTR_UPGRADE], "websocket") && !stricmp(arg[WCATTR_CONNECTION], "Upgrade"))
+					if (!stricmp(arg[WCATTR_UPGRADE], "websocket") && (!stricmp(arg[WCATTR_CONNECTION], "Upgrade") || !stricmp(arg[WCATTR_CONNECTION], "keep-alive, Upgrade")))
 					{
 						if (atoi(arg[WCATTR_WSVER]) != 13)
 						{
+							Con_Printf("Outdated websocket request from %s. got version %i, expected version 13\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr), arg[WCATTR_WSVER]);
+
 							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 							st->inlen -= i;
 							resp = va(	"HTTP/1.1 426 Upgrade Required\r\n"
@@ -2773,6 +2781,8 @@ closesvstream:
 
 							tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY])));
 
+							Con_Printf("Websocket request for %s from %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+
 							resp = va(	"HTTP/1.1 101 Switching Protocols\r\n"
 										"Upgrade: websocket\r\n"
 										"Connection: Upgrade\r\n"
@@ -2783,7 +2793,10 @@ closesvstream:
 							send(st->socketnum, resp, strlen(resp), 0);
 
 							//and the connection is okay
-							st->clienttype = TCPC_WEBSOCKET;
+							if (!strcmp(arg[WCATTR_WSPROTO], "binary"))
+								st->clienttype = TCPC_WEBSOCKETB;	//emscripten doesn't give us a choice, but its compact.
+							else
+								st->clienttype = TCPC_WEBSOCKETU;	//nacl supports only utf-8 encoded data, at least at the time I implemented it.
 						}
 					}
 					else
@@ -2814,19 +2827,23 @@ closesvstream:
 								"</html>"
 								);
 						}
-						/*else if (!strcmp(arg[WCATTR_URL], "/index.html") || !strcmp(arg[WCATTR_URL], "/"))
+/*						else if ((!strcmp(arg[WCATTR_URL], "/ftewebgl.html") || !strcmp(arg[WCATTR_URL], "/ftewebgl.html.fmf") || !strcmp(arg[WCATTR_URL], "/pak0.pak")) && ((st->file = VFSOS_Open(va("C:/Incoming/vm%s", arg[WCATTR_URL]), "rb"))))
 						{
+							Con_Printf("Downloading %s to %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 							resp = va(	"HTTP/1.1 200 Ok\r\n"
-										"Connection: Close\r\n"
 										"Content-Type: text/html\r\n"
-										"\r\n"
-
-										"This is a Quake WebSocket server, not an http server.<br/>\r\n"
-										"<a href='"ENGINEWEBSITE"'>"FULLENGINENAME"</a>"
+										"Content-Length: %i\r\n"
+										"\r\n",
+										VFS_GETLEN(st->file)
 										);
-						}*/
+							send(st->socketnum, resp, strlen(resp), 0);
+							st->clienttype = TCPC_HTTPCLIENT;
+							continue;
+						}
+*/
 						else
 						{
+							Con_Printf("Invalid download request %s to %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 							resp = va(	"HTTP/1.1 404 Ok\r\n"
 										"Connection: Close\r\n"
 										"Content-Type: text/html\r\n"
@@ -2852,6 +2869,31 @@ handshakeerror:
 			}
 
 			break;
+		case TCPC_HTTPCLIENT:
+			if (st->outlen)
+			{	/*try and flush the old data*/
+				int done;
+				done = send(st->socketnum, st->outbuffer, st->outlen, 0);
+				if (done > 0)
+				{
+					memmove(st->outbuffer, st->outbuffer + done, st->outlen - done);
+					st->outlen -= done;
+
+					st->timeouttime = timeval + 30;
+				}
+			}
+			if (!st->outlen)
+			{
+				st->outlen = VFS_READ(st->file, st->outbuffer, sizeof(st->outbuffer));
+				if (st->outlen <= 0)
+				{
+					VFS_CLOSE(st->file);
+					st->file = NULL;
+					st->clienttype = TCPC_UNKNOWN;
+					Con_Printf ("Outgoing file transfer complete\n");
+				}
+			}
+			continue;
 		case TCPC_QIZMO:
 			if (st->inlen < 2)
 				continue;
@@ -2887,7 +2929,8 @@ handshakeerror:
 			net_message.currentbit = 0;
 			net_from = st->remoteaddr;
 			return true;
-		case TCPC_WEBSOCKET:
+		case TCPC_WEBSOCKETU:
+		case TCPC_WEBSOCKETB:
 			while (st->inlen >= 2)
 			{
 				unsigned short ctrl = ((unsigned char*)st->inbuffer)[0]<<8 | ((unsigned char*)st->inbuffer)[1];
@@ -3008,7 +3051,7 @@ handshakeerror:
 					}
 					break;
 				case 2: /*binary frame*/
-					Con_Printf ("websocket binary frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+//					Con_Printf ("websocket binary frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 					net_message.cursize = paylen;
 					if (net_message.cursize >= sizeof(net_message_buffer) )
 					{
@@ -3119,16 +3162,25 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 					memcpy(st->outbuffer, data, length);
 					st->outlen = length;
 					break;
-				case TCPC_WEBSOCKET:
+				case TCPC_WEBSOCKETU:
+				case TCPC_WEBSOCKETB:
 					{
 						/*as a server, we don't need the mask stuff*/
-						unsigned short ctrl = 0x8100;
+						unsigned short ctrl = (st->clienttype==TCPC_WEBSOCKETB)?0x8200:0x8100;
 						unsigned int paylen = 0;
 						unsigned int payoffs = 2;
 						int i;
-						for (i = 0; i < length; i++)
+						switch((ctrl>>8) & 0xf)
 						{
-							paylen += (((char*)data)[i] == 0 || ((unsigned char*)data)[i] >= 0x80)?2:1;
+						case 1:
+							for (i = 0; i < length; i++)
+							{
+								paylen += (((char*)data)[i] == 0 || ((unsigned char*)data)[i] >= 0x80)?2:1;
+							}
+							break;
+						default:
+							paylen = length;
+							break;
 						}
 						if (paylen >= 126)
 						{
@@ -3145,23 +3197,31 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 							st->outbuffer[2] = paylen>>8;
 							st->outbuffer[3] = paylen&0xff;
 						}
-						/*utf8ify the data*/
-						for (i = 0; i < length; i++)
+						switch((ctrl>>8) & 0xf)
 						{
-							if (!((unsigned char*)data)[i])
-							{	/*0 is encoded as 0x100 to avoid safety checks*/
-								st->outbuffer[payoffs++] = 0xc0 | (0x100>>6);
-								st->outbuffer[payoffs++] = 0x80 | (0x100&0x3f);
+						case 1:/*utf8ify the data*/
+							for (i = 0; i < length; i++)
+							{
+								if (!((unsigned char*)data)[i])
+								{	/*0 is encoded as 0x100 to avoid safety checks*/
+									st->outbuffer[payoffs++] = 0xc0 | (0x100>>6);
+									st->outbuffer[payoffs++] = 0x80 | (0x100&0x3f);
+								}
+								else if (((unsigned char*)data)[i] >= 0x80)
+								{	/*larger bytes require markup*/
+									st->outbuffer[payoffs++] = 0xc0 | (((unsigned char*)data)[i]>>6);
+									st->outbuffer[payoffs++] = 0x80 | (((unsigned char*)data)[i]&0x3f);
+								}
+								else
+								{	/*lower 7 bits are as-is*/
+									st->outbuffer[payoffs++] = ((char*)data)[i];
+								}
 							}
-							else if (((unsigned char*)data)[i] >= 0x80)
-							{	/*larger bytes require markup*/
-								st->outbuffer[payoffs++] = 0xc0 | (((unsigned char*)data)[i]>>6);
-								st->outbuffer[payoffs++] = 0x80 | (((unsigned char*)data)[i]&0x3f);
-							}
-							else
-							{	/*lower 7 bits are as-is*/
-								st->outbuffer[payoffs++] = ((char*)data)[i];
-							}
+							break;
+						default: //raw data
+							memcpy(st->outbuffer+payoffs, data, length);
+							payoffs += length;
+							break;
 						}
 						st->outlen = payoffs;
 					}

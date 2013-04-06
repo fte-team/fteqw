@@ -1311,6 +1311,11 @@ rendererinfo_t d3d9rendererinfo =
 	D3D9BE_SelectDLight,
 	D3D9BE_LightCullModel,
 
+	D3D9BE_VBO_Begin,
+	D3D9BE_VBO_Data,
+	D3D9BE_VBO_Finish,
+	D3D9BE_VBO_Destroy,
+
 	"no more"
 };
 

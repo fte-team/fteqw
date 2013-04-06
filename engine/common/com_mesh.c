@@ -1120,6 +1120,9 @@ struct
 	vec3_t *anorm;
 	vec3_t *anorms;
 	vec3_t *anormt;
+
+	vbo_t vbo;
+	vbo_t *vbop;
 } meshcache;
 
 //#define SSE_INTRINSICS
@@ -1451,7 +1454,7 @@ void Alias_Shutdown(void)
 	meshcache.numcoords = 0;
 }
 
-qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean usebones)
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean usebones)
 {
 	extern cvar_t r_nolerp;
 	galiasgroup_t *g1, *g2;
@@ -1505,6 +1508,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		mesh->normals_array = meshcache.anorm;
 		mesh->snormals_array = meshcache.anorms;
 		mesh->tnormals_array = meshcache.anormt;
+		*vbop = meshcache.vbop;
 
 #ifdef SKELETALMODELS
 		if (meshcache.usebonepose)
@@ -1535,6 +1539,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 #ifdef SKELETALMODELS
 	meshcache.usebonepose = NULL;
+	*vbop = meshcache.vbop = NULL;
 	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 	{
 		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
@@ -1544,6 +1549,20 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
 		mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
 		mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
+
+		meshcache.vbo.indicies = inf->vboindicies;
+		meshcache.vbo.indexcount = inf->numindexes;
+		meshcache.vbo.vertcount = inf->numverts;
+		meshcache.vbo.texcoord = inf->vbotexcoords;
+		meshcache.vbo.coord = inf->vbo_skel_verts;
+		memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
+		meshcache.vbo.normals = inf->vbo_skel_normals;
+		meshcache.vbo.svector = inf->vbo_skel_svector;
+		meshcache.vbo.tvector = inf->vbo_skel_tvector;
+		meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
+		meshcache.vbo.boneweights = inf->vbo_skel_bweight;
+		if (meshcache.vbo.indicies.dummy)
+			*vbop = meshcache.vbop = &meshcache.vbo;
 	}
 	else if (inf->numbones)
 	{
@@ -1669,18 +1688,33 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 			mesh->snormals_array = (vec3_t *)((char *)p1 + p1->ofssvector);
 			mesh->tnormals_array = (vec3_t *)((char *)p1 + p1->ofstvector);
 
+			meshcache.vbo.indicies = inf->vboindicies;
+			meshcache.vbo.indexcount = inf->numindexes;
+			meshcache.vbo.vertcount = inf->numverts;
+			meshcache.vbo.texcoord = inf->vbotexcoords;
+			meshcache.vbo.normals = p1->vbonormals;
+			meshcache.vbo.svector = p1->vbosvector;
+			meshcache.vbo.tvector = p1->vbotvector;
+
 			if (p1 == p2 || r_nolerp.ival)
 			{
+				meshcache.vbo.coord = p1->vboverts;
+				memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
 				mesh->xyz_array = (vecV_t *)((char *)p1 + p1->ofsverts);
 				mesh->xyz2_array = NULL;
 			}
 			else
 			{
+				meshcache.vbo.coord = p1->vboverts;
+				meshcache.vbo.coord2 = p2->vboverts;
 				mesh->xyz_blendw[0] = 1-lerp;
 				mesh->xyz_blendw[1] = lerp;
 				mesh->xyz_array = (vecV_t *)((char *)p1 + p1->ofsverts);
 				mesh->xyz2_array = (vecV_t *)((char *)p2 + p2->ofsverts);
 			}
+
+			if (meshcache.vbo.indicies.dummy)
+				*vbop = meshcache.vbop = &meshcache.vbo;
 		}
 	}
 
@@ -1689,6 +1723,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 	meshcache.anorm = mesh->normals_array;
 	meshcache.anorms = mesh->snormals_array;
 	meshcache.anormt = mesh->tnormals_array;
+	meshcache.vbop = *vbop;
 
 #ifdef SKELETALMODELS
 	if (meshcache.usebonepose)
@@ -1969,6 +2004,7 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 	return frames;
 }
 
+//called for non-skeletal model formats.
 void Mod_BuildTextureVectors(galiasinfo_t *galias)
 //vec3_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx, int numverts)
 {
@@ -1980,10 +2016,22 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	vec3_t *nv, *sv, *tv;
 	vec2_t *tc;
 	index_t *idx;
+	int vbospace = 0;
+	vbobctx_t vboctx;
 
 	idx = (index_t*)((char*)galias + galias->ofs_indexes);
 	tc = (vec2_t*)((char*)galias + galias->ofs_st_array);
 	group = (galiasgroup_t*)((char*)galias + galias->groupofs);
+
+	//determine the amount of space we need for our vbos.
+	vbospace += sizeof(*tc) * galias->numverts;
+	for (i = 0; i < galias->groups; i++)
+	{
+		vbospace += group[i].numposes * galias->numverts * (sizeof(vecV_t)+sizeof(vec3_t)*3);
+	}
+	BE_VBO_Begin(&vboctx, vbospace);
+	BE_VBO_Data(&vboctx, tc, sizeof(*tc) * galias->numverts, &galias->vbotexcoords);
+
 	for (i = 0; i < galias->groups; i++, group++)
 	{
 		pose = (galiaspose_t*)((char*)group + group->poseofs);
@@ -1991,17 +2039,27 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 		{
 			vc = (vecV_t *)((char*)pose + pose->ofsverts);
 			nv = (vec3_t *)((char*)pose + pose->ofsnormals);
-			if (pose->ofssvector == 0)
-				continue;
-			if (pose->ofstvector == 0)
-				continue;
-			sv = (vec3_t *)((char*)pose + pose->ofssvector);
-			tv = (vec3_t *)((char*)pose + pose->ofstvector);
+			if (pose->ofssvector != 0 && pose->ofstvector != 0)
+			{
+				sv = (vec3_t *)((char*)pose + pose->ofssvector);
+				tv = (vec3_t *)((char*)pose + pose->ofstvector);
 
-			Mod_AccumulateTextureVectors(vc, tc, nv, sv, tv, idx, galias->numindexes);
-			Mod_NormaliseTextureVectors(nv, sv, tv, galias->numverts);
+				Mod_AccumulateTextureVectors(vc, tc, nv, sv, tv, idx, galias->numindexes);
+				Mod_NormaliseTextureVectors(nv, sv, tv, galias->numverts);
+			}
+			else
+			{	//shouldn't really happen... make error?
+				sv = NULL;
+				tv = NULL;
+			}
+
+			BE_VBO_Data(&vboctx, vc, sizeof(*vc) * galias->numverts, &pose->vboverts);
+			BE_VBO_Data(&vboctx, nv, sizeof(*nv) * galias->numverts, &pose->vbonormals);
+			BE_VBO_Data(&vboctx, sv, sizeof(*sv) * galias->numverts, &pose->vbosvector);
+			BE_VBO_Data(&vboctx, tv, sizeof(*tv) * galias->numverts, &pose->vbotvector);
 		}
 	}
+	BE_VBO_Finish(&vboctx, idx, sizeof(*idx) * galias->numindexes, &galias->vboindicies);
 #endif
 }
 

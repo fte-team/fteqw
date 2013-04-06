@@ -356,13 +356,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 {
 	if (!pic)
 		return;
-/*
-	if (w == 0 && h == 0)
-	{
-		w = pic->width;
-		h = pic->height;
-	}
-*/
+
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = s1;

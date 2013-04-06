@@ -47,6 +47,15 @@ typedef struct {
 	int ofs_skel_tvect;
 	int ofs_skel_idx;
 	int ofs_skel_weight;
+
+	vboarray_t vboindicies;
+	vboarray_t vbotexcoords;
+	vboarray_t vbo_skel_verts;
+	vboarray_t vbo_skel_normals;
+	vboarray_t vbo_skel_svector;
+	vboarray_t vbo_skel_tvector;
+	vboarray_t vbo_skel_bonenum;
+	vboarray_t vbo_skel_bweight;
 #endif
 
 //these exist only in the root mesh.
@@ -56,7 +65,8 @@ typedef struct {
 } galiasinfo_t;
 
 //frame is an index into this
-typedef struct {
+typedef struct
+{
 #ifdef SKELETALMODELS
 	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from their parent.
 							//this is actually bad, and can result in bones shortening as they interpolate.
@@ -68,12 +78,18 @@ typedef struct {
 	char name[64];
 } galiasgroup_t;
 
-typedef struct {
+typedef struct
+{
 	int ofsverts;
 #ifndef SERVERONLY
 	int ofsnormals;
 	int ofstvector;
 	int ofssvector;
+
+	vboarray_t vboverts;
+	vboarray_t vbonormals;
+	vboarray_t vbosvector;
+	vboarray_t vbotvector;
 #endif
 
 	vec3_t		scale;
@@ -82,13 +98,15 @@ typedef struct {
 
 typedef struct galiasbone_s galiasbone_t;
 #ifdef SKELETALMODELS
-struct galiasbone_s {
+struct galiasbone_s
+{
 	char name[32];
 	int parent;
 	float inverse[12];
 };
 
-typedef struct {
+typedef struct
+{
 	//skeletal poses refer to this.
 	int vertexindex;
 	int boneindex;
@@ -128,7 +146,7 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
 #endif
-qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
 void Alias_FlushCache(void);
 void Alias_Shutdown(void);
 

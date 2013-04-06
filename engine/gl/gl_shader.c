@@ -373,7 +373,8 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			Con_Printf("Shader_EvaluateCondition: '%s' is not a cvar\n", token);
 			return conditiontrue;
 		}
-		token = COM_ParseExt(ptr, false, false);
+		if (*token)
+			token = COM_ParseExt(ptr, false, false);
 		cv->flags |= CVAR_SHADERSYSTEM;
 		if (*token)
 		{
@@ -403,7 +404,8 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 				conditiontrue = conditiontrue == !!cv->value;
 		}
 	}
-	token = COM_ParseExt(ptr, false, false);
+	if (*token)
+		token = COM_ParseExt(ptr, false, false);
 	if (!strcmp(token, "&&"))
 		return Shader_EvaluateCondition(shader, ptr) && conditiontrue;
 	if (!strcmp(token, "||"))

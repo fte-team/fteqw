@@ -1708,6 +1708,11 @@ rendererinfo_t openglrendererinfo = {
 	GLBE_SelectDLight,
 	GLBE_LightCullModel,
 
+	GLBE_VBO_Begin,
+	GLBE_VBO_Data,
+	GLBE_VBO_Finish,
+	GLBE_VBO_Destroy,
+
 	""
 };
 

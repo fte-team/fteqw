@@ -13,6 +13,7 @@
 #define w32filefuncs osfilefuncs
 
 typedef struct {
+	searchpathfuncs_t funcs;
 	HANDLE changenotification;
 	int hashdepth;
 	char rootpath[1];

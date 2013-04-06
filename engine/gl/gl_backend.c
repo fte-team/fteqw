@@ -149,8 +149,6 @@ struct {
 		unsigned int streamvbo_offset;
 		unsigned int streamvbo_length;
 		int streamebo;
-		unsigned int streamebo_offset;
-		unsigned int streamebo_length;
 
 		int pendingtexcoordparts[SHADER_TMU_MAX];
 		int pendingtexcoordvbo[SHADER_TMU_MAX];
@@ -1333,7 +1331,6 @@ void GLBE_Init(void)
 		qglGenBuffersARB(1, &shaderstate.streamvbo);
 		qglGenBuffersARB(1, &shaderstate.streamebo);
 		shaderstate.streamvbo_length = shaderstate.streamvbo_offset = 65536*16 * 64*sizeof(vec_t);
-		shaderstate.streamebo_length = shaderstate.streamebo_offset = 65536*16 * sizeof(index_t);
 	}
 #endif
 }
@@ -3830,15 +3827,9 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 		}
 
 		//and finally the elements array, which is a much simpler affair
-		if (shaderstate.streamebo_offset + m->numindexes*sizeof(*m->indexes))
-		{
-			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, shaderstate.streamebo_length, NULL, GL_STREAM_DRAW_ARB);
-			shaderstate.streamebo_offset = 0;
-		}
-		qglBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, shaderstate.streamebo_offset, sizeof(*m->indexes) * m->numindexes, m->indexes);
-		shaderstate.dummyvbo.indicies.gl.addr = (void*)shaderstate.streamebo_offset;
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*m->indexes) * m->numindexes, m->indexes, GL_STREAM_DRAW_ARB);
+		shaderstate.dummyvbo.indicies.gl.addr = (void*)NULL;
 		shaderstate.dummyvbo.indicies.gl.vbo = shaderstate.streamebo;
-		shaderstate.streamebo_offset += sizeof(*m->indexes) * m->numindexes;
 	}
 	else
 	{
@@ -4846,5 +4837,36 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	shaderstate.mbatches = ob;
 
 	TRACE(("GLBE_DrawWorld: drawn everything\n"));
+}
+
+void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
+{
+	ctx->maxsize = maxsize;
+	ctx->pos = 0;
+	qglGenBuffersARB(2, ctx->vboid);
+	GL_SelectVBO(ctx->vboid[0]);
+	//WARNING: in emscripten/webgl, we should probably not pass null.
+	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, ctx->maxsize, NULL, GL_STATIC_DRAW_ARB);
+}
+void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+{
+	qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, ctx->pos, size, data);
+	varray->gl.vbo = ctx->vboid[0];
+	varray->gl.addr = (void*)ctx->pos;
+	ctx->pos += size;
+}
+
+void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+{
+	if (ctx->pos > ctx->maxsize)
+		Sys_Error("BE_VBO_Finish: too much data given\n");
+	GL_SelectEBO(ctx->vboid[1]);
+	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, esize, edata, GL_STATIC_DRAW_ARB);
+	earray->gl.vbo = ctx->vboid[1];
+	earray->gl.addr = NULL;
+}
+void GLBE_VBO_Destroy(vboarray_t *vearray)
+{
+	qglDeleteBuffersARB(1, &vearray->gl.vbo);
 }
 #endif

@@ -883,6 +883,10 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,
 	NULL,
 	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
 
 	""
 };

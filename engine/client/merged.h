@@ -185,6 +185,37 @@ typedef struct texid_s texid_tf;
 #define TEXASSIGNF(d,s) memcpy(&d,&s,sizeof(d))
 #define TEXVALID(t) 1
 #endif
+
+//small context for easy vbo creation.
+typedef struct
+{
+	unsigned int maxsize;
+	unsigned int pos;
+	int vboid[2];
+} vbobctx_t;
+
+typedef struct vboarray_s
+{
+	union
+	{
+		void *dummy;
+#ifdef GLQUAKE
+		struct
+		{
+			int vbo;
+			void *addr;
+		} gl;
+#endif
+#if defined(D3D9QUAKE) || defined(D3D11QUAKE)
+		struct
+		{
+			void *buff;
+			unsigned int offs;
+		} d3d;
+#endif
+	};
+} vboarray_t;
+
 typedef struct texnums_s {
 	texid_t base;
 	texid_t bump;
@@ -311,7 +342,10 @@ typedef struct rendererinfo_s {
 	void (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
-
+	void (*BE_VBO_Begin)(vbobctx_t *ctx, unsigned int maxsize);
+	void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
+	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+	void (*BE_VBO_Destroy)(vboarray_t *vearray);
 	char *alignment;
 } rendererinfo_t;
 
@@ -340,3 +374,7 @@ typedef struct rendererinfo_s {
 #define BE_DrawMesh_Single		rf->BE_DrawMesh_Single
 #define BE_SubmitMeshes			rf->BE_SubmitMeshes
 #define BE_DrawWorld			rf->BE_DrawWorld
+#define BE_VBO_Begin 			rf->BE_VBO_Begin
+#define BE_VBO_Data				rf->BE_VBO_Data
+#define BE_VBO_Finish			rf->BE_VBO_Finish
+#define BE_VBO_Destroy			rf->BE_VBO_Destroy

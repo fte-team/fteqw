@@ -242,30 +242,6 @@ typedef struct mplane_s
 	qbyte	pad[2];
 } mplane_t;
 
-typedef struct vboarray_s
-{
-	union
-	{
-		void *dummy;
-
-#ifdef GLQUAKE
-		struct
-		{
-			int vbo;
-			void *addr;
-		} gl;
-#endif
-
-#if defined(D3D9QUAKE) || defined(D3D11QUAKE)
-		struct
-		{
-			void *buff;
-			unsigned int offs;
-		} d3d;
-#endif
-	};
-} vboarray_t;
-
 typedef struct vbo_s
 {
 	unsigned int numvisible;

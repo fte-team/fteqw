@@ -968,7 +968,7 @@ void R_GAlias_DrawBatch(batch_t *batch)
 		{
 			if (batch->surf_first == surfnum)
 			{
-				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl);
+				needrecolour = Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl);
 				batch->mesh = &meshl;
 				return;
 			}
@@ -1387,7 +1387,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			Alias_GAliasBuildMesh(&mesh, inf, surfnum, e, false);
+			Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum, e, false);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);

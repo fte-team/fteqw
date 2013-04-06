@@ -275,8 +275,6 @@ enum{
 
 enum shaderattribs_e
 {
-	VATTR_LEG_VERTEX,
-
 	VATTR_VERTEX1,
 	VATTR_VERTEX2,
 	VATTR_COLOUR,
@@ -291,12 +289,18 @@ enum shaderattribs_e
 	VATTR_LMCOORD3,
 	VATTR_LMCOORD4,
 
+	VATTR_LEG_VERTEX,	//note: traditionally this is actually index 0.
+						//however, implementations are allowed to directly alias, or remap,
+						//so we're never quite sure if 0 is enabled or not when using legacy functions.
+						//as a result, we use legacy verticies always and never custom attribute 0 if we have any fixed function support.
+						//we then depend upon gl_Vertex always being supported by the glsl compiler.
+						//this is likely needed anyway to ensure that ftransform works properly and in all cases for stencil shadows.
 	VATTR_LEG_COLOUR,
 	VATTR_LEG_ELEMENTS,
 	VATTR_LEG_TMU0,
 
 
-	VATTR_LEG_FIRST=VATTR_LEG_COLOUR
+	VATTR_LEG_FIRST=VATTR_LEG_VERTEX
 };
 
 typedef struct {
@@ -514,6 +518,10 @@ void GLBE_SelectEntity(entity_t *ent);
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
+void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
+void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
+void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+void GLBE_VBO_Destroy(vboarray_t *vearray);
 #endif
 #ifdef D3D9QUAKE
 void D3D9BE_Init(void);
@@ -530,6 +538,10 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
 void D3D9BE_SelectEntity(entity_t *ent);
 void D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour);
+void D3D9BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
+void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
+void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+void D3D9BE_VBO_Destroy(vboarray_t *vearray);
 
 qboolean D3D9Shader_CreateProgram (program_t *prog, char *sname, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name);
@@ -558,6 +570,10 @@ void D3D11Shader_Init(void);
 void D3D11BE_Reset(qboolean before);
 void D3D11BE_SetupViewCBuffer(void);
 void D3D11_UploadLightmap(lightmapinfo_t *lm);
+void D3D11BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
+void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
+void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+void D3D11BE_VBO_Destroy(vboarray_t *vearray);
 #endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

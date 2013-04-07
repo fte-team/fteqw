@@ -3506,7 +3506,7 @@ static void DrawMeshes(void)
 		}
 	}
 
-	if (shaderstate.sourcevbo->coord2.gl.addr)
+	if (shaderstate.sourcevbo->coord2.gl.addr && (shaderstate.curshader->numdeforms || !shaderstate.curshader->prog))
 		GenerateVertexBlends(shaderstate.curshader);
 	else if (shaderstate.curshader->numdeforms)
 		GenerateVertexDeforms(shaderstate.curshader);

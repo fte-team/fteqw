@@ -1508,7 +1508,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		mesh->normals_array = meshcache.anorm;
 		mesh->snormals_array = meshcache.anorms;
 		mesh->tnormals_array = meshcache.anormt;
-		*vbop = meshcache.vbop;
+		if (vbop)
+			*vbop = meshcache.vbop;
 
 #ifdef SKELETALMODELS
 		if (meshcache.usebonepose)
@@ -1539,7 +1540,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 #ifdef SKELETALMODELS
 	meshcache.usebonepose = NULL;
-	*vbop = meshcache.vbop = NULL;
+	meshcache.vbop = NULL;
+	if (vbop)
+		*vbop = NULL;
 	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 	{
 		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
@@ -1550,19 +1553,22 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
 		mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
 
-		meshcache.vbo.indicies = inf->vboindicies;
-		meshcache.vbo.indexcount = inf->numindexes;
-		meshcache.vbo.vertcount = inf->numverts;
-		meshcache.vbo.texcoord = inf->vbotexcoords;
-		meshcache.vbo.coord = inf->vbo_skel_verts;
-		memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
-		meshcache.vbo.normals = inf->vbo_skel_normals;
-		meshcache.vbo.svector = inf->vbo_skel_svector;
-		meshcache.vbo.tvector = inf->vbo_skel_tvector;
-		meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
-		meshcache.vbo.boneweights = inf->vbo_skel_bweight;
-		if (meshcache.vbo.indicies.dummy)
-			*vbop = meshcache.vbop = &meshcache.vbo;
+		if (vbop)
+		{
+			meshcache.vbo.indicies = inf->vboindicies;
+			meshcache.vbo.indexcount = inf->numindexes;
+			meshcache.vbo.vertcount = inf->numverts;
+			meshcache.vbo.texcoord = inf->vbotexcoords;
+			meshcache.vbo.coord = inf->vbo_skel_verts;
+			memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
+			meshcache.vbo.normals = inf->vbo_skel_normals;
+			meshcache.vbo.svector = inf->vbo_skel_svector;
+			meshcache.vbo.tvector = inf->vbo_skel_tvector;
+			meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
+			meshcache.vbo.boneweights = inf->vbo_skel_bweight;
+			if (meshcache.vbo.indicies.dummy)
+				*vbop = meshcache.vbop = &meshcache.vbo;
+		}
 	}
 	else if (inf->numbones)
 	{
@@ -1713,7 +1719,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				mesh->xyz2_array = (vecV_t *)((char *)p2 + p2->ofsverts);
 			}
 
-			if (meshcache.vbo.indicies.dummy)
+			if (vbop && meshcache.vbo.indicies.dummy)
 				*vbop = meshcache.vbop = &meshcache.vbo;
 		}
 	}
@@ -1723,7 +1729,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	meshcache.anorm = mesh->normals_array;
 	meshcache.anorms = mesh->snormals_array;
 	meshcache.anormt = mesh->tnormals_array;
-	meshcache.vbop = *vbop;
+	if (vbop)
+		meshcache.vbop = *vbop;
 
 #ifdef SKELETALMODELS
 	if (meshcache.usebonepose)

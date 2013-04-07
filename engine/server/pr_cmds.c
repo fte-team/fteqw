@@ -9091,7 +9091,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findradius",		PF_findradius,		22,		22,		22,		0,	"entity(vector org, float rad)"},
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	"void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},
-	{"bprint",			PF_bprint,			0,		23,		23,		0,	"void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
+	{"bprint",			PF_bprint,			0,		23,		0,		0,	"void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
 	{"sprint",			PF_sprint,			24,		0,		24,		0,	"void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
 	{"sprint",			PF_sprint,			0,		24,		0,		0,	"void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)"},
 	//these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.

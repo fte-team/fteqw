@@ -134,20 +134,11 @@ FreeSound
 ==================
 */
 //per device
-static void DSOUND_Shutdown (soundcardinfo_t *sc)
+static void DSOUND_Shutdown_Internal (soundcardinfo_t *sc)
 {
 	dshandle_t *dh = sc->handle;
 	if (!dh)
 		return;
-
-#ifdef MULTITHREAD
-	if (sc->thread)
-	{
-		sc->selfpainting = false;
-		Sys_WaitOnThread(sc->thread); 
-	}
-#endif
-
 
 	sc->handle = NULL;
 #ifdef _IKsPropertySet_
@@ -182,6 +173,21 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 #endif
 
 	Z_Free(dh);
+}
+
+static void DSOUND_Shutdown (soundcardinfo_t *sc)
+{
+#ifdef MULTITHREAD
+	if  (sc->thread)
+	{
+		//thread does the actual closing.
+		sc->selfpainting = false;
+		Sys_WaitOnThread(sc->thread);
+		sc->thread = NULL;
+	}
+	else
+#endif
+		DSOUND_Shutdown_Internal(sc);
 }
 
 
@@ -526,24 +532,6 @@ static void DSOUND_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 
-#ifdef MULTITHREAD
-int GetSoundtime(soundcardinfo_t *sc);
-static int DSOUND_Thread(void *arg)
-{
-	soundcardinfo_t *sc = arg;
-	while(sc->selfpainting)
-	{
-		S_MixerThread(sc);
-		/* Quote:
-		On NT (Win2K and XP) the cursors in SW buffers (and HW buffers on some devices) move in 10ms increments, so calling GetCurrentPosition() every 10ms is ideal.
-		Calling it more often than every 5ms will cause some perf degradation.
-		*/
-		Sleep(9);
-	}
-	return 0;
-}
-#endif
-
 /*
 ==================
 SNDDMA_InitDirect
@@ -551,7 +539,7 @@ SNDDMA_InitDirect
 Direct-Sound support
 ==================
 */
-int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
+static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 {
 	extern cvar_t snd_inactive, snd_eax;
 	DSBUFFERDESC	dsbuf;
@@ -564,9 +552,6 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	qboolean		primary_format_set;
 	dshandle_t *dh;
 	char *buffer;
-
-	if (COM_CheckParm("-wavonly"))
-		return SND_NOMORE;
 
 	memset (&format, 0, sizeof(format));
 
@@ -707,14 +692,14 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (dscaps.dwFlags & DSCAPS_EMULDRIVER)
 	{
 		Con_SafePrintf ("No DirectSound driver installed\n");
-		DSOUND_Shutdown (sc);
+		DSOUND_Shutdown_Internal (sc);
 		return SND_ERROR;
 	}
 
 	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
 	{
 		Con_SafePrintf ("Set coop level failed\n");
-		DSOUND_Shutdown (sc);
+		DSOUND_Shutdown_Internal (sc);
 		return SND_ERROR;
 	}
 
@@ -790,7 +775,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (DS_OK != dh->pDS->lpVtbl->CreateSoundBuffer(dh->pDS, &dsbuf, &dh->pDSBuf, NULL))
 		{
 			Con_SafePrintf ("DS:CreateSoundBuffer Failed");
-			DSOUND_Shutdown (sc);
+			DSOUND_Shutdown_Internal (sc);
 			return SND_ERROR;
 		}
 
@@ -801,7 +786,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (DS_OK != dh->pDSBuf->lpVtbl->GetCaps (dh->pDSBuf, &dsbcaps))
 		{
 			Con_SafePrintf ("DS:GetCaps failed\n");
-			DSOUND_Shutdown (sc);
+			DSOUND_Shutdown_Internal (sc);
 			return SND_ERROR;
 		}
 
@@ -813,14 +798,14 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_WRITEPRIMARY))
 		{
 			Con_SafePrintf ("Set coop level failed\n");
-			DSOUND_Shutdown (sc);
+			DSOUND_Shutdown_Internal (sc);
 			return SND_ERROR;
 		}
 
 		if (DS_OK != dh->pDSPBuf->lpVtbl->GetCaps (dh->pDSPBuf, &dsbcaps))
 		{
 			Con_Printf ("DS:GetCaps failed\n");
-			DSOUND_Shutdown (sc);
+			DSOUND_Shutdown_Internal (sc);
 			return SND_ERROR;
 		}
 
@@ -849,14 +834,14 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (hresult != DSERR_BUFFERLOST)
 		{
 			Con_SafePrintf ("SNDDMA_InitDirect: DS::Lock Sound Buffer Failed\n");
-			DSOUND_Shutdown (sc);
+			DSOUND_Shutdown_Internal (sc);
 			return SND_ERROR;
 		}
 
 		if (++reps > 10000)
 		{
 			Con_SafePrintf ("SNDDMA_InitDirect: DS: couldn't restore buffer\n");
-			DSOUND_Shutdown (sc);
+			DSOUND_Shutdown_Internal (sc);
 			return SND_ERROR;
 		}
 	}
@@ -918,15 +903,91 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 #endif
 #endif
 
-#ifdef MULTITHREAD
-	sc->selfpainting = true;
-	sc->thread = Sys_CreateThread("dsoundmixer", DSOUND_Thread, sc, THREADP_HIGHEST, 0);
-	if (!sc->thread)
-		sc->selfpainting = false; /*oh well*/
-#endif
-
 	return SND_LOADED;
 }
+
+
+
+
+#ifdef MULTITHREAD
+int GetSoundtime(soundcardinfo_t *sc);
+static int DSOUND_Thread(void *arg)
+{
+	soundcardinfo_t *sc = arg;
+	void *cond = sc->handle;
+	int cardnum = sc->audio_fd;
+	sc->handle = NULL;
+
+	//once creating the thread, the main thread will wait for us to signal that we have inited the dsound device.
+	switch(DSOUND_InitCard_Internal(sc, cardnum))
+	{
+	case SND_LOADED:
+		break;
+	case SND_NOMORE:
+		sc->audio_fd = -1;
+		sc->selfpainting = false;
+		break;
+	default:
+	case SND_ERROR:
+		sc->selfpainting = false;
+		break;
+	}
+
+	//wake up the main thread.
+	Sys_ConditionSignal(cond);
+
+	while(sc->selfpainting)
+	{
+		S_MixerThread(sc);
+		/* Quote:
+		On NT (Win2K and XP) the cursors in SW buffers (and HW buffers on some devices) move in 10ms increments, so calling GetCurrentPosition() every 10ms is ideal.
+		Calling it more often than every 5ms will cause some perf degradation.
+		*/
+		Sleep(9);
+	}
+
+	//we created the device, we need to kill it.
+	DSOUND_Shutdown_Internal(sc);
+	return 0;
+}
+#endif
+
+static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
+{
+	if (COM_CheckParm("-wavonly"))
+		return SND_NOMORE;
+
+#ifdef MULTITHREAD
+	if (snd_mixerthread.ival)
+	{
+		void *cond;
+		sc->audio_fd = cardnum;
+		sc->selfpainting = true;
+		sc->handle = cond = Sys_CreateConditional();
+		sc->thread = Sys_CreateThread("dsoundmixer", DSOUND_Thread, sc, THREADP_HIGHEST, 0);
+		if (!sc->thread)
+		{
+			Con_SafePrintf ("Unable to create sound mixing thread\n");
+			return SND_ERROR;
+		}
+
+		//wait for the thread to finish (along with all its error con printfs etc
+		Sys_ConditionWait(cond);
+		Sys_DestroyConditional(cond);
+
+		if (!sc->selfpainting)
+		{
+			Sys_WaitOnThread(sc->thread);
+			sc->thread = NULL;
+			return (sc->audio_fd==-1)?SND_NOMORE:SND_ERROR;
+		}
+		return SND_LOADED;
+	}
+	else
+#endif
+		return DSOUND_InitCard_Internal(sc, cardnum);
+}
+
 int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
 
 #endif

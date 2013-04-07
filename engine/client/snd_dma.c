@@ -110,6 +110,8 @@ cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
 cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 											"snd_linearresample_stream", 0);
 
+cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
+											"snd_mixerthread", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
 cvar_t snd_usemultipledevices	= CVARAFD(	"s_multipledevices", "0",
 											"snd_multipledevices", 0, "If enabled, all output sound devices in your computer will be initialised for playback, not just the default device.");
 cvar_t snd_driver		= CVARAF(	"s_driver", "",
@@ -1122,6 +1124,9 @@ void S_Init (void)
 
 	Cvar_Register(&snd_inactive,		"Sound controls");
 
+#ifdef MULTITHREAD
+	Cvar_Register(&snd_mixerthread,				"Sound controls");
+#endif
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
 	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
 	Cvar_Register(&snd_driver,		"Sound controls");

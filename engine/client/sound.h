@@ -236,6 +236,7 @@ extern float voicevolumemod;
 
 extern qboolean	snd_initialized;
 extern cvar_t snd_usemultipledevices;
+extern cvar_t snd_mixerthread;
 
 extern int		snd_blocked;
 

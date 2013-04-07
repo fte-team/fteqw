@@ -48,8 +48,6 @@ typedef struct {
 	int ofs_skel_idx;
 	int ofs_skel_weight;
 
-	vboarray_t vboindicies;
-	vboarray_t vbotexcoords;
 	vboarray_t vbo_skel_verts;
 	vboarray_t vbo_skel_normals;
 	vboarray_t vbo_skel_svector;
@@ -57,6 +55,8 @@ typedef struct {
 	vboarray_t vbo_skel_bonenum;
 	vboarray_t vbo_skel_bweight;
 #endif
+	vboarray_t vboindicies;
+	vboarray_t vbotexcoords;
 
 //these exist only in the root mesh.
 	int numtagframes;

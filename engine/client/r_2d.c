@@ -595,7 +595,7 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 	if (qrenderer == QR_NONE)
 		return;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(_SDL)
 	if (!strcmp(var->string, "?"))
 	{
 		BOOL (APIENTRY *pChooseFontA)(LPCHOOSEFONTA) = NULL;

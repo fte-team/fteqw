@@ -951,7 +951,7 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
-		if (!NET_StringToSockaddr (s+6, 0, &sadr, NULL, NULL))
+		if (!NET_StringToSockaddr (s+6, defaultport, &sadr, NULL, NULL))
 		{
 			a->type = NA_INVALID;
 			return false;
@@ -1015,6 +1015,14 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	}
 
 	SockadrToNetadr (&sadr, a);
+
+#if !defined(HAVE_PACKET) && defined(HAVE_TCP)
+	//bump over protocols that cannot work in the first place.
+	if (a->type == NA_IP)
+		a->type = NA_TCP;
+	if (a->type == NA_IPV6)
+		a->type = NA_TCPV6;
+#endif
 
 	return true;
 }

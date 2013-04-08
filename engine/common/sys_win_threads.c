@@ -216,6 +216,7 @@ qboolean Sys_ConditionWait(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 	qboolean success;
+	DWORD status;
 
 	// increase count for non-signaled waiting threads
 	EnterCriticalSection(&cv->countlock);
@@ -225,7 +226,18 @@ qboolean Sys_ConditionWait(void *condv)
 	LeaveCriticalSection(&cv->mainlock); // unlock as per condition variable definition
 
 	// wait on a signal
+#if 0
 	success = (WaitForSingleObject(cv->wait_sem, INFINITE) != WAIT_FAILED);
+#else
+	do
+	{
+		MSG msg;
+		while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
+      		DispatchMessage (&msg);
+		status = MsgWaitForMultipleObjects(1, &cv->wait_sem, FALSE, INFINITE, QS_SENDMESSAGE|QS_POSTMESSAGE);
+	} while (status == (WAIT_OBJECT_0+1));
+	success = status != WAIT_FAILED;
+#endif
 
 	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
 	EnterCriticalSection(&cv->countlock);

@@ -190,19 +190,17 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 		DSOUND_Shutdown_Internal(sc);
 }
 
-
-const char *dsndcard;
 GUID FAR *dsndguid;
 int dsnd_guids;
-int aimedforguid;
 static BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2, LPVOID parm)
 {
+	soundcardinfo_t *sc = parm;
 	if (guid == NULL)
 		return TRUE;
 
-	if (aimedforguid == dsnd_guids)
+	if (sc->audio_fd == dsnd_guids)
 	{
-		dsndcard = str1;
+		Q_strncpyz(sc->name, str1, sizeof(sc->name));
 		dsndguid = guid;
 	}
 	dsnd_guids++;
@@ -626,17 +624,13 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 
 	dsnd_guids=0;
 	dsndguid=NULL;
-	dsndcard="DirectSound";
 	if (pDirectSoundEnumerate)
-		pDirectSoundEnumerate(&DSEnumCallback, NULL);
+		pDirectSoundEnumerate(&DSEnumCallback, sc);
 	if (!snd_usemultipledevices.ival)	//if only one device, ALWAYS use the default.
 		dsndguid=NULL;
 
-	aimedforguid++;
-
-	if (!dsndguid)	//no more...
-		if (aimedforguid != 1)	//not the first device.
-			return SND_NOMORE;
+	if (!dsndguid && sc->audio_fd != 0)	//no more...
+		return SND_NOMORE;
 
 	sc->handle = Z_Malloc(sizeof(dshandle_t));
 	dh = sc->handle;
@@ -680,7 +674,6 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 //			}
 		}
 	}
-	Q_strncpyz(sc->name, dsndcard, sizeof(sc->name));
 
 	dscaps.dwSize = sizeof(dscaps);
 
@@ -696,6 +689,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		return SND_ERROR;
 	}
 
+	SendMessage(mainwindow, WM_USER, 0, 0);
 	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
 	{
 		Con_SafePrintf ("Set coop level failed\n");

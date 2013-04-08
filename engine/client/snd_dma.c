@@ -1189,10 +1189,6 @@ void S_Init (void)
 void S_ShutdownCard(soundcardinfo_t *sc)
 {
 	soundcardinfo_t *prev;
-#if defined(_WIN32) && defined(AVAIL_DSOUND)
-	extern int aimedforguid;
-	aimedforguid = 0;
-#endif
 
 	if (sndcardinfo == sc)
 		sndcardinfo = sc->next;
@@ -1211,10 +1207,6 @@ void S_ShutdownCard(soundcardinfo_t *sc)
 void S_Shutdown(void)
 {
 	soundcardinfo_t *sc, *next;
-#if defined(_WIN32) && defined(AVAIL_DSOUND)
-	extern int aimedforguid;
-	aimedforguid = 0;
-#endif
 
 	for (sc = sndcardinfo; sc; sc=next)
 	{

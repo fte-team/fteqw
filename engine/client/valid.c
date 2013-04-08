@@ -413,6 +413,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_fbmodels", "0"},
 	{"r_vertexlight", "0"},
 	{"v_projectionmode", "0"},
+	{"sbar_teamstatus", "0"},
 	{NULL}
 };
 
@@ -420,6 +421,7 @@ static ruleset_t rulesets[] =
 {
 	{"strict", rulesetrules_strict},
 	{"nqr", rulesetrules_nqr},
+	//{"eql", rulesetrules_nqr},
 	{NULL}
 };
 

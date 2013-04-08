@@ -243,6 +243,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 	if (!name)	//engine can use this to offset all progs fields
 	{			//which fixes constant field offsets (some ktpro arrays)
 		progfuncs->funcs.fieldadjust = fields_size/4;
+//		printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, fields_size, (int)fields_size/4);
 		return 0;
 	}
 
@@ -272,7 +273,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 
 			if (prinst.field[i].progsofs == -1)
 				prinst.field[i].progsofs = progsofs;
-//			printf("Dupfield %s %i -> %i\n", name, prinst.field[i].progsofs,field[i].ofs);
+//			printf("Dupfield %s %i -> %i\n", name, prinst.field[i].progsofs,prinst.field[i].ofs);
 			return prinst.field[i].ofs-progfuncs->funcs.fieldadjust;	//got a match
 		}
 	}
@@ -342,7 +343,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 			{
 				if (prinst.field[i].progsofs == (unsigned)progsofs)
 				{
-//					printf("found union field %s %i -> %i\n", field[i].name, field[i].progsofs, field[i].ofs);
+//					printf("found union field %s %i -> %i\n", prinst.field[i].name, prinst.field[i].progsofs, prinst.field[i].ofs);
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs;
 					break;
 				}
@@ -359,7 +360,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 
 	prinst.field[fnum].progsofs = progsofs;
 
-//	printf("Field %s %i -> %i\n", name, field[fnum].progsofs,field[fnum].ofs);
+//	printf("Field %s %i -> %i\n", name, prinst.field[fnum].progsofs,prinst.field[fnum].ofs);
 	
 	//we've finished setting the structure	
 	return ofs - progfuncs->funcs.fieldadjust;
@@ -401,8 +402,7 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 			{
 //				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
 				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(&progfuncs->funcs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
-
-//				printf("Field %s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+//				printf("Field=%s global %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(volatile int *)&pr_globals[pr_globaldefs16[num].ofs]);
 				return;
 			}
 		}
@@ -416,7 +416,7 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 			{
 //				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
 				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
-//				printf("Field %s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+//				printf("Field global=%s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(volatile int *)&pr_globals[pr_globaldefs16[num].ofs]);
 				return;
 			}
 		}

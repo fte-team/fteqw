@@ -90,7 +90,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define OS_STRING "win_mingw64"
 #endif
 
-#define ID_INLINE __inline
+#define ID_INLINE static __inline
 #define PATH_SEP '\\'
 
 #if defined( __WIN64__ ) 
@@ -114,7 +114,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define OS_STRING "win_mingw"
 #endif
 
-#define ID_INLINE __inline
+#define ID_INLINE static __inline
 #define PATH_SEP '\\'
 
 #if defined( _M_IX86 ) || defined( __i386__ )
@@ -139,7 +139,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 
 #define OS_STRING "macosx"
-#define ID_INLINE inline
+#define ID_INLINE static inline
 #define PATH_SEP '/'
 
 #ifdef __ppc__
@@ -171,7 +171,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define OS_STRING "kFreeBSD"
 #endif
 
-#define ID_INLINE inline
+#define ID_INLINE static inline
 #define PATH_SEP '/'
 
 #if defined __i386__
@@ -235,7 +235,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define OS_STRING "netbsd"
 #endif
 
-#define ID_INLINE inline
+#define ID_INLINE static inline
 #define PATH_SEP '/'
 
 #ifdef __i386__
@@ -266,7 +266,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/byteorder.h>
 
 #define OS_STRING "solaris"
-#define ID_INLINE inline
+#define ID_INLINE static inline
 #define PATH_SEP '/'
 
 #ifdef __i386__
@@ -290,7 +290,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef __sgi
 
 #define OS_STRING "irix"
-#define ID_INLINE __inline
+#define ID_INLINE static __inline
 #define PATH_SEP '/'
 
 #define ARCH_STRING "mips"
@@ -306,7 +306,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef __MORPHOS__
 
 #define OS_STRING "morphos"
-#define ID_INLINE inline
+#define ID_INLINE static inline
 #define PATH_SEP '/'
 
 #define ARCH_STRING "ppc"
@@ -319,7 +319,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef __CYGWIN__
 #define OS_STRING "cygwin"
-#define ID_INLINE inline
+#define ID_INLINE static inline
 #define PATH_SEP '/'
 
 #define ARCH_STRING "x86"
@@ -335,7 +335,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef Q3_VM
 
 #define OS_STRING "q3vm"
-#define ID_INLINE
+#define ID_INLINE static
 #define PATH_SEP '/'
 
 #define ARCH_STRING "bytecode"

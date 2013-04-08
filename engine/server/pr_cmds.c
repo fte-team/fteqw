@@ -65,7 +65,7 @@ cvar_t	dpcompat_trailparticles = CVARD("dpcompat_trailparticles", "0", "Swaps th
 cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_LATCH, "Enables mvdsv-specific builtins, and fakes identifiers so that mods made for mvdsv can run properly and with the full feature set.");
 
 /*compat with frikqcc's arrays (ensures that unknown fields are at the same offsets*/
-cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "1", CVAR_LATCH, "When set, ensures that fields are not relocated unless remapped, working around stripped/immediate field offsets. This results in higher memory usage.");
+cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "When set, ensures that fields are not relocated unless remapped, working around stripped/immediate field offsets. This results in higher memory usage, but may be needed for compat with certain mods, namely ktpro.");
 
 /*other stuff*/
 cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
@@ -10106,7 +10106,7 @@ svextqcfields
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).
 	//this means that custom array offsets still work in mods like ktpro.
-	if (pr_fixbrokenqccarrays.value)
+	if (pr_fixbrokenqccarrays.ival || pr_imitatemvdsv.ival)
 		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
 }
 

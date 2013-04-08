@@ -22,6 +22,11 @@ varying vec4 vc;
 uniform vec4 e_colourident;
 void main ()
 {
-	gl_FragColor = fog4blend(texture2D(s_t0, tc) * vc * e_colourident);
+	vec4 col = texture2D(s_t0, tc);
+#ifdef MASK
+	if (col.a < 0.5)
+		discard;
+#endif
+	gl_FragColor = fog4blend(col * vc * e_colourident);
 }
 #endif

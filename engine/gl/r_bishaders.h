@@ -860,7 +860,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform vec4 e_colourident;\n"
 "void main ()\n"
 "{\n"
-"gl_FragColor = fog4blend(texture2D(s_t0, tc) * vc * e_colourident);\n"
+"vec4 col = texture2D(s_t0, tc);\n"
+"#ifdef MASK\n"
+"if (col.a < 0.5)\n"
+"discard;\n"
+"#endif\n"
+"gl_FragColor = fog4blend(col * vc * e_colourident);\n"
 "}\n"
 "#endif\n"
 },

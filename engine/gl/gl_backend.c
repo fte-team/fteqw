@@ -2383,7 +2383,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 	}
 
 #ifdef GL_ALPHA_TEST	//alpha test doesn't exist in gles2
-	if (delta & SBITS_ATEST_BITS)
+	if ((delta & SBITS_ATEST_BITS) && !gl_config.nofixedfunc)
 	{
 		switch (sbits & SBITS_ATEST_BITS)
 		{

@@ -529,7 +529,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		}
 		break;
 	case ev_field:
-		fielddef = ED_FieldAtOfs (progfuncs,  val->_int );
+		fielddef = ED_FieldAtOfs (progfuncs,  val->_int + progfuncs->funcs.fieldadjust);
 		if (!fielddef)
 			sprintf (line, ".??? (%i)", val->_int);
 		else

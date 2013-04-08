@@ -4383,7 +4383,11 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
 	pspriteframe->shader = R_RegisterShader(name,
 			"{\n"
-				"program defaultsprite\n"
+				"if gl_blendsprites\n"
+					"program defaultsprite\n"
+				"else\n"
+					"program defaultsprite#MASK=1\n"
+				"endif\n"
 				"{\n"
 					"map $diffuse\n"
 					"alphafunc ge128\n"

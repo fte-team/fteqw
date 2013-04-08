@@ -211,7 +211,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 	return go;
 }
-#elif defined(linux) || defined(__unix__)
+#elif defined(linux) || defined(__unix__) || defined(__MACH__)
 #include <dirent.h>
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
 {
@@ -596,6 +596,28 @@ int QDECL main(int argc, char **argv)
 #endif
 	return 0;
 }
+
+#ifdef _MSC_VER
+//our version of sdl_main.lib, which doesn't fight c runtimes.
+int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+	int argc;
+	int i, l, c;
+	LPWSTR *argvw;
+	char **argv;
+	char utf8arg[1024];
+	argvw = CommandLineToArgvW(GetCommandLineW(), &argc);
+	argv = malloc(argc * sizeof(char*));
+	for (i = 0; i < argc; i++)
+	{
+		for(l = 0, c = 0; argvw[l]; l++)
+			c += utf8_encode(utf8arg+c, argvw[i][l], sizeof(utf8arg) - c-1);
+		utf8arg[c] = 0;
+		argv[i] = strdup(utf8arg);
+	}
+	return main(argc, argv);
+}
+#endif
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {

@@ -299,7 +299,10 @@ void Sys_SendKeyEvents(void)
 #endif
 
 		case SDL_MOUSEMOTION:
-			IN_MouseMove(0, (SDL_ShowCursor(SDL_QUERY) == SDL_DISABLE), event.motion.xrel, event.motion.yrel, 0, 0);
+			if (!mouseactive)
+				IN_MouseMove(0, true, event.motion.x, event.motion.y, 0, 0);
+			else
+				IN_MouseMove(0, false, event.motion.xrel, event.motion.yrel, 0, 0);
 			break;
 
 		case SDL_MOUSEBUTTONDOWN:

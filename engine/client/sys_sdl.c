@@ -10,6 +10,7 @@
 
 #ifndef WIN32
 #include <fcntl.h>
+#include <sys/stat.h>
 #else
 #include <direct.h>
 #endif

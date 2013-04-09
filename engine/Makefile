@@ -17,8 +17,8 @@ WHOAMI=$(shell whoami)
 #linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
 #linux->linux32 (FTE_TARGET=linux32)
 #linux->linux64 (FTE_TARGET=linux64)
-#linux->morphos (FTE_TARGET=morphos) Contact Moodles for crosscompiler
-#linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86) Contact Moodles for crosscompiler, only works with Mac OSX 10.4 Tiger.
+#linux->morphos (FTE_TARGET=morphos)
+#linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
 #if you are cross compiling, you'll need to use FTE_TARGET=mytaget
 
 #correct the gcc build when cross compiling
@@ -62,8 +62,8 @@ endif
 
 USER_TARGET:=$(FTE_TARGET)
 
-DROID_NDK_PATH?=~/droid/android-ndk-r6b
-DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
+ANDROID_NDK_ROOT?=~/android-ndk-r8e
+ANDROID_HOME?=~/android-sdk-linux
 ANT?=ant
 JAVATOOL=$(JAVA_HOME)/bin/
 ANDROID_SCRIPT=android
@@ -75,17 +75,13 @@ ifeq ($(FTE_TARGET),droid)
 	#if we're running under windows, then we want to run some other binary
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
 		#set up for linux
-		NDK_PATH:=$(shell echo $(DROID_NDK_PATH))
-		SDK_PATH:=$(shell echo $(DROID_SDK_PATH))
-		TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-
+		TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-
 	else
 		#we're running upon windows
-		NDK_PATH:=$(shell cygpath -m $(DROID_NDK_PATH))
-		SDK_PATH:=$(shell cygpath -m $(DROID_SDK_PATH))
 		ifeq ($(DROID_ARCH),x86)
-			TOOLCHAIN:=$(NDK_PATH)/toolchains/x86-4.4.3/prebuilt/windows/bin/i686-android-linux-
+			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows/bin/i686-android-linux-
 		else
-			TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/windows/bin/arm-linux-androideabi-
+			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows/bin/arm-linux-androideabi-
 		endif
 		ANDROID_SCRIPT=android.bat
 		#make can't cope with absolute paths in dependancy files
@@ -109,8 +105,8 @@ ifeq ($(FTE_TARGET),droid)
 	endif
 
 	STRIP=$(TOOLCHAIN)strip
-	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI) -fno-strict-aliasing
-	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	CC=$(TOOLCHAIN)gcc -I$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI) -fno-strict-aliasing
+	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 #correct the gcc build when cross compiling
@@ -704,7 +700,6 @@ ifeq ($(FTE_TARGET),nacl)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-clang -DNACL
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-strip
 		STRIPFLAGS=
-		DO_LD =/cygdrive/c/Windows/system32/cmd /C $(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-clang -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 		BITS=
 	endif
 
@@ -995,16 +990,9 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	
 	OGGVORBISLDFLAGS=
 
-	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
-	ifeq ($(WHOAMI),moodles)
-		GL_CFLAGS+= -I/home/moodles/mac/include/ -L/home/moodles/mac/lib 
-	endif
-	
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)	
 	ifeq ($(FTE_TARGET),macosx_x86)
 		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
-		ifeq ($(WHOAMI),moodles)
-			GL_CFLAGS+= -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib
-		endif
 	endif
 
 	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit -lz -lpng -ljpeg
@@ -1056,11 +1044,7 @@ ifeq ($(FTE_TARGET),morphos)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS) $(BOTLIB_OBJS)
 	SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
-	
-	ifeq ($(WHOAMI),moodles)
-		SV_CFLAGS+=-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/fteqw/trunk/engine/libs -D__MORPHOS_SHAREDLIBS -I/home/moodles/morphos/os-include/
-	endif
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
 endif
 
 
@@ -1109,9 +1093,10 @@ endif
 
 ifeq ($(FTE_TARGET),web)
 	WEB_PREJS ?= --pre-js web/prejs.js
+	WEB_MEMORY?=402653184
 	RELEASE_CFLAGS=-O1 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
 	DEBUG_CFLAGS=-O0 -g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
-	CC=emcc -s TOTAL_MEMORY=268435456
+	CC=emcc -s TOTAL_MEMORY=$(WEB_MEMORY)
 	#-s ASM_JS=1
 	#BASELDFLAGS=
 
@@ -1134,7 +1119,7 @@ ifeq ($(FTE_TARGET),web)
 	GLB_DIR=gl_web
 	GL_EXE_NAME=../ftewebgl.html
 
-        GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS)
 
 	IMAGELDFLAGS=
@@ -1484,13 +1469,12 @@ nacl-dbg:
 #building for android will require:
 #download android sdk+ndk
 #ant installed
-#DROID_NDK_PATH and DROID_SDK_PATH set, if they don't match the paths on my system.
 
 #droid-dbg will install it on 'the current device', if you've got a device plugged in or an emulator running, it should just work.
 
 #makes an ant project for us
 droid/build.xml:
-	-cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) $(ANDROID_SCRIPT) update project -t android-8 -p . -n FTEDroid
+	-cd droid && PATH=$$PATH:$(ANDROID_HOME)/tools:$(ANDROID_NDK_ROOT) $(ANDROID_SCRIPT) update project -t android-8 -p . -n FTEDroid
 
 #build FTE as a library, then build the java+package (release)
 droid/ftekeystore:
@@ -1535,7 +1519,7 @@ endif
 	@echo
 	@$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(DROID_SDK_PATH)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
+	$(ANDROID_HOME)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
 droid-opt: droid/build.xml droid/ftekeystore
 	$(MAKE) FTE_TARGET=droid gl-rel
@@ -1560,8 +1544,8 @@ droid-help:
 	@-echo "Android Settings:
 	@-echo "DROID_PACKSC: specifies additional pak or pk3 files to compress into the package, which avoids extra configuration. Only used in release builds. You probably shouldn't use this except for really small packages. Any file seeks will give really poor performance."
 	@-echo "DROID_PACKSU: like DROID_PACKSC, but without compression. Faster loading times, but bigger. Use for anything that is already compressed (especially pk3s)."
-	@-echo "DROID_SDK_PATH: path to the android sdk install path."
-	@-echo "DROID_NDK_PATH: path to the android ndk install path."
+	@-echo "ANDROID_HOME: path to the android sdk install path."
+	@-echo "ANDROID_NDK_ROOT: path to the android ndk install path."
 	@-echo "ANT: path and name of apache ant. Probably doesn't need to be set if you're on linux."
 	@-echo "JAVA_HOME: path of your java install. Commonly already set in environment settings."
 	@-echo "JAVATOOL: path to your java install's bin directory. Doesn't need to be set if its already in your path."

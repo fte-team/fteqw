@@ -13,4 +13,8 @@ Module['preRun'] = function()
 };
 
 Module['arguments'] = ['-nohome'];//, '+connect', 'tcp://127.0.0.1:80'];//, '-manifest', document.location + '.fmf'];
-
+// use query string in URL as command line
+if (!document.referrer) {
+	qstring = decodeURIComponent(window.location.search.substring(1)).split(" ");
+	Module['arguments'] = Module['arguments'].concat(qstring);
+}

@@ -690,7 +690,7 @@ int main (int c, const char **v)
 
 #ifdef __MACOSX__
 		//wow, not even windows was this absurd.
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 		if (glcocoaRunLoop())
 		{
 			oldtime = Sys_DoubleTime ();

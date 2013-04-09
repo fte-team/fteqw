@@ -689,7 +689,9 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		return SND_ERROR;
 	}
 
-	SendMessage(mainwindow, WM_USER, 0, 0);
+#ifdef _SDL
+#define mainwindow GetDesktopWindow()
+#endif
 	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
 	{
 		Con_SafePrintf ("Set coop level failed\n");
@@ -707,8 +709,10 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 	dsbuf.lpwfxFormat = NULL;
 
 #ifdef DSBCAPS_GLOBALFOCUS
+#ifndef _SDL
 	if (snd_inactive.ival || sys_parentwindow
 		) /*always inactive if we have a parent window, because we can't tell properly otherwise*/
+#endif
 	{
 		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 		sc->inactive_sound = true;

@@ -2152,6 +2152,21 @@ qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 	return false;
 }
 
+static void	Update_CreatePath (char *path)
+{
+	char	*ofs;
+
+	for (ofs = path+1 ; *ofs ; ofs++)
+	{
+		if (*ofs == '/')
+		{	// create the directory
+			*ofs = 0;
+			Sys_mkdir (path);
+			*ofs = '/';
+		}
+	}
+}
+
 #include "fs.h"
 void Update_Version_Updated(struct dl_download *dl)
 {
@@ -2166,8 +2181,11 @@ void Update_Version_Updated(struct dl_download *dl)
 			vfsfile_t *pending;
 			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
 			Q_strncatz(pendingname, DISTRIBUTION BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
+			Update_CreatePath(pendingname);
 			pending = VFSOS_Open(pendingname, "wb");
-			if (pending)
+			if (!pending)
+				Con_Printf("Unable to write to \"%s\"\n", pendingname);
+			else
 			{
 				while(1)
 				{
@@ -2223,21 +2241,6 @@ void Update_Check(void)
 #ifdef MULTITHREAD
 		DL_CreateThread(dl, NULL, NULL);
 #endif
-	}
-}
-
-static void	Update_CreatePath (char *path)
-{
-	char	*ofs;
-
-	for (ofs = path+1 ; *ofs ; ofs++)
-	{
-		if (*ofs == '/')
-		{	// create the directory
-			*ofs = 0;
-			Sys_mkdir (path);
-			*ofs = '/';
-		}
 	}
 }
 

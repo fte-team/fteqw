@@ -8625,7 +8625,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 
 	while(def)
 	{
-		if ( def->scope && def->scope != scope)
+		if ( (def->scope || (scope && allocate)) && def->scope != scope)
 		{
 			def = Hash_GetNext(&globalstable, name, def);
 			continue;		// in a different function
@@ -8643,7 +8643,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 			if (pr_scope || typecmp_lax(def->type, type))
 			{
 				//unequal even when we're lax
-				QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 			}
 			else
 			{
@@ -8776,9 +8776,9 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 		QCC_PR_ParseError (ERR_ARRAYNEEDSSIZE, "First declaration of array %s with no size",name);
 	}
 
-	if (scope)
+	if (scope && qccwarningaction[WARN_SAMENAMEASGLOBAL])
 	{
-		def = QCC_PR_GetDef(type, name, NULL, false, arraysize, false);
+		def = QCC_PR_GetDef(NULL, name, NULL, false, arraysize, false);
 		if (def)
 		{
 			QCC_PR_ParseWarning(WARN_SAMENAMEASGLOBAL, "Local \"%s\" defined with name of a global", name);

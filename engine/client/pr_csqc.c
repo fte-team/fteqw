@@ -105,6 +105,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
 	globalfunction(parse_print,			"CSQC_Parse_Print");	\
+	globalfunction(parse_event,			"CSQC_Parse_Event");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
@@ -5668,23 +5669,35 @@ qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
 
 qboolean CSQC_ParseGamePacket(void)
 {
-	int len = (unsigned short)MSG_ReadShort();
-	int start = msg_readcount;
+	int parsefnc = csqcg.parse_event?csqcg.parse_event:csqcg.parse_tempentity;
 
-	void *pr_globals;
-	if (!csqcprogs || !csqcg.parse_tempentity)
+	if (cl.csqcdebug)
 	{
-		MSG_ReadSkip(len);
-		return false;
+		int len = (unsigned short)MSG_ReadShort();
+		int start = msg_readcount;
+
+		if (!csqcprogs || !parsefnc)
+		{
+			MSG_ReadSkip(len);
+			return false;
+		}
+
+		PR_ExecuteProgram (csqcprogs, parsefnc);
+
+		if (msg_readcount != start + len)
+		{
+			Con_Printf("Gamecode misread a gamecode packet (%i bytes too much)\n", msg_readcount - (start+len));
+			msg_readcount = start + len;
+		}
 	}
-
-	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	PR_ExecuteProgram (csqcprogs, csqcg.parse_tempentity);
-
-	if (msg_readcount != start + len)
+	else
 	{
-		Con_Printf("Gamecode misread a gamecode packet (%i bytes too much)\n", msg_readcount - (start+len));
-		msg_readcount = start + len;
+		if (!csqcprogs || !parsefnc)
+		{
+			Host_EndGame("CSQC not running or is unable to parse events.\n");
+			return false;
+		}
+		PR_ExecuteProgram (csqcprogs, parsefnc);
 	}
 	return true;
 }

@@ -4140,7 +4140,7 @@ extern void Log_Init (void);
 
 void SV_InitLocal (void)
 {
-	int		i, p;
+	int		i;
 	extern	cvar_t	pr_allowbutton1;
 	extern	cvar_t	sv_aim;
 

@@ -491,14 +491,13 @@ reeval:
 	case OP_ADDRESS:
 		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
 		{
-#ifndef DEBUGABLE
-			progfuncs->funcs.pr_trace++;
-			printf("OP_ADDRESS references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-			st--;
-			goto cont;
-#else
-			PR_RunError (&progfuncs->funcs, "OP_ADDRESS references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-#endif
+			pr_xstatement = st-pr_statements;
+			if (PR_RunWarning (&progfuncs->funcs, "OP_ADDRESS references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			{
+				st--;
+				goto cont;
+			}
+			break;
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
@@ -506,22 +505,20 @@ reeval:
 #endif
 		if (!ed || ed->readonly)
 		{
-			pr_xstatement = st-pr_statements;
-#ifndef DEBUGABLE
+
 			//boot it over to the debugger
-			progfuncs->funcs.pr_trace++;
-			printf("assignment to read-only entity in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-			st--;
-			goto cont;
-#else
 			{
 				ddef16_t *d16;
 				fdef_t *f;
 				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
 				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
-				printf ("assignment to read-only entity in %s (%s.%s)\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL);
+				pr_xstatement = st-pr_statements;
+				if (PR_RunWarning(&progfuncs->funcs, "assignment to read-only entity in %s (%s.%s)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
+				{
+					st--;
+					goto cont;
+				}
 			}
-#endif
 		}
 
 //Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.

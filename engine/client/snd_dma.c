@@ -168,6 +168,8 @@ qboolean S_HaveOutput(void)
 
 void S_SoundInfo_f(void)
 {
+	int i, j;
+	int active, known;
 	soundcardinfo_t *sc;
 	if (!sound_started)
 	{
@@ -182,12 +184,33 @@ void S_SoundInfo_f(void)
 	}
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
-		Con_Printf("%5d stereo\n", sc->sn.numchannels - 1);
-		Con_Printf("%5d samples\n", sc->sn.samples);
-		Con_Printf("%5d samplepos\n", sc->sn.samplepos);
-		Con_Printf("%5d samplebits\n", sc->sn.samplebits);
-		Con_Printf("%5d speed\n", sc->sn.speed);
-		Con_Printf("%5d total_channels\n", sc->total_chans);
+		Con_Printf("Audio Device: %s\n", sc->name);
+		Con_Printf(" %d channels, %gkhz, %d bit audio%s\n", sc->sn.numchannels, sc->sn.speed/1000.0, sc->sn.samplebits, sc->selfpainting?", threaded":"");
+		Con_Printf(" %d samples in buffer\n", sc->sn.samples);
+		for (i = 0, active = 0, known = 0; i < sc->total_chans; i++)
+		{
+			if (sc->channel[i].sfx)
+			{
+				known++;
+				for (j = 0; j < MAXSOUNDCHANNELS; j++)
+				{
+					if (sc->channel[i].vol[j])
+					{
+						active++;
+						break;
+					}
+				}
+				if (j<MAXSOUNDCHANNELS)
+					Con_Printf(" %s (%i %i, %g %g %g, active)\n", sc->channel[i].sfx->name, sc->channel[i].entnum, sc->channel[i].entchannel, sc->channel[i].origin[0], sc->channel[i].origin[1], sc->channel[i].origin[2]);
+				else
+					Con_DPrintf(" %s (%i %i, %g %g %g, inactive)\n", sc->channel[i].sfx->name, sc->channel[i].entnum, sc->channel[i].entchannel, sc->channel[i].origin[0], sc->channel[i].origin[1], sc->channel[i].origin[2]);
+			}
+		}
+		Con_Printf(" %d/%d/%d/%d active/known/highest/max\n", active, known, sc->total_chans, MAX_CHANNELS);
+		for (i = 0; i < sc->sn.numchannels; i++)
+		{
+			Con_Printf(" chan %i: fwd:%-4g rt:%-4g up:%-4g dist:%-4g\n", i, sc->speakerdir[i][0], sc->speakerdir[i][1], sc->speakerdir[i][2], sc->dist[i]);
+		}
 	}
 }
 

@@ -45,7 +45,7 @@ K_DOWNARROW,
 K_LEFTARROW,
 K_RIGHTARROW,
 
-K_ALT,
+K_LALT,
 K_CTRL,
 K_SHIFT,
 K_INS,
@@ -158,6 +158,7 @@ K_APP			= 241,
 K_SEARCH		= 242,
 K_VOLUP			= 243,
 K_VOLDOWN		= 244,
+K_RALT			= 245,
 
 K_MAX			= 256
 };
@@ -166,8 +167,7 @@ K_MAX			= 256
 #define K_RSHIFT K_SHIFT
 #define K_RCTRL K_CTRL
 #define K_LCTRL K_CTRL
-#define K_RALT K_CTRL
-#define K_LALT K_CTRL
+#define K_ALT K_LALT
 
 typedef enum {key_game, key_console, key_message, key_menu, key_editor} keydest_t;
 

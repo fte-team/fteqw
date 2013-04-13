@@ -358,17 +358,21 @@ void Con_QTerm_f(void)
 
 void Key_ClearTyping (void)
 {
+	key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], 2);
+	key_lines[edit_line][0] = ']';
 	key_lines[edit_line][1] = 0;	// clear any typing
 	key_linepos = 1;
 }
 
 void Con_History_Load(void)
 {
+	char line[8192];
 	unsigned char *cr;
 	vfsfile_t *file = FS_OpenVFS("conhistory.txt", "rb", FS_ROOT);
 
 	for (edit_line=0 ; edit_line<=CON_EDIT_LINES_MASK ; edit_line++)
 	{
+		key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], 2);
 		key_lines[edit_line][0] = ']';
 		key_lines[edit_line][1] = 0;
 	}
@@ -377,12 +381,15 @@ void Con_History_Load(void)
 
 	if (file)
 	{
-		while (VFS_GETS(file, key_lines[edit_line]+1, sizeof(key_lines[edit_line])-1))
+		line[0] = ']';
+		while (VFS_GETS(file, line+1, sizeof(line)-1))
 		{
 			//strip a trailing \r if its from windows.
-			cr = key_lines[edit_line] + strlen(key_lines[edit_line]);
-			if (cr > key_lines[edit_line] && cr[-1] == '\r')
+			cr = line + strlen(line);
+			if (cr > line && cr[-1] == '\r')
 				cr[-1] = '\0';
+			key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], strlen(line)+1);
+			strcpy(key_lines[edit_line], line);
 			edit_line = (edit_line + 1) & CON_EDIT_LINES_MASK;
 		}
 		VFS_CLOSE(file);
@@ -593,7 +600,14 @@ void Con_Init (void)
 
 void Con_Shutdown(void)
 {
+	int i;
+
 	Con_History_Save();
+
+	for (i = 0; i <= CON_EDIT_LINES_MASK; i++)
+	{
+		BZ_Free(key_lines[i]);
+	}
 
 	while(con_main.next)
 	{
@@ -954,6 +968,8 @@ int Con_DrawInput (int left, int right, int y, qboolean selactive, int selsx, in
 	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
 //	endmtext = COM_ParseFunString(CON_WHITEMASK, text+key_linepos, cursor, ((char*)maskedtext)+sizeof(maskedtext) - (char*)(cursor+1), PFS_KEEPMARKUP | PFS_FORCEUTF8);
 
+	if ((char*)endmtext == (char*)(maskedtext-2) + sizeof(maskedtext))
+		endmtext[-1] = CON_WHITEMASK | '+' | CON_NONCLEARBG;
 	endmtext[1] = 0;
 
 	i = 0;
@@ -974,13 +990,14 @@ int Con_DrawInput (int left, int right, int y, qboolean selactive, int selsx, in
 			int cmdstart;
 			cmdstart = text[1] == '/'?2:1;
 			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch, NULL);
-			if (fname)	//we can compleate it to:
+			if (fname && strlen(fname) < 256)	//we can compleate it to:
 			{
 				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>' '; p++)
 					maskedtext[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
 				if (p < key_linepos-cmdstart)
 					p = key_linepos-cmdstart;
 				maskedtext[p+cmdstart] = 0;
+				maskedtext[p+cmdstart+1] = 0;
 			}
 		}
 	}

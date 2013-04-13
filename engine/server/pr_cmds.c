@@ -463,10 +463,8 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 	char *r;
 	vfsfile_t *f;
 
-	SV_EndRedirect();
-
 	if (line == -1)
-		return -1;
+		return line;
 	SV_EndRedirect();
 	if (developer.value)
 	{
@@ -9215,7 +9213,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"infokey",			PF_infokey,			0,		80,		0,		80, "string(entity e, string key)"},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81,	"float(string)"},	//81
-	{"multicast",		PF_multicast,		0,		82,		0,		82,	"void(vector where, float set)"},	//82
+	{"multicast",		PF_multicast,		0,		82,		0,		82,	"#define unicast(pl,reli) do{msg_entity = pl; multicast('0 0 0', reli?MULITCAST_ONE_R:MULTICAST_ONE);}while(0)\n"
+																		"void(vector where, float set)"},	//82
 
 
 

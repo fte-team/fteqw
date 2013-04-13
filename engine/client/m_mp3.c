@@ -1908,7 +1908,8 @@ void Media_Gecko_KeyPress (struct cin_s *cin, int code, int unicode, int event)
 		case K_CTRL:
 			code = OSGKKey_Control;
 			break;
-		case K_ALT:
+		case K_LALT:
+		case K_RALT:
 			code = OSGKKey_Alt;
 			break;
 		case K_CAPSLOCK:

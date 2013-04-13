@@ -502,7 +502,8 @@ void Editor_Key(int key, int unicode)
 	{
 	case K_SHIFT:
 		break;
-	case K_ALT:
+	case K_LALT:
+	case K_RALT:
 		break;
 	case K_CTRL:
 		break;
@@ -979,7 +980,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 		{
 			if (d == c)
 			{
-				int e = Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK|CON_BLINKTEXT));
+				int e = Font_DrawChar(nx, y, (int)0xe00b | (CON_WHITEMASK|CON_BLINKTEXT));
 				if (e >= vid.pixelwidth)
 					viewportx += e - vid.pixelwidth;
 				if (nx < 0)
@@ -1000,7 +1001,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 
 		if (d == c)
 		{
-			int e = Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK|CON_BLINKTEXT));
+			int e = Font_DrawChar(nx, y, (int)0xe00b | (CON_WHITEMASK|CON_BLINKTEXT));
 			if (e >= vid.pixelwidth)
 				viewportx += e - vid.pixelwidth;
 			if (nx < 0)
@@ -1018,7 +1019,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 	/*we didn't do the cursor! stick it at the end*/
 	if (c && c >= d)
 	{
-		int e = Font_DrawChar(nx, y, (int)11 | (CON_WHITEMASK|CON_BLINKTEXT));
+		int e = Font_DrawChar(nx, y, (int)0xe00b | (CON_WHITEMASK|CON_BLINKTEXT));
 		if (e >= vid.pixelwidth)
 			viewportx += e - vid.pixelwidth;
 		if (nx < 0)

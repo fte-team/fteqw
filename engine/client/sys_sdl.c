@@ -611,7 +611,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	argv = malloc(argc * sizeof(char*));
 	for (i = 0; i < argc; i++)
 	{
-		for(l = 0, c = 0; argvw[l]; l++)
+		for(l = 0, c = 0; argvw[i][l]; l++)
 			c += utf8_encode(utf8arg+c, argvw[i][l], sizeof(utf8arg) - c-1);
 		utf8arg[c] = 0;
 		argv[i] = strdup(utf8arg);
@@ -627,17 +627,37 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 
 
-
+#if SDL_MAJOR_VERSION >= 2	//probably could inclued 1.3
+#include <SDL_clipboard.h>
 char *Sys_GetClipboard(void)
 {
-	return NULL;
+	return SDL_GetClipboardText();
 }
 void Sys_CloseClipboard(char *bf)
 {
+	SDL_Free(bf);
 }
 void Sys_SaveClipboard(char *text)
 {
+	SDL_SetClipboardText(text);
 }
+#else
+static char *clipboard_buffer;
+char *Sys_GetClipboard(void)
+{
+	return clipboard_buffer;
+}
+
+void Sys_CloseClipboard(char *bf)
+{
+}
+
+void Sys_SaveClipboard(char *text)
+{
+	free(clipboard_buffer);
+	clipboard_buffer = strdup(text);
+}
+#endif
 
 #ifdef MULTITHREAD
 /* Thread creation calls */

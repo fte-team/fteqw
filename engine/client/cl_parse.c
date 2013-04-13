@@ -5258,6 +5258,7 @@ void CLQW_ParseServerMessage (void)
 	int			i, j;
 	int			destsplit;
 	float f;
+	qboolean	csqcpacket = false;
 
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
@@ -5316,7 +5317,7 @@ void CLQW_ParseServerMessage (void)
 		{
 		default:
 			CL_DumpPacket();
-			Host_EndGame ("CL_ParseServerMessage: Illegible server message (%i@%i)", cmd, msg_readcount-1);
+			Host_EndGame ("CLQW_ParseServerMessage: Illegible server message (%i@%i)%s", cmd, msg_readcount-1, (!cl.csqcdebug && csqcpacket)?"\n'sv_csqcdebug 1' might aid in debugging this.":"" );
 			return;
 
 		case svc_time:
@@ -5747,6 +5748,7 @@ void CLQW_ParseServerMessage (void)
 
 #ifdef PEXT_CSQC
 		case svcfte_csqcentities:
+			csqcpacket = true;
 			CSQC_ParseEntities();
 			break;
 #endif
@@ -5765,6 +5767,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svcfte_cgamepacket:
+			csqcpacket = true;
 #ifdef HLCLIENT
 			if (CLHL_ParseGamePacket())
 				break;

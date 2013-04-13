@@ -274,7 +274,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
-			if (keydown[K_ALT] && wParam == '\r')
+			if (keydown[K_LALT] && wParam == '\r')
 			{
 				if (modestate == MS_FULLSCREEN)
 					modestate = MS_WINDOWED;

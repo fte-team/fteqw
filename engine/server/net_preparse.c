@@ -741,6 +741,19 @@ void NPP_NQFlush(void)
 		bufferlen+=2;
 		break;
 
+	case svcfte_cgamepacket:
+		if (sv.csqcdebug)
+		{
+			/*shift the data up by two bytes*/
+			memmove(buffer+3, buffer+1, bufferlen-1);
+
+			/*add a length in the 2nd/3rd bytes*/
+			buffer[1] = (bufferlen-1);
+			buffer[2] = (bufferlen-1) >> 8;
+
+			bufferlen += 2;
+		}
+		break;
 	case svc_temp_entity:
 		switch (buffer[1])
 		{
@@ -904,8 +917,8 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		{
 		case svcdp_showlmp:
 		case svcdp_hidelmp:
-			break;
 		case svc_sound:
+			break;
 		case svc_temp_entity:
 			te_515sevilhackworkaround = false;
 			break;
@@ -919,17 +932,20 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			nullterms = 1;
 			break;
 		case svc_setfrags:
-			protocollen = 4;	//or this
+			protocollen = 4;
 			break;
 		case svc_updatecolors:
-			protocollen = 3;	//or even this
+			protocollen = 3;
 			break;
 		case svc_print:
 			protocollen = 3;
 			nullterms = 1;
 			break;
 		case svc_cdtrack:
-			protocollen = sizeof(qbyte)*3;
+			if (progstype == PROG_QW)
+				protocollen = 2;
+			else
+				protocollen = 3;
 			break;
 		case svc_killedmonster:
 			protocollen = 1;
@@ -1526,23 +1542,38 @@ void NPP_QWFlush(void)
 		}
 
 		break;
+	case svcfte_cgamepacket:
+		if (sv.csqcdebug)
+		{
+			/*shift the data up by two bytes*/
+			memmove(buffer+3, buffer+1, bufferlen-1);
+
+			/*add a length in the 2nd/3rd bytes*/
+			buffer[1] = (bufferlen-1);
+			buffer[2] = (bufferlen-1) >> 8;
+
+			bufferlen += 2;
+		}
+		break;
 	case svc_temp_entity:
 		switch(minortype)
 		{
 		default:
 			if (te_515sevilhackworkaround)
 			{
-				/*shift the data up by two bytes*/
-				memmove(buffer+3, buffer+1, bufferlen-1);
+				if (sv.csqcdebug)
+				{
+					/*shift the data up by two bytes*/
+					memmove(buffer+3, buffer+1, bufferlen-1);
 
+					/*add a length in the 2nd/3rd bytes*/
+					buffer[1] = (bufferlen-1);
+					buffer[2] = (bufferlen-1) >> 8;
+
+					bufferlen += 2;
+				}
 				/*replace the svc itself*/
 				buffer[0] = svcfte_cgamepacket;
-
-				/*add a length in the 2nd/3rd bytes*/
-				buffer[1] = (bufferlen-1);
-				buffer[2] = (bufferlen-1) >> 8;
-
-				bufferlen += 2;
 			}
 			break;
 		case TEQW_LIGHTNINGBLOOD:

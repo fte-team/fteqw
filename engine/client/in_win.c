@@ -61,7 +61,7 @@ static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
 static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
 
-static cvar_t	cl_keypad = CVAR("cl_keypad", "0");
+static cvar_t	cl_keypad = CVAR("cl_keypad", "1");
 extern cvar_t cl_forcesplitclient;
 
 extern float multicursor_x[8], multicursor_y[8];
@@ -1990,7 +1990,7 @@ static qbyte        scantokey[128] =
 	'd',		'f',	'g',		'h',		'j',	'k',		'l',			';',
 	'\'',		'`',	K_SHIFT,	'\\',		'z',	'x',		'c',			'v',		// 2
 	'b',		'n',	'm',		',',		'.',	'/',		K_SHIFT,		'*',
-	K_ALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3
+	K_LALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3
 	K_F6,		K_F7,	K_F8,		K_F9,		K_F10,	K_PAUSE,	K_SCRLCK,		K_HOME,
 	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4
 	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11,
@@ -2036,6 +2036,8 @@ static int MapKey (int vkey)
 	int key;
 	key = (vkey>>16)&255;
 
+	if (((vkey>>16)&511) == (0x138))
+		return K_RALT;
 	if (cl_keypad.value)
 	{
 		switch (key)

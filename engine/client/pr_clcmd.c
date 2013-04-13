@@ -21,7 +21,8 @@ int MP_TranslateFTEtoDPCodes(int code)
 	case K_DOWNARROW:		return 129;
 	case K_LEFTARROW:		return 130;
 	case K_RIGHTARROW:		return 131;
-	case K_ALT:				return 132;
+	case K_LALT:			return 132;
+	case K_RALT:			return 132;
 	case K_CTRL:			return 133;
 	case K_SHIFT:			return 134;
 	case K_F1:				return 135;
@@ -123,7 +124,7 @@ int MP_TranslateDPtoFTECodes(int code)
 	case 129:		return K_DOWNARROW;
 	case 130:		return K_LEFTARROW;
 	case 131:		return K_RIGHTARROW;
-	case 132:		return K_ALT;
+	case 132:		return K_LALT;
 	case 133:		return K_CTRL;
 	case 134:		return K_SHIFT;
 	case 135:		return K_F1;

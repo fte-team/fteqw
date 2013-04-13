@@ -354,6 +354,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->sn.samples = wh->gSndBufSize/(sc->sn.samplebits/8);
 	sc->sn.samplepos = 0;
 	sc->sn.buffer = (unsigned char *) wh->lpData;
+	Q_strncpyz(sc->name, "wav out", sizeof(sc->name));
 
 
 	sc->Lock		= WAV_Lock;

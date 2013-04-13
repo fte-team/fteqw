@@ -628,8 +628,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		pDirectSoundEnumerate(&DSEnumCallback, sc);
 	if (!snd_usemultipledevices.ival)	//if only one device, ALWAYS use the default.
 		dsndguid=NULL;
-
-	if (!dsndguid && sc->audio_fd != 0)	//no more...
+	else if (!dsndguid)	//no more...
 		return SND_NOMORE;
 
 	sc->handle = Z_Malloc(sizeof(dshandle_t));

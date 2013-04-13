@@ -393,6 +393,23 @@ void VARGS PR_RunError (pubprogfuncs_t *progfuncs, char *error, ...)
 	progfuncs->parms->Abort ("%s", string);
 }
 
+pbool PR_RunWarning (pubprogfuncs_t *progfuncs, char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	progfuncs->parms->Printf ("%s, %s\n", string, ((progfuncs->pr_trace)?"ignoring":"enabling trace"));
+	PR_StackTrace (progfuncs);
+
+	if (progfuncs->pr_trace++ == 0)
+		return true;
+	return false;
+}
+
 /*
 ============================================================================
 PR_ExecuteProgram
@@ -1091,10 +1108,10 @@ static char *lastfile = 0;
 		lastfile = f->s_file+progfuncs->funcs.stringtable;
 
 		lastline = externs->useeditor(&progfuncs->funcs, lastfile, lastline, statement, 0, NULL);
-		if (lastline < 0)
-			return -lastline;
 		if (!pr_progstate[pn].linenums)
 			return statement;
+		if (lastline < 0)
+			return -lastline;
 
 		if (pr_progstate[pn].linenums[statement] != lastline)
 		{

@@ -2,7 +2,8 @@
 #include "winquake.h"
 
 #include <SDL.h>
-#pragma comment(lib, MSVCLIBSPATH "sdl.lib")
+
+#define SELFPAINT
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
 //This results in extra latency.
@@ -16,10 +17,12 @@
 
 static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
-Con_Printf("Shutdown SDL sound\n");
+	Con_DPrintf("Shutdown SDL sound\n");
 	SDL_CloseAudio();
+#ifndef SELFPAINT
 	if (sc->sn.buffer)
 		free(sc->sn.buffer);
+#endif
 	sc->sn.buffer = NULL;
 }
 static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
@@ -35,6 +38,13 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 	soundcardinfo_t *sc = userdata;
 	int buffersize = sc->sn.samples*(sc->sn.samplebits/8);
 
+#ifdef SELFPAINT
+	sc->sn.buffer = stream;
+	sc->sn.samples = len / (sc->sn.samplebits/8);
+	sc->samplequeue = sc->sn.samples;
+	S_MixerThread(sc);
+	sc->snd_sent += len;
+#else
 	if (len > buffersize)
 	{
 		len = buffersize;	//whoa nellie!
@@ -51,6 +61,7 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 	}	//and finish from the start
 	memcpy(stream, (char*)sc->sn.buffer + (sc->snd_sent%buffersize), len);
 	sc->snd_sent += len;
+#endif
 }
 
 static void *SSDL_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
@@ -96,7 +107,7 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 
 	desired.freq = sc->sn.speed;
 	desired.channels = sc->sn.numchannels;	//fixme!
-	desired.samples = 0x0100;
+	desired.samples = 0x0200;	//'Good values seem to range between 512 and 8192 inclusive, depending on the application and CPU speed.'
 	desired.format = AUDIO_S16SYS;
 	desired.callback = (void*)SSDL_Paint;
 	desired.userdata = sc;
@@ -121,13 +132,19 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->sn.samplebits = obtained.format&0xff;
 	sc->sn.samples = 32768;//*sc->sn.numchannels;	//doesn't really matter, so long as it's higher than obtained.samples
 
+#ifdef SELFPAINT
+	sc->selfpainting = true;
+#endif
+
 	Con_DPrintf("channels: %i\n", sc->sn.numchannels);
 	Con_DPrintf("Speed: %i\n", sc->sn.speed);
 	Con_DPrintf("Samplebits: %i\n", sc->sn.samplebits);
 	Con_DPrintf("SDLSamples: %i (low for latency)\n", obtained.samples);
 	Con_DPrintf("FakeSamples: %i\n", sc->sn.samples);
 
+#ifndef SELFPAINT
 	sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebits/8);
+#endif
 	Con_DPrintf("Got sound %i-%i\n", obtained.freq, obtained.format);
 
 	sc->Lock		= SSDL_LockBuffer;

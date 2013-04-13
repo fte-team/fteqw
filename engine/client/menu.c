@@ -198,7 +198,11 @@ void M_ToggleMenu_f (void)
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand("togglemenu"))
+	{
+		if (key_dest == key_console)
+			key_dest = key_game;
 		return;
+	}
 #endif
 #ifdef MENU_DAT
 	if (MP_Toggle())

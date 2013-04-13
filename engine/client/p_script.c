@@ -264,7 +264,7 @@ typedef struct part_type_s {
 	vec3_t stain_rgb;
 	float stain_radius;
 
-	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
+	enum {RAMP_NONE, RAMP_DELTA, RAMP_NEAREST, RAMP_LERP} rampmode;
 	int rampindexes;
 	ramp_t *ramp;
 
@@ -1310,7 +1310,14 @@ static void P_ParticleEffect_f(void)
 			if (!strcmp(value, "none"))
 				ptype->rampmode = RAMP_NONE;
 			else if (!strcmp(value, "absolute"))
-				ptype->rampmode = RAMP_ABSOLUTE;
+			{
+				Con_DPrintf("'rampmode absolute' is deprechiated, use 'rampmode nearest'\n");
+				ptype->rampmode = RAMP_NEAREST;
+			}
+			else if (!strcmp(value, "nearest"))
+				ptype->rampmode = RAMP_NEAREST;
+			else if (!strcmp(value, "lerp"))	//don't use the name 'linear'. ramps are there to avoid linear...
+				ptype->rampmode = RAMP_LERP;
 			else //if (!strcmp(value, "delta"))
 				ptype->rampmode = RAMP_DELTA;
 		}
@@ -5104,13 +5111,24 @@ static void PScript_DrawParticleTypes (void)
 
 				switch (type->rampmode)
 				{
-				case RAMP_ABSOLUTE:
+				case RAMP_NEAREST:
 					rampind = (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
 					if (rampind >= type->rampindexes)
 						rampind = type->rampindexes - 1;
 					ramp = type->ramp + rampind;
 					VectorCopy(ramp->rgb, d->rgba);
 					d->rgba[3] = ramp->alpha;
+					break;
+				case RAMP_LERP:
+					{
+						float frac = (type->rampindexes * (type->die - (d->die - particletime)) / type->die);
+						int s1, s2;
+						s1 = min(type->rampindexes-1, frac);
+						s2 = min(type->rampindexes-1, s1+1);
+						frac -= s1;
+						VectorInterpolate(type->ramp[s1].rgb, frac, type->ramp[s2].rgb, d->rgba);
+						FloatInterpolate(type->ramp[s1].alpha, frac, type->ramp[s2].alpha, d->rgba[3]);
+					}
 					break;
 				case RAMP_DELTA:	//particle ramps
 					ramp = type->ramp + (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
@@ -5373,7 +5391,7 @@ static void PScript_DrawParticleTypes (void)
 
 			switch (type->rampmode)
 			{
-			case RAMP_ABSOLUTE:
+			case RAMP_NEAREST:
 				rampind = (int)(type->rampindexes * (type->die - (p->die - particletime)) / type->die);
 				if (rampind >= type->rampindexes)
 					rampind = type->rampindexes - 1;
@@ -5381,6 +5399,18 @@ static void PScript_DrawParticleTypes (void)
 				VectorCopy(ramp->rgb, p->rgba);
 				p->rgba[3] = ramp->alpha;
 				p->scale = ramp->scale;
+				break;
+			case RAMP_LERP:
+				{
+					float frac = (type->rampindexes * (type->die - (p->die - particletime)) / type->die);
+					int s1, s2;
+					s1 = min(type->rampindexes-1, frac);
+					s2 = min(type->rampindexes-1, s1+1);
+					frac -= s1;
+					VectorInterpolate(type->ramp[s1].rgb, frac, type->ramp[s2].rgb, p->rgba);
+					FloatInterpolate(type->ramp[s1].alpha, frac, type->ramp[s2].alpha, p->rgba[3]);
+					FloatInterpolate(type->ramp[s1].scale, frac, type->ramp[s2].scale, p->scale);
+				}
 				break;
 			case RAMP_DELTA:	//particle ramps
 				rampind = (int)(type->rampindexes * (type->die - (p->die - particletime)) / type->die);

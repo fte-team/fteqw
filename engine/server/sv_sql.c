@@ -340,7 +340,7 @@ int sql_serverworker(void *sref)
 					int totalrows = 0;
 					qboolean keeplooping = true;
 
-					Sys_Printf("processing %s\n", statementstring);
+//					Sys_Printf("processing %s\n", statementstring);
 //					qsqlite3_mutex_enter(server->sqlite->mutex);
 //					while(*statementstring)
 //					{
@@ -596,7 +596,7 @@ void SQL_CloseRequest(sqlserver_t *server, queryrequest_t *qreq, qboolean force)
 		SQL_CloseResult(server, qreq->results);
 	}
 	//if the worker thread is still active with it for whatever reason, flag it as aborted but keep it otherwise valid. actually close it later on when we get the results back.
-	if (qreq->state != SR_FINISHED && qreq->state != SR_NEW)
+	if (qreq->state != SR_FINISHED && qreq->state != SR_NEW && !force)
 		qreq->state = SR_ABORTED;
 	else
 	{

@@ -275,67 +275,78 @@ void CompleteCommand (qboolean force)
 	if (*s == '\\' || *s == '/')
 		s++;
 
-	cmd = Cmd_CompleteCommand (s, true, true, 2, NULL);
-	if (!cmd || force)
+	for (cmd = s; *cmd; cmd++)
 	{
-		if (!force)
-			cmd = Cmd_CompleteCommand (s, false, true, 1, &desc);
-		else
-			cmd = Cmd_CompleteCommand (s, true, true, con_commandmatch, &desc);
+		if (*cmd == ' ' || *cmd == '\t')
+			break;
+	}
+	if (*cmd)
+		cmd = s;
+	else
+	{
+		//check for singular matches and complete if found
+		cmd = Cmd_CompleteCommand (s, true, true, 2, NULL);
+		if (!cmd || force)
+		{
+			if (!force)
+				cmd = Cmd_CompleteCommand (s, false, true, 1, &desc);
+			else
+				cmd = Cmd_CompleteCommand (s, true, true, con_commandmatch, &desc);
+			if (cmd)
+			{
+				//complete to that (maybe partial) cmd.
+				Key_ClearTyping();
+				Key_ConsoleInsert("/");
+				Key_ConsoleInsert(cmd);
+				s = key_lines[edit_line]+2;
+
+				//if its the only match, add a space ready for arguments.
+				cmd = Cmd_CompleteCommand (s, true, true, 0, NULL);
+				if (cmd && !strcmp(s, cmd))
+				{
+					Key_ConsoleInsert(" ");
+				}
+
+				if (!con_commandmatch)
+					con_commandmatch = 1;
+
+				if (desc)
+					Con_Footerf(false, "%s: %s", cmd, desc);
+				else
+					Con_Footerf(false, "");
+				return;
+			}
+		}
+		//complete to a partial match.
+		cmd = Cmd_CompleteCommand (s, false, true, 0, &desc);
 		if (cmd)
 		{
-			//complete to that (maybe partial) cmd.
-			Key_ClearTyping();
-			Key_ConsoleInsert("/");
-			Key_ConsoleInsert(cmd);
-			s = key_lines[edit_line]+2;
+			int i = key_lines[edit_line][1] == '/'?2:1;
+			if (i != 2 || strcmp(key_lines[edit_line]+i, cmd))
+			{	//if successful, use that instead.
+				Key_ClearTyping();
+				Key_ConsoleInsert("/");
+				Key_ConsoleInsert(cmd);
 
-			//if its the only match, add a space ready for arguments.
-			cmd = Cmd_CompleteCommand (s, true, true, 0, NULL);
-			if (cmd && !strcmp(s, cmd))
-			{
-				Key_ConsoleInsert(" ");
+				s = key_lines[edit_line]+1;	//readjust to cope with the insertion of a /
+				if (*s == '\\' || *s == '/')
+					s++;
 			}
-
-			if (!con_commandmatch)
-				con_commandmatch = 1;
-
-			if (desc)
-				Con_Footerf(false, "%s: %s", cmd, desc);
-			return;
 		}
 	}
-/*	cmd = Cmd_CompleteCommand (s, false, true, 0, &desc);
-	if (cmd)
-	{
-		int i = key_lines[edit_line][1] == '/'?2:1;
-		if (i != 2 || strcmp(key_lines[edit_line]+i, cmd))
-		{	//if changed, complete it
-			key_lines[edit_line][1] = '/';
-			Q_strcpy (key_lines[edit_line]+2, cmd);
-			key_linepos = Q_strlen(cmd)+2;
-
-			s = key_lines[edit_line]+1;	//readjust to cope with the insertion of a /
-			if (*s == '\\' || *s == '/')
-				s++;
-
-			key_lines[edit_line][key_linepos] = 0;
-
-			if (!con_commandmatch)
-				con_commandmatch = 1;
-			
-			if (desc)
-				Con_Footerf(false, "%s: %s", cmd, desc);
-
-			return;	//don't alter con_commandmatch if we compleated a tiny bit more
-		}
-	}
-*/
 	con_commandmatch++;
-	if (Cmd_CompleteCommand(s, true, true, con_commandmatch, &desc))
+	cmd = Cmd_CompleteCommand(s, true, true, con_commandmatch, &desc);
+	if (!cmd)
+	{
+		con_commandmatch = 1;
+		cmd = Cmd_CompleteCommand(s, true, true, con_commandmatch, &desc);
+	}
+	if (cmd)
 	{
 		if (desc)
 			Con_Footerf(false, "%s: %s", cmd, desc);
+		else
+			Con_Footerf(false, "");
 	}
 	else
 	{
@@ -974,14 +985,14 @@ void Key_Console (unsigned int unicode, int key)
 
 	if (key == K_TAB)
 	{	// command completion
-		if (keydown[K_CTRL] || keydown[K_SHIFT])
+		if (keydown[K_SHIFT])
 		{
 			Con_CycleConsole();
 			return;
 		}
 
 		if (con_current->commandcompletion)
-			CompleteCommand (false);
+			CompleteCommand (keydown[K_CTRL]);
 		return;
 	}
 	if (key != K_CTRL && key != K_SHIFT && con_commandmatch)
@@ -1939,7 +1950,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				break;
 			}
 		case key_console:
-			if (cls.state)
+			if (cls.state && key_dest == key_console)
 				key_dest = key_game;
 			else
 				M_ToggleMenu_f ();

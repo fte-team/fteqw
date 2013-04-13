@@ -556,9 +556,10 @@ void DumpGLState(void)
 }
 #endif
 
-DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
+DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
 	char dumpPath[1024];
+	char msg[1024];
 	HANDLE hProc = GetCurrentProcess();
 	DWORD procid = GetCurrentProcessId();
 	HANDLE dumpfile;
@@ -568,7 +569,7 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
 
 #ifdef PRINTGLARRAYS
-	if (qrenderer == QR_OPENGL)
+	if (!iswatchdog && qrenderer == QR_OPENGL)
 		DumpGLState();
 #endif
 
@@ -576,10 +577,11 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	pIsDebuggerPresent = (void*)GetProcAddress(hKernel, "IsDebuggerPresent");
 
 #ifdef GLQUAKE
+	//restores gamma
 	GLVID_Crashed();
 #endif
 
-	if (pIsDebuggerPresent ())
+	if (!iswatchdog && pIsDebuggerPresent ())
 	{
 		/*if we have a current window, minimize it to bring us out of fullscreen*/
 		extern qboolean vid_initializing;
@@ -591,7 +593,10 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	}
 
 	/*if we have a current window, kill it, so it can't steal input of handle window messages or anything risky like that*/
-	DestroyWindow(mainwindow);
+	if (iswatchdog)
+		ShowWindow(mainwindow, SW_MINIMIZE);
+	else
+		DestroyWindow(mainwindow);
 
 	hDbgHelp = LoadLibrary ("DBGHELP");
 	if (hDbgHelp)
@@ -601,8 +606,23 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 
 	if (fnMiniDumpWriteDump)
 	{
-		if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
-			return EXCEPTION_EXECUTE_HANDLER;
+		if (iswatchdog)
+		{
+			switch (MessageBox(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL))
+			{
+			case IDYES:
+				break;	//take a dump.
+			case IDNO:
+				exit(0);
+			default:	//cancel = run the exception handler, which means we reset the watchdog.
+				return EXCEPTION_EXECUTE_HANDLER;
+			}
+		}
+		else
+		{
+			if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
+				return EXCEPTION_EXECUTE_HANDLER;
+		}
 
 		/*take a dump*/
 		GetTempPath (sizeof(dumpPath)-16, dumpPath);
@@ -617,14 +637,54 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 			if (fnMiniDumpWriteDump(hProc, procid, dumpfile, MiniDumpWithIndirectlyReferencedMemory|MiniDumpWithDataSegs, &crashinfo, NULL, NULL))
 			{
 				CloseHandle(dumpfile);
-				MessageBox(NULL, va("You can find the crashdump at\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath), DISTRIBUTION " Sucks", 0);
-				return EXCEPTION_EXECUTE_HANDLER;
+				Q_snprintfz(msg, sizeof(msg), "You can find the crashdump at\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath);
+				MessageBox(NULL, msg, DISTRIBUTION " Sucks", 0);
 			}
+			else
+				MessageBox(NULL, "MiniDumpWriteDump failed", "oh noes", 0);
+		}
+		else
+		{
+			Q_snprintfz(msg, sizeof(msg), "unable to open %s\nno dump created.", dumpPath);
+			MessageBox(NULL, msg, "oh noes", 0);
 		}
 	}
 	else
 		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
 	return EXCEPTION_EXECUTE_HANDLER;
+}
+volatile int watchdogframe;	//incremented each frame.
+int watchdogthread(void *arg)
+{
+	int oldframe = watchdogframe;
+	int newframe;
+	int secs = 0;
+	while(1)
+	{
+		newframe = watchdogframe;
+		if (oldframe != newframe)
+		{
+			oldframe = newframe;
+			secs = 0;
+		}
+		else
+		{
+			secs++;
+			if (secs > 10)
+			{
+				secs = 0;
+				__try
+				{
+					*(int*)arg = -3;
+				}
+				__except (CrashExceptionHandler(true, GetExceptionCode(), GetExceptionInformation()))
+				{
+				}
+			}
+		}
+		Sleep(1000);
+	}
+	return 0;
 }
 #endif
 
@@ -2448,6 +2508,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (Sys_CheckUpdated())
 			return true;
 
+#ifdef CATCHCRASH
+		if (COM_CheckParm("-watchdog"))
+			Sys_CreateThread("watchdog", watchdogthread, NULL, 0, 0); 
+#endif
+
 		isPlugin = !!COM_CheckParm("-plugin");
 		if (isPlugin)
 		{
@@ -2574,6 +2639,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		/* main window message loop */
 		while (1)
 		{
+#ifdef CATCHCRASH
+			watchdogframe++;
+#endif
 			if (isDedicated)
 			{
 	#ifndef CLIENTONLY
@@ -2623,7 +2691,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 #ifdef CATCHCRASH
-	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
+	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
 		return 1;
 	}

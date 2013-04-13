@@ -961,6 +961,7 @@ static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		sc->audio_fd = cardnum;
 		sc->selfpainting = true;
 		sc->handle = cond = Sys_CreateConditional();
+		Sys_LockConditional(cond);
 		sc->thread = Sys_CreateThread("dsoundmixer", DSOUND_Thread, sc, THREADP_HIGHEST, 0);
 		if (!sc->thread)
 		{
@@ -970,6 +971,7 @@ static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 
 		//wait for the thread to finish (along with all its error con printfs etc
 		Sys_ConditionWait(cond);
+		Sys_UnlockConditional(cond);
 		Sys_DestroyConditional(cond);
 
 		if (!sc->selfpainting)

@@ -355,7 +355,7 @@ void Font_Shutdown(void)
 }
 
 //we got too many chars and switched to a new plane - purge the chars in that plane
-void Font_FlushPlane(font_t *f)
+void Font_FlushPlane(void)
 {
 	/*
 	assumption:
@@ -364,6 +364,13 @@ void Font_FlushPlane(font_t *f)
 
 	//we've not broken anything yet, flush while we can
 	Font_Flush();
+
+	if (fontplanes.planechanged)
+	{
+		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_2D|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+
+		fontplanes.planechanged = false;
+	}
 
 	fontplanes.activeplane++;
 	fontplanes.activeplane = fontplanes.activeplane % FONTPLANES;
@@ -401,7 +408,7 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, in
 	}
 
 	if (fontplanes.planerowy+(int)bmh >= PLANEHEIGHT)
-		Font_FlushPlane(f);
+		Font_FlushPlane();
 
 	if (fontplanes.newestchar)
 		fontplanes.newestchar->nextchar = c;

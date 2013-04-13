@@ -585,6 +585,7 @@ void R_NetGraph (void);
 
 #define qglStencilOpSeparateATI qglStencilOpSeparate
 #define qglGenFramebuffersEXT qglGenFramebuffers
+#define qglDeleteFramebuffersEXT qglDeleteFramebuffers
 #define qglBindFramebufferEXT qglBindFramebuffer
 #define qglFramebufferTexture2DEXT qglFramebufferTexture2D
 #define qglDeleteRenderbuffersEXT qglDeleteRenderbuffers

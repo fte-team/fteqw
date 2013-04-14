@@ -185,7 +185,7 @@ EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad im
 EBUILTIN(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
 EBUILTIN(void, Draw_Fill,	(float x, float y, float w, float h));
 EBUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
-EBUILTIN(void, Draw_Character, (int x, int y, unsigned int characture));
+EBUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));

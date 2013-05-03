@@ -1,6 +1,12 @@
 #ifndef __PLUGIN_H__
 #define __PLUGIN_H__
 
+#ifdef FTEPLUGIN
+#include "quakedef.h"
+#undef snprintf
+#undef vsnprintf
+#endif
+
 #ifdef Q3_VM
 
 typedef int qintptr_t;
@@ -55,8 +61,9 @@ void BadBuiltin(void);
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include "math.h"
+#include <math.h>
 
+#ifndef _VM_H
 #ifdef _WIN64
 typedef long long qintptr_t;
 typedef unsigned long long quintptr_t;
@@ -64,9 +71,19 @@ typedef unsigned long long quintptr_t;
 typedef long qintptr_t;
 typedef unsigned long quintptr_t;
 #endif
+#endif
 
 #ifndef _WIN32
 #define NATIVEEXPORT __attribute__((visibility("default")))
+#endif
+
+
+#ifndef FTEPLUGIN
+#define pPlug_GetEngineFunction Plug_GetEngineFunction
+#define pCon_Print Con_Print
+#define pCvar_GetFloat Cvar_GetFloat
+#define pSys_Error Sys_Error
+#define pPlug_ExportToEngine Plug_ExportToEngine
 #endif
 
 
@@ -75,27 +92,34 @@ extern "C" {
 #endif
 
 //DLLs need a wrapper to add the extra parameter and call a boring function.
-#define EBUILTIN(t, n, args) extern qintptr_t BUILTIN_##n; t n args
 #define TEST
-#ifdef TEST
+#ifdef FTEPLUGIN
+	#define EBUILTIN(t, n, args) extern qintptr_t BUILTIN_##n; t p##n args
+	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t p##n args {qintptr_t res; if (!BUILTINISVALID(n))pSys_Error("Builtin "#n" is not valid\n");res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
+	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t p##n args {if (!BUILTINISVALID(n))pSys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}
+#elif defined(TEST)
+	#define EBUILTIN(t, n, args) extern qintptr_t BUILTIN_##n; t n args
 	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t n args {qintptr_t res; if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
 	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}
 #else
+	#define EBUILTIN(t, n, args) extern qintptr_t BUILTIN_##n; t n args
 	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t n args {qintptr_t res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
 	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
 #endif
-#define CHECKBUILTIN(n) BUILTIN_##n = (qintptr_t)Plug_GetEngineFunction(#n);
+#define CHECKBUILTIN(n) BUILTIN_##n = (qintptr_t)pPlug_GetEngineFunction(#n);
 #define BUILTINISVALID(n) (BUILTIN_##n != 0)
+#ifndef QDECL
 #ifdef _WIN32
 #define QDECL __cdecl
 #else
 #define QDECL
 #endif
+#endif
 extern qintptr_t (*plugin_syscall)( qintptr_t arg, ... );
 
 #ifdef _WIN32
 void strlcpy(char *d, const char *s, int n);
-int snprintf(char *buffer, size_t maxlen, const char *format, ...);
+//int snprintf(char *buffer, size_t maxlen, const char *format, ...);
 #endif
 
 #endif
@@ -104,6 +128,8 @@ int snprintf(char *buffer, size_t maxlen, const char *format, ...);
 #define NATIVEEXPORT
 #endif
 
+
+#ifndef FTEPLUGIN
 #ifdef __cplusplus
 typedef enum {qfalse, qtrue} qboolean;
 #else
@@ -111,8 +137,10 @@ typedef enum {qfalse, qtrue} qboolean;
 #define false qfalse
 #define true qtrue
 #endif
-typedef void *qhandle_t;
 typedef float vec3_t[3];
+typedef unsigned char qbyte;
+#endif 
+typedef void *qhandle_t;
 typedef void* funcptr_t;
 
 
@@ -191,6 +219,8 @@ EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 EBUILTIN(void, SCR_CenterPrint, (char *s));
 
+EBUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width));
+
 EBUILTIN(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
 EBUILTIN(int, UpdateInputBuffer, (void *inputbuffer, int bytes));
 
@@ -198,6 +228,7 @@ EBUILTIN(int, FS_Open, (char *name, qhandle_t *handle, int mode));
 EBUILTIN(void, FS_Close, (qhandle_t handle));
 EBUILTIN(int, FS_Write, (qhandle_t handle, void *data, int len));
 EBUILTIN(int, FS_Read, (qhandle_t handle, void *data, int len));
+EBUILTIN(int, FS_Seek, (qhandle_t handle, unsigned int offsetlow, unsigned int offsethigh));
 
 EBUILTIN(qhandle_t, Net_TCPConnect, (char *ip, int port));
 EBUILTIN(qhandle_t, Net_TCPListen, (char *ip, int port, int maxcount));
@@ -211,7 +242,7 @@ EBUILTIN(void, Net_Close, (qhandle_t socket));
 
 
 #if defined(_WIN32) || defined(Q3_VM)
-int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
+//int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 #endif
 
 #ifdef Q3_VM
@@ -230,7 +261,6 @@ qboolean Plug_Export(const char *name, export_t func);
 void Con_Printf(const char *format, ...);
 void Con_DPrintf(const char *format, ...);	//not a particuarly efficient implementation, so beware.
 void Sys_Errorf(const char *format, ...);
-typedef unsigned char qbyte;
 void Q_strncpyz(char *d, const char *s, int n);
 
 
@@ -251,7 +281,7 @@ void Q_strncpyz(char *d, const char *s, int n);
 //
 // qvm_api.c
 //
-int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
+//int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 
 typedef struct {
 	char *name;
@@ -267,7 +297,11 @@ typedef struct {
 	int width;
 	int height;
 } vmvideo_t;
+#ifdef _VM_H
+#define vid ohnoes
+#else
 extern vmvideo_t vid;
+#endif
 
 #define VMCvar_SetString(c,v)							\
 	do{													\
@@ -283,13 +317,15 @@ extern vmvideo_t vid;
 	} while(0)											\
 
 
+#ifndef MAX_INFO_KEY
 #define	MAX_INFO_KEY	64
-char *Info_ValueForKey (char *s, char *key);
-void Info_RemoveKey (char *s, char *key);
+#endif
+char *Info_ValueForKey (char *s, const char *key);
+void Info_RemoveKey (char *s, const char *key);
 void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);
-void Info_SetValueForKey (char *s, char *key, char *value, int maxsize);
-void Info_SetValueForStarKey (char *s, char *key, char *value, int maxsize);
+void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
+void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
 
 #ifdef __cplusplus
 }

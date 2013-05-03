@@ -1,8 +1,9 @@
 video encoder/decoder using the ffmpeg avformat/avcodec libraries.
 
-The video decoder plugs into the media decoder functionality on media with an 'av:' prefix, specifically:
-The console command 'playfilm av:c:\foo.mpg' will start playing back c:\foo.mpg fullscreen.
-The shader term 'videomap av:c:\foo.mpg' will play the video upon the shader. This can be used with csqc+drawpic, csqc+beginpolygon, or placed upon walls.
+The video decoder plugs into the media decoder functionality on media with an 'av:' or 'avs:' prefix, specifically:
+The console command 'playfilm av:foo.mpg' will start playing back $BASEDIR/$GAMEDIR/foo.mpg fullscreen (or from inside paks/pk3s, but make sure seeking is fast, so avoid compression in pk3s...).
+The console command 'playfilm avs:c:\foo.mpg' will start playing back c:\foo.mpg fullscreen.
+The shader term 'videomap avs:c:\foo.mpg' will play the video upon the shader. This can be used with csqc+drawpic, csqc+beginpolygon, or placed upon walls.
 It theoretically supports any file that the avformat/avcodec libraries support, but has no ability to pass arguments, thus playback is likely limited only to files which require no explicit overrides.
 
 The video encoder plugs into the existing capture command. Or something. I don't know. Its all basically junk.

@@ -15,6 +15,7 @@ int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 	int tokens=0;
 	char *string;
 	char tempbuffer[64];
+	unsigned int _uint;
 	int _int;
 	float _float;
 	int i;
@@ -93,22 +94,15 @@ retry:
 				tokens++;
 				break;
 			case 'x':
-				_int = va_arg(vargs, int);
-				if (_int < 0)
-				{
-					if (maxlen-- == 0) 
-						{*buffer++='\0';return tokens;}
-					*buffer++ = '-';
-					_int *= -1;
-				}
+				_uint = va_arg(vargs, unsigned int);
 				i = sizeof(tempbuffer)-2;
-				tempbuffer[sizeof(tempbuffer)-1] = '\0';
-				while(_int)
+				tempbuffer[i+1] = '\0';
+				while(_uint)
 				{
-					tempbuffer[i] = _int%16 + '0';
+					tempbuffer[i] = (_uint&0xf) + '0';
 					if (tempbuffer[i] > '9')
 						tempbuffer[i] = tempbuffer[i] - ':' + 'a';
-					_int/=16;
+					_uint/=16;
 					i--;
 				}
 				string = tempbuffer+i+1;
@@ -553,7 +547,7 @@ int rand(void)
 
 #endif
 
-#if defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__CYGWIN__)
+#if 0//defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__CYGWIN__)
 #else
 void strlcpy(char *d, const char *s, int n)
 {

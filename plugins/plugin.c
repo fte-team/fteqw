@@ -2,7 +2,8 @@
 //it's this one or the engine...
 #include "plugin.h"
 
-typedef struct {
+typedef struct
+{
 	const char *name;
 	export_t func;
 } exports_t;
@@ -196,6 +197,9 @@ BUILTINR(int, FS_Write, (qhandle_t handle, void *data, int len));
 #define ARGNAMES ,handle,data,len
 BUILTINR(int, FS_Read, (qhandle_t handle, void *data, int len));
 #undef ARGNAMES
+#define ARGNAMES ,handle,offsetlow,offsethigh
+BUILTINR(int, FS_Seek, (qhandle_t handle, unsigned int offsetlow, unsigned int offsethigh));
+#undef ARGNAMES
 
 
 #define ARGNAMES ,ip,port
@@ -263,21 +267,21 @@ void Con_Printf(const char *format, ...)
 	vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	Con_Print(string);	
+	pCon_Print(string);	
 }
 void Con_DPrintf(const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
 
-	if (!Cvar_GetFloat("developer"))
+	if (!pCvar_GetFloat("developer"))
 		return;
 		
 	va_start (argptr, format);
 	vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	Con_Print(string);	
+	pCon_Print(string);	
 }
 void Sys_Errorf(const char *format, ...)
 {
@@ -288,12 +292,12 @@ void Sys_Errorf(const char *format, ...)
 	vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	Sys_Error(string);	
+	pSys_Error(string);	
 }
 
 void BadBuiltin(void)
 {
-	Sys_Error("Plugin tried calling a missing builtin\n");
+	pSys_Error("Plugin tried calling a missing builtin\n");
 }
 
 void Plug_InitStandardBuiltins(void)
@@ -422,10 +426,10 @@ qboolean Plug_Export(const char *name, export_t func)
 		{
 			exports[i].name = name;
 			exports[i].func = func;
-			return Plug_ExportToEngine(name, i);
+			return pPlug_ExportToEngine(name, i);
 		}
 	}
-	Sys_Error("Plugin exports too many functions");
+	pSys_Error("Plugin exports too many functions");
 	return 0;
 }
 

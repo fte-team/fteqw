@@ -809,6 +809,7 @@ void Editor_Key(int key, int unicode)
 		break;
 
 	case K_ENTER:
+	case K_KP_ENTER:
 		if (editenabled)
 		{
 			fileblock_t *b = cursorblock;

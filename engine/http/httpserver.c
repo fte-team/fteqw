@@ -567,7 +567,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 
 #ifndef WEBSVONLY
 	SockadrToNetadr(&from, &na);
-	IWebPrintf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), na));
+	IWebPrintf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), &na));
 #endif
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));

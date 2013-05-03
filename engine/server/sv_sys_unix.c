@@ -661,7 +661,32 @@ static void Friendly_Crash_Handler(int sig)
 	fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
 	if (fd != -1)
 	{
-		write(fd, "Crash Log:\n", 11);
+		time_t rawtime;
+		struct tm * timeinfo;
+		char tbuffer [80];
+
+		time (&rawtime);
+		timeinfo = localtime (&rawtime);
+		strftime (buffer, sizeof(buffer), "Time: %Y-%m-%d %H:%M:%S\n",timeinfo);
+		write(fd, buffer, strlen(buffer));
+
+		Q_snprintf(buffer, sizeof(buffer), "Binary: "__DATE__" "__TIME__"\n");
+		write(fd, buffer, strlen(buffer));
+		Q_snprintf(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR
+#ifdef OFFICIAL_RELEASE
+			" (official)");
+#else
+			"");
+#endif
+		write(fd, buffer, strlen(buffer));
+#ifdef SVNREVISION
+		if (strcmp(STRINGIFY(SVNREVISION), "-"))
+		{
+			Q_snprintf(buffer, sizeof(buffer), "Revision: %s\n", SVNREVISION);
+			write(fd, buffer, strlen(buffer));
+		}
+#endif
+
 		size = backtrace(array, 10);
 		backtrace_symbols_fd(array, size, fd);
 		write(fd, "\n", 1);
@@ -696,7 +721,7 @@ int main(int argc, char *argv[])
 	parms.argv = com_argv;
 
 #ifdef __linux__
-	if (COM_CheckParm("-dumpstack"))
+	if (!COM_CheckParm("-nodumpstack"))
 	{
 		signal(SIGILL, Friendly_Crash_Handler);
 		signal(SIGFPE, Friendly_Crash_Handler);

@@ -17,37 +17,38 @@
 typedef struct {
 	int depth;
 	char rootpath[1];
+	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
 } stdiopath_t;
 typedef struct {
 	vfsfile_t funcs;
 	FILE *handle;
 } vfsstdiofile_t;
-static int VFSSTDIO_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+static int QDECL VFSSTDIO_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fread(buffer, 1, bytestoread, intfile->handle);
 }
-static int VFSSTDIO_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
+static int QDECL VFSSTDIO_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fwrite(buffer, 1, bytestoread, intfile->handle);
 }
-static qboolean VFSSTDIO_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL VFSSTDIO_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fseek(intfile->handle, pos, SEEK_SET) == 0;
 }
-static unsigned long VFSSTDIO_Tell (struct vfsfile_s *file)
+static unsigned long QDECL VFSSTDIO_Tell (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return ftell(intfile->handle);
 }
-static void VFSSTDIO_Flush(struct vfsfile_s *file)
+static void QDECL VFSSTDIO_Flush(struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	fflush(intfile->handle);
 }
-static unsigned long VFSSTDIO_GetSize (struct vfsfile_s *file)
+static unsigned long QDECL VFSSTDIO_GetSize (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 
@@ -60,7 +61,7 @@ static unsigned long VFSSTDIO_GetSize (struct vfsfile_s *file)
 
 	return maxlen;
 }
-static void VFSSTDIO_Close(vfsfile_t *file)
+static void QDECL VFSSTDIO_Close(vfsfile_t *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	fclose(intfile->handle);
@@ -68,7 +69,7 @@ static void VFSSTDIO_Close(vfsfile_t *file)
 }
 
 #ifdef _WIN32
-static void VFSSTDIO_CloseTemp(vfsfile_t *file)
+static void QDECL VFSSTDIO_CloseTemp(vfsfile_t *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	char *fname = (char*)(intfile+1); 
@@ -195,7 +196,7 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 #endif
 
 #ifndef WEBSVONLY
-static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *QDECL FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	vfsfile_t *f;
 	stdiopath_t *sp = handle;
@@ -207,26 +208,26 @@ static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mo
 	snprintf(diskname, sizeof(diskname), "%s/%s", sp->rootpath, loc->rawname);
 
 	f = VFSSTDIO_Open(diskname, mode, &needsflush);
-	if (needsflush)
-		FS_AddFileHash(sp->depth, loc->rawname, NULL, sp);
+	if (needsflush && sp->AddFileHash)
+		sp->AddFileHash(sp->depth, loc->rawname, NULL, sp);
 	return f;
 }
 
-static void FSSTDIO_GetDisplayPath(void *handle, char *out, unsigned int outlen)
+static void QDECL FSSTDIO_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	stdiopath_t *np = handle;
 	Q_strncpyz(out, np->rootpath, outlen);
 }
-static void FSSTDIO_ClosePath(void *handle)
+static void QDECL FSSTDIO_ClosePath(void *handle)
 {
 	Z_Free(handle);
 }
-static qboolean FSSTDIO_PollChanges(void *handle)
+static qboolean QDECL FSSTDIO_PollChanges(void *handle)
 {
 //	stdiopath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
-static void *FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
+static void *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
 {
 	stdiopath_t *np;
 	int dlen = strlen(desc);
@@ -240,9 +241,10 @@ static void *FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
 	}
 	return np;
 }
-static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, void *spath)
+static int QDECL FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, void *spath)
 {
-	stdiopath_t *sp = data;
+	stdiopath_t *sp = spath;
+	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
@@ -251,16 +253,17 @@ static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data,
 		Sys_EnumerateFiles(sp->rootpath, childpath, FSSTDIO_RebuildFSHash, data, spath);
 		return true;
 	}
-	FS_AddFileHash(sp->depth, filename, NULL, sp);
+	AddFileHash(sp->depth, filename, NULL, sp);
 	return true;
 }
-static void FSSTDIO_BuildHash(void *handle, int depth)
+static void QDECL FSSTDIO_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	stdiopath_t *sp = handle;
 	sp->depth = depth;
-	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, handle, handle);
+	sp->AddFileHash = AddFileHash;
+	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, AddFileHash, handle);
 }
-static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean QDECL FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	stdiopath_t *sp = handle;
 	int len;
@@ -310,7 +313,7 @@ static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *file
 
 	return true;
 }
-static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void QDECL FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 	FILE *f;
 	size_t result;
@@ -326,7 +329,7 @@ static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 
 	fclose(f);
 }
-static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL FSSTDIO_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
 {
 	stdiopath_t *sp = handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);

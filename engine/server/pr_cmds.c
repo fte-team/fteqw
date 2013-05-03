@@ -1770,7 +1770,7 @@ qboolean PR_GameCodePacket(char *s)
 	{
 		if (cl->state == cs_free)
 			continue;
-		if (!NET_CompareAdr (net_from, cl->netchan.remote_address))
+		if (!NET_CompareAdr (&net_from, &cl->netchan.remote_address))
 			continue;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 		break;
@@ -1778,7 +1778,7 @@ qboolean PR_GameCodePacket(char *s)
 
 
 
-	G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, NET_AdrToString (adr, sizeof(adr), net_from));
+	G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, NET_AdrToString (adr, sizeof(adr), &net_from));
 
 	G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, s);
 	PR_ExecuteProgram (svprogfuncs, gfuncs.ParseConnectionlessPacket);
@@ -5282,13 +5282,13 @@ char *PF_infokey_Internal (int entnum, char *key)
 	{
 		value = ov;
 		if (!strcmp(key, "ip"))
-			NET_BaseAdrToString (ov, sizeof(ov), svs.clients[entnum-1].netchan.remote_address);
+			NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
 		else if (!strcmp(key, "realip"))
 		{
 			if (svs.clients[entnum-1].realip_status)
-				NET_BaseAdrToString (ov, sizeof(ov), svs.clients[entnum-1].realip);
+				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].realip);
 			else	//FIXME: should we report the spoofable/proxy address if the real ip is not known?
-				NET_BaseAdrToString (ov, sizeof(ov), svs.clients[entnum-1].netchan.remote_address);
+				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
 		}
 		else if (!strcmp(key, "csqcactive"))
 			sprintf(ov, "%d", svs.clients[entnum-1].csqcactive);
@@ -6623,7 +6623,7 @@ static void QCBUILTIN PF_h2advanceweaponframe (pubprogfuncs_t *prinst, struct gl
 	G_FLOAT(OFS_RETURN) = state;
 }
 
-char *SV_CheckRejectConnection(netadr_t adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid)
+char *SV_CheckRejectConnection(netadr_t *adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid)
 {
 	char addrstr[256];
 	char clfeatures[4096], *bp;
@@ -6671,6 +6671,10 @@ char *SV_CheckRejectConnection(netadr_t adr, char *uinfo, unsigned int protocol,
 			Info_SetValueForKey(clfeatures, "maxentities", "32767", sizeof(clfeatures));
 		else if (protocol == SCP_DARKPLACES6 || protocol == SCP_DARKPLACES7)
 			Info_SetValueForKey(clfeatures, "maxentities", "32767", sizeof(clfeatures));
+		else if (pext1 & PEXT_ENTITYDBL2)
+			Info_SetValueForKey(clfeatures, "maxentities", "2048", sizeof(clfeatures));
+		else if (pext1 & PEXT_ENTITYDBL)
+			Info_SetValueForKey(clfeatures, "maxentities", "1024", sizeof(clfeatures));
 		else if (protocol == SCP_NETQUAKE)
 			Info_SetValueForKey(clfeatures, "maxentities", "600", sizeof(clfeatures));
 		else //if (protocol == SCP_QUAKEWORLD)
@@ -7118,108 +7122,108 @@ void SV_RegisterH2CustomTents(void)
 
 	if (progstype == PROG_H2)
 	{
-		h2customtents[ce_rain]				= SV_CustomTEnt_Register("ce_rain",				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_fountain]			= SV_CustomTEnt_Register("ce_fountain",			CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_quake]				= SV_CustomTEnt_Register("ce_quake",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_rain]				= SV_CustomTEnt_Register("h2part.ce_rain",				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_fountain]			= SV_CustomTEnt_Register("h2part.ce_fountain",			CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_quake]				= SV_CustomTEnt_Register("h2part.ce_quake",			0, NULL, 0, NULL, 0, 0, NULL);
 //	ce_white_smoke (special)
-		h2customtents[ce_bluespark]			= SV_CustomTEnt_Register("ce_bluespark",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_yellowspark]		= SV_CustomTEnt_Register("ce_yellowspark",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_sm_circle_exp]		= SV_CustomTEnt_Register("ce_sm_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_bg_circle_exp]		= SV_CustomTEnt_Register("ce_bg_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_sm_white_flash]	= SV_CustomTEnt_Register("ce_sm_white_flash",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_white_flash]		= SV_CustomTEnt_Register("ce_white_flash",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_yellowred_flash]	= SV_CustomTEnt_Register("ce_yellowred_flash",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_blue_flash]		= SV_CustomTEnt_Register("ce_blue_flash",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_sm_blue_flash]		= SV_CustomTEnt_Register("ce_sm_blue_flash",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_red_flash]			= SV_CustomTEnt_Register("ce_red_flash",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_sm_explosion]		= SV_CustomTEnt_Register("ce_sm_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_lg_explosion]		= SV_CustomTEnt_Register("ce_lg_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_floor_explosion]	= SV_CustomTEnt_Register("ce_floor_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_rider_death]		= SV_CustomTEnt_Register("ce_rider_death",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_blue_explosion]	= SV_CustomTEnt_Register("ce_blue_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bluespark]			= SV_CustomTEnt_Register("h2part.ce_bluespark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_yellowspark]		= SV_CustomTEnt_Register("h2part.ce_yellowspark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_circle_exp]		= SV_CustomTEnt_Register("h2part.ce_sm_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bg_circle_exp]		= SV_CustomTEnt_Register("h2part.ce_bg_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_white_flash]	= SV_CustomTEnt_Register("h2part.ce_sm_white_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_flash]		= SV_CustomTEnt_Register("h2part.ce_white_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_yellowred_flash]	= SV_CustomTEnt_Register("h2part.ce_yellowred_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_blue_flash]		= SV_CustomTEnt_Register("h2part.ce_blue_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_blue_flash]		= SV_CustomTEnt_Register("h2part.ce_sm_blue_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_red_flash]			= SV_CustomTEnt_Register("h2part.ce_red_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_explosion]		= SV_CustomTEnt_Register("h2part.ce_sm_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lg_explosion]		= SV_CustomTEnt_Register("h2part.ce_lg_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion]	= SV_CustomTEnt_Register("h2part.ce_floor_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_rider_death]		= SV_CustomTEnt_Register("h2part.ce_rider_death",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_blue_explosion]	= SV_CustomTEnt_Register("h2part.ce_blue_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
 //	ce_green_smoke (special)
 //	ce_grey_smoke (special)
-		h2customtents[ce_red_smoke]			= SV_CustomTEnt_Register("ce_red_smoke",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_slow_white_smoke]	= SV_CustomTEnt_Register("ce_slow_white_smoke",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_redspark]			= SV_CustomTEnt_Register("ce_redspark",			0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_greenspark]		= SV_CustomTEnt_Register("ce_greenspark",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_telesmk1]			= SV_CustomTEnt_Register("ce_telesmk1",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_telesmk2]			= SV_CustomTEnt_Register("ce_telesmk2",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_icehit]			= SV_CustomTEnt_Register("ce_icehit",			0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_medusa_hit]		= SV_CustomTEnt_Register("ce_medusa_hit",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_mezzo_reflect]		= SV_CustomTEnt_Register("ce_mezzo_reflect",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_floor_explosion2]	= SV_CustomTEnt_Register("ce_floor_explosion2",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_xbow_explosion]	= SV_CustomTEnt_Register("ce_xbow_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_new_explosion]		= SV_CustomTEnt_Register("ce_new_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_magic_missile_explosion]	= SV_CustomTEnt_Register("ce_magic_missile_explosion", 0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_ghost]				= SV_CustomTEnt_Register("ce_ghost",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_redcloud]			= SV_CustomTEnt_Register("ce_redcloud",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("ce_teleporterbody",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_boneshard]			= SV_CustomTEnt_Register("ce_boneshard",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_boneshrapnel]		= SV_CustomTEnt_Register("ce_boneshrapnel",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_snow]				= SV_CustomTEnt_Register("ce_snow",				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_gravitywell]		= SV_CustomTEnt_Register("ce_gravitywell",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_bldrn_expl]		= SV_CustomTEnt_Register("ce_bldrn_expl",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_acid_muzzfl]		= SV_CustomTEnt_Register("ce_acid_muzzfl",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_acid_hit]			= SV_CustomTEnt_Register("ce_acid_hit",			0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_firewall_small]	= SV_CustomTEnt_Register("ce_firewall_small",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_firewall_medium]	= SV_CustomTEnt_Register("ce_firewall_medium",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_firewall_large]	= SV_CustomTEnt_Register("ce_firewall_large",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_lball_expl]		= SV_CustomTEnt_Register("ce_lball_expl",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_acid_splat]		= SV_CustomTEnt_Register("ce_acid_splat",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_acid_expl]			= SV_CustomTEnt_Register("ce_acid_expl",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_fboom]				= SV_CustomTEnt_Register("ce_fboom",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_red_smoke]			= SV_CustomTEnt_Register("h2part.ce_red_smoke",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_slow_white_smoke]	= SV_CustomTEnt_Register("h2part.ce_slow_white_smoke",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_redspark]			= SV_CustomTEnt_Register("h2part.ce_redspark",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_greenspark]		= SV_CustomTEnt_Register("h2part.ce_greenspark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_telesmk1]			= SV_CustomTEnt_Register("h2part.ce_telesmk1",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_telesmk2]			= SV_CustomTEnt_Register("h2part.ce_telesmk2",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_icehit]			= SV_CustomTEnt_Register("h2part.ce_icehit",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_medusa_hit]		= SV_CustomTEnt_Register("h2part.ce_medusa_hit",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_mezzo_reflect]		= SV_CustomTEnt_Register("h2part.ce_mezzo_reflect",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion2]	= SV_CustomTEnt_Register("h2part.ce_floor_explosion2",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_xbow_explosion]	= SV_CustomTEnt_Register("h2part.ce_xbow_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_new_explosion]		= SV_CustomTEnt_Register("h2part.ce_new_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_magic_missile_explosion]	= SV_CustomTEnt_Register("h2part.ce_magic_missile_explosion", 0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_ghost]				= SV_CustomTEnt_Register("h2part.ce_ghost",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("h2part.ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_redcloud]			= SV_CustomTEnt_Register("h2part.ce_redcloud",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("h2part.ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("h2part.ce_teleporterbody",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_boneshard]			= SV_CustomTEnt_Register("h2part.ce_boneshard",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_boneshrapnel]		= SV_CustomTEnt_Register("h2part.ce_boneshrapnel",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("h2part.ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_snow]				= SV_CustomTEnt_Register("h2part.ce_snow",				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_gravitywell]		= SV_CustomTEnt_Register("h2part.ce_gravitywell",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bldrn_expl]		= SV_CustomTEnt_Register("h2part.ce_bldrn_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_muzzfl]		= SV_CustomTEnt_Register("h2part.ce_acid_muzzfl",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_hit]			= SV_CustomTEnt_Register("h2part.ce_acid_hit",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_small]	= SV_CustomTEnt_Register("h2part.ce_firewall_small",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_medium]	= SV_CustomTEnt_Register("h2part.ce_firewall_medium",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_large]	= SV_CustomTEnt_Register("h2part.ce_firewall_large",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lball_expl]		= SV_CustomTEnt_Register("h2part.ce_lball_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_splat]		= SV_CustomTEnt_Register("h2part.ce_acid_splat",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_expl]			= SV_CustomTEnt_Register("h2part.ce_acid_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_fboom]				= SV_CustomTEnt_Register("h2part.ce_fboom",			0, NULL, 0, NULL, 0, 0, NULL);
 //	ce_chunk (special)
-		h2customtents[ce_bomb]				= SV_CustomTEnt_Register("ce_bomb",				0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_brn_bounce]		= SV_CustomTEnt_Register("ce_brn_bounce",		0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_lshock]			= SV_CustomTEnt_Register("ce_lshock",			0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_flamewall]			= SV_CustomTEnt_Register("ce_flamewall",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_flamewall2]		= SV_CustomTEnt_Register("ce_flamewall2",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_floor_explosion3]	= SV_CustomTEnt_Register("ce_floor_explosion3",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_onfire]			= SV_CustomTEnt_Register("ce_onfire",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bomb]				= SV_CustomTEnt_Register("h2part.ce_bomb",				0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_brn_bounce]		= SV_CustomTEnt_Register("h2part.ce_brn_bounce",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lshock]			= SV_CustomTEnt_Register("h2part.ce_lshock",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamewall]			= SV_CustomTEnt_Register("h2part.ce_flamewall",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamewall2]		= SV_CustomTEnt_Register("h2part.ce_flamewall2",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion3]	= SV_CustomTEnt_Register("h2part.ce_floor_explosion3",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_onfire]			= SV_CustomTEnt_Register("h2part.ce_onfire",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 
 
 
-		h2customtents[ce_teleporterbody_1]	= SV_CustomTEnt_Register("ce_teleporterbody_1",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_white_smoke_05]	= SV_CustomTEnt_Register("ce_white_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_white_smoke_10]	= SV_CustomTEnt_Register("ce_white_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_white_smoke_15]	= SV_CustomTEnt_Register("ce_white_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_white_smoke_20]	= SV_CustomTEnt_Register("ce_white_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_white_smoke_50]	= SV_CustomTEnt_Register("ce_white_smoke_50",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_green_smoke_05]	= SV_CustomTEnt_Register("ce_green_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_green_smoke_10]	= SV_CustomTEnt_Register("ce_green_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_green_smoke_15]	= SV_CustomTEnt_Register("ce_green_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_green_smoke_20]	= SV_CustomTEnt_Register("ce_green_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_grey_smoke_15]		= SV_CustomTEnt_Register("ce_grey_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_grey_smoke_100]	= SV_CustomTEnt_Register("ce_grey_smoke_100",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_teleporterbody_1]	= SV_CustomTEnt_Register("h2part.ce_teleporterbody_1",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_05]	= SV_CustomTEnt_Register("h2part.ce_white_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_10]	= SV_CustomTEnt_Register("h2part.ce_white_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_15]	= SV_CustomTEnt_Register("h2part.ce_white_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_20]	= SV_CustomTEnt_Register("h2part.ce_white_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_50]	= SV_CustomTEnt_Register("h2part.ce_white_smoke_50",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_05]	= SV_CustomTEnt_Register("h2part.ce_green_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_10]	= SV_CustomTEnt_Register("h2part.ce_green_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_15]	= SV_CustomTEnt_Register("h2part.ce_green_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_20]	= SV_CustomTEnt_Register("h2part.ce_green_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_grey_smoke_15]		= SV_CustomTEnt_Register("h2part.ce_grey_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_grey_smoke_100]	= SV_CustomTEnt_Register("h2part.ce_grey_smoke_100",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 
-		h2customtents[ce_chunk_1]	= SV_CustomTEnt_Register("ce_chunk_greystone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_2]	= SV_CustomTEnt_Register("ce_chunk_wood",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_3]	= SV_CustomTEnt_Register("ce_chunk_metal",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_4]	= SV_CustomTEnt_Register("ce_chunk_flesh",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_5]	= SV_CustomTEnt_Register("ce_chunk_fire",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_6]	= SV_CustomTEnt_Register("ce_chunk_clay",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_7]	= SV_CustomTEnt_Register("ce_chunk_leaves",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_8]	= SV_CustomTEnt_Register("ce_chunk_hay",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_9]	= SV_CustomTEnt_Register("ce_chunk_brownstone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_10]	= SV_CustomTEnt_Register("ce_chunk_cloth",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_11]	= SV_CustomTEnt_Register("ce_chunk_wood_leaf",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_12]	= SV_CustomTEnt_Register("ce_chunk_wood_metal",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_13]	= SV_CustomTEnt_Register("ce_chunk_wood_stone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_14]	= SV_CustomTEnt_Register("ce_chunk_metal_stone",	CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_15]	= SV_CustomTEnt_Register("ce_chunk_metal_cloth",	CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_16]	= SV_CustomTEnt_Register("ce_chunk_webs",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_17]	= SV_CustomTEnt_Register("ce_chunk_glass",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_18]	= SV_CustomTEnt_Register("ce_chunk_ice",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_19]	= SV_CustomTEnt_Register("ce_chunk_clearglass",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_20]	= SV_CustomTEnt_Register("ce_chunk_redglass",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_21]	= SV_CustomTEnt_Register("ce_chunk_acid",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_22]	= SV_CustomTEnt_Register("ce_chunk_meteor",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_23]	= SV_CustomTEnt_Register("ce_chunk_greenflesh",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_chunk_24]	= SV_CustomTEnt_Register("ce_chunk_bone",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_1]	= SV_CustomTEnt_Register("h2part.ce_chunk_greystone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_2]	= SV_CustomTEnt_Register("h2part.ce_chunk_wood",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_3]	= SV_CustomTEnt_Register("h2part.ce_chunk_metal",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_4]	= SV_CustomTEnt_Register("h2part.ce_chunk_flesh",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_5]	= SV_CustomTEnt_Register("h2part.ce_chunk_fire",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_6]	= SV_CustomTEnt_Register("h2part.ce_chunk_clay",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_7]	= SV_CustomTEnt_Register("h2part.ce_chunk_leaves",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_8]	= SV_CustomTEnt_Register("h2part.ce_chunk_hay",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_9]	= SV_CustomTEnt_Register("h2part.ce_chunk_brownstone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_10]	= SV_CustomTEnt_Register("h2part.ce_chunk_cloth",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_11]	= SV_CustomTEnt_Register("h2part.ce_chunk_wood_leaf",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_12]	= SV_CustomTEnt_Register("h2part.ce_chunk_wood_metal",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_13]	= SV_CustomTEnt_Register("h2part.ce_chunk_wood_stone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_14]	= SV_CustomTEnt_Register("h2part.ce_chunk_metal_stone",	CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_15]	= SV_CustomTEnt_Register("h2part.ce_chunk_metal_cloth",	CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_16]	= SV_CustomTEnt_Register("h2part.ce_chunk_webs",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_17]	= SV_CustomTEnt_Register("h2part.ce_chunk_glass",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_18]	= SV_CustomTEnt_Register("h2part.ce_chunk_ice",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_19]	= SV_CustomTEnt_Register("h2part.ce_chunk_clearglass",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_20]	= SV_CustomTEnt_Register("h2part.ce_chunk_redglass",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_21]	= SV_CustomTEnt_Register("h2part.ce_chunk_acid",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_22]	= SV_CustomTEnt_Register("h2part.ce_chunk_meteor",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_23]	= SV_CustomTEnt_Register("h2part.ce_chunk_greenflesh",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_24]	= SV_CustomTEnt_Register("h2part.ce_chunk_bone",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
 	}
 }
 static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8870,7 +8874,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 
 
 
-		pr_global_struct->input_timelength = ucmd->msec/1000.0f;
+		pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
 		pr_global_struct->input_impulse = ucmd->impulse;
 	//precision inaccuracies. :(
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
@@ -8956,7 +8960,7 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 	char *contents = PF_VarString(prinst, 1, pr_globals);
 
 	NET_StringToAdr(address, 0, &to);
-	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
+	NET_SendPacket(NS_SERVER, strlen(contents), contents, &to);
 }
 
 
@@ -9361,9 +9365,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strpad",			PF_strpad,			0,		0,		0,		225,	"string(float pad, string str1, ...)"},	//will be moved
 	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	"string(string old, string key, string value)"},
 	{"infoget",			PF_infoget,			0,		0,		0,		227,	"string(string info, string key)"},
-	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	"float(string s1, string s2, float len)"},
+	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	"float(string s1, string s2, float len, optional float s1ofs)"},
 	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229,	"float(string s1, string s2)"},
-	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230,	"float(string s1, string s2, float len)"},
+	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230,	"float(string s1, string s2, float len, optional float s1ofs)"},
 //END FTE_STRINGS
 
 //FTE_CALLTIMEOFDAY
@@ -9433,8 +9437,13 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	"void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)"},
 	{"frametoname",		PF_frametoname,		0,		0,		0,		284,	"string(float modidx, float framenum)"},
 	{"skintoname",		PF_skintoname,		0,		0,		0,		285,	"string(float modidx, float skin)"},
-
-//	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		284,	"void(string cvarname, optional string value)"},	//72
+//	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		286,	"void(string cvarname, optional string value)"},
+	{"hash_createtab",	PF_hash_createtab,	0,		0,		0,		287,	"float(float tabsize)"},
+	{"hash_destroytab",	PF_hash_destroytab,	0,		0,		0,		288,	"void(float table)"},
+	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	"void(float table, string name, __variant value)"},	//adds the given key with the given value to the table. value will NOT be strzoned or anything fancy like that, so don't pass temp strings there. Its okay to pass temp strings for 'name' though.
+	{"hash_get",		PF_hash_get,		0,		0,		0,		290,	"__variant(float table, string name, __variant default)"},	//looks up the specified key name. returns default if key was not found.
+	{"hash_delete",		PF_hash_delete,		0,		0,		0,		291,	"__variant(float table, string name)"},	//removes the named key. returns its value.
+	{"hash_getkey",		PF_hash_getkey,		0,		0,		0,		292,	"string(float table, float idx)"},	//gets some random key name. add+delete can change return values of this. suggested use is: while((n = hash_getkey(t,0))) strunzone(hash_delete(t,n));
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	"void()"},// (EXT_CSQC)
@@ -9541,7 +9550,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	"__variant*(int size)"},
 	{"memfree",			PF_memfree,			0,		0,		0,		385,	"void(__variant *ptr)"},
 	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	"void(__variant *dst, __variant *src, int size)"},
-	{"memset",			PF_memset,			0,		0,		0,		387,	"void(__variant *dst, int val, int size)"},
+	{"memfill8",		PF_memfill8,		0,		0,		0,		387,	"void(__variant *dst, int val, int size)"},
+	{"memgetval",		PF_memgetval,		0,		0,		0,		388,	"__variant(__variant *dst, float ofs)"},
+	{"memsetval",		PF_memsetval,		0,		0,		0,		389,	"void(__variant *dst, float ofs, __variant val)"},
+	{"memptradd",		PF_memptradd,		0,		0,		0,		390,	"__variant*(__variant *base, float ofs)"},
 
 
 //end fte extras

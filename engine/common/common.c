@@ -497,6 +497,16 @@ void Q_ftoa(char *str, float in)
 	}
 }
 
+static int dehex(int i)
+{
+	if      (i >= '0' && i <= '9')
+		return (i-'0');
+	else if (i >= 'A' && i <= 'F')
+		return (i-'A'+10);
+	else
+		return (i-'a'+10);
+}
+
 int Q_atoi (const char *str)
 {
 	int		val;
@@ -1936,7 +1946,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 		{
 			l = 2;
 			uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
-			if (uc >= (1u<<7))
+			if (!uc || uc >= (1u<<7))	//allow modified utf-8
 				*error = 0;
 			else
 				*error = 2;
@@ -2071,20 +2081,69 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 
 	return uc;
 }
+
+unsigned int unicode_decode(int *error, const void *in, char **out)
+{
+	unsigned int charcode;
+	if (((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
+	{
+		*out = (char*)in + 6;
+		charcode = (dehex(((char*)in)[2]) << 12) | (dehex(((char*)in)[2]) << 8) | (dehex(((char*)in)[2]) << 4) | (dehex(((char*)in)[2]) << 0);
+	}
+	else if (((char*)in)[0] == '^' && ((char*)in)[1] == '{')
+	{
+		*out = (char*)in + 2;
+		charcode = 0;
+		while (ishexcode(**out))
+		{
+			charcode <<= 4;
+			charcode |= dehex(**out);
+			*out+=1;
+		}
+		if (**out == '}')
+			*out+=1;
+	}
+	else if (com_parseutf8.ival > 0)
+		charcode = utf8_decode(error, in, out);
+	else if (com_parseutf8.ival)
+	{
+		*error = 0;
+		charcode = *(unsigned char*)in;	//iso8859-1
+		*out = (char*)in + 1;
+	}
+	else
+	{	//quake
+		*error = 0;
+		charcode = *(unsigned char*)in;
+		if (charcode != '\n' && charcode != '\t' && charcode != '\r' && (charcode < ' ' || charcode > 127))
+			charcode |= 0xe000;
+		*out = (char*)in + 1;
+	}
+
+	return charcode;
+}
+
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 {
 	unsigned int bcount = 1;
 	unsigned int lim = 0x80;
 	unsigned int shift;
-	while (unicode >= lim)
+	if (!unicode)
+	{	//modified utf-8 encodes encapsulated nulls as over-long.
+		bcount = 2;
+	}
+	else
 	{
-		if (bcount == 1)
-			lim <<= 4;
-		else if (bcount < 7)
-			lim <<= 5;
-		else
-			lim <<= 6;
-		bcount++;
+		while (unicode >= lim)
+		{
+			if (bcount == 1)
+				lim <<= 4;
+			else if (bcount < 7)
+				lim <<= 5;
+			else
+				lim <<= 6;
+			bcount++;
+		}
 	}
 
 	//error if needed
@@ -2222,6 +2281,101 @@ unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen)
 		return iso88591_encode(out, unicode, maxlen);
 	else
 		return qchar_encode(out, unicode, maxlen);
+}
+
+//char-based strlen.
+unsigned int unicode_charcount(char *in, size_t buffersize)
+{
+	int error;
+	char *end = in + buffersize;
+	int chars = 0;
+	for(chars = 0; in < end && *in; chars+=1)
+	{
+		unicode_decode(&error, in, &in);
+
+		if (in > end)
+			break;	//exceeded buffer size uncleanly
+	}
+	return chars;
+}
+
+//handy hacky function.
+unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs)
+{
+	char *in = str;
+	int error;
+	int chars = 0;
+	for(chars = 0; *in; chars+=1)
+	{
+		if (chars >= charofs)
+			return in - str;
+
+		unicode_decode(&error, in, &in);
+	}
+	return chars;
+}
+//handy hacky function.
+unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs)
+{
+	int error;
+	char *end = str + byteofs;
+	int chars = 0;
+	for(chars = 0; str < end && *str; chars+=1)
+	{
+		unicode_decode(&error, str, &str);
+
+		if (str > end)
+			break;	//exceeded buffer size uncleanly
+	}
+	return chars;
+}
+
+size_t unicode_strtoupper(char *in, char *out, size_t outsize)
+{
+	//warning: towupper is locale-specific (eg: turkish has both I and dotted-I and thus i should transform to dotted-I rather than to I).
+	//also it can't easily cope with accent prefixes.
+	int error;
+	unsigned int c;
+	size_t l = 0;
+	outsize -= 1;
+
+	while(*in)
+	{
+		c = unicode_decode(&error, in, &in);
+		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
+			c = towupper(c & 0x7f) + (c & 0xff80);
+		else
+			c = towupper(c);
+		l = unicode_encode(out, c, outsize - l);
+		out += l;
+	}
+	*out = 0;
+
+	return l;
+}
+
+size_t unicode_strtolower(char *in, char *out, size_t outsize)
+{
+	//warning: towlower is locale-specific (eg: turkish has both i and dotless-i and thus I should transform to dotless-i rather than to i).
+	//also it can't easily cope with accent prefixes.
+	int error;
+	unsigned int c;
+	size_t l = 0;
+	outsize -= 1;
+
+	while(*in)
+	{
+		c = unicode_decode(&error, in, &in);
+		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
+			c = towlower(c & 0x7f) + (c & 0xff80);
+		else
+			c = towlower(c);
+		l = unicode_encode(out, c, outsize - l);
+		out += l;
+	}
+	*out = 0;
+
+	return l;
 }
 
 ///=====================================
@@ -2410,16 +2564,6 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 		*out = 0;
 	}
 	return out;
-}
-
-static int dehex(int i)
-{
-	if      (i >= '0' && i <= '9')
-		return (i-'0');
-	else if (i >= 'A' && i <= 'F')
-		return (i-'A'+10);
-	else
-		return (i-'a'+10);
 }
 
 //Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
@@ -2618,7 +2762,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				{
 					int len;
 					uc = 0;
-					for (len = 2; (str[len] >= '0' && str[len] <= '9') || (str[len] >= 'a' && str[len] <= 'f') || (str[len] >= 'A' && str[len] <= 'F'); len++)
+					for (len = 2; ishexcode(str[len]); len++)
 					{
 						uc <<= 4;
 						uc |= dehex(str[len]);
@@ -2673,24 +2817,9 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				//we don't support the full 12bit colour depth (only 4-bit CGA)
 				//so find the closest that we do support
 				int r, g, b;
-				if      (str[2] >= '0' && str[2] <= '9')
-					r = (str[2]-'0');
-				else if (str[2] >= 'A' && str[2] <= 'F')
-					r = (str[2]-'A'+10);
-				else
-					r = (str[2]-'a'+10);
-				if      (str[3] >= '0' && str[3] <= '9')
-					g = (str[3]-'0');
-				else if (str[3] >= 'A' && str[3] <= 'F')
-					g = (str[3]-'A'+10);
-				else
-					g = (str[3]-'a'+10);
-				if      (str[4] >= '0' && str[4] <= '9')
-					b = (str[4]-'0');
-				else if (str[4] >= 'A' && str[4] <= 'F')
-					b = (str[4]-'A'+10);
-				else
-					b = (str[4]-'a'+10);
+				r = dehex(str[2]);
+				g = dehex(str[3]);
+				b = dehex(str[4]);
 
 				ext = (ext & ~CON_RICHFOREMASK) | CON_RICHFORECOLOUR;
 				ext |= r<<CON_RICHRSHIFT;

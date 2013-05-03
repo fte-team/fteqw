@@ -54,7 +54,7 @@ typedef struct
 
 #define	MAX_FILES_IN_PACK	2048
 
-void FSPAK_GetDisplayPath(void *handle, char *out, unsigned int outlen)
+void QDECL FSPAK_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	pack_t *pak = handle;
 
@@ -63,7 +63,7 @@ void FSPAK_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 	else
 		Q_snprintfz(out, outlen, "%s", pak->descname);
 }
-void FSPAK_ClosePath(void *handle)
+void QDECL FSPAK_ClosePath(void *handle)
 {
 	pack_t *pak = handle;
 
@@ -77,17 +77,17 @@ void FSPAK_ClosePath(void *handle)
 		Z_Free(pak->files);
 	Z_Free(pak);
 }
-void FSPAK_BuildHash(void *handle, int depth)
+void QDECL FSPAK_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	pack_t *pak = handle;
 	int i;
 
 	for (i = 0; i < pak->numfiles; i++)
 	{
-		FS_AddFileHash(depth, pak->files[i].name, &pak->files[i].bucket, &pak->files[i]);
+		AddFileHash(depth, pak->files[i].name, &pak->files[i].bucket, &pak->files[i]);
 	}
 }
-qboolean FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+qboolean QDECL FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	mpackfile_t *pf = hashedresult;
 	int i, len;
@@ -126,7 +126,7 @@ qboolean FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, voi
 	}
 	return false;
 }
-int FSPAK_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
+int QDECL FSPAK_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
 {
 	pack_t	*pak = handle;
 	int		num;
@@ -143,7 +143,7 @@ int FSPAK_EnumerateFiles (void *handle, const char *match, int (*func)(const cha
 	return true;
 }
 
-int FSPAK_GeneratePureCRC(void *handle, int seed, int crctype)
+int QDECL FSPAK_GeneratePureCRC(void *handle, int seed, int crctype)
 {
 	pack_t *pak = handle;
 
@@ -182,7 +182,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-void *FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
+void *QDECL FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 {
 	dpackheader_t	header;
 	int				i;
@@ -269,7 +269,7 @@ typedef struct {
 	unsigned long length;
 	unsigned long currentpos;
 } vfspack_t;
-int VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
+int QDECL VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	int read;
@@ -292,12 +292,12 @@ int VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
 
 	return read;
 }
-int VFSPAK_WriteBytes (struct vfsfile_s *vfs, const void *buffer, int bytestoread)
+int QDECL VFSPAK_WriteBytes (struct vfsfile_s *vfs, const void *buffer, int bytestoread)
 {	//not supported.
 	Sys_Error("Cannot write to pak files\n");
 	return 0;
 }
-qboolean VFSPAK_Seek (struct vfsfile_s *vfs, unsigned long pos)
+qboolean QDECL VFSPAK_Seek (struct vfsfile_s *vfs, unsigned long pos)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	if (pos < 0 || pos > vfsp->length)
@@ -306,23 +306,23 @@ qboolean VFSPAK_Seek (struct vfsfile_s *vfs, unsigned long pos)
 
 	return true;
 }
-unsigned long VFSPAK_Tell (struct vfsfile_s *vfs)
+unsigned long QDECL VFSPAK_Tell (struct vfsfile_s *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	return vfsp->currentpos - vfsp->startpos;
 }
-unsigned long VFSPAK_GetLen (struct vfsfile_s *vfs)
+unsigned long QDECL VFSPAK_GetLen (struct vfsfile_s *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	return vfsp->length;
 }
-void VFSPAK_Close(vfsfile_t *vfs)
+void QDECL VFSPAK_Close(vfsfile_t *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	FSPAK_ClosePath(vfsp->parentpak);	//tell the parent that we don't need it open any more (reference counts)
 	Z_Free(vfsp);	//free ourselves.
 }
-vfsfile_t *FSPAK_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+vfsfile_t *QDECL FSPAK_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	pack_t *pack = (pack_t*)handle;
 	vfspack_t *vfs;
@@ -352,7 +352,7 @@ vfsfile_t *FSPAK_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	return (vfsfile_t *)vfs;
 }
 
-void FSPAK_ReadFile(void *handle, flocation_t *loc, char *buffer)
+void QDECL FSPAK_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 	vfsfile_t *f;
 	f = FSPAK_OpenVFS(handle, loc, "rb");
@@ -386,7 +386,7 @@ searchpathfuncs_t packfilefuncs = {
 
 
 #ifdef DOOMWADS
-void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, const char *desc)
+void *QDECL FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, const char *desc)
 {
 	dwadheader_t	header;
 	int				i;

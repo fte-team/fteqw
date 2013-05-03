@@ -927,7 +927,7 @@ extern	vfsfile_t	*sv_fraglogfile;
 //===========================================================
 
 void SV_AddDebugPolygons(void);
-char *SV_CheckRejectConnection(netadr_t adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
+char *SV_CheckRejectConnection(netadr_t *adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
 
 //
 // sv_main.c

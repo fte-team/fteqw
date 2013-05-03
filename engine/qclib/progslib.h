@@ -130,6 +130,7 @@ struct pubprogfuncs_s
 
 	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
 	int stringtablesize;
+	int stringtablemaxsize;
 	int fieldadjust;	//FrikQCC style arrays can cause problems due to field remapping. This causes us to leave gaps but offsets identical.
 
 	struct qcthread_s *(PDECL *Fork)			(pubprogfuncs_t *prinst);	//returns a pointer to a thread which can be resumed via RunThread.

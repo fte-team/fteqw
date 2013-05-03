@@ -675,6 +675,7 @@ extern void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internal
 extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
 extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
+extern void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 
 //glslang - arb_shader_objects

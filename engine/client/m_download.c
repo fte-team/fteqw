@@ -305,7 +305,7 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key)
 {
 	package_t *p, *p2;
 	p = c->dptr;
-	if (key == K_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
 		p->flags ^= DPF_WANTTOINSTALL;
 
@@ -329,7 +329,7 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key)
 
 qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
 		M_RemoveMenu(m);
 		return true;
@@ -340,7 +340,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 static void Menu_Download_Got(struct dl_download *dl);
 qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
 		char *temp;
 		package_t *last = NULL, *p;
@@ -810,7 +810,7 @@ static int numbootdownloads;
 #include "fs.h"
 #ifdef AVAIL_ZLIB
 extern searchpathfuncs_t zipfilefuncs;
-static int CL_BootDownload_Extract(const char *fname, int fsize, void *ptr, void *spath)
+static int QDECL CL_BootDownload_Extract(const char *fname, int fsize, void *ptr, void *spath)
 {
 	char buffer[512*1024];
 	int read;
@@ -1043,11 +1043,13 @@ static void CL_BootDownload_Complete(struct dl_download *dl)
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
 		CL_StartCinematicOrMenu();
 	}
+
+	free(dl->user_ctx);
 }
 
 static void CL_Manifest_Complete(struct dl_download *dl)
 {
-	if (!dl->file)
+	if (!dl->file || dl->status == DL_FAILED)
 		Con_Printf("Unable to load manifest from %s\n", dl->url);
 	else
 	{
@@ -1062,6 +1064,18 @@ static void CL_Manifest_Complete(struct dl_download *dl)
 			if (!Cmd_Argc())
 				continue;
 			fname = Cmd_Argv(0);
+
+			if (*fname == '*')
+			{
+				//for future expansion.
+				/*if (!stricmp(fname, "*game"))
+				{
+					//switch current gamedir to the new one, so we don't end up downloading if they already have it installed.
+					//this should be quake/quake2/etc.
+				}*/
+				continue;
+			}
+
 			crc = strtoul(Cmd_Argv(1), NULL, 0);
 
 			f = FS_OpenVFS(fname, "rb", FS_ROOT);
@@ -1151,6 +1165,16 @@ qboolean CL_CheckBootDownloads(void)
 				DL_CreateThread(dl, FS_OpenTemp(), CL_Manifest_Complete);
 	#endif
 				numbootdownloads++;
+			}
+			else
+			{
+				struct dl_download fake;
+				fake.file = VFSOS_Open(fname, "rb");
+				fake.status = fake.file?DL_FINISHED:DL_FAILED;
+				numbootdownloads++;
+				CL_Manifest_Complete(&fake);
+				if (fake.file)
+					VFS_CLOSE(fake.file);
 			}
 		}
 	}

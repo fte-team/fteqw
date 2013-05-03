@@ -822,6 +822,12 @@ struct dl_download *DL_Create(const char *url)
 	Q_strncpyz(newdl->url, url, sizeof(newdl->url));
 	newdl->poll = HTTPDL_Decide;
 
+	if (!newdl->poll(newdl))
+	{
+		free(newdl);
+		newdl = NULL;
+	}
+
 	return newdl;
 }
 static struct dl_download *showndownload;

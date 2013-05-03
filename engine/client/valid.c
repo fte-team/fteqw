@@ -300,7 +300,7 @@ static void Validation_Server(void)
 #endif
 	if (!allow_f_server.ival)
 		return;
-	Cbuf_AddText(va("say server is %s\n", NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address)), RESTRICT_LOCAL);
+	Cbuf_AddText(va("say server is %s\n", NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address)), RESTRICT_LOCAL);
 }
 
 static void Validation_Skins(void)
@@ -530,7 +530,7 @@ void Validation_AllChecks(void)
 	}
 
 	//get the current server address
-	NET_AdrToString(servername, sizeof(servername), cls.netchan.remote_address);
+	NET_AdrToString(servername, sizeof(servername), &cls.netchan.remote_address);
 
 	//get the ruleset names
 	if (!Validation_GetCurrentRulesetName(ruleset, sizeof(ruleset), true))

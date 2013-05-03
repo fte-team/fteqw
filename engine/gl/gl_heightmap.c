@@ -681,7 +681,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 #endif
 
 	diskimage = NULL;
-	len = FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&diskimage);
+	len = -1;//FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&diskimage);
 
 	/*queue the file for download if we don't have it yet*/
 	if (len < 0)

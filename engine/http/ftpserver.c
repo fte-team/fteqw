@@ -134,7 +134,7 @@ void FTP_ServerShutdown(void)
 }
 
 //we ought to filter this to remove duplicates.
-static int SendFileNameTo(const char *rawname, int size, void *param, struct searchpath_s *spath)
+static int QDECL SendFileNameTo(const char *rawname, int size, void *param, struct searchpath_s *spath)
 {
 	int socket = *(int*)param;
 //	int i;
@@ -263,7 +263,7 @@ iwboolean	FTP_SVRemoteSocketToString (int socket, char *s, int slen)
 	}
 
 	SockadrToNetadr(&addr, &na);
-	NET_AdrToString(s, slen, na);
+	NET_AdrToString(s, slen, &na);
 
 //	if (((struct sockaddr_in*)&addr)->sin_family == AF_INET6)
 //	{
@@ -711,8 +711,18 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 			if (!(*resource == '/'))
 			{
-				memmove(resource+strlen(cl->path), resource, strlen(resource)+1);
-				memcpy(resource, cl->path, strlen(cl->path));
+				int plen = strlen(cl->path);
+				if (plen && cl->path[plen-1] != '/')
+				{
+					memmove(resource+plen+1, resource, strlen(resource)+1);
+					memcpy(resource, cl->path, plen);
+					resource[plen] = '/';
+				}
+				else
+				{
+					memmove(resource+plen, resource, strlen(resource)+1);
+					memcpy(resource, cl->path, plen);
+				}
 			}
 			if (*resource == '/')
 			{

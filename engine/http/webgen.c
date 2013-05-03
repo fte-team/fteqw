@@ -333,7 +333,7 @@ typedef struct {
 	int pos;
 } vfsgen_t;
 
-int VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
+int QDECL VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	if (bytes + g->pos >= g->buffer->len)
@@ -349,13 +349,13 @@ int VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
 	return bytes;
 }
 
-int VFSGen_WriteBytes(vfsfile_t *f, const void *buffer, int bytes)
+int QDECL VFSGen_WriteBytes(vfsfile_t *f, const void *buffer, int bytes)
 {
 	Sys_Error("VFSGen_WriteBytes: Readonly\n");
 	return 0;
 }
 
-qboolean VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
+qboolean QDECL VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	if (newpos < 0 || newpos >= g->buffer->len)
@@ -366,19 +366,19 @@ qboolean VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
 	return true;
 }
 
-unsigned long VFSGen_Tell(vfsfile_t *f)
+unsigned long QDECL VFSGen_Tell(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->pos;
 }
 
-unsigned long VFSGen_GetLen(vfsfile_t *f)
+unsigned long QDECL VFSGen_GetLen(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->buffer->len;
 }
 
-void VFSGen_Close(vfsfile_t *f)
+void QDECL VFSGen_Close(vfsfile_t *f)
 {
 	int fnum;
 	vfsgen_t *g = (vfsgen_t*)f;

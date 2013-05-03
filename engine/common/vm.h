@@ -70,7 +70,7 @@ qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
 void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);
 void		Plug_DrawReloadImages(void);
-void		Plug_Init(void);
+void		Plug_Initialise(qboolean fromgamedir);
 void		Plug_Shutdown(void);
 qboolean	Plug_Menu_Event(int eventtype, int param);
 void		Plug_ResChanged(void);
@@ -134,8 +134,8 @@ typedef struct {
 	float		value;
 	int			integer;
 	char		string[256];
-} vmcvar_t;
-int VMQ3_Cvar_Register(vmcvar_t *v, char *name, char *defval, int flags);
-int VMQ3_Cvar_Update(vmcvar_t *v);
+} q3vmcvar_t;
+int VMQ3_Cvar_Register(q3vmcvar_t *v, char *name, char *defval, int flags);
+int VMQ3_Cvar_Update(q3vmcvar_t *v);
 
 #endif

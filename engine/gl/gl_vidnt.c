@@ -1875,6 +1875,12 @@ LONG WINAPI GLMainWndProc (
 
     switch (uMsg)
     {
+		case WM_COPYDATA:
+			{
+				COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
+				Sys_RunFile(cds->lpData, cds->cbData);
+			}
+			break;
 		case WM_KILLFOCUS:
 			GLAppActivate(FALSE, Minimized);
 			if (modestate == MS_FULLDIB)

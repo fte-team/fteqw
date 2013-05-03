@@ -1073,8 +1073,8 @@ qboolean CL_MayLerp(void);
 //
 #ifdef Q3CLIENT
 void VARGS CLQ3_SendClientCommand(const char *fmt, ...) LIKEPRINTF(1);
-void CLQ3_SendAuthPacket(netadr_t gameserver);
-void CLQ3_SendConnectPacket(netadr_t to);
+void CLQ3_SendAuthPacket(netadr_t *gameserver);
+void CLQ3_SendConnectPacket(netadr_t *to);
 void CLQ3_SendCmd(usercmd_t *cmd);
 qboolean CLQ3_Netchan_Process(void);
 void CLQ3_ParseServerMessage (void);
@@ -1320,12 +1320,14 @@ typedef struct cin_s cin_t;
 #define Media_Playing() false
 #define Media_Init() 0
 #define Media_PlayingFullScreen() false
-#define Media_PlayFilm(n) false
+#define Media_PlayFilm(n,e) false
+#define Media_StopFilm() true
 #else
 /*media playing system*/
 qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
-qboolean Media_PlayFilm(char *name);
+qboolean Media_PlayFilm(char *name, qboolean enqueue);
+qboolean Media_StopFilm(qboolean all);
 qboolean Media_Playing(void);
 struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);

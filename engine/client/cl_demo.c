@@ -1538,7 +1538,7 @@ void CL_PlayDemo(char *demoname)
 
 	cls.state = ca_demostart;
 	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
+	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
 	demtime = 0;
 	cl.gametime = 0;
 	cl.gametimemark = demtime;
@@ -1611,7 +1611,7 @@ void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
 
 	cls.state = ca_demostart;
 	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
+	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
 	demtime = -BUFFERTIME;
 	cl.gametime = -BUFFERTIME;
 	cl.gametimemark = demtime;

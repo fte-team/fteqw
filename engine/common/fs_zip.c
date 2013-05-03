@@ -239,7 +239,7 @@ typedef struct zipfile_s
 } zipfile_t;
 
 
-static void FSZIP_GetDisplayPath(void *handle, char *out, unsigned int outlen)
+static void QDECL FSZIP_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	zipfile_t *zip = handle;
 
@@ -248,7 +248,7 @@ static void FSZIP_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 	else
 		Q_strncpyz(out, zip->filename, outlen);
 }
-static void FSZIP_ClosePath(void *handle)
+static void QDECL FSZIP_ClosePath(void *handle)
 {
 	zipfile_t *zip = handle;
 
@@ -260,17 +260,17 @@ static void FSZIP_ClosePath(void *handle)
 		Z_Free(zip->files);
 	Z_Free(zip);
 }
-static void FSZIP_BuildHash(void *handle, int depth)
+static void QDECL FSZIP_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	zipfile_t *zip = handle;
 	int i;
 
 	for (i = 0; i < zip->numfiles; i++)
 	{
-		FS_AddFileHash(depth, zip->files[i].name, &zip->files[i].bucket, &zip->files[i]);
+		AddFileHash(depth, zip->files[i].name, &zip->files[i].bucket, &zip->files[i]);
 	}
 }
-static qboolean FSZIP_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean QDECL FSZIP_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	zpackfile_t *pf = hashedresult;
 	int i, len;
@@ -318,7 +318,7 @@ static qboolean FSZIP_FLocate(void *handle, flocation_t *loc, const char *filena
 	return false;
 }
 
-static void FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void QDECL FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 	zipfile_t *zip = handle;
 	int err;
@@ -337,7 +337,7 @@ static void FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	return;
 }
 
-static int FSZIP_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
 {
 	zipfile_t *zip = handle;
 	int		num;
@@ -364,7 +364,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, const char *desc)
+static void *QDECL FSZIP_LoadZipFile (vfsfile_t *packhandle, const char *desc)
 {
 	int i;
 	int nextfileziphandle;
@@ -415,7 +415,7 @@ static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, const char *desc)
 	return zip;
 }
 
-int FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
+int QDECL FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
 {
 	zipfile_t *zip = handle;
 	unz_file_info	file_info;
@@ -502,7 +502,7 @@ qboolean VFSZIP_MakeActive(vfszip_t *vfsz)
 	return true;
 }
 
-int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	int read;
 	vfszip_t *vfsz = (vfszip_t*)file;
@@ -532,12 +532,12 @@ int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 	vfsz->pos += read;
 	return read;
 }
-int VFSZIP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+int QDECL VFSZIP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	Sys_Error("VFSZIP_WriteBytes: Not supported\n");
 	return 0;
 }
-qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
+qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
@@ -608,7 +608,7 @@ qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 
 	return true;
 }
-unsigned long VFSZIP_Tell (struct vfsfile_s *file)
+unsigned long QDECL VFSZIP_Tell (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
@@ -617,12 +617,12 @@ unsigned long VFSZIP_Tell (struct vfsfile_s *file)
 
 	return vfsz->pos;
 }
-unsigned long VFSZIP_GetLen (struct vfsfile_s *file)
+unsigned long QDECL VFSZIP_GetLen (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 	return vfsz->length;
 }
-void VFSZIP_Close (struct vfsfile_s *file)
+void QDECL VFSZIP_Close (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
@@ -636,7 +636,7 @@ void VFSZIP_Close (struct vfsfile_s *file)
 	Z_Free(vfsz);
 }
 
-vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+vfsfile_t *QDECL FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	int rawofs;
 	zipfile_t *zip = handle;

@@ -774,7 +774,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 					{
 						serverinfo_t *info;
 						NET_StringToAdr(cmdtext + 5, 0, &ui_pings[i]);
-						info = Master_InfoForServer(ui_pings[i]);
+						info = Master_InfoForServer(&ui_pings[i]);
 						if (info)
 						{
 							info->special |= SS_KEEPINFO;
@@ -1010,10 +1010,10 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			char *buf = VM_POINTER(arg[1]);
 			char *adr;
-			serverinfo_t *info = Master_InfoForServer(ui_pings[VM_LONG(arg[0])]);
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[VM_LONG(arg[0])]);
 			if (info)
 			{
-				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr);
+				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr);
 				if (strlen(adr) < VM_LONG(arg[2]))
 				{
 					strcpy(buf, adr);
@@ -1037,7 +1037,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			char *buf = VM_POINTER(arg[1]);
 			char *adr;
-			serverinfo_t *info = Master_InfoForServer(ui_pings[VM_LONG(arg[0])]);
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[VM_LONG(arg[0])]);
 			if (info)
 			{
 				adr = info->moreinfo->info;
@@ -1063,12 +1063,12 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 #endif
 
 	case UI_CVAR_REGISTER:
-		if (VM_OOB(arg[0], sizeof(vmcvar_t)))
+		if (VM_OOB(arg[0], sizeof(q3vmcvar_t)))
 			break;	//out of bounds.
 		return VMQ3_Cvar_Register(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
 	case UI_CVAR_UPDATE:
-		if (VM_OOB(arg[0], sizeof(vmcvar_t)))
+		if (VM_OOB(arg[0], sizeof(q3vmcvar_t)))
 			break;	//out of bounds.
 		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
@@ -1114,7 +1114,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
 			if (info)
 			{
-				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr);
+				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr);
 				if (strlen(adr) < VM_LONG(arg[3]))
 				{
 					strcpy(buf, adr);
@@ -1477,7 +1477,7 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 		{
 			if (Media_PlayingFullScreen())
 			{
-				Media_PlayFilm("");
+				Media_StopFilm(true);
 			}
 
 			UI_OpenMenu();

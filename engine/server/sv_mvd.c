@@ -683,7 +683,7 @@ typedef struct
 #define SORT_NO 0
 #define SORT_BY_DATE 1
 
-int Sys_listdirFound(const char *fname, int fsize, void *uptr, struct searchpath_s *spath)
+int QDECL Sys_listdirFound(const char *fname, int fsize, void *uptr, struct searchpath_s *spath)
 {
 	file_t *f;
 	dir_t *dir = uptr;
@@ -2417,7 +2417,7 @@ void SV_MVDStream_Poll(void)
 	}
 
 	SockadrToNetadr(&addr, &na);
-	ip = NET_AdrToString(adrbuf, sizeof(adrbuf), na);
+	ip = NET_AdrToString(adrbuf, sizeof(adrbuf), &na);
 	Con_Printf("MVD streaming client attempting to connect from %s\n", ip);
 
 	SV_MVD_InitPendingStream(client, ip);

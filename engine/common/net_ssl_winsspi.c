@@ -501,7 +501,7 @@ static void SSPI_Handshake (sslfile_t *f)
 	}
 }
 
-static int SSPI_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+static int QDECL SSPI_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	sslfile_t *f = (sslfile_t *)file;
 	int err = SSPI_CheckNewInCrypt(f);
@@ -530,7 +530,7 @@ static int SSPI_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread
 	}
 	return bytestoread;
 }
-static int SSPI_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+static int QDECL SSPI_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
 {
 	sslfile_t *f = (sslfile_t *)file;
 
@@ -548,21 +548,21 @@ static int SSPI_WriteBytes (struct vfsfile_s *file, const void *buffer, int byte
 
 	return bytestowrite;
 }
-static qboolean SSPI_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL SSPI_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	SSPI_Error((sslfile_t*)file, "unable to seek on streams");
 	return false;
 }
-static unsigned long SSPI_Tell (struct vfsfile_s *file)
+static unsigned long QDECL SSPI_Tell (struct vfsfile_s *file)
 {
 	SSPI_Error((sslfile_t*)file, "unable to seek on streams");
 	return 0;
 }
-static unsigned long SSPI_GetLen (struct vfsfile_s *file)
+static unsigned long QDECL SSPI_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }
-static void SSPI_Close (struct vfsfile_s *file)
+static void QDECL SSPI_Close (struct vfsfile_s *file)
 {
 	SSPI_Error((sslfile_t*)file, "");
 	Z_Free(file);

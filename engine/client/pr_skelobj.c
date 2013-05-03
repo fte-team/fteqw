@@ -35,6 +35,9 @@ qc must build the skeletal object still, which fills the skeletal object from th
 
 #include "quakedef.h"
 
+qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframes, float *duration, qboolean *loop);
+const char *Mod_SkinNameForNum(model_t *model, int num);
+
 #if defined(RAGDOLL) || defined(SKELETALOBJECTS)
 
 #include "pr_common.h"
@@ -116,9 +119,11 @@ static int numskelobjectsused;
 //copes with src==dst to convert rel->abs
 void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, int startbone, int endbone)
 {
-	galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model);
+	int maxbones;
+	galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model, &maxbones);
 	if (!boneinfo)
 		return;
+	endbone = min(endbone, maxbones-1);
 	if (skelobjsrc->type == SKOT_ABSOLUTE)
 	{
 		if (skelobjsrc != skelobjdst)
@@ -289,6 +294,7 @@ int rag_finddolljoint(doll_t *d, char *name)
 typedef struct {
 	qboolean errors;
 	doll_t *d;
+	int numbones;
 	galiasbone_t *bones;
 
 	odebodyinfo_t *body;
@@ -307,7 +313,7 @@ dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
 
 	ctx = malloc(sizeof(*ctx));
 
-	ctx->bones = Mod_GetBoneInfo(mod);
+	ctx->bones = Mod_GetBoneInfo(mod, &ctx->numbones);
 	ctx->errors = 0;
 
 	memset(&ctx->defbody, 0, sizeof(ctx->defbody));
@@ -337,7 +343,7 @@ dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
 	ctx->d->uses = 0;
 	ctx->d->joint = NULL;
 
-	ctx->d->numbones = numbones;
+	ctx->d->numbones = min(numbones, ctx->numbones);
 	ctx->d->bone = BZ_Malloc(sizeof(*ctx->d->bone) * ctx->d->numbones);
 	for (i = 0; i < ctx->d->numbones; i++)
 		ctx->d->bone[i].bodyidx = -1;
@@ -814,6 +820,150 @@ void skel_integrate(pubprogfuncs_t *prinst, skelobject_t *sko, skelobject_t *ske
 }
 #endif
 
+void skel_generateragdoll_f_bones(vfsfile_t *f, galiasbone_t *bones, int numbones, int parent, int indent)
+{
+	int i, j;
+	for (i = 0; i < numbones; i++)
+	{
+		if (bones[i].parent == parent)
+		{
+			VFS_PUTS(f, "//");
+			for (j = 0; j < indent; j++)
+				VFS_PUTS(f, "\t");
+			VFS_PUTS(f, va("%i %s\n", i, bones[i].name));
+			skel_generateragdoll_f_bones(f, bones, numbones, i, indent+1);
+		}
+	}
+}
+void skel_generateragdoll_f(void)
+{
+	char *modname = Cmd_Argv(1);
+	char *outname;
+	model_t *mod = Mod_ForName(modname, false);
+	galiasbone_t *bones;
+	vfsfile_t *f;
+	int i;
+	int numbones;
+	if (!mod)
+	{
+		Con_Printf("Cannot open %s\n", modname);
+		return;
+	}
+	bones = Mod_GetBoneInfo(mod, &numbones);
+	if (!bones || numbones < 1)
+	{
+		Con_Printf("Model %s has no bones\n", modname);
+		return;
+	}
+	outname = va("%s.doll", mod->name);
+	
+	f = FS_OpenVFS(outname, "wb", FS_GAMEONLY);
+	VFS_PUTS(f, va("//basic ragdoll info for model %s\n", mod->name));
+	VFS_PUTS(f, va("//generated with: %s %s\n", Cmd_Argv(0), Cmd_Args()));
+	VFS_PUTS(f, "//this file will need editing by hand\n");
+	VFS_PUTS(f, "//use the flush command to reload this file\n");
+
+	//print background bone info.
+	VFS_PUTS(f, "\n//bones are as follows:\n");
+	skel_generateragdoll_f_bones(f, bones, numbones, -1, 0);
+
+	//print background frame info.
+	VFS_PUTS(f, "\n//frames are as follows:\n");
+	for (i = 0; i < 32768; i++)
+	{
+		char *fname;
+		int numframes;
+		float duration;
+		qboolean loop;
+		if (!Mod_FrameInfoForNum(mod, i, &fname, &numframes, &duration, &loop))
+			break;
+		VFS_PUTS(f, va("//%i %s (%i frames) (%f secs)%s", i, fname, numframes, duration, loop?" (loop)":""));
+	}
+	if (i == 0)
+		VFS_PUTS(f, "//NO FRAME INFO\n");
+
+		//print background frame info.
+	VFS_PUTS(f, "\n//skins are as follows:\n");
+	for (i = 0; i < 32768; i++)
+	{
+		const char *sname;
+		sname = Mod_SkinNameForNum(mod, i);
+		if (!sname)
+			break;
+		VFS_PUTS(f, va("//%i %s", i, sname));
+	}
+	if (i == 0)
+		VFS_PUTS(f, "//NO SKIN INFO\n");
+
+	VFS_PUTS(f, "\nupdatebody default\n");
+	VFS_PUTS(f, "\tshape box	//one of box, sphere, cylinder, capsule\n");
+	VFS_PUTS(f, "\tdimensions 8 8 8\n");
+	VFS_PUTS(f, "\tdraw 1		//1 for visualising debug, 0 for release\n");
+	VFS_PUTS(f, "\tanimate 1	//0 will always be limp\n");
+	VFS_PUTS(f, "\n");
+
+	//FIXME: only write out the bodies specified as arguments, and with no //
+	for (i = 0; i < numbones; i++)
+		VFS_PUTS(f, va("//body b_%s %s\n", bones[i].name, bones[i].name));
+	VFS_PUTS(f, "\n");
+
+	VFS_PUTS(f, "updatejoint default\n");
+	VFS_PUTS(f, "\ttype hinge	//one of fixed, point, hinge, slider, universal, hinge2\n");
+	VFS_PUTS(f, "\t//histop 1\n");
+	VFS_PUTS(f, "\t//lostop -1\n");
+	VFS_PUTS(f, "\t//histop2 1\n");
+	VFS_PUTS(f, "\t//lostop2 -1\n");
+	VFS_PUTS(f, "\t//erp\n");
+	VFS_PUTS(f, "\t//erp2\n");
+	VFS_PUTS(f, "\t//cfm\n");
+	VFS_PUTS(f, "\t//cfm2\n");
+	VFS_PUTS(f, "\t//fmax\n");
+	VFS_PUTS(f, "\t//fmax2\n");
+	VFS_PUTS(f, "\n");
+
+	for (i = 0; i < numbones; i++)
+	{
+		if (bones[i].parent >= 0)	//don't generate joints for root bones. FIXME: also skip omitted bodies from argument list.
+		{
+			VFS_PUTS(f, va("//joint j_%s b_%s b_%s\n", bones[i].name, bones[bones[i].parent].name, bones[i].name));
+			//FIXME: calc the extents in each pose and set the hi/lo stops.
+		}
+	}
+	VFS_PUTS(f, "\n");
+
+	VFS_CLOSE(f);
+}
+void skel_info_f(void)
+{
+	int i;
+	for (i = 0; i < numskelobjectsused; i++)
+	{
+		if (skelobjects[i].world)
+		{
+			extern world_t csqc_world;
+			Con_Printf("doll %i:\n", i);
+#ifndef CLIENTONLY
+			if (skelobjects[i].world == &sv.world)
+				Con_Printf(" SSQC\n");
+#endif
+#ifndef SERVERONLY
+			if (skelobjects[i].world == &csqc_world)
+				Con_Printf(" CSQC\n");
+#endif
+			Con_Printf(" type: %s\n", (skelobjects[i].type == SKOT_RELATIVE)?"parentspace":"modelspace");
+			Con_Printf(" model: %s\n", skelobjects[i].model->name);
+			Con_Printf(" bone count: %i\n", skelobjects[i].numbones);
+			if (skelobjects[i].doll)
+			{
+				Con_Printf(" ragdoll: %s%s\n", skelobjects[i].doll->name, ((skelobjects[i].doll == skelobjects[i].model->dollinfo)?" (model default)":""));
+				Con_Printf(" phys bodies: %i\n", skelobjects[i].doll->numbodies);
+			}
+			if (skelobjects[i].entity)
+				Con_Printf(" entity: %i (%s)\n", skelobjects[i].entity->entnum, skelobjects[i].world->progs->StringToNative(skelobjects[i].world->progs, skelobjects[i].entity->v->classname));
+		}
+	}
+}
+
 /*destroys all skeletons*/
 void skel_reset(pubprogfuncs_t *prinst)
 {
@@ -987,7 +1137,8 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 	float *bmat;
 	float bodymat[12], worldmat[12];
 	vec3_t aaa2[3];
-	galiasbone_t *bones = Mod_GetBoneInfo(sko->model);
+	int numbones;
+	galiasbone_t *bones = Mod_GetBoneInfo(sko->model, &numbones);
 	int bone;
 	odebody_t *body1, *body2;
 	odejointinfo_t *j;
@@ -1065,7 +1216,8 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 	doll_t *doll = sko->doll;
 	float *bmat = sko->bonematrix;
 	float *amat = asko?asko->bonematrix:NULL;
-	galiasbone_t *bones = Mod_GetBoneInfo(sko->model);
+	int numbones;
+	galiasbone_t *bones = Mod_GetBoneInfo(sko->model, &numbones);
 	int i;
 	float invemat[12];
 	float bodymat[12], rel[12];
@@ -1281,7 +1433,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 		skorel.numbones = sko->numbones;
 
 		//FIXME: provide some way for the animation to auto-trigger ragdoll (so framegroups can work automagically)
-		if (ent->framestate.g[FS_REG].frame[0] == 65535 || ent->framestate.g[FS_REG].frame[1] == 65535)
+		if ((ent->framestate.g[FS_REG].frame[0] & 32767) || (ent->framestate.g[FS_REG].frame[1] & 32767))
 			sko->numanimated = 0;
 		else if (sko->doll)
 			sko->numanimated = sko->doll->numdefaultanimated;

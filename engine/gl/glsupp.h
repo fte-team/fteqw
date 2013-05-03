@@ -698,6 +698,10 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_RENDERBUFFER_STENCIL_SIZE_EXT  0x8D55
 #endif
 
+#ifndef GL_ARB_framebuffer_object
+#define GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE 0x8217 
+#endif
+
 #ifndef GL_VERSION_3_0
 #define GL_MAJOR_VERSION                  0x821B
 #define GL_MINOR_VERSION                  0x821C

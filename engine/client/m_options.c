@@ -518,12 +518,6 @@ static void ApplyPreset (int presetnum)
 	int i;
 	//this function is written backwards, to ensure things work properly in configs etc.
 
-	//make sure the presets always set up particles correctly for certain other game modes.
-	if (M_GameType() == MGT_HEXEN2)
-	{
-		Cbuf_InsertText("r_particledesc $r_particledesc h2part\n", RESTRICT_LOCAL, false);
-	}
-
 	// TODO: work backwards and only set cvars once
 	for (i = presetnum; i >= 0; i--)
 	{
@@ -584,7 +578,7 @@ qboolean M_PresetApply (union menuoption_s *op, struct menu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	Cbuf_AddText("fps_preset ", RESTRICT_LOCAL);
@@ -820,7 +814,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 {
 	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	{
@@ -1209,7 +1203,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	singleplayerinfo_t *info = menu->data;
 
-	if (key != K_ENTER)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -1328,7 +1322,7 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int ke
 {
 	singleplayerq2info_t *info = menu->data;
 
-	if (key != K_ENTER)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -1454,7 +1448,7 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct menu_s *menu,int ke
 {
 	singleplayerh2info_t *info = menu->data;
 
-	if (key != K_ENTER)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -2011,7 +2005,7 @@ qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	// force update display options

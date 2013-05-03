@@ -62,6 +62,8 @@ qboolean LibZ_Init(void);
 qboolean LibJPEG_Init(void);
 qboolean LibPNG_Init(void);
 
+void Sys_RunFile(const char *fname, int nlen);
+
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);
 qboolean Sys_RandomBytes(qbyte *string, int len);
@@ -83,13 +85,17 @@ void Sys_ServerActivity(void);
 void Sys_SendKeyEvents (void);
 // Perform Key_Event () callbacks until the input que is empty
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath);
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath);
 
 void Sys_Vibrate(int count);
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
 #ifdef MULTITHREAD
+#if defined(_WIN32) && defined(_DEBUG)
+void Sys_SetThreadName(unsigned int dwThreadID, char *threadName);
+#endif
+
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize);
 void Sys_WaitOnThread(void *thread);
 void Sys_DetachThread(void *thread);

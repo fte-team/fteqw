@@ -410,6 +410,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#else
 			#define PLATFORM	"Win32"
 		#endif
+		#define ARCH_DL_POSTFIX ".dll"
 	#elif defined(ANDROID)
 		#define PLATFORM		"Android"	/*technically also linux*/
 	#elif defined(__linux__)
@@ -433,6 +434,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
+#ifndef ARCH_DL_POSTFIX
+	#define ARCH_DL_POSTFIX ".so"
+#endif
+
+#if defined(__amd64__)
+	#define ARCH_CPU_POSTFIX "amd"
+#elif defined(_M_IX86) || defined(__i386__)
+	#define ARCH_CPU_POSTFIX "x86"
+#elif defined(__powerpc__) || defined(__ppc__)
+	#define ARCH_CPU_POSTFIX "ppc"
+#elif defined(__arm__)
+	#define ARCH_CPU_POSTFIX "arm"
+#else
+	#define ARCH_CPU_POSTFIX "unk"
+#endif
 
 #if (defined(_M_IX86) || defined(__i386__)) && !defined(__amd64__) && !defined(_AMD64_)
 #define UNALIGNED_OK	1	// set to 0 if unaligned accesses are not supported
@@ -510,7 +526,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	SOUND_CHANNELS		8
 
 
-#define	MAX_QPATH		64			// max length of a quake game pathname
+#define	MAX_QPATH		128			// max length of a quake game pathname
 #define	MAX_OSPATH		256			// max length of a filesystem pathname
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon

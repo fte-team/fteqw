@@ -71,6 +71,8 @@ static qboolean pe_script_enabled;
 
 static float psintable[256];
 
+static qboolean P_LoadParticleSet(char *name, qboolean implicit);
+
 static void buildsintable(void)
 {
 	int i;
@@ -171,6 +173,7 @@ typedef struct {
 // TODO: merge in alpha with rgb to gain benefit of vector opts
 typedef struct part_type_s {
 	char name[MAX_QPATH];
+	char config[MAX_QPATH];
 	char texname[MAX_QPATH];
 
 	int nummodels;
@@ -268,7 +271,7 @@ typedef struct part_type_s {
 	int rampindexes;
 	ramp_t *ramp;
 
-	int loaded;
+	int loaded;	//0 if not loaded, 1 if automatically loaded, 2 if user loaded
 	particle_t	*particles;
 	clippeddecal_t *clippeddecals;
 	beamseg_t *beams;
@@ -292,6 +295,13 @@ typedef struct part_type_s {
 	unsigned int state;
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
 } part_type_t;
+
+typedef struct pcfg_s
+{
+	struct pcfg_s *next;
+	char name[1];
+} pcfg_t;
+static pcfg_t *loadedconfigs;
 
 #ifndef TYPESONLY
 
@@ -365,28 +375,41 @@ static int numparticletypes;
 static part_type_t *part_type;
 static part_type_t *part_run_list;
 
+static char part_parsenamespace[MAX_QPATH];
+static qboolean part_parseweak;
+
 static struct {
 	char *oldn;
 	char *newn;
 } legacynames[] =
 {
-	{"t_rocket", "TR_ROCKET"},
+	{"t_rocket",	"TR_ROCKET"},
 
 	//{"t_blastertrail", "TR_BLASTERTRAIL"},
-	{"t_grenade", "TR_GRENADE"},
-	{"t_gib", "TR_BLOOD"},
+	{"t_grenade",	"TR_GRENADE"},
+	{"t_gib",		"TR_BLOOD"},
 
-	{"te_plasma", "TE_TEI_PLASMAHIT"},
-	{"te_smoke", "TE_TEI_SMOKE"},
+	{"te_plasma",	"TE_TEI_PLASMAHIT"},
+	{"te_smoke",	"TE_TEI_SMOKE"},
 
 	{NULL}
 };
 
-static part_type_t *P_GetParticleType(char *name)
+static part_type_t *P_GetParticleType(char *config, char *name)
 {
 	int i;
 	part_type_t *ptype;
 	part_type_t *oldlist = part_type;
+	char cfgbuf[MAX_QPATH];
+	char *dot = strchr(name, '.');
+	if (dot && (dot - name) < MAX_QPATH-1)
+	{
+		config = cfgbuf;
+		memcpy(cfgbuf, name, dot - name);
+		cfgbuf[dot - name] = 0;
+		name = dot+1;
+	}
+
 	for (i = 0; legacynames[i].oldn; i++)
 	{
 		if (!strcmp(name, legacynames[i].oldn))
@@ -399,12 +422,14 @@ static part_type_t *P_GetParticleType(char *name)
 	{
 		ptype = &part_type[i];
 		if (!stricmp(ptype->name, name))
-			return ptype;
+			if (!stricmp(ptype->config, config))	//must be an exact match.
+				return ptype;
 	}
 	part_type = BZ_Realloc(part_type, sizeof(part_type_t)*(numparticletypes+1));
 	ptype = &part_type[numparticletypes++];
 	memset(ptype, 0, sizeof(*ptype));
-	strcpy(ptype->name, name);
+	Q_strncpyz(ptype->name, name, sizeof(ptype->name));
+	Q_strncpyz(ptype->config, config, sizeof(ptype->config));
 	ptype->assoc = P_INVALID;
 	ptype->inwater = P_INVALID;
 	ptype->cliptype = P_INVALID;
@@ -429,29 +454,29 @@ static part_type_t *P_GetParticleType(char *name)
 	return ptype;
 }
 
-static int P_AllocateParticleType(char *name)	//guarentees that the particle type exists, returning it's index.
+//unconditionally allocates a particle object. this allows out-of-order allocations.
+static int P_AllocateParticleType(char *config, char *name)	//guarentees that the particle type exists, returning it's index.
 {
-	part_type_t *pt = P_GetParticleType(name);
+	part_type_t *pt = P_GetParticleType(config, name);
 	return pt - part_type;
 }
 
-static int PScript_ParticleTypeForName(char *name)
-{
-	int to;
-
-	to = P_GetParticleType(name) - part_type;
-	if (to < 0 || to >= numparticletypes)
-	{
-		return P_INVALID;
-	}
-
-	return to;
-}
-
+//public interface. get without creating.
 static int PScript_FindParticleType(char *name)
 {
 	int i;
 	part_type_t *ptype = NULL;
+	char cfg[MAX_QPATH];
+	char *dot;
+	dot = strchr(name, '.');
+	if (dot && (dot - name) < MAX_QPATH-1)
+	{
+		memcpy(cfg, name, dot - name);
+		cfg[dot-name] = 0;
+		name = dot+1;
+	}
+	else
+		*cfg = 0;
 
 	for (i = 0; legacynames[i].oldn; i++)
 	{
@@ -462,16 +487,37 @@ static int PScript_FindParticleType(char *name)
 		}
 	}
 
-	for (i = 0; i < numparticletypes; i++)
-	{
-		if (!stricmp(part_type[i].name, name))
+	if (*cfg)
+	{	//favour the namespace if one is specified
+		for (i = 0; i < numparticletypes; i++)
 		{
-			ptype = &part_type[i];
-			break;
+			if (!stricmp(part_type[i].name, name))
+			{
+				if (!stricmp(part_type[i].config, cfg))
+				{
+					ptype = &part_type[i];
+					break;
+				}
+			}
+		}
+	}
+	else
+	{
+		//but be prepared to load it from any namespace if its not got a namespace specified.
+		for (i = 0; i < numparticletypes; i++)
+		{
+			if (!stricmp(part_type[i].name, name))
+			{
+				ptype = &part_type[i];
+				break;
+			}
 		}
 	}
 	if (!ptype || !ptype->loaded)
 	{
+		if (*cfg)
+			P_LoadParticleSet(cfg, true);
+
 		if (fallback)
 		{
 			if (!strncmp(name, "classic_", 8))
@@ -499,11 +545,11 @@ static void P_SetModified(void)	//called when the particle system changes (from 
 		Cbuf_AddText("say particles description has changed\n", RESTRICT_LOCAL);
 	}
 }
-static int CheckAssosiation(char *name, int from)
+static int CheckAssosiation(char *config, char *name, int from)
 {
 	int to, orig;
 
-	orig = to = P_AllocateParticleType(name);
+	orig = to = P_AllocateParticleType(config, name);
 
 	while(to != P_INVALID)
 	{
@@ -688,9 +734,17 @@ static void P_ParticleEffect_f(void)
 	part_type_t *ptype, *torun;
 	char tnamebuf[sizeof(ptype->name)];
 	int pnum, assoc;
+	char *config = part_parsenamespace;
 
 	if (Cmd_Argc()!=2)
 	{
+		if (!strcmp(Cmd_Argv(1), "namespace"))
+		{
+			Q_strncpyz(part_parsenamespace, Cmd_Argv(2), sizeof(part_parsenamespace));
+			if (Cmd_Argc() >= 4)
+				part_parseweak = atoi(Cmd_Argv(3));
+			return;
+		}
 		Con_Printf("No name for particle effect\n");
 		return;
 	}
@@ -705,7 +759,14 @@ static void P_ParticleEffect_f(void)
 		return;
 	}
 
-	if (!pe_script_enabled)
+	var = Cmd_Argv(1);
+	if (*var == '+')
+		ptype = P_GetParticleType(config, var+1);
+	else
+		ptype = P_GetParticleType(config, var);
+
+	//'weak' configs do not replace 'strong' configs
+	if (!pe_script_enabled || (part_parseweak && ptype->loaded))
 	{
 		int depth = 1;
 		while(1)
@@ -727,10 +788,8 @@ static void P_ParticleEffect_f(void)
 		return;
 	}
 
-	var = Cmd_Argv(1);
 	if (*var == '+')
 	{
-		ptype = P_GetParticleType(var+1);
 		if (ptype->loaded)
 		{
 			int i, parenttype;
@@ -739,7 +798,7 @@ static void P_ParticleEffect_f(void)
 			{
 				parenttype = ptype - part_type;
 				snprintf(newname, sizeof(newname), "+%i%s", i, var);
-				ptype = P_GetParticleType(newname);
+				ptype = P_GetParticleType(config, newname);
 				if (!ptype->loaded)
 				{
 					if (part_type[parenttype].assoc != P_INVALID)
@@ -757,7 +816,6 @@ static void P_ParticleEffect_f(void)
 	}
 	else
 	{
-		ptype = P_GetParticleType(Cmd_Argv(1));
 		if (ptype->loaded)
 		{
 			assoc = ptype->assoc;
@@ -1050,7 +1108,7 @@ static void P_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "assoc"))
 		{
-			assoc = CheckAssosiation(value, pnum);	//careful - this can realloc all the particle types
+			assoc = CheckAssosiation(config, value, pnum);	//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->assoc = assoc;
 		}
@@ -1058,7 +1116,7 @@ static void P_ParticleEffect_f(void)
 		{
 			// the underwater effect switch should only occur for
 			// 1 level so the standard assoc check works
-			assoc = CheckAssosiation(value, pnum);
+			assoc = CheckAssosiation(config, value, pnum);
 			ptype = &part_type[pnum];
 			ptype->inwater = assoc;
 		}
@@ -1237,7 +1295,7 @@ static void P_ParticleEffect_f(void)
 			ptype->spawnchance = atof(value);
 		else if (!strcmp(var, "cliptype"))
 		{
-			assoc = PScript_ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = P_AllocateParticleType(config, value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->cliptype = assoc;
 		}
@@ -1246,7 +1304,7 @@ static void P_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "emit"))
 		{
-			assoc = PScript_ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = P_AllocateParticleType(config, value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->emit = assoc;
 		}
@@ -1462,7 +1520,7 @@ static void P_ParticleEffect_f(void)
 			Con_DPrintf("%s is not a recognised particle type field (in %s)\n", var, ptype->name);
 	}
 	ptype->looks.invscalefactor = 1-ptype->looks.scalefactor;
-	ptype->loaded = 1;
+	ptype->loaded = part_parseweak?1:2;
 	if (ptype->clipcount < 1)
 		ptype->clipcount = 1;
 
@@ -1828,6 +1886,7 @@ static void P_ImportEffectInfo_f(void)
 	char *cmd;
 	char arg[8][1024];
 	int args = 0;
+	char *config = "effectinfo";
 	FS_LoadFile("effectinfo.txt", (void**)&file);
 
 	if (!file)
@@ -1871,14 +1930,14 @@ static void P_ImportEffectInfo_f(void)
 				FinishParticleType(ptype);
 			}
 
-			ptype = P_GetParticleType(arg[1]);
+			ptype = P_GetParticleType(config, arg[1]);
 			if (ptype->loaded)
 			{
 				for (i = 0; i < 64; i++)
 				{
 					parenttype = ptype - part_type;
 					snprintf(newname, sizeof(newname), "%i+%s", i, arg[1]);
-					ptype = P_GetParticleType(newname);
+					ptype = P_GetParticleType(config, newname);
 					if (!ptype->loaded)
 					{
 						part_type[parenttype].assoc = ptype - part_type;
@@ -1891,7 +1950,7 @@ static void P_ImportEffectInfo_f(void)
 					break;
 				}
 			}
-			ptype->loaded = true;
+			ptype->loaded = part_parseweak?1:2;
 			ptype->scale = 1;
 			ptype->alpha = 0;
 			ptype->alpharand = 1;
@@ -2203,11 +2262,11 @@ static qboolean PScript_InitParticles (void)
 #endif
 
 
-	pt_pointfile		= P_AllocateParticleType("PT_POINTFILE");
-	pe_default			= P_AllocateParticleType("PE_DEFAULT");
-	pe_size2			= P_AllocateParticleType("PE_SIZE2");
-	pe_size3			= P_AllocateParticleType("PE_SIZE3");
-	pe_defaulttrail		= P_AllocateParticleType("PE_DEFAULTTRAIL");
+	pt_pointfile		= P_AllocateParticleType("", "PT_POINTFILE");
+	pe_default			= P_AllocateParticleType("", "PE_DEFAULT");
+	pe_size2			= P_AllocateParticleType("", "PE_SIZE2");
+	pe_size3			= P_AllocateParticleType("", "PE_SIZE3");
+	pe_defaulttrail		= P_AllocateParticleType("", "PE_DEFAULTTRAIL");
 
 	Cvar_Hook(&r_particledesc, R_ParticleDesc_Callback);
 	Cvar_ForceCallback(&r_particledesc);
@@ -2255,6 +2314,14 @@ static void PScript_Shutdown (void)
 	Cmd_RemoveCommand("r_partinfo");
 	Cmd_RemoveCommand("r_beaminfo");
 #endif
+
+	while(loadedconfigs)
+	{
+		pcfg_t *cfg;
+		cfg = loadedconfigs;
+		loadedconfigs = cfg->next;
+		Z_Free(cfg);
+	}
 
 	while (numparticletypes > 0)
 	{
@@ -2356,15 +2423,27 @@ static void P_ExportBuiltinSet_f(void)
 	Con_Printf("'%s' is not a built in particle set\n", efname);
 }
 
-static void P_LoadParticleSet(char *name, qboolean first)
+static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 {
 	char *file;
 	int i;
 	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL;
+	pcfg_t *cfg;
 
-	/*set up a default*/
-	if (first && !*name)
-		name = "faithful";
+	if (!*name)
+		return false;
+
+	//protect against configs being loaded multiple times. this can easily happen with namespaces (especially if an effect is missing).
+	for (cfg = loadedconfigs; cfg; cfg = cfg->next)
+	{
+		//already loaded?
+		if (!strcmp(cfg->name, name))
+			return false;
+	}
+	cfg = Z_Malloc(sizeof(*cfg) + strlen(name));
+	strcpy(cfg->name, name);
+	cfg->next = loadedconfigs;
+	loadedconfigs = cfg;
 
 	if (!strcmp(name, "classic"))
 	{
@@ -2376,7 +2455,7 @@ static void P_LoadParticleSet(char *name, qboolean first)
 			fallback->InitParticles();
 			fallback->ClearParticles();
 		}
-		return;
+		return true;
 	}
 
 	for (i = 0; partset_list[i].name; i++)
@@ -2387,14 +2466,14 @@ static void P_LoadParticleSet(char *name, qboolean first)
 			{
 				Cbuf_AddText(*partset_list[i].data, RESTRICT_LOCAL);
 			}
-			return;
+			return true;
 		}
 	}
 
 	if (!strcmp(name, "effectinfo"))
 	{
 		P_ImportEffectInfo_f();
-		return;
+		return true;
 	}
 
 
@@ -2403,22 +2482,28 @@ static void P_LoadParticleSet(char *name, qboolean first)
 		FS_LoadFile(va("%s.cfg", name), (void**)&file);
 	if (file)
 	{
+		Cbuf_AddText(va("\nr_part namespace %s %i\n", name, implicit), restrictlevel);
 		Cbuf_AddText(file, restrictlevel);
-		Cbuf_AddText("\n", restrictlevel);
+		Cbuf_AddText("\nr_part namespace \"\" 0\n", restrictlevel);
 		FS_FreeFile(file);
 	}
-	else if (first)
-	{
-		Con_Printf(CON_WARNING "Couldn't find particle description %s, using spikeset\n", name);
-		Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
-	}
 	else
-		Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
+	{
+		if (P_LoadParticleSet("high", true))
+			Con_Printf(CON_WARNING "Couldn't find particle description %s, loading 'high' instead\n", name);
+		else
+		{
+			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
+			return false;
+		}
+	}
+	return true;
 }
 
 static void R_Particles_KillAllEffects(void)
 {
 	int i;
+	pcfg_t *cfg;
 
 	for (i = 0; i < numparticletypes; i++)
 	{
@@ -2440,6 +2525,13 @@ static void R_Particles_KillAllEffects(void)
 		fallback->ShutdownParticles();
 		fallback = NULL;
 	}
+
+	while(loadedconfigs)
+	{
+		cfg = loadedconfigs;
+		loadedconfigs = cfg->next;
+		Z_Free(cfg);
+	}
 }
 
 static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
@@ -2456,11 +2548,16 @@ static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 	first = true;
 	for (c = COM_ParseStringSet(var->string); com_token[0]; c = COM_ParseStringSet(c))
 	{
-		P_LoadParticleSet(com_token, first);
+		/*set up a default*/
+		if (first && !*com_token)
+			strcpy(com_token, "faithful");
+		P_LoadParticleSet(com_token, false);
 		first = false;
 	}
 
-	Cbuf_AddText("r_effect\n", RESTRICT_LOCAL);
+//	Cbuf_AddText("r_effect\n", RESTRICT_LOCAL);
+
+	//make sure nothing is stale.
 	CL_RegisterParticles();
 }
 
@@ -5639,7 +5736,6 @@ particleengine_t pe_script =
 	"script",
 	"fte",
 
-	PScript_ParticleTypeForName,
 	PScript_FindParticleType,
 	PScript_Query,
 

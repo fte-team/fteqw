@@ -168,7 +168,7 @@ void CL_QueryServers(void);
 int Master_CheckPollSockets(void);
 void MasterInfo_Shutdown(void);
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);
-serverinfo_t *Master_InfoForServer (netadr_t addr);
+serverinfo_t *Master_InfoForServer (netadr_t *addr);
 serverinfo_t *Master_InfoForNum (int num);
 unsigned int Master_TotalCount(void);
 unsigned int Master_NumPolled(void);

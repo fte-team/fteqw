@@ -61,6 +61,10 @@ unsigned int sys_parentheight;
 
 extern int fs_switchgame;
 
+//used to do special things with awkward windows versions.
+int qwinvermaj;
+int qwinvermin;
+
 
 #ifdef RESTARTTEST
 jmp_buf restart_jmpbuf;
@@ -594,7 +598,8 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 
 	/*if we have a current window, kill it, so it can't steal input of handle window messages or anything risky like that*/
 	if (iswatchdog)
-		ShowWindow(mainwindow, SW_MINIMIZE);
+	{
+	}
 	else
 		DestroyWindow(mainwindow);
 
@@ -811,7 +816,7 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;
@@ -917,7 +922,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 
 	return go;
 }
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
 {
 	char fullmatch[MAX_OSPATH];
 	int start;
@@ -966,7 +971,11 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 	}
 }
 
-
+void Sys_DoFileAssociations(qboolean elevated);
+void Sys_Register_File_Associations_f(void)
+{
+	Sys_DoFileAssociations(0);
+}
 /*
 ================
 Sys_Init
@@ -981,6 +990,7 @@ void Sys_Init (void)
 #ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");
 	Cvar_Register(&sys_disableTaskSwitch, "System vars");
+	Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register FTE as the system handler for .bsp .mvd .qwd .dem files. Also register the qw:// URL protocol. This command will probably trigger a UAC prompt in Windows Vista and up. Deny it for current-user-only asociations (will also prevent listing in windows' 'default programs' ui due to microsoft bugs/limitations).");
 
 #ifndef CLIENTONLY
 	if (!isDedicated && !COM_CheckParm("-nomutex"))
@@ -1050,6 +1060,9 @@ void Sys_Init (void)
 		WinNT = true;
 	else
 		WinNT = false;
+
+	qwinvermaj = vinfo.dwMajorVersion;
+	qwinvermin = vinfo.dwMinorVersion;
 }
 
 
@@ -1738,7 +1751,7 @@ WinMain
 HINSTANCE	global_hInstance;
 int			global_nCmdShow;
 char		*argv[MAX_NUM_ARGVS];
-static char	exename[256];
+static char	exename[MAX_PATH];
 HWND		hwnd_dialog;
 
 
@@ -2022,6 +2035,15 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 	SHAddToRecentDocs(SHARD_APPIDINFOLINK, &appinfo);
 	IShellLinkW_Release(link);
 }
+
+
+typedef struct {
+  LPCWSTR            pcszFile;
+  LPCWSTR            pcszClass;
+  enum qOPEN_AS_INFO_FLAGS oaifInFlags;
+} qOPENASINFO;
+HRESULT (WINAPI *pSHOpenWithDialog)(HWND hwndParent, const qOPENASINFO *poainfo);
+
 void Win7_Init(void)
 {
 	HANDLE h;
@@ -2031,6 +2053,8 @@ void Win7_Init(void)
 	h = LoadLibrary("shell32.dll");
 	if (h)
 	{
+		pSHOpenWithDialog = (void*)GetProcAddress(h, "SHOpenWithDialog");
+
 		pSetCurrentProcessExplicitAppUserModelID = (void*)GetProcAddress(h, "SetCurrentProcessExplicitAppUserModelID");
 		if (pSetCurrentProcessExplicitAppUserModelID)
 			pSetCurrentProcessExplicitAppUserModelID(WIN7_APPNAME);
@@ -2149,6 +2173,20 @@ void Win7_TaskListInit(void)
 #endif
 
 
+int MyRegGetIntValue(HKEY base, char *keyname, char *valuename, int defaultval)
+{
+	int result = defaultval;
+	DWORD datalen = sizeof(result);
+	HKEY subkey;
+	DWORD type = REG_NONE;
+	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		if (ERROR_SUCCESS != RegQueryValueEx(subkey, valuename, NULL, &type, (void*)&result, &datalen) || type != REG_DWORD)
+			result = defaultval;
+		RegCloseKey (subkey);
+	}
+	return result;
+}
 qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
 {
 	qboolean result = false;
@@ -2168,16 +2206,39 @@ qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *da
 	return result;
 }
 
-#ifdef UPDATE_URL
-
-void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+qboolean MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
 {
+	qboolean result = false;
 	HKEY subkey;
+
+	//'trivially' return success if its already set.
+	//this allows success even when we don't have write access.
+	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		DWORD oldtype;
+		char olddata[2048];
+		DWORD olddatalen = sizeof(olddata);
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &oldtype, olddata, &olddatalen);
+		RegCloseKey (subkey);
+
+		if (oldtype == REG_SZ || oldtype == REG_EXPAND_SZ)
+		{
+			while(olddatalen > 0 && olddata[olddatalen-1] == 0)
+				olddatalen--;
+		}
+
+		if (result && datalen == olddatalen && type == oldtype && !memcmp(data, olddata, datalen))
+			return result;
+		result = false;
+	}
+
 	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
 	{
-		RegSetValueEx(subkey, valuename, 0, type, data, datalen);
+		if (ERROR_SUCCESS == RegSetValueEx(subkey, valuename, 0, type, data, datalen))
+			result = true;
 		RegCloseKey (subkey);
 	}
+	return result;
 }
 void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
 {
@@ -2188,6 +2249,7 @@ void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
 		RegCloseKey (subkey);
 	}
 }
+#ifdef UPDATE_URL
 
 qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 {
@@ -2360,6 +2422,8 @@ qboolean Sys_CheckUpdated(void)
 			if (CreateProcess(com_argv[ffe+2], va("--fromfrontend \"%s\" \"%s\" %s", "", "", COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
+		if (com_argv[ffe+2])
+			com_argv[0] = com_argv[ffe+2];
 	}
 	doupdatecheck = true;
 	return false;
@@ -2374,6 +2438,165 @@ void Update_Check(void)
 }
 #endif
 
+#include "shellapi.h"
+const GUID qIID_IApplicationAssociationRegistrationUI = {0x1f76a169,0xf994,0x40ac, {0x8f,0xc8,0x09,0x59,0xe8,0x87,0x47,0x10}};
+const GUID qCLSID_ApplicationAssociationRegistrationUI = {0x1968106d,0xf3b5,0x44cf,{0x89,0x0e,0x11,0x6f,0xcb,0x9e,0xce,0xf1}};
+struct qIApplicationAssociationRegistrationUI;
+typedef struct qIApplicationAssociationRegistrationUI
+{
+	struct qIApplicationAssociationRegistrationUI_vtab
+	{
+		HRESULT  (WINAPI *QueryInterface)				(struct qIApplicationAssociationRegistrationUI *, const GUID *riid, void **ppvObject);
+		HRESULT  (WINAPI *AddRef)						(struct qIApplicationAssociationRegistrationUI *);
+		HRESULT  (WINAPI *Release)						(struct qIApplicationAssociationRegistrationUI *);
+		HRESULT  (WINAPI *LaunchAdvancedAssociationUI)	(struct qIApplicationAssociationRegistrationUI *, LPCWSTR app);
+	} *lpVtbl;
+} qIApplicationAssociationRegistrationUI;
+
+void Sys_DoFileAssociations(qboolean elevated)
+{
+	char command[1024];
+	qboolean ok = true;	
+	HKEY root;
+
+	//I'd do everything in current_user if I could, but windows sucks too much for that.
+	//'registered applications' simply does not work in hkcu, we MUST use hklm for that.
+	//if there's a registered application and we are not, we are unable to grab that association, ever.
+	//thus we HAVE to do things to the local machine or we might as well not bother doing anything.
+	//still, with a manifest not giving false success, if the user clicks 'no' to the UAC prompt, we'll write everything to the current user anyway, so if microsoft do ever fix things, then yay.
+	//also, I hate the idea of creating a 'registered application' in globally without the file types it uses being local.
+
+	//on xp, we use ONLY current user. no 'registered applications' means no 'registered applications bug', which means no need to use hklm at all.
+	//in vista/7, we have to create stuff in local_machine. in which case we might as well put ALL associations in there. the ui stuff will allow user-specific settings, so this is not an issue other than the fact that it triggers uac.
+	//in 8, we cannot programatically force ownership of our associations, so we might as well just use the ui method even for vista+7 instead of the ruder version.
+	if (qwinvermaj < 6)
+		elevated = 2;
+
+	root = elevated == 2?HKEY_CURRENT_USER:HKEY_LOCAL_MACHINE;
+
+	#define ASSOC_VERSION 2
+#define ASSOCV "1"
+
+	//register the basic demo class
+	Q_snprintfz(command, sizeof(command), "Quake or QuakeWorld Demo", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV, "", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+
+	//register the basic map class. yeah, the command is the same as for demos. but the description is different!
+	Q_snprintfz(command, sizeof(command), "Quake Map", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV, "", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+
+	//register the basic protocol class
+	Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"", "", REG_SZ, command, strlen(command));
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"", "URL Protocol", REG_SZ, "", strlen(""));
+	Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+
+	//try to get ourselves listed in windows' 'default programs' ui.
+	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME);
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationName", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games.", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationDescription", REG_SZ, command, strlen(command));
+
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_DemoFile.1", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".qtv", REG_SZ, command, strlen(command));
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".mvd", REG_SZ, command, strlen(command));
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".qwd", REG_SZ, command, strlen(command));
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".dem", REG_SZ, command, strlen(command));
+//	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".dm2", REG_SZ, command, strlen(command));
+
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_BSPFile.1", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".bsp", REG_SZ, command, strlen(command));
+
+//	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".fmf", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
+//	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\MIMEAssociations", "application/x-ftemanifest", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
+
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_Server.1", com_argv[0]);
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\UrlAssociations", "qw", REG_SZ, command, strlen(command));
+	
+	Q_snprintfz(command, sizeof(command), "Software\\"FULLENGINENAME"\\Capabilities");
+	ok = ok & MyRegSetValue(root, "Software\\RegisteredApplications", FULLENGINENAME, REG_SZ, command, strlen(command));
+
+	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+
+	if (!ok && elevated < 2)
+	{
+		HINSTANCE ch = ShellExecute(mainwindow, "runas", com_argv[0], va("-register_types %i", elevated+1), NULL, SW_SHOWNORMAL);
+		if ((int)ch <= 32)
+			Sys_DoFileAssociations(2);
+		return;
+	}
+
+	if (ok)
+	{
+//		char buf[1];
+		//attempt to display the vista+ prompt (only way possible in win8, apparently)
+		qIApplicationAssociationRegistrationUI *aarui = NULL;
+
+		//needs to be done anyway to ensure that its listed, and so that we get the association if nothing else has it.
+		//however, the popup for when you start new programs is very annoying, so lets try to avoid that. our file associations are somewhat explicit anyway.
+		//note that you'll probably still get the clumsy prompt if you try to run fte as a different user. really depends if you gave it local machine write access.
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.qtv", "", buf, sizeof(buf)))
+			MyRegSetValue(root, "Software\\Classes\\.qtv", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.mvd", "", buf, sizeof(buf)))
+			MyRegSetValue(root, "Software\\Classes\\.mvd", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.qwd", "", buf, sizeof(buf)))
+			MyRegSetValue(root, "Software\\Classes\\.qwd", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.dem", "", buf, sizeof(buf)))
+			MyRegSetValue(root, "Software\\Classes\\.dem", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.bsp", "", buf, sizeof(buf)))
+			MyRegSetValue(root, "Software\\Classes\\.bsp", "", REG_SZ, DISTRIBUTION"_BSPFile."ASSOCV, strlen(DISTRIBUTION"_BSPFile.1"));
+		//legacy url associations are a bit more explicit
+//		if (!aarui || elevated==2 || !MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\Classes\\qw", "", buf, sizeof(buf)))
+		{
+			Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
+			MyRegSetValue(root, "Software\\Classes\\qw", "", REG_SZ, command, strlen(command));
+			MyRegSetValue(root, "Software\\Classes\\qw", "URL Protocol", REG_SZ, "", strlen(""));
+			Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
+			MyRegSetValue(root, "Software\\Classes\\qw\\DefaultIcon", "", REG_SZ, command, strlen(command));
+			Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
+			MyRegSetValue(root, "Software\\Classes\\qw\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+		}
+
+		CoInitialize(NULL);
+		if (FAILED(CoCreateInstance(&qCLSID_ApplicationAssociationRegistrationUI, 0, CLSCTX_INPROC_SERVER, &qIID_IApplicationAssociationRegistrationUI, (LPVOID*)&aarui)))
+			aarui = NULL;
+
+		if (aarui)
+		{
+#define wideify2(a) L##a
+#define wideify(a) wideify2(a)
+			aarui->lpVtbl->LaunchAdvancedAssociationUI(aarui, wideify(FULLENGINENAME));
+			aarui->lpVtbl->Release(aarui);
+		}
+		else
+		{
+
+/*
+#define wideify2(a) L##a
+#define wideify(a) wideify2(a)
+			qOPENASINFO open_as_info = {0};
+			open_as_info.pcszFile = L".mvd";
+			open_as_info.pcszClass = wideify(DISTRIBUTION)L"_DemoFile.1";
+			open_as_info.oaifInFlags = 8 | 2;//OAIF_FORCE_REGISTRATION | OAIF_REGISTER_EXT;
+			if (pSHOpenWithDialog)
+				pSHOpenWithDialog(NULL, &open_as_info);
+			SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+*/
+		}
+	}
+}
+
 /*
 #ifdef _MSC_VER
 #include <signal.h>
@@ -2386,18 +2609,53 @@ void VARGS Signal_Error_Handler(int i)
 #endif
 */
 
+void Sys_RunFile(const char *fname, int nlen)
+{
+	char buffer[MAX_OSPATH];
+	char *ext;
+	if (nlen >= MAX_OSPATH)
+	{
+		Con_Printf("Filename too long.\n");
+		return;
+	}
+
+	memcpy(buffer, fname, nlen);
+	buffer[nlen] = 0;
+	fname = buffer;
+	ext = COM_FileExtension(fname);
+	if (!strncmp(fname, "qw:", 3))
+	{
+		fname += 3;
+		if (!strncmp(fname, "//", 2))
+			fname += 2;
+		ext = strchr(fname, '/');	//this also protects us against irc urls, etc. unsure if that's important right now.
+		if (ext)
+			*ext = 0;
+		Con_Printf("QW stream: \"%s\"\n", fname);
+		Cbuf_AddText(va("connect \"%s\"\n", fname), RESTRICT_LOCAL);
+	}
+	else if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
+		Cbuf_AddText(va("playdemo \"#%s\"\n", fname), RESTRICT_LOCAL);
+	else if (!strcmp(ext, "bsp"))
+		Cbuf_AddText(va("map \"#%s\"\n", fname), RESTRICT_LOCAL);
+	else
+		Cbuf_AddText(va("qtvplay \"#%s\"\n", fname), RESTRICT_LOCAL);
+}
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
 	quakeparms_t	parms;
 	double			time, oldtime, newtime;
-	char	cwd[1024], bindir[1024], *s;
+	char	cwd[1024], bindir[1024];
 	const char *qtvfile = NULL;
 	int delay = 0;
 
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
+
+	Sys_SetThreadName(-1, "main thread");
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -2498,9 +2756,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 		GetModuleFileName(NULL, bindir, sizeof(bindir)-1);
-		s = COM_SkipPath(exename);
-		strcpy(exename, s);
-		*s = 0;
+		Q_strncpyz(exename, bindir, sizeof(exename));
+		*COM_SkipPath(bindir) = 0;
 		parms.argv = (const char **)argv;
 
 		COM_InitArgv (parms.argc, parms.argv);
@@ -2508,12 +2765,31 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (Sys_CheckUpdated())
 			return true;
 
+		isPlugin = !!COM_CheckParm("-plugin");
+
+		if (COM_CheckParm("-register_types"))
+		{
+			Sys_DoFileAssociations(1);
+			return true;
+		}
+		/*
+		else if (!isPlugin)
+		{
+			if (MyRegGetIntValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "filetypes", -1) != ASSOC_VERSION)
+			{
+				DWORD dw = ASSOC_VERSION;
+				if (IDYES == MessageBox(NULL, "Register file associations?", "FTE First Start", MB_YESNO))
+					Sys_DoFileAssociations(0);
+				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "filetypes", REG_DWORD, &dw, sizeof(dw)); 
+			}
+		}
+		*/
+
 #ifdef CATCHCRASH
 		if (COM_CheckParm("-watchdog"))
 			Sys_CreateThread("watchdog", watchdogthread, NULL, 0, 0); 
 #endif
 
-		isPlugin = !!COM_CheckParm("-plugin");
 		if (isPlugin)
 		{
 			printf("status Starting up!\n");
@@ -2536,7 +2812,31 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			{
 				char *e;
 
-				qtvfile = parms.argv[1];
+				if (parms.argc == 2 && !strchr(parms.argv[1], '\"') && !strchr(parms.argv[1], ';') && !strchr(parms.argv[1], '\n') && !strchr(parms.argv[1], '\r'))
+				{
+					HWND old;
+					qtvfile = parms.argv[1];
+
+					old = FindWindow("FTEGLQuake", NULL);
+					if (!old)
+						old = FindWindow("FTED3D11QUAKE", NULL);
+					if (!old)
+						old = FindWindow("FTED3D9QUAKE", NULL);
+					if (old)
+					{
+						COPYDATASTRUCT cds;
+						cds.dwData = 0xdeadf11eu;
+						cds.cbData = strlen(qtvfile);
+						cds.lpData = (void*)qtvfile;
+						if (SendMessage(old, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds))
+							return 0;	//message sent.
+					}
+				}
+				else
+				{
+					MessageBox(NULL, "Expected one argument, got multiple", "Blocking potential remote exploit", 0);
+					return 0;
+				}
 
 				GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
 				for (e = cwd+strlen(cwd)-1; e >= cwd; e--)
@@ -2613,11 +2913,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (qtvfile)
 		{
-			char *ext = COM_FileExtension(qtvfile);
-			if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
-				Cbuf_AddText(va("playdemo \"#%s\"\n", qtvfile), RESTRICT_LOCAL);
-			else
-				Cbuf_AddText(va("qtvplay \"#%s\"\n", qtvfile), RESTRICT_LOCAL);
+			Sys_RunFile(qtvfile, strlen(qtvfile));
 		}
 
 	//client console should now be initialized.

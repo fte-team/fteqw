@@ -123,7 +123,7 @@ typedef struct {
 qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key)
 {
 	setupmenu_t *info = menu->data;
-	if (key != K_ENTER)
+	if (key != K_ENTER && key != K_KP_ENTER)
 		return false;
 	Cvar_Set(&name, info->nameedit->text);
 	Cvar_Set(&team, info->teamedit->text);
@@ -141,7 +141,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 	setupmenu_t *info = menu->data;
 	if (*option->button.text == 'T')
 	{
-		if (key == K_ENTER || key == K_RIGHTARROW)
+		if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
 		{
 			info->topcolour ++;
 			if (info->topcolour>=14)
@@ -161,7 +161,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 	}
 	else
 	{
-		if (key == K_ENTER || key == K_RIGHTARROW)
+		if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
 		{
 			info->lowercolour ++;
 			if (info->lowercolour>=14)
@@ -188,7 +188,7 @@ typedef struct {
 	int match;
 } q2skinsearch_t;
 
-int q2skin_enumerate(const char *name, int fsize, void *parm, void *spath)
+int QDECL q2skin_enumerate(const char *name, int fsize, void *parm, void *spath)
 {
 	char blah[MAX_QPATH];
 	q2skinsearch_t *s = parm;
@@ -223,7 +223,7 @@ qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, i
 	setupmenu_t *info = menu->data;
 	q2skinsearch_t *s = Z_Malloc(sizeof(*s));
 	COM_EnumerateFiles(va("players/%s/*_i.*", info->modeledit->values[info->modeledit->selectedoption]), q2skin_enumerate, s);
-	if (key == K_ENTER || key == K_RIGHTARROW)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
 	{
 		s->match ++;
 		if (s->match>=s->entries)
@@ -482,7 +482,7 @@ static const char *numplayeroptions[] = {
 qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key)
 {
 	newmultimenu_t *info = menu->data;
-	if (key != K_ENTER)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
 	if (cls.state)

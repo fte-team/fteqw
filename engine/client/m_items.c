@@ -1277,7 +1277,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		if (option->var)
 			Cvar_SetValue(option->var, range);
 	}
-	else if (key == K_ENTER || key == K_MOUSE1)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
 		range += delta;
 
@@ -1297,7 +1297,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 
 void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
 {
-	if (key != K_ENTER && key != K_LEFTARROW && key != K_RIGHTARROW && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_LEFTARROW && key != K_RIGHTARROW && key != K_MOUSE1)
 		return;
 	if (option->func)
 		option->func(option, menu, CHK_TOGGLE);
@@ -1363,7 +1363,7 @@ void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
 
 void MC_Combo_Key(menucombo_t *combo, int key)
 {
-	if (key == K_ENTER || key == K_RIGHTARROW || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW || key == K_MOUSE1)
 	{
 		combo->selectedoption++;
 		if (combo->selectedoption >= combo->numoptions)
@@ -1714,7 +1714,7 @@ void M_Complex_Key(int key, int unicode)
 		case mt_qbuttonbigfont:
 			if (!currentmenu->selecteditem->button.command)
 				currentmenu->selecteditem->button.key(currentmenu->selecteditem, currentmenu, key);
-			else if (key == K_ENTER || key == K_MOUSE1)
+			else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 			{
 				Cbuf_AddText(currentmenu->selecteditem->button.command, RESTRICT_LOCAL);
 				if (mgt == MGT_HEXEN2)
@@ -1734,7 +1734,7 @@ void M_Complex_Key(int key, int unicode)
 			MC_Combo_Key(&currentmenu->selecteditem->combo, key);
 			break;
 		case mt_bind:
-			if (key == K_ENTER || key == K_MOUSE1)
+			if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 				bindingactive = true;
 			else if (key == K_BACKSPACE || key == K_DEL)
 				M_UnbindCommand (currentmenu->selecteditem->bind.command);
@@ -1779,6 +1779,7 @@ qboolean MC_GuiKey(int key, menu_t *menu)
 		break;
 
 	case K_ENTER:
+	case K_KP_ENTER:
 	case K_RIGHTARROW:
 		if (info->dropout)
 			MC_GuiKey(key, info->dropout);

@@ -470,6 +470,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 		}
 		return true;
 	case K_ENTER:
+	case K_KP_ENTER:
 		if (info->selected)
 		{
 			if (info->selected->isdir)
@@ -494,7 +495,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 	return false;
 }
 
-static int DemoAddItem(const char *filename, int size, void *parm, void *spath)
+static int QDECL DemoAddItem(const char *filename, int size, void *parm, void *spath)
 {
 	int extnum;
 	demomenu_t *menu = parm;

@@ -189,12 +189,6 @@ qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
 	return false;
 }
 
-//returns a valid effect if both its existance is known, and it is fully functional
-static int PClassic_ParticleTypeForName(char *name)
-{
-	return P_FindParticleType(name);
-}
-
 //a convienience function.
 static int PClassic_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, char *name)
 {
@@ -927,7 +921,6 @@ particleengine_t pe_classic =
 	"Classic",
 	NULL,
 
-	PClassic_ParticleTypeForName,
 	PClassic_FindParticleType,
 	PClassic_Query,
 

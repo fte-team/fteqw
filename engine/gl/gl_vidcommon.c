@@ -172,6 +172,7 @@ void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
 void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
+void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 /*
@@ -464,6 +465,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 #define GL_CONTEXT_PROFILE_MASK					0x9126
 #define GL_CONTEXT_CORE_PROFILE_BIT				0x00000001
 #define GL_CONTEXT_COMPATIBILITY_PROFILE_BIT	0x00000002
+#define GL_CONTEXT_FLAGS						0x821E
+#define GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT 0x0001
 			qglGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
 
 			if (!profile)
@@ -474,8 +477,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			else
 				gl_config.nofixedfunc = !(profile & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT);
 		}
-		else if (gl_config.glversion == 3.1)
-			gl_config.nofixedfunc = !GL_CheckExtension("GL_ARB_compatibility");
+		else if (gl_config.glversion >= 3.0)
+		{
+			GLint flags = 0;
+			qglGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+			gl_config.nofixedfunc = !!(flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT);
+			if (gl_config.glversion >= 3.0999)
+				gl_config.nofixedfunc = !GL_CheckExtension("GL_ARB_compatibility");
+		}
 		else
 			gl_config.nofixedfunc = false;
 	}
@@ -870,7 +879,22 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 
 #ifndef GL_STATIC
-	if (GL_CheckExtension("GL_EXT_framebuffer_object"))
+	if (GL_CheckExtension("GL_ARB_framebuffer_object"))
+	{
+		gl_config.ext_framebuffer_objects = true;
+		qglGenFramebuffersEXT			= (void *)getglext("glGenFramebuffers");
+		qglDeleteFramebuffersEXT		= (void *)getglext("glDeleteFramebuffers");
+		qglBindFramebufferEXT			= (void *)getglext("glBindFramebuffer");
+		qglGenRenderbuffersEXT			= (void *)getglext("glGenRenderbuffers");
+		qglDeleteRenderbuffersEXT		= (void *)getglext("glDeleteRenderbuffers");
+		qglBindRenderbufferEXT			= (void *)getglext("glBindRenderbuffer");
+		qglRenderbufferStorageEXT		= (void *)getglext("glRenderbufferStorage");
+		qglFramebufferTexture2DEXT		= (void *)getglext("glFramebufferTexture2D");
+		qglFramebufferRenderbufferEXT	= (void *)getglext("glFramebufferRenderbuffer");
+		qglCheckFramebufferStatusEXT	= (void *)getglext("glCheckFramebufferStatus");
+		qglGetFramebufferAttachmentParameteriv	= (void *)getglext("glGetFramebufferAttachmentParameteriv");
+	}
+	else if (GL_CheckExtension("GL_EXT_framebuffer_object"))
 	{
 		gl_config.ext_framebuffer_objects = true;
 		qglGenFramebuffersEXT			= (void *)getglext("glGenFramebuffersEXT");
@@ -883,6 +907,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglFramebufferTexture2DEXT		= (void *)getglext("glFramebufferTexture2DEXT");
 		qglFramebufferRenderbufferEXT	= (void *)getglext("glFramebufferRenderbufferEXT");
 		qglCheckFramebufferStatusEXT	= (void *)getglext("glCheckFramebufferStatusEXT");
+		qglGetFramebufferAttachmentParameteriv	= (void *)getglext("glGetFramebufferAttachmentParameterivEXT");
 	}
 /*	//I don't think we care about the differences, so this code should be safe, but I have no way to test that theory right now
 	else if (GL_CheckExtension("GL_OES_framebuffer_object"))

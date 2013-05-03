@@ -707,10 +707,10 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 
 	case G_CVAR_REGISTER:// ( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, int flags );
 		if (arg[0])
-			VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
+			VALIDATEPOINTER(arg[0], sizeof(q3vmcvar_t));
 		return VMQ3_Cvar_Register(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 	case G_CVAR_UPDATE:// ( vmCvar_t *vmCvar );
-		VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
+		VALIDATEPOINTER(arg[0], sizeof(q3vmcvar_t));
 		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case G_CVAR_SET:// ( const char *var_name, const char *value );
@@ -2670,12 +2670,12 @@ client_t *SVQ3_FindEmptyPlayerSlot(void)
 	}
 	return NULL;
 }
-client_t *SVQ3_FindExistingPlayerByIP(netadr_t na, int qport)
+client_t *SVQ3_FindExistingPlayerByIP(netadr_t *na, int qport)
 {
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
-		if (svs.clients[i].state && NET_CompareAdr(svs.clients[i].netchan.remote_address, na))
+		if (svs.clients[i].state && NET_CompareAdr(&svs.clients[i].netchan.remote_address, na))
 			return &svs.clients[i];
 	}
 	return NULL;
@@ -3091,7 +3091,7 @@ qboolean SVQ3_HandleClient(void)
 			continue;
 		if (svs.clients[i].netchan.qport != qport)
 			continue;
-		if (!NET_CompareBaseAdr(svs.clients[i].netchan.remote_address, net_from))
+		if (!NET_CompareBaseAdr(&svs.clients[i].netchan.remote_address, &net_from))
 			continue;
 		if (!ISQ3CLIENT(&svs.clients[i]))
 			continue;
@@ -3132,7 +3132,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	qport = atoi(Info_ValueForKey(userinfo, "qport"));
 	challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
 
-	cl = SVQ3_FindExistingPlayerByIP(net_from, qport);	//use a duplicate first.
+	cl = SVQ3_FindExistingPlayerByIP(&net_from, qport);	//use a duplicate first.
 	if (!cl)
 		cl = SVQ3_FindEmptyPlayerSlot();
 
@@ -3157,7 +3157,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 				cls.challenge = challenge = 500;
 #endif
 			Q_strncpyz(cl->userinfo, userinfo, sizeof(cl->userinfo));
-			reason = NET_AdrToString(adr, sizeof(adr), net_from);
+			reason = NET_AdrToString(adr, sizeof(adr), &net_from);
 			Info_SetValueForStarKey(cl->userinfo, "ip", reason, sizeof(cl->userinfo));
 
 			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), false, false);
@@ -3172,7 +3172,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	{
 		Con_Printf("%s\n", reason);
 		reason = va("\377\377\377\377print\n%s", reason);
-		NET_SendPacket (NS_SERVER, strlen(reason), reason, net_from);
+		NET_SendPacket (NS_SERVER, strlen(reason), reason, &net_from);
 		return;
 	}
 
@@ -3181,7 +3181,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
 	SV_ExtractFromUserinfo(cl, true);
-	Netchan_Setup(NS_SERVER, &cl->netchan, net_from, qport);
+	Netchan_Setup(NS_SERVER, &cl->netchan, &net_from, qport);
 	cl->netchan.outgoing_sequence = 1;
 
 	cl->challenge = challenge;
@@ -3189,7 +3189,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 
 	cl->gamestatesequence = -1;
 
-	NET_SendPacket (NS_SERVER, 19, "\377\377\377\377connectResponse", net_from);
+	NET_SendPacket (NS_SERVER, 19, "\377\377\377\377connectResponse", &net_from);
 
 	Huff_PreferedCompressionCRC();
 

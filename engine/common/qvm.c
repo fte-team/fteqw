@@ -66,7 +66,8 @@ struct vm_s {
 	qintptr_t (EXPORT_FN *vmMain)(qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6);
 };
 
-dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
+//plugins come from the quake root dir, not game dirs.
+dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
 	char dllname_arch[MAX_OSPATH];	//id compatible
@@ -80,54 +81,44 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 		{NULL, NULL},
 	};
 
-#ifdef _WIN32
-	snprintf(dllname_arch, sizeof(dllname_arch), "%sx86.dll", name);
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.dll", name);
-#elif defined(__amd64__)
-	snprintf(dllname_arch, sizeof(dllname_arch), "%samd.so", name);
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
-#elif defined(_M_IX86) || defined(__i386__)
-	snprintf(dllname_arch, sizeof(dllname_arch), "%sx86.so", name);
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
-#elif defined(__powerpc__)
-	snprintf(dllname_arch, sizeof(dllname_arch), "%sppc.so", name);
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
-#elif defined(__ppc__)
-	snprintf(dllname_arch, sizeof(dllname_arch), "%sppc.so", name);
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
-#else
-	snprintf(dllname_arch, sizeof(dllname_arch), "%sunk.so", name);
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
-#endif
+	snprintf(dllname_arch, sizeof(dllname_arch), "%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s" ARCH_DL_POSTFIX, name);
 
 	hVM=NULL;
 	{
 		char fname[MAX_OSPATH];
 		char *gpath;
-		// run through the search paths
-		gpath = NULL;
-		while (1)
+
+		if (binroot)
 		{
-			gpath = COM_NextPath (gpath);
-			if (!gpath)
-				return NULL;		// couldn't find one anywhere
-
-			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);
-
-			Con_DPrintf("Loading native: %s\n", fname);
-			hVM = Sys_LoadLibrary(fname, funcs);
-			if (hVM)
+			if (!hVM && FS_NativePath(dllname_arch, FS_BINARYPATH, fname, sizeof(fname)))
+				hVM = Sys_LoadLibrary(fname, funcs);
+			if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+				hVM = Sys_LoadLibrary(fname, funcs);
+		}
+		else
+		{
+			// run through the search paths
+			gpath = NULL;
+			while (!hVM)
 			{
-				break;
-			}
+				gpath = COM_NextPath (gpath);
+				if (!gpath)
+					break;		// couldn't find one anywhere
 
-			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
+				if (!hVM)
+				{
+					snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);
+					Con_DPrintf("Loading native: %s\n", fname);
+					hVM = Sys_LoadLibrary(fname, funcs);
+				}
 
-			Con_DPrintf("Loading native: %s\n", fname);
-			hVM = Sys_LoadLibrary(fname, funcs);
-			if (hVM)
-			{
-				break;
+				if (!hVM)
+				{
+					snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
+					Con_DPrintf("Loading native: %s\n", fname);
+					hVM = Sys_LoadLibrary(fname, funcs);
+				}
 			}
 		}
 	}
@@ -909,8 +900,6 @@ void VM_PrintInfo(vm_t *vm)
 {
 	qvm_t *qvm;
 
-	if(!vm->name[0])
-		return;
 	Con_Printf("%s (%p): ", vm->name, vm->hInst);
 
 	switch(vm->type)
@@ -958,7 +947,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqv
 	{
 		if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
 		{
-			if((vm->hInst=QVM_LoadDLL(name, (void**)&vm->vmMain, syscalldll)))
+			if((vm->hInst=QVM_LoadDLL(name, !syscallqvm, (void**)&vm->vmMain, syscalldll)))
 			{
 				Con_DPrintf("Creating native machine \"%s\"\n", name);
 				vm->type=VM_NATIVE;

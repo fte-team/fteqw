@@ -123,8 +123,6 @@ typedef struct {
 	char *name1;
 	char *name2;
 
-
-	int (*ParticleTypeForName) (char *name);
 	int (*FindParticleType) (char *name);
 	qboolean (*ParticleQuery) (int type, int body, char *outstr, int outstrlen);
 

@@ -26,7 +26,7 @@ typedef struct {
 	unsigned int length;
 	unsigned int offset;
 } vfsw32file_t;
-static int VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+static int QDECL VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	DWORD read;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
@@ -43,7 +43,7 @@ static int VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestore
 		return 0;
 	return read;
 }
-static int VFSW32_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
+static int QDECL VFSW32_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
 	DWORD written;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
@@ -61,7 +61,7 @@ static int VFSW32_WriteBytes (struct vfsfile_s *file, const void *buffer, int by
 		return 0;
 	return written;
 }
-static qboolean VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	unsigned long upper, lower;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
@@ -76,21 +76,21 @@ static qboolean VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
 
 	return SetFilePointer(intfile->hand, lower, &upper, FILE_BEGIN) != INVALID_SET_FILE_POINTER;
 }
-static unsigned long VFSW32_Tell (struct vfsfile_s *file)
+static unsigned long QDECL VFSW32_Tell (struct vfsfile_s *file)
 {
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
 		return intfile->offset;
 	return SetFilePointer(intfile->hand, 0, NULL, FILE_CURRENT);
 }
-static void VFSW32_Flush(struct vfsfile_s *file)
+static void QDECL VFSW32_Flush(struct vfsfile_s *file)
 {
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
 		FlushViewOfFile(intfile->mmap, intfile->length);
 	FlushFileBuffers(intfile->hand);
 }
-static unsigned long VFSW32_GetSize (struct vfsfile_s *file)
+static unsigned long QDECL VFSW32_GetSize (struct vfsfile_s *file)
 {
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 
@@ -98,7 +98,7 @@ static unsigned long VFSW32_GetSize (struct vfsfile_s *file)
 		return intfile->length;
 	return GetFileSize(intfile->hand, NULL);
 }
-static void VFSW32_Close(vfsfile_t *file)
+static void QDECL VFSW32_Close(vfsfile_t *file)
 {
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
@@ -112,7 +112,7 @@ static void VFSW32_Close(vfsfile_t *file)
 	COM_FlushFSCache();
 }
 
-vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
+vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 {
 	HANDLE h, mh;
 	unsigned int fsize;
@@ -185,26 +185,26 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 	return (vfsfile_t*)file;
 }
 
-static vfsfile_t *VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *QDECL VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
 
 	return VFSW32_Open(loc->rawname, mode);
 }
 
-static void VFSW32_GetDisplayPath(void *handle, char *out, unsigned int outlen)
+static void QDECL VFSW32_GetDisplayPath(void *handle, char *out, unsigned int outlen)
 {
 	vfsw32path_t *wp = handle;
 	Q_strncpyz(out, wp->rootpath, outlen);
 }
-static void VFSW32_ClosePath(void *handle)
+static void QDECL VFSW32_ClosePath(void *handle)
 {
 	vfsw32path_t *wp = handle;
 	if (wp->changenotification != INVALID_HANDLE_VALUE)
 		FindCloseChangeNotification(wp->changenotification);
 	Z_Free(wp);
 }
-static qboolean VFSW32_PollChanges(void *handle)
+static qboolean QDECL VFSW32_PollChanges(void *handle)
 {
 	qboolean result = false;
 	vfsw32path_t *wp = handle;
@@ -229,7 +229,7 @@ static qboolean VFSW32_PollChanges(void *handle)
 	}
 	return result;
 }
-static void *VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
+static void *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
 {
 	vfsw32path_t *np;
 	int dlen = strlen(desc);
@@ -244,28 +244,29 @@ static void *VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
 	}
 	return np;
 }
-static int VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, void *spath)
+static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, void *spath)
 {
-	vfsw32path_t *wp = handle;
+	vfsw32path_t *wp = spath;
+	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = handle;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles(wp->rootpath, childpath, VFSW32_RebuildFSHash, wp, handle);
+		Sys_EnumerateFiles(wp->rootpath, childpath, VFSW32_RebuildFSHash, handle, spath);
 		return true;
 	}
 
-	FS_AddFileHash(wp->hashdepth, filename, NULL, wp);
+	AddFileHash(wp->hashdepth, filename, NULL, wp);
 	return true;
 }
-static void VFSW32_BuildHash(void *handle, int hashdepth)
+static void QDECL VFSW32_BuildHash(void *handle, int hashdepth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	vfsw32path_t *wp = handle;
 	wp->hashdepth = hashdepth;
-	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, handle, handle);
+	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
-static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean QDECL VFSW32_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	vfsw32path_t *wp = handle;
 	FILE *f;
@@ -304,7 +305,7 @@ static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filen
 
 	return true;
 }
-static void VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void QDECL VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 //	vfsw32path_t *wp = handle;
 
@@ -316,7 +317,7 @@ static void VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
-static int VFSW32_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL VFSW32_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
 {
 	vfsw32path_t *wp = handle;
 	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);

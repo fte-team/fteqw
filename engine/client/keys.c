@@ -681,6 +681,12 @@ void Key_DefaultLinkClicked(char *text, char *info)
 		Cbuf_AddText(va("\nimpulse %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+	c = Info_ValueForKey(info, "film");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nplayfilm \"%s\"\n", c), RESTRICT_LOCAL);
+		return;
+	}
 	c = Info_ValueForKey(info, "desc");
 	if (*c)
 	{
@@ -1239,7 +1245,7 @@ int			chat_bufferlen = 0;
 void Key_Message (int key, int unicode)
 {
 
-	if (key == K_ENTER)
+	if (key == K_ENTER || key == K_KP_ENTER)
 	{
 		if (chat_buffer[0])
 		{	//send it straight into the command.
@@ -1651,6 +1657,7 @@ void Key_Init (void)
 	for (i=32 ; i<128 ; i++)
 		consolekeys[i] = true;
 	consolekeys[K_ENTER] = true;
+	consolekeys[K_KP_ENTER] = true;
 	consolekeys[K_TAB] = true;
 	consolekeys[K_LEFTARROW] = true;
 	consolekeys[K_RIGHTARROW] = true;
@@ -1916,7 +1923,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		{
 			if (down && Media_PlayingFullScreen())
 			{
-				Media_PlayFilm("");
+				Media_StopFilm(false);
 				return;
 			}
 			if (UI_KeyPress(key, unicode, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
@@ -1946,7 +1953,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		case key_game:
 			if (Media_PlayingFullScreen())
 			{
-				Media_PlayFilm("");
+				Media_StopFilm(true);
 				break;
 			}
 		case key_console:
@@ -2102,7 +2109,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #endif
 	case key_game:
 	case key_console:
-		if ((key && unicode) || key == K_ENTER || key == K_TAB)
+		if ((key && unicode) || key == K_ENTER || key == K_KP_ENTER || key == K_TAB)
 			key_dest = key_console;
 		Key_Console (unicode, key);
 		break;

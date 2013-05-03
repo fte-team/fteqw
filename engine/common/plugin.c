@@ -3,6 +3,7 @@
 //named functions, this makes it *really* easy to port plugins from one engine to annother.
 
 #include "quakedef.h"
+#include "fs.h"
 
 #ifdef PLUGINS
 //#define GNUTLS
@@ -314,7 +315,10 @@ plugin_t *Plug_Load(char *file)
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, file);
 
-	newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, Plug_SystemCallsVM);
+	if (!strncmp(file, "fteplug_", 8))
+		newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, NULL);
+	else
+		newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, Plug_SystemCallsVM);
 	currentplug = newplug;
 	if (newplug->vm)
 	{
@@ -344,11 +348,32 @@ plugin_t *Plug_Load(char *file)
 	return newplug;
 }
 
-static int Plug_Emumerated (const char *name, int size, void *param, struct searchpath_s *spath)
+static int QDECL Plug_Emumerated (const char *name, int size, void *param, struct searchpath_s *spath)
 {
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
 	vmname[strlen(vmname) - strlen(param)] = '\0';
+	if (!Plug_Load(vmname))
+		Con_Printf("Couldn't load plugin %s\n", vmname);
+
+	return true;
+}
+static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, struct searchpath_s *spath)
+{
+	char vmname[MAX_QPATH];
+	int len;
+	char *dot;
+	Q_strncpyz(vmname, name, sizeof(vmname));
+	len = strlen(vmname);
+	len -= strlen(ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
+	if (!strcmp(vmname+len, ARCH_CPU_POSTFIX ARCH_DL_POSTFIX))
+		vmname[len] = 0;
+	else
+	{
+		dot = strchr(vmname, '.');
+		if (dot)
+			*dot = 0;
+	}
 	if (!Plug_Load(vmname))
 		Con_Printf("Couldn't load plugin %s\n", vmname);
 
@@ -452,13 +477,10 @@ static qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qi
 		//this is useful for certain things, like if the plugin uses some external networking or direct disk access or whatever.
 		currentplug->blockcloses++;
 	}
-	/*
-	else if (!strncmp(name, "FS_LoadModule"))	//module as in pak/pk3
+	else if (!strncmp(name, "FS_RegisterArchiveType_", 23))	//module as in pak/pk3
 	{
-		FS_RegisterModuleDriver(name + 13, func);
-		currentplug->blockcloses++;
+		FS_RegisterFileSystemType(currentplug, name+23, func, true);
 	}
-	*/
 	/*
 	else if (!strncmp(name, "S_OutputDriver"))	//a sound driver (takes higher priority over the built-in ones)
 	{
@@ -890,7 +912,7 @@ static qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qint
 		netadr_t a;
 		char *s;
 		SockadrToNetadr((struct sockaddr_qstorage *)&address, &a);
-		s = NET_AdrToString(adr, sizeof(adr), a);
+		s = NET_AdrToString(adr, sizeof(adr), &a);
 		Q_strncpyz(VM_POINTER(arg[1]), s, addrlen);
 	}
 
@@ -1083,6 +1105,18 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 	pluginstreamarray[handle].vfs = f;
 	*ret = handle;
 	return VFS_GETLEN(pluginstreamarray[handle].vfs);
+}
+qintptr_t VARGS Plug_FS_Seek(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int handle = arg[0];
+	unsigned int low = arg[1], high = arg[2];
+	pluginstream_t *stream;
+
+	stream = &pluginstreamarray[handle];
+	if (stream->type != STREAM_VFS)
+		return -1;
+	VFS_SEEK(stream->vfs, low | ((unsigned long long)high<<32));
+	return VFS_TELL(stream->vfs);
 }
 
 qintptr_t VARGS Plug_memset(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1297,7 +1331,7 @@ qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *
 	struct sockaddr_qstorage sockaddr;
 	if (handle == -1)
 	{
-		NET_SendPacket(NS_CLIENT, srclen, src, *address);
+		NET_SendPacket(NS_CLIENT, srclen, src, address);
 		return srclen;
 	}
 
@@ -1403,83 +1437,91 @@ void VM_Test_f(void)
 	}
 }*/
 
-void Plug_Init(void)
+void Plug_Initialise(qboolean fromgamedir)
 {
-//	Cmd_AddCommand("testvm", VM_Test_f);
+	char nat[MAX_OSPATH];
 
-	Cvar_Register(&plug_sbar, "plugins");
-	Cvar_Register(&plug_loaddefault, "plugins");
-	Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
-	Cmd_AddCommand("plug_close", Plug_Close_f);
-	Cmd_AddCommand("plug_load", Plug_Load_f);
-	Cmd_AddCommand("plug_list", Plug_List_f);
+	if (!numplugbuiltins)
+	{
+		Cvar_Register(&plug_sbar, "plugins");
+		Cvar_Register(&plug_loaddefault, "plugins");
+		Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
+		Cmd_AddCommand("plug_close", Plug_Close_f);
+		Cmd_AddCommand("plug_load", Plug_Load_f);
+		Cmd_AddCommand("plug_list", Plug_List_f);
 
-	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
-	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
-	Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
-	Plug_RegisterBuiltin("Plug_GetPluginName",		Plug_GetPluginName, 0);
-	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
-	Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
-	Plug_RegisterBuiltin("Sys_Milliseconds",		Plug_Sys_Milliseconds, 0);
-	Plug_RegisterBuiltin("Com_Error",				Plug_Sys_Error, 0);	//make zquake programmers happy.
+		Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
+		Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
+		Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
+		Plug_RegisterBuiltin("Plug_GetPluginName",		Plug_GetPluginName, 0);
+		Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
+		Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
+		Plug_RegisterBuiltin("Sys_Milliseconds",		Plug_Sys_Milliseconds, 0);
+		Plug_RegisterBuiltin("Com_Error",				Plug_Sys_Error, 0);	//make zquake programmers happy.
 
-	Plug_RegisterBuiltin("Cmd_AddCommand",			Plug_Cmd_AddCommand, 0);
-	Plug_RegisterBuiltin("Cmd_Args",				Plug_Cmd_Args, 0);
-	Plug_RegisterBuiltin("Cmd_Argc",				Plug_Cmd_Argc, 0);
-	Plug_RegisterBuiltin("Cmd_Argv",				Plug_Cmd_Argv, 0);
-	Plug_RegisterBuiltin("Cmd_AddText",				Plug_Cmd_AddText, 0);
+		Plug_RegisterBuiltin("Cmd_AddCommand",			Plug_Cmd_AddCommand, 0);
+		Plug_RegisterBuiltin("Cmd_Args",				Plug_Cmd_Args, 0);
+		Plug_RegisterBuiltin("Cmd_Argc",				Plug_Cmd_Argc, 0);
+		Plug_RegisterBuiltin("Cmd_Argv",				Plug_Cmd_Argv, 0);
+		Plug_RegisterBuiltin("Cmd_AddText",				Plug_Cmd_AddText, 0);
 
-	Plug_RegisterBuiltin("Cvar_Register",			Plug_Cvar_Register, 0);
-	Plug_RegisterBuiltin("Cvar_Update",				Plug_Cvar_Update, 0);
-	Plug_RegisterBuiltin("Cvar_SetString",			Plug_Cvar_SetString, 0);
-	Plug_RegisterBuiltin("Cvar_SetFloat",			Plug_Cvar_SetFloat, 0);
-	Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
-	Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
+		Plug_RegisterBuiltin("Cvar_Register",			Plug_Cvar_Register, 0);
+		Plug_RegisterBuiltin("Cvar_Update",				Plug_Cvar_Update, 0);
+		Plug_RegisterBuiltin("Cvar_SetString",			Plug_Cvar_SetString, 0);
+		Plug_RegisterBuiltin("Cvar_SetFloat",			Plug_Cvar_SetFloat, 0);
+		Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
+		Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
 
 #ifndef NACL
-	Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
-	Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
-	Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
+		Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
+		Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
+		Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
 #ifdef GNUTLS
-	if (Init_GNUTLS())
-		Plug_RegisterBuiltin("Net_SetTLSClient",				Plug_Net_SetTLSClient, 0);
+		if (Init_GNUTLS())
+			Plug_RegisterBuiltin("Net_SetTLSClient",				Plug_Net_SetTLSClient, 0);
 #endif
 #ifdef HAVE_SSL
-	Plug_RegisterBuiltin("Net_SetTLSClient",		Plug_Net_SetTLSClient, 0);
+		Plug_RegisterBuiltin("Net_SetTLSClient",		Plug_Net_SetTLSClient, 0);
 #endif
-	Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
-	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
-	Plug_RegisterBuiltin("Net_SendTo",				Plug_Net_SendTo, 0);
-	Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
+		Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
+		Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
+		Plug_RegisterBuiltin("Net_SendTo",				Plug_Net_SendTo, 0);
+		Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
 #endif
 
-	Plug_RegisterBuiltin("FS_Open",					Plug_FS_Open, 0);
-	Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);
-	Plug_RegisterBuiltin("FS_Write",				Plug_Net_Send, 0);
-	Plug_RegisterBuiltin("FS_Close",				Plug_Net_Close, 0);
+		Plug_RegisterBuiltin("FS_Open",					Plug_FS_Open, 0);
+		Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);
+		Plug_RegisterBuiltin("FS_Write",				Plug_Net_Send, 0);
+		Plug_RegisterBuiltin("FS_Close",				Plug_Net_Close, 0);
+		Plug_RegisterBuiltin("FS_Seek",					Plug_FS_Seek, 0);
 
 
-	Plug_RegisterBuiltin("memset",					Plug_memset, 0);
-	Plug_RegisterBuiltin("memcpy",					Plug_memcpy, 0);
-	Plug_RegisterBuiltin("memmove",					Plug_memmove, 0);
-	Plug_RegisterBuiltin("sqrt",					Plug_sqrt, 0);
-	Plug_RegisterBuiltin("sin",						Plug_sin, 0);
-	Plug_RegisterBuiltin("cos",						Plug_cos, 0);
-	Plug_RegisterBuiltin("atan2",					Plug_atan2, 0);
+		Plug_RegisterBuiltin("memset",					Plug_memset, 0);
+		Plug_RegisterBuiltin("memcpy",					Plug_memcpy, 0);
+		Plug_RegisterBuiltin("memmove",					Plug_memmove, 0);
+		Plug_RegisterBuiltin("sqrt",					Plug_sqrt, 0);
+		Plug_RegisterBuiltin("sin",						Plug_sin, 0);
+		Plug_RegisterBuiltin("cos",						Plug_cos, 0);
+		Plug_RegisterBuiltin("atan2",					Plug_atan2, 0);
 
-	Plug_RegisterBuiltin("ReadInputBuffer",			Plug_ReadInputBuffer, 0);
-	Plug_RegisterBuiltin("UpdateInputBuffer",		Plug_UpdateInputBuffer, 0);
+		Plug_RegisterBuiltin("ReadInputBuffer",			Plug_ReadInputBuffer, 0);
+		Plug_RegisterBuiltin("UpdateInputBuffer",		Plug_UpdateInputBuffer, 0);
 
-	Plug_Client_Init();
+		Plug_Client_Init();
+	}
 
-	if (plug_loaddefault.value)
+	if (!fromgamedir)
 	{
-#ifdef _WIN32
-		COM_EnumerateFiles("plugins/*x86.dll",	Plug_Emumerated, "x86.dll");
-#elif defined(__linux__)
-		COM_EnumerateFiles("plugins/*x86.so",	Plug_Emumerated, "x86.so");
-#endif
-		COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
+		FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
+		Sys_EnumerateFiles(nat, "fteplug_*"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+	}
+	if (fromgamedir)
+	{
+		if (plug_loaddefault.value)
+		{
+			COM_EnumerateFiles("plugins/*"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,	Plug_Emumerated, ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
+			COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
+		}
 	}
 }
 
@@ -1763,6 +1805,7 @@ void Plug_Close(plugin_t *plug)
 	Media_UnregisterDecoder(plug, NULL);
 	Media_UnregisterEncoder(plug, NULL);
 #endif
+	FS_UnRegisterFileSystemModule(plug);
 	if (plug->shutdown)
 		VM_Call(plug->vm, plug->shutdown);
 	VM_Destroy(plug->vm);
@@ -1841,7 +1884,6 @@ void Plug_List_f(void)
 	plugin_t *plug;
 	for (plug = plugs; plug; plug = plug->next)
 	{
-		Con_Printf("%s - \n", plug->name);
 		VM_PrintInfo(plug->vm);
 	}
 }

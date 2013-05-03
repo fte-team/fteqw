@@ -514,7 +514,7 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 		case SLKEY_NAME:
 			return server->name;
 		case SLKEY_ADDRESS:
-			return NET_AdrToString(adr, sizeof(adr), server->adr);
+			return NET_AdrToString(adr, sizeof(adr), &server->adr);
 		case SLKEY_GAMEDIR:
 			return server->gamedir;
 
@@ -622,7 +622,7 @@ void Master_AddMaster (char *address, int type, char *description)
 
 	for (mast = master; mast; mast = mast->next)
 	{
-		if (NET_CompareAdr(mast->adr, adr) && mast->type == type)	//already exists.
+		if (NET_CompareAdr(&mast->adr, &adr) && mast->type == type)	//already exists.
 			return;
 	}
 	mast = Z_Malloc(sizeof(master_t)+strlen(description)+1+strlen(address)+1);
@@ -924,7 +924,7 @@ int Master_CheckPollSockets(void)
 			{
 				SockadrToNetadr (&from, &net_from);
 				Con_Printf ("Warning:  Oversize packet from %s\n",
-					NET_AdrToString (adr, sizeof(adr), net_from));
+					NET_AdrToString (adr, sizeof(adr), &net_from));
 				continue;
 			}
 			if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
@@ -942,7 +942,7 @@ int Master_CheckPollSockets(void)
 		net_message.cursize = ret;
 		if (ret == sizeof(net_message_buffer) )
 		{
-			Con_Printf ("Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
+			Con_Printf ("Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 			continue;
 		}
 
@@ -1100,7 +1100,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 		{
 			for (oldserver = firstserver; oldserver; oldserver=oldserver->next)
 			{
-				if (NET_CompareAdr(selectedserver.adr, oldserver->adr))//*(int*)selectedserver.ipaddress == *(int*)server->ipaddress && selectedserver.port == server->port)
+				if (NET_CompareAdr(&selectedserver.adr, &oldserver->adr))//*(int*)selectedserver.ipaddress == *(int*)server->ipaddress && selectedserver.port == server->port)
 				{
 					if (oldserver->moreinfo)
 					{
@@ -1164,7 +1164,7 @@ void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 		if (!NET_StringToAdr(s, 80, &adr))
 			continue;
 
-		if ((info = Master_InfoForServer(adr)))	//remove if the server already exists.
+		if ((info = Master_InfoForServer(&adr)))	//remove if the server already exists.
 		{
 			info->sends = 1;	//reset.
 		}
@@ -1177,7 +1177,7 @@ void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 			info->refreshtime = 0;
 			info->ping = 0xffff;
 
-			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr));
 
 			info->next = firstserver;
 			firstserver = info;
@@ -1261,7 +1261,7 @@ char *jsonnode(int level, char *node)
 		if (port)
 			adr.port = htons(port);
 
-		if ((info = Master_InfoForServer(adr)))	//remove if the server already exists.
+		if ((info = Master_InfoForServer(&adr)))	//remove if the server already exists.
 		{
 			info->sends = 1;	//reset.
 		}
@@ -1275,7 +1275,7 @@ char *jsonnode(int level, char *node)
 			info->players = cp;
 			info->maxplayers = mp;
 
-			snprintf(info->name, sizeof(info->name), "%s", *servername?servername:NET_AdrToString(servername, sizeof(servername), info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", *servername?servername:NET_AdrToString(servername, sizeof(servername), &info->adr));
 
 			info->next = firstserver;
 			firstserver = info;
@@ -1496,7 +1496,7 @@ void MasterInfo_WriteServers(void)
 		if (mast->address)
 			VFS_PUTS(mf, va("%s\t%s\t%s\n", mast->address , typename, mast->name));
 		else
-			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), mast->adr), typename, mast->name));
+			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &mast->adr), typename, mast->name));
 	}
 
 	if (slist_writeserverstxt.value)
@@ -1511,15 +1511,15 @@ void MasterInfo_WriteServers(void)
 		if (server->special & SS_FAVORITE)
 		{
 			if (server->special & SS_QUAKE3)
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q3", server->name));
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q3", server->name));
 			else if (server->special & SS_QUAKE2)
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q2", server->name));
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q2", server->name));
 			else if (server->special & SS_NETQUAKE)
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:nq", server->name));
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:nq", server->name));
 			else if (qws)	//servers.txt doesn't support the extra info.
-				VFS_PUTS(qws, va("%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), server->name));
+				VFS_PUTS(qws, va("%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), server->name));
 			else	//read only? damn them!
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:qw", server->name));
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:qw", server->name));
 		}
 	}
 
@@ -1778,13 +1778,13 @@ unsigned int Master_NumPolled(void)
 }
 
 //true if server is on a different master's list.
-serverinfo_t *Master_InfoForServer (netadr_t addr)
+serverinfo_t *Master_InfoForServer (netadr_t *addr)
 {
 	serverinfo_t *info;
 
 	for (info = firstserver; info; info = info->next)
 	{
-		if (NET_CompareAdr(info->adr, addr))
+		if (NET_CompareAdr(&info->adr, addr))
 			return info;
 	}
 	return NULL;
@@ -1811,13 +1811,13 @@ void MasterInfo_RemoveAllPlayers(void)
 		Z_Free(p);
 	}
 }
-void MasterInfo_RemovePlayers(netadr_t adr)
+void MasterInfo_RemovePlayers(netadr_t *adr)
 {
 	player_t *p, *prev;
 	prev = NULL;
 	for (p = mplayers; p; )
 	{
-		if (NET_CompareAdr(p->adr, adr))
+		if (NET_CompareAdr(&p->adr, adr))
 		{
 			if (prev)
 				prev->next = p->next;
@@ -1835,12 +1835,12 @@ void MasterInfo_RemovePlayers(netadr_t adr)
 	}
 }
 
-void MasterInfo_AddPlayer(netadr_t serveradr, char *name, int ping, int frags, int colours, char *skin)
+void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, int colours, char *skin)
 {
 	player_t *p;
 	p = Z_Malloc(sizeof(player_t));
 	p->next = mplayers;
-	p->adr = serveradr;
+	p->adr = *serveradr;
 	p->colour = colours;
 	p->frags = frags;
 	Q_strncpyz(p->name, name, sizeof(p->name));
@@ -1861,7 +1861,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	serverinfo_t *info;
 	char adr[MAX_ADR_SIZE];
 
-	info = Master_InfoForServer(net_from);
+	info = Master_InfoForServer(&net_from);
 
 	if (!info)	//not found...
 	{
@@ -1874,7 +1874,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 		info->adr = net_from;
 
-		snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), info->adr));
+		snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), &info->adr));
 
 		info->next = firstserver;
 		firstserver = info;
@@ -1882,7 +1882,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	}
 	else
 	{
-		MasterInfo_RemovePlayers(info->adr);
+		MasterInfo_RemovePlayers(&info->adr);
 	}
 
 	nl = strchr(msg, '\n');
@@ -2055,7 +2055,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 				details.players[clnum].botc = atoi(token);
 			}
 
-			MasterInfo_AddPlayer(info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin);
+			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin);
 
 			info->players = ++details.numplayers;
 
@@ -2065,9 +2065,9 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 			msg++;
 		}
 	}
-	if (!info->moreinfo && ((slist_cacheinfo.value == 2 || NET_CompareAdr(info->adr, selectedserver.adr)) || (info->special & SS_KEEPINFO)))
+	if (!info->moreinfo && ((slist_cacheinfo.value == 2 || NET_CompareAdr(&info->adr, &selectedserver.adr)) || (info->special & SS_KEEPINFO)))
 		info->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
-	if (NET_CompareAdr(info->adr, selectedserver.adr))
+	if (NET_CompareAdr(&info->adr, &selectedserver.adr))
 		selectedserver.detail = info->moreinfo;
 
 	if (info->moreinfo)
@@ -2147,7 +2147,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			Z_Free(info);
 			break;
 		}
-		if ((old = Master_InfoForServer(info->adr)))	//remove if the server already exists.
+		if ((old = Master_InfoForServer(&info->adr)))	//remove if the server already exists.
 		{
 			if ((info->special & (SS_DARKPLACES | SS_NETQUAKE | SS_QUAKE2 | SS_QUAKE3)) && !(type & (SS_DARKPLACES | SS_NETQUAKE | SS_QUAKE2 | SS_QUAKE3)))
 				old->special = type | (old->special & SS_FAVORITE);
@@ -2160,7 +2160,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			info->special = type;
 			info->refreshtime = 0;
 
-			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), &info->adr));
 
 			info->next = last;
 			last = info;

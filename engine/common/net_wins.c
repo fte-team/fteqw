@@ -90,7 +90,7 @@ typedef struct ftenet_generic_connection_s {
 	int (*GetLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *local, int adridx);
 	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
-	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t to);
+	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
 #ifdef HAVE_PACKET
 	int (*SetReceiveFDSet) (struct ftenet_generic_connection_s *con, fd_set *fdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
@@ -237,39 +237,39 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 	}
 }
 
-qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
+qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 {
-	if (a.type != b.type)
+	if (a->type != b->type)
 	{
 		int i;
-		if (a.type == NA_IP && b.type == NA_IPV6)
+		if (a->type == NA_IP && b->type == NA_IPV6)
 		{
 			for (i = 0; i < 10; i++)
-				if (b.address.ip6[i] != 0)
+				if (b->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 			for (; i < 12; i++)
-				if (b.address.ip6[i] != 0xff && b.address.ip6[i] != 0x00)	//0x00 is depricated
+				if (b->address.ip6[i] != 0xff && b->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 			for (i = 0; i < 4; i++)
 			{
-				if (a.address.ip[i] != b.address.ip6[12+i])
+				if (a->address.ip[i] != b->address.ip6[12+i])
 					return false;	//mask doesn't match
 			}
 			return true;	//its an ipv4 address in there, the mask matched the whole way through
 		}
-		if (a.type == NA_IPV6 && b.type == NA_IP)
+		if (a->type == NA_IPV6 && b->type == NA_IP)
 		{
 			for (i = 0; i < 10; i++)
-				if (a.address.ip6[i] != 0)
+				if (a->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 
 			for (; i < 12; i++)
-				if (a.address.ip6[i] != 0xff && a.address.ip6[i] != 0x00)	//0x00 is depricated
+				if (a->address.ip6[i] != 0xff && a->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 
 			for (i = 0; i < 4; i++)
 			{
-				if (a.address.ip6[12+i] != b.address.ip[i])
+				if (a->address.ip6[12+i] != b->address.ip[i])
 					return false;	//mask doesn't match
 			}
 			return true;	//its an ipv4 address in there, the mask matched the whole way through
@@ -277,7 +277,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 		return false;
 	}
 
-	if (a.type == NA_LOOPBACK)
+	if (a->type == NA_LOOPBACK)
 		return true;
 
 #ifdef HAVE_WEBSOCKCL
@@ -290,36 +290,36 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 #endif
 
 #ifdef HAVE_IPV4
-	if (a.type == NA_IP || a.type == NA_BROADCAST_IP || a.type == NA_TCP)
+	if (a->type == NA_IP || a->type == NA_BROADCAST_IP || a->type == NA_TCP)
 	{
-		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0) && a.port == b.port)
+		if ((memcmp(a->address.ip, b->address.ip, sizeof(a->address.ip)) == 0) && a->port == b->port)
 			return true;
 		return false;
 	}
 #endif
 
 #ifdef IPPROTO_IPV6
-	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6 || a.type == NA_TCPV6)
+	if (a->type == NA_IPV6 || a->type == NA_BROADCAST_IP6 || a->type == NA_TCPV6)
 	{
-		if ((memcmp(a.address.ip6, b.address.ip6, sizeof(a.address.ip6)) == 0) && a.port == b.port)
+		if ((memcmp(a->address.ip6, b->address.ip6, sizeof(a->address.ip6)) == 0) && a->port == b->port)
 			return true;
 		return false;
 	}
 #endif
 
 #ifdef USEIPX
-	if (a.type == NA_IPX || a.type == NA_BROADCAST_IPX)
+	if (a->type == NA_IPX || a->type == NA_BROADCAST_IPX)
 	{
-		if ((memcmp(a.address.ipx, b.address.ipx, sizeof(a.address.ipx)) == 0) && a.port == b.port)
+		if ((memcmp(a->address.ipx, b->address.ipx, sizeof(a->address.ipx)) == 0) && a->port == b->port)
 			return true;
 		return false;
 	}
 #endif
 
 #ifdef IRCCONNECT
-	if (a.type == NA_IRC)
+	if (a->type == NA_IRC)
 	{
-		if (!strcmp(a.address.irc.user, b.address.irc.user))
+		if (!strcmp(a->address.irc.user, b->address.irc.user))
 			return true;
 		return false;
 	}
@@ -336,42 +336,42 @@ NET_CompareBaseAdr
 Compares without the port
 ===================
 */
-qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
+qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 {
-	if (a.type != b.type)
+	if (a->type != b->type)
 		return false;
 
-	if (a.type == NA_LOOPBACK)
+	if (a->type == NA_LOOPBACK)
 		return true;
 
 #ifdef HAVE_IPV4
-	if (a.type == NA_IP || a.type == NA_TCP)
+	if (a->type == NA_IP || a->type == NA_TCP)
 	{
-		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0))
+		if ((memcmp(a->address.ip, b->address.ip, sizeof(a->address.ip)) == 0))
 			return true;
 		return false;
 	}
 #endif
 #ifdef IPPROTO_IPV6
-	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6)
+	if (a->type == NA_IPV6 || a->type == NA_BROADCAST_IP6)
 	{
-		if ((memcmp(a.address.ip6, b.address.ip6, 16) == 0))
+		if ((memcmp(a->address.ip6, b->address.ip6, 16) == 0))
 			return true;
 		return false;
 	}
 #endif
 #ifdef USEIPX
-	if (a.type == NA_IPX)
+	if (a->type == NA_IPX)
 	{
-		if ((memcmp(a.address.ipx, b.address.ipx, 10) == 0))
+		if ((memcmp(a->address.ipx, b->address.ipx, 10) == 0))
 			return true;
 		return false;
 	}
 #endif
 #ifdef IRCCONNECT
-	if (a.type == NA_IRC)
+	if (a->type == NA_IRC)
 	{
-		if (!strcmp(a.address.irc.user, b.address.irc.user))
+		if (!strcmp(a->address.irc.user, b->address.irc.user))
 			return true;
 		return false;
 	}
@@ -381,26 +381,26 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 	return false;
 }
 
-qboolean NET_AddressSmellsFunny(netadr_t a)
+qboolean NET_AddressSmellsFunny(netadr_t *a)
 {
 #ifdef IPPROTO_IPV6
 	int i;
 #endif
 
 	//rejects certain blacklisted addresses
-	switch(a.type)
+	switch(a->type)
 	{
 #ifdef HAVE_IPV4
 	case NA_BROADCAST_IP:
 	case NA_IP:
 		//reject localhost
-		if (a.address.ip[0] == 127)// && a.address.ip[1] == 0   && a.address.ip[2] == 0   && a.address.ip[3] == 1  )
+		if (a->address.ip[0] == 127)// && a->address.ip[1] == 0   && a->address.ip[2] == 0   && a->address.ip[3] == 1  )
 			return true;
 		//'this' network (not an issue, but lets reject it anyway)
-		if (a.address.ip[0] == 0   && a.address.ip[1] == 0   && a.address.ip[2] == 0   && a.address.ip[3] == 0  )
+		if (a->address.ip[0] == 0   && a->address.ip[1] == 0   && a->address.ip[2] == 0   && a->address.ip[3] == 0  )
 			return true;
 		//reject any broadcasts
-		if (a.address.ip[0] == 255 && a.address.ip[1] == 255 && a.address.ip[2] == 255 && a.address.ip[3] == 0  )
+		if (a->address.ip[0] == 255 && a->address.ip[1] == 255 && a->address.ip[2] == 255 && a->address.ip[3] == 0  )
 			return true;
 		//not much else I can reject
 		return false;
@@ -411,7 +411,7 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 	case NA_IPV6:
 		//reject [::XXXX] (this includes obsolete ipv4-compatible (not ipv4 mapped), and localhost)
 		for (i = 0; i < 12; i++)
-			if (a.address.ip6[i])
+			if (a->address.ip6[i])
 				break;
 		if (i == 12)
 			return true;
@@ -433,7 +433,7 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 	}
 }
 
-char	*NET_AdrToString (char *s, int len, netadr_t a)
+char	*NET_AdrToString (char *s, int len, netadr_t *a)
 {
 	char *rs = s;
 	char *p;
@@ -442,7 +442,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 	qboolean doneblank;
 #endif
 
-	switch(a.type)
+	switch(a->type)
 	{
 #ifdef HAVE_WEBSOCKCL
 	case NA_WEBSOCKET:
@@ -461,22 +461,22 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 #ifdef HAVE_IPV4
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		if (a.port)
+		if (a->port)
 		{
 			snprintf (s, len, "%i.%i.%i.%i:%i",
-				a.address.ip[0],
-				a.address.ip[1],
-				a.address.ip[2],
-				a.address.ip[3],
-				ntohs(a.port));
+				a->address.ip[0],
+				a->address.ip[1],
+				a->address.ip[2],
+				a->address.ip[3],
+				ntohs(a->port));
 		}
 		else
 		{
 			snprintf (s, len, "%i.%i.%i.%i",
-				a.address.ip[0],
-				a.address.ip[1],
-				a.address.ip[2],
-				a.address.ip[3]);
+				a->address.ip[0],
+				a->address.ip[1],
+				a->address.ip[2],
+				a->address.ip[3]);
 		}
 		break;
 #endif
@@ -493,24 +493,24 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
 
-		if (!*(int*)&a.address.ip6[0] && 
-			!*(int*)&a.address.ip6[4] &&
-			!*(short*)&a.address.ip6[8] &&
-			*(short*)&a.address.ip6[10] == (short)0xffff)
+		if (!*(int*)&a->address.ip6[0] && 
+			!*(int*)&a->address.ip6[4] &&
+			!*(short*)&a->address.ip6[8] &&
+			*(short*)&a->address.ip6[10] == (short)0xffff)
 		{
-			if (a.port)
+			if (a->port)
 				snprintf (s, len, "%i.%i.%i.%i:%i",
-					a.address.ip6[12],
-					a.address.ip6[13],
-					a.address.ip6[14],
-					a.address.ip6[15],
-					ntohs(a.port));
+					a->address.ip6[12],
+					a->address.ip6[13],
+					a->address.ip6[14],
+					a->address.ip6[15],
+					ntohs(a->port));
 			else
 				snprintf (s, len, "%i.%i.%i.%i",
-					a.address.ip6[12],
-					a.address.ip6[13],
-					a.address.ip6[14],
-					a.address.ip6[15]);
+					a->address.ip6[12],
+					a->address.ip6[13],
+					a->address.ip6[14],
+					a->address.ip6[15]);
 			break;
 		}
 		*s = 0;
@@ -521,7 +521,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 
 		for (i = 0; i < 16; i+=2)
 		{
-			if (doneblank!=true && a.address.ip6[i] == 0 && a.address.ip6[i+1] == 0)
+			if (doneblank!=true && a->address.ip6[i] == 0 && a->address.ip6[i+1] == 0)
 			{
 				if (!doneblank)
 				{
@@ -539,40 +539,40 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 					snprintf (p, len-strlen(s), ":");
 					p += strlen(p);
 				}
-				if (a.address.ip6[i+0])
+				if (a->address.ip6[i+0])
 				{
 					snprintf (p, len-strlen(s), "%x%02x",
-						a.address.ip6[i+0],
-						a.address.ip6[i+1]);
+						a->address.ip6[i+0],
+						a->address.ip6[i+1]);
 				}
 				else
 				{
 					snprintf (p, len-strlen(s), "%x",
-						a.address.ip6[i+1]);
+						a->address.ip6[i+1]);
 				}
 				p += strlen(p);
 			}
 		}
 
 		snprintf (p, len-strlen(s), "]:%i",
-			ntohs(a.port));
+			ntohs(a->port));
 		break;
 #endif
 #ifdef USEIPX
 	case NA_BROADCAST_IPX:
 	case NA_IPX:
 		snprintf (s, len, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x:%i",
-			a.address.ipx[0],
-			a.address.ipx[1],
-			a.address.ipx[2],
-			a.address.ipx[3],
-			a.address.ipx[4],
-			a.address.ipx[5],
-			a.address.ipx[6],
-			a.address.ipx[7],
-			a.address.ipx[8],
-			a.address.ipx[9],
-			ntohs(a.port));
+			a->address.ipx[0],
+			a->address.ipx[1],
+			a->address.ipx[2],
+			a->address.ipx[3],
+			a->address.ipx[4],
+			a->address.ipx[5],
+			a->address.ipx[6],
+			a->address.ipx[7],
+			a->address.ipx[8],
+			a->address.ipx[9],
+			ntohs(a->port));
 		break;
 #endif
 	case NA_LOOPBACK:
@@ -581,10 +581,10 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 
 #ifdef IRCCONNECT
 	case NA_IRC:
-		if (*a.address.irc.channel)
-			snprintf (s, len, "irc://%s@%s", a.address.irc.user, a.address.irc.channel);
+		if (*a->address.irc.channel)
+			snprintf (s, len, "irc://%s@%s", a->address.irc.user, a->address.irc.channel);
 		else
-			snprintf (s, len, "irc://%s", a.address.irc.user);
+			snprintf (s, len, "irc://%s", a->address.irc.user);
 		break;
 #endif
 
@@ -596,41 +596,41 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 	return rs;
 }
 
-char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
+char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 {
 	int i, doneblank;
 	char *p;
 
-	switch(a.type)
+	switch(a->type)
 	{
 	case NA_BROADCAST_IP:
 	case NA_IP:
 		snprintf (s, len, "%i.%i.%i.%i",
-			a.address.ip[0],
-			a.address.ip[1],
-			a.address.ip[2],
-			a.address.ip[3]);
+			a->address.ip[0],
+			a->address.ip[1],
+			a->address.ip[2],
+			a->address.ip[3]);
 		break;
 	case NA_TCP:
 		snprintf (s, len, "tcp://%i.%i.%i.%i",
-			a.address.ip[0],
-			a.address.ip[1],
-			a.address.ip[2],
-			a.address.ip[3]);
+			a->address.ip[0],
+			a->address.ip[1],
+			a->address.ip[2],
+			a->address.ip[3]);
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		if (!*(int*)&a.address.ip6[0] && 
-			!*(int*)&a.address.ip6[4] &&
-			!*(short*)&a.address.ip6[8] &&
-			*(short*)&a.address.ip6[10] == (short)0xffff)
+		if (!*(int*)&a->address.ip6[0] && 
+			!*(int*)&a->address.ip6[4] &&
+			!*(short*)&a->address.ip6[8] &&
+			*(short*)&a->address.ip6[10] == (short)0xffff)
 		{
 			snprintf (s, len, "%i.%i.%i.%i",
-				a.address.ip6[12],
-				a.address.ip6[13],
-				a.address.ip6[14],
-				a.address.ip6[15]);
+				a->address.ip6[12],
+				a->address.ip6[13],
+				a->address.ip6[14],
+				a->address.ip6[15]);
 			break;
 		}
 		*s = 0;
@@ -638,7 +638,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 		p = s;
 		for (i = 0; i < 16; i+=2)
 		{
-			if (doneblank!=true && a.address.ip6[i] == 0 && a.address.ip6[i+1] == 0)
+			if (doneblank!=true && a->address.ip6[i] == 0 && a->address.ip6[i+1] == 0)
 			{
 				if (!doneblank)
 				{
@@ -656,16 +656,16 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 					snprintf (p, len-strlen(s), ":");
 					p += strlen(p);
 				}
-				if (a.address.ip6[i+0])
+				if (a->address.ip6[i+0])
 				{
 					snprintf (p, len-strlen(s), "%x%02x",
-						a.address.ip6[i+0],
-						a.address.ip6[i+1]);
+						a->address.ip6[i+0],
+						a->address.ip6[i+1]);
 				}
 				else
 				{
 					snprintf (p, len-strlen(s), "%x",
-						a.address.ip6[i+1]);
+						a->address.ip6[i+1]);
 				}
 				p += strlen(p);
 			}
@@ -676,25 +676,25 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 	case NA_BROADCAST_IPX:
 	case NA_IPX:
 		snprintf (s, len, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x",
-			a.address.ipx[0],
-			a.address.ipx[1],
-			a.address.ipx[2],
-			a.address.ipx[3],
-			a.address.ipx[4],
-			a.address.ipx[5],
-			a.address.ipx[6],
-			a.address.ipx[7],
-			a.address.ipx[8],
-			a.address.ipx[9]);
+			a->address.ipx[0],
+			a->address.ipx[1],
+			a->address.ipx[2],
+			a->address.ipx[3],
+			a->address.ipx[4],
+			a->address.ipx[5],
+			a->address.ipx[6],
+			a->address.ipx[7],
+			a->address.ipx[8],
+			a->address.ipx[9]);
 		break;
 #endif
 	case NA_LOOPBACK:
-		snprintf (s, len, "LocalHost");
+		snprintf (s, len, "QLoopBack");
 		break;
 
 #ifdef IRCCONNECT
 	case NA_IRC:
-		snprintf (s, len, "irc://%s", a.address.irc.user);
+		NET_AdrToString(s, len, a);
 		break;
 #endif
 	default:
@@ -976,10 +976,19 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	if (!strncmp (s, "irc://", 6))
 	{
 		char *at;
+		char *slash;
 		memset (a, 0, sizeof(*a));
 		a->type = NA_IRC;
 
 		s+=6;
+		slash = strchr(s, '/');
+		if (!slash)
+			return false;
+		if (slash - s+1 >= sizeof(a->address.irc.host))
+			return false;
+		memcpy(a->address.irc.host, s, slash - s);
+		a->address.irc.host[slash - s] = 0;
+		s = slash+1;
 		at = strchr(s, '@');
 		if (at)
 		{
@@ -1234,49 +1243,49 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 
 // NET_CompareAdrMasked: given 3 addresses, 2 to compare with a complimentary mask,
 // returns true or false if they match
-qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
+qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask)
 {
 	int i;
 
 	//make sure the address being checked against matches the mask
-	if (b.type != mask.type)
+	if (b->type != mask->type)
 		return false;
 
 	// check port if both are non-zero
-	if (a.port && b.port && a.port != b.port)
+	if (a->port && b->port && a->port != b->port)
 		return false;
 
 	// check to make sure all types match
-	if (a.type != b.type)
+	if (a->type != b->type)
 	{
-		if (a.type == NA_IP && b.type == NA_IPV6 && mask.type == NA_IP)
+		if (a->type == NA_IP && b->type == NA_IPV6 && mask->type == NA_IP)
 		{
 			for (i = 0; i < 10; i++)
-				if (b.address.ip6[i] != 0)
+				if (b->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 			for (; i < 12; i++)
-				if (b.address.ip6[i] != 0xff && b.address.ip6[i] != 0x00)	//0x00 is depricated
+				if (b->address.ip6[i] != 0xff && b->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 			for (i = 0; i < 4; i++)
 			{
-				if ((a.address.ip[i] & mask.address.ip[i]) != (b.address.ip6[12+i] & mask.address.ip[i]))
+				if ((a->address.ip[i] & mask->address.ip[i]) != (b->address.ip6[12+i] & mask->address.ip[i]))
 					return false;	//mask doesn't match
 			}
 			return true;	//its an ipv4 address in there, the mask matched the whole way through
 		}
-		if (a.type == NA_IPV6 && b.type == NA_IP && mask.type == NA_IP)
+		if (a->type == NA_IPV6 && b->type == NA_IP && mask->type == NA_IP)
 		{
 			for (i = 0; i < 10; i++)
-				if (a.address.ip6[i] != 0)
+				if (a->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 
 			for (; i < 12; i++)
-				if (a.address.ip6[i] != 0xff && a.address.ip6[i] != 0x00)	//0x00 is depricated
+				if (a->address.ip6[i] != 0xff && a->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 
 			for (i = 0; i < 4; i++)
 			{
-				if ((a.address.ip6[12+i] & mask.address.ip[i]) != (b.address.ip[i] & mask.address.ip[i]))
+				if ((a->address.ip6[12+i] & mask->address.ip[i]) != (b->address.ip[i] & mask->address.ip[i]))
 					return false;	//mask doesn't match
 			}
 			return true;	//its an ipv4 address in there, the mask matched the whole way through
@@ -1285,7 +1294,7 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 	}
 
 	// match on protocol type and compare address
-	switch (a.type)
+	switch (a->type)
 	{
 	case NA_LOOPBACK:
 		return true;
@@ -1293,7 +1302,7 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 	case NA_IP:
 		for (i = 0; i < 4; i++)
 		{
-			if ((a.address.ip[i] & mask.address.ip[i]) != (b.address.ip[i] & mask.address.ip[i]))
+			if ((a->address.ip[i] & mask->address.ip[i]) != (b->address.ip[i] & mask->address.ip[i]))
 				return false;
 		}
 		break;
@@ -1302,7 +1311,7 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 	case NA_IPV6:
 		for (i = 0; i < 16; i++)
 		{
-			if ((a.address.ip6[i] & mask.address.ip6[i]) != (b.address.ip6[i] & mask.address.ip6[i]))
+			if ((a->address.ip6[i] & mask->address.ip6[i]) != (b->address.ip6[i] & mask->address.ip6[i]))
 				return false;
 		}
 		break;
@@ -1312,7 +1321,7 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 	case NA_IPX:
 		for (i = 0; i < 10; i++)
 		{
-			if ((a.address.ipx[i] & mask.address.ipx[i]) != (b.address.ipx[i] & mask.address.ipx[i]))
+			if ((a->address.ipx[i] & mask->address.ipx[i]) != (b->address.ipx[i] & mask->address.ipx[i]))
 				return false;
 		}
 		break;
@@ -1321,7 +1330,7 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 #ifdef IRCCONNECT
 	case NA_IRC:
 		//masks are not supported, match explicitly
-		if (strcmp(a.address.irc.user, b.address.irc.user))
+		if (strcmp(a->address.irc.user, b->address.irc.user))
 			return false;
 		break;
 #endif
@@ -1334,25 +1343,25 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 
 // UniformMaskedBits: counts number of bits in an assumed uniform mask, returns
 // -1 if not uniform
-int UniformMaskedBits(netadr_t mask)
+int UniformMaskedBits(netadr_t *mask)
 {
 	int bits;
 	int b;
 	unsigned int bs;
 	qboolean bitenc = false;
 
-	switch (mask.type)
+	switch (mask->type)
 	{
 	case NA_BROADCAST_IP:
 	case NA_IP:
 		bits = 32;
 		for (b = 3; b >= 0; b--)
 		{
-			if (mask.address.ip[b] == 0xFF)
+			if (mask->address.ip[b] == 0xFF)
 				bitenc = true;
-			else if (mask.address.ip[b])
+			else if (mask->address.ip[b])
 			{
-				bs = (~mask.address.ip[b]) & 0xFF;
+				bs = (~mask->address.ip[b]) & 0xFF;
 				while (bs)
 				{
 					if (bs & 1)
@@ -1378,11 +1387,11 @@ int UniformMaskedBits(netadr_t mask)
 		bits = 128;
 		for (b = 15; b >= 0; b--)
 		{
-			if (mask.address.ip6[b] == 0xFF)
+			if (mask->address.ip6[b] == 0xFF)
 				bitenc = true;
-			else if (mask.address.ip6[b])
+			else if (mask->address.ip6[b])
 			{
-				bs = (~mask.address.ip6[b]) & 0xFF;
+				bs = (~mask->address.ip6[b]) & 0xFF;
 				while (bs)
 				{
 					if (bs & 1)
@@ -1409,11 +1418,11 @@ int UniformMaskedBits(netadr_t mask)
 		bits = 80;
 		for (b = 9; b >= 0; b--)
 		{
-			if (mask.address.ipx[b] == 0xFF)
+			if (mask->address.ipx[b] == 0xFF)
 				bitenc = true;
-			else if (mask.address.ipx[b])
+			else if (mask->address.ipx[b])
 			{
-				bs = (~mask.address.ipx[b]) & 0xFF;
+				bs = (~mask->address.ipx[b]) & 0xFF;
 				while (bs)
 				{
 					if (bs & 1)
@@ -1441,7 +1450,7 @@ int UniformMaskedBits(netadr_t mask)
 	return bits; // all checks passed
 }
 
-char *NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask)
+char *NET_AdrToStringMasked (char *s, int len, netadr_t *a, netadr_t *amask)
 {
 	int i;
 	char adr[MAX_ADR_SIZE], mask[MAX_ADR_SIZE];
@@ -1487,10 +1496,10 @@ qboolean NET_IsClientLegal(netadr_t *adr)
 #endif
 }
 
-qboolean	NET_IsLoopBackAddress (netadr_t adr)
+qboolean	NET_IsLoopBackAddress (netadr_t *adr)
 {
 //	return (!strcmp(cls.servername, NET_AdrToString(net_local_adr)) || !strcmp(cls.servername, "local");
-	return adr.type == NA_LOOPBACK;
+	return adr->type == NA_LOOPBACK;
 }
 
 /////////////////////////////////////////////
@@ -1535,7 +1544,7 @@ qboolean	NET_GetLoopPacket (int sock, netadr_t *from, sizebuf_t *message)
 }
 
 
-void NET_SendLoopPacket (int sock, int length, void *data, netadr_t to)
+void NET_SendLoopPacket (int sock, int length, void *data, netadr_t *to)
 {
 	int		i;
 	loopback_t	*loop;
@@ -1572,9 +1581,9 @@ qboolean FTENET_Loop_GetPacket(ftenet_generic_connection_t *con)
 	return NET_GetLoopPacket(con->thesocket, &net_from, &net_message);
 }
 
-qboolean FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, void *data, netadr_t to)
+qboolean FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, void *data, netadr_t *to)
 {
-	if (to.type == NA_LOOPBACK)
+	if (to->type == NA_LOOPBACK)
 	{
 		NET_SendLoopPacket(con->thesocket, length, data, to);
 		return true;
@@ -1683,7 +1692,7 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 		if (collection->conn[i]->GetLocalAddress == FTENET_NATPMP_GetLocalAddress)
 		{
 			pmp = (pmpcon_t*)collection->conn[i];
-			if (NET_CompareAdr(pmp->pmpaddr, net_from))
+			if (NET_CompareAdr(&pmp->pmpaddr, &net_from))
 			{
 				pmpreqrep = (void*)net_message.data;
 
@@ -1695,7 +1704,7 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 					pmp->natadr.type = NA_IP;
 					pmp->natadr.port = 0;
 					memcpy(pmp->natadr.address.ip, pmpreqrep->ipv4, sizeof(pmp->natadr.address.ip));
-					NET_AdrToString(adrbuf, sizeof(adrbuf), pmp->natadr);
+					NET_AdrToString(adrbuf, sizeof(adrbuf), &pmp->natadr);
 //					Con_Printf("Public ip is %s\n", adrbuf);
 					return true;
 				}
@@ -1809,11 +1818,11 @@ static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connectio
 
 				//get the public ip.
 				pmpreqmsg.op = 0;
-				NET_SendPacket(NS_SERVER, 2, &pmpreqmsg, pmp->pmpaddr);
+				NET_SendPacket(NS_SERVER, 2, &pmpreqmsg, &pmp->pmpaddr);
 
 				//open the firewall/nat.
 				pmpreqmsg.op = 1;
-				NET_SendPacket(NS_SERVER, sizeof(pmpreqmsg), &pmpreqmsg, pmp->pmpaddr);
+				NET_SendPacket(NS_SERVER, sizeof(pmpreqmsg), &pmpreqmsg, &pmp->pmpaddr);
 
 				break;
 			}
@@ -1841,7 +1850,7 @@ qboolean FTENET_NATPMP_GetPacket(struct ftenet_generic_connection_s *con)
 	}
 	return false;
 }
-qboolean FTENET_NATPMP_SendPacket(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t to)
+qboolean FTENET_NATPMP_SendPacket(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t *to)
 {
 	return false;
 }
@@ -2185,7 +2194,7 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 		{
 			SockadrToNetadr (&from, &net_from);
 			Con_TPrintf (TL_OVERSIZEPACKETFROM,
-				NET_AdrToString (adr, sizeof(adr), net_from));
+				NET_AdrToString (adr, sizeof(adr), &net_from));
 			return false;
 		}
 		if (err == ECONNABORTED || err == ECONNRESET)
@@ -2215,7 +2224,7 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 	net_message.cursize = ret;
 	if (net_message.cursize == sizeof(net_message_buffer) )
 	{
-		Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+		Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
 		return false;
 	}
 
@@ -2223,7 +2232,7 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 #endif
 }
 
-qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length, void *data, netadr_t to)
+qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length, void *data, netadr_t *to)
 {
 #ifndef HAVE_PACKET
 	return false;
@@ -2233,28 +2242,28 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 	int ret;
 
 	for (size = 0; size < FTENET_ADDRTYPES; size++)
-		if (to.type == con->addrtype[size])
+		if (to->type == con->addrtype[size])
 			break;
 	if (size == FTENET_ADDRTYPES)
 		return false;
 
 #ifdef IPPROTO_IPV6
 	/*special code to handle sending to hybrid sockets*/
-	if (con->addrtype[1] == NA_IPV6 && to.type == NA_IP)
+	if (con->addrtype[1] == NA_IPV6 && to->type == NA_IP)
 	{
 		memset(&addr, 0, sizeof(struct sockaddr_in6));
 		((struct sockaddr_in6*)&addr)->sin6_family = AF_INET6;
 		*(short*)&((struct sockaddr_in6*)&addr)->sin6_addr.s6_addr[10] = 0xffff;
-		*(int*)&((struct sockaddr_in6*)&addr)->sin6_addr.s6_addr[12] = *(int*)&to.address.ip;
-		((struct sockaddr_in6*)&addr)->sin6_port = to.port;
+		*(int*)&((struct sockaddr_in6*)&addr)->sin6_addr.s6_addr[12] = *(int*)&to->address.ip;
+		((struct sockaddr_in6*)&addr)->sin6_port = to->port;
 		size = sizeof(struct sockaddr_in6);
 	}
 	else
 #endif
 	{
-		NetadrToSockadr (&to, &addr);
+		NetadrToSockadr (to, &addr);
 
-		switch(to.type)
+		switch(to->type)
 		{
 		default:
 			Con_Printf("Bad address type\n");
@@ -2288,6 +2297,12 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 
 		if (ecode == ECONNREFUSED)
 			return true;
+
+		if (ecode == EACCES)
+		{
+			Con_Printf("Access denied: check firewall\n");
+			return true;
+		}
 
 #ifndef SERVERONLY
 		if (ecode == EADDRNOTAVAIL)
@@ -2414,7 +2429,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	{
 		SockadrToNetadr(&qs, &adr);
 		//mneh, reuse qs.
-		NET_AdrToString((char*)&qs, sizeof(qs), adr);
+		NET_AdrToString((char*)&qs, sizeof(qs), &adr);
 		Con_Printf("Unable to listen at %s\n", (char*)&qs);
 		closesocket(newsocket);
 		return NULL;
@@ -2585,14 +2600,14 @@ qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 
 		if (st->timeouttime < timeval)
 		{
-			Con_Printf ("tcp peer %s timed out\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+			Con_Printf ("tcp peer %s timed out\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 			goto closesvstream;
 		}
 
 		ret = recv(st->socketnum, st->inbuffer+st->inlen, sizeof(st->inbuffer)-st->inlen, 0);
 		if (ret == 0)
 		{
-			Con_Printf ("tcp peer %s closed connection\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+			Con_Printf ("tcp peer %s closed connection\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 			goto closesvstream;
 		}
 		else if (ret == -1)
@@ -2768,7 +2783,7 @@ closesvstream:
 					{
 						if (atoi(arg[WCATTR_WSVER]) != 13)
 						{
-							Con_Printf("Outdated websocket request from %s. got version %i, expected version 13\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr), arg[WCATTR_WSVER]);
+							Con_Printf("Outdated websocket request from %s. got version %i, expected version 13\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), arg[WCATTR_WSVER]);
 
 							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 							st->inlen -= i;
@@ -2789,7 +2804,7 @@ closesvstream:
 
 							tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY])));
 
-							Con_Printf("Websocket request for %s from %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+							Con_Printf("Websocket request for %s from %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 
 							resp = va(	"HTTP/1.1 101 Switching Protocols\r\n"
 										"Upgrade: websocket\r\n"
@@ -2851,7 +2866,7 @@ closesvstream:
 */
 						else
 						{
-							Con_Printf("Invalid download request %s to %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+							Con_Printf("Invalid download request %s to %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 							resp = va(	"HTTP/1.1 404 Ok\r\n"
 										"Connection: Close\r\n"
 										"Content-Type: text/html\r\n"
@@ -2872,7 +2887,7 @@ closesvstream:
 			else
 			{
 handshakeerror:
-				Con_Printf ("Unknown TCP handshake from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
+				Con_Printf ("Unknown TCP handshake from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 				goto closesvstream;
 			}
 
@@ -2909,7 +2924,7 @@ handshakeerror:
 			net_message.cursize = BigShort(*(short*)st->inbuffer);
 			if (net_message.cursize >= sizeof(net_message_buffer) )
 			{
-				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 				goto closesvstream;
 			}
 			if (net_message.cursize+2 > st->inlen)
@@ -2951,7 +2966,7 @@ handshakeerror:
 					//as a payload is not allowed to be encoded as too large a type, and quakeworld never used packets larger than 1450 bytes anyway, this code isn't needed (65k is the max even without this)
 //					if (sizeof(paylen) < 8)
 					{
-						Con_Printf ("%s: payload frame too large\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+						Con_Printf ("%s: payload frame too large\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 						goto closesvstream; 
 					}
 /*					else
@@ -2984,7 +2999,7 @@ handshakeerror:
 						((unsigned char*)st->inbuffer)[payoffs+1]<<0;
 					if (paylen < 126)
 					{
-						Con_Printf ("%s: payload size encoded badly\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+						Con_Printf ("%s: payload size encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 						goto closesvstream; 
 					}
 					payoffs += 2;
@@ -3022,7 +3037,7 @@ handshakeerror:
 				switch((ctrl>>8) & 0xf)
 				{
 				case 0:	/*continuation*/
-					Con_Printf ("websocket continuation frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					Con_Printf ("websocket continuation frame from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
 				case 1:	/*text frame*/
 //					Con_Printf ("websocket text frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
@@ -3063,22 +3078,22 @@ handshakeerror:
 					net_message.cursize = paylen;
 					if (net_message.cursize >= sizeof(net_message_buffer) )
 					{
-						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
 						goto closesvstream;
 					}
 					memcpy(net_message_buffer, st->inbuffer+payoffs, paylen);
 					break;
 				case 8:	/*connection close*/
-					Con_Printf ("websocket closure %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					Con_Printf ("websocket closure %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
 				case 9:	/*ping*/
-					Con_Printf ("websocket ping from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					Con_Printf ("websocket ping from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
 				case 10: /*pong*/
-					Con_Printf ("websocket pong from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					Con_Printf ("websocket pong from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
 				default:
-					Con_Printf ("Unsupported websocket opcode (%i) from %s\n", (ctrl>>8) & 0xf, NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					Con_Printf ("Unsupported websocket opcode (%i) from %s\n", (ctrl>>8) & 0xf, NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
 				}
 
@@ -3131,7 +3146,7 @@ handshakeerror:
 	return false;
 }
 
-qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t to)
+qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
 {
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
 	ftenet_tcpconnect_stream_t *st;
@@ -3141,7 +3156,7 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 		if (st->socketnum == INVALID_SOCKET)
 			continue;
 
-		if (NET_CompareAdr(to, st->remoteaddr))
+		if (NET_CompareAdr(to, &st->remoteaddr))
 		{
 			if (!st->outlen)
 			{
@@ -3345,7 +3360,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 		{
 			SockadrToNetadr(&qs, &adr);
 			//mneh, reuse qs.
-			NET_AdrToString((char*)&qs, sizeof(qs), adr);
+			NET_AdrToString((char*)&qs, sizeof(qs), &adr);
 			Con_Printf("Unable to listen at %s\n", (char*)&qs);
 			closesocket(newsocket);
 			return NULL;
@@ -3362,7 +3377,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 
 		if (adr.type == NA_IP)
 			adr.type = NA_TCP;
-		newsocket = TCP_OpenStream(adr);
+		newsocket = TCP_OpenStream(&adr);
 		if (newsocket == INVALID_SOCKET)
 			return NULL;
 	}
@@ -3486,21 +3501,31 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 	{
 		if (con->income == 0)
 		{
+			netadr_t ip;
 			cvar_t *ircuser = Cvar_Get("ircuser", "none", 0, "IRC Connect");
-			cvar_t *irchost = Cvar_Get("irchost", "none", 0, "IRC Connect");
-			cvar_t *ircnick = Cvar_Get("ircnick", "ftesv", 0, "IRC Connect");
-			//cvar_t *ircchannel = Cvar_Get("ircchannel", "#ftetest", 0, "IRC Connect"); //warning: unused variable ‘ircchannel’
+			cvar_t *ircnick = Cvar_Get("ircnick", "", 0, "IRC Connect");
 			cvar_t *ircsomething = Cvar_Get("ircsomething", "moo", 0, "IRC Connect");
 			cvar_t *ircclientaddr = Cvar_Get("ircclientaddr", "127.0.0.1", 0, "IRC Connect");
 
-			con->generic.thesocket = TCP_OpenStream(con->ircserver);
+			NET_StringToAdr(con->ircserver.address.irc.host, 6667, &ip);
+			con->generic.thesocket = TCP_OpenStream(&ip);
 
-			Q_strncpyz(con->ourusername, ircnick->string, sizeof(con->ourusername));
+			//when hosting, the specified nick is the name we're using.
+			//when connecting, the specified nick is the name we're trying to send to, and our own name is inconsequential.
+			if (con->generic.islisten && *con->ircserver.address.irc.user)
+				Q_strncpyz(con->ourusername, con->ircserver.address.irc.user, sizeof(con->ourusername));
+			else
+				Q_strncpyz(con->ourusername, ircnick->string, sizeof(con->ourusername));
+
+			if (!*con->ourusername)
+			{
+				Q_snprintfz(con->ourusername, sizeof(con->ourusername), "fte%x\n", rand());
+			}
 
 			send(con->generic.thesocket, "USER ", 5, 0);
 			send(con->generic.thesocket, ircuser->string, strlen(ircuser->string), 0);
 			send(con->generic.thesocket, " ", 1, 0);
-			send(con->generic.thesocket, irchost->string, strlen(irchost->string), 0);
+			send(con->generic.thesocket, con->ircserver.address.irc.host, strlen(con->ircserver.address.irc.host), 0);
 			send(con->generic.thesocket, " ", 1, 0);
 			send(con->generic.thesocket, ircclientaddr->string, strlen(ircclientaddr->string), 0);
 			send(con->generic.thesocket, " :", 2, 0);
@@ -3637,7 +3662,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 					net_message.cursize = 4 + endl - s;
 					if (net_message.cursize >= sizeof(net_message_buffer) )
 					{
-						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
 						break;
 					}
 
@@ -3756,7 +3781,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 					if (st->inlen > psize || psize >= sizeof(net_message_buffer) )
 					{
 						st->inlen = 0;
-						Con_Printf ("Corrupt packet from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
+						Con_Printf ("Corrupt packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 					}
 					else if (st->inlen == psize)
 					{
@@ -3764,7 +3789,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 						net_message.cursize = st->inlen;
 						if (net_message.cursize >= sizeof(net_message_buffer) )
 						{
-							Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+							Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
 							break;
 						}
 
@@ -3798,11 +3823,10 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 			{
 			case 001:
 				{
-					cvar_t *ircchannel = Cvar_Get("ircchannel", "", 0, "IRC Connect");
-					if (*ircchannel->string)
+					if (con->ircserver.address.irc.channel)
 					{
 						send(con->generic.thesocket, "JOIN ", 5, 0);
-						send(con->generic.thesocket, ircchannel->string, strlen(ircchannel->string), 0);
+						send(con->generic.thesocket, con->ircserver.address.irc.channel, strlen(con->ircserver.address.irc.channel), 0);
 						send(con->generic.thesocket, "\r\n", 2, 0);
 					}
 				}
@@ -3838,7 +3862,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 
 	return false;
 }
-qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t to)
+qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
 {
 	ftenet_ircconnect_connection_t *con = (ftenet_ircconnect_connection_t*)gcon;
 
@@ -3849,7 +3873,7 @@ qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 	int newoutcount;
 
 	for (packed = 0; packed < FTENET_ADDRTYPES; packed++)
-		if (to.type == con->generic.addrtype[packed])
+		if (to->type == con->generic.addrtype[packed])
 			break;
 	if (packed == FTENET_ADDRTYPES)
 		return false;
@@ -3876,21 +3900,21 @@ qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 	{
 		buffer = con->outbuf + newoutcount;
 
-		if (*to.address.irc.channel)
+		if (*to->address.irc.channel)
 		{
 			int unamelen;
 			int chanlen;
-			unamelen = strlen(to.address.irc.user);
-			chanlen = strlen(to.address.irc.channel);
+			unamelen = strlen(to->address.irc.user);
+			chanlen = strlen(to->address.irc.channel);
 			packed = 8+chanlen+3+unamelen+1 + 3;
 
 			if (packed+1 + newoutcount > sizeof(con->outbuf))
 				break;
 
 			memcpy(buffer, "PRIVMSG ", 8);
-			memcpy(buffer+8, to.address.irc.channel, chanlen);
+			memcpy(buffer+8, to->address.irc.channel, chanlen);
 			memcpy(buffer+8+chanlen, " :$", 3);
-			memcpy(buffer+8+chanlen+3, to.address.irc.user, unamelen);
+			memcpy(buffer+8+chanlen+3, to->address.irc.user, unamelen);
 			memcpy(buffer+8+chanlen+3+unamelen, "#", 1);
 			lenofs = buffer+8+chanlen+3+unamelen+1;
 			sprintf(lenofs, "%03x", fulllen);
@@ -3899,14 +3923,14 @@ qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 		else
 		{
 			int unamelen;
-			unamelen = strlen(to.address.irc.user);
+			unamelen = strlen(to->address.irc.user);
 			packed = 8 + unamelen + 3 + 3;
 
 			if (packed+1 + newoutcount > sizeof(con->outbuf))
 				break;
 
 			memcpy(buffer, "PRIVMSG ", 8);
-			memcpy(buffer+8, to.address.irc.user, unamelen);
+			memcpy(buffer+8, to->address.irc.user, unamelen);
 			memcpy(buffer+8+unamelen, " :#", 3);
 			lenofs = buffer+8+unamelen+3;
 			sprintf(lenofs, "%03x", fulllen);
@@ -4293,7 +4317,7 @@ int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote
 	return collection->conn[remote->connum-1]->GetLocalAddress(collection->conn[remote->connum-1], local, idx);
 }
 
-void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
+void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
 {
 	char buffer[64];
 	ftenet_connections_t *collection;
@@ -4327,10 +4351,10 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 			return;
 	}
 
-	if (to.connum)
+	if (to->connum)
 	{
-		if (collection->conn[to.connum-1])
-			if (collection->conn[to.connum-1]->SendPacket(collection->conn[to.connum-1], length, data, to))
+		if (collection->conn[to->connum-1])
+			if (collection->conn[to->connum-1]->SendPacket(collection->conn[to->connum-1], length, data, to))
 				return;
 	}
 
@@ -4386,7 +4410,7 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 		{
 			for (adrcount=1; (adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno)) && adrno < adrcount; adrno++)
 			{
-				Con_Printf("net address (%s): %s\n", collection->conn[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), adr));
+				Con_Printf("net address (%s): %s\n", collection->conn[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &adr));
 			}
 		}
 		if (!adrno)
@@ -4396,7 +4420,7 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 
 //=============================================================================
 
-int TCP_OpenStream (netadr_t remoteaddr)
+int TCP_OpenStream (netadr_t *remoteaddr)
 {
 #ifndef HAVE_TCP
 	return INVALID_SOCKET;
@@ -4408,7 +4432,7 @@ int TCP_OpenStream (netadr_t remoteaddr)
 //	struct sockaddr_qstorage loc;
 	int recvbufsize = (1<<19);//512kb
 
-	temp = NetadrToSockadr(&remoteaddr, &qs);
+	temp = NetadrToSockadr(remoteaddr, &qs);
 
 	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 		return INVALID_SOCKET;
@@ -4426,11 +4450,13 @@ int TCP_OpenStream (netadr_t remoteaddr)
 		{
 			char buf[128];
 			NET_AdrToString(buf, sizeof(buf), remoteaddr);
-			if (remoteaddr.port == 0 && (remoteaddr.type == NA_IP || remoteaddr.type == NA_IPV6))
+			if (remoteaddr->port == 0 && (remoteaddr->type == NA_IP || remoteaddr->type == NA_IPV6))
 				Con_Printf ("TCP_OpenStream: no port specified\n");
 			else
 				Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
 		}
+		else if (err == EACCES)
+			Con_Printf ("TCP_OpenStream: access denied: check firewall\n");
 		else
 			Con_Printf ("TCP_OpenStream: connect: error %i\n", err);
 		closesocket(newsocket);
@@ -4814,7 +4840,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	if (notvalid)
 		Con_Printf("Couldn't detect local ip\n");
 	else
-		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (adrbuf, sizeof(adrbuf), *out) );
+		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
 #endif
 }
 
@@ -4881,7 +4907,7 @@ static qboolean NET_WasStun(void)
 					adr.type = NA_IP;
 					adr.port = (((short*)attr)[3]);
 					memcpy(adr.address.ip, &((qbyte*)attr)[8], 4);
-					NET_AdrToString(str, sizeof(str), adr);
+					NET_AdrToString(str, sizeof(str), &adr);
 					Con_Printf("Public address %s\n", str);
 				}
 				else if (attr->attrtype == BigShort(1) && alen == 20 && ((qbyte*)attr)[5] == 2)	//ipv6 MAPPED-ADDRESS
@@ -4891,7 +4917,7 @@ static qboolean NET_WasStun(void)
 					adr.type = NA_IPV6;
 					adr.port = (((short*)attr)[3]);
 					memcpy(adr.address.ip6, &((qbyte*)attr)[8], 16);
-					NET_AdrToString(str, sizeof(str), adr);
+					NET_AdrToString(str, sizeof(str), &adr);
 					Con_Printf("Public address %s\n", str);
 				}
 				attr = (stunattr_t*)((char*)(attr+1) + alen);
@@ -4921,7 +4947,7 @@ void SVNET_Stun_f(void)
 	Sys_RandomBytes((qbyte*)&stunmsg.hdr.transactid[0], sizeof(stunmsg.hdr.transactid));	// 'and SHOULD be cryptographically random'
 	stunmsg.hdr.msgtype = BigShort(0x0001);	//binding request
 	stunmsg.hdr.msglen = BigShort(0);
-	NET_SendPacket(NS_SERVER, sizeof(stunmsg), &stunmsg, stunserverip);
+	NET_SendPacket(NS_SERVER, sizeof(stunmsg), &stunmsg, &stunserverip);
 }
 #endif
 
@@ -5068,7 +5094,7 @@ void SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, va("natpmp://%s", var->string), NA_NATPMP, true);
 }
-#ifdef SERVERONLY
+#if 1//def SERVERONLY
 #define NATPMP_DEFAULT_PORT ""		//don't fuck with dedicated servers
 #else
 #define NATPMP_DEFAULT_PORT "5351"	//home users, yay, lucky people.
@@ -5238,7 +5264,7 @@ void VFSTCP_Error(tcpfile_t *f)
 		f->sock = INVALID_SOCKET;
 	}
 }
-int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	tcpfile_t *tf = (tcpfile_t*)file;
 	int len;
@@ -5298,7 +5324,7 @@ int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 		return 0;	//signal nothing available
 	}
 }
-int VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
+int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
 	tcpfile_t *tf = (tcpfile_t*)file;
 	int len;
@@ -5316,21 +5342,21 @@ int VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestore
 	}
 	return len;
 }
-qboolean VFSTCP_Seek (struct vfsfile_s *file, unsigned long pos)
+qboolean QDECL VFSTCP_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	VFSTCP_Error((tcpfile_t*)file);
 	return false;
 }
-unsigned long VFSTCP_Tell (struct vfsfile_s *file)
+unsigned long QDECL VFSTCP_Tell (struct vfsfile_s *file)
 {
 	VFSTCP_Error((tcpfile_t*)file);
 	return 0;
 }
-unsigned long VFSTCP_GetLen (struct vfsfile_s *file)
+unsigned long QDECL VFSTCP_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }
-void VFSTCP_Close (struct vfsfile_s *file)
+void QDECL VFSTCP_Close (struct vfsfile_s *file)
 {
 	VFSTCP_Error((tcpfile_t*)file);
 	Z_Free(file);
@@ -5343,7 +5369,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
 	netadr_t adr = {0};
 	if (NET_StringToAdr(name, defaultport, &adr))
 	{
-		sock = TCP_OpenStream(adr);
+		sock = TCP_OpenStream(&adr);
 		if (sock == INVALID_SOCKET)
 			return NULL;
 

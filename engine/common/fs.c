@@ -25,12 +25,13 @@ int fs_switchgame = -1;
 
 struct
 {
+	void *module;
 	const char *extension;
 	searchpathfuncs_t *funcs;
 	qboolean loadscan;
 } searchpathformats[64];
 
-int FS_RegisterFileSystemType(const char *extension, searchpathfuncs_t *funcs, qboolean loadscan)
+int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *funcs, qboolean loadscan)
 {
 	unsigned int i;
 	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
@@ -43,6 +44,7 @@ int FS_RegisterFileSystemType(const char *extension, searchpathfuncs_t *funcs, q
 	if (i == sizeof(searchpathformats)/sizeof(searchpathformats[0]))
 		return 0;
 
+	searchpathformats[i].module = module;
 	searchpathformats[i].extension = extension;
 	searchpathformats[i].funcs = funcs;
 	searchpathformats[i].loadscan = loadscan;
@@ -57,9 +59,29 @@ void FS_UnRegisterFileSystemType(int idx)
 		return;
 
 	searchpathformats[idx-1].funcs = NULL;
+	searchpathformats[idx-1].module = NULL;
 	com_fschanged = true;
 
 	//FS_Restart will be needed
+}
+void FS_UnRegisterFileSystemModule(void *module)
+{
+	int i;
+	qboolean found = false;
+	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+	{
+		if (searchpathformats[i].module == module)
+		{
+			searchpathformats[i].funcs = NULL;
+			searchpathformats[i].module = NULL;
+			found = true;
+		}
+	}
+
+	if (found)
+	{
+		Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
+	}
 }
 
 
@@ -227,7 +249,7 @@ COM_Dir_f
 
 ============
 */
-static int COM_Dir_List(const char *name, int size, void *parm, void *spath)
+static int QDECL COM_Dir_List(const char *name, int size, void *parm, void *spath)
 {
 	char pbuf[MAX_OSPATH] = "??";
 	searchpath_t	*s;
@@ -255,8 +277,8 @@ void COM_Dir_f (void)
 		strncat(match, Cmd_Argv(2), sizeof(match)-1);
 		match[sizeof(match)-1] = '\0';
 	}
-	else
-		strncat(match, "/*", sizeof(match)-1);
+//	else
+//		strncat(match, "/*", sizeof(match)-1);
 
 	COM_EnumerateFiles(match, COM_Dir_List, NULL);
 }
@@ -423,7 +445,7 @@ void FS_FlushFSHashRemoved(void)
 	FS_FlushFSHashReally();
 }
 
-void FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
+static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
 {
 	fsbucket_t *old;
 
@@ -480,12 +502,12 @@ void FS_RebuildFSHash(void)
 	{	//go for the pure paths first.
 		for (search = com_purepaths; search; search = search->nextpure)
 		{
-			search->funcs->BuildHash(search->handle, depth++);
+			search->funcs->BuildHash(search->handle, depth++, FS_AddFileHash);
 		}
 	}
 	for (search = com_searchpaths ; search ; search = search->next)
 	{
-		search->funcs->BuildHash(search->handle, depth++);
+		search->funcs->BuildHash(search->handle, depth++, FS_AddFileHash);
 	}
 
 	com_fschanged = false;
@@ -849,6 +871,8 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 		Con_Printf("Error: '..' characters in filename %s\n", pattern);
 	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it) (or amiga device separator)
 		Con_Printf("Error: absolute path in filename %s\n", pattern);
+	else if (strlen(pattern) > outlen)
+		Con_Printf("Error: path %s too long\n", pattern);
 	else
 	{
 		return pattern;
@@ -894,6 +918,12 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		else
 			snprintf(out, outlen, "%sqw/skins/%s", com_quakedir, fname);
 		break;
+	case FS_BINARYPATH:
+		if (host_parms.binarydir && *host_parms.binarydir)
+			snprintf(out, outlen, "%s%s", host_parms.binarydir, fname);
+		else
+			snprintf(out, outlen, "%s%s", host_parms.basedir, fname);
+		break;
 	case FS_ROOT:
 		if (*com_homedir)
 			snprintf(out, outlen, "%s%s", com_homedir, fname);
@@ -907,7 +937,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 			snprintf(out, outlen, "%sfte/%s", com_quakedir, fname);
 		break;
 	default:
-		Sys_Error("FS_Rename case not handled\n");
+		Sys_Error("FS_NativePath case not handled\n");
 	}
 	return true;
 }
@@ -1224,7 +1254,7 @@ void FS_FreeFile(void *file)
 
 
 
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *, void *), void *parm)
+void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, int, void *, void *), void *parm)
 {
 	searchpath_t    *search;
 	for (search = com_searchpaths; search ; search = search->next)
@@ -1348,7 +1378,7 @@ typedef struct {
 	const char *puredesc;
 } wildpaks_t;
 
-static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam, struct searchpath_s *path)
+static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vparam, struct searchpath_s *path)
 {
 	wildpaks_t *param = vparam;
 	vfsfile_t *vfs;
@@ -1794,7 +1824,7 @@ void COM_Gamedir (const char *dir)
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2*/
-#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
+#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*yay q2!*/
 #define Q2CFG "gl_font \":?col=0.44 1 0.2\"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
@@ -1831,6 +1861,9 @@ const gamemode_info_t gamemode_info[] = {
 	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 														 "base/qwprogs.dat",
 														 "base/pak0.pak"},		DMFCFG,	{"base",						         },	"Spark"},
+	{"-scouts",		"scouts",	"FTE-SJ",				{"basesj/src/progs.src",
+														 "basesj/progs.dat",
+														 "basesj/pak0.pak"},	NULL,	{"basesj",						         },	"Scouts Journey"},
 	{"-rmq",		"rmq",		"RMQ",					{NULL},					RMQCFG,	{"id1",		"qw",	"rmq",		"fte"},		"Remake Quake"},
 
 	//supported commercial mods (some are currently only partially supported)
@@ -2761,7 +2794,8 @@ void COM_InitFilesystem (void)
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
 	for (i = 0; gamemode_info[i].argname; i++)
 	{
-		ev = strstr(com_argv[0], gamemode_info[i].exename);
+		ev = COM_SkipPath(com_argv[0]);
+		ev = strstr(ev, gamemode_info[i].exename);
 		if (ev && (!strchr(ev, '\\') && !strchr(ev, '/')))
 			gamenum = i;
 	}
@@ -2970,6 +3004,9 @@ void COM_InitFilesystem (void)
 	if (*com_homedir)
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);
 
+#ifdef PLUGINS
+	Plug_Initialise(false);
+#endif
 
 	FS_StartupWithGame(gamenum);
 }
@@ -2984,18 +3021,18 @@ extern searchpathfuncs_t zipfilefuncs;
 extern searchpathfuncs_t doomwadfilefuncs;
 void FS_RegisterDefaultFileSystems(void)
 {
-	FS_RegisterFileSystemType("pak", &packfilefuncs, true);
+	FS_RegisterFileSystemType(NULL, "pak", &packfilefuncs, true);
 #if !defined(_WIN32) && !defined(ANDROID)
 	/*for systems that have case sensitive paths, also include *.PAK */
-	FS_RegisterFileSystemType("PAK", &packfilefuncs, true);
+	FS_RegisterFileSystemType(NULL, "PAK", &packfilefuncs, true);
 #endif
 #ifdef AVAIL_ZLIB
-	FS_RegisterFileSystemType("pk3", &zipfilefuncs, true);
-	FS_RegisterFileSystemType("pk4", &zipfilefuncs, true);
-	FS_RegisterFileSystemType("apk", &zipfilefuncs, false);
-	FS_RegisterFileSystemType("zip", &zipfilefuncs, false);
+	FS_RegisterFileSystemType(NULL, "pk3", &zipfilefuncs, true);
+	FS_RegisterFileSystemType(NULL, "pk4", &zipfilefuncs, true);
+	FS_RegisterFileSystemType(NULL, "apk", &zipfilefuncs, false);
+	FS_RegisterFileSystemType(NULL, "zip", &zipfilefuncs, false);
 #endif
 #ifdef DOOMWADS
-	FS_RegisterFileSystemType("wad", &doomwadfilefuncs, true);
+	FS_RegisterFileSystemType(NULL, "wad", &doomwadfilefuncs, true);
 #endif
 }

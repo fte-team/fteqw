@@ -176,7 +176,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 	if (client->realip_status == 1)
 	{
 		msg = va("\xff\xff\xff\xff%c %i", A2A_PING, client->realip_ping);
-		NET_SendPacket(NS_SERVER, strlen(msg), msg, client->realip);
+		NET_SendPacket(NS_SERVER, strlen(msg), msg, &client->realip);
 	}
 	else
 	{
@@ -2025,7 +2025,7 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 
 		if (msg == &msg_oob)
 		{
-			Netchan_OutOfBand(NS_SERVER, host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
+			Netchan_OutOfBand(NS_SERVER, &host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
 			Netchan_Block(&host_client->netchan, msg_oob.cursize, SV_RateForClient(host_client));
 		}
 	}
@@ -2128,7 +2128,7 @@ void SV_NextDownload_f (void)
 
 }
 
-void VARGS OutofBandPrintf(netadr_t where, char *fmt, ...)
+void VARGS OutofBandPrintf(netadr_t *where, char *fmt, ...)
 {
 	va_list		argptr;
 	char	send[1024];
@@ -2184,7 +2184,7 @@ void SV_NextUpload (void)
 		}
 		Con_Printf("Receiving %s from %d...\n", host_client->uploadfn, host_client->userid);
 		if (host_client->remote_snap)
-			OutofBandPrintf(host_client->snap_from, "Server receiving %s from %d...\n", host_client->uploadfn, host_client->userid);
+			OutofBandPrintf(&host_client->snap_from, "Server receiving %s from %d...\n", host_client->uploadfn, host_client->userid);
 	}
 
 	VFS_WRITE (host_client->upload, net_message.data + msg_readcount, size);
@@ -2210,7 +2210,7 @@ void SV_NextUpload (void)
 				p++;
 			else
 				p = host_client->uploadfn;
-			OutofBandPrintf(host_client->snap_from, "%s upload completed.\nTo download, enter:\ndownload %s\n",
+			OutofBandPrintf(&host_client->snap_from, "%s upload completed.\nTo download, enter:\ndownload %s\n",
 				host_client->uploadfn, p);
 		}
 		*host_client->uploadfn = 0;	//don't let it get overwritten again
@@ -5063,7 +5063,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 					host_client = oldhost;
 					SV_EndRedirect ();
 					Con_Printf ("cmd from %s:\n%s\n"
-						, NET_AdrToString (adr, sizeof(adr), net_from), "Was too long - possible buffer overflow attempt");
+						, NET_AdrToString (adr, sizeof(adr), &net_from), "Was too long - possible buffer overflow attempt");
 					return;
 				}
 				strcat (remaining, Cmd_Argv(i) );
@@ -5475,7 +5475,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				{
 					SV_BroadcastTPrintf(PRINT_HIGH,
 							STL_SPEEDCHEATKICKED,
-								host_client->name, NET_AdrToString(adr, sizeof(adr), host_client->netchan.remote_address));
+								host_client->name, NET_AdrToString(adr, sizeof(adr), &host_client->netchan.remote_address));
 					host_client->drop = true;	//drop later
 				}
 		    }

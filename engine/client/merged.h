@@ -143,7 +143,7 @@ extern int Mod_TagNumForName					(struct model_s *model, char *name);
 int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
 int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
-struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model);
+struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model, int *numbones);
 char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(int x, int y, const void *str);

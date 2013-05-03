@@ -145,11 +145,10 @@ struct {
 		int curvertexvbo;
 		void *curvertexpointer;
 
-#ifdef FTE_TARGET_WEB
 		int streamvbo[64];
 		int streamebo[64];
+		int streamvao[64];
 		int streamid;
-#endif
 
 		int pendingtexcoordparts[SHADER_TMU_MAX];
 		int pendingtexcoordvbo[SHADER_TMU_MAX];
@@ -673,7 +672,14 @@ static void BE_EnableShaderAttributes(unsigned int progattrmask, int usevao)
 	if (shaderstate.currentvao)
 	{
 		bitstochange = shaderstate.sourcevbo->vaodynamic&progattrmask;
+#if 0
 		bitstoendisable = 0;
+#else
+		bitstoendisable = shaderstate.sourcevbo->vaoenabled^progattrmask;
+		if (bitstoendisable)
+			bitstochange |= bitstoendisable;
+		shaderstate.sourcevbo->vaoenabled = progattrmask;
+#endif
 
 		if (bitstochange & (1u<<VATTR_LEG_ELEMENTS))
 		{
@@ -700,26 +706,16 @@ static void BE_EnableShaderAttributes(unsigned int progattrmask, int usevao)
 		BE_ApplyAttributes(bitstochange, bitstoendisable);
 }
 
-void GLBE_SetupVAO(vbo_t *vbo, unsigned vaodynamic)
+void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 {
 	if (qglGenVertexArrays)
 	{
-		unsigned int availbits;
 		qglGenVertexArrays(1, &vbo->vao);
 
-		availbits =
-			(1u<<VATTR_LEG_ELEMENTS)|
-			(1u<<(gl_config.nofixedfunc?VATTR_VERTEX1:VATTR_LEG_VERTEX))|
-			(1u<<VATTR_TEXCOORD)|
-			(1u<<VATTR_LMCOORD)|
-			(1u<<VATTR_LMCOORD2)|
-			(1u<<VATTR_LMCOORD3)|
-			(1u<<VATTR_LMCOORD4)|
-			(1u<<VATTR_COLOUR)|
-			(1u<<VATTR_NORMALS)|
-			(1u<<VATTR_SNORMALS)|
-			(1u<<VATTR_TNORMALS)|
-			0;
+		if ((vaostatic & VATTR_VERTEX1) && !gl_config.nofixedfunc)
+			vaostatic = (vaostatic & ~VATTR_VERTEX1) | VATTR_LEG_VERTEX;
+		if ((vaodynamic & VATTR_VERTEX1) && !gl_config.nofixedfunc)
+			vaodynamic = (vaodynamic & ~VATTR_VERTEX1) | VATTR_LEG_VERTEX;
 
 		shaderstate.curvertexpointer = NULL;
 		shaderstate.curvertexvbo = 0;
@@ -732,8 +728,9 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned vaodynamic)
 		shaderstate.currentvao = vbo->vao;
 		qglBindVertexArray(vbo->vao);
 		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, shaderstate.sourcevbo->indicies.gl.vbo);
-		BE_ApplyAttributes(availbits, availbits);
+		BE_ApplyAttributes(vaostatic, vaodynamic|vaostatic);
 		GL_SelectVBO(shaderstate.sourcevbo->coord.gl.vbo);
+		vbo->vaoenabled = vaodynamic|vaostatic;
 		vbo->vaodynamic = vaodynamic;
 
 		shaderstate.curvertexpointer = NULL;
@@ -1262,7 +1259,14 @@ void GLBE_Init(void)
 	shaderstate.curentity = &r_worldentity;
 	be_maxpasses = gl_mtexarbable;
 	gl_stencilbits = 0;
-	qglGetIntegerv(GL_STENCIL_BITS, &gl_stencilbits);
+	if (gl_config.glversion >= 3.0 && gl_config.nofixedfunc)
+	{
+		//docs say this line should be okay in gl3+. nvidia do not seem to agree. GL_STENCIL_BITS is depricated however. so for now, just assume.
+		//qglGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER_EXT, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &gl_stencilbits);
+		gl_stencilbits = 8;
+	}
+	else
+		qglGetIntegerv(GL_STENCIL_BITS, &gl_stencilbits);
 	for (i = 0; i < FTABLE_SIZE; i++)
 	{
 		t = (double)i / (double)FTABLE_SIZE;
@@ -1325,14 +1329,14 @@ void GLBE_Init(void)
 
 	R_InitFlashblends();
 
-#ifdef FTE_TARGET_WEB
 	//only do this where we have to.
-	if (qglBufferDataARB)
+	if (qglBufferDataARB && gl_config.nofixedfunc)
 	{
 		qglGenBuffersARB(sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]), shaderstate.streamvbo);
 		qglGenBuffersARB(sizeof(shaderstate.streamebo)/sizeof(shaderstate.streamebo[0]), shaderstate.streamebo);
+		if (qglGenVertexArrays)
+			qglGenVertexArrays(sizeof(shaderstate.streamvao)/sizeof(shaderstate.streamvao[0]), shaderstate.streamvao);
 	}
-#endif
 }
 
 //end tables
@@ -3683,13 +3687,14 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 	int i;
 	*vbo = &shaderstate.dummyvbo;
 
-#ifdef FTE_TARGET_WEB
 	//this code is shit shit shit.
 	if (shaderstate.streamvbo[0])
 	{
 		//use a local. can't use a static, that crashes the compiler due to memory use, so lets eat the malloc or stack or whatever because we really don't have a choice.
-		char buffer[65536 * 33 * sizeof(float)];
+		static char *buffer;
 		int len = 0;
+		if (!buffer)
+			buffer = malloc(65536 * 33 * sizeof(float));
 
 		//we're not doing vao... but just in case someone added that as an extension...
 		GL_DeselectVAO();
@@ -3702,6 +3707,14 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 		//but we really do not have a choice. This is the only way to 'stream' without dropping down to <1fps.
 		//although arguably we should build our entire hud+2d stuff into a single vbo each frame... meh. At least this keeps the memory use in the driver's 64bit memory space instead of the browser's 32bit one...
 		shaderstate.streamid = (shaderstate.streamid + 1) & (sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]) - 1);
+		shaderstate.dummyvbo.vao = shaderstate.streamvao[shaderstate.streamid];
+		shaderstate.dummyvbo.vaodynamic = ~0;
+		shaderstate.dummyvbo.vaoenabled = 0;
+		if (shaderstate.dummyvbo.vao)
+		{
+			qglBindVertexArray(shaderstate.dummyvbo.vao);
+			shaderstate.currentvao = shaderstate.dummyvbo.vao;
+		}
 		GL_SelectVBO(shaderstate.streamvbo[shaderstate.streamid]);
 		GL_SelectEBO(shaderstate.streamebo[shaderstate.streamid]);
 
@@ -3766,7 +3779,6 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 		shaderstate.dummyvbo.indicies.gl.vbo = shaderstate.streamebo[shaderstate.streamid];
 	}
 	else
-#endif
 	{
 		//client memory. may be slower. will probably be faster.
 		shaderstate.dummyvbo.coord.gl.addr = m->xyz_array;

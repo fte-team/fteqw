@@ -95,7 +95,7 @@ void SVM_Heartbeat(netadr_t *adr, int numclients, float validuntil)
 
 	for (server = svm.firstserver; server; server = server->next)
 	{
-		if (NET_CompareAdr(server->adr , *adr))
+		if (NET_CompareAdr(&server->adr, adr))
 			break;
 	}
 	if (!server)	//not found

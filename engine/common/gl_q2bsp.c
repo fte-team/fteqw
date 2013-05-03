@@ -3886,11 +3886,13 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			{
 				noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
 				buildmeshes = CModRBSP_BuildSurfMesh;
+				loadmodel->lightmaps.surfstyles = 4;
 			}
 			else
 			{
 				noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
 				buildmeshes = CModQ3_BuildSurfMesh;
+				loadmodel->lightmaps.surfstyles = 1;
 			}
 			noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
 

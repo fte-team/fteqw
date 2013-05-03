@@ -8,6 +8,8 @@
 
 #include <ctype.h>
 
+#define VMUTF8 0
+
 static char *cvargroup_progs = "Progs variables";
 
 cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
@@ -16,40 +18,17 @@ cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 cvar_t pr_enable_uriget = SCVAR("pr_enable_uriget", "1");
 int tokenizeqc(char *str, qboolean dpfuckage);
 
-static char *strtoupper(char *s)
-{
-	char *p;
-
-	p = s;
-	while(*p)
-	{
-		*p = toupper(*p);
-		p++;
-	}
-
-	return s;
-}
-
-static char *strtolower(char *s)
-{
-	char *p;
-
-	p = s;
-	while(*p)
-	{
-		*p = tolower(*p);
-		p++;
-	}
-
-	return s;
-}
-
+void skel_info_f(void);
+void skel_generateragdoll_f(void);
 void PF_Common_RegisterCvars(void)
 {
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
+
+	Cmd_AddCommand("skel_info", skel_info_f);
+	Cmd_AddCommand("skel_generateragdoll", skel_generateragdoll_f);
 
 	WPhys_Init();
 }
@@ -83,6 +62,7 @@ char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_g
 	}
 	return out;
 }
+//tag warnings/errors for easier debugging.
 int PR_Printf (const char *fmt, ...)
 {
 	va_list		argptr;
@@ -953,7 +933,9 @@ void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 //memory stuff
 void QCBUILTIN PF_memalloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	void *ptr = prinst->AddressableAlloc(prinst, G_INT(OFS_PARM0));
+	int size = G_INT(OFS_PARM0);
+	void *ptr = prinst->AddressableAlloc(prinst, size);
+	memset(ptr, 0, size);
 	G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
 }
 void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -977,7 +959,7 @@ void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 	memcpy(prinst->stringtable + dst, prinst->stringtable + src, size);
 }
-void QCBUILTIN PF_memset (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_memfill8 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dst = G_INT(OFS_PARM0);
 	int val = G_INT(OFS_PARM1);
@@ -989,7 +971,176 @@ void QCBUILTIN PF_memset (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 	memset(prinst->stringtable + dst, val, size);
 }
+
+void QCBUILTIN PF_memgetval (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//read 32 bits from a pointer.
+	int dst = G_INT(OFS_PARM0);
+	float ofs = G_FLOAT(OFS_PARM1);
+	int size = 4;
+	if (ofs != (float)(int)ofs)
+		PR_BIError(prinst, "PF_memgetval: non-integer offset\n");
+	dst += ofs;
+	if (dst & 3 || dst < 0 || dst+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_memgetval: invalid dest\n");
+		return;
+	}
+	G_INT(OFS_RETURN) = *(int*)(prinst->stringtable + dst);
+}
+
+void QCBUILTIN PF_memsetval (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//write 32 bits to a pointer.
+	int dst = G_INT(OFS_PARM0);
+	float ofs = G_FLOAT(OFS_PARM1);
+	int val = G_INT(OFS_PARM2);
+	int size = 4;
+	if (ofs != (float)(int)ofs)
+		PR_BIError(prinst, "PF_memsetval: non-integer offset\n");
+	dst += ofs;
+	if (dst & 3 || dst < 0 || dst+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_memsetval: invalid dest\n");
+		return;
+	}
+	*(int*)(prinst->stringtable + dst) = val;
+}
+
+void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//convienience function. needed for: ptr = &ptr[5]; or ptr += 5;
+	int dst = G_INT(OFS_PARM0);
+	float ofs = G_FLOAT(OFS_PARM1);
+	if (ofs != (float)(int)ofs)
+		PR_BIError(prinst, "PF_memptradd: non-integer offset\n");
+	if ((int)ofs & 3)
+		PR_BIError(prinst, "PF_memptradd: offset is not 32-bit aligned.\n");	//means pointers can internally be expressed as 16.16 with 18-bit segments/allocations.
+
+	G_INT(OFS_RETURN) = dst + ofs;
+}
 //memory stuff
+////////////////////////////////////////////////////
+//hash table stuff
+#define MAX_QC_HASHTABLES 256
+
+#define FIRST_QC_HASHTABLE_INDEX 1
+
+typedef struct
+{
+	pubprogfuncs_t *prinst;
+	hashtable_t tab;
+	void *bucketmem;
+} pf_hashtab_t;
+typedef struct 
+{
+	bucket_t buck;
+	char *name;
+	vec3_t data;
+} pf_hashentry_t;
+pf_hashtab_t pf_hashtab[MAX_QC_HASHTABLES];
+
+void QCBUILTIN PF_hash_getkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	int idx = G_FLOAT(OFS_PARM1);
+	pf_hashentry_t *ent = NULL;
+	G_INT(OFS_RETURN) = 0;
+	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	{
+		ent = Hash_GetIdx(&pf_hashtab[tab].tab, idx);
+		if (ent)
+			RETURN_TSTRING(ent->name);
+	}
+}
+void QCBUILTIN PF_hash_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
+	pf_hashentry_t *ent = NULL;
+	memset(G_VECTOR(OFS_RETURN), 0, sizeof(vec3_t));
+	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	{
+		ent = Hash_Get(&pf_hashtab[tab].tab, name);
+		if (ent)
+		{
+			memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
+			Hash_RemoveData(&pf_hashtab[tab].tab, name, ent);
+			BZ_Free(ent);
+		}
+	}
+	else
+		PR_BIError(prinst, "PF_hash_get: invalid hash table\n");
+}
+void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
+	pf_hashentry_t *ent = NULL;
+	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+		ent = Hash_Get(&pf_hashtab[tab].tab, name);
+	else
+		PR_BIError(prinst, "PF_hash_get: invalid hash table\n");
+	if (ent)
+		memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
+	else
+		memcpy(G_VECTOR(OFS_RETURN), G_VECTOR(OFS_PARM2), sizeof(vec3_t));
+}
+void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
+	void *data = G_VECTOR(OFS_PARM2);
+	pf_hashentry_t *ent = NULL;
+	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	{
+		int nlen = strlen(name);
+		ent = BZ_Malloc(sizeof(*ent) + nlen + 1);
+		ent->name = (char*)(ent+1);
+		memcpy(ent->name, name, nlen+1);
+		memcpy(ent->data, data, sizeof(vec3_t));
+		Hash_Add(&pf_hashtab[tab].tab, ent->name, ent, &ent->buck);
+	}
+	else
+		PR_BIError(prinst, "PF_hash_add: invalid hash table\n");
+}
+static void PF_hash_destroytab_enum(void *ctx, void *ent)
+{
+	BZ_Free(ent);
+}
+void QCBUILTIN PF_hash_destroytab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	pf_hashentry_t *ent = NULL;
+	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	{
+		pf_hashtab[tab].prinst = NULL;
+		Hash_Enumerate(&pf_hashtab[tab].tab, PF_hash_destroytab_enum, NULL);
+		Z_Free(pf_hashtab[tab].bucketmem);
+	}
+}
+void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	int numbuckets = G_FLOAT(OFS_PARM0);
+	if (numbuckets < 4)
+		numbuckets = 64;
+	for (i = 0; i < MAX_QC_HASHTABLES; i++)
+	{
+		if (!pf_hashtab[i].prinst)
+		{
+			pf_hashtab[i].prinst = prinst;
+			pf_hashtab[i].bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
+			Hash_InitTable(&pf_hashtab[i].tab, numbuckets, pf_hashtab[i].bucketmem);
+			G_FLOAT(OFS_RETURN) = i + FIRST_QC_HASHTABLE_INDEX;
+			return;
+		}
+	}
+	G_FLOAT(OFS_RETURN) = 0;
+	return;
+}
+
+//hash table stuff
 ////////////////////////////////////////////////////
 //File access
 
@@ -1234,9 +1385,19 @@ void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 			if (c == '\r' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
 				continue;
 
-			if (o == max)
-				break;
-			*o++ = c;
+			if (c == 0)
+			{	//modified utf-8, woo. but don't double-encode other chars.
+				if (o+1 >= max)
+					break;
+				*o++ = 0xc0;
+				*o++ = 0x80;
+			}
+			else
+			{
+				if (o == max)
+					break;
+				*o++ = c;
+			}
 		}
 		*o = '\0';
 
@@ -1275,6 +1436,7 @@ static void PF_fwrite (pubprogfuncs_t *prinst, int fnum, char *msg, int len)
 		break;
 	case FRIK_FILE_APPEND:
 	case FRIK_FILE_WRITE:
+		//UTF-8-FIXME: de-modify utf-8
 		if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
 		{
 			char *newbuf;
@@ -1426,7 +1588,7 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int search_enumerate(const char *name, int fsize, void *parm, struct searchpath_s *spath)
+int QDECL search_enumerate(const char *name, int fsize, void *parm, struct searchpath_s *spath)
 {
 	prvmsearch_t *s = parm;
 
@@ -1717,9 +1879,18 @@ void QCBUILTIN PF_strncasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	float len = G_FLOAT(OFS_PARM2);
+	int len = G_FLOAT(OFS_PARM2);
+	int aofs = prinst->callargc>3?G_FLOAT(OFS_PARM3):0;
 
-	G_FLOAT(OFS_RETURN) = strnicmp(a, b, len);
+	if (VMUTF8)
+	{
+		aofs = unicode_byteofsfromcharofs(a, aofs);
+		len = unicode_byteofsfromcharofs(b, len);
+	}
+	else if (aofs < 0 || (aofs && aofs > strlen(a)))
+		aofs = strlen(a);
+
+	G_FLOAT(OFS_RETURN) = strnicmp(a+aofs, b, len);
 }
 
 //FTE_STRINGS
@@ -1738,9 +1909,18 @@ void QCBUILTIN PF_strncmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	float len = G_FLOAT(OFS_PARM2);
+	int len = G_FLOAT(OFS_PARM2);
+	int aofs = prinst->callargc>3?G_FLOAT(OFS_PARM3):0;
 
-	G_FLOAT(OFS_RETURN) = strncmp(a, b, len);
+	if (VMUTF8)
+	{
+		aofs = unicode_byteofsfromcharofs(a, aofs);
+		len = unicode_byteofsfromcharofs(b, len);
+	}
+	else if (aofs < 0 || (aofs && aofs > strlen(a)))
+		aofs = strlen(a);
+
+	G_FLOAT(OFS_RETURN) = strncmp(a + aofs, b, len);
 }
 
 //uses qw style \key\value strings
@@ -1776,6 +1956,8 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	char *dest = destbuf;
 	int pad = G_FLOAT(OFS_PARM0);
 	char *src = PF_VarString(prinst, 1, pr_globals);
+
+	//UTF-8-FIXME: pad is chars not bytes...
 
 	if (pad < 0)
 	{	//pad left
@@ -1906,6 +2088,8 @@ void QCBUILTIN PF_strconv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	unsigned char resbuf[8192];
 	unsigned char *result = resbuf;
 
+	//UTF-8-FIXME: cope with utf+^U etc
+
 	if (len >= MAXTEMPBUFFERLEN)
 		len = MAXTEMPBUFFERLEN-1;
 
@@ -1946,11 +2130,18 @@ void QCBUILTIN PF_strconv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
-
-	char string[16];
-	for (i = 0; i < prinst->callargc; i++)
-		string[i] = G_FLOAT(OFS_PARM0 + i*3);
-	string[i] = '\0';
+	char string[128], *s = string;
+	if (VMUTF8)
+	{
+		for (i = 0; i < prinst->callargc; i++)
+			s += unicode_encode(s, G_FLOAT(OFS_PARM0 + i*3), (string+sizeof(string)-1)-s);
+	}
+	else
+	{
+		for (i = 0; i < prinst->callargc; i++)
+			*s++ = G_FLOAT(OFS_PARM0 + i*3);
+	}
+	*s++ = '\0';
 	RETURN_TSTRING(string);
 }
 
@@ -1961,13 +2152,22 @@ void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
 	int ofs = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
 
-	if (ofs < 0)
-		ofs = strlen(instr)+ofs;
+	if (VMUTF8)
+	{
+		if (ofs < 0)
+			ofs = unicode_charcount(instr, ~0)+ofs;
+		ofs = unicode_byteofsfromcharofs(instr, ofs);
+	}
+	else
+	{
+		if (ofs < 0)
+			ofs = strlen(instr)+ofs;
+	}
 
 	if (ofs && (ofs < 0 || ofs > strlen(instr)))
 		G_FLOAT(OFS_RETURN) = '\0';
 	else
-		G_FLOAT(OFS_RETURN) = instr[ofs];
+		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(NULL, instr+ofs, NULL):instr[ofs];
 }
 
 //FTE_STRINGS
@@ -1979,6 +2179,9 @@ void QCBUILTIN PF_strstrofs (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	int firstofs = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
 
+	if (VMUTF8)
+		firstofs = unicode_byteofsfromcharofs(instr, firstofs);
+
 	if (firstofs && (firstofs < 0 || firstofs > strlen(instr)))
 	{
 		G_FLOAT(OFS_RETURN) = -1;
@@ -1989,7 +2192,7 @@ void QCBUILTIN PF_strstrofs (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (!match)
 		G_FLOAT(OFS_RETURN) = -1;
 	else
-		G_FLOAT(OFS_RETURN) = match - instr;
+		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_charofsfrombyteofs(instr, match-instr):(match - instr);
 }
 
 //float(string input) stof
@@ -2168,7 +2371,12 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	start = G_FLOAT(OFS_PARM1);
 	length = G_FLOAT(OFS_PARM2);
 
-	slen = strlen(s);
+	//UTF-8-FIXME: start+length are chars not bytes...
+
+	if (VMUTF8)
+		slen = unicode_charcount(s, ~0);
+	else
+		slen = strlen(s);
 
 	if (start < 0)
 		start = slen+start;
@@ -2186,11 +2394,16 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 	}
 
-	s += start;
 	slen -= start;
-
 	if (length > slen)
 		length = slen;
+
+	if (VMUTF8)
+	{
+		start = unicode_byteofsfromcharofs(s, start);
+		length = unicode_byteofsfromcharofs(s+start, length);
+	}
+	s += start;
 
 	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &string, length+1);
 
@@ -2200,7 +2413,10 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 void QCBUILTIN PF_strlen(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
+	if (VMUTF8)
+		G_FLOAT(OFS_RETURN) = unicode_charcount(PR_GetStringOfs(prinst, OFS_PARM0), ~0);
+	else
+		G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
 }
 
 //float(string input, string token) instr
@@ -2270,6 +2486,7 @@ void QCBUILTIN PF_strireplace (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 		while (*subject && result < resultbuf + sizeof(resultbuf) - replacelen - 2)
 		{
+			//UTF-8-FIXME: case insensitivity is awkward...
 			if (!strnicmp(subject, search, searchlen))
 			{
 				subject += searchlen;
@@ -2329,8 +2546,7 @@ void QCBUILTIN PF_strtolower (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
 
-	Q_strncpyz(result, in, sizeof(result));
-	strtolower(result);
+	unicode_strtolower(in, result, sizeof(result));
 
 	RETURN_TSTRING(result);
 }
@@ -2341,8 +2557,7 @@ void QCBUILTIN PF_strtoupper (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
 
-	Q_strncpyz(result, in, sizeof(result));
-	strtoupper(result);
+	unicode_strtoupper(in, result, sizeof(result));
 
 	RETURN_TSTRING(result);
 }
@@ -2352,6 +2567,7 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	char *in = PF_VarString(prinst, 1, pr_globals);
 	char result[8192];
+	char uresult[8192];
 
 	time_t ctime;
 	struct tm *tm;
@@ -2363,9 +2579,9 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	else
 		tm = gmtime(&ctime);
 	strftime(result, sizeof(result), in, tm);
-	strtoupper(result);
+	unicode_strtoupper(result, uresult, sizeof(uresult));
 
-	RETURN_TSTRING(result);
+	RETURN_TSTRING(uresult);
 }
 
 //String functions
@@ -2840,7 +3056,7 @@ void QCBUILTIN PF_netaddress_resolve(pubprogfuncs_t *prinst, struct globalvars_s
 	netadr_t adr;
 	char result[256];
 	if (NET_StringToAdr(address, defaultport, &adr))
-		RETURN_TSTRING(NET_AdrToString (result, sizeof(result), adr));
+		RETURN_TSTRING(NET_AdrToString (result, sizeof(result), &adr));
 	else
 		RETURN_TSTRING("");
 }
@@ -3731,13 +3947,23 @@ noflags:
 nolength:
 
 				// now s points to the final directive char and is no longer changed
-				if(isfloat < 0)
+				if (*s == 'p' || *s == 'P')
 				{
-					if(*s == 'i')
-						isfloat = 0;
-					else
-						isfloat = 1;
+					//%p is slightly different from %x.
+					//always 8-bytes wide with 0 padding, always ints.
+					flags |= PRINTF_ZEROPAD;
+					if (width < 0) width = 8;
+					if (isfloat < 0) isfloat = 0;
 				}
+				else if (*s == 'i')
+				{
+					//%i defaults to ints, not floats.
+					if(isfloat < 0) isfloat = 0;
+				}
+
+				//assume floats, not ints.
+				if(isfloat < 0)
+					isfloat = 1;
 
 				if(thisarg < 0)
 					thisarg = argpos++;
@@ -3757,7 +3983,12 @@ nolength:
 						*f++ = '.';
 						*f++ = '*';
 					}
-					*f++ = *s;
+					if (*s == 'p')
+						*f++ = 'x';
+					else if (*s == 'P')
+						*f++ = 'X';
+					else
+						*f++ = *s;
 					*f++ = 0;
 
 					if(width < 0) // not set
@@ -3772,7 +4003,7 @@ nolength:
 								Q_snprintfz(o, end - o, formatbuf, width, precision, (isfloat ? (int) GETARG_FLOAT(thisarg) : (int) GETARG_INT(thisarg)));
 							o += strlen(o);
 							break;
-						case 'o': case 'u': case 'x': case 'X':
+						case 'o': case 'u': case 'x': case 'X': case 'p': case 'P':
 							if(precision < 0) // not set
 								Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
 							else
@@ -3803,6 +4034,7 @@ nolength:
 							o += strlen(o);
 							break;
 						case 'c':
+							//UTF-8-FIXME: figure it out yourself
 //							if(flags & PRINTF_ALTERNATE)
 							{
 								if(precision < 0) // not set
@@ -3824,6 +4056,7 @@ nolength:
 							}
 */							break;
 						case 's':
+							//UTF-8-FIXME: figure it out yourself
 //							if(flags & PRINTF_ALTERNATE)
 							{
 								if(precision < 0) // not set
@@ -4220,7 +4453,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_GFX_QUAKE3SHADERS"},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
-	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memset"}},
+	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
 	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
@@ -4235,7 +4468,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
-	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclientname"}},
+	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}},
+	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},
 	{"FTE_QC_PAUSED"},
 	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},	//includes the SV_ParseConnectionlessPacket event.

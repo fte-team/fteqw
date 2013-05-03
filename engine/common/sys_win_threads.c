@@ -63,7 +63,7 @@ typedef struct tagTHREADNAME_INFO
    DWORD dwFlags; // Reserved for future use, must be zero.
 } THREADNAME_INFO;
 #pragma pack(pop)
-void SetThreadName(DWORD dwThreadID, char *threadName)
+void Sys_SetThreadName(unsigned int dwThreadID, char *threadName)
 {
    THREADNAME_INFO info;
    info.dwType = 0x1000;
@@ -105,7 +105,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 	}
 
 #ifdef _DEBUG
-	SetThreadName(tid, name);
+	Sys_SetThreadName(tid, name);
 #endif
 
 	return (void *)handle;

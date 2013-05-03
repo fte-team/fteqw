@@ -2975,6 +2975,18 @@ static char *Macro_UKDate (void)	//and much but not all of EU
 	strftime (macro_buf, sizeof(macro_buf)-1, "%d.%m.%Y", ptm);
 	return macro_buf;
 }
+static char *Macro_USDate (void)	//and much but not all of EU
+{
+	time_t		t;
+	struct tm	*ptm;
+
+	time (&t);
+	ptm = localtime (&t);
+	if (!ptm)
+		return "#bad date#";
+	strftime (macro_buf, sizeof(macro_buf)-1, "%m.%s.%Y", ptm);
+	return macro_buf;
+}
 static char *Macro_ProperDate (void)	//americans get it wrong. besides, this is more easily sortable for filenames etc
 {
 	time_t		t;
@@ -3049,8 +3061,9 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 
 	Cmd_AddMacro("time", Macro_Time, true);
-	Cmd_AddMacro("date", Macro_UKDate, false);
-	Cmd_AddMacro("properdate", Macro_ProperDate, false);
+	Cmd_AddMacro("ukdate", Macro_UKDate, false);
+	Cmd_AddMacro("usdate", Macro_USDate, false);
+	Cmd_AddMacro("date", Macro_ProperDate, false);
 	Cmd_AddMacro("version", Macro_Version, false);
 	Cmd_AddMacro("qt", Macro_Quote, false);
 

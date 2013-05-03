@@ -374,7 +374,7 @@ void SV_Give_f (void)
 	}
 }
 
-int ShowMapList (const char *name, int flags, void *parm, struct searchpath_s *spath)
+int QDECL ShowMapList (const char *name, int flags, void *parm, struct searchpath_s *spath)
 {
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
@@ -769,7 +769,7 @@ void SV_BanName_f (void)
 	{
 		bannedips_t *nb;
 
-		if (NET_IsLoopBackAddress(cl->netchan.remote_address))
+		if (NET_IsLoopBackAddress(&cl->netchan.remote_address))
 		{
 			Con_Printf("You're not allowed to ban loopback!\n");
 			continue;
@@ -797,7 +797,7 @@ void SV_BanName_f (void)
 		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
 }
 
-void SV_KickBanIP(netadr_t banadr, netadr_t banmask, char *reason)
+void SV_KickBanIP(netadr_t *banadr, netadr_t *banmask, char *reason)
 {
 	qboolean shouldkick;
 	client_t *cl;
@@ -818,10 +818,10 @@ void SV_KickBanIP(netadr_t banadr, netadr_t banmask, char *reason)
 
 		shouldkick = false;
 
-		if (NET_CompareAdrMasked(cl->netchan.remote_address, banadr, banmask))
+		if (NET_CompareAdrMasked(&cl->netchan.remote_address, banadr, banmask))
 			shouldkick = true;
 		else if (cl->realip_status >= 1)
-			if (NET_CompareAdrMasked(cl->realip, banadr, banmask))
+			if (NET_CompareAdrMasked(&cl->realip, banadr, banmask))
 				shouldkick = true;
 
 		if (shouldkick)
@@ -839,8 +839,8 @@ void SV_KickBanIP(netadr_t banadr, netadr_t banmask, char *reason)
 	// add IP and mask to ban list
 	nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
 	nb->next = svs.bannedips;
-	nb->adr = banadr;
-	nb->adrmask = banmask;
+	nb->adr = *banadr;
+	nb->adrmask = *banmask;
 	svs.bannedips = nb;
 	if (reasonsize)
 		Q_strcpy(nb->reason, reason);
@@ -864,7 +864,7 @@ void SV_BanIP_f (void)
 		return;
 	}
 
-	if (NET_IsLoopBackAddress(banadr))
+	if (NET_IsLoopBackAddress(&banadr))
 	{
 		Con_Printf("You're not allowed to ban loopback!\n");
 		return;
@@ -873,7 +873,7 @@ void SV_BanIP_f (void)
 	if (Cmd_Argc() > 2)
 		reason = Cmd_Argv(2);
 
-	SV_KickBanIP(banadr, banmask, reason);
+	SV_KickBanIP(&banadr, &banmask, reason);
 }
 
 void SV_BanClientIP_f (void)
@@ -885,7 +885,7 @@ void SV_BanClientIP_f (void)
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		if (NET_IsLoopBackAddress(cl->netchan.remote_address))
+		if (NET_IsLoopBackAddress(&cl->netchan.remote_address))
 		{
 			Con_Printf("You're not allowed to ban loopback!\n");
 			continue;
@@ -895,13 +895,13 @@ void SV_BanClientIP_f (void)
 		{
 			memset(&banmask.address, 0xff, sizeof(banmask.address));
 			banmask.type = cl->netchan.remote_address.type;
-			SV_KickBanIP(cl->realip, banmask, reason);
+			SV_KickBanIP(&cl->realip, &banmask, reason);
 		}
 		else
 		{
 			memset(&banmask.address, 0xff, sizeof(banmask.address));
 			banmask.type = cl->netchan.remote_address.type;
-			SV_KickBanIP(cl->netchan.remote_address, banmask, reason);
+			SV_KickBanIP(&cl->netchan.remote_address, &banmask, reason);
 		}
 	}
 }
@@ -927,7 +927,7 @@ void SV_FilterIP_f (void)
 		return;
 	}
 
-	if (NET_IsLoopBackAddress(banadr))
+	if (NET_IsLoopBackAddress(&banadr))
 	{
 		Con_Printf("You're not allowed to filter loopback!\n");
 		return;
@@ -936,7 +936,7 @@ void SV_FilterIP_f (void)
 	nb = svs.bannedips;
 	while (nb)
 	{
-		if (NET_CompareAdr(nb->adr, banadr) && NET_CompareAdr(nb->adrmask, banmask))
+		if (NET_CompareAdr(&nb->adr, &banadr) && NET_CompareAdr(&nb->adrmask, &banmask))
 		{
 			Con_Printf("%s is already banned\n", Cmd_Argv(1));
 			break;
@@ -950,7 +950,7 @@ void SV_FilterIP_f (void)
 		if (cl->state<=cs_zombie)
 			continue;
 
-		if (filterban.value && NET_CompareAdrMasked(cl->netchan.remote_address, banadr, banmask))
+		if (filterban.value && NET_CompareAdrMasked(&cl->netchan.remote_address, &banadr, &banmask))
 			SV_DropClient (cl);
 	}
 
@@ -973,9 +973,9 @@ void SV_BanList_f (void)
 	while (nb)
 	{
 		if (nb->reason[0])
-			Con_Printf("%s, %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask), nb->reason);
+			Con_Printf("%s, %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), nb->reason);
 		else
-			Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
+			Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
 		bancount++;
 		nb = nb->next;
 	}
@@ -991,7 +991,7 @@ void SV_FilterList_f (void)
 
 	while (nb)
 	{
-		Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
+		Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
 		filtercount++;
 		nb = nb->next;
 	}
@@ -1025,10 +1025,10 @@ void SV_Unban_f (void)
 	while (nb)
 	{
 		nbnext = nb->next;
-		if (all || (NET_CompareAdr(nb->adr, unbanadr) && NET_CompareAdr(nb->adrmask, unbanmask)))
+		if (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask)))
 		{
 			if (!all)
-				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
+				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
 			if (svs.bannedips == nb)
 				svs.bannedips = nbnext;
 			Z_Free(nb);
@@ -1067,10 +1067,10 @@ void SV_Unfilter_f (void)
 	while (nb)
 	{
 		nbnext = nb->next;
-		if (all || (NET_CompareAdr(nb->adr, unbanadr) && NET_CompareAdr(nb->adrmask, unbanmask)))
+		if (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask)))
 		{
 			if (!all)
-				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
+				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
 			if (svs.bannedips == nb)
 				svs.bannedips = nbnext;
 			Z_Free(nb);
@@ -1108,9 +1108,9 @@ void SV_WriteIP_f (void)
 		else
 			s = "addip";
 		if (bi->reason[0])
-			s = va("%s %s \"%s\"\n", s, NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask), bi->reason);
+			s = va("%s %s \"%s\"\n", s, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), bi->reason);
 		else
-			s = va("%s %s\n", s, NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask));
+			s = va("%s %s\n", s, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask));
 		VFS_WRITE(f, s, strlen(s));
 		bi = bi->next;
 	}
@@ -1453,7 +1453,7 @@ void SV_Status_f (void)
 	else
 		Con_Printf ("current map      : %s\n", sv.name);
 
-	Con_Printf("entities         : %i/%i\n", sv.world.num_edicts, sv.world.max_edicts);
+	Con_Printf("entities         : %i/%i (mem: %i/%i)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
 	if (svs.gametype == GT_PROGS)
 	{
 		int count = 0;
@@ -1500,7 +1500,7 @@ void SV_Status_f (void)
 			else if (cl->protocol == SCP_BAD)
 				s = "bot";
 			else
-				s = NET_BaseAdrToString (adr, sizeof(adr), cl->netchan.remote_address);
+				s = NET_BaseAdrToString (adr, sizeof(adr), &cl->netchan.remote_address);
 			Con_Printf ("  %-16.16s", s);
 			if (cl->state == cs_connected)
 			{
@@ -1533,7 +1533,7 @@ void SV_Status_f (void)
 			else if (cl->protocol == SCP_BAD)
 				s = "bot";
 			else
-				s = NET_BaseAdrToString (adr, sizeof(adr), cl->netchan.remote_address);
+				s = NET_BaseAdrToString (adr, sizeof(adr), &cl->netchan.remote_address);
 			Con_Printf ("%s", s);
 			l = 16 - strlen(s);
 			for (j=0 ; j<l ; j++)

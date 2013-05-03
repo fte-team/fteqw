@@ -966,7 +966,7 @@ static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (!sc->thread)
 		{
 			Con_SafePrintf ("Unable to create sound mixing thread\n");
-			return SND_ERROR;
+			return SND_NOMORE;
 		}
 
 		//wait for the thread to finish (along with all its error con printfs etc

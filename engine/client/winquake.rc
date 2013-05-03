@@ -145,6 +145,10 @@ END
 /////////////////////////////////////////////////////////////////////////////
 
 
+//we need to use a manifest to avoid issues with UAC and hidden/buggy writes. There is no sane/other way to turn off virtualisation.
+//oh god, this is going to fuck over xp, isn't it.
+1 24 "quake.manifest"
+
 
 #ifndef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////

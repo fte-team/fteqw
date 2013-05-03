@@ -2459,15 +2459,22 @@ static void RMod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxind
 	int sortid;
 	int sty;
 	vbo_t vbo;
-	int styles = MAXLIGHTMAPS;
+	int styles = mod->lightmaps.surfstyles;
 
 	vbo.indicies.dummy = Hunk_AllocName(sizeof(index_t) * maxindicies, "indexdata");
 	vbo.coord.dummy = Hunk_AllocName((sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t))* maxverts, "vertdata");
 	vbo.texcoord.dummy = (vecV_t*)vbo.coord.dummy + maxverts;
-	vbo.lmcoord[0].dummy = (vec2_t*)vbo.texcoord.dummy + maxverts;
-	for (sty = 1; sty < styles; sty++)
+	sty = 0;
+	if (styles)
+	{
+		vbo.lmcoord[0].dummy = (vec2_t*)vbo.texcoord.dummy + maxverts;
+		sty = 1;
+	}
+	for (; sty < styles; sty++)
 		vbo.lmcoord[sty].dummy = (vec2_t*)vbo.lmcoord[sty-1].dummy + maxverts;
-	vbo.normals.dummy = (vec2_t*)vbo.lmcoord[styles-1].dummy + maxverts;
+	for (; sty < MAXLIGHTMAPS; sty++)
+		vbo.lmcoord[sty].dummy = NULL;
+	vbo.normals.dummy = styles?((vec2_t*)vbo.lmcoord[styles-1].dummy + maxverts):((vec2_t*)vbo.texcoord.dummy + maxverts);
 	vbo.svector.dummy = (vec3_t*)vbo.normals.dummy + maxverts;
 	vbo.tvector.dummy = (vec3_t*)vbo.svector.dummy + maxverts;
 	vbo.colours.dummy = (vec3_t*)vbo.tvector.dummy + maxverts;
@@ -2494,10 +2501,13 @@ static void RMod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxind
 				//set up the arrays. the arrangement is required for the backend to optimise vbos
 				mesh->xyz_array = (vecV_t*)vbo.coord.dummy + mesh->vbofirstvert;
 				mesh->st_array = (vec2_t*)vbo.texcoord.dummy + mesh->vbofirstvert;
-				for (sty = 0; sty < styles; sty++)
-					mesh->lmst_array[sty] = (vec2_t*)vbo.lmcoord[sty].dummy + mesh->vbofirstvert;
-				for (       ; sty < MAXLIGHTMAPS; sty++)
-					mesh->lmst_array[sty] = NULL;
+				for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+				{
+					if (vbo.lmcoord[sty].dummy)
+						mesh->lmst_array[sty] = (vec2_t*)vbo.lmcoord[sty].dummy + mesh->vbofirstvert;
+					else
+						mesh->lmst_array[sty] = NULL;
+				}
 				mesh->normals_array = (vec3_t*)vbo.normals.dummy + mesh->vbofirstvert;
 				mesh->snormals_array = (vec3_t*)vbo.svector.dummy + mesh->vbofirstvert;
 				mesh->tnormals_array = (vec3_t*)vbo.tvector.dummy + mesh->vbofirstvert;
@@ -2893,7 +2903,10 @@ void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *m
 		RMod_Batches_AllocLightmaps(mod);
 
 	if (!build)
+	{
 		build = RModQ1_Batches_BuildQ1Q2Poly;
+		mod->lightmaps.surfstyles = 1;
+	}
 	RMod_Batches_BuildModelMeshes(mod, numverts, numindicies, build, buildcookie);
 
 	if (BE_GenBrushModelVBO)
@@ -4690,7 +4703,7 @@ typedef struct {
 	short xpos;
 	short ypos;
 } doomimage_t;
-static int FindDoomSprites(const char *name, int size, void *param, void *spath)
+static int QDECL FindDoomSprites(const char *name, int size, void *param, void *spath)
 {
 	if (*(int *)param + strlen(name)+1 > 16000)
 		Sys_Error("Too many doom sprites\n");

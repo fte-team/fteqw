@@ -412,7 +412,7 @@ void M_Media_Draw (void)
 char compleatenamepath[MAX_OSPATH];
 char compleatenamename[MAX_OSPATH];
 qboolean compleatenamemultiple;
-int Com_CompleatenameCallback(const char *name, int size, void *data, void *spath)
+int QDECL Com_CompleatenameCallback(const char *name, int size, void *data, void *spath)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
@@ -514,7 +514,7 @@ void M_Media_Key (int key)
 			}
 		}
 	}
-	else if (key == K_ENTER)
+	else if (key == K_ENTER || key == K_KP_ENTER)
 	{
 		switch(selectedoption)
 		{
@@ -2167,52 +2167,100 @@ qboolean Media_Playing(void)
 	return false;
 }
 
-qboolean Media_PlayFilm(char *name)
+struct pendingfilms_s
+{
+	struct pendingfilms_s *next;
+	char name[1];
+} *pendingfilms;
+qboolean Media_BeginNextFilm(void)
 {
 	cin_t *cin;
 	static char sname[MAX_QPATH];
+	struct pendingfilms_s *p;
+
+	if (!pendingfilms)
+		return false;
+	p = pendingfilms;
+	pendingfilms = p->next;
+	snprintf(sname, sizeof(sname), "cinematic/%s", p->name);
+	Z_Free(p);
 
 	if (!qrenderer)
 		return false;
 
+	videoshader = R_RegisterCustom(sname, Shader_DefaultCinematic, sname+10);
+
+	cin = R_ShaderGetCinematic(videoshader);
+	if (cin)
+	{
+		cin->ended = false;
+		if (cin->rewind)
+			cin->rewind(cin);
+		if (cin->changestream)
+			cin->changestream(cin, "cmd:focus");
+
+		return true;
+	}
+	else
+	{
+		R_UnloadShader(videoshader);
+		videoshader = NULL;
+
+		return false;
+	}
+}
+qboolean Media_StopFilm(qboolean all)
+{
+	if (all)
+	{
+		struct pendingfilms_s *p;
+		while(pendingfilms)
+		{
+			p = pendingfilms;
+			pendingfilms = p->next;
+			Z_Free(p);
+		}
+	}
 	if (videoshader)
 	{
 		R_UnloadShader(videoshader);
 		videoshader = NULL;
+
+		S_RawAudio(-1, NULL, 0, 0, 0, 0);
 	}
 
-	if (!*name)
+	while (pendingfilms && !videoshader)
 	{
-		if (cls.state == ca_active)
-		{
-			CL_SendClientCommand(true, "nextserver %i", cl.servercount);
-		}
-		S_RawAudio(0, NULL, 0, 0, 0, 0);
-		videoshader = NULL;
+		if (Media_BeginNextFilm())
+			break;
 	}
-	else
+
+	//for q2 cinematic-maps.
+	if (!videoshader && cls.state == ca_active)
 	{
-		snprintf(sname, sizeof(sname), "cinematic/%s", name);
-		videoshader = R_RegisterCustom(sname, Shader_DefaultCinematic, sname+10);
+		CL_SendClientCommand(true, "nextserver %i", cl.servercount);
+	}
+	return true;
+}
+qboolean Media_PlayFilm(char *name, qboolean enqueue)
+{
+	if (!enqueue || !*name)
+		Media_StopFilm(true);
 
-		cin = R_ShaderGetCinematic(videoshader);
-		if (cin)
+	if (*name)
+	{
+		struct pendingfilms_s **p;
+		for (p = &pendingfilms; *p; p = &(*p)->next)
+			;
+		(*p) = Z_Malloc(sizeof(**p) + strlen(name));
+		strcpy((*p)->name, name);
+
+		while (pendingfilms && !videoshader)
 		{
-			cin->ended = false;
-			if (cin->rewind)
-				cin->rewind(cin);
-			if (cin->changestream)
-				cin->changestream(cin, "cmd:focus");
-		}
-		else
-		{
-			R_UnloadShader(videoshader);
-			videoshader = NULL;
+			if (Media_BeginNextFilm())
+				break;
 		}
 	}
-
-//	Media_ShutdownCin(fullscreenvid);
-//	fullscreenvid = Media_StartCin(name);
 
 	if (videoshader)
 	{
@@ -2237,17 +2285,56 @@ qboolean Media_ShowFilm(void)
 	{
 		cin_t *cin = R_ShaderGetCinematic(videoshader);
 		if (cin && cin->ended)
-			Media_PlayFilm("");
+		{
+			if (videoshader)
+			{
+				R_UnloadShader(videoshader);
+				videoshader = NULL;
+			}
+			Media_StopFilm(false);
+		}
 		else
 		{
+			float ratiox, ratioy;
 			if (cin->cursormove)
 				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
 			if (cin->setsize)
 				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
 
-//			GL_Set2D (false);
-			R2D_ImageColours(1, 1, 1, 1);
-			R2D_ScalePic(0, 0, vid.width, vid.height, videoshader);
+			ratiox = (float)cin->outwidth / vid.pixelwidth;
+			ratioy = (float)cin->outheight / vid.pixelheight;
+
+			if (!cin->outheight || !cin->outwidth)
+			{
+				R2D_ImageColours(0, 0, 0, 1);
+				R2D_FillBlock(0, 0, vid.width, vid.height);
+				R2D_ScalePic(0, 0, 0, 0, videoshader);
+			}
+			else if (ratiox > ratioy)
+			{
+				int h = (vid.width * cin->outheight) / cin->outwidth;
+				int p = vid.height - h;
+
+				//letterbox
+				R2D_ImageColours(0, 0, 0, 1);
+				R2D_FillBlock(0, 0, vid.width, p/2);
+				R2D_FillBlock(0, h + (p/2), vid.width, p/2);
+
+				R2D_ImageColours(1, 1, 1, 1);
+				R2D_ScalePic(0, p/2, vid.width, h, videoshader);
+			}
+			else
+			{
+				int w = (vid.height * cin->outwidth) / cin->outheight;
+				int p = vid.width - w;
+				//sidethingies
+				R2D_ImageColours(0, 0, 0, 1);
+				R2D_FillBlock(0, 0, (p/2), vid.height);
+				R2D_FillBlock(w + (p/2), 0, p/2, vid.height);
+
+				R2D_ImageColours(1, 1, 1, 1);
+				R2D_ScalePic(p/2, 0, w, vid.height, videoshader);
+			}
 
 			SCR_SetUpToDrawConsole();
 			if  (scr_con_current)
@@ -2328,14 +2415,19 @@ void Media_Send_GetSize(cin_t *cin, int *x, int *y)
 
 void Media_PlayFilm_f (void)
 {
+	int i;
 	if (Cmd_Argc() < 2)
 	{
 		Con_Printf("playfilm <filename>");
 	}
 	if (!strcmp(Cmd_Argv(0), "cinematic"))
-		Media_PlayFilm(va("video/%s", Cmd_Argv(1)));
+		Media_PlayFilm(va("video/%s", Cmd_Argv(1)), false);
 	else
-		Media_PlayFilm(Cmd_Argv(1));
+	{
+		Media_PlayFilm(Cmd_Argv(1), false);
+		for (i = 2; i < Cmd_Argc(); i++)
+			Media_PlayFilm(Cmd_Argv(i), true);
+	}
 }
 
 

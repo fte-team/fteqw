@@ -452,7 +452,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
-	Font_DrawScaleChar(x, y, CON_WHITEMASK | /*0xe000|*/chara);
+	Font_DrawScaleChar(x, y, CON_WHITEMASK | chara);
 	Font_InvalidateColour();
 	Font_EndString(NULL);
 
@@ -470,6 +470,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 //	float flag = G_FLOAT(OFS_PARM5);
 	float x, y;
 	unsigned int c;
+	int error;
 
 	if (!text)
 	{
@@ -482,14 +483,19 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	while(*text)
 	{
-		//FIXME: which charset is this meant to be using?
-		//quakes? 8859-1? utf8? some weird hacky mixture?
-		c = *text++&0xff;
-		if ((c&0x7f) < 32)
-			c |= 0xe000;	//if its a control char, just use the quake range instead.
-		else if (c & 0x80)
-			c |= 0xe000;	//if its a high char, just use the quake range instead. we could colour it, but why bother
-		x = Font_DrawScaleChar(x, y, CON_WHITEMASK|/*0xe000|*/c);
+		if (1)//VMUTF8)
+			c = unicode_decode(&error, text, &text);
+		else
+		{
+			//FIXME: which charset is this meant to be using?
+			//quakes? 8859-1? utf8? some weird hacky mixture?
+			c = *text++&0xff;
+			if ((c&0x7f) < 32)
+				c |= 0xe000;	//if its a control char, just use the quake range instead.
+			else if (c & 0x80)
+				c |= 0xe000;	//if its a high char, just use the quake range instead. we could colour it, but why bother
+		}
+		x = Font_DrawScaleChar(x, y, CON_WHITEMASK|c);
 	}
 	Font_InvalidateColour();
 	Font_EndString(NULL);
@@ -1308,6 +1314,13 @@ static struct {
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
 															//gap
+	{"hash_createtab",			PF_hash_createtab,			287},
+	{"hash_destroytab",			PF_hash_destroytab,			288},
+	{"hash_add",				PF_hash_add,				289},
+	{"hash_get",				PF_hash_get,				290},
+	{"hash_delete",				PF_hash_delete,				291},
+	{"hash_getkey",				PF_hash_getkey,				292},
+															//gap
 	{"print",					PF_print,					339},
 	{"keynumtostring",			PF_cl_keynumtostring,		340},
 	{"stringtokeynum",			PF_cl_stringtokeynum,		341},
@@ -1321,7 +1334,10 @@ static struct {
 	{"memalloc",				PF_memalloc,				384},
 	{"memfree",					PF_memfree,					385},
 	{"memcpy",					PF_memcpy,					386},
-	{"memset",					PF_memset,					387},
+	{"memfill8",				PF_memfill8,				387},
+	{"memgetval",				PF_memgetval,				388},
+	{"memsetval",				PF_memsetval,				389},
+	{"memptradd",				PF_memptradd,				390},
 															//gap
 	{"buf_create",				PF_buf_create,				440},
 	{"buf_del",					PF_buf_del,					441},
@@ -1820,7 +1836,7 @@ void MP_Keydown(int key, int unicode)
 	if (mp_keydown_function)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
-		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoDPCodes(key);
+		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
 		PR_ExecuteProgram(menu_world.progs, mp_keydown_function);
 	}
@@ -1845,7 +1861,7 @@ void MP_Keyup(int key, int unicode)
 	if (mp_keyup_function)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
-		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoDPCodes(key);
+		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
 		PR_ExecuteProgram(menu_world.progs, mp_keyup_function);
 	}

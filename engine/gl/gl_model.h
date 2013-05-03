@@ -257,6 +257,7 @@ typedef struct vbo_s
 
 	int vao;
 	unsigned int vaodynamic;	/*mask of the attributes that are dynamic*/
+	unsigned int vaoenabled;	/*mask of the attributes *currently* enabled. renderer may change this */
 	vboarray_t coord;
 	vboarray_t coord2;
 	vboarray_t texcoord;
@@ -942,11 +943,12 @@ typedef struct model_s
 	batch_t *batches[SHADER_SORT_COUNT];
 	struct
 	{
-		int first;
-		int count;
-		int width;
-		int height;
-		qboolean deluxemapping;
+		int first;				//once built...
+		int count;				//num lightmaps
+		int width;				//x size of lightmaps
+		int height;				//y size of lightmaps
+		int surfstyles;			//numbers of style per surface.
+		qboolean deluxemapping;	//lightmaps are interleaved with deluxemap data (lightmap indicies should only be even values)
 	} lightmaps;
 
 	unsigned	checksum;

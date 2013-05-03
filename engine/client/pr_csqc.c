@@ -940,17 +940,17 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 		if (ent->isfree)
 			continue;
 
-		if (ent->xv->predraw)
-		{
-			*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
-			PR_ExecuteProgram(prinst, ent->xv->predraw);
-
-			if (ent->isfree || (int)ent->xv->renderflags & CSQCRF_NOAUTOADD)
-				continue;	//bummer...
-		}
-
 		if ((int)ent->xv->drawmask & mask)
 		{
+			if (ent->xv->predraw)
+			{
+				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
+				PR_ExecuteProgram(prinst, ent->xv->predraw);
+
+				if (ent->isfree || (int)ent->xv->renderflags & CSQCRF_NOAUTOADD)
+					continue;	//bummer...
+			}
+
 			if (CopyCSQCEdictToEntity(ent, &rent))
 			{
 				CLQ1_AddShadow(&rent);
@@ -2085,7 +2085,7 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 static void cs_set_input_state (usercmd_t *cmd)
 {
 	if (csqcg.input_timelength)
-		*csqcg.input_timelength = cmd->msec/1000.0f;
+		*csqcg.input_timelength = cmd->msec/1000.0f * cl.gamespeed;
 	if (csqcg.input_angles)
 	{
 		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]);
@@ -2329,7 +2329,7 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 			ret = lastdemoname;
 		}
 		else
-			ret = NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address);
+			ret = NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address);
 	}
 	else if (!strcmp(keyname, "state"))
 	{
@@ -3532,11 +3532,11 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	else if (src->solid)
 	{
 		ent->v->solid = SOLID_BBOX;
-		ent->v->mins[0] = 8*(src->solid & 31);
-		ent->v->maxs[0] = ent->v->mins[0];
+		ent->v->mins[0] = -8*(src->solid & 31);
+		ent->v->maxs[0] = 8*(src->solid & 31);
 		ent->v->mins[1] = ent->v->mins[0];
-		ent->v->maxs[1] = ent->v->mins[0];
-		ent->v->mins[2] = 8*((src->solid>>5) & 31);
+		ent->v->maxs[1] = ent->v->maxs[0];
+		ent->v->mins[2] = -8*((src->solid>>5) & 31);
 		ent->v->maxs[2] = 8*((src->solid>>10) & 63) - 32;
 	}
 	else
@@ -4295,6 +4295,12 @@ static struct {
 	{"frametoname",				PF_frametoname,			284},//string(float modidx, float framenum) frametoname
 	{"skintoname",				PF_skintoname,			285},//string(float modidx, float skin) skintoname
 
+	{"hash_createtab",			PF_hash_createtab,			287},
+	{"hash_destroytab",			PF_hash_destroytab,			288},
+	{"hash_add",				PF_hash_add,				289},
+	{"hash_get",				PF_hash_get,				290},
+	{"hash_delete",				PF_hash_delete,				291},
+	{"hash_getkey",				PF_hash_getkey,				292},
 //300
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -4399,40 +4405,43 @@ static struct {
 //	{"readsingleentitystate",	PF_ReadSingleEntityState,		370},
 	{"deltalisten",				PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
 
-	{"dynamiclight_get",		PF_R_DynamicLight_Get,	372},
-	{"dynamiclight_set",		PF_R_DynamicLight_Set,	373},
+	{"dynamiclight_get",		PF_R_DynamicLight_Get,		372},
+	{"dynamiclight_set",		PF_R_DynamicLight_Set,		373},
 	{"particleeffectquery",		PF_cs_particleeffectquery,	374},
-	{"adddecal",				PF_R_AddDecal,			375},
+	{"adddecal",				PF_R_AddDecal,				375},
 
-	{"memalloc",				PF_memalloc,			384},
-	{"memfree",					PF_memfree,				385},
-	{"memcpy",					PF_memcpy,				386},
-	{"memset",					PF_memset,				387},
+	{"memalloc",				PF_memalloc,				384},
+	{"memfree",					PF_memfree,					385},
+	{"memcpy",					PF_memcpy,					386},
+	{"memfill8",				PF_memfill8,				387},
+	{"memgetval",				PF_memgetval,				388},
+	{"memsetval",				PF_memsetval,				389},
+	{"memptradd",				PF_memptradd,				390},
 
 //400
-	{"copyentity",				PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
-	{"setcolors",				PF_NoCSQC,				401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
+	{"copyentity",				PF_cs_copyentity,			400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+	{"setcolors",				PF_NoCSQC,					401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
 	{"findchain",				PF_cs_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 	{"findchainfloat",			PF_cs_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
-	{"effect",					PF_cl_effect,		404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
+	{"effect",					PF_cl_effect,				404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
-	{"te_blood",				PF_cl_te_blooddp,		405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
-	{"te_bloodshower",			PF_cl_te_bloodshower,406},		// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
-	{"te_explosionrgb",			PF_cl_te_explosionrgb,	407},	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
-	{"te_particlecube",			PF_cl_te_particlecube,408},		// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
-	{"te_particlerain",			PF_cl_te_particlerain,	409},	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
+	{"te_blood",				PF_cl_te_blooddp,			405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
+	{"te_bloodshower",			PF_cl_te_bloodshower,		406},		// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+	{"te_explosionrgb",			PF_cl_te_explosionrgb,		407},	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
+	{"te_particlecube",			PF_cl_te_particlecube,		408},		// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+	{"te_particlerain",			PF_cl_te_particlerain,		409},	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
 
-	{"te_particlesnow",			PF_cl_te_particlesnow,410},		// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
-	{"te_spark",				PF_cl_te_spark,		411},		// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
-	{"te_gunshotquad",			PF_cl_te_gunshotquad,	412},	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
-	{"te_spikequad",			PF_cl_te_spikequad,	413},		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
-	{"te_superspikequad",		PF_cl_te_superspikequad,414},	// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
+	{"te_particlesnow",			PF_cl_te_particlesnow,		410},		// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
+	{"te_spark",				PF_cl_te_spark,				411},		// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+	{"te_gunshotquad",			PF_cl_te_gunshotquad,		412},	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
+	{"te_spikequad",			PF_cl_te_spikequad,			413},		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
+	{"te_superspikequad",		PF_cl_te_superspikequad,	414},	// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
 
-	{"te_explosionquad",		PF_cl_te_explosionquad,	415},	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
-	{"te_smallflash",			PF_cl_te_smallflash,	416},	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
-	{"te_customflash",			PF_cl_te_customflash,	417},	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
-	{"te_gunshot",				PF_cl_te_gunshot,	418},		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_spike",				PF_cl_te_spike,		419},		// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosionquad",		PF_cl_te_explosionquad,		415},	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
+	{"te_smallflash",			PF_cl_te_smallflash,		416},	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+	{"te_customflash",			PF_cl_te_customflash,		417},	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+	{"te_gunshot",				PF_cl_te_gunshot,			418},		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_spike",				PF_cl_te_spike,				419},		// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
 
 	{"te_superspike",			PF_cl_te_superspike,420},		// #420 void(vector org) te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
 	{"te_explosion",			PF_cl_te_explosion,	421},		// #421 void(vector org) te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
@@ -4511,7 +4520,7 @@ static struct {
 	{"tan",						PF_tan,				475},	// #475 float(float a) tan
 
 
-////DP_QC_STRINGCOLORFUNCTIONS
+//DP_QC_STRINGCOLORFUNCTIONS
 	{"strlennocol",				PF_strlennocol,		476},	// #476 float(string s) strlennocol
 	{"strdecolorize",			PF_strdecolorize,	477},	// #477 string(string s) strdecolorize
 
@@ -5550,7 +5559,7 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	G_FLOAT(OFS_PARM0) = down?CSIE_KEYDOWN:CSIE_KEYUP;
-	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoDPCodes(key);
+	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoQCCodes(key);
 	G_FLOAT(OFS_PARM2) = unicode;
 	G_FLOAT(OFS_PARM3) = devid;
 

@@ -22,7 +22,9 @@ typedef struct hashtable_s {
 } hashtable_t;
 
 void Hash_InitTable(hashtable_t *table, unsigned int numbucks, void *mem);	//mem must be 0 filled. (memset(mem, 0, size))
+void *Hash_Enumerate(hashtable_t *table, void (*callback) (void *ctx, void *data), void *ctx);
 unsigned int Hash_Key(const char *name, unsigned int modulus);
+void *Hash_GetIdx(hashtable_t *table, unsigned int idx);
 void *Hash_Get(hashtable_t *table, const char *name);
 void *Hash_GetInsensative(hashtable_t *table, const char *name);
 void *Hash_GetInsensativeBucket(hashtable_t *table, const char *name);

@@ -43,6 +43,7 @@ typedef struct
 		qbyte	ipx[10];
 #ifdef IRCCONNECT
 		struct {
+			char host[32];
 			char user[32];
 			char channel[12];
 		} irc;
@@ -78,7 +79,7 @@ extern	qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 
 extern	cvar_t	hostname;
 
-int TCP_OpenStream (netadr_t remoteaddr);	//makes things easier
+int TCP_OpenStream (netadr_t *remoteaddr);	//makes things easier
 
 struct ftenet_connections_s;
 void		NET_Init (void);
@@ -90,27 +91,27 @@ void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 int			NET_GetPacket (netsrc_t netsrc, int firstsock);
-void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t to);
+void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t *to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
-qboolean	NET_AddressSmellsFunny(netadr_t a);
+qboolean	NET_AddressSmellsFunny(netadr_t *a);
 qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, qboolean islisten);
 
-qboolean	NET_CompareAdr (netadr_t a, netadr_t b);
-qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);
-char		*NET_AdrToString (char *s, int len, netadr_t a);
-char		*NET_BaseAdrToString (char *s, int len, netadr_t a);
+qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
+qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b);
+char		*NET_AdrToString (char *s, int len, netadr_t *a);
+char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize);
 qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a);
 qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 
-qboolean	NET_IsLoopBackAddress (netadr_t adr);
+qboolean	NET_IsLoopBackAddress (netadr_t *adr);
 
 qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask);
-char	*NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask);
+char	*NET_AdrToStringMasked (char *s, int len, netadr_t *a, netadr_t *amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
-qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);
+qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);
 
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
 
@@ -192,11 +193,11 @@ extern	int	net_drop;		// packets dropped before this one
 
 void Netchan_Init (void);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
-void Netchan_OutOfBand (netsrc_t sock, netadr_t adr, int length, qbyte *data);
-void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ...) LIKEPRINTF(3);
-void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t adr, int language, translation_t text, ...);
+void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, qbyte *data);
+void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, ...) LIKEPRINTF(3);
+void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);
-void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport);
+void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport);
 unsigned int Net_PextMask(int maskset, qboolean fornq);
 extern cvar_t net_mtu;
 

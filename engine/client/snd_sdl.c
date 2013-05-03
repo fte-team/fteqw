@@ -36,7 +36,6 @@ static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
 static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 {
 	soundcardinfo_t *sc = userdata;
-	int buffersize = sc->sn.samples*(sc->sn.samplebits/8);
 
 #ifdef SELFPAINT
 	sc->sn.buffer = stream;
@@ -45,6 +44,8 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 	S_MixerThread(sc);
 	sc->snd_sent += len;
 #else
+	int buffersize = sc->sn.samples*(sc->sn.samplebits/8);
+
 	if (len > buffersize)
 	{
 		len = buffersize;	//whoa nellie!

@@ -4,14 +4,7 @@
 #include "particles.h"
 #include "renderque.h"
 
-//obtains an index for the name, even if it is unknown (one can be loaded after. will only fail if the effect limit is reached)
-static int PNULL_ParticleTypeForName(char *name)
-{
-	Con_DPrintf("P_ParticleTypeForName %s\n", name);
-	return P_INVALID;
-}
-
-//returns a valid effect if its existance is known, even if simply referenced. This should be phased out.
+//returns a valid effect if its existance is known.
 static int PNULL_FindParticleType(char *name)
 {
 	Con_DPrintf("P_FindParticleType %s\n", name);
@@ -60,7 +53,6 @@ particleengine_t pe_null =
 	"null",
 	"none",
 
-	PNULL_ParticleTypeForName,
 	PNULL_FindParticleType,
 	NULL,
 

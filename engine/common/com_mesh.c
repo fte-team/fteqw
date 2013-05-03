@@ -2180,7 +2180,7 @@ static qboolean VARGS Mod_TryAddSkin(const char *skinname, ...)
 	return true;
 }
 
-int Mod_EnumerateSkins(const char *name, int size, void *param, void *spath)
+int QDECL Mod_EnumerateSkins(const char *name, int size, void *param, void *spath)
 {
 	Mod_TryAddSkin(name);
 	return true;
@@ -3502,7 +3502,7 @@ int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, framestate
 	return 0;
 }
 
-galiasbone_t *Mod_GetBoneInfo(model_t *model)
+galiasbone_t *Mod_GetBoneInfo(model_t *model, int *numbones)
 {
 #ifdef SKELETALMODELS
 	galiasbone_t *bone;
@@ -3515,8 +3515,10 @@ galiasbone_t *Mod_GetBoneInfo(model_t *model)
 	inf = Mod_Extradata(model);
 
 	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	*numbones = inf->numbones;
 	return bone;
 #else
+	*numbones = 0;
 	return NULL;
 #endif
 }
@@ -3882,6 +3884,29 @@ const char *Mod_FrameNameForNum(model_t *model, int num)
 		return NULL;
 	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
 	return group[num].name;
+}
+
+qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframes, float *duration, qboolean *loop)
+{
+	galiasgroup_t *group;
+	galiasinfo_t *inf;
+
+	if (!model)
+		return false;
+	if (model->type != mod_alias)
+		return false;
+
+	inf = Mod_Extradata(model);
+
+	if (num >= inf->groups)
+		return false;
+	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+
+	*name = group[num].name;
+	*numframes = group[num].numposes;
+	*loop = group[num].loop;
+	*duration = group->numposes/group->rate;
+	return true;
 }
 
 const char *Mod_SkinNameForNum(model_t *model, int num)

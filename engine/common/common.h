@@ -301,6 +301,15 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen);
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen);
 
+//handles whatever charset is active, including ^U stuff.
+unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs);
+unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs);
+unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen);
+unsigned int unicode_decode(int *error, const void *in, char **out);
+size_t unicode_strtolower(char *in, char *out, size_t outsize);
+size_t unicode_strtoupper(char *in, char *out, size_t outsize);
+unsigned int unicode_charcount(char *in, size_t buffersize);
+
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
 void COM_StripAllExtensions (char *in, char *out, int outlen);
@@ -361,18 +370,20 @@ FTE_DEPRECATED void COM_CloseFile (FILE *h);
 #define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLFRT_IFFOUND, NULL)
 
 
-typedef struct vfsfile_s {
+typedef struct vfsfile_s
+{
+	int (QDECL *ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
+	int (QDECL *WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestoread);
+	qboolean (QDECL *Seek) (struct vfsfile_s *file, unsigned long pos);	//returns false for error
+	unsigned long (QDECL *Tell) (struct vfsfile_s *file);
+	unsigned long (QDECL *GetLen) (struct vfsfile_s *file);	//could give some lag
+	void (QDECL *Close) (struct vfsfile_s *file);
+	void (QDECL *Flush) (struct vfsfile_s *file);
+	qboolean seekingisabadplan;
+
 #ifdef _DEBUG
 	char dbgname[MAX_QPATH];
 #endif
-	int (*ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
-	int (*WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestoread);
-	qboolean (*Seek) (struct vfsfile_s *file, unsigned long pos);	//returns false for error
-	unsigned long (*Tell) (struct vfsfile_s *file);
-	unsigned long (*GetLen) (struct vfsfile_s *file);	//could give some lag
-	void (*Close) (struct vfsfile_s *file);
-	void (*Flush) (struct vfsfile_s *file);
-	qboolean seekingisabadplan;
 } vfsfile_t;
 
 #define VFS_CLOSE(vf) (vf->Close(vf))
@@ -388,6 +399,7 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
+	FS_BINARYPATH,	//for dlls and stuff
 	FS_ROOT,		//./
 	FS_GAMEONLY,	//$gamedir/
 	FS_GAMEDOWNLOADCACHE,	//typically the same as FS_GAMEONLY 
@@ -442,7 +454,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk);
 qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);
 
-void COM_EnumerateFiles (const char *match, int (*func)(const char *fname, int fsize, void *parm, void *spath), void *parm);
+void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm);
 
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove

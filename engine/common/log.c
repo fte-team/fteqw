@@ -280,7 +280,7 @@ void SV_LogPlayer(client_t *cl, char *msg)
 	snprintf(line, sizeof(line),
 			"%s\\%s\\%i\\%s\\%s\\%i%s\n",
 			msg, cl->name, cl->userid,
-			NET_BaseAdrToString(remote_adr, sizeof(remote_adr), cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(realip_adr, sizeof(realip_adr), cl->realip) : "??"),
+			NET_BaseAdrToString(remote_adr, sizeof(remote_adr), &cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(realip_adr, sizeof(realip_adr), &cl->realip) : "??"),
 			cl->netchan.remote_address.port, cl->userinfo);
 
 	Log_String(LOG_PLAYER, line);

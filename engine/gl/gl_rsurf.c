@@ -57,12 +57,13 @@ void GLBE_ClearVBO(vbo_t *vbo)
 	BZ_Free(vbo);
 }
 
-void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic);
+void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic);
 
 static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elementsize, unsigned int vaodynamic)
 {
 	unsigned int vbos[2];
 	int s;
+	unsigned int vaostatic = 0;
 
 	if (!qglGenBuffersARB)
 		return false;
@@ -75,16 +76,19 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	{
 		vbo->indicies.gl.vbo = vbos[1];
 		vbo->indicies.gl.addr = (index_t*)((char*)vbo->indicies.gl.addr - (char*)edata);
+		vaostatic |= VATTR_LEG_ELEMENTS;
 	}
 	if (vbo->coord.gl.addr)
 	{
 		vbo->coord.gl.vbo = vbos[0];
 		vbo->coord.gl.addr = (vecV_t*)((char*)vbo->coord.gl.addr - (char*)vdata);
+		vaostatic |= VATTR_VERTEX1;
 	}
 	if (vbo->texcoord.gl.addr)
 	{
 		vbo->texcoord.gl.vbo = vbos[0];
 		vbo->texcoord.gl.addr = (vec2_t*)((char*)vbo->texcoord.gl.addr - (char*)vdata);
+		vaostatic |= VATTR_TEXCOORD;
 	}
 	for (s = 0; s < MAXLIGHTMAPS; s++)
 	{
@@ -92,30 +96,41 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 		{
 			vbo->lmcoord[s].gl.vbo = vbos[0];
 			vbo->lmcoord[s].gl.addr = (vec2_t*)((char*)vbo->lmcoord[s].gl.addr - (char*)vdata);
+			switch(s)
+			{
+			default: vaostatic |= VATTR_LMCOORD; break;
+			case 1: vaostatic |= VATTR_LMCOORD2; break;
+			case 2: vaostatic |= VATTR_LMCOORD3; break;
+			case 3: vaostatic |= VATTR_LMCOORD4; break;
+			}
 		}
 	}
 	if (vbo->normals.gl.addr)
 	{
 		vbo->normals.gl.vbo = vbos[0];
 		vbo->normals.gl.addr = (vec3_t*)((char*)vbo->normals.gl.addr - (char*)vdata);
+		vaostatic |= VATTR_NORMALS;
 	}
 	if (vbo->svector.gl.addr)
 	{
 		vbo->svector.gl.vbo = vbos[0];
 		vbo->svector.gl.addr = (vec3_t*)((char*)vbo->svector.gl.addr - (char*)vdata);
+		vaostatic |= VATTR_SNORMALS;
 	}
 	if (vbo->tvector.gl.addr)
 	{
 		vbo->tvector.gl.vbo = vbos[0];
 		vbo->tvector.gl.addr = (vec3_t*)((char*)vbo->tvector.gl.addr - (char*)vdata);
+		vaostatic |= VATTR_TNORMALS;
 	}
 	if (vbo->colours.gl.addr)
 	{
 		vbo->colours.gl.vbo = vbos[0];
 		vbo->colours.gl.addr = (vec4_t*)((char*)vbo->colours.gl.addr - (char*)vdata);
+		vaostatic |= VATTR_COLOUR;
 	}
 
-	GLBE_SetupVAO(vbo, vaodynamic);
+	GLBE_SetupVAO(vbo, vaodynamic, vaostatic);
 	
 	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
 	if (elementsize>0)
@@ -126,6 +141,7 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	return true;
 }
 
+//allocates an aligned buffer. caller needs to make sure there's enough space.
 void *allocbuf(char **p, int elements, int elementsize)
 {
 	void *ret;
@@ -136,7 +152,7 @@ void *allocbuf(char **p, int elements, int elementsize)
 	return ret;
 }
 
-void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch)
+void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch, int lightmaps)
 {
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
@@ -160,6 +176,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	vec4_t *colours;
 	index_t *indicies;
 	batch_t *batch;
+	int vbosize;
 
 
 	vbo = Z_Malloc(sizeof(*vbo));
@@ -186,7 +203,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	pervertsize =	sizeof(vecV_t)+	//coord
 				sizeof(vec2_t)+	//tex
-				sizeof(vec2_t)*MAXLIGHTMAPS+	//lm
+				sizeof(vec2_t)*lightmaps+	//lm
 				sizeof(vec3_t)+	//normal
 				sizeof(vec3_t)+	//sdir
 				sizeof(vec3_t)+	//tdir
@@ -198,12 +215,17 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	vbo->coord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vecV_t));
 	vbo->texcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
-	for (s = 0; s < MAXLIGHTMAPS; s++)
+	for (s = 0; s < lightmaps; s++)
 		vbo->lmcoord[s].gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
+	for (; s < MAXLIGHTMAPS; s++)
+		vbo->lmcoord[s].gl.addr = NULL;
 	vbo->normals.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->svector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->tvector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->colours.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec4_t));
+	vbosize = (char*)p - (char*)vbo->coord.gl.addr;
+	if ((char*)p - (char*)vbo->vertdata > (maxvboverts+1)*pervertsize)
+		Sys_Error("GLBE_GenBatchVBOs: aligned overflow");
 	vbo->indicies.gl.addr = allocbuf(&p, maxvboelements, sizeof(index_t));
 
 	coord = vbo->coord.gl.addr;
@@ -246,7 +268,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 					texcoord[vcount+v][0] = m->st_array[v][0];
 					texcoord[vcount+v][1] = m->st_array[v][1];
 				}
-				for (s = 0; s < MAXLIGHTMAPS; s++)
+				for (s = 0; s < lightmaps; s++)
 				{
 					if (m->lmst_array[s])
 					{
@@ -284,7 +306,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 		}
 	}
 
-	if (GL_BuildVBO(vbo, vbo->vertdata, vcount*pervertsize, indicies, ecount*sizeof(index_t), 0))
+	if (GL_BuildVBO(vbo, vbo->coord.gl.addr, vbosize/*vcount*pervertsize*/, indicies, ecount*sizeof(index_t), 0))
 	{
 		BZ_Free(vbo->vertdata);
 		vbo->vertdata = NULL;
@@ -319,7 +341,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			//firstmesh got reused as the number of verticies in each batch
 			if (vcount + cvcount > MAX_INDICIES)
 			{
-				GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
+				GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch, mod->lightmaps.surfstyles);
 				fbatch = batch;
 				vcount = 0;
 			}
@@ -327,7 +349,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			vcount += cvcount;
 		}
 
-		GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
+		GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch, mod->lightmaps.surfstyles);
 	}
 
 #if 0

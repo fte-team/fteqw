@@ -131,6 +131,7 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount)
 	}
 
 	prinst.addressableused += ammount;
+	progfuncs->funcs.stringtablesize = prinst.addressableused;
 
 #ifdef _WIN32
 	if (!VirtualAlloc (prinst.addressablehunk, prinst.addressableused, MEM_COMMIT, PAGE_READWRITE))
@@ -420,6 +421,7 @@ void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 	if (!prinst.addressablehunk)
 		Sys_Error("Out of memory\n");
 	prinst.addressablesize = totalammount;
+	progfuncs->funcs.stringtablemaxsize = totalammount;
 }
 
 int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
@@ -1065,6 +1067,7 @@ pubprogfuncs_t deffuncs = {
 
 	0,	//string table(pointer base address)
 	0,		//string table size
+	0,	//max size
 	0,	//field adjust(aditional field offset)
 
 	PR_ForkStack,

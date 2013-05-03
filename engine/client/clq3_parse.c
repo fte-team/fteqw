@@ -977,14 +977,14 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		Netchan_TransmitNextFragment(&cls.netchan);
 }
 
-void CLQ3_SendAuthPacket(netadr_t gameserver)
+void CLQ3_SendAuthPacket(netadr_t *gameserver)
 {
 	char data[2048];
 	sizebuf_t msg;
 
 //send the auth packet
 //this should be the right code, but it doesn't work.
-	if (gameserver.type == NA_IP)
+	if (gameserver->type == NA_IP)
 	{
 		char *key = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth")->string;
 		netadr_t authaddr;
@@ -1009,7 +1009,7 @@ void CLQ3_SendAuthPacket(netadr_t gameserver)
 				}
 				MSG_WriteByte(&msg, 0);
 
-				NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, authaddr);
+				NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, &authaddr);
 			}
 			else
 				Con_Printf("    failed\n");
@@ -1017,7 +1017,7 @@ void CLQ3_SendAuthPacket(netadr_t gameserver)
 	}
 }
 
-void CLQ3_SendConnectPacket(netadr_t to)
+void CLQ3_SendConnectPacket(netadr_t *to)
 {
 	char data[2048];
 	char adrbuf[MAX_ADR_SIZE];
@@ -1031,7 +1031,7 @@ void CLQ3_SendConnectPacket(netadr_t to)
 	msg.overflowed = msg.allowoverflow = 0;
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), net_local_cl_ipadr), cls.userinfo[0]));
+	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), cls.userinfo[0]));
 	Huff_EncryptPacket(&msg, 12);
 	Huff_PreferedCompressionCRC();
 	NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, to);

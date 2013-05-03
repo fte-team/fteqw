@@ -6,7 +6,7 @@ STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
 CPUOPTIMIZATIONS=
 
-BASE_DIR=.
+BASE_DIR=$(realpath .)
 
 SVNREVISION:=-DSVNREVISION=$(shell test -d .svn && svnversion || echo -)
 
@@ -1364,12 +1364,18 @@ debugdir:
 endif
 
 plugins:
-	ifneq ($(shell grep all ../plugins/Makefile),)
-	$(MAKE) -C ../plugins
-	else
-	@-echo no plugins directory installed
-	endif
+	@if test -e ../plugins/Makefile; \
+	then echo falala $(MAKE) -C ../plugins; \
+	 else echo no plugins directory installed; \
+	fi
 plugins:
+
+plugins-rel:
+	@if test -e ../plugins/Makefile; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)"; \
+	 else echo no plugins directory installed; \
+	fi
+plugins-rel:
 
 help:
 	@-echo "Specfic targets:"

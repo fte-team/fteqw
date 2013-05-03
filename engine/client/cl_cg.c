@@ -489,10 +489,10 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 	case CG_CVAR_REGISTER:
 		if (arg[0])
-			VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
+			VALIDATEPOINTER(arg[0], sizeof(q3vmcvar_t));
 		return VMQ3_Cvar_Register(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 	case CG_CVAR_UPDATE:
-		VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
+		VALIDATEPOINTER(arg[0], sizeof(q3vmcvar_t));
 		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case CG_CVAR_SET:

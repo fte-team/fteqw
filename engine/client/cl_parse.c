@@ -2688,7 +2688,7 @@ void CLQ2_ParseServerData (void)
 	if (cl.playernum[0] == -1)
 	{	// playing a cinematic or showing a pic, not a level
 		SCR_EndLoadingPlaque();
-		if (!Media_PlayFilm(str))
+		if (!Media_PlayFilm(str, false))
 		{
 			CL_SendClientCommand(true, "nextserver %i", cl.servercount);
 		}
@@ -2701,7 +2701,7 @@ void CLQ2_ParseServerData (void)
 		Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
 		Con_TPrintf (TLC_PC_PS_NL, 2, str);
 
-		Media_PlayFilm("");
+		Media_StopFilm(true);
 
 		// need to prep refresh at next oportunity
 		//cl.refresh_prepped = false;

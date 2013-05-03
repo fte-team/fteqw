@@ -246,12 +246,13 @@ Netchan_OutOfBand
 Sends an out-of-band datagram
 ================
 */
-void Netchan_OutOfBand (netsrc_t sock, netadr_t adr, int length, qbyte *data)
+void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, qbyte *data)
 {
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN + PACKET_HEADER];
 
 // write the packet header
+	memset(&send, 0, sizeof(send));
 	send.data = send_buf;
 	send.maxsize = sizeof(send_buf);
 	send.cursize = 0;
@@ -274,7 +275,7 @@ Netchan_OutOfBandPrint
 Sends a text message in an out-of-band datagram
 ================
 */
-void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ...)
+void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[8192];		// ??? why static?
@@ -287,7 +288,7 @@ void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ..
 	Netchan_OutOfBand (sock, adr, strlen(string), (qbyte *)string);
 }
 #ifndef CLIENTONLY
-void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t adr, int language, translation_t text, ...)
+void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...)
 {
 	va_list		argptr;
 	static char		string[8192];		// ??? why static?
@@ -311,12 +312,12 @@ Netchan_Setup
 called to open a channel to a remote system
 ==============
 */
-void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport)
+void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
 {
 	memset (chan, 0, sizeof(*chan));
 
 	chan->sock = sock;
-	chan->remote_address = adr;
+	chan->remote_address = *adr;
 	chan->last_received = realtime;
 #ifdef NQPROT
 	chan->nqreliable_allowed = true;
@@ -468,7 +469,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		//always reply. a stale sequence probably means our ack got lost.
 		runt[0] = BigLong(NETFLAG_ACK | 8);
 		runt[1] = BigLong(sequence);
-		NET_SendPacket (chan->sock, 8, runt, net_from);
+		NET_SendPacket (chan->sock, 8, runt, &net_from);
 		if (showpackets.value)
 			Con_Printf ("out %s a=%i %i\n"
 						, chan->sock == NS_SERVER?"s2c":"c2s"
@@ -578,7 +579,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				}
 				else
 					*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
-				NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+				NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
 				chan->bytesout += send.cursize;
 
 				sentsize += send.cursize;
@@ -605,7 +606,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			SZ_Write (&send, data, length);
 
 			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
-			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+			NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
 			sentsize += send.cursize;
 
 			if (showpackets.value)
@@ -626,7 +627,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	{
 		chan->fatal_error = true;
 		Con_TPrintf (TL_OUTMESSAGEOVERFLOW
-			, NET_AdrToString (remote_adr, sizeof(remote_adr), chan->remote_address));
+			, NET_AdrToString (remote_adr, sizeof(remote_adr), &chan->remote_address));
 		return 0;
 	}
 
@@ -707,7 +708,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		int hsz = 10 + ((chan->sock == NS_CLIENT)?2:0); /*header size, if fragmentation is in use*/
 
 		if (!chan->fragmentsize || send.cursize < chan->fragmentsize - hsz)
-			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+			NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
 		else
 		{
 			int offset = chan->fragmentsize - hsz, no;
@@ -715,7 +716,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			/*switch on the 'more flags' bit, and send the first part*/
 			send.data[hsz - 2] |= 0x1;
 			offset &= ~7;
-			NET_SendPacket (chan->sock, offset + hsz, send.data, chan->remote_address);
+			NET_SendPacket (chan->sock, offset + hsz, send.data, &chan->remote_address);
 
 			/*send the additional parts, adding new headers within the previous packet*/
 			while(offset < send.cursize-hsz)
@@ -740,7 +741,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #endif
 				*(short*)&send.data[offset + hsz-2] = LittleShort((offset>>2) | (more?1:0));
 
-				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, chan->remote_address);
+				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
 				offset = no;
 			}
 		}
@@ -786,7 +787,7 @@ qboolean Netchan_Process (netchan_t *chan)
 #ifndef SERVERONLY
 			!cls.demoplayback && 
 #endif
-			!NET_CompareAdr (net_from, chan->remote_address))
+			!NET_CompareAdr (&net_from, &chan->remote_address))
 		return false;
 
 	chan->bytesin += net_message.cursize;
@@ -859,7 +860,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	{
 		if (showdrop.value)
 			Con_TPrintf (TL_OUTOFORDERPACKET
-				, NET_AdrToString (adr, sizeof(adr), chan->remote_address)
+				, NET_AdrToString (adr, sizeof(adr), &chan->remote_address)
 				,  sequence
 				, chan->incoming_sequence);
 		return false;
@@ -937,7 +938,7 @@ qboolean Netchan_Process (netchan_t *chan)
 
 		if (showdrop.value)
 			Con_TPrintf (TL_DROPPEDPACKETCOUNT
-			, NET_AdrToString (adr, sizeof(adr), chan->remote_address)
+			, NET_AdrToString (adr, sizeof(adr), &chan->remote_address)
 			, sequence-(chan->incoming_sequence+1)
 			, sequence);
 	}

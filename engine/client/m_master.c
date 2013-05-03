@@ -234,7 +234,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		}
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
 			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
-		else if (selectedserver.inuse && NET_CompareAdr(si->adr, selectedserver.adr))
+		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr))
 			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
 		else
 		{
@@ -252,7 +252,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		if (sb_showmap.value)		{Draw_FunStringWidth((x-8*8), y, si->map, 8*8); x-=9*8;}
 		if (sb_showgamedir.value)	{Draw_FunStringWidth((x-8*8), y, si->gamedir, 8*8); x-=9*8;}
 		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, va("%i", si->ping), 3*8); x-=4*8;}
-		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, NET_AdrToString(adr, sizeof(adr), si->adr), 21*8); x-=22*8;}
+		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, NET_AdrToString(adr, sizeof(adr), &si->adr), 21*8); x-=22*8;}
 		Draw_FunStringWidth(0, y, si->name, x);
 	}
 }
@@ -306,7 +306,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		}
 	}
 
-	if (key == K_ENTER || key == 's' || key == 'j' || key == K_SPACE)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_KP_ENTER || key == 's' || key == 'j' || key == K_SPACE)
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
@@ -320,9 +320,9 @@ joinserver:
 			}
 
 			if (server->special & SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &server->adr)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("connect %s\n", NET_AdrToString(adr, sizeof(adr), server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("connect %s\n", NET_AdrToString(adr, sizeof(adr), &server->adr)), RESTRICT_LOCAL);
 
 			M_RemoveAllMenus();
 		}
@@ -722,9 +722,9 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i, ping %ims)\n", best->name, best->gamedir, best->players, best->maxplayers, best->ping);
 
 			if (best->special & SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), best->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("join %s\n", NET_AdrToString(adr, sizeof(adr), best->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("join %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);
 
 			M_ToggleMenu_f();
 			return;

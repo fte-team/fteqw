@@ -476,7 +476,7 @@ qintptr_t VARGS Plug_Con_NameForNum(void *offset, quintptr_t mask, const qintptr
 	char num = VM_LONG(arg[0]);
 	char *buffer = VM_POINTER(arg[1]);
 	int buffersize = VM_LONG(arg[2]);
-	if (VM_OOB(arg[1], arg[2]) || buffersize < 1)
+	if (VM_OOB(arg[1], buffersize) || buffersize < 1)
 		return false;
 	if (qrenderer == QR_NONE)
 		return false;
@@ -484,7 +484,23 @@ qintptr_t VARGS Plug_Con_NameForNum(void *offset, quintptr_t mask, const qintptr
 	return Con_NameForNum(num, buffer, buffersize);
 }
 
-
+qintptr_t VARGS Plug_S_RawAudio(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int sourceid = VM_LONG(arg[0]);
+	qbyte *data = VM_POINTER(arg[1]);
+	int speed = VM_LONG(arg[2]);
+	int samples = VM_LONG(arg[3]);
+	int channels = VM_LONG(arg[4]);
+	int width = VM_LONG(arg[5]);
+	
+	int datasize = samples * channels * width;
+	
+	if (VM_OOB(arg[1], datasize) || datasize < 1)
+		return false;
+		
+	S_RawAudio(sourceid, data, speed, samples, channels, width);
+	return 0;
+}
 
 void Plug_Client_Init(void)
 {
@@ -516,6 +532,8 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
+	
+	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
 }
 
 void Plug_Client_Close(plugin_t *plug)

@@ -333,7 +333,7 @@ void CL_Quit_f (void)
 	Sys_Quit ();
 }
 
-void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
+void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 {
 	char	data[2048];
 	cls.fteprotocolextensions = 0;
@@ -373,7 +373,7 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 }
 #endif
 
-char *CL_GUIDString(netadr_t adr)
+char *CL_GUIDString(netadr_t *adr)
 {
 	static qbyte buf[2048];
 	static int buflen;
@@ -483,7 +483,7 @@ void CL_SendConnectPacket (int mtu,
 		return;
 	}
 
-	NET_AdrToString(data, sizeof(data), adr);
+	NET_AdrToString(data, sizeof(data), &adr);
 	Cvar_ForceSet(&cl_serveraddress, data);
 
 	if (!NET_IsClientLegal(&adr))
@@ -526,7 +526,7 @@ void CL_SendConnectPacket (int mtu,
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
 	{	//q3 requires some very strange things.
-		CLQ3_SendConnectPacket(adr);
+		CLQ3_SendConnectPacket(&adr);
 		return;
 	}
 #endif
@@ -590,11 +590,11 @@ void CL_SendConnectPacket (int mtu,
 #endif
 		cls.netchan.compress = false;
 
-	info = CL_GUIDString(adr);
+	info = CL_GUIDString(&adr);
 	if (info)
 		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
-	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+	NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
 
 	cl.splitclients = 0;
 }
@@ -697,7 +697,7 @@ void CL_CheckForResend (void)
 				SCR_EndLoadingPlaque();
 				return;
 			}
-			NET_AdrToString(data, sizeof(data), adr);
+			NET_AdrToString(data, sizeof(data), &adr);
 
 			/*eat up the server's packets, to clear any lingering loopback packets*/
 			while(NET_GetPacket (NS_SERVER, 0) >= 0)
@@ -728,7 +728,7 @@ void CL_CheckForResend (void)
 				SVC_DirectConnect();
 			}
 			else
-				CL_ConnectToDarkPlaces("", adr);
+				CL_ConnectToDarkPlaces("", &adr);
 		}
 		else
 			CL_SendConnectPacket (8192-16, Net_PextMask(1, false), Net_PextMask(2, false), false);
@@ -785,7 +785,7 @@ void CL_CheckForResend (void)
 	//Q3 clients send their cdkey to the q3 authorize server.
 	//they send this packet with the challenge.
 	//and the server will refuse the client if it hasn't sent it.
-	CLQ3_SendAuthPacket(adr);
+	CLQ3_SendAuthPacket(&adr);
 #endif
 
 	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
@@ -805,7 +805,7 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+		NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
 	}
 	/*NQ*/
 #ifdef NQPROT
@@ -836,7 +836,7 @@ void CL_CheckForResend (void)
 		MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, adr);
+		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &adr);
 	}
 #endif
 
@@ -1056,8 +1056,7 @@ void CL_Rcon_f (void)
 		NET_StringToAdr (rcon_address.string, PORT_QWSERVER, &to);
 	}
 
-	NET_SendPacket (NS_CLIENT, strlen(message)+1, message
-		, to);
+	NET_SendPacket (NS_CLIENT, strlen(message)+1, message, &to);
 }
 
 
@@ -1072,7 +1071,7 @@ void CL_ClearState (void)
 	int			i;
 #ifndef CLIENTONLY
 #define serverrunning (sv.state != ss_dead)
-#define tolocalserver NET_IsLoopBackAddress(cls.netchan.remote_address)
+#define tolocalserver NET_IsLoopBackAddress(&cls.netchan.remote_address)
 #else
 #define serverrunning false
 #define tolocalserver false
@@ -1112,7 +1111,7 @@ void CL_ClearState (void)
 
 	if (cl.playernum[0] == -1)
 	{	//left over from q2 connect.
-		Media_PlayFilm("");
+		Media_StopFilm(true);
 	}
 
 	for (i = 0; i < UPDATE_BACKUP; i++)
@@ -1984,7 +1983,7 @@ void CL_Packet_f (void)
 	}
 	*out = 0;
 
-	NET_SendPacket (NS_CLIENT, out-send, send, adr);
+	NET_SendPacket (NS_CLIENT, out-send, send, &adr);
 
 	if (Cmd_FromGamecode())
 	{
@@ -2217,7 +2216,7 @@ void CL_ConnectionlessPacket (void)
 		if (cls.realserverip.type == NA_INVALID)
 			return;	//not done a realip yet
 
-		if (NET_CompareBaseAdr(cls.realserverip, net_from) == false)
+		if (NET_CompareBaseAdr(&cls.realserverip, &net_from) == false)
 			return;	//only reply if it came from the real server's ip.
 
 		data[0] = 0xff;
@@ -2234,7 +2233,7 @@ void CL_ConnectionlessPacket (void)
 		Q_snprintfz(data+6, sizeof(data)-6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
 		len = strlen(data);
 
-		NET_SendPacket (NS_CLIENT, len, &data, net_from);
+		NET_SendPacket (NS_CLIENT, len, &data, &net_from);
 		return;
 	}
 
@@ -2242,8 +2241,8 @@ void CL_ConnectionlessPacket (void)
 	{
 		if (!strncmp(net_message.data+msg_readcount, "\\chunk", 6))
 		{
-			if (NET_CompareBaseAdr(cls.netchan.remote_address, net_from) == false)
-				if (cls.realserverip.type == NA_INVALID || NET_CompareBaseAdr(cls.realserverip, net_from) == false)
+			if (NET_CompareBaseAdr(&cls.netchan.remote_address, &net_from) == false)
+				if (cls.realserverip.type == NA_INVALID || NET_CompareBaseAdr(&cls.realserverip, &net_from) == false)
 					return;	//only use it if it came from the real server's ip (this breaks on proxies).
 
 			MSG_ReadLong();
@@ -2263,7 +2262,7 @@ void CL_ConnectionlessPacket (void)
 	}
 
 	if (cls.demoplayback == DPB_NONE && net_from.type != NA_LOOPBACK)
-		Con_TPrintf (TL_ST_COLON, NET_AdrToString (adr, sizeof(adr), net_from));
+		Con_TPrintf (TL_ST_COLON, NET_AdrToString (adr, sizeof(adr), &net_from));
 //	Con_DPrintf ("%s", net_message.data + 4);
 
 	if (c == S2C_CHALLENGE)
@@ -2322,7 +2321,7 @@ void CL_ConnectionlessPacket (void)
 					lasttime = curtime;
 
 					cls.protocol = CP_NETQUAKE;
-					CL_ConnectToDarkPlaces(s+9, net_from);
+					CL_ConnectToDarkPlaces(s+9, &net_from);
 				}
 				else
 					Con_Printf("\nChallenge from another protocol, ignoring DP challenge\n");
@@ -2434,7 +2433,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		else if (!strcmp(s, "disconnect"))
 		{
-			if (NET_CompareAdr(net_from, cls.netchan.remote_address))
+			if (NET_CompareAdr(&net_from, &cls.netchan.remote_address))
 			{
 				Con_Printf ("disconnect\n");
 				CL_Disconnect_f();
@@ -2464,7 +2463,7 @@ void CL_ConnectionlessPacket (void)
 		{
 			Con_Printf ("accept\n");
 			Validation_Apply_Ruleset();
-			Netchan_Setup(NS_CLIENT, &cls.netchan, net_from, cls.qport);
+			Netchan_Setup(NS_CLIENT, &cls.netchan, &net_from, cls.qport);
 			CL_ParseEstablished();
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
@@ -2511,7 +2510,7 @@ client_connect:	//fixme: make function
 		}
 		compress = cls.netchan.compress;
 		mtu = cls.netchan.fragmentsize;
-		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
+		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
 		cls.netchan.fragmentsize = mtu;
 		cls.netchan.compress = compress;
 		CL_ParseEstablished();
@@ -2657,7 +2656,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		Validation_Apply_Ruleset();
 
-		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
+		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
 		cls.netchan.compress = 0;
@@ -2736,7 +2735,7 @@ void CL_ReadPackets (void)
 
 		if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
 		{
-			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(adr, sizeof(adr), net_from));
+			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(adr, sizeof(adr), &net_from));
 			continue;
 		}
 
@@ -2752,10 +2751,10 @@ void CL_ReadPackets (void)
 		// packet from server
 		//
 		if (!cls.demoplayback &&
-			!NET_CompareAdr (net_from, cls.netchan.remote_address))
+			!NET_CompareAdr (&net_from, &cls.netchan.remote_address))
 		{
 			Con_DPrintf ("%s:sequenced packet from wrong server\n"
-				,NET_AdrToString(adr, sizeof(adr), net_from));
+				,NET_AdrToString(adr, sizeof(adr), &net_from));
 			continue;
 		}
 
@@ -3880,11 +3879,21 @@ void CL_StartCinematicOrMenu(void)
 		ol_depth = COM_FDepthFile("video/openinglogos.roq", true);	//jk2
 
 		if (ol_depth != 0x7fffffff && (ol_depth <= idroq_depth || ol_depth <= idcin_depth))
-			Media_PlayFilm("video/openinglogos.roq");
+			Media_PlayFilm("video/openinglogos.roq", true);
 		else if (idroq_depth != 0x7fffffff && idroq_depth <= idcin_depth)
-			Media_PlayFilm("video/idlogo.roq");
+			Media_PlayFilm("video/idlogo.roq", true);
 		else if (idcin_depth != 0x7fffffff)
-			Media_PlayFilm("video/idlog.cin");
+			Media_PlayFilm("video/idlog.cin", true);
+
+		//and for fun:
+		if (COM_FCheckExists("data/local/video/New_Bliz640x480.bik"))
+			Media_PlayFilm("av:data/local/video/New_Bliz640x480.bik", true);
+		if (COM_FCheckExists("data/local/video/BlizNorth640x480.bik"))
+			Media_PlayFilm("av:data/local/video/BlizNorth640x480.bik", true);
+		if (COM_FCheckExists("data/local/video/eng/d2intro640x292.bik"))
+			Media_PlayFilm("av:data/local/video/eng/d2intro640x292.bik", true);
+		if (COM_FCheckExists("Data/Local/Video/ENG/D2x_Intro_640x292.bik"))
+			Media_PlayFilm("av:Data/Local/Video/ENG/D2x_Intro_640x292.bik", true);
 	}
 #endif
 
@@ -4050,7 +4059,7 @@ void Host_Init (quakeparms_t *parms)
 #endif
 
 #ifdef PLUGINS
-	Plug_Init();
+	Plug_Initialise(true);
 #endif
 #ifdef VM_UI
 	UI_Init();

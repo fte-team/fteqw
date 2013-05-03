@@ -8,7 +8,7 @@
 
 
 
-int MP_TranslateFTEtoDPCodes(int code)
+int MP_TranslateFTEtoQCCodes(int code)
 {
 	switch(code)
 	{
@@ -111,7 +111,7 @@ int MP_TranslateFTEtoDPCodes(int code)
 	}
 }
 
-int MP_TranslateDPtoFTECodes(int code)
+int MP_TranslateQCtoFTECodes(int code)
 {
 	switch(code)
 	{
@@ -225,15 +225,15 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 
 	keyname[0] = '\0';
 
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), sizeof(keyname));
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), sizeof(keyname));
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoQCCodes(keynums[0])), sizeof(keyname));
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoQCCodes(keynums[1])), sizeof(keyname));
 
 	RETURN_TSTRING(keyname);
 }
 
 void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *binding = Key_GetBinding(MP_TranslateDPtoFTECodes(G_FLOAT(OFS_PARM0)));
+	char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)));
 	RETURN_TSTRING(binding);
 }
 
@@ -250,7 +250,7 @@ void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s 
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
-	i = MP_TranslateFTEtoDPCodes(i);
+	i = MP_TranslateFTEtoQCCodes(i);
 	G_FLOAT(OFS_RETURN) = i;
 }
 
@@ -259,7 +259,7 @@ void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s
 {
 	int code = G_FLOAT(OFS_PARM0);
 
-	code = MP_TranslateDPtoFTECodes (code);
+	code = MP_TranslateQCtoFTECodes (code);
 
 	RETURN_TSTRING(Key_KeynumToString(code));
 }
@@ -329,7 +329,7 @@ void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s
 
 	if (!cin)
 		return;
-	Media_Send_KeyEvent(cin, MP_TranslateDPtoFTECodes(key), (key>127)?0:key, eventtype);
+	Media_Send_KeyEvent(cin, MP_TranslateQCtoFTECodes(key), (key>127)?0:key, eventtype);
 }
 // #491 void gecko_mousemove( string name, float x, float y )
 void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

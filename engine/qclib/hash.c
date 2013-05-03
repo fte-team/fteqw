@@ -15,6 +15,28 @@ void Hash_InitTable(hashtable_t *table, unsigned int numbucks, void *mem)
 	table->bucket = (bucket_t **)mem;
 }
 
+void *Hash_Enumerate(hashtable_t *table, void (*callback) (void *ctx, void *data), void *ctx)
+{
+	unsigned int bucknum;
+	bucket_t *buck;
+	void *data;
+
+	for (bucknum = 0; bucknum < table->numbuckets; bucknum++)
+	{
+		buck = table->bucket[bucknum];
+
+		while(buck)
+		{
+			data = buck->data;
+			buck = buck->next;
+
+			//now that we don't care about backlinks etc, we can call the callback and it can safely nuke it (Hash_RemoveData or even destroy the bucket if the hash table is going to die).
+			callback(ctx, data);
+		}
+	}
+	return NULL;
+}
+
 unsigned int Hash_Key(const char *name, unsigned int modulus)
 {	//fixme: optimize.
 	unsigned int key;
@@ -35,6 +57,26 @@ unsigned int Hash_KeyInsensative(const char *name, unsigned int modulus)
 	}
 		
 	return (key%modulus);
+}
+
+void *Hash_GetIdx(hashtable_t *table, unsigned int idx)
+{
+	unsigned int bucknum;
+	bucket_t *buck;
+
+	for (bucknum = 0; bucknum < table->numbuckets; bucknum++)
+	{
+		buck = table->bucket[bucknum];
+
+		while(buck)
+		{
+			if (!idx--)
+				return buck->data;
+
+			buck = buck->next;
+		}
+	}
+	return NULL;
 }
 
 void *Hash_Get(hashtable_t *table, const char *name)

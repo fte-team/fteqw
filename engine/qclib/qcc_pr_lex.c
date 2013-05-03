@@ -3066,7 +3066,7 @@ pbool QCC_PR_CheckTokenComment(char *string, char **comment)
 				if (*pr_file_p == '\n')
 				{
 					pr_file_p++;
-					QCC_PR_NewLine(true);
+					QCC_PR_NewLine(false);
 				}
 
 				old = replace?NULL:*comment;

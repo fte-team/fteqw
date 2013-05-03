@@ -4824,6 +4824,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 		QCC_FreeTemp(x);
 		QCC_FreeTemp(y);
 		QCC_FreeTemp(z);
+		QCC_UnFreeTemp(d);
 		return d;
 	}
 	name = QCC_PR_ParseName ();

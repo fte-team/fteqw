@@ -316,7 +316,7 @@ IMAGELDFLAGS ?= -lpng -ljpeg
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 
 #BASELDFLAGS=-lm  -lz
-XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
+XLDFLAGS=$(IMAGELDFLAGS)
 
 ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
@@ -1372,7 +1372,7 @@ plugins:
 
 plugins-rel:
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins-rel:

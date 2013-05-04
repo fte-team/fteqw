@@ -1513,7 +1513,7 @@ void Plug_Initialise(qboolean fromgamedir)
 	if (!fromgamedir)
 	{
 		FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
-		Sys_EnumerateFiles(nat, "fteplug_*"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+		Sys_EnumerateFiles(nat, "fteplug_*"ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
 	}
 	if (fromgamedir)
 	{

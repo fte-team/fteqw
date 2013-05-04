@@ -1321,7 +1321,7 @@ typedef struct cin_s cin_t;
 #define Media_Init() 0
 #define Media_PlayingFullScreen() false
 #define Media_PlayFilm(n,e) false
-#define Media_StopFilm() true
+#define Media_StopFilm(a) true
 #else
 /*media playing system*/
 qboolean Media_PlayingFullScreen(void);

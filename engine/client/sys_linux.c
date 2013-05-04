@@ -644,6 +644,7 @@ int main (int c, const char **v)
 	int j;
 
 //	static char cwd[1024];
+	static char bindir[1024];
 
 	signal(SIGFPE, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
@@ -664,6 +665,24 @@ int main (int c, const char **v)
 	parms.membase = malloc (parms.memsize);
 
 	parms.basedir = basedir;
+#ifdef __linux__
+	//attempt to figure out where the exe is located
+	if (readlink("/proc/self/exe", bindir, sizeof(bindir)) > 0)
+	{
+		*COM_SkipPath(bindir) = 0;
+		printf("Binary is located at \"%s\"\n", bindir);
+		parms.binarydir = bindir;
+	}
+/*#elif defined(__bsd__)
+	//attempt to figure out where the exe is located
+	if (readlink("/proc/self/file", bindir, sizeof(bindir)) > 0)
+	{
+		*COM_SkipPath(bindir) = 0;
+		printf("Binary is located at "%s"\n", bindir);
+		parms.binarydir = bindir;
+	}
+*/
+#endif
 
 	isPlugin = !!COM_CheckParm("-plugin");
 	if (isPlugin)

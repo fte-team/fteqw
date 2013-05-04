@@ -16,8 +16,8 @@
 
 typedef struct {
 	int depth;
-	char rootpath[1];
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
+	char rootpath[1];
 } stdiopath_t;
 typedef struct {
 	vfsfile_t funcs;

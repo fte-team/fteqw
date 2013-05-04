@@ -645,34 +645,57 @@ void Sys_Shutdown (void)
 
 #ifdef __linux__ /*should probably be GNUC but whatever*/
 #include <execinfo.h>
-static void Friendly_Crash_Handler(int sig)
+#ifdef __i386__
+#define __USE_GNU
+#include <ucontext.h>
+#endif
+static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 {
 	int fd;
 	void *array[10];
 	size_t size;
+	int firstframe = 0;
+	char signame[32];
+
+	switch(sig)
+	{
+	case SIGILL:	strcpy(signame, "SIGILL");	break;
+	case SIGFPE:	strcpy(signame, "SIGFPE");	break;
+	case SIGBUS:	strcpy(signame, "SIGBUS");	break;
+	case SIGSEGV:	Q_snprintfz(signame, sizeof(signame), "SIGSEGV (%p)", info->si_addr);	break;
+	default:	Q_snprintfz(signame, sizeof(signame), "%i", sig);	break;
+	}
 
 	// get void*'s for all entries on the stack
 	size = backtrace(array, 10);
 
+#if defined(__i386__)
+	ucontext_t *uc = vcontext;
+	array[1] = uc->uc_mcontext.gregs[REG_EIP];
+	firstframe = 1;
+#elif defined(__amd64__)
+	firstframe = 2;
+#endif
+
 	// print out all the frames to stderr
-	fprintf(stderr, "Error: signal %d:\n", sig);
-	backtrace_symbols_fd(array, size, 2);
+	fprintf(stderr, "Error: signal %s:\n", signame);
+	backtrace_symbols_fd(array+firstframe, size-firstframe, 2);
 
 	fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
 	if (fd != -1)
 	{
 		time_t rawtime;
 		struct tm * timeinfo;
-		char tbuffer [80];
+		char buffer [80];
 
 		time (&rawtime);
 		timeinfo = localtime (&rawtime);
 		strftime (buffer, sizeof(buffer), "Time: %Y-%m-%d %H:%M:%S\n",timeinfo);
 		write(fd, buffer, strlen(buffer));
 
-		Q_snprintf(buffer, sizeof(buffer), "Binary: "__DATE__" "__TIME__"\n");
+		Q_snprintfz(buffer, sizeof(buffer), "Binary: "__DATE__" "__TIME__"\n");
 		write(fd, buffer, strlen(buffer));
-		Q_snprintf(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR
+		Q_snprintfz(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR,
 #ifdef OFFICIAL_RELEASE
 			" (official)");
 #else
@@ -682,13 +705,12 @@ static void Friendly_Crash_Handler(int sig)
 #ifdef SVNREVISION
 		if (strcmp(STRINGIFY(SVNREVISION), "-"))
 		{
-			Q_snprintf(buffer, sizeof(buffer), "Revision: %s\n", SVNREVISION);
+			Q_snprintfz(buffer, sizeof(buffer), "Revision: %s\n", STRINGIFY(SVNREVISION));
 			write(fd, buffer, strlen(buffer));
 		}
 #endif
 
-		size = backtrace(array, 10);
-		backtrace_symbols_fd(array, size, fd);
+		backtrace_symbols_fd(array + firstframe, size - firstframe, fd);
 		write(fd, "\n", 1);
 		close(fd);
 	}
@@ -723,10 +745,14 @@ int main(int argc, char *argv[])
 #ifdef __linux__
 	if (!COM_CheckParm("-nodumpstack"))
 	{
-		signal(SIGILL, Friendly_Crash_Handler);
-		signal(SIGFPE, Friendly_Crash_Handler);
-		signal(SIGSEGV, Friendly_Crash_Handler);
-		signal(SIGBUS, Friendly_Crash_Handler);
+		struct sigaction act;
+		memset(&act, 0, sizeof(act));
+		act.sa_sigaction = Friendly_Crash_Handler;
+		act.sa_flags = SA_SIGINFO | SA_RESTART;
+		sigaction(SIGILL, &act, NULL);
+		sigaction(SIGFPE, &act, NULL);
+		sigaction(SIGSEGV, &act, NULL);
+		sigaction(SIGBUS, &act, NULL);
 	}
 #endif
 

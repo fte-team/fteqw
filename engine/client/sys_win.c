@@ -2654,8 +2654,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
-
+#if defined(_DEBUG) && defined(MULTITHREAD)
 	Sys_SetThreadName(-1, "main thread");
+#endif
 
 	memset(&parms, 0, sizeof(parms));
 

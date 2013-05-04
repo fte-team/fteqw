@@ -783,6 +783,7 @@ vfsfile_t *MPQ_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 
 	f = malloc(sizeof(*f));
 	f->buffer = NULL;
+	f->buffersect = -1;
 	f->sectortab = NULL;
 	f->foffset = 0;
 	f->archiveoffset = block->offset;

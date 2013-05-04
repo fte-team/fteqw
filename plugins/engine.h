@@ -1,3 +1,4 @@
+#ifndef FTEPLUGIN
 typedef enum uploadfmt_e
 {
 	TF_INVALID,
@@ -10,7 +11,7 @@ typedef enum uploadfmt_e
 typedef struct
 {
 	void *(QDECL *createdecoder)(char *name);	//needed
-	void *(QDECL *decodeframe)(void *ctx, qboolean nosound, enum uploadfmt_e *fmt, int *width, int *height);	//needed
+	void *(QDECL *decodeframe)(void *ctx, qboolean nosound, uploadfmt_t *fmt, int *width, int *height);	//needed
 	void (QDECL *doneframe)(void *ctx, void *img);	//basically a free()
 	void (QDECL *shutdown)(void *ctx);	//probably needed...
 	void (QDECL *rewind)(void *ctx);
@@ -30,3 +31,5 @@ typedef struct
 	void (QDECL *capture_audio) (void *ctx, void *data, int bytes);
 	void (QDECL *capture_end) (void *ctx);
 } media_encoder_funcs_t;
+#endif
+

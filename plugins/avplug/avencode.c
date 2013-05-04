@@ -1,10 +1,11 @@
 #include "../plugin.h"
 #include "../engine.h"
 
-#include "avformat.h"
-#include "avio.h"
-#include "avcodec.h"
-#include "swscale.h"
+#include <libavformat/avformat.h>
+#include <libavformat/avio.h>
+#include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
+//#include <libavutil/channel_layout.h>
 
 /*
 Most of the logic in here came from here:
@@ -54,9 +55,9 @@ AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int widt
 	AVCodecContext *c;
 	AVStream *st;
 	char prof[128];
-	int bitrate = (int)Cvar_GetFloat("avplug_videobitrate");
-	int forcewidth = (int)Cvar_GetFloat("avplug_videoforcewidth");
-	int forceheight = (int)Cvar_GetFloat("avplug_videoforceheight");
+	int bitrate = (int)pCvar_GetFloat("avplug_videobitrate");
+	int forcewidth = (int)pCvar_GetFloat("avplug_videoforcewidth");
+	int forceheight = (int)pCvar_GetFloat("avplug_videoforceheight");
 
 	st = avformat_new_stream(ctx->fc, codec);
 	if (!st)
@@ -96,7 +97,7 @@ AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int widt
 		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
 	*prof = 0;
-	Cvar_GetString("avplug_format", prof, sizeof(prof));
+	pCvar_GetString("avplug_format", prof, sizeof(prof));
 //	av_opt_set(c->priv_data, "profile", prof, AV_OPT_SEARCH_CHILDREN);
 
 	return st;
@@ -118,7 +119,7 @@ static void AVEnc_Video (void *vctx, void *data, int frame, int width, int heigh
 {
 	struct encctx *ctx = vctx;
 	//weird maths to flip it.
-	uint8_t *srcslices[2] = {(uint8_t*)data + (height-1)*width*3, NULL};
+	const uint8_t *srcslices[2] = {(uint8_t*)data + (height-1)*width*3, NULL};
 	int srcstride[2] = {-width*3, 0};
 	int success;
 	AVPacket pkt;
@@ -152,7 +153,7 @@ AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int samplerate, i
 {
 	AVCodecContext *c;
 	AVStream *st;
-	int bitrate = (int)Cvar_GetFloat("avplug_audiobitrate");
+	int bitrate = (int)pCvar_GetFloat("avplug_audiobitrate");
 
 	st = avformat_new_stream(ctx->fc, codec);
 	if (!st)
@@ -231,7 +232,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	AVCodec *audiocodec = NULL;
 	char formatname[64];
 	formatname[0] = 0;
-	Cvar_GetString("avplug_format", formatname, sizeof(formatname));
+	pCvar_GetString("avplug_format", formatname, sizeof(formatname));
 
 	if (*formatname)
 	{
@@ -259,7 +260,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	{
 		char codecname[64];
 		codecname[0] = 0;
-		Cvar_GetString("avplug_videocodec", codecname, sizeof(codecname));
+		pCvar_GetString("avplug_videocodec", codecname, sizeof(codecname));
 
 		if (strcmp(codecname, "none"))
 		{
@@ -280,7 +281,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	{
 		char codecname[64];
 		codecname[0] = 0;
-		Cvar_GetString("avplug_audiocodec", codecname, sizeof(codecname));
+		pCvar_GetString("avplug_audiocodec", codecname, sizeof(codecname));
 
 		if (strcmp(codecname, "none"))
 		{
@@ -411,21 +412,19 @@ static media_encoder_funcs_t encoderfuncs =
 	AVEnc_End
 };
 
-
-
 qboolean AVEnc_Init(void)
 {
-	Cvar_Register("avplug_format",				"",			0, "avplug");
+	pCvar_Register("avplug_format",				"",			0, "avplug");
 
-	Cvar_Register("avplug_videocodec",			"",			0, "avplug");
-	Cvar_Register("avplug_videocodecprofile",	"",			0, "avplug");
-	Cvar_Register("avplug_videobitrate",		"4000000",	0, "avplug");
-	Cvar_Register("avplug_videoforcewidth",		"",			0, "avplug");
-	Cvar_Register("avplug_videoforceheight",	"",			0, "avplug");
-	Cvar_Register("avplug_audiocodec",			"",			0, "avplug");
-	Cvar_Register("avplug_audiobitrate",		"64000",	0, "avplug");
+	pCvar_Register("avplug_videocodec",			"",			0, "avplug");
+	pCvar_Register("avplug_videocodecprofile",	"",			0, "avplug");
+	pCvar_Register("avplug_videobitrate",		"4000000",	0, "avplug");
+	pCvar_Register("avplug_videoforcewidth",		"",			0, "avplug");
+	pCvar_Register("avplug_videoforceheight",	"",			0, "avplug");
+	pCvar_Register("avplug_audiocodec",			"",			0, "avplug");
+	pCvar_Register("avplug_audiobitrate",		"64000",	0, "avplug");
 
-	if (!Plug_ExportNative("Media_VideoEncoder", &encoderfuncs))
+	if (!pPlug_ExportNative("Media_VideoEncoder", &encoderfuncs))
 	{
 		Con_Printf("avplug: Engine doesn't support media encoder plugins\n");
 		return false;
@@ -433,3 +432,4 @@ qboolean AVEnc_Init(void)
 
 	return true;
 }
+

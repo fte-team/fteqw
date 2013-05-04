@@ -129,7 +129,10 @@ void strlcpy(char *d, const char *s, int n);
 #endif
 
 
-#ifndef FTEPLUGIN
+#ifdef FTEPLUGIN
+#define qfalse false
+#define qtrue true
+#else
 #ifdef __cplusplus
 typedef enum {qfalse, qtrue} qboolean;
 #else
@@ -140,7 +143,7 @@ typedef enum {qfalse, qtrue} qboolean;
 typedef float vec3_t[3];
 typedef unsigned char qbyte;
 #endif 
-typedef void *qhandle_t;
+typedef int qhandle_t;
 typedef void* funcptr_t;
 
 

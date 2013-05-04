@@ -1363,9 +1363,9 @@ debugdir:
 	@-mkdir -p $(OUT_DIR)
 endif
 
-plugins:
+plugins-dbg:
 	@if test -e ../plugins/Makefile; \
-	then echo falala $(MAKE) -C ../plugins; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins:

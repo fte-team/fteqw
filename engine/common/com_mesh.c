@@ -3952,7 +3952,7 @@ typedef struct {
 	int			ident;
 	int			version;
 
-	char		name[MAX_QPATH];
+	char		name[64];
 
 	int			flags;	//Does anyone know what these are?
 
@@ -3980,7 +3980,7 @@ typedef struct md3Frame_s {
 typedef struct {
 	int		ident;				//
 
-	char	name[MAX_QPATH];	// polyset name
+	char	name[64];	// polyset name
 
 	int		flags;
 	int		numFrames;			// all surfaces in a model should have the same
@@ -4016,7 +4016,7 @@ typedef struct {
 } md3St_t;
 
 typedef struct {
-	char			name[MAX_QPATH];
+	char			name[64];
 	int				shaderIndex;
 } md3Shader_t;
 //End of Tenebrae 'assistance'

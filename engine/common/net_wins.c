@@ -281,9 +281,9 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 		return true;
 
 #ifdef HAVE_WEBSOCKCL
-	if (a.type == NA_WEBSOCKET)
+	if (a->type == NA_WEBSOCKET)
 	{
-		if (!strcmp(a.address.websocketurl, a.address.websocketurl) && a.port == b.port)
+		if (!strcmp(a->address.websocketurl, a->address.websocketurl) && a->port == b->port)
 			return true;
 		return false;
 	}
@@ -446,7 +446,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 	{
 #ifdef HAVE_WEBSOCKCL
 	case NA_WEBSOCKET:
-		Q_strncpyz(s, a.address.websocketurl, len);
+		Q_strncpyz(s, a->address.websocketurl, len);
 		break;
 #endif
 #ifdef TCPCONNECT

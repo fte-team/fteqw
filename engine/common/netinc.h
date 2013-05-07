@@ -100,16 +100,30 @@
 		#define IPV6_V6ONLY 27
 	#endif
 
-	#if (_MSC_VER >= 1600)
+	#ifdef EADDRNOTAVAIL
 		#undef EADDRNOTAVAIL
+	#endif
+	#ifdef EAFNOSUPPORT
 		#undef EAFNOSUPPORT
+	#endif
+	#ifdef ECONNABORTED
 		#undef ECONNABORTED
+	#endif
+	#ifdef ECONNREFUSED
 		#undef ECONNREFUSED
+	#endif
+	#ifdef ECONNREFUSED
 		#undef ECONNREFUSED
+	#endif
+	#ifdef EMSGSIZE
 		#undef EMSGSIZE
+	#endif
+	#ifdef EWOULDBLOCK
 		#undef EWOULDBLOCK
 	#endif
-	#undef EACCES
+	#ifdef EACCES
+		#undef EACCES
+	#endif
 
 	#define EWOULDBLOCK		WSAEWOULDBLOCK
 	#define EMSGSIZE		WSAEMSGSIZE

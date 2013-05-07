@@ -3471,7 +3471,7 @@ void SV_PTrack_f (void)
 	}
 #endif
 
-	if (i < 0 || i >= MAX_CLIENTS || svs.clients[i].state != cs_spawned ||
+	if (i < 0 || i >= sv.allocated_client_slots || svs.clients[i].state != cs_spawned ||
 		svs.clients[i].spectator)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_INVALIDTRACKCLIENT);

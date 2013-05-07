@@ -80,13 +80,7 @@ typedef struct edict_s
 
 	/*these are shared with csqc*/
 	link_t	area;
-	int			num_leafs;
-	short		leafnums[MAX_ENT_LEAFS];
-#ifdef Q2BSPS
-	int areanum;
-	int areanum2;
-	int headnode;
-#endif
+	pvscache_t pvsinfo;
 #ifdef USEODE
 	entityode_t ode;
 #endif

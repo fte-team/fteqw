@@ -646,7 +646,6 @@ void Sys_Shutdown (void)
 #ifdef __linux__ /*should probably be GNUC but whatever*/
 #include <execinfo.h>
 #ifdef __i386__
-#define __USE_GNU
 #include <ucontext.h>
 #endif
 static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
@@ -670,10 +669,12 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 	size = backtrace(array, 10);
 
 #if defined(__i386__)
-	ucontext_t *uc = vcontext;
-	array[1] = uc->uc_mcontext.gregs[REG_EIP];
+	//x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
+	struct sig_ucontext *uc = vcontext;
+	array[1] = uc->uc_mcontext.eip;
 	firstframe = 1;
 #elif defined(__amd64__)
+	//amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.
 	firstframe = 2;
 #endif
 

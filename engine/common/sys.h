@@ -62,7 +62,7 @@ qboolean LibZ_Init(void);
 qboolean LibJPEG_Init(void);
 qboolean LibPNG_Init(void);
 
-void Sys_RunFile(const char *fname, int nlen);
+qboolean Sys_RunFile(const char *fname, int nlen);
 
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);

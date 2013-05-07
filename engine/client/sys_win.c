@@ -36,6 +36,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #endif
 
+#include "fs.h"
+
 #ifdef GLQUAKE
 #define PRINTGLARRAYS
 #endif
@@ -1424,7 +1426,6 @@ char *Sys_ConsoleInput (void)
 	static int		len;
 	INPUT_RECORD	recs[1024];
 //	int		count;
-	int		i;
 	int		ch;
 	DWORD numevents, numread, dummy=0;
 	HANDLE	th;
@@ -1492,6 +1493,7 @@ char *Sys_ConsoleInput (void)
 								if (th) {
 									clipText = GlobalLock(th);
 									if (clipText) {
+										int i;
 										textCopied = BZ_Malloc(GlobalSize(th)+1);
 										strcpy(textCopied, clipText);
 /* Substitutes a NULL for every token */strtok(textCopied, "\n\r\b");
@@ -1515,7 +1517,7 @@ char *Sys_ConsoleInput (void)
 						{
 							wchar_t wch = ch;
 							WriteConsoleW(houtput, &wch, 1, &dummy, NULL);
-							len += i;
+							len += 1;
 						}
 
 						break;
@@ -1773,87 +1775,67 @@ HWND		hwnd_dialog;
 	#include "ntverp.h"
 #endif
 
-#if defined(__MINGW64_VERSION_MAJOR) && (__MINGW64_VERSION_MAJOR >= 3)
-#define SHARD_APPIDINFOLINK SHARD_APPIDINFOLINK
-#endif
-
-#ifndef SHARD_APPIDINFOLINK
-
 // SDK version 7600 = v7.0a & v7.1
-#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
-typedef struct SHARDAPPIDINFOLINK {
+typedef struct qSHARDAPPIDINFOLINK {
   IShellLinkW *psl;
   PCWSTR     pszAppID;
-} SHARDAPPIDINFOLINK;
-#endif
+} qSHARDAPPIDINFOLINK;
 
-#define SHARD_APPIDINFOLINK 0x00000007
+#define qSHARD_APPIDINFOLINK 0x00000007
 
-#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
 typedef struct {
   GUID  fmtid;
   DWORD pid;
-} PROPERTYKEY;
-#endif
-typedef struct IPropertyStore IPropertyStore;
-;
-#ifndef MINGW
-#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
-typedef struct IPropertyStore
+} qPROPERTYKEY;
+
+typedef struct qIPropertyStore qIPropertyStore;
+struct qIPropertyStore
 {
     CONST_VTBL struct
 	{
 		/*IUnknown*/
 		HRESULT ( STDMETHODCALLTYPE *QueryInterface )(
-				IPropertyStore * This,
+				qIPropertyStore * This,
 				REFIID riid,
 				void **ppvObject);
 		ULONG ( STDMETHODCALLTYPE *AddRef )(
-				IPropertyStore * This);
+				qIPropertyStore * This);
 		ULONG ( STDMETHODCALLTYPE *Release )(
-				IPropertyStore * This);
+				qIPropertyStore * This);
 
 		/*property store stuff*/
 		HRESULT ( STDMETHODCALLTYPE *GetCount)(
-				IPropertyStore * This,
+				qIPropertyStore * This,
 				ULONG *count);
 
 		HRESULT  ( STDMETHODCALLTYPE *GetAt)(
-				IPropertyStore * This,
+				qIPropertyStore * This,
 				DWORD prop,
-				PROPERTYKEY * key);
+				qPROPERTYKEY * key);
 
 		HRESULT  ( STDMETHODCALLTYPE *GetValue)(
-				IPropertyStore * This,
-				PROPERTYKEY * key,
+				qIPropertyStore * This,
+				qPROPERTYKEY * key,
 				PROPVARIANT * val);
 
 		HRESULT  ( STDMETHODCALLTYPE *SetValue)(
-				IPropertyStore * This,
-				PROPERTYKEY * key,
+				qIPropertyStore * This,
+				qPROPERTYKEY * key,
 				PROPVARIANT * val);
 
 		HRESULT  ( STDMETHODCALLTYPE *Commit)(
-				IPropertyStore * This);
+				qIPropertyStore * This);
 	} *lpVtbl;
-} IPropertyStore;
+};
 
-#endif
-#endif
 static const IID qIID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
 
-#ifndef MINGW
-#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
-#define IObjectArray IUnknown 
-#endif
-#endif
+#define qIObjectArray IUnknown 
 static const IID qIID_IObjectArray = {0x92ca9dcd, 0x5622, 0x4bba, {0xa8,0x05,0x5e,0x9f,0x54,0x1b,0xd8,0xc9}};
 
-#ifndef MINGW
-#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
-typedef struct IObjectCollection
+typedef struct qIObjectCollection
 {
-    struct IObjectCollectionVtbl
+    struct qIObjectCollectionVtbl
 	{
 		HRESULT ( __stdcall *QueryInterface )(
 			/* [in] IShellLink*/ void *This,
@@ -1882,7 +1864,7 @@ typedef struct IObjectCollection
 
 		HRESULT ( __stdcall *AddFromArray )(
 			/* [in] IShellLink*/ void *This,
-			/* [in] */ IObjectArray *poaSource);
+			/* [in] */ qIObjectArray *poaSource);
 
 		HRESULT ( __stdcall *RemoveObjectAt )(
 			/* [in] IShellLink*/ void *This,
@@ -1891,18 +1873,13 @@ typedef struct IObjectCollection
 		HRESULT ( __stdcall *Clear )(
 			/* [in] IShellLink*/ void *This);
 	} *lpVtbl;
-} IObjectCollection;
-#endif
-#endif
+} qIObjectCollection;
 static const IID qIID_IObjectCollection = {0x5632b1a4, 0xe38a, 0x400a, {0x92,0x8a,0xd4,0xcd,0x63,0x23,0x02,0x95}};
 static const CLSID qCLSID_EnumerableObjectCollection = {0x2d3468c1, 0x36a7, 0x43b6, {0xac,0x24,0xd3,0xf0,0x2f,0xd9,0x60,0x7a}};
 
-
-#ifndef MINGW
-#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
-typedef struct ICustomDestinationList
+typedef struct qICustomDestinationList
 {
-	struct ICustomDestinationListVtbl
+	struct qICustomDestinationListVtbl
 	{
 		HRESULT ( __stdcall *QueryInterface ) (
 			/* [in] ICustomDestinationList*/ void *This,
@@ -1954,31 +1931,26 @@ typedef struct ICustomDestinationList
 			/* [in] ICustomDestinationList*/ void *This);
 
 	} *lpVtbl;
-} ICustomDestinationList;
-#endif
-#endif
+} qICustomDestinationList;
+
 static const IID qIID_ICustomDestinationList = {0x6332debf, 0x87b5, 0x4670, {0x90,0xc0,0x5e,0x57,0xb4,0x08,0xa4,0x9e}};
 static const CLSID qCLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5,0x20,0xb7,0xc5,0x4f,0xd3,0x5e,0xd6}};
 
+static const IID qIID_IShellLinkW = {0x000214F9L, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
 
-
-#endif
-
-
-#if _MSC_VER > 1200
 #define WIN7_APPNAME L"FTEQuake"
 
 static IShellLinkW *CreateShellLink(char *command, char *target, char *title, char *desc)
 {
 	HRESULT hr;
 	IShellLinkW *link;
-	IPropertyStore *prop_store;
+	qIPropertyStore *prop_store;
 
 	WCHAR buf[1024];
 	char tmp[1024], *s;
 
 	// Get a pointer to the IShellLink interface.
-	hr = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, &link);
+	hr = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &qIID_IShellLinkW, (void**)&link);
 	if (FAILED(hr))
 		return NULL;
 
@@ -1995,19 +1967,18 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 		else
 			*s = tolower(*s);
 	}
-	swprintf(buf, sizeof(buf), L"%S \"%S\" -basedir \"%S\"", command, target, tmp);
+	_snwprintf(buf, sizeof(buf), L"%ls \"%ls\" -basedir \"%ls\"", command, target, tmp);
 	IShellLinkW_SetArguments(link, buf); /*args*/
-	swprintf(buf, sizeof(buf), L"%S", desc);
+	_snwprintf(buf, sizeof(buf), L"%ls", desc);
 	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
 
 
 	hr = IShellLinkW_QueryInterface(link, &qIID_IPropertyStore, &prop_store);
 
-	#ifndef MINGW
 	if(SUCCEEDED(hr))
 	{
 		PROPVARIANT pv;
-		PROPERTYKEY PKEY_Title;
+		qPROPERTYKEY PKEY_Title;
 		pv.vt=VT_LPSTR;
 		pv.pszVal=title; /*item text*/
 		CLSIDFromString(L"{F29F85E0-4FF9-1068-AB91-08002B27B3D9}", &(PKEY_Title.fmtid));
@@ -2016,14 +1987,13 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 		hr = prop_store->lpVtbl->Commit(prop_store);
 		prop_store->lpVtbl->Release(prop_store);
 	}
-	#endif
 
 	return link;
 }
 
 void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
-	SHARDAPPIDINFOLINK appinfo;
+	qSHARDAPPIDINFOLINK appinfo;
 	IShellLinkW *link;
 
 	link = CreateShellLink(command, target, title, desc);
@@ -2032,7 +2002,7 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 
 	appinfo.pszAppID=WIN7_APPNAME;
 	appinfo.psl=link;
-	SHAddToRecentDocs(SHARD_APPIDINFOLINK, &appinfo);
+	SHAddToRecentDocs(qSHARD_APPIDINFOLINK, &appinfo);
 	IShellLinkW_Release(link);
 }
 
@@ -2040,7 +2010,7 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 typedef struct {
   LPCWSTR            pcszFile;
   LPCWSTR            pcszClass;
-  enum qOPEN_AS_INFO_FLAGS oaifInFlags;
+  int oaifInFlags;
 } qOPENASINFO;
 HRESULT (WINAPI *pSHOpenWithDialog)(HWND hwndParent, const qOPENASINFO *poainfo);
 
@@ -2063,18 +2033,18 @@ void Win7_Init(void)
 
 void Win7_TaskListInit(void)
 {
-	ICustomDestinationList *cdl;
-	IObjectCollection *col;
-	IObjectArray *arr;
+	qICustomDestinationList *cdl;
+	qIObjectCollection *col;
+	qIObjectArray *arr;
 	IShellLinkW *link;
 	CoInitialize(NULL);
-	if (SUCCEEDED(CoCreateInstance(&qCLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER, &qIID_ICustomDestinationList, &cdl)))
+	if (SUCCEEDED(CoCreateInstance(&qCLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER, &qIID_ICustomDestinationList, (void**)&cdl)))
 	{
 		UINT minslots;
 		IUnknown *removed;
 		cdl->lpVtbl->BeginList(cdl, &minslots, &qIID_IObjectArray, &removed);
 
-		if (SUCCEEDED(CoCreateInstance(&qCLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER, &qIID_IObjectCollection, &col)))
+		if (SUCCEEDED(CoCreateInstance(&qCLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER, &qIID_IObjectCollection, (void**)&col)))
 		{
 
 			switch(M_GameType())
@@ -2135,7 +2105,7 @@ void Win7_TaskListInit(void)
 		cdl->lpVtbl->Release(cdl);
 	}
 }
-#endif
+
 
 #if defined(SVNREVISION) && !defined(MINIMAL)
 	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
@@ -2289,7 +2259,6 @@ static void	Update_CreatePath (char *path)
 	}
 }
 
-#include "fs.h"
 void Update_Version_Updated(struct dl_download *dl)
 {
 	//happens in a thread, avoid va
@@ -2609,14 +2578,14 @@ void VARGS Signal_Error_Handler(int i)
 #endif
 */
 
-void Sys_RunFile(const char *fname, int nlen)
+qboolean Sys_RunFile(const char *fname, int nlen)
 {
 	char buffer[MAX_OSPATH];
 	char *ext;
 	if (nlen >= MAX_OSPATH)
 	{
 		Con_Printf("Filename too long.\n");
-		return;
+		return true;
 	}
 
 	memcpy(buffer, fname, nlen);
@@ -2636,10 +2605,80 @@ void Sys_RunFile(const char *fname, int nlen)
 	}
 	else if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
 		Cbuf_AddText(va("playdemo \"#%s\"\n", fname), RESTRICT_LOCAL);
+	else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
+		Con_Printf("Unable to install paks/pk3s at this time\n");
 	else if (!strcmp(ext, "bsp"))
-		Cbuf_AddText(va("map \"#%s\"\n", fname), RESTRICT_LOCAL);
+	{
+		char qname[MAX_QPATH];
+		vfsfile_t *sf, *qf;
+		qboolean overwrite = false;
+		COM_StripExtension(COM_SkipPath(fname), qname, sizeof(qname));
+		sf = VFSOS_Open(fname, "rb");
+		qf = FS_OpenVFS(va("maps/%s.bsp", qname), "rb", FS_GAME);
+		if (qf)
+		{
+			if (VFS_GETLEN(sf) != VFS_GETLEN(qf))
+				overwrite = true;
+			VFS_SEEK(sf, 0);
+			VFS_CLOSE(qf);
+		}
+		if (overwrite)
+		{
+			switch(MessageBox(mainwindow, va("Overwrite existing map: %s?", qname), "Install And Play", MB_YESNOCANCEL))
+			{
+			case IDYES:
+				//overwrite it and load it up
+				overwrite = true;
+				break;
+			case IDNO:
+				//load up the old version
+				overwrite = false;
+				break;
+			default:
+			case IDCANCEL:
+				//quit or something
+				return false;
+			}
+		}
+		else if (!qf)
+		{
+			switch(MessageBox(mainwindow, va("Install new map: %s?", qname), "Install And Play", MB_OKCANCEL))
+			{
+			case IDOK:
+				//overwrite it and load it up
+				overwrite = true;
+				break;
+			default:
+			case IDCANCEL:
+				//quit or something
+				return false;
+			}
+		}
+
+		if (overwrite)
+		{
+			char buffer[8192];
+			int len;
+			qf = FS_OpenVFS(va("maps/%s.bsp", qname), "wb", FS_GAMEONLY);
+			if (qf)
+			{
+				while(1)
+				{
+					len = VFS_READ(sf, buffer, sizeof(buffer));
+					if (len <= 0)
+						break;
+					VFS_WRITE(qf, buffer, len);
+				}
+				VFS_CLOSE(qf);
+			}
+		}
+		VFS_CLOSE(sf);
+
+		Cbuf_AddText(va("map \"%s\"\n", qname), RESTRICT_LOCAL);
+	}
 	else
 		Cbuf_AddText(va("qtvplay \"#%s\"\n", fname), RESTRICT_LOCAL);
+	return true;
 }
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -2786,7 +2825,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 		*/
 
-#ifdef CATCHCRASH
+#if defined(CATCHCRASH) && defined(MULTITHREAD)
 		if (COM_CheckParm("-watchdog"))
 			Sys_CreateThread("watchdog", watchdogthread, NULL, 0, 0); 
 #endif
@@ -2914,7 +2953,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (qtvfile)
 		{
-			Sys_RunFile(qtvfile, strlen(qtvfile));
+			if (!Sys_RunFile(qtvfile, strlen(qtvfile)))
+			{
+				SetHookState(false);
+				Host_Shutdown ();
+				return TRUE;
+			}
 		}
 
 	//client console should now be initialized.

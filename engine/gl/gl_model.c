@@ -406,16 +406,13 @@ void RMod_ClearAll (void)
 
 #ifdef RUNTIMELIGHTING
 #ifdef MULTITHREAD
-	if (relightthread)
+	wantrelight = false;
+	for (i = 0; i < relightthreads; i++)
 	{
-		wantrelight = false;
-		for (i = 0; i < relightthreads; i++)
-		{
-			Sys_WaitOnThread(relightthread[i]);
-			relightthread[i] = NULL;
-		}
-		relightthreads = 0;
+		Sys_WaitOnThread(relightthread[i]);
+		relightthread[i] = NULL;
 	}
+	relightthreads = 0;
 #endif
 	lightmodel = NULL;
 #endif

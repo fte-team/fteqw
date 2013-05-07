@@ -2380,14 +2380,17 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 
 					if (client->spec_track > 0 && client->spec_track <= sv.allocated_client_slots)
 						s = &svs.clients[client->spec_track-1];
-					else if (client->spec_track || !s->state != cs_spawned)
-					{
-						Con_Printf("Client was spectating now-invalid entity: %i\n", client->spec_track);
-						client->spec_track = 0;
-						s = NULL;
-					}
 					else
 						s = NULL;
+					if (!s || s->state != cs_spawned)
+					{
+						if (client->spec_track)
+						{
+							Con_Printf("Client was spectating now-invalid entity: %i\n", client->spec_track);
+							client->spec_track = 0;
+						}
+						s = NULL;
+					}
 
 					if (s)
 					{

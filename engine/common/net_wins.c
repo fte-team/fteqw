@@ -4176,7 +4176,7 @@ static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
 	}
 	return false;
 }
-static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t to)
+static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	int res;

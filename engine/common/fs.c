@@ -974,11 +974,15 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 		if (*com_homedir)
 		{
 			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homedir, gamedirfile, filename);
+			if (*mode == 'w')
+				COM_CreatePath(fullname);
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
 		snprintf(fullname, sizeof(fullname), "%s%s/%s", com_quakedir, gamedirfile, filename);
+		if (*mode == 'w')
+			COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
 	case FS_GAME:
 		if (*com_homedir)

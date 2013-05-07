@@ -2016,6 +2016,91 @@ qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
 	return true;
 }
 
+void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *msg)
+{
+	int			j;
+	client_t	*cl;
+	edict_t		*ent, *vent;
+//	int			pflags;
+
+	demo_frame_t *demo_frame;
+	demo_client_t *dcl;
+#define DF_DEAD		(1<<8)
+#define DF_GIB		(1<<9)
+
+	demo_frame = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK];
+	for (j=0,cl=svs.clients, dcl = demo_frame->clients; j<MAX_CLIENTS ; j++,cl++, dcl++)
+	{
+		if (cl->state != cs_spawned)
+			continue;
+
+#ifdef SERVER_DEMO_PLAYBACK
+		if (sv.demostatevalid)
+		{
+			if (client != cl)
+				continue;
+		}
+#endif
+
+		ent = cl->edict;
+		vent = ent;
+
+		if (progstype != PROG_QW)
+		{
+			if ((int)ent->v->effects & EF_MUZZLEFLASH)
+			{
+				if (needcleanup < (j+1))
+				{
+					needcleanup = (j+1);
+				}
+			}
+		}
+
+		if (SV_AddCSQCUpdate(client, ent))
+			continue;
+
+		if (cl->spectator)
+			continue;
+
+		dcl->parsecount = demo.parsecount;
+
+		VectorCopy(vent->v->origin, dcl->info.origin);
+		VectorCopy(vent->v->angles, dcl->info.angles);
+		dcl->info.angles[0] *= -3;
+		dcl->info.angles[2] = 0; // no roll angle
+
+		if (ent->v->health <= 0)
+		{	// don't show the corpse looking around...
+			dcl->info.angles[0] = 0;
+			dcl->info.angles[1] = vent->v->angles[1];
+			dcl->info.angles[2] = 0;
+		}
+
+		if (ent != vent)
+		{
+			dcl->info.model = 0;	//invisible.
+			dcl->info.effects = 0;
+		}
+		else
+		{
+			dcl->info.skinnum = ent->v->skin;
+			dcl->info.effects = ent->v->effects;
+			dcl->info.weaponframe = ent->v->weaponframe;
+			dcl->info.model = ent->v->modelindex;
+		}
+		dcl->sec = sv.time - cl->localtime;
+		dcl->frame = ent->v->frame;
+		dcl->flags = 0;
+		dcl->cmdtime = cl->localtime;
+		dcl->fixangle = demo.fixangle[j];
+		demo.fixangle[j] = 0;
+
+		if (ent->v->health <= 0)
+			dcl->flags |= DF_DEAD;
+		if (ent->v->mins[2] != -24)
+			dcl->flags |= DF_GIB;
+	}
+}
 
 /*
 =============
@@ -2031,99 +2116,11 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 	edict_t		*ent, *vent;
 //	int			pflags;
 
-	demo_frame_t *demo_frame;
-	demo_client_t *dcl;
-#define DF_DEAD		(1<<8)
-#define DF_GIB		(1<<9)
-
-	if (client->state < cs_spawned && pvs)
+	if (client->state < cs_spawned)
 	{
 		Con_Printf("SV_WritePlayersToClient: not spawned yet\n", client->namebuf);
 		return;
 	}
-
-	if (clent == NULL)	//write to demo file. (no PVS)
-	{
-		demo_frame = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK];
-		for (j=0,cl=svs.clients, dcl = demo_frame->clients; j<MAX_CLIENTS ; j++,cl++, dcl++)
-		{
-			if (cl->state != cs_spawned)
-				continue;
-
-#ifdef SERVER_DEMO_PLAYBACK
-			if (sv.demostatevalid)
-			{
-				if (client != cl)
-					continue;
-			}
-#endif
-
-			ent = cl->edict;
-			if (cl->viewent && ent == clent)
-				vent = EDICT_NUM(svprogfuncs, cl->viewent);
-			else
-				vent = ent;
-
-			if (progstype != PROG_QW)
-			{
-				if ((int)ent->v->effects & EF_MUZZLEFLASH)
-				{
-					if (needcleanup < (j+1))
-					{
-						needcleanup = (j+1);
-					}
-				}
-			}
-
-			if (SV_AddCSQCUpdate(client, ent))
-				continue;
-
-			if (cl->spectator)
-				continue;
-
-			dcl->parsecount = demo.parsecount;
-
-			VectorCopy(vent->v->origin, dcl->info.origin);
-			VectorCopy(vent->v->angles, dcl->info.angles);
-			dcl->info.angles[0] *= -3;
-			dcl->info.angles[2] = 0; // no roll angle
-
-			if (ent->v->health <= 0)
-			{	// don't show the corpse looking around...
-				dcl->info.angles[0] = 0;
-				dcl->info.angles[1] = vent->v->angles[1];
-				dcl->info.angles[2] = 0;
-			}
-
-			if (ent != vent)
-			{
-				dcl->info.model = 0;	//invisible.
-				dcl->info.effects = 0;
-			}
-			else
-			{
-				dcl->info.skinnum = ent->v->skin;
-				dcl->info.effects = ent->v->effects;
-				dcl->info.weaponframe = ent->v->weaponframe;
-				dcl->info.model = ent->v->modelindex;
-			}
-			dcl->sec = sv.time - cl->localtime;
-			dcl->frame = ent->v->frame;
-			dcl->flags = 0;
-			dcl->cmdtime = cl->localtime;
-			dcl->fixangle = demo.fixangle[j];
-			demo.fixangle[j] = 0;
-
-			if (ent->v->health <= 0)
-				dcl->flags |= DF_DEAD;
-			if (ent->v->mins[2] != -24)
-				dcl->flags |= DF_GIB;
-			continue;
-		}
-		return;
-	}
-
-
 
 #ifdef NQPROT
 	if (!ISQWCLIENT(client))
@@ -2306,7 +2303,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				continue;
 
 			// ignore if not touching a PV leaf
-			if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, pvs))
+			if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, pvs))
 				continue;
 
 			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
@@ -2379,7 +2376,20 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				clst.spectator = 0;
 				if (client->spectator)
 				{
-					if (client->spec_track)
+					client_t *s;
+
+					if (client->spec_track > 0 && client->spec_track <= sv.allocated_client_slots)
+						s = &svs.clients[client->spec_track-1];
+					else if (client->spec_track || !s->state != cs_spawned)
+					{
+						Con_Printf("Client was spectating now-invalid entity: %i\n", client->spec_track);
+						client->spec_track = 0;
+						s = NULL;
+					}
+					else
+						s = NULL;
+
+					if (s)
 					{
 						clst.spectator = 2;
 						clst.mins = svs.clients[client->spec_track-1].edict->v->mins;
@@ -3503,7 +3513,12 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		// send over the players in the PVS
 		if (svs.gametype != GT_HALFLIFE)
-			SV_WritePlayersToClient (client, frame, clent, pvs, msg);
+		{
+			if (client == &demo.recorder)
+				SV_WritePlayersToMVD(client, frame, msg);
+			else
+				SV_WritePlayersToClient (client, frame, clent, pvs, msg);
+		}
 
 		SVQW_EmitPacketEntities (client, pack, msg);
 	}

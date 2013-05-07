@@ -17,6 +17,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+#ifdef __i386__
+#define _GNU_SOURCE	//we need this in order to fix up broken backtraces. make sure its defined only where needed so we still some posixy conformance test on one plat.
+#endif
+
 #include <signal.h>
 #include <sys/types.h>
 #include <dlfcn.h>
@@ -670,8 +674,8 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 
 #if defined(__i386__)
 	//x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
-	struct sig_ucontext *uc = vcontext;
-	array[1] = uc->uc_mcontext.eip;
+	ucontext_t *uc = vcontext;
+	array[1] = uc->uc_mcontext.gregs[REG_EIP];
 	firstframe = 1;
 #elif defined(__amd64__)
 	//amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.

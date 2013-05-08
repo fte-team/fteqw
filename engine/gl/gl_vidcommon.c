@@ -54,6 +54,7 @@ FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 //quick hack that made quake work on both 1+ext and 1.1 gl implementations.
 BINDTEXFUNCPTR qglBindTexture;
@@ -172,7 +173,6 @@ void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
 void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
-void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 /*

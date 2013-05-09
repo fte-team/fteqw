@@ -2806,9 +2806,10 @@ closesvstream:
 
 							Con_Printf("Websocket request for %s from %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 
-							resp = va(	"HTTP/1.1 101 Switching Protocols\r\n"
+							resp = va(	"HTTP/1.1 101 WebSocket Protocol Handshak\r\n"
 										"Upgrade: websocket\r\n"
 										"Connection: Upgrade\r\n"
+										"Access-Control-Allow-Origin: *\r\n"	//allow cross-origin requests. this means you can use any domain to play on any public server.
 										"Sec-WebSocket-Accept: %s\r\n"
 //										"Sec-WebSocket-Protocol: FTEWebSocket\r\n"
 										"\r\n", acceptkey);

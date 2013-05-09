@@ -1643,7 +1643,7 @@ void SV_Begin_Core(client_t *split)
 			{
 				//keep the spectator tracking the player from the previous map
 				if (split->spec_track > 0)
-					split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, svs.clients[split->spec_track-1].edict);
+					split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, split->spec_track));
 				else
 					split->edict->v->goalentity = 0;
 
@@ -2379,7 +2379,7 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 			send = true;
 
 		/*if you're spectating, you can hear whatever your tracked player can hear*/
-		if (host_client->spectator && host_client->spec_track)
+		if (host_client->spectator && host_client->spec_track && host_client->spec_track <= sv.allocated_client_slots)
 			if (ring->receiver[(host_client->spec_track-1)>>3] & (1<<((host_client->spec_track-1)&3)))
 				send = true;
 
@@ -3471,8 +3471,7 @@ void SV_PTrack_f (void)
 	}
 #endif
 
-	if (i < 0 || i >= sv.allocated_client_slots || svs.clients[i].state != cs_spawned ||
-		svs.clients[i].spectator)
+	if (!SV_CanTrack(host_client, i+1))
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_INVALIDTRACKCLIENT);
 		host_client->spec_track = 0;

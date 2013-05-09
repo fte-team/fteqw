@@ -2376,29 +2376,15 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				clst.spectator = 0;
 				if (client->spectator)
 				{
-					client_t *s;
-
-					if (client->spec_track > 0 && client->spec_track <= sv.allocated_client_slots)
-						s = &svs.clients[client->spec_track-1];
-					else
-						s = NULL;
-					if (!s || s->state != cs_spawned)
+					if (client->spec_track > 0)
 					{
-						if (client->spec_track)
-						{
-							Con_Printf("Client was spectating now-invalid entity: %i\n", client->spec_track);
-							client->spec_track = 0;
-						}
-						s = NULL;
-					}
+						edict_t *s = EDICT_NUM(svprogfuncs, client->spec_track);
 
-					if (s)
-					{
 						clst.spectator = 2;
-						clst.mins = svs.clients[client->spec_track-1].edict->v->mins;
-						clst.maxs = svs.clients[client->spec_track-1].edict->v->maxs;
-						clst.health = svs.clients[client->spec_track-1].edict->v->health;
-						clst.weaponframe = svs.clients[client->spec_track-1].edict->v->weaponframe;
+						clst.mins = s->v->mins;
+						clst.maxs = s->v->maxs;
+						clst.health = s->v->health;
+						clst.weaponframe = s->v->weaponframe;
 					}
 					else
 					{

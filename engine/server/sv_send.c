@@ -1573,7 +1573,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	// if we are a spectator and we are tracking a player, we get his stats
 	// so our status bar reflects his
 	if (client->spectator && client->spec_track > 0)
-		ent = svs.clients[client->spec_track - 1].edict;
+		ent = EDICT_NUM(svprogfuncs, client->spec_track);
 
 #ifdef HLSERVER
 	if (svs.gametype == GT_HALFLIFE)
@@ -1844,6 +1844,13 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	}
 }
 
+qboolean SV_CanTrack(client_t *client, int entity)
+{
+	if (entity < 0 || entity > sv.allocated_client_slots || svs.clients[entity-1].state != cs_spawned || svs.clients[entity-1].spectator)
+		return false;
+	return true;
+}
+
 /*
 =======================
 SV_SendClientDatagram
@@ -1861,6 +1868,12 @@ qboolean SV_SendClientDatagram (client_t *client)
 	msg.allowoverflow = true;
 	msg.overflowed = false;
 	msg.prim = client->datagram.prim;
+
+	if (client->spec_track && !SV_CanTrack(client, client->spec_track))
+	{
+		client->spec_track = 0;
+		client->edict->v->goalentity = 0;
+	}
 
 	if (client->protocol != SCP_FITZ666 && !client->netchan.fragmentsize)
 		msg.maxsize = MAX_DATAGRAM;

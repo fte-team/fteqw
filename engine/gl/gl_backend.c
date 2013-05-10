@@ -197,11 +197,6 @@ struct {
 	batch_t *wbatches;
 } shaderstate;
 
-static struct {
-	int numlights;
-	int shadowsurfcount;
-} bench;
-
 static void BE_PolyOffset(qboolean pushdepth)
 {
 	polyoffset_t po;
@@ -3684,7 +3679,6 @@ static void DrawMeshes(void)
 
 static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 {
-	int i;
 	*vbo = &shaderstate.dummyvbo;
 
 	//this code is shit shit shit.
@@ -3692,7 +3686,7 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 	{
 		//use a local. can't use a static, that crashes the compiler due to memory use, so lets eat the malloc or stack or whatever because we really don't have a choice.
 		static char *buffer;
-		int len = 0;
+		size_t len = 0;
 		if (!buffer)
 			buffer = malloc(65536 * 33 * sizeof(float));
 
@@ -3861,8 +3855,6 @@ void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t 
 
 void GLBE_SubmitBatch(batch_t *batch)
 {
-	int lm;
-
 	shaderstate.curbatch = batch;
 	if (batch->vbo)
 	{
@@ -3874,8 +3866,6 @@ void GLBE_SubmitBatch(batch_t *batch)
 		//we're only allowed one mesh per batch if there's no vbo info.
 		if (!BE_GenTempMeshVBO(&shaderstate.sourcevbo, batch->mesh[0]))
 			return;
-
-		lm = -1;
 	}
 
 	shaderstate.curshader = batch->shader;
@@ -4617,16 +4607,31 @@ void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
 {
 	ctx->maxsize = maxsize;
 	ctx->pos = 0;
-	qglGenBuffersARB(2, ctx->vboid);
-	GL_SelectVBO(ctx->vboid[0]);
-	//WARNING: in emscripten/webgl, we should probably not pass null.
-	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, ctx->maxsize, NULL, GL_STATIC_DRAW_ARB);
+	ctx->fallback = NULL;
+	if (qglBufferDataARB)
+	{
+		qglGenBuffersARB(2, ctx->vboid);
+		GL_SelectVBO(ctx->vboid[0]);
+		//WARNING: in emscripten/webgl, we should probably not pass null.
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, ctx->maxsize, NULL, GL_STATIC_DRAW_ARB);
+	}
+	else
+		ctx->fallback = BZ_Malloc(maxsize);
 }
 void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
 {
-	qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, ctx->pos, size, data);
-	varray->gl.vbo = ctx->vboid[0];
-	varray->gl.addr = (void*)ctx->pos;
+	if (ctx->fallback)
+	{
+		memcpy(ctx->fallback + ctx->pos, data, size);
+		varray->gl.vbo = 0;
+		varray->gl.addr = ctx->fallback + ctx->pos;
+	}
+	else
+	{
+		qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, ctx->pos, size, data);
+		varray->gl.vbo = ctx->vboid[0];
+		varray->gl.addr = (void*)ctx->pos;
+	}
 	ctx->pos += size;
 }
 
@@ -4634,13 +4639,26 @@ void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t
 {
 	if (ctx->pos > ctx->maxsize)
 		Sys_Error("BE_VBO_Finish: too much data given\n");
-	GL_SelectEBO(ctx->vboid[1]);
-	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, esize, edata, GL_STATIC_DRAW_ARB);
-	earray->gl.vbo = ctx->vboid[1];
-	earray->gl.addr = NULL;
+    if (ctx->fallback)
+	{
+		void *d = BZ_Malloc(esize);
+		memcpy(d, edata, esize);
+		earray->gl.vbo = 0;
+		earray->gl.addr = d;
+	}
+	else
+	{
+		GL_SelectEBO(ctx->vboid[1]);
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, esize, edata, GL_STATIC_DRAW_ARB);
+		earray->gl.vbo = ctx->vboid[1];
+		earray->gl.addr = NULL;
+	}
 }
 void GLBE_VBO_Destroy(vboarray_t *vearray)
 {
-	qglDeleteBuffersARB(1, &vearray->gl.vbo);
+	if (vearray->gl.vbo)
+		qglDeleteBuffersARB(1, &vearray->gl.vbo);
+	else
+		BZ_Free(vearray->gl.addr);
 }
 #endif

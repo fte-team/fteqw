@@ -53,9 +53,9 @@ typedef struct vm_s vm_t;
 // ------------------------- * interface * -------------------------
 
 void VM_PrintInfo(vm_t *vm);
-vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm);
+vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm);
 void VM_Destroy(vm_t *vm);
-qboolean VM_Restart(vm_t *vm);
+//qboolean VM_Restart(vm_t *vm);
 qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...);
 qboolean VM_NonNative(vm_t *vm);
 void *VM_MemoryBase(vm_t *vm);
@@ -71,7 +71,7 @@ void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);
 void		Plug_DrawReloadImages(void);
 void		Plug_Initialise(qboolean fromgamedir);
-void		Plug_Shutdown(void);
+void		Plug_Shutdown(qboolean preliminary);
 qboolean	Plug_Menu_Event(int eventtype, int param);
 void		Plug_ResChanged(void);
 void		Plug_SBar(void);

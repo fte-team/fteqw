@@ -224,122 +224,6 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 #endif
 
 
-#ifdef Q2SERVER
-static HINSTANCE	game_library;
-
-/*
-=================
-Sys_UnloadGame
-=================
-*/
-void Sys_UnloadGame (void)
-{
-	if (!FreeLibrary (game_library))
-		Sys_Error ("FreeLibrary failed for game library");
-	game_library = NULL;
-}
-
-/*
-=================
-Sys_GetGameAPI
-
-Loads the game dll
-=================
-*/
-void *Sys_GetGameAPI (void *parms)
-{
-	void	*(VARGS *GetGameAPI) (void *);
-	char	name[MAX_OSPATH];
-	char	*path;
-	char	cwd[MAX_OSPATH];
-// _M_X64 should be really loading gamex64.dll
-#if defined _M_IX86 || defined _M_X64
-	const char *gamename = "gamex86.dll";
-
-#ifdef NDEBUG
-	const char *debugdir = "release";
-#else
-	const char *debugdir = "debug";
-#endif
-
-#elif defined __amd64__
-	const char *gamename = "gameamd.dll";
-
-#ifdef NDEBUG
-	const char *debugdir = "release";
-#else
-	const char *debugdir = "debug";
-#endif
-
-
-#elif defined _M_ALPHA
-	const char *gamename = "gameaxp.dll";
-
-#ifdef NDEBUG
-	const char *debugdir = "releaseaxp";
-#else
-	const char *debugdir = "debugaxp";
-#endif
-
-#endif
-
-	if (game_library)
-		Sys_Error ("Sys_GetGameAPI without Sys_UnloadingGame");
-
-	// check the current debug directory first for development purposes
-#ifdef _WIN32
-	GetCurrentDirectory(sizeof(cwd), cwd);
-#else
-	_getcwd (cwd, sizeof(cwd));
-#endif
-	snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
-	game_library = LoadLibrary ( name );
-	if (game_library)
-	{
-		Con_DPrintf ("LoadLibrary (%s)\n", name);
-	}
-	else
-	{
-#ifdef DEBUG
-		// check the current directory for other development purposes
-		_snprintf (name, sizeof(name), "%s/%s", cwd, gamename);
-		game_library = LoadLibrary ( name );
-		if (game_library)
-		{
-			Con_DPrintf ("LoadLibrary (%s)\n", name);
-		}
-		else
-#endif
-		{
-			// now run through the search paths
-			path = NULL;
-			while (1)
-			{
-				path = COM_NextPath (path);
-				if (!path)
-					return NULL;		// couldn't find one anywhere
-				snprintf (name, sizeof(name), "%s/%s", path, gamename);
-				game_library = LoadLibrary (name);
-				if (game_library)
-				{
-					Con_DPrintf ("LoadLibrary (%s)\n",name);
-					break;
-				}
-			}
-		}
-	}
-
-	GetGameAPI = (void *)GetProcAddress (game_library, "GetGameAPI");
-	if (!GetGameAPI)
-	{
-		Sys_UnloadGame ();
-		return NULL;
-	}
-
-	return GetGameAPI (parms);
-}
-#endif
-
 
 
 #include <fcntl.h>
@@ -1033,7 +917,7 @@ void Signal_Error_Handler (int sig)
 void StartQuakeServer(void)
 {
 	quakeparms_t	parms;
-	//static	char	cwd[1024]; //unused variable
+	static	char	bindir[MAX_OSPATH]; //unused variable
 	int				t;
 
 	memset(&parms, 0, sizeof(parms));
@@ -1058,6 +942,10 @@ void StartQuakeServer(void)
 
 	if (!parms.membase)
 		Sys_Error("Insufficient memory.\n");
+
+	GetModuleFileName(NULL, bindir, sizeof(bindir)-1);
+	*COM_SkipPath(bindir) = 0;
+	parms.binarydir = bindir;
 
 	parms.basedir = ".";
 

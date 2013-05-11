@@ -1,10 +1,10 @@
 #include "../plugin.h"
 #include "../engine.h"
 
-#include <libavformat/avformat.h>
-#include <libavformat/avio.h>
-#include <libavcodec/avcodec.h>
-#include <libswscale/swscale.h>
+#include "libavformat/avformat.h"
+#include "libavformat/avio.h"
+#include "libavcodec/avcodec.h"
+#include "libswscale/swscale.h"
 //#include <libavutil/channel_layout.h>
 
 /*
@@ -325,7 +325,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 
 	ctx->fc = avformat_alloc_context();
 	ctx->fc->oformat = fmt;
-	snprintf(ctx->fc->filename, sizeof(ctx->fc->filename), "%s", streamname);
+	Q_snprintf(ctx->fc->filename, sizeof(ctx->fc->filename), "%s", streamname);
 
 
 	//pick default codecs

@@ -159,14 +159,15 @@ K_SEARCH		= 242,
 K_VOLUP			= 243,
 K_VOLDOWN		= 244,
 K_RALT			= 245,
+K_RCTRL			= 246,
+K_RSHIFT		= 247,
+K_PRINTSCREEN	= 248,
 
 K_MAX			= 256
 };
 
 #define K_SHIFT K_LSHIFT
-#define K_RSHIFT K_LSHIFT
 #define K_CTRL K_LCTRL
-#define K_RCTRL K_LCTRL
 #define K_ALT K_LALT
 
 typedef enum {key_game, key_console, key_message, key_menu, key_editor} keydest_t;

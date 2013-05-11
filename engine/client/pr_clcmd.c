@@ -23,8 +23,10 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_RIGHTARROW:		return 131;
 	case K_LALT:			return 132;
 	case K_RALT:			return 132;
-	case K_CTRL:			return 133;
-	case K_SHIFT:			return 134;
+	case K_LCTRL:			return 133;
+	case K_RCTRL:			return 133;
+	case K_LSHIFT:			return 134;
+	case K_RSHIFT:			return 134;
 	case K_F1:				return 135;
 	case K_F2:				return 136;
 	case K_F3:				return 137;
@@ -125,8 +127,8 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 130:		return K_LEFTARROW;
 	case 131:		return K_RIGHTARROW;
 	case 132:		return K_LALT;
-	case 133:		return K_CTRL;
-	case 134:		return K_SHIFT;
+	case 133:		return K_LCTRL;
+	case 134:		return K_LSHIFT;
 	case 135:		return K_F1;
 	case 136:		return K_F2;
 	case 137:		return K_F3;

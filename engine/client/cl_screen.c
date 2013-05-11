@@ -2231,7 +2231,6 @@ void SCR_BringDownConsole (void)
 		SCR_UpdateScreen ();
 
 	cl.cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
-	VID_SetPalette (host_basepal);
 }
 
 void SCR_TileClear (void)

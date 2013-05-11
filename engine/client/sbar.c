@@ -24,7 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t hud_tracking_show;
 
-extern cvar_t com_parseutf8;
 #define CON_ALTMASK (CON_2NDCHARSETTEXT|CON_WHITEMASK)
 
 cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");

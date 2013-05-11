@@ -1694,7 +1694,7 @@ qboolean SVQ3_InitGame(void)
 
 	SVQ3_ShutdownGame();
 
-	q3gamevm = VM_Create(NULL, "vm/qagame", Q3G_SystemCallsNative, Q3G_SystemCallsVM);
+	q3gamevm = VM_Create("vm/qagame", com_nogamedirnativecode.ival?NULL:Q3G_SystemCallsNative, Q3G_SystemCallsVM);
 
 	if (!q3gamevm)
 		return false;

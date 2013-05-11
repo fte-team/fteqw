@@ -1536,7 +1536,7 @@ void UI_Start (void)
 
 	UI_Stop();
 
-	uivm = VM_Create(NULL, "vm/ui", UI_SystemCallsNative, UI_SystemCallsVM);
+	uivm = VM_Create("vm/ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, UI_SystemCallsVM);
 	if (uivm)
 	{
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);

@@ -5043,7 +5043,7 @@ void NET_InitClient(void)
 
 	cls.sockets = FTENET_CreateCollection(false);
 #ifndef CLIENTONLY
-	FTENET_AddToCollection(cls.sockets, "CLLoopback", port, NA_LOOPBACK, true);
+	FTENET_AddToCollection(cls.sockets, "CLLoopback", "1", NA_LOOPBACK, true);
 #endif
 #ifdef HAVE_IPV4
 	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, NA_IP, true);
@@ -5292,7 +5292,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				switch(e)
 				{
 				case ECONNABORTED:
-					Sys_Printf("conenction aborted\n");
+					Sys_Printf("connection aborted\n", e);
 					break;
 				default:
 					Sys_Printf("socket error %i\n", e);

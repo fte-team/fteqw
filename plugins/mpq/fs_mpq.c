@@ -247,7 +247,7 @@ vfsfile_t *MPQ_OpenVFS(void *handle, flocation_t *loc, const char *mode);
 void	MPQ_GetDisplayPath(void *handle, char *outpath, unsigned int pathsize)
 {
 	mpqarchive_t *mpq = handle;
-	strlcpy(outpath, mpq->desc, pathsize);
+	Q_strlcpy(outpath, mpq->desc, pathsize);
 }
 void	MPQ_ClosePath(void *handle)
 {
@@ -261,15 +261,25 @@ void	MPQ_ClosePath(void *handle)
 qboolean MPQ_FindFile(void *handle, flocation_t *loc, const char *name, void *hashedresult)
 {
 	mpqarchive_t *mpq = handle;
-	unsigned int hashentry;
 	unsigned int blockentry;
 
-	hashentry = mpq_lookuphash(handle, name, 0);
-	if (hashentry == HASH_TABLE_EMPTY)
-		return false;
-	blockentry = mpq->hashdata[hashentry].block_table_index;
-	if (blockentry > mpq->blockentries)
-		return false;
+	if (hashedresult)
+	{
+		mpqblock_t *block = hashedresult;
+		if (block >= mpq->blockdata && block <= mpq->blockdata + mpq->blockentries)
+			blockentry = (mpqblock_t*)block - mpq->blockdata;
+		else
+			return false;
+	}
+	else
+	{
+		unsigned int hashentry = mpq_lookuphash(handle, name, 0);
+		if (hashentry == HASH_TABLE_EMPTY)
+			return false;
+		blockentry = mpq->hashdata[hashentry].block_table_index;
+		if (blockentry > mpq->blockentries)
+			return false;
+	}
 	if (loc)
 	{
 		loc->index = blockentry;
@@ -366,10 +376,10 @@ int		MPQ_EnumerateFiles(void *handle, const char *match, int (QDECL *func)(const
 }
 void	MPQ_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	mpqarchive_t *wp = handle;
 	char *s, *n;
 	char name[MAX_QPATH];
 	mpqarchive_t *mpq = handle;
+	flocation_t loc;
 	if (mpq->listfile)
 	{
 		s = mpq->listfile;
@@ -385,8 +395,10 @@ void	MPQ_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth,
 
 			memcpy(name, s, n - s);
 			name[n-s] = 0;
-
-			AddFileHash(depth, name, NULL, wp);
+			//precompute the name->block lookup. fte normally does the hashing outside the archive code.
+			//however, its possible multiple hash tables point to a single block, so we need to pass null for the third arg (or allocate fsbucket_ts one per hash instead of buckets).
+			if (MPQ_FindFile(mpq, &loc, name, NULL))
+				AddFileHash(depth, name, NULL, &mpq->blockdata[loc.index]);
 		}
 	}
 }
@@ -409,7 +421,7 @@ void	*MPQ_OpenNew(vfsfile_t *file, const char *desc)
 
 	mpq = malloc(sizeof(*mpq));
 	memset(mpq, 0, sizeof(*mpq));
-	strlcpy(mpq->desc, desc, sizeof(mpq->desc));
+	Q_strlcpy(mpq->desc, desc, sizeof(mpq->desc));
 	mpq->header_0 = header;
 	mpq->file = file;
 	mpq->filestart = 0;

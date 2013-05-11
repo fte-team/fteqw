@@ -948,7 +948,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 // ourselves at the top of the z order, then grab the foreground again,
 // Who knows if it helps, but it probably doesn't hurt
 	SetForegroundWindow (mainwindow);
-	VID_SetPalette (palette);
 
 #ifndef NPFTE
 	/*I don't like this, but if we */
@@ -968,8 +967,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 // fix the leftover Alt from any Alt-Tab or the like that switched us away
 	ClearAllStates ();
-
-	GLVID_SetPalette (palette);
 
 	vid.recalc_refdef = 1;
 
@@ -1473,26 +1470,54 @@ void	GLVID_SetPalette (unsigned char *palette)
 	}
 }
 
-void	GLVID_ShiftPalette (unsigned char *palette)
+qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 {
-	extern	unsigned short ramps[3][256];
-
-	if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	if (ramps)
 	{
-		if (gammaworks)
-		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
+		if (!gammaworks)
+			return false;
+
+		if (vid_hardwaregamma.value == 1 && modestate == MS_WINDOWED)
+			return false;	//don't do hardware gamma in windowed mode
+
+		if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+		{
+			if (gammaworks)
+			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
+				if (vid_desktopgamma.value)
+				{
+					HDC hDC = GetDC(GetDesktopWindow());
+					qSetDeviceGammaRamp (hDC, ramps);
+					ReleaseDC(GetDesktopWindow(), hDC);
+				}
+				else
+				{
+					qSetDeviceGammaRamp (maindc, ramps);
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+	else
+	{
+		//revert to default
+		if (qSetDeviceGammaRamp)
+		{
+			OblitterateOldGamma();
+
 			if (vid_desktopgamma.value)
 			{
 				HDC hDC = GetDC(GetDesktopWindow());
-				qSetDeviceGammaRamp (hDC, ramps);
+				qSetDeviceGammaRamp (hDC, originalgammaramps);
 				ReleaseDC(GetDesktopWindow(), hDC);
 			}
 			else
 			{
-				qSetDeviceGammaRamp (maindc, ramps);
+				qSetDeviceGammaRamp(maindc, originalgammaramps);
 			}
-			return;
 		}
+		return true;
 	}
 }
 
@@ -1813,7 +1838,8 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	{
 		if (modestate != MS_WINDOWED)
 		{
-			if (vid_canalttab && vid_wassuspended) {
+			if (vid_canalttab && vid_wassuspended)
+			{
 				vid_wassuspended = false;
 				ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN);
 				ShowWindow(mainwindow, SW_SHOWNORMAL);
@@ -1837,23 +1863,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			}
 		}
 
-//		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
-
-		if (qSetDeviceGammaRamp)
-		{
-			OblitterateOldGamma();
-
-			if (vid_desktopgamma.value)
-			{
-				HDC hDC = GetDC(GetDesktopWindow());
-				qSetDeviceGammaRamp (hDC, originalgammaramps);
-				ReleaseDC(GetDesktopWindow(), hDC);
-			}
-			else
-			{
-				qSetDeviceGammaRamp(maindc, originalgammaramps);
-			}
-		}
+		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
 	}
 
 	return true;
@@ -2156,8 +2166,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid_initialized = false;
 	vid_initializing = true;
-
-	VID_SetPalette (palette);
 
 	if (!GLVID_SetMode (info, palette))
 	{

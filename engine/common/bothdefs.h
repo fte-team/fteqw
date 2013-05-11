@@ -255,6 +255,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define VOICECHAT
 
+#if defined(_WIN32) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
+		#define MULTITHREAD
+#endif
+
 //these things were moved to plugins.
 	#endif
 

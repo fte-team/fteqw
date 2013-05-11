@@ -19,6 +19,7 @@ char shaders[][64] =
 	"defaultsprite",
 	"defaultwall",
 	"defaultwarp",
+	"defaultgammacb",
 	"drawflat_wall",
 	"lpp_depthnorm",
 	"lpp_light",

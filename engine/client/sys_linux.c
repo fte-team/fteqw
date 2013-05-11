@@ -492,61 +492,6 @@ unsigned int Sys_Milliseconds (void)
 	return Sys_DoubleTime() * 1000;
 }
 
-static void *game_library;
-
-void Sys_UnloadGame(void)
-{
-	if (game_library)
-	{
-		dlclose(game_library);
-		game_library = 0;
-	}
-}
-
-void *Sys_GetGameAPI(void *parms)
-{
-	void *(*GetGameAPI)(void *);
-
-	char name[MAX_OSPATH];
-	char curpath[MAX_OSPATH];
-	char *searchpath;
-	const char *agamename = "gamei386.so";
-	const char *ggamename = "game.so";
-
-	void *ret;
-
-	getcwd(curpath, sizeof(curpath)); // do something with result?
-
-#ifdef warningmsg
-#pragma warningmsg("Search for both gamei386.so and game.so")
-#endif
-	Con_DPrintf("Searching for %s but not %s\n", agamename, ggamename);
-
-	searchpath = 0;
-	while((searchpath = COM_NextPath(searchpath)))
-	{
-		if (searchpath[0] == '/')
-			snprintf(name, sizeof(name), "%s/%s", searchpath, agamename);
-		else
-			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, agamename);
-
-		game_library = dlopen (name, RTLD_NOW | RTLD_LOCAL);
-		if (game_library)
-		{
-			GetGameAPI = (void *)dlsym (game_library, "GetGameAPI");
-			if (GetGameAPI && (ret = GetGameAPI(parms)))
-			{
-				return ret;
-			}
-
-			dlclose(game_library);
-			game_library = 0;
-		}
-	}
-
-	return 0;
-}
-
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);

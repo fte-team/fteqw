@@ -69,11 +69,8 @@ extern	viddef_t	vid;				// global video state
 extern unsigned int	d_8to24rgbtable[256];
 
 #ifdef GLQUAKE
-void	GLVID_SetPalette (unsigned char *palette);
-// called at startup and after any gamma correction
-
-void	GLVID_ShiftPalette (unsigned char *palette);
-// called for bonus and pain flashes, and for underwater color changes
+//called when gamma ramps need to be reapplied
+qboolean GLVID_ApplyGammaRamps (unsigned short *ramps);
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);
 // Called at startup to set up translation tables, takes 256 8 bit RGB values

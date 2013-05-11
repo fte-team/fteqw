@@ -200,6 +200,8 @@ texid_t D3D11_AllocNewTexture(char *ident, int width, int height, unsigned int f
 	if (t->tex2d)
 		return ToTexID(t);
 	t->tex2d = D3D11_AllocNewTextureData(NULL, width, height, flags);
+	t->com.width = width;
+	t->com.height = height;
 
 	id = ToTexID(t);
 	if (!t->tex2d)
@@ -328,7 +330,7 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int widt
 //create a basic shader from a 32bit image
 static void D3D11_LoadTexture_32(d3d11texture_t *tex, unsigned int *data, int width, int height, int flags)
 {
-	int nwidth, nheight;
+//	int nwidth, nheight;
 
 /*
 	if (!(flags & TF_MANDATORY))
@@ -338,10 +340,12 @@ static void D3D11_LoadTexture_32(d3d11texture_t *tex, unsigned int *data, int wi
 	}
 */
 
-	nwidth = width;
-	nheight = height;
-	D3D11_RoundDimensions(&nwidth, &nheight, !(flags & IF_NOMIPMAP));
+//	nwidth = width;
+//	nheight = height;
+//	D3D11_RoundDimensions(&nwidth, &nheight, !(flags & IF_NOMIPMAP));
 
+	tex->com.width = width;
+	tex->com.height = height;
 	if (!tex->tex2d)
 	{
 		tex->tex2d = D3D11_AllocNewTextureData(data, width, height, flags);
@@ -364,12 +368,22 @@ static void D3D11_LoadTexture_8(d3d11texture_t *tex, unsigned char *data, unsign
 	s = width*height;
 	// if there are no transparent pixels, make it a 3 component
 	// texture even if it was specified as otherwise
-	if (fmt == TF_TRANS8_FULLBRIGHT)
+	if (fmt == TF_8PAL24)
 	{
+		unsigned char *pal24 = (void*)pal32;
+		//strictly bgr little endian.
 		for (i=0 ; i<s ; i++)
 		{
 			p = data[i];
-			noalpha = true;
+			trans[i] = (pal24[p*3+0] << 0) | (pal24[p*3+1] << 8) | (pal24[p*3+2] << 16) | (255<<24);
+		}
+	}
+	else if (fmt == TF_TRANS8_FULLBRIGHT)
+	{
+		noalpha = true;
+		for (i=0 ; i<s ; i++)
+		{
+			p = data[i];
 			if (p > 255-vid.fullbright)
 				trans[i] = pal32[p];
 			else
@@ -474,6 +488,15 @@ void    D3D11_Upload (texid_t id, char *name, enum uploadfmt fmt, void *data, vo
 		}
 		ToTexID(tex);
 		break;
+	case TF_8PAL24:
+		D3D11_LoadTexture_8(tex, data, palette, width, height, flags, fmt);
+		if (tex->view)
+		{
+			tex->view->lpVtbl->Release(tex->view);
+			tex->view = NULL;
+		}
+		ToTexID(tex);
+		break;
 	case TF_TRANS8:
 		OutputDebugString(va("D3D11_LoadTextureFmt doesn't support fmt TF_TRANS8 (%s)\n", fmt, name));
 		break;
@@ -506,6 +529,8 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 		}
 		Upload_Texture_32(tex->tex2d, (void*)lm->lightmaps, lm->width, lm->height, 0);
 	}
+	tex->com.width = lm->width;
+	tex->com.height = lm->height;
 
 	lm->lightmap_texture = ToTexID(tex);
 }
@@ -601,10 +626,10 @@ texid_t D3D11_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte 
 	int i;
 	for (i = 0; i < 256; i++)
 	{
-		pal32[i] = 0x00000000 |
-				(palette24[i*3+2]<<24) |
-				(palette24[i*3+1]<<8) |
-				(palette24[i*3+0]<<0);
+		pal32[i] =	(255<<24) |
+					(palette24[i*3+2]<<16) |
+					(palette24[i*3+1]<<8) |
+					(palette24[i*3+0]<<0);
 	}
 	return D3D11_LoadTexture8Pal32(identifier, width, height, data, (qbyte*)pal32, flags);
 }

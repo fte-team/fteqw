@@ -3,8 +3,6 @@
 
 #ifdef FTEPLUGIN
 #include "quakedef.h"
-#undef snprintf
-#undef vsnprintf
 #endif
 
 #ifdef Q3_VM
@@ -117,10 +115,9 @@ extern "C" {
 #endif
 extern qintptr_t (*plugin_syscall)( qintptr_t arg, ... );
 
-#ifdef _WIN32
-void strlcpy(char *d, const char *s, int n);
-//int snprintf(char *buffer, size_t maxlen, const char *format, ...);
-#endif
+void Q_strlcpy(char *d, const char *s, int n);
+int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...);
+int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 
 #endif
 
@@ -242,11 +239,6 @@ EBUILTIN(void, Net_Close, (qhandle_t socket));
 #define N_WOULDBLOCK -1
 #define NET_CLIENTPORT -1
 #define NET_SERVERPORT -2
-
-
-#if defined(_WIN32) || defined(Q3_VM)
-//int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
-#endif
 
 #ifdef Q3_VM
 EBUILTIN(void, memcpy, (void *, void *, int len));

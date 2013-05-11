@@ -11,9 +11,65 @@ qboolean SVQ2_InitGameProgs(void)
 game_export_t	*ge;
 int svq2_maxclients;
 
+dllhandle_t *q2gamedll;
+void SVQ2_UnloadGame (void)
+{
+	if (q2gamedll)
+		Sys_CloseLibrary(q2gamedll);
+	q2gamedll = NULL;
+}
+void *SVQ2_GetGameAPI (void *parms)
+{
+	void *(VARGS *GetGameAPI)(void *);
+	dllfunction_t funcs[] =
+	{
+		{(void**)&GetGameAPI, "GetGameAPI"},
+		{NULL,NULL}
+	};
 
-void Sys_UnloadGame (void);
-void *Sys_GetGameAPI (void *parms);
+	char name[MAX_OSPATH];
+	char *searchpath;
+	int o;
+	const char *gamename[] = {
+#ifdef _DEBUG
+		"debug/game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,
+#endif
+#if defined(__linux__) && defined(__i386__)
+		"game" "i386" ARCH_DL_POSTFIX,	//compat is often better than consistancy
+#endif
+		"game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,
+		"game" ARCH_DL_POSTFIX,
+		NULL
+	};
+
+	void *ret;
+
+	Con_DPrintf("Searching for %s\n", gamename);
+
+	searchpath = 0;
+	while((searchpath = COM_NextPath(searchpath)))
+	{
+		for (o = 0; gamename[o]; o++)
+		{
+			snprintf(name, sizeof(name), "%s%s", searchpath, gamename[o]);
+
+			q2gamedll = Sys_LoadLibrary(name, funcs);
+			if (q2gamedll && gamename)
+			{
+				ret = GetGameAPI(parms);
+				if (ret)
+				{
+					return ret;
+				}
+
+				Sys_CloseLibrary(q2gamedll);
+				q2gamedll = 0;
+			}
+		}
+	}
+
+	return NULL;
+}
 
 /*
 ===============
@@ -606,7 +662,7 @@ void VARGS SVQ2_ShutdownGameProgs (void)
 	if (!ge)
 		return;
 	ge->Shutdown ();
-	Sys_UnloadGame ();
+	SVQ2_UnloadGame ();
 	ge = NULL;
 }
 
@@ -751,14 +807,14 @@ qboolean SVQ2_InitGameProgs(void)
 	Cvar_ForceSet(Cvar_Get("game", "", CVAR_LATCH, "Q2 compat"), FS_GetGamedir());
 	Cvar_ForceSet(Cvar_Get("basedir", "", CVAR_LATCH, "Q2 compat"), FS_GetBasedir());
 
-	ge = (game_export_t *)Sys_GetGameAPI ((game_import_t*)&import);
+	ge = (game_export_t *)SVQ2_GetGameAPI ((game_import_t*)&import);
 
 	if (!ge)
 		return false;
 	if (ge->apiversion != Q2GAME_API_VERSION)
 	{
 		Con_Printf("game is version %i, not %i", ge->apiversion, Q2GAME_API_VERSION);
-		Sys_UnloadGame ();
+		SVQ2_UnloadGame ();
 		return false;
 	}
 

@@ -1710,8 +1710,7 @@ rendererinfo_t openglrendererinfo = {
 
 	GLVID_Init,
 	GLVID_DeInit,
-	GLVID_SetPalette,
-	GLVID_ShiftPalette,
+	GLVID_ApplyGammaRamps,
 	GLVID_GetRGBInfo,
 
 	GLVID_SetCaption,	//setcaption

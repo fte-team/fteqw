@@ -295,64 +295,6 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-/* Quake 2 stuff */
-static void *gamefile;
-
-void *Sys_GetGameAPI(void *parms)
-{
-	int (*q2_so_init)(void);
-	void (*q2_so_deinit)(void);
-	void *(*GetGameAPI)(void *);
-	void *ret;
-	char *searchpath;
-	char path[256];
-
-	searchpath = 0;
-
-	while((searchpath = COM_NextPath(searchpath)))
-	{
-
-		snprintf(path, sizeof(path), "%s%sgameppc.so", searchpath[0]!='.'?searchpath:"", searchpath[0]&&searchpath[0]!='.'?"/":"");
-
-		gamefile = dlopen(path, RTLD_NOW);
-		if (gamefile)
-		{
-			q2_so_init = dlsym(gamefile, "q2_so_init");
-			q2_so_deinit = dlsym(gamefile, "q2_so_deinit");
-			if (q2_so_init && q2_so_init())
-			{
-				GetGameAPI = dlsym(gamefile, "GetGameAPI");
-				if (GetGameAPI && (ret = GetGameAPI(parms)))
-				{
-					return ret;
-				}
-
-				if (q2_so_deinit)
-					q2_so_deinit();
-			}
-			dlclose(gamefile);
-			gamefile = 0;
-		}
-	}
-
-	return 0;
-}
-
-void Sys_UnloadGame(void)
-{
-	void (*q2_so_deinit)(void);
-
-	if (gamefile)
-	{
-		q2_so_deinit = dlsym(gamefile, "q2_so_deinit");
-		if (q2_so_deinit)
-			q2_so_deinit();
-
-		dlclose(gamefile);
-		gamefile = 0;
-	}
-}
-
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);

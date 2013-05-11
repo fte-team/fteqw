@@ -1246,6 +1246,72 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "defaultgammacb",
+//this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
+
+"varying vec2 tc;\n"
+"varying vec4 vc;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"attribute vec4 v_colour;\n"
+"void main ()\n"
+"{\n"
+"tc = v_texcoord;\n"
+"vc = v_colour;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform sampler2D s_t0;\n"
+"void main ()\n"
+"{\n"
+"gl_FragColor = pow(texture2D(s_t0, tc) * vc.g, vec4(vc.r)) + vc.b;\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "defaultgammacb",
+//this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
+
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float4 vcol: COLOR0;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_projection, inp.pos);\n"
+"outp.tc = inp.tc;\n"
+"outp.vcol = inp.vcol;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"Texture2D shaderTexture;\n"
+"SamplerState SampleType;\n"
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return pow(shaderTexture.Sample(SampleType, inp.tc) * inp.vcol.g, inp.vcol.r) + inp.vcol.b;\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "drawflat_wall",
 "!!cvarv r_floorcolor\n"
 "!!cvarv r_wallcolor\n"

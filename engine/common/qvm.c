@@ -66,7 +66,9 @@ struct vm_s {
 	qintptr_t (EXPORT_FN *vmMain)(qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6);
 };
 
-//plugins come from the quake root dir, not game dirs.
+//this is a bit weird. qvm plugins always come from $basedir/$mod/plugins/$foo.qvm
+//but native plugins never come from $basedir/$mod/ - too many other engines blindly allow dll downloads etc. Its simply far too insecure if people use other engines.
+//q3 gamecode allows it however. yes you could probably get fte to connect via q3 instead and get such a dll.
 dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
@@ -927,13 +929,13 @@ void VM_PrintInfo(vm_t *vm)
 /*
 ** VM_Create
 */
-vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm)
+vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm)
 {
+	vm_t *vm;
 	if(!name || !*name)
 		Sys_Error("VM_Create: bad parms");
 
-	if (!vm)
-		vm = Z_Malloc(sizeof(vm_t));
+	vm = Z_Malloc(sizeof(vm_t));
 
 // prepare vm struct
 	memset(vm, 0, sizeof(vm_t));
@@ -998,7 +1000,7 @@ void VM_Destroy(vm_t *vm)
 /*
 ** VM_Restart
 */
-qboolean VM_Restart(vm_t *vm)
+/*qboolean VM_Restart(vm_t *vm)
 {
 	char name[MAX_QPATH];
 	sys_calldll_t syscalldll;
@@ -1027,7 +1029,7 @@ qboolean VM_Restart(vm_t *vm)
 	}
 
 	return VM_Create(vm, name, syscalldll, syscallqvm)!=NULL;
-}
+}*/
 
 void *VM_MemoryBase(vm_t *vm)
 {

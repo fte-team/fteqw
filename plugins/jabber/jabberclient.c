@@ -24,7 +24,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	static char		string[1024];
 
 	va_start (argptr, format);
-	vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	Con_TrySubPrint(subname, string);
@@ -32,9 +32,6 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 
 //porting zone:
-
-
-#define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
 
 
@@ -305,11 +302,11 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 	jcl->noplain = true;
 
 	*at = '\0';
-	strlcpy(jcl->username, account, sizeof(jcl->username));
-	strlcpy(jcl->domain, at+1, sizeof(jcl->domain));
-	strlcpy(jcl->password, password, sizeof(jcl->password));
+	Q_strlcpy(jcl->username, account, sizeof(jcl->username));
+	Q_strlcpy(jcl->domain, at+1, sizeof(jcl->domain));
+	Q_strlcpy(jcl->password, password, sizeof(jcl->password));
 
-	strlcpy(jcl->resource, "Quake", sizeof(jcl->password));
+	Q_strlcpy(jcl->resource, "Quake", sizeof(jcl->password));
 
 	Con_Printf("Trying to connect\n");
 	JCL_AddClientMessageString(jcl,
@@ -422,13 +419,13 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		ns++;
 
 		memcpy(ret->xmlns, "xmlns:", 6);
-		strlcpy(ret->xmlns+6, com_token, sizeof(ret->xmlns)-6);
-		strlcpy(ret->name, ns, sizeof(ret->name));
+		Q_strlcpy(ret->xmlns+6, com_token, sizeof(ret->xmlns)-6);
+		Q_strlcpy(ret->name, ns, sizeof(ret->name));
 	}
 	else
 	{
-		strlcpy(ret->xmlns, "xmlns", sizeof(ret->xmlns));
-		strlcpy(ret->name, com_token, sizeof(ret->name));
+		Q_strlcpy(ret->xmlns, "xmlns", sizeof(ret->xmlns));
+		Q_strlcpy(ret->name, com_token, sizeof(ret->name));
 	}
 
 	while(*tagstart)
@@ -508,10 +505,10 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 	}
 
 	ns = XML_ParameterOfTree(ret, ret->xmlns);
-	strlcpy(ret->xmlns, ns?ns:"", sizeof(ret->xmlns));
+	Q_strlcpy(ret->xmlns, ns?ns:"", sizeof(ret->xmlns));
 
 	ns = XML_ParameterOfTree(ret, "xmlns");
-	strlcpy(ret->xmlns_dflt, ns?ns:defaultnamespace, sizeof(ret->xmlns_dflt));
+	Q_strlcpy(ret->xmlns_dflt, ns?ns:defaultnamespace, sizeof(ret->xmlns_dflt));
 
 	tagend[-1] = '>';
 
@@ -733,7 +730,7 @@ void RenameConsole(char *f)
 	//so, if we rename the old console before printing, we don't spawn random extra consoles.
 	char old[256];
 	char *slash;
-	strlcpy(old, f, sizeof(old));
+	Q_strlcpy(old, f, sizeof(old));
 	slash = strchr(f, '/');
 	if (slash)
 	{
@@ -830,7 +827,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 			Con_Printf("Not an xmpp stream\n");
 			return JCL_KILL;
 		}
-		strlcpy(jcl->defaultnamespace, tree->xmlns_dflt, sizeof(jcl->defaultnamespace));
+		Q_strlcpy(jcl->defaultnamespace, tree->xmlns_dflt, sizeof(jcl->defaultnamespace));
 
 		ot = tree;
 		tree = tree->child;
@@ -927,7 +924,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 						Base64_Add("", 1);
 						Base64_Add(jcl->password, strlen(jcl->password));
 						Base64_Finish();
-						snprintf(msg, sizeof(msg), "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>%s</auth>", base64);
+						Q_snprintf(msg, sizeof(msg), "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>%s</auth>", base64);
 						JCL_AddClientMessageString(jcl, msg);
 //						JCL_AddClientMessageString(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>");
 //						JCL_AddClientMessageString(jcl, base64);
@@ -1033,7 +1030,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 					int idletime = 0;
 					unparsable = false;
 
-					snprintf(msg, sizeof(msg),
+					Q_snprintf(msg, sizeof(msg),
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='http://jabber.org/protocol/disco#info'>"
 								    "<identity category='client' type='pc' name='FTEQW'/>"
@@ -1051,7 +1048,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 					char msg[2048];
 					unparsable = false;
 
-					snprintf(msg, sizeof(msg),
+					Q_snprintf(msg, sizeof(msg),
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='jabber:iq:version'>"
 									"<name>FTEQW Jabber Plugin</name>"
@@ -1071,7 +1068,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 					unparsable = false;
 
 					//last activity
-					snprintf(msg, sizeof(msg),
+					Q_snprintf(msg, sizeof(msg),
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='jabber:iq:last' seconds='%i'/>"
 							"</iq>", from, id, idletime);
@@ -1095,11 +1092,11 @@ int JCL_ClientFrame(jclient_t *jcl)
 				timeinfo = gmtime (&rawtime);
 				tzs = _timezone;
 				tzs *= -1;
-				snprintf(tz, sizeof(tz), "%+i:%i", tzs/(60*60), abs(tzs/60) % 60);
+				Q_snprintf(tz, sizeof(tz), "%+i:%i", tzs/(60*60), abs(tzs/60) % 60);
 				strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", timeinfo);
 				unparsable = false;
 				//strftime
-				snprintf(msg, sizeof(msg),
+				Q_snprintf(msg, sizeof(msg),
 						"<iq type='result' to='%s' id='%s'>"
 							"<time xmlns='urn:xmpp:time'>"
 								"<tzo>+00:00</tzo>"
@@ -1119,7 +1116,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 				XML_ConPrintTree(tree, 0);
 
 				//tell them OH NOES, instead of requiring some timeout.
-				snprintf(msg, sizeof(msg),
+				Q_snprintf(msg, sizeof(msg),
 						"<iq type='error' to='%s' id='%s'>"
 							"<error type='cancel'>"
 								"<service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
@@ -1159,7 +1156,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 
 		if (f)
 		{
-			strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
+			Q_strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
 			RenameConsole(f);
 		}
 
@@ -1286,11 +1283,11 @@ qintptr_t JCL_Frame(qintptr_t *args)
 			if (strcmp(jclient->curquakeserver, serveraddr))
 			{
 				char msg[1024];
-				strlcpy(jclient->curquakeserver, serveraddr, sizeof(jclient->curquakeserver));
+				Q_strlcpy(jclient->curquakeserver, serveraddr, sizeof(jclient->curquakeserver));
 				if (!*jclient->curquakeserver)
-					strlcpy(msg, "<presence/>", sizeof(msg));
+					Q_strlcpy(msg, "<presence/>", sizeof(msg));
 				else
-					snprintf(msg, sizeof(msg), 
+					Q_snprintf(msg, sizeof(msg), 
 						"<presence>"
 							"<quake xmlns='fteqw.com:game'>"
 								 "<serverip>sha1-hash-of-image</serverip>"
@@ -1328,7 +1325,7 @@ void JCL_Command(void)
 		if (!msg)
 			continue;
 		msg = COM_Parse(msg);
-		strlcpy(arg[i], com_token, sizeof(arg[i]));
+		Q_strlcpy(arg[i], com_token, sizeof(arg[i]));
 	}
 
 	if (*arg[0] == '/')
@@ -1394,7 +1391,7 @@ void JCL_Command(void)
 		}
 		else if (!strcmp(arg[0]+1, "msg"))
 		{
-			strlcpy(jclient->defaultdest, arg[1], sizeof(jclient->defaultdest));
+			Q_strlcpy(jclient->defaultdest, arg[1], sizeof(jclient->defaultdest));
 			msg = arg[2];
 
 			JCL_AddClientMessageString(jclient, "<message to='");

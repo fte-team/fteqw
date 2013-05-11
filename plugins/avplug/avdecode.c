@@ -1,9 +1,9 @@
 #include "../plugin.h"
 #include "../engine.h"
 
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include "libswscale/swscale.h"
 
 //between av 52.31 and 54.35, lots of constants etc got renamed to gain an extra AV_ prefix.
 /*

@@ -251,6 +251,8 @@ extern	cvar_t		fs_gamename;
 extern	cvar_t		fs_gamedownload;
 extern	cvar_t		com_protocolname;
 extern	cvar_t		com_modname;
+extern	cvar_t		com_nogamedirnativecode;
+extern	cvar_t		com_parseutf8;
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;
 extern	cvar_t		developer;

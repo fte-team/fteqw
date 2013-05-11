@@ -93,8 +93,6 @@ extern void	(*R_LessenStains)						(void);
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
-extern void	(*VID_SetPalette)						(unsigned char *palette);
-extern void	(*VID_ShiftPalette)						(unsigned char *palette);
 extern char *(*VID_GetRGBInfo)						(int prepad, int *truevidwidth, int *truevidheight);
 extern void	(*VID_SetWindowCaption)					(char *msg);
 
@@ -160,6 +158,8 @@ extern int r_regsequence;
 typedef struct
 {
 	int regsequence;
+	int width;
+	int height;
 } texcom_t;
 struct texid_s
 {
@@ -313,8 +313,7 @@ typedef struct rendererinfo_s {
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
-	void	(*VID_SetPalette)			(unsigned char *palette);
-	void	(*VID_ShiftPalette)			(unsigned char *palette);
+	qboolean (*VID_ApplyGammaRamps)		(unsigned short *ramps);
 	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
 	void	(*VID_SetWindowCaption)		(char *msg);
 

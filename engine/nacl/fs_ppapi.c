@@ -375,6 +375,7 @@ static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(
 
 static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data, void *handle)
 {
+	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
@@ -383,12 +384,12 @@ static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data,
 		Sys_EnumerateFiles((char*)data, childpath, FSPPAPI_RebuildFSHash, data, handle);
 		return true;
 	}
-	FS_AddFileHash(0, filename, NULL, handle);
+	AddFileHash(0, filename, NULL, handle);
 	return true;
 }
-static void FSPPAPI_BuildHash(void *handle, int depth)
+static void FSPPAPI_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, handle, handle);
+	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, AddFileHash, handle);
 }
 
 /*

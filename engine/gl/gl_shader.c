@@ -2973,6 +2973,8 @@ void Shader_Free (shader_t *shader)
 		shader->genargs = NULL;
 	}
 	shader->uses = 0;
+
+	memset(&shader->defaulttextures, 0, sizeof(shader->defaulttextures));
 }
 
 
@@ -3131,11 +3133,15 @@ void Shader_Reset(shader_t *s)
 	shader_gen_t *defaultgen = s->generator;
 	char *genargs = s->genargs;
 	texnums_t dt = s->defaulttextures;
+	int w = s->width;
+	int h = s->height;
 	Q_strncpyz(name, s->name, sizeof(name));
 	s->genargs = NULL;
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
+	s->width = w;
+	s->height = h;
 	s->defaulttextures = dt;
 	s->generator = defaultgen;
 	s->genargs = genargs;
@@ -4201,6 +4207,7 @@ void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args)
 	Shader_DefaultScript(shortname, s,
 		va(
 			"{\n"
+				"program default2d\n"
 				"{\n"
 					"videomap %s\n"
 				"}\n"

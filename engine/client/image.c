@@ -2405,13 +2405,21 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	{
 		tex = R_FindTexture(fname, flags);
 		if (TEXVALID(tex))	//don't bother if it already exists.
+		{
+			image_width = tex.ref->width;
+			image_height = tex.ref->height;
 			return tex;
+		}
 	}
 	if (!(flags & IF_SUBDIRONLY) && !(flags & IF_REPLACE))
 	{
 		tex = R_FindTexture(name, flags);
 		if (TEXVALID(tex))	//don't bother if it already exists.
+		{
+			image_width = tex.ref->width;
+			image_height = tex.ref->height;
 			return tex;
+		}
 	}
 
 	if ((flags & IF_TEXTYPE) == IF_CUBEMAP)
@@ -2656,7 +2664,11 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 
 	tex = R_FindTexture(name, 0);
 	if (TEXVALID(tex))	//don't bother if it already exists.
+	{
+		image_width = tex.ref->width;
+		image_height = tex.ref->height;
 		return tex;
+	}
 
 	tex = R_LoadCompressed(name);
 	if (TEXVALID(tex))

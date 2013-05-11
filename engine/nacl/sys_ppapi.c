@@ -114,16 +114,6 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	return false;
 }
 
-//q2...
-void Sys_UnloadGame (void)
-{
-}
-//q2...
-void *Sys_GetGameAPI (void *parms)
-{
-	return NULL;
-}
-
 qboolean Sys_InitTerminal (void)
 {
 	return false;
@@ -410,7 +400,6 @@ static void ppp_mouseunlocked(PP_Instance instance)
 
 unsigned int domkeytoquake(unsigned int code)
 {
-#define K_PRINTSCREEN ' '
 	unsigned int tab[256] =
 	{
 		/*  0*/ 0,0,0,0,0,0,0,0,		K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,

@@ -434,7 +434,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-//	float flag = G_FLOAT(OFS_PARM5);
+	int flag = G_FLOAT(OFS_PARM5);
 
 	float x, y;
 
@@ -445,14 +445,17 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 	}
 
 	//no control chars. use quake ones if so
-	if (chara < 32 && chara != '\t')
-		chara |= 0xe000;
+	if (!(flag & 4))
+		if (chara < 32 && chara != '\t')
+			chara |= 0xe000;
 
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 	Font_DrawScaleChar(x, y, CON_WHITEMASK | chara);
 	Font_InvalidateColour();
 	Font_EndString(NULL);
+	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -1810,7 +1813,7 @@ void MP_Keydown(int key, int unicode)
 
 	if (key == 'c')
 	{
-		if (keydown[K_CTRL])
+		if (keydown[K_LCTRL] || keydown[K_RCTRL])
 		{
 			MP_Shutdown();
 			M_Init_Internal();
@@ -1819,7 +1822,7 @@ void MP_Keydown(int key, int unicode)
 	}
 	if (key == K_ESCAPE)
 	{
-		if (keydown[K_SHIFT])
+		if (keydown[K_LSHIFT] || keydown[K_RSHIFT])
 		{
 			Con_ToggleConsole_f();
 			return;

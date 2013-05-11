@@ -976,8 +976,7 @@ rendererinfo_t swrendererinfo =
 
 	SW_VID_Init,
 	SW_VID_DeInit,
-	SW_VID_SetPalette,
-	SW_VID_ShiftPalette,
+	SW_VID_ApplyGammaRamps,
 	SW_VID_GetRGBInfo,
 	SW_VID_SetWindowCaption,
 
@@ -996,6 +995,11 @@ rendererinfo_t swrendererinfo =
 	SWBE_SelectEntity,
 	SWBE_SelectDLight,
 	SWBE_LightCullModel,
+
+	NULL,//void (*BE_VBO_Begin)(vbobctx_t *ctx, unsigned int maxsize);
+	NULL,//void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
+	NULL,//void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+	NULL,//void (*BE_VBO_Destroy)(vboarray_t *vearray);
 
 	"no more"
 };

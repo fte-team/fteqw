@@ -45,8 +45,6 @@ cvar_t	vsec_scaley[SIDEVIEWS]	= {SCVAR("v2_scaley", "0.25"),	SCVAR("v3_scaley", 
 cvar_t	vsec_yaw[SIDEVIEWS]		= {SCVAR("v2_yaw", "180"),		SCVAR("v3_yaw", "90"),		SCVAR("v4_yaw", "270"),		SCVAR("v5_yaw", "0")};
 #endif
 
-cvar_t	lcd_x = SCVAR("lcd_x", "0");	// FIXME: make this work sometime...
-
 cvar_t	cl_rollspeed = SCVAR("cl_rollspeed", "200");
 cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
 cvar_t	v_deathtilt = SCVAR("v_deathtilt", "1");
@@ -301,7 +299,8 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
 cvar_t		v_gamma = SCVARF("gamma", "0.8", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
-cvar_t		v_contrast = SCVARF("contrast", "1.4", CVAR_ARCHIVE);
+cvar_t		v_contrast = SCVARF("contrast", "1.3", CVAR_ARCHIVE);
+cvar_t		v_brightness = SCVARF("brightness", "0.0", CVAR_ARCHIVE);
 
 qbyte		gammatable[256];	// palette is sent through this
 
@@ -332,7 +331,7 @@ void BuildGammaTable (float g)
 		gammatable[i] = inf;
 	}
 }*/
-void BuildGammaTable (float g, float c)
+void BuildGammaTable (float g, float c, float b)
 {
 	int i, inf;
 
@@ -348,7 +347,8 @@ void BuildGammaTable (float g, float c)
 
 	for (i = 0; i < 256; i++)
 	{
-		inf = 255 * pow ((i + 0.5) / 255.5 * c, g) + 0.5;
+		//the 0.5s are for rounding.
+		inf = 255 * (pow ((i + 0.5) / 255.5 * c, g) + b) + 0.5;
 		if (inf < 0)
 			inf = 0;
 		else if (inf > 255)
@@ -365,7 +365,7 @@ V_CheckGamma
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
-	BuildGammaTable (v_gamma.value, v_contrast.value);
+	BuildGammaTable (v_gamma.value, v_contrast.value, v_brightness.value);
 	vid.recalc_refdef = 1; // force a surface cache flush
 	V_UpdatePalette (true);
 }
@@ -639,6 +639,7 @@ V_CalcBlend
 */
 void V_CalcBlend (float *hw_blend)
 {
+	extern qboolean r2d_noshadergamma;
 	float	a2;
 	int		j;
 	float *blend;
@@ -671,7 +672,7 @@ void V_CalcBlend (float *hw_blend)
 		}
 		else
 		{
-			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival)
+			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || r2d_noshadergamma)
 				blend = sw_blend;
 			else	//powerup or contents?
 				blend = hw_blend;
@@ -701,10 +702,12 @@ V_UpdatePalette
 */
 void V_UpdatePalette (qboolean force)
 {
+	extern	qboolean r2d_noshadergamma;
 	int		i;
 	float	newhw_blend[4];
 	int		ir, ig, ib;
 	float	ftime;
+	qboolean applied;
 	static double oldtime;
 	RSpeedMark();
 
@@ -755,7 +758,10 @@ void V_UpdatePalette (qboolean force)
 			ramps[2][i] = gammatable[ib]<<8;
 		}
 
-		VID_ShiftPalette (NULL);
+		applied = rf->VID_ApplyGammaRamps ((unsigned short*)ramps);
+		if (!applied && r2d_noshadergamma)
+			rf->VID_ApplyGammaRamps (NULL);
+		r2d_noshadergamma = applied;
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
@@ -1589,7 +1595,8 @@ void V_Init (void)
 
 	Cvar_Register (&ffov, VIEWVARS);
 
-	BuildGammaTable (1.0, 1.0);	// no gamma yet
+	BuildGammaTable (1.0, 1.0, 0.0);	// no gamma yet
 	Cvar_Register (&v_gamma, VIEWVARS);
 	Cvar_Register (&v_contrast, VIEWVARS);
+	Cvar_Register (&v_brightness, VIEWVARS);
 }

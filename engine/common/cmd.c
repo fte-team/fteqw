@@ -1970,7 +1970,7 @@ void	Cmd_ExecuteString (char *text, int level)
 #ifndef SERVERONLY	//an emergency escape mechansim, to avoid infinatly recursing aliases.
 			extern qboolean keydown[];
 
-			if (keydown[K_SHIFT] && keydown[K_CTRL] && (keydown[K_LALT]||keydown[K_RALT]))
+			if (keydown[K_SHIFT] && (keydown[K_LCTRL]||keydown[K_RCTRL]) && (keydown[K_LALT]||keydown[K_RALT]))
 				return;
 #endif
 

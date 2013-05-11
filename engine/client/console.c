@@ -1243,7 +1243,6 @@ void Con_PrintToSys(void)
 	int i;
 	conchar_t *t;
 	char buf[16];
-	extern cvar_t com_parseutf8;
 
 	for (l = curcon->oldest; l; l = l->newer)
 	{
@@ -1454,6 +1453,7 @@ static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qb
 	conchar_t *s;
 	int i;
 	int x;
+	int prev;
 
 	//deactivate the selection if the start and end is outside
 	if (
@@ -1528,7 +1528,7 @@ static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qb
 		}
 		l->lines = linecount;
 
-		while (linecount-- > 0)
+		while(linecount-- > 0)
 		{
 			s = starts[linecount];
 			linelength = ends[linecount] - s;
@@ -1571,8 +1571,6 @@ static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qb
 								selendoffset = (s+i+1) - (conchar_t*)(l+1);
 							else
 								selendoffset = 0;
-							if (selendoffset > linelength)
-								selendoffset = linelength;
 						}
 						if (y <= selsy)
 						{

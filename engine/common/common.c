@@ -99,6 +99,7 @@ cvar_t	com_protocolname = CVARD("com_gamename", "", "The game name used for dpma
 cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
+cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger remote exploits in any engine (including "FULLENGINENAME"which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -3963,6 +3964,7 @@ void COM_Init (void)
 	Cvar_Register (&gameversion, "Gamecode");
 	Cvar_Register (&gameversion_min, "Gamecode");
 	Cvar_Register (&gameversion_max, "Gamecode");
+	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;

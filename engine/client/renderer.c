@@ -261,8 +261,6 @@ cvar_t gl_compress							= CVARF ("gl_compress", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_conback							= CVARFC ("gl_conback", "",
 												CVAR_RENDERERCALLBACK, R2D_Conback_Callback);
-cvar_t gl_contrast							= CVAR  ("gl_contrast", "1");
-cvar_t gl_brightness						= CVAR  ("gl_brightness", "0");
 cvar_t gl_detail							= CVARF ("gl_detail", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
@@ -372,8 +370,8 @@ cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERS
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
 cvar_t vid_preservegamma					= SCVAR ("vid_preservegamma", "0");
-cvar_t vid_hardwaregamma					= SCVARF ("vid_hardwaregamma", "1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=loadtime-gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma.");
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
@@ -676,8 +674,6 @@ void Renderer_Init(void)
 	Cvar_Register(&r_fullbrightSkins, GRAPHICALNICETIES);
 
 	Cvar_Register (&mod_md3flags, GRAPHICALNICETIES);
-	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_brightness, GLRENDEREROPTIONS);
 
 
 //renderer
@@ -790,8 +786,6 @@ float (*Mod_GetFrameDuration)		(struct model_s *model, int framenum);
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
-void	(*VID_SetPalette)			(unsigned char *palette);
-void	(*VID_ShiftPalette)			(unsigned char *palette);
 char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
 void	(*VID_SetWindowCaption)		(char *msg);
 
@@ -860,8 +854,7 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
-	NULL, //VID_SetPalette,
-	NULL, //VID_ShiftPalette,
+	NULL, //VID_ApplyGammaRamps,
 	NULL, //VID_GetRGBInfo,
 
 
@@ -946,8 +939,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 
 	VID_Init				= ri->VID_Init;
 	VID_DeInit				= ri->VID_DeInit;
-	VID_SetPalette			= ri->VID_SetPalette;
-	VID_ShiftPalette		= ri->VID_ShiftPalette;
 	VID_GetRGBInfo			= ri->VID_GetRGBInfo;
 	VID_SetWindowCaption	= ri->VID_SetWindowCaption;
 

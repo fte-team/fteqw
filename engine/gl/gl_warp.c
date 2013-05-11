@@ -53,6 +53,7 @@ void R_SetSky(char *skyname)
 
 	skyboxface = R_RegisterShader("skyboxface",
 			"{\n"
+				"program default2d\n"
 				"{\n"
 					"map $diffuse\n"
 				"}\n"

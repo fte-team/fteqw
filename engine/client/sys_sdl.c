@@ -341,56 +341,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 	return SDL_LoadFunction((void *)module, exportname);
 }
 
-//Without these two we cannot run Q2 gamecode.
-dllhandle_t *q2gamedll;
-void Sys_UnloadGame (void)
-{
-	if (q2gamedll)
-		Sys_CloseLibrary(q2gamedll);
-	q2gamedll = NULL;
-}
-void *Sys_GetGameAPI (void *parms)
-{
-	void *(*GetGameAPI)(void *);
-	dllfunction_t funcs[] =
-	{
-		{(void**)&GetGameAPI, "GetGameAPI"},
-		{NULL,NULL}
-	};
 
-	char name[MAX_OSPATH];
-	char curpath[MAX_OSPATH];
-	char *searchpath;
-	const char *gamename = "gamesdl.so";
-
-	void *ret;
-
-	Con_DPrintf("Searching for %s\n", gamename);
-
-	searchpath = 0;
-	while((searchpath = COM_NextPath(searchpath)))
-	{
-		if (searchpath[0] == '/')
-			snprintf(name, sizeof(name), "%s/%s", searchpath, gamename);
-		else
-			snprintf(name, sizeof(name), "./%s/%s", searchpath, gamename);
-
-		q2gamedll = Sys_LoadLibrary(name, funcs);
-		if (q2gamedll && gamename)
-		{
-			ret = GetGameAPI(parms);
-			if (ret)
-			{
-				return ret;
-			}
-
-			Sys_CloseLibrary(q2gamedll);
-			q2gamedll = 0;
-		}
-	}
-
-	return NULL;
-}
 
 
 

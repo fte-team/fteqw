@@ -3937,10 +3937,7 @@ void CL_ExecInitialConfigs(void)
 		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
-	{
-		extern cvar_t com_parseutf8;
-		com_parseutf8.ival = com_parseutf8.value;
-	}
+	com_parseutf8.ival = com_parseutf8.value;
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
@@ -3990,7 +3987,6 @@ Host_Init
 void Host_Init (quakeparms_t *parms)
 {
 	qboolean downloading = false;
-	extern cvar_t com_parseutf8;
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
 
 	COM_InitArgv (parms->argc, parms->argv);
@@ -4136,7 +4132,7 @@ void Host_Shutdown(void)
 	}
 	host_initialized = false;
 
-	Plug_Shutdown();
+	Plug_Shutdown(false);
 
 	//disconnect server/client/etc
 	CL_Disconnect_f();
@@ -4168,6 +4164,11 @@ void Host_Shutdown(void)
 
 	Cmd_Shutdown();
 	Key_Unbindall_f();
+
+	FS_Shutdown();
+
+	Plug_Shutdown(true);
+
 	Con_Shutdown();
 	Memory_DeInit();
 
@@ -4176,8 +4177,6 @@ void Host_Shutdown(void)
 	memset(&svs, 0, sizeof(svs));
 #endif
 	Sys_Shutdown();
-
-	FS_Shutdown();
 }
 
 #ifdef CLIENTONLY

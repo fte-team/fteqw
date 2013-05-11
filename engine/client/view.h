@@ -20,8 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // view.h
 
 extern	cvar_t		v_gamma;
-extern cvar_t v_contrast;
-extern	cvar_t		lcd_x;
+extern	cvar_t		v_contrast;
+extern	cvar_t		v_brightness;
 extern float sw_blend[4];
 extern float hw_blend[4];
 

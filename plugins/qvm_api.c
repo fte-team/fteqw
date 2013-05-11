@@ -10,7 +10,7 @@ this is a fairly basic implementation.
 don't expect it to do much.
 You can probably get a better version from somewhere.
 */
-int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
+int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 {
 	int tokens=0;
 	char *string;
@@ -310,7 +310,7 @@ Con_Printf("%i bytes left\n", maxlen);
 	{*buffer++='\0';return tokens;}
 }
 
-int snprintf(char *buffer, size_t maxlen, const char *format, ...)
+int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...)
 {
 	int p;
 	va_list		argptr;
@@ -323,6 +323,7 @@ int snprintf(char *buffer, size_t maxlen, const char *format, ...)
 }
 
 #ifdef Q3_VM
+//libc functions that are actually properly supported on all other platforms (c89)
 int strlen(const char *s)
 {
 	int len = 0;
@@ -543,13 +544,9 @@ int rand(void)
 {
 	return(((randx = randx*1103515245 + 12345)>>16) & 077777);
 }
-
-
 #endif
 
-#if 0//defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__CYGWIN__)
-#else
-void strlcpy(char *d, const char *s, int n)
+void Q_strlcpy(char *d, const char *s, int n)
 {
 	int i;
 	n--;
@@ -564,4 +561,4 @@ void strlcpy(char *d, const char *s, int n)
 	}
 	*d='\0';
 }
-#endif
+

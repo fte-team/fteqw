@@ -95,9 +95,13 @@ keyname_t keynames[] =
 
 	{"LALT", K_LALT},
 	{"RALT", K_RALT},
+	{"LCTRL", K_LCTRL},
+	{"RCTRL", K_RCTRL},
+	{"LSHIFT", K_LSHIFT},
+	{"RSHIFT", K_RSHIFT},
 	{"ALT", K_LALT},	//depricated name
-	{"CTRL", K_CTRL},
-	{"SHIFT", K_SHIFT},
+	{"CTRL", K_CTRL},	//depricated name
+	{"SHIFT", K_SHIFT},	//depricated name
 	
 	{"F1", K_F1},
 	{"F2", K_F2},
@@ -213,6 +217,7 @@ keyname_t keynames[] =
 	{"MWHEELUP", K_MWHEELUP},
 	{"MWHEELDOWN", K_MWHEELDOWN},
 
+	{"PRINTSCREEN", K_PRINTSCREEN},
 	{"CAPSLOCK", K_CAPSLOCK},
 	{"SCROLLLOCK", K_SCRLCK},
 
@@ -360,7 +365,6 @@ void Con_ExecuteLine(console_t *con, char *line)
 {
 	qboolean waschat = false;
 	char deutf8[8192];
-	extern cvar_t com_parseutf8;
 	if (com_parseutf8.ival <= 0)
 	{
 		unsigned int unicode;
@@ -809,7 +813,6 @@ static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
 //move the cursor one char to the left. cursor must be within the 'start' string.
 static unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
 {
-//	extern cvar_t com_parseutf8;
 	if (cursor == start)
 		return cursor;
 	if (1)//com_parseutf8.ival>0)
@@ -842,8 +845,6 @@ static unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
 //move the cursor one char to the right.
 static unsigned char *utf_right(unsigned char *start, unsigned char *cursor)
 {
-//	extern cvar_t com_parseutf8;
-
 	//FIXME: should make sure this is not doubled.
 	if (utf_specialchevron(start, cursor) && cursor[1] == '[')
 	{
@@ -901,7 +902,8 @@ Interactive line editing and console scrollback
 */
 void Key_Console (unsigned int unicode, int key)
 {
-	extern cvar_t com_parseutf8;
+	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
+	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
 	char	*clipText;
 	char utf8[8];
 
@@ -913,7 +915,7 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key == K_TAB)
 		{	// command completion
-			if (keydown[K_CTRL] || keydown[K_SHIFT])
+			if (ctrl || shift)
 			{
 				Con_CycleConsole();
 				return;
@@ -977,7 +979,7 @@ void Key_Console (unsigned int unicode, int key)
 		return;
 	}
 
-	if (key == K_SPACE && keydown[K_CTRL] && con_current->commandcompletion)
+	if (key == K_SPACE && ctrl && con_current->commandcompletion)
 	{
 		char *txt = key_lines[edit_line]+1;
 		if (*txt == '/')
@@ -991,14 +993,14 @@ void Key_Console (unsigned int unicode, int key)
 
 	if (key == K_TAB)
 	{	// command completion
-		if (keydown[K_SHIFT])
+		if (shift)
 		{
 			Con_CycleConsole();
 			return;
 		}
 
 		if (con_current->commandcompletion)
-			CompleteCommand (keydown[K_CTRL]);
+			CompleteCommand (ctrl);
 		return;
 	}
 	if (key != K_CTRL && key != K_SHIFT && con_commandmatch)
@@ -1006,7 +1008,17 @@ void Key_Console (unsigned int unicode, int key)
 	
 	if (key == K_LEFTARROW || key == K_KP_LEFTARROW)
 	{
-		key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+		if (ctrl)
+		{
+			//ignore whitespace if we're at the end of the word
+			while (key_linepos > 0 && key_lines[edit_line][key_linepos-1] == ' ')
+				key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+			//keep skipping until we find the start of that word
+			while (ctrl && key_linepos > 1 && key_lines[edit_line][key_linepos-1] != ' ')
+				key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+		}
+		else
+			key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
 		return;
 	}
 	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW)
@@ -1014,6 +1026,15 @@ void Key_Console (unsigned int unicode, int key)
 		if (key_lines[edit_line][key_linepos])
 		{
 			key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+			if (ctrl)
+			{
+				//skip over the word
+				while (key_lines[edit_line][key_linepos] && key_lines[edit_line][key_linepos] != ' ')
+					key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+				//as well as any trailing whitespace
+				while (key_lines[edit_line][key_linepos] == ' ')
+					key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
+			}
 			return;
 		}
 		else
@@ -1098,7 +1119,7 @@ void Key_Console (unsigned int unicode, int key)
 	if (key == K_PGUP || key == K_KP_PGUP || key==K_MWHEELUP)
 	{
 		int i = 2;
-		if (keydown[K_CTRL])
+		if (ctrl)
 			i = 8;
 		if (!con_current->display)
 			return;
@@ -1115,7 +1136,7 @@ void Key_Console (unsigned int unicode, int key)
 	if (key == K_PGDN || key == K_KP_PGDN || key==K_MWHEELDOWN)
 	{
 		int i = 2;
-		if (keydown[K_CTRL])
+		if (ctrl)
 			i = 8;
 		if (!con_current->display)
 			return;
@@ -1132,7 +1153,7 @@ void Key_Console (unsigned int unicode, int key)
 
 	if (key == K_HOME || key == K_KP_HOME)
 	{
-		if (keydown[K_CTRL])
+		if (ctrl)
 			con_current->display = con_current->oldest;
 		else
 			key_linepos = 1;
@@ -1141,7 +1162,7 @@ void Key_Console (unsigned int unicode, int key)
 
 	if (key == K_END || key == K_KP_END)
 	{
-		if (keydown[K_CTRL])
+		if (ctrl)
 			con_current->display = con_current->current;
 		else
 			key_linepos = strlen(key_lines[edit_line]);
@@ -1149,13 +1170,13 @@ void Key_Console (unsigned int unicode, int key)
 	}
 
 	//beware that windows translates ctrl+c and ctrl+v to a control char
-	if (((unicode=='C' || unicode=='c' || unicode==3) && keydown[K_CTRL]) || (keydown[K_CTRL] && key == K_INS))
+	if (((unicode=='C' || unicode=='c' || unicode==3) && ctrl) || (ctrl && key == K_INS))
 	{
 		Sys_SaveClipboard(key_lines[edit_line]+1);
 		return;
 	}
 
-	if (((unicode=='V' || unicode=='v' || unicode==22) && keydown[K_CTRL]) || (keydown[K_SHIFT] && key == K_INS))
+	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
 	{
 		clipText = Sys_GetClipboard();
 		if (clipText)
@@ -1197,7 +1218,7 @@ void Key_Console (unsigned int unicode, int key)
 	}
 	else if (com_parseutf8.ival >= 0)	//don't do this for iso8859-1. the major user of that is hexen2 which doesn't have these chars.
 	{
-		if (keydown[K_CTRL] && !keydown[K_RALT])
+		if (ctrl && !keydown[K_RALT])
 		{
 			if (unicode >= '0' && unicode <= '9')
 				unicode = unicode - '0' + 0xe012;	// yellow number
@@ -1678,10 +1699,12 @@ void Key_Init (void)
 	consolekeys[K_KP_PGUP] = true;
 	consolekeys[K_PGDN] = true;
 	consolekeys[K_KP_PGDN] = true;
-	consolekeys[K_SHIFT] = true;
+	consolekeys[K_LSHIFT] = true;
+	consolekeys[K_RSHIFT] = true;
 	consolekeys[K_MWHEELUP] = true;
 	consolekeys[K_MWHEELDOWN] = true;
-	consolekeys[K_CTRL] = true;
+	consolekeys[K_LCTRL] = true;
+	consolekeys[K_RCTRL] = true;
 	consolekeys[K_LALT] = true;
 	consolekeys[K_RALT] = true;
 	consolekeys['`'] = false;
@@ -1789,20 +1812,20 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 
 //	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 
-	oldstate = KeyModifier(keydown[K_SHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_CTRL]);
+	oldstate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL]);
 
 	keydown[key] = down;
 
-	if (key == K_SHIFT || key == K_LALT || key == K_RALT || key == K_CTRL)
+	if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
 	{
 		int k;
 
-		keystate = KeyModifier(keydown[K_SHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_CTRL]);
+		keystate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL]);
 
 		for (k = 0; k < K_MAX; k++)
 		{	//go through the old state removing all depressed keys. they are all up now.
 
-			if (k == K_SHIFT || k == K_LALT || key == K_RALT || k == K_CTRL)
+			if (k == K_LSHIFT || k == K_RSHIFT || k == K_LALT || k == K_RALT || k == K_LCTRL || k == K_RCTRL)
 				continue;
 
 			if (deltaused[k][oldstate])
@@ -1882,9 +1905,9 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString (key) );
 	}
 
-	if (key == K_SHIFT)
+	if (key == K_LSHIFT || key == K_RSHIFT)
 	{
-		shift_down = down;
+		shift_down = keydown[K_LSHIFT]|keydown[K_RSHIFT];
 	}
 
 	if (key == K_ESCAPE)
@@ -2001,6 +2024,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 			return;
 		deltaused[key][keystate] = false;
 
+		if (key == K_RALT)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+			key = K_ALT;
+		if (key == K_RCTRL)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+			key = K_CTRL;
+		if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+			key = K_SHIFT;
+
 		if (devid)
 			Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
 		else
@@ -2061,6 +2091,10 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 
 		if (key == K_RALT)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
 			key = K_ALT;
+		if (key == K_RCTRL)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+			key = K_CTRL;
+		if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+			key = K_SHIFT;
 
 		kb = keybindings[key][keystate];
 		if (kb)

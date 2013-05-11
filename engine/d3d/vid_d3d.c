@@ -727,14 +727,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		mouseactive = false;
 	}
 
-	{
-		void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
-		Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
-		Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
-
-		Cvar_ForceCallback(&v_gamma);
-	}
-
 	return true;
 }
 
@@ -806,15 +798,16 @@ static void	 (D3D9_VID_DeInit)				(void)
 
 	Cvar_Unhook(&v_gamma);
 	Cvar_Unhook(&v_contrast);
+	Cvar_Unhook(&v_brightness);
 }
 
-static void	(D3D9_VID_SetPalette)			(unsigned char *palette)
+qboolean D3D9_VID_ApplyGammaRamps		(unsigned short *ramps)
 {
-	D3D9_VID_GenPaletteTables(palette);
-}
-static void	(D3D9_VID_ShiftPalette)			(unsigned char *palette)
-{
-	D3D9_VID_GenPaletteTables(palette);
+	if (d3dpp.Windowed)
+		return false;
+	if (pD3DDev9 && ramps)
+		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
+	return true;
 }
 static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
 {
@@ -958,7 +951,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		}
 		D3D9BE_Reset(false);
 
-		VID_ShiftPalette (NULL);
+		Cvar_ForceCallback(&v_gamma);
 		break;
 	default:
 		break;
@@ -1103,8 +1096,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
-
-	VID_ShiftPalette (NULL);
 }
 
 
@@ -1290,8 +1281,7 @@ rendererinfo_t d3d9rendererinfo =
 
 	D3D9_VID_Init,
 	D3D9_VID_DeInit,
-	D3D9_VID_SetPalette,
-	D3D9_VID_ShiftPalette,
+	D3D9_VID_ApplyGammaRamps,
 	D3D9_VID_GetRGBInfo,
 	D3D9_VID_SetWindowCaption,
 

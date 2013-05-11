@@ -1136,7 +1136,7 @@ void CG_Start (void)
 	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
 
-	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCallsNative, CG_SystemCallsVM);
+	cgvm = VM_Create("vm/cgame", com_nogamedirnativecode.ival?NULL:CG_SystemCallsNative, CG_SystemCallsVM);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		SCR_EndLoadingPlaque();

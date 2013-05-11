@@ -386,14 +386,6 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 {
 	return dlsym(module, exportname);
 }
-void *Sys_GetGameAPI (void *parms)
-{
-	//don't implement - fix q2 code instead
-	return NULL;
-}
-void Sys_UnloadGame(void)
-{
-}
 char *Sys_ConsoleInput (void)
 {
 	return NULL;

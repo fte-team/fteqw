@@ -792,6 +792,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 		void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 		Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 		Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
+		Cvar_Hook(&v_brightness, GLV_Gamma_Callback);
 
 		Cvar_ForceCallback(&v_gamma);
 	}
@@ -866,18 +867,11 @@ static void	 (D3D11_VID_DeInit)				(void)
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
-
-	Cvar_Unhook(&v_gamma);
-	Cvar_Unhook(&v_contrast);
 }
 
-static void	(D3D11_VID_SetPalette)			(unsigned char *palette)
+static qboolean	D3D11_VID_ApplyGammaRamps(unsigned short *ramps)
 {
-	D3D11_VID_GenPaletteTables(palette);
-}
-static void	(D3D11_VID_ShiftPalette)			(unsigned char *palette)
-{
-	D3D11_VID_GenPaletteTables(palette);
+	return false;
 }
 static char	*(D3D11_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
 {
@@ -1176,8 +1170,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
-
-	VID_ShiftPalette (NULL);
 }
 
 
@@ -1365,8 +1357,7 @@ rendererinfo_t d3d11rendererinfo =
 
 	D3D11_VID_Init,
 	D3D11_VID_DeInit,
-	D3D11_VID_SetPalette,
-	D3D11_VID_ShiftPalette,
+	D3D11_VID_ApplyGammaRamps,
 	D3D11_VID_GetRGBInfo,
 	D3D11_VID_SetWindowCaption,
 

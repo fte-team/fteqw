@@ -1776,7 +1776,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, char *file, float killonspawnflags)
 
 	pbool resethunk=0;
 	pbool isloadgame;
-	if (!strncmp(file, "loadgame", 8))
+	if (file && !strncmp(file, "loadgame", 8))
 	{
 		isloadgame = true;
 		numents = -1;

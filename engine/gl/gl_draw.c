@@ -167,7 +167,7 @@ typedef struct gltexture_s
 	texcom_t com;
 	texid_t	texnum;
 	char	identifier[64];
-	int		width, height, bpp;
+	int		bpp;
 	unsigned int flags;
 	struct gltexture_s *next;
 } gltexture_t;
@@ -184,8 +184,8 @@ static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h, unsigned int
 	glt->texnum.ref = &glt->com;
 	Q_strncpyz (glt->identifier, ident, sizeof(glt->identifier));
 	glt->flags = flags;
-	glt->width = w;
-	glt->height = h;
+	glt->com.width = w;
+	glt->com.height = h;
 	glt->bpp = 0;
 	glt->com.regsequence = r_regsequence;
 
@@ -408,8 +408,8 @@ void GLDraw_ImageList_f(void)
 	for (glt=gltextures ; glt ; glt=glt->next)
 	{
 		count++;
-		mem += glt->width * glt->height * 4;
-		Con_Printf("%s (%i*%i, seq=%i)\n", glt->identifier, glt->width, glt->height, glt->com.regsequence);
+		mem += glt->com.width * glt->com.height * 4;
+		Con_Printf("%s (%i*%i, seq=%i)\n", glt->identifier, glt->com.width, glt->com.height, glt->com.regsequence);
 	}
 	Con_Printf("%i images, %i bytes\n", count, mem);
 }
@@ -636,9 +636,6 @@ texid_t GL_FindTexture (char *identifier, unsigned int flags)
 			glt = Hash_GetNext(&gltexturetable, identifier, glt);
 			continue;
 		}
-
-		image_width = glt->width;
-		image_height = glt->height;
 		return glt->texnum;
 	}
 
@@ -652,7 +649,7 @@ gltexture_t	*GL_MatchTexture (char *identifier, unsigned int flags, int bits, in
 	glt = Hash_Get(&gltexturetable, identifier);
 	while(glt)
 	{
-		if (glt->bpp == bits && width == glt->width && height == glt->height && !((glt->flags ^ flags) & IF_CLAMP))
+		if (glt->bpp == bits && width == glt->com.width && height == glt->com.height && !((glt->flags ^ flags) & IF_CLAMP))
 			return glt;
 
 		glt = Hash_GetNext(&gltexturetable, identifier, glt);
@@ -2308,7 +2305,7 @@ texid_t GL_LoadCompressed(char *name)
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
-	if (!GL_UploadCompressed(file, &glt->width, &glt->height, (unsigned int *)&glt->flags))
+	if (!GL_UploadCompressed(file, &glt->com.width, &glt->com.height, (unsigned int *)&glt->flags))
 		return r_nulltex;
 
 	return glt->texnum;

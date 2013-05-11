@@ -1979,50 +1979,65 @@ void INS_JoyMove (float *movements, int pnum)
 	CL_ClampPitch(pnum);
 }
 
-static qbyte        scantokey[128] =
-					{
-//  0           1       2			3			4		5			6				7
-//  8           9       A			B			C       D			E				F
-	0  ,		27,		'1',		'2',		'3',	'4',		'5',			'6',
-	'7',		'8',	'9',		'0',		'-',	'=',		K_BACKSPACE,	9,			// 0
-	'q',		'w',	'e',		'r',		't',	'y',		'u',			'i',
-	'o',		'p',	'[',		']',		13 ,	K_CTRL,		'a',			's',		// 1
-	'd',		'f',	'g',		'h',		'j',	'k',		'l',			';',
-	'\'',		'`',	K_SHIFT,	'\\',		'z',	'x',		'c',			'v',		// 2
-	'b',		'n',	'm',		',',		'.',	'/',		K_SHIFT,		'*',
-	K_LALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3
-	K_F6,		K_F7,	K_F8,		K_F9,		K_F10,	K_PAUSE,	K_SCRLCK,		K_HOME,
-	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4
-	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11,
-	K_F12,		0,		0,			0,			0,		0,			0,				0,			// 5
-	0,			0,		0,			0,			0,		'\\',		0,				0,
-	0,			0,		0,			0,			0,		0,			0,				0,			// 6
-	0,			0,		0,			0,			0,		0,			0,				0,
-	0,			0,		0,			0,			0,		0,			0,				0			// 7
-					};
-/*
-static qbyte        shiftscantokey[128] =
-					{
-//  0           1       2       3       4       5       6       7
-//  8           9       A       B       C       D       E       F
-	0  ,    27,     '!',    '@',    '#',    '$',    '%',    '^',
-	'&',    '*',    '(',    ')',    '_',    '+',    K_BACKSPACE, 9, // 0
-	'Q',    'W',    'E',    'R',    'T',    'Y',    'U',    'I',
-	'O',    'P',    '{',    '}',    13 ,    K_CTRL,'A',  'S',      // 1
-	'D',    'F',    'G',    'H',    'J',    'K',    'L',    ':',
-	'"' ,    '~',    K_SHIFT,'|',  'Z',    'X',    'C',    'V',      // 2
-	'B',    'N',    'M',    '<',    '>',    '?',    K_SHIFT,'*',
-	K_ALT,' ',   K_CAPSLOCK  ,    K_F1, K_F2, K_F3, K_F4, K_F5,   // 3
-	K_F6, K_F7, K_F8, K_F9, K_F10, K_PAUSE  ,    K_SCRLCK  , K_HOME,
-	K_UPARROW,K_PGUP,'_',K_LEFTARROW,'%',K_RIGHTARROW,'+',K_END, //4
-	K_DOWNARROW,K_PGDN,K_INS,K_DEL,0,0,             0,              K_F11,
-	K_F12,  0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 5
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 6
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0         // 7
-					};
-*/
+static qbyte        scantokey[] =
+{
+//  0           1			2			3			4			5			6				7
+//  8           9			A			B			C			D			E				F
+	0,			27,			'1',		'2',		'3',		'4',		'5',			'6',		// 0
+	'7',		'8',		'9',		'0',		'-',		'=',		K_BACKSPACE,	9,			// 0
+	'q',		'w',		'e',		'r',		't',		'y',		'u',			'i',		// 1
+	'o',		'p',		'[',		']',		K_ENTER,	K_LCTRL,	'a',			's',		// 1
+	'd',		'f',		'g',		'h',		'j',		'k',		'l',			';',		// 2
+	'\'',		'`',		K_LSHIFT,	'\\',		'z',		'x',		'c',			'v',		// 2
+	'b',		'n',		'm',		',',		'.',		'/',		K_RSHIFT,		K_KP_STAR,	// 3
+	K_LALT,		' ',		K_CAPSLOCK,	K_F1,		K_F2,		K_F3,		K_F4,			K_F5,		// 3
+	K_F6,		K_F7,		K_F8,		K_F9,		K_F10,		K_PAUSE,	K_SCRLCK,		K_KP_HOME,		// 4
+	K_KP_UPARROW,K_KP_PGUP,	K_KP_MINUS,	K_KP_LEFTARROW,K_KP_5,	K_KP_RIGHTARROW,K_KP_PLUS,	K_KP_END,		// 4
+	K_KP_DOWNARROW,K_KP_PGDN,K_KP_INS,	K_KP_DEL,	0,			0,			0,				K_F11,		// 5
+	K_F12,		0,			0,			0,			0,			0,			0,				0,			// 5
+	0,			0,			0,			0,			0,			'\\',		0,				0,			// 6
+	0,			0,			0,			0,			0,			0,			0,				0,			// 6
+	0,			0,			0,			0,			0,			0,			0,				0,			// 7
+	0,			0,			0,			0,			0,			0,			0,				0,			// 7
+//  0           1			2			3			4			5			6				7
+//  8           9			A			B			C			D			E				F
+	0,			0,			0,			0,			0,			0,			0,				0,			// 8
+	0,			0,			0,			0,			0,			0,			0,				0,			// 8
+	0,			0,			0,			0,			0,			0,			0,				0,			// 9
+	0,			0,			0,			0,			0,			0,			0,				0,			// 9
+	0,			0,			0,			0,			0,			0,			0,				0,			// a
+	0,			0,			0,			0,			0,			0,			0,				0,			// a
+	0,			0,			0,			0,			0,			0,			0,				0,			// b
+	0,			0,			0,			0,			0,			0,			0,				0,			// b
+	0,			0,			0,			0,			0,			0,			0,				0,			// c
+	0,			0,			0,			0,			0,			0,			0,				0,			// c
+	0,			0,			0,			0,			0,			0,			0,				0,			// d
+	0,			0,			0,			0,			0,			0,			0,				0,			// d
+	0,			0,			0,			0,			0,			0,			0,				0,			// e
+	0,			0,			0,			0,			0,			0,			0,				0,			// e
+	0,			0,			0,			0,			0,			0,			0,				0,			// f
+	0,			0,			0,			0,			0,			0,			0,				0,			// f
+//  0           1			2			3			4			5			6				7
+//  8           9			A			B			C			D			E				F
+	0,			27,			'1',		'2',		'3',		'4',		'5',			'6',		// 0
+	'7',		'8',		'9',		'0',		'-',		'=',		K_BACKSPACE,	9,			// 0
+	'q',		'w',		'e',		'r',		't',		'y',		'u',			'i',		// 1
+	'o',		'p',		'[',		']',		K_KP_ENTER,	K_RCTRL,	'a',			's',		// 1
+	'd',		'f',		'g',		'h',		'j',		'k',		'l',			';',		// 2
+	'\'',		'`',		K_SHIFT,	'\\',		'z',		'x',		'c',			'v',		// 2
+	'b',		'n',		'm',		',',		'.',		K_KP_SLASH,	K_SHIFT,		K_PRINTSCREEN,// 3
+	K_RALT,		' ',		K_CAPSLOCK,	K_F1,		K_F2,		K_F3,		K_F4,			K_F5,		// 3
+	K_F6,		K_F7,		K_F8,		K_F9,		K_F10,		K_KP_NUMLOCK,K_SCRLCK,		K_HOME,		// 4
+	K_UPARROW,	K_PGUP,		'-',		K_LEFTARROW,0,			K_RIGHTARROW,'+',			K_END,		// 4
+	K_DOWNARROW,K_PGDN,		K_INS,		K_DEL,		0,			0,			0,				K_F11,		// 5
+	K_F12,		0,			0,			0,			0,			0,			0,				0,			// 5
+	0,			0,			0,			0,			0,			'\\',		0,				0,			// 6
+	0,			0,			0,			0,			0,			0,			0,				0,			// 6
+	0,			0,			0,			0,			0,			0,			0,				0,			// 7
+	0,			0,			0,			0,			0,			0,			0,				0			// 7
+//  0           1			2			3			4			5			6				7
+//  8           9			A			B			C			D			E				F
+};
 
 /*
 =======
@@ -2034,83 +2049,38 @@ Map from windows to quake keynums
 static int MapKey (int vkey)
 {
 	int key;
-	key = (vkey>>16)&255;
+	key = (vkey>>16)&511;
 
-	if (((vkey>>16)&511) == (0x138))
-		return K_RALT;
-	if (cl_keypad.value)
+	if (key < sizeof(scantokey) / sizeof(scantokey[0]))
+		key = scantokey[key];
+	else
+		key = 0;
+	if (!cl_keypad.ival)
 	{
-		switch (key)
+		switch(scantokey[key])
 		{
-		case 0x1c:
-			if ((vkey>>24)&1)	//not compleatly seperate
-				return K_KP_ENTER;
-			break;
-		case 0x47:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_HOME;
-			break;
-		case 0x48:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_UPARROW;
-			break;
-		case 0x49:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_PGUP;
-			break;
-		case 0x4b:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_LEFTARROW;
-			break;
-		case 0x4c:
-			return K_KP_5;
-		case 0x4d:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_RIGHTARROW;
-			break;
-		case 0x4f:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_END;
-			break;
-		case 0x50:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_DOWNARROW;
-			break;
-		case 0x51:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_PGDN;
-			break;
-		case 0x52:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_INS;
-			break;
-		case 0x53:
-			if (!((vkey>>24)&1))	//not compleatly seperate
-				return K_KP_DEL;
-			break;
-		case 0x35:
-			if ((vkey>>24)&1)	//not compleatly seperate
-				return K_KP_SLASH;
-			break;
-		case 0x4a:
-			return K_KP_MINUS;
-		case 0x4e:
-			return K_KP_PLUS;
-		case 0x45:
-			if ((vkey>>24)&1)	//not compleatly seperate
-				return K_KP_NUMLOCK;
-			break;
-		case 0x37:
-			return K_KP_STAR;
-//		case 0x
-//			return K_KP_EQUALS;
+		case K_KP_HOME:			return '7';
+		case K_KP_UPARROW:		return '8';
+		case K_KP_PGUP:			return '9';
+		case K_KP_LEFTARROW:	return '4';
+		case K_KP_5:			return '5';
+		case K_KP_RIGHTARROW:	return '6';
+		case K_KP_END:			return '1';
+		case K_KP_DOWNARROW:	return '2';
+		case K_KP_PGDN:			return '3';
+		case K_KP_ENTER:		return K_ENTER;
+		case K_KP_INS:			return '0';
+		case K_KP_DEL:			return '.';
+		case K_KP_SLASH:		return '/';
+		case K_KP_MINUS:		return '-';
+		case K_KP_PLUS:			return '+';
+		case K_KP_STAR:			return '*';
+		case K_KP_EQUALS:		return '=';
 		}
 	}
-	if (key > 127)
-		return 0;
-	if (scantokey[key] == 0)
+	if (key == 0)
 		Con_DPrintf("key 0x%02x has no translation\n", key);
-	return scantokey[key];
+	return key;
 }
 
 void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdeviceid)

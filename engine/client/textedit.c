@@ -500,12 +500,14 @@ void Editor_Key(int key, int unicode)
 */
 	switch (key)
 	{
-	case K_SHIFT:
+	case K_LSHIFT:
+	case K_RSHIFT:
 		break;
 	case K_LALT:
 	case K_RALT:
 		break;
-	case K_CTRL:
+	case K_LCTRL:
+	case K_RCTRL:
 		break;
 	case K_MWHEELUP:
 	case K_UPARROW:
@@ -695,7 +697,7 @@ void Editor_Key(int key, int unicode)
 
 	case K_LEFTARROW:
 		cursorx--;
-		if (keydown[K_CTRL])
+		if (keydown[K_LCTRL] || keydown[K_RCTRL])
 		{
 			//skip additional whitespace
 			while(cursorx > 0 && (cursorblock->data[cursorx-1] == ' ' || cursorblock->data[cursorx-1] <= '\t'))
@@ -711,7 +713,7 @@ void Editor_Key(int key, int unicode)
 		break;
 
 	case K_RIGHTARROW:
-		if (keydown[K_CTRL])
+		if (keydown[K_LCTRL] || keydown[K_RCTRL])
 		{
 			while(cursorx+1 < cursorblock->datalength && ((cursorblock->data[cursorx] >= 'a' && cursorblock->data[cursorx] <= 'z') ||
 														  (cursorblock->data[cursorx] >= 'A' && cursorblock->data[cursorx] <= 'Z') ||

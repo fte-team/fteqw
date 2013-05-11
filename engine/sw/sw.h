@@ -132,8 +132,7 @@ void SWRast_Sync(struct workqueue_s *wq);
 
 qboolean SW_VID_Init(rendererstate_t *info, unsigned char *palette);
 void SW_VID_DeInit(void);
-void SW_VID_SetPalette(unsigned char *palette);
-void SW_VID_ShiftPalette(unsigned char *palette);
+qboolean SW_VID_ApplyGammaRamps		(unsigned short *ramps);
 char *SW_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight);
 void SW_VID_SetWindowCaption(char *msg);
 void SW_VID_SwapBuffers(void);

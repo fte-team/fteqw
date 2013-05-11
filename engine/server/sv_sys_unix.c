@@ -916,54 +916,6 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 	return dlsym(module, exportname);
 }
 
-
-#if 0
-static void *game_library;
-
-void Sys_UnloadGame(void)
-{
-	if (game_library)
-	{
-		dlclose(game_library);
-		game_library = 0;
-	}
-}
-
-void *Sys_GetGameAPI(void *parms)
-{
-	void *(*GetGameAPI)(void *);
-
-	char name[MAX_OSPATH];
-	char curpath[MAX_OSPATH];
-	char *searchpath;
-	const char *gamename = "gamei386.so";
-
-	void *ret;
-
-	getcwd(curpath, sizeof(curpath)); // do soemthing with the result
-
-	searchpath = 0;
-	while((searchpath = COM_NextPath(searchpath)))
-	{
-		snprintf (name, sizeof(name), "%s/%s/%s", curpath, searchpath, gamename);
-		game_library = dlopen (name, RTLD_LAZY );
-		if (game_library)
-		{
-			GetGameAPI = (void *)dlsym (game_library, "GetGameAPI");
-			if (GetGameAPI && (ret = GetGameAPI(parms)))
-			{
-				return ret;
-			}
-
-			dlclose(game_library);
-			game_library = 0;
-		}
-	}
-
-	return 0;
-}
-#endif
-
 void Sys_ServerActivity(void)
 {
 }

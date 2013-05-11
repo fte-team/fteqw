@@ -1901,10 +1901,12 @@ void Media_Gecko_KeyPress (struct cin_s *cin, int code, int unicode, int event)
 		case K_ENTER:
 			code = OSGKKey_Return;
 			break;
-		case K_SHIFT:
+		case K_LSHIFT:
+		case K_RSHIFT:
 			code = OSGKKey_Shift;
 			break;
-		case K_CTRL:
+		case K_LCTRL:
+		case K_RCTRL:
 			code = OSGKKey_Control;
 			break;
 		case K_LALT:

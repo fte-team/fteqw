@@ -5,6 +5,11 @@
 #include "quakedef.h"
 #include "fs.h"
 
+#define PLUG_NONE 0
+#define PLUG_NATIVE 1
+#define PLUG_QVM 2
+#define PLUG_EITHER 3
+
 #ifdef PLUGINS
 //#define GNUTLS
 #ifdef GNUTLS
@@ -161,7 +166,6 @@ void Plug_Close(plugin_t *plug);
 
 void Plug_Tick(void);
 qboolean Plugin_ExecuteString(void);
-void Plug_Shutdown(void);
 
 
 static plugin_t *plugs;
@@ -301,7 +305,7 @@ static qintptr_t EXPORT_FN Plug_SystemCallsNative(qintptr_t arg, ...)
 }
 
 
-plugin_t *Plug_Load(char *file)
+plugin_t *Plug_Load(char *file, int type)
 {
 	plugin_t *newplug;
 
@@ -315,10 +319,11 @@ plugin_t *Plug_Load(char *file)
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, file);
 
-	if (!strncmp(file, "fteplug_", 8))
-		newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, NULL);
-	else
-		newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, Plug_SystemCallsVM);
+	if (!newplug->vm && (type & PLUG_NATIVE))
+		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL);
+	if (!newplug->vm && (type & PLUG_QVM))
+		newplug->vm = VM_Create(file, NULL, Plug_SystemCallsVM);
+
 	currentplug = newplug;
 	if (newplug->vm)
 	{
@@ -353,7 +358,7 @@ static int QDECL Plug_Emumerated (const char *name, int size, void *param, void 
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
 	vmname[strlen(vmname) - strlen(param)] = '\0';
-	if (!Plug_Load(vmname))
+	if (!Plug_Load(vmname, PLUG_QVM))
 		Con_Printf("Couldn't load plugin %s\n", vmname);
 
 	return true;
@@ -363,6 +368,8 @@ static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, v
 	char vmname[MAX_QPATH];
 	int len;
 	char *dot;
+	if (!strncmp(name, "fteplug_", 8))
+		name += 8;
 	Q_strncpyz(vmname, name, sizeof(vmname));
 	len = strlen(vmname);
 	len -= strlen(ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
@@ -374,7 +381,7 @@ static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, v
 		if (dot)
 			*dot = 0;
 	}
-	if (!Plug_Load(vmname))
+	if (!Plug_Load(vmname, PLUG_NATIVE))
 		Con_Printf("Couldn't load plugin %s\n", vmname);
 
 	return true;
@@ -1404,9 +1411,9 @@ void Plug_Load_f(void)
 		Con_Printf("will load blahx86.dll or blah.so\n");
 		return;
 	}
-	if (!Plug_Load(plugin))
+	if (!Plug_Load(plugin, PLUG_EITHER))
 	{
-		if (!Plug_Load(va("plugins/%s", plugin)))
+		if (!Plug_Load(va("plugins/%s", plugin), PLUG_EITHER))
 			Con_Printf("Couldn't load plugin %s\n", Cmd_Argv(1));
 	}
 }
@@ -1430,7 +1437,7 @@ static int EXPORT_FN Test_SysCalls(int arg, ...)
 void VM_Test_f(void)
 {
 	vm_t *vm;
-	vm = VM_Create(NULL, "vm/test", Test_SysCalls, Test_SysCalls_Ex);
+	vm = VM_Create(NULL, "vm/test", com_nogamedirnativecode.ival?NULL:Test_SysCalls, Test_SysCalls_Ex);
 	if (vm)
 	{
 		VM_Call(vm, 0, "");
@@ -1520,7 +1527,6 @@ void Plug_Initialise(qboolean fromgamedir)
 	{
 		if (plug_loaddefault.value)
 		{
-			COM_EnumerateFiles("plugins/*"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,	Plug_Emumerated, ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
 			COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
 		}
 	}
@@ -1889,33 +1895,49 @@ void Plug_List_f(void)
 	}
 }
 
-void Plug_Shutdown(void)
+void Plug_Shutdown(qboolean preliminary)
 {
-	while(plugs)
+	plugin_t **p;
+	if (preliminary)
 	{
-		plugs->blockcloses = 0;
-		Plug_Close(plugs);
+		//close the non-block-closes plugins first, before most of the rest of the subsystems are down
+		for (p = &plugs; *p; )
+		{
+			if ((*p)->blockcloses)
+				p = &(*p)->next;
+			else
+				Plug_Close(plugs);
+		}
 	}
+	else
+	{
+		//now that our various handles etc are closed, its safe to terminate the various driver plugins.
+		while(plugs)
+		{
+			plugs->blockcloses = 0;
+			Plug_Close(plugs);
+		}
 
-	BZ_Free(pluginstreamarray);
-	pluginstreamarray = NULL;
-	pluginstreamarraylen = 0;
+		BZ_Free(pluginstreamarray);
+		pluginstreamarray = NULL;
+		pluginstreamarraylen = 0;
 
-	numplugbuiltins = 0;
-	BZ_Free(plugbuiltins);
-	plugbuiltins = NULL;
+		numplugbuiltins = 0;
+		BZ_Free(plugbuiltins);
+		plugbuiltins = NULL;
 
-	plugincvararraylen = 0;
-	BZ_Free(plugincvararray);
-	plugincvararray = NULL;
+		plugincvararraylen = 0;
+		BZ_Free(plugincvararray);
+		plugincvararray = NULL;
 
-	plugincommandarraylen = 0;
-	BZ_Free(plugincommandarray);
-	plugincommandarray = NULL;
+		plugincommandarraylen = 0;
+		BZ_Free(plugincommandarray);
+		plugincommandarray = NULL;
 
 #ifndef SERVERONLY
-	Plug_Client_Shutdown();
+		Plug_Client_Shutdown();
 #endif
+	}
 }
 
 #endif

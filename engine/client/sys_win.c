@@ -197,121 +197,6 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 }
 #endif
 
-#ifdef Q2SERVER
-static HINSTANCE	game_library;
-
-/*
-=================
-Sys_UnloadGame
-=================
-*/
-void Sys_UnloadGame (void)
-{
-	if (!FreeLibrary (game_library))
-		Sys_Error ("FreeLibrary failed for game library");
-	game_library = NULL;
-}
-
-/*
-=================
-Sys_GetGameAPI
-
-Loads the game dll
-=================
-*/
-void *Sys_GetGameAPI (void *parms)
-{
-	void	*(VARGS *GetGameAPI) (void *);
-	char	name[MAX_OSPATH];
-	char	*path;
-	char	cwd[MAX_OSPATH];
-#if defined _M_IX86
-	const char *gamename = "gamex86.dll";
-
-#ifdef NDEBUG
-	const char *debugdir = "release";
-#else
-	const char *debugdir = "debug";
-#endif
-
-#elif defined(__amd64__) || defined(__AMD64__) || defined(_AMD64_)
-	const char *gamename = "gameamd.dll";
-
-#ifdef NDEBUG
-	const char *debugdir = "release";
-#else
-	const char *debugdir = "debug";
-#endif
-
-#elif defined _M_ALPHA
-	const char *gamename = "gameaxp.dll";
-
-#ifdef NDEBUG
-	const char *debugdir = "releaseaxp";
-#else
-	const char *debugdir = "debugaxp";
-#endif
-
-#endif
-
-	if (game_library)
-		Sys_Error ("Sys_GetGameAPI without Sys_UnloadingGame");
-
-	// check the current debug directory first for development purposes
-#ifdef _WIN32
-	GetCurrentDirectory(sizeof(cwd), cwd);
-#else
-	_getcwd (cwd, sizeof(cwd));
-#endif
-	snprintf (name, sizeof(name), "%s/%s/%s", cwd, debugdir, gamename);
-	game_library = LoadLibrary ( name );
-	if (game_library)
-	{
-		Con_DPrintf ("LoadLibrary (%s)\n", name);
-	}
-	else
-	{
-#ifdef DEBUG
-		// check the current directory for other development purposes
-		_snprintf (name, sizeof(name), "%s/%s", cwd, gamename);
-		game_library = LoadLibrary ( name );
-		if (game_library)
-		{
-			Con_DPrintf ("LoadLibrary (%s)\n", name);
-		}
-		else
-#endif
-		{
-			// now run through the search paths
-			path = NULL;
-			while (1)
-			{
-				path = COM_NextPath (path);
-				if (!path)
-					return NULL;		// couldn't find one anywhere
-				snprintf (name, sizeof(name), "%s/%s", path, gamename);
-				game_library = LoadLibrary (name);
-				if (game_library)
-				{
-					Con_DPrintf ("LoadLibrary (%s)\n",name);
-					break;
-				}
-			}
-		}
-	}
-
-	GetGameAPI = (void *)GetProcAddress (game_library, "GetGameAPI");
-	if (!GetGameAPI)
-	{
-		Sys_UnloadGame ();
-		return NULL;
-	}
-
-	return GetGameAPI (parms);
-}
-#endif
-
-
 #define MINIMUM_WIN_MEMORY	MINIMUM_MEMORY
 #define MAXIMUM_WIN_MEMORY	0x8000000
 
@@ -731,22 +616,30 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 	case HC_ACTION:
 		{
 		//Trap the Left Windowskey
-			if (pkbhs->vkCode == VK_LWIN)
+			if (pkbhs->vkCode == VK_SNAPSHOT)
 			{
-				Key_Event (0, K_LWIN, 0, !(pkbhs->flags & LLKHF_UP));
+				IN_KeyEvent (0, !(pkbhs->flags & LLKHF_UP), K_PRINTSCREEN, 0);
 				return 1;
 			}
-		//Trap the Right Windowskey
-			if (pkbhs->vkCode == VK_RWIN)
+			if (sys_disableWinKeys.ival)
 			{
-				Key_Event (0, K_RWIN, 0, !(pkbhs->flags & LLKHF_UP));
-				return 1;
-			}
-		//Trap the Application Key (what a pointless key)
-			if (pkbhs->vkCode == VK_APPS)
-			{
-				Key_Event (0, K_APP, 0, !(pkbhs->flags & LLKHF_UP));
-				return 1;
+				if (pkbhs->vkCode == VK_LWIN)
+				{
+					IN_KeyEvent (0, !(pkbhs->flags & LLKHF_UP), K_LWIN, 0);
+					return 1;
+				}
+			//Trap the Right Windowskey
+				if (pkbhs->vkCode == VK_RWIN)
+				{
+					IN_KeyEvent(0, !(pkbhs->flags & LLKHF_UP), K_RWIN, 0);
+					return 1;
+				}
+			//Trap the Application Key (what a pointless key)
+				if (pkbhs->vkCode == VK_APPS)
+				{
+					IN_KeyEvent (0, !(pkbhs->flags & LLKHF_UP), K_APP, 0);
+					return 1;
+				}
 			}
 
 		// Disable CTRL+ESC
@@ -1292,7 +1185,6 @@ char *Sys_GetClipboard(void)
 	unsigned short *clipWText;
 	if (OpenClipboard(NULL))
 	{
-		extern cvar_t com_parseutf8;
 		//windows programs interpret CF_TEXT as ansi (aka: gibberish)
 		//so grab utf-16 text and convert it to utf-8 if our console parsing is set to accept that.
 		if (com_parseutf8.ival > 0)
@@ -1360,7 +1252,6 @@ void Sys_SaveClipboard(char *text)
 	HANDLE glob;
 	char *temp;
 	unsigned short *tempw;
-	extern cvar_t com_parseutf8;
 	if (!OpenClipboard(NULL))
 		return;
     EmptyClipboard();
@@ -1760,22 +1651,8 @@ HWND		hwnd_dialog;
 
 #define COBJMACROS
 
-#ifndef MINGW
-#if _MSC_VER > 1200
-	#include <shobjidl.h>
-#endif
-#endif
-#if _MSC_VER > 1200
-	#include <shlguid.h>
-#endif
 #include <shlobj.h>
-//#include <Propsys.h>
 
-#ifdef _MSC_VER
-	#include "ntverp.h"
-#endif
-
-// SDK version 7600 = v7.0a & v7.1
 typedef struct qSHARDAPPIDINFOLINK {
   IShellLinkW *psl;
   PCWSTR     pszAppID;
@@ -3007,7 +2884,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				sleeptime = Host_Frame (time);
 				oldtime = newtime;
 
-				SetHookState(sys_disableWinKeys.ival);
+				SetHookState(ActiveApp);
 
 				/*sleep if its not yet time for a frame*/
 				Sys_Sleep(sleeptime);

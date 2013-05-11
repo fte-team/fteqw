@@ -456,6 +456,7 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&r_drawflat);
 	Cvar_Unhook(&v_gamma);
 	Cvar_Unhook(&v_contrast);
+	Cvar_Unhook(&v_brightness);
 
 	Surf_DeInit();
 
@@ -473,6 +474,7 @@ void GLR_Init (void)
 //	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
+	Cvar_Hook(&v_brightness, GLV_Gamma_Callback);
 
 	GLR_ReInit();
 }

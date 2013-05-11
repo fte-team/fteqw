@@ -4622,9 +4622,9 @@ void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *va
 {
 	if (ctx->fallback)
 	{
-		memcpy(ctx->fallback + ctx->pos, data, size);
+		memcpy((char*)ctx->fallback + ctx->pos, data, size);
 		varray->gl.vbo = 0;
-		varray->gl.addr = ctx->fallback + ctx->pos;
+		varray->gl.addr = (char*)ctx->fallback + ctx->pos;
 	}
 	else
 	{

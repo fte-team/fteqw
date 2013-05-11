@@ -2150,24 +2150,24 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 	extern usercmd_t independantphysics[MAX_SPLITS];
 
 	f = G_FLOAT(OFS_PARM0);
-	if (cl.paused && f >= cls.netchan.incoming_sequence)
+	if (cl.paused && f >= cl.ackedmovesequence)
 	{
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
-	if (f > cls.netchan.outgoing_sequence)
+	if (f > cl.movesequence)
 	{
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
-	if (f < cls.netchan.outgoing_sequence - UPDATE_MASK || f < 0)
+	if (f < cl.movesequence - UPDATE_MASK || f < 0)
 	{
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
 
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
-	if (f == cls.netchan.outgoing_sequence)
+	if (f == cl.movesequence)
 	{
 		cmd = &independantphysics[csqc_lplayernum];
 		for (f=0 ; f<3 ; f++)

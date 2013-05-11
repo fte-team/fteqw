@@ -235,6 +235,8 @@ static void D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned int *data, int width
 		tex->tex.ptr = newsurf;
 	}
 
+	tex->com.width = width;
+	tex->com.height = height;
 	Upload_Texture_32(tex->tex.ptr, data, width, height, flags);
 }
 
@@ -352,6 +354,8 @@ void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, vo
 		flags |= IF_NOALPHA;
 		//fall through
 	case TF_RGBA32:
+		tex.ref->width = width;
+		tex.ref->height = height;
 		Upload_Texture_32(tex.ptr, data, width, height, flags);
 		break;
 	default:

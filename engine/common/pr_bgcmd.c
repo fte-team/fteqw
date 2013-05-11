@@ -3240,7 +3240,7 @@ void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	float		num;
 
-	num = (rand ()&0x7fff) / ((float)0x7fff);
+	num = (rand ()&0x7fff) / ((float)0x8000);
 
 	G_FLOAT(OFS_RETURN) = num;
 }

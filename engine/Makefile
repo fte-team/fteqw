@@ -7,9 +7,10 @@ STRIPFLAGS=--strip-unneeded --remove-section=.comment
 CPUOPTIMIZATIONS=
 
 #canonicalize the source path. except emscripten warns about that like crazy. *sigh*
-BASE_DIR:=$(realpath .)
 ifeq ($(FTE_TARGET),web)
 	BASE_DIR:=.
+else
+	BASE_DIR:=$(realpath .)
 endif
 
 SVNREVISION:=-DSVNREVISION=$(shell test -d .svn && svnversion || echo -)
@@ -304,7 +305,8 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
-		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
+		MINGW_LIBS_DIR=$(BASE_DIR)/libs-x86_64-w64-mingw32
+		#$(LIBS_DIR)/mingw64-libs
 	endif
 
 	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
@@ -1248,7 +1250,7 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-DO_LD ?=$(DO_ECHO) $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
+DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
@@ -1566,3 +1568,27 @@ droid-help:
 	@-echo "JARSIGNARGS: Additional optional arguments to java's jarsigner program. You may want to put -storepass FOO in here, but what ever you do - keep it secure. Avoid bash history snooping, etc. If its not present, you will safely be prompted as required."
 	@-echo
 	@-echo "Note that 'make droid-rel' will automatically generate a keystore. If you forget the password, just do a 'make dist-clean'."
+
+makelibs:
+ifndef ARCH
+	$(MAKE) makelibs ARCH=$(shell $(CC) -dumpmachine)
+else
+	mkdir -p libs-$(ARCH)
+	test -f jpegsrc.v9.tar.gz || wget http://www.ijg.org/files/jpegsrc.v9.tar.gz
+	test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v9.tar.gz && cd jpeg-9 && ./configure -host=$(ARCH) && $(MAKE) && cp .libs/libjpeg.a ../ && $(ARCH)-ar -s ../libjpeg.a )
+	
+	test -f zlib-1.2.8.tar.gz || wget http://zlib.net/zlib-1.2.8.tar.gz
+	test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-1.2.8.tar.gz && cd zlib-1.2.8 && CC="$(CC) $(W32_CFLAGS)" ./configure --static && $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS)" && cp libz.a ../ && $(ARCH)-ar -s ../libz.a )
+	
+	test -f libpng-1.6.2.tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-1.6.2.tar.gz?download -O libpng-1.6.2.tar.gz
+	test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-1.6.2.tar.gz && cd libpng-1.6.2 && ./configure -host=$(ARCH) && $(MAKE) && cp .libs/libpng16.a ../libpng.a )
+	
+	test -f libogg-1.3.0.tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-1.3.0.tar.gz
+	test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-1.3.0.tar.gz && cd libogg-1.3.0 && ./configure -host=$(ARCH) && $(MAKE) && cp src/.libs/libogg.a ../ && $(ARCH)-ar -s ../libogg.a)
+
+	test -f libvorbis-1.3.3.tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.3.tar.gz
+	test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-1.3.3.tar.gz && cd libvorbis-1.3.3 && ./configure -host=$(ARCH) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(realpath libs-$(ARCH)/libogg-1.3.0/include) && $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
+
+
+
+endif

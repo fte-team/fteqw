@@ -745,11 +745,9 @@ void SW_VID_DeInit(void)
 	DIB_Shutdown();
 	DestroyWindow(mainwindow);
 }
-void SW_VID_SetPalette(unsigned char *palette)
+qboolean SW_VID_ApplyGammaRamps		(unsigned short *ramps)
 {
-}
-void SW_VID_ShiftPalette(unsigned char *palette)
-{
+	return false;
 }
 char *SW_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
 {

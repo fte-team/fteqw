@@ -653,6 +653,7 @@ static void BindTexture(unsigned int tu, const texid_t *id)
 
 static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 {
+	extern texid_t r_whiteimage;
 	texid_t foo;
 	switch(pass->texgen)
 	{
@@ -697,7 +698,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		{
 			int lmi = shaderstate.curbatch->lightmap[0];
 			if (lmi < 0)
-				BindTexture(tu, &r_nulltex);
+				BindTexture(tu, &r_whiteimage);
 			else
 				BindTexture(tu, &lightmap[lmi]->lightmap_texture);
 		}

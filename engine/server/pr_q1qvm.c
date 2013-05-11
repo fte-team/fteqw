@@ -1342,7 +1342,7 @@ qboolean PR_LoadQ1QVM(void)
 	if (q1qvm)
 		VM_Destroy(q1qvm);
 
-	q1qvm = VM_Create(NULL, "qwprogs", syscallnative, syscallqvm);
+	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, syscallqvm);
 	if (!q1qvm)
 	{
 		if (svprogfuncs == &q1qvmprogfuncs)

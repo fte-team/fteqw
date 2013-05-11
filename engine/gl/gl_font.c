@@ -1613,6 +1613,11 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 	int v;
 	struct font_s *font = curfont;
 	float cw, ch;
+#ifdef D3D11QUAKE
+	float dxbias = (qrenderer == QR_DIRECT3D11)?0.5:0;
+#else
+#define dxbias 0
+#endif
 
 //	if (!curfont_scaled)
 //		return Font_DrawChar(px, py, charcode);
@@ -1730,6 +1735,9 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 		sh = ((c->bmh*ch));
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
 	}
+
+	sx += dxbias;
+	sy += dxbias;
 
 	sx *= (int)vid.width / (float)vid.rotpixelwidth;
 	sy *= (int)vid.height / (float)vid.rotpixelheight;

@@ -3,6 +3,7 @@
 #include "shader.h"
 #include "gl_draw.h"
 
+qboolean r2d_noshadergamma;	//says the video code has successfully activated hardware gamma
 texid_t missing_texture;
 texid_t missing_texture_gloss;
 
@@ -21,6 +22,7 @@ mpic_t		*draw_disc;
 shader_t *shader_contrastup;
 shader_t *shader_contrastdown;
 shader_t *shader_brightness;
+shader_t *shader_gammacb;
 shader_t *shader_polyblend;
 shader_t *shader_menutint;
 
@@ -34,7 +36,6 @@ unsigned int r2d_be_flags;
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font;
-extern cvar_t gl_contrast, gl_brightness;
 extern cvar_t gl_screenangle;
 extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
@@ -229,6 +230,16 @@ void R2D_Init(void)
 				"blendfunc gl_one gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+	);
+	shader_gammacb = R_RegisterShader("gammacbshader",
+		"{\n"
+			"program defaultgammacb\n"
+			"cull back\n"
+			"{\n"
+				"map $currentrender\n"
+				"nodepthtest\n"
 			"}\n"
 		"}\n"
 	);
@@ -801,43 +812,55 @@ void R2D_BrightenScreen (void)
 
 	RSpeedMark();
 
-	if (gl_contrast.value == 1.0 && gl_brightness.value == 0)
+	if (v_contrast.value == 1.0 && v_brightness.value == 0 && v_gamma.value == 1)
 		return;
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
-	f = gl_contrast.value;
-	f = min (f, 3);
+	if (r2d_noshadergamma)
+		return;
 
-	while (f > 1)
+	if (v_gamma.value != 1 && shader_gammacb->prog)
 	{
-		if (f >= 2)
-		{
-			R2D_ImageColours (1, 1, 1, 1);
-			f *= 0.5;
-		}
-		else
-		{
-			R2D_ImageColours (f - 1, f - 1, f - 1, 1);
-			f = 1;
-		}
-		R2D_ScalePic(0, 0, vid.width, vid.height, shader_contrastup);
+		//this should really be done properly, with render-to-texture
+		R2D_ImageColours (v_gamma.value, v_contrast.value, v_brightness.value, 1);
+		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, shader_gammacb);
 	}
-	if (f < 1)
+	else
 	{
-		R2D_ImageColours (f, f, f, 1);
-		R2D_ScalePic(0, 0, vid.width, vid.height, shader_contrastdown);
-	}
+		f = v_contrast.value;
+		f = min (f, 3);
 
-	if (gl_brightness.value)
-	{
-		R2D_ImageColours (gl_brightness.value, gl_brightness.value, gl_brightness.value, 1);
-		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brightness);
+		while (f > 1)
+		{
+			if (f >= 2)
+			{
+				R2D_ImageColours (1, 1, 1, 1);
+				f *= 0.5;
+			}
+			else
+			{
+				R2D_ImageColours (f - 1, f - 1, f - 1, 1);
+				f = 1;
+			}
+			R2D_ScalePic(0, 0, vid.width, vid.height, shader_contrastup);
+		}
+		if (f < 1)
+		{
+			R2D_ImageColours (f, f, f, 1);
+			R2D_ScalePic(0, 0, vid.width, vid.height, shader_contrastdown);
+		}
+
+		if (v_brightness.value)
+		{
+			R2D_ImageColours (v_brightness.value, v_brightness.value, v_brightness.value, 1);
+			R2D_ScalePic(0, 0, vid.width, vid.height, shader_brightness);
+		}
 	}
 	R2D_ImageColours (1, 1, 1, 1);
 
-	/*make sure the hud is drawn if needed*/
+	/*make sure the hud is redrawn after if needed*/
 	Sbar_Changed();
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);

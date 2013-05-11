@@ -1515,15 +1515,15 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (*ragname)
 	{
-		int idx;
 		char *cmd;
 
 		ragname = Cmd_TokenizeString(ragname, false, false);
 		cmd = Cmd_Argv(0);
 		if (!stricmp(cmd, "enablejoint"))
 		{
-			idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
-			World_ODE_RagEnableJoint(&sko->joint[idx], atoi(Cmd_Argv(2)));
+			int idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
+			int enable = atoi(Cmd_Argv(2));
+			World_ODE_RagEnableJoint(&sko->joint[idx], enable);
 			G_FLOAT(OFS_RETURN) = 1;
 			return;
 		}

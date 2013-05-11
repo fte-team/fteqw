@@ -26,8 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef HUFFNETWORK
 #define ID_INLINE
 
-#define VALUE(a)			(*(int  *)&(a))
-#define NODE(a)				((void*)(a))
+#define VALUE(a)			(*(size_t *)&(a))
+#define NODE(a)				((void*)((size_t)a))
 
 #define NODE_START			NODE(  1)
 #define NODE_NONE			NODE(256)

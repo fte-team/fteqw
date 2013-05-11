@@ -68,14 +68,12 @@ unsigned long ret;
 /* -------------------------------------------------------------------------- */
 static int roq_parse_file(vfsfile_t *fp, roq_info *ri)
 {
-unsigned int head1, head3, chunk_id, chunk_arg;
+unsigned int head1, head3, chunk_id;//, chunk_arg;
 long head2, chunk_size;
 long fpos;
 #ifndef FAST
 int max_frame;
 #endif
-
-#define rfeof(f) (VFS_TELL(f)>= ri->maxpos)
 
 #ifndef FAST
 	ri->num_audio_bytes = ri->num_frames = max_frame = 0;
@@ -91,22 +89,22 @@ int max_frame;
 		return 1;
 	}
 
-	ri->roq_start = VFS_TELL(fp);
-	while(!rfeof(fp))
+	ri->roq_start = fpos = VFS_TELL(fp);
+	while(fpos+8 <= ri->maxpos)
 	{
 #if DBUG > 20
 		Con_Printf("---------------------------------------------------------------------------\n");
 #endif
-		fpos = VFS_TELL(fp);
+		VFS_SEEK(fp, fpos);
+
 		chunk_id = get_word(fp);
 		chunk_size = get_long(fp);
-		chunk_arg = get_word(fp);
-		if (chunk_size == -1)	//FIXME: THIS SHOULD NOT HAPPEN
+		/*chunk_arg =*/ get_word(fp);
+		fpos += 8 + chunk_size;
+		if (chunk_size == 0xffffffff || fpos > ri->maxpos)	//FIXME: THIS SHOULD NOT HAPPEN
 			break;
-		if(chunk_size > ri->buf_size)
+		if (chunk_size > ri->buf_size)
 			ri->buf_size = chunk_size;
-		if(rfeof(fp))
-			break;
 #if DBUG > 20
 		Con_Printf("%03d  0x%06lx: chunk: 0x%02x size: %ld  cells: 2x2=%d,4x4=%d\n", i,
 			fpos, chunk_id, chunk_size, v1>>8,v1&0xff);
@@ -122,32 +120,29 @@ int max_frame;
 			return 0;	//we have all the data we need now. We always find a sound chunk first, or none at all.
 #endif
 		}
-		else
-		{
 #ifndef FAST
-			if(chunk_id == RoQ_QUAD_VQ)
+		else if(chunk_id == RoQ_QUAD_VQ)
+		{
+			ri->num_frames++;
+			if(ri->num_frames > max_frame)
 			{
-				ri->num_frames++;
-				if(ri->num_frames > max_frame)
-				{
-					max_frame += 5000;
+				max_frame += 5000;
 					if((ri->frame_offset = BZ_Realloc(ri->frame_offset, sizeof(long) * max_frame)) == NULL)
 						return 1;
 				}
 				ri->frame_offset[ri->num_frames] = fpos;
 			}
+		}
 #endif
-			if(chunk_id == RoQ_SOUND_MONO || chunk_id == RoQ_SOUND_STEREO)
-			{
-				if(chunk_id == RoQ_SOUND_MONO)
-					ri->audio_channels = 1;
-				else
-					ri->audio_channels = 2;
+		else if(chunk_id == RoQ_SOUND_MONO || chunk_id == RoQ_SOUND_STEREO)
+		{
+			if(chunk_id == RoQ_SOUND_MONO)
+				ri->audio_channels = 1;
+			else
+				ri->audio_channels = 2;
 #ifndef FAST
-				ri->num_audio_bytes += chunk_size;
+			ri->num_audio_bytes += chunk_size;
 #endif
-			}
-			VFS_SEEK(fp, VFS_TELL(fp) + chunk_size);
 		}
 	}
 
@@ -403,18 +398,18 @@ unsigned char *tp, *buf;
 int frame_stats[2][4] = {{0},{0}};
 roq_qcell *qcell;
 
-	VFS_SEEK(fp, ri->vid_pos);
+long fpos = ri->vid_pos;
 
-	while(!rfeof(fp))
+	VFS_SEEK(fp, fpos);
+	while(fpos+8 < ri->maxpos)
 	{
 		chunk_id = get_word(fp);
 		chunk_size = get_long(fp);
 		chunk_arg = get_word(fp);
-		if (chunk_size == 0xffffffff)
+ 		fpos += 8+chunk_size;
+		if (chunk_size == 0xffffffff || fpos > ri->maxpos)
 			return -1;
-		if(rfeof(fp))
-			break;
-		if(chunk_id == RoQ_QUAD_VQ)
+		if (chunk_id == RoQ_QUAD_VQ)
 			break;
 		if(chunk_id == RoQ_QUAD_CODEBOOK)
 		{
@@ -427,12 +422,12 @@ roq_qcell *qcell;
 				for(j = 0; j < 4; j++) ri->qcells[i].idx[j] = VFS_GETC(fp);
 		}
 		else
-			VFS_SEEK(fp, VFS_TELL(fp)+chunk_size);
+			VFS_SEEK(fp, fpos);
 	}
 
 	if(chunk_id != RoQ_QUAD_VQ)
 	{
-		ri->vid_pos = VFS_TELL(fp);
+		ri->vid_pos = fpos;
 		return 0;
 	}
 
@@ -539,7 +534,7 @@ roq_qcell *qcell;
 	Con_Printf("for 04x04 CCC = %d, FCC = %d, MOT = %d, SLD = %d, PAT = 0\n", frame_stats[1][3], frame_stats[1][1], frame_stats[1][0], frame_stats[1][2]);
 #endif
 
-	ri->vid_pos = VFS_TELL(fp);
+	ri->vid_pos = fpos;
 
 	if(ri->frame_num == 1)
 	{
@@ -574,23 +569,25 @@ unsigned int chunk_id = 0, chunk_arg = 0;
 unsigned long chunk_size = 0;
 int i, snd_left, snd_right;
 
-	VFS_SEEK(fp, ri->aud_pos);
+long fpos;
+
+	fpos = ri->aud_pos;
+
 	ri->audio_size = 0;
 
 	for(;;)
 	{
-		if(rfeof(fp))
+		VFS_SEEK(fp, fpos);
+		if(fpos >= ri->maxpos)
 			return -1;
 		chunk_id = get_word(fp);
 		chunk_size = get_long(fp);
 		chunk_arg = get_word(fp);
-		if (chunk_size == 0xffffffff)
-			return -1;
-		if(rfeof(fp))
+		fpos += 8+chunk_size;
+		if (chunk_size == 0xffffffff || fpos > ri->maxpos)
 			return -1;
 		if (chunk_id == RoQ_SOUND_MONO || chunk_id == RoQ_SOUND_STEREO)
 			break;
-		VFS_SEEK(fp, VFS_TELL(fp)+chunk_size);
 	}
 
 	if(ri->audio_buf_size < chunk_size*2)
@@ -614,7 +611,7 @@ int i, snd_left, snd_right;
 			snd_left += (int)ri->snd_sqr_arr[(unsigned)VFS_GETC(fp)];
 			*(short *)&ri->audio[i * 2] = snd_left;
 		}
-		ri->aud_pos = VFS_TELL(fp);
+		ri->aud_pos = fpos;
 		return chunk_size;
 	}
 
@@ -630,13 +627,12 @@ int i, snd_left, snd_right;
 			*(short *)&ri->audio[i * 2] = snd_left;
 			*(short *)&ri->audio[i * 2 + 2] = snd_right;
 		}
-		ri->aud_pos = VFS_TELL(fp);
+		ri->aud_pos = fpos;
 		return chunk_size;
 	}
 
-	ri->aud_pos = VFS_TELL(fp);
+	ri->aud_pos = fpos;
 	return 0;
 }
-#undef rfeof
 
 #endif

@@ -836,7 +836,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			else
 				msg = &demo.datagram;
 		}
-		SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
+		SZ_Write(msg, sv.multicast.data, sv.multicast.cursize);
 	}
 
 #ifdef NQPROT

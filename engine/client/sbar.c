@@ -2782,7 +2782,7 @@ enum
 void Sbar_DeathmatchOverlay (int start)
 {
 	mpic_t			*pic;
-	int				i, k, l;
+	int				i, k;
 	int				x, y, f;
 	char			num[12];
 	player_info_t	*s;
@@ -2831,8 +2831,6 @@ void Sbar_DeathmatchOverlay (int start)
 	Sbar_SortFrags(true, true);
 
 // draw the text
-	l = scoreboardlines;
-
 	if (start)
 		y = start;
 	else

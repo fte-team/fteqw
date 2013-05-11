@@ -1427,14 +1427,10 @@ void V_RenderPlayerViews(int plnum)
 		}
 		if (e)
 		{
-			float s;
 			memcpy(r_refdef.viewangles, e->angles, sizeof(vec3_t));
 			memcpy(r_refdef.vieworg, e->origin, sizeof(vec3_t));
-//				cl.viewentity = cl.viewentity2;
+//			cl.viewentity = cl.viewentity2;
 
-//				s =	(realtime - e->lerptime)*10;
-//				if (s > 1) s=1;
-			s=0;
 			r_refdef.vieworg[0]=r_refdef.vieworg[0];//*s+(1-s)*e->lerporigin[0];
 			r_refdef.vieworg[1]=r_refdef.vieworg[1];//*s+(1-s)*e->lerporigin[1];
 			r_refdef.vieworg[2]=r_refdef.vieworg[2];//*s+(1-s)*e->lerporigin[2];

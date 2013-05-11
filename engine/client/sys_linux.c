@@ -65,6 +65,7 @@ int sys_parentwidth;
 int sys_parentheight;
 long	sys_parentwindow;
 
+qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
 char *basedir = ".";
 
@@ -511,11 +512,10 @@ void *Sys_GetGameAPI(void *parms)
 	char *searchpath;
 	const char *agamename = "gamei386.so";
 	const char *ggamename = "game.so";
-	char *result;
 
 	void *ret;
 
-	result = getcwd(curpath, sizeof(curpath)); // do something with result?
+	getcwd(curpath, sizeof(curpath)); // do something with result?
 
 #ifdef warningmsg
 #pragma warningmsg("Search for both gamei386.so and game.so")

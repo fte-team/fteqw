@@ -10,6 +10,25 @@
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 #include "cl_master.h"
 
+extern int r2d_be_flags;
+#define DRAWFLAG_NORMAL 0
+#define DRAWFLAG_ADD 1
+#define DRAWFLAG_MODULATE 2
+#define DRAWFLAG_MODULATE2 3
+static unsigned int PF_SelectDPDrawFlag(int flag)
+{
+	//flags:
+	//0 = blend
+	//1 = add
+	//2 = modulate
+	//3 = modulate*2
+	flag &= 3;
+	if (flag == DRAWFLAG_ADD)
+		return BEF_FORCEADDITIVE;
+	else
+		return 0;
+}
+
 //float	drawfill(vector position, vector size, vector rgb, float alpha, float flag) = #457;
 void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -266,6 +285,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
 	str = buffer;
 
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &px, &py);
 	ipx = px;
 	Font_ForceColour(r, g, b, alpha);
@@ -281,6 +301,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	}
 	Font_InvalidateColour();
 	Font_EndString(NULL);
+	r2d_be_flags = 0;
 }
 
 void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -298,25 +319,6 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	Font_EndString(NULL);
 
 	G_FLOAT(OFS_RETURN) = (px * vid.width) / vid.rotpixelwidth;
-}
-
-#define DRAWFLAG_NORMAL 0
-#define DRAWFLAG_ADD 1
-#define DRAWFLAG_MODULATE 2
-#define DRAWFLAG_MODULATE2 3
-
-extern unsigned int r2d_be_flags;
-static unsigned int PF_SelectDPDrawFlag(int flag)
-{
-	//flags:
-	//0 = blend
-	//1 = add
-	//2 = modulate
-	//3 = modulate*2
-	if (flag == 1)
-		return BEF_FORCEADDITIVE;
-	else
-		return 0;
 }
 
 //float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
@@ -378,13 +380,8 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-
-//	if (Draw_IsCached)
-//		G_FLOAT(OFS_RETURN) = !!Draw_IsCached(str);
-//	else
-		G_FLOAT(OFS_RETURN) = 1;
+	G_FLOAT(OFS_RETURN) = !!R_RegisterCustom(str, NULL, NULL);
 }
 
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -421,11 +418,12 @@ void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *
 
 void QCBUILTIN PF_CL_free_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	//we don't support this, as the shader could be used elsewhere also, and we have pointers to things.
+/*
 	char	*str;
-
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-
-	//we don't support this.
+	R_UnloadShader(R_RegisterCustom(str, NULL, NULL));
+*/
 }
 
 //float	drawcharacter(vector position, float character, vector scale, vector rgb, float alpha, float flag) = #454;

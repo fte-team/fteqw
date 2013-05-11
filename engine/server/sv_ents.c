@@ -1623,7 +1623,6 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 
 void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
 {
-	edict_t	*ent;
 	client_frame_t	*fromframe;
 	packet_entities_t *from;
 	int		oldindex, newindex;
@@ -1666,7 +1665,6 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline... as far as dp understands it...
-			ent = EDICT_NUM(svprogfuncs, newnum);
 //Con_Printf ("baseline %i\n", newnum);
 			SVDP_EmitEntityDelta (&nullentitystate, &to->entities[newindex], msg, true);
 			newindex++;
@@ -2118,7 +2116,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 
 	if (client->state < cs_spawned)
 	{
-		Con_Printf("SV_WritePlayersToClient: not spawned yet\n", client->namebuf);
+		Con_Printf("SV_WritePlayersToClient: not spawned yet\n");
 		return;
 	}
 

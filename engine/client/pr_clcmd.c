@@ -571,8 +571,8 @@ void QCBUILTIN PF_cl_GetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr
 }
 void QCBUILTIN PF_cl_SetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int primary = G_FLOAT(OFS_PARM0+0);
-	int secondary = G_FLOAT(OFS_PARM0+1);
+//	int primary = G_FLOAT(OFS_PARM0+0);
+//	int secondary = G_FLOAT(OFS_PARM0+1);
 //	if (IN_SetBindMap(primary, secondary))
 //		G_FLOAT(OFS_RETURN) = 1;
 	G_FLOAT(OFS_RETURN) = 0;

@@ -460,7 +460,7 @@ void R_ImportRTLights(char *entlump)
 	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_NONE, LIGHTTYPE_SUN, LIGHTTYPE_MINUSXX} lighttype_t;
 
 	/*I'm using the DP code so I know I'll get the DP results*/
-	int entnum, style, islight, skin, pflags, effects, n;
+	int entnum, style, islight, skin, pflags, n;
 	lighttype_t type;
 	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], vec[4];
 	char key[256], value[8192];
@@ -491,7 +491,7 @@ void R_ImportRTLights(char *entlump)
 		style = 0;
 		skin = 0;
 		pflags = 0;
-		effects = 0;
+		//effects = 0;
 		islight = false;
 		nest = 1;
 		while (1)
@@ -633,8 +633,8 @@ void R_ImportRTLights(char *entlump)
 				skin = (int)atof(value);
 			else if (!strcmp("pflags", key))
 				pflags = (int)atof(value);
-			else if (!strcmp("effects", key))
-				effects = (int)atof(value);
+			//else if (!strcmp("effects", key))
+				//effects = (int)atof(value);
 
 			else if (!strcmp("scale", key))
 				lightscale = atof(value);
@@ -703,8 +703,8 @@ void R_ImportRTLights(char *entlump)
 			dl->lightcolourscales[0] = r_editlights_import_ambient.value;
 			dl->lightcolourscales[1] = r_editlights_import_diffuse.value;
 			dl->lightcolourscales[2] = r_editlights_import_specular.value;
-
-			//FIXME: cubemaps if skin >= 16
+			if (skin >= 16)
+				snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", skin);
 		}
 	}
 }

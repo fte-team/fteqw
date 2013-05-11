@@ -1678,7 +1678,6 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	mesh_t *mesh;
 	unsigned int numverts;
 	unsigned int numindexes,i;
-	unsigned int ni;
 
 	numverts = 0;
 	numindexes = 0;
@@ -1707,8 +1706,6 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	}
 	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
 	ed->ode.ode_vertex3f = BZ_Malloc(numverts*sizeof(vec3_t));
-
-	ni = numindexes;
 
 	numverts = 0;
 	numindexes = 0;

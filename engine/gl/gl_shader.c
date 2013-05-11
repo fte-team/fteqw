@@ -176,7 +176,7 @@ static float Shader_FloatArgument(shader_t *shader, char *arg)
 
 	//grab an argument instead, otherwise 0
 	var = shader->name;
-	while(var = strchr(var, '#'))
+	while((var = strchr(var, '#')))
 	{
 		if (!strnicmp(var, arg, arglen))
 		{

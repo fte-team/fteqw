@@ -635,7 +635,7 @@ static void SnapPlane( vec3_t normal, vec_t *dist )
 */
 static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numverts, q2mapsurface_t *shaderref, mplane_t *brushplanes )
 {
-	int i, j, k;
+	int i, j;
 	int axis, dir;
 	vec3_t normal, mins, maxs;
 	float d, dist;
@@ -721,7 +721,7 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 	for( i = 0; i < numverts; i++ )
 	{
 		j = ( i + 1 ) % numverts;
-		k = ( i + 2 ) % numverts;
+//		k = ( i + 2 ) % numverts;
 
 		VectorSubtract( verts[i], verts[j], vec );
 		if( VectorNormalize( vec ) < 0.5 )

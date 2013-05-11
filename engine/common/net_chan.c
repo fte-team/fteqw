@@ -439,7 +439,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
 		{
-			Con_DPrintf("Dropped %i datagrams (%i - %i)\n", chan->incoming_unreliable+1, sequence-1);
+			Con_DPrintf("Dropped %i datagrams (%i - %i)\n", drop, chan->incoming_unreliable+1, sequence-1);
 			chan->drop_count += drop;
 		}
 		chan->incoming_unreliable = sequence;
@@ -778,9 +778,6 @@ qboolean Netchan_Process (netchan_t *chan)
 	unsigned		sequence, sequence_ack;
 	unsigned		reliable_ack, reliable_message;
 	char			adr[MAX_ADR_SIZE];
-#ifndef CLIENTONLY
-	int			qport;
-#endif
 	int offset;
 
 	if (
@@ -797,10 +794,10 @@ qboolean Netchan_Process (netchan_t *chan)
 	sequence = MSG_ReadLong ();
 	sequence_ack = MSG_ReadLong ();
 
-	// read the qport if we are a server
+	// skip over the qport if we are a server (its handled elsewhere)
 #ifndef CLIENTONLY
 	if (chan->sock == NS_SERVER)
-		qport = MSG_ReadShort ();
+		MSG_ReadShort ();
 #endif
 
 	if (chan->fragmentsize)

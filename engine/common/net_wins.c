@@ -763,7 +763,11 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 	else
 #endif
 #ifdef IPPROTO_IPV6
+#ifdef pgetaddrinfo
+	if (1)
+#else
 	if (pgetaddrinfo)
+#endif
 	{
 		struct addrinfo *addrinfo = NULL;
 		struct addrinfo *pos;
@@ -1120,6 +1124,7 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 	case NA_LOOPBACK:
 		break;
 	// warning: enumeration value âNA_*â not handled in switch
+	case NA_NATPMP:
 	case NA_WEBSOCKET:
 	case NA_TCP:
 	case NA_TCPV6:
@@ -1649,8 +1654,12 @@ static ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean iss
 static ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address);
 static ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address);
 static ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address);
+#ifdef USEIPX
 static ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address);
+#endif
+#ifdef HAVE_WEBSOCKCL
 static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address);
+#endif
 static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address);
 static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address);
 
@@ -2017,8 +2026,10 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 	struct sockaddr_qstorage	from;
 	int fromsize = sizeof(from);
 	netadr_t adr;
+#ifdef USE_GETHOSTNAME_LOCALLISTING
 	char		adrs[MAX_ADR_SIZE];
 	int b;
+#endif
 	int idx = 0;
 
 	if (getsockname (con->thesocket, (struct sockaddr*)&from, &fromsize) != -1)
@@ -2370,9 +2381,9 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		{
 			if (0 == setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_false, sizeof(_false)))
 			{
-				int ip = ((struct sockaddr_in*)&qs)->sin_addr.s_addr;
+//				int ip = ((struct sockaddr_in*)&qs)->sin_addr.s_addr;
 				int port = ((struct sockaddr_in*)&qs)->sin_port;
-				ip = ((struct sockaddr_in*)&qs)->sin_addr.s_addr;
+//				ip = ((struct sockaddr_in*)&qs)->sin_addr.s_addr;
 				memset(&qs, 0, sizeof(struct sockaddr_in6));
 				((struct sockaddr_in6*)&qs)->sin6_family = AF_INET6;
 /*
@@ -2783,7 +2794,7 @@ closesvstream:
 					{
 						if (atoi(arg[WCATTR_WSVER]) != 13)
 						{
-							Con_Printf("Outdated websocket request from %s. got version %i, expected version 13\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), arg[WCATTR_WSVER]);
+							Con_Printf("Outdated websocket request for \"%s\" from \"%s\". got version %i, expected version 13\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), atoi(arg[WCATTR_WSVER]));
 
 							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 							st->inlen -= i;
@@ -5138,7 +5149,6 @@ void SVNET_RegisterCvars(void)
 		p = COM_CheckParm ("-svport");
 	if (p && p < com_argc)
 	{
-		extern cvar_t sv_port_ipv4, sv_port_ipv6, sv_port_ipx;
 		int port = atoi(com_argv[p+1]);
 		if (!port)
 			port = PORT_QWSERVER;
@@ -5167,16 +5177,13 @@ void NET_CloseServer(void)
 
 void NET_InitServer(void)
 {
-	char *port;
-	port = STRINGIFY(PORT_QWSERVER);
-
 	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value || sv_listen_q3.value)
 	{
 		if (!svs.sockets)
 		{
 			svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-			FTENET_AddToCollection(svs.sockets, "SVLoopback", port, NA_LOOPBACK, true);
+			FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, true);
 #endif
 		}
 
@@ -5207,7 +5214,7 @@ void NET_InitServer(void)
 
 #ifndef SERVERONLY
 		svs.sockets = FTENET_CreateCollection(true);
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", port, NA_LOOPBACK, true);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, true);
 #endif
 	}
 
@@ -5285,7 +5292,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				switch(e)
 				{
 				case ECONNABORTED:
-					Sys_Printf("conenction aborted\n", e);
+					Sys_Printf("conenction aborted\n");
 					break;
 				default:
 					Sys_Printf("socket error %i\n", e);

@@ -791,7 +791,6 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 #ifdef SKELETALMODELS
 	if (inf->numbones)
 	{
-		galiasbone_t *bone;
 		galiasgroup_t *g1, *g2;
 
 		float *matrix;	//the matrix for a single bone in a single pose.
@@ -858,7 +857,6 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 				}
 			}
 
-			bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
 	//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
 			g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
 			g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
@@ -1288,12 +1286,11 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	p1t = (vec3_t *)((char *)p1 + p1->ofstvector);
 	p2t = (vec3_t *)((char *)p2 + p2->ofstvector);
 
-	mesh->normals_array = p1n;
-	mesh->snormals_array = p1s;
-	mesh->tnormals_array = p1t;
-	mesh->colors4f_array = NULL;
+	mesh->snormals_array = blerp>0.5?p2s:p1s;		//never lerp
+	mesh->tnormals_array = blerp>0.5?p2t:p1t;		//never lerp
+	mesh->colors4f_array = NULL;	//not generated
 
-	if (p1v == p2v || r_nolerp.value)
+	if (p1v == p2v || r_nolerp.value || !blerp)
 	{
 		mesh->normals_array = p1n;
 		mesh->snormals_array = p1s;
@@ -1463,7 +1460,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	int frame2;
 	float lerp;
 	float fg1time;
-	float fg2time;
+//	float fg2time;
 
 	if (!inf->groups)
 	{
@@ -1618,7 +1615,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		frame2 = e->framestate.g[FS_REG].frame[1];
 		lerp = e->framestate.g[FS_REG].lerpfrac;
 		fg1time = e->framestate.g[FS_REG].frametime[0];
-		fg2time = e->framestate.g[FS_REG].frametime[1];
+		//fg2time = e->framestate.g[FS_REG].frametime[1];
 
 		if (frame1 < 0)
 		{
@@ -3714,13 +3711,13 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		md3tag_t *t1, *t2;
 
 		int frame1, frame2;
-		float f1time, f2time;
+		//float f1time, f2time;	//tags/md3s don't support framegroups.
 		float f2ness;
 
 		frame1 = fstate->g[FS_REG].frame[0];
 		frame2 = fstate->g[FS_REG].frame[1];
-		f1time = fstate->g[FS_REG].frametime[0];
-		f2time = fstate->g[FS_REG].frametime[1];
+		//f1time = fstate->g[FS_REG].frametime[0];
+		//f2time = fstate->g[FS_REG].frametime[1];
 		f2ness = fstate->g[FS_REG].lerpfrac;
 
 		if (tagnum <= 0 || tagnum > inf->numtags)

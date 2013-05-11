@@ -1288,7 +1288,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	static packet_entities_t	newpack;
 
 	entity_state_t		*to, *from;
-	unsigned short read;
+	unsigned int read;
 	int oldi, newi, lowesti, lowestv, newremaining;
 	qboolean remove;
 
@@ -1306,12 +1306,15 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	oldi = 0;
 
 	newpack.num_entities = 0;
-	for (read = MSG_ReadShort(); read!=0x8000; read = MSG_ReadShort())
+	for (;;)
 	{
+		read = MSG_ReadShort();
 		if (msg_badread)
 			Host_EndGame("Corrupt entitiy message packet\n");
 		remove = !!(read&0x8000);
-		read&=~0x8000;
+		read&=0x7fff;
+		if (remove && !read)
+			break;	//remove world signals end of packet.
 
 		if (read >= MAX_EDICTS)
 			Host_EndGame("Too many entities.\n");
@@ -1417,7 +1420,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 	int num;
 	entity_state_t		*state;//, *from;
 	entity_state_t	*base;
-	static float lasttime;
 	packet_entities_t	*pack;
 
 	if (cls.signon == 4 - 1)
@@ -1461,7 +1463,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
 			memset(pack->entities + pack->num_entities, 0, sizeof(entity_state_t));
 		}
-		lasttime = realtime;
 		state = &pack->entities[pack->num_entities++];
 	}
 
@@ -3615,21 +3616,6 @@ int lastplayerinfo;
 void CL_ParseClientdata (void);
 void CL_MVDUpdateSpectator(void)
 {
-	player_state_t *self, *oldself;
-	int s;
-	for (s = 0; s < cl.splitclients; s++)
-	{
-		self = &cl.inframes[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[s]];
-		oldself = &cl.inframes[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum[s]];
-//		cl.frames[cl.parsecount & UPDATE_MASK].senttime = cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].senttime;
-
-//		self->messagenum = cl.parsecount;
-
-//		VectorCopy(oldself->origin, self->origin);
-//		VectorCopy(oldself->velocity, self->velocity);
-//		VectorCopy(oldself->viewangles, self->viewangles);
-	}
-
 	CL_ParseClientdata();
 }
 
@@ -4121,7 +4107,6 @@ void CL_LinkPlayers (void)
 	entity_t		*ent;
 	int				msec;
 	inframe_t			*frame;
-	inframe_t			*fromf;
 	int				oldphysent;
 	vec3_t			angles;
 	qboolean		predictplayers;
@@ -4139,7 +4124,6 @@ void CL_LinkPlayers (void)
 		playertime = realtime;
 
 	frame = &cl.inframes[cl.validsequence&UPDATE_MASK];
-	fromf = &cl.inframes[cl.oldvalidsequence&UPDATE_MASK];
 
 	predictplayers = cl_predict_players.ival;
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)

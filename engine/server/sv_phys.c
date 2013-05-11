@@ -287,8 +287,6 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 	int			blocked;
 	vec3_t diff;
 
-	vec3_t startorg;
-
 	numbumps = 4;
 
 	blocked = 0;
@@ -297,8 +295,6 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 	numplanes = 0;
 
 	time_left = time;
-
-	VectorCopy (ent->v->origin, startorg);
 
 	for (bumpcount=0 ; bumpcount<numbumps ; bumpcount++)
 	{
@@ -1072,7 +1068,6 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	vec3_t	move;
 	float	backoff;
 
-	vec3_t temporg;
 	int fl;
 	const float *gravitydir;
 
@@ -1120,7 +1115,6 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	VectorScale (ent->v->velocity, host_frametime, move);
 	if (!DotProduct(move, move))
 		return;
-	VectorCopy(ent->v->origin, temporg);
 
 	fl = 0;
 #ifndef CLIENTONLY
@@ -1648,7 +1642,8 @@ static int WPhys_SetOnGround (world_t *w, wedict_t *ent, const float *gravitydir
 }
 static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 {
-	int clip, oldonground, originalmove_clip, originalmove_flags, originalmove_groundentity;
+	//int originalmove_clip;
+	int clip, oldonground, originalmove_flags, originalmove_groundentity;
 	vec3_t upmove, downmove, start_origin, start_velocity, originalmove_origin, originalmove_velocity;
 	trace_t downtrace, steptrace;
 
@@ -1668,7 +1663,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 
 	VectorCopy(ent->v->origin, originalmove_origin);
 	VectorCopy(ent->v->velocity, originalmove_velocity);
-	originalmove_clip = clip;
+	//originalmove_clip = clip;
 	originalmove_flags = (int)ent->v->flags;
 	originalmove_groundentity = ent->v->groundentity;
 
@@ -2210,12 +2205,7 @@ qboolean SV_Physics (void)
 
 					SV_PreRunCmd();
 
-#ifdef SERVERONLY
-					ucmd.msec = host_frametime*1000;
-#else
-					// FIXME: Something very weird is going on here!
 					ucmd.msec = ms;
-#endif
 					ucmd.angles[0] = (int)(sv_player->v->v_angle[0] * (65535/360.0f));
 					ucmd.angles[1] = (int)(sv_player->v->v_angle[1] * (65535/360.0f));
 					ucmd.angles[2] = (int)(sv_player->v->v_angle[2] * (65535/360.0f));

@@ -189,9 +189,10 @@ typedef struct texid_s texid_tf;
 //small context for easy vbo creation.
 typedef struct
 {
-	unsigned int maxsize;
-	unsigned int pos;
+	size_t maxsize;
+	size_t pos;
 	int vboid[2];
+	void *fallback;
 } vbobctx_t;
 
 typedef struct vboarray_s

@@ -348,7 +348,7 @@ plugin_t *Plug_Load(char *file)
 	return newplug;
 }
 
-static int QDECL Plug_Emumerated (const char *name, int size, void *param, struct searchpath_s *spath)
+static int QDECL Plug_Emumerated (const char *name, int size, void *param, void *spath)
 {
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
@@ -358,7 +358,7 @@ static int QDECL Plug_Emumerated (const char *name, int size, void *param, struc
 
 	return true;
 }
-static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, struct searchpath_s *spath)
+static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, void *spath)
 {
 	char vmname[MAX_QPATH];
 	int len;
@@ -560,7 +560,7 @@ static qintptr_t VARGS Plug_Cvar_Register(void *offset, quintptr_t mask, const q
 static qintptr_t VARGS Plug_Cvar_Update(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int handle;
-	int modcount;
+//	int modcount;
 	char *stringv;	//255 bytes long.
 	float *floatv;
 	cvar_t *var;
@@ -573,16 +573,17 @@ static qintptr_t VARGS Plug_Cvar_Update(void *offset, quintptr_t mask, const qin
 	if (VM_OOB(arg[2], 256) || VM_OOB(arg[3], 4))	//Oi, plugin - you screwed up
 		return 0;
 
-	modcount = VM_LONG(arg[1]);
+	//modcount = VM_LONG(arg[1]);	//for future optimisation
 	stringv = VM_POINTER(arg[2]);
 	floatv = VM_POINTER(arg[3]);
 
 	var = plugincvararray[handle].var;
 
-
-	strcpy(stringv, var->string);
-	*floatv = var->value;
-
+	//if (var->modified != modcount)	//for future optimisation
+	{
+		strcpy(stringv, var->string);
+		*floatv = var->value;
+	}
 	return var->modified;
 }
 

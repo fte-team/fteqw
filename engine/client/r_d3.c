@@ -277,7 +277,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 		}
 		else if (!strcmp(token, "interAreaPortals"))
 		{
-			int numareas;
+			//int numareas;
 			int pno, v;
 			portal_t *p;
 
@@ -286,7 +286,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				return false;
 
 			data = COM_ParseOut(data, token, sizeof(token));
-			numareas = atoi(token);
+			//numareas = atoi(token);
 			data = COM_ParseOut(data, token, sizeof(token));
 			model->numportals = atoi(token);
 

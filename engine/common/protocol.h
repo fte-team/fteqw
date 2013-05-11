@@ -344,8 +344,11 @@ enum clcq2_ops_e
 	clcq2_bad,
 	clcq2_nop,
 	clcq2_move,				// [[usercmd_t]
-	clcq2_userinfo,			// [[userinfo string]
-	clcq2_stringcmd			// [string] message
+	clcq2_userinfo,				// [[userinfo string]
+	clcq2_stringcmd,			// [string] message
+
+	//fte-extended
+	clcq2_voicechat
 };
 
 

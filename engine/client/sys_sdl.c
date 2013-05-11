@@ -15,6 +15,10 @@
 #include <direct.h>
 #endif
 
+#ifdef FTE_TARGET_WEB
+#include <emscripten/emscripten.h>
+#endif
+
 #ifndef isDedicated
 qboolean isDedicated;
 #endif
@@ -363,15 +367,13 @@ void *Sys_GetGameAPI (void *parms)
 
 	Con_DPrintf("Searching for %s\n", gamename);
 
-	getcwd(curpath, sizeof(curpath));
-
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
 	{
 		if (searchpath[0] == '/')
 			snprintf(name, sizeof(name), "%s/%s", searchpath, gamename);
 		else
-			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, gamename);
+			snprintf(name, sizeof(name), "./%s/%s", searchpath, gamename);
 
 		q2gamedll = Sys_LoadLibrary(name, funcs);
 		if (q2gamedll && gamename)

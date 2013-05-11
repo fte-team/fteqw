@@ -367,7 +367,7 @@ void Key_ClearTyping (void)
 void Con_History_Load(void)
 {
 	char line[8192];
-	unsigned char *cr;
+	char *cr;
 	vfsfile_t *file = FS_OpenVFS("conhistory.txt", "rb", FS_ROOT);
 
 	for (edit_line=0 ; edit_line<=CON_EDIT_LINES_MASK ; edit_line++)

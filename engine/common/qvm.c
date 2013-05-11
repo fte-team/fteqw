@@ -629,7 +629,7 @@ int QVM_ExecVM(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, i
 			break;
 		default:
 		case OP_BREAK: // break to debugger
-			*(int*)NULL=-1;
+			Sys_Error("VM hit an OP_BREAK opcode");
 			break;
 
 	// subroutines

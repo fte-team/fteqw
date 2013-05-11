@@ -26,6 +26,7 @@ void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 struct font_s *font_conchar;
 struct font_s *font_tiny;
+extern int r2d_be_flags;
 
 #ifdef AVAIL_FREETYPE
 #include <ft2build.h>
@@ -312,10 +313,10 @@ static void Font_Flush(void)
 		font_backmesh.numvertexes = font_foremesh.numvertexes;
 		font_backmesh.istrifan = font_foremesh.istrifan;
 
-		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, &fontplanes.backshader->defaulttextures, 0);
+		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, &fontplanes.backshader->defaulttextures, r2d_be_flags);
 	}
 	TEXASSIGN(fontplanes.shader->defaulttextures.base, font_texture);
-	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, &fontplanes.shader->defaulttextures, 0);
+	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, &fontplanes.shader->defaulttextures, r2d_be_flags);
 	font_foremesh.numindexes = 0;
 	font_foremesh.numvertexes = 0;
 }

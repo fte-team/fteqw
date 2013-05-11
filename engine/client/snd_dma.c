@@ -1443,7 +1443,6 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
     vec_t dist;
     vec_t scale;
     vec3_t world_vec;
-	sfx_t *snd;
 	int i;
 
 // anything coming from the view entity will always be full volume
@@ -1457,7 +1456,6 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	}
 
 // calculate stereo seperation and distance attenuation
-	snd = ch->sfx;
 	VectorSubtract(ch->origin, listener_origin, world_vec);
 
 	dist = VectorNormalize(world_vec) * ch->dist_mult;
@@ -2325,7 +2323,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	soundcardinfo_t *si;
 	int i;
 	int prepadl;
-	int oldlength;
 	int spare;
 	int outsamples;
 	double speedfactor;
@@ -2395,8 +2392,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 	speedfactor	= (double)speed/snd_speed;
 	outsamples = samples/speedfactor;
-
-	oldlength = s->length;
 
 	prepadl = 0x7fffffff;
 	for (si = sndcardinfo; si; si=si->next)	//make sure all cards are playing, and that we still get a prepad if just one is.

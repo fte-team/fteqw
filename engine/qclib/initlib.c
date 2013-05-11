@@ -308,7 +308,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 			printf("PF_memfree: unable to free the non-null empty string constant at %x\n", ptr);
 		}
 		else
-			printf("PF_memfree: pointer invalid - out of range (%x >= %x)\n", ptr, prinst.addressableused);
+			printf("PF_memfree: pointer invalid - out of range (%x >= %x)\n", ptr, (unsigned int)prinst.addressableused);
 		PR_StackTrace(&progfuncs->funcs);
 		return;
 	}

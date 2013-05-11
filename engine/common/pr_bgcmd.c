@@ -260,14 +260,13 @@ void QCBUILTIN PF_getsurfacepoint(pubprogfuncs_t *prinst, struct globalvars_s *p
 // #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
 void QCBUILTIN PF_getsurfacenormal(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	unsigned int surfnum, pointnum;
+	unsigned int surfnum;
 	model_t *model;
 	wedict_t *ent;
 	world_t *w = prinst->parms->user;
 
 	ent = G_WEDICT(prinst, OFS_PARM0);
 	surfnum = G_FLOAT(OFS_PARM1);
-	pointnum = G_FLOAT(OFS_PARM2);
 
 	model = w->Get_CModel(w, ent->v->modelindex);
 
@@ -1111,7 +1110,6 @@ static void PF_hash_destroytab_enum(void *ctx, void *ent)
 void QCBUILTIN PF_hash_destroytab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
-	pf_hashentry_t *ent = NULL;
 	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
 	{
 		pf_hashtab[tab].prinst = NULL;
@@ -1588,7 +1586,7 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int QDECL search_enumerate(const char *name, int fsize, void *parm, struct searchpath_s *spath)
+int QDECL search_enumerate(const char *name, int fsize, void *parm, void *spath)
 {
 	prvmsearch_t *s = parm;
 
@@ -3534,10 +3532,10 @@ void QCBUILTIN PF_Abort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 //used for entity function variables - not actually needed anymore
 void QCBUILTIN PF_externrefcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int progsnum;
+//	int progsnum;
 	func_t f;
 	int i;
-	progsnum = G_PROG(OFS_PARM0);
+//	progsnum = G_PROG(OFS_PARM0);
 	f = G_INT(OFS_PARM1);
 
 	for (i = OFS_PARM0; i < OFS_PARM5; i+=3)

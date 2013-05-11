@@ -1823,7 +1823,6 @@ void CLQ2_CalcViewValues (void)
 	extern cvar_t v_gunkick_q2;
 	int			i;
 	float		lerp, backlerp;
-	q2centity_t	*ent;
 	q2frame_t		*oldframe;
 	q2player_state_t	*ps, *ops;
 	extern cvar_t gl_cshiftenabled;
@@ -1846,7 +1845,6 @@ void CLQ2_CalcViewValues (void)
 		|| abs(ops->pmove.origin[2] - ps->pmove.origin[2]) > 256*8)
 		ops = ps;		// don't interpolate
 
-	ent = &cl_entities[cl.playernum[0]+1];
 	lerp = cl.lerpfrac;
 
 	// calculate the origin

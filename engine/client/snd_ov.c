@@ -80,13 +80,10 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 
 qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
-	char	*name;
 	ovdecoderbuffer_t *buffer;
 
 	if (datalen < 4 || strncmp(data, "OggS", 4))
 		return false;
-
-	name = s->name;
 
 	buffer = Z_Malloc(sizeof(ovdecoderbuffer_t));
 

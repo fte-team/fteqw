@@ -951,14 +951,14 @@ void R_GAlias_DrawBatch(batch_t *batch)
 	static mesh_t mesh;
 	static mesh_t *meshl = &mesh;
 
-	qboolean needrecolour;
-	qboolean nolightdir;
+//	qboolean needrecolour;
+//	qboolean nolightdir;
 
 	e = batch->ent;
 	clmodel = e->model;
 
 	currententity = e;
-	nolightdir = R_CalcModelLighting(e, clmodel);
+	/*nolightdir =*/ R_CalcModelLighting(e, clmodel);
 
 	inf = RMod_Extradata (clmodel);
 	if (inf)
@@ -968,7 +968,7 @@ void R_GAlias_DrawBatch(batch_t *batch)
 		{
 			if (batch->surf_first == surfnum)
 			{
-				needrecolour = Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl);
+				/*needrecolour =*/ Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl);
 				batch->mesh = &meshl;
 				return;
 			}

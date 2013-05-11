@@ -917,6 +917,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 }
 
 
+#if 0
 static void *game_library;
 
 void Sys_UnloadGame(void)
@@ -936,11 +937,10 @@ void *Sys_GetGameAPI(void *parms)
 	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
-	char *result;
 
 	void *ret;
 
-	result = getcwd(curpath, sizeof(curpath)); // do soemthing with the result
+	getcwd(curpath, sizeof(curpath)); // do soemthing with the result
 
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
@@ -962,6 +962,7 @@ void *Sys_GetGameAPI(void *parms)
 
 	return 0;
 }
+#endif
 
 void Sys_ServerActivity(void)
 {

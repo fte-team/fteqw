@@ -743,7 +743,7 @@ pbool QCC_WriteData (int crc)
 		if (compressoutput)		progs.blockscompressed |=64;	//line numbers
 		if (compressoutput)		progs.blockscompressed |=128;	//types
 		//include a type block?
-		types = debugtarget;
+		//types = debugtarget;
 		if (types && sizeof(char *) != sizeof(string_t))
 		{
 			//qcc_typeinfo_t has a char* inside it, which changes size
@@ -1331,6 +1331,7 @@ strofs = (strofs+3)&~3;
 	else
 		SafeWrite (h, qcc_pr_globals, numpr_globals*4);
 
+/*
 	if (types)
 	for (i=0 ; i<numtypeinfos ; i++)
 	{
@@ -1340,7 +1341,7 @@ strofs = (strofs+3)&~3;
 			qcc_typeinfo[i].next = (QCC_type_t*)(qcc_typeinfo[i].next - qcc_typeinfo);
 		qcc_typeinfo[i].name = (char*)QCC_CopyDupBackString(qcc_typeinfo[i].name);
 	}
-
+*/
 	progs.ofsfiles = 0;
 	progs.ofslinenums = 0;
 	progs.secondaryversion = 0;
@@ -1984,7 +1985,6 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	QCC_def_t	*d;
 	int	f;
 	unsigned short		crc;
-	QCC_def_t *ld;
 //	int		c;
 
 	file[0] = '\0';
@@ -2019,7 +2019,6 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	ADD3(qcva("\tint\tpad[%i];\n", RESERVED_OFS));
 	for (d=pr.def_head.next ; d ; d=d->next)
 	{
-		ld = d;
 		if (!strcmp (d->name, "end_sys_globals"))
 			break;
 		if (d->ofs<RESERVED_OFS)

@@ -1103,7 +1103,7 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 	char *fixup = NULL, fixval=0;
 	cvar_t	*var;
 	static char temp[12];
-	size_t result;
+	unsigned int	result;
 
 	namestart = cvarname;
 	if (*cvarname == '{')
@@ -1121,11 +1121,10 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 		fixval = *fixup;
 	}
 
-	result = strtol(cvarname, &end, 10); // do something with result
-
-	if (fixval && *end == '\0') //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
+	result = strtoul(cvarname, &end, 10);
+	if (fixval && *end == 0) //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
 	{	//purely numerical
-		ret = Cmd_Argv(atoi(cvarname));
+		ret = Cmd_Argv(result);
 	}
 	else if (!strcmp(cvarname, "*") || !stricmp(cvarname, "cmd_args"))
 	{

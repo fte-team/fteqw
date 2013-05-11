@@ -333,7 +333,6 @@ static void PClassic_DrawParticles(void)
 	float time2, time3, time1, dvel, frametime, grav;
 	vec3_t up, right;
 	float dist, scale, r_partscale=0;
-	unsigned int *palette;
 #ifdef POLYS
 	scenetris_t *scenetri;
 #else
@@ -341,13 +340,6 @@ static void PClassic_DrawParticles(void)
 #endif
 	static float oldtime;
 	RSpeedMark();
-
-/*#ifdef D3DQUAKE
-	if (qrenderer == QR_DIRECT3D)
-		palette = d_8to24bgrtable;
-	else
-#endif*/
-		palette = d_8to24rgbtable;
 
 	//make sure all ents are pushed through first
 	RQ_RenderBatchClear();

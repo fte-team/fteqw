@@ -1883,7 +1883,6 @@ static void P_ImportEffectInfo_f(void)
 	part_type_t *ptype = NULL;
 	int parenttype;
 	char *file, *line;
-	char *cmd;
 	char arg[8][1024];
 	int args = 0;
 	char *config = "effectinfo";
@@ -1917,7 +1916,6 @@ static void P_ImportEffectInfo_f(void)
 		if (args <= 0)
 			continue;
 
-		cmd = arg[0];
 		if (!strcmp(arg[0], "effect"))
 		{
 			char newname[64];

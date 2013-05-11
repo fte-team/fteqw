@@ -1550,7 +1550,7 @@ static void QCBUILTIN PF_cs_SetSize(pubprogfuncs_t *prinst, struct globalvars_s 
 	World_LinkEdict(&csqc_world, (wedict_t*)ent, false);
 }
 
-static void cs_settracevars(trace_t *tr)
+static void cs_settracevars(trace_t *tr, struct globalvars_s *pr_globals)
 {
 	*csqcg.trace_allsolid = tr->allsolid;
 	*csqcg.trace_startsolid = tr->startsolid;
@@ -1599,7 +1599,7 @@ static void QCBUILTIN PF_cs_traceline(pubprogfuncs_t *prinst, struct globalvars_
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	cs_settracevars(&trace);
+	cs_settracevars(&trace, pr_globals);
 }
 static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1621,7 +1621,7 @@ static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	cs_settracevars(&trace);
+	cs_settracevars(&trace, pr_globals);
 }
 
 static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
@@ -1679,7 +1679,7 @@ static void QCBUILTIN PF_cs_tracetoss (pubprogfuncs_t *prinst, struct globalvars
 
 	trace = CS_Trace_Toss (ent, ignore);
 
-	cs_settracevars(&trace);
+	cs_settracevars(&trace, pr_globals);
 }
 
 static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3335,7 +3335,7 @@ static void QCBUILTIN PF_rotatevectorsbytag (pubprogfuncs_t *prinst, struct glob
 
 
 
-
+//fixme merge with ssqc
 static void QCBUILTIN PF_cs_checkbottom (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t	*ent;
@@ -3353,6 +3353,7 @@ static void QCBUILTIN PF_cs_break (pubprogfuncs_t *prinst, struct globalvars_s *
 #endif
 }
 
+//fixme merge with ssqc
 static void QCBUILTIN PF_cs_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t	*ent;
@@ -3385,12 +3386,13 @@ static void QCBUILTIN PF_cs_walkmove (pubprogfuncs_t *prinst, struct globalvars_
 // save program state, because CS_movestep may call other progs
 	oldself = *csqcg.self;
 
-	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, true, false, NULL, pr_globals);
+	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, true, false, settrace?cs_settracevars:NULL, pr_globals);
 
 // restore program state
 	*csqcg.self = oldself;
 }
 
+//fixme merge with ssqc
 static void QCBUILTIN PF_cs_movetogoal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	wedict_t	*ent;

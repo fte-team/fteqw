@@ -367,7 +367,6 @@ R_SetupGL
 */
 void R_SetupGL (float stereooffset)
 {
-	float	screenaspect;
 	int		x, x2, y2, y, w, h;
 	vec3_t newa;
 
@@ -424,7 +423,6 @@ void R_SetupGL (float stereooffset)
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 		}
 
-		screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 		if (r_refdef.useperspective)
 		{
 			int stencilshadows = 0;

@@ -90,7 +90,7 @@ void QDECL FSPAK_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(in
 qboolean QDECL FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	mpackfile_t *pf = hashedresult;
-	int i, len;
+	int i;
 	pack_t		*pak = handle;
 
 // look through all the pak file elements
@@ -114,7 +114,6 @@ qboolean QDECL FSPAK_FLocate(void *handle, flocation_t *loc, const char *filenam
 
 	if (pf)
 	{
-		len = pf->filelen;
 		if (loc)
 		{
 			loc->index = pf - pak->files;
@@ -199,8 +198,8 @@ void *QDECL FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 	if (packhandle == NULL)
 		return NULL;
 
-	VFS_READ(packhandle, &header, sizeof(header));
-	if (header.id[0] != 'P' || header.id[1] != 'A'
+	read = VFS_READ(packhandle, &header, sizeof(header));
+	if (read < sizeof(header) || header.id[0] != 'P' || header.id[1] != 'A'
 	|| header.id[2] != 'C' || header.id[3] != 'K')
 	{
 		Con_Printf("%s is not a pak - %c%c%c%c\n", desc, header.id[0], header.id[1], header.id[2], header.id[3]);
@@ -234,6 +233,12 @@ void *QDECL FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 	{
 		*info.name = '\0';
 		read = VFS_READ(packhandle, &info, sizeof(info));
+		if (read != sizeof(info))
+		{
+			Con_Printf("PAK file table truncated, only found %i files out of %i\n", i, numpackfiles);
+			numpackfiles = i;
+			break;
+		}
 /*
 		for (j=0 ; j<sizeof(info) ; j++)
 			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);

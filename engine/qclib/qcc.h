@@ -566,6 +566,7 @@ pbool QCC_PR_CheckName (char *string);
 void QCC_PR_Expect (char *string);
 pbool QCC_PR_CheckKeyword(int keywordenabled, char *string);
 #endif
+pbool QCC_PR_CheckTokenComment(char *string, char **comment);
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
 pbool VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
 pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);

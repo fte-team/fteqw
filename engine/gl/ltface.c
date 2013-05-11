@@ -459,7 +459,7 @@ For each texture aligned grid point, back project onto the plane
 to get the world xyz value of the sample point
 =================
 */
-int c_bad;
+static int c_bad;
 static void LightCalcPoints (llightinfo_t *l)
 {
 	int		i;
@@ -754,15 +754,16 @@ void LightFace (int surfnum)
 	int		i,j,c,ch;
 	vec_t	total, mean;
 	int		size;
-	int		lightmapwidth, lightmapsize;
+	int		lightmapwidth;
 #ifdef UTILITY
+	int		lightmapsize;
 	byte	*out;
 #endif
 	byte	*rgbout;
 	byte	*dulout;
 	vec3_t	*light, *norm;
 	vec3_t	wnorm, temp, svector, tvector;
-	int		w, h;
+	int		w;
 	
 	f = dfaces + surfnum;
 
@@ -852,12 +853,12 @@ void LightFace (int surfnum)
 	for (i=0 ; i <MAXLIGHTMAPS ; i++)
 		f->styles[i] = l.lightstyles[i];
 
-	lightmapsize = size*l.numlightstyles;
 
 #ifdef UTILITY
+	lightmapsize = size*l.numlightstyles;
 	if (runningrgblightdatabase)
 	{
-		out = GetFakeFileSpace(&f->lightofs, size);
+		out = GetFakeFileSpace(&f->lightofs, lightmapsize);
 		rgbout = runningrgblightdatabase + f->lightofs*3;
 		dulout = runninglightnormbase + f->lightofs*3;
 	}
@@ -886,7 +887,7 @@ void LightFace (int surfnum)
 
 	
 // extra filtering
-	h = (l.texsize[1]+1)*2;
+//	h = (l.texsize[1]+1)*2;
 	w = (l.texsize[0]+1)*2;
 
 	for (i=0 ; i< l.numlightstyles ; i++)

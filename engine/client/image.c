@@ -45,7 +45,7 @@ typedef struct {	//cm = colourmap
 
 char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey)	//preswapped header
 {
-	int				columns, rows, numPixels;
+	int				columns, rows;
 	int				row, column;
 	qbyte			*pixbuf, *pal;
 	qboolean		flipped;
@@ -60,7 +60,7 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 		return NULL;
 	}
 
-    if (tgahead->version==1 && tgahead->bpp != 8 &&
+	if (tgahead->version==1 && tgahead->bpp != 8 &&
 		tgahead->cm_size != 24 && tgahead->cm_len != 256)
 	{
 		Con_Printf("LoadGrayTGA: Strange palette type\n");
@@ -70,7 +70,6 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 
 	columns = tgahead->width;
 	rows = tgahead->height;
-	numPixels = columns * rows;
 
 	flipped = !((tgahead->attribs & 0x20) >> 5);
 #ifndef NPFTE
@@ -1700,11 +1699,11 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 {
 	pcx_t	*pcx;
 //	pcx_t pcxbuf;
-	qbyte	*palette;
+//	qbyte	*palette;
 	qbyte	*pix;
 	int		x, y;
 	int		dataByte, runLength;
-	int		count;
+//	int		count;
 	qbyte *data;
 
 	unsigned short xmin, ymin, swidth, sheight;
@@ -1735,12 +1734,7 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 		return NULL;	//we can't feed the requester with enough info
 	}
 
-
-	palette = buf + length-768;
-
 	data = (char *)(pcx+1);
-
-	count = (swidth) * (sheight);
 
 	for (y=0 ; y<height ; y++)
 	{

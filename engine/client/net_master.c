@@ -2125,17 +2125,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			for (i = 0; i < adrlen; i++)
 				((qbyte *)&info->adr.address)[i] = MSG_ReadByte();
 			break;
-
-		// warning: enumeration value 'NA_*' not handled in switch
-		case NA_WEBSOCKET:
-		case NA_INVALID:
-		case NA_LOOPBACK:
-		case NA_BROADCAST_IP:
-		case NA_BROADCAST_IP6:
-		case NA_BROADCAST_IPX:
-		case NA_TCP:
-		case NA_TCPV6:
-		case NA_IRC:
+		default:
 			break;
 		}
 

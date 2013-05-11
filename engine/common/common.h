@@ -355,6 +355,7 @@ char *FS_WhichPackForLocation(flocation_t *loc);
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext);
+void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
 FTE_DEPRECATED int COM_FOpenFile (const char *filename, FILE **file);

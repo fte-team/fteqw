@@ -273,7 +273,7 @@ static void QDECL FSZIP_BuildHash(void *handle, int depth, void (QDECL *AddFileH
 static qboolean QDECL FSZIP_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	zpackfile_t *pf = hashedresult;
-	int i, len;
+	int i;
 	zipfile_t	*zip = handle;
 
 // look through all the pak file elements
@@ -297,7 +297,6 @@ static qboolean QDECL FSZIP_FLocate(void *handle, flocation_t *loc, const char *
 
 	if (pf)
 	{
-		len = pf->filelen;
 		if (loc)
 		{
 			loc->index = pf - zip->files;

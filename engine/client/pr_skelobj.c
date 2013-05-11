@@ -627,7 +627,6 @@ static doll_t *rag_loaddoll(model_t *mod, char *fname, int numbones)
 {
 	doll_t *d;
 	void *fptr = NULL;
-	int fsize;
 
 	for (d = dolllist; d; d = d->next)
 	{
@@ -636,7 +635,7 @@ static doll_t *rag_loaddoll(model_t *mod, char *fname, int numbones)
 				return d;
 	}
 
-	fsize = FS_LoadFile(fname, &fptr);
+	FS_LoadFile(fname, &fptr);
 	if (!fptr)
 	{
 #ifndef SERVERONLY

@@ -1469,7 +1469,7 @@ void CL_PlayDemo_f (void)
 void CL_PlayDemo(char *demoname)
 {
 	char	name[256];
-	int ft, neg;
+	int ft, neg = false;
 	int len;
 	char type;
 	char chr;
@@ -1564,8 +1564,6 @@ void CL_PlayDemo(char *demoname)
 	}
 	else
 	{
-		cls.protocol = CP_QUAKEWORLD;
-
 		ft = 0;	//work out if the first line is a int for the track number.
 		while ((VFS_READ(cls.demoinfile, &chr, 1)==1) && (chr != '\n'))
 		{
@@ -1576,6 +1574,8 @@ void CL_PlayDemo(char *demoname)
 			else
 				ft = ft * 10 + ((int)chr - '0');
 		}
+		if (neg)
+			ft *= -1;
 		if (chr == '\n')
 		{
 #ifndef NQPROT
@@ -1583,12 +1583,17 @@ void CL_PlayDemo(char *demoname)
 			CL_StopPlayback();
 			return;
 #else
+			//fixme: play that cdtrack.
 			cls.protocol = CP_NETQUAKE;
 			cls.demoplayback = DPB_NETQUAKE;	//nq demos. :o)
 #endif
 		}
 		else
+		{
+			cls.protocol = CP_QUAKEWORLD;
+
 			VFS_SEEK(cls.demoinfile, start);	//quakeworld demo, so go back to start.
+		}
 	}
 
 	TP_ExecTrigger ("f_demostart");

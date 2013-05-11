@@ -4483,7 +4483,7 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 	int					numframes;
 	int					size;
 	dspriteframetype_t	*pframetype;
-	int rendertype=0;
+//	int rendertype=0;
 	unsigned char pal[256*4];
 	int sptype;
 	int hunkstart;
@@ -4506,7 +4506,7 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 	if (LittleLong(pin->version) == SPRITEHL_VERSION)
 	{
 		pin = (dsprite_t*)((char*)pin + 4);
-		rendertype = LittleLong (pin->type);
+		/*rendertype =*/ LittleLong (pin->type);	//not sure what the values mean.
 	}
 
 	numframes = LittleLong (pin->numframes);

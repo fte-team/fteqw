@@ -567,7 +567,6 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 			{
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
-				int l;
 				int		keys[2];
 				char *keyname;
 
@@ -578,7 +577,6 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				x += strlen(option->bind.caption)*8+28;
 				{
 					extern cvar_t cl_forcesplitclient;
-					l = strlen (option->bind.command);
 
 					M_FindKeysForCommand (cl_forcesplitclient.ival, option->bind.command, keys);
 

@@ -282,11 +282,13 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	cvar_t *devname;
 
 	int					 err;
-	int					 bps, stereo;
-	unsigned int		 rate;
 	snd_pcm_hw_params_t	*hw;
 	snd_pcm_sw_params_t	*sw;
+#if 0
+	int					 bps, stereo;
+	unsigned int		 rate;
 	snd_pcm_uframes_t	 frag_size;
+#endif
 	qboolean mmap = false;
 
 	if (!Alsa_InitAlsa())

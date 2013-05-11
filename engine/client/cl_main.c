@@ -2842,7 +2842,7 @@ void CL_ReadPackets (void)
 
 qboolean CL_AllowArbitaryDownload(char *localfile)
 {
-	qboolean allow;
+	int allow;
 	//never allow certain (native code) arbitary downloads.
 	if (!strnicmp(localfile, "game", 4) || !stricmp(localfile, "progs.dat") || !stricmp(localfile, "menu.dat") || !stricmp(localfile, "csprogs.dat") || !stricmp(localfile, "qwprogs.dat") || strstr(localfile, "..") || strstr(localfile, ":") || strstr(localfile, "//") || strstr(localfile, ".qvm") || strstr(localfile, ".dll") || strstr(localfile, ".so"))
 	{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
@@ -2953,7 +2953,6 @@ void CL_DownloadSize_f(void)
 	}
 	else if (!strcmp(size, "r"))
 	{	//'download this file instead'
-		int allow = cl_download_redirection.ival;
 		redirection = Cmd_Argv(3);
 
 		if (!CL_AllowArbitaryDownload(redirection))
@@ -3546,7 +3545,7 @@ double Host_Frame (double time)
 	static double		time3 = 0;
 	int			pass1, pass2, pass3;
 //	float fps;
-	double realframetime, newrealtime;
+	double newrealtime;
 	static double spare;
 	float maxfps;
 	qboolean maxfpsignoreserver;
@@ -3561,14 +3560,11 @@ double Host_Frame (double time)
 
 	newrealtime = Media_TweekCaptureFrameTime(realtime, time);
 
-	realframetime = time = newrealtime - realtime;
+	time = newrealtime - realtime;
 	realtime = newrealtime;
 
 	if (oldrealtime > realtime)
 		oldrealtime = 0;
-
-//	if (cls.demoplayback && cl_demospeed.value>0)
-//		realframetime *= cl_demospeed.value; // this probably screws up other timings
 
 	if (cl.gamespeed<0.1)
 		cl.gamespeed = 1;
@@ -3835,7 +3831,6 @@ void CL_ReadCDKey(void)
 	buffer = COM_LoadTempFile("q3key");
 	if (buffer)	//a cdkey is meant to be 16 chars
 	{
-		cvar_t *var;
 		char *chr;
 		for (chr = buffer; *chr; chr++)
 		{
@@ -3845,7 +3840,7 @@ void CL_ReadCDKey(void)
 				break;
 			}
 		}
-		var = Cvar_Get("cl_cdkey", buffer, CVAR_LATCH|CVAR_NOUNSAFEEXPAND, "Q3 compatability");
+		Cvar_Get("cl_cdkey", buffer, CVAR_LATCH|CVAR_NOUNSAFEEXPAND, "Q3 compatability");
 	}
 }
 #endif

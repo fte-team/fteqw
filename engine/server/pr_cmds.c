@@ -1329,7 +1329,6 @@ void Q_InitProgs(void)
 	globalvars_t *pr_globals;
 	static char addons[2048];
 	char *as, *a;
-	int num = 0;
 	progsnum_t prnum, oldprnum=-1;
 	int d1, d2;
 
@@ -1343,7 +1342,6 @@ void Q_InitProgs(void)
 
 	PR_RegisterFields();
 
-	num = svs.numprogs;
 	svs.numprogs=0;
 
 	d1 = COM_FDepthFile("progs.dat", true);
@@ -2893,6 +2891,8 @@ static void QCBUILTIN PF_particle4 (pubprogfuncs_t *prinst, globalvars_t *pr_glo
 
 static void QCBUILTIN PF_h2particleexplosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Con_Printf("H2FIXME: PF_h2particleexplosion not implemented\n");
+/*
 	float *org;
 	int color,radius,counter;
 
@@ -2900,7 +2900,6 @@ static void QCBUILTIN PF_h2particleexplosion(pubprogfuncs_t *prinst, struct glob
 	color = G_FLOAT(OFS_PARM1);
 	radius = G_FLOAT(OFS_PARM2);
 	counter = G_FLOAT(OFS_PARM3);
-/*
 	MSG_WriteByte(&sv.datagram, svc_particle_explosion);
 	MSG_WriteCoord(&sv.datagram, org[0]);
 	MSG_WriteCoord(&sv.datagram, org[1]);
@@ -4247,11 +4246,10 @@ static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	int		i, j;
 	trace_t	tr;
 	float	dist, bestdist;
-	float	speed;
 	char	*noaim;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
-	speed = G_FLOAT(OFS_PARM1);
+//	speed = G_FLOAT(OFS_PARM1);
 
 	VectorCopy (ent->v->origin, start);
 	start[2] += 20;
@@ -5777,7 +5775,6 @@ void QCBUILTIN PF_sqlreadfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_sqlerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
-	int serverref = G_FLOAT(OFS_PARM0);
 
 	if (SQL_Available())
 	{
@@ -7228,7 +7225,8 @@ void SV_RegisterH2CustomTents(void)
 }
 static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float *min, *max, *angle, *size;
+	float *min, *max, *size;
+//	float *angle;
 	float colour;
 //	float wait, radius, frame, framelength, duration;
 //	int flags, skin;
@@ -7272,7 +7270,7 @@ static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars
 	case ce_fountain:
 		/*this effect is meant to be persistant (endeffect is never used)*/
 		org = G_VECTOR(OFS_PARM1);
-		angle = G_VECTOR(OFS_PARM2);
+//		angle = G_VECTOR(OFS_PARM2);
 		dir = G_VECTOR(OFS_PARM3);
 		colour = G_FLOAT(OFS_PARM4);
 		count = G_FLOAT(OFS_PARM5);

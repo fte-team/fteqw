@@ -6631,7 +6631,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			break;
 
 #ifdef VOICECHAT
-		case clc_voicechat:
+		case clcq2_voicechat:
 			SV_VoiceReadPacket();
 			break;
 #endif
@@ -6769,7 +6769,6 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	int		c;
 	char	*s;
 	client_frame_t	*frame;
-	int		seq_hash;
 
 	cl->netchan.outgoing_sequence++;
 	cl->netchan.incoming_acknowledged = cl->netchan.outgoing_sequence-1;
@@ -6794,8 +6793,6 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 	host_client = cl;
 	sv_player = host_client->edict;
-
-	seq_hash = cl->netchan.incoming_sequence;
 
 	// mark time so clients will know how much to predict
 	// other players

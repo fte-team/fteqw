@@ -475,7 +475,9 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 
 		while(rn)
 		{
+			char crc[64];
 			vfsfile_t *f;
+			rc = COM_ParseOut(rc, crc, sizeof(crc));
 			rn = COM_Parse(rn);
 			if (!*com_token)
 				break;
@@ -483,22 +485,31 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 			if (!strchr(com_token, '/'))	//don't let some muppet tell us to download quake3.exe
 				break;
 
+			//as much as I'd like to use COM_FCheckExists, this stuf is relative to root, not the gamedir.
 			f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_ROOT);
 			if (f)
-				VFS_CLOSE(f);
-			else
 			{
-				//fixme: request to download it
-				Con_Printf("Sending request to download %s\n", com_token);
-				CLQ3_SendClientCommand("download %s.pk3", com_token);
-				ccs.downloadchunknum = 0;
-				snprintf(cls.downloadlocalname, sizeof(cls.downloadlocalname), "%s.pk3", com_token);
-				snprintf(cls.downloadremotename, sizeof(cls.downloadremotename), "%s.pk3", com_token);
-				snprintf(cls.downloadtempname, sizeof(cls.downloadtempname), "%s.tmp", com_token);
-				cls.downloadmethod = DL_Q3;
-				cls.downloadpercent = 0;
-				return false;
+				VFS_CLOSE(f);
+				continue;
 			}
+			FS_GenCachedPakName(va("%s.pk3", com_token), crc, cls.downloadlocalname, sizeof(cls.downloadlocalname));
+			f = FS_OpenVFS(cls.downloadlocalname, "rb", FS_ROOT);
+			if (f)
+			{
+				VFS_CLOSE(f);
+				continue;
+			}
+
+			//fixme: request to download it
+			Con_Printf("Sending request to download %s\n", com_token);
+			CLQ3_SendClientCommand("download %s.pk3", com_token);
+			ccs.downloadchunknum = 0;
+			//q3's downloads are relative to root, but they do at least force a pk3 extension.
+			FS_GenCachedPakName(va("%s.tmp", com_token), crc, cls.downloadtempname, sizeof(cls.downloadtempname));
+			snprintf(cls.downloadremotename, sizeof(cls.downloadremotename), "%s.pk3", com_token);
+			cls.downloadmethod = DL_Q3;
+			cls.downloadpercent = 0;
+			return false;
 		}
 
 		pc = Info_ValueForKey(str, "sv_paks");		//the ones that we are allowed to use (in order!)

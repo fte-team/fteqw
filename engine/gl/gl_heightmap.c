@@ -175,7 +175,9 @@ typedef struct heightmap_s
 } heightmap_t;
 
 
+#ifndef SERVERONLY
 static void ted_dorelight(heightmap_t *hm);
+#endif
 static qboolean Terr_Collect(heightmap_t *hm);
 
 
@@ -342,7 +344,7 @@ static qboolean Terr_IsSectionFName(heightmap_t *hm, char *fname, int *sx, int *
 		return false;
 	return true;
 }
-static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, dsection_t *ds, unsigned int dslen)
+static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, void *filebase, unsigned int filelen)
 {
 	int i, j;
 #ifndef SERVERONLY
@@ -350,10 +352,12 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	unsigned char *lm;
 	float *colours;
 #endif
-	void *ptr;
+	void *ptr = filebase;
+	dsection_t *ds = NULL;
 
-	if (ds)
+	if (ptr)
 	{
+		ds = ptr;
 		if (ds->magic != SECTION_MAGIC)
 			return NULL;
 		if (ds->ver != SECTION_VER)
@@ -362,6 +366,8 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			ds = NULL;
 		}
 	}
+	else
+		filelen = 0;
 
 	if (!s)
 	{
@@ -391,8 +397,9 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		Terr_InitLightmap(s);
 #endif
 
-	if (ds)
+	if (ptr)
 	{
+		ds = ptr;
 		s->flags = ds->flags | TSF_DIRTY;
 
 		/*load the heights*/
@@ -889,7 +896,6 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 	heightmap_t *hm;
 	hmsection_t *s;
 	int x, y;
-	int nlen = strlen(name);
 
 	//reject if its not in maps
 	if (strncmp(name, "maps/", 5))
@@ -3291,8 +3297,6 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 {
 	heightmap_t *hm;
 
-	float skyrotate;
-	vec3_t skyaxis;
 	char shadername[MAX_QPATH];
 	char skyname[MAX_QPATH];
 	int sectsize = 0;
@@ -3300,11 +3304,6 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 	COM_FileBase(mod->name, shadername, sizeof(shadername));
 	strcpy(shadername, "terrainshader");
 	strcpy(skyname, "night");
-
-	skyrotate = 0;
-	skyaxis[0] = 0;
-	skyaxis[1] = 0;
-	skyaxis[2] = 0;
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "terrain"))
@@ -3402,7 +3401,8 @@ void Mod_Terrain_Create_f(void)
 	mdata = va(
 		"terrain\n"
 		"{\n"
-			"classname worldspawn\n"
+			"classname \"worldspawn\"\n"
+			"message \"%s\"\n"
 			"_segmentsize 1024\n"
 			"_minxsegment -2048\n"
 			"_minysegment -2048\n"
@@ -3415,7 +3415,7 @@ void Mod_Terrain_Create_f(void)
 			"classname info_player_start\n"
 			"origin \"0 0 1024\"\n"
 		"}\n"
-		, mname);
+		, Cmd_Argv(2));
 	COM_WriteFile(mname, mdata, strlen(mdata));
 }
 void Mod_Terrain_Reload_f(void)

@@ -375,8 +375,6 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 //	int pnum;
 	unsigned int i, o;
 
-	char *s;
-
 	//look for an existing match not needed, cos we look a little later too.
 	/*
 	for (i = 0; i < numfields; i++)
@@ -407,8 +405,6 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 			}
 		}
 
-		s = pr_globaldefs16[num].s_name+stringtable;
-
 		for (i = 0; i < prinst.numfields; i++)
 		{
 			o = prinst.field[i].progsofs;
@@ -435,8 +431,6 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 				return;
 			}
 		}
-
-		s = pr_globaldefs32[num].s_name+stringtable;
 
 		for (i = 0; i < prinst.numfields; i++)
 		{

@@ -414,13 +414,14 @@ MSG_WriteHuffBits
 */
 static void MSG_WriteHuffBits( sizebuf_t *msg, int value, int bits )
 {
-	int		startbits;
+#ifdef MSG_PROFILING
+	int		startbits = msg->currentbit;
+#endif
 	int		remaining;
 	int		i;
 
 	value &= 0xFFFFFFFFU >> (32 - bits);
 	remaining = bits & 7;
-	startbits = msg->currentbit;
 
 	for( i=0; i<remaining ; i++ )
 	{

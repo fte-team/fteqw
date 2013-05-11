@@ -1818,7 +1818,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	}
 
 #ifdef VOICECHAT
-	S_Voip_Transmit(clc_voicechat, &buf);
+	if (cls.protocol == CP_QUAKE2)
+		S_Voip_Transmit(clcq2_voicechat, &buf);
+	else
+		S_Voip_Transmit(clc_voicechat, &buf);
 #endif
 
 //

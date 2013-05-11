@@ -239,7 +239,9 @@ void M_Menu_Audio_f (void)
 	menu_t *menu;
 	extern cvar_t nosound, snd_leftisright, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
+#ifdef VOICECHAT
 	extern cvar_t cl_voip_play, cl_voip_send;
+#endif
 
 	static const char *soundqualityoptions[] = {
 		"11025 Hz",

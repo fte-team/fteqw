@@ -2971,8 +2971,7 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *func, QCC_def_t *arglist[], i
 	QCC_def_t		*d, *oldret, *oself;
 	int			i;
 	QCC_type_t		*t;
-	int extraparms=false;
-	int np;
+//	int np;
 	int laststatement = numstatements;
 
 	int callconvention;
@@ -2998,8 +2997,7 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *func, QCC_def_t *arglist[], i
 		QCC_PR_ParseErrorPrintDef (ERR_NOTAFUNCTION, func, "not a function");
 	}
 
-// copy the arguments to the global parameter variables
-	if (t->type == ev_variant)
+/*	if (t->type == ev_variant)
 	{
 		extraparms = true;
 		np = 0;
@@ -3011,9 +3009,10 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *func, QCC_def_t *arglist[], i
 	}
 	else
 		np = t->num_parms;
+*/
 
 	if (strchr(func->name, ':') && laststatement && statements[laststatement-1].op == OP_LOAD_FNC && statements[laststatement-1].c == func->ofs)
-	{	//we're entering OO code with a different self.
+	{	//we're entering OO code with a different self. make sure self is preserved.
 		//eg: other.touch(self)
 
 		//FIXME: problems could occur with hexen2 calling conventions when parm0/1 is 'self'
@@ -3198,16 +3197,9 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	int extraparms=false;
 	int np;
 
-	int callconvention;
-
 	QCC_def_t *param[MAX_PARMS+MAX_EXTRA_PARMS];
 
 	func->timescalled++;
-
-	if (QCC_OPCodeValid(&pr_opcodes[OP_CALL1H]))
-		callconvention = OP_CALL1H;	//FTE extended
-	else
-		callconvention = OP_CALL1;	//standard
 
 	t = func->type;
 
@@ -5391,7 +5383,9 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 	int opnum;
 
 	QCC_def_t		*e, *e2;
-	etype_t		type_a, type_b, type_c;
+	etype_t		type_a;
+	//etype_t		type_b;
+	etype_t		type_c;
 
 	if (priority == 0)
 		return QCC_PR_Term (exprflags);
@@ -5525,10 +5519,7 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 
 		// type check
 			type_a = e->type->type;
-			type_b = e2->type->type;
-
-//			if (type_a == ev_pointer && type_b == ev_pointer)
-//				QCC_PR_ParseWarning(0, "Debug: pointer op pointer");
+//			type_b = e2->type->type;
 
 			if (op->name[0] == '.')// field access gets type from field
 			{
@@ -6831,9 +6822,7 @@ void QCC_PR_ParseState (void)
 {
 	char	*name;
 	QCC_def_t	*s1, *def, *sc = pr_scope;
-	char f;
 
-	f = *pr_token;
 	if (QCC_PR_CheckToken("++") || QCC_PR_CheckToken("--"))
 	{
 		s1 = QCC_PR_ParseImmediate ();

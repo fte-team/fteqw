@@ -518,8 +518,6 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	int current_skill;
 
-	int clnum;
-
 	int pt;
 
 	int modelpos;
@@ -692,7 +690,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	filelen -= filepos;
 	file = BZ_Malloc(filelen+1);
 	memset(file, 0, filelen+1);
-	clnum=VFS_READ(f, file, filelen);
+	VFS_READ(f, file, filelen);
 	file[filelen]='\0';
 	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);

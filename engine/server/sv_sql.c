@@ -188,9 +188,12 @@ int sql_serverworker(void *sref)
 {
 	sqlserver_t *server = (sqlserver_t *)sref;
 	const char *error = NULL;
-	int tinit = -1, i;
+	int i;
 	qboolean needlock = false;
 	qboolean allokay = true;
+#ifdef USE_MYSQL
+	int tinit = -1;
+#endif
 
 	switch(server->driver)
 	{
@@ -260,11 +263,7 @@ int sql_serverworker(void *sref)
 		{
 			queryrequest_t *qreq = NULL;
 			queryresult_t *qres;
-			const char *qerror = NULL;
-			int rows = -1;
 			int columns = -1;
-			int qesize = 0;
-			void *res = NULL;
 
 			if (!(qreq = SQL_PullRequest(server, needlock)))
 			{
@@ -279,51 +278,61 @@ int sql_serverworker(void *sref)
 
 			switch(server->driver)
 			{
+			default:
+				error = "Bad database driver";
+				allokay = false;
+				break;
 #ifdef USE_MYSQL
 			case SQLDRV_MYSQL:
-				// perform the query and fill out the result structure
-				if (qmysql_query(server->mysql, qreq->query))
-					qerror = qmysql_error(server->mysql);
-				else // query succeeded
 				{
-					res = qmysql_store_result(server->mysql);
-					if (res) // result set returned
-					{
-						rows = qmysql_num_rows(res);
-						columns = qmysql_num_fields(res);
-					}
-					else if (qmysql_field_count(server->mysql) == 0) // no result set
-					{
-						rows = qmysql_affected_rows(server->mysql);
-						if (rows < 0)
-							rows = 0;
-						columns = 0;
-					}
-					else // error
+					void *res = NULL;
+					int qesize = 0;
+					int rows = -1;
+					const char *qerror = NULL;
+					// perform the query and fill out the result structure
+					if (qmysql_query(server->mysql, qreq->query))
 						qerror = qmysql_error(server->mysql);
-			
-				}
+					else // query succeeded
+					{
+						res = qmysql_store_result(server->mysql);
+						if (res) // result set returned
+						{
+							rows = qmysql_num_rows(res);
+							columns = qmysql_num_fields(res);
+						}
+						else if (qmysql_field_count(server->mysql) == 0) // no result set
+						{
+							rows = qmysql_affected_rows(server->mysql);
+							if (rows < 0)
+								rows = 0;
+							columns = 0;
+						}
+						else // error
+							qerror = qmysql_error(server->mysql);
+				
+					}
 
-				if (qerror)
-					qesize = Q_strlen(qerror);
-				qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + qesize);
-				if (qres)
-				{
 					if (qerror)
-						Q_strncpy(qres->error, qerror, qesize);
-					qres->result = res;
-					qres->rows = rows;
-					qres->columns = columns;
-					qres->request = qreq;
-					qres->eof = true; // store result has no more rows to read afterwards
+						qesize = Q_strlen(qerror);
+					qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + qesize);
+					if (qres)
+					{
+						if (qerror)
+							Q_strncpy(qres->error, qerror, qesize);
+						qres->result = res;
+						qres->rows = rows;
+						qres->columns = columns;
+						qres->request = qreq;
+						qres->eof = true; // store result has no more rows to read afterwards
 
-					SQL_PushResult(server, qres);
-				}
-				else // we're screwed here so bomb out
-				{
-					server->active = false;
-					error = "MALLOC ERROR! Unable to allocate query result!";
-					break;
+						SQL_PushResult(server, qres);
+					}
+					else // we're screwed here so bomb out
+					{
+						server->active = false;
+						error = "MALLOC ERROR! Unable to allocate query result!";
+						break;
+					}
 				}
 				break;
 #endif
@@ -335,7 +344,6 @@ int sql_serverworker(void *sref)
 					const char *trailingstring;
 					char *statementstring = qreq->query;
 					char **mat;
-					int matsize;
 					int rowspace;
 					int totalrows = 0;
 					qboolean keeplooping = true;
@@ -352,8 +360,6 @@ int sql_serverworker(void *sref)
 							while(keeplooping)
 							{
 								rowspace = 65;
-
-								matsize = columns * sizeof(char*);
 
 								qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + columns * sizeof(char*) * rowspace);
 								mat = (char**)(qres + 1);
@@ -461,6 +467,8 @@ int sql_serverworker(void *sref)
 		server->sqlite = NULL;
 		break;
 #endif
+	default:
+		break;
 	}
 
 	// if we have a server error we still need to put it on the queue
@@ -527,6 +535,8 @@ static void SQL_DeallocResult(sqlserver_t *server, queryresult_t *qres)
 	// deallocate current result
 	switch(server->driver)
 	{
+	default:
+		break;
 #ifdef USE_MYSQL
 	case SQLDRV_MYSQL:
 		if (qres->result)
@@ -1030,6 +1040,9 @@ void SQL_Status_f(void)
 				server->connectparams[3],
 				server->active ? "active" : "inactive");
 			break;
+		default:
+			Con_Printf("Bad driver\n");
+			break;
 		}
 
 		if (reqnum)
@@ -1116,7 +1129,7 @@ void SQL_ServerCycle (void)
 		if (!server)
 			continue;
 
-		while (qres = SQL_PullResult(server))
+		while ((qres = SQL_PullResult(server)))
 		{
 			qreq = qres->request;
 			qres->next = NULL;

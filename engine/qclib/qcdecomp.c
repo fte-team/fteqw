@@ -420,8 +420,6 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 	ddef16_t *def;
 	int ofs,i;
 
-	int fileofs;
-
 	if (!functionname && stn<0)
 	{
 		//we wrote this one...
@@ -560,11 +558,9 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 		return;
 	}
 
-	fileofs = SafeSeek(f, 0, SEEK_CUR);
 	if (setjmp(decompilestatementfailure))
 	{
 		writes(f, "*/\r\n");
-	//	SafeSeek(f, fileofs, SEEK_SET);
 		writes(f, " = asm {\r\n");
 
 		stn = progs->functions[num].first_statement;

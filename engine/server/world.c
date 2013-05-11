@@ -1116,9 +1116,6 @@ static void World_AreaEdicts_r (areanode_t *node)
 {
 	link_t		*l, *next, *start;
 	wedict_t		*check;
-	int			count;
-
-	count = 0;
 
 	// touch linked edicts
 	start = &node->edicts;
@@ -1188,9 +1185,6 @@ static void WorldQ2_AreaEdicts_r (areanode_t *node)
 {
 	link_t		*l, *next, *start;
 	q2edict_t		*check;
-	int			count;
-
-	count = 0;
 
 	// touch linked edicts
 	start = &node->edicts;

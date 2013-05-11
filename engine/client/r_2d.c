@@ -422,12 +422,10 @@ void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int 
 /* this is an ugly special case drawing func that's only used for the player color selection menu */
 void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qbyte *translation)
 {
-	int				v, u, c;
+	int				v, u;
 	unsigned		trans[64*64], *dest;
 	qbyte			*src;
 	int				p;
-
-	c = width * height;
 
 	dest = trans;
 	for (v=0 ; v<64 ; v++, dest += 64)

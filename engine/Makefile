@@ -6,11 +6,15 @@ STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
 CPUOPTIMIZATIONS=
 
-BASE_DIR=$(realpath .)
+#canonicalize the source path. except emscripten warns about that like crazy. *sigh*
+BASE_DIR:=$(realpath .)
+ifeq ($(FTE_TARGET),web)
+	BASE_DIR:=.
+endif
 
 SVNREVISION:=-DSVNREVISION=$(shell test -d .svn && svnversion || echo -)
 
-WHOAMI=$(shell whoami)
+WHOAMI:=$(shell whoami)
 
 #only limited forms of cross-making is supported
 #only the following 3 are supported
@@ -84,8 +88,8 @@ ifeq ($(FTE_TARGET),droid)
 			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows/bin/arm-linux-androideabi-
 		endif
 		ANDROID_SCRIPT=android.bat
-		#make can't cope with absolute paths in dependancy files
-		NODEPS = 1
+		#make can't cope with absolute win32 paths in dependancy files
+		DEPCC=
 	endif
 
 	DROID_API_LEVEL=4
@@ -820,7 +824,7 @@ ifeq ($(FTE_TARGET),vc)
 	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
 	DO_LD=$(DO_ECHO) "$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
-	NODEPS = 1
+	DEPCC=
 
 	LIBS_DIR=./libs/
 
@@ -1094,9 +1098,11 @@ endif
 ifeq ($(FTE_TARGET),web)
 	WEB_PREJS ?= --pre-js web/prejs.js
 	WEB_MEMORY?=402653184
-	RELEASE_CFLAGS=-O1 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
-	DEBUG_CFLAGS=-O0 -g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB $(WEB_PREJS)
-	CC=emcc -s TOTAL_MEMORY=$(WEB_MEMORY)
+	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
+	DEBUG_CFLAGS=-g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
+	RELEASE_LDFLAGS=-O1	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY)
+	DEBUG_LDLAGS=-O0	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY)
+	CC=emcc
 	#-s ASM_JS=1
 	#BASELDFLAGS=
 
@@ -1126,10 +1132,12 @@ ifeq ($(FTE_TARGET),web)
 	OGGVORBISLDFLAGS=
 
 	BOTLIB_CFLAGS=
-	NODEPS = 1
+	#generate deps properly
+	#DEPCC=
 endif
 
 SV_DIR?=sv_sdl
+DEPCC?=$(CC)
 
 -include Makefile_private
 
@@ -1192,9 +1200,9 @@ $(OUT_DIR)/npplug.o : ftequake/npplug.rc
 #	rm -f $@.$$$$
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
-ifeq ($(NODEPS),)
+ifneq ($(DEPCC),)
 	@set -e; rm -f $@.d; \
-	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	 $(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
@@ -1202,9 +1210,9 @@ endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.cpp
-ifeq ($(NODEPS),)
+ifneq ($(DEPCC),)
 	@set -e; rm -f $@.d; \
-	$(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	$(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	rm -f $@.d.$$$$
@@ -1212,9 +1220,9 @@ endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
-ifeq ($(NODEPS),)
+ifneq ($(DEPCC),)
 	@set -e; rm -f $@.d; \
-	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	 $(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.oo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
@@ -1223,7 +1231,7 @@ endif
 
 $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 	@set -e; rm -f $@.d; \
-	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	 $(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.mo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
@@ -1231,7 +1239,7 @@ $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 
 #enables use of precompiled headers in gcc 3.4 onwards.
 $(OUT_DIR)/quakedef.h.gch : quakedef.h
-	$(CC) -x c $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
+	$(CC) -x c $(ALL_CFLAGS) -o $@ -c $<
 PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 
 #addprefix is to add the ./release/server/ part of the object name

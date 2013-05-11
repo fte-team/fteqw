@@ -1943,7 +1943,7 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int smsize, float proj[16])
 {
 	qboolean oxv;
-	vec3_t t1,t2, t3;
+	vec3_t t1,t2;
 	texture_t *tex;
 	int tno;
 
@@ -1972,8 +1972,8 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 	case 3:
 		//-x - back
 		VectorNegate(l->axis[0], t1);
-		VectorNegate(l->axis[1], t2);
-		VectorNegate(l->axis[2], t3);
+//		VectorNegate(l->axis[1], t2);
+//		VectorNegate(l->axis[2], t3);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t1, l->axis[1], l->axis[2], l->origin);
 		r_refdef.flipcull = true;
 		break;
@@ -2182,7 +2182,6 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 {
-	int ve;
 	vec3_t mins, maxs;
 	qbyte *lvis;
 	qbyte	lvisb[MAX_MAP_LEAFS/8];
@@ -2243,8 +2242,6 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 	//may as well use scissors
 	Sh_Scissor(rect);
-
-	ve = 0;
 
 	BE_SelectEntity(&r_worldentity);
 

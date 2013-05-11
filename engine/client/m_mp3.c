@@ -595,7 +595,7 @@ void M_Media_Key (int key)
 		}
 		else if (selectedoption>=0)
 		{
-			mediatrack_t *prevtrack, *tr;
+			mediatrack_t *tr;
 			int num=0;
 			tr=tracks;
 			while(tr)
@@ -603,7 +603,6 @@ void M_Media_Key (int key)
 				if (num == selectedoption)
 					break;
 
-				prevtrack = tr;
 				tr=tr->next;
 				num++;
 			}

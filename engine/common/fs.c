@@ -1382,7 +1382,7 @@ typedef struct {
 	const char *puredesc;
 } wildpaks_t;
 
-static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vparam, struct searchpath_s *path)
+static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vparam, void *path)
 {
 	wildpaks_t *param = vparam;
 	vfsfile_t *vfs;
@@ -1611,7 +1611,7 @@ char *COM_NextPath (char *prevpath)
 	return NULL;
 }
 
-#ifndef CLIENTONLY
+#if 0//ndef CLIENTONLY
 char *COM_GetPathInfo (int i, int *crc)
 {
 //#ifdef WEBSERVER
@@ -1703,7 +1703,6 @@ void COM_Gamedir (const char *dir)
 {
 	char thispath[64];
 	searchpath_t	*next;
-	int dlen;
 	qboolean isbase;
 
 	if (!*dir || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
@@ -1714,7 +1713,6 @@ void COM_Gamedir (const char *dir)
 	}
 
 	isbase = false;
-	dlen = strlen(dir);
 	for (next = com_searchpaths; next; next = next->next)
 	{
 		if (next == com_base_searchpaths)
@@ -1992,7 +1990,6 @@ void FS_ImpurePacks(const char *names, const char *crcs)
 		{
 			char local[MAX_OSPATH];
 			vfsfile_t *vfs;
-			char *ext = COM_FileExtension(pname);
 
 			FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local));
 			vfs = FS_OpenVFS(local, "rb", FS_ROOT);

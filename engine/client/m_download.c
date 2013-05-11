@@ -871,7 +871,6 @@ qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, in
 void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
 static void CL_BootDownload_Complete(struct dl_download *dl)
 {
-	void *zip;
 	char *q = strchr(dl->url, '?');
 	char *ext;
 	if (dl->file && dl->status == DL_FINISHED)
@@ -882,6 +881,7 @@ static void CL_BootDownload_Complete(struct dl_download *dl)
 		if (!stricmp(ext, "zip"))
 		{
 #ifdef AVAIL_ZLIB
+			void *zip;
 			if (dl->status == DL_FINISHED)
 				zip = zipfilefuncs.OpenNew(dl->file, dl->url);
 			else

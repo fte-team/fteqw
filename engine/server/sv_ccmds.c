@@ -374,7 +374,7 @@ void SV_Give_f (void)
 	}
 }
 
-int QDECL ShowMapList (const char *name, int flags, void *parm, struct searchpath_s *spath)
+int QDECL ShowMapList (const char *name, int flags, void *parm, void *spath)
 {
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;

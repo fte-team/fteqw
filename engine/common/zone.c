@@ -1217,9 +1217,6 @@ static int		hunk_size;
 static int		hunk_low_used;
 static int		hunk_high_used;
 
-static qboolean	hunk_tempactive;
-static int		hunk_tempmark;
-
 void R_FreeTextures (void);
 
 /*
@@ -1324,9 +1321,9 @@ void Hunk_Print (qboolean all)
 			for (i = 0; i < HUNKDEBUG; i++)
 			{
 				if (present[i] != sentinalkey)
-					*(int*)0 = -3;
+					Sys_Error ("Hunk_Check: corrupt sentinal");
 				if (postsent[i] != sentinalkey)
-					*(int*)0 = -3;
+					Sys_Error ("Hunk_Check: corrupt sentinal");
 			}
 		}
 #endif
@@ -1530,7 +1527,7 @@ void Hunk_TempFree(void)
 		for (i = 0; i < TEMPDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error ("Hunk_Check: corrupt sentinal");
 		}
 		buf+=TEMPDEBUG;
 		//app data
@@ -1538,7 +1535,7 @@ void Hunk_TempFree(void)
 		for (i = 0; i < TEMPDEBUG; i++)
 		{
 			if (buf[i] != sentinalkey)
-				*(int*)0 = -3;	//force a crash... this'll get our attention.
+				Sys_Error ("Hunk_Check: corrupt sentinal");
 		}
 #endif
 
@@ -1754,14 +1751,10 @@ void Cache_Report (void)
 void Hunk_Print_f (void)
 {
 	cache_system_t *cs;
-	int zoneblocks;
 	int cacheused;
-	int zoneused;
 	Hunk_Print(true);
 
 	cacheused = 0;
-	zoneused = 0;
-	zoneblocks = 0;
 	for (cs = cache_head; cs; cs = cs->next)
 	{
 		cacheused += cs->size;
@@ -1776,6 +1769,8 @@ void Hunk_Print_f (void)
 #if 0
 	{
 		zone_t *zone;
+		int zoneused = 0;
+		int zoneblocks = 0;
 
 		for(zone = zone_head; zone; zone=zone->next)
 		{

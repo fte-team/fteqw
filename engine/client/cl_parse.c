@@ -391,7 +391,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 			return false;
 	}
 	ext = COM_FileExtension(localname);
-	if (!stricmp(localname, "dll") || !stricmp(localname, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
+	if (!stricmp(ext, "dll") || !stricmp(ext, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
 		Con_Printf("Denying download of \"%s\"\n", filename);
 		return false;
@@ -1890,6 +1890,7 @@ void CL_ParseDownload (void)
 		char *localname;
 		Q_strncpyz(name, MSG_ReadString(), sizeof(name));
 		localname = MSG_ReadString();
+		Con_DPrintf("Download for %s redirected to %s\n", localname, name);
 		/*quakeforge http download redirection*/
 		if (cls.downloadqw)
 		{
@@ -3838,11 +3839,11 @@ void CLQ2_ParseStartSoundPacket(void)
 			*skin = '\0';
 		if (*model)
 		{
-			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation, 0, 0);
+			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation, ofs, 0);
 			return;
 		}
 	}
-	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation, 0, 0);
+	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation, ofs, 0);
 }
 #endif
 

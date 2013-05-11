@@ -24,7 +24,9 @@ WHOAMI:=$(shell whoami)
 #linux->linux64 (FTE_TARGET=linux64)
 #linux->morphos (FTE_TARGET=morphos)
 #linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
-#if you are cross compiling, you'll need to use FTE_TARGET=mytaget
+#linux->javascript (FTE_TARGET=web)
+#linux->nacl (FTE_TARGET=nacl NARCH=x86_64)
+#if you are cross compiling, you'll need to use FTE_TARGET=mytarget
 
 #correct the gcc build when cross compiling
 ifeq ($(FTE_TARGET),win32)
@@ -305,8 +307,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
-		MINGW_LIBS_DIR=$(BASE_DIR)/libs-x86_64-w64-mingw32
-		#$(LIBS_DIR)/mingw64-libs
+		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
 	endif
 
 	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a

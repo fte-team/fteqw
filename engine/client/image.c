@@ -740,6 +740,8 @@ qboolean LibPNG_Init(void)
 
 	if (!LIBPNG_LOADED())
 		libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
+	if (!LIBPNG_LOADED())
+		libpng_handle = Sys_LoadLibrary("libpng12", pngfuncs);
 #endif
 	return LIBPNG_LOADED();
 }
@@ -1055,6 +1057,12 @@ qboolean LibJPEG_Init(void)
 
 	if (!LIBJPEG_LOADED())
 		libjpeg_handle = Sys_LoadLibrary("libjpeg", jpegfuncs);
+#ifndef _WIN32
+	if (!LIBJPEG_LOADED())
+		libjpeg_handle = Sys_LoadLibrary("libjpeg"ARCH_DL_POSTFIX".8", jpegfuncs);
+	if (!LIBJPEG_LOADED())
+		libjpeg_handle = Sys_LoadLibrary("libjpeg"ARCH_DL_POSTFIX".62", jpegfuncs);
+#endif
 	#endif
 
 	return LIBJPEG_LOADED();

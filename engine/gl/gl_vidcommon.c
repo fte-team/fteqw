@@ -55,6 +55,7 @@ FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
+void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid* *pointer);
 
 //quick hack that made quake work on both 1+ext and 1.1 gl implementations.
 BINDTEXFUNCPTR qglBindTexture;
@@ -109,6 +110,7 @@ void (APIENTRY *qglEnd) (void);
 void (APIENTRY *qglEndList) (void);
 void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 GLuint (APIENTRY *qglGenLists) (GLsizei range);
+GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
 void (APIENTRY *qglLoadIdentity) (void);
 void (APIENTRY *qglLoadMatrixf) (const GLfloat *m);
 void (APIENTRY *qglNormal3f) (GLfloat nx, GLfloat ny, GLfloat nz);
@@ -138,6 +140,7 @@ void (APIENTRY *qglVertex2f) (GLfloat x, GLfloat y);
 void (APIENTRY *qglVertex3f) (GLfloat x, GLfloat y, GLfloat z);
 void (APIENTRY *qglVertex3fv) (const GLfloat *v);
 void (APIENTRY *qglGetTexLevelParameteriv) (GLenum target, GLint level, GLenum pname, GLint *params);
+void (APIENTRY *qglGetTexEnviv) (GLenum target, GLenum pname, GLint *params);
 
 void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
 void (APIENTRY *qglArrayElement) (GLint i);
@@ -167,6 +170,7 @@ void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
 void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 
 const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
+void (APIENTRY * qglGetPointerv) (GLenum pname, GLvoid **parms);
 
 void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
@@ -752,6 +756,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGetAttribLocationARB		= NULL;
 		qglVertexAttribPointer		= NULL;
 		qglGetVertexAttribiv		= NULL;
+		qglGetVertexAttribPointerv	= NULL;
 		qglEnableVertexAttribArray	= NULL;
 		qglDisableVertexAttribArray	= NULL;
 		qglGetUniformLocationARB	= NULL;
@@ -811,6 +816,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform1fARB				= (void *)getglext("glUniform1f");
 		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
 		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
+		qglGetVertexAttribPointerv	= (void *)getglext("glGetVertexAttribPointerv");
 		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
 		Con_DPrintf("GLSL available\n");
@@ -837,6 +843,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocationARB");
 		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointerARB");
 		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribivARB");
+		qglGetVertexAttribPointerv	= (void *)getglext("glGetVertexAttribPointervARB");
 		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArrayARB");
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArrayARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
@@ -854,8 +861,11 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_DPrintf("GLSL available\n");
 	}
 #endif
-	//we only use vao with shaders anyway.
-	if (!gl_config.arb_shader_objects)
+	//we only use vao if we don't have a choice.
+	//certain drivers (*cough* mesa *cough*) update vao0 state even when a different vao is bound.
+	//they also don't support client arrays, so are unusable without glsl or vertex streaming (which is *really* hard to optimise for - especially with webgl etc)
+	//so only use them with gl3+ core contexts where vbo is mandatory anyway.
+	if (!gl_config.nofixedfunc)
 	{
 		//don't bother if we've no glsl
 		qglGenVertexArrays	= NULL;
@@ -1584,6 +1594,10 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglFogfv			= (void *)getglcore("glFogfv");
 
 
+	qglGetTexEnviv		= (void *)getglext("glGetTexEnviv");
+	qglGetPointerv		= (void *)getglext("glGetPointerv");
+	qglIsEnabled		= (void *)getglext("glIsEnabled");
+
 	qglGetStringi		= (void *)getglext("glGetStringi");
 
 	//used by heightmaps
@@ -1655,6 +1669,179 @@ void GL_Init(void *(*getglfunction) (char *name))
 }
 
 
+#ifdef DEBUG
+#define GL_VERTEX_ARRAY_BINDING					0x85B5
+#define GL_ARRAY_BUFFER							0x8892
+#define GL_ELEMENT_ARRAY_BUFFER					0x8893
+#define GL_ARRAY_BUFFER_BINDING					0x8894
+#define GL_ELEMENT_ARRAY_BUFFER_BINDING			0x8895
+#define GL_VERTEX_ARRAY_BUFFER_BINDING			0x8896
+#define GL_NORMAL_ARRAY_BUFFER_BINDING			0x8897
+#define GL_COLOR_ARRAY_BUFFER_BINDING			0x8898
+#define GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING   0x889A
+#define GL_VERTEX_ATTRIB_ARRAY_ENABLED			0x8622
+#define GL_VERTEX_ATTRIB_ARRAY_SIZE				0x8623
+#define GL_VERTEX_ATTRIB_ARRAY_STRIDE			0x8624
+#define GL_VERTEX_ATTRIB_ARRAY_TYPE				0x8625
+#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED		0x886A
+#define GL_VERTEX_ATTRIB_ARRAY_POINTER			0x8645
+#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING	0x889F
+#define GL_CURRENT_PROGRAM						0x8B8D
+
+char *DecodeGLEnum(GLenum num)
+{
+	switch(num)
+	{
+	case GL_CW:						return "GL_CW";
+	case GL_CCW:					return "GL_CCW";
+	case GL_NEVER:					return "GL_NEVER";
+	case GL_LESS:					return "GL_LESS";
+	case GL_EQUAL:					return "GL_EQUAL";
+	case GL_LEQUAL:					return "GL_LEQUAL";
+	case GL_GREATER:				return "GL_GREATER";
+	case GL_NOTEQUAL:				return "GL_NOTEQUAL";
+	case GL_GEQUAL:					return "GL_GEQUAL";
+	case GL_ALWAYS:					return "GL_ALWAYS";
+	case GL_FRONT:					return "GL_FRONT";
+	case GL_BACK:					return "GL_BACK";
+	case GL_FRONT_AND_BACK:			return "GL_FRONT_AND_BACK";
+	case GL_COMBINE_ARB:			return "GL_COMBINE";
+	case GL_MODULATE:				return "GL_MODULATE";
+	case GL_REPLACE:				return "GL_REPLACE";
+	case GL_ZERO:					return "GL_ZERO";
+	case GL_ONE:					return "GL_ONE";
+	case GL_SRC_COLOR:				return "GL_SRC_COLOR";
+	case GL_ONE_MINUS_SRC_COLOR:	return "GL_ONE_MINUS_SRC_COLOR";
+	case GL_SRC_ALPHA:				return "GL_SRC_ALPHA";
+	case GL_ONE_MINUS_SRC_ALPHA:	return "GL_ONE_MINUS_SRC_ALPHA";
+	case GL_DST_ALPHA:				return "GL_DST_ALPHA";
+	case GL_ONE_MINUS_DST_ALPHA:	return "GL_ONE_MINUS_DST_ALPHA";
+	case GL_DST_COLOR:				return "GL_DST_COLOR";
+	case GL_ONE_MINUS_DST_COLOR:	return "GL_ONE_MINUS_DST_COLOR";
+	case GL_SRC_ALPHA_SATURATE:		return "GL_SRC_ALPHA_SATURATE";
+	default:						return va("0x%x", num);
+	}
+}
+void DumpGLState(void)
+{
+	int rval;
+	void *ptr;
+	int i;
+	GLint glint;
+	GLint glint4[4];
+
+	if (qglGetVertexAttribiv)
+	{
+		qglGetIntegerv(GL_VERTEX_ARRAY_BINDING, &rval);
+		Sys_Printf("VERTEX_ARRAY_BINDING: %i\n", rval);
+		qglGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
+		Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
+		if (qglIsEnabled(GL_COLOR_ARRAY))
+		{
+			qglGetIntegerv(GL_COLOR_ARRAY_BUFFER_BINDING, &rval);
+			qglGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_COLOR_ARRAY: %s %i:%p\n", qglIsEnabled(GL_COLOR_ARRAY)?"en":"dis", rval, ptr);
+		}
+//		if (qglIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT))
+//		{
+//			qglGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
+//			Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) qglIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
+//		}
+//		if (qglIsEnabled(GL_INDEX_ARRAY))
+		{
+			qglGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+			qglGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", qglIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
+		}
+		if (qglIsEnabled(GL_NORMAL_ARRAY))
+		{
+			qglGetIntegerv(GL_NORMAL_ARRAY_BUFFER_BINDING, &rval);
+			qglGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_NORMAL_ARRAY: %s %i:%p\n", qglIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", rval, ptr);
+		}
+	//	qglGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
+	//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) qglIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
+		for (i = 0; i < 4; i++)
+		{
+			qglClientActiveTextureARB(mtexid0 + i);
+			if (qglIsEnabled(GL_TEXTURE_COORD_ARRAY))
+			{
+				qglGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+				qglGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
+				Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, qglIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
+			}
+		}
+		if (qglIsEnabled(GL_VERTEX_ARRAY))
+		{
+			qglGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
+			qglGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", qglIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
+		}
+
+		for (i = 0; i < 16; i++)
+		{
+			int en, bo, as, st, ty, no;
+
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
+			if (!en)
+				continue;
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
+			qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
+
+			Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
+		}
+
+		qglGetIntegerv(GL_CURRENT_PROGRAM, &glint);
+		Sys_Printf("GL_CURRENT_PROGRAM: %i\n", glint);
+
+		qglGetIntegerv(GL_BLEND, &glint);
+		Sys_Printf("GL_BLEND: %i\n", glint);
+		qglGetIntegerv(GL_BLEND_SRC, &glint);
+		Sys_Printf("GL_BLEND_SRC: %i\n", DecodeGLEnum(glint));
+		qglGetIntegerv(GL_BLEND_DST, &glint);
+		Sys_Printf("GL_BLEND_DST: %i\n", DecodeGLEnum(glint));
+
+		qglGetIntegerv(GL_DEPTH_WRITEMASK, &glint);
+		Sys_Printf("GL_DEPTH_WRITEMASK: %i\n", glint);
+		qglGetIntegerv(GL_DEPTH_TEST, &glint);
+		Sys_Printf("GL_DEPTH_TEST: %i\n", glint);
+		qglGetIntegerv(GL_DEPTH_FUNC, &glint);
+		Sys_Printf("GL_DEPTH_FUNC: %s\n", DecodeGLEnum(glint));
+		qglGetIntegerv(GL_CULL_FACE, &glint);
+		Sys_Printf("GL_CULL_FACE: %i\n", glint);
+		qglGetIntegerv(GL_CULL_FACE_MODE, &glint);
+		Sys_Printf("GL_CULL_FACE_MODE: %s\n", DecodeGLEnum(glint));
+		qglGetIntegerv(GL_FRONT_FACE, &glint);
+		Sys_Printf("GL_FRONT_FACE: %s\n", DecodeGLEnum(glint));
+		qglGetIntegerv(GL_SCISSOR_TEST, &glint);
+		Sys_Printf("GL_SCISSOR_TEST: %i\n", glint);
+		qglGetIntegerv(GL_STENCIL_TEST, &glint);
+		Sys_Printf("GL_STENCIL_TEST: %i\n", glint);
+		qglGetIntegerv(GL_COLOR_WRITEMASK, glint4);
+		Sys_Printf("GL_COLOR_WRITEMASK: %i %i %i %i\n", glint4[0], glint4[1], glint4[2], glint4[3]);
+
+		GL_SelectTexture(0);
+		qglGetIntegerv(GL_TEXTURE_2D, &glint);
+		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		qglGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
+		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		GL_SelectTexture(1);
+		qglGetIntegerv(GL_TEXTURE_2D, &glint);
+		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		qglGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
+		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		GL_SelectTexture(2);
+		qglGetIntegerv(GL_TEXTURE_2D, &glint);
+		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		qglGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
+		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+	}
+}
+#endif
 
 
 

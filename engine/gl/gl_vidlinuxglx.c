@@ -203,13 +203,19 @@ static qboolean x11_initlib(void)
 
 	if (!x11.lib)
 	{
-		x11.lib = Sys_LoadLibrary("libX11", x11_functable);
+		x11.lib = Sys_LoadLibrary("libX11.so.6", x11_functable);
+		if (!x11.lib)
+			x11.lib = Sys_LoadLibrary("libX11", x11_functable);
 
 		//these ones are extensions, and the reason we're doing this.
 		if (x11.lib)
 		{
 			x11.pXGetEventData = Sys_GetAddressForName(x11.lib, "XGetEventData");
 			x11.pXFreeEventData = Sys_GetAddressForName(x11.lib, "XFreeEventData");
+		}
+		else
+		{
+			Con_Printf("Unable to load libX11\n");
 		}
 	}
 	
@@ -419,7 +425,9 @@ static qboolean XI2_Init(void)
 
 	if (!xi2.libxi)
 	{
-		xi2.libxi = Sys_LoadLibrary("libXi", xi2_functable);
+		xi2.libxi = Sys_LoadLibrary("libXi.so.6", xi2_functable);
+		if (!xi2.libxi)
+			xi2.libxi = Sys_LoadLibrary("libXi", xi2_functable);
 		if (!xi2.libxi)
 			Con_Printf("XInput library not available or too old.\n");
 	}
@@ -531,9 +539,16 @@ static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 	key = 0;
 
 	keysym = x11.pXLookupKeysym(ev, 0);
-	x11.pXLookupString(ev, buf, sizeof buf, &shifted, 0);
 	if (unicode)
-		*unicode = buf[0];
+	{
+		if ((keysym & 0xff000000) == 0x01000000)
+			*unicode = keysym & 0x00ffffff;
+		else
+		{
+			x11.pXLookupString(ev, buf, sizeof buf, &shifted, 0);
+			*unicode = (unsigned char)buf[0];
+		}
+	}
 
 	switch(keysym)
 	{
@@ -645,8 +660,12 @@ static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 #endif
 
 		default:
-			key = *(unsigned char*)buf;
-			if (key >= 'A' && key <= 'Z')
+			key = keysym;
+			if (key < 32)
+				key = 0;
+			else if (key > 127)
+				key = 0;
+			else if (key >= 'A' && key <= 'Z')
 				key = key - 'A' + 'a';
 			break;
 	}
@@ -1086,12 +1105,6 @@ void GLVID_DeInit(void)	//FIXME:....
 }
 
 
-void signal_handler(int sig)
-{
-	printf("Received signal %d, exiting...\n", sig);
-	Sys_Quit();
-	exit(0);
-}
 void signal_handler_graceful(int sig)
 {
 	gracefulexit = true;
@@ -1100,18 +1113,7 @@ void signal_handler_graceful(int sig)
 
 void InitSig(void)
 {
-	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler_graceful);
-	signal(SIGQUIT, signal_handler);
-	signal(SIGILL, signal_handler);
-	signal(SIGTRAP, signal_handler);
-#ifndef __CYGWIN__
-	signal(SIGIOT, signal_handler);
-#endif
-	signal(SIGBUS, signal_handler);
-	signal(SIGFPE, signal_handler);
-	signal(SIGSEGV, signal_handler);
-	signal(SIGTERM, signal_handler);
 }
 
 static Cursor CreateNullCursor(Display *display, Window root)
@@ -1136,53 +1138,38 @@ static Cursor CreateNullCursor(Display *display, Window root)
     return cursor;
 }
 
-void	GLVID_ShiftPalette (unsigned char *palette)
+qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
 {
 	extern qboolean gammaworks;
 	extern cvar_t vid_hardwaregamma;
-	extern	unsigned short ramps[3][256];
 
-//	VID_SetPalette (palette);
+	//if we don't know the original ramps yet, don't allow changing them, because we're probably invalid anyway, and even if it worked, it'll break something later.
+	if (!vm.originalapplied)
+		return false;
 
-	if (vm.originalapplied && ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+	if (ramps)
 	{
+		//hardwaregamma==1 skips hardware gamma when we're not fullscreen, in favour of software glsl based gamma.
+//		if (vid_hardwaregamma.value == 1 && !ActiveApp && !(fullscreenflags & FULLSCREEN_ACTIVE))
+//			return false;
+//		if (!ActiveApp)
+//			return false;
+//		if (!vid_hardwaregamma.value)
+//			return false;
+	
+		//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma if it randomly fails (yuck)
 		if (gammaworks)
-		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-			vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
-			return;
-		}
-		gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, ramps[0], ramps[1], ramps[2]);
+			vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, &ramps[0], &ramps[256], &ramps[512]);
+		else
+			gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, &ramps[0], &ramps[256], &ramps[512]);
+
+		return gammaworks;
 	}
 	else
-		gammaworks = false;
-}
-
-void	GLVID_SetPalette (unsigned char *palette)
-{
-	qbyte	*pal;
-	unsigned r,g,b;
-	unsigned short i;
-	unsigned	*table;
-	extern qbyte gammatable[256];
-
-//
-// 8 8 8 encoding
-//
-	Con_DPrintf("Converting 8to24\n");
-
-	pal = palette;
-	table = d_8to24rgbtable;
-	for (i=0 ; i<256 ; i++)
 	{
-		r = gammatable[pal[0]];
-		g = gammatable[pal[1]];
-		b = gammatable[pal[2]];
-		pal += 3;
-
-		*table++ = BigLong((r<<24)|(g<<16)|(b<<8)|255);
+		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+		return true;
 	}
-
-	d_8to24rgbtable[255] &= BigLong(0xffffff00); // 255 is transparent
 }
 
 /*
@@ -1648,9 +1635,6 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	case PSL_NONE:
 		break;
 	}
-
-	GLVID_SetPalette(palette);
-	GLVID_ShiftPalette(palette);
 
 	InitSig(); // trap evil signals
 

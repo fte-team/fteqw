@@ -1327,6 +1327,9 @@ void GLBE_Init(void)
 	//only do this where we have to.
 	if (qglBufferDataARB && gl_config.nofixedfunc)
 	{
+		memset(&shaderstate.streamvbo, 0, sizeof(shaderstate.streamvbo));
+		memset(&shaderstate.streamebo, 0, sizeof(shaderstate.streamebo));
+		memset(&shaderstate.streamvao, 0, sizeof(shaderstate.streamvao));
 		qglGenBuffersARB(sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]), shaderstate.streamvbo);
 		qglGenBuffersARB(sizeof(shaderstate.streamebo)/sizeof(shaderstate.streamebo[0]), shaderstate.streamebo);
 		if (qglGenVertexArrays)
@@ -1568,6 +1571,7 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 	GL_DeselectVAO();
 	if (!shaderstate.vbo_texcoords[passnum])
 	{
+		shaderstate.vbo_texcoords[passnum] = 0;
 		qglGenBuffersARB(1, &shaderstate.vbo_texcoords[passnum]);
 	}
 	GL_SelectVBO(shaderstate.vbo_texcoords[passnum]);
@@ -4610,6 +4614,8 @@ void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
 	ctx->fallback = NULL;
 	if (qglBufferDataARB)
 	{
+		ctx->vboid[0] = 0;
+		ctx->vboid[1] = 0;
 		qglGenBuffersARB(2, ctx->vboid);
 		GL_SelectVBO(ctx->vboid[0]);
 		//WARNING: in emscripten/webgl, we should probably not pass null.

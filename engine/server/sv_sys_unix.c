@@ -51,7 +51,7 @@ void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t sys_nostdout = CVAR("sys_nostdout","0");
 cvar_t sys_extrasleep = CVAR("sys_extrasleep","0");
-cvar_t sys_colorconsole = CVAR("sys_colorconsole", "0");
+cvar_t sys_colorconsole = CVAR("sys_colorconsole", "1");
 cvar_t sys_linebuffer = CVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
 qboolean	stdin_ready;
@@ -300,6 +300,7 @@ void Sys_Printf (char *fmt, ...)
 		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
 
+		//if we're not linebuffered, kill the currently displayed input line, add the new text, and add more output.
 		if (!sys_linebuffer.value)
 		{
 			int i;
@@ -316,127 +317,75 @@ void Sys_Printf (char *fmt, ...)
 		}
 
 
-		for (t = (unsigned char*)msg; *t; t++)
+        if (sys_colorconsole.value)
 		{
-			if (*t >= 146 && *t < 156)
-				*t = *t - 146 + '0';
-			if (*t >= 0x12 && *t <= 0x1b)
-				*t = *t - 0x12 + '0';
-			if (*t == 143)
-				*t = '.';
-			if (*t == 157 || *t == 158 || *t == 159)
-				*t = '-';
-			if (*t >= 128)
-				*t -= 128;
-			if (*t == 16)
-				*t = '[';
-			if (*t == 17)
-				*t = ']';
-			if (*t == 0x1c)
-				*t = 249;
-		}
-
-		if (sys_colorconsole.value)
-		{
-			int ext = CON_WHITEMASK;
-			int extstack[4];
-			int extstackdepth = 0;
-			unsigned char *str = (unsigned char*)msg;
-
-
-			while(*str)
+			wchar_t w;
+			conchar_t *e, *c;
+			conchar_t ctext[MAXPRINTMSG];
+			e = COM_ParseFunString(CON_WHITEMASK, msg, ctext, sizeof(ctext), false);
+			for (c = ctext; c < e; c++)
 			{
-				if (*str == '^')
+				if (*c & CON_HIDDEN)
+					continue;
+
+				ApplyColour(*c);
+				w = *c & 0x0ffff;
+				if (w >= 0xe000 && w < 0xe100)
 				{
-					str++;
-					if (*str >= '0' && *str <= '9')
+					/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
+					if ((w & 0x7f) > 0x20)
+						putc(w&0x7f, stdout);
+					else if (w & 0x80)
 					{
-						ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK);	//change colour only.
-						continue;
-					}
-					else if (*str == '&') // extended code
-					{
-						if (isextendedcode(str[1]) && isextendedcode(str[2]))
-						{
-							str++; // foreground char
-							if (*str == '-') // default for FG
-								ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
-							else if (*str >= 'A')
-								ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
-							else
-								ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-							str++; // background char
-							if (*str == '-') // default (clear) for BG
-								ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
-							else if (*str >= 'A')
-								ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-							else
-								ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-							str++;
-							continue;
-						}
-						Sys_PrintColouredChar('^' | ext);
-						// else invalid code
-					}
-					else if (*str == 'a')
-					{
-						str++;
-						ext ^= CON_2NDCHARSETTEXT;
-						continue;
-					}
-					else if (*str == 'b')
-					{
-						str++;
-						ext ^= CON_BLINKTEXT;
-						continue;
-					}
-					else if (*str == 'h')
-					{
-						str++;
-						ext ^= CON_HALFALPHA;
-						continue;
-					}
-					else if (*str == 's')	//store on stack (it's great for names)
-					{
-						str++;
-						if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
-						{
-							extstack[extstackdepth] = ext;
-							extstackdepth++;
-						}
-						continue;
-					}
-					else if (*str == 'r')	//restore from stack (it's great for names)
-					{
-						str++;
-						if (extstackdepth)
-						{
-							extstackdepth--;
-							ext = extstack[extstackdepth];
-						}
-						continue;
-					}
-					else if (*str == '^')
-					{
-						Sys_PrintColouredChar('^' | ext);
-						str++;
+						static char tab[32] = "---#@.@@@@ # >.." "[]0123456789.---";
+						putc(tab[w&31], stdout);
 					}
 					else
 					{
-						Sys_PrintColouredChar('^' | ext);
-						Sys_PrintColouredChar ((*str++) | ext);
+						static char tab[32] = ".####.#### # >.." "[]0123456789.---";
+						putc(tab[w&31], stdout);
 					}
-					continue;
 				}
-				Sys_PrintColouredChar ((*str++) | ext);
+				else
+				{
+					/*putwc doesn't like me. force it in utf8*/
+					if (w >= 0x80)
+					{
+						if (w > 0x800)
+						{
+							putc(0xe0 | ((w>>12)&0x0f), stdout);
+							putc(0x80 | ((w>>6)&0x3f), stdout);
+						}
+						else
+							putc(0xc0 | ((w>>6)&0x1f), stdout);
+						putc(0x80 | (w&0x3f), stdout);
+					}
+					else
+						putc(w, stdout);
+				}
 			}
-
-			ApplyColour(CON_WHITEMASK);
 		}
 		else
 		{
-			for (t = msg; *t; t++)
+			for (t = (unsigned char*)msg; *t; t++)
 			{
+				if (*t >= 146 && *t < 156)
+					*t = *t - 146 + '0';
+				if (*t >= 0x12 && *t <= 0x1b)
+					*t = *t - 0x12 + '0';
+				if (*t == 143)
+					*t = '.';
+				if (*t == 157 || *t == 158 || *t == 159)
+					*t = '-';
+				if (*t >= 128)
+					*t -= 128;
+				if (*t == 16)
+					*t = '[';
+				if (*t == 17)
+					*t = ']';
+				if (*t == 0x1c)
+					*t = 249;
+
 				*t &= 0x7f;
 				if ((*t > 128 || *t < 32) && *t != 10 && *t != 13 && *t != 9)
 					printf("[%02x]", *t);
@@ -445,6 +394,7 @@ void Sys_Printf (char *fmt, ...)
 			}
 		}
 
+		//and put the input line back
 		if (!sys_linebuffer.value)
 		{
 			if (coninput_len)
@@ -484,8 +434,8 @@ void Sys_Printf (char *fmt, ...)
 	if (strlen(text) > sizeof(text))
 		Sys_Error("memory overwrite in Sys_Printf");
 
-    if (sys_nostdout.value)
-        return;
+	if (sys_nostdout.value)
+		return;
 
 	for (p = (unsigned char *)text; *p; p++) {
 		*p &= 0x7f;

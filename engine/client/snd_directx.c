@@ -954,6 +954,9 @@ static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (COM_CheckParm("-wavonly"))
 		return SND_NOMORE;
 
+	if (cardnum > 5)
+		return SND_NOMORE;
+
 #ifdef MULTITHREAD
 	if (snd_mixerthread.ival)
 	{

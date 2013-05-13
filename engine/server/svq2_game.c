@@ -44,7 +44,7 @@ void *SVQ2_GetGameAPI (void *parms)
 
 	void *ret;
 
-	Con_DPrintf("Searching for %s\n", gamename);
+	Con_DPrintf("Searching for %s\n", gamename[o]);
 
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))

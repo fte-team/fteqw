@@ -9920,10 +9920,34 @@ void QCC_PR_ParseDefs (char *classname)
 				if (def->constant)
 				{
 					unsigned int i;
-					for (i = 0; i < type->size*(arraysize?arraysize:1); i++)	//make arrays of fields work.
-						*(int *)&qcc_pr_globals[def->ofs+i] = pr.size_fields+i;
+					//if the field already has a value, don't allocate new field space for it as that would confuse things.
+					//otherwise allocate new space.
+					if (*(int *)&qcc_pr_globals[def->ofs])
+					{
+						for (i = 0; i < type->size*(arraysize?arraysize:1); i++)	//make arrays of fields work.
+						{
+							if (*(int *)&qcc_pr_globals[def->ofs+i] != i + *(int *)&qcc_pr_globals[def->ofs])
+							{
+								QCC_PR_ParseWarning(0, "Inconsistant field def:");
+								QCC_PR_ParsePrintDef(0, def);
+								break;
+							}
+						}
+					}
+					else
+					{
+						for (i = 0; i < type->size*(arraysize?arraysize:1); i++)	//make arrays of fields work.
+						{
+							if (*(int *)&qcc_pr_globals[def->ofs+i])
+							{
+								QCC_PR_ParseWarning(0, "Field def already has a value:");
+								QCC_PR_ParsePrintDef(0, def);
+							}
+							*(int *)&qcc_pr_globals[def->ofs+i] = pr.size_fields+i;
+						}
 
-					pr.size_fields += i;
+						pr.size_fields += i;
+					}
 				}
 			}
 			else

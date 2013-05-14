@@ -3566,7 +3566,7 @@ char *Mod_GetBoneName(model_t *model, int bonenum)
 
 
 typedef struct {
-	char name[MAX_QPATH];
+	char name[64];
 	vec3_t org;
 	float ang[3][3];
 } md3tag_t;

@@ -1453,7 +1453,6 @@ static int Con_DrawConsoleLines(conline_t *l, int sx, int ex, int y, int top, qb
 	conchar_t *s;
 	int i;
 	int x;
-	int prev;
 
 	//deactivate the selection if the start and end is outside
 	if (

@@ -52,7 +52,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
 	}
 
-Con_Printf("Getting gamma\n");
 	SDL_GetGammaRamp(intitialgammaramps[0], intitialgammaramps[1], intitialgammaramps[2]);
 
 	if (info->fullscreen)
@@ -74,7 +73,6 @@ Con_Printf("Getting gamma\n");
 
 	ActiveApp = true;
 
-	GLVID_SetPalette (palette);
 	GL_Init(GLVID_getsdlglfunction);
 
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
@@ -142,79 +140,29 @@ void GL_EndRendering (void)
 		GL_DoSwap();
 }
 
-void	GLVID_SetPalette (unsigned char *palette)
+qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 {
-	qbyte	*pal;
-	unsigned r,g,b;
-	unsigned v;
-	unsigned short i;
-	unsigned	*table;
-	extern qbyte gammatable[256];
-
-	//
-	// 8 8 8 encoding
-	//
-	if (vid_hardwaregamma.value)
+	if (ramps)
 	{
-	//	don't built in the gamma table
-
-		pal = palette;
-		table = d_8to24rgbtable;
-		for (i=0 ; i<256 ; i++)
+		if (vid_hardwaregamma.value)
 		{
-			r = pal[0];
-			g = pal[1];
-			b = pal[2];
-			pal += 3;
-
-	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-			*table++ = v;
+			if (gammaworks)
+			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
+				SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
+				return;
+			}
+			gammaworks = !SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
 		}
-		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+		else
+			gammaworks = false;
+
+		return gammaworks;
 	}
 	else
 	{
-//computer has no hardware gamma (poor suckers) increase table accordingly
-
-		pal = palette;
-		table = d_8to24rgbtable;
-		for (i=0 ; i<256 ; i++)
-		{
-			r = gammatable[pal[0]];
-			g = gammatable[pal[1]];
-			b = gammatable[pal[2]];
-			pal += 3;
-
-	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-			*table++ = v;
-		}
-		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+		SDL_SetGammaRamp (intitialgammaramps[0], intitialgammaramps[1], intitialgammaramps[2]);
+		return true;
 	}
-
-	if (LittleLong(1) != 1)
-		for (i=0 ; i<256 ; i++)
-			d_8to24rgbtable[i] = LittleLong(d_8to24rgbtable[i]);
-}
-void	GLVID_ShiftPalette (unsigned char *palette)
-{
-	extern	unsigned short ramps[3][256];
-
-	if (vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
-	{
-		if (gammaworks)
-		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-			SDL_SetGammaRamp (ramps[0], ramps[1], ramps[2]);
-			return;
-		}
-		gammaworks = !SDL_SetGammaRamp (ramps[0], ramps[1], ramps[2]);
-	}
-	else
-
-		gammaworks = false;
 }
 
 void GLVID_SetCaption(char *text)

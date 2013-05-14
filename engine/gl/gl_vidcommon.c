@@ -28,6 +28,7 @@ void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
 void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
 const GLubyte * (APIENTRY *qglGetString) (GLenum name);
 void (APIENTRY *qglHint) (GLenum target, GLenum mode);
+GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
 void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
 void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
@@ -110,7 +111,6 @@ void (APIENTRY *qglEnd) (void);
 void (APIENTRY *qglEndList) (void);
 void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 GLuint (APIENTRY *qglGenLists) (GLsizei range);
-GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
 void (APIENTRY *qglLoadIdentity) (void);
 void (APIENTRY *qglLoadMatrixf) (const GLfloat *m);
 void (APIENTRY *qglNormal3f) (GLfloat nx, GLfloat ny, GLfloat nz);
@@ -1507,6 +1507,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglGetIntegerv		= (void *)getglcore("glGetIntegerv");
 	qglGetString		= (void *)getglcore("glGetString");
 	qglHint				= (void *)getglcore("glHint");
+	qglIsEnabled		= (void *)getglext("glIsEnabled");
 	qglReadPixels		= (void *)getglcore("glReadPixels");
 	qglTexImage2D		= (void *)getglcore("glTexImage2D");
 	qglTexSubImage2D	= (void *)getglcore("glTexSubImage2D");
@@ -1596,7 +1597,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	qglGetTexEnviv		= (void *)getglext("glGetTexEnviv");
 	qglGetPointerv		= (void *)getglext("glGetPointerv");
-	qglIsEnabled		= (void *)getglext("glIsEnabled");
 
 	qglGetStringi		= (void *)getglext("glGetStringi");
 

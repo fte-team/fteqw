@@ -7,7 +7,14 @@
 #if defined(WEBCLIENT)
 
 #if defined(FTE_TARGET_WEB)
+
+
+#define MYJS 1
+#if MYJS
+#include "web/ftejslib.h"
+#else
 #include <emscripten/emscripten.h>
+#endif
 
 typedef struct 
 {
@@ -56,11 +63,11 @@ static void VFSMEM_Flush(struct vfsfile_s *file)
 }
 static vfsfile_t *VFSMEM_File(void *data, unsigned int datasize)
 {
-       /*create a file which is already unlinked*/
-        mfile_t *f;
-        f = malloc(sizeof(*f) + datasize);
-        if (!f)
-                return NULL;
+   /*create a file which is already unlinked*/
+	mfile_t *f;
+	f = malloc(sizeof(*f) + datasize);
+	if (!f)
+		return NULL;
 	f->funcs.ReadBytes = VFSMEM_ReadBytes;
 	f->funcs.WriteBytes = VFSMEM_WriteBytes;
 	f->funcs.Seek = VFSMEM_Seek;
@@ -82,42 +89,54 @@ static void DL_Abort(struct dl_download *dl)
 static void DL_OnLoad(void *c, void *data, int datasize)
 {
 	struct dl_download *dl = c;
-	Con_Printf("download %p: success\n", dl);
 
 	//make sure the file is 'open'.
 	if (!dl->file)
 	{
 		if (*dl->localname)
 		{
-	Con_Printf("create file\n");
 			FS_CreatePath(dl->localname, FS_GAME);
 			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
 		}
 		else
 		{
 			//emscripten does not close the file. plus we seem to end up with infinite loops.
-	Con_Printf("temp file\n");
 			dl->file = VFSMEM_File(data, datasize);
 		}
 	}
 
 	if (dl->file)
 	{
-		Con_Printf("writing to file\n");
 		VFS_WRITE(dl->file, data, datasize);
 	}
 
 	dl->replycode = 200;
+#if !MYJS
 	dl->completed += datasize;
+#endif
 	dl->status = DL_FINISHED;
 }
+#if MYJS
+static void DL_OnError(void *c, int ecode)
+#else
 static void DL_OnError(void *c)
+#endif
 {
 	struct dl_download *dl = c;
 	Con_Printf("download %p: error\n", dl);
 
+#if MYJS
+	dl->replycode = ecode;
+#else
 	dl->replycode = 404;	//we don't actually know. should we not do this?
+#endif
 	dl->status = DL_FAILED;
+}
+static void DL_OnProgress(void *c, int position, int totalsize)
+{
+	struct dl_download *dl = c;
+	dl->completed = position;
+	dl->totalsize = totalsize;
 }
 
 //this becomes a poll function. the main thread will call this once a frame or so.
@@ -141,8 +160,13 @@ qboolean HTTPDL_Decide(struct dl_download *dl)
 		dl->abort = DL_Abort;
 		dl->ctx = dl;
 
-		Con_Printf("Sending %p request for %s\n", dl, url);
+#if MYJS
+		emscriptenfte_async_wget_data2(url, dl, DL_OnLoad, DL_OnError, DL_OnProgress);
+#else
+		//annoyingly, emscripten doesn't provide an onprogress callback, unlike firefox etc, so we can't actually tell how far its got.
+		//we'd need to provide our own js library to fix this. it can be done, I'm just lazy.
 		emscripten_async_wget_data(url, dl, DL_OnLoad, DL_OnError);
+#endif
 	}
 
 	return true;

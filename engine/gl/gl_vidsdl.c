@@ -31,8 +31,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	int flags;
 
-	Con_Printf("SDL GLVID_Init\n");
-
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
 #ifndef FTE_TARGET_WEB
 	SDL_SetVideoMode( 0, 0, 0, 0 );	//to get around some SDL bugs
@@ -89,7 +87,6 @@ void GLVID_DeInit (void)
 	ActiveApp = false;
 
 	IN_DeactivateMouse();
-	Con_Printf("Restoring gamma\n");
 	SDL_SetGammaRamp (intitialgammaramps[0], intitialgammaramps[1], intitialgammaramps[2]);
 
 	SDL_QuitSubSystem(SDL_INIT_VIDEO);
@@ -149,7 +146,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 			if (gammaworks)
 			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
 				SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
-				return;
+				return true;
 			}
 			gammaworks = !SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
 		}

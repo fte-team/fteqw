@@ -12,7 +12,7 @@ Module['preRun'] = function()
 	//FS.createPreloadedFile('/id1/', 'pak3.pak', '/pak3.pak', true, false);
 };
 
-Module['arguments'] = ['-nohome'];//, '+connect', 'tcp://127.0.0.1:80'];//, '-manifest', document.location + '.fmf'];
+Module['arguments'] = ['-nohome', '-manifest', document.location + '.fmf'];
 // use query string in URL as command line
 if (!document.referrer) {
 	qstring = decodeURIComponent(window.location.search.substring(1)).split(" ");

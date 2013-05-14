@@ -519,6 +519,8 @@ void Cvar_Reset_f (void)
 				}
 			}
 
+			if ((cmd->flags & CVAR_NOSET) && !strcmp(search, "*"))
+				continue;
 			// reset cvar to default
 			Cvar_Set(cmd, cmd->defaultstr);
 		}

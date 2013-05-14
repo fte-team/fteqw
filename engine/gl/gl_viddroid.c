@@ -35,28 +35,6 @@ void *GLES_GetSymbol(char *symname)
 	return ret;
 }
 
-void GLVID_SetPalette (unsigned char *palette)
-{
-	qbyte *pal;
-	unsigned int r,g,b;
-	int i;
-	unsigned *table1;
-	extern qbyte gammatable[256];
-
-	pal = palette;
-	table1 = d_8to24rgbtable;
-	for (i=0 ; i<256 ; i++)
-	{
-		r = gammatable[pal[0]];
-		g = gammatable[pal[1]];
-		b = gammatable[pal[2]];
-		pal += 3;
-		
-		*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
-	}
-	d_8to24rgbtable[255] &= LittleLong(0xffffff);	// 255 is transparent
-}
-
 #if 1
 void GL_BeginRendering(void)
 {
@@ -86,7 +64,10 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	*/
 
 	if (!sys_glesversion)
+	{
+		Sys_Printf("GLES version not specified yet\n");
 		return false;
+	}
 
 	if (sys_glesversion >= 2)
 		Sys_Printf("Loading GLES2 driver\n");
@@ -99,7 +80,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	GLVID_SetPalette (palette);
 	GL_Init(GLES_GetSymbol);
 	vid.recalc_refdef = 1;
 	return true;
@@ -192,7 +172,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = w;
 	vid.pixelheight = h;
 
-	GLVID_SetPalette (palette);
 	GL_Init(GLES_GetSymbol);
 	vid.recalc_refdef = 1;
 	return true;
@@ -212,11 +191,9 @@ void GL_DoSwap(void)
 {
 }
 
-void GLVID_ShiftPalette (unsigned char *palette)
+qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 {
-//	if (gammaworks)
-	{
-	}
+	return false;
 }
 
 void GLVID_SetCaption(char *caption)

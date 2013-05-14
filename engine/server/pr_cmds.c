@@ -9282,21 +9282,21 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},
 
-	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	"vector()"},
+	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
 	{"getlight",		PF_sv_getlight,		0,		0,		0,		92, "vector(vector org)"},// (DP_QC_GETLIGHT),
-	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	"void(string cvarname, string defaultvalue)"},
-	{"min",				PF_min,				0,		0,		0,		94,	"float(float a, float b, ...)"},// (DP_QC_MINMAXBOUND)
-	{"max",				PF_max,				0,		0,		0,		95,	"float(float a, float b, ...)"},// (DP_QC_MINMAXBOUND)
-	{"bound",			PF_bound,			0,		0,		0,		96,	"float(float minimum, float val, float maximum)"},// (DP_QC_MINMAXBOUND)
+	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	D("void(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
+	{"min",				PF_min,				0,		0,		0,		94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)
+	{"max",				PF_max,				0,		0,		0,		95,	D("float(float a, float b, ...)", "Returns the highest value of its arguments.")},// (DP_QC_MINMAXBOUND)
+	{"bound",			PF_bound,			0,		0,		0,		96,	D("float(float minimum, float val, float maximum)", "Returns val, unless minimum is higher, or maximum is less.")},// (DP_QC_MINMAXBOUND)
 	{"pow",				PF_pow,				0,		0,		0,		97,	"float(float value, float exp)"},
 	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, D("string(string cvarname)",NULL), true},	//telejano
 //DP_QC_FINDFLOAT
-	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, "entity(entity start, .float fld, float match)"},	// #98 (DP_QC_FINDFLOAT)
+	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, D("entity(entity start, .float fld, float match)", "Equivelent to the find builtin, but instead of comparing strings, this builtin compares floats. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
 
-	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	"float(string extname)"},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
+	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	D("float(string extname)", "Checks for an extension by its name (eg: checkextension(\"FRIK_FILE\") says that its okay to go ahead and use strcat).\nUse cvar_value(\"pr_checkextension\") to see if this builtin exists.")},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	"float(string builtinname)"},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
-	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("string(string cvarname)",NULL), true},
+	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("string(string cvarname)","An old/legacy equivelent of more recent/common builtins in order to read a cvar's string value."), true},
 
 //TEI_SHOWLMP2
 	{"showpic",			PF_ShowPic,			0,		0,		0,		104,	"void(string slot, string picname, float x, float y, float zone, optional entity player)"},
@@ -9328,23 +9328,23 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end telejano
 
 //fte extras
-	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200,	"float(string modelname, optional float queryonly)"},
-	{"externcall",		PF_externcall,		0,		0,		0,		201,	"__variant(float prnum, string funcname, ...)"},
-	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	"float(string progsname)"},
-	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	"__variant(float prnum, string varname)"},
-	{"externset",		PF_externset,		0,		0,		0,		204,	"void(float prnum, __variant newval, string varname)"},
-	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__variant(float prnum, void() func, ...)",NULL), true},
-	{"instr",			PF_instr,			0,		0,		0,		206,	"float(string input, string token)"},
+	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200,	D("float(string modelname, optional float queryonly)", "Acts as an alternative to precache_model(foo);setmodel(bar, foo); return bar.modelindex;\nIf queryonly is set and the model was not previously precached, the builtin will return 0 without needlessly precaching the model.")},
+	{"externcall",		PF_externcall,		0,		0,		0,		201,	D("__variant(float prnum, string funcname, ...)", "Directly call a function in a different/same progs by its name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
+	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	D("float(string progsname)", "Loads an additional .dat file into the current qcvm. The returned handle can be used with any of the externcall/externset/externvalue builtins.\nThere are cvars that allow progs to be loaded automatically.")},
+	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	D("__variant(float prnum, string varname)", "Reads a global in the named progs by the name of that global.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
+	{"externset",		PF_externset,		0,		0,		0,		204,	D("void(float prnum, __variant newval, string varname)", "Sets a global in the named progs by name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
+	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
+	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpot(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos.")},
 #ifdef Q2BSPS
-	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	"void(float portal, float state)"},
+	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	D("void(float portal, float state)", "Q2BSP: Sets the portal state attached to doors. portal is your portal id from the map.\nstate=0 means that the pvs will be blocked. entities on the other side will not be seen/sent.\nstate=1 means the portal should be open, and things beyond will now be seen.")},
 #endif
 
 	{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208,	"float(float attributes, string effectname, ...)"},
 	{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209,	"void(float type, vector pos, ...)"},
-	{"fork",			PF_Fork,			0,		0,		0,		210,	"float(optional float sleeptime)"},
-	{"abort",			PF_Abort,			0,		0,		0,		211,	"void(optional __variant ret)"},
-	{"sleep",			PF_Sleep,			0,		0,		0,		212,	"void(float sleeptime)"},
-	{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213,	"void(entity player, string key, string value)"},
+	{"fork",			PF_Fork,			0,		0,		0,		210,	D("float(optional float sleeptime)", "When called, this builtin simply returns. Twice.\nThe current 'thread' will return instantly with a return value of 0. The new 'thread' will return after sleeptime seconds with a return value of 1. See documentation for the 'sleep' builtin for limitations/requirements concerning the new thread. Note that QC should probably call abort in the new thread, as otherwise the function will return to the calling qc function twice also.")},
+	{"abort",			PF_Abort,			0,		0,		0,		211,	D("void(optional __variant ret)", "QC execution is aborted. Parent QC functions on the stack will be skipped, effectively this forces all QC functions to 'return ret' until execution returns to the engine. If ret is ommited, it is assumed to be 0.")},
+	{"sleep",			PF_Sleep,			0,		0,		0,		212,	D("void(float sleeptime)", "Suspends the current QC execution thread for 'sleeptime' seconds.\nOther QC functions can and will be executed in the interim, including changing globals and field state (but not simultaneously).\nThe self and other globals will be restored when the thread wakes up (or set to world if they were removed since the thread started sleeping). Locals will be preserved, but will not be protected from remove calls.\nIf the engine is expecting the QC to return a value (even in the parent/root function), the value 0 shall be used instead of waiting for the qc to resume.")},
+	{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213,	D("void(entity player, string key, string value)", "Directly changes a user's info without pinging off the client. Also allows explicitly setting * keys, including *spectator. Does not affect the user's config or other servers.")},
 #ifdef SVCHAT
 	{"chat",			PF_chat,			0,		0,		0,		214,	"void(string filename, float starttag, entity edict)"}, //(FTE_NPCCHAT)
 #endif
@@ -9362,20 +9362,20 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220,	D("",NULL), true},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
 
 //FTE_STRINGS
-	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221,	"float(string s1, string sub, optional float startidx)"},
-	{"str2chr",			PF_str2chr,			0,		0,		0,		222,	"float(string str, float index)"},
-	{"chr2str",			PF_chr2str,			0,		0,		0,		223,	"string(float chr, ...)"},
-	{"strconv",			PF_strconv,			0,		0,		0,		224,	"string(float ccase, float redalpha, float redchars, string str, ...)"},
-	{"strpad",			PF_strpad,			0,		0,		0,		225,	"string(float pad, string str1, ...)"},	//will be moved
-	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	"string(string old, string key, string value)"},
-	{"infoget",			PF_infoget,			0,		0,		0,		227,	"string(string info, string key)"},
-	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	"float(string s1, string s2, float len, optional float s1ofs)"},
-	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229,	"float(string s1, string s2)"},
-	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230,	"float(string s1, string s2, float len, optional float s1ofs)"},
+	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221,	D("float(string s1, string sub, optional float startidx)", "Returns the 0-based offset of sub within the s1 string, or -1 if sub is not in s1.\nIf startidx is set, this builtin will ignore matches before that 0-based offset.")},
+	{"str2chr",			PF_str2chr,			0,		0,		0,		222,	D("float(string str, float index)", "Retrieves the character value at offset 'index'.")},
+	{"chr2str",			PF_chr2str,			0,		0,		0,		223,	D("string(float chr, ...)", "The input floats are considered character values, and are concatenated.")},
+	{"strconv",			PF_strconv,			0,		0,		0,		224,	D("string(float ccase, float redalpha, float redchars, string str, ...)", "Converts quake chars in the input string amongst different representations.\nccase specifies the new case for letters.\n 0: not changed.\n 1: forced to lower case.\n 2: forced to upper case.\nredalpha and redchars switch between colour ranges.\n 0: no change.\n 1: Forced white.\n 2: Forced red.\n 3: Forced gold(low) (numbers only).\n 4: Forced gold (high) (numbers only).\n 5+6: Forced to white and red alternately.\nYou should not use this builtin in combination with UTF-8.")},
+	{"strpad",			PF_strpad,			0,		0,		0,		225,	D("string(float pad, string str1, ...)", "Pads the string with spaces, to ensure its a specific length (so long as a fixed-width font is used, anyway). If pad is negative, the spaces are added on the left. If positive the padding is on the right.")},	//will be moved
+	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	D("string(string old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
+	{"infoget",			PF_infoget,			0,		0,		0,		227,	D("string(string info, string key)", "Reads a named value from an infostring. The returned value is a tempstring")},
+	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	D("float(string s1, string s2, float len, optional float s1ofs)", "Compares up to 'len' chars in the two strings. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
+	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229,	D("float(string s1, string s2)",  "Compares the two strings without case sensitivity.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
+	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230,	D("float(string s1, string s2, float len, optional float s1ofs)", "Compares up to 'len' chars in the two strings without case sensitivity. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
 //END FTE_STRINGS
 
 //FTE_CALLTIMEOFDAY
-	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	"void()"},
+	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	D("void()", "Asks the engine to instantly call the qc's 'timeofday' function, before returning. For compatibility with mvdsv.\ntimeofday should have the prototype: void(float secs, float mins, float hour, float day, float mon, float year, string strvalue)\nThe strftime builtin is more versatile and less weird.")},
 
 //EXT_CSQC
 	{"clientstat",		PF_clientstat,		0,		0,		0,		232,	D("void(float num, float type, .__variant fld)", "Specifies what data to use in order to send various stats, in a client-specific way.\n'num' should be a value between 32 and 127, other values are reserved.\n'type' must be set to one of the EV_* constants, one of EV_FLOAT, EV_STRING, EV_INTEGER, EV_ENTITY.\nfld must be a reference to the field used, each player will be sent only their own copy of these fields.")},	//EXT_CSQC
@@ -9385,7 +9385,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"rotatevectorsbyangle",PF_rotatevectorsbyangles,0,0,	0,		235,	"void(vector angle)"}, // #235
 	{"rotatevectorsbyvectors",PF_rotatevectorsbymatrix,0,0,	0,		236,	"void(vector fwd, vector right, vector up)"}, // #236
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237,	"float(float mdlindex, string skinname)"},		// #237
-	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	"float(string shadername, optional string defaultshader, ...)"},
+	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	D("float(string shadername, optional string defaultshader, ...)", "Caches the named shader and returns a handle to it.\nIf the shader could not be loaded from disk (missing file or ruleset_allow_shaders 0), it will be created from the 'defaultshader' string if specified, or a 'skin shader' default will be used.\ndefaultshader if not empty should include the outer {} that you would ordinarily find in a shader.")},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239,	"void(vector org, optional float count)"},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240,	"float(vector viewpos, entity entity)"},
@@ -9494,8 +9494,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getstats",		PF_Fixme,	0,		0,		0,		332,	D("string(float firststnum)", "Retrieves the value of the given EV_STRING stat, as a tempstring.\nOlder engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but "DISTRIBUTION" uses a separate namespace for string stats and has a much higher length limit.")},
 
 //EXT_CSQC
-	{"setmodelindex",	PF_Fixme,	0,		0,		0,		333,	"void(entity e, float mdlindex)"},//
-	{"modelnameforindex",PF_Fixme,	0,		0,		0,		334,	"string(float mdlindex)"},//
+	{"setmodelindex",	PF_Fixme,	0,		0,		0,		333,	D("void(entity e, float mdlindex)", "Sets a model by precache index instead of by name. Otherwise identical to setmodel.")},//
+	{"modelnameforindex",PF_Fixme,	0,		0,		0,		334,	D("string(float mdlindex)", "Retrieves the name of the model based upon a precache index. This can be used to reduce csqc network traffic by enabling model matching.")},//
 
 	{"particleeffectnum",PF_sv_particleeffectnum,0,0,0,		335,	D("float(string effectname)", "Precaches the named particle effect. If your effect name is of the form 'foo.bar' then particles/foo.cfg will be loaded by the client if foo.bar was not already defined.\nDifferent engines will have different particle systems, this specifies the QC API only.")},// (EXT_CSQC)
 	{"trailparticles",	PF_sv_trailparticles,0,	0,	0,		336,	D("void(float effectnum, entity ent, vector start, vector end)", "Draws the given effect between the two named points. If ent is not world, distances will be cached in the entity in order to avoid framerate dependancies. The entity is not otherwise used.")},// (EXT_CSQC),

@@ -2165,7 +2165,7 @@ void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (ofs && (ofs < 0 || ofs > strlen(instr)))
 		G_FLOAT(OFS_RETURN) = '\0';
 	else
-		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(NULL, instr+ofs, NULL):instr[ofs];
+		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(NULL, instr+ofs, NULL):(unsigned char)instr[ofs];
 }
 
 //FTE_STRINGS

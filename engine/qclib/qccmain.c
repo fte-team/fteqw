@@ -1191,8 +1191,8 @@ strofs = (strofs+3)&~3;
 		Sys_Error("structtype error");
 	}
 
-//	if (verbose)
-//		QCC_PrintFields();
+	if (verbose >= 2)
+		QCC_PrintFields();
 
 	switch(outputsttype)
 	{
@@ -3169,6 +3169,12 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 #ifdef MAX_EXTRA_PARMS
 	memset(&extra_parms, 0, sizeof(extra_parms));
 #endif
+
+	for (p = 1; p<myargc; p++)
+	{
+		if ( !QC_strcasecmp("-v", myargv[p]) )
+			verbose++;
+	}
 
 	if ( QCC_CheckParm ("/?") || QCC_CheckParm ("?") || QCC_CheckParm ("-?") || QCC_CheckParm ("-help") || QCC_CheckParm ("--help"))
 	{

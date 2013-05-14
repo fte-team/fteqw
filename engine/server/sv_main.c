@@ -644,9 +644,12 @@ void SV_DropClient (client_t *drop)
 	else if (ISQ3CLIENT(drop))
 	{
 	}
-	//send twice, to cover packetloss a little.
-	Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
-	Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
+	if (drop->netchan.remote_address.type != NA_INVALID)
+	{
+		//send twice, to cover packetloss a little.
+		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
+		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
+	}
 
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)	//gamecode should do it all for us.
 	{
@@ -1456,7 +1459,7 @@ void SVC_GetChallenge (void)
 			{
 				buf = va("challengeResponse %i", svs.challenges[i].challenge);
 				Netchan_OutOfBand(NS_SERVER, &net_from, strlen(buf), buf);
-	}
+			}
 		}
 #endif
 	}

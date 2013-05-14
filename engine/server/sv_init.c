@@ -295,25 +295,8 @@ void SV_SaveSpawnparms (qboolean dontsave)
 		if (dontsave)	//level restart requires that stats can be reset
 			continue;
 
-		// call the progs to get default spawn parms for the new client
-		if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
-		{//oooh, evil.
-			char buffer[65536];
-			int bufsize = sizeof(buffer);
-			char *buf;
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-				host_client->spawn_parms[j] = 0;
-
-			buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, host_client->edict);
-
-			if (host_client->spawninfo)
-				Z_Free(host_client->spawninfo);
-			host_client->spawninfo = Z_Malloc(bufsize+1);
-			memcpy(host_client->spawninfo, buf, bufsize);
-			host_client->spawninfotime = sv.time;
-		}
 #ifdef VM_Q1
-		else if (svs.gametype == GT_Q1QVM)
+		if (svs.gametype == GT_Q1QVM)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
 			Q1QVM_SetChangeParms();
@@ -337,6 +320,24 @@ void SV_SaveSpawnparms (qboolean dontsave)
 				else
 					host_client->spawn_parms[j] = 0;
 			}
+		}
+
+		// call the progs to get default spawn parms for the new client
+		if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
+		{//oooh, evil.
+			char buffer[65536*4];
+			int bufsize = sizeof(buffer);
+			char *buf;
+			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+				host_client->spawn_parms[j] = 0;
+
+			buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, host_client->edict);
+
+			if (host_client->spawninfo)
+				Z_Free(host_client->spawninfo);
+			host_client->spawninfo = Z_Malloc(bufsize+1);
+			memcpy(host_client->spawninfo, buf, bufsize);
+			host_client->spawninfotime = sv.time;
 		}
 
 #ifdef SVRANKING

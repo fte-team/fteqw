@@ -677,6 +677,7 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 	vecV_t skyface_vertex[4];
 	vec2_t skyface_texcoord[4];
 	index_t skyface_index[6] = {0, 1, 2, 0, 2, 3};
+	vec4_t skyface_colours[4] = {{1,1,1,1},{1,1,1,1},{1,1,1,1},{1,1,1,1}};
 	mesh_t skyfacemesh = {0};
 
 	if (cl.skyrotate)
@@ -706,6 +707,7 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 	skyfacemesh.indexes = skyface_index;
 	skyfacemesh.st_array = skyface_texcoord;
 	skyfacemesh.xyz_array = skyface_vertex;
+	skyfacemesh.colors4f_array = skyface_colours;
 	skyfacemesh.numindexes = 6;
 	skyfacemesh.numvertexes = 4;
 

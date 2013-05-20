@@ -2057,7 +2057,7 @@ static int MapKey (int vkey)
 		key = 0;
 	if (!cl_keypad.ival)
 	{
-		switch(scantokey[key])
+		switch(key)
 		{
 		case K_KP_HOME:			return '7';
 		case K_KP_UPARROW:		return '8';

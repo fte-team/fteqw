@@ -2469,7 +2469,17 @@ static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalv
 		ret = buffer;
 		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
 	}
+	else if (!strcmp(keyname, "ignored"))	//checks to see if a player has locally been set to ignored (for text chat)
+	{
+		ret = buffer;
+		sprintf(ret, "%i", (int)cl.players[pnum].ignored);
+	}
 #ifdef VOICECHAT
+	else if (!strcmp(keyname, "vignored"))	//checks to see this player's voicechat is ignored.
+	{
+		ret = buffer;
+		sprintf(ret, "%i", (int)cl.players[pnum].vignored);
+	}
 	else if (!strcmp(keyname, "voipspeaking"))
 	{
 		ret = buffer;

@@ -563,6 +563,33 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		s_voip.decseq[sender] = seq;
 	}
 
+
+	//if there's packetloss, tell the decoder about the missing parts.
+	//no infinite loops please.
+	if ((unsigned)(seq - s_voip.decseq[sender]) > 10)
+		s_voip.decseq[sender] = seq - 10;
+	while(s_voip.decseq[sender] != seq)
+	{
+		if (decodesamps + s_voip.decframesize[sender] > sizeof(decodebuf)/sizeof(decodebuf[0]))
+		{
+			S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+			decodesamps = 0;
+		}
+		switch(codec)
+		{
+		case VOIP_SPEEX:
+			qspeex_decode_int(s_voip.decoder[sender], NULL, decodebuf + decodesamps);
+			decodesamps += s_voip.decframesize[sender];
+			break;
+		case VOIP_OPUS:
+			r = qopus_decode(s_voip.decoder[sender], NULL, 0, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
+			if (r > 0)
+				decodesamps += r;
+			break;
+		}
+		s_voip.decseq[sender]++;
+	}
+
 	while (bytes > 0)
 	{
 		if (decodesamps + s_voip.decframesize[sender] > sizeof(decodebuf)/sizeof(decodebuf[0]))
@@ -576,58 +603,34 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			bytes = 0;
 			break;
 		case VOIP_SPEEX:
-			if (s_voip.decseq[sender] != seq)
-			{
-				//tell speex about missing packets
-				qspeex_decode_int(s_voip.decoder[sender], NULL, decodebuf + decodesamps);
-				drops++;
-				s_voip.decseq[sender]++;
-			}
-			else
-			{
-				//yay, we got data
-				bytes--;
-				len = *start++;
-				if (bytes < len)
-					break;
-				qspeex_bits_read_from(&s_voip.speex.decbits[sender], start, len);
-				bytes -= len;
-				start += len;
-				qspeex_decode_int(s_voip.decoder[sender], &s_voip.speex.decbits[sender], decodebuf + decodesamps);
-				newseq++;
-			}
+			bytes--;
+			len = *start++;
+			if (bytes < len)
+				break;
+			qspeex_bits_read_from(&s_voip.speex.decbits[sender], start, len);
+			bytes -= len;
+			start += len;
+			qspeex_decode_int(s_voip.decoder[sender], &s_voip.speex.decbits[sender], decodebuf + decodesamps);
 			decodesamps += s_voip.decframesize[sender];
 			break;
 		case VOIP_OPUS:
 			bytes--;
 			len = *start++;
 			if (bytes < len)
-				break;
-
-//			len = bytes;
-
-			if (s_voip.decseq[sender] != seq)
-			{
-				r = qopus_decode(s_voip.decoder[sender], NULL, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
-				drops++;
-				s_voip.decseq[sender]++;
-			}
-			else
-			{
-				r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
-				newseq++;
-			}
+				break;		
+			r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
 			if (r > 0)
 				decodesamps += r;
+			else if (r < 0)
+				Con_Printf("Opus decoding error %i\n", r);
 
 			bytes -= len;
 			start += len;
-
-			s_voip.decseq[sender] = seq + 1;
 			break;
 		}
+		s_voip.decseq[sender]++;
+		seq++;
 	}
-	s_voip.decseq[sender] += newseq;
 
 	if (drops)
 		Con_DPrintf("%i dropped audio frames\n", drops);

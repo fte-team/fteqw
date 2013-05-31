@@ -492,13 +492,14 @@ qintptr_t VARGS Plug_S_RawAudio(void *offset, quintptr_t mask, const qintptr_t *
 	int samples = VM_LONG(arg[3]);
 	int channels = VM_LONG(arg[4]);
 	int width = VM_LONG(arg[5]);
+	int volume = VM_FLOAT(arg[6]);
 	
 	int datasize = samples * channels * width;
 	
 	if (VM_OOB(arg[1], datasize) || datasize < 1)
 		return false;
 		
-	S_RawAudio(sourceid, data, speed, samples, channels, width);
+	S_RawAudio(sourceid, data, speed, samples, channels, width, volume);
 	return 0;
 }
 

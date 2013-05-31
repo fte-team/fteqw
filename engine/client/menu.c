@@ -573,6 +573,72 @@ void M_Help_Key (int key)
 
 }
 
+
+//=============================================================================
+/* Various callback-based prompts */
+
+typedef struct
+{
+	menu_t m;
+	void (*callback)(void *, int);
+	void *ctx;
+	menubutton_t *b_yes;
+	menubutton_t *b_no;
+	menubutton_t *b_cancel;
+} promptmenu_t;
+static qboolean M_Menu_Prompt_Button (union menuoption_s *b,struct menu_s *gm, int key)
+{
+	int action;
+	promptmenu_t *m = (promptmenu_t*)gm;
+
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+		return true;
+
+	if (b == (menuoption_t*)m->b_yes)
+		action = 0;
+	else if (b == (menuoption_t*)m->b_no)
+		action = 1;
+	else //if (b == (menuoption_t*)m->b_cancel)
+		action = -1;
+	if (m->callback)
+		m->callback(m->ctx, action);
+	m->callback = NULL;
+
+	M_RemoveMenu(&m->m);
+	return true;
+}
+static void M_Menu_Prompt_Cancel (struct menu_s *gm)
+{
+	promptmenu_t *m = (promptmenu_t*)gm;
+	if (m->callback)
+		m->callback(m->ctx, -1);
+	m->callback = NULL;
+}
+void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel)
+{
+	promptmenu_t *m;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m));
+	m->callback =  callback;
+	m->ctx = ctx;
+	m->m.remove = M_Menu_Prompt_Cancel;
+
+	MC_AddWhiteText(&m->m, 64, 84,	 m1, false);
+	MC_AddWhiteText(&m->m, 64, 92,	 m2, false);
+	MC_AddWhiteText(&m->m, 64, 100,	 m3, false);
+	                
+	m->b_yes	= MC_AddCommand(&m->m, 64, 116, optionyes,		M_Menu_Prompt_Button);
+	m->b_no		= MC_AddCommand(&m->m, 144,116, optionno,		M_Menu_Prompt_Button);
+	m->b_cancel	= MC_AddCommand(&m->m, 224,116, optioncancel,	M_Menu_Prompt_Button);
+
+	m->m.selecteditem = (menuoption_t *)m->b_cancel;
+
+	MC_AddBox (&m->m, 56, 76, 25, 5);
+}
+
 //=============================================================================
 /* QUIT MENU */
 

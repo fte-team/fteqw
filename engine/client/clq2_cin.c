@@ -331,7 +331,7 @@ qbyte *CIN_ReadNextFrame (cinematics_t *cin)
 	else if (cin->s_width == 2)
 		COM_SwapLittleShortBlock((short *)samples, count*cin->s_channels);
 
-	S_RawAudio (0, samples, cin->s_rate, count, cin->s_channels, cin->s_width);
+	S_RawAudio (0, samples, cin->s_rate, count, cin->s_channels, cin->s_width, 1);
 
 	in.data = compressed;
 	in.count = size;

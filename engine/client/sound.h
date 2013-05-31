@@ -83,14 +83,15 @@ typedef struct
 
 #define PITCHSHIFT 6	/*max audio file length = (1<<32>>PITCHSHIFT)/KHZ*/
 
+#define CF_ABSVOLUME	1	// ignores volume cvar.
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
-	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume
-//	int		delay[MAXSOUNDCHANNELS];
+	int		vol[MAXSOUNDCHANNELS];		// volume, .8 fixed point.
 	int		start;			// start time in global paintsamples
 	int 	pos;			// sample position in sfx, <0 means delay sound start (shifted up by 8)
 	int     rate;			// 24.8 fixed point rate scaling
+	int		flags;			// cf_ flags
 	int		looping;		// where to loop, -1 = no looping
 	int		entnum;			// to allow overriding a specific sound
 	int		entchannel;		//int audio_fd
@@ -180,7 +181,7 @@ void S_SetUnderWater(qboolean underwater);
 void S_Restart_f (void);
 
 //plays streaming audio
-void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, int width);
+void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, int width, float volume);
 
 void CLVC_Poll (void);
 

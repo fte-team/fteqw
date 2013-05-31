@@ -36,7 +36,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	unsigned int 	outlimit;
 	int 			*p;
 	int				val;
-	int				snd_vol;
+//	int				snd_vol;
 	short			*pbuf;
 	int				i, numc;
 
@@ -44,7 +44,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	outlimit = sc->sn.samples;
 	out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
-	snd_vol = (volume.value*voicevolumemod)*256;
+//	snd_vol = (volume.value*voicevolumemod)*256;
 	numc = sc->sn.numchannels;
 
 	pbuf = sc->Lock(sc, &out_idx);
@@ -58,7 +58,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		{
 			for (i = 0; i < numc; i++)
 			{
-				val = (*p * snd_vol) >> 8;
+				val = *p;// * snd_vol) >> 8;
 				p++;
 				if (val > 0x7fff)
 					val = 0x7fff;
@@ -78,7 +78,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		{
 			for (i = 0; i < numc; i++)
 			{
-				val = (*p * snd_vol) >> 8;
+				val = *p;// * snd_vol) >> 8;
 				p++;
 				if (val > 0x7fff)
 					val = 0x7fff;
@@ -289,11 +289,6 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 	int		i;
 	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
-	if (ch->vol[0] > 255)
-		ch->vol[0] = 255;
-	if (ch->vol[1] > 255)
-		ch->vol[1] = 255;
-
 	if (ch->rate != (1<<PITCHSHIFT))
 	{
 		sfx = (signed char *)sc->data;
@@ -324,11 +319,6 @@ void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count)
 	int		i;
 	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
-	if (ch->vol[0] > 255)
-		ch->vol[0] = 255;
-	if (ch->vol[1] > 255)
-		ch->vol[1] = 255;
-
 	if (ch->rate != (1<<PITCHSHIFT))
 	{
 		sfx = (signed char *)sc->data;
@@ -355,15 +345,6 @@ void SND_PaintChannelFrom8_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	signed char *sfx;
 	int		i;
 	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
-
-	if (ch->vol[0] > 255)
-		ch->vol[0] = 255;
-	if (ch->vol[1] > 255)
-		ch->vol[1] = 255;
-	if (ch->vol[2] > 255)
-		ch->vol[2] = 255;
-	if (ch->vol[3] > 255)
-		ch->vol[3] = 255;
 
 	if (ch->rate != (1<<PITCHSHIFT))
 	{
@@ -397,19 +378,6 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	signed char *sfx;
 	int		i;
 	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
-
-	if (ch->vol[0] > 255)
-		ch->vol[0] = 255;
-	if (ch->vol[1] > 255)
-		ch->vol[1] = 255;
-	if (ch->vol[2] > 255)
-		ch->vol[2] = 255;
-	if (ch->vol[3] > 255)
-		ch->vol[3] = 255;
-	if (ch->vol[4] > 255)
-		ch->vol[4] = 255;
-	if (ch->vol[5] > 255)
-		ch->vol[5] = 255;
 
 	if (ch->rate != (1<<PITCHSHIFT))
 	{
@@ -447,23 +415,6 @@ void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	signed char *sfx;
 	int		i;
 	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
-
-	if (ch->vol[0] > 255)
-		ch->vol[0] = 255;
-	if (ch->vol[1] > 255)
-		ch->vol[1] = 255;
-	if (ch->vol[2] > 255)
-		ch->vol[2] = 255;
-	if (ch->vol[3] > 255)
-		ch->vol[3] = 255;
-	if (ch->vol[4] > 255)
-		ch->vol[4] = 255;
-	if (ch->vol[5] > 255)
-		ch->vol[5] = 255;
-	if (ch->vol[6] > 255)
-		ch->vol[6] = 255;
-	if (ch->vol[7] > 255)
-		ch->vol[7] = 255;
 
 	if (ch->rate != (1<<PITCHSHIFT))
 	{

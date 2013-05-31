@@ -339,14 +339,17 @@ static dllfunction_t qopusfuncs[] =
 #define qspeex_bits_write speex_bits_write
 
 #define qspeex_preprocess_state_init speex_preprocess_state_init
+#define qspeex_preprocess_state_destroy speex_preprocess_state_destroy
 #define qspeex_preprocess_ctl speex_preprocess_ctl
 #define qspeex_preprocess_run speex_preprocess_run
 
 #define qspeex_encoder_init speex_encoder_init
+#define qspeex_encoder_destroy speex_encoder_destroy
 #define qspeex_encoder_ctl speex_encoder_ctl
 #define qspeex_encode_int speex_encode_int
 
 #define qspeex_decoder_init speex_decoder_init
+#define qspeex_decoder_destroy speex_decoder_destroy
 #define qspeex_decode_int speex_decode_int
 #define qspeex_bits_read_from speex_bits_read_from
 #else

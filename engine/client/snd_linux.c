@@ -354,7 +354,7 @@ int (*pOSS_InitCard) (soundcardinfo_t *sc, int cardnum) = &OSS_InitCard;
 
 
 
-#if 0//I'm unable to test due to alsa    def VOICECHAT
+#ifdef VOICECHAT	//this does apparently work after all.
 #include <stdint.h>
 void *OSS_Capture_Init(int rate)
 {

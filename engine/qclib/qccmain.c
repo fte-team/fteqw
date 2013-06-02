@@ -95,6 +95,7 @@ hashtable_t globalstable;
 hashtable_t localstable;
 #ifdef WRITEASM
 FILE *asmfile;
+pbool asmfilebegun;
 #endif
 hashtable_t floatconstdefstable;
 hashtable_t stringconstdefstable;
@@ -835,6 +836,7 @@ pbool QCC_WriteData (int crc)
 		if (def->references<=0)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
+			pr_scope = def->scope;
 			if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references", def->name))
 			{
 				if (!warnedunref)
@@ -843,6 +845,7 @@ pbool QCC_WriteData (int crc)
 					warnedunref = true;
 				}
 			}
+			pr_scope = NULL;
 
 			if (opt_unreferenced && def->type->type != ev_field)
 			{
@@ -860,7 +863,7 @@ pbool QCC_WriteData (int crc)
 			}
 			if (!def->timescalled)
 			{
-				if (def->references<=1)
+				if (def->references<=1 && strncmp(def->name, "spawnfunc_", 10))
 					QCC_PR_Warning(WARN_DEADCODE, strings + def->s_file, def->s_line, "%s is never directly called or referenced (spawn function or dead code)", def->name);
 //				else
 //					QCC_PR_Warning(WARN_DEADCODE, strings + def->s_file, def->s_line, "%s is never directly called", def->name);
@@ -1714,9 +1717,8 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed)
 	qcc_typeinfo[numtypeinfos].type = basictype;
 	qcc_typeinfo[numtypeinfos].name = name;
 	qcc_typeinfo[numtypeinfos].num_parms = 0;
-	qcc_typeinfo[numtypeinfos].param = NULL;
+	qcc_typeinfo[numtypeinfos].params = NULL;
 	qcc_typeinfo[numtypeinfos].size = type_size[basictype];
-	qcc_typeinfo[numtypeinfos].arraysize = 0;
 	qcc_typeinfo[numtypeinfos].typedefed = typedefed;
 
 
@@ -2754,6 +2756,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
 				qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
 				qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
+				qccwarningaction[WARN_SELFNOTTHIS] = WA_IGNORE;
 			}
 			else
 			{
@@ -2899,6 +2902,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
 	qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
 	qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;	//not sure about this being ignored by default.
+	qccwarningaction[WARN_SELFNOTTHIS] = WA_IGNORE;
 
 	if (QCC_CheckParm("-h2"))
 		qccwarningaction[WARN_CASEINSENSATIVEFRAMEMACRO] = WA_IGNORE;
@@ -3278,6 +3282,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		if (!asmfile)
 			QCC_Error (ERR_INTERNAL, "Couldn't open file for asm output.");
 	}
+	asmfilebegun = !!asmfile;
 #endif
 
 	newstylesource = false;

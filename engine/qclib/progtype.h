@@ -10,7 +10,7 @@ typedef vec_t vec3_t[3];
 
 #ifndef t_bool
 #define t_bool
-typedef int pbool;
+typedef unsigned int pbool;
 
 #else
 #define t_bool

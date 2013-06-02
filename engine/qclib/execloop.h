@@ -489,7 +489,7 @@ reeval:
 
 	//get a pointer to a field var
 	case OP_ADDRESS:
-		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
 			if (PR_RunWarning (&progfuncs->funcs, "OP_ADDRESS references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
@@ -538,10 +538,16 @@ reeval:
 	case OP_LOAD_ENT:
 	case OP_LOAD_S:
 	case OP_LOAD_FNC:
-		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "OP_LOAD references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			
+			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			{
+				st--;
+				goto cont;
+			}
+			PR_RunError (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
@@ -552,7 +558,7 @@ reeval:
 		break;
 
 	case OP_LOAD_V:
-		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "OP_LOAD_V references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));

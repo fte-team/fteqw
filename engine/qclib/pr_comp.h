@@ -355,6 +355,13 @@ enum qcop_e {
 	OP_BINARYNOT_F,
 	OP_BINARYNOT_I,
 
+	OP_EQ_P,
+	OP_NE_P,
+	OP_LE_P,
+	OP_GE_P,
+	OP_LT_P,
+	OP_GT_P,
+
 	OP_NUMOPS
 };
 

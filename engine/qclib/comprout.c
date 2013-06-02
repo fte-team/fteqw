@@ -54,7 +54,7 @@ void PostCompile(void)
 	{
 		fclose(asmfile);
 		asmfile = NULL;
-	}	
+	}
 }
 pbool PreCompile(void)
 {

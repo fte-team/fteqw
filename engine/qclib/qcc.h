@@ -284,6 +284,7 @@ extern hashtable_t globalstable, localstable;
 
 #ifdef WRITEASM
 extern FILE *asmfile;
+extern pbool asmfilebegun;
 #endif
 //=============================================================================
 
@@ -293,22 +294,30 @@ typedef struct QCC_function_s QCC_function_t;
 
 #define	MAX_PARMS	8
 
+typedef struct QCC_typeparam_s
+{
+	struct QCC_type_s *type;
+	pbool optional;
+	unsigned int ofs;
+	unsigned int arraysize;
+	char *paramname;
+};
+
 typedef struct QCC_type_s
 {
 	etype_t			type;
 
 	struct QCC_type_s	*parentclass;	//type_entity...
-	struct QCC_type_s	*next;
+//	struct QCC_type_s	*next;
 // function types are more complex
 	struct QCC_type_s	*aux_type;	// return type or field type
-	struct QCC_type_s	*param;
-	int				num_parms;	// -1 = variable args
-//	struct QCC_type_s	*parm_types[MAX_PARMS];	// only [num_parms] allocated	
+	
+	struct QCC_typeparam_s *params; //[num_parms]
+	unsigned int		num_parms;
 
-	unsigned int ofs;	//inside a structure.
 	unsigned int size;
-	unsigned int arraysize;
-	pbool typedefed;
+	pbool typedefed:1;
+	pbool vargs:1;
 	char *name;
 	char *aname;
 } QCC_type_t;
@@ -638,6 +647,7 @@ enum {
 	WARN_MISSINGOPTIONAL,
 	WARN_SYSTEMCRC,
 	WARN_CONDITIONALTYPEMISMATCH,
+	WARN_SELFNOTTHIS,	//warned for because 'self' does not have the right type. we convert such references to 'this' instead, which is more usable.
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

@@ -190,6 +190,10 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define Q_vsnprintf vsnprintf
 #endif
 
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
 
 #define sv_num_edicts (*externs->sv_num_edicts)
 #define sv_edicts (*externs->sv_edicts)

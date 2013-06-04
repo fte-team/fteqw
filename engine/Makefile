@@ -1,6 +1,6 @@
 CC=gcc
 WINDRES=windres
-STRIP=strip
+STRIP?=echo strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
@@ -8,6 +8,8 @@ CPUOPTIMIZATIONS=
 
 #canonicalize the source path. except emscripten warns about that like crazy. *sigh*
 ifeq ($(FTE_TARGET),web)
+	BASE_DIR:=.
+else ifeq ($(FTE_TARGET),droid)
 	BASE_DIR:=.
 else
 	BASE_DIR:=$(realpath .)
@@ -86,9 +88,9 @@ ifeq ($(FTE_TARGET),droid)
 	else
 		#we're running upon windows
 		ifeq ($(DROID_ARCH),x86)
-			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows/bin/i686-android-linux-
+			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows-x86_64/bin/i686-linux-android-
 		else
-			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows/bin/arm-linux-androideabi-
+			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows-x86_64/bin/arm-linux-androideabi-
 		endif
 		ANDROID_SCRIPT=android.bat
 		#make can't cope with absolute win32 paths in dependancy files

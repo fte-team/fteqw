@@ -3553,7 +3553,7 @@ char	pr_parm_names[MAX_PARMS+MAX_EXTRA_PARMS][MAX_NAME];
 char	pr_parm_names[MAX_PARMS][MAX_NAME];
 #endif
 
-pbool recursivefunctiontype;
+int recursivefunctiontype;
 
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
@@ -3913,7 +3913,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
 				else
 				{
-					extern int locals_end, locals_start;
+					extern unsigned int locals_end, locals_start;
 					extern QCC_type_t *pr_classtype;
 					QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
 

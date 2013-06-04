@@ -3981,24 +3981,17 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 
 			param[arg] = e;
 			paramtypes[arg] = p;
-/*			if (e->type->size>1)
-				QCC_PR_Statement (&pr_opcodes[OP_STORE_V], e, d, (QCC_dstatement_t **)0xffffffff);
-			else
-				QCC_PR_Statement (&pr_opcodes[OP_STORE_F], e, d, (QCC_dstatement_t **)0xffffffff);
-				*/
 			arg++;
 		} while (QCC_PR_CheckToken (","));
-
-		//don't warn if we omited optional arguments
-		while (np > arg && func->type->params[np-1].optional)
-			np--;
-		if (arg < np)
-			QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", func->name);
 		QCC_PR_Expect (")");
 	}
-	else if (np)
+
+	//don't warn if we omited optional arguments
+	while (np > arg && func->type->params[np-1].optional)
+		np--;
+	if (arg < np)
 	{
-		QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "%s: Too few parameters", func->name);
+		QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", func->name);
 		QCC_PR_ParsePrintDef (WARN_TOOFEWPARAMS, func);
 	}
 
@@ -4470,6 +4463,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], self, oself, NULL));
 				constructed = true;
 			}
+			constructor->references++;
 			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], ed, self, NULL));	//return to our old self. boom boom.
 			QCC_PR_SimpleStatement(OP_CALL0, constructor->ofs, 0, 0, false);
 		}

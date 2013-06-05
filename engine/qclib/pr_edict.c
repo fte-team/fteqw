@@ -498,7 +498,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		break;
 	case ev_entity:
 		fielddef = ED_FindField(progfuncs, "classname");
-		if (fielddef && val->edict < sv_num_edicts)
+		if (fielddef && (unsigned)val->edict < (unsigned)sv_num_edicts)
 		{
 			edictrun_t *ed;
 			string_t *v;

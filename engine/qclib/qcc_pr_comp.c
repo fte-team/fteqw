@@ -137,6 +137,8 @@ QCC_type_t *QCC_PR_FindType (QCC_type_t *type);
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto);
 QCC_def_t *QCC_PR_Term (int exprflags);
+QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields);
+QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign);
 QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC_def_t *arglist[], QCC_type_t *argtypelist[], int argcount);
 void QCC_Marshal_Locals(int firststatement, int laststatement);
 
@@ -1167,30 +1169,6 @@ QCC_def_t *QCC_SupplyConversion(QCC_def_t *var, etype_t wanted, pbool fatal)
 	extern char *basictypenames[];
 	int o;
 
-	if (pr_classtype && var->type->type == ev_field && wanted != ev_field)
-	{
-		if (pr_classtype)
-		{	//load self.var into a temp
-			QCC_def_t *self;
-			self = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
-			switch(wanted)
-			{
-			case ev_float:
-				return QCC_PR_Statement(pr_opcodes+OP_LOAD_F, self, var, NULL);
-			case ev_string:
-				return QCC_PR_Statement(pr_opcodes+OP_LOAD_S, self, var, NULL);
-			case ev_function:
-				return QCC_PR_Statement(pr_opcodes+OP_LOAD_FNC, self, var, NULL);
-			case ev_vector:
-				return QCC_PR_Statement(pr_opcodes+OP_LOAD_V, self, var, NULL);
-			case ev_entity:
-				return QCC_PR_Statement(pr_opcodes+OP_LOAD_ENT, self, var, NULL);
-			default:
-				QCC_Error(ERR_INTERNAL, "Inexplicit field load failed, try explicit");
-			}
-		}
-	}
-
 	o = QCC_ShouldConvert(var, wanted);
 
 	if (o == 0) //type already matches
@@ -1652,7 +1630,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 
 	if (var_a)
 	{
-		var_a->references++;
+ 		var_a->references++;
 		QCC_FreeTemp(var_a);
 	}
 	if (var_b)
@@ -3263,14 +3241,13 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC
 PR_ParseFunctionCall
 ============
 */
-QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could have no name set if it's a field call.
+QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warning, the func could have no name set if it's a field call.
 {
-	QCC_def_t		*e, *d, *oself, *out;
+	QCC_def_t		*e, *d, *out;
 	unsigned int			arg;
 	QCC_type_t		*t, *p;
 	int extraparms=false;
 	unsigned int np;
-	QCC_def_t *newself = NULL;
 
 	QCC_def_t *param[MAX_PARMS+MAX_EXTRA_PARMS];
 	QCC_type_t *paramtypes[MAX_PARMS+MAX_EXTRA_PARMS];
@@ -3684,67 +3661,128 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 		else if (!strcmp(func->name, "spawn"))
 		{
-			QCC_def_t *old;
+			QCC_def_t *oldret = NULL, *oself = NULL, *result;
 			QCC_type_t *rettype;
-			if (QCC_PR_CheckToken(")"))
-			{
-				rettype = type_entity;
-			}
-			else
+			QCC_def_t *self = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, 0);
+			/*
+			temp oldret = ret;	<if ret needs to be preserved>
+			ret = spawn();
+			ret.FOO* = FOO*;	<if any arguments are specified>
+			temp oself = self;	<if spawnfunc_foo will be called>
+			self = ret;			<if spawnfunc_foo will be called>
+			result = ret;		<if spawnfunc_foo will be called, or ret needs to be preserved>
+			spawnfunc_foo();	<if spawnfunc_foo will be called>
+			self = oself;		<if spawnfunc_foo will be called>
+			ret = oldret;		<if ret needs to be preserved>
+			return result;
+			this exact mechanism means entities can be spawned easily via maps.
+			*/
+
+			if (!QCC_PR_CheckToken(")"))
 			{
 				rettype = QCC_TypeForName(QCC_PR_ParseName());
 				if (!rettype || rettype->type != ev_entity)
 					QCC_PR_ParseError(ERR_NOTANAME, "Spawn operator with undefined class");
+			}
+			else
+				rettype = NULL;	//default, corrected to entity later
 
+			//oldret = ret;
+			if (def_ret.temp->used)
+			{
+				oldret = QCC_GetTemp(def_ret.type);
+				if (def_ret.type->size == 3)
+					QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, oldret, NULL);
+				else
+					QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, oldret, NULL);
+				QCC_UnFreeTemp(oldret);
+				QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
+			}
+
+			//ret = spawn()
+			result = QCC_PR_GenerateFunctionCall(NULL, func, NULL, NULL, 0);
+
+			if (!rettype)
+				rettype = type_entity;
+			else
+			{
+				//do field assignments.
+				while(QCC_PR_CheckToken(","))
+				{
+					QCC_def_t *f, *p, *v;
+					f = QCC_PR_ParseValue(rettype, false, false);
+					if (f->type->type != ev_field)
+						QCC_PR_ParseError(0, "Named field is not a field.");
+					if (QCC_PR_CheckToken("="))							//allow : or = as a separator, but throw a warning for =
+						QCC_PR_ParseWarning(0, "That = should be a :");	//rejecting = helps avoid qcc bugs. :P
+					else
+						QCC_PR_Expect(":");
+					v = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+
+					p = QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], result, f, NULL);
+					type_pointer->aux_type = f->type->aux_type;
+					if (v->type->size == 3)
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STOREP_V], v, p, NULL));
+					else
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STOREP_F], v, p, NULL));
+				}
 				QCC_PR_Expect(")");
 			}
 
-
-			if (def_ret.temp->used)
-			{
-				old = QCC_GetTemp(def_ret.type);
-				if (def_ret.type->size == 3)
-					QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL);
-				else
-					QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL);
-				QCC_UnFreeTemp(old);
-				QCC_UnFreeTemp(&def_ret);
-				QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
-			}
-			else
-				old = NULL;
-			/*
-			if (def_ret.temp->used)
-				QCC_PR_ParseWarning(0, "Return value conflict - output is likly to be invalid");
-			def_ret.temp->used = true;
-			*/
-
+			//tmp oself = self
 			if (rettype != type_entity)
 			{
+				oself = QCC_GetTemp(type_entity);
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], self, oself, NULL));
+				QCC_UnFreeTemp(oself);
+			}
+
+			//self = ret
+			if (oself)
+			{
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], result, self, NULL));
+			}
+
+			//result = ret (just in case spawnfunc_ breaks things)
+			if (oldret || oself)
+			{
+				QCC_def_t *tr = result;
+				tr = QCC_GetTemp(type_entity);
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], result, tr, NULL));
+				result = tr;
+				QCC_UnFreeTemp(result);
+			}
+
+			//call the spawnfunc. this will set up the vtable as required, or its a regular spawn function and will set the .think etc. same thing.
+			if (oself)
+			{
 				char genfunc[2048];
-				sprintf(genfunc, "Class*%s", rettype->name);
+				sprintf(genfunc, "spawnfunc_%s", rettype->name);
 				func = QCC_PR_GetDef(type_function, genfunc, NULL, true, 0, false);
 				func->references++;
-			}
-			QCC_PR_SimpleStatement(OP_CALL0, func->ofs, 0, 0, false);
 
-			if (old)
+				QCC_FreeTemp(QCC_PR_GenerateFunctionCall(NULL, func, NULL, NULL, 0));
+			}
+
+			//self = oself
+			if (oself)
 			{
-				d = QCC_GetTemp(rettype);
-				QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_ENT, &def_ret, d, NULL));
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, self, NULL));
+			}
+
+			//ret = oldret
+			if (oldret)
+			{
 				if (def_ret.type->size == 3)
-					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, old, &def_ret, NULL));
+					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, oldret, &def_ret, NULL));
 				else
-					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, old, &def_ret, NULL));
-				QCC_FreeTemp(old);
-				QCC_UnFreeTemp(d);
+					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, oldret, &def_ret, NULL));
+				QCC_FreeTemp(oldret);
 				QCC_UnFreeTemp(&def_ret);
 
-				return d;
 			}
-
-			def_ret.type = rettype;
-			return &def_ret;
+			result->type = rettype;
+			return result;
 		}
 		else if (!strcmp(func->name, "entnum") && !QCC_PR_CheckToken(")"))
 		{
@@ -3802,41 +3840,6 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	else
 		np = t->num_parms;
 
-	if (func->temp && strchr(func->name, ':'))
-	{
-		if (statements[numstatements-1].op == OP_LOAD_FNC && statements[numstatements-1].c == func->ofs)
-		{
-			if (statements[numstatements-2].op == OP_LOAD_ENT && statements[numstatements-2].c == statements[numstatements-1].a)
-			{
-				//a.b.f is tricky. the b.f load overwrites the a.b load's temp. so insert a new statement before the load_fnc so things don't get so crashy.
-				newself = QCC_GetTemp(type_entity);
-				//shift the OP_LOAD_FNC over
-				statements[numstatements] = statements[numstatements-1];
-				statement_linenums[numstatements] = statement_linenums[numstatements-1];
-				statements[numstatements-1] = statements[numstatements-2];
-				statement_linenums[numstatements-1] = statement_linenums[numstatements-2];
-				statements[numstatements-2].op = OP_STORE_ENT;
-				statements[numstatements-2].b = newself->ofs;
-				statements[numstatements-2].c = 0;
-			}
-			else
-			{
-				//already a global. no idea which one, but whatever
-				newself = (void *)qccHunkAlloc (sizeof(QCC_def_t));
-				newself->type = type_entity;
-				newself->name = "something";
-				newself->constant = true;
-				newself->initialized = 1;
-				newself->scope = NULL;
-				newself->arraysize = 0;
-				newself->ofs = statements[numstatements-1].a;
-			}
-		}
-		else
-			QCC_PR_ParseError(ERR_INTERNAL, "Unable to determine class for function call to %s", func->name);
-
-	}
-
 	//any temps referenced to build the parameters don't need to be locked.
 	if (!QCC_PR_CheckToken(")"))
 	{
@@ -3892,34 +3895,6 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 						QCC_PrecacheTexture (e, func->name[16]);
 					else if (!strncmp(func->name+9,"file", 4))
 						QCC_PrecacheFile (e, func->name[13]);
-				}
-			}
-
-			if (pr_classtype && e->type->type == ev_field && p->type != ev_field)
-			{	//convert.
-				oself = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
-				switch(e->type->aux_type->type)
-				{
-				case ev_string:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_S, oself, e, NULL);
-					break;
-				case ev_integer:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_I, oself, e, NULL);
-					break;
-				case ev_float:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_F, oself, e, NULL);
-					break;
-				case ev_function:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_FNC, oself, e, NULL);
-					break;
-				case ev_vector:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_V, oself, e, NULL);
-					break;
-				case ev_entity:
-					e = QCC_PR_Statement(pr_opcodes+OP_LOAD_ENT, oself, e, NULL);
-					break;
-				default:
-					QCC_Error(ERR_INTERNAL, "Bad member type. Try forced expansion");
 				}
 			}
 
@@ -4430,19 +4405,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 
 	G_FUNCTION(scope->ofs) = df - functions;
 
-	//locals here...
-	ed = QCC_PR_GetDef(type_entity, "ent", pr_scope, true, 0, false);
-
-	virt = QCC_PR_GetDef(NULL, "spawn", NULL, false, 0, false);
-	if (!virt)
-		QCC_Error(ERR_INTERNAL, "spawn function was not defined\n");
-	QCC_PR_SimpleStatement(OP_CALL0, virt->ofs, 0, 0, false);	//calling convention doesn't come into it.
-
-	def_ret.type = ed->type;
-	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], &def_ret, ed, NULL));
-
-	ed->references = 1;	//there may be no functions.
-
+	ed = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
 
 	QCC_PR_EmitClassFunctionTable(basetype, basetype, ed);
 
@@ -4456,22 +4419,21 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 
 		if (constructor)
 		{	//self = ent;
-			self = QCC_PR_GetDef(type_entity, "self", NULL, false, 0, false);
-			oself = QCC_PR_GetDef(type_entity, "oself", scope, !constructed, 0, false);
-			if (!constructed)
-			{
-				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], self, oself, NULL));
-				constructed = true;
-			}
+//			self = QCC_PR_GetDef(type_entity, "self", NULL, false, 0, false);
+//			oself = QCC_PR_GetDef(type_entity, "oself", scope, !constructed, 0, false);
+//			if (!constructed)
+//			{
+//				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], self, oself, NULL));
+//				constructed = true;
+//			}
 			constructor->references++;
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], ed, self, NULL));	//return to our old self. boom boom.
+//			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], ed, self, NULL));	//return to our old self.
 			QCC_PR_SimpleStatement(OP_CALL0, constructor->ofs, 0, 0, false);
 		}
 	}
-	if (constructed)
-		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, self, NULL));
+//	if (constructed)
+//		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, self, NULL));
 
-	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_RETURN], ed, NULL, NULL));	//apparently we do actually have to return something. *sigh*...
 	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_DONE], NULL, NULL, NULL));
 
 
@@ -4483,16 +4445,115 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	df->numparms = locals_end - locals_start;
 }
 
-QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign);
+static QCC_def_t *QCC_PR_ExpandField(QCC_def_t *ent, QCC_def_t *field)
+{
+	QCC_def_t *r, *tmp;
+	if (field->type->type != ev_field || !field->type->aux_type)
+	{
+		QCC_PR_ParseWarning(ERR_INTERNAL, "QCC_PR_ExpandField: invalid field type");
+		QCC_PR_ParsePrintDef(ERR_INTERNAL, field);
+		r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], ent, field, NULL);
+	}
+	else
+	{
+		switch(field->type->aux_type->type)
+		{
+		default:
+			QCC_PR_ParseWarning(ERR_INTERNAL, "QCC_PR_ExpandField: invalid field type");
+			QCC_PR_ParsePrintDef(ERR_INTERNAL, field);
+			break;
+		case ev_integer:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_I], ent, field, NULL);
+			break;
+		case ev_pointer:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_P], ent, field, NULL);
+			tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+			memset (tmp, 0, sizeof(QCC_def_t));
+			tmp->type = field->type->aux_type;
+			tmp->ofs = r->ofs;
+			tmp->temp = r->temp;
+			tmp->constant = false;
+			tmp->name = r->name;
+			r = tmp;
+			break;
+		case ev_field:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], ent, field, NULL);
+			tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+			memset (tmp, 0, sizeof(QCC_def_t));
+			tmp->type = field->type->aux_type;
+			tmp->ofs = r->ofs;
+			tmp->temp = r->temp;
+			tmp->constant = false;
+			tmp->name = r->name;
+			r = tmp;
+			break;
+		case ev_float:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_F], ent, field, NULL);
+			break;
+		case ev_string:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_S], ent, field, NULL);
+			break;
+		case ev_vector:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_V], ent, field, NULL);
+			break;
+		case ev_function:
+			//e.f.func() should call the function after switching the 'this' (aka: self) argument.
+			//which requires that we actually track what the new 'this' is.
+			//FIXME: maybe we should have a thiscall attribute instead? need to relax the check in QCC_PR_ParseField to any entity type
+			if (ent->type->parentclass && QCC_PR_CheckToken("("))
+			{
+				QCC_def_t *nthis = ent;
+				if (ent->temp)
+				{
+					//we need to make sure that d does not get clobbered by the load_fld.
+					//note that this is kinda inefficient as we'll be copying this value into self later on anyway.
+					QCC_def_t *t = QCC_GetTemp(type_entity);
+					nthis = QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], nthis, t, NULL);
+					QCC_UnFreeTemp(nthis);
+				}
+				r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], ent, field, NULL);
+				tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+				memset (tmp, 0, sizeof(QCC_def_t));
+				tmp->type = field->type->aux_type;
+				tmp->ofs = r->ofs;
+				tmp->temp = r->temp;
+				tmp->constant = false;
+				tmp->name = r->name;
+				r = tmp;
+
+				qcc_usefulstatement=true;
+				r = QCC_PR_ParseFunctionCall(nthis, r);
+				r = QCC_PR_ParseArrayPointer(r, true);
+			}
+			else
+			{
+				r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FNC], ent, field, NULL);
+				tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+				memset (tmp, 0, sizeof(QCC_def_t));
+				tmp->type = field->type->aux_type;
+				tmp->ofs = r->ofs;
+				tmp->temp = r->temp;
+				tmp->constant = false;
+				tmp->name = r->name;
+				r = tmp;
+			}
+			break;
+		case ev_entity:
+			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], ent, field, NULL);
+			break;
+		}
+	}
+	return r;
+}
+
 /*checks for <DEF>.foo an expands in a class-aware fashion
 normally invoked via QCC_PR_ParseArrayPointer
 */
 static QCC_def_t *QCC_PR_ParseField(QCC_def_t *d)
 {
-	QCC_def_t *tmp;
 	QCC_type_t *t;
 	t = d->type;
-	if (keyword_class && t->type == ev_entity && t->parentclass && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
+	if (t->type == ev_entity && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 	{
 		QCC_def_t *field;
 		if (QCC_PR_CheckToken("("))
@@ -4501,74 +4562,13 @@ static QCC_def_t *QCC_PR_ParseField(QCC_def_t *d)
 			QCC_PR_Expect(")");
 		}
 		else
-			field = QCC_PR_ParseValue(d->type, false);
+			field = QCC_PR_ParseValue(d->type, false, false);
 		if (field->type->type == ev_field)
-		{
-			if (!field->type->aux_type)
-			{
-				QCC_PR_ParseWarning(ERR_INTERNAL, "Field with null aux_type");
-				d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], d, field, NULL);
-			}
-			else
-			{
-				switch(field->type->aux_type->type)
-				{
-				default:
-					QCC_PR_ParseError(ERR_INTERNAL, "Bad field type");
-					break;
-				case ev_integer:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_I], d, field, NULL);
-					break;
-				case ev_pointer:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_P], d, field, NULL);
-					tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
-					memset (tmp, 0, sizeof(QCC_def_t));
-					tmp->type = field->type->aux_type;
-					tmp->ofs = d->ofs;
-					tmp->temp = d->temp;
-					tmp->constant = false;
-					tmp->name = d->name;
-					d = tmp;
-					break;
-				case ev_field:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], d, field, NULL);
-					tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
-					memset (tmp, 0, sizeof(QCC_def_t));
-					tmp->type = field->type->aux_type;
-					tmp->ofs = d->ofs;
-					tmp->temp = d->temp;
-					tmp->constant = false;
-					tmp->name = d->name;
-					d = tmp;
-					break;
-				case ev_float:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_F], d, field, NULL);
-					break;
-				case ev_string:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_S], d, field, NULL);
-					break;
-				case ev_vector:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_V], d, field, NULL);
-					break;
-				case ev_function:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FNC], d, field, NULL);
-					tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
-					memset (tmp, 0, sizeof(QCC_def_t));
-					tmp->type = field->type->aux_type;
-					tmp->ofs = d->ofs;
-					tmp->temp = d->temp;
-					tmp->constant = false;
-					tmp->name = d->name;
-					d = tmp;
-					break;
-				case ev_entity:
-					d = QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], d, field, NULL);
-					break;
-				}
-			}
-		}
+			d = QCC_PR_ExpandField(d, field);
 		else
 			QCC_PR_ParseError(ERR_INTERNAL, "Bad field type");
+
+		d = QCC_PR_ParseField(d);
 	}
 	return d;
 }
@@ -5007,7 +5007,7 @@ PR_ParseValue
 Returns the global ofs for the current token
 ============
 */
-QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
+QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields)
 {
 	QCC_def_t		*d, *od;
 	QCC_type_t		*t;
@@ -5102,13 +5102,20 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 	}
 
 	if (QCC_PR_CheckToken("::"))
+	{
 		assumeclass = NULL;
+		expandmemberfields = false;	//::classname is always usable for eg: the find builtin.
+	}
 	name = QCC_PR_ParseName ();
 
 	if (QCC_PR_CheckToken("::"))
 	{
+		expandmemberfields = false;	//this::classname should also be available to the find builtin, etc. this won't affect self.classname::member nor classname::staticfunc
+
 		if (assumeclass && !strcmp(name, "super"))
 			t = assumeclass->parentclass;
+		else if (assumeclass && !strcmp(name, "this"))
+			t = assumeclass;
 		else
 			t = QCC_TypeForName(name);
 		if (!t || t->type != ev_entity)
@@ -5124,6 +5131,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			//walk up the parents if needed, to find one that has that field
 			for(d = NULL, p = t; !d && p; p = p->parentclass)
 			{
+				//use static functions in preference to virtual functions. kinda needed so you can use super::func...
 				sprintf(membername, "%s::%s", p->name, name);
 				d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
 				if (!d)
@@ -5147,7 +5155,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 		// look through the defs
 		d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0, false);
 
-		// 'testvar' becomes 'self::testvar'
+		// 'testvar' becomes 'this::testvar'
 		if (assumeclass && assumeclass->parentclass)
 		{	//try getting a member.
 			QCC_type_t *type;
@@ -5201,23 +5209,32 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 		}
 	}
 
-	if (pr_classtype && !strcmp(name, "self"))
+	if (assumeclass && pr_classtype && !strcmp(name, "self"))
 	{
+		//use 'this' instead.
+		QCC_def_t *t = QCC_PR_GetDef(NULL, "this", pr_scope, false, 0, false);
+		if (!t)
+			t = QCC_PR_DummyDef(pr_classtype, "this", pr_scope, 0, d->ofs, true, GDF_CONST);
+		d = t;
 		QCC_PR_ParseWarning (WARN_SELFNOTTHIS, "'self' used inside OO function, use 'this'.", pr_scope->name);
-
-		if (!pr_classtype)
-			QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'this' outside of an OO function\n");
-		d = QCC_PR_GetDef(NULL, "this", pr_scope, false, 0, false);
-		if (!d)
-		{
-			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
-			d = QCC_PR_DummyDef(pr_classtype, "this", pr_scope, 0, od->ofs, true, GDF_CONST);
-		}
 	}
 
 	d = QCC_PR_ParseArrayPointer(d, allowarrayassign);
 
-	d = QCC_PR_ParseField(d);
+	if (pr_classtype && expandmemberfields && d->type->type == ev_field)
+	{
+		QCC_def_t *t;
+		if (assumeclass)
+		{
+			t = QCC_PR_GetDef(NULL, "this", pr_scope, false, 0, false);
+			if (!t)
+				t = QCC_PR_DummyDef(pr_classtype, "this", pr_scope, 0, QCC_PR_GetDef(NULL, "self", NULL, true, 0, false)->ofs, true, GDF_CONST);
+		}
+		else
+			t = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
+
+		d = QCC_PR_ExpandField(t, d);
+	}
 
 	return d;
 }
@@ -5528,7 +5545,7 @@ QCC_def_t *QCC_PR_Term (int exprflags)
 			return e;
 		}
 	}
-	return QCC_PR_ParseValue (pr_classtype, !(exprflags&EXPR_DISALLOW_ARRAYASSIGN));
+	return QCC_PR_ParseValue (pr_classtype, !(exprflags&EXPR_DISALLOW_ARRAYASSIGN), true);
 }
 
 
@@ -5599,7 +5616,7 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 			if (QCC_PR_CheckToken ("(") )
 			{
 				qcc_usefulstatement=true;
-				e = QCC_PR_ParseFunctionCall (e);
+				e = QCC_PR_ParseFunctionCall (NULL, e);
 				e = QCC_PR_ParseArrayPointer(e, true);
 			}
 			if (QCC_PR_CheckToken ("?"))
@@ -7167,7 +7184,7 @@ void QCC_PR_ParseAsm(void)
 				{
 					patch1 = &statements[numstatements];
 
-					a = QCC_PR_ParseValue(pr_classtype, false);
+					a = QCC_PR_ParseValue(pr_classtype, false, false);
 					QCC_PR_Statement3(&pr_opcodes[op], a, NULL, NULL, true);
 
 					if (pr_token_type == tt_name)
@@ -7186,8 +7203,8 @@ void QCC_PR_ParseAsm(void)
 				{
 					patch1 = &statements[numstatements];
 
-					a = QCC_PR_ParseValue(pr_classtype, false);
-					b = QCC_PR_ParseValue(pr_classtype, false);
+					a = QCC_PR_ParseValue(pr_classtype, false, false);
+					b = QCC_PR_ParseValue(pr_classtype, false, false);
 					QCC_PR_Statement3(&pr_opcodes[op], a, b, NULL, true);
 
 					if (pr_token_type == tt_name)
@@ -7206,15 +7223,15 @@ void QCC_PR_ParseAsm(void)
 			else
 			{
 				if (pr_opcodes[op].type_a != &type_void)
-					a = QCC_PR_ParseValue(pr_classtype, false);
+					a = QCC_PR_ParseValue(pr_classtype, false, false);
 				else
 					a=NULL;
 				if (pr_opcodes[op].type_b != &type_void)
-					b = QCC_PR_ParseValue(pr_classtype, false);
+					b = QCC_PR_ParseValue(pr_classtype, false, false);
 				else
 					b=NULL;
 				if (pr_opcodes[op].associative==ASSOC_LEFT && pr_opcodes[op].type_c != &type_void)
-					c = QCC_PR_ParseValue(pr_classtype, false);
+					c = QCC_PR_ParseValue(pr_classtype, false, false);
 				else
 					c=NULL;
 

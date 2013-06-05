@@ -1843,9 +1843,9 @@ int QCC_PR_FinishCompilation (void)
 					QCC_PR_EmitArraySetFunction(d, d->name+9);
 					pr_scope = NULL;
 				}
-				else if (!strncmp(d->name, "Class*", 6))
+				else if (!strncmp(d->name, "spawnfunc_", 10))
 				{
-					QCC_PR_EmitClassFromFunction(d, d->name+6);
+					QCC_PR_EmitClassFromFunction(d, d->name+10);
 					pr_scope = NULL;
 				}
 				else

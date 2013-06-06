@@ -3974,6 +3974,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 			QCC_PR_Expect(";");
 
+			if (!strcmp(parmname, classname))
+			{
+				//if there's a constructor, make sure the spawnfunc_ function is defined so that its available to maps.
+				sprintf(membername, "spawnfunc_%s", classname);
+				QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
+			}
+
 			//static members are technically funny-named globals, and do not generate fields.
 			if (isstatic || (newparm->type == ev_function && !arraysize))
 			{

@@ -1949,9 +1949,19 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 	case OP_STOREP_FNC:
 		if (typecmp_lax(var_a->type, var_b->type->aux_type))
 		{
-			TypeName(var_a->type, typea, sizeof(typea));
-			TypeName(var_b->type->aux_type, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Implicit field assignment from %s to %s", typea, typeb);
+			QCC_type_t *t = var_a->type;
+			while(t)
+			{
+				if (!typecmp_lax(t, var_b->type->aux_type))
+					break;
+				t = t->parentclass;
+			}
+			if (!t)
+			{
+				TypeName(var_a->type, typea, sizeof(typea));
+				TypeName(var_b->type->aux_type, typeb, sizeof(typeb));
+				QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Implicit field assignment from %s to %s", typea, typeb);
+			}
 		}
 		break;
 
@@ -2660,7 +2670,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 		statement->c = var_c->ofs;
 		if (op->type_b == &type_field)
 		{
-			if (var_b->type->aux_type->type == ev_entity)
+			if (var_b->type->type == ev_field && var_b->type->aux_type->type == ev_entity)
 			{
 				var_c->type = var_b->type->aux_type;
 				var_c->name = var_b->type->name;
@@ -3928,7 +3938,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warn
 						QCC_type_t *inh;
 						for (inh = e->type->parentclass; inh; inh = inh->parentclass)
 						{
-							if (typecmp(inh, p))
+							if (!typecmp(inh, p))
 								break;
 						}
 						if (!inh)
@@ -4448,11 +4458,22 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 static QCC_def_t *QCC_PR_ExpandField(QCC_def_t *ent, QCC_def_t *field)
 {
 	QCC_def_t *r, *tmp;
-	if (field->type->type != ev_field || !field->type->aux_type)
+	if (field->type->type == ev_variant || field->type->type != ev_field || !field->type->aux_type)
 	{
-		QCC_PR_ParseWarning(ERR_INTERNAL, "QCC_PR_ExpandField: invalid field type");
-		QCC_PR_ParsePrintDef(ERR_INTERNAL, field);
-		r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], ent, field, NULL);
+		if (field->type->type != ev_variant)
+		{
+			QCC_PR_ParseWarning(ERR_INTERNAL, "QCC_PR_ExpandField: invalid field type");
+			QCC_PR_ParsePrintDef(ERR_INTERNAL, field);
+		}
+		r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_V], ent, field, NULL);
+		tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+		memset (tmp, 0, sizeof(QCC_def_t));
+		tmp->type = type_variant;
+		tmp->ofs = r->ofs;
+		tmp->temp = r->temp;
+		tmp->constant = false;
+		tmp->name = r->name;
+		r = tmp;
 	}
 	else
 	{
@@ -4563,10 +4584,10 @@ static QCC_def_t *QCC_PR_ParseField(QCC_def_t *d)
 		}
 		else
 			field = QCC_PR_ParseValue(d->type, false, false);
-		if (field->type->type == ev_field)
+		if (field->type->type == ev_field || field->type->type == ev_variant)
 			d = QCC_PR_ExpandField(d, field);
 		else
-			QCC_PR_ParseError(ERR_INTERNAL, "Bad field type");
+			QCC_PR_ParseError(ERR_INTERNAL, "Bad field type of class %s", d->type->name);
 
 		d = QCC_PR_ParseField(d);
 	}
@@ -5200,11 +5221,23 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 		else
 		{
 			d = QCC_PR_GetDef (type_variant, name, pr_scope, true, 0, false);
-			if (!d)
-				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
+			if (!expandmemberfields && assumeclass)
+			{
+				if (!d)
+					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\" in class \"%s\"", name, assumeclass->name);
+				else
+				{
+					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\" in class \"%s\"", name, assumeclass->name);
+				}
+			}
 			else
 			{
-				QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
+				if (!d)
+					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
+				else
+				{
+					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
+				}
 			}
 		}
 	}

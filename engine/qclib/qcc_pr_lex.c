@@ -3735,7 +3735,7 @@ QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 {
 	QCC_type_t	*ptype;
 	char name[128];
-	sprintf(name, "FIELD TYPE(%s)", pointsto->name);
+	sprintf(name, "FIELD_TYPE(%s)", pointsto->name);
 	ptype = QCC_PR_NewType(name, ev_field, false);
 	ptype->aux_type = pointsto;
 	ptype->size = ptype->aux_type->size;
@@ -3761,14 +3761,14 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 	if (QCC_PR_CheckToken (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
 	{
-		newt = QCC_PR_NewType("FIELD TYPE", ev_field, false);
+		newt = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
 		newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
 
 		newt = QCC_PR_FindType (newt);
 
-		type = QCC_PR_NewType("FIELD TYPE", ev_field, false);
+		type = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
 		type->aux_type = newt;
 
 		type->size = type->aux_type->size;
@@ -3779,7 +3779,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	}
 	if (QCC_PR_CheckToken ("."))
 	{
-		newt = QCC_PR_NewType("FIELD TYPE", ev_field, false);
+		newt = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
 		newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
@@ -3881,6 +3881,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				isvirt = true;
 			newparm = QCC_PR_ParseType(false, false);
 
+			if (!newparm)
+				QCC_PR_ParseError(ERR_INTERNAL, "In class %s, expected type, found %s", classname, pr_token);
+
 			if (newparm->type == ev_struct || newparm->type == ev_union)	//we wouldn't be able to handle it.
 				QCC_PR_ParseError(ERR_INTERNAL, "Struct or union in class %s", classname);
 
@@ -3953,33 +3956,36 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 				if (!isvirt && !isstatic)	
 				{
+					QCC_def_t *fdef;
 					QCC_type_t *pc;
 					unsigned int i;
 					isstatic = true;	//assume static if its initialised inside the function.
+
 					for (pc = newt->parentclass; pc; pc = pc->parentclass)
 					{
 						for (i = 0; i < pc->num_parms; i++)
 						{
 							if (!strcmp(pc->params[i].paramname, parmname))
 							{
-								QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class %s. Did you forget the 'virtual' keyword?", newt->name, parmname, pc->name);
+								QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class '%s'. Did you forget the 'virtual' keyword?", newt->name, parmname, pc->name);
 								break;
 							}
 						}
 						if (i < pc->num_parms)
 							break;
 					}
+					if (!pc)
+					{
+						fdef = QCC_PR_GetDef(NULL, parmname, NULL, false, 0, GDF_CONST);
+						if (fdef && fdef->type->type == ev_field)
+						{
+							QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class 'entity'. Did you forget the 'virtual' keyword?", newt->name, parmname);
+						}
+					}
 				}
 			}
 
 			QCC_PR_Expect(";");
-
-			if (!strcmp(parmname, classname))
-			{
-				//if there's a constructor, make sure the spawnfunc_ function is defined so that its available to maps.
-				sprintf(membername, "spawnfunc_%s", classname);
-				QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
-			}
 
 			//static members are technically funny-named globals, and do not generate fields.
 			if (isstatic || (newparm->type == ev_function && !arraysize))
@@ -4035,6 +4041,16 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		newt->params = qccHunkAlloc(sizeof(*type->params) * numparms);
 		memcpy(newt->params, parms, sizeof(*type->params) * numparms);
 		free(parms);
+
+
+		{
+			QCC_def_t *d;
+			//if there's a constructor, make sure the spawnfunc_ function is defined so that its available to maps.
+			sprintf(membername, "spawnfunc_%s", classname);
+			d = QCC_PR_GetDef(type_function, membername, NULL, true, 0, GDF_CONST);
+			d->timescalled++;
+			d->references++;
+		}
 
 		QCC_PR_Expect(";");
 		return NULL;

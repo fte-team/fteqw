@@ -455,12 +455,12 @@ QCC_opcode_t pr_opcodes[] =
 
 
 
-{7, "*", "MUL_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "*", "MUL_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
 {7, "*", "MUL_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
 {7, "*", "MUL_VI", 5, ASSOC_LEFT,				&type_vector,	&type_integer,	&type_vector},
 {7, "*", "MUL_IV", 5, ASSOC_LEFT,				&type_integer,	&type_vector,	&type_vector},
 
-{7, "/", "DIV_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "/", "DIV_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
 {7, "/", "DIV_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
 
 {7, "&", "BITAND_IF", 5, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer},
@@ -1535,13 +1535,13 @@ static const char *QCC_VarAtOffset(unsigned int ofs, unsigned int size)
 						sprintf(message, "\"%.1020s\"", &strings[((int *)qcc_pr_globals)[var->ofs]]);
 						return message;
 					case ev_integer:
-						sprintf(message, "%i", ((int *)qcc_pr_globals)[var->ofs]);
+						sprintf(message, "%ii", ((int *)qcc_pr_globals)[var->ofs]);
 						return message;
 					case ev_float:
-						sprintf(message, "%f", qcc_pr_globals[var->ofs]);
+						sprintf(message, "%g", qcc_pr_globals[var->ofs]);
 						return message;
 					case ev_vector:
-						sprintf(message, "'%f %f %f'", qcc_pr_globals[var->ofs], qcc_pr_globals[var->ofs+1], qcc_pr_globals[var->ofs+2]);
+						sprintf(message, "'%g %g %g'", qcc_pr_globals[var->ofs], qcc_pr_globals[var->ofs+1], qcc_pr_globals[var->ofs+2]);
 						return message;
 					default:
 						sprintf(message, "IMMEDIATE");
@@ -1696,6 +1696,12 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				case OP_MUL_I:
 					optres_constantarithmatic++;
 					return QCC_MakeIntConst(G_INT(var_a->ofs) * G_INT(var_b->ofs));
+				case OP_MUL_IF:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(G_INT(var_a->ofs) * G_FLOAT(var_b->ofs));
+				case OP_MUL_FI:
+					optres_constantarithmatic++;
+					return QCC_MakeIntConst(G_FLOAT(var_a->ofs) * G_INT(var_b->ofs));
 				case OP_DIV_I:
 					optres_constantarithmatic++;
 					if (G_INT(var_b->ofs) == 0)
@@ -1718,6 +1724,13 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				case OP_ADD_FI:
 					optres_constantarithmatic++;
 					return QCC_MakeFloatConst(G_FLOAT(var_a->ofs) + G_INT(var_b->ofs));
+
+				case OP_SUB_IF:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(G_INT(var_a->ofs) - G_FLOAT(var_b->ofs));
+				case OP_SUB_FI:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(G_FLOAT(var_a->ofs) - G_INT(var_b->ofs));
 
 				case OP_AND_F:
 					optres_constantarithmatic++;
@@ -2271,13 +2284,14 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			var_a = var_c;
 			var_c = var_a;
 			break;
-		case OP_ADDSTORE_IF:
-			op = &pr_opcodes[OP_ADD_IF];
-			var_c = var_b;
-			var_b = var_a;
-			var_a = var_c;
-			var_c = var_a;
-			break;
+//		case OP_ADDSTORE_IF:
+//			fixme: result is a float but needs to be an int
+//			op = &pr_opcodes[OP_ADD_IF];
+//			var_c = var_b;
+//			var_b = var_a;
+//			var_a = var_c;
+//			var_c = var_a;
+//			break;
 
 		case OP_SUBSTORE_F:
 			op = &pr_opcodes[OP_SUB_F];
@@ -2293,13 +2307,14 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			var_a = var_c;
 			var_c = var_a;
 			break;
-		case OP_SUBSTORE_IF:
-			op = &pr_opcodes[OP_SUB_IF];
-			var_c = var_b;
-			var_b = var_a;
-			var_a = var_c;
-			var_c = var_a;
-			break;
+//		case OP_SUBSTORE_IF:
+//			fixme: result is a float but needs to be an int
+//			op = &pr_opcodes[OP_SUB_IF];
+//			var_c = var_b;
+//			var_b = var_a;
+//			var_a = var_c;
+//			var_c = var_a;
+//			break;
 		case OP_SUBSTORE_I:
 			op = &pr_opcodes[OP_SUB_I];
 			var_c = var_b;
@@ -2333,13 +2348,14 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			var_a = var_c;
 			var_c = var_a;
 			break;
-		case OP_DIVSTORE_IF:
-			op = &pr_opcodes[OP_DIV_IF];
-			var_c = var_b;
-			var_b = var_a;
-			var_a = var_c;
-			var_c = var_a;
-			break;
+//		case OP_DIVSTORE_IF:
+//			fixme: result is a float, but needs to be an int
+//			op = &pr_opcodes[OP_DIV_IF];
+//			var_c = var_b;
+//			var_b = var_a;
+//			var_a = var_c;
+//			var_c = var_a;
+//			break;
 		case OP_DIVSTORE_I:
 			op = &pr_opcodes[OP_DIV_I];
 			var_c = var_b;
@@ -2355,13 +2371,14 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			var_a = var_c;
 			var_c = var_a;
 			break;
-		case OP_MULSTORE_IF:
-			op = &pr_opcodes[OP_MUL_IF];
-			var_c = var_b;
-			var_b = var_a;
-			var_a = var_c;
-			var_c = var_a;
-			break;
+//		case OP_MULSTORE_IF:
+//			fixme: result is a float, but needs to be an int
+//			op = &pr_opcodes[OP_MUL_IF];
+//			var_c = var_b;
+//			var_b = var_a;
+//			var_a = var_c;
+//			var_c = var_a;
+//			break;
 		case OP_MULSTORE_FI:
 			op = &pr_opcodes[OP_MUL_FI];
 			var_c = var_b;
@@ -3058,41 +3075,31 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC
 	oself = NULL;
 	d = NULL;
 
-	if (strchr(func->name, ':') && func->temp)
+	if (newself)
 	{
-		//the function might be:
-		//parentclass::func();
-		//global.func();
-		//local.func();
-		if (func->temp && newself)
+		//we're entering OO code with a different self. make sure self is preserved.
+		//eg: other.touch(self)
+
+		self = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
+		if (newself->ofs != self->ofs)
 		{
-			//we're entering OO code with a different self. make sure self is preserved.
-			//eg: other.touch(self)
+			oself = QCC_GetTemp(type_entity);
+			//oself = self
+			QCC_PR_SimpleStatement(OP_STORE_ENT, self->ofs, oself->ofs, 0, false);
+			//self = other
+			QCC_PR_SimpleStatement(OP_STORE_ENT, newself->ofs, self->ofs, 0, false);
 
-			self = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
-			if (newself->ofs != self->ofs)
+			//if the args refered to self, update them to refer to oself instead
+			//(as self is now set to 'other')
+			for (i = 0; i < argcount; i++)
 			{
-				oself = QCC_GetTemp(type_entity);
-				//oself = self
-				QCC_PR_SimpleStatement(OP_STORE_ENT, self->ofs, oself->ofs, 0, false);
-				//self = other
-				QCC_PR_SimpleStatement(OP_STORE_ENT, newself->ofs, self->ofs, 0, false);
-
-				//if the args refered to self, update them to refer to oself instead
-				//(as self is now set to 'other')
-				for (i = 0; i < argcount; i++)
+				if (arglist[i]->ofs == self->ofs)
 				{
-					if (arglist[i]->ofs == self->ofs)
-					{
-						arglist[i] = oself;
-					}
+					arglist[i] = oself;
 				}
 			}
 		}
-		else if (pr_classtype)
-		{
-			QCC_PR_ParseWarning(0, "Class-specific call from non-class function\n");
-		}
+		QCC_FreeTemp(newself);
 	}
 
 //	write the arguments (except for first two if hexenc)
@@ -4264,6 +4271,14 @@ void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas, int *basictypefield)
 		f = QCC_MemberInParentClass(clas->params[p].paramname, clas->parentclass);
 		if (f)
 		{
+			if (f->type->type != ev_field || typecmp(f->type->aux_type, mt))
+			{
+				char ct[256];
+				char pt[256];
+				TypeName(f->type->aux_type, pt, sizeof(pt));
+				TypeName(mt, ct, sizeof(ct));
+				QCC_PR_Warning(0, NULL, 0, "type mismatch on inheritance of %s::%s. %s vs %s", clas->name, clas->params[p].paramname, ct, pt);
+			}
 			if (!m)
 			{
 				basictypefield[mt->type] += 1;
@@ -4373,9 +4388,9 @@ void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_
 }
 
 //take all functions in the type, and parent types, and make sure the links all work properly.
-void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
+void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 {
-	QCC_type_t *basetype, *parenttype;
+	QCC_type_t *parenttype;
 
 	QCC_dfunction_t *df;
 
@@ -4386,10 +4401,6 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	int basictypefield[ev_union+1];
 
 //	int func;
-
-	basetype = QCC_TypeForName(tname);
-	if (!basetype)
-		QCC_PR_ParseError(ERR_INTERNAL, "Type %s was not defined...", tname);
 
 	if (numfunctions >= MAX_FUNCTIONS)
 		QCC_Error(ERR_INTERNAL, "Too many function defs");
@@ -4407,7 +4418,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	numfunctions++;
 
 	df->s_file = scope->s_file;
-	df->s_name = 0;
+	df->s_name = QCC_CopyString(scope->name);
 	df->first_statement = numstatements;
 	df->parm_size[0] = 1;
 	df->numparms = 0;
@@ -4523,27 +4534,22 @@ static QCC_def_t *QCC_PR_ExpandField(QCC_def_t *ent, QCC_def_t *field)
 			//FIXME: maybe we should have a thiscall attribute instead? need to relax the check in QCC_PR_ParseField to any entity type
 			if (ent->type->parentclass && QCC_PR_CheckToken("("))
 			{
+				QCC_def_t *func;
 				QCC_def_t *nthis = ent;
+				nthis->references++;
+				field->references++;
 				if (ent->temp)
 				{
 					//we need to make sure that d does not get clobbered by the load_fld.
 					//note that this is kinda inefficient as we'll be copying this value into self later on anyway.
 					QCC_def_t *t = QCC_GetTemp(type_entity);
-					nthis = QCC_PR_Statement(&pr_opcodes[OP_LOAD_ENT], nthis, t, NULL);
+					nthis = QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], nthis, t, NULL);
 					QCC_UnFreeTemp(nthis);
 				}
-				r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_FLD], ent, field, NULL);
-				tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
-				memset (tmp, 0, sizeof(QCC_def_t));
-				tmp->type = field->type->aux_type;
-				tmp->ofs = r->ofs;
-				tmp->temp = r->temp;
-				tmp->constant = false;
-				tmp->name = r->name;
-				r = tmp;
-
+				func = QCC_GetTemp(field->type->aux_type);
+				QCC_PR_SimpleStatement(OP_LOAD_FNC, nthis->ofs, field->ofs, func->ofs, false);
 				qcc_usefulstatement=true;
-				r = QCC_PR_ParseFunctionCall(nthis, r);
+				r = QCC_PR_ParseFunctionCall(nthis, func);
 				r = QCC_PR_ParseArrayPointer(r, true);
 			}
 			else
@@ -9149,7 +9155,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 						sprintf(newname, "%s%s.%s", name, array, type->params[partnum].paramname);
 					else
 						sprintf(newname, "%s%s", parttype->name, array);
-					ftype = QCC_PR_NewType("FIELD TYPE", ev_field, false);
+					ftype = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
 					ftype->aux_type = parttype;
 					if (parttype->type == ev_vector)
 						ftype->size = parttype->size;	//vector fields create a _y and _z too, so we need this still.
@@ -9170,7 +9176,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 						sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					else
 						sprintf(newname, "%s%s", parttype->name, array);
-					ftype = QCC_PR_NewType("FIELD TYPE", ev_field, false);
+					ftype = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
 					ftype->aux_type = parttype;
 					def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
 					def->initialized = true;

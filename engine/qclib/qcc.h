@@ -839,7 +839,7 @@ extern	QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
 void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname);
 void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname);
-void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname);
+void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype);
 
 void PostCompile(void);
 pbool PreCompile(void);

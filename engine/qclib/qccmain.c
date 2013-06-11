@@ -837,7 +837,7 @@ pbool QCC_WriteData (int crc)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
-			if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references", def->name))
+			if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references.", def->name))
 			{
 				if (!warnedunref)
 				{
@@ -1820,6 +1820,7 @@ Returns false if errors were detected.
 int QCC_PR_FinishCompilation (void)
 {
 	QCC_def_t		*d;
+	QCC_type_t		*t;
 	int	errors;
 
 	errors = false;
@@ -1837,25 +1838,28 @@ int QCC_PR_FinishCompilation (void)
 				{
 					QCC_PR_EmitArrayGetFunction(d, d->name+9);
 					pr_scope = NULL;
+					continue;
 				}
-				else if (!strncmp(d->name, "ArraySet*", 9))
+				if (!strncmp(d->name, "ArraySet*", 9))
 				{
 					QCC_PR_EmitArraySetFunction(d, d->name+9);
 					pr_scope = NULL;
+					continue;
 				}
-				else if (!strncmp(d->name, "spawnfunc_", 10))
+				if (!strncmp(d->name, "spawnfunc_", 10))
 				{
-					QCC_PR_EmitClassFromFunction(d, d->name+10);
-					pr_scope = NULL;
+					t = QCC_TypeForName(d->name+10);
+					if (t)
+					{
+						QCC_PR_EmitClassFromFunction(d, t);
+						pr_scope = NULL;
+						continue;
+					}
 				}
-				else
-				{
-					QCC_PR_Warning(ERR_NOFUNC, strings + d->s_file, d->s_line, "function %s has no body",d->name);
-					QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
-					bodylessfuncs = true;
-					errors = true;
-				}
-//				errors = true;
+				QCC_PR_Warning(ERR_NOFUNC, strings + d->s_file, d->s_line, "function %s has no body",d->name);
+				QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
+				bodylessfuncs = true;
+				errors = true;
 			}
 			else if (d->initialized==2)
 				bodylessfuncs = true;

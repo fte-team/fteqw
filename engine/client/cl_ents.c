@@ -2880,7 +2880,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 	//we should be picking the packet just after the server time, and the one just before
 	for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 	{
-		if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].invalid)
+		if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].latency < 0 || cl.inframes[i&UPDATE_MASK].invalid)
 			continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 
 		if (cl.inframes[i&UPDATE_MASK].packet_entities.servertime >= servertime)
@@ -2915,7 +2915,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 		/*just grab the most recent frame that is valid*/
 		for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 		{
-			if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].invalid)
+			if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].latency < 0 || cl.inframes[i&UPDATE_MASK].invalid)
 				continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 			*oldf = *newf = i;
 			return true;

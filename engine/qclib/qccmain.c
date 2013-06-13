@@ -19,6 +19,7 @@ extern int optres_test2;
 
 int writeasm;
 pbool verbose;
+pbool qcc_nopragmaoptimise;
 
 
 pbool QCC_PR_SimpleGetToken (void);
@@ -216,7 +217,7 @@ optimisations_t optimisations[] =
 	//level 1 = size optimisations
 	//level 2 = speed optimisations
 	//level 3 = dodgy optimisations.
-	//level 4 = experimental...
+	//level 4 = experimental... must be used explicitly
 
 	{&opt_assignments,				"t",	1,	FLAG_ASDEFAULT,			"assignments",		"c = a*b is performed in one operation rather than two, and can cause older decompilers to fail."},
 	{&opt_shortenifnots,			"i",	1,	FLAG_ASDEFAULT,			"shortenifs",		"if (!a) was traditionally compiled in two statements. This optimisation does it in one, but can cause some decompilers to get confused."},
@@ -236,7 +237,7 @@ optimisations_t optimisations[] =
 	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
 	{&opt_stripfunctions,			"sf",	4,	0,						"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
-	{&opt_locals_overlapping,		"lo",	4,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
+	{&opt_locals_overlapping,		"lo",	3,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,					"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{NULL}
 };
@@ -381,7 +382,7 @@ int	QCC_CopyString (char *str)
 	if (!*str)
 		return 1;
 
-	if (opt_noduplicatestrings)
+	if (opt_noduplicatestrings || !strcmp(str, "IMMEDIATE"))
 	{
 #if 1
 		//more scalable (faster) version.
@@ -2604,6 +2605,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 	int             i, j, p;
 	char *name, *val;
 	pbool werror = false;
+	qcc_nopragmaoptimise = false;
 
 	for (i = 1;i<myargc;i++)
 	{
@@ -2628,6 +2630,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		//optimisations.
 		else if ( !strnicmp(myargv[i], "-O", 2) || !strnicmp(myargv[i], "/O", 2) )
 		{
+			qcc_nopragmaoptimise = true;
 			p = 0;
 			if (myargv[i][2] >= '0' && myargv[i][2] <= '3')
 			{
@@ -2826,6 +2829,7 @@ void QCC_SetDefaultProperties (void)
 
 	ForcedCRC = 0;
 	defaultstatic = 0;
+	autoprototyped = false;
 
 	QCC_PR_DefineName("FTEQCC");
 
@@ -3311,6 +3315,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		void StartNewStyleCompile(void);
 newstyle:
 		newstylesource = true;
+		originalqccmsrc = qccmsrc;
 		StartNewStyleCompile();
 		return;
 	}
@@ -3659,13 +3664,30 @@ void new_QCC_ContinueCompile(void)
 	{
 		if (pr_error_count)
 			QCC_Error (ERR_PARSEERRORS, "Errors have occured");
-		QCC_FinishCompile();
 
-		PostCompile();
-		if (!PreCompile())
+		if (autoprototype)
+		{
+			qccmsrc = originalqccmsrc;
+			pr_file_p = qccmsrc;
+			s_file = s_file2 = QCC_CopyString (compilingfile);
+
+			QCC_SetDefaultProperties();
+			autoprototyped = autoprototype;
+			autoprototype = false;
+			QCC_PR_NewLine(false);
+			QCC_PR_Lex();
 			return;
-		QCC_main(myargc, myargv);
-		return;
+		}
+		else
+		{
+			QCC_FinishCompile();
+
+			PostCompile();
+			if (!PreCompile())
+				return;
+			QCC_main(myargc, myargv);
+			return;
+		}
 	}
 
 	pr_scope = NULL;	// outside all functions

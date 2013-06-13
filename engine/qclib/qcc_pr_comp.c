@@ -67,6 +67,7 @@ pbool keyword_union;	//you surly know what a union is!
 pbool keywords_coexist;		//don't disable a keyword simply because a var was made with the same name.
 pbool output_parms;			//emit some PARMX fields. confuses decompilers.
 pbool autoprototype;		//take two passes over the source code. First time round doesn't enter and functions or initialise variables.
+pbool autoprototyped;		//previously autoprototyped. no longer allowed to enable autoproto, but don't warn about it.
 pbool pr_subscopedlocals;	//causes locals to be valid ONLY within their statement block. (they simply can't be referenced by name outside of it)
 pbool flag_ifstring;		//makes if (blah) equivelent to if (blah != "") which resolves some issues in multiprogs situations.
 pbool flag_iffloat;			//use an op_if_f instruction instead of op_if so if(-0) evaluates to false.
@@ -1948,7 +1949,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			{
 				TypeName(var_a->type, typea, sizeof(typea));
 				TypeName(var_b->type, typeb, sizeof(typeb));
-				QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Implicit assignment from %s to %s", typea, typeb);
+				QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Implicit assignment from %s to %s %s", typea, typeb, var_b->name);
 			}
 		}
 		break;
@@ -2879,6 +2880,46 @@ QCC_def_t	*QCC_PR_ParseImmediate (void)
 	return cn;
 }
 
+QCC_def_t *QCC_PR_GenerateAddressOf(int expressionstart, QCC_def_t *operand)
+{
+	QCC_def_t *e2;
+	if (expressionstart != numstatements)
+		//woo, something like ent.field?
+	{
+		if ((OP_LOAD_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOAD_FNC) || statements[numstatements-1].op == OP_LOAD_I || statements[numstatements-1].op == OP_LOAD_P)
+		{
+			statements[numstatements-1].op = OP_ADDRESS;
+			operand->type = QCC_PR_PointerType(operand->type);
+			return operand;
+		}
+		else if (OP_LOADA_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOADA_I || statements[numstatements-1].op == OP_LOADA_STRUCT)
+		{
+			statements[numstatements-1].op = OP_GLOBALADDRESS;
+			operand->type = QCC_PR_PointerType(operand->type);
+			return operand;
+		}
+		else if (OP_LOADP_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOADP_I)
+		{
+			statements[numstatements-1].op = OP_POINTER_ADD;
+			operand->type = QCC_PR_PointerType(operand->type);
+			return operand;
+		}
+		else	//this is a restriction that could be lifted, I just want to make sure that I got all the bits first.
+		{
+			QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for '&' Must be singular expression or field reference");
+			return operand;
+		}
+	}
+//			QCC_PR_ParseWarning(0, "debug: &global");
+
+	if (!QCC_OPCodeValid(&pr_opcodes[OP_GLOBALADDRESS]))
+		QCC_PR_ParseError (ERR_BADEXTENSION, "Cannot use addressof operator ('&') on a global. Please use the FTE target.");
+
+	e2 = QCC_PR_Statement (&pr_opcodes[OP_GLOBALADDRESS], operand, 0, NULL);
+	e2->type = QCC_PR_PointerType(operand->type);
+	return e2;
+}
+
 
 void QCC_PrecacheSound (QCC_def_t *e, int ch)
 {
@@ -3083,7 +3124,7 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC
 		self = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
 		if (newself->ofs != self->ofs)
 		{
-			oself = QCC_GetTemp(type_entity);
+			oself = QCC_GetTemp(pr_classtype?pr_classtype:type_entity);
 			//oself = self
 			QCC_PR_SimpleStatement(OP_STORE_ENT, self->ofs, oself->ofs, 0, false);
 			//self = other
@@ -4394,8 +4435,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 
 	QCC_dfunction_t *df;
 
-	QCC_def_t *virt;
-	QCC_def_t *ed, *oself, *self;
+	QCC_def_t *ed;
 	QCC_def_t *constructor = NULL;
 	pbool constructed = false;
 	int basictypefield[ev_union+1];
@@ -4616,6 +4656,7 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 	QCC_dstatement_t *st;
 	pbool allowarray;
 	unsigned int arraysize;
+	int statatementstart;
 
 	t = d->type;
 	arraysize = d->arraysize;
@@ -4784,6 +4825,8 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 		else
 			break;
 	}
+
+	statatementstart = numstatements;
 
 	if (idx)
 	{
@@ -5023,6 +5066,10 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 		d = QCC_PR_ParseArrayPointer(d, allowarrayassign);
 	}
 
+	//float b[64]; return b; should return a pointer, and NOT the value b[0].
+	if (arraysize)
+		d = QCC_PR_GenerateAddressOf(statatementstart, d);
+
 	d = QCC_PR_ParseField(d);
 	return d;
 }
@@ -5212,7 +5259,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 		{
 			if (!pr_classtype)
 				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'this' outside of an OO function\n");
-			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
+			od = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
 			d = QCC_PR_DummyDef(pr_classtype, "this", pr_scope, 0, od->ofs, true, GDF_CONST);
 		}
 		else if (keyword_class && !strcmp(name, "super"))
@@ -5231,6 +5278,12 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 			{
 				if (!d)
 					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\" in class \"%s\"", name, assumeclass->name);
+				else if (!assumeclass->parentclass && assumeclass != type_entity)
+				{
+					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Class \"%s\" is not defined, cannot access memeber \"%s\"", assumeclass->name, name);
+					if (!autoprototype && !autoprototyped)
+						QCC_PR_Note(ERR_UNKNOWNVALUE, strings+s_file, pr_source_line, "Consider using #pragma autoproto");
+				}
 				else
 				{
 					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\" in class \"%s\"", name, assumeclass->name);
@@ -5379,43 +5432,8 @@ QCC_def_t *QCC_PR_Term (int exprflags)
 		{
 			int st = numstatements;
 			e = QCC_PR_Expression (UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
-			t = e->type->type;
 
-			if (st != numstatements)
-				//woo, something like ent.field?
-			{
-				if ((OP_LOAD_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOAD_FNC) || statements[numstatements-1].op == OP_LOAD_I || statements[numstatements-1].op == OP_LOAD_P)
-				{
-					statements[numstatements-1].op = OP_ADDRESS;
-					e->type = QCC_PR_PointerType(e->type);
-					return e;
-				}
-				else if (OP_LOADA_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOADA_I || statements[numstatements-1].op == OP_LOADA_STRUCT)
-				{
-					statements[numstatements-1].op = OP_GLOBALADDRESS;
-					e->type = QCC_PR_PointerType(e->type);
-					return e;
-				}
-				else if (OP_LOADP_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOADP_I)
-				{
-					statements[numstatements-1].op = OP_POINTER_ADD;
-					e->type = QCC_PR_PointerType(e->type);
-					return e;
-				}
-				else	//this is a restriction that could be lifted, I just want to make sure that I got all the bits first.
-				{
-					QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for '&' Must be singular expression or field reference");
-					return e;
-				}
-			}
-//			QCC_PR_ParseWarning(0, "debug: &global");
-
-			if (!QCC_OPCodeValid(&pr_opcodes[OP_GLOBALADDRESS]))
-				QCC_PR_ParseError (ERR_BADEXTENSION, "Cannot use addressof operator ('&') on a global. Please use the FTE target.");
-
-			e2 = QCC_PR_Statement (&pr_opcodes[OP_GLOBALADDRESS], e, 0, NULL);
-			e2->type = QCC_PR_PointerType(e->type);
-			return e2;
+			return QCC_PR_GenerateAddressOf(st, e);
 		}
 		else if (QCC_PR_CheckToken ("*"))
 		{
@@ -9964,6 +9982,8 @@ void QCC_PR_ParseDefs (char *classname)
 			}
 			if (type->type == ev_struct && strcmp(type->name, "struct"))
 				return;	//allow named structs
+			if (type->type == ev_entity && type != type_entity)
+				return;	//allow forward class definititions with or without a variable. 
 //			if (type->type == ev_union)
 //			{
 //				return;

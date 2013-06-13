@@ -53,6 +53,18 @@ int numCompilerConstants;
 extern pbool expandedemptymacro;
 
 
+static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
+{
+	if (sizeofdest)
+	{
+		int slen = strlen(src);
+		slen = min((sizeofdest-1), slen);
+		memcpy(dest, src, slen);
+		dest[slen] = 0;
+	}
+}
+
+
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
@@ -168,7 +180,7 @@ void QCC_PR_PrintNextLine (void)
 
 extern char qccmsourcedir[];
 //also meant to include it.
-void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
+void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath, pbool verbose)
 {
 	char fullname[1024];
 	int doubledots;
@@ -223,6 +235,13 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 
 	strcpy(end, newfile);
 
+	if (verbose)
+	{
+		if (autoprototype)
+			printf("prototyping include %s\n", fullname);
+		else
+			printf("including %s\n", fullname);
+	}
 	QCC_Include(fullname);
 }
 
@@ -726,7 +745,7 @@ pbool QCC_PR_Precompiler(void)
 				if (!strcmp(pr_token, "#endlist"))
 					break;
 
-				QCC_FindBestInclude(pr_token, compilingfile, qccmsourcedir);
+				QCC_FindBestInclude(pr_token, compilingfile, qccmsourcedir, true);
 
 				if (*pr_file_p == '\r')
 					pr_file_p++;
@@ -769,7 +788,7 @@ pbool QCC_PR_Precompiler(void)
 			}
 			msg[a] = 0;
 
-			QCC_FindBestInclude(msg, compilingfile, qccmsourcedir);
+			QCC_FindBestInclude(msg, compilingfile, qccmsourcedir, false);
 
 			pr_file_p++;
 
@@ -884,24 +903,34 @@ pbool QCC_PR_Precompiler(void)
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
 				strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 			}
-			else if (!strncmp(qcc_token, "compress", 8))
+			else if (!QC_strcasecmp(qcc_token, "compress"))
 			{
 				extern pbool compressoutput;
 				compressoutput = atoi(msg);
 			}
-			else if (!strncmp(qcc_token, "forcecrc", 8))
+			else if (!QC_strcasecmp(qcc_token, "forcecrc"))
 			{
 				ForcedCRC = atoi(msg);
 			}
-			else if (!strncmp(qcc_token, "noref", 8))
+			else if (!QC_strcasecmp(qcc_token, "noref"))
 			{
-				defaultnoref = atoi(msg);
+				defaultnoref = !!atoi(msg);
 			}
-			else if (!strncmp(qcc_token, "defaultstatic", 13))
+			else if (!QC_strcasecmp(qcc_token, "defaultstatic"))
 			{
-				defaultstatic = atoi(msg);
+				defaultstatic = !!atoi(msg);
 			}
-			else if (!strncmp(qcc_token, "wrasm", 5))
+			else if (!QC_strcasecmp(qcc_token, "autoproto"))
+			{
+				if (!autoprototyped)
+				{
+					if (numpr_globals != RESERVED_OFS)
+						QCC_PR_ParseWarning(WARN_BADPRAGMA, "#pragma autoproto must appear before any definitions");
+					else
+						autoprototype = *msg?!!atoi(msg):true;
+				}
+			}
+			else if (!QC_strcasecmp(qcc_token, "wrasm"))
 			{
 				pbool on = atoi(msg);
 
@@ -920,7 +949,50 @@ pbool QCC_PR_Precompiler(void)
 						asmfilebegun = true;
 				}
 			}
-			else if (!strncmp(qcc_token, "sourcefile", 10))
+			else if (!QC_strcasecmp(qcc_token, "optimise") || !QC_strcasecmp(qcc_token, "optimize"))	//bloomin' americans.
+			{
+				int o;
+				extern pbool qcc_nopragmaoptimise;
+				if (pr_scope)
+					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: unable to change optimisations mid-function", qcc_token, msg);
+				else if (qcc_nopragmaoptimise)
+					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s %s: overriden by commandline", qcc_token, msg);
+				else if (*msg >= '0' && *msg <= '3')
+				{
+					int lev = atoi(msg);
+					for (o = 0; optimisations[o].enabled; o++)
+					{
+						if (optimisations[o].optimisationlevel <= lev)
+							*optimisations[o].enabled = true;
+					}
+				}
+				else
+				{
+					if (!strnicmp(msg, "no-", 3))
+					{
+						for (o = 0; optimisations[o].enabled; o++)
+						{
+							if ((*optimisations[o].abbrev && !stricmp(msg+3, optimisations[o].abbrev)) || !stricmp(msg+3, optimisations[o].fullname))
+							{
+								*optimisations[o].enabled = false;
+								break;
+							}
+						}
+					}
+					else
+					{
+						for (o = 0; optimisations[o].enabled; o++)
+							if ((*optimisations[o].abbrev && !stricmp(msg, optimisations[o].abbrev)) || !stricmp(msg, optimisations[o].fullname))
+							{
+								*optimisations[o].enabled = true;
+								break;
+							}
+					}
+					if (!optimisations[o].enabled)
+						QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: %s unsupported", qcc_token, msg);
+				}
+			}
+			else if (!QC_strcasecmp(qcc_token, "sourcefile"))
 			{
 	#define MAXSOURCEFILESLIST 8
 	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
@@ -979,11 +1051,13 @@ pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "PROGS_DAT"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
 				extern char		destfile[1024];
+				char olddest[1024];
 #ifndef QCCONLY
 				extern char qccmfilename[1024];
 				int p;
 				char *s, *s2;
 #endif
+				Q_strlcpy(olddest, destfile, sizeof(olddest));
 				QCC_COM_Parse(msg);
 
 #ifndef QCCONLY
@@ -1022,7 +1096,8 @@ pbool QCC_PR_Precompiler(void)
 
 				strcpy(destfile, qcc_token);
 #endif
-				printf("Outputfile: %s\n", destfile);
+				if (strcmp(destfile, olddest))
+					printf("Outputfile: %s\n", destfile);
 			}
 			else if (!QC_strcasecmp(qcc_token, "keyword") || !QC_strcasecmp(qcc_token, "flag"))
 			{
@@ -3813,6 +3888,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		struct QCC_typeparam_s *parms = NULL;
 		char *parmname;
 		int arraysize;
+		pbool redeclaration;
 
 		parmname = QCC_PR_ParseName();
 		classname = qccHunkAlloc(strlen(parmname)+1);
@@ -3820,8 +3896,21 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		newt = 0;
 
-		/* Don't advance the line number yet */
-		forwarddeclaration = pr_token[0] == ';';
+		if (QCC_PR_CheckToken(":"))
+		{
+			char *parentname = QCC_PR_ParseName();
+			fieldtype = QCC_TypeForName(parentname);
+			if (!fieldtype)
+				QCC_PR_ParseError(ERR_NOTANAME, "Parent class %s was not yet defined", parentname);
+			forwarddeclaration = false;
+
+			QCC_PR_Expect("{");
+		}
+		else
+		{
+			fieldtype = type_entity;
+			forwarddeclaration = !QCC_PR_CheckToken("{");
+		}
 
 		/* Look to see if this type is already defined */
 		for(i=0;i<numtypeinfos;i++)
@@ -3835,45 +3924,33 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			}
 		}
 
-		if (newt && forwarddeclaration)
-			QCC_PR_ParseError(ERR_REDECLARATION, "Forward declaration of already defined class %s", classname);
-
 		if (newt && newt->num_parms != 0)
-			QCC_PR_ParseError(ERR_REDECLARATION, "Redeclaration of class %s", classname);
-		if (pr_scope && !forwarddeclaration)
-			QCC_PR_ParseError(ERR_REDECLARATION, "Declaration of class %s within function", classname);
+			redeclaration = true;
+		else
+			redeclaration = false;
 
 		if (!newt)
+		{
 			newt = QCC_PR_NewType(classname, ev_entity, true);
-
-		newt->size=type_entity->size;
+			newt->size=type_entity->size;
+		}
 
 		type = NULL;
 
 		if (forwarddeclaration)
-		{
-			QCC_PR_CheckToken(";");
-			return NULL;
-		}
+			return newt;
 
+		if (pr_scope)
+			QCC_PR_ParseError(ERR_REDECLARATION, "Declaration of class %s within function", classname);
+		if (redeclaration && fieldtype != newt->parentclass)
+			QCC_PR_ParseError(ERR_REDECLARATION, "Parent class changed on redeclaration of %s", classname);
+		newt->parentclass = fieldtype;
 
-
-		if (QCC_PR_CheckToken(":"))
-		{
-			char *parentname = QCC_PR_ParseName();
-			newt->parentclass = QCC_TypeForName(parentname);
-			if (!newt->parentclass)
-				QCC_PR_ParseError(ERR_NOTANAME, "Parent class %s was not defined", parentname);
-		}
-		else
-			newt->parentclass = type_entity;
-
-
-		QCC_PR_Expect("{");
 		if (QCC_PR_CheckToken(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "member missing name");
 		while (!QCC_PR_CheckToken("}"))
 		{
+			pbool havebody = false;
 			pbool isstatic = false, isvirt = false;
 			if (QCC_PR_CheckKeyword(1, "static"))
 				isstatic = true;
@@ -3892,16 +3969,28 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			QCC_PR_Lex();
 			if (QCC_PR_CheckToken("["))
 			{
-				arraysize=QCC_PR_IntConstExpr();
+				arraysize = QCC_PR_IntConstExpr();
 				QCC_PR_Expect("]");
 			}
+			else
+				arraysize = 0;
 
 			if (isvirt && newparm->type != ev_function)
 			{
 				QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
 			}
 
-			if (QCC_PR_CheckToken("="))
+			if (newparm->type == ev_function)
+			{
+				if (QCC_PR_CheckToken("="))
+				{
+					havebody = true;
+				}
+				else if (pr_token[0] == '{')
+					havebody = true;
+			}
+
+			if (havebody)
 			{
 				QCC_def_t *def;
 				QCC_function_t *f;
@@ -3920,37 +4009,60 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					extern QCC_type_t *pr_classtype;
 					QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
 
-					pr_scope = def;
-					pr_classtype = newt;
-					f = QCC_PR_ParseImmediateStatements (newparm);
-					pr_classtype = NULL;
-					pr_scope = NULL;
-					G_FUNCTION(def->ofs) = numfunctions;
-					f->def = def;
-					def->initialized = 1;
-
-					if (numfunctions >= MAX_FUNCTIONS)
-						QCC_Error(ERR_INTERNAL, "Too many function defs");
-
-			// fill in the dfunction
-					df = &functions[numfunctions];
-					numfunctions++;
-					if (f->builtin)
-						df->first_statement = -f->builtin;
-					else
-						df->first_statement = f->code;
-
-					if (f->builtin && opt_function_names)
-						optres_function_names += strlen(f->def->name);
-					else
-						df->s_name = QCC_CopyString (f->def->name);
-					df->s_file = s_file;
-					df->numparms =  f->def->type->num_parms;
-					df->locals = locals_end - locals_start;
-					df->parm_start = locals_start;
-					for (i=0 ; i<df->numparms ; i++)
+					if (autoprototype)
 					{
-						df->parm_size[i] = newparm->params[i].type->size;
+						QCC_PR_Expect("{");
+
+						{
+							int blev = 1;
+							//balance out the { and }
+							while(blev)
+							{
+								if (pr_token_type == tt_eof)
+									break;
+								if (QCC_PR_CheckToken("{"))
+									blev++;
+								else if (QCC_PR_CheckToken("}"))
+									blev--;
+								else
+									QCC_PR_Lex();	//ignore it.
+							}
+						}
+					}
+					else
+					{
+						pr_scope = def;
+						pr_classtype = newt;
+						f = QCC_PR_ParseImmediateStatements (newparm);
+						pr_classtype = NULL;
+						pr_scope = NULL;
+						G_FUNCTION(def->ofs) = numfunctions;
+						f->def = def;
+						def->initialized = 1;
+
+						if (numfunctions >= MAX_FUNCTIONS)
+							QCC_Error(ERR_INTERNAL, "Too many function defs");
+
+				// fill in the dfunction
+						df = &functions[numfunctions];
+						numfunctions++;
+						if (f->builtin)
+							df->first_statement = -f->builtin;
+						else
+							df->first_statement = f->code;
+
+						if (f->builtin && opt_function_names)
+							optres_function_names += strlen(f->def->name);
+						else
+							df->s_name = QCC_CopyString (f->def->name);
+						df->s_file = s_file;
+						df->numparms =  f->def->type->num_parms;
+						df->locals = locals_end - locals_start;
+						df->parm_start = locals_start;
+						for (i=0 ; i<df->numparms ; i++)
+						{
+							df->parm_size[i] = newparm->params[i].type->size;
+						}
 					}
 				}
 
@@ -4037,11 +4149,29 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 0, 0);
 		}
 
-		newt->num_parms = numparms;
-		newt->params = qccHunkAlloc(sizeof(*type->params) * numparms);
-		memcpy(newt->params, parms, sizeof(*type->params) * numparms);
-		free(parms);
+		if (redeclaration)
+		{
+			int i;
+			redeclaration = newt->num_parms != numparms;
 
+			for (i = 0; i < numparms && i < newt->num_parms; i++)
+			{
+				if (newt->params[i].arraysize != parms[i].arraysize || typecmp(newt->params[i].type, parms[i].type) || strcmp(newt->params[i].paramname, parms[i].paramname))
+				{
+					QCC_PR_ParseError(ERR_REDECLARATION, "Incompatible redeclaration of class %s. %s differs.", classname, parms[i].paramname);
+					break;
+				}
+			}
+			if (newt->num_parms != numparms)
+				QCC_PR_ParseError(ERR_REDECLARATION, "Incompatible redeclaration of class %s.", classname);
+		}
+		else
+		{
+			newt->num_parms = numparms;
+			newt->params = qccHunkAlloc(sizeof(*type->params) * numparms);
+			memcpy(newt->params, parms, sizeof(*type->params) * numparms);
+		}
+		free(parms);
 
 		{
 			QCC_def_t *d;
@@ -4065,7 +4195,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	{
 		struct QCC_typeparam_s *parms = NULL;
 		int numparms = 0;
-		int arraysize;
+		unsigned int arraysize;
 		char *parmname;
 
 		if (QCC_PR_CheckToken("{"))
@@ -4108,7 +4238,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			else
 				newparm = QCC_PR_ParseType(true, false);
 
-			arraysize = 1;
+			arraysize = 0;
 
 			if (!QCC_PR_CheckToken(";"))
 			{
@@ -4118,6 +4248,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (QCC_PR_CheckToken("["))
 				{
 					arraysize=QCC_PR_IntConstExpr();
+					if (!arraysize)
+						QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
 					QCC_PR_Expect("]");
 				}
 				QCC_PR_CheckToken(";");
@@ -4130,13 +4262,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			if (structtype == ev_union)
 			{
 				parms[numparms].ofs = 0;
-				if (newparm->size*arraysize > newt->size)
-					newt->size = newparm->size*arraysize;
+				if (newparm->size*(arraysize?arraysize:1) > newt->size)
+					newt->size = newparm->size*(arraysize?arraysize:1);
 			}
 			else
 			{
 				parms[numparms].ofs = newt->size;
-				newt->size += newparm->size*arraysize;
+				newt->size += newparm->size*(arraysize?arraysize:1);
 			}
 			parms[numparms].arraysize = arraysize;
 			parms[numparms].optional = false;

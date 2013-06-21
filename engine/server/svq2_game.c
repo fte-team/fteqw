@@ -28,7 +28,8 @@ void *SVQ2_GetGameAPI (void *parms)
 	};
 
 	char name[MAX_OSPATH];
-	char *searchpath;
+	char searchpath[MAX_OSPATH];
+	void *iterator;
 	int o;
 	const char *gamename[] = {
 #ifdef _DEBUG
@@ -44,10 +45,10 @@ void *SVQ2_GetGameAPI (void *parms)
 
 	void *ret;
 
-	Con_DPrintf("Searching for %s\n", gamename[o]);
+	Con_DPrintf("Searching for %s\n", "game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
 
-	searchpath = 0;
-	while((searchpath = COM_NextPath(searchpath)))
+	iterator = NULL;
+	while(COM_IteratePaths(&iterator, searchpath, sizeof(searchpath)))
 	{
 		for (o = 0; gamename[o]; o++)
 		{

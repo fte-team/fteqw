@@ -55,7 +55,7 @@ void *SVQ2_GetGameAPI (void *parms)
 			snprintf(name, sizeof(name), "%s%s", searchpath, gamename[o]);
 
 			q2gamedll = Sys_LoadLibrary(name, funcs);
-			if (q2gamedll && gamename)
+			if (q2gamedll)
 			{
 				ret = GetGameAPI(parms);
 				if (ret)

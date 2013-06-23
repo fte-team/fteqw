@@ -2426,8 +2426,10 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_true, sizeof(_true));
 #endif
 
-	 
+#ifdef _WIN32 
+	//win32 is so fucked up
 	setsockopt(newsocket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&_true, sizeof(_true));
+#endif
 
 	bufsz = 1<<18;
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&bufsz, sizeof(bufsz));
@@ -5230,7 +5232,7 @@ static qboolean NET_WasStun(netsrc_t netsrc)
 				strcpy(stunmsg.uname, username);
 				stunmsg.unattr.attrtype = BigShort(0x6);
 				stunmsg.unattr.attrlen = BigShort(strlen(stunmsg.uname));
-				stunmsg.hdr.msglen = BigShort(sizeof(stunmsg.unattr)+(strlen(stunmsg.uname)+3)&~3);
+				stunmsg.hdr.msglen = BigShort(sizeof(stunmsg.unattr)+((strlen(stunmsg.uname)+3)&~3));
 				NET_SendPacket(netsrc, sizeof(stunmsg.hdr) + BigShort(stunmsg.hdr.msglen), &stunmsg, &net_from);
 			}
 
@@ -5621,13 +5623,13 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				switch(e)
 				{
 				case ECONNABORTED:
-					Sys_Printf("connection aborted\n", e);
+					Sys_Printf("connection aborted\n");
 					break;
 				case ECONNREFUSED:
-					Sys_Printf("connection refused\n", e);
+					Sys_Printf("connection refused\n");
 					break;
 				case ECONNRESET:
-					Sys_Printf("connection reset\n", e);
+					Sys_Printf("connection reset\n");
 					break;
 				default:
 					Sys_Printf("socket error %i\n", e);

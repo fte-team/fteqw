@@ -375,7 +375,7 @@ plugin_t *Plug_Load(char *file, int type)
 	return newplug;
 }
 
-static int QDECL Plug_Emumerated (const char *name, int size, void *param, void *spath)
+static int QDECL Plug_Emumerated (const char *name, int size, void *param, searchpathfuncs_t *spath)
 {
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
@@ -385,7 +385,7 @@ static int QDECL Plug_Emumerated (const char *name, int size, void *param, void 
 
 	return true;
 }
-static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, void *spath)
+static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, searchpathfuncs_t *spath)
 {
 	char vmname[MAX_QPATH];
 	int len;

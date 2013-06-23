@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include "winquake.h"
+#include "glquake.h"
 
 #include <ctype.h> // for isdigit();
 
@@ -1441,7 +1442,6 @@ void R_DrawNameTags(void)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		void GL_Set2D (qboolean flipped);
 		GL_Set2D(false);
 	}
 #endif

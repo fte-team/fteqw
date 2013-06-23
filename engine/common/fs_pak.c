@@ -63,9 +63,9 @@ static void QDECL FSPAK_GetPathDetails(searchpathfuncs_t *handle, char *out, uns
 	if (pak->references != 1)
 		Q_snprintfz(out, outlen, "(%i)", pak->references-1);
 }
-static void QDECL FSPAK_ClosePath(void *handle)
+static void QDECL FSPAK_ClosePath(searchpathfuncs_t *handle)
 {
-	pack_t *pak = handle;
+	pack_t *pak = (void*)handle;
 
 	pak->references--;
 	if (pak->references > 0)
@@ -77,9 +77,9 @@ static void QDECL FSPAK_ClosePath(void *handle)
 		Z_Free(pak->files);
 	Z_Free(pak);
 }
-void QDECL FSPAK_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+void QDECL FSPAK_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	pack_t *pak = handle;
+	pack_t *pak = (void*)handle;
 	int i;
 
 	for (i = 0; i < pak->numfiles; i++)
@@ -87,11 +87,11 @@ void QDECL FSPAK_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(in
 		AddFileHash(depth, pak->files[i].name, &pak->files[i].bucket, &pak->files[i]);
 	}
 }
-qboolean QDECL FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+qboolean QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	mpackfile_t *pf = hashedresult;
 	int i;
-	pack_t		*pak = handle;
+	pack_t		*pak = (void*)handle;
 
 // look through all the pak file elements
 
@@ -142,9 +142,9 @@ static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 	return true;
 }
 
-int QDECL FSPAK_GeneratePureCRC(void *handle, int seed, int crctype)
+int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
 {
-	pack_t *pak = handle;
+	pack_t *pak = (void*)handle;
 
 	int result;
 	int *filecrcs;
@@ -228,10 +228,10 @@ unsigned long QDECL VFSPAK_GetLen (struct vfsfile_s *vfs)
 void QDECL VFSPAK_Close(vfsfile_t *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
-	FSPAK_ClosePath(vfsp->parentpak);	//tell the parent that we don't need it open any more (reference counts)
+	FSPAK_ClosePath(&vfsp->parentpak->pub);	//tell the parent that we don't need it open any more (reference counts)
 	Z_Free(vfsp);	//free ourselves.
 }
-vfsfile_t *QDECL FSPAK_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+vfsfile_t *QDECL FSPAK_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	pack_t *pack = (pack_t*)handle;
 	vfspack_t *vfs;
@@ -261,7 +261,7 @@ vfsfile_t *QDECL FSPAK_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	return (vfsfile_t *)vfs;
 }
 
-void QDECL FSPAK_ReadFile(void *handle, flocation_t *loc, char *buffer)
+void QDECL FSPAK_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 	vfsfile_t *f;
 	f = FSPAK_OpenVFS(handle, loc, "rb");

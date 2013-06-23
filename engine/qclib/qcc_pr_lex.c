@@ -3642,7 +3642,7 @@ int recursivefunctiontype;
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 {
-	QCC_type_t	*ftype, *ptype;
+	QCC_type_t	*ftype;
 	char	*name;
 	int definenames = !recursivefunctiontype;
 	int optional = 0;
@@ -3655,7 +3655,6 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 	ftype->aux_type = returntype;	// return type
 	ftype->num_parms = 0;
-	ptype = NULL;
 
 
 	if (!QCC_PR_CheckToken (")"))
@@ -3723,10 +3722,10 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 }
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 {
-	QCC_type_t	*ftype, *ptype;
+	QCC_type_t	*ftype;
 //	char	*name;
 //	char	argname[64];
-	int definenames = !recursivefunctiontype;
+//	int definenames = !recursivefunctiontype;
 
 	recursivefunctiontype++;
 
@@ -3734,7 +3733,6 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 
 	ftype->aux_type = returntype;	// return type
 	ftype->num_parms = 0;
-	ptype = NULL;
 
 
 	if (!QCC_PR_CheckToken (")"))
@@ -4111,9 +4109,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//static members are technically funny-named globals, and do not generate fields.
 			if (isstatic || (newparm->type == ev_function && !arraysize))
 			{
-				QCC_def_t *def;
 				sprintf(membername, "%s::%s", classname, parmname);
-				def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
+				QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
 
 				if (isstatic)
 					continue;

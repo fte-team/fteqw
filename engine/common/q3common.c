@@ -186,7 +186,7 @@ typedef struct {
 	int bufferleft;
 	int skip;
 } vmsearch_t;
-static int QDECL VMEnum(const char *match, int size, void *args, void *spath)
+static int QDECL VMEnum(const char *match, int size, void *args, searchpathfuncs_t *spath)
 {
 	char *check;
 	int newlen;
@@ -210,13 +210,13 @@ static int QDECL VMEnum(const char *match, int size, void *args, void *spath)
 	return true;
 }
 
-static int QDECL IfFound(const char *match, int size, void *args, void *spath)
+static int QDECL IfFound(const char *match, int size, void *args, searchpathfuncs_t *spath)
 {
 	*(qboolean*)args = true;
 	return true;
 }
 
-static int QDECL VMEnumMods(const char *match, int size, void *args, void *spath)
+static int QDECL VMEnumMods(const char *match, int size, void *args, searchpathfuncs_t *spath)
 {
 	char *check;
 	char desc[1024];

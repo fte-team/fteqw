@@ -197,11 +197,10 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 #endif
 
 #ifndef WEBSVONLY
-static vfsfile_t *QDECL FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *QDECL FSSTDIO_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	vfsfile_t *f;
-	stdiopath_t *sp = handle;
-	char diskname[MAX_OSPATH];
+	stdiopath_t *sp = (void*)handle;
 	qboolean needsflush;
 
 	f = VFSSTDIO_Open(loc->rawname, mode, &needsflush);
@@ -210,18 +209,18 @@ static vfsfile_t *QDECL FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const ch
 	return f;
 }
 
-static void QDECL FSSTDIO_ClosePath(void *handle)
+static void QDECL FSSTDIO_ClosePath(searchpathfuncs_t *handle)
 {
 	Z_Free(handle);
 }
-static qboolean QDECL FSSTDIO_PollChanges(void *handle)
+static qboolean QDECL FSSTDIO_PollChanges(searchpathfuncs_t *handle)
 {
 //	stdiopath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
-static int QDECL FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, void *spath)
+static int QDECL FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, searchpathfuncs_t *spath)
 {
-	stdiopath_t *sp = spath;
+	stdiopath_t *sp = (void*)spath;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
@@ -234,19 +233,18 @@ static int QDECL FSSTDIO_RebuildFSHash(const char *filename, int filesize, void 
 	AddFileHash(sp->depth, filename, NULL, sp);
 	return true;
 }
-static void QDECL FSSTDIO_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+static void QDECL FSSTDIO_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	stdiopath_t *sp = handle;
+	stdiopath_t *sp = (void*)handle;
 	sp->depth = depth;
 	sp->AddFileHash = AddFileHash;
 	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, AddFileHash, handle);
 }
-static qboolean QDECL FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
-	stdiopath_t *sp = handle;
+	stdiopath_t *sp = (void*)handle;
 	int len;
 	char netpath[MAX_OSPATH];
-
 
 	if (hashedresult && (void *)hashedresult != handle)
 		return false;
@@ -288,10 +286,9 @@ static qboolean QDECL FSSTDIO_FLocate(void *handle, flocation_t *loc, const char
 		loc->index = 0;
 		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
-
 	return true;
 }
-static void QDECL FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void QDECL FSSTDIO_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 	FILE *f;
 	size_t result;
@@ -314,7 +311,7 @@ static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *
 }
 
 
-void *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
+searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
 {
 	stdiopath_t *np;
 	int dlen = strlen(desc);
@@ -335,7 +332,7 @@ void *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
 	np->pub.EnumerateFiles	= FSSTDIO_EnumerateFiles;
 	np->pub.OpenVFS			= FSSTDIO_OpenVFS;
 	np->pub.PollChanges		= FSSTDIO_PollChanges;
-	return np;
+	return &np->pub;
 }
 
 #endif

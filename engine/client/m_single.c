@@ -498,7 +498,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 	return false;
 }
 
-static int QDECL DemoAddItem(const char *filename, int size, void *parm, void *spath)
+static int QDECL DemoAddItem(const char *filename, int size, void *parm, searchpathfuncs_t *spath)
 {
 	int extnum;
 	demomenu_t *menu = parm;
@@ -660,7 +660,7 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 		{
 			info->fsroot = FS_ROOT;
 			FS_NativePath("", FS_ROOT, info->path, sizeof(info->path));
-			while(s = strchr(info->path, '\\'))
+			while((s = strchr(info->path, '\\')))
 				*s = '/';
 		}
 	}
@@ -700,7 +700,7 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	}
 	else if (info->fsroot == FS_GAME)
 	{
-		Q_snprintfz(match, sizeof(match), "../", info->path);
+		Q_snprintfz(match, sizeof(match), "../");
 		DemoAddItem(match, 0, info, NULL);
 	}
 	if (info->fsroot == FS_ROOT)

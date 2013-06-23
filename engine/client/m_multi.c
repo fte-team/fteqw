@@ -188,7 +188,7 @@ typedef struct {
 	int match;
 } q2skinsearch_t;
 
-int QDECL q2skin_enumerate(const char *name, int fsize, void *parm, void *spath)
+int QDECL q2skin_enumerate(const char *name, int fsize, void *parm, searchpathfuncs_t *spath)
 {
 	char blah[MAX_QPATH];
 	q2skinsearch_t *s = parm;

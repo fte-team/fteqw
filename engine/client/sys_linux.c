@@ -394,7 +394,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];

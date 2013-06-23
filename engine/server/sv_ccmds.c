@@ -374,7 +374,7 @@ void SV_Give_f (void)
 	}
 }
 
-int QDECL ShowMapList (const char *name, int flags, void *parm, void *spath)
+int QDECL ShowMapList (const char *name, int flags, void *parm, searchpathfuncs_t *spath)
 {
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
@@ -1899,7 +1899,7 @@ void SV_User_f (void)
 		for (u = 0; u < 32; u++)
 			if (cl->fteprotocolextensions2 & (1u<<u))
 					Con_Printf(" %s", pext2names[u]);
-		Con_Printf("\n", pext1names[u]);
+		Con_Printf("\n");
 
 		Con_Printf("ip: %s\n", NET_AdrToString(buf, sizeof(buf), &cl->netchan.remote_address));
 		switch(cl->realip_status)

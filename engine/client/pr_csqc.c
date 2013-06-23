@@ -1242,7 +1242,7 @@ static void QCBUILTIN PF_R_ClearScene (pubprogfuncs_t *prinst, struct globalvars
 	CL_ClearEntityLists();
 
 	V_ClearRefdef(csqc_playerview);
-	csqc_playerview->drawsbar = false;	//csqc defaults to no sbar.
+	r_refdef.drawsbar = false;	//csqc defaults to no sbar.
 	csqc_addcrosshair = false;
 
 	V_CalcRefdef(csqc_playerview);	//set up the defaults

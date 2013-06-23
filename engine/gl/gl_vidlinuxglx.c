@@ -1141,7 +1141,7 @@ static Cursor CreateNullCursor(Display *display, Window root)
 qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
 {
 	extern qboolean gammaworks;
-	extern cvar_t vid_hardwaregamma;
+	//extern cvar_t vid_hardwaregamma;
 
 	//if we don't know the original ramps yet, don't allow changing them, because we're probably invalid anyway, and even if it worked, it'll break something later.
 	if (!vm.originalapplied)
@@ -1651,8 +1651,6 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 	if (fullscreenflags)
 		fullscreenflags |= FULLSCREEN_ACTIVE;
-
-	vid.recalc_refdef = 1;				// force a surface cache flush
 
 	// TODO: make this into a cvar, like "in_dgamouse", instead of parameters
 	if (!COM_CheckParm("-noxi2") && XI2_Init())

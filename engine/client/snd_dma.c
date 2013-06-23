@@ -474,14 +474,13 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 {
 	unsigned char *start;
 	short decodebuf[8192];
-	unsigned int decodesamps, len, newseq, drops;
+	unsigned int decodesamps, len, drops;
 	int r;
 
 	if (sender >= MAX_CLIENTS)
 		return;
 
 	decodesamps = 0;
-	newseq = 0;
 	drops = 0;
 	start = data;
 

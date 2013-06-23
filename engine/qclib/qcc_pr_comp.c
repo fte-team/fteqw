@@ -2892,7 +2892,7 @@ QCC_def_t *QCC_PR_GenerateAddressOf(int expressionstart, QCC_def_t *operand)
 			operand->type = QCC_PR_PointerType(operand->type);
 			return operand;
 		}
-		else if (OP_LOADA_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOADA_I || statements[numstatements-1].op == OP_LOADA_STRUCT)
+		else if ((OP_LOADA_F <= statements[numstatements-1].op && statements[numstatements-1].op <= OP_LOADA_I) || statements[numstatements-1].op == OP_LOADA_STRUCT)
 		{
 			statements[numstatements-1].op = OP_GLOBALADDRESS;
 			operand->type = QCC_PR_PointerType(operand->type);
@@ -4437,7 +4437,6 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 
 	QCC_def_t *ed;
 	QCC_def_t *constructor = NULL;
-	pbool constructed = false;
 	int basictypefield[ev_union+1];
 
 //	int func;
@@ -8962,7 +8961,6 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 			}
 			else
 			{
-				int d=0, t=0;
 				QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 				QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
 

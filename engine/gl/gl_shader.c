@@ -3003,7 +3003,7 @@ void Shader_Free (shader_t *shader)
 
 
 
-int QDECL Shader_InitCallback (const char *name, int size, void *param, void *spath)
+int QDECL Shader_InitCallback (const char *name, int size, void *param, searchpathfuncs_t *spath)
 {
 	strcpy(shaderbuf+shaderbuflen, name);
 	Shader_MakeCache(shaderbuf+shaderbuflen);

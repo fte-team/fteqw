@@ -1801,9 +1801,9 @@ void DumpGLState(void)
 		qglGetIntegerv(GL_BLEND, &glint);
 		Sys_Printf("GL_BLEND: %i\n", glint);
 		qglGetIntegerv(GL_BLEND_SRC, &glint);
-		Sys_Printf("GL_BLEND_SRC: %i\n", DecodeGLEnum(glint));
+		Sys_Printf("GL_BLEND_SRC: %s\n", DecodeGLEnum(glint));
 		qglGetIntegerv(GL_BLEND_DST, &glint);
-		Sys_Printf("GL_BLEND_DST: %i\n", DecodeGLEnum(glint));
+		Sys_Printf("GL_BLEND_DST: %s\n", DecodeGLEnum(glint));
 
 		qglGetIntegerv(GL_DEPTH_WRITEMASK, &glint);
 		Sys_Printf("GL_DEPTH_WRITEMASK: %i\n", glint);

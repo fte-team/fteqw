@@ -230,6 +230,7 @@ void BotInterbreedGoalFuzzyLogic(int parent1, int parent2, int child)
 	InterbreedWeightConfigs(p1->itemweightconfig, p2->itemweightconfig,
 									c->itemweightconfig);
 } //end of the function BotInterbreedingGoalFuzzyLogic
+
 //===========================================================================
 //
 // Parameter:				-
@@ -238,12 +239,13 @@ void BotInterbreedGoalFuzzyLogic(int parent1, int parent2, int child)
 //===========================================================================
 void BotSaveGoalFuzzyLogic(int goalstate, char *filename)
 {
-	bot_goalstate_t *gs;
+	//bot_goalstate_t *gs;
 
-	gs = BotGoalStateFromHandle(goalstate);
+	//gs = BotGoalStateFromHandle(goalstate);
 
 	//WriteWeightConfig(filename, gs->itemweightconfig);
 } //end of the function BotSaveGoalFuzzyLogic
+
 //===========================================================================
 //
 // Parameter:				-

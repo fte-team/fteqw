@@ -348,7 +348,7 @@ int BotExportTest(int parm0, char *parm1, vec3_t parm2, vec3_t parm3)
 	static int line[2];
 	int newarea, i, highlightarea, flood;
 //	int reachnum;
-	vec3_t eye, forward, right, end, origin;
+	vec3_t eye, forward, right, origin;
 //	vec3_t bottomcenter;
 //	aas_trace_t trace;
 //	aas_face_t *face;
@@ -358,8 +358,8 @@ int BotExportTest(int parm0, char *parm1, vec3_t parm2, vec3_t parm3)
 //	bot_goal_t goal;
 
 	// clock_t start_time, end_time;
-	vec3_t mins = {-16, -16, -24};
-	vec3_t maxs = {16, 16, 32};
+	//vec3_t mins = {-16, -16, -24};
+	//vec3_t maxs = {16, 16, 32};
 
 //	int areas[10], numareas;
 
@@ -589,7 +589,7 @@ int BotExportTest(int parm0, char *parm1, vec3_t parm2, vec3_t parm3)
 	//get the eye 24 units up
 	eye[2] += 24;
 	//get the end point for the line to be traced
-	VectorMA(eye, 800, forward, end);
+	//VectorMA(eye, 800, forward, end);
 
 //	AAS_TestMovementPrediction(1, parm2, forward);
 /*

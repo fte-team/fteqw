@@ -1661,7 +1661,7 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int QDECL search_enumerate(const char *name, int fsize, void *parm, void *spath)
+int QDECL search_enumerate(const char *name, int fsize, void *parm, searchpathfuncs_t *spath)
 {
 	prvmsearch_t *s = parm;
 
@@ -2815,7 +2815,7 @@ void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 
 	if (sortprefixlen <= 0)
-		sortprefixlen = INT_MAX;
+		sortprefixlen = 0x7fffffff;
 
 	//take out the nulls first, to avoid weird/crashy sorting
 	for (s = 0, d = 0, strings = strbuflist[bufno].strings; s < strbuflist[bufno].used; )

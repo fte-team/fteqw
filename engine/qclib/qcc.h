@@ -294,7 +294,7 @@ typedef struct QCC_function_s QCC_function_t;
 
 #define	MAX_PARMS	8
 
-typedef struct QCC_typeparam_s
+struct QCC_typeparam_s
 {
 	struct QCC_type_s *type;
 	pbool optional;

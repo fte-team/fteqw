@@ -429,7 +429,7 @@ void M_Media_Draw (void)
 char compleatenamepath[MAX_OSPATH];
 char compleatenamename[MAX_OSPATH];
 qboolean compleatenamemultiple;
-int QDECL Com_CompleatenameCallback(const char *name, int size, void *data, void *spath)
+int QDECL Com_CompleatenameCallback(const char *name, int size, void *data, searchpathfuncs_t *spath)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;

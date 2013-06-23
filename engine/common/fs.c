@@ -265,7 +265,7 @@ void FS_Manifest_Print(ftemanifest_t *man)
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				if (man->package[i].mirrors[j])
 					Con_Printf(" \"%s\"", man->package[i].mirrors[j]);
-			Con_Printf("\n", man->package[i].path, man->package[i].crc);
+			Con_Printf("\n");
 		}
 	}
 }
@@ -498,9 +498,8 @@ COM_Dir_f
 
 ============
 */
-static int QDECL COM_Dir_List(const char *name, int size, void *parm, void *spath)
+static int QDECL COM_Dir_List(const char *name, int size, void *parm, searchpathfuncs_t *spath)
 {
-	char pbuf[MAX_OSPATH] = "??";
 	searchpath_t	*s;
 	for (s=com_searchpaths ; s ; s=s->next)
 	{
@@ -2178,7 +2177,7 @@ qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen)
 	if (*crc)
 	{
 		Q_strncatz(local, ".", llen);
-		snprintf(hex, sizeof(hex), "%x", strtoul(crc, NULL, 0));
+		snprintf(hex, sizeof(hex), "%x", (unsigned int)strtoul(crc, NULL, 0));
 		Q_strncatz(local, hex, llen);
 	}
 	return true;
@@ -2704,7 +2703,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 
 
-	if (!strcmp(gamename, "q1"))
+	if (!strcmp(gamename, "quake"))
 	{
 		FILE *f;
 
@@ -2726,7 +2725,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		}
 	}
 
-	if (!strcmp(gamename, "q2"))
+	if (!strcmp(gamename, "quake2"))
 	{
 		FILE *f;
 		DWORD resultlen;
@@ -2770,7 +2769,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		}
 	}
 
-	if (!strcmp(gamename, "q3"))
+	if (!strcmp(gamename, "quake3"))
 	{
 		FILE *f;
 		DWORD resultlen;
@@ -2893,7 +2892,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 {
 #ifdef __linux__
 	struct stat sb;
-        if (!strcmp(gamename, "q1"))
+        if (!strcmp(gamename, "quake"))
 	{
 		if (stat("/usr/share/quake/", &sb) == 0)
 		{
@@ -3253,7 +3252,7 @@ static char *FS_RelativeURL(char *base, char *file, char *buffer, int bufferlen)
 	//fixme: cope with windows paths
 	qboolean baseisurl = !!strchr(base, ':');
 	qboolean fileisurl = !!strchr(file, ':');
-	qboolean baseisabsolute = (*base == '/' || *base == '\\');
+	//qboolean baseisabsolute = (*base == '/' || *base == '\\');
 	qboolean fileisabsolute = (*file == '/' || *file == '\\');
 	char *ebase;
 	

@@ -247,18 +247,18 @@ typedef struct zipfile_s
 } zipfile_t;
 
 
-static void QDECL FSZIP_GetPathDetails(void *handle, char *out, unsigned int outlen)
+static void QDECL FSZIP_GetPathDetails(searchpathfuncs_t *handle, char *out, unsigned int outlen)
 {
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 
 	if (zip->references != 1)
 		Q_snprintfz(out, outlen, "(%i)", zip->references-1);
 	else
 		*out = '\0';
 }
-static void QDECL FSZIP_ClosePath(void *handle)
+static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 {
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 
 	if (--zip->references > 0)
 		return;	//not yet time
@@ -268,9 +268,9 @@ static void QDECL FSZIP_ClosePath(void *handle)
 		Z_Free(zip->files);
 	Z_Free(zip);
 }
-static void QDECL FSZIP_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+static void QDECL FSZIP_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 	int i;
 
 	for (i = 0; i < zip->numfiles; i++)
@@ -278,11 +278,11 @@ static void QDECL FSZIP_BuildHash(void *handle, int depth, void (QDECL *AddFileH
 		AddFileHash(depth, zip->files[i].name, &zip->files[i].bucket, &zip->files[i]);
 	}
 }
-static qboolean QDECL FSZIP_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	zpackfile_t *pf = hashedresult;
 	int i;
-	zipfile_t	*zip = handle;
+	zipfile_t	*zip = (void*)handle;
 
 // look through all the pak file elements
 
@@ -325,9 +325,9 @@ static qboolean QDECL FSZIP_FLocate(void *handle, flocation_t *loc, const char *
 	return false;
 }
 
-static void QDECL FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void QDECL FSZIP_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 	int err;
 
 	unzLocateFileMy (zip->handle, loc->index, zip->files[loc->index].filepos);
@@ -344,9 +344,9 @@ static void QDECL FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	return;
 }
 
-static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSZIP_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
 {
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 	int		num;
 
 	for (num = 0; num<(int)zip->numfiles; num++)
@@ -361,9 +361,9 @@ static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDE
 	return true;
 }
 
-static int QDECL FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
+static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
 {
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 	unz_file_info	file_info;
 
 	int result;
@@ -578,14 +578,14 @@ static void QDECL VFSZIP_Close (struct vfsfile_s *file)
 	if (vfsz->defer)
 		VFS_CLOSE(vfsz->defer);
 
-	FSZIP_ClosePath(vfsz->parent);
+	FSZIP_ClosePath(&vfsz->parent->pub);
 	Z_Free(vfsz);
 }
 
-static vfsfile_t *QDECL FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	int rawofs;
-	zipfile_t *zip = handle;
+	zipfile_t *zip = (void*)handle;
 	vfszip_t *vfsz;
 
 	if (strcmp(mode, "rb"))

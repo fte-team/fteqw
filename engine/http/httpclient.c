@@ -341,7 +341,7 @@ struct http_dl_ctx_s {
 	int chunksize;
 	int chunked;
 
-	enum {HC_REQUESTING, HC_GETTINGHEADER, HC_GETTING, HC_DECOMPRESSING} state;
+	enum {HC_REQUESTING, HC_GETTINGHEADER, HC_GETTING} state;
 
 	int contentlength;
 };

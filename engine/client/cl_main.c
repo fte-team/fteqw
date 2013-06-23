@@ -276,7 +276,7 @@ void CL_UpdateWindowTitle(void)
 		default:
 #ifndef CLIENTONLY
 			if (sv.state)
-				VID_SetWindowCaption(va("%s", fs_gamename.string, sv.name));
+				VID_SetWindowCaption(va("%s: %s", fs_gamename.string, sv.name));
 			else
 #endif
 				VID_SetWindowCaption(va("%s: %s", fs_gamename.string, cls.servername));

@@ -1296,6 +1296,26 @@ char *particle_set_highfps =
 
 char *particle_set_high =
 ///////////////////////////////
+//rain
+"r_part te_rain\n"
+"{\n"
+"texture ball; scalefactor 1; count 1; alpha 0.4; rgb 255 255 255; die 2; veladd 2; scale 2; type texturedspark\n"
+"cliptype rainsplash\n"
+"clipbounce 1\n"
+"clipcount 5\n"
+"}\n"
+
+"r_part rainsplash\n"
+"{\n"
+"randomvel 50 50\n"
+"count 1;\n"
+"texture ball; scalefactor 1; alpha 0.1; rgb 255 255 255; die 0.4; scale 50;\n"
+"stretchfactor 4\n"
+"veladd 50; scale 1; type texturedspark\n"
+"gravity 400\n"
+"}\n"
+
+///////////////////////////////
 //rocket trail
 
 // flame trail

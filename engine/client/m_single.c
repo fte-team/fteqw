@@ -369,7 +369,10 @@ typedef struct {
 	menucustom_t *list;
 	demoitem_t *selected;
 	demoitem_t *firstitem;
+
 	int pathlen;
+	char path[MAX_OSPATH];
+	int fsroot;	//FS_ROOT, FS_GAME, FS_GAMEONLY. if FS_ROOT, executed command will have a leading #
 
 	char *command[64];	//these let the menu be used for nearly any sort of file browser.
 	char *ext[64];
@@ -429,7 +432,7 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 		item = item->next;
 	}
 }
-static void ShowDemoMenu (menu_t *menu, char *path);
+static void ShowDemoMenu (menu_t *menu, const char *path);
 static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 {
 	demomenu_t *info = menu->data;
@@ -474,7 +477,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 		if (info->selected)
 		{
 			if (info->selected->isdir)
-				ShowDemoMenu(menu, va("%s", info->selected->name));
+				ShowDemoMenu(menu, info->selected->name);
 			else
 			{
 				int extnum;
@@ -485,7 +488,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 				if (extnum == info->numext)	//wasn't on our list of extensions.
 					extnum = 0;
 
-				Cbuf_AddText(va("%s \"%s\"\n", info->command[extnum], info->selected->name), RESTRICT_LOCAL);
+				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fsroot==FS_ROOT)?"#":"", info->selected->name), RESTRICT_LOCAL);
 				M_ToggleMenu_f();
 				
 			}
@@ -640,15 +643,31 @@ static void M_Demo_Remove (menu_t *menu)
 	M_Demo_Flush(info);
 }
 
-static void ShowDemoMenu (menu_t *menu, char *path)
+static void ShowDemoMenu (menu_t *menu, const char *path)
 {
+	demomenu_t *info = menu->data;
+
 	int c;
 	char *s;
 	char match[256];
-	while (!strcmp(path+strlen(path)-3, "../"))
+
+	if (*path == '/')
+		path++;
+	Q_strncpyz(info->path, path, sizeof(info->path));
+	if (info->fsroot == FS_GAME)
+	{
+		if (!strcmp(path, "../"))
+		{
+			info->fsroot = FS_ROOT;
+			FS_NativePath("", FS_ROOT, info->path, sizeof(info->path));
+			while(s = strchr(info->path, '\\'))
+				*s = '/';
+		}
+	}
+	while (!strcmp(info->path+strlen(info->path)-3, "../"))
 	{
 		c = 0;
-		for (s = path+strlen(path)-3; s >= path; s--)
+		for (s = info->path+strlen(info->path)-3; s >= info->path; s--)
 		{
 			if (*s == '/')
 			{
@@ -659,21 +678,42 @@ static void ShowDemoMenu (menu_t *menu, char *path)
 			}
 		}
 		if (c<2)
-			*path = '\0';
+			*info->path = '\0';
 	}
-	((demomenu_t*)menu->data)->selected = NULL;
-	((demomenu_t*)menu->data)->pathlen = strlen(path);
+	info->selected = NULL;
+	info->pathlen = strlen(info->path);
 
 	M_Demo_Flush(menu->data);
-	if (*path)
+	if (info->fsroot == FS_ROOT)
 	{
-		Q_snprintfz(match, sizeof(match), "%s../", path);
-		DemoAddItem(match, 0, menu->data, NULL);
+		s = strchr(info->path, '/');
+		if (s && strchr(s+1, '/'))
+		{
+			Q_snprintfz(match, sizeof(match), "%s../", info->path);
+			DemoAddItem(match, 0, info, NULL);
+		}
 	}
-	Q_snprintfz(match, sizeof(match), "%s*", path);
-
-	COM_EnumerateFiles(match, DemoAddItem, menu->data);
-	M_Demo_Flatten(menu->data);
+	else if (*info->path)
+	{
+		Q_snprintfz(match, sizeof(match), "%s../", info->path);
+		DemoAddItem(match, 0, info, NULL);
+	}
+	else if (info->fsroot == FS_GAME)
+	{
+		Q_snprintfz(match, sizeof(match), "../", info->path);
+		DemoAddItem(match, 0, info, NULL);
+	}
+	if (info->fsroot == FS_ROOT)
+	{
+		Q_snprintfz(match, sizeof(match), *info->path?"%s*":"/*", info->path);
+		Sys_EnumerateFiles("", match, DemoAddItem, info, NULL);
+	}
+	else
+	{
+		Q_snprintfz(match, sizeof(match), "%s*", info->path);
+		COM_EnumerateFiles(match, DemoAddItem, info);
+	}
+	M_Demo_Flatten(info);
 }
 
 void M_Menu_Demos_f (void)
@@ -687,6 +727,8 @@ void M_Menu_Demos_f (void)
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;
 	info = menu->data;
+
+	info->fsroot = FS_GAME;
 
 	info->command[0] = "playdemo";
 	info->ext[0] = ".qwd";
@@ -723,6 +765,8 @@ void M_Menu_MediaFiles_f (void)
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;
 	info = menu->data;
+
+	info->fsroot = FS_GAME;
 
 	info->ext[0] = ".m3u";
 	info->command[0] = "mediaplaylist";

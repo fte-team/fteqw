@@ -326,6 +326,7 @@ char	*VARGS va(char *format, ...) LIKEPRINTF(1);
 
 extern qboolean com_file_copyprotected;
 extern int com_filesize;
+extern qboolean com_file_untrusted;
 struct cache_user_s;
 
 extern char	com_quakedir[MAX_OSPATH];
@@ -355,7 +356,7 @@ char *FS_WhichPackForLocation(flocation_t *loc);
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext);
-void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
+qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);	//returns false if the name is invalid.
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
 FTE_DEPRECATED int COM_FOpenFile (const char *filename, FILE **file);
@@ -386,6 +387,7 @@ typedef struct vfsfile_s
 	char dbgname[MAX_QPATH];
 #endif
 } vfsfile_t;
+typedef struct searchpathfuncs_s searchpathfuncs_t;
 
 #define VFS_CLOSE(vf) (vf->Close(vf))
 #define VFS_TELL(vf) (vf->Tell(vf))
@@ -421,9 +423,11 @@ qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
 vfsfile_t *FS_OpenTemp(void);
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
+
 void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
+void FS_PureMode(int mode, char *packagelist, char *crclist, int seed);	//implies an fs_restart
 
 
 qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize);
@@ -432,15 +436,37 @@ qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more wi
 qbyte *COM_LoadHunkFile (const char *path);
 qbyte *COM_LoadMallocFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
-void FS_ForceToPure(const char *str, const char *crcs, int seed);
-void FS_ImpurePacks(const char *names, const char *crcs);
-char *COM_GetPathInfo (int i, int *crc);
-char *COM_NextPath (char *prevpath);
+
+searchpathfuncs_t *COM_IteratePaths (void **iterator, char *buffer, int buffersize);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
 qboolean FS_Restarted(unsigned int *since);
 
-void COM_InitFilesystem (void);
+typedef struct
+{
+	char *updateurl;	//url to download an updated manifest file from.
+	char *installation;	//optional hardcoded commercial name, used for scanning the registry to find existing installs.
+	char *formalname;	//the commercial name of the game. you'll get FULLENGINENAME otherwise.
+	char *protocolname;	//the name used for purposes of dpmaster
+	char *defaultexec;	//execed after cvars are reset, to give game-specific defaults.
+	struct
+	{
+		qboolean base;
+		char *path;
+	} gamepath[8];
+	struct
+	{
+		char *path;			//the 'pure' name
+		unsigned int crc;	//the public crc
+		char *mirrors[8];	//a randomized (prioritized) list of http mirrors to use.
+		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.
+	} package[64];
+} ftemanifest_t;
+void FS_Manifest_Free(ftemanifest_t *man);
+ftemanifest_t *FS_Manifest_Parse(const char *data);
+
+void COM_InitFilesystem (void);	//does not set up any gamedirs.
+qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs);
 void FS_Shutdown(void);
 void COM_Gamedir (const char *dir);
 char *FS_GetGamedir(void);
@@ -455,7 +481,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk);
 qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);
 
-void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm);
+void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm);
 
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove
@@ -474,7 +500,7 @@ void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
-void Info_Print (char *s);
+void Info_Print (char *s, char *lineprefix);
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
 
 void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);

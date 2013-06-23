@@ -45,7 +45,7 @@ typedef struct cmdalias_s
 
 cmdalias_t	*cmd_alias;
 
-cvar_t cl_warncmd			= SCVAR("cl_warncmd", "0");
+cvar_t cl_warncmd			= SCVAR("cl_warncmd", "1");
 cvar_t cl_aliasoverlap		= SCVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
 cvar_t tp_disputablemacros	= SCVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
@@ -537,8 +537,8 @@ void Cmd_Exec_f (void)
 		Con_DPrintf("Ignoring UTF-8 BOM\n");
 		s+=3;
 	}
-	// don't execute anything as if it was from server
-	Cbuf_InsertText (s, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel, true);
+	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
+	Cbuf_InsertText (s, ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
 	FS_FreeFile(f);
 }
 
@@ -1881,14 +1881,15 @@ void Cmd_ForwardToServer_f (void)
 	}
 	if (Q_strcasecmp(Cmd_Argv(1), "ptrack") == 0)
 	{
+		playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 		if (!*Cmd_Argv(2))
 		{
-			Cam_Unlock(0);
+			Cam_Unlock(pv);
 		}
 		else
 		{
-			Cam_Lock(0, atoi(Cmd_Argv(2)));
-			autocam[0] = CAM_TRACK;
+			Cam_Lock(pv, atoi(Cmd_Argv(2)));
+			pv->cam_auto = CAM_TRACK;
 		}
 		return;
 	}
@@ -3070,6 +3071,7 @@ void Cmd_Init (void)
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
+	Cvar_Register (&cl_warncmd, "Warnings");
 
 #ifndef SERVERONLY
 	rcon_level.ival = atof(rcon_level.defaultstr);	//client is restricted to not be allowed to change restrictions.

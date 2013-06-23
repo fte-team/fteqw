@@ -3175,4 +3175,24 @@ void D3D9BE_VBO_Destroy(vboarray_t *vearray)
 {
 }
 
+void D3D9BE_Scissor(srect_t *srect)
+{
+	RECT rect;
+	if (srect)
+	{
+		rect.left = srect->x;
+		rect.right = srect->x + srect->width;
+		rect.top = srect->y;
+		rect.bottom = srect->y + srect->height;
+	}
+	else
+	{
+		rect.left = 0;
+		rect.right = vid.pixelwidth;
+		rect.top = 0;
+		rect.bottom = vid.pixelheight;
+	}
+	IDirect3DDevice9_SetScissorRect(pD3DDev9, &rect);
+}
+
 #endif

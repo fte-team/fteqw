@@ -86,7 +86,7 @@ cvar_t	showdrop = SCVAR("showdrop", "0");
 cvar_t	qport = SCVAR("qport", "0");
 cvar_t	net_mtu = CVARD("net_mtu", "1450", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 
-cvar_t	pext_replacementdeltas = CVAR("debug_pext_replacementdeltas", "1");	/*rename once the extension is finalized*/
+cvar_t	pext_replacementdeltas = CVAR("pext_replacementdeltas", "1");
 
 /*returns the entire bitmask of supported+enabled extensions*/
 unsigned int Net_PextMask(int maskset, qboolean fornq)

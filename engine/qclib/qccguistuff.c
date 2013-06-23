@@ -3,6 +3,7 @@
 
 //common gui things
 
+pbool fl_nondfltopts;
 pbool fl_hexen2;
 pbool fl_autohighlight;
 pbool fl_compileonstart;
@@ -82,6 +83,7 @@ void GUI_ParseCommandLine(char *args)
 
 		if (!strnicmp(parameters+paramlen, "-O", 2) || !strnicmp(parameters+paramlen, "/O", 2))
 		{	//strip out all -O
+			fl_nondfltopts = true;
 			if (parameters[paramlen+2])
 			{
 				if (parameters[paramlen+2] >= '0' && parameters[paramlen+2] <= '3')
@@ -275,14 +277,17 @@ int GUI_BuildParms(char *args, char **argv)
 		paramlen += strlen(param+paramlen)+1;
 	}
 
-	for (i = 0; optimisations[i].enabled; i++)	//enabled is a pointer
+	if (fl_nondfltopts)
 	{
-		if (optimisations[i].flags & FLAG_SETINGUI)
-			sprintf(param+paramlen, "-O%s", optimisations[i].abbrev);
-		else
-			sprintf(param+paramlen, "-Ono-%s", optimisations[i].abbrev);
-		argv[argc++] = param+paramlen;
-		paramlen += strlen(param+paramlen)+1;
+		for (i = 0; optimisations[i].enabled; i++)	//enabled is a pointer
+		{
+			if (optimisations[i].flags & FLAG_SETINGUI)
+				sprintf(param+paramlen, "-O%s", optimisations[i].abbrev);
+			else
+				sprintf(param+paramlen, "-Ono-%s", optimisations[i].abbrev);
+			argv[argc++] = param+paramlen;
+			paramlen += strlen(param+paramlen)+1;
+		}
 	}
 
 	for (i = 0; compiler_flag[i].enabled; i++)	//enabled is a pointer

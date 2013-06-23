@@ -56,12 +56,12 @@ char *Skin_FindName (player_info_t *sc)
 			Q_strncpyz(name, baseskin.string, sizeof(name));
 	}
 
-	if (cl.spectator && (tracknum = Cam_TrackNum(0)) != -1)
+	if (cl.spectator && (tracknum = Cam_TrackNum(&cl.playerview[0])) != -1)
 		skinforcing_team = cl.players[tracknum].team;
 	else if (cl.spectator)
 		skinforcing_team = "spec";
 	else
-		skinforcing_team = cl.players[cl.playernum[0]].team;
+		skinforcing_team = cl.players[cl.playerview[0].playernum].team;
 
 	//Don't force skins in splitscreen (it's probable that the new skin would be wrong).
 	//Don't force skins in TF (where skins are forced on a class basis by the mod).

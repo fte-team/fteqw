@@ -376,11 +376,22 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 
 #ifdef PEXT_CSQC
-	if (mx || my)
-	if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
+	if (mouse->type == M_TOUCH)
 	{
-		mx = 0;
-		my = 0;
+		if (CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+		{
+			mx = 0;
+			my = 0;
+		}
+	}
+	else
+	{
+		if (mx || my)
+		if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
+		{
+			mx = 0;
+			my = 0;
+		}
 	}
 #endif
 
@@ -433,7 +444,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 
 	if (in_mlook.state[pnum] & 1)
-		V_StopPitchDrift (pnum);
+		V_StopPitchDrift (&cl.playerview[pnum]);
 
 	if (!strafe_y)
 	{

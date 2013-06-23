@@ -918,8 +918,6 @@ void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
 		Cvar_ForceSet (var, "170");
 		return;
 	}
-
-	vid.recalc_refdef = true;
 }
 
 void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)
@@ -934,130 +932,13 @@ void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)
 		Cvar_ForceSet (var, "120");
 		return;
 	}
-
-	vid.recalc_refdef = true;
 }
 
 void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue)
 {
-	vid.recalc_refdef = true;
 }
 
-/*
-=================
-SCR_CalcRefdef
-
-Must be called whenever vid changes
-Internal use only
-=================
-*/
-void SCR_CalcRefdef (void)
-{
-	float           size;
-	int             h;
-	qboolean		full = false;
-
-	vid.recalc_refdef = 0;
-
-// force the status bar to redraw
-	Sbar_Changed ();
-
-//========================================
-
-	r_refdef.flags = 0;
-
-// intermission is always full screen
-	if (cl.intermission)
-		size = 120;
-	else
-		size = scr_viewsize.value;
-
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)	//q2 never has a hud.
-		sb_lines = 0;
-	else
-#endif
-
-	if (size >= 120)
-		sb_lines = 0;           // no status bar at all
-	else if (size >= 110)
-		sb_lines = 24;          // no inventory
-	else
-		sb_lines = 24+16+8;
-
-	if (scr_viewsize.value >= 100.0 || scr_chatmode)
-	{
-		full = true;
-		size = 100.0;
-	}
-	else
-		size = scr_viewsize.value;
-
-	if (cl.intermission)
-	{
-		full = true;
-		size = 100.0;
-		sb_lines = 0;
-	}
-	size /= 100.0;
-
-	if (cl_sbar.value!=1 && full)
-		h = vid.height;
-	else
-		h = vid.height - sb_lines;
-
-	r_refdef.vrect.width = vid.width * size;
-	if (r_refdef.vrect.width < 96)
-	{
-		size = 96.0 / r_refdef.vrect.width;
-		r_refdef.vrect.width = 96;      // min for icons
-	}
-
-	r_refdef.vrect.height = vid.height * size;
-	if (cl_sbar.value==1 || !full)
-	{
-  		if (r_refdef.vrect.height > vid.height - sb_lines)
-  			r_refdef.vrect.height = vid.height - sb_lines;
-	}
-	else if (r_refdef.vrect.height > vid.height)
-			r_refdef.vrect.height = vid.height;
-
-	r_refdef.vrect.x = (vid.width - r_refdef.vrect.width)/2;
-	if (full)
-		r_refdef.vrect.y = 0;
-	else
-		r_refdef.vrect.y = (h - r_refdef.vrect.height)/2;
-
-	if (scr_chatmode)
-	{
-		if (scr_chatmode != 2)
-			r_refdef.vrect.height= r_refdef.vrect.y=vid.height/2;
-		r_refdef.vrect.width = r_refdef.vrect.x=vid.width/2;
-		if (r_refdef.vrect.width<320 || r_refdef.vrect.height<200)	//disable hud if too small
-			sb_lines=0;
-	}
-
-	r_refdef.fov_x = scr_fov.value;
-	if (cl.playerview[r_refdef.currentplayernum].stats[STAT_VIEWZOOM])
-		r_refdef.fov_x *= cl.playerview[r_refdef.currentplayernum].stats[STAT_VIEWZOOM]/255.0f;
-
-	if (r_refdef.fov_x < 1)
-		r_refdef.fov_x = 1;
-	else if (r_refdef.fov_x > 170)
-		r_refdef.fov_x = 170;
-
-
-	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
-
-
-
-
-//	r_refdef.vrect.height/=2;
-
-	scr_vrect = r_refdef.vrect;
-}
-
-void SCR_CrosshairPosition(int pnum, int *x, int *y)
+void SCR_CrosshairPosition(playerview_t *pview, int *x, int *y)
 {
 	extern cvar_t cl_crossx, cl_crossy, crosshaircorrect, v_viewheight;
 
@@ -1072,9 +953,9 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		vec3_t start;
 		vec3_t right, up, fwds;
 
-		AngleVectors(cl.playerview[pnum].simangles, fwds, right, up);
+		AngleVectors(pview->simangles, fwds, right, up);
 
-		VectorCopy(cl.playerview[pnum].simorg, start);
+		VectorCopy(pview->simorg, start);
 		start[2]+=16;
 		VectorMA(start, 100000, fwds, end);
 
@@ -1090,7 +971,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		}
 		else
 		{
-			adj=cl.viewheight[pnum];
+			adj=pview->viewheight;
 			if (v_viewheight.value < -7)
 				adj+=-7;
 			else if (v_viewheight.value > 4)
@@ -1099,7 +980,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 				adj+=v_viewheight.value;
 
 			start[2]+=adj;
-			Matrix4x4_CM_Project(tr.endpos, end, cl.playerview[pnum].simangles, start, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(tr.endpos, end, pview->simangles, start, r_refdef.fov_x, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);
 			return;
@@ -1356,7 +1237,7 @@ void SCR_DrawUPS (void)
 	if ((t - lastupstime) >= 1.0/20)
 	{
 		if (cl.spectator)
-			track = Cam_TrackNum(0);
+			track = Cam_TrackNum(&cl.playerview[0]);
 		else
 			track = -1;
 		if (track != -1)
@@ -1772,7 +1653,12 @@ void SCR_SetUpToDrawConsole (void)
 		}
 		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
-			if (cls.state < ca_demostart)
+#ifdef VM_UI
+			if (key_dest == key_game && (UI_MenuState() || UI_OpenMenu()))
+				;
+			else
+#endif
+				if (cls.state < ca_demostart)
 				key_dest = key_console;
 			scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		}
@@ -2235,64 +2121,26 @@ void SCR_BringDownConsole (void)
 
 void SCR_TileClear (void)
 {
-#ifdef PLUGINS
-//	extern cvar_t plug_sbar;
-#endif
-
-	if (cl.splitclients>1)
-		return;	//splitclients always takes the entire screen.
-
-/*#ifdef PLUGINS
-	if (plug_sbar.ival)
+	if (r_refdef.vrect.width < r_refdef.grect.width)
 	{
-		if (scr_vrect.x > 0)
-		{
-			// left
-			R2D_TileClear (0, 0, scr_vrect.x, vid.height);
-			// right
-			R2D_TileClear (scr_vrect.x + scr_vrect.width, 0,
-				vid.width - scr_vrect.x + scr_vrect.width,
-				vid.height);
-		}
-		if (scr_vrect.y > 0 || scr_vrect.height != vid.height)
-		{
-			// top
-			R2D_TileClear (scr_vrect.x, 0,
-				scr_vrect.width,
-				scr_vrect.y);
-			// bottom
-			R2D_TileClear (scr_vrect.x,
-				scr_vrect.y + scr_vrect.height,
-				scr_vrect.width,
-				vid.height);
-		}
+		int w;
+		// left
+		R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.vrect.x-r_refdef.grect.x, r_refdef.grect.height - sb_lines);
+		// right
+		w = (r_refdef.grect.x+r_refdef.grect.width) - (r_refdef.vrect.x+r_refdef.vrect.width);
+		R2D_TileClear ((r_refdef.grect.x+r_refdef.grect.width) - (w), r_refdef.grect.y, w, r_refdef.grect.height - sb_lines);
 	}
-	else
-#endif
-		*/
+	if (r_refdef.vrect.height < r_refdef.grect.height)
 	{
-		if (scr_vrect.x > 0)
-		{
-			// left
-			R2D_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
-			// right
-			R2D_TileClear (scr_vrect.x + scr_vrect.width, 0,
-				vid.width - scr_vrect.x + scr_vrect.width,
-				vid.height - sb_lines);
-		}
-		if (scr_vrect.y > 0)
-		{
-			// top
-			R2D_TileClear (scr_vrect.x, 0,
-				scr_vrect.width,
-				scr_vrect.y);
-			// bottom
-			R2D_TileClear (scr_vrect.x,
-				scr_vrect.y + scr_vrect.height,
-				scr_vrect.width,
-				vid.height - cl_sbar.value?sb_lines:0 -
-				(scr_vrect.height + scr_vrect.y));
-		}
+		// top
+		R2D_TileClear (r_refdef.vrect.x, r_refdef.grect.y,
+			r_refdef.vrect.width,
+			r_refdef.vrect.y - r_refdef.grect.y);
+		// bottom
+		R2D_TileClear (r_refdef.vrect.x,
+			r_refdef.vrect.y + r_refdef.vrect.height,
+			r_refdef.vrect.width,
+			(r_refdef.grect.y+r_refdef.grect.height) - sb_lines - (r_refdef.vrect.y + r_refdef.vrect.height));
 	}
 }
 
@@ -2302,6 +2150,8 @@ void SCR_TileClear (void)
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 {
 	RSpeedMark();
+
+	R2D_ImageColours(1, 1, 1, 1);
 
 	//
 	// draw any areas not covered by the refresh
@@ -2313,18 +2163,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	{
 		SCR_DrawLoading();
 
-		if (!nohud)
-		{
-#ifdef PLUGINS
-			Plug_SBar ();
-#else
-			if (Sbar_ShouldDraw())
-			{
-				Sbar_Draw ();
-				Sbar_DrawScoreboard ();
-			}
-#endif
-		}
 		SCR_ShowPics_Draw();
 	}
 	else if (cl.intermission == 1)
@@ -2352,15 +2190,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			SCR_DrawGameClock();
 			SCR_DrawTurtle ();
 			SCR_DrawPause ();
-#ifdef PLUGINS
-			Plug_SBar ();
-#else
-			if (Sbar_ShouldDraw())
-			{
-				Sbar_Draw ();
-				Sbar_DrawScoreboard ();
-			}
-#endif
 			SCR_ShowPics_Draw();
 
 			CL_DrawPrydonCursor();

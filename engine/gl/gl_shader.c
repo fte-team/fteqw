@@ -639,7 +639,12 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 		if (!Q_strnicmp(*name, "$3d:", 4))
 		{
 			*name+=4;
-			flags|= IF_3DMAP;
+			flags = (flags&~IF_TEXTYPE) | IF_3DMAP;
+		}
+		else if (!Q_strnicmp(*name, "$cube:", 6))
+		{
+			*name+=6;
+			flags = (flags&~IF_TEXTYPE) | IF_CUBEMAP;
 		}
 		else if (!Q_strnicmp(*name, "$nearest:", 9))
 		{
@@ -2253,10 +2258,18 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	flags = Shader_SetImageFlags (shader, pass, &token);
 	if (!Shaderpass_MapGen(shader, pass, token))
 	{
-		if (flags & IF_3DMAP)
-			pass->texgen = T_GEN_3DMAP;
-		else
+		switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+		{
+		case 0:
 			pass->texgen = T_GEN_SINGLEMAP;
+			break;
+		case 1:
+			pass->texgen = T_GEN_3DMAP;
+			break;
+		default:
+			pass->texgen = T_GEN_CUBEMAP;
+			break;
+		}
 
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (token, flags);
@@ -2285,7 +2298,7 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 			break;
 		}
 
-		if (pass->anim_numframes < SHADER_ANIM_FRAMES_MAX)
+		if (pass->anim_numframes < SHADER_MAX_ANIMFRAMES)
 		{
 			image = Shader_FindImage (token, flags);
 
@@ -2314,10 +2327,19 @@ static void Shaderpass_ClampMap (shader_t *shader, shaderpass_t *pass, char **pt
 	{
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (token, flags | IF_CLAMP);
-		if (flags & IF_3DMAP)
-			pass->texgen = T_GEN_3DMAP;
-		else
+
+		switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+		{
+		case 0:
 			pass->texgen = T_GEN_SINGLEMAP;
+			break;
+		case 1:
+			pass->texgen = T_GEN_3DMAP;
+			break;
+		default:
+			pass->texgen = T_GEN_CUBEMAP;
+			break;
+		}
 
 		if (!TEXVALID(pass->anim_frames[0]))
 		{
@@ -4688,7 +4710,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		"}\n"
 		);
 
-	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(shortname, NULL, IF_2D|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(shortname, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	if (!TEXVALID(s->defaulttextures.base))
 	{
 		unsigned char data[4*4] = {0};

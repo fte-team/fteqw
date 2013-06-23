@@ -233,9 +233,10 @@ void CL_DecayLights (void)
 {
 	int			i;
 	dlight_t	*dl;
+	float frametime = host_frametime;
 
 	if (cl.paused)	//DON'T DO IT!!!
-		return;
+		frametime = 0;
 
 	dl = cl_dlights+rtlights_first;
 	for (i=rtlights_first ; i<RTL_FIRST ; i++, dl++)
@@ -258,7 +259,7 @@ void CL_DecayLights (void)
 			continue;
 		}
 
-		dl->radius -= host_frametime*dl->decay;
+		dl->radius -= frametime*dl->decay;
 		if (dl->radius < 0)
 		{
 			if (i==rtlights_first)
@@ -269,21 +270,21 @@ void CL_DecayLights (void)
 
 		if (dl->channelfade[0])
 		{
-			dl->color[0] -= host_frametime*dl->channelfade[0];
+			dl->color[0] -= frametime*dl->channelfade[0];
 			if (dl->color[0] < 0)
 				dl->color[0] = 0;
 		}
 
 		if (dl->channelfade[1])
 		{
-			dl->color[1] -= host_frametime*dl->channelfade[1];
+			dl->color[1] -= frametime*dl->channelfade[1];
 			if (dl->color[1] < 0)
 				dl->color[1] = 0;
 		}
 
 		if (dl->channelfade[2])
 		{
-			dl->color[2] -= host_frametime*dl->channelfade[2];
+			dl->color[2] -= frametime*dl->channelfade[2];
 			if (dl->color[2] < 0)
 				dl->color[2] = 0;
 		}
@@ -1614,9 +1615,9 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 	{
 		extern int parsecountmod;
 //		Con_Printf("tagent %i\n", tagent);
-		if (parenttagent <= MAX_CLIENTS && parenttagent > 0)
+		if (parenttagent <= cl.allocated_client_slots && parenttagent > 0)
 		{
-			if (parenttagent == cl.playernum[0]+1)
+			if (parenttagent == cl.playerview[0].playernum+1)
 			{
 				org = cl.playerview[0].simorg;
 				ang = cl.playerview[0].simangles;
@@ -3221,7 +3222,6 @@ void CL_LinkPacketEntities (void)
 
 		cl_numvisedicts++;
 
-		ent->externalmodelview = 0;
 		ent->forcedshader = NULL;
 
 		ent->keynum = state->number;
@@ -3234,7 +3234,7 @@ void CL_LinkPacketEntities (void)
 		ent->flags = 0;
 		if (state->dpflags & RENDER_VIEWMODEL)
 			ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
-		if (state->dpflags & RENDER_EXTERIORMODEL)
+		if ((state->dpflags & RENDER_EXTERIORMODEL) || r_refdef.playerview->viewentity == state->number)
 			ent->flags |= Q2RF_EXTERNALMODEL;
 		if (state->effects & NQEF_ADDITIVE)
 			ent->flags |= Q2RF_ADDITIVE;
@@ -3244,10 +3244,6 @@ void CL_LinkPacketEntities (void)
 			ent->flags |= RF_NOSHADOW;
 		if (state->trans != 0xff)
 			ent->flags |= Q2RF_TRANSLUCENT;
-
-		/*FIXME: pay attention to tags instead, so nexuiz can work with splitscreen*/
-		if (ent->flags & Q2RF_EXTERNALMODEL)
-			ent->externalmodelview = ~0;
 
 /*		if (le->origin[2] < r_refdef.waterheight != le->lastorigin[2] < r_refdef.waterheight)
 		{
@@ -3316,7 +3312,7 @@ void CL_LinkPacketEntities (void)
 		/*if this entity is in a player's slot...*/
 		if (ent->keynum <= cl.allocated_client_slots)
 		{
-			if (!cl.nolocalplayer[0])
+			if (!cl.playerview[0].nolocalplayer)
 				ent->keynum += MAX_EDICTS;
 		}
 
@@ -3657,10 +3653,8 @@ void CL_ParsePlayerinfo (void)
 
 		if (cls.findtrack && info->stats[STAT_HEALTH] > 0)
 		{
-//			extern int ideal_track;
-			autocam[0] = CAM_TRACK;
-			Cam_Lock(0, num);
-//			ideal_track = num;
+			cl.playerview[0].cam_auto = CAM_TRACK;
+			Cam_Lock(&cl.playerview[0], num);
 			cls.findtrack = false;
 		}
 
@@ -3730,28 +3724,33 @@ void CL_ParsePlayerinfo (void)
 		cl.players[num].statsf[STAT_WEAPONFRAME] = state->weaponframe;
 		for (i = 0; i < cl.splitclients; i++)
 		{
-			if (spec_track[i] == num)
+			playerview_t *pv = &cl.playerview[i];
+			if (pv->cam_spec_track == num)
 			{
-				cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
-				cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
+				pv->stats[STAT_WEAPONFRAME] = state->weaponframe;
+				pv->statsf[STAT_WEAPONFRAME] = state->weaponframe;
 			}
 		}
 
+		//add a new splitscreen autotrack view if we can
 		if (cl.splitclients < MAX_SPLITS && !cl.players[num].spectator)
 		{
 			extern cvar_t cl_splitscreen;
 			if (cl.splitclients < cl_splitscreen.value+1)
 			{
 				for (i = 0; i < cl.splitclients; i++)
-					if (autocam[i] && spec_track[i] == num)
+				{
+					playerview_t *pv = &cl.playerview[i];
+					if (pv->cam_auto && pv->cam_spec_track == num)
 						return;
+				}
 
 				if (i == cl.splitclients)
 				{
-					autocam[cl.splitclients] = CAM_TRACK;
-					spec_track[cl.splitclients] = num;
-					cl.splitclients++;
-					Cam_Lock(i, num);
+					playerview_t *pv = &cl.playerview[cl.splitclients++];
+					pv->cam_auto = CAM_TRACK;
+					pv->cam_spec_track = num;
+					Cam_Lock(pv, num);
 				}
 			}
 		}
@@ -3959,10 +3958,11 @@ guess_pm_type:
 	//can't CL_SetStatInt as we don't know if its actually us or not
 	for (i = 0; i < cl.splitclients; i++)
 	{
-		if ((cl.spectator?spec_track[i]:cl.playernum[i]) == num)
+		playerview_t *pv = &cl.playerview[i];
+		if ((cl.spectator?pv->cam_spec_track:pv->playernum) == num)
 		{
-			cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
-			cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
+			pv->stats[STAT_WEAPONFRAME] = state->weaponframe;
+			pv->statsf[STAT_WEAPONFRAME] = state->weaponframe;
 		}
 	}
 
@@ -4048,6 +4048,8 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	newent = CL_NewTempEntity ();
 	newent->model = cl.model_precache[cl_flagindex];
 	newent->skinnum = team;
+	newent->keynum = ent->keynum;
+	newent->flags |= ent->flags;
 
 	AngleVectors (ent->angles, v_forward, v_right, v_up);
 	v_forward[2] = -v_forward[2]; // reverse z component
@@ -4073,6 +4075,7 @@ void CL_AddVWeapModel(entity_t *player, model_t *model)
 	newent = CL_NewTempEntity ();
 
 	newent->keynum = player->keynum;
+	newent->flags |= player->flags;
 
 	VectorCopy(player->origin, newent->origin);
 	VectorCopy(player->angles, newent->angles);
@@ -4165,7 +4168,7 @@ void CL_LinkPlayers (void)
 		}
 
 		// spawn light flashes, even ones coming from invisible objects
-		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0])
+		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playerview[0].playernum)
 			&& (state->effects & (EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_DIMLIGHT)))
 		{
 			vec3_t colour;
@@ -4210,7 +4213,7 @@ void CL_LinkPlayers (void)
 				VectorCopy(state->origin, org);
 				//make the light appear at the predicted position rather than anywhere else.
 				for (pnum = 0; pnum < cl.splitclients; pnum++)
-					if (cl.playernum[pnum] == j)
+					if (cl.playerview[pnum].playernum == j)
 						VectorCopy(cl.playerview[pnum].simorg, org);
 				if (model)
 				{
@@ -4280,29 +4283,25 @@ void CL_LinkPlayers (void)
 		angles[ROLL] = 0;
 		angles[ROLL] = V_CalcRoll (angles, state->velocity)*4;
 
-		ent->externalmodelview = 0;
+		if (j+1 == r_refdef.playerview->viewentity || (cl.spectator && r_refdef.playerview->cam_locked && r_refdef.playerview->cam_spec_track == j))
+			ent->flags |= Q2RF_EXTERNALMODEL;
 		// the player object gets added with flags | 2
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
-			if (j == (cl.viewentity[pnum]?cl.viewentity[pnum]:cl.playernum[pnum]))
-			{
-				ent->flags |= Q2RF_EXTERNALMODEL;
-				ent->externalmodelview |= (1<<pnum);
-			}
-			if (j == cl.playernum[pnum])
+			playerview_t *pv = &cl.playerview[pnum];
+			if (j == pv->playernum)
 			{
 /*				if (cl.spectator)
 				{
 					cl_numvisedicts--;
 					continue;
 				}
-*/				angles[0] = -1*cl.playerview[pnum].viewangles[0] / 3;
-				angles[1] = cl.playerview[pnum].viewangles[1];
-				angles[2] = cl.playerview[pnum].viewangles[2];
-				ent->origin[0] = cl.playerview[pnum].simorg[0];
-				ent->origin[1] = cl.playerview[pnum].simorg[1];
-				ent->origin[2] = cl.playerview[pnum].simorg[2]+cl.crouch[pnum];
-				break;
+*/				angles[0] = -1*pv->viewangles[0] / 3;
+				angles[1] = pv->viewangles[1];
+				angles[2] = pv->viewangles[2];
+				ent->origin[0] = pv->simorg[0];
+				ent->origin[1] = pv->simorg[1];
+				ent->origin[2] = pv->simorg[2]+pv->crouch;
 			}
 		}
 
@@ -4380,12 +4379,8 @@ void CL_LinkViewModel(void)
 
 	unsigned int plnum;
 	player_state_t *plstate;
-	static struct model_s *oldmodel[MAX_SPLITS];
-	static float lerptime[MAX_SPLITS];
-	static float frameduration[MAX_SPLITS];
-	static int prevframe[MAX_SPLITS];
-	static int oldframe[MAX_SPLITS];
 	float alpha;
+	playerview_t *pv = r_refdef.playerview;
 
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
 	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
@@ -4396,7 +4391,7 @@ void CL_LinkViewModel(void)
 		return;
 #endif
 
-	if (r_drawviewmodel.value <= 0 || !Cam_DrawViewModel(r_refdef.currentplayernum))
+	if (r_drawviewmodel.value <= 0 || !Cam_DrawViewModel(r_refdef.playerview))
 		return;
 
 #ifdef Q2CLIENT
@@ -4407,10 +4402,10 @@ void CL_LinkViewModel(void)
 	if (!r_drawentities.ival)
 		return;
 
-	if ((cl.playerview[r_refdef.currentplayernum].stats[STAT_ITEMS] & IT_INVISIBILITY) && r_drawviewmodelinvis.value <= 0)
+	if ((r_refdef.playerview->stats[STAT_ITEMS] & IT_INVISIBILITY) && r_drawviewmodelinvis.value <= 0)
 		return;
 
-	if (cl.playerview[r_refdef.currentplayernum].stats[STAT_HEALTH] <= 0)
+	if (r_refdef.playerview->stats[STAT_HEALTH] <= 0)
 		return;
 
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
@@ -4418,7 +4413,7 @@ void CL_LinkViewModel(void)
 	else
 		alpha = 1;
 
-	if ((cl.playerview[r_refdef.currentplayernum].stats[STAT_ITEMS] & IT_INVISIBILITY)
+	if ((r_refdef.playerview->stats[STAT_ITEMS] & IT_INVISIBILITY)
 		&& r_drawviewmodelinvis.value > 0
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;
@@ -4428,7 +4423,7 @@ void CL_LinkViewModel(void)
 
 	V_ClearEntity(&ent);
 
-	ent.model = cl.viewent[r_refdef.currentplayernum].model;
+	ent.model = r_refdef.playerview->viewent.model;
 	if (!ent.model)
 		return;
 
@@ -4457,30 +4452,30 @@ void CL_LinkViewModel(void)
 	if (!CLHL_AnimateViewEntity(&ent))
 #endif
 	{
-		ent.framestate.g[FS_REG].frame[0] = cl.viewent[r_refdef.currentplayernum].framestate.g[FS_REG].frame[0];
-		ent.framestate.g[FS_REG].frame[1] = oldframe[r_refdef.currentplayernum];
+		ent.framestate.g[FS_REG].frame[0] = pv->viewent.framestate.g[FS_REG].frame[0];
+		ent.framestate.g[FS_REG].frame[1] = pv->oldframe;
 
-		if (ent.framestate.g[FS_REG].frame[0] != prevframe[r_refdef.currentplayernum])
+		if (ent.framestate.g[FS_REG].frame[0] != pv->prevframe)
 		{
-			oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = prevframe[r_refdef.currentplayernum];
+			pv->oldframe = ent.framestate.g[FS_REG].frame[1] = pv->prevframe;
 
-			frameduration[r_refdef.currentplayernum] = (realtime - lerptime[r_refdef.currentplayernum]);
-			if (frameduration[r_refdef.currentplayernum] < 0.01)//no faster than 100 times a second... to avoid divide by zero
-				frameduration[r_refdef.currentplayernum] = 0.01;
-			if (frameduration[r_refdef.currentplayernum] > 0.2)	//no slower than 5 times a second
-				frameduration[r_refdef.currentplayernum] = 0.2;
-			lerptime[r_refdef.currentplayernum] = realtime;
+			pv->frameduration = (realtime - pv->lerptime);
+			if (pv->frameduration < 0.01)//no faster than 100 times a second... to avoid divide by zero
+				pv->frameduration = 0.01;
+			if (pv->frameduration > 0.2)	//no slower than 5 times a second
+				pv->frameduration = 0.2;
+			pv->lerptime = realtime;
 		}
-		prevframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[0];
+		pv->prevframe = ent.framestate.g[FS_REG].frame[0];
 
-		if (ent.model != oldmodel[r_refdef.currentplayernum])
+		if (ent.model != pv->oldmodel)
 		{
-			oldmodel[r_refdef.currentplayernum] = ent.model;
-			oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
-			frameduration[r_refdef.currentplayernum] = 0.1;
-			lerptime[r_refdef.currentplayernum] = realtime;
+			pv->oldmodel = ent.model;
+			pv->oldframe = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
+			pv->frameduration = 0.1;
+			pv->lerptime = realtime;
 		}
-		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])/frameduration[r_refdef.currentplayernum];
+		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-pv->lerptime)/pv->frameduration;
 		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 	}
 
@@ -4488,9 +4483,9 @@ void CL_LinkViewModel(void)
 
 	plnum = -1;
 	if (cl.spectator)
-		plnum = Cam_TrackNum(r_refdef.currentplayernum);
+		plnum = Cam_TrackNum(pv);
 	if (plnum == -1)
-		plnum = cl.playernum[r_refdef.currentplayernum];
+		plnum = r_refdef.playerview->playernum;
 	plstate = &cl.inframes[parsecountmod].playerstate[plnum];
 
 	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
@@ -4663,14 +4658,13 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 		pplayer->active = true;
 		pplayer->flags = state->flags;
 
-		// note that the local player is special, since he moves locally
-		// we use his last predicted postition
+		// note that the local players are special, since they move locally
+		// we use their last predicted postition
 		for (s = 0; s < cl.splitclients; s++)
 		{
-			if (j == cl.playernum[s])
+			if (j == cl.playerview[s].playernum)
 			{
-				VectorCopy(cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playernum[s]].origin,
-					pplayer->origin);
+				VectorCopy(cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playerview[s].playernum].origin, pplayer->origin);
 				break;
 			}
 		}

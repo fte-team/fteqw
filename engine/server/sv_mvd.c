@@ -757,7 +757,7 @@ void SV_MVDPings (void)
 	client_t *client;
 	int		j;
 
-	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+	for (j = 0, client = svs.clients; j < demo.recorder.max_net_ents; j++, client++)
 	{
 		if (client->state != cs_spawned)
 			continue;
@@ -1088,7 +1088,7 @@ qboolean SV_MVDWritePackets (int num)
 		// find two frames
 		// one before the exact time (time - msec) and one after,
 		// then we can interpolte exact position for current frame
-		for (i = 0, cl = frame->clients, demoinfo = demo.info; i < MAX_CLIENTS; i++, cl++, demoinfo++)
+		for (i = 0, cl = frame->clients, demoinfo = demo.info; i < demo.recorder.max_net_ents ; i++, cl++, demoinfo++)
 		{
 			if (cl->parsecount != demo.lastwritten)
 				continue; // not valid
@@ -1240,7 +1240,7 @@ static char *SV_PrintTeams(void)
 //	extern char chartbl2[];
 
 	// count teams and players
-	for (i=0; i < MAX_CLIENTS; i++)
+	for (i=0; i < sv.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].state != cs_spawned)
 			continue;
@@ -1693,7 +1693,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteString (&buf, gamedir);
 
 	if (demo.recorder.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
-		MSG_WriteByte(&buf, MAX_CLIENTS);
+		MSG_WriteByte(&buf, demo.recorder.max_net_ents);
 
 	MSG_WriteFloat (&buf, sv.time);
 
@@ -1884,7 +1884,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 // send current status of all other players
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < demo.recorder.max_net_ents; i++)
 	{
 		player = svs.clients + i;
 
@@ -2098,7 +2098,8 @@ int	Dem_CountPlayers ()
 	int	i, count;
 
 	count = 0;
-	for (i = 0; i < MAX_CLIENTS ; i++) {
+	for (i = 0; i < sv.allocated_client_slots ; i++)
+	{
 		if (svs.clients[i].name[0] && !svs.clients[i].spectator)
 			count++;
 	}
@@ -2116,7 +2117,7 @@ char *Dem_Team(int num)
 
 	index = 1 - index;
 
-	for (i = 0, client = svs.clients; num && i < MAX_CLIENTS; i++, client++)
+	for (i = 0, client = svs.clients; num && i < sv.allocated_client_slots; i++, client++)
 	{
 		if (!client->name[0] || client->spectator)
 			continue;
@@ -2140,7 +2141,7 @@ char *Dem_PlayerName(int num)
 	int i;
 	client_t *client;
 
-	for (i = 0, client = svs.clients; i < MAX_CLIENTS; i++, client++)
+	for (i = 0, client = svs.clients; i < sv.allocated_client_slots; i++, client++)
 	{
 		if (!client->name[0] || client->spectator)
 			continue;
@@ -2164,7 +2165,7 @@ char *Dem_PlayerNameTeam(char *t)
 
 	sep = 0;
 
-	for (i = 0, client = svs.clients; i < MAX_CLIENTS; i++, client++)
+	for (i = 0, client = svs.clients; i < sv.allocated_client_slots; i++, client++)
 	{
 		if (!client->name[0] || client->spectator)
 			continue;
@@ -2188,7 +2189,7 @@ int	Dem_CountTeamPlayers (char *t)
 	int	i, count;
 
 	count = 0;
-	for (i = 0; i < MAX_CLIENTS ; i++)
+	for (i = 0; i < sv.allocated_client_slots ; i++)
 	{
 		if (svs.clients[i].name[0] && !svs.clients[i].spectator)
 			if (strcmp(Info_ValueForKey(svs.clients[i].userinfo, "team"), t)==0)

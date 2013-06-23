@@ -191,8 +191,11 @@ static void CloseEditor(void)
 
 	if (key_dest == key_editor)
 		key_dest = editor_oldkeydest;
+	if (key_dest == key_editor)
+		key_dest = key_game;
 	editoractive = false;
 	editprogfuncs = NULL;
+	cursorblock = NULL;
 
 	if (!firstblock)
 		return;
@@ -686,6 +689,7 @@ void Editor_Key(int key, int unicode)
 		if (editprogfuncs)
 			editprogfuncs->AbortStack(editprogfuncs);
 		CloseEditor();
+		editormodal = false;
 		break;
 
 	case K_HOME:

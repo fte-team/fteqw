@@ -128,6 +128,7 @@ typedef struct plugin_s {
 	int tick;
 	int executestring;
 #ifndef SERVERONLY
+	int consolelink;
 	int conexecutecommand;
 	int menufunction;
 	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
@@ -201,6 +202,27 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	plugbuiltins[newnum].name = name;
 	plugbuiltins[newnum].func = bi;
 	plugbuiltins[newnum].flags = flags;
+}
+
+static qintptr_t VARGS Plug_GetNativePointer(void *offset, quintptr_t mask, const qintptr_t *args)
+{
+	char *p = (char *)VM_POINTER(args[0]);
+#ifdef SUPPORT_ICE
+	if (!strcmp(p, "ICE_Create"))
+		return (qintptr_t)ICE_Create;
+	if (!strcmp(p, "ICE_Find"))
+		return (qintptr_t)ICE_Find;
+	if (!strcmp(p, "ICE_Begin"))
+		return (qintptr_t)ICE_Begin;
+	if (!strcmp(p, "ICE_GetLCandidateInfo"))
+		return (qintptr_t)ICE_GetLCandidateInfo;
+	if (!strcmp(p, "ICE_AddRCandidateInfo"))
+		return (qintptr_t)ICE_AddRCandidateInfo;
+	if (!strcmp(p, "ICE_Close"))
+		return (qintptr_t)ICE_Close;
+#endif
+
+	return (qintptr_t)NULL;
 }
 
 /*
@@ -408,13 +430,15 @@ static qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const 
 	char *name = (char*)VM_POINTER(arg[0]);
 	unsigned int functionid = VM_LONG(arg[1]);
 
-	if (!strcmp(name, "Tick"))
+	if (!strcmp(name, "Tick"))					//void(int realtime)
 		currentplug->tick = functionid;
-	else if (!strcmp(name, "ExecuteCommand"))
+	else if (!strcmp(name, "ExecuteCommand"))	//bool(isinsecure)
 		currentplug->executestring = functionid;
-	else if (!strcmp(name, "Shutdown"))
+	else if (!strcmp(name, "Shutdown"))			//void()
 		currentplug->shutdown = functionid;
 #ifndef SERVERONLY
+	else if (!strcmp(name, "ConsoleLink"))
+		currentplug->consolelink = functionid;
 	else if (!strcmp(name, "ConExecuteCommand"))
 		currentplug->conexecutecommand = functionid;
 	else if (!strcmp(name, "MenuEvent"))
@@ -657,13 +681,21 @@ static qintptr_t VARGS Plug_Cvar_GetFloat(void *offset, quintptr_t mask, const q
 {
 	char *name = VM_POINTER(arg[0]);
 	int ret;
-	cvar_t *var = Cvar_Get(name, "", 0, "Plugin vars");
-	if (var)
-	{
-		VM_FLOAT(ret) = var->value;
-	}
+	cvar_t *var;
+#ifndef CLIENTONLY
+	if (!strcmp(name, "sv.state"))
+		VM_FLOAT(ret) = sv.state;
 	else
-		VM_FLOAT(ret) = 0;
+#endif
+	{
+		var = Cvar_Get(name, "", 0, "Plugin vars");
+		if (var)
+		{
+			VM_FLOAT(ret) = var->value;
+		}
+		else
+			VM_FLOAT(ret) = 0;
+	}
 	return ret;
 }
 
@@ -682,12 +714,22 @@ static qintptr_t VARGS Plug_Cvar_GetString(void *offset, quintptr_t mask, const 
 	ret = VM_POINTER(arg[1]);
 	retsize = VM_LONG(arg[2]);
 
+	if (!strcmp(name, "sv.mapname"))
+	{
+#ifdef CLIENTONLY
+		Q_strncpyz(ret, "", retsize);
+#else
+		Q_strncpyz(ret, sv.name, retsize);
+#endif
+	}
+	else
+	{
+		var = Cvar_Get(name, "", 0, "Plugin vars");
+		if (strlen(var->name)+1 > retsize)
+			return false;
 
-	var = Cvar_Get(name, "", 0, "Plugin vars");
-	if (strlen(var->name)+1 > retsize)
-		return false;
-
-	strcpy(ret, var->string);
+		strcpy(ret, var->string);
+	}
 
 	return true;
 }
@@ -725,7 +767,7 @@ void Plug_Command_f(void)
 		currentplug = plugincommandarray[i].plugin;
 
 		if (currentplug->executestring)
-			VM_Call(currentplug->vm, currentplug->executestring, 0);
+			VM_Call(currentplug->vm, currentplug->executestring, Cmd_IsInsecure(), 0, 0, 0);
 		break;
 	}
 
@@ -1090,6 +1132,7 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 	//char *data;
 	char *mode;
 	vfsfile_t *f;
+	char *fname = VM_POINTER(arg[0]);
 
 	if (VM_OOB(arg[1], sizeof(int)))
 		return -2;
@@ -1106,7 +1149,10 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 	default:
 		return -2;
 	}
-	f = FS_OpenVFS(VM_POINTER(arg[0]), mode, FS_GAME);
+	if (!strcmp(fname, "**plugconfig"))
+		f = FS_OpenVFS(va("%s.cfg", currentplug->name), mode, FS_ROOT);
+	else
+		f = FS_OpenVFS(fname, mode, FS_GAME);
 	if (!f)
 		return -1;
 	handle = Plug_NewStreamHandle(STREAM_VFS);
@@ -1458,6 +1504,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		Cmd_AddCommand("plug_load", Plug_Load_f);
 		Cmd_AddCommand("plug_list", Plug_List_f);
 
+		Plug_RegisterBuiltin("Plug_GetNativePointer",	Plug_GetNativePointer, 0);//plugin wishes to find a builtin number.
 		Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
 		Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 		Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
@@ -1580,13 +1627,30 @@ qboolean Plugin_ExecuteString(void)
 }
 
 #ifndef SERVERONLY
+qboolean Plug_ConsoleLink(char *text, char *info)
+{
+	plugin_t *oldplug = currentplug;
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->consolelink)
+		{
+			char buffer[2048];
+			Q_strncpyz(buffer, va("\"%s\" \"%s\"", text, info), sizeof(buffer));
+			Cmd_TokenizeString(buffer, false, false);
+			VM_Call(currentplug->vm, currentplug->consolelink);
+		}
+	}
+	currentplug = oldplug;
+	return false;
+}
+
 void Plug_SubConsoleCommand(console_t *con, char *line)
 {
 	char buffer[2048];
 	plugin_t *oldplug = currentplug;	//shouldn't really be needed, but oh well
 	currentplug = con->userdata;
 
-	Q_strncpyz(buffer, va("%s %s", con->name, line), sizeof(buffer));
+	Q_strncpyz(buffer, va("\"%s\" %s", con->name, line), sizeof(buffer));
 	Cmd_TokenizeString(buffer, false, false);
 	VM_Call(currentplug->vm, currentplug->conexecutecommand, 0);
 	currentplug = oldplug;
@@ -1653,13 +1717,12 @@ int Plug_ConnectionlessClientPacket(char *buffer, int size)
 }
 #endif
 #ifndef SERVERONLY
-void Plug_SBar(void)
+void Plug_SBar(playerview_t *pv)
 {
 	extern qboolean sb_showscores, sb_showteamscores;
 
 	plugin_t *oc=currentplug;
-	int cp, ret;
-	vrect_t rect;
+	int ret;
 
 	if (!Sbar_ShouldDraw())
 		return;
@@ -1673,31 +1736,24 @@ void Plug_SBar(void)
 		{
 			if (currentplug->sbarlevel[0])
 			{
-				for (cp = 0; cp < cl.splitclients; cp++)
-				{	//if you don't use splitscreen, use a full videosize rect.
-					SCR_VRectForPlayer(&rect, cp);
-					R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-					ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
-				}
+				//if you don't use splitscreen, use a full videosize rect.
+				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], pv-cl.playerview, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, sb_showscores+sb_showteamscores*2);
 				break;
 			}
 		}
 	}
 	if (!(ret & 1))
 	{
-		Sbar_Draw();
+		Sbar_Draw(pv);
 	}
 
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
 		if (currentplug->sbarlevel[1])
 		{
-			for (cp = 0; cp < cl.splitclients; cp++)
-			{	//if you don't use splitscreen, use a full videosize rect.
-				SCR_VRectForPlayer(&rect, cp);
-				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[1], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
-			}
+			R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+			ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[1], pv-cl.playerview, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, sb_showscores+sb_showteamscores*2);
 		}
 	}
 
@@ -1705,16 +1761,12 @@ void Plug_SBar(void)
 	{
 		if (currentplug->sbarlevel[2])
 		{
-			for (cp = 0; cp < cl.splitclients; cp++)
-			{	//if you don't use splitscreen, use a full videosize rect.
-				SCR_VRectForPlayer(&rect, cp);
-				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[2], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
-			}
+			R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+			ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[2], pv-cl.playerview, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, sb_showscores+sb_showteamscores*2);
 		}
 	}
 
-	if (!(ret & 2))
+	if (!(ret & 2) && pv == cl.playerview)
 	{
 		Sbar_DrawScoreboard();
 	}

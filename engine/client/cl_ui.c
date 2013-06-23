@@ -341,6 +341,19 @@ struct q3polyvert_s
 #define MAX_VMQ3_CACHED_STRINGS 1024
 char *stringcache[1024];
 
+void VMQ3_FlushStringHandles(void)
+{
+	int i;
+	for (i = 0; i < MAX_VMQ3_CACHED_STRINGS; i++)
+	{
+		if (stringcache[i])
+		{
+			Z_Free(stringcache[i]);
+			stringcache[i] = NULL;
+		}
+	}
+}
+
 char *VMQ3_StringFromHandle(int handle)
 {
 	if (!handle)
@@ -406,7 +419,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= Q2RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
-		ent.externalmodelview = ~0;
+		ent.flags |= Q2RF_EXTERNALMODEL;
 	if (q3->renderfx & Q3RF_NOSHADOW)
 		ent.flags |= RF_NOSHADOW;
 
@@ -491,7 +504,7 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 	tagnum = Mod_TagNumForName(model, tagname);
 	found = Mod_GetTag(model, tagnum, &fstate, tr);
 
-	if (found)
+	if (found && tagnum)
 	{
 		ang[0] = tr[0];
 		ang[1] = tr[1];
@@ -575,7 +588,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.vrect.height = ref->height;
 	r_refdef.time = ref->time/1000.0f;
 	r_refdef.useperspective = true;
-	r_refdef.currentplayernum = -1;
+	r_refdef.playerview = &cl.playerview[0];
 
 	if (r_torch.ival)
 	{
@@ -590,6 +603,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 
 	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
 	R_RenderView();
+	r_refdef.playerview = NULL;
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
@@ -597,7 +611,6 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	}
 #endif
 
-	vid.recalc_refdef = 1;
 	r_refdef.time = 0;
 }
 

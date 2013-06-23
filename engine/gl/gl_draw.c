@@ -293,7 +293,7 @@ void GL_Mipcap_Callback (struct cvar_s *var, char *oldvalue)
 void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 {
 	int mag;
-	if (flags & IF_2D)
+	if (flags & IF_UIPIC)
 	{
 		qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
 		if (flags & IF_NEAREST)
@@ -353,7 +353,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 	// change all the existing mipmap texture objects
 	for (glt=gltextures ; glt ; glt=glt->next)
 	{
-		if (!(glt->flags & IF_2D))
+		if (!(glt->flags & IF_UIPIC))
 		{
 			if (glt->flags & IF_CUBEMAP)
 				targ = GL_TEXTURE_CUBE_MAP_ARB;
@@ -392,7 +392,7 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 	// change all the existing mipmap texture objects
 	for (glt=gltextures ; glt ; glt=glt->next)
 	{
-		if (glt->flags & IF_2D)
+		if (glt->flags & IF_UIPIC)
 		{
 			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 			GL_Texturemode_Apply(GL_TEXTURE_2D, glt->flags);

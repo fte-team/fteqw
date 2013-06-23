@@ -26,7 +26,7 @@ void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 struct font_s *font_conchar;
 struct font_s *font_tiny;
-extern int r2d_be_flags;
+extern unsigned int r2d_be_flags;
 
 #ifdef AVAIL_FREETYPE
 #include <ft2build.h>
@@ -262,7 +262,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_2D|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
+		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont",
@@ -302,7 +302,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_2D|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -368,7 +368,7 @@ void Font_FlushPlane(void)
 
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_2D|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -759,15 +759,15 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	if (TEXVALID(tex))
 		return tex;
 	//q2
-	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	if (TEXVALID(tex))
 		return tex;
 	//q3
-	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	if (TEXVALID(tex))
 		return tex;
 	return r_nulltex;
@@ -790,7 +790,7 @@ static texid_t Font_LoadQuakeConchars(void)
 			if (lump[i] == 0)
 				lump[i] = 255;	// proper transparent color
 
-		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_2D|IF_NOMIPMAP|IF_NOGAMMA, 1);
+		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
 	}
 	return r_nulltex;
 }
@@ -876,7 +876,7 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 		for (i=0 ; i<128*128 ; i++)
 			if (outbuf[i] == 0)
 				outbuf[i] = 255;	// proper transparent color
-		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_2D|IF_NOMIPMAP|IF_NOGAMMA, 1);
+		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
 		Z_Free(outbuf);
 		return tex;
 	}
@@ -902,7 +902,7 @@ static texid_t Font_LoadFallbackConchars(void)
 		lump[i*4+1] = 255;
 		lump[i*4+2] = 255;
 	}
-	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	BZ_Free(lump);
 	return tex;
 }
@@ -1061,7 +1061,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 			for (x = 0; x < 128; x++)
 				img[x + y*PLANEWIDTH] = w[x + y*128]?d_8to24rgbtable[w[x + y*128]]:0;
 
-		f->singletexture = R_LoadTexture(fontfilename,PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_2D|IF_NOPICMIP|IF_NOMIPMAP);
+		f->singletexture = R_LoadTexture(fontfilename,PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 		Z_Free(img);
 
 		for (i = 0x00; i <= 0xff; i++)
@@ -1123,7 +1123,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	{
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
-			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_2D|IF_NOMIPMAP);
+			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_UIPIC|IF_NOMIPMAP);
 
 		for ( ; i < 32; i++)
 		{
@@ -1396,6 +1396,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 
 int Font_LineWidth(conchar_t *start, conchar_t *end)
 {
+	//fixme: does this do the right thing with tabs?
 	int x = 0;
 	struct font_s *font = curfont;
 	for (; start < end; start++)
@@ -1403,6 +1404,16 @@ int Font_LineWidth(conchar_t *start, conchar_t *end)
 		x = Font_CharEndCoord(font, x, *start);
 	}
 	return x;
+}
+float Font_LineScaleWidth(conchar_t *start, conchar_t *end)
+{
+	int x = 0;
+	struct font_s *font = curfont;
+	for (; start < end; start++)
+	{
+		x = Font_CharEndCoord(font, x, *start);
+	}
+	return x * curfont_scale[0];
 }
 void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 {

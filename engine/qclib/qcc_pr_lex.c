@@ -2363,12 +2363,21 @@ void QCC_PR_ConditionCompilation(void)
 			// read over a newline if necessary
 			if( s[1] == '\n' || s[1] == '\r' )
 			{
+				char *exploitcheck;
 				s++;
 				QCC_PR_NewLine(false);
-				*d++ = *s++;
+				s++;
 				if( s[-1] == '\r' && s[0] == '\n' )
 				{
-					*d++ = *s++;
+					s++;
+				}
+
+				for (exploitcheck = s; *exploitcheck && qcc_iswhite(*exploitcheck); exploitcheck++)
+					;
+				if (*exploitcheck == '#')
+				{
+					QCC_PR_ParseWarning(WARN_EVILPREPROCESSOR, "preprocessor directive within preprocessor constant %s", cnst->name);
+					*d++ = '\n';
 				}
 			}
 		}

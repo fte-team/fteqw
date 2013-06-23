@@ -134,6 +134,7 @@ Dumps the current net message, prefixed by the length and view angles
 void CL_WriteDemoMessage (sizebuf_t *msg)
 {
 	int		len;
+	int		i;
 	float	fl;
 	qbyte	c;
 
@@ -148,9 +149,27 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 	c = dem_read;
 	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
-	len = LittleLong (msg->cursize);
-	VFS_WRITE (cls.demooutfile, &len, 4);
-	VFS_WRITE (cls.demooutfile, msg->data, msg->cursize);
+	if (*(int*)msg->data == -1)
+	{
+		//connectionless packet.
+		len = LittleLong (msg->cursize);
+		VFS_WRITE (cls.demooutfile, &len, 4);
+		VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+	}
+	else
+	{
+		//regenerate a legacy netchan. no fragmentation support, but whatever. this ain't udp.
+		//the length
+		len = LittleLong (msg->cursize - msg_readcount + 8);
+		VFS_WRITE (cls.demooutfile, &len, 4);
+		//hack the netchan here.
+		i = cls.netchan.incoming_sequence;
+		VFS_WRITE (cls.demooutfile, &i, 4);
+		i = cls.netchan.incoming_acknowledged;
+		VFS_WRITE (cls.demooutfile, &i, 4);
+		//and the data
+		VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+	}
 
 	VFS_FLUSH (cls.demooutfile);
 }
@@ -729,23 +748,34 @@ readit:
 
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
+			int seat;
 			switch(cls_lasttype)
 			{
 			case dem_multiple:
-				tracknum = spec_track[0];
-				if (!autocam[0])
-					tracknum = -1;
-				if (tracknum == -1 || !(cls_lastto & (1 << tracknum)))
+				for (seat = 0; seat < cl.splitclients; seat++)
+				{
+					tracknum = cl.playerview[seat].cam_spec_track;
+					if (!cl.playerview[seat].cam_auto)
+						tracknum = -1;
+					if (tracknum == -1 || !(cls_lastto & (1 << tracknum)))
+						continue;
+				}
+				if (seat == cl.splitclients)
 				{
 					olddemotime = demotime;
 					goto readnext;
 				}
 				break;
 			case dem_single:
-				tracknum = spec_track[0];
-				if (!autocam[0])
-					tracknum = -1;
-				if (tracknum == -1 || cls_lastto != tracknum)
+				for (seat = 0; seat < cl.splitclients; seat++)
+				{
+					tracknum = cl.playerview[seat].cam_spec_track;
+					if (!cl.playerview[seat].cam_auto)
+						tracknum = -1;
+					if (tracknum == -1 || !(cls_lastto != tracknum))
+						continue;
+				}
+				if (seat == cl.splitclients)
 				{
 					olddemotime = demotime;
 					goto readnext;
@@ -833,8 +863,6 @@ qboolean CL_GetMessage (void)
 
 	if (NET_GetPacket (NS_CLIENT, 0) < 0)
 		return false;
-
-	CL_WriteDemoMessage (&net_message);
 
 	return true;
 }
@@ -1107,15 +1135,27 @@ void CL_Record_f (void)
 	MSG_WriteLong (&buf, cl.servercount);
 	MSG_WriteString (&buf, gamedirfile);
 
-	for (i = 0; i < cl.splitclients; i++)
+	if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 	{
-		if (cl.spectator)
-			MSG_WriteByte (&buf, cl.playernum[i] | 128);
-		else
-			MSG_WriteByte (&buf, cl.playernum[i]);
+		MSG_WriteByte (&buf, cl.allocated_client_slots);
+		MSG_WriteByte (&buf, cl.splitclients | (cl.spectator?128:0));
+		for (i = 0; i < cl.splitclients; i++)
+		{
+			MSG_WriteByte (&buf, cl.playerview[i].playernum);
+		}
 	}
-	if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
-		MSG_WriteByte (&buf, 128);
+	else
+	{
+		for (i = 0; i < cl.splitclients; i++)
+		{
+			if (cl.spectator)
+				MSG_WriteByte (&buf, cl.playerview[i].playernum | 128);
+			else
+				MSG_WriteByte (&buf, cl.playerview[i].playernum);
+		}
+		if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
+			MSG_WriteByte (&buf, 128);
+	}
 
 	// send full levelname
 	MSG_WriteString (&buf, cl.levelname);
@@ -1141,10 +1181,10 @@ void CL_Record_f (void)
 	MSG_WriteByte (&buf, 0); // none in demos
 
 #ifdef PEXT_SETVIEW
-	if (cl.viewentity[0])	//tell the player if we have a different view entity
+	if (cl.playerview[0].viewentity != cl.playerview[0].playernum+1)	//tell the player if we have a different view entity
 	{
 		MSG_WriteByte (&buf, svc_setview);
-		MSG_WriteByte (&buf, cl.viewentity[0]);
+		MSG_WriteEntity (&buf, cl.playerview[0].viewentity);
 	}
 #endif
 	// flush packet
@@ -1284,30 +1324,45 @@ void CL_Record_f (void)
 
 // send current status of all other players
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		player = cl.players + i;
 
-		MSG_WriteByte (&buf, svc_updatefrags);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, player->frags);
+		if (player->frags != 0)
+		{
+			MSG_WriteByte (&buf, svc_updatefrags);
+			MSG_WriteByte (&buf, i);
+			MSG_WriteShort (&buf, player->frags);
+		}
 
-		MSG_WriteByte (&buf, svc_updateping);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, player->ping);
+		if (player->ping != 0)
+		{
+			MSG_WriteByte (&buf, svc_updateping);
+			MSG_WriteByte (&buf, i);
+			MSG_WriteShort (&buf, player->ping);
+		}
 
-		MSG_WriteByte (&buf, svc_updatepl);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteByte (&buf, player->pl);
+		if (player->pl != 0)
+		{
+			MSG_WriteByte (&buf, svc_updatepl);
+			MSG_WriteByte (&buf, i);
+			MSG_WriteByte (&buf, player->pl);
+		}
 
-		MSG_WriteByte (&buf, svc_updateentertime);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteFloat (&buf, player->entertime);
+		if (*player->userinfo)
+		{
+			MSG_WriteByte (&buf, svc_updateentertime);
+			MSG_WriteByte (&buf, i);
+			MSG_WriteFloat (&buf, player->entertime);
+		}
 
-		MSG_WriteByte (&buf, svc_updateuserinfo);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteLong (&buf, player->userid);
-		MSG_WriteString (&buf, player->userinfo);
+		if (*player->userinfo)
+		{
+			MSG_WriteByte (&buf, svc_updateuserinfo);
+			MSG_WriteByte (&buf, i);
+			MSG_WriteLong (&buf, player->userid);
+			MSG_WriteString (&buf, player->userinfo);
+		}
 
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
@@ -1443,6 +1498,7 @@ play [demoname]
 */
 void CL_PlayDemo_f (void)
 {
+	char *demoname;
 	if (Cmd_Argc() != 2)
 	{
 		Con_Printf ("playdemo <demoname> : plays a demo\n");
@@ -1463,7 +1519,10 @@ void CL_PlayDemo_f (void)
 #endif
 #endif
 
-	CL_PlayDemo(Cmd_Argv(1));
+	demoname = Cmd_Argv(1);
+	if (*demoname == '#' && Cmd_FromGamecode())
+		return;
+	CL_PlayDemo(demoname);
 }
 
 void CL_PlayDemo(char *demoname)

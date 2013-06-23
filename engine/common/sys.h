@@ -44,6 +44,8 @@ NORETURN void VARGS Sys_Error (const char *error, ...) LIKEPRINTF(1);
 
 void VARGS Sys_Printf (char *fmt, ...) LIKEPRINTF(1);
 // send text to the console
+void Sys_Warn (char *fmt, ...) LIKEPRINTF(1);
+//like Sys_Printf. dunno why there needs to be two of em.
 
 void Sys_Quit (void);
 void Sys_RecentServer(char *command, char *target, char *title, char *desc);

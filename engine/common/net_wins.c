@@ -516,8 +516,11 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 		*s = 0;
 		doneblank = false;
 		p = s;
-		snprintf (s, len-strlen(s), "[");
-		p += strlen(p);
+		if (a->port)
+		{
+			snprintf (s, len-strlen(s), "[");
+			p += strlen(p);
+		}
 
 		for (i = 0; i < 16; i+=2)
 		{
@@ -554,8 +557,9 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 			}
 		}
 
-		snprintf (p, len-strlen(s), "]:%i",
-			ntohs(a->port));
+		if (a->port)
+			snprintf (p, len-strlen(s), "]:%i",
+				ntohs(a->port));
 		break;
 #endif
 #ifdef USEIPX
@@ -2422,6 +2426,9 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_true, sizeof(_true));
 #endif
 
+	 
+	setsockopt(newsocket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&_true, sizeof(_true));
+
 	bufsz = 1<<18;
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&bufsz, sizeof(bufsz));
 
@@ -2573,7 +2580,7 @@ void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 }
 
 #include "fs.h"
-int SHA1(char *digest, int maxdigestsize, char *string);
+int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
 qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 {
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
@@ -2810,10 +2817,12 @@ closesvstream:
 						{
 							char acceptkey[20*2];
 							unsigned char sha1digest[20];
+							char *blurgh;
 							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 							st->inlen -= i;
 
-							tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY])));
+							blurgh = va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY]);
+							tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), blurgh, strlen(blurgh)));
 
 							Con_Printf("Websocket request for %s from %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 
@@ -4451,6 +4460,9 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&recvbufsize, sizeof(recvbufsize));
 
+	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
+		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+
 //	memset(&loc, 0, sizeof(loc));
 //	((struct sockaddr*)&loc)->sa_family = ((struct sockaddr*)&loc)->sa_family;
 //	bind(newsocket, (struct sockaddr *)&loc, ((struct sockaddr_in*)&qs)->sin_family == AF_INET?sizeof(struct sockaddr_in):sizeof(struct sockaddr_in6));
@@ -4458,26 +4470,25 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
 	{
 		int err = qerrno;
-		if (err == EADDRNOTAVAIL)
+		if (err != EWOULDBLOCK)
 		{
-			char buf[128];
-			NET_AdrToString(buf, sizeof(buf), remoteaddr);
-			if (remoteaddr->port == 0 && (remoteaddr->type == NA_IP || remoteaddr->type == NA_IPV6))
-				Con_Printf ("TCP_OpenStream: no port specified\n");
+			if (err == EADDRNOTAVAIL)
+			{
+				char buf[128];
+				NET_AdrToString(buf, sizeof(buf), remoteaddr);
+				if (remoteaddr->port == 0 && (remoteaddr->type == NA_IP || remoteaddr->type == NA_IPV6))
+					Con_Printf ("TCP_OpenStream: no port specified\n");
+				else
+					Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
+			}
+			else if (err == EACCES)
+				Con_Printf ("TCP_OpenStream: access denied: check firewall\n");
 			else
-				Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
+				Con_Printf ("TCP_OpenStream: connect: error %i\n", err);
+			closesocket(newsocket);
+			return INVALID_SOCKET;
 		}
-		else if (err == EACCES)
-			Con_Printf ("TCP_OpenStream: access denied: check firewall\n");
-		else
-			Con_Printf ("TCP_OpenStream: connect: error %i\n", err);
-		closesocket(newsocket);
-		return INVALID_SOCKET;
 	}
-
-	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
-
 
 	return newsocket;
 #endif
@@ -4856,6 +4867,224 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 #endif
 }
 
+#ifdef SUPPORT_ICE
+static struct icestate_s *icelist;
+struct icestate_s *QDECL ICE_Find(void *module, char *conname)
+{
+	struct icestate_s *con;
+
+	for (con = icelist; con; con = con->next)
+	{
+		if (con->module == module && !strcmp(con->conname, conname))
+			return con;
+	}
+	return NULL;
+}
+struct icestate_s *QDECL ICE_Create(void *module, char *conname, char *peername, enum icemode_e mode)
+{
+	ftenet_connections_t *collection;
+	struct icestate_s *con;
+	int netsrc;
+
+	if (conname)
+		if (ICE_Find(module, conname))
+			return NULL;
+
+	if (!conname)
+	{
+#ifdef SERVERONLY
+		return NULL;
+#else
+		int rnd[2];
+		Sys_RandomBytes((void*)rnd, sizeof(rnd));
+		conname = va("fte%08x%08x", rnd[0], rnd[1]);
+		collection = cls.sockets;	//initiator is ALWAYS the game client.
+		netsrc = NS_CLIENT;
+#endif
+	}
+	else
+	{
+#ifdef CLIENTONLY
+		return NULL;
+#else
+		collection = svs.sockets;	//responder is ALWAYS the game server.
+		netsrc = NS_SERVER;
+#endif
+	}
+
+	con = Z_Malloc(sizeof(*con));
+	con->conname = Z_StrDup(conname);
+	con->friendlyname = Z_StrDup(peername);
+	con->netsrc = netsrc;
+
+	con->mode = mode;
+	con->mode = ICE_RAW;
+
+	con->next = icelist;
+	icelist = con;
+
+	{
+		int rnd[1];	//'must have at least 24 bits randomness'
+		Sys_RandomBytes((void*)rnd, sizeof(rnd));
+		con->lfrag = Z_StrDup(va("%08x", rnd[0]));
+	}
+	{
+		int rnd[4];	//'must have at least 128 bits randomness'
+		Sys_RandomBytes((void*)rnd, sizeof(rnd));
+		con->lpwd = Z_StrDup(va("%08x%08x%08x%08x", rnd[0], rnd[1], rnd[2], rnd[3]));
+	}
+
+	if (collection)
+	{
+		int i;
+		int adrno, adrcount=1;
+		netadr_t adr;
+		char adrbuf[MAX_ADR_SIZE];
+		int net = 0;
+
+		for (i = 0; i < MAX_CONNECTIONS; i++)
+		{
+			if (!collection->conn[i])
+				continue;
+			adrno = 0;
+			if (collection->conn[i]->GetLocalAddress)
+			{
+				for (adrcount=1; (adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno)) && adrno < adrcount; adrno++)
+				{
+					struct icecandidate_s *cand;
+					int rnd[2];
+					if (adr.type == NA_IP || adr.type == NA_IPV6)
+					{
+						cand = Z_Malloc(sizeof(*cand));
+						cand->network = net;
+						cand->port = ntohs(adr.port);
+						adr.port = 0;	//to make sure its not part of the string...
+						cand->addr = Z_StrDup(NET_AdrToString(adrbuf, sizeof(adrbuf), &adr));
+						cand->generation = 0;
+						cand->component = 1;
+						cand->foundation = 1;
+						cand->priority =
+							(1<<24)*(126) +
+							(1<<8)*((adr.type == NA_IP?32768:0)+net*256+(255-adrcount)) +
+							(1<<0)*(256 - cand->component);
+
+						Sys_RandomBytes((void*)rnd, sizeof(rnd));
+						cand->candidateid = Z_StrDup(va("x%08x%08x", rnd[0], rnd[1]));
+						cand->dirty = true;
+
+						cand->next = con->lc;
+						con->lc = cand;
+					}
+				}
+			}
+			net++;
+		}
+	}
+
+	return con;
+}
+void QDECL ICE_Begin(struct icestate_s *con, char *stunip, int stunport)
+{
+	switch(con->mode)
+	{
+	case ICE_RAW:
+		//info is already as complete as it'll ever be... yeah, it sucks. sue me.
+		if (con->netsrc == NS_CLIENT)
+		{
+			struct icecandidate_s *rc;
+			rc = con->rc;//for (rc = con->rc; rc;
+			if (rc && (!strchr(rc->addr, ';') && !strchr(rc->addr, '\n')))
+				Cbuf_AddText(va("connect [%s]:%i\n", rc->addr, rc->port), RESTRICT_LOCAL);
+			else
+				Con_Printf("Remote candidate is not valid\n");
+		}
+		break;
+	case ICE_ICE:
+		//FIXME: schedule some stun requests to some public stun server
+		break;
+	}
+}
+struct icecandidate_s *QDECL ICE_GetLCandidateInfo(struct icestate_s *con)
+{
+	struct icecandidate_s *can;
+	for (can = con->lc; can; can = can->next)
+	{
+		if (can->dirty)
+		{
+			can->dirty = false;
+			return can;
+		}
+	}
+	return NULL;
+}
+void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandidate_s *n)
+{
+	struct icecandidate_s *o;
+	for (o = con->rc; o; o = o->next)
+	{
+		if (!strcmp(o->candidateid, n->candidateid))
+			break;
+	}
+	if (!o)
+	{
+		o = Z_Malloc(sizeof(*o));
+		o->next = con->rc;
+		con->rc = o;
+		o->candidateid = Z_StrDup(n->candidateid);
+	}
+	else
+	{
+		Z_Free(o->addr);
+	}
+	o->addr = Z_StrDup(n->addr);
+	o->port = n->port;
+	o->type = n->type;
+	o->priority = n->priority;
+	o->network = n->network;
+	o->generation = n->generation;
+	o->foundation = n->foundation;
+	o->component = n->component;
+	o->transport = n->transport;
+}
+static void ICE_Destroy(struct icestate_s *con)
+{
+	//has already been unlinked
+	Z_Free(con);
+}
+void QDECL ICE_Close(struct icestate_s *con)
+{
+	struct icestate_s **link;
+
+	for (link = &icelist; *link; )
+	{
+		if (con == *link)
+		{
+			*link = con->next;
+			ICE_Destroy(con);
+			return;
+		}
+		else
+			link = &(*link)->next;
+	}
+}
+void QDECL ICE_CloseModule(void *module)
+{
+	struct icestate_s **link, *con;
+
+	for (link = &icelist; *link; )
+	{
+		con = *link;
+		if (con->module == module)
+		{
+			*link = con->next;
+			ICE_Destroy(con);
+		}
+		else
+			link = &(*link)->next;
+	}
+}
+#endif
+
 #ifndef CLIENTONLY
 void SVNET_AddPort_f(void)
 {
@@ -4896,7 +5125,7 @@ typedef struct
 	unsigned short attrtype;
 	unsigned short attrlen;
 } stunattr_t;
-static qboolean NET_WasStun(void)
+static qboolean NET_WasStun(netsrc_t netsrc)
 {
 	if ((net_from.type == NA_IP || net_from.type == NA_IPV6) && net_message.cursize >= 20)
 	{
@@ -4904,6 +5133,7 @@ static qboolean NET_WasStun(void)
 		int stunlen = BigShort(stun->msglen);
 		if (stun->msgtype == BigShort(0x0101) && net_message.cursize == stunlen + sizeof(*stun))
 		{
+			//binding reply
 			stunattr_t *attr = (stunattr_t*)(stun+1);
 			int alen;
 			while(stunlen)
@@ -4912,28 +5142,98 @@ static qboolean NET_WasStun(void)
 				alen = BigShort(attr->attrlen);
 				if (alen > stunlen)
 					return false;
-				if (attr->attrtype == BigShort(1) && alen == 8 && ((qbyte*)attr)[5] == 1)		//ipv4 MAPPED-ADDRESS
+				stunlen -= alen;
+				switch(BigShort(attr->attrtype))
 				{
-					netadr_t adr;
-					char str[256];
-					adr.type = NA_IP;
-					adr.port = (((short*)attr)[3]);
-					memcpy(adr.address.ip, &((qbyte*)attr)[8], 4);
-					NET_AdrToString(str, sizeof(str), &adr);
-					Con_Printf("Public address %s\n", str);
-				}
-				else if (attr->attrtype == BigShort(1) && alen == 20 && ((qbyte*)attr)[5] == 2)	//ipv6 MAPPED-ADDRESS
-				{
-					netadr_t adr;
-					char str[256];
-					adr.type = NA_IPV6;
-					adr.port = (((short*)attr)[3]);
-					memcpy(adr.address.ip6, &((qbyte*)attr)[8], 16);
-					NET_AdrToString(str, sizeof(str), &adr);
-					Con_Printf("Public address %s\n", str);
+				case 1:
+					if (alen == 8 && ((qbyte*)attr)[5] == 1)		//ipv4 MAPPED-ADDRESS
+					{
+						netadr_t adr;
+						char str[256];
+						adr.type = NA_IP;
+						adr.port = (((short*)attr)[3]);
+						memcpy(adr.address.ip, &((qbyte*)attr)[8], 4);
+						NET_AdrToString(str, sizeof(str), &adr);
+						Con_Printf("Public address %s\n", str);
+					}
+					else if (alen == 20 && ((qbyte*)attr)[5] == 2)	//ipv6 MAPPED-ADDRESS
+					{
+						netadr_t adr;
+						char str[256];
+						adr.type = NA_IPV6;
+						adr.port = (((short*)attr)[3]);
+						memcpy(adr.address.ip6, &((qbyte*)attr)[8], 16);
+						NET_AdrToString(str, sizeof(str), &adr);
+						Con_Printf("Public address %s\n", str);
+					}
+					break;
 				}
 				attr = (stunattr_t*)((char*)(attr+1) + alen);
 			}
+			return true;
+		}
+		else if (stun->msgtype == BigShort(0x0001) && net_message.cursize == stunlen + sizeof(*stun))
+		{
+			char username[256];
+			//binding request
+			stunattr_t *attr = (stunattr_t*)(stun+1);
+			int alen;
+			*username = 0;
+			while(stunlen)
+			{
+				alen = (unsigned short)BigShort(attr->attrlen);
+				if (alen+sizeof(*attr) > stunlen)
+					return false;
+				switch((unsigned short)BigShort(attr->attrtype))
+				{
+				case 0x6:
+					//username
+					if (alen < sizeof(username))
+					{
+						memcpy(username, attr+1, alen);
+						username[alen] = 0;
+						Con_Printf("Stun username = \"%s\"\n", username);
+					}
+					break;
+				case 0x8:
+					//message integrity
+					Con_Printf("integrity = \"%08x%08x%08x%08x%08x\"\n", BigLong(*(int*)(attr+1)), BigLong(*(int*)(attr+2)), BigLong(*(int*)(attr+3)), BigLong(*(int*)(attr+4)), BigLong(*(int*)(attr+5)));
+					break;
+				case 0x24:
+					//priority
+					Con_Printf("priority = \"%i\"\n", BigLong(*(int*)(attr+1)));
+					break;
+				case 0x8028:
+					//fingerprint
+					Con_Printf("fingerprint = \"%08x\"\n", BigLong(*(int*)(attr+1)));
+					break;
+				case 0x8029:
+					//ice controlled
+					Con_Printf("tie breaker = \"%08x%08x\"\n", BigLong(*(int*)(attr+1)), BigLong(*(int*)(attr+2)));
+					break;
+				}
+				alen = (alen+3)&~3;
+				attr = (stunattr_t*)((char*)(attr+1) + alen);
+				stunlen -= alen+sizeof(*attr);
+			}
+
+			{
+				struct {
+					stunhdr_t hdr;
+
+					stunattr_t unattr;
+					char uname[256];
+				} stunmsg;
+				stunmsg.hdr.magiccookie = BigLong(0x2112a442);
+				Sys_RandomBytes((qbyte*)&stunmsg.hdr.transactid[0], sizeof(stunmsg.hdr.transactid));	// 'and SHOULD be cryptographically random'
+				stunmsg.hdr.msgtype = BigShort(0x0101);	//binding result
+				strcpy(stunmsg.uname, username);
+				stunmsg.unattr.attrtype = BigShort(0x6);
+				stunmsg.unattr.attrlen = BigShort(strlen(stunmsg.uname));
+				stunmsg.hdr.msglen = BigShort(sizeof(stunmsg.unattr)+(strlen(stunmsg.uname)+3)&~3);
+				NET_SendPacket(netsrc, sizeof(stunmsg.hdr) + BigShort(stunmsg.hdr.msglen), &stunmsg, &net_from);
+			}
+
 			return true;
 		}
 	}
@@ -4972,14 +5272,29 @@ void NET_ClientPort_f(void)
 }
 #endif
 
-qboolean NET_WasSpecialPacket(void)
+qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 {
+	ftenet_connections_t *collection = NULL;
+	if (netsrc == NS_SERVER)
+	{
 #ifndef CLIENTONLY
-	if (NET_WasStun())
+		collection = svs.sockets;
+#endif
+	}
+	else
+	{
+#ifndef SERVERONLY
+		collection = cls.sockets;
+#endif
+	}
+
+
+#ifndef CLIENTONLY
+	if (NET_WasStun(netsrc))
 		return true;
 #endif
 #ifdef HAVE_NATPMP
-	if (NET_Was_NATPMP(svs.sockets))
+	if (NET_Was_NATPMP(collection))
 		return true;
 #endif
 	return false;
@@ -5259,7 +5574,8 @@ void	NET_Shutdown (void)
 typedef struct {
 	vfsfile_t funcs;
 
-	int sock;
+	SOCKET sock;
+	qboolean conpending;
 
 	char readbuffer[65536];
 	int readbuffered;
@@ -5278,6 +5594,19 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 	int len;
 	int trying;
 
+	if (tf->conpending)
+	{
+		fd_set fd;
+		struct timeval timeout;
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 0;
+		FD_ZERO(&fd);
+		FD_SET(tf->sock, &fd);
+		if (!select((int)tf->sock, NULL, &fd, NULL, &timeout))
+			return 0;
+		tf->conpending = false;
+	}
+
 	if (tf->sock != INVALID_SOCKET)
 	{
 		trying = sizeof(tf->readbuffer) - tf->readbuffered;
@@ -5293,6 +5622,12 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				{
 				case ECONNABORTED:
 					Sys_Printf("connection aborted\n", e);
+					break;
+				case ECONNREFUSED:
+					Sys_Printf("connection refused\n", e);
+					break;
+				case ECONNRESET:
+					Sys_Printf("connection reset\n", e);
 					break;
 				default:
 					Sys_Printf("socket error %i\n", e);
@@ -5340,9 +5675,29 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 	if (tf->sock == INVALID_SOCKET)
 		return 0;
 
+	if (tf->conpending)
+	{
+		fd_set fd;
+		struct timeval timeout;
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 0;
+		FD_ZERO(&fd);
+		FD_SET(tf->sock, &fd);
+		if (!select((int)tf->sock, NULL, &fd, NULL, &timeout))
+			return 0;
+		tf->conpending = false;
+	}
+
 	len = send(tf->sock, buffer, bytestoread, 0);
 	if (len == -1 || len == 0)
 	{
+		int e = qerrno;
+		switch(e)
+		{
+		default:
+			Sys_Printf("socket error %i\n", e);
+			break;
+		}
 //		don't destroy it on write errors, because that prevents us from reading anything that was sent to us afterwards.
 //		instead let the read handling kill it if there's nothing new to be read
 		VFSTCP_ReadBytes(file, NULL, 0);
@@ -5382,6 +5737,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
 			return NULL;
 
 		newf = Z_Malloc(sizeof(*newf));
+		newf->conpending = true;
 		newf->sock = sock;
 		newf->funcs.Close = VFSTCP_Close;
 		newf->funcs.Flush = NULL;

@@ -15,6 +15,7 @@ typedef struct
 
 typedef struct pack_s
 {
+	searchpathfuncs_t pub;
 	char	descname[MAX_OSPATH];
 	vfsfile_t	*handle;
 	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
@@ -54,16 +55,15 @@ typedef struct
 
 #define	MAX_FILES_IN_PACK	2048
 
-void QDECL FSPAK_GetDisplayPath(void *handle, char *out, unsigned int outlen)
+static void QDECL FSPAK_GetPathDetails(searchpathfuncs_t *handle, char *out, unsigned int outlen)
 {
-	pack_t *pak = handle;
+	pack_t *pak = (pack_t*)handle;
 
+	*out = 0;
 	if (pak->references != 1)
-		Q_snprintfz(out, outlen, "%s (%i)", pak->descname, pak->references-1);
-	else
-		Q_snprintfz(out, outlen, "%s", pak->descname);
+		Q_snprintfz(out, outlen, "(%i)", pak->references-1);
 }
-void QDECL FSPAK_ClosePath(void *handle)
+static void QDECL FSPAK_ClosePath(void *handle)
 {
 	pack_t *pak = handle;
 
@@ -125,9 +125,9 @@ qboolean QDECL FSPAK_FLocate(void *handle, flocation_t *loc, const char *filenam
 	}
 	return false;
 }
-int QDECL FSPAK_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
 {
-	pack_t	*pak = handle;
+	pack_t	*pak = (pack_t*)handle;
 	int		num;
 
 	for (num = 0; num<(int)pak->numfiles; num++)
@@ -170,102 +170,6 @@ int QDECL FSPAK_GeneratePureCRC(void *handle, int seed, int crctype)
 	BZ_Free(filecrcs);
 	return result;
 }
-
-/*
-=================
-COM_LoadPackFile
-
-Takes an explicit (not game tree related) path to a pak file.
-
-Loads the header and directory, adding the files at the beginning
-of the list so they override previous pack files.
-=================
-*/
-void *QDECL FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
-{
-	dpackheader_t	header;
-	int				i;
-//	int				j;
-	mpackfile_t		*newfiles;
-	int				numpackfiles;
-	pack_t			*pack;
-	vfsfile_t		*packhandle;
-	dpackfile_t		info;
-	int read;
-//	unsigned short		crc;
-
-	packhandle = file;
-	if (packhandle == NULL)
-		return NULL;
-
-	read = VFS_READ(packhandle, &header, sizeof(header));
-	if (read < sizeof(header) || header.id[0] != 'P' || header.id[1] != 'A'
-	|| header.id[2] != 'C' || header.id[3] != 'K')
-	{
-		Con_Printf("%s is not a pak - %c%c%c%c\n", desc, header.id[0], header.id[1], header.id[2], header.id[3]);
-		return NULL;
-	}
-	header.dirofs = LittleLong (header.dirofs);
-	header.dirlen = LittleLong (header.dirlen);
-
-	numpackfiles = header.dirlen / sizeof(dpackfile_t);
-
-//	if (numpackfiles > MAX_FILES_IN_PACK)
-//		Sys_Error ("%s has %i files", packfile, numpackfiles);
-
-//	if (numpackfiles != PAK0_COUNT)
-//		com_modified = true;	// not the original file
-
-	newfiles = (mpackfile_t*)Z_Malloc (numpackfiles * sizeof(mpackfile_t));
-
-	VFS_SEEK(packhandle, header.dirofs);
-//	fread (&info, 1, header.dirlen, packhandle);
-
-// crc the directory to check for modifications
-//	crc = QCRC_Block((qbyte *)info, header.dirlen);
-
-
-//	QCRC_Init (&crc);
-
-	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
-// parse the directory
-	for (i=0 ; i<numpackfiles ; i++)
-	{
-		*info.name = '\0';
-		read = VFS_READ(packhandle, &info, sizeof(info));
-		if (read != sizeof(info))
-		{
-			Con_Printf("PAK file table truncated, only found %i files out of %i\n", i, numpackfiles);
-			numpackfiles = i;
-			break;
-		}
-/*
-		for (j=0 ; j<sizeof(info) ; j++)
-			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
-*/
-		strcpy (newfiles[i].name, info.name);
-		newfiles[i].name[MAX_QPATH-1] = 0; //paranoid
-		COM_CleanUpPath(newfiles[i].name);	//blooming tanks.
-		newfiles[i].filepos = LittleLong(info.filepos);
-		newfiles[i].filelen = LittleLong(info.filelen);
-	}
-/*
-	if (crc != PAK0_CRC)
-		com_modified = true;
-*/
-	strcpy (pack->descname, desc);
-	pack->handle = packhandle;
-	pack->numfiles = numpackfiles;
-	pack->files = newfiles;
-	pack->filepos = 0;
-	VFS_SEEK(packhandle, pack->filepos);
-
-	pack->references++;
-
-	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
-	return pack;
-}
-
 
 typedef struct {
 	vfsfile_t funcs;
@@ -376,22 +280,114 @@ void QDECL FSPAK_ReadFile(void *handle, flocation_t *loc, char *buffer)
 */
 }
 
-searchpathfuncs_t packfilefuncs = {
-	FSPAK_GetDisplayPath,
-	FSPAK_ClosePath,
-	FSPAK_BuildHash,
-	FSPAK_FLocate,
-	FSPAK_ReadFile,
-	FSPAK_EnumerateFiles,
-	FSPAK_LoadPackFile,
-	FSPAK_GeneratePureCRC,
-	FSPAK_OpenVFS
-};
+
+/*
+=================
+COM_LoadPackFile
+
+Takes an explicit (not game tree related) path to a pak file.
+
+Loads the header and directory, adding the files at the beginning
+of the list so they override previous pack files.
+=================
+*/
+searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc)
+{
+	dpackheader_t	header;
+	int				i;
+//	int				j;
+	mpackfile_t		*newfiles;
+	int				numpackfiles;
+	pack_t			*pack;
+	vfsfile_t		*packhandle;
+	dpackfile_t		info;
+	int read;
+//	unsigned short		crc;
+
+	packhandle = file;
+	if (packhandle == NULL)
+		return NULL;
+
+	read = VFS_READ(packhandle, &header, sizeof(header));
+	if (read < sizeof(header) || header.id[0] != 'P' || header.id[1] != 'A'
+	|| header.id[2] != 'C' || header.id[3] != 'K')
+	{
+		Con_Printf("%s is not a pak - %c%c%c%c\n", desc, header.id[0], header.id[1], header.id[2], header.id[3]);
+		return NULL;
+	}
+	header.dirofs = LittleLong (header.dirofs);
+	header.dirlen = LittleLong (header.dirlen);
+
+	numpackfiles = header.dirlen / sizeof(dpackfile_t);
+
+//	if (numpackfiles > MAX_FILES_IN_PACK)
+//		Sys_Error ("%s has %i files", packfile, numpackfiles);
+
+//	if (numpackfiles != PAK0_COUNT)
+//		com_modified = true;	// not the original file
+
+	newfiles = (mpackfile_t*)Z_Malloc (numpackfiles * sizeof(mpackfile_t));
+
+	VFS_SEEK(packhandle, header.dirofs);
+//	fread (&info, 1, header.dirlen, packhandle);
+
+// crc the directory to check for modifications
+//	crc = QCRC_Block((qbyte *)info, header.dirlen);
 
 
+//	QCRC_Init (&crc);
+
+	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
+// parse the directory
+	for (i=0 ; i<numpackfiles ; i++)
+	{
+		*info.name = '\0';
+		read = VFS_READ(packhandle, &info, sizeof(info));
+		if (read != sizeof(info))
+		{
+			Con_Printf("PAK file table truncated, only found %i files out of %i\n", i, numpackfiles);
+			numpackfiles = i;
+			break;
+		}
+/*
+		for (j=0 ; j<sizeof(info) ; j++)
+			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
+*/
+		strcpy (newfiles[i].name, info.name);
+		newfiles[i].name[MAX_QPATH-1] = 0; //paranoid
+		COM_CleanUpPath(newfiles[i].name);	//blooming tanks.
+		newfiles[i].filepos = LittleLong(info.filepos);
+		newfiles[i].filelen = LittleLong(info.filelen);
+	}
+/*
+	if (crc != PAK0_CRC)
+		com_modified = true;
+*/
+	strcpy (pack->descname, desc);
+	pack->handle = packhandle;
+	pack->numfiles = numpackfiles;
+	pack->files = newfiles;
+	pack->filepos = 0;
+	VFS_SEEK(packhandle, pack->filepos);
+
+	pack->references++;
+
+	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
+
+	pack->pub.fsver			= FSVER;
+	pack->pub.GetPathDetails = FSPAK_GetPathDetails;
+	pack->pub.ClosePath = FSPAK_ClosePath;
+	pack->pub.BuildHash = FSPAK_BuildHash;
+	pack->pub.FindFile = FSPAK_FLocate;
+	pack->pub.ReadFile = FSPAK_ReadFile;
+	pack->pub.EnumerateFiles = FSPAK_EnumerateFiles;
+	pack->pub.GeneratePureCRC = FSPAK_GeneratePureCRC;
+	pack->pub.OpenVFS = FSPAK_OpenVFS;
+	return &pack->pub;
+}
 
 #ifdef DOOMWADS
-void *QDECL FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, const char *desc)
+searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *desc)
 {
 	dwadheader_t	header;
 	int				i;
@@ -560,17 +556,16 @@ newsection:
 	pack->references++;
 
 	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
-	return pack;
+
+	pack->pub.fsver			= FSVER;
+	pack->pub.GetPathDetails = FSPAK_GetPathDetails;
+	pack->pub.ClosePath = FSPAK_ClosePath;
+	pack->pub.BuildHash = FSPAK_BuildHash;
+	pack->pub.FindFile = FSPAK_FLocate;
+	pack->pub.ReadFile = FSPAK_ReadFile;
+	pack->pub.EnumerateFiles = FSPAK_EnumerateFiles;
+	pack->pub.GeneratePureCRC = FSPAK_GeneratePureCRC;
+	pack->pub.OpenVFS = FSPAK_OpenVFS;
+	return &pack->pub;
 }
-searchpathfuncs_t doomwadfilefuncs = {
-	FSPAK_GetDisplayPath,
-	FSPAK_ClosePath,
-	FSPAK_BuildHash,
-	FSPAK_FLocate,
-	FSPAK_ReadFile,
-	FSPAK_EnumerateFiles,
-	FSPAK_LoadDoomWadFile,
-	NULL,
-	FSPAK_OpenVFS
-};
 #endif

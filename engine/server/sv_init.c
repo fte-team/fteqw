@@ -549,6 +549,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		if (svs.clients[i].frameunion.frames)
 			Z_Free(svs.clients[i].frameunion.frames);
 		svs.clients[i].frameunion.frames = NULL;
+		svs.clients[i].pendingentbits = NULL;
 		svs.clients[i].state = 0;
 		*svs.clients[i].namebuf = '\0';
 		svs.clients[i].name = NULL;
@@ -569,6 +570,7 @@ This is only called from the SV_Map_f() function.
 */
 void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean usecinematic)
 {
+	extern cvar_t allow_download_refpackages;
 	func_t f;
 	char *file;
 	extern cvar_t pr_maxedicts;
@@ -743,7 +745,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	sv.signon.prim = svs.netprim;
 	sv.num_signon_buffers = 1;
 
-	FS_ReferenceControl(1, 1);
+	if (allow_download_refpackages.ival)
+		FS_ReferenceControl(1, 1);
 
 	strcpy (sv.name, server);
 #ifndef SERVERONLY

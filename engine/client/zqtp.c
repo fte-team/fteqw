@@ -523,7 +523,7 @@ static char *Macro_Powerups (void)
 	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVISIBILITY)
 		MacroBuf_strcat_with_separator (tp_name_ring.string);
 
-	effects = cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum[SP]].effects;
+	effects = cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[cl.playerview[SP].playernum].effects;
 	if ( (effects & (QWEF_FLAG1|QWEF_FLAG2)) ||		// CTF
 		(cl.teamfortress && cl.playerview[SP].stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
 		MacroBuf_strcat_with_separator (tp_name_flag.string);
@@ -716,7 +716,7 @@ static char *Skin_To_TFSkin (char *myskin)
 
 static char *Macro_TF_Skin (void)
 {
-	return Skin_To_TFSkin(Info_ValueForKey(cl.players[cl.playernum[0]].userinfo, "skin"));
+	return Skin_To_TFSkin(Info_ValueForKey(cl.players[cl.playerview[SP].playernum].userinfo, "skin"));
 }
 
 //Spike: added these:
@@ -882,7 +882,7 @@ static void CountNearbyPlayers(qboolean dead)
 	state = cl.inframes[cl.oldparsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
 	for (i = 0; i < MAX_CLIENTS; i++, info++, state++) {
-		if (i != cl.playernum[0] && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
+		if (i != cl.playerview[SP].playernum && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
 			if (cl.teamplay && !strcmp(info->team, TP_PlayerTeam()))
 				vars.numfriendlies++;
 			else
@@ -1770,7 +1770,7 @@ int	TP_CountPlayers (void)
 
 char *TP_PlayerTeam (void)
 {
-	return cl.players[cl.playernum[SP]].team;
+	return cl.players[cl.playerview[SP].playernum].team;
 }
 
 char *TP_EnemyTeam (void)
@@ -1792,7 +1792,7 @@ char *TP_EnemyTeam (void)
 
 char *TP_PlayerName (void)
 {
-	return cl.players[cl.playernum[SP]].name;
+	return cl.players[cl.playerview[SP].playernum].name;
 }
 
 
@@ -2123,7 +2123,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 			// no team messages in teamplay 0, except for our own
 			if (cl.spectator)
 			{
-				unsigned int track = Cam_TrackNum(0);
+				unsigned int track = Cam_TrackNum(&cl.playerview[SP]);
 				if (i == track || ( cl.teamplay &&
 					!strcmp(cl.players[track].team, player->team)) )
 				{
@@ -2132,8 +2132,8 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 			}
 			else
 			{
-				if (i == cl.playernum[SP] || ( cl.teamplay &&
-					!strcmp(cl.players[cl.playernum[SP]].team, player->team)) )
+				if (i == cl.playerview[SP].playernum || ( cl.teamplay &&
+					!strcmp(cl.players[cl.playerview[SP].playernum].team, player->team)) )
 				{
 					flags |= TPM_TEAM;
 				}
@@ -2511,7 +2511,7 @@ static int FindNearestItem (int flags, item_t **pitem)
 	item_t	*item;
 
 	VectorCopy (cl.inframes[cl.validsequence&UPDATE_MASK]
-		.playerstate[cl.playernum[SP]].origin, org);
+		.playerstate[cl.playerview[SP].playernum].origin, org);
 
 	// look in previous frame
 	frame = &cl.inframes[cl.oldvalidsequence&UPDATE_MASK];
@@ -2561,9 +2561,9 @@ static int CountTeammates (void)
 		return 0;
 
 	count = 0;
-	myteam = cl.players[cl.playernum[SP]].team;
+	myteam = cl.players[cl.playerview[SP].playernum].team;
 	for (i=0, player=cl.players; i < MAX_CLIENTS ; i++, player++) {
-		if (player->name[0] && !player->spectator && (i != cl.playernum[SP])
+		if (player->name[0] && !player->spectator && (i != cl.playerview[SP].playernum)
 									&& !strcmp(player->team, myteam))
 			count++;
 	}
@@ -2587,9 +2587,9 @@ static qboolean CheckTrigger (void)
 		return false;
 
 	count = 0;
-	myteam = cl.players[cl.playernum[0]].team;
+	myteam = cl.players[cl.playerview[SP].playernum].team;
 	for (i = 0, player= cl.players; i < MAX_CLIENTS; i++, player++) {
-		if (player->name[0] && !player->spectator && i != cl.playernum[0] && !strcmp(player->team, myteam))
+		if (player->name[0] && !player->spectator && i != cl.playerview[SP].playernum && !strcmp(player->team, myteam))
 			count++;
 	}
 
@@ -2647,11 +2647,11 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 				vars.enemy_powerups |= TP_RING;
 		}
 	}
-	if (!cl.spectator && !cl.teamfortress && info - cl.players == cl.playernum[SP])
+	if (!cl.spectator && !cl.teamfortress && info - cl.players == cl.playerview[SP].playernum)
 	{
 		if ((state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && !(oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
-			ExecTookTrigger (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
+			ExecTookTrigger (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
 		}
 		else if (!(state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && (oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
@@ -2976,7 +2976,7 @@ static void TP_FindPoint (void)
 	info = cl.players;
 	for (j = 0; j < MAX_CLIENTS; j++, info++, state++)
 	{
-		if (state->messagenum != cl.parsecount || j == cl.playernum[0] || info->spectator)
+		if (state->messagenum != cl.parsecount || j == cl.playerview[SP].playernum || info->spectator)
 			continue;
 
 		if (
@@ -3177,7 +3177,7 @@ void TP_StatChanged (int stat, int value)
 			if (cl.teamfortress && !cl.spectator)
 			{
 				ExecTookTrigger (tp_name_flag.string, it_flag,
-						cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
+						cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
 			}
 		}
 
@@ -3420,7 +3420,7 @@ qboolean TP_SuppressMessage(char *buf) {
 		*s++ = '\n';
 		*s++ = 0;
 
-		return (!cls.demoplayback && !cl.spectator && *s - 'A' == cl.playernum[0]);
+		return (!cls.demoplayback && !cl.spectator && *s - 'A' == cl.playerview[SP].playernum);
 	}
 	return false;
 }
@@ -3505,7 +3505,7 @@ void CL_Say (qboolean team, char *extra)
 			if (team)
 				plrflags |= 2;
 
-			CL_PrintChat(&cl.players[cl.playernum[SP]], NULL, text, plrflags);
+			CL_PrintChat(&cl.players[cl.playerview[SP].playernum], NULL, text, plrflags);
 		}
 
 		//strip out the extra markup
@@ -3533,7 +3533,7 @@ void CL_Say (qboolean team, char *extra)
 		*d = '\0';
 
 		//mark the message so that we ignore it when we get the echo.
-		strlcat (sendtext, va("\x7f!%c", 'A'+cl.playernum[0]), sizeof(sendtext));
+		strlcat (sendtext, va("\x7f!%c", 'A'+cl.playerview[SP].playernum), sizeof(sendtext));
 	}
 
 #ifdef Q3CLIENT

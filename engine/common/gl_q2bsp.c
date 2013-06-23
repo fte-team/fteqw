@@ -4,11 +4,16 @@
 #endif
 #include "com_mesh.h"
 
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 #define MAX_Q3MAP_INDICES 0x800000	//just a sanity limit
 #define	MAX_Q3MAP_VERTEXES	0x80000	//just a sanity limit
 #define	MAX_Q3MAP_BRUSHSIDES	0x30000
 #define MAX_CM_BRUSHSIDES		(MAX_Q3MAP_BRUSHSIDES << 1)
-#define MAX_CM_BRUSHES			(MAX_Q2MAP_BRUSHES << 1)
 #define MAX_CM_PATCH_VERTS		(4096)
 #define MAX_CM_FACES			(MAX_Q2MAP_FACES)
 #define MAX_CM_PATCHES			(0x10000)
@@ -299,7 +304,7 @@ static int			numcmodels;
 static cmodel_t		map_cmodels[MAX_Q2MAP_MODELS];
 
 static int			numbrushes;
-static q2cbrush_t	map_brushes[MAX_Q2MAP_BRUSHES];
+static q2cbrush_t	*map_brushes;
 
 static int			numvisibility;
 static q2dvis_t		*map_q2vis;
@@ -319,8 +324,9 @@ static q2dareaportal_t map_areaportals[MAX_Q2MAP_AREAPORTALS];
 static q3cpatch_t	map_patches[MAX_CM_PATCHES];
 static int			numpatches;
 
-static int			map_leafpatches[MAX_CM_LEAFFACES];
+static int			*map_leafpatches;
 static int			numleafpatches;
+static int			maxleafpatches;
 
 static int			numclusters = 1;
 
@@ -915,12 +921,12 @@ qboolean CM_CreatePatchesForLeafs (void)
 	q3cface_t *face;
 	q2mapsurface_t *surf;
 	q3cpatch_t *patch;
-	int checkout[MAX_CM_FACES];
+	int *checkout = alloca(sizeof(int)*numfaces);
 
 	if (map_noCurves.ival)
 		return true;
 
-	memset (checkout, -1, sizeof(int)*MAX_CM_FACES);
+	memset (checkout, -1, sizeof(int)*numfaces);
 
 	for (i = 0, leaf = map_leafs; i < numleafs; i++, leaf++)
 	{
@@ -933,11 +939,19 @@ qboolean CM_CreatePatchesForLeafs (void)
 		for (j=0 ; j<leaf->numleaffaces ; j++)
 		{
 			k = leaf->firstleafface + j;
-			if (k >= numleaffaces) {
+			if (k >= numleaffaces)
+			{
 				break;
 			}
 
 			k = map_leaffaces[k];
+#ifdef _DEBUG
+			if (k >= numfaces)
+			{
+				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: corrupt map\n");
+				break;
+			}
+#endif
 			face = &map_faces[k];
 
 			if (face->facetype != MST_PATCH || face->numverts <= 0)
@@ -951,10 +965,16 @@ qboolean CM_CreatePatchesForLeafs (void)
 			if ( !surf->c.value || (surf->c.flags & Q3SURF_NONSOLID) )
 				continue;
 
-			if ( numleafpatches >= MAX_CM_LEAFFACES )
+			if (numleafpatches >= maxleafpatches)
 			{
-				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many faces\n");
-				return false;
+				maxleafpatches *= 2;
+				maxleafpatches += 16;
+				if (numleafpatches > maxleafpatches)
+				{	//detect overflow
+					Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map is insanely huge!\n");
+					return false;
+				}
+				map_leafpatches = realloc(map_leafpatches, sizeof(*map_leafpatches) * maxleafpatches);
 			}
 
 			// the patch was already built
@@ -1436,7 +1456,7 @@ qboolean CMod_LoadNodes (lump_t *l)
 		Con_Printf (CON_ERROR "Map has no nodes\n");
 		return false;
 	}
-	if (count > MAX_MAP_NODES)
+	if (count > SANITY_MAX_MAP_NODES)
 	{
 		Con_Printf (CON_ERROR "Map has too many nodes\n");
 		return false;
@@ -1499,11 +1519,13 @@ qboolean CMod_LoadBrushes (lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > MAX_Q2MAP_BRUSHES)
+	if (count > SANITY_MAX_MAP_BRUSHES)
 	{
 		Con_Printf (CON_ERROR "Map has too many brushes");
 		return false;
 	}
+
+	map_brushes = Hunk_AllocName(sizeof(*out) * (count+1), "brushes");
 
 	out = map_brushes;
 
@@ -2210,7 +2232,7 @@ qboolean CModQ3_LoadFaces (lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > MAX_MAP_FACES)
+	if (count > SANITY_MAX_MAP_FACES)
 	{
 		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
@@ -2251,7 +2273,7 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > MAX_MAP_FACES)
+	if (count > SANITY_MAX_MAP_FACES)
 	{
 		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
@@ -2888,7 +2910,7 @@ qboolean CModQ3_LoadLeafFaces (lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > MAX_Q2MAP_LEAFFACES)
+	if (count > SANITY_MAX_MAP_LEAFFACES)
 	{
 		Con_Printf (CON_ERROR "Map has too many leaffaces\n");
 		return false;
@@ -2930,7 +2952,7 @@ qboolean CModQ3_LoadNodes (lump_t *l)
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
-	if (count > MAX_MAP_NODES)
+	if (count > SANITY_MAX_MAP_NODES)
 	{
 		Con_Printf (CON_ERROR "Too many nodes on map\n");
 		return false;
@@ -2988,11 +3010,13 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > MAX_Q2MAP_BRUSHES)
+	if (count > SANITY_MAX_MAP_BRUSHES)
 	{
 		Con_Printf (CON_ERROR "Map has too many brushes");
 		return false;
 	}
+
+	map_brushes = Hunk_AllocName(sizeof(*out) * (count+1), "brushes");
 
 	out = map_brushes;
 
@@ -4295,7 +4319,7 @@ void CM_InitBoxHull (void)
 
 	box_model.nodes = Hunk_Alloc(sizeof(mnode_t)*6);
 	box_planes = &map_planes[numplanes];
-	if (numbrushes+1 > MAX_Q2MAP_BRUSHES
+	if (numbrushes+1 > SANITY_MAX_MAP_BRUSHES
 		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES
 		|| numbrushsides+6 > MAX_Q2MAP_BRUSHSIDES
 		|| numplanes+12 > MAX_Q2MAP_PLANES)

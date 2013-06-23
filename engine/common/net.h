@@ -86,7 +86,7 @@ void		NET_Init (void);
 void		SVNET_RegisterCvars(void);
 void		NET_InitClient (void);
 void		NET_InitServer (void);
-qboolean	NET_WasSpecialPacket(void);
+qboolean	NET_WasSpecialPacket(netsrc_t netsrc);
 void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);

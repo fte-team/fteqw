@@ -36,9 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #endif
 
-#include "fs.h"
-
-#ifdef GLQUAKE
+#if defined(GLQUAKE) && defined(DEBUG)
 #define PRINTGLARRAYS
 #endif
 
@@ -60,8 +58,6 @@ unsigned int sys_parentleft;	//valid if sys_parentwindow is set
 unsigned int sys_parenttop;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
-
-extern int fs_switchgame;
 
 //used to do special things with awkward windows versions.
 int qwinvermaj;
@@ -265,188 +261,7 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 	PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
 	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
 	);
-
-#ifdef PRINTGLARRAYS
-#include "glquake.h"
-#define GL_VERTEX_ARRAY_BINDING					0x85B5
-#define GL_ARRAY_BUFFER							0x8892
-#define GL_ELEMENT_ARRAY_BUFFER					0x8893
-#define GL_ARRAY_BUFFER_BINDING					0x8894
-#define GL_ELEMENT_ARRAY_BUFFER_BINDING			0x8895
-#define GL_VERTEX_ARRAY_BUFFER_BINDING			0x8896
-#define GL_NORMAL_ARRAY_BUFFER_BINDING			0x8897
-#define GL_COLOR_ARRAY_BUFFER_BINDING			0x8898
-#define GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING   0x889A
-#define GL_VERTEX_ATTRIB_ARRAY_ENABLED			0x8622
-#define GL_VERTEX_ATTRIB_ARRAY_SIZE				0x8623
-#define GL_VERTEX_ATTRIB_ARRAY_STRIDE			0x8624
-#define GL_VERTEX_ATTRIB_ARRAY_TYPE				0x8625
-#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED		0x886A
-#define GL_VERTEX_ATTRIB_ARRAY_POINTER			0x8645
-#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING	0x889F
-#define GL_CURRENT_PROGRAM						0x8B8D
-
-char *DecodeGLEnum(GLenum num)
-{
-	switch(num)
-	{
-	case GL_CW:						return "GL_CW";
-	case GL_CCW:					return "GL_CCW";
-	case GL_NEVER:					return "GL_NEVER";
-	case GL_LESS:					return "GL_LESS";
-	case GL_EQUAL:					return "GL_EQUAL";
-	case GL_LEQUAL:					return "GL_LEQUAL";
-	case GL_GREATER:				return "GL_GREATER";
-	case GL_NOTEQUAL:				return "GL_NOTEQUAL";
-	case GL_GEQUAL:					return "GL_GEQUAL";
-	case GL_ALWAYS:					return "GL_ALWAYS";
-	case GL_FRONT:					return "GL_FRONT";
-	case GL_BACK:					return "GL_BACK";
-	case GL_FRONT_AND_BACK:			return "GL_FRONT_AND_BACK";
-	case GL_COMBINE_ARB:			return "GL_COMBINE";
-	case GL_MODULATE:				return "GL_MODULATE";
-	case GL_REPLACE:				return "GL_REPLACE";
-	case GL_ZERO:					return "GL_ZERO";
-	case GL_ONE:					return "GL_ONE";
-	case GL_SRC_COLOR:				return "GL_SRC_COLOR";
-	case GL_ONE_MINUS_SRC_COLOR:	return "GL_ONE_MINUS_SRC_COLOR";
-	case GL_SRC_ALPHA:				return "GL_SRC_ALPHA";
-	case GL_ONE_MINUS_SRC_ALPHA:	return "GL_ONE_MINUS_SRC_ALPHA";
-	case GL_DST_ALPHA:				return "GL_DST_ALPHA";
-	case GL_ONE_MINUS_DST_ALPHA:	return "GL_ONE_MINUS_DST_ALPHA";
-	case GL_DST_COLOR:				return "GL_DST_COLOR";
-	case GL_ONE_MINUS_DST_COLOR:	return "GL_ONE_MINUS_DST_COLOR";
-	case GL_SRC_ALPHA_SATURATE:		return "GL_SRC_ALPHA_SATURATE";
-	default:						return va("0x%x", num);
-	}
-}
-
-void DumpGLState(void)
-{
-	int rval;
-	void *ptr;
-	int i;
-	GLint glint;
-	GLint glint4[4];
-	void (APIENTRY *qglGetVertexAttribiv) (GLuint index, GLenum pname, GLint* params);
-	void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid** pointer);
-	qglGetVertexAttribiv = (void*)wglGetProcAddress("glGetVertexAttribiv");
-	qglGetVertexAttribPointerv = (void*)wglGetProcAddress("glGetVertexAttribPointerv");
-#pragma comment(lib,"opengl32.lib")
-
-	if (qglGetVertexAttribiv)
-	{
-		glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &rval);
-		Sys_Printf("VERTEX_ARRAY_BINDING: %i\n", rval);
-		glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
-		Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
-		if (glIsEnabled(GL_COLOR_ARRAY))
-		{
-			glGetIntegerv(GL_COLOR_ARRAY_BUFFER_BINDING, &rval);
-			glGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
-			Sys_Printf("GL_COLOR_ARRAY: %s %i:%p\n", glIsEnabled(GL_COLOR_ARRAY)?"en":"dis", rval, ptr);
-		}
-//		if (glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT))
-//		{
-//			glGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
-//			Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
-//		}
-//		if (glIsEnabled(GL_INDEX_ARRAY))
-		{
-			glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
-			glGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
-			Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
-		}
-		if (glIsEnabled(GL_NORMAL_ARRAY))
-		{
-			glGetIntegerv(GL_NORMAL_ARRAY_BUFFER_BINDING, &rval);
-			glGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
-			Sys_Printf("GL_NORMAL_ARRAY: %s %i:%p\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", rval, ptr);
-		}
-	//	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
-	//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
-		for (i = 0; i < 4; i++)
-		{
-			qglClientActiveTextureARB(mtexid0 + i);
-			if (glIsEnabled(GL_TEXTURE_COORD_ARRAY))
-			{
-				glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
-				glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
-				Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
-			}
-		}
-		if (glIsEnabled(GL_VERTEX_ARRAY))
-		{
-			glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
-			glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
-			Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
-		}
-
-		for (i = 0; i < 16; i++)
-		{
-			int en, bo, as, st, ty, no;
-
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
-			if (!en)
-				continue;
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
-			qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
-
-			Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
-		}
-
-		glGetIntegerv(GL_CURRENT_PROGRAM, &glint);
-		Sys_Printf("GL_CURRENT_PROGRAM: %i\n", glint);
-
-		glGetIntegerv(GL_BLEND, &glint);
-		Sys_Printf("GL_BLEND: %i\n", glint);
-		glGetIntegerv(GL_BLEND_SRC, &glint);
-		Sys_Printf("GL_BLEND_SRC: %i\n", DecodeGLEnum(glint));
-		glGetIntegerv(GL_BLEND_DST, &glint);
-		Sys_Printf("GL_BLEND_DST: %i\n", DecodeGLEnum(glint));
-
-		glGetIntegerv(GL_DEPTH_WRITEMASK, &glint);
-		Sys_Printf("GL_DEPTH_WRITEMASK: %i\n", glint);
-		glGetIntegerv(GL_DEPTH_TEST, &glint);
-		Sys_Printf("GL_DEPTH_TEST: %i\n", glint);
-		glGetIntegerv(GL_DEPTH_FUNC, &glint);
-		Sys_Printf("GL_DEPTH_FUNC: %s\n", DecodeGLEnum(glint));
-		glGetIntegerv(GL_CULL_FACE, &glint);
-		Sys_Printf("GL_CULL_FACE: %i\n", glint);
-		glGetIntegerv(GL_CULL_FACE_MODE, &glint);
-		Sys_Printf("GL_CULL_FACE_MODE: %s\n", DecodeGLEnum(glint));
-		glGetIntegerv(GL_FRONT_FACE, &glint);
-		Sys_Printf("GL_FRONT_FACE: %s\n", DecodeGLEnum(glint));
-		glGetIntegerv(GL_SCISSOR_TEST, &glint);
-		Sys_Printf("GL_SCISSOR_TEST: %i\n", glint);
-		glGetIntegerv(GL_STENCIL_TEST, &glint);
-		Sys_Printf("GL_STENCIL_TEST: %i\n", glint);
-		glGetIntegerv(GL_COLOR_WRITEMASK, glint4);
-		Sys_Printf("GL_COLOR_WRITEMASK: %i %i %i %i\n", glint4[0], glint4[1], glint4[2], glint4[3]);
-
-		GL_SelectTexture(0);
-		glGetIntegerv(GL_TEXTURE_2D, &glint);
-		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
-		glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
-		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
-		GL_SelectTexture(1);
-		glGetIntegerv(GL_TEXTURE_2D, &glint);
-		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
-		glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
-		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
-		GL_SelectTexture(2);
-		glGetIntegerv(GL_TEXTURE_2D, &glint);
-		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
-		glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
-		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
-	}
-}
-#endif
-
+void DumpGLState(void);
 DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
 	char dumpPath[1024];
@@ -1408,7 +1223,7 @@ char *Sys_ConsoleInput (void)
 						{
 							wchar_t wch = ch;
 							WriteConsoleW(houtput, &wch, 1, &dummy, NULL);
-							len += 1;
+							len += utf8_encode(text+len, ch, sizeof(text)-1-len);
 						}
 
 						break;
@@ -2455,109 +2270,6 @@ void VARGS Signal_Error_Handler(int i)
 #endif
 */
 
-qboolean Sys_RunFile(const char *fname, int nlen)
-{
-	char buffer[MAX_OSPATH];
-	char *ext;
-	if (nlen >= MAX_OSPATH)
-	{
-		Con_Printf("Filename too long.\n");
-		return true;
-	}
-
-	memcpy(buffer, fname, nlen);
-	buffer[nlen] = 0;
-	fname = buffer;
-	ext = COM_FileExtension(fname);
-	if (!strncmp(fname, "qw:", 3))
-	{
-		fname += 3;
-		if (!strncmp(fname, "//", 2))
-			fname += 2;
-		ext = strchr(fname, '/');	//this also protects us against irc urls, etc. unsure if that's important right now.
-		if (ext)
-			*ext = 0;
-		Con_Printf("QW stream: \"%s\"\n", fname);
-		Cbuf_AddText(va("connect \"%s\"\n", fname), RESTRICT_LOCAL);
-	}
-	else if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
-		Cbuf_AddText(va("playdemo \"#%s\"\n", fname), RESTRICT_LOCAL);
-	else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
-		Con_Printf("Unable to install paks/pk3s at this time\n");
-	else if (!strcmp(ext, "bsp"))
-	{
-		char qname[MAX_QPATH];
-		vfsfile_t *sf, *qf;
-		qboolean overwrite = false;
-		COM_StripExtension(COM_SkipPath(fname), qname, sizeof(qname));
-		sf = VFSOS_Open(fname, "rb");
-		qf = FS_OpenVFS(va("maps/%s.bsp", qname), "rb", FS_GAME);
-		if (qf)
-		{
-			if (VFS_GETLEN(sf) != VFS_GETLEN(qf))
-				overwrite = true;
-			VFS_SEEK(sf, 0);
-			VFS_CLOSE(qf);
-		}
-		if (overwrite)
-		{
-			switch(MessageBox(mainwindow, va("Overwrite existing map: %s?", qname), "Install And Play", MB_YESNOCANCEL))
-			{
-			case IDYES:
-				//overwrite it and load it up
-				overwrite = true;
-				break;
-			case IDNO:
-				//load up the old version
-				overwrite = false;
-				break;
-			default:
-			case IDCANCEL:
-				//quit or something
-				return false;
-			}
-		}
-		else if (!qf)
-		{
-			switch(MessageBox(mainwindow, va("Install new map: %s?", qname), "Install And Play", MB_OKCANCEL))
-			{
-			case IDOK:
-				//overwrite it and load it up
-				overwrite = true;
-				break;
-			default:
-			case IDCANCEL:
-				//quit or something
-				return false;
-			}
-		}
-
-		if (overwrite)
-		{
-			char buffer[8192];
-			int len;
-			qf = FS_OpenVFS(va("maps/%s.bsp", qname), "wb", FS_GAMEONLY);
-			if (qf)
-			{
-				while(1)
-				{
-					len = VFS_READ(sf, buffer, sizeof(buffer));
-					if (len <= 0)
-						break;
-					VFS_WRITE(qf, buffer, len);
-				}
-				VFS_CLOSE(qf);
-			}
-		}
-		VFS_CLOSE(sf);
-
-		Cbuf_AddText(va("map \"%s\"\n", qname), RESTRICT_LOCAL);
-	}
-	else
-		Cbuf_AddText(va("qtvplay \"#%s\"\n", fname), RESTRICT_LOCAL);
-	return true;
-}
-
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -2830,7 +2542,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (qtvfile)
 		{
-			if (!Sys_RunFile(qtvfile, strlen(qtvfile)))
+			if (!Host_RunFile(qtvfile, strlen(qtvfile), NULL))
 			{
 				SetHookState(false);
 				Host_Shutdown ();
@@ -2892,20 +2604,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				Sys_Error("wut?");
 	#endif
 			}
-
-#ifndef SERVERONLY
-			if (fs_switchgame != -1)
-			{
-				SetHookState(false);
-
-				Host_Shutdown ();
-
-				COM_InitArgv (parms.argc, parms.argv);
-				if (!Sys_Startup_CheckMem(&parms))
-					return 0;
-				Host_Init (&parms);
-			}
-#endif
 		}
 	}
 #ifdef CATCHCRASH

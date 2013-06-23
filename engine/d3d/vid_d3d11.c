@@ -443,6 +443,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			if (!D3D11AppActivate(!(fActive == WA_INACTIVE), fMinimized))
 				break;//so, urm, tell me microsoft, what changed?
 
+			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWNORMAL);
 
 			if (ActiveApp && modestate == MS_FULLSCREEN)
@@ -788,14 +789,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 		mouseactive = false;
 	}
 
-	{
-		void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
-		Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
-		Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
-		Cvar_Hook(&v_brightness, GLV_Gamma_Callback);
-
-		Cvar_ForceCallback(&v_gamma);
-	}
+	Cvar_ForceCallback(&v_gamma);
 
 	return true;
 }
@@ -1375,6 +1369,7 @@ rendererinfo_t d3d11rendererinfo =
 	D3D11BE_UploadAllLightmaps,
 	D3D11BE_SelectEntity,
 	D3D11BE_SelectDLight,
+	D3D11BE_Scissor,
 	D3D11BE_LightCullModel,
 
 	D3D11BE_VBO_Begin,

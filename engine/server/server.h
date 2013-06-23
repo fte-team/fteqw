@@ -500,7 +500,7 @@ typedef struct client_s
 
 #ifdef VOICECHAT
 	unsigned int voice_read;	/*place in ring*/
-	unsigned char voice_mute[MAX_CLIENTS/8];
+	unsigned char voice_mute[(MAX_CLIENTS+7)/8];
 	qboolean voice_active;
 	enum
 	{
@@ -535,6 +535,7 @@ typedef struct client_s
 #endif
 	unsigned int	zquake_extensions;
 	unsigned int    max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
+	unsigned int	max_net_clients; /*max number of player slots supported by the client */
 	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 
 	enum {
@@ -939,6 +940,7 @@ void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
 struct quakeparms_s;
 void SV_Init (struct quakeparms_s *parms);
+void SV_ExecInitialConfigs(char *defaultexec);
 
 int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
@@ -1022,6 +1024,7 @@ void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *init
 //
 // sv_send.c
 //
+void SV_CalcNetRates(client_t *cl, double *ftime, int *frames, double *minf, double *maxf);	//gets received framerate etc info
 qboolean SV_ChallengePasses(int challenge);
 void SV_QCStatName(int type, char *name, int statnum);
 void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum);

@@ -2258,7 +2258,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		return;
 	}
 #endif
-	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
+	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots && j < client->max_net_clients; j++,cl++)
 	{
 		if (cl->state != cs_spawned && !(cl->state == cs_free && cl->name[0]))	//this includes bots, and nq bots
 			continue;
@@ -2880,8 +2880,12 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		//if ent->viewmodelforclient == client then:
 		state->dpflags |= RENDER_VIEWMODEL;
 	}
-	if (ent->v->colormap >= 1024)
+	state->colormap = ent->v->colormap;
+	if (state->colormap >= 1024)
 		state->dpflags |= RENDER_COLORMAPPED;
+	else if (client && state->colormap > client->max_net_clients)
+		state->colormap = 0;
+
 	if (ent->xv->exteriormodeltoclient && client)
 	{
 		if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
@@ -2897,7 +2901,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->modelindex = ent->v->modelindex;
 	state->modelindex2 = ent->xv->vw_index;
 	state->frame = ent->v->frame;
-	state->colormap = ent->v->colormap;
 	state->skinnum = ent->v->skin;
 	state->effects = ent->v->effects;
 	state->effects |= (int)ent->xv->modelflags<<24;
@@ -3105,7 +3108,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 
 	/*legacy qw clients get their players separately*/
 	if (ISQWCLIENT(client) && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-		e = sv.allocated_client_slots+1;
+		e = min(sv.allocated_client_slots+1, client->max_net_clients);
 	else
 		e = 1;
 

@@ -1075,6 +1075,8 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 		ADDRARG("-addbasegame");
 		ADDCARG(tok);
 	}
+	//make sure we always use the home directory. because its better than using some random browser-defined working directory.
+	ADDRARG("-usehome");
 
 	if (ctx->datadownload)
 	{

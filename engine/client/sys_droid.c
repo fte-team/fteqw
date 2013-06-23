@@ -158,9 +158,19 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_newglcontext(JNIEnv *env, j
 	//fixme: wipe image handles
 }
 
+//called when the user tries to use us to open one of our file types
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_openfile(JNIEnv *env, jobject obj,
+				jstring openfile)
+{
+	const char *fname = (*env)->GetStringUTFChars(env, openfile, NULL);
+	Host_RunFile(fname);
+	Host_Frame
+	(*env)->ReleaseStringUTFChars(env, openfile, fname);
+}
+
 //called for init or resizes
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
-                 jint width, jint height, jint glesversion, jstring japkpath, jstring jusrpath)
+				jint width, jint height, jint glesversion, jstring japkpath, jstring jusrpath)
 {
 	const char *tmp;
 

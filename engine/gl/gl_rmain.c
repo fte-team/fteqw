@@ -230,9 +230,9 @@ void GL_SetupSceneProcessingTextures (void)
 
 void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
 {
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
+	if ((e->flags & Q2RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 	{
-		entity_t *view = &cl.viewent[r_refdef.currentplayernum];
+		entity_t *view = &r_refdef.playerview->viewent;
 		float em[16];
 		float vm[16];
 
@@ -382,9 +382,9 @@ void R_SetupGL (float stereooffset)
 		//
 		// set up viewpoint
 		//
-		x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
-		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
-		y = (vid.height-r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
+		x = r_refdef.vrect.x * (int)vid.pixelwidth/(int)vid.width;
+		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
+		y = (vid.height-r_refdef.vrect.y) * (int)vid.pixelheight/(int)vid.height;
 		y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * (int)vid.pixelheight/(int)vid.height;
 
 		// fudge around because of frac screen scale
@@ -1009,7 +1009,7 @@ void R_Clear (void)
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
-		if (r_clear.ival && !r_secondaryview && !r_refdef.currentplayernum && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && r_refdef.grect.x == 0 && r_refdef.grect.y == 0 && r_refdef.grect.width == vid.width && r_refdef.grect.height == vid.height && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		{
 			qglClearColor(1, 0, 0, 0);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1195,12 +1195,12 @@ qboolean R_RenderScene_Cubemap(void)
 			facemask |= 1<<5; /*back view*/
 	}
 
-//fixme: should already have the vrect somewhere.
-	SCR_VRectForPlayer(&vrect, r_refdef.currentplayernum);
-	prect.x = (vrect.x * vid.pixelwidth)/vid.width;
-	prect.width = (vrect.width * vid.pixelwidth)/vid.width;
-	prect.y = (vrect.y * vid.pixelheight)/vid.height;
-	prect.height = (vrect.height * vid.pixelheight)/vid.height;
+	vrect = r_refdef.vrect;
+	prect = r_refdef.pxrect;
+//	prect.x = (vrect.x * vid.pixelwidth)/vid.width;
+//	prect.width = (vrect.width * vid.pixelwidth)/vid.width;
+//	prect.y = (vrect.y * vid.pixelheight)/vid.height;
+//	prect.height = (vrect.height * vid.pixelheight)/vid.height;
 
 	if (r_config.texture_non_power_of_two)
 	{

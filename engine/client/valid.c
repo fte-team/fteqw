@@ -107,7 +107,7 @@ static void Validation_Version(void)
 	{
 		signed_buffer_t *resp;
 
-		resp = Security_Generate_Crc(cl.playernum[0], cl.players[cl.playernum[0]].userinfo, cl.serverinfo);
+		resp = Security_Generate_Crc(cl.playerview[0].playernum, cl.players[cl.playerview[0].playernum].userinfo, cl.serverinfo);
 		if (!resp || !resp->buf)
 			auth = "";
 		else
@@ -273,7 +273,7 @@ void Validation_IncludeFile(char *filename, char *file, int filelen)
 
 static void Validation_FilesModified (void)
 {
-	Con_Printf ("Not implemented\n");
+	Con_Printf ("f_modified not implemented\n");
 }
 
 void Validation_FlushFileList(void)
@@ -446,12 +446,6 @@ qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qbool
 	rs = rulesets;
 	*rsnames = '\0';
 
-#ifdef warningmsg
-#pragma warningmsg("here's a question... Should we latch the ruleset unconditionally, or only when someone actually cares?")
-#pragma warningmsg("if we do it only when someone checks, we have a lot more checking, otherwise we have a freer tournament if the users choose to play that way")
-#pragma warningmsg("I'm going to do it the old-fashioned way")
-#pragma warningmsg("(yes, this is one for molgrum to resolve!)")
-#endif
 	for (rs = rulesets; rs->rulesetname; rs++)
 	{
 		rs->flagged = false;
@@ -517,7 +511,7 @@ void Validation_AllChecks(void)
 	char servername[22];
 	char playername[16];
 	char *enginebuild = version_string();
-	char localpnamelen = strlen(cl.players[cl.playernum[0]].name);
+	char localpnamelen = strlen(cl.players[cl.playerview[0].playernum].name);
 	char ruleset[1024];
 
 	//figure out the padding for the player's name.

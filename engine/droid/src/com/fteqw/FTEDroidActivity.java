@@ -342,8 +342,11 @@ public class FTEDroidActivity extends Activity
 		public void onSurfaceChanged(GL10 gl, int width, int height)
 		{
 			android.util.Log.i("FTEDroid", "Surface changed, now " + width + " by " + height + ".");
-			FTEDroidEngine.init(width, height, glesversion, basedir, userdir);
-			inited = true;
+			if (glesversion != 0)
+			{
+				FTEDroidEngine.init(width, height, glesversion, basedir, userdir);
+				inited = true;
+			}
 		}
 		@Override
 		public void onSurfaceCreated(GL10 gl, EGLConfig config)
@@ -705,6 +708,31 @@ public class FTEDroidActivity extends Activity
 			sensorman.registerListener((SensorEventListener)view, sensoracc, SensorManager.SENSOR_DELAY_GAME);
 
 		view.audioResume();
+	}
+	
+	@Override
+	protected void onStart()
+	{
+		super.onStart();
+		final android.content.Intent intent = getIntent();
+		if (intent != null)
+		{
+			final android.net.Uri data = intent.getData();
+			if (data != null)
+			{
+				String myloc;
+				if (data.getScheme().equals("content"))
+				{	//wtf.
+					Cursor cursor = this.getContentResolver().query(data, null, null, null, null);
+                    cursor.moveToFirst();   
+                    myloc = cursor.getString(0);
+                    cursor.close();
+				}
+				else
+					myloc = data.toString();
+				FTEDroidEngine.openfile(myloc);
+			}
+		}
 	}
 
 	@Override

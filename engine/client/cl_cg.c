@@ -19,11 +19,6 @@ void CG_Command_f(void);
 
 #define CGTAGNUM 5423
 
-#define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
-#define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
-char *VMQ3_StringFromHandle(int handle);
-int VMQ3_StringToHandle(char *str);
-
 extern model_t mod_known[];
 extern int mod_numknown;
 #define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
@@ -331,10 +326,10 @@ qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 	usercmd_t *cmd;
 	cmdNumber--;
 
-	if (cmdNumber > ccs.currentUserCmdNumber)
+	if (cmdNumber > cl.movesequence)
 		Host_EndGame("CL_GetUserCmd: cmdNumber > ccs.currentUserCmdNumber");
 
-	if (ccs.currentUserCmdNumber - cmdNumber > CMD_MASK)
+	if (cl.movesequence - cmdNumber > CMD_MASK)
 		return false; // too old
 
 	cmd = &cl.outframes[(cmdNumber) & CMD_MASK].cmd[0];
@@ -929,7 +924,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_GETCURRENTCMDNUMBER:
-		VM_LONG(ret) = ccs.currentUserCmdNumber;
+		VM_LONG(ret) = cl.movesequence;
 		break;
 	case CG_GETUSERCMD:
 		VALIDATEPOINTER(arg[1], sizeof(q3usercmd_t));
@@ -1140,7 +1135,7 @@ void CG_Start (void)
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		SCR_EndLoadingPlaque();
-		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playernum[0]);
+		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playerview[0].playernum);
 	}
 	else
 	{

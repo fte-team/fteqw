@@ -721,7 +721,8 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	{
 		for (i = 0; i < cl.splitclients; i++)
 		{
-			if (ent == (autocam[i]?(spec_track[i]+1):(cl.playernum[i]+1)))
+			playerview_t *pv = &cl.playerview[i];
+			if (ent == (pv->cam_auto?(pv->cam_spec_track+1):(pv->playernum+1)))
 			{
 				VectorCopy(end, playerbeam_end[i]);
 				break;
@@ -3102,7 +3103,8 @@ void CL_UpdateBeams (void)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
-				if (b->entity == ((cl.spectator&&autocam[j])?spec_track[j]+1:(cl.playernum[j]+1)))
+				playerview_t *pv = &cl.playerview[j];
+				if (b->entity == ((cl.spectator&&pv->cam_auto)?pv->cam_spec_track+1:(pv->playernum+1)))
 				{
 					player_state_t	*pl;
 		//			VectorSubtract(cl.simorg, b->start, org);
@@ -3114,24 +3116,24 @@ void CL_UpdateBeams (void)
 						vec3_t	fwd, org, ang;
 						float	delta, f, len;
 
-						if (cl.spectator && autocam[j])
+						if (cl.spectator && pv->cam_auto)
 						{	//if we're tracking someone, use their origin explicitly.
 							vieworg = pl->origin;
 						}
 						else
-							vieworg = cl.playerview[j].simorg;
-						viewang = cl.playerview[j].simangles;
+							vieworg = pv->simorg;
+						viewang = pv->simangles;
 
 						if (cl_truelightning.ival >= 2 && cls.netchan.outgoing_sequence > cl_truelightning.ival)
 						{
 							inframe_t *frame = &cl.inframes[(cls.netchan.outgoing_sequence-cl_truelightning.ival)&UPDATE_MASK];
-							viewang = frame->playerstate[cl.playernum[j]].viewangles;
-							viewang[0] = (frame->playerstate[cl.playernum[j]].command.angles[0] * 360) / 65336.0;
-							viewang[1] = (frame->playerstate[cl.playernum[j]].command.angles[1] * 360) / 65336.0;
+							viewang = frame->playerstate[pv->playernum].viewangles;
+							viewang[0] = (frame->playerstate[pv->playernum].command.angles[0] * 360) / 65336.0;
+							viewang[1] = (frame->playerstate[pv->playernum].command.angles[1] * 360) / 65336.0;
 						}
 
 						VectorCopy (vieworg, b->start);
-						b->start[2] += cl.crouch[j] + bound(-7, v_viewheight.value, 4);
+						b->start[2] += pv->crouch + bound(-7, v_viewheight.value, 4);
 
 						f = bound(0, cl_truelightning.value, 1);
 

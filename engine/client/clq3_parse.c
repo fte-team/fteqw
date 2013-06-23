@@ -492,7 +492,8 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 				VFS_CLOSE(f);
 				continue;
 			}
-			FS_GenCachedPakName(va("%s.pk3", com_token), crc, cls.downloadlocalname, sizeof(cls.downloadlocalname));
+			if (!FS_GenCachedPakName(va("%s.pk3", com_token), crc, cls.downloadlocalname, sizeof(cls.downloadlocalname)))
+				continue;
 			f = FS_OpenVFS(cls.downloadlocalname, "rb", FS_ROOT);
 			if (f)
 			{
@@ -500,12 +501,14 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 				continue;
 			}
 
+			if (!FS_GenCachedPakName(va("%s.tmp", com_token), crc, cls.downloadtempname, sizeof(cls.downloadtempname)))
+				continue;
+
 			//fixme: request to download it
 			Con_Printf("Sending request to download %s\n", com_token);
 			CLQ3_SendClientCommand("download %s.pk3", com_token);
 			ccs.downloadchunknum = 0;
 			//q3's downloads are relative to root, but they do at least force a pk3 extension.
-			FS_GenCachedPakName(va("%s.tmp", com_token), crc, cls.downloadtempname, sizeof(cls.downloadtempname));
 			snprintf(cls.downloadremotename, sizeof(cls.downloadremotename), "%s.pk3", com_token);
 			cls.downloadmethod = DL_Q3;
 			cls.downloadpercent = 0;
@@ -514,11 +517,11 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 
 		pc = Info_ValueForKey(str, "sv_paks");		//the ones that we are allowed to use (in order!)
 		pn = Info_ValueForKey(str, "sv_pakNames");
-		FS_ForceToPure(pn, pc, ccs.fs_key);
+		FS_PureMode(2, pn, pc, ccs.fs_key);
 	}
 	else
 	{
-		FS_ForceToPure(NULL, NULL, ccs.fs_key);
+		FS_PureMode(0, NULL, NULL, ccs.fs_key);
 	}
 
 	return true;	//yay, we're in
@@ -586,7 +589,7 @@ void CLQ3_ParseGameState(void)
 		}
 	}
 
-	cl.playernum[0] = MSG_ReadLong();
+	cl.playerview[0].playernum = MSG_ReadLong();
 	ccs.fs_key = MSG_ReadLong();
 
 	if (!CLQ3_SystemInfoChanged(CG_GetConfigString(CFGSTR_SYSINFO)))
@@ -916,13 +919,13 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	if (key_dest != key_game || (keycatcher&3))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
-	cl.outframes[ccs.currentUserCmdNumber&CMD_MASK].cmd[0] = *cmd;
-	ccs.currentUserCmdNumber++;
+	cl.outframes[cl.movesequence&Q3UPDATE_MASK].cmd[0] = *cmd;
+	cl.movesequence++;
 
 
 
 	frame = &cl.outframes[cls.netchan.outgoing_sequence & Q3UPDATE_MASK];
-	frame->cmd_sequence = ccs.currentUserCmdNumber;
+	frame->cmd_sequence = cl.movesequence;
 	frame->server_message_num = ccs.serverMessageNum;
 	frame->server_time = cl.gametime;
 	frame->client_time = Sys_DoubleTime()*1000;
@@ -950,7 +953,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 
 	i = (cls.netchan.outgoing_sequence - 1);
 	oldframe = &cl.outframes[i & Q3UPDATE_MASK];
-	cmdcount = ccs.currentUserCmdNumber - oldframe->cmd_sequence;
+	cmdcount = cl.movesequence - oldframe->cmd_sequence;
 	if (cmdcount > Q3UPDATE_MASK)
 		cmdcount = Q3UPDATE_MASK;
 	// begin a client move command, if any
@@ -973,7 +976,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		// send this and the previous cmds in the message, so
 		// if the last packet was dropped, it can be recovered
 		from = &nullcmd;
-		for (i = oldframe->cmd_sequence; i < ccs.currentUserCmdNumber; i++)
+		for (i = oldframe->cmd_sequence; i < cl.movesequence; i++)
 		{
 			to = &cl.outframes[i&CMD_MASK].cmd[0];
 			MSG_Q3_WriteDeltaUsercmd( &msg, key, from, to );

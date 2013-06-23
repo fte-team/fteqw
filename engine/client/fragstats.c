@@ -123,8 +123,8 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		p2 = tmp;
 	}
 
-	u1 = (p1 == (cl.playernum[0]&127));
-	u2 = (p2 == (cl.playernum[0]&127));
+	u1 = (p1 == (cl.playerview[0].playernum));
+	u2 = (p2 == (cl.playerview[0].playernum));
 
 	switch(mt)
 	{

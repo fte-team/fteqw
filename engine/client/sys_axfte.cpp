@@ -799,6 +799,7 @@ struct
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Vendor",											DISTRIBUTIONLONG},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Version",											"***VERSION***"},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\MimeTypes\\application/x-fteplugin\\Description",	"FTE Game Engine Plugin"},
+	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\MimeTypes\\application/x-ftemanifest\\Description",	"FTE Game File Manifest Listing"},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\MimeTypes\\application/x-qtv\\Description",			"QuakeTV Stream Information File"},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\MimeTypes\\application/x-qtv\\Suffixes",			"qtv"},
 	{"Software\\MozillaPlugins\\@fteqw.com/FTE\\Suffixes\\qtv",										""},

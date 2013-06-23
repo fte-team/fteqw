@@ -46,7 +46,6 @@ extern rendererstate_t currentrendererstate;
 typedef struct vrect_s
 {
 	int				x,y,width,height;
-//	struct vrect_s	*pnext;
 } vrect_t;
 
 typedef struct
@@ -56,7 +55,6 @@ typedef struct
 	unsigned		width; /*virtual 2d width*/
 	unsigned		height; /*virtual 2d height*/
 	int				numpages;
-	int				recalc_refdef;	// if true, recalc vid-based stuff
 
 	unsigned		rotpixelwidth; /*width after rotation in pixels*/
 	unsigned		rotpixelheight; /*pixel after rotation in pixels*/

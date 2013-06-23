@@ -6,8 +6,7 @@ typedef void (shader_gen_t)(char *name, shader_t*, const void *args);
 #define SHADER_PASS_MAX	8
 #define SHADER_MAX_TC_MODS	8
 #define SHADER_DEFORM_MAX	8
-#define SHADER_MAX_ANIMFRAMES	8
-#define SHADER_ANIM_FRAMES_MAX 16
+#define SHADER_MAX_ANIMFRAMES	16
 
 #define SHADER_PROGPARMS_MAX 16
 
@@ -516,6 +515,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
+void GLBE_Scissor(srect_t *rect);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
 void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
@@ -542,6 +542,7 @@ void D3D9BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
 void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
 void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
 void D3D9BE_VBO_Destroy(vboarray_t *vearray);
+void D3D9BE_Scissor(srect_t *rect);
 
 qboolean D3D9Shader_CreateProgram (program_t *prog, char *sname, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name);
@@ -574,6 +575,7 @@ void D3D11BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
 void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
 void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
 void D3D11BE_VBO_Destroy(vboarray_t *vearray);
+void D3D11BE_Scissor(srect_t *rect);
 #endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

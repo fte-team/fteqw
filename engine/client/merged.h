@@ -217,6 +217,17 @@ typedef struct vboarray_s
 	};
 } vboarray_t;
 
+//scissor rects
+typedef struct
+{
+	float x;
+	float y;
+	float width;
+	float height;
+	double dmin;
+	double dmax;
+} srect_t;
+
 typedef struct texnums_s {
 	texid_t base;
 	texid_t bump;
@@ -340,6 +351,7 @@ typedef struct rendererinfo_s {
 	void (*BE_UploadAllLightmaps)(void);
 	void (*BE_SelectEntity)(struct entity_s *ent);
 	void (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour);
+	void (*BE_Scissor)(srect_t *rect);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
 	void (*BE_VBO_Begin)(vbobctx_t *ctx, unsigned int maxsize);
@@ -378,3 +390,4 @@ typedef struct rendererinfo_s {
 #define BE_VBO_Data				rf->BE_VBO_Data
 #define BE_VBO_Finish			rf->BE_VBO_Finish
 #define BE_VBO_Destroy			rf->BE_VBO_Destroy
+#define BE_Scissor				rf->BE_Scissor

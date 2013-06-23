@@ -646,7 +646,7 @@ void Renderer_Init(void)
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
-	Cvar_Register(&scr_chatmodecvar, SCREENOPTIONS);
+//	Cvar_Register(&scr_chatmodecvar, SCREENOPTIONS);
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);
 	Cvar_Register (&scr_sshot_compression, SCREENOPTIONS);
@@ -863,6 +863,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//SCR_UpdateScreen;
 
 	/*backend*/
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -1135,8 +1136,6 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			BZ_Free(colormap);
 		}
 
-		R_GenPaletteLookup();
-
 		if (h2playertranslations)
 			BZ_Free(h2playertranslations);
 		h2playertranslations = FS_LoadMallocFile ("gfx/player.lmp");
@@ -1145,6 +1144,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			vid.fullbright = 0;	//transparent colour doesn't count.
 
 q2colormap:
+		R_GenPaletteLookup();
 
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
@@ -1499,7 +1499,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	{
 		int i;
 		if (*vid_renderer.string)
-			Con_Printf("vid_renderer unsupported. Using default.\n");
+			Con_Printf("vid_renderer \"%s\" unsupported. Using default.\n", vid_renderer.string);
 		else
 			Con_DPrintf("vid_renderer unset. Using default.\n");
 
@@ -1660,7 +1660,9 @@ void R_SetRenderer_f (void)
 	}
 
 	Cvar_Set(&vid_renderer, param);
-	R_RestartRenderer_f();
+
+	if (!r_blockvidrestart)
+		R_RestartRenderer_f();
 }
 
 

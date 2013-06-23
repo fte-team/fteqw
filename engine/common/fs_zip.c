@@ -71,7 +71,8 @@ qboolean LibZ_Init(void)
 	return ZLIB_LOADED();
 }
 
-vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
+//outfile may be null
+vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 {
 	char inchar;
 	unsigned short inshort;
@@ -127,11 +128,16 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
 
 
 
-	temp = FS_OpenTemp();
-	if (!temp)
+	if (outfile)
+		temp = outfile;
+	else
 	{
-		VFS_SEEK(infile, 0);	//doh
-		return infile;
+		temp = FS_OpenTemp();
+		if (!temp)
+		{
+			VFS_SEEK(infile, 0);	//doh
+			return infile;
+		}
 	}
 
 
@@ -222,6 +228,8 @@ typedef struct
 
 typedef struct zipfile_s
 {
+	searchpathfuncs_t pub;
+
 	char filename[MAX_OSPATH];
 	unzFile handle;
 	int		numfiles;
@@ -239,14 +247,14 @@ typedef struct zipfile_s
 } zipfile_t;
 
 
-static void QDECL FSZIP_GetDisplayPath(void *handle, char *out, unsigned int outlen)
+static void QDECL FSZIP_GetPathDetails(void *handle, char *out, unsigned int outlen)
 {
 	zipfile_t *zip = handle;
 
 	if (zip->references != 1)
-		Q_snprintfz(out, outlen, "%s (%i)\n", zip->filename, zip->references-1);
+		Q_snprintfz(out, outlen, "(%i)", zip->references-1);
 	else
-		Q_strncpyz(out, zip->filename, outlen);
+		*out = '\0';
 }
 static void QDECL FSZIP_ClosePath(void *handle)
 {
@@ -336,7 +344,7 @@ static void QDECL FSZIP_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	return;
 }
 
-static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
 {
 	zipfile_t *zip = handle;
 	int		num;
@@ -345,7 +353,7 @@ static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDE
 	{
 		if (wildcmp(match, zip->files[num].name))
 		{
-			if (!func(zip->files[num].name, zip->files[num].filelen, parm, handle))
+			if (!func(zip->files[num].name, zip->files[num].filelen, parm, &zip->pub))
 				return false;
 		}
 	}
@@ -353,68 +361,7 @@ static int QDECL FSZIP_EnumerateFiles (void *handle, const char *match, int (QDE
 	return true;
 }
 
-/*
-=================
-COM_LoadZipFile
-
-Takes an explicit (not game tree related) path to a pak file.
-
-Loads the header and directory, adding the files at the beginning
-of the list so they override previous pack files.
-=================
-*/
-static void *QDECL FSZIP_LoadZipFile (vfsfile_t *packhandle, const char *desc)
-{
-	int i;
-	int nextfileziphandle;
-
-	zipfile_t *zip;
-	zpackfile_t		*newfiles;
-
-	unz_global_info	globalinf = {0};
-	unz_file_info	file_info;
-
-	zip = Z_Malloc(sizeof(zipfile_t));
-	Q_strncpyz(zip->filename, desc, sizeof(zip->filename));
-	zip->handle = unzOpen ((zip->raw = packhandle));
-	if (!zip->handle)
-	{
-		Z_Free(zip);
-		Con_TPrintf (TL_COULDNTOPENZIP, desc);
-		return NULL;
-	}
-
-	unzGetGlobalInfo (zip->handle, &globalinf);
-
-	zip->numfiles = globalinf.number_entry;
-
-	zip->files = newfiles = Z_Malloc (zip->numfiles * sizeof(zpackfile_t));
-	for (i = 0; i < zip->numfiles; i++)
-	{
-		if (unzGetCurrentFileInfo (zip->handle, &file_info, newfiles[i].name, sizeof(newfiles[i].name), NULL, 0, NULL, 0) != UNZ_OK)
-			Con_Printf("Zip Error\n");
-		Q_strlwr(newfiles[i].name);
-		if (!*newfiles[i].name || newfiles[i].name[strlen(newfiles[i].name)-1] == '/')
-			newfiles[i].filelen = -1;
-		else
-			newfiles[i].filelen = file_info.uncompressed_size;
-		newfiles[i].filepos = file_info.c_offset;
-
-		nextfileziphandle = unzGoToNextFile (zip->handle);
-		if (nextfileziphandle == UNZ_END_OF_LIST_OF_FILE)
-			break;
-		else if (nextfileziphandle != UNZ_OK)
-			Con_Printf("Zip Error\n");
-	}
-
-	zip->references = 1;
-	zip->currentfile = NULL;
-
-	Con_TPrintf (TL_ADDEDZIPFILE, desc, zip->numfiles);
-	return zip;
-}
-
-int QDECL FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
+static int QDECL FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
 {
 	zipfile_t *zip = handle;
 	unz_file_info	file_info;
@@ -460,7 +407,7 @@ typedef struct {
 	int index;
 	int startpos;
 } vfszip_t;
-qboolean VFSZIP_MakeActive(vfszip_t *vfsz)
+static qboolean VFSZIP_MakeActive(vfszip_t *vfsz)
 {
 	int i;
 	char buffer[8192];	//must be power of two
@@ -501,7 +448,7 @@ qboolean VFSZIP_MakeActive(vfszip_t *vfsz)
 	return true;
 }
 
-int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+static int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	int read;
 	vfszip_t *vfsz = (vfszip_t*)file;
@@ -531,12 +478,12 @@ int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 	vfsz->pos += read;
 	return read;
 }
-int QDECL VFSZIP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
-{
-	Sys_Error("VFSZIP_WriteBytes: Not supported\n");
-	return 0;
-}
-qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
+//static int QDECL VFSZIP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+//{
+//	Sys_Error("VFSZIP_WriteBytes: Not supported\n");
+//	return 0;
+//}
+static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
@@ -607,7 +554,7 @@ qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 
 	return true;
 }
-unsigned long QDECL VFSZIP_Tell (struct vfsfile_s *file)
+static unsigned long QDECL VFSZIP_Tell (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
@@ -616,12 +563,12 @@ unsigned long QDECL VFSZIP_Tell (struct vfsfile_s *file)
 
 	return vfsz->pos;
 }
-unsigned long QDECL VFSZIP_GetLen (struct vfsfile_s *file)
+static unsigned long QDECL VFSZIP_GetLen (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 	return vfsz->length;
 }
-void QDECL VFSZIP_Close (struct vfsfile_s *file)
+static void QDECL VFSZIP_Close (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
@@ -635,7 +582,7 @@ void QDECL VFSZIP_Close (struct vfsfile_s *file)
 	Z_Free(vfsz);
 }
 
-vfsfile_t *QDECL FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *QDECL FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	int rawofs;
 	zipfile_t *zip = handle;
@@ -660,6 +607,7 @@ vfsfile_t *QDECL FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	vfsz->funcs.Close = VFSZIP_Close;
 	vfsz->funcs.GetLen = VFSZIP_GetLen;
 	vfsz->funcs.ReadBytes = VFSZIP_ReadBytes;
+	//vfsz->funcs.WriteBytes = VFSZIP_WriteBytes;
 	vfsz->funcs.Seek = VFSZIP_Seek;
 	vfsz->funcs.Tell = VFSZIP_Tell;
 	vfsz->funcs.WriteBytes = NULL;
@@ -694,17 +642,76 @@ vfsfile_t *QDECL FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	return (vfsfile_t*)vfsz;
 }
 
-searchpathfuncs_t zipfilefuncs = {
-	FSZIP_GetDisplayPath,
-	FSZIP_ClosePath,
-	FSZIP_BuildHash,
-	FSZIP_FLocate,
-	FSZIP_ReadFile,
-	FSZIP_EnumerateFiles,
-	FSZIP_LoadZipFile,
-	FSZIP_GeneratePureCRC,
-	FSZIP_OpenVFS
-};
+/*
+=================
+COM_LoadZipFile
+
+Takes an explicit (not game tree related) path to a pak file.
+
+Loads the header and directory, adding the files at the beginning
+of the list so they override previous pack files.
+=================
+*/
+searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *desc)
+{
+	int i;
+	int nextfileziphandle;
+
+	zipfile_t *zip;
+	zpackfile_t		*newfiles;
+
+	unz_global_info	globalinf = {0};
+	unz_file_info	file_info;
+
+	zip = Z_Malloc(sizeof(zipfile_t));
+	Q_strncpyz(zip->filename, desc, sizeof(zip->filename));
+	zip->handle = unzOpen ((zip->raw = packhandle));
+	if (!zip->handle)
+	{
+		Z_Free(zip);
+		Con_TPrintf (TL_COULDNTOPENZIP, desc);
+		return NULL;
+	}
+
+	unzGetGlobalInfo (zip->handle, &globalinf);
+
+	zip->numfiles = globalinf.number_entry;
+
+	zip->files = newfiles = Z_Malloc (zip->numfiles * sizeof(zpackfile_t));
+	for (i = 0; i < zip->numfiles; i++)
+	{
+		if (unzGetCurrentFileInfo (zip->handle, &file_info, newfiles[i].name, sizeof(newfiles[i].name), NULL, 0, NULL, 0) != UNZ_OK)
+			Con_Printf("Zip Error\n");
+		Q_strlwr(newfiles[i].name);
+		if (!*newfiles[i].name || newfiles[i].name[strlen(newfiles[i].name)-1] == '/')
+			newfiles[i].filelen = -1;
+		else
+			newfiles[i].filelen = file_info.uncompressed_size;
+		newfiles[i].filepos = file_info.c_offset;
+
+		nextfileziphandle = unzGoToNextFile (zip->handle);
+		if (nextfileziphandle == UNZ_END_OF_LIST_OF_FILE)
+			break;
+		else if (nextfileziphandle != UNZ_OK)
+			Con_Printf("Zip Error\n");
+	}
+
+	zip->references = 1;
+	zip->currentfile = NULL;
+
+	Con_TPrintf (TL_ADDEDZIPFILE, desc, zip->numfiles);
+
+	zip->pub.fsver				= FSVER;
+	zip->pub.GetPathDetails		= FSZIP_GetPathDetails;
+	zip->pub.ClosePath			= FSZIP_ClosePath;
+	zip->pub.BuildHash			= FSZIP_BuildHash;
+	zip->pub.FindFile			= FSZIP_FLocate;
+	zip->pub.ReadFile			= FSZIP_ReadFile;
+	zip->pub.EnumerateFiles		= FSZIP_EnumerateFiles;
+	zip->pub.GeneratePureCRC	= FSZIP_GeneratePureCRC;
+	zip->pub.OpenVFS			= FSZIP_OpenVFS;
+	return &zip->pub;
+}
 
 #endif
 

@@ -2579,7 +2579,11 @@ void Surf_BuildModelLightmaps (model_t *m)
 	{
 		for (t = m->numtextures-1; t >= 0; t--)
 		{
-			ptype = P_FindParticleType(va("tex_%s", m->textures[t]->name));
+			char *pn = va("tex_%s", m->textures[t]->name);
+			char *h = strchr(pn, '#');
+			if (h)
+				*h = 0;
+			ptype = P_FindParticleType(pn);
 		
 			if (ptype != P_INVALID)
 			{

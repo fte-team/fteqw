@@ -852,7 +852,7 @@ enum {
 ==========================================================
 */
 
-#define	MAX_CLIENTS		32//255	/*max 255, min 32*/
+#define	MAX_CLIENTS		255	/*max 255, min 32*/
 #define	QWMAX_CLIENTS	32 /*QW's standard max. clients might have issues above this value*/
 #define	NQMAX_CLIENTS	16 /*NQ's standard max. clients might have issues above this value*/
 

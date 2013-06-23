@@ -1023,11 +1023,10 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //hash table stuff
 #define MAX_QC_HASHTABLES 256
 
-#define FIRST_QC_HASHTABLE_INDEX 1
-
 typedef struct
 {
 	pubprogfuncs_t *prinst;
+	qboolean dupestrings;
 	hashtable_t tab;
 	void *bucketmem;
 } pf_hashtab_t;
@@ -1035,73 +1034,127 @@ typedef struct
 {
 	bucket_t buck;
 	char *name;
-	vec3_t data;
+	union
+	{
+		vec3_t data;
+		char *stringdata;
+	};
 } pf_hashentry_t;
 pf_hashtab_t pf_hashtab[MAX_QC_HASHTABLES];
+pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
+pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
+static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
+{
+	if (!idx)
+		return &pf_peristanthashtab;
+	idx -= 1;
+	if (idx >= 0 && idx < MAX_QC_HASHTABLES && pf_hashtab[idx].prinst)
+		return &pf_hashtab[idx];
+	else
+		PR_BIError(prinst, "PF_hash_findtab: invalid hash table\n");
+	return NULL;
+};
 
 void QCBUILTIN PF_hash_getkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	int idx = G_FLOAT(OFS_PARM1);
 	pf_hashentry_t *ent = NULL;
 	G_INT(OFS_RETURN) = 0;
-	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	if (tab)
 	{
-		ent = Hash_GetIdx(&pf_hashtab[tab].tab, idx);
+		ent = Hash_GetIdx(&tab->tab, idx);
 		if (ent)
 			RETURN_TSTRING(ent->name);
 	}
 }
 void QCBUILTIN PF_hash_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
 	pf_hashentry_t *ent = NULL;
 	memset(G_VECTOR(OFS_RETURN), 0, sizeof(vec3_t));
-	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	if (tab)
 	{
-		ent = Hash_Get(&pf_hashtab[tab].tab, name);
+		ent = Hash_Get(&tab->tab, name);
 		if (ent)
 		{
 			memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
-			Hash_RemoveData(&pf_hashtab[tab].tab, name, ent);
+			Hash_RemoveData(&tab->tab, name, ent);
 			BZ_Free(ent);
 		}
 	}
-	else
-		PR_BIError(prinst, "PF_hash_get: invalid hash table\n");
 }
 void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
 	pf_hashentry_t *ent = NULL;
-	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	if (tab)
+	{
+		ent = Hash_Get(&tab->tab, name);
+		if (ent)
+		{
+			if (tab->dupestrings)
+			{
+				G_INT(OFS_RETURN+2) = 0;
+				G_INT(OFS_RETURN+1) = 0;
+				RETURN_TSTRING(ent->stringdata);
+			}
+			else
+				memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
+		}
+		else
+			memcpy(G_VECTOR(OFS_RETURN), G_VECTOR(OFS_PARM2), sizeof(vec3_t));
+	}
+}
+void QCBUILTIN PF_hash_getcb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+/*
+	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
+	func_t callback = G_FUNCTION(OFS_PARM1);
+	char *name = PR_GetStringOfs(prinst, OFS_PARM2);
+	pf_hashentry_t *ent = NULL;
+	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].valid)
 		ent = Hash_Get(&pf_hashtab[tab].tab, name);
 	else
-		PR_BIError(prinst, "PF_hash_get: invalid hash table\n");
+		PR_BIError(prinst, "PF_hash_getcb: invalid hash table\n");
 	if (ent)
 		memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
 	else
 		memcpy(G_VECTOR(OFS_RETURN), G_VECTOR(OFS_PARM2), sizeof(vec3_t));
+*/
 }
 void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
+	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
 	void *data = G_VECTOR(OFS_PARM2);
 	pf_hashentry_t *ent = NULL;
-	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	if (tab)
 	{
-		int nlen = strlen(name);
-		ent = BZ_Malloc(sizeof(*ent) + nlen + 1);
-		ent->name = (char*)(ent+1);
-		memcpy(ent->name, name, nlen+1);
-		memcpy(ent->data, data, sizeof(vec3_t));
-		Hash_Add(&pf_hashtab[tab].tab, ent->name, ent, &ent->buck);
+		if (tab->dupestrings)
+		{
+			char *value = PR_GetStringOfs(prinst, OFS_PARM2);
+			int nlen = strlen(name);
+			int vlen = strlen(data);
+			ent = BZ_Malloc(sizeof(*ent) + nlen+1 + vlen+1);
+			ent->name = (char*)(ent+1);
+			ent->stringdata = ent->name+(nlen+1);
+			memcpy(ent->name, name, nlen+1);
+			memcpy(ent->stringdata, value, vlen+1);
+			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
+		}
+		else
+		{
+			int nlen = strlen(name);
+			ent = BZ_Malloc(sizeof(*ent) + nlen + 1);
+			ent->name = (char*)(ent+1);
+			memcpy(ent->name, name, nlen+1);
+			memcpy(ent->data, data, sizeof(vec3_t));
+			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
+		}
 	}
-	else
-		PR_BIError(prinst, "PF_hash_add: invalid hash table\n");
 }
 static void PF_hash_destroytab_enum(void *ctx, void *ent)
 {
@@ -1109,28 +1162,30 @@ static void PF_hash_destroytab_enum(void *ctx, void *ent)
 }
 void QCBUILTIN PF_hash_destroytab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int tab = G_FLOAT(OFS_PARM0) - FIRST_QC_HASHTABLE_INDEX;
-	if (tab >= 0 && tab < MAX_QC_HASHTABLES && pf_hashtab[tab].prinst)
+	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
+	if (tab && tab->prinst == prinst)
 	{
-		pf_hashtab[tab].prinst = NULL;
-		Hash_Enumerate(&pf_hashtab[tab].tab, PF_hash_destroytab_enum, NULL);
-		Z_Free(pf_hashtab[tab].bucketmem);
+		tab->prinst = NULL;
+		Hash_Enumerate(&tab->tab, PF_hash_destroytab_enum, NULL);
+		Z_Free(tab->bucketmem);
 	}
 }
 void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 	int numbuckets = G_FLOAT(OFS_PARM0);
+	qboolean dupestrings = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):false;
 	if (numbuckets < 4)
 		numbuckets = 64;
 	for (i = 0; i < MAX_QC_HASHTABLES; i++)
 	{
 		if (!pf_hashtab[i].prinst)
 		{
+			pf_hashtab[i].dupestrings = dupestrings;
 			pf_hashtab[i].prinst = prinst;
 			pf_hashtab[i].bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
 			Hash_InitTable(&pf_hashtab[i].tab, numbuckets, pf_hashtab[i].bucketmem);
-			G_FLOAT(OFS_RETURN) = i + FIRST_QC_HASHTABLE_INDEX;
+			G_FLOAT(OFS_RETURN) = i + 1;
 			return;
 		}
 	}
@@ -1157,11 +1212,32 @@ typedef struct {
 } pf_fopen_files_t;
 pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
 
+//returns false if the file is denied.
+//fallbackread can be NULL, if the qc is not allowed to read that (original) file at all.
+qboolean QC_FixFileName(char *name, char **result, char **fallbackread)
+{
+	if (strchr(name, ':') ||	//dos/win absolute path, ntfs ADS, amiga drives. reject them all.
+		strchr(name, '\\') ||	//windows-only paths.
+		*name == '/' ||	//absolute path was given - reject
+		strstr(name, ".."))	//someone tried to be clever.
+	{
+		return false;
+	}
+
+	*fallbackread = name;
+	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
+	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name), "cfg"))
+		*fallbackread = NULL;
+	*result = va("data/%s", name);
+	return true;
+}
+
 void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *name = PR_GetStringOfs(prinst, OFS_PARM0);
 	int fmode = G_FLOAT(OFS_PARM1);
 	int fsize = G_FLOAT(OFS_PARM2);
+	char *fallbackread;
 	int i;
 
 	for (i = 0; i < MAX_QC_FILES; i++)
@@ -1175,15 +1251,14 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;
 	}
 
-	if (name[1] == ':' ||	//dos filename absolute path specified - reject.
-		strchr(name, '\\') || *name == '/' ||	//absolute path was given - reject
-		strstr(name, ".."))	//someone tried to be cleaver.
+	if (!QC_FixFileName(name, &name, &fallbackread))
 	{
+		Con_Printf("qcfopen: Access denied: %s\n", name);
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
 
-	Q_strncpyz(pf_fopen_files[i].name, va("data/%s", name), sizeof(pf_fopen_files[i].name));
+	Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
 
 	pf_fopen_files[i].accessmode = fmode;
 	switch (fmode)
@@ -1222,9 +1297,9 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	case FRIK_FILE_READ:	//read
 	case FRIK_FILE_READNL:	//read whole file
 		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
-		if (!pf_fopen_files[i].data)
+		if (!pf_fopen_files[i].data && fallbackread)
 		{
-			Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
+			Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
 			pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		}
 
@@ -1694,7 +1769,7 @@ void PR_fclose_progs (pubprogfuncs_t *prinst)
 void QCBUILTIN PF_isfunction (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*name = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = !!PR_FindFunction(prinst, name, PR_CURRENT);
+	G_FLOAT(OFS_RETURN) = !!PR_FindFunction(prinst, name, PR_ANY);
 }
 
 //void	callfunction(...)
@@ -1706,7 +1781,7 @@ void QCBUILTIN PF_callfunction (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		PR_BIError(prinst, "callfunction needs at least one argument\n");
 	name = PR_GetStringOfs(prinst, OFS_PARM0+(prinst->callargc-1)*3);
 	prinst->callargc -= 1;
-	f = PR_FindFunction(prinst, name, PR_CURRENT);
+	f = PR_FindFunction(prinst, name, PR_ANY);
 	if (f)
 		PR_ExecuteProgram(prinst, f);
 }
@@ -1873,32 +1948,36 @@ void QCBUILTIN PF_print (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 //FTE_STRINGS
 //C style strncasecmp (compare first n characters - case insensative)
+//C style strcasecmp (case insensative string compare)
 void QCBUILTIN PF_strncasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	int len = G_FLOAT(OFS_PARM2);
-	int aofs = prinst->callargc>3?G_FLOAT(OFS_PARM3):0;
 
-	if (VMUTF8)
+	if (prinst->callargc > 2)
 	{
-		aofs = unicode_byteofsfromcharofs(a, aofs);
-		len = unicode_byteofsfromcharofs(b, len);
+		int len = G_FLOAT(OFS_PARM2);
+		int aofs = prinst->callargc>3?G_FLOAT(OFS_PARM3):0;
+		int bofs = prinst->callargc>4?G_FLOAT(OFS_PARM4):0;
+
+		if (VMUTF8)
+		{
+			aofs = aofs?unicode_byteofsfromcharofs(a, aofs):0;
+			bofs = bofs?unicode_byteofsfromcharofs(b, bofs):0;
+			len = max(unicode_byteofsfromcharofs(a+aofs, len), unicode_byteofsfromcharofs(b+bofs, len));
+		}
+		else
+		{
+			if (aofs < 0 || (aofs && aofs > strlen(a)))
+				aofs = strlen(a);
+			if (bofs < 0 || (bofs && bofs > strlen(b)))
+				bofs = strlen(b);
+		}
+
+		G_FLOAT(OFS_RETURN) = Q_strncasecmp(a+aofs, b+bofs, len);
 	}
-	else if (aofs < 0 || (aofs && aofs > strlen(a)))
-		aofs = strlen(a);
-
-	G_FLOAT(OFS_RETURN) = strnicmp(a+aofs, b, len);
-}
-
-//FTE_STRINGS
-//C style strcasecmp (case insensative string compare)
-void QCBUILTIN PF_strcasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	G_FLOAT(OFS_RETURN) = stricmp(a, b);
+	else
+		G_FLOAT(OFS_RETURN) = Q_strcasecmp(a, b);
 }
 
 //FTE_STRINGS
@@ -1907,18 +1986,31 @@ void QCBUILTIN PF_strncmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	int len = G_FLOAT(OFS_PARM2);
-	int aofs = prinst->callargc>3?G_FLOAT(OFS_PARM3):0;
 
-	if (VMUTF8)
+	if (prinst->callargc > 2)
 	{
-		aofs = unicode_byteofsfromcharofs(a, aofs);
-		len = unicode_byteofsfromcharofs(b, len);
-	}
-	else if (aofs < 0 || (aofs && aofs > strlen(a)))
-		aofs = strlen(a);
+		int len = G_FLOAT(OFS_PARM2);
+		int aofs = prinst->callargc>3?G_FLOAT(OFS_PARM3):0;
+		int bofs = prinst->callargc>4?G_FLOAT(OFS_PARM4):0;
 
-	G_FLOAT(OFS_RETURN) = strncmp(a + aofs, b, len);
+		if (VMUTF8)
+		{
+			aofs = aofs?unicode_byteofsfromcharofs(a, aofs):0;
+			bofs = bofs?unicode_byteofsfromcharofs(b, bofs):0;
+			len = max(unicode_byteofsfromcharofs(a+aofs, len), unicode_byteofsfromcharofs(b+bofs, len));
+		}
+		else
+		{
+			if (aofs < 0 || (aofs && aofs > strlen(a)))
+				aofs = strlen(a);
+			if (bofs < 0 || (bofs && bofs > strlen(b)))
+				bofs = strlen(b);
+		}
+
+		G_FLOAT(OFS_RETURN) = Q_strncmp(a + aofs, b, len);
+	}
+	else
+		G_FLOAT(OFS_RETURN) = Q_strcmp(a, b);
 }
 
 //uses qw style \key\value strings
@@ -2593,6 +2685,7 @@ struct strbuf {
 	int allocated;
 };
 
+#define BUFSTRBASE 1
 #define NUMSTRINGBUFS 64
 struct strbuf strbuflist[NUMSTRINGBUFS];
 
@@ -2630,17 +2723,17 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			strbuflist[i].used = 0;
 			strbuflist[i].allocated = 0;
 			strbuflist[i].strings = NULL;
-			G_FLOAT(OFS_RETURN) = i+1;
+			G_FLOAT(OFS_RETURN) = i+BUFSTRBASE;
 			return;
 		}
 	}
-	G_FLOAT(OFS_RETURN) = 0;
+	G_FLOAT(OFS_RETURN) = -1;
 }
 // #441 void(float bufhandle) buf_del (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
-	int bufno = G_FLOAT(OFS_PARM0)-1;
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
@@ -2660,7 +2753,7 @@ void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 // #442 float(float bufhandle) buf_getsize (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_getsize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
@@ -2672,54 +2765,130 @@ void QCBUILTIN PF_buf_getsize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 // #443 void(float bufhandle_from, float bufhandle_to) buf_copy (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_copy  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int buffrom = G_FLOAT(OFS_PARM0)-1;
-	int bufto = G_FLOAT(OFS_PARM1)-1;
+	int buffrom = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	int bufto = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
+	int i;
 
+	if (bufto == buffrom)	//err...
+		return;
 	if ((unsigned int)buffrom >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[buffrom].prinst != prinst)
 		return;
-
 	if ((unsigned int)bufto >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufto].prinst != prinst)
 		return;
 
-	Con_Printf("PF_buf_copy: stub\n");
+	//obliterate any and all existing data.
+	for (i = 0; i < strbuflist[bufto].used; i++)
+		Z_Free(strbuflist[bufto].strings[i]);
+	Z_Free(strbuflist[bufto].strings);
+
+	//copy new data over.
+	strbuflist[bufto].used = strbuflist[bufto].allocated = strbuflist[buffrom].used;
+	strbuflist[bufto].strings = BZ_Malloc(strbuflist[buffrom].used * sizeof(char*));
+	for (i = 0; i < strbuflist[buffrom].used; i++)
+		strbuflist[bufto].strings[i] = strbuflist[buffrom].strings[i]?Z_StrDup(strbuflist[buffrom].strings[i]):NULL;
 }
-// #444 void(float bufhandle, float sortpower, float backward) buf_sort (DP_QC_STRINGBUFFERS)
+static int PF_buf_sort_sortprefixlen;
+static int QDECL PF_buf_sort_ascending(const void *a, const void *b)
+{
+	return strncmp(*(char**)a, *(char**)b, PF_buf_sort_sortprefixlen);
+}
+static int QDECL PF_buf_sort_descending(const void *b, const void *a)
+{
+	return strncmp(*(char**)a, *(char**)b, PF_buf_sort_sortprefixlen);
+}
+// #444 void(float bufhandle, float sortprefixlen, float backward) buf_sort (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
-	//int sortpower = G_FLOAT(OFS_PARM1);
-	//int backwards = G_FLOAT(OFS_PARM2);
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	int sortprefixlen = G_FLOAT(OFS_PARM1);
+	int backwards = G_FLOAT(OFS_PARM2);
+	int s,d;
+	char **strings;
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	Con_Printf("PF_buf_sort: stub\n");
+	if (sortprefixlen <= 0)
+		sortprefixlen = INT_MAX;
+
+	//take out the nulls first, to avoid weird/crashy sorting
+	for (s = 0, d = 0, strings = strbuflist[bufno].strings; s < strbuflist[bufno].used; )
+	{
+		if (!strings[s])
+		{
+			s++;
+			continue;
+		}
+		strings[d++] = strings[s++];
+	}
+	strbuflist[bufno].used = d;
+
+	//no nulls now, sort it.
+	PF_buf_sort_sortprefixlen = sortprefixlen;	//eww, a global. burn in hell.
+	if (backwards)	//z first
+		qsort(strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_descending);
+	else	//a first
+		qsort(strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_ascending);
 }
 // #445 string(float bufhandle, string glue) buf_implode (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_implode  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
-	//char *glue = PR_GetStringOfs(prinst, OFS_PARM1);
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	char *glue = PR_GetStringOfs(prinst, OFS_PARM1);
+	unsigned int gluelen = strlen(glue);
+	unsigned int retlen, l, i;
+	char **strings;
+	char *ret;
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	Con_Printf("PF_buf_implode: stub\n");
+	//count neededlength
+	strings = strbuflist[bufno].strings;
+	for (i = 0, retlen = 0; i < strbuflist[bufno].used; i++)
+	{
+		if (strings[i])
+		{
+			if (retlen)
+				retlen += gluelen;
+			retlen += strlen(strings[i]);
+		}
+	}
 
-	RETURN_TSTRING("");
+	//generate the output
+	ret = malloc(retlen+1);
+	for (i = 0, retlen = 0; i < strbuflist[bufno].used; i++)
+	{
+		if (strings[i])
+		{
+			if (retlen)
+			{
+				memcpy(ret+retlen, glue, gluelen);
+				retlen += gluelen;
+			}
+			l = strlen(strings[i]);
+			memcpy(ret+retlen, strings[i], l);
+			retlen += l;
+		}
+	}
+
+	//add the null and return
+	ret[retlen] = 0;
+	RETURN_TSTRING(ret);
+	free(ret);
 }
 // #446 string(float bufhandle, float string_index) bufstr_get (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	int index = G_FLOAT(OFS_PARM1);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
@@ -2744,7 +2913,7 @@ void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 // #447 void(float bufhandle, float string_index, string str) bufstr_set (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	int index = G_FLOAT(OFS_PARM1);
 	char *string = PR_GetStringOfs(prinst, OFS_PARM2);
 	int oldcount;
@@ -2769,21 +2938,11 @@ void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (index >= strbuflist[bufno].used)
 		strbuflist[bufno].used = index+1;
 }
-// #448 float(float bufhandle, string str, float order) bufstr_add (DP_QC_STRINGBUFFERS)
-void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+
+int PF_bufstr_add_internal(int bufno, char *string, int appendonend)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
-	char *string = PR_GetStringOfs(prinst, OFS_PARM1);
-	int order = G_FLOAT(OFS_PARM2);
-
 	int index;
-
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
-		return;
-	if (strbuflist[bufno].prinst != prinst)
-		return;
-
-	if (order)
+	if (appendonend)
 	{
 		//add on end
 		index = strbuflist[bufno].used;
@@ -2815,12 +2974,27 @@ void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (index >= strbuflist[bufno].used)
 		strbuflist[bufno].used = index+1;
 
-	G_FLOAT(OFS_RETURN) = index;
+	return index;
+}
+
+// #448 float(float bufhandle, string str, float order) bufstr_add (DP_QC_STRINGBUFFERS)
+void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	char *string = PR_GetStringOfs(prinst, OFS_PARM1);
+	int order = G_FLOAT(OFS_PARM2);
+
+	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+		return;
+	if (strbuflist[bufno].prinst != prinst)
+		return;
+
+	G_FLOAT(OFS_RETURN) = PF_bufstr_add_internal(bufno, string, order);
 }
 // #449 void(float bufhandle, float string_index) bufstr_free (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	int index = G_FLOAT(OFS_PARM1);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
@@ -2838,16 +3012,109 @@ void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-1;
-	//char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
-	//char *antipattern = PR_GetStringOfs(prinst, OFS_PARM2);
+	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *antipattern = PR_GetStringOfs(prinst, OFS_PARM2);
+	int i;
+	cvar_group_t	*grp;
+	cvar_t	*var;
+	extern cvar_group_t *cvar_groups;
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	Con_Printf("PF_buf_cvarlist: stub\n");
+	//obliterate any and all existing data.
+	for (i = 0; i < strbuflist[bufno].used; i++)
+		Z_Free(strbuflist[bufno].strings[i]);
+	Z_Free(strbuflist[bufno].strings);
+	strbuflist[bufno].used = strbuflist[bufno].allocated = 0;
+
+	//ignore name2, no point listing it twice.
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+		for (var=grp->cvars ; var ; var=var->next)
+		{
+			if (pattern && wildcmp(pattern, var->name))
+				continue;
+			if (antipattern && !wildcmp(antipattern, var->name))
+				continue;
+
+			PF_bufstr_add_internal(bufno, var->name, true);
+		}
+}
+
+//directly reads a file into a stringbuffer
+void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *fname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
+	vfsfile_t *file;
+	char line[8192];
+	char *fallback;
+
+	G_FLOAT(OFS_RETURN) = 0;
+
+	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+		return;
+	if (strbuflist[bufno].prinst != prinst)
+		return;
+
+	if (!QC_FixFileName(fname, &fname, &fallback))
+	{
+		Con_Printf("qcfopen: Access denied: %s\n", fname);
+		return;
+	}
+
+	file = FS_OpenVFS(fname, "rb", FS_GAME);
+	if (!file && fallback)
+		file = FS_OpenVFS(fallback, "rb", FS_GAME);
+	if (!file)
+		return;
+
+	while(VFS_GETS(file, line, sizeof(line)))
+	{
+		PF_bufstr_add_internal(bufno, line, true);
+	}
+	VFS_CLOSE(file);
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+
+void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
+	int bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
+	char **strings;
+	int idx, midx;
+
+	G_FLOAT(OFS_RETURN) = 0;
+
+	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+		return;
+	if (strbuflist[bufno].prinst != prinst)
+		return;
+
+	if (fnum < 0 || fnum >= MAX_QC_FILES)
+		return;
+	if (pf_fopen_files[fnum].prinst != prinst)
+		return;
+
+	if (prinst->callargc >= 3)
+		idx = G_FLOAT(OFS_PARM2);
+	else
+		idx = 0;
+	if (prinst->callargc >= 4)
+		midx = idx + G_FLOAT(OFS_PARM3);
+	else
+		midx = strbuflist[bufno].used - idx;
+	idx = bound(0, idx, strbuflist[bufno].used);
+	midx = min(midx, strbuflist[bufno].used);
+	for(strings = strbuflist[bufno].strings; idx < midx; idx++)
+	{
+		PF_fwrite (prinst, fnum, strings[idx], strlen(strings[idx]));
+	}
+	G_FLOAT(OFS_RETURN) = 1;
 }
 
 //515's String functions
@@ -2866,7 +3133,7 @@ void QCBUILTIN PF_crc16 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_FLOAT(OFS_RETURN) = QCRC_Block(str, len);
 }
 
-int SHA1(char *digest, int maxdigestsize, char *string);
+int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
 void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *hashtype = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -2882,7 +3149,7 @@ void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	}
 	else if (!strcmp(hashtype, "SHA1"))
 	{
-		digestsize = SHA1(digest, sizeof(digest), str);
+		digestsize = SHA1(digest, sizeof(digest), str, strlen(str));
 	}
 	else if (!strcmp(hashtype, "CRC16"))
 	{
@@ -4300,7 +4567,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_PEXT_MODELDBL"},	//max of 512 models
 	{"FTE_PEXT_ENTITYDBL"},	//max of 1024 ents
 	{"FTE_PEXT_ENTITYDBL2"},	//max of 2048 ents
-	{"FTE_PEXT_ORIGINDBL"},	//-8k to +8k map size.
+	{"FTE_PEXT_FLOATCOORDS"},
 	{"FTE_PEXT_VWEAP"},
 	{"FTE_PEXT_Q2BSP"},		//supports q2 maps. No bugs are apparent.
 	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.

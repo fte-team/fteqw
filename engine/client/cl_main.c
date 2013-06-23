@@ -36,6 +36,8 @@ void Name_Callback(struct cvar_s *var, char *oldvalue);
 
 qboolean	noclip_anglehack;		// remnant from old quake
 
+void Host_FinishLoading(void);
+
 
 cvar_t	rcon_password = SCVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
@@ -103,75 +105,75 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 // info mirrors
 //
-cvar_t	password = CVARAF("password",		"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
-cvar_t	spectator = CVARF("spectator",		"",			CVAR_USERINFO);
-cvar_t	name = CVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
-cvar_t	team = CVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	skin = CVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	model = CVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	topcolor = CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	bottomcolor = CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	rate = CVARFD("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while playing. Too high a value may result in 'buffer bloat'.");
-cvar_t	drate = CVARFD("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading.");		// :)
-cvar_t	noaim = CVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	msg = CVARFD("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
-cvar_t	b_switch = CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	w_switch = CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	cl_nofake = CVARD("cl_nofake",		"2", "value 0: permits \\r chars in chat messages\nvalue 1: blocks all \\r chars\nvalue 2: allows \\r chars, but only from teammates");
-cvar_t	cl_chatsound = CVAR("cl_chatsound","1");
-cvar_t	cl_enemychatsound = CVAR("cl_enemychatsound", "misc/talk.wav");
-cvar_t	cl_teamchatsound = CVAR("cl_teamchatsound", "misc/talk.wav");
+cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
+cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
+cvar_t	name		= CVARFC("name",		"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
+cvar_t	team		= CVARF("team",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	skin		= CVARF("skin",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	model		= CVARF("model",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	topcolor	= CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	bottomcolor	= CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	rate		= CVARFD("rate",		"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while playing. Too high a value may result in 'buffer bloat'.");
+cvar_t	drate		= CVARFD("drate",		"100000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading.");		// :)
+cvar_t	noaim		= CVARF("noaim",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	msg			= CVARFD("msg",			"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
+cvar_t	b_switch	= CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	w_switch	= CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	cl_nofake	= CVARD("cl_nofake",		"2", "value 0: permits \\r chars in chat messages\nvalue 1: blocks all \\r chars\nvalue 2: allows \\r chars, but only from teammates");
+cvar_t	cl_chatsound	= CVAR("cl_chatsound","1");
+cvar_t	cl_enemychatsound	= CVAR("cl_enemychatsound", "misc/talk.wav");
+cvar_t	cl_teamchatsound	= CVAR("cl_teamchatsound", "misc/talk.wav");
 
-cvar_t	r_torch			= CVARF("r_torch",	"0",	CVAR_CHEAT);
-cvar_t	r_rocketlight	= CVARFC("r_rocketlight",	"1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
-cvar_t	r_lightflicker	= CVAR("r_lightflicker",	"1");
-cvar_t	cl_r2g			= CVARF("cl_r2g",	"0", CVAR_ARCHIVE);
-cvar_t	r_powerupglow	= CVAR("r_powerupglow", "1");
-cvar_t	v_powerupshell	= CVARF("v_powerupshell", "0", CVAR_ARCHIVE);
-cvar_t	cl_gibfilter	= CVARF("cl_gibfilter", "0", CVAR_ARCHIVE);
-cvar_t	cl_deadbodyfilter	= CVAR("cl_deadbodyfilter", "0");
+cvar_t	r_torch					= CVARF("r_torch",	"0",	CVAR_CHEAT);
+cvar_t	r_rocketlight			= CVARFC("r_rocketlight",	"1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
+cvar_t	r_lightflicker			= CVAR("r_lightflicker",	"1");
+cvar_t	cl_r2g					= CVARF("cl_r2g",	"0", CVAR_ARCHIVE);
+cvar_t	r_powerupglow			= CVAR("r_powerupglow", "1");
+cvar_t	v_powerupshell			= CVARF("v_powerupshell", "0", CVAR_ARCHIVE);
+cvar_t	cl_gibfilter			= CVARF("cl_gibfilter", "0", CVAR_ARCHIVE);
+cvar_t	cl_deadbodyfilter		= CVAR("cl_deadbodyfilter", "0");
 
-cvar_t  cl_gunx = SCVAR("cl_gunx", "0");
-cvar_t  cl_guny = SCVAR("cl_guny", "0");
-cvar_t  cl_gunz = SCVAR("cl_gunz", "0");
+cvar_t  cl_gunx					= CVAR("cl_gunx", "0");
+cvar_t  cl_guny					= CVAR("cl_guny", "0");
+cvar_t  cl_gunz					= CVAR("cl_gunz", "0");
 
-cvar_t  cl_gunanglex = SCVAR("cl_gunanglex", "0");
-cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
-cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
+cvar_t  cl_gunanglex			= CVAR("cl_gunanglex", "0");
+cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
+cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
-cvar_t	cl_download_csprogs = CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available.");
-cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files. Also allows the server to send nearly arbitary download commands.");
-cvar_t  cl_download_mapsrc = CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
-cvar_t	cl_download_packages = CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
-cvar_t	requiredownloads = CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
+cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
+cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files. Also allows the server to send nearly arbitary download commands.");
+cvar_t  cl_download_mapsrc		= CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
+cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
+cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 
-cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
+cvar_t	cl_muzzleflash			= CVAR("cl_muzzleflash", "1");
 
-cvar_t	cl_item_bobbing = CVARF("cl_model_bobbing", "0", CVAR_ARCHIVE);
-cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
+cvar_t	cl_item_bobbing			= CVARF("cl_model_bobbing", "0", CVAR_ARCHIVE);
+cvar_t	cl_countpendingpl		= CVARD("cl_countpendingpl", "0", "If set to 1, packet loss percentages will show packets still in transit as lost, even if they might still be received.");
 
-cvar_t	cl_standardchat = CVARFD("cl_standardchat", "0", CVAR_ARCHIVE, "Disables auto colour coding in chat messages.");
-cvar_t	msg_filter = CVARD("msg_filter", "0", "Filter out chat messages: 0=neither. 1=broadcast chat. 2=team chat. 3=all chat.");
-cvar_t  cl_standardmsg = CVARFD("cl_standardmsg", "0", CVAR_ARCHIVE, "Disables auto colour coding in console prints.");
-cvar_t  cl_parsewhitetext = CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
+cvar_t	cl_standardchat			= CVARFD("cl_standardchat", "0", CVAR_ARCHIVE, "Disables auto colour coding in chat messages.");
+cvar_t	msg_filter				= CVARD("msg_filter", "0", "Filter out chat messages: 0=neither. 1=broadcast chat. 2=team chat. 3=all chat.");
+cvar_t  cl_standardmsg			= CVARFD("cl_standardmsg", "0", CVAR_ARCHIVE, "Disables auto colour coding in console prints.");
+cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
 
-cvar_t	cl_dlemptyterminate = CVAR("cl_dlemptyterminate", "1");
+cvar_t	cl_dlemptyterminate		= CVAR("cl_dlemptyterminate", "1");
 
-cvar_t	host_mapname = CVARAF("mapname", "",
-							  "host_mapname", 0);
+cvar_t	host_mapname			= CVARAF("mapname", "",
+									  "host_mapname", 0);
 
-cvar_t	ruleset_allow_playercount	= SCVAR("ruleset_allow_playercount", "1");
-cvar_t	ruleset_allow_frj		= SCVAR("ruleset_allow_frj", "1");
-cvar_t	ruleset_allow_semicheats		= SCVAR("ruleset_allow_semicheats", "1");
-cvar_t	ruleset_allow_packet		= SCVAR("ruleset_allow_packet", "1");
-cvar_t	ruleset_allow_particle_lightning	= SCVAR("ruleset_allow_particle_lightning", "1");
-cvar_t	ruleset_allow_overlongsounds	= SCVAR("ruleset_allow_overlong_sounds", "1");
-cvar_t	ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
-cvar_t	ruleset_allow_modified_eyes = SCVAR("ruleset_allow_modified_eyes", "0");
-cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensative_texture_replacements", "1");
-cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
-cvar_t  ruleset_allow_shaders	= SCVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
-cvar_t  ruleset_allow_fbmodels	= SCVARF("ruleset_allow_fbmodels", "1", CVAR_SHADERSYSTEM);
+cvar_t	ruleset_allow_playercount			= CVAR("ruleset_allow_playercount", "1");
+cvar_t	ruleset_allow_frj					= CVAR("ruleset_allow_frj", "1");
+cvar_t	ruleset_allow_semicheats			= CVAR("ruleset_allow_semicheats", "1");
+cvar_t	ruleset_allow_packet				= CVAR("ruleset_allow_packet", "1");
+cvar_t	ruleset_allow_particle_lightning	= CVAR("ruleset_allow_particle_lightning", "1");
+cvar_t	ruleset_allow_overlongsounds		= CVAR("ruleset_allow_overlong_sounds", "1");
+cvar_t	ruleset_allow_larger_models			= CVAR("ruleset_allow_larger_models", "1");
+cvar_t	ruleset_allow_modified_eyes			= CVAR("ruleset_allow_modified_eyes", "0");
+cvar_t	ruleset_allow_sensative_texture_replacements = CVAR("ruleset_allow_sensative_texture_replacements", "1");
+cvar_t	ruleset_allow_localvolume			= CVAR("ruleset_allow_localvolume", "1");
+cvar_t  ruleset_allow_shaders				= CVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
+cvar_t  ruleset_allow_fbmodels				= CVARF("ruleset_allow_fbmodels", "1", CVAR_SHADERSYSTEM);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
@@ -274,13 +276,13 @@ void CL_UpdateWindowTitle(void)
 		default:
 #ifndef CLIENTONLY
 			if (sv.state)
-				VID_SetWindowCaption(va("%s %s: %s", DISTRIBUTION, fs_gamename.string, sv.name));
+				VID_SetWindowCaption(va("%s", fs_gamename.string, sv.name));
 			else
 #endif
-				VID_SetWindowCaption(va("%s %s: %s", DISTRIBUTION, fs_gamename.string, cls.servername));
+				VID_SetWindowCaption(va("%s: %s", fs_gamename.string, cls.servername));
 			break;
 		case ca_disconnected:
-			VID_SetWindowCaption(va("%s %s: disconnected", DISTRIBUTION, fs_gamename.string));
+			VID_SetWindowCaption(va("%s: disconnected", fs_gamename.string));
 			break;
 		}
 	}
@@ -775,6 +777,8 @@ void CL_CheckForResend (void)
 		return;
 	}
 
+	CL_FlushClientCommands();
+
 	t2 = Sys_DoubleTime ();
 
 	connect_time = realtime+t2-t1;	// for retransmit requests
@@ -1109,7 +1113,7 @@ void CL_ClearState (void)
 	T_FreeInfoStrings();
 	SCR_ShowPic_Clear();
 
-	if (cl.playernum[0] == -1)
+	if (cl.playerview[0].playernum == -1)
 	{	//left over from q2 connect.
 		Media_StopFilm(true);
 	}
@@ -1172,7 +1176,7 @@ void CL_ClearState (void)
 	for (i = 0; i < MAX_SPLITS; i++)
 	{
 		VectorSet(cl.playerview[i].gravitydir, 0, 0, -1);
-		cl.viewheight[i] = DEFAULT_VIEWHEIGHT;
+		cl.playerview[i].viewheight = DEFAULT_VIEWHEIGHT;
 	}
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
@@ -1313,6 +1317,8 @@ void CL_Disconnect (void)
 
 	CL_ClearState();
 
+	FS_PureMode(0, NULL, NULL, 0);
+
 	//now start up the csqc/menu module again.
 	CSQC_UnconnectedInit();
 }
@@ -1373,7 +1379,7 @@ void CL_User_f (void)
 			if (cls.protocol == CP_NETQUAKE)
 				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
 			else
-				Info_Print (cl.players[i].userinfo);
+				Info_Print (cl.players[i].userinfo, "");
 			found = true;
 		}
 	}
@@ -1455,7 +1461,7 @@ void CL_Color_f (void)
 		bottom = CL_ParseColour(Cmd_Argv(2));
 	}
 
-	Q_snprintfz (num, sizeof(num), (top&0xff000000)?"%#08x":"%i", top & 0xffffff);
+	Q_snprintfz (num, sizeof(num), (top&0xff000000)?"0x%06x":"%i", top & 0xffffff);
 	if (top == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
@@ -1464,7 +1470,7 @@ void CL_Color_f (void)
 //		Cvar_LockFromServer(&topcolor, num);
 	else
 		Cvar_Set (&topcolor, num);
-	Q_snprintfz (num, sizeof(num), (bottom&0xff000000)?"%#08x":"%i", bottom & 0xffffff);
+	Q_snprintfz (num, sizeof(num), (bottom&0xff000000)?"0x%06x":"%i", bottom & 0xffffff);
 	if (bottom == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
@@ -1479,7 +1485,6 @@ void CL_Color_f (void)
 #endif
 }
 
-void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
 qboolean CL_CheckDLFile(char *filename);
 void CL_PakDownloads(int mode)
 {
@@ -1513,7 +1518,8 @@ void CL_PakDownloads(int mode)
 			/*if we already have such a file, this is a no-op*/
 			if (CL_CheckDLFile(va("package/%s", pname)))
 				continue;
-			FS_GenCachedPakName(pname, com_token, local, sizeof(local));
+			if (!FS_GenCachedPakName(pname, com_token, local, sizeof(local)))
+				continue;
 		}
 		else
 			Q_strncpyz(local, pname, sizeof(local));
@@ -1523,25 +1529,26 @@ void CL_PakDownloads(int mode)
 
 void CL_CheckServerPacks(void)
 {
-	static qboolean oldpure;
-	qboolean pure = cl_pure.ival || atoi(Info_ValueForKey(cl.serverinfo, "sv_pure"));
+	static int oldpure;
+	int pure = atof(Info_ValueForKey(cl.serverinfo, "sv_pure"))*2;
+	if (pure < cl_pure.ival)
+		pure = cl_pure.ival;
+	pure = bound(0, pure, 2);
+
+	if (!*cl.serverpakcrcs || cls.demoplayback)
+		pure = 0;
 
 	if (pure != oldpure || cl.serverpakschanged)
 	{
+		CL_PakDownloads((pure && !cl_download_packages.ival)?1:cl_download_packages.ival);
+		FS_PureMode(pure, cl.serverpaknames, cl.serverpakcrcs, cls.challenge);
+
 		if (pure)
 		{
-			CL_PakDownloads((!cl_download_packages.ival)?1:cl_download_packages.ival);
-			FS_ForceToPure(cl.serverpaknames, cl.serverpakcrcs, cls.challenge);
-
 			/*when enabling pure, kill cached models/sounds/etc*/
 			Cache_Flush();
 			/*make sure cheating lamas can't use old shaders from a different srver*/
 			Shader_NeedReload(true);
-		}
-		else
-		{
-			CL_PakDownloads(cl_download_packages.ival);
-			FS_ImpurePacks(cl.serverpaknames, cl.serverpakcrcs);
 		}
 	}
 	oldpure = pure;
@@ -1836,7 +1843,7 @@ void CL_SetInfo_f (void)
 	int pnum = CL_TargettedSplit(true);
 	if (Cmd_Argc() == 1)
 	{
-		Info_Print (cls.userinfo[pnum]);
+		Info_Print (cls.userinfo[pnum], "");
 		return;
 	}
 	if (Cmd_Argc() != 3)
@@ -2347,12 +2354,14 @@ void CL_ConnectionlessPacket (void)
 #ifdef Q3CLIENT
 		else if (!strcmp(com_token, "onnectResponse"))
 		{
+			cls.protocol = CP_QUAKE3;
 			goto client_connect;
 		}
 #endif
 #ifdef Q2CLIENT
 		else if (!strcmp(com_token, "lient_connect"))
 		{
+			cls.protocol = CP_QUAKE2;
 			goto client_connect;
 		}
 #endif
@@ -2429,6 +2438,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		else if (!strcmp(s, "client_connect"))
 		{
+			cls.protocol = CP_QUAKE2;
 			goto client_connect;
 		}
 		else if (!strcmp(s, "disconnect"))
@@ -2497,6 +2507,7 @@ void CL_ConnectionlessPacket (void)
 	{
 		int compress;
 		int mtu;
+		cls.protocol = CP_QUAKEWORLD;
 #ifdef Q2CLIENT
 client_connect:	//fixme: make function
 #endif
@@ -2684,7 +2695,7 @@ void CLNQ_ConnectionlessPacket(void)
 #endif
 
 void CL_MVDUpdateSpectator (void);
-
+void CL_WriteDemoMessage (sizebuf_t *msg);
 /*
 =================
 CL_ReadPackets
@@ -2741,6 +2752,8 @@ void CL_ReadPackets (void)
 
 		if (cls.state == ca_disconnected)
 		{	//connect to nq servers, but don't get confused with sequenced packets.
+			if (NET_WasSpecialPacket(NS_CLIENT))
+				continue;
 #ifdef NQPROT
 			CLNQ_ConnectionlessPacket ();
 #endif
@@ -2798,6 +2811,8 @@ void CL_ReadPackets (void)
 			}
 			else if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
+
+			CL_WriteDemoMessage (&net_message);
 
 			if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
 			{	//server should not be responding to packets we have not sent yet
@@ -3061,7 +3076,7 @@ void CL_ServerInfo_f(void)
 	{
 		if (cls.demoplayback || cls.protocol != CP_QUAKEWORLD)
 		{
-			Info_Print (cl.serverinfo);
+			Info_Print (cl.serverinfo, "");
 		}
 		else
 			Cmd_ForwardToServer ();
@@ -3164,7 +3179,6 @@ void CL_Init (void)
 	Cvar_Register (&cl_servername, cl_controlgroup);
 	Cvar_Register (&cl_serveraddress, cl_controlgroup);
 	Cvar_Register (&cl_demospeed, "Demo playback");
-	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
 	Cvar_Register (&cl_forwardspeed, cl_inputgroup);
 	Cvar_Register (&cl_backspeed, cl_inputgroup);
@@ -3526,6 +3540,395 @@ qboolean Host_SimulationTime(float time)
 }
 #endif
 
+void Host_RunFileNotify(struct dl_download *dl)
+{
+	if (dl->file)
+	{
+		Host_RunFile(dl->url, strlen(dl->url), dl->file);
+		dl->file = NULL;
+	}
+}
+
+#include "fs.h"
+#define HRF_OVERWRITE	1
+#define HRF_NOOVERWRITE	2
+#define HRF_ABORT		4
+
+#define HRF_OPENED		8
+
+#define HRF_ACTION (HRF_OVERWRITE|HRF_NOOVERWRITE|HRF_ABORT)
+typedef struct {
+	char ext[4];	//FIXME: override by mime types
+	unsigned int flags;
+	vfsfile_t *srcfile;
+	vfsfile_t *dstfile;
+	char fname[1];	//system path or url.
+} hrf_t;
+
+void Host_DoRunFile(hrf_t *f);
+
+
+void Host_RunFileDownloaded(struct dl_download *dl)
+{
+	hrf_t *f = dl->user_ctx;
+	f->srcfile = dl->file;
+	dl->file = NULL;
+
+	Host_DoRunFile(f);
+}
+void Host_RunFilePrompted(void *ctx, int button)
+{
+	hrf_t *f = ctx;
+	switch(button)
+	{
+	case 0:
+		f->flags |= HRF_OVERWRITE;
+		break;
+	case 1:
+		f->flags |= HRF_NOOVERWRITE;
+		break;
+	default:
+		f->flags |= HRF_ABORT;
+		break;
+	}
+	Host_DoRunFile(f);
+}
+
+qboolean waitingformanifest;
+void Host_DoRunFile(hrf_t *f)
+{
+	char qname[MAX_QPATH];
+	char displayname[MAX_QPATH];
+	char loadcommand[MAX_OSPATH];
+	qboolean isnew = false;
+	qboolean haschanged = false;
+	
+	if (f->flags & HRF_ABORT)
+	{
+		if (f->srcfile)
+			VFS_CLOSE(f->srcfile);
+		if (f->dstfile)
+			VFS_CLOSE(f->dstfile);
+		Z_Free(f);
+		return;
+	}
+
+	if (!strcmp(f->ext, "qwd") || !strcmp(f->ext, "dem") || !strcmp(f->ext, "mvd"))
+	{
+		//play directly via system path, no prompts needed
+		Cbuf_AddText(va("playdemo \"#%s\"\n", f->fname), RESTRICT_LOCAL);
+
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+		return;
+	}
+	else if (!strcmp(f->ext, "qtv"))
+	{
+		//play directly via url/system path, no prompts needed
+		Cbuf_AddText(va("qtvplay \"#%s\"\n", f->fname), RESTRICT_LOCAL);
+	
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+		return;
+	}
+	else if (!strcmp(f->ext, "bsp"))
+	{
+		char shortname[MAX_QPATH];
+		COM_StripExtension(COM_SkipPath(f->fname), shortname, sizeof(shortname));
+		snprintf(qname, sizeof(qname), "maps/%s.bsp", shortname);
+		snprintf(loadcommand, sizeof(loadcommand), "map \"%s\"\n", shortname);
+		snprintf(displayname, sizeof(displayname), "map: %s", shortname);
+	}
+	else if (!strcmp(f->ext, "pak") || !strcmp(f->ext, "pk3"))
+	{
+		char *shortname;
+		shortname = COM_SkipPath(f->fname);
+		snprintf(qname, sizeof(qname), "%s", shortname);
+		snprintf(loadcommand, sizeof(loadcommand), "fs_restart\n");
+		snprintf(displayname, sizeof(displayname), "package: %s", shortname);
+	}
+	else if (!strcmp(f->ext, "fmf"))
+	{
+		if (f->flags & HRF_OPENED)
+		{
+			waitingformanifest--;
+			if (f->srcfile)
+			{
+				ftemanifest_t *man;
+				int len = VFS_GETLEN(f->srcfile);
+				char *fdata = BZ_Malloc(len+1);
+				VFS_READ(f->srcfile, fdata, len);
+				VFS_CLOSE(f->srcfile);
+				fdata[len] = 0;
+				man = FS_Manifest_Parse(fdata);
+				if (!man->updateurl)
+					man->updateurl = Z_StrDup(f->fname);
+				BZ_Free(fdata);
+				FS_ChangeGame(man, true);
+				return;
+			}
+		}
+	}
+	else
+	{
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+		return;
+	}
+
+	if (!(f->flags & HRF_OPENED))
+	{
+		f->flags |= HRF_OPENED;
+		if (!f->srcfile)
+		{
+#ifdef WEBCLIENT
+			if (!strncmp(f->fname, "http://", 7))
+			{
+				struct dl_download *dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
+				dl->user_ctx = f;
+				return;
+			}
+#endif
+			f->srcfile = VFSOS_Open(f->fname, "rb");	//input file is a system path, or something.
+		}
+	}
+
+	if (!f->srcfile)
+	{
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+		return;
+	}
+
+	VFS_SEEK(f->srcfile, 0);
+
+	COM_StripExtension(COM_SkipPath(f->fname), qname, sizeof(qname));
+
+	f->dstfile = FS_OpenVFS(qname, "rb", FS_GAME);
+	if (f->dstfile)
+	{
+		//do a real diff.
+		if (VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
+			haschanged = true;
+		else
+		{
+			int len = VFS_GETLEN(f->srcfile);
+			char sbuf[8192], dbuf[8192];
+			if (len > sizeof(sbuf))
+				len = sizeof(sbuf);
+			VFS_READ(f->srcfile, sbuf, len);
+			VFS_READ(f->dstfile, dbuf, len);
+			haschanged = memcmp(sbuf, dbuf, len);
+		}
+		VFS_SEEK(f->srcfile, 0);
+		VFS_CLOSE(f->dstfile);
+		f->dstfile = NULL;
+	}
+	else
+		isnew = true;
+
+	if (haschanged)
+	{
+		if (!(f->flags & HRF_ACTION))
+		{
+			M_Menu_Prompt(Host_RunFilePrompted, f, "File already exists.", "What would you like to do?", displayname, "Overwrite", "Run old", "Cancel");
+			return;
+		}
+	}
+	else if (isnew)
+	{
+		if (!(f->flags & HRF_ACTION))
+		{
+			M_Menu_Prompt(Host_RunFilePrompted, f, "File appears new.", "Would you like to install", displayname, "Install!", "", "Cancel");
+			return;
+		}
+	}
+
+	if (f->flags & HRF_OVERWRITE)
+	{
+		char buffer[8192];
+		int len;
+		f->dstfile = FS_OpenVFS(qname, "wb", FS_GAMEONLY);
+		if (f->dstfile)
+		{
+			while(1)
+			{
+				len = VFS_READ(f->srcfile, buffer, sizeof(buffer));
+				if (len <= 0)
+					break;
+				VFS_WRITE(f->dstfile, buffer, len);
+			}
+			VFS_CLOSE(f->dstfile);
+			f->dstfile = NULL;
+		}
+	}
+
+	Cbuf_AddText(loadcommand, RESTRICT_LOCAL);
+
+	f->flags |= HRF_ABORT;
+	Host_DoRunFile(f);
+	return;
+}
+
+//only valid once the host has been initialised, as it needs a working filesystem.
+//if file is specified, takes full ownership of said file, including destruction.
+qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
+{
+	char *ext = COM_FileExtension(fname);
+	hrf_t *f = Z_Malloc(sizeof(*f) + nlen);
+	memcpy(f->fname, fname, nlen);
+	f->fname[nlen] = 0;
+	Q_strncpyz(f->ext, ext, sizeof(f->ext));
+	Host_DoRunFile(f);
+	return true;
+#if 0
+
+	char buffer[MAX_OSPATH];
+	char *ext;
+	if (nlen >= MAX_OSPATH)
+	{
+		if (file)
+			VFS_CLOSE(file);
+		Con_Printf("Filename too long.\n");
+		return true;
+	}
+
+	memcpy(buffer, fname, nlen);
+	buffer[nlen] = 0;
+	fname = buffer;
+	ext = COM_FileExtension(fname);
+	if (!strncmp(fname, "qw:", 3))
+	{
+		fname += 3;
+		if (!strncmp(fname, "//", 2))
+			fname += 2;
+		ext = strchr(fname, '/');	//this also protects us against irc urls, etc. unsure if that's important right now.
+		if (ext)
+			*ext = 0;
+		Con_Printf("QW stream: \"%s\"\n", fname);
+		Cbuf_AddText(va("connect \"%s\"\n", fname), RESTRICT_LOCAL);
+	}
+	else if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
+		Cbuf_AddText(va("playdemo \"#%s\"\n", fname), RESTRICT_LOCAL);
+	else if (!strcmp(ext, "bsp") || !strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4") || !strcmp(ext, "fmf"))
+	{
+		extern qboolean waitingformanifest;
+		//these must all have a valid source file. just recurse if its not set.
+		if (!file)
+		{
+			if (!strncmp(fname, "http://", 7))
+			{
+				if (HTTP_CL_Get(fname, NULL, Host_RunFileNotify))
+				{
+					if (!strcmp(ext, "fmf"))
+						waitingformanifest = true;
+					return true;
+				}
+				return false;
+			}
+			if (!strncmp(fname, "file://", 7))
+				fname += 7;
+			file = VFSOS_Open(fname, "rb");	//input file is a system path, or something.
+			if (file)
+			{
+				Host_RunFile(fname, strlen(fname), file);
+				return true;
+			}
+			return false;
+		}
+
+		if (!strcmp(ext, "fmf"))
+		{
+			CL_Manifest_Parse(file, fname);
+			waitingformanifest = false;
+		}
+		else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
+		{
+			//open the archive, look for a *readme.txt
+			//look for a -game inside that.
+			//if found, install the pak there.
+			//if a +map is found, load that map after install.
+			Con_Printf("Unable to install paks/pk3s at this time\n");
+		}
+		else if (!strcmp(ext, "bsp"))
+		{
+			char qname[MAX_QPATH];
+			vfsfile_t *qf;
+			qboolean overwrite = false;
+			COM_StripExtension(COM_SkipPath(fname), qname, sizeof(qname));
+			qf = FS_OpenVFS(va("maps/%s.bsp", qname), "rb", FS_GAME);
+			if (qf)
+			{
+				if (VFS_GETLEN(file) != VFS_GETLEN(qf))
+					overwrite = true;
+				VFS_SEEK(file, 0);
+				VFS_CLOSE(qf);
+			}
+	#ifdef _WIN32
+			if (overwrite)
+			{
+				switch(MessageBox(mainwindow, va("Overwrite existing map: %s?", qname), "Install And Play", MB_YESNOCANCEL))
+				{
+				case IDYES:
+					//overwrite it and load it up
+					overwrite = true;
+					break;
+				case IDNO:
+					//load up the old version
+					overwrite = false;
+					break;
+				default:
+				case IDCANCEL:
+					//quit or something
+					return false;
+				}
+			}
+			else if (!qf)
+			{
+				switch(MessageBox(mainwindow, va("Install new map: %s?", qname), "Install And Play", MB_OKCANCEL))
+				{
+				case IDOK:
+					//overwrite it and load it up
+					overwrite = true;
+					break;
+				default:
+				case IDCANCEL:
+					//quit or something
+					return false;
+				}
+			}
+
+			if (overwrite)
+			{
+				char buffer[8192];
+				int len;
+				qf = FS_OpenVFS(va("maps/%s.bsp", qname), "wb", FS_GAMEONLY);
+				if (qf)
+				{
+					while(1)
+					{
+						len = VFS_READ(file, buffer, sizeof(buffer));
+						if (len <= 0)
+							break;
+						VFS_WRITE(qf, buffer, len);
+					}
+					VFS_CLOSE(qf);
+				}
+			}
+
+			Cbuf_AddText(va("map \"%s\"\n", qname), RESTRICT_LOCAL);
+	#endif
+		}
+	}
+	else
+		Cbuf_AddText(va("qtvplay \"#%s\"\n", fname), RESTRICT_LOCAL);
+
+	if (file)
+		VFS_CLOSE(file);
+	return true;
+#endif
+}
+
 /*
 ==================
 Host_Frame
@@ -3550,6 +3953,7 @@ double Host_Frame (double time)
 	float maxfps;
 	qboolean maxfpsignoreserver;
 	qboolean idle;
+	extern qboolean r_blockvidrestart;
 
 	RSpeedLocals();
 
@@ -3574,6 +3978,15 @@ double Host_Frame (double time)
 //	FTP_ClientThink();
 	HTTP_CL_Think();
 #endif
+
+	if (r_blockvidrestart)
+	{
+		extern qboolean waitingformanifest;
+		if (waitingformanifest)
+			return 0.1;
+		Host_FinishLoading();
+		return 0;
+	}
 
 #ifdef PLUGINS
 	Plug_Tick();
@@ -3706,6 +4119,10 @@ double Host_Frame (double time)
 	{
 		IN_Move(NULL, 0);
 		CL_CheckForResend ();
+
+#ifdef VOICECHAT
+		S_Voip_Transmit(0, NULL);
+#endif
 	}
 	else
 	{
@@ -3855,7 +4272,7 @@ void CL_StartCinematicOrMenu(void)
 	UI_Start();
 #endif
 
-	Con_TPrintf (TLC_QUAKEWORLD_INITED, fs_gamename.string);
+	Con_TPrintf (TLC_QUAKEWORLD_INITED, *fs_gamename.string?fs_gamename.string:"Nothing");
 
 	//there might be some console command or somesuch waiting for the renderer to begin (demos or map command or whatever all need model support).
 	realtime+=1;
@@ -3905,12 +4322,47 @@ void CL_StartCinematicOrMenu(void)
 	}
 }
 
-//note that this does NOT include commandline.
-void CL_ExecInitialConfigs(void)
+void CL_ArgumentOverrides(void)
 {
-	int qrc, hrc, def, i;
+	int i;
+	if (COM_CheckParm ("-window") || COM_CheckParm ("-startwindowed"))
+		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
+	if (COM_CheckParm ("-fullscreen"))
+		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
+
+	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
+	{
+		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);
+		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/4)*3);
+	}
+	if ((i = COM_CheckParm ("-height")))
+		Cvar_Set(Cvar_FindVar("vid_height"), com_argv[i+1]);
+
+	if ((i = COM_CheckParm ("-conwidth")))	//width on it's own also sets height
+	{
+		Cvar_Set(Cvar_FindVar("vid_conwidth"), com_argv[i+1]);
+		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/4)*3);
+	}
+	if ((i = COM_CheckParm ("-conheight")))
+		Cvar_Set(Cvar_FindVar("vid_conheight"), com_argv[i+1]);
+
+	if ((i = COM_CheckParm ("-bpp")))
+		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
+
+	if (COM_CheckParm ("-current"))
+		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
+}
+
+//note that this does NOT include commandline.
+void CL_ExecInitialConfigs(char *resetcommand)
+{
+	int qrc, hrc, def;
 
 	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
+
+	Cmd_ExecuteString("unbindall", RESTRICT_LOCAL);
+	Cmd_ExecuteString("cvarreset *", RESTRICT_LOCAL);
+	Cmd_ExecuteString(resetcommand, RESTRICT_LOCAL);
 
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
@@ -3945,39 +4397,44 @@ void CL_ExecInitialConfigs(void)
 	//assuming they didn't use any waits in their config (fools)
 	//the configs should be fully loaded.
 	//so convert the backwards compable commandline parameters in cvar sets.
-
-	if (COM_CheckParm ("-window") || COM_CheckParm ("-startwindowed"))
-		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "0");
-	if (COM_CheckParm ("-fullscreen"))
-		Cvar_Set(Cvar_FindVar("vid_fullscreen"), "1");
-
-	if ((i = COM_CheckParm ("-width")))	//width on it's own also sets height
-	{
-		Cvar_Set(Cvar_FindVar("vid_width"), com_argv[i+1]);
-		Cvar_SetValue(Cvar_FindVar("vid_height"), (atoi(com_argv[i+1])/4)*3);
-	}
-	if ((i = COM_CheckParm ("-height")))
-		Cvar_Set(Cvar_FindVar("vid_height"), com_argv[i+1]);
-
-	if ((i = COM_CheckParm ("-conwidth")))	//width on it's own also sets height
-	{
-		Cvar_Set(Cvar_FindVar("vid_conwidth"), com_argv[i+1]);
-		Cvar_SetValue(Cvar_FindVar("vid_conheight"), (atoi(com_argv[i+1])/4)*3);
-	}
-	if ((i = COM_CheckParm ("-conheight")))
-		Cvar_Set(Cvar_FindVar("vid_conheight"), com_argv[i+1]);
-
-	if ((i = COM_CheckParm ("-bpp")))
-		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
-
-	if (COM_CheckParm ("-current"))
-		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
-//	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+	CL_ArgumentOverrides();
 }
 
 
 
+void Host_FinishLoading(void)
+{
+	//the filesystem has retrieved its manifest, but might still be waiting for paks to finish downloading.
 
+	//make sure the filesystem has some default if no manifest was loaded.
+	FS_ChangeGame(NULL, true);
+
+	Con_History_Load();
+
+	Cmd_StuffCmds();
+	Cbuf_Execute ();
+
+	CL_ArgumentOverrides();
+
+Con_TPrintf (TL_NL);
+	Con_Printf ("%s", version_string());
+Con_TPrintf (TL_NL);
+
+	Con_DPrintf("This program is free software; you can redistribute it and/or "
+				"modify it under the terms of the GNU General Public License "
+				"as published by the Free Software Foundation; either version 2 "
+				"of the License, or (at your option) any later version."
+				"\n"
+				"This program is distributed in the hope that it will be useful, "
+				"but WITHOUT ANY WARRANTY; without even the implied warranty of "
+				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
+				"\n"
+				"See the GNU General Public License for more details.\n");
+
+	Renderer_Start();
+
+	CL_StartCinematicOrMenu();
+}
 
 /*
 ====================
@@ -3986,7 +4443,8 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
-	qboolean downloading = false;
+	int man;
+
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
 
 	COM_InitArgv (parms->argc, parms->argv);
@@ -4014,6 +4472,7 @@ void Host_Init (quakeparms_t *parms)
 	Cbuf_Init ();
 	Cmd_Init ();
 	V_Init ();
+	NET_Init ();
 	COM_Init ();
 #ifdef Q2BSPS
 	CM_Init();
@@ -4023,7 +4482,6 @@ void Host_Init (quakeparms_t *parms)
 #endif
 	Host_FixupModelNames();
 
-	NET_Init ();
 	NET_InitClient ();
 	Netchan_Init ();
 	Renderer_Init();
@@ -4077,42 +4535,11 @@ void Host_Init (quakeparms_t *parms)
 
 	Sys_SendKeyEvents();
 
+	//the engine is fully running, except the file system may be nulled out waiting for a manifest to download.
 
-	//the engine is technically initialised at this point, except for the renderer. now we exec configs and bring up the renderer
-	//anything that needs models cannot be run yet, but it should be safe to allow console commands etc.
-	//if we get a map command, we'll just stick it on the end of the console command buffer.
-
-	Con_History_Load();
-
-	CL_ExecInitialConfigs();
-
-	if (CL_CheckBootDownloads())
-	{
-		Cmd_StuffCmds();
-		Cbuf_Execute ();
-	}
-	else
-		downloading = true;
-
-Con_TPrintf (TL_NL);
-	Con_Printf ("%s", version_string());
-Con_TPrintf (TL_NL);
-
-	Con_DPrintf("This program is free software; you can redistribute it and/or "
-				"modify it under the terms of the GNU General Public License "
-				"as published by the Free Software Foundation; either version 2 "
-				"of the License, or (at your option) any later version."
-				"\n"
-				"This program is distributed in the hope that it will be useful, "
-				"but WITHOUT ANY WARRANTY; without even the implied warranty of "
-				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
-				"\n"
-				"See the GNU General Public License for more details.\n");
-
-	Renderer_Start();
-
-	if (!downloading)
-		CL_StartCinematicOrMenu();
+	man = COM_CheckParm("-manifest");
+	if (man && man < com_argc-1 && com_argv[man+1])
+		Host_RunFile(com_argv[man+1], strlen(com_argv[man+1]), NULL);
 }
 
 /*
@@ -4157,6 +4584,10 @@ void Host_Shutdown(void)
 	SV_Shutdown();
 #else
 	NET_Shutdown ();
+#endif
+
+#ifdef Q3CLIENT
+	VMQ3_FlushStringHandles();
 #endif
 
 	Cvar_Shutdown();

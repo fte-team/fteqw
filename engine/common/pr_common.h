@@ -286,7 +286,6 @@ void QCBUILTIN PF_strconv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_infoadd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_infoget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strncmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_strcasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strncasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
@@ -378,11 +377,14 @@ void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_hash_createtab	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_hash_destroytab	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_hash_add	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_hash_get	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_hash_getcb	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_hash_delete	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_hash_getkey	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
@@ -528,6 +530,7 @@ typedef enum
 	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
 	VF_SCREENVSIZE = 204,
 	VF_SCREENPSIZE = 205,
+	VF_VIEWENTITY = 206,
 } viewflags;
 
 /*FIXME: this should be changed*/
@@ -540,7 +543,7 @@ typedef enum
 #define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
 #define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
 #define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
-#define CSQCRF_NOAUTOADD		128 //EXT_CSQC_1: don't automatically add after predraw was called
+#define CSQCRF_REMOVED			128 //was stupid
 
 /*only read+append+write are standard frik_file*/
 #define FRIK_FILE_READ		0 /*read-only*/

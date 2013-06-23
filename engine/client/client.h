@@ -493,6 +493,93 @@ typedef struct {
 	int sequence;	/*so csqc code knows that the ent is still valid*/
 	entity_state_t *entstate;
 } lerpents_t;
+
+//state associated with each player 'seat' (one for each splitscreen client)
+//note that this doesn't include networking inputlog info.
+struct playerview_s
+{
+	int			playernum;		//cl.players index for this player.
+	qboolean	nolocalplayer;	//inhibit use of qw-style players, predict based on entities.
+#ifdef PEXT_SETVIEW
+	int			viewentity;		//view is attached to this entity.
+#endif
+
+	// information for local display
+	int			stats[MAX_CL_STATS];	// health, etc
+	float		statsf[MAX_CL_STATS];	// health, etc
+	char		*statsstr[MAX_CL_STATS];	// health, etc
+	float		item_gettime[32];	// cl.time of aquiring item, for blinking
+	float		faceanimtime;		// use anim frame if cl.time < this
+	int			sb_hexen2_cur_item;//hexen2 hud
+	float		sb_hexen2_item_time;
+	qboolean	sb_hexen2_extra_info;//show the extra stuff
+	qboolean	sb_hexen2_infoplaque;
+
+
+// the client maintains its own idea of view angles, which are
+// sent to the server each frame.  And only reset at level change
+// and teleport times
+	vec3_t		viewangles;
+	vec3_t		viewanglechange;
+	vec3_t		gravitydir;
+
+	// pitch drifting vars
+	float		pitchvel;
+	qboolean	nodrift;
+	float		driftmove;
+	double		laststop;
+
+	//prediction state
+	int			pmovetype;
+	float		entgravity;
+	float		maxspeed;
+	vec3_t		simorg;
+	vec3_t		simvel;
+	vec3_t		simangles;
+	float		rollangle;
+
+	float		crouch;			// local amount for smoothing stepups
+	vec3_t		oldorigin;		// to track step smoothing
+	float		oldz, extracrouch, crouchspeed; // to track step smoothing
+	qboolean	onground;
+	float		viewheight;
+	int			waterlevel;		//for smartjump
+
+	float		punchangle;		// temporary view kick from weapon firing
+	qboolean	fixangle;		//received a fixangle - so disable prediction till the next packet.
+	qboolean	oldfixangle;	//received a fixangle - so disable prediction till the next packet.
+	vec3_t		fixangles;		//received a fixangle - so disable prediction till the next packet.
+	vec3_t		oldfixangles;	//received a fixangle - so disable prediction till the next packet.
+
+	float		v_dmg_time;		//various view knockbacks.
+	float		v_dmg_roll;
+	float		v_dmg_pitch;
+
+	double		bobtime;		//sine wave
+	double		bobcltime;		//for tracking time increments
+	float		bob;			//bob height
+
+
+	vec3_t		cam_desired_position;	// where the camera wants to be
+	qboolean	cam_locked;				//
+	int			cam_oldbuttons;			//
+	vec3_t		cam_viewangles;			//
+	double		cam_lastviewtime;		//
+	int			cam_spec_track;			// player# of who we are tracking
+	enum
+	{
+		CAM_NONE	= 0,
+		CAM_TRACK	= 1
+	} cam_auto;				//
+
+	entity_t	viewent;	// is this not utterly redundant yet?
+	struct model_s *oldmodel;
+	float lerptime;
+	float frameduration;
+	int prevframe;
+	int oldframe;
+};
+
 //
 // the client_state_t structure is wiped completely at every
 // server signon
@@ -546,60 +633,10 @@ typedef struct
 
 	//when running splitscreen, we have multiple viewports all active at once
 	int			splitclients;	//we are running this many clients split screen.
-	struct playerview_s
-	{
-		// information for local display
-		int			stats[MAX_CL_STATS];	// health, etc
-		float		statsf[MAX_CL_STATS];	// health, etc
-		char		*statsstr[MAX_CL_STATS];	// health, etc
-		float		item_gettime[32];	// cl.time of aquiring item, for blinking
-		float		faceanimtime;		// use anim frame if cl.time < this
-
-
-	// the client maintains its own idea of view angles, which are
-	// sent to the server each frame.  And only reset at level change
-	// and teleport times
-		vec3_t		viewangles;
-		vec3_t		viewanglechange;
-		vec3_t		gravitydir;
-
-		// pitch drifting vars
-		float		pitchvel;
-		qboolean	nodrift;
-		float		driftmove;
-		double		laststop;
-
-		vec3_t		simorg;
-		vec3_t		simvel;
-		vec3_t		simangles;
-		float		rollangle;
-
-		qboolean	fixangle;		//received a fixangle - so disable prediction till the next packet.
-		qboolean	oldfixangle;	//received a fixangle - so disable prediction till the next packet.
-		vec3_t		fixangles;		//received a fixangle - so disable prediction till the next packet.
-		vec3_t		oldfixangles;	//received a fixangle - so disable prediction till the next packet.
-	} playerview[MAX_SPLITS];
-
-	float		crouch[MAX_SPLITS];			// local amount for smoothing stepups
-	qboolean	onground[MAX_SPLITS];
-	float		viewheight[MAX_SPLITS];
-
-	entity_t	viewent[MAX_SPLITS];		// weapon model
-	float		punchangle[MAX_SPLITS];		// temporary view kick from weapon firing
-
-	int			playernum[MAX_SPLITS];
-	qboolean	nolocalplayer[MAX_SPLITS];
-
-	#ifdef PEXT_SETVIEW
-	int viewentity[MAX_SPLITS];
-	#endif
-	int waterlevel[MAX_SPLITS];	//for smartjump
+	playerview_t	playerview[MAX_SPLITS];
 
 	// localized movement vars
-	float		entgravity[MAX_SPLITS];
-	float		maxspeed[MAX_SPLITS];
 	float		bunnyspeedcap;
-	int pmovetype[MAX_SPLITS];
 
 // the client simulates or interpolates movement to get these values
 	double		time;			// this is the time value that the client
@@ -835,8 +872,8 @@ void CL_SetInfo (int pnum, char *key, char *value);
 void CL_BeginServerConnect(int port);
 char *CL_TryingToConnect(void);
 
-void CL_ExecInitialConfigs(void);
-qboolean CL_CheckBootDownloads(void);
+void CL_ExecInitialConfigs(char *defaultexec);
+ftemanifest_t *CL_Manifest_Parse(vfsfile_t *file, const char *defaultsourceurl);
 
 extern	int				cl_numvisedicts;
 extern	int				cl_maxvisedicts;
@@ -1005,19 +1042,21 @@ qboolean CL_CheckBaselines (int size);
 //
 // view.c
 //
-void V_StartPitchDrift (int pnum);
-void V_StopPitchDrift (int pnum);
+void V_StartPitchDrift (playerview_t *pv);
+void V_StopPitchDrift (playerview_t *pv);
 
 void V_RenderView (void);
 void V_Register (void);
-void V_ParseDamage (int pnum);
+void V_ParseDamage (playerview_t *pv);
 void V_SetContentsColor (int contents);
 
 //used directly by csqc
-void V_CalcRefdef (int pnum);
-void V_CalcGunPositionAngle (int pnum, float bob);
-float V_CalcBob (int pnum, qboolean queryold);
-void DropPunchAngle (int pnum);
+void V_CalcRefdef (playerview_t *pv);
+void V_ClearRefdef(playerview_t *pv);
+void V_ApplyRefdef(void);
+void V_CalcGunPositionAngle (playerview_t *pv, float bob);
+float V_CalcBob (playerview_t *pv, qboolean queryold);
+void DropPunchAngle (playerview_t *pv);
 
 
 //
@@ -1060,6 +1099,7 @@ void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
 //these last ones are needed for csqc handling of engine-bound ents.
 void CL_ClearEntityLists(void);
+void CL_EditExternalModels(int newviewentity);
 void CL_FreeVisEdicts(void);
 void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);
@@ -1142,25 +1182,19 @@ void CL_CalcClientTime(void);
 //
 // cl_cam.c
 //
-#define CAM_NONE	0
-#define CAM_TRACK	1
-
-extern	int		autocam[MAX_SPLITS];
-extern int spec_track[MAX_SPLITS]; // player# of who we are tracking
-
-qboolean Cam_DrawViewModel(int pnum);
-qboolean Cam_DrawPlayer(int pnum, int playernum);
-int Cam_TrackNum(int pnum);
-void Cam_Unlock(int pnum);
-void Cam_Lock(int pnum, int playernum);
-void Cam_SelfTrack(int pnum);
-void Cam_Track(int pnum, usercmd_t *cmd);
-void Cam_TrackCrosshairedPlayer(int pnum);
+qboolean Cam_DrawViewModel(playerview_t *pv);
+qboolean Cam_DrawEntity(playerview_t *pv, int entitykey);
+int Cam_TrackNum(playerview_t *pv);
+void Cam_Unlock(playerview_t *pv);
+void Cam_Lock(playerview_t *pv, int playernum);
+void Cam_SelfTrack(playerview_t *pv);
+void Cam_Track(playerview_t *pv, usercmd_t *cmd);
+void Cam_TrackCrosshairedPlayer(playerview_t *pv);
 void Cam_SetAutoTrack(int userid);
-void Cam_FinishMove(int pnum, usercmd_t *cmd);
+void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd);
 void Cam_Reset(void);
-void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg);
-void Cam_Lock(int pnum, int playernum);
+void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg);
+void Cam_Lock(playerview_t *pv, int playernum);
 void CL_InitCam(void);
 
 void QDECL vectoangles(vec3_t fwd, vec3_t ang);

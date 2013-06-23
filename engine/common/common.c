@@ -94,7 +94,7 @@ cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
 cvar_t	fs_gamename = CVARFD("fs_gamename", "", CVAR_NOSET, "The filesystem is trying to run this game");
-cvar_t	fs_gamedownload = CVARFD("fs_gamedownload", "", CVAR_NOSET, "The place that the game can be downloaded from.");
+cvar_t	fs_gamemanifest = CVARFD("fs_gamemanifest", "", CVAR_NOSET, "A small updatable file containing a description of the game, including download mirrors.");
 cvar_t	com_protocolname = CVARD("com_gamename", "", "The game name used for dpmaster queries");
 cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
@@ -2306,7 +2306,7 @@ unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs)
 {
 	char *in = str;
 	int error;
-	int chars = 0;
+	int chars;
 	for(chars = 0; *in; chars+=1)
 	{
 		if (chars >= charofs)
@@ -2314,7 +2314,7 @@ unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs)
 
 		unicode_decode(&error, in, &in);
 	}
-	return chars;
+	return in - str;
 }
 //handy hacky function.
 unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs)
@@ -2566,6 +2566,43 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 		*out = 0;
 	}
 	return out;
+}
+
+static unsigned int koi2wc (unsigned char uc)
+{
+	static const char koi2wc_table[64] =
+	{
+			0x4e,0x30,0x31,0x46,0x34,0x35,0x44,0x33,0x45,0x38,0x39,0x3a,0x3b,0x3c,0x3d,0x3e,
+			0x3f,0x4f,0x40,0x41,0x42,0x43,0x36,0x32,0x4c,0x4b,0x37,0x48,0x4d,0x49,0x47,0x4a,
+			0x2e,0x10,0x11,0x26,0x14,0x15,0x24,0x13,0x25,0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,
+			0x1f,0x2f,0x20,0x21,0x22,0x23,0x16,0x12,0x2c,0x2b,0x17,0x28,0x2d,0x29,0x27,0x2a
+	};
+	if (uc >= 192 /* && (unsigned char)c <= 255 */)
+		return koi2wc_table[uc - 192] + 0x400;
+	else if (uc == '#' + 128)
+		return 0x0451;	// russian small yo
+	else if (uc == '3' + 128)
+		return 0x0401;	// russian capital yo
+	else if (uc == '4' + 128)
+		return 0x0404;	// ukrainian capital round E
+	else if (uc == '$' + 128)
+		return 0x0454;	// ukrainian small round E
+	else if (uc == '6' + 128)
+		return 0x0406;	// ukrainian capital I
+	else if (uc == '&' + 128)
+		return 0x0456;	// ukrainian small i
+	else if (uc == '7' + 128)
+		return 0x0407;	// ukrainian capital I with two dots
+	else if (uc == '\'' + 128)
+		return 0x0457;	// ukrainian small i with two dots
+	else if (uc == '>' + 128)
+		return 0x040e;	// belarusian Y
+	else if (uc == '.' + 128)
+		return 0x045e;	// belarusian y
+	else if (uc == '/' + 128)
+		return 0x042a;	// russian capital hard sign
+	else
+		return uc;
 }
 
 //Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
@@ -2837,12 +2874,37 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		}
 		else if (*str == '&' && str[1] == 'r' && !(flags & PFS_NOMARKUP))
 		{
+			//ezquake revert
 			ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
 			if (!keepmarkup)
 			{
 				str+=2;
 				continue;
 			}
+		}
+		else if (str[0] == '=' && str[1] == '`' && str[2] == 'k' && str[3] == '8' && str[4] == ':' && !keepmarkup)
+		{
+			//this code can just recurse. saves affecting the rest of the code with weird encodings.
+			int l;
+			char temp[1024];
+			str += 5;
+			while(*str)
+			{
+				l = 0;
+				while (*str && l < sizeof(temp)-32 && !(str[0] == '`' && str[1] == '='))
+					l += utf8_encode(temp+l, koi2wc(*str++), sizeof(temp)-1);
+				//recurse
+				temp[l] = 0;
+				l = COM_ParseFunString(ext, temp, out, outsize, PFS_FORCEUTF8) - out;
+				outsize -= l;
+				out += l;
+				if (str[0] == '`' && str[1] == '=')
+				{
+					str+=2;
+					break;
+				}
+			}
+			continue;
 		}
 messedup:
 		if (!--outsize)
@@ -4598,7 +4660,7 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 	Info_SetValueForStarKey (s, key, value, maxsize);
 }
 
-void Info_Print (char *s)
+void Info_Print (char *s, char *lineprefix)
 {
 	char	key[1024];
 	char	value[1024];
@@ -4621,7 +4683,7 @@ void Info_Print (char *s)
 		}
 		else
 			*o = 0;
-		Con_Printf ("%s", key);
+		Con_Printf ("%s%s", lineprefix, key);
 
 		if (!*s)
 		{

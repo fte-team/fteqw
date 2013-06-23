@@ -69,19 +69,24 @@ qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
 qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
 void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);
+qboolean	Plug_ConsoleLink(char *text, char *info);
 void		Plug_DrawReloadImages(void);
 void		Plug_Initialise(qboolean fromgamedir);
 void		Plug_Shutdown(qboolean preliminary);
 qboolean	Plug_Menu_Event(int eventtype, int param);
 void		Plug_ResChanged(void);
-void		Plug_SBar(void);
+void		Plug_SBar(playerview_t *pv);
 qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
 void		Plug_Tick(void);
 qboolean	Plugin_ExecuteString(void);
 #endif
 
 
-
+#define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
+#define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
+char *VMQ3_StringFromHandle(int handle);
+int VMQ3_StringToHandle(char *str);
+void VMQ3_FlushStringHandles(void);
 
 #ifdef VM_UI
 qboolean UI_Command(void);

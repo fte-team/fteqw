@@ -2023,6 +2023,10 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	int vbospace = 0;
 	vbobctx_t vboctx;
 
+	//don't fail on dedicated servers
+	if (!BE_VBO_Begin)
+		return;
+
 	idx = (index_t*)((char*)galias + galias->ofs_indexes);
 	tc = (vec2_t*)((char*)galias + galias->ofs_st_array);
 	group = (galiasgroup_t*)((char*)galias + galias->groupofs);
@@ -3600,7 +3604,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		float f2ness;
 
 #ifdef warningmsg
-#pragma warningmsg("fixme: no base info")
+#pragma warningmsg("fixme: no baseframe info")
 #endif
 
 		if (tagnum <= 0 || tagnum > inf->numbones)

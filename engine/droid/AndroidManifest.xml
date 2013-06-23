@@ -17,6 +17,31 @@
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:mimeType="application/x-qtv" />
+				<data android:mimeType="application/x-ftemanifest" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.qtv" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.qtv" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.qtv" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.mvd" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.mvd" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.mvd" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.dem" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.dem" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.dem" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.pak" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.pak" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.pak" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.pk3" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.pk3" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.pk3" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.bsp" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.bsp" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.bsp" />
+			</intent-filter>
 		</activity>
 	</application>
 </manifest>

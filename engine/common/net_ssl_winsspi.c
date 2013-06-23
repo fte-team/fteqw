@@ -1,5 +1,7 @@
 #include "quakedef.h"
 #if defined(_WIN32) && !defined(_SDL) && defined(HAVE_SSL)
+cvar_t *tls_ignorecertificateerrors;
+
 #include <windows.h>
 #define SECURITY_WIN32
 #include <security.h>
@@ -48,6 +50,8 @@ static qboolean SSL_Init(void)
 		{(void**)&crypt.pCertFreeCertificateChain,			"CertFreeCertificateChain"},
 		{NULL, NULL}
 	};
+
+	tls_ignorecertificateerrors = Cvar_Get("tls_ignorecertificateerrors", "0", CVAR_NOTFROMSERVER, "TLS");
 	
 	if (!secur.lib)
 		secur.lib = Sys_LoadLibrary("secur32.dll", secur_functable);
@@ -174,6 +178,8 @@ static void SSPI_Decode(sslfile_t *f)
 
 	if (ss < 0)
 	{
+		if (ss == SEC_E_INCOMPLETE_MESSAGE)
+			return;	//no error if its incomplete, we can just get more data later on.
 		SSPI_Error(f, "DecryptMessage failed");
 		return;
 	}
@@ -351,7 +357,13 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 					case CERT_E_WRONG_USAGE:            err = "CERT_E_WRONG_USAGE";             break;
 					default:                            err = "(unknown)";                      break;
 				}
-				Sys_Printf("Error verifying certificate for %s: %s\n", pwszServerName, err);
+				Con_Printf("Error verifying certificate for '%S': %s\n", pwszServerName, err);
+
+				if (tls_ignorecertificateerrors->ival)
+				{
+					Con_Printf("pretending it didn't happen... (tls_ignorecertificateerrors is set)\n");
+					Status = SEC_E_OK;
+				}
 			}
 			else
 				Status = SEC_E_OK;

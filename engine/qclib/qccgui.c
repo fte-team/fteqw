@@ -1370,6 +1370,15 @@ static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				else
 					Button_SetCheck(optimisations[i].guiinfo, 0);
 			}
+			if (!fl_nondfltopts)
+			{
+				for (i = 0; optimisations[i].enabled; i++)
+				{
+					if (optimisations[i].guiinfo)
+						EnableWindow(optimisations[i].guiinfo, TRUE);
+				}
+				fl_nondfltopts = true;
+			}
 			break;
 		case IDI_O_DEBUG:
 			for (i = 0; optimisations[i].enabled; i++)
@@ -1379,6 +1388,15 @@ static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 
 				if (optimisations[i].flags&FLAG_KILLSDEBUGGERS)
 					Button_SetCheck(optimisations[i].guiinfo, 0);
+			}
+			if (!fl_nondfltopts)
+			{
+				for (i = 0; optimisations[i].enabled; i++)
+				{
+					if (optimisations[i].guiinfo)
+						EnableWindow(optimisations[i].guiinfo, TRUE);
+				}
+				fl_nondfltopts = true;
 			}
 			break;
 		case IDI_O_DEFAULT:
@@ -1391,6 +1409,15 @@ static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 					Button_SetCheck(optimisations[i].guiinfo, 1);
 				else
 					Button_SetCheck(optimisations[i].guiinfo, 0);
+			}
+			if (fl_nondfltopts)
+			{
+				for (i = 0; optimisations[i].enabled; i++)
+				{
+					if (optimisations[i].guiinfo)
+						EnableWindow(optimisations[i].guiinfo, FALSE);
+				}
+				fl_nondfltopts = false;
 			}
 			break;
 		}
@@ -1565,6 +1592,9 @@ void OptionsDialog(void)
 			Button_SetCheck(wnd, 1);
 		else
 			Button_SetCheck(wnd, 0);
+
+		if (!fl_nondfltopts)
+			EnableWindow(wnd, FALSE);
 
 		num++;
 	}

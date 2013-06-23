@@ -67,7 +67,7 @@ cvar_t volume					= CVARFD(	"volume", "0.7", CVAR_ARCHIVE,
 											"Main volume level for all engine sound.");
 
 cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
-											"Disable all sound from the engine.");
+											"Disable all sound from the engine. Cannot be overriden by configs or anything if set via the -nosound commandline argument.");
 cvar_t precache					= CVARAF(	"s_precache", "1",
 											"precache", 0);
 cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
@@ -81,8 +81,8 @@ cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
 											"snd_noextraupdate", 0);
 cvar_t snd_show					= CVARAF(	"s_show", "0",
 											"snd_show", 0);
-cvar_t snd_khz					= CVARAFD(	"s_khz", "44",
-											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48.");
+cvar_t snd_khz					= CVARAFD(	"s_khz", "48",
+											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48. Values above 1000 are explicitly in hertz.");
 cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "0",
 											"snd_inactive", 0,
 											"Play sound while application is inactive (ex. tabbed out). Needs a snd_restart if changed."
@@ -664,7 +664,7 @@ void S_Voip_Parse(void)
 
 	//if testing, don't get confused if the server is echoing voice too!
 	if (cl_voip_test.ival)
-		if (sender == cl.playernum[0])
+		if (sender == cl.playerview[0].playernum)
 			return;
 
 	S_Voip_Decode(sender, codec, gen, seq, bytes, data);
@@ -976,11 +976,11 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 
 		if (cl_voip_test.ival)
-			S_Voip_Decode(cl.playernum[0], s_voip.enccodec, s_voip.generation & 0x0f, initseq, outpos, outbuf);
+			S_Voip_Decode(cl.playerview[0].playernum, s_voip.enccodec, s_voip.generation & 0x0f, initseq, outpos, outbuf);
 
 		//update our own lastspoke, so queries shows that we're speaking when we're speaking in a generic way, even if we can't hear ourselves.
 		//but don't update general lastspoke, so ducking applies only when others speak. use capturingvol for yourself. they're more explicit that way.
-		s_voip.lastspoke[cl.playernum[0]] = realtime + 0.5;
+		s_voip.lastspoke[cl.playerview[0].playernum] = realtime + 0.5;
 	}
 
 	/*remove sent data*/
@@ -1794,7 +1794,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 		}
 
 		// don't let monster sounds override player sounds
-		if (sc->channel[ch_idx].entnum == cl.playernum[0]+1 && entnum != cl.playernum[0]+1 && sc->channel[ch_idx].sfx)
+		if (sc->channel[ch_idx].entnum == cl.playerview[0].playernum+1 && entnum != cl.playerview[0].playernum+1 && sc->channel[ch_idx].sfx)
 			continue;
 
 		if (!sc->channel[ch_idx].sfx)
@@ -1843,7 +1843,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 		}
 		return;
 	}
-	if (ch->entnum == -1 || ch->entnum == cl.playernum[0]+1)
+	if (ch->entnum == -1 || ch->entnum == cl.playerview[0].playernum+1)
 	{
 		v = ch->master_vol * (ruleset_allow_localvolume.value ? snd_playersoundvolume.value : 1) * volume.value * voicevolumemod;
 		v = bound(0, v, 255);
@@ -2578,7 +2578,7 @@ void S_Play(void)
 		else
 			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
-		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 0.0, 0, 0);
+		S_StartSound(cl.playerview[0].playernum+1, -1, sfx, vec3_origin, 1.0, 0.0, 0, 0);
 		i++;
 	}
 }
@@ -2602,7 +2602,7 @@ void S_PlayVol(void)
 			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
-		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, vol, 0.0, 0, 0);
+		S_StartSound(cl.playerview[0].playernum+1, -1, sfx, vec3_origin, vol, 0.0, 0, 0);
 		i+=2;
 	}
 }

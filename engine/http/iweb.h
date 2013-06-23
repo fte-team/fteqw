@@ -107,16 +107,11 @@ struct dl_download
 	unsigned int user_num;
 	void *user_ctx;
 
-	/*not used internally by the backend, but used by HTTP_CL_Get/thread wrapper*/
-	struct dl_download *next;
-	void (*notify) (struct dl_download *dl);
-
 	/*stream config*/
 	char url[MAX_OSPATH];	/*original url*/
 	char redir[MAX_OSPATH];	/*current redirected url*/
-	char localname[MAX_OSPATH];
-	struct vfsfile_s *file;	/*downloaded to, when starting will open localname if not already set*/
-	qboolean (*poll) (struct dl_download *);
+	char localname[MAX_OSPATH]; /*leave empty for a temp file*/
+	struct vfsfile_s *file;	/*downloaded to, if not already set when starting will open localname or a temp file*/
 
 	/*stream status*/
 	enum
@@ -139,6 +134,11 @@ struct dl_download
 #endif
 	void *ctx;	/*internal context, depending on http/ftp/etc protocol*/
 	void (*abort) (struct dl_download *); /*cleans up the internal context*/
+	qboolean (*poll) (struct dl_download *);
+
+	/*not used internally by the backend, but used by HTTP_CL_Get/thread wrapper*/
+	struct dl_download *next;
+	void (*notify) (struct dl_download *dl);
 };
 
 void HTTP_CL_Think(void);

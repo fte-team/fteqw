@@ -603,23 +603,23 @@ void CL_DownloadFinished(void)
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
 				}
 			}
-			else if (strncmp(tempname,"skins/",6))
-			{
-				if (!FS_Rename(tempname, filename, FS_GAME))
-				{
-					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
-					FS_NativePath(tempname, FS_GAME, nativetmp, sizeof(nativetmp));
-					FS_NativePath(filename, FS_GAME, nativefinal, sizeof(nativefinal));
-					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
-				}
-			}
-			else
+			else if (!strncmp(tempname,"skins/",6))
 			{
 				if (!FS_Rename(tempname+6, filename+6, FS_SKINS))
 				{
 					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
 					FS_NativePath(tempname+6, FS_SKINS, nativetmp, sizeof(nativetmp));
 					FS_NativePath(filename+6, FS_SKINS, nativefinal, sizeof(nativefinal));
+					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
+				}
+			}
+			else
+			{
+				if (!FS_Rename(tempname, filename, FS_GAME))
+				{
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
+					FS_NativePath(tempname, FS_GAME, nativetmp, sizeof(nativetmp));
+					FS_NativePath(filename, FS_GAME, nativefinal, sizeof(nativefinal));
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
 				}
 			}
@@ -734,10 +734,11 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned 
 	if (flags & DLLF_NONGAME)
 	{
 		/*pak/pk3 downloads have an explicit leading package/ as an internal/network marker*/
-		filename = va("package/%s", filename);
+		if (!strchr(filename, ':'))
+			filename = va("package/%s", filename);
 		localname = va("package/%s", localname);
 	}
-	/*files with a leading * should not be downloaded (inline models, sexed sounds, etc)*/
+	/*files with a leading * should not be downloaded (inline models, sexed sounds, etc). also block anyone trying to explicitly download a package/ because our code (wrongly) uses that name internally*/
 	else if (*filename == '*' || !strncmp(filename, "package/", 8))
 		return true;
 
@@ -1101,7 +1102,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		endstage();
 	}
 
-	if (cl.playernum[0] == -1)
+	if (cl.playerview[0].playernum == -1)
 	{	//q2 cinematic - don't load the models.
 		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", false);
 	}
@@ -2471,11 +2472,12 @@ void CLQW_ParseServerData (void)
 
 		for (j = 0; j < MAX_SPLITS; j++)
 		{
-			cl.playernum[j] = cl.allocated_client_slots + j;
+			cl.playerview[j].playernum = cl.allocated_client_slots + j;
+			cl.playerview[j].viewentity = 0;	//free floating.
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
-				cl.inframes[i].playerstate[cl.playernum[j]].pm_type = PM_SPECTATOR;
-				cl.inframes[i].playerstate[cl.playernum[j]].messagenum = 1;
+				cl.inframes[i].playerstate[cl.playerview[j].playernum].pm_type = PM_SPECTATOR;
+				cl.inframes[i].playerstate[cl.playerview[j].playernum].messagenum = 1;
 			}
 		}
 		cl.spectator = true;
@@ -2502,9 +2504,10 @@ void CLQW_ParseServerData (void)
 			Host_EndGame("Server sent us too many alternate clients\n");
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
-			cl.playernum[pnum] = MSG_ReadByte();
-			if (cl.playernum[pnum] >= cl.allocated_client_slots)
+			cl.playerview[pnum].playernum = MSG_ReadByte();
+			if (cl.playerview[pnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
+			cl.playerview[pnum].viewentity = cl.playerview[pnum].playernum+1;
 		}
 	}
 	else 
@@ -2515,16 +2518,17 @@ void CLQW_ParseServerData (void)
 		{
 			if (clnum == MAX_SPLITS)
 				Host_EndGame("Server sent us too many alternate clients\n");
-			cl.playernum[clnum] = pnum;
-			if (cl.playernum[clnum] & 128)
+			cl.playerview[clnum].playernum = pnum;
+			if (cl.playerview[clnum].playernum & 128)
 			{
 				cl.spectator = true;
-				cl.playernum[clnum] &= ~128;
+				cl.playerview[clnum].playernum &= ~128;
 			}
 
-			if (cl.playernum[clnum] >= cl.allocated_client_slots)
+			if (cl.playerview[clnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
 
+			cl.playerview[clnum].viewentity = cl.playerview[clnum].playernum+1;
 			if (!(cls.fteprotocolextensions & PEXT_SPLITSCREEN))
 				break;
 
@@ -2553,8 +2557,8 @@ void CLQW_ParseServerData (void)
 
 	for (clnum = 0; clnum < cl.splitclients; clnum++)
 	{
-		cl.maxspeed[clnum] = maxspeed;
-		cl.entgravity[clnum] = entgrav;
+		cl.playerview[clnum].maxspeed = maxspeed;
+		cl.playerview[clnum].entgravity = entgrav;
 	}
 
 	// seperate the printfs so the server message can have a color
@@ -2675,7 +2679,8 @@ void CLQ2_ParseServerData (void)
 
 
 	// parse player entity number
-	cl.playernum[0] = MSG_ReadShort ();
+	cl.playerview[0].playernum = MSG_ReadShort ();
+	cl.playerview[0].viewentity = cl.playerview[0].playernum+1;
 	cl.splitclients = 1;
 	cl.spectator = false;
 
@@ -2686,7 +2691,7 @@ void CLQ2_ParseServerData (void)
 	str = MSG_ReadString ();
 	Q_strncpyz (cl.levelname, str, sizeof(cl.levelname));
 
-	if (cl.playernum[0] == -1)
+	if (cl.playerview[0].playernum == -1)
 	{	// playing a cinematic or showing a pic, not a level
 		SCR_EndLoadingPlaque();
 		if (!Media_PlayFilm(str, false))
@@ -3765,7 +3770,7 @@ void CLQW_ParseStartSoundPacket(void)
 	}
 
 
-	if (ent == cl.playernum[0]+1)
+	if (ent == cl.playerview[0].playernum+1)
 		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
 }
 
@@ -3912,7 +3917,7 @@ void CLNQ_ParseStartSoundPacket(void)
 			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, pitchadj);
 	}
 
-	if (ent == cl.playernum[0]+1)
+	if (ent == cl.playerview[0].playernum+1)
 		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
 }
 #endif
@@ -4001,12 +4006,12 @@ void CL_NewTranslation (int slot)
 	{
 		if (cl.teamplay && cl.spectator)
 		{
-			local = Cam_TrackNum(0);
+			local = Cam_TrackNum(&cl.playerview[0]);
 			if (local < 0)
-				local = cl.playernum[0];
+				local = cl.playerview[0].playernum;
 		}
 		else
-			local = cl.playernum[0];
+			local = cl.playerview[0].playernum;
 		if ((cl.teamplay || cls.protocol == CP_NETQUAKE) && !strcmp(player->team, cl.players[local].team))
 		{
 			if (cl_teamtopcolor != ~0)
@@ -4086,7 +4091,7 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	player->colourised = TP_FindColours(player->name);
 
 	// If it's us
-	if (slot == cl.playernum[0] && player->name[0])
+	if (slot == cl.playerview[0].playernum && player->name[0])
 	{
 		cl.spectator = player->spectator;
 
@@ -4124,7 +4129,7 @@ void CL_UpdateUserinfo (void)
 
 
 
-	if (slot == cl.playernum[0] && player->name[0])
+	if (slot == cl.playerview[0].playernum && player->name[0])
 	{
 		char *qz;
 		qz = Info_ValueForKey(player->userinfo, "Qizmo");
@@ -4239,7 +4244,7 @@ void CL_SetStatInt (int pnum, int stat, int value)
 		cl.players[cls_lastto].stats[stat]=value;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (spec_track[pnum] == cls_lastto)
+			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
 				CL_SetStat_Internal(pnum, stat, value);
 	}
 	else
@@ -4257,14 +4262,14 @@ void CL_SetStatFloat (int pnum, int stat, float value)
 		cl.players[cls_lastto].statsf[stat]=value;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (spec_track[pnum] == cls_lastto)
+			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
 				cl.playerview[pnum].statsf[stat] = value;
 	}
 	else
 		cl.playerview[pnum].statsf[stat] = value;
 
 	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
-		cl.viewheight[pnum] = value;
+		cl.playerview[pnum].viewheight = value;
 }
 void CL_SetStatString (int pnum, int stat, char *value)
 {
@@ -4313,7 +4318,7 @@ void CL_MuzzleFlash (int destsplit)
 	if (!cl_muzzleflash.ival) // remove all muzzleflashes
 		return;
 
-	if (i-1 == cl.playernum[destsplit] && cl_muzzleflash.value == 2)
+	if (i-1 == cl.playerview[destsplit].playernum && cl_muzzleflash.value == 2)
 		return;
 
 	pack = &cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities;
@@ -5396,21 +5401,18 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_damage:
-			V_ParseDamage (destsplit);
+			V_ParseDamage (&cl.playerview[destsplit]);
 			break;
 
 		case svc_serverdata:
 			Cbuf_Execute ();		// make sure any stuffed commands are done
  			CLQW_ParseServerData ();
-			vid.recalc_refdef = true;	// leave full screen intermission
 			break;
 #ifdef PEXT_SETVIEW
 		case svc_setview:
 			if (!(cls.fteprotocolextensions & PEXT_SETVIEW))
 				Con_Printf("^1PEXT_SETVIEW is meant to be disabled\n");
-			cl.viewentity[destsplit]=MSGCL_ReadEntity();
-			if (cl.viewentity[destsplit] == cl.playernum[destsplit]+1)
-				cl.viewentity[destsplit] = 0;
+			cl.playerview[destsplit].viewentity=MSGCL_ReadEntity();
 			break;
 #endif
 		case svcfte_setangledelta:
@@ -5427,12 +5429,13 @@ void CLQW_ParseServerMessage (void)
 					ang[i] = MSG_ReadAngle();
 				for (j = 0; j < cl.splitclients; j++)
 				{
-					if (Cam_TrackNum(j) == i)
+					playerview_t *pv = &cl.playerview[j];
+					if (Cam_TrackNum(pv) == i)
 					{
-						cl.playerview[j].fixangle=true;
-						VectorCopy(ang, cl.playerview[j].simangles);
-						VectorCopy(ang, cl.playerview[j].viewangles);
-						VectorCopy(ang, cl.playerview[j].fixangles);
+						pv->fixangle=true;
+						VectorCopy(ang, pv->simangles);
+						VectorCopy(ang, pv->viewangles);
+						VectorCopy(ang, pv->fixangles);
 					}
 				}
 				break;
@@ -5556,11 +5559,14 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_killedmonster:
+			//fixme: update all player stats
 			cl.playerview[destsplit].stats[STAT_MONSTERS]++;
+			cl.playerview[destsplit].statsf[STAT_MONSTERS]++;
 			break;
-
 		case svc_foundsecret:
+			//fixme: update all player stats
 			cl.playerview[destsplit].stats[STAT_SECRETS]++;
+			cl.playerview[destsplit].statsf[STAT_SECRETS]++;
 			break;
 
 		case svcqw_updatestatbyte:
@@ -5602,7 +5608,6 @@ void CLQW_ParseServerMessage (void)
 				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
 			cl.completed_time = cl.gametime;
-			vid.recalc_refdef = true;	// go to full screen
 			for (i=0 ; i<3 ; i++)
 				cl.playerview[destsplit].simorg[i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
@@ -5614,12 +5619,11 @@ void CLQW_ParseServerMessage (void)
 		case svc_finale:
 			if (!cl.intermission)
 				for (i = 0; i < MAX_SPLITS; i++)
-					cl.playerview[i].simorg[2] += cl.viewheight[i];
+					cl.playerview[i].simorg[2] += cl.playerview[i].viewheight;
 			VectorCopy (cl.playerview[destsplit].fixangles, cl.playerview[destsplit].simangles);
 
 			cl.intermission = 2;
 			cl.completed_time = cl.gametime;
-			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
 			break;
 
@@ -5628,10 +5632,10 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_smallkick:
-			cl.punchangle[destsplit] = -2;
+			cl.playerview[destsplit].punchangle = -2;
 			break;
 		case svc_bigkick:
-			cl.punchangle[destsplit] = -4;
+			cl.playerview[destsplit].punchangle = -4;
 			break;
 
 		case svc_muzzleflash:
@@ -5699,11 +5703,11 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_maxspeed:
-			cl.maxspeed[destsplit] = MSG_ReadFloat();
+			cl.playerview[destsplit].maxspeed = MSG_ReadFloat();
 			break;
 
 		case svc_entgravity:
-			cl.entgravity[destsplit] = MSG_ReadFloat();
+			cl.playerview[destsplit].entgravity = MSG_ReadFloat();
 			break;
 
 		case svc_setpause:
@@ -6086,6 +6090,7 @@ qboolean CLNQ_ParseNQPrints(char *s)
 
 void CLNQ_ParseServerMessage (void)
 {
+	const int	destsplit = 0;
 	int			cmd;
 	char		*s;
 	int			i, j;
@@ -6227,7 +6232,6 @@ void CLNQ_ParseServerMessage (void)
 		case svc_serverdata:
 			Cbuf_Execute ();		// make sure any stuffed commands are done
 			CLNQ_ParseServerData ();
-			vid.recalc_refdef = true;	// leave full screen intermission
 			break;
 
 		case svcdp_precache:
@@ -6242,17 +6246,17 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_setview:
-			if (!cl.viewentity[0])
+			if (!cl.playerview[destsplit].viewentity)
 			{
-				cl.playernum[0] = (cl.viewentity[0] = MSGCL_ReadEntity())-1;
-				if (cl.playernum[0] >= cl.allocated_client_slots)
+				cl.playerview[destsplit].playernum = (cl.playerview[destsplit].viewentity = MSGCL_ReadEntity())-1;
+				if (cl.playerview[destsplit].playernum >= cl.allocated_client_slots)
 				{
-					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", cl.playernum[0]);
-					cl.playernum[0] = cl.allocated_client_slots;	//pretend it's an mvd (we have that spare slot)
+					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", cl.playerview[destsplit].playernum);
+					cl.playerview[destsplit].playernum = cl.allocated_client_slots;	//pretend it's an mvd (we have that spare slot)
 				}
 			}
 			else
-				cl.viewentity[0]=MSGCL_ReadEntity();
+				cl.playerview[destsplit].viewentity=MSGCL_ReadEntity();
 			break;
 
 		case svc_signonnum:
@@ -6303,9 +6307,10 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_time:
-			cl.playerview[0].oldfixangle = cl.playerview[0].fixangle;
-			VectorCopy(cl.playerview[0].fixangles, cl.playerview[0].oldfixangles);
-			cl.playerview[0].fixangle = false;
+			//fixme: move this stuff to a common place
+			cl.playerview[destsplit].oldfixangle = cl.playerview[destsplit].fixangle;
+			VectorCopy(cl.playerview[destsplit].fixangles, cl.playerview[destsplit].oldfixangles);
+			cl.playerview[destsplit].fixangle = false;
 
 			cls.netchan.outgoing_sequence++;
 			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
@@ -6351,6 +6356,7 @@ void CLNQ_ParseServerMessage (void)
 				strcpy(cl.players[i].name, MSG_ReadString());
 				if (*cl.players[i].name)
 					cl.players[i].userid = i+1;
+				Info_SetValueForKey(cl.players[i].userinfo, "name", cl.players[i].name, sizeof(cl.players[i].userinfo));
 			}
 			break;
 
@@ -6377,7 +6383,7 @@ void CLNQ_ParseServerMessage (void)
 					if (cls.state == ca_active)
 						Skin_Find (&cl.players[i]);
 
-					if (i == cl.playernum[0])
+					if (i == cl.playerview[destsplit].playernum)
 						Skin_FlushPlayers();
 					Sbar_Changed ();
 					CL_NewTranslation (i);
@@ -6410,9 +6416,9 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatFloat (0, i, j);
 			break;
 		case svc_setangle:
-			cl.playerview[0].fixangle=true;
+			cl.playerview[destsplit].fixangle=true;
 			for (i=0 ; i<3 ; i++)
-				cl.playerview[0].viewangles[i] = cl.playerview[0].fixangles[i] = MSG_ReadAngle ();
+				cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].fixangles[i] = MSG_ReadAngle ();
 //			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
 			break;
 
@@ -6437,11 +6443,13 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_killedmonster:
-			cl.playerview[0].stats[STAT_MONSTERS]++;
+			cl.playerview[destsplit].stats[STAT_MONSTERS]++;
+			cl.playerview[destsplit].statsf[STAT_MONSTERS]++;
 			break;
 
 		case svc_foundsecret:
-			cl.playerview[0].stats[STAT_SECRETS]++;
+			cl.playerview[destsplit].stats[STAT_SECRETS]++;
+			cl.playerview[destsplit].statsf[STAT_SECRETS]++;
 			break;
 
 		case svc_intermission:
@@ -6449,20 +6457,17 @@ void CLNQ_ParseServerMessage (void)
 				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
 			cl.completed_time = cl.gametime;
-			vid.recalc_refdef = true;	// go to full screen
 			break;
 
 		case svc_finale:
 			cl.intermission = 2;
 			cl.completed_time = cl.gametime;
-			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 
 		case svc_cutscene:
 			cl.intermission = 3;
 			cl.completed_time = cl.gametime;
-			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 
@@ -6471,7 +6476,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_damage:
-			V_ParseDamage (0);
+			V_ParseDamage (&cl.playerview[destsplit]);
 			break;
 
 		case svcfitz_skybox:

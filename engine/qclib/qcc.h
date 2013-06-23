@@ -648,6 +648,7 @@ enum {
 	WARN_SYSTEMCRC,
 	WARN_CONDITIONALTYPEMISMATCH,
 	WARN_SELFNOTTHIS,	//warned for because 'self' does not have the right type. we convert such references to 'this' instead, which is more usable.
+	WARN_EVILPREPROCESSOR,	//exploited by nexuiz, and generally unsafe.
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

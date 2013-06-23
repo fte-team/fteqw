@@ -38,7 +38,11 @@
 	#ifdef _MSC_VER
 		#define USEIPX
 	#endif
-	#include "winquake.h"
+	#define WIN32_LEAN_AND_MEAN
+	#define byte winbyte
+	#include <windows.h>
+	#include <winsock2.h>
+//	#include "winquake.h"
 	#ifdef USEIPX
 		#include "wsipx.h"
 	#endif
@@ -191,3 +195,60 @@
 	#undef IPPROTO_IPV6
 #endif
 
+#if 1//def SUPPORT_ICE
+struct icecandidate_s
+{
+	struct icecandidate_s *next;
+	char *candidateid;
+	char *addr;		//v4/v6/fqdn. fqdn should prefer ipv6
+	int port;
+	int transport;		//0=udp. other values not supported
+	int foundation;		//to figure out...
+	int component;		//1-based. allows rtp+rtcp in a single ICE... we only support one.
+	int priority;		//some random value...
+	enum
+	{
+		ICE_HOST=0,
+		ICE_SRFLX=1,
+		ICE_PRFLX=2,
+		ICE_RELAY=3,
+	} type;				//says what sort of proxy is used.
+	char *reladdr;		//when proxied, this is our local info
+	int relport;
+	int generation;		//for ice restarts. starts at 0.
+	int network;		//which network device this comes from.
+
+	qboolean dirty;
+};
+struct icestate_s
+{
+	struct icestate_s *next;
+	void *module;
+
+	int netsrc;
+	enum icemode_e
+	{
+		ICE_RAW,	//not actually interactive beyond a simple handshake.
+		ICE_ICE		//rfc5245. meant to be able to holepunch, but not implemented properly yet.
+	} mode;
+	char *conname;		//internal id.
+	char *friendlyname;	//who you're talking to.
+	char *stunserver;//where to get our public ip from.
+	int stunport;
+
+	struct icecandidate_s *lc;
+	char *lpwd;
+	char *lfrag;
+
+	struct icecandidate_s *rc;
+	char *rpwd;
+	char *rfrag;
+};
+struct icestate_s *QDECL ICE_Create(void *module, char *conname, char *peername, enum icemode_e mode);	//doesn't start pinging anything.
+struct icestate_s *QDECL ICE_Find(void *module, char *conname);
+void QDECL ICE_Begin(struct icestate_s *con, char *stunip, int stunport);	//begins sending stun packets and stuff as required. data flows automagically. caller should poll ICE_GetLCandidateInfo periodically to pick up new candidates that need to be reported to the peer.
+struct icecandidate_s *QDECL ICE_GetLCandidateInfo(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
+void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandidate_s *cand);		//stuff that came from the peer.
+void QDECL ICE_Close(struct icestate_s *con);	//bye then.
+void QDECL ICE_CloseModule(void *module);	//closes all unclosed connections, with warning.
+#endif

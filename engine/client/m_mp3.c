@@ -227,6 +227,23 @@ qboolean Media_FakeTrack(int i, qboolean loop)
 	if (i > 0 && i <= 999)
 	{
 		found = false;
+		if (!found && i <= 99)
+		{
+			sprintf(trackname, "music/track%02i.ogg", i);
+			found = COM_FCheckExists(trackname);
+		}
+#ifdef WINAVI
+		if (!found && i <= 99)
+		{
+			sprintf(trackname, "music/track%02i.mp3", i);
+			found = COM_FCheckExists(trackname);
+		}
+#endif
+		if (!found && i <= 99)
+		{
+			sprintf(trackname, "music/track%02i.wav", i);
+			found = COM_FCheckExists(trackname);
+		}
 		if (!found)
 		{
 			sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
@@ -3145,6 +3162,9 @@ void Media_RecordDemo_f(void)
 {
 	if (Cmd_Argc() < 2)
 		return;
+	if (Cmd_FromGamecode())
+		return;
+
 	CL_PlayDemo(Cmd_Argv(1));
 	if (Cmd_Argc() > 2)
 		Cmd_ShiftArgs(1, false);

@@ -228,7 +228,7 @@ void IN_MLookUp (void)
 	int pnum = CL_TargettedSplit(false);
 	KeyUp(&in_mlook);
 	if ( !(in_mlook.state[pnum]&1) &&  lookspring.ival)
-		V_StartPitchDrift(pnum);
+		V_StartPitchDrift(&cl.playerview[pnum]);
 }
 void IN_UpDown(void) {KeyDown(&in_up);}
 void IN_UpUp(void) {KeyUp(&in_up);}
@@ -277,10 +277,10 @@ void IN_JumpDown (void)
 	else
 #endif
 		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
-		cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[pnum]].messagenum == cl.validsequence && cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
+		cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[pnum].playernum].messagenum == cl.validsequence && cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
-	else if (condition && cl.spectator && Cam_TrackNum(pnum) == -1)
+	else if (condition && cl.spectator && Cam_TrackNum(&cl.playerview[pnum]) == -1)
 		KeyDown(&in_up);
 	else
 		KeyDown(&in_jump);
@@ -535,7 +535,7 @@ void CL_AdjustAngles (int pnum, double frametime)
 	}
 	if (in_klook.state[pnum] & 1)
 	{
-		V_StopPitchDrift (pnum);
+		V_StopPitchDrift (&cl.playerview[pnum]);
 		quant = cl_pitchspeed.ival;
 		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
@@ -553,7 +553,7 @@ void CL_AdjustAngles (int pnum, double frametime)
 	cl.playerview[pnum].viewanglechange[PITCH] += speed*cl_pitchspeed.ival * down;
 
 	if (up || down)
-		V_StopPitchDrift (pnum);	
+		V_StopPitchDrift (&cl.playerview[pnum]);	
 }
 
 /*
@@ -1561,11 +1561,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 				// if we are spectator, try autocam
 				if (cl.spectator)
-					Cam_Track(plnum, cmd);
+					Cam_Track(&cl.playerview[plnum], cmd);
 
 				CL_FinishMove(cmd, cmd->msec, plnum);
 
-				Cam_FinishMove(plnum, cmd);
+				Cam_FinishMove(&cl.playerview[plnum], cmd);
 			}
 
 			while (clientcmdlist)
@@ -1674,8 +1674,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 		// if we are spectator, try autocam
 	//	if (cl.spectator)
-		Cam_Track(plnum, &independantphysics[plnum]);
-		Cam_FinishMove(plnum, &independantphysics[plnum]);
+		Cam_Track(&cl.playerview[plnum], &independantphysics[plnum]);
+		Cam_FinishMove(&cl.playerview[plnum], &independantphysics[plnum]);
 		independantphysics[plnum].msec = msecstouse;
 	}
 

@@ -85,7 +85,7 @@ int Player_SlottoId (int slot)
 
 char *Player_MyName (void)
 {
-	return cl.players[cl.playernum[0]].name;
+	return cl.players[cl.playerview[0].playernum].name;
 }
 
 
@@ -599,8 +599,8 @@ qboolean Ignore_Message(char *s, int flags, int offset)
 				(int) ignore_opponents.ival == 1 ||
 				(cls.state >= ca_connected && /*!cl.standby &&*/ !cls.demoplayback && !cl.spectator) // match?
 				) && 
-			flags == 1 && !cl.spectator && slot != cl.playernum[0] &&
-			(!cl.teamplay || strcmp(cl.players[slot].team, cl.players[cl.playernum[0]].team))
+			flags == 1 && !cl.spectator && slot != cl.playerview[0].playernum &&
+			(!cl.teamplay || strcmp(cl.players[slot].team, cl.players[cl.playerview[0].playernum].team))
 			)
 	{
 		return true;

@@ -89,7 +89,8 @@ dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_
 	hVM=NULL;
 	{
 		char fname[MAX_OSPATH];
-		char *gpath;
+		char gpath[MAX_OSPATH];
+		void *iterator;
 
 		if (binroot)
 		{
@@ -101,13 +102,9 @@ dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_
 		else
 		{
 			// run through the search paths
-			gpath = NULL;
-			while (!hVM)
+			iterator = NULL;
+			while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath)))
 			{
-				gpath = COM_NextPath (gpath);
-				if (!gpath)
-					break;		// couldn't find one anywhere
-
 				if (!hVM)
 				{
 					snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);

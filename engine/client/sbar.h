@@ -36,7 +36,7 @@ void Sbar_Changed (void);
 // call whenever any of the client stats represented on the sbar changes
 
 qboolean Sbar_ShouldDraw(void);
-void Sbar_Draw (void);
+void Sbar_Draw (playerview_t *pv);	//uses the current r_refdef.grect
 void Sbar_DrawScoreboard (void);
 // called every frame by screen
 

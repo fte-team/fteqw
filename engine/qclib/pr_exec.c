@@ -806,6 +806,8 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 			break;
 */
 		case ev_entity:
+			if (!EDICT_NUM(progfuncs, atoi (assignment)))
+				return "(invalid entity)";
 			*(int *)val = EDICT_TO_PROG(progfuncs, EDICT_NUM(progfuncs, atoi (assignment)));
 			break;
 

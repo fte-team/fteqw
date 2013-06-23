@@ -345,7 +345,7 @@ static void D3D11BE_ApplyShaderBits(unsigned int bits)
 
 	if (delta & (SBITS_BLEND_BITS|SBITS_MASK_BITS))
 	{
-		D3D11_BLEND_DESC  blend;
+		D3D11_BLEND_DESC  blend = {0};
 		ID3D11BlendState *newblendstate;
 		blend.IndependentBlendEnable = FALSE;
 		blend.AlphaToCoverageEnable = FALSE;	//FIXME
@@ -354,27 +354,27 @@ static void D3D11BE_ApplyShaderBits(unsigned int bits)
 		{
 			switch(bits & SBITS_SRCBLEND_BITS)
 			{
-			case SBITS_SRCBLEND_ZERO:					blend.RenderTarget[0].SrcBlend = D3D11_BLEND_ZERO; break;
-			case SBITS_SRCBLEND_ONE:					blend.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE; break;
-			case SBITS_SRCBLEND_DST_COLOR:				blend.RenderTarget[0].SrcBlend = D3D11_BLEND_DEST_COLOR; break;
-			case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_INV_DEST_COLOR; break;
-			case SBITS_SRCBLEND_SRC_ALPHA:				blend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA; break;
-			case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_INV_SRC_ALPHA; break;
-			case SBITS_SRCBLEND_DST_ALPHA:				blend.RenderTarget[0].SrcBlend = D3D11_BLEND_DEST_ALPHA; break;
-			case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_INV_DEST_ALPHA; break;
-			case SBITS_SRCBLEND_ALPHA_SATURATE:			blend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA_SAT; break;
+			case SBITS_SRCBLEND_ZERO:					blend.RenderTarget[0].SrcBlend = D3D11_BLEND_ZERO;				break;
+			case SBITS_SRCBLEND_ONE:					blend.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;				break;
+			case SBITS_SRCBLEND_DST_COLOR:				blend.RenderTarget[0].SrcBlend = D3D11_BLEND_DEST_COLOR;		break;
+			case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_INV_DEST_COLOR;	break;
+			case SBITS_SRCBLEND_SRC_ALPHA:				blend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;			break;
+			case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_INV_SRC_ALPHA;		break;
+			case SBITS_SRCBLEND_DST_ALPHA:				blend.RenderTarget[0].SrcBlend = D3D11_BLEND_DEST_ALPHA;		break;
+			case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:	blend.RenderTarget[0].SrcBlend = D3D11_BLEND_INV_DEST_ALPHA;	break;
+			case SBITS_SRCBLEND_ALPHA_SATURATE:			blend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA_SAT;		break;
 			default:	Sys_Error("Bad shader blend src\n"); return;
 			}
 			switch(bits & SBITS_DSTBLEND_BITS)
 			{
-			case SBITS_DSTBLEND_ZERO:					blend.RenderTarget[0].DestBlend = D3D11_BLEND_ZERO; break;
-			case SBITS_DSTBLEND_ONE:					blend.RenderTarget[0].DestBlend = D3D11_BLEND_ONE; break;
-			case SBITS_DSTBLEND_SRC_ALPHA:				blend.RenderTarget[0].DestBlend = D3D11_BLEND_SRC_ALPHA; break;
-			case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:	blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA; break;
-			case SBITS_DSTBLEND_DST_ALPHA:				blend.RenderTarget[0].DestBlend = D3D11_BLEND_DEST_ALPHA; break;
-			case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:	blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_DEST_ALPHA; break;
-			case SBITS_DSTBLEND_SRC_COLOR:				blend.RenderTarget[0].DestBlend = D3D11_BLEND_SRC_COLOR; break;
-			case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:	blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_COLOR; break;
+			case SBITS_DSTBLEND_ZERO:					blend.RenderTarget[0].DestBlend = D3D11_BLEND_ZERO;				break;
+			case SBITS_DSTBLEND_ONE:					blend.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;				break;
+			case SBITS_DSTBLEND_SRC_ALPHA:				blend.RenderTarget[0].DestBlend = D3D11_BLEND_SRC_ALPHA;		break;
+			case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:	blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;	break;
+			case SBITS_DSTBLEND_DST_ALPHA:				blend.RenderTarget[0].DestBlend = D3D11_BLEND_DEST_ALPHA;		break;
+			case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:	blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_DEST_ALPHA;	break;
+			case SBITS_DSTBLEND_SRC_COLOR:				blend.RenderTarget[0].DestBlend = D3D11_BLEND_SRC_COLOR;		break;
+			case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:	blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_COLOR;	break;
 			default:	Sys_Error("Bad shader blend dst\n"); return;
 			}
 			blend.RenderTarget[0].BlendEnable = TRUE;
@@ -386,8 +386,8 @@ static void D3D11BE_ApplyShaderBits(unsigned int bits)
 			blend.RenderTarget[0].BlendEnable = FALSE;
 		}
 		blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-		blend.RenderTarget[0].SrcBlendAlpha = blend.RenderTarget[0].SrcBlend;
-		blend.RenderTarget[0].DestBlendAlpha = blend.RenderTarget[0].DestBlend;
+		blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;//blend.RenderTarget[0].SrcBlend;
+		blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;//blend.RenderTarget[0].DestBlend;
 		blend.RenderTarget[0].BlendOpAlpha = blend.RenderTarget[0].BlendOp;
 
 		if (bits&SBITS_MASK_BITS)
@@ -2927,6 +2927,11 @@ void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarra
 }
 void D3D11BE_VBO_Destroy(vboarray_t *vearray)
 {
+}
+
+void D3D11BE_Scissor(srect_t *rect)
+{
+	//stub
 }
 
 #endif

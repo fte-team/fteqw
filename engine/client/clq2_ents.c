@@ -1015,7 +1015,7 @@ void CLQ2_ParseFrame (void)
 	i = MSG_ReadByte ();
 
 	for (j=0 ; j<i ; j++)
-		cl.inframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].receivedtime = -2;
+		cl.inframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
 
 	if (cl_shownet.value == 3)
 		Con_Printf ("   frame:%i  delta:%i\n", cl.q2frame.serverframe, cl.q2frame.deltaframe);
@@ -1359,9 +1359,6 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		else
 			ent.flags = renderfx;
 
-		if (renderfx & Q2RF_EXTERNALMODEL)
-			ent.externalmodelview = ~0;
-
 		// calculate angles
 		if (effects & Q2EF_ROTATE)
 		{	// some bonus items auto-rotate
@@ -1398,11 +1395,11 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
  	ent.angles[0]*=-1;	//q2 has it fixed.
 
-		if (s1->number == cl.playernum[0]+1)	//woo! this is us!
+		if (s1->number == cl.playerview[pnum].playernum+1)	//woo! this is us!
 		{
 //			VectorCopy(cl.predicted_origin, ent.origin);
 //			VectorCopy(cl.predicted_origin, ent.oldorigin);
-//			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
+			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
 
 			if (effects & Q2EF_FLAG1)
 				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
@@ -1508,7 +1505,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;
-		ent.flags = 0;
+		ent.flags &= Q2RF_EXTERNALMODEL;
 		ent.shaderRGBAf[3] = 1;
 
 		// duplicate for linked models
@@ -1763,7 +1760,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 		return;
 
 	//generate root matrix..
-	view = &cl.viewent[0];
+	view = &cl.playerview[0].viewent;
 	VectorCopy(cl.playerview[0].simorg, view->origin);
 	AngleVectors(cl.playerview[0].simangles, view->axis[0], view->axis[1], view->axis[2]);
 	VectorInverse(view->axis[1]);
@@ -1828,8 +1825,6 @@ void CLQ2_CalcViewValues (void)
 	extern cvar_t gl_cshiftenabled;
 
 	r_refdef.useperspective = true;
-
-	r_refdef.currentplayernum = 0;
 
 	// find the previous frame to interpolate from
 	ps = &cl.q2frame.playerstate;
@@ -1918,10 +1913,6 @@ void CLQ2_AddEntities (void)
 {
 	if (cls.state != ca_active)
 		return;
-
-
-	r_refdef.currentplayernum = 0;
-
 
 	if (cl.time*1000 > cl.q2frame.servertime)
 	{

@@ -3,6 +3,7 @@
 #include "iweb.h"
 
 #include "netinc.h"
+#include "fs.h"
 
 #if defined(WEBCLIENT)
 
@@ -277,7 +278,7 @@ void NADL_Cleanup(struct dl_download *dl)
 	ppb_core->CallOnMainThread(1000, ccb, 0);
 }
 
-qboolean HTTPDL_Decide(struct dl_download *dl)
+qboolean DL_Decide(struct dl_download *dl)
 {
 	const char *url = dl->redir;
 	struct nacl_dl *ctx;
@@ -314,7 +315,7 @@ qboolean HTTPDL_Decide(struct dl_download *dl)
 	return true;
 }
 #else
-qboolean HTTPDL_Decide(struct dl_download *dl);
+qboolean DL_Decide(struct dl_download *dl);
 
 /*
 This file does one thing. Connects to servers and grabs the specified file. It doesn't do any uploading whatsoever. Live with it.
@@ -334,11 +335,13 @@ struct http_dl_ctx_s {
 
 	int totalreceived;	//useful when we're just dumping to a file.
 
+	struct vfsfile_s *file;	//if gzipping, this is a temporary file. we'll write to the real file from this after the transfer is complete.
+	qboolean gzip;
 	qboolean chunking;
 	int chunksize;
 	int chunked;
 
-	enum {HC_REQUESTING,HC_GETTINGHEADER, HC_GETTING} state;
+	enum {HC_REQUESTING, HC_GETTINGHEADER, HC_GETTING, HC_DECOMPRESSING} state;
 
 	int contentlength;
 };
@@ -421,50 +424,59 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			con->state = HC_GETTING;
 			dl->status = DL_ACTIVE;
 			con->contentlength = -1;	//meaning end of stream.
-			dl->replycode = 0;
+			dl->replycode = 200;
 		}
 		else
 		{
+			qboolean hcomplete = false;
 			while(*msg)
 			{
 				if (*msg == '\n')
 				{
 					if (msg[1] == '\n')
 					{	//tut tut, not '\r'? that's not really allowed...
-						msg+=1;
-						break;
-					}
-					if (msg[2] == '\n')
-					{
 						msg+=2;
+						hcomplete = true;
 						break;
 					}
+					if (msg[1] == '\r' && msg[2] == '\n')
+					{
+						msg+=3;
+						hcomplete = true;
+						break;
+					}
+					msg++;
 				}
-				msg++;
+				while (*msg == ' ' || *msg == '\t')
+					msg++;
+
+				nl = strchr(msg, '\n');
+				if (!nl)
+					break;//not complete, don't bother trying to parse it.
 				if (!strnicmp(msg, "Content-Length: ", 16))
 					con->contentlength = atoi(msg+16);
 				else if (!strnicmp(msg, "Location: ", 10))
 				{
-					nl = strchr(msg, '\n');
-					if (nl)
-					{
-						*nl = '\0';
-						Q_strncpyz(Location, COM_TrimString(msg+10), sizeof(Location));
-						*nl = '\n';
-					}
+					*nl = '\0';
+					Q_strncpyz(Location, COM_TrimString(msg+10), sizeof(Location));
+					*nl = '\n';
+				}
+				else if (!strnicmp(msg, "Content-Encoding: ", 18))
+				{
+					char *chunk = strstr(msg, "gzip");
+					if (chunk < nl)
+						con->gzip = true;
 				}
 				else if (!strnicmp(msg, "Transfer-Encoding: ", 19))
 				{
 					char *chunk = strstr(msg, "chunked");
-					nl = strchr(msg, '\n');
-					if (nl)
-						if (chunk < nl)
-							con->chunking = true;
+					if (chunk < nl)
+						con->chunking = true;
 				}
+				msg = nl;
 			}
-			if (!*msg)
-				break;//switch
-			msg++;
+			if (!hcomplete)
+				break;//headers not complete. break out of switch
 
 			ammount = msg - con->buffer;
 
@@ -475,7 +487,6 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			if (!stricmp(buffer, "100"))
 			{	//http/1.1 servers can give this. We ignore it.
-
 				con->bufferused -= ammount;
 				memmove(con->buffer, con->buffer+ammount, con->bufferused);
 				return true;
@@ -511,7 +522,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					}
 					else
 						Q_strncpyz(dl->redir, Location, sizeof(dl->redir));
-					dl->poll = HTTPDL_Decide;
+					dl->poll = DL_Decide;
 					dl->status = DL_PENDING;
 				}
 				return true;
@@ -533,34 +544,41 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			dl->totalsize = con->contentlength;
 
+			memmove(con->buffer, con->buffer+ammount, con->bufferused);
+		}
+
+		if (!dl->file)
+		{
+#ifndef NPFTE
+			if (*dl->localname)
+			{
+				FS_CreatePath(dl->localname, FS_GAME);
+				dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
+			}
+			else
+				dl->file = FS_OpenTemp();
+#endif
 			if (!dl->file)
 			{
-#ifndef NPFTE
-				if (*dl->localname)
-				{
-					FS_CreatePath(dl->localname, FS_GAME);
-					dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
-				}
-				else
-					dl->file = FS_OpenTemp();
-#endif
-				if (!dl->file)
-				{
-					Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
-					dl->status = DL_FAILED;
-					return false;
-				}
+				Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
+				dl->status = DL_FAILED;
+				return false;
 			}
-
-			memmove(con->buffer, con->buffer+ammount, con->bufferused);
-
-
-			con->state = HC_GETTING;
-			dl->status = DL_ACTIVE;
-
 		}
-		//Fall through
 
+		if (con->gzip)
+		{
+#ifdef NPFTE
+			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
+#else
+			con->file = FS_OpenTemp();
+#endif
+		}
+		else
+			con->file = dl->file;
+		con->state = HC_GETTING;
+		dl->status = DL_ACTIVE;
+		//Fall through
 	case HC_GETTING:
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
@@ -616,11 +634,10 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				}
 			}
 
-
 			con->totalreceived+=con->chunked;
-			if (dl->file && con->chunked)	//we've got a chunk in the buffer
+			if (con->file && con->chunked)	//we've got a chunk in the buffer
 			{	//write it
-				if (VFS_WRITE(dl->file, con->buffer, con->chunked) != con->chunked)
+				if (VFS_WRITE(con->file, con->buffer, con->chunked) != con->chunked)
 				{
 					Con_Printf("Write error whilst downloading %s\nDisk full?\n", dl->localname);
 					return false;
@@ -635,9 +652,9 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		else
 		{
 			con->totalreceived+=ammount;
-			if (dl->file)	//we've got a chunk in the buffer
+			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
-				if (VFS_WRITE(dl->file, con->buffer, con->bufferused) != con->bufferused)
+				if (VFS_WRITE(con->file, con->buffer, con->bufferused) != con->bufferused)
 				{
 					Con_Printf("Write error whilst downloading %s\nDisk full?\n", dl->localname);
 					return false;
@@ -651,7 +668,17 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			if (con->chunksize)
 				dl->status = DL_FAILED;
 			else
-				dl->status = DL_FINISHED; 
+			{
+#ifndef NPFTE
+				if (con->gzip)
+				{
+					VFS_SEEK(con->file, 0);
+					dl->file = FS_DecompressGZip(con->file, dl->file);
+					con->file = NULL;
+				}
+#endif
+				dl->status = (dl->replycode == 200)?DL_FINISHED:DL_FAILED; 
+			}
 			return false;
 		}
 		dl->completed = con->totalreceived;
@@ -730,7 +757,13 @@ void HTTPDL_Establish(struct dl_download *dl)
 	}
 
 	ExpandBuffer(con, 512*1024);
-	sprintf(con->buffer, "GET %s HTTP/1.1\r\n"	"Host: %s\r\n" "Connection: close\r\n"	"User-Agent: "FULLENGINENAME"\r\n" "\r\n", uri, server);
+	sprintf(con->buffer, 
+		"GET %s HTTP/1.1\r\n"
+		"Host: %s\r\n"
+		"Connection: close\r\n"
+		"Accept-Encoding: gzip\r\n"
+		"User-Agent: "FULLENGINENAME"\r\n"
+		"\r\n", uri, server);
 	con->bufferused = strlen(con->buffer);
 	con->contentlength = -1;
 }
@@ -770,7 +803,7 @@ qboolean HTTPDL_Poll(struct dl_download *dl)
 	return true;
 }
 
-qboolean HTTPDL_Decide(struct dl_download *dl)
+qboolean DL_Decide(struct dl_download *dl)
 {
 	const char *url = dl->redir;
 	if (!*url)
@@ -844,7 +877,7 @@ struct dl_download *DL_Create(const char *url)
 		return NULL;
 	memset(newdl, 0, sizeof(*newdl));
 	Q_strncpyz(newdl->url, url, sizeof(newdl->url));
-	newdl->poll = HTTPDL_Decide;
+	newdl->poll = DL_Decide;
 
 	if (!newdl->poll(newdl))
 	{

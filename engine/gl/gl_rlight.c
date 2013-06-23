@@ -294,9 +294,9 @@ void R_RenderDlights (void)
 		if (l->flags & LFLAG_FLASHBLEND)
 		{
 			//dlights emitting from the local player are not visible as flashblends
-			if (l->key == cl.playernum[r_refdef.currentplayernum]+1)
+			if (l->key == r_refdef.playerview->viewentity)
 				continue;	//was a glow
-			if (l->key == -(cl.playernum[r_refdef.currentplayernum]+1))
+			if (l->key == -(r_refdef.playerview->viewentity))
 				continue;	//was a muzzleflash
 		}
 

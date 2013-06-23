@@ -19,10 +19,10 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 {
 	return NULL;
 }
-vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode);
+vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush);
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto)
 {
-	return VFSSTDIO_Open(filename, mode);
+	return VFSSTDIO_Open(filename, mode, NULL);
 }
 void Q_strncpyz(char *d, const char *s, int n)
 {
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
 }
 
 
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm)
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *f), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
@@ -132,12 +132,12 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void 
 		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 		{
 			sprintf(file, "%s%s/", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm);
+			go = func(file, fd.nFileSizeLow, parm, NULL);
 		}
 		else
 		{
 			sprintf(file, "%s%s", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm);
+			go = func(file, fd.nFileSizeLow, parm, NULL);
 		}
 	}
 	while(FindNextFile(r, &fd) && go);

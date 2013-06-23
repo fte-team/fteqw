@@ -174,6 +174,7 @@ struct {
 	{" F300", WARN_DEADCODE},
 	{" F301", WARN_NOTUTF8},
 	{" F302", WARN_UNINITIALIZED},
+	{" F303", WARN_EVILPREPROCESSOR},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -2829,7 +2830,6 @@ void QCC_SetDefaultProperties (void)
 
 	ForcedCRC = 0;
 	defaultstatic = 0;
-	autoprototyped = false;
 
 	QCC_PR_DefineName("FTEQCC");
 
@@ -2911,6 +2911,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
 	qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;	//not sure about this being ignored by default.
 	qccwarningaction[WARN_SELFNOTTHIS] = WA_IGNORE;
+	qccwarningaction[WARN_EVILPREPROCESSOR] = WA_WARN;//FIXME: make into WA_ERROR;
 
 	if (QCC_CheckParm("-h2"))
 		qccwarningaction[WARN_CASEINSENSATIVEFRAMEMACRO] = WA_IGNORE;
@@ -3094,6 +3095,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 		*compiler_flag[p].enabled = compiler_flag[p].flags & FLAG_ASDEFAULT;
 	}
 
+	autoprototyped = autoprototype = false;
 	QCC_SetDefaultProperties();
 
 	optres_shortenifnots = 0;
@@ -3431,6 +3433,7 @@ void QCC_ContinueCompile(void)
 		if (autoprototype)
 		{
 			qccmsrc = originalqccmsrc;
+			autoprototyped = autoprototype;
 			QCC_SetDefaultProperties();
 			autoprototype = false;
 			return;
@@ -3671,8 +3674,8 @@ void new_QCC_ContinueCompile(void)
 			pr_file_p = qccmsrc;
 			s_file = s_file2 = QCC_CopyString (compilingfile);
 
-			QCC_SetDefaultProperties();
 			autoprototyped = autoprototype;
+			QCC_SetDefaultProperties();
 			autoprototype = false;
 			QCC_PR_NewLine(false);
 			QCC_PR_Lex();

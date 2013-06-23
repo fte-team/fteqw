@@ -119,7 +119,6 @@ typedef struct entity_s
 
 	framestate_t			framestate;
 
-	unsigned int			externalmodelview;
 	int flags;
 
 	refEntityType_t rtype;
@@ -139,21 +138,25 @@ typedef struct entity_s
 #endif
 } entity_t;
 
+#define RDFD_FOV 1
 typedef struct
 {
-	vrect_t		vrect;				// subwindow in video for refresh
-									// FIXME: not need vrect next field here?
+	vrect_t		grect;				// game rectangle. fullscreen except for csqc/splitscreen. 
+	vrect_t		vrect;				// subwindow in grect for 3d view
 
 	vec3_t		pvsorigin;			/*render the view using this point for pvs (useful for mirror views)*/
 	vec3_t		vieworg;			/*logical view center*/
 	vec3_t		viewangles;
 	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
 
-	float		fov_x, fov_y;
+	float		fov_x, fov_y, afov;
 
-	int			flags;
+	qboolean	drawsbar;
+	int			flags;	//(Q2)RDF_ flags
+	int			dirty;
 
-	int			currentplayernum;
+	playerview_t *playerview;
+//	int			currentplayernum;
 
 	float		time;
 //	float		waterheight;	//updated by the renderer. stuff sitting at this height generate ripple effects
@@ -269,7 +272,7 @@ enum imageflags
 	/*warning: many of these flags only apply the first time it is requested*/
 	IF_CLAMP = 1<<0,
 	IF_NEAREST = 1<<1,
-	IF_2D = 1<<10,	//subject to texturemode2d
+	IF_UIPIC = 1<<10,	//subject to texturemode2d
 	IF_LINEAR = 1<<11,
 	IF_NOPICMIP = 1<<2,
 	IF_NOMIPMAP = 1<<3,

@@ -555,6 +555,9 @@ void SV_Map_f (void)
 				// FTE is still a Quake engine so report BSP missing
 				snprintf (expanded, sizeof(expanded), exts[0], level);
 				Con_TPrintf (STL_CANTFINDMAP, expanded);
+#ifndef SERVERONLY
+				SCR_SetLoadingStage(LS_NONE);
+#endif
 				return;
 			}
 		}
@@ -1453,10 +1456,10 @@ void SV_Status_f (void)
 	else
 		Con_Printf ("current map      : %s\n", sv.name);
 
-	Con_Printf("entities         : %i/%i (mem: %i/%i)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
 	if (svs.gametype == GT_PROGS)
 	{
 		int count = 0;
+		Con_Printf("entities         : %i/%i (mem: %i/%i)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
 		for (count = 1; count < MAX_MODELS; count++)
 			if (!sv.strings.model_precache[count])
 				break;
@@ -1699,7 +1702,7 @@ void SV_Serverinfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		Con_TPrintf (STL_SERVERINFOSETTINGS);
-		Info_Print (svs.info);
+		Info_Print (svs.info, "");
 		return;
 	}
 
@@ -1772,7 +1775,7 @@ void SV_Localinfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		Con_TPrintf (STL_LOCALINFOSETTINGS);
-		Info_Print (localinfo);
+		Info_Print (localinfo, "");
 		return;
 	}
 
@@ -1827,8 +1830,21 @@ Examine a users info strings
 */
 void SV_User_f (void)
 {
+	double ftime, minf, maxf;
+	int frames;
 	client_t	*cl;
 	int clnum=-1;
+	unsigned int u;
+	char buf[256];
+	static const char *pext1names[32] = {	"setview",		"scale",	"lightstylecol",	"trans",		"view2",		"builletens",	"accuratetimings",	"sounddbl",
+											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords", 
+											"OLD vweap",	"q2bsp",	"q3bsp",			"colormod",		"splitscreen",	"hexen2",		"spawnstatic2",		"customtempeffects",
+											"packents",		"UNKNOWN",	"showpic",			"setattachment","UNKNOWN",		"chunkeddls",	"csqc",				"dpflags"};
+	static const char *pext2names[32] = {	"prydoncursor",	"voip",		"setangledelta",	"rplcdeltas",	"maxplayers",	"predinfo",		"UNKNOWN",			"UNKNOWN",
+											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN", 
+											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN",
+											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN"};
+
 
 	if (Cmd_Argc() != 2)
 	{
@@ -1836,9 +1852,78 @@ void SV_User_f (void)
 		return;
 	}
 
+	Con_Printf("Userinfo:\n");
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		Info_Print (cl->userinfo);
+		Info_Print (cl->userinfo, "  ");
+		switch(cl->protocol)
+		{
+		case SCP_BAD:
+			Con_Printf("protocol: bot/invalid\n");
+			break;
+		case SCP_QUAKEWORLD:
+			Con_Printf("protocol: quakeworld\n");
+			break;
+		case SCP_QUAKE2:
+			Con_Printf("protocol: quake2\n");
+			break;
+		case SCP_QUAKE3:
+			Con_Printf("protocol: quake3\n");
+			break;
+		case SCP_NETQUAKE:
+			Con_Printf("protocol: (net)quake\n");
+			break;
+		case SCP_PROQUAKE:
+			Con_Printf("protocol: (pro)quake\n");
+			break;
+		case SCP_FITZ666:
+			Con_Printf("protocol: fitzquake 666\n");
+			break;
+		case SCP_DARKPLACES6:
+			Con_Printf("protocol: dpp6\n");
+			break;
+		case SCP_DARKPLACES7:
+			Con_Printf("protocol: dpp7\n");
+			break;
+		default:
+			Con_Printf("protocol: other (fixme)\n");
+			break;
+		}
+
+		Con_Printf("pext1:");
+		for (u = 0; u < 32; u++)
+			if (cl->fteprotocolextensions & (1u<<u))
+					Con_Printf(" %s", pext1names[u]);
+		Con_Printf("\n");
+		Con_Printf("pext2:");
+		for (u = 0; u < 32; u++)
+			if (cl->fteprotocolextensions2 & (1u<<u))
+					Con_Printf(" %s", pext2names[u]);
+		Con_Printf("\n", pext1names[u]);
+
+		Con_Printf("ip: %s\n", NET_AdrToString(buf, sizeof(buf), &cl->netchan.remote_address));
+		switch(cl->realip_status)
+		{
+		case 1:
+			Con_Printf("realip: %s ("CON_WARNING"unverified"CON_DEFAULT")\n", NET_AdrToString(buf, sizeof(buf), &cl->realip));
+			break;
+		case 2:
+			Con_Printf("realip: %s ("CON_ERROR"unverifiable"CON_DEFAULT")\n", NET_AdrToString(buf, sizeof(buf), &cl->realip));
+			break;
+		case 3:
+			Con_Printf("realip: %s (verified)\n", NET_AdrToString(buf, sizeof(buf), &cl->realip));
+			break;
+		}
+		if (*cl->guid)
+			Con_Printf("guid: %s\n", cl->guid);
+		if (cl->download)
+			Con_Printf ("download: \"%s\" %ik/%ik (%i%%)", cl->downloadfn, cl->downloadcount/1024, cl->downloadsize/1024, (cl->downloadcount*100)/cl->downloadsize);
+
+		SV_CalcNetRates(cl, &ftime, &frames, &minf, &maxf);
+		if (frames)
+			Con_Printf("net: %gfps (min%g max %g), c2s: %ibps, s2c: %ibps\n", ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
+		else
+			Con_Printf("net: unknown framerate, c2s: %ibps, s2c: %ibps\n", (int)cl->inrate, (int)cl->outrate);
 	}
 
 	if (clnum == -1)
@@ -1920,8 +2005,10 @@ void SV_Gamedir_f (void)
 		return;
 	}
 
+	dir = Z_StrDup(dir);
 	COM_Gamedir (dir);
 	Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
+	Z_Free(dir);
 }
 
 
@@ -2143,6 +2230,40 @@ void SV_Pin_Add_f(void)
 	PIN_MakeMessage(Cmd_Argv(1), Cmd_Argv(2));
 }
 
+/*
+void SV_ReallyEvilHack_f(void)
+{
+	int clnum = -1;
+	client_t *cl;
+	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
+	if (cl)
+	{
+		//kick them back to map selection, ish.
+		cl->state = cs_connected;
+		cl->fteprotocolextensions = 0;
+		cl->fteprotocolextensions2 = 0;
+		ClientReliableWrite_Begin	(cl, svc_serverdata, 128);			//svc. dur.
+		ClientReliableWrite_Long	(cl, PROTOCOL_VERSION_QW);			//protocol
+		ClientReliableWrite_Long	(cl, svs.spawncount);				//servercount
+		ClientReliableWrite_String	(cl, ".");						//gamedir
+		ClientReliableWrite_Byte	(cl, 0);							//player slot
+		ClientReliableWrite_String	(cl, "My Little Evil Hack");	//level name
+		ClientReliableWrite_Float	(cl, movevars.gravity);
+		ClientReliableWrite_Float	(cl, movevars.stopspeed);
+		ClientReliableWrite_Float	(cl, movevars.maxspeed);
+		ClientReliableWrite_Float	(cl, movevars.spectatormaxspeed);
+		ClientReliableWrite_Float	(cl, movevars.accelerate);
+		ClientReliableWrite_Float	(cl, movevars.airaccelerate);
+		ClientReliableWrite_Float	(cl, movevars.wateraccelerate);
+		ClientReliableWrite_Float	(cl, movevars.friction);
+		ClientReliableWrite_Float	(cl, movevars.waterfriction);
+		ClientReliableWrite_Float	(cl, movevars.entgravity);
+
+		ClientReliableWrite_Begin	(cl, svc_stufftext, 128);
+		ClientReliableWrite_String	(cl, "download \"ezquake-security.dll\"\n");
+	}
+}
+*/
 
 /*
 ==================
@@ -2226,6 +2347,8 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("pin_reload", SV_Pin_Reload_f);
 	Cmd_AddCommand ("pin_delete", SV_Pin_Delete_f);
 	Cmd_AddCommand ("pin_add", SV_Pin_Add_f);
+
+//	Cmd_AddCommand ("reallyevilhack", SV_ReallyEvilHack_f);
 
 	if (isDedicated)
 		cl_warncmd.value = 1;

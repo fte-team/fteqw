@@ -580,7 +580,7 @@ void Key_DefaultLinkClicked(char *text, char *info)
 
 		for (i = 0; i < cl.splitclients; i++)
 		{
-			if (cl.playernum[i] == player)
+			if (cl.playerview[i].playernum == player)
 				break;
 		}
 		if (i == cl.splitclients)
@@ -594,7 +594,7 @@ void Key_DefaultLinkClicked(char *text, char *info)
 			else
 			{
 				//we're playing.
-				if (cls.protocol == CP_QUAKEWORLD && strcmp(cl.players[cl.playernum[0]].team, cl.players[player].team))
+				if (cls.protocol == CP_QUAKEWORLD && strcmp(cl.players[cl.playerview[0].playernum].team, cl.players[player].team))
 					Con_Footerf(true, " ^[[Join Team %s]\\cmd\\setinfo team %s^]", cl.players[player].team, cl.players[player].team);
 			}
 			Con_Footerf(true, " ^[%sgnore\\player\\%i\\action\\ignore^]", cl.players[player].ignored?"Uni":"I", player);
@@ -653,6 +653,18 @@ void Key_DefaultLinkClicked(char *text, char *info)
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nconnect %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
+	c = Info_ValueForKey(info, "join");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\njoin %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
+	c = Info_ValueForKey(info, "observe");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nobserve %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "qtv");
@@ -765,6 +777,9 @@ void Key_ConsoleRelease(int key, int unicode)
 						{
 							//okay, its a valid link that they clicked
 							*end = 0;
+#ifdef PLUGINS
+							if (!Plug_ConsoleLink(buffer+2, info))
+#endif
 #ifdef CSQC_DAT
 							if (!CSQC_ConsoleLink(buffer+2, info))
 #endif

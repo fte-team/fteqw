@@ -179,14 +179,14 @@ memset(&finalcount, 0, 8);
 }
 
 
-int SHA1(char *digest, int maxdigestsize, char *string)
+int SHA1(char *digest, int maxdigestsize, char *string, int stringlen)
 {
 	SHA1_CTX context;
 	if (maxdigestsize < DIGEST_SIZE)
 		return 0;
 
 	SHA1Init(&context);
-	SHA1Update(&context, (unsigned char*) string, strlen(string));
+	SHA1Update(&context, (unsigned char*) string, stringlen);
 	SHA1Final(digest, &context);
 
 	return DIGEST_SIZE;

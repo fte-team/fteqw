@@ -416,7 +416,7 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 #endif
 		{
 			if (shaderstate.curtexturetype[tmu])
-				qglBindTexture (shaderstate.curtexturetype[tmu], texnum.num);
+				qglBindTexture (shaderstate.curtexturetype[tmu], 0);
 			if (gl_config.nofixedfunc)
 			{
 				shaderstate.curtexturetype[tmu] = target;
@@ -945,7 +945,7 @@ void R_IBrokeTheArrays(void)
 void GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale)
 {
 	shaderstate.lightshadowmapinfo[0] = 1.0/texwidth;
-	shaderstate.lightshadowmapinfo[1] = 1.0/texwidth;
+	shaderstate.lightshadowmapinfo[1] = 1.0/texheight;
 	shaderstate.lightshadowmapinfo[2] = 1.0;
 	shaderstate.lightshadowmapinfo[3] = shadowscale;
 
@@ -3270,7 +3270,7 @@ static qboolean GLBE_RegisterLightShader(int mode)
 
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
-	float view[16], proj[16];
+	float view[16];
 	int lmode;
 	extern cvar_t gl_specular;
 	extern cvar_t r_shadow_shadowmapping;
@@ -3279,13 +3279,14 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 	float nearplane = 4;
 	if (dl->fov)
 	{
+		float proj[16];
 		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, nearplane, dl->radius);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(view, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
 		Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
 	}
 	else
 	{
-		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, dl->radius);
+//		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, dl->radius);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(shaderstate.lightprojmatrix, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
 	}
 
@@ -3313,6 +3314,31 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 		lmode |= 1u<<LSHADER_SPOT;
 #endif
 	shaderstate.lightmode = lmode;
+}
+
+void GLBE_Scissor(srect_t *rect)
+{
+	if (rect)
+	{
+		qglScissor(
+			floor(r_refdef.pxrect.x + rect->x*r_refdef.pxrect.width),
+			floor((r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height) - r_refdef.pxrect.height),
+			ceil(rect->width * r_refdef.pxrect.width),
+			ceil(rect->height * r_refdef.pxrect.height));
+		qglEnable(GL_SCISSOR_TEST);
+
+		if (qglDepthBoundsEXT)
+		{
+			qglDepthBoundsEXT(rect->dmin, rect->dmax);
+			qglEnable(GL_DEPTH_BOUNDS_TEST_EXT);
+		}
+	}
+	else
+	{
+		qglDisable(GL_SCISSOR_TEST);
+		if (qglDepthBoundsEXT)
+			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+	}
 }
 
 void GLBE_PushOffsetShadow(qboolean pushdepth)

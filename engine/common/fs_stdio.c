@@ -9,12 +9,13 @@
 #define Z_Malloc malloc
 #else
 #if !defined(_WIN32) || defined(_SDL)
-#define stdiofilefuncs osfilefuncs
+#define FSSTDIO_OpenPath VFSOS_OpenPath
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
 #endif
 
 typedef struct {
+	searchpathfuncs_t pub;
 	int depth;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
 	char rootpath[1];
@@ -209,11 +210,6 @@ static vfsfile_t *QDECL FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const ch
 	return f;
 }
 
-static void QDECL FSSTDIO_GetDisplayPath(void *handle, char *out, unsigned int outlen)
-{
-	stdiopath_t *np = handle;
-	Q_strncpyz(out, np->rootpath, outlen);
-}
 static void QDECL FSSTDIO_ClosePath(void *handle)
 {
 	Z_Free(handle);
@@ -222,20 +218,6 @@ static qboolean QDECL FSSTDIO_PollChanges(void *handle)
 {
 //	stdiopath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
-}
-static void *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
-{
-	stdiopath_t *np;
-	int dlen = strlen(desc);
-	if (mustbenull)
-		return NULL;
-	np = Z_Malloc(sizeof(*np) + dlen);
-	if (np)
-	{
-		np->depth = 0;
-		memcpy(np->rootpath, desc, dlen+1);
-	}
-	return np;
 }
 static int QDECL FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, void *spath)
 {
@@ -325,24 +307,37 @@ static void QDECL FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 
 	fclose(f);
 }
-static int QDECL FSSTDIO_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
 {
-	stdiopath_t *sp = handle;
+	stdiopath_t *sp = (stdiopath_t*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);
 }
 
-searchpathfuncs_t stdiofilefuncs = {
-	FSSTDIO_GetDisplayPath,
-	FSSTDIO_ClosePath,
-	FSSTDIO_BuildHash,
-	FSSTDIO_FLocate,
-	FSSTDIO_ReadFile,
-	FSSTDIO_EnumerateFiles,
-	FSSTDIO_OpenPath,
-	NULL,
-	FSSTDIO_OpenVFS,
-	FSSTDIO_PollChanges
-};
+
+void *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
+{
+	stdiopath_t *np;
+	int dlen = strlen(desc);
+	if (mustbenull)
+		return NULL;
+	np = Z_Malloc(sizeof(*np) + dlen);
+	if (np)
+	{
+		np->depth = 0;
+		memcpy(np->rootpath, desc, dlen+1);
+	}
+
+	np->pub.fsver			= FSVER;
+	np->pub.ClosePath		= FSSTDIO_ClosePath;
+	np->pub.BuildHash		= FSSTDIO_BuildHash;
+	np->pub.FindFile		= FSSTDIO_FLocate;
+	np->pub.ReadFile		= FSSTDIO_ReadFile;
+	np->pub.EnumerateFiles	= FSSTDIO_EnumerateFiles;
+	np->pub.OpenVFS			= FSSTDIO_OpenVFS;
+	np->pub.PollChanges		= FSSTDIO_PollChanges;
+	return np;
+}
+
 #endif
 #endif
 

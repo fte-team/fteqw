@@ -321,9 +321,10 @@ qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const qintptr_
 	out = VM_POINTER(arg[1]);
 	if (out)
 	{
-		if (i == -1)
+		if (i < 0)
 		{
-			i = cl.playernum[0];
+			if (i >= -MAX_SPLITS)
+				i = cl.playerview[-i-1].playernum;
 			if (i < 0)
 			{
 				memset(out, 0, sizeof(*out));
@@ -343,16 +344,16 @@ qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const qintptr_
 		Q_strncpyz(out->team, cl.players[i].team, sizeof(out->team));
 	}
 
-	pt = Cam_TrackNum(0);
+	pt = Cam_TrackNum(&cl.playerview[0]);
 	if (pt < 0)
-		return (cl.playernum[0] == i);
+		return (cl.playerview[0].playernum == i);
 	else
 		return pt == i;
 }
 
 qintptr_t VARGS Plug_LocalPlayerNumber(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	return cl.playernum[0];
+	return cl.playerview[0].playernum;
 }
 
 qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -398,6 +399,8 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 	char *name = VM_POINTER(arg[0]);
 	char *text = VM_POINTER(arg[1]);
 	console_t *con;
+	if (!name)
+		name = "";
 
 	if (qrenderer == QR_NONE)
 		return false;

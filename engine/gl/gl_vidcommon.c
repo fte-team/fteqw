@@ -1917,6 +1917,7 @@ rendererinfo_t openglrendererinfo = {
 	GLBE_UploadAllLightmaps,
 	GLBE_SelectEntity,
 	GLBE_SelectDLight,
+	GLBE_Scissor,
 	GLBE_LightCullModel,
 
 	GLBE_VBO_Begin,

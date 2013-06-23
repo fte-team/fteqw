@@ -137,12 +137,6 @@ void GLSCR_UpdateScreen (void)
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
 	}
-	
-	//
-	// determine size of refresh window
-	//
-	if (vid.recalc_refdef)
-		SCR_CalcRefdef ();
 
 //
 // do 3D refresh drawing, and then update the screen
@@ -191,9 +185,7 @@ void GLSCR_UpdateScreen (void)
 			scr_con_forcedraw = true;
 
 		nohud = true;
-	}
-	else if (!nohud)
-		SCR_TileClear ();
+	}		
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 

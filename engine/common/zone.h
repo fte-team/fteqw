@@ -118,6 +118,8 @@ void BZ_Free(void *ptr);
 #define BZF_Realloc(ptr, size) BZF_ReallocNamed(ptr, size, __FILE__, __LINE__)
 #endif
 
+#define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
+
 void *Hunk_Alloc (int size);		// returns 0 filled memory
 void *Hunk_AllocName (int size, char *name);
 

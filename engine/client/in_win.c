@@ -1887,7 +1887,7 @@ void INS_JoyMove (float *movements, int pnum)
 					{
 						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
-					V_StopPitchDrift(pnum);
+					V_StopPitchDrift(&cl.playerview[pnum]);
 				}
 				else
 				{
@@ -1896,7 +1896,7 @@ void INS_JoyMove (float *movements, int pnum)
 					// *** this code can be removed when the lookspring bug is fixed
 					// *** the bug always has the lookspring feature on
 					if(lookspring.value == 0.0)
-						V_StopPitchDrift(pnum);
+						V_StopPitchDrift(&cl.playerview[pnum]);
 				}
 			}
 			else
@@ -1957,7 +1957,7 @@ void INS_JoyMove (float *movements, int pnum)
 					{
 						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
 					}
-					V_StopPitchDrift(pnum);
+					V_StopPitchDrift(&cl.playerview[pnum]);
 				}
 				else
 				{
@@ -1966,7 +1966,7 @@ void INS_JoyMove (float *movements, int pnum)
 					// *** this code can be removed when the lookspring bug is fixed
 					// *** the bug always has the lookspring feature on
 					if(lookspring.value == 0.0)
-						V_StopPitchDrift(pnum);
+						V_StopPitchDrift(&cl.playerview[pnum]);
 				}
 			}
 			break;

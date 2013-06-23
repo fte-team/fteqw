@@ -5007,25 +5007,29 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 		{
 			/*emulate the array access using a function call to do the read for us*/
 			QCC_def_t *args[1], *funcretr;
+			QCC_type_t *ftype;
 
 			d->references++;
+
+			ftype = QCC_PR_NewType("__arrayget", ev_function, false);
+			ftype->aux_type = t;
+			ftype->num_parms = 1;
+			ftype->params = qccHunkAlloc(sizeof(*ftype->params));
+			ftype->params[0].arraysize=0;
+			ftype->params[0].type = type_float;
+			ftype->params[0].paramname = "__index";
+			funcretr = QCC_PR_GetDef(ftype, qcva("ArrayGet*%s", d->name), NULL, true, 0, false);
 
 			/*make sure the function type that we're calling exists*/
 
 			if (d->type->type == ev_vector)
 			{
-				def_parms[0].type = type_vector;
-				funcretr = QCC_PR_GetDef(type_function, qcva("ArrayGet*%s", d->name), NULL, true, 0, false);
-
 				args[0] = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], QCC_SupplyConversion(idx, ev_float, true), QCC_MakeFloatConst(3), NULL);
-				d = QCC_PR_GenerateFunctionCall(NULL, funcretr, args, NULL, 1);
+				d = QCC_PR_GenerateFunctionCall(NULL, funcretr, args, &type_float, 1);
 				d->type = t;
 			}
 			else
 			{
-				def_parms[0].type = type_float;
-				funcretr = QCC_PR_GetDef(type_function, qcva("ArrayGet*%s", d->name), NULL, true, 0, false);
-
 				if (t->size > 1)
 				{
 					QCC_def_t *r;
@@ -6901,6 +6905,7 @@ void QCC_PR_ParseStatement (void)
 		return;
 	}
 
+	//frikqcc-style labels
 	if (QCC_PR_CheckToken(":"))
 	{
 		if (pr_token_type != tt_name)
@@ -7064,6 +7069,41 @@ void QCC_PR_ParseStatement (void)
 		if (!expandedemptymacro)
 			QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Hanging ';'");
 		pr_source_line = osl;
+		return;
+	}
+
+	//C-style labels.
+	if (pr_token_type == tt_name && pr_file_p[0] == ':' && pr_file_p[1] != ':')
+	{
+		if (pr_token_type != tt_name)
+		{
+			QCC_PR_ParseError(ERR_BADLABELNAME, "invalid label name \"%s\"", pr_token);
+			return;
+		}
+
+		for (i = 0; i < num_labels; i++)
+			if (!STRNCMP(pr_labels[i].name, pr_token, sizeof(pr_labels[num_labels].name) -1))
+			{
+				QCC_PR_ParseWarning(WARN_DUPLICATELABEL, "Duplicate label %s", pr_token);
+				QCC_PR_Lex();
+				return;
+			}
+
+		if (num_labels >= max_labels)
+		{
+			max_labels += 8;
+			pr_labels = realloc(pr_labels, sizeof(*pr_labels)*max_labels);
+		}
+
+		strncpy(pr_labels[num_labels].name, pr_token, sizeof(pr_labels[num_labels].name) -1);
+		pr_labels[num_labels].lineno = pr_source_line;
+		pr_labels[num_labels].statementno = numstatements;
+
+		num_labels++;
+
+//		QCC_PR_ParseWarning("Gotos are evil");
+		QCC_PR_Lex();
+		QCC_PR_Expect(":");
 		return;
 	}
 
@@ -8418,7 +8458,7 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 	QCC_Marshal_Locals(df->first_statement, numstatements);
 	QCC_FreeTemps();
 	df->parm_start = locals_start;
-	df->numparms = locals_end - locals_start;
+	df->locals = locals_end - locals_start;
 	return func;
 }
 
@@ -8465,8 +8505,8 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	df->first_statement = numstatements;
 	df->parm_size[0] = 1;
 	df->numparms = 1;
-	locals_start = locals_end = FIRST_LOCAL;
-	index = QCC_PR_GetDef(type_float, "indexg___", def, true, 0, false);
+	df->parm_start = locals_start = locals_end = FIRST_LOCAL;
+	index = QCC_PR_GetDef(type_float, "__indexg", pr_scope, true, 0, false);
 
 	G_FUNCTION(scope->ofs) = df - functions;
 
@@ -8550,11 +8590,13 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 
 	QCC_PR_Statement(pr_opcodes+OP_DONE, 0, 0, NULL);
 
+	df->parm_start = locals_start;
 	QCC_WriteAsmFunction(pr_scope, df->first_statement, df->parm_start);
 	QCC_Marshal_Locals(df->first_statement, numstatements);
-	QCC_FreeTemps();
 	df->parm_start = locals_start;
-	df->numparms = locals_end - locals_start;
+	QCC_WriteAsmFunction(pr_scope, df->first_statement, df->parm_start);
+	QCC_FreeTemps();
+	df->locals = locals_end - locals_start;
 }
 
 void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t *value, int min, int max)

@@ -248,7 +248,7 @@ extern qboolean noclip_anglehack;
 extern	quakeparms_t host_parms;
 
 extern	cvar_t		fs_gamename;
-extern	cvar_t		fs_gamedownload;
+extern	cvar_t		fs_gamemanifest;
 extern	cvar_t		com_protocolname;
 extern	cvar_t		com_modname;
 extern	cvar_t		com_nogamedirnativecode;
@@ -276,6 +276,7 @@ NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
 NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);
 qboolean Host_SimulationTime(float time);
 double Host_Frame (double time);
+qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file);
 void Host_Quit_f (void);
 void VARGS Host_ClientCommands (char *fmt, ...) LIKEPRINTF(1);
 void Host_ShutdownServer (qboolean crash);

@@ -9,61 +9,6 @@
 int HLMod_BoneForName(model_t *mod, char *name);
 int HLMod_FrameForName(model_t *mod, char *name);
 
-typedef struct {
-	int ofs_indexes;
-	int numindexes;
-
-	int ofs_trineighbours;
-
-	int numskins;
-#ifndef SERVERONLY
-	int ofsskins;
-#endif
-
-	int shares_verts;	//used with models with two shaders using the same vertex. set to the surface number to inherit from (or itself).
-	int shares_bones;	//use last mesh's bones. set to the surface number to inherit from (or itself).
-
-	int numverts;
-
-#ifndef SERVERONLY
-	int ofs_st_array;
-#endif
-
-	int groups;
-	int groupofs;
-	int baseframeofs;	/*non-heirachical*/
-
-	int nextsurf;
-
-#ifdef SKELETALMODELS
-	int numbones;
-	int ofsbones;
-	int numswtransforms;
-	int ofsswtransforms;
-
-	int ofs_skel_xyz;
-	int ofs_skel_norm;
-	int ofs_skel_svect;
-	int ofs_skel_tvect;
-	int ofs_skel_idx;
-	int ofs_skel_weight;
-
-	vboarray_t vbo_skel_verts;
-	vboarray_t vbo_skel_normals;
-	vboarray_t vbo_skel_svector;
-	vboarray_t vbo_skel_tvector;
-	vboarray_t vbo_skel_bonenum;
-	vboarray_t vbo_skel_bweight;
-#endif
-	vboarray_t vboindicies;
-	vboarray_t vbotexcoords;
-
-//these exist only in the root mesh.
-	int numtagframes;
-	int numtags;
-	int ofstags;
-} galiasinfo_t;
-
 //frame is an index into this
 typedef struct
 {
@@ -141,6 +86,62 @@ typedef struct {
 	bucket_t bucket;
 } galiascolourmapped_t;
 #endif
+
+
+typedef struct {
+	int ofs_indexes;
+	int numindexes;
+
+	int ofs_trineighbours;
+
+	int numskins;
+#ifndef SERVERONLY
+	int ofsskins;
+#endif
+
+	int shares_verts;	//used with models with two shaders using the same vertex. set to the surface number to inherit from (or itself).
+	int shares_bones;	//use last mesh's bones. set to the surface number to inherit from (or itself).
+
+	int numverts;
+
+#ifndef SERVERONLY
+	int ofs_st_array;
+#endif
+
+	int groups;
+	int groupofs;
+	int baseframeofs;	/*non-heirachical*/
+
+	int nextsurf;
+
+#ifdef SKELETALMODELS
+	int numbones;
+	int ofsbones;
+	int numswtransforms;
+	int ofsswtransforms;
+
+	int ofs_skel_xyz;
+	int ofs_skel_norm;
+	int ofs_skel_svect;
+	int ofs_skel_tvect;
+	int ofs_skel_idx;
+	int ofs_skel_weight;
+
+	vboarray_t vbo_skel_verts;
+	vboarray_t vbo_skel_normals;
+	vboarray_t vbo_skel_svector;
+	vboarray_t vbo_skel_tvector;
+	vboarray_t vbo_skel_bonenum;
+	vboarray_t vbo_skel_bweight;
+#endif
+	vboarray_t vboindicies;
+	vboarray_t vbotexcoords;
+
+//these exist only in the root mesh.
+	int numtagframes;
+	int numtags;
+	int ofstags;
+} galiasinfo_t;
 
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize, qboolean renderable);
 #ifdef SKELETALMODELS

@@ -174,9 +174,9 @@ void R2D_Init(void)
 			"}\n"
 		"}\n");
 	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_2D|IF_NOPICMIP|IF_NOMIPMAP);
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_2D|IF_NOPICMIP|IF_NOMIPMAP);
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 
 	shader_draw_fill = R_RegisterShader("fill_opaque",
 		"{\n"
@@ -468,7 +468,7 @@ void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qby
 		translate_shader->defaulttextures.base = translate_texture;
 	}
 	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
-	R_Upload(translate_texture, NULL, TF_RGBA32, trans, NULL, 64, 64, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+	R_Upload(translate_texture, NULL, TF_RGBA32, trans, NULL, 64, 64, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	R2D_ScalePic(x, y, width, height, translate_shader);
 }
 
@@ -721,8 +721,6 @@ void R2D_Console_Resize(void)
 
 	vid.width = cwidth;
 	vid.height = cheight;
-
-	vid.recalc_refdef = true;
 
 	if (font_tiny)
 		Font_Free(font_tiny);
@@ -1055,7 +1053,7 @@ void R2D_Crosshair_Update(void)
 		return;
 	else if (crosshairimage.string[0] && c == 1)
 	{
-		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 		if (TEXVALID(shader_crosshair->defaulttextures.base))
 			return;
 	}
@@ -1066,7 +1064,7 @@ void R2D_Crosshair_Update(void)
 	c = c % (sizeof(crosshair_pixels) / (CS_HEIGHT*sizeof(*crosshair_pixels)));
 
 	if (!TEXVALID(ch_int_texture))
-		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT, IF_2D|IF_NOMIPMAP);
+		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT, IF_UIPIC|IF_NOMIPMAP);
 	shader_crosshair->defaulttextures.base = ch_int_texture;
 
 	Q_memset(crossdata, 0, sizeof(crossdata));
@@ -1083,7 +1081,7 @@ void R2D_Crosshair_Update(void)
 		}
 	}
 
-	R_Upload(ch_int_texture, NULL, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_2D|IF_NOMIPMAP|IF_NOGAMMA);
+	R_Upload(ch_int_texture, NULL, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 
 }
 
@@ -1128,7 +1126,7 @@ void R2D_DrawCrosshair(void)
 			size = -size;
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
-			SCR_CrosshairPosition(sc, &x, &y);
+			SCR_CrosshairPosition(&cl.playerview[sc], &x, &y);
 			Font_BeginScaledString(font_conchar, x, y, size, size, &sx, &sy);
 			sx -= Font_CharScaleWidth('+' | 0xe000 | CON_WHITEMASK)/2;
 			sy -= Font_CharScaleHeight()/2;
@@ -1163,7 +1161,7 @@ void R2D_DrawCrosshair(void)
 	R2D_ImageColours(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
-		SCR_CrosshairPosition(sc, &x, &y);
+		SCR_CrosshairPosition(&cl.playerview[sc], &x, &y);
 
 		//translate to pixel coord, for rounding
 		x = ((x-sizex+(sizex/CS_WIDTH))*vid.rotpixelwidth) / (float)vid.width;

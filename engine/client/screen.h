@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // screen.h
 
+typedef struct playerview_s playerview_t;
 
 extern	float		scr_con_current;
 extern	float		scr_conlines;		// lines of console to display
@@ -53,7 +54,7 @@ void SCR_ImageName (char *mapname);
 //this stuff is internal to the screen systems.
 void RSpeedShow(void);
 
-void SCR_CrosshairPosition(int pnum, int *x, int *y);
+void SCR_CrosshairPosition(playerview_t *pview, int *x, int *y);
 void SCR_DrawLoading (void);
 void SCR_CalcRefdef (void);
 void SCR_TileClear (void);
@@ -113,6 +114,7 @@ void Font_InvalidateColour(void);
 /*these three functions deal with formatted blocks of text (including tabs and new lines)*/
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 int Font_LineWidth(conchar_t *start, conchar_t *end);
+float Font_LineScaleWidth(conchar_t *start, conchar_t *end);
 void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end);
 extern struct font_s *font_conchar;
 extern struct font_s *font_tiny;

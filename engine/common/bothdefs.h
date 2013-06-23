@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // release version
 #define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 2
+#define FTE_VER_MINOR 3
 
 //#define	VERSION		2.56
 #ifndef DISTRIBUTION
@@ -240,10 +240,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
 		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
 
-		#define PLUGINS
+		#define PLUGINS			//qvm/dll plugins.
+		#define SUPPORT_ICE		//Internet Connection Establishment protocol, for peer-to-peer connections
 
 #ifdef _DEBUG
-//		#define OFFSCREENGECKO
+//		#define OFFSCREENGECKO	//FIXME: move to plugin and remove from engine
 #endif
 
 		#define CSQC_DAT	//support for csqc

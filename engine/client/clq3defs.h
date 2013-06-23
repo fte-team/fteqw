@@ -222,7 +222,6 @@ typedef struct {
 	int lastServerCommandNum;
 	int currentServerCommandNum;
 	int numClientCommands;
-	int currentUserCmdNumber;
 
 	int				serverMessageNum;
 	int serverTime;

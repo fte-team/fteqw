@@ -103,8 +103,14 @@ typedef struct {
 	vbo_t *vbo;
 	mesh_t **s;
 } shadowmeshbatch_t;
-typedef struct shadowmesh_s {
-	qboolean surfonly;
+typedef struct shadowmesh_s
+{
+	enum
+	{
+		SMT_STENCILVOLUME,
+		SMT_SHADOWLESS,
+		SMT_SURFACES
+	} type;
 	unsigned int numindicies;
 	unsigned int maxindicies;
 	index_t *indicies;
@@ -361,7 +367,7 @@ static void SH_CalcShadowBatches(model_t *mod)
 	}
 }
 
-static void SHM_BeginShadowMesh(dlight_t *dl, qboolean surfonly)
+static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 {
 	unsigned int i;
 	unsigned int lb;
@@ -404,7 +410,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, qboolean surfonly)
 	sh_shmesh->numverts = 0;
 	sh_shmesh->maxindicies = 0;
 	sh_shmesh->numindicies = 0;
-	sh_shmesh->surfonly = surfonly;
+	sh_shmesh->type = type;
 
 	if (!cl.worldmodel->numshadowbatches)
 	{
@@ -622,7 +628,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
 					SHM_Shadow_Cache_Surface(surf);
-					if (sh_shmesh->surfonly)
+					if (sh_shmesh->type != SMT_STENCILVOLUME)
 						continue;
 
 					//build a list of the edges that are to be drawn.
@@ -809,7 +815,7 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
 					SHM_Shadow_Cache_Surface(surf);
-					if (sh_shmesh->surfonly)
+					if (sh_shmesh->type != SMT_STENCILVOLUME)
 						continue;
 
 					//build a list of the edges that are to be drawn.
@@ -1282,12 +1288,12 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 	}
 }
 
-static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis, qboolean surfonly)
+static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis, int type)
 {
 	float *v1, *v2;
 	vec3_t v3, v4;
 
-	if (dl->worldshadowmesh && !dl->rebuildcache)
+	if (dl->worldshadowmesh && !dl->rebuildcache && dl->worldshadowmesh->type == type)
 		return dl->worldshadowmesh;
 
 	firstedge=0;
@@ -1307,14 +1313,14 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 		}
 		else*/
 		{
-			SHM_BeginShadowMesh(dl, surfonly);
+			SHM_BeginShadowMesh(dl, type);
 			SHM_MarkLeavesQ1(dl, lvis);
 			SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
 		}
 		break;
 #ifdef Q2BSPS
 	case fg_quake2:
-		SHM_BeginShadowMesh(dl, surfonly);
+		SHM_BeginShadowMesh(dl, type);
 		SHM_MarkLeavesQ2(dl, lvis, vvis);
 		SHM_RecursiveWorldNodeQ2_r(dl, cl.worldmodel->nodes);
 		break;
@@ -1325,7 +1331,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 		SHM_BeginShadowMesh(dl, true);
 		sh_shadowframe++;
 		SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
-		if (!surfonly)
+		if (type == SMT_STENCILVOLUME)
 			SHM_ComposeVolume_BruteForce(dl);
 		break;
 #endif
@@ -1334,8 +1340,14 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	}
 
 	/*generate edge polys for map types that need it (q1/q2)*/
-	if (!surfonly)
+	switch (type)
 	{
+	case SMT_SURFACES:
+		{
+			
+		}
+		break;
+	case SMT_STENCILVOLUME:
 		SHM_BeginQuads();
 		while(firstedge)
 		{
@@ -1371,6 +1383,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			firstedge = edge[firstedge].next;
 		}
 		SHM_End();
+		break;
 	}
 
 	return SHM_FinishShadowMesh(dl);
@@ -1441,16 +1454,9 @@ static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
 }
 #endif
 
-typedef struct
-{
-	float x;
-	float y;
-	float width;
-	float height;
-	double dmin;
-	double dmax;
-} srect_t;
-static void Sh_Scissor (srect_t r)
+
+/*
+static void Sh_Scissor (srect_t *r)
 {
 	//float xs = vid.pixelwidth / (float)vid.width, ys = vid.pixelheight / (float)vid.height;
 	switch(qrenderer)
@@ -1464,15 +1470,15 @@ static void Sh_Scissor (srect_t r)
 	case QR_OPENGL:
 #ifdef GLQUAKE
 		qglScissor(
-			floor(r_refdef.pxrect.x + r.x*r_refdef.pxrect.width),
-			floor((r_refdef.pxrect.y + r.y*r_refdef.pxrect.height) - r_refdef.pxrect.height),
-			ceil(r.width * r_refdef.pxrect.width),
-			ceil(r.height * r_refdef.pxrect.height));
+			floor(r_refdef.pxrect.x + r->x*r_refdef.pxrect.width),
+			floor((r_refdef.pxrect.y + r->y*r_refdef.pxrect.height) - r_refdef.pxrect.height),
+			ceil(r->width * r_refdef.pxrect.width),
+			ceil(r->height * r_refdef.pxrect.height));
 		qglEnable(GL_SCISSOR_TEST);
 
 		if (qglDepthBoundsEXT)
 		{
-			qglDepthBoundsEXT(r.dmin, r.dmax);
+			qglDepthBoundsEXT(r->dmin, r->dmax);
 			qglEnable(GL_DEPTH_BOUNDS_TEST_EXT);
 		}
 #endif
@@ -1481,10 +1487,10 @@ static void Sh_Scissor (srect_t r)
 #ifdef D3D9QUAKE
 		{
 			RECT rect;
-			rect.left = r.x;
-			rect.right = r.x + r.width;
-			rect.top = r.y;
-			rect.bottom = r.y + r.height;
+			rect.left = r->x;
+			rect.right = r->x + r->width;
+			rect.top = r->y;
+			rect.bottom = r->y + r->height;
 			IDirect3DDevice9_SetScissorRect(pD3DDev9, &rect);
 		}
 #endif
@@ -1510,7 +1516,7 @@ static void Sh_ScissorOff (void)
 		break;
 	}
 }
-
+*/
 #if 0
 static qboolean Sh_ScissorForSphere(vec3_t center, float radius, vrect_t *rect)
 {
@@ -2014,16 +2020,25 @@ GL_CullFace(0);
 
 	BE_SelectEntity(&r_worldentity);
 
-	for (tno = 0; tno < smesh->numbatches; tno++)
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+		GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], NULL, smesh->numindicies, smesh->vebo[1], NULL);
+	else
+#endif
 	{
-		if (!smesh->batches[tno].count)
-			continue;
-		tex = cl.worldmodel->shadowbatches[tno].tex;
-		if (tex->shader->flags & SHADER_NODLIGHT)
-			continue;
-		BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
+		//FIXME: should be able to merge batches between textures+lightmaps.
+		for (tno = 0; tno < smesh->numbatches; tno++)
+		{
+			if (!smesh->batches[tno].count)
+				continue;
+			tex = cl.worldmodel->shadowbatches[tno].tex;
+			if (tex->shader->flags & SHADER_NODLIGHT)
+				continue;
+			BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
+		}
 	}
 
+	//fixme: this walks through the entity lists up to 6 times per frame.
 	switch(qrenderer)
 	{
 	default:
@@ -2075,6 +2090,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	float oproj[16], oview[16];
 	shadowmesh_t *smesh;
 	int isspot = (l->fov != 0);
+	extern cvar_t temp1;
 
 	if (!TEXVALID(shadowmap[isspot]))
 	{
@@ -2085,7 +2101,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 #ifdef DBG_COLOURNOTDEPTH
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 #endif
 		}
 		else
@@ -2095,7 +2111,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 #ifdef DBG_COLOURNOTDEPTH
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize*3, smsize*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 #endif
 		}
 
@@ -2117,9 +2133,11 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	smesh = SHM_BuildShadowMesh(l, lvis, NULL, true);
 
+	smsize = bound(16, temp1.ival, SHADOWMAP_SIZE);
+
 	/*set framebuffer*/
 	GL_BeginRenderBuffer_DepthOnly(shadowmap[isspot]);
-	GLBE_SetupForShadowMap(shadowmap[isspot], isspot?smsize:smsize*3, isspot?smsize:smsize*2, smsize / (float)SHADOWMAP_SIZE);
+	GLBE_SetupForShadowMap(shadowmap[isspot], isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
 
 	qglViewport(0, 0, smsize*3, smsize*2);
 	qglClear (GL_DEPTH_BUFFER_BIT);
@@ -2164,8 +2182,6 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	memcpy(r_refdef.m_view, oview, sizeof(r_refdef.m_view));
 	memcpy(r_refdef.m_projection, oproj, sizeof(r_refdef.m_projection));
-
-	qglDisable(GL_POLYGON_OFFSET_FILL);
 
 	if (!gl_config.nofixedfunc)
 	{
@@ -2234,14 +2250,14 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	else
 		lvis = NULL;
 
-	Sh_ScissorOff();
+	BE_Scissor(NULL);
 
 	Sh_GenShadowMap(l, lvis);
 
 	bench.numlights++;
 
 	//may as well use scissors
-	Sh_Scissor(rect);
+	BE_Scissor(&rect);
 
 	BE_SelectEntity(&r_worldentity);
 
@@ -2584,7 +2600,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	//The backend doesn't maintain scissor state.
 	//The backend doesn't maintain stencil test state either - it needs to be active for more than just stencils, or disabled. its awkward.
-	Sh_Scissor(rect);
+	BE_Scissor(&rect);
 
 
 	switch(qrenderer)
@@ -2818,7 +2834,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 
 	//should we actually scissor here? there's not really much point I suppose.
-	Sh_ScissorOff();
+	BE_Scissor(NULL);
 
 	bench.numlights++;
 
@@ -2897,7 +2913,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
 
-	Sh_ScissorOff();
+	BE_Scissor(NULL);
 
 	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, r_nulltex, false);
 
@@ -3101,7 +3117,7 @@ void Sh_DrawLights(qbyte *vis)
 		}
 	}
 
-	Sh_ScissorOff();
+	BE_Scissor(NULL);
 
 	BE_SelectMode(BEM_STANDARD);
 

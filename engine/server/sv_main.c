@@ -118,6 +118,7 @@ cvar_t	allow_download_pakcontents = CVAR("allow_download_pakcontents", "1");
 cvar_t	allow_download_root = CVAR("allow_download_root", "0");
 cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
 cvar_t	allow_download_packages = CVAR("allow_download_packages", "1");
+cvar_t	allow_download_refpackages = CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
 cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
 cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 cvar_t	allow_download_copyrighted = CVAR("allow_download_copyrighted", "0");
@@ -913,7 +914,13 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		return;
 	}
 
+	if (to->controller && to->controller != to)
+		return;
+
 	i = client - svs.clients;
+
+	if (i >= to->max_net_clients)
+		return;	//most clients will crash if they see too high a player index. some even segfault.
 
 //Sys_Printf("SV_FullClientUpdate:  Updated frags for client %d\n", i);
 
@@ -951,9 +958,6 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 	{
 		int top, bottom, playercolor;
 		char *nam = Info_ValueForKey(client->userinfo, "name");
-
-		if (i >= 16)
-			return;	//NQ clients will crash if they see a player index above 16.
 
 		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
 		ClientReliableWrite_Byte (to, i);
@@ -1691,12 +1695,15 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
+		client->max_net_clients = ISQWCLIENT(client)?QWMAX_CLIENTS:NQMAX_CLIENTS;
+
 		//you need to reconnect for this to update, of course. so make sure its not *too* low...
 		client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
 		client->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
 	}
 	else if (ISQWCLIENT(client))	//readd?
 	{
+		client->max_net_clients = QWMAX_CLIENTS;
 		client->max_net_ents = 512;
 		if (client->fteprotocolextensions & PEXT_ENTITYDBL)
 			client->max_net_ents += 512;
@@ -1708,6 +1715,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	}
 	else if (ISDPCLIENT(client))
 	{
+		client->max_net_clients = 255;
 		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
 		client->maxmodels = 1024;	//protocol limit of 16 bits. 15 bits for late precaches. client limit of 1k
 
@@ -1715,6 +1723,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	}
 	else if (client->protocol == SCP_FITZ666)
 	{
+		client->max_net_clients = NQMAX_CLIENTS;
 		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently.
 		client->maxmodels = 1024;
 		maxpacketentities = 512;
@@ -1723,9 +1732,15 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	}
 	else
 	{
+		client->max_net_clients = NQMAX_CLIENTS;
 		client->datagram.maxsize = MAX_NQDATAGRAM;	//vanilla limit
 		client->max_net_ents = bound(512, pr_maxedicts.ival, 600);
 	}
+
+	if (client->fteprotocolextensions2 & PEXT2_MAXPLAYERS)
+		client->max_net_clients = MAX_CLIENTS;
+
+	client->max_net_clients = min(client->max_net_clients, MAX_CLIENTS);
 
 	client->pendingentbits = NULL;
 
@@ -1755,7 +1770,6 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 #endif
 
 	default:
-		client->frameunion.frames = client->frameunion.frames;	//don't touch these.
 		if (client->frameunion.frames)
 			Z_Free(client->frameunion.frames);
 
@@ -2153,17 +2167,22 @@ client_t *SVC_DirectConnect(void)
 				else
 					Con_Printf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 
+				cl->protocol = SCP_BAD;	//make sure the netchan doesn't try sending anything.
 				SV_DropClient(cl);
+				cl->protocol = protocol;
 				/*
 				nextuserid--;
 				return NULL;
 				*/
 			}
-			else if (cl->state == cs_zombie)
+			/*else if (cl->state == cs_zombie)
 			{
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				//need to make sure they're really gone (free memory from this client now that we know they're not a zombie.
+				cl->protocol = SCP_BAD;
 				SV_DropClient (cl);
-			}
+				cl->protocol = protocol;
+			}*/
 			else
 			{
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
@@ -2257,8 +2276,9 @@ client_t *SVC_DirectConnect(void)
 			Cvar_SetValue (&maxspectators, MAX_CLIENTS);
 
 		// find a free client slot
-		for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+		for (i=0; i<sv.allocated_client_slots ; i++)
 		{
+			cl=svs.clients+i;
 			if (cl->state == cs_free)
 			{
 				newcl = cl;
@@ -2388,14 +2408,9 @@ client_t *SVC_DirectConnect(void)
 		Z_Free(newcl->frameunion.frames);
 	}
 
-	{
-		char *n, *t;
-		n = newcl->name;
-		t = newcl->team;
-		*newcl = temp;
-		newcl->name = n;
-		newcl->team = t;
-	}
+	temp.name = newcl->name;
+	temp.team = newcl->team;
+	*newcl = temp;
 
 	newcl->challenge = challenge;
 	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));
@@ -2623,7 +2638,7 @@ client_t *SVC_DirectConnect(void)
 		temp.frameunion.frames = cl->frameunion.frames;	//don't touch these.
 		temp.edict = cl->edict;
 		memcpy(cl, newcl, sizeof(client_t));
-		Q_strncatz(cl->guid, va("%i", clients), sizeof(cl->guid));
+		Q_strncatz(cl->guid, va("%s:%i", guid, clients), sizeof(cl->guid));
 		cl->name = cl->namebuf;
 		cl->team = cl->teambuf;
 
@@ -2632,7 +2647,8 @@ client_t *SVC_DirectConnect(void)
 
 		cl->playerclass = 0;
 		cl->frameunion.frames = temp.frameunion.frames;
-		cl->edict = temp.edict;
+		cl->pendingentbits = NULL;
+		cl->edict = EDICT_NUM(svprogfuncs, i+1);
 
 		cl->fteprotocolextensions |= PEXT_SPLITSCREEN;
 
@@ -3646,7 +3662,7 @@ dominping:
 			continue;
 #endif
 
-		if (NET_WasSpecialPacket())
+		if (NET_WasSpecialPacket(NS_SERVER))
 			continue;
 
 		// packet is not from a known client
@@ -4203,6 +4219,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&samelevel,	cvargroup_serverinfo);
 	Cvar_Register (&maxclients,	cvargroup_serverinfo);
 	Cvar_Register (&maxspectators,	cvargroup_serverinfo);
+	Cvar_Register (&sv_playerslots,	cvargroup_serverinfo);
 	Cvar_Register (&hostname,	cvargroup_serverinfo);
 	Cvar_Register (&deathmatch,	cvargroup_serverinfo);
 	Cvar_Register (&spawn,	cvargroup_servercontrol);
@@ -4273,6 +4290,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_textures,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_configs,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_packages,cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_refpackages,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_copyrighted,	cvargroup_serverpermissions);
@@ -4881,9 +4899,19 @@ SV_Init
 void SV_Demo_Init(void);
 #endif
 
+void SV_ExecInitialConfigs(char *defaultexec)
+{
+	if (COM_FileSize("server.cfg") != -1)
+		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+	else
+		Cbuf_InsertText ("cl_warncmd 0\nexec quake.rc\nexec ftesrv.cfg\ncl_warncmd 1\n", RESTRICT_LOCAL, false);
+
+// process command line arguments
+	Cbuf_Execute ();
+}
+
 void SV_Init (quakeparms_t *parms)
 {
-	int i;
 	if (isDedicated)
 	{
 		COM_InitArgv (parms->argc, parms->argv);
@@ -4909,6 +4937,7 @@ void SV_Init (quakeparms_t *parms)
 #ifndef SERVERONLY
 		R_SetRenderer(NULL);
 #endif
+		NET_Init ();
 		COM_Init ();
 #ifdef Q2BSPS
 		CM_Init();
@@ -4965,36 +4994,23 @@ void SV_Init (quakeparms_t *parms)
 
 		host_initialized = true;
 
-		//get rid of the worst of the spam
-		Cmd_AddCommand("bind", SV_IgnoreCommand_f);
+
+		FS_ChangeGame(NULL, true);
+
+
+		Cmd_StuffCmds();
+		Cbuf_Execute ();
+
 
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
 		Con_Printf ("%s\n", version_string());
 
-		Con_TPrintf (STL_INITED, fs_gamename.string);
+		Con_TPrintf (STL_INITED, *fs_gamename.string?fs_gamename.string:"Nothing");
 
-		i = COM_CheckParm("+gamedir");
-		if (i)
-			COM_Gamedir(com_argv[i+1]);
-
-		if (COM_FileSize("server.cfg") != -1)
-			Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
-		else
-			Cbuf_InsertText ("exec quake.rc\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
-
-	// process command line arguments
-		Cbuf_Execute ();
-
-		Cmd_StuffCmds();
-
-		Cbuf_Execute ();
-
-		//and warn about any future times this is used.
-		Cmd_RemoveCommand("bind");
-
-	// if a map wasn't specified on the command line, spawn start.map
+		// if a map wasn't specified on the command line, spawn start.map
+		//aliases require that we flush the cbuf in order to actually see the results.
 		if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
 		{
 			Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension
@@ -5009,21 +5025,22 @@ void SV_Init (quakeparms_t *parms)
 			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
 		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
 			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
-#ifdef Q2SERVER
+	#ifdef Q2SERVER
 		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
 			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
-#endif
-#ifdef Q3SERVER
+	#endif
+	#ifdef Q3SERVER
 		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
 			Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
-#endif
-#ifdef HLSERVER
+	#endif
+	#ifdef HLSERVER
 		if (sv.state == ss_dead && COM_FCheckExists("maps/c0a0.bsp"))
 			Cmd_ExecuteString ("map c0a0", RESTRICT_LOCAL);	//regular hl sp
-#endif
+	#endif
 
 		if (sv.state == ss_dead)
-			SV_Error ("Couldn't spawn a server");
+			SV_Error ("Couldn't load a map");
+
 	}
 }
 

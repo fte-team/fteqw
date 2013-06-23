@@ -1536,9 +1536,7 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 
 qboolean BE_ShouldDraw(entity_t *e)
 {
-	if (!r_refdef.externalview && (e->externalmodelview & (1<<r_refdef.currentplayernum)))
-		return false;
-	if (!Cam_DrawPlayer(r_refdef.currentplayernum, e->keynum-1))
+	if (!r_refdef.externalview && (e->flags & Q2RF_EXTERNALMODEL))
 		return false;
 	return true;
 }
@@ -1710,14 +1708,14 @@ static void R_DB_Sprite(batch_t *batch)
 		return;
 	}
 
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.playerview->viewentity > 0)
 	{
-		sprorigin[0] = cl.viewent[r_refdef.currentplayernum].origin[0];
-		sprorigin[1] = cl.viewent[r_refdef.currentplayernum].origin[1];
-		sprorigin[2] = cl.viewent[r_refdef.currentplayernum].origin[2];
-		VectorMA(sprorigin, e->origin[0], cl.viewent[r_refdef.currentplayernum].axis[0], sprorigin);
-		VectorMA(sprorigin, e->origin[1], cl.viewent[r_refdef.currentplayernum].axis[1], sprorigin);
-		VectorMA(sprorigin, e->origin[2], cl.viewent[r_refdef.currentplayernum].axis[2], sprorigin);
+		sprorigin[0] = r_refdef.playerview->viewent.origin[0];
+		sprorigin[1] = r_refdef.playerview->viewent.origin[1];
+		sprorigin[2] = r_refdef.playerview->viewent.origin[2];
+		VectorMA(sprorigin, e->origin[0], r_refdef.playerview->viewent.axis[0], sprorigin);
+		VectorMA(sprorigin, e->origin[1], r_refdef.playerview->viewent.axis[1], sprorigin);
+		VectorMA(sprorigin, e->origin[2], r_refdef.playerview->viewent.axis[2], sprorigin);
 		VectorMA(sprorigin, 12, vpn, sprorigin);
 
 		batch->flags |= BEF_FORCENODEPTH;
@@ -1748,11 +1746,11 @@ static void R_DB_Sprite(batch_t *batch)
 	{
 	case SPR_ORIENTED:
 		// bullet marks on walls
-		if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+		if ((e->flags & Q2RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 		{
 			vec3_t ea[3];
 			AngleVectors (e->angles, ea[0], ea[1], ea[2]);
-			Matrix3_Multiply(ea, cl.viewent[r_refdef.currentplayernum].axis, spraxis);
+			Matrix3_Multiply(ea, r_refdef.playerview->viewent.axis, spraxis);
 		}
 		else
 			AngleVectors (e->angles, spraxis[0], spraxis[1], spraxis[2]);

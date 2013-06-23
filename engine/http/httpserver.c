@@ -86,6 +86,7 @@ typedef struct HTTP_active_connections_s {
 	qboolean modeswitched;
 	qboolean closeaftertransaction;
 	qboolean close;
+	qboolean acceptgzip;
 
 	char *inbuffer;
 	unsigned int inbuffersize;
@@ -129,9 +130,9 @@ void HTTP_RunExisting (void)
 {
 	char *content;
 	char *msg, *nl;
-	char buf2[256];	//short lived temp buffer.
-	char resource[256];
-	char mode[8];
+	char buf2[2560];	//short lived temp buffer.
+	char resource[2560];
+	char mode[80];
 	qboolean hostspecified;
 	unsigned int contentlen;
 
@@ -219,6 +220,7 @@ cont:
 				continue;	//we need more... MORE!!! MORE I TELL YOU!!!!
 			}
 
+			//FIXME: COM_ParseOut recognises // comments, which is not correct.
 			msg = COM_ParseOut(msg, mode, sizeof(mode));
 
 			msg = COM_ParseOut(msg, resource, sizeof(resource));
@@ -243,6 +245,8 @@ cont:
 
 			if (!strcmp(resource, "/"))
 				strcpy(resource, "/index.html");
+
+			cl->acceptgzip = false;
 
 			msg = COM_ParseOut(msg, buf2, sizeof(buf2));
 			contentlen = 0;
@@ -279,6 +283,36 @@ cont:
 						hostspecified = true;
 					else if (!strnicmp(msg, "Content-Length: ", 16))	//parse needed header fields
 						contentlen = strtoul(msg+16, NULL, 0);
+					else if (!strnicmp(msg, "Accept-Encoding:", 16))	//parse needed header fields
+					{
+						char *e;
+						msg += 16;
+						while(*msg)
+						{
+							if (*msg == '\n')
+								break;
+							while (*msg == ' ' || *msg == '\t')
+								msg++;
+							if (*msg == ',')
+							{
+								msg++;
+								continue;
+							}
+							e = msg;
+							while(*e)
+							{
+								if (*e == ',' || *e == '\r' || *e == '\n')
+									break;
+								e++;
+							}
+							while(e > msg && (e[-1] == ' ' || e[-1] == '\t'))
+								e--;
+							if (e-msg == 4 && !strncmp(msg, "gzip", 4))
+								cl->acceptgzip = true;
+							while(*msg && *msg != '\n' && *msg != ',')
+								msg++;
+						}
+					}
 					else if (!strnicmp(msg, "Transfer-Encoding: ", 18))	//parse needed header fields
 					{
 						cl->closeaftertransaction = true;
@@ -339,6 +373,7 @@ cont:
 					resource[1] = 0;	//I'm lazy, they need to comply
 				}
 				IWebPrintf("Download request for \"%s\"\n", resource+1);
+
 				if (!strnicmp(mode, "P", 1))	//when stuff is posted, data is provided. Give an error message if we couldn't do anything with that data.
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
 				else
@@ -347,12 +382,11 @@ cont:
 					if (SV_AllowDownload(resource+1))
 					{
 						char nbuf[MAX_OSPATH];
-						if (HTTPmarkup >= 3 && strlen(resource+1) < sizeof(nbuf)-4)
+						if (cl->acceptgzip && strlen(resource+1) < sizeof(nbuf)-4)
 						{
 							sprintf(nbuf, "%s.gz", resource+1);
-							cl->file =	FS_OpenVFS(nbuf, "rb", FS_GAME);
+							cl->file = FS_OpenVFS(nbuf, "rb", FS_GAME);
 						}
-
 						if (cl->file)
 							gzipped = true;
 						else
@@ -364,7 +398,6 @@ cont:
 						cl->file = IWebGenerateFile(resource+1, content, contentlen);
 					}
 				}
-
 				if (!cl->file)
 				{
 					IWebPrintf("Download rejected\n");

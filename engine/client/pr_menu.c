@@ -10,7 +10,7 @@
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 #include "cl_master.h"
 
-extern int r2d_be_flags;
+extern unsigned int r2d_be_flags;
 #define DRAWFLAG_NORMAL 0
 #define DRAWFLAG_ADD 1
 #define DRAWFLAG_MODULATE 2
@@ -36,54 +36,35 @@ void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	float *size = G_VECTOR(OFS_PARM1);
 	float *rgb = G_VECTOR(OFS_PARM2);
 	float alpha = G_FLOAT(OFS_PARM3);
+	int flag = prinst->callargc >= 5?G_FLOAT(OFS_PARM4):0;
 
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_FillBlock(pos[0], pos[1], size[0], size[1]);
+	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
 //void	drawsetcliparea(float x, float y, float width, float height) = #458;
 void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float x = G_FLOAT(OFS_PARM0), y = G_FLOAT(OFS_PARM1), w = G_FLOAT(OFS_PARM2), h = G_FLOAT(OFS_PARM3);
+	srect_t srect;
+	srect.x = G_FLOAT(OFS_PARM0) / (float)vid.width;
+	srect.y = (G_FLOAT(OFS_PARM1) / (float)vid.height);
+	srect.width = G_FLOAT(OFS_PARM2) / (float)vid.width;
+	srect.height = G_FLOAT(OFS_PARM3) / (float)vid.height;
+	srect.dmin = -99999;
+	srect.dmax = 99999;
+	srect.y = (1-srect.y) - srect.height;
+	BE_Scissor(&srect);
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL && qglScissor)
-	{
-
-		x *= (float)vid.pixelwidth/vid.width;
-		y *= (float)vid.pixelheight/vid.height;
-
-		w *= (float)vid.pixelwidth/vid.width;
-		h *= (float)vid.pixelheight/vid.height;
-
-		//add a pixel because this makes DP's menus come out right.
-		x-=1;
-		y-=1;
-		w+=2;
-		h+=2;
-
-
-		qglScissor (x, vid.pixelheight-(y+h), w, h);
-		qglEnable(GL_SCISSOR_TEST);
-		G_FLOAT(OFS_RETURN) = 1;
-		return;
-	}
-#endif
-	G_FLOAT(OFS_RETURN) = 0;
+	G_FLOAT(OFS_RETURN) = 1;
 }
 //void	drawresetcliparea(void) = #459;
 void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		qglDisable(GL_SCISSOR_TEST);
-		G_FLOAT(OFS_RETURN) = 1;
-		return;
-	}
-#endif
-	G_FLOAT(OFS_RETURN) = 0;
+	BE_Scissor(NULL);
+	G_FLOAT(OFS_RETURN) = 1;
 }
 
 #define FONT_SLOTS 16
@@ -265,7 +246,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 		g = G_FLOAT(OFS_PARM3 + 1);
 		b = G_FLOAT(OFS_PARM3 + 2);
 		alpha = G_FLOAT(OFS_PARM4);
-		flag = G_FLOAT(OFS_PARM5);
+		flag = G_FLOAT(OFS_PARM5);	//flag is mandatory to distinguish it.
 	}
 	else
 	{
@@ -273,7 +254,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 		g = 1;
 		b = 1;
 		alpha = G_FLOAT(OFS_PARM3);
-		flag = G_FLOAT(OFS_PARM4);
+		flag = prinst->callargc >= 5?G_FLOAT(OFS_PARM4):0;
 	}
 
 	if (!text)
@@ -315,7 +296,7 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), !usecolours);
 
 	PR_CL_BeginString(prinst, 0, 0, size?size[0]:8, size?size[1]:8, &px, &py);
-	px = Font_LineWidth(buffer, end);
+	px = Font_LineScaleWidth(buffer, end);
 	Font_EndString(NULL);
 
 	G_FLOAT(OFS_RETURN) = (px * vid.width) / vid.rotpixelwidth;
@@ -329,7 +310,7 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-	int flag = (int)G_FLOAT(OFS_PARM5);
+	int flag = prinst->callargc >= 6?(int)G_FLOAT(OFS_PARM5):0;
 
 	mpic_t *p;
 
@@ -354,7 +335,7 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	float *srcSize = G_VECTOR(OFS_PARM4);
 	float *rgb = G_VECTOR(OFS_PARM5);
 	float alpha = G_FLOAT(OFS_PARM6);
-	int flag = (int) G_FLOAT(OFS_PARM7);
+	int flag = prinst->callargc >= 8?(int) G_FLOAT(OFS_PARM7):0;
 
 	mpic_t *p;
 
@@ -434,7 +415,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-	int flag = G_FLOAT(OFS_PARM5);
+	int flag = prinst->callargc >= 6?G_FLOAT(OFS_PARM5):0;
 
 	float x, y;
 
@@ -468,7 +449,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-//	float flag = G_FLOAT(OFS_PARM5);
+	int flag = prinst->callargc >= 6?G_FLOAT(OFS_PARM5):0;
 	float x, y;
 	unsigned int c;
 	int error;
@@ -479,6 +460,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 		return;
 	}
 
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 
@@ -500,31 +482,57 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 	}
 	Font_InvalidateColour();
 	Font_EndString(NULL);
+	r2d_be_flags = 0;
 }
 
-//void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
+//void (float width, vector pos1, vector pos2, vector rgb, float alpha, optional float flags) drawline;
 void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float *rgb = G_VECTOR(OFS_PARM1);
-	float alpha = G_FLOAT(OFS_PARM2);
-	float *pos = G_VECTOR(OFS_PARM4);
-	int numpoints = prinst->callargc-4;
+	//float width = G_FLOAT(OFS_PARM0);
+	float *point1	= G_VECTOR(OFS_PARM1);
+	float *point2	= G_VECTOR(OFS_PARM2);
+	float *rgb	= G_VECTOR(OFS_PARM3);
+	float alpha = G_FLOAT(OFS_PARM4);
+	int flags	= prinst->callargc >= 6?G_FLOAT(OFS_PARM5):0;
+	shader_t *shader_draw_line;
 
-#ifdef GLQUAKE	// :(
+	mesh_t mesh;
+	vecV_t vpos[2];
+	vec2_t vst[2];
+	vec4_t vcol[2];
+	index_t idx[2];
 
-	if (qrenderer == QR_OPENGL)
-	{
-		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
-		qglBegin(GL_LINES);
-		while (numpoints-->0)
-		{
-			qglVertex3fv(pos);
-			pos += 3;
-		}
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.indexes = idx;
+	mesh.colors4f_array = vpos;
+	mesh.st_array = vst;
+	mesh.colors4f_array = vcol;
 
-		qglEnd();
-	}
-#endif
+	VectorCopy(point1, vpos[0]);
+	Vector2Set(vst[0], 0, 0);
+	Vector4Set(vcol[0], rgb[0], rgb[1], rgb[2], alpha);
+
+	VectorCopy(point2, vpos[1]);
+	Vector2Set(vst[1], 0, 0);
+	Vector4Set(vcol[1], rgb[0], rgb[1], rgb[2], alpha);
+	mesh.numvertexes = 2;
+
+	mesh.indexes[0] = 0;
+	mesh.indexes[1] = 1;
+	mesh.numindexes = 2;
+
+	//this shader lookup might get pricy.
+	shader_draw_line = R_RegisterShader("shader_draw_line",
+		"{\n"
+			"program defaultfill\n"
+			"{\n"
+				"map $whiteimage\n"
+				"rgbgen exactvertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n");
+
+	BE_DrawMesh_Single(shader_draw_line, &mesh, NULL, &shader_draw_line->defaulttextures, flags|BEF_LINES);
 }
 
 //vector  drawgetimagesize(string pic) = #460;
@@ -1309,8 +1317,9 @@ static struct {
 	{"strpad",					PF_strpad,					225},
 	{"infoadd",					PF_infoadd,					226},
 	{"infoget",					PF_infoget,					227},
+	{"strcmp",					PF_strncmp,					228},
 	{"strncmp",					PF_strncmp,					228},
-	{"strcasecmp",				PF_strcasecmp,				229},
+	{"strcasecmp",				PF_strncasecmp,				229},
 	{"strncasecmp",				PF_strncasecmp,				230},
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
@@ -1323,7 +1332,7 @@ static struct {
 	{"hash_getkey",				PF_hash_getkey,				292},
 															//gap
 	{"print",					PF_print,					339},
-	{"keynumtostring",			PF_cl_keynumtostring,		340},
+	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
 	{"stringtokeynum",			PF_cl_stringtokeynum,		341},
 	{"getkeybind",				PF_cl_getkeybind,			342},
 															//gap
@@ -1415,6 +1424,8 @@ static struct {
 	{"cvar_description",		PF_cvar_description,		518},
 															//gap
 	{"soundlength",				PF_soundlength,				534},
+	{"buf_loadfile",			PF_buf_loadfile,			535},
+	{"buf_writefile",			PF_buf_writefile,			536},
 															//gap
 	{"setkeydest",				PF_cl_setkeydest,			601},
 	{"getkeydest",				PF_cl_getkeydest,			602},

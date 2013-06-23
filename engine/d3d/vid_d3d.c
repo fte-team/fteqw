@@ -1299,6 +1299,7 @@ rendererinfo_t d3d9rendererinfo =
 	D3D9BE_UploadAllLightmaps,
 	D3D9BE_SelectEntity,
 	D3D9BE_SelectDLight,
+	D3D9BE_Scissor,
 	D3D9BE_LightCullModel,
 
 	D3D9BE_VBO_Begin,

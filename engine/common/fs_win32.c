@@ -10,10 +10,10 @@
 //for write access, we use the stdio module as a fallback.
 
 #define VFSW32_Open VFSOS_Open
-#define w32filefuncs osfilefuncs
+#define VFSW32_OpenPath VFSOS_OpenPath
 
 typedef struct {
-	searchpathfuncs_t funcs;
+	searchpathfuncs_t pub;
 	HANDLE changenotification;
 	int hashdepth;
 	char rootpath[1];
@@ -191,12 +191,6 @@ static vfsfile_t *QDECL VFSW32_OpenVFS(void *handle, flocation_t *loc, const cha
 
 	return VFSW32_Open(loc->rawname, mode);
 }
-
-static void QDECL VFSW32_GetDisplayPath(void *handle, char *out, unsigned int outlen)
-{
-	vfsw32path_t *wp = handle;
-	Q_strncpyz(out, wp->rootpath, outlen);
-}
 static void QDECL VFSW32_ClosePath(void *handle)
 {
 	vfsw32path_t *wp = handle;
@@ -228,21 +222,6 @@ static qboolean QDECL VFSW32_PollChanges(void *handle)
 		FindNextChangeNotification(wp->changenotification);
 	}
 	return result;
-}
-static void *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
-{
-	vfsw32path_t *np;
-	int dlen = strlen(desc);
-	if (mustbenull)
-		return NULL;
-	np = Z_Malloc(sizeof(*np) + dlen);
-	if (np)
-	{
-		memcpy(np->rootpath, desc, dlen+1);
-
-		np->changenotification = FindFirstChangeNotification(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME);
-	}
-	return np;
 }
 static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, void *spath)
 {
@@ -317,22 +296,34 @@ static void QDECL VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
-static int QDECL VFSW32_EnumerateFiles (void *handle, const char *match, int (QDECL *func)(const char *, int, void *, void *spath), void *parm)
+static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
 {
-	vfsw32path_t *wp = handle;
+	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);
 }
 
 
-searchpathfuncs_t w32filefuncs = {
-	VFSW32_GetDisplayPath,
-	VFSW32_ClosePath,
-	VFSW32_BuildHash,
-	VFSW32_FLocate,
-	VFSW32_ReadFile,
-	VFSW32_EnumerateFiles,
-	VFSW32_OpenPath,
-	NULL,
-	VFSW32_OpenVFS,
-	VFSW32_PollChanges
-};
+searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
+{
+	vfsw32path_t *np;
+	int dlen = strlen(desc);
+	if (mustbenull)
+		return NULL;
+	np = Z_Malloc(sizeof(*np) + dlen);
+	if (np)
+	{
+		memcpy(np->rootpath, desc, dlen+1);
+
+		np->changenotification = FindFirstChangeNotification(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME);
+	}
+
+	np->pub.fsver			= FSVER;
+	np->pub.ClosePath		= VFSW32_ClosePath;
+	np->pub.BuildHash		= VFSW32_BuildHash;
+	np->pub.FindFile		= VFSW32_FLocate;
+	np->pub.ReadFile		= VFSW32_ReadFile;
+	np->pub.EnumerateFiles	= VFSW32_EnumerateFiles;
+	np->pub.OpenVFS			= VFSW32_OpenVFS;
+	np->pub.PollChanges		= VFSW32_PollChanges;
+	return &np->pub;
+}

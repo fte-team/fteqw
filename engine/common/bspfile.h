@@ -25,24 +25,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	MAX_MAP_HULLSDH2	8
 #define	MAX_MAP_HULLSM		16
 
-#define	MAX_MAP_MODELS		256
-#define	MAX_MAP_BRUSHES		0x8000
-#define	MAX_MAP_ENTITIES	1024
-#define	MAX_MAP_ENTSTRING	65536
+//#define	MAX_MAP_MODELS		256
+//#define	MAX_MAP_BRUSHES		0x8000
+//#define	MAX_MAP_ENTITIES	1024
+//#define	MAX_MAP_ENTSTRING	65536
 
-#define	MAX_MAP_PLANES		65636*2
-#define	MAX_MAP_NODES		65535		// q2/q3 uses more than q1. :(
-#define	MAX_MAP_CLIPNODES	65535		//
-#define	MAX_MAP_LEAFS		65535		// 
-#define	MAX_MAP_VERTS		65535
-#define	MAX_MAP_FACES		65535
-#define	MAX_MAP_MARKSURFACES 65535
-#define	MAX_MAP_TEXINFO		4096
+#define	MAX_MAP_PLANES				65636*2		//sanity (used by q2)
+#define	SANITY_MAX_MAP_NODES		65535		//sanity
+#define	SANITY_MAX_MAP_CLIPNODES	65535		//sanity
+#define	MAX_MAP_LEAFS				65535		//pvs buffer size. not sanity.
+#define	SANITY_MAX_MAP_VERTS		65535		//sanity
+#define	SANITY_MAX_MAP_FACES		65535		//sanity
+//#define	MAX_MAP_MARKSURFACES 65535	//sanity
+//#define	MAX_MAP_TEXINFO		4096	//sanity
 #define	MAX_MAP_EDGES		256000
-#define	MAX_MAP_SURFEDGES	512000
-#define	MAX_MAP_MIPTEX		0x200000
-#define	MAX_MAP_LIGHTING	0x100000
-#define	MAX_MAP_VISIBILITY	0x200000
+//#define	MAX_MAP_SURFEDGES	512000
+//#define	MAX_MAP_MIPTEX		0x200000
+//#define	MAX_MAP_LIGHTING	0x100000
+//#define	MAX_MAP_VISIBILITY	0x200000
 
 // key / value pair sizes
 
@@ -406,8 +406,8 @@ typedef struct q2miptex_s
 // leaffaces, leafbrushes, planes, and verts are still bounded by
 // 16 bit short limits
 #define	MAX_Q2MAP_MODELS		1024
-#define	MAX_Q2MAP_BRUSHES		MAX_MAP_BRUSHES
 #define	MAX_Q2MAP_ENTITIES	2048
+#define SANITY_MAX_MAP_BRUSHES 0x8000
 
 #define	MAX_Q2MAP_AREAS		256
 #define	MAX_Q2MAP_AREAPORTALS	1024
@@ -415,12 +415,12 @@ typedef struct q2miptex_s
 #define	MAX_Q2MAP_BRUSHSIDES	0x40000
 #define	MAX_Q2MAP_VERTS		MAX_MAP_VERTS
 #define	MAX_Q2MAP_FACES		MAX_MAP_FACES
-#define	MAX_Q2MAP_LEAFFACES	262144		//sanity only
+#define	SANITY_MAX_MAP_LEAFFACES	262144		//sanity only
 #define	MAX_Q2MAP_LEAFBRUSHES 65536		//used in an array
-#define	MAX_Q2MAP_PORTALS		65536	//unused
-#define	MAX_Q2MAP_EDGES		128000		//unused
-#define	MAX_Q2MAP_SURFEDGES	256000		//unused
-#define	MAX_Q2MAP_LIGHTING	0x200000	//unused
+//#define	MAX_Q2MAP_PORTALS		65536	//unused
+//#define	MAX_Q2MAP_EDGES		128000		//unused
+//#define	MAX_Q2MAP_SURFEDGES	256000		//unused
+//#define	MAX_Q2MAP_LIGHTING	0x200000	//unused
 //#define	MAX_Q2MAP_VISIBILITY	MAX_MAP_VISIBILITY
 
 // key / value pair sizes

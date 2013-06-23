@@ -968,8 +968,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 // fix the leftover Alt from any Alt-Tab or the like that switched us away
 	ClearAllStates ();
 
-	vid.recalc_refdef = 1;
-
 	if (vid_desktopgamma.value)
 	{
 		HDC hDC = GetDC(GetDesktopWindow());
@@ -1416,60 +1414,6 @@ void OblitterateOldGamma(void)
 	}
 }
 
-void	GLVID_SetPalette (unsigned char *palette)
-{
-	qbyte	*pal;
-	unsigned r,g,b;
-	unsigned v;
-	unsigned short i;
-	unsigned	*table;
-	extern qbyte gammatable[256];
-
-	//
-	// 8 8 8 encoding
-	//
-	if (vid_hardwaregamma.value)
-	{
-	//	don't built in the gamma table
-
-		pal = palette;
-		table = d_8to24rgbtable;
-		for (i=0 ; i<256 ; i++)
-		{
-			r = pal[0];
-			g = pal[1];
-			b = pal[2];
-			pal += 3;
-
-	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-			*table++ = v;
-		}
-		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
-	}
-	else
-	{
-//computer has no hardware gamma (poor suckers) increase table accordingly
-
-		pal = palette;
-		table = d_8to24rgbtable;
-		for (i=0 ; i<256 ; i++)
-		{
-			r = gammatable[pal[0]];
-			g = gammatable[pal[1]];
-			b = gammatable[pal[2]];
-			pal += 3;
-
-	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-			*table++ = v;
-		}
-		d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
-	}
-}
-
 qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 {
 	if (ramps)
@@ -1888,7 +1832,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_COPYDATA:
 			{
 				COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
-				Sys_RunFile(cds->lpData, cds->cbData);
+				Host_RunFile(cds->lpData, cds->cbData, NULL);
 			}
 			break;
 		case WM_KILLFOCUS:

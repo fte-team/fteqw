@@ -18,7 +18,9 @@
 #define avio_alloc_context av_alloc_put_byte
 */
 
-#define ARGNAMES ,sourceid, data, speed, samples, channels, width, volume
+#define PASSFLOAT(f) *(int*)&(f)
+
+#define ARGNAMES ,sourceid, data, speed, samples, channels, width, PASSFLOAT(volume)
 BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
 #undef ARGNAMES
 
@@ -335,7 +337,7 @@ static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, 
 						}
 						break;
 					}
-					pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(ctx->pACodecCtx->channels*width), ctx->pACodecCtx->channels, width);
+					pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(ctx->pACodecCtx->channels*width), ctx->pACodecCtx->channels, width, 1);
 				}
 			}
 			packet.data = odata;
@@ -358,7 +360,7 @@ static void AVDec_GetSize (void *vctx, int *width, int *height)
 	*height = ctx->height;
 }
 
-static void AVDec_CursorMove (void *vctx, float posx, float posy)
+/*static void AVDec_CursorMove (void *vctx, float posx, float posy)
 {
 	//its a video, dumbass
 }
@@ -369,6 +371,7 @@ static void AVDec_Key (void *vctx, int code, int unicode, int isup)
 static void AVDec_ChangeStream(void *vctx, char *newstream)
 {
 }
+*/
 static void AVDec_Rewind(void *vctx)
 {
 	struct decctx *ctx = (struct decctx*)vctx;

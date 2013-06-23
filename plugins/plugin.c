@@ -252,7 +252,7 @@ char	*va(char *format, ...)	//Identical in function to the one in Quake, though 
 	static char		string[1024];
 		
 	va_start (argptr, format);
-	vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	return string;	
@@ -264,7 +264,7 @@ void Con_Printf(const char *format, ...)
 	static char		string[1024];
 		
 	va_start (argptr, format);
-	vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	pCon_Print(string);	
@@ -278,7 +278,7 @@ void Con_DPrintf(const char *format, ...)
 		return;
 		
 	va_start (argptr, format);
-	vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	pCon_Print(string);	
@@ -289,7 +289,7 @@ void Sys_Errorf(const char *format, ...)
 	static char		string[1024];
 		
 	va_start (argptr, format);
-	vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	pSys_Error(string);	

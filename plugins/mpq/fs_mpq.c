@@ -245,19 +245,19 @@ unsigned int mpq_lookuphash(mpqarchive_t *mpq, const char *filename, int locale)
 	return HASH_TABLE_EMPTY;
 }
 
-vfsfile_t *MPQ_OpenVFS(void *handle, flocation_t *loc, const char *mode);
-void	MPQ_ClosePath(void *handle)
+vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
+void	MPQ_ClosePath(searchpathfuncs_t *handle)
 {
-	mpqarchive_t *mpq = handle;
+	mpqarchive_t *mpq = (void*)handle;
 	VFS_CLOSE(mpq->file);
 	free(mpq->blockdata);
 	free(mpq->hashdata);
 	free(mpq->listfile);
 	free(mpq);
 }
-qboolean MPQ_FindFile(void *handle, flocation_t *loc, const char *name, void *hashedresult)
+qboolean MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
 {
-	mpqarchive_t *mpq = handle;
+	mpqarchive_t *mpq = (void*)handle;
 	unsigned int blockentry;
 
 	if (hashedresult)
@@ -270,7 +270,7 @@ qboolean MPQ_FindFile(void *handle, flocation_t *loc, const char *name, void *ha
 	}
 	else
 	{
-		unsigned int hashentry = mpq_lookuphash(handle, name, 0);
+		unsigned int hashentry = mpq_lookuphash(mpq, name, 0);
 		if (hashentry == HASH_TABLE_EMPTY)
 			return false;
 		blockentry = mpq->hashdata[hashentry].block_table_index;
@@ -293,7 +293,7 @@ qboolean MPQ_FindFile(void *handle, flocation_t *loc, const char *name, void *ha
 	}
 	return true;
 }
-void	MPQ_ReadFile(void *handle, flocation_t *loc, char *buffer)
+void	MPQ_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 	vfsfile_t *f;
 	f = MPQ_OpenVFS(handle, loc, "rb");
@@ -371,11 +371,11 @@ int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL 
 	}
 	return ok;
 }
-void	MPQ_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	char *s, *n;
 	char name[MAX_QPATH];
-	mpqarchive_t *mpq = handle;
+	mpqarchive_t *mpq = (void*)handle;
 	flocation_t loc;
 	if (mpq->listfile)
 	{
@@ -394,18 +394,18 @@ void	MPQ_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth,
 			name[n-s] = 0;
 			//precompute the name->block lookup. fte normally does the hashing outside the archive code.
 			//however, its possible multiple hash tables point to a single block, so we need to pass null for the third arg (or allocate fsbucket_ts one per hash instead of buckets).
-			if (MPQ_FindFile(mpq, &loc, name, NULL))
+			if (MPQ_FindFile(&mpq->pub, &loc, name, NULL))
 				AddFileHash(depth, name, NULL, &mpq->blockdata[loc.index]);
 		}
 	}
 }
 
-int		MPQ_GeneratePureCRC (void *handle, int seed, int usepure)
+int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, int seed, int usepure)
 {
 	return 0;
 }
 
-qboolean	MPQ_PollChanges(void *handle)
+qboolean	MPQ_PollChanges(searchpathfuncs_t *handle)
 {
 	return false;
 }
@@ -481,14 +481,14 @@ searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
 			);
 	}*/
 
-	if (MPQ_FindFile(mpq, &lloc, "(listfile)", NULL))
+	if (MPQ_FindFile(&mpq->pub, &lloc, "(listfile)", NULL))
 	{
 		char *bs;
 		mpq->listfile = malloc(lloc.len+2);
 		mpq->listfile[0] = 0;
 		mpq->listfile[lloc.len] = 0;
 		mpq->listfile[lloc.len+1] = 0;
-		MPQ_ReadFile(mpq, &lloc, mpq->listfile);
+		MPQ_ReadFile(&mpq->pub, &lloc, mpq->listfile);
 		bs = mpq->listfile;
 		while(1)
 		{
@@ -746,7 +746,7 @@ int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 }
 int MPQF_writebytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
-	mpqfile_t *f = (mpqfile_t *)file;
+//	mpqfile_t *f = (mpqfile_t *)file;
 	return 0;
 }
 qboolean MPQF_seek (struct vfsfile_s *file, unsigned long pos)
@@ -795,9 +795,9 @@ qboolean MPQF_GetKey(unsigned int flags, unsigned int blockoffset, unsigned int 
 	return true;
 }
 
-vfsfile_t *MPQ_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
-	mpqarchive_t *mpq = handle;
+	mpqarchive_t *mpq = (void*)handle;
 	mpqblock_t *block = &mpq->blockdata[loc->index];
 	mpqfile_t *f;
 

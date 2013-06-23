@@ -34,7 +34,7 @@ BUILTINR(void *, Plug_GetNativePointer, (const char *funcname));
 void (*Con_TrySubPrint)(const char *conname, const char *message);
 void Fallback_ConPrint(const char *conname, const char *message)
 {
-	Con_Print(message);
+	pCon_Print(message);
 }
 
 void Con_SubPrintf(char *subname, char *format, ...)
@@ -69,7 +69,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 	#define TL_NETGETPACKETERROR "NET_GetPacket Error %s\n"
 
-	char *COM_ParseOut (char *data, char *buf, int bufsize)	//this is taken out of quake
+	static char *JCL_ParseOut (char *data, char *buf, int bufsize)	//this is taken out of quake
 	{
 		int		c;
 		int		len;
@@ -81,7 +81,6 @@ void Con_SubPrintf(char *subname, char *format, ...)
 			return NULL;
 
 	// skip whitespace
-	skipwhite:
 		while ( (c = *data) <= ' ')
 		{
 			if (c == 0)
@@ -137,7 +136,7 @@ void JCL_WriteConfig(void);
 qintptr_t JCL_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
-	Cmd_Argv(0, cmd, sizeof(cmd));
+	pCmd_Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, COMMANDPREFIX) || !strcmp(cmd, COMMANDPREFIX2) || !strcmp(cmd, COMMANDPREFIX3))
 	{
 		if (!args[0])
@@ -159,9 +158,9 @@ qintptr_t Plug_Init(qintptr_t *args)
 	{
 		CHECKBUILTIN(Net_SetTLSClient);
 		if (!BUILTINISVALID(Net_SetTLSClient))
-			Con_Print("XMPP Plugin Loaded ^1without^7 TLS\n");
+			Con_Printf("XMPP Plugin Loaded ^1without^7 TLS\n");
 		else
-			Con_Print("XMPP Plugin Loaded. For help, use: ^[/"COMMANDPREFIX" /help^]\n");
+			Con_Printf("XMPP Plugin Loaded. For help, use: ^[/"COMMANDPREFIX" /help^]\n");
 
 		Plug_Export("ConsoleLink", JCL_ConsoleLink);
 
@@ -171,22 +170,22 @@ qintptr_t Plug_Init(qintptr_t *args)
 			Con_TrySubPrint = Fallback_ConPrint;
 		}
 		else
-			Con_TrySubPrint = Con_SubPrint;
+			Con_TrySubPrint = pCon_SubPrint;
 
-		Cmd_AddCommand(COMMANDPREFIX);
-		Cmd_AddCommand(COMMANDPREFIX2);
-		Cmd_AddCommand(COMMANDPREFIX3);
+		pCmd_AddCommand(COMMANDPREFIX);
+		pCmd_AddCommand(COMMANDPREFIX2);
+		pCmd_AddCommand(COMMANDPREFIX3);
 
 
 		CHECKBUILTIN(Plug_GetNativePointer);
 		if (BUILTINISVALID(Plug_GetNativePointer))
 		{
-			pICE_Create				= Plug_GetNativePointer("ICE_Create");
-			pICE_Find				= Plug_GetNativePointer("ICE_Find");
-			pICE_Begin				= Plug_GetNativePointer("ICE_Begin");
-			pICE_GetLCandidateInfo	= Plug_GetNativePointer("ICE_GetLCandidateInfo");
-			pICE_AddRCandidateInfo	= Plug_GetNativePointer("ICE_AddRCandidateInfo");
-			pICE_Close				= Plug_GetNativePointer("ICE_Close");
+			pICE_Create				= pPlug_GetNativePointer("ICE_Create");
+			pICE_Find				= pPlug_GetNativePointer("ICE_Find");
+			pICE_Begin				= pPlug_GetNativePointer("ICE_Begin");
+			pICE_GetLCandidateInfo	= pPlug_GetNativePointer("ICE_GetLCandidateInfo");
+			pICE_AddRCandidateInfo	= pPlug_GetNativePointer("ICE_AddRCandidateInfo");
+			pICE_Close				= pPlug_GetNativePointer("ICE_Close");
 		}
 
 
@@ -194,7 +193,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 		return 1;
 	}
 	else
-		Con_Print("JCL Client Plugin failed\n");
+		Con_Printf("JCL Client Plugin failed\n");
 	return 0;
 }
 
@@ -288,7 +287,7 @@ typedef struct jclient_s
 		char *sessionname;
 		buddy_t *tob;
 		bresource_t *tor;
-	};
+	} *p2p;
 
 	buddy_t *buddies;
 } jclient_t;
@@ -297,13 +296,13 @@ jclient_t *jclient;
 struct subtree_s;
 
 void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
+qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres);
 void JCL_GeneratePresence(qboolean force);
 void JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, struct subtree_s *tree), char *iqtype, char *target, char *fmt, ...);
 void JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
 
 void JCL_Join(jclient_t *jcl, char *target)
 {
-	char *s;
 	xmltree_t *jingle;
 	struct icestate_s *ice;
 	if (!jcl)
@@ -416,7 +415,7 @@ void JCL_JingleParsePeerPorts(jclient_t *jcl, xmltree_t *inj, char *from)
 		return;
 	}
 
-	for (i = 0; incandidate = XML_ChildOfTree(intransport, "candidate", i); i++)
+	for (i = 0; (incandidate = XML_ChildOfTree(intransport, "candidate", i)); i++)
 	{
 		char *s;
 		memset(&rem, 0, sizeof(rem));
@@ -594,8 +593,8 @@ struct icestate_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char
 void JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 {
 	char *action = XML_GetParameter(tree, "action", "");
-	char *initiator = XML_GetParameter(tree, "initiator", "");
-	char *responder = XML_GetParameter(tree, "responder", "");
+//	char *initiator = XML_GetParameter(tree, "initiator", "");
+//	char *responder = XML_GetParameter(tree, "responder", "");
 	char *sid = XML_GetParameter(tree, "sid", "");
 
 	//validate sender
@@ -655,8 +654,8 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 {
 	char text[256];
 	char link[256];
-	Cmd_Argv(0, text, sizeof(text));
-	Cmd_Argv(1, link, sizeof(link));
+	pCmd_Argv(0, text, sizeof(text));
+	pCmd_Argv(1, link, sizeof(link));
 
 	if (!strncmp(link, "\\xmppauth\\", 6))
 	{
@@ -690,9 +689,9 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 			b->defaultresource = br;
 
 			if (BUILTINISVALID(Con_SubPrint))
-				Con_SubPrint(f, "");
+				pCon_SubPrint(f, "");
 			if (BUILTINISVALID(Con_SetActive))
-				Con_SetActive(f);
+				pCon_SetActive(f);
 		}
 		return true;
 	}
@@ -706,11 +705,11 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 	if (!jclient)
 	{
 		char buffer[256];
-		Cmd_Argv(0, buffer, sizeof(buffer));
-		Con_SubPrint(buffer, "You were disconnected\n");
+		pCmd_Argv(0, buffer, sizeof(buffer));
+		Con_SubPrintf(buffer, "You were disconnected\n");
 		return true;
 	}
-	Cmd_Argv(0, consolename, sizeof(consolename));
+	pCmd_Argv(0, consolename, sizeof(consolename));
 	for (b = jclient->buddies; b; b = b->next)
 	{
 		if (!strcmp(b->name, consolename))
@@ -732,7 +731,7 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 	if (!jcl || !jcl->outbuflen)
 		return;
 
-	sent = Net_Send(jcl->socket, jcl->outbuf + jcl->outbufpos, jcl->outbuflen);	//FIXME: This needs rewriting to cope with errors.
+	sent = pNet_Send(jcl->socket, jcl->outbuf + jcl->outbufpos, jcl->outbuflen);	//FIXME: This needs rewriting to cope with errors.
 	if (sent > 0)
 	{
 		//and print it on some subconsole if we're debugging
@@ -752,8 +751,6 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 }
 void JCL_AddClientMessage(jclient_t *jcl, char *msg, int datalen)
 {
-	int sent;
-
 	//handle overflows
 	if (jcl->outbufpos+jcl->outbuflen+datalen > jcl->outbufmax)
 	{
@@ -800,10 +797,9 @@ void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...)
 {
 	va_list		argptr;
 	char body[2048];
-	struct iq_s *iq;
-		
+
 	va_start (argptr, fmt);
-	vsnprintf (body, sizeof(body), fmt, argptr);
+	Q_vsnprintf (body, sizeof(body), fmt, argptr);
 	va_end (argptr);
 
 	JCL_AddClientMessageString(jcl, body);
@@ -834,7 +830,7 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 	memset(jcl, 0, sizeof(jclient_t));
 
 
-	jcl->socket = Net_TCPConnect(server, defport);	//port is only used if the url doesn't contain one. It's a default.
+	jcl->socket = pNet_TCPConnect(server, defport);	//port is only used if the url doesn't contain one. It's a default.
 
 	//not yet blocking. So no frequent attempts please...
 	//non blocking prevents connect from returning worthwhile sensible value.
@@ -847,9 +843,9 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 
 	if (usesecure)
 	{
-		if (Net_SetTLSClient(jcl->socket, server)<0)
+		if (pNet_SetTLSClient(jcl->socket, server)<0)
 		{
-			Net_Close(jcl->socket);
+			pNet_Close(jcl->socket);
 			free(jcl);
 			jcl = NULL;
 
@@ -865,7 +861,7 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 //	jcl->hostname[sizeof(jcl->hostname)-1] = 0;
 
 	jcl->tlsconnect = usesecure;
-	jcl->streamdebug = !!Cvar_GetFloat("xmpp_debug");
+	jcl->streamdebug = !!pCvar_GetFloat("xmpp_debug");
 
 	*at = '\0';
 	Q_strlcpy(jcl->server, server, sizeof(jcl->server));
@@ -925,7 +921,6 @@ void Base64_Byte(unsigned int byt)
 void Base64_Add(char *s, int len)
 {
 	unsigned char *us = (unsigned char *)s;
-	int i;
 	while(len-->0)
 		Base64_Byte(*us++);
 }
@@ -1030,7 +1025,7 @@ void JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t 
 	iq = malloc(sizeof(*iq));
 	iq->next = jcl->pendingiqs;
 	jcl->pendingiqs = iq;
-	sprintf(iq->id, "%i", rand());
+	Q_snprintf(iq->id, sizeof(iq->id), "%i", rand());
 	iq->callback = callback;
 
 	if (target)
@@ -1056,7 +1051,7 @@ void JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t
 	char body[2048];
 
 	va_start (argptr, fmt);
-	vsnprintf (body, sizeof(body), fmt, argptr);
+	Q_vsnprintf (body, sizeof(body), fmt, argptr);
 	va_end (argptr);
 
 	JCL_SendIQ(jcl, callback, iqtype, target, body);
@@ -1078,7 +1073,7 @@ static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
 	{
 		char *name = XML_GetParameter(i, "name", "");
 		char *jid = XML_GetParameter(i, "jid", "");
-		char *sub = XML_GetParameter(i, "subscription", "");
+//		char *sub = XML_GetParameter(i, "subscription", "");
 		JCL_FindBuddy(jcl, jid, &buddy, NULL);
 
 		if (*name)
@@ -1088,7 +1083,7 @@ static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
 }
 static qboolean JCL_RosterReply(jclient_t *jcl, xmltree_t *tree)
 {
-	xmltree_t *c, *i;
+	xmltree_t *c;
 	c = XML_ChildOfTree(tree, "query", 0);
 	if (c)
 	{
@@ -1249,7 +1244,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 
 	int olddepth;
 
-	ret = Net_Recv(jcl->socket, jcl->bufferedinmessage+jcl->bufferedinammount, sizeof(jcl->bufferedinmessage)-1 - jcl->bufferedinammount);
+	ret = pNet_Recv(jcl->socket, jcl->bufferedinmessage+jcl->bufferedinammount, sizeof(jcl->bufferedinmessage)-1 - jcl->bufferedinammount);
 	if (ret == 0)
 	{
 		if (!jcl->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
@@ -1406,7 +1401,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 
 		if (unparsable)
 		{
-			if ((!jclient->issecure) && BUILTINISVALID(Net_SetTLSClient) && XML_ChildOfTree(tree, "starttls", 0) != NULL && !Cvar_GetFloat("xmpp_disabletls"))
+			if ((!jclient->issecure) && BUILTINISVALID(Net_SetTLSClient) && XML_ChildOfTree(tree, "starttls", 0) != NULL && !pCvar_GetFloat("xmpp_disabletls"))
 			{
 				Con_Printf("Attempting to switch to TLS\n");
 				JCL_AddClientMessageString(jcl, "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls' />");
@@ -1419,7 +1414,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 					if (!strcmp(ot->body, "PLAIN"))
 					{
 						char msg[2048];
-						if (!jclient->issecure && !Cvar_GetFloat("xmpp_allowplainauth"))	//probably don't send plain without tls.
+						if (!jclient->issecure && !pCvar_GetFloat("xmpp_allowplainauth"))	//probably don't send plain without tls.
 						{
 							//plain can still be read with man-in-the-middle attacks, of course, even with tls if the certificate is spoofed.
 							Con_Printf("Ignoring auth \'%s\'\n", ot->body);
@@ -1475,7 +1470,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 			return JCL_KILL;
 		}
 
-		if (Net_SetTLSClient(jcl->socket, jcl->domain)<0)
+		if (pNet_SetTLSClient(jcl->socket, jcl->domain)<0)
 		{
 			Con_Printf("JCL: failed to switch to TLS\n");
 			XML_Destroy(tree);
@@ -1522,12 +1517,12 @@ int JCL_ClientFrame(jclient_t *jcl)
 	else if (!strcmp(tree->name, "iq"))
 	{
 		char *from;
-		char *to;
+//		char *to;
 		char *id;
 
 		id = XML_GetParameter(tree, "id", "");
 		from = XML_GetParameter(tree, "from", "");
-		to = XML_GetParameter(tree, "to", "");
+//		to = XML_GetParameter(tree, "to", "");
 
 		f = XML_GetParameter(tree, "type", "");
 		if (!strcmp(f, "get"))
@@ -1539,7 +1534,6 @@ int JCL_ClientFrame(jclient_t *jcl)
 				{	//http://xmpp.org/extensions/xep-0030.html
 					char msg[2048];
 					char *hash;
-					int idletime = 0;
 					unparsable = false;
 
 					buildcaps(msg, sizeof(msg));
@@ -1595,7 +1589,6 @@ int JCL_ClientFrame(jclient_t *jcl)
 				char msg[2048];
 				char tz[256];
 				char timestamp[256];
-				int idletime = 0;
 				struct tm * timeinfo;
 				int tzh, tzm;
 				time_t rawtime;
@@ -1632,7 +1625,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 				char msg[2048];
 				unparsable = false;
 
-				Con_Print("Unsupported iq get\n");
+				Con_Printf("Unsupported iq get\n");
 				XML_ConPrintTree(tree, 0);
 
 				//tell them OH NOES, instead of requiring some timeout.
@@ -1683,7 +1676,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 				{
 					if (!iq->callback(jcl, !strcmp(f, "error")?NULL:tree))
 					{
-						Con_Print("Invalid iq result\n");
+						Con_Printf("Invalid iq result\n");
 						XML_ConPrintTree(tree, 0);
 					}
 				}
@@ -1691,7 +1684,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 			}
 			else
 			{
-				Con_Print("Unrecognised iq result\n");
+				Con_Printf("Unrecognised iq result\n");
 				XML_ConPrintTree(tree, 0);
 			}
 		}
@@ -1699,7 +1692,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 		if (unparsable)
 		{
 			unparsable = false;
-			Con_Print("Unrecognised iq type\n");
+			Con_Printf("Unrecognised iq type\n");
 			XML_ConPrintTree(tree, 0);
 		}
 	}
@@ -1763,10 +1756,10 @@ int JCL_ClientFrame(jclient_t *jcl)
 				if (f)
 					Con_SubPrintf(f, "%s: %s\n", f, ot->body);
 				else
-					Con_Print(ot->body);
+					Con_Printf(ot->body);
 
 				if (BUILTINISVALID(LocalSound))
-					LocalSound("misc/talk.wav");
+					pLocalSound("misc/talk.wav");
 			}
 
 			if (unparsable)
@@ -1774,7 +1767,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 				unparsable = false;
 				if (jcl->streamdebug)
 				{
-					Con_Print("Received a message without a body\n");
+					Con_Printf("Received a message without a body\n");
 					XML_ConPrintTree(tree, 0);
 				}
 			}
@@ -1792,7 +1785,6 @@ int JCL_ClientFrame(jclient_t *jcl)
 		char *type = XML_GetParameter(tree, "type", "");
 		char *serverip = NULL;
 		char *servermap = NULL;
-		char *server;
 
 		if (quake && !strcmp(quake->xmlns, "fteqw.com:game"))
 		{
@@ -1889,7 +1881,7 @@ void JCL_CloseConnection(jclient_t *jcl)
 {
 	Con_Printf("JCL: Disconnected from %s@%s\n", jcl->username, jcl->domain);
 	JCL_AddClientMessageString(jcl, "</stream:stream>");
-	Net_Close(jcl->socket);
+	pNet_Close(jcl->socket);
 	free(jcl);
 }
 
@@ -1904,20 +1896,20 @@ void JCL_GeneratePresence(qboolean force)
 	serveraddr[0] = 0;
 	servermap[0] = 0;
 
-	if (!Cvar_GetFloat("xmpp_nostatus"))
+	if (!pCvar_GetFloat("xmpp_nostatus"))
 	{
-		if (Cvar_GetFloat("sv.state"))
+		if (pCvar_GetFloat("sv.state"))
 		{
-			Cvar_GetString("sv.mapname", servermap, sizeof(servermap));
+			pCvar_GetString("sv.mapname", servermap, sizeof(servermap));
 		}
 		else
 		{
-			if (!Cvar_GetString("cl_serveraddress", serveraddr, sizeof(serveraddr)))
+			if (!pCvar_GetString("cl_serveraddress", serveraddr, sizeof(serveraddr)))
 				serveraddr[0] = 0;
 			if (BUILTINISVALID(CL_GetStats))
 			{
 				//if we can't get any stats, its because we're not actually on the server.
-				if (!CL_GetStats(0, &dummystat, 1))
+				if (!pCL_GetStats(0, &dummystat, 1))
 					serveraddr[0] = 0;
 			}
 		}
@@ -1926,7 +1918,6 @@ void JCL_GeneratePresence(qboolean force)
 	if (force || strcmp(jclient->curquakeserver, *servermap?servermap:serveraddr))
 	{
 		char caps[256];
-		char *caphash;
 		Q_strlcpy(jclient->curquakeserver, *servermap?servermap:serveraddr, sizeof(jclient->curquakeserver));
 
 		//note: ext='voice-v1 camera-v1 video-v1' is some legacy nonsense, and is required for voice calls with googletalk clients or something stupid like that
@@ -1986,14 +1977,14 @@ void JCL_WriteConfig(void)
 	if (jclient->connected)
 	{
 		qhandle_t config;
-		FS_Open("**plugconfig", &config, 2);
+		pFS_Open("**plugconfig", &config, 2);
 		if (config >= 0)
 		{
 			char buffer[8192];
 			Q_snprintf(buffer, sizeof(buffer), "%i \"%s\" \"%s@%s\" \"%s\"\n",
 				jclient->tlsconnect, jclient->server, jclient->username, jclient->domain, jclient->password);
-			FS_Write(config, buffer, strlen(buffer));
-			FS_Close(config);
+			pFS_Write(config, buffer, strlen(buffer));
+			pFS_Close(config);
 		}
 	}
 }
@@ -2010,19 +2001,19 @@ void JCL_LoadConfig(void)
 		char password[256];
 		char *line = buf;
 		qboolean oldtls;
-		len = FS_Open("**plugconfig", &config, 1);
+		len = pFS_Open("**plugconfig", &config, 1);
 		if (config >= 0)
 		{
 			if (len >= sizeof(buf))
 				len = sizeof(buf)-1;
 			buf[len] = 0;
-			FS_Read(config, buf, len);
-			FS_Close(config);
+			pFS_Read(config, buf, len);
+			pFS_Close(config);
 
-			line = COM_ParseOut(line, tls, sizeof(tls));
-			line = COM_ParseOut(line, server, sizeof(server));
-			line = COM_ParseOut(line, account, sizeof(account));
-			line = COM_ParseOut(line, password, sizeof(password));
+			line = JCL_ParseOut(line, tls, sizeof(tls));
+			line = JCL_ParseOut(line, server, sizeof(server));
+			line = JCL_ParseOut(line, account, sizeof(account));
+			line = JCL_ParseOut(line, password, sizeof(password));
 
 			oldtls = atoi(tls);
 
@@ -2080,7 +2071,6 @@ void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 {
 	char markup[256];
-	char *d;
 	buddy_t *b;
 	bresource_t *br;
 	JCL_FindBuddy(jcl, to, &b, &br);
@@ -2101,14 +2091,14 @@ void JCL_Command(char *console)
 	char *msg;
 	int i;
 
-	Cmd_Args(imsg, sizeof(imsg));
+	pCmd_Args(imsg, sizeof(imsg));
 
 	msg = imsg;
 	for (i = 0; i < 6; i++)
 	{
 		if (!msg)
 			continue;
-		msg = COM_ParseOut(msg, arg[i], sizeof(arg[i]));
+		msg = JCL_ParseOut(msg, arg[i], sizeof(arg[i]));
 	}
 
 	if (*arg[0] == '/')
@@ -2210,18 +2200,16 @@ void JCL_Command(char *console)
 			//just clears the current console.
 			if (*console)
 			{
-				Con_Destroy(console);
-				Con_TrySubPrint(console, "");
-				Con_SetActive(console);
+				pCon_Destroy(console);
+				Con_SubPrintf(console, "");
+				pCon_SetActive(console);
 			}
 			else
-				Cmd_AddText("\nclear\n", true);
+				pCmd_AddText("\nclear\n", true);
 		}
 		else if (!strcmp(arg[0]+1, "msg"))
 		{
 			//FIXME: validate the dest. deal with xml markup in dest.
-			buddy_t *b;
-			bresource_t *br;
 			Q_strlcpy(jclient->defaultdest, arg[1], sizeof(jclient->defaultdest));
 			msg = arg[2];
 
@@ -2270,8 +2258,6 @@ void JCL_Command(char *console)
 	{
 		if (jclient)
 		{
-			buddy_t *b;
-			bresource_t *br;
 			msg = imsg;
 
 			if (!*msg)

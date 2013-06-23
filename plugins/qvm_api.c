@@ -19,8 +19,8 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 	int _int;
 	float _float;
 	int i;
-	int use0s, useprepad;
-	int precision;
+	int use0s;
+	int precision, useprepad;
 
 	if (!maxlen)
 		return 0;
@@ -138,9 +138,9 @@ retry:
 			case 'u':
 			case 'i':
 				_int = va_arg(vargs, int);
-/*
 				if (useprepad)
 				{
+/*
 					if (_int >= 1000)
 						useprepad = 4;
 					else if (_int >= 100)
@@ -168,8 +168,8 @@ Con_Printf("add %i chars\n", useprepad);
 						useprepad--;
 					}
 Con_Printf("%i bytes left\n", maxlen);
-				}
 */
+				}
 				if (_int < 0)
 				{
 					if (maxlen-- == 0) 
@@ -316,7 +316,7 @@ int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...)
 	va_list		argptr;
 		
 	va_start (argptr, format);
-	p = vsnprintf (buffer, maxlen, format,argptr);
+	p = Q_vsnprintf (buffer, maxlen, format,argptr);
 	va_end (argptr);
 
 	return p;
@@ -567,7 +567,9 @@ void Q_strlcat(char *d, const char *s, int n)
 	{
 		int dlen = strlen(d);
 		int slen = strlen(s)+1;
-		memcpy(d+dlen, s, min((n-1)-dlen, slen));
+		if (slen > (n-1)-dlen)
+			slen = (n-1)-dlen;
+		memcpy(d+dlen, s, slen);
 		d[n - 1] = 0;
 	}
 }

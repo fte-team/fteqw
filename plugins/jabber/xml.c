@@ -102,7 +102,7 @@ char *XML_Markup(char *s, char *d, int dlen)
 			memcpy(d, xmlchars[i].name, xmlchars[i].namelen);
 			d+=xmlchars[i].namelen;
 			*d++ = ';';
-			*s++;
+			s++;
 		}
 		else
 		{
@@ -170,7 +170,7 @@ static void buf_cat(struct buf_ctx *buf, char *data, int datalen)
 	memcpy(buf->buf + buf->len, data, datalen);
 	buf->len += datalen;
 }
-static XML_DumpToBuf(struct buf_ctx *buf, xmltree_t *t, int indent)
+static void XML_DumpToBuf(struct buf_ctx *buf, xmltree_t *t, int indent)
 {
 	xmltree_t *c;
 	xmlparams_t *p;
@@ -517,7 +517,7 @@ void XML_ConPrintTree(xmltree_t *t, int indent)
 			chunk = 128;
 		c = buf.buf[start+chunk];
 		buf.buf[start+chunk] = 0;
-		Con_Print(buf.buf+start);
+		Con_Printf("%s", buf.buf+start);
 		buf.buf[start+chunk] = c;
 
 		start += chunk;

@@ -220,7 +220,7 @@ EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 EBUILTIN(void, SCR_CenterPrint, (char *s));
 
-EBUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width));
+EBUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
 
 EBUILTIN(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
 EBUILTIN(int, UpdateInputBuffer, (void *inputbuffer, int bytes));

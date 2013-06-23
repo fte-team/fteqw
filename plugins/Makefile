@@ -40,7 +40,7 @@ endif
 PLUG_NATIVE_EXT?=unk.so
 
 PLUG_DEFFILE?=
-PLUG_CFLAGS?=-fPIC -Wl,--no-undefined
+PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic
 PLUG_LDFLAGS?=
 
 all: ezscript hud irc
@@ -95,12 +95,17 @@ avplug/libavformat/avformat.h:
 distclean:
 	rm avplug/libavformat/avformat.h
 
-$(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c plugin.c
-	$(CC) $(BASE_CFLAGS) -DFTEPLUGIN -s -o $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iavplug/msvc_lib $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
+$(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iavplug/msvc_lib $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
 native: $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT)
 
 $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT)
+
+$(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+native: $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT)
+
 
 native: 

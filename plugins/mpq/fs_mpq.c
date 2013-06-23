@@ -58,6 +58,8 @@ typedef struct
 
 typedef struct 
 {
+	searchpathfuncs_t pub;
+
 	char desc[MAX_OSPATH];
 	vfsfile_t *file;
 	ofs_t filestart;
@@ -244,11 +246,6 @@ unsigned int mpq_lookuphash(mpqarchive_t *mpq, const char *filename, int locale)
 }
 
 vfsfile_t *MPQ_OpenVFS(void *handle, flocation_t *loc, const char *mode);
-void	MPQ_GetDisplayPath(void *handle, char *outpath, unsigned int pathsize)
-{
-	mpqarchive_t *mpq = handle;
-	Q_strlcpy(outpath, mpq->desc, pathsize);
-}
 void	MPQ_ClosePath(void *handle)
 {
 	mpqarchive_t *mpq = handle;
@@ -346,13 +343,13 @@ static int mpqwildcmp(const char *wild, const char *string, char **end)
 	}
 	return !*wild;
 }
-int		MPQ_EnumerateFiles(void *handle, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm)
+int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm)
 {
 	int ok = 1;
 	char *s, *n;
 	char name[MAX_QPATH];
 	flocation_t loc;
-	mpqarchive_t *mpq = handle;
+	mpqarchive_t *mpq = (mpqarchive_t*)handle;
 	if (mpq->listfile)
 	{
 		s = mpq->listfile;
@@ -403,7 +400,17 @@ void	MPQ_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth,
 	}
 }
 
-void	*MPQ_OpenNew(vfsfile_t *file, const char *desc)
+int		MPQ_GeneratePureCRC (void *handle, int seed, int usepure)
+{
+	return 0;
+}
+
+qboolean	MPQ_PollChanges(void *handle)
+{
+	return false;
+}
+
+searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
 {
 	flocation_t lloc;
 	mpqarchive_t *mpq;
@@ -492,13 +499,20 @@ void	*MPQ_OpenNew(vfsfile_t *file, const char *desc)
 				break;
 		}
 	}
-	return mpq;
+	
+	mpq->pub.fsver				= FSVER;
+	mpq->pub.ClosePath			= MPQ_ClosePath;
+	mpq->pub.BuildHash			= MPQ_BuildHash;
+	mpq->pub.FindFile			= MPQ_FindFile;
+	mpq->pub.ReadFile			= MPQ_ReadFile;
+	mpq->pub.EnumerateFiles		= MPQ_EnumerateFiles;
+	mpq->pub.GeneratePureCRC	= MPQ_GeneratePureCRC;
+	mpq->pub.OpenVFS			= MPQ_OpenVFS;
+	mpq->pub.PollChanges		= MPQ_PollChanges;
+
+	return &mpq->pub;
 }
 
-int		MPQ_GeneratePureCRC (void *handle, int seed, int usepure)
-{
-	return 0;
-}
 
 struct blastdata_s
 {
@@ -815,38 +829,20 @@ vfsfile_t *MPQ_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	return &f->funcs;
 }
 
-qboolean	MPQ_PollChanges(void *handle)
-{
-	return false;
-}
-
-searchpathfuncs_t funcs =
-{
-	MPQ_GetDisplayPath,
-	MPQ_ClosePath,
-	MPQ_BuildHash,
-	MPQ_FindFile,
-	MPQ_ReadFile,
-	MPQ_EnumerateFiles,
-	MPQ_OpenNew,
-	MPQ_GeneratePureCRC,
-	MPQ_OpenVFS,
-	MPQ_PollChanges,
-};
-
 qintptr_t Plug_Init(qintptr_t *args)
 {
 	mpq_init_cryptography();
 
 	//we can't cope with being closed randomly. files cannot be orphaned safely.
+	//so ask the engine to ensure we don't get closed before everything else is.
 	pPlug_ExportNative("UnsafeClose", NULL);
 
-	if (!pPlug_ExportNative("FS_RegisterArchiveType_mpq", &funcs))
+	if (!pPlug_ExportNative("FS_RegisterArchiveType_mpq", MPQ_OpenArchive))
 	{
 		Con_Printf("avplug: Engine doesn't support media decoder plugins\n");
 		return false;
 	}
-	if (!pPlug_ExportNative("FS_RegisterArchiveType_MPQ", &funcs))
+	if (!pPlug_ExportNative("FS_RegisterArchiveType_MPQ", MPQ_OpenArchive))
 	{
 		Con_Printf("avplug: Engine doesn't support media decoder plugins\n");
 		return false;

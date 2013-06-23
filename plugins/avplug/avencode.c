@@ -412,6 +412,30 @@ static media_encoder_funcs_t encoderfuncs =
 	AVEnc_End
 };
 
+/*
+qintptr_t AVEnc_ExecuteCommand(qintptr_t *args)
+{
+	char cmd[256];
+	Cmd_Argv(0, cmd, sizeof(cmd));
+	if (!strcmp(cmd, "avcapture"))
+	{
+menuclear
+menualias menucallback
+
+menubox 0 0 320 8
+menutext 0 0 "GO GO GO!!!" 		"radio21"
+menutext 0 8 "Fall back" 		"radio22"
+menutext 0 8 "Stick together" 		"radio23"
+menutext 0 16 "Get in position"		"radio24"
+menutext 0 24 "Storm the front"	 	"radio25"
+menutext 0 24 "Report in"	 	"radio26"
+menutext 0 24 "Cancel"	
+		return true;
+	}
+	return false;
+}
+*/
+
 qboolean AVEnc_Init(void)
 {
 	pCvar_Register("avplug_format",				"",			0, "avplug");
@@ -429,6 +453,9 @@ qboolean AVEnc_Init(void)
 		Con_Printf("avplug: Engine doesn't support media encoder plugins\n");
 		return false;
 	}
+
+//	if (Plug_Export("ExecuteCommand", AVEnc_ExecuteCommand))
+//		Cmd_AddCommand("avcapture");
 
 	return true;
 }

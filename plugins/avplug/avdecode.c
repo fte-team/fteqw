@@ -18,8 +18,8 @@
 #define avio_alloc_context av_alloc_put_byte
 */
 
-#define ARGNAMES ,sourceid, data, speed, samples, channels, width
-BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width));
+#define ARGNAMES ,sourceid, data, speed, samples, channels, width, volume
+BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
 #undef ARGNAMES
 
 /*should probably try threading this*/

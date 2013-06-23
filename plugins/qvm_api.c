@@ -561,4 +561,13 @@ void Q_strlcpy(char *d, const char *s, int n)
 	}
 	*d='\0';
 }
-
+void Q_strlcat(char *d, const char *s, int n)
+{
+	if (n)
+	{
+		int dlen = strlen(d);
+		int slen = strlen(s)+1;
+		memcpy(d+dlen, s, min((n-1)-dlen, slen));
+		d[n - 1] = 0;
+	}
+}

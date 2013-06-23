@@ -116,6 +116,7 @@ extern "C" {
 extern qintptr_t (*plugin_syscall)( qintptr_t arg, ... );
 
 void Q_strlcpy(char *d, const char *s, int n);
+void Q_strlcat(char *d, const char *s, int n);
 int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...);
 int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 

@@ -18,6 +18,9 @@ public:
 	int height;
 	unsigned int *buffer;
 	bool repainted;
+
+	int paintedwidth;
+	int paintedheight;
 };
 
 class MyDelegate : public Berkelium::WindowDelegate
@@ -200,8 +203,8 @@ static void *Dec_Create(char *medianame)
 	decctx *ctx = new decctx();
 
 	Berkelium::Context* context = Berkelium::Context::create();
-	ctx->width = 1024;
-	ctx->height = 1024;
+	ctx->paintedwidth = ctx->width = 1024;
+	ctx->paintedheight = ctx->height = 1024;
 	ctx->repainted = false;
 	ctx->buffer = (unsigned int*)malloc(ctx->width * ctx->height * 4);
 	ctx->wnd = Berkelium::Window::create(context);
@@ -226,6 +229,8 @@ static void *Dec_DisplayFrame(void *vctx, qboolean nosound, enum uploadfmt_e *fm
 
 	if (!ctx->repainted)
 		return NULL;
+	ctx->paintedwidth = ctx->width;
+	ctx->paintedheight = ctx->height;
 	ctx->repainted = false;
 	return ctx->buffer;
 }
@@ -238,8 +243,16 @@ static void Dec_Destroy(void *vctx)
 static void Dec_GetSize (void *vctx, int *width, int *height)
 {
 	decctx *ctx = (decctx*)vctx;
-	*width = ctx->width;
-	*height = ctx->height;
+	if (ctx->repainted)
+	{
+		*width = ctx->width;
+		*height = ctx->height;
+	}
+	else
+	{
+		*width = ctx->paintedwidth;
+		*height = ctx->paintedheight;
+	}
 }
 static qboolean Dec_SetSize (void *vctx, int width, int height)
 {

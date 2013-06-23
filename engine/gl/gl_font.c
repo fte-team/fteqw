@@ -659,12 +659,20 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 			return false;
 		triedtoloadfreetype = true;
 
+#ifdef _WIN32
 		fontmodule = Sys_LoadLibrary("freetype6", ft2funcs);
+#else
+		fontmodule = Sys_LoadLibrary("libfreetype.so.6", ft2funcs);
+#endif
 		if (!fontmodule)
+		{
+			Con_Printf("Couldn't load freetype library.\n");
 			return false;
+		}
 		error = pFT_Init_FreeType(&fontlib);
 		if (error)
 		{
+			Con_Printf("FT_Init_FreeType failed.\n");
 			Sys_CloseLibrary(fontmodule);
 			return false;
 		}
@@ -738,6 +746,8 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 			return true;
 		}
 	}
+	if (error && error != FT_Err_Cannot_Open_Resource)
+		Con_Printf("Freetype error: %i\n", error);
 	if (fbase)
 		BZ_Free(fbase);
 #endif

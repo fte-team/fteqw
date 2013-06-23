@@ -218,7 +218,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 }
 #elif defined(linux) || defined(__unix__) || defined(__MACH__)
 #include <dirent.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];

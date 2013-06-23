@@ -785,7 +785,7 @@ static qintptr_t VARGS Plug_Cmd_AddCommand(void *offset, quintptr_t mask, const 
 		if (plugincommandarray[i].plugin == currentplug)
 		{
 			if (!strcmp(name, plugincommandarray[i].command))
-				break;
+				return true;	//already registered
 		}
 	}
 	if (i == plugincommandarraylen)

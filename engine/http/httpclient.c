@@ -141,7 +141,7 @@ static void DL_OnProgress(void *c, int position, int totalsize)
 }
 
 //this becomes a poll function. the main thread will call this once a frame or so.
-qboolean HTTPDL_Decide(struct dl_download *dl)
+qboolean DL_Decide(struct dl_download *dl)
 {
 	const char *url = dl->redir;
 	if (!*url)

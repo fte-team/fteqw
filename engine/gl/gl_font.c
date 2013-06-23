@@ -666,7 +666,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 #endif
 		if (!fontmodule)
 		{
-			Con_Printf("Couldn't load freetype library.\n");
+			Con_DPrintf("Couldn't load freetype library.\n");
 			return false;
 		}
 		error = pFT_Init_FreeType(&fontlib);

@@ -203,11 +203,7 @@ static vfsfile_t *QDECL FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const ch
 	char diskname[MAX_OSPATH];
 	qboolean needsflush;
 
-	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
-
-	snprintf(diskname, sizeof(diskname), "%s/%s", sp->rootpath, loc->rawname);
-
-	f = VFSSTDIO_Open(diskname, mode, &needsflush);
+	f = VFSSTDIO_Open(loc->rawname, mode, &needsflush);
 	if (needsflush && sp->AddFileHash)
 		sp->AddFileHash(sp->depth, loc->rawname, NULL, sp);
 	return f;
@@ -308,7 +304,7 @@ static qboolean QDECL FSSTDIO_FLocate(void *handle, flocation_t *loc, const char
 		loc->len = len;
 		loc->offset = 0;
 		loc->index = 0;
-		Q_strncpyz(loc->rawname, filename, sizeof(loc->rawname));
+		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
 
 	return true;

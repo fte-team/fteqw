@@ -185,23 +185,23 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 	return (vfsfile_t*)file;
 }
 
-static vfsfile_t *QDECL VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *QDECL VFSW32_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
 
 	return VFSW32_Open(loc->rawname, mode);
 }
-static void QDECL VFSW32_ClosePath(void *handle)
+static void QDECL VFSW32_ClosePath(searchpathfuncs_t *handle)
 {
-	vfsw32path_t *wp = handle;
+	vfsw32path_t *wp = (void*)handle;
 	if (wp->changenotification != INVALID_HANDLE_VALUE)
 		FindCloseChangeNotification(wp->changenotification);
 	Z_Free(wp);
 }
-static qboolean QDECL VFSW32_PollChanges(void *handle)
+static qboolean QDECL VFSW32_PollChanges(searchpathfuncs_t *handle)
 {
 	qboolean result = false;
-	vfsw32path_t *wp = handle;
+	vfsw32path_t *wp = (void*)handle;
 
 	if (wp->changenotification == INVALID_HANDLE_VALUE)
 		return true;
@@ -223,9 +223,9 @@ static qboolean QDECL VFSW32_PollChanges(void *handle)
 	}
 	return result;
 }
-static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, void *spath)
+static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, searchpathfuncs_t *spath)
 {
-	vfsw32path_t *wp = spath;
+	vfsw32path_t *wp = (void*)spath;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = handle;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
@@ -239,15 +239,15 @@ static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *
 	AddFileHash(wp->hashdepth, filename, NULL, wp);
 	return true;
 }
-static void QDECL VFSW32_BuildHash(void *handle, int hashdepth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+static void QDECL VFSW32_BuildHash(searchpathfuncs_t *handle, int hashdepth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	vfsw32path_t *wp = handle;
+	vfsw32path_t *wp = (void*)handle;
 	wp->hashdepth = hashdepth;
 	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
-static qboolean QDECL VFSW32_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
-	vfsw32path_t *wp = handle;
+	vfsw32path_t *wp = (void*)handle;
 	FILE *f;
 	int len;
 	char netpath[MAX_OSPATH];
@@ -284,7 +284,7 @@ static qboolean QDECL VFSW32_FLocate(void *handle, flocation_t *loc, const char 
 
 	return true;
 }
-static void QDECL VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void QDECL VFSW32_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 //	vfsw32path_t *wp = handle;
 

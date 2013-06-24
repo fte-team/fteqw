@@ -776,14 +776,15 @@ int main (int c, const char **v)
 Sys_MakeCodeWriteable
 ================
 */
-void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
+#if 0
+void Sys_MakeCodeWriteable (void *startptr, unsigned long length)
 {
 
 	int r;
-	unsigned long addr;
+	uintptr_t addr;
 	int psize = getpagesize();
 
-	addr = (startaddr & ~(psize-1)) - psize;
+	addr = ((uintptr_t)startptr & ~(psize-1)) - psize;
 
 //	fprintf(stderr, "writable code %lx(%lx)-%lx, length=%lx\n", startaddr,
 //			addr, startaddr+length, length);
@@ -792,8 +793,8 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 
 	if (r < 0)
     		Sys_Error("Protection change failed\n");
-
 }
+#endif
 
 //fixme: some sort of taskbar/gnome panel flashing.
 void Sys_ServerActivity(void)

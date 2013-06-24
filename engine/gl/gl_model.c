@@ -75,7 +75,7 @@ model_t *lightmodel;
 int numlightdata;
 qboolean writelitfile;
 
-int relitsurface;
+long relitsurface;
 void RMod_UpdateLightmap(int snum)
 {
 	msurface_t *s;	

@@ -506,9 +506,10 @@ void AAS_CalculateAreaTravelTimes(void)
 	aas_reversedlink_t *revlink;
 	aas_reachability_t *reach;
 	aas_areasettings_t *settings;
-	int starttime;
+#ifdef DEBUG
+	int starttime = Sys_MilliSeconds();
+#endif
 
-	starttime = Sys_MilliSeconds();
 	//if there are still area travel times, free the memory
 	if (aasworld.areatraveltimes) FreeMemory(aasworld.areatraveltimes);
 	//get the total size of all the area travel times

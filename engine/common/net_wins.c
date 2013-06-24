@@ -98,7 +98,7 @@ typedef struct ftenet_generic_connection_s {
 
 	netadrtype_t addrtype[FTENET_ADDRTYPES];
 	qboolean islisten;
-	int thesocket;
+	SOCKET thesocket;
 } ftenet_generic_connection_t;
 
 
@@ -2518,7 +2518,7 @@ ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, c
 
 #ifdef TCPCONNECT
 typedef struct ftenet_tcpconnect_stream_s {
-	int socketnum;
+	SOCKET socketnum;
 	int inlen;
 	int outlen;
 
@@ -4458,7 +4458,7 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 	temp = NetadrToSockadr(remoteaddr, &qs);
 
 	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
-		return INVALID_SOCKET;
+		return (int)INVALID_SOCKET;
 
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&recvbufsize, sizeof(recvbufsize));
 
@@ -4472,23 +4472,23 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
 	{
 		int err = qerrno;
-		if (err != EWOULDBLOCK)
+		if (err != EWOULDBLOCK && err != EINPROGRESS)
 		{
+			char buf[256];
+			NET_AdrToString(buf, sizeof(buf), remoteaddr);
 			if (err == EADDRNOTAVAIL)
 			{
-				char buf[128];
-				NET_AdrToString(buf, sizeof(buf), remoteaddr);
 				if (remoteaddr->port == 0 && (remoteaddr->type == NA_IP || remoteaddr->type == NA_IPV6))
-					Con_Printf ("TCP_OpenStream: no port specified\n");
+					Con_Printf ("TCP_OpenStream: no port specified (%s)\n", buf);
 				else
 					Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
 			}
 			else if (err == EACCES)
-				Con_Printf ("TCP_OpenStream: access denied: check firewall\n");
+				Con_Printf ("TCP_OpenStream: access denied: check firewall (%s)\n", buf);
 			else
-				Con_Printf ("TCP_OpenStream: connect: error %i\n", err);
+				Con_Printf ("TCP_OpenStream: connect: error %i (%s)\n", err, buf);
 			closesocket(newsocket);
-			return INVALID_SOCKET;
+			return (int)INVALID_SOCKET;
 		}
 	}
 
@@ -4585,7 +4585,7 @@ int UDP_OpenSocket (int port, qboolean bcast)
 int maxport = port + 100;
 
 	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
-		return INVALID_SOCKET;
+		return (int)INVALID_SOCKET;
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
@@ -4596,7 +4596,7 @@ int maxport = port + 100;
 		if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof(_true)) == -1)
 		{
 			Con_Printf("Cannot create broadcast socket\n");
-			return INVALID_SOCKET;
+			return (int)INVALID_SOCKET;
 		}
 	}
 
@@ -4646,7 +4646,7 @@ int maxport = port + 100;
 	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
 		Con_Printf("IPV6 is not supported: %s\n", strerror(qerrno));
-		return INVALID_SOCKET;
+		return (int)INVALID_SOCKET;
 	}
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
@@ -4660,7 +4660,7 @@ int maxport = port + 100;
 //		{
 			Con_Printf("Cannot create broadcast socket\n");
 			closesocket(newsocket);
-			return INVALID_SOCKET;
+			return (int)INVALID_SOCKET;
 //		}
 	}
 
@@ -4691,7 +4691,7 @@ int maxport = port + 100;
 				err = qerrno;
 				Con_Printf ("UDP6_OpenSocket: bind: (%i) %s", err, strerror(err));
 				closesocket(newsocket);
-				return INVALID_SOCKET;
+				return (int)INVALID_SOCKET;
 			}
 			port++;
 			if (port > maxport)
@@ -4699,7 +4699,7 @@ int maxport = port + 100;
 				err = qerrno;
 				Con_Printf ("UDP6_OpenSocket: bind: (%i) %s", err, strerror(err));
 				closesocket(newsocket);
-				return INVALID_SOCKET;
+				return (int)INVALID_SOCKET;
 			}
 		}
 		else
@@ -5604,7 +5604,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 		timeout.tv_usec = 0;
 		FD_ZERO(&fd);
 		FD_SET(tf->sock, &fd);
-		if (!select((int)tf->sock, NULL, &fd, NULL, &timeout))
+		if (!select((int)tf->sock+1, NULL, &fd, NULL, &timeout))
 			return 0;
 		tf->conpending = false;
 	}
@@ -5665,7 +5665,10 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 	else
 	{
 		if (tf->sock == INVALID_SOCKET)
+		{
+perror("moo");
 			return -1;	//signal an error
+		}
 		return 0;	//signal nothing available
 	}
 }
@@ -5685,7 +5688,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 		timeout.tv_usec = 0;
 		FD_ZERO(&fd);
 		FD_SET(tf->sock, &fd);
-		if (!select((int)tf->sock, NULL, &fd, NULL, &timeout))
+		if (!select((int)tf->sock+1, NULL, &fd, NULL, &timeout))
 			return 0;
 		tf->conpending = false;
 	}

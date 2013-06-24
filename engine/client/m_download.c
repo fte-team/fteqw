@@ -65,6 +65,9 @@ static package_t *BuildPackageList(vfsfile_t *f, int flags, char *prefix)
 
 	int version;
 
+	if (!f)
+		return NULL;
+
 	do
 	{
 		if (!VFS_GETS(f, line, sizeof(line)-1))

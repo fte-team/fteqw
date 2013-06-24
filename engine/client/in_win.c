@@ -52,8 +52,6 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 #define DINPUT_VERSION_DX7 0x0700
 
 // mouse variables
-static cvar_t	m_filter = CVAR("m_filter","0");
-static cvar_t  m_accel = CVAR("m_accel", "0");
 static cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
 static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
@@ -1220,8 +1218,6 @@ INS_MouseMove
 */
 void INS_MouseMove (float *movements, int pnum)
 {
-	extern int window_x, window_y;
-
 #ifdef AVAIL_DINPUT
 	if (dinput && mouseactive)
 	{

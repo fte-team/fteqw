@@ -657,7 +657,7 @@ return NULL;
 void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
 void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
-png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, const png_const_infop info_ptr)) PSTATIC(png_get_bit_depth);
+png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_bit_depth);
 png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_channels);
 png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_rowbytes);
 void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);

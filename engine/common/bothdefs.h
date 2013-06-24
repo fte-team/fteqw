@@ -113,6 +113,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #if defined(_WIN32) && !defined(_SDL)
+	#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
+#elif defined(__linux__)
+//	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
+#endif
+#if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
 	#define HAVE_SSL
 #endif
 

@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#if defined(_WIN32) && !defined(_SDL) && defined(HAVE_SSL)
+#if defined(HAVE_WINSSPI)
 cvar_t *tls_ignorecertificateerrors;
 
 #include <windows.h>
@@ -308,7 +308,7 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
     if (!crypt.pCertGetCertificateChain(NULL, pServerCert, NULL, pServerCert->hCertStore, &ChainPara, 0, NULL, &pChainContext))
     {
         Status = GetLastError();
-        Sys_Printf("Error 0x%x returned by CertGetCertificateChain!\n", Status);
+        Sys_Printf("Error 0x%x returned by CertGetCertificateChain!\n", (unsigned int)Status);
     }
 	else
 	{
@@ -329,7 +329,7 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 		if (!crypt.pCertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_SSL, pChainContext, &PolicyPara, &PolicyStatus))
 		{
 			Status = GetLastError();
-			Sys_Printf("Error 0x%x returned by CertVerifyCertificateChainPolicy!\n", Status);
+			Sys_Printf("Error 0x%x returned by CertVerifyCertificateChainPolicy!\n", (unsigned int)Status);
 		}
 		else
 		{

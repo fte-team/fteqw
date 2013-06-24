@@ -11,94 +11,6 @@
 #define PLUG_EITHER 3
 
 #ifdef PLUGINS
-//#define GNUTLS
-#ifdef GNUTLS
-
-#if defined(_WIN32) && !defined(MINGW)
-
-//lets rip stuff out of the header and supply a seperate dll.
-//gnutls is huge.
-//also this helps get around the whole msvc/mingw thing.
-
-struct DSTRUCT;
-typedef struct DSTRUCT* gnutls_certificate_credentials;
-typedef gnutls_certificate_credentials gnutls_certificate_client_credentials;
-typedef struct DSTRUCT* gnutls_anon_client_credentials;
-struct gnutls_session_int;
-typedef struct gnutls_session_int* gnutls_session;
-typedef void * gnutls_transport_ptr;
-
-typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS,
-	GNUTLS_KX_DHE_RSA, GNUTLS_KX_ANON_DH, GNUTLS_KX_SRP,
-	GNUTLS_KX_RSA_EXPORT, GNUTLS_KX_SRP_RSA, GNUTLS_KX_SRP_DSS
-} gnutls_kx_algorithm;
-typedef enum gnutls_certificate_type { GNUTLS_CRT_X509=1, GNUTLS_CRT_OPENPGP
-} gnutls_certificate_type;
-typedef enum gnutls_connection_end { GNUTLS_SERVER=1, GNUTLS_CLIENT } gnutls_connection_end;
-typedef enum gnutls_credentials_type { GNUTLS_CRD_CERTIFICATE=1, GNUTLS_CRD_ANON, GNUTLS_CRD_SRP } gnutls_credentials_type;
-typedef enum gnutls_close_request { GNUTLS_SHUT_RDWR=0, GNUTLS_SHUT_WR=1 } gnutls_close_request;
-
-#define GNUTLS_E_AGAIN -28
-#define GNUTLS_E_INTERRUPTED -52
-
-int (VARGS *gnutls_bye)( gnutls_session session, gnutls_close_request how);
-void (VARGS *gnutls_perror)( int error);
-int (VARGS *gnutls_handshake)( gnutls_session session);
-void (VARGS *gnutls_transport_set_ptr)(gnutls_session session, gnutls_transport_ptr ptr);
-int (VARGS *gnutls_certificate_type_set_priority)( gnutls_session session, const int*);
-int (VARGS *gnutls_credentials_set)( gnutls_session, gnutls_credentials_type type, void* cred);
-int (VARGS *gnutls_kx_set_priority)( gnutls_session session, const int*);
-int (VARGS *gnutls_init)(gnutls_session * session, gnutls_connection_end con_end);
-int (VARGS *gnutls_set_default_priority)(gnutls_session session);
-int (VARGS *gnutls_certificate_allocate_credentials)( gnutls_certificate_credentials *sc);
-int (VARGS *gnutls_anon_allocate_client_credentials)( gnutls_anon_client_credentials *sc);
-int (VARGS *gnutls_global_init)(void);
-int (VARGS *gnutls_record_send)( gnutls_session session, const void *data, size_t sizeofdata);
-int (VARGS *gnutls_record_recv)( gnutls_session session, void *data, size_t sizeofdata);
-
-qboolean Init_GNUTLS(void)
-{
-	HMODULE hmod;
-	hmod = LoadLibrary("gnutls.dll");
-	if (!hmod)
-		return false;
-
-	gnutls_bye = (void*)GetProcAddress(hmod, "gnutls_bye");
-	gnutls_perror = (void*)GetProcAddress(hmod, "gnutls_perror");
-	gnutls_handshake = (void*)GetProcAddress(hmod, "gnutls_handshake");
-	gnutls_transport_set_ptr = (void*)GetProcAddress(hmod, "gnutls_transport_set_ptr");
-	gnutls_certificate_type_set_priority = (void*)GetProcAddress(hmod, "gnutls_certificate_type_set_priority");
-	gnutls_credentials_set = (void*)GetProcAddress(hmod, "gnutls_credentials_set");
-	gnutls_kx_set_priority = (void*)GetProcAddress(hmod, "gnutls_kx_set_priority");
-	gnutls_init = (void*)GetProcAddress(hmod, "gnutls_init");
-	gnutls_set_default_priority = (void*)GetProcAddress(hmod, "gnutls_set_default_priority");
-	gnutls_certificate_allocate_credentials = (void*)GetProcAddress(hmod, "gnutls_certificate_allocate_credentials");
-	gnutls_anon_allocate_client_credentials = (void*)GetProcAddress(hmod, "gnutls_anon_allocate_client_credentials");
-	gnutls_global_init = (void*)GetProcAddress(hmod, "gnutls_global_init");
-	gnutls_record_send = (void*)GetProcAddress(hmod, "gnutls_record_send");
-	gnutls_record_recv = (void*)GetProcAddress(hmod, "gnutls_record_recv");
-
-	if (!gnutls_bye || !gnutls_perror || !gnutls_handshake || !gnutls_transport_set_ptr
-			|| !gnutls_certificate_type_set_priority || !gnutls_credentials_set
-			|| !gnutls_kx_set_priority || !gnutls_init || !gnutls_set_default_priority
-			|| !gnutls_certificate_allocate_credentials || !gnutls_anon_allocate_client_credentials
-			|| !gnutls_global_init || !gnutls_record_send || !gnutls_record_recv)
-	{
-		Con_Printf("gnutls.dll doesn't contain all required exports\n");
-		FreeLibrary(hmod);
-		return false;
-	}
-
-	return true;
-}
-
-#else
-#include <gnutls/gnutls.h>
-qboolean Init_GNUTLS(void) {return true;}
-#endif
-
-#endif
-
 
 cvar_t plug_sbar = SCVAR("plug_sbar", "1");
 cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
@@ -816,7 +728,6 @@ static void VARGS Plug_FreeConCommands(plugin_t *plug)
 typedef enum{
 	STREAM_NONE,
 	STREAM_SOCKET,
-	STREAM_TLS,
 	STREAM_VFS
 } plugstream_e;
 
@@ -832,9 +743,6 @@ typedef struct {
 		int curlen;
 		int curpos;
 	} file;
-#ifdef GNUTLS
-	gnutls_session session;
-#endif
 } pluginstream_t;
 pluginstream_t *pluginstreamarray;
 int pluginstreamarraylen;
@@ -995,7 +903,6 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 {
 	pluginstream_t *stream;
 	int handle = VM_LONG(arg[0]);
-	qboolean anon = false;
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
 		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
@@ -1014,104 +921,6 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 		Plug_Net_Close_Internal(handle);
 		return -1;
 	}
-	return 0;
-}
-#endif
-
-#ifdef GNUTLS
-
-qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	static gnutls_anon_client_credentials anoncred;
-	static gnutls_certificate_credentials xcred;
-
-	int ret;
-
-	long _false = false;
-	long _true = true;
-
-  /* Need to enable anonymous KX specifically. */
-	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
-	const int cert_type_priority[3] = {GNUTLS_CRT_X509, GNUTLS_CRT_OPENPGP, 0};
-
-
-	pluginstream_t *stream;
-	int handle = VM_LONG(arg[0]);
-	qboolean anon = false;
-	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
-	{
-		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
-		return -2;
-	}
-	stream = &pluginstreamarray[handle];
-	if (stream->type != STREAM_SOCKET)
-	{	//not a socket - invalid
-		Con_Printf("Plug_Net_SetTLSClient: Not a socket handle\n");
-		return -2;
-	}
-
-	ioctlsocket (stream->socket, FIONBIO, &_false);
-
-
-{
-	static qboolean needinit = true;
-	if (needinit)
-	{
-		gnutls_global_init ();
-
-		gnutls_anon_allocate_client_credentials (&anoncred);
-		gnutls_certificate_allocate_credentials (&xcred);
-//		gnutls_certificate_set_x509_trust_file (xcred, "ca.pem", GNUTLS_X509_FMT_PEM);
-
-		needinit = false;
-	}
-}
-
-	stream->type = STREAM_TLS;
-
-	// Initialize TLS session
-	gnutls_init (&stream->session, GNUTLS_CLIENT);
-
-	// Use default priorities
-	gnutls_set_default_priority (stream->session);
-	if (anon)
-	{
-		gnutls_kx_set_priority (stream->session, kx_prio);
-		gnutls_credentials_set (stream->session, GNUTLS_CRD_ANON, anoncred);
-	}
-	else
-	{
-		gnutls_certificate_type_set_priority (stream->session, cert_type_priority);
-		gnutls_credentials_set (stream->session, GNUTLS_CRD_CERTIFICATE, xcred);
-	}
-
-	// connect to the peer
-	gnutls_transport_set_ptr (stream->session, (gnutls_transport_ptr) stream->socket);
-
-	// Perform the TLS handshake
-
-
-	ret = GNUTLS_E_AGAIN;
-	while ((ret == GNUTLS_E_AGAIN) || (ret == GNUTLS_E_INTERRUPTED))
-	{
-		ret = gnutls_handshake (stream->session);
-	}
-
-	if (ret < 0)
-	{
-		Con_Printf (CON_ERROR "*** TLS handshake failed (%i)\n", ret);
-		gnutls_perror (ret);
-
-		stream->type = STREAM_SOCKET;	//go back to regular socket
-		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
-
-		return -2;
-	}
-
-	ioctlsocket (stream->socket, FIONBIO, &_true);
-
-
-
 	return 0;
 }
 #endif
@@ -1259,14 +1068,6 @@ void Plug_Net_Close_Internal(int handle)
 		closesocket(pluginstreamarray[handle].socket);
 #endif
 		break;
-	case STREAM_TLS:
-#ifdef GNUTLS
-		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
-		pluginstreamarray[handle].type = STREAM_SOCKET;
-		Plug_Net_Close_Internal(handle);
-		return;
-#endif
-		break;
 	}
 
 	pluginstreamarray[handle].plugin = NULL;
@@ -1300,23 +1101,6 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 		return read;
 #endif
 
-#ifdef GNUTLS
-	case STREAM_TLS:
-		read = gnutls_record_recv(pluginstreamarray[handle].session, dest, destlen);
-		if (read < 0)
-		{
-			if (read == GNUTLS_E_AGAIN || read == -9)
-				return -1;
-			else
-			{
-				Con_Printf("TLS Read Error %i (bufsize %i)\n", read, destlen);
-				return -2;
-			}
-		}
-		else if (read == 0)
-			return -2;	//closed by remote connection.
-		return read;
-#endif
 	case STREAM_VFS:
 		return VFS_READ(pluginstreamarray[handle].vfs, dest, destlen);
 	default:
@@ -1348,23 +1132,6 @@ qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *ar
 		return written;
 #endif
 
-#ifdef GNUTLS
-	case STREAM_TLS:
-		written = gnutls_record_send(pluginstreamarray[handle].session, src, srclen);
-		if (written < 0)
-		{
-			if (written == GNUTLS_E_AGAIN || written == GNUTLS_E_INTERRUPTED)
-				return -1;
-			else
-			{
-				Con_Printf("TLS Send Error %i (%i bytes)\n", written, srclen);
-				return -2;
-			}
-		}
-		else if (written == 0)
-			return -2;	//closed by remote connection.
-		return written;
-#endif
 	case STREAM_VFS:
 		return VFS_WRITE(pluginstreamarray[handle].vfs, src, srclen);
 
@@ -1531,10 +1298,6 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
 		Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
 		Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
-#ifdef GNUTLS
-		if (Init_GNUTLS())
-			Plug_RegisterBuiltin("Net_SetTLSClient",				Plug_Net_SetTLSClient, 0);
-#endif
 #ifdef HAVE_SSL
 		Plug_RegisterBuiltin("Net_SetTLSClient",		Plug_Net_SetTLSClient, 0);
 #endif

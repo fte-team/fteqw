@@ -551,7 +551,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 {
 	int i;
 	HDC				hdc;
-	int				lastmodestate, wwidth, wheight, pleft, ptop, pwidth, pheight;
+	int				wwidth, wheight, pleft, ptop, pwidth, pheight;
 	RECT			rect;
 
 	hdc = GetDC(NULL);
@@ -562,8 +562,6 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		return false;
 	}
 	ReleaseDC(NULL, hdc);
-
-	lastmodestate = modestate;
 
 	WindowRect.top = WindowRect.left = 0;
 
@@ -725,7 +723,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 {
 	int i;
 	HDC				hdc;
-	int				lastmodestate, wwidth, wheight;
+	int				wwidth, wheight;
 	RECT			rect;
 
 	if (leavecurrentmode)	//don't do this with d3d - d3d should set it's own video mode.
@@ -753,7 +751,6 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 		}
 	}
 
-	lastmodestate = modestate;
 	modestate = MS_FULLDIB;
 
 	WindowRect.top = WindowRect.left = 0;
@@ -1755,12 +1752,10 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 ****************************************************************************/
 {
 	static BOOL	sound_active;
-	HWND foregroundwindow;
 
 	if (ActiveApp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
 
-	foregroundwindow = GetForegroundWindow();
 	ActiveApp = fActive;// && (foregroundwindow==mainwindow);
 	Minimized = minimize;
 
@@ -1821,7 +1816,8 @@ LONG WINAPI GLMainWndProc (
     LPARAM  lParam)
 {
     LONG    lRet = 1;
-	int		fActive, fMinimized, temp;
+//	int		fActive, fMinimized;
+	int 	temp;
 	extern unsigned int uiWheelMessage;
 
 	if ( uMsg == uiWheelMessage )
@@ -1991,8 +1987,8 @@ LONG WINAPI GLMainWndProc (
 	        break;
 
 		case WM_ACTIVATE:
-			fActive = LOWORD(wParam);
-			fMinimized = (BOOL) HIWORD(wParam);
+//			fActive = LOWORD(wParam);
+//			fMinimized = (BOOL) HIWORD(wParam);
 //			if (!GLAppActivate(!(fActive == WA_INACTIVE), fMinimized))
 				break;//so, urm, tell me microsoft, what changed?
 			if (modestate == MS_FULLDIB)

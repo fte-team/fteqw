@@ -32,12 +32,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /* Thread creation calls */
 typedef struct threadwrap_s
 {
-	void (*func)(void *);
+	int (*func)(void *);
 	void *args;
 } threadwrap_t;
 
 // the thread call is wrapped so we don't need WINAPI everywhere
-DWORD WINAPI threadwrapper(void *args)
+unsigned int WINAPI threadwrapper(void *args)
 {
 	threadwrap_t tw;
 	tw.func = ((threadwrap_t *)args)->func;
@@ -85,7 +85,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 {
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
 	HANDLE handle;
-	DWORD tid;
+	unsigned int tid;
 
 	if (!tw)
 		return NULL;

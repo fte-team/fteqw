@@ -539,7 +539,14 @@ Direct-Sound support
 */
 static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 {
-	extern cvar_t snd_inactive, snd_eax;
+	extern cvar_t snd_inactive;
+#if _MSC_VER > 1200	//fixme err
+#ifndef MINIMAL
+#ifdef _IKsPropertySet_
+	extern cvar_t snd_eax;
+#endif
+#endif
+#endif
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;

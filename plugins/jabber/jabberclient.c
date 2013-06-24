@@ -746,8 +746,8 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 		jcl->outbufpos += sent;
 		jcl->outbuflen -= sent;
 	}
-	else
-		Con_Printf("Unable to send anything\n");
+//	else
+//		Con_Printf("Unable to send anything\n");
 }
 void JCL_AddClientMessage(jclient_t *jcl, char *msg, int datalen)
 {
@@ -959,6 +959,58 @@ void Base64_Finish(void)
 	base64_cur = 0;
 }
 
+//decode a base64 byte to a 0-63 value. Cannot cope with =.
+static int Base64_DecodeByte(char byt)
+{
+    if (byt >= 'A' && byt <= 'Z')
+        return (byt-'A') + 0;
+    if (byt >= 'a' && byt <= 'z')
+        return (byt-'a') + 26;
+    if (byt >= '0' && byt <= '9')
+        return (byt-'0') + 52;
+    if (byt == '+')
+        return 62;
+    if (byt == '/')
+        return 63;
+    return -1;
+}
+int Base64_Decode(char *out, int outlen, char *src, int srclen)
+{
+	int len = 0;
+	int result;
+
+	//4 input chars give 3 output chars
+	while(srclen >= 4)
+	{
+		if (len+3 > outlen)
+			break;
+		result = Base64_DecodeByte(src[0])<<18;
+		result |= Base64_DecodeByte(src[1])<<12;
+		out[len++] = (result>>16)&0xff;
+		if (src[2] != '=')
+		{
+			result |= Base64_DecodeByte(src[2])<<6;
+			out[len++] = (result>>8)&0xff;
+			if (src[3] != '=')
+			{
+				result |= Base64_DecodeByte(src[3])<<0;
+				out[len++] = (result>>0)&0xff;
+			}
+		}
+		if (result & 0xff000000)
+			return 0;	//some kind of invalid char
+
+		src += 4;
+		srclen -= 4;
+	}
+
+	//some kind of error
+	if (srclen)
+		return 0;
+	
+	return len;
+}
+
 char *TrimResourceFromJid(char *jid)
 {
 	char *slash;
@@ -1088,6 +1140,7 @@ static qboolean JCL_RosterReply(jclient_t *jcl, xmltree_t *tree)
 	if (c)
 	{
 		JCL_RosterUpdate(jcl, c);
+		JCL_GeneratePresence(true);
 		return true;
 	}
 	JCL_GeneratePresence(true);
@@ -1409,51 +1462,136 @@ int JCL_ClientFrame(jclient_t *jcl)
 			}
 			else if ((ot=XML_ChildOfTree(tree, "mechanisms", 0)))
 			{
+				qboolean canplain = false;
+//				qboolean canmd5 = false;
+//				qboolean canscramsha1 = false;
+//				qboolean canxoath2 = false;
+
 				for(ot = ot->child; ot; ot = ot->sibling)
 				{
 					if (!strcmp(ot->body, "PLAIN"))
-					{
-						char msg[2048];
-						if (!jclient->issecure && !pCvar_GetFloat("xmpp_allowplainauth"))	//probably don't send plain without tls.
-						{
-							//plain can still be read with man-in-the-middle attacks, of course, even with tls if the certificate is spoofed.
-							Con_Printf("Ignoring auth \'%s\'\n", ot->body);
-							continue;
-						}
-						Con_Printf("Authing with \'%s\'%s\n", ot->body, jclient->issecure?" over tls/ssl":"");
-						
-//						Base64_Add(jclient->username, strlen(jcl->username));
-//						Base64_Add("@", 1);
-//						Base64_Add(jclient->domain, strlen(jcl->domain));
-						Base64_Add("", 1);
-						Base64_Add(jclient->username, strlen(jcl->username));
-						Base64_Add("", 1);
-						Base64_Add(jcl->password, strlen(jcl->password));
-						Base64_Finish();
-						Q_snprintf(msg, sizeof(msg), "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>%s</auth>", base64);
-						JCL_AddClientMessageString(jcl, msg);
-//						JCL_AddClientMessageString(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>");
-//						JCL_AddClientMessageString(jcl, base64);
-//						JCL_AddClientMessageString(jcl, "</auth>");
-						unparsable = false;
-						break;
-					}
-					else
-						Con_Printf("Unable to use auth method \'%s\'\n", ot->body);
+						canplain = true;
+//					else if (!strcmp(ot->body, "SCRAM-SHA-1"))
+//						cansha1 = true;
+//					else if (!strcmp(ot->body, "DIGEST-MD5"))
+//						canmd5 = true;
+//					else if (!strcmp(ot->body, "X-OAUTH2"))
+//						canxoath2 = true;
+//					else
+//						Con_Printf("Unknown auth method \'%s\'\n", ot->body);
 				}
-				if (!ot)
+/*
+				if (canscramsha1)
 				{
-					Con_Printf("JCL: No suitable auth methods\n");
-					unparsable = true;
+					Con_Printf("Using scram-sha-1%s\n", jclient->issecure?" over tls/ssl":"");
+					strcpy(jcl->authnonce, "abcdefghijklmnopqrstuvwxyz");	//FIXME: should be random
+					Base64_Add("n,,n=", 5);
+					Base64_Add(jclient->username, strlen(jcl->username));
+					Base64_Add(",r=", 3);
+					Base64_Add(jcl->authnonce, strlen(jcl->authnonce));	//must be random ascii.
+					Base64_Finish();
+					JCL_AddClientMessagef(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='SCRAM-SHA-1'>%s</auth>", base64);
+					unparsable = false;
+				}
+				else
+*/
+				if (canplain && (jclient->issecure || pCvar_GetFloat("xmpp_allowplainauth")))
+				{
+					//plain can still be read with man-in-the-middle attacks, of course, even with tls if the certificate is spoofed, so this should always be the lowest priority.
+					//we just hope that the tls certificate cannot be spoofed.
+					Con_Printf("Using plain auth%s\n", jclient->issecure?" over tls/ssl":"");
+					
+					Base64_Add("", 1);
+					Base64_Add(jclient->username, strlen(jcl->username));
+					Base64_Add("", 1);
+					Base64_Add(jcl->password, strlen(jcl->password));
+					Base64_Finish();
+					JCL_AddClientMessagef(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>%s</auth>", base64);
+					unparsable = false;
+				}
+				else
+				{
+					Con_Printf("XMPP: No suitable auth methods. Unable to connect.\n");
+					XML_ConPrintTree(tree, 0);
+					XML_Destroy(tree);
+            		return JCL_KILL;
 				}
 			}
 			else	//we cannot auth, no suitable method.
 			{
-				Con_Printf("JCL: Neither SASL or TLS are usable\n");
-				unparsable = true;
+				Con_Printf("XMPP: Neither SASL or TLS are usable\n");
+				XML_Destroy(tree);
+            	return JCL_KILL;
 			}
 		}
 	}
+/*
+	else if (!strcmp(tree->name, "challenge") && !strcmp(tree->xmlns, "urn:ietf:params:xml:ns:xmpp-sasl"))
+	{
+		//sasl SCRAM-SHA-1 challenge
+		//send back the same 'r' attribute
+		buf saslchal;
+		int l, i;
+		buf salt;
+		buf csn;
+		buf itr;
+		buf final;
+		buf sigkey;
+		char salted_password[20];
+		char proof[20];
+		char proof64[30];
+		char clientkey[20];
+		char storedkey[20];
+
+		void hmacsha1(char *out, char *key, int keysize, char *data, int datalen);
+		void Hi(char *out, char *password, buf salt, int i);
+
+		saslchal.len = Base64_Decode(saslchal.buf, sizeof(saslchal.buf), tree->body, strlen(tree->body));
+		//be warned, these CAN contain nulls.
+		csn = saslattr(&saslchal, 'r');
+		salt = saslattr(&saslchal, 's');
+		itr = saslattr(&saslchal, 'i');
+		
+
+		//this is the first part of the message we're about to send, with no proof.
+		//c(channel) is mandatory but nulled and forms part of the hash
+		final.len = 0;
+		buf_cat(&final, "c=", 2);
+		Base64_Add("n,,", 3));
+		Base64_Finish();
+		final.cat(&final, base64, strlen(base64));
+		final.cat(&final, "r=", 2);
+		final.cat(&final, csn.buf, csn.len);
+
+		//our original message + ',' + challenge + ',' + the message we're about to send.
+		sigkey.len = 0;
+		buf_cat(&sigkey, "n,,n=", 5);
+		buf_cat(&sigkey, jcl->username, strlen(jcl->username));
+		buf_cat(&sigkey, "r=", 2);
+		buf_cat(&sigkey, jcl->authnonce, strlen(jcl->authnonce));
+		buf_cat(&sigkey, ",", 1);
+		buf_cat(&sigkey, saslchal.buf, saslchal.len);
+		buf_cat(&sigkey, ",", 1);
+		buf_cat(&sigkey, final.buf, final.len);
+
+		Hi(salted_password, password, salt, atoi(itr));
+		hmacsha1(clientkey, salted_password, sizeof(salted_password), "Client Key", strlen("Client Key"));
+		storedkey = sha1(clientkey, sizeof(clientkey));
+		hmacsha1(clientsignature, storedkey, sizeof(storedkey), sigkey.buf, sigkey.len);
+
+		for (i = 0; i < sizeof(proof); i++)
+			proof[i] = clientkey[i] ^ clientsignature[i];
+
+		Base64_Add(proof, sizeof(proof));
+		Base64_Finish();
+		strcpy(proof64, base64);
+		Base64_Add(final, buflen(final));
+		Base64_Add(",p=", 3);
+		Base64_Add(proof64, strlen(proof64));
+		Base64_Finish();
+		JCL_AddClientMessagef(jcl, "<response xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>%s</response>", base64);
+	}
+*/
 	else if (!strcmp(tree->name, "proceed"))
 	{
 		//switch to TLS, if we can
@@ -1919,7 +2057,7 @@ void JCL_GeneratePresence(qboolean force)
 	{
 		char caps[256];
 		Q_strlcpy(jclient->curquakeserver, *servermap?servermap:serveraddr, sizeof(jclient->curquakeserver));
-
+Con_Printf("Sending presence %s\n", jclient->curquakeserver);
 		//note: ext='voice-v1 camera-v1 video-v1' is some legacy nonsense, and is required for voice calls with googletalk clients or something stupid like that
 		Q_snprintf(caps, sizeof(caps), "<c xmlns='http://jabber.org/protocol/caps' hash='sha-1' node='http://fteqw.com/ftexmppplugin' ver='%s'/>", buildcapshash());
 

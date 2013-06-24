@@ -590,6 +590,7 @@ COMMON_OBJS = \
 	cvar.o 		\
 	cmd.o 		\
 	crc.o 		\
+	net_ssl_gnutls.o \
 	fs.o			\
 	fs_stdio.o		\
 	fs_pak.o		\
@@ -1587,20 +1588,17 @@ ifndef ARCH
 else
 	mkdir -p libs-$(ARCH)
 	test -f jpegsrc.v9.tar.gz || wget http://www.ijg.org/files/jpegsrc.v9.tar.gz
-	test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v9.tar.gz && cd jpeg-9 && ./configure -host=$(ARCH) && $(MAKE) && cp .libs/libjpeg.a ../ && $(ARCH)-ar -s ../libjpeg.a )
+	-test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v9.tar.gz && cd jpeg-9 && ./configure -host=$(ARCH) && $(MAKE) && cp .libs/libjpeg.a ../ && $(ARCH)-ar -s ../libjpeg.a )
 	
 	test -f zlib-1.2.8.tar.gz || wget http://zlib.net/zlib-1.2.8.tar.gz
-	test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-1.2.8.tar.gz && cd zlib-1.2.8 && CC="$(CC) $(W32_CFLAGS)" ./configure --static && $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS)" && cp libz.a ../ && $(ARCH)-ar -s ../libz.a )
+	-test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-1.2.8.tar.gz && cd zlib-1.2.8 && CC="$(CC) $(W32_CFLAGS)" ./configure --static && $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS)" && cp libz.a ../ && $(ARCH)-ar -s ../libz.a )
 	
 	test -f libpng-1.6.2.tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-1.6.2.tar.gz?download -O libpng-1.6.2.tar.gz
-	test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-1.6.2.tar.gz && cd libpng-1.6.2 && ./configure -host=$(ARCH) && $(MAKE) && cp .libs/libpng16.a ../libpng.a )
+	-test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-1.6.2.tar.gz && cd libpng-1.6.2 && ./configure -host=$(ARCH) CFLAGS=-I$(realpath libs-$(ARCH)/zlib-1.2.8/) LDFLAGS=-L$(realpath libs-$(ARCH)) && $(MAKE) && cp .libs/libpng16.a ../libpng.a )
 	
 	test -f libogg-1.3.0.tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-1.3.0.tar.gz
-	test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-1.3.0.tar.gz && cd libogg-1.3.0 && ./configure -host=$(ARCH) && $(MAKE) && cp src/.libs/libogg.a ../ && $(ARCH)-ar -s ../libogg.a)
+	-test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-1.3.0.tar.gz && cd libogg-1.3.0 && ./configure -host=$(ARCH) && $(MAKE) && cp src/.libs/libogg.a ../ && $(ARCH)-ar -s ../libogg.a)
 
 	test -f libvorbis-1.3.3.tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.3.tar.gz
-	test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-1.3.3.tar.gz && cd libvorbis-1.3.3 && ./configure -host=$(ARCH) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(realpath libs-$(ARCH)/libogg-1.3.0/include) && $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
-
-
-
+	-test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-1.3.3.tar.gz && cd libvorbis-1.3.3 && ./configure PKG_CONFIG= -host=$(ARCH) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(realpath libs-$(ARCH)/libogg-1.3.0/include) && $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
 endif

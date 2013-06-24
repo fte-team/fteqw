@@ -32,7 +32,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 //
 // memory protection
 //
-void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length);
+void Sys_MakeCodeWriteable (void * startaddr, unsigned long length);
 
 //
 // system IO

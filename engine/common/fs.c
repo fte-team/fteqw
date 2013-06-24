@@ -3643,7 +3643,7 @@ void COM_InitFilesystem (void)
 				{
 					// on XP systems, only use a home directory by default if we're a limited user or if we're on a network
 					BOOL isadmin, isonnetwork;
-					SID_IDENTIFIER_AUTHORITY ntauth = SECURITY_NT_AUTHORITY;
+					SID_IDENTIFIER_AUTHORITY ntauth = {SECURITY_NT_AUTHORITY};
 					PSID adminSID, networkSID;
 
 					isadmin = AllocateAndInitializeSid(&ntauth,

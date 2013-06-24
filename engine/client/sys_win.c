@@ -526,7 +526,7 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;
@@ -632,7 +632,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 
 	return go;
 }
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, void *spath), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	char fullmatch[MAX_OSPATH];
 	int start;
@@ -661,12 +661,13 @@ SYSTEM IO
 Sys_MakeCodeWriteable
 ================
 */
-void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
+#if 0
+void Sys_MakeCodeWriteable (void *startaddr, unsigned long length)
 {
 	DWORD  flOldProtect;
 
 //@@@ copy on write or just read-write?
-	if (!VirtualProtect((LPVOID)startaddr, length, PAGE_EXECUTE_READWRITE, &flOldProtect))
+	if (!VirtualProtect(startaddr, length, PAGE_EXECUTE_READWRITE, &flOldProtect))
 	{
 		char str[1024];
 
@@ -680,6 +681,7 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 		Sys_Error("Protection change failed!\nError %d: %s\n", (int)GetLastError(), str);
 	}
 }
+#endif
 
 void Sys_DoFileAssociations(qboolean elevated);
 void Sys_Register_File_Associations_f(void)
@@ -1329,7 +1331,7 @@ void Sys_SendKeyEvents (void)
 							sys_parenttop = strtoul(Cmd_Argv(2), NULL, 0);
 							sys_parentwidth = strtoul(Cmd_Argv(3), NULL, 0);
 							sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
-							sys_parentwindow = (HWND)strtoul(Cmd_Argv(5), NULL, 16);
+							sys_parentwindow = (HWND)(intptr_t)strtoull(Cmd_Argv(5), NULL, 16);
 						}
 						Cmd_ExecuteString(text, RESTRICT_LOCAL);
 						memmove(text, nl, textpos - (nl - text));
@@ -1665,7 +1667,7 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
 
 
-	hr = IShellLinkW_QueryInterface(link, &qIID_IPropertyStore, &prop_store);
+	hr = IShellLinkW_QueryInterface(link, &qIID_IPropertyStore, (void**)&prop_store);
 
 	if(SUCCEEDED(hr))
 	{
@@ -1734,7 +1736,7 @@ void Win7_TaskListInit(void)
 	{
 		UINT minslots;
 		IUnknown *removed;
-		cdl->lpVtbl->BeginList(cdl, &minslots, &qIID_IObjectArray, &removed);
+		cdl->lpVtbl->BeginList(cdl, &minslots, &qIID_IObjectArray, (void**)&removed);
 
 		if (SUCCEEDED(CoCreateInstance(&qCLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER, &qIID_IObjectCollection, (void**)&col)))
 		{
@@ -1785,7 +1787,7 @@ void Win7_TaskListInit(void)
 				break;
 			}
 
-			if (SUCCEEDED(col->lpVtbl->QueryInterface(col, &qIID_IObjectArray, &arr)))
+			if (SUCCEEDED(col->lpVtbl->QueryInterface(col, &qIID_IObjectArray, (void**)&arr)))
 			{
 				cdl->lpVtbl->AddUserTasks(cdl, arr);
 				arr->lpVtbl->Release(arr);
@@ -1852,12 +1854,13 @@ int MyRegGetIntValue(HKEY base, char *keyname, char *valuename, int defaultval)
 qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
 {
 	qboolean result = false;
-	DWORD resultlen = datalen - 1;
 	HKEY subkey;
 	DWORD type = REG_NONE;
 	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
-		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
+		DWORD dwlen;
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
+		datalen = dwlen;
 		RegCloseKey (subkey);
 	}
 
@@ -1951,6 +1954,7 @@ static void	Update_CreatePath (char *path)
 	}
 }
 
+#include "fs.h"
 void Update_Version_Updated(struct dl_download *dl)
 {
 	//happens in a thread, avoid va
@@ -2067,7 +2071,7 @@ qboolean Sys_CheckUpdated(void)
 		if (*updatedpath)
 		{
 			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
-			if (CreateProcess(updatedpath, va("\"%s\" %s --fromfrontend \"%s\" \"%s\" %s", frontendpath, COM_Parse(GetCommandLineA()), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+			if (CreateProcess(updatedpath, va("\"%s\" %s --fromfrontend \"%s\" \"%s\"", frontendpath, COM_Parse(GetCommandLineA()), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
 	}
@@ -2139,7 +2143,7 @@ void Sys_DoFileAssociations(qboolean elevated)
 #define ASSOCV "1"
 
 	//register the basic demo class
-	Q_snprintfz(command, sizeof(command), "Quake or QuakeWorld Demo", com_argv[0]);
+	Q_snprintfz(command, sizeof(command), "Quake or QuakeWorld Demo");
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV, "", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
@@ -2147,7 +2151,7 @@ void Sys_DoFileAssociations(qboolean elevated)
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
 
 	//register the basic map class. yeah, the command is the same as for demos. but the description is different!
-	Q_snprintfz(command, sizeof(command), "Quake Map", com_argv[0]);
+	Q_snprintfz(command, sizeof(command), "Quake Map");
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV, "", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
@@ -2166,23 +2170,23 @@ void Sys_DoFileAssociations(qboolean elevated)
 	//try to get ourselves listed in windows' 'default programs' ui.
 	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME);
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationName", REG_SZ, command, strlen(command));
-	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games.", com_argv[0]);
+	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games.");
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationDescription", REG_SZ, command, strlen(command));
 
-	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_DemoFile.1", com_argv[0]);
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_DemoFile.1");
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".qtv", REG_SZ, command, strlen(command));
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".mvd", REG_SZ, command, strlen(command));
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".qwd", REG_SZ, command, strlen(command));
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".dem", REG_SZ, command, strlen(command));
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".dm2", REG_SZ, command, strlen(command));
 
-	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_BSPFile.1", com_argv[0]);
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_BSPFile.1");
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".bsp", REG_SZ, command, strlen(command));
 
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".fmf", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\MIMEAssociations", "application/x-ftemanifest", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
 
-	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_Server.1", com_argv[0]);
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_Server.1");
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\UrlAssociations", "qw", REG_SZ, command, strlen(command));
 	
 	Q_snprintfz(command, sizeof(command), "Software\\"FULLENGINENAME"\\Capabilities");
@@ -2193,7 +2197,7 @@ void Sys_DoFileAssociations(qboolean elevated)
 	if (!ok && elevated < 2)
 	{
 		HINSTANCE ch = ShellExecute(mainwindow, "runas", com_argv[0], va("-register_types %i", elevated+1), NULL, SW_SHOWNORMAL);
-		if ((int)ch <= 32)
+		if ((intptr_t)ch <= 32)
 			Sys_DoFileAssociations(2);
 		return;
 	}

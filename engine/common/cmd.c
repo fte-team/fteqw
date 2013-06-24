@@ -2984,7 +2984,7 @@ static char *Macro_USDate (void)	//and much but not all of EU
 	ptm = localtime (&t);
 	if (!ptm)
 		return "#bad date#";
-	strftime (macro_buf, sizeof(macro_buf)-1, "%m.%s.%Y", ptm);
+	strftime (macro_buf, sizeof(macro_buf)-1, "%m.%d.%Y", ptm);
 	return macro_buf;
 }
 static char *Macro_ProperDate (void)	//americans get it wrong. besides, this is more easily sortable for filenames etc

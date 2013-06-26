@@ -3862,18 +3862,22 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	if (QCC_PR_CheckToken ("."))
 	{
 		newt = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
-		newt->aux_type = QCC_PR_ParseType (false, false);
 
-		newt->size = newt->aux_type->size;
+		//.float *foo; is annoying.
+		//technically it is a pointer to a .float
+		//most people will want a .(float*) foo;
+		//so .*float will give you that.
+		//however, we can't cope parsing that with regular types, so we support that ONLY when . was already specified.
+		//this is pretty much an evil syntax hack.
+		if (QCC_PR_CheckToken ("*"))
+		{
+			newt->aux_type = QCC_PR_NewType("POINTER TYPE", ev_pointer, false);
+			newt->aux_type->aux_type = QCC_PR_ParseType (false, false);
 
-		if (newtype)
-			return newt;
-		return QCC_PR_FindType (newt);
-	}
-	if (QCC_PR_CheckToken ("*"))
-	{
-		newt = QCC_PR_NewType("POINTER TYPE", ev_pointer, false);
-		newt->aux_type = QCC_PR_ParseType (false, false);
+			newt->aux_type->size = newt->aux_type->aux_type->size;
+		}
+		else
+			newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
 

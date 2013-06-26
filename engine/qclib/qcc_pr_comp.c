@@ -4818,8 +4818,8 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 				else
 					idx = tmp;
 			}
-			t = t->params[i].type;
 			arraysize = t->params[i].arraysize;
+			t = t->params[i].type;
 		}
 		else
 			break;

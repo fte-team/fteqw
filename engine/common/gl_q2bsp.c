@@ -210,7 +210,7 @@ typedef struct q2mapsurface_s  // used internally due to name len probs //ZOID
 
 
 typedef struct {
-	char		shader[MAX_QPATH];
+	char		shader[64];
 	int			brushNum;
 	int			visibleSide;	// the brush side that ray tests need to clip against (-1 == none)
 } dfog_t;
@@ -3927,7 +3927,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 					loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
 			}
 
-			if (loadmodel->fromgame == fg_quake3)
+			if (noerrors && loadmodel->fromgame == fg_quake3)
 			{
 				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (loadmodel->lightmaps.width*loadmodel->lightmaps.height*3);
 				loadmodel->lightmaps.deluxemapping = !(i&1);

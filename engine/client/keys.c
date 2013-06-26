@@ -947,26 +947,12 @@ void Key_Console (unsigned int unicode, int key)
 		ypos = (int)((mousecursor_y*vid.height)/(vid.pixelheight*8));
 		con_mousedown[0] = mousecursor_x;
 		con_mousedown[1] = mousecursor_y;
-		if (ypos == 0 && con_main.next)
+		if (ypos == 0 && con_mouseover)
 		{
-			console_t *con;
-			for (con = &con_main; con; con = con->next)
-			{
-				if (con == &con_main)
-					xpos -= 5;
-				else
-					xpos -= strlen(con->name)+1;
-				if (xpos == -1)
-					break;
-				if (xpos < 0)
-				{
-					if (key == K_MOUSE2)
-						Con_Destroy (con);
-					else
-						con_current = con;
-					break;
-				}
-			}
+			if (key == K_MOUSE2)
+				Con_Destroy (con_mouseover);
+			else
+				con_current = con_mouseover;
 		}
 		else if (key == K_MOUSE2)
 			con_mousedown[2] = 2;

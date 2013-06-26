@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 console_t	con_main;
 console_t	*con_current;		// points to whatever is the visible console
+console_t	*con_mouseover;		// points to whichever console's title is currently mouseovered, or null
 console_t	*con_chat;			// points to a chat console
 conline_t *con_footerline;	//temp text at the bottom of the console
 
@@ -116,6 +117,8 @@ void Con_Destroy (console_t *con)
 			Con_Finit(con);
 		return;
 	}
+
+	con_mouseover = NULL;
 
 	for (prev = &con_main; prev->next; prev = prev->next)
 	{
@@ -1411,9 +1414,12 @@ static int Con_DrawProgress(int left, int right, int y)
 int Con_DrawAlternateConsoles(int lines)
 {
 	char *txt;
-	int x, y = 0;
+	int x, y = 0, lx;
 	int consshown = 0;
-	console_t *con = &con_main;
+	console_t *con = &con_main, *om = con_mouseover;
+	conchar_t buffer[512], *end, *start;
+
+	con_mouseover = NULL;
 
 	for (con = &con_main; con; con = con->next)
 	{
@@ -1423,6 +1429,10 @@ int Con_DrawAlternateConsoles(int lines)
 
 	if (lines == scr_conlines && consshown > 1) 
 	{
+		int mx, my, h;
+		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &mx, &my);
+		Font_BeginString(font_conchar, 0, y, &x, &y);
+		h = Font_CharHeight();
 		for (x = 0, con = &con_main; con; con = con->next)
 		{
 			if (con->flags & CONF_HIDDEN)
@@ -1432,15 +1442,33 @@ int Con_DrawAlternateConsoles(int lines)
 			else
 				txt = con->name;
 
-			if (x != 0 && x+(strlen(txt)+1)*8 > vid.width)
+			//yeah, om is an evil 1-frame delay. whatever
+			end = COM_ParseFunString(CON_WHITEMASK, va("^&%c%i%s", ((con!=om)?'F':'B'), (con==con_current)+con->unseentext*4, txt), buffer, sizeof(buffer), false);
+
+			lx = 0;
+			for (lx = x, start = buffer; start < end; start++)
+			{
+				lx = Font_CharEndCoord(font_conchar, lx, *start);
+			}
+			if (lx > Font_ScreenWidth())
 			{
 				x = 0;
-				y += 8;
+				y += h;
 			}
-			Draw_FunString(x, y, va("^&F%i%s", (con==con_current)+con->unseentext*4, txt));
-			x+=(strlen(txt)+1)*8;
+			for (lx = x, start = buffer; start < end; start++)
+			{
+				Font_DrawChar(lx, y, *start);
+				lx = Font_CharEndCoord(font_conchar, lx, *start);
+			}
+			lx += 8;
+			if (mx >= x && mx < lx && my >= y && my < y+h)
+				con_mouseover = con;
+			x = lx;
 		}
-		y += 8;
+		y+= h;
+		Font_EndString(font_conchar);
+
+		y = (y*(int)vid.height) / (float)vid.rotpixelheight;
 	}
 	return y;
 }

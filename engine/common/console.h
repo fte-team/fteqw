@@ -137,6 +137,7 @@ typedef struct console_s
 
 extern	console_t	con_main;
 extern	console_t	*con_current;			// point to either con_main or con_chat
+extern	console_t	*con_mouseover;
 extern	console_t	*con_chat;
 
 //shared between console and keys.

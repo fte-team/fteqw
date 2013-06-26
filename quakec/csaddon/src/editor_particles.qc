@@ -406,5 +406,5 @@ void(vector mousepos) editor_particles_overlay =
 		y_y += 8;
 	}
 
-	textfield_draw('128 32 0', &tf_particle, &fields);
+	textfield_draw('128 32 0', &tf_particle, fields);
 };

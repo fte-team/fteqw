@@ -6,6 +6,7 @@ csfixups.qc
 
 editor_lights.qc
 editor_terrain.qc
+editor_ents.qc
 textfield.qc
 editor_particles.qc
 menu.qc

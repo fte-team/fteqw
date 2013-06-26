@@ -668,7 +668,7 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 	local spline_t *s;
 	local int ri;
 	local string str;
-	float min, sec;
+	local float minv, sec;
 
 	if (splinefile < 0)
 		spline_init();
@@ -691,7 +691,7 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 		drawrawstring(v, str, '8 8 0', '1 0 0', 1);
 	else
 		drawrawstring(v, str, '8 8 0', '1 1 1', 1);
-	ri += strlen(str) + 1i;
+	ri += (int)(strlen(str) + 1);
 	v_x += 4 + strlen(str) * 8;
 
 	menu->flags = MF_DS_VALUE;
@@ -704,8 +704,8 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 
 	v_y += 8;
 	sec = time;
-	min = floor(sec/60);
-	sec -= min*60;
+	minv = floor(sec/60);
+	sec -= minv*60;
 	drawrawstring(v, sprintf("time: %g:%02.0f", min, sec), '8 8 0', '1 1 1', 1);
 
 	submenu_position = pos + '0 8';

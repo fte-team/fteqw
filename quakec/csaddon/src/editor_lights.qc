@@ -41,7 +41,7 @@ void() editor_lights_add =
 
 #define NUMLFIELDS 14
 #define NUMCMDS 7
-static string fldname[NUMLFIELDS+1+NUMCMDS] = {	"bad",
+static var string fldname[NUMLFIELDS+1+NUMCMDS] = {	"bad",
 	"  num",
 	"  org",
 	"  rgb",
@@ -74,7 +74,7 @@ static string(int fld, float foredit) readfield =
 			return ftos(selectedlight);
 		return strcat(ftos(selectedlight), " / ", ftos(dynamiclight_get(-1f, -1f)));
 	case 2:
-		return vtos(dynamiclight_get(selectedlight, LFIELD_ORIGIN));
+		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_ORIGIN));
 	case 3:
 		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_COLOUR));
 	case 4:
@@ -249,6 +249,7 @@ static void(vector fwd, vector vorg) selectbestlight =
 	float l, b=selectedlight, d, bd;
 	vector ldir;
 	l = dynamiclight_get(-1f, -1f);
+	bd = 0;
 	while(l > 0)
 	{
 		l--;

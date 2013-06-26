@@ -6,7 +6,12 @@ enum
 	MODE_SPLINEEDIT=2,
 	MODE_TERRAINEDIT=3,
 	MODE_PARTICLEEDIT=4,
+	MODE_ENTSEDIT=5,
+
+	MODE_COUNT=5
 };
+
+string editornames[] = {"LIGHTS", "SPLINES", "TERRAIN", "PARTICLES", "ENTITIES"};
 
 float autocvar_ca_show;
 var float autocvar_ca_editormode = MODE_LIGHTEDIT;
@@ -29,6 +34,7 @@ void() wrap_renderscene =
 {
 	local int retval;
 	vector col;
+	local float i;
 
 	vidsize = getproperty(VF_SCREENVSIZE);
 
@@ -100,6 +106,8 @@ void() wrap_renderscene =
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_add();
+	else if (autocvar_ca_editormode == MODE_ENTSEDIT)
+		editor_ents_add();
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 		editor_spline_add();
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
@@ -107,39 +115,17 @@ void() wrap_renderscene =
 
 	renderscene();
 
-	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
-		col = '1 0 0';
-	else if (curmousepos_y < 8 && curmousepos_x >= 64*(MODE_LIGHTEDIT-1) && curmousepos_x < 64*MODE_LIGHTEDIT)
-		col = '0 0 1';
-	else
-		col = '1 1 1';
-	drawrawstring('64 0 0'*(MODE_LIGHTEDIT-1), "LIGHTS", '8 8 0', col, 1);
+	for (i = 0; i < MODE_COUNT; i++)
+	{
+		if (autocvar_ca_editormode == i+1)
+			col = '1 0 0';
+		else if (curmousepos_y < 8 && curmousepos_x >= 64*(i) && curmousepos_x < 64*(i+1))
+			col = '0 0 1';
+		else
+			col = '1 1 1';
+		drawrawstring('64 0 0'*i, editornames[i], '8 8 0', col, 1);
 
-	if (autocvar_ca_editormode == MODE_SPLINEEDIT)
-		col = '1 0 0';
-	else if (curmousepos_y < 8 && curmousepos_x >= 64*(MODE_SPLINEEDIT-1) && curmousepos_x < 64*MODE_SPLINEEDIT)
-		col = '0 0 1';
-	else
-		col = '1 1 1';
-	drawrawstring('64 0 0'*(MODE_SPLINEEDIT-1), "SPLINES", '8 8 0', col, 1);
-
-	if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
-		col = '1 0 0';
-	else if (curmousepos_y < 8 && curmousepos_x >= 64*(MODE_PARTICLEEDIT-1) && curmousepos_x < 64*MODE_PARTICLEEDIT)
-		col = '0 0 1';
-	else
-		col = '1 1 1';
-	drawrawstring('64 0 0'*(MODE_PARTICLEEDIT-1), "PARTICLES", '8 8 0', col, 1);
-
-	if (autocvar_ca_editormode == MODE_TERRAINEDIT)
-		col = '1 0 0';
-	else if (curmousepos_y < 8 && curmousepos_x >= 64*(MODE_TERRAINEDIT-1) && curmousepos_x < 64*MODE_TERRAINEDIT)
-		col = '0 0 1';
-	else
-		col = '1 1 1';
-	drawrawstring('64 0 0'*(MODE_TERRAINEDIT-1), "TERRAIN", '8 8 0', col, 1);
-
-
+	}
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_overlay(curmousepos);
@@ -153,6 +139,8 @@ void() wrap_renderscene =
 		editor_particles_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
 		editor_terrain_overlay(curmousepos);
+	else if (autocvar_ca_editormode == MODE_ENTSEDIT)
+		editor_ents_overlay(curmousepos);
 
 	drawcharacter(curmousepos - '4 4', '+', '8 8', '1 1 1', 1);
 };
@@ -257,7 +245,19 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 	if (orig_input_event)
 		return orig_input_event(event, parama, paramb);
 	return FALSE;
-}
+};
+
+
+void(float mask) wrap_addentities =
+{
+	if (autocvar_ca_show)
+	{
+		mask = mask - (mask & MASK_VIEWMODEL);
+		if (autocvar_ca_editormode == MODE_ENTSEDIT)
+			mask = 0;
+	}
+	addentities(mask);
+};
 
 
 
@@ -267,7 +267,7 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	clearscene();
 	setproperty(VF_DRAWENGINESBAR, 1);
 	setproperty(VF_DRAWCROSSHAIR, 1);
-	addentities(intermission?MASK_ENGINE:(MASK_VIEWMODEL|MASK_ENGINE));
+	wrap_addentities(intermission?MASK_ENGINE:(MASK_VIEWMODEL|MASK_ENGINE));
 	wrap_renderscene();
 };
 
@@ -386,7 +386,7 @@ float(string txt, string info) CSQC_ConsoleLink =
 */
 
 /*this is a fallback function, in case the main progs does not have one*/
-float (float event, float parama, float paramb) CSQC_InputEvent =
+float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
 {
 	return wrap_InputEvent(event, parama, paramb);
 };
@@ -399,12 +399,18 @@ void(float prevprogs) init =
 	{
 		/*its easy to wrap a builtin*/
 		externset(0, wrap_renderscene, "renderscene");
+		externset(0, wrap_addentities, "addentities");
 
 		/*wrap the parent's input event function*/
 		orig_input_event = externvalue(0, "CSQC_InputEvent");
 		externset(0, wrap_InputEvent, "CSQC_InputEvent");
 	}
 	csfixups();
+	localcmd(sprintf("alias rtlight_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_LIGHTEDIT));
+	localcmd(sprintf("alias camquake_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_SPLINEEDIT));
+	localcmd(sprintf("alias terrain_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_TERRAINEDIT));
+	localcmd(sprintf("alias r_part_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_PARTICLEEDIT));
+	localcmd(sprintf("alias entities_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_ENTSEDIT));
 };
 
 void() CSQC_Shutdown =

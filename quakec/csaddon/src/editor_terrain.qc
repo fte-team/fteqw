@@ -1,25 +1,24 @@
 enum
 {
-	ter_reload = 0,			//reload the entire thing
-	ter_save = 1,			//save the entire heightmap
-	ter_sethole = 2,
-	ter_height_set = 3,		//set heights to a specific value
-	ter_height_smooth = 4,	//smooth the heights slightly (non-destructive)
-	ter_height_spread = 5,	//smooth the heights slightly (leaves center as-is)
-	ter_height_raise = 6,		//raise the terrain in a bell (negative value to lower)
-	ter_height_lower = 7,		//lower the terrain in a bell (negative value to raise)
-	ter_tex_kill = 8,		//set section texture
-	ter_tex_get = 9,		//get section texture
-	ter_mixpaint = 10,		//paint a specific texture
-	ter_mixconcentrate = 11,	//figure out which is the strongest mixed texture and make it stronger
-	ter_mixnoise = 12,		//add random noise to the affected samples
-	ter_mixblur = 13,		//blur the texture mixture
-	ter_water_set = 14,		//lower the terrain in a bell (negative value to raise)
-	ter_mesh_add = 15,		//add a mesh
-	ter_mesh_kill = 16,		//remove meshes within the radius
-	ter_tint = 17,			//pants new colour modifiers/tints
-	ter_height_flatten,		//smooth the heights slightly (non-destructive), such that the middle becomes flatter faster than the edges
-
+	ter_reload,		//reload the entire thing
+	ter_save,			//save the entire heightmap
+	ter_sethole,		//punch a hole in the terrain
+	ter_height_set,		//set heights to a specific value
+	ter_height_smooth,	//smooth the heights slightly (non-destructive)
+	ter_height_spread,	//smooth the heights slightly (leaves center as-is)
+	ter_height_flatten,	//smooth the heights slightly (non-destructive), such that the middle becomes flatter faster than the edges
+	ter_height_raise,	//raise the terrain in a bell (negative value to lower)
+	ter_height_lower,	//lower the terrain in a bell (negative value to raise)
+	ter_tex_kill,		//set section texture
+	ter_tex_get,		//get section texture
+	ter_mixpaint,		//paint a specific texture
+	ter_mixconcentrate,	//figure out which is the strongest mixed texture and make it stronger
+	ter_mixnoise,		//add random noise to the affected samples
+	ter_mixblur,		//blur the texture mixture
+	ter_water_set,		//lower the terrain in a bell (negative value to raise)
+	ter_mesh_add,		//add a mesh
+	ter_mesh_kill,		//remove meshes within the radius
+	ter_tint,			//pants new colour modifiers/tints
 	ter_blank,
 	ter_radius,
 	ter_quant,
@@ -35,10 +34,13 @@ static var float epercent = 40;
 static string tex[8];
 static var string tint[8] = {"1 1 1", "1.2 0.9 0.9", "0 1 0"};
 static string meshname;
-static float curtool;
+static var float curtool = ter_blank;
 static int painttex;
 static float mautorepeattime;
 static entity tempent;
+static var float texturesearch = -1;
+static float texturesearchfirst;
+static string texturesearchhighlighted;
 
 float autocvar_mod_terrain_networked;
 
@@ -53,6 +55,7 @@ static string toolname[ter_count] =
 	"height set",
 	"height smooth",
 	"height spread",
+	"height flatten",
 	"height raise",
 	"height lower",
 	"tex kill",
@@ -90,92 +93,122 @@ void(vector m) editor_do =
 	switch(curtool)
 	{
 	case ter_reload:
+		mautorepeattime = 0;	//don't autorepeat that...
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "f", TEREDIT_RELOAD);
+		else if (!(float)terrain_edit(TEREDIT_RELOAD))
+			print("Unable to reload terrain.\n");
+		else
+			print("Terrain changes discarded.\n");
+		break;
 	case ter_save:
 		mautorepeattime = 0;	//don't autorepeat that...
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "f", curtool);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "f", TEREDIT_SAVE);
 		else
-		{
-			if (curtool == ter_save)
-				print("Saving...\n");
-			else if (curtool == ter_reload)
-				print("Reloading...\n");
-			terrain_edit(curtool);
-		}
+			print(sprintf("Saved %g chunks\n", (float)terrain_edit(TEREDIT_SAVE)));
 		break;
 	case ter_sethole:	//use view center instead of targetted - you cannot target that which is not there
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, equant);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_SETHOLE, trace_endpos, eradius, equant);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, equant);
+			terrain_edit(TEREDIT_SETHOLE, trace_endpos, eradius, equant);
 		break;
-
 	case ter_height_smooth:
-	case ter_height_spread:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, epercent/100.0);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_HEIGHT_SMOOTH, trace_endpos, eradius, epercent/100.0);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0);
+			terrain_edit(TEREDIT_HEIGHT_SMOOTH, trace_endpos, eradius, epercent/100.0);
+		break;
+	case ter_height_spread:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_HEIGHT_SPREAD, trace_endpos, eradius, epercent/100.0);
+		else
+			terrain_edit(TEREDIT_HEIGHT_SPREAD, trace_endpos, eradius, epercent/100.0);
 		break;
 	case ter_water_set:
-	case ter_height_set:
-	case ter_height_smooth:
-	case ter_height_raise:
-	case ter_height_lower:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, equant);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_WATER_SET, trace_endpos, eradius, equant);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, equant);
+			terrain_edit(TEREDIT_WATER_SET, trace_endpos, eradius, equant);
+		break;
+	case ter_height_set:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_HEIGHT_SET, trace_endpos, eradius, equant);
+		else
+			terrain_edit(TEREDIT_HEIGHT_SET, trace_endpos, eradius, equant);
+		break;
+	case ter_height_raise:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_HEIGHT_RAISE, trace_endpos, eradius, equant);
+		else
+			terrain_edit(TEREDIT_HEIGHT_RAISE, trace_endpos, eradius, equant);
+		break;
+	case ter_height_lower:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_HEIGHT_LOWER, trace_endpos, eradius, equant);
+		else
+			terrain_edit(TEREDIT_HEIGHT_LOWER, trace_endpos, eradius, equant);
 		break;
 	case ter_tex_get:
 		strunzone(tex[0]);
 		strunzone(tex[1]);
 		strunzone(tex[2]);
 		strunzone(tex[3]);
-		tex[0] = strzone(terrain_edit(curtool, trace_endpos, 0, 0));
-		tex[1] = strzone(terrain_edit(curtool, trace_endpos, 0, 1));
-		tex[2] = strzone(terrain_edit(curtool, trace_endpos, 0, 2));
-		tex[3] = strzone(terrain_edit(curtool, trace_endpos, 0, 3));
+		tex[0] = strzone(terrain_edit(TEREDIT_TEX_GET, trace_endpos, 0, 0));
+		tex[1] = strzone(terrain_edit(TEREDIT_TEX_GET, trace_endpos, 0, 1));
+		tex[2] = strzone(terrain_edit(TEREDIT_TEX_GET, trace_endpos, 0, 2));
+		tex[3] = strzone(terrain_edit(TEREDIT_TEX_GET, trace_endpos, 0, 3));
 		break;
 //	case ter_mixset:
 //		terrain_edit(curtool, trace_endpos, eradius, equant, emix);
 //		break;
 	case ter_mixpaint:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvffs", curtool, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvffs", TEREDIT_MIX_PAINT, trace_endpos, eradius, epercent/100.0, tex[painttex]);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+			terrain_edit(TEREDIT_MIX_PAINT, trace_endpos, eradius, epercent/100.0, tex[painttex]);
 		break;
 	case ter_tex_kill:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvffs", curtool, trace_endpos, eradius, equant, tex[painttex]);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvffs", TEREDIT_TEX_KILL, trace_endpos, eradius, equant, tex[painttex]);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, equant, tex[painttex]);
+			terrain_edit(TEREDIT_TEX_KILL, trace_endpos, eradius, equant, tex[painttex]);
 		break;
 	case ter_mixconcentrate:
-	case ter_mixnoise:
-	case ter_mixblur:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvff", curtool, trace_endpos, eradius, equant);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_MIX_UNIFY, trace_endpos, eradius, equant);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, equant);
+			terrain_edit(TEREDIT_MIX_UNIFY, trace_endpos, eradius, equant);
+		break;
+	case ter_mixnoise:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_MIX_NOISE, trace_endpos, eradius, equant);
+		else
+			terrain_edit(TEREDIT_MIX_NOISE, trace_endpos, eradius, equant);
+		break;
+	case ter_mixblur:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_MIX_BLUR, trace_endpos, eradius, equant);
+		else
+			terrain_edit(TEREDIT_MIX_BLUR, trace_endpos, eradius, equant);
 		break;
 
 	case ter_tint:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvffvf", curtool, trace_endpos, eradius, epercent/100.0, stov(tint[painttex]), 1);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvffvf", TEREDIT_TINT, trace_endpos, eradius, epercent/100.0, stov(tint[painttex]), 1);
 		else
-			terrain_edit(curtool, trace_endpos, eradius, epercent/100.0, stov(tint[painttex]), 1);
+			terrain_edit(TEREDIT_TINT, trace_endpos, eradius, epercent/100.0, stov(tint[painttex]), 1);
 		break;
 
 	case ter_mesh_add:
-		terrain_edit(curtool, tempent);
+		terrain_edit(TEREDIT_MESH_ADD, tempent);
 		break;
 	case ter_mesh_kill:
-		if (autocvar_mod_terrain_networked)
-			sendevent("teredit", "fvf", curtool, trace_endpos, eradius);
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvf", TEREDIT_MESH_KILL, trace_endpos, eradius);
 		else
-			terrain_edit(curtool, trace_endpos, eradius);
+			terrain_edit(TEREDIT_MESH_KILL, trace_endpos, eradius);
 		break;
 	}
 };
@@ -184,8 +217,21 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 {
 	if (curtool >= ter_radius && curtool <= ter_tex)
 	{
-		string txt;
+		string txt = "";
 		float nt = curtool;
+		if (curtool == ter_tex)
+		{
+			if (keyc == 512 && m_x > 128)
+			{
+				txt = texturesearchhighlighted;
+				nt = ter_mixpaint;
+			}
+			if (keyc == 515)
+				texturesearchfirst += floor((vidsize_x)/128) - 1;
+			if (keyc == 516)
+				texturesearchfirst -= floor((vidsize_x)/128) - 1;
+		}
+
 		if (curtool == ter_radius)
 			txt = itos((int)eradius);
 		if (curtool == ter_quant)
@@ -323,7 +369,7 @@ void(vector mousepos) editor_terrain_add =
 {
 	float s,c;
 	float r;
-	vector tx, p, col,t;
+	vector tx, p, col;
 	float a;
 	if (mousepos_x < 128)
 		return;
@@ -447,5 +493,48 @@ void(vector mousepos) editor_terrain_overlay =
 		else
 			drawstring(pos, toolname[i], '8 8 0', colour, 1, 0);
 		pos_y += 8;
+	}
+
+	if (texturesearchhighlighted)
+	{
+		strunzone(texturesearchhighlighted);
+		texturesearchhighlighted = 0;
+	}
+	if (curtool == ter_tex)
+	{
+		if (texturesearch < 0)
+			texturesearch = search_begin("textures/*", FALSE, TRUE);
+		if (texturesearchfirst > search_getsize(texturesearch)-4)
+			texturesearchfirst = search_getsize(texturesearch)-4;
+		if (texturesearchfirst < 0)
+			texturesearchfirst = 0;
+		i = texturesearchfirst;
+		pos = '128 16';
+		local float x;
+		for (pos_y = 8; pos_y < vidsize_y; pos_y+=128+8)
+		for (x = 0; x < floor(vidsize_x / 128)-1; )
+		{
+			string fname = search_getfilename(texturesearch, i);
+			i+=1;
+			if (fname == "")
+				break;
+			if (substring(fname, -1, 1) == "/")
+				continue;
+			drawpic(pos + [x*128, 8], fname, '128 128', '1 1 1', 1, 0);
+			if (substring(fname, 0, 9) == "textures/")
+				fname = substring(fname, 9, -1);
+			string ext = substring(fname, -4, 4);
+			if (ext == ".png" || ext == ".tga" || ext == ".jpg")
+				fname = substring(fname, 0, -5);
+			drawstring(pos + [x*128, 0], fname, '8 8 0', '1 1 1', 1, 0);
+			x+=1;
+
+			if (mousepos_x > pos_x+x*128 && mousepos_y > pos_y && mousepos_x < pos_x+(x+1)*128 && mousepos_y < pos_y+(128+8))
+			{
+				if (texturesearchhighlighted)
+					strunzone(texturesearchhighlighted);
+				texturesearchhighlighted = strzone(fname);
+			}
+		}
 	}
 };

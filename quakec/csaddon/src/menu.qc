@@ -2,7 +2,8 @@
 
 typedef struct
 {
-	float *current;
+	float *currentf;
+	int *currenti;
 	float key;
 	vector *mousepos;
 	vector mousediff;
@@ -33,7 +34,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 	spos = rpos;
 	spos_x = pos_x + strlen(fieldname) * 8 + 4;
 	/*if they're dragging us, update*/
-	if ((int)menu->current == (int)value)
+	if (menu->currentf == value)
 	{
 		if (mousedown == 1)
 		{
@@ -46,7 +47,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 		}
 		else
 		{
-			menu->current = (int*)__NULL__;
+			menu->currentf = (float*)__NULL__;
 		}
 	}
 	else
@@ -81,7 +82,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 		if (key == 512)
 		{
 			f = *value;
-			menu->current = value;
+			menu->currentf = value;
 			mp_x = spos_x + 9 * 8 * (f - minv) / (maxv - minv) + 4;
 			*menu->mousepos = mp;
 		}
@@ -110,7 +111,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 	if (!(menu->flags & MF_DS_VALUE))
 		epos_x += strlen(sprintf("%f", *value)) * 8;
 	/*if they're dragging us, update*/
-	if ((int)menu->current == (int)value)
+	if (menu->currentf == value)
 	{
 		if (mousedown == 1)
 		{
@@ -122,7 +123,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 		}
 		else
 		{
-			menu->current = (int*)__NULL__;
+			menu->currentf = (float*)__NULL__;
 		}
 	}
 	else
@@ -153,7 +154,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 		if (key == 512)
 		{
 			f = *value;
-			menu->current = value;
+			menu->currentf = value;
 			mp_x = spos_x + 4;
 			*mpp = mp;
 		}
@@ -185,7 +186,7 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 	if (!(menu->flags & MF_DS_VALUE))
 		epos_x = strlen(sprintf("%i", *value)) * 8;
 	/*if they're dragging us, update*/
-	if ((int)menu->current == (int)value)
+	if (menu->currenti == value)
 	{
 		if (mousedown == 1)
 		{
@@ -198,7 +199,7 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 		}
 		else
 		{
-			menu->current = (int*)__NULL__;
+			menu->currenti = (int*)__NULL__;
 		}
 	}
 	else
@@ -233,7 +234,7 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 		if (key == 512)
 		{
 			f = *value;
-			menu->current = value;
+			menu->currenti = value;
 			mp_x = spos_x + 9 * 8 * (f - minv) / (maxv - minv) + 4;
 			*menu->mousepos = mp;
 		}

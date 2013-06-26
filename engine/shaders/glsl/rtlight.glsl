@@ -10,7 +10,7 @@
 //s0=diffuse, s1=normal, s2=specular, s3=shadowmap
 //custom modifiers:
 //PCF(shadowmap)
-//CUBEPROJ(projected cubemap)
+//CUBE(projected cubemap)
 //SPOT(projected circle
 //CUBESHADOW
 
@@ -30,7 +30,7 @@ varying vec3 lightvector;
 varying vec3 eyevector;
 #endif
 
-#if defined(PCF) || defined(CUBEPROJ) || defined(SPOT)
+#if defined(PCF) || defined(CUBE) || defined(SPOT)
 varying vec4 vtexprojcoord;
 uniform mat4 l_cubematrix;
 #ifndef SPOT
@@ -59,7 +59,7 @@ void main ()
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #endif
-#if defined(PCF) || defined(SPOT) || defined(PROJECTION)
+#if defined(PCF) || defined(SPOT) || defined(CUBE)
 	//for texture projections/shadowmapping on dlights
 	vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
 #endif
@@ -79,7 +79,7 @@ uniform sampler2D s_t1;	//normalmap
 #ifdef SPECULAR
 uniform sampler2D s_t2;	//specular
 #endif
-#ifdef CUBEPROJ
+#ifdef CUBE
 uniform samplerCube s_t3;	//projected cubemap
 #endif
 #ifdef PCF
@@ -248,7 +248,7 @@ void main ()
 
 
 
-#ifdef CUBEPROJ
+#ifdef CUBE
 	/*filter the colour by the cubemap projection*/
 	diff *= textureCube(s_t3, vtexprojcoord.xyz).rgb;
 #endif

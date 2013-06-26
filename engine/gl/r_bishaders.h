@@ -1612,7 +1612,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //s0=diffuse, s1=normal, s2=specular, s3=shadowmap
 //custom modifiers:
 //PCF(shadowmap)
-//CUBEPROJ(projected cubemap)
+//CUBE(projected cubemap)
 //SPOT(projected circle
 //CUBESHADOW
 
@@ -1632,7 +1632,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "varying vec3 eyevector;\n"
 "#endif\n"
 
-"#if defined(PCF) || defined(CUBEPROJ) || defined(SPOT)\n"
+"#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
 "varying vec4 vtexprojcoord;\n"
 "uniform mat4 l_cubematrix;\n"
 "#ifndef SPOT\n"
@@ -1661,7 +1661,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#endif\n"
-"#if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n"
+"#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
 //for texture projections/shadowmapping on dlights
 "vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
 "#endif\n"
@@ -1681,7 +1681,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef SPECULAR\n"
 "uniform sampler2D s_t2; //specular\n"
 "#endif\n"
-"#ifdef CUBEPROJ\n"
+"#ifdef CUBE\n"
 "uniform samplerCube s_t3; //projected cubemap\n"
 "#endif\n"
 "#ifdef PCF\n"
@@ -1850,7 +1850,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 
 
-"#ifdef CUBEPROJ\n"
+"#ifdef CUBE\n"
 /*filter the colour by the cubemap projection*/
 "diff *= textureCube(s_t3, vtexprojcoord.xyz).rgb;\n"
 "#endif\n"

@@ -466,7 +466,7 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 	
 // link to PVS leafs
-	if (w->worldmodel)
+	if (w->worldmodel && !w->worldmodel->needload)
 	{
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}

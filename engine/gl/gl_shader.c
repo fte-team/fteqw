@@ -1085,8 +1085,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		{
 			if (prog->permu[p].handle.glsl)
 				qglDeleteProgramObject_(prog->permu[p].handle.glsl);
-			prog->permu[p].handle.glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script, onefailed);
-			if (!prog->permu[p].handle.glsl)
+			prog->permu[p].handle.glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script, (p & PERMUTATION_SKELETAL)?true:onefailed);
+			if (!prog->permu[p].handle.glsl && !(p & PERMUTATION_SKELETAL))
 				onefailed = true;
 			if (!p && !prog->permu[p].handle.glsl)
 				break;

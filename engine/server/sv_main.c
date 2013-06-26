@@ -175,7 +175,6 @@ cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
 cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
 cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
 cvar_t	rearview		= CVARF("rearview",		"" ,	CVAR_SERVERINFO);
-cvar_t	allow_luma		= CVARF("allow_luma",		"",	CVAR_SERVERINFO);
 #pragma warningmsg("Remove this some time")
 cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
 cvar_t	sv_allow_splitscreen = CVARF("allow_splitscreen","",CVAR_SERVERINFO);
@@ -4228,7 +4227,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&watervis,	cvargroup_serverinfo);
 	Cvar_Register (&rearview,	cvargroup_serverinfo);
 	Cvar_Register (&mirrors,	cvargroup_serverinfo);
-	Cvar_Register (&allow_luma,	cvargroup_serverinfo);
 	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
 	Cvar_Register (&sv_allow_splitscreen,	cvargroup_serverinfo);
 	Cvar_Register (&fbskins,	cvargroup_serverinfo);

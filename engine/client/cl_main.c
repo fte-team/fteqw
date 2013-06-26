@@ -1572,7 +1572,6 @@ void CL_CheckServerInfo(void)
 	cls.allow_watervis=false;
 	cls.allow_skyboxes=false;
 	cls.allow_mirrors=false;
-	cls.allow_luma=false;
 	cls.allow_postproc=false;
 	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
@@ -1588,10 +1587,6 @@ void CL_CheckServerInfo(void)
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
 		cls.allow_mirrors=true;
-
-	s = Info_ValueForKey(cl.serverinfo, "allow_luma");
-	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
-		cls.allow_luma=true;
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
 		cls.allow_lightmapgamma=true;
@@ -1666,8 +1661,7 @@ void CL_CheckServerInfo(void)
 	if (allowed & 8)
 		cls.allow_mirrors = true;
 	//16
-	if (allowed & 32)
-		cls.allow_luma = true;
+	//32
 	if (allowed & 128)
 		cls.allow_postproc = true;
 	if (allowed & 256)
@@ -2766,6 +2760,8 @@ void CL_ReadPackets (void)
 		if (!cls.demoplayback &&
 			!NET_CompareAdr (&net_from, &cls.netchan.remote_address))
 		{
+			if (NET_WasSpecialPacket(NS_CLIENT))
+				continue;
 			Con_DPrintf ("%s:sequenced packet from wrong server\n"
 				,NET_AdrToString(adr, sizeof(adr), &net_from));
 			continue;

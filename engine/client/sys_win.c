@@ -1299,6 +1299,10 @@ void Sys_SendKeyEvents (void)
 {
     MSG        msg;
 
+#ifdef _MSC_VER
+#define strtoull _strtoui64
+#endif
+
 	if (isPlugin)
 	{
 		DWORD avail;

@@ -425,7 +425,6 @@ typedef struct
 	qboolean	allow_skyboxes;
 	qboolean	allow_mirrors;
 	qboolean	allow_watervis;
-	qboolean	allow_luma;
 	float		allow_fbskins;	//fraction of allowance
 	qboolean	allow_postproc;
 	qboolean	allow_cheats;

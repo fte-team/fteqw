@@ -541,10 +541,8 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 {
 	extern cvar_t snd_inactive;
 #if _MSC_VER > 1200	//fixme err
-#ifndef MINIMAL
 #ifdef _IKsPropertySet_
 	extern cvar_t snd_eax;
-#endif
 #endif
 #endif
 	DSBUFFERDESC	dsbuf;
@@ -642,7 +640,6 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 	dh = sc->handle;
  //EAX attempt
 #if _MSC_VER > 1200
-#ifndef MINIMAL
 #ifdef _IKsPropertySet_
 	dh->pDS = NULL;
 	if (snd_eax.ival)
@@ -655,7 +652,6 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 	}
 
 	if (!dh->pDS)
-#endif
 #endif
 #endif
 	{

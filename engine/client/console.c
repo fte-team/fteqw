@@ -644,6 +644,8 @@ void Con_PrintCon (console_t *con, char *txt)
 	COM_ParseFunString(CON_WHITEMASK, txt, expanded, sizeof(expanded), false);
 
 	c = expanded;
+	if (*c)
+		con->unseentext = true;
 	while (*c)
 	{
 		conchar_t *o;

@@ -79,6 +79,8 @@ typedef struct {
 	{
 		HS_ESTABLISHED,
 
+		HS_ERROR,
+
 		HS_STARTCLIENT,
 		HS_CLIENT,
 
@@ -180,7 +182,7 @@ static void SSPI_Decode(sslfile_t *f)
 	{
 		if (ss == SEC_E_INCOMPLETE_MESSAGE)
 			return;	//no error if its incomplete, we can just get more data later on.
-		SSPI_Error(f, "DecryptMessage failed");
+		SSPI_Error(f, "DecryptMessage failed\n");
 		return;
 	}
 
@@ -251,7 +253,7 @@ static void SSPI_Encode(sslfile_t *f)
 
 	if (ss < 0)
 	{
-		SSPI_Error(f, "EncryptMessage failed");
+		SSPI_Error(f, "EncryptMessage failed\n");
 		return;
 	}
 
@@ -260,17 +262,17 @@ static void SSPI_Encode(sslfile_t *f)
 	//fixme: these should be made non-fatal.
 	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[0].pvBuffer, SecBuff[0].cbBuffer) < SecBuff[0].cbBuffer)
 	{
-		SSPI_Error(f, "crypt buffer overflowed");
+		SSPI_Error(f, "crypt buffer overflowed\n");
 		return;
 	}
 	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[1].pvBuffer, SecBuff[1].cbBuffer) < SecBuff[1].cbBuffer)
 	{
-		SSPI_Error(f, "crypt buffer overflowed");
+		SSPI_Error(f, "crypt buffer overflowed\n");
 		return;
 	}
 	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[2].pvBuffer, SecBuff[2].cbBuffer) < SecBuff[2].cbBuffer)
 	{
-		SSPI_Error(f, "crypt buffer overflowed");
+		SSPI_Error(f, "crypt buffer overflowed\n");
 		return;
 	}
 
@@ -499,11 +501,15 @@ static void SSPI_Handshake (sslfile_t *f)
 			ss = secur.pQueryContextAttributesA(&f->sechnd, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &remotecert);
 			if (ss != SEC_E_OK)
 			{
+				f->handshaking = HS_ERROR;
 				SSPI_Error(f, "unable to read server's certificate\n");
 				return;
 			}
 			if (VerifyServerCertificate(remotecert, f->wpeername, 0))
-				SSPI_Error(f, "Error validating certificante");
+			{
+				f->handshaking = HS_ERROR;
+				SSPI_Error(f, "Error validating certificante\n");
+			}
 		}
 		else
 			Sys_Printf("SSL/TLS Server name not specified, skipping verification\n");
@@ -562,12 +568,12 @@ static int QDECL SSPI_WriteBytes (struct vfsfile_s *file, const void *buffer, in
 }
 static qboolean QDECL SSPI_Seek (struct vfsfile_s *file, unsigned long pos)
 {
-	SSPI_Error((sslfile_t*)file, "unable to seek on streams");
+	SSPI_Error((sslfile_t*)file, "unable to seek on streams\n");
 	return false;
 }
 static unsigned long QDECL SSPI_Tell (struct vfsfile_s *file)
 {
-	SSPI_Error((sslfile_t*)file, "unable to seek on streams");
+	SSPI_Error((sslfile_t*)file, "unable to seek on streams\n");
 	return 0;
 }
 static unsigned long QDECL SSPI_GetLen (struct vfsfile_s *file)

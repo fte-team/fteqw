@@ -1014,7 +1014,56 @@ void V_CalcIntermissionRefdef (playerview_t *pv)
 	v_idlescale.value = old;
 }
 
-float CalcFov (float fov_x, float width, float height);
+float CalcFov (float fov_x, float width, float height)
+{
+    float   a;
+    float   x;
+
+    if (fov_x < 1 || fov_x > 179)
+            Sys_Error ("Bad fov: %f", fov_x);
+
+	x = fov_x/360*M_PI;
+	x = tan(x);
+    x = width/x;
+
+    a = atan (height/x);
+
+    a = a*360/M_PI;
+
+    return a;
+}
+void V_ApplyAFov(void)
+{
+	//explicit fov overrides aproximate fov.
+	//aproximate fov is our regular fov value. explicit is settable by gamecode for weird aspect ratios
+	if (!r_refdef.fov_x || !r_refdef.fov_y)
+	{
+		extern cvar_t r_stereo_method, r_stereo_separation;
+		float ws;
+
+		float afov = r_refdef.afov;
+		if (!afov)	//make sure its sensible.
+			afov = scr_fov.value;
+		if (r_refdef.playerview->stats[STAT_VIEWZOOM])
+			afov *= r_refdef.playerview->stats[STAT_VIEWZOOM]/255.0f;
+
+		ws = 1;
+		if (r_stereo_method.ival == 5 && r_stereo_separation.value)
+			ws = 0.5;
+
+		//attempt to retain a classic fov
+		if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
+		{
+			r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*vid.pixelwidth)/vid.width, (r_refdef.vrect.height*vid.pixelheight)/vid.height);
+			r_refdef.fov_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
+		}
+		else
+		{
+			r_refdef.fov_y = CalcFov(afov, 640, 432);
+			r_refdef.fov_x = CalcFov(r_refdef.fov_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
+		}
+	}
+}
 /*
 =================
 v_ApplyRefdef
@@ -1109,37 +1158,7 @@ void V_ApplyRefdef (void)
 	r_refdef.vrect.y += r_refdef.grect.y;
 
 	if (r_refdef.dirty & RDFD_FOV)
-	{
-		//explicit fov overrides aproximate fov.
-		//aproximate fov is our regular fov value. explicit is settable by gamecode for weird aspect ratios
-		if (!r_refdef.fov_x || !r_refdef.fov_y)
-		{
-			extern cvar_t r_stereo_method, r_stereo_separation;
-			float ws;
-
-			float afov = r_refdef.afov;
-			if (!afov)	//make sure its sensible.
-				afov = scr_fov.value;
-			if (r_refdef.playerview->stats[STAT_VIEWZOOM])
-				afov *= r_refdef.playerview->stats[STAT_VIEWZOOM]/255.0f;
-
-			ws = 1;
-			if (r_stereo_method.ival == 5 && r_stereo_separation.value)
-				ws = 0.5;
-
-			//attempt to retain a classic fov
-			if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
-			{
-				r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*vid.pixelwidth)/vid.width, (r_refdef.vrect.height*vid.pixelheight)/vid.height);
-				r_refdef.fov_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
-			}
-			else
-			{
-				r_refdef.fov_y = CalcFov(afov, 640, 432);
-				r_refdef.fov_x = CalcFov(r_refdef.fov_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
-			}
-		}
-	}
+		V_ApplyAFov();
 
 	r_refdef.dirty = 0;
 }

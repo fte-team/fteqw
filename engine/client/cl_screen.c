@@ -882,30 +882,6 @@ void SCR_ShowPic_Script_f(void)
 
 //=============================================================================
 
-/*
-====================
-CalcFov
-====================
-*/
-float CalcFov (float fov_x, float width, float height)
-{
-    float   a;
-    float   x;
-
-    if (fov_x < 1 || fov_x > 179)
-            Sys_Error ("Bad fov: %f", fov_x);
-
-	x = fov_x/360*M_PI;
-	x = tan(x);
-    x = width/x;
-
-    a = atan (height/x);
-
-    a = a*360/M_PI;
-
-    return a;
-}
-
 void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
 {
 	if (var->value < 10)

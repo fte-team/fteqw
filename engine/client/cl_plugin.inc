@@ -413,6 +413,12 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 
 		if (currentplug->conexecutecommand)
 		{
+			con->notif_x = 0;
+			con->notif_y = 8*4;
+			con->notif_w = vid.width;
+			con->notif_t = 8;
+			con->notif_l = 4;
+			con->flags |= CONF_NOTIFY;
 			con->userdata = currentplug;
 			con->linebuffered = Plug_SubConsoleCommand;
 		}

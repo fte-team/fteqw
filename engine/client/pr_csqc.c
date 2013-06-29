@@ -1142,10 +1142,14 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 qboolean csqc_rebuildmatricies;
 float csqc_proj_matrix[16];
 float csqc_proj_matrix_inverse[16];
+void V_ApplyAFov(void);
 void buildmatricies(void)
 {
 	float modelview[16];
 	float proj[16];
+
+	if (r_refdef.dirty & RDFD_FOV)
+		V_ApplyAFov();
 
 	/*build modelview and projection*/
 	Matrix4x4_CM_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);

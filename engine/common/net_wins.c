@@ -5631,6 +5631,8 @@ void QDECL ICE_Close(struct icestate_s *con)
 {
 	struct icestate_s **link;
 
+	ICE_Set(con, "state", STRINGIFY(ICE_INACTIVE));
+
 	for (link = &icelist; *link; )
 	{
 		if (con == *link)

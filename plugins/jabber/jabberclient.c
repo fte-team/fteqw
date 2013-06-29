@@ -275,6 +275,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 #define CAP_QUERIED	1	//a query is pending or something.
 #define CAP_VOICE	2	//supports voice
 #define CAP_INVITE	4	//supports game invites.
+#define CAP_POKE	8	//can be slapped.
 
 typedef struct bresource_s
 {
@@ -673,19 +674,19 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 	xmltree_t *jingle;
 	struct icestate_s *ice;
 	char autotarget[256];
+	buddy_t *b;
+	bresource_t *br;
 	if (!jcl)
 		return;
 
-	if (!strchr(target, '/'))
-	{	
-		buddy_t *b;
-		bresource_t *br;
-		JCL_FindBuddy(jcl, target, &b, &br);
-		if (!br)
-			br = b->defaultresource;
-		if (!br)
-			br = b->resources;
+	JCL_FindBuddy(jcl, target, &b, &br);
+	if (!br)
+		br = b->defaultresource;
+	if (!br)
+		br = b->resources;
 
+	if (!strchr(target, '/'))
+	{
 		if (!br)
 		{
 			Con_Printf("User name not valid\n");
@@ -712,23 +713,23 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 				c2c = JCL_JingleCreateSession(jcl, target, true, sid, DEFAULTICEMODE, ((protocol == ICEP_INVALID)?ICEP_QWCLIENT:protocol));
 				JCL_JingleSend(jcl, c2c, "session-initiate");
 
-				Con_Printf("%s ^[[%s]\\xmpp\\%s^] ^[[Hang Up]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^].\n", protocol==ICEP_VOICE?"Calling":"Requesting session with", target, target, target, c2c->sid);
+				Con_SubPrintf(b->name, "%s ^[[%s]\\xmpp\\%s^] ^[[Hang Up]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^].\n", protocol==ICEP_VOICE?"Calling":"Requesting session with", target, target, target, c2c->sid);
 			}
 			else
-				Con_Printf("That session has expired.\n");
+				Con_SubPrintf(b->name, "That session has expired.\n");
 		}
 		else if (c2c->creator)
 		{
 			//resend initiate if they've not acked it... I dunno...
 			JCL_JingleSend(jcl, c2c, "session-initiate");
-			Con_Printf("Restarting session with ^[[%s]\\xmpp\\%s^].\n", target, target);
+			Con_SubPrintf(b->name, "Restarting session with ^[[%s]\\xmpp\\%s^].\n", target, target);
 		}
 		else if (c2c->accepted)
-			Con_Printf("That session was already accepted.\n");
+			Con_SubPrintf(b->name, "That session was already accepted.\n");
 		else
 		{
 			JCL_JingleSend(jcl, c2c, "session-accept");
-			Con_Printf("Accepting session from ^[[%s]\\xmpp\\%s^].\n", target, target);
+			Con_SubPrintf(b->name, "Accepting session from ^[[%s]\\xmpp\\%s^].\n", target, target);
 		}
 	}
 	else
@@ -736,10 +737,10 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 		if (c2c)
 		{
 			JCL_JingleSend(jcl, c2c, "session-terminate");
-			Con_Printf("Terminating session with ^[[%s]\\xmpp\\%s^].\n", target, target);
+			Con_SubPrintf(b->name, "Terminating session with ^[[%s]\\xmpp\\%s^].\n", target, target);
 		}
 		else
-			Con_Printf("That session has already expired.\n");
+			Con_SubPrintf(b->name, "That session has already expired.\n");
 	}
 }
 
@@ -835,6 +836,7 @@ qboolean JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
 
 	struct c2c_s *c2c = NULL;
 	int mt = ICEP_INVALID;
+	buddy_t *b;
 
 	//FIXME: add support for session forwarding so that we might forward the connection to the real server. for now we just reject it.
 	initiator = XML_GetParameter(inj, "initiator", "");
@@ -876,6 +878,9 @@ qboolean JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
 	if (!c2c)
 		return false;
 
+	
+	JCL_FindBuddy(jcl, from, &b, NULL);
+
 	if (c2c->mediatype == ICEP_VOICE)
 	{
 		qboolean okay = false;
@@ -916,7 +921,7 @@ qboolean JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
 		if (!pCvar_GetFloat(autocvar))
 		{
 			//show a prompt for it, send the reply when the user decides.
-			Con_Printf(
+			Con_SubPrintf(b->name,
 					"^[[%s]\\xmpp\\%s^] wants to %s. "
 					"^[[Authorise]\\xmppact\\jauth\\xmpp\\%s\\xmppsid\\%s^] "
 					"^[[Deny]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^]\n",
@@ -924,11 +929,12 @@ qboolean JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
 				offer,
 				from, sid,
 				from, sid);
+			pCon_SetActive(b->name);
 			return true;
 		}
 		else
 		{
-			Con_Printf("Auto-accepting session from ^[[%s]\\xmpp\\%s^]\n", from, from);
+			Con_SubPrintf(b->name, "Auto-accepting session from ^[[%s]\\xmpp\\%s^]\n", from, from);
 			response = "session-accept";
 		}
 	}
@@ -943,6 +949,7 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 	char *sid = XML_GetParameter(tree, "sid", "");
 
 	struct c2c_s *c2c = NULL, **link;
+	buddy_t *b;
 
 	for (link = &jcl->c2c; *link; link = &(*link)->next)
 	{
@@ -953,6 +960,8 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 				break;
 		}
 	}
+
+	JCL_FindBuddy(jcl, from, &b, NULL);
 
 	//validate sender
 	if (c2c && strcmp(c2c->with, from))
@@ -972,9 +981,9 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 		}
 
 		if (reason && reason->child)
-			Con_Printf("Session ended: %s\n", reason->child->name);
+			Con_SubPrintf(b->name, "Session ended: %s\n", reason->child->name);
 		else
-			Con_Printf("Session ended\n");
+			Con_SubPrintf(b->name, "Session ended\n");
 
 		//unlink it
 		for (link = &jcl->c2c; *link; link = &(*link)->next)
@@ -1052,7 +1061,7 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 			{
 				return false;
 			}
-			Con_Printf("Session Accepted!\n");
+			Con_SubPrintf(b->name, "Session Accepted!\n");
 //			XML_ConPrintTree(tree, 0);
 
 			JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
@@ -1754,6 +1763,7 @@ static char *caps[] =
 	"urn:xmpp:time",
 #endif
 	"urn:xmpp:ping",	//FIXME: I'm not keen on this. I only added support to stop errors from pidgin when trying to debug.
+	"urn:xmpp:attention:0",	//poke.
 
 #else
 	//for testing, this is the list of features pidgin supports (which is the other client I'm testing against).
@@ -2101,6 +2111,15 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				unparsable = false;
 				Con_SubPrintf(f, "%s has gone away\r", f);
 			}
+		}
+
+		ot = XML_ChildOfTree(tree, "attention", 0);
+		if (ot)
+		{
+			Con_SubPrintf(f, "%s is an attention whore.\n", f);
+			pCon_SetActive(f);
+			if (BUILTINISVALID(LocalSound))
+				pLocalSound("misc/talk.wav");
 		}
 
 		ot = XML_ChildOfTree(tree, "body", 0);
@@ -2963,7 +2982,89 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 	else
 		Con_SubPrintf(b->name, "^5%s^7: "COLOURYELLOW"%s\n", jcl->localalias, msg);
 }
+void JCL_AttentionMessage(jclient_t *jcl, char *to, char *msg)
+{
+	char fullto[256];
+	buddy_t *b;
+	bresource_t *br;
+	xmltree_t *m;
+	char *s;
 
+	JCL_FindBuddy(jcl, to, &b, &br);
+	if (!br)
+		br = b->defaultresource;
+	if (!br)
+		br = b->resources;
+	if (!br)
+	{
+		Con_SubPrintf(b->name, "User is not online\n");
+		return;
+	}
+	Q_snprintf(fullto, sizeof(fullto), "%s/%s", b->accountdomain, br->resource);
+
+	m = XML_CreateNode(NULL, "message", "", "");
+	XML_AddParameter(m, "to", fullto);
+//	XML_AddParameter(m, "type", "headline");
+
+	XML_CreateNode(m, "attention", "urn:xmpp:attention:0", "");
+	if (msg)
+		XML_CreateNode(m, "body", "", msg);
+
+	s = XML_GenerateString(m);
+	JCL_AddClientMessageString(jcl, s);
+	free(s);
+	XML_Destroy(m);
+
+	if (msg)
+	{
+		if (!strncmp(msg, "/me ", 4))
+			Con_SubPrintf(b->name, "*^5%s^7"COLOURYELLOW"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
+		else
+			Con_SubPrintf(b->name, "^5%s^7: "COLOURYELLOW"%s\n", jcl->localalias, msg);
+	}
+}
+
+void JCL_ToJID(jclient_t *jcl, char *in, char *out, int outsize)
+{
+	//decompose links first
+	if (in[0] == '^' && in[1] == '[')
+	{
+		char *sl;
+		char *le;
+		sl = in+2;
+		sl = strchr(in, '\\');
+		if (sl)
+		{
+			le = strstr(sl, "^]");
+			if (le)
+			{
+				*le = 0;
+				JCL_Info_ValueForKey(in, "xmpp", out, outsize);
+				*le = '^';
+				return;
+			}
+		}
+	}
+
+	if (!strchr(in, '@'))
+	{
+		//no @? probably its an alias, but could also be a server/domain perhaps. not sure we care. you'll just have to rename your friend.
+		//check to see if we can find a friend going by that name
+		//fixme: allow resources to make it through here
+		buddy_t *b;
+		for (b = jcl->buddies; b; b = b->next)
+		{
+			if (!strcasecmp(b->name, in))
+			{
+				Q_strlcpy(out, b->accountdomain, outsize);
+				return;
+			}
+		}
+	}
+
+	//a regular jabber account name
+	Q_strlcpy(out, in, outsize);
+}
 
 void JCL_Command(char *console)
 {
@@ -2971,6 +3072,7 @@ void JCL_Command(char *console)
 	char arg[6][256];
 	char *msg;
 	int i;
+	char nname[256];
 
 	pCmd_Args(imsg, sizeof(imsg));
 
@@ -2984,6 +3086,8 @@ void JCL_Command(char *console)
 
 	if (arg[0][0] == '/' && arg[0][1] != '/' && strcmp(arg[0]+1, "me"))
 	{
+		JCL_ToJID(jclient, *arg[1]?arg[1]:console, nname, sizeof(nname));
+
 		if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect") || !strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
 		{	//tlsconnect is 'old'.
 			if (!*arg[1])
@@ -3107,19 +3211,41 @@ void JCL_Command(char *console)
 		}
 		else if (!strcmp(arg[0]+1, "join")) 
 		{
-			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, true, ICEP_QWCLIENT);
+			JCL_Join(jclient, nname, NULL, true, ICEP_QWCLIENT);
 		}
 		else if (!strcmp(arg[0]+1, "invite")) 
 		{
-			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, true, ICEP_QWSERVER);
+			JCL_Join(jclient, nname, NULL, true, ICEP_QWSERVER);
 		}
 		else if (!strcmp(arg[0]+1, "voice") || !strcmp(arg[0]+1, "call")) 
 		{
-			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, true, ICEP_VOICE);
+			JCL_Join(jclient, nname, NULL, true, ICEP_VOICE);
 		}
 		else if (!strcmp(arg[0]+1, "kick")) 
 		{
-			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, false, ICEP_INVALID);
+			JCL_Join(jclient, nname, NULL, false, ICEP_INVALID);
+		}
+		else if (!strcmp(arg[0]+1, "slap")) 
+		{
+			char *msgtab[] =
+			{
+				"/me slaps you around a bit with a large trout",
+				"/me slaps you around a bit with a large tunafish",
+				"/me slaps you around a bit with a slimy hagfish",
+				"/me slaps a large trout around a bit with your face",
+				"/me gets eaten by a rabid shark while trying to slap you with it",
+				"/me gets crushed under the weight of a large whale",
+				"/me searches for a fresh fish, but gets crabs instead",
+				"/me searches for a fish, but there are no more fish in the sea",
+				"/me tickles you around a bit with a large fish finger",
+				"/me goes to order cod and chips. brb",
+				"/me goes to watch some monty python"
+			};
+			JCL_AttentionMessage(jclient, nname, msgtab[rand()%(sizeof(msgtab)/sizeof(msgtab[0]))]);
+		}
+		else if (!strcmp(arg[0]+1, "poke")) 
+		{
+			JCL_AttentionMessage(jclient, nname, NULL);
 		}
 		else if (!strcmp(arg[0]+1, "raw")) 
 		{
@@ -3145,7 +3271,8 @@ void JCL_Command(char *console)
 			}
 			else
 			{
-				JCL_SendMessage(jclient, jclient->defaultdest, msg);
+				JCL_ToJID(jclient, *console?console:jclient->defaultdest, nname, sizeof(nname));
+				JCL_SendMessage(jclient, nname, msg);
 			}
 		}
 		else

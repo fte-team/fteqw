@@ -1064,7 +1064,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 	if (outpos && (!buf || buf->maxsize - buf->cursize >= outpos+4))
 	{
-		if (buf && (cl_voip_send.ival & ~4))
+		if (buf && (cl_voip_send.ival != 4))
 		{
 			MSG_WriteByte(buf, clc);
 			MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/

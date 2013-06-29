@@ -3110,7 +3110,7 @@ void JCL_Command(char *console)
 		}
 		else if (!strcmp(arg[0]+1, "help")) 
 		{
-			Con_TrySubPrint(console, "^[/" COMMANDPREFIX " /connect XMPPSERVER USERNAME@DOMAIN/RESOURCE PASSWORD^]\n");
+			Con_TrySubPrint(console, "^[/" COMMANDPREFIX " /connect USERNAME@DOMAIN/RESOURCE PASSWORD XMPPSERVER^]\n");
 			if (BUILTINISVALID(Net_SetTLSClient))
 			{
 				Con_Printf("eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com mypassword talk.google.com^]\n");

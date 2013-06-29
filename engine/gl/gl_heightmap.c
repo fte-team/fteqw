@@ -40,7 +40,7 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe);
 #define CHUNKBIAS	(MAXSECTIONS*MAXSECTIONS/2)
 #define CHUNKLIMIT	(MAXSECTIONS*MAXSECTIONS)
 
-#define LMCHUNKS 2
+#define LMCHUNKS (LMBLOCK_WIDTH/SECTTEXSIZE)
 
 #define HMLMSTRIDE (LMCHUNKS*SECTTEXSIZE)
 
@@ -1203,7 +1203,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 
 		if (mesh->indexes)
 			BZ_Free(mesh->indexes);
-			mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6*3);
+		mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6*3);
 		mesh->numindexes = 0;
 		mesh->colors4f_array = NULL;
 
@@ -1629,7 +1629,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		b->buildmeshes = NULL;
 		b->skin = &s->textures;
 		b->texture = NULL;
-		b->vbo = NULL;//&s->vbo;
+		b->vbo = &s->vbo;
 		b->lightmap[0] = s->lightmap;
 		b->lightmap[1] = -1;
 		b->lightmap[2] = -1;
@@ -2405,10 +2405,10 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	pos[1] = (hmtrace.start[1]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
 	wbias = CHUNKBIAS*hmtrace.hm->sectionsize;
 
-	emins[0] = (mins[0]-1)/hmtrace.htilesize;
-	emins[1] = (mins[1]-1)/hmtrace.htilesize;
-	emaxs[0] = (maxs[0]+1)/hmtrace.htilesize;
-	emaxs[1] = (maxs[1]+1)/hmtrace.htilesize;
+	emins[0] = (mins[0]-1.5)/hmtrace.htilesize;
+	emins[1] = (mins[1]-1.5)/hmtrace.htilesize;
+	emaxs[0] = (maxs[0]+1.5)/hmtrace.htilesize;
+	emaxs[1] = (maxs[1]+1.5)/hmtrace.htilesize;
 
 	/*fixme:
 	set pos to the leading corner instead
@@ -2477,7 +2477,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 
 	if (hmtrace.frac == -1)
 	{
-		trace->fraction = 1;
+		trace->fraction = 0;
 		trace->startsolid = true;
 		trace->allsolid = true;
 		VectorCopy(start, trace->endpos);

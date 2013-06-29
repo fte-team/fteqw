@@ -191,3 +191,90 @@ int SHA1(char *digest, int maxdigestsize, char *string, int stringlen)
 
 	return DIGEST_SIZE;
 }
+
+/* hmac-sha1.c -- hashed message authentication codes
+Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2, or (at your option)
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software Foundation,
+Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA. */
+
+/* Written by Simon Josefsson.
+hacked up a bit by someone else...
+*/
+
+#define IPAD 0x36
+#define OPAD 0x5c
+
+static void memxor(char *dest, char *src, size_t length)
+{
+	size_t i;
+	for (i = 0; i < length; i++)
+	{
+		dest[i] ^= src[i];
+	}
+}
+
+int SHA1_HMAC(unsigned char *digest, int maxdigestsize,
+			   unsigned char *key, int keylen,
+			   unsigned char *data, int datalen)
+{
+	SHA1_CTX inner;
+	SHA1_CTX outer;
+	char optkeybuf[20];
+	char block[64];
+	char innerhash[20];
+
+	if (maxdigestsize < DIGEST_SIZE)
+		return 0;
+
+	/* Reduce the key's size, so that it becomes <= 64 bytes large. */
+
+	if (keylen > 64)
+	{
+		SHA1_CTX keyhash;
+
+		SHA1Init (&keyhash);
+		SHA1Update (&keyhash, key, keylen);
+		SHA1Final (optkeybuf, &keyhash);
+
+		key = optkeybuf;
+		keylen = 20;
+	}
+
+	/* Compute INNERHASH from KEY and IN. */
+
+	SHA1Init (&inner);
+
+	memset (block, IPAD, sizeof (block));
+	memxor (block, key, keylen);
+
+	SHA1Update (&inner, block, 64);
+	SHA1Update (&inner, data, datalen);
+
+	SHA1Final (innerhash, &inner);
+
+	/* Compute result from KEY and INNERHASH. */
+
+	SHA1Init (&outer);
+
+	memset (block, OPAD, sizeof (block));
+	memxor (block, key, keylen);
+
+	SHA1Update (&outer, block, 64);
+	SHA1Update (&outer, innerhash, 20);
+
+	SHA1Final (digest, &outer);
+
+	return DIGEST_SIZE;
+}

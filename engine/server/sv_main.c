@@ -4120,6 +4120,7 @@ void SV_MVDStream_Poll(void);
 #ifdef PLUGINS
 			Plug_Tick();
 #endif
+			NET_Tick();
 
 			SV_GetConsoleCommands ();
 

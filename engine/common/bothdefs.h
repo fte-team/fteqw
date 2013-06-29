@@ -246,7 +246,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
 
 		#define PLUGINS			//qvm/dll plugins.
-		#define SUPPORT_ICE		//Internet Connection Establishment protocol, for peer-to-peer connections
+		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
 
 #ifdef _DEBUG
 //		#define OFFSCREENGECKO	//FIXME: move to plugin and remove from engine

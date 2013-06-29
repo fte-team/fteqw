@@ -341,9 +341,6 @@ static void PClassic_DrawParticles(void)
 	static float oldtime;
 	RSpeedMark();
 
-	//make sure all ents are pushed through first
-	RQ_RenderBatchClear();
-
 	if (!active_particles)
 	{
 		oldtime = cl.time;

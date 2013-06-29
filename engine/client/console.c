@@ -138,6 +138,8 @@ void Con_Destroy (console_t *con)
 console_t *Con_FindConsole(char *name)
 {
 	console_t *con;
+	if (!strcmp(name, "current") && con_current)
+		return con_current;
 	for (con = &con_main; con; con = con->next)
 	{
 		if (!strcmp(con->name, name))
@@ -149,6 +151,10 @@ console_t *Con_FindConsole(char *name)
 console_t *Con_Create(char *name, unsigned int flags)
 {
 	console_t *con;
+	if (!strcmp(name, "current"))
+		return NULL;
+	if (!strcmp(name, "MAIN"))
+		return NULL;
 	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
 

@@ -5,17 +5,20 @@
 #include "../../engine/common/netinc.h"
 #include "xml.h"
 
-#define NOICE
+//#define NOICE
+#define VOIP_SPEEX
 
+#ifdef VOIP_SPEEX
+#define VOIP
+#endif
+
+#define DEFAULTDOMAIN ""
+#define DEFAULTRESOURCE "Quake"
 #define QUAKEMEDIATYPE "quake"
 #define QUAKEMEDIAXMLNS "fteqw.com:netmedia"
+#define DEFAULTICEMODE ICEM_ICE
 
-struct icestate_s *(QDECL *pICE_Create)(void *module, char *conname, char *peername, enum icemode_e mode);	//doesn't start pinging anything.
-struct icestate_s *(QDECL *pICE_Find)(void *module, char *conname);
-void (QDECL *pICE_Begin)(struct icestate_s *con, char *stunip, int stunport);	//begins sending stun packets and stuff as required.
-struct icecandidate_s *(QDECL *pICE_GetLCandidateInfo)(struct icestate_s *con);		//stuff that needs reporting to the peer.
-void (QDECL *pICE_AddRCandidateInfo)(struct icestate_s *con, struct icecandidate_s *cand);		//stuff that came from the peer.
-void (QDECL *pICE_Close)(struct icestate_s *con);	//bye then.
+icefuncs_t *piceapi;
 
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
@@ -125,7 +128,63 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	}
 
 
+char *JCL_Info_ValueForKey (char *s, const char *key, char *valuebuf, int valuelen)
+{
+	char	pkey[1024];
+	char	*o;
 
+	if (*s == '\\')
+		s++;
+	while (1)
+	{
+		o = pkey;
+		while (*s != '\\')
+		{
+			if (!*s)
+			{
+				*valuebuf='\0';
+				return valuebuf;
+			}
+			*o++ = *s++;
+			if (o+2 >= pkey+sizeof(pkey))	//hrm. hackers at work..
+			{
+				*valuebuf='\0';
+				return valuebuf;
+			}
+		}
+		*o = 0;
+		s++;
+
+		o = valuebuf;
+
+		while (*s != '\\' && *s)
+		{
+			if (!*s)
+			{
+				*valuebuf='\0';
+				return valuebuf;
+			}
+			*o++ = *s++;
+
+			if (o+2 >= valuebuf+valuelen)	//hrm. hackers at work..
+			{
+				*valuebuf='\0';
+				return valuebuf;
+			}
+		}
+		*o = 0;
+
+		if (!strcmp (key, pkey) )
+			return valuebuf;
+
+		if (!*s)
+		{
+			*valuebuf='\0';
+			return valuebuf;
+		}
+		s++;
+	}
+}
 
 
 void RenameConsole(char *totrim);
@@ -176,18 +235,18 @@ qintptr_t Plug_Init(qintptr_t *args)
 		pCmd_AddCommand(COMMANDPREFIX2);
 		pCmd_AddCommand(COMMANDPREFIX3);
 
+		//flags&1 == archive
+		pCvar_Register("xmpp_nostatus",				"0", 0, "xmpp");
+		pCvar_Register("xmpp_autoacceptjoins",		"0", 0, "xmpp");
+		pCvar_Register("xmpp_autoacceptinvites",	"0", 0, "xmpp");
+		pCvar_Register("xmpp_autoacceptvoice",		"0", 0, "xmpp");
+		pCvar_Register("xmpp_debug",				"0", 0, "xmpp");
+		pCvar_Register("xmpp_disabletls",			"0", CVAR_NOTFROMSERVER, "xmpp");
+		pCvar_Register("xmpp_allowplainauth",		"0", CVAR_NOTFROMSERVER, "xmpp");
 
 		CHECKBUILTIN(Plug_GetNativePointer);
 		if (BUILTINISVALID(Plug_GetNativePointer))
-		{
-			pICE_Create				= pPlug_GetNativePointer("ICE_Create");
-			pICE_Find				= pPlug_GetNativePointer("ICE_Find");
-			pICE_Begin				= pPlug_GetNativePointer("ICE_Begin");
-			pICE_GetLCandidateInfo	= pPlug_GetNativePointer("ICE_GetLCandidateInfo");
-			pICE_AddRCandidateInfo	= pPlug_GetNativePointer("ICE_AddRCandidateInfo");
-			pICE_Close				= pPlug_GetNativePointer("ICE_Close");
-		}
-
+			piceapi = pPlug_GetNativePointer(ICE_API_CURRENT);
 
 		JCL_LoadConfig();
 		return 1;
@@ -213,12 +272,18 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 #define JCL_MAXMSGLEN 10000
 
+#define CAP_QUERIED	1	//a query is pending or something.
+#define CAP_VOICE	2	//supports voice
+#define CAP_INVITE	4	//supports game invites.
+
 typedef struct bresource_s
 {
 	char bstatus[128];	//basic status
 	char fstatus[128];	//full status
 	char server[256];
 	int servertype;	//0=none, 1=already a client, 2=joinable
+
+	unsigned int caps;
 
 	struct bresource_s *next;
 
@@ -241,12 +306,23 @@ typedef struct jclient_s
 	char server[64];
 	int port;
 
+	enum
+	{
+		JCL_DEAD,		//not connected. connection died or something.
+		JCL_AUTHING,	//connected, but not able to send any info on it other than to auth
+		JCL_ACTIVE		//we're connected, we got a buddy list and everything
+	} status;
+	unsigned int timeout;		//reconnect/ping timer
+
 	qhandle_t socket;
 
+	//we buffer output for times when the outgoing socket is full.
+	//mostly this only happens at the start of the connection when the socket isn't actually open yet.
 	char *outbuf;
 	int outbufpos;
 	int outbuflen;
 	int outbufmax;
+
 	char bufferedinmessage[JCL_MAXMSGLEN+1];	//servers are required to be able to handle messages no shorter than a specific size.
 												//which means we need to be able to handle messages when they get to us.
 												//servers can still handle larger messages if they choose, so this might not be enough.
@@ -259,93 +335,206 @@ typedef struct jclient_s
 	char password[256];
 	char resource[256];
 	char jid[256];	//this is our full username@domain/resource string
+	char localalias[256];//this is what's shown infront of outgoing messages. >> by default until we can get our name.
 
 	int tagdepth;
 	int openbracket;
 	int instreampos;
 
-	qboolean tlsconnect;	//the old tls method on port 5223.
+	qboolean tlsconnect;	//use the old tls method on port 5223.
 	qboolean connected;	//fully on server and authed and everything.
-	qboolean issecure;	//tls enabled
+	qboolean issecure;	//tls enabled (either upgraded or initially)
 	qboolean streamdebug;	//echo the stream to subconsoles
 
-	qboolean preapproval;
+	qboolean preapproval;	//server supports presence preapproval
 
 	char curquakeserver[2048];
 	char defaultnamespace[2048];	//should be 'jabber:client' or blank (and spammy with all the extra xmlns attribs)
 
-	struct iq_s {
+	struct iq_s
+	{
 		struct iq_s *next;
 		char id[64];
 		int timeout;
-		qboolean (*callback) (struct jclient_s *jcl, struct subtree_s *tree);
+		qboolean (*callback) (struct jclient_s *jcl, struct subtree_s *tree, struct iq_s *iq);
+		void *usrptr;
 	} *pendingiqs;
 
 	struct c2c_s
 	{
 		struct c2c_s *next;
-		char *sessionname;
-		buddy_t *tob;
-		bresource_t *tor;
-	} *p2p;
+		enum iceproto_e mediatype;
+		enum icemode_e method;	//ICE_RAW or ICE_ICE. this is what the peer asked for. updated if we degrade it.
+		qboolean accepted;	//connection is going
+		qboolean creator;	//true if we're the creator.
+
+		struct icestate_s *ice;
+		char *peeraddr;
+		int peerport;
+
+		char *with;
+		char sid[1];
+	} *c2c;
 
 	buddy_t *buddies;
 } jclient_t;
 jclient_t *jclient;
+int jclient_curtime;
 
 struct subtree_s;
 
 void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
 qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres);
-void JCL_GeneratePresence(qboolean force);
-void JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, struct subtree_s *tree), char *iqtype, char *target, char *fmt, ...);
-void JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
+void JCL_GeneratePresence(jclient_t *jcl, qboolean force);
+struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, struct subtree_s *tree, struct iq_s *iq), char *iqtype, char *target, char *fmt, ...);
+struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
 
-void JCL_Join(jclient_t *jcl, char *target)
+char *TrimResourceFromJid(char *jid)
 {
-	xmltree_t *jingle;
-	struct icestate_s *ice;
-	if (!jcl)
-		return;
-
-#ifdef NOICE
-	ice = pICE_Create(NULL, NULL, target, ICE_RAW);
-#else
-	ice = pICE_Create(NULL, NULL, target, ICE_ICE);
-#endif
-	if (!ice)
+	char *slash;
+	slash = strchr(jid, '/');
+	if (slash)
 	{
-		Con_Printf("Unable to connect to %s (dedicated servers cannot initiate connections)\n", target);
-		return;
+		*slash = '\0';
+		return slash+1;
 	}
-	//FIXME: record the session name
+	return NULL;
+}
+
+static struct c2c_s *JCL_JingleCreateSession(jclient_t *jcl, char *with, qboolean creator, char *sid, int method, int mediatype)
+{
+	struct icestate_s *ice = NULL;
+	struct c2c_s *c2c;
+	char generatedname[64];
+	
+	if (piceapi)
+		ice = piceapi->ICE_Create(NULL, sid, with, method, mediatype);
+	if (ice)
+	{
+		piceapi->ICE_Get(ice, "sid", generatedname, sizeof(generatedname));
+		sid = generatedname;
+
+		piceapi->ICE_Set(ice, "codec96", "speex@8000");
+		piceapi->ICE_Set(ice, "codec97", "speex@16000");
+		piceapi->ICE_Set(ice, "codec98", "opus");
+	}
+	else
+		return NULL;	//no way to get the local ip otherwise, which means things won't work proper
+
+	c2c = malloc(sizeof(*c2c) + strlen(sid));
+	memset(c2c, 0, sizeof(*c2c));
+	c2c->next = jcl->c2c;
+	jcl->c2c = c2c;
+	strcpy(c2c->sid, sid);
+
+	c2c->mediatype = mediatype;
+	c2c->creator = creator;
+	c2c->method = method;
+
+	//FIXME: we need to query this from the server.
+	//however, google don't implement the 'standard' way
+	//the 'standard' way contains a huge big fat do-not-implement message.
+	//and google's way equally says 'don't implement'... so...
+	//as I kinda expect most users to use google's network anyway, I *hope* they won't mind too much. I doubt they'll get much traffic anyway. its just stun.
+	piceapi->ICE_Set(ice, "stunport", "19302");
+	piceapi->ICE_Set(ice, "stunip", "stun.l.google.com");
+
+	//copy out the interesting parameters
+	c2c->with = strdup(with);
+	c2c->ice = ice;
+	return c2c;
+}
+static qboolean JCL_JingleAcceptAck(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	struct c2c_s *c2c;
+	if (tree)
+	{
+		for (c2c = jcl->c2c; c2c; c2c = c2c->next)
+		{
+			if (c2c == iq->usrptr)
+			{
+				if (c2c->ice)
+					piceapi->ICE_Set(c2c->ice, "state", STRINGIFY(ICE_CONNECTING));
+			}
+		}
+	}
+	return true;
+}
+/*
+sends a jingle message to the peer.
+action should be one of multiple things:
+session-terminate	- totally not acceptable. this also closes the c2c
+session-accept		- details are okay. this also begins ice polling (on iq ack, once we're sure the peer got our message)
+
+(internally generated) transport-replace	- details are okay, except we want a different transport method.
+*/
+qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
+{
+	qboolean result;
+	xmltree_t *jingle;
+	struct icestate_s *ice = c2c->ice;
+	qboolean wasaccept = false;
+	int transportmode = ICEM_ICE;
+
+	if (!ice)
+		action = "session-terminate";
 
 	jingle = XML_CreateNode(NULL, "jingle", "urn:xmpp:jingle:1", "");
-	XML_AddParameter(jingle, "sid", ice->conname);
-	XML_AddParameter(jingle, "responder", target);
-	XML_AddParameter(jingle, "initiator", jcl->jid);
-	XML_AddParameter(jingle, "action", "session-initiate");
+	XML_AddParameter(jingle, "sid", c2c->sid);
+
+	if (!strcmp(action, "session-initiate"))
+	{	//these attributes are meant to only be present in initiate. for call forwarding etc. which we don't properly support.
+		XML_AddParameter(jingle, "initiator", jcl->jid);
+	}
+
+	if (!strcmp(action, "session-terminate"))
+	{
+		struct c2c_s **link;
+		for (link = &jcl->c2c; *link; link = &(*link)->next)
+		{
+			if (*link == c2c)
+			{
+				*link = c2c->next;
+				break;
+			}
+		}
+		if (c2c->ice)
+			piceapi->ICE_Close(c2c->ice);
+
+		result = false;
+	}
+	else
 	{
 		xmltree_t *content = XML_CreateNode(jingle, "content", "", "");
-		XML_AddParameter(content, "senders", "both");
-		XML_AddParameter(content, "name", "some-old-quake-game");
-		XML_AddParameter(content, "creator", "initiator");
+
+		result = true;
+
+		if (!strcmp(action, "session-accept"))
+		{
+			if (c2c->method == transportmode)
+			{
+				XML_AddParameter(jingle, "responder", jcl->jid);
+				c2c->accepted = wasaccept = true;
+			}
+			else
+				action = "transport-replace";
+		}
+
 		{
 			xmltree_t *description;
 			xmltree_t *transport;
-			if (ice->mode == ICE_RAW)
+			if (transportmode == ICEM_RAW)
 			{
 				transport = XML_CreateNode(content, "transport", "urn:xmpp:jingle:transports:raw-udp:1", "");
 				{
 					xmltree_t *candidate;
-					struct icecandidate_s *b = NULL;
-					struct icecandidate_s *c;
-					while ((c = pICE_GetLCandidateInfo(ice)))
+					struct icecandinfo_s *b = NULL;
+					struct icecandinfo_s *c;
+					while ((c = piceapi->ICE_GetLCandidateInfo(ice)))
 					{
 						if (!b || b->priority < c->priority)
 							b = c;
 					}
-
 					if (b)
 					{
 						candidate = XML_CreateNode(transport, "candidate", "", "");
@@ -357,14 +546,17 @@ void JCL_Join(jclient_t *jcl, char *target)
 					}
 				}
 			}
-			else if (ice->mode == ICE_ICE)
+			else if (transportmode == ICEM_ICE)
 			{
+				char val[64];
 				transport = XML_CreateNode(content, "transport", "urn:xmpp:jingle:transports:ice-udp:1", "");
-				XML_AddParameter(transport, "ufrag", ice->lfrag);
-				XML_AddParameter(transport, "pwd", ice->lpwd);
+				piceapi->ICE_Get(ice, "lufrag",  val, sizeof(val));
+				XML_AddParameter(transport, "ufrag", val);
+				piceapi->ICE_Get(ice, "lpwd",  val, sizeof(val));
+				XML_AddParameter(transport, "pwd", val);
 				{
-					struct icecandidate_s *c;
-					while ((c = pICE_GetLCandidateInfo(ice)))
+					struct icecandinfo_s *c;
+					while ((c = piceapi->ICE_GetLCandidateInfo(ice)))
 					{
 						char *ctypename[]={"host", "srflx", "prflx", "relay"};
 						xmltree_t *candidate = XML_CreateNode(transport, "candidate", "", "");
@@ -381,46 +573,208 @@ void JCL_Join(jclient_t *jcl, char *target)
 					}
 				}
 			}
-			description = XML_CreateNode(content, "description", QUAKEMEDIAXMLNS, "");
-			XML_AddParameter(description, "media", QUAKEMEDIATYPE);
+#ifdef VOIP
+			if (c2c->mediatype == ICEP_VOICE)
 			{
-				/*
-				xmltree_t *candidate = XML_CreateNode(description, "payload-type", "", "");
-				XML_AddParameter(candidate, "channels", "1");
-				XML_AddParameter(candidate, "clockrate", "8000");
-				XML_AddParameter(candidate, "id", "104");
-				XML_AddParameter(candidate, "name", "SPEEX");
-				*/
+				xmltree_t *payload;
+				int i;
+
+				XML_AddParameter(content, "senders", "both");
+				XML_AddParameter(content, "name", "audio-session");
+				XML_AddParameter(content, "creator", "initiator");
+
+				description = XML_CreateNode(content, "description", "urn:xmpp:jingle:apps:rtp:1", "");
+				XML_AddParameter(description, "media", "audio");
+
+				for (i = 96; i <= 127; i++)
+				{
+					char codecname[64];
+					char argn[64];
+					Q_snprintf(argn, sizeof(argn), "codec%i", i);
+					piceapi->ICE_Get(ice, argn,  codecname, sizeof(codecname));
+
+					if (!strcmp(codecname, "speex@8000"))
+					{	//speex narrowband
+						payload = XML_CreateNode(description, "payload-type", "", "");
+						XML_AddParameter(payload, "channels", "1");
+						XML_AddParameter(payload, "clockrate", "8000");
+						XML_AddParameter(payload, "id", argn+5);
+						XML_AddParameter(payload, "name", "SPEEX");
+					}
+					else if (!strcmp(codecname, "speex@16000"))
+					{	//speex wideband
+						payload = XML_CreateNode(description, "payload-type", "", "");
+						XML_AddParameter(payload, "channels", "1");
+						XML_AddParameter(payload, "clockrate", "16000");
+						XML_AddParameter(payload, "id", argn+5);
+						XML_AddParameter(payload, "name", "SPEEX");
+					}
+					else if (!strcmp(codecname, "speex@32000"))
+					{	//speex ultrawideband
+						payload = XML_CreateNode(description, "payload-type", "", "");
+						XML_AddParameter(payload, "channels", "1");
+						XML_AddParameter(payload, "clockrate", "32000");
+						XML_AddParameter(payload, "id", argn+5);
+						XML_AddParameter(payload, "name", "SPEEX");
+					}
+					else if (!strcmp(codecname, "opus"))
+					{	//opus codec.
+						payload = XML_CreateNode(description, "payload-type", "", "");
+						XML_AddParameter(payload, "channels", "1");
+						XML_AddParameter(payload, "id", argn+5);
+						XML_AddParameter(payload, "name", "OPUS");
+					}
+				}
+			}
+#endif
+			else
+			{
+				description = XML_CreateNode(content, "description", QUAKEMEDIAXMLNS, "");
+				XML_AddParameter(description, "media", QUAKEMEDIATYPE);
+				if (c2c->mediatype == ICEP_QWSERVER)
+					XML_AddParameter(description, "host", "me");
+				else if (c2c->mediatype == ICEP_QWCLIENT)
+					XML_AddParameter(description, "host", "you");
 			}
 		}
 	}
-	Con_Printf("Sending connection start:\n");
-	XML_ConPrintTree(jingle, 0);
-	JCL_SendIQNode(jcl, NULL, "set", target, jingle, true);
+
+	XML_AddParameter(jingle, "action", action);
+
+//	Con_Printf("Sending Jingle:\n");
+//	XML_ConPrintTree(jingle, 1);
+	JCL_SendIQNode(jcl, wasaccept?JCL_JingleAcceptAck:NULL, "set", c2c->with, jingle, true)->usrptr = c2c;
+
+	return result;
 }
 
-void JCL_JingleParsePeerPorts(jclient_t *jcl, xmltree_t *inj, char *from)
+void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall)
+{
+	struct c2c_s *c2c;
+	for (c2c = jcl->c2c; c2c; c2c = c2c->next)
+	{
+		struct icecandinfo_s *lc;
+		if (c2c->method == ICEM_ICE)
+		{
+			char bah[2];
+			piceapi->ICE_Get(c2c->ice, "newlc", bah, sizeof(bah));
+			if (atoi(bah))
+			{
+				Con_DPrintf("Sending updated local addresses\n");
+				JCL_JingleSend(jcl, c2c, "transport-info");
+			}
+		}
+	}
+}
+
+void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int protocol)
+{
+	struct c2c_s *c2c = NULL, **link;
+	xmltree_t *jingle;
+	struct icestate_s *ice;
+	char autotarget[256];
+	if (!jcl)
+		return;
+
+	if (!strchr(target, '/'))
+	{	
+		buddy_t *b;
+		bresource_t *br;
+		JCL_FindBuddy(jcl, target, &b, &br);
+		if (!br)
+			br = b->defaultresource;
+		if (!br)
+			br = b->resources;
+
+		if (!br)
+		{
+			Con_Printf("User name not valid\n");
+			return;
+		}
+		Q_snprintf(autotarget, sizeof(autotarget), "%s/%s", b->accountdomain, br->resource);
+		target = autotarget;
+	}
+
+	for (link = &jcl->c2c; *link; link = &(*link)->next)
+	{
+		if (!strcmp((*link)->with, target) && (!sid || !strcmp((*link)->sid, sid)) && ((*link)->mediatype == protocol || protocol == ICEP_INVALID))
+		{
+			c2c = *link;
+			break;
+		}
+	}
+	if (allow)
+	{
+		if (!c2c)
+		{
+			if (!sid)
+			{
+				c2c = JCL_JingleCreateSession(jcl, target, true, sid, DEFAULTICEMODE, ((protocol == ICEP_INVALID)?ICEP_QWCLIENT:protocol));
+				JCL_JingleSend(jcl, c2c, "session-initiate");
+
+				Con_Printf("%s ^[[%s]\\xmpp\\%s^] ^[[Hang Up]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^].\n", protocol==ICEP_VOICE?"Calling":"Requesting session with", target, target, target, c2c->sid);
+			}
+			else
+				Con_Printf("That session has expired.\n");
+		}
+		else if (c2c->creator)
+		{
+			//resend initiate if they've not acked it... I dunno...
+			JCL_JingleSend(jcl, c2c, "session-initiate");
+			Con_Printf("Restarting session with ^[[%s]\\xmpp\\%s^].\n", target, target);
+		}
+		else if (c2c->accepted)
+			Con_Printf("That session was already accepted.\n");
+		else
+		{
+			JCL_JingleSend(jcl, c2c, "session-accept");
+			Con_Printf("Accepting session from ^[[%s]\\xmpp\\%s^].\n", target, target);
+		}
+	}
+	else
+	{
+		if (c2c)
+		{
+			JCL_JingleSend(jcl, c2c, "session-terminate");
+			Con_Printf("Terminating session with ^[[%s]\\xmpp\\%s^].\n", target, target);
+		}
+		else
+			Con_Printf("That session has already expired.\n");
+	}
+}
+
+void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_t *inj, char *from)
 {
 	xmltree_t *incontent = XML_ChildOfTree(inj, "content", 0);
 	xmltree_t *intransport = XML_ChildOfTree(incontent, "transport", 0);
 	xmltree_t *incandidate;
-	struct icestate_s *ice;
-	struct icecandidate_s rem;
+	struct icecandinfo_s rem;
 	int i;
 
-	ice = pICE_Find(NULL, XML_GetParameter(inj, "sid", ""));
-	if (ice && strcmp(ice->friendlyname, from))
+	if (strcmp(c2c->with, from) || strcmp(c2c->sid, XML_GetParameter(inj, "sid", "")))
 	{
 		Con_Printf("%s is trying to mess with our connections...\n", from);
 		return;
 	}
 
+	if (!c2c->sid)
+		return;
+
+	if (!intransport)
+		return;
+
+	if (!c2c->ice)
+		return;
+
+	piceapi->ICE_Set(c2c->ice, "rufrag", XML_GetParameter(intransport, "ufrag", ""));
+	piceapi->ICE_Set(c2c->ice, "rpwd", XML_GetParameter(intransport, "pwd", ""));
+
 	for (i = 0; (incandidate = XML_ChildOfTree(intransport, "candidate", i)); i++)
 	{
 		char *s;
 		memset(&rem, 0, sizeof(rem));
-		rem.addr = XML_GetParameter(incandidate, "ip", "");
-		rem.candidateid = XML_GetParameter(incandidate, "id", "");
+		Q_strlcpy(rem.addr, XML_GetParameter(incandidate, "ip", ""), sizeof(rem.addr));
+		Q_strlcpy(rem.candidateid, XML_GetParameter(incandidate, "id", ""), sizeof(rem.candidateid));
 
 		s = XML_GetParameter(incandidate, "type", "");
 		if (s && !strcmp(s, "srflx"))
@@ -442,10 +796,10 @@ void JCL_JingleParsePeerPorts(jclient_t *jcl, xmltree_t *inj, char *from)
 			rem.transport = 0;
 		else
 			rem.transport = 0;
-		pICE_AddRCandidateInfo(ice, &rem);
+		piceapi->ICE_AddRCandidateInfo(c2c->ice, &rem);
 	}
 }
-struct icestate_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
+qboolean JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
 {
 /*inj contains something like:
 <jingle sid='purplea84196dc' responder='me@example.com/Quake' initiator='them@example.com/Quake' action='session-initiate' xmlns='urn:xmpp:jingle:1'>
@@ -468,185 +822,264 @@ struct icestate_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char
 	char *transportxmlns = intransport?intransport->xmlns:"";
 	char *descriptionxmlns = indescription?indescription->xmlns:"";
 	char *descriptionmedia = XML_GetParameter(indescription, "media", "");
+	char *sid = XML_GetParameter(inj, "sid", "");
 
 	xmltree_t *jingle;
 	struct icestate_s *ice;
 	qboolean accepted = false;
 	enum icemode_e imode;
+	char *response = "session-terminate";
+	char *offer = "pwn you";
+	char *autocvar = "xmpp_autoaccepthax";
+	char *initiator;
 
-	imode = strcmp(transportxmlns, "urn:xmpp:jingle:transports:raw-udp:1")?ICE_ICE:ICE_RAW;
+	struct c2c_s *c2c = NULL;
+	int mt = ICEP_INVALID;
 
-	if (!incontent || strcmp(descriptionmedia, QUAKEMEDIATYPE) || strcmp(descriptionxmlns, QUAKEMEDIAXMLNS))
+	//FIXME: add support for session forwarding so that we might forward the connection to the real server. for now we just reject it.
+	initiator = XML_GetParameter(inj, "initiator", "");
+	if (strcmp(initiator, from))
+		return false;
+
+	if (incontent && !strcmp(descriptionmedia, QUAKEMEDIATYPE) && !strcmp(descriptionxmlns, QUAKEMEDIAXMLNS))
 	{
-		//decline it
-		ice = NULL;
-	}
-	else
-		ice = pICE_Create(NULL, XML_GetParameter(inj, "sid", ""), from, imode);
-
-	jingle = XML_CreateNode(NULL, "jingle", "urn:xmpp:jingle:1", "");
-	XML_AddParameter(jingle, "sid", ice->conname);
-	XML_AddParameter(jingle, "responder", XML_GetParameter(inj, "responder", ""));
-	XML_AddParameter(jingle, "initiator", XML_GetParameter(inj, "initiator", ""));
-	if (!ice)
-		XML_AddParameter(jingle, "action", "session-terminate");
-	else
-	{
-		xmltree_t *content = XML_CreateNode(jingle, "content", "", "");
-#ifdef NOICE
-		if (imode != ICE_RAW)
+		char *host = XML_GetParameter(indescription, "host", "you");
+		if (!strcmp(host, "you"))
 		{
-			char buf[256];
-			XML_AddParameter(jingle, "action", "transport-replace");
-			Q_snprintf(buf, sizeof(buf), "raw-%s", XML_GetParameter(incontent, "name", ""));
-			XML_AddParameter(content, "name", buf);
+			mt = ICEP_QWSERVER;
+			offer = "join your game";
+			autocvar = "xmpp_autoacceptjoins";
+		}
+		else if (!strcmp(host, "me"))
+		{
+			mt = ICEP_QWCLIENT;
+			offer = "invite you to thier game";
+			autocvar = "xmpp_autoacceptinvites";
+		}
+	}
+	if (incontent && !strcmp(descriptionmedia, "audio") && !strcmp(descriptionxmlns, "urn:xmpp:jingle:apps:rtp:1"))
+	{
+		mt = ICEP_VOICE;
+		offer = "have a natter with you";
+		autocvar = "xmpp_autoacceptvoice";
+	}
+	if (mt == ICEP_INVALID)
+		return false;
+
+	//FIXME: if both people try to establish a connection to the other simultaneously, the higher session id is meant to be canceled, and the lower accepted automagically.
+
+	c2c = JCL_JingleCreateSession(jcl, from, false,
+		sid,
+		strcmp(transportxmlns, "urn:xmpp:jingle:transports:raw-udp:1")?ICEM_ICE:ICEM_RAW,
+		mt
+		);
+	if (!c2c)
+		return false;
+
+	if (c2c->mediatype == ICEP_VOICE)
+	{
+		qboolean okay = false;
+		int i = 0;
+		xmltree_t *payload;
+		//chuck it at the engine and see what sticks. at least one must...
+		while((payload = XML_ChildOfTree(indescription, "payload-type", i++)))
+		{
+			char *name = XML_GetParameter(payload, "name", "");
+			char *clock = XML_GetParameter(payload, "clockrate", "");
+			char *id = XML_GetParameter(payload, "id", "");
+			char parm[64];
+			char val[64];
+			if (!strcmp(name, "SPEEX"))
+			{
+				Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
+				Q_snprintf(val, sizeof(val), "speex@%i", atoi(clock));
+				okay |= piceapi->ICE_Set(c2c->ice, parm, val);
+			}
+			else if (!strcmp(name, "OPUS"))
+			{
+				Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
+				okay |= piceapi->ICE_Set(c2c->ice, parm, "opus");
+			}
+		}
+		//don't do it if we couldn't successfully set any codecs, because the engine doesn't support the ones that were listed, or something.
+		if (!okay)
+		{
+			JCL_JingleSend(jcl, c2c, "session-terminate");
+			return false;
+		}
+	}
+
+	JCL_JingleParsePeerPorts(jcl, c2c, inj, from);
+
+	if (c2c->mediatype != ICEP_INVALID)
+	{
+		if (!pCvar_GetFloat(autocvar))
+		{
+			//show a prompt for it, send the reply when the user decides.
+			Con_Printf(
+					"^[[%s]\\xmpp\\%s^] wants to %s. "
+					"^[[Authorise]\\xmppact\\jauth\\xmpp\\%s\\xmppsid\\%s^] "
+					"^[[Deny]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^]\n",
+				from, from, 
+				offer,
+				from, sid,
+				from, sid);
+			return true;
 		}
 		else
-#endif
 		{
-			XML_AddParameter(jingle, "action", "session-accept");
-			XML_AddParameter(content, "name", XML_GetParameter(incontent, "name", ""));
-			accepted = true;
-		}
-		XML_AddParameter(content, "senders", "both");
-		XML_AddParameter(content, "creator", "initiator");
-		{
-			xmltree_t *description;
-			xmltree_t *transport;
-			transport = XML_CreateNode(content, "transport", transportxmlns, "");
-			if (imode == ICE_RAW)
-			{
-				//raw-udp can send only one candidate
-				xmltree_t *candidate;
-				struct icecandidate_s *b = NULL;
-				struct icecandidate_s *c;
-				while ((c = pICE_GetLCandidateInfo(ice)))
-				{
-					if (!b || b->priority < c->priority)
-						b = c;
-				}
-				if (b)
-				{
-					candidate = XML_CreateNode(transport, "candidate", "", "");
-					XML_AddParameter(candidate, "ip", b->addr);
-					XML_AddParameteri(candidate, "port", b->port);
-					XML_AddParameter(candidate, "id", b->candidateid);
-					XML_AddParameteri(candidate, "generation", b->generation);
-					XML_AddParameteri(candidate, "component", b->component);
-				}
-			}
-			else if (imode == ICE_ICE)
-			{
-				//ice can send multiple candidates
-				struct icecandidate_s *c;
-				XML_AddParameter(transport, "ufrag", ice->lfrag);
-				XML_AddParameter(transport, "pwd", ice->lpwd);
-				while ((c = pICE_GetLCandidateInfo(ice)))
-				{
-					char *ctypename[]={"host", "srflx", "prflx", "relay"};
-					xmltree_t *candidate = XML_CreateNode(transport, "candidate", "", "");
-					XML_AddParameter(candidate, "type", ctypename[c->type]);
-					XML_AddParameter(candidate, "protocol", "udp");	//is this not just a little bit redundant? ice-udp? seriously?
-					XML_AddParameteri(candidate, "priority", c->priority);
-					XML_AddParameteri(candidate, "port", c->port);
-					XML_AddParameteri(candidate, "network", c->network);
-					XML_AddParameter(candidate, "ip", c->addr);
-					XML_AddParameter(candidate, "id", c->candidateid);
-					XML_AddParameteri(candidate, "generation", c->generation);
-					XML_AddParameteri(candidate, "foundation", c->foundation);
-					XML_AddParameteri(candidate, "component", c->component);
-				}
-			}
-			else
-			{
-				//egads! can't cope with that.
-			}
-			description = XML_CreateNode(content, "description", QUAKEMEDIAXMLNS, "");
-			XML_AddParameter(description, "media", QUAKEMEDIATYPE);
-			{
-				/*
-				xmltree_t *candidate = XML_CreateNode(description, "payload-type", "", "");
-				XML_AddParameter(candidate, "channels", "1");
-				XML_AddParameter(candidate, "clockrate", "8000");
-				XML_AddParameter(candidate, "id", "104");
-				XML_AddParameter(candidate, "name", "SPEEX");
-				*/
-			}
+			Con_Printf("Auto-accepting session from ^[[%s]\\xmpp\\%s^]\n", from, from);
+			response = "session-accept";
 		}
 	}
-	if (!ice)
-		Con_Printf("Sending reject:\n");
-	else
-		Con_Printf("Sending accept:\n");
-	XML_ConPrintTree(jingle, 0);
-	JCL_SendIQNode(jcl, NULL, "set", from, jingle, true);
 
-	if (ice)
-		JCL_JingleParsePeerPorts(jcl, inj, from);
-
-	//if we didn't error out, the ICE stuff is meant to start sending handshakes/media as soon as the connection is accepted
-	if (ice && accepted)
-		pICE_Begin(ice, NULL, 0);
-	return ice;
+	JCL_JingleSend(jcl, c2c, response);
+	return true;
 }
 
-void JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
+qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 {
 	char *action = XML_GetParameter(tree, "action", "");
-//	char *initiator = XML_GetParameter(tree, "initiator", "");
-//	char *responder = XML_GetParameter(tree, "responder", "");
 	char *sid = XML_GetParameter(tree, "sid", "");
 
-	//validate sender
-	struct icestate_s *ice = pICE_Find(NULL, sid);
-	if (ice && strcmp(ice->friendlyname, from))
+	struct c2c_s *c2c = NULL, **link;
+
+	for (link = &jcl->c2c; *link; link = &(*link)->next)
 	{
-		Con_Printf("%s is trying to mess with our connections...\n", from);
-		return;
+		if (!strcmp((*link)->sid, sid))
+		{
+			c2c = *link;
+			if (!c2c->accepted)
+				break;
+		}
 	}
 
+	//validate sender
+	if (c2c && strcmp(c2c->with, from))
+	{
+		Con_Printf("%s is trying to mess with our connections...\n", from);
+		return false;
+	}
+
+	//FIXME: transport-info, transport-replace
 	if (!strcmp(action, "session-terminate"))
 	{
-		if (ice)
-			pICE_Close(ice);
+		xmltree_t *reason = XML_ChildOfTree(tree, "reason", 0);
+		if (!c2c)
+		{
+			Con_Printf("Received session-terminate without an active session\n");
+			return false;
+		}
 
-		Con_Printf("Session ended\n");
-		XML_ConPrintTree(tree, 0);
+		if (reason && reason->child)
+			Con_Printf("Session ended: %s\n", reason->child->name);
+		else
+			Con_Printf("Session ended\n");
+
+		//unlink it
+		for (link = &jcl->c2c; *link; link = &(*link)->next)
+		{
+			if (*link == c2c)
+			{
+				*link = c2c->next;
+				break;
+			}
+		}
+
+//		XML_ConPrintTree(tree, 0);
+
+		if (c2c->ice)
+			piceapi->ICE_Close(c2c->ice);
+		free(c2c);
+	}
+	//content-accept
+	//content-add
+	//content-modify
+	//content-reject
+	//content-remove
+	//description-info
+	//security-info
+	//
+	else if (!strcmp(action, "transport-info"))
+	{	//peer wants to add ports.
+		if (c2c)
+			JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
+		else
+			Con_DPrintf("Received transport-info without an active session\n");
+	}
+//FIXME: we need to add support for this to downgrade to raw if someone tries calling through a SIP gateway
+	else if (!strcmp(action, "transport-replace"))
+	{
+		if (c2c)
+		{
+			if (1)
+				JCL_JingleSend(jcl, c2c, "transport-reject");
+			else
+			{
+				JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
+				JCL_JingleSend(jcl, c2c, "transport-accept");
+			}
+		}
+	}
+	else if (!strcmp(action, "transport-reject"))
+	{
+		JCL_JingleSend(jcl, c2c, "session-terminate");
 	}
 	else if (!strcmp(action, "session-accept"))
 	{
-		if (!ice)
+		if (!c2c)
 		{
-			Con_Printf("Cannot accept a session that was never created\n");
+			Con_DPrintf("Unknown session acceptance\n");
+			return false;
+		}
+		else if (!c2c->creator)
+		{
+			Con_DPrintf("Peer tried to accept a session that *they* created!\n");
+			return false;
+		}
+		else if (c2c->accepted)
+		{
+			//pidgin is buggy and can dupe-accept sessions multiple times.
+			Con_DPrintf("Duplicate session-accept from peer.\n");
+
+			//XML_ConPrintTree(tree, 0);
+			return false;
 		}
 		else
 		{
+			char *responder = XML_GetParameter(tree, "responder", from);
+			if (strcmp(responder, from))
+			{
+				return false;
+			}
 			Con_Printf("Session Accepted!\n");
-			XML_ConPrintTree(tree, 0);
+//			XML_ConPrintTree(tree, 0);
 
-			if (ice)
-				JCL_JingleParsePeerPorts(jcl, tree, from);
+			JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
+			c2c->accepted = true;
 
 			//if we didn't error out, the ICE stuff is meant to start sending handshakes/media as soon as the connection is accepted
-			if (ice)
-				pICE_Begin(ice, NULL, 0);
+			if (c2c->ice)
+				piceapi->ICE_Set(c2c->ice, "state", STRINGIFY(ICE_CONNECTING));
 		}
 	}
 	else if (!strcmp(action, "session-initiate"))
 	{
-		Con_Printf("Peer initiating connection!\n");
-		XML_ConPrintTree(tree, 0);
+//		Con_Printf("Peer initiating connection!\n");
+//		XML_ConPrintTree(tree, 0);
 
-		ice = JCL_JingleHandleInitiate(jcl, tree, from);
+		if (!JCL_JingleHandleInitiate(jcl, tree, from))
+			return false;
 	}
 	else
 	{
 		Con_Printf("Unknown jingle action: %s\n", action);
-		XML_ConPrintTree(tree, 0);
+//		XML_ConPrintTree(tree, 0);
 	}
 
 	JCL_AddClientMessagef(jcl,
 		"<iq type='result' to='%s' id='%s' />", from, id);
+	return true;
 }
 
 
@@ -654,29 +1087,63 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 {
 	char text[256];
 	char link[256];
-	pCmd_Argv(0, text, sizeof(text));
+	char who[256];
+	char what[256];
+//	pCmd_Argv(0, text, sizeof(text));
 	pCmd_Argv(1, link, sizeof(link));
 
-	if (!strncmp(link, "\\xmppauth\\", 6))
+	JCL_Info_ValueForKey(link, "xmpp", who, sizeof(who));
+	JCL_Info_ValueForKey(link, "xmppact", what, sizeof(what));
+
+	if (!*who && !*what)
+		return false;
+
+	if (!strcmp(what, "pauth"))
 	{
 		//we should friend them too.
-		if (jclient)
-			JCL_AddClientMessagef(jclient, "<presence to='%s' type='subscribed'/>", link+10);
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_AddClientMessagef(jclient, "<presence to='%s' type='subscribed'/>", who);
 		return true;
 	}
-	if (!strncmp(link, "\\xmppdeny\\", 6))
+	else if (!strcmp(what, "pdeny"))
 	{
-		if (jclient)
-			JCL_AddClientMessagef(jclient, "<presence to='%s' type='unsubscribed'/>", link+10);
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_AddClientMessagef(jclient, "<presence to='%s' type='unsubscribed'/>", who);
 		return true;
 	}
-
-	if (!strncmp(link, "\\xmppjoin\\", 6))
+	else if (!strcmp(what, "jauth"))
 	{
-		JCL_Join(jclient, link+10);
-		return false;
+		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_Join(jclient, who, what, true, ICEP_INVALID);
+		return true;
 	}
-	if (!strncmp(link, "\\xmpp\\", 6))
+	else if (!strcmp(what, "jdeny"))
+	{
+		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_Join(jclient, who, what, false, ICEP_INVALID);
+		return true;
+	}
+	else if (!strcmp(what, "join"))
+	{
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_Join(jclient, who, NULL, true, ICEP_QWCLIENT);
+		return true;
+	}
+	else if (!strcmp(what, "invite"))
+	{
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_Join(jclient, who, NULL, true, ICEP_QWSERVER);
+		return true;
+	}
+	else if (!strcmp(what, "call"))
+	{
+		if (jclient && jclient->status == JCL_ACTIVE)
+			JCL_Join(jclient, who, NULL, true, ICEP_VOICE);
+		return true;
+	}
+	else if ((*who && !*what) || !strcmp(what, "msg"))
 	{
 		if (jclient)
 		{
@@ -684,7 +1151,7 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 			buddy_t *b;
 			bresource_t *br;
 
-			JCL_FindBuddy(jclient, link+6, &b, &br);
+			JCL_FindBuddy(jclient, *who?who:jclient->defaultdest, &b, &br);
 			f = b->name;
 			b->defaultresource = br;
 
@@ -695,6 +1162,11 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		}
 		return true;
 	}
+	else
+	{
+		Con_Printf("Unsupported xmpp action (%s) in link\n", what);
+	}
+
 	return false;
 }
 
@@ -804,24 +1276,98 @@ void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...)
 
 	JCL_AddClientMessageString(jcl, body);
 }
-jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *account, char *password)
+qboolean JCL_Reconnect(jclient_t *jcl)
 {
+	//destroy any data that never got sent
+	free(jcl->outbuf);
+	jcl->outbuf = NULL;
+	jcl->outbuflen = 0;
+	jcl->outbufpos = 0;
+	jcl->outbufmax = 0;
+	jcl->instreampos = 0;
+	jcl->bufferedinammount = 0;
+	jcl->tagdepth = 0;
+	Q_strlcpy(jcl->localalias, ">>", sizeof(jcl->localalias));
+
+
+	Con_Printf("XMPP: Trying to connect to %s\n", jcl->domain);
+	jcl->socket = pNet_TCPConnect(jcl->server, jcl->tlsconnect?5223:5222);	//port is only used if the url doesn't contain one. It's a default.
+
+	//not yet blocking. So no frequent attempts please...
+	//non blocking prevents connect from returning worthwhile sensible value.
+	if ((int)jcl->socket < 0)
+	{
+		Con_Printf("JCL_OpenSocket: couldn't connect\n");
+		return false;
+	}
+
+	jcl->issecure = false;
+	if (jcl->tlsconnect)
+		if (pNet_SetTLSClient(jcl->socket, jcl->server)>=0)
+			jcl->issecure = true;
+
+	jcl->status = JCL_AUTHING;
+
+	JCL_AddClientMessageString(jcl,
+		"<?xml version='1.0' ?>"
+		"<stream:stream to='");
+	JCL_AddClientMessageString(jcl, jcl->domain);
+	JCL_AddClientMessageString(jcl, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>");
+
+	return true;
+}
+jclient_t *JCL_Connect(char *server, qboolean usesecure, char *account, char *password)
+{
+	char gamename[64];
 	jclient_t *jcl;
-	char *at;
+	char *domain;
+	char *res;
+
+	res = TrimResourceFromJid(account);
+	if (!res)
+	{
+		//the default resource matches the game that they're trying to play.
+		if (pCvar_GetString("fs_gamename", gamename, sizeof(gamename)))
+		{
+			//strip out any weird chars (namely whitespace)
+			char *o;
+			for (o = gamename, res = gamename; *res; )
+			{
+				if (*res == ' ' || *res == '\t')
+					res++;
+				else
+					*o++ = *res++;
+			}
+			res = gamename;
+		}
+	}
 
 	if (usesecure)
 	{
 		if (!BUILTINISVALID(Net_SetTLSClient))
 		{
-			Con_Printf("JCL_OpenSocket: TLS is not supported\n");
+			Con_Printf("XMPP: TLS is not supported\n");
 			return NULL;
 		}
 	}
 
-	at = strchr(account, '@');
-	if (!at)
-		return NULL;
-
+	domain = strchr(account, '@');
+	if (domain)
+	{
+		*domain = '\0';
+		domain++;
+	}
+	else
+	{
+		domain = DEFAULTDOMAIN;
+		if (domain && *domain)
+			Con_Printf("XMPP: domain not specified, assuming %s\n", domain);
+		else
+		{
+			Con_Printf("XMPP: domain not specified\n");
+			return NULL;
+		}
+	}
 
 	jcl = malloc(sizeof(jclient_t));
 	if (!jcl)
@@ -829,54 +1375,20 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 
 	memset(jcl, 0, sizeof(jclient_t));
 
-
-	jcl->socket = pNet_TCPConnect(server, defport);	//port is only used if the url doesn't contain one. It's a default.
-
-	//not yet blocking. So no frequent attempts please...
-	//non blocking prevents connect from returning worthwhile sensible value.
-	if ((int)jcl->socket < 0)
-	{
-		Con_Printf("JCL_OpenSocket: couldn't connect\n");
-		free(jcl);
-		return NULL;
-	}
-
-	if (usesecure)
-	{
-		if (pNet_SetTLSClient(jcl->socket, server)<0)
-		{
-			pNet_Close(jcl->socket);
-			free(jcl);
-			jcl = NULL;
-
-			return NULL;
-		}
-		jcl->issecure = true;
-	}
-	else
-		jcl->issecure = false;
-
-
-//	gethostname(jcl->hostname, sizeof(jcl->hostname));
-//	jcl->hostname[sizeof(jcl->hostname)-1] = 0;
-
 	jcl->tlsconnect = usesecure;
 	jcl->streamdebug = !!pCvar_GetFloat("xmpp_debug");
 
-	*at = '\0';
 	Q_strlcpy(jcl->server, server, sizeof(jcl->server));
 	Q_strlcpy(jcl->username, account, sizeof(jcl->username));
-	Q_strlcpy(jcl->domain, at+1, sizeof(jcl->domain));
+	Q_strlcpy(jcl->domain, domain, sizeof(jcl->domain));
 	Q_strlcpy(jcl->password, password, sizeof(jcl->password));
+	Q_strlcpy(jcl->resource, (res&&*res)?res:"FTE", sizeof(jcl->password));
 
-	Q_strlcpy(jcl->resource, "Quake", sizeof(jcl->password));
-
-	Con_Printf("Trying to connect to %s\n", at+1);
-	JCL_AddClientMessageString(jcl,
-		"<?xml version='1.0' ?>"
-		"<stream:stream to='");
-	JCL_AddClientMessageString(jcl, jcl->domain);
-	JCL_AddClientMessageString(jcl, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>");
+	if (!JCL_Reconnect(jcl))
+	{
+		free(jcl);
+		jcl = NULL;
+	}
 
 	return jcl;
 }
@@ -1011,16 +1523,42 @@ int Base64_Decode(char *out, int outlen, char *src, int srclen)
 	return len;
 }
 
-char *TrimResourceFromJid(char *jid)
+void JCL_ForgetBuddyResource(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 {
-	char *slash;
-	slash = strchr(jid, '/');
-	if (slash)
+	bresource_t **link;
+	bresource_t *r;
+	for (link = &buddy->resources; *link; )
 	{
-		*slash = '\0';
-		return slash+1;
+		r = *link;
+		if (!bres || bres == r)
+		{
+			*link = r->next;
+			free(r);
+			if (bres)
+				break;
+		}
+		else
+			link = &r->next;
 	}
-	return NULL;
+}
+void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
+{
+	buddy_t **link;
+	buddy_t *b;
+	for (link = &jcl->buddies; *link; )
+	{
+		b = *link;
+		if (!buddy || buddy == b)
+		{
+			*link = b->next;
+			JCL_ForgetBuddyResource(jcl, b, bres);
+			free(b);
+			if (buddy)
+				break;
+		}
+		else
+			link = &b->next;
+	}
 }
 
 qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres)
@@ -1070,7 +1608,7 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 	return false;
 }
 
-void JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree), char *iqtype, char *target, char *body)
+struct iq_s *JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, char *body)
 {
 	struct iq_s *iq;
 		
@@ -1096,8 +1634,9 @@ void JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t 
 	}
 	JCL_AddClientMessageString(jcl, body);
 	JCL_AddClientMessageString(jcl, "</iq>");
+	return iq;
 }
-void JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree), char *iqtype, char *target, char *fmt, ...)
+struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, char *fmt, ...)
 {
 	va_list		argptr;
 	char body[2048];
@@ -1106,15 +1645,17 @@ void JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t
 	Q_vsnprintf (body, sizeof(body), fmt, argptr);
 	va_end (argptr);
 
-	JCL_SendIQ(jcl, callback, iqtype, target, body);
+	return JCL_SendIQ(jcl, callback, iqtype, target, body);
 }
-void JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree), char *iqtype, char *target, xmltree_t *node, qboolean destroynode)
+struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode)
 {
+	struct iq_s *n;
 	char *s = XML_GenerateString(node);
-	JCL_SendIQ(jcl, callback, iqtype, target, s);
+	n = JCL_SendIQ(jcl, callback, iqtype, target, s);
 	free(s);
 	if (destroynode)
 		XML_Destroy(node);
+	return n;
 }
 static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
 {
@@ -1133,21 +1674,22 @@ static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
 		buddy->friended = true;
 	}
 }
-static qboolean JCL_RosterReply(jclient_t *jcl, xmltree_t *tree)
+static qboolean JCL_RosterReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	xmltree_t *c;
+	//we're probably connected once we've had this reply.
+	jcl->status = JCL_ACTIVE;
+	JCL_GeneratePresence(jcl, true);
 	c = XML_ChildOfTree(tree, "query", 0);
 	if (c)
 	{
 		JCL_RosterUpdate(jcl, c);
-		JCL_GeneratePresence(true);
 		return true;
 	}
-	JCL_GeneratePresence(true);
 	return false;
 }
 
-static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree)
+static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	xmltree_t *c;
 	c = XML_ChildOfTree(tree, "bind", 0);
@@ -1163,9 +1705,23 @@ static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree)
 	}
 	return false;
 }
-static qboolean JCL_SessionReply(jclient_t *jcl, xmltree_t *tree)
+static qboolean JCL_VCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	xmltree_t *vc, *fn, *nickname;
+	vc = XML_ChildOfTree(tree, "vCard", 0);
+	fn = XML_ChildOfTree(vc, "FN", 0);
+	nickname = XML_ChildOfTree(vc, "NICKNAME", 0);
+
+	if (nickname && *nickname->body)
+		Q_strlcpy(jcl->localalias, nickname->body, sizeof(jcl->localalias));
+	else if (fn && *fn->body)
+		Q_strlcpy(jcl->localalias, fn->body, sizeof(jcl->localalias));
+	return true;
+}
+static qboolean JCL_SessionReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	JCL_SendIQf(jcl, JCL_RosterReply, "get", NULL, "<query xmlns='jabber:iq:roster'/>");
+	JCL_SendIQf(jcl, JCL_VCardReply, "get", NULL, "<vCard xmlns='vcard-temp'/>");
 	return true;
 }
 
@@ -1185,8 +1741,10 @@ static char *caps[] =
 	"jabber:iq:version", 
 	"urn:xmpp:jingle:1",
 	QUAKEMEDIAXMLNS,
-//	"urn:xmpp:jingle:apps:rtp:1",	//we don't support rtp video/voice chat
-//	"urn:xmpp:jingle:apps:rtp:audio",//we don't support rtp voice chat
+#ifdef VOIP
+	"urn:xmpp:jingle:apps:rtp:1",
+	"urn:xmpp:jingle:apps:rtp:audio",
+#endif
 //	"urn:xmpp:jingle:apps:rtp:video",//we don't support rtp video chat
 	"urn:xmpp:jingle:transports:raw-udp:1",
 #ifndef NOICE
@@ -1253,7 +1811,6 @@ static void buildcaps(char *out, int outlen)
 		Q_strlcat(out, "'/>", outlen);
 	}
 }
-
 static int qsortcaps(const void *va, const void *vb)
 {
 	char *a = *(char**)va;
@@ -1267,9 +1824,7 @@ char *buildcapshash(void)
 	char out[8192];
 	int outlen = sizeof(out);
 	unsigned char digest[64];
-
 	Q_strlcpy(out, "client/pc//FTEQW<", outlen);
-
 	qsort(caps, sizeof(caps)/sizeof(caps[0]) - 1, sizeof(char*), qsortcaps); 
 	for (i = 0; caps[i]; i++)
 	{
@@ -1277,16 +1832,450 @@ char *buildcapshash(void)
 		Q_strlcat(out, "<", outlen);
 	}
 	l = SHA1(digest, sizeof(digest), out, strlen(out));
-
 	for (i = 0; i < l; i++)
 		Base64_Byte(digest[i]);
 	Base64_Finish();
 	return base64;
 }
 
-#define JCL_DONE 0
-#define JCL_CONTINUE 1
-#define JCL_KILL 2
+void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
+{
+	qboolean unparsable = true;
+	char *from;
+//	char *to;
+	char *id;
+	char *f;
+	xmltree_t *ot;
+
+	//FIXME: block from people who we don't know.
+
+	id = XML_GetParameter(tree, "id", "");
+	from = XML_GetParameter(tree, "from", "");
+//	to = XML_GetParameter(tree, "to", "");
+
+	f = XML_GetParameter(tree, "type", "");
+	if (!strcmp(f, "get"))
+	{
+		ot = XML_ChildOfTree(tree, "query", 0);
+		if (ot)
+		{
+			if (from && !strcmp(ot->xmlns, "http://jabber.org/protocol/disco#info"))
+			{	//http://xmpp.org/extensions/xep-0030.html
+				char msg[2048];
+				char *hash;
+				unparsable = false;
+
+				buildcaps(msg, sizeof(msg));
+				hash = buildcapshash();
+
+				JCL_AddClientMessagef(jcl,
+						"<iq type='result' to='%s' id='%s'>"
+							"<query xmlns='http://jabber.org/protocol/disco#info' node='http://fteqw.com/ftexmppplug#%s'>"
+								"%s"
+							"</query>"
+						"</iq>", from, id, hash, msg);
+			}
+			else if (from && !strcmp(ot->xmlns, "jabber:iq:version"))
+			{	//client->client version request
+				char msg[2048];
+				unparsable = false;
+
+				Q_snprintf(msg, sizeof(msg),
+						"<iq type='result' to='%s' id='%s'>"
+							"<query xmlns='jabber:iq:version'>"
+								"<name>FTEQW XMPP</name>"
+								"<version>V"JCL_BUILD"</version>"
+#ifdef Q3_VM
+								"<os>QVM plugin</os>"
+#else
+								//don't specify the os otherwise, as it gives away required base addresses etc for exploits
+#endif
+							"</query>"
+						"</iq>", from, id);
+
+				JCL_AddClientMessageString(jcl, msg);
+			}
+			else if (from && !strcmp(ot->xmlns, "jabber:iq:last"))
+			{
+				unparsable = false;
+				JCL_AddClientMessagef(jcl,
+						"<iq type='error' to='%s' id='%s'>"
+							"<error type='cancel'>"
+								"<service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+							"</error>"
+						"</iq>", from, id);
+			}
+/*			else if (from && !strcmp(ot->xmlns, "jabber:iq:last"))
+			{	//http://xmpp.org/extensions/xep-0012.html
+				char msg[2048];
+				int idletime = 0;
+				unparsable = false;
+
+				//last activity
+				Q_snprintf(msg, sizeof(msg),
+						"<iq type='result' to='%s' id='%s'>"
+							"<query xmlns='jabber:iq:last' seconds='%i'/>"
+						"</iq>", from, id, idletime);
+				
+				JCL_AddClientMessageString(jcl, msg);
+			}
+*/
+		}
+#ifndef Q3_VM
+		ot = XML_ChildOfTree(tree, "time", 0);
+		if (ot && !strcmp(ot->xmlns, "urn:xmpp:time"))
+		{	//http://xmpp.org/extensions/xep-0202.html
+			char msg[2048];
+			char tz[256];
+			char timestamp[256];
+			struct tm * timeinfo;
+			int tzh, tzm;
+			time_t rawtime;
+			time (&rawtime);
+			timeinfo = localtime(&rawtime);
+			tzh = timeinfo->tm_hour;
+			tzm = timeinfo->tm_min;
+			timeinfo = gmtime (&rawtime);
+			tzh -= timeinfo->tm_hour;
+			tzm -= timeinfo->tm_min;
+			Q_snprintf(tz, sizeof(tz), "%+i:%i", tzh, tzm);
+			strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", timeinfo);
+			unparsable = false;
+			//strftime
+			Q_snprintf(msg, sizeof(msg),
+					"<iq type='result' to='%s' id='%s'>"
+						"<time xmlns='urn:xmpp:time'>"
+							"<tzo>%s</tzo>"
+							"<utc>%s</utc>"
+						"</time>"
+					"</iq>", from, id, tz, timestamp);
+			JCL_AddClientMessageString(jcl, msg);
+		}
+#endif
+
+		ot = XML_ChildOfTree(tree, "ping", 0);
+		if (ot && !strcmp(ot->xmlns, "urn:xmpp:ping"))
+		{
+			JCL_AddClientMessagef(jcl, "<iq type='result' to='%s' id='%s' />", from, id);
+		}
+			
+		if (unparsable)
+		{	//unsupported stuff
+			char msg[2048];
+			unparsable = false;
+
+			Con_Printf("Unsupported iq get\n");
+			XML_ConPrintTree(tree, 0);
+
+			//tell them OH NOES, instead of requiring some timeout.
+			Q_snprintf(msg, sizeof(msg),
+					"<iq type='error' to='%s' id='%s'>"
+						"<error type='cancel'>"
+							"<service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+						"</error>"
+					"</iq>", from, id);
+			JCL_AddClientMessageString(jcl, msg);
+		}
+	}
+	else if (!strcmp(f, "set"))
+	{
+		xmltree_t *c;
+		
+		c = XML_ChildOfTree(tree, "query", 0);
+		if (c && !strcmp(c->xmlns, "jabber:iq:roster"))
+		{
+			unparsable = false;
+			JCL_RosterUpdate(jcl, c);
+		}
+
+		c = XML_ChildOfTree(tree, "jingle", 0);
+		if (c && !strcmp(c->xmlns, "urn:xmpp:jingle:1"))
+		{
+			unparsable = !JCL_ParseJingle(jcl, c, from, id);
+		}
+
+		if (unparsable)
+		{
+			char msg[2048];
+			//tell them OH NOES, instead of requiring some timeout.
+			Q_snprintf(msg, sizeof(msg),
+					"<iq type='error' to='%s' id='%s'>"
+						"<error type='cancel'>"
+							"<service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+						"</error>"
+					"</iq>", from, id);
+			JCL_AddClientMessageString(jcl, msg);
+			unparsable = false;
+		}
+	}
+	else if (!strcmp(f, "result") || !strcmp(f, "error"))
+	{
+		char *id = XML_GetParameter(tree, "id", "");
+		struct iq_s **link, *iq;
+		unparsable = false;
+		for (link = &jcl->pendingiqs; *link; link = &(*link)->next)
+		{
+			iq = *link;
+			if (!strcmp(iq->id, id))
+				break;
+		}
+		if (*link)
+		{
+			iq = *link;
+			*link = iq->next;
+
+			if (iq->callback)
+			{
+				if (!iq->callback(jcl, !strcmp(f, "error")?NULL:tree, iq))
+				{
+					Con_Printf("Invalid iq result\n");
+					XML_ConPrintTree(tree, 0);
+				}
+			}
+			free(iq);
+		}
+		else
+		{
+			Con_Printf("Unrecognised iq result\n");
+			XML_ConPrintTree(tree, 0);
+		}
+	}
+	
+	if (unparsable)
+	{
+		unparsable = false;
+		Con_Printf("Unrecognised iq type\n");
+		XML_ConPrintTree(tree, 0);
+	}
+}
+void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
+{
+	xmltree_t *ot;
+	qboolean unparsable = true;
+	char *f = XML_GetParameter(tree, "from", NULL);
+
+	if (f && !strcmp(f, jcl->jid))
+		unparsable = false;
+	else
+	{
+		if (f)
+		{
+			buddy_t *b;
+			bresource_t *br;
+			Q_strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
+
+			JCL_FindBuddy(jcl, f, &b, &br);
+			f = b->name;
+			b->defaultresource = br;
+		}
+
+		if (f)
+		{
+			ot = XML_ChildOfTree(tree, "composing", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s is typing\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "paused", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s has stopped typing\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "inactive", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "active", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "\r", f);
+			}
+			ot = XML_ChildOfTree(tree, "gone", 0);
+			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
+			{
+				unparsable = false;
+				Con_SubPrintf(f, "%s has gone away\r", f);
+			}
+		}
+
+		ot = XML_ChildOfTree(tree, "body", 0);
+		if (ot)
+		{
+			unparsable = false;
+			if (f)
+			{
+				if (!strncmp(ot->body, "/me ", 4))
+					Con_SubPrintf(f, "*^2%s^7%s\n", f, ot->body+3);
+				else
+					Con_SubPrintf(f, "^2%s^7: %s\n", f, ot->body);
+			}
+			else
+				Con_Printf("NOTICE: %s\n", ot->body);
+
+			if (BUILTINISVALID(LocalSound))
+				pLocalSound("misc/talk.wav");
+		}
+
+		if (unparsable)
+		{
+			unparsable = false;
+			if (jcl->streamdebug)
+			{
+				Con_Printf("Received a message without a body\n");
+				XML_ConPrintTree(tree, 0);
+			}
+		}
+	}
+}
+
+qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	xmltree_t *query = XML_ChildOfTree(tree, "query", 0);
+	xmltree_t *feature;
+	char *var;
+	int i = 0;
+	unsigned int caps = 0;
+	qboolean rtp = false;
+	qboolean rtpaudio = false;
+	qboolean quake = false;
+	qboolean ice = false;
+	qboolean raw = false;
+	qboolean jingle = false;
+	buddy_t *b;
+	bresource_t *r;
+	JCL_FindBuddy(jcl, XML_GetParameter(tree, "from", ""), &b, &r);
+	while((feature = XML_ChildOfTree(query, "feature", i++)))
+	{
+		var = XML_GetParameter(feature, "var", "");
+		//check ones we recognise.
+		if (!strcmp(var, QUAKEMEDIAXMLNS))
+			quake = true;
+		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:audio"))
+			rtpaudio = true;
+		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:1"))
+			rtp = true;		//kinda implied, but ensures version is okay
+		if (!strcmp(var, "urn:xmpp:jingle:transports:ice-udp:1"))
+			ice = true;
+		if (!strcmp(var, "urn:xmpp:jingle:transports:raw-udp:1"))
+			raw = true;
+		if (!strcmp(var, "urn:xmpp:jingle:1"))
+			jingle = true;	//kinda implied, but ensures version is okay
+	}
+	if ((ice||raw) && jingle)
+	{
+		if (rtpaudio && rtp)
+			caps |= CAP_VOICE;
+		if (quake)
+			caps |= CAP_INVITE;
+	}
+
+	if (b && r)
+		r->caps = (r->caps & CAP_QUERIED) | caps;
+	return true;
+}
+void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
+{
+	buddy_t *buddy;
+	bresource_t *bres;
+
+	char *from = XML_GetParameter(tree, "from", "");
+	xmltree_t *show = XML_ChildOfTree(tree, "show", 0);
+	xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
+	xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
+	char *type = XML_GetParameter(tree, "type", "");
+	char *serverip = NULL;
+	char *servermap = NULL;
+
+	if (quake && !strcmp(quake->xmlns, "fteqw.com:game"))
+	{
+		serverip = XML_GetParameter(quake, "serverip", NULL);
+		servermap = XML_GetParameter(quake, "servermap", NULL);
+	}
+
+	if (type && !strcmp(type, "subscribe"))
+	{
+		Con_Printf("^[[%s]\\xmpp\\%s^] wants to be your friend! ^[[Authorize]\\xmpp\\%s\\xmppact\\pauth^] ^[[Deny]\\xmpp\\%s\\xmppact\\pdeny^]\n", from, from, from, from);
+	}
+	else if (type && !strcmp(type, "subscribed"))
+	{
+		Con_Printf("^[[%s]\\xmpp\\%s^] is now your friend!\n", from, from, from, from);
+	}
+	else if (type && !strcmp(type, "unsubscribe"))
+	{
+		Con_Printf("^[[%s]\\xmpp\\%s^] has unfriended you\n", from, from);
+	}
+	else if (type && !strcmp(type, "unsubscribed"))
+	{
+		Con_Printf("^[[%s]\\xmpp\\%s^] is no longer unfriended you\n", from, from);
+	}
+	else
+	{
+		JCL_FindBuddy(jcl, from, &buddy, &bres);
+
+		if (bres)
+		{
+			if (servermap)
+			{
+				bres->servertype = 2;
+				Q_strlcpy(bres->server, servermap, sizeof(bres->server));
+			}
+			else if (serverip)
+			{
+				bres->servertype = 1;
+				Q_strlcpy(bres->server, serverip, sizeof(bres->server));
+			}
+			else
+			{
+				bres->servertype = 0;
+				Q_strlcpy(bres->server, "", sizeof(bres->server));
+			}
+			Q_strlcpy(bres->fstatus, (status && *status->body)?status->body:"", sizeof(bres->fstatus));
+			if (!tree->child)
+			{
+				Q_strlcpy(bres->bstatus, "offline", sizeof(bres->bstatus));
+				bres->caps = 0;
+			}
+			else
+			{
+				Q_strlcpy(bres->bstatus, (show && *show->body)?show->body:"present", sizeof(bres->bstatus));
+				if (!(bres->caps & CAP_QUERIED))
+				{
+					bres->caps |= CAP_QUERIED;
+					JCL_SendIQ(jcl, JCL_ClientDiscoInfo, "get", from, "<query xmlns='http://jabber.org/protocol/disco#info'/>");
+				}
+			}
+
+			if (bres->servertype == 2)
+				Con_Printf("^[[%s]\\xmpp\\%s^] is now ^[[Playing Quake - %s]\\xmpp\\%s\\xmppact\\join^]\n", buddy->name, from, bres->server, from);
+			else if (bres->servertype == 1)
+				Con_Printf("^[[%s]\\xmpp\\%s^] is now ^[[Playing Quake - %s]\\observe\\%s^]\n", buddy->name, from, bres->server, bres->server);
+			else if (*bres->fstatus)
+				Con_Printf("^[[%s]\\xmpp\\%s^] is now %s: %s\n", buddy->name, from, bres->bstatus, bres->fstatus);
+			else
+				Con_Printf("^[[%s]\\xmpp\\%s^] is now %s\n", buddy->name, from, bres->bstatus);
+
+			if (!tree->child)
+			{
+				//remove this buddy resource
+			}
+		}
+		else
+		{
+			Con_Printf("Weird presence:\n");
+			XML_ConPrintTree(tree, 0);
+		}
+	}
+}
+
+#define JCL_DONE 0			//no more data available for now.
+#define JCL_CONTINUE 1		//more data needs parsing.
+#define JCL_KILL 2			//some error, needs reconnecting.
+#define JCL_NUKEFROMORBIT 3	//permanent error (or logged on from elsewhere)
 int JCL_ClientFrame(jclient_t *jcl)
 {
 	int pos;
@@ -1301,11 +2290,11 @@ int JCL_ClientFrame(jclient_t *jcl)
 	if (ret == 0)
 	{
 		if (!jcl->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
-			return JCL_DONE;	//remove
+			return JCL_DONE;	//nothing more this frame
 	}
 	if (ret < 0)
 	{
-		Con_Printf("JCL: socket error\n");
+		Con_Printf("XMPP: socket error\n");
 		return JCL_KILL;
 	}
 
@@ -1364,7 +2353,8 @@ int JCL_ClientFrame(jclient_t *jcl)
 			char t = jcl->bufferedinmessage[pos];
 			jcl->bufferedinmessage[pos] = 0;
 			Con_TrySubPrint("xmppin", jcl->bufferedinmessage);
-			Con_TrySubPrint("xmppin", "\n");
+			if (tree)
+				Con_TrySubPrint("xmppin", "\n");
 			jcl->bufferedinmessage[pos] = t;
 		}
 
@@ -1431,6 +2421,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 //	Con_Printf("read\n");
 //	XML_ConPrintTree(tree, 0);
 
+	jcl->timeout = jclient_curtime + 60*1000;
 
 	unparsable = true;
 	if (!strcmp(tree->name, "features"))
@@ -1603,14 +2594,14 @@ int JCL_ClientFrame(jclient_t *jcl)
 
 		if (!BUILTINISVALID(Net_SetTLSClient))
 		{
-			Con_Printf("JCL: proceed without TLS\n");
+			Con_Printf("XMPP: proceed without TLS\n");
 			XML_Destroy(tree);
 			return JCL_KILL;
 		}
 
 		if (pNet_SetTLSClient(jcl->socket, jcl->domain)<0)
 		{
-			Con_Printf("JCL: failed to switch to TLS\n");
+			Con_Printf("XMPP: failed to switch to TLS\n");
 			XML_Destroy(tree);
 			return JCL_KILL;
 		}
@@ -1625,17 +2616,30 @@ int JCL_ClientFrame(jclient_t *jcl)
 		XML_Destroy(tree);
 		return JCL_DONE;
 	}
-	else if (!strcmp(tree->name, "stream:error"))
-	{
-	}
 	else if (!strcmp(tree->name, "failure"))
 	{
 		if (tree->child)
-			Con_Printf("JCL: Failure: %s\n", tree->child->name);
+			Con_Printf("XMPP: Failure: %s\n", tree->child->name);
 		else
-			Con_Printf("JCL: Unknown failure\n");
+			Con_Printf("XMPP: Unknown failure\n");
 		XML_Destroy(tree);
 		return JCL_KILL;
+	}
+	else if (!strcmp(tree->name, "error"))
+	{
+		ot = XML_ChildOfTree(tree, "text", 0);
+		if (ot)
+			Con_Printf("XMPP: %s\n", ot->body);
+		else
+			Con_Printf("XMPP: Unknown error\n");
+
+		ot = XML_ChildOfTree(tree, "conflict", 0);
+		XML_Destroy(tree);
+
+		if (ot)
+			return JCL_NUKEFROMORBIT;
+		else
+			return JCL_KILL;
 	}
 	else if (!strcmp(tree->name, "success"))
 	{
@@ -1654,342 +2658,17 @@ int JCL_ClientFrame(jclient_t *jcl)
 	}
 	else if (!strcmp(tree->name, "iq"))
 	{
-		char *from;
-//		char *to;
-		char *id;
-
-		id = XML_GetParameter(tree, "id", "");
-		from = XML_GetParameter(tree, "from", "");
-//		to = XML_GetParameter(tree, "to", "");
-
-		f = XML_GetParameter(tree, "type", "");
-		if (!strcmp(f, "get"))
-		{
-			ot = XML_ChildOfTree(tree, "query", 0);
-			if (ot)
-			{
-				if (from && !strcmp(ot->xmlns, "http://jabber.org/protocol/disco#info"))
-				{	//http://xmpp.org/extensions/xep-0030.html
-					char msg[2048];
-					char *hash;
-					unparsable = false;
-
-					buildcaps(msg, sizeof(msg));
-					hash = buildcapshash();
-
-					JCL_AddClientMessagef(jcl,
-							"<iq type='result' to='%s' id='%s'>"
-								"<query xmlns='http://jabber.org/protocol/disco#info' node='http://fteqw.com/ftexmppplug#%s'>"
-									"%s"
-								"</query>"
-							"</iq>", from, id, hash, msg);
-				}
-				else if (from && !strcmp(ot->xmlns, "jabber:iq:version"))
-				{	//client->client version request
-					char msg[2048];
-					unparsable = false;
-
-					Q_snprintf(msg, sizeof(msg),
-							"<iq type='result' to='%s' id='%s'>"
-								"<query xmlns='jabber:iq:version'>"
-									"<name>FTEQW XMPP</name>"
-									"<version>V"JCL_BUILD"</version>"
-#ifdef Q3_VM
-									"<os>QVM plugin</os>"
-#else
-									//don't specify the os otherwise, as it gives away required base addresses etc for exploits
-#endif
-								"</query>"
-							"</iq>", from, id);
-
-					JCL_AddClientMessageString(jcl, msg);
-				}
-/*				else if (from && !strcmp(ot->xmlns, "jabber:iq:last"))
-				{	//http://xmpp.org/extensions/xep-0012.html
-					char msg[2048];
-					int idletime = 0;
-					unparsable = false;
-
-					//last activity
-					Q_snprintf(msg, sizeof(msg),
-							"<iq type='result' to='%s' id='%s'>"
-								"<query xmlns='jabber:iq:last' seconds='%i'/>"
-							"</iq>", from, id, idletime);
-					
-					JCL_AddClientMessageString(jcl, msg);
-				}
-*/
-			}
-#ifndef Q3_VM
-			ot = XML_ChildOfTree(tree, "time", 0);
-			if (ot && !strcmp(ot->xmlns, "urn:xmpp:time"))
-			{	//http://xmpp.org/extensions/xep-0202.html
-				char msg[2048];
-				char tz[256];
-				char timestamp[256];
-				struct tm * timeinfo;
-				int tzh, tzm;
-				time_t rawtime;
-				time (&rawtime);
-				timeinfo = localtime(&rawtime);
-				tzh = timeinfo->tm_hour;
-				tzm = timeinfo->tm_min;
-				timeinfo = gmtime (&rawtime);
-				tzh -= timeinfo->tm_hour;
-				tzm -= timeinfo->tm_min;
-				Q_snprintf(tz, sizeof(tz), "%+i:%i", tzh, tzm);
-				strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", timeinfo);
-				unparsable = false;
-				//strftime
-				Q_snprintf(msg, sizeof(msg),
-						"<iq type='result' to='%s' id='%s'>"
-							"<time xmlns='urn:xmpp:time'>"
-								"<tzo>%s</tzo>"
-								"<utc>%s</utc>"
-							"</time>"
-						"</iq>", from, id, tz, timestamp);
-				JCL_AddClientMessageString(jcl, msg);
-			}
-#endif
-
-			ot = XML_ChildOfTree(tree, "ping", 0);
-			if (ot && !strcmp(ot->xmlns, "urn:xmpp:ping"))
-			{
-				JCL_AddClientMessagef(jcl, "<iq type='result' to='%s' id='%s' />", from, id);
-			}
-				
-			if (unparsable)
-			{	//unsupported stuff
-				char msg[2048];
-				unparsable = false;
-
-				Con_Printf("Unsupported iq get\n");
-				XML_ConPrintTree(tree, 0);
-
-				//tell them OH NOES, instead of requiring some timeout.
-				Q_snprintf(msg, sizeof(msg),
-						"<iq type='error' to='%s' id='%s'>"
-							"<error type='cancel'>"
-								"<service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
-							"</error>"
-						"</iq>", from, id);
-				JCL_AddClientMessageString(jcl, msg);
-			}
-		}
-		else if (!strcmp(f, "set"))
-		{
-			xmltree_t *c;
-			
-			c = XML_ChildOfTree(tree, "query", 0);
-			if (c && !strcmp(c->xmlns, "jabber:iq:roster"))
-			{
-				unparsable = false;
-				JCL_RosterUpdate(jcl, c);
-			}
-
-			c = XML_ChildOfTree(tree, "jingle", 0);
-			if (c && !strcmp(c->xmlns, "urn:xmpp:jingle:1"))
-			{
-				JCL_ParseJingle(jcl, c, from, id);
-				unparsable = false;
-			}
-		}
-		else if (!strcmp(f, "result") || !strcmp(f, "error"))
-		{
-			char *id = XML_GetParameter(tree, "id", "");
-			struct iq_s **link, *iq;
-			unparsable = false;
-			for (link = &jcl->pendingiqs; *link; link = &(*link)->next)
-			{
-				iq = *link;
-				if (!strcmp(iq->id, id))
-					break;
-			}
-			if (*link)
-			{
-				iq = *link;
-				*link = iq->next;
-
-				if (iq->callback)
-				{
-					if (!iq->callback(jcl, !strcmp(f, "error")?NULL:tree))
-					{
-						Con_Printf("Invalid iq result\n");
-						XML_ConPrintTree(tree, 0);
-					}
-				}
-				free(iq);
-			}
-			else
-			{
-				Con_Printf("Unrecognised iq result\n");
-				XML_ConPrintTree(tree, 0);
-			}
-		}
-		
-		if (unparsable)
-		{
-			unparsable = false;
-			Con_Printf("Unrecognised iq type\n");
-			XML_ConPrintTree(tree, 0);
-		}
+		JCL_ParseIQ(jcl, tree);
+		unparsable = false;
 	}
 	else if (!strcmp(tree->name, "message"))
 	{
-		f = XML_GetParameter(tree, "from", NULL);
-
-		if (f && !strcmp(f, jcl->jid))
-			unparsable = false;
-		else
-		{
-			if (f)
-			{
-				buddy_t *b;
-				bresource_t *br;
-				Q_strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
-
-				JCL_FindBuddy(jcl, f, &b, &br);
-				f = b->name;
-				b->defaultresource = br;
-			}
-
-			if (f)
-			{
-				ot = XML_ChildOfTree(tree, "composing", 0);
-				if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
-				{
-					unparsable = false;
-					Con_SubPrintf(f, "%s is typing\r", f);
-				}
-				ot = XML_ChildOfTree(tree, "paused", 0);
-				if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
-				{
-					unparsable = false;
-					Con_SubPrintf(f, "%s has stopped typing\r", f);
-				}
-				ot = XML_ChildOfTree(tree, "inactive", 0);
-				if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
-				{
-					unparsable = false;
-					Con_SubPrintf(f, "\r", f);
-				}
-				ot = XML_ChildOfTree(tree, "active", 0);
-				if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
-				{
-					unparsable = false;
-					Con_SubPrintf(f, "\r", f);
-				}
-				ot = XML_ChildOfTree(tree, "gone", 0);
-				if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
-				{
-					unparsable = false;
-					Con_SubPrintf(f, "%s has gone away\r", f);
-				}
-			}
-
-			ot = XML_ChildOfTree(tree, "body", 0);
-			if (ot)
-			{
-				unparsable = false;
-				if (f)
-					Con_SubPrintf(f, "%s: %s\n", f, ot->body);
-				else
-					Con_Printf(ot->body);
-
-				if (BUILTINISVALID(LocalSound))
-					pLocalSound("misc/talk.wav");
-			}
-
-			if (unparsable)
-			{
-				unparsable = false;
-				if (jcl->streamdebug)
-				{
-					Con_Printf("Received a message without a body\n");
-					XML_ConPrintTree(tree, 0);
-				}
-			}
-		}
+		JCL_ParseMessage(jcl, tree);
+		unparsable = false;
 	}
 	else if (!strcmp(tree->name, "presence"))
 	{
-		buddy_t *buddy;
-		bresource_t *bres;
-
-		char *from = XML_GetParameter(tree, "from", "");
-		xmltree_t *show = XML_ChildOfTree(tree, "show", 0);
-		xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
-		xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
-		char *type = XML_GetParameter(tree, "type", "");
-		char *serverip = NULL;
-		char *servermap = NULL;
-
-		if (quake && !strcmp(quake->xmlns, "fteqw.com:game"))
-		{
-			serverip = XML_GetParameter(quake, "serverip", NULL);
-			servermap = XML_GetParameter(quake, "servermap", NULL);
-		}
-
-		if (type && !strcmp(type, "subscribe"))
-		{
-			Con_Printf("^[[%s]\\xmpp\\%s^] wants to be your friend! ^[[Authorize]\\xmppauth\\%s^] ^[[Deny]\\xmppdeny\\%s^]\n", from, from, from, from);
-		}
-		else if (type && !strcmp(type, "unsubscribe"))
-		{
-			Con_Printf("^[[%s]\\xmpp\\%s^] has unfriended you\n", from, from);
-		}
-		else if (type && !strcmp(type, "unsubscribed"))
-		{
-			Con_Printf("^[[%s]\\xmpp\\%s^] is no longer unfriended you\n", from, from);
-		}
-		else
-		{
-			JCL_FindBuddy(jcl, from, &buddy, &bres);
-
-			if (bres)
-			{
-				if (servermap)
-				{
-					bres->servertype = 2;
-					Q_strlcpy(bres->server, servermap, sizeof(bres->server));
-				}
-				else if (serverip)
-				{
-					bres->servertype = 1;
-					Q_strlcpy(bres->server, serverip, sizeof(bres->server));
-				}
-				else
-				{
-					bres->servertype = 0;
-					Q_strlcpy(bres->server, "", sizeof(bres->server));
-				}
-				Q_strlcpy(bres->fstatus, (status && *status->body)?status->body:"", sizeof(bres->fstatus));
-				if (!tree->child)
-					Q_strlcpy(bres->bstatus, "offline", sizeof(bres->bstatus));
-				else
-					Q_strlcpy(bres->bstatus, (show && *show->body)?show->body:"present", sizeof(bres->bstatus));
-
-				if (bres->servertype == 2)
-					Con_Printf("^[[%s]\\xmpp\\%s^] is now ^[[Playing Quake - %s]\\xmppjoin\\%s^]\n", buddy->name, from, bres->server, from);
-				else if (bres->servertype == 1)
-					Con_Printf("^[[%s]\\xmpp\\%s^] is now ^[[Playing Quake - %s]\\observe\\%s^]\n", buddy->name, from, bres->server, bres->server);
-				else if (*bres->fstatus)
-					Con_Printf("^[[%s]\\xmpp\\%s^] is now %s: %s\n", buddy->name, from, bres->bstatus, bres->fstatus);
-				else
-					Con_Printf("^[[%s]\\xmpp\\%s^] is now %s\n", buddy->name, from, bres->bstatus);
-
-				if (!tree->child)
-				{
-					//remove this buddy resource
-				}
-			}
-			else
-			{
-				Con_Printf("Weird presence:\n");
-				XML_ConPrintTree(tree, 0);
-			}
-		}
-
+		JCL_ParsePresence(jcl, tree);
 		//we should keep a list of the people that we know of.
 		unparsable = false;
 	}
@@ -2001,30 +2680,55 @@ int JCL_ClientFrame(jclient_t *jcl)
 
 	XML_Destroy(tree);
 
-
 	memmove(jcl->bufferedinmessage, jcl->bufferedinmessage+pos, jcl->bufferedinammount-pos);
 	jcl->bufferedinammount -= pos;
 	jcl->instreampos -= pos;
 
 	if (unparsable)
 	{
-		Con_Printf("JCL: Input corrupt, urecognised, or unusable. Disconnecting.");
+		Con_Printf("XMPP: Input corrupt, urecognised, or unusable. Disconnecting.\n");
 		return JCL_KILL;
 	}
 
 	return JCL_CONTINUE;
 }
 
-void JCL_CloseConnection(jclient_t *jcl)
+void JCL_CloseConnection(jclient_t *jcl, qboolean reconnect)
 {
-	Con_Printf("JCL: Disconnected from %s@%s\n", jcl->username, jcl->domain);
+	//send our signoff to the server, if we're still alive.
+	Con_Printf("XMPP: Disconnected from %s@%s\n", jcl->username, jcl->domain);
+
+	if (jcl->status == JCL_ACTIVE)
+		JCL_AddClientMessageString(jcl, "<presence type='unavailable'/>");
 	JCL_AddClientMessageString(jcl, "</stream:stream>");
+	JCL_FlushOutgoing(jcl);
+
+	//forget all our friends.
+	JCL_ForgetBuddy(jcl, NULL, NULL);
+
+	//destroy any data that never got sent
+	free(jcl->outbuf);
+	jcl->outbuf = NULL;
+	jcl->outbuflen = 0;
+	jcl->outbufpos = 0;
+	jcl->outbufmax = 0;
+
 	pNet_Close(jcl->socket);
-	free(jcl);
+	jcl->socket = -1;
+	jcl->status = JCL_DEAD;
+
+	jcl->timeout = jclient_curtime + 30*1000;	//wait 30 secs before reconnecting, to avoid flood-prot-protection issues.
+
+	if (!reconnect)
+	{
+		free(jcl);
+		if (jclient == jcl)
+			jclient = NULL;
+	}
 }
 
 //can be polled for server address updates
-void JCL_GeneratePresence(qboolean force)
+void JCL_GeneratePresence(jclient_t *jcl, qboolean force)
 {
 	int dummystat;
 	char serveraddr[1024*16];
@@ -2053,33 +2757,33 @@ void JCL_GeneratePresence(qboolean force)
 		}
 	}
 
-	if (force || strcmp(jclient->curquakeserver, *servermap?servermap:serveraddr))
+	if (force || strcmp(jcl->curquakeserver, *servermap?servermap:serveraddr))
 	{
 		char caps[256];
-		Q_strlcpy(jclient->curquakeserver, *servermap?servermap:serveraddr, sizeof(jclient->curquakeserver));
-Con_Printf("Sending presence %s\n", jclient->curquakeserver);
+		Q_strlcpy(jcl->curquakeserver, *servermap?servermap:serveraddr, sizeof(jcl->curquakeserver));
+		Con_DPrintf("Sending presence %s\n", jcl->curquakeserver);
 		//note: ext='voice-v1 camera-v1 video-v1' is some legacy nonsense, and is required for voice calls with googletalk clients or something stupid like that
 		Q_snprintf(caps, sizeof(caps), "<c xmlns='http://jabber.org/protocol/caps' hash='sha-1' node='http://fteqw.com/ftexmppplugin' ver='%s'/>", buildcapshash());
 
-		if (!*jclient->curquakeserver)
-			JCL_AddClientMessagef(jclient,
+		if (!*jcl->curquakeserver)
+			JCL_AddClientMessagef(jcl,
 					"<presence>"
 						"%s"
 					"</presence>", caps);
 		else if (*servermap)	//if we're running a server, say so
-			JCL_AddClientMessagef(jclient, 
+			JCL_AddClientMessagef(jcl, 
 						"<presence>"
 							"<quake xmlns='fteqw.com:game' servermap='%s'/>"
 							"%s"
 						"</presence>"
 						, servermap, caps);
 		else	//if we're connected to a server, say so
-			JCL_AddClientMessagef(jclient, 
+			JCL_AddClientMessagef(jcl, 
 						"<presence>"
 							"<quake xmlns='fteqw.com:game' serverip='%s' />"
 							"%s"
 						"</presence>"
-				,jclient->curquakeserver, caps);
+				,jcl->curquakeserver, caps);
 	}
 }
 
@@ -2089,23 +2793,33 @@ Con_Printf("Sending presence %s\n", jclient->curquakeserver);
 qintptr_t JCL_Frame(qintptr_t *args)
 {
 	int stat = JCL_CONTINUE;
-	if (jclient)
+	jclient_t *jcl = jclient;
+
+	jclient_curtime = args[0];
+	if (jcl)
 	{
-		if (jclient->connected)
+		JCL_JingleTimeouts(jcl, false);
+		if (jcl->status == JCL_DEAD)
 		{
-			JCL_GeneratePresence(false);
+			if (jclient_curtime > jcl->timeout)
+			{
+				JCL_Reconnect(jcl);
+				jcl->timeout = jclient_curtime + 60*1000;
+			}
 		}
-
-		while(stat == JCL_CONTINUE)
-			stat = JCL_ClientFrame(jclient);
-		if (stat == JCL_KILL)
+		else
 		{
-			JCL_CloseConnection(jclient);
-
-			jclient = NULL;
+			if (jcl->connected)
+				JCL_GeneratePresence(jcl, false);
+			while(stat == JCL_CONTINUE)
+				stat = JCL_ClientFrame(jcl);
+			if (stat == JCL_NUKEFROMORBIT)
+				JCL_CloseConnection(jcl, false);
+			else if (stat == JCL_KILL)
+				JCL_CloseConnection(jcl, true);
+			else
+				JCL_FlushOutgoing(jcl);
 		}
-
-		JCL_FlushOutgoing(jclient);
 	}
 	return 0;
 }
@@ -2155,14 +2869,31 @@ void JCL_LoadConfig(void)
 
 			oldtls = atoi(tls);
 
-			jclient = JCL_Connect(server, oldtls?5223:5222, oldtls, account, password);
+			jclient = JCL_Connect(server, oldtls, account, password);
 		}
 	}
+}
+static void JCL_PrintBuddyStatus(char *console, buddy_t *b, bresource_t *r)
+{
+	if (r->servertype == 2)
+		Con_SubPrintf(console, "^[[Playing Quake - %s]\\xmpp\\%s/%s\\xmppact\\join^]", r->server, b->accountdomain, r->resource);
+	else if (r->servertype)
+		Con_SubPrintf(console, "^[[Playing Quake - %s]\\observe\\%s^]", r->server, r->server);
+	else if (*r->fstatus)
+		Con_SubPrintf(console, "%s - %s", r->bstatus, r->fstatus);
+	else
+		Con_SubPrintf(console, "%s", r->bstatus);
+
+	if ((r->caps & CAP_INVITE) && !r->servertype)
+		Con_SubPrintf(console, " ^[[Invite]\\xmpp\\%s/%s\\xmppact\\invite^]", b->accountdomain, r->resource);
+	if (r->caps & CAP_VOICE)
+		Con_SubPrintf(console, " ^[[Call]\\xmpp\\%s/%s\\xmppact\\call^]",  b->accountdomain, r->resource);
 }
 void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 {
 	buddy_t *b;
 	bresource_t *r;
+	struct c2c_s *c2c;
 	if (!jcl->buddies)
 		Con_SubPrintf(console, "You have no friends\n");
 	for (b = jcl->buddies; b; b = b->next)
@@ -2181,34 +2912,43 @@ void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 			Con_SubPrintf(console, "^[[%s]\\xmpp\\%s^]\n", b->name, b->accountdomain);
 			for (r = b->resources; r; r = r->next)
 			{
-				if (r->servertype == 2)
-					Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: ^[[Playing Quake - %s]\\xmppjoin\\%s/%s^]\n", r->resource, b->accountdomain, r->resource, r->server, b->accountdomain, r->resource);
-				else if (r->servertype)
-					Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: ^[[Playing Quake - %s]\\observe\\%s^]\n", r->resource, b->accountdomain, r->resource, r->server, r->server);
-				else if (*r->fstatus)
-					Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: %s - %s\n", r->resource, b->accountdomain, r->resource, r->bstatus, r->fstatus);
-				else
-					Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: %s\n", r->resource, b->accountdomain, r->resource, r->bstatus);
+				Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: ", r->resource, b->accountdomain, r->resource);
+				JCL_PrintBuddyStatus(console, b, r);
+				Con_SubPrintf(console, "\n");
 			}
 		}
 		else	//only one resource
 		{
 			r = b->resources;
-			if (!strcmp(r->server, "-"))
-				Con_SubPrintf(console, "^[[%s]\\xmpp\\%s/%s^]: ^[[Playing Quake]\\xmppjoin\\%s/%s^]\n", b->name, b->accountdomain, r->resource, b->accountdomain, r->resource);
-			else if (*r->server)
-				Con_SubPrintf(console, "^[[%s]\\xmpp\\%s/%s^]: ^[[Playing Quake - %s]\\observe\\%s^]\n", b->name, b->accountdomain, r->resource, r->server, r->server);
-			else if (*r->fstatus)
-				Con_SubPrintf(console, "^[[%s]\\xmpp\\%s/%s^]: %s - %s\n", b->name, b->accountdomain, r->resource, r->bstatus, r->fstatus);
-			else
-				Con_SubPrintf(console, "^[[%s]\\xmpp\\%s/%s^]: %s\n", b->name, b->accountdomain, r->resource, r->bstatus);
+			Con_SubPrintf(console, "^[[%s]\\xmpp\\%s/%s^]: ", b->name, b->accountdomain, r->resource);
+			JCL_PrintBuddyStatus(console, b, r);
+			Con_SubPrintf(console, "\n");
+		}
+	}
+
+	if (jcl->c2c)
+		Con_SubPrintf(console, "Active sessions:\n");
+	for (c2c = jcl->c2c; c2c; c2c = c2c->next)
+	{
+		JCL_FindBuddy(jcl, c2c->with, &b, &r);
+		switch(c2c->mediatype)
+		{
+		case ICEP_VOICE:
+			Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: voice ^[[Hang Up]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^]\n", b->name, b->accountdomain, r->resource, c2c->with, c2c->sid);
+			break;
+		case ICEP_QWSERVER:
+			Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: server ^[[Kick]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^]\n", b->name, b->accountdomain, r->resource, c2c->with, c2c->sid);
+			break;
+		case ICEP_QWCLIENT:
+			Con_SubPrintf(console, "    ^[[%s]\\xmpp\\%s/%s^]: client ^[[Disconnect]\\xmppact\\jdeny\\xmpp\\%s\\xmppsid\\%s^]\n", b->name, b->accountdomain, r->resource, c2c->with, c2c->sid);
+			break;
 		}
 	}
 }
 
 void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 {
-	char markup[256];
+	char markup[1024];
 	buddy_t *b;
 	bresource_t *br;
 	JCL_FindBuddy(jcl, to, &b, &br);
@@ -2218,7 +2958,10 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 		JCL_AddClientMessagef(jcl, "<message to='%s'><body>", b->accountdomain);
 	JCL_AddClientMessage(jcl, markup, XML_Markup(msg, markup, sizeof(markup)) - markup);
 	JCL_AddClientMessageString(jcl, "</body></message>");
-	Con_SubPrintf(b->name, "%s: "COLOURYELLOW"%s\n", ">>", msg);
+	if (!strncmp(msg, "/me ", 4))
+		Con_SubPrintf(b->name, "*^5%s^7"COLOURYELLOW"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
+	else
+		Con_SubPrintf(b->name, "^5%s^7: "COLOURYELLOW"%s\n", jcl->localalias, msg);
 }
 
 
@@ -2239,13 +2982,13 @@ void JCL_Command(char *console)
 		msg = JCL_ParseOut(msg, arg[i], sizeof(arg[i]));
 	}
 
-	if (*arg[0] == '/')
+	if (arg[0][0] == '/' && arg[0][1] != '/' && strcmp(arg[0]+1, "me"))
 	{
-		if (!strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
+		if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect") || !strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
 		{	//tlsconnect is 'old'.
 			if (!*arg[1])
 			{
-				Con_TrySubPrint(console, "tlsopen [server] [account] [password]\n");
+				Con_SubPrintf(console, "%s <account@domain/resource> <password> <server>\n", arg[0]+1);
 				return;
 			}
 
@@ -2254,37 +2997,7 @@ void JCL_Command(char *console)
 				Con_TrySubPrint(console, "You are already connected\nPlease /quit first\n");
 				return;
 			}
-			if (!*arg[1])
-			{
-				Con_SubPrintf(console, "%s <server[:port]> <account[@domain]> <password>\n", arg[0]+1);
-				return;
-			}
-			jclient = JCL_Connect(arg[1], 5223, true, arg[2], arg[3]);
-			if (!jclient)
-			{
-				Con_TrySubPrint(console, "Connect failed\n");
-				return;
-			}
-		}
-		else if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect"))
-		{
-			if (!*arg[1])
-			{
-				Con_TrySubPrint(console, "open [server] [account] [password]\n");
-				return;
-			}
-
-			if (jclient)
-			{
-				Con_TrySubPrint(console, "You are already connected\nPlease /quit first\n");
-				return;
-			}
-			if (!*arg[1])
-			{
-				Con_SubPrintf(console, "%s <server[:port]> <account[@domain]> <password>\n", arg[0]+1);
-				return;
-			}
-			jclient = JCL_Connect(arg[1], 5222, false, arg[2], arg[3]);
+			jclient = JCL_Connect(arg[3], !strncmp(arg[0]+1, "tls", 3), arg[1], arg[2]);
 			if (!jclient)
 			{
 				Con_TrySubPrint(console, "Connect failed\n");
@@ -2293,10 +3006,13 @@ void JCL_Command(char *console)
 		}
 		else if (!strcmp(arg[0]+1, "help")) 
 		{
-			Con_TrySubPrint(console, "^[/" COMMANDPREFIX " /tlsconnect XMPPSERVER USERNAME@DOMAIN PASSWORD^]\n");
+			Con_TrySubPrint(console, "^[/" COMMANDPREFIX " /connect XMPPSERVER USERNAME@DOMAIN/RESOURCE PASSWORD^]\n");
 			if (BUILTINISVALID(Net_SetTLSClient))
-				Con_Printf("for example: ^[/" COMMANDPREFIX " /tlsconnect talk.google.com myusername@gmail.com mypassword^]\n"
-				"Note that this info will be used the next time you start quake.\n");
+			{
+				Con_Printf("eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com mypassword talk.google.com^]\n");
+				Con_Printf("eg for facebook: ^[/" COMMANDPREFIX " /connect myusername@chat.facebook.com mypassword chat.facebook.com^]\n");
+			}
+			Con_Printf("Note that this info will be used the next time you start quake.\n");
 
 			//small note:
 			//for the account 'me@example.com' the server to connect to can be displayed with:
@@ -2314,24 +3030,15 @@ void JCL_Command(char *console)
 										"Show all your friends! Names are clickable and will begin conversations.\n");
 			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /quit^]\n"
 										"Disconnect from the XMPP server, noone will be able to hear you scream.\n");
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /join accountname^]\n"
+										"Joins your friends game (they will be prompted).\n");
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /invite accountname^]\n"
+										"Invite someone to join your game (they will be prompted).\n");
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /voice accountname^]\n"
+										"Begin a bi-directional peer-to-peer voice conversation with someone (they will be prompted).\n");
 			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /msg ACCOUNTNAME your message goes here^]\n"
 										"Sends a message to the named person. If given a resource postfix, your message will be sent only to that resource.\n");
 			Con_TrySubPrint(console, 	"If no arguments, will print out your friends list. If no /command is used, the arguments will be sent as a message to the person you last sent a message to.\n");
-		}
-		else if (!jclient)
-		{
-			Con_SubPrintf(console, "You are not connected. Cannot %s\n", arg[0]);
-		}
-		else if (!strcmp(arg[0]+1, "quit"))
-		{
-			//disconnect from the xmpp server.
-			JCL_CloseConnection(jclient);
-			jclient = NULL;
-		}
-		else if (!strcmp(arg[0]+1, "blist"))
-		{
-			//print out a full list of everyone, even those offline.
-			JCL_PrintBuddyList(console, jclient, true);
 		}
 		else if (!strcmp(arg[0]+1, "clear"))
 		{
@@ -2344,6 +3051,24 @@ void JCL_Command(char *console)
 			}
 			else
 				pCmd_AddText("\nclear\n", true);
+		}
+		else if (!jclient)
+		{
+			Con_SubPrintf(console, "No account specified. Cannot %s\n", arg[0]);
+		}
+		else if (!strcmp(arg[0]+1, "quit"))
+		{
+			//disconnect from the xmpp server.
+			JCL_CloseConnection(jclient, false);
+		}
+		else if (jclient->status != JCL_ACTIVE)
+		{
+			Con_SubPrintf(console, "You are not authed. Please wait.\n", arg[0]);
+		}
+		else if (!strcmp(arg[0]+1, "blist"))
+		{
+			//print out a full list of everyone, even those offline.
+			JCL_PrintBuddyList(console, jclient, true);
 		}
 		else if (!strcmp(arg[0]+1, "msg"))
 		{
@@ -2382,7 +3107,19 @@ void JCL_Command(char *console)
 		}
 		else if (!strcmp(arg[0]+1, "join")) 
 		{
-			JCL_Join(jclient, arg[1]);
+			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, true, ICEP_QWCLIENT);
+		}
+		else if (!strcmp(arg[0]+1, "invite")) 
+		{
+			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, true, ICEP_QWSERVER);
+		}
+		else if (!strcmp(arg[0]+1, "voice") || !strcmp(arg[0]+1, "call")) 
+		{
+			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, true, ICEP_VOICE);
+		}
+		else if (!strcmp(arg[0]+1, "kick")) 
+		{
+			JCL_Join(jclient, *arg[1]?arg[1]:console, NULL, false, ICEP_INVALID);
 		}
 		else if (!strcmp(arg[0]+1, "raw")) 
 		{
@@ -2403,7 +3140,7 @@ void JCL_Command(char *console)
 				if (!*console)
 				{
 					JCL_PrintBuddyList(console, jclient, false);
-					Con_TrySubPrint(console, "For help, type \"^[/" COMMANDPREFIX " /help^]\"\n");
+					//Con_TrySubPrint(console, "For help, type \"^[/" COMMANDPREFIX " /help^]\"\n");
 				}
 			}
 			else

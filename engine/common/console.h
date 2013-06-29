@@ -106,8 +106,8 @@ typedef struct conline_s {
 	float time;
 } conline_t;
 
-#define CONF_HIDDEN			1
-#define CONF_NOTIFY			2
+#define CONF_HIDDEN			1 /*do not show in the console list (unless active)*/
+#define CONF_NOTIFY			2 /*text printed to console also appears as notify lines*/
 #define CONF_NOTIFY_BOTTOM	4 /*align the bottom*/
 #define CONF_NOTIMES		8
 typedef struct console_s

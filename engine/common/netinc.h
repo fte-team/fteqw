@@ -130,10 +130,12 @@
 	#endif
 
 	#define EWOULDBLOCK		WSAEWOULDBLOCK
+	#define EINPROGRESS		WSAEINPROGRESS
 	#define EMSGSIZE		WSAEMSGSIZE
 	#define ECONNRESET		WSAECONNRESET
 	#define ECONNABORTED	WSAECONNABORTED
 	#define ECONNREFUSED	WSAECONNREFUSED
+	#define ENOTCONN		WSAENOTCONN
 	#define EACCES			WSAEACCES
 	#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
 	#define EAFNOSUPPORT	WSAEAFNOSUPPORT
@@ -196,11 +198,10 @@
 #endif
 
 #if 1//def SUPPORT_ICE
-struct icecandidate_s
+struct icecandinfo_s
 {
-	struct icecandidate_s *next;
-	char *candidateid;
-	char *addr;		//v4/v6/fqdn. fqdn should prefer ipv6
+	char candidateid[64];
+	char addr[64];		//v4/v6/fqdn. fqdn should prefer ipv6
 	int port;
 	int transport;		//0=udp. other values not supported
 	int foundation;		//to figure out...
@@ -213,42 +214,41 @@ struct icecandidate_s
 		ICE_PRFLX=2,
 		ICE_RELAY=3,
 	} type;				//says what sort of proxy is used.
-	char *reladdr;		//when proxied, this is our local info
+	char reladdr[64];	//when proxied, this is our local info
 	int relport;
 	int generation;		//for ice restarts. starts at 0.
 	int network;		//which network device this comes from.
-
-	qboolean dirty;
 };
-struct icestate_s
+enum iceproto_e
 {
-	struct icestate_s *next;
-	void *module;
-
-	int netsrc;
-	enum icemode_e
-	{
-		ICE_RAW,	//not actually interactive beyond a simple handshake.
-		ICE_ICE		//rfc5245. meant to be able to holepunch, but not implemented properly yet.
-	} mode;
-	char *conname;		//internal id.
-	char *friendlyname;	//who you're talking to.
-	char *stunserver;//where to get our public ip from.
-	int stunport;
-
-	struct icecandidate_s *lc;
-	char *lpwd;
-	char *lfrag;
-
-	struct icecandidate_s *rc;
-	char *rpwd;
-	char *rfrag;
+	ICEP_INVALID,	//not allowed..
+	ICEP_QWSERVER,	//we're server side
+	ICEP_QWCLIENT,	//we're client side
+	ICEP_VOICE		//speex. requires client.
 };
-struct icestate_s *QDECL ICE_Create(void *module, char *conname, char *peername, enum icemode_e mode);	//doesn't start pinging anything.
-struct icestate_s *QDECL ICE_Find(void *module, char *conname);
-void QDECL ICE_Begin(struct icestate_s *con, char *stunip, int stunport);	//begins sending stun packets and stuff as required. data flows automagically. caller should poll ICE_GetLCandidateInfo periodically to pick up new candidates that need to be reported to the peer.
-struct icecandidate_s *QDECL ICE_GetLCandidateInfo(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
-void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandidate_s *cand);		//stuff that came from the peer.
-void QDECL ICE_Close(struct icestate_s *con);	//bye then.
-void QDECL ICE_CloseModule(void *module);	//closes all unclosed connections, with warning.
+enum icemode_e
+{
+	ICEM_RAW,	//not actually interactive beyond a simple handshake.
+	ICEM_ICE		//rfc5245. meant to be able to holepunch, but not implemented properly yet.
+};
+enum icestate_e
+{
+	ICE_INACTIVE,	//idle.
+	ICE_FAILED,
+	ICE_CONNECTING,	//exchanging pings.
+	ICE_CONNECTED	//media is flowing, supposedly. sending keepalives.
+};
+struct icestate_s;
+#define ICE_API_CURRENT "Internet Connectivity Establishment 0.0"
+typedef struct
+{
+	struct icestate_s *(QDECL *ICE_Create)(void *module, char *conname, char *peername, enum icemode_e mode, enum iceproto_e proto);	//doesn't start pinging anything.
+	qboolean (QDECL *ICE_Set)(struct icestate_s *con, char *prop, char *value);
+	qboolean (QDECL *ICE_Get)(struct icestate_s *con, char *prop, char *value, int valuesize);
+	struct icecandinfo_s *(QDECL *ICE_GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
+	void (QDECL *ICE_AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
+	void (QDECL *ICE_Close)(struct icestate_s *con);	//bye then.
+	void (QDECL *ICE_CloseModule)(void *module);	//closes all unclosed connections, with warning.
+} icefuncs_t;
+extern icefuncs_t iceapi;
 #endif

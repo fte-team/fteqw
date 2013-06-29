@@ -510,6 +510,9 @@ qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigne
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
+int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
+int SHA1_HMAC(unsigned char *digest, int maxdigestsize, unsigned char *key, int keylen, unsigned char *data, int datalen);
+
 int version_number(void);
 char *version_string(void);
 

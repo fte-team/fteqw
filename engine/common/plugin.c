@@ -120,18 +120,8 @@ static qintptr_t VARGS Plug_GetNativePointer(void *offset, quintptr_t mask, cons
 {
 	char *p = (char *)VM_POINTER(args[0]);
 #ifdef SUPPORT_ICE
-	if (!strcmp(p, "ICE_Create"))
-		return (qintptr_t)ICE_Create;
-	if (!strcmp(p, "ICE_Find"))
-		return (qintptr_t)ICE_Find;
-	if (!strcmp(p, "ICE_Begin"))
-		return (qintptr_t)ICE_Begin;
-	if (!strcmp(p, "ICE_GetLCandidateInfo"))
-		return (qintptr_t)ICE_GetLCandidateInfo;
-	if (!strcmp(p, "ICE_AddRCandidateInfo"))
-		return (qintptr_t)ICE_AddRCandidateInfo;
-	if (!strcmp(p, "ICE_Close"))
-		return (qintptr_t)ICE_Close;
+	if (!strcmp(p, ICE_API_CURRENT))
+		return (qintptr_t)&iceapi;
 #endif
 
 	return (qintptr_t)NULL;

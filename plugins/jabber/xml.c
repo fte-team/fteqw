@@ -103,11 +103,13 @@ char *XML_Markup(char *s, char *d, int dlen)
 			d+=xmlchars[i].namelen;
 			*d++ = ';';
 			s++;
+			dlen -= xmlchars[i].namelen+2;
 		}
 		else
 		{
 			if (!dlen)
 				break;
+			dlen--;
 			*d++ = *s++;
 		}
 	}

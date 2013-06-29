@@ -3698,8 +3698,6 @@ void Host_DoRunFile(hrf_t *f)
 
 	VFS_SEEK(f->srcfile, 0);
 
-	COM_StripExtension(COM_SkipPath(f->fname), qname, sizeof(qname));
-
 	f->dstfile = FS_OpenVFS(qname, "rb", FS_GAME);
 	if (f->dstfile)
 	{
@@ -3987,6 +3985,7 @@ double Host_Frame (double time)
 #ifdef PLUGINS
 	Plug_Tick();
 #endif
+	NET_Tick();
 
 	if (cl.paused)
 		cl.gametimemark += time;

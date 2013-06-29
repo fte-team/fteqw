@@ -1534,12 +1534,23 @@ static void P_ParticleEffect_f(void)
 	if (!settype)
 	{
 		if (ptype->looks.type == PT_NORMAL && !*ptype->texname)
-			ptype->looks.type = PT_SPARK;
-		if (ptype->looks.type == PT_SPARK)
+		{
+			if (ptype->scale)
+			{
+				ptype->looks.type = PT_SPARKFAN;
+				Con_DPrintf("effect %s lacks a texture. assuming type sparkfan.\n", ptype->name);
+			}
+			else
+			{
+				ptype->looks.type = PT_SPARK;
+				Con_DPrintf("effect %s lacks a texture. assuming type spark.\n", ptype->name);
+			}
+		}
+		else if (ptype->looks.type == PT_SPARK)
 		{
 			if (*ptype->texname)
 				ptype->looks.type = PT_TEXTUREDSPARK;
-			if (ptype->scale)
+			else if (ptype->scale)
 				ptype->looks.type = PT_SPARKFAN;
 		}
 	}
@@ -4836,8 +4847,8 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 			continue;
 		p = b->p;
 
-		q->rgba[3] = 1;
-		p->rgba[3] = 1;
+//		q->rgba[3] = 1;
+//		p->rgba[3] = 1;
 
 		VectorSubtract(r_refdef.vieworg, q->org, v);
 		VectorNormalize(v);

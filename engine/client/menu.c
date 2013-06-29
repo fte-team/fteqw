@@ -617,14 +617,34 @@ static void M_Menu_Prompt_Cancel (struct menu_s *gm)
 void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel)
 {
 	promptmenu_t *m;
+	char *t;
 
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m));
+	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(m1)+strlen(m2)+strlen(m3)+strlen(optionyes)+strlen(optionyes)+strlen(optioncancel)+6);
 	m->callback =  callback;
 	m->ctx = ctx;
 	m->m.remove = M_Menu_Prompt_Cancel;
+
+	t = (char*)(m+1);
+	strcpy(t, m1);
+	m1 = t;
+	t += strlen(t)+1;
+	strcpy(t, m2);
+	m2 = t;
+	t += strlen(t)+1;
+	strcpy(t, m3);
+	m3 = t;
+	t += strlen(t)+1;
+	strcpy(t, optionyes);
+	optionyes = t;
+	t += strlen(t)+1;
+	strcpy(t, optionno);
+	optionno = t;
+	t += strlen(t)+1;
+	strcpy(t, optioncancel);
+	optioncancel = t;
 
 	MC_AddWhiteText(&m->m, 64, 84,	 m1, false);
 	MC_AddWhiteText(&m->m, 64, 92,	 m2, false);

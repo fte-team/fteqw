@@ -83,6 +83,7 @@ int TCP_OpenStream (netadr_t *remoteaddr);	//makes things easier
 
 struct ftenet_connections_s;
 void		NET_Init (void);
+void		NET_Tick (void);
 void		SVNET_RegisterCvars(void);
 void		NET_InitClient (void);
 void		NET_InitServer (void);

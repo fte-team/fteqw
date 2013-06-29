@@ -375,6 +375,8 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 		CL_PredictUsercmd (pnum, entnum, &temp, to, &split);
 		return;
 	}
+	if (!cl.worldmodel || cl.worldmodel->needload)
+		return;
 
 	VectorCopy (from->origin, pmove.origin);
 	VectorCopy (u->angles, pmove.angles);

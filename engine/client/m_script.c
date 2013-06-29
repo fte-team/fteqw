@@ -10,6 +10,7 @@ cvar_t menualias = SCVAR("menualias", "");
 void M_Script_Remove (menu_t *menu)
 {
 	menu_script = NULL;
+	Cbuf_AddText(va("set option cancel\n%s\n", menualias.string), RESTRICT_LOCAL);
 	Cvar_Set(&menualias, "");
 }
 qboolean M_Script_Key (int key, menu_t *menu)
@@ -29,12 +30,11 @@ qboolean M_Script_Key (int key, menu_t *menu)
 
 void M_MenuS_Clear_f (void)
 {
+	Cvar_Set(&menualias, "");
 	if (menu_script)
 	{
 		M_RemoveMenu(menu_script);
 	}
-
-//	Cvar_Set(menualias.name, "");
 }
 
 void M_MenuS_Script_f (void)	//create a menu.

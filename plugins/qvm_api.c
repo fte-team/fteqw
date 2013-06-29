@@ -20,7 +20,7 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 	float _float;
 	int i;
 	int use0s;
-	int precision, useprepad;
+	int precision, useprepad, plus;
 
 	if (!maxlen)
 		return 0;
@@ -31,6 +31,7 @@ maxlen--;
 		switch(*format)
 		{
 		case '%':
+			plus = 0;
 			precision= 0;
 			useprepad=0;
 			use0s=0;
@@ -39,6 +40,9 @@ retry:
 			{
 			case '-':
 				useprepad=true;
+				goto retry;
+			case '+':
+				plus = true;
 				goto retry;
 			case '0':
 				if (!precision)
@@ -176,6 +180,12 @@ Con_Printf("%i bytes left\n", maxlen);
 						{*buffer++='\0';return tokens;}
 					*buffer++ = '-';
 					_int *= -1;
+				}
+				else if (plus)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = '+';
 				}
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[sizeof(tempbuffer)-1] = '\0';

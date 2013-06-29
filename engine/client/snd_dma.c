@@ -225,9 +225,11 @@ void S_SoundInfo_f(void)
 
 enum
 {
-	VOIP_SPEEX	= 0,	//original supported codec
-	VOIP_RAW	= 1,	//support is not recommended.
-	VOIP_OPUS	= 2,	//supposed to be better than speex.
+	VOIP_SPEEX_OLD	= 0,	//original supported codec (with needless padding and at the wrong rate to keep quake implementations easy)
+	VOIP_RAW		= 1,	//support is not recommended.
+	VOIP_OPUS		= 2,	//supposed to be better than speex.
+	VOIP_SPEEX_NARROW = 3,	//narrowband speex. packed data.
+	VOIP_SPEEX_WIDE = 4,	//wideband speex. packed data.
 
 	VOIP_INVALID = 16	//not currently generating audio.
 };
@@ -242,7 +244,8 @@ static struct
 		SpeexBits encbits;
 		SpeexBits decbits[MAX_CLIENTS];
 
-		const SpeexMode *mode;
+		const SpeexMode *modenb;
+		const SpeexMode *modewb;
 	} speex;
 
 	struct
@@ -280,6 +283,7 @@ static struct
 	unsigned char capturebuf[32768]; /*pending data*/
 	unsigned int capturepos;/*amount of pending data*/
 	unsigned int encsequence;/*the outgoing sequence count*/
+	unsigned int enctimestamp;/*for rtp streaming*/
 	unsigned int generation;/*incremented whenever capture is restarted*/
 	qboolean wantsend;	/*set if we're capturing data to send*/
 	float voiplevel;	/*your own voice level*/
@@ -439,7 +443,8 @@ static qboolean S_Speex_Init(void)
 	}
 #endif
 
-	s_voip.speex.mode = qspeex_lib_get_mode(SPEEX_MODEID_NB);
+	s_voip.speex.modenb = qspeex_lib_get_mode(SPEEX_MODEID_NB);
+	s_voip.speex.modewb = qspeex_lib_get_mode(SPEEX_MODEID_WB);
 
 	s_voip.speex.loaded = true;
 	return s_voip.speex.loaded;
@@ -498,7 +503,9 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			//make sure old state is closed properly.
 			switch(s_voip.deccodec[sender])
 			{
-			case VOIP_SPEEX:
+			case VOIP_SPEEX_OLD:
+			case VOIP_SPEEX_NARROW:
+			case VOIP_SPEEX_WIDE:
 				qspeex_decoder_destroy(s_voip.decoder[sender]);
 				break;
 			case VOIP_OPUS:
@@ -513,17 +520,23 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		{
 		default:	//codec not supported.
 			return;
-		case VOIP_SPEEX:
+		case VOIP_SPEEX_OLD:
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
 			if (!S_Speex_Init())
 				return;	//speex not usable.
-
-			s_voip.decsamplerate[sender] = 11025;
+			if (codec == VOIP_SPEEX_NARROW)
+				s_voip.decsamplerate[sender] = 8000;
+			else if (codec == VOIP_SPEEX_WIDE)
+				s_voip.decsamplerate[sender] = 16000;
+			else
+				s_voip.decsamplerate[sender] = 11025;
 			s_voip.decframesize[sender] = 160;
 			if (!s_voip.decoder[sender])
 			{
 				qspeex_bits_init(&s_voip.speex.decbits[sender]);
 				qspeex_bits_reset(&s_voip.speex.decbits[sender]);
-				s_voip.decoder[sender] = qspeex_decoder_init(s_voip.speex.mode);
+				s_voip.decoder[sender] = qspeex_decoder_init(codec==VOIP_SPEEX_WIDE?s_voip.speex.modewb:s_voip.speex.modenb);
 				if (!s_voip.decoder[sender])
 					return;
 			}
@@ -576,7 +589,9 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		}
 		switch(codec)
 		{
-		case VOIP_SPEEX:
+		case VOIP_SPEEX_OLD:
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
 			qspeex_decode_int(s_voip.decoder[sender], NULL, decodebuf + decodesamps);
 			decodesamps += s_voip.decframesize[sender];
 			break;
@@ -601,25 +616,46 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		default:
 			bytes = 0;
 			break;
-		case VOIP_SPEEX:
-			bytes--;
-			len = *start++;
-			if (bytes < len)
-				break;
+		case VOIP_SPEEX_OLD:
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
+			if (codec == VOIP_SPEEX_OLD)
+			{	//older versions support only this, and require this extra bit.
+				bytes--;
+				len = *start++;
+				if (bytes < len)
+					break;
+			}
+			else
+				len = bytes;
 			qspeex_bits_read_from(&s_voip.speex.decbits[sender], start, len);
 			bytes -= len;
 			start += len;
-			qspeex_decode_int(s_voip.decoder[sender], &s_voip.speex.decbits[sender], decodebuf + decodesamps);
-			decodesamps += s_voip.decframesize[sender];
+			while (qspeex_decode_int(s_voip.decoder[sender], &s_voip.speex.decbits[sender], decodebuf + decodesamps) == 0)
+			{
+				decodesamps += s_voip.decframesize[sender];
+				s_voip.decseq[sender]++;
+				seq++;
+				if (decodesamps + s_voip.decframesize[sender] > sizeof(decodebuf)/sizeof(decodebuf[0]))
+				{
+					S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+					decodesamps = 0;
+				}
+			}
 			break;
 		case VOIP_OPUS:
+			//FIXME: we shouldn't need this crap
 			bytes--;
 			len = *start++;
 			if (bytes < len)
 				break;		
 			r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
 			if (r > 0)
+			{
 				decodesamps += r;
+				s_voip.decseq[sender]++;
+				seq++;
+			}
 			else if (r < 0)
 				Con_Printf("Opus decoding error %i\n", r);
 
@@ -627,8 +663,6 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			start += len;
 			break;
 		}
-		s_voip.decseq[sender]++;
-		seq++;
 	}
 
 	if (drops)
@@ -637,6 +671,22 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 	if (decodesamps > 0)
 		S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
 }
+
+#ifdef SUPPORT_ICE
+void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data, unsigned int datalen)
+{
+	if (!strcmp(codec, "speex@8000"))
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_NARROW, 0, sequence, datalen, data);
+	if (!strcmp(codec, "speex@11025"))
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_OLD, 0, sequence, datalen, data);	//very much non-standard rtp
+	if (!strcmp(codec, "speex@16000"))
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence, datalen, data);
+}
+qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, char *codec, char *cdata, int clength);
+qboolean NET_RTP_Active(void);
+#else
+#define NET_RTP_Active() false
+#endif
 
 void S_Voip_Parse(void)
 {
@@ -674,7 +724,8 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	unsigned int outpos;//in bytes
 	unsigned int encpos;//in bytes
 	short *start;
-	unsigned char initseq;//in frames
+	unsigned int initseq;//in frames
+	unsigned int inittimestamp;//in samples
 	unsigned int i;
 	unsigned int samps;
 	float level, f;
@@ -682,6 +733,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	float micamp = cl_voip_micamp.value;
 	qboolean voipsendenable = true;
 	int voipcodec = cl_voip_codec.ival;
+	qboolean rtpstream = NET_RTP_Active();
 
 	if (buf)
 	{
@@ -693,6 +745,14 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	}
 	else
 		voipsendenable = cl_voip_test.ival;
+	if (rtpstream)
+	{
+		voipsendenable = true;
+		//if rtp streaming is enabled, hack the codec to something better supported
+		if (voipcodec == VOIP_SPEEX_OLD)
+			voipcodec = VOIP_SPEEX_NARROW;
+	}
+
 
 	voicevolumemod = s_voip.lastspoke_any > realtime?cl_voip_ducking.value:1;
 
@@ -714,7 +774,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 		switch(s_voip.enccodec)
 		{
-		case VOIP_SPEEX:
+		case VOIP_SPEEX_OLD:
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
 			break;
 		case VOIP_OPUS:
 			qopus_encoder_destroy(s_voip.encoder);
@@ -749,7 +811,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		/*see if we can init our encoding codec...*/
 		switch(voipcodec)
 		{
-		case VOIP_SPEEX:
+		case VOIP_SPEEX_OLD:
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
 			if (!S_Speex_Init())
 			{
 				Con_Printf("Unable to use speex codec - not installed\n");
@@ -758,12 +822,17 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 			qspeex_bits_init(&s_voip.speex.encbits);
 			qspeex_bits_reset(&s_voip.speex.encbits);
-			s_voip.encoder = qspeex_encoder_init(s_voip.speex.mode);
+			s_voip.encoder = qspeex_encoder_init(voipcodec == VOIP_SPEEX_WIDE?s_voip.speex.modewb:s_voip.speex.modenb);
 			if (!s_voip.encoder)
 				return;
 			qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_FRAME_SIZE, &s_voip.encframesize);
 			qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_SAMPLING_RATE, &s_voip.encsamplerate);
-			s_voip.encsamplerate = 11025;
+			if (voipcodec == VOIP_SPEEX_NARROW)
+				s_voip.encsamplerate = 8000;
+			else if (voipcodec == VOIP_SPEEX_WIDE)
+				s_voip.encsamplerate = 16000;
+			else
+				s_voip.encsamplerate = 11025;
 			qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
 			break;
 		case VOIP_OPUS:
@@ -833,7 +902,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			//reset codecs so they start with a clean slate when new audio blocks are generated.
 			switch(s_voip.enccodec)
 			{
-			case VOIP_SPEEX:
+			case VOIP_SPEEX_OLD:
+			case VOIP_SPEEX_NARROW:
+			case VOIP_SPEEX_WIDE:
 				qspeex_bits_reset(&s_voip.speex.encbits);
 				break;
 			case VOIP_OPUS:
@@ -861,10 +932,11 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	}
 
 	initseq = s_voip.encsequence;
+	inittimestamp = s_voip.enctimestamp;
 	level = 0;
 	samps=0;
 	//*2 for 16bit audio input.
-	for (encpos = 0, outpos = 0; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; s_voip.encsequence++)
+	for (encpos = 0, outpos = 0; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; )
 	{
 		start = (short*)(s_voip.capturebuf + encpos);
 
@@ -902,7 +974,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 		switch(s_voip.enccodec)
 		{
-		case VOIP_SPEEX:
+		case VOIP_SPEEX_OLD:
 			qspeex_bits_reset(&s_voip.speex.encbits);
 			qspeex_encode_int(s_voip.encoder, start, &s_voip.speex.encbits);
 			len = qspeex_bits_write(&s_voip.speex.encbits, outbuf+(outpos+1), sizeof(outbuf) - (outpos+1));
@@ -910,6 +982,28 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				len = 0;
 			outbuf[outpos] = len;
 			outpos += 1+len;
+			s_voip.encsequence++;
+			s_voip.enctimestamp += s_voip.encframesize;
+			samps+=s_voip.encframesize;
+			encpos += s_voip.encframesize*2;
+			break;
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
+			qspeex_bits_reset(&s_voip.speex.encbits);
+			for (; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; )
+			{
+				start = (short*)(s_voip.capturebuf + encpos);
+				qspeex_encode_int(s_voip.encoder, start, &s_voip.speex.encbits);
+				s_voip.encsequence++;
+				samps+=s_voip.encframesize;
+				s_voip.enctimestamp += s_voip.encframesize;
+				encpos += s_voip.encframesize*2;
+
+				if (rtpstream)
+					break;
+			}
+			len = qspeex_bits_write(&s_voip.speex.encbits, outbuf+outpos, sizeof(outbuf) - outpos);
+			outpos += len;
 			break;
 		case VOIP_OPUS:
 			len = qopus_encode(s_voip.encoder, start, s_voip.encframesize, outbuf+(outpos+1), max(255, sizeof(outbuf) - (outpos+1)));
@@ -925,20 +1019,25 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				//error!
 				Con_Printf("Opus encoding error: %i\n", len);
 			}
+			s_voip.encsequence++;
+			samps+=s_voip.encframesize;
+			s_voip.enctimestamp += s_voip.encframesize;
+			encpos += s_voip.encframesize*2;
 			break;
 		default:
 			outbuf[outpos] = 0;
 			break;
 		}
-		samps+=s_voip.encframesize;
-		encpos += s_voip.encframesize*2;
+
+		if (rtpstream)
+			break;
 	}
 	if (samps)
 	{
 		float nl;
 		nl = (3000*level) / (32767.0f*32767*samps);
 		s_voip.voiplevel = (s_voip.voiplevel*7 + nl)/8;
-		if (s_voip.voiplevel < cl_voip_vad_threshhold.ival && !(cl_voip_send.ival & 2))
+		if (s_voip.voiplevel < cl_voip_vad_threshhold.ival && !(cl_voip_send.ival & 6))
 		{
 			/*try and dump it, it was too quiet, and they're not pressing +voip*/
 			if (s_voip.keeps > samps)
@@ -965,13 +1064,25 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 	if (outpos && (!buf || buf->maxsize - buf->cursize >= outpos+4))
 	{
-		if (buf)
+		if (buf && (cl_voip_send.ival & ~4))
 		{
 			MSG_WriteByte(buf, clc);
 			MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
 			MSG_WriteByte(buf, initseq);
 			MSG_WriteShort(buf, outpos);
 			SZ_Write(buf, outbuf, outpos);
+		}
+
+		switch(s_voip.enccodec)
+		{
+		case VOIP_SPEEX_NARROW:
+		case VOIP_SPEEX_WIDE:
+		case VOIP_SPEEX_OLD:
+			NET_RTP_Transmit(initseq, inittimestamp, va("speex@%i", s_voip.encsamplerate), outbuf, outpos);
+			break;
+		case VOIP_OPUS:
+			NET_RTP_Transmit(initseq, inittimestamp, "opus", outbuf, outpos);
+			break;
 		}
 
 		if (cl_voip_test.ival)

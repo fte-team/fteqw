@@ -3046,7 +3046,7 @@ void JCL_ToJID(jclient_t *jcl, char *in, char *out, int outsize)
 		}
 	}
 
-	if (!strchr(in, '@'))
+	if (!strchr(in, '@') && jcl)
 	{
 		//no @? probably its an alias, but could also be a server/domain perhaps. not sure we care. you'll just have to rename your friend.
 		//check to see if we can find a friend going by that name

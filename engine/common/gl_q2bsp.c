@@ -125,8 +125,8 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs)
 
 void ClearBounds (vec3_t mins, vec3_t maxs)
 {
-	mins[0] = mins[1] = mins[2] = 99999;
-	maxs[0] = maxs[1] = maxs[2] = -99999;
+	mins[0] = mins[1] = mins[2] = 999999999;
+	maxs[0] = maxs[1] = maxs[2] = -999999999;
 }
 
 
@@ -1068,8 +1068,8 @@ qboolean CMod_LoadSubmodels (lump_t *l)
 		out->numsurfaces = LittleLong (in->numfaces);
 	}
 
-	VectorCopy(map_cmodels[0].mins, loadmodel->mins);
-	VectorCopy(map_cmodels[0].maxs, loadmodel->maxs);
+	AddPointToBounds(map_cmodels[0].mins, loadmodel->mins, loadmodel->maxs);
+	AddPointToBounds(map_cmodels[0].maxs, loadmodel->mins, loadmodel->maxs);
 
 	return true;
 }
@@ -2007,8 +2007,8 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 		//submodels
 	}
 
-	VectorCopy(map_cmodels[0].mins, loadmodel->mins);
-	VectorCopy(map_cmodels[0].maxs, loadmodel->maxs);
+	AddPointToBounds(map_cmodels[0].mins, loadmodel->mins, loadmodel->maxs);
+	AddPointToBounds(map_cmodels[0].maxs, loadmodel->mins, loadmodel->maxs);
 
 	return true;
 }
@@ -2968,6 +2968,8 @@ qboolean CModQ3_LoadNodes (lump_t *l)
 			out->minmaxs[j] = LittleLong (in->mins[j]);
 			out->minmaxs[3+j] = LittleLong (in->maxs[j]);
 		}
+		AddPointToBounds(out->minmaxs, loadmodel->mins, loadmodel->maxs);
+		AddPointToBounds(out->minmaxs+3, loadmodel->mins, loadmodel->maxs);
 
 		p = LittleLong(in->plane);
 		out->plane = loadmodel->planes + p;
@@ -3806,6 +3808,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		loadmodel->lightmaps.width = 128;
 		loadmodel->lightmaps.height = 128;
 	}
+
+	ClearBounds(loadmodel->mins, loadmodel->maxs);
 
 	switch(header.version)
 	{

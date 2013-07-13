@@ -47,7 +47,7 @@ typedef enum {false, true}	qboolean;
 #define STRINGIFY2(s) #s
 #define STRINGIFY(s) STRINGIFY2(s)
 
-#define	MAX_INFO_STRING			196	//regular quakeworld. Sickening isn't it.
+#define	BASIC_INFO_STRING			196	//regular quakeworld. Sickening isn't it.
 #define	EXTENDED_INFO_STRING	1024
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
@@ -511,7 +511,7 @@ qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
 int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
-int SHA1_HMAC(unsigned char *digest, int maxdigestsize, unsigned char *key, int keylen, unsigned char *data, int datalen);
+int SHA1_HMAC(unsigned char *digest, int maxdigestsize, unsigned char *data, int datalen, unsigned char *key, int keylen);
 
 int version_number(void);
 char *version_string(void);

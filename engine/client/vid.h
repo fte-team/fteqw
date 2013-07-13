@@ -50,6 +50,7 @@ typedef struct vrect_s
 
 typedef struct
 {
+	qboolean		isminimized;	//can omit rendering as it won't be seen anyway.
 	int				fullbright;		// index of first fullbright color
 
 	unsigned		width; /*virtual 2d width*/

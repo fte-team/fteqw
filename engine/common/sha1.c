@@ -15,7 +15,7 @@ This file came to FTE via EzQuake.
 */
 
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
-
+#define SHA1HANDSOFF
 //#include "quakedef.h"
 #include <string.h>
 
@@ -226,19 +226,19 @@ static void memxor(char *dest, char *src, size_t length)
 }
 
 int SHA1_HMAC(unsigned char *digest, int maxdigestsize,
-			   unsigned char *key, int keylen,
-			   unsigned char *data, int datalen)
+			  unsigned char *data, int datalen,
+			  unsigned char *key, int keylen)
 {
 	SHA1_CTX inner;
 	SHA1_CTX outer;
-	char optkeybuf[20];
+	char optkeybuf[DIGEST_SIZE];
 	char block[64];
-	char innerhash[20];
+	char innerhash[DIGEST_SIZE];
 
 	if (maxdigestsize < DIGEST_SIZE)
 		return 0;
 
-	/* Reduce the key's size, so that it becomes <= 64 bytes large. */
+	/* Reduce the key's size, so that it is never larger than a block. */
 
 	if (keylen > 64)
 	{
@@ -249,7 +249,7 @@ int SHA1_HMAC(unsigned char *digest, int maxdigestsize,
 		SHA1Final (optkeybuf, &keyhash);
 
 		key = optkeybuf;
-		keylen = 20;
+		keylen = sizeof(optkeybuf);
 	}
 
 	/* Compute INNERHASH from KEY and IN. */

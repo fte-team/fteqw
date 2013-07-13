@@ -188,7 +188,7 @@ static void *Dec_Create(char *medianame)
 		medianame = medianame + 10;
 	else if (!strcmp(medianame, "berkelium"))
 		medianame = (char*)"about:blank";
-	else if (!strncmp(medianame, "http:", 5))
+	else if (!strncmp(medianame, "http:", 5) || !strncmp(medianame, "https:", 6))
 		medianame = medianame;	//and direct http requests.
 	else
 		return NULL;
@@ -304,33 +304,31 @@ static void Dec_Key (void *vctx, int code, int unicode, int isup)
 	}
 	else
 	{
+		int mods = 0;
+		if (code == 127)
+			code = 0x08;
+		else if (code == 140)	//del
+			code = 0x2e;
+		else if (code == 143)	//home
+			code = 0x24;
+		else if (code == 144)	//end
+			code = 0x23;
+		else if (code == 141)	//pgdn
+			code = 0x22;
+		else if (code == 142)	//pgup
+			code = 0x21;
+		else if (code == 139)	//ins
+			code = 0x2d;
+		else if (code == 132)	//up
+			code = 0x26;
+		else if (code == 133)	//down
+			code = 0x28;
+		else if (code == 134)	//left
+			code = 0x25;
+		else if (code == 135)	//right
+			code = 0x27;
 		if (code)
-		{
-			int mods = 0;
-			if (code == 127)
-				code = 0x08;
-			else if (code == 140)	//del
-				code = 0x2e;
-			else if (code == 143)	//home
-				code = 0x24;
-			else if (code == 144)	//end
-				code = 0x23;
-			else if (code == 141)	//pgdn
-				code = 0x22;
-			else if (code == 142)	//pgup
-				code = 0x21;
-			else if (code == 139)	//ins
-				code = 0x2d;
-			else if (code == 132)	//up
-				code = 0x26;
-			else if (code == 133)	//down
-				code = 0x28;
-			else if (code == 134)	//left
-				code = 0x25;
-			else if (code == 135)	//right
-				code = 0x27;
 			ctx->wnd->keyEvent(!isup, mods, code, 0);
-		}
 		if (unicode && !isup)
 		{
 			wchar_t chars[2] = {unicode};

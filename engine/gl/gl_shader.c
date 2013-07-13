@@ -4259,8 +4259,10 @@ char *Shader_DefaultBSPWater(char *shortname)
 	else if (r_fastturb.ival)
 		wstyle = 0;
 #ifdef GLQUAKE
-	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*lava", 5))
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*lava", 5) && *r_lavastyle.string)
 		wstyle = r_lavastyle.ival;
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*slime", 5) && *r_lavastyle.string)
+		wstyle = r_slimestyle.ival;
 	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && strncmp(shortname, "*lava", 5))
 		wstyle = r_waterstyle.ival<1?1:r_waterstyle.ival;
 #endif

@@ -4817,7 +4817,10 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 
 	timeout.tv_sec = msec/1000;
 	timeout.tv_usec = (msec%1000)*1000;
-	select(maxfd+1, &fdset, NULL, NULL, &timeout);
+	if (!maxfd)
+		Sys_Sleep(msec/1000.0);
+	else
+		select(maxfd+1, &fdset, NULL, NULL, &timeout);
 
 	if (stdinissocket)
 		return FD_ISSET(0, &fdset);
@@ -5303,7 +5306,7 @@ static qboolean ICE_SendSpam(struct icestate_s *con)
 		data[2] = ((buf.cursize+4+sizeof(integ)-20)>>8)&0xff;	//hashed header length is up to the end of the hmac attribute
 		data[3] = ((buf.cursize+4+sizeof(integ)-20)>>0)&0xff;
 		//but the hash is to the start of the attribute's header
-		SHA1_HMAC(integ, sizeof(integ), con->rpwd, strlen(con->rpwd), data, buf.cursize);
+		SHA1_HMAC(integ, sizeof(integ), data, buf.cursize, con->rpwd, strlen(con->rpwd));
 		MSG_WriteShort(&buf, BigShort(0x8));	//MESSAGE-INTEGRITY
 		MSG_WriteShort(&buf, BigShort(20));	//sha1 key length
 		SZ_Write(&buf, integ, sizeof(integ));	//integrity data
@@ -5520,6 +5523,13 @@ void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n
 
 	if (!NET_StringToAdr(n->addr, n->port, &peer))
 		return;
+
+	if (peer.type == NA_IP)
+	{
+		//ignore invalid addresses
+		if (!peer.address.ip[0] && !peer.address.ip[1] && !peer.address.ip[2] && !peer.address.ip[3])
+			return;
+	}
 
 	for (o = con->rc; o; o = o->next)
 	{
@@ -5909,7 +5919,7 @@ static qboolean NET_WasStun(netsrc_t netsrc)
 					char key[20];
 					//the hmac is a bit weird. the header length includes the integrity attribute's length, but the checksum doesn't even consider the attribute header.
 					stun->msglen = BigShort(integritypos+sizeof(integrity) - (char*)stun - sizeof(*stun));
-					SHA1_HMAC(key, sizeof(key), con->lpwd, strlen(con->lpwd), (qbyte*)stun, integritypos-4 - (char*)stun);
+					SHA1_HMAC(key, sizeof(key), (qbyte*)stun, integritypos-4 - (char*)stun, con->lpwd, strlen(con->lpwd));
 					if (memcmp(key, integrity, sizeof(integrity)))
 					{
 						Con_DPrintf("Integrity is bad! needed %x got %x\n", *(int*)key, *(int*)integrity);

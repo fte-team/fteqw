@@ -362,7 +362,50 @@ static void Decode (UINT4 *output, unsigned char *input, unsigned int len)
 
 
 
+char *MD5_ToHex(char *input, int inputlen, char *ret, int retlen)
+{
+	int v, i;
+	unsigned char	digest[16];
+	MD5_CTX		ctx;
 
+	if (retlen < 33)
+		return NULL;
+
+	MD5Init (&ctx);
+	MD5Update (&ctx, (unsigned char *)input, inputlen);
+	MD5Final ( (unsigned char *)digest, &ctx);
+
+	for (i = 0; i < 16; i++)
+	{
+		v = digest[i]>>4;
+		if (v >= 10)
+			ret[i*2+0] = (v-10) + 'a';
+		else
+			ret[i*2+0] = v + '0';
+		v = digest[i]&0xf;
+		if (v >= 10)
+			ret[i*2+1] = (v-10) + 'a';
+		else
+			ret[i*2+1] = v + '0';
+	}
+	ret[i*2] = '\0';
+	return ret;
+}
+char *MD5_ToBinary(char *input, int inputlen, char *ret, int retlen)
+{
+	int v, i;
+	unsigned char	digest[16];
+	MD5_CTX		ctx;
+
+	if (retlen < 16)
+		return NULL;
+
+	MD5Init (&ctx);
+	MD5Update (&ctx, (unsigned char *)input, inputlen);
+	MD5Final ( (unsigned char *)ret, &ctx);
+
+	return ret;
+}
 
 char *MD5_GetPop3APOPString(char *timestamp, char *secrit)
 {

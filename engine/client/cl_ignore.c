@@ -495,7 +495,7 @@ static void UnignoreteamAll_f (void)
 char Ignore_Check_Flood(char *s, int flags, int offset)
 {
 	int i, p, q, len;
-	char name[MAX_INFO_STRING];
+	char name[MAX_INFO_KEY];
 
 	if ( !(  
 			( (ignore_flood.value == 1 && (flags & TPM_NORMAL || flags & TPM_SPECTATOR)) ||
@@ -523,7 +523,7 @@ char Ignore_Check_Flood(char *s, int flags, int offset)
 	else
 		return NO_IGNORE_NO_ADD;
 
-	len = bound (0, q - p + 1, MAX_INFO_STRING - 1);
+	len = bound (0, q - p + 1, sizeof(name) - 1);
 
 	Q_strncpyz(name, s + p, len + 1);
 	if (!cls.demoplayback && !strcmp(name, Player_MyName()))

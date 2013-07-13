@@ -3351,9 +3351,9 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	Info_SetValueForKey(player->userinfo, "model", model, MAX_INFO_STRING);
 	Info_SetValueForKey(player->userinfo, "skin", skin, MAX_INFO_STRING);
 #else
-	Info_SetValueForKey(player->userinfo, "skin", model, MAX_INFO_STRING);
+	Info_SetValueForKey(player->userinfo, "skin", model, sizeof(player->userinfo));
 #endif
-	Info_SetValueForKey(player->userinfo, "name", name, MAX_INFO_STRING);
+	Info_SetValueForKey(player->userinfo, "name", name, sizeof(player->userinfo));
 
 	cl.players[i].userid = i;
 	cl.players[i].rbottomcolor = 1;

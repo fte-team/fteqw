@@ -2193,7 +2193,7 @@ struct pendingfilms_s
 qboolean Media_BeginNextFilm(void)
 {
 	cin_t *cin;
-	static char sname[MAX_QPATH];
+	char sname[MAX_QPATH];
 	struct pendingfilms_s *p;
 
 	if (!pendingfilms)
@@ -2201,12 +2201,15 @@ qboolean Media_BeginNextFilm(void)
 	p = pendingfilms;
 	pendingfilms = p->next;
 	snprintf(sname, sizeof(sname), "cinematic/%s", p->name);
-	Z_Free(p);
 
 	if (!qrenderer)
+	{
+		Z_Free(p);
 		return false;
+	}
 
-	videoshader = R_RegisterCustom(sname, Shader_DefaultCinematic, sname+10);
+	videoshader = R_RegisterCustom(sname, Shader_DefaultCinematic, p->name);
+	Z_Free(p);
 
 	cin = R_ShaderGetCinematic(videoshader);
 	if (cin)

@@ -661,6 +661,12 @@ void Key_DefaultLinkClicked(char *text, char *info)
 		Cbuf_AddText(va("\njoin %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+	/*c = Info_ValueForKey(info, "url");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nplayfilm %s\n", c), RESTRICT_LOCAL);
+		return;
+	}*/
 	c = Info_ValueForKey(info, "observe");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{

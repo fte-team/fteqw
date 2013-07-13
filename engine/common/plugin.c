@@ -1613,13 +1613,18 @@ void Plug_Close(plugin_t *plug)
 	}
 
 	Con_Printf("Closing plugin %s\n", plug->name);
+	if (plug->shutdown)
+	{
+		plugin_t *cp = currentplug;
+		currentplug = plug;
+		VM_Call(plug->vm, plug->shutdown);
+		currentplug = cp;
+	}
 #if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
 	Media_UnregisterDecoder(plug, NULL);
 	Media_UnregisterEncoder(plug, NULL);
 #endif
 	FS_UnRegisterFileSystemModule(plug);
-	if (plug->shutdown)
-		VM_Call(plug->vm, plug->shutdown);
 	VM_Destroy(plug->vm);
 
 	for (i = 0; i < pluginstreamarraylen; i++)

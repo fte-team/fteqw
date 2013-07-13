@@ -1796,7 +1796,8 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	{
 		if (modestate != MS_WINDOWED)
 		{
-			if (vid_canalttab) {
+			if (vid_canalttab)
+			{
 				ChangeDisplaySettings (NULL, 0);
 				vid_wassuspended = true;
 			}
@@ -1969,6 +1970,7 @@ LONG WINAPI GLMainWndProc (
 			}
 			return 0;
     	case WM_SIZE:
+			vid.isminimized  = (wParam==SIZE_MINIMIZED);
 			if (!vid_initializing)
 			{
 				VID_UpdateWindowStatus (hWnd);

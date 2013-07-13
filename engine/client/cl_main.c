@@ -47,7 +47,7 @@ cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
 
-cvar_t	cl_pure		= CVARD("cl_pure", "0", "If enabled, the filesystem will be restricted to allow only the content of the current server.");
+cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 is only reliable with total conversions.\nIf sv_pure is set, the client will prefer the highest value set.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
@@ -1530,7 +1530,7 @@ void CL_PakDownloads(int mode)
 void CL_CheckServerPacks(void)
 {
 	static int oldpure;
-	int pure = atof(Info_ValueForKey(cl.serverinfo, "sv_pure"))*2;
+	int pure = atof(Info_ValueForKey(cl.serverinfo, "sv_pure"));
 	if (pure < cl_pure.ival)
 		pure = cl_pure.ival;
 	pure = bound(0, pure, 2);
@@ -4044,6 +4044,9 @@ double Host_Frame (double time)
 			maxfps = 4;
 	}
 
+	if (vid.isminimized && maxfps <= 0 || maxfps > 10)
+		maxfps = 10;
+
 	if (maxfps > 0 
 #if !defined(NOMEDIA)
 		&& Media_Capturing() != 2
@@ -4053,7 +4056,7 @@ double Host_Frame (double time)
 		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
-			return cl_yieldcpu.ival ? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
+			return (cl_yieldcpu.ival || vid.isminimized)? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
 		if (spare > cl_sparemsec.ival)
@@ -4150,7 +4153,7 @@ double Host_Frame (double time)
 	if (host_speeds.ival)
 		time1 = Sys_DoubleTime ();
 
-	if (SCR_UpdateScreen)
+	if (SCR_UpdateScreen && !vid.isminimized)
 	{
 		extern mleaf_t	*r_viewleaf;
 		extern cvar_t scr_chatmodecvar;

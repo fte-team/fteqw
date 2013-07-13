@@ -599,7 +599,6 @@ void SV_DropClient (client_t *drop)
 	drop->namebuf[0] = 0;
 	drop->name = drop->namebuf;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
-	memset (drop->userinfobasic, 0, sizeof(drop->userinfobasic));
 
 	while ((lp = drop->laggedpacket))
 	{
@@ -876,20 +875,36 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	return 0;
 }
 
-void SV_GenerateBasicUserInfo(client_t *cl)
+//generate whatever public userinfo is supported by the client.
+//private keys like _ prefixes and the password key are stripped out here.
+//password needs to be stripped in case the password key doesn't actually relate to this server.
+void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength)
 {
 	char *key, *s;
 	int i;
-	for (i= 1; (key = Info_KeyForNumber(cl->userinfo, i)); i++)
+	
+	//FIXME: we should probably use some sort of priority system instead if I'm honest about it
+	if (pext & PEXT_BIGUSERINFOS)
+		Q_strncpyz (info, cl->userinfo, sizeof(info));
+	else
 	{
-		if (!*key)
-			break;
-		if (!SV_UserInfoIsBasic(key))
-			continue;
+		if (infolength >= BASIC_INFO_STRING)
+			infolength = BASIC_INFO_STRING;
+		for (i = 0; (key = Info_KeyForNumber(cl->userinfo, i)); i++)
+		{
+			if (!*key)
+				break;
+			if (!SV_UserInfoIsBasic(key))
+				continue;
 
-		s = Info_ValueForKey(cl->userinfo, key);
-		Info_SetValueForStarKey (cl->userinfobasic, key, s, sizeof(cl->userinfobasic));
+			s = Info_ValueForKey(cl->userinfo, key);
+			Info_SetValueForStarKey (info, key, s, infolength);
+		}
 	}
+
+	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
+	Info_RemoveKey(info, "password");
+	Info_RemoveKey(info, "*ip");
 }
 
 /*
@@ -902,7 +917,7 @@ Writes all update values to client. use to=NULL to broadcast.
 void SV_FullClientUpdate (client_t *client, client_t *to)
 {
 	int		i;
-	char	info[MAX_INFO_STRING];
+	char	info[EXTENDED_INFO_STRING];
 
 	if (!to)
 	{
@@ -910,6 +925,8 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		{
 			SV_FullClientUpdate(client, &svs.clients[i]); 
 		}
+		if (sv.mvdrecording)
+			SV_FullClientUpdate(client, &demo.recorder); 
 		return;
 	}
 
@@ -941,12 +958,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		ClientReliableWrite_Byte (to, i);
 		ClientReliableWrite_Float (to, realtime - client->connection_started);
 
-		if ((to->fteprotocolextensions) & PEXT_BIGUSERINFOS)
-			Q_strncpyz (info, client->userinfo, sizeof(info));
-		else
-			Q_strncpyz (info, client->userinfobasic, sizeof(info));
-		Info_RemoveKey(info, "password");		//main password key
-		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
+		SV_GeneratePublicUserInfo(to->fteprotocolextensions, client, info, sizeof(info));
 
 		ClientReliableWrite_Begin(to, svc_updateuserinfo, 7 + strlen(info));
 		ClientReliableWrite_Byte (to, i);
@@ -2464,7 +2476,6 @@ client_t *SVC_DirectConnect(void)
 
 	// parse some info from the info strings
 	SV_ExtractFromUserinfo (newcl, true);
-	SV_GenerateBasicUserInfo (newcl);
 
 	// JACK: Init the floodprot stuff.
 	newcl->floodprotmessage = 0.0;
@@ -4030,6 +4041,11 @@ void SV_MVDStream_Poll(void);
 	SV_MVDStream_Poll();
 	}
 
+#ifdef PLUGINS
+	if (isDedicated)
+		Plug_Tick();
+#endif
+
 	if (sv.state < ss_active || !sv.world.worldmodel)
 	{
 #ifndef SERVERONLY
@@ -4117,9 +4133,6 @@ void SV_MVDStream_Poll(void);
 		if (isDedicated)
 #endif
 		{
-#ifdef PLUGINS
-			Plug_Tick();
-#endif
 			NET_Tick();
 
 			SV_GetConsoleCommands ();

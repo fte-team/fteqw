@@ -8360,9 +8360,6 @@ void QCBUILTIN PF_ForceInfoKey(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		
 		SV_ExtractFromUserinfo (&svs.clients[e1-1], false);
 
-		if (SV_UserInfoIsBasic(key))
-			Info_SetValueForKey (svs.clients[e1-1].userinfobasic, key, value, sizeof(svs.clients[e1-1].userinfobasic));
-
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, e1-1);
 		MSG_WriteString (&sv.reliable_datagram, key);

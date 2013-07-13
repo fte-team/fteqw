@@ -2906,6 +2906,48 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			continue;
 		}
+/*
+		else if ((str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p' && str[4] == ':' && !linkstart && !(flags & (PFS_NOMARKUP|PFS_KEEPMARKUP))) ||
+				(str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p' && str[4] == 's' && str[5] == ':' && !linkstart && !(flags & (PFS_NOMARKUP|PFS_KEEPMARKUP))))
+		{
+			//this code can just recurse. saves affecting the rest of the code with weird encodings.
+			int l;
+			char temp[1024];
+			conchar_t *ls, *le;
+			l = 0;
+			while (*str && l < sizeof(temp)-32 && (
+					(*str >= 'a' && *str <= 'z') ||
+					(*str >= 'A' && *str <= 'Z') ||
+					(*str >= '0' && *str <= '9') ||
+					*str == '.' || *str == '/' || *str == '&' || *str == '=' || *str == '_' || *str == '%' || *str == '?' || *str == ':'))
+				l += utf8_encode(temp+l, *str++, sizeof(temp)-1);
+			//recurse
+			temp[l] = 0;
+
+			if (!--outsize)
+				break;
+			*out++ = CON_LINKSTART;
+			ls = out;
+			l = COM_ParseFunString(COLOR_BLUE << CON_FGSHIFT, temp, out, outsize, PFS_FORCEUTF8|PFS_NOMARKUP) - out;
+			outsize -= l;
+			out += l;
+			le = out;
+
+			*out++ = '\\' | CON_HIDDEN;
+			*out++ = 'u' | CON_HIDDEN;
+			*out++ = 'r' | CON_HIDDEN;
+			*out++ = 'l' | CON_HIDDEN;
+			*out++ = '\\' | CON_HIDDEN;
+			while (ls < le)
+				*out++ = (*ls++ & CON_CHARMASK) | CON_HIDDEN;
+			*out++ = CON_LINKEND;
+
+			if (!--outsize)
+				break;
+			*out++ = CON_LINKEND;
+			continue;
+		}
+*/
 messedup:
 		if (!--outsize)
 			break;

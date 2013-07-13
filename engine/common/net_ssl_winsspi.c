@@ -27,6 +27,7 @@ static struct
 	BOOL (WINAPI *pCertGetCertificateChain)					(HCERTCHAINENGINE,PCCERT_CONTEXT,LPFILETIME,HCERTSTORE,PCERT_CHAIN_PARA,DWORD,LPVOID,PCCERT_CHAIN_CONTEXT*);
 	BOOL (WINAPI *pCertVerifyCertificateChainPolicy)		(LPCSTR,PCCERT_CHAIN_CONTEXT,PCERT_CHAIN_POLICY_PARA,PCERT_CHAIN_POLICY_STATUS);
 	void (WINAPI *pCertFreeCertificateChain)				(PCCERT_CHAIN_CONTEXT);
+	DWORD (WINAPI *pCertNameToStrA)							(DWORD dwCertEncodingType, PCERT_NAME_BLOB pName, DWORD dwStrType, LPTSTR psz, DWORD csz);
 } crypt;
 static qboolean SSL_Init(void)
 {
@@ -48,6 +49,7 @@ static qboolean SSL_Init(void)
 		{(void**)&crypt.pCertGetCertificateChain,			"CertGetCertificateChain"},
 		{(void**)&crypt.pCertVerifyCertificateChainPolicy,	"CertVerifyCertificateChainPolicy"},
 		{(void**)&crypt.pCertFreeCertificateChain,			"CertFreeCertificateChain"},
+		{(void**)&crypt.pCertNameToStrA,					"CertNameToStrA"},
 		{NULL, NULL}
 	};
 
@@ -337,6 +339,7 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 		{
 			if (PolicyStatus.dwError)
 			{
+				char fmsg[512];
 				char *err;
 				Status = PolicyStatus.dwError;
 				switch (Status)
@@ -355,7 +358,11 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 					case CERT_E_REVOKED:                err = "CERT_E_REVOKED";                 break;
 					case CERT_E_UNTRUSTEDTESTROOT:      err = "CERT_E_UNTRUSTEDTESTROOT";       break;
 					case CERT_E_REVOCATION_FAILURE:     err = "CERT_E_REVOCATION_FAILURE";      break;
-					case CERT_E_CN_NO_MATCH:            err = "CERT_E_CN_NO_MATCH";             break;
+					case CERT_E_CN_NO_MATCH:            
+						err = fmsg;
+						Q_strncpyz(fmsg, "Certificate is for ", sizeof(fmsg));
+						crypt.pCertNameToStrA(X509_ASN_ENCODING, &pServerCert->pCertInfo->Subject, 0, fmsg+strlen(fmsg), sizeof(fmsg)-strlen(fmsg));
+						break;
 					case CERT_E_WRONG_USAGE:            err = "CERT_E_WRONG_USAGE";             break;
 					default:                            err = "(unknown)";                      break;
 				}

@@ -1130,7 +1130,7 @@ void SV_ForceName_f (void)
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		Info_SetValueForKey(cl->userinfo, "name", Cmd_Argv(2), MAX_INFO_STRING);
+		Info_SetValueForKey(cl->userinfo, "name", Cmd_Argv(2), EXTENDED_INFO_STRING);
 		SV_LogPlayer(cl, "name forced");
 		SV_ExtractFromUserinfo(cl, true);
 		Q_strncpyz(cl->name, Cmd_Argv(2), sizeof(cl->namebuf));

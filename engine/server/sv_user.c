@@ -57,7 +57,7 @@ cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a pass
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
 cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
-cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world.");
+cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disregard player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
@@ -3598,7 +3598,7 @@ Allow clients to change userinfo
 void SV_SetInfo_f (void)
 {
 	int i, j;
-	char oldval[MAX_INFO_STRING];
+	char oldval[MAX_INFO_KEY];
 	char *key, *val;
 	qboolean basic;	//infos that we send to any old qw client.
 	client_t *client;
@@ -3623,7 +3623,7 @@ void SV_SetInfo_f (void)
 	if (strstr(Cmd_Argv(1), "\\") || strstr(Cmd_Argv(2), "\\"))
 		return;		// illegal char
 
-	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)), MAX_INFO_STRING);
+	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)), sizeof(oldval));
 
 #ifdef VM_Q1
 	if (Q1QVM_UserInfoChanged(sv_player))
@@ -3656,8 +3656,6 @@ void SV_SetInfo_f (void)
 
 		basic = SV_UserInfoIsBasic(key);
 
-		if (basic)
-			Info_SetValueForKey (host_client->userinfobasic, key, val, sizeof(host_client->userinfobasic));
 		for (j = 0; j < MAX_CLIENTS; j++)
 		{
 			client = svs.clients+j;
@@ -3690,7 +3688,7 @@ void SV_SetInfo_f (void)
 			}
 		}
 
-		if (sv.mvdrecording)
+		if (sv.mvdrecording && (basic || (demo.recorder.fteprotocolextensions & PEXT_BIGUSERINFOS)))
 		{
 			sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(val)+4);
 			MSG_WriteByte (msg, svc_setinfo);
@@ -4218,7 +4216,6 @@ void Cmd_Join_f (void)
 		// turn the spectator into a player
 		host_client->spectator = false;
 		Info_RemoveKey (host_client->userinfo, "*spectator");
-		Info_RemoveKey (host_client->userinfobasic, "*spectator");
 
 		// FIXME, bump the client's userid?
 
@@ -4328,7 +4325,6 @@ void Cmd_Observe_f (void)
 		// turn the player into a spectator
 		host_client->spectator = true;
 		Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", sizeof(host_client->userinfo));
-		Info_SetValueForStarKey (host_client->userinfobasic, "*spectator", "1", sizeof(host_client->userinfobasic));
 
 		// FIXME, bump the client's userid?
 

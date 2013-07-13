@@ -364,8 +364,9 @@ cvar_t r_editlights_import_specular			= SCVAR ("r_editlights_import_specular", "
 cvar_t r_shadow_shadowmapping				= SCVARF ("debug_r_shadow_shadowmapping", "0", 0);
 cvar_t r_sun_dir							= SCVAR ("r_sun_dir", "0.2 0.5 0.8");
 cvar_t r_sun_colour							= SCVARF ("r_sun_colour", "0 0 0", CVAR_ARCHIVE);
-cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, slime, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
-cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava.");
+cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
+cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
+cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
 
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
@@ -1058,7 +1059,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 	if (qrenderer == QR_NONE)
 	{
-		if (newr->renderer->rtype == qrenderer)
+		if (newr->renderer->rtype == qrenderer && currentrendererstate.renderer)
 			return true;	//no point
 
 		Sys_CloseTerminal ();

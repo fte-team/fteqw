@@ -369,7 +369,6 @@ typedef struct client_s
 
 	int challenge;
 	int				userid;							// identifying number
-	char			userinfobasic[MAX_INFO_STRING];
 	char			userinfo[EXTENDED_INFO_STRING];		// infostring
 
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
@@ -944,6 +943,7 @@ void SV_ExecInitialConfigs(char *defaultexec);
 
 int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
+void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength);
 
 int SV_ModelIndex (char *name);
 

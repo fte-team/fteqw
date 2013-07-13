@@ -773,7 +773,7 @@ void SV_MVDPings (void)
 }
 void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 {
-	char info[MAX_INFO_STRING];
+	char info[EXTENDED_INFO_STRING];
 	qboolean dosizes;
 
 	if (!sv.mvdrecording)
@@ -805,10 +805,7 @@ void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteFloat (msg, realtime - player->connection_started);
 
-	Q_strncpyz (info, player->userinfo, MAX_INFO_STRING);
-	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
-	Info_RemoveKey(info, "password");
-	Info_RemoveKey(info, "*ip");
+	SV_GeneratePublicUserInfo(demo.recorder.fteprotocolextensions, player, info, sizeof(info));
 
 	if (dosizes)
 		msg = MVDWrite_Begin (dem_all, 0, 7 + strlen(info));

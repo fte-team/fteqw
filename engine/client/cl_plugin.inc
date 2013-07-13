@@ -403,7 +403,14 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 		name = "";
 
 	if (qrenderer == QR_NONE)
+	{
+		if (!*name)
+		{
+			Con_Printf("%s", text);
+			return 1;
+		}
 		return false;
+	}
 
 	con = Con_FindConsole(name);
 	if (!con)

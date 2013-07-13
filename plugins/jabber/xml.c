@@ -43,6 +43,7 @@ void XML_AddParameteri(xmltree_t *t, char *paramname, int value)
 }
 xmltree_t *XML_CreateNode(xmltree_t *parent, char *name, char *xmlns, char *body)
 {
+	int bodylen = strlen(body);
 	struct subtree_s *node = malloc(sizeof(*node));
 
 	//clear out links
@@ -52,14 +53,26 @@ xmltree_t *XML_CreateNode(xmltree_t *parent, char *name, char *xmlns, char *body
 	//link into parent if we actually have a parent.
 	if (parent)
 	{
-		node->sibling = parent->child;
-		parent->child = node;
+		if (parent->child)
+		{	//add at tail
+			xmltree_t *prev;
+			for(prev = parent->child; prev->sibling; prev = prev->sibling)
+				;
+			prev->sibling = node;
+			node->sibling = NULL;
+		}
+		else
+		{
+			node->sibling = parent->child;
+			parent->child = node;
+		}
 	}
 
 	Q_strlcpy(node->name, name, sizeof(node->name));
 	Q_strlcpy(node->xmlns, xmlns, sizeof(node->xmlns));
 	Q_strlcpy(node->xmlns_dflt, xmlns, sizeof(node->xmlns_dflt));
-	Q_strlcpy(node->body, body, sizeof(node->xmlns_dflt));
+	node->body = malloc(bodylen+1);
+	memcpy(node->body, body, bodylen+1);
 
 	if (*xmlns)
 		XML_AddParameter(node, "xmlns", xmlns);
@@ -221,10 +234,10 @@ static void XML_DumpToBuf(struct buf_ctx *buf, xmltree_t *t, int indent)
 		buf_cat(buf, "\n", 1);
 }
 
-char *XML_GenerateString(xmltree_t *root)
+char *XML_GenerateString(xmltree_t *root, qboolean readable)
 {
 	struct buf_ctx buf = {NULL, 0, 0};
-	XML_DumpToBuf(&buf, root, -1);
+	XML_DumpToBuf(&buf, root, readable?0:-1);
 	buf_cat(&buf, "", 1);
 	return buf.buf;
 }
@@ -234,6 +247,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 	xmltree_t *child;
 	xmltree_t *ret;
 	int bodypos;
+	int bodymax = 0;
 	int pos, i;
 	char *tagend;
 	char *tagstart;
@@ -283,7 +297,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		tagstart++;
 	for (i = 0; i < sizeof(token)-1 && *tagstart; )
 	{
-		if (*tagstart == ' ' || *tagstart == '\n' || *tagstart == '\r' || *tagstart == '\t')
+		if (*tagstart == ' ' || (i&&*tagstart == '/') || (i&&*tagstart == '?') || *tagstart == '\n' || *tagstart == '\r' || *tagstart == '\t')
 			break;
 		token[i++] = *tagstart++;
 	}
@@ -315,7 +329,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		int nlen;
 
 
-		while(*tagstart <= ' ' && *tagstart)
+		while(*(unsigned char*)tagstart <= ' ' && *tagstart)
 			tagstart++;	//skip whitespace (note that we know there is a null terminator before the end of the buffer)
 
 		if (!*tagstart)
@@ -325,7 +339,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		nlen = 0;
 		while (nlen < sizeof(p->name)-2)
 		{
-			if(*tagstart <= ' ')
+			if (*(unsigned char*)tagstart <= ' ' || *tagstart == '/' || *tagstart == '?')
 				break;
 
 			if (*tagstart == '=')
@@ -334,14 +348,14 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		}
 		p->name[nlen++] = '\0';
 
-		while(*tagstart <= ' ' && *tagstart)
+		while(*(unsigned char*)tagstart <= ' ' && *tagstart)
 			tagstart++;	//skip whitespace (note that we know there is a null terminator before the end of the buffer)
 
 		if (*tagstart != '=')
-			continue;
+			break;
 		tagstart++;
 
-		while(*tagstart <= ' ' && *tagstart)
+		while(*(unsigned char*)tagstart <= ' ' && *tagstart)
 			tagstart++;	//skip whitespace (note that we know there is a null terminator before the end of the buffer)
 
 		nlen = 0;
@@ -397,6 +411,8 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 
 	if (tagend[-2] == '/')
 	{	//no body
+		ret->body = malloc(1);
+		*ret->body = 0;
 		*startpos = pos;
 		return ret;
 	}
@@ -405,6 +421,8 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		//no body either
 		if (tagend[-2] == '?')
 		{
+			ret->body = malloc(1);
+			*ret->body = 0;
 			*startpos = pos;
 			return ret;
 		}
@@ -459,9 +477,26 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		else 
 		{
 			char c = buffer[pos++];
-			if (bodypos < sizeof(ret->body)-1)
-				ret->body[bodypos++] = c;
+			if (bodypos == bodymax)
+			{
+				int nlen = bodypos*2 + 64;
+				char *nb = malloc(nlen);
+				memcpy(nb, ret->body, bodypos);
+				free(ret->body);
+				ret->body = nb;
+				bodymax = nlen;
+			}
+			ret->body[bodypos++] = c;
 		}
+	}
+	if (bodypos == bodymax)
+	{
+		int nlen = bodypos+1;
+		char *nb = malloc(nlen);
+		memcpy(nb, ret->body, bodypos);
+		free(ret->body);
+		ret->body = nb;
+		bodymax = nlen;
 	}
 	ret->body[bodypos++] = '\0';
 
@@ -486,6 +521,7 @@ void XML_Destroy(xmltree_t *t)
 		np = p->next;
 		free(p);
 	}
+	free(t->body);
 	free(t);
 }
 
@@ -503,6 +539,28 @@ xmltree_t *XML_ChildOfTree(xmltree_t *t, char *name, int childnum)
 		}
 	}
 	return NULL;
+}
+xmltree_t *XML_ChildOfTreeNS(xmltree_t *t, char *xmlns, char *name, int childnum)
+{
+	if (t)
+	{
+		for (t = t->child; t; t = t->sibling)
+		{
+			if (!strcmp(t->xmlns, xmlns) && !strcmp(t->name, name))
+			{
+				if (childnum-- == 0)
+					return t;
+			}
+		}
+	}
+	return NULL;
+}
+char *XML_GetChildBody(xmltree_t *t, char *paramname, char *def)
+{
+	xmltree_t *c = XML_ChildOfTree(t, paramname, 0);
+	if (c)
+		return c->body;
+	return def;
 }
 
 void XML_ConPrintTree(xmltree_t *t, int indent)
@@ -526,4 +584,115 @@ void XML_ConPrintTree(xmltree_t *t, int indent)
 	}
 
 	free(buf.buf);
+}
+
+
+static void XML_SkipWhite(char *msg, int *pos, int max)
+{
+	while (*pos < max && (
+		msg[*pos] == ' ' ||
+		msg[*pos] == '\t' ||
+		msg[*pos] == '\r' ||
+		msg[*pos] == '\n'
+		))
+		*pos+=1;
+}
+static qboolean XML_ParseString(char *msg, int *pos, int max, char *out, int outlen)
+{
+	*out = 0;
+	if (*pos < max && msg[*pos] == '\"')
+	{
+		*pos+=1;
+
+		outlen--;
+		while (*pos < max && msg[*pos] != '\"')
+		{
+			if (!outlen)
+				return false;
+			*out = msg[*pos];
+			out++;
+			outlen--;
+			*pos+=1;
+		}
+		if (*pos < max && msg[*pos] == '\"')
+		{
+			*out = 0;
+			*pos+=1;
+			return true;
+		}
+	}
+	else
+	{
+		outlen--;
+		while (*pos < max
+			&& msg[*pos] != ' '
+			&& msg[*pos] != '\t'
+			&& msg[*pos] != '\r'
+			&& msg[*pos] != '\n'
+			&& msg[*pos] != ':'
+			&& msg[*pos] != ','
+			&& msg[*pos] != '}'
+			&& msg[*pos] != '{')
+		{
+			if (!outlen)
+				return false;
+			*out = msg[*pos];
+			out++;
+			outlen--;
+			*pos+=1;
+		}
+		*out = 0;
+		return true;
+	}
+	return false;
+}
+xmltree_t *XML_FromJSON(xmltree_t *t, char *name, char *json, int *jsonpos, int jsonlen)
+{
+	char child[4096];
+	char *start;
+	char *end;
+	XML_SkipWhite(json, jsonpos, jsonlen);
+
+	if (*jsonpos < jsonlen && json[*jsonpos] == '{')
+	{
+		*jsonpos+=1;
+		XML_SkipWhite(json, jsonpos, jsonlen);
+
+		t = XML_CreateNode(t, name, "", "");
+
+		while (*jsonpos < jsonlen && json[*jsonpos] == '\"')
+		{
+			if (!XML_ParseString(json, jsonpos, jsonlen, child, sizeof(child)))
+				break;
+			XML_SkipWhite(json, jsonpos, jsonlen);
+			if (*jsonpos < jsonlen && json[*jsonpos] == ':')
+			{
+				*jsonpos+=1;
+				if (!XML_FromJSON(t, child, json, jsonpos, jsonlen))
+					break;
+			}
+			XML_SkipWhite(json, jsonpos, jsonlen);
+
+			if (*jsonpos < jsonlen && json[*jsonpos] == ',')
+			{
+				*jsonpos+=1;
+				XML_SkipWhite(json, jsonpos, jsonlen);
+				continue;
+			}
+			break;
+		}
+
+		if (*jsonpos < jsonlen && json[*jsonpos] == '}')
+		{
+			*jsonpos+=1;
+			return t;
+		}
+		XML_Destroy(t);
+	}
+	else if (*jsonpos < jsonlen)
+	{
+		if (XML_ParseString(json, jsonpos, jsonlen, child, sizeof(child)))
+			return XML_CreateNode(t, name, "", child);
+	}
+	return NULL;
 }

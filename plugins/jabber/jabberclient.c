@@ -32,6 +32,7 @@ Network limitations:
 		auth mechanism: digest-md5, scram-sha1, plain.
 		complete implementation. no issues.
 		may be lacking srv entries, depends on installation.
+		may have self-signed certificate issues, depends on installation.
 
 client compat:
 	googletalk:
@@ -46,7 +47,6 @@ client compat:
 
 #include "../plugin.h"
 #include <time.h>
-#include "../../engine/common/netinc.h"
 #include "xml.h"
 
 //#define NOICE
@@ -56,6 +56,10 @@ client compat:
 
 #ifdef VOIP_SPEEX
 #define VOIP
+#endif
+
+#ifdef JINGLE
+	#include "../../engine/common/netinc.h"
 #endif
 
 #define DEFAULTDOMAIN ""

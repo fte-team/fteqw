@@ -1318,6 +1318,7 @@ char *SV_Demo_CurrentOutput(void);
 void SV_MVDInit(void);
 char *SV_MVDNum(char *buffer, int bufferlen, int num);
 void SV_SendMVDMessage(void);
+void SV_MVD_WriteReliables(void);
 qboolean SV_ReadMVD (void);
 void SV_FlushDemoSignon (void);
 void DestFlush(qboolean compleate);

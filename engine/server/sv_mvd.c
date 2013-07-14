@@ -757,7 +757,7 @@ void SV_MVDPings (void)
 	client_t *client;
 	int		j;
 
-	for (j = 0, client = svs.clients; j < demo.recorder.max_net_ents; j++, client++)
+	for (j = 0, client = svs.clients; j < demo.recorder.max_net_clients; j++, client++)
 	{
 		if (client->state != cs_spawned)
 			continue;
@@ -1010,6 +1010,24 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 	DestFlush(false);
 }
 
+//if you use ClientRelaible to write to demo.recorder's message buffer (for code reuse) call this function to ensure its flushed.
+void SV_MVD_WriteReliables(void)
+{
+	int i;
+	if (demo.recorder.netchan.message.cursize)
+	{
+		SV_WriteMVDMessage(&demo.recorder.netchan.message, dem_all, 0, sv.time);
+		demo.recorder.netchan.message.cursize = 0;
+	}
+	for (i = 0; i < demo.recorder.num_backbuf; i++)
+	{
+		demo.recorder.backbuf.data = demo.recorder.backbuf_data[i];
+		demo.recorder.backbuf.cursize = demo.recorder.backbuf_size[i];
+		SV_WriteMVDMessage(&demo.recorder.backbuf, dem_all, 0, sv.time);
+		demo.recorder.backbuf_size[i] = 0;
+	}
+	demo.recorder.backbuf.cursize = 0;
+}
 
 /*
 ====================
@@ -1085,7 +1103,7 @@ qboolean SV_MVDWritePackets (int num)
 		// find two frames
 		// one before the exact time (time - msec) and one after,
 		// then we can interpolte exact position for current frame
-		for (i = 0, cl = frame->clients, demoinfo = demo.info; i < demo.recorder.max_net_ents ; i++, cl++, demoinfo++)
+		for (i = 0, cl = frame->clients, demoinfo = demo.info; i < demo.recorder.max_net_clients ; i++, cl++, demoinfo++)
 		{
 			if (cl->parsecount != demo.lastwritten)
 				continue; // not valid
@@ -1887,9 +1905,9 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 // send current status of all other players
 
-	for (i = 0; i < demo.recorder.max_net_ents; i++)
+	for (i = 0; i < demo.recorder.max_net_clients; i++)
 	{
-		player = svs.clients + i;
+		player = &svs.clients[i];
 
 		SV_MVD_FullClientUpdate(&buf, player);
 

@@ -2572,6 +2572,8 @@ void SV_SendMVDMessage(void)
 		/*figure out what the stat values should be*/
 		SV_CalcClientStats(c, statsi, statsf, statss);
 
+		//FIXME we should do something about the packet overhead here. each MVDWrite_Begin is a separate packet!
+
 		for (j=0 ; j<m ; j++)
 		{
 			if (demo.recorder.fteprotocolextensions & PEXT_CSQC)

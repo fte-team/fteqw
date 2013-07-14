@@ -550,7 +550,6 @@ void QDECL GHL_MessageEnd(unk)
 		{
 			ClientReliableCheckBlock(cl, sv.multicast.cursize);
 			ClientReliableWrite_SZ(cl, sv.multicast.data, sv.multicast.cursize);
-			ClientReliable_FinishWrite(cl);
 		}
 		break;
 	case MSG_ALL:

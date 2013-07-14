@@ -888,11 +888,12 @@ void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolengt
 	
 	//FIXME: we should probably use some sort of priority system instead if I'm honest about it
 	if (pext & PEXT_BIGUSERINFOS)
-		Q_strncpyz (info, cl->userinfo, sizeof(info));
+		Q_strncpyz (info, cl->userinfo, infolength);
 	else
 	{
 		if (infolength >= BASIC_INFO_STRING)
 			infolength = BASIC_INFO_STRING;
+		*info = 0;
 		for (i = 0; (key = Info_KeyForNumber(cl->userinfo, i)); i++)
 		{
 			if (!*key)
@@ -929,7 +930,10 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			SV_FullClientUpdate(client, &svs.clients[i]); 
 		}
 		if (sv.mvdrecording)
-			SV_FullClientUpdate(client, &demo.recorder); 
+		{
+			SV_FullClientUpdate(client, &demo.recorder);
+			SV_MVD_WriteReliables();
+		}
 		return;
 	}
 

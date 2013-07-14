@@ -74,7 +74,7 @@ void M_Menu_Options_f (void)
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
-		MB_CONSOLECMD("Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
+		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
 		MB_SPACING(4),
 		MB_SLIDER("Mouse Speed", sensitivity, 1, 10, 0.2, NULL),

@@ -14,6 +14,7 @@ static struct
 	backendmode_t mode;
 
 	float m_mvp[16];
+	vec4_t viewplane;
 
 	entity_t *curentity;
 	shader_t *curshader;
@@ -410,31 +411,7 @@ void SWBE_TransformVerticies(swvert_t *v, mesh_t *mesh)
 
 	for (i = 0; i < mesh->numvertexes; i++, v++)
 	{
-		Matrix4x4_CM_Transform34(shaderstate.m_mvp, xyz[i], v->vcoord);
-
-		if (v->vcoord[3] != 1)
-		{
-			v->vcoord[0] /= v->vcoord[3];
-			v->vcoord[1] /= v->vcoord[3];
-			v->vcoord[2] /= v->vcoord[3];
-		}
-		v->vcoord[0] = (v->vcoord[0]+1)/2 * vid.pixelwidth;
-		if (v->vcoord[0] < 0)
-			v->clipflags = CLIP_LEFT_FLAG;
-		else
-			v->clipflags = 0;
-		if (v->vcoord[0] > vid.pixelwidth-1)
-			v->clipflags |= CLIP_RIGHT_FLAG;
-		v->vcoord[1] = (v->vcoord[1]+1)/2 * vid.pixelheight;
-		if (v->vcoord[1] < temp1.value)
-			v->clipflags |= CLIP_TOP_FLAG;
-		if (v->vcoord[1] > vid.pixelheight-1)
-			v->clipflags |= CLIP_BOTTOM_FLAG;
-		v->vcoord[2] = (v->vcoord[2]+1)/2;
-		if (v->vcoord[3] < 0)
-			v->clipflags |= CLIP_NEAR_FLAG;
-		if (v->vcoord[2] >= 1)
-			v->vcoord[2] = 1;
+		VectorCopy(xyz[i], v->vcoord);
 
 		Vector2Copy(mesh->st_array[i], v->tccoord);
 
@@ -561,6 +538,17 @@ void SWBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop
 		SWBE_SubmitMeshesSortList(blist[i]);
 	}
 }
+
+static void SWBE_UpdateUniforms(void)
+{
+	wqcom_t *com;
+	com = SWRast_BeginCommand(&commandqueue, WTC_UNIFORMS, sizeof(com->uniforms));
+
+	memcpy(com->uniforms.u.matrix, shaderstate.m_mvp, sizeof(com->uniforms.u.matrix));
+	Vector4Copy(shaderstate.viewplane, com->uniforms.u.viewplane);
+
+	SWRast_EndCommand(&commandqueue, com);
+}
 void SWBE_Set2D(void)
 {
 	extern cvar_t gl_screenangle;
@@ -592,6 +580,15 @@ void SWBE_Set2D(void)
 	}
 
 	memcpy(shaderstate.m_mvp, r_refdef.m_projection, sizeof(shaderstate.m_mvp));
+
+	shaderstate.viewplane[0] = -r_refdef.m_view[0*4+2];
+	shaderstate.viewplane[1] = -r_refdef.m_view[1*4+2];
+	shaderstate.viewplane[2] = -r_refdef.m_view[2*4+2];
+	VectorNormalize(shaderstate.viewplane);
+	VectorScale(shaderstate.viewplane, 1.0/99999, shaderstate.viewplane);
+	shaderstate.viewplane[3] = DotProduct(vec3_origin, shaderstate.viewplane);// - 0.5;
+
+	SWBE_UpdateUniforms();
 }
 void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
 {
@@ -636,6 +633,7 @@ void SWBE_SelectEntity(struct entity_s *ent)
 {
 	float modelmatrix[16];
 	float modelviewmatrix[16];
+	vec3_t vieworg;
 
 	if (shaderstate.curentity == ent)
 		return;
@@ -643,6 +641,18 @@ void SWBE_SelectEntity(struct entity_s *ent)
 
 	R_RotateForEntity(modelmatrix, modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
 	Matrix4_Multiply(r_refdef.m_projection, modelviewmatrix, shaderstate.m_mvp);
+	shaderstate.viewplane[0] = vpn[0];//-modelviewmatrix[0];//0*4+2];
+	shaderstate.viewplane[1] = vpn[1];//-modelviewmatrix[1];//1*4+2];
+	shaderstate.viewplane[2] = vpn[2];//-modelviewmatrix[2];//2*4+2];
+	VectorNormalize(shaderstate.viewplane);
+	VectorScale(shaderstate.viewplane, 1.0/8192, shaderstate.viewplane);
+	vieworg[0] = modelviewmatrix[3*4+0];
+	vieworg[1] = modelviewmatrix[3*4+1];
+	vieworg[2] = modelviewmatrix[3*4+2];
+	VectorMA(r_refdef.vieworg, 256, shaderstate.viewplane, vieworg);
+	shaderstate.viewplane[3] = DotProduct(vieworg, shaderstate.viewplane);
+
+	SWBE_UpdateUniforms();
 }
 void SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour)
 {

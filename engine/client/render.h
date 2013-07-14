@@ -335,30 +335,27 @@ extern	texid_t balltexture;
 extern	texid_t beamtexture;
 extern	texid_t ptritexture;
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-
-void	RMod_Init (void);
-void RMod_Shutdown (void);
+void	Mod_Init (void);
+void Mod_Shutdown (void);
 int Mod_TagNumForName(struct model_s *model, char *name);
 int Mod_SkinNumForName(struct model_s *model, char *name);
 int Mod_FrameNumForName(struct model_s *model, char *name);
-float Mod_FrameDuration(struct model_s *model, int frameno);
+float Mod_GetFrameDuration(struct model_s *model, int frameno);
 
-void RMod_ResortShaders(void);
-void	RMod_ClearAll (void);
-struct model_s *RMod_ForName (char *name, qboolean crash);
-struct model_s *RMod_FindName (char *name);
-void	*RMod_Extradata (struct model_s *mod);	// handles caching
-void	RMod_TouchModel (char *name);
+void Mod_ResortShaders(void);
+void	Mod_ClearAll (void);
+struct model_s *Mod_ForName (char *name, qboolean crash);
+struct model_s *Mod_FindName (char *name);
+void	*Mod_Extradata (struct model_s *mod);	// handles caching
+void	Mod_TouchModel (char *name);
 void Mod_RebuildLightmaps (void);
 
-struct mleaf_s *RMod_PointInLeaf (struct model_s *model, float *p);
+struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
 
-void RMod_Think (void);
-void RMod_NowLoadExternal(void);
+void Mod_Think (void);
+void Mod_NowLoadExternal(void);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
-#endif
 
 #ifdef RUNTIMELIGHTING
 void LightFace (int surfnum);

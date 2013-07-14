@@ -460,23 +460,9 @@ void GLDraw_Init (void)
 
 	maxtexsize = gl_max_size.value;
 
-	if (gl_config.gles)
-	{
-		if (maxtexsize < 512)	//this needs to be able to hold the image in unscaled form.
-			sizeofuploadmemorybufferintermediate = 512*512*4;	//make sure we can load 512*512 images whatever happens.
-		else
-			sizeofuploadmemorybufferintermediate = maxtexsize*maxtexsize*4;	//gl supports huge images, so so shall we.
-	}
-	else
-	{
-		if (maxtexsize < 2048)	//this needs to be able to hold the image in unscaled form.
-			sizeofuploadmemorybufferintermediate = 2048*2048*4;	//make sure we can load 2048*2048 images whatever happens.
-		else
-			sizeofuploadmemorybufferintermediate = maxtexsize*maxtexsize*4;	//gl supports huge images, so so shall we.
-	}
-
 	//required to hold the image after scaling has occured
-	sizeofuploadmemorybuffer = maxtexsize*maxtexsize*4;
+	sizeofuploadmemorybuffer = 1;
+	sizeofuploadmemorybufferintermediate = 1;
 TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
 	uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
@@ -1132,7 +1118,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 {
 	int		miplevel=0;
 	int			samples;
-	unsigned	*scaled = (unsigned *)uploadmemorybuffer;
+	unsigned	*scaled;
 	int			scaled_width, scaled_height;
 	int		type;
 	int		targ, targface;
@@ -1173,8 +1159,12 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
-	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
-		Sys_Error ("GL_LoadTexture: too big");
+	if (scaled_width * scaled_height*4 > sizeofuploadmemorybuffer)
+	{
+		sizeofuploadmemorybuffer = scaled_width * scaled_height * 4;
+		uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
+	}
+	scaled = (unsigned *)uploadmemorybuffer;
 
 	if (gl_config.gles)
 	{
@@ -1386,15 +1376,18 @@ void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight, un
 	int v;
 	unsigned int f, fstep;
 	qbyte *src, *dest;
-	dest = uploadmemorybufferintermediate;
 	//change from bgr bottomup to rgba topdown
 
 	outwidth = inwidth;
 	outheight = inheight;
 	GL_RoundDimensions(&outwidth, &outheight, !(flags&IF_NOMIPMAP));
 
-	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("GL_Upload24BGR: image too big (%i*%i)", inwidth, inheight);
+	if (outwidth*outheight*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = outwidth*outheight*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	dest = uploadmemorybufferintermediate;
 
 	for (y=0 ; y<outheight ; y++)
 	{
@@ -1453,15 +1446,18 @@ void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheigh
 	int v;
 	unsigned int f, fstep;
 	qbyte *src, *dest;
-	dest = uploadmemorybufferintermediate;
 	//change from bgr bottomup to rgba topdown
 
 	outwidth = inwidth;
 	outheight = inheight;
 	GL_RoundDimensions(&outwidth, &outheight, !(flags&IF_NOMIPMAP));
 
-	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("GL_Upload24BGR_Flip: image too big (%i*%i)", inwidth, inheight);
+	if (outwidth*outheight*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = outwidth*outheight*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	dest = uploadmemorybufferintermediate;
 
 	for (y=1 ; y<=outheight ; y++)
 	{
@@ -1517,15 +1513,19 @@ void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheigh
 void GL_Upload8Grey (unsigned char*data, int width, int height, unsigned int flags)
 {
 	int			samples;
-	unsigned char	*scaled = uploadmemorybuffer;
+	unsigned char	*scaled;
 	int			scaled_width, scaled_height;
 
 	scaled_width = width;
 	scaled_height = height;
 	GL_RoundDimensions(&scaled_width, &scaled_height, !(flags&IF_NOMIPMAP));
 
-	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
-		Sys_Error ("GL_LoadTexture: too big");
+	if (scaled_width * scaled_height*4 > sizeofuploadmemorybuffer)
+	{
+		sizeofuploadmemorybuffer = scaled_width * scaled_height * 4;
+		uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
+	}
+	scaled = uploadmemorybuffer;
 
 	samples = 1;//alpha ? gl_alpha_format : gl_solid_format;
 
@@ -1639,57 +1639,66 @@ void GL_MipMapNormal (qbyte *in, int width, int height)
 //PENTA
 
 //sizeofuploadmemorybufferintermediate is guarenteed to be bigger or equal to the normal uploadbuffer size
-unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
+static unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
 {
-  int i, j, wr, hr;
-  unsigned char r, g, b;
-  unsigned *nmap = (unsigned *)uploadmemorybufferintermediate;
-  float sqlen, reciplen, nx, ny, nz;
+	int i, j, wr, hr;
+	unsigned char r, g, b;
+	unsigned *nmap;
+	float sqlen, reciplen, nx, ny, nz;
 
-  const float oneOver255 = 1.0f/255.0f;
+	const float oneOver255 = 1.0f/255.0f;
 
-  float c, cx, cy, dcx, dcy;
+	float c, cx, cy, dcx, dcy;
 
-  wr = w;
-  hr = h;
+	if (w*h*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = w*h*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	nmap = (unsigned *)uploadmemorybufferintermediate;
 
-  for (i=0; i<h; i++) {
-    for (j=0; j<w; j++) {
-      /* Expand [0,255] texel values to the [0,1] range. */
-      c = pixels[i*wr + j] * oneOver255;
-      /* Expand the texel to its right. */
-      cx = pixels[i*wr + (j+1)%wr] * oneOver255;
-      /* Expand the texel one up. */
-      cy = pixels[((i+1)%hr)*wr + j] * oneOver255;
-      dcx = scale * (c - cx);
-      dcy = scale * (c - cy);
+	wr = w;
+	hr = h;
 
-      /* Normalize the vector. */
-      sqlen = dcx*dcx + dcy*dcy + 1;
-      reciplen = 1.0f/(float)sqrt(sqlen);
-      nx = dcx*reciplen;
-      ny = -dcy*reciplen;
-      nz = reciplen;
+	for (i=0; i<h; i++)
+	{
+		for (j=0; j<w; j++)
+		{
+			/* Expand [0,255] texel values to the [0,1] range. */
+			c = pixels[i*wr + j] * oneOver255;
+			/* Expand the texel to its right. */
+			cx = pixels[i*wr + (j+1)%wr] * oneOver255;
+			/* Expand the texel one up. */
+			cy = pixels[((i+1)%hr)*wr + j] * oneOver255;
+			dcx = scale * (c - cx);
+			dcy = scale * (c - cy);
 
-      /* Repack the normalized vector into an RGB unsigned qbyte
-         vector in the normal map image. */
-      r = (qbyte) (128 + 127*nx);
-      g = (qbyte) (128 + 127*ny);
-      b = (qbyte) (128 + 127*nz);
+			/* Normalize the vector. */
+			sqlen = dcx*dcx + dcy*dcy + 1;
+			reciplen = 1.0f/(float)sqrt(sqlen);
+			nx = dcx*reciplen;
+			ny = -dcy*reciplen;
+			nz = reciplen;
 
-      /* The highest resolution mipmap level always has a
-         unit length magnitude. */
-      nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
-    }
-  }
+			/* Repack the normalized vector into an RGB unsigned qbyte
+			   vector in the normal map image. */
+			r = (qbyte) (128 + 127*nx);
+			g = (qbyte) (128 + 127*ny);
+			b = (qbyte) (128 + 127*nz);
 
-  return &nmap[0];
+			/* The highest resolution mipmap level always has a
+			   unit length magnitude. */
+			nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
+		}
+	}
+
+	return &nmap[0];
 }
 
 //PENTA
 void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, float bumpscale)
 {
-    unsigned char	*scaled = uploadmemorybuffer;
+    unsigned char	*scaled;
 	int			scaled_width, scaled_height;
 	qbyte			*nmap;
 
@@ -1699,8 +1708,12 @@ void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, floa
 	scaled_height = height;
 	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
 
-	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
-		Sys_Error ("GL_LoadTexture: too big");
+	if (scaled_width*scaled_height*4 > sizeofuploadmemorybuffer)
+	{
+		sizeofuploadmemorybuffer = scaled_width*scaled_height*4;
+		uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
+	}
+	scaled = uploadmemorybuffer;
 
 	//To resize or not to resize
 	if (scaled_width == width && scaled_height == height)
@@ -1779,7 +1792,7 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 	int			i, s;
 	qboolean	noalpha;
 	int			samples;
-    unsigned char *scaled = uploadmemorybuffer;
+    unsigned char *scaled;
 	int			scaled_width, scaled_height;
 
 	GLDraw_Init15to8();
@@ -1804,8 +1817,12 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 	scaled_height = height;
 	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
 
-	if (scaled_width * scaled_height > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error ("GL_LoadTexture: too big");
+	if (scaled_width*scaled_height*4 > sizeofuploadmemorybuffer)
+	{
+		sizeofuploadmemorybuffer = scaled_width*scaled_height*4;
+		uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
+	}
+	scaled = uploadmemorybuffer;
 
 	samples = 1; // alpha ? gl_alpha_format : gl_solid_format;
 
@@ -1879,13 +1896,17 @@ unsigned ColorPercent[16] =
 
 void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha)
 {
-	unsigned	*trans = (unsigned *)uploadmemorybufferintermediate;
+	unsigned	*trans;
 	int			i, s;
 	qboolean	noalpha;
 	int			p;
 
-	if (width*height > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("GL_Upload8: image too big (%i*%i)", width, height);
+	if (width*height*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = width*height*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	trans = (unsigned *)uploadmemorybufferintermediate;
 
 	s = width*height;
 	// if there are no transparent pixels, make it a 3 component
@@ -1981,13 +2002,18 @@ void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int fl
 
 void GL_Upload8FB (qbyte *data, int width, int height, unsigned flags)
 {
-	unsigned	*trans = (unsigned *)uploadmemorybufferintermediate;
+	unsigned	*trans;
 	int			i, s;
 	int			p;
 
 	s = width*height;
-	if (s > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("GL_Upload8FB: image too big (%i*%i)", width, height);
+	if (s*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = s*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	trans = (unsigned *)uploadmemorybufferintermediate;
+
 	// if there are no transparent pixels, make it a 3 component
 	// texture even if it was specified as otherwise
 	for (i=0 ; i<s ; i++)
@@ -2004,7 +2030,7 @@ void GL_Upload8FB (qbyte *data, int width, int height, unsigned flags)
 
 void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags)
 {
-	qbyte		*trans = uploadmemorybufferintermediate;
+	qbyte		*trans;
 	int			i, s;
 	qboolean	noalpha;
 	int			p;
@@ -2012,8 +2038,12 @@ void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned i
 	extern qboolean		gammaworks;
 
 	s = width*height;
-	if (s > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("GL_Upload8Pal24: image too big (%i*%i)", width, height);
+	if (s*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = s*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	trans = uploadmemorybufferintermediate;
 
 	// if there are no transparent pixels, make it a 3 component
 	// texture even if it was specified as otherwise
@@ -2086,13 +2116,17 @@ void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned i
 }
 static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags)
 {
-	qbyte		*trans = uploadmemorybufferintermediate;
+	qbyte		*trans;
 	int			i, s;
 	extern qbyte gammatable[256];
 
 	s = width*height;
-	if (s > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("GL_Upload8Pal32: image too big (%i*%i)", width, height);
+	if (s*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = s*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	trans = uploadmemorybufferintermediate;
 
 	if (s&3)
 		Sys_Error ("GL_Upload8: s&3");

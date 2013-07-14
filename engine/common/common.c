@@ -1513,7 +1513,7 @@ void MSG_ReadDir (vec3_t dir)
 	VectorCopy (bytedirs[b], dir);
 }
 #endif
-#ifdef Q2SERVER
+#if 1//def Q2SERVER
 void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 {
 	int		i, best;

@@ -5,7 +5,7 @@ REM I guess we should include our own copy of them.
 
 set QuakeDir=h:\quake
 set Q3SrcDir=h:\quakestuff\quake3
-set Path=%Q3SrcDir%\quake3-1.32b\lcc\bin;%Q3SrcDir%\quake3-1.32b\q3asm\debug;..\..\..\lcc;..\..\..\q3asm2
+set Path=%Q3SrcDir%\quake3-1.32b\lcc\bin;%Q3SrcDir%\quake3-1.32b\q3asm\debug;..\..\..\lcc;..\..\..\q3asm2;..\..
 
 set PluginsDir=%QuakeDir%\fte\plugins
 

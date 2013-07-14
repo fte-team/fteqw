@@ -83,7 +83,7 @@ Zone block
 
 */
 
-void Memory_Init (void *buf, int size);
+void Memory_Init (void);
 void Memory_DeInit(void);
 
 void VARGS Z_Free (void *ptr);
@@ -109,6 +109,16 @@ void *BZF_Realloc(void *data, int newsize);
 void *BZF_ReallocNamed(void *data, int newsize, char *file, int line);
 void BZ_Free(void *ptr);
 
+//ctx should start off as void*ctx=NULL
+typedef struct zonegroup_s
+{
+	void *first;
+	int bytes;
+} zonegroup_t;
+void *ZG_Malloc(zonegroup_t *ctx, int size);
+void *ZG_MallocNamed(zonegroup_t *ctx, int size, char *file, int line);
+void ZG_FreeGroup(zonegroup_t *ctx);
+
 #ifdef USE_MSVCRT_DEBUG
 #define BZ_Malloc(size) BZ_MallocNamed(size, __FILE__, __LINE__)
 #define Z_Malloc(size) Z_MallocNamed(size, __FILE__, __LINE__)
@@ -116,30 +126,27 @@ void BZ_Free(void *ptr);
 #define BZF_Malloc(size) BZF_MallocNamed(size, __FILE__, __LINE__)
 #define ZF_Malloc(size) ZF_MallocNamed(size, __FILE__, __LINE__)
 #define BZF_Realloc(ptr, size) BZF_ReallocNamed(ptr, size, __FILE__, __LINE__)
+#define ZG_Malloc(ctx, size) ZG_MallocNamed(ctx, size, __FILE__, __LINE__)
 #endif
-
 #define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
 
+/*
 void *Hunk_Alloc (int size);		// returns 0 filled memory
 void *Hunk_AllocName (int size, char *name);
-
-int	Hunk_LowMark (void);
-void Hunk_FreeToLowMark (int mark);
-int Hunk_LowMemAvailable(void);
+*/
 
 void *Hunk_TempAlloc (int size);
 void *Hunk_TempAllocMore (int size); //Don't clear old temp
 
-void Hunk_Check (void);
-
+/*
 typedef struct cache_user_s
 {
 	void	*data;
 	qboolean fake;
 } cache_user_t;
-
+*/
 void Cache_Flush (void);
-
+/*
 void *Cache_Check (cache_user_t *c);
 // returns the cached data, and moves to the head of the LRU list
 // if present, otherwise returns NULL
@@ -151,4 +158,4 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name);
 // wasn't enough room.
 
 void Cache_Report (void);
-
+*/

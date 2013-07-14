@@ -547,14 +547,11 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 	while (model)
 	{
 		int numbones = model->numbones;
-		galisskeletaltransforms_t *v = (galisskeletaltransforms_t*)((char*)model+model->ofsswtransforms);
+		galisskeletaltransforms_t *v = model->ofsswtransforms;
 		int numweights = model->numswtransforms;
 		int numverts = model->numverts;
 
-		if (model->nextsurf)
-			next = (galiasinfo_t*)((char*)model + model->nextsurf);
-		else
-			next = NULL;
+		next = model->nextsurf;
 
 		xyz = Z_Malloc(numverts*sizeof(vecV_t));
 		normals = Z_Malloc(numverts*sizeof(vec3_t));
@@ -564,18 +561,19 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		if (bcmodnum != model->shares_bones)
 		{
 			galiasgroup_t *g;
-			galiasbone_t *bones = (galiasbone_t *)((char*)model + model->ofsbones);
+			galiasbone_t *bones = model->ofsbones;
 			bcmodnum = model->shares_bones;
 			if (model->baseframeofs)
-				bonepose = (float*)((char*)model + model->baseframeofs);
+				bonepose = model->baseframeofs;
 			else
 			{
+				//figure out the pose from frame0pose0
 				if (!model->groups)
 					return 0;
-				g = (galiasgroup_t*)((char*)model+model->groupofs);
+				g = model->groupofs;
 				if (g->numposes < 1)
 					return 0;
-				bonepose = (float*)((char*)g+g->poseofs);
+				bonepose = g->boneofs;
 				if (g->isheirachical)
 				{
 					/*needs to be an absolute skeleton*/
@@ -647,7 +645,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		//use that base pose to calculate the normals
 		memset(normals, 0, numverts*sizeof(vec3_t));
 		vcmodnum = modnum;
-		idx = (index_t*)((char*)model + model->ofs_indexes);
+		idx = model->ofs_indexes;
 
 		//calculate the triangle normal and accumulate them
 		for (i = 0; i < model->numindexes; i+=3, idx+=3)
@@ -680,10 +678,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 			{
 				modnum++;
 				model = next;
-				if (model->nextsurf)
-					next = (galiasinfo_t*)((char*)model + model->nextsurf);
-				else
-					next = NULL;
+				next = model->nextsurf;
 			}
 			else
 				break;
@@ -703,7 +698,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		}
 
 		if (model->ofs_skel_norm)
-			memcpy((char*)model + model->ofs_skel_norm, normals, numverts*sizeof(vec3_t));
+			memcpy(model->ofs_skel_norm, normals, numverts*sizeof(vec3_t));
 
 		//FIXME: save off the xyz+normals for this base pose as an optimisation for world objects.
 		Z_Free(inversepose);
@@ -749,10 +744,10 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 		mlerp = 0;
 	plerp[l] = (1-mlerp)*(1-lerpfrac);
 	if (plerp[l]>0)
-		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame1);
+		pose[l++] = g1->boneofs + numbones*12*frame1;
 	plerp[l] = (mlerp)*(1-lerpfrac);
 	if (plerp[l]>0)
-		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame2);
+		pose[l++] = g1->boneofs + numbones*12*frame2;
 
 	if (lerpfrac)
 	{
@@ -776,10 +771,10 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 			mlerp = 0;
 		plerp[l] = (1-mlerp)*(lerpfrac);
 		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame1);
+			pose[l++] = g2->boneofs + numbones*12*frame1;
 		plerp[l] = (mlerp)*(lerpfrac);
 		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame2);
+			pose[l++] = g2->boneofs + numbones*12*frame2;
 	}
 
 	return l;
@@ -858,8 +853,8 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 			}
 
 	//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
-			g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
-			g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+			g1 = &inf->groupofs[frame1];
+			g2 = &inf->groupofs[frame2];
 
 			if (!g1->isheirachical)
 				return 0;
@@ -905,7 +900,7 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 #ifdef SKELETALMODELS
 	float relationsbuf[MAX_BONES][12];
 	float *relations = NULL;
-	galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones);
+	galiasbone_t *bones = inf->ofsbones;
 	int numbones;
 
 	if (buffersize < inf->numbones)
@@ -988,12 +983,12 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 		f = fstate->g[FS_REG].frame[0];
 		if (f < 0 || f >= inf->groups)
 			f = 0;
-		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
+		g1 = &inf->groupofs[bound(0, f, inf->groups-1)];
 		f = fstate->g[FS_REG].frame[1];
 		if (f < 0 || f >= inf->groups)
 			g2 = g1;
 		else
-			g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
+			g2 = &inf->groupofs[bound(0, f, inf->groups-1)];
 
 		if (g2->isheirachical)
 			g2 = g1;
@@ -1274,17 +1269,17 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	vec3_t *p1s, *p2s;
 	vec3_t *p1t, *p2t;
 
-	p1v = (vecV_t *)((char *)p1 + p1->ofsverts);
-	p2v = (vecV_t *)((char *)p2 + p2->ofsverts);
+	p1v = p1->ofsverts;
+	p2v = p2->ofsverts;
 
-	p1n = (vec3_t *)((char *)p1 + p1->ofsnormals);
-	p2n = (vec3_t *)((char *)p2 + p2->ofsnormals);
+	p1n = p1->ofsnormals;
+	p2n = p2->ofsnormals;
 
-	p1s = (vec3_t *)((char *)p1 + p1->ofssvector);
-	p2s = (vec3_t *)((char *)p2 + p2->ofssvector);
+	p1s = p1->ofssvector;
+	p2s = p2->ofssvector;
 
-	p1t = (vec3_t *)((char *)p1 + p1->ofstvector);
-	p2t = (vec3_t *)((char *)p2 + p2->ofstvector);
+	p1t = p1->ofstvector;
+	p2t = p2->ofstvector;
 
 	mesh->snormals_array = blerp>0.5?p2s:p1s;		//never lerp
 	mesh->tnormals_array = blerp>0.5?p2t:p1t;		//never lerp
@@ -1338,19 +1333,19 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 #ifndef SERVERONLY
 static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galiasinfo_t *inf)
 {
-	galisskeletaltransforms_t *weights = (galisskeletaltransforms_t *)((char*)inf+inf->ofsswtransforms);
+	galisskeletaltransforms_t *weights = inf->ofsswtransforms;
 	int numweights = inf->numswtransforms;
 
 	if (inf->ofs_skel_idx)
 	{
 		float *fte_restrict xyzout = mesh->xyz_array[0];
 		float *fte_restrict normout = mesh->normals_array[0];
-		qbyte *fte_restrict bidx = (qbyte*)((char*)inf + inf->ofs_skel_idx);
-		float *fte_restrict xyzin = (float*)((char*)inf + inf->ofs_skel_xyz);
-		float *fte_restrict normin = (float*)((char*)inf + inf->ofs_skel_norm);
-//		float *fte_restrict svect = (float*)((char*)inf + inf->ofs_skel_svect);
-//		float *fte_restrict tvect = (float*)((char*)inf + inf->ofs_skel_tvect);
-		float *fte_restrict weight = (float*)((char*)inf + inf->ofs_skel_weight);
+		qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
+		float *fte_restrict xyzin = inf->ofs_skel_xyz[0];
+		float *fte_restrict normin = inf->ofs_skel_norm[0];
+//		float *fte_restrict svect = inf->ofs_skel_svect[0];
+//		float *fte_restrict tvect = inf->ofs_skel_tvect[0];
+		float *fte_restrict weight = inf->ofs_skel_weight[0];
 
 		Alias_TransformVerticies_VN(bonepose, inf->numverts, bidx, weight, xyzin, xyzout, normin, normout);
 //		Alias_TransformVerticies_3(bonepose, inf->numverts, bidx, weight, svect, mesh->snormals_array[0]);
@@ -1491,11 +1486,11 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	}
 
 	mesh->numvertexes = inf->numverts;
-	mesh->indexes = (index_t*)((char *)inf + inf->ofs_indexes);
+	mesh->indexes = inf->ofs_indexes;
 	mesh->numindexes = inf->numindexes;
 
-	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
-	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
+	mesh->st_array = inf->ofs_st_array;
+	mesh->trneighbors = inf->ofs_trineighbours;
 	mesh->colors4f_array = meshcache.colours;
 
 	if (meshcache.surfnum == inf->shares_verts && meshcache.ent == e)
@@ -1511,8 +1506,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #ifdef SKELETALMODELS
 		if (meshcache.usebonepose)
 		{
-			mesh->bonenums = (byte_vec4_t*)((char*)inf + inf->ofs_skel_idx);
-			mesh->boneweights = (vec4_t*)((char*)inf + inf->ofs_skel_weight);
+			mesh->bonenums = inf->ofs_skel_idx;
+			mesh->boneweights = inf->ofs_skel_weight;
 			mesh->bones = meshcache.usebonepose;
 			mesh->numbones = inf->numbones;
 		}
@@ -1524,8 +1519,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 
 #ifndef SERVERONLY
-	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
-	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
+	mesh->st_array = inf->ofs_st_array;
+	mesh->trneighbors = inf->ofs_trineighbours;
 	mesh->normals_array = meshcache.norm;
 	mesh->snormals_array = meshcache.norm+meshcache.numnorm;
 	mesh->tnormals_array = meshcache.norm+meshcache.numnorm*2;
@@ -1544,11 +1539,11 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	{
 		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
 		meshcache.usebonepose = NULL;
-		mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
+		mesh->xyz_array = inf->ofs_skel_xyz;
 		mesh->xyz2_array = NULL;
-		mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
-		mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
-		mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
+		mesh->normals_array = inf->ofs_skel_norm;
+		mesh->snormals_array = inf->ofs_skel_svect;
+		mesh->tnormals_array = inf->ofs_skel_tvect;
 
 		if (vbop)
 		{
@@ -1594,7 +1589,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #ifdef GLQUAKE
 			if (!inf->numswtransforms && qrenderer == QR_OPENGL)
 			{
-				Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)meshcache.usebonepose, inf->numbones);
+				Alias_GLDrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones);
 			}
 #endif
 			meshcache.usebonepose = NULL;
@@ -1602,10 +1597,10 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		else
 		{
 			//hardware bone animation
-			mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
-			mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
-			mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
-			mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
+			mesh->xyz_array = inf->ofs_skel_xyz;
+			mesh->normals_array = inf->ofs_skel_norm;
+			mesh->snormals_array = inf->ofs_skel_svect;
+			mesh->tnormals_array = inf->ofs_skel_tvect;
 		}
 	}
 	else
@@ -1643,8 +1638,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		else  if (lerp >= 1)
 			frame1 = frame2;
 
-		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
-		g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+		g1 = &inf->groupofs[frame1];
+		g2 = &inf->groupofs[frame2];
 
 		if (g1 == g2)	//lerping within group is only done if not changing group
 		{
@@ -1678,18 +1673,16 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
 			mesh->xyz_blendw[1] = 0;
-			R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
-							(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
-							1-lerp, e->fatness);
+			R_LerpFrames(mesh,	&g1->poseofs[frame1], &g2->poseofs[frame2], 1-lerp, e->fatness);
 		}
 		else
 		{
-			galiaspose_t *p1 = (galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1);
-			galiaspose_t *p2 = (galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2);
+			galiaspose_t *p1 = &g1->poseofs[frame1];
+			galiaspose_t *p2 = &g2->poseofs[frame2];
 
-			mesh->normals_array = (vec3_t *)((char *)p1 + p1->ofsnormals);
-			mesh->snormals_array = (vec3_t *)((char *)p1 + p1->ofssvector);
-			mesh->tnormals_array = (vec3_t *)((char *)p1 + p1->ofstvector);
+			mesh->normals_array = p1->ofsnormals;
+			mesh->snormals_array = p1->ofssvector;
+			mesh->tnormals_array = p1->ofstvector;
 
 			meshcache.vbo.indicies = inf->vboindicies;
 			meshcache.vbo.indexcount = inf->numindexes;
@@ -1703,7 +1696,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			{
 				meshcache.vbo.coord = p1->vboverts;
 				memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
-				mesh->xyz_array = (vecV_t *)((char *)p1 + p1->ofsverts);
+				mesh->xyz_array = p1->ofsverts;
 				mesh->xyz2_array = NULL;
 			}
 			else
@@ -1712,8 +1705,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				meshcache.vbo.coord2 = p2->vboverts;
 				mesh->xyz_blendw[0] = 1-lerp;
 				mesh->xyz_blendw[1] = lerp;
-				mesh->xyz_array = (vecV_t *)((char *)p1 + p1->ofsverts);
-				mesh->xyz2_array = (vecV_t *)((char *)p2 + p2->ofsverts);
+				mesh->xyz_array = p1->ofsverts;
+				mesh->xyz2_array = p2->ofsverts;
 			}
 
 			if (vbop && meshcache.vbo.indicies.dummy)
@@ -1732,8 +1725,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #ifdef SKELETALMODELS
 	if (meshcache.usebonepose)
 	{
-		mesh->bonenums = (byte_vec4_t*)((char*)inf + inf->ofs_skel_idx);
-		mesh->boneweights = (vec4_t*)((char*)inf + inf->ofs_skel_weight);
+		mesh->bonenums = inf->ofs_skel_idx;
+		mesh->boneweights = inf->ofs_skel_weight;
 		mesh->bones = meshcache.usebonepose;
 		mesh->numbones = inf->numbones;
 	}
@@ -1782,10 +1775,10 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 
 	while(mod)
 	{
-		indexes = (index_t*)((char*)mod + mod->ofs_indexes);
-		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
-		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
-		posedata = (vecV_t*)((char*)pose + pose->ofsverts);
+		indexes = mod->ofs_indexes;
+		group = mod->groupofs;
+		pose = group[0].poseofs;
+		posedata = pose->ofsverts;
 #ifdef SKELETALMODELS
 		if (mod->numbones && mod->shares_verts != cursurfnum)
 		{
@@ -1795,11 +1788,11 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 			if (group->isheirachical)
 			{
 				if (mod->shares_bones != cursurfnum)
-					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
-				Alias_TransformVerticies_SW((float*)bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofsswtransforms), mod->numswtransforms, posedata, NULL);
+					R_LerpBones(&frac, (float**)posedata, 1, mod->ofsbones, mod->numbones, bonepose);
+				Alias_TransformVerticies_SW((float*)bonepose, mod->ofsswtransforms, mod->numswtransforms, posedata, NULL);
 			}
 			else
-				Alias_TransformVerticies_SW((float*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofsswtransforms), mod->numswtransforms, posedata, NULL);
+				Alias_TransformVerticies_SW((float*)posedata, mod->ofsswtransforms, mod->numswtransforms, posedata, NULL);
 
 			cursurfnum = mod->shares_verts;
 		}
@@ -1853,10 +1846,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 			VectorCopy(normal, trace->plane.normal);
 		}
 
-		if (mod->nextsurf)
-			mod = (galiasinfo_t*)((char*)mod + mod->nextsurf);
-		else
-			mod = NULL;
+		mod = mod->nextsurf;
 		surfnum++;
 	}
 
@@ -1959,9 +1949,9 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 	if (r_shadow_realtime_dlight_shadows.ival || r_shadow_realtime_world_shadows.ival)
 	{
 		int *neighbours;
-		neighbours = Hunk_Alloc(sizeof(int)*galias->numindexes/3*3);
-		galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
-		Mod_BuildTriangleNeighbours(neighbours, (index_t*)((char*)galias + galias->ofs_indexes), galias->numindexes/3);
+		neighbours = ZG_Malloc(&loadmodel->memgroup, sizeof(int)*galias->numindexes/3*3);
+		galias->ofs_trineighbours = neighbours;
+		Mod_BuildTriangleNeighbours(neighbours, galias->ofs_indexes, galias->numindexes/3);
 	}
 #endif
 }
@@ -2027,9 +2017,9 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	if (!BE_VBO_Begin)
 		return;
 
-	idx = (index_t*)((char*)galias + galias->ofs_indexes);
-	tc = (vec2_t*)((char*)galias + galias->ofs_st_array);
-	group = (galiasgroup_t*)((char*)galias + galias->groupofs);
+	idx = galias->ofs_indexes;
+	tc = galias->ofs_st_array;
+	group = galias->groupofs;
 
 	//determine the amount of space we need for our vbos.
 	vbospace += sizeof(*tc) * galias->numverts;
@@ -2042,15 +2032,15 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 
 	for (i = 0; i < galias->groups; i++, group++)
 	{
-		pose = (galiaspose_t*)((char*)group + group->poseofs);
+		pose = group->poseofs;
 		for (p = 0; p < group->numposes; p++, pose++)
 		{
-			vc = (vecV_t *)((char*)pose + pose->ofsverts);
-			nv = (vec3_t *)((char*)pose + pose->ofsnormals);
+			vc = pose->ofsverts;
+			nv = pose->ofsnormals;
 			if (pose->ofssvector != 0 && pose->ofstvector != 0)
 			{
-				sv = (vec3_t *)((char*)pose + pose->ofssvector);
-				tv = (vec3_t *)((char*)pose + pose->ofstvector);
+				sv = pose->ofssvector;
+				tv = pose->ofstvector;
 
 				Mod_AccumulateTextureVectors(vc, tc, nv, sv, tv, idx, galias->numindexes);
 				Mod_NormaliseTextureVectors(nv, sv, tv, galias->numverts);
@@ -2100,7 +2090,7 @@ typedef struct
 	else if (pos[off] != 255) fdc = pos[off]; \
 }
 
-void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
+static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 {
 	qbyte				fillcolor = *skin; // assume this is the pixel to fill
 	floodfill_t			fifo[FLOODFILL_FIFO_SIZE];
@@ -2398,7 +2388,7 @@ static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t 
 static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps, int mdltype)
 {
 	galiaspose_t *pose;
-	galiasgroup_t *frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
+	galiasgroup_t *frame = galias->groupofs;
 	dtrivertx_t		*pinframe;
 	daliasframe_t *frameinfo;
 	int				i, k;
@@ -2424,11 +2414,11 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 			frameinfo = (daliasframe_t*)((char *)(pframetype+1)); // qtest aliasframe is a subset
 			pinframe = (dtrivertx_t*)((char*)frameinfo+aliasframesize);
 #ifndef SERVERONLY
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
+			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
 #else
 			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t))*galias->numverts);
 #endif
-			frame->poseofs = (char *)pose - (char *)frame;
+			frame->poseofs = pose;
 			frame->numposes = 1;
 			galias->groups++;
 
@@ -2438,14 +2428,14 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 				Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
 
 			verts = (vecV_t *)(pose+1);
-			pose->ofsverts = (char *)verts - (char *)pose;
+			pose->ofsverts = verts;
 #ifndef SERVERONLY
 			normals = (vec3_t*)&verts[galias->numverts];
 			svec = &normals[galias->numverts];
 			tvec = &svec[galias->numverts];
-			pose->ofsnormals = (char *)normals - (char *)pose;
-			pose->ofssvector = (char *)svec - (char *)pose;
-			pose->ofstvector = (char *)tvec - (char *)pose;
+			pose->ofsnormals = normals;
+			pose->ofssvector = svec;
+			pose->ofstvector = tvec;
 #endif
 
 			Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
@@ -2464,14 +2454,14 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 			pose = (galiaspose_t *)Hunk_Alloc(frame->numposes*(sizeof(galiaspose_t) + sizeof(vecV_t)*galias->numverts));
 			verts = (vecV_t *)(pose+frame->numposes);
 #else
-			pose = (galiaspose_t *)Hunk_Alloc(frame->numposes*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
+			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, frame->numposes*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
 			verts = (vecV_t *)(pose+frame->numposes);
 			normals = (vec3_t*)&verts[galias->numverts];
 			svec = &normals[galias->numverts];
 			tvec = &svec[galias->numverts];
 #endif
 
-			frame->poseofs = (char *)pose - (char *)frame;
+			frame->poseofs = pose;
 			frame->loop = true;
 			galias->groups++;
 
@@ -2484,11 +2474,11 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 			pinframe = (dtrivertx_t *)(intervals+frame->numposes);
 			for (k = 0; k < frame->numposes; k++)
 			{
-				pose->ofsverts = (char *)verts - (char *)pose;
+				pose->ofsverts = verts;
 #ifndef SERVERONLY
-				pose->ofsnormals = (char *)normals - (char *)pose;
-				pose->ofssvector = (char *)svec - (char *)pose;
-				pose->ofstvector = (char *)tvec - (char *)pose;
+				pose->ofsnormals = normals;
+				pose->ofssvector = svec;
+				pose->ofstvector = tvec;
 #endif
 
 				frameinfo = (daliasframe_t*)pinframe;
@@ -2566,7 +2556,7 @@ static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, qboolean alpha)
 static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintranstype)
 {
 	shader_t **shaders;
-	int *ofstexels;
+	qbyte **ofstexels;
 	char skinname[MAX_QPATH];
 	int i;
 	int s, t;
@@ -2574,7 +2564,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 	daliasskingroup_t *count;
 	daliasskininterval_t *intervals;
 	qbyte *data, *saved;
-	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
+	galiasskin_t *outskin = galias->ofsskins;
 
 	texid_t texture;
 	texid_t fbtexture;
@@ -2627,11 +2617,11 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			if (!TEXVALID(texture) || (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
 			{
 				//we're not using 24bits
-				shaders = Hunk_Alloc(sizeof(*shaders)+sizeof(*ofstexels)+s);
-				ofstexels = (int*)(shaders+1);
+				shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders)+sizeof(*ofstexels)+s);
+				ofstexels = (qbyte**)(shaders+1);
 				saved = (qbyte*)(ofstexels+1);
-				outskin->ofstexels = (qbyte *)ofstexels - (qbyte *)outskin;
-				ofstexels[0] = (qbyte *)saved - (qbyte *)ofstexels;
+				outskin->ofstexels = ofstexels;
+				ofstexels[0] = saved;
 				memcpy(saved, pskintype+1, s);
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 
@@ -2667,10 +2657,10 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				}
 			}
 			else
-				shaders = Hunk_Alloc(sizeof(*shaders));
+				shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders));
 			outskin->numshaders=1;
 
-			outskin->ofsshaders = (char *)shaders - (char *)outskin;
+			outskin->ofsshaders = shaders;
 
 
 
@@ -2735,10 +2725,10 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			intervals = (daliasskininterval_t *)(count+1);
 			outskin->numshaders = LittleLong(count->numskins);
 			data = (qbyte *)(intervals + outskin->numshaders);
-			shaders = Hunk_Alloc(sizeof(*shaders)*outskin->numshaders + sizeof(*ofstexels)*outskin->numshaders);
-			ofstexels = (int*)(shaders+outskin->numshaders);
-			outskin->ofsshaders = (char *)shaders - (char *)outskin;
-			outskin->ofstexels = (char *)ofstexels - (char *)outskin;
+			shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders)*outskin->numshaders + sizeof(*ofstexels)*outskin->numshaders);
+			ofstexels = (qbyte**)(shaders+outskin->numshaders);
+			outskin->ofsshaders = shaders;
+			outskin->ofstexels = ofstexels;
 			sinter = LittleFloat(intervals[0].interval);
 			if (sinter <= 0)
 				sinter = 0.1;
@@ -2775,8 +2765,8 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 
 				if (!TEXVALID(texture) || (!TEXVALID(fbtexture) && r_fb_models.ival))
 				{
-					saved = Hunk_Alloc(s);
-					ofstexels[t] = (qbyte *)(saved) - (qbyte *)ofstexels;
+					saved = ZG_Malloc(&loadmodel->memgroup, s);
+					ofstexels[t] = saved;
 					memcpy(saved, data, s);
 					Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 					if (!TEXVALID(texture))
@@ -2819,7 +2809,6 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	vec2_t *st_array;
 	int j;
 #endif
-	int hunkstart, hunkend, hunktotal;
 	int version;
 	int i, onseams;
 	dstvert_t *pinstverts;
@@ -2837,8 +2826,6 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	qboolean rapo = false;
 
 	loadmodel=mod;
-
-	hunkstart = Hunk_LowMark ();
 
 	pq1inmodel = (dmdl_t *)buffer;
 
@@ -2893,10 +2880,10 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 #endif
 		+ pq1inmodel->numframes*sizeof(galiasgroup_t);
 
-	galias = Hunk_Alloc(size);
-	galias->groupofs = sizeof(*galias);
+	galias = ZG_Malloc(&loadmodel->memgroup, size);
+	galias->groupofs = (galiasgroup_t*)(galias+1);
 #ifndef SERVERONLY
-	galias->ofsskins = sizeof(*galias)+pq1inmodel->numframes*sizeof(galiasgroup_t);
+	galias->ofsskins = (galiasskin_t*)(galias->groupofs+pq1inmodel->numframes);
 #endif
 	galias->nextsurf = 0;
 
@@ -2937,7 +2924,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 		galias->numverts = pq1inmodel->numverts;
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
+		indexes = ZG_Malloc(&memgroup, galias->numindexes*sizeof(*indexes));
 		galias->ofs_indexes = (char *)indexes - (char *)galias;
 		for (i = 0; i < pq1inmodel->numverts; i++)
 			seamremap[i] = i;
@@ -2958,8 +2945,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 		/*output the indicies as we figure out which verts we want*/
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
-		galias->ofs_indexes = (char *)indexes - (char *)galias;
+		indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = indexes;
 		for (i = 0; i < pq1inmodel->numtris; i++)
 		{
 			for (j = 0; j < 3; j++)
@@ -2983,8 +2970,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 			}
 		}
 
-		st_array = Hunk_Alloc(sizeof(*st_array)*(galias->numverts));
-		galias->ofs_st_array = (char *)st_array - (char *)galias;
+		st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(*st_array)*(galias->numverts));
+		galias->ofs_st_array = st_array;
 		/*generate our st_array now we know which vertexes we want*/
 		for (k = 0; k < galias->numverts; k++)
 		{
@@ -3005,7 +2992,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		if (Alias_LoadFrameGroup((daliasframetype_t *)end, seamremap, 2) == NULL)
 		{
 			BZ_Free(seamremap);
-			Hunk_FreeToLowMark (hunkstart);
+			ZG_FreeGroup(&loadmodel->memgroup);
 			return false;
 		}
 
@@ -3030,8 +3017,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 		//st
 #ifndef SERVERONLY
-		st_array = Hunk_Alloc(sizeof(*st_array)*(pq1inmodel->numverts+onseams));
-		galias->ofs_st_array = (char *)st_array - (char *)galias;
+		st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(*st_array)*(pq1inmodel->numverts+onseams));
+		galias->ofs_st_array = st_array;
 		for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
 		{
 			st_array[i][0] = (LittleLong(pinstverts[i].s)+0.5)/(float)pq1inmodel->skinwidth;
@@ -3058,8 +3045,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		pinq1triangles = (dtriangle_t *)&pinstverts[pq1inmodel->numverts];
 
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
-		galias->ofs_indexes = (char *)indexes - (char *)galias;
+		indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = indexes;
 		for (i=0 ; i<pq1inmodel->numtris ; i++)
 		{
 			if (!pinq1triangles[i].facesfront)
@@ -3081,7 +3068,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		if (Alias_LoadFrameGroup((daliasframetype_t *)end, seamremap, qtest ? 1 : 0) == NULL)
 		{
 			BZ_Free(seamremap);
-			Hunk_FreeToLowMark (hunkstart);
+			ZG_FreeGroup(&loadmodel->memgroup);
 			return false;
 		}
 		BZ_Free(seamremap);
@@ -3096,22 +3083,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	mod->type = mod_alias;
 	Mod_ClampModelSize(mod);
-//
-// move the complete, relocatable alias model to the cache
-//
-	hunkend = Hunk_LowMark ();
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
 
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, galias, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
+	mod->meshinfo = galias;
 
 	mod->funcs.NativeTrace = Mod_Trace;
 
@@ -3169,12 +3142,12 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 #ifndef SERVERONLY
 	int i;
 	shader_t **shaders;
-	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
+	galiasskin_t *outskin = galias->ofsskins;
 
 	for (i = 0; i < LittleLong(pq2inmodel->num_skins); i++, outskin++)
 	{
-		shaders = Hunk_Alloc(sizeof(*shaders));
-		outskin->ofsshaders = (char *)shaders - (char *)outskin;
+		shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders));
+		outskin->ofsshaders = shaders;
 		outskin->numshaders=1;
 
 		COM_CleanUpPath(skins);	//blooming tanks.
@@ -3216,7 +3189,6 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 #endif
 	md2_t *pq2inmodel;
 
-	int hunkstart, hunkend, hunktotal;
 	int version;
 	int i, j;
 	dmd2triangle_t *pintri;
@@ -3243,8 +3215,6 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	loadmodel=mod;
 
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
-
-	hunkstart = Hunk_LowMark ();
 
 	pq2inmodel = (md2_t *)buffer;
 
@@ -3278,10 +3248,10 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 #endif
 		+ LittleLong(pq2inmodel->num_frames)*sizeof(galiasgroup_t);
 
-	galias = Hunk_Alloc(size);
-	galias->groupofs = sizeof(*galias);
+	galias = ZG_Malloc(&loadmodel->memgroup, size);
+	galias->groupofs = (galiasgroup_t*)(galias+1);
 #ifndef SERVERONLY
-	galias->ofsskins = sizeof(*galias)+LittleLong(pq2inmodel->num_frames)*sizeof(galiasgroup_t);
+	galias->ofsskins = (galiasskin_t*)(galias->groupofs + LittleLong(pq2inmodel->num_frames));
 #endif
 	galias->nextsurf = 0;
 
@@ -3302,8 +3272,8 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	}
 
 	numindexes = galias->numindexes = LittleLong(pq2inmodel->num_tris)*3;
-	indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
-	galias->ofs_indexes = (char *)indexes - (char *)galias;
+	indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+	galias->ofs_indexes = indexes;
 	memset ( indremap, -1, sizeof(indremap) );
 	numverts=0;
 
@@ -3351,8 +3321,8 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 // s and t vertices
 #ifndef SERVERONLY
 	pinstverts = ( dmd2stvert_t * ) ( ( qbyte * )pq2inmodel + LittleLong (pq2inmodel->ofs_st) );
-	st_array = Hunk_Alloc(sizeof(*st_array)*(numverts));
-	galias->ofs_st_array = (char *)st_array - (char *)galias;
+	st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(*st_array)*(numverts));
+	galias->ofs_st_array = st_array;
 
 	for (j=0 ; j<numindexes; j++)
 	{
@@ -3364,27 +3334,27 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	//frames
 	ClearBounds ( mod->mins, mod->maxs );
 
-	poutframe = (galiasgroup_t*)((char *)galias + galias->groupofs);
+	poutframe = galias->groupofs;
 	framesize = LittleLong (pq2inmodel->framesize);
 	for (i=0 ; i<LittleLong(pq2inmodel->num_frames) ; i++)
 	{
-		pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vecV_t)*numverts
+		size = sizeof(galiaspose_t) + sizeof(vecV_t)*numverts;
 #ifndef SERVERONLY
-			+ 3*sizeof(vec3_t)*numverts
+		size += 3*sizeof(vec3_t)*numverts;
 #endif
-			);
-		poutframe->poseofs = (char *)pose - (char *)poutframe;
+		pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, sizeof(galiaspose_t) + sizeof(vecV_t)*numverts);
+		poutframe->poseofs = pose;
 		poutframe->numposes = 1;
 		galias->groups++;
 
 		verts = (vecV_t *)(pose+1);
-		pose->ofsverts = (char *)verts - (char *)pose;
+		pose->ofsverts = verts;
 #ifndef SERVERONLY
 		normals = (vec3_t*)&verts[galias->numverts];
-		pose->ofsnormals = (char *)normals - (char *)pose;
+		pose->ofsnormals = normals;
 
-		pose->ofssvector = (char *)&normals[galias->numverts] - (char *)pose;
-		pose->ofstvector = (char *)&normals[galias->numverts*2] - (char *)pose;
+		pose->ofssvector = &normals[galias->numverts];
+		pose->ofstvector = &normals[galias->numverts*2];
 #endif
 
 
@@ -3434,23 +3404,9 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	*/
 
 	Mod_ClampModelSize(mod);
-//
-// move the complete, relocatable alias model to the cache
-//
-	hunkend = Hunk_LowMark ();
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
 
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->meshinfo = galias;
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, galias, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
 
 	mod->funcs.NativeTrace = Mod_Trace;
 
@@ -3515,7 +3471,7 @@ galiasbone_t *Mod_GetBoneInfo(model_t *model, int *numbones)
 
 	inf = Mod_Extradata(model);
 
-	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	bone = inf->ofsbones;
 	*numbones = inf->numbones;
 	return bone;
 #else
@@ -3540,7 +3496,7 @@ int Mod_GetBoneParent(model_t *model, int bonenum)
 	bonenum--;
 	if ((unsigned int)bonenum >= inf->numbones)
 		return 0;	//no parent
-	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	bone = inf->ofsbones;
 	return bone[bonenum].parent+1;
 #endif
 	return 0;
@@ -3562,18 +3518,11 @@ char *Mod_GetBoneName(model_t *model, int bonenum)
 	bonenum--;
 	if ((unsigned int)bonenum >= inf->numbones)
 		return 0;	//no parent
-	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	bone = inf->ofsbones;
 	return bone[bonenum].name;
 #endif
 	return 0;
 }
-
-
-typedef struct {
-	char name[64];
-	vec3_t org;
-	float ang[3][3];
-} md3tag_t;
 
 qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *result)
 {
@@ -3611,7 +3560,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			return false;
 		tagnum--;	//tagnum 0 is 'use my angles/org'
 
-		bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+		bone = inf->ofsbones;
 
 		if (fstate->bonestate)
 		{
@@ -3645,8 +3594,8 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			}
 
 	//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
-			g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
-			g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+			g1 = &inf->groupofs[frame1];
+			g2 = &inf->groupofs[frame2];
 
 			if (f2ness != 1)
 			{
@@ -3654,12 +3603,12 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 				frame1 = (int)f1time%g1->numposes;
 				frame2 = ((int)f1time+1)%g1->numposes;
 				f1time = f1time - (int)f1time;
-				pose[numposes] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame1);
+				pose[numposes] = g1->boneofs + inf->numbones*12*frame1;
 				plerp[numposes] = (1-f1time) * (1-f2ness);
 				numposes++;
 				if (frame1 != frame2)
 				{
-					pose[numposes] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
+					pose[numposes] = g1->boneofs + inf->numbones*12*frame2;
 					plerp[numposes] = f1time * (1-f2ness);
 					numposes++;
 				}
@@ -3670,12 +3619,12 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 				frame1 = (int)f2time%g2->numposes;
 				frame2 = ((int)f2time+1)%g2->numposes;
 				f2time = f2time - (int)f2time;
-				pose[numposes] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
+				pose[numposes] = g2->boneofs + inf->numbones*12*frame1;
 				plerp[numposes] = (1-f2time) * f2ness;
 				numposes++;
 				if (frame1 != frame2)
 				{
-					pose[numposes] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
+					pose[numposes] = g2->boneofs + inf->numbones*12*frame2;
 					plerp[numposes] = f2time * f2ness;
 					numposes++;
 				}
@@ -3734,11 +3683,11 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			frame2 = frame1;
 		tagnum--;	//tagnum 0 is 'use my angles/org'
 
-		t1 = (md3tag_t*)((char*)inf + inf->ofstags);
+		t1 = inf->ofstags;
 		t1 += tagnum;
 		t1 += inf->numtags*frame1;
 
-		t2 = (md3tag_t*)((char*)inf + inf->ofstags);
+		t2 = inf->ofstags;
 		t2 += tagnum;
 		t2 += inf->numtags*frame2;
 
@@ -3803,7 +3752,7 @@ int Mod_TagNumForName(model_t *model, char *name)
 	if (inf->numbones)
 	{
 		galiasbone_t *b;
-		b = (galiasbone_t*)((char*)inf + inf->ofsbones);
+		b = inf->ofsbones;
 		for (i = 0; i < inf->numbones; i++)
 		{
 			if (!strcmp(b[i].name, name))
@@ -3811,7 +3760,7 @@ int Mod_TagNumForName(model_t *model, char *name)
 		}
 	}
 #endif
-	t = (md3tag_t*)((char*)inf + inf->ofstags);
+	t = inf->ofstags;
 	for (i = 0; i < inf->numtags; i++)
 	{
 		if (!strcmp(t[i].name, name))
@@ -3838,7 +3787,7 @@ int Mod_FrameNumForName(model_t *model, char *name)
 
 	inf = Mod_Extradata(model);
 
-	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	group = inf->groupofs;
 	for (i = 0; i < inf->groups; i++, group++)
 	{
 		if (!strcmp(group->name, name))
@@ -3858,7 +3807,7 @@ int Mod_SkinNumForName(model_t *model, char *name)
 		return -1;
 	inf = Mod_Extradata(model);
 
-	skin = (galiasskin_t*)((char*)inf+inf->ofsskins);
+	skin = inf->ofsskins;
 	for (i = 0; i < inf->numskins; i++, skin++)
 	{
 		if (!strcmp(skin->name, name))
@@ -3883,7 +3832,7 @@ const char *Mod_FrameNameForNum(model_t *model, int num)
 
 	if (num >= inf->groups)
 		return NULL;
-	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	group = inf->groupofs;
 	return group[num].name;
 }
 
@@ -3901,7 +3850,7 @@ qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframe
 
 	if (num >= inf->groups)
 		return false;
-	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	group = inf->groupofs;
 
 	*name = group[num].name;
 	*numframes = group[num].numposes;
@@ -3924,12 +3873,12 @@ const char *Mod_SkinNameForNum(model_t *model, int num)
 
 	if (num >= inf->numskins)
 		return NULL;
-	skin = (galiasskin_t*)((char*)inf+inf->ofsskins);
+	skin = inf->ofsskins;
 	return skin[num].name;
 #endif
 }
 
-float Mod_FrameDuration(model_t *model, int frameno)
+float Mod_GetFrameDuration(model_t *model, int frameno)
 {
 	galiasinfo_t *inf;
 	galiasgroup_t *group;
@@ -3938,7 +3887,7 @@ float Mod_FrameDuration(model_t *model, int frameno)
 		return 0;
 	inf = Mod_Extradata(model);
 
-	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	group = inf->groupofs;
 	if (frameno < 0 || frameno >= inf->groups)
 		return 0;
 	group += frameno;
@@ -4035,7 +3984,6 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 	vec2_t *st_array;
 	md3Shader_t		*inshader;
 #endif
-	int hunkstart, hunkend, hunktotal;
 //	int version;
 	int s, i, j, d;
 
@@ -4063,8 +4011,6 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 	loadmodel=mod;
 
-	hunkstart = Hunk_LowMark ();
-
 	header = buffer;
 
 //	if (header->version != sdfs)
@@ -4088,21 +4034,21 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		if (LittleLong(surf->ident) != MD3_IDENT)
 			Con_Printf(CON_WARNING "Warning: md3 sub-surface doesn't match ident\n");
 		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*LittleLong(header->numFrames);
-		galias = Hunk_Alloc(size);
-		galias->groupofs = sizeof(*galias);	//frame groups
+		galias = ZG_Malloc(&loadmodel->memgroup, size);
+		galias->groupofs = (galiasgroup_t*)(galias+1);	//frame groups
 		galias->groups = LittleLong(header->numFrames);
 		galias->numverts = LittleLong(surf->numVerts);
 		galias->numindexes = LittleLong(surf->numTriangles)*3;
 		galias->shares_verts = s;
 		if (parent)
-			parent->nextsurf = (qbyte *)galias - (qbyte *)parent;
+			parent->nextsurf = galias;
 		else
 			root = galias;
 		parent = galias;
 
 #ifndef SERVERONLY
-		st_array = Hunk_Alloc(sizeof(vec2_t)*galias->numindexes);
-		galias->ofs_st_array = (qbyte*)st_array - (qbyte*)galias;
+		st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(vec2_t)*galias->numindexes);
+		galias->ofs_st_array = st_array;
 		inst = (md3St_t*)((qbyte*)surf + LittleLong(surf->ofsSt));
 		for (i = 0; i < galias->numverts; i++)
 		{
@@ -4111,8 +4057,8 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		}
 #endif
 
-		indexes = Hunk_Alloc(sizeof(*indexes)*galias->numindexes);
-		galias->ofs_indexes = (qbyte*)indexes - (qbyte*)galias;
+		indexes = ZG_Malloc(&loadmodel->memgroup, sizeof(*indexes)*galias->numindexes);
+		galias->ofs_indexes = indexes;
 		intris = (md3Triangle_t *)((qbyte*)surf + LittleLong(surf->ofsTriangles));
 		for (i = 0; i < LittleLong(surf->numTriangles); i++)
 		{
@@ -4125,21 +4071,21 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		invert = (md3XyzNormal_t *)((qbyte*)surf + LittleLong(surf->ofsXyzNormals));
 		for (i = 0; i < LittleLong(surf->numFrames); i++)
 		{
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vecV_t)*LittleLong(surf->numVerts)
+			int size = sizeof(galiaspose_t) + sizeof(vecV_t)*LittleLong(surf->numVerts);
 #ifndef SERVERONLY
-				+ 3*sizeof(vec3_t)*LittleLong(surf->numVerts)
+			size += 3*sizeof(vec3_t)*LittleLong(surf->numVerts);
 #endif
-				);
+			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, size);
 
 			verts = (vecV_t*)(pose+1);
-			pose->ofsverts = (qbyte*)verts - (qbyte*)pose;
+			pose->ofsverts = verts;
 #ifndef SERVERONLY
 			normals = (vec3_t*)(verts + LittleLong(surf->numVerts));
-			pose->ofsnormals = (qbyte*)normals - (qbyte*)pose;
+			pose->ofsnormals = normals;
 			svector = normals + LittleLong(surf->numVerts);
-			pose->ofssvector = (qbyte*)svector - (qbyte*)pose;
+			pose->ofssvector = svector;
 			tvector = svector + LittleLong(surf->numVerts);
-			pose->ofstvector = (qbyte*)tvector - (qbyte*)pose;
+			pose->ofstvector = tvector;
 #endif
 
 			for (j = 0; j < LittleLong(surf->numVerts); j++)
@@ -4173,7 +4119,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 			group->numposes = 1;
 			group->rate = 1;
-			group->poseofs = (qbyte*)pose - (qbyte*)group;
+			group->poseofs = pose;
 
 			group++;
 			invert += LittleLong(surf->numVerts);
@@ -4186,14 +4132,14 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		{
 			char shadname[1024];
 
-			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(shader_t*))));
-			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
+			skin = ZG_Malloc(&loadmodel->memgroup, (LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(shader_t*))));
+			galias->ofsskins = skin;
 			shaders = (shader_t **)(skin + LittleLong(surf->numShaders)+externalskins);
 			inshader = (md3Shader_t *)((qbyte *)surf + LittleLong(surf->ofsShaders));
 			for (i = 0; i < externalskins; i++)
 			{
 				skin->numshaders = 1;
-				skin->ofsshaders = (qbyte *)&shaders[i] - (qbyte *)skin;
+				skin->ofsshaders = &shaders[i];
 				skin->ofstexels = 0;
 				skin->skinwidth = 0;
 				skin->skinheight = 0;
@@ -4240,18 +4186,18 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 	}
 
 	if (!root)
-		root = Hunk_Alloc(sizeof(galiasinfo_t));
+		root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t));
 
 	root->numtagframes = LittleLong(header->numFrames);
 	root->numtags = LittleLong(header->numTags);
-	root->ofstags = (char*)Hunk_Alloc(LittleLong(header->numTags)*sizeof(md3tag_t)*LittleLong(header->numFrames)) - (char*)root;
+	root->ofstags = ZG_Malloc(&loadmodel->memgroup, LittleLong(header->numTags)*sizeof(md3tag_t)*LittleLong(header->numFrames));
 
 	{
 		md3tag_t *src;
 		md3tag_t *dst;
 
 		src = (md3tag_t *)((char*)header+LittleLong(header->ofsTags));
-		dst = (md3tag_t *)((char*)root+root->ofstags);
+		dst = root->ofstags;
 		for(i=0;i<LittleLong(header->numTags)*LittleLong(header->numFrames);i++)
 		{
 			memcpy(dst->name, src->name, sizeof(dst->name));
@@ -4273,11 +4219,6 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		}
 	}
 
-//
-// move the complete, relocatable alias model to the cache
-//
-
-	hunkend = Hunk_LowMark ();
 #ifndef SERVERONLY
 	if (mod_md3flags.value)
 		mod->flags = LittleLong(header->flags);
@@ -4289,19 +4230,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
-
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
-	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, root, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
+	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;
 
@@ -4380,7 +4309,6 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 #endif
 
 	int i;
-	int hunkstart, hunkend, hunktotal;
 
 	zymtype1header_t *header;
 	galiasinfo_t *root;
@@ -4409,8 +4337,6 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
-
-	hunkstart = Hunk_LowMark ();
 
 	header = buffer;
 
@@ -4444,11 +4370,11 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	VectorCopy(header->mins, mod->mins);
 	VectorCopy(header->maxs, mod->maxs);
 
-	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->numsurfaces, loadname);
+	root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t)*header->numsurfaces);
 
 	root->numswtransforms = header->lump_verts.length/sizeof(zymvertex_t);
-	transforms = Hunk_Alloc(root->numswtransforms*sizeof(*transforms));
-	root->ofsswtransforms = (char*)transforms - (char*)root;
+	transforms = ZG_Malloc(&loadmodel->memgroup, root->numswtransforms*sizeof(*transforms));
+	root->ofsswtransforms = transforms;
 
 	vertbonecounts = (int *)((char*)header + header->lump_vertbonecounts.start);
 	intrans = (zymvertex_t *)((char*)header + header->lump_verts.start);
@@ -4463,7 +4389,6 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 			if (v == header->numverts)
 			{
 				Con_Printf("Mod_LoadZymoticModel: %s, too many transformations\n", mod->name);
-				Hunk_FreeToLowMark(hunkstart);
 				return false;
 			}
 			vertbonecounts[v] = BigLong(vertbonecounts[v]);
@@ -4480,35 +4405,33 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	if (intrans != (zymvertex_t *)((char*)header + header->lump_verts.start))
 	{
 		Con_Printf(CON_ERROR "%s, Vertex transforms list appears corrupt.\n", mod->name);
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 	if (vertbonecounts != (int *)((char*)header + header->lump_vertbonecounts.start))
 	{
 		Con_Printf(CON_ERROR "%s, Vertex bone counts list appears corrupt.\n", mod->name);
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 
 	root->numverts = v+1;
 
 	root->numbones = header->numbones;
-	bone = Hunk_Alloc(root->numswtransforms*sizeof(*transforms));
+	bone = ZG_Malloc(&loadmodel->memgroup, root->numswtransforms*sizeof(*transforms));
 	inbone = (zymbone_t*)((char*)header + header->lump_bones.start);
 	for (i = 0; i < root->numbones; i++)
 	{
 		Q_strncpyz(bone[i].name, inbone[i].name, sizeof(bone[i].name));
 		bone[i].parent = BigLong(inbone[i].parent);
 	}
-	root->ofsbones = (char *)bone - (char *)root;
+	root->ofsbones = bone;
 
 	renderlist = (int*)((char*)header + header->lump_render.start);
 	for (i = 0;i < header->numsurfaces; i++)
 	{
 		count = BigLong(*renderlist++);
 		count *= 3;
-		indexes = Hunk_Alloc(count*sizeof(*indexes));
-		root[i].ofs_indexes = (char *)indexes - (char*)&root[i];
+		indexes = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*indexes));
+		root[i].ofs_indexes = indexes;
 		root[i].numindexes = count;
 		while(count)
 		{	//invert
@@ -4522,19 +4445,18 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	if (renderlist != (int*)((char*)header + header->lump_render.start + header->lump_render.length))
 	{
 		Con_Printf(CON_ERROR "%s, render list appears corrupt.\n", mod->name);
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 
-	grp = Hunk_Alloc(sizeof(*grp)*header->numscenes*header->numsurfaces);
-	matrix = Hunk_Alloc(header->lump_poses.length);
+	grp = ZG_Malloc(&loadmodel->memgroup, sizeof(*grp)*header->numscenes*header->numsurfaces);
+	matrix = ZG_Malloc(&loadmodel->memgroup, header->lump_poses.length);
 	inmatrix = (float*)((char*)header + header->lump_poses.start);
 	for (i = 0; i < header->lump_poses.length/4; i++)
 		matrix[i] = BigFloat(inmatrix[i]);
 	inscene = (zymscene_t*)((char*)header + header->lump_scenes.start);
 	surfname = ((char*)header + header->lump_surfnames.start);
 
-	stcoords = Hunk_Alloc(root[0].numverts*sizeof(vec2_t));
+	stcoords = ZG_Malloc(&loadmodel->memgroup, root[0].numverts*sizeof(vec2_t));
 	inst = (vec2_t *)((char *)header + header->lump_texcoords.start);
 	for (i = 0; i < header->lump_texcoords.length/8; i++)
 	{
@@ -4551,25 +4473,25 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
 	{
 		root[i].groups = header->numscenes;
-		root[i].groupofs = (char*)grp - (char*)&root[i];
+		root[i].groupofs = grp;
 
 #ifdef SERVERONLY
 		root[i].numskins = 1;
 #else
-		root[i].ofs_st_array = (char*)stcoords - (char*)&root[i];
+		root[i].ofs_st_array = stcoords;
 		root[i].numskins = skinfiles;
 
-		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
+		skin = ZG_Malloc(&loadmodel->memgroup, (sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
 		shaders = (shader_t**)(skin+skinfiles);
 		for (j = 0; j < skinfiles; j++, shaders++)
 		{
 			skin[j].numshaders = 1;	//non-sequenced skins.
-			skin[j].ofsshaders = (char *)shaders - (char *)&skin[j];
+			skin[j].ofsshaders = shaders;
 
 			Mod_LoadSkinFile(shaders, surfname, j, NULL, 0, 0, NULL);
 		}
 
-		root[i].ofsskins = (char *)skin - (char *)&root[i];
+		root[i].ofsskins = skin;
 #endif
 	}
 
@@ -4582,19 +4504,17 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 		grp->rate = BigFloat(inscene->framerate);
 		grp->loop = !(BigLong(inscene->flags) & ZYMSCENEFLAG_NOLOOP);
 		grp->numposes = BigLong(inscene->length);
-		grp->poseofs = (char*)matrix  - (char*)grp;
-		grp->poseofs += BigLong(inscene->start)*12*sizeof(float)*root->numbones;
+		grp->boneofs = matrix + BigLong(inscene->start)*12*root->numbones;
 	}
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
 	{
 		Con_Printf(CON_ERROR "%s, scene list appears corrupt.\n", mod->name);
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 
 	for (i = 0; i < header->numsurfaces-1; i++)
-		root[i].nextsurf = sizeof(galiasinfo_t);
+		root[i].nextsurf = &root[i+1];
 	for (i = 1; i < header->numsurfaces; i++)
 	{
 		root[i].shares_verts = 0;
@@ -4602,36 +4522,17 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].numverts = root[0].numverts;
 
 		root[i].ofsbones = root[0].ofsbones;
-
-		root[i-1].nextsurf = sizeof(*root);
 	}
 
 	Alias_CalculateSkeletalNormals(root);
-
-//
-// move the complete, relocatable alias model to the cache
-//
-
-	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
 
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->meshinfo = root;
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, root, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
-
 
 	mod->funcs.NativeTrace = Mod_Trace;
 
@@ -4757,7 +4658,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 	galiasinfo_t *gmdl;
 #ifndef SERVERONLY
-	float *stcoord;
+	vec2_t *stcoord;
 	galiasskin_t *skin;
 	shader_t **gshaders;
 #endif
@@ -4780,8 +4681,6 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	pskaniminfo_t *animinfo = NULL;
 	pskanimkeys_t *animkeys = NULL;
 	unsigned int num_animinfo=0, num_animkeys=0;
-
-	int hunkstart, hunkend, hunktotal;
 
 //#define PSK_GPU
 #ifndef PSK_GPU
@@ -5028,12 +4927,10 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		return false;
 	}
 
-	hunkstart = Hunk_LowMark ();
-
-	gmdl = Hunk_Alloc(sizeof(*gmdl)*num_matt);
+	gmdl = ZG_Malloc(&loadmodel->memgroup, sizeof(*gmdl)*num_matt);
 
 	/*bones!*/
-	bones = Hunk_Alloc(sizeof(galiasbone_t) * num_boneinfo);
+	bones = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasbone_t) * num_boneinfo);
 	for (i = 0; i < num_boneinfo; i++)
 	{
 		Q_strncpyz(bones[i].name, boneinfo[i].name, sizeof(bones[i].name));
@@ -5050,7 +4947,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		}
 	}
 
-	basematrix = Hunk_Alloc(num_boneinfo*sizeof(float)*12);
+	basematrix = ZG_Malloc(&loadmodel->memgroup, num_boneinfo*sizeof(float)*12);
 	for (i = 0; i < num_boneinfo; i++)
 	{
 		float tmp[12];
@@ -5083,7 +4980,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 			}
 		}
 	}
-	trans = Hunk_Alloc(sizeof(*trans)*num_trans);
+	trans = ZG_Malloc(&loadmodel->memgroup, sizeof(*trans)*num_trans);
 	num_trans = 0;
 	for (i = 0; i < num_vtxw; i++)
 	{
@@ -5150,16 +5047,16 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 #ifndef SERVERONLY
 	/*st coords, all share the same list*/
-	stcoord = Hunk_Alloc(sizeof(vec2_t)*num_vtxw);
+	stcoord = ZG_Malloc(&loadmodel->memgroup, sizeof(vec2_t)*num_vtxw);
 	for (i = 0; i < num_vtxw; i++)
 	{
-		stcoord[i*2+0] = vtxw[i].texcoord[0];
-		stcoord[i*2+1] = vtxw[i].texcoord[1];
+		stcoord[i][0] = vtxw[i].texcoord[0];
+		stcoord[i][1] = vtxw[i].texcoord[1];
 	}
 #endif
 
 	/*allocate faces in a single block, as we at least know an upper bound*/
-	indexes = Hunk_Alloc(sizeof(index_t)*num_face*3);
+	indexes = ZG_Malloc(&loadmodel->memgroup, sizeof(index_t)*num_face*3);
 
 	if (animinfo && animkeys)
 	{
@@ -5168,12 +5065,12 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		if (numgroups)
 		{
 			/*externally supplied listing of frames. ignore all framegroups in the model and use only the pose info*/
-			group = Hunk_Alloc(sizeof(galiasgroup_t)*numgroups + num_animkeys*sizeof(float)*12);
+			group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*numgroups + num_animkeys*sizeof(float)*12);
 			animmatrix = (float*)(group+numgroups);
 			for (j = 0; j < numgroups; j++)
 			{
 				//FIXME: bound check
-				group[j].poseofs = ((char*)animmatrix - (char*)&group[j]) + sizeof(float)*12*num_boneinfo*frameinfo[j].firstpose;
+				group[j].boneofs = animmatrix + 12*num_boneinfo*frameinfo[j].firstpose;
 				group[j].numposes = frameinfo[j].posecount;
 				if (*frameinfo[j].name)
 					snprintf(group[j].name, sizeof(group[j].name), "%s", frameinfo[j].name);
@@ -5192,14 +5089,14 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 			iframe = 0;
 			for (i = 0; i < num_animinfo; i++)
 				iframe += animinfo[i].numframes;
-			group = Hunk_Alloc(sizeof(galiasgroup_t)*iframe + num_animkeys*sizeof(float)*12);
+			group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*iframe + num_animkeys*sizeof(float)*12);
 			animmatrix = (float*)(group+iframe);
 			iframe = 0;
 			for (j = 0; j < num_animinfo; j++)
 			{
 				for (i = 0; i < animinfo[j].numframes; i++)
 				{
-					group[iframe].poseofs = ((char*)animmatrix - (char*)&group[iframe]) + sizeof(float)*12*num_boneinfo*(animinfo[j].firstframe+i);
+					group[iframe].boneofs = animmatrix + 12*num_boneinfo*(animinfo[j].firstframe+i);
 					group[iframe].numposes = 1;
 					snprintf(group[iframe].name, sizeof(group[iframe].name), "%s_%i", animinfo[j].name, i);
 					group[iframe].loop = true;
@@ -5213,11 +5110,11 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		else
 		{
 			/*keep each framegroup as a group*/
-			group = Hunk_Alloc(sizeof(galiasgroup_t)*num_animinfo + num_animkeys*sizeof(float)*12);
+			group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*num_animinfo + num_animkeys*sizeof(float)*12);
 			animmatrix = (float*)(group+num_animinfo);
 			for (i = 0; i < num_animinfo; i++)
 			{
-				group[i].poseofs = (char*)animmatrix - (char*)&group[i] + sizeof(float)*12*num_boneinfo*animinfo[i].firstframe;
+				group[i].boneofs = animmatrix + 12*num_boneinfo*animinfo[i].firstframe;
 				group[i].numposes = animinfo[i].numframes;
 				Q_strncpyz(group[i].name, animinfo[i].name, sizeof(group[i].name));
 				group[i].loop = true;
@@ -5242,9 +5139,9 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	{
 		num_animinfo = 1;
 		/*build a base pose*/
-		group = Hunk_Alloc(sizeof(galiasgroup_t) + num_boneinfo*sizeof(float)*12);
+		group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t) + num_boneinfo*sizeof(float)*12);
 		animmatrix = basematrix;
-		group->poseofs = (char*)animmatrix - (char*)group;
+		group->boneofs = animmatrix;
 		group->numposes = 1;
 		strcpy(group->name, "base");
 		group->loop = true;
@@ -5253,11 +5150,11 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	}
 
 #ifndef SERVERONLY
-	skin = Hunk_Alloc(num_matt * (sizeof(galiasskin_t) + sizeof(shader_t*)));
+	skin = ZG_Malloc(&loadmodel->memgroup, num_matt * (sizeof(galiasskin_t) + sizeof(shader_t*)));
 	gshaders = (shader_t**)(skin + num_matt);
 	for (i = 0; i < num_matt; i++, skin++)
 	{
-		skin->ofsshaders = (char*)&gshaders[i] - (char*)skin;
+		skin->ofsshaders = &gshaders[i];
 		skin->numshaders = 1;
 		skin->skinspeed = 10;
 		Q_strncpyz(skin->name, matt[i].name, sizeof(skin->name));
@@ -5266,19 +5163,19 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		if (gshaders[i]->flags & SHADER_NOIMAGE)
 			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", gshaders[i]->name, loadmodel->name);
 
-		gmdl[i].ofsskins = (char*)skin - (char*)&gmdl[i];
+		gmdl[i].ofsskins = skin;
 		gmdl[i].numskins = 1;
 
-		gmdl[i].ofs_st_array = (char*)stcoord - (char*)&gmdl[i];
+		gmdl[i].ofs_st_array = stcoord;
 		gmdl[i].numverts = num_vtxw;
 #else
 	for (i = 0; i < num_matt; i++)
 	{
 #endif
 
-		gmdl[i].groupofs = (char*)group - (char*)&gmdl[i];
+		gmdl[i].groupofs = group;
 		gmdl[i].groups = num_animinfo;
-		gmdl[i].baseframeofs = (char*)basematrix - (char*)&gmdl[i];
+		gmdl[i].baseframeofs = basematrix;
 
 		gmdl[i].numindexes = 0;
 		for (j = 0; j < num_face; j++)
@@ -5291,25 +5188,25 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				gmdl[i].numindexes += 3;
 			}
 		}
-		gmdl[i].ofs_indexes = (char*)indexes - (char*)&gmdl[i];
+		gmdl[i].ofs_indexes = indexes;
 		indexes += gmdl[i].numindexes;
 
-		gmdl[i].ofsbones = (char*)bones - (char*)&gmdl[i];
+		gmdl[i].ofsbones = bones;
 		gmdl[i].numbones = num_boneinfo;
 
 #ifndef PSK_GPU
-		gmdl[i].ofsswtransforms = (char*)trans - (char*)&gmdl[i];
+		gmdl[i].ofsswtransforms = trans;
 		gmdl[i].numswtransforms = num_trans;
 #else
-		gmdl[i].ofs_skel_idx = (char*)skel_idx - (char*)&gmdl[i];
-		gmdl[i].ofs_skel_weight = (char*)skel_weights - (char*)&gmdl[i];
-		gmdl[i].ofs_skel_xyz = (char*)skel_xyz - (char*)&gmdl[i];
-		gmdl[i].ofs_skel_norm = (char*)skel_norm - (char*)&gmdl[i];
+		gmdl[i].ofs_skel_idx = skel_idx;
+		gmdl[i].ofs_skel_weight = skel_weights;
+		gmdl[i].ofs_skel_xyz = skel_xyz;
+		gmdl[i].ofs_skel_norm = skel_norm;
 #endif
 
 		gmdl[i].shares_verts = 0;
 		gmdl[i].shares_bones = 0;
-		gmdl[i].nextsurf = (i != num_matt-1)?sizeof(*gmdl):0;
+		gmdl[i].nextsurf = (i != num_matt-1)?&gmdl[i+1]:NULL;
 	}
 
 	if (fail)
@@ -5323,30 +5220,14 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	mod->mins[0] = mod->mins[1] = mod->mins[2] = -vrad;
 	mod->maxs[0] = mod->maxs[1] = mod->maxs[2] = vrad;
 	mod->radius = vrad;
-//
-// move the complete, relocatable alias model to the cache
-//
-	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
 
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->meshinfo = gmdl;
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, gmdl, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
-
-
 	mod->funcs.NativeTrace = Mod_Trace;
 	return true;
 }
@@ -5451,7 +5332,6 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 #endif
 
 	int i, j, k;
-	int hunkstart, hunkend, hunktotal;
 
 	dpmheader_t *header;
 	galiasinfo_t *root, *m;
@@ -5476,8 +5356,6 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
-
-	hunkstart = Hunk_LowMark ();
 
 	header = buffer;
 
@@ -5516,7 +5394,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	VectorCopy(header->mins, mod->mins);
 	VectorCopy(header->maxs, mod->maxs);
 
-	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->num_meshs, loadname);
+	root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t)*header->num_meshs);
 
 	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
 	for (i = 0; i < header->num_meshs; i++, mesh++)
@@ -5545,10 +5423,10 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 		m = &root[i];
 #ifdef SERVERONLY
-		transforms = Hunk_AllocName(numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t), loadname);
+		transforms = ZG_Malloc(&loadmodel->memgroup, numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
 #else
-		outst = Hunk_AllocName(numverts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t), loadname);
-		m->ofs_st_array = (char*)outst - (char*)m;
+		outst = ZG_Malloc(&loadmodel->memgroup, numverts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
+		m->ofs_st_array = (vec2_t*)outst;
 		m->numverts = mesh->num_verts;
 		inst = (float*)((char*)buffer + mesh->ofs_texcoords);
 		for (j = 0; j < numverts; j++, outst+=2, inst+=2)
@@ -5561,7 +5439,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 #endif
 
 		//build the transform list.
-		m->ofsswtransforms = (char*)transforms - (char*)m;
+		m->ofsswtransforms = transforms;
 		m->numswtransforms = numtransforms;
 		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
 		for (j = 0; j < mesh->num_verts; j++)
@@ -5582,7 +5460,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 		index = (unsigned int*)((char*)buffer + mesh->ofs_indices);
 		outdex = (index_t *)transforms;
-		m->ofs_indexes = (char*)outdex - (char*)m;
+		m->ofs_indexes = outdex;
 		m->numindexes = mesh->num_tris*3;
 		for (j = 0; j < m->numindexes; j++)
 		{
@@ -5590,7 +5468,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		}
 	}
 
-	outbone = Hunk_Alloc(sizeof(galiasbone_t)*header->num_bones);
+	outbone = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasbone_t)*header->num_bones);
 	inbone = (dpmbone_t*)((char*)buffer + header->ofs_bones);
 	for (i = 0; i < header->num_bones; i++)
 	{
@@ -5598,7 +5476,6 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		if (outbone[i].parent >= i || outbone[i].parent < -1)
 		{
 			Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: bad bone index in %s\n", mod->name);
-			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 
@@ -5606,7 +5483,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		//throw away the flags.
 	}
 
-	outgroups = Hunk_Alloc(sizeof(galiasgroup_t)*header->num_frames + sizeof(float)*header->num_frames*header->num_bones*12);
+	outgroups = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*header->num_frames + sizeof(float)*header->num_frames*header->num_bones*12);
 	outposedata = (float*)(outgroups+header->num_frames);
 
 	inframes = (dpmframe_t*)((char*)buffer + header->ofs_frames);
@@ -5627,7 +5504,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		outgroups[i].rate = 10;
 		outgroups[i].numposes = 1;
 		outgroups[i].isheirachical = true;
-		outgroups[i].poseofs = (char*)outposedata - (char*)&outgroups[i];
+		outgroups[i].boneofs = outposedata;
 
 		inposedata = (float*)((char*)buffer + inframes[i].ofs_bonepositions);
 		for (j = 0; j < header->num_bones*12; j++)
@@ -5645,14 +5522,14 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	{
 		m = &root[i];
 		if (i < header->num_meshs-1)
-			m->nextsurf = sizeof(galiasinfo_t);
+			m->nextsurf = &root[i+1];
 		m->shares_bones = 0;
 
-		m->ofsbones = (char*)outbone-(char*)m;
+		m->ofsbones = outbone;
 		m->numbones = header->num_bones;
 
 		m->groups = header->num_frames;
-		m->groupofs = (char*)outgroups - (char*)m;
+		m->groupofs = outgroups;
 
 
 
@@ -5661,47 +5538,29 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 #else
 		m->numskins = skinfiles;
 
-		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
+		skin = ZG_Malloc(&loadmodel->memgroup, (sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
 		shaders = (shader_t**)(skin+skinfiles);
 		for (j = 0; j < skinfiles; j++, shaders++)
 		{
 			skin[j].numshaders = 1;	//non-sequenced skins.
-			skin[j].ofsshaders = (char *)shaders - (char *)&skin[j];
+			skin[j].ofsshaders = shaders;
 
 			Mod_LoadSkinFile(shaders, mesh->shadername, j, NULL, 0, 0, NULL);
 		}
 
-		m->ofsskins = (char *)skin - (char *)m;
+		m->ofsskins = skin;
 #endif
 	}
 
 
 	Alias_CalculateSkeletalNormals(root);
 
-//
-// move the complete, relocatable alias model to the cache
-//
-	hunkend = Hunk_LowMark ();
-
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
-
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->meshinfo = root;
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, root, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
-
-
 	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
@@ -5988,10 +5847,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
 	/*allocate a nice big block of memory and figure out where stuff is*/
-	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes +
-#ifndef SERVERONLY
+	gai = ZG_Malloc(&loadmodel->memgroup, sizeof(*gai)*h->num_meshes +
+//#ifndef SERVERONLY
 		sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes + 
-#endif
+//#endif
 		sizeof(*fgroup)*numgroups + sizeof(float)*12*(h->num_joints + (h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
 		(sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
 	bones = (galiasbone_t*)(gai + h->num_meshes);
@@ -6122,13 +5981,13 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		{
 			//invalid/basepose
 			fgroup[i].isheirachical = false;
-			fgroup[i].poseofs = (char*)oposebase - (char*)&fgroup[i];
+			fgroup[i].boneofs = oposebase;
 			fgroup[i].numposes = 1;
 		}
 		else
 		{
 			fgroup[i].isheirachical = true;
-			fgroup[i].poseofs = (char*)(opose + framegroups[i].firstpose*12*h->num_poses) - (char*)&fgroup[i];
+			fgroup[i].boneofs = opose + framegroups[i].firstpose*12*h->num_poses;
 			fgroup[i].numposes = framegroups[i].posecount;
 		}
 		fgroup[i].loop = framegroups[i].loop;
@@ -6142,41 +6001,41 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 	for (i = 0; i < h->num_meshes; i++)
 	{
-		gai[i].nextsurf = (i == (h->num_meshes-1))?0:sizeof(*gai);
+		gai[i].nextsurf = (i == (h->num_meshes-1))?NULL:&gai[i+1];
 
 		/*animation info*/
 		gai[i].shares_bones = 0;
 		gai[i].numbones = h->num_joints;
-		gai[i].ofsbones = (char*)bones - (char*)&gai[i];
+		gai[i].ofsbones = bones;
 		gai[i].groups = numgroups;
-		gai[i].groupofs = (char*)fgroup - (char*)&gai[i];
+		gai[i].groupofs = fgroup;
 		
 		offset = LittleLong(mesh[i].first_vertex);
 
 #ifndef SERVERONLY
 		/*skins*/
 		gai[i].numskins = 1;
-		gai[i].ofsskins = (char*)&skin[i] - (char*)&gai[i];
+		gai[i].ofsskins = &skin[i];
 		Q_strncpyz(skin[i].name, strings+mesh[i].material, sizeof(skin[i].name));
 		skin[i].skinwidth = 1;
 		skin[i].skinheight = 1;
 		skin[i].ofstexels = 0; /*doesn't support 8bit colourmapping*/
 		skin[i].skinspeed = 10; /*something to avoid div by 0*/
 		skin[i].numshaders = 1;
-		skin[i].ofsshaders = (char*)&shaders[i] - (char*)&skin[i];
+		skin[i].ofsshaders = &shaders[i];
 		shaders[i] = R_RegisterSkin(skin[i].name, mod->name);
 		R_BuildDefaultTexnums(NULL, shaders[i]);
 		if (shaders[i]->flags & SHADER_NOIMAGE)
 			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[i]->name, loadmodel->name);
-		gai[i].ofs_st_array = (char*)(otcoords+offset) - (char*)&gai[i];
+		gai[i].ofs_st_array = (otcoords+offset);
 #endif
 
 		nt = LittleLong(mesh[i].num_triangles);
 		tris = (struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
 		tris += LittleLong(mesh[i].first_triangle);
 		gai[i].numindexes = nt*3;
-		idx = Hunk_Alloc(sizeof(*idx)*gai[i].numindexes);
-		gai[i].ofs_indexes = (char*)idx - (char*)&gai[i];
+		idx = ZG_Malloc(&loadmodel->memgroup, sizeof(*idx)*gai[i].numindexes);
+		gai[i].ofs_indexes = idx;
 		for (t = 0; t < nt; t++)
 		{
 			*idx++ = LittleShort(tris[t].vertex[0]) - offset;
@@ -6187,12 +6046,12 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		/*verts*/
 		gai[i].shares_verts = i;
 		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
-		gai[i].ofs_skel_xyz = (char*)(opos+offset) - (char*)&gai[i];
-		gai[i].ofs_skel_norm = vnorm?(char*)(onorm1+offset) - (char*)&gai[i]:0;
-		gai[i].ofs_skel_svect = (vnorm&&vtang)?(char*)(onorm2+offset) - (char*)&gai[i]:0;
-		gai[i].ofs_skel_tvect = (vnorm&&vtang)?(char*)(onorm3+offset) - (char*)&gai[i]:0;
-		gai[i].ofs_skel_idx = oindex?(char*)(oindex+offset) - (char*)&gai[i]:0;
-		gai[i].ofs_skel_weight = oweight?(char*)(oweight+offset) - (char*)&gai[i]:0;
+		gai[i].ofs_skel_xyz = (opos+offset);
+		gai[i].ofs_skel_norm = vnorm?(onorm1+offset):NULL;
+		gai[i].ofs_skel_svect = (vnorm&&vtang)?(onorm2+offset):NULL;
+		gai[i].ofs_skel_tvect = (vnorm&&vtang)?(onorm3+offset):NULL;
+		gai[i].ofs_skel_idx = oindex?(oindex+offset):NULL;
+		gai[i].ofs_skel_weight = oweight?(oweight+offset):NULL;
 	}
 	if (!noweights)
 	{
@@ -6236,40 +6095,26 @@ qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 {
 	int i;
-	unsigned int hunkstart, hunkend, hunktotal;
 	galiasinfo_t *root;
 	struct iqmheader *h = (struct iqmheader *)buffer;
 
-	hunkstart = Hunk_LowMark();
 	root = Mod_ParseIQMMeshModel(mod, buffer);
 	if (!root)
 	{
-		Hunk_FreeToLowMark (hunkstart);
 		return false;
 	}
-	hunkend = Hunk_LowMark();
 
 	mod->flags = h->flags;
 
 	ClearBounds(mod->mins, mod->maxs);
 	for (i = 0; i < root->numverts; i++)
-		AddPointToBounds((float*)((char*)root + root->ofs_skel_xyz + i*sizeof(vecV_t)), mod->mins, mod->maxs);
+		AddPointToBounds(root->ofs_skel_xyz[i], mod->mins, mod->maxs);
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
-
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->meshinfo = root;
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, root, hunktotal);
 
-	Hunk_FreeToLowMark (hunkstart);
 	return true;
 }
 #endif
@@ -6334,18 +6179,18 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	boneflags = BZ_Malloc(sizeof(unsigned char)*numjoints);
 	baseframe = BZ_Malloc(sizeof(float)*12*numjoints);
 
-	*poseofs = posedata = Hunk_Alloc(sizeof(float)*12*numjoints*numframes);
+	*poseofs = posedata = ZG_Malloc(&loadmodel->memgroup, sizeof(float)*12*numjoints*numframes);
 
 	if (prototype->numbones)
 	{
 		if (prototype->numbones != numjoints)
 			MD5ERROR0PARAM("MD5ANIM: number of bones doesn't match");
-		bonelist = (galiasbone_t *)((char*)prototype + prototype->ofsbones);
+		bonelist = prototype->ofsbones;
 	}
 	else
 	{
-		bonelist = Hunk_Alloc(sizeof(galiasbone_t)*numjoints);
-		prototype->ofsbones = (char*)bonelist - (char*)prototype;
+		bonelist = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasbone_t)*numjoints);
+		prototype->ofsbones = bonelist;
 	}
 
 	EXPECT("hierarchy");
@@ -6521,7 +6366,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 		MD5ERROR0PARAM("MD5 model with unsupported MD5Version");
 
 
-	root = Hunk_Alloc(sizeof(galiasinfo_t));
+	root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t));
 	lastsurf = NULL;
 
 	for(;;)
@@ -6533,11 +6378,11 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 		if (!strcmp(com_token, "numFrames"))
 		{
 			void *poseofs;
-			galiasgroup_t *grp = Hunk_Alloc(sizeof(galiasgroup_t));
+			galiasgroup_t *grp = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t));
 			Mod_ParseMD5Anim(filestart, root, &poseofs, grp);
-			root->groupofs = (char*)grp - (char*)root;
+			root->groupofs = grp;
 			root->groups = 1;
-			grp->poseofs = (char*)poseofs - (char*)grp;
+			grp->poseofs = poseofs;
 			return root;
 		}
 		else if (!strcmp(com_token, "commandline"))
@@ -6572,13 +6417,13 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 			if (!numjoints)
 				MD5ERROR0PARAM("MD5MESH: joints section before (or without) numjoints");
 
-			bones = Hunk_Alloc(sizeof(*bones) * numjoints);
-			pose = Hunk_Alloc(sizeof(galiasgroup_t));
-			posedata = Hunk_Alloc(sizeof(float)*12 * numjoints);
+			bones = ZG_Malloc(&loadmodel->memgroup, sizeof(*bones) * numjoints);
+			pose = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t));
+			posedata = ZG_Malloc(&loadmodel->memgroup, sizeof(float)*12 * numjoints);
 			pose->isheirachical = false;
 			pose->rate = 1;
 			pose->numposes = 1;
-			pose->poseofs = (char*)posedata - (char*)pose;
+			pose->boneofs = posedata;
 
 			Q_strncpyz(pose->name, "base", sizeof(pose->name));
 
@@ -6634,7 +6479,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 #ifndef SERVERONLY
 			float *stcoord = NULL;
 #endif
-			int *indexes = NULL;
+			index_t *indexes = NULL;
 			float w;
 
 			vec4_t *rawweight = NULL;
@@ -6653,25 +6498,25 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 			}
 			else
 			{
-				inf = Hunk_Alloc(sizeof(*inf));
-				lastsurf->nextsurf = (char*)inf - (char*)lastsurf;
+				inf = ZG_Malloc(&loadmodel->memgroup, sizeof(*inf));
+				lastsurf->nextsurf = inf;
 				lastsurf = inf;
 			}
 
-			inf->ofsbones = (char*)bones - (char*)inf;
+			inf->ofsbones = bones;
 			inf->numbones = numjoints;
 			inf->groups = 1;
-			inf->groupofs = (char*)pose - (char*)inf;
-			inf->baseframeofs = inf->groupofs + pose->poseofs;
+			inf->groupofs = pose;
+			inf->baseframeofs = pose->boneofs;
 
 #ifndef SERVERONLY
-			skin = Hunk_Alloc(sizeof(*skin));
-			shaders = Hunk_Alloc(sizeof(*shaders));
+			skin = ZG_Malloc(&loadmodel->memgroup, sizeof(*skin));
+			shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders));
 			inf->numskins = 1;
-			inf->ofsskins = (char*)skin - (char*)inf;
+			inf->ofsskins = skin;
 			skin->numshaders = 1;
 			skin->skinspeed = 1;
-			skin->ofsshaders = (char*)shaders - (char*)skin;
+			skin->ofsshaders = shaders;
 #endif
 			EXPECT("{");
 			for(;;)
@@ -6703,8 +6548,8 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 					firstweightlist = Z_Malloc(sizeof(*firstweightlist) * numverts);
 					numweightslist = Z_Malloc(sizeof(*numweightslist) * numverts);
 #ifndef SERVERONLY
-					stcoord = Hunk_Alloc(sizeof(float)*2*numverts);
-					inf->ofs_st_array = (char*)stcoord - (char*)inf;
+					stcoord = ZG_Malloc(&loadmodel->memgroup, sizeof(float)*2*numverts);
+					inf->ofs_st_array = (vec2_t*)stcoord;
 					inf->numverts = numverts;
 #endif
 				}
@@ -6744,8 +6589,8 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 					if (numtris < 0)
 						MD5ERROR0PARAM("MD5MESH: numverts cannot be negative");
 
-					indexes = Hunk_Alloc(sizeof(int)*3*numtris);
-					inf->ofs_indexes = (char*)indexes - (char*)inf;
+					indexes = ZG_Malloc(&loadmodel->memgroup, sizeof(int)*3*numtris);
+					inf->ofs_indexes = indexes;
 					inf->numindexes = numtris*3;
 				}
 				else if (!strcmp(com_token, "tri"))
@@ -6804,8 +6649,8 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 
 			}
 
-			trans = Hunk_Alloc(sizeof(*trans)*numusableweights);
-			inf->ofsswtransforms = (char*)trans - (char*)inf;
+			trans = ZG_Malloc(&loadmodel->memgroup, sizeof(*trans)*numusableweights);
+			inf->ofsswtransforms = trans;
 
 			for (num = 0, vnum = 0; num < numverts; num++)
 			{
@@ -6853,41 +6698,24 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 {
 	galiasinfo_t *root;
-	int hunkstart, hunkend, hunktotal;
 
 
 	loadmodel=mod;
 
-	hunkstart = Hunk_LowMark ();
-
 	root = Mod_ParseMD5MeshModel(buffer, mod->name);
 	if (root == NULL)
 	{
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 
-
-	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
 
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, root, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
-
+	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;
 	return true;
@@ -6914,14 +6742,11 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	int numgroups = 0;
 	galiasgroup_t *grouplist = NULL;
 	galiasgroup_t *newgroup = NULL;
-	void **poseofs;
-	int hunkstart, hunkend, hunktotal;
+	float **poseofs;
 	char com_token[8192];
 
 
 	loadmodel=mod;
-
-	hunkstart = Hunk_LowMark ();
 
 
 
@@ -6942,17 +6767,15 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 		if (!file)	//FIXME: make non fatal somehow..
 		{
 			Con_Printf(CON_ERROR "Couldn't open %s (from %s)\n", com_token, mod->name);
-			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 
 		root = Mod_ParseMD5MeshModel(file, mod->name);
 		if (root == NULL)
 		{
-			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
-		newgroup = (galiasgroup_t*)((char*)root + root->groupofs);
+		newgroup = root->groupofs;
 
 		grouplist = BZ_Malloc(sizeof(galiasgroup_t)*(numgroups+root->groups));
 		memcpy(grouplist, newgroup, sizeof(galiasgroup_t)*(numgroups+root->groups));
@@ -6960,7 +6783,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 		for (i = 0; i < root->groups; i++)
 		{
 			grouplist[numgroups] = newgroup[i];
-			poseofs[numgroups] = (char*)&newgroup[i] + newgroup[i].poseofs;
+			poseofs[numgroups] = newgroup[i].boneofs;
 			numgroups++;
 		}
 	}
@@ -6988,7 +6811,6 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
 				if (!Mod_ParseMD5Anim(file, root, &poseofs[numgroups], &grouplist[numgroups]))
 				{
-					Hunk_FreeToLowMark(hunkstart);
 					return false;
 				}
 				Q_strncpyz(grouplist[numgroups].name, namebkup, sizeof(grouplist[numgroups].name));
@@ -7007,7 +6829,6 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
 				if (!Mod_ParseMD5Anim(file, root, &poseofs[numgroups], &grouplist[numgroups]))
 				{
-					Hunk_FreeToLowMark(hunkstart);
 					return false;
 				}
 				Q_strncpyz(grouplist[numgroups].name, namebkup, sizeof(grouplist[numgroups].name));
@@ -7028,7 +6849,6 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
 				if (!Mod_ParseMD5Anim(file, root, &np, &ng))
 				{
-					Hunk_FreeToLowMark(hunkstart);
 					return false;
 				}
 
@@ -7053,48 +6873,32 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 		else
 		{
 			Con_Printf(CON_ERROR "EXTERNALANIM: unrecognised token (%s)\n", mod->name);
-			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 	}
 
 	newgroup = grouplist;
-	grouplist = Hunk_Alloc(sizeof(galiasgroup_t)*numgroups);
+	grouplist = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*numgroups);
 	for(surf = root;;)
 	{
-		surf->groupofs = (char*)grouplist - (char*)surf;
+		surf->groupofs = grouplist;
 		surf->groups = numgroups;
 		if (!surf->nextsurf)
 			break;
-		surf = (galiasinfo_t*)((char*)surf + surf->nextsurf);
+		surf = surf->nextsurf;
 	}
 	for (i = 0; i < numgroups; i++)
 	{
 		grouplist[i] = newgroup[i];
-		grouplist[i].poseofs = (char*)poseofs[i] - (char*)&grouplist[i];
+		grouplist[i].boneofs = poseofs[i];
 	}
-
-
-	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
 
-	Hunk_Alloc(0);
-	hunktotal = hunkend - hunkstart;
-
-	Cache_Alloc (&mod->cache, hunktotal, loadname);
 	mod->type = mod_alias;
-	if (!mod->cache.data)
-	{
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
-	}
-	memcpy (mod->cache.data, root, hunktotal);
-
-	Hunk_FreeToLowMark (hunkstart);
-
+	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;
 	return true;

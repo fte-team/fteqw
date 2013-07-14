@@ -27,8 +27,10 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
 
+#ifdef RAGDOLL
 	Cmd_AddCommand("skel_info", skel_info_f);
 	Cmd_AddCommand("skel_generateragdoll", skel_generateragdoll_f);
+#endif
 
 	WPhys_Init();
 }

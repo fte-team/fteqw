@@ -1128,7 +1128,6 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 				else
 #endif
 					cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
-				Hunk_Check();
 
 				S_ExtraUpdate();
 
@@ -1189,7 +1188,6 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 				CSQC_LoadResource(cl.model_csqcname[i], "model");
 #endif
 			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], false);
-			Hunk_Check();
 
 			S_ExtraUpdate();
 
@@ -2999,7 +2997,6 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 	case 3:
 		CL_SendClientCommand(true, "begin");
-		Cache_Report ();		// print remaining memory
 #ifdef VM_CG
 		CG_Start();
 #endif
@@ -3213,8 +3210,6 @@ void CL_ParseSoundlist (qboolean lots)
 	{
 		CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
 
-		Hunk_Check ();		// make sure nothing is hurt
-
 		cl.sendprespawn = true;
 	}
 	else
@@ -3307,8 +3302,6 @@ void CL_ParseModellist (qboolean lots)
 	Model_CheckDownloads();
 
 	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
-
-	Hunk_Check ();		// make sure nothing is hurt
 
 	//set the flag to load models and send prespawn
 	cl.sendprespawn = true;

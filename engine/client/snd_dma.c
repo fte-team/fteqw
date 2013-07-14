@@ -1441,6 +1441,10 @@ void S_Startup (void)
 
 	S_ClearRaw();
 
+	if (!known_sfx)
+		known_sfx = Z_Malloc(MAX_SFX*sizeof(sfx_t));
+	num_sfx = 0;
+
 	CL_InitTEntSounds();
 
 	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
@@ -1689,16 +1693,9 @@ void S_Init (void)
 	if (COM_CheckParm ("-multisound"))
 		Cvar_SetValue(&snd_usemultipledevices, 1);
 
-
-	if (host_parms.memsize < 0x800000)
-	{
-		Cvar_Set (&loadas8bit, "1");
-		Con_Printf ("loading all sounds as 8bit\n");
-	}
-
 	snd_initialized = true;
 
-	known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
+	known_sfx = Z_Malloc(MAX_SFX*sizeof(sfx_t));
 	num_sfx = 0;
 }
 
@@ -1740,6 +1737,8 @@ void S_Shutdown(void)
 	sound_started = 0;
 	S_Purge(false);
 
+	Z_Free(known_sfx);
+	known_sfx = NULL;
 	num_sfx = 0;
 }
 

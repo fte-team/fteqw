@@ -507,6 +507,7 @@ void GLR_NewMap (void)
 	Surf_DeInit();
 
 	r_viewleaf = NULL;
+	r_oldviewleaf = NULL;
 	r_viewcluster = -1;
 	r_oldviewcluster = 0;
 	r_viewcluster2 = -1;
@@ -536,12 +537,6 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 #endif
 
 #ifdef RTLIGHTS
-	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
-	{
-		R_LoadRTLights();
-		if (rtlights_first == rtlights_max)
-			R_ImportRTLights(cl.worldmodel->entities);
-	}
 	Sh_PreGenerateLights();
 #endif
 }
@@ -549,6 +544,10 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 void GLR_PreNewMap(void)
 {
 	r_loadbumpmapping = r_deluxemapping.ival || r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival || r_glsl_offsetmapping.ival;
+	r_viewleaf = NULL;
+	r_oldviewleaf = NULL;
+	r_viewleaf2 = NULL;
+	r_oldviewleaf2 = NULL;
 }
 
 

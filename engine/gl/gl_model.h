@@ -434,7 +434,7 @@ typedef struct mnode_s
 // node specific
 	mplane_t	*plane;
 	struct mnode_s	*children[2];
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(MAP_PROC)
 	int childnum[2];
 #endif
 
@@ -851,6 +851,7 @@ typedef struct
 typedef struct model_s
 {
 	char		name[MAX_QPATH];
+	int			datasequence;
 	qboolean	needload;		// bmodels and sprites don't cache normally
 	qboolean	tainted;
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
@@ -961,8 +962,8 @@ typedef struct model_s
 //
 // additional model data
 //
-	cache_user_t	cache;		// only access through Mod_Extradata
-
+	void *meshinfo;	//data allocated within the memgroup allocations, will be nulled out when the model is flushed
+	zonegroup_t memgroup;
 } model_t;
 
 #define MDLF_ENGULPHS        0x001 // particle effect engulphs model (don't draw)
@@ -1056,20 +1057,3 @@ void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open);
 
 
 #endif	//Q2BSPS
-
-
-
-
-typedef struct
-{
-	aliasskintype_t		type;
-	void				*pcachespot;
-	int					skin;
-} maliasskindesc_t;
-
-typedef struct
-{
-	int					numskins;
-	int					intervals;
-	maliasskindesc_t	skindescs[1];
-} maliasskingroup_t;

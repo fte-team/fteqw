@@ -84,8 +84,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
 	shader_t **shaders;
-
-	int					start, end, total;
+	void *texmem = NULL;
     /*~~*/
 
 
@@ -115,13 +114,10 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		}
 	}
 
-	start = Hunk_LowMark ();
-
-
 	//load the model into hunk
-	model = Hunk_Alloc(sizeof(hlmodelcache_t));
+	model = ZG_Malloc(&mod->memgroup, sizeof(hlmodelcache_t));
 
-	header = Hunk_Alloc(com_filesize);
+	header = ZG_Malloc(&mod->memgroup, com_filesize);
 	memcpy(header, buffer, com_filesize);
 
 #if defined(HLSERVER) && (defined(__powerpc__) || defined(__ppc__))
@@ -136,20 +132,17 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	if (header->version != 10)
 	{
 		Con_Printf(CON_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
-		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (header->numcontrollers > MAX_BONE_CONTROLLERS)
 	{
 		Con_Printf(CON_ERROR "Cannot load model %s - too many controllers %i\n", mod->name, header->numcontrollers);
-		Hunk_FreeToLowMark(start);
 		return false;
 	}
 	if (header->numbones > MAX_BONES)
 	{
 		Con_Printf(CON_ERROR "Cannot load model %s - too many bones %i\n", mod->name, header->numbones);
-		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
@@ -159,7 +152,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		char texmodelname[MAX_QPATH];
 		COM_StripExtension(mod->name, texmodelname, sizeof(texmodelname));
 		//no textures? eesh. They must be stored externally.
-		texheader = (hlmdl_header_t*)COM_LoadHunkFile(va("%st.mdl", texmodelname));
+		texheader = texmem = (hlmdl_header_t*)FS_LoadMallocFile(va("%st.mdl", texmodelname));
 		if (texheader)
 		{
 			if (texheader->version != 10)
@@ -198,7 +191,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	model->bones = (char *)bones - (char *)model;
 	model->bonectls = (char *)bonectls - (char *)model;
 
-	shaders = Hunk_Alloc(texheader->numtextures*sizeof(shader_t));
+	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
 	model->shaders = (char *)shaders - (char *)model;
     for(i = 0; i < texheader->numtextures; i++)
     {
@@ -206,21 +199,11 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		shaders[i]->defaulttextures.base = R_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, IF_NOALPHA|IF_NOGAMMA);
     }
 
-
-//
-// move the complete, relocatable alias model to the cache
-//
-	end = Hunk_LowMark ();
-	total = end - start;
+	if (texmem)
+		Z_Free(texmem);
 
 	mod->type = mod_halflife;
-
-	Cache_Alloc (&mod->cache, total, mod->name);
-	if (!mod->cache.data)
-		return false;
-	memcpy (mod->cache.data, model, total);
-
-	Hunk_FreeToLowMark (start);
+	mod->meshinfo = model;
 	return true;
 }
 

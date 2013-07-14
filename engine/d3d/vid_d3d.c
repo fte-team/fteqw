@@ -708,7 +708,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 //	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &width, &height);
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
-	vid.recalc_refdef = true;
 
 	vid.width = width;
 	vid.height = height;
@@ -1026,12 +1025,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		return;
 	}
 
-	//
-	// determine size of refresh window
-	//
-	if (vid.recalc_refdef)
-		SCR_CalcRefdef ();
-
 //
 // do 3D refresh drawing, and then update the screen
 //
@@ -1258,26 +1251,6 @@ rendererinfo_t d3d9rendererinfo =
 
 	D3D9_R_NewMap,
 	D3D9_R_PreNewMap,
-
-	Surf_AddStain,
-	Surf_LessenStains,
-
-	RMod_Init,
-	RMod_Shutdown,
-	RMod_ClearAll,
-	RMod_ForName,
-	RMod_FindName,
-	RMod_Extradata,
-	RMod_TouchModel,
-
-	RMod_NowLoadExternal,
-	RMod_Think,
-	Mod_GetTag,
-	Mod_TagNumForName,
-	Mod_SkinNumForName,
-	Mod_FrameNumForName,
-	Mod_FrameDuration,
-
 
 	D3D9_VID_Init,
 	D3D9_VID_DeInit,

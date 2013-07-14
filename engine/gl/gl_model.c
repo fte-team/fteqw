@@ -39,23 +39,23 @@ char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
-qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer);
-qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer);
-qboolean RMod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean Mod_LoadSpriteModel (model_t *mod, void *buffer);
+qboolean Mod_LoadSprite2Model (model_t *mod, void *buffer);
+qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
 #ifdef HALFLIFEMODELS
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 #endif
-model_t *RMod_LoadModel (model_t *mod, qboolean crash);
+model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 
 #ifdef MAP_DOOM
 qboolean Mod_LoadDoomLevel(model_t *mod);
 #endif
 
 #ifdef DOOMWADS
-void RMod_LoadDoomSprite (model_t *mod);
+void Mod_LoadDoomSprite (model_t *mod);
 #endif
 
 #define	MAX_MOD_KNOWN	2048
@@ -76,7 +76,7 @@ int numlightdata;
 qboolean writelitfile;
 
 long relitsurface;
-void RMod_UpdateLightmap(int snum)
+void Mod_UpdateLightmap(int snum)
 {
 	msurface_t *s;	
 	if (lightmodel)
@@ -97,7 +97,21 @@ void RMod_UpdateLightmap(int snum)
 #endif
 
 
-void RMod_BatchList_f(void)
+void Mod_MemList_f(void)
+{
+	int m;
+	model_t *mod;
+	int total = 0;
+	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
+	{
+		if (mod->memgroup.bytes)
+			Con_Printf("%s: %i bytes\n", mod->name, mod->memgroup.bytes);
+		total += mod->memgroup.bytes;
+	}
+	Con_Printf("Total: %i bytes\n", total);
+}
+
+void Mod_BatchList_f(void)
 {
 	int m, i;
 	model_t *mod;
@@ -131,7 +145,7 @@ void RMod_BatchList_f(void)
 	}
 }
 
-void RMod_TextureList_f(void)
+void Mod_TextureList_f(void)
 {
 	int m, i;
 	texture_t *tx;
@@ -174,7 +188,7 @@ void RMod_TextureList_f(void)
 		Con_Printf("%u\n", count);
 }
 
-void RMod_BlockTextureColour_f (void)
+void Mod_BlockTextureColour_f (void)
 {
 	char texname[64];
 	model_t *mod;
@@ -247,7 +261,7 @@ int RelightThread(void *arg)
 }
 #endif
 
-void RMod_Think (void)
+void Mod_Think (void)
 {
 #ifdef RUNTIMELIGHTING
 	if (lightmodel)
@@ -286,7 +300,7 @@ void RMod_Think (void)
 		}
 #else
 		LightFace(relitsurface);
-		RMod_UpdateLightmap(relitsurface);
+		Mod_UpdateLightmap(relitsurface);
 
 		relitsurface++;
 #endif
@@ -365,7 +379,7 @@ void Mod_RebuildLightmaps (void)
 	}
 }
 
-void RMod_ResortShaders(void)
+void Mod_ResortShaders(void)
 {
 	//called when some shader changed its sort key.
 	//this means we have to hunt down all models and update their batches.
@@ -398,14 +412,15 @@ void RMod_ResortShaders(void)
 ===================
 Mod_ClearAll
 ===================
-*/
-void RMod_ClearAll (void)
-{
-	int		i;
-	model_t	*mod;
 
+called before new content is loaded.
+*/
+static int mod_datasequence;
+void Mod_ClearAll (void)
+{
 #ifdef RUNTIMELIGHTING
 #ifdef MULTITHREAD
+	int		i;
 	wantrelight = false;
 	for (i = 0; i < relightthreads; i++)
 	{
@@ -417,28 +432,44 @@ void RMod_ClearAll (void)
 	lightmodel = NULL;
 #endif
 
-	//when the hunk is reset, all bsp models need to be reloaded
+	mod_datasequence++;
+}
+
+//called after all new content has been precached
+void Mod_Flush(qboolean force)
+{
+	int		i;
+	model_t	*mod;
+
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
 		if (mod->needload)
 			continue;
 
-		if (mod->type == mod_brush)
+		//this model isn't active any more.
+		if (mod->datasequence != mod_datasequence || force)
 		{
-			Surf_Clear(mod);
-		}
+			Con_DPrintf("model \"%s\" no longer needed\n", mod->name);
+			//purge any vbos
+			if (mod->type == mod_brush)
+			{
+				Surf_Clear(mod);
+			}
+
 #ifdef TERRAIN
-		if (mod->terrain)
-		{
-			Terr_PurgeTerrainModel(mod, false, false);
-			mod->terrain = NULL;
-		}
+			//nuke terrain buffers
+			if (mod->terrain)
+			{
+				Terr_PurgeTerrainModel(mod, false, false);
+				mod->terrain = NULL;
+			}
 #endif
 
-		if (mod->type != mod_alias
-			&& mod->type != mod_halflife
-			)
+			//and obliterate anything else remaining in memory.
+			ZG_FreeGroup(&mod->memgroup);
+			mod->meshinfo = NULL;
 			mod->needload = true;
+		}
 	}
 }
 
@@ -447,20 +478,23 @@ void RMod_ClearAll (void)
 Mod_Init
 ===============
 */
-void RMod_Init (void)
+void Mod_Init (void)
 {
-	RMod_ClearAll();
+	Mod_ClearAll();	//shouldn't be needed
+	Mod_Flush(true);//shouldn't be needed
 	mod_numknown = 0;
 	Q1BSP_Init();
 
-	Cmd_AddCommand("mod_batchlist", RMod_BatchList_f);
-	Cmd_AddCommand("mod_texturelist", RMod_TextureList_f);
-	Cmd_AddCommand("mod_usetexture", RMod_BlockTextureColour_f);
+	Cmd_AddCommand("mod_memlist", Mod_MemList_f);
+	Cmd_AddCommand("mod_batchlist", Mod_BatchList_f);
+	Cmd_AddCommand("mod_texturelist", Mod_TextureList_f);
+	Cmd_AddCommand("mod_usetexture", Mod_BlockTextureColour_f);
 }
 
-void RMod_Shutdown (void)
+void Mod_Shutdown (void)
 {
-	RMod_ClearAll();
+	Mod_ClearAll();
+	Mod_Flush(true);
 	mod_numknown = 0;
 
 	Cmd_RemoveCommand("mod_batchlist");
@@ -475,19 +509,19 @@ Mod_Init
 Caches the data if needed
 ===============
 */
-void *RMod_Extradata (model_t *mod)
+void *Mod_Extradata (model_t *mod)
 {
 	void	*r;
 	
-	r = Cache_Check (&mod->cache);
+	r = mod->meshinfo;
 	if (r)
 		return r;
 
-	RMod_LoadModel (mod, true);
+	Mod_LoadModel (mod, true);
 	
-	if (!mod->cache.data)
+	if (!mod->meshinfo)
 		Sys_Error ("Mod_Extradata: caching failed");
-	return mod->cache.data;
+	return mod->meshinfo;
 }
 
 /*
@@ -495,7 +529,7 @@ void *RMod_Extradata (model_t *mod)
 Mod_PointInLeaf
 ===============
 */
-mleaf_t *RMod_PointInLeaf (model_t *model, vec3_t p)
+mleaf_t *Mod_PointInLeaf (model_t *model, vec3_t p)
 {
 	mnode_t		*node;
 	float		d;
@@ -540,7 +574,7 @@ Mod_FindName
 
 ==================
 */
-model_t *RMod_FindName (char *name)
+model_t *Mod_FindName (char *name)
 {
 	int		i;
 	model_t	*mod;
@@ -567,6 +601,8 @@ model_t *RMod_FindName (char *name)
 		mod->particletrail = -1;
 	}
 
+	//mark it as active, so it doesn't get flushed prematurely
+	mod->datasequence = mod_datasequence;
 	return mod;
 }
 
@@ -576,18 +612,18 @@ Mod_TouchModel
 
 ==================
 */
-void RMod_TouchModel (char *name)
+void Mod_TouchModel (char *name)
 {
 	model_t	*mod;
 	
-	mod = RMod_FindName (name);
+	mod = Mod_FindName (name);
 	
 	if (!mod->needload)
 	{
-		if (mod->type == mod_alias
-			|| mod->type == mod_halflife
-			)
-			Cache_Check (&mod->cache);
+//		if (mod->type == mod_alias
+//			|| mod->type == mod_halflife
+//			)
+//			Cache_Check (&mod->cache);
 	}
 }
 
@@ -598,9 +634,8 @@ Mod_LoadModel
 Loads a model into the cache
 ==================
 */
-model_t *RMod_LoadModel (model_t *mod, qboolean crash)
+model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 {
-	void	*d;
 	unsigned *buf = NULL;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
 	char mdlbase[MAX_QPATH];
@@ -615,8 +650,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			|| mod->type == mod_halflife
 			)
 		{
-			d = Cache_Check (&mod->cache);
-			if (d)
+			if (mod->meshinfo)
 				return mod;
 		}
 		else
@@ -712,12 +746,12 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 		if (replstr)
 		{
-			TRACE(("RMod_LoadModel: Trying to load (replacement) model \"%s.%s\"\n", mdlbase, com_token));
+			TRACE(("Mod_LoadModel: Trying to load (replacement) model \"%s.%s\"\n", mdlbase, com_token));
 			buf = (unsigned *)COM_LoadStackFile (va("%s.%s", mdlbase, com_token), stackbuf, sizeof(stackbuf));
 		}
 		else
 		{
-			TRACE(("RMod_LoadModel: Trying to load model \"%s\"\n", mod->name));
+			TRACE(("Mod_LoadModel: Trying to load model \"%s\"\n", mod->name));
 			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 			if (!buf)
 			{
@@ -725,8 +759,8 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 				if (doomsprite) // special case needed for doom sprites
 				{
 					mod->needload = false;
-					TRACE(("RMod_LoadModel: doomsprite: \"%s\"\n", mod->name));
-					RMod_LoadDoomSprite(mod);
+					TRACE(("Mod_LoadModel: doomsprite: \"%s\"\n", mod->name));
+					Mod_LoadDoomSprite(mod);
 					return mod;
 				}
 #endif
@@ -751,14 +785,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 //The binary 3d mesh model formats
 		case RAPOLYHEADER:
 		case IDPOLYHEADER:
-			TRACE(("RMod_LoadModel: Q1 mdl\n"));
+			TRACE(("Mod_LoadModel: Q1 mdl\n"));
 			if (!Mod_LoadQ1Model(mod, buf))
 				continue;
 			break;
 
 #ifdef MD2MODELS
 		case MD2IDALIASHEADER:
-			TRACE(("RMod_LoadModel: md2\n"));
+			TRACE(("Mod_LoadModel: md2\n"));
 			if (!Mod_LoadQ2Model(mod, buf))
 				continue;
 			break;
@@ -766,7 +800,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef MD3MODELS
 		case MD3_IDENT:
-			TRACE(("RMod_LoadModel: md3\n"));
+			TRACE(("Mod_LoadModel: md3\n"));
 			if (!Mod_LoadQ3Model (mod, buf))
 				continue;
 			Surf_BuildModelLightmaps(mod);
@@ -775,7 +809,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef HALFLIFEMODELS
 		case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
-			TRACE(("RMod_LoadModel: HL mdl\n"));
+			TRACE(("Mod_LoadModel: HL mdl\n"));
 			if (!Mod_LoadHLModel (mod, buf))
 				continue;
 			break;
@@ -784,14 +818,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 //Binary skeletal model formats
 #ifdef ZYMOTICMODELS
 		case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-			TRACE(("RMod_LoadModel: zym\n"));
+			TRACE(("Mod_LoadModel: zym\n"));
 			if (!Mod_LoadZymoticModel(mod, buf))
 				continue;
 			break;
 #endif
 #ifdef DPMMODELS
 		case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-			TRACE(("RMod_LoadModel: dpm\n"));
+			TRACE(("Mod_LoadModel: dpm\n"));
 			if (!Mod_LoadDarkPlacesModel(mod, buf))
 				continue;
 			break;
@@ -799,7 +833,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef PSKMODELS
 		case ('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24):
-			TRACE(("RMod_LoadModel: psk\n"));
+			TRACE(("Mod_LoadModel: psk\n"));
 			if (!Mod_LoadPSKModel (mod, buf))
 				continue;
 			break;
@@ -807,7 +841,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef INTERQUAKEMODELS
 		case ('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24):
-			TRACE(("RMod_LoadModel: IQM\n"));
+			TRACE(("Mod_LoadModel: IQM\n"));
 			if (!Mod_LoadInterQuakeModel (mod, buf))
 				continue;
 			break;
@@ -816,15 +850,15 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 //Binary Sprites
 #ifdef SP2MODELS
 		case IDSPRITE2HEADER:
-			TRACE(("RMod_LoadModel: q2 sp2\n"));
-			if (!RMod_LoadSprite2Model (mod, buf))
+			TRACE(("Mod_LoadModel: q2 sp2\n"));
+			if (!Mod_LoadSprite2Model (mod, buf))
 				continue;
 			break;
 #endif
 
 		case IDSPRITEHEADER:
-			TRACE(("RMod_LoadModel: q1 spr\n"));
-			if (!RMod_LoadSpriteModel (mod, buf))
+			TRACE(("Mod_LoadModel: q1 spr\n"));
+			if (!Mod_LoadSpriteModel (mod, buf))
 				continue;
 			break;
 
@@ -834,7 +868,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case IDBSPHEADER:	//looks like id switched to have proper ids
-			TRACE(("RMod_LoadModel: q2/q3/raven/fusion bsp\n"));
+			TRACE(("Mod_LoadModel: q2/q3/raven/fusion bsp\n"));
 			if (!Mod_LoadQ2BrushModel (mod, buf))
 				continue;
 			Surf_BuildModelLightmaps(mod);
@@ -843,7 +877,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef MAP_DOOM
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
-			TRACE(("RMod_LoadModel: doom iwad/pwad map\n"));
+			TRACE(("Mod_LoadModel: doom iwad/pwad map\n"));
 			if (!Mod_LoadDoomLevel (mod))
 				continue;
 			break;
@@ -854,8 +888,8 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		case 28:	//prerel
 		case BSPVERSION_LONG1:
 		case BSPVERSION_LONG2:
-			TRACE(("RMod_LoadModel: hl/q1 bsp\n"));
-			if (!RMod_LoadBrushModel (mod, buf))
+			TRACE(("Mod_LoadModel: hl/q1 bsp\n"));
+			if (!Mod_LoadBrushModel (mod, buf))
 				continue;
 			Surf_BuildModelLightmaps(mod);
 			break;
@@ -867,14 +901,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef MD5MODELS
 			if (!strcmp(com_token, "MD5Version"))	//doom3 format, text based, skeletal
 			{
-				TRACE(("RMod_LoadModel: md5mesh/md5anim\n"));
+				TRACE(("Mod_LoadModel: md5mesh/md5anim\n"));
 				if (!Mod_LoadMD5MeshModel (mod, buf))
 					continue;
 				break;
 			}
 			if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
 			{
-				TRACE(("RMod_LoadModel: blurgh\n"));
+				TRACE(("Mod_LoadModel: blurgh\n"));
 				if (!Mod_LoadCompositeAnim (mod, buf))
 					continue;
 				break;
@@ -883,7 +917,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef MAP_PROC
 			if (!strcmp(com_token, "CM"))	//doom3 map.
 			{
-				TRACE(("RMod_LoadModel: doom3 CM\n"));
+				TRACE(("Mod_LoadModel: doom3 CM\n"));
 				if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
 					continue;
 				break;
@@ -892,7 +926,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef TERRAIN
 			if (!strcmp(com_token, "terrain"))	//custom format, text based.
 			{
-				TRACE(("RMod_LoadModel: terrain\n"));
+				TRACE(("Mod_LoadModel: terrain\n"));
 				if (!Terr_LoadTerrainModel(mod, buf))
 					continue;
 				break;
@@ -906,7 +940,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		P_LoadedModel(mod);
 		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
 
-		TRACE(("RMod_LoadModel: Loaded\n"));
+		TRACE(("Mod_LoadModel: Loaded\n"));
 
 #ifdef RAGDOLL
 		{
@@ -949,13 +983,13 @@ Mod_ForName
 Loads in a model for the given name
 ==================
 */
-model_t *RMod_ForName (char *name, qboolean crash)
+model_t *Mod_ForName (char *name, qboolean crash)
 {
 	model_t	*mod;
 	
-	mod = RMod_FindName (name);
+	mod = Mod_FindName (name);
 	
-	return RMod_LoadModel (mod, crash);
+	return Mod_LoadModel (mod, crash);
 }
 
 
@@ -974,20 +1008,20 @@ char *advtexturedesc;
 char *mapsection;
 char *defaultsection;
 
-static char *RMod_TD_LeaveSection(char *file)
+static char *Mod_TD_LeaveSection(char *file)
 {	//recursive routine to find the next }
 	while(file)
 	{
 		file = COM_Parse(file);
 		if (*com_token == '{')
-			file = RMod_TD_LeaveSection(file);
+			file = Mod_TD_LeaveSection(file);
 		else if (*com_token == '}')
 			return file;
 	}
 	return NULL;
 }
 
-static char *RMod_TD_Section(char *file, const char *sectionname)
+static char *Mod_TD_Section(char *file, const char *sectionname)
 {	//position within the open brace.
 	while(file)
 	{
@@ -1007,11 +1041,11 @@ static char *RMod_TD_Section(char *file, const char *sectionname)
 		}
 
 		if (*com_token == '{')
-			file = RMod_TD_LeaveSection(file);
+			file = Mod_TD_LeaveSection(file);
 	}
 	return NULL;
 }
-void RMod_InitTextureDescs(char *mapname)
+void Mod_InitTextureDescs(char *mapname)
 {
 	if (advtexturedesc)
 		FS_FreeFile(advtexturedesc);
@@ -1026,11 +1060,11 @@ void RMod_InitTextureDescs(char *mapname)
 	else
 	{
 		FS_LoadFile(va("map.shaders", mapname), (void**)&advtexturedesc);
-		mapsection = RMod_TD_Section(advtexturedesc, mapname);
-		defaultsection = RMod_TD_Section(advtexturedesc, "default");
+		mapsection = Mod_TD_Section(advtexturedesc, mapname);
+		defaultsection = Mod_TD_Section(advtexturedesc, "default");
 	}
 }
-void RMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
+void Mod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
 {
 	char stdname[MAX_QPATH] = "";
 	char flatname[MAX_QPATH] = "";
@@ -1039,7 +1073,7 @@ void RMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *
 	char lumaname[MAX_QPATH] = "";
 	char glossname[MAX_QPATH] = "";
 
-	section = RMod_TD_Section(section, name);
+	section = Mod_TD_Section(section, name);
 
 	while(section)
 	{
@@ -1108,7 +1142,7 @@ void RMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *
 
 	if (!*stdname && !*flatname)
 		return;
-TRACE(("dbg: RMod_LoadAdvancedTextureSection: %s\n", name));
+TRACE(("dbg: Mod_LoadAdvancedTextureSection: %s\n", name));
 
 	if (norm && gl_bumpmappingpossible && cls.allow_bump)
 	{
@@ -1139,19 +1173,19 @@ TRACE(("dbg: RMod_LoadAdvancedTextureSection: %s\n", name));
 		*gloss = Mod_LoadHiResTexture(glossname, NULL, 0);
 }
 
-void RMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
+void Mod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
 {
 	if (!gl_load24bit.value)
 		return;
 
 	if (mapsection)
 	{
-		RMod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,gloss,alphamode,cull);
+		Mod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,gloss,alphamode,cull);
 		if (*base)
 			return;
 	}
 	if (defaultsection)
-		RMod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,gloss,alphamode,cull);
+		Mod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,gloss,alphamode,cull);
 }
 #endif
 
@@ -1184,7 +1218,7 @@ void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 #define LMT_FULLBRIGHT 2
 #define LMT_BUMP 4
 #define LMT_SPEC 8
-void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
+void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 {
 	char altname[256];
 	qbyte *base;
@@ -1200,7 +1234,7 @@ void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 	else
 	{
 /*
-		RMod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
+		Mod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
 		if (tn.base)
 			continue;
 */
@@ -1287,7 +1321,7 @@ void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 					snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 			}
 
-			if (!TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife && r_loadbumpmapping)// && gl_bump_fallbacks.ival)
+			if (!TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife)
 			{
 				//no mip levels here, would be absurd.
 				base = (qbyte *)(mt+1);	//convert to greyscale.
@@ -1298,7 +1332,7 @@ void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 			}
 
 			//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
-			if (gl_specular.value && gl_load24bit.value)
+			if (maps & LMT_SPEC && gl_load24bit.value)
 			{
 				snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
 				tn->specular = R_LoadHiResTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
@@ -1314,7 +1348,7 @@ void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 Mod_LoadTextures
 =================
 */
-qboolean RMod_LoadTextures (lump_t *l)
+qboolean Mod_LoadTextures (lump_t *l)
 {
 	int		i, j, num, max, altmax;
 	miptex_t	*mt;
@@ -1325,19 +1359,19 @@ qboolean RMod_LoadTextures (lump_t *l)
 	texnums_t tn;
 	int maps;
 
-TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
+TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
-//	RMod_InitTextureDescs(loadname);
+//	Mod_InitTextureDescs(loadname);
 
 	if (!l->filelen)
 	{
 		Con_Printf(CON_WARNING "warning: %s contains no texture data\n", loadmodel->name);
 
 		loadmodel->numtextures = 1;
-		loadmodel->textures = Hunk_AllocName (1 * sizeof(*loadmodel->textures), loadname);
+		loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*loadmodel->textures));
 
 		i = 0;
-		tx = Hunk_AllocName (sizeof(texture_t), loadname );
+		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 		memcpy(tx, r_notexture_mip, sizeof(texture_t));
 		sprintf(tx->name, "unnamed%i", i);
 		loadmodel->textures[i] = tx;
@@ -1349,14 +1383,14 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 	m->nummiptex = LittleLong (m->nummiptex);
 	
 	loadmodel->numtextures = m->nummiptex;
-	loadmodel->textures = Hunk_AllocName (m->nummiptex * sizeof(*loadmodel->textures) , loadname);
+	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
 
 	for (i=0 ; i<m->nummiptex ; i++)
 	{
 		m->dataofs[i] = LittleLong(m->dataofs[i]);
 		if (m->dataofs[i] == -1)	//e1m2, this happens
 		{
-			tx = Hunk_AllocName (sizeof(texture_t), loadname );
+			tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 			memcpy(tx, r_notexture_mip, sizeof(texture_t));
 			sprintf(tx->name, "unnamed%i", i);
 			loadmodel->textures[i] = tx;
@@ -1364,7 +1398,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 		}
 		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
 
-	TRACE(("dbg: RMod_LoadTextures: texture %s\n", loadname));
+	TRACE(("dbg: Mod_LoadTextures: texture %s\n", loadname));
 
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
@@ -1381,7 +1415,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 			Con_Printf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
 		if (mt->width < 1 || mt->height < 1)
 			Con_Printf (CON_WARNING "Warning: Texture %s has no size", mt->name);
-		tx = Hunk_AllocName (sizeof(texture_t), loadname );
+		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 		loadmodel->textures[i] = tx;
 
 		memcpy (tx->name, mt->name, sizeof(tx->name));
@@ -1400,13 +1434,15 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 			maps |= LMT_FULLBRIGHT;
 		if (r_loadbumpmapping)
 			maps |= LMT_BUMP;
+		if (gl_specular.ival)
+			maps |= LMT_SPEC;
 
-		RMod_LoadMiptex(tx, mt, &tn, maps);
+		Mod_LoadMiptex(tx, mt, &tn, maps);
 		
 		Mod_FinishTexture(tx, tn);
 
 		if ((tx->shader->flags & SHADER_HASNORMALMAP) && !(maps & LMT_BUMP))
-			RMod_LoadMiptex(tx, mt, &tx->shader->defaulttextures, LMT_BUMP);
+			Mod_LoadMiptex(tx, mt, &tx->shader->defaulttextures, LMT_BUMP);
 	}
 //
 // sequence the animations
@@ -1516,7 +1552,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 	return true;
 }
 
-void RMod_NowLoadExternal(void)
+void Mod_NowLoadExternal(void)
 {
 	int i, width, height;
 	qboolean alphaed;
@@ -1612,13 +1648,12 @@ void BuildLightMapGammaTable (float g, float c)
 	}
 }
 
-
 /*
 =================
 Mod_LoadLighting
 =================
 */
-void RMod_LoadLighting (lump_t *l)
+void Mod_LoadLighting (lump_t *l)
 {
 	qboolean luxtmp = true;
 	qboolean littmp = true;
@@ -1668,7 +1703,7 @@ void RMod_LoadLighting (lump_t *l)
 			strcpy(luxname, loadmodel->name);
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".lux", sizeof(luxname));
-			luxdata = COM_LoadHunkFile(luxname);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname);
 			luxtmp = false;
 		}
 		if (!luxdata)
@@ -1677,14 +1712,14 @@ void RMod_LoadLighting (lump_t *l)
 			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
 			strcat(luxname, ".lux");
 
-			luxdata = COM_LoadHunkFile(luxname);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname);
 			luxtmp = false;
 		}
 		if (!luxdata) //dp...
 		{
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".dlit", sizeof(luxname));
-			luxdata = COM_LoadHunkFile(luxname);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname);
 			luxtmp = false;
 		}
 		if (!luxdata)
@@ -1751,7 +1786,7 @@ void RMod_LoadLighting (lump_t *l)
 			litname = litnamelits;
 		}
 
-		litdata = COM_LoadHunkFile(litname);
+		litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname);
 		littmp = false;
 		if (!litdata)
 		{
@@ -1834,7 +1869,7 @@ void RMod_LoadLighting (lump_t *l)
 	if (lightmodel == loadmodel && !litdata)
 	{
 		int i;
-		litdata = Hunk_AllocName(samples*3, "lit data");
+		litdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 		littmp = false;
 		if (lumdata)
 		{
@@ -1851,7 +1886,7 @@ void RMod_LoadLighting (lump_t *l)
 	if (lightmodel == loadmodel && r_deluxemapping.ival && !luxdata)
 	{
 		int i;
-		luxdata = Hunk_AllocName(samples*3, "lux data");
+		luxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 		for (i = 0; i < samples; i++)
 		{
 			luxdata[i*3+0] = 0.5f*255;
@@ -1864,7 +1899,7 @@ void RMod_LoadLighting (lump_t *l)
 	if (luxdata && luxtmp)
 	{
 		loadmodel->engineflags |= MDLF_RGBLIGHTING;
-		loadmodel->deluxdata = Hunk_AllocName(samples*3, "lit data");
+		loadmodel->deluxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 		memcpy(loadmodel->deluxdata, luxdata, samples*3);
 	}
 	else if (luxdata)
@@ -1875,7 +1910,7 @@ void RMod_LoadLighting (lump_t *l)
 	if (litdata && littmp)
 	{
 		loadmodel->engineflags |= MDLF_RGBLIGHTING;
-		loadmodel->lightdata = Hunk_AllocName(samples*3, "lit data");
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 		/*the memcpy is below*/
 		samples*=3;
 	}
@@ -1888,7 +1923,7 @@ void RMod_LoadLighting (lump_t *l)
 	else if (lumdata)
 	{
 		loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
-		loadmodel->lightdata = Hunk_AllocName(samples, "lit data");
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples);
 		litdata = lumdata;
 	}
 
@@ -1908,14 +1943,14 @@ void RMod_LoadLighting (lump_t *l)
 Mod_LoadVisibility
 =================
 */
-void RMod_LoadVisibility (lump_t *l)
+void Mod_LoadVisibility (lump_t *l)
 {
 	if (!l->filelen)
 	{
 		loadmodel->visdata = NULL;
 		return;
 	}
-	loadmodel->visdata = Hunk_AllocName ( l->filelen, loadname);	
+	loadmodel->visdata = ZG_Malloc(&loadmodel->memgroup, l->filelen);	
 	memcpy (loadmodel->visdata, mod_base + l->fileofs, l->filelen);
 }
 
@@ -1925,14 +1960,14 @@ void RMod_LoadVisibility (lump_t *l)
 Mod_LoadEntities
 =================
 */
-void RMod_LoadEntities (lump_t *l)
+void Mod_LoadEntities (lump_t *l)
 {
 	if (!l->filelen)
 	{
 		loadmodel->entities = NULL;
 		return;
 	}
-	loadmodel->entities = Hunk_AllocName ( l->filelen + 1, loadname);	
+	loadmodel->entities = ZG_Malloc(&loadmodel->memgroup, l->filelen + 1);	
 	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
 	loadmodel->entities[l->filelen] = 0;
 }
@@ -1943,7 +1978,7 @@ void RMod_LoadEntities (lump_t *l)
 Mod_LoadVertexes
 =================
 */
-qboolean RMod_LoadVertexes (lump_t *l)
+qboolean Mod_LoadVertexes (lump_t *l)
 {
 	dvertex_t	*in;
 	mvertex_t	*out;
@@ -1956,7 +1991,7 @@ qboolean RMod_LoadVertexes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));	
 
 	loadmodel->vertexes = out;
 	loadmodel->numvertexes = count;
@@ -1977,7 +2012,7 @@ Mod_LoadSubmodels
 =================
 */
 static qboolean hexen2map;
-qboolean RMod_LoadSubmodels (lump_t *l)
+qboolean Mod_LoadSubmodels (lump_t *l)
 {
 	dq1model_t	*inq;
 	dh2model_t	*inh;
@@ -1997,7 +2032,7 @@ qboolean RMod_LoadSubmodels (lump_t *l)
 			return false;
 		}
 		count = l->filelen / sizeof(*inh);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->submodels = out;
 		loadmodel->numsubmodels = count;
@@ -2035,7 +2070,7 @@ qboolean RMod_LoadSubmodels (lump_t *l)
 			return false;
 		}
 		count = l->filelen / sizeof(*inq);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));	
 
 		loadmodel->submodels = out;
 		loadmodel->numsubmodels = count;
@@ -2072,7 +2107,7 @@ qboolean RMod_LoadSubmodels (lump_t *l)
 Mod_LoadEdges
 =================
 */
-qboolean RMod_LoadEdges (lump_t *l, qboolean lm)
+qboolean Mod_LoadEdges (lump_t *l, qboolean lm)
 {
 	medge_t *out;
 	int 	i, count;
@@ -2086,7 +2121,7 @@ qboolean RMod_LoadEdges (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));	
 
 		loadmodel->edges = out;
 		loadmodel->numedges = count;
@@ -2106,7 +2141,7 @@ qboolean RMod_LoadEdges (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));
 
 		loadmodel->edges = out;
 		loadmodel->numedges = count;
@@ -2126,7 +2161,7 @@ qboolean RMod_LoadEdges (lump_t *l, qboolean lm)
 Mod_LoadTexinfo
 =================
 */
-qboolean RMod_LoadTexinfo (lump_t *l)
+qboolean Mod_LoadTexinfo (lump_t *l)
 {
 	texinfo_t *in;
 	mtexinfo_t *out;
@@ -2141,7 +2176,7 @@ qboolean RMod_LoadTexinfo (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->texinfo = out;
 	loadmodel->numtexinfo = count;
@@ -2250,7 +2285,7 @@ void CalcSurfaceExtents (msurface_t *s);
 Mod_LoadFaces
 =================
 */
-qboolean RMod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
+qboolean Mod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 {
 	dsface_t		*ins;
 	dlface_t		*inl;
@@ -2281,9 +2316,9 @@ qboolean RMod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 		}
 		count = l->filelen / sizeof(*ins);
 	}
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
-	*meshlist = Hunk_AllocName(count*sizeof(**meshlist), loadname);
+	*meshlist = ZG_Malloc(&loadmodel->memgroup, count*sizeof(**meshlist));
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
 	for ( surfnum=0 ; surfnum<count ; surfnum++, out++)
@@ -2377,7 +2412,7 @@ qboolean RMod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 	return true;
 }
 
-void RModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
+void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 {
 	int i, lindex;
 	mesh_t *mesh = surf->mesh;
@@ -2445,7 +2480,7 @@ void RModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 	}
 }
 
-static void RMod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie)
+static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie)
 {
 	batch_t *batch;
 	msurface_t *surf;
@@ -2458,8 +2493,8 @@ static void RMod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxind
 	vbo_t vbo;
 	int styles = mod->lightmaps.surfstyles;
 
-	vbo.indicies.dummy = Hunk_AllocName(sizeof(index_t) * maxindicies, "indexdata");
-	vbo.coord.dummy = Hunk_AllocName((sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t))* maxverts, "vertdata");
+	vbo.indicies.dummy = ZG_Malloc(&loadmodel->memgroup, sizeof(index_t) * maxindicies);
+	vbo.coord.dummy = ZG_Malloc(&loadmodel->memgroup, (sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t))* maxverts);
 	vbo.texcoord.dummy = (vecV_t*)vbo.coord.dummy + maxverts;
 	sty = 0;
 	if (styles)
@@ -2525,7 +2560,7 @@ static void RMod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxind
 /*
 batch->firstmesh is set only in and for this function, its cleared out elsewhere
 */
-static void RMod_Batches_Generate(model_t *mod)
+static void Mod_Batches_Generate(model_t *mod)
 {
 	int i;
 	msurface_t *surf;
@@ -2600,7 +2635,7 @@ static void RMod_Batches_Generate(model_t *mod)
 		}
 		if (!batch)
 		{
-			batch = Hunk_AllocName(sizeof(*batch), "batch");
+			batch = ZG_Malloc(&loadmodel->memgroup, sizeof(*batch));
 			batch->lightmap[0] = surf->lightmaptexturenums[0];
 			batch->lightmap[1] = surf->lightmaptexturenums[1];
 			batch->lightmap[2] = surf->lightmaptexturenums[2];
@@ -2628,12 +2663,12 @@ typedef struct
 	int lmnum;
 	qboolean deluxe;
 } lmalloc_t;
-static void RMod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe)
+static void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe)
 {
 	memset(lmallocator, 0, sizeof(*lmallocator));
 	lmallocator->deluxe = hasdeluxe;
 }
-static void RMod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
+static void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 {
 	mod->lightmaps.first = 1;
 	mod->lightmaps.count = lmallocator->lmnum;
@@ -2646,7 +2681,7 @@ static void RMod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 	else
 		mod->lightmaps.deluxemapping = false;
 }
-static void RMod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum)
+static void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum)
 {
 	int best, best2;
 	int i, j;
@@ -2694,7 +2729,7 @@ static void RMod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsign
 	}
 }
 
-static void RMod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int surfstyle)
+static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int surfstyle)
 {
 	int smax, tmax;
 	smax = (surf->extents[0]>>4)+1;
@@ -2711,10 +2746,10 @@ static void RMod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int
 		return;
 	}
 
-	RMod_LightmapAllocBlock (lmallocator, smax, tmax, &surf->light_s[surfstyle], &surf->light_t[surfstyle], &surf->lightmaptexturenums[surfstyle]);
+	Mod_LightmapAllocBlock (lmallocator, smax, tmax, &surf->light_s[surfstyle], &surf->light_t[surfstyle], &surf->lightmaptexturenums[surfstyle]);
 }
 
-static void RMod_Batches_SplitLightmaps(model_t *mod)
+static void Mod_Batches_SplitLightmaps(model_t *mod)
 {
 	batch_t *batch;
 	batch_t *nb;
@@ -2746,7 +2781,7 @@ static void RMod_Batches_SplitLightmaps(model_t *mod)
 				surf->styles[2] != batch->lightstyle[2] ||
 				surf->styles[3] != batch->lightstyle[3] )
 			{
-				nb = Hunk_AllocName(sizeof(*batch), "batch");
+				nb = ZG_Malloc(&loadmodel->memgroup, sizeof(*batch));
 				*nb = *batch;
 				batch->next = nb;
 
@@ -2777,7 +2812,7 @@ static void RMod_Batches_SplitLightmaps(model_t *mod)
 /*
 allocates lightmaps and splits batches upon lightmap boundaries
 */
-static void RMod_Batches_AllocLightmaps(model_t *mod)
+static void Mod_Batches_AllocLightmaps(model_t *mod)
 {
 	batch_t *batch;
 	batch_t *nb;
@@ -2786,13 +2821,13 @@ static void RMod_Batches_AllocLightmaps(model_t *mod)
 	msurface_t *surf;
 	int sty;
 
-	RMod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL);
+	Mod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL);
 
 	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 	{
 		surf = (msurface_t*)batch->mesh[0];
-		RMod_LightmapAllocSurf (&lmallocator, surf, 0);
+		Mod_LightmapAllocSurf (&lmallocator, surf, 0);
 		for (sty = 1; sty < MAXLIGHTMAPS; sty++)
 			surf->lightmaptexturenums[sty] = -1;
 		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
@@ -2804,12 +2839,12 @@ static void RMod_Batches_AllocLightmaps(model_t *mod)
 		for (j = 1; j < batch->maxmeshes; j++)
 		{
 			surf = (msurface_t*)batch->mesh[j];
-			RMod_LightmapAllocSurf (&lmallocator, surf, 0);
+			Mod_LightmapAllocSurf (&lmallocator, surf, 0);
 			for (sty = 1; sty < MAXLIGHTMAPS; sty++)
 				surf->lightmaptexturenums[sty] = -1;
 			if (surf->lightmaptexturenums[0] != batch->lightmap[0])
 			{
-				nb = Hunk_AllocName(sizeof(*batch), "batch");
+				nb = ZG_Malloc(&loadmodel->memgroup, sizeof(*batch));
 				*nb = *batch;
 				batch->next = nb;
 
@@ -2833,12 +2868,12 @@ static void RMod_Batches_AllocLightmaps(model_t *mod)
 		}
 	}
 
-	RMod_LightmapAllocDone(&lmallocator, mod);
+	Mod_LightmapAllocDone(&lmallocator, mod);
 }
 
 extern void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift);
 //if build is NULL, uses q1/q2 surf generation, and allocates lightmaps
-void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie)
+void Mod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie)
 {
 	int i;
 	int numverts = 0, numindicies=0;
@@ -2856,7 +2891,7 @@ void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *m
 	if (meshlist)
 		meshlist += mod->firstmodelsurface;
 	else if (!build)
-		meshlist = Hunk_Alloc(sizeof(mesh_t) * mod->nummodelsurfaces);
+		meshlist = ZG_Malloc(&loadmodel->memgroup, sizeof(mesh_t) * mod->nummodelsurfaces);
 
 	for (i=0; i<mod->nummodelsurfaces; i++)
 	{
@@ -2876,9 +2911,9 @@ void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *m
 	}
 
 	/*assign each mesh to a batch, generating as needed*/
-	RMod_Batches_Generate(mod);
+	Mod_Batches_Generate(mod);
 
-	bmeshes = Hunk_AllocName(sizeof(*bmeshes)*mod->nummodelsurfaces*2, "batchmeshes");
+	bmeshes = ZG_Malloc(&loadmodel->memgroup, sizeof(*bmeshes)*mod->nummodelsurfaces*2);
 
 	//we now know which batch each surface is in, and how many meshes there are in each batch.
 	//allocate the mesh-pointer-lists for each batch. *2 for recursion.
@@ -2895,16 +2930,16 @@ void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *m
 		surf->sbatch->mesh[surf->sbatch->meshes++] = (mesh_t*)surf;
 	}
 	if (build)
-		RMod_Batches_SplitLightmaps(mod);
+		Mod_Batches_SplitLightmaps(mod);
 	else
-		RMod_Batches_AllocLightmaps(mod);
+		Mod_Batches_AllocLightmaps(mod);
 
 	if (!build)
 	{
-		build = RModQ1_Batches_BuildQ1Q2Poly;
+		build = ModQ1_Batches_BuildQ1Q2Poly;
 		mod->lightmaps.surfstyles = 1;
 	}
-	RMod_Batches_BuildModelMeshes(mod, numverts, numindicies, build, buildcookie);
+	Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, build, buildcookie);
 
 	if (BE_GenBrushModelVBO)
 		BE_GenBrushModelVBO(mod);
@@ -2916,15 +2951,15 @@ void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *m
 Mod_SetParent
 =================
 */
-void RMod_SetParent (mnode_t *node, mnode_t *parent)
+void Mod_SetParent (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
 		return;
 	node->parent = parent;
 	if (node->contents < 0)
 		return;
-	RMod_SetParent (node->children[0], node);
-	RMod_SetParent (node->children[1], node);
+	Mod_SetParent (node->children[0], node);
+	Mod_SetParent (node->children[1], node);
 }
 
 /*
@@ -2932,7 +2967,7 @@ void RMod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadNodes
 =================
 */
-qboolean RMod_LoadNodes (lump_t *l, int lm)
+qboolean Mod_LoadNodes (lump_t *l, int lm)
 {
 	int			i, j, count, p;
 	mnode_t 	*out;
@@ -2947,7 +2982,7 @@ qboolean RMod_LoadNodes (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->nodes = out;
 		loadmodel->numnodes = count;
@@ -2986,7 +3021,7 @@ qboolean RMod_LoadNodes (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->nodes = out;
 		loadmodel->numnodes = count;
@@ -3025,7 +3060,7 @@ qboolean RMod_LoadNodes (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->nodes = out;
 		loadmodel->numnodes = count;
@@ -3055,7 +3090,7 @@ qboolean RMod_LoadNodes (lump_t *l, int lm)
 		}
 	}
 	
-	RMod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
+	Mod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
 	return true;
 }
 
@@ -3064,7 +3099,7 @@ qboolean RMod_LoadNodes (lump_t *l, int lm)
 Mod_LoadLeafs
 =================
 */
-qboolean RMod_LoadLeafs (lump_t *l, int lm)
+qboolean Mod_LoadLeafs (lump_t *l, int lm)
 {
 	mleaf_t 	*out;
 	int			i, j, count, p;
@@ -3079,7 +3114,7 @@ qboolean RMod_LoadLeafs (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
@@ -3136,7 +3171,7 @@ qboolean RMod_LoadLeafs (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
@@ -3193,7 +3228,7 @@ qboolean RMod_LoadLeafs (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
@@ -3254,7 +3289,7 @@ void *suplementryclipnodes;
 void *suplementryplanes;
 void *crouchhullfile;
 
-void RMod_LoadCrouchHull(void)
+void Mod_LoadCrouchHull(void)
 {
 	int i, h;
 	int numsm;
@@ -3325,7 +3360,7 @@ void RMod_LoadCrouchHull(void)
 Mod_LoadClipnodes
 =================
 */
-qboolean RMod_LoadClipnodes (lump_t *l, qboolean lm)
+qboolean Mod_LoadClipnodes (lump_t *l, qboolean lm)
 {
 	dsclipnode_t *ins;
 	dlclipnode_t *inl;
@@ -3355,7 +3390,7 @@ qboolean RMod_LoadClipnodes (lump_t *l, qboolean lm)
 		}
 		count = l->filelen / sizeof(*ins);
 	}
-	out = Hunk_AllocName ( (count+numsuplementryclipnodes)*sizeof(*out), loadname);//space for both
+	out = ZG_Malloc(&loadmodel->memgroup, (count+numsuplementryclipnodes)*sizeof(*out));//space for both
 
 	loadmodel->clipnodes = out;
 	loadmodel->numclipnodes = count+numsuplementryclipnodes;
@@ -3574,7 +3609,7 @@ Mod_MakeHull0
 Deplicate the drawing hull structure as a clipping hull
 =================
 */
-void RMod_MakeHull0 (void)
+void Mod_MakeHull0 (void)
 {
 	mnode_t		*in, *child;
 	mclipnode_t *out;
@@ -3585,7 +3620,7 @@ void RMod_MakeHull0 (void)
 
 	in = loadmodel->nodes;
 	count = loadmodel->numnodes;
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	hull->clipnodes = out;
 	hull->firstclipnode = 0;
@@ -3611,7 +3646,7 @@ void RMod_MakeHull0 (void)
 Mod_LoadMarksurfaces
 =================
 */
-qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm)
+qboolean Mod_LoadMarksurfaces (lump_t *l, qboolean lm)
 {	
 	int		i, j, count;
 	msurface_t **out;
@@ -3626,7 +3661,7 @@ qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*inl);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->marksurfaces = out;
 		loadmodel->nummarksurfaces = count;
@@ -3652,7 +3687,7 @@ qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*ins);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->marksurfaces = out;
 		loadmodel->nummarksurfaces = count;
@@ -3677,7 +3712,7 @@ qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm)
 Mod_LoadSurfedges
 =================
 */
-qboolean RMod_LoadSurfedges (lump_t *l)
+qboolean Mod_LoadSurfedges (lump_t *l)
 {	
 	int		i, count;
 	int		*in, *out;
@@ -3689,7 +3724,7 @@ qboolean RMod_LoadSurfedges (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->surfedges = out;
 	loadmodel->numsurfedges = count;
@@ -3706,7 +3741,7 @@ qboolean RMod_LoadSurfedges (lump_t *l)
 Mod_LoadPlanes
 =================
 */
-qboolean RMod_LoadPlanes (lump_t *l)
+qboolean Mod_LoadPlanes (lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -3721,7 +3756,7 @@ qboolean RMod_LoadPlanes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( (count+numsuplementryplanes)*2*sizeof(*out), loadname);	
+	out = ZG_Malloc(&loadmodel->memgroup, (count+numsuplementryplanes)*2*sizeof(*out));
 	
 	loadmodel->planes = out;
 	loadmodel->numplanes = count+numsuplementryplanes;
@@ -3823,15 +3858,15 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 	Q1BSP_StainNode (node->children[1], parms);
 }
 
-void RMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
+void Mod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
 		return;
 
 	if (node->contents >= 0)
 	{
-		RMod_FixupNodeMinsMaxs (node->children[0], node);
-		RMod_FixupNodeMinsMaxs (node->children[1], node);
+		Mod_FixupNodeMinsMaxs (node->children[0], node);
+		Mod_FixupNodeMinsMaxs (node->children[1], node);
 	}
 
 	if (parent)
@@ -3852,7 +3887,7 @@ void RMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 	}
 
 }
-void RMod_FixupMinsMaxs(void)
+void Mod_FixupMinsMaxs(void)
 {
 	//q1 bsps are capped to +/- 32767 by the nodes/leafs
 	//verts arn't though
@@ -3935,7 +3970,7 @@ void RMod_FixupMinsMaxs(void)
 			} while (--c);
 		}
 	}
-	RMod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
+	Mod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
 }
 
 /*
@@ -3943,14 +3978,13 @@ void RMod_FixupMinsMaxs(void)
 Mod_LoadBrushModel
 =================
 */
-qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 {
 	int			i, j;
 	dheader_t	*header;
 	mmodel_t 	*bm;
 	model_t *lm=mod;
 	unsigned int chksum;
-	int start;
 	qboolean noerrors;
 	int longm = false;
 	mesh_t *meshlist = NULL;
@@ -3959,8 +3993,6 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 #else
 #define ode true
 #endif
-	
-	start = Hunk_LowMark();
 
 	loadmodel->type = mod_brush;
 	
@@ -4066,57 +4098,57 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (!isDedicated || ode)
 	{
 		TRACE(("Loading verts\n"));
-		noerrors = noerrors && RMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
+		noerrors = noerrors && Mod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
 		TRACE(("Loading edges\n"));
-		noerrors = noerrors && RMod_LoadEdges (&header->lumps[LUMP_EDGES], longm);
+		noerrors = noerrors && Mod_LoadEdges (&header->lumps[LUMP_EDGES], longm);
 		TRACE(("Loading Surfedges\n"));
-		noerrors = noerrors && RMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
+		noerrors = noerrors && Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 	}
 	if (!isDedicated)
 	{
 		TRACE(("Loading Textures\n"));
-		noerrors = noerrors && RMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
+		noerrors = noerrors && Mod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
 		TRACE(("Loading Lighting\n"));
 		if (noerrors)
-			RMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
+			Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
 	}
 	TRACE(("Loading Submodels\n"));
-	noerrors = noerrors && RMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
+	noerrors = noerrors && Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 	if (noerrors)
 	{
 		TRACE(("Loading CH\n"));
-		RMod_LoadCrouchHull();
+		Mod_LoadCrouchHull();
 	}
 	TRACE(("Loading Planes\n"));
-	noerrors = noerrors && RMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
+	noerrors = noerrors && Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 	if (!isDedicated || ode)
 	{
 		TRACE(("Loading Texinfo\n"));
-		noerrors = noerrors && RMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
+		noerrors = noerrors && Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
 		TRACE(("Loading Faces\n"));
-		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES], longm, &meshlist);
+		noerrors = noerrors && Mod_LoadFaces (&header->lumps[LUMP_FACES], longm, &meshlist);
 	}
 	if (!isDedicated)
 	{
 		TRACE(("Loading MarkSurfaces\n"));
-		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], longm);	
+		noerrors = noerrors && Mod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], longm);	
 	}
 	if (noerrors)
 	{
 		TRACE(("Loading Vis\n"));
-		RMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
+		Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	}
-	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm);
+	noerrors = noerrors && Mod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm);
 	TRACE(("Loading Nodes\n"));
-	noerrors = noerrors && RMod_LoadNodes (&header->lumps[LUMP_NODES], longm);
+	noerrors = noerrors && Mod_LoadNodes (&header->lumps[LUMP_NODES], longm);
 	TRACE(("Loading Clipnodes\n"));
-	noerrors = noerrors && RMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES], longm);
+	noerrors = noerrors && Mod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES], longm);
 	if (noerrors)
 	{
 		TRACE(("Loading Entities\n"));
-		RMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
+		Mod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
 		TRACE(("Loading hull 0\n"));
-		RMod_MakeHull0 ();
+		Mod_MakeHull0 ();
 	}
 
 	TRACE(("sorting shaders\n"));
@@ -4131,7 +4163,6 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	if (!noerrors)
 	{
-		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
@@ -4187,7 +4218,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 		if (meshlist)
 		{
-			RMod_Batches_Build(meshlist, mod, NULL, NULL);
+			Mod_Batches_Build(meshlist, mod, NULL, NULL);
 		}
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 
@@ -4200,6 +4231,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			*loadmodel = *mod;
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
+			memset(&mod->memgroup, 0, sizeof(mod->memgroup));
 		}
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 	}
@@ -4210,7 +4242,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 #endif
 TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (1)
-		RMod_FixupMinsMaxs();
+		Mod_FixupMinsMaxs();
 TRACE(("LoadBrushModel %i\n", __LINE__));
 
 #ifdef TERRAIN
@@ -4227,103 +4259,14 @@ ALIAS MODELS
 ==============================================================================
 */
 
-//aliashdr_t	*pheader;
-
-//mstvert_t	stverts[MAXALIASVERTS*2];
-//mtriangle_t	triangles[MAXALIASTRIS];
-
-// a pose is a single set of vertexes.  a frame may be
-// an animating sequence of poses
-//dtrivertx_t	*poseverts[MAXALIASFRAMES];
-//int			posenum;
-
-qbyte		*player_8bit_texels/*[320*200]*/;
-
-
 //=========================================================
-
-/*
-=================
-Mod_FloodFillSkin
-
-Fill background pixels so mipmapping doesn't have haloes - Ed
-=================
-*/
-
-typedef struct
-{
-	short		x, y;
-} floodfill_t;
-
-// must be a power of 2
-#define FLOODFILL_FIFO_SIZE 0x1000
-#define FLOODFILL_FIFO_MASK (FLOODFILL_FIFO_SIZE - 1)
-
-#define FLOODFILL_STEP( off, dx, dy ) \
-{ \
-	if (pos[off] == fillcolor) \
-	{ \
-		pos[off] = 255; \
-		fifo[inpt].x = x + (dx), fifo[inpt].y = y + (dy); \
-		inpt = (inpt + 1) & FLOODFILL_FIFO_MASK; \
-	} \
-	else if (pos[off] != 255) fdc = pos[off]; \
-}
-
-void RMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
-{
-	qbyte				fillcolor = *skin; // assume this is the pixel to fill
-	floodfill_t			fifo[FLOODFILL_FIFO_SIZE];
-	int					inpt = 0, outpt = 0;
-	int					filledcolor = -1;
-	int					i;
-
-	if (filledcolor == -1)
-	{
-		filledcolor = 0;
-		// attempt to find opaque black
-		for (i = 0; i < 256; ++i)
-			if (d_8to24rgbtable[i] == (255 << 0)) // rgb 0.0, alpha 1.0
-			{
-				filledcolor = i;
-				break;
-			}
-	}
-
-	// can't fill to filled color or to transparent color (used as visited marker)
-	if ((fillcolor == filledcolor) || (fillcolor == 255))
-	{
-		//printf( "not filling skin from %d to %d\n", fillcolor, filledcolor );
-		return;
-	}
-
-	fifo[inpt].x = 0, fifo[inpt].y = 0;
-	inpt = (inpt + 1) & FLOODFILL_FIFO_MASK;
-
-	while (outpt != inpt)
-	{
-		int			x = fifo[outpt].x, y = fifo[outpt].y;
-		int			fdc = filledcolor;
-		qbyte		*pos = &skin[x + skinwidth * y];
-
-		outpt = (outpt + 1) & FLOODFILL_FIFO_MASK;
-
-		if (x > 0)				FLOODFILL_STEP( -1, -1, 0 );
-		if (x < skinwidth - 1)	FLOODFILL_STEP( 1, 1, 0 );
-		if (y > 0)				FLOODFILL_STEP( -skinwidth, 0, -1 );
-		if (y < skinheight - 1)	FLOODFILL_STEP( skinwidth, 0, 1 );
-		skin[x + skinwidth * y] = fdc;
-	}
-}
-
-//=============================================================================
 
 /*
 =================
 Mod_LoadSpriteFrame
 =================
 */
-void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
+static void * Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
 {
 	dspriteframe_t		*pinframe;
 	mspriteframe_t		*pspriteframe;
@@ -4337,7 +4280,7 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	height = LittleLong (pinframe->height);
 	size = width * height;
 
-	pspriteframe = Hunk_AllocName (sizeof (mspriteframe_t),loadname);
+	pspriteframe = ZG_Malloc(&loadmodel->memgroup, sizeof (mspriteframe_t));
 
 	Q_memset (pspriteframe, 0, sizeof (mspriteframe_t));
 
@@ -4420,7 +4363,7 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 Mod_LoadSpriteGroup
 =================
 */
-void * RMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
+static void * Mod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
 {
 	dspritegroup_t		*pingroup;
 	mspritegroup_t		*pspritegroup;
@@ -4433,8 +4376,7 @@ void * RMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum,
 
 	numframes = LittleLong (pingroup->numframes);
 
-	pspritegroup = Hunk_AllocName (sizeof (mspritegroup_t) +
-				(numframes - 1) * sizeof (pspritegroup->frames[0]), loadname);
+	pspritegroup = ZG_Malloc(&loadmodel->memgroup, sizeof (mspritegroup_t) + (numframes - 1) * sizeof (pspritegroup->frames[0]));
 
 	pspritegroup->numframes = numframes;
 
@@ -4442,7 +4384,7 @@ void * RMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum,
 
 	pin_intervals = (dspriteinterval_t *)(pingroup + 1);
 
-	poutintervals = Hunk_AllocName (numframes * sizeof (float), loadname);
+	poutintervals = ZG_Malloc(&loadmodel->memgroup, numframes * sizeof (float));
 
 	pspritegroup->intervals = poutintervals;
 
@@ -4463,7 +4405,7 @@ void * RMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum,
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		ptemp = RMod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i, version, palette);
+		ptemp = Mod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i, version, palette);
 	}
 
 	return ptemp;
@@ -4474,7 +4416,7 @@ void * RMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum,
 Mod_LoadSpriteModel
 =================
 */
-qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
+qboolean Mod_LoadSpriteModel (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -4486,9 +4428,7 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 //	int rendertype=0;
 	unsigned char pal[256*4];
 	int sptype;
-	int hunkstart;
 	
-	hunkstart = Hunk_LowMark();
 	pin = (dsprite_t *)buffer;
 
 	version = LittleLong (pin->version);
@@ -4513,9 +4453,9 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 
 	size = sizeof (msprite_t) +	(numframes - 1) * sizeof (psprite->frames);
 
-	psprite = Hunk_AllocName (size, loadname);
+	psprite = ZG_Malloc(&loadmodel->memgroup, size);
 
-	mod->cache.data = psprite;
+	mod->meshinfo = psprite;
 	psprite->type = sptype;
 
 	psprite->maxwidth = LittleLong (pin->width);
@@ -4542,7 +4482,6 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 		if (LittleShort(*numi) != 256)
 		{
 			Con_Printf(CON_ERROR "%s has wrong number of palette indexes (we only support 256)\n", mod->name);
-			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 
@@ -4565,7 +4504,6 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 	if (numframes < 1)
 	{
 		Con_Printf (CON_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 
@@ -4581,18 +4519,17 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 		if (frametype == SPR_SINGLE)
 		{
 			pframetype = (dspriteframetype_t *)
-					RMod_LoadSpriteFrame (pframetype + 1,
+					Mod_LoadSpriteFrame (pframetype + 1,
 										 &psprite->frames[i].frameptr, i, version, pal);
 		}
 		else
 		{
 			pframetype = (dspriteframetype_t *)
-					RMod_LoadSpriteGroup (pframetype + 1,
+					Mod_LoadSpriteGroup (pframetype + 1,
 										 &psprite->frames[i].frameptr, i, version, pal);
 		}
 		if (pframetype == NULL)
 		{
-			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 	}
@@ -4602,7 +4539,8 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 	return true;
 }
 
-qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
+#ifdef SP2MODELS
+qboolean Mod_LoadSprite2Model (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -4614,9 +4552,6 @@ qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 	mspriteframe_t		*frame;
 	int w, h;
 	float origin[2];
-	int hunkstart;
-
-	hunkstart = Hunk_LowMark();
 	
 	pin = (dmd2sprite_t *)buffer;
 
@@ -4632,9 +4567,9 @@ qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 	size = sizeof (msprite_t) +	(numframes - 1) * sizeof (psprite->frames);
 
-	psprite = Hunk_AllocName (size, loadname);
+	psprite = ZG_Malloc(&loadmodel->memgroup, size);
 
-	mod->cache.data = psprite;
+	mod->meshinfo = psprite;
 
 	psprite->type = SPR_VP_PARALLEL;
 	psprite->maxwidth = 1;
@@ -4654,7 +4589,6 @@ qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 	if (numframes < 1)
 	{
 		Con_Printf (CON_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
-		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 
@@ -4669,7 +4603,7 @@ qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 		frametype = SPR_SINGLE;
 		psprite->frames[i].type = frametype;
 
-		frame = psprite->frames[i].frameptr = Hunk_AllocName(sizeof(mspriteframe_t), loadname);
+		frame = psprite->frames[i].frameptr = ZG_Malloc(&loadmodel->memgroup, sizeof(mspriteframe_t));
 
 		frame->shader = R_RegisterPic(pframetype->name);
 
@@ -4690,7 +4624,7 @@ qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 	return true;
 }
-
+#endif
 
 #ifdef DOOMWADS
 
@@ -4729,7 +4663,7 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 	if (!anglenum)
 	{
 		pdesc->type = SPR_SINGLE;
-		pdesc->frameptr = pframe = Hunk_AllocName(sizeof(*pframe), loadname);
+		pdesc->frameptr = pframe = ZG_Malloc(&loadmodel->memgroup, sizeof(*pframe));
 	}
 	else
 	{
@@ -4738,14 +4672,14 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 		if (!pdesc->frameptr || pdesc->type != SPR_ANGLED)
 		{
 			pdesc->type = SPR_ANGLED;
-			group = Hunk_AllocName(sizeof(*group)+sizeof(mspriteframe_t *)*(8-1), loadname);
+			group = ZG_Malloc(&loadmodel->memgroup, sizeof(*group)+sizeof(mspriteframe_t *)*(8-1));
 			pdesc->frameptr = (mspriteframe_t *)group;
 			group->numframes = 8;
 		}
 		else
 			group = (mspritegroup_t *)pdesc->frameptr;
 
-		pframe = Hunk_AllocName(sizeof(*pframe), loadname);
+		pframe = ZG_Malloc(&loadmodel->memgroup, sizeof(*pframe));
 		group->frames[anglenum-1] = pframe;
 	}
 
@@ -4811,7 +4745,7 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 Doom Sprites
 =================
 */
-void RMod_LoadDoomSprite (model_t *mod)
+void Mod_LoadDoomSprite (model_t *mod)
 {
 	char files[16384];
 	char basename[MAX_QPATH];
@@ -4871,7 +4805,7 @@ void RMod_LoadDoomSprite (model_t *mod)
 		Host_Error("Doom sprite componant has no frames");
 
 	size = sizeof (msprite_t) +	(elements - 1) * sizeof (psprite->frames);
-	psprite = Hunk_AllocName (size, loadname);
+	psprite = ZG_Malloc(&loadmodel->memgroup, size);
 
 	psprite->numframes = numframes;
 
@@ -4897,7 +4831,7 @@ void RMod_LoadDoomSprite (model_t *mod)
 	psprite->type = SPR_FACING_UPRIGHT;
 	mod->type = mod_sprite;
 
-	mod->cache.data = psprite;
+	mod->meshinfo = psprite;
 }
 #endif
 
@@ -4908,7 +4842,7 @@ void RMod_LoadDoomSprite (model_t *mod)
 Mod_Print
 ================
 */
-void RMod_Print (void)
+void Mod_Print (void)
 {
 	int		i;
 	model_t	*mod;
@@ -4916,7 +4850,7 @@ void RMod_Print (void)
 	Con_Printf ("Cached models:\n");
 	for (i=0, mod=mod_known ; i < mod_numknown ; i++, mod++)
 	{
-		Con_Printf ("%8p : %s\n",mod->cache.data, mod->name);
+		Con_Printf ("%8p : %s\n", mod->meshinfo, mod->name);
 	}
 }
 

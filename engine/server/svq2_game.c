@@ -45,7 +45,11 @@ void *SVQ2_GetGameAPI (void *parms)
 
 	void *ret;
 
-	Con_DPrintf("Searching for %s\n", "game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
+#ifdef _DEBUG
+	Con_DPrintf("Searching for %s\n", gamename[1]);
+#else
+	Con_DPrintf("Searching for %s\n", gamename[0]);
+#endif
 
 	iterator = NULL;
 	while(COM_IteratePaths(&iterator, searchpath, sizeof(searchpath)))

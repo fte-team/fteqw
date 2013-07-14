@@ -6,6 +6,7 @@
 qboolean r2d_noshadergamma;	//says the video code has successfully activated hardware gamma
 texid_t missing_texture;
 texid_t missing_texture_gloss;
+texid_t missing_texture_normal;
 
 texid_t translate_texture;
 shader_t *translate_shader;
@@ -128,9 +129,11 @@ Image loading code must be ready for use at this point.
 */
 void R2D_Init(void)
 {
+	unsigned int nonorm[4*4];
 	unsigned int nogloss[4*4];
 	int i;
 	unsigned int glossval;
+	unsigned int normval;
 	extern cvar_t gl_specular_fallback;
 	conback = NULL;
 
@@ -156,10 +159,16 @@ void R2D_Init(void)
 	glossval *= 0x10101;
 	glossval |= 0xff000000;
 	glossval = LittleLong(glossval);
+	normval = 0xffff8080;
+	normval = LittleLong(normval);
 	for (i = 0; i < 4*4; i++)
+	{
 		nogloss[i] = glossval;
+		nonorm[i] = normval;
+	}
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 	missing_texture_gloss = R_LoadTexture("no_texture_gloss", 4, 4, TF_RGBA32, (unsigned char*)nogloss, IF_NOGAMMA);
+	missing_texture_normal = R_LoadTexture("no_texture_normal", 4, 4, TF_RGBA32, (unsigned char*)nonorm, IF_NOGAMMA);
 	translate_texture = r_nulltex;
 	ch_int_texture = r_nulltex;
 

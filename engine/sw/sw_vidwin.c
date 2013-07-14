@@ -697,12 +697,6 @@ void SW_VID_UpdateViewport(wqcom_t *com)
 	com->viewport.height = vid.pixelheight;
 	com->viewport.stride = screenpitch;
 	com->viewport.framenum = framenumber;
-
-/*	com->viewport.buf = pDIBBase;
-	com->viewport.width = vid.pixelwidth;
-	com->viewport.height = vid.pixelheight;
-	com->viewport.stride = vid.pixelwidth;
-	com->viewport.framenum = framenumber;*/
 }
 
 void SW_VID_SwapBuffers(void)
@@ -733,7 +727,33 @@ qboolean SW_VID_Init(rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = info->width;
 	vid.pixelheight = info->height;
 
-	VID_CreateWindow(vid.pixelwidth, vid.pixelheight, false);
+	if (info->fullscreen)	//don't do this with d3d - d3d should set it's own video mode.
+	{	//make windows change res.
+		DEVMODE gdevmode;
+		gdevmode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+		if (info->bpp)
+			gdevmode.dmFields |= DM_BITSPERPEL;
+		if (info->rate)
+			gdevmode.dmFields |= DM_DISPLAYFREQUENCY;
+		gdevmode.dmBitsPerPel = info->bpp;
+		if (info->bpp && (gdevmode.dmBitsPerPel < 15))
+		{
+			Con_Printf("Forcing at least 16bpp\n");
+			gdevmode.dmBitsPerPel = 16;
+		}
+		gdevmode.dmDisplayFrequency = info->rate;
+		gdevmode.dmPelsWidth = info->width;
+		gdevmode.dmPelsHeight = info->height;
+		gdevmode.dmSize = sizeof (gdevmode);
+
+		if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
+		{
+			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%i*%i\n":"Windows rejected mode %i*%i*%i\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
+			return false;
+		}
+	}
+
+	VID_CreateWindow(vid.pixelwidth, vid.pixelheight, info->fullscreen);
 
 	if (!DIB_Init())
 		return false;
@@ -744,6 +764,8 @@ void SW_VID_DeInit(void)
 {
 	DIB_Shutdown();
 	DestroyWindow(mainwindow);
+
+	ChangeDisplaySettings (NULL, 0);
 }
 qboolean SW_VID_ApplyGammaRamps		(unsigned short *ramps)
 {

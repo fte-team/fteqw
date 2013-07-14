@@ -1387,8 +1387,6 @@ qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relative
 	return result;
 }
 
-
-static cache_user_t *loadcache;
 static qbyte	*loadbuf;
 static int		loadsize;
 
@@ -1423,12 +1421,8 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 
 	if (usehunk == 0)
 		buf = (qbyte*)Z_Malloc (len+1);
-	else if (usehunk == 1)
-		buf = (qbyte*)Hunk_AllocName (len+1, base);
 	else if (usehunk == 2)
 		buf = (qbyte*)Hunk_TempAlloc (len+1);
-	else if (usehunk == 3)
-		buf = (qbyte*)Cache_Alloc (loadcache, len+1, base);
 	else if (usehunk == 4)
 	{
 		if (len+1 > loadsize)
@@ -1462,9 +1456,26 @@ qbyte *FS_LoadMallocFile (const char *path)
 	return COM_LoadFile (path, 5);
 }
 
-qbyte *COM_LoadHunkFile (const char *path)
+void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path)
 {
-	return COM_LoadFile (path, 1);
+	char *mem = NULL;
+	vfsfile_t *f = FS_OpenVFS(path, "rb", FS_GAME);
+	if (f)
+	{
+		int len = VFS_GETLEN(f);
+		mem = ZG_Malloc(ctx, len+1);
+		if (mem)
+		{
+			mem[len] = 0;
+			if (VFS_READ(f, mem, len) == len)
+				com_filesize = len;
+			else
+				mem = NULL;
+		}
+
+		VFS_CLOSE(f);
+	}
+	return mem;
 }
 
 qbyte *COM_LoadTempFile (const char *path)
@@ -1474,12 +1485,6 @@ qbyte *COM_LoadTempFile (const char *path)
 qbyte *COM_LoadTempMoreFile (const char *path)
 {
 	return COM_LoadFile (path, 6);
-}
-
-void COM_LoadCacheFile (const char *path, struct cache_user_s *cu)
-{
-	loadcache = cu;
-	COM_LoadFile (path, 3);
 }
 
 // uses temp hunk if larger than bufsize

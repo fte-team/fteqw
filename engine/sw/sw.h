@@ -4,11 +4,19 @@ typedef struct
 	texcom_t com;
 
 	char name[64];
-	int width;
-	int height;
+	int pwidth;
+	int pheight;
+	int pwidthmask;
+	int pheightmask;
 	int pitch;
 	unsigned int data[1];
 } swimage_t;
+
+typedef struct 
+{
+	float matrix[16];
+	vec4_t viewplane;
+} swuniforms_t;
 
 typedef struct
 {
@@ -27,6 +35,7 @@ typedef struct
 	unsigned int *vpcbuf;
 	unsigned int vpwidth;
 	unsigned int vpheight;
+	swuniforms_t u;
 	qintptr_t vpcstride;
 	struct workqueue_s *wq;
 } swthread_t;
@@ -64,7 +73,8 @@ enum wqcmd_e
 	WTC_VIEWPORT,
 	WTC_TRIFAN,
 	WTC_TRISOUP,
-	WTC_SPANS
+	WTC_SPANS,
+	WTC_UNIFORMS
 };
 
 enum
@@ -73,7 +83,8 @@ enum
 	CLIP_RIGHT_FLAG		= 2,
 	CLIP_TOP_FLAG		= 4,
 	CLIP_BOTTOM_FLAG	= 8,
-	CLIP_NEAR_FLAG		= 16
+	CLIP_NEAR_FLAG		= 16,
+	CLIP_FAR_FLAG		= 32
 };
 
 typedef union
@@ -105,6 +116,7 @@ typedef union
 	struct
 	{
 		struct wqcom_s com;
+
 		unsigned int *cbuf;
 		unsigned int *dbuf;
 		unsigned int width;
@@ -116,6 +128,11 @@ typedef union
 		qboolean cleardepth;
 		qboolean clearcolour;
 	} viewport;
+	struct
+	{
+		struct wqcom_s com;
+		swuniforms_t u;
+	} uniforms;
 	struct
 	{
 		int foo;

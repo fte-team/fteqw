@@ -1937,9 +1937,9 @@ void Surf_SetupFrame(void)
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
 		if (r_refdef.recurse)
-			leaf = RMod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
+			leaf = Mod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
 		else
-			leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
+			leaf = Mod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		r_viewcontents = leaf->contents & (FTECONTENTS_LAVA|FTECONTENTS_SLIME|FTECONTENTS_WATER);
@@ -1951,7 +1951,7 @@ void Surf_SetupFrame(void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -1962,7 +1962,7 @@ void Surf_SetupFrame(void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -1985,7 +1985,7 @@ void Surf_SetupFrame(void)
 			VectorCopy(r_origin, pvsorg);
 		}
 
-		r_viewleaf = RMod_PointInLeaf (cl.worldmodel, pvsorg);
+		r_viewleaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
 
 		if (!r_viewleaf)
 		{
@@ -1994,7 +1994,7 @@ void Surf_SetupFrame(void)
 		{	//look down a bit
 			VectorCopy (pvsorg, temp);
 			temp[2] -= 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
 				r_viewleaf2 = leaf;
 			else
@@ -2005,7 +2005,7 @@ void Surf_SetupFrame(void)
 
 			VectorCopy (pvsorg, temp);
 			temp[2] += 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents == Q1CONTENTS_EMPTY)
 				r_viewleaf2 = leaf;
 			else

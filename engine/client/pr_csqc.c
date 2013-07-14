@@ -3071,7 +3071,7 @@ static void QCBUILTIN PF_cl_te_explosion (pubprogfuncs_t *prinst, struct globalv
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 		P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-	R_AddStain(pos, -1, -1, -1, 100);
+	Surf_AddStain(pos, -1, -1, -1, 100);
 
 	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
 }
@@ -3139,7 +3139,7 @@ static void QCBUILTIN PF_cl_te_explosionquad (pubprogfuncs_t *prinst, struct glo
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-	R_AddStain(pos, -1, -1, -1, 100);
+	Surf_AddStain(pos, -1, -1, -1, 100);
 
 	// light
 	if (r_explosionlight.value) {
@@ -3251,7 +3251,7 @@ static void QCBUILTIN PF_cl_te_explosionrgb (pubprogfuncs_t *prinst, struct glob
 	if (P_RunParticleEffectType(org, NULL, 1, pt_explosion))
 		P_RunParticleEffect(org, NULL, 107, 1024); // should be 97-111
 
-	R_AddStain(org, -1, -1, -1, 100);
+	Surf_AddStain(org, -1, -1, -1, 100);
 
 	// light
 	if (r_explosionlight.value)
@@ -5647,7 +5647,7 @@ qboolean CSQC_DrawView(void)
 
 	DropPunchAngle (csqc_playerview);
 	if (cl.worldmodel)
-		R_LessenStains();
+		Surf_LessenStains();
 
 	if (!cl.paused)
 	{

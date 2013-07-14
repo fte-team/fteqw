@@ -229,8 +229,6 @@ typedef struct quakeparms_s
 	char	*binarydir;	//exe directory
 	int		argc;
 	const char	**argv;
-	void	*membase;
-	unsigned int		memsize;
 } quakeparms_t;
 
 

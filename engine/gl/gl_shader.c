@@ -5062,7 +5062,7 @@ void Shader_DoReload(void)
 
 	if (resort)
 	{
-		RMod_ResortShaders();
+		Mod_ResortShaders();
 	}
 }
 

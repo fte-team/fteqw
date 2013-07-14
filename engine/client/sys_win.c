@@ -780,12 +780,6 @@ void Sys_Init (void)
 
 void Sys_Shutdown(void)
 {
-	if (host_parms.membase)
-	{
-		VirtualFree(host_parms.membase, 0, MEM_RELEASE);
-		host_parms.membase = 0;
-	}
-
 	if (tevent)
 		CloseHandle (tevent);
 	tevent = NULL;
@@ -1415,45 +1409,6 @@ void SleepUntilInput (int time)
 
 qboolean Sys_Startup_CheckMem(quakeparms_t *parms)
 {
-	int t;
-	MEMORYSTATUS	lpBuffer;
-	lpBuffer.dwLength = sizeof(MEMORYSTATUS);
-	GlobalMemoryStatus (&lpBuffer);
-
-// take the greater of all the available memory or half the total memory,
-// but at least 8 Mb and no more than 16 Mb, unless they explicitly
-// request otherwise
-	parms->memsize = lpBuffer.dwAvailPhys;
-
-	if (parms->memsize < MINIMUM_WIN_MEMORY)
-		parms->memsize = MINIMUM_WIN_MEMORY;
-
-	if (parms->memsize < (lpBuffer.dwTotalPhys >> 1))
-		parms->memsize = lpBuffer.dwTotalPhys >> 1;
-
-	if (parms->memsize > MAXIMUM_WIN_MEMORY)
-		parms->memsize = MAXIMUM_WIN_MEMORY;
-
-	if (COM_CheckParm ("-heapsize"))
-	{
-		t = COM_CheckParm("-heapsize") + 1;
-
-		if (t < com_argc)
-			parms->memsize = Q_atoi (com_argv[t]) * 1024;
-	}
-	else if (COM_CheckParm ("-mem"))
-	{
-		t = COM_CheckParm("-mem") + 1;
-
-		if (t < com_argc)
-			parms->memsize = Q_atoi (com_argv[t]) * 1024*1024;
-	}
-
-	parms->membase = VirtualAlloc (NULL, parms->memsize, MEM_RESERVE, PAGE_NOACCESS);
-//	parms->membase = malloc (parms.memsize);
-
-	if (!parms->membase)
-		return false;
 	return true;
 }
 

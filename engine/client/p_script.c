@@ -2729,7 +2729,9 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int
 
 	skytris_t *st;
 
-	st = Hunk_Alloc(sizeof(skytris_t));
+	st = NULL;//Hunk_Alloc(sizeof(skytris_t));
+	if (!st)
+		return;
 	st->next = part_type[ptype].skytris;
 	VectorCopy(v1, st->org);
 	VectorSubtract(v2, st->org, st->x);
@@ -3138,7 +3140,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 		S_StartSound(0, 0, S_PrecacheSound(ptype->soundname), org, ptype->soundvol, ptype->soundattn, ptype->sounddelay, ptype->soundpitch);
 	}
 	if (ptype->stain_radius)
-		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
+		Surf_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
 }
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
@@ -5330,7 +5332,7 @@ static void PScript_DrawParticleTypes (void)
 				{
 					if (traces-->0&&tr(oldorg, p->org, stop, normal))
 					{
-						R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+						Surf_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[1]*-10),
 											30*p->rgba[3]*type->stainonimpact);
@@ -5554,7 +5556,7 @@ static void PScript_DrawParticleTypes (void)
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
 					if (type->stainonimpact && r_bloodstains.ival)
-						R_AddStain(stop,	p->rgba[1]*-10+p->rgba[2]*-10,
+						Surf_AddStain(stop,	p->rgba[1]*-10+p->rgba[2]*-10,
 											p->rgba[0]*-10+p->rgba[2]*-10,
 											p->rgba[0]*-10+p->rgba[1]*-10,
 											30*p->rgba[3]);
@@ -5595,12 +5597,12 @@ static void PScript_DrawParticleTypes (void)
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
 					if (type->stainonimpact < 0)
-						R_AddStain(stop,	(p->rgba[0]*-1),
+						Surf_AddStain(stop,	(p->rgba[0]*-1),
 											(p->rgba[1]*-1),
 											(p->rgba[2]*-1),
 											p->scale*-type->stainonimpact);
 					else
-						R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+						Surf_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[1]*-10),
 											30*p->rgba[3]*type->stainonimpact);

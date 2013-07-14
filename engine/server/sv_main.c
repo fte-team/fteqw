@@ -825,8 +825,10 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 
 	switch (cl->protocol)
 	{
+	default:
 	case SCP_BAD:
 		break;
+#ifdef Q2SERVER
 	case SCP_QUAKE2:
 		{
 			q2client_frame_t *frame;
@@ -846,6 +848,7 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 
 		}
 		return ping;
+#endif
 	case SCP_QUAKE3:
 		break;
 	case SCP_DARKPLACES6:
@@ -4928,17 +4931,12 @@ void SV_Init (quakeparms_t *parms)
 	{
 		COM_InitArgv (parms->argc, parms->argv);
 
-		if (COM_CheckParm ("-minmemory"))
-			parms->memsize = MINIMUM_MEMORY;
 
 		host_parms = *parms;
 
-//		if (parms->memsize < MINIMUM_MEMORY)
-//			SV_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
-
 		Cvar_Init();
 
-		Memory_Init (parms->membase, parms->memsize);
+		Memory_Init();
 
 		Sys_Init();
 
@@ -5001,21 +4999,16 @@ void SV_Init (quakeparms_t *parms)
 		Plug_Initialise(true);
 #endif
 
-		Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
-		host_hunklevel = Hunk_LowMark ();
-
 		host_initialized = true;
 
 
 		FS_ChangeGame(NULL, true);
-
 
 		Cmd_StuffCmds();
 		Cbuf_Execute ();
 
 
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
-		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
 		Con_Printf ("%s\n", version_string());
 

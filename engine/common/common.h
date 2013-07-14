@@ -433,9 +433,8 @@ void FS_PureMode(int mode, char *packagelist, char *crclist, int seed);	//implie
 qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
 qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more without freeing old temp
-qbyte *COM_LoadHunkFile (const char *path);
+//qbyte *COM_LoadHunkFile (const char *path);
 qbyte *COM_LoadMallocFile (const char *path);
-void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
 
 searchpathfuncs_t *COM_IteratePaths (void **iterator, char *buffer, int buffersize);
 void COM_FlushFSCache(void);	//a file was written using fopen
@@ -472,6 +471,8 @@ void COM_Gamedir (const char *dir);
 char *FS_GetGamedir(void);
 char *FS_GetBasedir(void);
 
+struct zonegroup_s;
+void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path);
 qbyte *FS_LoadMallocFile (const char *path);
 int FS_LoadFile(char *name, void **file);
 void FS_FreeFile(void *file);

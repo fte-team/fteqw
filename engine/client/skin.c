@@ -228,7 +228,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	TEXASSIGN(skin->textures.loweroverlay, r_nulltex);
 	TEXASSIGN(skin->textures.upperoverlay, r_nulltex);
 
-	out = Cache_Check (&skin->cache);
+	out = skin->skindata;
 	if (out)
 		return out;
 
@@ -257,7 +257,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		skin->width = 320;
 		skin->height = 200;
 
-		out = Cache_Alloc (&skin->cache, 320*200, skin->name);
+		skin->skindata = out = BZ_Malloc(320*200);
 
 		memset (out, bv, 320*200);
 
@@ -368,7 +368,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	skin->width = srcw;
 	skin->height = srch;
 
-	out = Cache_Alloc (&skin->cache, skin->width*skin->height, skin->name);
+	skin->skindata = out = BZ_Malloc(skin->width*skin->height);
 	if (!out)
 		Sys_Error ("Skin_Cache: couldn't allocate");
 
@@ -382,7 +382,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		{
 			if (raw - (qbyte*)pcx > com_filesize) 
 			{
-				Cache_Free (&skin->cache);
+				BZ_Free(skin->skindata);
+				skin->skindata = NULL;
 				skin->failedload = true;
 				Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
 				return NULL;
@@ -394,7 +395,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 				runLength = dataByte & 0x3F;
 				if (raw - (qbyte*)pcx > com_filesize) 
 				{
-					Cache_Free (&skin->cache);
+					BZ_Free(skin->skindata);
+					skin->skindata = NULL;
 					skin->failedload = true;
 					Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
 					return NULL;
@@ -406,7 +408,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 
 			// skin sanity check
 			if (runLength + x > pcx->xmax + 2) {
-				Cache_Free (&skin->cache);
+				BZ_Free(skin->skindata);
+				skin->skindata = NULL;
 				skin->failedload = true;
 				Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
 				return NULL;
@@ -431,7 +434,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 
 	if ( raw - (qbyte *)pcx > com_filesize)
 	{
-		Cache_Free (&skin->cache);
+		BZ_Free(skin->skindata);
+		skin->skindata = NULL;
 		skin->failedload = true;
 		Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
 		return NULL;
@@ -456,7 +460,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	if (skin->failedload)
 		return NULL;
 
-	out = Cache_Check (&skin->cache);
+	out = skin->skindata;
 	if (out)
 		return out;
 
@@ -475,7 +479,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		pix = ReadTargaFile(raw, com_filesize, &skin->width, &skin->height, &hasalpha, false);
 		if (pix)
 		{
-			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
+			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
 			return out;
@@ -488,7 +492,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		pix = ReadPCXFile(raw, com_filesize, &skin->width, &skin->height);
 		if (pix)
 		{
-			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
+			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
 			return out;
@@ -502,7 +506,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		pix = ReadPNGFile(raw, com_filesize, &skin->width, &skin->height, name);
 		if (pix)
 		{
-			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
+			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
 			return out;
@@ -517,7 +521,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		pix = ReadJPEGFile(raw, com_filesize, &skin->width, &skin->height);
 		if (pix)
 		{
-			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
+			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
 			return out;
@@ -530,7 +534,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		pix = ReadJPEGFile(raw, com_filesize, &skin->width, &skin->height);
 		if (pix)
 		{
-			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
+			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
 			memcpy(out, pix, skin->width*skin->height*4);
 			BZ_Free(pix);
 			return out;
@@ -629,8 +633,8 @@ void Skin_FlushAll(void)
 	int i;
 	for (i=0 ; i<numskins ; i++)
 	{
-		if (skins[i].cache.data)
-			Cache_Free (&skins[i].cache);
+		if (skins[i].skindata)
+			BZ_Free(skins[i].skindata);
 	}
 	numskins = 0;
 
@@ -657,8 +661,8 @@ void	Skin_Skins_f (void)
 	GL_GAliasFlushSkinCache();
 	for (i=0 ; i<numskins ; i++)
 	{
-		if (skins[i].cache.data)
-			Cache_Free (&skins[i].cache);
+		if (skins[i].skindata)
+			BZ_Free(skins[i].skindata);
 	}
 	numskins = 0;
 
@@ -670,7 +674,6 @@ void	Skin_Skins_f (void)
 		SCR_SetLoadingStage(LS_NONE);
 
 		CL_SendClientCommand(true, "begin %i", cl.servercount);
-		Cache_Report ();		// print remaining memory
 	}
 }
 

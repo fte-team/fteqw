@@ -292,7 +292,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			}
 			else
 			{
-				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
+				skins = inf->ofsskins;
 				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 					skins += e->skinnum;
 
@@ -308,7 +308,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					subframe = cl.time*skins->skinspeed;
 					subframe = subframe%skins->numshaders;
 
-					shader = *(shader_t**)((char *)skins + skins->ofsshaders + subframe*sizeof(shader_t*));
+					shader = skins->ofsshaders[subframe];
 				}
 			}
 
@@ -413,9 +413,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{
 				if (skins->ofstexels)
 				{
-					int *offsets;
-					offsets = (int*)((qbyte *)skins + skins->ofstexels);
-					original = (qbyte*)offsets + offsets[subframe];
+					original = skins->ofstexels[subframe];
 					inwidth = skins->skinwidth;
 					inheight = skins->skinheight;
 				}
@@ -601,7 +599,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	if (!inf->numskins)
 		return NULL;
 
-	skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
+	skins = inf->ofsskins;
 	if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 		skins += e->skinnum;
 	else
@@ -616,7 +614,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	frame = cl.time*skins->skinspeed;
 	frame = frame%skins->numshaders;
-	return *(shader_t**)((char *)skins + skins->ofsshaders + frame*sizeof(shader_t*));
+	return skins->ofsshaders[frame];
 }
 
 #if defined(RTLIGHTS)
@@ -960,11 +958,11 @@ void R_GAlias_DrawBatch(batch_t *batch)
 	currententity = e;
 	/*nolightdir =*/ R_CalcModelLighting(e, clmodel);
 
-	inf = RMod_Extradata (clmodel);
+	inf = Mod_Extradata (clmodel);
 	if (inf)
 	{
 		memset(&mesh, 0, sizeof(mesh));
-		for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
+		for(surfnum=0; inf; inf=inf->nextsurf, surfnum++)
 		{
 			if (batch->surf_first == surfnum)
 			{
@@ -1027,9 +1025,9 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			return;
 	}
 
-	inf = RMod_Extradata (clmodel);
+	inf = Mod_Extradata (clmodel);
 
-	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
+	for(surfnum=0; inf; inf=inf->nextsurf, surfnum++)
 	{
 		regshader = GL_ChooseSkin(inf, clmodel, surfnum, e, &skin);
 		if (!regshader)
@@ -1382,7 +1380,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 
 	BE_SelectEntity(e);
 
-	inf = RMod_Extradata (clmodel);
+	inf = Mod_Extradata (clmodel);
 	while(inf)
 	{
 		if (inf->ofs_trineighbours)
@@ -1393,10 +1391,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 			R_DrawShadowVolume(&mesh);
 		}
 
-		if (inf->nextsurf)
-			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
-		else
-			inf = NULL;
+		inf = inf->nextsurf;
 
 		surfnum++;
 	}
@@ -1736,7 +1731,7 @@ static void R_DB_Sprite(batch_t *batch)
 		// don't even bother culling, because it's just a single
 		// polygon without a surface cache
 		frame = R_GetSpriteFrame (e);
-		psprite = e->model->cache.data;
+		psprite = e->model->meshinfo;
 		sprtype = psprite->type;
 	}
 	if (!frame->shader)

@@ -809,7 +809,7 @@ void Q1BSP_LoadBrushes(model_t *model)
 		if (permodel->modelnum)
 			rootnode += model->submodels[permodel->modelnum-1].headnode[0];
 
-		brush = Hunk_Alloc((sizeof(*brush) - sizeof(brush->planes[0]))*permodel->numbrushes + sizeof(brush->planes[0])*(permodel->numbrushes*6+permodel->numplanes));
+		brush = ZG_Malloc(&model->memgroup, (sizeof(*brush) - sizeof(brush->planes[0]))*permodel->numbrushes + sizeof(brush->planes[0])*(permodel->numbrushes*6+permodel->numplanes));
 		remainingplanes = permodel->numplanes;
 		perbrush = (void*)(permodel+1);
 		for (br = 0; br < permodel->numbrushes; br++)

@@ -1609,7 +1609,13 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		}
 
 		//pointless extensions that are redundant with mvds
-		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;
+		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP;
+#ifdef PEXT_Q2BSP
+		demo.recorder.fteprotocolextensions &= ~PEXT_Q2BSP;
+#endif
+#ifdef PEXT_Q3BSP
+		demo.recorder.fteprotocolextensions &= ~PEXT_Q3BSP;
+#endif
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);

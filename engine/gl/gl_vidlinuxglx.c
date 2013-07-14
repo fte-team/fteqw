@@ -1877,23 +1877,6 @@ rendererinfo_t eglrendererinfo =
 	Surf_AddStain,
 	Surf_LessenStains,
 
-	RMod_Init,
-	RMod_Shutdown,
-	RMod_ClearAll,
-	RMod_ForName,
-	RMod_FindName,
-	RMod_Extradata,
-	RMod_TouchModel,
-
-	RMod_NowLoadExternal,
-	RMod_Think,
-
-	Mod_GetTag,
-	Mod_TagNumForName,
-	Mod_SkinNumForName,
-	Mod_FrameNumForName,
-	Mod_FrameDuration,
-
 	EGLVID_Init,
 	GLVID_DeInit,
 	GLVID_SetPalette,

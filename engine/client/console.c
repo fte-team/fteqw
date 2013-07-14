@@ -877,7 +877,10 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	if (!developer.value)
 		Con_Log(msg);
 	else
+	{
+		Sys_Printf ("%s", msg);	// also echo to debugging console
 		Con_PrintCon(&con_main, msg);
+	}
 }
 
 /*description text at the bottom of the console*/

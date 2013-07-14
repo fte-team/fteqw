@@ -31,11 +31,11 @@
 extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
-qboolean RMod_LoadVertexes (lump_t *l);
-qboolean RMod_LoadEdges (lump_t *l, qboolean lm);
-qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm);
-qboolean RMod_LoadSurfedges (lump_t *l);
-void RMod_LoadLighting (lump_t *l);
+qboolean Mod_LoadVertexes (lump_t *l);
+qboolean Mod_LoadEdges (lump_t *l, qboolean lm);
+qboolean Mod_LoadMarksurfaces (lump_t *l, qboolean lm);
+qboolean Mod_LoadSurfedges (lump_t *l);
+void Mod_LoadLighting (lump_t *l);
 
 
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
@@ -47,7 +47,7 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 
 extern char	loadname[32];
 extern model_t	*loadmodel;
-void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie);
+void Mod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie);
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 {
 	int		i;
@@ -873,7 +873,7 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 	{
 		qbyte *data;
 
-		data = Hunk_AllocName( patch->numfacets * sizeof( q2cbrush_t ) + totalsides * ( sizeof( q2cbrushside_t ) + sizeof( mplane_t ) ), "patch");
+		data = ZG_Malloc(&loadmodel->memgroup, patch->numfacets * sizeof( q2cbrush_t ) + totalsides * ( sizeof( q2cbrushside_t ) + sizeof( mplane_t ) ));
 
 		patch->facets = ( q2cbrush_t * )data; data += patch->numfacets * sizeof( q2cbrush_t );
 		memcpy( patch->facets, facets, patch->numfacets * sizeof( q2cbrush_t ) );
@@ -1102,7 +1102,7 @@ qboolean CMod_LoadSurfaces (lump_t *l)
 //		Host_Error ("Map has too many surfaces");
 
 	numtexinfo = count;
-	out = map_surfaces = Hunk_AllocName(count * sizeof(*map_surfaces), "surfaces");
+	out = map_surfaces = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_surfaces));
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1154,7 +1154,7 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 	wal->contents = LittleLong(wal->contents);
 	wal->value = LittleLong(wal->value);
 
-	tex = Hunk_AllocName(sizeof(texture_t), ln);
+	tex = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 
 	tex->offsets[0] = wal->offsets[0];
 	tex->width = wal->width;
@@ -1210,9 +1210,9 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
-	loadmodel->textures = Hunk_AllocName(sizeof(texture_t *)*count, loadname);
+	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t *)*count);
 	texcount = 0;
 
 	loadmodel->texinfo = out;
@@ -1266,7 +1266,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 			out->texture = Mod_LoadWall (name, sname);
 			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
-				out->texture = Hunk_AllocName(sizeof(texture_t) + 16*16+8*8+4*4+2*2, in->texture);
+				out->texture = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
 				Con_Printf (CON_WARNING "Couldn't load %s\n", name);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
@@ -1354,7 +1354,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( (count+6)*sizeof(*out), loadname);	//spare for skybox
+	out = ZG_Malloc(&loadmodel->memgroup, (count+6)*sizeof(*out));	//spare for skybox
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -1462,7 +1462,7 @@ qboolean CMod_LoadNodes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_AllocName(sizeof(mnode_t)*count, "nodes");
+	out = ZG_Malloc(&loadmodel->memgroup, sizeof(mnode_t)*count);
 
 	loadmodel->nodes = out;
 	loadmodel->numnodes = count;
@@ -1525,7 +1525,7 @@ qboolean CMod_LoadBrushes (lump_t *l)
 		return false;
 	}
 
-	map_brushes = Hunk_AllocName(sizeof(*out) * (count+1), "brushes");
+	map_brushes = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
 
 	out = map_brushes;
 
@@ -1871,7 +1871,7 @@ qboolean CMod_LoadVisibility (lump_t *l)
 //		return false;
 //	}
 
-	map_q2vis = Hunk_AllocName(l->filelen, "vis");
+	map_q2vis = ZG_Malloc(&loadmodel->memgroup, l->filelen);
 	memcpy (map_q2vis, cmod_base + l->fileofs, l->filelen);
 
 	loadmodel->vis = map_q2vis;
@@ -1897,7 +1897,7 @@ void CMod_LoadEntityString (lump_t *l)
 //	if (l->filelen > MAX_Q2MAP_ENTSTRING)
 //		Host_Error ("Map has too large entity lump");
 
-	map_entitystring = Hunk_AllocName(l->filelen+1, "ents");
+	map_entitystring = ZG_Malloc(&loadmodel->memgroup, l->filelen+1);
 	memcpy (map_entitystring, cmod_base + l->fileofs, l->filelen);
 
 	loadmodel->entities = map_entitystring;
@@ -1919,7 +1919,7 @@ qboolean CModQ3_LoadMarksurfaces (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->marksurfaces = out;
 	loadmodel->nummarksurfaces = count;
@@ -2036,15 +2036,15 @@ qboolean CModQ3_LoadShaders (lump_t *l)
 //		Host_Error ("Map has too many shaders");
 
 	numtexinfo = count;
-	out = map_surfaces = Hunk_AllocName(count*sizeof(*out), "tsurfaces");
+	out = map_surfaces = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
-	loadmodel->texinfo = Hunk_AllocName(sizeof(mtexinfo_t)*count, "texinfo");
+	loadmodel->texinfo = ZG_Malloc(&loadmodel->memgroup, sizeof(mtexinfo_t)*count);
 	loadmodel->numtextures = count;
-	loadmodel->textures = Hunk_AllocName(sizeof(texture_t*)*count, "textures");
+	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t*)*count);
 
 	for ( i=0 ; i<count ; i++, in++, out++ )
 	{
-		loadmodel->texinfo[i].texture = Hunk_AllocName(sizeof(texture_t), in->shadername);
+		loadmodel->texinfo[i].texture = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
 		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
 
@@ -2078,13 +2078,13 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_AllocName ( count*sizeof(*out), "vert_v");
-	stout = Hunk_AllocName ( count*sizeof(*stout), "vert_st");
-	lmout = Hunk_AllocName ( count*sizeof(*lmout), "vert_lm1");
-	cout = Hunk_AllocName ( count*sizeof(*cout), "vert_c");
-	nout = Hunk_AllocName ( count*sizeof(*nout), "vert_n");
-	sout = Hunk_AllocName ( count*sizeof(*nout), "vert_s");
-	tout = Hunk_AllocName ( count*sizeof(*nout), "vert_t");
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	stout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*stout));
+	lmout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*lmout));
+	cout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*cout));
+	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
+	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
+	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	map_vertlstmexcoords[0] = lmout;
@@ -2142,13 +2142,13 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_AllocName ( count*sizeof(*out), "vert_v");
-	stout = Hunk_AllocName ( count*sizeof(*stout), "vert_st");
-	lmout = Hunk_AllocName ( MAXLIGHTMAPS*count*sizeof(*lmout), "vert_lm4");
-	cout = Hunk_AllocName ( count*sizeof(*cout), "vert_c");
-	nout = Hunk_AllocName ( count*sizeof(*nout), "vert_n");
-	sout = Hunk_AllocName ( count*sizeof(*sout), "vert_s");
-	tout = Hunk_AllocName ( count*sizeof(*tout), "vert_t");
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	stout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*stout));
+	lmout = ZG_Malloc(&loadmodel->memgroup, MAXLIGHTMAPS*count*sizeof(*lmout));
+	cout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*cout));
+	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
+	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*sout));
+	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*tout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
@@ -2191,7 +2191,7 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -2202,7 +2202,7 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 		return false;
 	}
 
-	out = Hunk_AllocName ( count*sizeof(*out), loadmodel->name );
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	map_surfindexes = out;
 	map_numsurfindexes = count;
@@ -2321,7 +2321,7 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), "fogs");
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	map_fogs = out;
 	map_numfogs = count;
@@ -2341,7 +2341,7 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		out->shader = R_RegisterShader_Lightmap ( in->shader );
 		R_BuildDefaultTexnums(&out->shader->defaulttextures, out->shader);
 		out->numplanes = brush->numsides;
-		out->planes = Hunk_AllocName ( out->numplanes*sizeof(cplane_t *), "fogplane");
+		out->planes = ZG_Malloc(&loadmodel->memgroup, out->numplanes*sizeof(cplane_t *));
 
 		for ( j = 0; j < out->numplanes; j++ )
 		{
@@ -2686,9 +2686,9 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadmodel->name );
-	pl = Hunk_AllocName (count*sizeof(*pl), loadmodel->name);//create a new array of planes for speed.
-	mesh = Hunk_AllocName (count*sizeof(*mesh), loadmodel->name);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	pl = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*pl));//create a new array of planes for speed.
+	mesh = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*mesh));
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -2802,9 +2802,9 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadmodel->name );
-	pl = Hunk_AllocName (count*sizeof(*pl), loadmodel->name);//create a new array of planes for speed.
-	mesh = Hunk_AllocName (count*sizeof(*mesh), loadmodel->name);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	pl = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*pl));//create a new array of planes for speed.
+	mesh = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*mesh));
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -2950,7 +2950,7 @@ qboolean CModQ3_LoadNodes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	if (count > SANITY_MAX_MAP_NODES)
 	{
@@ -3018,7 +3018,7 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 		return false;
 	}
 
-	map_brushes = Hunk_AllocName(sizeof(*out) * (count+1), "brushes");
+	map_brushes = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
 
 	out = map_brushes;
 
@@ -3307,7 +3307,7 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 
 		numclusters++;
 
-		map_q3pvs = Hunk_AllocName(sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters, "pvs");
+		map_q3pvs = ZG_Malloc(&loadmodel->memgroup, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
 		memset (map_q3pvs, 0xff, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
 		map_q3pvs->numclusters = numclusters;
 		numvisibility = 0;
@@ -3317,7 +3317,7 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 	{
 		numvisibility = l->filelen;
 
-		map_q3pvs = Hunk_AllocName(l->filelen, "pvs");
+		map_q3pvs = ZG_Malloc(&loadmodel->memgroup, l->filelen);
 		loadmodel->vis = (q2dvis_t *)map_q3pvs;
 		memcpy (map_q3pvs, cmod_base + l->fileofs, l->filelen);
 
@@ -3352,7 +3352,7 @@ void CModQ3_LoadLighting (lump_t *l)
 	BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 
 	loadmodel->engineflags |= MDLF_RGBLIGHTING;
-	loadmodel->lightdata = out = Hunk_AllocName(samples, "lit data");
+	loadmodel->lightdata = out = ZG_Malloc(&loadmodel->memgroup, samples);
 
 	//be careful here, q3bsp deluxemapping is done using interleaving. we want to unoverbright ONLY lightmaps and not deluxemaps.
 	for (m = 0; m < maps; m++)
@@ -3395,7 +3395,7 @@ qboolean CModQ3_LoadLightgrid (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	grid = Hunk_AllocName (sizeof(q3lightgridinfo_t) + count*sizeof(*out), loadmodel->name );
+	grid = ZG_Malloc(&loadmodel->memgroup, sizeof(q3lightgridinfo_t) + count*sizeof(*out));
 	grid->lightgrid = (dq3gridlight_t*)(grid+1);
 	out = grid->lightgrid;
 
@@ -3429,7 +3429,7 @@ qboolean CModRBSP_LoadLightgrid (lump_t *elements, lump_t *indexes)
 	icount = indexes->filelen / sizeof(*iin);
 	ecount = elements->filelen / sizeof(*ein);
 
-	grid = Hunk_AllocName (sizeof(q3lightgridinfo_t) + ecount*sizeof(*eout) + icount*sizeof(*iout), loadmodel->name );
+	grid = ZG_Malloc(&loadmodel->memgroup, sizeof(q3lightgridinfo_t) + ecount*sizeof(*eout) + icount*sizeof(*iout));
 	grid->rbspelements = (rbspgridlight_t*)((char *)grid + sizeof(q3lightgridinfo_t));
 	grid->rbspindexes = (unsigned short*)((char *)grid + sizeof(q3lightgridinfo_t) + ecount*sizeof(*eout));
 	eout = grid->rbspelements;
@@ -3559,7 +3559,7 @@ void CMQ3_CalcPHS (void)
 
 	Con_DPrintf ("Building PHS...\n");
 
-	map_q3phs = Hunk_AllocName(sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters, "phs");
+	map_q3phs = ZG_Malloc(&loadmodel->memgroup, sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters);
 
 	rowwords = map_q3pvs->rowsize / sizeof(int);
 	rowbytes = map_q3pvs->rowsize;
@@ -3752,7 +3752,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	int				length;
 	static unsigned	last_checksum;
 	qboolean noerrors = true;
-	int start;
 	model_t *im = loadmodel;
 
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, void *cookie) = NULL;
@@ -3796,7 +3795,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	header.version = LittleLong(header.version);
 
 	cmod_base = mod_base = (qbyte *)buf;
-	start = Hunk_LowMark();
 
 	if (header.ident == (('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24)))
 	{
@@ -3962,8 +3960,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				BZ_Free(map_faces);
 			if (map_leaffaces)
 				BZ_Free(map_leaffaces);
-
-			Hunk_FreeToLowMark(start);
 			return NULL;
 		}
 
@@ -4012,7 +4008,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		{
 			BZ_Free(map_faces);
 			BZ_Free(map_leaffaces);
-			Hunk_FreeToLowMark(start);
 			return NULL;
 		}
 #ifndef CLIENTONLY
@@ -4077,11 +4072,11 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		case QR_OPENGL:
 		// load into heap
 		#ifndef SERVERONLY
-			noerrors = noerrors && RMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			noerrors = noerrors && RMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES], false);
-			noerrors = noerrors && RMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
+			noerrors = noerrors && Mod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
+			noerrors = noerrors && Mod_LoadEdges			(&header.lumps[Q2LUMP_EDGES], false);
+			noerrors = noerrors && Mod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
-				RMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
+				Mod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
 		#endif
 			noerrors = noerrors && CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
@@ -4089,7 +4084,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		#ifndef SERVERONLY
 			noerrors = noerrors && CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			noerrors = noerrors && RMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES], false);
+			noerrors = noerrors && Mod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES], false);
 		#endif
 			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
 			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
@@ -4104,7 +4099,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 
 			if (!noerrors)
 			{
-				Hunk_FreeToLowMark(start);
 				return NULL;
 			}
 #ifndef CLIENTONLY
@@ -4123,7 +4117,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			break;
 #endif
 		default:
-			Hunk_FreeToLowMark(start);
 			return NULL;
 			Sys_Error("Bad internal renderer on q2 map load\n");
 		}
@@ -4148,7 +4141,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	loadmodel->vbos = NULL;
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
-		RMod_Batches_Build(NULL, loadmodel, buildmeshes, buildcookie);
+		Mod_Batches_Build(NULL, loadmodel, buildmeshes, buildcookie);
 #endif
 
 	loadmodel->numsubmodels = CM_NumInlineModels(loadmodel);
@@ -4177,6 +4170,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			*loadmodel = *mod;
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
+			memset(&mod->memgroup, 0, sizeof(mod->memgroup));
 
 			bm = CM_InlineModel (name);
 
@@ -4196,7 +4190,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			mod->vbos = NULL;
 #ifndef SERVERONLY
 			if (qrenderer != QR_NONE)
-				RMod_Batches_Build(NULL, mod, buildmeshes, buildcookie);
+				Mod_Batches_Build(NULL, mod, buildmeshes, buildcookie);
 #endif
 
 			VectorCopy (bm->maxs, mod->maxs);
@@ -4321,7 +4315,7 @@ void CM_InitBoxHull (void)
 
 	box_model.hulls[0].available = true;
 
-	box_model.nodes = Hunk_Alloc(sizeof(mnode_t)*6);
+	box_model.nodes = ZG_Malloc(&loadmodel->memgroup, sizeof(mnode_t)*6);
 	box_planes = &map_planes[numplanes];
 	if (numbrushes+1 > SANITY_MAX_MAP_BRUSHES
 		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES

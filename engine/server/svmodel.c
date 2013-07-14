@@ -364,6 +364,8 @@ model_t *Mod_FindName (char *name)
 		mod_numknown++;
 	}
 
+	//mark it as active, so it doesn't get flushed prematurely
+	mod->datasequence = mod_datasequence;
 	return mod;
 }
 

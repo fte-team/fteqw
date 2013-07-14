@@ -1085,12 +1085,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 		return;
 	}
 
-	//
-	// determine size of refresh window
-	//
-	if (vid.recalc_refdef)
-		SCR_CalcRefdef ();
-
 //
 // do 3D refresh drawing, and then update the screen
 //
@@ -1328,26 +1322,6 @@ rendererinfo_t d3d11rendererinfo =
 
 	D3D11_R_NewMap,
 	D3D11_R_PreNewMap,
-
-	Surf_AddStain,
-	Surf_LessenStains,
-
-	RMod_Init,
-	RMod_Shutdown,
-	RMod_ClearAll,
-	RMod_ForName,
-	RMod_FindName,
-	RMod_Extradata,
-	RMod_TouchModel,
-
-	RMod_NowLoadExternal,
-	RMod_Think,
-	Mod_GetTag,
-	Mod_TagNumForName,
-	Mod_SkinNumForName,
-	Mod_FrameNumForName,
-	Mod_FrameDuration,
-
 
 	D3D11_VID_Init,
 	D3D11_VID_DeInit,

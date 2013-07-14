@@ -1880,6 +1880,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	if (sv.world.worldmodel && !client->controller)
 	{
+#ifdef Q2SERVER
 		if (ISQ2CLIENT(client))
 		{
 			SVQ2_BuildClientFrame (client);
@@ -1889,6 +1890,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 			SVQ2_WriteFrameToClient (client, &msg);
 		}
 		else
+#endif
 		{
 			// add the client specific data to the datagram
 			SV_WriteClientdataToMessage (client, &msg);

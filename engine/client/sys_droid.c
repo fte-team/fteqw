@@ -25,6 +25,8 @@ static void *sys_memheap;
 static unsigned int sys_lastframe;
 static unsigned int vibrateduration;
 static char errormessage[256];
+static char sys_basedir[MAX_OSPATH];
+static char sys_basepak[MAX_OSPATH];
 extern  jmp_buf 	host_abort;
 
 cvar_t sys_vibrate = CVARD("sys_vibrate", "1", "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
@@ -200,7 +202,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		{
 			"ftedroid",
 			"-basepack",
-			NULL,	/*filled in later*/
+			sys_basepak,	/*filled in later*/
 			"",
 			""
 		};
@@ -211,42 +213,17 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		if (sys_memheap)
 			free(sys_memheap);
 		memset(&parms, 0, sizeof(parms));
-		parms.basedir = NULL;	/*filled in later*/
+		parms.basedir = sys_basedir;	/*filled in later*/
 		parms.argc = 3;
 		parms.argv = args;
-		parms.memsize = 512*1024*1024;
-		parms.membase = sys_memheap = malloc(parms.memsize);
-		if (!parms.membase)
-		{
-			Sys_Printf("Unable to alloc heap\n");
-			Q_strncpyz(errormessage, "Unable to alloc heap\n", sizeof(errormessage));
-			return;
-		}
 
-
-		basepack = parms.membase;
 		tmp = (*env)->GetStringUTFChars(env, japkpath, NULL);
-		strcpy(basepack, tmp);
+		Q_strncpyz(sys_basepak, tmp, sizeof(sys_basedir));
 		(*env)->ReleaseStringUTFChars(env, japkpath, tmp);
-		parms.membase += strlen(basepack)+1;
-		parms.memsize -= strlen(basepack)+1;
 
-		parms.basedir = parms.membase;
 		tmp = (*env)->GetStringUTFChars(env, jusrpath, NULL);
-		strcpy(parms.basedir, tmp);
+		Q_strncpyz(sys_basedir, tmp, sizeof(sys_basedir));
 		(*env)->ReleaseStringUTFChars(env, jusrpath, tmp);
-		parms.membase += strlen(parms.basedir)+1;
-		parms.memsize -= strlen(parms.basedir)+1;
-
-		align = (int)parms.membase & 15;
-		if (align)
-		{
-			align = 16-align;
-			parms.membase += align;
-			parms.memsize -= align;
-		}
-
-		args[2] = basepack;
 
 
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", args[2], parms.basedir);

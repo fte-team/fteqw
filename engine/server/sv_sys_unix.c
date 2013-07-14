@@ -711,14 +711,6 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	parms.memsize = 64*1024*1024;
-
-	j = COM_CheckParm("-mem");
-	if (j)
-		parms.memsize = (int) (Q_atof(com_argv[j+1]) * 1024 * 1024);
-	if ((parms.membase = malloc (parms.memsize)) == NULL)
-		Sys_Error("Can't allocate %u\n", parms.memsize);
-
 	parms.basedir = ".";
 
 	SV_Init (&parms);

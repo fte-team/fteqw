@@ -2955,6 +2955,13 @@ void Sh_PreGenerateLights(void)
 	qbyte	lvisb[MAX_MAP_LEAFS/8];
 	int i;
 
+	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
+	{
+		R_LoadRTLights();
+		if (rtlights_first == rtlights_max)
+			R_ImportRTLights(cl.worldmodel->entities);
+	}
+
 	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
 
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
@@ -3005,6 +3012,22 @@ void Sh_DrawLights(qbyte *vis)
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
 	{
 		return;
+	}
+
+	if (r_shadow_realtime_world.modified ||
+		r_shadow_realtime_dlight_shadows.modified ||
+		r_shadow_realtime_dlight.modified ||
+		r_shadow_realtime_dlight_shadows.modified ||
+		r_shadow_shadowmapping.modified)
+	{
+		r_shadow_realtime_world.modified =
+		r_shadow_realtime_dlight_shadows.modified =
+		r_shadow_realtime_dlight.modified =
+		r_shadow_realtime_dlight_shadows.modified =
+		r_shadow_shadowmapping.modified =
+				false;
+		//make sure the lighting is reloaded
+		Sh_PreGenerateLights();
 	}
 
 	switch(qrenderer)

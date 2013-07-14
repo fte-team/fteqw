@@ -90,7 +90,8 @@
 			Name="Release|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="1"
+			ConfigurationType="2"
+			WholeProgramOptimization="1"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -109,6 +110,8 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				AdditionalIncludeDirectories="../../engine/server;../../engine/gl;../../engine/qclib;../../engine/client;../../engine/common"
+				PreprocessorDefinitions="FTEPLUGIN"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -121,6 +124,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				OutputFile="../../fteplug_$(ProjectName)x86.dll"
+				GenerateManifest="false"
+				ModuleDefinitionFile="..\plugin.def"
 			/>
 			<Tool
 				Name="VCALinkTool"

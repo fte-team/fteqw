@@ -475,34 +475,6 @@ int QDECL main(int argc, char **argv)
 
 	TL_InitLanguages();
 
-	parms.memsize = 0x2000000;
-
-	if (parms.memsize < 0x0800000)
-		parms.memsize = 0x0800000;
-
-
-	if (COM_CheckParm ("-heapsize"))
-	{
-		t = COM_CheckParm("-heapsize") + 1;
-
-		if (t < com_argc)
-			parms.memsize = Q_atoi (com_argv[t]) * 1024;
-	}
-	else if (COM_CheckParm ("-mem"))
-	{
-		t = COM_CheckParm("-mem") + 1;
-
-		if (t < com_argc)
-			parms.memsize = Q_atoi (com_argv[t]) * 1024*1024;
-	}
-
-
-#ifdef _WIN32
-	parms.membase = VirtualAlloc (NULL, parms.memsize, MEM_RESERVE, PAGE_NOACCESS);
-#else
-	parms.membase = malloc (parms.memsize);
-#endif
-
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);
 

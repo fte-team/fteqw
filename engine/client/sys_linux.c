@@ -697,14 +697,6 @@ int main (int c, const char **v)
 	}
 #endif
 
-	parms.memsize = 64*1024*1024;
-
-	j = COM_CheckParm("-mem");
-	if (j && j+1 < com_argc)
-		parms.memsize = (int) (Q_atof(com_argv[j+1]) * 1024 * 1024);
-
-	parms.membase = malloc (parms.memsize);
-
 	parms.basedir = basedir;
 #ifdef __linux__
 	//attempt to figure out where the exe is located

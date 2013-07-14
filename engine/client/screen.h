@@ -56,7 +56,6 @@ void RSpeedShow(void);
 
 void SCR_CrosshairPosition(playerview_t *pview, int *x, int *y);
 void SCR_DrawLoading (void);
-void SCR_CalcRefdef (void);
 void SCR_TileClear (void);
 void SCR_DrawNotifyString (void);
 void SCR_CheckDrawCenterString (void);

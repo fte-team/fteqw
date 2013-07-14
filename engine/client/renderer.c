@@ -757,33 +757,12 @@ void Renderer_Start(void)
 void	(*Draw_Init)				(void);
 void	(*Draw_Shutdown)			(void);
 
-//void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
-
 void	(*R_Init)					(void);
 void	(*R_DeInit)					(void);
 void	(*R_RenderView)				(void);		// must set r_refdef first
 
 void	(*R_NewMap)					(void);
 void	(*R_PreNewMap)				(void);
-
-void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
-void	(*R_LessenStains)			(void);
-
-void	(*Mod_Init)					(void);
-void	(*Mod_Shutdown)				(void);
-void	(*Mod_ClearAll)				(void);
-struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
-struct model_s *(*Mod_FindName)		(char *name);
-void	*(*Mod_Extradata)			(struct model_s *mod);	// handles caching
-void	(*Mod_TouchModel)			(char *name);
-
-void	(*Mod_NowLoadExternal)		(void);
-void	(*Mod_Think)				(void);
-//qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
-//int (*Mod_TagNumForName)			(struct model_s *model, char *name);
-int (*Mod_SkinForName)				(struct model_s *model, char *name);
-int (*Mod_FrameForName)				(struct model_s *model, char *name);
-float (*Mod_GetFrameDuration)		(struct model_s *model, int framenum);
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
@@ -826,32 +805,6 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL,	//R_NewMap;
 	NULL,	//R_PreNewMap
-
-
-	NULL,	//R_AddStain;
-	NULL,	//R_LessenStains;
-
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-	RMod_Init,
-	RMod_Shutdown,
-	RMod_ClearAll,
-	RMod_ForName,
-	RMod_FindName,
-	RMod_Extradata,
-	RMod_TouchModel,
-
-	RMod_NowLoadExternal,
-	RMod_Think,
-
-	NULL, //Mod_GetTag
-	NULL, //fixme: server will need this one at some point.
-	NULL,
-	NULL,
-	Mod_FrameDuration,
-
-#else
-#error "Need logic here!"
-#endif
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
@@ -936,30 +889,10 @@ void R_SetRenderer(rendererinfo_t *ri)
 	R_NewMap				= ri->R_NewMap;
 	R_PreNewMap				= ri->R_PreNewMap;
 
-	R_AddStain				= ri->R_AddStain;
-	R_LessenStains			= ri->R_LessenStains;
-
 	VID_Init				= ri->VID_Init;
 	VID_DeInit				= ri->VID_DeInit;
 	VID_GetRGBInfo			= ri->VID_GetRGBInfo;
 	VID_SetWindowCaption	= ri->VID_SetWindowCaption;
-
-	Mod_Init				= ri->Mod_Init;
-	Mod_Shutdown			= ri->Mod_Shutdown;
-	Mod_Think				= ri->Mod_Think;
-	Mod_ClearAll			= ri->Mod_ClearAll;
-	Mod_ForName				= ri->Mod_ForName;
-	Mod_FindName			= ri->Mod_FindName;
-	Mod_Extradata			= ri->Mod_Extradata;
-	Mod_TouchModel			= ri->Mod_TouchModel;
-
-	Mod_NowLoadExternal		= ri->Mod_NowLoadExternal;
-
-//	Mod_GetTag				= ri->Mod_GetTag;
-//	Mod_TagNumForName 		= ri->Mod_TagNumForName;
-	Mod_SkinForName 		= ri->Mod_SkinForName;
-	Mod_FrameForName		= ri->Mod_FrameForName;
-	Mod_GetFrameDuration	= ri->Mod_GetFrameDuration;
 
 	SCR_UpdateScreen		= ri->SCR_UpdateScreen;
 }
@@ -993,8 +926,7 @@ void R_ShutdownRenderer(void)
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
 	P_Shutdown();
-	if (Mod_Shutdown)
-		Mod_Shutdown();
+	Mod_Shutdown();
 
 	IN_Shutdown();
 
@@ -1073,11 +1005,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 {
 	int i, j;
 	extern model_t *loadmodel;
-	extern int host_hunklevel;
 
 	Cache_Flush();
-
-	Hunk_FreeToLowMark(host_hunklevel);	//is this a good idea?
 
 	TRACE(("dbg: R_ApplyRenderer: old renderer closed\n"));
 
@@ -1702,7 +1631,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	int				i, numframes, frame;
 	float			*pintervals, fullinterval, targettime, time;
 
-	psprite = currententity->model->cache.data;
+	psprite = currententity->model->meshinfo;
 	frame = currententity->framestate.g[FS_REG].frame[0];
 
 	if ((frame >= psprite->numframes) || (frame < 0))

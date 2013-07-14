@@ -921,7 +921,6 @@ extern	char		localmodels[MAX_MODELS][5];	// inline model names for precache
 
 extern	char		localinfo[MAX_LOCALINFO_STRING+1];
 
-extern	int			host_hunklevel;
 extern	vfsfile_t	*sv_fraglogfile;
 
 //===========================================================

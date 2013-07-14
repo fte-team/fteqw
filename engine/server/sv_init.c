@@ -395,7 +395,7 @@ void SV_CalcPHS (void)
 
 	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
 	{
-		sv.pvs = Hunk_AllocName (rowbytes*num, "pvs vis");
+		sv.pvs = ZG_Malloc(&sv.world.worldmodel->memgroup, rowbytes*num);
 		scan = sv.pvs;
 		for (i=0 ; i<num ; i++, scan+=rowbytes)
 		{
@@ -409,7 +409,7 @@ void SV_CalcPHS (void)
 		return;
 	}
 
-	sv.pvs = Hunk_AllocName (rowbytes*num, "phs vis");
+	sv.pvs = ZG_Malloc(&sv.world.worldmodel->memgroup, rowbytes*num);
 	scan = sv.pvs;
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
@@ -430,21 +430,29 @@ void SV_CalcPHS (void)
 	if (developer.value)
 		Con_TPrintf (STL_BUILDINGPHS);
 
+	sv.phs = ZG_Malloc (&sv.world.worldmodel->memgroup, rowbytes*num);
+
 	/*this routine takes an exponential amount of time, so cache it if its too big*/
 	if (rowbytes*num >= 0x100000)
 	{
-		sv.phs = COM_LoadHunkFile(va("maps/%s.phs", sv.name));
-		if (sv.phs && com_filesize == rowbytes*num + 8 && ((unsigned*)sv.phs)[0] == *(unsigned*)"QPHS" && ((unsigned*)sv.phs)[1] == *(unsigned*)"\1\0\0\0")
+		char hdr[8];
+		vfsfile_t *f = FS_OpenVFS(va("maps/%s.phs", sv.name), "rb", FS_GAME);
+		if (f)
 		{
-			sv.phs += 8;
-			Con_DPrintf("Loaded cached PHS\n");
-			return;
+			VFS_READ(f, hdr, sizeof(hdr));
+			if (memcmp(hdr, "QPHS\1\0\0\0", 8) || VFS_GETLEN(f) != rowbytes*num + 8)
+			{
+				VFS_READ(f, sv.phs, rowbytes*num);
+				VFS_CLOSE(f);
+				Con_DPrintf("Loaded cached PHS\n");
+				return;
+			}
+			else
+				Con_DPrintf("Stale cached PHS\n");
+			VFS_CLOSE(f);
 		}
-		else
-			Con_DPrintf("Stale cached PHS\n");
 	}
 
-	sv.phs = Hunk_AllocName (rowbytes*num, "phs hear");
 	count = 0;
 	scan = sv.pvs;
 	dest = (unsigned *)sv.phs;
@@ -683,7 +691,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 	Mod_ClearAll ();
-	Hunk_FreeToLowMark (host_hunklevel);
 
 	PR_Deinit();
 
@@ -790,6 +797,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 
 	sv.state = ss_loading;
+#if defined(Q2BSPS)
 	if (usecinematic)
 	{
 		qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
@@ -802,6 +810,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		loadmodel->needload = !Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL);
 	}
 	else
+#endif
 	{
 		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
 		strcpy (sv.name, server);

@@ -5,7 +5,7 @@
 #include "shader.h"
 #endif
 
-void RMod_SetParent (mnode_t *node, mnode_t *parent);
+void Mod_SetParent (mnode_t *node, mnode_t *parent);
 int	D3_LeafnumForPoint (struct model_s *model, vec3_t point);
 
 #ifndef SERVERONLY
@@ -61,8 +61,8 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			numsurfs = atoi(token);
 			if (numsurfs < 0 || numsurfs > 10000)
 				return false;
-			b = Hunk_Alloc(sizeof(*b) * numsurfs);
-			m = Hunk_Alloc(sizeof(*m) * numsurfs);
+			b = ZG_Malloc(&model->memgroup, sizeof(*b) * numsurfs);
+			m = ZG_Malloc(&model->memgroup, sizeof(*m) * numsurfs);
 			sub->numsurfaces = numsurfs;
 
 			sub->batches[0] = b;
@@ -104,7 +104,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 				m[surf].numvertexes = numverts;
 				m[surf].numindexes = numindicies;
-				vdata = Hunk_Alloc(numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
+				vdata = ZG_Malloc(&model->memgroup, numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
 
 				m[surf].colors4f_array = (vec4_t*)vdata;vdata += sizeof(vec4_t)*numverts;
 				m[surf].xyz_array = (vecV_t*)vdata;vdata += sizeof(vecV_t)*numverts;
@@ -239,8 +239,8 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 			data = COM_ParseOut(data, token, sizeof(token));
 			numnodes = atoi(token);
-			model->nodes = Hunk_Alloc(sizeof(*model->nodes)*numnodes);
-			model->planes = Hunk_Alloc(sizeof(*model->planes)*numnodes);
+			model->nodes = ZG_Malloc(&model->memgroup, sizeof(*model->nodes)*numnodes);
+			model->planes = ZG_Malloc(&model->memgroup, sizeof(*model->planes)*numnodes);
 
 			for (n = 0; n < numnodes; n++)
 			{
@@ -273,7 +273,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			if (strcmp(token, "}"))
 				return false;
 
-			RMod_SetParent(model->nodes, NULL);
+			Mod_SetParent(model->nodes, NULL);
 		}
 		else if (!strcmp(token, "interAreaPortals"))
 		{
@@ -290,7 +290,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			data = COM_ParseOut(data, token, sizeof(token));
 			model->numportals = atoi(token);
 
-			model->portal = p = Hunk_Alloc(sizeof(*p) * model->numportals);
+			model->portal = p = ZG_Malloc(&model->memgroup, sizeof(*p) * model->numportals);
 
 			for (pno = 0; pno < model->numportals; pno++, p++)
 			{
@@ -301,7 +301,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				data = COM_ParseOut(data, token, sizeof(token));
 				p->area[1] = atoi(token);
 
-				p->points = Hunk_Alloc(sizeof(*p->points) * p->numpoints);
+				p->points = ZG_Malloc(&model->memgroup, sizeof(*p->points) * p->numpoints);
 
 				ClearBounds(p->min, p->max);
 				for (v = 0; v < p->numpoints; v++)
@@ -1074,7 +1074,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 			ensurenewtoken("}");
 			ensurenewtoken("nodes");
 			ensurenewtoken("{");
-			cmod->cnodes = Hunk_Alloc(sizeof(cm_node_t));
+			cmod->cnodes = ZG_Malloc(&mod->memgroup, sizeof(cm_node_t));
 			for (;;)
 			{
 				buf = COM_ParseOut(buf, token, sizeof(token));
@@ -1110,7 +1110,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 					break;
 
 				numpedges = atoi(token);
-				surf = Hunk_Alloc(sizeof(*surf) + sizeof(vec4_t)*numpedges);
+				surf = ZG_Malloc(&mod->memgroup, sizeof(*surf) + sizeof(vec4_t)*numpedges);
 				surf->numedges = numpedges;
 				surf->edge = (vec4_t*)(surf+1);
 
@@ -1225,7 +1225,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 				if (!strcmp(token, "}"))
 					break;
 				j = atoi(token);
-				brush = Hunk_Alloc(j*sizeof(vec4_t) + sizeof(*brush));
+				brush = ZG_Malloc(&mod->memgroup, j*sizeof(vec4_t) + sizeof(*brush));
 				brush->numplanes = j;
 				brush->plane = (vec4_t*)(brush+1);
 				ensurenewtoken("{");

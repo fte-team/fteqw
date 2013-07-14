@@ -401,7 +401,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.rotation = q3->rotation;
 
 	if (q3->customSkin)
-		ent.skinnum = Mod_SkinForName(ent.model, VM_FROMSTRCACHE(q3->customSkin));
+		ent.skinnum = Mod_SkinNumForName(ent.model, VM_FROMSTRCACHE(q3->customSkin));
 
 	ent.shaderRGBAf[0] = q3->shaderRGBA[0]/255.0f;
 	ent.shaderRGBAf[1] = q3->shaderRGBA[1]/255.0f;
@@ -1086,7 +1086,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case UI_MEMORY_REMAINING:
-		VM_LONG(ret) = Hunk_LowMemAvailable();
+		VM_LONG(ret) = 1024*1024*8;//Hunk_LowMemAvailable();
 		break;
 
 	case UI_GET_CDKEY:	//get cd key

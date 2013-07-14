@@ -232,8 +232,6 @@ double		realtime;				// without any filtering or bounding
 double		oldrealtime;			// last frame run
 int			host_framecount;
 
-int			host_hunklevel;
-
 qbyte		*host_basepal;
 qbyte		*h2playertranslations;
 
@@ -301,6 +299,8 @@ void CL_MakeActive(char *gamename)
 	CL_UpdateWindowTitle();
 
 	SCR_EndLoadingPlaque();
+
+	Mod_Flush(false);
 
 	TP_ExecTrigger("f_spawn");
 }
@@ -1099,9 +1099,6 @@ void CL_ClearState (void)
 		if (serverrunning)
 			SV_UnspawnServer();
 		Mod_ClearAll ();
-
-		if (host_hunklevel)	// FIXME: check this...
-			Hunk_FreeToLowMark (host_hunklevel);
 
 		Cvar_ApplyLatches(CVAR_LATCH);
 	}
@@ -4450,16 +4447,11 @@ void Host_Init (quakeparms_t *parms)
 	if (setjmp (host_abort) )
 		Sys_Error("Host_Init: An error occured. Try the -condebug commandline parameter\n");
 
-	if (COM_CheckParm ("-minmemory"))
-		parms->memsize = MINIMUM_MEMORY;
 
 	host_parms = *parms;
 
-	if (parms->memsize < MINIMUM_MEMORY)
-		Sys_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
-
 	Cvar_Init();
-	Memory_Init (parms->membase, parms->memsize);
+	Memory_Init ();
 
 	/*memory is working, its safe to printf*/
 	Con_Init ();
@@ -4522,9 +4514,6 @@ void Host_Init (quakeparms_t *parms)
 
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 	//Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
-
-	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
-	host_hunklevel = Hunk_LowMark ();
 
 	R_SetRenderer(NULL);//set the renderer stuff to unset...
 

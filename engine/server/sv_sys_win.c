@@ -408,8 +408,7 @@ void Sys_Error (const char *error, ...)
 #ifndef MINGW
 	fcloseall();	//make sure all files are written.
 #endif
-	VirtualFree (host_parms.membase, 0, MEM_RELEASE);
-//	free(host_parms.membase);	//get rid of the mem. We don't need it now.
+
 //	system("dqwsv.exe");	//spawn a new server to take over. This way, if debugging, then any key will quit, otherwise the server will just spawn a new one.
 
 	memset(&startupinfo, 0, sizeof(startupinfo));
@@ -926,22 +925,6 @@ void StartQuakeServer(void)
 
 	parms.argc = com_argc;
 	parms.argv = com_argv;
-
-	parms.memsize = 32*1024*1024;
-
-	if ((t = COM_CheckParm ("-heapsize")) != 0 &&
-		t + 1 < com_argc)
-		parms.memsize = Q_atoi (com_argv[t + 1]) * 1024;
-
-	if ((t = COM_CheckParm ("-mem")) != 0 &&
-		t + 1 < com_argc)
-		parms.memsize = Q_atoi (com_argv[t + 1]) * 1024 * 1024;
-
-	parms.membase = VirtualAlloc(NULL, parms.memsize, MEM_RESERVE, PAGE_NOACCESS);
-//	parms.membase = malloc (parms.memsize);
-
-	if (!parms.membase)
-		Sys_Error("Insufficient memory.\n");
 
 	GetModuleFileName(NULL, bindir, sizeof(bindir)-1);
 	*COM_SkipPath(bindir) = 0;

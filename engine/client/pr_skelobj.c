@@ -269,8 +269,8 @@ static void bonematident_toqcvectors(float vx[3], float vy[3], float vz[3], floa
 
 static qboolean pendingkill; /*states that there is a skel waiting to be killed*/
 #ifdef RAGDOLL
-void rag_uninstanciate(skelobject_t *sko);
-int rag_finddollbody(doll_t *d, char *bodyname)
+static void rag_uninstanciate(skelobject_t *sko);
+static int rag_finddollbody(doll_t *d, char *bodyname)
 {
 	int i;
 	for (i = 0; i < d->numbodies; i++)
@@ -280,7 +280,7 @@ int rag_finddollbody(doll_t *d, char *bodyname)
 	}
 	return -1;
 }
-int rag_finddolljoint(doll_t *d, char *name)
+static int rag_finddolljoint(doll_t *d, char *name)
 {
 	int i;
 	for (i = 0; i < d->numjoints; i++)
@@ -303,7 +303,7 @@ typedef struct {
 	odebodyinfo_t defbody;
 	odejointinfo_t defjoint;
 } dollcreatectx_t;
-dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
+static dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
 {
 	int i;
 	dollcreatectx_t *ctx;
@@ -351,7 +351,7 @@ dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
 	return ctx;
 }
 //returns true if the command was recognised. false if the command is for something else.
-qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
+static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 {
 	int i;
 	int argc;
@@ -569,7 +569,7 @@ qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 
 	return true;
 };
-doll_t *rag_finishdoll(dollcreatectx_t *ctx)
+static doll_t *rag_finishdoll(dollcreatectx_t *ctx)
 {
 	doll_t *d = ctx->d;
 	int i;
@@ -700,9 +700,9 @@ void rag_flushdolls(qboolean force)
 	}
 }
 
-void skel_integrate(pubprogfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelobjsrc, float ft, float mmat[12])
-{
 #if 0
+static void skel_integrate(pubprogfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelobjsrc, float ft, float mmat[12])
+{
 	trace_t t;
 	vec3_t npos, opos, wnpos, wopos;
 	vec3_t move;
@@ -803,7 +803,6 @@ void skel_integrate(pubprogfuncs_t *prinst, skelobject_t *sko, skelobject_t *ske
 			/*FIXME*/
 		}
 	}
-#endif
 	/*debugging*/
 #if 0
 	/*draw points*/
@@ -818,8 +817,9 @@ void skel_integrate(pubprogfuncs_t *prinst, skelobject_t *sko, skelobject_t *ske
 #endif
 }
 #endif
+#endif
 
-void skel_generateragdoll_f_bones(vfsfile_t *f, galiasbone_t *bones, int numbones, int parent, int indent)
+static void skel_generateragdoll_f_bones(vfsfile_t *f, galiasbone_t *bones, int numbones, int parent, int indent)
 {
 	int i, j;
 	for (i = 0; i < numbones; i++)
@@ -952,6 +952,7 @@ void skel_info_f(void)
 			Con_Printf(" type: %s\n", (skelobjects[i].type == SKOT_RELATIVE)?"parentspace":"modelspace");
 			Con_Printf(" model: %s\n", skelobjects[i].model->name);
 			Con_Printf(" bone count: %i\n", skelobjects[i].numbones);
+#ifdef RAGDOLL
 			if (skelobjects[i].doll)
 			{
 				Con_Printf(" ragdoll: %s%s\n", skelobjects[i].doll->name, ((skelobjects[i].doll == skelobjects[i].model->dollinfo)?" (model default)":""));
@@ -959,6 +960,7 @@ void skel_info_f(void)
 			}
 			if (skelobjects[i].entity)
 				Con_Printf(" entity: %i (%s)\n", skelobjects[i].entity->entnum, skelobjects[i].world->progs->StringToNative(skelobjects[i].world->progs, skelobjects[i].entity->v->classname));
+#endif
 		}
 	}
 }
@@ -972,7 +974,9 @@ void skel_reset(pubprogfuncs_t *prinst)
 	{
 		if (skelobjects[i].world == prinst->parms->user)
 		{
+#ifdef RAGDOLL
 			rag_uninstanciate(&skelobjects[i]);
+#endif
 			skelobjects[i].numbones = 0;
 			skelobjects[i].inuse = false;
 			skelobjects[i].bonematrix = NULL;
@@ -981,7 +985,9 @@ void skel_reset(pubprogfuncs_t *prinst)
 
 	while (numskelobjectsused && !skelobjects[numskelobjectsused-1].inuse)
 		numskelobjectsused--;
+#ifdef RAGDOLL
 	rag_flushdolls(false);
+#endif
 }
 
 /*deletes any skeletons marked for deletion*/
@@ -996,7 +1002,9 @@ void skel_dodelete(pubprogfuncs_t *prinst)
 	{
 		if (skelobjects[skelidx].inuse == 2)
 		{
+#ifdef RAGDOLL
 			rag_uninstanciate(&skelobjects[skelidx]);
+#endif
 			skelobjects[skelidx].inuse = 0;
 		}
 	}
@@ -1005,7 +1013,7 @@ void skel_dodelete(pubprogfuncs_t *prinst)
 		numskelobjectsused--;
 }
 
-skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
+static skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 {
 	unsigned int skelidx;
 	//invalid if the bonecount is not set...
@@ -1043,7 +1051,7 @@ skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 
 	return NULL;
 }
-skelobject_t *skel_get(pubprogfuncs_t *prinst, int skelidx)
+static skelobject_t *skel_get(pubprogfuncs_t *prinst, int skelidx)
 {
 	skelidx--;
 	if ((unsigned int)skelidx >= numskelobjectsused)
@@ -1074,8 +1082,9 @@ void QCBUILTIN PF_skel_mmap(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		G_INT(OFS_RETURN) = (char*)sko->bonematrix - prinst->stringtable;
 }
 
+#ifdef RAGDOLL
 //may not poke the skeletal object bone data.
-void rag_uninstanciate(skelobject_t *sko)
+static void rag_uninstanciate(skelobject_t *sko)
 {
 	int i;
 	if (!sko->doll)
@@ -1460,6 +1469,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 		ent->framestate.boneabs = sko->type == SKOT_ABSOLUTE;
 	}
 }
+#endif
 #endif
 #endif
 
@@ -2218,8 +2228,8 @@ void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	char *str = PF_VarString(prinst, 1, pr_globals);
 	model_t *mod = w->Get_CModel(w, modelindex);
 
-	if (mod && Mod_FrameForName)
-		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
+	if (mod)
+		G_FLOAT(OFS_RETURN) = Mod_FrameNumForName(mod, str);
 	else
 		G_FLOAT(OFS_RETURN) = -1;
 }
@@ -2230,7 +2240,7 @@ void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	unsigned int framenum = G_FLOAT(OFS_PARM1);
 	model_t *mod = w->Get_CModel(w, modelindex);
 
-	if (mod && Mod_GetFrameDuration)
+	if (mod)
 		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
@@ -2243,8 +2253,8 @@ void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	char *str = PF_VarString(prinst, 1, pr_globals);
 	model_t *mod = w->Get_CModel(w, modelindex);
 
-	if (mod && Mod_SkinForName)
-		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
+	if (mod)
+		G_FLOAT(OFS_RETURN) = Mod_SkinNumForName(mod, str);
 	else
 #endif
 		G_FLOAT(OFS_RETURN) = -1;

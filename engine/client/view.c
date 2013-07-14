@@ -1646,7 +1646,7 @@ void V_RenderView (void)
 {
 	int viewnum;
 
-	R_LessenStains();
+	Surf_LessenStains();
 
 	if (cls.state != ca_active)
 		return;

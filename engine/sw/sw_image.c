@@ -2,20 +2,44 @@
 #ifdef SWQUAKE
 #include "sw.h"
 
+void SW_RoundDimensions(int width, int height, int *scaled_width, int *scaled_height, qboolean mipmap)
+{
+	for (*scaled_width = 1 ; *scaled_width < width ; *scaled_width<<=1)
+		;
+	for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
+		;
 
+	if (*scaled_width != width)
+		*scaled_width >>= 1;
+	if (*scaled_height != height)
+		*scaled_height >>= 1;
+
+	if (*scaled_width > 256)
+		*scaled_width = 256;
+	if (*scaled_height > 256)
+		*scaled_height = 256;
+}
 
 texid_tf SW_AllocNewTexture(char *identifier, int w, int h, unsigned int flags)
 {
+	int nw, nh;
 	texid_t n;
 	swimage_t *img;
 	if (w & 3)
 		return r_nulltex;
-	img = BZ_Malloc(sizeof(*img) - sizeof(img->data) + (w * h * 4));
+
+	SW_RoundDimensions(w, h, &nw, &nh, false);
+	img = BZ_Malloc(sizeof(*img) - sizeof(img->data) + (nw * nh * 4));
 
 	Q_strncpy(img->name, identifier, sizeof(img->name));
-	img->width = w;
-	img->height = h;
-	img->pitch = w;
+	img->com.width = w;
+	img->com.height = h;
+	img->pwidth = nw;
+	img->pheight = nh;
+	img->pitch = nw;
+
+	img->pwidthmask = nw-1;
+	img->pheightmask = nh-1;
 
 	n.ptr = img;
 	n.ref = &img->com;
@@ -30,41 +54,60 @@ void SW_RGBToBGR(swimage_t *img)
 {
 	int x, y;
 	unsigned int *d = img->data;
-	for (y = 0; y < img->height; y++)
+	for (y = 0; y < img->pheight; y++)
 	{
-		for (x = 0; x < img->width; x++)
+		for (x = 0; x < img->pwidth; x++)
 		{
 			d[x] = (d[x]&0xff00ff00) | ((d[x]&0xff)<<16) | ((d[x]&0xff0000)>>16);
 		}
 		d += img->pitch;
 	}
 }
-void SW_Upload32(swimage_t *img, int w, int h, unsigned int *data)
+void SW_Upload32(swimage_t *img, int iw, int ih, unsigned int *data)
 {
+	//rescale the input to the output.
+	//just use nearest-sample, cos we're lazy.
 	int x, y;
 	unsigned int *out = img->data;
-	for (y = 0; y < h; y++)
+	unsigned int *in;
+	int sx, sy, stx, sty;
+	int ow = img->pwidth, oh = img->pheight;
+	stx = (iw<<16) / ow;
+	sty = (ih<<16) / oh;
+
+	for (y = 0, sy = 0; y < oh; y++, sy += sty)
 	{
-		for (x = 0; x < w; x++)
+		in = data + iw*(sy>>16);
+		for (x = 0, sx = 0; x < ow; x++, sx += stx)
 		{
-			out[x] = *data++;
+			out[x] = in[sx>>16];
 		}
 		out += img->pitch;
 	}
 	SW_RGBToBGR(img);
 }
-void SW_Upload8(swimage_t *img, int w, int h, unsigned char *data)
+void SW_Upload8(swimage_t *img, int iw, int ih, unsigned char *data)
 {
+	//rescale the input to the output.
+	//just use nearest-sample, cos we're lazy.
 	int x, y;
 	unsigned int *out = img->data;
-	for (y = 0; y < h; y++)
+	unsigned char *in;
+	int sx, sy, stx, sty;
+	int ow = img->pwidth, oh = img->pheight;
+	stx = (iw<<16) / ow;
+	sty = (ih<<16) / oh;
+
+	for (y = 0, sy = 0; y < oh; y++, sy += sty)
 	{
-		for (x = 0; x < w; x++)
+		in = data + iw*(sy>>16);
+		for (x = 0, sx = 0; x < ow; x++, sx += stx)
 		{
-			out[x] = d_8to24rgbtable[*data++];
+			out[x] = d_8to24rgbtable[in[sx>>16]];
 		}
 		out += img->pitch;
 	}
+
 	SW_RGBToBGR(img);
 }
 

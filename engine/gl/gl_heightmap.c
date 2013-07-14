@@ -3314,12 +3314,12 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 
 	mod->type = mod_heightmap;
 
-	hm = Hunk_Alloc(sizeof(*hm));
+	hm = ZG_Malloc(&mod->memgroup, sizeof(*hm));
 	memset(hm, 0, sizeof(*hm));
 	ClearLink(&hm->recycle);
 	COM_FileBase(mod->name, hm->path, sizeof(hm->path));
 
-	mod->entities = Hunk_AllocName(strlen(buffer)+1, mod->name);
+	mod->entities = ZG_Malloc(&mod->memgroup, strlen(buffer)+1);
 	strcpy(mod->entities, buffer);
 
 	hm->sectionsize = sectsize;

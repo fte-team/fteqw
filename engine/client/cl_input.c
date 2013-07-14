@@ -1837,22 +1837,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	}
 }
 
-static char	*VARGS vahunk(char *format, ...)
-{
-	va_list		argptr;
-	char		string[1024];
-	char *ret;
-	
-	va_start (argptr, format);
-	Q_vsnprintfz (string,sizeof(string), format,argptr);
-	va_end (argptr);
-
-	ret = Hunk_Alloc(strlen(string)+1);
-	strcpy(ret, string);
-
-	return ret;	
-}
-
 void CL_SendCvar_f (void)
 {
 	cvar_t *var;
@@ -1876,6 +1860,7 @@ CL_InitInput
 */
 void CL_InitInput (void)
 {
+	static char pcmd[MAX_SPLITS][3][5];
 	int sp;
 #define inputnetworkcvargroup "client networking options"
 	cl.splitclients = 1;
@@ -1903,9 +1888,12 @@ void CL_InitInput (void)
 
 	for (sp = 0; sp < MAX_SPLITS; sp++)
 	{
-		Cmd_AddCommand (vahunk("p%i",		sp+1),	CL_Split_f);
-		Cmd_AddCommand (vahunk("+p%i",		sp+1),	CL_Split_f);
-		Cmd_AddCommand (vahunk("-p%i",		sp+1),	CL_Split_f);
+		Q_snprintfz(pcmd[sp][0], sizeof(pcmd[sp][0]), "p%i", sp+1);
+		Q_snprintfz(pcmd[sp][1], sizeof(pcmd[sp][1]), "+p%i", sp+1);
+		Q_snprintfz(pcmd[sp][2], sizeof(pcmd[sp][2]), "-p%i", sp+1);
+		Cmd_AddCommand (pcmd[sp][0],	CL_Split_f);
+		Cmd_AddCommand (pcmd[sp][1],	CL_Split_f);
+		Cmd_AddCommand (pcmd[sp][2],	CL_Split_f);
 
 /*default mlook to pressed, (on android we split the two sides of the screen)*/
 		in_mlook.state[sp] = 1;

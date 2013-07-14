@@ -606,8 +606,6 @@ void CLQ3_ParseGameState(void)
 
 	SCR_EndLoadingPlaque();
 
-	Hunk_Check ();		// make sure nothing is hurt
-
 	CL_MakeActive("Quake3Arena");
 
 	cl.splitclients = 1;

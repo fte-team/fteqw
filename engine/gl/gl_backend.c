@@ -1006,6 +1006,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 {
 	extern texid_t missing_texture;
 	extern texid_t missing_texture_gloss;
+	extern texid_t missing_texture_normal;
 	extern texid_t scenepp_postproc_cube;
 	extern texid_t r_whiteimage;
 
@@ -1029,7 +1030,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		{
 			int lmi = shaderstate.curbatch->lightmap[0];
 			if (lmi < 0 || !lightmap[lmi]->hasdeluxe)
-				t = r_nulltex;	//fixme
+				t = missing_texture_normal;
 			else
 				t = lightmap[lmi+1]->lightmap_texture;
 		}
@@ -1041,7 +1042,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			t = missing_texture;
 		break;
 	case T_GEN_NORMALMAP:
-		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex; /*FIXME: nulltex is not correct*/
+		t = (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->bump))?shaderstate.curtexnums->bump:missing_texture_normal;
 		break;
 	case T_GEN_SPECULAR:
 		if (TEXVALID(shaderstate.curtexnums->specular))

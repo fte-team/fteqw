@@ -2320,7 +2320,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 		}
 		else
 		{
-			Con_Printf("XMPP: Unable to determine server. Check internet connection.\n");
+			Con_Printf("XMPP: Unable to determine service (%s). Check internet connection.\n", jcl->domain);
 			return false;
 		}
 	}
@@ -2554,7 +2554,7 @@ jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, ch
 
 	x = XML_CreateNode(NULL, "account", "", "");
 	XML_AddParameteri(x, "id", accnum);
-	XML_CreateNode(x, "server", "", server);
+	XML_CreateNode(x, "serveraddr", "", server);
 	XML_CreateNode(x, "username", "", account);
 	XML_CreateNode(x, "domain", "", domain);
 	XML_CreateNode(x, "resource", "", res);
@@ -4239,7 +4239,7 @@ void JCL_LoadConfig(void)
 		char buf[8192];
 		qboolean oldtls;
 		len = pFS_Open("**plugconfig", &config, 1);
-		if (config >= 0)
+		if (len >= 0)
 		{
 			if (len >= sizeof(buf))
 				len = sizeof(buf)-1;
@@ -4247,7 +4247,7 @@ void JCL_LoadConfig(void)
 			pFS_Read(config, buf, len);
 			pFS_Close(config);
 
-			if (*buf != '<')
+			if (len && *buf != '<')
 			{//legacy code, to be removed
 				char *line = buf;
 				char tls[256];
@@ -4261,6 +4261,7 @@ void JCL_LoadConfig(void)
 
 				oldtls = atoi(tls);
 
+				Con_Printf("Legacy config: %s (%i)\n", buf, len);
 				jclients[0] = JCL_Connect(0, server, oldtls, account, password);
 			}
 			else

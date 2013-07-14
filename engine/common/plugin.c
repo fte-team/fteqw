@@ -1216,7 +1216,7 @@ void Plug_Load_f(void)
 	}
 	if (!Plug_Load(plugin, PLUG_EITHER))
 	{
-		if (!Plug_Load(va("plugins/%s", plugin), PLUG_EITHER))
+		if (!Plug_Load(va("plugins/%s", plugin), PLUG_QVM))
 			Con_Printf("Couldn't load plugin %s\n", Cmd_Argv(1));
 	}
 }

@@ -50,10 +50,6 @@ typedef struct {
 #define qrenderer QR_NONE
 #define FNC(n) (n)			//FNC is defined as 'pointer if client build, direct if dedicated server'
 
-#define Mod_SkinForName Mod_SkinNumForName
-#define Mod_FrameForName Mod_FrameNumForName
-#define Mod_GetFrameDuration Mod_FrameDuration
-
 #else
 #define FNC(n) (*n)
 extern r_qrenderer_t qrenderer;
@@ -78,8 +74,6 @@ void R2D_ImagePaletteColour(unsigned int i, float a);
 void R2D_FillBlock(int x, int y, int w, int h);
 
 extern void	(*Draw_Init)							(void);
-extern void	(*Draw_TinyCharacter)					(int x, int y, unsigned int num);
-extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
 
 extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);
@@ -87,9 +81,6 @@ extern void	(*R_RenderView)							(void);		// must set r_refdef first
 
 extern void	(*R_NewMap)								(void);
 extern void	(*R_PreNewMap)							(void);
-
-extern void	(*R_AddStain)							(vec3_t org, float red, float green, float blue, float radius);
-extern void	(*R_LessenStains)						(void);
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
@@ -119,19 +110,20 @@ void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaul
 
 #endif
 
-extern void	FNC(Mod_Init)							(void);
-extern void	FNC(Mod_ClearAll)						(void);
-extern struct model_s *FNC(Mod_ForName)				(char *name, qboolean crash);
-extern struct model_s *FNC(Mod_FindName)			(char *name);
-extern void	*FNC(Mod_Extradata)						(struct model_s *mod);	// handles caching
-extern void	FNC(Mod_TouchModel)						(char *name);
+extern void	Mod_Init							(void);
+extern void	Mod_ClearAll						(void);
+extern void Mod_Flush							(qboolean force);
+extern struct model_s *Mod_ForName				(char *name, qboolean crash);
+extern struct model_s *Mod_FindName				(char *name);
+extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
+extern void	Mod_TouchModel						(char *name);
 
-extern void	FNC(Mod_NowLoadExternal)				(void);
+extern void	Mod_NowLoadExternal					(void);
 
-extern void	FNC(Mod_Think)							(void);
-extern int FNC(Mod_SkinForName)						(struct model_s *model, char *name);
-extern int FNC(Mod_FrameForName)					(struct model_s *model, char *name);
-extern float FNC(Mod_GetFrameDuration)				(struct model_s *model, int framenum);
+extern void	Mod_Think							(void);
+extern int Mod_SkinNumForName					(struct model_s *model, char *name);
+extern int Mod_FrameNumForName					(struct model_s *model, char *name);
+extern float Mod_GetFrameDuration				(struct model_s *model, int framenum);
 
 #undef FNC
 
@@ -295,32 +287,12 @@ typedef struct rendererinfo_s {
 	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 
-	void	(*R_Init)					(void);
-	void	(*R_DeInit)					(void);
-	void	(*R_RenderView)				(void);		// must set r_refdef first
+	void	(*R_Init)					(void); //FIXME - merge implementations
+	void	(*R_DeInit)					(void);	//FIXME - merge implementations
+	void	(*R_RenderView)				(void);	// must set r_refdef first
 
-	void	(*R_NewMap)					(void);
-	void	(*R_PreNewMap)				(void);
-
-	void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
-	void	(*R_LessenStains)			(void);
-
-	void	(*Mod_Init)					(void);
-	void	(*Mod_Shutdown)				(void);
-	void	(*Mod_ClearAll)				(void);
-	struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
-	struct model_s *(*Mod_FindName)		(char *name);
-	void	*(*Mod_Extradata)			(struct model_s *mod);	// handles caching
-	void	(*Mod_TouchModel)			(char *name);
-
-	void	(*Mod_NowLoadExternal)		(void);
-	void	(*Mod_Think)				(void);
-	qboolean (*Mod_GetTag)				(struct model_s *model, int tagnum, framestate_t *fstate, float *result);
-	int (*Mod_TagNumForName)			(struct model_s *model, char *name);
-	int (*Mod_SkinForName)				(struct model_s *model, char *name);
-	int (*Mod_FrameForName)				(struct model_s *model, char *name);
-	float (*Mod_GetFrameDuration)		(struct model_s *model, int frame);
-
+	void	(*R_NewMap)					(void);	//FIXME - merge implementations
+	void	(*R_PreNewMap)				(void); //FIXME - merge implementations
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);

@@ -685,6 +685,10 @@ void SV_Map_f (void)
 	{
 		SV_Savegame("s0");
 	}
+
+
+	if (isDedicated)
+		Mod_Flush(false);
 }
 
 void SV_KillServer_f(void)

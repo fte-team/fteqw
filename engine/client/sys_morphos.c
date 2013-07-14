@@ -345,19 +345,9 @@ int main(int argc, char **argv)
 	COM_InitArgv(argc, argv);
 	TL_InitLanguages();
 
-	i = COM_CheckParm("-mem");
-	if (i && i < com_argc)
-		parms.memsize = atoi(com_argv[i+1])*1024*1024;
-	else
-		parms.memsize = 16*1024*1024;
-
 	parms.basedir = "";
 	parms.argc = argc;
 	parms.argv = argv;
-	parms.membase = malloc(parms.memsize);
-
-	if (parms.membase == 0)
-		Sys_Error("Can't allocated %d bytes\n", parms.memsize);
 
 	DynLoadBase = OpenLibrary("dynload.library", 0);
 

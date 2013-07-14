@@ -767,7 +767,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	if (etype >= 0)
 	{
 		P_RunParticleEffectState (impact, normal, 1, etype, &(b->emitstate));
-		if (cl_legacystains.ival) R_AddStain(end, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
 	}
 }
 void CL_ParseBeam (int tent)
@@ -848,7 +848,7 @@ void CL_ParseStream (int type)
 		b->model = 	Mod_ForName("models/stice.mdl", true);
 		b->flags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_icechunks");
-		if (cl_legacystains.ival) R_AddStain(end, -10, -10, 0, 20);
+		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, 0, 20);
 		break;
 	case TEH2_STREAM_SUNSTAFF1:
 		b->model = Mod_ForName("models/stsunsf1.mdl", true);
@@ -867,7 +867,7 @@ void CL_ParseStream (int type)
 	case TEH2_STREAM_SUNSTAFF2:
 		b->model = 	Mod_ForName("models/stsunsf1.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
-		if (cl_legacystains.ival) R_AddStain(end, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
 		break;
 	case TEH2_STREAM_COLORBEAM:
 		b->model = Mod_ForName("models/stclrbm.mdl", true);
@@ -943,7 +943,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, 0, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, 0, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 			P_RunParticleEffect (pos, vec3_origin, 20, 30);
@@ -956,7 +956,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 			P_RunParticleEffect (pos, vec3_origin, 226, 20);
@@ -969,7 +969,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_spikequad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
@@ -994,7 +994,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
 			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
@@ -1018,7 +1018,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_superspikequad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
@@ -1044,7 +1044,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
 			if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
@@ -1073,7 +1073,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, ptfte_bullet))
 			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
@@ -1097,7 +1097,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, ptfte_superbullet))
 			if (P_RunParticleEffectType(pos, NULL, 2, ptfte_bullet))
@@ -1128,7 +1128,7 @@ void CL_ParseTEnt (void)
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-		if (cl_legacystains.ival) R_AddStain(pos, -1, -1, -1, 100);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 
 	// light
 		if (r_explosionlight.value)
@@ -1168,7 +1168,7 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-		if (cl_legacystains.ival) R_AddStain(pos, -1, -1, -1, 100);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 
 	// light
 		if (r_explosionlight.value)
@@ -1231,7 +1231,7 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-		if (cl_legacystains.ival) R_AddStain(pos, -1, -1, -1, 100);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 
 
 	// light
@@ -1262,7 +1262,7 @@ void CL_ParseTEnt (void)
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
-		if (cl_legacystains.ival) R_AddStain(pos, -1, -1, -1, 100);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 
 	// light
 		if (r_explosionlight.value)
@@ -1321,7 +1321,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_gunshotquad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_gunshot))
@@ -1337,7 +1337,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, cnt, pt_gunshot))
 			P_RunParticleEffect (pos, vec3_origin, 0, 20*cnt);
@@ -1350,7 +1350,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, 0, -10, -10, 40);
+		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -10, -10, 40);
 
 		if (P_RunParticleEffectType(pos, NULL, cnt, ptqw_blood))
 			if (P_RunParticleEffectType(pos, NULL, cnt, ptdp_blood))
@@ -1363,7 +1363,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		if (cl_legacystains.ival) R_AddStain(pos, 1, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, 1, -10, -10, 20);
 
 		if (P_RunParticleEffectType(pos, NULL, 1, ptqw_lightningblood))
 			P_RunParticleEffect (pos, vec3_origin, 225, 50);
@@ -1519,7 +1519,7 @@ void CL_ParseTEnt (void)
 		dl->color[2] = 1.0;
 
 		// stain (Hopefully this is close to how DP does it)
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 30);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 30);
 
 		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), 0, NULL))
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
@@ -1731,7 +1731,7 @@ void CL_SpawnCustomTEnd(custtentinst_t *info)
 
 	if (t->netstyle & CTE_STAINS)
 	{	//added at pos2 - end of trail
-		R_AddStain(info->pos2, t->stain[0], t->stain[1], t->stain[2], 40);
+		Surf_AddStain(info->pos2, t->stain[0], t->stain[1], t->stain[2], 40);
 	}
 	if (t->netstyle & CTE_GLOWS)
 	{	//added at pos1 firer's end.
@@ -2234,7 +2234,7 @@ void CLQ2_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blood))
 			if (P_RunParticleEffectType(pos, dir, 1, ptqw_blood))
 				P_RunParticleEffect(pos, dir, 0xe8, 60);
-		if (cl_legacystains.ival) R_AddStain(pos, 0, -10, -10, 40);
+		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -10, -10, 40);
 		break;
 
 	case Q2TE_GUNSHOT:			// bullet hitting wall
@@ -2247,7 +2247,7 @@ void CLQ2_ParseTEnt (void)
 		else
 			P_RunParticleEffect (pos, dir, 0xe0, 6);
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 
 		if (type != Q2TE_SPARKS)
 		{
@@ -2282,7 +2282,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadDir (dir);
 		P_RunParticleEffect (pos, dir, 0, 20);
 		CL_SmokeAndFlash(pos);
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -10, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
 		break;
 
 	case Q2TE_SPLASH:			// bullet hitting water
@@ -2342,7 +2342,7 @@ void CLQ2_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 			P_RunParticleEffect (pos, dir, 0xe0, 40);
 
-		if (cl_legacystains.ival) R_AddStain(pos, 0, -5, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -5, -10, 20);
 
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
@@ -2402,7 +2402,7 @@ void CLQ2_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 			P_RunParticleEffect(pos, NULL, 0xe0, 256);
 
-		if (cl_legacystains.ival) R_AddStain(pos, -1, -1, -1, 100);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 
 	// light
 		if (r_explosionlight.value)
@@ -2497,7 +2497,7 @@ void CLQ2_ParseTEnt (void)
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 				P_RunParticleEffect(pos, NULL, 0xe0, 256);
 
-			if (cl_legacystains.ival) R_AddStain(pos, -1, -1, -1, 100);
+			if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 		}
 
 	// light
@@ -2673,7 +2673,7 @@ void CLQ2_ParseTEnt (void)
 			if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 				P_RunParticleEffect (pos, dir, 0xd0, 40);
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, 0, -10, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, 0, -10, 20);
 
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
@@ -2723,7 +2723,7 @@ void CLQ2_ParseTEnt (void)
 			if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 				P_RunParticleEffect (pos, dir, 0x6f, 40);
 
-		if (cl_legacystains.ival) R_AddStain(pos, -10, -2, 0, 20);
+		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -2, 0, 20);
 
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);

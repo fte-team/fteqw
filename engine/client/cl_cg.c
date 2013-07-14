@@ -940,7 +940,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_MEMORY_REMAINING:
-		VM_LONG(ret) = Hunk_LowMemAvailable();
+		VM_LONG(ret) = 1024*1024*8;//Hunk_LowMemAvailable();
 		break;
 
 	case CG_MILLISECONDS:

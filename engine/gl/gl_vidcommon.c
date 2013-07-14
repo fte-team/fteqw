@@ -1688,7 +1688,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 #define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING	0x889F
 #define GL_CURRENT_PROGRAM						0x8B8D
 
-char *DecodeGLEnum(GLenum num)
+static char *DecodeGLEnum(GLenum num)
 {
 	switch(num)
 	{
@@ -1874,26 +1874,6 @@ rendererinfo_t openglrendererinfo = {
 
 	GLR_NewMap,
 	GLR_PreNewMap,
-
-	Surf_AddStain,
-	Surf_LessenStains,
-
-	RMod_Init,
-	RMod_Shutdown,
-	RMod_ClearAll,
-	RMod_ForName,
-	RMod_FindName,
-	RMod_Extradata,
-	RMod_TouchModel,
-
-	RMod_NowLoadExternal,
-	RMod_Think,
-
-	Mod_GetTag,
-	Mod_TagNumForName,
-	Mod_SkinNumForName,
-	Mod_FrameNumForName,
-	Mod_FrameDuration,
 
 	GLVID_Init,
 	GLVID_DeInit,

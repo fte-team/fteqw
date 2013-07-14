@@ -48,8 +48,8 @@ static void WT_Triangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert_t *
 		{	\
 			*zb = z;	\
 		tpix = img->data[	\
-					((unsigned)(s*img->width)%img->width)	\
-					+ (((unsigned)(t*img->height)%img->height) * img->width)	\
+					((unsigned)(s>>16)&img->pwidthmask)	\
+					+ (((unsigned)(t>>16)&img->pheightmask) * img->pitch)	\
 				];	\
 		if (tpix&0xff000000) \
 			o = tpix; \
@@ -76,11 +76,11 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 	int secondhalf;
 	int xl,xld, xr,xrd;
 #ifdef SPAN_ST
-	float sl,sld, sd;
-	float tl,tld, td;
+	int sl,sld, sd;
+	int tl,tld, td;
 #endif
 #ifdef SPAN_Z
-	unsigned int zl,zld, zd;
+	int zl,zld, zd;
 #endif
 	unsigned int *restrict outbuf;
 	unsigned int *restrict ti;
@@ -136,8 +136,8 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 				return;
 			if (v[i]->vcoord[1] < 0 || v[i]->vcoord[1] >= th->vpheight)
 				return;
-			if (v[i]->vcoord[2] < 0)
-				return;
+//			if (v[i]->vcoord[3] < 0)
+//				return;
 		}
 
 		for (i = 0; i < 2; i++)
@@ -168,19 +168,19 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 	fdy2 *= fz;
 
 #ifdef SPAN_ST	//affine
-	d1 = v2->tccoord[0] - v1->tccoord[0];
-	d2 = v3->tccoord[0] - v1->tccoord[0];
+	d1 = (v2->tccoord[0] - v1->tccoord[0])*(img->pwidth<<16);
+	d2 = (v3->tccoord[0] - v1->tccoord[0])*(img->pwidth<<16);
 	sld = fdx1*d2 - fdx2*d1;
 	sd = fdy2*d1 - fdy1*d2;
 
-	d1 = v2->tccoord[1] - v1->tccoord[1];
-	d2 = v3->tccoord[1] - v1->tccoord[1];
+	d1 = (v2->tccoord[1] - v1->tccoord[1])*(img->pheight<<16);
+	d2 = (v3->tccoord[1] - v1->tccoord[1])*(img->pheight<<16);
 	tld = fdx1*d2 - fdx2*d1;
 	td = fdy2*d1 - fdy1*d2;
 #endif
 #ifdef SPAN_Z
-	d1 = (v2->vcoord[2] - v1->vcoord[2])*UINT_MAX;
-	d2 = (v3->vcoord[2] - v1->vcoord[2])*UINT_MAX;
+	d1 = (v2->vcoord[3] - v1->vcoord[3])*(1<<16);
+	d2 = (v3->vcoord[3] - v1->vcoord[3])*(1<<16);
 	zld = fdx1*d2 - fdx2*d1;
 	zd = fdy2*d1 - fdy1*d2;
 #endif
@@ -223,11 +223,11 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 				recalcside = 1;
 
 #ifdef SPAN_ST
-				sld -= sd*xld/(float)(1<<16);
-				tld -= td*xld/(float)(1<<16);
+				sld -= (((long long)sd*xld)>>16);
+				tld -= (((long long)td*xld)>>16);
 #endif
 #ifdef SPAN_Z
-				zld -= zd*xld/(float)(1<<16);
+				zld -= (((long long)zd*xld)>>16);
 #endif
 			}
 			else
@@ -275,14 +275,14 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			xl = (int)vlt->vcoord[0]<<16;
 
 #ifdef SPAN_ST
-			sl = vlt->tccoord[0];
-			sld = sld + sd*xld/(float)(1<<16);
-			tl = vlt->tccoord[1];
-			tld = tld + td*xld/(float)(1<<16);
+			sl = vlt->tccoord[0] * (img->pwidth<<16);
+			sld = sld + (((long long)sd*xld)>>16);
+			tl = vlt->tccoord[1] * (img->pheight<<16);
+			tld = tld + (((long long)td*xld)>>16);
 #endif
 #ifdef SPAN_Z
-			zl = vlt->vcoord[2]*UINT_MAX;
-			zld = zld + zd*xld/(float)(1<<16);
+			zl = vlt->vcoord[3] * (1<<16);
+			zld = zld + (((long long)zd*xld)>>16);
 #endif
 		}
 
@@ -351,8 +351,8 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			)
 		{
 #ifdef SPAN_ST
-			float s = sl;
-			float t = tl;
+			unsigned int s = sl;
+			unsigned int t = tl;
 #endif
 #ifdef SPAN_Z
 			unsigned int z = zl;
@@ -386,54 +386,65 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 	
 }
 
-static void WT_Clip_Top(swvert_t *out, swvert_t *in, swvert_t *result)
+static void WT_Clip_Top(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(0 - in->vcoord[1]) /
+	frac =	(1 - in->vcoord[1]) /
 			(out->vcoord[1] - in->vcoord[1]);
-	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
-	result->vcoord[1] = 0;
+	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+//	result->vcoord[1] = 0;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
-static void WT_Clip_Bottom(swvert_t *out, swvert_t *in, swvert_t *result)
+static void WT_Clip_Bottom(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(vid.pixelheight-1 - in->vcoord[1]) /
+	frac =	((th->vpheight-2) - in->vcoord[1]) /
 			(out->vcoord[1] - in->vcoord[1]);
-	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
-	result->vcoord[1] = vid.pixelheight-1;
+	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+//	result->vcoord[1] = vid.pixelheight-1;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
-static void WT_Clip_Left(swvert_t *out, swvert_t *in, swvert_t *result)
+static void WT_Clip_Left(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(0 - in->vcoord[0]) /
+	frac =	(1 - in->vcoord[0]) /
 			(out->vcoord[0] - in->vcoord[0]);
-	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
-	result->vcoord[0] = 0;
+	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+//	result->vcoord[0] = 0;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
-static void WT_Clip_Right(swvert_t *out, swvert_t *in, swvert_t *result)
+static void WT_Clip_Right(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(vid.pixelwidth-1 - in->vcoord[0]) /
+	frac =	((th->vpwidth-2) - in->vcoord[0]) /
 			(out->vcoord[0] - in->vcoord[0]);
-	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
-	result->vcoord[0] = vid.pixelwidth-1;
+	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+//	result->vcoord[0] = vid.pixelwidth-1;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
-static void WT_Clip_Near(swvert_t *out, swvert_t *in, swvert_t *result)
+static void WT_Clip_Near(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
-	extern cvar_t temp1;
+	float nearclip = 0;
 	double frac;
-	frac =	(temp1.value - in->vcoord[2]) /
-			(out->vcoord[2] - in->vcoord[2]);
+	frac =	(nearclip - in->vcoord[3]) /
+			(out->vcoord[3] - in->vcoord[3]);
 	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
-	result->vcoord[2] = temp1.value;
+	result->vcoord[3] = nearclip;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 
-static int WT_ClipPoly(int incount, swvert_t *inv, swvert_t *outv, int flag, void (*clip)(swvert_t *out, swvert_t *in, swvert_t *result))
+static void WT_Clip_Far(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
+{
+	float farclip = 1;
+	double frac;
+	frac =	(farclip - in->vcoord[3]) /
+			(out->vcoord[3] - in->vcoord[3]);
+	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	result->vcoord[3] = farclip;
+	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
+}
+
+static int WT_ClipPoly(swthread_t *th, int incount, swvert_t *inv, swvert_t *outv, int flag, void (*clip)(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result))
 {
 	int p, c;
 	int result = 0;
@@ -452,19 +463,24 @@ static int WT_ClipPoly(int incount, swvert_t *inv, swvert_t *outv, int flag, voi
 		{
 			//crossed... emit a new vertex on the boundary
 			if (cf)	//new is offscreen
-				clip(&inv[c], &inv[p], &outv[result]);
+				clip(th, &inv[c], &inv[p], &outv[result]);
 			else
-				clip(&inv[p], &inv[c], &outv[result]);
+				clip(th, &inv[p], &inv[c], &outv[result]);
 			outv[result].clipflags = 0;
 
 			if (outv[result].vcoord[0] < 0)
-				outv[result].clipflags = CLIP_LEFT_FLAG;
-			if (outv[result].vcoord[0] > vid.pixelwidth-1)
+				outv[result].clipflags |= CLIP_LEFT_FLAG;
+			if (outv[result].vcoord[0] >= th->vpwidth)
 				outv[result].clipflags |= CLIP_RIGHT_FLAG;
 			if (outv[result].vcoord[1] < 0)
 				outv[result].clipflags |= CLIP_TOP_FLAG;
-			if (outv[result].vcoord[1] > vid.pixelheight-1)
+			if (outv[result].vcoord[1] >= th->vpheight)
 				outv[result].clipflags |= CLIP_BOTTOM_FLAG;
+
+			if (outv[result].vcoord[3] < 0)
+				outv[result].clipflags |= CLIP_NEAR_FLAG;
+			if (outv[result].vcoord[3] > 1)
+				outv[result].clipflags |= CLIP_FAR_FLAG;
 
 			result++;
 		}
@@ -477,6 +493,35 @@ static int WT_ClipPoly(int incount, swvert_t *inv, swvert_t *outv, int flag, voi
 	return result;
 }
 
+//transform the vertex and calculate its final position.
+static int WT_TransformVertXY(swthread_t *th, swvert_t *v)
+{
+	int result = 0;
+	vec4_t tr;
+	Matrix4x4_CM_Transform34(th->u.matrix, v->vcoord, tr);
+	if (tr[3] != 1)
+	{
+		tr[0] /= tr[3];
+		tr[1] /= tr[3];
+		tr[2] /= tr[3];
+	}
+
+	v->vcoord[0] = (tr[0]+1)/2 * th->vpwidth;
+	if (v->vcoord[0] < 0)
+		result |= CLIP_LEFT_FLAG;
+	if (v->vcoord[0] >= th->vpwidth)
+		result |= CLIP_RIGHT_FLAG;
+
+	v->vcoord[1] = (tr[1]+1)/2 * th->vpheight;
+	if (v->vcoord[1] < 0)
+		result |= CLIP_TOP_FLAG;
+	if (v->vcoord[1] >= th->vpheight)
+		result |= CLIP_BOTTOM_FLAG;
+	v->clipflags = result;
+
+	return result;
+}
+
 static void WT_ClipTriangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert_t *v2, swvert_t *v3)
 {
 	unsigned int cflags;
@@ -485,49 +530,74 @@ static void WT_ClipTriangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert
 	int i;
 	int count;
 
+	//check the near/far planes.
+	v1->vcoord[3] = DotProduct(v1->vcoord, th->u.viewplane) - th->u.viewplane[3];
+	if (v1->vcoord[3] < 0) v1->clipflags = CLIP_NEAR_FLAG; else if (v1->vcoord[3] > 1) v1->clipflags = CLIP_FAR_FLAG; else v1->clipflags = 0;
+	v2->vcoord[3] = DotProduct(v2->vcoord, th->u.viewplane) - th->u.viewplane[3];
+	if (v2->vcoord[3] < 0) v2->clipflags = CLIP_NEAR_FLAG; else if (v2->vcoord[3] > 1) v2->clipflags = CLIP_FAR_FLAG; else v2->clipflags = 0;
+	v3->vcoord[3] = DotProduct(v3->vcoord, th->u.viewplane) - th->u.viewplane[3];
+	if (v3->vcoord[3] < 0) v3->clipflags = CLIP_NEAR_FLAG; else if (v3->vcoord[3] > 1) v3->clipflags = CLIP_FAR_FLAG; else v3->clipflags = 0;
+
 	if (v1->clipflags & v2->clipflags & v3->clipflags)
-		return;	//all verticies are off at least one single side
-	
+		return;	//all verticies are off at least one plane
 	cflags = v1->clipflags | v2->clipflags | v3->clipflags;
 
-	if (!cflags)
+	if (0)//!cflags)
 	{
-		//no clipping to be done
-		WT_Triangle(th, img, v1, v2, v3);
-		return;
+		//figure out the final 2d positions
+		cflags = 0;
+		for (i = 0; i < count; i++)
+			cflags |= WT_TransformVertXY(th, &final[list][i]);
+
+	}
+	else
+	{
+		final[list][0] = *v1;
+		final[list][1] = *v2;
+		final[list][2] = *v3;
+		count = 3;
+
+		//clip to the screen
+		if (cflags & CLIP_NEAR_FLAG)
+		{
+			count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_NEAR_FLAG, WT_Clip_Near);
+			list ^= 1;
+		}
+		if (cflags & CLIP_FAR_FLAG)
+		{
+			count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_FAR_FLAG, WT_Clip_Far);
+			list ^= 1;
+		}
+
+		//figure out the final 2d positions
+		cflags = 0;
+		for (i = 0; i < count; i++)
+			cflags |= WT_TransformVertXY(th, &final[list][i]);
 	}
 
-	final[list][0] = *v1;
-	final[list][1] = *v2;
-	final[list][2] = *v3;
-	count = 3;
-
-	if (cflags & CLIP_NEAR_FLAG)
-	{
-		count = WT_ClipPoly(count, final[list], final[list^1], CLIP_NEAR_FLAG, WT_Clip_Near);
-		list ^= 1;
-	}
+	//and clip those by the screen (instead of by plane, to try to prevent crashes)
 	if (cflags & CLIP_TOP_FLAG)
 	{
-		count = WT_ClipPoly(count, final[list], final[list^1], CLIP_TOP_FLAG, WT_Clip_Top);
+		count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_TOP_FLAG, WT_Clip_Top);
 		list ^= 1;
 	}
 	if (cflags & CLIP_BOTTOM_FLAG)
 	{
-		count = WT_ClipPoly(count, final[list], final[list^1], CLIP_BOTTOM_FLAG, WT_Clip_Bottom);
+		count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_BOTTOM_FLAG, WT_Clip_Bottom);
 		list ^= 1;
 	}
 	if (cflags & CLIP_LEFT_FLAG)
 	{
-		count = WT_ClipPoly(count, final[list], final[list^1], CLIP_LEFT_FLAG, WT_Clip_Left);
+		count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_LEFT_FLAG, WT_Clip_Left);
 		list ^= 1;
 	}
 	if (cflags & CLIP_RIGHT_FLAG)
 	{
-		count = WT_ClipPoly(count, final[list], final[list^1], CLIP_RIGHT_FLAG, WT_Clip_Right);
+		count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_RIGHT_FLAG, WT_Clip_Right);
 		list ^= 1;
 	}
 
+	//draw the damn thing. FIXME: generate spans and push to a fragment thread.
 	for (i = 2; i < count; i++)
 	{
 		WT_Triangle(th, img, &final[list][0], &final[list][i-1], &final[list][i]);
@@ -579,6 +649,9 @@ qboolean WT_HandleCommand(swthread_t *t, wqcom_t *com)
 	case WTC_NOOP:
 		break;
 	case WTC_NEWFRAME:
+		break;
+	case WTC_UNIFORMS:
+		memcpy(&t->u, &com->uniforms.u, sizeof(t->u));
 		break;
 	case WTC_VIEWPORT:
 		t->vpcbuf = com->viewport.cbuf;
@@ -858,17 +931,15 @@ void SW_R_NewMap(void)
 #endif
 
 #ifdef RTLIGHTS
-	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
-	{
-		R_LoadRTLights();
-		if (rtlights_first == rtlights_max)
-			R_ImportRTLights(cl.worldmodel->entities);
-	}
 	Sh_PreGenerateLights();
 #endif
 }
 void SW_R_PreNewMap(void)
 {
+	r_viewleaf = NULL;
+	r_oldviewleaf = NULL;
+	r_viewleaf2 = NULL;
+	r_oldviewleaf2 = NULL;
 }
 void SW_SCR_UpdateScreen(void)
 {
@@ -907,8 +978,6 @@ void SW_SCR_UpdateScreen(void)
 	Shader_DoReload();
 
 	//FIXME: playfilm/editor+q3ui
-	if (vid.recalc_refdef)
-		SCR_CalcRefdef ();
 	SCR_SetUpToDrawConsole ();
 
 	if (cls.state == ca_active)
@@ -923,6 +992,22 @@ void SW_SCR_UpdateScreen(void)
 	SCR_DrawTwoDimensional(0, 0);
 
 	V_UpdatePalette (false);
+}
+
+void SW_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
+{
+}
+void SW_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+{
+}
+void SW_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+{
+}
+void SW_VBO_Destroy(vboarray_t *vearray)
+{
+}
+void SWBE_Scissor(srect_t *rect)
+{
 }
 
 rendererinfo_t swrendererinfo =
@@ -954,26 +1039,6 @@ rendererinfo_t swrendererinfo =
 	SW_R_NewMap,
 	SW_R_PreNewMap,
 
-	Surf_AddStain,
-	Surf_LessenStains,
-
-	RMod_Init,
-	RMod_Shutdown,
-	RMod_ClearAll,
-	RMod_ForName,
-	RMod_FindName,
-	RMod_Extradata,
-	RMod_TouchModel,
-
-	RMod_NowLoadExternal,
-	RMod_Think,
-	Mod_GetTag,
-	Mod_TagNumForName,
-	Mod_SkinNumForName,
-	Mod_FrameNumForName,
-	Mod_FrameDuration,
-
-
 	SW_VID_Init,
 	SW_VID_DeInit,
 	SW_VID_ApplyGammaRamps,
@@ -994,12 +1059,13 @@ rendererinfo_t swrendererinfo =
 	SWBE_UploadAllLightmaps,
 	SWBE_SelectEntity,
 	SWBE_SelectDLight,
+	SWBE_Scissor,
 	SWBE_LightCullModel,
 
-	NULL,//void (*BE_VBO_Begin)(vbobctx_t *ctx, unsigned int maxsize);
-	NULL,//void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
-	NULL,//void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
-	NULL,//void (*BE_VBO_Destroy)(vboarray_t *vearray);
+	SW_VBO_Begin,
+	SW_VBO_Data,
+	SW_VBO_Finish,
+	SW_VBO_Destroy,
 
 	"no more"
 };

@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SERVERONLY
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
+static int mod_datasequence;
 
 qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
 qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
@@ -321,17 +322,33 @@ qbyte *Mod_LeafnumPVS (int ln, model_t *model, qbyte *buffer)
 
 /*
 ===================
-Mod_ClearAll
+Mod_Flush
 ===================
 */
-void Mod_ClearAll (void)
+void Mod_Flush(qboolean force)
 {
 	int		i;
 	model_t	*mod;
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-		if (mod->type != mod_alias)
+	{
+		if (mod->datasequence != mod_datasequence || force)
+		{
+			//and obliterate anything else remaining in memory.
+			ZG_FreeGroup(&mod->memgroup);
+			mod->meshinfo = NULL;
 			mod->needload = true;
+		}
+	}
+}
+/*
+===================
+Mod_ClearAll
+===================
+*/
+void Mod_ClearAll (void)
+{
+	mod_datasequence++;
 }
 
 /*
@@ -379,7 +396,6 @@ Loads a model into the cache
 */
 model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 {
-	void	*d;
 	unsigned *buf;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
 
@@ -387,8 +403,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	{
 		if (mod->type == mod_alias)
 		{
-			d = Cache_Check (&mod->cache);
-			if (d)
+			if (mod->meshinfo)
 				return mod;
 		}
 		else
@@ -558,7 +573,7 @@ void Mod_LoadTextures (lump_t *l)
 	m->nummiptex = LittleLong (m->nummiptex);
 
 	loadmodel->numtextures = m->nummiptex;
-	loadmodel->textures = Hunk_AllocName (m->nummiptex * sizeof(*loadmodel->textures) , loadname);
+	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
 
 	for (i=0 ; i<m->nummiptex ; i++)
 	{
@@ -574,7 +589,7 @@ void Mod_LoadTextures (lump_t *l)
 		if ( (mt->width & 15) || (mt->height & 15) )
 			SV_Error ("Texture %s is not 16 aligned", mt->name);
 		pixels = mt->width*mt->height/64*85;
-		tx = Hunk_AllocName (sizeof(texture_t) +pixels, loadname );
+		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t) +pixels);
 		loadmodel->textures[i] = tx;
 
 		memcpy (tx->name, mt->name, sizeof(tx->name));
@@ -698,12 +713,12 @@ qboolean Mod_LoadLighting (lump_t *l)
 
 	if (loadmodel->fromgame == fg_halflife)
 	{
-		loadmodel->lightdata = Hunk_AllocName ( l->filelen, loadname);
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, l->filelen);
 		memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
 	}
 	else
 	{
-		loadmodel->lightdata = Hunk_AllocName ( l->filelen*3, loadname);
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, l->filelen*3);
 
 		in = mod_base + l->fileofs;
 		out = loadmodel->lightdata;
@@ -732,7 +747,7 @@ void Mod_LoadVisibility (lump_t *l)
 		loadmodel->visdata = NULL;
 		return;
 	}
-	loadmodel->visdata = Hunk_AllocName ( l->filelen, loadname);
+	loadmodel->visdata = ZG_Malloc(&loadmodel->memgroup, l->filelen);
 	memcpy (loadmodel->visdata, mod_base + l->fileofs, l->filelen);
 }
 
@@ -749,7 +764,7 @@ void Mod_LoadEntities (lump_t *l)
 		loadmodel->entities = NULL;
 		return;
 	}
-	loadmodel->entities = Hunk_AllocName ( l->filelen + 1, loadname);
+	loadmodel->entities = ZG_Malloc(&loadmodel->memgroup, l->filelen + 1);
 	memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
 	loadmodel->entities[l->filelen] = 0;
 }
@@ -773,7 +788,7 @@ qboolean Mod_LoadVertexes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->vertexes = out;
 	loadmodel->numvertexes = count;
@@ -813,7 +828,7 @@ qboolean Mod_LoadSubmodels (lump_t *l)
 			return false;
 		}
 		count = l->filelen / sizeof(*inh);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->submodels = out;
 		loadmodel->numsubmodels = count;
@@ -851,7 +866,7 @@ qboolean Mod_LoadSubmodels (lump_t *l)
 			return false;
 		}
 		count = l->filelen / sizeof(*inq);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->submodels = out;
 		loadmodel->numsubmodels = count;
@@ -902,7 +917,7 @@ qboolean Mod_LoadEdges (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));
 
 		loadmodel->edges = out;
 		loadmodel->numedges = count;
@@ -922,7 +937,7 @@ qboolean Mod_LoadEdges (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));
 
 		loadmodel->edges = out;
 		loadmodel->numedges = count;
@@ -956,7 +971,7 @@ qboolean Mod_LoadTexinfo (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->texinfo = out;
 	loadmodel->numtexinfo = count;
@@ -1096,7 +1111,7 @@ qboolean Mod_LoadFaces (lump_t *l, qboolean lm)
 		}
 		count = l->filelen / sizeof(*ins);
 	}
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -1205,7 +1220,7 @@ qboolean Mod_LoadNodes (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->nodes = out;
 		loadmodel->numnodes = count;
@@ -1244,7 +1259,7 @@ qboolean Mod_LoadNodes (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->nodes = out;
 		loadmodel->numnodes = count;
@@ -1298,7 +1313,7 @@ qboolean Mod_LoadLeafs (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
@@ -1338,7 +1353,7 @@ qboolean Mod_LoadLeafs (lump_t *l, qboolean lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
@@ -1394,7 +1409,7 @@ qboolean Mod_LoadClipnodes (lump_t *l, qboolean lm)
 		}
 		count = l->filelen / sizeof(*in);
 
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 		for (i=0 ; i<count ; i++, in++)
 		{
 			out[i].planenum = LittleLong(in->planenum);
@@ -1413,7 +1428,7 @@ qboolean Mod_LoadClipnodes (lump_t *l, qboolean lm)
 		}
 		count = l->filelen / sizeof(*in);
 
-		out = Hunk_AllocName ( count*sizeof(*out), loadname);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 		for (i=0 ; i<count ; i++, in++)
 		{
 			out[i].planenum = LittleLong(in->planenum);
@@ -1605,7 +1620,7 @@ void Mod_MakeHull0 (void)
 
 	in = loadmodel->nodes;
 	count = loadmodel->numnodes;
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	hull->clipnodes = out;
 	hull->firstclipnode = 0;
@@ -1641,7 +1656,7 @@ void Mod_LoadMarksurfaces (lump_t *l)
 	if (l->filelen % sizeof(*in))
 		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->marksurfaces = out;
 	loadmodel->nummarksurfaces = count;
@@ -1672,7 +1687,7 @@ qboolean Mod_LoadSurfedges (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	loadmodel->surfedges = out;
 	loadmodel->numsurfedges = count;
@@ -1703,7 +1718,7 @@ qboolean Mod_LoadPlanes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*2*sizeof(*out), loadname);
+	out = ZG_Malloc(&loadmodel->memgroup, count*2*sizeof(*out));
 
 	loadmodel->planes = out;
 	loadmodel->numplanes = count;
@@ -1737,14 +1752,11 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	dheader_t	*header;
 	mmodel_t 	*bm;
 	unsigned int chksum;
-	int start;
 	qboolean noerrors;
 	qboolean longm = false;
 #ifdef TERRAIN
 	model_t *lm = loadmodel;
 #endif
-
-	start = Hunk_LowMark();
 
 	loadmodel->type = mod_brush;
 
@@ -1829,7 +1841,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 
 	if (!noerrors)
 	{
-		Hunk_FreeToLowMark(start);
+		ZG_FreeGroup(&mod->memgroup);
 		return false;
 	}
 
@@ -1875,6 +1887,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 			*loadmodel = *mod;
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
+			memset(&mod->memgroup, 0, sizeof(mod->memgroup));
 		}
 	}
 
@@ -1889,17 +1902,14 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 
 void *Mod_Extradata (model_t *mod)
 {
-	void	*r;
-	
-	r = Cache_Check (&mod->cache);
-	if (r)
-		return r;
+	if (mod->meshinfo)
+		return mod->meshinfo;
 
 	Mod_LoadModel (mod, true);
 	
-	if (!mod->cache.data)
+	if (!mod->meshinfo)
 		Sys_Error ("Mod_Extradata: caching failed");
-	return mod->cache.data;
+	return mod->meshinfo;
 }
 
 

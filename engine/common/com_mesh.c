@@ -2416,7 +2416,7 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 #ifndef SERVERONLY
 			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
 #else
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t))*galias->numverts);
+			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, sizeof(galiaspose_t) + (sizeof(vecV_t))*galias->numverts);
 #endif
 			frame->poseofs = pose;
 			frame->numposes = 1;
@@ -2451,7 +2451,7 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 
 			frame->numposes = LittleLong(ingroup->numframes);
 #ifdef SERVERONLY
-			pose = (galiaspose_t *)Hunk_Alloc(frame->numposes*(sizeof(galiaspose_t) + sizeof(vecV_t)*galias->numverts));
+			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, frame->numposes*(sizeof(galiaspose_t) + sizeof(vecV_t)*galias->numverts));
 			verts = (vecV_t *)(pose+frame->numposes);
 #else
 			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, frame->numposes*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
@@ -2924,8 +2924,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 		galias->numverts = pq1inmodel->numverts;
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = ZG_Malloc(&memgroup, galias->numindexes*sizeof(*indexes));
-		galias->ofs_indexes = (char *)indexes - (char *)galias;
+		indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = indexes;
 		for (i = 0; i < pq1inmodel->numverts; i++)
 			seamremap[i] = i;
 		for (i = 0; i < pq1inmodel->numtris; i++)
@@ -5848,9 +5848,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 	/*allocate a nice big block of memory and figure out where stuff is*/
 	gai = ZG_Malloc(&loadmodel->memgroup, sizeof(*gai)*h->num_meshes +
-//#ifndef SERVERONLY
+#ifndef SERVERONLY
 		sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes + 
-//#endif
+#endif
 		sizeof(*fgroup)*numgroups + sizeof(float)*12*(h->num_joints + (h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
 		(sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
 	bones = (galiasbone_t*)(gai + h->num_meshes);

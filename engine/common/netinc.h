@@ -1,12 +1,13 @@
 
 #ifndef NACL
-#define HAVE_IPV4	//says we can set and receive AF_INET ipv4 udp packets.
+#define HAVE_IPV4	//says we can send and receive AF_INET ipv4 udp packets.
 #define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
 #define HAVE_PACKET	//if we have the socket api at all...
 #endif
 
 #ifdef FTE_TARGET_WEB
 #undef HAVE_PACKET	//no udp packet interface.
+#undef HAVE_TCP		//we should probably use websockets instead.
 #endif
 
 #ifdef NACL
@@ -141,6 +142,7 @@
 	#define EAFNOSUPPORT	WSAEAFNOSUPPORT
 
 #else
+	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
 	#include <netinet/in.h>
@@ -148,7 +150,6 @@
 	#include <netdb.h>
 	#include <sys/ioctl.h>
 	#include <sys/uio.h>
-	#include <sys/time.h>
 	#include <arpa/inet.h>
 	#include <errno.h>
 

@@ -3982,9 +3982,16 @@ void CL_ParseClientdata (void)
 	oldparsecountmod = parsecountmod;
 
 	i = cls.netchan.incoming_acknowledged;
+#ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE)
+	{
 		i = cls.netchan.incoming_sequence-1;
-	if (cls.demoplayback == DPB_NETQUAKE || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		cl.oldparsecount = i - 1;
+		oldparsecountmod = cl.oldparsecount & UPDATE_MASK;
+	}
+	else
+#endif
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		cl.oldparsecount = i - 1;
 		oldparsecountmod = cl.oldparsecount & UPDATE_MASK;

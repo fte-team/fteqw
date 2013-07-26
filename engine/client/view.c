@@ -1250,37 +1250,8 @@ void V_CalcRefdef (playerview_t *pv)
 	r_refdef.vieworg[1] += 1.0/16;
 	r_refdef.vieworg[2] += 1.0/16;
 
-	if (pv->fixangle)
-	{
-		if (pv->oldfixangle)
-		{
-			float frac, move;
-			if (cl.gametime <= cl.oldgametime)
-				frac = 1;
-			else
-			{
-				frac = (realtime - cl.gametimemark) / (cl.gametime - cl.oldgametime);
-				frac = bound(0, frac, 1);
-			}
-			for (i = 0; i < 3; i++)
-			{
-				move = pv->fixangles[i] - pv->oldfixangles[i];
-				if (move >= 180)
-					move -= 360;
-				if (move <= -180)
-					move += 360;
-				r_refdef.viewangles[i] = pv->oldfixangles[i] + frac * move;
-			}
-		}
-		else
-		{
-			VectorCopy (pv->fixangles, r_refdef.viewangles);
-		}
-	}
-	else
-	{
-		VectorCopy (pv->simangles, r_refdef.viewangles);
-	}
+	VectorCopy (pv->simangles, r_refdef.viewangles);
+
 	V_CalcViewRoll (pv);
 	V_AddIdle (pv);
 
@@ -1685,7 +1656,6 @@ void V_RenderView (void)
 		SCR_VRectForPlayer(&r_refdef.grect, viewnum);
 		V_RenderPlayerViews(r_refdef.playerview);
 
-		GL_Set2D (false);
 		Plug_SBar(r_refdef.playerview);
 		SCR_TileClear ();
 	}

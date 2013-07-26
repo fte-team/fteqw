@@ -273,10 +273,11 @@ extern	qboolean	com_eof;
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
 char *COM_ParseOut (const char *data, char *out, int outlen);
 char *COM_ParseStringSet (const char *data);
-char *COM_ParseCString (const char *data);
+char *COM_ParseCString (const char *data, char *out, int outlen);
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str);
+const char *COM_QuotedString(const char *string, char *buf, int buflen);	//inverse of COM_StringParse
 
 
 extern	int		com_argc;

@@ -2488,18 +2488,19 @@ int captureframe;
 qboolean captureframeforce;
 
 qboolean capturepaused;
-cvar_t capturerate = SCVAR("capturerate", "30");
+cvar_t capturerate = CVAR("capturerate", "30");
 #if defined(WINAVI)
-cvar_t capturecodec = SCVAR("capturecodec", "divx");
+cvar_t capturedriver = CVARD("capturedriver", "avi", "The driver to use to capture the demo. avformat can be supported via a plugin.\navi: capture directly to avi (capturecodec should be a fourcc value).\nraw: capture to a series of screenshots.");
+cvar_t capturecodec = CVAR("capturecodec", "divx");
 #else
-cvar_t capturecodec = SCVAR("capturecodec", "tga");
+cvar_t capturedriver = CVARD("capturedriver", "raw", "The driver to use to capture the demo. avformat can be supported via a plugin.\nraw: capture to a series of screenshots.");
+cvar_t capturecodec = CVAR("capturecodec", "tga");
 #endif
-cvar_t capturesound = SCVAR("capturesound", "1");
-cvar_t capturesoundchannels = SCVAR("capturesoundchannels", "1");
-cvar_t capturesoundbits = SCVAR("capturesoundbits", "8");
-cvar_t capturemessage = SCVAR("capturemessage", "");
+cvar_t capturesound = CVAR("capturesound", "1");
+cvar_t capturesoundchannels = CVAR("capturesoundchannels", "1");
+cvar_t capturesoundbits = CVAR("capturesoundbits", "8");
+cvar_t capturemessage = CVAR("capturemessage", "");
 qboolean recordingdemo;
-media_encoder_funcs_t *capturedriver[8];
 
 media_encoder_funcs_t *currentcapture_funcs;
 void *currentcapture_ctx;
@@ -2509,13 +2510,20 @@ void *currentcapture_ctx;
 /*screenshot capture*/
 struct capture_raw_ctx
 {
+	int frames;
 	char videonameprefix[MAX_QPATH];
+	char videonameextension[16];
 	vfsfile_t *audio;
 };
 
 static void *QDECL capture_raw_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
 {
 	struct capture_raw_ctx *ctx = Z_Malloc(sizeof(*ctx));
+
+	if (!strcmp(capturecodec.string, "png") || !strcmp(capturecodec.string, "jpeg") || !strcmp(capturecodec.string, "jpg") || !strcmp(capturecodec.string, "bmp") || !strcmp(capturecodec.string, "pcx") || !strcmp(capturecodec.string, "tga"))
+		Q_strncpyz(ctx->videonameextension, capturecodec.string, sizeof(ctx->videonameextension));
+	else
+		Q_strncpyz(ctx->videonameextension, "tga", sizeof(ctx->videonameextension));
 
 	Q_strncpyz(ctx->videonameprefix, streamname, sizeof(ctx->videonameprefix));
 	ctx->audio = NULL;
@@ -2545,7 +2553,8 @@ static void QDECL capture_raw_video (void *vctx, void *data, int frame, int widt
 {
 	struct capture_raw_ctx *ctx = vctx;
 	char filename[MAX_OSPATH];
-	Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", ctx->videonameprefix, frame, capturecodec.string);
+	ctx->frames = frame+1;
+	Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
 	SCR_ScreenShot(filename, data, width, height);
 }
 static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
@@ -2558,10 +2567,14 @@ static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
 static void QDECL capture_raw_end (void *vctx)
 {
 	struct capture_raw_ctx *ctx = vctx;
+	if (ctx->audio)
+		VFS_CLOSE(ctx->audio);
+	Con_Printf("%d video frames captured\n", ctx->frames);
 	Z_Free(ctx);
 }
 static media_encoder_funcs_t capture_raw =
 {
+	"raw",
 	capture_raw_begin,
 	capture_raw_video,
 	capture_raw_audio,
@@ -2678,7 +2691,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 		hr = qAVIMakeCompressedStream(&ctx->compressed_video_stream, ctx->uncompressed_video_stream, &opts, NULL);
 		if (FAILED(hr))
 		{
-			Con_Printf("Failed to init compressor\n");
+			Con_Printf("AVIMakeCompressedStream failed. check codec.\n");
 			capture_avi_end(ctx);
 			return NULL;
 		}
@@ -2688,7 +2701,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	hr = qAVIStreamSetFormat(avi_video_stream(ctx), 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
 	if (FAILED(hr))
 	{
-		Con_Printf("Failed to set format\n");
+		Con_Printf("AVIStreamSetFormat failed\n");
 		capture_avi_end(ctx);
 		return NULL;
 	}
@@ -2715,6 +2728,8 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 		stream_header.dwScale = ctx->wave_format.nBlockAlign;
 		stream_header.dwRate = stream_header.dwScale * (unsigned long)ctx->wave_format.nSamplesPerSec;
 		stream_header.dwSampleSize = ctx->wave_format.nBlockAlign;
+
+		//FIXME: be prepared to capture audio to mp3.
 
 		hr = qAVIFileCreateStreamA(ctx->file, &ctx->uncompressed_audio_stream, &stream_header);
 		if (FAILED(hr))
@@ -2748,9 +2763,8 @@ static void QDECL capture_avi_video(void *vctx, void *vdata, int frame, int widt
 		data[i+2] = temp;
 	}
 	//write it
-	Con_Printf("%i - %f\n", frame, realtime);
 	if (FAILED(qAVIStreamWrite(avi_video_stream(ctx), frame, 1, data, width*height * 3, ((frame%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL)))
-		Con_Printf("Recoring error\n");
+		Con_DPrintf("Recoring error\n");
 }
 
 static void QDECL capture_avi_audio(void *vctx, void *data, int bytes)
@@ -2762,18 +2776,11 @@ static void QDECL capture_avi_audio(void *vctx, void *data, int bytes)
 
 static media_encoder_funcs_t capture_avi =
 {
+	"avi",
 	capture_avi_begin,
 	capture_avi_video,
 	capture_avi_audio,
 	capture_avi_end
-};
-#else
-media_encoder_funcs_t capture_avi =
-{
-	NULL,
-	NULL,
-	NULL,
-	NULL
 };
 #endif
 
@@ -3106,28 +3113,23 @@ void Media_RecordFilm_f (void)
 	capturelastvideotime = realtime = 0;
 
 	captureframe = 0;
-	if (*fourcc)
-	{
-		if (!strcmp(fourcc, "tga") ||
-			!strcmp(fourcc, "png") ||
-			!strcmp(fourcc, "jpg") ||
-			!strcmp(fourcc, "pcx"))
-		{
-			currentcapture_funcs = &capture_raw;
-		}
-		else
-		{
-			currentcapture_funcs = &capture_avi;
-		}
-	}
-	else
-	{
-		currentcapture_funcs = &capture_avi;
-	}
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
 	{
 		if (pluginencodersfunc[i])
-			currentcapture_funcs = pluginencodersfunc[i];
+			if (!strcmp(pluginencodersfunc[i]->drivername, capturedriver.string))
+				currentcapture_funcs = pluginencodersfunc[i];
+	}
+	//just use the first
+	if (!currentcapture_funcs)
+	{
+		for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
+		{
+			if (pluginencodersfunc[i])
+			{
+				currentcapture_funcs = pluginencodersfunc[i];
+				break;
+			}
+		}
 	}
 
 	if (capturesound.ival)
@@ -3900,6 +3902,7 @@ void Media_Init(void)
 	Cvar_Register(&capturemessage,	"AVI capture controls");
 	Cvar_Register(&capturesound,	"AVI capture controls");
 	Cvar_Register(&capturerate,	"AVI capture controls");
+	Cvar_Register(&capturedriver,	"AVI capture controls");
 	Cvar_Register(&capturecodec,	"AVI capture controls");
 
 #if defined(WINAVI)

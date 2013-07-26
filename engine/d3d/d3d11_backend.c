@@ -2369,7 +2369,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		VectorScale((m+8), mod->clampscale, (m+8));
 	}
 
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
+	if (e->flags & Q2RF_WEAPONMODEL)
 	{
 		/*FIXME: no bob*/
 		float iv[16];

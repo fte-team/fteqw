@@ -4062,7 +4062,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				GLR_DrawPortal(batch, cl.worldmodel->batches, 1);
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
-				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+				qglViewport (oprect.x, oprect.y - oprect.height, oprect.width, oprect.height);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
 			}
@@ -4116,7 +4116,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GLR_DrawPortal(batch, cl.worldmodel->batches, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
-					qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+					qglViewport (oprect.x, oprect.y - oprect.height, oprect.width, oprect.height);
 					r_refdef.vrect = ovrect;
 					r_refdef.pxrect = oprect;
 				}
@@ -4157,7 +4157,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.recurse = false;
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
-				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+				qglViewport (oprect.x, oprect.height + oprect.y, oprect.width, oprect.height);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
 			}

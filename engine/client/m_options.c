@@ -236,12 +236,14 @@ void M_Menu_Audio_Speakers_f (void)
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 void M_Menu_Audio_f (void)
 {
-	menu_t *menu;
-	extern cvar_t nosound, snd_leftisright, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices;
+	int y;
+	menu_t *menu = M_Options_Title(&y, 0);
+	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
 #ifdef VOICECHAT
-	extern cvar_t cl_voip_play, cl_voip_send;
+	extern cvar_t cl_voip_play, cl_voip_send, cl_voip_test, cl_voip_micamp, cl_voip_vad_threshhold, cl_voip_ducking, cl_voip_noisefilter, cl_voip_codec;
 #endif
+	extern char **soundoutdevicecodes, **soundoutdevicenames;
 
 	static const char *soundqualityoptions[] = {
 		"11025 Hz",
@@ -275,11 +277,43 @@ void M_Menu_Audio_f (void)
 		NULL
 	};
 
-	int y;
+	static const char *voipcodecoptions[] = {
+		"Speex (ez-compat)",
+//		"Raw (11025)",
+		"Opus (external)",
+		"Speex (Narrow)",
+		"Speex (Wide)",
+		NULL
+	};
+	static const char *voipcodecvalue[] = {
+		"0",
+//		"1",
+		"2",
+		"3",
+		"4",
+		NULL
+	};
+
+	static const char *voipsendoptions[] = {
+		"Push To Talk",
+		"Voice Activation",
+		"Continuous",
+		NULL
+	};
+	static const char *voipsendvalue[] = {
+		"0",
+		"1",
+		"2",
+		NULL
+	};
+
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Sound Options", false),
 		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
 		MB_SPACING(8),
+		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
+		MB_SPACING(4),
+		MB_COMBOCVAR("Output Device", snd_device, soundoutdevicenames, soundoutdevicecodes, NULL),
 		MB_SLIDER("Volume", volume, 0, 1, 0.1, NULL),
 		MB_COMBOCVAR("Speaker Setup", snd_speakers, speakeroptions, speakervalues, NULL),
 		MB_COMBOCVAR("Frequency", snd_khz, soundqualityoptions, soundqualityvalues, NULL),
@@ -288,10 +322,7 @@ void M_Menu_Audio_f (void)
 		MB_SLIDER("Mixahead", _snd_mixahead, 0, 1, 0.05, NULL),
 		MB_CHECKBOXCVAR("Disable All Sounds", nosound, 0),
 		MB_SPACING(4),
-#ifdef VOICECHAT
-		MB_CHECKBOXCVAR("Voice Chat", cl_voip_play, 0),
-		MB_CHECKBOXCVAR("Voice Activation", cl_voip_send, 0),
-#endif
+
 		MB_SLIDER("Player Sound Volume", snd_playersoundvolume, 0, 1, 0.1, NULL),
 		MB_SLIDER("Ambient Volume", ambient_level, 0, 1, 0.1, NULL),
 		MB_SLIDER("Ambient Fade", ambient_fade, 0, 1000, 1, NULL),
@@ -300,16 +331,27 @@ void M_Menu_Audio_f (void)
 		// removed music buffer
 		// removed precache
 		// removed eax2
-		MB_CHECKBOXCVAR("Multiple Devices", snd_usemultipledevices, 0),
 		// remove no extra update
 		MB_CHECKBOXCVAR("Sound While Inactive", snd_inactive, 0),
 		MB_SPACING(4),
+
+#ifdef VOICECHAT
+		MB_REDTEXT("Voice Options", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_SLIDER("Voice Volume", cl_voip_play, 0, 2, 0.1, NULL),
+//		MB_COMBOCVAR("Microphone Device", snd_micdevice, inputdeviceoptions, inputdevicevalue, NULL),
+		MB_CHECKBOXCVAR("Microphone Test", cl_voip_test, 0),
+		MB_SLIDER("Microphone Volume", cl_voip_micamp, 0, 2, 0.1, NULL),
+		MB_COMBOCVAR("Activation Mode", cl_voip_send, voipsendoptions, voipsendvalue, NULL),
+		MB_SLIDER("Act. Threshhold", cl_voip_vad_threshhold, 0, 30, 1, NULL),
+		MB_CHECKBOXCVAR("Audio Ducking", cl_voip_ducking, 0),
+		MB_CHECKBOXCVAR("Noise Cancelation", cl_voip_noisefilter, 0),
+		MB_COMBOCVAR("Codec", cl_voip_codec, voipcodecoptions, voipcodecvalue, NULL),
+#endif
+
 		//MB_CONSOLECMD("Speaker Test", "menu_speakers\n", "Test speaker setup output."),
-		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_END()
 	};
-
-	menu = M_Options_Title(&y, 0);
 
 	MC_AddBulk(menu, bulk, 16, 216, y);
 }

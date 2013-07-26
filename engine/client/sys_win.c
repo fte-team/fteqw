@@ -2421,7 +2421,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						cds.cbData = strlen(qtvfile);
 						cds.lpData = (void*)qtvfile;
 						if (SendMessage(old, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds))
+						{
+							Sleep(10*1000);	//sleep for 10 secs so the real engine has a chance to open it, if the program that gave it is watching to see if we quit.
 							return 0;	//message sent.
+						}
 					}
 				}
 				else

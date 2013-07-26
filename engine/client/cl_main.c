@@ -630,10 +630,13 @@ void CL_CheckForResend (void)
 	char	data[2048];
 	double t1, t2;
 	int contype = 0;
+	unsigned int pext1, pext2;
 
 #ifndef CLIENTONLY
 	if (!cls.state && sv.state)
 	{
+		pext1 = 0;
+		pext2 = 0;
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		Cvar_ForceSet(&cl_servername, cls.servername);
 
@@ -642,17 +645,27 @@ void CL_CheckForResend (void)
 		{
 #ifdef Q3CLIENT
 		case GT_QUAKE3:
+			pext1 = 0;
+			pext2 = 0;
 			cls.protocol = CP_QUAKE3;
 			break;
 #endif
 #ifdef Q2CLIENT
 		case GT_QUAKE2:
+			pext1 = 0;
+			pext2 = 0;
 			cls.protocol = CP_QUAKE2;
 			break;
 #endif
 		default:
 			cl.movesequence = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
+			{
+				pext1 = Net_PextMask(1, false);
+				pext2 = Net_PextMask(2, false);
+				cls.protocol = CP_QUAKEWORLD;
+			}
+			else if (!strcmp(cl_loopbackprotocol.string, "idqw"))
 				cls.protocol = CP_QUAKEWORLD;
 			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
 			{
@@ -682,9 +695,26 @@ void CL_CheckForResend (void)
 				cls.protocol_nq = CPNQ_DP7;
 			}
 			else if (progstype == PROG_QW)
+			{
 				cls.protocol = CP_QUAKEWORLD;
+				pext1 = Net_PextMask(1, false);
+				pext2 = Net_PextMask(2, false);
+			}
 			else
 				cls.protocol = CP_NETQUAKE;
+
+			//make sure the protocol within demos is actually correct/sane
+			if (cls.demorecording == 1 && cls.protocol != CP_QUAKEWORLD)
+			{
+				cls.protocol = CP_QUAKEWORLD;
+				pext1 = Net_PextMask(1, false);
+				pext2 = Net_PextMask(2, false);
+			}
+			else if (cls.demorecording == 2 && cls.protocol != CP_NETQUAKE)
+			{
+				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_FITZ666;
+			}
 			break;
 		}
 
@@ -701,7 +731,7 @@ void CL_CheckForResend (void)
 			}
 			NET_AdrToString(data, sizeof(data), &adr);
 
-			/*eat up the server's packets, to clear any lingering loopback packets*/
+			/*eat up the server's packets, to clear any lingering loopback packets (like disconnect commands... yes this might cause packetloss for other clients)*/
 			while(NET_GetPacket (NS_SERVER, 0) >= 0)
 			{
 			}
@@ -733,7 +763,7 @@ void CL_CheckForResend (void)
 				CL_ConnectToDarkPlaces("", &adr);
 		}
 		else
-			CL_SendConnectPacket (8192-16, Net_PextMask(1, false), Net_PextMask(2, false), false);
+			CL_SendConnectPacket (8192-16, pext1, pext2, false);
 		return;
 	}
 #endif
@@ -2686,7 +2716,7 @@ void CLNQ_ConnectionlessPacket(void)
 #endif
 
 void CL_MVDUpdateSpectator (void);
-void CL_WriteDemoMessage (sizebuf_t *msg);
+void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset);
 /*
 =================
 CL_ReadPackets
@@ -2776,6 +2806,7 @@ void CL_ReadPackets (void)
 //				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
 			case NQP_RELIABLE://reliable
 				MSG_ChangePrimitives(cls.netchan.netprim);
+				CL_WriteDemoMessage (&net_message, msg_readcount);
 				CLNQ_ParseServerMessage ();
 				break;
 			}
@@ -2805,7 +2836,7 @@ void CL_ReadPackets (void)
 			else if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
 
-			CL_WriteDemoMessage (&net_message);
+			CL_WriteDemoMessage (&net_message, msg_readcount);
 
 			if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
 			{	//server should not be responding to packets we have not sent yet
@@ -4103,6 +4134,7 @@ double Host_Frame (double time)
 
 	CL_UseIndepPhysics(!!cl_threadedphysics.ival);
 
+	cl.do_lerp_players = cl_lerp_players.ival || (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) || (cls.demoplayback && !cl_nolerp.ival);
 	CL_AllowIndependantSendCmd(false);
 
 	// fetch results from server

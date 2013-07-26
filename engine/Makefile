@@ -518,9 +518,16 @@ MP3_OBJS =			\
 	huffman.o		\
 	mymad.o
 
-PROGS_OBJS =		\
+QCC_OBJS=	\
 	comprout.o		\
 	hash.o		\
+	qcc_cmdlib.o	\
+	qccmain.o		\
+	qcc_pr_comp.o	\
+	qcc_pr_lex.o	\
+	qcd_main.o
+PROGS_OBJS =		\
+	$(QCC_OBJS)	\
 	initlib.o		\
 	pr_bgcmd.o		\
 	pr_skelobj.o		\
@@ -528,12 +535,7 @@ PROGS_OBJS =		\
 	pr_exec.o		\
 	pr_multi.o		\
 	pr_x86.o		\
-	qcc_cmdlib.o	\
-	qccmain.o		\
-	qcc_pr_comp.o	\
-	qcc_pr_lex.o	\
-	qcdecomp.o		\
-	qcd_main.o
+	qcdecomp.o
 
 SERVER_OBJS = 		\
 	pr_cmds.o 		\
@@ -1371,6 +1373,17 @@ m-profile:
 
 .PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg
 
+
+_qcc-tmp: $(REQDIR)
+	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" OBJS="QCC_OBJS SOBJS"
+qcc-rel:
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o"
+qccgui-rel:
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lcomdlg32 -lcomctl32"
+qcc-dbg:
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o"
+qccgui-dbg:
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lcomdlg32 -lcomctl32"
 
 ifdef windir
 debugdir:

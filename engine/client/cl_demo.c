@@ -92,6 +92,10 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	qbyte	c;
 	q1usercmd_t cmd;
 
+	//nq doesn't have this info
+	if (cls.demorecording != 1)
+		return;
+
 //Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
 	fl = LittleFloat((float)demtime);
@@ -131,7 +135,7 @@ CL_WriteDemoMessage
 Dumps the current net message, prefixed by the length and view angles
 ====================
 */
-void CL_WriteDemoMessage (sizebuf_t *msg)
+void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset)
 {
 	int		len;
 	int		i;
@@ -140,37 +144,50 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 
 //Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
-	if (!cls.demorecording)
+	switch (cls.demorecording)
+	{
+	case 0:
 		return;
+	case 1:	//QW
+		fl = LittleFloat((float)demtime);
+		VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
 
-	fl = LittleFloat((float)demtime);
-	VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
+		c = dem_read;
+		VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
-	c = dem_read;
-	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
-
-	if (*(int*)msg->data == -1)
-	{
-		//connectionless packet.
-		len = LittleLong (msg->cursize);
-		VFS_WRITE (cls.demooutfile, &len, 4);
-		VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+		if (*(int*)msg->data == -1)
+		{
+			//connectionless packet.
+			len = LittleLong (msg->cursize);
+			VFS_WRITE (cls.demooutfile, &len, 4);
+			VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+		}
+		else
+		{
+			//regenerate a legacy netchan. no fragmentation support, but whatever. this ain't udp.
+			//the length
+			len = LittleLong (msg->cursize - msg_readcount + 8);
+			VFS_WRITE (cls.demooutfile, &len, 4);
+			//hack the netchan here.
+			i = cls.netchan.incoming_sequence;
+			VFS_WRITE (cls.demooutfile, &i, 4);
+			i = cls.netchan.incoming_acknowledged;
+			VFS_WRITE (cls.demooutfile, &i, 4);
+			//and the data
+			VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+		}
+		break;
+	case 2:	//NQ
+		len = LittleLong (net_message.cursize - payloadoffset);
+		VFS_WRITE(cls.demooutfile, &len, sizeof(len));
+		for (i=0 ; i<3 ; i++)
+		{
+			float f = LittleFloat (cl.playerview[0].viewangles[i]);
+			VFS_WRITE(cls.demooutfile, &f, sizeof(f));
+		}
+		VFS_WRITE(cls.demooutfile, net_message.data + payloadoffset, net_message.cursize - payloadoffset);
+		break;
 	}
-	else
-	{
-		//regenerate a legacy netchan. no fragmentation support, but whatever. this ain't udp.
-		//the length
-		len = LittleLong (msg->cursize - msg_readcount + 8);
-		VFS_WRITE (cls.demooutfile, &len, 4);
-		//hack the netchan here.
-		i = cls.netchan.incoming_sequence;
-		VFS_WRITE (cls.demooutfile, &i, 4);
-		i = cls.netchan.incoming_acknowledged;
-		VFS_WRITE (cls.demooutfile, &i, 4);
-		//and the data
-		VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
-	}
-
 	VFS_FLUSH (cls.demooutfile);
 }
 
@@ -244,6 +261,8 @@ int readdemobytes(int *readpos, void *data, int len)
 {
 	int i;
 	int trybytes;
+	if (len < 0)
+		Host_EndGame("Corrupt demo");
 
 	if (demopreparsedbytes < 0)	//won't happen in normal running, but can still happen on corrupt data... if we don't disconnect first.
 	{
@@ -391,6 +410,7 @@ CL_GetDemoMessage
 ====================
 */
 
+vec3_t demoangles;
 float olddemotime = 0;
 float nextdemotime = 0;
 qboolean CL_GetDemoMessage (void)
@@ -456,27 +476,7 @@ qboolean CL_GetDemoMessage (void)
 			if ((cls.timedemo && host_framecount == demoframe) || (!cls.timedemo && demtime<= cl.gametime && cl.gametime))// > dem_lasttime+demtime)
 			{
 				if (demtime <= cl.gametime-1)
-				{
 					demtime = cl.gametime;
-				}
-
-				{
-					float f = (cl.gametime-demtime)/(cl.gametime-olddemotime);
-					float a1;
-					float a2;
-
-					for (i=0 ; i<3 ; i++)
-					{
-						a1 = cl.playerview[2].viewangles[i];
-						a2 = cl.playerview[1].viewangles[i];
-						if (a1 - a2 > 180)
-							a1 -= 360;
-						if (a1 - a2 < -180)
-							a1 += 360;
-						cl.playerview[0].simangles[i] = a2 + f * (a1 - a2);
-					}
-					VectorCopy(cl.playerview[0].simangles, cl.playerview[0].viewangles);
-				}
 				return 0;
 			}
 			demoframe = host_framecount;
@@ -487,13 +487,11 @@ qboolean CL_GetDemoMessage (void)
 		}
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
-			VectorCopy (cl.playerview[1].viewangles, cl.playerview[2].viewangles);
 			for (i=0 ; i<3 ; i++)
 			{
 				readdemobytes(&demopos, &f, 4);
-				cl.playerview[0].simangles[i] = cl.playerview[1].viewangles[i] = LittleFloat (f);
+				demoangles[i] = LittleFloat (f);
 			}
-			VectorCopy (cl.playerview[1].viewangles, cl.playerview[0].viewangles);
 		}
 
 		olddemotime = demtime;
@@ -645,42 +643,6 @@ readnext:
 			Con_Printf("mvd demos/qtv streams should not contain dem_cmd\n");
 			olddemotime = demtime+1;
 			CL_StopPlayback ();
-	/*
-			unsigned short samps;
-			unsigned char bits;
-			unsigned char rateid;
-			unsigned char audio[8192];
-
-			if (readdemobytes (&demopos, &samps, 2) == 2)
-			{
-				if (readdemobytes (&demopos, &bits, 1) == 1)
-				{
-					if (samps > sizeof(audio))
-					{
-						Con_Printf("Corrupted/too large audio chunk\n");
-						CL_StopPlayback();
-						return 0;
-					}
-					if (readdemobytes (&demopos, &rateid, 1) == 1)
-					{
-						if (readdemobytes (&demopos, audio, samps) == samps)
-						{
-							FILE *f;
-							samps = samps/(bits/8);
-							f = fopen("c:/test.raw", "r+b");
-							if (f)
-							{
-								fseek(f, 0, SEEK_END);
-								fwrite(audio, samps, bits/8, f);
-								fclose(f);
-							}
-							S_RawAudio(0, audio, 11025, samps, 1, bits/8);
-							break;
-						}
-					}
-				}
-			}
-*/
 			return 0;
 		}
 		else
@@ -715,6 +677,7 @@ readnext:
 			for (i=0 ; i<3 ; i++)
 			{
 				readdemobytes (&demopos, &f, 4);
+				demoangles[i] = LittleFloat (f);
 				cl.playerview[0].viewangles[i] = LittleFloat (f);
 			}
 			goto readnext;
@@ -880,8 +843,9 @@ void CL_Stop_f (void)
 	{
 #ifndef CLIENTONLY
 		SV_MVDStop_f();
-#endif
+#else
 		Con_Printf ("Not recording a demo.\n");
+#endif
 		return;
 	}
 
@@ -890,7 +854,7 @@ void CL_Stop_f (void)
 	MSG_WriteLong (&net_message, -1);	// -1 sequence means out of band
 	MSG_WriteByte (&net_message, svc_disconnect);
 	MSG_WriteString (&net_message, "EndOfDemo");
-	CL_WriteDemoMessage (&net_message);
+	CL_WriteDemoMessage (&net_message, sizeof(int));
 
 // finish up
 	VFS_CLOSE (cls.demooutfile);
@@ -946,7 +910,7 @@ void CL_WriteSetDemoMessage (void)
 
 //Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
-	if (!cls.demorecording)
+	if (cls.demorecording != 1)
 		return;
 
 	fl = LittleFloat((float)demtime);
@@ -964,7 +928,52 @@ void CL_WriteSetDemoMessage (void)
 }
 
 
+/*
+record a single player game.
+*/
+#ifndef CLIENTONLY
+mvddest_t *SV_InitRecordFile (char *name);
+qboolean SV_MVD_Record (mvddest_t *dest);
+void CL_RecordMap_f (void)
+{
+	char demoname[MAX_QPATH];
+	char mapname[MAX_QPATH];
+	char *demoext;
+	Q_strncpyz(demoname, Cmd_Argv(1), sizeof(demoname));
+	Q_strncpyz(mapname, Cmd_Argv(2), sizeof(mapname));
+	CL_Disconnect_f();
 
+	SV_SpawnServer (mapname, NULL, false, false);
+
+	COM_DefaultExtension(demoname, ".mvd", sizeof(demoname));
+	demoext = COM_FileExtension(demoname);
+
+	if (!strcmp(demoext, "mvd"))
+	{
+		if (!SV_MVD_Record (SV_InitRecordFile(demoname)))
+			CL_Disconnect_f();
+//		char buf[512];
+//		Cbuf_AddText(va("mvdrecord %s\n", COM_QuotedString(demoname, buf, sizeof(buf))), RESTRICT_LOCAL);
+	}
+	else
+	{
+		cls.demooutfile = FS_OpenVFS (demoname, "wb", FS_GAME);
+		if (!cls.demooutfile)
+		{
+			CL_Disconnect_f();
+			return;
+		}
+		if (!strcmp(demoext, "dem"))
+		{
+			cls.demorecording = 2;
+			VFS_PUTS(cls.demooutfile, "-1\n");
+		}
+		else
+			cls.demorecording = 1;
+		CL_WriteSetDemoMessage();
+	}
+}
+#endif
 
 /*
 ====================
@@ -990,6 +999,9 @@ void CL_Record_f (void)
 	c = Cmd_Argc();
 	if (c > 2)
 	{
+#ifndef CLIENTONLY
+		CL_RecordMap_f();
+#endif
 		Con_Printf ("record <demoname>\n");
 		return;
 	}
@@ -1110,199 +1122,172 @@ void CL_Record_f (void)
 
 /*-------------------------------------------------*/
 
-// serverdata
-	// send the info about the new client to all connected clients
-	memset(&buf, 0, sizeof(buf));
-	buf.data = buf_data;
-	buf.maxsize = sizeof(buf_data);
-	buf.prim = cls.netchan.netprim;
+	switch(cls.protocol)
+	{
+	case CP_QUAKEWORLD:
 
-// send the serverdata
-	MSG_WriteByte (&buf, svc_serverdata);
+	// serverdata
+		// send the info about the new client to all connected clients
+		memset(&buf, 0, sizeof(buf));
+		buf.data = buf_data;
+		buf.maxsize = sizeof(buf_data);
+		buf.prim = cls.netchan.netprim;
+
+	// send the serverdata
+		MSG_WriteByte (&buf, svc_serverdata);
 #ifdef PROTOCOL_VERSION_FTE
-	if (cls.fteprotocolextensions)	//maintain demo compatability
-	{
-		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
-		MSG_WriteLong (&buf, cls.fteprotocolextensions);
-	}
-	if (cls.fteprotocolextensions2)	//maintain demo compatability
-	{
-		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE2);
-		MSG_WriteLong (&buf, cls.fteprotocolextensions2);
-	}
+		if (cls.fteprotocolextensions)	//maintain demo compatability
+		{
+			MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
+			MSG_WriteLong (&buf, cls.fteprotocolextensions);
+		}
+		if (cls.fteprotocolextensions2)	//maintain demo compatability
+		{
+			MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE2);
+			MSG_WriteLong (&buf, cls.fteprotocolextensions2);
+		}
 #endif
-	MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
-	MSG_WriteLong (&buf, cl.servercount);
-	MSG_WriteString (&buf, gamedirfile);
+		MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
+		MSG_WriteLong (&buf, cl.servercount);
+		MSG_WriteString (&buf, gamedirfile);
 
-	if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
-	{
-		MSG_WriteByte (&buf, cl.allocated_client_slots);
-		MSG_WriteByte (&buf, cl.splitclients | (cl.spectator?128:0));
-		for (i = 0; i < cl.splitclients; i++)
+		if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 		{
-			MSG_WriteByte (&buf, cl.playerview[i].playernum);
-		}
-	}
-	else
-	{
-		for (i = 0; i < cl.splitclients; i++)
-		{
-			if (cl.spectator)
-				MSG_WriteByte (&buf, cl.playerview[i].playernum | 128);
-			else
+			MSG_WriteByte (&buf, cl.allocated_client_slots);
+			MSG_WriteByte (&buf, cl.splitclients | (cl.spectator?128:0));
+			for (i = 0; i < cl.splitclients; i++)
+			{
 				MSG_WriteByte (&buf, cl.playerview[i].playernum);
+			}
 		}
-		if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
-			MSG_WriteByte (&buf, 128);
-	}
+		else
+		{
+			for (i = 0; i < cl.splitclients; i++)
+			{
+				if (cl.spectator)
+					MSG_WriteByte (&buf, cl.playerview[i].playernum | 128);
+				else
+					MSG_WriteByte (&buf, cl.playerview[i].playernum);
+			}
+			if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
+				MSG_WriteByte (&buf, 128);
+		}
 
-	// send full levelname
-	MSG_WriteString (&buf, cl.levelname);
+		// send full levelname
+		MSG_WriteString (&buf, cl.levelname);
 
-	// send the movevars
-	MSG_WriteFloat(&buf, movevars.gravity);
-	MSG_WriteFloat(&buf, movevars.stopspeed);
-	MSG_WriteFloat(&buf, movevars.maxspeed);
-	MSG_WriteFloat(&buf, movevars.spectatormaxspeed);
-	MSG_WriteFloat(&buf, movevars.accelerate);
-	MSG_WriteFloat(&buf, movevars.airaccelerate);
-	MSG_WriteFloat(&buf, movevars.wateraccelerate);
-	MSG_WriteFloat(&buf, movevars.friction);
-	MSG_WriteFloat(&buf, movevars.waterfriction);
-	MSG_WriteFloat(&buf, movevars.entgravity);
+		// send the movevars
+		MSG_WriteFloat(&buf, movevars.gravity);
+		MSG_WriteFloat(&buf, movevars.stopspeed);
+		MSG_WriteFloat(&buf, movevars.maxspeed);
+		MSG_WriteFloat(&buf, movevars.spectatormaxspeed);
+		MSG_WriteFloat(&buf, movevars.accelerate);
+		MSG_WriteFloat(&buf, movevars.airaccelerate);
+		MSG_WriteFloat(&buf, movevars.wateraccelerate);
+		MSG_WriteFloat(&buf, movevars.friction);
+		MSG_WriteFloat(&buf, movevars.waterfriction);
+		MSG_WriteFloat(&buf, movevars.entgravity);
 
-	// send server info string
-	MSG_WriteByte (&buf, svc_stufftext);
-	MSG_WriteString (&buf, va("fullserverinfo \"%s\"\n", cl.serverinfo) );
+		// send server info string
+		MSG_WriteByte (&buf, svc_stufftext);
+		MSG_WriteString (&buf, va("fullserverinfo \"%s\"\n", cl.serverinfo) );
 
-	// send music (delayed)
-	MSG_WriteByte (&buf, svc_cdtrack);
-	MSG_WriteByte (&buf, 0); // none in demos
+		// send music (delayed)
+		MSG_WriteByte (&buf, svc_cdtrack);
+		MSG_WriteByte (&buf, 0); // none in demos
 
 #ifdef PEXT_SETVIEW
-	if (cl.playerview[0].viewentity != cl.playerview[0].playernum+1)	//tell the player if we have a different view entity
-	{
-		MSG_WriteByte (&buf, svc_setview);
-		MSG_WriteEntity (&buf, cl.playerview[0].viewentity);
-	}
+		if (cl.playerview[0].viewentity != cl.playerview[0].playernum+1)	//tell the player if we have a different view entity
+		{
+			MSG_WriteByte (&buf, svc_setview);
+			MSG_WriteEntity (&buf, cl.playerview[0].viewentity);
+		}
 #endif
-	// flush packet
-	CL_WriteRecordDemoMessage (&buf, seq++);
-	SZ_Clear (&buf);
+		// flush packet
+		CL_WriteRecordDemoMessage (&buf, seq++);
+		SZ_Clear (&buf);
 
-// soundlist
-	MSG_WriteByte (&buf, svc_soundlist);
-	MSG_WriteByte (&buf, 0);
+	// soundlist
+		MSG_WriteByte (&buf, svc_soundlist);
+		MSG_WriteByte (&buf, 0);
 
-	n = 0;
-	s = cl.sound_name[n+1];
-	while (*s)
-	{
-		MSG_WriteString (&buf, s);
-		if (buf.cursize > MAX_QWMSGLEN/2)
-		{
-			MSG_WriteByte (&buf, 0);
-			MSG_WriteByte (&buf, n);
-			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf);
-			MSG_WriteByte (&buf, svc_soundlist);
-			MSG_WriteByte (&buf, n + 1);
-		}
-		n++;
+		n = 0;
 		s = cl.sound_name[n+1];
-	}
-	if (buf.cursize)
-	{
-		MSG_WriteByte (&buf, 0);
-		MSG_WriteByte (&buf, 0);
-		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf);
-	}
-
-// modellist
-	MSG_WriteByte (&buf, svc_modellist);
-	MSG_WriteByte (&buf, 0);
-
-	n = 0;
-	s = cl.model_name[n+1];
-	while (*s)
-	{
-		MSG_WriteString (&buf, s);
-		if (buf.cursize > MAX_QWMSGLEN/2)
+		while (*s)
+		{
+			MSG_WriteString (&buf, s);
+			if (buf.cursize > MAX_QWMSGLEN/2)
+			{
+				MSG_WriteByte (&buf, 0);
+				MSG_WriteByte (&buf, n);
+				CL_WriteRecordDemoMessage (&buf, seq++);
+				SZ_Clear (&buf);
+				MSG_WriteByte (&buf, svc_soundlist);
+				MSG_WriteByte (&buf, n + 1);
+			}
+			n++;
+			s = cl.sound_name[n+1];
+		}
+		if (buf.cursize)
 		{
 			MSG_WriteByte (&buf, 0);
-			MSG_WriteByte (&buf, n);
+			MSG_WriteByte (&buf, 0);
 			CL_WriteRecordDemoMessage (&buf, seq++);
 			SZ_Clear (&buf);
-			MSG_WriteByte (&buf, svc_modellist);
-			MSG_WriteByte (&buf, n + 1);
 		}
-		n++;
+
+	// modellist
+		MSG_WriteByte (&buf, svc_modellist);
+		MSG_WriteByte (&buf, 0);
+
+		n = 0;
 		s = cl.model_name[n+1];
-	}
-	if (buf.cursize)
-	{
-		MSG_WriteByte (&buf, 0);
-		MSG_WriteByte (&buf, 0);
-		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf);
-	}
-
-// spawnstatic
-
-	for (i = 0; i < cl.num_statics; i++)
-	{
-		ent = &cl_static_entities[i].ent;
-
-		MSG_WriteByte (&buf, svc_spawnstatic);
-
-		for (j = 1; j < MAX_MODELS; j++)
-			if (ent->model == cl.model_precache[j])
-				break;
-		if (j == MAX_MODELS)
-			MSG_WriteByte (&buf, 0);
-		else
-			MSG_WriteByte (&buf, j);
-
-		MSG_WriteByte (&buf, ent->framestate.g[FS_REG].frame[0]);
-		MSG_WriteByte (&buf, 0);
-		MSG_WriteByte (&buf, ent->skinnum);
-		for (j=0 ; j<3 ; j++)
+		while (*s)
 		{
-			MSG_WriteCoord (&buf, ent->origin[j]);
-			MSG_WriteAngle (&buf, ent->angles[j]);
+			MSG_WriteString (&buf, s);
+			if (buf.cursize > MAX_QWMSGLEN/2)
+			{
+				MSG_WriteByte (&buf, 0);
+				MSG_WriteByte (&buf, n);
+				CL_WriteRecordDemoMessage (&buf, seq++);
+				SZ_Clear (&buf);
+				MSG_WriteByte (&buf, svc_modellist);
+				MSG_WriteByte (&buf, n + 1);
+			}
+			n++;
+			s = cl.model_name[n+1];
 		}
-
-		if (buf.cursize > MAX_QWMSGLEN/2)
+		if (buf.cursize)
 		{
+			MSG_WriteByte (&buf, 0);
+			MSG_WriteByte (&buf, 0);
 			CL_WriteRecordDemoMessage (&buf, seq++);
 			SZ_Clear (&buf);
 		}
-	}
 
-// spawnstaticsound
-	// static sounds are skipped in demos, life is hard
+	// spawnstatic
 
-// baselines
-
-	for (i = 0; i < cl_baselines_count; i++)
-	{
-		es = cl_baselines + i;
-
-		if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
+		for (i = 0; i < cl.num_statics; i++)
 		{
-			MSG_WriteByte (&buf,svc_spawnbaseline);
-			MSG_WriteEntity (&buf, i);
+			ent = &cl_static_entities[i].ent;
 
-			MSG_WriteByte (&buf, es->modelindex);
-			MSG_WriteByte (&buf, es->frame);
-			MSG_WriteByte (&buf, es->colormap);
-			MSG_WriteByte (&buf, es->skinnum);
+			MSG_WriteByte (&buf, svc_spawnstatic);
+
+			for (j = 1; j < MAX_MODELS; j++)
+				if (ent->model == cl.model_precache[j])
+					break;
+			if (j == MAX_MODELS)
+				MSG_WriteByte (&buf, 0);
+			else
+				MSG_WriteByte (&buf, j);
+
+			MSG_WriteByte (&buf, ent->framestate.g[FS_REG].frame[0]);
+			MSG_WriteByte (&buf, 0);
+			MSG_WriteByte (&buf, ent->skinnum);
 			for (j=0 ; j<3 ; j++)
 			{
-				MSG_WriteCoord(&buf, es->origin[j]);
-				MSG_WriteAngle(&buf, es->angles[j]);
+				MSG_WriteCoord (&buf, ent->origin[j]);
+				MSG_WriteAngle (&buf, ent->angles[j]);
 			}
 
 			if (buf.cursize > MAX_QWMSGLEN/2)
@@ -1311,114 +1296,151 @@ void CL_Record_f (void)
 				SZ_Clear (&buf);
 			}
 		}
-	}
 
-	MSG_WriteByte (&buf, svc_stufftext);
-	MSG_WriteString (&buf, va("cmd spawn %i\n", cl.servercount) );
+	// spawnstaticsound
+		// static sounds are skipped in demos, life is hard
 
-	if (buf.cursize)
-	{
-		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf);
-	}
+	// baselines
 
-// send current status of all other players
-
-	for (i = 0; i < cl.allocated_client_slots; i++)
-	{
-		player = cl.players + i;
-
-		if (player->frags != 0)
+		for (i = 0; i < cl_baselines_count; i++)
 		{
-			MSG_WriteByte (&buf, svc_updatefrags);
-			MSG_WriteByte (&buf, i);
-			MSG_WriteShort (&buf, player->frags);
+			es = cl_baselines + i;
+
+			if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
+			{
+				MSG_WriteByte (&buf,svc_spawnbaseline);
+				MSG_WriteEntity (&buf, i);
+
+				MSG_WriteByte (&buf, es->modelindex);
+				MSG_WriteByte (&buf, es->frame);
+				MSG_WriteByte (&buf, es->colormap);
+				MSG_WriteByte (&buf, es->skinnum);
+				for (j=0 ; j<3 ; j++)
+				{
+					MSG_WriteCoord(&buf, es->origin[j]);
+					MSG_WriteAngle(&buf, es->angles[j]);
+				}
+
+				if (buf.cursize > MAX_QWMSGLEN/2)
+				{
+					CL_WriteRecordDemoMessage (&buf, seq++);
+					SZ_Clear (&buf);
+				}
+			}
 		}
 
-		if (player->ping != 0)
-		{
-			MSG_WriteByte (&buf, svc_updateping);
-			MSG_WriteByte (&buf, i);
-			MSG_WriteShort (&buf, player->ping);
-		}
+		MSG_WriteByte (&buf, svc_stufftext);
+		MSG_WriteString (&buf, va("cmd spawn %i\n", cl.servercount) );
 
-		if (player->pl != 0)
-		{
-			MSG_WriteByte (&buf, svc_updatepl);
-			MSG_WriteByte (&buf, i);
-			MSG_WriteByte (&buf, player->pl);
-		}
-
-		if (*player->userinfo)
-		{
-			MSG_WriteByte (&buf, svc_updateentertime);
-			MSG_WriteByte (&buf, i);
-			MSG_WriteFloat (&buf, player->entertime);
-		}
-
-		if (*player->userinfo)
-		{
-			MSG_WriteByte (&buf, svc_updateuserinfo);
-			MSG_WriteByte (&buf, i);
-			MSG_WriteLong (&buf, player->userid);
-			MSG_WriteString (&buf, player->userinfo);
-		}
-
-		if (buf.cursize > MAX_QWMSGLEN/2)
+		if (buf.cursize)
 		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
 			SZ_Clear (&buf);
 		}
-	}
 
-// send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-	{
-		if (i >= MAX_STANDARDLIGHTSTYLES)
-			if (!*cl_lightstyle[i].map)
-				continue;
+	// send current status of all other players
+
+		for (i = 0; i < cl.allocated_client_slots; i++)
+		{
+			player = cl.players + i;
+
+			if (player->frags != 0)
+			{
+				MSG_WriteByte (&buf, svc_updatefrags);
+				MSG_WriteByte (&buf, i);
+				MSG_WriteShort (&buf, player->frags);
+			}
+
+			if (player->ping != 0)
+			{
+				MSG_WriteByte (&buf, svc_updateping);
+				MSG_WriteByte (&buf, i);
+				MSG_WriteShort (&buf, player->ping);
+			}
+
+			if (player->pl != 0)
+			{
+				MSG_WriteByte (&buf, svc_updatepl);
+				MSG_WriteByte (&buf, i);
+				MSG_WriteByte (&buf, player->pl);
+			}
+
+			if (*player->userinfo)
+			{
+				MSG_WriteByte (&buf, svc_updateentertime);
+				MSG_WriteByte (&buf, i);
+				MSG_WriteFloat (&buf, player->entertime);
+			}
+
+			if (*player->userinfo)
+			{
+				MSG_WriteByte (&buf, svc_updateuserinfo);
+				MSG_WriteByte (&buf, i);
+				MSG_WriteLong (&buf, player->userid);
+				MSG_WriteString (&buf, player->userinfo);
+			}
+
+			if (buf.cursize > MAX_QWMSGLEN/2)
+			{
+				CL_WriteRecordDemoMessage (&buf, seq++);
+				SZ_Clear (&buf);
+			}
+		}
+
+	// send all current light styles
+		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+		{
+			if (i >= MAX_STANDARDLIGHTSTYLES)
+				if (!*cl_lightstyle[i].map)
+					continue;
 
 #ifdef PEXT_LIGHTSTYLECOL
-		if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && cl_lightstyle[i].colour!=7 && *cl_lightstyle[i].map)
-		{
-			MSG_WriteByte (&buf, svcfte_lightstylecol);
-			MSG_WriteByte (&buf, (unsigned char)i);
-			MSG_WriteByte (&buf, cl_lightstyle[i].colour);
-			MSG_WriteString (&buf, cl_lightstyle[i].map);
-		}
-		else
+			if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && cl_lightstyle[i].colour!=7 && *cl_lightstyle[i].map)
+			{
+				MSG_WriteByte (&buf, svcfte_lightstylecol);
+				MSG_WriteByte (&buf, (unsigned char)i);
+				MSG_WriteByte (&buf, cl_lightstyle[i].colour);
+				MSG_WriteString (&buf, cl_lightstyle[i].map);
+			}
+			else
 #endif
-		{
-			MSG_WriteByte (&buf, svc_lightstyle);
-			MSG_WriteByte (&buf, (unsigned char)i);
-			MSG_WriteString (&buf, cl_lightstyle[i].map);
+			{
+				MSG_WriteByte (&buf, svc_lightstyle);
+				MSG_WriteByte (&buf, (unsigned char)i);
+				MSG_WriteString (&buf, cl_lightstyle[i].map);
+			}
 		}
-	}
 
-	for (i = ((cls.fteprotocolextensions&PEXT_HEXEN2)?MAX_QW_STATS:MAX_CL_STATS); i >= 0; i--)
-	{
-		if (!cl.playerview[0].stats[i])
-			continue;
-		MSG_WriteByte (&buf, svcqw_updatestatlong);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteLong (&buf, cl.playerview[0].stats[i]);
-		if (buf.cursize > MAX_QWMSGLEN/2)
+		for (i = ((cls.fteprotocolextensions&PEXT_HEXEN2)?MAX_QW_STATS:MAX_CL_STATS); i >= 0; i--)
 		{
-			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf);
+			if (!cl.playerview[0].stats[i])
+				continue;
+			MSG_WriteByte (&buf, svcqw_updatestatlong);
+			MSG_WriteByte (&buf, i);
+			MSG_WriteLong (&buf, cl.playerview[0].stats[i]);
+			if (buf.cursize > MAX_QWMSGLEN/2)
+			{
+				CL_WriteRecordDemoMessage (&buf, seq++);
+				SZ_Clear (&buf);
+			}
 		}
+
+		// get the client to check and download skins
+		// when that is completed, a begin command will be issued
+		MSG_WriteByte (&buf, svc_stufftext);
+		MSG_WriteString (&buf, va("skins\n") );
+
+		CL_WriteRecordDemoMessage (&buf, seq++);
+
+		CL_WriteSetDemoMessage();
+
+		// done
+		break;
+	default:
+		Con_Printf("Unable to begin demo recording with this network protocol\n");
+		CL_Stop_f();
+		break;
 	}
-
-	// get the client to check and download skins
-	// when that is completed, a begin command will be issued
-	MSG_WriteByte (&buf, svc_stufftext);
-	MSG_WriteString (&buf, va("skins\n") );
-
-	CL_WriteRecordDemoMessage (&buf, seq++);
-
-	CL_WriteSetDemoMessage();
-
-	// done
 }
 
 /*

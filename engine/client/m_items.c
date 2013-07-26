@@ -484,6 +484,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 					range = 0;
 				if (range > 1)
 					range = 1;
+				option->slider.vx = x;
 				x -= 8;
 				Font_BeginString(font_conchar, x, y, &x, &y);
 				x = Font_DrawChar(x, y, 0xe080 | CON_WHITEMASK);
@@ -1252,6 +1253,9 @@ void MC_Slider_Key(menuslider_t *option, int key)
 	float range = option->current;
 	float delta;
 
+	float ix = option->vx;
+	float ex = ix + 10*8;
+
 	if (option->smallchange)
 		delta = option->smallchange;
 	else
@@ -1263,8 +1267,6 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		if (range < option->min)
 			range = option->min;
 		option->current = range;
-		if (option->var)
-			Cvar_SetValue(option->var, range);
 	}
 	else if (key == K_RIGHTARROW || key == K_MWHEELUP)
 	{
@@ -1272,8 +1274,12 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		if (range > option->max)
 			range = option->max;
 		option->current = range;
-		if (option->var)
-			Cvar_SetValue(option->var, range);
+	}
+	else if (key == K_MOUSE1 && mousecursor_x >= ix-8 && mousecursor_x < ex+8)
+	{
+		range = (mousecursor_x - ix) / (ex - ix);
+		range = option->min + range*(option->max-option->min);
+		option->current = range;
 	}
 	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
@@ -1284,13 +1290,13 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		if (range > option->max)
 			range = option->max;
 		option->current = range;
-		if (option->var)
-			Cvar_SetValue(option->var, range);
 	}
 	else
 		return;
 
 	S_LocalSound ("misc/menu2.wav");
+	if (option->var)
+		Cvar_SetValue(option->var, option->current);
 }
 
 void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
@@ -1370,6 +1376,7 @@ void MC_Combo_Key(menucombo_t *combo, int key)
 changed:
 		if (combo->cvar && combo->numoptions)
 			Cvar_Set(combo->cvar, (char *)combo->values[combo->selectedoption]);
+		S_LocalSound ("misc/menu2.wav");
 	}
 	else if (key == K_LEFTARROW)
 	{

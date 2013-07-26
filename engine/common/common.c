@@ -3060,6 +3060,7 @@ skipwhite:
 }
 #endif
 
+//semi-colon delimited tokens
 char *COM_ParseStringSet (const char *data)
 {
 	int	c;
@@ -3243,6 +3244,10 @@ skipwhite:
 		goto skipwhite;
 	}
 
+	if (c == '\\' && data[1] == '\"')
+	{
+		return COM_ParseCString(data+1, token, tokenlen);
+	}
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -3506,13 +3511,73 @@ skipwhite:
 	return (char*)data;
 }
 
-char *COM_ParseCString (const char *data)
+const char *COM_QuotedString(const char *string, char *buf, int buflen)
+{
+	const char *result = buf;
+	if (strchr(string, '\r') || strchr(string, '\n') || strchr(string, '\"'))
+	{
+		*buf++ = '\\';	//prefix so the reader knows its a quoted string.
+		*buf++ = '\"';	//opening quote
+		buflen -= 4;
+		while(*string && buflen >= 2)
+		{
+			switch(*string)
+			{
+			case '\n':
+				*buf++ = '\\';
+				*buf++ = 'n';
+				break;
+			case '\r':
+				*buf++ = '\\';
+				*buf++ = 'r';
+				break;
+			case '\'':
+				*buf++ = '\\';
+				*buf++ = '\'';
+				break;
+			case '\"':
+				*buf++ = '\\';
+				*buf++ = '\"';
+				break;
+			case '\\':
+				*buf++ = '\\';
+				*buf++ = '\\';
+				break;
+			case '$':
+				*buf++ = '\\';
+				*buf++ = '$';
+				break;
+			default:
+				*buf++ = *string;
+				break;
+			}
+			string++;
+		}
+		*buf++ = '\"';	//closing quote
+		*buf++ = 0;
+		return result;
+	}
+	else
+	{
+		*buf++ = '\"';	//opening quote
+		buflen -= 3;
+		while(*string && buflen >= 0)
+		{
+			*buf++ = *string++;
+		}
+		*buf++ = '\"';	//closing quote
+		*buf++ = 0;
+		return result;
+	}
+}
+
+char *COM_ParseCString (const char *data, char *token, int tokenlen)
 {
 	int		c;
 	int		len;
 
 	len = 0;
-	com_token[0] = 0;
+	token[0] = 0;
 
 	if (!data)
 		return NULL;
@@ -3544,16 +3609,16 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= TOKENSIZE-2)
+			if (len >= tokenlen-2)
 			{
-				com_token[len] = '\0';
+				token[len] = '\0';
 				return (char*)data;
 			}
 
 			c = *data++;
 			if (!c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data;
 			}
 			if (c == '\\')
@@ -3561,28 +3626,37 @@ skipwhite:
 				c = *data++;
 				switch(c)
 				{
+				case '\r':
+					if (*data == '\n')
+						data++;
+				case '\n':
+					continue;
 				case 'n':
 					c = '\n';
 					break;
+				case 'r':
+					c = '\r';
+					break;
+				case '$':
 				case '\\':
-					c = '\\';
+				case '\'':
 					break;
 				case '"':
 					c = '"';
-					com_token[len] = c;
+					token[len] = c;
 					len++;
 					continue;
 				default:
-					com_token[len] = 0;
-					return (char*)data;
+					c = '?';
+					break;
 				}
 			}
 			if (c=='\"' || !c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data;
 			}
-			com_token[len] = c;
+			token[len] = c;
 			len++;
 		}
 	}
@@ -3590,15 +3664,15 @@ skipwhite:
 // parse a regular word
 	do
 	{
-		if (len >= sizeof(com_token)-1)
+		if (len >= tokenlen-1)
 			break;
-		com_token[len] = c;
+		token[len] = c;
 		data++;
 		len++;
 		c = *data;
 	} while (c>32);
 
-	com_token[len] = 0;
+	token[len] = 0;
 	return (char*)data;
 }
 

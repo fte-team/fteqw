@@ -393,6 +393,7 @@ static qintptr_t AVDec_Shutdown(qintptr_t *args)
 
 static media_decoder_funcs_t decoderfuncs =
 {
+	"avplug",
 	AVDec_Create,
 	AVDec_DisplayFrame,
 	NULL,//doneframe
@@ -429,7 +430,10 @@ qintptr_t Plug_Init(qintptr_t *args)
 	okay |= AVDec_Init();
 	okay |= AVEnc_Init();
 	if (okay)
+	{
 		av_register_all();
+		avcodec_register_all();
+	}
 	return okay;
 }
 

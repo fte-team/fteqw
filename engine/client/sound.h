@@ -190,9 +190,6 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
 
 #ifdef AVAIL_OPENAL
-void OpenAL_LoadCache(sfx_t *s, sfxcache_t *sc);
-void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation, float pitchscale);
-void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);
 void OpenAL_CvarInit(void);
 #endif
 
@@ -236,7 +233,6 @@ extern	cvar_t snd_capture;
 extern float voicevolumemod;
 
 extern qboolean	snd_initialized;
-extern cvar_t snd_usemultipledevices;
 extern cvar_t snd_mixerthread;
 
 extern int		snd_blocked;
@@ -254,6 +250,12 @@ void S_AmbientOn (void);
 
 
 //inititalisation functions.
+typedef struct
+{
+	const char *name;	//must be a single token, with no :
+	qboolean (QDECL *InitCard) (soundcardinfo_t *sc, const char *cardname);	//NULL for default device.
+	qboolean (QDECL *Enumerate) (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename));
+} sounddriver_t;
 typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
 extern sounddriver pOPENAL_InitCard;
 extern sounddriver pDSOUND_InitCard;
@@ -296,6 +298,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);	//if you have eax enabled, change the environment. fixme. generally this is a stub. optional.
 	void (*Restore) (soundcardinfo_t *sc);							//called before lock/unlock/lock/unlock/submit. optional
 	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);	//properties of a sound effect changed. this is to notify hardware mixers. optional.
+	void (*ListenerUpdate) (soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);	//player moved or something. this is to notify hardware mixers. optional.
 
 //driver-specific - if you need more stuff, you should just shove it in the handle pointer
 	void *thread;
@@ -303,11 +306,6 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	int snd_sent;
 	int snd_completed;
 	int audio_fd;
-
-// no clue how else to handle this yet!
-#ifdef AVAIL_OPENAL
-	int openal;
-#endif
 };
 
 extern soundcardinfo_t *sndcardinfo;

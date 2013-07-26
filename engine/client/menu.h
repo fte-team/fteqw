@@ -178,6 +178,7 @@ typedef struct {
 	float current;
 	float smallchange;
 	float largechange;
+	float vx;
 	cvar_t *var;
 	const char *text;
 } menuslider_t;

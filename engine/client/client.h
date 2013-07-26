@@ -396,7 +396,7 @@ typedef struct
 
 // demo recording info must be here, because record is started before
 // entering a map (and clearing client_state_t)
-	qboolean	demorecording;
+	int			demorecording;	//1=QW, 2=NQ
 	vfsfile_t	*demooutfile;
 
 	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
@@ -518,8 +518,9 @@ struct playerview_s
 // the client maintains its own idea of view angles, which are
 // sent to the server each frame.  And only reset at level change
 // and teleport times
-	vec3_t		viewangles;
-	vec3_t		viewanglechange;
+	vec3_t		viewangles;			//current angles
+	vec3_t		viewanglechange;	//angles set by input code this frame
+	vec3_t		intermissionangles;	//absolute angles for intermission
 	vec3_t		gravitydir;
 
 	// pitch drifting vars
@@ -545,10 +546,6 @@ struct playerview_s
 	int			waterlevel;		//for smartjump
 
 	float		punchangle;		// temporary view kick from weapon firing
-	qboolean	fixangle;		//received a fixangle - so disable prediction till the next packet.
-	qboolean	oldfixangle;	//received a fixangle - so disable prediction till the next packet.
-	vec3_t		fixangles;		//received a fixangle - so disable prediction till the next packet.
-	vec3_t		oldfixangles;	//received a fixangle - so disable prediction till the next packet.
 
 	float		v_dmg_time;		//various view knockbacks.
 	float		v_dmg_roll;
@@ -601,10 +598,11 @@ typedef struct
 	int			oldparsecount;
 	int			oldvalidsequence;
 	int			ackedmovesequence;	//in quakeworld/q2 this is always equal to validsequence. nq can differ. may only be updated when validsequence is updated.
+	int			lastackedmovesequence;	//can be higher than ackedmovesequence when the received frame was unusable.
 	int			validsequence;	// this is the sequence number of the last good
 								// packetentity_t we got.  If this is 0, we can't
 								// render a frame yet
-	int			movesequence;	// 
+	int			movesequence;	// client->server frames
 
 	int			spectator;
 
@@ -723,8 +721,12 @@ typedef struct
 	float predicted_step_time;
 	float predicted_step;
 
+	//interpolation+snapshots
+	float	packfrac;
 	packet_entities_t	*currentpackentities;
+	packet_entities_t	*previouspackentities;
 	float				currentpacktime;
+	qboolean			do_lerp_players;
 
 
 	int teamplay;
@@ -1393,6 +1395,7 @@ void Stats_NewMap(void);
 enum uploadfmt;
 typedef struct
 {
+	char *drivername;
 	void *(VARGS *createdecoder)(char *name);
 	void *(VARGS *decodeframe)(void *ctx, qboolean nosound, enum uploadfmt *fmt, int *width, int *height);
 	void (VARGS *doneframe)(void *ctx, void *img);
@@ -1407,6 +1410,7 @@ typedef struct
 	void (VARGS *changestream) (void *ctx, char *streamname);
 } media_decoder_funcs_t;
 typedef struct {
+	char *drivername;
 	void *(VARGS *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
 	void (VARGS *capture_video) (void *ctx, void *data, int frame, int width, int height);
 	void (VARGS *capture_audio) (void *ctx, void *data, int bytes);

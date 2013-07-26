@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 
 cvar_t	cl_nopred = SCVAR("cl_nopred","0");
-extern cvar_t cl_lerp_players;
 cvar_t	cl_pushlatency = SCVAR("pushlatency","-999");
 
 extern float	pm_airaccelerate;
@@ -504,7 +503,7 @@ void CL_CalcCrouch (playerview_t *pv, float stepchange)
 
 float LerpAngles360(float to, float from, float frac)
 {
-	int delta;
+	float delta;
 	delta = (from-to);
 
 	if (delta > 180)
@@ -636,6 +635,7 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
+	extern float demtime;
 	if (cls.protocol != CP_QUAKE3)
 	{
 		float oldst = realtime;
@@ -670,7 +670,13 @@ void CL_CalcClientTime(void)
 				max = min;
 
 			if (max)
-				cl.servertime += host_frametime;
+			{
+				extern cvar_t cl_demospeed;
+				if (cls.demoplayback && cl_demospeed.value >= 0 && cls.state == ca_active)
+					cl.servertime += host_frametime*cl_demospeed.value;
+				else
+					cl.servertime += host_frametime;
+			}
 			else
 				cl.servertime = 0;
 
@@ -836,6 +842,7 @@ void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int s
 		{
 			cl.playerview[i].stats[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
 			cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+			cl.playerview[i].pmovetype = pmtype;
 		}
 	}
 
@@ -908,6 +915,7 @@ void CL_PredictMovePNum (int seat)
 	float *org;
 	float stepheight = 0;
 	float netfps = cl_netfps.value;
+
 	if (!netfps)
 	{
 		//every video frame has its own input frame.
@@ -951,38 +959,38 @@ void CL_PredictMovePNum (int seat)
 	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !pv->cam_auto))
 		return;
 
-	if (cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
-	{
-		pv->crouch = 0;
-		return;
-	}
-
-#ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
-	{
-		cl.ackedmovesequence = cl.movesequence;
-	}
-#endif
-
 	if (!cl.validsequence)
 	{
 		return;
 	}
-	if (cl.movesequence - cl.ackedmovesequence >= UPDATE_BACKUP-1)
-	{	//lagging like poo.
-		if (!cl.intermission)	//keep the angles working though.
-			VectorCopy (pv->viewangles, pv->simangles);
+
+	if (cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
+	{
+		VectorCopy (pv->intermissionangles, pv->simangles);
 		return;
 	}
+	else
+	{
+		if (cl.currentpackentities && cl.currentpackentities->fixangles[seat])
+		{
+			if (cl.previouspackentities && cl.previouspackentities->fixangles[seat]==cl.currentpackentities->fixangles[seat])
+			{
+				for (i = 0; i < 3; i++)
+					pv->simangles[i] = LerpAngles360(cl.currentpackentities->fixedangles[seat][i], cl.previouspackentities->fixedangles[seat][i], 1-(cl.previouspackentities->fixangles[seat]?cl.packfrac:1));
+			}
+			else
+				VectorCopy(cl.currentpackentities->fixedangles[seat], pv->simangles);
+		}
+		else
+			VectorCopy (pv->viewangles, pv->simangles);
+	}
 
-	// this is the last frame received from the server
+	//don't wrap
+	if (cl.movesequence - cl.ackedmovesequence >= UPDATE_BACKUP-1)
+		return;
+		// this is the last frame received from the server
 	from = &cl.inframes[cl.validsequence & UPDATE_MASK];
 	cmdfrom = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK];
-
-	if (!cl.intermission)
-	{
-		VectorCopy (pv->viewangles, pv->simangles);
-	}
 
 	vel = from->playerstate[pv->playernum].velocity;
 	org = from->playerstate[pv->playernum].origin;
@@ -1018,16 +1026,23 @@ void CL_PredictMovePNum (int seat)
 	}
 
 
-	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| pv->fixangle || cl.paused))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV) || cl.paused || pv->pmovetype == PM_NONE))
 	{
-		if (cl_lerp_players.ival && !cls.demoplayback)
+		if (cl.do_lerp_players)
 		{
-			lerpents_t *le;
-			if (pv->nolocalplayer) 
-				le = &cl.lerpents[pv->cam_spec_track+1];
+			lerpents_t *le = NULL;
+			if (pv->nolocalplayer)
+			{
+				if (pv->viewentity < cl.maxlerpents)
+					le = &cl.lerpents[pv->viewentity];
+			}
 			else
-				le = &cl.lerpplayers[pv->cam_spec_track];
-			org = le->origin;
+			{
+				if (pv->viewentity >= 1 && pv->viewentity <= MAX_CLIENTS)
+					le = &cl.lerpplayers[pv->viewentity-1];
+			}
+			if (le)
+				org = le->origin;
 			vel = vec3_origin;
 		}
 
@@ -1056,7 +1071,7 @@ fixedorg:
 	if (pv->viewentity && pv->viewentity != pv->playernum+1 && CL_MayLerp())
 	{
 		float f;
-		if (cl_lerp_players.ival && (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV))
+		if (cl.do_lerp_players)
 		{
 			lerpents_t *le = &cl.lerpplayers[pv->cam_spec_track];
 			org = le->origin;

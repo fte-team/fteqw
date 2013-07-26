@@ -102,7 +102,7 @@ void R_NetGraph (void)
 	lost = CL_CalcNet();
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
-		i = (cls.netchan.outgoing_sequence-a) & NET_TIMINGSMASK;
+		i = (cl.movesequence-a) & NET_TIMINGSMASK;
 		R_LineGraph (NET_TIMINGS-1-a, packet_latency[i]);
 	}
 

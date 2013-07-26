@@ -1305,6 +1305,7 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
 }
 
 //obtains the width of a character from a given font. This is how wide it is. The next char should be drawn at x + result.
+//FIXME: this function cannot cope with tab and should not be used.
 int Font_CharWidth(unsigned int charcode)
 {
 	struct charcache_s *c;
@@ -1324,6 +1325,7 @@ int Font_CharWidth(unsigned int charcode)
 }
 
 //obtains the width of a character from a given font. This is how wide it is. The next char should be drawn at x + result.
+//FIXME: this function cannot cope with tab and should not be used.
 float Font_CharScaleWidth(unsigned int charcode)
 {
 	struct charcache_s *c;

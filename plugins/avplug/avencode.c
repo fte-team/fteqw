@@ -290,7 +290,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 				audiocodec = avcodec_find_encoder_by_name(codecname);
 				if (!audiocodec)
 				{
-					Con_Printf("Unsupported avplug_codec \"%s\"\n", codecname);
+					Con_Printf("avplug: Unsupported avplug_codec \"%s\"\n", codecname);
 					return NULL;
 				}
 			}
@@ -299,19 +299,19 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		}
 	}
 
-	Con_DPrintf("Using format \"%s\"\n", fmt->name);
+	Con_DPrintf("avplug: Using format \"%s\"\n", fmt->name);
 	if (videocodec)
-		Con_DPrintf("Using Video Codec \"%s\"\n", videocodec->name);
+		Con_DPrintf("avplug: Using Video Codec \"%s\"\n", videocodec->name);
 	else
-		Con_DPrintf("Not encoding video\n");
+		Con_DPrintf("avplug: Not encoding video\n");
 	if (audiocodec)
-		Con_DPrintf("Using Audio Codec \"%s\"\n", audiocodec->name);
+		Con_DPrintf("avplug: Using Audio Codec \"%s\"\n", audiocodec->name);
 	else
-		Con_DPrintf("Not encoding audio\n");
+		Con_DPrintf("avplug: Not encoding audio\n");
 	
 	if (!videocodec && !audiocodec)
 	{
-		Con_DPrintf("Nothing to encode!\n");
+		Con_DPrintf("avplug: Nothing to encode!\n");
 		return NULL;
 	}
 
@@ -339,7 +339,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 			AVCodecContext *c = ctx->video_st->codec;
 			if (avcodec_open2(c, videocodec, NULL) < 0)
 			{
-				Con_Printf("Could not init codec instance \"%s\". Maybe try a different framerate/resolution/bitrate\n", videocodec->name);
+				Con_Printf("avplug: Could not init codec instance \"%s\". Maybe try a different framerate/resolution/bitrate\n", videocodec->name);
 				AVEnc_End(ctx);
 				return NULL;
 			}
@@ -360,7 +360,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 			AVCodecContext *c = ctx->audio_st->codec;
 			if (avcodec_open2(c, audiocodec, NULL) < 0)
 			{
-				Con_Printf("Could not init codec instance \"%s\".\n", audiocodec->name);
+				Con_Printf("avplug: Could not init codec instance \"%s\".\n", audiocodec->name);
 				AVEnc_End(ctx);
 				return NULL;
 			}
@@ -406,6 +406,7 @@ static void AVEnc_End (void *vctx)
 }
 static media_encoder_funcs_t encoderfuncs =
 {
+	"avplug",
 	AVEnc_Begin,
 	AVEnc_Video,
 	AVEnc_Audio,
@@ -438,15 +439,15 @@ menutext 0 24 "Cancel"
 
 qboolean AVEnc_Init(void)
 {
-	pCvar_Register("avplug_format",				"",			0, "avplug");
+	pCvar_Register("avplug_format",				"mp4",			0, "avplug");
 
-	pCvar_Register("avplug_videocodec",			"",			0, "avplug");
-	pCvar_Register("avplug_videocodecprofile",	"",			0, "avplug");
-	pCvar_Register("avplug_videobitrate",		"4000000",	0, "avplug");
-	pCvar_Register("avplug_videoforcewidth",		"",			0, "avplug");
-	pCvar_Register("avplug_videoforceheight",	"",			0, "avplug");
-	pCvar_Register("avplug_audiocodec",			"",			0, "avplug");
-	pCvar_Register("avplug_audiobitrate",		"64000",	0, "avplug");
+	pCvar_Register("avplug_videocodec",			"mpeg4",		0, "avplug");
+	pCvar_Register("avplug_videocodecprofile",	"",				0, "avplug");
+	pCvar_Register("avplug_videobitrate",		"4000000",		0, "avplug");
+	pCvar_Register("avplug_videoforcewidth",	"",				0, "avplug");
+	pCvar_Register("avplug_videoforceheight",	"",				0, "avplug");
+	pCvar_Register("avplug_audiocodec",			"libmp3lame",	0, "avplug");
+	pCvar_Register("avplug_audiobitrate",		"64000",		0, "avplug");
 
 	if (!pPlug_ExportNative("Media_VideoEncoder", &encoderfuncs))
 	{

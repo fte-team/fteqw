@@ -42,7 +42,7 @@ packet header
 
 The remote connection never knows if it missed a reliable message, the
 local side detects that it has been dropped by seeing a sequence acknowledge
-higher thatn the last reliable sequence, but without the correct evon/odd
+higher thatn the last reliable sequence, but without the correct even/odd
 bit for the reliable set.
 
 If the sender notices that a reliable message has been dropped, it will be
@@ -84,9 +84,10 @@ int		net_drop;
 cvar_t	showpackets = SCVAR("showpackets", "0");
 cvar_t	showdrop = SCVAR("showdrop", "0");
 cvar_t	qport = SCVAR("qport", "0");
-cvar_t	net_mtu = CVARD("net_mtu", "1450", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 
 cvar_t	pext_replacementdeltas = CVAR("pext_replacementdeltas", "1");
+cvar_t	pext_nqpredinfo = CVAR("debug_pext_nqpredinfo", "0");
 
 /*returns the entire bitmask of supported+enabled extensions*/
 unsigned int Net_PextMask(int maskset, qboolean fornq)
@@ -196,7 +197,8 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 
 		if (pext_replacementdeltas.ival)
 			mask |= PEXT2_REPLACEMENTDELTAS;
-		//mask |= PEXT2_PREDINFO;
+		if (fornq && pext_nqpredinfo.ival)
+			mask |= PEXT2_PREDINFO;
 
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
@@ -206,6 +208,8 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 			//only ones that are tested
 			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS | PEXT2_PREDINFO;
 		}
+		else
+			mask &= ~PEXT2_PREDINFO;
 	}
 
 	return mask;
@@ -221,6 +225,7 @@ void Netchan_Init (void)
 {
 	int		port;
 
+	Cvar_Register (&pext_nqpredinfo, "Protocol Extensions");
 	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
 	Cvar_Register (&showpackets, "Networking");
 	Cvar_Register (&showdrop, "Networking");

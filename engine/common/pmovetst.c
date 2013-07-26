@@ -118,7 +118,7 @@ int PM_PointContents (vec3_t p)
 	model_t *pm;
 
 	pm = pmove.physents[0].model;
-	if (!pm)
+	if (!pm || pm->needload)
 		return FTECONTENTS_EMPTY;
 	pc = pm->funcs.PointContents(pm, NULL, p);
 	//we need this for e2m2 - waterjumping on to plats wouldn't work otherwise.

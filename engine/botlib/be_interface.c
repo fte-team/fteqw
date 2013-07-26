@@ -868,7 +868,7 @@ static void Init_AI_Export( ai_export_t *ai ) {
 GetBotLibAPI
 ============
 */
-botlib_export_t *GetBotLibAPI(int apiVersion, botlib_import_t *import) {
+botlib_export_t *QDECL GetBotLibAPI(int apiVersion, botlib_import_t *import) {
 	assert(import);
 	botimport = *import;
 	assert(botimport.Print);

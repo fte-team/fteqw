@@ -5737,6 +5737,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	byte_vec4_t *oindex;
 	float *opose,*oposebase;
 	vec2_t *otcoords;
+	int memsize;
 
 
 	galiasinfo_t *gai;
@@ -5846,13 +5847,16 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
-	/*allocate a nice big block of memory and figure out where stuff is*/
-	gai = ZG_Malloc(&loadmodel->memgroup, sizeof(*gai)*h->num_meshes +
+
+	memsize = sizeof(*gai)*h->num_meshes;
+	memsize += sizeof(*fgroup)*numgroups + sizeof(float)*12*(h->num_joints + (h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints;
+	memsize += (sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes;
 #ifndef SERVERONLY
-		sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes + 
+	memsize += sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes;
 #endif
-		sizeof(*fgroup)*numgroups + sizeof(float)*12*(h->num_joints + (h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
-		(sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
+
+	/*allocate a nice big block of memory and figure out where stuff is*/
+	gai = ZG_Malloc(&loadmodel->memgroup, memsize);
 	bones = (galiasbone_t*)(gai + h->num_meshes);
 	opos = (vecV_t*)(bones + h->num_joints);
 	onorm3 = (vec3_t*)(opos + h->num_vertexes);

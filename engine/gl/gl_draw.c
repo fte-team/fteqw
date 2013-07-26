@@ -204,12 +204,20 @@ texid_t GL_AllocNewTexture(char *name, int w, int h, unsigned int flags)
 
 void GL_DestroyTexture(texid_t tex)
 {
+	gltexture_t **link;
 	if (!tex.ref)
 		return;
-
-	//FIXME: unlink the old one
-
-	qglDeleteTextures(1, &tex.num);
+	for (link = &gltextures; *link; link = &(*link)->next)
+	{
+		if (*link == (gltexture_t*)tex.ref)
+		{
+			Hash_RemoveData(&gltexturetable, (*link)->identifier, *link);
+			*link = (*link)->next;
+			qglDeleteTextures(1, &tex.num);
+			BZ_Free(tex.ref);
+			return;
+		}
+	}
 }
 
 //=============================================================================
@@ -422,6 +430,8 @@ void GLDraw_FlushOldTextures(void)
 		t = *link;
 		if (t->com.regsequence != r_regsequence)
 		{
+			//make sure the hash table can't still find it...
+			Hash_RemoveData(&gltexturetable, t->identifier, t);
 			qglDeleteTextures(1, &t->texnum.num);
 			(*link)->next = t->next;
 			BZ_Free(t);

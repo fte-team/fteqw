@@ -59,6 +59,7 @@ static struct predicted_player
 static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le);
 qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence);
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence);
+void CL_AckedInputFrame(int seq, qboolean worldstateokay);
 
 
 extern int cl_playerindex, cl_h_playerindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
@@ -737,8 +738,8 @@ void CLFTE_ParseEntities(void)
 	else if (cls.protocol == CP_NETQUAKE)
 	{
 		int i;
-		for (i = 0; i < MAX_SPLITS; i++)
-			cl.playerview[i].fixangle = false;
+		if (cls.demoplayback)
+			cls.netchan.incoming_unreliable++;	//demo playback has no sequence info...
 		cls.netchan.incoming_sequence = cls.netchan.incoming_unreliable;
 		cl.last_servermessage = realtime;
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
@@ -752,6 +753,18 @@ void CLFTE_ParseEntities(void)
 			cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
 
 		cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
+
+		{
+			extern vec3_t demoangles;
+			int fr = cls.netchan.incoming_sequence&UPDATE_MASK;
+			for (i = 0; i < MAX_SPLITS; i++)
+				cl.inframes[fr&UPDATE_MASK].packet_entities.fixangles[i] = false;
+			if (cls.demoplayback)
+			{
+				cl.inframes[fr&UPDATE_MASK].packet_entities.fixangles[0] = 2;
+				VectorCopy(demoangles, cl.inframes[fr&UPDATE_MASK].packet_entities.fixedangles[0]);
+			}
+		}
 
 //		if (cl.validsequence != cls.netchan.incoming_sequence-1)
 //			Con_Printf("CLIENT: Dropped a frame\n");
@@ -885,13 +898,15 @@ void CLFTE_ParseEntities(void)
 	{
 		cl.oldvalidsequence = cl.validsequence;
 		cl.validsequence = cls.netchan.incoming_sequence;
-		cl.ackedmovesequence = inputframe;
+		CL_AckedInputFrame(inputframe, true);
 		cl.inframes[newpacket].invalid = false;
 	}
 	else
 	{
 		newp->num_entities = 0;
 		cl.validsequence = 0;
+
+		CL_AckedInputFrame(inputframe, false);
 	}
 }
 
@@ -978,9 +993,10 @@ void CLQW_ParsePacketEntities (qboolean delta)
 		full = true;
 	}
 
+	//FIXME
 	cl.oldvalidsequence = cl.validsequence;
 	cl.validsequence = cls.netchan.incoming_sequence;
-	cl.ackedmovesequence = cl.validsequence;
+	CL_AckedInputFrame(cls.netchan.incoming_sequence, true);
 
 	oldindex = 0;
 	newindex = 0;
@@ -1293,12 +1309,14 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	int oldi, newi, lowesti, lowestv, newremaining;
 	qboolean remove;
 
+	//server->client sequence
 	if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
 		cl.numackframes--;
 	cl.ackframes[cl.numackframes++] = MSG_ReadLong(); /*server sequence to be acked*/
 
+	//client->server sequence ack
 	if (cls.protocol_nq >= CPNQ_DP7)
-		cl.ackedmovesequence = MSG_ReadLong(); /*client input sequence which has been acked*/
+		CL_AckedInputFrame(MSG_ReadLong(), true); /*client input sequence which has been acked*/
 
 	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
 	pack = &cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
@@ -2713,7 +2731,7 @@ void R_FlameTrail(vec3_t start, vec3_t end, float seperation);
 /*
 Interpolates the two packets by the given time, writes its results into the lerpentities array.
 */
-static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
+static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newpack, packet_entities_t *oldpack, float frac, float servertime)
 {
 	lerpents_t		*le;
 	entity_state_t		*snew, *sold;
@@ -2724,7 +2742,6 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 
 	float a1, a2;
 
-	float frac;
 	/*
 		seeing as how dropped packets cannot be filled in due to the reliable networking stuff,
 		We can simply detect changes and lerp towards them
@@ -2733,11 +2750,6 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	//we have two index-sorted lists of entities
 	//we figure out which ones are new,
 	//we don't care about old, as our caller will use the lerpents array we fill, and the entity numbers from the 'new' packet.
-
-	if (newpack->servertime == oldpack->servertime)
-		frac = 1; //lerp totally into the new
-	else
-		frac = (servertime-oldpack->servertime)/(newpack->servertime-oldpack->servertime);
 
 	cl.lerpentssequence = newsequence;
 
@@ -2953,7 +2965,7 @@ void CL_TransitionEntities (void)
 	packet_entities_t	*packnew, *packold;
 	int newf, newff, oldf;
 	qboolean nolerp;
-	float servertime;
+	float servertime, frac;
 
 	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
 	{
@@ -2982,13 +2994,19 @@ void CL_TransitionEntities (void)
 	/*transition the ents and stuff*/
 	packnew = &cl.inframes[newf].packet_entities;
 	packold = &cl.inframes[oldf].packet_entities;
+	if (packnew->servertime == packold->servertime)
+		frac = 1; //lerp totally into the new
+	else
+		frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
 
-//	Con_Printf("%f %f %f (%i)\n", packold->servertime, servertime, packnew->servertime, newff);
+//	Con_Printf("%f %f %f (%f) (%i)\n", packold->servertime, servertime, packnew->servertime, frac, newff);
 //	Con_Printf("%f %f %f\n", cl.oldgametime, servertime, cl.gametime);
 
-	CL_TransitionPacketEntities(newff, packnew, packold, servertime);
+	CL_TransitionPacketEntities(newff, packnew, packold, frac, servertime);
+	cl.packfrac = frac;
 	cl.currentpacktime = servertime;
 	cl.currentpackentities = packnew;
+	cl.previouspackentities = packold;
 
 
 	/*and transition players too*/
@@ -2998,7 +3016,7 @@ void CL_TransitionEntities (void)
 		vec3_t move;
 		lerpents_t *le;
 		player_state_t *pnew, *pold;
-		if (!cl_lerp_players.ival && !(cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+		if (!cl.do_lerp_players)
 		{
 			newf = newff = oldf = cl.parsecount;
 			newf&=UPDATE_MASK;
@@ -3966,7 +3984,7 @@ guess_pm_type:
 		}
 	}
 
-	if (cl.worldmodel && cl_lerp_players.ival)
+	if (cl.worldmodel && cl.do_lerp_players)
 	{
 		player_state_t exact;
 		msec += cls.latency*1000;
@@ -4316,7 +4334,7 @@ void CL_LinkPlayers (void)
 		if (pnum < cl.splitclients)
 		{	//this is a local player
 		}
-		else if (cl_lerp_players.ival || (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV))
+		else if (cl.do_lerp_players)
 		{
 			lerpents_t *le = &cl.lerpplayers[j];
 			VectorCopy (le->origin, ent->origin);

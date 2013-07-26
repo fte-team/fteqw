@@ -95,7 +95,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_OGGVORBIS
 
 		/* Jogi's OpenAL support */
-//		#define AVAIL_OPENAL
+		#define AVAIL_OPENAL
 	#endif
 
 #if defined(MINGW) || defined(MACOSX)

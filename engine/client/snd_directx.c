@@ -36,10 +36,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	FORCE_DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
 #endif
 
-#define SND_ERROR 0
-#define SND_LOADED 1
-#define SND_NOMORE 2	//like error, but doesn't try the next card.
-
 #ifdef AVAIL_DSOUND
 
 #define iDirectSoundCreate(a,b,c)	pDirectSoundCreate(a,b,c)
@@ -86,7 +82,7 @@ static void DSOUND_Restore(soundcardinfo_t *sc)
 		dh->pDSBuf->lpVtbl->Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
 }
 
-DWORD	dwSize;
+static DWORD	dsound_locksize;
 static void *DSOUND_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	void *ret;
@@ -96,11 +92,11 @@ static void *DSOUND_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 	HRESULT	hresult;
 
 	dshandle_t *dh = sc->handle;
-	dwSize=0;
+	dsound_locksize=0;
 
 	reps = 0;
 
-	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dwSize,
+	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dsound_locksize,
 								   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 	{
 		if (hresult != DSERR_BUFFERLOST)
@@ -125,7 +121,7 @@ static void *DSOUND_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 static void DSOUND_Unlock(soundcardinfo_t *sc, void *buffer)
 {
 	dshandle_t *dh = sc->handle;
-	dh->pDSBuf->lpVtbl->Unlock(dh->pDSBuf, buffer, dwSize, NULL, 0);
+	dh->pDSBuf->lpVtbl->Unlock(dh->pDSBuf, buffer, dsound_locksize, NULL, 0);
 }
 
 /*
@@ -189,24 +185,6 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 #endif
 		DSOUND_Shutdown_Internal(sc);
 }
-
-GUID FAR *dsndguid;
-int dsnd_guids;
-static BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2, LPVOID parm)
-{
-	soundcardinfo_t *sc = parm;
-	if (guid == NULL)
-		return TRUE;
-
-	if (sc->audio_fd == dsnd_guids)
-	{
-		Q_strncpyz(sc->name, str1, sizeof(sc->name));
-		dsndguid = guid;
-	}
-	dsnd_guids++;
-	return TRUE;
-}
-
 
 /*
 	Direct Sound.
@@ -530,6 +508,30 @@ static void DSOUND_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 
+static qboolean DSOUND_InitOutputLibrary(void)
+{
+	if (!hInstDS)
+	{
+		hInstDS = LoadLibrary("dsound.dll");
+
+		if (hInstDS == NULL)
+		{
+			Con_SafePrintf ("Couldn't load dsound.dll\n");
+			return false;
+		}
+
+		pDirectSoundCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCreate");
+
+		if (!pDirectSoundCreate)
+		{
+			Con_SafePrintf ("Couldn't get DS proc addr\n");
+			return false;
+		}
+
+		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
+	}
+	return true;
+}
 /*
 ==================
 SNDDMA_InitDirect
@@ -537,7 +539,7 @@ SNDDMA_InitDirect
 Direct-Sound support
 ==================
 */
-static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
+static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 {
 	extern cvar_t snd_inactive;
 #if _MSC_VER > 1200	//fixme err
@@ -555,8 +557,23 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 	qboolean		primary_format_set;
 	dshandle_t *dh;
 	char *buffer;
+	GUID guid, *dsguid;
+
 
 	memset (&format, 0, sizeof(format));
+
+	if (*sc->name)
+	{
+		wchar_t mssuck[128];
+		mbstowcs(mssuck, sc->name, sizeof(mssuck)/sizeof(mssuck[0])-1);
+		CLSIDFromString(mssuck, &guid);
+		dsguid = &guid;
+	}
+	else
+	{
+		memset(&guid, 0, sizeof(GUID));
+		dsguid = NULL;
+	}
 
 	if (sc->sn.numchannels >= 8) // 7.1 surround
 	{
@@ -606,35 +623,8 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
     format.Format.nAvgBytesPerSec = format.Format.nSamplesPerSec
 		*format.Format.nBlockAlign;
 
-	if (!hInstDS)
-	{
-		hInstDS = LoadLibrary("dsound.dll");
-
-		if (hInstDS == NULL)
-		{
-			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return SND_ERROR;
-		}
-
-		pDirectSoundCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCreate");
-
-		if (!pDirectSoundCreate)
-		{
-			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return SND_ERROR;
-		}
-
-		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
-	}
-
-	dsnd_guids=0;
-	dsndguid=NULL;
-	if (pDirectSoundEnumerate)
-		pDirectSoundEnumerate(&DSEnumCallback, sc);
-	if (!snd_usemultipledevices.ival)	//if only one device, ALWAYS use the default.
-		dsndguid=NULL;
-	else if (!dsndguid)	//no more...
-		return SND_NOMORE;
+	if (!DSOUND_InitOutputLibrary())
+		return false;
 
 	sc->handle = Z_Malloc(sizeof(dshandle_t));
 	dh = sc->handle;
@@ -648,19 +638,21 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&dh->pDS )))
 			dh->pDS=NULL;
 		else
-			IDirectSound_Initialize(dh->pDS, dsndguid);
+		{
+			IDirectSound_Initialize(dh->pDS, dsguid);
+		}
 	}
 
 	if (!dh->pDS)
 #endif
 #endif
 	{
-		while ((hresult = iDirectSoundCreate(dsndguid, &dh->pDS, NULL)) != DS_OK)
+		while ((hresult = iDirectSoundCreate(dsguid, &dh->pDS, NULL)) != DS_OK)
 		{
 			if (hresult != DSERR_ALLOCATED)
 			{
 				Con_SafePrintf (": create failed\n");
-				return SND_ERROR;
+				return false;
 			}
 
 //			if (MessageBox (NULL,
@@ -672,9 +664,19 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 				Con_SafePrintf (": failure\n"
 								"  hardware already in use\n"
 								"  Close the other app then use snd_restart\n");
-				return SND_ERROR;
+				return false;
 //			}
 		}
+	}
+
+#ifdef _SDL
+#define mainwindow GetDesktopWindow()
+#endif
+	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
+	{
+		Con_SafePrintf ("Set coop level failed\n");
+		DSOUND_Shutdown_Internal (sc);
+		return false;
 	}
 
 	dscaps.dwSize = sizeof(dscaps);
@@ -688,17 +690,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 	{
 		Con_SafePrintf ("No DirectSound driver installed\n");
 		DSOUND_Shutdown_Internal (sc);
-		return SND_ERROR;
-	}
-
-#ifdef _SDL
-#define mainwindow GetDesktopWindow()
-#endif
-	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
-	{
-		Con_SafePrintf ("Set coop level failed\n");
-		DSOUND_Shutdown_Internal (sc);
-		return SND_ERROR;
+		return false;
 	}
 
 
@@ -776,7 +768,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		{
 			Con_SafePrintf ("DS:CreateSoundBuffer Failed");
 			DSOUND_Shutdown_Internal (sc);
-			return SND_ERROR;
+			return false;
 		}
 
 		sc->sn.numchannels = format.Format.nChannels;
@@ -787,7 +779,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		{
 			Con_SafePrintf ("DS:GetCaps failed\n");
 			DSOUND_Shutdown_Internal (sc);
-			return SND_ERROR;
+			return false;
 		}
 
 //		if (snd_firsttime)
@@ -799,14 +791,14 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		{
 			Con_SafePrintf ("Set coop level failed\n");
 			DSOUND_Shutdown_Internal (sc);
-			return SND_ERROR;
+			return false;
 		}
 
 		if (DS_OK != dh->pDSPBuf->lpVtbl->GetCaps (dh->pDSPBuf, &dsbcaps))
 		{
 			Con_Printf ("DS:GetCaps failed\n");
 			DSOUND_Shutdown_Internal (sc);
-			return SND_ERROR;
+			return false;
 		}
 
 		dh->pDSBuf = dh->pDSPBuf;
@@ -835,14 +827,14 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 		{
 			Con_SafePrintf ("SNDDMA_InitDirect: DS::Lock Sound Buffer Failed\n");
 			DSOUND_Shutdown_Internal (sc);
-			return SND_ERROR;
+			return false;
 		}
 
 		if (++reps > 10000)
 		{
 			Con_SafePrintf ("SNDDMA_InitDirect: DS: couldn't restore buffer\n");
 			DSOUND_Shutdown_Internal (sc);
-			return SND_ERROR;
+			return false;
 		}
 	}
 
@@ -889,7 +881,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 				IKsPropertySet_Release(dh->EaxKsPropertiesSet);
 				dh->EaxKsPropertiesSet = NULL;
 				Con_SafePrintf ("EAX 2 not supported\n");
-				return SND_LOADED;//otherwise successful. It can be used for normal sound anyway.
+				return true;//otherwise successful. It can be used for normal sound anyway.
 			}
 
 			//worked. EAX is supported.
@@ -903,7 +895,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, int cardnum)
 #endif
 #endif
 
-	return SND_LOADED;
+	return true;
 }
 
 
@@ -915,23 +907,11 @@ static int DSOUND_Thread(void *arg)
 {
 	soundcardinfo_t *sc = arg;
 	void *cond = sc->handle;
-	int cardnum = sc->audio_fd;
 	sc->handle = NULL;
 
 	//once creating the thread, the main thread will wait for us to signal that we have inited the dsound device.
-	switch(DSOUND_InitCard_Internal(sc, cardnum))
-	{
-	case SND_LOADED:
-		break;
-	case SND_NOMORE:
-		sc->audio_fd = -1;
+	if (!DSOUND_InitCard_Internal(sc, sc->name))
 		sc->selfpainting = false;
-		break;
-	default:
-	case SND_ERROR:
-		sc->selfpainting = false;
-		break;
-	}
 
 	//wake up the main thread.
 	Sys_ConditionSignal(cond);
@@ -952,19 +932,17 @@ static int DSOUND_Thread(void *arg)
 }
 #endif
 
-static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
+static qboolean QDECL DSOUND_InitCard (soundcardinfo_t *sc, const char *device)
 {
 	if (COM_CheckParm("-wavonly"))
-		return SND_NOMORE;
+		return false;
 
-	if (cardnum > 5)
-		return SND_NOMORE;
+	Q_strncpyz(sc->name, device?device:"", sizeof(sc->name));
 
 #ifdef MULTITHREAD
 	if (snd_mixerthread.ival)
 	{
 		void *cond;
-		sc->audio_fd = cardnum;
 		sc->selfpainting = true;
 		sc->handle = cond = Sys_CreateConditional();
 		Sys_LockConditional(cond);
@@ -972,7 +950,7 @@ static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (!sc->thread)
 		{
 			Con_SafePrintf ("Unable to create sound mixing thread\n");
-			return SND_NOMORE;
+			return false;
 		}
 
 		//wait for the thread to finish (along with all its error con printfs etc
@@ -984,16 +962,48 @@ static int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		{
 			Sys_WaitOnThread(sc->thread);
 			sc->thread = NULL;
-			return (sc->audio_fd==-1)?SND_NOMORE:SND_ERROR;
+			return false;
 		}
-		return SND_LOADED;
+		return true;
 	}
 	else
 #endif
-		return DSOUND_InitCard_Internal(sc, cardnum);
+		return DSOUND_InitCard_Internal(sc, sc->name);
 }
 
-int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
+#define SDRVNAME "DirectSound"
+static BOOL (CALLBACK  DSound_EnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2, LPVOID parm)
+{
+	char guidbuf[128];
+	wchar_t mssuck[128];
+	void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename) = parm;
+	soundcardinfo_t *sc = parm;
+	if (guid == NULL)	//we don't care about the (dupe) default device
+		return TRUE;
+
+	StringFromGUID2(guid, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
+	wcstombs(guidbuf, mssuck, sizeof(guidbuf));
+	callback(SDRVNAME, guidbuf, str1);
+	return TRUE;
+}
+static qboolean QDECL DSOUND_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))
+{
+	if (!DSOUND_InitOutputLibrary())
+		return false;
+	if (pDirectSoundEnumerate)
+	{
+		pDirectSoundEnumerate(&DSound_EnumCallback, cb);
+		return true;
+	}
+	return false;
+}
+
+sounddriver_t DSOUND_Output =
+{
+	SDRVNAME,
+	DSOUND_InitCard,
+	DSOUND_Enumerate
+};
 
 #endif
 

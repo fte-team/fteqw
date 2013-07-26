@@ -67,7 +67,7 @@ static char demomsgbuf[MAX_OVERALLMSGLEN];
 mvddest_t *singledest;
 
 mvddest_t *SV_InitStream(int socket);
-static qboolean SV_MVD_Record (mvddest_t *dest);
+qboolean SV_MVD_Record (mvddest_t *dest);
 char *SV_MVDName2Txt(char *name);
 extern cvar_t qtv_password;
 
@@ -1586,7 +1586,7 @@ void SV_WriteSetMVDMessage (void)
 }
 
 void SV_MVD_SendInitialGamestate(mvddest_t *dest);
-static qboolean SV_MVD_Record (mvddest_t *dest)
+qboolean SV_MVD_Record (mvddest_t *dest)
 {
 	if (!dest)
 		return false;
@@ -2264,7 +2264,14 @@ void SV_MVDEasyRecord_f (void)
 	else
 	{
 		i = Dem_CountPlayers();
-		if (teamplay.value >= 1 && i > 2)
+		/*if (!deathmatch.ival)
+		{
+			if (coop.ival || i>1)
+				snprintf (name, sizeof(name), "coop_%s_%d(%d)", sv.name, skill.ival, i);
+			else
+				snprintf (name, sizeof(name), "sp_%s_%d_%s", sv.name, skill.ival, Dem_PlayerName(0));
+		}
+		else*/ if (teamplay.value >= 1 && i > 2)
 		{
 			// Teamplay
 			snprintf (name, sizeof(name), "%don%d_", Dem_CountTeamPlayers(Dem_Team(1)), Dem_CountTeamPlayers(Dem_Team(2)));

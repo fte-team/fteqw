@@ -60,17 +60,36 @@ extern cvar_t gl_picmip2d;
 texid_t D3D9_AllocNewTexture(char *ident, int width, int height, unsigned int flags)
 {
 	IDirect3DTexture9 *tx;
-	texid_t ret = r_nulltex;
-	if (!FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, width, height, 0, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tx, NULL)))
-		ret.ptr = tx;
-	return ret;
+
+	/*unconditionally allocate a new texture*/
+	d3dtexture_t *tex = calloc(1, sizeof(*tex)+strlen(ident));
+	strcpy(tex->name, ident);
+	tex->tex.ptr = NULL;
+	tex->tex.ref = &tex->com;
+	tex->next = d3dtextures;
+	d3dtextures = tex;
+
+	if (!tex->tex.ptr)
+	{
+		if (!FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, width, height, 0, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tx, NULL)))
+			tex->tex.ptr = tx;
+	}
+	return tex->tex;
 }
 
 void    D3D9_DestroyTexture (texid_t tex)
 {
-	IDirect3DTexture9 *tx = tex.ptr;
-	if (tx)
-		IDirect3DTexture9_Release(tx);
+	d3dtexture_t **link;
+	for (link = &d3dtextures; *link; link = &(*link)->next)
+	{
+		if (*link == (d3dtexture_t*)tex.ref)
+		{
+			*link = (*link)->next;
+			if (tex.ptr)
+				IDirect3DTexture9_Release((IDirect3DTexture9*)tex.ptr);
+			return;
+		}
+	}
 }
 
 static void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)

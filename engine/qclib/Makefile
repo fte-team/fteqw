@@ -18,7 +18,7 @@ BASE_CFLAGS=-ggdb $(USEGUI_CFLAGS)
 BASE_LDFLAGS=-s
 # set to "" for debugging
 
-DO_CC=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
+DO_CC?=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
 
 lib: 
 

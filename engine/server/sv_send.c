@@ -1240,6 +1240,9 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 //		Con_Printf("%f\n", sv.world.physicstime);
 	}
 
+	//predinfo extension reworks stats, making svc_clientdata redundant.
+	if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
+		return;
 
 	bits = 0;
 
@@ -1327,7 +1330,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 // send the data
 
-	MSG_WriteByte (msg, svc_clientdata);
+	MSG_WriteByte (msg, svcnq_clientdata);
 	MSG_WriteShort (msg, bits);
 
 	if (bits & SU_EXTEND1)
@@ -1627,16 +1630,13 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		else
 			statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
 
-		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
+		if (client->protocol == SCP_DARKPLACES7 || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 		{
-			statsf[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
-			statsf[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
-			statsf[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
-		}
-		if (client->protocol == SCP_DARKPLACES7)
-		{
-			/*note: statsf is truncated, which would mess things up*/
-			float	*statsfi = (float*)statsi;
+			float	*statsfi;
+			if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
+				statsfi = statsf;
+			else
+				statsfi = (float*)statsi;	/*dp requires a union of ints and floats, which is rather hideous...*/
 	//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
 			statsfi[STAT_MOVEVARS_FRICTION] = sv_friction.value;
 			statsfi[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
@@ -1649,7 +1649,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
 			statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
 			statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
-			statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
+			statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity/sv_gravity.value;
 			statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 270;//sv_jumpvelocity.value;	//bah
 			statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
 			statsfi[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;

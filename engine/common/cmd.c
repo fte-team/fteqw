@@ -2679,7 +2679,7 @@ void Cmd_set_f(void)
 	{
 		Cmd_ShiftArgs(1, false);
 		text = Cmd_Args();
-		if (*text == '\"')	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
+		if (*text == '\"' || (*text == '\\' && text[1] == '\"'))	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
 			text = Cmd_Argv(1);
 		else
 		{

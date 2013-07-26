@@ -2721,7 +2721,7 @@ ping time frags name
 		Font_BeginString(font_conchar, x+24, y, &cx, &cy);	\
 		Font_DrawChar(cx, cy, num[2] | 0xe000 | CON_WHITEMASK);	\
 														\
-		if ((cl.spectator && k == pv->cam_spec_track) ||\
+		if ((cl.spectator && k == Cam_TrackNum(pv)) ||\
 			(!cl.spectator && k == pv->playernum))	\
 		{												\
 			Font_BeginString(font_conchar, x, y, &cx, &cy);	\
@@ -2773,6 +2773,9 @@ void Sbar_DeathmatchOverlay (int start)
 	int showcolumns;
 	int startx, rank_width;
 	playerview_t *pv = r_refdef.playerview;
+
+	if (!pv)
+		return;
 
 	if (largegame)
 		skip = 8;

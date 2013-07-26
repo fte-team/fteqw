@@ -770,7 +770,6 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 //	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &width, &height);
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
-	vid.recalc_refdef = true;
 
 	vid.width = width;
 	vid.height = height;

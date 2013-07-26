@@ -210,21 +210,21 @@ char *svc_nqstrings[] =
 	"nqsvc_sellscreen",
 	"nqsvc_cutscene",	//34
 
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",		//40
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
-	"NEW PROTOCOL",
+	"NEW PROTOCOL",	//35
+	"NEW PROTOCOL",	//36
+	"fitzsvc_skybox",	//37
+	"NEW PROTOCOL",	//38
+	"NEW PROTOCOL",	//39
+	"fitzsvc_bf",		//40
+	"fitzsvc_fog",	//41
+	"fitzsvc_spawnbaseline2",	//42
+	"fitzsvc_spawnstatic2",	//43
+	"fitzsvc_spawnstaticsound2",	//44
+	"NEW PROTOCOL",	//45
+	"NEW PROTOCOL",	//46
+	"NEW PROTOCOL",	//47
+	"NEW PROTOCOL",	//48
+	"NEW PROTOCOL",	//49
 	"dpsvc_downloaddata",		//50
 	"dpsvc_updatestatubyte",	//51
 	"dpsvc_effect",				//52
@@ -238,33 +238,32 @@ char *svc_nqstrings[] =
 	"dpsvc_trailparticles",	//60
 	"dpsvc_pointparticles",	//61
 	"dpsvc_pointparticles1",	//62
-	"NEW PROTOCOL(63)",
-	"NEW PROTOCOL(64)",
-	"NEW PROTOCOL(65)",
-	"nqsvcfte_spawnbaseline2(66)",	//66
-	"NEW PROTOCOL(67)",
-	"NEW PROTOCOL(68)",
-	"NEW PROTOCOL(69)",
-	"NEW PROTOCOL(70)",
-	"NEW PROTOCOL(71)",
-	"NEW PROTOCOL(72)",
-	"NEW PROTOCOL(73)",
-	"NEW PROTOCOL(74)",
-	"NEW PROTOCOL(75)",
-	"NEW PROTOCOL(76)",
-	"NEW PROTOCOL(77)",
-	"NEW PROTOCOL(78)",
-	"NEW PROTOCOL(79)",
-	"NEW PROTOCOL(80)",
-	"NEW PROTOCOL(81)",
-	"NEW PROTOCOL(82)",
-	"NEW PROTOCOL(83)",
-	"NEW PROTOCOL(84)",
-	"NEW PROTOCOL(85)",
-	"nqsvcfte_updateentities(86)",
-	"NEW PROTOCOL(87)",
-	"NEW PROTOCOL(88)",	
-
+	"NEW PROTOCOL(63)",	//63
+	"NEW PROTOCOL(64)",	//64
+	"NEW PROTOCOL(65)",	//65
+	"ftenqsvc_spawnbaseline2",	//66
+	"NEW PROTOCOL(67)",	//67
+	"NEW PROTOCOL(68)",	//68
+	"NEW PROTOCOL(69)",	//69
+	"NEW PROTOCOL(70)",	//70
+	"NEW PROTOCOL(71)",	//71
+	"NEW PROTOCOL(72)",	//72
+	"NEW PROTOCOL(73)",	//73
+	"NEW PROTOCOL(74)",	//74
+	"NEW PROTOCOL(75)",	//75
+	"NEW PROTOCOL(76)",	//76
+	"NEW PROTOCOL(77)",	//77
+	"NEW PROTOCOL(78)",	//78
+	"NEW PROTOCOL(79)",	//79
+	"NEW PROTOCOL(80)",	//80
+	"NEW PROTOCOL(81)",	//81
+	"NEW PROTOCOL(82)",	//82
+	"NEW PROTOCOL(83)",	//83
+	"NEW PROTOCOL(84)",	//84
+	"NEW PROTOCOL(85)",	//85
+	"nqsvcfte_updateentities",	//86
+	"NEW PROTOCOL(87)",	//87
+	"NEW PROTOCOL(88)"	//88
 };
 
 extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl, cl_download_mapsrc;
@@ -324,12 +323,12 @@ int CL_CalcNet (void)
 
 	sent = NET_TIMINGS;
 
-	for (i=cls.netchan.outgoing_sequence-UPDATE_BACKUP+1
-		; i <= cls.netchan.outgoing_sequence
+	for (i=cl.movesequence-UPDATE_BACKUP+1
+		; i <= cl.movesequence
 		; i++)
 	{
 		frame = &cl.inframes[i&UPDATE_MASK];
-		if (i > cl.parsecount)
+		if (i > cl.lastackedmovesequence)
 		{
 			// no response yet
 			if (cl_countpendingpl.ival)
@@ -364,6 +363,42 @@ int CL_CalcNet (void)
 		percent = lost * 100 / sent;
 
 	return percent;
+}
+
+void CL_AckedInputFrame(int seq, qboolean worldstateokay)
+{
+	unsigned int i;
+	unsigned int newmod;
+	inframe_t *frame;
+
+	newmod = seq & UPDATE_MASK;
+	frame = &cl.inframes[newmod];
+// calculate latency
+	frame->latency = realtime - cl.outframes[newmod].senttime;
+	if (frame->latency < 0 || frame->latency > 1.0)
+	{
+//		Con_Printf ("Odd latency: %5.2f\n", latency);
+	}
+	else
+	{
+	// drift the average latency towards the observed latency
+		if (frame->latency < cls.latency)
+			cls.latency = frame->latency;
+		else
+			cls.latency += 0.001;	// drift up, so correction are needed
+	}
+
+	//and mark any missing ones as dropped
+	if (seq != cl.lastackedmovesequence)
+	{
+		for (i = (cl.lastackedmovesequence+1) & UPDATE_MASK; i != newmod; i=(i+1)&UPDATE_MASK)
+		{
+			cl.inframes[i].latency = -1;
+		}
+	}
+	if (worldstateokay)
+		cl.ackedmovesequence = seq;
+	cl.lastackedmovesequence = seq;
 }
 
 //=============================================================================
@@ -2729,21 +2764,10 @@ void CL_ParseEstablished(void)
 }
 
 #ifdef NQPROT
-//FIXME: move to header
-void CL_KeepaliveMessage(void){}
-void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
+void CLNQ_ParseProtoVersion(void)
 {
-	int	nummodels, numsounds;
-	char	*str;
-	int gametype;
 	int protover;
 	struct netprim_s netprim;
-	if (developer.ival)
-		Con_TPrintf (TLC_GOTSVDATAPACKET);
-	SCR_SetLoadingStage(LS_CLIENT);
-	CL_ClearState ();
-	Stats_NewMap();
-	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	cls.fteprotocolextensions = 0;
 	cls.fteprotocolextensions2 = 0;
@@ -2848,6 +2872,23 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	}
 	cls.netchan.message.prim = cls.netchan.netprim = netprim;
 	MSG_ChangePrimitives(netprim);
+}
+
+//FIXME: move to header
+void CL_KeepaliveMessage(void){}
+void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
+{
+	int	nummodels, numsounds;
+	char	*str;
+	int gametype;
+	if (developer.ival)
+		Con_TPrintf (TLC_GOTSVDATAPACKET);
+	SCR_SetLoadingStage(LS_CLIENT);
+	CL_ClearState ();
+	Stats_NewMap();
+	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
+
+	CLNQ_ParseProtoVersion();
 
 	if (MSG_ReadByte() > MAX_CLIENTS)
 	{
@@ -3575,14 +3616,22 @@ void CL_ParseStatic (int version)
 	entity_state_t	es;
 	vec3_t mins,maxs;
 
-	if (version == 1)
+	if (version == 3)
 	{
+		CLFitz_ParseBaseline2(&es);
+		i = cl.num_statics;
+		cl.num_statics++;
+	}
+	else if (version == 1)
+	{
+		//old nq/qw style
 		CL_ParseBaseline (&es);
 		i = cl.num_statics;
 		cl.num_statics++;
 	}
-	else
+	else if (version == 2)
 	{
+		//new deltaed style ('full' extension support)
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			CLFTE_ParseBaseline(&es, false);
 		else
@@ -3605,6 +3654,8 @@ void CL_ParseStatic (int version)
 				cl.num_statics++;
 		}
 	}
+	else
+		return;
 
 	if (i == cl_max_static_entities)
 	{
@@ -3926,13 +3977,14 @@ Server information pertaining to this client only, sent every frame
 void CL_ParseClientdata (void)
 {
 	int				i;
-	inframe_t		*frame;
 
 // calculate simulated time of message
 	oldparsecountmod = parsecountmod;
 
 	i = cls.netchan.incoming_acknowledged;
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_NETQUAKE)
+		i = cls.netchan.incoming_sequence-1;
+	if (cls.demoplayback == DPB_NETQUAKE || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		cl.oldparsecount = i - 1;
 		oldparsecountmod = cl.oldparsecount & UPDATE_MASK;
@@ -3940,32 +3992,10 @@ void CL_ParseClientdata (void)
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
-	
-	frame = &cl.inframes[i];
-//	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
-//		frame->senttime = realtime - host_frametime;
 	parsecounttime = cl.outframes[i].senttime;
 
-// calculate latency
-	frame->latency = realtime - parsecounttime;
-	//and mark any missing ones as dropped
-	for (i = (oldparsecountmod+1)&UPDATE_MASK; i != parsecountmod; i=((i+1)&UPDATE_MASK))
-	{
-		cl.inframes[i].latency = -1;
-	}
-
-	if (frame->latency < 0 || frame->latency > 1.0)
-	{
-//		Con_Printf ("Odd latency: %5.2f\n", latency);
-	}
-	else
-	{
-	// drift the average latency towards the observed latency
-		if (frame->latency < cls.latency)
-			cls.latency = frame->latency;
-		else
-			cls.latency += 0.001;	// drift up, so correction are needed
-	}
+	if (cls.protocol == CP_QUAKEWORLD)
+		CL_AckedInputFrame(cl.parsecount, false);
 }
 
 /*
@@ -4211,9 +4241,47 @@ static void CL_SetStat_Internal (int pnum, int stat, int value)
 	}
 
 	cl.playerview[pnum].stats[stat] = value;
+	cl.playerview[pnum].statsf[stat] = value;
 
 	if (pnum == 0)
 		TP_StatChanged(stat, value);
+}
+
+void CL_SetStatMovevar(int pnum, int stat, float value)
+{
+	switch(stat)
+	{
+	case STAT_MOVEVARS_GRAVITY:
+		movevars.gravity = value;
+		break;
+	case STAT_MOVEVARS_STOPSPEED:
+		movevars.stopspeed = value;
+		break;
+	case STAT_MOVEVARS_MAXSPEED:
+		cl.playerview[pnum].maxspeed = value;
+		break;
+	case STAT_MOVEVARS_SPECTATORMAXSPEED:
+		movevars.spectatormaxspeed = value;
+		break;
+	case STAT_MOVEVARS_ACCELERATE:
+		movevars.accelerate = value;
+		break;
+	case STAT_MOVEVARS_AIRACCELERATE:
+		movevars.airaccelerate = value;
+		break;
+	case STAT_MOVEVARS_WATERACCELERATE:
+		movevars.wateraccelerate = value;
+		break;
+	case STAT_MOVEVARS_FRICTION:
+		movevars.friction = value;
+		break;
+	case STAT_MOVEVARS_WATERFRICTION:
+		movevars.waterfriction = value;
+		break;
+	case STAT_MOVEVARS_ENTGRAVITY:
+		cl.playerview[pnum].entgravity = value;
+		break;
+	}
 }
 
 void CL_SetStatInt (int pnum, int stat, int value)
@@ -4235,6 +4303,7 @@ void CL_SetStatInt (int pnum, int stat, int value)
 	{
 		extern int cls_lastto;
 		cl.players[cls_lastto].stats[stat]=value;
+		cl.players[cls_lastto].statsf[stat]=value;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
@@ -4242,6 +4311,9 @@ void CL_SetStatInt (int pnum, int stat, int value)
 	}
 	else
 		CL_SetStat_Internal(pnum, stat, value);
+
+	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+		CL_SetStatMovevar(pnum, stat, *(float*)&value);	//DP sucks.
 }
 void CL_SetStatFloat (int pnum, int stat, float value)
 {
@@ -4253,16 +4325,26 @@ void CL_SetStatFloat (int pnum, int stat, float value)
 	{
 		extern int cls_lastto;
 		cl.players[cls_lastto].statsf[stat]=value;
+		cl.players[cls_lastto].stats[stat]=value;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
+			{
 				cl.playerview[pnum].statsf[stat] = value;
+				cl.playerview[pnum].stats[stat] = value;
+			}
 	}
 	else
+	{
 		cl.playerview[pnum].statsf[stat] = value;
+		cl.playerview[pnum].stats[stat] = value;
+	}
 
 	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
 		cl.playerview[pnum].viewheight = value;
+
+	if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+		CL_SetStatMovevar(pnum, stat, value);
 }
 void CL_SetStatString (int pnum, int stat, char *value)
 {
@@ -5258,12 +5340,22 @@ void CLQW_ParseServerMessage (void)
 	int			destsplit;
 	float f;
 	qboolean	csqcpacket = false;
+	inframe_t	*inf;
+	extern vec3_t demoangles;
 
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
-	for (i = 0; i < MAX_SPLITS; i++)
-		cl.playerview[i].fixangle = false;
+
+	//clear out fixangles stuff
+	inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+	for (j = 0; j < MAX_SPLITS; j++)
+		inf->packet_entities.fixangles[j] = false;
+	if (cls.demoplayback == DPB_QUAKEWORLD)
+	{
+		inf->packet_entities.fixangles[0] = 2;
+		VectorCopy(demoangles, inf->packet_entities.fixedangles[0]);
+	}
 
 //
 // if recording demos, copy the message out
@@ -5411,11 +5503,12 @@ void CLQW_ParseServerMessage (void)
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
 				cl.playerview[destsplit].viewangles[i] += MSG_ReadAngle16 ();
-			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
+//			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
 			break;
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
+				//I really don't get the point of fixangles in an mvd. to disable interpolation for that frame?
 				vec3_t ang;
 				i = MSG_ReadByte();
 				for (i=0 ; i<3 ; i++)
@@ -5425,20 +5518,17 @@ void CLQW_ParseServerMessage (void)
 					playerview_t *pv = &cl.playerview[j];
 					if (Cam_TrackNum(pv) == i)
 					{
-						pv->fixangle=true;
-						VectorCopy(ang, pv->simangles);
-						VectorCopy(ang, pv->viewangles);
-						VectorCopy(ang, pv->fixangles);
+						inf->packet_entities.fixangles[j] = true;
+						VectorCopy(ang, inf->packet_entities.fixedangles[j]);
 					}
 				}
 				break;
 			}
-			cl.playerview[destsplit].fixangle=true;
+			inf->packet_entities.fixangles[destsplit] = true;
 			for (i=0 ; i<3 ; i++)
-				cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].fixangles[i] = MSG_ReadAngle ();
-
-			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
-//			cl.playerview[destsplit].viewangles[PITCH] = cl.viewangles[ROLL] = 0;
+			{
+				cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].intermissionangles[i] = inf->packet_entities.fixedangles[destsplit][i] = MSG_ReadAngle ();
+			}
 			break;
 
 		case svc_lightstyle:
@@ -5604,16 +5694,16 @@ void CLQW_ParseServerMessage (void)
 			for (i=0 ; i<3 ; i++)
 				cl.playerview[destsplit].simorg[i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
-				cl.playerview[destsplit].simangles[i] = MSG_ReadAngle ();
-			VectorCopy (cl.playerview[destsplit].simangles, cl.playerview[destsplit].fixangles);
-			VectorClear (cl.playerview[destsplit].simvel);
+				cl.playerview[destsplit].intermissionangles[i] = MSG_ReadAngle ();
 			break;
 
 		case svc_finale:
 			if (!cl.intermission)
+			{
 				for (i = 0; i < MAX_SPLITS; i++)
 					cl.playerview[i].simorg[2] += cl.playerview[i].viewheight;
-			VectorCopy (cl.playerview[destsplit].fixangles, cl.playerview[destsplit].simangles);
+				VectorCopy (cl.playerview[destsplit].simangles, cl.playerview[destsplit].intermissionangles);
+			}
 
 			cl.intermission = 2;
 			cl.completed_time = cl.gametime;
@@ -6174,7 +6264,7 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_disconnect:
 			CL_Disconnect();
-			break;
+			return;
 
 		case svc_centerprint:
 			s = MSG_ReadString ();
@@ -6222,6 +6312,9 @@ void CLNQ_ParseServerMessage (void)
 			}
 			break;
 
+		case svc_version:
+			CLNQ_ParseProtoVersion();
+			break;
 		case svc_serverdata:
 			Cbuf_Execute ();		// make sure any stuffed commands are done
 			CLNQ_ParseServerData ();
@@ -6301,9 +6394,15 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_time:
 			//fixme: move this stuff to a common place
-			cl.playerview[destsplit].oldfixangle = cl.playerview[destsplit].fixangle;
-			VectorCopy(cl.playerview[destsplit].fixangles, cl.playerview[destsplit].oldfixangles);
-			cl.playerview[destsplit].fixangle = false;
+//			cl.playerview[destsplit].oldfixangle = cl.playerview[destsplit].fixangle;
+//			VectorCopy(cl.playerview[destsplit].fixangles, cl.playerview[destsplit].oldfixangles);
+//			cl.playerview[destsplit].fixangle = false;
+			if (cls.demoplayback)
+			{
+//				extern vec3_t demoangles;
+//				cl.playerview[destsplit].fixangle = true;
+//				VectorCopy(demoangles, cl.playerview[destsplit].fixangles);
+			}
 
 			cls.netchan.outgoing_sequence++;
 			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
@@ -6317,7 +6416,18 @@ void CLNQ_ParseServerMessage (void)
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 
-			cl.inframes[cl.validsequence&UPDATE_MASK].receivedtime = realtime;
+			{
+				extern vec3_t demoangles;
+				int fr = cls.netchan.incoming_sequence&UPDATE_MASK;
+				if (cls.demoplayback)
+				{
+					cl.inframes[fr&UPDATE_MASK].packet_entities.fixangles[destsplit] = true;
+					VectorCopy(demoangles, cl.inframes[fr&UPDATE_MASK].packet_entities.fixedangles[destsplit]);
+				}
+				else
+					cl.inframes[fr&UPDATE_MASK].packet_entities.fixangles[destsplit] = false;
+			}
+			cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
 
 			if (CPNQ_IS_DP)
 			{
@@ -6409,13 +6519,15 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatFloat (0, i, j);
 			break;
 		case svc_setangle:
-			cl.playerview[destsplit].fixangle=true;
-			for (i=0 ; i<3 ; i++)
-				cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].fixangles[i] = MSG_ReadAngle ();
-//			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
+			{
+				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+				inf->packet_entities.fixangles[destsplit] = true;
+				for (i=0 ; i<3 ; i++)
+					cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].intermissionangles[i] = inf->packet_entities.fixedangles[destsplit][i] = MSG_ReadAngle ();
+			}
 			break;
 
-		case svc_clientdata:
+		case svcnq_clientdata:
 			CLNQ_ParseClientdata ();
 			break;
 
@@ -6495,10 +6607,12 @@ void CLNQ_ParseServerMessage (void)
 				Host_EndGame("CLNQ_ParseServerMessage: svcfitz_spawnbaseline2 failed with ent %i", i);
 			CLFitz_ParseBaseline2 (cl_baselines + i);
 			break;
-//		case svcfitz_spawnstatic2:
-//			break;
-//		case svcfitz_spawnstaticsound2:
-//			break;
+		case svcfitz_spawnstatic2:
+			CL_ParseStatic (3);
+			break;
+		case svcfitz_spawnstaticsound2:
+			Host_EndGame("svcfitz_spawnstaticsound2: not implemented");
+			break;
 
 
 		case svcnq_effect:

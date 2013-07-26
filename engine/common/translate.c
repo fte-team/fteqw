@@ -551,7 +551,7 @@ void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the fir
 				break;
 		}
 
-		s = COM_ParseCString(s);
+		s = COM_ParseCString(s, com_token, sizeof(com_token));
 		if (i == STL_MAXSTL)	//silently ignore - allow other servers or clients to add stuff
 			continue;
 

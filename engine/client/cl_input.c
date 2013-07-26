@@ -610,6 +610,12 @@ void CL_ClampPitch (int pnum)
 	static float oldtime;
 	float timestep = realtime - oldtime;
 	oldtime = realtime;
+
+	if (cl.intermission)
+	{
+		memset(cl.playerview[pnum].viewanglechange, 0, sizeof(cl.playerview[pnum].viewanglechange));
+		return;
+	}
 #if 0
 	if (cl.pmovetype[pnum] == PM_WALLWALK)
 	{
@@ -650,7 +656,7 @@ void CL_ClampPitch (int pnum)
 	}
 #endif
 #if 1
-	if ((cl.playerview[pnum].gravitydir[2] != -1 || cl.playerview[pnum].viewangles[2]) && !cl.playerview[pnum].fixangles && !cl.intermission)
+	if ((cl.playerview[pnum].gravitydir[2] != -1 || cl.playerview[pnum].viewangles[2]))
 	{
 		float surfm[16], invsurfm[16];
 		float viewm[16];
@@ -769,8 +775,6 @@ void CL_ClampPitch (int pnum)
 	else
 #endif
 	{
-		if (cl.playerview[pnum].fixangle)
-			return;
 		if (cl.playerview[pnum].viewangles[PITCH] > cl.maxpitch)
 			cl.playerview[pnum].viewangles[PITCH] = cl.maxpitch;
 		if (cl.playerview[pnum].viewangles[PITCH] < cl.minpitch)

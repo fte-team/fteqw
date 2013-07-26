@@ -4508,12 +4508,12 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 static QCC_def_t *QCC_PR_ExpandField(QCC_def_t *ent, QCC_def_t *field)
 {
 	QCC_def_t *r, *tmp;
+	//FIXME: class.staticmember should directly read staticmember instead of trying to dereference
 	if (field->type->type == ev_variant || field->type->type != ev_field || !field->type->aux_type)
 	{
 		if (field->type->type != ev_variant)
 		{
-			QCC_PR_ParseWarning(ERR_INTERNAL, "QCC_PR_ExpandField: invalid field type");
-			QCC_PR_ParsePrintDef(ERR_INTERNAL, field);
+			QCC_PR_ParseErrorPrintDef(ERR_INTERNAL, field, "QCC_PR_ExpandField: invalid field type");
 		}
 		r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_V], ent, field, NULL);
 		tmp = (void *)qccHunkAlloc (sizeof(QCC_def_t));
@@ -4530,8 +4530,8 @@ static QCC_def_t *QCC_PR_ExpandField(QCC_def_t *ent, QCC_def_t *field)
 		switch(field->type->aux_type->type)
 		{
 		default:
-			QCC_PR_ParseWarning(ERR_INTERNAL, "QCC_PR_ExpandField: invalid field type");
-			QCC_PR_ParsePrintDef(ERR_INTERNAL, field);
+			QCC_PR_ParseErrorPrintDef(ERR_INTERNAL, field, "QCC_PR_ExpandField: invalid field type");
+			r = field;
 			break;
 		case ev_integer:
 			r = QCC_PR_Statement(&pr_opcodes[OP_LOAD_I], ent, field, NULL);

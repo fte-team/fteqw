@@ -2455,6 +2455,9 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 			default:
 				ret = "NetQuake";
 				break;
+			case CPNQ_FITZ666:
+				ret = "Fitz666";
+				break;
 			case CPNQ_DP5:
 				ret = "NetQuake DarkPlaces 5";
 				break;

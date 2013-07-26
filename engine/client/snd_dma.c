@@ -112,10 +112,8 @@ cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 
 cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
 											"snd_mixerthread", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
-cvar_t snd_usemultipledevices	= CVARAFD(	"s_multipledevices", "0",
-											"snd_multipledevices", 0, "If enabled, all output sound devices in your computer will be initialised for playback, not just the default device.");
-cvar_t snd_driver		= CVARAF(	"s_driver", "",
-											"snd_driver", 0);
+cvar_t snd_device		= CVARAF(	"s_device", "",
+											"snd_device", CVAR_ARCHIVE);
 
 #ifdef VOICECHAT
 static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
@@ -130,7 +128,7 @@ cvar_t cl_voip_play = CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables
 cvar_t cl_voip_ducking = CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t cl_voip_micamp = CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
 cvar_t cl_voip_codec = CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex. 1: raw. 2: opus.", 0);
-cvar_t cl_voip_noisefilter = CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter, which also normalises microphone volume levels.", 0);
+cvar_t cl_voip_noisefilter = CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
 cvar_t cl_voip_autogain = CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
 #endif
 
@@ -471,6 +469,8 @@ static qboolean S_Opus_Init(void)
 	}
 #endif
 
+	Con_Printf("OPUS support is experimental and should not be used\n");	//need to remove the packet length prefix.
+
 	s_voip.opus.loaded = true;
 	return s_voip.opus.loaded;
 }
@@ -508,6 +508,8 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			case VOIP_SPEEX_WIDE:
 				qspeex_decoder_destroy(s_voip.decoder[sender]);
 				break;
+			case VOIP_RAW:
+				break;
 			case VOIP_OPUS:
 				qopus_decoder_destroy(s_voip.decoder[sender]);
 				break;
@@ -520,23 +522,34 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		{
 		default:	//codec not supported.
 			return;
+		case VOIP_RAW:
+			s_voip.decsamplerate[sender] = 11025;
+			break;
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
 			if (!S_Speex_Init())
 				return;	//speex not usable.
 			if (codec == VOIP_SPEEX_NARROW)
+			{
 				s_voip.decsamplerate[sender] = 8000;
+				s_voip.decframesize[sender] = 160;
+			}
 			else if (codec == VOIP_SPEEX_WIDE)
+			{
 				s_voip.decsamplerate[sender] = 16000;
+				s_voip.decframesize[sender] = 320;
+			}
 			else
+			{
 				s_voip.decsamplerate[sender] = 11025;
-			s_voip.decframesize[sender] = 160;
+				s_voip.decframesize[sender] = 160;
+			}
 			if (!s_voip.decoder[sender])
 			{
 				qspeex_bits_init(&s_voip.speex.decbits[sender]);
 				qspeex_bits_reset(&s_voip.speex.decbits[sender]);
-				s_voip.decoder[sender] = qspeex_decoder_init(codec==VOIP_SPEEX_WIDE?s_voip.speex.modewb:s_voip.speex.modenb);
+				s_voip.decoder[sender] = qspeex_decoder_init((codec==VOIP_SPEEX_WIDE)?s_voip.speex.modewb:s_voip.speex.modenb);
 				if (!s_voip.decoder[sender])
 					return;
 			}
@@ -550,7 +563,6 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			//the lazy way to reset the codec!
 			if (!s_voip.decoder[sender])
 			{
-				s_voip.decframesize[sender] = (sizeof(decodebuf) / sizeof(decodebuf[0])) / 2;	//this is the maximum size in a single frame.
 				//opus outputs to 8, 12, 16, 24, or 48khz. pick whichever has least excess samples and resample to fit it.
 				if (snd_speed <= 8000)
 					s_voip.decsamplerate[sender] = 8000;
@@ -565,6 +577,8 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				s_voip.decoder[sender] = qopus_decoder_create(s_voip.decsamplerate[sender], 1/*FIXME: support stereo where possible*/, NULL);
 				if (!s_voip.decoder[sender])
 					return;
+
+				s_voip.decframesize[sender] = (sizeof(decodebuf) / sizeof(decodebuf[0])) / 2;	//this is the maximum size in a single frame.
 			}
 			else
 				qopus_decoder_ctl(s_voip.decoder[sender], OPUS_RESET_STATE);
@@ -596,7 +610,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			decodesamps += s_voip.decframesize[sender];
 			break;
 		case VOIP_OPUS:
-			r = qopus_decode(s_voip.decoder[sender], NULL, 0, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
+			r = qopus_decode(s_voip.decoder[sender], NULL, 0, decodebuf + decodesamps, min(s_voip.decframesize[sender], sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps), false);
 			if (r > 0)
 				decodesamps += r;
 			break;
@@ -606,7 +620,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 
 	while (bytes > 0)
 	{
-		if (decodesamps + s_voip.decframesize[sender] > sizeof(decodebuf)/sizeof(decodebuf[0]))
+		if (decodesamps + s_voip.decframesize[sender] >= sizeof(decodebuf)/sizeof(decodebuf[0]))
 		{
 			S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
 			decodesamps = 0;
@@ -636,14 +650,43 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				decodesamps += s_voip.decframesize[sender];
 				s_voip.decseq[sender]++;
 				seq++;
-				if (decodesamps + s_voip.decframesize[sender] > sizeof(decodebuf)/sizeof(decodebuf[0]))
+				if (decodesamps + s_voip.decframesize[sender] >= sizeof(decodebuf)/sizeof(decodebuf[0]))
 				{
 					S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
 					decodesamps = 0;
 				}
 			}
 			break;
+		case VOIP_RAW:
+			len = min(bytes, sizeof(decodebuf)-(sizeof(decodebuf[0])*decodesamps));
+			memcpy(decodebuf+decodesamps, start, len);
+			decodesamps += len / sizeof(decodebuf[0]);
+			s_voip.decseq[sender]++;
+			bytes -= len;
+			start += len;
+			break;
 		case VOIP_OPUS:
+#if 1
+			len = bytes;
+			if (decodesamps > 0)
+			{
+				S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+				decodesamps = 0;
+			}
+			r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
+			Con_Printf("Decoded %i frames from %i bytes\n", r, len);
+			if (r > 0)
+			{
+				decodesamps += r;
+				s_voip.decseq[sender] += 1;//r / s_voip.decframesize[sender];
+				seq += 1;//r / s_voip.decframesize[sender];
+			}
+			else if (r < 0)
+				Con_Printf("Opus decoding error %i\n", r);
+
+			bytes -= len;
+			start += len;
+#else
 			//FIXME: we shouldn't need this crap
 			bytes--;
 			len = *start++;
@@ -661,6 +704,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 
 			bytes -= len;
 			start += len;
+#endif
 			break;
 		}
 	}
@@ -718,6 +762,28 @@ void S_Voip_Parse(void)
 
 	S_Voip_Decode(sender, codec, gen, seq, bytes, data);
 }
+static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
+{
+	int i;
+	float level = 0, f;
+	int framesize = s_voip.encframesize;
+	while(samples >= framesize)
+	{
+		if (s_voip.speexdsp.preproc)
+			qspeex_preprocess_run(s_voip.speexdsp.preproc, start);
+		for (i = 0; i < framesize; i++)
+		{
+			f = start[i] * micamp;
+			start[i] = f;
+			f = fabs(start[i]);
+			level += f*f;
+		}
+
+		start += framesize;
+		samples -= framesize;
+	}
+	return level;
+}
 void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 {
 	unsigned char outbuf[8192];
@@ -726,9 +792,8 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	short *start;
 	unsigned int initseq;//in frames
 	unsigned int inittimestamp;//in samples
-	unsigned int i;
 	unsigned int samps;
-	float level, f;
+	float level;
 	int len;
 	float micamp = cl_voip_micamp.value;
 	qboolean voipsendenable = true;
@@ -822,7 +887,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 			qspeex_bits_init(&s_voip.speex.encbits);
 			qspeex_bits_reset(&s_voip.speex.encbits);
-			s_voip.encoder = qspeex_encoder_init(voipcodec == VOIP_SPEEX_WIDE?s_voip.speex.modewb:s_voip.speex.modenb);
+			s_voip.encoder = qspeex_encoder_init((voipcodec == VOIP_SPEEX_WIDE)?s_voip.speex.modewb:s_voip.speex.modenb);
 			if (!s_voip.encoder)
 				return;
 			qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_FRAME_SIZE, &s_voip.encframesize);
@@ -835,6 +900,10 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				s_voip.encsamplerate = 11025;
 			qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
 			break;
+		case VOIP_RAW:
+			s_voip.encsamplerate = 11025;
+			s_voip.encframesize = 256;
+			break;
 		case VOIP_OPUS:
 			if (!S_Opus_Init())
 			{
@@ -845,6 +914,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			//use whatever is convienient.
 			s_voip.encsamplerate = 48000;
 			s_voip.encframesize = s_voip.encsamplerate / 400;	//2.5ms frames, at a minimum.
+			s_voip.encframesize *= 4;	//go for 10ms
 			s_voip.encoder = qopus_encoder_create(s_voip.encsamplerate, 1, OPUS_APPLICATION_VOIP, NULL);
 			if (!s_voip.encoder)
 				return;
@@ -907,6 +977,8 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			case VOIP_SPEEX_WIDE:
 				qspeex_bits_reset(&s_voip.speex.encbits);
 				break;
+			case VOIP_RAW:
+				break;
 			case VOIP_OPUS:
 				qopus_encoder_ctl(s_voip.encoder, OPUS_RESET_STATE);
 				break;
@@ -960,21 +1032,17 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 					s_voip.speexdsp.cursamplerate = s_voip.encsamplerate;
 				}
 			}
-			if (s_voip.speexdsp.preproc)
-				qspeex_preprocess_run(s_voip.speexdsp.preproc, start);
 		}
-
-		for (i = 0; i < s_voip.encframesize; i++)
+		else if (s_voip.speexdsp.preproc)
 		{
-			f = start[i] * micamp;
-			start[i] = f;
-			f = fabs(start[i]);
-			level += f*f;
+			qspeex_preprocess_state_destroy(s_voip.speexdsp.preproc);
+			s_voip.speexdsp.preproc = NULL;
 		}
 
 		switch(s_voip.enccodec)
 		{
 		case VOIP_SPEEX_OLD:
+			level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);
 			qspeex_bits_reset(&s_voip.speex.encbits);
 			qspeex_encode_int(s_voip.encoder, start, &s_voip.speex.encbits);
 			len = qspeex_bits_write(&s_voip.speex.encbits, outbuf+(outpos+1), sizeof(outbuf) - (outpos+1));
@@ -983,7 +1051,6 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			outbuf[outpos] = len;
 			outpos += 1+len;
 			s_voip.encsequence++;
-			s_voip.enctimestamp += s_voip.encframesize;
 			samps+=s_voip.encframesize;
 			encpos += s_voip.encframesize*2;
 			break;
@@ -993,19 +1060,76 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			for (; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; )
 			{
 				start = (short*)(s_voip.capturebuf + encpos);
+				level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);
 				qspeex_encode_int(s_voip.encoder, start, &s_voip.speex.encbits);
 				s_voip.encsequence++;
 				samps+=s_voip.encframesize;
-				s_voip.enctimestamp += s_voip.encframesize;
 				encpos += s_voip.encframesize*2;
 
-				if (rtpstream)
+				if (rtpstream)	//FIXME: why?
 					break;
 			}
 			len = qspeex_bits_write(&s_voip.speex.encbits, outbuf+outpos, sizeof(outbuf) - outpos);
 			outpos += len;
 			break;
+		case VOIP_RAW:
+			len = s_voip.capturepos-encpos;	//amount of data to be eaten in this frame
+			len = min(len, sizeof(outbuf)-outpos);
+			len &= ~((s_voip.encframesize*2)-1);
+			level += S_Voip_Preprocess(start, len/2, micamp);
+			memcpy(outbuf+outpos, start, len);	//'encode'
+			outpos += len;			//bytes written to output
+			encpos += len;			//number of bytes consumed
+
+			s_voip.encsequence++;	//increment number of packets, for packetloss detection.
+			samps+=len / 2;	//number of samplepairs eaten in this packet. for stats.
+			break;
 		case VOIP_OPUS:
+#if 1
+			{
+				//opus rtp only supports/allows a single chunk in each packet.
+				int frames;
+				//densely pack the frames.
+				start = (short*)(s_voip.capturebuf + encpos);
+				frames = (s_voip.capturepos-encpos)/2;
+				frames = s_voip.encframesize;
+				if (frames >= 2880)
+					frames = 2880;
+				else if (frames >= 1920)
+					frames = 1920;
+				else if (frames >= 960)
+					frames = 960;
+				else if (frames >= 480)
+					frames = 480;
+				else if (frames >= 240)
+					frames = 240;
+				else if (frames >= 120)
+					frames = 120;
+				else
+				{
+					Con_Printf("invalid Opus frame size\n");
+					frames = 0;
+				}
+				Con_Printf("Encoding %i frames", frames);
+				level += S_Voip_Preprocess(start, frames, micamp);
+				len = qopus_encode(s_voip.encoder, start, frames, outbuf+outpos, sizeof(outbuf) - outpos);
+				Con_Printf(" (%i bytes)\n", len);
+				if (len >= 0)
+				{
+					s_voip.encsequence += frames / s_voip.encframesize;
+					outpos += len;
+					samps+=frames;
+					encpos += frames*2;
+				}
+				else
+				{
+					Con_Printf("Opus encoding error: %i\n", len);
+					encpos = s_voip.capturepos;
+				}
+			}
+			break;
+#else
+			level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);
 			len = qopus_encode(s_voip.encoder, start, s_voip.encframesize, outbuf+(outpos+1), max(255, sizeof(outbuf) - (outpos+1)));
 			if (len == 1)	//packet does not need to be transmitted if it returns 1, supposedly. crazyness.
 				len = 0;
@@ -1021,20 +1145,21 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			}
 			s_voip.encsequence++;
 			samps+=s_voip.encframesize;
-			s_voip.enctimestamp += s_voip.encframesize;
 			encpos += s_voip.encframesize*2;
 			break;
+#endif
 		default:
 			outbuf[outpos] = 0;
 			break;
 		}
 
-		if (rtpstream)
+		if (rtpstream || s_voip.enccodec == VOIP_OPUS)
 			break;
 	}
 	if (samps)
 	{
 		float nl;
+		s_voip.enctimestamp += samps;
 		nl = (3000*level) / (32767.0f*32767*samps);
 		s_voip.voiplevel = (s_voip.voiplevel*7 + nl)/8;
 		if (s_voip.voiplevel < cl_voip_vad_threshhold.ival && !(cl_voip_send.ival & 6))
@@ -1188,134 +1313,6 @@ void S_Voip_Parse(void)
 #endif
 
 
-sounddriver pOPENAL_InitCard;
-sounddriver pDSOUND_InitCard;
-sounddriver pALSA_InitCard;
-sounddriver pSNDIO_InitCard;
-sounddriver pOSS_InitCard;
-sounddriver pMacOS_InitCard;
-sounddriver pSDL_InitCard;
-sounddriver pWAV_InitCard;
-sounddriver pDroid_InitCard;
-sounddriver pAHI_InitCard;
-#ifdef NACL
-extern sounddriver pPPAPI_InitCard;
-#endif
-
-typedef struct {
-	char *name;
-	sounddriver *ptr;
-} sdriver_t;
-sdriver_t drivers[] = {
-//in order of preference
-	{"OpenAL", &pOPENAL_InitCard},	//yay, get someone else to sort out sound support, woot
-
-	{"DSound", &pDSOUND_InitCard},	//prefered on windows
-	{"MacOS", &pMacOS_InitCard},	//prefered on mac
-	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
-	{"AHI", &pAHI_InitCard},		//prefered on morphos
-#ifdef NACL
-	{"PPAPI", &pPPAPI_InitCard},	//google's native client
-#endif
-	{"SNDIO", &pSNDIO_InitCard},	//prefered on OpenBSD
-
-	{"SDL", &pSDL_InitCard},		//prefered on linux
-	{"ALSA", &pALSA_InitCard},		//pure shite
-	{"OSS", &pOSS_InitCard},		//good, but not likely to work any more
-
-	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
-	{NULL, NULL}
-};
-
-static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
-{
-	sdriver_t *sd;
-	int st = 0;
-
-	memset(sc, 0, sizeof(*sc));
-
-	// set requested rate
-	if (snd_khz.ival >= 1000)
-		sc->sn.speed = snd_khz.ival;
-	else if (snd_khz.ival <= 0)
-		sc->sn.speed = 22050;
-/*	else if (snd_khz.ival >= 195)
-		sc->sn.speed = 200000;
-	else if (snd_khz.ival >= 180)
-		sc->sn.speed = 192000;
-	else if (snd_khz.ival >= 90)
-		sc->sn.speed = 96000; */
-	else if (snd_khz.ival >= 45)
-		sc->sn.speed = 48000;
-	else if (snd_khz.ival >= 30)
-		sc->sn.speed = 44100;
-	else if (snd_khz.ival >= 20)
-		sc->sn.speed = 22050;
-	else if (snd_khz.ival >= 10)
-		sc->sn.speed = 11025;
-	else
-		sc->sn.speed = 8000;
-
-	// set requested speaker count
-	if (snd_speakers.ival > MAXSOUNDCHANNELS)
-		sc->sn.numchannels = MAXSOUNDCHANNELS;
-	else if (snd_speakers.ival > 1)
-		sc->sn.numchannels = (int)snd_speakers.ival;
-	else
-		sc->sn.numchannels = 1;
-
-	// set requested sample bits
-	if (snd_samplebits.ival >= 16)
-		sc->sn.samplebits = 16;
-	else
-		sc->sn.samplebits = 8;
-
-	// set requested buffer size
-	if (snd_buffersize.ival > 0)
-		sc->sn.samples = snd_buffersize.ival * sc->sn.numchannels;
-	else
-		sc->sn.samples = 0;
-
-	if (*snd_driver.string)
-	{
-		if (*drivernum)
-			return 2;
-		for (sd = drivers; sd->name; sd++)
-			if (!Q_strcasecmp(sd->name, snd_driver.string))
-				break;
-	}
-	else
-		sd = &drivers[*drivernum];
-	if (!sd->ptr)
-		return 2;	//no more cards.
-	if (!*sd->ptr)	//driver not loaded
-	{
-		Con_DPrintf("Sound driver %s is not loaded\n", sd->name);
-		st = 2;
-	}
-	else
-	{
-		Con_DPrintf("Trying to load a %s sound device\n", sd->name);
-		st = (**sd->ptr)(sc, *cardnum);
-	}
-
-	if (st == 1)	//worked
-	{
-		*cardnum += 1;	//use the next card next time
-		return st;
-	}
-	else if (st == 0)	//failed, try the next card with this driver.
-	{
-		*cardnum += 1;
-		return SNDDMA_Init(sc, cardnum, drivernum);
-	}
-	else	//card number wasn't valid, try the first card of the next driver
-	{
-		*cardnum = 0;
-		*drivernum += 1;
-		return SNDDMA_Init(sc, cardnum, drivernum);
-	}
-}
 
 void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 {
@@ -1370,6 +1367,211 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 }
 
 
+sounddriver_t DSOUND_Output;
+sounddriver_t OPENAL_Output;
+
+sounddriver pALSA_InitCard;
+sounddriver pSNDIO_InitCard;
+sounddriver pOSS_InitCard;
+sounddriver pMacOS_InitCard;
+sounddriver pSDL_InitCard;
+sounddriver pWAV_InitCard;
+sounddriver pDroid_InitCard;
+sounddriver pAHI_InitCard;
+#ifdef NACL
+extern sounddriver pPPAPI_InitCard;
+#endif
+
+//in order of preference
+sounddriver_t *outputdrivers[] =
+{
+	&OPENAL_Output,
+	&DSOUND_Output,
+	NULL
+};
+typedef struct {
+	char *name;
+	sounddriver *ptr;
+} sdriver_t;
+sdriver_t olddrivers[] = {
+//in order of preference
+	{"MacOS", &pMacOS_InitCard},	//prefered on mac
+	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
+	{"AHI", &pAHI_InitCard},		//prefered on morphos
+#ifdef NACL
+	{"PPAPI", &pPPAPI_InitCard},	//google's native client
+#endif
+	{"SNDIO", &pSNDIO_InitCard},	//prefered on OpenBSD
+
+	{"SDL", &pSDL_InitCard},		//prefered on linux
+	{"ALSA", &pALSA_InitCard},		//pure shite
+	{"OSS", &pOSS_InitCard},		//good, but not likely to work any more
+
+	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
+	{NULL, NULL}
+};
+
+static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
+{
+	soundcardinfo_t *sc = Z_Malloc(sizeof(soundcardinfo_t));
+	sdriver_t *od;
+	sounddriver_t *sd;
+	int i;
+	int st;
+
+	memset(sc, 0, sizeof(*sc));
+
+	// set requested rate
+	if (snd_khz.ival >= 1000)
+		sc->sn.speed = snd_khz.ival;
+	else if (snd_khz.ival <= 0)
+		sc->sn.speed = 22050;
+/*	else if (snd_khz.ival >= 195)
+		sc->sn.speed = 200000;
+	else if (snd_khz.ival >= 180)
+		sc->sn.speed = 192000;
+	else if (snd_khz.ival >= 90)
+		sc->sn.speed = 96000; */
+	else if (snd_khz.ival >= 45)
+		sc->sn.speed = 48000;
+	else if (snd_khz.ival >= 30)
+		sc->sn.speed = 44100;
+	else if (snd_khz.ival >= 20)
+		sc->sn.speed = 22050;
+	else if (snd_khz.ival >= 10)
+		sc->sn.speed = 11025;
+	else
+		sc->sn.speed = 8000;
+
+	// set requested speaker count
+	if (snd_speakers.ival > MAXSOUNDCHANNELS)
+		sc->sn.numchannels = MAXSOUNDCHANNELS;
+	else if (snd_speakers.ival > 1)
+		sc->sn.numchannels = (int)snd_speakers.ival;
+	else
+		sc->sn.numchannels = 1;
+
+	// set requested sample bits
+	if (snd_samplebits.ival >= 16)
+		sc->sn.samplebits = 16;
+	else
+		sc->sn.samplebits = 8;
+
+	// set requested buffer size
+	if (snd_buffersize.ival > 0)
+		sc->sn.samples = snd_buffersize.ival * sc->sn.numchannels;
+	else
+		sc->sn.samples = 0;
+
+	for (i = 0; outputdrivers[i]; i++)
+	{
+		sd = outputdrivers[i];
+		if (sd && !driver || !Q_strcasecmp(sd->name, driver))
+		{
+			//skip drivers which are not present.
+			if (!sd->InitCard)
+				continue;
+
+			st = (**sd->InitCard)(sc, device);
+			if (st)
+			{
+				S_DefaultSpeakerConfiguration(sc);
+				if (sndcardinfo)
+				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
+					if (snd_speed != sc->sn.speed)
+					{
+						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
+						S_ShutdownCard(sc);
+						continue;
+					}
+				}
+				else
+					snd_speed = sc->sn.speed;
+
+				sc->next = sndcardinfo;
+				sndcardinfo = sc;
+				return sc;
+			}
+		}
+	}
+
+	for (i = 0; olddrivers[i].name; i++)
+	{
+		od = &olddrivers[i];
+		if (!driver || !Q_strcasecmp(od->name, driver))
+		{
+			//skip drivers which are not present.
+			if (!*od->ptr)
+				continue;
+
+			st = (**od->ptr)(sc, device?atoi(device):0);
+			if (st == 1)
+			{
+				S_DefaultSpeakerConfiguration(sc);
+				if (sndcardinfo)
+				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
+					if (snd_speed != sc->sn.speed)
+					{
+						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
+						S_ShutdownCard(sc);
+						continue;
+					}
+				}
+				else
+					snd_speed = sc->sn.speed;
+
+				sc->next = sndcardinfo;
+				sndcardinfo = sc;
+				return sc;
+			}
+		}
+	}
+
+	Z_Free(sc);
+	Con_Printf("Could not start \"%s\" device \"%s\"\n", driver?driver:"audio", device?device:"default");
+	return NULL;
+}
+
+int numsoundoutdevices;
+char **soundoutdevicecodes;
+char **soundoutdevicenames;
+void QDECL S_EnumeratedOutDevice(const char *driver, const char *devicecode, const char *readabledevice)
+{
+	const char *fullintname;
+	
+	if (devicecode && strchr(devicecode, ' '))
+		fullintname = va("\"%s:%s\"", driver, devicecode);
+	else if (devicecode)
+		fullintname = va("%s:%s", driver, devicecode);
+	else
+		fullintname = driver;
+
+	soundoutdevicecodes = realloc(soundoutdevicecodes, (numsoundoutdevices+2) * sizeof(char*));
+	soundoutdevicecodes[numsoundoutdevices] = strdup(fullintname);
+	soundoutdevicecodes[numsoundoutdevices+1] = NULL;
+	soundoutdevicenames = realloc(soundoutdevicenames, (numsoundoutdevices+2) * sizeof(char*));
+	soundoutdevicenames[numsoundoutdevices] = strdup(readabledevice);
+	soundoutdevicenames[numsoundoutdevices+1] = NULL;
+	numsoundoutdevices++;
+}
+void S_EnumerateDevices(void)
+{
+	int i;
+	sounddriver_t *sd;
+	numsoundoutdevices = 0;
+	S_EnumeratedOutDevice("", NULL, "Default");
+
+	for (i = 0; outputdrivers[i]; i++)
+	{
+		sd = outputdrivers[i];
+		if (sd && sd->name)
+		{
+			if (!sd->Enumerate || !sd->Enumerate(S_EnumeratedOutDevice))
+				S_EnumeratedOutDevice(sd->name, "", va("Default %s", sd->name));
+		}
+	}
+}
+
 /*
 ================
 S_Startup
@@ -1379,10 +1581,7 @@ S_Startup
 void S_ClearRaw(void);
 void S_Startup (void)
 {
-	int cardnum, drivernum;
-	int warningmessage=0;
-	int		rc;
-	soundcardinfo_t *sc;
+	char *s;
 
 	if (!snd_initialized)
 		return;
@@ -1393,51 +1592,22 @@ void S_Startup (void)
 	snd_blocked = 0;
 	snd_speed = 0;
 
-	for(cardnum = 0, drivernum = 0;;)
+	for (s = snd_device.string; ; )
 	{
-		sc = Z_Malloc(sizeof(soundcardinfo_t));
-		rc = SNDDMA_Init(sc, &cardnum, &drivernum);
-
-		if (!rc)	//error stop
-		{
-			Con_Printf("S_Startup: SNDDMA_Init failed.\n");
-			Z_Free(sc);
+		char *sep;
+		s = COM_Parse(s);
+		if (!*com_token)
 			break;
-		}
-		if (rc == 2)	//silently stop (no more cards)
-		{
-			Z_Free(sc);
-			break;
-		}
 
-		S_DefaultSpeakerConfiguration(sc);
-
-		if (sndcardinfo)
-		{	//if the sample speeds of multiple soundcards do not match, it'll fail.
-			if (snd_speed != sc->sn.speed)
-			{
-				if (!warningmessage)
-				{
-					Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
-					S_ShutdownCard(sc);
-					warningmessage = true;
-				}
-
-				Z_Free(sc);
-				continue;
-			}
-		}
-		else
-			snd_speed = sc->sn.speed;
-
-		sc->next = sndcardinfo;
-		sndcardinfo = sc;
-
-		if (!snd_usemultipledevices.ival)
-			break;
+		sep = strchr(com_token, ':');
+		if (sep)
+			*sep++ = 0;
+		SNDDMA_Init(com_token, sep);
 	}
+	if (!sndcardinfo)
+		SNDDMA_Init(NULL, NULL);
 
-	sound_started = true;//!!sndcardinfo;
+	sound_started = true;
 
 	S_ClearRaw();
 
@@ -1505,29 +1675,6 @@ void S_Control_f (void)
 
 		S_Shutdown();
 		sound_started = 0;
-	}
-	else if (!Q_strcasecmp(command, "multi") || !Q_strcasecmp(command, "multiple"))
-	{
-		if (!Q_strcasecmp(Cmd_Argv (2), "off"))
-		{
-			if (snd_usemultipledevices.ival)
-			{
-				Cvar_SetValue(&snd_usemultipledevices, 0);
-				S_Restart_f();
-			}
-		}
-		else if (!snd_usemultipledevices.ival)
-		{
-			Cvar_SetValue(&snd_usemultipledevices, 1);
-			S_Restart_f();
-		}
-		return;
-	}
-	if (!Q_strcasecmp(command, "single"))
-	{
-		Cvar_SetValue(&snd_usemultipledevices, 0);
-		S_Restart_f();
-		return;
 	}
 
 	if (!Q_strcasecmp(command, "rate") || !Q_strcasecmp(command, "speed"))
@@ -1612,6 +1759,8 @@ void S_Init (void)
 {
 	int p;
 
+	S_EnumerateDevices();
+
 	Con_DPrintf("\nSound Initialization\n");
 
 	Cmd_AddCommand("play", S_Play);
@@ -1653,8 +1802,7 @@ void S_Init (void)
 	Cvar_Register(&snd_mixerthread,				"Sound controls");
 #endif
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
-	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
-	Cvar_Register(&snd_driver,		"Sound controls");
+	Cvar_Register(&snd_device,		"Sound controls");
 
 	Cvar_Register(&snd_linearresample, "Sound controls");
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
@@ -1686,12 +1834,6 @@ void S_Init (void)
 		else
 			Sys_Error ("S_Init: you must specify a speed in KB after -soundspeed");
 	}
-
-	if (COM_CheckParm ("-nomultipledevices") || COM_CheckParm ("-singlesound"))
-		Cvar_SetValue(&snd_usemultipledevices, 0);
-
-	if (COM_CheckParm ("-multisound"))
-		Cvar_SetValue(&snd_usemultipledevices, 1);
 
 	snd_initialized = true;
 
@@ -1740,6 +1882,17 @@ void S_Shutdown(void)
 	Z_Free(known_sfx);
 	known_sfx = NULL;
 	num_sfx = 0;
+
+	while (numsoundoutdevices)
+	{
+		numsoundoutdevices--;
+		free(soundoutdevicenames[numsoundoutdevices]);
+		free(soundoutdevicecodes[numsoundoutdevices]);
+	}
+	free(soundoutdevicenames);
+	soundoutdevicenames = NULL;
+	free(soundoutdevicecodes);
+	soundoutdevicecodes = NULL;
 }
 
 
@@ -2034,7 +2187,7 @@ static void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sf
 	target_chan->entchannel = entchannel;
 	SND_Spatialize(sc, target_chan);
 
-	if (!target_chan->vol[0] && !target_chan->vol[1] && !target_chan->vol[2] && !target_chan->vol[3] && !target_chan->vol[4] && !target_chan->vol[5])
+	if (!target_chan->vol[0] && !target_chan->vol[1] && !target_chan->vol[2] && !target_chan->vol[3] && !target_chan->vol[4] && !target_chan->vol[5] && sc->ChannelUpdate)
 		return;		// not audible at all
 
 // new channel
@@ -2434,9 +2587,9 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	}
 
 #ifdef AVAIL_OPENAL
-	if (sc->openal == 1)
+	if (sc->ListenerUpdate)
 	{
-		OpenAL_Update_Listener(listener_origin, listener_forward, listener_right, listener_up, listener_velocity);
+		sc->ListenerUpdate(sc, listener_origin, listener_forward, listener_right, listener_up, listener_velocity);
 	}
 #endif
 
@@ -2974,6 +3127,8 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 				if (si->channel[i].pos < 0)
 					si->channel[i].pos = 0;
+				if (si->ChannelUpdate)
+					si->ChannelUpdate(si, &si->channel[i], false);
 				break;
 			}
 		if (i == si->total_chans)	//this one wasn't playing.
@@ -2990,6 +3145,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			c->sfx = &s->sfx;
 			c->start = 0;
 			SND_Spatialize(si, c);
+
+			if (si->ChannelUpdate)
+				si->ChannelUpdate(si, &si->channel[i], true);
 		}
 	}
 	S_UnlockMixer();

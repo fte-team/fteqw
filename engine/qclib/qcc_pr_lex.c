@@ -2908,10 +2908,11 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 		return;
 	if (def->s_file)
 	{
+		char buffer[512];
 		if (flag_msvcstyle)
-			printf ("%s(%i) :    %s  is defined here\n", strings + def->s_file, def->s_line, def->name);
+			printf ("%s(%i) :    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, buffer, sizeof(buffer)), def->name);
 		else
-			printf ("%s:%i:    %s  is defined here\n", strings + def->s_file, def->s_line, def->name);
+			printf ("%s:%i:    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, buffer, sizeof(buffer)), def->name);
 	}
 }
 void *errorscope;
@@ -4211,7 +4212,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		if (QCC_PR_CheckToken("{"))
 		{
 			//nameless struct
-			newt = QCC_PR_NewType(structtype==ev_union?"union":"struct", structtype, false);
+			newt = QCC_PR_NewType(structtype==ev_union?"<union>":"<struct>", structtype, false);
 		}
 		else
 		{

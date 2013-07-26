@@ -5280,7 +5280,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 			if (!expandmemberfields && assumeclass)
 			{
 				if (!d)
-					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\" in class \"%s\"", name, assumeclass->name);
+					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown field \"%s\" in class \"%s\"", name, assumeclass->name);
 				else if (!assumeclass->parentclass && assumeclass != type_entity)
 				{
 					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Class \"%s\" is not defined, cannot access memeber \"%s\"", assumeclass->name, name);
@@ -5289,7 +5289,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 				}
 				else
 				{
-					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\" in class \"%s\"", name, assumeclass->name);
+					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown field \"%s\" in class \"%s\"", name, assumeclass->name);
 				}
 			}
 			else
@@ -9195,10 +9195,10 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 				{
 				case ev_union:
 				case ev_struct:
-					if (*name)
+					if (*name && *name != '<')
 						sprintf(newname, "%s%s.%s", name, array, type->params[partnum].paramname);
 					else
-						sprintf(newname, "%s%s", parttype->name, array);
+						sprintf(newname, "%s%s", type->params[partnum].paramname, array);
 					def = QCC_PR_DummyFieldDef(parttype, newname, scope, 1, fieldofs, saved);
 					break;
 				case ev_float:
@@ -9209,10 +9209,10 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 				case ev_pointer:
 				case ev_integer:
 				case ev_variant:
-					if (*name)
+					if (*name && *name != '<')
 						sprintf(newname, "%s%s.%s", name, array, type->params[partnum].paramname);
 					else
-						sprintf(newname, "%s%s", parttype->name, array);
+						sprintf(newname, "%s%s", type->params[partnum].paramname, array);
 					ftype = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
 					ftype->aux_type = parttype;
 					if (parttype->type == ev_vector)
@@ -9230,7 +9230,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 					break;
 
 				case ev_function:
-					if (*name)
+					if (*name && *name != '<')
 						sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					else
 						sprintf(newname, "%s%s", parttype->name, array);
@@ -9248,8 +9248,6 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 					maxfield = *fieldofs;
 				if (isunion)
 					*fieldofs = startfield;
-
-				type = parttype;
 			}
 		}
 	}

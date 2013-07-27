@@ -380,6 +380,11 @@ pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *keyname,
 			return true;
 		}
 	}
+
+	//don't spam warnings about missing fields if we failed to load the progs.
+	if (!svs.numprogs)
+		return true;
+
 	return false;
 }
 

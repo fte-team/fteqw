@@ -425,7 +425,16 @@ void Sys_ServerActivity(void)
 {
 	/*FIXME: flash window*/
 }
+void Sys_Sleep (double seconds)
+{
+	struct timespec ts;
 
+	ts.tv_sec = (time_t)seconds;
+	seconds -= ts.tv_sec;
+	ts.tv_nsec = seconds * 1000000000.0;
+
+	nanosleep(&ts, NULL);
+}
 qboolean Sys_InitTerminal(void)
 {
 	/*switching to dedicated mode, show text window*/
@@ -435,16 +444,20 @@ void Sys_CloseTerminal(void)
 {
 }
 
+#define SYS_CLIPBOARD_SIZE		256
+static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
 char *Sys_GetClipboard(void)
 {
-	return NULL;
+	return clipboard_buffer;
 }
-void Sys_CloseClipboard(char *buf)
+void Sys_CloseClipboard(char *bf)
 {
 }
 void Sys_SaveClipboard(char *text)
 {
+	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }
+
 
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {

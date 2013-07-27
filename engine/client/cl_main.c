@@ -4072,7 +4072,7 @@ double Host_Frame (double time)
 			maxfps = 4;
 	}
 
-	if (vid.isminimized && maxfps <= 0 || maxfps > 10)
+	if (vid.isminimized && (maxfps <= 0 || maxfps > 10))
 		maxfps = 10;
 
 	if (maxfps > 0 

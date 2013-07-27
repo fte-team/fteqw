@@ -81,7 +81,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 
 	GL_Init(GLES_GetSymbol);
-	vid.recalc_refdef = 1;
 	return true;
 }
 #else
@@ -173,7 +172,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelheight = h;
 
 	GL_Init(GLES_GetSymbol);
-	vid.recalc_refdef = 1;
 	return true;
 }
 

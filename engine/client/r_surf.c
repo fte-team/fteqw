@@ -2159,7 +2159,8 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		if (!b)
 			continue;
 		*b = *ob;
-		b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
+		if (b->texture)
+			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
 		b->meshes = b->maxmeshes;
 		b->ent = ent;
 		b->flags = bef;

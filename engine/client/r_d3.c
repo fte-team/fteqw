@@ -42,7 +42,7 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 		else if (!strcmp(token, "model"))
 		{
 			batch_t *b;
-			mesh_t *m;
+			mesh_t *m, **ml;
 			model_t *sub;
 			float f;
 			int numsurfs, surf;
@@ -61,11 +61,19 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			numsurfs = atoi(token);
 			if (numsurfs < 0 || numsurfs > 10000)
 				return false;
-			b = ZG_Malloc(&model->memgroup, sizeof(*b) * numsurfs);
-			m = ZG_Malloc(&model->memgroup, sizeof(*m) * numsurfs);
+			if (numsurfs)
+			{
+				b = ZG_Malloc(&model->memgroup, sizeof(*b) * numsurfs);
+				m = ZG_Malloc(&model->memgroup, sizeof(*m) * numsurfs);
+				ml = ZG_Malloc(&model->memgroup, sizeof(*ml) * numsurfs);
+			}
+			else
+			{
+				b = NULL;
+				m = NULL;
+				ml = NULL;
+			}
 			sub->numsurfaces = numsurfs;
-
-			sub->batches[0] = b;
 
 			//ver4 may have a 'sky' field here
 			vdata = COM_ParseOut(data, token, sizeof(token));
@@ -88,8 +96,9 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 					break;
 				if (!data)
 					return false;
-				b[surf].meshes = 1;
-				b[surf].mesh = (mesh_t**)&m[surf];
+				b[surf].maxmeshes = 1;
+				b[surf].mesh = &ml[surf];
+				ml[surf] = &m[surf];
 				b[surf].lightmap[0] = -1;
 				b[surf].lightmap[1] = -1;
 				b[surf].lightmap[2] = -1;
@@ -101,6 +110,9 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				numverts = atoi(token);
 				data = COM_ParseOut(data, token, sizeof(token));
 				numindicies = atoi(token);
+
+				b[surf].next = sub->batches[b[surf].shader->sort];
+				sub->batches[b[surf].shader->sort] = &b[surf];
 
 				m[surf].numvertexes = numverts;
 				m[surf].numindexes = numindicies;
@@ -181,6 +193,8 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			sub->needload = false;
 			sub->fromgame = fg_doom3;
 			sub->type = mod_brush;
+
+			BE_GenBrushModelVBO(sub);
 		}
 		else if (!strcmp(token, "shadowModel"))
 		{

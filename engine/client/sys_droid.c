@@ -165,8 +165,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_openfile(JNIEnv *env, jobje
 				jstring openfile)
 {
 	const char *fname = (*env)->GetStringUTFChars(env, openfile, NULL);
-	Host_RunFile(fname);
-	Host_Frame
+	Host_RunFile(fname, strlen(fname), NULL);
 	(*env)->ReleaseStringUTFChars(env, openfile, fname);
 }
 
@@ -447,7 +446,7 @@ void Sys_SaveClipboard(char *text)
 {
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];

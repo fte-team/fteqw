@@ -1750,8 +1750,12 @@ void DumpGLState(void)
 //		if (qglIsEnabled(GL_INDEX_ARRAY))
 		{
 			qglGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+#ifndef GL_INDEX_ARRAY_POINTER
+			Sys_Printf("GL_ELEMENT_ARRAY_BUFFER_BINDING: %i:%p\n", rval, (void*)0);
+#else
 			qglGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
 			Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", qglIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
+#endif
 		}
 		if (qglIsEnabled(GL_NORMAL_ARRAY))
 		{

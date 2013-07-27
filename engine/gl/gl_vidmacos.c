@@ -105,8 +105,6 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 
 	GLVID_SetPalette(palette);
 
-	vid.recalc_refdef = 1;
-
 	return true;
 }
 

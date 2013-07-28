@@ -17,6 +17,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.database.Cursor;
 
 import android.hardware.SensorManager;
 import android.hardware.Sensor;

@@ -752,11 +752,13 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -i -v "win64_sdl"),)
 		BITS=64
 	endif
+
+	EXEPOSTFIX=.exe
 	
 	#the defaults for sdl come first
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS)  gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../fteqw_sdl_gl$(BITS).exe
-	GLCL_EXE_NAME=../fteqwcl_sdl$(BITS).exe
+	GL_EXE_NAME=../fteqw_sdl_gl$(BITS)$(EXEPOSTFIX)
+	GLCL_EXE_NAME=../fteqwcl_sdl$(BITS)$(EXEPOSTFIX)
 	ifdef windir
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
 	else
@@ -772,15 +774,15 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) $(LTO_END) resources.o $(LTO_START)
-	SV_EXE_NAME=../fteqw_sdl_sv$(BITS).exe
+	SV_EXE_NAME=../fteqw_sdl_sv$(BITS)$(EXEPOSTFIX)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
 	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm
 
 	MINGL_DIR=mingl_sdlwin$(BITS)
-	MINGL_EXE_NAME=../fteqw_sdl_mingl$(BITS).exe
+	MINGL_EXE_NAME=../fteqw_sdl_mingl$(BITS)$(EXEPOSTFIX)
 
 	MB_DIR=m_mgw_sdl$(BITS)
-	M_EXE_NAME=../fteqw_sdl$(BITS).exe
+	M_EXE_NAME=../fteqw_sdl$(BITS)$(EXEPOSTFIX)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
 	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
 
@@ -798,8 +800,8 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	endif
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS).exe
-	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS).exe
+	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS)$(EXEPOSTFIX)
+	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
 	D3D_CFLAGS=$(D3DCFLAGS) -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `sdl-config --cflags` $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
@@ -828,6 +830,7 @@ ifeq ($(FTE_TARGET),vc)
 		JPEGLIB=libs/jpeg.lib
 	endif
 	STRIP=@echo strip
+	EXEPOSTFIX=.exe
 
 	CC="$(MSVCPATH)cl" $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
 	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
@@ -847,12 +850,12 @@ ifeq ($(FTE_TARGET),vc)
 
 
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS) -DMULTITHREAD -DMSVCLIBSPATH="libs/"
-	SV_EXE_NAME=../fteqwsv$(BITS).exe
+	SV_EXE_NAME=../fteqwsv$(BITS)$(EXEPOSTFIX)
 	SV_DIR=sv_vc$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
 	SV_LDFLAGS=/subsystem:console
 
-	GL_EXE_NAME=../fteglqw$(BITS).exe
+	GL_EXE_NAME=../fteglqw$(BITS)$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../minfteqw.gl$(BITS)
 	GLB_DIR=gl_vc$(BITS)
 	GLCL_DIR=glcl_vc$(BITS)
@@ -862,17 +865,17 @@ ifeq ($(FTE_TARGET),vc)
 	GL_OBJS=
 
 	MINGL_DIR=mingl_vc$(BITS)
-	MINGL_EXE_NAME=../fteminglqw$(BITS).exe
+	MINGL_EXE_NAME=../fteminglqw$(BITS)$(EXEPOSTFIX)
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(SPEEX_OBJS) $(WINDOWS_OBJS)
-	D3D_EXE_NAME=../fted3dqw$(BITS).exe
-	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
+	D3D_EXE_NAME=../fted3dqw$(BITS)$(EXEPOSTFIX)
+	D3DCL_EXE_NAME=../fted3dclqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
 	D3DB_DIR=d3d_vc$(BITS)
 	D3DCL_DIR=d3dcl_vc$(BITS)
 	
-	M_EXE_NAME=../fteqw$(BITS).exe
+	M_EXE_NAME=../fteqw$(BITS)$(EXEPOSTFIX)
 	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(D3DQUAKE_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(SPEEX_OBJS) $(WINDOWS_OBJS)
 	M_CFLAGS=$(D3DCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -DMULTITHREAD $(SPEEXCFLAGS) -DMSVCLIBSPATH="libs/"
 	MB_DIR=m_vc$(BITS)
@@ -899,18 +902,19 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 		BASELDFLAGS=-Wl,--large-address-aware
 	endif
 
+	EXEPOSTFIX=.exe
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
 	LIBS_DIR = $(BASE_DIR)/libs
-	SV_EXE_NAME=../fteqwsv$(BITS).exe
+	SV_EXE_NAME=../fteqwsv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lws2_32 -lwinmm
 	SV_DIR=sv_mingw$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
-	GL_EXE_NAME=../fteglqw$(BITS).exe
-	GLCL_EXE_NAME=../fteglqwcl$(BITS).exe
+	GL_EXE_NAME=../fteglqw$(BITS)$(EXEPOSTFIX)
+	GLCL_EXE_NAME=../fteglqwcl$(BITS)$(EXEPOSTFIX)
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	GLB_DIR=gl_mgw$(BITS)
@@ -923,22 +927,22 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	NPFTEB_DIR=npfte_mgw$(BITS)
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
-	M_EXE_NAME=../fteqw$(BITS).exe
-	MCL_EXE_NAME=../fteqwcl$(BITS).exe
+	M_EXE_NAME=../fteqw$(BITS)$(EXEPOSTFIX)
+	MCL_EXE_NAME=../fteqwcl$(BITS)$(EXEPOSTFIX)
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	MB_DIR=m_mgw$(BITS)
 	MCL_DIR=mcl_mgw$(BITS)
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(SPEEX_OBJS) $(WINDOWS_OBJS)
-	D3D_EXE_NAME=../fted3dqw$(BITS).exe
-	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
+	D3D_EXE_NAME=../fted3dqw$(BITS)$(EXEPOSTFIX)
+	D3DCL_EXE_NAME=../fted3dclqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
 
-	MINGL_EXE_NAME=../fteminglqw$(BITS).exe
+	MINGL_EXE_NAME=../fteminglqw$(BITS)$(EXEPOSTFIX)
 	MINGL_DIR=mingl_mgw$(BITS)
 endif
 
@@ -1074,17 +1078,18 @@ ifeq ($(FTE_TARGET),cygwin)
 	SV_DIR=sv_cygwin
 	SV_LDFLAGS=-lz
 
+	EXEPOSTFIX=.exe
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
-	GL_EXE_NAME=../fteqwglcyg.exe
-	GLCL_EXE_NAME=../fteqwclglcyg.exe
+	GL_EXE_NAME=../fteqwglcyg$(EXEPOSTFIX)
+	GLCL_EXE_NAME=../fteqwclglcyg$(EXEPOSTFIX)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
-	M_EXE_NAME=../fteqwcyg.exe
-	MCL_EXE_NAME=../fteqwclcyg.exe
+	M_EXE_NAME=../fteqwcyg$(EXEPOSTFIX)
+	MCL_EXE_NAME=../fteqwclcyg$(EXEPOSTFIX)
 	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
 	M_CFLAGS=$(GLCFLAGS) $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
 	MB_DIR=m_cygwin
@@ -1092,7 +1097,7 @@ ifeq ($(FTE_TARGET),cygwin)
 
 
 
-	MINGL_EXE_NAME=../fteqwminglcyg.exe
+	MINGL_EXE_NAME=../fteqwminglcyg$(EXEPOSTFIX)
 	MINGL_DIR=mingl_cygwin
 endif
 
@@ -1375,7 +1380,7 @@ m-profile:
 
 
 _qcc-tmp: $(REQDIR)
-	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" OBJS="QCC_OBJS SOBJS"
+	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" OBJS="QCC_OBJS SOBJS"
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-rel:

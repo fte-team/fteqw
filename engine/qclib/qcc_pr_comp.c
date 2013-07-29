@@ -509,8 +509,8 @@ QCC_opcode_t pr_opcodes[] =
 {7, "<SWITCH_I>", "SWITCH_I",				-1, ASSOC_LEFT,	&type_void, NULL, &type_void},
 {7, "<>",	"GLOAD_S",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{6, "<IF_F>",	"IF_F",		-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
-{6, "<IFNOT_F>","IFNOT_F",	-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
+{7, "<IF_F>",	"IF_F",		-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
+{7, "<IFNOT_F>","IFNOT_F",	-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
 
 /* emulated ops begin here */
  {7, "<>",	"OP_EMULATED",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
@@ -587,7 +587,7 @@ pbool OpAssignsToC(unsigned int op)
 	if(op == OP_STOREP_C || op == OP_LOADP_C)
 		return false;
 	if(op >= OP_MULSTORE_F && op <= OP_SUBSTOREP_V)
-		return false;
+		return false;	//actually they do.
 	return true;
 }
 pbool OpAssignsToB(unsigned int op)
@@ -1949,7 +1949,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			{
 				TypeName(var_a->type, typea, sizeof(typea));
 				TypeName(var_b->type, typeb, sizeof(typeb));
-				QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Implicit assignment from %s to %s %s", typea, typeb, var_b->name);
+				QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "Implicit assignment from %s to %s %s", typea, typeb, var_b->name);
 			}
 		}
 		break;
@@ -1974,7 +1974,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			{
 				TypeName(var_a->type, typea, sizeof(typea));
 				TypeName(var_b->type->aux_type, typeb, sizeof(typeb));
-				QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Implicit field assignment from %s to %s", typea, typeb);
+				QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "Implicit field assignment from %s to %s", typea, typeb);
 			}
 		}
 		break;
@@ -2022,7 +2022,7 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 		{
 			TypeName(var_a->type, typea, sizeof(typea));
 			TypeName(var_b->type, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "'%s' type mismatch: %s with %s", op->name, typea, typeb);
+			QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "'%s' type mismatch: %s with %s", op->name, typea, typeb);
 		}
 		if ((var_a->constant && var_b->constant && !var_a->temp && !var_b->temp) || var_a->ofs == var_b->ofs)
 			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
@@ -5937,7 +5937,7 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 				e->type = e2->type->aux_type;
 
 			if (priority > 1 && exprflags & EXPR_WARN_ABOVE_1)
-				QCC_PR_ParseWarning(0, "You may wish to add brackets after that ! operator");
+				QCC_PR_ParseWarning(WARN_UNARYNOTSCOPE, "You may wish to add brackets after that ! operator");
 
 			break;
 		}
@@ -8062,7 +8062,7 @@ void QCC_WriteAsmFunction(QCC_def_t	*sc, unsigned int firststatement, gofs_t fir
 				}
 				else
 					fprintf(asmfile, ",\t%i", statements[i].b);
-				if (pr_opcodes[statements[i].op].type_c != &type_void && pr_opcodes[statements[i].op].associative==ASSOC_LEFT)
+				if (pr_opcodes[statements[i].op].type_c != &type_void) && (pr_opcodes[statements[i].op].associative==ASSOC_LEFT || statements[i].c))
 				{
 					if (pr_opcodes[statements[i].op].type_c)
 					{
@@ -9090,7 +9090,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 		def = QCC_PR_GetDef(NULL, name, NULL, false, arraysize, false);
 		if (def)
 		{
-			QCC_PR_ParseWarning(WARN_SAMENAMEASGLOBAL, "Local \"%s\" defined with name of a global", name);
+			QCC_PR_ParseWarning(WARN_SAMENAMEASGLOBAL, "Local \"%s\" hides global with same name", name);
 			QCC_PR_ParsePrintDef(WARN_SAMENAMEASGLOBAL, def);
 		}
 	}
@@ -9209,6 +9209,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 				case ev_pointer:
 				case ev_integer:
 				case ev_variant:
+				case ev_function:
 					if (*name && *name != '<')
 						sprintf(newname, "%s%s.%s", name, array, type->params[partnum].paramname);
 					else
@@ -9221,25 +9222,16 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 					if (!def)
 					{
 						def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
+						if (parttype->type == ev_function)
+							def->initialized = true;
+						((int *)qcc_pr_globals)[def->ofs] = *fieldofs;
+						*fieldofs += parttype->size;
 					}
 					else
 					{
 						QCC_PR_ParseWarning(WARN_CONFLICTINGUNIONMEMBER, "conflicting offsets for union/struct expansion of %s. Ignoring new def.", newname);
 						QCC_PR_ParsePrintDef(WARN_CONFLICTINGUNIONMEMBER, def);
 					}
-					break;
-
-				case ev_function:
-					if (*name && *name != '<')
-						sprintf(newname, "%s%s.%s", name, array, parttype->name);
-					else
-						sprintf(newname, "%s%s", parttype->name, array);
-					ftype = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
-					ftype->aux_type = parttype;
-					def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
-					def->initialized = true;
-					((int *)qcc_pr_globals)[def->ofs] = *fieldofs;
-					*fieldofs += parttype->size;
 					break;
 				case ev_void:
 					break;

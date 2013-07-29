@@ -601,7 +601,8 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 {
 	ddef32_t *def;
 	fdef_t *fdef;
-	eval_t *val = NULL;
+	int fofs;
+	eval_t *val = NULL, *fval=NULL;
 	char *c, *c2;
 	etype_t type = ev_void;
 	struct edictrun_s *ed;
@@ -653,14 +654,28 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 		if (type != ev_entity)
 			return false;
 		if (c)*c = '\0';
-		fdef = ED_FindField(progfuncs, COM_TrimString(c2));
-		if (c)*c = '.';
-		if (!fdef)
-			return false;
+
+		c2 = COM_TrimString(c2);
+		def = ED_FindLocalOrGlobal(progfuncs, c2, &fval);
+		if (def)
+		{
+			fofs = fval->_int + progfuncs->funcs.fieldadjust;
+		}
+		else
+		{
+			fdef = ED_FindField(progfuncs, c2);
+			if (c)*c = '.';
+			if (!fdef)
+				return false;
+			fofs = fdef->ofs;
+		}
+
 		ed = PROG_TO_EDICT(progfuncs, val->_int);
 		if (!ed)
 			return false;
-		val = (eval_t *) (((char *)ed->fields) + fdef->ofs*4);
+		if (fofs < 0 || fofs >= max_fields_size)
+			return false;
+		val = (eval_t *) (((char *)ed->fields) + fofs*4);
 		type = fdef->type;
 	}
 	*rettype = type;

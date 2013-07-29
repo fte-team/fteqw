@@ -647,8 +647,10 @@ enum {
 	WARN_MISSINGOPTIONAL,
 	WARN_SYSTEMCRC,
 	WARN_CONDITIONALTYPEMISMATCH,
-	WARN_SELFNOTTHIS,	//warned for because 'self' does not have the right type. we convert such references to 'this' instead, which is more usable.
-	WARN_EVILPREPROCESSOR,	//exploited by nexuiz, and generally unsafe.
+	WARN_SELFNOTTHIS,			//warned for because 'self' does not have the right type. we convert such references to 'this' instead, which is more usable.
+	WARN_EVILPREPROCESSOR,		//exploited by nexuiz, and generally unsafe.
+	WARN_UNARYNOTSCOPE,			//!foo & bar  the ! applies to the result of &. This is unlike C.
+	WARN_STRICTTYPEMISMATCH,	//self.think = T_Damage; both are functions, but the arguments/return types/etc differ.
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

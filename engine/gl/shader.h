@@ -1,3 +1,32 @@
+/*
+Copyright spike. GNU GPL V2. etc.
+Much of this file and the parser derives originally from qfusion by vic.
+
+Quake1 rendering works by:
+Draw everything in depth order and stall lots from switching textures.
+draw transparent water surfaces last.
+
+Quake3 rendering works by:
+generate a batch for every model+shader in the world.
+sort batches by shader sort key, entity, shader.
+draw surfaces.
+
+Doom3 rendering works by:
+generate a batch for every model+shader in the world.
+sort batches by shader sort key, entity, shader.
+depth is drawn (yay alpha masked surfaces)
+for each light+batch
+	draw each bump/diffuse/specular stage. combine to one pass if that ordering is not maintained. switch diffuse/specular if needed
+ambient stages from each batch are added over the top.
+
+FTE rtlight rendering works by:
+generate a batch for every model+shader in the world.
+sort batches by shader sort key, entity, shader.
+draw surfaces. if rtworld_lightmaps is 0 and there's no additive stuff, draw as black, otherwise just scale lightmap passes.
+lights are then added over the top based upon the diffusemap, bumpmap and specularmap, and without any pass-specific info (no tcmods).
+*/
+
+
 #ifndef SHADER_H
 #define SHADER_H
 typedef void (shader_gen_t)(char *name, shader_t*, const void *args);
@@ -237,6 +266,13 @@ typedef struct shaderpass_s {
 		T_GEN_CUBEMAP,		//use a cubemap instead, otherwise like T_GEN_SINGLEMAP
 		T_GEN_3DMAP,		//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
 	} texgen;
+
+	enum {
+		ST_DIFFUSEMAP,
+		ST_AMBIENT,
+		ST_BUMPMAP,
+		ST_SPECULARMAP
+	} stagetype;
 
 	enum {
 		SHADER_PASS_CLAMP		= 1<<0,	//needed for d3d's sampler states, infects image flags

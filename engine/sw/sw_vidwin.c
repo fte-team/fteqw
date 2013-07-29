@@ -432,7 +432,6 @@ LONG WINAPI MainWndProc (
 				r.right = nw*usingstretch;
 				r.bottom = nh*usingstretch;
 				AdjustWindowRectEx(&r, WS_OVERLAPPEDWINDOW, FALSE, 0);
-				vid.recalc_refdef = true;
 				if (move)
 					MoveWindow(hWnd, nl, nt, r.right - r.left, r.bottom - r.top, true);
 				else

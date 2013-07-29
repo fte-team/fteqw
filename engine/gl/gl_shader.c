@@ -2123,9 +2123,10 @@ static shaderkey_t shaderkeys[] =
 	{"dp_camera",		Shader_DP_Camera},
 
 	/*doom3 compat*/
-	{"diffusemap",		Shader_DiffuseMap},
-	{"bumpmap",			NULL},
-	{"specularmap",		NULL},
+	{"diffusemap",		Shader_DiffuseMap},	//macro for "{\nstage diffusemap\nmap <map>\n}"
+	{"bumpmap",			NULL},				//macro for "{\nstage bumpmap\nmap <map>\n}"
+	{"specularmap",		NULL},				//macro for "{\nstage specularmap\nmap <map>\n}"
+	{"discrete",		NULL},
 	{"nonsolid",		NULL},
 	{"noimpact",		NULL},
 	{"translucent",		Shader_Translucent},
@@ -2134,6 +2135,19 @@ static shaderkey_t shaderkeys[] =
 	{"nofragment",		NULL},
 
 	{NULL,				NULL}
+};
+
+static struct
+{
+	char *name;
+	char *body;
+} shadermacros[] =
+{
+	{"decal_macro", 	"polygonOffset 1\ndiscrete\nsort decal\nnoShadows"},
+//	{"diffusemap", 		"{\nblend diffusemap\nmap %1\n}"},
+//	{"bumpmap", 		"{\nblend bumpmap\nmap %1\n}"},
+//	{"specularmap", 	"{\nblend specularmap\nmap %1\n}"},
+	{NULL}
 };
 
 // ===============================================================
@@ -2550,33 +2564,25 @@ static void Shaderpass_BlendFunc (shader_t *shader, shaderpass_t *pass, char **p
 {
 	char		*token;
 
+	//reset to defaults
 	pass->shaderbits &= ~(SBITS_BLEND_BITS);
+	pass->stagetype = ST_AMBIENT;
 
 	token = Shader_ParseString (ptr);
-	if ( !Q_stricmp (token, "diffusemap"))
-	{
-		//if the shader is translucent then this pass must be meant to be blended
-		if (shader->flags & SHADER_BLEND)
-			pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
-		else
-			pass->shaderbits |= SBITS_SRCBLEND_NONE | SBITS_DSTBLEND_NONE;
-	}
+	if ( !Q_stricmp (token, "bumpmap"))				//doom3 is awkward...
+		pass->stagetype = ST_BUMPMAP;
+	else if ( !Q_stricmp (token, "specularmap"))	//doom3 is awkward...
+		pass->stagetype = ST_SPECULARMAP;
+	else if ( !Q_stricmp (token, "diffusemap"))		//doom3 is awkward...
+		pass->stagetype = ST_DIFFUSEMAP;
 	else if ( !Q_stricmp (token, "blend"))
-	{
 		pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
-	}
 	else if (!Q_stricmp (token, "filter"))
-	{
 		pass->shaderbits |= SBITS_SRCBLEND_DST_COLOR | SBITS_DSTBLEND_ZERO;
-	}
 	else if (!Q_stricmp (token, "add"))
-	{
 		pass->shaderbits |= SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE;
-	}
 	else if (!Q_stricmp (token, "replace"))
-	{
 		pass->shaderbits |= SBITS_SRCBLEND_NONE | SBITS_DSTBLEND_NONE;
-	}
 	else
 	{
 		pass->shaderbits |= Shader_BlendFactor(token, false);
@@ -3296,6 +3302,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	pass->tcgen = TC_GEN_BASE;
 	pass->numtcmods = 0;
 	pass->numMergedPasses = 1;
+	pass->stagetype = ST_AMBIENT;
 
 	if (shader->flags & SHADER_NOMIPMAPS)
 		pass->flags |= SHADER_PASS_NOMIPMAP;
@@ -3364,8 +3371,31 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		Con_Printf("if statements without endif in shader %s\n", shader->name);
 	}
 
+	if (!ignore)
+	{
+		switch(pass->stagetype)
+		{
+		case ST_DIFFUSEMAP:
+			if (pass->texgen == T_GEN_SINGLEMAP)
+				shader->defaulttextures.bump = pass->anim_frames[0];
+			break;
+		case ST_AMBIENT:
+			break;
+		case ST_BUMPMAP:
+			if (pass->texgen == T_GEN_SINGLEMAP)
+				shader->defaulttextures.bump = pass->anim_frames[0];
+			ignore = true;
+			break;
+		case ST_SPECULARMAP:
+			if (pass->texgen == T_GEN_SINGLEMAP)
+				shader->defaulttextures.specular = pass->anim_frames[0];
+			ignore = true;
+			break;
+		}
+	}
+
 	// check some things
-	if ( ignore )
+	if (ignore)
 	{
 		Shader_FreePass (pass);
 		shader->numpasses--;
@@ -3618,6 +3648,11 @@ void Shader_Finish (shader_t *s)
 {
 	int i;
 	shaderpass_t *pass;
+	
+	//FIXME: reorder doom3 stages.
+	//put diffuse first. give it a lightmap pass also, if we found a diffuse one with no lightmap.
+	//then the ambient stages.
+	//and forget about the bump/specular stages as we don't support them and already stripped them.
 
 	if (s->flags & SHADER_SKY)
 	{
@@ -4727,81 +4762,115 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 	}
 }
 
-//loads a shader string into an existing shader object, and finalises it and stuff
-static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
+qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode, int *conddepth, int maxconddepth, int *cond)
 {
 	char *token;
-	int conddepth = 0;
-	int cond[8] = {0};
+
 #define COND_IGNORE 1
 #define COND_IGNOREPARENT 2
 #define COND_ALLOWELSE 4
 
+	token = COM_ParseExt (shadersource, true, true);
+
+	if ( !token[0] )
+		return true;
+	else if (!Q_stricmp(token, "if"))
+	{
+		if (*conddepth+1 == maxconddepth)
+		{
+			Con_Printf("if statements nest too deeply in shader %s\n", s->name);
+			return false;
+		}
+		*conddepth+=1;
+		cond[*conddepth] = (!Shader_EvaluateCondition(s, shadersource)?COND_IGNORE:0);
+		cond[*conddepth] |= COND_ALLOWELSE;
+		if (cond[*conddepth-1] & (COND_IGNORE|COND_IGNOREPARENT))
+			cond[*conddepth] |= COND_IGNOREPARENT;
+	}
+	else if (!Q_stricmp(token, "endif"))
+	{
+		if (!*conddepth)
+		{
+			Con_Printf("endif without if in shader %s\n", s->name);
+			return false;
+		}
+		*conddepth-=1;
+	}
+	else if (!Q_stricmp(token, "else"))
+	{
+		if (cond[*conddepth] & COND_ALLOWELSE)
+		{
+			cond[*conddepth] ^= COND_IGNORE;
+			cond[*conddepth] &= ~COND_ALLOWELSE;
+		}
+		else
+			Con_Printf("unexpected else statement in shader %s\n", s->name);
+	}
+	else if (cond[*conddepth] & (COND_IGNORE|COND_IGNOREPARENT))
+	{
+		//eat it.
+		while (**shadersource)
+		{
+			token = COM_ParseExt(shadersource, false, true);
+			if ( !token[0] )
+				break;
+		}
+	}
+	else
+	{
+		int i;
+		for (i = 0; shadermacros[i].name; i++)
+		{
+			if (!Q_stricmp (token, shadermacros[i].name))
+			{
+#define SHADER_MACRO_ARGS 6
+				int argn = 0;
+				char *body;
+				char arg[SHADER_MACRO_ARGS][256];
+				int cond = 0;
+				//parse args until the end of the line
+				while (*shadersource)
+				{
+					token = COM_ParseExt(shadersource, false, true);
+					if ( !token[0] )
+					{
+						break;
+					}
+					if (argn <= SHADER_MACRO_ARGS)
+					{
+						Q_strncpyz(arg[argn], token, sizeof(arg[argn]));
+						argn++;
+					}
+				}
+				body = shadermacros[i].body;
+				Shader_ReadShaderTerms(s, &body, parsemode, &cond, 0, &cond);
+				return true;
+			}
+		}
+		if (token[0] == '}')
+			return false;
+		else if (token[0] == '{')
+			Shader_Readpass(s, shadersource);
+		else if (Shader_Parsetok(s, NULL, shaderkeys, token, shadersource))
+			return false;
+	}
+	return true;
+}
+
+//loads a shader string into an existing shader object, and finalises it and stuff
+static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
+{
+	int conddepth = 0;
+	int cond[8];
+	cond[0] = 0;
 	shaderparsemode = parsemode;
 
 // set defaults
 	s->flags = SHADER_CULL_FRONT;
 	s->uses = 1;
 
-	while (shadersource)
+	while (Shader_ReadShaderTerms(s, &shadersource, parsemode, &conddepth, sizeof(cond)/sizeof(cond[0]), cond))
 	{
-		token = COM_ParseExt (&shadersource, true, true);
-
-		if ( !token[0] )
-			continue;
-		else if (!Q_stricmp(token, "if"))
-		{
-			if (conddepth+1 == sizeof(cond)/sizeof(cond[0]))
-			{
-				Con_Printf("if statements nest too deeply in shader %s\n", s->name);
-				break;
-			}
-			conddepth++;
-			cond[conddepth] = (!Shader_EvaluateCondition(s, &shadersource)?COND_IGNORE:0);
-			cond[conddepth] |= COND_ALLOWELSE;
-			if (cond[conddepth-1] & (COND_IGNORE|COND_IGNOREPARENT))
-				cond[conddepth] |= COND_IGNOREPARENT;
-		}
-		else if (!Q_stricmp(token, "endif"))
-		{
-			if (!conddepth)
-			{
-				Con_Printf("endif without if in shader %s\n", s->name);
-				break;
-			}
-			conddepth--;
-		}
-		else if (!Q_stricmp(token, "else"))
-		{
-			if (cond[conddepth] & COND_ALLOWELSE)
-			{
-				cond[conddepth] ^= COND_IGNORE;
-				cond[conddepth] &= ~COND_ALLOWELSE;
-			}
-			else
-				Con_Printf("unexpected else statement in shader %s\n", s->name);
-		}
-		else if (cond[conddepth] & (COND_IGNORE|COND_IGNOREPARENT))
-		{
-			//eat it.
-			while (*shadersource)
-			{
-				token = COM_ParseExt(&shadersource, false, true);
-				if ( !token[0] )
-				{
-					break;
-				}
-			}
-		}
-		else
-		{
-			if (token[0] == '}')
-				break;
-			else if (token[0] == '{')
-				Shader_Readpass(s, &shadersource);
-			else if (Shader_Parsetok(s, NULL, shaderkeys, token, &shadersource))
-				break;
-		}
 	}
 
 	if (conddepth)

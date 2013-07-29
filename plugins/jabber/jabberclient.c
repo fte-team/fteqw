@@ -4304,6 +4304,9 @@ qintptr_t JCL_Shutdown(qintptr_t *args)
 		if (jcl)
 			JCL_CloseConnection(jcl, false);
 	}
+
+//	if (_CrtDumpMemoryLeaks())
+//		OutputDebugStringA("Leaks detected\n");
 	return true;
 }
 

@@ -1516,7 +1516,7 @@ nacl-dbg:
 
 #makes an ant project for us
 droid/build.xml:
-	-cd droid && PATH=$$PATH:$(ANDROID_HOME)/tools:$(ANDROID_NDK_ROOT) $(ANDROID_SCRIPT) update project -t android-8 -p . -n FTEDroid
+	-cd droid && PATH=$$PATH:$(realpath $(ANDROID_HOME)/tools):$(realpath $(ANDROID_NDK_ROOT)) $(ANDROID_SCRIPT) update project -t android-8 -p . -n FTEDroid
 
 #build FTE as a library, then build the java+package (release)
 droid/ftekeystore:
@@ -1537,7 +1537,8 @@ else
 	@$(JAVATOOL)keytool -genkey -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000 -noprompt $(KEYTOOLARGS)
 endif
 
-droid-rel: droid/build.xml droid/ftekeystore
+droid-rel:
+	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
 	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-rel DROID_ARCH=$a; )
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
 	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/gl_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
@@ -1563,7 +1564,8 @@ endif
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
 	$(ANDROID_HOME)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
-droid-opt: droid/build.xml droid/ftekeystore
+droid-opt:
+	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
 	$(MAKE) FTE_TARGET=droid gl-rel
 	mkdir -p droid/libs/armeabi
 	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
@@ -1571,7 +1573,8 @@ droid-opt: droid/build.xml droid/ftekeystore
 	cp droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
 #build FTE as a library, then build the java+package (release). also installs it onto the 'current' device.
-droid-dbg: droid/build.xml
+droid-dbg:
+	$(MAKE) FTE_TARGET=droid droid/build.xml
 	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-dbg DROID_ARCH=$a; )
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
 	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/gl_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )

@@ -2148,7 +2148,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"-halflife",	"hl",		"FTE-HalfLife",			{"valve/liblist.gam"},	NULL,	{"valve",						"ftehl"},	"Half-Life"},
 
 	//the rest are not supported in any real way. maps-only mostly, if that
-	{"-q4",			"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
+	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
 	{"-et",			"et",		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
 	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
@@ -2156,6 +2156,7 @@ const gamemode_info_t gamemode_info[] = {
 
 	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},			NULL,	{"*doom.wad",					"ftedoom"},	"Doom"},
 	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
+	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
 
 	{NULL}
 };

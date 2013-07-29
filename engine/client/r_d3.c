@@ -6,10 +6,10 @@
 #endif
 
 void Mod_SetParent (mnode_t *node, mnode_t *parent);
-int	D3_LeafnumForPoint (struct model_s *model, vec3_t point);
+static int	D3_LeafnumForPoint (struct model_s *model, vec3_t point);
 
 #ifndef SERVERONLY
-qboolean Mod_LoadMap_Proc(model_t *model, char *data)
+static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 {
 	char token[256];
 	int ver = 0;
@@ -359,7 +359,7 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 
 static int walkno;
 /*convert each portal to a 2d box, because its much much simpler than true poly clipping*/
-void D3_WalkPortal(model_t *mod, int start, vec_t bounds[4], unsigned char *vis)
+static void D3_WalkPortal(model_t *mod, int start, vec_t bounds[4], unsigned char *vis)
 {
 	int i;
 	portal_t *p;
@@ -462,14 +462,15 @@ void D3_GenerateAreas(model_t *mod)
 #endif
 
 //edict system as opposed to q2 game dll system.
-void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
+static void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
 {
 }
-qbyte *D3_LeafPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
+static qbyte *D3_LeafPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
 {
+	memset(buffer, 0xff, buffersize);
 	return buffer;
 }
-int	D3_LeafnumForPoint (struct model_s *model, vec3_t point)
+static int	D3_LeafnumForPoint (struct model_s *model, vec3_t point)
 {
 	float p;
 	int c;
@@ -485,16 +486,16 @@ int	D3_LeafnumForPoint (struct model_s *model, vec3_t point)
 	}
 	return 0;
 }
-unsigned int D3_FatPVS (struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
+static unsigned int D3_FatPVS (struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
 {
 	return 0;
 }
 
-void D3_StainNode			(struct mnode_s *node, float *parms)
+static void D3_StainNode			(struct mnode_s *node, float *parms)
 {
 }
 
-void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+static void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	/*basically require rtlighting for any light*/
 	VectorClear(res_diffuse);
@@ -504,7 +505,7 @@ void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffus
 }
 
 
-qboolean D3_EdictInFatPVS (struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
+static qboolean D3_EdictInFatPVS (struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
 {
 	int i;
 	for (i = 0; i < edict->num_leafs; i++)
@@ -840,7 +841,7 @@ return;
 	D3_RecursiveSurfCheck (node->child[side^1], midf, p2f, mid, p2);
 }
 
-qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace)
+static qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace)
 {
 	int i;
 	float e1,e2;
@@ -922,7 +923,7 @@ qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t ax
 	return false;
 }
 
-unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
+static unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
 {
 	cm_node_t *node = model->cnodes;
 	cm_brush_t *brush;
@@ -975,7 +976,7 @@ unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
 
 #define ensurenewtoken(t) buf = COM_ParseOut(buf, token, sizeof(token)); if (strcmp(token, t)) break;
 
-int D3_ParseContents(char *str)
+static int D3_ParseContents(char *str)
 {
 	char *e, *n;
 	unsigned int contents = 0;
@@ -1305,6 +1306,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 	mod->funcs.StainNode = D3_StainNode;
 	mod->funcs.LightPointValues = D3_LightPointValues;
 	mod->funcs.EdictInFatPVS = D3_EdictInFatPVS;
+	mod->funcs.LeafPVS = D3_LeafPVS;
 
 	mod->fromgame = fg_doom3;
 

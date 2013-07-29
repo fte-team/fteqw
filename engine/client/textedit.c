@@ -1319,7 +1319,8 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		}
 		realtime = oldrealtime;
 
-		key_dest = oldkeydest;
+		if (oldkeydest != key_console)
+			key_dest = oldkeydest;
 		editormodal = false;
 	}
 

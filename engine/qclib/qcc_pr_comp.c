@@ -8062,7 +8062,7 @@ void QCC_WriteAsmFunction(QCC_def_t	*sc, unsigned int firststatement, gofs_t fir
 				}
 				else
 					fprintf(asmfile, ",\t%i", statements[i].b);
-				if (pr_opcodes[statements[i].op].type_c != &type_void) && (pr_opcodes[statements[i].op].associative==ASSOC_LEFT || statements[i].c))
+				if (pr_opcodes[statements[i].op].type_c != &type_void && (pr_opcodes[statements[i].op].associative==ASSOC_LEFT || statements[i].c))
 				{
 					if (pr_opcodes[statements[i].op].type_c)
 					{

@@ -3680,7 +3680,7 @@ static void DrawMeshes(void)
 				DrawPass(p);
 			}
 		}
-		if (shaderstate.curbatch->fog)
+		if (shaderstate.curbatch->fog && shaderstate.curbatch->fog->shader)
 		{
 			GL_DeSelectProgram();
 

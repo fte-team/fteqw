@@ -98,7 +98,11 @@ typedef struct ftenet_generic_connection_s {
 
 	netadrtype_t addrtype[FTENET_ADDRTYPES];
 	qboolean islisten;
+#ifdef HAVE_PACKET
 	SOCKET thesocket;
+#else
+	int thesocket;
+#endif
 } ftenet_generic_connection_t;
 
 
@@ -4061,7 +4065,92 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 
 #endif
 
-#ifdef HAVE_WEBSOCKCL
+#ifdef FTE_TARGET_WEB
+int emscriptenfte_ws_connect(char *url);
+int emscriptenfte_ws_close(int sock);
+int emscriptenfte_ws_cansend(int sock, int extra, int maxpending);
+int emscriptenfte_ws_send(int sock, void *data, int len);
+int emscriptenfte_ws_recv(int sock, void *data, int len);
+
+typedef struct
+{
+    ftenet_generic_connection_t generic;
+	int sock;
+    netadr_t remoteadr;
+    qboolean failed;
+} ftenet_websocket_connection_t;
+
+static void FTENET_WebSocket_Close(ftenet_generic_connection_t *gcon)
+{
+    ftenet_websocket_connection_t *wsc = (void*)gcon;
+	emscriptenfte_ws_close(wsc->sock);
+}
+static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
+{
+    ftenet_websocket_connection_t *wsc = (void*)gcon;
+	net_message.cursize = emscriptenfte_ws_recv(wsc->sock, net_message_buffer, sizeof(net_message_buffer));
+	if (net_message.cursize > 0)
+	{
+		net_from = wsc->remoteadr;
+		return true;
+	}
+	net_message.cursize = 0;//just incase
+	return false;
+}
+static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
+{
+    ftenet_websocket_connection_t *wsc = (void*)gcon;
+	if (NET_CompareAdr(to, &wsc->remoteadr))
+	{
+		emscriptenfte_ws_send(wsc->sock, data, length);
+    	return true;
+	}
+	return false;
+}
+
+
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address)
+{
+    ftenet_websocket_connection_t *newcon;
+
+    netadr_t adr;
+	int newsocket;
+
+    if (isserver)
+    {
+        return NULL;
+    }
+    if (!NET_StringToAdr(address, 80, &adr))
+        return NULL;    //couldn't resolve the name
+	newsocket = emscriptenfte_ws_connect(address);
+	if (newsocket < 0)
+		return NULL;
+    newcon = Z_Malloc(sizeof(*newcon));
+    if (newcon)
+    {
+        Q_strncpyz(newcon->generic.name, "WebSocket", sizeof(newcon->generic.name));
+        newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
+        newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
+        newcon->generic.Close = FTENET_WebSocket_Close;
+
+        newcon->generic.islisten = isserver;
+        newcon->generic.addrtype[0] = NA_WEBSOCKET;
+        newcon->generic.addrtype[1] = NA_INVALID;
+
+        newcon->generic.thesocket = INVALID_SOCKET;
+        newcon->sock = newsocket;
+
+        newcon->remoteadr = adr;
+
+        return &newcon->generic;
+    }
+    return NULL;
+}
+
+#endif
+
+
+#ifdef NACL
 #include <ppapi/c/pp_errors.h>
 #include <ppapi/c/pp_resource.h>
 #include <ppapi/c/ppb_core.h>
@@ -4080,8 +4169,8 @@ typedef struct
 	PP_Resource sock;
 	netadr_t remoteadr;
 
-	qboolean havepacket;
 	struct PP_Var incomingpacket;
+	qboolean havepacket;
 
 	qboolean failed;
 } ftenet_websocket_connection_t;
@@ -4130,7 +4219,7 @@ static void websocketclosed(void *user_data, int32_t result)
 //	Z_Free(wsc);
 }
 
-static void FTENET_WebSocket_Close(ftenet_generic_connection_t *gcon)
+static void FTENET_NaClWebSocket_Close(ftenet_generic_connection_t *gcon)
 {
 	int res;
 	/*meant to free the memory too, in this case we get the callback to do it*/
@@ -4140,7 +4229,7 @@ static void FTENET_WebSocket_Close(ftenet_generic_connection_t *gcon)
 	ppb_websocket_interface->Close(wsc->sock, PP_WEBSOCKETSTATUSCODE_NORMAL_CLOSURE, PP_MakeUndefined(), ccb);
 }
 
-static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
+static qboolean FTENET_NaClWebSocket_GetPacket(ftenet_generic_connection_t *gcon)
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	int res;
@@ -4198,7 +4287,7 @@ static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
 	}
 	return false;
 }
-static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
+static qboolean FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	int res;
@@ -4257,9 +4346,9 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolea
 		ppb_websocket_interface->Connect(newsocket, str, NULL, 0, ccb);
 		ppb_var_interface->Release(str);
 		Q_strncpyz(newcon->generic.name, "WebSocket", sizeof(newcon->generic.name));
-		newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
-		newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
-		newcon->generic.Close = FTENET_WebSocket_Close;
+		newcon->generic.GetPacket = FTENET_NaClWebSocket_GetPacket;
+		newcon->generic.SendPacket = FTENET_NaClWebSocket_SendPacket;
+		newcon->generic.Close = FTENET_NaClWebSocket_Close;
 
 		newcon->generic.islisten = isserver;
 		newcon->generic.addrtype[0] = NA_WEBSOCKET;
@@ -4884,7 +4973,6 @@ typedef struct
 	unsigned short attrtype;
 	unsigned short attrlen;
 } stunattr_t;
-#define SUPPORT_ICE
 #ifdef SUPPORT_ICE
 /*
 Interactive Connectivity Establishment (rfc 5245)
@@ -6129,8 +6217,10 @@ qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 #endif
 	}
 
+#ifdef SUPPORT_ICE
 	if (NET_WasStun(netsrc))
 		return true;
+#endif
 #ifdef HAVE_NATPMP
 	if (NET_Was_NATPMP(collection))
 		return true;

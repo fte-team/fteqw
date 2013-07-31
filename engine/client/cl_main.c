@@ -4578,7 +4578,9 @@ void Host_Shutdown(void)
 	}
 	host_initialized = false;
 
+#ifdef PLUGINS
 	Plug_Shutdown(false);
+#endif
 
 	//disconnect server/client/etc
 	CL_Disconnect_f();
@@ -4617,7 +4619,9 @@ void Host_Shutdown(void)
 
 	FS_Shutdown();
 
+#ifdef PLUGINS
 	Plug_Shutdown(true);
+#endif
 
 	Con_Shutdown();
 	Memory_DeInit();

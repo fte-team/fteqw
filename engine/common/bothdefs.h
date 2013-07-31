@@ -271,22 +271,43 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef FTE_TARGET_WEB
-#undef VOICECHAT
-#endif
+	//try to trim the fat
+	#undef VOICECHAT	//too lazy to compile speex
+	#undef HLCLIENT		//dlls...
+	#undef HLSERVER		//dlls...
+	#undef CL_MASTER	//bah. use the site to specify the servers.
+	#undef SV_MASTER	//yeah, because that makes sense in a browser
+	#undef RAGDOLL		//no ode
+	#undef TCPCONNECT	//err...
+	#undef IRCCONNECT	//not happening
+	#undef RUNTIMELIGHTING	//too slow
+	#undef PLUGINS		//pointless
+	#undef SUPPORT_ICE	//utterly pointless
+	#undef VM_Q1		//no dlls
+	#undef MAP_PROC		//meh
+	#undef HALFLIFEMODELS	//blurgh
+	#undef WEBSERVER	//hah, yeah, right
+	#undef SUPPORT_ICE	//kinda requires udp, but whatever
 
+	//extra features stripped to try to reduce memory footprints
+	#undef Q2CLIENT
+	#undef Q2SERVER	//requires a dll anyway.
+	#undef Q3CLIENT
+	#undef Q3SERVER //trying to trim memory use
+#endif
 #ifdef ANDROID
-#undef RTLIGHTS
-#ifndef SPEEX_STATIC
-#undef VOICECHAT
+	#undef RTLIGHTS
+	#ifndef SPEEX_STATIC
+		#undef VOICECHAT
+	#endif
+	#undef TEXTEDITOR
 #endif
-#undef TEXTEDITOR
-#endif
-#ifdef NACL
-#undef CL_MASTER	//no sockets support
-#undef SV_MASTER	//noone uses this anyway
-#undef WEBSERVER	//no sockets support (certainly no servers)
-#undef TCPCONNECT
-#undef IRCCONNECT
+#if defined(NACL)
+	#undef CL_MASTER	//no sockets support
+	#undef SV_MASTER	//noone uses this anyway
+	#undef WEBSERVER	//no sockets support (certainly no servers)
+	#undef TCPCONNECT
+	#undef IRCCONNECT
 #endif
 
 #ifndef MULTITHREAD

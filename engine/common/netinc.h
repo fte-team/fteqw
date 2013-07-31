@@ -1,16 +1,11 @@
 
-#ifndef NACL
+#if !defined(NACL) && !defined(FTE_TARGET_WEB)
 #define HAVE_IPV4	//says we can send and receive AF_INET ipv4 udp packets.
 #define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
 #define HAVE_PACKET	//if we have the socket api at all...
 #endif
 
-#ifdef FTE_TARGET_WEB
-#undef HAVE_PACKET	//no udp packet interface.
-#undef HAVE_TCP		//we should probably use websockets instead.
-#endif
-
-#ifdef NACL
+#if defined(NACL) || defined(FTE_TARGET_WEB)
 
 	struct sockaddr
 	{

@@ -1313,12 +1313,6 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 	}
 	return NULL;
 }
-
-#else
-cin_t *Media_WinAvi_TryLoad(char *name)
-{
-	return NULL;
-}
 #endif
 
 //AVI Support (windows)
@@ -2106,11 +2100,6 @@ cin_t *Media_Gecko_TryLoad(char *name)
 	}
 	return NULL;
 }
-#else
-cin_t *Media_Gecko_TryLoad(char *name)
-{
-	return NULL;
-}
 #endif
 
 //Gecko Support
@@ -2784,10 +2773,8 @@ static media_encoder_funcs_t capture_avi =
 };
 #endif
 
-
 static media_encoder_funcs_t *pluginencodersfunc[8];
 static struct plugin_s *pluginencodersplugin[8];
-
 qboolean Media_RegisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs)
 {
 	int i;
@@ -2806,7 +2793,7 @@ void Media_StopRecordFilm_f(void);
 /*funcs==null closes ALL decoders from this plugin*/
 qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs)
 {
-	qboolean success = true;
+	qboolean success = false;
 	int i;
 
 	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
@@ -2815,9 +2802,9 @@ qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *f
 		{
 			if (currentcapture_funcs == funcs)
 				Media_StopRecordFilm_f();
-
-			plugindecodersfunc[i] = NULL;
-			plugindecodersplugin[i] = NULL;
+			success = true;
+			pluginencodersfunc[i] = NULL;
+			pluginencodersplugin[i] = NULL;
 			if (funcs)
 				return success;
 		}
@@ -3131,7 +3118,6 @@ void Media_RecordFilm_f (void)
 			}
 		}
 	}
-
 	if (capturesound.ival)
 	{
 		sndkhz = snd_speed?snd_speed:48000;

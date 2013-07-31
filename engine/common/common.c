@@ -2332,6 +2332,24 @@ unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs)
 	return chars;
 }
 
+#ifdef FTE_TARGET_WEB
+//targets that don't support towupper/towlower...
+#define towupper Q_towupper
+#define towlower Q_towlower
+int towupper(int c)
+{
+	if (c < 128)
+		return toupper(c);
+	return c;
+}
+int towlower(int c)
+{
+	if (c < 128)
+		return tolower(c);
+	return c;
+}
+#endif
+
 size_t unicode_strtoupper(char *in, char *out, size_t outsize)
 {
 	//warning: towupper is locale-specific (eg: turkish has both I and dotted-I and thus i should transform to dotted-I rather than to I).

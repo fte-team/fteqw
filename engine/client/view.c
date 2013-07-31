@@ -1656,7 +1656,15 @@ void V_RenderView (void)
 		SCR_VRectForPlayer(&r_refdef.grect, viewnum);
 		V_RenderPlayerViews(r_refdef.playerview);
 
-		Plug_SBar(r_refdef.playerview);
+#ifdef PLUGINS
+        Plug_SBar (r_refdef.playerview);
+#else
+        if (Sbar_ShouldDraw())
+        {
+            Sbar_Draw (r_refdef.playerview);
+            Sbar_DrawScoreboard ();
+        }
+#endif
 		SCR_TileClear ();
 	}
 	r_refdef.playerview = NULL;

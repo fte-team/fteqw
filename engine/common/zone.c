@@ -189,7 +189,14 @@ void *Z_MallocNamed(int size, char *file, int line)
 #else
 void *ZF_Malloc(int size)
 {
+#ifdef __linux__
+	void *ret = NULL;
+	if (!posix_memalign(&ret, max(sizeof(float)*4, sizeof(void*)), size))
+		memset(ret, 0, size);
+	return ret;
+#else
 	return calloc(size, 1);
+#endif
 }
 void *Z_Malloc(int size)
 {
@@ -437,7 +444,11 @@ void BZ_Free(void *data)
 
 typedef struct zonegroupblock_s
 {
-	struct zonegroupblock_s *next;
+	union
+	{
+		struct zonegroupblock_s *next;
+		vec4_t align16;
+	};
 } zonegroupblock_t;
 
 #ifdef USE_MSVCRT_DEBUG

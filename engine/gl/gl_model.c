@@ -2495,7 +2495,8 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 
 	vbo.indicies.dummy = ZG_Malloc(&loadmodel->memgroup, sizeof(index_t) * maxindicies);
 	vbo.coord.dummy = ZG_Malloc(&loadmodel->memgroup, (sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t))* maxverts);
-	vbo.texcoord.dummy = (vecV_t*)vbo.coord.dummy + maxverts;
+	vbo.colours.dummy = (vecV_t*)vbo.coord.dummy + maxverts;
+	vbo.texcoord.dummy = (vec4_t*)vbo.colours.dummy + maxverts;
 	sty = 0;
 	if (styles)
 	{
@@ -2509,7 +2510,6 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 	vbo.normals.dummy = styles?((vec2_t*)vbo.lmcoord[styles-1].dummy + maxverts):((vec2_t*)vbo.texcoord.dummy + maxverts);
 	vbo.svector.dummy = (vec3_t*)vbo.normals.dummy + maxverts;
 	vbo.tvector.dummy = (vec3_t*)vbo.svector.dummy + maxverts;
-	vbo.colours.dummy = (vec3_t*)vbo.tvector.dummy + maxverts;
 
 	numindicies = 0;
 	numverts = 0;

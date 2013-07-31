@@ -12,7 +12,7 @@ extern char *compilingfile;
 
 int conditional;
 
-//standard qcc keywords
+//standard qc keywords
 #define keyword_do		1
 #define keyword_return	1
 #define keyword_if		1
@@ -21,26 +21,28 @@ int conditional;
 #define keyword_while	1
 
 //extended keywords.
+pbool keyword_switch;	//hexen2/c
+pbool keyword_case;		//hexen2/c
+pbool keyword_default;	//hexen2/c
+pbool keyword_break;	//hexen2/c
+pbool keyword_continue;	//hexen2/c
+pbool keyword_loop;		//hexen2
+pbool keyword_until;	//hexen2
+pbool keyword_thinktime;//hexen2
 pbool keyword_asm;
-pbool keyword_break;
-pbool keyword_case;
 pbool keyword_class;
 pbool keyword_optional;
 pbool keyword_const;	//fixme
-pbool keyword_continue;
-pbool keyword_default;
 pbool keyword_entity;	//for skipping the local
 pbool keyword_float;	//for skipping the local
 pbool keyword_for;
 pbool keyword_goto;
-pbool keyword_int;	//for skipping the local
+pbool keyword_int;		//for skipping the local
 pbool keyword_integer;	//for skipping the local
 pbool keyword_state;
 pbool keyword_string;	//for skipping the local
 pbool keyword_struct;
-pbool keyword_switch;
-pbool keyword_thinktime;
-pbool keyword_var;	//allow it to be initialised and set around the place.
+pbool keyword_var;		//allow it to be initialised and set around the place.
 pbool keyword_vector;	//for skipping the local
 
 
@@ -6254,6 +6256,7 @@ void QCC_PR_ParseStatement (void)
 	QCC_def_t				*e, *e2;
 	QCC_dstatement_t		*patch1, *patch2, *patch3;
 	int statementstart = pr_source_line;
+	pbool wasuntil;
 
 	if (QCC_PR_CheckToken ("{"))
 	{
@@ -6317,7 +6320,39 @@ void QCC_PR_ParseStatement (void)
 		return;
 	}
 
-	if (QCC_PR_CheckKeyword(keyword_while, "while"))
+	if (QCC_PR_CheckKeyword(keyword_loop, "loop"))
+	{
+		continues = num_continues;
+		breaks = num_breaks;
+
+		patch2 = &statements[numstatements];
+		QCC_PR_ParseStatement ();
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], NULL, 0, &patch3));
+		patch3->a = patch2 - patch3;
+
+		if (breaks != num_breaks)
+		{
+			for(i = breaks; i < num_breaks; i++)
+			{
+				patch1 = &statements[pr_breaks[i]];
+				statements[pr_breaks[i]].a = &statements[numstatements] - patch1;	//jump to after the return-to-top goto
+			}
+			num_breaks = breaks;
+		}
+		if (continues != num_continues)
+		{
+			for(i = continues; i < num_continues; i++)
+			{
+				patch1 = &statements[pr_continues[i]];
+				statements[pr_continues[i]].a = patch2 - patch1;	//jump back to top
+			}
+			num_continues = continues;
+		}
+		return;
+	}
+
+	wasuntil = QCC_PR_CheckKeyword(keyword_until, "until");
+	if (wasuntil || QCC_PR_CheckKeyword(keyword_while, "while"))
 	{
 		continues = num_continues;
 		breaks = num_breaks;
@@ -6330,7 +6365,7 @@ void QCC_PR_ParseStatement (void)
 		if (((e->constant && !e->temp) || !STRCMP(e->name, "IMMEDIATE")) && opt_compound_jumps)
 		{
 			optres_compound_jumps++;
-			if (!G_INT(e->ofs))
+			if (!G_INT(e->ofs) == wasuntil)
 			{
 				QCC_PR_ParseWarning(0, "while(0)?");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch1));
@@ -6344,11 +6379,13 @@ void QCC_PR_ParseStatement (void)
 		{
 			if (e->constant && !e->temp)
 			{
-				if (!G_FLOAT(e->ofs))
+				if (!G_FLOAT(e->ofs) == wasuntil)
 					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch1));
 				else
 					patch1 = NULL;
 			}
+			else if (wasuntil)
+				patch1 = QCC_Generate_OP_IF(e);
 			else
 				patch1 = QCC_Generate_OP_IFNOT(e);
 		}
@@ -6472,12 +6509,15 @@ void QCC_PR_ParseStatement (void)
 	}
 	if (QCC_PR_CheckKeyword(keyword_do, "do"))
 	{
+		pbool until;
 		continues = num_continues;
 		breaks = num_breaks;
 
 		patch1 = &statements[numstatements];
 		QCC_PR_ParseStatement ();
-		QCC_PR_Expect ("while");
+		until = QCC_PR_CheckKeyword(keyword_until, "until");
+		if (!until)
+			QCC_PR_Expect ("while");
 		QCC_PR_Expect ("(");
 		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY, 0);
@@ -6485,7 +6525,7 @@ void QCC_PR_ParseStatement (void)
 
 		if (e->constant && !e->temp)
 		{
-			if (G_FLOAT(e->ofs))
+			if (until?!G_FLOAT(e->ofs):G_FLOAT(e->ofs))
 			{
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], NULL, 0, &patch2));
 				patch2->a = patch1 - patch2;
@@ -6493,7 +6533,10 @@ void QCC_PR_ParseStatement (void)
 		}
 		else
 		{
-			patch2 = QCC_Generate_OP_IF(e);
+			if (until)
+				patch2 = QCC_Generate_OP_IFNOT(e);
+			else
+				patch2 = QCC_Generate_OP_IF(e);
 			patch2->b = patch1 - patch2;
 		}
 

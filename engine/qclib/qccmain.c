@@ -276,6 +276,8 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_struct,		defaultkeyword, "struct",		"Keyword: struct",		"Disables the 'struct' keyword."},
 	{&keyword_switch,		defaultkeyword, "switch",		"Keyword: switch",		"Disables the 'switch' keyword."},
 	{&keyword_thinktime,	nondefaultkeyword,"thinktime",	"Keyword: thinktime",	"Disables the 'thinktime' keyword which is used in HexenC"},
+	{&keyword_until,		nondefaultkeyword,"until",		"Keyword: until",		"Disables the 'until' keyword which is used in HexenC"},
+	{&keyword_loop,			nondefaultkeyword,"loop",		"Keyword: loop",		"Disables the 'loop' keyword which is used in HexenC"},
 	{&keyword_typedef,		defaultkeyword, "typedef",		"Keyword: typedef",		"Disables the 'typedef' keyword."},	//fixme
 	{&keyword_union,		defaultkeyword, "union",		"Keyword: union",		"Disables the 'union' keyword."},	//you surly know what a union is!
 	{&keyword_var,			defaultkeyword, "var",			"Keyword: var",			"Disables the 'var' keyword."},
@@ -2924,7 +2926,11 @@ void QCC_SetDefaultProperties (void)
 
 
 	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)	//force on the thinktime keyword if hexen2 progs.
+	{
 		keyword_thinktime = true;
+		keyword_until = true;
+		keyword_loop = true;
+	}
 
 	if (QCC_CheckParm("/Debug"))	//disable any debug optimisations
 	{

@@ -1123,8 +1123,8 @@ ifeq ($(FTE_TARGET),web)
 	ASMJS_MEMORY?=536870912	#512mb (required for asm.js)
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	DEBUG_CFLAGS=-g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	RELEASE_LDFLAGS=-s ASM_JS=1 -O2	$(WEB_PREJS) -s TOTAL_MEMORY=$(ASMJS_MEMORY) --js-library web/ftejslib.js --shell-file web/fteshell.html
-#	RELEASE_LDFLAGS=-O1	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY) --js-library web/ftejslib.js --shell-file web/fteshell.html
+#	RELEASE_LDFLAGS=-s ASM_JS=1 -O2	$(WEB_PREJS) -s TOTAL_MEMORY=$(ASMJS_MEMORY) --js-library web/ftejslib.js --shell-file web/fteshell.html
+	RELEASE_LDFLAGS=-O1	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY) --js-library web/ftejslib.js --shell-file web/fteshell.html
 	DEBUG_LDLAGS=-O0	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY) --js-library web/ftejslib.js
 	CC=emcc
 	#BASELDFLAGS=

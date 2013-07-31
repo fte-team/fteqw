@@ -475,6 +475,8 @@ extern pbool keyword_string;
 extern pbool keyword_struct;
 extern pbool keyword_switch;
 extern pbool keyword_thinktime;
+extern pbool keyword_loop;
+extern pbool keyword_until;
 extern pbool keyword_var;
 extern pbool keyword_vector;
 extern pbool keyword_union;

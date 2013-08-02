@@ -2,40 +2,7 @@
 This file is intended as a set of exports for an NQ-based engine.
 This is supported _purely_ for clients, and will not work for servers.
 
-
-
-[EndUser] how to use:
-to join a qw server: connect "udp:127.0.0.1:27500"
-to watch a qtv stream: connect "tcp:3@127.0.0.1:27599"  (where '3' is the streamid)
-to watch an mvd demo: connect "demo:blahblah.mvd" - the demo will be loaded from $WORKINGDIR/qw/demos/ - note that $WORKINGDIR is NOT always the same dir
-		as your engine is running from. The -basedir argument will break it, or engines that hunt down a 'proper' installation of quake instead.
-
-
-[Developer] how to incorporate into an nq engine:
-load up net_win.c
-find the #include "net_wins.h" line.
-dupe it, call it net_qtv.h
-dupe the header itself too, changing all WINS_foo to QTV_foo.
-find the net_landrivers array. Dupe the first block, then edit the first block to be all QTV_foo functions.
-bump net_numlandrivers.
-For non-window operating systems, you'll need to do the same, just figure out which net_win.c equivelent function it uses first. :P
-certain engines may do weird things with the port. probably its best to just use Cmd_Args() for the connect command instead of Cmd_Argv(1), and to add
-		port parsing to XXXX_GetAddrFromName instead of messing around with port cvars etc and ruining server configs.
-		If your engine already has weird port behaviour, then its entirely your problem to fix. :P
-You probably want to tweak your menus a little to clean up the nq/qw/qtv connection distinctions.
-If you do want to make changes to libqtv, please consider joining the FTE team (or at least the irc channel) in order to contribute without forking.
-
-[Developer] how to compile libqtv:
-cflags MUST define 'LIBQTV' or it won't compile properly.
-The relevent exports are all tagged as 'EXPORT void PUBLIC fname(...)' (dllexport+cdecl in windows), feel free to define those properly if you're making a linux shared object without exporting all (potentially conflicting) internals.
-This means you can compile it as a dll without any issues, one with a standardized interface. Any libqtv-specific bugfixes can be released independantly from engine(s).
-Compiling a dll with msvc will generally automatically produce a .lib which you can directly link against. Alternatively, include both projects in your workspace and set up dependancies properly and it'll be automatically imported.
-
-[PowerUser] issues:
-its a full qtv proxy, but you can't get admin/rcon access to it.
-it doesn't read any configs, and has no console, thus you cannot set an rcon password/port.
-without console/rcon, you cannot enable any listening ports for other users.
-if you need a public qtv proxy, use a standalone version.
+documentation can be found inside net_qtv.h
 */
 
 
@@ -51,22 +18,35 @@ struct qsockaddr
 {
 	int ipid;
 };
-char resolvedadrstring[128];
-int lastadrid;
+static char resolvedadrstring[128];
+static int lastadrid;
 
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
-#define PUBLIC __cdecl
 #endif
-#ifndef EXPORT
-#define EXPORT
-#endif
-#ifndef PUBLIC
-#define PUBLIC
-#endif
+
+#include "net_qtv.h"
+
+
+PUBEXPORT void PUBLIC QTV_Command (char *command, char *results, int resultlen)
+{
+	if (!cluster)
+		return;
+	Rcon_Command(cluster, NULL, command, results, resultlen, true);
+}
+PUBEXPORT void PUBLIC QTV_RunFrame (void)
+{
+	if (!cluster)
+		return;
+	Cluster_Run(cluster, false);
+}
+
 
 EXPORT int PUBLIC QTV_Init (void)
 {
+	if (cluster)
+		return 0;
+
 	cluster = malloc(sizeof(*cluster));
 	if (cluster)
 	{
@@ -194,15 +174,28 @@ EXPORT char *PUBLIC QTV_AddrToString (struct qsockaddr *addr)
 {
 	return 0;
 }
-EXPORT int PUBLIC QTV_StringToAddr (char *string, struct qsockaddr *addr)
+EXPORT int PUBLIC QTV_StringPortToAddr (char *string, int port, struct qsockaddr *addr)
 {
-	if (!strncmp(string, "udp:", 4) || !strncmp(string, "tcp:", 4) || !strncmp(string, "file:", 5))
+	if (!strncmp(string, "file:", 5) || !strncmp(string, "demo:", 5))
 	{
 		snprintf(resolvedadrstring, sizeof(resolvedadrstring), "%s", string);
 		addr->ipid = ++lastadrid;
 		return 0;
 	}
+	if (!strncmp(string, "qw:", 3) || !strncmp(string, "udp:", 4) || !strncmp(string, "tcp:", 4))
+	{
+		if (port)
+			snprintf(resolvedadrstring, sizeof(resolvedadrstring), "%s:%i", string, port);
+		else
+			snprintf(resolvedadrstring, sizeof(resolvedadrstring), "%s", string);
+		addr->ipid = ++lastadrid;
+		return 0;
+	}
 	return -1;
+}
+EXPORT int PUBLIC QTV_StringToAddr (char *string, struct qsockaddr *addr)
+{
+	return QTV_StringPortToAddr(string, 0, addr);
 }
 EXPORT int PUBLIC QTV_GetSocketAddr (int socket, struct qsockaddr *addr)
 {

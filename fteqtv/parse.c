@@ -473,7 +473,7 @@ static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	char text[1024];
-	char buffer[1024];
+	char nqbuffer[1024];
 	int level;
 
 	level = ReadByte(m);
@@ -491,19 +491,21 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			if (colon)
 			{
 				//de-fuck qqshka's extra gibberish.
-				snprintf(buffer, sizeof(buffer), "%c%c[QTV]%s\n", svc_print, 3, colon+1);
-				Multicast(tv, buffer, strlen(buffer)+1, to, mask, QW|CONNECTING);
+				snprintf(nqbuffer, sizeof(nqbuffer), "%c%c[QTV]%s\n", svc_print, 3, colon+1);
+				Multicast(tv, nqbuffer, strlen(nqbuffer)+1, to, mask, QW|CONNECTING);
+				snprintf(nqbuffer, sizeof(nqbuffer), "%c%c[QTV]%s\n", svc_print, 1, colon+1);
+				Multicast(tv, nqbuffer, strlen(nqbuffer)+1, to, mask, NQ|CONNECTING);
 				return;
 			}
 		}
-		strcpy(buffer+2, text);
-		buffer[1] = 1;
+		strlcpy(nqbuffer+2, text, sizeof(nqbuffer)-2);
+		nqbuffer[1] = 1;	//nq chat is prefixed with a 1
 	}
 	else
 	{
-		strcpy(buffer+1, text);
+		strlcpy(nqbuffer+1, text, sizeof(nqbuffer)-1);
 	}
-	buffer[0] = svc_print;
+	nqbuffer[0] = svc_print;
 
 	if ((to&dem_mask) == dem_all || to == dem_read)
 	{
@@ -514,7 +516,7 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW|CONNECTING);
-//	Multicast(tv, buffer, strlen(buffer)+1, to, mask, NQ);
+	Multicast(tv, nqbuffer, strlen(nqbuffer)+1, to, mask, NQ|CONNECTING);
 }
 static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {

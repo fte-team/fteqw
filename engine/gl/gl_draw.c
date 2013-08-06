@@ -453,10 +453,7 @@ void GLDraw_Init (void)
 	int maxtexsize;
 
 	if (gltextures)
-	{
-		Con_Printf("gl_draw didn't shut down cleanly\n");
 		gltextures = NULL;
-	}
 
 	memset(gltexturetablebuckets, 0, sizeof(gltexturetablebuckets));
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
@@ -470,12 +467,16 @@ void GLDraw_Init (void)
 
 	maxtexsize = gl_max_size.value;
 
+	if (uploadmemorybuffer)
+		BZ_Free(uploadmemorybuffer);
+	if (uploadmemorybufferintermediate)
+		BZ_Free(uploadmemorybufferintermediate);
 	//required to hold the image after scaling has occured
-	sizeofuploadmemorybuffer = 1;
-	sizeofuploadmemorybufferintermediate = 1;
+	sizeofuploadmemorybuffer = 0;
+	sizeofuploadmemorybufferintermediate = 0;
 TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
-	uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
-	uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	uploadmemorybuffer = NULL;
+	uploadmemorybufferintermediate = NULL;
 
 	R2D_Init();
 

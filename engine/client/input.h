@@ -36,10 +36,10 @@ extern cvar_t in_xflip;
 extern float mousecursor_x, mousecursor_y;
 extern float mousemove_x, mousemove_y;
 
-#ifdef _SDL
+//#ifdef _SDL
 void IN_ActivateMouse(void);
 void IN_DeactivateMouse(void);
-#endif
+//#endif
 
 int CL_TargettedSplit(qboolean nowrap);
 

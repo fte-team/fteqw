@@ -11,6 +11,115 @@
 static qboolean httpserverinitied = false;
 qboolean httpserverfailed = false;
 static int	httpserversocket;
+static int	httpserverport;
+
+#ifdef WEBSVONLY
+static int natpmpsocket = INVALID_SOCKET;
+static int natpmptime;
+#include <mmsystem.h>
+static void sendnatpmp(int port)
+{
+	struct sockaddr_in router;
+	struct
+	{
+		qbyte ver;
+		qbyte op;
+		short reserved1;
+		short privport; short pubport;
+		int mapping_expectancy;
+	} pmpreqmsg;
+
+	int curtime = timeGetTime();
+	if (natpmpsocket == INVALID_SOCKET)
+	{
+		unsigned long _true = true;
+		natpmpsocket = socket(AF_INET, SOCK_DGRAM, 0);
+		if (natpmpsocket == INVALID_SOCKET)
+			return;
+		ioctlsocket (natpmpsocket, FIONBIO, &_true);
+	}
+	else if (curtime - natpmptime < 0)
+		return;
+	natpmptime = curtime+60*1000;
+
+	memset(&router, 0, sizeof(router));
+	router.sin_family = AF_INET;
+	router.sin_port = htons(5351);
+	router.sin_addr.S_un.S_un_b.s_b1 = 192;
+	router.sin_addr.S_un.S_un_b.s_b2 = 168;
+	router.sin_addr.S_un.S_un_b.s_b3 = 0;
+	router.sin_addr.S_un.S_un_b.s_b4 = 1;
+
+	pmpreqmsg.ver = 0;
+	pmpreqmsg.op = 0;
+	pmpreqmsg.reserved1 = htons(0);
+	pmpreqmsg.privport = htons(port);
+	pmpreqmsg.pubport = htons(port);
+	pmpreqmsg.mapping_expectancy = htons(60*5);
+
+	sendto(natpmpsocket, (void*)&pmpreqmsg, 2, 0, (struct sockaddr*)&router, sizeof(router));
+
+	pmpreqmsg.op = 2;
+	sendto(natpmpsocket, (void*)&pmpreqmsg, sizeof(pmpreqmsg), 0, (struct sockaddr*)&router, sizeof(router));
+}
+void checknatpmp(int port)
+{
+	struct
+	{
+		qbyte ver; qbyte op; short resultcode;
+		int age;
+		union
+		{
+			struct
+			{
+				short privport; short pubport;
+				int mapping_expectancy;
+			};
+			qbyte ipv4[4];
+		};
+	} pmpreqrep;
+	struct sockaddr_in from;
+	int fromlen = sizeof(from);
+	int len;
+	static int oldip=-1;
+	static short oldport;
+	memset(&pmpreqrep, 0, sizeof(pmpreqrep));
+	sendnatpmp(port);
+	if (natpmpsocket == INVALID_SOCKET)
+		len = -1;
+	else
+		len = recvfrom(natpmpsocket, (void*)&pmpreqrep, sizeof(pmpreqrep), 0, (struct sockaddr*)&from, &fromlen);
+	if (len == 12 && pmpreqrep.op == 128)
+	{
+		if (oldip != *(int*)pmpreqrep.ipv4)
+		{
+			oldip = *(int*)pmpreqrep.ipv4;
+			oldport = 0;
+			IWebPrintf("Public ip is %i.%i.%i.%i\n", pmpreqrep.ipv4[0], pmpreqrep.ipv4[1], pmpreqrep.ipv4[2], pmpreqrep.ipv4[3]);
+		}
+	}
+	else if (len == 16 && pmpreqrep.op == 129)
+	{
+		if (oldport != pmpreqrep.pubport)
+		{
+			oldport = pmpreqrep.pubport;
+			IWebPrintf("Public udp port %i (local %i)\n", ntohs(pmpreqrep.pubport), ntohs(pmpreqrep.privport));
+		}
+	}
+	else if (len == 16 && pmpreqrep.op == 130)
+	{
+		if (oldport != pmpreqrep.pubport)
+		{
+			oldport = pmpreqrep.pubport;
+			IWebPrintf("Public tcp port %i (local %i)\n", ntohs(pmpreqrep.pubport), ntohs(pmpreqrep.privport));
+		}
+	}
+}
+#else
+void checknatpmp(int port)
+{
+}
+#endif
 
 typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
@@ -64,6 +173,7 @@ qboolean HTTP_ServerInit(int port)
 
 	httpserverinitied = true;
 	httpserverfailed = false;
+	httpserverport = port;
 
 	IWebPrintf("HTTP server is running\n");
 	return true;
@@ -554,6 +664,8 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 
 	HTTP_active_connections_t *cl;
 
+	if (httpserverport != portnum && httpserverinitied)
+		HTTP_ServerShutdown();
 	if (!httpserverinitied)
 	{
 		if (httpserverwanted)
@@ -565,6 +677,8 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 		HTTP_ServerShutdown();
 		return false;
 	}
+
+	checknatpmp(httpserverport);
 
 	if (httpconnectioncount>32)
 		return false;

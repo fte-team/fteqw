@@ -666,7 +666,6 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			start += len;
 			break;
 		case VOIP_OPUS:
-#if 1
 			len = bytes;
 			if (decodesamps > 0)
 			{
@@ -686,25 +685,6 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 
 			bytes -= len;
 			start += len;
-#else
-			//FIXME: we shouldn't need this crap
-			bytes--;
-			len = *start++;
-			if (bytes < len)
-				break;		
-			r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
-			if (r > 0)
-			{
-				decodesamps += r;
-				s_voip.decseq[sender]++;
-				seq++;
-			}
-			else if (r < 0)
-				Con_Printf("Opus decoding error %i\n", r);
-
-			bytes -= len;
-			start += len;
-#endif
 			break;
 		}
 	}
@@ -1085,7 +1065,6 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			samps+=len / 2;	//number of samplepairs eaten in this packet. for stats.
 			break;
 		case VOIP_OPUS:
-#if 1
 			{
 				//opus rtp only supports/allows a single chunk in each packet.
 				int frames;
@@ -1128,26 +1107,6 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				}
 			}
 			break;
-#else
-			level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);
-			len = qopus_encode(s_voip.encoder, start, s_voip.encframesize, outbuf+(outpos+1), max(255, sizeof(outbuf) - (outpos+1)));
-			if (len == 1)	//packet does not need to be transmitted if it returns 1, supposedly. crazyness.
-				len = 0;
-			else if (len > 0)
-			{
-				outbuf[outpos] = len;
-				outpos += 1+len;
-			}
-			else
-			{
-				//error!
-				Con_Printf("Opus encoding error: %i\n", len);
-			}
-			s_voip.encsequence++;
-			samps+=s_voip.encframesize;
-			encpos += s_voip.encframesize*2;
-			break;
-#endif
 		default:
 			outbuf[outpos] = 0;
 			break;

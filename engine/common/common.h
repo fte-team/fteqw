@@ -336,7 +336,6 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
 void COM_WriteFile (const char *filename, const void *data, int len);
-FTE_DEPRECATED FILE *COM_WriteFileOpen (char *filename);
 
 typedef struct {
 	struct searchpath_s	*search;
@@ -457,6 +456,7 @@ typedef struct
 	struct
 	{
 		char *path;			//the 'pure' name
+		qboolean crcknown;	//if the crc was specified
 		unsigned int crc;	//the public crc
 		char *mirrors[8];	//a randomized (prioritized) list of http mirrors to use.
 		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.

@@ -261,7 +261,10 @@ void FS_Manifest_Print(ftemanifest_t *man)
 	{
 		if (man->package[i].path)
 		{
-			Con_Printf("package \"%s\" 0x%x", man->package[i].path, man->package[i].crc);
+			if (man->package[i].crcknown)
+				Con_Printf("package \"%s\" 0x%x", man->package[i].path, man->package[i].crc);
+			else
+				Con_Printf("package \"%s\" -", man->package[i].path);
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				if (man->package[i].mirrors[j])
 					Con_Printf(" \"%s\"", man->package[i].mirrors[j]);
@@ -348,11 +351,13 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 	}
 	else
 	{
+		qboolean crcknown;
 		int crc;
 		int i, j;
 		if (!stricmp(fname, "package"))
 			Cmd_ShiftArgs(1, false);
 
+		crcknown = (strcmp(Cmd_Argv(1), "-") && *Cmd_Argv(1));
 		crc = strtoul(Cmd_Argv(1), NULL, 0);
 
 		for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
@@ -360,6 +365,7 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 			if (!man->package[i].path)
 			{
 				man->package[i].path = Z_StrDup(Cmd_Argv(0));
+				man->package[i].crcknown = crcknown;
 				man->package[i].crc = crc;
 				for (j = 0; j < Cmd_Argc()-2 && j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				{
@@ -391,6 +397,13 @@ ftemanifest_t *FS_Manifest_Parse(const char *data)
 	while (data && *data)
 	{
 		data = Cmd_TokenizeString((char*)data, false, false);
+		FS_Manifest_ParseTokens(man);
+	}
+	if (!man->installation)
+	{	//every manifest should have an internal name specified, so we can use the correct basedir
+		//if we don't recognise it, then we'll typically prompt (or just use the working directory), but always assuming a default at least ensures things are sane.
+		//fixme: we should probably fill in the basegame here (and share that logic with the legacy manifest generation code)
+		data = Cmd_TokenizeString((char*)"game quake", false, false);
 		FS_Manifest_ParseTokens(man);
 	}
 	return man;
@@ -575,22 +588,6 @@ void COM_WriteFile (const char *filename, const void *data, int len)
 
 	com_fschanged=true;
 }
-
-FILE *COM_WriteFileOpen (char *filename)	//like fopen, but based around quake's paths.
-{
-	FILE	*f;
-	char	name[MAX_OSPATH];
-
-	if (!FS_NativePath(filename, FS_GAMEONLY, name, sizeof(name)))
-		return NULL;
-
-	COM_CreatePath(name);
-
-	f = fopen (name, "wb");
-
-	return f;
-}
-
 
 /*
 ============
@@ -1690,10 +1687,13 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 					searchpath_t *oldp;
 					char pname[MAX_OSPATH];
 					char lname[MAX_OSPATH];
-					snprintf(lname, sizeof(lname), "%#x", fs_manifest->package[i].crc);
+					if (fs_manifest->package[i].crcknown)
+						snprintf(lname, sizeof(lname), "%#x", fs_manifest->package[i].crc);
+					else
+						snprintf(lname, sizeof(lname), "");
 					if (!FS_GenCachedPakName(fs_manifest->package[i].path, lname, pname, sizeof(pname)))
 						continue;
-					snprintf (lname, sizeof(lname), "%s%s", logicalpath, pname+ptlen+1);
+					snprintf (lname, sizeof(lname), "%s%s", logicalpaths, pname+ptlen+1);
 
 					for (oldp = com_searchpaths; oldp; oldp = oldp->next)
 					{
@@ -1714,7 +1714,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 									handle = OpenNew (vfs, lname);
 							}
 						}
-						if (handle)
+						if (handle && fs_manifest->package[i].crcknown)
 						{
 							int truecrc = handle->GeneratePureCRC(handle, 0, false);
 							if (truecrc != fs_manifest->package[i].crc)
@@ -3317,6 +3317,7 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 }
 static void FS_BeginNextPackageDownload(void)
 {
+	char *crcstr;
 	int j;
 	ftemanifest_t *man = fs_manifest;
 	vfsfile_t *check;
@@ -3329,7 +3330,11 @@ static void FS_BeginNextPackageDownload(void)
 		if (!man->package[j].path)
 			continue;
 
-		if (!FS_GenCachedPakName(man->package[j].path, va("%#x", man->package[j].crc), buffer, sizeof(buffer)))
+		if (man->package[j].crcknown)
+			crcstr = va("%#x", man->package[j].crc);
+		else
+			crcstr = "";
+		if (!FS_GenCachedPakName(man->package[j].path, crcstr, buffer, sizeof(buffer)))
 			continue;
 
 		check = FS_OpenVFS(buffer, "rb", FS_ROOT);
@@ -3339,7 +3344,7 @@ static void FS_BeginNextPackageDownload(void)
 			continue;
 		}
 		FS_NativePath(buffer, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
-		if (!FS_GenCachedPakName(va("%s.tmp", man->package[j].path), va("%#x", man->package[j].crc), buffer, sizeof(buffer)))
+		if (!FS_GenCachedPakName(va("%s.tmp", man->package[j].path), crcstr, buffer, sizeof(buffer)))
 			continue;
 		FS_NativePath(buffer, FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
 

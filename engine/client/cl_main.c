@@ -3682,13 +3682,15 @@ void Host_DoRunFile(hrf_t *f)
 				int len = VFS_GETLEN(f->srcfile);
 				char *fdata = BZ_Malloc(len+1);
 				VFS_READ(f->srcfile, fdata, len);
-				VFS_CLOSE(f->srcfile);
 				fdata[len] = 0;
 				man = FS_Manifest_Parse(fdata);
 				if (!man->updateurl)
 					man->updateurl = Z_StrDup(f->fname);
 				BZ_Free(fdata);
 				FS_ChangeGame(man, true);
+
+				f->flags |= HRF_ABORT;
+				Host_DoRunFile(f);
 				return;
 			}
 		}
@@ -4385,11 +4387,10 @@ void CL_ExecInitialConfigs(char *resetcommand)
 {
 	int qrc, hrc, def;
 
-	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
-
-	Cmd_ExecuteString("unbindall", RESTRICT_LOCAL);
-	Cmd_ExecuteString("cvarreset *", RESTRICT_LOCAL);
-	Cmd_ExecuteString(resetcommand, RESTRICT_LOCAL);
+	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
+	Cbuf_AddText("unbindall", RESTRICT_LOCAL);
+	Cbuf_AddText("cvarreset *", RESTRICT_LOCAL);
+	Cbuf_AddText(resetcommand, RESTRICT_LOCAL);
 
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
@@ -4417,6 +4418,12 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
 	com_parseutf8.ival = com_parseutf8.value;
+
+	//if the renderer is already up and running, be prepared to reload content to match the new conback/font/etc
+	if (qrenderer != QR_NONE)
+		Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
+	if (key_dest == key_menu)
+		Cbuf_AddText ("closemenu\ntogglemenu\n", RESTRICT_LOCAL);	//make sure the menu has the right content loaded.
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 

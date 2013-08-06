@@ -605,7 +605,7 @@ static void SnapVector( vec3_t normal )
 			normal[i] = 1;
 			break;
 		}
-		if( fabs( normal[i] - -1 ) < PLANE_NORMAL_EPSILON )
+		if( fabs( normal[i] + 1 ) < PLANE_NORMAL_EPSILON )
 		{
 			VectorClear( normal );
 			normal[i] = -1;

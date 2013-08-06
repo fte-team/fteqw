@@ -1102,7 +1102,10 @@ pubprogfuncs_t deffuncs = {
 	PR_UglyValueString,
 	ED_ParseEval
 };
-#undef printf
+static int PDECL qclib_null_printf(const char *s, ...)
+{
+	return 0;
+}
 
 //defs incase following structure is not passed.
 struct edict_s *safesv_edicts;
@@ -1115,7 +1118,7 @@ progexterns_t defexterns = {
 	NULL, //char *(*ReadFile) (char *fname, void *buffer, int len);
 	NULL, //int (*FileSize) (char *fname);	//-1 if file does not exist
 	NULL, //bool (*WriteFile) (char *name, void *data, int len);
-	printf, //void (*printf) (char *, ...);
+	qclib_null_printf, //void (*printf) (char *, ...);
 	(void*)exit, //void (*Sys_Error) (char *, ...);
 	NULL, //void (*Abort) (char *, ...);
 	sizeof(edictrun_t), //int edictsize;	//size of edict_t

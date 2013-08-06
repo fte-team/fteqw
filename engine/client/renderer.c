@@ -524,6 +524,7 @@ void	R_InitTextures (void)
 
 
 void R_SetRenderer_f (void);
+void R_ReloadRenderer_f (void);
 
 void Renderer_Init(void)
 {
@@ -540,6 +541,7 @@ void Renderer_Init(void)
 	r_blockvidrestart = true;
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
+	Cmd_AddCommand("vid_reload", R_ReloadRenderer_f);
 
 #ifdef RTLIGHTS
 	Cmd_AddCommand ("r_editlights_reload", R_ReloadRTLights_f);
@@ -1326,35 +1328,9 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 #endif
 	}
 
-	switch (qrenderer)
+	if (newr && qrenderer != QR_NONE)
 	{
-	case QR_NONE:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Dedicated console created\n");
-		break;
-	case QR_SOFTWARE:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Software renderer initialized\n");
-		break;
-
-	case QR_OPENGL:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"OpenGL renderer initialized\n");
-		break;
-
-	case QR_DIRECT3D9:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Direct3d9 renderer initialized\n");
-		break;
-	case QR_DIRECT3D11:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Direct3d11 renderer initialized\n");
-		break;
+		Con_Printf("%s renderer initialized\n", newr->renderer->description);
 	}
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
@@ -1366,6 +1342,12 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 	if (newr)
 		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 	return true;
+}
+
+void R_ReloadRenderer_f (void)
+{
+	//reloads textures without destroying video context.
+	R_ApplyRenderer_Load(NULL);
 }
 
 #define DEFAULT_WIDTH 640

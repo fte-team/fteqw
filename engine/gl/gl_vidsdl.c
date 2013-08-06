@@ -24,7 +24,12 @@ extern qboolean mouseusedforgui;
 
 static void *GLVID_getsdlglfunction(char *functionname)
 {
+#ifdef GL_STATIC
+	//this reduces dependancies in the webgl build (removing warnings about emulation being poo)
+	return NULL;
+#else
 	return SDL_GL_GetProcAddress(functionname);
+#endif
 }
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)

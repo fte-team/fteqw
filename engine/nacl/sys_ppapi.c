@@ -247,18 +247,6 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
 }
 
-void Sys_mkdir (char *path)
-{
-}
-qboolean Sys_remove (char *path)
-{
-	return false;
-}
-qboolean Sys_Rename (char *oldfname, char *newfname)
-{
-	return false;
-}
-
 #include <sys/time.h>
 static int secbase;
 double Sys_DoubleTime(void)
@@ -327,14 +315,6 @@ void startquake(char *manif)
 	{
 		args[parms.argc++] = "-manifest";
 		args[parms.argc++] = manif;
-	}
-
-	parms.memsize = 16*1024*1024;
-	parms.membase = malloc(parms.memsize);
-	if (!parms.membase)
-	{
-		Sys_Printf("Unable to alloc heap\n");
-		return;
 	}
 
 	Sys_Printf("Starting up\n");

@@ -210,7 +210,9 @@ FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 
 
 #define GLchar char
-#if defined(_DEBUG) && !defined(DEBUG)
+#ifdef NACL
+#undef DEBUG
+#elif defined(_DEBUG) && !defined(DEBUG)
 #define DEBUG
 #endif
 #if defined(DEBUG)

@@ -1,6 +1,6 @@
 #include "hash.h"
 
-#define FSVER 1
+#define FSVER 2
 
 typedef struct
 {
@@ -30,6 +30,10 @@ struct searchpathfuncs_s
 	vfsfile_t *(QDECL *OpenVFS)(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
 
 	qboolean	(QDECL *PollChanges)(searchpathfuncs_t *handle);	//returns true if there were changes
+
+	qboolean	(QDECL *RenameFile)(searchpathfuncs_t *handle, const char *oldname, const char *newname);	//returns true on success, false if source doesn't exist, or if dest does.
+	qboolean	(QDECL *RemoveFile)(searchpathfuncs_t *handle, const char *filename);	//returns true on success, false if it wasn't found or is readonly.
+	qboolean	(QDECL *MkDir)(searchpathfuncs_t *handle, const char *filename);	//is this really needed?
 };
 //searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc);	//returns a handle to a new pak/path
 

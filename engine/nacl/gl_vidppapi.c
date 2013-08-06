@@ -71,30 +71,9 @@ void GL_DoSwap(void)
 	}
 }
 
-void	GLVID_SetPalette (unsigned char *palette)
+qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 {
-	qbyte *pal;
-	unsigned int r,g,b;
-	int i;
-	unsigned *table1;
-	extern qbyte gammatable[256];
-
-	pal = palette;
-	table1 = d_8to24rgbtable;
-	for (i=0 ; i<256 ; i++)
-	{
-		r = gammatable[pal[0]];
-		g = gammatable[pal[1]];
-		b = gammatable[pal[2]];
-		pal += 3;
-		
-		*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
-	}
-	d_8to24rgbtable[255] &= LittleLong(0xffffff);	// 255 is transparent
-}
-
-void	GLVID_ShiftPalette (unsigned char *palette)
-{
+	return false;
 }
 
 void *PPAPI_GetGLSymbol(char *symname)
@@ -306,9 +285,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 //	vid.pixelwidth = info->width;
 //	vid.pixelheight = info->height;
 
-    GLVID_SetPalette (palette);
 	GL_Init(PPAPI_GetGLSymbol);
-	vid.recalc_refdef = 1;
 
 	return true;
 }

@@ -303,6 +303,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef TEXTEDITOR
 #endif
 #if defined(NACL)
+	#undef SUPPORT_ICE
 	#undef CL_MASTER	//no sockets support
 	#undef SV_MASTER	//noone uses this anyway
 	#undef WEBSERVER	//no sockets support (certainly no servers)

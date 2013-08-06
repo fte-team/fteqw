@@ -1272,7 +1272,12 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	else
 		GL_ResampleTexture (data, width, height, scaled, scaled_width, scaled_height);
 
-	TRACE(("dbg: GL_Upload32: recaled\n"));
+	if (scaled_width*scaled_height*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = scaled_width*scaled_height*4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
+	TRACE(("dbg: GL_Upload32: rescaled\n"));
 	if (type == GL_UNSIGNED_SHORT_5_6_5)
 		GL_8888to565(targface, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
 	else if (type == GL_UNSIGNED_SHORT_4_4_4_4)

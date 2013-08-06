@@ -1157,6 +1157,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			SZ_Write(buf, outbuf, outpos);
 		}
 
+#ifdef SUPPORT_ICE
 		switch(s_voip.enccodec)
 		{
 		case VOIP_SPEEX_NARROW:
@@ -1168,6 +1169,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			NET_RTP_Transmit(initseq, inittimestamp, "opus", outbuf, outpos);
 			break;
 		}
+#endif
 
 		if (cl_voip_test.ival)
 			S_Voip_Decode(cl.playerview[0].playernum, s_voip.enccodec, s_voip.generation & 0x0f, initseq, outpos, outbuf);
@@ -3093,20 +3095,23 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		if (i == si->total_chans)	//this one wasn't playing.
 		{
 			channel_t *c = SND_PickChannel(si, -1, 0);
-			c->flags = CF_ABSVOLUME;
-			c->entnum = -1;
-			c->entchannel = 0;
-			c->dist_mult = 0;
-			c->looping = false;
-			c->master_vol = 255 * volume;
-			c->pos = 0;
-			c->rate = 1<<PITCHSHIFT;
-			c->sfx = &s->sfx;
-			c->start = 0;
-			SND_Spatialize(si, c);
+			if (c)
+			{
+				c->flags = CF_ABSVOLUME;
+				c->entnum = -1;
+				c->entchannel = 0;
+				c->dist_mult = 0;
+				c->looping = false;
+				c->master_vol = 255 * volume;
+				c->pos = 0;
+				c->rate = 1<<PITCHSHIFT;
+				c->sfx = &s->sfx;
+				c->start = 0;
+				SND_Spatialize(si, c);
 
-			if (si->ChannelUpdate)
-				si->ChannelUpdate(si, &si->channel[i], true);
+				if (si->ChannelUpdate)
+					si->ChannelUpdate(si, c, true);
+			}
 		}
 	}
 	S_UnlockMixer();

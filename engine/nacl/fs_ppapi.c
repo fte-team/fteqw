@@ -36,6 +36,7 @@ extern PP_Instance pp_instance;
 
 #define FSPPAPI_OpenTemp FS_OpenTemp
 #define VFSPPAPI_Open VFSOS_Open
+#define FSPPAPI_OpenPath VFSOS_OpenPath
 
 typedef struct mfchunk_s
 {
@@ -69,6 +70,13 @@ typedef struct
 	unsigned long offset;
 	mfchunk_t *cchunk;
 } vfsmfile_t;
+
+typedef struct
+{
+	searchpathfuncs_t pub;
+	int depth;
+	char rootpath[1];
+} pppath_t;
 
 qboolean FSPPAPI_Init(int *fileid)
 {
@@ -209,24 +217,35 @@ static unsigned long VFSMEM_GetSize (struct vfsfile_s *file)
 	vfsmfile_t *f = (vfsmfile_t*)file;
 	return f->file->length;
 }
+static void FSPPAPI_DoUnlink(mfile_t *file)
+{
+	mfchunk_t *cnk;
+	//must have no lingering references.
+
+	//free any file chunks.
+	while (file->chunkhead)
+	{
+		cnk = file->chunkhead->next;
+		free(file->chunkhead);
+		file->chunkhead = cnk;
+	}
+	//unlink the file so nothing else is harmed
+	if (file->prev)
+		file->prev->next = file->next;
+	else if (file == mfiles)
+		mfiles = file->next;
+	if (file->next)
+		file->next->prev = file->prev;
+	//and finally free the last bit of memory.
+	free(file);
+}
 static void VFSMEM_Close(vfsfile_t *file)
 {
 	vfsmfile_t *f = (vfsmfile_t*)file;
 	f->file->refs -= 1;
 	if (!f->file->refs)
-	{
 		if (f->file->unlinked)
-		{
-			mfchunk_t *cnk;
-			while (f->file->chunkhead)
-			{
-				cnk = f->file->chunkhead->next;
-				free(f->file->chunkhead);
-				f->file->chunkhead = cnk;
-			}
-			free(f->file);
-		}
-	}
+			FSPPAPI_DoUnlink(f->file);
 	free(f);
 }
 static void VFSMEM_Flush(struct vfsfile_s *file)
@@ -243,7 +262,7 @@ vfsfile_t *FSPPAPI_OpenTemp(void)
 	f = malloc(sizeof(*f));
 	if (!f)
 		return NULL;
-	
+
 	strcpy(f->name, "some temp file");
 	f->refs = 0;
 	f->unlinked = true;
@@ -272,12 +291,46 @@ vfsfile_t *FSPPAPI_OpenTemp(void)
 	return &r->funcs;
 }
 
+qboolean Sys_remove (char *path)
+{
+	mfile_t *f;
+	for (f = mfiles; f; f = f->next)
+	{
+		if (!strcmp(f->name, path))
+		{
+			if (!f->refs)
+				FSPPAPI_DoUnlink(f);
+			else
+				f->unlinked = true;	//can't delete it yet, but we can orphan it so we can kill it later.
+			return true;
+		}
+	}
+	return false;
+}
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	mfile_t *f;
+	for (f = mfiles; f; f = f->next)
+	{
+		if (!strcmp(f->name, oldfname))
+		{
+			Q_strncpyz(f->name, newfname, sizeof(f->name));
+			return true;
+		}
+	}
+	return false;
+}
+//no concept of directories.
+void Sys_mkdir (char *path)
+{
+}
+
 vfsfile_t *VFSPPAPI_Open(const char *osname, const char *mode)
 {
 	mfile_t *f;
 	vfsmfile_t *r;
 
-	if (strlen(osname) >= sizeof(f->name))
+	if (strlen(osname) >= sizeof(f->name))	//yay strcpy!
 		return NULL;
 
 	for (f = mfiles; f; f = f->next)
@@ -325,27 +378,24 @@ vfsfile_t *VFSPPAPI_Open(const char *osname, const char *mode)
 	return &r->funcs;
 }
 
-static vfsfile_t *FSPPAPI_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *FSPPAPI_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
+	pppath_t *sp = (void*)handle;
 	char diskname[MAX_OSPATH];
 
 	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
 
-	snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
+	snprintf(diskname, sizeof(diskname), "%s/%s", sp->rootpath, loc->rawname);
 
 	return VFSPPAPI_Open(diskname, mode);
 }
 
-static void FSPPAPI_GetDisplayPath(void *handle, char *outpath, unsigned int pathsize)
-{
-	Q_strncpyz(outpath, (char*)handle, pathsize);
-}
-static void FSPPAPI_ClosePath(void *handle)
+static void FSPPAPI_ClosePath(searchpathfuncs_t *handle)
 {
 	Z_Free(handle);
 }
 
-int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	int rootlen = strlen(rootpath);
 	char *sub;
@@ -368,57 +418,36 @@ int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(con
 	}
 	return true;
 }
-static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
+static int FSPPAPI_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm)
 {
-	return Sys_EnumerateFiles((char*)handle, match, func, parm, spath);
+	pppath_t *sp = (void*)handle;
+	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);
 }
 
-static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data, void *handle)
+static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data, searchpathfuncs_t *handle)
 {
+	pppath_t *sp = (void*)handle;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles((char*)data, childpath, FSPPAPI_RebuildFSHash, data, handle);
+		Sys_EnumerateFiles(sp->rootpath, childpath, FSPPAPI_RebuildFSHash, data, handle);
 		return true;
 	}
 	AddFileHash(0, filename, NULL, handle);
 	return true;
 }
-static void FSPPAPI_BuildHash(void *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+static void FSPPAPI_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
-	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, AddFileHash, handle);
+	pppath_t *sp = (void*)handle;
+	Sys_EnumerateFiles(sp->rootpath, "*", FSPPAPI_RebuildFSHash, AddFileHash, handle);
 }
 
-/*
-void debugfs(void)
+static qboolean FSPPAPI_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
-	static qboolean firstrun = true;
-	int len;
-	FILE *f;
-	vfsfile_t *v;
-	char *buf;
-	if (!firstrun)
-		return;
-	firstrun = false;
-	f = fopen("C:/Games/Quake/fte_trunk/pub/id1/pak0.pak", "rb");
-	fseek(f, 0, SEEK_END);
-	len = ftell(f);
-	fseek(f, 0, SEEK_SET);
-	buf = malloc(len);
-	fread(buf, 1, len, f);
-	fclose(f);
-	v = VFSPPAPI_Open("C:\\Games\\Quake/id1/pak0.pak", "wb");
-	VFS_WRITE(v, buf, len);
-	free(buf);
-	VFS_CLOSE(v);
-}
-*/
-
-static qboolean FSPPAPI_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
-{
+	pppath_t *sp = (void*)handle;
 	int len;
 	char netpath[MAX_OSPATH];
 
@@ -434,7 +463,7 @@ static qboolean FSPPAPI_FLocate(void *handle, flocation_t *loc, const char *file
 */
 
 // check a file in the directory tree
-	snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
+	snprintf (netpath, sizeof(netpath)-1, "%s/%s",sp->rootpath, filename);
 
 	{
 		vfsfile_t *f = VFSPPAPI_Open(netpath, "rb");
@@ -454,7 +483,7 @@ static qboolean FSPPAPI_FLocate(void *handle, flocation_t *loc, const char *file
 
 	return true;
 }
-static void FSPPAPI_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void FSPPAPI_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 	vfsfile_t *f;
 	size_t result;
@@ -471,33 +500,34 @@ static void FSPPAPI_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	VFS_CLOSE(f);
 }
 
-static void *FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *desc)
+searchpathfuncs_t *QDECL FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *desc)
 {
-	char *np;
+	pppath_t *np;
 	int dlen = strlen(desc);
 	if (mustbenull)
 		return NULL;
-	np = Z_Malloc(dlen+1);
+	np = Z_Malloc(sizeof(*np) + dlen);
 	if (np)
 	{
-		memcpy(np, desc, dlen+1);
+		np->depth = 0;
+		memcpy(np->rootpath, desc, dlen+1);
 	}
-	return np;
+
+	np->pub.fsver			= FSVER;
+	np->pub.ClosePath		= FSPPAPI_ClosePath;
+	np->pub.BuildHash		= FSPPAPI_BuildHash;
+	np->pub.FindFile		= FSPPAPI_FLocate;
+	np->pub.ReadFile		= FSPPAPI_ReadFile;
+	np->pub.EnumerateFiles	= FSPPAPI_EnumerateFiles;
+	np->pub.OpenVFS			= FSPPAPI_OpenVFS;
+	//np->pub.PollChanges	= FSPPAPI_PollChanges;
+	return &np->pub;
 }
 
-searchpathfuncs_t osfilefuncs = {
-	FSPPAPI_GetDisplayPath,
-	FSPPAPI_ClosePath,
-	FSPPAPI_BuildHash,
-	FSPPAPI_FLocate,
-	FSPPAPI_ReadFile,
-	FSPPAPI_EnumerateFiles,
-	FSPPAPI_OpenPath,
-	NULL,
-	FSPPAPI_OpenVFS
-};
-
 #else
+
+this code is old and won't work.
+
 #define FSPPAPI_OpenTemp FS_OpenTemp
 #define VFSPPAPI_Open VFSOS_Open
 
@@ -672,11 +702,11 @@ static vfsfile_t *FSPPAPI_OpenVFS(void *handle, flocation_t *loc, const char *mo
 	return VFSPPAPI_Open(diskname, mode);
 }
 
-static void FSPPAPI_PrintPath(void *handle)
+static void FSPPAPI_PrintPath(searchpathfuncs_t *handle)
 {
 	Con_Printf("%s\n", (char*)handle);
 }
-static void FSPPAPI_ClosePath(void *handle)
+static void FSPPAPI_ClosePath(searchpathfuncs_t *handle)
 {
 	Z_Free(handle);
 }
@@ -705,11 +735,11 @@ static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data)
 		fs_hash_dups++;
 	return true;
 }
-static void FSPPAPI_BuildHash(void *handle)
+static void FSPPAPI_BuildHash(searchpathfuncs_t *handle)
 {
 	Sys_EnumerateFiles(handle, "*", FSPPAPI_RebuildFSHash, handle);
 }
-static qboolean FSPPAPI_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean FSPPAPI_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	int len;
 	char netpath[MAX_OSPATH];
@@ -749,7 +779,7 @@ static qboolean FSPPAPI_FLocate(void *handle, flocation_t *loc, const char *file
 
 	return true;
 }
-static void FSPPAPI_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void FSPPAPI_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 	vfsfile_t *f;
 	size_t result;
@@ -765,20 +795,33 @@ static void FSPPAPI_ReadFile(void *handle, flocation_t *loc, char *buffer)
 
 	VFS_CLOSE(f);
 }
-static int FSPPAPI_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int FSPPAPI_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	return Sys_EnumerateFiles(handle, match, func, parm);
 }
 
-searchpathfuncs_t osfilefuncs = {
-	FSPPAPI_PrintPath,
-	FSPPAPI_ClosePath,
-	FSPPAPI_BuildHash,
-	FSPPAPI_FLocate,
-	FSPPAPI_ReadFile,
-	FSPPAPI_EnumerateFiles,
-	NULL,
-	NULL,
-	FSPPAPI_OpenVFS
-};
+searchpathfuncs_t *QDECL FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *desc)
+{
+	stdiopath_t *np;
+	int dlen = strlen(desc);
+	if (mustbenull)
+		return NULL;
+	np = Z_Malloc(sizeof(*np) + dlen);
+	if (np)
+	{
+		np->depth = 0;
+		memcpy(np->rootpath, desc, dlen+1);
+	}
+
+	np->pub.fsver			= FSVER;
+	np->pub.ClosePath		= FSPPAPI_ClosePath;
+	np->pub.BuildHash		= FSPPAPI_BuildHash;
+	np->pub.FindFile		= FSPPAPI_FLocate;
+	np->pub.ReadFile		= FSPPAPI_ReadFile;
+	np->pub.EnumerateFiles	= FSPPAPI_EnumerateFiles;
+	np->pub.OpenVFS			= FSPPAPI_OpenVFS;
+	//np->pub.PollChanges	= FSPPAPI_PollChanges;
+	return &np->pub;
+}
+
 #endif

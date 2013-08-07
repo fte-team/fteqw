@@ -1613,6 +1613,16 @@ void Plug_Close(plugin_t *plug)
 	}
 
 	Con_Printf("Closing plugin %s\n", plug->name);
+
+	//ensure any active contexts provided by the plugin are closed (stuff with destroy callbacks)
+#if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
+	Media_UnregisterDecoder(plug, NULL);
+	Media_UnregisterEncoder(plug, NULL);
+#endif
+	FS_UnRegisterFileSystemModule(plug);
+
+	//tell the plugin that everything is closed and that it should free up any lingering memory/stuff
+	//it is still allowed to create/have open files.
 	if (plug->shutdown)
 	{
 		plugin_t *cp = currentplug;
@@ -1620,13 +1630,10 @@ void Plug_Close(plugin_t *plug)
 		VM_Call(plug->vm, plug->shutdown);
 		currentplug = cp;
 	}
-#if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
-	Media_UnregisterDecoder(plug, NULL);
-	Media_UnregisterEncoder(plug, NULL);
-#endif
-	FS_UnRegisterFileSystemModule(plug);
+
 	VM_Destroy(plug->vm);
 
+	//make sure anything else that was left is unlinked (stuff without destroy callbacks).
 	for (i = 0; i < pluginstreamarraylen; i++)
 	{
 		if (pluginstreamarray[i].plugin == plug)

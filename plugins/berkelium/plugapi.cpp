@@ -237,7 +237,8 @@ static void *Dec_DisplayFrame(void *vctx, qboolean nosound, enum uploadfmt_e *fm
 static void Dec_Destroy(void *vctx)
 {
 	decctx *ctx = (decctx*)vctx;
-	ctx->wnd->destroy();
+	if (inited)	//make sure things don't happen in the wrong order. we can still leak though
+		ctx->wnd->destroy();
 	delete ctx;
 }
 static void Dec_GetSize (void *vctx, int *width, int *height)
@@ -412,6 +413,7 @@ static qintptr_t Dec_Shutdown(qintptr_t *args)
 
 static media_decoder_funcs_t decoderfuncs =
 {
+	"berkelium",
 	Dec_Create,
 	Dec_DisplayFrame,
 	NULL,//doneframe
@@ -434,8 +436,8 @@ extern "C" qintptr_t Plug_Init(qintptr_t *args)
 	}
 	if (!Plug_Export("Shutdown", Dec_Shutdown))
 	{
-		Con_Printf("Berkelium plugin warning: Engine doesn't support Shutdown feature\n");
-//		return false;
+		Con_Printf("Berkelium plugin failed: Engine doesn't support Shutdown feature\n");
+		return false;
 	}
 	if (!Plug_ExportNative("Media_VideoDecoder", &decoderfuncs))
 	{

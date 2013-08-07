@@ -65,7 +65,9 @@ uniform sampler2D s_t1;	//lightmap0
 #if defined(BUMP) && (defined(OFFSETMAPPING) || defined(DELUXE) || defined(SPECULAR))
 uniform sampler2D s_t2;	//normal.rgb+height.a
 #endif
+#ifdef DELUXE
 uniform sampler2D s_t3;	//deluxe0
+#endif
 #ifdef FULLBRIGHT
 uniform sampler2D s_t4;	//fullbright
 #endif

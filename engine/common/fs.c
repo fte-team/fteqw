@@ -215,6 +215,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->formalname = Z_StrDup(oldm->formalname);
 	if (oldm->protocolname)
 		newm->protocolname = Z_StrDup(oldm->protocolname);
+	if (oldm->defaultexec)
+		newm->defaultexec = Z_StrDup(oldm->defaultexec);
 
 	for (i = 0; i < sizeof(newm->gamepath) / sizeof(newm->gamepath[0]); i++)
 	{
@@ -236,15 +238,18 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 
 void FS_Manifest_Print(ftemanifest_t *man)
 {
+	char buffer[1024];
 	int i, j;
 	if (man->updateurl)
-		Con_Printf("updateurl \"%s\"\n", man->updateurl);
+		Con_Printf("updateurl \"%s\"\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer)));
 	if (man->installation)
-		Con_Printf("game \"%s\"\n", man->installation);
+		Con_Printf("game \"%s\"\n", COM_QuotedString(man->installation, buffer, sizeof(buffer)));
 	if (man->formalname)
-		Con_Printf("name \"%s\"\n", man->formalname);
+		Con_Printf("name \"%s\"\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer)));
 	if (man->protocolname)
-		Con_Printf("protocolname \"%s\"\n", man->protocolname);
+		Con_Printf("protocolname \"%s\"\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer)));
+	if (man->defaultexec)
+		Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer)));
 
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 	{
@@ -321,6 +326,11 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 	{
 		Z_Free(man->protocolname);
 		man->protocolname = Z_StrDup(Cmd_Argv(1));
+	}
+	else if (!stricmp(fname, "defaultexec"))
+	{
+		Z_Free(man->defaultexec);
+		man->defaultexec = Z_StrDup(Cmd_Argv(1));
 	}
 	else if (!stricmp(fname, "basegame") || !stricmp(fname, "gamedir"))
 	{

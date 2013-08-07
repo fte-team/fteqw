@@ -10,6 +10,7 @@ typedef enum uploadfmt_e
 
 typedef struct
 {
+	char *drivername;
 	void *(QDECL *createdecoder)(char *name);	//needed
 	void *(QDECL *decodeframe)(void *ctx, qboolean nosound, uploadfmt_t *fmt, int *width, int *height);	//needed
 	void (QDECL *doneframe)(void *ctx, void *img);	//basically a free()
@@ -26,6 +27,7 @@ typedef struct
 
 typedef struct
 {
+	char *drivername;
 	void *(QDECL *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
 	void (QDECL *capture_video) (void *ctx, void *data, int frame, int width, int height);
 	void (QDECL *capture_audio) (void *ctx, void *data, int bytes);

@@ -479,6 +479,11 @@ void Cvar_Reset_f (void)
 	if (gsearch)
 		Q_strlwr(gsearch);
 
+	if (!strcmp(search, "*"))
+		search = NULL;
+	if (!strcmp(gsearch, "*"))
+		gsearch = NULL;
+
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	{
 		if (gsearch)
@@ -519,7 +524,7 @@ void Cvar_Reset_f (void)
 				}
 			}
 
-			if ((cmd->flags & CVAR_NOSET) && !strcmp(search, "*"))
+			if ((cmd->flags & CVAR_NOSET) && !search)
 				continue;
 			// reset cvar to default
 			Cvar_Set(cmd, cmd->defaultstr);

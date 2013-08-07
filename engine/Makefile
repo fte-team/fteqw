@@ -1118,20 +1118,24 @@ ifeq ($(FTE_TARGET),droid)
 endif
 
 ifeq ($(FTE_TARGET),web)
+	COMMON_OBJS+=sys_web.o fs_web.o
 	WEB_PREJS ?= --pre-js web/prejs.js
 #	WEB_MEMORY?=402653184	#384mb
 	ASMJS_MEMORY?=536870912	#512mb (required for asm.js)
+#	ASMJS_MEMORY?=268435456	#256mb (required for asm.js)
 	WEB_MEMORY?=$(ASMJS_MEMORY)
+	JSLIBS=--js-library web/ftejslib.js --js-library web/library_sdl.js -s DISABLE_GL_EMULATION=1
+	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) --shell-file web/fteshell.html  -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	DEBUG_CFLAGS=-g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-#	RELEASE_LDFLAGS=-s ASM_JS=1 -O2	$(WEB_PREJS) -s TOTAL_MEMORY=$(ASMJS_MEMORY) --js-library web/ftejslib.js --shell-file web/fteshell.html
-	RELEASE_LDFLAGS=-O1	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY) --js-library web/ftejslib.js --shell-file web/fteshell.html
-	DEBUG_LDLAGS=-O0	$(WEB_PREJS) -s TOTAL_MEMORY=$(WEB_MEMORY) --js-library web/ftejslib.js
+	RELEASE_LDFLAGS=-s ASM_JS=1 -O1	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
+#	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
+	DEBUG_LDLAGS=-O0 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
 	CC=emcc
 	#BASELDFLAGS=
 
 	#mostly we inherit the sdl defaults. because we can, however emscripten does not support sdl cd code.
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_null.o sys_sdl.o in_sdl.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidweb.o cd_null.o
 	SDL_INCLUDES=
 
 	SV_DIR=sv_web
@@ -1200,7 +1204,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/libs/speex/libspeex
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/libs/speex/libspeex : $(BASE_DIR)/web
 
 ifneq ($(findstring -DSPEEX_STATIC, $(CFLAGS)),)
 	#add these to statically link libspeex

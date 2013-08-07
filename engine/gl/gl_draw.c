@@ -1271,6 +1271,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	}
 	else
 		GL_ResampleTexture (data, width, height, scaled, scaled_width, scaled_height);
+	if (scaled_width * scaled_height*4 > sizeofuploadmemorybufferintermediate)
+	{
+		sizeofuploadmemorybufferintermediate = scaled_width * scaled_height * 4;
+		uploadmemorybufferintermediate = BZ_Realloc(uploadmemorybufferintermediate, sizeofuploadmemorybufferintermediate);
+	}
 
 	if (scaled_width*scaled_height*4 > sizeofuploadmemorybufferintermediate)
 	{

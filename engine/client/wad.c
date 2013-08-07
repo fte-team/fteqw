@@ -254,7 +254,7 @@ static texwadlump_t texwadlump[TEXWAD_MAXIMAGES];
 
 typedef struct wadfile_s {
 	char name[64];
-	FILE *file;
+	vfsfile_t *file;
 	struct wadfile_s *next;
 } wadfile_t;
 
@@ -265,7 +265,7 @@ void Wads_Flush (void)
 	wadfile_t *wf;
 	while(openwadfiles)
 	{
-		fclose(openwadfiles->file);
+		VFS_CLOSE(openwadfiles->file);
 
 		wf = openwadfiles->next;
 		Z_Free(openwadfiles);

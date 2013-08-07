@@ -3796,7 +3796,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 	int			i;
 	size_t result;
 
-#ifndef NACL
+#if !defined(NACL) && !defined(FTE_TARGET_WEB)
 	FILE *f;
 
 	if (argv && argv[0])

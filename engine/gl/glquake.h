@@ -440,12 +440,12 @@ void R_NetGraph (void);
 #ifdef GL_STATIC
 //these are the functions that are valid in gles2.
 //other functions should never actually be used.
-#define qglActiveTexture glActiveTexture
+#define qglActiveTextureARB glActiveTexture
 #define qglAttachShader glAttachShader
 #define qglBindAttribLocation glBindAttribLocation
 #define qglBindBuffer glBindBuffer
 #define qglBindFramebuffer glBindFramebuffer
-#define qglBindRenderbuffer glBindRenderbuffer
+#define qglBindRenderbufferEXT glBindRenderbuffer
 #define qglBindTexture glBindTexture
 #define qglBlendColor glBlendColor
 #define qglBlendEquation glBlendEquation
@@ -454,7 +454,7 @@ void R_NetGraph (void);
 #define qglBlendFuncSeparate glBlendFuncSeparate
 #define qglBufferData glBufferData
 #define qglBufferSubData glBufferSubData
-#define qglCheckFramebufferStatus glCheckFramebufferStatus
+#define qglCheckFramebufferStatusEXT glCheckFramebufferStatus
 #define qglClear glClear
 #define qglClearColor glClearColor
 #define qglClearDepthf glClearDepthf
@@ -486,13 +486,13 @@ void R_NetGraph (void);
 #define qglEnableVertexAttribArray glEnableVertexAttribArray
 #define qglFinish glFinish
 #define qglFlush glFlush
-#define qglFramebufferRenderbuffer glFramebufferRenderbuffer
+#define qglFramebufferRenderbufferEXT glFramebufferRenderbuffer
 #define qglFramebufferTexture2D glFramebufferTexture2D
 #define qglFrontFace glFrontFace
 #define qglGenBuffers glGenBuffers
 #define qglGenerateMipmap glGenerateMipmap
 #define qglGenFramebuffers glGenFramebuffers
-#define qglGenRenderbuffers glGenRenderbuffers
+#define qglGenRenderbuffersEXT glGenRenderbuffers
 #define qglGenTextures glGenTextures
 #define qglGetActiveAttrib glGetActiveAttrib
 #define qglGetActiveUniform glGetActiveUniform
@@ -534,7 +534,7 @@ void R_NetGraph (void);
 #define qglPolygonOffset glPolygonOffset
 #define qglReadPixels glReadPixels
 #define qglReleaseShaderCompiler glReleaseShaderCompiler
-#define qglRenderbufferStorage glRenderbufferStorage
+#define qglRenderbufferStorageEXT glRenderbufferStorage
 #define qglSampleCoverage glSampleCoverage
 #define qglScissor glScissor
 #define qglShaderBinary glShaderBinary
@@ -615,6 +615,14 @@ void R_NetGraph (void);
 #define qglUniform2fvARB		glUniform2fv
 #define qglUniform1iARB			glUniform1i
 #define qglUniform1fARB			glUniform1f
+
+#define qglGenBuffersARB		glGenBuffers
+#define qglDeleteBuffersARB		glDeleteBuffers
+#define qglBindBufferARB		glBindBuffer
+#define qglBufferDataARB		glBufferData
+#define qglBufferSubDataARB		glBufferSubData
+#define qglMapBufferARB			glMapBuffer
+#define qglUnmapBufferARB		glUnmapBuffer
 
 #else
 extern void (APIENTRY *qglBindTexture) (GLenum target, GLuint texture);
@@ -707,6 +715,14 @@ extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
 extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
+
+extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
+extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
+extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
+extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
 #endif
 
@@ -1044,14 +1060,6 @@ extern void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 extern void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
 extern void (APIENTRY *qglEnableClientState) (GLenum array);
 extern void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
-
-extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
-extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
-extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
-extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
-extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
 extern void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
 extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);

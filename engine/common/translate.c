@@ -563,6 +563,9 @@ void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the fir
 
 void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the first functions to be called.
 {
+#ifdef FTE_TARGET_WEB
+	return;
+#else
 	FILE *f;
 	int size;
 	char *buffer;
@@ -585,6 +588,7 @@ void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the
 
 	TL_ParseLanguage(name, buffer, num);
 	free(buffer);
+#endif
 }
 #ifdef _DEBUG
 #define CONVERTDEFAULT

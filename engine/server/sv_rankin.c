@@ -651,6 +651,9 @@ int Rank_Enumerate (unsigned int first, unsigned int last, void (*callback) (con
 
 void Rank_RankingList_f (void)
 {
+#if 1
+	Con_Printf("Fixme\n");
+#else
 	rankinfo_t ri;
 	int id;
 	int num;
@@ -680,6 +683,7 @@ void Rank_RankingList_f (void)
 	}
 
 	fclose(outfile);
+#endif
 }
 
 void Rank_Remove_f (void)

@@ -1106,6 +1106,9 @@ static int PDECL qclib_null_printf(const char *s, ...)
 {
 	return 0;
 }
+#ifdef FTE_TARGET_WEB
+#define printf NULL	//should be some null wrapper instead
+#endif
 
 //defs incase following structure is not passed.
 struct edict_s *safesv_edicts;

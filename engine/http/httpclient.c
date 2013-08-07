@@ -17,72 +17,6 @@
 #include <emscripten/emscripten.h>
 #endif
 
-typedef struct 
-{
-	vfsfile_t funcs;
-	unsigned long offset;
-	unsigned long length;
-	char data[];
-} mfile_t;
-static int VFSMEM_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
-{
-	mfile_t *f = (mfile_t*)file;
-	if (f->offset >= f->length)
-		return -1;	//eof!
-	if (bytestoread > f->length - f->offset)
-		bytestoread = f->length - f->offset;	//eof!
-	memcpy(buffer, &f->data[f->offset], bytestoread);
-	f->offset += bytestoread;
-	return bytestoread;
-}
-static int VFSMEM_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
-{
-	return 0;
-}
-static qboolean VFSMEM_Seek (struct vfsfile_s *file, unsigned long pos)
-{
-	mfile_t *f = (mfile_t*)file;
-	f->offset = pos;
-	return true;
-}
-static unsigned long VFSMEM_Tell (struct vfsfile_s *file)
-{
-	mfile_t *f = (mfile_t*)file;
-	return f->offset;
-}
-static unsigned long VFSMEM_GetSize (struct vfsfile_s *file)
-{
-	mfile_t *f = (mfile_t*)file;
-	return f->length;
-}
-static void VFSMEM_Close(vfsfile_t *file)
-{
-	free(file);
-}
-static void VFSMEM_Flush(struct vfsfile_s *file)
-{
-}
-static vfsfile_t *VFSMEM_File(void *data, unsigned int datasize)
-{
-   /*create a file which is already unlinked*/
-	mfile_t *f;
-	f = malloc(sizeof(*f) + datasize);
-	if (!f)
-		return NULL;
-	f->funcs.ReadBytes = VFSMEM_ReadBytes;
-	f->funcs.WriteBytes = VFSMEM_WriteBytes;
-	f->funcs.Seek = VFSMEM_Seek;
-	f->funcs.Tell = VFSMEM_Tell;
-	f->funcs.GetLen = VFSMEM_GetSize;
-	f->funcs.Close = VFSMEM_Close;
-	f->funcs.Flush = VFSMEM_Flush;
-	f->offset = 0;
-	f->length = datasize;
-	memcpy(f->data, data, datasize);
-
-	return &f->funcs;
-}
-
 static void DL_Abort(struct dl_download *dl)
 {
 	dl->ctx = NULL;
@@ -102,20 +36,23 @@ static void DL_OnLoad(void *c, void *data, int datasize)
 		else
 		{
 			//emscripten does not close the file. plus we seem to end up with infinite loops.
-			dl->file = VFSMEM_File(data, datasize);
+			dl->file = FS_OpenTemp();
 		}
 	}
 
 	if (dl->file)
 	{
 		VFS_WRITE(dl->file, data, datasize);
+		VFS_SEEK(dl->file, 0);
+		dl->status = DL_FINISHED;
 	}
+	else
+		dl->status = DL_FAILED;
 
 	dl->replycode = 200;
 #if !MYJS
 	dl->completed += datasize;
 #endif
-	dl->status = DL_FINISHED;
 }
 #if MYJS
 static void DL_OnError(void *c, int ecode)
@@ -124,13 +61,13 @@ static void DL_OnError(void *c)
 #endif
 {
 	struct dl_download *dl = c;
-	Con_Printf("download %p: error\n", dl);
 
 #if MYJS
 	dl->replycode = ecode;
 #else
 	dl->replycode = 404;	//we don't actually know. should we not do this?
 #endif
+	Con_Printf("download %p: error %i\n", dl, dl->replycode);
 	dl->status = DL_FAILED;
 }
 static void DL_OnProgress(void *c, int position, int totalsize)

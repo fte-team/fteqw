@@ -2,7 +2,7 @@
 #include "fs.h"
 #include "errno.h"
 
-#ifndef NACL
+#if !defined(NACL) && !defined(FTE_TARGET_WEB)
 
 #ifdef WEBSVONLY
 #define Z_Free free

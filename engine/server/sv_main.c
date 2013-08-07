@@ -1686,11 +1686,13 @@ void SV_AcceptMessage(int protocol)
 #include <sys/stat.h>
 static void SV_CheckRecentCrashes(client_t *tellclient)
 {
+#ifndef FTE_TARGET_WEB
 	struct stat sb;
 	if (-1 != stat("crash.log", &sb))
 	{
 		SV_ClientPrintf(tellclient, PRINT_HIGH, "\1WARNING: crash.log exists, dated %s\n", ctime(&sb.st_mtime));
 	}
+#endif
 }
 #else
 static void SV_CheckRecentCrashes(client_t *tellclient)

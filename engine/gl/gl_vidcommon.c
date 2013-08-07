@@ -158,6 +158,7 @@ void (APIENTRY *qglFogf) (GLenum pname, GLfloat param);
 void (APIENTRY *qglFogi) (GLenum pname, GLint param);
 void (APIENTRY *qglFogfv) (GLenum pname, const GLfloat *params);
 
+#ifndef GL_STATIC
 void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
@@ -165,6 +166,7 @@ void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data,
 void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
 void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+#endif
 
 void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
 void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
@@ -172,11 +174,13 @@ void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 void (APIENTRY * qglGetPointerv) (GLenum pname, GLvoid **parms);
 
+#ifndef GL_STATIC
 void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
 void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
+#endif
 
 void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 /*
@@ -191,7 +195,9 @@ FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
 //extensions
 //arb multitexture
+#ifndef qglActiveTextureARB
 qlpSelTexFUNC qglActiveTextureARB;
+#endif
 qlpSelTexFUNC qglClientActiveTextureARB;
 qlpMTex3FUNC	qglMultiTexCoord3fARB;
 qlpMTex2FUNC	qglMultiTexCoord2fARB;
@@ -521,7 +527,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//multitexture
 	gl_mtexable = false;
 	gl_mtexarbable = 0;
+#ifndef qglActiveTextureARB
 	qglActiveTextureARB = NULL;
+#endif
 	qglMultiTexCoord2fARB = NULL;
 	qglMultiTexCoord3fARB = NULL;
 	qglMTexCoord2fSGIS = NULL;
@@ -587,7 +595,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (gl_config.gles)
 	{
+#ifndef qglActiveTextureARB
 		qglActiveTextureARB = (void *) getglext("glActiveTexture");
+#endif
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");
 		qglSelectTextureSGIS = qglActiveTextureARB;
 		mtexid0 = GL_TEXTURE0_ARB;
@@ -598,7 +608,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 	else if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
+#ifndef qglActiveTextureARB
 		qglActiveTextureARB = (void *) getglext("glActiveTextureARB");
+#endif
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTextureARB");
 		qglMultiTexCoord2fARB = (void *) getglext("glMultiTexCoord2fARB");
 		qglMultiTexCoord3fARB = (void *) getglext("glMultiTexCoord3fARB");
@@ -611,6 +623,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		mtexid0 = GL_TEXTURE0_ARB;
 
+#ifndef qglActiveTextureARB
 		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB)
 		{
 			qglActiveTextureARB = NULL;
@@ -625,7 +638,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		{
 			Con_DPrintf("ARB Multitexture extensions found. Use -noamtex to disable.\n");
 		}
-
+#endif
 	}
 	/*
 	else if (GL_CheckExtension("GL_SGIS_multitexture") && !COM_CheckParm("-nomtex"))
@@ -712,6 +725,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
+#if !defined(GL_STATIC)
 	/*vbos*/
 	if (gl_config.gles && gl_config.glversion >= 2)
 	{
@@ -733,6 +747,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglMapBufferARB = (void *)getglext("glMapBufferARB");
 		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
+#endif
 
 #ifdef GL_STATIC
 	gl_config.arb_shader_objects = true;
@@ -1608,11 +1623,13 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglEndList		= (void*)getglcore("glEndList");
 	qglCallList		= (void*)getglcore("glCallList");
 
+#ifndef GL_STATIC
 	qglBindBufferARB		= (void *)getglext("glBindBufferARB");
 	if (!qglBindBufferARB)
 		qglBindBufferARB	= (void *)getglext("glBindBuffer");
 	if (!qglBindBufferARB)
 		qglBindBufferARB	= GL_BindBufferARBStub;
+#endif
 
 	gl_vendor = qglGetString (GL_VENDOR);
 	Con_SafePrintf ("GL_VENDOR: %s\n", gl_vendor);

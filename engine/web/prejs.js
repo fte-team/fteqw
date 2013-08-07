@@ -1,6 +1,6 @@
 Module['preRun'] = function()
 {
-	FS.createPath('/', 'id1', true, true);
+	//FS.createPath('/', 'id1', true, true);
 	//FS.createPath('/', 'qw', true, true);
 	//FS.createPath('/', 'fte', true, true);
 

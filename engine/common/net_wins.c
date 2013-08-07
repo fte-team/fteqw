@@ -4066,11 +4066,7 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 #endif
 
 #ifdef FTE_TARGET_WEB
-int emscriptenfte_ws_connect(char *url);
-int emscriptenfte_ws_close(int sock);
-int emscriptenfte_ws_cansend(int sock, int extra, int maxpending);
-int emscriptenfte_ws_send(int sock, void *data, int len);
-int emscriptenfte_ws_recv(int sock, void *data, int len);
+#include "web/ftejslib.h"
 
 typedef struct
 {

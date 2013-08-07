@@ -1124,7 +1124,7 @@ ifeq ($(FTE_TARGET),web)
 	ASMJS_MEMORY?=536870912	#512mb (required for asm.js)
 #	ASMJS_MEMORY?=268435456	#256mb (required for asm.js)
 	WEB_MEMORY?=$(ASMJS_MEMORY)
-	JSLIBS=--js-library web/ftejslib.js --js-library web/library_sdl.js -s DISABLE_GL_EMULATION=1
+	JSLIBS=--js-library web/ftejslib.js -s DISABLE_GL_EMULATION=1
 	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) --shell-file web/fteshell.html  -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	DEBUG_CFLAGS=-g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB

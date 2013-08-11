@@ -1,4 +1,5 @@
 void GoToDefinition(char *name);
+int Grep(char *filename, char *string);
 void EditFile(char *name, int line);
 
 void GUI_SetDefaultOpts(void);

@@ -149,6 +149,7 @@ int GUIprintf(const char *msg, ...);
 void GUIPrint(HWND wnd, char *msg);
 
 char finddef[256];
+char greptext[256];
 
 void RunCompiler(char *args);
 
@@ -163,10 +164,13 @@ HWND mdibox;
 HWND outputwindow;
 HWND outputbox;
 HWND projecttree;
-HWND gotodefbox;
-HWND gotodefaccept;
+HWND search_name;
+HWND search_gotodef;
+HWND search_grep;
 
 FILE *logfile;
+
+void GrepAllFiles(char *string);
 
 struct{
 	char *text;
@@ -270,6 +274,7 @@ HWND CreateAnEditControl(HWND parent)
 enum {
 	IDM_OPENDOCU=32,
 	IDM_OPENNEW,
+	IDM_GREP,
 	IDM_GOTODEF,
 	IDM_SAVE,
 	IDM_FIND,
@@ -383,6 +388,21 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 		break;
 	case IDM_SAVE:
 		EditorSave(editor);
+		break;
+	case IDM_GREP:
+		{
+			char buffer[1024];
+			int total;
+			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
+			buffer[total]='\0';
+			if (!total)
+			{
+				MessageBox(NULL, "There is no search text specified.", "Whoops", 0);
+				break;
+			}
+			else
+				GrepAllFiles(buffer);
+		}
 		break;
 	case IDM_GOTODEF:
 		{
@@ -1817,15 +1837,19 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 
 			if (projecttree)
 			{
-				gotodefbox = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", (LPCTSTR) NULL,
+				search_name = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", (LPCTSTR) NULL,
 						WS_CHILD | WS_CLIPCHILDREN,
 						0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) NULL);
-				ShowWindow(gotodefbox, SW_SHOW);
+				ShowWindow(search_name, SW_SHOW);
 
-				gotodefaccept = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Def",
+				search_gotodef = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Def",
 						WS_CHILD | WS_CLIPCHILDREN | BS_DEFPUSHBUTTON,
 						0, 0, 320, 200, hWnd, (HMENU) 0x4404, ghInstance, (LPSTR) NULL);
-				ShowWindow(gotodefaccept, SW_SHOW);
+				ShowWindow(search_gotodef, SW_SHOW);
+				search_grep = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Grep",
+						WS_CHILD | WS_CLIPCHILDREN | BS_DEFPUSHBUTTON,
+						0, 0, 320, 200, hWnd, (HMENU) 0x4405, ghInstance, (LPSTR) NULL);
+				ShowWindow(search_grep, SW_SHOW);
 			}
 		}
 		break;
@@ -1839,10 +1863,11 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 		GetClientRect(mainwindow, &rect);
 		if (projecttree)
 		{
-			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 34 - 24, 0);
+			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 34 - 48, 0);
 
-			SetWindowPos(gotodefbox, NULL, 0, rect.bottom-rect.top - 33 - 24, 160, 24, 0);
-			SetWindowPos(gotodefaccept, NULL, 160, rect.bottom-rect.top - 33 - 24, 32, 24, 0);
+			SetWindowPos(search_name, NULL, 0, rect.bottom-rect.top - 33 - 48, 192, 24, 0);
+			SetWindowPos(search_gotodef, NULL, 0, rect.bottom-rect.top - 33 - 24, 192/2, 24, 0);
+			SetWindowPos(search_grep, NULL, 192/2, rect.bottom-rect.top - 33 - 24, 192/2, 24, 0);
 			SetWindowPos(mdibox?mdibox:outputbox, NULL, 192, 0, rect.right-rect.left-192, rect.bottom-rect.top - 32, 0);
 		}
 		else
@@ -1863,7 +1888,12 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 	case WM_COMMAND:
 		if (wParam == 0x4404)
 		{
-			GetWindowText(gotodefbox, finddef, sizeof(finddef)-1);
+			GetWindowText(search_name, finddef, sizeof(finddef)-1);
+			return true;
+		}
+		if (wParam == 0x4405)
+		{
+			GetWindowText(search_name, greptext, sizeof(greptext)-1);
 			return true;
 		}
 		if (LOWORD(wParam)>0 && LOWORD(wParam) <= NUMBUTTONS)
@@ -2244,15 +2274,123 @@ void CreateOutputWindow(void)
 	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)outputwindow, 0);
 }
 
+
+int GrepSubFiles(HTREEITEM node, char *string)
+{
+	HTREEITEM ch, p;
+	char fullname[1024];
+	char parentstring[256], *sl;
+	int pl, nl;
+	TV_ITEM parent;
+	int found = 0;
+
+	if (!node)
+		return found;
+
+	memset(&parent, 0, sizeof(parent));
+	*fullname = 0;
+	p = node;
+	while (p)
+	{
+		parent.hItem = p;
+		parent.mask = TVIF_TEXT;
+		parent.pszText = parentstring;
+		parent.cchTextMax = sizeof(parentstring)-1;
+		if (!TreeView_GetItem(projecttree, &parent))
+			break;
+		nl = strlen(fullname);
+		pl = strlen(parent.pszText);
+		if (nl + 1 + pl + 1 > sizeof(fullname))
+			return found;
+		memmove(fullname+pl+1, fullname, nl+1);
+		memcpy(fullname, parent.pszText, pl);
+		fullname[pl] = nl?'/':'\0';
+		p = TreeView_GetParent(projecttree, p);
+	}
+	//skip the leading progs.src/ if its there, because that's an abstraction and does not match the filesystem.
+	sl = strchr(fullname, '/');
+	found += Grep(sl?sl+1:fullname, string);
+
+	ch = TreeView_GetChild(projecttree, node);
+	found += GrepSubFiles(ch, string);
+
+	ch = TreeView_GetNextSibling(projecttree, node);
+	found += GrepSubFiles(ch, string);
+
+	return found;
+}
+void GrepAllFiles(char *string)
+{
+	int found;
+	CreateOutputWindow();
+	GUIprintf("");
+	found = GrepSubFiles(TreeView_GetChild(projecttree, TVI_ROOT), string);
+	if (found)
+		GUIprintf("grep found %i occurences\n", found);
+	else
+		GUIprintf("grep found nothing\n");
+}
+void AddSourceFile(char *format, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	HANDLE pi;
+	TVINSERTSTRUCT item;
+	TV_ITEM parent;
+	char parentstring[256];
+	char *slash;
+
+	va_start (argptr, format);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
+	va_end (argptr);
+
+
+	memset(&item, 0, sizeof(item));
+	memset(&parent, 0, sizeof(parent));
+
+	pi = item.hParent = TVI_ROOT;
+	item.hInsertAfter = TVI_SORT;
+	item.item.pszText = string;
+	item.item.state = TVIS_EXPANDED;
+	item.item.stateMask = TVIS_EXPANDED;
+	item.item.mask = TVIF_TEXT|TVIF_STATE;
+	while(slash = strchr(item.item.pszText, '/'))
+	{
+		*slash = '\0';
+		item.hParent = TreeView_GetChild(projecttree, item.hParent);
+		do
+		{
+			parent.hItem = item.hParent;
+			parent.mask = TVIF_TEXT;
+			parent.pszText = parentstring;
+			parent.cchTextMax = sizeof(parentstring)-1;
+			if (TreeView_GetItem(projecttree, &parent))
+			{
+				if (!stricmp(parent.pszText, item.item.pszText))
+					break;
+			}
+		} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
+		if (!item.hParent)
+		{	//add a directory.
+			item.hParent = pi;
+			pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+			item.hParent = pi;
+		}
+		else pi = item.hParent;
+
+		item.item.pszText = slash+1;
+	}
+	SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+}
+
 //progssrcname should already have been set.
 void SetProgsSrc(void)
 {
 	FILE *f;
 
-	HANDLE rootitem, pi;
 	TVINSERTSTRUCT item;
 	TV_ITEM parent;
-	char parentstring[256];
 	memset(&item, 0, sizeof(item));
 	memset(&parent, 0, sizeof(parent));
 
@@ -2260,7 +2398,6 @@ void SetProgsSrc(void)
 	{
 		int size;
 		char *buffer;
-		char *slash;
 
 		f = fopen (progssrcname, "rb");
 		if (!f)
@@ -2286,47 +2423,12 @@ void SetProgsSrc(void)
 		}
 
 		pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
-
-
-		item.hParent = TVI_ROOT;
-		item.hInsertAfter = TVI_SORT;
-		item.item.pszText = progssrcname;
-		item.item.mask = TVIF_TEXT;
-		rootitem = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
+		AddSourceFile("%s", progssrcname);
 		while(pr_file_p)
 		{
-			pi = item.hParent = rootitem;
-			item.item.pszText = qcc_token;
-			while(slash = strchr(item.item.pszText, '/'))
-			{
-				*slash = '\0';
-				item.hParent = TreeView_GetChild(projecttree, item.hParent);
-				do
-				{
-					parent.hItem = item.hParent;
-					parent.mask = TVIF_TEXT;
-					parent.pszText = parentstring;
-					parent.cchTextMax = sizeof(parentstring)-1;
-					if (TreeView_GetItem(projecttree, &parent))
-					{
-						if (!stricmp(parent.pszText, item.item.pszText))
-							break;
-					}
-				} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
-				if (!item.hParent)
-				{	//add a directory.
-					item.hParent = pi;
-					pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
-					item.hParent = pi;
-				}
-				else pi = item.hParent;
-
-				item.item.pszText = slash+1;
-			}
-			SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
-			pr_file_p = QCC_COM_Parse(pr_file_p);
+			AddSourceFile("%s/%s", progssrcname, qcc_token);
+			pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
 		}
-
 		free(buffer);
 	}
 }
@@ -2612,6 +2714,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{
 			GoToDefinition(finddef);
 			*finddef = '\0';
+		}
+		if (*greptext)
+		{
+			GrepAllFiles(greptext);
+			*greptext = '\0';
 		}
 
 		Sleep(10);

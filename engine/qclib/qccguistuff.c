@@ -15,6 +15,48 @@ char progssrcname[256];
 char progssrcdir[256];
 
 int qccpersisthunk = 1;
+int Grep(char *filename, char *string)
+{
+	int foundcount = 0;
+	char *last, *found, *linestart;
+	int line = 1;
+	int sz;
+	char *buf;
+	if (!filename)
+		return foundcount;
+	sz = QCC_FileSize(filename);
+	if (sz <= 0)
+		return foundcount;
+	buf = malloc(sz+1);
+	buf[sz] = 0;
+	QCC_ReadFile(filename, buf, sz);
+
+	linestart = last = found = buf;
+	while ((found = strstr(found, string)))
+	{
+		while (last < found)
+		{
+			if (*last++ == '\n')
+			{
+				line++;
+				linestart = last;
+			}
+		}
+
+		while (*found && *found != '\n')
+			found++;
+		if (*found)
+			*found++ = '\0';
+
+		GUIprintf("%s:%i: %s\n", filename, line, linestart);
+		line++;
+		linestart = found;
+		foundcount++;
+	}
+	free(buf);
+
+	return foundcount;
+}
 void GoToDefinition(char *name)
 {
 	QCC_def_t *def;

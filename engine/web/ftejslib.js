@@ -332,7 +332,7 @@ console.log('deleted '+name);
 		var s = FTEH.h[sockid];
 		if (!s)
 			return -1;
-		s.s.send(HEAPU8.subarray(data, data+len).buffer);
+		s.ws.send(HEAPU8.subarray(data, data+len).buffer);
 		return len;
 	},
 	emscriptenfte_ws_recv : function(sockid, data, len)

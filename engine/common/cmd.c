@@ -162,8 +162,10 @@ bind g "impulse 5 ; +attack ; wait ; -attack ; impulse 2"
 */
 void Cmd_Wait_f (void)
 {
+#ifndef CLIENTONLY
 	if (cmd_didwait && sv.state)
 		Con_DPrintf("waits without server frames\n");
+#endif
 	cmd_didwait = true;
 	cmd_text[Cmd_ExecLevel].waitattime = realtime;
 }

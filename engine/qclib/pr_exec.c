@@ -38,6 +38,7 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 
 	switch(current_progstate->structtype)
 	{
+	default:
 	case PST_DEFAULT:
 	case PST_QTEST:
 		op = ((dstatement16_t*)current_progstate->statements + statementnum)->op;

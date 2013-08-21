@@ -5514,7 +5514,9 @@ qboolean QDECL ICE_Set(struct icestate_s *con, char *prop, char *value)
 		int codec = atoi(prop+5);
 		if (codec < 96 || codec > 127)
 			return false;
+#if !defined(SERVERONLY) && defined(VOICECHAT)
 		if (!S_Voip_RTP_CodecOkay(value))
+#endif
 		{
 			Z_Free(con->codec[codec]);
 			con->codec[codec] = NULL;

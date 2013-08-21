@@ -3392,8 +3392,10 @@ void FS_ChangeGame_f(void)
 			}
 		}
 
+#ifndef SERVERONLY
 		if (!Host_RunFile(arg, strlen(arg), NULL))
 			Con_Printf("Game unknown\n");
+#endif
 	}
 }
 void FS_ShowManifest_f(void)

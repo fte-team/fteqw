@@ -590,7 +590,7 @@ void D3D11BE_Init(void)
 	if (FAILED(ID3D11Device_CreateBuffer(pD3DDev11, &bd, NULL, &shaderstate.vertexstream)))
 		return;
 
-	shaderstate.shader_rtlight = R_RegisterShader("rtlight", LIGHTPASS_SHADER);
+	shaderstate.shader_rtlight = R_RegisterShader("rtlight", SUF_NONE, LIGHTPASS_SHADER);
 
 	R_InitFlashblends();
 }

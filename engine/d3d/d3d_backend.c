@@ -614,7 +614,7 @@ void D3D9BE_Init(void)
 
 	D3D9BE_Reset(false);
 
-	shaderstate.shader_rtlight = R_RegisterShader("rtlight", LIGHTPASS_SHADER);
+	shaderstate.shader_rtlight = R_RegisterShader("rtlight", SUF_NONE, LIGHTPASS_SHADER);
 
 	R_InitFlashblends();
 }

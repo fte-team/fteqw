@@ -300,7 +300,7 @@ void VARGS SV_Error (char *error, ...)
 		{
 			int size = 1024*1024*8;
 			char *buffer = BZ_Malloc(size);
-			svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
+			svprogfuncs->save_ents(svprogfuncs, buffer, &size, size, 3);
 			COM_WriteFile("ssqccore.txt", buffer, size);
 			BZ_Free(buffer);
 		}

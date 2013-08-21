@@ -1231,6 +1231,18 @@ void NPP_NQWriteLong(int dest, long data)	//replacement write func (nq to qw)
 	NPP_NQWriteByte(dest, u.b[2]);
 	NPP_NQWriteByte(dest, u.b[3]);
 }
+void NPP_NQWriteFloat(int dest, float data)	//replacement write func (nq to qw)
+{
+	union {
+		qbyte b[4];
+		float f;
+	} u;
+	u.f = LittleFloat(data);
+	NPP_NQWriteByte(dest, u.b[0]);
+	NPP_NQWriteByte(dest, u.b[1]);
+	NPP_NQWriteByte(dest, u.b[2]);
+	NPP_NQWriteByte(dest, u.b[3]);
+}
 void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 {
 	char data = (int)(in*256/360) & 255;

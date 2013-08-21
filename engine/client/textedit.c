@@ -22,7 +22,7 @@ F11 will step through.
 #else
 #define editaddcr_default "0"
 #endif
-#ifdef ANDROID
+#if defined(ANDROID) || defined(SERVERONLY)
 #define debugger_default "0"
 #else
 #define debugger_default "1"
@@ -588,7 +588,7 @@ void Editor_Key(int key, int unicode)
 			"F2: Open file named on cursor line\n"
 			"F3: Toggle expression evaluator\n"
 			"F4: Save file\n"
-			"F5: Stop tracing (run)\n"
+			"F5: Stop tracing (resume)\n"
 			"F6: Print stack trace\n"
 			"F7: Save file and recompile\n"
 			"F8: Change current point of execution\n"

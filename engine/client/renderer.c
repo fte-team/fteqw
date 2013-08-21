@@ -963,7 +963,7 @@ void R_ShutdownRenderer(void)
 
 	RQ_Shutdown();
 
-	S_Shutdown();
+	S_Shutdown(false);
 }
 
 void R_GenPaletteLookup(void)

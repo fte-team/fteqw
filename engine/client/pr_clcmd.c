@@ -290,7 +290,7 @@ void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *
 {
 	char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(R_RegisterShader(shadername, 
+	cin = R_ShaderGetCinematic(R_RegisterShader(shadername, SUF_2D,
 				"{\n"
 					"{\n"
 						"videomap http:\n"
@@ -555,7 +555,7 @@ void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	shader_t *shad;
 
 	if (*defaultbody)
-		shad = R_RegisterShader(str, defaultbody);
+		shad = R_RegisterShader(str, SUF_NONE, defaultbody);
 	else
 		shad = R_RegisterSkin(str, NULL);
 	if (shad)

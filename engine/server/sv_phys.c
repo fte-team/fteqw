@@ -510,7 +510,7 @@ typedef struct
 	vec3_t	angles;
 //	float	deltayaw;
 } pushed_t;
-static pushed_t	pushed[MAX_EDICTS], *pushed_p;
+static pushed_t	pushed[1024], *pushed_p;
 
 /*
 ============
@@ -594,6 +594,8 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 
 		if ((pusher->v->movetype == MOVETYPE_PUSH) || (PROG_TO_WEDICT(w->progs, check->v->groundentity) == pusher))
 		{
+			if (pushed_p == (pushed+(sizeof(pushed)/sizeof(pushed[0]))))
+				continue;
 			// move this entity
 			pushed_p->ent = check;
 			VectorCopy (check->v->origin, pushed_p->origin);

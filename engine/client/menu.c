@@ -224,7 +224,7 @@ void M_ToggleMenu_f (void)
 		if (cls.state != ca_active)
 			M_Menu_Main_f();
 		else
-			Con_ToggleConsole_f ();
+			Con_ToggleConsole_Force ();
 	}
 	else
 	{

@@ -5054,7 +5054,8 @@ struct rtpheader_s
 	unsigned int ssrc;
 	unsigned int csrc[1];	//sized according to cc
 };
-void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data, unsigned int datalen);
+void S_Voip_RTP_Parse(unsigned short sequence, const char *codec, const unsigned char *data, unsigned int datalen);
+qboolean S_Voip_RTP_CodecOkay(char *codec);
 qboolean NET_RTP_Parse(void)
 {
 	struct rtpheader_s *rtpheader = (void*)net_message.data;
@@ -5099,7 +5100,7 @@ qboolean NET_RTP_Active(void)
 	}
 	return false;
 }
-qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, char *codec, char *cdata, int clength)
+qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const char *codec, char *cdata, int clength)
 {
 	sizebuf_t buf;
 	char pdata[512];
@@ -5513,8 +5514,12 @@ qboolean QDECL ICE_Set(struct icestate_s *con, char *prop, char *value)
 		int codec = atoi(prop+5);
 		if (codec < 96 || codec > 127)
 			return false;
-		if (strcmp(value, "speex@8000") && strcmp(value, "speex@16000"))// && strcmp(value, "opus"))
+		if (!S_Voip_RTP_CodecOkay(value))
+		{
+			Z_Free(con->codec[codec]);
+			con->codec[codec] = NULL;
 			return false;
+		}
 		codec -= 96;
 		Z_Free(con->codec[codec]);
 		con->codec[codec] = Z_StrDup(value);

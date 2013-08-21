@@ -430,7 +430,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{
 				int i, j;
 				unsigned translate32[256];
-				static unsigned	pixels[512*512];
+				static unsigned	pixels[512*512];	//FIXME: too big for stack, so lets just chuck it in the bss, yay! because that sounds like a good idea! not.
 				unsigned	*out;
 				unsigned	frac, fracstep;
 
@@ -1842,7 +1842,7 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 	{
 		shader = e->forcedshader;
 		if (!shader)
-			shader = R_RegisterShader("q2beam",
+			shader = R_RegisterShader("q2beam", SUF_NONE,
 				"{\n"
 					"{\n"
 						"map $whiteimage\n"

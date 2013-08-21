@@ -942,7 +942,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	}
 	VFS_PRINTF (f,"\n");
 
-	s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
+	s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 	VFS_PUTS(f, s);
 	VFS_PUTS(f, "\n");
 	svprogfuncs->parms->memfree(s);

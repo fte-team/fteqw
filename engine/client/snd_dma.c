@@ -228,6 +228,7 @@ enum
 	VOIP_OPUS		= 2,	//supposed to be better than speex.
 	VOIP_SPEEX_NARROW = 3,	//narrowband speex. packed data.
 	VOIP_SPEEX_WIDE = 4,	//wideband speex. packed data.
+	VOIP_SPEEX_ULTRAWIDE = 5,//wideband speex. packed data.
 
 	VOIP_INVALID = 16	//not currently generating audio.
 };
@@ -244,6 +245,7 @@ static struct
 
 		const SpeexMode *modenb;
 		const SpeexMode *modewb;
+		const SpeexMode *modeuwb;
 	} speex;
 
 	struct
@@ -443,6 +445,7 @@ static qboolean S_Speex_Init(void)
 
 	s_voip.speex.modenb = qspeex_lib_get_mode(SPEEX_MODEID_NB);
 	s_voip.speex.modewb = qspeex_lib_get_mode(SPEEX_MODEID_WB);
+	s_voip.speex.modeuwb = qspeex_lib_get_mode(SPEEX_MODEID_UWB);
 
 	s_voip.speex.loaded = true;
 	return s_voip.speex.loaded;
@@ -506,6 +509,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			case VOIP_SPEEX_OLD:
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
+			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_decoder_destroy(s_voip.decoder[sender]);
 				break;
 			case VOIP_RAW:
@@ -528,33 +532,46 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
-			if (!S_Speex_Init())
-				return;	//speex not usable.
-			if (codec == VOIP_SPEEX_NARROW)
+		case VOIP_SPEEX_ULTRAWIDE:
 			{
-				s_voip.decsamplerate[sender] = 8000;
-				s_voip.decframesize[sender] = 160;
-			}
-			else if (codec == VOIP_SPEEX_WIDE)
-			{
-				s_voip.decsamplerate[sender] = 16000;
-				s_voip.decframesize[sender] = 320;
-			}
-			else
-			{
-				s_voip.decsamplerate[sender] = 11025;
-				s_voip.decframesize[sender] = 160;
-			}
-			if (!s_voip.decoder[sender])
-			{
-				qspeex_bits_init(&s_voip.speex.decbits[sender]);
-				qspeex_bits_reset(&s_voip.speex.decbits[sender]);
-				s_voip.decoder[sender] = qspeex_decoder_init((codec==VOIP_SPEEX_WIDE)?s_voip.speex.modewb:s_voip.speex.modenb);
+				const SpeexMode *smode;
+				if (!S_Speex_Init())
+					return;	//speex not usable.
+				if (codec == VOIP_SPEEX_NARROW)
+				{
+					s_voip.decsamplerate[sender] = 8000;
+					s_voip.decframesize[sender] = 160;
+					smode = s_voip.speex.modenb;
+				}
+				else if (codec == VOIP_SPEEX_WIDE)
+				{
+					s_voip.decsamplerate[sender] = 16000;
+					s_voip.decframesize[sender] = 320;
+					smode = s_voip.speex.modewb;
+				}
+				else if (codec = VOIP_SPEEX_ULTRAWIDE)
+				{
+					s_voip.decsamplerate[sender] = 32000;
+					s_voip.decframesize[sender] = 640;
+					smode = s_voip.speex.modeuwb;
+				}
+				else
+				{
+					s_voip.decsamplerate[sender] = 11025;
+					s_voip.decframesize[sender] = 160;
+					smode = s_voip.speex.modenb;
+				}
 				if (!s_voip.decoder[sender])
-					return;
+				{
+					qspeex_bits_init(&s_voip.speex.decbits[sender]);
+					qspeex_bits_reset(&s_voip.speex.decbits[sender]);
+					s_voip.decoder[sender] = qspeex_decoder_init(smode);
+					if (!s_voip.decoder[sender])
+						return;
+				}
+				else
+					qspeex_bits_reset(&s_voip.speex.decbits[sender]);
 			}
-			else
-				qspeex_bits_reset(&s_voip.speex.decbits[sender]);
 			break;
 		case VOIP_OPUS:
 			if (!S_Opus_Init())
@@ -606,6 +623,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
+		case VOIP_SPEEX_ULTRAWIDE:
 			qspeex_decode_int(s_voip.decoder[sender], NULL, decodebuf + decodesamps);
 			decodesamps += s_voip.decframesize[sender];
 			break;
@@ -633,6 +651,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
+		case VOIP_SPEEX_ULTRAWIDE:
 			if (codec == VOIP_SPEEX_OLD)
 			{	//older versions support only this, and require this extra bit.
 				bytes--;
@@ -673,7 +692,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				decodesamps = 0;
 			}
 			r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
-			Con_Printf("Decoded %i frames from %i bytes\n", r, len);
+//			Con_Printf("Decoded %i frames from %i bytes\n", r, len);
 			if (r > 0)
 			{
 				decodesamps += r;
@@ -697,6 +716,20 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 }
 
 #ifdef SUPPORT_ICE
+qboolean S_Voip_RTP_CodecOkay(char *codec)
+{
+	if (!strcmp(codec, "speex@8000") || !strcmp(codec, "speex@11025") || !strcmp(codec, "speex@16000") || !strcmp(codec, "speex@32000"))
+	{
+		if (S_Speex_Init())
+			return true;
+	}
+	else if (!strcmp(codec, "opus"))
+	{
+		if (S_Opus_Init())
+			return true;
+	}
+	return false;
+}
 void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data, unsigned int datalen)
 {
 	if (!strcmp(codec, "speex@8000"))
@@ -705,8 +738,12 @@ void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data,
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_OLD, 0, sequence, datalen, data);	//very much non-standard rtp
 	if (!strcmp(codec, "speex@16000"))
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence, datalen, data);
+	if (!strcmp(codec, "speex@32000"))
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_ULTRAWIDE, 0, sequence, datalen, data);
+	if (!strcmp(codec, "opus"))
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_OPUS, 0, sequence, datalen, data);
 }
-qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, char *codec, char *cdata, int clength);
+qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const char *codec, char *cdata, int clength);
 qboolean NET_RTP_Active(void);
 #else
 #define NET_RTP_Active() false
@@ -754,8 +791,7 @@ static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
 		for (i = 0; i < framesize; i++)
 		{
 			f = start[i] * micamp;
-			start[i] = f;
-			f = fabs(start[i]);
+			start[i] = bound(-32768, f, 32767);	//clamp it carefully, so it doesn't go to crap when given far too high a mic amp
 			level += f*f;
 		}
 
@@ -795,7 +831,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		voipsendenable = true;
 		//if rtp streaming is enabled, hack the codec to something better supported
 		if (voipcodec == VOIP_SPEEX_OLD)
-			voipcodec = VOIP_SPEEX_NARROW;
+			voipcodec = VOIP_SPEEX_WIDE;
 	}
 
 
@@ -822,6 +858,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
+		case VOIP_SPEEX_ULTRAWIDE:
 			break;
 		case VOIP_OPUS:
 			qopus_encoder_destroy(s_voip.encoder);
@@ -859,26 +896,38 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
-			if (!S_Speex_Init())
+		case VOIP_SPEEX_ULTRAWIDE:
 			{
-				Con_Printf("Unable to use speex codec - not installed\n");
-				return;
-			}
+				const SpeexMode *smode;
+				if (!S_Speex_Init())
+				{
+					Con_Printf("Unable to use speex codec - not installed\n");
+					return;
+				}
 
-			qspeex_bits_init(&s_voip.speex.encbits);
-			qspeex_bits_reset(&s_voip.speex.encbits);
-			s_voip.encoder = qspeex_encoder_init((voipcodec == VOIP_SPEEX_WIDE)?s_voip.speex.modewb:s_voip.speex.modenb);
-			if (!s_voip.encoder)
-				return;
-			qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_FRAME_SIZE, &s_voip.encframesize);
-			qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_SAMPLING_RATE, &s_voip.encsamplerate);
-			if (voipcodec == VOIP_SPEEX_NARROW)
-				s_voip.encsamplerate = 8000;
-			else if (voipcodec == VOIP_SPEEX_WIDE)
-				s_voip.encsamplerate = 16000;
-			else
-				s_voip.encsamplerate = 11025;
-			qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
+				if (voipcodec == VOIP_SPEEX_ULTRAWIDE)
+					smode = s_voip.speex.modeuwb;
+				else if (voipcodec == VOIP_SPEEX_WIDE)
+					smode = s_voip.speex.modewb;
+				else
+					smode = s_voip.speex.modenb;
+				qspeex_bits_init(&s_voip.speex.encbits);
+				qspeex_bits_reset(&s_voip.speex.encbits);
+				s_voip.encoder = qspeex_encoder_init(smode);
+				if (!s_voip.encoder)
+					return;
+				qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_FRAME_SIZE, &s_voip.encframesize);
+				qspeex_encoder_ctl(s_voip.encoder, SPEEX_GET_SAMPLING_RATE, &s_voip.encsamplerate);
+				if (voipcodec == VOIP_SPEEX_NARROW)
+					s_voip.encsamplerate = 8000;
+				else if (voipcodec == VOIP_SPEEX_WIDE)
+					s_voip.encsamplerate = 16000;
+				else if (voipcodec == VOIP_SPEEX_ULTRAWIDE)
+					s_voip.encsamplerate = 32000;
+				else
+					s_voip.encsamplerate = 11025;
+				qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
+			}
 			break;
 		case VOIP_RAW:
 			s_voip.encsamplerate = 11025;
@@ -955,6 +1004,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			case VOIP_SPEEX_OLD:
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
+			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_bits_reset(&s_voip.speex.encbits);
 				break;
 			case VOIP_RAW:
@@ -1036,6 +1086,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			break;
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
+		case VOIP_SPEEX_ULTRAWIDE:
 			qspeex_bits_reset(&s_voip.speex.encbits);
 			for (; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; )
 			{
@@ -1089,10 +1140,10 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 					Con_Printf("invalid Opus frame size\n");
 					frames = 0;
 				}
-				Con_Printf("Encoding %i frames", frames);
+//				Con_Printf("Encoding %i frames", frames);
 				level += S_Voip_Preprocess(start, frames, micamp);
 				len = qopus_encode(s_voip.encoder, start, frames, outbuf+outpos, sizeof(outbuf) - outpos);
-				Con_Printf(" (%i bytes)\n", len);
+//				Con_Printf(" (%i bytes)\n", len);
 				if (len >= 0)
 				{
 					s_voip.encsequence += frames / s_voip.encframesize;
@@ -1162,6 +1213,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		{
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
+		case VOIP_SPEEX_ULTRAWIDE:
 		case VOIP_SPEEX_OLD:
 			NET_RTP_Transmit(initseq, inittimestamp, va("speex@%i", s_voip.encsamplerate), outbuf, outpos);
 			break;
@@ -1548,7 +1600,7 @@ void S_Startup (void)
 		return;
 
 	if (sound_started)
-		S_Shutdown();
+		S_Shutdown(false);
 
 	snd_blocked = 0;
 	snd_speed = 0;
@@ -1598,7 +1650,7 @@ void S_DoRestart (void)
 	int i;
 
 	S_StopAllSounds (true);
-	S_Shutdown();
+	S_Shutdown(false);
 
 	if (nosound.ival)
 		return;
@@ -1634,7 +1686,7 @@ void S_Control_f (void)
 
 		S_StopAllSounds (true);
 
-		S_Shutdown();
+		S_Shutdown(false);
 		sound_started = 0;
 	}
 
@@ -1825,7 +1877,7 @@ void S_ShutdownCard(soundcardinfo_t *sc)
 	sc->Shutdown(sc);
 	Z_Free(sc);
 }
-void S_Shutdown(void)
+void S_Shutdown(qboolean final)
 {
 	soundcardinfo_t *sc, *next;
 
@@ -1844,16 +1896,19 @@ void S_Shutdown(void)
 	known_sfx = NULL;
 	num_sfx = 0;
 
-	while (numsoundoutdevices)
+	if (final)
 	{
-		numsoundoutdevices--;
-		free(soundoutdevicenames[numsoundoutdevices]);
-		free(soundoutdevicecodes[numsoundoutdevices]);
+		while (numsoundoutdevices)
+		{
+			numsoundoutdevices--;
+			free(soundoutdevicenames[numsoundoutdevices]);
+			free(soundoutdevicecodes[numsoundoutdevices]);
+		}
+		free(soundoutdevicenames);
+		soundoutdevicenames = NULL;
+		free(soundoutdevicecodes);
+		soundoutdevicecodes = NULL;
 	}
-	free(soundoutdevicenames);
-	soundoutdevicenames = NULL;
-	free(soundoutdevicecodes);
-	soundoutdevicecodes = NULL;
 }
 
 
@@ -3088,6 +3143,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 				if (si->channel[i].pos < 0)
 					si->channel[i].pos = 0;
+				si->channel[i].master_vol = 255 * volume;
 				if (si->ChannelUpdate)
 					si->ChannelUpdate(si, &si->channel[i], false);
 				break;

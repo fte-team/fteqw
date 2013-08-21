@@ -124,7 +124,7 @@ static void R_SetupBloomTextures(int w, int h)
 	}
 
 
-	bloomfilter = R_RegisterShader("bloom_filter",
+	bloomfilter = R_RegisterShader("bloom_filter", SUF_NONE,
 		"{\n"
 			"cull none\n"
 			"program bloom_filter\n"
@@ -132,7 +132,7 @@ static void R_SetupBloomTextures(int w, int h)
 				"map $sourcecolour\n"
 			"}\n"
 		"}\n");
-	bloomrescale = R_RegisterShader("bloom_rescale",
+	bloomrescale = R_RegisterShader("bloom_rescale", SUF_NONE,
 		"{\n"
 			"cull none\n"
 			"program default2d\n"
@@ -140,7 +140,7 @@ static void R_SetupBloomTextures(int w, int h)
 				"map $sourcecolour\n"
 			"}\n"
 		"}\n");
-	bloomblur = R_RegisterShader("bloom_blur",
+	bloomblur = R_RegisterShader("bloom_blur", SUF_NONE,
 		"{\n"
 			"cull none\n"
 			"program bloom_blur\n"
@@ -148,7 +148,7 @@ static void R_SetupBloomTextures(int w, int h)
 				"map $sourcecolour\n"
 			"}\n"
 		"}\n");
-	bloomfinal = R_RegisterShader("bloom_final",
+	bloomfinal = R_RegisterShader("bloom_final", SUF_NONE,
 		"{\n"
 			"cull none\n"
 			"program bloom_final\n"

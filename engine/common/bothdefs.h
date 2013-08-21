@@ -236,7 +236,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
 		#define R_XFLIP			//allow view to be flipped horizontally
 		#define TEXTEDITOR
-		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
 		#define RTLIGHTS		//realtime lighting
 
@@ -277,12 +276,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HLSERVER		//dlls...
 	#undef CL_MASTER	//bah. use the site to specify the servers.
 	#undef SV_MASTER	//yeah, because that makes sense in a browser
+	#undef ODE_STATIC	//blurgh, too lazy
+	#undef ODE_DYNAMIC	//dlls...
 	#undef RAGDOLL		//no ode
 	#undef TCPCONNECT	//err...
 	#undef IRCCONNECT	//not happening
-	#undef RUNTIMELIGHTING	//too slow
 	#undef PLUGINS		//pointless
-	#undef SUPPORT_ICE	//utterly pointless
 	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
 	#undef HALFLIFEMODELS	//blurgh
@@ -290,6 +289,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef SUPPORT_ICE	//kinda requires udp, but whatever
 
 	//extra features stripped to try to reduce memory footprints
+	#undef RUNTIMELIGHTING	//too slow anyway
 	#undef Q2CLIENT
 	#undef Q2SERVER	//requires a dll anyway.
 	#undef Q3CLIENT
@@ -334,7 +334,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #if defined(RTLIGHTS) && !defined(GLQUAKE) && !defined(D3D9QUAKE)
-#undef RTLIGHTS
+	#undef RTLIGHTS
 #endif
 
 #ifndef _WIN32

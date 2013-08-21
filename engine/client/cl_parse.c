@@ -6399,6 +6399,18 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseBaseline2 ();
 			break;
 
+		case svcfte_cgamepacket:
+#ifdef HLCLIENT
+			if (CLHL_ParseGamePacket())
+				break;
+#endif
+#ifdef CSQC_DAT
+			if (CSQC_ParseGamePacket())
+				break;
+#endif
+			Con_Printf("Unable to parse gamecode packet\n");
+			break;
+
 		case svc_time:
 			//fixme: move this stuff to a common place
 //			cl.playerview[destsplit].oldfixangle = cl.playerview[destsplit].fixangle;

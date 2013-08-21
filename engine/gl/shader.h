@@ -431,6 +431,11 @@ typedef struct {
 struct shader_s
 {
 	char name[MAX_QPATH];
+	enum {
+		SUF_NONE		= 0,
+		SUF_LIGHTMAP	= 1<<0,	//$lightmap passes are valid. otherwise collapsed to an rgbgen
+		SUF_2D			= 1<<1	//any loaded textures will obey 2d picmips rather than 3d picmips
+	} usageflags;	//
 	int uses;
 	int width;
 	int height;
@@ -498,12 +503,12 @@ extern int be_maxpasses;
 
 void R_UnloadShader(shader_t *shader);
 shader_t *R_RegisterPic (char *name);
-shader_t *R_RegisterShader (char *name, const char *shaderscript);
+shader_t *R_RegisterShader (char *name, unsigned int usageflags, const char *shaderscript);
 shader_t *R_RegisterShader_Lightmap (char *name);
 shader_t *R_RegisterShader_Vertex (char *name);
 shader_t *R_RegisterShader_Flare (char *name);
 shader_t *R_RegisterSkin  (char *shadername, char *modname);
-shader_t *R_RegisterCustom (char *name, shader_gen_t *defaultgen, const void *args);
+shader_t *R_RegisterCustom (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
 
 cin_t *R_ShaderGetCinematic(shader_t *s);

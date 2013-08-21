@@ -2894,7 +2894,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 	if (!crepuscular_texture_id.num)
 	{
 		/*FIXME: requires npot*/
-		crepuscular_shader = R_RegisterShader("crepuscular_screen",
+		crepuscular_shader = R_RegisterShader("crepuscular_screen", SUF_NONE,
 			"{\n"
 				"program crepuscular_rays\n"
 				"{\n"

@@ -130,6 +130,7 @@ void QCBUILTIN PF_atan (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_atan2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_tan (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, char *s, int firstarg, char *outbuf, int outbuflen);
 void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -177,6 +178,7 @@ void QCBUILTIN PF_entityfieldname (pubprogfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_entityfieldtype (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_putentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_checkcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
 void QCBUILTIN PF_getsurfacenumpoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -296,7 +298,11 @@ void QCBUILTIN PF_num_for_edict (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-//these functions are from pr_menu.dat
+//these functions are from pr_menu.c
+void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_free_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -576,11 +582,12 @@ enum lightfield_e
 enum csqc_input_event
 {
 	/*devid is the player id (on android, its the multitouch id and is always present even in single player)*/
-	CSIE_KEYDOWN = 0, /*syscode, unicode, devid*/
-	CSIE_KEYUP = 1, /*syscode, unicode, devid*/
-	CSIE_MOUSEDELTA = 2, /*x, y, devid*/
-	CSIE_MOUSEABS = 3, /*x, y, devid*/
-	CSIE_ACCELEROMETER = 4 /*x, y, z*/
+	CSIE_KEYDOWN = 0,		/*syscode, unicode, devid	the two codes are not both guarenteed to be set at the same time, and may happen as separate events*/
+	CSIE_KEYUP = 1,			/*syscode, unicode, devid	as keydown, unicode up events are not guarenteed*/
+	CSIE_MOUSEDELTA = 2,	/*x, y, devid				mouse motion. x+y are relative*/
+	CSIE_MOUSEABS = 3,		/*x, y, devid				*/
+	CSIE_ACCELEROMETER = 4,	/*x, y, z*/
+	CSIE_FOCUS = 5,			/*mouse, key, devid.		if has, the game window has focus. (true/false/-1)*/
 };
 
 enum terrainedit_e

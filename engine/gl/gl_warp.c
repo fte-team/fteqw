@@ -47,11 +47,11 @@ static shader_t *skyboxface;
 void R_SetSky(char *skyname)
 {
 	if (*skyname)
-		forcedskyshader = R_RegisterCustom(va("skybox_%s", skyname), Shader_DefaultSkybox, NULL);
+		forcedskyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
 	else
 		forcedskyshader = NULL;
 
-	skyboxface = R_RegisterShader("skyboxface",
+	skyboxface = R_RegisterShader("skyboxface", SUF_NONE,
 			"{\n"
 				"program default2d\n"
 				"{\n"

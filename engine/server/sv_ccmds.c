@@ -306,6 +306,9 @@ void SV_Give_f (void)
 	char	*t;
 	int		v;
 
+	if (!svprogfuncs)
+		return;
+
 	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
@@ -327,9 +330,6 @@ void SV_Give_f (void)
 	}
 
 	SV_LogPlayer(host_client, "give cheat");
-
-	if (!svprogfuncs)
-		return;
 
 	t = Cmd_Argv(2);
 	v = atoi (Cmd_Argv(3));
@@ -634,6 +634,8 @@ void SV_Map_f (void)
 			SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
 		else
 			SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
+		host_client->prespawn_stage = PRESPAWN_INVALID;
+		host_client->prespawn_idx = 0;
 	}
 	SV_SendMessagesToAll ();
 
@@ -2198,6 +2200,9 @@ void SV_SendGameCommand_f(void)
 	if (Q1QVM_GameConsoleCommand())
 		return;
 #endif
+
+	if (PR_ConsoleCmd(Cmd_Args()))
+		return;
 
 #ifdef Q2SERVER
 	if (ge)

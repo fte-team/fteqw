@@ -405,7 +405,7 @@ typedef struct q2miptex_s
 // upper design bounds
 // leaffaces, leafbrushes, planes, and verts are still bounded by
 // 16 bit short limits
-#define	MAX_Q2MAP_MODELS		1024
+#define	SANITY_MAX_Q2MAP_MODELS		1024
 #define	MAX_Q2MAP_ENTITIES	2048
 #define SANITY_MAX_MAP_BRUSHES 0x8000
 

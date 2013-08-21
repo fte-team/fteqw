@@ -578,7 +578,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	if (*ptype->texname && ptype->looks.blendmode == BM_BLEND)
 	{
 		/*try and load the shader, fail if we would need to generate one*/
-		ptype->looks.shader = R_RegisterCustom(ptype->texname, NULL, NULL);
+		ptype->looks.shader = R_RegisterCustom(ptype->texname, SUF_NONE, NULL, NULL);
 	}
 	else
 		ptype->looks.shader = NULL;
@@ -686,33 +686,33 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			if (ptype->looks.type == PT_BEAM)
 			{
 				/*untextured beams get a single continuous blob*/
-				ptype->looks.shader = R_RegisterShader(va("beam%s", namepostfix), defaultshader);
+				ptype->looks.shader = R_RegisterShader(va("beam%s", namepostfix), SUF_NONE, defaultshader);
 				TEXASSIGNF(tn.base, beamtexture);
 			}
 			else if (ptype->looks.type == PT_SPARKFAN)
 			{
 				/*untextured beams get a single continuous blob*/
-				ptype->looks.shader = R_RegisterShader(va("fan%s", namepostfix), defaultshader);
+				ptype->looks.shader = R_RegisterShader(va("fan%s", namepostfix), SUF_NONE, defaultshader);
 				TEXASSIGNF(tn.base, ptritexture);
 			}
 			else if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK)
 			{
 				/*sparks and special names get a nice circular texture.
 				as these are fully default, we can basically discard the texture name in the shader, and get better batching*/
-				ptype->looks.shader = R_RegisterShader(va("ball%s", namepostfix), defaultshader);
+				ptype->looks.shader = R_RegisterShader(va("ball%s", namepostfix), SUF_NONE, defaultshader);
 				TEXASSIGNF(tn.base, balltexture);
 			}
 			else
 			{
 				/*anything else gets a fuzzy texture*/
-				ptype->looks.shader = R_RegisterShader(va("default%s", namepostfix), defaultshader);
+				ptype->looks.shader = R_RegisterShader(va("default%s", namepostfix), SUF_NONE, defaultshader);
 				TEXASSIGNF(tn.base, explosiontexture);
 			}
 		}
 		else
 		{
 			/*texture looks good, make a shader, and give it the texture as a diffuse stage*/
-			ptype->looks.shader = R_RegisterShader(va("%s%s", ptype->texname, namepostfix), defaultshader);
+			ptype->looks.shader = R_RegisterShader(va("%s%s", ptype->texname, namepostfix), SUF_NONE, defaultshader);
 		}
 		R_BuildDefaultTexnums(&tn, ptype->looks.shader);
 	}
@@ -957,7 +957,7 @@ static void P_ParticleEffect_f(void)
 					str[slen++] = '\n';
 				}
 				str[slen] = 0;
-				R_RegisterShader(ptype->texname, str);
+				R_RegisterShader(ptype->texname, SUF_NONE, str);
 				BZ_Free(str);
 			}
 			else

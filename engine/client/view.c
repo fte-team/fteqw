@@ -1213,7 +1213,6 @@ V_CalcRefdef
 void V_CalcRefdef (playerview_t *pv)
 {
 	entity_t	*view;
-	int			i;
 	float		bob;
 	float		viewheight;
 	r_refdef.playerview = pv;

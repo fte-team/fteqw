@@ -3637,7 +3637,7 @@ skipwhite:
 			if (!c)
 			{
 				token[len] = 0;
-				return (char*)data;
+				return (char*)data-1;
 			}
 			if (c == '\\')
 			{

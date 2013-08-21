@@ -3241,9 +3241,9 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
 	{
-		hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), Shader_DefaultSkybox, NULL);
+		hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
 		if (hm->tiled)
-			hm->shader = R_RegisterShader("terraintileshader",
+			hm->shader = R_RegisterShader("terraintileshader", SUF_NONE,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"	
@@ -3251,7 +3251,7 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 					"}\n"
 				);
 		else
-			hm->shader = R_RegisterShader(shadername,
+			hm->shader = R_RegisterShader(shadername, SUF_LIGHTMAP,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
@@ -3276,7 +3276,7 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 				);
 
 
-		hm->watershader = R_RegisterCustom ("warp/terrain", Shader_DefaultBSPQ2, NULL);
+		hm->watershader = R_RegisterCustom ("warp/terrain", SUF_NONE, Shader_DefaultBSPQ2, NULL);
 		if (!TEXVALID(hm->watershader->defaulttextures.base))
 			hm->watershader->defaulttextures.base = R_LoadHiResTexture("terwater", NULL, IF_NOALPHA);
 		if (!TEXVALID(hm->watershader->defaulttextures.bump))

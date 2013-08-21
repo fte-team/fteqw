@@ -186,7 +186,7 @@ void R_InitFlashblends(void)
 
 	R_GenerateFlashblendTexture();
 
-	flashblend_shader = R_RegisterShader("flashblend", 
+	flashblend_shader = R_RegisterShader("flashblend", SUF_NONE,
 		"{\n"
 			"program defaultadditivesprite\n"
 			"{\n"
@@ -356,7 +356,7 @@ void R_GenDlightBatches(batch_t *batches[])
 	dlight_t	*l;
 	batch_t		*b;
 	if (!lpplight_shader)
-		lpplight_shader = R_RegisterShader("lpp_light", 
+		lpplight_shader = R_RegisterShader("lpp_light", SUF_NONE,
 						"{\n"
 							"program lpp_light\n"
 							"{\n"

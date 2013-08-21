@@ -1132,9 +1132,12 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
 	void *data = G_VECTOR(OFS_PARM2);
+	qboolean replace = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):false;
 	pf_hashentry_t *ent = NULL;
 	if (tab)
 	{
+		if (replace)
+			Hash_Remove(&tab->tab, name);
 		if (tab->dupestrings)
 		{
 			char *value = PR_GetStringOfs(prinst, OFS_PARM2);
@@ -1820,7 +1823,7 @@ void QCBUILTIN PF_writetofile(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	int buflen;
 
 	buflen = sizeof(buffer);
-	entstr = prinst->saveent(prinst, buffer, &buflen, ed);	//will save just one entities vars
+	entstr = prinst->saveent(prinst, buffer, &buflen, sizeof(buffer), ed);	//will save just one entities vars
 	if (entstr)
 	{
 		PF_fwrite (prinst, fnum, entstr, buflen);
@@ -3911,7 +3914,7 @@ void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	int size = 1024*1024*8;
 	char *buffer = BZ_Malloc(size);
-	prinst->save_ents(prinst, buffer, &size, 3);
+	prinst->save_ents(prinst, buffer, &size, size, 3);
 	COM_WriteFile("core.txt", buffer, size);
 	BZ_Free(buffer);
 }
@@ -3920,7 +3923,7 @@ void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	int size = 1024*1024;
 	char *buffer = BZ_Malloc(size);
 	char *buf;
-	buf = prinst->saveent(prinst, buffer, &size, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));
+	buf = prinst->saveent(prinst, buffer, &size, size, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));
 	Con_Printf("Entity %i:\n%s\n", G_EDICTNUM(prinst, OFS_PARM0), buf);
 	BZ_Free(buffer);
 }
@@ -4024,15 +4027,14 @@ void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	}
 }
 
-void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, char *s, int firstarg, char *outbuf, int outbuflen)
 {
-	const char *s, *s0;
-	char outbuf[4096];
-	char *o = outbuf, *end = outbuf + sizeof(outbuf), *err;
-	int argpos = 1;
+	const char *s0;
+	char *o = outbuf, *end = outbuf + outbuflen, *err;
 	int width, precision, thisarg, flags;
 	char formatbuf[16];
 	char *f;
+	int argpos = firstarg;
 	int isfloat;
 	static int dummyivec[3] = {0, 0, 0};
 	static float dummyvec[3] = {0, 0, 0};
@@ -4045,13 +4047,11 @@ void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	formatbuf[0] = '%';
 
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-
-#define GETARG_FLOAT(a) (((a)>=1 && (a)<prinst->callargc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
-#define GETARG_VECTOR(a) (((a)>=1 && (a)<prinst->callargc) ? (G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyvec)
-#define GETARG_INT(a) (((a)>=1 && (a)<prinst->callargc) ? (G_INT(OFS_PARM0 + 3 * (a))) : 0)
-#define GETARG_INTVECTOR(a) (((a)>=1 && (a)<prinst->callargc) ? ((int*) G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyivec)
-#define GETARG_STRING(a) (((a)>=1 && (a)<prinst->callargc) ? (PR_GetStringOfs(prinst, OFS_PARM0 + 3 * (a))) : "")
+#define GETARG_FLOAT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_VECTOR(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyvec)
+#define GETARG_INT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_INT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_INTVECTOR(a) (((a)>=firstarg && (a)<prinst->callargc) ? ((int*) G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyivec)
+#define GETARG_STRING(a) (((a)>=firstarg && (a)<prinst->callargc) ? (PR_GetStringOfs(prinst, OFS_PARM0 + 3 * (a))) : "")
 
 	for(;;)
 	{
@@ -4086,7 +4086,7 @@ void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 					}
 					if(*err == '$')
 					{
-						thisarg = width;
+						thisarg = width + (firstarg-1);
 						width = -1;
 						s = err + 1;
 					}
@@ -4356,7 +4356,12 @@ verbatim:
 	}
 finished:
 	*o = 0;
+}
 
+void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char outbuf[4096];
+	PF_sprintf_internal(prinst, pr_globals, PR_GetStringOfs(prinst, OFS_PARM0), 1, outbuf, sizeof(outbuf));
 	RETURN_TSTRING(outbuf);
 }
 
@@ -4428,6 +4433,28 @@ void QCBUILTIN PF_putentityfieldstring (pubprogfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = 0;
 }
 
+//must match ordering in Cmd_ExecuteString.
+void QCBUILTIN PF_checkcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	//functions, aliases, cvars. in that order.
+	if (Cmd_Exists(str))
+	{
+		G_FLOAT(OFS_RETURN) = 1;
+		return;
+	}
+	if (Cmd_AliasExist(str, RESTRICT_INSECURE))
+	{
+		G_FLOAT(OFS_RETURN) = 2;
+		return;
+	}
+	if (Cvar_FindVar(str))
+	{
+		G_FLOAT(OFS_RETURN) = 3;
+		return;
+	}
+	G_FLOAT(OFS_RETURN) = 0;
+}
 
 
 
@@ -4711,8 +4738,12 @@ lh_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_GHOST"},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
-	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
+	{"FTE_CSQC_ALTCONSOLES_WIP",		4,	NULL, {"con_getset", "con_print", "con_draw", "con_input"}},
 	{"FTE_CSQC_BASEFRAME"},				//control for all skeletal models
+	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
+	{"FTE_CSQC_SERVERBROWSER",			12,	NULL, {	"gethostcachevalue", "gethostcachestring", "resethostcachemasks", "sethostcachemaskstring", "sethostcachemasknumber",
+													"resorthostcache", "sethostcachesort", "refreshhostcache", "gethostcachenumber", "gethostcacheindexforkey",
+													"addwantedhostcachekey", "getextresponse"}},	//normally only available to the menu. this also adds them to csqc.
 	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
@@ -4734,6 +4765,7 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
+	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},

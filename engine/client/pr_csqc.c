@@ -314,11 +314,11 @@ static void QCBUILTIN PF_cs_gettime (pubprogfuncs_t *prinst, struct globalvars_s
 //note: doesn't even have to match the clprogs.dat :)
 typedef struct {
 
-#define comfieldfloat(csqcname) float csqcname;
-#define comfieldvector(csqcname) vec3_t csqcname;
-#define comfieldentity(csqcname) int csqcname;
-#define comfieldstring(csqcname) string_t csqcname;
-#define comfieldfunction(csqcname, typestr) func_t csqcname;
+#define comfieldfloat(csqcname,desc) float csqcname;
+#define comfieldvector(csqcname,desc) vec3_t csqcname;
+#define comfieldentity(csqcname,desc) int csqcname;
+#define comfieldstring(csqcname,desc) string_t csqcname;
+#define comfieldfunction(csqcname, typestr,desc) func_t csqcname;
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -331,11 +331,11 @@ comqcfields
 typedef struct {
 #endif
 
-#define comfieldfloat(name) float name;
-#define comfieldvector(name) vec3_t name;
-#define comfieldentity(name) int name;
-#define comfieldstring(name) string_t name;
-#define comfieldfunction(name, typestr) func_t name;
+#define comfieldfloat(name,desc) float name;
+#define comfieldvector(name,desc) vec3_t name;
+#define comfieldentity(name,desc) int name;
+#define comfieldstring(name,desc) string_t name;
+#define comfieldfunction(name, typestr,desc) func_t name;
 comextqcfields
 csqcextfields
 #undef comfieldfloat
@@ -381,11 +381,11 @@ typedef struct csqcedict_s
 
 static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldfunction(name, typestr) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldfloat(name,desc) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldvector(name,desc) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldentity(name,desc) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldstring(name,desc) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -394,17 +394,17 @@ comqcfields
 #undef comfieldfunction
 
 #ifdef VM_Q1
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
-#define comfieldfunction(name, typestr) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldfloat(name,desc) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldvector(name,desc) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldentity(name,desc) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldstring(name,desc) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #else
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
-#define comfieldfunction(name, typestr) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldfloat(name,desc) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldvector(name,desc) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldentity(name,desc) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldstring(name,desc) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #endif
 comextqcfields
 csqcextfields
@@ -1113,8 +1113,8 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 		mesh_t mesh;
 		memset(&mesh, 0, sizeof(mesh));
-		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
 
+		mesh.istrifan = true;
 		mesh.xyz_array = cl_strisvertv + csqc_poly_startvert;
 		mesh.st_array = cl_strisvertt + csqc_poly_startvert;
 		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
@@ -1216,7 +1216,7 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 		v[2] = in[2];//*2-1;
 		v[3] = 1;
 
-		//don't use 1, because the far clip plane really is an infinite distance away
+		//don't use 1, because the far clip plane really is an infinite distance away. and that tends to result division by infinity.
 		if (v[2] >= 1)
 			v[2] = 0.999999;
 
@@ -4431,6 +4431,8 @@ static struct {
 	{"hash_get",				PF_hash_get,				290},
 	{"hash_delete",				PF_hash_delete,				291},
 	{"hash_getkey",				PF_hash_getkey,				292},
+	{"hash_getcb",				PF_hash_getcb,				293},
+	{"checkcommand",			PF_checkcommand,			294},
 //300
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -4547,6 +4549,11 @@ static struct {
 	{"memgetval",				PF_memgetval,				388},
 	{"memsetval",				PF_memsetval,				389},
 	{"memptradd",				PF_memptradd,				390},
+
+	{"con_getset",				PF_SubConGetSet,			391},
+	{"con_print",				PF_SubConPrintf,			392},
+	{"con_draw",				PF_SubConDraw,				393},
+	{"con_input",				PF_SubConInput,				394},
 
 //400
 	{"copyentity",				PF_cs_copyentity,			400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
@@ -4824,7 +4831,7 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 	{
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
-		csqcprogs->save_ents(csqcprogs, buffer, &size, 3);
+		csqcprogs->save_ents(csqcprogs, buffer, &size, size, 3);
 		COM_WriteFile("csqccore.txt", buffer, size);
 		BZ_Free(buffer);
 	}
@@ -5356,6 +5363,7 @@ void CSQC_WorldLoaded(void)
 {
 	char *map;
 	csqcedict_t *worldent;
+	char *entfile;
 
 	if (!csqcprogs)
 		return;
@@ -5363,7 +5371,7 @@ void CSQC_WorldLoaded(void)
 		return;
 	csqcmapentitydataloaded = true;
 	map = Info_ValueForKey(cl.serverinfo, "map");
-	csqcmapentitydata = map?COM_LoadFile(va("maps/%s.ent", map), 1):NULL;
+	entfile = csqcmapentitydata = map?FS_LoadMallocFile(va("maps/%s.ent", map)):NULL;
 	if (!csqcmapentitydata)
 		csqcmapentitydata = cl.worldmodel->entities;
 
@@ -5381,6 +5389,7 @@ void CSQC_WorldLoaded(void)
 	if (csqcg.worldloaded)
 		PR_ExecuteProgram(csqcprogs, csqcg.worldloaded);
 	csqcmapentitydata = NULL;
+	BZ_Free(entfile);
 
 	worldent->readonly = true;
 }
@@ -5396,7 +5405,7 @@ void CSQC_CoreDump(void)
 	{
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
-		csqcprogs->save_ents(csqcprogs, buffer, &size, 3);
+		csqcprogs->save_ents(csqcprogs, buffer, &size, size, 3);
 		COM_WriteFile("csqccore.txt", buffer, size);
 		BZ_Free(buffer);
 	}
@@ -5536,6 +5545,7 @@ void CSQC_Breakpoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
+	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 
 static void CSQC_Poke_f(void)
@@ -5745,8 +5755,8 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid)
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	G_FLOAT(OFS_PARM0) = CSIE_MOUSEDELTA;
-	G_FLOAT(OFS_PARM1) = xdelta;
-	G_FLOAT(OFS_PARM2) = ydelta;
+	G_FLOAT(OFS_PARM1) = (xdelta * vid.width) / vid.pixelwidth;
+	G_FLOAT(OFS_PARM2) = (ydelta * vid.height) / vid.pixelheight;
 	G_FLOAT(OFS_PARM3) = devid;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);

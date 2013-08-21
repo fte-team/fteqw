@@ -1212,6 +1212,7 @@ void NPP_NQWriteShort(int dest, short data);
 void NPP_NQWriteLong(int dest, long data);
 void NPP_NQWriteAngle(int dest, float data);
 void NPP_NQWriteCoord(int dest, float data);
+void NPP_NQWriteFloat(int dest, float data);
 void NPP_NQWriteString(int dest, char *data);
 void NPP_NQWriteEntity(int dest, short data);
 
@@ -1221,6 +1222,7 @@ void NPP_QWWriteShort(int dest, short data);
 void NPP_QWWriteLong(int dest, long data);
 void NPP_QWWriteAngle(int dest, float data);
 void NPP_QWWriteCoord(int dest, float data);
+void NPP_QWWriteFloat(int dest, float data);
 void NPP_QWWriteString(int dest, char *data);
 void NPP_QWWriteEntity(int dest, short data);
 

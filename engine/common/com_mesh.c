@@ -2666,7 +2666,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 
 			Q_snprintfz(skinname, sizeof(skinname), "%s_%i", loadname, i);
 			if (skintranstype == 4)
-				shaders[0] = R_RegisterShader(skinname,
+				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
@@ -2677,7 +2677,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"}\n"
 					"}\n");
 			else if (skintranstype == 3)
-				shaders[0] = R_RegisterShader(skinname,
+				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
@@ -2687,7 +2687,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"}\n"
 					"}\n");
 			else if (skintranstype)
-				shaders[0] = R_RegisterShader(skinname,
+				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"

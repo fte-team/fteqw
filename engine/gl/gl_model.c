@@ -207,10 +207,10 @@ void Mod_BlockTextureColour_f (void)
 
 	sprintf(texname, "8*8_%i_%i_%i", (int)((char *)&rgba)[0], (int)((char *)&rgba)[1], (int)((char *)&rgba)[2]);
 
-	s = R_RegisterCustom(Cmd_Argv(2), NULL, NULL);
+	s = R_RegisterCustom(Cmd_Argv(2), SUF_LIGHTMAP, NULL, NULL);
 	if (!s)
 	{
-		s = R_RegisterCustom (texname, Shader_DefaultBSPQ1, NULL);
+		s = R_RegisterCustom (texname, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 	}
 
 	for (i = 0; i < sizeof(colour)/sizeof(colour[0]); i++)
@@ -1196,19 +1196,19 @@ void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 	char *star;
 	/*skies? just replace with the override sky*/
 	if (!strncmp(tx->name, "sky", 3) && *cl.skyname)
-		tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), Shader_DefaultSkybox, NULL);	//just load the regular name.
+		tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), SUF_NONE, Shader_DefaultSkybox, NULL);	//just load the regular name.
 	//find the *
 	else if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
-		tx->shader = R_RegisterCustom (tx->name, Shader_DefaultBSPQ1, NULL);	//just load the regular name.
+		tx->shader = R_RegisterCustom (tx->name, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);	//just load the regular name.
 	else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
-		tx->shader = R_RegisterCustom (gl_shadeq1_name.string, Shader_DefaultBSPQ1, NULL);
+		tx->shader = R_RegisterCustom (gl_shadeq1_name.string, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 	else
 	{
 		strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
 		altname[star-gl_shadeq1_name.string] = '\0';
 		strcat(altname, tx->name);	//insert the *
 		strcat(altname, star+1);	//add any final text.
-		tx->shader = R_RegisterCustom (altname, Shader_DefaultBSPQ1, NULL);
+		tx->shader = R_RegisterCustom (altname, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 	}
 
 	R_BuildDefaultTexnums(&tn, tx->shader);
@@ -4334,7 +4334,7 @@ static void * Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int fra
 
 	Q_strncpyz(name, loadmodel->name, sizeof(name));
 	Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
-	pspriteframe->shader = R_RegisterShader(name,
+	pspriteframe->shader = R_RegisterShader(name, SUF_NONE, 
 			"{\n"
 				"if gl_blendsprites\n"
 					"program defaultsprite\n"
@@ -4734,7 +4734,7 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 		}
 	}
 
-	pframe->shader = R_RegisterShader(imagename,
+	pframe->shader = R_RegisterShader(imagename, SUF_NONE, 
 		"{\n{\nmap $diffuse\nblendfunc blend\n}\n}\n");
 	pframe->shader->defaulttextures.base = R_LoadTexture8Pal24(imagename, header->width, header->height, image, palette, IF_CLAMP);
 	R_BuildDefaultTexnums(&pframe->shader->defaulttextures, pframe->shader);

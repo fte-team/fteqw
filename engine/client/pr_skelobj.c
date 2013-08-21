@@ -1246,7 +1246,7 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 				continue;
 
 			if (!debugshader)
-				debugshader = R_RegisterShader("boneshader",
+				debugshader = R_RegisterShader("boneshader", SUF_NONE,
 					"{\n"
 					"polygonoffset\n"
 					"{\n"
@@ -1291,7 +1291,7 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 	//		CLQ1_AddOrientedCube(debugshader, mins, maxs, bodymat, 0, 0.2, 0, 1);
 
 			if (!lineshader)
-				lineshader = R_RegisterShader("lineshader",
+				lineshader = R_RegisterShader("lineshader", SUF_NONE,
 					"{\n"
 					"polygonoffset\n"
 					"{\n"

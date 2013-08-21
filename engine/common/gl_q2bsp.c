@@ -301,7 +301,7 @@ static int			numleafbrushes;
 static int			map_leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
 
 static int			numcmodels;
-static cmodel_t		map_cmodels[MAX_Q2MAP_MODELS];
+static cmodel_t		*map_cmodels;
 
 static int			numbrushes;
 static q2cbrush_t	*map_brushes;
@@ -1045,18 +1045,17 @@ qboolean CMod_LoadSubmodels (lump_t *l)
 		Con_Printf (CON_ERROR "Map with no models\n");
 		return false;
 	}
-	if (count > MAX_Q2MAP_MODELS)
+	if (count > SANITY_MAX_Q2MAP_MODELS)
 	{
 		Con_Printf (CON_ERROR "Map has too many models\n");
 		return false;
 	}
 
+	out = map_cmodels = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_cmodels));
 	numcmodels = count;
 
-	for ( i=0 ; i<count ; i++, in++, out++)
+	for (i=0 ; i<count ; i++, in++, out++)
 	{
-		out = &map_cmodels[i];
-
 		for (j=0 ; j<3 ; j++)
 		{	// spread the mins / maxs by a pixel
 			out->mins[j] = LittleFloat (in->mins[j]) - 1;
@@ -1187,7 +1186,7 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 	if (wal != &replacementwal)
 		BZ_Free(wal);
 
-	tex->shader = R_RegisterCustom (sname, Shader_DefaultBSPQ2, NULL);
+	tex->shader = R_RegisterCustom (sname, SUF_LIGHTMAP, Shader_DefaultBSPQ2, NULL);
 	R_BuildDefaultTexnums(&tn, tex->shader);
 
 	return tex;
@@ -1959,20 +1958,19 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 		Con_Printf (CON_ERROR "Map with no models\n");
 		return false;
 	}
-	if (count > MAX_Q2MAP_MODELS)
+	if (count > SANITY_MAX_Q2MAP_MODELS)
 	{
 		Con_Printf (CON_ERROR "Map has too many models\n");
 		return false;
 	}
 
+	out = map_cmodels = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_cmodels));
 	numcmodels = count;
 
 	mapisq3 = true;
 
-	for ( i=0 ; i<count ; i++, in++, out++)
+	for (i=0 ; i<count ; i++, in++, out++)
 	{
-		out = &map_cmodels[i];
-
 		for (j=0 ; j<3 ; j++)
 		{	// spread the mins / maxs by a pixel
 			out->mins[j] = LittleFloat (in->mins[j]) - 1;

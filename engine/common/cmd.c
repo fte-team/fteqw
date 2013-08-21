@@ -26,6 +26,7 @@ cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 cvar_t dpcompat_set         = SCVAR("dpcompat_set", "0");
 int	Cmd_ExecLevel;
+qboolean cmd_didwait;
 
 void Cmd_ForwardToServer (void);
 
@@ -161,6 +162,9 @@ bind g "impulse 5 ; +attack ; wait ; -attack ; impulse 2"
 */
 void Cmd_Wait_f (void)
 {
+	if (cmd_didwait && sv.state)
+		Con_DPrintf("waits without server frames\n");
+	cmd_didwait = true;
 	cmd_text[Cmd_ExecLevel].waitattime = realtime;
 }
 
@@ -932,6 +936,7 @@ void Alias_WriteAliases (vfsfile_t *f)
 	char *s;
 	cmdalias_t	*cmd;
 	int num=0;
+	char buf[2048];
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
 	{
 //		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
@@ -943,7 +948,7 @@ void Alias_WriteAliases (vfsfile_t *f)
 			s = va("\n//////////////////\n//Aliases\n");
 			VFS_WRITE(f, s, strlen(s));
 		}
-		s = va("alias %s \"%s\"\n", cmd->name, cmd->value);
+		s = va("alias %s %s\n", cmd->name, COM_QuotedString(cmd->value, buf, sizeof(buf)));
 		VFS_WRITE(f, s, strlen(s));
 		if (cmd->restriction != 1)	//1 is default
 		{
@@ -1913,6 +1918,7 @@ FIXME: lookupnoadd the token to speed search?
 */
 void	Cmd_ExecuteString (char *text, int level)
 {
+	//WARNING: PF_checkcommand should match the order.
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
@@ -2036,7 +2042,7 @@ void	Cmd_ExecuteString (char *text, int level)
 #ifndef CLIENTONLY
 	if (sv.state)
 	{
-		if (PR_ConsoleCmd())
+		if (PR_ConsoleCmd(text))
 			return;
 	}
 #endif

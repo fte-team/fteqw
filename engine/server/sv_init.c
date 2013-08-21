@@ -331,7 +331,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 				host_client->spawn_parms[j] = 0;
 
-			buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, host_client->edict);
+			buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, sizeof(buffer), host_client->edict);
 
 			if (host_client->spawninfo)
 				Z_Free(host_client->spawninfo);
@@ -1287,7 +1287,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 	else if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
 	{
-		spawnflagmask = SPAWNFLAG_NOT_DEATHMATCH;
 		if (skill.value < 0.5)
 			spawnflagmask = SPAWNFLAG_NOT_EASY;
 		else if (skill.value > 1.5)

@@ -3574,15 +3574,18 @@ void Host_RunFileNotify(struct dl_download *dl)
 }
 
 #include "fs.h"
-#define HRF_OVERWRITE	1
-#define HRF_NOOVERWRITE	2
-#define HRF_ABORT		4
-
-#define HRF_OPENED		8
+#define HRF_OVERWRITE	(1<<0)
+#define HRF_NOOVERWRITE	(1<<1)
+#define HRF_ABORT		(1<<3)
+#define HRF_OPENED		(1<<4)
+#define HRF_DEMO		(1<<8)
+#define HRF_QTVINFO		(1<<9)
+#define HRF_MANIFEST	(1<<10)
+#define HRF_BSP			(1<<11)
+#define HRF_PACKAGE		(1<<12)
 
 #define HRF_ACTION (HRF_OVERWRITE|HRF_NOOVERWRITE|HRF_ABORT)
 typedef struct {
-	char ext[4];	//FIXME: override by mime types
 	unsigned int flags;
 	vfsfile_t *srcfile;
 	vfsfile_t *dstfile;
@@ -3594,6 +3597,7 @@ void Host_DoRunFile(hrf_t *f);
 
 void Host_RunFileDownloaded(struct dl_download *dl)
 {
+	//fixme: sort out flags from mime type....
 	hrf_t *f = dl->user_ctx;
 	f->srcfile = dl->file;
 	dl->file = NULL;
@@ -3629,6 +3633,9 @@ void Host_DoRunFile(hrf_t *f)
 	
 	if (f->flags & HRF_ABORT)
 	{
+		if (f->flags & HRF_MANIFEST)
+			waitingformanifest--;
+
 		if (f->srcfile)
 			VFS_CLOSE(f->srcfile);
 		if (f->dstfile)
@@ -3637,7 +3644,7 @@ void Host_DoRunFile(hrf_t *f)
 		return;
 	}
 
-	if (!strcmp(f->ext, "qwd") || !strcmp(f->ext, "dem") || !strcmp(f->ext, "mvd"))
+	if (f->flags & HRF_DEMO)
 	{
 		//play directly via system path, no prompts needed
 		Cbuf_AddText(va("playdemo \"#%s\"\n", f->fname), RESTRICT_LOCAL);
@@ -3646,7 +3653,7 @@ void Host_DoRunFile(hrf_t *f)
 		Host_DoRunFile(f);
 		return;
 	}
-	else if (!strcmp(f->ext, "qtv"))
+	else if (f->flags & HRF_QTVINFO)
 	{
 		//play directly via url/system path, no prompts needed
 		Cbuf_AddText(va("qtvplay \"#%s\"\n", f->fname), RESTRICT_LOCAL);
@@ -3655,7 +3662,7 @@ void Host_DoRunFile(hrf_t *f)
 		Host_DoRunFile(f);
 		return;
 	}
-	else if (!strcmp(f->ext, "bsp"))
+	else if (f->flags & HRF_BSP)
 	{
 		char shortname[MAX_QPATH];
 		COM_StripExtension(COM_SkipPath(f->fname), shortname, sizeof(shortname));
@@ -3663,7 +3670,7 @@ void Host_DoRunFile(hrf_t *f)
 		snprintf(loadcommand, sizeof(loadcommand), "map \"%s\"\n", shortname);
 		snprintf(displayname, sizeof(displayname), "map: %s", shortname);
 	}
-	else if (!strcmp(f->ext, "pak") || !strcmp(f->ext, "pk3"))
+	else if (f->flags & HRF_PACKAGE)
 	{
 		char *shortname;
 		shortname = COM_SkipPath(f->fname);
@@ -3671,11 +3678,10 @@ void Host_DoRunFile(hrf_t *f)
 		snprintf(loadcommand, sizeof(loadcommand), "fs_restart\n");
 		snprintf(displayname, sizeof(displayname), "package: %s", shortname);
 	}
-	else if (!strcmp(f->ext, "fmf"))
+	else if (f->flags & HRF_MANIFEST)
 	{
 		if (f->flags & HRF_OPENED)
 		{
-			waitingformanifest--;
 			if (f->srcfile)
 			{
 				ftemanifest_t *man;
@@ -3802,7 +3808,21 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	hrf_t *f = Z_Malloc(sizeof(*f) + nlen);
 	memcpy(f->fname, fname, nlen);
 	f->fname[nlen] = 0;
-	Q_strncpyz(f->ext, ext, sizeof(f->ext));
+
+	if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
+		f->flags |= HRF_DEMO;
+	if (!strcmp(ext, "qtv"))
+		f->flags |= HRF_QTVINFO;
+	if (!strcmp(ext, "fmf"))
+		f->flags |= HRF_MANIFEST;
+	if (!strcmp(ext, "bsp"))
+		f->flags |= HRF_BSP;
+	if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
+		f->flags |= HRF_PACKAGE;
+
+	if (f->flags & HRF_MANIFEST)
+		waitingformanifest++;
+
 	Host_DoRunFile(f);
 	return true;
 }
@@ -4234,6 +4254,9 @@ void CL_ArgumentOverrides(void)
 
 	if (COM_CheckParm ("-current"))
 		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
+
+	if (COM_CheckParm("-condebug"))
+		Cvar_Set(Cvar_FindVar("log_enable"), "1");
 }
 
 //note that this does NOT include commandline.
@@ -4453,9 +4476,9 @@ void Host_Shutdown(void)
 //	Host_WriteConfiguration ();
 
 	CDAudio_Shutdown ();
-	S_Shutdown();
 	IN_Shutdown ();
 	R_ShutdownRenderer();
+	S_Shutdown(true);
 #ifdef CL_MASTER
 	MasterInfo_Shutdown();
 #endif

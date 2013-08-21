@@ -3163,7 +3163,7 @@ void GLBE_SelectMode(backendmode_t mode)
 		case BEM_CREPUSCULAR:
 			if (!shaderstate.crepopaqueshader)
 			{
-				shaderstate.crepopaqueshader = R_RegisterShader("crepuscular_opaque",
+				shaderstate.crepopaqueshader = R_RegisterShader("crepuscular_opaque", SUF_NONE,
 					"{\n"
 						"program crepuscular_opaque\n"
 					"}\n"
@@ -3171,7 +3171,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			}
 			if (!shaderstate.crepskyshader)
 			{
-				shaderstate.crepskyshader = R_RegisterShader("crepuscular_sky",
+				shaderstate.crepskyshader = R_RegisterShader("crepuscular_sky", SUF_NONE,
 					"{\n"
 						"program crepuscular_sky\n"
 						"{\n"
@@ -3254,7 +3254,7 @@ static qboolean GLBE_RegisterLightShader(int mode)
 			(mode & (1u<<LSHADER_CUBE))?"#CUBE":"");
 
 		shaderstate.inited_shader_light[mode] = true;
-		shaderstate.shader_light[mode] = R_RegisterCustom(name, Shader_LightPass, NULL);
+		shaderstate.shader_light[mode] = R_RegisterCustom(name, SUF_NONE, Shader_LightPass, NULL);
 
 		//make sure it has a program and forget it if it doesn't, to save a compare.
 		if (!shaderstate.shader_light[mode] || !shaderstate.shader_light[mode]->prog)
@@ -4334,7 +4334,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	if (!shaderstate.initeddepthnorm)
 	{
 		shaderstate.initeddepthnorm = true;
-		shaderstate.depthnormshader = R_RegisterShader("lpp_depthnorm", 
+		shaderstate.depthnormshader = R_RegisterShader("lpp_depthnorm", SUF_NONE,
 					"{\n"
 						"program lpp_depthnorm\n"
 						"{\n"

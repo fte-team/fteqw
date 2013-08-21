@@ -283,7 +283,7 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen);	//inver
 extern	int		com_argc;
 extern	const char	**com_argv;
 
-int COM_CheckParm (const char *parm);
+int COM_CheckParm (const char *parm);	//WARNING: Legacy arguments should be listed in CL_ArgumentOverrides!
 int COM_CheckNextParm (const char *parm, int last);
 void COM_AddParm (const char *parm);
 

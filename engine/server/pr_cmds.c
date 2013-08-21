@@ -1115,7 +1115,7 @@ void PR_ApplyCompilation_f (void)
 	}
 
 	Con_Printf("Saving state\n");
-	s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
+	s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 
 
 	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
@@ -1174,6 +1174,7 @@ void PR_BreakPoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
+	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 void PR_WatchPoint_f(void)
 {
@@ -1209,6 +1210,8 @@ void PR_WatchPoint_f(void)
 	else
 		Con_Printf("Watchpoint cleared\n");
 	pr_global_struct->self = oldself;
+
+	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 
 void PR_SSCoreDump_f(void)
@@ -1222,7 +1225,7 @@ void PR_SSCoreDump_f(void)
 	{
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
-		svprogfuncs->save_ents(svprogfuncs, buffer, &size, 3);
+		svprogfuncs->save_ents(svprogfuncs, buffer, &size, size, 3);
 		COM_WriteFile("ssqccore.txt", buffer, size);
 		BZ_Free(buffer);
 	}
@@ -1881,7 +1884,7 @@ qboolean PR_UserCmd(char *s)
 
 	return false;
 }
-qboolean PR_ConsoleCmd(void)
+qboolean PR_ConsoleCmd(char *command)
 {
 	globalvars_t *pr_globals;
 	extern redirect_t sv_redirected;
@@ -1889,22 +1892,10 @@ qboolean PR_ConsoleCmd(void)
 	if (Cmd_ExecLevel < cmd_gamecodelevel.value)
 		return false;
 
-#ifdef Q2SERVER
-	if (ge)
-	{	//server command
-		if (!strcmp(Cmd_Argv(0), "sv"))
-		{
-			ge->ServerCommand();
-			return true;
-		}
-		return false;
-	}
-#endif
-
 	if (svprogfuncs)
 	{
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		if (gfuncs.ConsoleCmd && pr_imitatemvdsv.value >= 0)
+		if (gfuncs.ConsoleCmd)
 		{
 			if (sv_redirected != RD_OBLIVION)
 			{
@@ -1912,6 +1903,7 @@ qboolean PR_ConsoleCmd(void)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 			}
 
+			G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, command);
 			PR_ExecuteProgram (svprogfuncs, gfuncs.ConsoleCmd);
 			return (int) G_FLOAT(OFS_RETURN);
 		}
@@ -4800,7 +4792,36 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 
-	return;
+	if (qc_nonetaccess.value)
+		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
+	if (progstype == PROG_NQ || progstype == PROG_H2)
+	{
+		NPP_NQWriteFloat(dest, G_FLOAT(OFS_PARM1));
+		return;
+	}
+#ifdef NQPROT
+	else
+	{
+		NPP_QWWriteFloat(dest, G_FLOAT(OFS_PARM1));
+		return;
+	}
+#else
+	if (dest == MSG_ONE)
+	{
+		client_t *cl = Write_GetClient();
+		if (!cl)
+			return;
+		ClientReliableCheckBlock(cl, 4);
+		ClientReliableWrite_Float(cl, G_FLOAT(OFS_PARM1));
+	}
+	else
+		MSG_WriteFloat (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+#endif
 }
 
 void PF_WriteString_Internal (int target, char *str)
@@ -7712,7 +7733,7 @@ static void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct global
 	MSG_WriteCoord(&sv.nqmulticast, end[1]);
 	MSG_WriteCoord(&sv.nqmulticast, end[2]);
 
-	SV_MulticastProtExt(start, MULTICAST_PHS, ~0, PEXT_CSQC, 0);
+	SV_MulticastProtExt(start, MULTICAST_PHS, pr_global_struct->dimension_send, PEXT_CSQC, 0);
 #endif
 }
 //void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
@@ -7763,7 +7784,7 @@ static void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct global
 		MSG_WriteCoord(&sv.nqmulticast, vel[2]);
 		MSG_WriteShort(&sv.nqmulticast, count);
 	}
-	SV_MulticastProtExt(org, MULTICAST_PHS, ~0, PEXT_CSQC, 0);
+	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, PEXT_CSQC, 0);
 #endif
 }
 
@@ -9100,7 +9121,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Concatenates all arguments, and prints the messsage on the console of all connected clients.")},
 	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
 	{"sprint",			PF_sprint,			24,		0,		24,		0,	D("void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "NQ: Concatenates all string arguments, and prints the messsage on the named client's console")},
-	{"sprint",			PF_sprint,			0,		24,		0,		0,	D("void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "NQ: Concatenates all string arguments, and prints the messsage on the named client's console, but only if that client's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
+	{"sprint",			PF_sprint,			0,		24,		0,		0,	D("void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "QW: Concatenates all string arguments, and prints the messsage on the named client's console, but only if that client's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
 	//these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.
 	{"dprint",			PF_dprint,			25,		0,		25,		0,	D("void(string s, ...)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
 	{"dprint",			PF_print,			0,		25,		0,		0,	D("void(string s, ...)", "QW: Unconditionally prints the given message on the server's console.  Arguments will be concatenated into a single message.")},
@@ -9446,11 +9467,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		286,	"void(string cvarname, optional string value)"},
 	{"hash_createtab",	PF_hash_createtab,	0,		0,		0,		287,	D("float(float tabsize, float stringsonly)", "Creates a hash table object with at least 'tabsize' slots. stringsonly affects the behaviour of the other hash builtins. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return)")},
 	{"hash_destroytab",	PF_hash_destroytab,	0,		0,		0,		288,	D("void(float table)", "Destroys a hash table object.")},
-	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	D("void(float table, string name, __variant value, float replace)", "Adds the given key with the given value to the table. stringsonly=1: the value MUST be a string type, and will be internally copied. stringsonly=0: the value can be any type including vectors with the single exception that temp strings are not supported if their scope doesn't last as long as the string table. Its always okay to pass temp strings for 'name' though.\nreplace=0: Multiple values may be added for a single key, they won't overwrite.\nreplace=1: previous values with this key will be discarded first.")},
+	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	D("void(float table, string name, __variant value, optional float replace)", "Adds the given key with the given value to the table. stringsonly=1: the value MUST be a string type, and will be internally copied. stringsonly=0: the value can be any type including vectors with the single exception that temp strings are not supported if their scope doesn't last as long as the string table. Its always okay to pass temp strings for 'name' though.\nreplace=0: Multiple values may be added for a single key, they won't overwrite.\nreplace=1: previous values with this key will be discarded first.")},
 	{"hash_get",		PF_hash_get,		0,		0,		0,		290,	D("__variant(float table, string name, __variant deflt)", "looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was.")},
 	{"hash_delete",		PF_hash_delete,		0,		0,		0,		291,	D("__variant(float table, string name)", "removes the named key. returns the value of the object that was destroyed, or 0 on error.")},
 	{"hash_getkey",		PF_hash_getkey,		0,		0,		0,		292,	D("string(float table, float idx)", "gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all.")},
 	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(float table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys.")},
+	{"checkcommand",	PF_checkcommand,	0,		0,		0,		294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
@@ -9563,7 +9585,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"memsetval",		PF_memsetval,		0,		0,		0,		389,	D("void(__variant *dst, float ofs, __variant val)", "Changes the 32bit value stored at the specified pointer-with-offset.")},
 	{"memptradd",		PF_memptradd,		0,		0,		0,		390,	D("__variant*(__variant *base, float ofs)", "Perform some pointer maths. Woo.")},
 
-
+	{"con_getset",		PF_Fixme,			0,		0,		0,		391,	D("string(string conname, string field, optional string newvalue)", "Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field.")},
+	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
+	{"con_draw",		PF_Fixme,			0,		0,		0,		393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
+	{"con_input",		PF_Fixme,			0,		0,		0,		394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
 //end fte extras
 
 //DP extras
@@ -10090,11 +10115,11 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
-#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (size_t)&((stdentvars_t*)0)->name, -1);
-#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (size_t)&((stdentvars_t*)0)->name, -1);
-#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (size_t)&((stdentvars_t*)0)->name, -1);
-#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, (((size_t)&((stdentvars_t*)0)->name==(size_t)&((stdentvars_t*)0)->message)?"_"#name:#name), (size_t)&((stdentvars_t*)0)->name, -1);
-#define comfieldfunction(name, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldfloat(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldvector(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldentity(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldstring(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_string, (((size_t)&((stdentvars_t*)0)->name==(size_t)&((stdentvars_t*)0)->message)?"_"#name:#name), (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -10102,17 +10127,17 @@ comqcfields
 #undef comfieldstring
 #undef comfieldfunction
 #ifdef VM_Q1
-#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
-#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
-#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
-#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
-#define comfieldfunction(name, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldfloat(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldvector(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldentity(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldstring(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #else
-#define comfieldfloat(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
-#define comfieldvector(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
-#define comfieldentity(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
-#define comfieldstring(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
-#define comfieldfunction(ssqcname, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldfloat(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldvector(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldentity(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldstring(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldfunction(ssqcname, typestr,desc) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
 #endif
 
 comextqcfields
@@ -10139,7 +10164,7 @@ svextqcfields
 #define H2 16
 //mere flags
 #define FTE 32
-#define ALL (QW|NQ|CS|MENU)
+#define ALL (QW|NQ|H2|CS|MENU)
 #define CORE
 typedef struct
 {
@@ -10313,11 +10338,11 @@ void PR_DumpPlatform_f(void)
 		{"noise3",				".string", QW|NQ},
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
-#define comfieldfloat(name) {#name, ".float", FL},
-#define comfieldvector(name) {#name, ".vector", FL},
-#define comfieldentity(name) {#name, ".entity", FL},
-#define comfieldstring(name) {#name, ".string", FL},
-#define comfieldfunction(name, typestr) {#name, typestr, FL},
+#define comfieldfloat(name,desc) {#name, ".float", FL, desc},
+#define comfieldvector(name,desc) {#name, ".vector", FL, desc},
+#define comfieldentity(name,desc) {#name, ".entity", FL, desc},
+#define comfieldstring(name,desc) {#name, ".string", FL, desc},
+#define comfieldfunction(name,typestr,desc) {#name, typestr, FL, desc},
 #define FL QW|NQ
 		comqcfields
 #undef FL
@@ -10509,9 +10534,9 @@ void PR_DumpPlatform_f(void)
 		{"FL_WATERJUMP",		"const float", QW|NQ|CS, NULL, FL_WATERJUMP},
 		{"FL_JUMPRELEASED",		"const float",    NQ|CS, NULL, FL_JUMPRELEASED},
 		{"FL_FINDABLE_NONSOLID","const float", QW|NQ|CS, "Allows this entity to be found with findradius", FL_FINDABLE_NONSOLID},
-//		{"FL_MOVECHAIN_ANGLE",	"const float", QW|NQ, NULL, FL_MOVECHAIN_ANGLE},
+		{"FL_MOVECHAIN_ANGLE",	"const float", H2, NULL, FL_MOVECHAIN_ANGLE},
 		{"FL_LAGGEDMOVE",		"const float", QW|NQ, "Enables anti-lag on rockets etc.", FLQW_LAGGEDMOVE},
-//		{"FL_CLASS_DEPENDENT",	"const float", QW|NQ, NULL, FL_CLASS_DEPENDENT},
+		{"FL_CLASS_DEPENDENT",	"const float", H2, NULL, FL_CLASS_DEPENDENT},
 
 		{"MOVE_NORMAL",			"const float", QW|NQ|CS, NULL, MOVE_NORMAL},
 		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, NULL, MOVE_NOMONSTERS},
@@ -10625,6 +10650,7 @@ void PR_DumpPlatform_f(void)
 		{"IE_MOUSEDELTA",		"const float", CS, "Specifies that a mouse was moved (touch screens and tablets typically give IE_MOUSEABS events instead, use _windowed_mouse 0 to test code to cope with either). Second argument is the X displacement, third argument is the Y displacement. Fourth argument is which mouse or touch event triggered the event.", CSIE_MOUSEDELTA},
 		{"IE_MOUSEABS",			"const float", CS, "Specifies that a mouse cursor or touch event was moved to a specific location relative to the virtual screen space. Second argument is the new X position, third argument is the new Y position. Fourth argument is which mouse or touch event triggered the event.", CSIE_MOUSEABS},
 		{"IE_ACCELEROMETER",	"const float", CS, NULL, CSIE_ACCELEROMETER},
+		{"IE_FOCUS",			"const float", CS, "Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged.", CSIE_FOCUS},
 
 		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, NULL, CLIENTTYPE_DISCONNECTED},
 		{"CLIENTTYPE_REAL",		"const float", QW|NQ, NULL, CLIENTTYPE_REAL},
@@ -10764,8 +10790,18 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings*/\n");
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals*/\n");
 
-	if (targ&FTE)
-		VFS_PRINTF(f, "#pragma target FTE\n");
+	if ((targ&ALL) == H2)
+	{
+		if (targ&FTE)
+			VFS_PRINTF(f, "#pragma target FTEH2\n");
+		else
+			VFS_PRINTF(f, "#pragma target H2\n");
+	}
+	else
+	{
+		if (targ&FTE)
+			VFS_PRINTF(f, "#pragma target FTE\n");
+	}
 	if ((targ&ALL) == CS)
 		VFS_PRINTF(f,	"#ifndef CSQC\n"
 							"#define CSQC\n"
@@ -11015,7 +11051,53 @@ void PR_DumpPlatform_f(void)
 					case NQ|CS|MENU:
 						VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
 						break;
+					case H2:
+						VFS_PRINTF(f, "#ifdef H2\n");
+						break;
+					case H2|QW:
+						VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC)\n");
+						break;
+					case H2|NQ:
+						VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC)\n");
+						break;
+					case H2|QW|NQ:
+						VFS_PRINTF(f, "#if defined(H2) || defined(SSQC)\n");
+						break;
+					case H2|CS:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC)\n");
+						break;
+					case H2|QW|CS:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC)\n");
+						break;
+					case H2|NQ|CS:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC)\n");
+						break;
+					case H2|NQ|CS|QW:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(SSQC)\n");
+						break;
+					case H2|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(MENU)\n");
+						break;
+					case H2|QW|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC) || defined(MENU)\n");
+						break;
+					case H2|NQ|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC) || defined(MENU)\n");
+						break;
+					case H2|QW|NQ|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(SSQC) || defined(MENU)\n");
+						break;
+					case H2|CS|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(MENU)\n");
+						break;
+					case H2|QW|CS|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+						break;
+					case H2|NQ|CS|MENU:
+						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+						break;
 					case ALL:
+						VFS_PRINTF(f, "#if 1\n");
 						break;
 					default:
 						VFS_PRINTF(f, "#if 0 //???\n");

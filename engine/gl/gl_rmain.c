@@ -108,7 +108,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 	scenepp_waterwarp = NULL;
 	if (gl_config.arb_shader_objects)
 	{
-		scenepp_waterwarp = R_RegisterShader("waterwarp",
+		scenepp_waterwarp = R_RegisterShader("waterwarp", SUF_NONE,
 			"{\n"
 				"program underwaterwarp\n"
 				"{\n"
@@ -1107,7 +1107,7 @@ static void R_RenderMotionBlur(void)
 	vt *= gl_motionblurscale.value;
 
 	//render using our texture
-	shader = R_RegisterShader("postproc_motionblur",
+	shader = R_RegisterShader("postproc_motionblur", SUF_NONE,
 		"{\n"
 			"program default2d\n"
 			"{\n"
@@ -1158,7 +1158,7 @@ qboolean R_RenderScene_Cubemap(void)
 	facemask = 0;
 	if (ffov.value < 0)
 	{
-		shader = R_RegisterShader("postproc_panorama",
+		shader = R_RegisterShader("postproc_panorama", SUF_NONE,
 				"{\n"
 					"program postproc_panorama\n"
 					"{\n"
@@ -1178,7 +1178,7 @@ qboolean R_RenderScene_Cubemap(void)
 	}
 	else
 	{
-		shader = R_RegisterShader("postproc_fisheye",
+		shader = R_RegisterShader("postproc_fisheye", SUF_NONE,
 				"{\n"
 					"program postproc_fisheye\n"
 					"{\n"
@@ -1415,7 +1415,7 @@ void GLR_RenderView (void)
 
 	if (*r_postprocshader.string)
 	{
-		shader_t *postproc = R_RegisterCustom(r_postprocshader.string, NULL, NULL);
+		shader_t *postproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
 		if (postproc)
 		{
 			R2D_ScalePic(0, 0, vid.width, vid.height, postproc);

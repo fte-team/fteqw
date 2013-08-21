@@ -241,13 +241,13 @@ void FS_Manifest_Print(ftemanifest_t *man)
 	char buffer[1024];
 	int i, j;
 	if (man->updateurl)
-		Con_Printf("updateurl \"%s\"\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer)));
+		Con_Printf("updateurl %s\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer)));
 	if (man->installation)
-		Con_Printf("game \"%s\"\n", COM_QuotedString(man->installation, buffer, sizeof(buffer)));
+		Con_Printf("game %s\n", COM_QuotedString(man->installation, buffer, sizeof(buffer)));
 	if (man->formalname)
-		Con_Printf("name \"%s\"\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer)));
+		Con_Printf("name %s\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer)));
 	if (man->protocolname)
-		Con_Printf("protocolname \"%s\"\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer)));
+		Con_Printf("protocolname %s\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer)));
 	if (man->defaultexec)
 		Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer)));
 
@@ -256,9 +256,9 @@ void FS_Manifest_Print(ftemanifest_t *man)
 		if (man->gamepath[i].path)
 		{
 			if (man->gamepath[i].base)
-				Con_Printf("basegame \"%s\"\n", man->gamepath[i].path);
+				Con_Printf("basegame %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer)));
 			else
-				Con_Printf("gamedir \"%s\"\n", man->gamepath[i].path);
+				Con_Printf("gamedir %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer)));
 		}
 	}
 
@@ -267,12 +267,12 @@ void FS_Manifest_Print(ftemanifest_t *man)
 		if (man->package[i].path)
 		{
 			if (man->package[i].crcknown)
-				Con_Printf("package \"%s\" 0x%x", man->package[i].path, man->package[i].crc);
+				Con_Printf("package %s 0x%x", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer)), man->package[i].crc);
 			else
-				Con_Printf("package \"%s\" -", man->package[i].path);
+				Con_Printf("package %s -", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer)));
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				if (man->package[i].mirrors[j])
-					Con_Printf(" \"%s\"", man->package[i].mirrors[j]);
+					Con_Printf(" \"%s\"", COM_QuotedString(man->package[i].mirrors[j], buffer, sizeof(buffer)));
 			Con_Printf("\n");
 		}
 	}

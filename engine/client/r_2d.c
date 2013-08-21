@@ -172,7 +172,7 @@ void R2D_Init(void)
 	translate_texture = r_nulltex;
 	ch_int_texture = r_nulltex;
 
-	draw_backtile = R_RegisterShader("gfx/backtile.lmp",
+	draw_backtile = R_RegisterShader("gfx/backtile.lmp", SUF_NONE,
 		"{\n"
 			"if $nofixed\n"
 				"program default2d\n"
@@ -187,7 +187,7 @@ void R2D_Init(void)
 	if (!TEXVALID(draw_backtile->defaulttextures.base))
 		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 
-	shader_draw_fill = R_RegisterShader("fill_opaque",
+	shader_draw_fill = R_RegisterShader("fill_opaque", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -196,7 +196,7 @@ void R2D_Init(void)
 				"alphagen vertex\n"
 			"}\n"
 		"}\n");
-	shader_draw_fill_trans = R_RegisterShader("fill_trans",
+	shader_draw_fill_trans = R_RegisterShader("fill_trans", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -206,7 +206,7 @@ void R2D_Init(void)
 				"blendfunc blend\n"
 			"}\n"
 		"}\n");
-	shader_contrastup = R_RegisterShader("constrastupshader",
+	shader_contrastup = R_RegisterShader("constrastupshader", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -218,7 +218,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_contrastdown = R_RegisterShader("constrastdownshader",
+	shader_contrastdown = R_RegisterShader("constrastdownshader", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -230,7 +230,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_brightness = R_RegisterShader("brightnessshader",
+	shader_brightness = R_RegisterShader("brightnessshader", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -242,7 +242,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_gammacb = R_RegisterShader("gammacbshader",
+	shader_gammacb = R_RegisterShader("gammacbshader", SUF_NONE,
 		"{\n"
 			"program defaultgammacb\n"
 			"cull back\n"
@@ -252,7 +252,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_polyblend = R_RegisterShader("polyblendshader",
+	shader_polyblend = R_RegisterShader("polyblendshader", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -263,7 +263,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_menutint = R_RegisterShader("menutint",
+	shader_menutint = R_RegisterShader("menutint", SUF_NONE,
 		"{\n"
 			"if $glsl && gl_menutint_shader != 0\n"
 				"program menutint\n"
@@ -279,7 +279,7 @@ void R2D_Init(void)
 			"endif\n"
 		"}\n"
 	);
-	shader_crosshair = R_RegisterShader("crosshairshader",
+	shader_crosshair = R_RegisterShader("crosshairshader", SUF_NONE,
 		"{\n"
 			"if $nofixed\n"
 				"program default2d\n"
@@ -401,7 +401,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 }
 
 /*draws a block of the current colour on the screen*/
-void R2D_FillBlock(int x, int y, int w, int h)
+void R2D_FillBlock(float x, float y, float w, float h)
 {
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
@@ -421,12 +421,12 @@ void R2D_FillBlock(int x, int y, int w, int h)
 		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, &shader_draw_fill->defaulttextures, r2d_be_flags);
 }
 
-void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic)
+void R2D_ScalePic (float x, float y, float width, float height, mpic_t *pic)
 {
 	R2D_Image(x, y, width, height, 0, 0, 1, 1, pic);
 }
 
-void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
+void R2D_SubPic(float x, float y, float width, float height, mpic_t *pic, float srcx, float srcy, float srcwidth, float srcheight)
 {
 	float newsl, newtl, newsh, newth;
 
@@ -440,7 +440,7 @@ void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int 
 }
 
 /* this is an ugly special case drawing func that's only used for the player color selection menu */
-void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qbyte *translation)
+void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic, qbyte *translation)
 {
 	int				v, u;
 	unsigned		trans[64*64], *dest;
@@ -464,16 +464,17 @@ void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qby
 	if (!TEXVALID(translate_texture))
 	{
 		translate_texture = R_AllocNewTexture("***translatedpic***", 64, 64, 0);
-		translate_shader = R_RegisterShader("translatedpic", "{\n"
-			"if $nofixed\n"
-				"program default2d\n"
-			"endif\n"
-			"nomipmaps\n"
+		translate_shader = R_RegisterShader("translatedpic", SUF_2D,
 			"{\n"
-				"map $diffuse\n"
-				"blendfunc blend\n"
-			"}\n"
-		"}\n");
+				"if $nofixed\n"
+					"program default2d\n"
+				"endif\n"
+				"nomipmaps\n"
+				"{\n"
+					"map $diffuse\n"
+					"blendfunc blend\n"
+				"}\n"
+			"}\n");
 		translate_shader->defaulttextures.base = translate_texture;
 	}
 	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
@@ -542,7 +543,7 @@ This repeats a 64*64 tile graphic to fill the screen around a sized down
 refresh window.
 =============
 */
-void R2D_TileClear (int x, int y, int w, int h)
+void R2D_TileClear (float x, float y, float w, float h)
 {
 	float newsl, newsh, newtl, newth;
 	newsl = (x)/(float)64;
@@ -588,7 +589,7 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 		conback = R_RegisterPic(var->string);
 	if (!conback || conback->flags & SHADER_NOIMAGE)
 	{
-		conback = R_RegisterCustom("console", NULL, NULL);
+		conback = R_RegisterCustom("console", SUF_2D, NULL, NULL);
 		if (!conback || conback->flags & SHADER_NOIMAGE)
 		{
 			if (M_GameType() == MGT_HEXEN2)

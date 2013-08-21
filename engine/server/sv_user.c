@@ -55,7 +55,7 @@ cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "0", "Specifies the default pro
 
 cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
-cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
+cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disregard player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
@@ -424,6 +424,10 @@ void SVNQ_New_f (void)
 	int maxplayers = 0;
 	int op;
 	unsigned int protext1 = 0, protext2 = 0, protmain = 0, protfl = 0;
+	char *protoname;
+
+	host_client->prespawn_stage = PRESPAWN_INVALID;
+	host_client->prespawn_idx = 0;
 
 	host_client->send_message = true;
 	if (host_client->redirect)
@@ -442,41 +446,12 @@ void SVNQ_New_f (void)
 		return;
 	}
 
-	MSG_WriteByte (&host_client->netchan.message, svc_print);
-	Q_snprintfz (message, sizeof(message), "%c\n%s server\n", 2, version_string());
-	MSG_WriteString (&host_client->netchan.message,message);
-
 
 	Z_Free(host_client->csqcentversions);
 	host_client->csqcentversions = NULL;
 	Z_Free(host_client->csqcentsequence);
 	host_client->csqcentsequence = NULL;
 	host_client->csqcactive = false;
-	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
-	{
-		extern cvar_t allow_download;
-		char *f;
-
-		if (allow_download.value)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
-		}
-
-		f = COM_LoadTempFile("csprogs.dat");
-		if (f)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", "csprogs.dat"));
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %i\n", com_filesize));
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, com_filesize)));
-
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
-		}
-	}
 
 	protext1 = host_client->fteprotocolextensions;
 	protext2 = host_client->fteprotocolextensions2;
@@ -507,31 +482,71 @@ void SVNQ_New_f (void)
 			{
 				protext1 &= ~PEXT_FLOATCOORDS;		//never report floatcoords when using rmq protocol, as the base protocol allows us to be more specific anyway.
 				protmain = RMQ_PROTOCOL_VERSION;
+				protoname = "RMQ";
 			}
 			else
+			{
 				protmain = FITZ_PROTOCOL_VERSION;
+				protoname = "666";
+			}
 		}
 		else
 		{
 			host_client->protocol = (host_client->protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;	//identical other than the client->server angles
 			protmain = NQ_PROTOCOL_VERSION;
+			protoname = "NQ";
 		}
 		maxplayers = 16;
 		break;
 	case SCP_DARKPLACES6:
 		SV_LogPlayer(host_client, "new (DP6)");
 		protmain = DP6_PROTOCOL_VERSION;
+		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
 		maxplayers = 255;
+		protoname = "DPP6";
 		break;
 	case SCP_DARKPLACES7:
 		SV_LogPlayer(host_client, "new (DP7)");
 		protmain = DP7_PROTOCOL_VERSION;
+		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
 		maxplayers = 255;
+		protoname = "DPP7";
 		break;
 #endif
 	default:
 		host_client->drop = true;
+		protoname = "?""?""?";
 		break;
+	}
+
+	MSG_WriteByte (&host_client->netchan.message, svc_print);
+	Q_snprintfz (message, sizeof(message), "%c\n%s %s%s%s%s server\n", 2, version_string(), (protext2&PEXT2_REPLACEMENTDELTAS)?"FTE":"", protoname, (protext1||(protext2&~(PEXT2_REPLACEMENTDELTAS|PEXT2_VOICECHAT)))?"+":"", (protext2&PEXT2_VOICECHAT)?"V":"");
+	MSG_WriteString (&host_client->netchan.message,message);
+
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+	{
+		extern cvar_t allow_download;
+		char *f;
+
+		if (allow_download.value)
+		{
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
+		}
+
+		f = COM_LoadTempFile("csprogs.dat");
+		if (f)
+		{
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", "csprogs.dat"));
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %i\n", com_filesize));
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, com_filesize)));
+
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
+		}
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
@@ -1949,6 +1964,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 		ClientReliableWrite_String(cl, s);
 
 		VFS_CLOSE(host_client->download);
+		host_client->send_message = true;
 		host_client->download = NULL;
 		host_client->downloadsize = 0;
 	}
@@ -2946,6 +2962,7 @@ void SV_BeginDownload_f(void)
 		char *s = va("\ncl_downloadbegin %i %s\n", host_client->downloadsize, host_client->downloadfn);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String (host_client, s);
+		host_client->send_message = true;
 	}
 	else
 		SV_NextDownload_f ();

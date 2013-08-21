@@ -76,7 +76,8 @@ struct {
 	int size[4];
 	struct font_s *font[4];
 } fontslot[FONT_SLOTS];
-void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, float szy, float *px, float *py)
+
+static struct font_s *PR_CL_ChooseFont(pubprogfuncs_t *prinst, float szx, float szy)
 {
 	int fontidx = 0;	//default by default...
 	world_t *world = prinst->parms->user;
@@ -106,6 +107,11 @@ void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, fl
 			}
 		}
 	}
+	return font;
+}
+void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, float szy, float *px, float *py)
+{
+	struct font_s *font = PR_CL_ChooseFont(prinst, szx, szy);
 
 	Font_BeginScaledString(font, vx, vy, szx, szy, px, py);
 }
@@ -362,7 +368,7 @@ void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	char	*str;
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = !!R_RegisterCustom(str, NULL, NULL);
+	G_FLOAT(OFS_RETURN) = !!R_RegisterCustom(str, SUF_2D, NULL, NULL);
 }
 
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -522,7 +528,7 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	mesh.numindexes = 2;
 
 	//this shader lookup might get pricy.
-	shader_draw_line = R_RegisterShader("shader_draw_line",
+	shader_draw_line = R_RegisterShader("shader_draw_line", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -580,6 +586,123 @@ void QCBUILTIN PF_cl_getmousepos (pubprogfuncs_t *prinst, struct globalvars_s *p
 //	ret[0] = mousecursor_x;
 //	ret[1] = mousecursor_y;
 	ret[2] = 0;
+}
+
+
+void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *field = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *value = (prinst->callargc>2)?PR_GetStringOfs(prinst, OFS_PARM2):NULL;
+	console_t *con = Con_FindConsole(conname);
+	G_INT(OFS_RETURN) = 0;
+	if (!con)
+	{
+		//null if it doesn't exist
+		return;
+	}
+	if (!strcmp(field, "title"))
+	{
+		RETURN_TSTRING(con->title);
+		if (value)
+			Q_strncpyz(con->title, value, sizeof(con->title));
+	}
+	else if (!strcmp(field, "name"))
+	{
+		RETURN_TSTRING(con->name);
+		if (value && *value && *con->name)
+			Q_strncpyz(con->name, value, sizeof(con->name));
+	}
+	else if (!strcmp(field, "next"))
+	{
+		con = con->next;
+		if (con)
+			RETURN_TSTRING(con->name);
+	}
+	else if (!strcmp(field, "unseen"))
+	{
+		RETURN_TSTRING(va("%i", con->unseentext));
+		if (value)
+			con->unseentext = atoi(value);
+	}
+	else if (!strcmp(field, "hidden"))
+	{
+		RETURN_TSTRING((con->flags & CON_HIDDEN)?"1":"0");
+		if (value)
+			con->flags = (con->flags & ~CON_HIDDEN) | (atoi(value)?CON_HIDDEN:0);
+	}
+	else if (!strcmp(field, "linecount"))
+	{
+		RETURN_TSTRING(va("%i", con->linecount));
+		if (value)
+			con->unseentext = atoi(value);
+	}
+}
+void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char outbuf[4096];
+	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *fmt = PR_GetStringOfs(prinst, OFS_PARM1);
+	console_t *con = Con_FindConsole(conname);
+	if (!con)
+		return;
+	PF_sprintf_internal(prinst, pr_globals, fmt, 2, outbuf, sizeof(outbuf));
+	Con_PrintCon(con, outbuf);
+}
+void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	float *pos = G_VECTOR(OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float fontsize = G_FLOAT(OFS_PARM3);
+	console_t *con = Con_FindConsole(conname);
+	if (!con)
+		return;
+
+	Con_DrawOneConsole(con, PR_CL_ChooseFont(prinst, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
+}
+qboolean Key_Console (console_t *con, unsigned int unicode, int key);
+void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
+void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int ie = G_FLOAT(OFS_PARM1);
+	float pa = G_FLOAT(OFS_PARM2);
+	float pb = G_FLOAT(OFS_PARM3);
+	float pc = G_FLOAT(OFS_PARM4);
+	console_t *con = Con_FindConsole(conname);
+	G_FLOAT(OFS_RETURN) = 0;
+	if (!con)
+		return;
+	switch(ie)
+	{
+	case CSIE_KEYDOWN:
+		//scan, char
+		G_FLOAT(OFS_RETURN) = 0;
+//		G_FLOAT(OFS_RETURN) = Key_Console(con, pb, MP_TranslateQCtoFTECodes(pa));
+		break;
+	case CSIE_KEYUP:
+		//scan, char
+		Key_ConsoleRelease(con, MP_TranslateQCtoFTECodes(pa), pb);
+		G_FLOAT(OFS_RETURN) = 0;	//does not inhibit
+		break;
+	case CSIE_MOUSEABS:
+		//x, y
+		if (con == con_current && key_dest == key_console)
+			break;	//no interfering with the main console!
+		con->mousecursor[0] = pa;
+		con->mousecursor[1] = pb;
+		G_FLOAT(OFS_RETURN) = true;
+		break;
+	case CSIE_FOCUS:
+		//mouse, key
+		if (pb >= 0)
+		{
+			con->flags = (con->flags & ~CONF_KEYFOCUSED) | (pb?CONF_KEYFOCUSED:0);
+			G_FLOAT(OFS_RETURN) = true;
+		}
+		break;
+	}
 }
 #endif
 
@@ -1330,6 +1453,8 @@ static struct {
 	{"hash_get",				PF_hash_get,				290},
 	{"hash_delete",				PF_hash_delete,				291},
 	{"hash_getkey",				PF_hash_getkey,				292},
+	{"hash_getcb",				PF_hash_getcb,				293},
+	{"checkcommand",			PF_checkcommand,			294},
 															//gap
 	{"print",					PF_print,					339},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
@@ -1582,7 +1707,7 @@ void VARGS Menu_Abort (char *format, ...)
 		char *buffer;
 		int size = 1024*1024*8;
 		buffer = Z_Malloc(size);
-		menu_world.progs->save_ents(menu_world.progs, buffer, &size, 3);
+		menu_world.progs->save_ents(menu_world.progs, buffer, &size, size, 3);
 		COM_WriteFile("menucore.txt", buffer, size);
 		Z_Free(buffer);
 	}
@@ -1743,7 +1868,7 @@ void MP_CoreDump_f(void)
 	{
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
-		menu_world.progs->save_ents(menu_world.progs, buffer, &size, 3);
+		menu_world.progs->save_ents(menu_world.progs, buffer, &size, size, 3);
 		COM_WriteFile("menucore.txt", buffer, size);
 		BZ_Free(buffer);
 	}
@@ -1777,6 +1902,7 @@ void MP_Breakpoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
+	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 
 void MP_RegisterCvarsAndCmds(void)
@@ -1835,7 +1961,7 @@ void MP_Keydown(int key, int unicode)
 	{
 		if (keydown[K_LSHIFT] || keydown[K_RSHIFT])
 		{
-			Con_ToggleConsole_f();
+			Con_ToggleConsole_Force();
 			return;
 		}
 	}

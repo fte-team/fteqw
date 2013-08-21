@@ -263,7 +263,7 @@ static qboolean PClassic_InitParticles (void)
 	classicmesh.colors4b_array = (byte_vec4_t*)classiccolours;
 	classicmesh.indexes = classicindexes;
 #endif
-	classicshader = R_RegisterShader("particles_classic",
+	classicshader = R_RegisterShader("particles_classic", SUF_NONE,
 		"{\n"
 			"program defaultsprite\n"
 			"nomipmaps\n"

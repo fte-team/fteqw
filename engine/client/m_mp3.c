@@ -2197,7 +2197,7 @@ qboolean Media_BeginNextFilm(void)
 		return false;
 	}
 
-	videoshader = R_RegisterCustom(sname, Shader_DefaultCinematic, p->name);
+	videoshader = R_RegisterCustom(sname, SUF_NONE, Shader_DefaultCinematic, p->name);
 	Z_Free(p);
 
 	cin = R_ShaderGetCinematic(videoshader);

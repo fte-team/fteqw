@@ -744,6 +744,8 @@ void CLFTE_ParseEntities(void)
 		cl.last_servermessage = realtime;
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 			inputframe = MSG_ReadLong();
+		else
+			inputframe = cl.movesequence;
 
 		if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
 			cl.numackframes--;
@@ -2269,15 +2271,15 @@ void CLQ1_AddVisibleBBoxes(void)
 			packet_entities_t *pak;
 			entity_state_t *state;
 			model_t *mod;
-			s = R_RegisterShader("bboxshader",
+			s = R_RegisterShader("bboxshader", SUF_NONE,
 				"{\n"
-				"polygonoffset\n"
-				"{\n"
-				"map $whiteimage\n"
-				"blendfunc add\n"
-				"rgbgen vertex\n"
-				"alphagen vertex\n"
-				"}\n"
+					"polygonoffset\n"
+					"{\n"
+						"map $whiteimage\n"
+						"blendfunc add\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
 				"}\n");
 			frame = &cl.inframes[cl.parsecount & UPDATE_MASK];
 			pak = &frame->packet_entities;
@@ -2323,15 +2325,15 @@ void CLQ1_AddVisibleBBoxes(void)
 	if (!w->progs)
 		return;
 	
-	s = R_RegisterShader("bboxshader",
+	s = R_RegisterShader("bboxshader", SUF_NONE,
 		"{\n"
-		"polygonoffset\n"
-		"{\n"
-		"map $whiteimage\n"
-		"blendfunc add\n"
-		"rgbgen vertex\n"
-		"alphagen vertex\n"
-		"}\n"
+			"polygonoffset\n"
+			"{\n"
+				"map $whiteimage\n"
+				"blendfunc add\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
 		"}\n");
 	for (i = 1; i < w->num_edicts; i++)
 	{
@@ -2475,15 +2477,15 @@ void CLQ1_AddShadow(entity_t *ent)
 	if (!r_shadows.value || !ent->model || ent->model->type != mod_alias)
 		return;
 
-	s = R_RegisterShader("shadowshader",
+	s = R_RegisterShader("shadowshader", SUF_NONE,
 		"{\n"
-		"polygonoffset\n"
-		"{\n"
-		"map $diffuse\n"
-		"blendfunc blend\n"
-		"rgbgen vertex\n"
-		"alphagen vertex\n"
-		"}\n"
+			"polygonoffset\n"
+			"{\n"
+				"map $diffuse\n"
+				"blendfunc blend\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
 		"}\n");
 	TEXASSIGN(s->defaulttextures.base, balltexture);
 
@@ -2586,7 +2588,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 	/*view weapons are much closer to the screen, the scales don't work too well, so use a different shader with a smaller expansion*/
 	if (viewweap)
 	{
-		shell->forcedshader = R_RegisterShader("powerups/shellweapon",
+		shell->forcedshader = R_RegisterShader("powerups/shellweapon", SUF_NONE,
 				"{\n"
 					"program defaultpowerupshell\n"
 					"sort additive\n"
@@ -2604,7 +2606,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 	}
 	else
 	{
-		shell->forcedshader = R_RegisterShader("powerups/shell",
+		shell->forcedshader = R_RegisterShader("powerups/shell", SUF_NONE,
 				"{\n"
 					"program defaultpowerupshell\n"
 					"sort additive\n"
@@ -2893,7 +2895,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 	//we should be picking the packet just after the server time, and the one just before
 	for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 	{
-		if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].latency < 0 || cl.inframes[i&UPDATE_MASK].invalid)
+		if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || /*cl.inframes[i&UPDATE_MASK].latency < 0 ||*/ cl.inframes[i&UPDATE_MASK].invalid)
 			continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 
 		if (cl.inframes[i&UPDATE_MASK].packet_entities.servertime >= servertime)
@@ -4510,7 +4512,7 @@ void CL_LinkViewModel(void)
 
 	if (alpha < 1 && qrenderer == QR_OPENGL)
 	{
-		ent.forcedshader = 	R_RegisterShader("viewmodeldepthmask",
+		ent.forcedshader = 	R_RegisterShader("viewmodeldepthmask", SUF_NONE,
 				"{\n"
 					"noshadows\n"
 					"surfaceparm nodlight\n"

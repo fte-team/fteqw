@@ -3163,6 +3163,7 @@ void Shader_Reset(shader_t *s)
 	texnums_t dt = s->defaulttextures;
 	int w = s->width;
 	int h = s->height;
+	unsigned int uf = s->usageflags;
 	Q_strncpyz(name, s->name, sizeof(name));
 	s->genargs = NULL;
 	Shader_Free(s);
@@ -3173,6 +3174,7 @@ void Shader_Reset(shader_t *s)
 	s->defaulttextures = dt;
 	s->generator = defaultgen;
 	s->genargs = genargs;
+	s->usageflags = uf;
 	s->uses = uses;
 	Q_strncpyz(s->name, name, sizeof(s->name));
 	Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
@@ -3731,7 +3733,7 @@ void Shader_Finish (shader_t *s)
 		s->sort = SHADER_SORT_DECAL;
 	}
 
-	if (r_vertexlight.value && !s->prog)
+	if ((r_vertexlight.value || !(s->flags & SUF_LIGHTMAP)) && !s->prog)
 	{
 		// do we have a lightmap pass?
 		pass = s->passes;
@@ -4770,6 +4772,9 @@ qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode,
 #define COND_IGNOREPARENT 2
 #define COND_ALLOWELSE 4
 
+	if (!shadersource)
+		return false;
+
 	token = COM_ParseExt (shadersource, true, true);
 
 	if ( !token[0] )
@@ -4933,7 +4938,7 @@ void R_UnloadShader(shader_t *shader)
 	if (shader->uses-- == 1)
 		Shader_Free(shader);
 }
-static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *genargs)
+static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
 {
 	int i, f = -1;
 	char shortname[MAX_QPATH];
@@ -4956,11 +4961,18 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 
 	// check the hash first
 	s = Hash_Get(&shader_active_hash, shortname);
-	if (s)
+	while (s)
 	{
-		i = s - r_shaders;
-		r_shaders[i].uses++;
-		return i;
+		//make sure the same texture can be used as either a lightmap or vertexlit shader
+		//if it has an explicit shader overriding it then that still takes precidence. we might just have multiple copies of it.
+		//q3 has a separate (internal) shader for every lightmap.
+		if (!defaultgen || (s->generator == defaultgen && !s->genargs == !genargs && (!genargs || !strcmp(s->genargs, genargs))))
+		{
+			i = s - r_shaders;
+			r_shaders[i].uses++;
+			return i;
+		}
+		s = Hash_GetNext(&shader_active_hash, shortname, s);
 	}
 
 	// not loaded, find a free slot
@@ -4985,6 +4997,7 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	s = &r_shaders[f];
 
 	Q_strncpyz(s->name, shortname, sizeof(s->name));
+	s->usageflags = usageflags;
 	s->generator = defaultgen;
 	if (genargs)
 		s->genargs = strdup(genargs);
@@ -5196,7 +5209,7 @@ shader_t *R_RegisterPic (char *name)
 	image_width = 64;
 	image_height = 64;
 
-	shader = &r_shaders[R_LoadShader (name, Shader_Default2D, NULL)];
+	shader = &r_shaders[R_LoadShader (name, SUF_2D, Shader_Default2D, NULL)];
 
 	/*worth a try*/
 	if (shader->width <= 0)
@@ -5212,24 +5225,24 @@ shader_t *R_RegisterPic (char *name)
 	return shader;
 }
 
-shader_t *R_RegisterShader (char *name, const char *shaderscript)
+shader_t *R_RegisterShader (char *name, unsigned int usageflags, const char *shaderscript)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultScript, shaderscript)];
+	return &r_shaders[R_LoadShader (name, usageflags, Shader_DefaultScript, shaderscript)];
 }
 
 shader_t *R_RegisterShader_Lightmap (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPLM, NULL)];
+	return &r_shaders[R_LoadShader (name, SUF_LIGHTMAP, Shader_DefaultBSPLM, NULL)];
 }
 
 shader_t *R_RegisterShader_Vertex (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPVertex, NULL)];
+	return &r_shaders[R_LoadShader (name, 0, Shader_DefaultBSPVertex, NULL)];
 }
 
 shader_t *R_RegisterShader_Flare (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPFlare, NULL)];
+	return &r_shaders[R_LoadShader (name, 0, Shader_DefaultBSPFlare, NULL)];
 }
 
 shader_t *R_RegisterSkin (char *shadername, char *modname)
@@ -5244,7 +5257,7 @@ shader_t *R_RegisterSkin (char *shadername, char *modname)
 			memcpy(newsname, modname, b - modname);
 			memcpy(newsname + (b-modname), shadername, strlen(shadername)+1);
 			/*if the specified shader does not contain a path, try and load one relative to the name of the model*/
-			shader = &r_shaders[R_LoadShader (newsname, Shader_DefaultSkin, NULL)];
+			shader = &r_shaders[R_LoadShader (newsname, 0, Shader_DefaultSkin, NULL)];
 
 			R_BuildDefaultTexnums(&shader->defaulttextures, shader);
 
@@ -5253,13 +5266,13 @@ shader_t *R_RegisterSkin (char *shadername, char *modname)
 				return shader;
 		}
 	}
-	shader = &r_shaders[R_LoadShader (shadername, Shader_DefaultSkin, NULL)];
+	shader = &r_shaders[R_LoadShader (shadername, 0, Shader_DefaultSkin, NULL)];
 	return shader;
 }
-shader_t *R_RegisterCustom (char *name, shader_gen_t *defaultgen, const void *args)
+shader_t *R_RegisterCustom (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args)
 {
 	int i;
-	i = R_LoadShader (name, defaultgen, args);
+	i = R_LoadShader (name, usageflags, defaultgen, args);
 	if (i < 0)
 		return NULL;
 	return &r_shaders[i];

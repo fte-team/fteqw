@@ -106,13 +106,16 @@ typedef struct conline_s {
 	float time;
 } conline_t;
 
-#define CONF_HIDDEN			1 /*do not show in the console list (unless active)*/
-#define CONF_NOTIFY			2 /*text printed to console also appears as notify lines*/
-#define CONF_NOTIFY_BOTTOM	4 /*align the bottom*/
+#define CONF_HIDDEN			1	/*do not show in the console list (unless active)*/
+#define CONF_NOTIFY			2	/*text printed to console also appears as notify lines*/
+#define CONF_NOTIFY_BOTTOM	4	/*align the bottom*/
 #define CONF_NOTIMES		8
+#define CONF_KEYFOCUSED		16
 typedef struct console_s
 {
+	int id;
 	char name[64];
+	char title[64];
 	int linecount;
 	unsigned int flags;
 	int notif_x;
@@ -132,6 +135,13 @@ typedef struct console_s
 	void	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear.
 	void	(*redirect) (struct console_s *con, int key);	//if present, called every character.
 	void	*userdata;
+
+	conline_t	*footerline;	//temp text at the bottom of the console
+	conline_t	*selstartline, *selendline;
+	unsigned int	selstartoffset, selendoffset;
+	int mousedown[3];	//x,y,buttons
+	int mousecursor[2];	//x,y
+
 	struct console_s *next;
 } console_t;
 
@@ -162,6 +172,8 @@ void Con_ForceActiveNow(void);
 void Con_Init (void);
 void Con_Shutdown (void);
 void Con_History_Load(void);
+struct font_s;
+void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy, float fsx, float fsy);
 void Con_DrawConsole (int lines, qboolean noback);
 char *Con_CopyConsole(qboolean nomarkup);
 void Con_Print (char *txt);
@@ -173,7 +185,8 @@ void Con_Footerf(qboolean append, char *fmt, ...) LIKEPRINTF(2);
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);
-void Con_ToggleConsole_f (void);
+void Con_ToggleConsole_f (void);//note: allows csqc to intercept the toggleconsole
+void Con_ToggleConsole_Force(void);
 
 void Con_ExecuteLine(console_t *con, char *line);	//takes normal console commands
 

@@ -265,7 +265,7 @@ void Font_Init(void)
 		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
 	}
 
-	fontplanes.shader = R_RegisterShader("ftefont",
+	fontplanes.shader = R_RegisterShader("ftefont", SUF_NONE,
 		"{\n"
 			"if $nofixed\n"
 				"program default2d\n"
@@ -280,7 +280,7 @@ void Font_Init(void)
 		"}\n"
 		);
 
-	fontplanes.backshader = R_RegisterShader("ftefontback",
+	fontplanes.backshader = R_RegisterShader("ftefontback", SUF_NONE,
 		"{\n"
 			"nomipmaps\n"
 			"{\n"

@@ -43,8 +43,6 @@ keydest_t	key_dest;
 
 int		key_count;			// incremented every key event
 
-int con_mousedown[3];
-
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
 qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
@@ -440,35 +438,35 @@ void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 		SCR_StringToRGB(var->string, sccolor, 1);
 }
 
-qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
+qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, int *ey)
 {
 	*sx = *sy = *ex = *ey = 0;
 
-	if (con_mousedown[2] == 1)
+	if (con->mousedown[2] == 1)
 	{
-		while (mousecursor_y - con_mousedown[1] > 8 && con_current->display->older)
+		while (con->mousecursor[1] - con->mousedown[1] > 8 && con->display->older)
 		{
-			con_mousedown[1] += 8;
-			con_current->display = con_current->display->older;
+			con->mousedown[1] += 8;
+			con->display = con->display->older;
 		}
-		while (mousecursor_y - con_mousedown[1] < -8 && con_current->display->newer)
+		while (con->mousecursor[1] - con->mousedown[1] < -8 && con->display->newer)
 		{
-			con_mousedown[1] -= 8;
-			con_current->display = con_current->display->newer;
+			con->mousedown[1] -= 8;
+			con->display = con->display->newer;
 		}
 
-		*sx = mousecursor_x;
-		*sy = mousecursor_y;
-		*ex = mousecursor_x;
-		*ey = mousecursor_y;
+		*sx = con->mousecursor[0];
+		*sy = con->mousecursor[1];
+		*ex = con->mousecursor[0];
+		*ey = con->mousecursor[1];
 		return true;
 	}
-	else if (con_mousedown[2] == 2)
+	else if (con->mousedown[2] == 2)
 	{
-		*sx = con_mousedown[0];
-		*sy = con_mousedown[1];
-		*ex = mousecursor_x;
-		*ey = mousecursor_y;
+		*sx = con->mousedown[0];
+		*sy = con->mousedown[1];
+		*ex = con->mousecursor[0];
+		*ey = con->mousecursor[1];
 		return true;
 	}
 	return false;
@@ -726,13 +724,13 @@ void Key_DefaultLinkClicked(char *text, char *info)
 	}
 }
 
-void Key_ConsoleRelease(int key, int unicode)
+void Key_ConsoleRelease(console_t *con, int key, int unicode)
 {
 	char *buffer;
 	if (key == K_MOUSE1)
 	{
-		con_mousedown[2] = 0;
-		if (abs(con_mousedown[0] - mousecursor_x) < 5 && abs(con_mousedown[1] - mousecursor_y) < 5)
+		con->mousedown[2] = 0;
+		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
 		{
 			buffer = Con_CopyConsole(false);
 			Con_Footerf(false, "");
@@ -807,9 +805,9 @@ void Key_ConsoleRelease(int key, int unicode)
 		else
 			Con_Footerf(false, "");
 	}
-	if (key == K_MOUSE2 && con_mousedown[2] == 2)
+	if (key == K_MOUSE2 && con->mousedown[2] == 2)
 	{
-		con_mousedown[2] = 0;
+		con->mousedown[2] = 0;
 		buffer = Con_CopyConsole(true);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
@@ -921,7 +919,7 @@ Key_Console
 Interactive line editing and console scrollback
 ====================
 */
-void Key_Console (unsigned int unicode, int key)
+qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 {
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
@@ -932,27 +930,27 @@ void Key_Console (unsigned int unicode, int key)
 	if ((unicode >= '0' && unicode <= '9') || unicode == '.')
 		key = 0;
 
-	if (con_current->redirect)
+	if (con->redirect)
 	{
 		if (key == K_TAB)
 		{	// command completion
 			if (ctrl || shift)
 			{
 				Con_CycleConsole();
-				return;
+				return true;
 			}
 		}
-		con_current->redirect(con_current, key);
-		return;
+		con->redirect(con_current, key);
+		return true;
 	}
 
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
 		int xpos, ypos;
-		xpos = (int)((mousecursor_x*vid.width)/(vid.pixelwidth*8));
-		ypos = (int)((mousecursor_y*vid.height)/(vid.pixelheight*8));
-		con_mousedown[0] = mousecursor_x;
-		con_mousedown[1] = mousecursor_y;
+		xpos = (int)((con->mousecursor[0]*vid.width)/(vid.pixelwidth*8));
+		ypos = (int)((con->mousecursor[1]*vid.height)/(vid.pixelheight*8));
+		con->mousedown[0] = con->mousecursor[0];
+		con->mousedown[1] = con->mousecursor[1];
 		if (ypos == 0 && con_mouseover)
 		{
 			if (key == K_MOUSE2)
@@ -961,11 +959,11 @@ void Key_Console (unsigned int unicode, int key)
 				con_current = con_mouseover;
 		}
 		else if (key == K_MOUSE2)
-			con_mousedown[2] = 2;
+			con->mousedown[2] = 2;
 		else 
-			con_mousedown[2] = 1;
+			con->mousedown[2] = 1;
 
-		return;
+		return true;
 	}
 	
 	if (key == K_ENTER || key == K_KP_ENTER)
@@ -979,22 +977,22 @@ void Key_Console (unsigned int unicode, int key)
 		key_lines[edit_line][1] = '\0';
 		key_linepos = 1;
 
-		if (con_current->linebuffered)
-			con_current->linebuffered(con_current, key_lines[oldl]+1);
+		if (con->linebuffered)
+			con->linebuffered(con, key_lines[oldl]+1);
 		con_commandmatch = 0;
 
-		return;
+		return true;
 	}
 
-	if (key == K_SPACE && ctrl && con_current->commandcompletion)
+	if (key == K_SPACE && ctrl && con->commandcompletion)
 	{
 		char *txt = key_lines[edit_line]+1;
 		if (*txt == '/')
 			txt++;
-		if (Cmd_CompleteCommand(txt, true, true, con_current->commandcompletion, NULL))
+		if (Cmd_CompleteCommand(txt, true, true, con->commandcompletion, NULL))
 		{
 			CompleteCommand (true);
-			return;
+			return true;
 		}
 	}
 
@@ -1003,12 +1001,12 @@ void Key_Console (unsigned int unicode, int key)
 		if (shift)
 		{
 			Con_CycleConsole();
-			return;
+			return true;
 		}
 
-		if (con_current->commandcompletion)
+		if (con->commandcompletion)
 			CompleteCommand (ctrl);
-		return;
+		return true;
 	}
 	if (key != K_CTRL && key != K_SHIFT && con_commandmatch)
 		con_commandmatch=1;
@@ -1026,7 +1024,7 @@ void Key_Console (unsigned int unicode, int key)
 		}
 		else
 			key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-		return;
+		return true;
 	}
 	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW)
 	{
@@ -1042,10 +1040,10 @@ void Key_Console (unsigned int unicode, int key)
 				while (key_lines[edit_line][key_linepos] == ' ')
 					key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
 			}
-			return;
+			return true;
 		}
 		else
-			key = ' ';
+			unicode = ' ';
 	}
 
 	if (key == K_DEL || key == K_KP_DEL)
@@ -1054,7 +1052,7 @@ void Key_Console (unsigned int unicode, int key)
 		{
 			int charlen = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - (key_lines[edit_line] + key_linepos);
 			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+1);
-			return;
+			return true;
 		}
 		else
 			key = K_BACKSPACE;
@@ -1070,7 +1068,7 @@ void Key_Console (unsigned int unicode, int key)
 		}
 		if (!key_lines[edit_line][1])
 			con_commandmatch = 0;
-		return;
+		return true;
 	}
 
 	if (key == K_UPARROW || key == K_KP_UPARROW)
@@ -1089,7 +1087,7 @@ void Key_Console (unsigned int unicode, int key)
 		key_lines[edit_line][0] = ']';
 		if (!key_lines[edit_line][1])
 			con_commandmatch = 0;
-		return;
+		return true;
 	}
 
 	if (key == K_DOWNARROW || key == K_KP_DOWNARROW)
@@ -1100,7 +1098,7 @@ void Key_Console (unsigned int unicode, int key)
 			key_lines[edit_line][1] = '\0';
 			key_linepos=1;
 			con_commandmatch = 0;
-			return;
+			return true;
 		}
 		do
 		{
@@ -1120,7 +1118,7 @@ void Key_Console (unsigned int unicode, int key)
 			Q_strcpy(key_lines[edit_line], key_lines[history_line]);
 			key_linepos = Q_strlen(key_lines[edit_line]);
 		}
-		return;
+		return true;
 	}
 
 	if (key == K_PGUP || key == K_KP_PGUP || key==K_MWHEELUP)
@@ -1128,59 +1126,59 @@ void Key_Console (unsigned int unicode, int key)
 		int i = 2;
 		if (ctrl)
 			i = 8;
-		if (!con_current->display)
-			return;
-		if (con_current->display == con_current->current)
+		if (!con->display)
+			return true;
+		if (con->display == con->current)
 			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
 		while (i-->0)
 		{
-			if (con_current->display->older == NULL)
+			if (con->display->older == NULL)
 				break;
-			con_current->display = con_current->display->older;
+			con->display = con->display->older;
 		}
-		return;
+		return true;
 	}
 	if (key == K_PGDN || key == K_KP_PGDN || key==K_MWHEELDOWN)
 	{
 		int i = 2;
 		if (ctrl)
 			i = 8;
-		if (!con_current->display)
-			return;
+		if (!con->display)
+			return true;
 		while (i-->0)
 		{
-			if (con_current->display->newer == NULL)
+			if (con->display->newer == NULL)
 				break;
-			con_current->display = con_current->display->newer;
+			con->display = con->display->newer;
 		}
-		if (con_current->display->newer && con_current->display->newer == con_current->current)
-			con_current->display = con_current->current;
-		return;
+		if (con->display->newer && con->display->newer == con->current)
+			con->display = con->current;
+		return true;
 	}
 
 	if (key == K_HOME || key == K_KP_HOME)
 	{
 		if (ctrl)
-			con_current->display = con_current->oldest;
+			con->display = con->oldest;
 		else
 			key_linepos = 1;
-		return;
+		return true;
 	}
 
 	if (key == K_END || key == K_KP_END)
 	{
 		if (ctrl)
-			con_current->display = con_current->current;
+			con->display = con->current;
 		else
 			key_linepos = strlen(key_lines[edit_line]);
-		return;
+		return true;
 	}
 
 	//beware that windows translates ctrl+c and ctrl+v to a control char
 	if (((unicode=='C' || unicode=='c' || unicode==3) && ctrl) || (ctrl && key == K_INS))
 	{
 		Sys_SaveClipboard(key_lines[edit_line]+1);
-		return;
+		return true;
 	}
 
 	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
@@ -1191,7 +1189,7 @@ void Key_Console (unsigned int unicode, int key)
 			Key_ConsoleInsert(clipText);
 			Sys_CloseClipboard(clipText);
 		}
-		return;
+		return true;
 	}
 
 	if (unicode < ' ')
@@ -1220,7 +1218,7 @@ void Key_Console (unsigned int unicode, int key)
 		default:
 //			if (unicode)
 //				Con_Printf("escape code %i\n", unicode);
-			return;
+			return false;
 		}
 	}
 	else if (com_parseutf8.ival >= 0)	//don't do this for iso8859-1. the major user of that is hexen2 which doesn't have these chars.
@@ -1261,7 +1259,9 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		utf8[unicode] = 0;
 		Key_ConsoleInsert(utf8);
+		return true;
 	}
+	return false;
 }
 
 //============================================================================
@@ -1612,11 +1612,13 @@ Writes lines containing "bind key value"
 */
 void Key_WriteBindings (vfsfile_t *f)
 {
-	char *s;
+	const char *s;
 	int		i, m;
 	char *binding, *base;
 
 	char prefix[128];
+	char keybuf[256];
+	char commandbuf[2048];
 
 	for (i=0 ; i<K_MAX ; i++)	//we rebind the key with all modifiers to get the standard bind, then change the specific ones.
 	{						//this does two things, it normally allows us to skip 7 of the 8 possibilities
@@ -1638,24 +1640,15 @@ void Key_WriteBindings (vfsfile_t *f)
 				if (m & 1)
 					strcat(prefix, "SHIFT_");
 
+				s = va("%s%s", prefix, Key_KeynumToString(i));
+				//quote it as required
+				if (i == ';' || i <= ' ' || i == '\"')
+					s = COM_QuotedString(s, keybuf, sizeof(keybuf));
+
 				if (bindcmdlevel[i][m] != bindcmdlevel[i][0])
-				{
-					if (i == ';')
-						s = va("bindlevel \"%s%s\" %i \"%s\"\n", prefix, Key_KeynumToString(i), bindcmdlevel[i][m], keybindings[i][m]);
-					else if (i == '\"')
-						s = va("bindlevel \"%s%s\" %i \"%s\"\n", prefix, "\"\"", bindcmdlevel[i][m], keybindings[i][m]);
-					else
-						s = va("bindlevel %s%s %i \"%s\"\n", prefix, Key_KeynumToString(i), bindcmdlevel[i][m], keybindings[i][m]);
-				}
+					s = va("bindlevel %s %i %s\n", s, bindcmdlevel[i][m], COM_QuotedString(binding, commandbuf, sizeof(commandbuf)));
 				else
-				{
-					if (i == ';')
-						s = va("bind \"%s%s\" \"%s\"\n", prefix, Key_KeynumToString(i), keybindings[i][m]);
-					else if (i == '\"')
-						s = va("bind \"%s%s\" \"%s\"\n", prefix, "\"\"", keybindings[i][m]);
-					else
-						s = va("bind %s%s \"%s\"\n", prefix, Key_KeynumToString(i), keybindings[i][m]);
-				}
+					s = va("bind %s %s\n", s, COM_QuotedString(binding, commandbuf, sizeof(commandbuf)));
 				VFS_WRITE(f, s, strlen(s));
 			}
 		}
@@ -1922,7 +1915,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		{
 			if (down)
 			{
-				Con_ToggleConsole_f();
+				Con_ToggleConsole_Force();
 				return;
 			}
 		}
@@ -2021,7 +2014,9 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 			M_Keyup (key, unicode);
 			break;
 		case key_console:
-			Key_ConsoleRelease(key, unicode);
+			con_current->mousecursor[0] = mousecursor_x;
+			con_current->mousecursor[1] = mousecursor_y;
+			Key_ConsoleRelease(con_current, key, unicode);
 			break;
 		default:
 			break;
@@ -2152,7 +2147,9 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	case key_console:
 		if ((key && unicode) || key == K_ENTER || key == K_KP_ENTER || key == K_TAB)
 			key_dest = key_console;
-		Key_Console (unicode, key);
+		con_current->mousecursor[0] = mousecursor_x;
+		con_current->mousecursor[1] = mousecursor_y;
+		Key_Console (con_current, unicode, key);
 		break;
 	default:
 		Sys_Error ("Bad key_dest");

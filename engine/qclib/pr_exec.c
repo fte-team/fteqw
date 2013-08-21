@@ -657,18 +657,20 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 
 		c2 = COM_TrimString(c2);
 		def = ED_FindLocalOrGlobal(progfuncs, c2, &fval);
-		if (def)
+		if (def && def->type == ev_field)
 		{
 			fofs = fval->_int + progfuncs->funcs.fieldadjust;
+			fdef = ED_FieldAtOfs(progfuncs, fofs);
 		}
 		else
-		{
 			fdef = ED_FindField(progfuncs, c2);
-			if (c)*c = '.';
-			if (!fdef)
-				return false;
-			fofs = fdef->ofs;
-		}
+
+		if (c)*c = '.';
+		if (!fdef)
+			return false;
+		fofs = fdef->ofs;
+		type = fdef->type;
+
 
 		ed = PROG_TO_EDICT(progfuncs, val->_int);
 		if (!ed)
@@ -676,7 +678,6 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 		if (fofs < 0 || fofs >= max_fields_size)
 			return false;
 		val = (eval_t *) (((char *)ed->fields) + fofs*4);
-		type = fdef->type;
 	}
 	*rettype = type;
 	*result = val;
@@ -886,7 +887,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 		}
 		assignment[-1] = '=';
 	}
-	strcpy(buf, PR_ValueString(progfuncs, type, val));
+	QC_snprintfz(buf, sizeof(buf), "%s", PR_ValueString(progfuncs, type, val, true));
 
 	return buf;
 }
@@ -1192,7 +1193,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 			break;
 		case ev_function:
 		case ev_string:
-			printf("Watch point \"%s\" set by engine to %s.\n", prinst.watch_name, PR_ValueString(progfuncs, prinst.watch_type, prinst.watch_ptr));
+			printf("Watch point \"%s\" set by engine to %s.\n", prinst.watch_name, PR_ValueString(progfuncs, prinst.watch_type, prinst.watch_ptr, false));
 			break;
 		}
 		prinst.watch_old = *prinst.watch_ptr;

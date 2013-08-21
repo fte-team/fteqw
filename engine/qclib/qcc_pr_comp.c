@@ -140,8 +140,8 @@ QCC_type_t *QCC_PR_FindType (QCC_type_t *type);
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto);
 QCC_def_t *QCC_PR_Term (int exprflags);
-QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields);
-QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign);
+QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields, pbool makearraypointers);
+QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign, pbool makestructpointers);
 QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC_def_t *arglist[], QCC_type_t *argtypelist[], int argcount);
 void QCC_Marshal_Locals(int firststatement, int laststatement);
 
@@ -3344,7 +3344,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warn
 			{
 				int sz;
 				int oldstcount = numstatements;
-				e = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+				e = QCC_PR_ParseValue(pr_classtype, false, true, false);
 				//the term should not have side effects, or generate any actual statements.
 				numstatements = oldstcount;
 				QCC_PR_Expect(")");
@@ -3770,7 +3770,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warn
 				while(QCC_PR_CheckToken(","))
 				{
 					QCC_def_t *f, *p, *v;
-					f = QCC_PR_ParseValue(rettype, false, false);
+					f = QCC_PR_ParseValue(rettype, false, false, true);
 					if (f->type->type != ev_field)
 						QCC_PR_ParseError(0, "Named field is not a field.");
 					if (QCC_PR_CheckToken("="))							//allow : or = as a separator, but throw a warning for =
@@ -4591,7 +4591,7 @@ static QCC_def_t *QCC_PR_ExpandField(QCC_def_t *ent, QCC_def_t *field)
 				QCC_PR_SimpleStatement(OP_LOAD_FNC, nthis->ofs, field->ofs, func->ofs, false);
 				qcc_usefulstatement=true;
 				r = QCC_PR_ParseFunctionCall(nthis, func);
-				r = QCC_PR_ParseArrayPointer(r, true);
+				r = QCC_PR_ParseArrayPointer(r, true, true);
 			}
 			else
 			{
@@ -4630,11 +4630,16 @@ static QCC_def_t *QCC_PR_ParseField(QCC_def_t *d)
 			QCC_PR_Expect(")");
 		}
 		else
-			field = QCC_PR_ParseValue(d->type, false, false);
+			field = QCC_PR_ParseValue(d->type, false, false, true);
 		if (field->type->type == ev_field || field->type->type == ev_variant)
 			d = QCC_PR_ExpandField(d, field);
 		else
-			QCC_PR_ParseError(ERR_INTERNAL, "Bad field type of class %s", d->type->name);
+		{
+			if (d->type->parentclass)
+				QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field of class %s", field->name, d->type->name);
+			else
+				QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field", field->name);
+		}
 
 		d = QCC_PR_ParseField(d);
 	}
@@ -4649,7 +4654,7 @@ within types which are a contiguous block, expanding to an array index.
 
 Also calls QCC_PR_ParseField, which does fields too.
 */
-QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
+QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign, pbool makearraypointers)
 {
 	QCC_type_t *t;
 	QCC_def_t *idx;
@@ -5068,11 +5073,11 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 		}
 
 		/*parse recursively*/
-		d = QCC_PR_ParseArrayPointer(d, allowarrayassign);
+		d = QCC_PR_ParseArrayPointer(d, allowarrayassign, makearraypointers);
 	}
 
 	//float b[64]; return b; should return a pointer, and NOT the value b[0].
-	if (arraysize)
+	if (arraysize && makearraypointers)
 		d = QCC_PR_GenerateAddressOf(statatementstart, d);
 
 	d = QCC_PR_ParseField(d);
@@ -5086,7 +5091,7 @@ PR_ParseValue
 Returns the global ofs for the current token
 ============
 */
-QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields)
+QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields, pbool makearraypointers)
 {
 	QCC_def_t		*d, *od;
 	QCC_type_t		*t;
@@ -5316,7 +5321,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 		QCC_PR_ParseWarning (WARN_SELFNOTTHIS, "'self' used inside OO function, use 'this'.", pr_scope->name);
 	}
 
-	d = QCC_PR_ParseArrayPointer(d, allowarrayassign);
+	d = QCC_PR_ParseArrayPointer(d, allowarrayassign, makearraypointers);
 
 	if (pr_classtype && expandmemberfields && d->type->type == ev_field)
 	{
@@ -5602,12 +5607,12 @@ QCC_def_t *QCC_PR_Term (int exprflags)
 				QCC_PR_Expect (")");
 				conditional = oldcond;
 
-				QCC_PR_ParseArrayPointer(e, true);
+				QCC_PR_ParseArrayPointer(e, true, true);
 			}
 			return e;
 		}
 	}
-	return QCC_PR_ParseValue (pr_classtype, !(exprflags&EXPR_DISALLOW_ARRAYASSIGN), true);
+	return QCC_PR_ParseValue (pr_classtype, !(exprflags&EXPR_DISALLOW_ARRAYASSIGN), true, true);
 }
 
 
@@ -5679,7 +5684,7 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 			{
 				qcc_usefulstatement=true;
 				e = QCC_PR_ParseFunctionCall (NULL, e);
-				e = QCC_PR_ParseArrayPointer(e, true);
+				e = QCC_PR_ParseArrayPointer(e, true, true);
 			}
 			if (QCC_PR_CheckToken ("?"))
 			{
@@ -6365,7 +6370,7 @@ void QCC_PR_ParseStatement (void)
 		if (((e->constant && !e->temp) || !STRCMP(e->name, "IMMEDIATE")) && opt_compound_jumps)
 		{
 			optres_compound_jumps++;
-			if (!G_INT(e->ofs) == wasuntil)
+			if (!G_INT(e->ofs) != wasuntil)
 			{
 				QCC_PR_ParseWarning(0, "while(0)?");
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch1));
@@ -6379,7 +6384,7 @@ void QCC_PR_ParseStatement (void)
 		{
 			if (e->constant && !e->temp)
 			{
-				if (!G_FLOAT(e->ofs) == wasuntil)
+				if (!G_FLOAT(e->ofs) != wasuntil)
 					QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], 0, 0, &patch1));
 				else
 					patch1 = NULL;
@@ -7323,7 +7328,7 @@ void QCC_PR_ParseAsm(void)
 				{
 					patch1 = &statements[numstatements];
 
-					a = QCC_PR_ParseValue(pr_classtype, false, false);
+					a = QCC_PR_ParseValue(pr_classtype, false, false, true);
 					QCC_PR_Statement3(&pr_opcodes[op], a, NULL, NULL, true);
 
 					if (pr_token_type == tt_name)
@@ -7342,8 +7347,8 @@ void QCC_PR_ParseAsm(void)
 				{
 					patch1 = &statements[numstatements];
 
-					a = QCC_PR_ParseValue(pr_classtype, false, false);
-					b = QCC_PR_ParseValue(pr_classtype, false, false);
+					a = QCC_PR_ParseValue(pr_classtype, false, false, true);
+					b = QCC_PR_ParseValue(pr_classtype, false, false, true);
 					QCC_PR_Statement3(&pr_opcodes[op], a, b, NULL, true);
 
 					if (pr_token_type == tt_name)
@@ -7362,15 +7367,15 @@ void QCC_PR_ParseAsm(void)
 			else
 			{
 				if (pr_opcodes[op].type_a != &type_void)
-					a = QCC_PR_ParseValue(pr_classtype, false, false);
+					a = QCC_PR_ParseValue(pr_classtype, false, false, true);
 				else
 					a=NULL;
 				if (pr_opcodes[op].type_b != &type_void)
-					b = QCC_PR_ParseValue(pr_classtype, false, false);
+					b = QCC_PR_ParseValue(pr_classtype, false, false, true);
 				else
 					b=NULL;
 				if (pr_opcodes[op].associative==ASSOC_LEFT && pr_opcodes[op].type_c != &type_void)
-					c = QCC_PR_ParseValue(pr_classtype, false, false);
+					c = QCC_PR_ParseValue(pr_classtype, false, false, true);
 				else
 					c=NULL;
 

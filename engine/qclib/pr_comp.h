@@ -107,55 +107,55 @@ enum qcop_e {
 	
 	//these following ones are Hexen 2 constants.
 	
-	OP_MULSTORE_F,
-	OP_MULSTORE_VF,
-	OP_MULSTOREP_F,
-	OP_MULSTOREP_VF,
+	OP_MULSTORE_F,	//66 redundant, for h2 compat
+	OP_MULSTORE_VF,	//67 redundant, for h2 compat
+	OP_MULSTOREP_F,	//68
+	OP_MULSTOREP_VF,//69
 
-	OP_DIVSTORE_F,	//70
-	OP_DIVSTOREP_F,
+	OP_DIVSTORE_F,	//70 redundant, for h2 compat
+	OP_DIVSTOREP_F,	//71
 
-	OP_ADDSTORE_F,
-	OP_ADDSTORE_V,
-	OP_ADDSTOREP_F,
-	OP_ADDSTOREP_V,
+	OP_ADDSTORE_F,	//72 redundant, for h2 compat
+	OP_ADDSTORE_V,	//73 redundant, for h2 compat
+	OP_ADDSTOREP_F,	//74
+	OP_ADDSTOREP_V,	//75
 
-	OP_SUBSTORE_F,
-	OP_SUBSTORE_V,
-	OP_SUBSTOREP_F,
-	OP_SUBSTOREP_V,
+	OP_SUBSTORE_F,	//76 redundant, for h2 compat
+	OP_SUBSTORE_V,	//77 redundant, for h2 compat
+	OP_SUBSTOREP_F,	//78
+	OP_SUBSTOREP_V,	//79
 
 	OP_FETCH_GBL_F,	//80
-	OP_FETCH_GBL_V,
-	OP_FETCH_GBL_S,
-	OP_FETCH_GBL_E,
-	OP_FETCH_GBL_FNC,
+	OP_FETCH_GBL_V,	//81
+	OP_FETCH_GBL_S,	//82
+	OP_FETCH_GBL_E,	//83
+	OP_FETCH_GBL_FNC,//84
 
-	OP_CSTATE,
-	OP_CWSTATE,
+	OP_CSTATE,		//85
+	OP_CWSTATE,		//86
 
-	OP_THINKTIME,
+	OP_THINKTIME,	//87
 
-	OP_BITSET,
-	OP_BITSETP,
+	OP_BITSET,		//88 redundant, for h2 compat
+	OP_BITSETP,		//89
 	OP_BITCLR,		//90
-	OP_BITCLRP,
+	OP_BITCLRP,		//91
 
-	OP_RAND0,
-	OP_RAND1,
-	OP_RAND2,
-	OP_RANDV0,
-	OP_RANDV1,
-	OP_RANDV2,
+	OP_RAND0,		//92
+	OP_RAND1,		//93
+	OP_RAND2,		//94
+	OP_RANDV0,		//95
+	OP_RANDV1,		//96
+	OP_RANDV2,		//97
 
-	OP_SWITCH_F,
-	OP_SWITCH_V,
+	OP_SWITCH_F,	//98
+	OP_SWITCH_V,	//99
 	OP_SWITCH_S,	//100
-	OP_SWITCH_E,
-	OP_SWITCH_FNC,
+	OP_SWITCH_E,	//101
+	OP_SWITCH_FNC,	//102
 
-	OP_CASE,
-	OP_CASERANGE,
+	OP_CASE,		//103
+	OP_CASERANGE,	//104
 
 
 
@@ -286,9 +286,9 @@ enum qcop_e {
 	OP_GSTOREP_I,
 	OP_GSTOREP_F,
 	OP_GSTOREP_ENT,
-	OP_GSTOREP_FLD,		// integers   //200
+	OP_GSTOREP_FLD,		//200
 	OP_GSTOREP_S,
-	OP_GSTOREP_FNC,		// pointers
+	OP_GSTOREP_FNC,		
 	OP_GSTOREP_V,
 	OP_GADDRESS,
 	OP_GLOAD_I,
@@ -297,9 +297,9 @@ enum qcop_e {
 	OP_GLOAD_ENT,
 	OP_GLOAD_S,
 	OP_GLOAD_FNC,		//210
-	OP_BOUNDCHECK,
 
 //back to ones that we do use.
+	OP_BOUNDCHECK,
 	OP_UNUSED,	//used to be OP_STOREP_P, which is now emulated with OP_STOREP_I, fteqcc nor fte generated it
 	OP_PUSH,	//push 4octets onto the local-stack (which is ALWAYS poped on function return). Returns a pointer.
 	OP_POP,		//pop those ones that were pushed (don't over do it). Needs assembler.

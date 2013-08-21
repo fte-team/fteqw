@@ -68,7 +68,7 @@ cont:	//last statement may have been a breakpoint
 			break;
 		case ev_function:
 		case ev_string:
-			printf("Watch point hit in %s, \"%s\" now set to %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name, PR_ValueString(progfuncs, prinst.watch_type, prinst.watch_ptr));
+			printf("Watch point hit in %s, \"%s\" now set to %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name, PR_ValueString(progfuncs, prinst.watch_type, prinst.watch_ptr, false));
 			break;
 		}
 		prinst.watch_old = *prinst.watch_ptr;

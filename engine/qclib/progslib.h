@@ -97,10 +97,10 @@ struct pubprogfuncs_s
 	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, char *prname, char *fname, int *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
 
 	void	(PDECL *ED_Print)					(pubprogfuncs_t *prinst, struct edict_s *ed);
-	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, int *size, int mode);	//dump the entire progs info into one big self allocated string
+	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, int mode);	//dump the entire progs info into one big self allocated string
 	int		(PDECL *load_ents)					(pubprogfuncs_t *prinst, char *s, float killonspawnflags);	//restore the entire progs state (or just add some more ents) (returns edicts ize)
 
-	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will save just one entities vars
+	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, struct edict_s *ed);	//will save just one entities vars
 	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
 	union eval_s	*(PDECL *FindGlobal)		(pubprogfuncs_t *prinst, char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
@@ -251,7 +251,7 @@ typedef union eval_s
 #define ED_Clear(pf, ed)									(*pf->EntClear)				(pf, ed)
 
 #define PR_LoadEnts(pf, s, kf)								(*pf->load_ents)			(pf, s, kf)
-#define PR_SaveEnts(pf, buf, size, mode)					(*pf->save_ents)			(pf, buf, size, mode)
+#define PR_SaveEnts(pf, buf, size, maxsize, mode)			(*pf->save_ents)			(pf, buf, size, maxsize, mode)
 
 #define EDICT_NUM(pf, num)									(*pf->EDICT_NUM)			(pf, num)
 #define NUM_FOR_EDICT(pf, e)								(*pf->NUM_FOR_EDICT)		(pf, e)

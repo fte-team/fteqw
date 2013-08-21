@@ -649,6 +649,7 @@ enum {
 	WARN_MISSINGOPTIONAL,
 	WARN_SYSTEMCRC,
 	WARN_CONDITIONALTYPEMISMATCH,
+	WARN_MISSINGMEMBERQUALIFIER,//virtual/static/nonvirtual qualifier is missing
 	WARN_SELFNOTTHIS,			//warned for because 'self' does not have the right type. we convert such references to 'this' instead, which is more usable.
 	WARN_EVILPREPROCESSOR,		//exploited by nexuiz, and generally unsafe.
 	WARN_UNARYNOTSCOPE,			//!foo & bar  the ! applies to the result of &. This is unlike C.

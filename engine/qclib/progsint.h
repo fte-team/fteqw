@@ -269,9 +269,9 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs);
 
 pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, char *key);
 char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *progfuncs, char *key);
-char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, int *size, int mode);
+char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, int *size, int maxsize, int mode);
 int PDECL PR_LoadEnts(pubprogfuncs_t *progfuncs, char *file, float killonspawnflags);
-char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
+char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, int *size, int maxsize, struct edict_s *ed);
 struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
 void PDECL PR_StackTrace (pubprogfuncs_t *progfuncs);
 
@@ -472,7 +472,7 @@ dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pn
 func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, char *funcname, progsnum_t pnum);
 void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int max_progs);
 int PDECL PR_InitEnts(pubprogfuncs_t *progfncs, int maxents);
-char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
+char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool verbose);
 void PDECL QC_ClearEdict (pubprogfuncs_t *progfuncs, struct edict_s *ed);
 void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount);
 void QC_FlushProgsOffsets(progfuncs_t *progfuncs);

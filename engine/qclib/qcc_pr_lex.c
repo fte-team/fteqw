@@ -3963,11 +3963,20 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		while (!QCC_PR_CheckToken("}"))
 		{
 			pbool havebody = false;
-			pbool isstatic = false, isvirt = false;
-			if (QCC_PR_CheckKeyword(1, "static"))
-				isstatic = true;
-			if (QCC_PR_CheckKeyword(1, "virtual"))
-				isvirt = true;
+			pbool isvirt = false;
+			pbool isnonvirt = false;
+			pbool isstatic = false;
+			while(1)
+			{
+				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
+					isnonvirt = true;
+				else if (QCC_PR_CheckKeyword(1, "static"))
+					isstatic = true;
+				else if (QCC_PR_CheckKeyword(1, "virtual"))
+					isvirt = true;
+				else
+					break;
+			}
 			newparm = QCC_PR_ParseType(false, false);
 
 			if (!newparm)
@@ -3976,9 +3985,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			if (newparm->type == ev_struct || newparm->type == ev_union)	//we wouldn't be able to handle it.
 				QCC_PR_ParseError(ERR_INTERNAL, "Struct or union in class %s", classname);
 
-			parmname = qccHunkAlloc(strlen(pr_token)+1);
-			strcpy(parmname, pr_token);
-			QCC_PR_Lex();
+			parmname = QCC_PR_ParseName();
 			if (QCC_PR_CheckToken("["))
 			{
 				arraysize = QCC_PR_IntConstExpr();
@@ -3987,9 +3994,30 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			else
 				arraysize = 0;
 
-			if (isvirt && newparm->type != ev_function)
+			if (newparm->type == ev_function)
 			{
-				QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
+				if (isstatic)
+					QCC_PR_ParseError(ERR_INTERNAL, "%s::%s static functions are not supported at this time.", classname, parmname);
+
+				if (!strcmp(classname, parmname))
+				{
+					if (isstatic)
+						QCC_PR_ParseError(ERR_INTERNAL, "Constructor %s::%s may not be static.", classname, pr_token);
+					if (!isvirt)
+						isnonvirt = true;//silently promote constructors to nonvirt
+				}
+				else if (!isvirt && !isnonvirt && !isstatic)
+				{
+					QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "%s::%s was not qualified. Assuming non-virtual.", classname, parmname);
+					isnonvirt = true;
+				}
+				if (isvirt+isnonvirt+isstatic != 1)
+					QCC_PR_ParseError(ERR_INTERNAL, "Multiple conflicting qualifiers on %s::%s.", classname, pr_token);
+			}
+			else
+			{
+				if (isvirt|isnonvirt)
+					QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
 			}
 
 			if (newparm->type == ev_function)
@@ -4078,12 +4106,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					}
 				}
 
-				if (!isvirt && !isstatic)	
+				if (!isvirt)	
 				{
 					QCC_def_t *fdef;
 					QCC_type_t *pc;
 					unsigned int i;
-					isstatic = true;	//assume static if its initialised inside the function.
 
 					for (pc = newt->parentclass; pc; pc = pc->parentclass)
 					{

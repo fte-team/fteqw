@@ -3144,6 +3144,11 @@ void CL_Fog_f(void)
 	}
 }
 
+void CL_CrashMeEndgame_f(void)
+{
+	Host_EndGame("crashme!");
+}
+
 void CL_Skygroup_f(void);
 void SCR_ShowPic_Script_f(void);
 /*
@@ -3350,6 +3355,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("qtvdemos", CL_QTVDemos_f);
 	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
+	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 
 	Cmd_AddCommand ("showpic", SCR_ShowPic_Script_f);
 

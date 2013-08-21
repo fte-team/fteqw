@@ -1,7 +1,8 @@
+
 void emscriptenfte_async_wget_data2(const char *url, void *ctx, void (*onload)(void*ctx,void*buf,int sz), void (*onerror)(void*ctx,int code), void (*onprogress)(void*ctx,int prog,int total));
 
 //filesystem buffers are implemented in javascript so that we are not bound by power-of-two heap limitations quite so much.
-//also, we can't use emscripten because it reserves 16m file handles or something.
+//also, we can't use emscripten's stdio because it reserves 16m file handles or something.
 int emscriptenfte_buf_create(void);
 int emscriptenfte_buf_open(const char *name, int createifneeded);
 int emscriptenfte_buf_rename(const char *oldname, const char *newname);
@@ -18,9 +19,14 @@ int emscriptenfte_ws_cansend(int sockid, int extra, int maxpending);
 int emscriptenfte_ws_send(int sockid, const void *data, int len);
 int emscriptenfte_ws_recv(int sockid, void *data, int len);
 
-void Sys_Print(const char *msg);
-unsigned long emscriptenfte_ticks_ms(void);
+//misc stuff for printf replacements
+void emscriptenfte_alert(const char *msg);
+void emscriptenfte_print(const char *msg);
+void emscriptenfte_abortmainloop(const char *caller);
 
+//avoid all of emscripten's sdl emulation.
+//this resolves input etc issues.
+unsigned long emscriptenfte_ticks_ms(void);
 int emscriptenfte_setupcanvas(
 	int width,
 	int height,

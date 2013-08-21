@@ -678,6 +678,7 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 	case CSIE_KEYDOWN:
 		//scan, char
+		//FIXME
 		G_FLOAT(OFS_RETURN) = 0;
 //		G_FLOAT(OFS_RETURN) = Key_Console(con, pb, MP_TranslateQCtoFTECodes(pa));
 		break;

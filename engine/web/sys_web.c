@@ -28,10 +28,8 @@ void Sys_Error (const char *error, ...)
 	Con_Print (string);
 	Con_Print ("\n");
 
-	if (COM_CheckParm("-crashonerror"))
-		*(int*)-3 = 0;
-
 	Host_Shutdown ();
+	emscriptenfte_alert(string);
 	exit (1);
 }
 
@@ -52,7 +50,7 @@ void Sys_Printf (char *fmt, ...)
 		
 	va_start (argptr,fmt);
 	vsnprintf (buf, sizeof(buf), fmt, argptr);
-	Sys_Print(buf);
+	emscriptenfte_print(buf);
 	va_end (argptr);
 }
 

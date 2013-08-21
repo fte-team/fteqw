@@ -144,8 +144,20 @@ mergeInto(LibraryManager.library,
 		return 1;
 	},
 
+	emscriptenfte_abortmainloop : function(msg)
+	{
+		msg = Pointer_stringify(msg);
+		throw 'oh noes! something bad happened in ' + msg + '!';
+	},
+	emscriptenfte_alert : function(msg)
+	{
+		msg = Pointer_stringify(msg);
+		console.log(msg);
+		alert(msg);
+	},
 
-	Sys_Print : function(msg)
+	//FIXME: split+merge by \n
+	emscriptenfte_print : function(msg)
 	{
 		console.log(Pointer_stringify(msg));
 	},
@@ -332,7 +344,7 @@ console.log('deleted '+name);
 		var s = FTEH.h[sockid];
 		if (!s)
 			return -1;
-		s.ws.send(HEAPU8.subarray(data, data+len).buffer);
+		s.s.send(HEAPU8.subarray(data, data+len).buffer);
 		return len;
 	},
 	emscriptenfte_ws_recv : function(sockid, data, len)

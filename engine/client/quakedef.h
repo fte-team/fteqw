@@ -129,8 +129,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #else
 	#ifdef FTE_TARGET_WEB
-		#define setjmp(x) 0
-		#define longjmp(b,r) abort()
+		#include "web/ftejslib.h"
+		//officially, emscripten supports longjmp.
+		//unofficially, this makes firefox crash with memory issues.
+		#define setjmp(x) (x=0,x)
+		#define longjmp(b,r) emscriptenfte_abortmainloop(__func__)
 		typedef int jmp_buf;
 	#else
 		#include <setjmp.h>

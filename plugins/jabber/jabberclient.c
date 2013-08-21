@@ -47,26 +47,8 @@ client compat:
 
 #include "../plugin.h"
 #include <time.h>
-#include "xml.h"
+#include "xmpp.h"
 
-//#define NOICE
-#define VOIP_SPEEX
-//#define FILETRANSFERS	//IBB only, speeds suck. autoaccept is forced on. no protection from mods stuffcmding sendfile commands. needs more extensive testing
-#define JINGLE
-
-#ifdef VOIP_SPEEX
-#define VOIP
-#endif
-
-#ifdef JINGLE
-	#include "../../engine/common/netinc.h"
-#endif
-
-#define DEFAULTDOMAIN ""
-#define DEFAULTRESOURCE "Quake"
-#define QUAKEMEDIATYPE "quake"
-#define QUAKEMEDIAXMLNS "fteqw.com:netmedia"
-#define DEFAULTICEMODE ICEM_ICE
 
 #ifdef JINGLE
 icefuncs_t *piceapi;
@@ -74,8 +56,6 @@ icefuncs_t *piceapi;
 
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
-
-#define JCL_BUILD "3"
 
 
 #define ARGNAMES ,sock,certhostname
@@ -106,10 +86,6 @@ void Con_SubPrintf(char *subname, char *format, ...)
 
 
 //porting zone:
-
-
-
-
 	#define COLOURGREEN	"^2"
 	#define COLORWHITE "^7"
 	#define COLOURWHITE "^7" // word
@@ -119,12 +95,8 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	#define COMMANDPREFIX "xmpp"
 	#define COMMANDPREFIX2 "jab"
 	#define COMMANDPREFIX3 "jabbercl"
-	#define playsound(s)
 
-
-	#define TL_NETGETPACKETERROR "NET_GetPacket Error %s\n"
-
-	static char *JCL_ParseOut (char *data, char *buf, int bufsize)	//this is taken out of quake
+	static char *JCL_ParseOut (char *data, char *buf, int bufsize)	//GPL: this is taken out of quake
 	{
 		int		c;
 		int		len;
@@ -180,6 +152,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	}
 
 
+//GPL: ripped from quake
 char *JCL_Info_ValueForKey (char *s, const char *key, char *valuebuf, int valuelen)
 {
 	char	pkey[1024];
@@ -474,6 +447,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 		//flags&1 == archive
 		pCvar_Register("xmpp_nostatus",				"0", 0, "xmpp");
+		pCvar_Register("xmpp_hidestatusupdates",	"0", 0, "xmpp");
 		pCvar_Register("xmpp_autoacceptjoins",		"0", 0, "xmpp");
 		pCvar_Register("xmpp_autoacceptinvites",	"0", 0, "xmpp");
 		pCvar_Register("xmpp_autoacceptvoice",		"0", 0, "xmpp");
@@ -506,172 +480,6 @@ qintptr_t Plug_Init(qintptr_t *args)
 //meaning \0s are valid.
 //but never used cos it breaks strings
 
-
-#define JCL_MAXMSGLEN 10000
-
-#define CAP_QUERIED	1	//a query is pending or something.
-#define CAP_VOICE	2	//supports voice
-#define CAP_INVITE	4	//supports game invites.
-#define CAP_POKE	8	//can be slapped.
-#define CAP_SIFT	16	//non-jingle file transfers
-
-typedef struct bresource_s
-{
-	char bstatus[128];	//basic status
-	char fstatus[128];	//full status
-	char server[256];
-	int servertype;	//0=none, 1=already a client, 2=joinable
-
-	unsigned int caps;
-
-	struct bresource_s *next;
-
-	char resource[1];
-} bresource_t;
-typedef struct buddy_s
-{
-	bresource_t *resources;
-	bresource_t *defaultresource;	//this is the one that last replied
-	int defaulttimestamp;
-	qboolean friended;
-	qboolean chatroom;	//chatrooms are bizzare things that need special handling.
-
-	char name[256];
-
-	struct buddy_s *next;
-	char accountdomain[1];	//no resource on there
-} buddy_t;
-typedef struct jclient_s
-{
-	int accountnum;	//a private id to track which client links are associated with
-
-	char redirserveraddr[64];	//if empty, do an srv lookup.
-
-	enum
-	{
-		JCL_INACTIVE,	//not trying to connect.
-		JCL_DEAD,		//not connected. connection died or something.
-		JCL_AUTHING,	//connected, but not able to send any info on it other than to auth
-		JCL_ACTIVE		//we're connected, we got a buddy list and everything
-	} status;
-	unsigned int timeout;		//reconnect/ping timer
-
-	qhandle_t socket;
-
-	//we buffer output for times when the outgoing socket is full.
-	//mostly this only happens at the start of the connection when the socket isn't actually open yet.
-	char *outbuf;
-	int outbufpos;
-	int outbuflen;
-	int outbufmax;
-
-	char bufferedinmessage[JCL_MAXMSGLEN+1];	//servers are required to be able to handle messages no shorter than a specific size.
-												//which means we need to be able to handle messages when they get to us.
-												//servers can still handle larger messages if they choose, so this might not be enough.
-	int bufferedinammount;
-
-	char defaultdest[256];
-
-	//config info
-	char serveraddr[64];	//if empty, do an srv lookup.
-	int serverport;
-	char domain[256];
-	char username[256];
-	char password[256];
-	char resource[256];
-	char certificatedomain[256];
-	int forcetls;	//-1=off, 0=ifpossible, 1=fail if can't upgrade, 2=old-style tls
-	qboolean allowauth_plainnontls;	//allow plain plain
-	qboolean allowauth_plaintls;	//allow tls plain
-	qboolean allowauth_digestmd5;	//allow digest-md5 auth
-	qboolean allowauth_scramsha1;	//allow scram-sha-1 auth
-	qboolean allowauth_oauth2;		//use oauth2 where possible
-	
-	char jid[256];	//this is our full username@domain/resource string
-	char localalias[256];//this is what's shown infront of outgoing messages. >> by default until we can get our name.
-
-	char authnonce[256];
-	int authmode;
-
-	int tagdepth;
-	int openbracket;
-	int instreampos;
-
-	qboolean connected;	//fully on server and authed and everything.
-	qboolean issecure;	//tls enabled (either upgraded or initially)
-	qboolean streamdebug;	//echo the stream to subconsoles
-
-	qboolean preapproval;	//server supports presence preapproval
-
-	char curquakeserver[2048];
-	char defaultnamespace[2048];	//should be 'jabber:client' or blank (and spammy with all the extra xmlns attribs)
-
-	struct
-	{
-		char saslmethod[64];
-		char obtainurl[256];
-		char refreshurl[256];
-		char clientid[256];
-		char clientsecret[256];
-		char *useraccount;
-		char *scope;
-		char *accesstoken;	//one-shot access token
-		char *refreshtoken;	//long-term token that we can use to get new access tokens
-		char *authtoken;	//short-term authorisation token, usable to get an access token (and a refresh token if we're lucky)
-	} oauth2;
-
-	struct iq_s
-	{
-		struct iq_s *next;
-		char id[64];
-		int timeout;
-		qboolean (*callback) (struct jclient_s *jcl, struct subtree_s *tree, struct iq_s *iq);
-		void *usrptr;
-	} *pendingiqs;
-
-#ifdef JINGLE
-	struct c2c_s
-	{
-		struct c2c_s *next;
-		enum iceproto_e mediatype;
-		enum icemode_e method;	//ICE_RAW or ICE_ICE. this is what the peer asked for. updated if we degrade it.
-		qboolean accepted;	//connection is going
-		qboolean creator;	//true if we're the creator.
-
-		struct icestate_s *ice;
-		char *peeraddr;
-		int peerport;
-
-		char *with;
-		char sid[1];
-	} *c2c;
-#endif
-
-#ifdef FILETRANSFERS
-	struct ft_s
-	{
-		struct ft_s *next;
-		char fname[MAX_QPATH];
-		int size;
-		char *with;
-		char md5hash[16];
-		char sid[64];
-		int blocksize;
-		unsigned short seq;
-		qhandle_t file;
-		qboolean begun;
-		qboolean transmitting;
-
-		enum
-		{
-			FT_IBB,			//in-band bytestreams
-			FT_BYTESTREAM	//aka: relay
-		} method;
-	} *ft;
-#endif
-
-	buddy_t *buddies;
-} jclient_t;
 jclient_t *jclients[8];
 int jclient_curtime;
 int jclient_poketime;
@@ -1373,712 +1181,6 @@ char *TrimResourceFromJid(char *jid)
 	return NULL;
 }
 
-#ifdef JINGLE
-static struct c2c_s *JCL_JingleCreateSession(jclient_t *jcl, char *with, qboolean creator, char *sid, int method, int mediatype)
-{
-	struct icestate_s *ice = NULL;
-	struct c2c_s *c2c;
-	char generatedname[64];
-	char stunhost[256];
-	
-	if (piceapi)
-		ice = piceapi->ICE_Create(NULL, sid, with, method, mediatype);
-	if (ice)
-	{
-		piceapi->ICE_Get(ice, "sid", generatedname, sizeof(generatedname));
-		sid = generatedname;
-
-		//note: the engine will ignore codecs it does not support.
-		piceapi->ICE_Set(ice, "codec96", "speex@8000");
-		piceapi->ICE_Set(ice, "codec97", "speex@16000");
-		piceapi->ICE_Set(ice, "codec98", "opus");
-	}
-	else
-		return NULL;	//no way to get the local ip otherwise, which means things won't work proper
-
-	c2c = malloc(sizeof(*c2c) + strlen(sid));
-	memset(c2c, 0, sizeof(*c2c));
-	c2c->next = jcl->c2c;
-	jcl->c2c = c2c;
-	strcpy(c2c->sid, sid);
-
-	c2c->mediatype = mediatype;
-	c2c->creator = creator;
-	c2c->method = method;
-
-	//query dns to see if there's a stunserver hosted by the same domain
-	//nslookup -querytype=SRV _stun._udp.example.com
-	//for msn, live.com has one, messanger.live.com has one, but messenger.live.com does NOT. seriously, the typo has more services.  wtf microsoft?
-	//google doesn't provide a stun srv entry
-	//facebook doesn't provide a stun srv entry
-	Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", jcl->domain);
-	if (NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
-		piceapi->ICE_Set(ice, "stunip", stunhost);
-	else
-	{
-		//there is no real way to query stun servers from the xmpp server.
-		//while there is some extdisco extension (aka: the 'standard' way), it has some huge big fat do-not-implement message (and googletalk does not implement it).
-		//google provide their own jingleinfo extension. Which also has some huge fat 'do-not-implement' message. hardcoding the address should provide equivelent longevity. :(
-		//google also don't provide stun srv records.
-		//so we're basically screwed if we want to work with the googletalk xmpp service long term.
-		//more methods are best, I suppose, but I'm lazy.
-		//yes, hardcoding means that other services might 'borrow' googles' stun servers.
-		piceapi->ICE_Set(ice, "stunport", "19302");
-		piceapi->ICE_Set(ice, "stunip", "stun.l.google.com");
-	}
-
-	//copy out the interesting parameters
-	c2c->with = strdup(with);
-	c2c->ice = ice;
-	return c2c;
-}
-static qboolean JCL_JingleAcceptAck(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
-{
-	struct c2c_s *c2c;
-	if (tree)
-	{
-		for (c2c = jcl->c2c; c2c; c2c = c2c->next)
-		{
-			if (c2c == iq->usrptr)
-			{
-				if (c2c->ice)
-					piceapi->ICE_Set(c2c->ice, "state", STRINGIFY(ICE_CONNECTING));
-			}
-		}
-	}
-	return true;
-}
-/*
-sends a jingle message to the peer.
-action should be one of multiple things:
-session-terminate	- totally not acceptable. this also closes the c2c
-session-accept		- details are okay. this also begins ice polling (on iq ack, once we're sure the peer got our message)
-
-(internally generated) transport-replace	- details are okay, except we want a different transport method.
-*/
-qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
-{
-	qboolean result;
-	xmltree_t *jingle;
-	struct icestate_s *ice = c2c->ice;
-	qboolean wasaccept = false;
-	int transportmode = ICEM_ICE;
-
-	if (!ice)
-		action = "session-terminate";
-
-	jingle = XML_CreateNode(NULL, "jingle", "urn:xmpp:jingle:1", "");
-	XML_AddParameter(jingle, "sid", c2c->sid);
-
-	if (!strcmp(action, "session-initiate"))
-	{	//these attributes are meant to only be present in initiate. for call forwarding etc. which we don't properly support.
-		XML_AddParameter(jingle, "initiator", jcl->jid);
-	}
-
-	if (!strcmp(action, "session-terminate"))
-	{
-		struct c2c_s **link;
-		for (link = &jcl->c2c; *link; link = &(*link)->next)
-		{
-			if (*link == c2c)
-			{
-				*link = c2c->next;
-				break;
-			}
-		}
-		if (c2c->ice)
-			piceapi->ICE_Close(c2c->ice);
-
-		result = false;
-	}
-	else
-	{
-		xmltree_t *content = XML_CreateNode(jingle, "content", "", "");
-
-		result = true;
-
-		if (!strcmp(action, "session-accept"))
-		{
-			if (c2c->method == transportmode)
-			{
-				XML_AddParameter(jingle, "responder", jcl->jid);
-				c2c->accepted = wasaccept = true;
-			}
-			else
-				action = "transport-replace";
-		}
-
-		{
-			xmltree_t *description;
-			xmltree_t *transport;
-			if (transportmode == ICEM_RAW)
-			{
-				transport = XML_CreateNode(content, "transport", "urn:xmpp:jingle:transports:raw-udp:1", "");
-				{
-					xmltree_t *candidate;
-					struct icecandinfo_s *b = NULL;
-					struct icecandinfo_s *c;
-					while ((c = piceapi->ICE_GetLCandidateInfo(ice)))
-					{
-						if (!b || b->priority < c->priority)
-							b = c;
-					}
-					if (b)
-					{
-						candidate = XML_CreateNode(transport, "candidate", "", "");
-						XML_AddParameter(candidate, "ip", b->addr);
-						XML_AddParameteri(candidate, "port", b->port);
-						XML_AddParameter(candidate, "id", b->candidateid);
-						XML_AddParameteri(candidate, "generation", b->generation);
-						XML_AddParameteri(candidate, "component", b->component);
-					}
-				}
-			}
-			else if (transportmode == ICEM_ICE)
-			{
-				char val[64];
-				transport = XML_CreateNode(content, "transport", "urn:xmpp:jingle:transports:ice-udp:1", "");
-				piceapi->ICE_Get(ice, "lufrag",  val, sizeof(val));
-				XML_AddParameter(transport, "ufrag", val);
-				piceapi->ICE_Get(ice, "lpwd",  val, sizeof(val));
-				XML_AddParameter(transport, "pwd", val);
-				{
-					struct icecandinfo_s *c;
-					while ((c = piceapi->ICE_GetLCandidateInfo(ice)))
-					{
-						char *ctypename[]={"host", "srflx", "prflx", "relay"};
-						xmltree_t *candidate = XML_CreateNode(transport, "candidate", "", "");
-						XML_AddParameter(candidate, "type", ctypename[c->type]);
-						XML_AddParameter(candidate, "protocol", "udp");	//is this not just a little bit redundant? ice-udp? seriously?
-						XML_AddParameteri(candidate, "priority", c->priority);
-						XML_AddParameteri(candidate, "port", c->port);
-						XML_AddParameteri(candidate, "network", c->network);
-						XML_AddParameter(candidate, "ip", c->addr);
-						XML_AddParameter(candidate, "id", c->candidateid);
-						XML_AddParameteri(candidate, "generation", c->generation);
-						XML_AddParameteri(candidate, "foundation", c->foundation);
-						XML_AddParameteri(candidate, "component", c->component);
-					}
-				}
-			}
-#ifdef VOIP
-			if (c2c->mediatype == ICEP_VOICE)
-			{
-				xmltree_t *payload;
-				int i;
-
-				XML_AddParameter(content, "senders", "both");
-				XML_AddParameter(content, "name", "audio-session");
-				XML_AddParameter(content, "creator", "initiator");
-
-				description = XML_CreateNode(content, "description", "urn:xmpp:jingle:apps:rtp:1", "");
-				XML_AddParameter(description, "media", "audio");
-
-				for (i = 96; i <= 127; i++)
-				{
-					char codecname[64];
-					char argn[64];
-					Q_snprintf(argn, sizeof(argn), "codec%i", i);
-					piceapi->ICE_Get(ice, argn,  codecname, sizeof(codecname));
-
-					if (!strcmp(codecname, "speex@8000"))
-					{	//speex narrowband
-						payload = XML_CreateNode(description, "payload-type", "", "");
-						XML_AddParameter(payload, "channels", "1");
-						XML_AddParameter(payload, "clockrate", "8000");
-						XML_AddParameter(payload, "id", argn+5);
-						XML_AddParameter(payload, "name", "SPEEX");
-					}
-					else if (!strcmp(codecname, "speex@16000"))
-					{	//speex wideband
-						payload = XML_CreateNode(description, "payload-type", "", "");
-						XML_AddParameter(payload, "channels", "1");
-						XML_AddParameter(payload, "clockrate", "16000");
-						XML_AddParameter(payload, "id", argn+5);
-						XML_AddParameter(payload, "name", "SPEEX");
-					}
-					else if (!strcmp(codecname, "speex@32000"))
-					{	//speex ultrawideband
-						payload = XML_CreateNode(description, "payload-type", "", "");
-						XML_AddParameter(payload, "channels", "1");
-						XML_AddParameter(payload, "clockrate", "32000");
-						XML_AddParameter(payload, "id", argn+5);
-						XML_AddParameter(payload, "name", "SPEEX");
-					}
-					else if (!strcmp(codecname, "opus"))
-					{	//opus codec.
-						payload = XML_CreateNode(description, "payload-type", "", "");
-						XML_AddParameter(payload, "channels", "1");
-						XML_AddParameter(payload, "id", argn+5);
-						XML_AddParameter(payload, "name", "OPUS");
-					}
-				}
-			}
-#endif
-			else
-			{
-				description = XML_CreateNode(content, "description", QUAKEMEDIAXMLNS, "");
-				XML_AddParameter(description, "media", QUAKEMEDIATYPE);
-				if (c2c->mediatype == ICEP_QWSERVER)
-					XML_AddParameter(description, "host", "me");
-				else if (c2c->mediatype == ICEP_QWCLIENT)
-					XML_AddParameter(description, "host", "you");
-			}
-		}
-	}
-
-	XML_AddParameter(jingle, "action", action);
-
-//	Con_Printf("Sending Jingle:\n");
-//	XML_ConPrintTree(jingle, 1);
-	JCL_SendIQNode(jcl, wasaccept?JCL_JingleAcceptAck:NULL, "set", c2c->with, jingle, true)->usrptr = c2c;
-
-	return result;
-}
-
-void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall)
-{
-	struct c2c_s *c2c;
-	for (c2c = jcl->c2c; c2c; c2c = c2c->next)
-	{
-		struct icecandinfo_s *lc;
-		if (c2c->method == ICEM_ICE)
-		{
-			char bah[2];
-			piceapi->ICE_Get(c2c->ice, "newlc", bah, sizeof(bah));
-			if (atoi(bah))
-			{
-				Con_DPrintf("Sending updated local addresses\n");
-				JCL_JingleSend(jcl, c2c, "transport-info");
-			}
-		}
-	}
-}
-
-void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int protocol)
-{
-	struct c2c_s *c2c = NULL, **link;
-	xmltree_t *jingle;
-	struct icestate_s *ice;
-	char autotarget[256];
-	buddy_t *b;
-	bresource_t *br;
-	if (!jcl)
-		return;
-
-	JCL_FindBuddy(jcl, target, &b, &br);
-	if (!br)
-		br = b->defaultresource;
-	if (!br)
-		br = b->resources;
-
-	if (!strchr(target, '/'))
-	{
-		if (!br)
-		{
-			Con_Printf("User name not valid\n");
-			return;
-		}
-		Q_snprintf(autotarget, sizeof(autotarget), "%s/%s", b->accountdomain, br->resource);
-		target = autotarget;
-	}
-
-	for (link = &jcl->c2c; *link; link = &(*link)->next)
-	{
-		if (!strcmp((*link)->with, target) && (!sid || !strcmp((*link)->sid, sid)) && ((*link)->mediatype == protocol || protocol == ICEP_INVALID))
-		{
-			c2c = *link;
-			break;
-		}
-	}
-	if (allow)
-	{
-		if (!c2c)
-		{
-			if (!sid)
-			{
-				char convolink[512], hanguplink[512];
-				c2c = JCL_JingleCreateSession(jcl, target, true, sid, DEFAULTICEMODE, ((protocol == ICEP_INVALID)?ICEP_QWCLIENT:protocol));
-				JCL_JingleSend(jcl, c2c, "session-initiate");
-
-				JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-				JCL_GenLink(jcl, hanguplink, sizeof(hanguplink), "jdeny", target, NULL, c2c->sid, "%s", "Hang Up");
-				Con_SubPrintf(b->name, "%s %s %s.\n",  protocol==ICEP_VOICE?"Calling":"Requesting session with", convolink, hanguplink);
-			}
-			else
-				Con_SubPrintf(b->name, "That session has expired.\n");
-		}
-		else if (c2c->creator)
-		{
-			char convolink[512];
-			//resend initiate if they've not acked it... I dunno...
-			JCL_JingleSend(jcl, c2c, "session-initiate");
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			Con_SubPrintf(b->name, "Restarting session with %s.\n", convolink);
-		}
-		else if (c2c->accepted)
-			Con_SubPrintf(b->name, "That session was already accepted.\n");
-		else
-		{
-			char convolink[512];
-			JCL_JingleSend(jcl, c2c, "session-accept");
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			Con_SubPrintf(b->name, "Accepting session from %s.\n", convolink);
-		}
-	}
-	else
-	{
-		if (c2c)
-		{
-			char convolink[512];
-			JCL_JingleSend(jcl, c2c, "session-terminate");
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			Con_SubPrintf(b->name, "Terminating session with %s.\n", convolink);
-		}
-		else
-			Con_SubPrintf(b->name, "That session has already expired.\n");
-	}
-}
-
-void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_t *inj, char *from)
-{
-	xmltree_t *incontent = XML_ChildOfTree(inj, "content", 0);
-	xmltree_t *intransport = XML_ChildOfTree(incontent, "transport", 0);
-	xmltree_t *incandidate;
-	struct icecandinfo_s rem;
-	int i;
-
-	if (strcmp(c2c->with, from) || strcmp(c2c->sid, XML_GetParameter(inj, "sid", "")))
-	{
-		Con_Printf("%s is trying to mess with our connections...\n", from);
-		return;
-	}
-
-	if (!c2c->sid)
-		return;
-
-	if (!intransport)
-		return;
-
-	if (!c2c->ice)
-		return;
-
-	piceapi->ICE_Set(c2c->ice, "rufrag", XML_GetParameter(intransport, "ufrag", ""));
-	piceapi->ICE_Set(c2c->ice, "rpwd", XML_GetParameter(intransport, "pwd", ""));
-
-	for (i = 0; (incandidate = XML_ChildOfTree(intransport, "candidate", i)); i++)
-	{
-		char *s;
-		memset(&rem, 0, sizeof(rem));
-		Q_strlcpy(rem.addr, XML_GetParameter(incandidate, "ip", ""), sizeof(rem.addr));
-		Q_strlcpy(rem.candidateid, XML_GetParameter(incandidate, "id", ""), sizeof(rem.candidateid));
-
-		s = XML_GetParameter(incandidate, "type", "");
-		if (s && !strcmp(s, "srflx"))
-			rem.type = ICE_SRFLX;
-		else if (s && !strcmp(s, "prflx"))
-			rem.type = ICE_PRFLX;
-		else if (s && !strcmp(s, "relay"))
-			rem.type = ICE_RELAY;
-		else
-			rem.type = ICE_HOST;
-		rem.port = atoi(XML_GetParameter(incandidate, "port", "0"));
-		rem.priority = atoi(XML_GetParameter(incandidate, "priority", "0"));
-		rem.network = atoi(XML_GetParameter(incandidate, "network", "0"));
-		rem.generation = atoi(XML_GetParameter(incandidate, "generation", "0"));
-		rem.foundation = atoi(XML_GetParameter(incandidate, "foundation", "0"));
-		rem.component = atoi(XML_GetParameter(incandidate, "component", "0"));
-		s = XML_GetParameter(incandidate, "protocol", "udp");
-		if (s && !strcmp(s, "udp"))
-			rem.transport = 0;
-		else
-			rem.transport = 0;
-		piceapi->ICE_AddRCandidateInfo(c2c->ice, &rem);
-	}
-}
-qboolean JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
-{
-	xmltree_t *incontent = XML_ChildOfTree(inj, "content", 0);
-	xmltree_t *intransport = XML_ChildOfTree(incontent, "transport", 0);
-	xmltree_t *indescription = XML_ChildOfTree(incontent, "description", 0);
-	char *transportxmlns = intransport?intransport->xmlns:"";
-	char *descriptionxmlns = indescription?indescription->xmlns:"";
-	char *descriptionmedia = XML_GetParameter(indescription, "media", "");
-	char *sid = XML_GetParameter(inj, "sid", "");
-
-	xmltree_t *jingle;
-	struct icestate_s *ice;
-	qboolean accepted = false;
-	enum icemode_e imode;
-	char *response = "session-terminate";
-	char *offer = "pwn you";
-	char *autocvar = "xmpp_autoaccepthax";
-	char *initiator;
-
-	struct c2c_s *c2c = NULL;
-	int mt = ICEP_INVALID;
-	buddy_t *b;
-
-	//FIXME: add support for session forwarding so that we might forward the connection to the real server. for now we just reject it.
-	initiator = XML_GetParameter(inj, "initiator", "");
-	if (strcmp(initiator, from))
-		return false;
-
-	if (incontent && !strcmp(descriptionmedia, QUAKEMEDIATYPE) && !strcmp(descriptionxmlns, QUAKEMEDIAXMLNS))
-	{
-		char *host = XML_GetParameter(indescription, "host", "you");
-		if (!strcmp(host, "you"))
-		{
-			mt = ICEP_QWSERVER;
-			offer = "wants to join your game";
-			autocvar = "xmpp_autoacceptjoins";
-		}
-		else if (!strcmp(host, "me"))
-		{
-			mt = ICEP_QWCLIENT;
-			offer = "wants to invite you to thier game";
-			autocvar = "xmpp_autoacceptinvites";
-		}
-	}
-	if (incontent && !strcmp(descriptionmedia, "audio") && !strcmp(descriptionxmlns, "urn:xmpp:jingle:apps:rtp:1"))
-	{
-		mt = ICEP_VOICE;
-		offer = "is trying to call you";
-		autocvar = "xmpp_autoacceptvoice";
-	}
-	if (mt == ICEP_INVALID)
-		return false;
-
-	//FIXME: if both people try to establish a connection to the other simultaneously, the higher session id is meant to be canceled, and the lower accepted automagically.
-
-	c2c = JCL_JingleCreateSession(jcl, from, false,
-		sid,
-		strcmp(transportxmlns, "urn:xmpp:jingle:transports:raw-udp:1")?ICEM_ICE:ICEM_RAW,
-		mt
-		);
-	if (!c2c)
-		return false;
-
-	
-	JCL_FindBuddy(jcl, from, &b, NULL);
-
-	if (c2c->mediatype == ICEP_VOICE)
-	{
-		qboolean okay = false;
-		int i = 0;
-		xmltree_t *payload;
-		//chuck it at the engine and see what sticks. at least one must...
-		while((payload = XML_ChildOfTree(indescription, "payload-type", i++)))
-		{
-			char *name = XML_GetParameter(payload, "name", "");
-			char *clock = XML_GetParameter(payload, "clockrate", "");
-			char *id = XML_GetParameter(payload, "id", "");
-			char parm[64];
-			char val[64];
-			//note: the engine will ignore codecs it does not support, returning false.
-			if (!strcmp(name, "SPEEX"))
-			{
-				Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
-				Q_snprintf(val, sizeof(val), "speex@%i", atoi(clock));
-				okay |= piceapi->ICE_Set(c2c->ice, parm, val);
-			}
-			else if (!strcmp(name, "OPUS"))
-			{
-				Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
-				okay |= piceapi->ICE_Set(c2c->ice, parm, "opus");
-			}
-		}
-		//don't do it if we couldn't successfully set any codecs, because the engine doesn't support the ones that were listed, or something.
-		//we really ought to give a reason, but we're rude.
-		if (!okay)
-		{
-			char convolink[512];
-			JCL_JingleSend(jcl, c2c, "session-terminate");
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, from, NULL, NULL, "%s", b->name);
-			Con_SubPrintf(b->name, "%s does not support any compatible audio codecs, and is unable to call you.\n", convolink);
-			return false;
-		}
-	}
-
-	JCL_JingleParsePeerPorts(jcl, c2c, inj, from);
-
-	if (c2c->mediatype != ICEP_INVALID)
-	{
-		char convolink[512];
-		JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, from, NULL, NULL, "%s", b->name);
-		if (!pCvar_GetFloat(autocvar))
-		{
-			char authlink[512];
-			char denylink[512];
-			JCL_GenLink(jcl, authlink, sizeof(authlink), "jauth", from, NULL, sid, "%s", "Accept");
-			JCL_GenLink(jcl, denylink, sizeof(denylink), "jdeny", from, NULL, sid, "%s", "Reject");
-
-			//show a prompt for it, send the reply when the user decides.
-			Con_SubPrintf(b->name,
-					"%s %s. %s %s\n", convolink, offer, authlink, denylink);
-			pCon_SetActive(b->name);
-			return true;
-		}
-		else
-		{
-			Con_SubPrintf(b->name, "Auto-accepting session from %s\n", convolink);
-			response = "session-accept";
-		}
-	}
-
-	JCL_JingleSend(jcl, c2c, response);
-	return true;
-}
-
-qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
-{
-	char *action = XML_GetParameter(tree, "action", "");
-	char *sid = XML_GetParameter(tree, "sid", "");
-
-	struct c2c_s *c2c = NULL, **link;
-	buddy_t *b;
-
-	for (link = &jcl->c2c; *link; link = &(*link)->next)
-	{
-		if (!strcmp((*link)->sid, sid))
-		{
-			c2c = *link;
-			if (!c2c->accepted)
-				break;
-		}
-	}
-
-	JCL_FindBuddy(jcl, from, &b, NULL);
-
-	//validate sender
-	if (c2c && strcmp(c2c->with, from))
-	{
-		Con_Printf("%s is trying to mess with our connections...\n", from);
-		return false;
-	}
-
-	//FIXME: transport-info, transport-replace
-	if (!strcmp(action, "session-terminate"))
-	{
-		xmltree_t *reason = XML_ChildOfTree(tree, "reason", 0);
-		if (!c2c)
-		{
-			Con_Printf("Received session-terminate without an active session\n");
-			return false;
-		}
-
-		if (reason && reason->child)
-			Con_SubPrintf(b->name, "Session ended: %s\n", reason->child->name);
-		else
-			Con_SubPrintf(b->name, "Session ended\n");
-
-		//unlink it
-		for (link = &jcl->c2c; *link; link = &(*link)->next)
-		{
-			if (*link == c2c)
-			{
-				*link = c2c->next;
-				break;
-			}
-		}
-
-//		XML_ConPrintTree(tree, 0);
-
-		if (c2c->ice)
-			piceapi->ICE_Close(c2c->ice);
-		free(c2c);
-	}
-	//content-accept
-	//content-add
-	//content-modify
-	//content-reject
-	//content-remove
-	//description-info
-	//security-info
-	//
-	else if (!strcmp(action, "transport-info"))
-	{	//peer wants to add ports.
-		if (c2c)
-			JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
-		else
-			Con_DPrintf("Received transport-info without an active session\n");
-	}
-//FIXME: we need to add support for this to downgrade to raw if someone tries calling through a SIP gateway
-	else if (!strcmp(action, "transport-replace"))
-	{
-		if (c2c)
-		{
-			if (1)
-				JCL_JingleSend(jcl, c2c, "transport-reject");
-			else
-			{
-				JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
-				JCL_JingleSend(jcl, c2c, "transport-accept");
-			}
-		}
-	}
-	else if (!strcmp(action, "transport-reject"))
-	{
-		JCL_JingleSend(jcl, c2c, "session-terminate");
-	}
-	else if (!strcmp(action, "session-accept"))
-	{
-		if (!c2c)
-		{
-			Con_DPrintf("Unknown session acceptance\n");
-			return false;
-		}
-		else if (!c2c->creator)
-		{
-			Con_DPrintf("Peer tried to accept a session that *they* created!\n");
-			return false;
-		}
-		else if (c2c->accepted)
-		{
-			//pidgin is buggy and can dupe-accept sessions multiple times.
-			Con_DPrintf("Duplicate session-accept from peer.\n");
-
-			//XML_ConPrintTree(tree, 0);
-			return false;
-		}
-		else
-		{
-			char *responder = XML_GetParameter(tree, "responder", from);
-			if (strcmp(responder, from))
-			{
-				return false;
-			}
-			Con_SubPrintf(b->name, "Session Accepted!\n");
-//			XML_ConPrintTree(tree, 0);
-
-			JCL_JingleParsePeerPorts(jcl, c2c, tree, from);
-			c2c->accepted = true;
-
-			//if we didn't error out, the ICE stuff is meant to start sending handshakes/media as soon as the connection is accepted
-			if (c2c->ice)
-				piceapi->ICE_Set(c2c->ice, "state", STRINGIFY(ICE_CONNECTING));
-		}
-	}
-	else if (!strcmp(action, "session-initiate"))
-	{
-//		Con_Printf("Peer initiating connection!\n");
-//		XML_ConPrintTree(tree, 0);
-
-		if (!JCL_JingleHandleInitiate(jcl, tree, from))
-			return false;
-	}
-	else
-	{
-		Con_Printf("Unknown jingle action: %s\n", action);
-//		XML_ConPrintTree(tree, 0);
-	}
-
-	JCL_AddClientMessagef(jcl,
-		"<iq type='result' to='%s' id='%s' />", from, id);
-	return true;
-}
-#endif
-
 qintptr_t JCL_ConsoleLink(qintptr_t *args)
 {
 	jclient_t *jcl;
@@ -2319,7 +1421,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 		Q_snprintf(srv, sizeof(srv), "_xmpp-client._tcp.%s", jcl->domain);
 		if (NET_DNSLookup_SRV(srv, srvserver, sizeof(srvserver)))
 		{
-			Con_Printf("XMPP: Trying to connect to %s (%s)\n", jcl->domain, srvserver);
+			Con_DPrintf("XMPP: Trying to connect to %s (%s)\n", jcl->domain, srvserver);
 			jcl->socket = pNet_TCPConnect(srvserver, jcl->serverport);	//port is should already be part of the srvserver name
 		}
 		else
@@ -2330,7 +1432,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 	}
 	else
 	{
-		Con_Printf("XMPP: Trying to connect to %s\n", jcl->domain);
+		Con_DPrintf("XMPP: Trying to connect to %s\n", jcl->domain);
 		jcl->socket = pNet_TCPConnect(serveraddr, jcl->serverport);	//port is only used if the url doesn't contain one. It's a default.
 	}
 
@@ -2662,17 +1764,43 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 	return false;
 }
 
+void JCL_IQTimeouts(jclient_t *jcl)
+{
+	struct iq_s *iq, **link;
+	for (link = &jcl->pendingiqs; *link; )
+	{
+		iq = *link;
+		if (iq->timeout < jclient_curtime)
+		{
+			iq = *link;
+			*link = iq->next;
+			if (iq->callback)
+			{
+				Con_DPrintf("IQ timeout with %s\n", iq->to);
+				iq->callback(jcl, NULL, iq);
+			}
+			free(iq);
+		}
+		else
+			link = &(*link)->next;
+	}
+}
 struct iq_s *JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, char *body)
 {
 	struct iq_s *iq;
-		
-	iq = malloc(sizeof(*iq));
+
+	if (!target)
+		target = "";
+
+	iq = malloc(sizeof(*iq) + strlen(target));
 	iq->next = jcl->pendingiqs;
 	jcl->pendingiqs = iq;
 	Q_snprintf(iq->id, sizeof(iq->id), "%i", rand());
 	iq->callback = callback;
+	iq->timeout = jclient_curtime + 30*1000;
+	strcpy(iq->to, target);
 
-	if (target)
+	if (*target)
 	{
 		if (*jcl->jid)
 			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s' from='%s' to='%s'>", iqtype, iq->id, jcl->jid, target);
@@ -2755,7 +1883,7 @@ static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 			char myjid[512];
 			Q_strlcpy(jcl->jid, c->body, sizeof(jcl->jid));
 			JCL_GenLink(jcl, myjid, sizeof(myjid), NULL, jcl->jid, NULL, NULL, "%s", jcl->jid);
-			Con_Printf("Bound to jid %s\n", jcl->jid, jcl->jid);
+			Con_DPrintf("Bound to jid %s\n", jcl->jid);
 			return true;
 		}
 	}
@@ -2789,18 +1917,21 @@ static char *caps[] =
 	"http://jabber.org/protocol/disco#info",
 //	"http://jabber.org/protocol/disco#items",
 
-//	"http://www.google.com/xmpp/protocol/camera/v1",
-//	"http://www.google.com/xmpp/protocol/session",
-//	"http://www.google.com/xmpp/protocol/voice/v1",
-//	"http://www.google.com/xmpp/protocol/video/v1",
-
 	"jabber:iq:version", 
 	#ifdef JINGLE
 		"urn:xmpp:jingle:1",
 		QUAKEMEDIAXMLNS,
 		#ifdef VOIP
-			"urn:xmpp:jingle:apps:rtp:1",
-			"urn:xmpp:jingle:apps:rtp:audio",
+			#ifdef VOIP_LEGACY
+				"http://www.google.com/xmpp/protocol/session",	//so google's non-standard clients can chat with us
+				"http://www.google.com/xmpp/protocol/voice/v1", //so google's non-standard clients can chat with us
+				//	"http://www.google.com/xmpp/protocol/camera/v1",	//can send video
+				//	"http://www.google.com/xmpp/protocol/video/v1",	//can receive video
+			#endif
+			#ifndef VOIP_LEGACY_ONLY
+				"urn:xmpp:jingle:apps:rtp:1",
+				"urn:xmpp:jingle:apps:rtp:audio",
+			#endif
 		#endif
 		//"urn:xmpp:jingle:apps:rtp:video",//we don't support rtp video chat
 		"urn:xmpp:jingle:transports:raw-udp:1",
@@ -2928,18 +2059,42 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 			if (from && !strcmp(ot->xmlns, "http://jabber.org/protocol/disco#info"))
 			{	//http://xmpp.org/extensions/xep-0030.html
 				char msg[2048];
-				char *hash;
+				char hashednode[1024];
+				char *node = XML_GetParameter(ot, "node", NULL);
 				unparsable = false;
 
 				buildcaps(msg, sizeof(msg));
-				hash = buildcapshash();
+				Q_snprintf(hashednode, sizeof(hashednode),DISCONODE"#%s", buildcapshash());
 
-				JCL_AddClientMessagef(jcl,
-						"<iq type='result' to='%s' id='%s'>"
-							"<query xmlns='http://jabber.org/protocol/disco#info' node='http://fteqw.com/ftexmppplug#%s'>"
-								"%s"
-							"</query>"
-						"</iq>", from, id, hash, msg);
+				if (!node || !strcmp(node, hashednode))
+				{
+					JCL_AddClientMessagef(jcl,
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
+									"%s"
+								"</query>"
+							"</iq>", from, id, node?node:hashednode, msg);
+				}
+#ifdef VOIP_LEGACY
+				else if (!strcmp(node, DISCONODE"#voice-v1"))
+				{
+					JCL_AddClientMessagef(jcl,
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
+									"<feature var='http://www.google.com/xmpp/protocol/voice/v1'/>"
+								"</query>"
+							"</iq>", from, id, node, msg);
+				}
+#endif
+				else
+				{
+					JCL_AddClientMessagef(jcl,
+							"<iq type='error' to='%s' id='%s'>"
+								"<error code=404 type='cancel'>"
+									"<item-not-found/>"
+								"</error>"
+							"</iq>", from, id);
+				}
 			}
 			else if (from && !strcmp(ot->xmlns, "jabber:iq:version"))
 			{	//client->client version request
@@ -3237,11 +2392,14 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 		}
 
 #ifdef JINGLE
-		c = XML_ChildOfTree(tree, "jingle", 0);
-		if (c && !strcmp(c->xmlns, "urn:xmpp:jingle:1"))
-		{
+		c = XML_ChildOfTreeNS(tree, "urn:xmpp:jingle:1", "jingle", 0);
+		if (c)
 			unparsable = !JCL_ParseJingle(jcl, c, from, id);
-		}
+#ifdef VOIP_LEGACY
+		c = XML_ChildOfTreeNS(tree, "http://www.google.com/session", "session", 0);
+		if (c)
+			unparsable = !JCL_HandleGoogleSession(jcl, c, from, id);
+#endif
 #endif
 
 		if (unparsable)
@@ -3262,11 +2420,12 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 	{
 		char *id = XML_GetParameter(tree, "id", "");
 		struct iq_s **link, *iq;
+		char *from = XML_GetParameter(tree, "from", "");
 		unparsable = false;
 		for (link = &jcl->pendingiqs; *link; link = &(*link)->next)
 		{
 			iq = *link;
-			if (!strcmp(iq->id, id))
+			if (!strcmp(iq->id, id) && !strcmp(iq->to, from))
 				break;
 		}
 		if (*link)
@@ -3459,12 +2618,9 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 	}
 }
 
-qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+unsigned int JCL_ParseCaps(char *account, char *resource, xmltree_t *query)
 {
-	xmltree_t *query = XML_ChildOfTree(tree, "query", 0);
 	xmltree_t *feature;
-	char *var;
-	int i = 0;
 	unsigned int caps = 0;
 	qboolean rtp = false;
 	qboolean rtpaudio = false;
@@ -3472,17 +2628,23 @@ qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 	qboolean ice = false;
 	qboolean raw = false;
 	qboolean jingle = false;
-	buddy_t *b;
-	bresource_t *r;
-	JCL_FindBuddy(jcl, XML_GetParameter(tree, "from", ""), &b, &r);
+	qboolean si = false;
+	qboolean sift = false;
+	qboolean ibb = false;
+	int i = 0;
+	char *var;
+//	XML_ConPrintTree(query, 0);
 	while((feature = XML_ChildOfTree(query, "feature", i++)))
 	{
 		var = XML_GetParameter(feature, "var", "");
 		//check ones we recognise.
+//		Con_Printf("%s/%s: %s\n", account, resource, var);
 		if (!strcmp(var, QUAKEMEDIAXMLNS))
 			quake = true;
+#ifndef VOIP_LEGACY_ONLY
 		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:audio"))
 			rtpaudio = true;
+#endif
 		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:1"))
 			rtp = true;		//kinda implied, but ensures version is okay
 		if (!strcmp(var, "urn:xmpp:jingle:transports:ice-udp:1"))
@@ -3491,7 +2653,22 @@ qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 			raw = true;
 		if (!strcmp(var, "urn:xmpp:jingle:1"))
 			jingle = true;	//kinda implied, but ensures version is okay
+
+#ifdef VOIP_LEGACY
+		if (!strcmp(var, "http://www.google.com/xmpp/protocol/voice/v1"))
+			caps |= CAP_FUGOOG_VOICE;	//legacy crap, so we can call google's official clients, which do not follow current xmpp standards.
+		if (!strcmp(var, "http://www.google.com/xmpp/protocol/session"))
+			caps |= CAP_FUGOOG_SESSION;	//legacy crap, so we can call google's official clients, which do not follow current xmpp standards.
+#endif
+
+		if (!strcmp(var, "http://jabber.org/protocol/si"))
+			si = true;
+		if (!strcmp(var, "http://jabber.org/protocol/si/profile/file-transfer"))
+			sift = true;
+		if (!strcmp(var, "http://jabber.org/protocol/ibb"))
+			ibb = true;
 	}
+
 	if ((ice||raw) && jingle)
 	{
 		if (rtpaudio && rtp)
@@ -3499,10 +2676,143 @@ qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 		if (quake)
 			caps |= CAP_INVITE;
 	}
+	if (si && sift && ibb)
+		caps |= CAP_SIFT;
+
+	return caps;
+}
+
+void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres);
+qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	xmltree_t *query = XML_ChildOfTree(tree, "query", 0);
+	xmltree_t *feature;
+	char *var;
+	int i = 0;
+	unsigned int caps = 0;
+	buddy_t *b, *ob;
+	bresource_t *r, *or;
+	JCL_FindBuddy(jcl, iq->to, &b, &r);
+
+	if (!query)
+		caps = CAP_QUERYFAILED;
+	else
+	{
+//		XML_ConPrintTree(tree, 0);
+		caps = JCL_ParseCaps(b->accountdomain, r->resource, query);
+	}
 
 	if (b && r)
-		r->caps = (r->caps & CAP_QUERIED) | caps;
+	{
+		if (!(caps & CAP_QUERYFAILED))
+		{
+//			Con_Printf("%s/%s caps = %x\n", b->accountdomain, r->resource, caps);
+			if (!(r->caps & CAP_QUERIED))
+				r->caps = CAP_QUERIED;	//reset it
+			r->caps |= CAP_QUERIED | caps;
+
+			//as we got a valid response, make sure other resources running the same software get the same caps
+			for (ob = jcl->buddies; ob; ob = ob->next)
+			{
+				for (or = ob->resources; or; or = or->next)
+				{
+					//ignore evil clients.
+					if (r == or || (or->caps & (CAP_QUERYFAILED|CAP_QUERIED|CAP_QUERYING)) || !or->client_node)
+						continue;
+
+					//all resources with the same details then get the same caps flags.
+					if (!strcmp(r->client_node, or->client_node) && !strcmp(r->client_ver, or->client_ver) && !strcmp(r->client_hash, or->client_hash) && !strcmp(r->client_ext, or->client_ext))
+					{
+//						Con_Printf("%s/%s matches (updated) %s/%s (%s#%s)\n", ob->accountdomain, or->resource, b->accountdomain, r->resource, r->client_node, r->client_ver);
+						or->caps = r->caps;
+					}
+				}
+			}
+		}
+		else
+		{
+			if (!(r->caps & (CAP_QUERIED|CAP_QUERYFAILED)))
+			{
+				r->caps = CAP_QUERYFAILED;
+				//as the response is invalid, we need to ensure that other resources that claim to use the same software are still queried anyway.
+				//(this is needed in case the one that we asked was spoofing)
+				for (ob = jcl->buddies; ob; ob = ob->next)
+				{
+					for (or = ob->resources; or; or = or->next)
+					{
+						//ignore evil clients.
+						if (r == or || (or->caps & (CAP_QUERYFAILED|CAP_QUERIED|CAP_QUERYING)) || !or->client_node)
+							continue;
+
+						//all resources with the same details then get the same caps flags.
+						if (r->client_node && !strcmp(r->client_node, or->client_node) && !strcmp(r->client_ver, or->client_ver) && !strcmp(r->client_hash, or->client_hash) && !strcmp(r->client_ext, or->client_ext))
+						{
+							JCL_CheckClientCaps(jcl, ob, or);
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
 	return true;
+}
+void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
+{
+	buddy_t *b;
+	bresource_t *r;
+	char extname[64], *ext;
+
+	//ignore it if we're already asking them...
+	if (bres->caps & (CAP_QUERYING|CAP_QUERIED|CAP_QUERYFAILED))
+		return;
+
+	//look for another resource that we might already know about that is the same client+ver and thus has the same caps.
+	if (bres->client_node)
+		for (b = jcl->buddies; b; b = b->next)
+		{
+			for (r = b->resources; r; r = r->next)
+			{
+				if (r == bres)
+					continue;
+				//ignore evil clients.
+				if ((r->caps & CAP_QUERYFAILED) || !r->client_node)
+					continue;
+
+				if (!strcmp(r->client_node, bres->client_node) && !strcmp(r->client_ver, bres->client_ver) && !strcmp(r->client_hash, bres->client_hash) && !strcmp(r->client_ext, bres->client_ext))
+				{
+					if (r->caps & CAP_QUERIED)
+					{
+						bres->caps = r->caps;
+//						Con_Printf("%s/%s matches (known) %s/%s (%s#%s)\n", buddy->accountdomain, bres->resource, b->accountdomain, r->resource, r->client_node, r->client_ver);
+						return;
+					}
+					if (r->caps & CAP_QUERYING)
+					{
+						//we're already asking one client with the same software. don't ask for dupes.
+						bres->caps = 0;
+//						Con_Printf("%s/%s matches (pending) %s/%s (%s#%s)\n", buddy->accountdomain, bres->resource, b->accountdomain, r->resource, r->client_node, r->client_ver);
+						return;
+					}
+				}
+			}
+		}
+
+//	Con_Printf("%s/%s querying (%s#%s)\n", buddy->accountdomain, bres->resource, bres->client_node, bres->client_ver);
+	//okay, this is the first time we've seen that software version. ask it what it supports, and hope we get a valid response...
+	bres->caps = CAP_QUERYING;
+	JCL_SendIQf(jcl, JCL_ClientDiscoInfo, "get", va("%s/%s", buddy->accountdomain, bres->resource), "<query xmlns='http://jabber.org/protocol/disco#info' node='%s#%s'/>", bres->client_node, bres->client_ver);
+
+	//and ask for info about each extension too. which should only be used if the specified version isn't a hash.
+	if (bres->client_hash && !*bres->client_hash)
+	{
+		for (ext = bres->client_ext; ext; )
+		{
+			ext = JCL_ParseOut(ext, extname, sizeof(extname));
+			if (*extname)
+				JCL_SendIQf(jcl, JCL_ClientDiscoInfo, "get", va("%s/%s", buddy->accountdomain, bres->resource), "<query xmlns='http://jabber.org/protocol/disco#info' node='%s#%s'/>", bres->client_node, extname);
+		}
+	}
 }
 void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 {
@@ -3514,6 +2824,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
 	xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
 	xmltree_t *muc = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc#user", "x", 0);
+	xmltree_t *caps = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/caps", "c", 0);
 	char *type = XML_GetParameter(tree, "type", "");
 	char *serverip = NULL;
 	char *servermap = NULL;
@@ -3585,11 +2896,28 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 			else
 			{
 				Q_strlcpy(bres->bstatus, (show && *show->body)?show->body:"present", sizeof(bres->bstatus));
-				if (!(bres->caps & CAP_QUERIED))
+
+				if (caps)
 				{
-					bres->caps |= CAP_QUERIED;
-					JCL_SendIQ(jcl, JCL_ClientDiscoInfo, "get", from, "<query xmlns='http://jabber.org/protocol/disco#info'/>");
+					char *ext = XML_GetParameter(caps, "ext", "");	//deprecated
+					char *ver = XML_GetParameter(caps, "ver", "");
+					char *node = XML_GetParameter(caps, "node", "");
+					char *hash = XML_GetParameter(caps, "hash", "");
+
+					if (!bres->client_hash || strcmp(ext, bres->client_ext) || strcmp(hash, bres->client_hash) || strcmp(node, bres->client_node) || strcmp(ver, bres->client_ver))
+					{
+						bres->caps &= ~(CAP_QUERIED|CAP_QUERYING|CAP_QUERYFAILED);	//no idea what the new caps are. 
+						free(bres->client_ext);
+						free(bres->client_hash);
+						free(bres->client_node);
+						free(bres->client_ver);
+						bres->client_ext = strdup(ext);
+						bres->client_hash = strdup(hash);
+						bres->client_node = strdup(node);
+						bres->client_ver = strdup(ver);
+					}
 				}
+				JCL_CheckClientCaps(jcl, buddy, bres);
 			}
 
 			if (muc)
@@ -3610,7 +2938,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 				}
 				else if (bres->servertype == 1)
 					Con_Printf("%s is now ^[[Playing Quake - %s]\\observe\\%s^]\n", startconvo, bres->server, bres->server);
-				else if (strcmp(oldbstatus, bres->bstatus) || strcmp(oldfstatus, bres->fstatus))
+				else if (!pCvar_GetFloat("xmpp_hidestatusupdates") && (strcmp(oldbstatus, bres->bstatus) || strcmp(oldfstatus, bres->fstatus)))
 				{
 					if (*bres->fstatus)
 						Con_Printf("%s is now %s: %s\n", startconvo, bres->bstatus, bres->fstatus);
@@ -3807,7 +3135,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 		{
 			if ((!jcl->issecure) && BUILTINISVALID(Net_SetTLSClient) && XML_ChildOfTree(tree, "starttls", 0) != NULL && jcl->forcetls >= 0)
 			{
-				Con_Printf("XMPP: Attempting to switch to TLS\n");
+				Con_DPrintf("XMPP: Attempting to switch to TLS\n");
 				JCL_AddClientMessageString(jcl, "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls' />");
 				unparsable = false;
 			}
@@ -3855,7 +3183,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 					Base64_Add(out, outlen);
 					Base64_Finish();
 
-					Con_Printf("XMPP: Authing with %s%s.\n", method, jcl->issecure?" over tls":" without encription");
+					Con_DPrintf("XMPP: Authing with %s%s.\n", method, jcl->issecure?" over tls":" without encription");
 					JCL_AddClientMessagef(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='%s'"
 						    " auth:service='oauth2'"
 							" xmlns:auth='http://www.google.com/talk/protocol/auth'"
@@ -4100,8 +3428,17 @@ void JCL_GeneratePresence(jclient_t *jcl, qboolean force)
 		char caps[256];
 		Q_strlcpy(jcl->curquakeserver, *servermap?servermap:serveraddr, sizeof(jcl->curquakeserver));
 		Con_DPrintf("Sending presence %s\n", jcl->curquakeserver);
-		//note: ext='voice-v1 camera-v1 video-v1' is some legacy nonsense, and is required for voice calls with googletalk clients or something stupid like that
-		Q_snprintf(caps, sizeof(caps), "<c xmlns='http://jabber.org/protocol/caps' hash='sha-1' node='http://fteqw.com/ftexmppplugin' ver='%s'/>", buildcapshash());
+
+		//xep-0115 1.4+
+		Q_snprintf(caps, sizeof(caps),
+			"<c xmlns='http://jabber.org/protocol/caps'"
+			" hash='sha-1'"
+			" node='"DISCONODE"'"
+			" ver='%s'"
+#ifdef VOIP_LEGACY
+			" ext='voice-v1'"
+#endif
+			"/>", buildcapshash());
 
 		if (!*jcl->curquakeserver)
 			JCL_AddClientMessagef(jcl,
@@ -4138,9 +3475,6 @@ qintptr_t JCL_Frame(qintptr_t *args)
 		if (jcl && jcl->status != JCL_INACTIVE)
 		{
 			int stat = JCL_CONTINUE;
-#ifdef JINGLE
-			JCL_JingleTimeouts(jcl, false);
-#endif
 			if (jcl->status == JCL_DEAD)
 			{
 				if (jclient_curtime > jcl->timeout)
@@ -4165,6 +3499,11 @@ qintptr_t JCL_Frame(qintptr_t *args)
 				else
 					JCL_FlushOutgoing(jcl);
 			}
+
+#ifdef JINGLE
+			JCL_JingleTimeouts(jcl, false);
+#endif
+			JCL_IQTimeouts(jcl);
 		}
 	}
 	return 0;
@@ -4335,6 +3674,12 @@ static void JCL_PrintBuddyStatus(char *console, jclient_t *jcl, buddy_t *b, bres
 	{
 		char calllink[512];
 		JCL_GenLink(jcl, calllink, sizeof(calllink), "call", b->accountdomain, r->resource, NULL, "%s", "Call");
+		Con_SubPrintf(console, " %s", calllink);
+	}
+	else if ((r->caps & CAP_FUGOOG_VOICE) && (r->caps & CAP_FUGOOG_SESSION))
+	{
+		char calllink[512];
+		JCL_GenLink(jcl, calllink, sizeof(calllink), "call", b->accountdomain, r->resource, NULL, "%s", "Call(NS)");
 		Con_SubPrintf(console, " %s", calllink);
 	}
 }
@@ -4564,7 +3909,15 @@ void JCL_JoinMUCChat(jclient_t *jcl, char *room, char *server, char *myhandle, c
 		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s/%s", room, myhandle);
 	JCL_FindBuddy(jcl, roomserverhandle, &b, &r);
 	b->chatroom = true;
-	Q_snprintf(caps, sizeof(caps), "<c xmlns='http://jabber.org/protocol/caps' hash='sha-1' node='http://fteqw.com/ftexmppplugin' ver='%s'/>", buildcapshash());
+	Q_snprintf(caps, sizeof(caps),
+		"<c xmlns='http://jabber.org/protocol/caps'"
+		" hash='sha-1'"
+		" node='"DISCONODE"'"
+		" ver='%s'"
+#ifdef VOIP_LEGACY
+		" ext='voice-v1'"
+#endif
+		"/>", buildcapshash());
 	JCL_AddClientMessagef(jcl, "<presence to='%s'><x xmlns='http://jabber.org/protocol/muc'><password>%s</password></x>%s</presence>", roomserverhandle, password, caps);
 }
 

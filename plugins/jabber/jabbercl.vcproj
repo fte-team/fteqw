@@ -167,6 +167,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\jingle.c"
+				>
+			</File>
+			<File
 				RelativePath="..\emailnot\md5.c"
 				>
 			</File>
@@ -186,16 +190,20 @@
 				RelativePath=".\xml.c"
 				>
 			</File>
-			<File
-				RelativePath=".\xml.h"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\xml.h"
+				>
+			</File>
+			<File
+				RelativePath=".\xmpp.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"

@@ -103,7 +103,7 @@ $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT)
 
-$(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
+$(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT)
 

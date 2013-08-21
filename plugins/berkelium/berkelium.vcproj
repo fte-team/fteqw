@@ -122,7 +122,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="berkelium/berkelium.lib"
-				OutputFile="C:\Games\Quake\fte\plugins\$(ProjectName)x86.dll"
+				OutputFile="../../fteplug_berkeliumx86.dll"
 				GenerateManifest="false"
 				ModuleDefinitionFile="..\plugin.def"
 			/>

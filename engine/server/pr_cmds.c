@@ -1884,7 +1884,7 @@ qboolean PR_UserCmd(char *s)
 
 	return false;
 }
-qboolean PR_ConsoleCmd(char *command)
+qboolean PR_ConsoleCmd(const char *command)
 {
 	globalvars_t *pr_globals;
 	extern redirect_t sv_redirected;

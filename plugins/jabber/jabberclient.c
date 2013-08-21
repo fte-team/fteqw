@@ -1085,7 +1085,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 	}
 
 	//if the reply has a refresh token in it, clear out any password info
-	return -1;
+	return -2;
 }
 
 //in descending priority order

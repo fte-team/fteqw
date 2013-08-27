@@ -1011,8 +1011,8 @@ void SV_FilterList_f (void)
 void SV_Unban_f (void)
 {
 	qboolean all = false;
-	bannedips_t *nb = svs.bannedips;
-	bannedips_t *nbnext;
+	bannedips_t **link;
+	bannedips_t *nb;
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
 	char adr[MAX_ADR_SIZE];
@@ -1031,22 +1031,22 @@ void SV_Unban_f (void)
 		return;
 	}
 
-	while (nb)
+	for (link = &svs.bannedips ; (nb = *link) ; )
 	{
-		nbnext = nb->next;
 		if (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask)))
 		{
 			if (!all)
 				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
-			if (svs.bannedips == nb)
-				svs.bannedips = nbnext;
+			*link = nb->next;
 			Z_Free(nb);
 
 			if (!all)
 				break;
 		}
-
-		nb = nbnext;
+		else
+		{
+			link = &(*link)->next;
+		}
 	}
 }
 

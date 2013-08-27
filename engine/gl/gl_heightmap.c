@@ -1496,8 +1496,8 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 			GL_SelectVBO(s->vbo.coord.gl.vbo);
 
 		qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, mesh->xyz_array);
-		if (mesh->colors4f_array)
-			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, sizeof(vec4_t)*mesh->numvertexes,  mesh->colors4f_array);
+		if (mesh->colors4f_array[0])
+			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes, sizeof(vec4_t)*mesh->numvertexes,  mesh->colors4f_array[0]);
 		GL_SelectVBO(0);
 		s->vbo.coord.gl.addr = 0;
 		s->vbo.texcoord.gl.addr = (void*)((char*)mesh->st_array - (char*)mesh->xyz_array);

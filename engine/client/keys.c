@@ -1218,6 +1218,12 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		default:
 //			if (unicode)
 //				Con_Printf("escape code %i\n", unicode);
+
+			//even if we don't print these, we still need to cancel them in the caller.
+			if (key == K_LALT || key == K_RALT ||
+				key == K_LCTRL || key == K_RCTRL ||
+				key == K_LSHIFT || key == K_RSHIFT)
+				return true;
 			return false;
 		}
 	}
@@ -1261,6 +1267,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		Key_ConsoleInsert(utf8);
 		return true;
 	}
+
 	return false;
 }
 
@@ -1857,25 +1864,26 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 						Cbuf_AddText (cmd, bindcmdlevel[k][oldstate]);
 					}
 				}
-			}
-			if (keydown[k] && (key_dest != key_console && key_dest != key_message))
-			{
-				deltaused[k][keystate] = true;
-
-//				Con_Printf ("adding bind %i\n", k); //@@@
-
-				kb = keybindings[k][keystate];
-				if (kb)
+			
+				if (keydown[k] && (key_dest != key_console && key_dest != key_message))
 				{
-					if (kb[0] == '+')
-					{	// button commands add keynum as a parm
-						Q_snprintfz (cmd, sizeof(cmd), "%s %i\n", kb, k+keystate*256);
-						Cbuf_AddText (cmd, bindcmdlevel[k][keystate]);
-					}
-					else
+					deltaused[k][keystate] = true;
+
+	//				Con_Printf ("adding bind %i\n", k); //@@@
+
+					kb = keybindings[k][keystate];
+					if (kb)
 					{
-						Cbuf_AddText (kb, bindcmdlevel[k][keystate]);
-						Cbuf_AddText ("\n", bindcmdlevel[k][keystate]);
+						if (kb[0] == '+')
+						{	// button commands add keynum as a parm
+							Q_snprintfz (cmd, sizeof(cmd), "%s %i\n", kb, k+keystate*256);
+							Cbuf_AddText (cmd, bindcmdlevel[k][keystate]);
+						}
+						else
+						{
+							Cbuf_AddText (kb, bindcmdlevel[k][keystate]);
+							Cbuf_AddText ("\n", bindcmdlevel[k][keystate]);
+						}
 					}
 				}
 			}

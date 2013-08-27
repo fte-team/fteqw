@@ -1697,7 +1697,6 @@ SV_Serverinfo_f
   Examine or change the serverinfo string
 ===========
 */
-char *CopyString(char *s);
 extern char *Info_KeyForNumber(char *s, int num);
 void SV_Serverinfo_f (void)
 {
@@ -1758,7 +1757,7 @@ void SV_Serverinfo_f (void)
 	{
 		Cvar_Set(var, value);
 /*		Z_Free (var->string);	// free the old value string
-		var->string = CopyString (value);
+		var->string = Z_StrDup (value);
 		var->value = Q_atof (var->string);
 */	}
 
@@ -1773,7 +1772,6 @@ SV_Serverinfo_f
   Examine or change the serverinfo string
 ===========
 */
-char *CopyString(char *s);
 void SV_Localinfo_f (void)
 {
 	char *old;

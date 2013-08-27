@@ -447,7 +447,7 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
 		}
 
-		s->mesh.colors4f_array = s->colours;
+		s->mesh.colors4f_array[0] = s->colours;
 		if (ds->flags & TSF_HASCOLOURS)
 		{
 			for (i = 0, colours = (float*)ptr; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++, colours+=4)
@@ -1205,7 +1205,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 			BZ_Free(mesh->indexes);
 		mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6*3);
 		mesh->numindexes = 0;
-		mesh->colors4f_array = NULL;
+		mesh->colors4f_array[0] = NULL;
 
 		for (vy = 0; vy < SECTHEIGHTSIZE-1; vy++)
 		{
@@ -1395,7 +1395,7 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 			mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
 			mesh->lmst_array[0] = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
 		}
-		mesh->colors4f_array = s->colours;
+		mesh->colors4f_array[0] = s->colours;
 		mesh->numvertexes = 0;
 		/*64 quads across requires 65 verticies*/
 		for (vy = 0; vy < SECTHEIGHTSIZE; vy++)
@@ -1504,8 +1504,8 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 		s->vbo.texcoord.gl.vbo = s->vbo.coord.gl.vbo;
 		s->vbo.lmcoord[0].gl.addr = (void*)((char*)mesh->lmst_array[0] - (char*)mesh->xyz_array);
 		s->vbo.lmcoord[0].gl.vbo = s->vbo.coord.gl.vbo;
-		s->vbo.colours.gl.addr = (void*)((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes);
-		s->vbo.colours.gl.vbo = s->vbo.coord.gl.vbo;
+		s->vbo.colours[0].gl.addr = (void*)((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * mesh->numvertexes);
+		s->vbo.colours[0].gl.vbo = s->vbo.coord.gl.vbo;
 //		Z_Free(mesh->xyz_array);
 //		mesh->xyz_array = NULL;
 //		mesh->st_array = NULL;

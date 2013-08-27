@@ -1346,6 +1346,8 @@ void CL_Disconnect (void)
 
 	FS_PureMode(0, NULL, NULL, 0);
 
+	Alias_WipeStuffedAliases();
+
 	//now start up the csqc/menu module again.
 	CSQC_UnconnectedInit();
 }
@@ -1361,8 +1363,6 @@ void CL_Disconnect_f (void)
 #endif
 
 	CL_Disconnect ();
-
-	Alias_WipeStuffedAliaes();
 }
 
 /*
@@ -4474,6 +4474,10 @@ void Host_Shutdown(void)
 
 	//disconnect server/client/etc
 	CL_Disconnect_f();
+
+#ifdef CSQC_DAT
+	CSQC_Shutdown();
+#endif
 
 #ifdef VM_UI
 	UI_Stop();

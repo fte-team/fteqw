@@ -154,7 +154,8 @@ struct {
 		int pendingtexcoordvbo[SHADER_TMU_MAX];
 		void *pendingtexcoordpointer[SHADER_TMU_MAX];
 
-		float identitylighting;	//set to how bright lightmaps should be (reduced for overbright or realtime_world_lightmaps)
+		float identitylighting;	//set to how bright world lighting should be (reduced by realtime_world_lightmaps)
+		float identitylightmap;	//set to how bright lightmaps should be (reduced by overbrights+realtime_world_lightmaps)
 
 		texid_t temptexture; //$current
 		texid_t fogtexture;
@@ -272,7 +273,7 @@ static void BE_SetPassBlendMode(int tmu, int pbm)
 			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
 			break;
 		case PBM_REPLACELIGHT:
-			if (shaderstate.identitylighting != 1)
+		//	if (shaderstate.identitylighting != 1)
 				goto forcemod;
 			GL_TexEnv(GL_REPLACE);
 			break;
@@ -565,12 +566,24 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				}
 				break;
 			case VATTR_COLOUR:
-				if (shaderstate.sourcevbo->colours.gl.addr)
+				if (shaderstate.sourcevbo->colours[0].gl.addr)
 				{
-					GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
-					qglVertexAttribPointer(VATTR_COLOUR, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours.gl.addr);
+					GL_SelectVBO(shaderstate.sourcevbo->colours[0].gl.vbo);
+					qglVertexAttribPointer(VATTR_COLOUR, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[0].gl.addr);
 					break;
 				}
+				break;
+			case VATTR_COLOUR2:
+				GL_SelectVBO(shaderstate.sourcevbo->colours[1].gl.vbo);
+				qglVertexAttribPointer(VATTR_COLOUR2, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[1].gl.addr);
+				break;
+			case VATTR_COLOUR3:
+				GL_SelectVBO(shaderstate.sourcevbo->colours[2].gl.vbo);
+				qglVertexAttribPointer(VATTR_COLOUR3, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[2].gl.addr);
+				break;
+			case VATTR_COLOUR4:
+				GL_SelectVBO(shaderstate.sourcevbo->colours[3].gl.vbo);
+				qglVertexAttribPointer(VATTR_COLOUR4, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[3].gl.addr);
 				break;
 			case VATTR_TEXCOORD:
 				GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
@@ -1286,6 +1299,7 @@ void GLBE_Init(void)
 	}
 
 	shaderstate.identitylighting = 1;
+	shaderstate.identitylightmap = 1;
 	for (i = 0; i < MAXLIGHTMAPS; i++)
 		shaderstate.dummybatch.lightmap[i] = -1;
 
@@ -1611,6 +1625,7 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 //dest is packed too
 static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *dst, const mesh_t *mesh)
 {
+	int n = cnt;
 	switch (pass->rgbgen)
 	{
 	case RGB_GEN_ENTITY:
@@ -1630,6 +1645,23 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		}
 		break;
 	case RGB_GEN_VERTEX_LIGHTING:
+		if (mesh->colors4f_array[1])
+		{
+			float lm[4];
+			lm[0] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]]/256.0f*shaderstate.identitylighting;
+			lm[1] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[1]]/256.0f*shaderstate.identitylighting;
+			lm[2] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[2]]/256.0f*shaderstate.identitylighting;
+			lm[3] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[3]]/256.0f*shaderstate.identitylighting;
+			while((cnt)--)
+			{
+				VectorScale(		mesh->colors4f_array[0][cnt], lm[0], dst[cnt]);
+				VectorMA(dst[cnt],	lm[1], mesh->colors4f_array[1][cnt], dst[cnt]);
+				VectorMA(dst[cnt],	lm[2], mesh->colors4f_array[2][cnt], dst[cnt]);
+				VectorMA(dst[cnt],	lm[3], mesh->colors4f_array[3][cnt], dst[cnt]);
+			}
+			break;
+		}
+
 		if (shaderstate.identitylighting != 1)
 		{
 			if (!src)
@@ -1678,13 +1710,14 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		}
 		break;
 	case RGB_GEN_IDENTITY_LIGHTING:
-		if (shaderstate.curbatch->lightstyle[0] != 255)
+		if (shaderstate.curbatch->vtlightstyle[0] != 255 && d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]] != 256)
 		{
+			//FIXME: 
 			while((cnt)--)
 			{
-				dst[cnt][0] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[0]]/256.0f;
-				dst[cnt][1] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[0]]/256.0f;
-				dst[cnt][2] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[0]]/256.0f;
+				dst[cnt][0] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]]/256.0f;
+				dst[cnt][1] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]]/256.0f;
+				dst[cnt][2] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]]/256.0f;
 			}
 		}
 		else
@@ -1698,13 +1731,21 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 			}
 		}
 		break;
+	case RGB_GEN_IDENTITY_OVERBRIGHT:
+		while((cnt)--)
+		{
+			dst[cnt][0] = shaderstate.identitylightmap;
+			dst[cnt][1] = shaderstate.identitylightmap;
+			dst[cnt][2] = shaderstate.identitylightmap;
+		}
+		break;
 	default:
 	case RGB_GEN_IDENTITY:
 		while((cnt)--)
 		{
-			dst[cnt][0] = 1;
-			dst[cnt][1] = 1;
-			dst[cnt][2] = 1;
+			dst[cnt][0] = shaderstate.identitylighting;
+			dst[cnt][1] = shaderstate.identitylighting;
+			dst[cnt][2] = shaderstate.identitylighting;
 		}
 		break;
 	case RGB_GEN_CONST:
@@ -2189,8 +2230,8 @@ static void GenerateColourMods(const shaderpass_t *pass)
 
 	if (pass->flags & SHADER_PASS_NOCOLORARRAY && qglColor4fv)
 	{
-		colourgen(pass, 1, meshlist->colors4f_array, &shaderstate.pendingcolourflat, meshlist);
-		alphagen(pass, 1, meshlist->colors4f_array, &shaderstate.pendingcolourflat, meshlist);
+		colourgen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
+		alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
 		shaderstate.pendingcolourvbo = 0;
 		shaderstate.pendingcolourpointer = NULL;
 	}
@@ -2202,7 +2243,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			if (shaderstate.mode == BEM_DEPTHDARK || shaderstate.mode == BEM_DEPTHONLY)
 			{
 				shaderstate.pendingcolourflat[0] = shaderstate.pendingcolourflat[1] = shaderstate.pendingcolourflat[2] = 0;
-				alphagen(pass, 1, meshlist->colors4f_array, &shaderstate.pendingcolourflat, meshlist);
+				alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
 				return;
@@ -2210,7 +2251,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			if (shaderstate.mode == BEM_LIGHT)
 			{
 				shaderstate.pendingcolourflat[0] = shaderstate.pendingcolourflat[1] = shaderstate.pendingcolourflat[2] = 1;
-				alphagen(pass, 1, meshlist->colors4f_array, &shaderstate.pendingcolourflat, meshlist);
+				alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
 				return;
@@ -2228,8 +2269,8 @@ static void GenerateColourMods(const shaderpass_t *pass)
 		//if its vetex lighting, just use the vbo
 		if (((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING && shaderstate.identitylighting == 1) || pass->rgbgen == RGB_GEN_VERTEX_EXACT) && pass->alphagen == ALPHA_GEN_VERTEX)
 		{
-			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours.gl.vbo;
-			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours.gl.addr;
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
 			return;
 		}
 
@@ -2237,8 +2278,8 @@ static void GenerateColourMods(const shaderpass_t *pass)
 		{
 			meshlist = shaderstate.meshes[m];
 
-			colourgen(pass, meshlist->numvertexes, meshlist->colors4f_array, coloursarray + meshlist->vbofirstvert, meshlist);
-			alphagen(pass, meshlist->numvertexes, meshlist->colors4f_array, coloursarray + meshlist->vbofirstvert, meshlist);
+			colourgen(pass, meshlist->numvertexes, meshlist->colors4f_array[0], coloursarray + meshlist->vbofirstvert, meshlist);
+			alphagen(pass, meshlist->numvertexes, meshlist->colors4f_array[0], coloursarray + meshlist->vbofirstvert, meshlist);
 		}
 
 		shaderstate.colourarraytype = GL_FLOAT;
@@ -2638,9 +2679,9 @@ static void DrawPass(const shaderpass_t *pass)
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
 
-				shaderstate.pendingcolourflat[0] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[j]]/256.0f;
-				shaderstate.pendingcolourflat[1] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[j]]/256.0f;
-				shaderstate.pendingcolourflat[2] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[j]]/256.0f;
+				shaderstate.pendingcolourflat[0] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lmlightstyle[j]]/256.0f;
+				shaderstate.pendingcolourflat[1] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lmlightstyle[j]]/256.0f;
+				shaderstate.pendingcolourflat[2] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lmlightstyle[j]]/256.0f;
 				shaderstate.pendingcolourflat[3] = 1;
 
 				/*pick the correct st coords for this lightmap pass*/
@@ -2755,6 +2796,42 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			qglUniform2fvARB(ph, 1, shaderstate.meshes[0]->xyz_blendw);
 			break;
 
+		case SP_E_VLSCALE:
+			if (perm & PERMUTATION_LIGHTSTYLES)
+			{
+				vec4_t colscale[MAXLIGHTMAPS];
+				int j, s;
+				for (j = 0; j < MAXLIGHTMAPS ; j++)
+				{
+					s = shaderstate.curbatch->vtlightstyle[j];
+					if (s == 255)
+					{
+						for (; j < MAXLIGHTMAPS ; j++)
+						{
+							colscale[j][0] = 0;
+							colscale[j][1] = 0;
+							colscale[j][2] = 0;
+							colscale[j][3] = 1;
+						}
+						break;
+					}
+					if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+					{
+						float sc = (1<<bound(0, gl_overbright.ival, 2)) * shaderstate.identitylighting;
+						VectorSet(colscale[j], sc, sc, sc);
+					}
+					else
+					{
+						VectorSet(colscale[j], shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting);
+					}
+					colscale[j][3] = 1;
+
+					VectorScale(colscale[j], d_lightstylevalue[s]/256.0f, colscale[j]);
+				}
+
+				qglUniform4fvARB(ph, j, (GLfloat*)colscale);
+				shaderstate.lastuniform = 0;
+			}
 		case SP_E_LMSCALE:
 			if (perm & PERMUTATION_LIGHTSTYLES)
 			{
@@ -2762,7 +2839,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				int j, s;
 				for (j = 0; j < MAXLIGHTMAPS ; j++)
 				{
-					s = shaderstate.curbatch->lightstyle[j];
+					s = shaderstate.curbatch->lmlightstyle[j];
 					if (s == 255)
 					{
 						for (; j < MAXLIGHTMAPS ; j++)
@@ -3768,26 +3845,26 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 
 		//FIXME: lightmaps
 
-		if (m->colors4f_array)
+		if (m->colors4f_array[0])
 		{
-			memcpy(buffer+len, m->colors4f_array, sizeof(*m->colors4f_array) * m->numvertexes);
-			shaderstate.dummyvbo.colours.gl.addr = (void*)len;
-			shaderstate.dummyvbo.colours.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
-			len += sizeof(*m->colors4f_array) * m->numvertexes;
+			memcpy(buffer+len, m->colors4f_array[0], sizeof(*m->colors4f_array[0]) * m->numvertexes);
+			shaderstate.dummyvbo.colours[0].gl.addr = (void*)len;
+			shaderstate.dummyvbo.colours[0].gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->colors4f_array[0]) * m->numvertexes;
 			shaderstate.colourarraytype = GL_FLOAT;
 		}
 		else if (m->colors4b_array)
 		{
 			memcpy(buffer+len, m->colors4b_array, sizeof(*m->colors4b_array) * m->numvertexes);
-			shaderstate.dummyvbo.colours.gl.addr = (void*)len;
-			shaderstate.dummyvbo.colours.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			shaderstate.dummyvbo.colours[0].gl.addr = (void*)len;
+			shaderstate.dummyvbo.colours[0].gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
 			len += sizeof(*m->colors4b_array) * m->numvertexes;
 			shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
 		}
 		else
 		{
-			shaderstate.dummyvbo.colours.gl.addr = NULL;
-			shaderstate.dummyvbo.colours.gl.vbo = 0;
+			shaderstate.dummyvbo.colours[0].gl.addr = NULL;
+			shaderstate.dummyvbo.colours[0].gl.vbo = 0;
 			shaderstate.colourarraytype = GL_FLOAT;
 		}
 
@@ -3813,15 +3890,15 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 		shaderstate.dummyvbo.normals.gl.addr = m->normals_array;
 		shaderstate.dummyvbo.svector.gl.addr = m->snormals_array;
 		shaderstate.dummyvbo.tvector.gl.addr = m->tnormals_array;
-		if (m->colors4f_array)
+		if (m->colors4f_array[0])
 		{
 			shaderstate.colourarraytype = GL_FLOAT;
-			shaderstate.dummyvbo.colours.gl.addr = m->colors4f_array;
+			shaderstate.dummyvbo.colours[0].gl.addr = m->colors4f_array[0];
 		}
 		else
 		{
 			shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
-			shaderstate.dummyvbo.colours.gl.addr = m->colors4b_array;
+			shaderstate.dummyvbo.colours[0].gl.addr = m->colors4b_array;
 		}
 		shaderstate.dummyvbo.bonenums.gl.addr = m->bonenums;
 		shaderstate.dummyvbo.boneweights.gl.addr = m->boneweights;
@@ -4553,7 +4630,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		else
 #endif
 			shaderstate.identitylighting = 1;
-//		shaderstate.identitylighting /= 1<<gl_overbright.ival;
+		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
 #ifdef RTLIGHTS
 		if (r_lightprepass.ival)

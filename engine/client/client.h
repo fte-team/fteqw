@@ -1368,6 +1368,7 @@ struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 qboolean Media_FakeTrack(int i, qboolean loop);
+qboolean Media_BackgroundTrack(char *track, char *looptrack);
 #endif
 
 //these accept NULL for cin to mean the current fullscreen video

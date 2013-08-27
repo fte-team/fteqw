@@ -1106,6 +1106,14 @@ static int PDECL qclib_null_printf(const char *s, ...)
 {
 	return 0;
 }
+static void *PDECL qclib_malloc(int size)
+{
+	return malloc(size);
+}
+static void PDECL qclib_free(void *ptr)
+{
+	free(ptr);
+}
 #ifdef FTE_TARGET_WEB
 #define printf NULL	//should be some null wrapper instead
 #endif
@@ -1138,8 +1146,8 @@ progexterns_t defexterns = {
 	NULL, //void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
 	NULL,
 
-	(void*)malloc, //void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use memalloc if you want)
-	free, //void (*memfree) (void * mem);
+	qclib_malloc, //void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use memalloc if you want)
+	qclib_free, //void (*memfree) (void * mem);
 
 
 	NULL, //builtin_t *globalbuiltins;	//these are available to all progs

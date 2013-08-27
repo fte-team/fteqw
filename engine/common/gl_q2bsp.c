@@ -42,7 +42,7 @@ qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], v
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
 unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
-
+extern mplane_t	*box_planes;
 
 
 extern char	loadname[32];
@@ -357,8 +357,8 @@ static vecV_t		*map_verts;	//3points
 static int			numvertexes;
 
 static vec2_t		*map_vertstmexcoords;
-static vec2_t		*map_vertlstmexcoords[4];
-static vec4_t		*map_colors4f_array;
+static vec2_t		*map_vertlstmexcoords[MAXLIGHTMAPS];
+static vec4_t		*map_colors4f_array[MAXLIGHTMAPS];
 static vec3_t		*map_normals_array;
 static vec3_t		*map_svector_array;
 static vec3_t		*map_tvector_array;
@@ -2085,11 +2085,11 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
-	map_vertlstmexcoords[0] = lmout;
-	map_vertlstmexcoords[1] = lmout;
-	map_vertlstmexcoords[2] = lmout;
-	map_vertlstmexcoords[3] = lmout;
-	map_colors4f_array = cout;
+	for (i = 0; i < MAXLIGHTMAPS; i++)
+	{
+		map_vertlstmexcoords[i] = lmout;
+		map_colors4f_array[i] = cout;
+	}
 	map_normals_array = nout;
 	map_svector_array = sout;
 	map_tvector_array = tout;
@@ -2143,15 +2143,17 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 	stout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*stout));
 	lmout = ZG_Malloc(&loadmodel->memgroup, MAXLIGHTMAPS*count*sizeof(*lmout));
-	cout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*cout));
+	cout = ZG_Malloc(&loadmodel->memgroup, MAXLIGHTMAPS*count*sizeof(*cout));
 	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
 	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*sout));
 	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*tout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+	{
 		map_vertlstmexcoords[sty] = lmout + sty*count;
-	map_colors4f_array = cout;
+		map_colors4f_array[sty] = cout + sty*count;
+	}
 	map_normals_array = nout;
 	map_svector_array = sout;
 	map_tvector_array = tout;
@@ -2170,9 +2172,12 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
 				map_vertlstmexcoords[sty][i][j] = LittleFloat ( ((float *)in->texcoords)[j+2*(sty+1)] );
 		}
-		for ( j=0 ; j < 4 ; j++)
+		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
 		{
-			cout[i][j] = in->color[0][j];
+			for ( j=0 ; j < 4 ; j++)
+			{
+				map_colors4f_array[sty][i][j] = in->color[sty][j]/255.0f;
+			}
 		}
 	}
 
@@ -2472,7 +2477,11 @@ void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patc
 // fill in
 
 	Patch_Evaluate ( map_verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
-	Patch_Evaluate ( map_colors4f_array[firstvert], patch_cp, step, mesh->colors4f_array[0], 4 );
+	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+	{
+		if (mesh->colors4f_array[sty])
+			Patch_Evaluate ( map_colors4f_array[sty][firstvert], patch_cp, step, mesh->colors4f_array[sty][0], 4 );
+	}
 	Patch_Evaluate ( map_normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
 	Patch_Evaluate ( map_vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
 	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
@@ -2542,8 +2551,8 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
 			{
 				Vector2Copy(map_vertlstmexcoords[sty][fv + i], out->mesh->lmst_array[sty][i]);
+				Vector4Copy(map_colors4f_array[sty][fv + i], out->mesh->colors4f_array[sty][i]);
 			}
-			Vector4Copy(map_colors4f_array[fv + i], out->mesh->colors4f_array[i]);
 
 			VectorCopy(map_normals_array[fv + i], out->mesh->normals_array[i]);
 		}
@@ -2612,7 +2621,7 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 			VectorCopy(map_verts[fv + i], out->mesh->xyz_array[i]);
 			Vector2Copy(map_vertstmexcoords[fv + i], out->mesh->st_array[i]);
 			Vector2Copy(map_vertlstmexcoords[0][fv + i], out->mesh->lmst_array[0][i]);
-			Vector4Copy(map_colors4f_array[fv + i], out->mesh->colors4f_array[i]);
+			Vector4Copy(map_colors4f_array[0][fv + i], out->mesh->colors4f_array[0][i]);
 
 			VectorCopy(map_normals_array[fv + i], out->mesh->normals_array[i]);
 		}
@@ -3762,6 +3771,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	numvisibility = 0;
 	numentitychars = 0;
 	map_entitystring = NULL;
+	box_planes = NULL;	//so its rebuilt
 
 	loadmodel->type = mod_brush;
 
@@ -4313,7 +4323,7 @@ void CM_InitBoxHull (void)
 
 	box_model.hulls[0].available = true;
 
-	box_model.nodes = ZG_Malloc(&loadmodel->memgroup, sizeof(mnode_t)*6);
+	box_model.nodes = ZG_Malloc(&box_model.memgroup, sizeof(mnode_t)*6);
 	box_planes = &map_planes[numplanes];
 	if (numbrushes+1 > SANITY_MAX_MAP_BRUSHES
 		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES

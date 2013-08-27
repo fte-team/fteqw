@@ -1773,6 +1773,20 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				//a is const, b is not
 				switch (op - pr_opcodes)
 				{
+					//OP_NOT_S needs to do a string comparison
+				case OP_NOT_F:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(!G_FLOAT(var_a->ofs));
+				case OP_NOT_V:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(!G_FLOAT(var_a->ofs+0) && !G_FLOAT(var_a->ofs+1) && !G_FLOAT(var_a->ofs+2));
+				case OP_NOT_ENT: // o.O
+				case OP_NOT_FNC: // o.O
+					optres_constantarithmatic++;
+					return QCC_MakeFloatConst(!G_INT(var_a->ofs));
+				case OP_NOT_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntConst(!G_INT(var_a->ofs));
 				case OP_CONV_FTOI:
 					optres_constantarithmatic++;
 					return QCC_MakeIntConst(G_FLOAT(var_a->ofs));
@@ -3762,6 +3776,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warn
 			//ret = spawn()
 			result = QCC_PR_GenerateFunctionCall(NULL, func, NULL, NULL, 0);
 
+			def_ret.temp->used = true;
 			if (!rettype)
 				rettype = type_entity;
 			else
@@ -3780,6 +3795,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warn
 					v = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 
 					p = QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], result, f, NULL);
+					QCC_UnFreeTemp(result);
 					type_pointer->aux_type = f->type->aux_type;
 					if (v->type->size == 3)
 						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STOREP_V], v, p, NULL));
@@ -3788,6 +3804,9 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *newself, QCC_def_t *func)	//warn
 				}
 				QCC_PR_Expect(")");
 			}
+
+			if (!def_ret.temp->used)
+				QCC_PR_ParseError(ERR_INTERNAL, "self clobbered.");
 
 			//tmp oself = self
 			if (rettype != type_entity)
@@ -5321,8 +5340,6 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 		QCC_PR_ParseWarning (WARN_SELFNOTTHIS, "'self' used inside OO function, use 'this'.", pr_scope->name);
 	}
 
-	d = QCC_PR_ParseArrayPointer(d, allowarrayassign, makearraypointers);
-
 	if (pr_classtype && expandmemberfields && d->type->type == ev_field)
 	{
 		QCC_def_t *t;
@@ -5335,8 +5352,11 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign, p
 		else
 			t = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
 
+		d = QCC_PR_ParseArrayPointer(d, allowarrayassign, makearraypointers); //opportunistic vecmember[0] handling
 		d = QCC_PR_ExpandField(t, d);
 	}
+
+	d = QCC_PR_ParseArrayPointer(d, allowarrayassign, makearraypointers);
 
 	return d;
 }
@@ -10452,5 +10472,18 @@ pbool QCC_Include(char *filename)
 
 	return true;
 }
-
+void QCC_Cleanup(void)
+{
+	free(pr_breaks);
+	free(pr_continues);
+	free(pr_cases);
+	free(pr_casesdef);
+	free(pr_casesdef2);
+	max_breaks = max_continues = max_cases = num_continues = num_breaks = num_cases = 0;
+	pr_breaks = NULL;
+	pr_continues = NULL;
+	pr_cases = NULL;
+	pr_casesdef = NULL;
+	pr_casesdef2 = NULL;
+}
 #endif

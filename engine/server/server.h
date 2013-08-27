@@ -999,6 +999,7 @@ qboolean SVQ3_InitGame(void);
 qboolean SVQ3_ConsoleCommand(void);
 qboolean SVQ3_HandleClient(void);
 void SVQ3_DirectConnect(void);
+void SVQ3_NewMapConnects(void);
 void SVQ3_DropClient(client_t *cl);
 int SVQ3_AddBot(void);
 void SVQ3_RunFrame(void);

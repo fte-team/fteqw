@@ -1603,7 +1603,7 @@ static void R_DB_LightningBeam(batch_t *batch)
 	mesh.xyz_array = points;
 	mesh.indexes = indexarray;
 	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.colors4f_array[0] = (vec4_t*)colors;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
@@ -1673,7 +1673,7 @@ static void R_DB_RailgunBeam(batch_t *batch)
 	mesh.xyz_array = points;
 	mesh.indexes = indexarray;
 	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.colors4f_array[0] = (vec4_t*)colors;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
@@ -1825,7 +1825,7 @@ static void R_DB_Sprite(batch_t *batch)
 	mesh.xyz_array = vertcoords;
 	mesh.indexes = indexes;
 	mesh.numindexes = sizeof(indexes)/sizeof(indexes[0]);
-	mesh.colors4f_array = colours;
+	mesh.colors4f_array[0] = colours;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
@@ -1920,7 +1920,7 @@ static void R_DB_Poly(batch_t *batch)
 
 	mesh.xyz_array = cl_strisvertv + cl_stris[i].firstvert;
 	mesh.st_array = cl_strisvertt + cl_stris[i].firstvert;
-	mesh.colors4f_array = cl_strisvertc + cl_stris[i].firstvert;
+	mesh.colors4f_array[0] = cl_strisvertc + cl_stris[i].firstvert;
 	mesh.indexes = cl_strisidx + cl_stris[i].firstidx;
 	mesh.numindexes = cl_stris[i].numidx;
 	mesh.numvertexes = cl_stris[i].numvert;
@@ -2024,7 +2024,7 @@ void BE_GenModelBatches(batch_t **batches)
 			switch(ent->model->type)
 			{
 			case mod_brush:
-				if (r_drawentities.ival == 2)
+				if (r_drawentities.ival == 2 || !lightmap)
 					continue;
 				Surf_GenBrushBatches(batches, ent);
 				break;

@@ -6864,7 +6864,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			host_client = cl;
 			sv_player = cl->edict;
 			SV_Drop_f();
-			break;
+			return;
 		case clc_nop:
 			break;
 
@@ -6884,6 +6884,8 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 			host_client = cl;
 			sv_player = cl->edict;
+			if (cl->state < cs_connected)
+				return;
 			break;
 
 		case clc_qcrequest:

@@ -914,7 +914,7 @@ void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue)
 {
 }
 
-void SCR_CrosshairPosition(playerview_t *pview, int *x, int *y)
+void SCR_CrosshairPosition(playerview_t *pview, float *x, float *y)
 {
 	extern cvar_t cl_crossx, cl_crossy, crosshaircorrect, v_viewheight;
 

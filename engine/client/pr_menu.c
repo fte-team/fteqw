@@ -510,9 +510,9 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	memset(&mesh, 0, sizeof(mesh));
 	mesh.indexes = idx;
-	mesh.colors4f_array = vpos;
+	mesh.xyz_array = vpos;
 	mesh.st_array = vst;
-	mesh.colors4f_array = vcol;
+	mesh.colors4f_array[0] = vcol;
 
 	VectorCopy(point1, vpos[0]);
 	Vector2Set(vst[0], 0, 0);
@@ -678,9 +678,10 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 	case CSIE_KEYDOWN:
 		//scan, char
-		//FIXME
-		G_FLOAT(OFS_RETURN) = 0;
-//		G_FLOAT(OFS_RETURN) = Key_Console(con, pb, MP_TranslateQCtoFTECodes(pa));
+		if ((pa && qcinput_scan != pa) || (pb && pb != qcinput_unicode))
+			G_FLOAT(OFS_RETURN) = 0;
+		else
+			G_FLOAT(OFS_RETURN) = Key_Console(con, pb, MP_TranslateQCtoFTECodes(pa));
 		break;
 	case CSIE_KEYUP:
 		//scan, char

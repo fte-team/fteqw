@@ -6,8 +6,9 @@
 
 #if defined(CSQC_DAT) || defined(MENU_DAT)
 
-
-
+//these two global qcinput variables are the current scan code being passed to qc, if valid. this protects against protected apis where the qc just passes stuff through.
+int qcinput_scan;
+int qcinput_unicode;
 int MP_TranslateFTEtoQCCodes(int code)
 {
 	switch(code)

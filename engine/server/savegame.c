@@ -1035,9 +1035,9 @@ void SV_Savegame (char *savename)
 
 	Q_strncpyz(str, localinfo, sizeof(str));
 	Info_RemovePrefixedKeys(str, '*');
-	VFS_PRINTF (f, "%s\n",	str);
+	VFS_PUTS(f, str);
 
-	VFS_PRINTF (f, "{\n");	//all game vars. FIXME: Should save the ones that have been retrieved/set by progs.
+	VFS_PRINTF (f, "\n{\n");	//all game vars. FIXME: Should save the ones that have been retrieved/set by progs.
 	VFS_PRINTF (f, "skill			\"%s\"\n",	skill.string);
 	VFS_PRINTF (f, "deathmatch		\"%s\"\n",	deathmatch.string);
 	VFS_PRINTF (f, "coop			\"%s\"\n",	coop.string);

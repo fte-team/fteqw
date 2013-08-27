@@ -1283,7 +1283,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 
 	mesh->snormals_array = blerp>0.5?p2s:p1s;		//never lerp
 	mesh->tnormals_array = blerp>0.5?p2t:p1t;		//never lerp
-	mesh->colors4f_array = NULL;	//not generated
+	mesh->colors4f_array[0] = NULL;	//not generated
 
 	if (p1v == p2v || r_nolerp.value || !blerp)
 	{
@@ -1491,7 +1491,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 	mesh->st_array = inf->ofs_st_array;
 	mesh->trneighbors = inf->ofs_trineighbours;
-	mesh->colors4f_array = meshcache.colours;
+	mesh->colors4f_array[0] = meshcache.colours;
 
 	if (meshcache.surfnum == inf->shares_verts && meshcache.ent == e)
 	{
@@ -4230,6 +4230,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 	Mod_ClampModelSize(mod);
 
+	mod->type = mod_alias;
 	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;

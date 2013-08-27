@@ -49,6 +49,7 @@ void PostCompile(void)
 	if (!qccpersisthunk)
 		qccClearHunk();
 	QCC_PR_CloseProcessor();
+	QCC_Cleanup();
 
 	if (asmfile)
 	{

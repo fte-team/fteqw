@@ -2292,7 +2292,7 @@ static qboolean PScript_InitParticles (void)
 	}
 	pscriptmesh.xyz_array = pscriptverts;
 	pscriptmesh.st_array = pscripttexcoords;
-	pscriptmesh.colors4f_array = pscriptcolours;
+	pscriptmesh.colors4f_array[0] = pscriptcolours;
 	pscriptmesh.indexes = pscriptquadindexes;
 	for (i = 0; i < BUFFERVERTS; i++)
 	{
@@ -2300,7 +2300,7 @@ static qboolean PScript_InitParticles (void)
 	}
 	pscripttmesh.xyz_array = pscriptverts;
 	pscripttmesh.st_array = pscripttexcoords;
-	pscripttmesh.colors4f_array = pscriptcolours;
+	pscripttmesh.colors4f_array[0] = pscriptcolours;
 	pscripttmesh.indexes = pscripttriindexes;
 	return true;
 }

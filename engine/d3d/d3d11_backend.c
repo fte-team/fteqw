@@ -1015,7 +1015,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 		shaderstate.passsinglecolour = false;
 
 		ret |= D3D_VDEC_COL4B;
-		if (shaderstate.batchvbo && (m->colors4f_array &&
+		if (shaderstate.batchvbo && (m->colors4f_array[0] &&
 						((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING) ||
 						(pass->rgbgen == RGB_GEN_VERTEX_EXACT) ||
 						(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX)) &&
@@ -1029,8 +1029,8 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 			for (vertcount = 0, mno = 0; mno < shaderstate.nummeshes; mno++)
 			{
 				m = shaderstate.meshlist[mno];
-				colourgenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array, (byte_vec4_t*)map, m);
-				alphagenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array, (byte_vec4_t*)map, m);
+				colourgenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array[0], (byte_vec4_t*)map, m);
+				alphagenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array[0], (byte_vec4_t*)map, m);
 				map += m->numvertexes*4;
 				vertcount += m->numvertexes;
 			}
@@ -1683,7 +1683,7 @@ static void D3D11BE_Cull(unsigned int cullflags)
 		rasterdesc.FillMode = D3D11_FILL_SOLID;
 		rasterdesc.FrontCounterClockwise = false;
 		rasterdesc.MultisampleEnable = false;
-		rasterdesc.ScissorEnable = false;
+		rasterdesc.ScissorEnable = true;
 		rasterdesc.SlopeScaledDepthBias = 0.0f;
 
 		ID3D11Device_CreateRasterizerState(pD3DDev11, &rasterdesc, &newrasterizerstate);
@@ -1890,13 +1890,13 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *mesh)
 		tmpvbo.svector.d3d.offs = (quintptr_t)&out[0].sdir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
 		tmpvbo.tvector.d3d.buff = shaderstate.vertexstream;
 		tmpvbo.tvector.d3d.offs = (quintptr_t)&out[0].tdir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.colours.d3d.buff = shaderstate.vertexstream;
-		tmpvbo.colours.d3d.offs = (quintptr_t)&out[0].colorsb - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
+		tmpvbo.colours[0].d3d.buff = shaderstate.vertexstream;
+		tmpvbo.colours[0].d3d.offs = (quintptr_t)&out[0].colorsb - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
 		//consumed
 		shaderstate.vertexstreamoffset += sz;
 		
 		//now vomit into the buffer
-		if (!mesh->normals_array && mesh->colors4f_array)
+		if (!mesh->normals_array && mesh->colors4f_array[0])
 		{
 			//2d drawing
 			for (i = 0; i < mesh->numvertexes; i++)
@@ -1906,7 +1906,7 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *mesh)
 				VectorClear(out[i].ndir);
 				VectorClear(out[i].sdir);
 				VectorClear(out[i].tdir);
-				Vector4Scale(mesh->colors4f_array[i], 255, out[i].colorsb);
+				Vector4Scale(mesh->colors4f_array[0][i], 255, out[i].colorsb);
 			}
 		}
 		else if (!mesh->normals_array && mesh->colors4b_array)
@@ -1922,7 +1922,7 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *mesh)
 				*(unsigned int*)out[i].colorsb = *(unsigned int*)mesh->colors4b_array[i];
 			}
 		}
-		else if (mesh->normals_array && !mesh->colors4f_array && !mesh->colors4b_array)
+		else if (mesh->normals_array && !mesh->colors4f_array[0] && !mesh->colors4b_array)
 		{
 			//hlsl-lit models
 			for (i = 0; i < mesh->numvertexes; i++)
@@ -1961,11 +1961,11 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *mesh)
 					Vector4Copy(mesh->colors4b_array[i], out[i].colorsb);
 				}
 			}
-			else if (mesh->colors4f_array)
+			else if (mesh->colors4f_array[0])
 			{
 				for (i = 0; i < mesh->numvertexes; i++)
 				{
-					Vector4Scale(mesh->colors4f_array[i], 255, out[i].colorsb);
+					Vector4Scale(mesh->colors4f_array[0][i], 255, out[i].colorsb);
 				}
 			}
 			else
@@ -2084,8 +2084,8 @@ void D3D11BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopba
 					VectorCopy(m->tnormals_array[i],	vbovdata->tdir);
 				else
 					VectorSet(vbovdata->tdir, 0, 1, 0);
-				if (m->colors4f_array)
-					Vector4Scale(m->colors4f_array[i],	255, vbovdata->colorsb);
+				if (m->colors4f_array[0])
+					Vector4Scale(m->colors4f_array[0][i],	255, vbovdata->colorsb);
 				else if (m->colors4b_array)
 					Vector4Copy(m->colors4b_array[i],	vbovdata->colorsb);
 				else
@@ -2143,8 +2143,8 @@ void D3D11BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopba
 	vbo->svector.d3d.offs = (quintptr_t)&vbovdata->sdir;
 	vbo->tvector.d3d.buff = vbuff;
 	vbo->tvector.d3d.offs = (quintptr_t)&vbovdata->tdir;
-	vbo->colours.d3d.buff = vbuff;
-	vbo->colours.d3d.offs = (quintptr_t)&vbovdata->colorsb;
+	vbo->colours[0].d3d.buff = vbuff;
+	vbo->colours[0].d3d.offs = (quintptr_t)&vbovdata->colorsb;
 	vbo->indicies.d3d.buff = ebuff;
 	vbo->indicies.d3d.offs = 0;
 
@@ -2931,7 +2931,22 @@ void D3D11BE_VBO_Destroy(vboarray_t *vearray)
 
 void D3D11BE_Scissor(srect_t *rect)
 {
-	//stub
+	D3D11_RECT drect;
+	if (rect)
+	{
+		drect.left = (rect->x)*vid.pixelwidth;
+		drect.right = (rect->x + rect->width)*vid.pixelwidth;
+		drect.bottom = (1-(rect->y))*vid.pixelheight;
+		drect.top = (1-(rect->y + rect->height))*vid.pixelheight;
+	}
+	else
+	{
+		drect.left = 0;
+		drect.right = vid.pixelwidth;
+		drect.top = 0;
+		drect.bottom = vid.pixelheight;
+	}
+	ID3D11DeviceContext_RSSetScissorRects(d3ddevctx, 1, &drect);
 }
 
 #endif

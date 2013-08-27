@@ -739,14 +739,14 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 	}
 
 	// search nicks first
-	for (slot = 0; slot < MAX_CLIENTS; slot++)
+	for (slot = 0; slot < cl.allocated_client_slots; slot++)
 	{
 		s = &cl.players[slot];
 		if (s->name[0] && !s->spectator && !Q_strcasecmp(s->name, plrarg))
 			break;
 	}
 
-	if (slot == MAX_CLIENTS)
+	if (slot == cl.allocated_client_slots)
 	{
 		// didn't find nick, so search userids
 		int userid;
@@ -766,14 +766,14 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 
 		userid = atoi(plrarg);
 
-		for (slot = 0; slot < MAX_CLIENTS; slot++)
+		for (slot = 0; slot < cl.allocated_client_slots; slot++)
 		{
 			s = &cl.players[slot];
 			if (s->name[0] && !s->spectator && s->userid == userid)
 				break;
 		}
 
-		if (slot == MAX_CLIENTS)
+		if (slot == cl.allocated_client_slots)
 		{
 			Con_Printf("Couldn't find userid %i\n", userid);
 			return;

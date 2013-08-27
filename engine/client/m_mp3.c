@@ -219,6 +219,39 @@ void Media_Clear (void)
 }
 
 qboolean fakecdactive;
+//fake cd tracks.
+qboolean Media_BackgroundTrack(char *track, char *looptrack)
+{
+	char *ext[] = {
+		"",
+		".ogg",
+#ifdef WINAVI
+		".mp3",
+#endif
+		".wav",
+		NULL};
+
+	char trackname[MAX_QPATH];
+	int i;
+	if (!track || !*track)
+		return false;
+	if (!looptrack || !*looptrack)
+		looptrack = track;
+	for(i = 0; ext[i]; i++)
+	{
+		Q_snprintfz(trackname, sizeof(name), "%s%s", track, ext[i]);
+		if (COM_FCheckExists(trackname))
+		{
+			Media_Clear();
+			strcpy(currenttrack.filename, trackname);
+			fakecdactive = true;
+			media_playing = true;
+			return true;
+		}
+	}
+	return false;
+}
+
 qboolean Media_FakeTrack(int i, qboolean loop)
 {
 	char trackname[512];
@@ -229,51 +262,29 @@ qboolean Media_FakeTrack(int i, qboolean loop)
 		found = false;
 		if (!found && i <= 99)
 		{
-			sprintf(trackname, "music/track%02i.ogg", i);
-			found = COM_FCheckExists(trackname);
-		}
-#ifdef WINAVI
-		if (!found && i <= 99)
-		{
-			sprintf(trackname, "music/track%02i.mp3", i);
-			found = COM_FCheckExists(trackname);
-		}
-#endif
-		if (!found && i <= 99)
-		{
-			sprintf(trackname, "music/track%02i.wav", i);
-			found = COM_FCheckExists(trackname);
+			sprintf(trackname, "music/track%02i", i);
+			if (Media_BackgroundTrack(trackname, loop?trackname:NULL))
+				return true;
 		}
 		if (!found)
 		{
-			sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
-			found = COM_FCheckExists(trackname);
-		}
-#ifdef WINAVI
-		if (!found)
-		{
-			sprintf(trackname, "sound/cdtracks/track%03i.mp3", i);
-			found = COM_FCheckExists(trackname);
-		}
-#endif
-		if (!found)
-		{
-			sprintf(trackname, "sound/cdtracks/track%03i.wav", i);
-			found = COM_FCheckExists(trackname);
-		}
-		if (found)
-		{
-			Media_Clear();
-			strcpy(currenttrack.filename, trackname+6);
-
-			fakecdactive = true;
-			media_playing = true;
-			return true;
+			sprintf(trackname, "sound/cdtracks/track%03i", i);
+			if (Media_BackgroundTrack(trackname, loop?trackname:NULL))
+				return true;
 		}
 	}
 
 	fakecdactive = false;
 	return false;
+}
+
+//for q3
+void Media_NamedTrack_f(void)
+{
+	if (Cmd_Argc() == 3)
+		Media_BackgroundTrack(Cmd_Argv(1), Cmd_Argv(2));
+	else
+		Media_BackgroundTrack(Cmd_Argv(1), Cmd_Argv(1));
 }
 
 //actually, this func just flushes and states that it should be playing. the ambientsound func actually changes the track.
@@ -3878,6 +3889,7 @@ void Media_Init(void)
 	Cmd_AddCommand("music_fforward", Media_FForward_f);
 	Cmd_AddCommand("music_rewind", Media_Rewind_f);
 	Cmd_AddCommand("music_next", Media_Next_f);
+	Cmd_AddCommand("music", Media_NamedTrack_f);
 
 #if defined(GLQUAKE)
 	Cmd_AddCommand("capture", Media_RecordFilm_f);

@@ -92,6 +92,18 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	}
 	for (s = 0; s < MAXLIGHTMAPS; s++)
 	{
+		if (vbo->colours[s].gl.addr)
+		{
+			vbo->colours[s].gl.vbo = vbos[0];
+			vbo->colours[s].gl.addr = (vec4_t*)((char*)vbo->colours[s].gl.addr - (char*)vdata);
+			switch(s)
+			{
+			default: vaostatic |= VATTR_COLOUR; break;
+			case 1: vaostatic |= VATTR_COLOUR2; break;
+			case 2: vaostatic |= VATTR_COLOUR3; break;
+			case 3: vaostatic |= VATTR_COLOUR4; break;
+			}
+		}
 		if (vbo->lmcoord[s].gl.addr)
 		{
 			vbo->lmcoord[s].gl.vbo = vbos[0];
@@ -123,12 +135,7 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 		vbo->tvector.gl.addr = (vec3_t*)((char*)vbo->tvector.gl.addr - (char*)vdata);
 		vaostatic |= VATTR_TNORMALS;
 	}
-	if (vbo->colours.gl.addr)
-	{
-		vbo->colours.gl.vbo = vbos[0];
-		vbo->colours.gl.addr = (vec4_t*)((char*)vbo->colours.gl.addr - (char*)vdata);
-		vaostatic |= VATTR_COLOUR;
-	}
+
 
 	GLBE_SetupVAO(vbo, vaodynamic, vaostatic);
 	
@@ -173,7 +180,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	vec3_t *normals;
 	vec3_t *svector;
 	vec3_t *tvector;
-	vec4_t *colours;
+	vec4_t *colours[MAXLIGHTMAPS];
 	index_t *indicies;
 	batch_t *batch;
 	int vbosize;
@@ -207,7 +214,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 				sizeof(vec3_t)+	//normal
 				sizeof(vec3_t)+	//sdir
 				sizeof(vec3_t)+	//tdir
-				sizeof(vec4_t);	//colours
+				sizeof(vec4_t)*lightmaps;	//colours
 
 	vbo->vertdata = BZ_Malloc((maxvboverts+1)*pervertsize + (maxvboelements+1)*sizeof(index_t));
 
@@ -222,7 +229,10 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	vbo->normals.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->svector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->tvector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
-	vbo->colours.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec4_t));
+	for (s = 0; s < lightmaps; s++)
+		vbo->colours[s].gl.addr = allocbuf(&p, maxvboverts, sizeof(vec4_t));
+	for (; s < MAXLIGHTMAPS; s++)
+		vbo->lmcoord[s].gl.addr = NULL;
 	vbosize = (char*)p - (char*)vbo->coord.gl.addr;
 	if ((char*)p - (char*)vbo->vertdata > (maxvboverts+1)*pervertsize)
 		Sys_Error("GLBE_GenBatchVBOs: aligned overflow");
@@ -230,12 +240,14 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	coord = vbo->coord.gl.addr;
 	texcoord = vbo->texcoord.gl.addr;
-	for (s = 0; s < 4; s++)
+	for (s = 0; s < MAXLIGHTMAPS; s++)
+	{
 		lmcoord[s] = vbo->lmcoord[s].gl.addr;
+		colours[s] = vbo->colours[s].gl.addr;
+	}
 	normals = vbo->normals.gl.addr;
 	svector = vbo->svector.gl.addr;
 	tvector = vbo->tvector.gl.addr;
-	colours = vbo->colours.gl.addr;
 	indicies = vbo->indicies.gl.addr;
 
 	//vbo->meshcount = meshes;
@@ -275,6 +287,13 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 						lmcoord[s][vcount+v][0] = m->lmst_array[s][v][0];
 						lmcoord[s][vcount+v][1] = m->lmst_array[s][v][1];
 					}
+					if (m->colors4f_array[s])
+					{
+						colours[s][vcount+v][0] = m->colors4f_array[s][v][0];
+						colours[s][vcount+v][1] = m->colors4f_array[s][v][1];
+						colours[s][vcount+v][2] = m->colors4f_array[s][v][2];
+						colours[s][vcount+v][3] = m->colors4f_array[s][v][3];
+					}
 				}
 				if (m->normals_array)
 				{
@@ -293,13 +312,6 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 					tvector[vcount+v][0] = m->tnormals_array[v][0];
 					tvector[vcount+v][1] = m->tnormals_array[v][1];
 					tvector[vcount+v][2] = m->tnormals_array[v][2];
-				}
-				if (m->colors4f_array)
-				{
-					colours[vcount+v][0] = m->colors4f_array[v][0];
-					colours[vcount+v][1] = m->colors4f_array[v][1];
-					colours[vcount+v][2] = m->colors4f_array[v][2];
-					colours[vcount+v][3] = m->colors4f_array[v][3];
 				}
 			}
 			vcount += v;

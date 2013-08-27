@@ -73,10 +73,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#undef malloc
-#undef free
-
-
 #define NUM_SAFE_ARGVS	6
 
 usercmd_t nullcmd; // guarenteed to be zero

@@ -147,18 +147,19 @@ int Sbar_BottomColour(player_info_t *p)
 }
 
 //Draws a pre-marked-up string with no width limit. doesn't support new lines
-void Draw_ExpandedString(int x, int y, conchar_t *str)
+void Draw_ExpandedString(float x, float y, conchar_t *str)
 {
-	Font_BeginString(font_conchar, x, y, &x, &y);
+	int px, py;
+	Font_BeginString(font_conchar, x, y, &px, &py);
 	while(*str)
 	{
-		x = Font_DrawChar(x, y, *str++);
+		px = Font_DrawChar(px, py, *str++);
 	}
 	Font_EndString(font_conchar);
 }
 
 //Draws a marked-up string using the regular char set with no width limit. doesn't support new lines
-void Draw_FunString(int x, int y, const void *str)
+void Draw_FunString(float x, float y, const void *str)
 {
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
@@ -166,7 +167,7 @@ void Draw_FunString(int x, int y, const void *str)
 	Draw_ExpandedString(x, y, buffer);
 }
 //Draws a marked up string using the alt char set (legacy mode would be |128)
-void Draw_AltFunString(int x, int y, const void *str)
+void Draw_AltFunString(float x, float y, const void *str)
 {
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_ALTMASK, str, buffer, sizeof(buffer), false);
@@ -175,22 +176,23 @@ void Draw_AltFunString(int x, int y, const void *str)
 }
 
 //Draws a marked up string no wider than $width virtual pixels.
-void Draw_FunStringWidth(int x, int y, const void *str, int width)
+void Draw_FunStringWidth(float x, float y, const void *str, int width)
 {
 	conchar_t buffer[2048];
 	conchar_t *w = buffer;
+	int px, py;
 
 	width = (width*vid.rotpixelwidth)/vid.width;
 
 	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 
-	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_BeginString(font_conchar, x, y, &px, &py);
 	while(*w)
 	{
 		width -= Font_CharWidth(*w);
 		if (width < 0)
 			return;
-		x = Font_DrawChar(x, y, *w++);
+		px = Font_DrawChar(px, py, *w++);
 	}
 	Font_EndString(font_conchar);
 }
@@ -203,7 +205,7 @@ static qboolean largegame = false;
 
 
 #ifdef Q2CLIENT
-static void DrawHUDString (char *string, int x, int y, int centerwidth, qboolean alt)
+static void DrawHUDString (char *string, float x, float y, int centerwidth, qboolean alt)
 {
 	R_DrawTextField(x, y, centerwidth, 1024, string, alt?CON_ALTMASK:CON_WHITEMASK, CPRINT_TALIGN);
 }
@@ -225,7 +227,7 @@ static mpic_t *Sbar_Q2CachePic(char *name)
 #define	ICON_HEIGHT	24
 #define	CHAR_WIDTH	16
 #define	ICON_SPACE	8
-static void SCR_DrawField (int x, int y, int color, int width, int value)
+static void SCR_DrawField (float x, float y, int color, float width, float value)
 {
 	char	num[16], *ptr;
 	int		l;
@@ -957,7 +959,7 @@ void Sbar_Init (void)
 Sbar_DrawPic
 =============
 */
-void Sbar_DrawPic (int x, int y, int w, int h, mpic_t *pic)
+void Sbar_DrawPic (float x, float y, float w, float h, mpic_t *pic)
 {
 	R2D_ScalePic(sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), w, h, pic);
 }
@@ -969,7 +971,7 @@ Sbar_DrawSubPic
 JACK: Draws a portion of the picture in the status bar.
 */
 
-void Sbar_DrawSubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
+void Sbar_DrawSubPic(float x, float y, float width, float height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
 {
 	R2D_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), width, height, pic, srcx, srcy, srcwidth, srcheight);
 }
@@ -981,10 +983,11 @@ Sbar_DrawCharacter
 Draws one solid graphics character
 ================
 */
-void Sbar_DrawCharacter (int x, int y, int num)
+void Sbar_DrawCharacter (float x, float y, int num)
 {
-	Font_BeginString(font_conchar, sbar_rect.x + x + 4, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
-	Font_DrawChar(x, y, num | 0xe000 | CON_WHITEMASK);
+	int px, py;
+	Font_BeginString(font_conchar, sbar_rect.x + x + 4, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &px, &py);
+	Font_DrawChar(px, py, num | 0xe000 | CON_WHITEMASK);
 	Font_EndString(font_conchar);
 }
 
@@ -993,19 +996,20 @@ void Sbar_DrawCharacter (int x, int y, int num)
 Sbar_DrawString
 ================
 */
-void Sbar_DrawString (int x, int y, char *str)
+void Sbar_DrawString (float x, float y, char *str)
 {
 	Draw_FunString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
-void Sbar_DrawExpandedString (int x, int y, conchar_t *str)
+void Sbar_DrawExpandedString (float x, float y, conchar_t *str)
 {
 	Draw_ExpandedString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
-void Draw_TinyString (int x, int y, const qbyte *str)
+void Draw_TinyString (float x, float y, const qbyte *str)
 {
 	float xstart;
+	int px, py;
 
 	if (!font_tiny)
 	{
@@ -1014,28 +1018,28 @@ void Draw_TinyString (int x, int y, const qbyte *str)
 			return;
 	}
 
-	Font_BeginString(font_tiny, x, y, &x, &y);
-	xstart = x;
+	Font_BeginString(font_tiny, x, y, &px, &py);
+	xstart = px;
 
 	while (*str)
 	{
 		if (*str == '\n')
 		{
-			x = xstart;
-			y += Font_CharHeight();
+			px = xstart;
+			py += Font_CharHeight();
 			str++;
 			continue;
 		}
-		x = Font_DrawChar(x, y, CON_WHITEMASK|*str++);
+		px = Font_DrawChar(px, py, CON_WHITEMASK|*str++);
 	}
 	Font_EndString(font_tiny);
 }
-void Sbar_DrawTinyString (int x, int y, char *str)
+void Sbar_DrawTinyString (float x, float y, char *str)
 {
 	Draw_TinyString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
-void Sbar_FillPC (int x, int y, int w, int h, unsigned int pcolour)
+void Sbar_FillPC (float x, float y, float w, float h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
@@ -1048,7 +1052,7 @@ void Sbar_FillPC (int x, int y, int w, int h, unsigned int pcolour)
 		R2D_FillBlock (x, y, w, h);
 	}
 }
-static void Sbar_FillPCDark (int x, int y, int w, int h, unsigned int pcolour)
+static void Sbar_FillPCDark (float x, float y, float w, float h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
@@ -1104,7 +1108,7 @@ int Sbar_itoa (int num, char *buf)
 Sbar_DrawNum
 =============
 */
-void Sbar_DrawNum (int x, int y, int num, int digits, int color)
+void Sbar_DrawNum (float x, float y, int num, int digits, int color)
 {
 	char			str[12];
 	char			*ptr;
@@ -1151,7 +1155,7 @@ void Sbar_DrawNum (int x, int y, int num, int digits, int color)
 	}
 }
 
-void Sbar_Hexen2DrawNum (int x, int y, int num, int digits)
+void Sbar_Hexen2DrawNum (float x, float y, int num, int digits)
 {
 	char			str[12];
 	char			*ptr;
@@ -1621,7 +1625,8 @@ void Sbar_DrawFrags (playerview_t *pv)
 {
 	int				i, k, l;
 	int				top, bottom;
-	int				x, y, f;
+	float			x, y;
+	int				f;
 	int				ownnum;
 	char			num[12];
 	player_info_t	*s;
@@ -1878,7 +1883,7 @@ void Sbar_DrawScoreboard (void)
 }
 
 
-static void Sbar_Hexen2DrawItem(playerview_t *pv, int x, int y, int itemnum)
+static void Sbar_Hexen2DrawItem(playerview_t *pv, float x, float y, int itemnum)
 {
 	int num;
 	Sbar_DrawPic(x, y, 29, 28, R2D_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
@@ -2285,22 +2290,20 @@ static void Sbar_Voice(int y)
 	loudness = S_Voip_Loudness(cl_voip_showmeter.ival==2);
 	if (loudness >= 0)
 	{
-		int x=0,t;
+		int w;
+		int x=0;
 		int s, i;
 		float range = loudness/100.0f;
-		Font_BeginString(font_conchar, x, y, &t, &t);
-		x = vid.width;
-		x -= Font_CharWidth(0xe080 | CON_WHITEMASK);
-		x -= Font_CharWidth(0xe081 | CON_WHITEMASK)*16;
-		x -= Font_CharWidth(0xe082 | CON_WHITEMASK);
-		x /= 2;
-		x -= Font_CharWidth('M' | CON_WHITEMASK);
-		x -= Font_CharWidth('i' | CON_WHITEMASK);
-		x -= Font_CharWidth('c' | CON_WHITEMASK);
-		x -= Font_CharWidth(' ' | CON_WHITEMASK);
-
-		y = sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT;
-		Font_BeginString(font_conchar, x, y, &x, &y);
+		w = 0;
+		Font_BeginString(font_conchar, sbar_rect.x + sbar_rect.width/2, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
+		w += Font_CharWidth(0xe080 | CON_WHITEMASK);
+		w += Font_CharWidth(0xe081 | CON_WHITEMASK)*16;
+		w += Font_CharWidth(0xe082 | CON_WHITEMASK);
+		w += Font_CharWidth('M' | CON_WHITEMASK);
+		w += Font_CharWidth('i' | CON_WHITEMASK);
+		w += Font_CharWidth('c' | CON_WHITEMASK);
+		w += Font_CharWidth(' ' | CON_WHITEMASK);
+		x -= w/2;
 		x = Font_DrawChar(x, y, 'M' | CON_WHITEMASK);
 		x = Font_DrawChar(x, y, 'i' | CON_WHITEMASK);
 		x = Font_DrawChar(x, y, 'c' | CON_WHITEMASK);
@@ -2374,7 +2377,7 @@ void Sbar_Draw (playerview_t *pv)
 
 	if (scr_centersbar.ival)
 	{
-		int ofs = (sbar_rect.width - sbarwidth)/2;
+		float ofs = (sbar_rect.width - sbarwidth)/2;
 		sbar_rect.x += ofs;
 		sbar_rect.width -= ofs;
 	}
@@ -2465,13 +2468,6 @@ void Sbar_Draw (playerview_t *pv)
 				Sbar_DrawNormal (pv);
 		}
 
-		if (sb_lines > 24)
-			Sbar_Voice(-32);
-		else if (sb_lines > 0)
-			Sbar_Voice(-8);
-		else
-			Sbar_Voice(16);
-
 		if (minidmoverlay)
 			Sbar_MiniDeathmatchOverlay (pv);
 
@@ -2490,6 +2486,13 @@ void Sbar_Draw (playerview_t *pv)
 			R2D_TileClear (sbar_rect.x + 320, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
 	}
 
+	if (sb_lines > 24)
+		Sbar_Voice(-32);
+	else if (sb_lines > 0)
+		Sbar_Voice(-8);
+	else
+		Sbar_Voice(16);
+
 	{
 		extern int scr_chatmode;
 		if (scr_chatmode)
@@ -2505,7 +2508,7 @@ Sbar_IntermissionNumber
 
 ==================
 */
-void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color, qboolean left)
+void Sbar_IntermissionNumber (float x, float y, int num, int digits, int color, qboolean left)
 {
 	char			str[12];
 	char			*ptr;
@@ -2562,6 +2565,9 @@ void Sbar_TeamOverlay (void)
 	team_t *tm;
 	int plow, phigh, pavg;
 	playerview_t *pv = r_refdef.playerview;
+
+	if (!pv)
+		pv = &cl.playerview[0];
 
 // request new ping times every two second
 	if (!cl.teamplay)

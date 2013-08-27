@@ -1117,7 +1117,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		mesh.istrifan = true;
 		mesh.xyz_array = cl_strisvertv + csqc_poly_startvert;
 		mesh.st_array = cl_strisvertt + csqc_poly_startvert;
-		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
+		mesh.colors4f_array[0] = cl_strisvertc + csqc_poly_startvert;
 		mesh.indexes = cl_strisidx + csqc_poly_startidx;
 		mesh.numindexes = cl_numstrisidx - csqc_poly_startidx;
 		mesh.numvertexes = cl_numstrisvert-csqc_poly_startvert;
@@ -1550,6 +1550,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 
 	if (r_refdef.drawsbar)
 	{
+		SCR_TileClear ();
 #ifdef PLUGINS
 		Plug_SBar (r_refdef.playerview);
 #else
@@ -1559,7 +1560,6 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 			Sbar_DrawScoreboard ();
 		}
 #endif
-		SCR_TileClear ();
 	}
 
 	if (csqc_addcrosshair)
@@ -2127,6 +2127,9 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 	char *eventname = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *argtypes = PR_GetStringOfs(prinst, OFS_PARM1);
 
+	if (!cls.state)
+		return;
+
 	MSG_WriteByte(&cls.netchan.message, clc_qcrequest);
 	for (i = 0; i < 6; i++)
 	{
@@ -2423,7 +2426,11 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 	}
 	else if (!strcmp(keyname, "constate"))
 	{
-		if (cls.state == ca_disconnected)
+		if (cls.state == ca_disconnected
+#ifndef CLIENTONLY 
+			&& !sv.state
+#endif
+				)
 			ret = "disconnected";
 		else if (cls.state == ca_active)
 			ret = "active";
@@ -3530,7 +3537,7 @@ static void QCBUILTIN PF_cs_movetogoal (pubprogfuncs_t *prinst, struct globalvar
 }
 
 static void CS_ConsoleCommand_f(void)
-{	//FIXME: unregister them.
+{
 	char cmd[2048];
 	Q_snprintfz(cmd, sizeof(cmd), "%s %s", Cmd_Argv(0), Cmd_Args());
 	CSQC_ConsoleCommand(cmd);
@@ -3541,7 +3548,8 @@ static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct glob
 	if (!strcmp(str, "+showscores") || !strcmp(str, "-showscores") ||
 		!strcmp(str, "+showteamscores") || !strcmp(str, "-showteamscores"))
 		return;
-	Cmd_AddCommand(str, CS_ConsoleCommand_f);
+	if (!Cmd_Exists(str))
+		Cmd_AddCommand(str, CS_ConsoleCommand_f);
 }
 
 static qboolean csqc_usinglistener;
@@ -4748,6 +4756,9 @@ static struct {
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
 
+	{"setmousetarget",			PF_cl_setmousetarget,		603},
+	{"getmousetarget",			PF_cl_getmousetarget,		604},
+
 	{"callfunction",			PF_callfunction,			605},
 	{"writetofile",				PF_writetofile,				606},
 	{"isfunction",				PF_isfunction,				607},
@@ -4962,14 +4973,18 @@ void CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
 
 void CSQC_Shutdown(void)
 {
+	extern int mouseusedforgui;
 	if (csqcprogs)
 	{
+		mouseusedforgui = false;
 		CSQC_ForgetThreads();
 		PR_ResetFonts(true);
 		PR_Common_Shutdown(csqcprogs, false);
 		csqcprogs->CloseProgs(csqcprogs);
 	}
 	csqc_world.progs = csqcprogs = NULL;
+
+	Cmd_RemoveCommands(CS_ConsoleCommand_f);
 
 #ifdef USEODE
 	World_ODE_End(&csqc_world);
@@ -5129,10 +5144,11 @@ qboolean CSQC_UnconnectedOkay(qboolean inprinciple)
 }
 qboolean CSQC_UnconnectedInit(void)
 {
-	if (!CSQC_UnconnectedOkay(false))
+	if (!CSQC_UnconnectedOkay(true))
 		return false;
 
-
+	if (csqcprogs)
+		return true;
 	return CSQC_Init(true, true, 0);
 }
 
@@ -5611,6 +5627,7 @@ qboolean CSQC_DrawView(void)
 	extern cvar_t cl_forcesplitclient;
 
 	csqc_resortfrags = true;
+	csqctime = Sys_DoubleTime();
 
 	if (!csqcg.draw_function || !csqcprogs)
 		return false;
@@ -5688,7 +5705,7 @@ qboolean CSQC_DrawView(void)
 		CL_PredictMove ();
 
 	if (csqcg.cltime)
-		*csqcg.cltime = cl.time;
+		*csqcg.cltime = realtime;
 	if (csqcg.svtime)
 		*csqcg.svtime = cl.servertime;
 
@@ -5725,7 +5742,14 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 	G_FLOAT(OFS_PARM2) = unicode;
 	G_FLOAT(OFS_PARM3) = devid;
 
+	if (down)
+	{
+		qcinput_scan = G_FLOAT(OFS_PARM1);
+		qcinput_unicode = G_FLOAT(OFS_PARM2);
+	}
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+	qcinput_scan = 0;	//and stop replay attacks
+	qcinput_unicode = 0;
 
 	return G_FLOAT(OFS_RETURN);
 }

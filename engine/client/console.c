@@ -1043,20 +1043,20 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	}
 
 	//put the cursor in the middle
-	x = (right-left)/2;
+	x = (right-left)/2 + left;
 	//move the line to the right if there's not enough text to touch the right hand side
-	if (x < right-rhs)
-		x = right - rhs;
+	if (x < right-rhs - Font_CharWidth(0xe000|11|CON_WHITEMASK))
+		x = right - rhs - Font_CharWidth(0xe000|11|CON_WHITEMASK);
 	//if the left hand side is on the right of the left point (overrides right alignment)
-	if (x - lhs > 0)
-		x = lhs;
+	if (x > lhs + left)
+		x = lhs + left;
 
-	lhs = x - lhs + left;
+	lhs = x - lhs;
 	for (cchar = maskedtext; cchar < cursor; cchar++)
 	{
 		lhs = Font_DrawChar(lhs, y, *cchar);
 	}
-	rhs = x + left;
+	rhs = x;
 	if (cursorframe)
 	{
 //		extern cvar_t com_parseutf8;
@@ -1498,6 +1498,15 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	int i;
 	int x;
 
+	if (l != con->footerline)
+	if (l != con->current)
+	{
+		y -= 8;
+	// draw arrows to show the buffer is backscrolled
+		for (x = sx ; x<ex; )
+			x = (Font_DrawChar (x, y, '^'|CON_WHITEMASK)-x)*4+x;
+	}
+
 	//deactivate the selection if the start and end is outside
 	if (
 		(selsx < sx && selex < sx) ||
@@ -1770,14 +1779,6 @@ void Con_DrawConsole (int lines, qboolean noback)
 	y = Con_DrawInput (con_current, key_dest == key_console, x, ex - x, y, selactive, selsx, selex, selsy, seley);
 
 	l = con_current->display;
-
-	if (l != con_current->current)
-	{
-		y -= 8;
-	// draw arrows to show the buffer is backscrolled
-		for (x = sx ; x<ex; )
-			x = (Font_DrawChar (x, y, '^'|CON_WHITEMASK)-x)*4+x;
-	}
 
 	y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley);
 

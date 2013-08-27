@@ -1098,7 +1098,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	else
 #endif
 #ifdef CSQC_DAT
-		if (cls.state == ca_active && CSQC_DrawView())
+		if (CSQC_DrawView())
 		nohud = true;
 	else
 #endif

@@ -145,7 +145,7 @@ void R2D_Init(void)
 	draw_mesh.numindexes = 6;
 	draw_mesh.xyz_array = draw_mesh_xyz;
 	draw_mesh.st_array = draw_mesh_st;
-	draw_mesh.colors4f_array = draw_mesh_colors;
+	draw_mesh.colors4f_array[0] = draw_mesh_colors;
 	draw_mesh.indexes = r_quad_indexes;
 
 
@@ -715,6 +715,10 @@ void R2D_Console_Resize(void)
 		yratio = 1;
 	}
 
+	if (cheight && !cwidth)
+		cwidth = (cheight*4)/3;
+	if (cwidth && !cheight)
+		cheight = (cwidth*3)/4;
 
 	if (!cwidth)
 		cwidth = vid.rotpixelwidth;
@@ -820,10 +824,7 @@ void R2D_BrightenScreen (void)
 
 	RSpeedMark();
 
-	if (v_contrast.value == 1.0 && v_brightness.value == 0 && v_gamma.value == 1)
-		return;
-
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+	if (fabs(v_contrast.value - 1.0) < 0.05 && fabs(v_brightness.value - 0) < 0.05 && fabs(v_gamma.value - 1) < 0.05)
 		return;
 
 	if (r2d_noshadergamma)
@@ -1136,8 +1137,8 @@ void R2D_DrawCrosshair(void)
 			size = -size;
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
-			SCR_CrosshairPosition(&cl.playerview[sc], &x, &y);
-			Font_BeginScaledString(font_conchar, x, y, size, size, &sx, &sy);
+			SCR_CrosshairPosition(&cl.playerview[sc], &sx, &sy);
+			Font_BeginScaledString(font_conchar, sx, sy, size, size, &sx, &sy);
 			sx -= Font_CharScaleWidth('+' | 0xe000 | CON_WHITEMASK)/2;
 			sy -= Font_CharScaleHeight()/2;
 			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
@@ -1171,11 +1172,11 @@ void R2D_DrawCrosshair(void)
 	R2D_ImageColours(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
-		SCR_CrosshairPosition(&cl.playerview[sc], &x, &y);
+		SCR_CrosshairPosition(&cl.playerview[sc], &sx, &sy);
 
 		//translate to pixel coord, for rounding
-		x = ((x-sizex+(sizex/CS_WIDTH))*vid.rotpixelwidth) / (float)vid.width;
-		y = ((y-sizey+(sizey/CS_HEIGHT))*vid.rotpixelheight) / (float)vid.height;
+		x = ((sx-sizex+(sizex/CS_WIDTH))*vid.rotpixelwidth) / (float)vid.width;
+		y = ((sy-sizey+(sizey/CS_HEIGHT))*vid.rotpixelheight) / (float)vid.height;
 
 		//translate to screen coords
 		sx = ((x)*(int)vid.width) / (float)vid.rotpixelwidth;

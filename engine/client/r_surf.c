@@ -2711,9 +2711,6 @@ void Surf_BuildLightmaps (void)
 	r_oldviewcluster2 = -1;
 	numlightmaps = 0;
 
-	if (cl.worldmodel->fromgame == fg_doom)
-		return;	//no lightmaps.
-
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
 		m = cl.model_precache[j];

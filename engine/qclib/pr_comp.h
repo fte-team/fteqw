@@ -7,6 +7,18 @@ Setting them should be fine.
 #ifndef __PR_COMP_H__
 #define __PR_COMP_H__
 
+/*
+#ifdef USE_MSVCRT_DEBUG
+void *BZ_MallocNamed(int size, char *file, int line);
+void *BZ_ReallocNamed(void *data, int newsize, char *file, int line);
+void BZ_Free(void *data);
+#define BZ_Malloc(size) BZ_MallocNamed(size, __FILE__, __LINE__)
+#define BZ_Realloc(ptr, size) BZ_ReallocNamed(ptr, size, __FILE__, __LINE__)
+#define malloc BZ_Malloc
+#define realloc BZ_Realloc
+#define free BZ_Free
+#endif
+*/
 
 typedef int dstring_t;
 #define QCC_string_t dstring_t

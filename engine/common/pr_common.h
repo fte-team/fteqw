@@ -84,6 +84,8 @@ char *PF_TempStr(pubprogfuncs_t *prinst);	//returns a tempstring which can be fi
 extern cvar_t pr_tempstringsize;
 extern cvar_t pr_tempstringcount;
 
+extern int qcinput_scan;
+extern int qcinput_unicode;
 int MP_TranslateFTEtoQCCodes(int code);
 int MP_TranslateQCtoFTECodes(int code);
 
@@ -349,6 +351,8 @@ void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s
 void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

@@ -136,9 +136,9 @@ int Mod_GetBoneParent(struct model_s *model, int bonenum);
 struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model, int *numbones);
 char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
-void Draw_FunString(int x, int y, const void *str);
-void Draw_AltFunString(int x, int y, const void *str);
-void Draw_FunStringWidth(int x, int y, const void *str, int width);
+void Draw_FunString(float x, float y, const void *str);
+void Draw_AltFunString(float x, float y, const void *str);
+void Draw_FunStringWidth(float x, float y, const void *str, int width);
 
 extern int r_regsequence;
 

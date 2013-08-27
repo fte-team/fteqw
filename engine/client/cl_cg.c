@@ -845,7 +845,11 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:
+		Media_BackgroundTrack(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		return 0;
 	case CG_S_STOPBACKGROUNDTRACK:
+		Media_BackgroundTrack(NULL, NULL);
+		return 0;
 	case CG_S_CLEARLOOPINGSOUNDS:
 		break;
 

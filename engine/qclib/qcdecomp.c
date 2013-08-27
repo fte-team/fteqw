@@ -1,5 +1,6 @@
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 
+//#include "qcc.h"
 #include "progsint.h"
 #include "setjmp.h"
 

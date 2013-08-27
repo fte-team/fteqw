@@ -171,7 +171,7 @@ void R_InitFlashblends(void)
 	flashblend_mesh.numvertexes = FLASHBLEND_VERTS+1;
 	flashblend_mesh.xyz_array = flashblend_vcoords;
 	flashblend_mesh.st_array = flashblend_tccoords;
-	flashblend_mesh.colors4f_array = flashblend_colours;
+	flashblend_mesh.colors4f_array[0] = flashblend_colours;
 	flashblend_mesh.indexes = flashblend_indexes;
 	flashblend_mesh.numindexes = FLASHBLEND_VERTS*3;
 	flashblend_mesh.istrifan = true;
@@ -179,7 +179,7 @@ void R_InitFlashblends(void)
 	flashblend_fsmesh.numvertexes = 4;
 	flashblend_fsmesh.xyz_array = flashblend_vcoords;
 	flashblend_fsmesh.st_array = flashblend_tccoords;
-	flashblend_fsmesh.colors4f_array = flashblend_colours;
+	flashblend_fsmesh.colors4f_array[0] = flashblend_colours;
 	flashblend_fsmesh.indexes = flashblend_fsindexes;
 	flashblend_fsmesh.numindexes = 6;
 	flashblend_fsmesh.istrifan = true;

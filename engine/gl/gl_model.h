@@ -82,7 +82,7 @@ typedef struct mesh_s
 	vec3_t			*tnormals_array;/*required for rtlighting*/
 	vec2_t			*st_array;		/*texture coords*/
 	vec2_t			*lmst_array[MAXLIGHTMAPS];	/*second texturecoord set (merely dubbed lightmap, one for each potential lightstyle)*/
-	avec4_t			*colors4f_array;/*floating point colours array*/
+	avec4_t			*colors4f_array[MAXLIGHTMAPS];/*floating point colours array*/
 	byte_vec4_t		*colors4b_array;/*byte colours array*/
 
     index_t			*indexes;
@@ -113,15 +113,16 @@ typedef struct batch_s
 	shader_t *shader;
 	struct vbo_s *vbo;
 	entity_t *ent;	/*used for shader properties*/
-	int lightmap[MAXLIGHTMAPS];	/*used for shader lightmap textures*/
-
-	unsigned char lightstyle[MAXLIGHTMAPS];
 	struct mfog_s *fog;
 
-	struct texture_s *texture; /*is this used by the backend?*/
-	struct texnums_s *skin;
+	short lightmap[MAXLIGHTMAPS];	/*used for shader lightmap textures*/
+	unsigned char lmlightstyle[MAXLIGHTMAPS];
+	unsigned char vtlightstyle[MAXLIGHTMAPS];
+
 	unsigned int maxmeshes;	/*not used by backend*/
 	unsigned int flags;	/*backend flags (force transparency etc)*/
+	struct texture_s *texture; /*is this used by the backend?*/
+	struct texnums_s *skin;
 
 	void (*buildmeshes)(struct batch_s *b);
 	/*caller-use, not interpreted by backend*/
@@ -267,7 +268,7 @@ typedef struct vbo_s
 	vboarray_t svector;
 	vboarray_t tvector;
 
-	vboarray_t colours;
+	vboarray_t colours[MAXLIGHTMAPS];
 
 	vboarray_t bonenums;
 
@@ -395,6 +396,7 @@ typedef struct msurface_s
 
 	int			lightmaptexturenums[MAXLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
 	qbyte		styles[MAXLIGHTMAPS];
+	qbyte		vlstyles[MAXLIGHTMAPS];
 	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
 	qboolean	cached_dlight;				// true if dynamic light in cache
 	qbyte		cached_colour[MAXLIGHTMAPS];

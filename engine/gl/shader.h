@@ -192,6 +192,7 @@ typedef struct shaderpass_s {
 		RGB_GEN_VERTEX_EXACT,
 		RGB_GEN_ONE_MINUS_VERTEX,
 		RGB_GEN_IDENTITY_LIGHTING,
+		RGB_GEN_IDENTITY_OVERBRIGHT,
 		RGB_GEN_IDENTITY,
 		RGB_GEN_CONST,
 		RGB_GEN_UNKNOWN,
@@ -323,6 +324,10 @@ enum shaderattribs_e
 	VATTR_LMCOORD2,
 	VATTR_LMCOORD3,
 	VATTR_LMCOORD4,
+	VATTR_COLOUR2,
+	VATTR_COLOUR3,
+	VATTR_COLOUR4,
+
 
 	VATTR_LEG_VERTEX,	//note: traditionally this is actually index 0.
 						//however, implementations are allowed to directly alias, or remap,
@@ -344,7 +349,8 @@ typedef struct {
 
 		/*entity properties*/
 		SP_E_VBLEND,
-		SP_E_LMSCALE,
+		SP_E_LMSCALE,	//lightmap scales
+		SP_E_VLSCALE,	//vertex lighting style scales
 		SP_E_ORIGIN,
 		SP_E_COLOURS,
 		SP_E_COLOURSIDENT,

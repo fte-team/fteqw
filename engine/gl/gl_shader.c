@@ -3562,9 +3562,18 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	else return;
 
 	if (pass->texgen == T_GEN_LIGHTMAP && pass->blendmode == PBM_REPLACELIGHT && pass2->blendmode == PBM_MODULATE && config_tex_env_combine)
+	{
+		if (pass->rgbgen == RGB_GEN_IDENTITY)
+			pass->rgbgen = RGB_GEN_IDENTITY_OVERBRIGHT;	//get the light levels right
 		pass2->blendmode = PBM_OVERBRIGHT;
+	}
 	if (pass2->texgen == T_GEN_LIGHTMAP && pass2->blendmode == PBM_MODULATE && config_tex_env_combine)
+	{
+		if (pass->rgbgen == RGB_GEN_IDENTITY)
+			pass->rgbgen = RGB_GEN_IDENTITY_OVERBRIGHT;	//get the light levels right
+		pass->blendmode = PBM_REPLACELIGHT;
 		pass2->blendmode = PBM_OVERBRIGHT;
+	}
 }
 
 void Shader_SetFeatures ( shader_t *s )
@@ -3733,7 +3742,7 @@ void Shader_Finish (shader_t *s)
 		s->sort = SHADER_SORT_DECAL;
 	}
 
-	if ((r_vertexlight.value || !(s->flags & SUF_LIGHTMAP)) && !s->prog)
+	if ((r_vertexlight.value || !(s->usageflags & SUF_LIGHTMAP)) && !s->prog)
 	{
 		// do we have a lightmap pass?
 		pass = s->passes;
@@ -3808,7 +3817,7 @@ void Shader_Finish (shader_t *s)
 			s->passes[0].alphagen = ALPHA_GEN_IDENTITY;
 			s->passes[0].blendmode = 0;
 			s->passes[0].flags &= ~(SHADER_PASS_ANIMMAP|SHADER_PASS_NOCOLORARRAY);
-			pass->shaderbits &= ~SBITS_BLEND_BITS;
+			s->passes[0].shaderbits &= ~SBITS_BLEND_BITS;
 			s->passes[0].shaderbits |= SBITS_MISC_DEPTHWRITE;
 			s->passes[0].numMergedPasses = 1;
 			s->numpasses = 1;
@@ -4772,7 +4781,7 @@ qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode,
 #define COND_IGNOREPARENT 2
 #define COND_ALLOWELSE 4
 
-	if (!shadersource)
+	if (!*shadersource)
 		return false;
 
 	token = COM_ParseExt (shadersource, true, true);
@@ -4966,7 +4975,7 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 		//make sure the same texture can be used as either a lightmap or vertexlit shader
 		//if it has an explicit shader overriding it then that still takes precidence. we might just have multiple copies of it.
 		//q3 has a separate (internal) shader for every lightmap.
-		if (!defaultgen || (s->generator == defaultgen && !s->genargs == !genargs && (!genargs || !strcmp(s->genargs, genargs))))
+		if (!((s->usageflags ^ usageflags) & SUF_LIGHTMAP))
 		{
 			i = s - r_shaders;
 			r_shaders[i].uses++;

@@ -1082,8 +1082,6 @@ void V_ApplyRefdef (void)
 
 //========================================
 
-	r_refdef.flags = 0;
-
 // intermission is always full screen
 	if (cl.intermission || !r_refdef.drawsbar)
 		size = 120;
@@ -1202,6 +1200,7 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.fov_y = 0;
 
 	r_refdef.drawsbar = !cl.intermission;
+	r_refdef.flags = 0;
 }
 
 /*
@@ -1410,7 +1409,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	}
 }
 
-void Draw_ExpandedString(int x, int y, conchar_t *str);
+void Draw_ExpandedString(float x, float y, conchar_t *str);
 extern vec3_t nametagorg[MAX_CLIENTS];
 extern qboolean nametagseen[MAX_CLIENTS];
 void R_DrawNameTags(void)

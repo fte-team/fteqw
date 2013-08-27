@@ -565,15 +565,6 @@ void Cmd_Echo_f (void)
 	Con_Printf ("\n");
 }
 
-char *CopyString (char *in)
-{
-	char	*out;
-
-	out = (char*)Z_Malloc (strlen(in)+1);
-	strcpy (out, in);
-	return out;
-}
-
 void Cmd_ShowAlias_f (void)
 {
 	cmdalias_t	*a;
@@ -764,7 +755,7 @@ void Cmd_Alias_f (void)
 				a->value = newv;
 			}
 			else
-				a->value = CopyString(s);
+				a->value = Z_StrDup(s);
 		}
 
 		return;
@@ -811,7 +802,7 @@ void Cmd_Alias_f (void)
 		a->execlevel = 0;	//run at users exec level
 		a->restriction = 1;	//this is possibly a security risk if the admin also changes execlevel
 	}
-	a->value = CopyString (cmd);
+	a->value = Z_StrDup (cmd);
 }
 
 void Cmd_DeleteAlias(char *name)
@@ -821,6 +812,7 @@ void Cmd_DeleteAlias(char *name)
 	{
 		a = cmd_alias;
 		cmd_alias = cmd_alias->next;
+		Z_Free(a->value);
 		Z_Free(a);
 		return;
 	}
@@ -830,6 +822,7 @@ void Cmd_DeleteAlias(char *name)
 		{
 			b = a->next;
 			a->next = b->next;
+			Z_Free(b->value);
 			Z_Free(b);
 			return;
 		}
@@ -966,19 +959,19 @@ void Alias_WriteAliases (vfsfile_t *f)
 	}
 }
 
-void Alias_WipeStuffedAliaes(void)
+void Alias_WipeStuffedAliases(void)
 {
-	cmdalias_t	*cmd, *n;
-	for (cmd=cmd_alias ; cmd ; )
+	cmdalias_t	**link, *cmd;
+	for (link=&cmd_alias ; (cmd=*link) ; )
 	{
 		if (cmd->flags & ALIAS_FROMSERVER)
 		{
-			n = cmd->next;
-			Cmd_DeleteAlias(cmd->name);
-			cmd = n;
+			*link = cmd->next;
+			Z_Free(cmd->value);
+			Z_Free(cmd);
 		}
 		else
-			cmd=cmd->next;
+			link=&(*link)->next;
 	}
 }
 
@@ -1517,6 +1510,21 @@ void	Cmd_RemoveCommand (char *cmd_name)
 			*back = cmd->next;
 			Z_Free (cmd);
 			return;
+		}
+		back = &cmd->next;
+	}
+}
+void	Cmd_RemoveCommands (xcommand_t function)
+{
+	cmd_function_t	*cmd, **back;
+
+	for (back = &cmd_functions; (cmd = *back); )
+	{
+		if (cmd->function == function)
+		{
+			*back = cmd->next;
+			Z_Free (cmd);
+			continue;
 		}
 		back = &cmd->next;
 	}
@@ -2433,13 +2441,13 @@ void Cbuf_ExecBlock(int level)
 				exectext = newv;
 			}
 			else
-				exectext = CopyString(line);
+				exectext = Z_StrDup(line);
 //			Con_Printf("Exec \"%s\"\n", line);
 		}
 	}
 	else
 	{
-		exectext = CopyString(line);
+		exectext = Z_StrDup(line);
 //		Con_Printf("Exec \"%s\"\n", line);
 	}
 	remainingcbuf = Cbuf_StripText(level);	//this craziness is to prevent an if } from breaking the entire con text

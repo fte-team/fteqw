@@ -1094,7 +1094,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 
 	m = shaderstate.meshlist[0];
 
-	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
+	if (1)//pass->flags & SHADER_PASS_NOCOLORARRAY)
 	{
 		shaderstate.passsinglecolour = true;
 		shaderstate.passcolour = D3DCOLOR_RGBA(255,255,255,255);
@@ -1108,13 +1108,14 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 		shaderstate.passsinglecolour = false;
 
 		ret |= D3D_VDEC_COL4B;
-		if (shaderstate.batchvbo && (m->colors4f_array &&
+		if (shaderstate.batchvbo && (m->colors4f_array[0] &&
 						((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING) ||
 						(pass->rgbgen == RGB_GEN_VERTEX_EXACT) ||
 						(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX)) &&
 						(pass->alphagen == ALPHA_GEN_VERTEX)))
 		{
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours.d3d.buff, shaderstate.batchvbo->colours.d3d.offs, sizeof(vbovdata_t)));
+			//fixme
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours[0].d3d.buff, shaderstate.batchvbo->colours[0].d3d.offs, sizeof(vbovdata_t)));
 		}
 		else
 		{
@@ -1122,8 +1123,8 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 			for (vertcount = 0, mno = 0; mno < shaderstate.nummeshes; mno++)
 			{
 				m = shaderstate.meshlist[mno];
-				colourgenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array, (byte_vec4_t*)map, m);
-				alphagenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array, (byte_vec4_t*)map, m);
+				colourgenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array[0], (byte_vec4_t*)map, m);
+				alphagenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array[0], (byte_vec4_t*)map, m);
 				map += m->numvertexes*4;
 				vertcount += m->numvertexes;
 			}
@@ -1617,6 +1618,7 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, NULL, 0, 0));
 		BindTexture(tmu, NULL);
 		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_COLOROP, D3DTOP_DISABLE));
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
 		tmu++;
 	}
 	shaderstate.lastpasscount = tmu;
@@ -1829,6 +1831,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	{
 		BindTexture(passno, NULL);
 		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
 	}
 	shaderstate.lastpasscount = passno;
 
@@ -1836,7 +1839,10 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	if (vdec & D3D_VDEC_COL4B)
 	{
 		if (shaderstate.batchvbo)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours.d3d.buff, shaderstate.batchvbo->colours.d3d.offs, sizeof(vbovdata_t)));
+		{
+			//fixme
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours[0].d3d.buff, shaderstate.batchvbo->colours[0].d3d.offs, sizeof(vbovdata_t)));
+		}
 		else
 		{
 			int mno,v;
@@ -1847,14 +1853,15 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 			{
 				byte_vec4_t *dest = (byte_vec4_t*)((char*)map+vertcount*sizeof(byte_vec4_t));
 				m = shaderstate.meshlist[mno];
-				if (m->colors4f_array)
+				if (m->colors4f_array[0])
 				{
 					for (v = 0; v < m->numvertexes; v++)
 					{
-						dest[v][0] = bound(0, m->colors4f_array[v][0] * 255, 255);
-						dest[v][1] = bound(0, m->colors4f_array[v][1] * 255, 255);
-						dest[v][2] = bound(0, m->colors4f_array[v][2] * 255, 255);
-						dest[v][3] = bound(0, m->colors4f_array[v][3] * 255, 255);
+						//fixme:
+						dest[v][0] = bound(0, m->colors4f_array[0][v][0] * 255, 255);
+						dest[v][1] = bound(0, m->colors4f_array[0][v][1] * 255, 255);
+						dest[v][2] = bound(0, m->colors4f_array[0][v][2] * 255, 255);
+						dest[v][3] = bound(0, m->colors4f_array[0][v][3] * 255, 255);
 					}
 				}
 				else if (m->colors4b_array)
@@ -2110,6 +2117,7 @@ static void BE_DrawMeshChain_Internal(void)
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, NULL, 0, 0));
 			BindTexture(passno, NULL);
 			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
 			passno++;
 		}
 		shaderstate.lastpasscount = 0;
@@ -2207,8 +2215,8 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 	vbo->svector.d3d.offs = (quintptr_t)&vbovdata->sdir;
 	vbo->tvector.d3d.buff = vbuff;
 	vbo->tvector.d3d.offs = (quintptr_t)&vbovdata->tdir;
-	vbo->colours.d3d.buff = vbuff;
-	vbo->colours.d3d.offs = (quintptr_t)&vbovdata->colorsb;
+	vbo->colours[0].d3d.buff = vbuff;
+	vbo->colours[0].d3d.offs = (quintptr_t)&vbovdata->colorsb;
 	vbo->indicies.d3d.buff = ebuff;
 	vbo->indicies.d3d.offs = 0;
 
@@ -2231,7 +2239,7 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 				VectorCopy(m->normals_array[i],		vbovdata->ndir);
 				VectorCopy(m->snormals_array[i],	vbovdata->sdir);
 				VectorCopy(m->tnormals_array[i],	vbovdata->tdir);
-				Vector4Scale(m->colors4f_array[i],	255, vbovdata->colorsb);
+				Vector4Scale(m->colors4f_array[0][i],	255, vbovdata->colorsb);
 
 				vbovdata++;
 			}
@@ -2459,12 +2467,12 @@ void D3D9BE_GenBrushModelVBO(model_t *mod)
 					colours[vcount+v][2] = m->colors4b_array[v][2];
 					colours[vcount+v][3] = m->colors4b_array[v][3];
 				}
-				if (m->colors4f_array)
+				if (m->colors4f_array[0])
 				{
-					colours[vcount+v][0] = m->colors4f_array[v][0] * 255;
-					colours[vcount+v][1] = m->colors4f_array[v][1] * 255;
-					colours[vcount+v][2] = m->colors4f_array[v][2] * 255;
-					colours[vcount+v][3] = m->colors4f_array[v][3] * 255;
+					colours[vcount+v][0] = m->colors4f_array[0][v][0] * 255;
+					colours[vcount+v][1] = m->colors4f_array[0][v][1] * 255;
+					colours[vcount+v][2] = m->colors4f_array[0][v][2] * 255;
+					colours[vcount+v][3] = m->colors4f_array[0][v][3] * 255;
 				}
 			}
 			vcount += v;

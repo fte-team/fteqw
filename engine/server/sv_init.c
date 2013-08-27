@@ -1145,6 +1145,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 		break;
 	}
+	//fixme: properly kick any other clients (ie: without notifying gamecode).
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -1501,6 +1502,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				SV_UpdateToReliableMessages();	//so that we don't flood too much with 31 bots and one player.
 			}
 		}
+	}
+	if (svs.gametype == GT_QUAKE3)
+	{
+		SVQ3_NewMapConnects();
 	}
 
 	FS_ReferenceControl(0, 0);

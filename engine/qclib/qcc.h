@@ -849,6 +849,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype);
 
 void PostCompile(void);
 pbool PreCompile(void);
+void QCC_Cleanup(void);
 
 
 #define FIRST_LOCAL (MAX_REGS)

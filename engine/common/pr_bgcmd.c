@@ -590,9 +590,9 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 				G_FLOAT(OFS_RETURN+2) = 0;
 				break;
 			case 6:
-				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->colors4f_array[pointnum][0];
-				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->colors4f_array[pointnum][1];
-				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->colors4f_array[pointnum][2];
+				G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->colors4f_array[0][pointnum][0];
+				G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->colors4f_array[0][pointnum][1];
+				G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->colors4f_array[0][pointnum][2];
 				//no way to return alpha here.
 				break;
 			}
@@ -2224,16 +2224,15 @@ void QCBUILTIN PF_strconv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 //returns a string containing one character per parameter (up to the qc max params of 8).
 void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int ch;
 	int i;
 	char string[128], *s = string;
-	if (VMUTF8)
+	for (i = 0; i < prinst->callargc; i++)
 	{
-		for (i = 0; i < prinst->callargc; i++)
-			s += unicode_encode(s, G_FLOAT(OFS_PARM0 + i*3), (string+sizeof(string)-1)-s);
-	}
-	else
-	{
-		for (i = 0; i < prinst->callargc; i++)
+		ch = G_FLOAT(OFS_PARM0 + i*3);
+		if (VMUTF8 || ch > 0xff)
+			s += unicode_encode(s, ch, (string+sizeof(string)-1)-s);
+		else
 			*s++ = G_FLOAT(OFS_PARM0 + i*3);
 	}
 	*s++ = '\0';
@@ -3496,7 +3495,7 @@ void QCBUILTIN PF_ArgV  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	/*negative indexes are relative to the end*/
 	if (idx < 0)
-		idx += qctoken_count;	
+		idx += qctoken_count;
 
 	if ((unsigned int)idx >= qctoken_count)
 		G_INT(OFS_RETURN) = 0;

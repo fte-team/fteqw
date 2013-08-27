@@ -12,9 +12,9 @@ void Font_Init(void);
 void Font_Shutdown(void);
 struct font_s *Font_LoadFont(int height, char *fontfilename);
 void Font_Free(struct font_s *f);
-void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
+void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
-void Font_Transform(int vx, int vy, int *px, int *py);
+void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
 float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charcode);
@@ -1224,7 +1224,7 @@ void Font_Free(struct font_s *f)
 }
 
 //maps a given virtual screen coord to a pixel coord, which matches the font's height/width values
-void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
+void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 {
 	curfont = font;
 	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
@@ -1234,7 +1234,7 @@ void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
 	curfont_scale[1] = curfont->charheight;
 	curfont_scaled = false;
 }
-void Font_Transform(int vx, int vy, int *px, int *py)
+void Font_Transform(float vx, float vy, int *px, int *py)
 {
 	if (px)
 		*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;

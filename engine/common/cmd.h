@@ -76,6 +76,7 @@ void	Cmd_Init (void);
 void	Cmd_Shutdown(void);
 void	Cmd_StuffCmds (void);
 
+void	Cmd_RemoveCommands (xcommand_t function);	//unregister all commands that use the same function. for wrappers and stuff.
 void	Cmd_RemoveCommand (char *cmd_name);
 qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
 qboolean	Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *description);
@@ -110,7 +111,7 @@ int Cmd_CheckParm (char *parm);
 // where the given parameter apears, or 0 if not present
 
 char *Cmd_AliasExist(char *name, int restrictionlevel);
-void Alias_WipeStuffedAliaes(void);
+void Alias_WipeStuffedAliases(void);
 
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions);
 

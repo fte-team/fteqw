@@ -54,7 +54,7 @@ void SCR_ImageName (char *mapname);
 //this stuff is internal to the screen systems.
 void RSpeedShow(void);
 
-void SCR_CrosshairPosition(playerview_t *pview, int *x, int *y);
+void SCR_CrosshairPosition(playerview_t *pview, float *x, float *y);
 void SCR_DrawLoading (void);
 void SCR_TileClear (void);
 void SCR_DrawNotifyString (void);
@@ -97,9 +97,9 @@ void Font_Init(void);
 void Font_Shutdown(void);
 struct font_s *Font_LoadFont(int height, char *fontfilename);
 void Font_Free(struct font_s *f);
-void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
+void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
-void Font_Transform(int vx, int vy, int *px, int *py);
+void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
 float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charcode);

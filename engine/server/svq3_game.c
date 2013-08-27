@@ -3110,6 +3110,26 @@ qboolean SVQ3_HandleClient(void)
 	SVQ3_ParseClientMessage(&svs.clients[i]);
 	return true;
 }
+void SVQ3_NewMapConnects(void)
+{
+	int i;
+	qintptr_t ret;
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].state < cs_connected)
+			continue;
+
+		ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, false);
+		if (ret)
+		{
+			SV_DropClient(&svs.clients[i]);
+		}
+		else
+		{
+			//FIXME: make sure bots get the right GAME_CLIENT_BEGIN
+		}
+	}
+}
 
 void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and let the gamecode know of it.
 {
@@ -3117,7 +3137,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	char *reason;
 	client_t *cl;
 	char *userinfo = NULL;
-	int ret;
+	qintptr_t ret;
 	int challenge;
 	int qport;
 	char adr[MAX_ADR_SIZE];
@@ -3164,7 +3184,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 			if (!ret)
 				reason = NULL;
 			else
-				reason = (char*)VM_MemoryBase(q3gamevm)+ret;	//this is going to stop q3 dll gamecode at 64bits.
+				reason = (char*)VM_MemoryBase(q3gamevm)+ret;
 		}
 	}
 

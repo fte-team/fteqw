@@ -707,7 +707,7 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 	skyfacemesh.indexes = skyface_index;
 	skyfacemesh.st_array = skyface_texcoord;
 	skyfacemesh.xyz_array = skyface_vertex;
-	skyfacemesh.colors4f_array = skyface_colours;
+	skyfacemesh.colors4f_array[0] = skyface_colours;
 	skyfacemesh.numindexes = 6;
 	skyfacemesh.numvertexes = 4;
 

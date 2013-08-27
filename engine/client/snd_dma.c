@@ -87,7 +87,7 @@ cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "0",
 											"snd_inactive", 0,
 											"Play sound while application is inactive (ex. tabbed out). Needs a snd_restart if changed."
 											);	//set if you want sound even when tabbed out.
-cvar_t _snd_mixahead			= CVARAFD(	"s_mixahead", "0.08",
+cvar_t _snd_mixahead			= CVARAFD(	"s_mixahead", "0.1",
 											"_snd_mixahead", CVAR_ARCHIVE, "Specifies how many seconds to prebuffer audio. Lower values give less latency, but might result in crackling. Different hardware/drivers have different tolerances.");
 cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
 											"snd_leftisright", CVAR_ARCHIVE);
@@ -2032,7 +2032,7 @@ sfx_t *S_PrecacheSound (char *name)
 {
 	sfx_t	*sfx;
 
-	if (nosound.ival)
+	if (nosound.ival || !known_sfx)
 		return NULL;
 
 	sfx = S_FindName (name);

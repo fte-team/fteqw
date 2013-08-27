@@ -1429,6 +1429,9 @@ GLhandleARB GLSlang_CreateProgramObject (char *name, GLhandleARB vert, GLhandleA
 
 	qglBindAttribLocationARB(program, VATTR_VERTEX1, "v_position");
 	qglBindAttribLocationARB(program, VATTR_COLOUR, "v_colour");
+	qglBindAttribLocationARB(program, VATTR_COLOUR2, "v_colour2");
+	qglBindAttribLocationARB(program, VATTR_COLOUR3, "v_colour3");
+	qglBindAttribLocationARB(program, VATTR_COLOUR4, "v_colour4");
 	qglBindAttribLocationARB(program, VATTR_TEXCOORD, "v_texcoord");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD, "v_lmcoord");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD2, "v_lmcoord2");
@@ -1815,7 +1818,7 @@ void DumpGLState(void)
 			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
 			qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
 
-			Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
+			Sys_Printf("attrib%i: %s sz:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
 		}
 
 		qglGetIntegerv(GL_CURRENT_PROGRAM, &glint);
@@ -1849,19 +1852,19 @@ void DumpGLState(void)
 
 		GL_SelectTexture(0);
 		qglGetIntegerv(GL_TEXTURE_2D, &glint);
-		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		Sys_Printf("0: GL_TEXTURE_2D: %i\n", glint);
 		qglGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
-		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		Sys_Printf("0: GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
 		GL_SelectTexture(1);
 		qglGetIntegerv(GL_TEXTURE_2D, &glint);
-		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		Sys_Printf("1: GL_TEXTURE_2D: %i\n", glint);
 		qglGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
-		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		Sys_Printf("1: GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
 		GL_SelectTexture(2);
 		qglGetIntegerv(GL_TEXTURE_2D, &glint);
-		Sys_Printf("GL_TEXTURE_2D: %i\n", glint);
+		Sys_Printf("2: GL_TEXTURE_2D: %i\n", glint);
 		qglGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &glint);
-		Sys_Printf("GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
+		Sys_Printf("2: GL_TEXTURE_ENV_MODE: %s\n", DecodeGLEnum(glint));
 	}
 }
 #endif

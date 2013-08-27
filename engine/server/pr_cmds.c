@@ -1860,22 +1860,26 @@ qboolean PR_UserCmd(char *s)
 
 	if (gfuncs.UserCmd && pr_imitatemvdsv.value >= 0)
 	{	//we didn't recognise it. see if the mod does.
-
+		char *arg0;
 		//ktpro bug warning:
 		//admin + judge. I don't know the exact rules behind this bug, so I just ban the entire command
 		//I can't be arsed detecting ktpro specifically, so assume we're always running ktpro
-
-		if (!strncmp(s, "admin", 5) || !strncmp(s, "judge", 5))
-		{
-			Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
-			return true;
-		}
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		tokenizeqc(s, true);
+
+		//make sure we use the same logic that the qc will use. specifically that we check for " and leading spaces etc
+		G_FLOAT(OFS_PARM0) = 0;
+		PF_ArgV(svprogfuncs, pr_globals);
+		arg0 = PR_GetStringOfs(svprogfuncs, OFS_RETURN);
+		if (!strcmp(arg0, "admin") || !strcmp(arg0, "judge"))
+		{
+			Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
+			return true;
+		}
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.UserCmd);
@@ -10250,7 +10254,8 @@ void PR_DumpPlatform_f(void)
 		{"end_sys_globals",		"void", QW|NQ|CS|MENU},
 
 		{"modelindex",			".float", QW|NQ|CS},
-		{"absmin, absmax",		".vector", QW|NQ|CS},
+		{"absmin",				".vector", QW|NQ|CS},
+		{"absmax",				".vector", QW|NQ|CS},
 		{"ltime",				".float", QW|NQ},
 		{"entnum",				".float", CS,	"The entity number as its known on the server."},
 		{"drawmask",			".float", CS,	"Acts as a filter in the addentities call."},
@@ -10275,7 +10280,8 @@ void PR_DumpPlatform_f(void)
 		{"lerpfrac",			".float", CS,	"If 0, use frame1 only. If 1, use frame2 only. Mix them together for values between."},
 		{"skin",				".float", QW|NQ|CS},
 		{"effects",				".float", QW|NQ|CS},
-		{"mins, maxs",			".vector", QW|NQ|CS},
+		{"mins",				".vector", QW|NQ|CS},
+		{"maxs",				".vector", QW|NQ|CS},
 		{"size",				".vector", QW|NQ|CS},
 		{"touch",				".void()", QW|NQ|CS},
 		{"use",					".void()", QW|NQ},

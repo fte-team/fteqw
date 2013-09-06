@@ -826,6 +826,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	switch(portaltype)
 	{
 	case 1: /*fbo explicit mirror (fucked depth, working clip plane)*/
+		//fixme: pvs is surely wrong?
 		r_refdef.flipcull ^= true;
 		R_MirrorMatrix(&plane);
 		break;

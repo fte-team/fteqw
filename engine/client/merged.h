@@ -223,9 +223,9 @@ typedef struct
 typedef struct texnums_s {
 	texid_t base;
 	texid_t bump;
+	texid_t specular;
 	texid_t upperoverlay;
 	texid_t loweroverlay;
-	texid_t specular;
 	texid_t fullbright;
 } texnums_t;
 typedef enum uploadfmt

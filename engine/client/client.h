@@ -186,11 +186,12 @@ typedef struct player_info_s
 typedef struct
 {
 	double		senttime;			// time cmd was sent off
+	float		latency;			// the time the packet was acked. -1=choked, -2=dropped, -3=never sent, -4=reply came back invalid
 
 	// generated on client side
 	usercmd_t	cmd[MAX_SPLITS];	// cmd that generated the frame
-	int			cmd_sequence;
-	int			server_message_num;
+	int			cmd_sequence;		//the outgoing move sequence. if not equal to expected, that index was stale and is no longer valid
+	int			server_message_num;	//the inbound frame that was valid when this command was generated
 
 	int server_time;
 	int client_time;
@@ -200,9 +201,10 @@ typedef struct
 {
 	//this is the sequence we requested for this frame.
 	int			delta_sequence;		// sequence number to delta from, -1 = full update
-	float		latency;
 
 	// received from server
+	int			frameid;		//the sequence number of the frame, so we can easily detect which frames are valid without poking all in advance, etc
+	int			ackframe;		//the outgoing sequence this frame acked (for prediction backlerping).
 	double		receivedtime;	// time message was received, or -1
 	player_state_t	playerstate[MAX_CLIENTS+MAX_SPLITS];	// message received that reflects performing
 								// the usercmd

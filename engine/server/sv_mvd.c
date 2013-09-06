@@ -1010,7 +1010,7 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 	DestFlush(false);
 }
 
-//if you use ClientRelaible to write to demo.recorder's message buffer (for code reuse) call this function to ensure its flushed.
+//if you use ClientReliable to write to demo.recorder's message buffer (for code reuse) call this function to ensure its flushed.
 void SV_MVD_WriteReliables(void)
 {
 	int i;

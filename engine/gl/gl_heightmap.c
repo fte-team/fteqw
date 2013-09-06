@@ -3403,6 +3403,7 @@ void Mod_Terrain_Create_f(void)
 		"{\n"
 			"classname \"worldspawn\"\n"
 			"message \"%s\"\n"
+			"_sky sky1\n"
 			"_segmentsize 1024\n"
 			"_minxsegment -2048\n"
 			"_minysegment -2048\n"

@@ -4226,6 +4226,8 @@ static void QCBUILTIN PF_pointcontents (pubprogfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SLIME;
 	else if (cont & FTECONTENTS_WATER)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_WATER;
+	else if (cont & FTECONTENTS_LADDER)
+		G_FLOAT(OFS_RETURN) = Q1CONTENTS_LADDER;
 	else
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_EMPTY;
 }
@@ -9701,7 +9703,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
 	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
 	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451,	"float(entity ent, string tagname)"},// (DP_MD3_TAGSINFO)
-	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452,	"vector(entity ent, float tagindex)"},// (DP_MD3_TAGSINFO)
+	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452,	D("vector(entity ent, float tagindex)", "Obtains the current worldspace position+orientation of the bone or tag from the given entity. The return value is the world coord, v_forward, v_right, v_up are also set according to the bone/tag's orientation.")},// (DP_MD3_TAGSINFO)
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453,	"void(entity player)"},//DP_SV_BOTCLIENT
 	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454,	"entity()"},//DP_SV_BOTCLIENT
 	{"clienttype",		PF_clienttype,		0,		0,		0,		455,	"float(entity client)"},//botclient
@@ -10259,7 +10261,7 @@ void PR_DumpPlatform_f(void)
 		{"ltime",				".float", QW|NQ},
 		{"entnum",				".float", CS,	"The entity number as its known on the server."},
 		{"drawmask",			".float", CS,	"Acts as a filter in the addentities call."},
-		{"predraw",				".__variant()", CS,	"Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Return true to inhibit addition of the entity (this is defined as variant for compat with legacy code, your code should use .float instead)."},
+		{"predraw",				".float()", CS,	"Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Return true to inhibit addition of the entity, and false for the entity to be added to the scene."},
 		{"lastruntime",			".float", QW},
 		{"movetype",			".float", QW|NQ|CS},
 		{"solid",				".float", QW|NQ|CS},
@@ -10446,7 +10448,7 @@ void PR_DumpPlatform_f(void)
 		{"SOLID_SLIDEBOX",			"const float", QW|NQ|CS, NULL, SOLID_SLIDEBOX},
 		{"SOLID_BSP",				"const float", QW|NQ|CS, NULL, SOLID_BSP},
 		{"SOLID_CORPSE",			"const float", QW|NQ|CS, NULL, SOLID_CORPSE},
-		{"SOLID_LADDER",			"const float", QW|NQ|CS, NULL, SOLID_LADDER},
+		{"SOLID_LADDER",			"const float", QW|NQ|CS, "Obsolete and may be removed at some point. Use skin=CONTENT_LADDER and solid_bsp or solid_trigger instead.", SOLID_LADDER},
 		{"SOLID_PHYSICS_BOX",		"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_BOX},
 		{"SOLID_PHYSICS_SPHERE",	"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_SPHERE},
 		{"SOLID_PHYSICS_CAPSULE",	"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_CAPSULE},
@@ -10468,6 +10470,7 @@ void PR_DumpPlatform_f(void)
 		{"CONTENT_SLIME",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_SLIME},
 		{"CONTENT_LAVA",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_LAVA},
 		{"CONTENT_SKY",		"const float", QW|NQ|CS, NULL, Q1CONTENTS_SKY},
+		{"CONTENT_LADDER",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_LADDER},
 
 		{"CHAN_AUTO",		"const float", QW|NQ|CS, NULL, CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},

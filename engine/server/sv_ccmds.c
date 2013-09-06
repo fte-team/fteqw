@@ -1671,8 +1671,16 @@ void SV_Heartbeat_f (void)
 	svs.last_heartbeat = -9999;
 }
 
+#define FOREACHCLIENT(i,cl)	\
+for (i = sv.mvdrecording?-1:0; i < sv.allocated_client_slots; i++)	\
+if (cl = (i==-1?&demo.recorder:&svs.clients[i]))	\
+if ((i == -1) || cl->state > cs_zombie)
+
 void SV_SendServerInfoChange(char *key, const char *value)
 {
+	int i;
+	client_t *cl;
+
 	if (!sv.state)
 		return;
 
@@ -1685,9 +1693,24 @@ void SV_SendServerInfoChange(char *key, const char *value)
 		return;	//FIXME!!!
 #endif
 
-	MSG_WriteByte (&sv.reliable_datagram, svc_serverinfo);
-	MSG_WriteString (&sv.reliable_datagram, key);
-	MSG_WriteString (&sv.reliable_datagram, value);
+	FOREACHCLIENT(i, cl)
+	{
+		if (ISQWCLIENT(cl))
+		{
+			ClientReliableWrite_Begin(cl, svc_serverinfo, strlen(key) + strlen(value)+3);
+			ClientReliableWrite_String(cl, key);
+			ClientReliableWrite_String(cl, value);
+		}
+		else if (ISNQCLIENT(cl) && (cl->fteprotocolextensions2 & PEXT2_PREDINFO))
+		{
+			ClientReliableWrite_Begin(cl, svc_stufftext, 1+6+strlen(key)+2+strlen(value)+3);
+			ClientReliableWrite_SZ(cl, "//svi ", 6);
+			ClientReliableWrite_SZ(cl, key, strlen(key));
+			ClientReliableWrite_SZ(cl, " \"", 2);
+			ClientReliableWrite_SZ(cl, value, strlen(value));
+			ClientReliableWrite_String(cl, "\"\n");
+		}
+	}
 }
 
 /*

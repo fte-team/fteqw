@@ -867,7 +867,8 @@ void CL_CheckForResend (void)
 		MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
 
 		/*FTE servers will detect this string and treat it as a qw challenge instead (if it allows qw clients), so protocol choice is deterministic*/
-		MSG_WriteString(&sb, "getchallenge");
+		if (contype & 1)
+			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
 		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &adr);
@@ -881,6 +882,7 @@ void CL_BeginServerConnect(int port)
 {
 	if (!port)
 		port = cl_defaultport.value;
+	cls.protocol = CP_UNKNOWN;
 	SCR_SetLoadingStage(LS_CONNECTION);
 	connect_time = 0;
 	connect_defaultport = port;
@@ -932,7 +934,7 @@ void CL_Join_f (void)
 	{
 		if (cls.state)
 		{	//Hmm. This server sucks.
-			if (cls.z_ext & Z_EXT_JOIN_OBSERVE)
+			if ((cls.z_ext & Z_EXT_JOIN_OBSERVE) || cls.protocol != CP_QUAKEWORLD)
 				Cmd_ForwardToServer();
 			else
 				Cbuf_AddText("\nspectator 0;reconnect\n", RESTRICT_LOCAL);
@@ -959,10 +961,10 @@ void CL_Observe_f (void)
 	if (Cmd_Argc() != 2)
 	{
 		if (cls.state)
-		{	//Hmm. This server sucks.
-			if (cls.z_ext & Z_EXT_JOIN_OBSERVE)
+		{
+			if ((cls.z_ext & Z_EXT_JOIN_OBSERVE) || cls.protocol != CP_QUAKEWORLD)
 				Cmd_ForwardToServer();
-			else
+			else	//Hmm. This server sucks.
 				Cbuf_AddText("\nspectator 1;reconnect\n", RESTRICT_LOCAL);
 			return;
 		}
@@ -1349,7 +1351,7 @@ void CL_Disconnect (void)
 	Alias_WipeStuffedAliases();
 
 	//now start up the csqc/menu module again.
-	CSQC_UnconnectedInit();
+//	CSQC_UnconnectedInit();
 }
 
 #undef serverrunning
@@ -3963,7 +3965,7 @@ double Host_Frame (double time)
 #endif
 		)
 	{
-		realtime += spare/1000;	//don't use it all!
+//		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
 			return (cl_yieldcpu.ival || vid.isminimized)? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
@@ -3972,7 +3974,7 @@ double Host_Frame (double time)
 		if (spare > cl_sparemsec.ival)
 			spare = cl_sparemsec.ival;
 
-		realtime -= spare/1000;	//don't use it all!
+//		realtime -= spare/1000;	//don't use it all!
 	}
 	else
 		spare = 0;

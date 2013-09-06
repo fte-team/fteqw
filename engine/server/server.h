@@ -288,7 +288,7 @@ typedef struct
 	// reply
 	double				senttime;		//time we sent this frame to the client, for ping calcs
 	int					sequence;		//the outgoing sequence - without mask, meaning we know if its current or stale
-	float				ping_time;		//how long it took for the client to ack it, may be negativ
+	float				ping_time;		//how long it took for the client to ack it, may be negative
 	float				move_msecs;		//
 	int					packetsizein;	//amount of data received for this frame
 	int					packetsizeout;	//amount of data that was sent in the frame
@@ -1144,8 +1144,8 @@ void ClientReliableWrite_Coord(client_t *cl, float f);
 void ClientReliableWrite_Long(client_t *cl, int c);
 void ClientReliableWrite_Short(client_t *cl, int c);
 void ClientReliableWrite_Entity(client_t *cl, int c);
-void ClientReliableWrite_String(client_t *cl, char *s);
-void ClientReliableWrite_SZ(client_t *cl, void *data, int len);
+void ClientReliableWrite_String(client_t *cl, const char *s);
+void ClientReliableWrite_SZ(client_t *cl, const void *data, int len);
 
 
 #ifdef  SVRANKING

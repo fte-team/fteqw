@@ -2026,6 +2026,8 @@ void SV_FlushBroadcasts (void)
 		}
 	}
 
+	SV_MVD_WriteReliables();
+
 	SZ_Clear (&sv.reliable_datagram);
 	SZ_Clear (&sv.datagram);
 #ifdef NQPROT

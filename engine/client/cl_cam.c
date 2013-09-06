@@ -315,6 +315,7 @@ static qboolean InitFlyby(playerview_t *pv, vec3_t selforigin, vec3_t playerorig
 	}
 
 	pv->cam_locked = true;
+	pv->viewentity = pv->cam_spec_track+1;
 	VectorCopy(vec, pv->cam_desired_position); 
 	return true;
 }
@@ -783,6 +784,7 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 	pv->cam_auto = CAM_TRACK;
 	Cam_Lock(pv, slot);
 	pv->cam_locked = true;
+	pv->viewentity = slot+1;
 }
 
 void Cam_Track_f(void)

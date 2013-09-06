@@ -5044,7 +5044,7 @@ static struct icestate_s *icelist;
 
 
 #if !defined(SERVERONLY) && defined(VOICECHAT)
-extern cvar_t cl_voip_send;
+extern cvar_t snd_voip_send;
 struct rtpheader_s
 {
 	unsigned char v2_p1_x1_cc4;
@@ -5502,7 +5502,7 @@ qboolean QDECL ICE_Set(struct icestate_s *con, char *prop, char *value)
 		}
 
 #if !defined(SERVERONLY) && defined(VOICECHAT)
-		cl_voip_send.ival = (cl_voip_send.ival & ~4) | (NET_RTP_Active()?4:0);
+		snd_voip_send.ival = (snd_voip_send.ival & ~4) | (NET_RTP_Active()?4:0);
 #endif
 	}
 	else if (!strcmp(prop, "controlled"))

@@ -2285,9 +2285,9 @@ static void Sbar_Voice(int y)
 {
 #ifdef VOICECHAT
 	int loudness;
-	if (!cl_voip_showmeter.ival)
+	if (!snd_voip_showmeter.ival)
 		return;
-	loudness = S_Voip_Loudness(cl_voip_showmeter.ival==2);
+	loudness = S_Voip_Loudness(snd_voip_showmeter.ival==2);
 	if (loudness >= 0)
 	{
 		int w;

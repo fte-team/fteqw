@@ -58,7 +58,7 @@ cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd 
 cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
-cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disregard player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
+cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
 
@@ -585,19 +585,6 @@ void SVNQ_New_f (void)
 		MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
-// send music
-	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
-	if (progstype == PROG_H2)
-	{
-		MSG_WriteByte (&host_client->netchan.message, sv.h2cdtrack);
-		MSG_WriteByte (&host_client->netchan.message, sv.h2cdtrack);
-	}
-	else
-	{
-		MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
-		MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
-	}
-
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
 	MSG_WriteEntity (&host_client->netchan.message, NUM_FOR_EDICT(svprogfuncs, host_client->edict));
@@ -605,13 +592,10 @@ void SVNQ_New_f (void)
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 1);
 
-	MSG_WriteByte (&host_client->netchan.message, svc_setpause);
-	MSG_WriteByte (&host_client->netchan.message, sv.paused);
-
 //	host_client->sendsignon = true;
 //	host_client->spawned = false;		// need prespawn, spawn, etc
 
-	host_client->prespawn_stage = PRESPAWN_MAPCHECK;
+	host_client->prespawn_stage = PRESPAWN_SERVERINFO;
 	host_client->prespawn_idx = 0;
 }
 
@@ -917,18 +901,25 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		{
 			if (client->prespawn_idx == 0)
 			{
-				ClientReliableWrite_Begin(client, svc_stufftext, 20 + strlen(svs.info));
-				ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", svs.info) );
+				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+				{	//nq does not normally get serverinfo sent to it.
+					ClientReliableWrite_Begin(client, svc_stufftext, 20 + strlen(svs.info));
+					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", svs.info) );
+				}
 			}
 			else if (client->prespawn_idx == 1)
 			{
-				ClientReliableWrite_Begin(client, svc_cdtrack, 2);
+				int track = 0;
+
 				if (progstype == PROG_H2)
-					ClientReliableWrite_Byte (client, sv.h2cdtrack);
+					track = sv.h2cdtrack;	//hexen2 has a special hack
 				else if (svprogfuncs)
-					ClientReliableWrite_Byte (client, ((edict_t*)sv.world.edicts)->v->sounds);
-				else
-					ClientReliableWrite_Byte (client, 0);
+					track = ((edict_t*)sv.world.edicts)->v->sounds;
+
+				ClientReliableWrite_Begin(client, svc_cdtrack, 2);
+				ClientReliableWrite_Byte (client, track);
+				if (ISNQCLIENT(client))
+					ClientReliableWrite_Byte (client, track);
 			}
 			else if (client->prespawn_idx == 2)
 			{
@@ -946,6 +937,11 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
 				ClientReliableWrite_String(client, "\n");
 			}
+			else if (client->prespawn_idx == 4)
+			{
+				ClientReliableWrite_Begin(client, svc_setpause, 2);
+				ClientReliableWrite_Byte (client, sv.paused);
+			}
 			else
 			{
 				client->prespawn_stage++;
@@ -958,144 +954,154 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 	if (client->prespawn_stage == PRESPAWN_SOUNDLIST)
 	{
-		int maxclientsupportedsounds = 256;
-#ifdef PEXT_SOUNDDBL
-		if (client->fteprotocolextensions & PEXT_SOUNDDBL)
-			maxclientsupportedsounds = MAX_SOUNDS;
-#endif
-		started = false;
-
-		//allows stalling for the soundlist command, for compat.
-		if (client->prespawn_idx & 0x80000000)
-			return;
-
-		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
+		if (!ISQWCLIENT(client))
+			client->prespawn_stage++;
+		else
 		{
-			if (!started)
+			int maxclientsupportedsounds = 256;
+	#ifdef PEXT_SOUNDDBL
+			if (client->fteprotocolextensions & PEXT_SOUNDDBL)
+				maxclientsupportedsounds = MAX_SOUNDS;
+	#endif
+			started = false;
+
+			//allows stalling for the soundlist command, for compat.
+			if (client->prespawn_idx & 0x80000000)
+				return;
+
+			while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
 			{
-				started = true;
-#ifdef PEXT_SOUNDDBL
-				if (client->prespawn_idx > 255)
+				if (!started)
 				{
-					MSG_WriteByte (&client->netchan.message, svcfte_soundlistshort);
-					MSG_WriteShort (&client->netchan.message, client->prespawn_idx);
+					started = true;
+	#ifdef PEXT_SOUNDDBL
+					if (client->prespawn_idx > 255)
+					{
+						MSG_WriteByte (&client->netchan.message, svcfte_soundlistshort);
+						MSG_WriteShort (&client->netchan.message, client->prespawn_idx);
+					}
+					else
+	#endif
+					{
+						MSG_WriteByte (&client->netchan.message, svc_soundlist);
+						MSG_WriteByte (&client->netchan.message, client->prespawn_idx);
+					}
+				}
+				client->prespawn_idx++;
+
+				if (client->prespawn_idx >= maxclientsupportedsounds || !*sv.strings.sound_precache[client->prespawn_idx])
+				{
+					//write final-end-of-list
+					MSG_WriteByte (&client->netchan.message, 0);
+					MSG_WriteByte (&client->netchan.message, 0);
+					started = 0;
+					client->prespawn_stage++;
+					client->prespawn_idx = 0;
+					break;
 				}
 				else
-#endif
-				{
-					MSG_WriteByte (&client->netchan.message, svc_soundlist);
-					MSG_WriteByte (&client->netchan.message, client->prespawn_idx);
-				}
+					MSG_WriteString (&client->netchan.message, sv.strings.sound_precache[client->prespawn_idx]);
 			}
-			client->prespawn_idx++;
-
-			if (client->prespawn_idx >= maxclientsupportedsounds || !*sv.strings.sound_precache[client->prespawn_idx])
+			if (started)
 			{
-				//write final-end-of-list
+				//write end-of-packet
 				MSG_WriteByte (&client->netchan.message, 0);
-				MSG_WriteByte (&client->netchan.message, 0);
-				started = 0;
-				client->prespawn_stage++;
-				client->prespawn_idx = 0;
-				break;
-			}
-			else
-				MSG_WriteString (&client->netchan.message, sv.strings.sound_precache[client->prespawn_idx]);
-		}
-		if (started)
-		{
-			//write end-of-packet
-			MSG_WriteByte (&client->netchan.message, 0);
-			MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
+				MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
 
-			if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-				client->prespawn_idx |= 0x80000000;
+				if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+					client->prespawn_idx |= 0x80000000;
+			}
 		}
 	}
 
 	if (client->prespawn_stage == PRESPAWN_MODELLIST)
 	{
-		started = false;
-
-		//allows stalling for the soundlist command, for compat.
-		if (client->prespawn_idx & 0x80000000)
-			return;
-
-		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
+		if (!ISQWCLIENT(client))
+			client->prespawn_stage++;
+		else
 		{
-			if (!started)
+			started = false;
+
+			//allows stalling for the soundlist command, for compat.
+			if (client->prespawn_idx & 0x80000000)
+				return;
+
+			while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
 			{
-				started = true;
-#ifdef PEXT_SOUNDDBL
-				if (client->prespawn_idx > 255)
+				if (!started)
 				{
-					MSG_WriteByte (&client->netchan.message, svcfte_modellistshort);
-					MSG_WriteShort (&client->netchan.message, client->prespawn_idx);
+					started = true;
+	#ifdef PEXT_SOUNDDBL
+					if (client->prespawn_idx > 255)
+					{
+						MSG_WriteByte (&client->netchan.message, svcfte_modellistshort);
+						MSG_WriteShort (&client->netchan.message, client->prespawn_idx);
+					}
+					else
+	#endif
+					{
+						MSG_WriteByte (&client->netchan.message, svc_modellist);
+						MSG_WriteByte (&client->netchan.message, client->prespawn_idx);
+					}
+				}
+				client->prespawn_idx++;
+
+				if (client->prespawn_idx >= client->maxmodels || !sv.strings.model_precache[client->prespawn_idx])
+				{
+					//write final-end-of-list
+					MSG_WriteByte (&client->netchan.message, 0);
+					MSG_WriteByte (&client->netchan.message, 0);
+					started = 0;
+
+					if (client->zquake_extensions & Z_EXT_VWEP)
+					{
+						char mname[MAX_QPATH];
+						char vweaplist[1024] = "//vwep";
+
+						for (i = 0; sv.strings.vw_model_precache[i]; i++)
+						{
+							//grab the model name... without a progs/ prefix if it has one
+							if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
+								Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
+							else
+								Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
+
+							//strip .mdl extensions, for compat with ezquake
+							if (!strcmp(COM_FileExtension(mname), "mdl"))
+								COM_StripExtension(mname, mname, sizeof(mname));
+
+							//add it to the vweap command, taking care of any remaining spaces in names.
+							if (strchr(mname, ' ') || !*mname)
+								Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
+							else
+								Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
+						}
+
+						if (strlen(vweaplist) <= sizeof(vweaplist)-2)
+						{
+							Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
+
+							ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(vweaplist));
+							ClientReliableWrite_String(client, vweaplist);
+						}
+					}
+
+					client->prespawn_stage++;
+					client->prespawn_idx = 0;
+					break;
 				}
 				else
-#endif
-				{
-					MSG_WriteByte (&client->netchan.message, svc_modellist);
-					MSG_WriteByte (&client->netchan.message, client->prespawn_idx);
-				}
+					MSG_WriteString (&client->netchan.message, sv.strings.model_precache[client->prespawn_idx]);
 			}
-			client->prespawn_idx++;
-
-			if (client->prespawn_idx >= client->maxmodels || !sv.strings.model_precache[client->prespawn_idx])
+			if (started)
 			{
-				//write final-end-of-list
+				//write end-of-packet
 				MSG_WriteByte (&client->netchan.message, 0);
-				MSG_WriteByte (&client->netchan.message, 0);
-				started = 0;
+				MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
 
-				if (client->zquake_extensions & Z_EXT_VWEP)
-				{
-					char mname[MAX_QPATH];
-					char vweaplist[1024] = "//vwep";
-
-					for (i = 0; sv.strings.vw_model_precache[i]; i++)
-					{
-						//grab the model name... without a progs/ prefix if it has one
-						if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
-							Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
-						else
-							Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
-
-						//strip .mdl extensions, for compat with ezquake
-						if (!strcmp(COM_FileExtension(mname), "mdl"))
-							COM_StripExtension(mname, mname, sizeof(mname));
-
-						//add it to the vweap command, taking care of any remaining spaces in names.
-						if (strchr(mname, ' ') || !*mname)
-							Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
-						else
-							Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
-					}
-
-					if (strlen(vweaplist) <= sizeof(vweaplist)-2)
-					{
-						Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
-
-						ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(vweaplist));
-						ClientReliableWrite_String(client, vweaplist);
-					}
-				}
-
-				client->prespawn_stage++;
-				client->prespawn_idx = 0;
-				break;
+				if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+					client->prespawn_idx |= 0x80000000;
 			}
-			else
-				MSG_WriteString (&client->netchan.message, sv.strings.model_precache[client->prespawn_idx]);
-		}
-		if (started)
-		{
-			//write end-of-packet
-			MSG_WriteByte (&client->netchan.message, 0);
-			MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
-
-			if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-				client->prespawn_idx |= 0x80000000;
 		}
 	}
 
@@ -4421,6 +4427,7 @@ void Cmd_FPSList_f(void)
 	double minf, maxf;
 	double ftime;
 	int frames;
+	char *protoname;
 
 
 	for (c = 0; c < sv.allocated_client_slots; c++)
@@ -4431,10 +4438,23 @@ void Cmd_FPSList_f(void)
 
 		SV_CalcNetRates(cl, &ftime, &frames, &minf, &maxf);
 
+		switch(cl->protocol)
+		{
+		case SCP_QUAKEWORLD: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"fteqw":(cl->fteprotocolextensions||cl->fteprotocolextensions2?"qw":"qwid"); break;
+		case SCP_QUAKE2: protoname = "q2"; break;
+		case SCP_QUAKE3: protoname = "q3"; break;
+		case SCP_NETQUAKE: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"nqid"; break;
+		case SCP_PROQUAKE: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"nq"; break;
+		case SCP_FITZ666: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"fitz"; break;
+		case SCP_DARKPLACES6: protoname = "dpp6"; break;
+		case SCP_DARKPLACES7: protoname = "dpp7"; break;
+		default: protoname = "?"; break;
+		}
+
 		if (frames)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (min%g max %g), c2s: %ibps, s2c: %ibps\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (%g - %g), c2s: %ibps, s2c: %ibps, ping %ims(-%i), pl %i%% %s\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate, SV_CalcPing(cl, false), (int)(1000*cl->delay), cl->lossage, protoname);
 		else
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: unknown framerate, c2s: %ibps, s2c: %ibps\n", cl->name, (int)cl->inrate, (int)cl->outrate);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: unknown framerate, c2s: %ibps, s2c: %ibps, ping %ims(-%i), pl %i%% %s\n", cl->name, (int)cl->inrate, (int)cl->outrate, SV_CalcPing(cl, false), (int)(1000*cl->delay), cl->lossage, protoname);
 	}
 }
 
@@ -5312,7 +5332,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			case Q1CONTENTS_SKY:
 				pe->forcecontentsmask = FTECONTENTS_SKY;
 				break;
-			case -16:
+			case Q1CONTENTS_LADDER:
 				pe->forcecontentsmask = FTECONTENTS_LADDER;
 				break;
 			default:
@@ -6208,17 +6228,13 @@ void SV_ExecuteClientMessage (client_t *cl)
 				cl->delay = 0;
 			else
 			{
-				if (frame->ping_time*1000 > sv_minping.value+1)
+				float diff = frame->ping_time*1000 - sv_minping.value;
+				if (fabs(diff) > 1)
 				{
-					cl->delay -= 0.001;
-					if (cl->delay < 0)
-						cl->delay = 0;
-				}
-				if (frame->ping_time*1000 < sv_minping.value)
-				{
-					cl->delay += 0.001;
-					if (cl->delay > 1)
-						cl->delay = 1;
+					//FIXME: we should use actual arrival times instead, so we don't get so much noise and seesawing.
+					diff = bound(-25, diff, 25);	//don't swing wildly
+					cl->delay -= 0.001*(diff/25);	//scale towards the ideal value
+					cl->delay = bound(0, cl->delay, 1);	//but make sure things don't go crazy
 				}
 			}
 		}
@@ -6794,7 +6810,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	host_client->edict->xv->button7 = ((bits >> 6) & 1);
 	host_client->edict->xv->button8 = ((bits >> 7) & 1);
 
-	if (host_client->last_sequence)
+	if (host_client->last_sequence && !sv_nqplayerphysics.ival)
 	{
 		host_frametime = timesincelast;
 

@@ -315,7 +315,7 @@ int packet_latency[NET_TIMINGS];
 int CL_CalcNet (void)
 {
 	int		i;
-	inframe_t	*frame;
+	outframe_t	*frame;
 	int lost = 0;
 	int percent;
 	int sent;
@@ -327,7 +327,7 @@ int CL_CalcNet (void)
 		; i <= cl.movesequence
 		; i++)
 	{
-		frame = &cl.inframes[i&UPDATE_MASK];
+		frame = &cl.outframes[i&UPDATE_MASK];
 		if (i > cl.lastackedmovesequence)
 		{
 			// no response yet
@@ -351,8 +351,8 @@ int CL_CalcNet (void)
 			packet_latency[i&NET_TIMINGSMASK] = 9997;	// c2spps
 			sent--;
 		}
-		else if (frame->invalid)
-			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
+//		else if (frame->invalid)
+//			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
 		else
 			packet_latency[i&NET_TIMINGSMASK] = frame->latency * 60;
 	}
@@ -365,40 +365,48 @@ int CL_CalcNet (void)
 	return percent;
 }
 
-void CL_AckedInputFrame(int seq, qboolean worldstateokay)
+void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 {
 	unsigned int i;
 	unsigned int newmod;
-	inframe_t *frame;
+	outframe_t *frame;
 
-	newmod = seq & UPDATE_MASK;
-	frame = &cl.inframes[newmod];
-// calculate latency
-	frame->latency = realtime - cl.outframes[newmod].senttime;
-	if (frame->latency < 0 || frame->latency > 1.0)
+	newmod = outseq & UPDATE_MASK;
+
+	//calc the latency for this frame, but only if its not a dupe ack. we want the youngest, not the oldest, so we can calculate network latency rather than simply packet frequency
+	if (outseq != cl.lastackedmovesequence)
 	{
-//		Con_Printf ("Odd latency: %5.2f\n", latency);
-	}
-	else
-	{
-	// drift the average latency towards the observed latency
-		if (frame->latency < cls.latency)
-			cls.latency = frame->latency;
+		frame = &cl.outframes[newmod];
+	// calculate latency
+		frame->latency = realtime - frame->senttime;
+		if (frame->latency < 0 || frame->latency > 1.0)
+		{
+	//		Con_Printf ("Odd latency: %5.2f\n", latency);
+		}
 		else
-			cls.latency += 0.001;	// drift up, so correction are needed
-	}
+		{
+		// drift the average latency towards the observed latency
+			if (frame->latency < cls.latency)
+				cls.latency = frame->latency;
+			else
+				cls.latency += 0.001;	// drift up, so correction are needed
+		}
 
-	//and mark any missing ones as dropped
-	if (seq != cl.lastackedmovesequence)
-	{
+		if (cl.inframes[inseq&UPDATE_MASK].invalid)
+			frame->latency = -4;
+
+		//and mark any missing ones as dropped
 		for (i = (cl.lastackedmovesequence+1) & UPDATE_MASK; i != newmod; i=(i+1)&UPDATE_MASK)
 		{
-			cl.inframes[i].latency = -1;
+//nq has no concept of choking. outbound packets that are accepted during a single frame will be erroneoulsy considered dropped. nq never had a netgraph based upon outgoing timings.
+//			Con_Printf("Dropped moveframe %i\n", i);
+			cl.outframes[i].latency = -1;
 		}
 	}
+	cl.inframes[inseq&UPDATE_MASK].ackframe = outseq;
 	if (worldstateokay)
-		cl.ackedmovesequence = seq;
-	cl.lastackedmovesequence = seq;
+		cl.ackedmovesequence = outseq;
+	cl.lastackedmovesequence = outseq;
 }
 
 //=============================================================================
@@ -4002,7 +4010,7 @@ void CL_ParseClientdata (void)
 	parsecounttime = cl.outframes[i].senttime;
 
 	if (cls.protocol == CP_QUAKEWORLD)
-		CL_AckedInputFrame(cl.parsecount, false);
+		CL_AckedInputFrame(cls.netchan.incoming_sequence, cl.parsecount, false);
 }
 
 /*
@@ -4439,9 +4447,9 @@ void CL_MuzzleFlash (int destsplit)
 	dl->radius = 200 + (rand()&31);
 	dl->minlight = 32;
 	dl->die = cl.time + 0.1334;
-	dl->color[0] = 0.2;
-	dl->color[1] = 0.1;
-	dl->color[2] = 0.05;
+	dl->color[0] = 1.0;
+	dl->color[1] = 0.4;
+	dl->color[2] = 0.2;
 
 	dl->channelfade[0] = 1.5;
 	dl->channelfade[1] = 0.75;
@@ -5762,7 +5770,7 @@ void CLQW_ParseServerMessage (void)
 		case svc_chokecount:		// some preceding packets were choked
 			i = MSG_ReadByte ();
 			for (j=0 ; j<i ; j++)
-				cl.inframes[(cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK].latency = -2;
+				cl.outframes[(cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK].latency = -2;
 			break;
 
 		case svc_modellist:
@@ -6296,6 +6304,13 @@ void CLNQ_ParseServerMessage (void)
 				{
 					cl_dp_serverextension_download = true;
 				}
+				else if (!strncmp(s, "//svi ", 6))
+				{
+					Cmd_TokenizeString(s+2, false, false);
+					Con_DPrintf("SERVERINFO: %s=%s\n", Cmd_Argv(1), Cmd_Argv(2));
+					Info_SetValueForStarKey (cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_SERVERINFO_STRING);
+					CL_CheckServerInfo();
+				}
 				else if (!strncmp(s, "\ncl_downloadbegin ", 17))
 					CLDP_ParseDownloadBegin(s);
 				else if (!strncmp(s, "\ncl_downloadfinished ", 17))
@@ -6447,6 +6462,7 @@ void CLNQ_ParseServerMessage (void)
 					cl.inframes[fr&UPDATE_MASK].packet_entities.fixangles[destsplit] = false;
 			}
 			cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
+			cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].frameid = cls.netchan.incoming_sequence;
 
 			if (CPNQ_IS_DP)
 			{

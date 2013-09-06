@@ -59,7 +59,7 @@ static struct predicted_player
 static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le);
 qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence);
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence);
-void CL_AckedInputFrame(int seq, qboolean worldstateokay);
+void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay);
 
 
 extern int cl_playerindex, cl_h_playerindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
@@ -334,7 +334,7 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboole
 //			bitcounts[i]++;
 
 #ifdef PROTOCOLEXTENSIONS
-	if (bits & U_EVENMORE && (cls.fteprotocolextensions & (PEXT_SCALE|PEXT_TRANS|PEXT_FATNESS|PEXT_HEXEN2|PEXT_COLOURMOD|PEXT_DPFLAGS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2)))
+	if ((bits & U_EVENMORE) && (cls.fteprotocolextensions & (PEXT_SCALE|PEXT_TRANS|PEXT_FATNESS|PEXT_HEXEN2|PEXT_COLOURMOD|PEXT_DPFLAGS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2)))
 		morebits = MSG_ReadByte ();
 	if (morebits & U_YETMORE)
 		morebits |= MSG_ReadByte()<<8;
@@ -708,6 +708,9 @@ void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant)
 	CLFTE_ReadDelta(entnum, es, &nullentitystate, &nullentitystate);
 }
 
+
+void CL_PredictEntityMovement(entity_state_t *estate, float age);
+
 /*
 Note: strictly speaking, you don't need multiple frames, just two and flip between them.
 FTE retains the full 64 frames because its interpolation will go multiple packets back in time to cover packet loss.
@@ -738,9 +741,7 @@ void CLFTE_ParseEntities(void)
 	else if (cls.protocol == CP_NETQUAKE)
 	{
 		int i;
-		if (cls.demoplayback)
-			cls.netchan.incoming_unreliable++;	//demo playback has no sequence info...
-		cls.netchan.incoming_sequence = cls.netchan.incoming_unreliable;
+		cls.netchan.incoming_sequence++;
 		cl.last_servermessage = realtime;
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 			inputframe = MSG_ReadLong();
@@ -753,8 +754,6 @@ void CLFTE_ParseEntities(void)
 			cl.ackframes[cl.numackframes++] = -1;
 		else
 			cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
-
-		cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime = realtime;
 
 		{
 			extern vec3_t demoangles;
@@ -778,6 +777,8 @@ void CLFTE_ParseEntities(void)
 	newp = &cl.inframes[newpacket].packet_entities;
 	oldp = &cl.inframes[oldpacket].packet_entities;
 	cl.inframes[newpacket].invalid = true;
+	cl.inframes[newpacket].receivedtime = realtime;
+	cl.inframes[newpacket].frameid = cls.netchan.incoming_sequence;
 
 
 	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1 || oldp == newp)
@@ -881,18 +882,12 @@ void CLFTE_ParseEntities(void)
 		}
 	}
 
-	for (oldindex = 0; oldindex < newp->num_entities; oldindex++)
+	if (cl.do_lerp_players)
 	{
-		e = newp->entities + oldindex;
-		if (e->number > cl.allocated_client_slots)
-			break;
-
-		/*update the prediction info if needed*/
-//		if (e->u.q1.pmovetype)
+		//predict in-place based upon calculated latencies and stuff, stuff can then be interpolated properly
+		for (oldindex = 0; oldindex < newp->num_entities; oldindex++)
 		{
-			inframe_t *fram;
-			fram = &cl.inframes[cls.netchan.incoming_sequence & UPDATE_MASK];
-			CL_PlayerFrameUpdated(&fram->playerstate[e->number-1], e, cls.netchan.incoming_sequence);
+			CL_PredictEntityMovement(newp->entities + oldindex, (cl.inframes[cl.parsecount&UPDATE_MASK].packet_entities.servertime - cl.currentpacktime) + (realtime - cl.gametimemark));
 		}
 	}
 
@@ -900,7 +895,7 @@ void CLFTE_ParseEntities(void)
 	{
 		cl.oldvalidsequence = cl.validsequence;
 		cl.validsequence = cls.netchan.incoming_sequence;
-		CL_AckedInputFrame(inputframe, true);
+		CL_AckedInputFrame(cls.netchan.incoming_sequence, inputframe, true);
 		cl.inframes[newpacket].invalid = false;
 	}
 	else
@@ -908,7 +903,7 @@ void CLFTE_ParseEntities(void)
 		newp->num_entities = 0;
 		cl.validsequence = 0;
 
-		CL_AckedInputFrame(inputframe, false);
+		CL_AckedInputFrame(cls.netchan.incoming_sequence, inputframe, false);
 	}
 }
 
@@ -932,6 +927,8 @@ void CLQW_ParsePacketEntities (qboolean delta)
 	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
 	newp = &cl.inframes[newpacket].packet_entities;
 	cl.inframes[newpacket].invalid = false;
+	cl.inframes[newpacket].frameid = cls.netchan.incoming_sequence;
+	cl.inframes[newpacket].receivedtime = realtime;
 
 	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
 	{
@@ -998,7 +995,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 	//FIXME
 	cl.oldvalidsequence = cl.validsequence;
 	cl.validsequence = cls.netchan.incoming_sequence;
-	CL_AckedInputFrame(cls.netchan.incoming_sequence, true);
+	CL_AckedInputFrame(cls.netchan.incoming_sequence, cls.netchan.incoming_sequence, true);
 
 	oldindex = 0;
 	newindex = 0;
@@ -1318,9 +1315,10 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 
 	//client->server sequence ack
 	if (cls.protocol_nq >= CPNQ_DP7)
-		CL_AckedInputFrame(MSG_ReadLong(), true); /*client input sequence which has been acked*/
+		CL_AckedInputFrame(cls.netchan.incoming_sequence, MSG_ReadLong(), true); /*client input sequence which has been acked*/
 
 	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
+	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].frameid = cls.netchan.incoming_sequence;
 	pack = &cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
 	pack->servertime = cl.gametime;
 	oldpack = *pack;
@@ -2316,6 +2314,14 @@ void CLQ1_AddVisibleBBoxes(void)
 					VectorAdd(state->origin, min, min);
 					VectorAdd(state->origin, max, max);
 					CLQ1_AddOrientedCube(s, min, max, NULL, 0.1, 0, 0, 1);
+
+					max[0] = max[1] = 8*(state->solid & 31);
+					min[0] = min[1] = -max[0];
+					min[2] = -8*((state->solid>>5) & 31);
+					max[2] = 8*((state->solid>>10) & 63) - 32;
+					VectorAdd(state->u.q1.predorg, min, min);
+					VectorAdd(state->u.q1.predorg, max, max);
+					CLQ1_AddOrientedCube(s, min, max, NULL, 0, 0, 0.1, 1);
 				}
 			}
 		}
@@ -2739,6 +2745,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	entity_state_t		*snew, *sold;
 	int					i;
 	int					oldpnum, newpnum;
+	float				*snew__origin;
+	float				*sold__origin;
 
 	vec3_t move;
 
@@ -2791,7 +2799,59 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		le->sequence = newsequence;
 		le->entstate = snew;
 
-		VectorSubtract(snew->origin, sold->origin, move);
+		if (snew->u.q1.pmovetype)
+		{
+			if (!cl.do_lerp_players)
+			{
+				entity_state_t *from;
+				float age;
+				packet_entities_t *latest;
+				if (sold == snew)
+				{
+					/*keep trails correct*/
+					le->isnew = true;
+					VectorCopy(le->origin, le->lastorigin);
+				}
+				CL_UpdateNetFrameLerpState(sold == snew, snew->frame, le);
+
+
+				from = sold;	//eww
+				age = servertime - oldpack->servertime;
+				latest = &cl.inframes[cl.validsequence & UPDATE_MASK].packet_entities;
+				for (i = 0; i < latest->num_entities; i++)
+				{
+					if (latest->entities[i].number == snew->number)
+					{
+						from = &latest->entities[i];
+						//use realtime instead.
+						//also, use the sent timings instead of received as those are assumed to be more reliable
+						age = (realtime - cl.outframes[cl.ackedmovesequence & UPDATE_MASK].senttime) - cls.latency;
+						break;
+					}
+				}
+				if (age > 1)
+					age = 1;
+
+				if (cl_predict_players.ival)
+				{
+					CL_PredictEntityMovement(from, age);
+					VectorCopy(from->u.q1.predorg, le->origin);
+				}
+				else
+					VectorCopy(from->origin, le->origin);
+				VectorCopy(from->angles, le->angles);
+				continue;
+			}
+
+			snew__origin = snew->u.q1.predorg;
+			sold__origin = sold->u.q1.predorg;
+		}
+		else
+		{
+			snew__origin = snew->origin;
+			sold__origin = sold->origin;
+		}
+		VectorSubtract(snew__origin, sold__origin, move);
 		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex)
 		{
 			sold = snew;	//teleported?
@@ -2799,24 +2859,15 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		}
 
 		VectorCopy(le->origin, le->lastorigin);
-		if (snew->u.q1.pmovetype && CL_PredictPlayer(le, snew, newsequence))
-		{
-			if (sold == snew)
-			{
-				/*keep trails correct*/
-				le->isnew = true;
-				VectorCopy(le->origin, le->lastorigin);
-			}
-		}
-		else if (sold == snew)
+		if (sold == snew)
 		{
 			//new this frame (or we noticed something changed significantly)
-			VectorCopy(snew->origin, le->origin);
+			VectorCopy(snew__origin, le->origin);
 			VectorCopy(snew->angles, le->angles);
 
-			VectorCopy(snew->origin, le->oldorigin);
+			VectorCopy(snew__origin, le->oldorigin);
 			VectorCopy(snew->angles, le->oldangle);
-			VectorCopy(snew->origin, le->neworigin);
+			VectorCopy(snew__origin, le->neworigin);
 			VectorCopy(snew->angles, le->newangle);
 
 			le->orglerpdeltatime = 0.1;
@@ -2831,7 +2882,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			{
 				float lfrac;
 				//ignore the old packet entirely, except for maybe its time.
-				if (!VectorEquals(le->neworigin, snew->origin) || !VectorEquals(le->newangle, snew->angles))
+				if (!VectorEquals(le->neworigin, snew__origin) || !VectorEquals(le->newangle, snew->angles))
 				{
 					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.11);	//clamp to 10 tics per second
 					le->orglerpstarttime = oldpack->servertime;
@@ -2839,7 +2890,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					VectorCopy(le->neworigin, le->oldorigin);
 					VectorCopy(le->newangle, le->oldangle);
  
-					VectorCopy(snew->origin, le->neworigin);
+					VectorCopy(snew__origin, le->neworigin);
 					VectorCopy(snew->angles, le->newangle);
 				}
 
@@ -2863,7 +2914,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				//lerp based purely on the packet times,
 				for (i = 0; i < 3; i++)
 				{
-					le->origin[i] = sold->origin[i] + frac*(move[i]);
+					le->origin[i] = sold__origin[i] + frac*(move[i]);
 
 					a1 = sold->angles[i];
 					a2 = snew->angles[i];
@@ -2895,7 +2946,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 	//we should be picking the packet just after the server time, and the one just before
 	for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 	{
-		if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || /*cl.inframes[i&UPDATE_MASK].latency < 0 ||*/ cl.inframes[i&UPDATE_MASK].invalid)
+		if (cl.inframes[i&UPDATE_MASK].frameid != i || cl.inframes[i&UPDATE_MASK].invalid)
 			continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 
 		if (cl.inframes[i&UPDATE_MASK].packet_entities.servertime >= servertime)
@@ -2930,7 +2981,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 		/*just grab the most recent frame that is valid*/
 		for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
 		{
-			if (cl.inframes[i&UPDATE_MASK].receivedtime < 0 || cl.inframes[i&UPDATE_MASK].latency < 0 || cl.inframes[i&UPDATE_MASK].invalid)
+			if (cl.inframes[i&UPDATE_MASK].frameid != i || cl.inframes[i&UPDATE_MASK].invalid)
 				continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 			*oldf = *newf = i;
 			return true;
@@ -3121,6 +3172,9 @@ void CL_LinkPacketEntities (void)
 		ent->h2playerclass = 0;
 		ent->light_known = 0;
 		ent->forcedshader = NULL;
+
+		if (state->number >= cl.maxlerpents)
+			continue;
 
 		le = &cl.lerpents[state->number];
 
@@ -4378,6 +4432,24 @@ void CL_LinkPlayers (void)
 
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
+
+		if ((r_showbboxes.ival & 3) == 3)
+		{
+			vec3_t min, max;
+			extern vec3_t player_mins, player_maxs;
+			shader_t *s = R_RegisterShader("bboxshader", SUF_NONE, NULL);
+			if (s)
+			{
+				VectorAdd(state->origin, player_mins, min);
+				VectorAdd(state->origin, player_maxs, max);
+				CLQ1_AddOrientedCube(s, min, max, NULL, 0.1, 0, 0, 1);
+
+				VectorAdd(ent->origin, player_mins, min);
+				VectorAdd(ent->origin, player_maxs, max);
+				CLQ1_AddOrientedCube(s, min, max, NULL, 0, 0, 0.1, 1);
+			}
+		}
+
 
 		if (r_torch.ival)
 		{

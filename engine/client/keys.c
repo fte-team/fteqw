@@ -346,10 +346,21 @@ void CompleteCommand (qboolean force)
 	}
 	if (cmd)
 	{
-		if (desc)
-			Con_Footerf(false, "%s: %s", cmd, desc);
+		cvar_t *var = Cvar_FindVar(cmd);
+		if (var)
+		{
+			if (desc)
+				Con_Footerf(false, "%s %s\n%s", cmd, var->string, desc);
+			else
+				Con_Footerf(false, "%s %s", cmd, var->string);
+		}
 		else
-			Con_Footerf(false, "");
+		{
+			if (desc)
+				Con_Footerf(false, "%s: %s", cmd, desc);
+			else
+				Con_Footerf(false, "");
+		}
 	}
 	else
 	{

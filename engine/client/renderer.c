@@ -45,7 +45,7 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
-cvar_t _vid_wait_override					= CVARAF  ("vid_wait", "1",
+cvar_t _vid_wait_override					= CVARAF  ("vid_wait", "0",
 													   "_vid_wait_override", CVAR_ARCHIVE);
 
 cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",

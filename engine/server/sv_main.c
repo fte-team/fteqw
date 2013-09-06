@@ -930,10 +930,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			SV_FullClientUpdate(client, &svs.clients[i]); 
 		}
 		if (sv.mvdrecording)
-		{
 			SV_FullClientUpdate(client, &demo.recorder);
-			SV_MVD_WriteReliables();
-		}
 		return;
 	}
 
@@ -3215,7 +3212,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		flags = MSG_ReadByte();
 		passwd = MSG_ReadLong();
 
-		if (!strncmp(MSG_ReadString(), "getchallenge", 12))
+		if (!strncmp(MSG_ReadString(), "getchallenge", 12) && (sv_listen_qw.ival || sv_listen_dp.ival))
 		{
 			/*dual-stack client, supporting either DP or QW protocols*/
 			SVC_GetChallenge ();

@@ -3489,7 +3489,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				MSG_WriteByte (msg, STAT_TIME);
 				MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 
-				client->nextservertimeupdate = sv.world.physicstime;//+10;
+				client->nextservertimeupdate = sv.world.physicstime;
 			}
 			else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
 			{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.

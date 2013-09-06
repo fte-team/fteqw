@@ -911,6 +911,8 @@ typedef struct entity_state_s
 
 			unsigned char gravitydir[2];	//pitch/yaw, no roll
 			unsigned short traileffectnum;
+
+			vec3_t predorg;
 		} q1;
 	} u;
 	unsigned short		modelindex2;	//q2/vweps
@@ -955,21 +957,22 @@ typedef struct
 	int				num_entities;
 	int				max_entities;
 	entity_state_t	*entities;
-	qboolean		fixangles[MAX_SPLITS];
+	qboolean		fixangles[MAX_SPLITS];	//these should not be in here
 	vec3_t			fixedangles[MAX_SPLITS];
 } packet_entities_t;
 
 typedef struct usercmd_s
 {
 	//the first members of this structure MUST match the q2 version
-	qbyte	msec;
+	qbyte	msec_compat;
 	qbyte	buttons_compat;
 	short	angles[3];
 	short	forwardmove, sidemove, upmove;
 	qbyte	impulse;
-	qbyte lightlevel;
+	qbyte	lightlevel;
 
 	//freestyle
+	int msec;
 	int buttons;
 	int weapon;
 	int servertime;
@@ -1434,7 +1437,7 @@ typedef struct q1usercmd_s
 //TENEBRAE_GFX_DLIGHTS
 #define PFLAGS_NOSHADOW		1
 #define PFLAGS_CORONA		2
-#define PFLAGS_FULLDYNAMIC	128
+#define PFLAGS_FULLDYNAMIC	128	//NOTE: this is a dp-ism. for tenebrae compat, this should be effects&16 and not pflags&128, as effects&16 already means something else
 
 #define RENDER_STEP 1
 #define RENDER_GLOWTRAIL 2

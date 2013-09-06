@@ -42,10 +42,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
 
 HRESULT (WINAPI *pDirectSoundCreate)(GUID FAR *lpGUID, LPDIRECTSOUND FAR *lplpDS, IUnknown FAR *pUnkOuter);
+HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext);
 #if defined(VOICECHAT)
 HRESULT (WINAPI *pDirectSoundCaptureCreate)(GUID FAR *lpGUID, LPDIRECTSOUNDCAPTURE FAR *lplpDS, IUnknown FAR *pUnkOuter);
+HRESULT (WINAPI *pDirectSoundCaptureEnumerate)(LPDSENUMCALLBACK lpDSEnumCallback, LPVOID lpContext);
 #endif
-HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext );
 
 // 64K is > 1 second at 16-bit, 22050 Hz
 #define	WAV_BUFFERS				64
@@ -511,25 +512,21 @@ static void DSOUND_Submit(soundcardinfo_t *sc, int start, int end)
 static qboolean DSOUND_InitOutputLibrary(void)
 {
 	if (!hInstDS)
-	{
 		hInstDS = LoadLibrary("dsound.dll");
-
-		if (hInstDS == NULL)
-		{
-			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return false;
-		}
-
-		pDirectSoundCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCreate");
-
-		if (!pDirectSoundCreate)
-		{
-			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return false;
-		}
-
-		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
+	if (!hInstDS)
+	{
+		Con_SafePrintf ("Couldn't load dsound.dll\n");
+		return false;
 	}
+	if (!pDirectSoundCreate)
+		pDirectSoundCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCreate");
+	if (!pDirectSoundCreate)
+	{
+		Con_SafePrintf ("Couldn't get DS proc addr\n");
+		return false;
+	}
+	if (!pDirectSoundEnumerate)
+		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
 	return true;
 }
 /*
@@ -1027,16 +1024,51 @@ typedef struct
 	LPDIRECTSOUNDCAPTUREBUFFER DSCaptureBuffer;
 	long lastreadpos;
 } dsndcapture_t;
-const long bufferbytes = 1024*1024;
+static const long bufferbytes = 1024*1024;
 
-const long inputwidth = 2;
+static const long inputwidth = 2;
 
-void *DSOUND_Capture_Init (int rate)
+static BOOL CALLBACK dsound_capture_enumerate_ds(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, LPVOID lpContext)
+{
+	char guidbuf[128];
+	wchar_t mssuck[128];
+	void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename) = lpContext;
+
+	if (lpGuid == NULL)	//we don't care about the (dupe) default device
+		return TRUE;
+
+	StringFromGUID2(lpGuid, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
+	wcstombs(guidbuf, mssuck, sizeof(guidbuf));
+	callback(SDRVNAME, guidbuf, lpcstrDescription);
+	return TRUE;
+}
+
+static qboolean QDECL DSOUND_Capture_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
+{
+	if (!pDirectSoundCaptureEnumerate)
+	{
+		/*make sure its loaded*/
+		if (!hInstDS)
+			hInstDS = LoadLibrary("dsound.dll");
+		if (hInstDS)
+			pDirectSoundCaptureEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureEnumerateA");
+
+		if (!pDirectSoundCaptureEnumerate)
+			return false;
+	}
+
+	if (!FAILED(pDirectSoundCaptureEnumerate(dsound_capture_enumerate_ds, callback)))
+		return true;
+	return false;
+}
+
+static void *QDECL DSOUND_Capture_Init (int rate, char *device)
 {
 	dsndcapture_t *result;
 	DSCBUFFERDESC bufdesc;
 
 	WAVEFORMATEX  wfxFormat;
+	GUID *dsguid, guid;
 
 	wfxFormat.wFormatTag = WAVE_FORMAT_PCM;
     wfxFormat.nChannels = 1;
@@ -1051,6 +1083,19 @@ void *DSOUND_Capture_Init (int rate)
 	bufdesc.dwFlags = 0;
 	bufdesc.dwReserved = 0;
 	bufdesc.lpwfxFormat = &wfxFormat;
+
+	if (device && *device)
+	{
+		wchar_t mssuck[128];
+		mbstowcs(mssuck, device, sizeof(mssuck)/sizeof(mssuck[0])-1);
+		CLSIDFromString(mssuck, &guid);
+		dsguid = &guid;
+	}
+	else
+	{
+		memset(&guid, 0, sizeof(GUID));
+		dsguid = NULL;
+	}
 
 	/*probably already inited*/
 	if (!hInstDS)
@@ -1073,12 +1118,10 @@ void *DSOUND_Capture_Init (int rate)
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
 			return NULL;
 		}
-
-//		pDirectSoundCaptureEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureEnumerateA");
 	}
 
 	result = Z_Malloc(sizeof(*result));
-	if (!FAILED(pDirectSoundCaptureCreate(NULL, &result->DSCapture, NULL)))
+	if (!FAILED(pDirectSoundCaptureCreate(dsguid, &result->DSCapture, NULL)))
 	{
 		if (!FAILED(IDirectSoundCapture_CreateCaptureBuffer(result->DSCapture, &bufdesc, &result->DSCaptureBuffer, NULL)))
 		{
@@ -1091,7 +1134,7 @@ void *DSOUND_Capture_Init (int rate)
 	return NULL;
 }
 
-void DSOUND_Capture_Start(void *ctx)
+static void QDECL DSOUND_Capture_Start(void *ctx)
 {
 	DWORD capturePos;
 	dsndcapture_t *c = ctx;
@@ -1101,13 +1144,13 @@ void DSOUND_Capture_Start(void *ctx)
 	IDirectSoundCaptureBuffer_GetCurrentPosition(c->DSCaptureBuffer, &capturePos, &c->lastreadpos);
 }
 
-void DSOUND_Capture_Stop(void *ctx)
+static void QDECL DSOUND_Capture_Stop(void *ctx)
 {
 	dsndcapture_t *c = ctx;
 	IDirectSoundCaptureBuffer_Stop(c->DSCaptureBuffer);
 }
 
-void DSOUND_Capture_Shutdown(void *ctx)
+static void QDECL DSOUND_Capture_Shutdown(void *ctx)
 {
 	dsndcapture_t *c = ctx;
 	if (c->DSCaptureBuffer)
@@ -1123,7 +1166,7 @@ void DSOUND_Capture_Shutdown(void *ctx)
 }
 
 /*minsamples is a hint*/
-unsigned int DSOUND_Capture_Update(void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+static unsigned int QDECL DSOUND_Capture_Update(void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
 {
 	dsndcapture_t *c = ctx;
 	HRESULT hr;
@@ -1176,6 +1219,9 @@ unsigned int DSOUND_Capture_Update(void *ctx, unsigned char *buffer, unsigned in
 }
 snd_capture_driver_t DSOUND_Capture =
 {
+	1,
+	SDRVNAME,
+	DSOUND_Capture_Enumerate,
 	DSOUND_Capture_Init,
 	DSOUND_Capture_Start,
 	DSOUND_Capture_Update,

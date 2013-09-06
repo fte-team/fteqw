@@ -151,7 +151,7 @@ void S_ResetFailedLoad(void);
 void S_Voip_Parse(void);
 #endif
 #ifdef VOICECHAT
-extern cvar_t cl_voip_showmeter;
+extern cvar_t snd_voip_showmeter;
 void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
 void S_Voip_MapChange(void);
 int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100
@@ -312,11 +312,14 @@ extern soundcardinfo_t *sndcardinfo;
 
 typedef struct
 {
-	void *(*Init) (int samplerate);			/*create a new context*/
-	void (*Start) (void *ctx);		/*begin grabbing new data, old data is potentially flushed*/
-	unsigned int (*Update) (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);	/*grab the data into a different buffer*/
-	void (*Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/
-	void (*Shutdown) (void *ctx);	/*destroy everything*/
+	int apiver;
+	char *drivername;
+	qboolean (QDECL *Enumerate) (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename));
+	void *(QDECL *Init) (int samplerate, char *device);			/*create a new context*/
+	void (QDECL *Start) (void *ctx);		/*begin grabbing new data, old data is potentially flushed*/
+	unsigned int (QDECL *Update) (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);	/*grab the data into a different buffer*/
+	void (QDECL *Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/
+	void (QDECL *Shutdown) (void *ctx);	/*destroy everything*/
 } snd_capture_driver_t;
 
 #endif

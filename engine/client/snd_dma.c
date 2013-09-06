@@ -112,24 +112,28 @@ cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 
 cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
 											"snd_mixerthread", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
-cvar_t snd_device		= CVARAF(	"s_device", "",
+cvar_t snd_device				= CVARAF(	"s_device", "",
 											"snd_device", CVAR_ARCHIVE);
+cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs.");
 
 #ifdef VOICECHAT
 static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
-cvar_t cl_voip_send = CVARD("cl_voip_send", "0", "Sends voice-over-ip data to the server whenever it is set");
-cvar_t cl_voip_test = CVARD("cl_voip_test", "0", "If 1, enables you to hear your own voice directly, bypassing the server and thus without networking latency, but is fine for checking audio levels. Note that sv_voip_echo can be set if you want to include latency and packetloss considerations, but setting that cvar requires server admin access and is thus much harder to use.");
-cvar_t cl_voip_vad_threshhold = CVARD("cl_voip_vad_threshhold", "15", "This is the threshhold for voice-activation-detection when sending voip data");
-cvar_t cl_voip_vad_delay = CVARD("cl_voip_vad_delay", "0.3", "Keeps sending voice data for this many seconds after voice activation would normally stop");
-cvar_t cl_voip_capturingvol = CVARAFD("cl_voip_capturingvol", "0.5", NULL, CVAR_ARCHIVE, "Volume multiplier applied while capturing, to avoid your audio from being heard by others. Does not affect game volume when other speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
-cvar_t cl_voip_showmeter = CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIVE, "Shows your speech volume above the standard hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
+cvar_t snd_voip_capturedevice	= CVARF("cl_voip_capturedevice", "", CVAR_ARCHIVE);
+cvar_t snd_voip_capturedevice_opts	= CVARFD("_cl_voip_capturedevice_opts", "", CVAR_NOSET, "The possible audio capture devices, in \"value\" \"description\" pairs.");
+int voipbutton;	//+voip, no longer part of cl_voip_send to avoid it getting saved
+cvar_t snd_voip_send			= CVARFD("cl_voip_send", "0", CVAR_ARCHIVE, "Sends voice-over-ip data to the server whenever it is set.\n0: only send voice if +voip is pressed.\n1: voice activation.\n2: constantly send.\n+4: Do not send to game, only to rtp sessions.");
+cvar_t snd_voip_test			= CVARD("cl_voip_test", "0", "If 1, enables you to hear your own voice directly, bypassing the server and thus without networking latency, but is fine for checking audio levels. Note that sv_voip_echo can be set if you want to include latency and packetloss considerations, but setting that cvar requires server admin access and is thus much harder to use.");
+cvar_t snd_voip_vad_threshhold	= CVARD("cl_voip_vad_threshhold", "15", "This is the threshhold for voice-activation-detection when sending voip data");
+cvar_t snd_voip_vad_delay		= CVARD("cl_voip_vad_delay", "0.3", "Keeps sending voice data for this many seconds after voice activation would normally stop");
+cvar_t snd_voip_capturingvol	= CVARAFD("cl_voip_capturingvol", "0.5", NULL, CVAR_ARCHIVE, "Volume multiplier applied while capturing, to avoid your audio from being heard by others. Does not affect game volume when other speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
+cvar_t snd_voip_showmeter		= CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIVE, "Shows your speech volume above the standard hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
 
-cvar_t cl_voip_play = CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables voip playback. Value is a volume scaler.", S_Voip_Play_Callback);
-cvar_t cl_voip_ducking = CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
-cvar_t cl_voip_micamp = CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
-cvar_t cl_voip_codec = CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex. 1: raw. 2: opus.", 0);
-cvar_t cl_voip_noisefilter = CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
-cvar_t cl_voip_autogain = CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
+cvar_t snd_voip_play			= CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables voip playback. Value is a volume scaler.", S_Voip_Play_Callback);
+cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
+cvar_t snd_voip_micamp			= CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
+cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex. 1: raw. 2: opus.", 0);
+cvar_t snd_voip_noisefilter		= CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
+cvar_t snd_voip_autogain		= CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
 #endif
 
 extern vfsfile_t *rawwritefile;
@@ -408,6 +412,13 @@ static dllfunction_t qspeexdspfuncs[] =
 snd_capture_driver_t DSOUND_Capture;
 snd_capture_driver_t OSS_Capture;
 
+snd_capture_driver_t *capturedrivers[] =
+{
+	&DSOUND_Capture,
+	&OSS_Capture,
+	NULL
+};
+
 static qboolean S_SpeexDSP_Init(void)
 {
 #ifndef SPEEX_STATIC
@@ -615,7 +626,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 	{
 		if (decodesamps + s_voip.decframesize[sender] > sizeof(decodebuf)/sizeof(decodebuf[0]))
 		{
-			S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+			S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, snd_voip_play.value);
 			decodesamps = 0;
 		}
 		switch(codec)
@@ -640,7 +651,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 	{
 		if (decodesamps + s_voip.decframesize[sender] >= sizeof(decodebuf)/sizeof(decodebuf[0]))
 		{
-			S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+			S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, snd_voip_play.value);
 			decodesamps = 0;
 		}
 		switch(codec)
@@ -671,7 +682,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				seq++;
 				if (decodesamps + s_voip.decframesize[sender] >= sizeof(decodebuf)/sizeof(decodebuf[0]))
 				{
-					S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+					S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, snd_voip_play.value);
 					decodesamps = 0;
 				}
 			}
@@ -688,7 +699,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			len = bytes;
 			if (decodesamps > 0)
 			{
-				S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+				S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, snd_voip_play.value);
 				decodesamps = 0;
 			}
 			r = qopus_decode(s_voip.decoder[sender], start, len, decodebuf + decodesamps, sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps, false);
@@ -712,7 +723,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		Con_DPrintf("%i dropped audio frames\n", drops);
 
 	if (decodesamps > 0)
-		S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, cl_voip_play.value);
+		S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, snd_voip_play.value);
 }
 
 #ifdef SUPPORT_ICE
@@ -763,7 +774,7 @@ void S_Voip_Parse(void)
 	gen &= 0x0f;
 	seq = MSG_ReadByte();
 	bytes = MSG_ReadShort();
-	if (bytes > sizeof(data) || cl_voip_play.value <= 0)
+	if (bytes > sizeof(data) || snd_voip_play.value <= 0)
 	{
 		MSG_ReadSkip(bytes);
 		return;
@@ -773,7 +784,7 @@ void S_Voip_Parse(void)
 	sender %= MAX_CLIENTS;
 
 	//if testing, don't get confused if the server is echoing voice too!
-	if (cl_voip_test.ival)
+	if (snd_voip_test.ival)
 		if (sender == cl.playerview[0].playernum)
 			return;
 
@@ -800,6 +811,53 @@ static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
 	}
 	return level;
 }
+static void S_Voip_TryInitCaptureContext(char *driver, char *device, int rate)
+{
+	int i;
+	/*Add new drivers in order of priority*/
+	for (i = 0; capturedrivers[i]; i++)
+	{
+		if (capturedrivers[i]->Init)
+		{
+			s_voip.cdriver = capturedrivers[i];
+			break;
+		}
+	}
+
+	/*no way to capture audio, give up early*/
+	if (!s_voip.cdriver || !s_voip.cdriver->Init)
+		Con_Printf("No microphone interfaces supported\n");
+	else
+	{
+		s_voip.cdriverctx = s_voip.cdriver->Init(s_voip.encsamplerate, NULL);
+		if (!s_voip.cdriverctx)
+			Con_Printf("No microphone detected\n");
+	}
+}
+
+static void S_Voip_InitCaptureContext(int rate)
+{
+	char *s;
+
+	s_voip.cdriver = NULL;
+	s_voip.cdriverctx = NULL;
+
+	for (s = snd_voip_capturedevice.string; ; )
+	{
+		char *sep;
+		s = COM_Parse(s);
+		if (!*com_token)
+			break;
+
+		sep = strchr(com_token, ':');
+		if (sep)
+			*sep++ = 0;
+		S_Voip_TryInitCaptureContext(com_token, sep, rate);
+	}
+	if (!sndcardinfo)
+		S_Voip_TryInitCaptureContext(NULL, NULL, rate);
+}
+
 void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 {
 	unsigned char outbuf[8192];
@@ -811,21 +869,21 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	unsigned int samps;
 	float level;
 	int len;
-	float micamp = cl_voip_micamp.value;
+	float micamp = snd_voip_micamp.value;
 	qboolean voipsendenable = true;
-	int voipcodec = cl_voip_codec.ival;
+	int voipcodec = snd_voip_codec.ival;
 	qboolean rtpstream = NET_RTP_Active();
 
 	if (buf)
 	{
 		/*if you're sending sound, you should be prepared to accept others yelling at you to shut up*/
-		if (cl_voip_play.value <= 0)
+		if (snd_voip_play.value <= 0)
 			voipsendenable = false;
 		if (!(cls.fteprotocolextensions2 & PEXT2_VOICECHAT))
 			voipsendenable = false;
 	}
 	else
-		voipsendenable = cl_voip_test.ival;
+		voipsendenable = snd_voip_test.ival;
 	if (rtpstream)
 	{
 		voipsendenable = true;
@@ -835,7 +893,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	}
 
 
-	voicevolumemod = s_voip.lastspoke_any > realtime?cl_voip_ducking.value:1;
+	voicevolumemod = s_voip.lastspoke_any > realtime?snd_voip_ducking.value:1;
 
 	if (!voipsendenable || (voipcodec != s_voip.enccodec && s_voip.cdriver))
 	{
@@ -871,23 +929,13 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			return;
 	}
 
-	voipsendenable = cl_voip_send.ival>0;
+	voipsendenable = voipbutton || (snd_voip_send.ival>0);
 
 	if (!s_voip.cdriver)
 	{
 		s_voip.voiplevel = -1;
 		/*only init the first time capturing is requested*/
 		if (!voipsendenable)
-			return;
-
-		/*Add new drivers in order of priority*/
-		if (!s_voip.cdriver || !s_voip.cdriver->Init)
-			s_voip.cdriver = &DSOUND_Capture;
-		if (!s_voip.cdriver || !s_voip.cdriver->Init)
-			s_voip.cdriver = &OSS_Capture;
-
-		/*no way to capture audio, give up*/
-		if (!s_voip.cdriver || !s_voip.cdriver->Init)
 			return;
 
 		/*see if we can init our encoding codec...*/
@@ -970,10 +1018,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 		s_voip.enccodec = voipcodec;
 
-		s_voip.cdriverctx = s_voip.cdriver->Init(s_voip.encsamplerate);
-
-		if (!s_voip.cdriverctx)
-			Con_Printf("No microphone detected\n");
+		S_Voip_InitCaptureContext(s_voip.encsamplerate);	//sets cdriver+cdriverctx
 	}
 
 	/*couldn't init a driver?*/
@@ -1022,7 +1067,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	}
 
 	if (s_voip.wantsend)
-		voicevolumemod = min(voicevolumemod, cl_voip_capturingvol.value);
+		voicevolumemod = min(voicevolumemod, snd_voip_capturingvol.value);
 
 	s_voip.capturepos += s_voip.cdriver->Update(s_voip.cdriverctx, (unsigned char*)s_voip.capturebuf + s_voip.capturepos, s_voip.encframesize*2, sizeof(s_voip.capturebuf) - s_voip.capturepos);
 
@@ -1042,9 +1087,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	{
 		start = (short*)(s_voip.capturebuf + encpos);
 
-		if (cl_voip_noisefilter.ival || cl_voip_autogain.ival)
+		if (snd_voip_noisefilter.ival || snd_voip_autogain.ival)
 		{
-			if (!s_voip.speexdsp.preproc || cl_voip_noisefilter.modified || cl_voip_noisefilter.modified || s_voip.speexdsp.curframesize != s_voip.encframesize || s_voip.speexdsp.cursamplerate != s_voip.encsamplerate)
+			if (!s_voip.speexdsp.preproc || snd_voip_noisefilter.modified || snd_voip_noisefilter.modified || s_voip.speexdsp.curframesize != s_voip.encframesize || s_voip.speexdsp.cursamplerate != s_voip.encsamplerate)
 			{
 				if (s_voip.speexdsp.preproc)
 					qspeex_preprocess_state_destroy(s_voip.speexdsp.preproc);
@@ -1053,9 +1098,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				{
 					int i;
 					s_voip.speexdsp.preproc = qspeex_preprocess_state_init(s_voip.encframesize, s_voip.encsamplerate);
-					i = cl_voip_noisefilter.ival;
+					i = snd_voip_noisefilter.ival;
 					qspeex_preprocess_ctl(s_voip.speexdsp.preproc, SPEEX_PREPROCESS_SET_DENOISE, &i);
-					i = cl_voip_autogain.ival;
+					i = snd_voip_autogain.ival;
 					qspeex_preprocess_ctl(s_voip.speexdsp.preproc, SPEEX_PREPROCESS_SET_AGC, &i);
 
 					s_voip.speexdsp.curframesize = s_voip.encframesize;
@@ -1172,7 +1217,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		s_voip.enctimestamp += samps;
 		nl = (3000*level) / (32767.0f*32767*samps);
 		s_voip.voiplevel = (s_voip.voiplevel*7 + nl)/8;
-		if (s_voip.voiplevel < cl_voip_vad_threshhold.ival && !(cl_voip_send.ival & 6))
+		if (s_voip.voiplevel < snd_voip_vad_threshhold.ival && !voipbutton && !(snd_voip_send.ival & 6))
 		{
 			/*try and dump it, it was too quiet, and they're not pressing +voip*/
 			if (s_voip.keeps > samps)
@@ -1188,7 +1233,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			}
 		}
 		else
-			s_voip.keeps = s_voip.encsamplerate * cl_voip_vad_delay.value;
+			s_voip.keeps = s_voip.encsamplerate * snd_voip_vad_delay.value;
 		if (outpos)
 		{
 			if (s_voip.dumps > s_voip.encsamplerate/4)
@@ -1199,7 +1244,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 	if (outpos && (!buf || buf->maxsize - buf->cursize >= outpos+4))
 	{
-		if (buf && (cl_voip_send.ival != 4))
+		if (buf && (snd_voip_send.ival != 4))
 		{
 			MSG_WriteByte(buf, clc);
 			MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
@@ -1223,7 +1268,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 #endif
 
-		if (cl_voip_test.ival)
+		if (snd_voip_test.ival)
 			S_Voip_Decode(cl.playerview[0].playernum, s_voip.enccodec, s_voip.generation & 0x0f, initseq, outpos, outbuf);
 
 		//update our own lastspoke, so queries shows that we're speaking when we're speaking in a generic way, even if we can't hear ourselves.
@@ -1244,11 +1289,11 @@ void S_Voip_Ignore(unsigned int slot, qboolean ignore)
 }
 static void S_Voip_Enable_f(void)
 {
-	Cvar_SetValue(&cl_voip_send, cl_voip_send.ival | 2);
+	voipbutton = true;
 }
 static void S_Voip_Disable_f(void)
 {
-	Cvar_SetValue(&cl_voip_send, cl_voip_send.ival & ~2);
+	voipbutton = false;
 }
 static void S_Voip_f(void)
 {
@@ -1272,7 +1317,7 @@ static void S_Voip_Play_Callback(cvar_t *var, char *oldval)
 }
 void S_Voip_MapChange(void)
 {
-	Cvar_ForceCallback(&cl_voip_play);
+	Cvar_ForceCallback(&snd_voip_play);
 }
 int S_Voip_Loudness(qboolean ignorevad)
 {
@@ -1289,6 +1334,24 @@ qboolean S_Voip_Speaking(unsigned int plno)
 	return s_voip.lastspoke[plno] > realtime;
 }
 
+void QDECL S_Voip_EnumeratedCaptureDevice(const char *driver, const char *devicecode, const char *readabledevice)
+{
+	const char *fullintname;
+	char opts[8192];
+	char nbuf[1024];
+	char dbuf[1024];
+	
+	if (devicecode && (	strchr(devicecode, ' ') ||
+						strchr(devicecode, '\"')))
+		fullintname = va("\"%s:%s\"", driver, devicecode);	//it'll all get escaped anyway. but yeah, needs to be a single token or our multi-device stuff won't work properly. yes, this is a bit of a hack.
+	else if (devicecode)
+		fullintname = va("%s:%s", driver, devicecode);
+	else
+		fullintname = driver;
+
+	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_voip_capturedevice_opts.string, *snd_voip_capturedevice_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf)), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf)));
+	Cvar_ForceSet(&snd_voip_capturedevice_opts, opts);
+}
 void S_Voip_Init(void)
 {
 	int i;
@@ -1296,21 +1359,34 @@ void S_Voip_Init(void)
 		s_voip.deccodec[i] = VOIP_INVALID;
 	s_voip.enccodec = VOIP_INVALID;
 
-	Cvar_Register(&cl_voip_send,		"Voice Chat");
-	Cvar_Register(&cl_voip_vad_threshhold,	"Voice Chat");
-	Cvar_Register(&cl_voip_vad_delay,	"Voice Chat");
-	Cvar_Register(&cl_voip_capturingvol,	"Voice Chat");
-	Cvar_Register(&cl_voip_showmeter,	"Voice Chat");
-	Cvar_Register(&cl_voip_play,		"Voice Chat");
-	Cvar_Register(&cl_voip_test,		"Voice Chat");
-	Cvar_Register(&cl_voip_ducking,		"Voice Chat");
-	Cvar_Register(&cl_voip_micamp,		"Voice Chat");
-	Cvar_Register(&cl_voip_codec,		"Voice Chat");
-	Cvar_Register(&cl_voip_noisefilter,		"Voice Chat");
-	Cvar_Register(&cl_voip_autogain,		"Voice Chat");
+	Cvar_Register(&snd_voip_capturedevice,		"Voice Chat");
+	Cvar_Register(&snd_voip_capturedevice_opts,		"Voice Chat");
+	Cvar_Register(&snd_voip_send,		"Voice Chat");
+	Cvar_Register(&snd_voip_vad_threshhold,	"Voice Chat");
+	Cvar_Register(&snd_voip_vad_delay,	"Voice Chat");
+	Cvar_Register(&snd_voip_capturingvol,	"Voice Chat");
+	Cvar_Register(&snd_voip_showmeter,	"Voice Chat");
+	Cvar_Register(&snd_voip_play,		"Voice Chat");
+	Cvar_Register(&snd_voip_test,		"Voice Chat");
+	Cvar_Register(&snd_voip_ducking,		"Voice Chat");
+	Cvar_Register(&snd_voip_micamp,		"Voice Chat");
+	Cvar_Register(&snd_voip_codec,		"Voice Chat");
+	Cvar_Register(&snd_voip_noisefilter,		"Voice Chat");
+	Cvar_Register(&snd_voip_autogain,		"Voice Chat");
 	Cmd_AddCommand("+voip", S_Voip_Enable_f);
 	Cmd_AddCommand("-voip", S_Voip_Disable_f);
 	Cmd_AddCommand("voip", S_Voip_f);
+
+
+	Cvar_ForceSet(&snd_voip_capturedevice_opts, "");
+	S_Voip_EnumeratedCaptureDevice("", NULL, "Default");
+	for (i = 0; capturedrivers[i]; i++)
+	{
+		if (!capturedrivers[i]->Init)
+			continue;
+		if (!capturedrivers[i]->Enumerate || !capturedrivers[i]->Enumerate(S_Voip_EnumeratedCaptureDevice))
+			S_Voip_EnumeratedCaptureDevice(capturedrivers[i]->drivername, NULL, va("Default %s", capturedrivers[i]->drivername));
+	}
 }
 #else
 void S_Voip_Parse(void)
@@ -1493,7 +1569,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
 					if (snd_speed != sc->sn.speed)
 					{
-						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
+						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\n", sc->name);
 						S_ShutdownCard(sc);
 						continue;
 					}
@@ -1545,33 +1621,29 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
 	return NULL;
 }
 
-int numsoundoutdevices;
-char **soundoutdevicecodes;
-char **soundoutdevicenames;
 void QDECL S_EnumeratedOutDevice(const char *driver, const char *devicecode, const char *readabledevice)
 {
 	const char *fullintname;
+	char opts[8192];
+	char nbuf[1024];
+	char dbuf[1024];
 	
-	if (devicecode && strchr(devicecode, ' '))
-		fullintname = va("\"%s:%s\"", driver, devicecode);
+	if (devicecode && (	strchr(devicecode, ' ') ||
+						strchr(devicecode, '\"')))
+		fullintname = va("\"%s:%s\"", driver, devicecode);	//it'll all get escaped anyway. but yeah, needs to be a single token or our multi-device stuff won't work properly. yes, this is a bit of a hack.
 	else if (devicecode)
 		fullintname = va("%s:%s", driver, devicecode);
 	else
 		fullintname = driver;
 
-	soundoutdevicecodes = realloc(soundoutdevicecodes, (numsoundoutdevices+2) * sizeof(char*));
-	soundoutdevicecodes[numsoundoutdevices] = strdup(fullintname);
-	soundoutdevicecodes[numsoundoutdevices+1] = NULL;
-	soundoutdevicenames = realloc(soundoutdevicenames, (numsoundoutdevices+2) * sizeof(char*));
-	soundoutdevicenames[numsoundoutdevices] = strdup(readabledevice);
-	soundoutdevicenames[numsoundoutdevices+1] = NULL;
-	numsoundoutdevices++;
+	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_device_opts.string, *snd_device_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf)), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf)));
+	Cvar_ForceSet(&snd_device_opts, opts);
 }
 void S_EnumerateDevices(void)
 {
 	int i;
 	sounddriver_t *sd;
-	numsoundoutdevices = 0;
+	Cvar_ForceSet(&snd_device_opts, "");
 	S_EnumeratedOutDevice("", NULL, "Default");
 
 	for (i = 0; outputdrivers[i]; i++)
@@ -1772,8 +1844,6 @@ void S_Init (void)
 {
 	int p;
 
-	S_EnumerateDevices();
-
 	Con_DPrintf("\nSound Initialization\n");
 
 	Cmd_AddCommand("play", S_Play);
@@ -1805,10 +1875,6 @@ void S_Init (void)
 	Cvar_Register(&snd_samplebits,		"Sound controls");
 	Cvar_Register(&snd_playbackrate,	"Sound controls");
 
-#ifdef VOICECHAT
-	S_Voip_Init();
-#endif
-
 	Cvar_Register(&snd_inactive,		"Sound controls");
 
 #ifdef MULTITHREAD
@@ -1816,9 +1882,15 @@ void S_Init (void)
 #endif
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
 	Cvar_Register(&snd_device,		"Sound controls");
+	Cvar_Register(&snd_device_opts,		"Sound controls");
 
 	Cvar_Register(&snd_linearresample, "Sound controls");
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
+
+#ifdef VOICECHAT
+	S_Voip_Init();
+#endif
+	S_EnumerateDevices();
 
 #ifdef MULTITHREAD
 	mixermutex = Sys_CreateMutex();
@@ -1895,20 +1967,6 @@ void S_Shutdown(qboolean final)
 	Z_Free(known_sfx);
 	known_sfx = NULL;
 	num_sfx = 0;
-
-	if (final)
-	{
-		while (numsoundoutdevices)
-		{
-			numsoundoutdevices--;
-			free(soundoutdevicenames[numsoundoutdevices]);
-			free(soundoutdevicecodes[numsoundoutdevices]);
-		}
-		free(soundoutdevicenames);
-		soundoutdevicenames = NULL;
-		free(soundoutdevicecodes);
-		soundoutdevicecodes = NULL;
-	}
 }
 
 

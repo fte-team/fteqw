@@ -944,7 +944,13 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteByte (buf, clc_move);
 
 	if (cls.protocol_nq >= CPNQ_DP7 || (cls.fteprotocolextensions2 & PEXT2_PREDINFO))
-		MSG_WriteLong(buf, cl.movesequence);
+	{
+		extern cvar_t cl_nopred;
+		if (cl_nopred.ival)
+			MSG_WriteLong(buf, 0);
+		else
+			MSG_WriteLong(buf, cl.movesequence);
+	}
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 
@@ -1004,28 +1010,38 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 void CLNQ_SendCmd(sizebuf_t *buf)
 {
 	int i;
+	int seat;
 	usercmd_t *cmd;
 
 	i = cl.movesequence & UPDATE_MASK;
 	cl.outframes[i].senttime = realtime;
-	cmd = &cl.outframes[i].cmd[0];
-	*cmd = independantphysics[0];
-	cmd->lightlevel = 0;
-#ifdef CSQC_DAT
-	CSQC_Input_Frame(0, cmd);
-#endif
-	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+	cl.outframes[i].latency = -1;
+	cl.outframes[i].server_message_num = cl.validsequence;
+	cl.outframes[i].cmd_sequence = cl.movesequence;
 
+	for (seat = 0; seat < cl.splitclients; seat++)
+	{
+		cmd = &cl.outframes[i].cmd[seat];
+		*cmd = independantphysics[seat];
+		cmd->lightlevel = 0;
+#ifdef CSQC_DAT
+		CSQC_Input_Frame(seat, cmd);
+#endif
+		memset(&independantphysics[seat], 0, sizeof(independantphysics[seat]));
+	}
 
 
 	//inputs are only sent once we receive an entity.
 	if (cls.signon == 4)
 	{
-	// send the unreliable message
-		if (independantphysics[0].impulse && !cls.netchan.message.cursize)
-			CLNQ_SendMove (cmd, 0, &cls.netchan.message);
-		else
-			CLNQ_SendMove (cmd, 0, buf);
+		for (seat = 0; seat < cl.splitclients; seat++)
+		{
+			// send the unreliable message
+//			if (independantphysics[seat].impulse && !cls.netchan.message.cursize)
+//				CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, &cls.netchan.message);
+//			else
+				CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, buf);
+		}
 	}
 
 	for (i = 0; i < cl.numackframes; i++)
@@ -1050,7 +1066,7 @@ float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now re
 		return -1;
 
 	/*ignore the server if we're playing demos, sending to the server only as replies, or if its meant to be disabled (netfps depending on where its called from)*/
-	if (cls.demoplayback != DPB_NONE || cls.protocol != CP_QUAKEWORLD || ignoreserver)
+	if (cls.demoplayback != DPB_NONE || (cls.protocol != CP_QUAKEWORLD && cls.protocol != CP_NETQUAKE) || ignoreserver)
 	{
 		if (!wantfps)
 			return -1;
@@ -1370,6 +1386,7 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 	cmd->lightlevel = lightlev;
 
 	cl.outframes[i].senttime = realtime;
+	cl.outframes[i].latency = -1;
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 
 	if (cmd->buttons)
@@ -1400,8 +1417,13 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 	int st = buf->cursize;
 
 	cl.movesequence = cls.netchan.outgoing_sequence;	//make sure its correct even over map changes.
-	curframe = cls.netchan.outgoing_sequence & UPDATE_MASK;
-	seq_hash = cls.netchan.outgoing_sequence;
+	curframe = cl.movesequence & UPDATE_MASK;
+	seq_hash = cl.movesequence;
+
+	cl.outframes[curframe].server_message_num = cl.validsequence;
+	cl.outframes[curframe].cmd_sequence = cl.movesequence;
+	cl.outframes[curframe].senttime = realtime;
+	cl.outframes[curframe].latency = -1;
 
 // send this and the previous cmds in the message, so
 // if the last packet was dropped, it can be recovered
@@ -1422,7 +1444,6 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 #endif
 		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 	}
-	cl.outframes[curframe].senttime = realtime;
 
 	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && (*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
 	{
@@ -1490,7 +1511,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 		cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
 
 	if (cl.sendprespawn)
-		buf->cursize = st;	//tastyspleen.net is alergic.
+		buf->cursize = st;	//don't send movement commands while we're still supposedly downloading. mvdsv does not like that.
 
 	return dontdrop;
 }
@@ -1638,7 +1659,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		}
 		if (cl_netfps.value > 0 || !fullsend)
 		{
-			int spare;
+			float spare;
 			spare = CL_FilterTime(msecstouse, wantfps, false);
 			if (!spare && (msecstouse < 200
 #ifdef IRCCONNECT
@@ -1726,7 +1747,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	// if we're not doing clc_moves and etc, don't continue unless we wrote something previous
 	// or we have something on the reliable buffer (or we're loopback and don't care about flooding)
 	if (!fullsend && cls.netchan.remote_address.type != NA_LOOPBACK && buf.cursize < 1 && cls.netchan.message.cursize < 1)
-		return; 
+		return;
 
 	if (fullsend)
 	{
@@ -1766,6 +1787,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (cls.demorecording)
 		CL_WriteDemoCmd(cmd);
 
+	Con_DPrintf("generated sequence %i\n", cl.movesequence);
 	cl.movesequence++;
 
 #ifdef IRCCONNECT
@@ -1778,7 +1800,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		else
 		{
 			// don't count this message when calculating PL
-			cl.inframes[i].latency = -3;
+			cl.outframes[i].latency = -3;
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;
@@ -1808,7 +1830,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		else
 		{
 			// don't count this message when calculating PL
-			cl.inframes[i].latency = -3;
+			cl.outframes[i].latency = -3;
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;

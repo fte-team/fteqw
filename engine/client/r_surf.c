@@ -2033,6 +2033,9 @@ void Surf_SetupFrame(void)
 			case Q1CONTENTS_SOLID:
 				r_viewcontents |= FTECONTENTS_SOLID;
 				break;
+			case Q1CONTENTS_LADDER:
+				r_viewcontents |= FTECONTENTS_LADDER;
+				break;
 			}
 		}
 	}

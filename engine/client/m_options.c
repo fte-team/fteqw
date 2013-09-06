@@ -233,17 +233,74 @@ void M_Menu_Audio_Speakers_f (void)
 	menu->selecteditem = NULL;
 }
 
+struct audiomenuinfo
+{
+	char **outdevnames;
+	char **outdevdescs;
+	char **capdevnames;
+	char **capdevdescs;
+};
+void M_Menu_Audio_Remove(menu_t *menu)
+{
+	int i;
+	struct audiomenuinfo *info = menu->data;
+	for (i = 0; info->outdevnames[i]; i++)
+		Z_Free(info->outdevnames[i]);
+	for (i = 0; info->outdevdescs[i]; i++)
+		Z_Free(info->outdevdescs[i]);
+	for (i = 0; info->capdevnames[i]; i++)
+		Z_Free(info->capdevnames[i]);
+	for (i = 0; info->capdevdescs[i]; i++)
+		Z_Free(info->capdevdescs[i]);
+}
+struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
+{
+#ifdef VOICECHAT
+	extern cvar_t snd_voip_capturedevice_opts;
+#endif
+	extern cvar_t snd_device_opts;
+	int pairs, i;
+	struct audiomenuinfo *info = menu->data;
+	menu->remove = M_Menu_Audio_Remove;
+
+	Cmd_TokenizeString(snd_device_opts.string?snd_device_opts.string:"", false, false);
+	pairs = Cmd_Argc()/2;
+	info->outdevnames = BZ_Malloc((pairs+1)*sizeof(char*));
+	info->outdevdescs = BZ_Malloc((pairs+1)*sizeof(char*));
+	for (i = 0; i < pairs; i++)
+	{
+		info->outdevnames[i] = Z_StrDup(Cmd_Argv(i*2+0));
+		info->outdevdescs[i] = Z_StrDup(Cmd_Argv(i*2+1));
+	}
+	info->outdevnames[i] = NULL;
+	info->outdevdescs[i] = NULL;
+#ifdef VOICECHAT
+	Cmd_TokenizeString(snd_voip_capturedevice_opts.string?snd_voip_capturedevice_opts.string:"", false, false);
+	pairs = Cmd_Argc()/2;
+	info->capdevnames = BZ_Malloc((pairs+1)*sizeof(char*));
+	info->capdevdescs = BZ_Malloc((pairs+1)*sizeof(char*));
+	for (i = 0; i < pairs; i++)
+	{
+		info->capdevnames[i] = Z_StrDup(Cmd_Argv(i*2+0));
+		info->capdevdescs[i] = Z_StrDup(Cmd_Argv(i*2+1));
+	}
+	info->capdevnames[i] = NULL;
+	info->capdevdescs[i] = NULL;
+#endif
+	return info;
+}
+
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 void M_Menu_Audio_f (void)
 {
 	int y;
-	menu_t *menu = M_Options_Title(&y, 0);
+	menu_t *menu = M_Options_Title(&y, sizeof(struct audiomenuinfo));
+	struct audiomenuinfo *info = M_Menu_Audio_Setup(menu);
 	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
 #ifdef VOICECHAT
-	extern cvar_t cl_voip_play, cl_voip_send, cl_voip_test, cl_voip_micamp, cl_voip_vad_threshhold, cl_voip_ducking, cl_voip_noisefilter, cl_voip_codec;
+	extern cvar_t snd_voip_capturedevice, snd_voip_play, snd_voip_send, snd_voip_test, snd_voip_micamp, snd_voip_vad_threshhold, snd_voip_ducking, snd_voip_noisefilter, snd_voip_codec;
 #endif
-	extern char **soundoutdevicecodes, **soundoutdevicenames;
 
 	static const char *soundqualityoptions[] = {
 		"11025 Hz",
@@ -313,7 +370,7 @@ void M_Menu_Audio_f (void)
 		MB_SPACING(8),
 		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_SPACING(4),
-		MB_COMBOCVAR("Output Device", snd_device, soundoutdevicenames, soundoutdevicecodes, NULL),
+		MB_COMBOCVAR("Output Device", snd_device, info->outdevdescs, info->outdevnames, NULL),
 		MB_SLIDER("Volume", volume, 0, 1, 0.1, NULL),
 		MB_COMBOCVAR("Speaker Setup", snd_speakers, speakeroptions, speakervalues, NULL),
 		MB_COMBOCVAR("Frequency", snd_khz, soundqualityoptions, soundqualityvalues, NULL),
@@ -338,15 +395,15 @@ void M_Menu_Audio_f (void)
 #ifdef VOICECHAT
 		MB_REDTEXT("Voice Options", false),
 		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_SLIDER("Voice Volume", cl_voip_play, 0, 2, 0.1, NULL),
-//		MB_COMBOCVAR("Microphone Device", snd_micdevice, inputdeviceoptions, inputdevicevalue, NULL),
-		MB_CHECKBOXCVAR("Microphone Test", cl_voip_test, 0),
-		MB_SLIDER("Microphone Volume", cl_voip_micamp, 0, 2, 0.1, NULL),
-		MB_COMBOCVAR("Activation Mode", cl_voip_send, voipsendoptions, voipsendvalue, NULL),
-		MB_SLIDER("Act. Threshhold", cl_voip_vad_threshhold, 0, 30, 1, NULL),
-		MB_CHECKBOXCVAR("Audio Ducking", cl_voip_ducking, 0),
-		MB_CHECKBOXCVAR("Noise Cancelation", cl_voip_noisefilter, 0),
-		MB_COMBOCVAR("Codec", cl_voip_codec, voipcodecoptions, voipcodecvalue, NULL),
+		MB_COMBOCVAR("Microphone Device", snd_voip_capturedevice, info->capdevdescs, info->capdevnames, NULL),
+		MB_SLIDER("Voice Volume", snd_voip_play, 0, 2, 0.1, NULL),
+		MB_CHECKBOXCVAR("Microphone Test", snd_voip_test, 0),
+		MB_SLIDER("Microphone Volume", snd_voip_micamp, 0, 2, 0.1, NULL),
+		MB_COMBOCVAR("Activation Mode", snd_voip_send, voipsendoptions, voipsendvalue, NULL),
+		MB_SLIDER("Act. Threshhold", snd_voip_vad_threshhold, 0, 30, 1, NULL),
+		MB_CHECKBOXCVAR("Audio Ducking", snd_voip_ducking, 0),
+		MB_CHECKBOXCVAR("Noise Cancelation", snd_voip_noisefilter, 0),
+		MB_COMBOCVAR("Codec", snd_voip_codec, voipcodecoptions, voipcodecvalue, NULL),
 #endif
 
 		//MB_CONSOLECMD("Speaker Test", "menu_speakers\n", "Test speaker setup output."),

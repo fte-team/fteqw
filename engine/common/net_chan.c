@@ -203,6 +203,10 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
 
+		//kinda depenant
+		if (mask & PEXT2_PREDINFO)
+			mask |= PEXT2_REPLACEMENTDELTAS;
+
 		if (fornq)
 		{
 			//only ones that are tested
@@ -444,7 +448,8 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
 		{
-			Con_DPrintf("Dropped %i datagrams (%i - %i)\n", drop, chan->incoming_unreliable+1, sequence-1);
+			if (showdrop.ival)
+				Con_Printf("Dropped %i datagrams (%i - %i)\n", drop, chan->incoming_unreliable+1, sequence-1);
 			chan->drop_count += drop;
 		}
 		chan->incoming_unreliable = sequence;

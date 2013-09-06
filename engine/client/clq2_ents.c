@@ -1015,7 +1015,7 @@ void CLQ2_ParseFrame (void)
 	i = MSG_ReadByte ();
 
 	for (j=0 ; j<i ; j++)
-		cl.inframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
+		cl.outframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
 
 	if (cl_shownet.value == 3)
 		Con_Printf ("   frame:%i  delta:%i\n", cl.q2frame.serverframe, cl.q2frame.deltaframe);

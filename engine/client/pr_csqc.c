@@ -71,6 +71,7 @@ int	csqc_playerseat;	//can be negative.
 static playerview_t *csqc_playerview;
 static qboolean csqc_isdarkplaces;
 static qboolean csqc_singlecheats; /*single player or cheats active, allowing custom addons*/
+static qboolean csqc_mayread;	//csqc is allowed to ReadByte();
 
 static char csqc_printbuffer[8192];
 
@@ -193,6 +194,8 @@ typedef struct {
 static csqcglobals_t csqcg;
 
 playerview_t csqc_nullview;
+
+void VARGS CSQC_Abort (char *format, ...);	//an error occured.
 
 //fixme: we should be using entity numbers, not view numbers.
 static void CSQC_ChangeLocalPlayer(int seat)
@@ -1935,6 +1938,12 @@ static void QCBUILTIN PF_cs_ModelnameForIndex(pubprogfuncs_t *prinst, struct glo
 
 static void QCBUILTIN PF_ReadByte(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadByte is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	if (csqc_fakereadbyte != -1)
 	{
 		G_FLOAT(OFS_RETURN) = csqc_fakereadbyte;
@@ -1948,45 +1957,93 @@ static void QCBUILTIN PF_ReadByte(pubprogfuncs_t *prinst, struct globalvars_s *p
 
 static void QCBUILTIN PF_ReadChar(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadChar is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadChar();
 }
 
 static void QCBUILTIN PF_ReadShort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadShort is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadShort();
 }
 
 static void QCBUILTIN PF_ReadEntityNum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int val;
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadEntityNum is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	val = MSGCL_ReadEntity();
 	G_FLOAT(OFS_RETURN) = val;
 }
 
 static void QCBUILTIN PF_ReadLong(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadLong is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadLong();
 }
 
 static void QCBUILTIN PF_ReadCoord(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadCoord is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadCoord();
 }
 
 static void QCBUILTIN PF_ReadFloat(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadFloat is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadFloat();
 }
 
 static void QCBUILTIN PF_ReadString(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *read = MSG_ReadString();
-
+	char *read;
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadString is not valid at this time");
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+	read = MSG_ReadString();
 	RETURN_TSTRING(read);
 }
 
 static void QCBUILTIN PF_ReadAngle(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadAngle is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadAngle();
 }
 
@@ -2248,16 +2305,6 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
-	if (f > cl.movesequence)
-	{
-		G_FLOAT(OFS_RETURN) = false;
-		return;
-	}
-	if (f < cl.movesequence - UPDATE_MASK || f < 0)
-	{
-		G_FLOAT(OFS_RETURN) = false;
-		return;
-	}
 
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
 	if (f == cl.movesequence)
@@ -2265,9 +2312,17 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 		cmd = &independantphysics[seat];
 		for (f=0 ; f<3 ; f++)
 			cmd->angles[f] = ((int)(csqc_playerview->viewangles[f]*65536.0/360)&65535);
+		//FIXME: msec probably isn't right
 	}
 	else
+	{
+		if (cl.outframes[f&UPDATE_MASK].cmd_sequence != f)
+		{
+			G_FLOAT(OFS_RETURN) = false;
+			return;
+		}
 		cmd = &cl.outframes[f&UPDATE_MASK].cmd[seat];
+	}
 
 	cs_set_input_state(cmd);
 
@@ -5165,6 +5220,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	csprogs_checksum = checksum;
 
 	csqc_usinglistener = false;
+	csqc_mayread = false;
 
 	csqc_singlecheats = cls.demoplayback;
 	if (atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
@@ -5857,7 +5913,9 @@ qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
 
 	csqc_fakereadbyte = firstbyte;
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	csqc_mayread = true;
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_tempentity);
+	csqc_mayread = false;
 	csqc_fakereadbyte = -1;
 	return !!G_FLOAT(OFS_RETURN);
 }
@@ -5877,6 +5935,7 @@ qboolean CSQC_ParseGamePacket(void)
 			return false;
 		}
 
+		csqc_mayread = true;
 		PR_ExecuteProgram (csqcprogs, parsefnc);
 
 		if (msg_readcount != start + len)
@@ -5892,8 +5951,10 @@ qboolean CSQC_ParseGamePacket(void)
 			Host_EndGame("CSQC not running or is unable to parse events.\n");
 			return false;
 		}
+		csqc_mayread = true;
 		PR_ExecuteProgram (csqcprogs, parsefnc);
 	}
+	csqc_mayread = false;
 	return true;
 }
 
@@ -6193,7 +6254,9 @@ void CSQC_ParseEntities(void)
 			}
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+			csqc_mayread = true;
 			PR_ExecuteProgram(csqcprogs, csqcg.ent_update);
+			csqc_mayread = false;
 
 			if (cl.csqcdebug)
 			{

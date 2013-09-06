@@ -356,11 +356,21 @@ int (*pOSS_InitCard) (soundcardinfo_t *sc, int cardnum) = &OSS_InitCard;
 
 #ifdef VOICECHAT	//this does apparently work after all.
 #include <stdint.h>
-void *OSS_Capture_Init(int rate)
+
+static qboolean QDECL OSS_Capture_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
+{
+	//open /dev/dsp or /dev/mixer or env("OSS_MIXERDEV") or something
+	//SNDCTL_SYSINFO to get sysinfo.numcards
+	//for i=0; i<sysinfo.numcards
+	//SNDCTL_CARDINFO
+	return false;
+}
+void *OSS_Capture_Init(int rate, char *snddev)
 {
 	int tmp;
 	intptr_t fd;
-	char *snddev = "/dev/dsp";
+	if (!snddev || !*snddev)
+		snddev = "/dev/dsp";
 	fd = open(snddev, O_RDONLY | O_NONBLOCK);       //try the primary device
 	if (fd == -1)
 		return NULL;
@@ -426,6 +436,9 @@ unsigned int OSS_Capture_Update(void *ctx, unsigned char *buffer, unsigned int m
 
 snd_capture_driver_t OSS_Capture =
 {
+	1,
+	"OSS",
+	OSS_Capture_Enumerate,
 	OSS_Capture_Init,
 	OSS_Capture_Start,
 	OSS_Capture_Update,

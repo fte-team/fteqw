@@ -194,7 +194,7 @@ void ClientReliableWrite_String(client_t *cl, const char *s)
 		MSG_WriteString(&cl->netchan.message, s);
 }
 
-void ClientReliableWrite_SZ(client_t *cl, void *data, int len)
+void ClientReliableWrite_SZ(client_t *cl, const void *data, int len)
 {
 	if (cl->num_backbuf)
 	{

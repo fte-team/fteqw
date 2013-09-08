@@ -49,12 +49,19 @@ float atof(char *str);
 int atoi(char *str);
 
 #define strcasecmp stricmp
+#define strncasecmp stricmp
 
 void BadBuiltin(void);
 
 #else
 
+#ifdef _WIN32
 #define strcasecmp stricmp
+#define strncasecmp strnicmp
+#else
+#define stricmp strcasecmp
+#define strnicmp strncasecmp
+#endif
 
 #include <string.h>
 #include <stdlib.h>

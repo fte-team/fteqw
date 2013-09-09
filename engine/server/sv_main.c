@@ -148,6 +148,8 @@ cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
 cvar_t sv_master = CVAR("sv_master", "0");
 cvar_t sv_masterport = CVAR("sv_masterport", "0");
 
+cvar_t pext_ezquake_nochunks = CVARD("pext_ezquake_nochunks", "1", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
+
 cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
@@ -1687,6 +1689,8 @@ static void SV_CheckRecentCrashes(client_t *tellclient)
 	struct stat sb;
 	if (-1 != stat("crash.log", &sb))
 	{
+		if (time(NULL) - sb.st_mtime) > 2*24*60*60)
+			return;	//after 2 days, we stop advertising that we once crashed.
 		SV_ClientPrintf(tellclient, PRINT_HIGH, "\1WARNING: crash.log exists, dated %s\n", ctime(&sb.st_mtime));
 	}
 #endif
@@ -2436,6 +2440,19 @@ client_t *SVC_DirectConnect(void)
 		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
 	}
 	newcl->zquake_extensions &= SUPPORTED_Z_EXTENSIONS;
+
+	//ezquake's download mechanism is so smegging buggy.
+	//its causing far far far too many connectivity issues. seriously. its beyond a joke. I cannot stress that enough.
+	//as the client needs to listen for the serverinfo to know which extensions will actually be used (yay demos), we can just forget that it supports svc-level extensions, at least for anything that isn't spammed via clc_move etc before the serverinfo.
+	s = Info_ValueForKey(newcl->userinfo, "*client");
+	if (!strncmp(s, "ezQuake", 7) && (newcl->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS))
+	{
+		if (pext_ezquake_nochunks.ival)
+		{
+			newcl->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
+			Con_Printf("%s: ignoring ezquake chunked downloads extension.\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+		}
+	}
 
 	Netchan_Setup (NS_SERVER, &newcl->netchan, &adr, qport);
 
@@ -4334,6 +4351,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_minping, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);
+	Cvar_Register (&pext_ezquake_nochunks, cvargroup_servercontrol);
 
 	Cmd_AddCommand ("sv_impulse", SV_Impulse_f);
 

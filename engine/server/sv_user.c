@@ -886,8 +886,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	edict_t *ent;
 	svcustomtents_t *ctent;
 	//much of this function is written to fill packets enough to overflow them (assuming max packet sizes are large enough), but some bits are lazy and just backbuffer as needed.
+	//FIXME: have per-stage indicies, to allow returning to a previous stage when new precaches or whatever get added
 
-	if (client->num_backbuf)
+	if (client->num_backbuf || client->prespawn_stage == PRESPAWN_DONE)
 	{
 		//don't spam too much.
 		return;
@@ -1014,6 +1015,44 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 	}
 
+	if (client->prespawn_stage == PRESPAWN_VWEPMODELLIST)
+	{
+		//no indicies. the protocol can't cope with them.
+		if (client->zquake_extensions & Z_EXT_VWEP)
+		{
+			char mname[MAX_QPATH];
+			char vweaplist[1024] = "//vwep";
+
+			for (i = 0; sv.strings.vw_model_precache[i]; i++)
+			{
+				//grab the model name... without a progs/ prefix if it has one
+				if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
+					Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
+				else
+					Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
+
+				//strip .mdl extensions, for compat with ezquake
+				if (!strcmp(COM_FileExtension(mname), "mdl"))
+					COM_StripExtension(mname, mname, sizeof(mname));
+
+				//add it to the vweap command, taking care of any remaining spaces in names.
+				if (strchr(mname, ' ') || !*mname)
+					Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
+				else
+					Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
+			}
+
+			if (strlen(vweaplist) <= sizeof(vweaplist)-2)
+			{
+				Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
+
+				ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(vweaplist));
+				ClientReliableWrite_String(client, vweaplist);
+			}
+		}
+		client->prespawn_stage++;
+	}
+
 	if (client->prespawn_stage == PRESPAWN_MODELLIST)
 	{
 		if (!ISQWCLIENT(client))
@@ -1053,39 +1092,6 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					MSG_WriteByte (&client->netchan.message, 0);
 					started = 0;
 
-					if (client->zquake_extensions & Z_EXT_VWEP)
-					{
-						char mname[MAX_QPATH];
-						char vweaplist[1024] = "//vwep";
-
-						for (i = 0; sv.strings.vw_model_precache[i]; i++)
-						{
-							//grab the model name... without a progs/ prefix if it has one
-							if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
-								Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
-							else
-								Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
-
-							//strip .mdl extensions, for compat with ezquake
-							if (!strcmp(COM_FileExtension(mname), "mdl"))
-								COM_StripExtension(mname, mname, sizeof(mname));
-
-							//add it to the vweap command, taking care of any remaining spaces in names.
-							if (strchr(mname, ' ') || !*mname)
-								Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
-							else
-								Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
-						}
-
-						if (strlen(vweaplist) <= sizeof(vweaplist)-2)
-						{
-							Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
-
-							ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(vweaplist));
-							ClientReliableWrite_String(client, vweaplist);
-						}
-					}
-
 					client->prespawn_stage++;
 					client->prespawn_idx = 0;
 					break;
@@ -1108,12 +1114,14 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	if (client->prespawn_stage == PRESPAWN_MAPCHECK)
 	{
 		//can't progress beyond this as we're waiting for the client.
-		host_client->prespawn_idx = client->prespawn_idx;
+//		host_client->prespawn_idx = client->prespawn_idx;
 		return;
 	}
 
 	if (client->prespawn_stage == PRESPAWN_PARTICLES)
 	{
+		if (!(client->fteprotocolextensions & PEXT_CSQC))
+			client->prespawn_idx = MAX_SSPARTICLESPRE;
 		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
 		{
 			if (client->prespawn_idx >= MAX_SSPARTICLESPRE)

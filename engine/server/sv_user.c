@@ -874,7 +874,7 @@ SV_Modellist_f
 */
 void SVQW_Modellist_f (void)
 {
-	if (host_client->prespawn_stage == PRESPAWN_MODELLIST)
+	if ((host_client->prespawn_stage == PRESPAWN_MODELLIST) || (host_client->prespawn_stage == PRESPAWN_VWEPMODELLIST))
 		host_client->prespawn_idx &= ~0x80000000;
 }
 

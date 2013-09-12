@@ -1689,7 +1689,7 @@ static void SV_CheckRecentCrashes(client_t *tellclient)
 	struct stat sb;
 	if (-1 != stat("crash.log", &sb))
 	{
-		if (time(NULL) - sb.st_mtime) > 2*24*60*60)
+		if ((time(NULL) - sb.st_mtime) > 2*24*60*60)
 			return;	//after 2 days, we stop advertising that we once crashed.
 		SV_ClientPrintf(tellclient, PRINT_HIGH, "\1WARNING: crash.log exists, dated %s\n", ctime(&sb.st_mtime));
 	}

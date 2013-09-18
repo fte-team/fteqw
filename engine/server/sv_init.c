@@ -326,7 +326,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 		if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
 		{//oooh, evil.
 			char buffer[65536*4];
-			int bufsize = sizeof(buffer);
+			int bufsize = 0;
 			char *buf;
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 				host_client->spawn_parms[j] = 0;
@@ -336,7 +336,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			if (host_client->spawninfo)
 				Z_Free(host_client->spawninfo);
 			host_client->spawninfo = Z_Malloc(bufsize+1);
-			memcpy(host_client->spawninfo, buf, bufsize);
+			memcpy(host_client->spawninfo, buf, bufsize+1);
 			host_client->spawninfotime = sv.time;
 		}
 

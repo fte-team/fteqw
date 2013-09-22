@@ -656,6 +656,7 @@ void Con_PrintCon (console_t *con, char *txt)
 	conchar_t expanded[4096];
 	conchar_t *c;
 	conline_t *oc;
+	conline_t *reuse;
 
 	COM_ParseFunString(CON_WHITEMASK, txt, expanded, sizeof(expanded), false);
 
@@ -673,6 +674,7 @@ void Con_PrintCon (console_t *con, char *txt)
 			break;
 		case '\n':
 			con->cr = false;
+			reuse = NULL;
 			while (con->linecount >= con_maxlines.ival)
 			{
 				if (con->oldest == con->current)
@@ -686,7 +688,10 @@ void Con_PrintCon (console_t *con, char *txt)
 				if (con->display == con->oldest)
 					con->display = con->oldest->newer;
 				con->oldest = con->oldest->newer;
-				Z_Free(con->oldest->older);
+				if (reuse)
+					Z_Free(con->oldest->older);
+				else
+					reuse = con->oldest->older;
 				con->oldest->older = NULL;
 				con->linecount--;
 			}
@@ -701,9 +706,20 @@ void Con_PrintCon (console_t *con, char *txt)
 				TTS_SayConString((conchar_t*)(con->current+1));
 #endif
 
-			con->current->newer = Z_Malloc(sizeof(conline_t) + sizeof(conchar_t));
-			con->current->newer->older = con->current;
-			con->current = con->current->newer;
+			if (!reuse)
+			{
+				reuse = Z_Malloc(sizeof(conline_t) + sizeof(conchar_t));
+				reuse->maxlength = 1;
+			}
+			else
+			{
+				reuse->newer = NULL;
+				reuse->older = NULL;
+			}
+			reuse->id = ++con->nextlineid;
+			reuse->older = con->current;
+			con->current->newer = reuse;
+			con->current = reuse;
 			con->current->length = 0;
 			o = (conchar_t *)(con->current+1)+con->current->length;
 			*o = 0;
@@ -723,7 +739,13 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->selendline = NULL;
 
 			oc = con->current;
-			con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+2)*sizeof(conchar_t));
+			if (oc->length+2 > oc->maxlength)
+			{
+				oc->maxlength = (oc->length+2)+8;
+				if (oc->maxlength < oc->length)
+					oc->length = 0;	//don't crash from console line overflows.
+				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(oc->maxlength)*sizeof(conchar_t));
+			}
 			if (con->display == oc)
 				con->display = con->current;
 			if (con->oldest == oc)

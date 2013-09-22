@@ -102,7 +102,9 @@ typedef struct conline_s {
 	struct conline_s *older;
 	struct conline_s *newer;
 	unsigned short length;
+	unsigned short maxlength;
 	unsigned short lines;
+	unsigned short id;
 	float time;
 } conline_t;
 
@@ -114,6 +116,7 @@ typedef struct conline_s {
 typedef struct console_s
 {
 	int id;
+	int nextlineid;	//the current line being written to. so we can rewrite links etc.
 	char name[64];
 	char title[64];
 	int linecount;

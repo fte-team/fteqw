@@ -398,7 +398,10 @@ static void INS_ActivateMouse (void)
 #endif
 
 			if (mouseparmsvalid)
-				restore_spi = SystemParametersInfo (SPI_SETMOUSE, 0, newmouseparms, 0);
+			{
+				SystemParametersInfo (SPI_SETMOUSE, 0, newmouseparms, 0);
+				restore_spi = true;
+			}
 
 			SetCursorPos (window_center_x, window_center_y);
 			SetCapture (mainwindow);
@@ -1155,11 +1158,10 @@ INS_Shutdown
 */
 void INS_Shutdown (void)
 {
-	mouseinitialized = false;
-
 	INS_DeactivateMouse ();
 	INS_ShowMouse ();
 
+	mouseinitialized = false;
 	mouseparmsvalid = false;
 
 #ifdef AVAIL_DINPUT

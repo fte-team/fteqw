@@ -241,7 +241,7 @@ optimisations_t optimisations[] =
 	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
 	{&opt_stripfunctions,			"sf",	3,	FLAG_KILLSDEBUGGERS,	"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
-	{&opt_locals_overlapping,		"lo",	2,	FLAG_ASDEFAULT|FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
+	{&opt_locals_overlapping,		"lo",	3,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,	"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{NULL}
 };
@@ -484,13 +484,14 @@ void QCC_PrintStrings (void)
 
 void QCC_PrintFields (void)
 {
+	extern char *basictypenames[];
 	int		i;
 	QCC_ddef_t	*d;
 
 	for (i=0 ; i<numfielddefs ; i++)
 	{
 		d = &fields[i];
-		printf ("%5i : (%i) %s\n", d->ofs, d->type, strings + d->s_name);
+		printf ("%5i : (%s) %s\n", d->ofs, basictypenames[d->type], strings + d->s_name);
 	}
 }
 

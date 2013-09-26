@@ -775,6 +775,11 @@ struct {
 int SafeOpenWrite (char *filename, int maxsize)
 {
 	int i;
+	if (strlen(filename) >= sizeof(qccfile[0].name))
+	{
+		QCC_Error(ERR_TOOMANYOPENFILES, "Filename %s too long", filename);
+		return -1;
+	}
 	for (i = 0; i < MAXQCCFILES; i++)
 	{
 		if (!qccfile[i].buff)
@@ -848,14 +853,16 @@ int SafeSeek(int hand, int ofs, int mode)
 		return 0;
 	}
 }
-void SafeClose(int hand)
+pbool SafeClose(int hand)
 {
-	externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
+	pbool ret;
+	ret = externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
 //	if (qccfile[hand].buffismalloc)
 		free(qccfile[hand].buff);
 //	else
 //		externs->memfree(qccfile[hand].buff);
 	qccfile[hand].buff = NULL;
+	return ret;
 }
 
 qcc_cachedsourcefile_t *qcc_sourcefile;

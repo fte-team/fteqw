@@ -148,10 +148,10 @@ enum qcop_e {
 
 	OP_THINKTIME,	//87
 
-	OP_BITSET,		//88 redundant, for h2 compat
-	OP_BITSETP,		//89
-	OP_BITCLR,		//90
-	OP_BITCLRP,		//91
+	OP_BITSETSTORE_F,	//88 redundant, for h2 compat
+	OP_BITSETSTOREP_F,	//89
+	OP_BITCLRSTORE_F,	//90
+	OP_BITCLRSTOREP_F,	//91
 
 	OP_RAND0,		//92
 	OP_RAND1,		//93
@@ -227,7 +227,7 @@ enum qcop_e {
 	OP_LSHIFT_I,
 
 	OP_GLOBALADDRESS,
-	OP_POINTER_ADD,	//32 bit pointers
+	OP_ADD_PIW,	//add B words to A pointer
 
 	OP_LOADA_F,
 	OP_LOADA_V,	
@@ -328,8 +328,9 @@ enum qcop_e {
 	These ops are emulated out, always, and are only present in the compiler.
 	*/
 
-	OP_BITSET_I,	//220
-	OP_BITSETP_I,
+	OP_BITSETSTORE_I,	//220
+	OP_BITSETSTOREP_I,
+	OP_BITCLRSTORE_I,
 
 	OP_MULSTORE_I,
 	OP_DIVSTORE_I,
@@ -338,9 +339,9 @@ enum qcop_e {
 	OP_MULSTOREP_I,
 	OP_DIVSTOREP_I,
 	OP_ADDSTOREP_I,
-	OP_SUBSTOREP_I,
+	OP_SUBSTOREP_I,	//230
 
-	OP_MULSTORE_IF,	//230
+	OP_MULSTORE_IF,
 	OP_MULSTOREP_IF,
 	OP_DIVSTORE_IF,
 	OP_DIVSTOREP_IF,
@@ -350,8 +351,8 @@ enum qcop_e {
 	OP_SUBSTOREP_IF,
 
 	OP_MULSTORE_FI,
-	OP_MULSTOREP_FI,
-	OP_DIVSTORE_FI,		//240
+	OP_MULSTOREP_FI,	//240
+	OP_DIVSTORE_FI,
 	OP_DIVSTOREP_FI,
 	OP_ADDSTORE_FI,
 	OP_ADDSTOREP_FI,
@@ -373,6 +374,10 @@ enum qcop_e {
 	OP_GE_P,
 	OP_LT_P,
 	OP_GT_P,
+
+	OP_ANDSTORE_F,
+	OP_BITCLR_F,
+	OP_BITCLR_I,
 
 	OP_NUMOPS
 };

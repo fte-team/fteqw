@@ -7,7 +7,7 @@
 #define	MAX_PARMS	8
 
 // I put the following here to resolve "undefined reference to `__imp__vsnprintf'" with MinGW64 ~ Moodles
-#ifdef _WIN32
+#if 0//def _WIN32
 	#if (_MSC_VER >= 1400)
 		//with MSVC 8, use MS extensions
 		#define snprintf linuxlike_snprintf_vc8

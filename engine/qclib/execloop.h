@@ -411,8 +411,8 @@ reeval:
 		tmpf = OPA->_float;
 		ptr = QCPOINTER(OPB);
 		OPC->_vector[0] = (ptr->_vector[0] *= tmpf);
-		OPC->_vector[0] = (ptr->_vector[1] *= tmpf);
-		OPC->_vector[0] = (ptr->_vector[2] *= tmpf);
+		OPC->_vector[1] = (ptr->_vector[1] *= tmpf);
+		OPC->_vector[2] = (ptr->_vector[2] *= tmpf);
 		break;
 
 	case OP_DIVSTORE_F: // f /= f
@@ -824,8 +824,8 @@ reeval:
 	case OP_GLOBALADDRESS:
 		OPC->_int = ENGINEPOINTER(&OPA->_int + OPB->_int); /*pointer arithmatic*/
 		break;
-	case OP_POINTER_ADD:	//pointer to 32 bit (remember to *3 for vectors)
-		OPC->_int = OPA->_int + OPB->_int*4;
+	case OP_ADD_PIW:	//pointer to 32 bit (remember to *3 for vectors)
+		OPC->_int = OPA->_int + OPB->_int*sizeof(float);
 		break;
 
 	case OP_LOADA_I:
@@ -882,7 +882,7 @@ reeval:
 			pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer read in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}
-		ptr = QCPOINTERM(OPA->_int + OPB->_int*4);
+		ptr = QCPOINTERM(i);
 		OPC->_int = ptr->_int;
 		break;
 
@@ -948,10 +948,10 @@ reeval:
 		break;
 
 
-	case OP_BITSET: // b (+) a
+	case OP_BITSETSTORE_F: // b (+) a
 		OPB->_float = (float)((int)OPB->_float | (int)OPA->_float);
 		break;
-	case OP_BITSETP: // .b (+) a
+	case OP_BITSETSTOREP_F: // .b (+) a
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
@@ -960,10 +960,10 @@ reeval:
 		ptr = QCPOINTER(OPB);
 		ptr->_float = (float)((int)ptr->_float | (int)OPA->_float);
 		break;
-	case OP_BITCLR: // b (-) a
+	case OP_BITCLRSTORE_F: // b (-) a
 		OPB->_float = (float)((int)OPB->_float & ~((int)OPA->_float));
 		break;
-	case OP_BITCLRP: // .b (-) a
+	case OP_BITCLRSTOREP_F: // .b (-) a
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
@@ -1118,8 +1118,8 @@ reeval:
 	case OP_MUL_VI:
 		tmpi = OPB->_int;
 		OPC->_vector[0] = OPA->_vector[0] * tmpi;
-		OPC->_vector[1] = OPA->_vector[0] * tmpi;
-		OPC->_vector[2] = OPA->_vector[0] * tmpi;
+		OPC->_vector[1] = OPA->_vector[1] * tmpi;
+		OPC->_vector[2] = OPA->_vector[2] * tmpi;
 		break;
 	case OP_MUL_IV:
 		tmpi = OPA->_int;

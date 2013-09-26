@@ -6,12 +6,12 @@
 #ifdef AVAIL_ZLIB
 #ifdef _WIN32
 #define ZEXPORT VARGS
-#include "../libs/zlib.h"
+#include <zlib.h>
 
 #ifdef _WIN64
-# pragma comment (lib, "../libs/zlib64.lib") 
+//# pragma comment (lib, "../libs/zlib64.lib") 
 #else
-# pragma comment (lib, "../libs/zlib.lib") 
+//# pragma comment (lib, "../libs/zlib.lib") 
 #endif
 #else
 #include <zlib.h>
@@ -92,12 +92,12 @@ int SafeSeek(int hand, int ofs, int mode);
 int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 {
 	int i;
-	if (method == 0) //copy
+	if (method == 0) //copy, allows a lame pass-through.
 	{		
 		SafeWrite(handle, in, len);
 		return len;
 	}
-	else if (method == 1)	//xor encryption
+	else if (method == 1)	//xor encryption, not secure. maybe useful for the string table.
 	{
 		for (i = 0; i < len; i++)
 			in[i] = in[i] ^ 0xA5;

@@ -431,6 +431,16 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 
 	sv_num_edicts = 0;
 
+#if 0
+	{
+		int i;
+		for (i = 0; i < prinst.numfields; i++)
+		{
+			printf("%s(%i) %i -> %i\n", prinst.field[i].name, prinst.field[i].type, prinst.field[i].progsofs, prinst.field[i].ofs);
+		}
+	}
+#endif
+
 	max_fields_size = fields_size;
 
 	prinst.edicttable = PRHunkAlloc(progfuncs, maxedicts*sizeof(struct edicts_s *), "edicttable");

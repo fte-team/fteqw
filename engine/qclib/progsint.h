@@ -176,7 +176,7 @@ typedef struct
 	int			targetflags;	//weather we need to mark the progs as a newer version
 	char		*name;
 	char		*opname;
-	int		priority;
+	int		priority;	//FIXME: priority should be done differently...
 	enum {ASSOC_LEFT, ASSOC_RIGHT, ASSOC_RIGHT_RESULT}			associative;
 	struct QCC_type_s		**type_a, **type_b, **type_c;
 } QCC_opcode_t;

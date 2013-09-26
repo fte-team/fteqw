@@ -20,7 +20,7 @@ extern int optres_test2;
 int writeasm;
 pbool verbose;
 pbool qcc_nopragmaoptimise;
-
+extern unsigned int locals_marshalled;
 
 pbool QCC_PR_SimpleGetToken (void);
 void QCC_PR_LexWhitespace (void);
@@ -220,8 +220,8 @@ optimisations_t optimisations[] =
 	//level 0 = no optimisations
 	//level 1 = size optimisations
 	//level 2 = speed optimisations
-	//level 3 = dodgy optimisations.
-	//level 4 = experimental... must be used explicitly
+	//level 3 = unsafe optimisations (they break multiprogs).
+	//level 4 = experimental or extreeme features... must be used explicitly
 
 	{&opt_assignments,				"t",	1,	FLAG_ASDEFAULT,			"assignments",		"c = a*b is performed in one operation rather than two, and can cause older decompilers to fail."},
 	{&opt_shortenifnots,			"i",	1,	FLAG_ASDEFAULT,			"shortenifs",		"if (!a) was traditionally compiled in two statements. This optimisation does it in one, but can cause some decompilers to get confused."},
@@ -229,8 +229,8 @@ optimisations_t optimisations[] =
 	{&opt_constant_names,			"c",	2,	FLAG_KILLSDEBUGGERS,	"constant_names",	"This optimisation strips out the names of constants (but not strings) from your progs, resulting in smaller files. It makes decompilers leave out names or fabricate numerical ones."},
 	{&opt_constant_names_strings,	"cs",	3,	FLAG_KILLSDEBUGGERS,	"constant_names_strings", "This optimisation strips out the names of string constants from your progs. However, this can break addons, so don't use it in those cases."},
 	{&opt_dupconstdefs,				"d",	1,	FLAG_ASDEFAULT,			"dupconstdefs",		"This will merge definitions of constants which are the same value. Pay extra attention to assignment to constant warnings."},
-	{&opt_noduplicatestrings,		"s",	1,	0,						"noduplicatestrings", "This will compact the string table that is stored in the progs. It will be considerably smaller with this."},
-	{&opt_locals,					"l",	1,	FLAG_KILLSDEBUGGERS,	"locals",			"Strips out local names and definitions. This makes it REALLY hard to decompile"},
+	{&opt_noduplicatestrings,		"s",	1,	FLAG_ASDEFAULT,			"noduplicatestrings", "This will compact the string table that is stored in the progs. It will be considerably smaller with this."},
+	{&opt_locals,					"l",	1,	FLAG_KILLSDEBUGGERS,	"locals",			"Strips out local names and definitions. Most decompiles will break on this."},
 	{&opt_function_names,			"n",	1,	FLAG_KILLSDEBUGGERS,	"function_names",	"This strips out the names of functions which are never called. Doesn't make much of an impact though."},
 	{&opt_filenames,				"f",	1,	FLAG_KILLSDEBUGGERS,	"filenames",		"This strips out the filenames of the progs. This can confuse the really old decompilers, but is nothing to the more recent ones."},
 	{&opt_unreferenced,				"u",	1,	FLAG_ASDEFAULT,			"unreferenced",		"Removes the entries of unreferenced variables. Doesn't make a difference in well maintained code."},
@@ -240,9 +240,9 @@ optimisations_t optimisations[] =
 	{&opt_return_only,				"ro",	3,	FLAG_KILLSDEBUGGERS,	"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
 	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
-	{&opt_stripfunctions,			"sf",	4,	0,						"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
-	{&opt_locals_overlapping,		"lo",	3,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
-	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,					"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
+	{&opt_stripfunctions,			"sf",	3,	FLAG_KILLSDEBUGGERS,	"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
+	{&opt_locals_overlapping,		"lo",	2,	FLAG_ASDEFAULT|FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
+	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,	"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{NULL}
 };
 
@@ -297,12 +297,14 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
+	{&flag_debugmacros,		FLAG_MIDCOMPILE,"flag_debugmacros",	"Verbose Macro Expansion",	"Print out the contents of macros that are expanded. This can help look inside macros that are expanded and is especially handy if people are using preprocessor hacks."},
 	{&flag_filetimes,		0,				"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays","fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
+	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
 	{NULL}
 };
 
@@ -632,9 +634,10 @@ void QCC_UnmarshalLocals(void)
 	unsigned int maxo;
 	int i;
 	extern int tempsused;
+	QCC_def_t *largestfunc = NULL;
 
 	ofs = numpr_globals;
-	maxo = ofs;
+	maxo = ofs+locals_marshalled;
 
 	for (def = pr.def_head.next ; def ; def = def->next)
 	{
@@ -659,7 +662,8 @@ void QCC_UnmarshalLocals(void)
 	if (numpr_globals > MAX_REGS)
 		QCC_Error(ERR_TOOMANYGLOBALS, "Too many globals are in use to unmarshal all locals");
 
-	printf("Total of %i locals, %i temps\n", maxo-ofs, tempsused);
+	if (verbose)
+		printf("Total of %i locals, %i temps\n", maxo-ofs, tempsused);
 }
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
@@ -844,12 +848,15 @@ pbool QCC_WriteData (int crc)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
-			if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references.", def->name))
+			if (strcmp(def->name, "IMMEDIATE"))
 			{
-				if (!warnedunref)
+				if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references.", def->name))
 				{
-					QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
-					warnedunref = true;
+					if (!warnedunref)
+					{
+						QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
+						warnedunref = true;
+					}
 				}
 			}
 			pr_scope = NULL;
@@ -885,7 +892,7 @@ pbool QCC_WriteData (int crc)
 //			numfunctions++;
 
 		}
-		else if (def->type->type == ev_field && def->constant && (!def->scope || def->isstatic))
+		else if (def->type->type == ev_field && def->constant && (!def->scope || def->isstatic || def->initialized))
 		{
 			if (numfielddefs >= MAX_FIELDS)
 				QCC_PR_ParseError(0, "Too many fields. Limit is %u\n", MAX_FIELDS);
@@ -1447,31 +1454,57 @@ strofs = (strofs+3)&~3;
 
 	SafeSeek (h, 0, SEEK_SET);
 	SafeWrite (h, &progs, sizeof(progs));
-	SafeClose (h);
+	if (!SafeClose (h))
+	{
+		printf("Error while writing output %s\n", destfile);
+		return false;
+	}
+
+	printf("Compile finished: %s\n", destfile);
 
 	if (!debugtarget)
 	{
 		if (opt_filenames)
 		{
-			printf("Not writing linenumbers file due to conflicting optimisation\n");
+			printf("Not writing linenumbers file due to conflicting optimisation (try -Ono-f)\n");
 		}
 		else
 		{
 			unsigned int lnotype = *(unsigned int*)"LNOF";
 			unsigned int version = 1;
-			StripExtension(destfile);
-			strcat(destfile, ".lno");
-			if (verbose)
-				printf("Writing %s for debugging\n", destfile);
-			h = SafeOpenWrite (destfile, 2*1024*1024);
-			SafeWrite (h, &lnotype, sizeof(int));
-			SafeWrite (h, &version, sizeof(int));
-			SafeWrite (h, &numglobaldefs, sizeof(int));
-			SafeWrite (h, &numpr_globals, sizeof(int));
-			SafeWrite (h, &numfielddefs, sizeof(int));
-			SafeWrite (h, &numstatements, sizeof(int));
-			SafeWrite (h, statement_linenums, numstatements*sizeof(int));
-			SafeClose (h);
+			pbool gz = false;
+			while(1)
+			{
+				char *ext;
+				ext = strrchr(destfile, '.');
+				if (strchr(ext, '/') || strchr(ext, '\\'))
+					break;
+				if (!stricmp(ext, ".gz"))
+				{
+					*ext = 0;
+					gz = true;
+					continue;
+				}
+				*ext = 0;
+				break;
+			}
+			if (strlen(destfile) < sizeof(destfile)-(4+3))
+			{
+				strcat(destfile, ".lno");
+				if (gz)
+					strcat(destfile, ".gz");
+				if (verbose)
+					printf("Writing %s for debugging\n", destfile);
+				h = SafeOpenWrite (destfile, 2*1024*1024);
+				SafeWrite (h, &lnotype, sizeof(int));
+				SafeWrite (h, &version, sizeof(int));
+				SafeWrite (h, &numglobaldefs, sizeof(int));
+				SafeWrite (h, &numpr_globals, sizeof(int));
+				SafeWrite (h, &numfielddefs, sizeof(int));
+				SafeWrite (h, &numstatements, sizeof(int));
+				SafeWrite (h, statement_linenums, numstatements*sizeof(int));
+				SafeClose (h);
+			}
 		}
 	}
 
@@ -2740,7 +2773,18 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			if (!stricmp(myargv[i]+2, "all"))
 			{
 				for (j = 0; j < ERR_PARSEERRORS; j++)
-					qccwarningaction[j] = WA_WARN;
+					if (qccwarningaction[j] == WA_IGNORE)
+					{
+						if (j == WARN_FIXEDRETURNVALUECONFLICT)
+							continue;
+						qccwarningaction[j] = WA_WARN;
+					}
+			}
+			else if (!stricmp(myargv[i]+2, "extra"))
+			{
+				for (j = 0; j < ERR_PARSEERRORS; j++)
+					if (qccwarningaction[j] == WA_IGNORE)
+						qccwarningaction[j] = WA_WARN;
 			}
 			else if (!stricmp(myargv[i]+2, "none"))
 			{
@@ -2908,7 +2952,6 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
 	qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
 	qccwarningaction[WARN_DEADCODE] = WA_IGNORE;
-	qccwarningaction[WARN_INEFFICIENTPLUSPLUS] = WA_IGNORE;
 	qccwarningaction[WARN_FTE_SPECIFIC] = WA_IGNORE;
 	qccwarningaction[WARN_EXTENSION_USED] = WA_IGNORE;
 	qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;
@@ -3020,6 +3063,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	myargc = argc;
 	myargv = argv;
 	pr_scope = NULL;
+	locals_marshalled = 0;
 
 	qcc_compileactive = true;
 
@@ -3613,7 +3657,7 @@ void QCC_FinishCompile(void)
 			printf("numtemps %i\n", numtemps);
 		}
 		if (!flag_msvcstyle)
-			printf("%i warnings\n", pr_warning_count);
+			printf("Done. %i warnings\n", pr_warning_count);
 	}
 
 	qcc_compileactive = false;

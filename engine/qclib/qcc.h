@@ -331,7 +331,7 @@ typedef struct temp_s {
 	struct QCC_def_s	*lastfunc;
 #endif
 	struct temp_s	*next;
-	pbool used;
+	int used;
 	unsigned int size;
 } temp_t;
 void QCC_PurgeTemps(void);
@@ -366,6 +366,23 @@ typedef struct QCC_def_s
 	temp_t *temp;
 } QCC_def_t;
 
+typedef struct
+{
+	enum{
+		REF_GLOBAL,	//(global.ofs)				- use vector[2] is an array ref or vector_z
+		REF_ARRAY,	//(global.ofs+wordoffset)	- constant offsets should be direct references, variable offsets will generally result in function calls
+		REF_POINTER,//*(pointerdef+wordindex)	- maths...
+		REF_FIELD,	//(entity.field)			- reading is a single load, writing requires address+storep
+		REF_STRING,	//"hello"[1]=='e'			- special opcodes, or str2chr builtin, or something
+	} type;
+
+	QCC_def_t *base;
+	QCC_def_t *index;
+	QCC_type_t *cast;	//entity.float is float, not pointer.
+	int		postinc;	//+1 or -1
+	pbool	readonly;	//for whatever reason, like base being a const
+} QCC_ref_t;
+
 //============================================================================
 
 // pr_loc.h -- program local defs
@@ -398,7 +415,7 @@ struct QCC_function_s
 	char				*file;		// source file with definition
 	int					file_line;
 	struct QCC_def_s		*def;
-	unsigned int		parm_ofs[MAX_PARMS];	// always contiguous, right?
+//	unsigned int		parm_ofs[MAX_PARMS];	// always contiguous, right?
 };
 
 
@@ -503,8 +520,10 @@ extern pbool flag_hashonly;
 extern pbool flag_fasttrackarrays;
 extern pbool flag_assume_integer;
 extern pbool flag_msvcstyle;
+extern pbool flag_debugmacros;
 extern pbool flag_filetimes;
 extern pbool flag_typeexplicit;
+extern pbool flag_noboundchecks;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -635,7 +654,6 @@ enum {
 	WARN_DEADCODE,
 	WARN_UNREACHABLECODE,
 	WARN_NOTSTANDARDBEHAVIOUR,
-	WARN_INEFFICIENTPLUSPLUS,
 	WARN_DUPLICATEPRECOMPILER,
 	WARN_IDENTICALPRECOMPILER,
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
@@ -811,6 +829,7 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_STATIC	2
 #define GDF_CONST	4
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, unsigned int flags);
+char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
 
 void QCC_PR_PrintDefs (void);
 

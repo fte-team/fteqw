@@ -9,6 +9,9 @@
 #include "qcc.h"
 #include "gui.h"
 
+//#define EMBEDDEBUG
+
+void AddSourceFile(char *format, ...);
 
 #ifndef TVM_SETBKCOLOR
 #define TVM_SETBKCOLOR              (TV_FIRST + 29)
@@ -66,13 +69,72 @@ int PDECL QCC_FileSize (const char *fname)
 	length = ftell(f);
 	fclose(f);
 
+	if (strcmp(progssrcname, fname))
+		AddSourceFile("%s/%s", progssrcname, fname);
+
 	return length;
 }
+
+#ifdef AVAIL_ZLIB
+#include "../libs/zlib.h"
+#endif
 
 pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 {
 	long    length;
 	FILE *f;
+
+	char *ext = strrchr(name, '.');
+	if (!stricmp(ext, ".gz"))
+	{
+#ifdef AVAIL_ZLIB
+		pbool okay = true;
+		char out[1024*8];
+
+		z_stream strm = {
+			data,
+			len,
+			0,
+
+			out,
+			sizeof(out),
+			0,
+
+			NULL,
+			NULL,
+
+			NULL,
+			NULL,
+			NULL,
+
+			Z_BINARY,
+			0,
+			0
+		};
+
+		f = fopen(name, "wb");
+		if (!f)
+			return false;
+		deflateInit2(&strm, Z_BEST_COMPRESSION, Z_DEFLATED, MAX_WBITS|16, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY);
+		while(okay && deflate(&strm, Z_FINISH) == Z_OK)
+		{
+			if (sizeof(out) - strm.avail_out != fwrite(out, 1, sizeof(out) - strm.avail_out, f))
+				okay = false;
+			strm.next_out = out;
+			strm.avail_out = sizeof(out);
+		}
+		if (sizeof(out) - strm.avail_out != fwrite(out, 1, sizeof(out) - strm.avail_out, f))
+			okay = false;
+		deflateEnd(&strm);
+		fclose(f);
+		if (!okay)
+			unlink(name);
+		return okay;
+#else
+		return false;
+#endif
+	}
+		
 	f = fopen(name, "wb");
 	if (!f)
 		return false;
@@ -139,6 +201,7 @@ int logprintf(const char *format, ...)
 #define MDI_WINDOW_CLASS_NAME "FTEMDIWINDOW"
 #define EDIT_WINDOW_CLASS_NAME "FTEEDITWINDOW"
 #define OPTIONS_WINDOW_CLASS_NAME "FTEOPTIONSWINDOW"
+#define ENGINE_WINDOW_CLASS_NAME "FTEEMBEDDEDWINDOW"
 
 #define EM_GETSCROLLPOS  (WM_USER + 221)
 #define EM_SETSCROLLPOS  (WM_USER + 222)
@@ -150,8 +213,12 @@ void GUIPrint(HWND wnd, char *msg);
 
 char finddef[256];
 char greptext[256];
+char enginebinary[MAX_PATH] = "fteglqw.exe";
+char enginebasedir[MAX_PATH] = "../..";
+char enginecommandline[8192] = "-game test -window +map start";
 
 void RunCompiler(char *args);
+void RunEngine(void);
 
 HINSTANCE ghInstance;
 HMODULE richedit;
@@ -160,6 +227,7 @@ pbool resetprogssrc;	//progs.src was changed, reload project info.
 
 
 HWND mainwindow;
+HWND gamewindow;
 HWND mdibox;
 HWND outputwindow;
 HWND outputbox;
@@ -178,15 +246,24 @@ struct{
 	int washit;
 } buttons[] = {
 	{"Compile"},
-	{"Edit"},
+	{"Progs.src"},
+#ifdef EMBEDDEBUG
+	{"Run"},
+#endif
 	{"Options"},
 	{"Quit"}
 };
 
-#define ID_COMPILE	0
-#define ID_EDIT	1
-#define ID_OPTIONS 2
-#define ID_QUIT	3
+enum
+{
+	ID_COMPILE = 0,
+	ID_EDIT,
+#ifdef EMBEDDEBUG
+	ID_RUN,
+#endif
+	ID_OPTIONS,
+	ID_QUIT
+};
 
 #define NUMBUTTONS sizeof(buttons)/sizeof(buttons[0])
 
@@ -195,6 +272,28 @@ struct{
 void GUI_DialogPrint(char *title, char *text)
 {
 	MessageBox(mainwindow, text, title, 0);
+}
+
+//available in xp+
+typedef LRESULT (CALLBACK *SUBCLASSPROC)(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+BOOL (WINAPI * pSetWindowSubclass)(HWND hWnd, SUBCLASSPROC pfnSubclass, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+LRESULT (WINAPI *pDefSubclassProc)(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+	if (uMsg == WM_KEYDOWN)
+	{
+		if (wParam == VK_F3)
+		{
+			SetFocus(search_name);
+			return 0;
+		}
+		if (wParam == VK_F5)
+		{
+			RunEngine();
+			return 0;
+		}
+	}
+	return pDefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
 
 HWND CreateAnEditControl(HWND parent)
@@ -263,6 +362,18 @@ HWND CreateAnEditControl(HWND parent)
 		SendMessage(newc, EM_EXLIMITTEXT, 0, 1<<20);
 	}
 
+	if (!pDefSubclassProc || !pSetWindowSubclass)
+	{
+		HMODULE lib = LoadLibrary("comctl32.dll");
+		if (lib)
+		{
+			pDefSubclassProc = (void*)GetProcAddress(lib, "DefSubclassProc");
+			pSetWindowSubclass = (void*)GetProcAddress(lib, "SetWindowSubclass");
+		}
+	}
+	if (pDefSubclassProc && pSetWindowSubclass)
+		pSetWindowSubclass(newc, MySubclassWndProc, 0, (DWORD_PTR)parent);
+
 	ShowWindow(newc, SW_SHOW);
 
 	return newc;
@@ -301,6 +412,9 @@ enum {
 	IDI_O_APPLY,
 	IDI_O_TARGET,
 	IDI_O_SYNTAX_HIGHLIGHTING,
+	IDI_O_ENGINE,
+	IDI_O_ENGINEBASEDIR,
+	IDI_O_ENGINECOMMANDLINE,
 
 	IDM_FIRSTCHILD
 };
@@ -485,6 +599,7 @@ char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize)
 }
 char *GetTooltipText(editor_t *editor)
 {
+	static char buffer[1024];
 	char wordbuf[256];
 	char *defname;
 	defname = WordUnderCursor(editor, wordbuf, sizeof(wordbuf));
@@ -493,10 +608,13 @@ char *GetTooltipText(editor_t *editor)
 	else if (globalstable.numbuckets)
 	{
 		QCC_def_t *def;
+		char *macro = QCC_PR_CheckCompConstTooltip(defname, buffer, buffer + sizeof(buffer));
+		if (*macro)
+			return macro;
+
 		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, false);
 		if (def)
 		{
-			static char buffer[1024];
 			char typebuf[1024];
 			//note function argument names do not persist beyond the function def. we might be able to read the function's localdefs for them, but that's unreliable/broken with builtins where they're most needed.
 			if (def->comment)
@@ -510,7 +628,7 @@ char *GetTooltipText(editor_t *editor)
 	else
 		return NULL;//"Type info not available. Compile first.";
 }
-static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
+static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
 	RECT rect;
@@ -1136,7 +1254,7 @@ void EditFile(char *name, int line)
 
 	
 	wndclass.style      = 0;
-    wndclass.lpfnWndProc   = (WNDPROC)EditorWndProc;
+    wndclass.lpfnWndProc   = EditorWndProc;
     wndclass.cbClsExtra    = 0;
     wndclass.cbWndExtra    = 0;
     wndclass.hInstance     = ghInstance;
@@ -1280,12 +1398,240 @@ pbool EditorModified(editor_t *e)
 
 
 
+//the engine thread simply sits waiting for responses from the engine
+typedef struct
+{
+	int pipeclosed;
+	DWORD tid;
+	HWND window;
+	HANDLE thread;
+	HANDLE pipefromengine;
+	HANDLE pipetoengine;
+} enginewindow_t;
 
+void EngineCommand(enginewindow_t *ctx, char *message, ...)
+{
+	//qcresume			- resume running
+	//qcinto			- singlestep. execute-with-debugging child functions
+	//qcover			- singlestep. execute-without-debugging child functions
+	//qcout				- singlestep. leave current function and enter parent.
+	//qcbreak "$loc"	- set breakpoint
+	//qcwatch "$var"	- set watchpoint
+	//qcstack			- force-report stack trace
+	va_list		va;
+	char		finalmessage[1024];
+	va_start (va, message);
+	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
+	va_end (va);
+	if (ctx->pipetoengine)
+	{
+		DWORD written = 0;
+		WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
+	}
+}
 
+unsigned int WINAPI threadwrapper(void *args)
+{
+	enginewindow_t *ctx = args;
+	{
+		PROCESS_INFORMATION childinfo;
+		STARTUPINFO startinfo;
+		SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
+		char cmdline[8192];
+		_snprintf(cmdline, sizeof(cmdline), "\"%s\" %s -plugin qcdebug", enginebinary, enginecommandline);
 
+		memset(&startinfo, 0, sizeof(startinfo));
+		startinfo.cb = sizeof(startinfo);
+		startinfo.hStdInput = NULL;
+		startinfo.hStdError = NULL;
+		startinfo.hStdOutput = NULL;
+		startinfo.dwFlags |= STARTF_USESTDHANDLES;
 
+		//create pipes for the stdin/stdout.
+		CreatePipe(&ctx->pipefromengine, &startinfo.hStdOutput, &pipesec, 0);
+		CreatePipe(&startinfo.hStdInput, &ctx->pipetoengine, &pipesec, 0);
 
+		SetHandleInformation(ctx->pipefromengine, HANDLE_FLAG_INHERIT, 0);
+		SetHandleInformation(ctx->pipetoengine, HANDLE_FLAG_INHERIT, 0);
 
+		EngineCommand(ctx, "vid_recenter %i %i %i %i %#p\n", 0, 0, 640, 480, (void*)ctx->window);
+
+		CreateProcess(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, enginebasedir, &startinfo, &childinfo);
+
+		//these ends of the pipes were inherited by now, so we can discard them in the caller.
+		CloseHandle(startinfo.hStdOutput);
+		CloseHandle(startinfo.hStdInput);
+	}
+
+	{
+		char buffer[8192];
+		unsigned int bufoffs = 0;
+		char *nl;
+		while(1)
+		{
+			DWORD avail;
+			//use Peek so we can read exactly how much there is without blocking, so we don't have to read byte-by-byte.
+			PeekNamedPipe(ctx->pipefromengine, NULL, 0, NULL, &avail, NULL);
+			if (!avail)
+				avail = 1;	//so we do actually sleep.
+			if (avail > sizeof(buffer)-1 - bufoffs)
+				avail = sizeof(buffer)-1 - bufoffs;
+			if (!ReadFile(ctx->pipefromengine, buffer + bufoffs, avail, &avail, NULL) || !avail)
+			{
+				break;
+			}
+
+			bufoffs += avail;
+			while(1)
+			{
+				buffer[bufoffs] = 0;
+				nl = strchr(buffer, '\n');
+				if (nl)
+				{
+					*nl = 0;
+					if (!strncmp(buffer, "status ", 7))
+					{
+						//SetWindowText(ctx->window, buffer+7);
+					}
+					else if (!strcmp(buffer, "status"))
+					{
+						//SetWindowText(ctx->window, "Engine");
+					}
+					else if (!strcmp(buffer, "curserver"))
+					{
+						//not interesting
+					}
+					else if (!strncmp(buffer, "qcstack ", 6))
+					{
+						//qcvm is giving a stack trace
+						//stack reset
+						//stack "$func" "$loc"
+						//local $depth
+					}
+					else if (!strncmp(buffer, "qcstep ", 5))
+					{
+						//qcvm stepped to the line specified, often dupes
+						//qcstep "$location"
+						EngineCommand(ctx, "qcstep\n");	//moves on to the next statement
+					}
+					else if (!strncmp(buffer, "qcvalue ", 6))
+					{
+						//qcvalue "$variableformula" "$value"
+					}
+					else if (!strncmp(buffer, "qcreloaded ", 6))
+					{
+						//so we can resend any breakpoint commands
+						//qcreloaded "$vmname" "$progsname"
+						EngineCommand(ctx, "qcresume\n");
+					}
+					else
+					{
+						//handle anything else we need to handle here
+						printf("Unknown command from engine \"%s\"\n", buffer);
+					}
+					nl++;
+					bufoffs -= (nl-buffer);
+					memmove(buffer, nl, bufoffs);
+				}
+				else
+					break;
+			}
+
+		}
+	}
+
+	ctx->pipeclosed = true;
+	PostMessage(ctx->window, WM_CLOSE, 0, 0);	//and tell the owning window to try to close it again
+	return 0;
+}
+
+static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
+				     WPARAM wParam,LPARAM lParam)
+{
+	enginewindow_t *e;
+	switch (message)
+	{
+	case WM_CREATE:
+		e = malloc(sizeof(*e));
+		memset(e, 0, sizeof(*e));
+		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)e);
+		e->window = hWnd;
+		e->thread = (HANDLE)CreateThread(NULL, 0, threadwrapper, e, 0, &e->tid);
+		break;
+	case WM_SIZE:
+		{
+			RECT r;
+			e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+			GetClientRect(hWnd, &r);
+			EngineCommand(e, "vid_recenter %i %i %i %i %#p\n", r.left, r.top, r.right-r.left, r.bottom - r.top, (void*)e->window);
+		}
+		goto gdefault;
+	case WM_CLOSE:
+		e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+		if (e->pipeclosed)
+		{
+			DestroyWindow(hWnd);
+			return 0;
+		}
+		//ask the engine to quit
+		EngineCommand(e, "quit force\n");
+		break;
+	case WM_DESTROY:
+		e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+		EngineCommand(e, "quit force\n");	//just in case
+		WaitForSingleObject(e->thread, INFINITE);
+		CloseHandle(e->thread);
+		free(e);
+		if (hWnd == gamewindow)
+			gamewindow = NULL;
+		break;
+
+	default:
+	gdefault:
+		return DefMDIChildProc(hWnd,message,wParam,lParam);
+	}
+	return 0;
+}
+void RunEngine(void)
+{
+	if (!gamewindow)
+	{
+		WNDCLASS wndclass;
+		MDICREATESTRUCT mcs;
+
+		memset(&wndclass, 0, sizeof(wndclass));
+		wndclass.style      = 0;
+		wndclass.lpfnWndProc   = EngineWndProc;
+		wndclass.cbClsExtra    = 0;
+		wndclass.cbWndExtra    = 0;
+		wndclass.hInstance     = ghInstance;
+		wndclass.hIcon         = 0;
+		wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
+		wndclass.hbrBackground = (void *)COLOR_WINDOW;
+		wndclass.lpszMenuName  = 0;
+		wndclass.lpszClassName = ENGINE_WINDOW_CLASS_NAME;
+		RegisterClass(&wndclass);
+
+		memset(&mcs, 0, sizeof(mcs));
+		mcs.szClass = ENGINE_WINDOW_CLASS_NAME;
+		mcs.szTitle = "Debug";
+		mcs.hOwner = ghInstance;
+		mcs.x = CW_USEDEFAULT;
+		mcs.y = CW_USEDEFAULT;
+		mcs.cx = 640;
+		mcs.cy = 480;
+		mcs.style = WS_OVERLAPPEDWINDOW;
+		mcs.lParam = 0;
+
+		gamewindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
+		ShowWindow(gamewindow, SW_SHOW);
+	}
+	else
+	{
+		enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+	}
+	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)gamewindow, 0);
+}
 
 
 
@@ -1295,7 +1641,12 @@ HWND nokeywords_coexistitem;
 HWND autoprototype_item;
 HWND autohighlight_item;
 HWND extraparmsitem;
-static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
+#ifdef EMBEDDEBUG
+HWND w_enginebinary;
+HWND w_enginebasedir;
+HWND w_enginecommandline;
+#endif
+static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
 	int i;
@@ -1332,6 +1683,11 @@ static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 			}
 			fl_autohighlight = Button_GetCheck(autohighlight_item);
 			Edit_GetText(extraparmsitem, parameters, sizeof(parameters)-1);
+#ifdef EMBEDDEBUG
+			Edit_GetText(w_enginebinary, enginebinary, sizeof(enginebinary)-1);
+			Edit_GetText(w_enginebasedir, enginebasedir, sizeof(enginebasedir)-1);
+			Edit_GetText(w_enginecommandline, enginecommandline, sizeof(enginecommandline)-1);
+#endif
 
 			if (wParam == IDI_O_USE)
 				buttons[ID_COMPILE].washit = true;
@@ -1531,7 +1887,7 @@ void OptionsDialog(void)
 
 	memset(&wndclass, 0, sizeof(wndclass));
 	wndclass.style      = 0;
-    wndclass.lpfnWndProc   = (WNDPROC)OptionsWndProc;
+    wndclass.lpfnWndProc   = OptionsWndProc;
     wndclass.cbClsExtra    = 0;
     wndclass.cbWndExtra    = 0;
     wndclass.hInstance     = ghInstance;
@@ -1589,7 +1945,7 @@ void OptionsDialog(void)
 		r.left, r.top, r.right-r.left, r.bottom-r.top, NULL, NULL, ghInstance, NULL);
 
 	subsection = CreateWindow("BUTTON", "Optimisations", WS_CHILD|WS_VISIBLE|BS_GROUPBOX,
-		0, 0, 400, height-48, optionsmenu, NULL, ghInstance, NULL);
+		0, 0, 400, height-40*4-8, optionsmenu, NULL, ghInstance, NULL);
 
 	num = 0;
 	for (i = 0; optimisations[i].enabled; i++)
@@ -1621,46 +1977,77 @@ void OptionsDialog(void)
 
 	CreateWindow("BUTTON","O0",
 		   WS_CHILD | WS_VISIBLE,
-		   8,height-88,64,32,
+		   8,height-40*5-8,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL0,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","O1",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64,height-88,64,32,
+		   8+64,height-40*5-8,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL1,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","O2",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*2,height-88,64,32,
+		   8+64*2,height-40*5-8,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL2,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","O3",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*3,height-88,64,32,
+		   8+64*3,height-40*5-8,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL3,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","Debug",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*4,height-88,64,32,
+		   8+64*4,height-40*5-8,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEBUG,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","Default",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*5,height-88,64,32,
+		   8+64*5,height-40*5-8,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEFAULT,
 		   ghInstance,
 		   NULL);
+
+#ifdef EMBEDDEBUG
+	w_enginebinary = CreateWindowEx(WS_EX_CLIENTEDGE,
+		"EDIT",
+		enginebinary,
+		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
+		8, height-40-30*3, 400-16, 22,
+		optionsmenu,
+		(HMENU)IDI_O_ENGINE,
+		ghInstance,
+		NULL);
+	w_enginebasedir = CreateWindowEx(WS_EX_CLIENTEDGE,
+		"EDIT",
+		enginebasedir,
+		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
+		8, height-40-30*2, 400-16, 22,
+		optionsmenu,
+		(HMENU)IDI_O_ENGINEBASEDIR,
+		ghInstance,
+		NULL);
+	w_enginecommandline = CreateWindowEx(WS_EX_CLIENTEDGE,
+		"EDIT",
+		enginecommandline,
+		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
+		8, height-40-30, 400-16, 22,
+		optionsmenu,
+		(HMENU)IDI_O_ENGINECOMMANDLINE,
+		ghInstance,
+		NULL);
+#endif
+
 	CreateWindow("BUTTON","Apply",
 		   WS_CHILD | WS_VISIBLE,
 		   8,height-40,64,32,
@@ -1780,7 +2167,7 @@ void OptionsDialog(void)
 
 
 
-static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
+static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
 	int width;
@@ -1854,7 +2241,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 		}
 		break;
 	case WM_CTLCOLORBTN:
-		return GetSysColorBrush(COLOR_HIGHLIGHT);//COLOR_BACKGROUND;
+		return (LRESULT)GetSysColorBrush(COLOR_HIGHLIGHT);//COLOR_BACKGROUND;
 	case WM_DESTROY:
 		mainwindow = NULL;
 		break;
@@ -1879,6 +2266,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			SetWindowPos(buttons[i].hwnd, NULL, width*i, rect.bottom-rect.top - 32, width, 32, 0);
 		}
 		break;
+//		goto gdefault;
 	case WM_PAINT:
 		hdc=BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
 
@@ -1920,7 +2308,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 				GenericMenu(wParam);
 			break;
 		}
-		break;
+		goto gdefault;
 	case WM_NOTIFY:
 		if (lParam)
 		{
@@ -1966,6 +2354,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			}
 		}
 	default:
+	gdefault:
 		if (mdibox)
 			return DefFrameProc(hWnd,mdibox,message,wParam,lParam);
 		else
@@ -1974,7 +2363,7 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 	return 0;
 }
 
-static LONG CALLBACK OutputWindowProc(HWND hWnd,UINT message,
+static LRESULT CALLBACK OutputWindowProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
 	RECT rect;
@@ -2074,6 +2463,11 @@ int GUIprintf(const char *msg, ...)
 	va_start (argptr,msg);
 	args = QC_vsnprintf (buf,sizeof(buf)-1, msg,argptr);
 	va_end (argptr);
+	buf[sizeof(buf)-5] = '.';
+	buf[sizeof(buf)-4] = '.';
+	buf[sizeof(buf)-3] = '.';
+	buf[sizeof(buf)-2] = '\n';
+	buf[sizeof(buf)-1] = 0;
 
 	printf("%s", buf);
 	if (logfile)
@@ -2225,7 +2619,14 @@ void RunCompiler(char *args)
 
 	argc = GUI_BuildParms(args, argv);
 
-	CompileParams(&funcs, true, argc, argv);
+	if (CompileParams(&funcs, true, argc, argv))
+	{
+		if (gamewindow)
+		{
+			enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+			EngineCommand(e, "restart\n");
+		}
+	}
 
 	if (logfile)
 		fclose(logfile);
@@ -2243,7 +2644,7 @@ void CreateOutputWindow(void)
 	if (!outputwindow)
 	{
 		wndclass.style      = 0;
-		wndclass.lpfnWndProc   = (WNDPROC)OutputWindowProc;
+		wndclass.lpfnWndProc   = OutputWindowProc;
 		wndclass.cbClsExtra    = 0;
 		wndclass.cbWndExtra    = 0;
 		wndclass.hInstance     = ghInstance;
@@ -2264,8 +2665,7 @@ void CreateOutputWindow(void)
 		mcs.style = WS_OVERLAPPEDWINDOW;
 		mcs.lParam = 0;
 
-		outputwindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, 
-		(LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
+		outputwindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
 
 		ShowWindow(outputwindow, SW_SHOW);
 	}
@@ -2355,9 +2755,11 @@ void AddSourceFile(char *format, ...)
 	item.item.state = TVIS_EXPANDED;
 	item.item.stateMask = TVIS_EXPANDED;
 	item.item.mask = TVIF_TEXT|TVIF_STATE;
-	while(slash = strchr(item.item.pszText, '/'))
+	while(item.item.pszText)
 	{
-		*slash = '\0';
+		slash = strchr(item.item.pszText, '/');
+		if (slash)
+			*slash++ = '\0';
 		item.hParent = TreeView_GetChild(projecttree, item.hParent);
 		do
 		{
@@ -2379,9 +2781,8 @@ void AddSourceFile(char *format, ...)
 		}
 		else pi = item.hParent;
 
-		item.item.pszText = slash+1;
+		item.item.pszText = slash;
 	}
-	SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
 }
 
 //progssrcname should already have been set.
@@ -2418,6 +2819,7 @@ void SetProgsSrc(void)
 		pr_file_p = QCC_COM_Parse(buffer);
 		if (*qcc_token == '#')
 		{
+			AddSourceFile("%s", progssrcname);
 			free(buffer);	//aaaahhh! newstyle!
 			return;
 		}
@@ -2528,7 +2930,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	resetprogssrc = true;
 
     wndclass.style      = 0;
-    wndclass.lpfnWndProc   = (WNDPROC)MainWndProc;
+    wndclass.lpfnWndProc   = MainWndProc;
     wndclass.cbClsExtra    = 0;
     wndclass.cbWndExtra    = 0;
     wndclass.hInstance     = ghInstance;
@@ -2579,7 +2981,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			WS_CHILD | WS_VISIBLE,
 			0, 0, 5, 5,
 			mainwindow,
-			(HMENU)(i+1),
+			(HMENU)(LONG_PTR)(i+1),
 			ghInstance,
 			NULL); 
 	}
@@ -2698,6 +3100,13 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				buttons[ID_EDIT].washit = false;
 				EditFile(progssrcname, -1);
 			}
+#ifdef EMBEDDEBUG
+			if (buttons[ID_RUN].washit)
+			{
+				buttons[ID_RUN].washit = false;
+				RunEngine();
+			}
+#endif
 			if (buttons[ID_OPTIONS].washit)
 			{
 				buttons[ID_OPTIONS].washit = false;

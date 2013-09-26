@@ -1,6 +1,8 @@
 
 #ifndef PROGSLIB_H
 #define PROGSLIB_H
+
+#include <stdlib.h>
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 #endif

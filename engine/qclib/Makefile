@@ -87,6 +87,6 @@ testapp.bin: qcvm.so test.o
 	$(CC) $(BASE_CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) qcvm.so test.o
 
 tests: testapp.bin
-	@$(foreach a,$(wildcard tests/*.src), echo TEST: $a; ./testapp.bin progs.dat -srcfile $a; echo; echo)
+	@$(foreach a,$(wildcard tests/*.src), echo TEST: $a; rm progs.dat; ./testapp.bin progs.dat -srcfile $a; echo; echo)
 
 .PHONY: tests

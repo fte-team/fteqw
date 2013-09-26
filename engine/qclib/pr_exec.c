@@ -8,7 +8,7 @@
 #define Host_Error Sys_Error
 
 // I put the following here to resolve "undefined reference to `__imp__vsnprintf'" with MinGW64 ~ Moodles
-#ifdef _WIN32
+#if 0//def _WIN32
 	#if (_MSC_VER >= 1400)
 		//with MSVC 8, use MS extensions
 		#define snprintf linuxlike_snprintf_vc8
@@ -150,22 +150,9 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 	if ( (unsigned)op < OP_NUMOPS)
 	{
-		int i;
-		QC_snprintfz (out, outlen, "%s", pr_opcodes[op].name);
+		QC_snprintfz (out, outlen, "%-12s ", pr_opcodes[op].opname);
 		outlen -= strlen(out);
 		out += strlen(out);
-		QC_snprintfz (out, outlen, " ");
-		outlen -= 1;
-		out += 1;
-
-		QC_snprintfz (out, outlen, "%s ",  pr_opcodes[op].name);
-		i = strlen(pr_opcodes[op].name);
-		for ( ; i<10 ; i++)
-		{
-			QC_snprintfz (out, outlen, " ");
-			outlen -= 1;
-			out += 1;
-		}
 	}
 	else
 #endif
@@ -175,15 +162,15 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 		out += strlen(out);
 	}
 
-	if (op == OP_IF_F || op == OP_IFNOT_F)
+	if (op == OP_IF_F || op == OP_IFNOT_F || op == OP_IF_I || op == OP_IFNOT_I || op == OP_IF_S || op == OP_IFNOT_S)
 	{
-		QC_snprintfz (out, outlen, "%sbranch %i",PR_GlobalStringNoContents(progfuncs, arg[0]),arg[1]);
+		QC_snprintfz (out, outlen, "%sbranch %i(%i)",PR_GlobalStringNoContents(progfuncs, arg[0]),(short)arg[1], statementnum+(short)arg[0]);
 		outlen -= strlen(out);
 		out += strlen(out);
 	}
 	else if (op == OP_GOTO)
 	{
-		QC_snprintfz (out, outlen, "branch %i",arg[0]);
+		QC_snprintfz (out, outlen, "branch %i(%i)",(short)arg[0], statementnum+(short)arg[0]);
 		outlen -= strlen(out);
 		out += strlen(out);
 	}
@@ -727,7 +714,7 @@ pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, char *key)
 char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	static char buf[256];
+	static char buf[8192];
 	fdef_t *fdef;
 	eval_t *val;
 	char *assignment;
@@ -1129,7 +1116,7 @@ static char *lastfile = 0;
 		lastline = externs->useeditor(&progfuncs->funcs, lastfile, lastline, statement, 0, NULL);
 		if (!pr_progstate[pn].linenums)
 			return statement;
-		if (lastline < 0)
+		if (lastline <= 0)
 			return -lastline;
 
 		if (pr_progstate[pn].linenums[statement] != lastline)
@@ -1221,6 +1208,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 	if (!--runaway)								\
 	{											\
 		pr_xstatement = st-pr_statements;		\
+		PR_RunError (&progfuncs->funcs, "runaway loop error\n");\
 		PR_StackTrace(&progfuncs->funcs);		\
 		printf ("runaway loop error\n");		\
 		while(pr_depth > prinst.exitdepth)		\

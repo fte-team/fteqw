@@ -39,8 +39,18 @@ int QC_strcasecmp (const char *s1, const char *s2);
 
 #ifdef _MSC_VER
 #define QC_vsnprintf _vsnprintf
+static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list args;
+	va_start (args, fmt);
+	vsnprintf (dest, size-1, fmt, args);
+	va_end (args);
+	//make sure its terminated.
+	dest[size-1] = 0;
+}
 #else
 #define QC_vsnprintf vsnprintf
+#define QC_snprintfz snprintf
 #endif
 
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
@@ -62,7 +72,7 @@ int 	SafeOpenWrite (char *filename, int maxsize);
 int 	SafeOpenRead (char *filename);
 void 	SafeRead (int handle, void *buffer, long count);
 void 	SafeWrite (int handle, void *buffer, long count);
-void	SafeClose(int handle);
+pbool	SafeClose(int hand);
 int SafeSeek(int hand, int ofs, int mode);
 void 	*SafeMalloc (long size);
 

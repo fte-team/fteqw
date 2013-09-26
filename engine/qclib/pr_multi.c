@@ -347,6 +347,18 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs;
 					break;
 				}
+				if (prinst.field[i].type == ev_vector && prinst.field[i].progsofs+1 == (unsigned)progsofs)
+				{
+//					printf("found union field %s %i -> %i\n", prinst.field[i].name, prinst.field[i].progsofs+1, prinst.field[i].ofs+1);
+					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs+1;
+					break;
+				}
+				if (prinst.field[i].type == ev_vector && prinst.field[i].progsofs+2 == (unsigned)progsofs)
+				{
+//					printf("found union field %s %i -> %i\n", prinst.field[i].name, prinst.field[i].progsofs+2, prinst.field[i].ofs+2);
+					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs+2;
+					break;
+				}
 			}
 		}
 	}

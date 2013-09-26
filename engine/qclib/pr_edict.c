@@ -523,7 +523,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		else
 			QC_snprintfz (line, sizeof(line), "entity %i", val->edict);
 
-		if (verbose)
+		if (verbose && (unsigned)val->edict < (unsigned)sv_num_edicts)
 		{
 			struct edict_s *ed = EDICT_NUM(progfuncs, val->edict);
 			int size = strlen(line);
@@ -877,6 +877,7 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 	int		i;
 	ddef16_t	*def16;
 	ddef32_t	*def32;
+	int nameofs = 0;
 	static char	line[128];
 
 	switch (current_progstate->structtype)
@@ -884,21 +885,29 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 	case PST_DEFAULT:
 	case PST_KKQWSV:
 		def16 = ED_GlobalAtOfs16(progfuncs, ofs);
-		if (!def16)
-			sprintf (line,"%i(?""?""?)", ofs);
-		else
-			sprintf (line,"%i(%s)", ofs, def16->s_name+progfuncs->funcs.stringtable);
+		if (def16)
+			nameofs = def16->s_name;
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
 		def32 = ED_GlobalAtOfs32(progfuncs, ofs);
-		if (!def32)
-			sprintf (line,"%i(?""?""?)", ofs);
-		else
-			sprintf (line,"%i(%s)", ofs, def32->s_name+progfuncs->funcs.stringtable);
+		if (def32)
+			nameofs = def32->s_name;
 		break;
 	default:
 		Sys_Error("Bad struct type in PR_GlobalStringNoContents");
+	}
+
+	if (nameofs)
+		sprintf (line,"%i(%s)", ofs, nameofs+progfuncs->funcs.stringtable);
+	else
+	{
+		if (ofs >= OFS_RETURN && ofs < OFS_PARM0)
+			sprintf (line,"%i(return_%c)", ofs, 'x' + (ofs - OFS_RETURN)%3);
+		else if (ofs >= OFS_PARM0 && ofs < RESERVED_OFS)
+			sprintf (line,"%i(parm%i_%c)", ofs, (ofs - OFS_PARM0)/3, 'x' + (ofs - OFS_PARM0)%3);
+		else
+			sprintf (line,"%i(?""?""?)", ofs);
 	}
 
 	i = strlen(line);

@@ -3766,17 +3766,29 @@ being registered.
 */
 void COM_CheckRegistered (void)
 {
+	char *newdef;
 	vfsfile_t	*h;
 
 	h = FS_OpenVFS("gfx/pop.lmp", "rb", FS_GAME);
-	static_registered = false;
 
-	if (!h)
-		return;
-	VFS_CLOSE(h);
+	if (h)
+	{
+		static_registered = true;
+		VFS_CLOSE(h);
+	}
+	else
+		static_registered = false;
 
-	static_registered = true;
-	Con_TPrintf (TL_REGISTEREDVERSION);
+
+	newdef = static_registered?"1":"0";
+
+	if (strcmp(registered.defaultstr, newdef))
+	{
+		registered.defaultstr = newdef;
+		Cvar_ForceSet(&registered, newdef);
+		if (static_registered)
+			Con_TPrintf (TL_REGISTEREDVERSION);
+	}
 }
 
 
@@ -4145,12 +4157,6 @@ void COM_Init (void)
 	Cmd_AddCommand ("crashme", COM_CrashMe_f);
 	Cmd_AddCommand ("errorme", COM_ErrorMe_f);
 	COM_InitFilesystem ();
-
-	COM_CheckRegistered ();
-	if (static_registered)
-		registered.defaultstr = "1";
-	else
-		registered.defaultstr = "0";
 
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");

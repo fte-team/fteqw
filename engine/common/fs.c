@@ -23,6 +23,7 @@ extern cvar_t com_fs_cache;
 int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
+void COM_CheckRegistered (void);
 
 struct
 {
@@ -489,10 +490,12 @@ void COM_Path_f (void)
 		Con_Printf ("Pure paths:\n");
 		for (s=com_purepaths ; s ; s=s->nextpure)
 		{
-			Con_Printf("%s  %s%s%s\n", s->logicalpath,
+			Con_Printf("%s  %s%s%s%s%s\n", s->logicalpath,
 					(s->flags & SPF_REFERENCED)?"(ref)":"",
 					(s->flags & SPF_TEMPORARY)?"(temp)":"",
-					(s->flags & SPF_COPYPROTECTED)?"(c)":"");
+					(s->flags & SPF_COPYPROTECTED)?"(c)":"",
+					(s->flags & SPF_EXPLICIT)?"(e)":"",
+					(s->flags & SPF_UNTRUSTED)?"(u)":"" );
 		}
 		Con_Printf ("----------\n");
 		if (fs_puremode == 2)
@@ -507,10 +510,12 @@ void COM_Path_f (void)
 		if (s == com_base_searchpaths)
 			Con_Printf ("----------\n");
 
-		Con_Printf("%s  %s%s%s\n", s->logicalpath,
+		Con_Printf("%s  %s%s%s%s%s\n", s->logicalpath,
 				(s->flags & SPF_REFERENCED)?"(ref)":"",
 				(s->flags & SPF_TEMPORARY)?"(temp)":"",
-				(s->flags & SPF_COPYPROTECTED)?"(c)":"");
+				(s->flags & SPF_COPYPROTECTED)?"(c)":"",
+				(s->flags & SPF_EXPLICIT)?"(e)":"",
+				(s->flags & SPF_UNTRUSTED)?"(u)":"" );
 	}
 }
 
@@ -808,6 +813,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
+			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
 			fs_finds++;
 			if (search->handle->FindFile(search->handle, loc, filename, pf))
 			{
@@ -823,7 +829,6 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);
 				goto out;
 			}
-			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
 		}
 	}
 
@@ -834,6 +839,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 //
 		for (search = com_searchpaths ; search ; search = search->next)
 		{
+			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
 			fs_finds++;
 			if (search->handle->FindFile(search->handle, loc, filename, pf))
 			{
@@ -849,7 +855,6 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);
 				goto out;
 			}
-			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
 		}
 	}
 fail:
@@ -2914,6 +2919,9 @@ static void FS_StartupWithGame(int gamenum)
 	if (i && i < com_argc-1)
 	{
 		COM_Gamedir(com_argv[i+1]);
+#ifndef CLIENTONLY
+		Info_SetValueForStarKey (svs.info, "*gamedir", com_argv[i+1], MAX_SERVERINFO_STRING);
+#endif
 	}
 
 #ifdef ANDROID
@@ -3328,6 +3336,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 
 	FS_BeginNextPackageDownload();
 
+	COM_CheckRegistered();
 
 	if (allowreloadconfigs)
 	{

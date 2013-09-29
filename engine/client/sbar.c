@@ -227,7 +227,7 @@ static mpic_t *Sbar_Q2CachePic(char *name)
 #define	ICON_HEIGHT	24
 #define	CHAR_WIDTH	16
 #define	ICON_SPACE	8
-static void SCR_DrawField (float x, float y, int color, float width, float value)
+static void SCR_DrawField (float x, float y, int color, float width, int value)
 {
 	char	num[16], *ptr;
 	int		l;

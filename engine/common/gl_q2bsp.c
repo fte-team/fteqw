@@ -3777,6 +3777,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 
 	if (!name || !name[0])
 	{
+		map_cmodels = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*map_cmodels));
+		numcmodels = 1;
 		numleafs = 1;
 		numclusters = 1;
 		numareas = 1;

@@ -3342,7 +3342,7 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 #ifndef SERVERONLY
 		size += 3*sizeof(vec3_t)*numverts;
 #endif
-		pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, sizeof(galiaspose_t) + sizeof(vecV_t)*numverts);
+		pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, size);
 		poutframe->poseofs = pose;
 		poutframe->numposes = 1;
 		galias->groups++;

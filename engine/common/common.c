@@ -1627,7 +1627,7 @@ void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 		move->impulse = MSG_ReadByte ();
 
 // read time to run command
-	move->msec = MSG_ReadByte ();
+	move->msec_compat = move->msec = MSG_ReadByte ();
 
 	move->lightlevel = MSG_ReadByte ();
 }

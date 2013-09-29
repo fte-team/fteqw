@@ -277,7 +277,7 @@ RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 PROFILE_DIR=$(BASE_DIR)/profile
 
-ALL_CFLAGS=$(HAVECONFIG) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
+ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS)$(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -334,13 +334,15 @@ OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 #BASELDFLAGS=-lm  -lz
 XLDFLAGS=$(IMAGELDFLAGS)
 
+#hack some other arguments based upon the toolchain
 ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
+	VISIBILITY_FLAGS=
 else
 	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length
-
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
+	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
 
 SDL_INCLUDES=-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL

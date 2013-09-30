@@ -277,7 +277,7 @@ RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 PROFILE_DIR=$(BASE_DIR)/profile
 
-ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS)$(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
+ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -308,6 +308,16 @@ ifeq ($(FTE_TARGET),morphos)
 endif
 ifeq ($(FTE_TARGET),bsd)
 	BASELDFLAGS=-lm
+	VISIBILITY_FLAGS=-fvisibility=hidden
+endif
+ifeq ($(FTE_TARGET),linux)
+	VISIBILITY_FLAGS=-fvisibility=hidden
+endif
+ifeq ($(FTE_TARGET),droid)
+	VISIBILITY_FLAGS=-fvisibility=hidden
+endif
+ifeq ($(FTE_TARGET),macosx)
+	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
@@ -330,6 +340,7 @@ endif
 
 IMAGELDFLAGS ?= -lpng -ljpeg
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
+VISIBILITY_FLAGS?=
 
 #BASELDFLAGS=-lm  -lz
 XLDFLAGS=$(IMAGELDFLAGS)
@@ -338,11 +349,9 @@ XLDFLAGS=$(IMAGELDFLAGS)
 ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
-	VISIBILITY_FLAGS=
 else
 	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
-	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
 
 SDL_INCLUDES=-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL

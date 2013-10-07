@@ -970,6 +970,7 @@ void CL_PredictMovePNum (int seat)
 
 	fromstate = &cl.inframes[fromframe & UPDATE_MASK].playerstate[pv->playernum];
 	tostate = &cl.inframes[toframe & UPDATE_MASK].playerstate[pv->playernum];
+	pv->pmovetype = tostate->pm_type;
 	le = &cl.lerpplayers[pv->playernum];
 
 	//if our network protocol doesn't have a concept of separate players, make sure our player states are updated from those entities

@@ -34,18 +34,20 @@ WHOAMI:=$(shell whoami)
 ifeq ($(FTE_TARGET),win32)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
-		ifneq ($(shell which i686-w64-mingw32-gcc 2> /dev/null),)
-			#yup, the alternative exists (this matches the one debian has)
-			CC=i686-w64-mingw32-gcc
-			WINDRES=i686-w64-mingw32-windres
-			STRIP=i686-w64-mingw32-strip
-#			BITS?=32
-		endif
+		#old/original mingw project, headers are not very up to date.
 		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i586-mingw32msvc-gcc
 			WINDRES=i586-mingw32msvc-windres
 			STRIP=i586-mingw32msvc-strip
+#			BITS?=32
+		endif
+		#mingw64 provides a 32bit toolchain too, which has more up to date header files than the mingw32 project. so favour that if its installed.
+		ifneq ($(shell which i686-w64-mingw32-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=i686-w64-mingw32-gcc
+			WINDRES=i686-w64-mingw32-windres
+			STRIP=i686-w64-mingw32-strip
 #			BITS?=32
 		endif
 	endif

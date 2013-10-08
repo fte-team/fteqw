@@ -173,8 +173,7 @@ void CDAudio_Update(void)
 			subchnl.cdsc_audiostatus != CDROM_AUDIO_PAUSED)
 		{
 			playing = false;
-			if (playLooping)
-				CDAudio_Play(playTrack, true);
+			Media_EndedTrack();
 		}
 	}
 }

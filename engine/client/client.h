@@ -705,8 +705,6 @@ typedef struct
 	int			num_entities;	// stored bottom up in cl_entities array
 	int			num_statics;	// stored top down in cl_entitiers
 
-	int			cdtrack;		// cd audio
-
 // all player information
 	unsigned int    allocated_client_slots;
 	player_info_t	players[MAX_CLIENTS];

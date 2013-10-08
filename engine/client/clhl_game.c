@@ -1458,9 +1458,13 @@ int CLHL_ParseGamePacket(void)
 		cl.intermission = true;
 		break;
 	case svc_cdtrack:
-		cl.cdtrack = MSG_ReadByte();
-		MSG_ReadByte();
-		CDAudio_Play ((qbyte)cl.cdtrack, (qbyte)cl.cdtrack);
+		{
+			unsigned int firsttrack;
+			unsigned int looptrack;
+			firsttrack = MSG_ReadByte ();
+			looptrack = MSG_ReadByte ();
+			Media_NumberedTrack (firsttrack, looptrack);
+		}
 		break;
 
 	case 35: //svc_weaponanimation:

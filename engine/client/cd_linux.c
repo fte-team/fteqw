@@ -85,7 +85,7 @@ int CDAudio_GetAudioDiskInfo(void)
 }
 
 
-void CDAudio_Play(int track, qboolean looping)
+void CDAudio_Play(int track)
 {
 	struct cdrom_tocentry entry;
 	struct cdrom_ti ti;
@@ -120,6 +120,8 @@ void CDAudio_Play(int track, qboolean looping)
 
 	if ( ioctl(cdfile, CDROMRESUME) == -1 ) 
 		Con_DPrintf("ioctl cdromresume failed\n");
+
+	playing = true;
 
 	if (!bgmvolume.value)
 		CDAudio_Pause ();
@@ -184,9 +186,6 @@ qboolean CDAudio_Startup(void)
 
 	if (cdfile != -1)
 		return true;
-
-	if (!bgmvolume.value)
-		return false;
 
 	if ((i = COM_CheckParm("-cddev")) != 0 && i < com_argc - 1)
 	{

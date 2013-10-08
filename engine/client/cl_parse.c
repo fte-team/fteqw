@@ -5700,8 +5700,11 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_cdtrack:
-			cl.cdtrack = MSG_ReadByte ();
-			Media_NumberedTrack ((qbyte)cl.cdtrack, (qbyte)cl.cdtrack);
+			{
+				unsigned int firsttrack;
+				firsttrack = MSG_ReadByte ();
+				Media_NumberedTrack (firsttrack, firsttrack);
+			}
 			break;
 
 		case svc_intermission:
@@ -6350,10 +6353,13 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_cdtrack:
-			cl.cdtrack = MSG_ReadByte ();
-			MSG_ReadByte ();
-
-			Media_NumberedTrack ((qbyte)cl.cdtrack, (qbyte)cl.cdtrack);
+			{
+				unsigned int firsttrack;
+				unsigned int looptrack;
+				firsttrack = MSG_ReadByte ();
+				looptrack = MSG_ReadByte ();
+				Media_NumberedTrack (firsttrack, looptrack);
+			}
 			break;
 
 		case svc_setview:

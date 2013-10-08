@@ -222,7 +222,10 @@ void M_ToggleMenu_f (void)
 	if (Key_Dest_Has(kdm_console))
 	{
 		if (cls.state != ca_active)
+		{
+			Key_Dest_Remove(kdm_console);
 			M_Menu_Main_f();
+		}
 		else
 			Con_ToggleConsole_Force ();
 	}

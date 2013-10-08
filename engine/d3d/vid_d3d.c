@@ -953,7 +953,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	if (scr_disabled_for_loading)
 	{
 		extern float scr_disabled_time;
-		if (Sys_DoubleTime() - scr_disabled_time > 60 || key_dest != key_game)
+		if (Sys_DoubleTime() - scr_disabled_time > 60 || Key_Dest_Has(~kdm_game))
 		{
 			scr_disabled_for_loading = false;
 		}

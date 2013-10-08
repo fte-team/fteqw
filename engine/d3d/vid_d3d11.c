@@ -1012,7 +1012,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	if (scr_disabled_for_loading)
 	{
 		extern float scr_disabled_time;
-		if (Sys_DoubleTime() - scr_disabled_time > 60 || key_dest != key_game)
+		if (Sys_DoubleTime() - scr_disabled_time > 60 || Key_Dest_Has(~kdm_game))
 		{
 			scr_disabled_for_loading = false;
 		}
@@ -1117,7 +1117,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
-		if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE)
+		if ((!Key_Dest_Has(~(kdm_game|kdm_console))) && SCR_GetLoadingStage() == LS_NONE)
 			scr_con_current = vid.height;
 
 		if (scr_con_current != vid.height)

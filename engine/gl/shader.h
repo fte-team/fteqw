@@ -598,7 +598,7 @@ void D3D9BE_UploadAllLightmaps(void);
 void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
 void D3D9BE_SelectEntity(entity_t *ent);
-void D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour);
+qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
 void D3D9BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
 void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
 void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
@@ -624,7 +624,7 @@ void D3D11BE_UploadAllLightmaps(void);
 void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);
 void D3D11BE_SelectEntity(entity_t *ent);
-void D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour);
+qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
 
 qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3D11Shader_FindUniform(union programhandle_u *h, int type, char *name);

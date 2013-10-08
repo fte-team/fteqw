@@ -2158,10 +2158,14 @@ void D3D9BE_SelectMode(backendmode_t mode)
 		BE_ApplyShaderBits(SBITS_MASK_BITS);
 }
 
-void D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour)
+qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
 {
 	shaderstate.curdlight = dl;
 	VectorCopy(colour, shaderstate.curdlight_colours);
+
+	if (lmode != LSHADER_STANDARD)
+		return false;
+	return true;
 }
 
 void D3D9BE_SelectEntity(entity_t *ent)
@@ -2756,7 +2760,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 		}
 
 		if (batch->shader->flags & SHADER_NODLIGHT)
-			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
+			if (shaderstate.mode == BEM_LIGHT)
 				continue;
 
 		if (batch->shader->flags & SHADER_SKY)
@@ -3087,7 +3091,7 @@ void D3D9BE_SubmitMeshes (qboolean drawworld, batch_t **blist, int first, int st
 void D3D9BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
-	BE_GenModelBatches(batches);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
 	D3D9BE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 	BE_SelectEntity(&r_worldentity);
 }
@@ -3126,7 +3130,8 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 		shaderstate.wbatch = 0;
 	}
 
-	BE_GenModelBatches(batches);
+	shaderstate.curdlight = NULL;
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
 
 	if (drawworld)
 	{

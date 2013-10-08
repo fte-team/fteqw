@@ -61,7 +61,9 @@ extern cvar_t r_glsl_offsetmapping, r_noportals;
 
 static void BE_SendPassBlendDepthMask(unsigned int sbits);
 void GLBE_SubmitBatch(batch_t *batch);
+#ifdef RTLIGHTS
 static qboolean GLBE_RegisterLightShader(int mode);
+#endif
 
 struct {
 	//internal state
@@ -3396,15 +3398,9 @@ qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
 	}
 #endif
 
+	shaderstate.lastuniform = 0;
 	shaderstate.curdlight = dl;
 	shaderstate.lightmode =	1u<<lmode;
-	if (lmode != LSHADER_SPOT)
-	{
-		if (TEXVALID(shaderstate.lightcubemap) && GLBE_RegisterLightShader(shaderstate.lightmode | (1u<<LSHADER_CUBE)))
-			shaderstate.lightmode |= 1u<<LSHADER_CUBE;
-	}
-	if (!GLBE_RegisterLightShader(shaderstate.lightmode))
-		return false;
 
 	/*simple info*/
 	shaderstate.lightradius = dl->radius;
@@ -3414,9 +3410,15 @@ qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
 #ifdef RTLIGHTS
 	VectorCopy(dl->lightcolourscales, shaderstate.lightcolourscale);
 	shaderstate.lightcubemap = dl->cubetexture;
-#endif
 
-	shaderstate.lastuniform = 0;
+	if (lmode != LSHADER_SPOT)
+	{
+		if (TEXVALID(shaderstate.lightcubemap) && GLBE_RegisterLightShader(shaderstate.lightmode | (1u<<LSHADER_CUBE)))
+			shaderstate.lightmode |= 1u<<LSHADER_CUBE;
+	}
+	if (!GLBE_RegisterLightShader(shaderstate.lightmode))
+		return false;
+#endif
 
 	return true;
 }

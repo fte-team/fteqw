@@ -1985,8 +1985,10 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 			else
 				M_ToggleMenu_f ();
 		}
+#ifdef TEXTEDITOR
 		else if (Key_Dest_Has(kdm_editor))
 			Editor_Key (key, unicode);
+#endif
 		else if (Key_Dest_Has(kdm_menu))
 			M_Keydown (key, unicode);
 		else if (Key_Dest_Has(kdm_message))
@@ -2022,8 +2024,10 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		}
 		if (Key_Dest_Has(kdm_menu))
 			M_Keyup (key, unicode);
+#ifndef NOMEDIA
 		if (Media_PlayingFullScreen())
 			Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
+#endif
 
 		if (!deltaused[key][keystate])	//this wasn't down, so don't make it leave down state.
 			return;
@@ -2087,11 +2091,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		Key_Console (con_current, unicode, key);
 		return;
 	}
+#ifdef TEXTEDITOR
 	if (Key_Dest_Has(kdm_editor))
 	{
 		Editor_Key (key, unicode);
 		return;
 	}
+#endif
 	if (Key_Dest_Has(kdm_menu))
 	{
 		M_Keydown (key, unicode);
@@ -2102,11 +2108,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		Key_Message (key, unicode);
 		return;
 	}
+#ifndef NOMEDIA
 	if (Media_PlayingFullScreen())
 	{
 		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
 		return;
 	}
+#endif
 
 	//anything else is a key binding.
 

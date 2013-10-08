@@ -1374,11 +1374,10 @@ qboolean Media_Playing(void);
 struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
-qboolean Media_FakeTrack(int i, qboolean loop);
-qboolean Media_BackgroundTrack(char *initialtrack, char *looptrack);
-void Media_NumberedTrack(int initialtrack, int looptrack);
-void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 #endif
+qboolean Media_BackgroundTrack(char *initialtrack, char *looptrack);	//new background music interface
+void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack);				//legacy cd interface for protocols that only support numbered tracks.
+void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 
 //these accept NULL for cin to mean the current fullscreen video
 void Media_Send_Command(cin_t *cin, char *command);

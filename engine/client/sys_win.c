@@ -283,12 +283,20 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	PVOID (WINAPI *pSymFunctionTableAccessX)(HANDLE hProcess, DWORD64 AddrBase);
 	DWORD64 (WINAPI *pSymGetModuleBaseX)(HANDLE hProcess, DWORD64 qwAddr);
 	BOOL (WINAPI *pSymGetLineFromAddrX)(HANDLE hProcess, DWORD64 qwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line64);
+	BOOL (WINAPI *pSymGetModuleInfoX)(HANDLE hProcess, DWORD64 qwAddr, PIMAGEHLP_MODULE64 ModuleInfo);
+	#define STACKFRAMEX STACKFRAME64
+	#define IMAGEHLP_LINEX IMAGEHLP_LINE64
+	#define IMAGEHLP_MODULEX IMAGEHLP_MODULE64
 #else
 #define DBGHELP_POSTFIX ""
 	BOOL (WINAPI *pStackWalkX)(DWORD MachineType, HANDLE hProcess, HANDLE hThread, LPSTACKFRAME StackFrame, PVOID ContextRecord, PREAD_PROCESS_MEMORY_ROUTINE ReadMemoryRoutine, PFUNCTION_TABLE_ACCESS_ROUTINE FunctionTableAccessRoutine, PGET_MODULE_BASE_ROUTINE GetModuleBaseRoutine, PTRANSLATE_ADDRESS_ROUTINE TranslateAddress);
 	PVOID (WINAPI *pSymFunctionTableAccessX)(HANDLE hProcess, DWORD AddrBase);
 	DWORD (WINAPI *pSymGetModuleBaseX)(HANDLE hProcess, DWORD dwAddr);
 	BOOL (WINAPI *pSymGetLineFromAddrX)(HANDLE hProcess, DWORD dwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE Line);
+	BOOL (WINAPI *pSymGetModuleInfoX)(HANDLE hProcess, DWORD dwAddr, PIMAGEHLP_MODULE ModuleInfo);
+	#define STACKFRAMEX STACKFRAME
+	#define IMAGEHLP_LINEX IMAGEHLP_LINE
+	#define IMAGEHLP_MODULEX IMAGEHLP_MODULE
 #endif
 	dllfunction_t debughelpfuncs[] =
 	{
@@ -299,6 +307,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 		{(void*)&pSymFunctionTableAccessX,	"SymFunctionTableAccess"DBGHELP_POSTFIX},
 		{(void*)&pSymGetModuleBaseX,		"SymGetModuleBase"DBGHELP_POSTFIX},
 		{(void*)&pSymGetLineFromAddrX,		"SymGetLineFromAddr"DBGHELP_POSTFIX},
+		{(void*)&pSymGetModuleInfoX,		"SymGetModuleInfo"DBGHELP_POSTFIX},
 		{NULL, NULL}
 	};
 
@@ -336,9 +345,10 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 
 		if (Sys_LoadLibrary("DBGHELP", debughelpfuncs))
 		{
-			STACKFRAME stack;
+			STACKFRAMEX stack;
 			CONTEXT *pcontext = exceptionInfo->ContextRecord;
-			IMAGEHLP_LINE line;
+			IMAGEHLP_LINEX line;
+			IMAGEHLP_MODULEX module;
 			struct
 			{
 				SYMBOL_INFO sym;
@@ -373,7 +383,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 			stack.AddrStack.Offset = pcontext->Esp;
 #endif
 
-			Q_strncpyz(stacklog+logpos, FULLENGINENAME " has crashed. The following stack dump been copied to your windows clipboard.\n"
+			Q_strncpyz(stacklog+logpos, FULLENGINENAME " or dependancy has crashed. The following stack dump been copied to your windows clipboard.\n"
 #ifdef _MSC_VER
 				"Would you like to generate a core dump too?\n"
 #endif
@@ -409,6 +419,9 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 				DWORD_PTR symaddr;
 				if (!pStackWalkX(IMAGE_FILE_MACHINE_THIS, hProc, GetCurrentThread(), &stack, pcontext, NULL, pSymFunctionTableAccessX, pSymGetModuleBaseX, NULL))
 					break;
+				memset(&module, 0, sizeof(module));
+				module.SizeOfStruct = sizeof(module);
+				pSymGetModuleInfoX(hProc, stack.AddrPC.Offset, &module);
 				memset(&line, 0, sizeof(line));
 				line.SizeOfStruct = sizeof(line);
 				symdisp = 0;
@@ -419,12 +432,12 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 				if (pSymFromAddr(hProc, symaddr, &symdisp, &sym.sym))
 				{
 					if (pSymGetLineFromAddrX(hProc, stack.AddrPC.Offset, &linedisp, &line))
-						logline = va("%-20s - %s:%i\r\n", sym.sym.Name, line.FileName, line.LineNumber);
+						logline = va("%-20s - %s:%i (%s)\r\n", sym.sym.Name, line.FileName, (int)line.LineNumber, module.LoadedImageName);
 					else
-						logline = va("%-20s+%#x\r\n", sym.sym.Name, (unsigned int)symdisp);
+						logline = va("%-20s+%#x (%s)\r\n", sym.sym.Name, (unsigned int)symdisp, module.LoadedImageName);
 				}
 				else
-					logline = va("0x%p\r\n", (void*)(DWORD_PTR)stack.AddrPC.Offset);
+					logline = va("0x%p (%s)\r\n", (void*)(DWORD_PTR)stack.AddrPC.Offset, module.LoadedImageName);
 				Q_strncpyz(stacklog+logpos, logline, sizeof(stacklog)-logpos);
 				logpos += strlen(stacklog+logpos);
 				if (logpos+1 >= sizeof(stacklog))

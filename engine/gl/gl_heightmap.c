@@ -346,8 +346,9 @@ static qboolean Terr_IsSectionFName(heightmap_t *hm, char *fname, int *sx, int *
 }
 static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, void *filebase, unsigned int filelen)
 {
-	int i, j;
+	int i;
 #ifndef SERVERONLY
+	int j;
 	dsmesh_t *dm;
 	unsigned char *lm;
 	float *colours;

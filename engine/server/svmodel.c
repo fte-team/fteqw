@@ -137,7 +137,7 @@ int SVQ1_RecursiveLightPoint3C (model_t *model, mnode_t *node, vec3_t start, vec
 
 			lightmap += (dt * ((surf->extents[0])+1) + ds)*3;
 
-			for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 					maps++)
 			{
 				scale = sv.strings.lightstyles[surf->styles[maps]][0];
@@ -1125,7 +1125,7 @@ qboolean Mod_LoadFaces (lump_t *l, qboolean lm)
 			out->firstedge = LittleLong(inl->firstedge);
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
-			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 				out->styles[i] = inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
@@ -1137,7 +1137,7 @@ qboolean Mod_LoadFaces (lump_t *l, qboolean lm)
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
-			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 				out->styles[i] = ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;

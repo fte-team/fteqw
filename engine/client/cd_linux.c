@@ -42,6 +42,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static int cdfile = -1;
 static char cd_dev[64] = "/dev/cdrom";
+static qboolean playing;
 
 void CDAudio_Eject(void)
 {

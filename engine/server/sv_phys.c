@@ -1929,7 +1929,9 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	case MOVETYPE_PHYSICS:
 		if (WPhys_RunThink(w, ent))
 			World_LinkEdict (w, ent, true);
+#ifdef USEODE
 		w->ode.hasodeents = true;
+#endif
 		break;
 	default:
 //		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v->movetype, PR_GetString(w->progs, ent->v->classname));

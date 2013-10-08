@@ -43,7 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static int cdfile = -1;
 static char cd_dev[64] = "/dev/cdrom";
 
-static void CDAudio_Eject(void)
+void CDAudio_Eject(void)
 {
 	if (cdfile == -1)
 		return; // no cd init'd
@@ -53,7 +53,7 @@ static void CDAudio_Eject(void)
 }
 
 
-static void CDAudio_CloseDoor(void)
+void CDAudio_CloseDoor(void)
 {
 	if (cdfile == -1)
 		return; // no cd init'd
@@ -62,7 +62,7 @@ static void CDAudio_CloseDoor(void)
 		Con_DPrintf("ioctl cdromclosetray failed\n");
 }
 
-static int CDAudio_GetAudioDiskInfo(void)
+int CDAudio_GetAudioDiskInfo(void)
 {
 	struct cdrom_tochdr tochdr;
 

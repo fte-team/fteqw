@@ -915,9 +915,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define LIGHTSTYLED\n",
 		NULL
 	};
-	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + 64 + 1];
+#define MAXMODIFIERS 64
+	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + MAXMODIFIERS + 1];
 	unsigned int nopermutation = ~0u;
-	int nummodifiers;
+	int nummodifiers = 0;
 	int p, n, pn;
 	char *end;
 
@@ -941,6 +942,26 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			script++;
 		if (!strncmp(script, "!!fixed", 7))
 			prog->nofixedcompat = false;
+		else if (!strncmp(script, "!!cvardf", 8))
+		{
+			script += 8;
+			while (*script == ' ' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			if (nummodifiers < MAXMODIFIERS && end - script < 64)
+			{
+				cvar_t *var;
+				char namebuf[64];
+				memcpy(namebuf, script, end - script);
+				namebuf[end - script] = 0;
+				var = Cvar_Get(namebuf, "0", CVAR_SHADERSYSTEM, "GLSL Variables");
+				if (var)
+					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, var->value));
+			}
+			script = end;
+		}
 		else if (!strncmp(script, "!!cvarf", 7))
 		{
 			script += 7;
@@ -1024,18 +1045,20 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			break;
 	};
 
-	nummodifiers = 0;
 	if (gl_specular.value)
-		permutationdefines[nummodifiers++] = strdup("#define SPECULAR\n");
+	{
+		if (nummodifiers < MAXMODIFIERS)
+			permutationdefines[nummodifiers++] = Z_StrDup("#define SPECULAR\n");
+	}
 	for (end = strchr(name, '#'); end && *end; )
 	{
 		char *start = end+1;
 		end = strchr(start, '#');
 		if (!end)
 			end = start + strlen(start);
-		if (nummodifiers < 64)
+		if (nummodifiers < MAXMODIFIERS)
 		{
-			permutationdefines[nummodifiers] = malloc(10 + end - start);
+			permutationdefines[nummodifiers] = BZ_Malloc(10 + end - start);
 			memcpy(permutationdefines[nummodifiers], "#define ", 8);
 			memcpy(permutationdefines[nummodifiers]+8, start, end - start);
 			memcpy(permutationdefines[nummodifiers]+8+(end-start), "\n", 2);
@@ -1108,7 +1131,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 #endif
 	}
 	while(nummodifiers)
-		free(permutationdefines[--nummodifiers]);
+		Z_Free(permutationdefines[--nummodifiers]);
 
 	Shader_ProgAutoFields(prog, cvarnames, cvartypes);
 
@@ -1588,7 +1611,7 @@ void Shader_WriteOutGenerics_f(void)
 struct shader_field_names_s shader_attr_names[] =
 {
 	/*vertex attributes*/
-	{"v_position",				VATTR_VERTEX1},
+	{"v_position1",				VATTR_VERTEX1},
 	{"v_position2",				VATTR_VERTEX2},
 	{"v_colour",				VATTR_COLOUR},
 	{"v_texcoord",				VATTR_TEXCOORD},
@@ -1598,9 +1621,16 @@ struct shader_field_names_s shader_attr_names[] =
 	{"v_tvector",				VATTR_TNORMALS},
 	{"v_bone",					VATTR_BONENUMS},
 	{"v_weight",				VATTR_BONEWEIGHTS},
+#if MAXRLIGHTMAPS > 1
+	{"v_lmcoord1",				VATTR_LMCOORD},
 	{"v_lmcoord2",				VATTR_LMCOORD2},
 	{"v_lmcoord3",				VATTR_LMCOORD3},
 	{"v_lmcoord4",				VATTR_LMCOORD4},
+	{"v_colour1",				VATTR_COLOUR},
+	{"v_colour2",				VATTR_COLOUR2},
+	{"v_colour3",				VATTR_COLOUR3},
+	{"v_colour4",				VATTR_COLOUR4},
+#endif
 	{NULL}
 };
 
@@ -1641,9 +1671,9 @@ struct shader_field_names_s shader_unif_names[] =
 	{"l_lightcolour",			SP_LIGHTCOLOUR},
 	{"l_lightposition",			SP_LIGHTPOSITION},
 	{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},
-	{"l_projmatrix",			SP_LIGHTPROJMATRIX},
 	{"l_cubematrix",			SP_LIGHTCUBEMATRIX},
-	{"l_shadowmapinfo",			SP_LIGHTSHADOWMAPINFO},
+	{"l_shadowmapproj",			SP_LIGHTSHADOWMAPPROJ},
+	{"l_shadowmapscale",		SP_LIGHTSHADOWMAPSCALE},
 
 	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
 	{NULL}

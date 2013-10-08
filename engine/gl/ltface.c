@@ -302,8 +302,8 @@ towards the center until it is valid.
 
 typedef struct
 {
-	vec3_t	lightmaps[MAXLIGHTMAPS][SINGLEMAP];
-	vec3_t	lightnorm[MAXLIGHTMAPS][SINGLEMAP];
+	vec3_t	lightmaps[MAXQ1LIGHTMAPS][SINGLEMAP];
+	vec3_t	lightnorm[MAXQ1LIGHTMAPS][SINGLEMAP];
 	int		numlightstyles;
 	vec_t	*light;
 	vec_t	facedist;
@@ -628,7 +628,7 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 	norms = l->lightnorm[mapnum];
 	if (mapnum == l->numlightstyles)
 	{	// init a new light map
-		if (mapnum == MAXLIGHTMAPS)
+		if (mapnum == MAXQ1LIGHTMAPS)
 		{
 			printf ("WARNING: Too many light styles on a face\n");
 			return;
@@ -715,7 +715,7 @@ static void FixMinlight (llightinfo_t *l)
 	}
 	if (i == l->numlightstyles)
 	{
-		if (l->numlightstyles == MAXLIGHTMAPS)
+		if (l->numlightstyles == MAXQ1LIGHTMAPS)
 			return;		// oh well..
 		for (j=0 ; j<l->numsurfpt ; j++)
 		{
@@ -819,7 +819,7 @@ void LightFace (int surfnum)
 	if (size > SINGLEMAP)
 		Error ("Bad lightmap size");
 
-	for (i=0 ; i<MAXLIGHTMAPS ; i++)
+	for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 		l.lightstyles[i] = 255;
 	
 //
@@ -843,14 +843,14 @@ void LightFace (int surfnum)
 	}
 
 #ifndef UTILITY
-	for (j=0 ; j<MAXLIGHTMAPS ; j++)
+	for (j=0 ; j<MAXQ1LIGHTMAPS ; j++)
 		f->styles[j] = 255;
 #endif
 	
 //
 // save out the values
 //
-	for (i=0 ; i <MAXLIGHTMAPS ; i++)
+	for (i=0 ; i <MAXQ1LIGHTMAPS ; i++)
 		f->styles[i] = l.lightstyles[i];
 
 

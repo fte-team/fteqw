@@ -40,8 +40,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PRINTGLARRAYS
 #endif
 
-#ifdef _DEBUG
-#if _MSC_VER >= 1300
+#if defined(_DEBUG) || defined(DEBUG)
+#if 1//_MSC_VER >= 1300
 #define CATCHCRASH
 #endif
 #endif
@@ -273,6 +273,34 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	MINIDUMPWRITEDUMP fnMiniDumpWriteDump;
 	HMODULE hKernel;
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
+	DWORD (WINAPI *pSymSetOptions)(DWORD SymOptions);
+	BOOL (WINAPI *pSymInitialize)(HANDLE hProcess, PSTR UserSearchPath, BOOL fInvadeProcess);
+	BOOL (WINAPI *pSymFromAddr)(HANDLE hProcess, DWORD64 Address, PDWORD64 Displacement, PSYMBOL_INFO Symbol);
+
+#ifdef _WIN64
+#define DBGHELP_POSTFIX "64"
+	BOOL (WINAPI *pStackWalkX)(DWORD MachineType, HANDLE hProcess, HANDLE hThread, LPSTACKFRAME64 StackFrame, PVOID ContextRecord, PREAD_PROCESS_MEMORY_ROUTINE64 ReadMemoryRoutine, PFUNCTION_TABLE_ACCESS_ROUTINE64 FunctionTableAccessRoutine, PGET_MODULE_BASE_ROUTINE64 GetModuleBaseRoutine, PTRANSLATE_ADDRESS_ROUTINE64 TranslateAddress);
+	PVOID (WINAPI *pSymFunctionTableAccessX)(HANDLE hProcess, DWORD64 AddrBase);
+	DWORD64 (WINAPI *pSymGetModuleBaseX)(HANDLE hProcess, DWORD64 qwAddr);
+	BOOL (WINAPI *pSymGetLineFromAddrX)(HANDLE hProcess, DWORD64 qwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line64);
+#else
+#define DBGHELP_POSTFIX ""
+	BOOL (WINAPI *pStackWalkX)(DWORD MachineType, HANDLE hProcess, HANDLE hThread, LPSTACKFRAME StackFrame, PVOID ContextRecord, PREAD_PROCESS_MEMORY_ROUTINE ReadMemoryRoutine, PFUNCTION_TABLE_ACCESS_ROUTINE FunctionTableAccessRoutine, PGET_MODULE_BASE_ROUTINE GetModuleBaseRoutine, PTRANSLATE_ADDRESS_ROUTINE TranslateAddress);
+	PVOID (WINAPI *pSymFunctionTableAccessX)(HANDLE hProcess, DWORD AddrBase);
+	DWORD (WINAPI *pSymGetModuleBaseX)(HANDLE hProcess, DWORD dwAddr);
+	BOOL (WINAPI *pSymGetLineFromAddrX)(HANDLE hProcess, DWORD dwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE Line);
+#endif
+	dllfunction_t debughelpfuncs[] =
+	{
+		{(void*)&pSymFromAddr,				"SymFromAddr"},
+		{(void*)&pSymSetOptions,			"SymSetOptions"},
+		{(void*)&pSymInitialize,			"SymInitialize"},
+		{(void*)&pStackWalkX,				"StackWalk"DBGHELP_POSTFIX},
+		{(void*)&pSymFunctionTableAccessX,	"SymFunctionTableAccess"DBGHELP_POSTFIX},
+		{(void*)&pSymGetModuleBaseX,		"SymGetModuleBase"DBGHELP_POSTFIX},
+		{(void*)&pSymGetLineFromAddrX,		"SymGetLineFromAddr"DBGHELP_POSTFIX},
+		{NULL, NULL}
+	};
 
 #ifdef PRINTGLARRAYS
 	if (!iswatchdog && qrenderer == QR_OPENGL)
@@ -303,8 +331,123 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	{
 	}
 	else
+	{
 		DestroyWindow(mainwindow);
 
+		if (Sys_LoadLibrary("DBGHELP", debughelpfuncs))
+		{
+			STACKFRAME stack;
+			CONTEXT *pcontext = exceptionInfo->ContextRecord;
+			IMAGEHLP_LINE line;
+			struct
+			{
+				SYMBOL_INFO sym;
+				char name[1024];
+			} sym;
+			int frameno;
+			char stacklog[8192];
+			int logpos, logstart;
+			char *logline;
+
+			stacklog[logpos=0] = 0;
+
+			pSymInitialize(hProc, NULL, TRUE);
+			pSymSetOptions(SYMOPT_LOAD_LINES);
+
+			memset(&stack, 0, sizeof(stack));
+#ifdef _WIN64
+			#define IMAGE_FILE_MACHINE_THIS IMAGE_FILE_MACHINE_AMD64
+			stack.AddrPC.Mode = AddrModeFlat;
+			stack.AddrPC.Offset = pcontext->Rip;
+			stack.AddrFrame.Mode = AddrModeFlat;
+			stack.AddrFrame.Offset = pcontext->Rbp;
+			stack.AddrStack.Mode = AddrModeFlat;
+			stack.AddrStack.Offset = pcontext->Rsp;
+#else
+			#define IMAGE_FILE_MACHINE_THIS IMAGE_FILE_MACHINE_I386
+			stack.AddrPC.Mode = AddrModeFlat;
+			stack.AddrPC.Offset = pcontext->Eip;
+			stack.AddrFrame.Mode = AddrModeFlat;
+			stack.AddrFrame.Offset = pcontext->Ebp;
+			stack.AddrStack.Mode = AddrModeFlat;
+			stack.AddrStack.Offset = pcontext->Esp;
+#endif
+
+			Q_strncpyz(stacklog+logpos, FULLENGINENAME " has crashed. The following stack dump been copied to your windows clipboard.\n"
+#ifdef _MSC_VER
+				"Would you like to generate a core dump too?\n"
+#endif
+				"\n", sizeof(stacklog)-logpos);
+			logstart = logpos += strlen(stacklog+logpos);
+
+			//so I know which one it is
+#if defined(DEBUG) || defined(_DEBUG)
+	#define BUILDDEBUGREL "Debug"
+#else
+	#define BUILDDEBUGREL "Optimised"
+#endif
+#ifdef MINIMAL
+	#define BUILDMINIMAL "Min"
+#else
+	#define BUILDMINIMAL ""
+#endif
+#if defined(GLQUAKE) && !defined(D3DQUAKE)
+	#define BUILDTYPE "GL"
+#elif !defined(GLQUAKE) && defined(D3DQUAKE)
+	#define BUILDTYPE "D3D"
+#else
+	#define BUILDTYPE "Merged"
+#endif
+
+			Q_snprintfz(stacklog+logpos, sizeof(stacklog)-logpos, "Build: %s %s %s: %s\r\n", BUILDDEBUGREL, PLATFORM, BUILDMINIMAL BUILDTYPE, version_string());
+			logpos += strlen(stacklog+logpos);
+
+			for(frameno = 0; ; frameno++)
+			{
+				DWORD64 symdisp;
+				DWORD linedisp;
+				DWORD_PTR symaddr;
+				if (!pStackWalkX(IMAGE_FILE_MACHINE_THIS, hProc, GetCurrentThread(), &stack, pcontext, NULL, pSymFunctionTableAccessX, pSymGetModuleBaseX, NULL))
+					break;
+				memset(&line, 0, sizeof(line));
+				line.SizeOfStruct = sizeof(line);
+				symdisp = 0;
+				memset(&sym, 0, sizeof(sym));
+				sym.sym.MaxNameLen = sizeof(sym.name);
+				symaddr = stack.AddrPC.Offset;
+				sym.sym.SizeOfStruct = sizeof(sym.sym);
+				if (pSymFromAddr(hProc, symaddr, &symdisp, &sym.sym))
+				{
+					if (pSymGetLineFromAddrX(hProc, stack.AddrPC.Offset, &linedisp, &line))
+						logline = va("%-20s - %s:%i\r\n", sym.sym.Name, line.FileName, line.LineNumber);
+					else
+						logline = va("%-20s+%#x\r\n", sym.sym.Name, (unsigned int)symdisp);
+				}
+				else
+					logline = va("0x%p\r\n", (void*)(DWORD_PTR)stack.AddrPC.Offset);
+				Q_strncpyz(stacklog+logpos, logline, sizeof(stacklog)-logpos);
+				logpos += strlen(stacklog+logpos);
+				if (logpos+1 >= sizeof(stacklog))
+					break;
+			}
+			Sys_SaveClipboard(stacklog+logstart);
+#ifdef _MSC_VER
+			if (MessageBox(0, stacklog, "KABOOM!", MB_ICONSTOP|MB_YESNO) != IDYES)
+				return EXCEPTION_EXECUTE_HANDLER;
+#else
+			MessageBox(0, stacklog, "KABOOM!", MB_ICONSTOP);
+			return EXCEPTION_EXECUTE_HANDLER;
+#endif
+		}
+		else
+		{
+			if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
+				return EXCEPTION_EXECUTE_HANDLER;
+		}
+	}
+
+	//generate a minidump, but only if we were compiled by something that used usable debugging info. its a bit pointless otherwise.
+#ifdef _MSC_VER
 	hDbgHelp = LoadLibrary ("DBGHELP");
 	if (hDbgHelp)
 		fnMiniDumpWriteDump = (MINIDUMPWRITEDUMP)GetProcAddress (hDbgHelp, "MiniDumpWriteDump");
@@ -325,14 +468,14 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 				return EXCEPTION_EXECUTE_HANDLER;
 			}
 		}
-		else
-		{
-			if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
-				return EXCEPTION_EXECUTE_HANDLER;
-		}
 
 		/*take a dump*/
-		GetTempPath (sizeof(dumpPath)-16, dumpPath);
+		if (*com_homedir)
+			Q_strncpyz(dumpPath, com_homedir, sizeof(dumpPath));
+		else if (*com_quakedir)
+			Q_strncpyz(dumpPath, com_quakedir, sizeof(dumpPath));
+		else
+			GetTempPath (sizeof(dumpPath)-16, dumpPath);
 		Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
 		dumpfile = CreateFile (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (dumpfile)
@@ -344,7 +487,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 			if (fnMiniDumpWriteDump(hProc, procid, dumpfile, MiniDumpWithIndirectlyReferencedMemory|MiniDumpWithDataSegs, &crashinfo, NULL, NULL))
 			{
 				CloseHandle(dumpfile);
-				Q_snprintfz(msg, sizeof(msg), "You can find the crashdump at\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath);
+				Q_snprintfz(msg, sizeof(msg), "You can find the crashdump at:\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath);
 				MessageBox(NULL, msg, DISTRIBUTION " Sucks", 0);
 			}
 			else
@@ -358,16 +501,31 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	}
 	else
 		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
+#endif
 	return EXCEPTION_EXECUTE_HANDLER;
 }
+
+//most compilers do not support __try. perhaps we should avoid its use entirely?
+LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
+{
+	DWORD foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
+
+	//we have no handler. thus we handle it by exiting.
+	if (foo == EXCEPTION_EXECUTE_HANDLER)
+		exit(1);
+
+	return foo;
+}
+
 volatile int watchdogframe;	//incremented each frame.
 int watchdogthread(void *arg)
 {
+#ifdef _MSC_VER
 	int oldframe = watchdogframe;
 	int newframe;
 	int secs = 0;
 	while(1)
-	{
+	{ 
 		newframe = watchdogframe;
 		if (oldframe != newframe)
 		{
@@ -391,6 +549,7 @@ int watchdogthread(void *arg)
 		}
 		Sleep(1000);
 	}
+#endif
 	return 0;
 }
 #endif
@@ -818,39 +977,6 @@ void VARGS Sys_Error (const char *error, ...)
 	exit (1);
 }
 
-static wchar_t dequake(conchar_t chr)
-{
-	chr &= CON_CHARMASK;
-
-	/*only this range are quake chars*/
-	if (chr >= 0xe000 && chr < 0xe100)
-	{
-		chr &= 0xff;
-		if (chr >= 146 && chr < 156)
-			chr = chr - 146 + '0';
-		if (chr >= 0x12 && chr <= 0x1b)
-			chr = chr - 0x12 + '0';
-		if (chr == 143)
-			chr = '.';
-		if (chr == 128 || chr == 129 || chr == 130 || chr == 157 || chr == 158 || chr == 159)
-			chr = '-';
-		if (chr >= 128)
-			chr -= 128;
-		if (chr == 16)
-			chr = '[';
-		if (chr == 17)
-			chr = ']';
-		if (chr == 0x1c)
-			chr = 249;
-	}
-	/*this range contains pictograms*/
-	if (chr >= 0xe100 && chr < 0xe200)
-	{
-		chr = '?';
-	}
-	return chr;
-}
-
 void VARGS Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;
@@ -876,7 +1002,7 @@ void VARGS Sys_Printf (char *fmt, ...)
 	{
 		if (!(*in & CON_HIDDEN))
 		{
-			*out++ = dequake(*in & CON_CHARMASK);
+			*out++ = COM_DeQuake(*in & CON_CHARMASK);
 			wlen++;
 		}
 	}
@@ -992,49 +1118,66 @@ HANDLE	clipboardhandle;
 char *cliputf8;
 char *Sys_GetClipboard(void)
 {
-	char *clipText;
-	unsigned short *clipWText;
 	if (OpenClipboard(NULL))
 	{
 		//windows programs interpret CF_TEXT as ansi (aka: gibberish)
 		//so grab utf-16 text and convert it to utf-8 if our console parsing is set to accept that.
-		if (com_parseutf8.ival > 0)
+		clipboardhandle = GetClipboardData(CF_UNICODETEXT);
+		if (clipboardhandle)
 		{
-			clipboardhandle = GetClipboardData(CF_UNICODETEXT);
-			if (clipboardhandle)
+			unsigned short *clipWText = GlobalLock(clipboardhandle);
+			if (clipWText)
 			{
-				clipWText = GlobalLock(clipboardhandle);
-				if (clipWText)
+				unsigned int l, c;
+				char *utf8;
+				for (l = 0; clipWText[l]; l++)
+					;
+				l = l*4 + 1;
+				utf8 = cliputf8 = malloc(l);
+				while(*clipWText)
 				{
-					unsigned int l, c;
-					for (l = 0; clipWText[l]; l++)
-						;
-					l = l*4 + 1;
-					clipText = cliputf8 = malloc(l);
-					while(*clipWText)
-					{
-						c = utf8_encode(clipText, *clipWText++, l);
-						if (!c)
-							break;
-						l -= c;
-						clipText += c;
-					}
-					*clipText = 0;
-					return cliputf8;
+					if (clipWText[0] == '\r' && clipWText[1] == '\n')	//bloomin microsoft.
+						clipWText++;
+					c = utf8_encode(utf8, *clipWText++, l);
+					if (!c)
+						break;
+					l -= c;
+					utf8 += c;
 				}
-
-				//failed at the last hurdle
-
-				GlobalUnlock(clipboardhandle);
+				*utf8 = 0;
+				return cliputf8;
 			}
+
+			//failed at the last hurdle
+
+			GlobalUnlock(clipboardhandle);
 		}
 
 		clipboardhandle = GetClipboardData(CF_TEXT);
 		if (clipboardhandle)
 		{
-			clipText = GlobalLock(clipboardhandle);
+			char *clipText = GlobalLock(clipboardhandle);
 			if (clipText)
-				return clipText;
+			{
+				unsigned int l, c;
+				char *utf8;
+				for (l = 0; clipText[l]; l++)
+					;
+				l = l*4 + 1;
+				utf8 = cliputf8 = malloc(l);
+				while(*clipText)
+				{
+					if (clipText[0] == '\r' && clipText[1] == '\n')	//bloomin microsoft.
+						clipText++;
+					c = utf8_encode(utf8, *clipText++, l);
+					if (!c)
+						break;
+					l -= c;
+					utf8 += c;
+				}
+				*utf8 = 0;
+				return cliputf8;
+			}
 
 			//failed at the last hurdle
 
@@ -1067,13 +1210,6 @@ void Sys_SaveClipboard(char *text)
 		return;
     EmptyClipboard();
 
-	glob = GlobalAlloc(GMEM_MOVEABLE, strlen(text) + 1);
-    if (glob == NULL)
-    {
-        CloseClipboard();
-        return;
-    }
-
 	if (com_parseutf8.ival > 0)
 	{
 		glob = GlobalAlloc(GMEM_MOVEABLE, (strlen(text) + 1)*2);
@@ -1085,6 +1221,7 @@ void Sys_SaveClipboard(char *text)
 				int error;
 				while(*text)
 				{
+					//NOTE: should be \r\n and not just \n
 					*tempw++ = utf8_decode(&error, text, &text);
 				}
 				*tempw = 0;
@@ -1097,16 +1234,27 @@ void Sys_SaveClipboard(char *text)
 	}
 	else
 	{
-		//yes, quake chars will get mangled horribly.
-		temp = GlobalLock(glob);
-		if (temp != NULL)
+		glob = GlobalAlloc(GMEM_MOVEABLE, strlen(text) + 1);
+		if (glob)
 		{
-			strcpy(temp, text);
-			GlobalUnlock(glob);
-			SetClipboardData(CF_TEXT, glob);
+			//yes, quake chars will get mangled horribly.
+			temp = GlobalLock(glob);
+			if (temp != NULL)
+			{
+				int error;
+				while (*text)
+				{
+					//NOTE: should be \r\n and not just \n
+					*temp++ = utf8_decode(&error, text, &text);
+				}
+				*temp = 0;
+				strcpy(temp, text);
+				GlobalUnlock(glob);
+				SetClipboardData(CF_TEXT, glob);
+			}
+			else
+				GlobalFree(glob);
 		}
-		else
-			GlobalFree(glob);
 	}
 
 	CloseClipboard();
@@ -2290,7 +2438,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 #ifdef CATCHCRASH
+#ifdef _MSC_VER
 	__try
+#else
+	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
+#endif
 #endif
 	{
 /*
@@ -2565,7 +2717,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				SetHookState(ActiveApp);
 
 				/*sleep if its not yet time for a frame*/
-				Sys_Sleep(sleeptime);
+				if (sleeptime)
+					Sys_Sleep(sleeptime);
 	#else
 				Sys_Error("wut?");
 	#endif
@@ -2573,10 +2726,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 #ifdef CATCHCRASH
+#ifdef _MSC_VER
 	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
 		return 1;
 	}
+#endif
 #endif
 
     /* return success of application */

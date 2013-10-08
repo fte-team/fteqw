@@ -785,6 +785,11 @@ struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 	if ((unsigned)progs >= (unsigned)maxedicts)
 	{
 		printf("Bad entity index %i\n", progs);
+		if (pr_depth)
+		{
+			PR_StackTrace (ppf);
+//			progfuncs->funcs.pr_trace += 1;
+		}
 		progs = 0;
 	}
 	return (struct edict_s *)PROG_TO_EDICT(progfuncs.inst, progs);

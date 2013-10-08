@@ -72,31 +72,21 @@ static void Validation_Version(void)
 
 	extern cvar_t r_shadow_realtime_world, r_drawflat;
 
-	switch(qrenderer)
-	{
-#ifdef GLQUAKE
-	case QR_OPENGL:
-		s = sr;
-		//print certain allowed 'cheat' options.
-		//realtime lighting (shadows can show around corners)
-		//drawflat is just lame
-		//24bits can be considered eeeevil, by some.
-		if (r_shadow_realtime_world.ival)
-			*s++ = 'W';
-		else if (r_shadow_realtime_dlight.ival)
-			*s++ = 'S';
-		if (r_drawflat.ival)
-			*s++ = 'F';
-		if (gl_load24bit.ival)
-			*s++ = 'H';
-
-		*s = *"";
-		break;
+	s = sr;
+	//print certain allowed 'cheat' options.
+	//realtime lighting (shadows can show around corners)
+	//drawflat is just lame
+	//24bits can be considered eeeevil, by some.
+#ifdef RTLIGHTS
+	if (r_shadow_realtime_world.ival)
+		*s++ = 'W';
+	else if (r_shadow_realtime_dlight.ival)
+		*s++ = 'S';
 #endif
-	default:
-		*sr = *"";
-		break;
-	}
+	if (r_drawflat.ival)
+		*s++ = 'F';
+	if (gl_load24bit.ival)
+		*s++ = 'H';
 
 	*s = '\0';
 

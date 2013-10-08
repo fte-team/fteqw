@@ -346,7 +346,7 @@ cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
 int		CM_NumInlineModels (model_t *model);
 cmodel_t	*CM_InlineModel (char *name);
 void	CM_InitBoxHull (void);
-void	FloodAreaConnections (void);
+static void	FloodAreaConnections (void);
 
 
 static int		c_pointcontents;
@@ -357,8 +357,8 @@ static vecV_t		*map_verts;	//3points
 static int			numvertexes;
 
 static vec2_t		*map_vertstmexcoords;
-static vec2_t		*map_vertlstmexcoords[MAXLIGHTMAPS];
-static vec4_t		*map_colors4f_array[MAXLIGHTMAPS];
+static vec2_t		*map_vertlstmexcoords[MAXRLIGHTMAPS];
+static vec4_t		*map_colors4f_array[MAXRLIGHTMAPS];
 static vec3_t		*map_normals_array;
 static vec3_t		*map_svector_array;
 static vec3_t		*map_tvector_array;
@@ -1394,7 +1394,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 
 	// lighting info
 
-		for (i=0 ; i<MAXLIGHTMAPS ; i++)
+		for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 			out->styles[i] = in->styles[i];
 		i = LittleLong(in->lightofs);
 		if (i == -1)
@@ -2085,7 +2085,7 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
-	for (i = 0; i < MAXLIGHTMAPS; i++)
+	for (i = 0; i < MAXRLIGHTMAPS; i++)
 	{
 		map_vertlstmexcoords[i] = lmout;
 		map_colors4f_array[i] = cout;
@@ -2142,14 +2142,14 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 	stout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*stout));
-	lmout = ZG_Malloc(&loadmodel->memgroup, MAXLIGHTMAPS*count*sizeof(*lmout));
-	cout = ZG_Malloc(&loadmodel->memgroup, MAXLIGHTMAPS*count*sizeof(*cout));
+	lmout = ZG_Malloc(&loadmodel->memgroup, MAXRLIGHTMAPS*count*sizeof(*lmout));
+	cout = ZG_Malloc(&loadmodel->memgroup, MAXRLIGHTMAPS*count*sizeof(*cout));
 	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
 	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*sout));
 	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*tout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
-	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 	{
 		map_vertlstmexcoords[sty] = lmout + sty*count;
 		map_colors4f_array[sty] = cout + sty*count;
@@ -2169,10 +2169,10 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 		for ( j=0 ; j < 2 ; j++)
 		{
 			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
-			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 				map_vertlstmexcoords[sty][i][j] = LittleFloat ( ((float *)in->texcoords)[j+2*(sty+1)] );
 		}
-		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
 			for ( j=0 ; j < 4 ; j++)
 			{
@@ -2477,14 +2477,14 @@ void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patc
 // fill in
 
 	Patch_Evaluate ( map_verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
-	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 	{
 		if (mesh->colors4f_array[sty])
 			Patch_Evaluate ( map_colors4f_array[sty][firstvert], patch_cp, step, mesh->colors4f_array[sty][0], 4 );
 	}
 	Patch_Evaluate ( map_normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
 	Patch_Evaluate ( map_vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
-	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 	{
 		if (mesh->lmst_array[sty])
 			Patch_Evaluate ( map_vertlstmexcoords[sty][firstvert], patch_cp, step, mesh->lmst_array[sty][0], 2 );
@@ -2548,7 +2548,7 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 		{
 			VectorCopy(map_verts[fv + i], out->mesh->xyz_array[i]);
 			Vector2Copy(map_vertstmexcoords[fv + i], out->mesh->st_array[i]);
-			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 			{
 				Vector2Copy(map_vertlstmexcoords[sty][fv + i], out->mesh->lmst_array[sty][i]);
 				Vector4Copy(map_colors4f_array[sty][fv + i], out->mesh->colors4f_array[sty][i]);
@@ -2708,7 +2708,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		out->light_s[0] = LittleLong(in->lightmap_x);
 		out->light_t[0] = LittleLong(in->lightmap_y);
 		out->styles[0] = 255;
-		for (sty = 1; sty < MAXLIGHTMAPS; sty++)
+		for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
 		{
 			out->styles[sty] = 255;
 			out->lightmaptexturenums[sty] = -1;
@@ -2821,7 +2821,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		out->plane = pl;
 		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
 		in->facetype = LittleLong(in->facetype);
-		for (j = 0; j < 4 && j < MAXLIGHTMAPS; j++)
+		for (j = 0; j < 4 && j < MAXRLIGHTMAPS; j++)
 		{
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
 			out->light_s[j] = LittleLong(in->lightmap_offs[0][j]);
@@ -3357,6 +3357,9 @@ void CModQ3_LoadLighting (lump_t *l)
 	//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
 	gl_overbright.flags |= CVAR_LATCH;
 	BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
+
+	if (!samples)
+		return;
 
 	loadmodel->engineflags |= MDLF_RGBLIGHTING;
 	loadmodel->lightdata = out = ZG_Malloc(&loadmodel->memgroup, samples);
@@ -5636,7 +5639,7 @@ qbyte *Mod_ClusterPVS (int cluster, model_t *model)
 		model);
 }
 */
-void CM_DecompressVis (qbyte *in, qbyte *out)
+static void CM_DecompressVis (qbyte *in, qbyte *out)
 {
 	int		c;
 	qbyte	*out_p;
@@ -5678,8 +5681,8 @@ void CM_DecompressVis (qbyte *in, qbyte *out)
 	} while (out_p - out < row);
 }
 
-qbyte	pvsrow[MAX_MAP_LEAFS/8];
-qbyte	phsrow[MAX_MAP_LEAFS/8];
+static qbyte	pvsrow[MAX_MAP_LEAFS/8];
+static qbyte	phsrow[MAX_MAP_LEAFS/8];
 
 
 
@@ -5744,7 +5747,7 @@ AREAPORTALS
 ===============================================================================
 */
 
-void FloodArea_r (q2carea_t *area, int floodnum)
+static void FloodArea_r (q2carea_t *area, int floodnum)
 {
 	int		i;
 	q2dareaportal_t	*p;
@@ -5773,7 +5776,7 @@ FloodAreaConnections
 
 ====================
 */
-void	FloodAreaConnections (void)
+static void	FloodAreaConnections (void)
 {
 	int		i, j;
 	q2carea_t	*area;

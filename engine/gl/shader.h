@@ -305,7 +305,9 @@ enum{
 	PERMUTATION_SKELETAL = 16,
 	PERMUTATION_FOG	= 32,
 	PERMUTATION_FRAMEBLEND = 64,
+#if MAXRLIGHTMAPS > 1
 	PERMUTATION_LIGHTSTYLES = 128,
+#endif
 	PERMUTATIONS = 256
 };
 
@@ -321,12 +323,14 @@ enum shaderattribs_e
 	VATTR_TNORMALS,
 	VATTR_BONENUMS, /*skeletal only*/
 	VATTR_BONEWEIGHTS, /*skeletal only*/
+#if MAXRLIGHTMAPS > 1
 	VATTR_LMCOORD2,
 	VATTR_LMCOORD3,
 	VATTR_LMCOORD4,
 	VATTR_COLOUR2,
 	VATTR_COLOUR3,
 	VATTR_COLOUR4,
+#endif
 
 
 	VATTR_LEG_VERTEX,	//note: traditionally this is actually index 0.
@@ -381,9 +385,9 @@ typedef struct {
 		SP_LIGHTCOLOURSCALE,
 		SP_LIGHTPOSITION,
 		SP_LIGHTSCREEN,
-		SP_LIGHTPROJMATRIX,
 		SP_LIGHTCUBEMATRIX,
-		SP_LIGHTSHADOWMAPINFO,
+		SP_LIGHTSHADOWMAPPROJ,
+		SP_LIGHTSHADOWMAPSCALE,
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
@@ -459,6 +463,7 @@ struct shader_s
 
 	polyoffset_t polyoffset;
 
+	#define SHADER_CULL_FLIP (SHADER_CULL_FRONT|SHADER_CULL_BACK)
 	enum {
 		SHADER_SKY				= 1 << 0,
 		SHADER_NOMIPMAPS		= 1 << 1,
@@ -547,6 +552,15 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
 #define BEF_LINES				512	//draw line pairs instead of triangles.
 
+enum
+{
+	LSHADER_STANDARD,	//stencil or shadowless
+	LSHADER_CUBE,		//has a cubemap
+	LSHADER_SMAP,		//shadowmap
+	LSHADER_SPOT,		//spotlight+shadowmap
+	LSHADER_MODES
+};
+
 #ifdef GLQUAKE
 void GLBE_Init(void);
 void GLBE_Shutdown(void);
@@ -561,7 +575,7 @@ void GLBE_UploadAllLightmaps(void);
 void GLBE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
-void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
+qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
 void GLBE_Scissor(srect_t *rect);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
@@ -631,6 +645,7 @@ void BE_DrawNonWorld (void);
 //Builds a hardware shader from the software representation
 void BE_GenerateProgram(shader_t *shader);
 
+void Sh_RegisterCvars(void);
 #ifdef RTLIGHTS
 //
 void GLBE_PushOffsetShadow(qboolean foobar);
@@ -648,6 +663,9 @@ void SH_FreeShadowMesh(struct shadowmesh_s *sm);
 void Sh_Shutdown(void);
 //resize any textures to match new screen resize
 void Sh_Reset(void);
+qboolean Sh_StencilShadowsActive(void);
+#else
+#define Sh_StencilShadowsActive() false
 #endif
 
 struct shader_field_names_s

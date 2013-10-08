@@ -43,8 +43,7 @@ void M_MenuS_Script_f (void)	//create a menu.
 	extern menu_t *currentmenu;
 	menu_t *oldmenu;
 	char *alias = Cmd_Argv(1);
-//	if (key_dest != key_console)
-		key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	selectitem = 0;

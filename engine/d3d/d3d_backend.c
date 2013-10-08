@@ -1984,7 +1984,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 
 void D3D9BE_Cull(unsigned int cullflags)
 {
-	cullflags |= r_refdef.flipcull;
+	cullflags ^= r_refdef.flipcull;
 	if (shaderstate.curcull != cullflags)
 	{
 		shaderstate.curcull = cullflags;
@@ -2944,7 +2944,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 
 	if (!view || VectorCompare(view->origin, view->oldorigin))
 	{
-		r_refdef.flipcull ^= true;
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 		R_MirrorMatrix(&plane);
 	}
 	else

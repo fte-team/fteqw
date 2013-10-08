@@ -955,7 +955,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		Key_ClearStates();
 		break;
 	case UI_KEY_GETCATCHER:
-		if (key_dest == key_console)
+		if (Key_Dest_Has(kdm_console))
 			VM_LONG(ret) = keycatcher | 1;
 		else
 			VM_LONG(ret) = keycatcher;
@@ -1414,8 +1414,6 @@ void UI_DrawMenu(void)
 	if (uivm)
 	{
 		VM_Call(uivm, UI_REFRESH, (int)(realtime * 1000));
-		if (keycatcher&2 && key_dest != key_console)
-			key_dest = key_game;
 	}
 }
 
@@ -1461,7 +1459,7 @@ void UI_Reset(void)
 
 int UI_MenuState(void)
 {
-	if (key_dest == key_menu)
+	if (Key_Dest_Has(kdm_menu))
 	{
 		return false;
 	}
@@ -1589,7 +1587,6 @@ qboolean UI_OpenMenu(void)
 			VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
 		else
 			VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
-		key_dest = key_game;
 		return true;
 	}
 	return false;

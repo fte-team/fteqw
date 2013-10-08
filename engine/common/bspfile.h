@@ -220,7 +220,12 @@ typedef struct
 	unsigned int	v[2];		// vertex numbers
 } dledge_t;
 
-#define	MAXLIGHTMAPS	4
+#ifdef Q3BSPS
+#define	MAXRLIGHTMAPS	4	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
+#else
+#define	MAXRLIGHTMAPS	1	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
+#endif
+#define MAXQ1LIGHTMAPS	4
 typedef struct
 {
 	short		planenum;
@@ -231,7 +236,7 @@ typedef struct
 	short		texinfo;
 
 // lighting info
-	qbyte		styles[MAXLIGHTMAPS];
+	qbyte		styles[MAXQ1LIGHTMAPS];
 	int			lightofs;		// start of [numstyles*surfsize] samples
 } dsface_t;
 typedef struct
@@ -244,7 +249,7 @@ typedef struct
 	int			texinfo;
 
 // lighting info
-	qbyte		styles[MAXLIGHTMAPS];
+	qbyte		styles[MAXQ1LIGHTMAPS];
 	int			lightofs;		// start of [numstyles*surfsize] samples
 } dlface_t;
 

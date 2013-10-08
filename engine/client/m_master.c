@@ -592,7 +592,7 @@ void M_Menu_ServerList2_f(void)
 		return;
 	}
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
@@ -761,7 +761,7 @@ void M_QuickConnect_f(void)
 	menucustom_t *cust;
 	menu_t *menu;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	MasterInfo_Refresh();

@@ -138,6 +138,7 @@ Global
 		{2866F783-6B44-4655-A38D-D53874037454}.Debug|Win32.Build.0 = Debug|Win32
 		{2866F783-6B44-4655-A38D-D53874037454}.Debug|x64.ActiveCfg = Release|Win32
 		{2866F783-6B44-4655-A38D-D53874037454}.GLDebug|Win32.ActiveCfg = Debug|Win32
+		{2866F783-6B44-4655-A38D-D53874037454}.GLDebug|Win32.Build.0 = Debug|Win32
 		{2866F783-6B44-4655-A38D-D53874037454}.GLDebug|x64.ActiveCfg = Debug|Win32
 		{2866F783-6B44-4655-A38D-D53874037454}.GLRelease|Win32.ActiveCfg = Release|Win32
 		{2866F783-6B44-4655-A38D-D53874037454}.GLRelease|Win32.Build.0 = Release|Win32
@@ -507,7 +508,6 @@ Global
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug|x64.Build.0 = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|Win32.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|x64.ActiveCfg = Debug Dedicated Server|x64
-		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|x64.Build.0 = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLRelease|Win32.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLRelease|x64.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLRelease|x64.Build.0 = Debug Dedicated Server|x64

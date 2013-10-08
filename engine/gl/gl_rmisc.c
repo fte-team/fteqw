@@ -487,7 +487,7 @@ R_NewMap
 void GLR_NewMap (void)
 {
 	char namebuf[MAX_QPATH];
-	extern cvar_t host_mapname, r_shadow_realtime_dlight, r_shadow_realtime_world;
+	extern cvar_t host_mapname;
 	int		i;
 	
 	for (i=0 ; i<256 ; i++)
@@ -543,7 +543,10 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 
 void GLR_PreNewMap(void)
 {
-	r_loadbumpmapping = r_deluxemapping.ival || r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival || r_glsl_offsetmapping.ival;
+	r_loadbumpmapping = r_deluxemapping.ival || r_glsl_offsetmapping.ival;
+#ifdef RTLIGHTS
+	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
+#endif
 	r_viewleaf = NULL;
 	r_oldviewleaf = NULL;
 	r_viewleaf2 = NULL;

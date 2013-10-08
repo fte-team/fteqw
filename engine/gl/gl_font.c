@@ -980,7 +980,15 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	f->charheight = height;
 	Q_strncpyz(f->name, fontfilename, sizeof(f->name));
 
-	VectorSet(f->alttint, 1.16, 0.54, 0.41);
+	switch(M_GameType())
+	{
+	case MGT_QUAKE2:
+		VectorSet(f->alttint, 0.44, 1.0, 0.2);
+		break;
+	default:
+		VectorSet(f->alttint, 1.16, 0.54, 0.41);
+		break;
+	}
 
 #ifdef DOOMWADS
 	if (!*fontfilename)

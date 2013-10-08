@@ -630,7 +630,7 @@ static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest)
 		{
 			deluxmap = surf->samples - currentmodel->lightdata + currentmodel->deluxdata;
 
-			for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 				 maps++)
 			{
 				scale = d_lightstylevalue[surf->styles[maps]];
@@ -649,7 +649,7 @@ static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest)
 		{
 			deluxmap = (surf->samples - currentmodel->lightdata)*3 + currentmodel->deluxdata;
 
-			for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 				 maps++)
 			{
 				scale = d_lightstylevalue[surf->styles[maps]];
@@ -911,7 +911,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 				blocklights[i] = t;
 			}
 
-			for (maps = 0 ; maps < MAXLIGHTMAPS ; maps++)
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS ; maps++)
 			{
 				surf->cached_light[maps] = -1-ambient;
 				surf->cached_colour[maps] = 0xff;
@@ -978,7 +978,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 				}
 				else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
 				{
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
@@ -1014,7 +1014,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					}
 				}
 				else
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
@@ -1116,7 +1116,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 			if (lightmap)
 			{
 				if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]/3;
@@ -1128,7 +1128,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					}
 
 				else
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
@@ -1185,7 +1185,7 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 	}
 	else
 	{
-		for (maps = 0 ; maps < MAXLIGHTMAPS && fa->styles[maps] != 255 ;
+		for (maps = 0 ; maps < MAXQ1LIGHTMAPS && fa->styles[maps] != 255 ;
 			 maps++)
 			if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps]
 				|| cl_lightstyle[fa->styles[maps]].colour != fa->cached_colour[maps])
@@ -1930,19 +1930,24 @@ void Surf_SetupFrame(void)
 		static mleaf_t fakeleaf;
 		mleaf_t	*leaf;
 
-		r_viewleaf = &fakeleaf;	//so we can use quake1 rendering routines for q2 bsps.
+		//FIXME: do we still need this fakeleaf stuff?
+		r_viewleaf = &fakeleaf;
 		r_viewleaf->contents = Q1CONTENTS_EMPTY;
 		r_viewleaf2 = NULL;
 
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
 		if (r_refdef.recurse)
+		{
 			leaf = Mod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
+			r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, r_refdef.pvsorigin);
+		}
 		else
+		{
 			leaf = Mod_PointInLeaf (cl.worldmodel, r_origin);
+			r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, r_origin);
+		}
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
-
-		r_viewcontents = leaf->contents & (FTECONTENTS_LAVA|FTECONTENTS_SLIME|FTECONTENTS_WATER);
 
 		// check above and below so crossing solid water doesn't draw wrong
 		if (!leaf->contents)
@@ -2489,9 +2494,13 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 	int first = numlightmaps;
 	int i;
 	char nname[MAX_QPATH];
+	qboolean odd = (count & 1) && deluxe;
 
 	if (!count)
 		return -1;
+
+	if (odd)
+		count++;
 
 	i = numlightmaps + count;
 	lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
@@ -2514,6 +2523,17 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, 0));
 		lightmap[i]->width = image_width;
 		lightmap[i]->height = image_height;
+	}
+
+	if (odd)
+	{
+		i = numlightmaps+count-1;
+		if (!TEXVALID(lightmap[i]->lightmap_texture))
+		{	//FIXME: no deluxemaps after all...
+			Z_Free(lightmap[i]);
+			lightmap[i] = NULL;
+			count--;
+		}
 	}
 
 	numlightmaps += count;
@@ -2560,6 +2580,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 			COM_StripAllExtensions(m->name, pattern, sizeof(pattern));
 			Q_strncatz(pattern, "/lm_%04u.tga", sizeof(pattern));
 			newfirst = Surf_NewExternalLightmaps(m->lightmaps.count, pattern, m->lightmaps.deluxemapping);
+			m->lightmaps.count = numlightmaps - newfirst;
 		}
 		else
 			newfirst = Surf_NewLightmaps(m->lightmaps.count, m->lightmaps.width, m->lightmaps.height, m->lightmaps.deluxemapping);
@@ -2569,7 +2590,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 	for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
 	{
-		for (i = 0; i < MAXLIGHTMAPS; i++)
+		for (i = 0; i < MAXRLIGHTMAPS; i++)
 		{
 			if (batch->lightmap[i] < 0)
 				continue;
@@ -2648,7 +2669,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 		for (i=0; i<m->nummodelsurfaces; i++)
 		{
 			surf = m->surfaces + i + m->firstmodelsurface;
-			for (j = 0; j < 4; j++)
+			for (j = 0; j < MAXRLIGHTMAPS; j++)
 			{
 				if (surf->lightmaptexturenums[j] < m->lightmaps.first)
 				{

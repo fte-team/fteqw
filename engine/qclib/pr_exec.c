@@ -643,15 +643,17 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 			return false;
 		if (c)*c = '\0';
 
-		c2 = COM_TrimString(c2);
-		def = ED_FindLocalOrGlobal(progfuncs, c2, &fval);
-		if (def && def->type == ev_field)
+		fdef = ED_FindField(progfuncs, c2);
+		if (!fdef)
 		{
-			fofs = fval->_int + progfuncs->funcs.fieldadjust;
-			fdef = ED_FieldAtOfs(progfuncs, fofs);
+			c2 = COM_TrimString(c2);
+			def = ED_FindLocalOrGlobal(progfuncs, c2, &fval);
+			if (def && def->type == ev_field)
+			{
+				fofs = fval->_int + progfuncs->funcs.fieldadjust;
+				fdef = ED_FieldAtOfs(progfuncs, fofs);
+			}
 		}
-		else
-			fdef = ED_FindField(progfuncs, c2);
 
 		if (c)*c = '.';
 		if (!fdef)
@@ -934,11 +936,12 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 			if (!pr_progstate[pn].linenums)
 				continue;
 
+			//we need to use the function table in order to set breakpoints in the right file.
 			for (f = pr_progstate[pn].functions, fl = 0; fl < pr_progstate[pn].progs->numfunctions; f++, fl++)
 			{
 				if (!stricmp(f->s_file+progfuncs->funcs.stringtable, filename))
 				{
-					for (i = f->first_statement; ; i++)
+					for (i = f->first_statement; i < pr_progstate[pn].progs->numstatements; i++)
 					{
 						if (pr_progstate[pn].linenums[i] >= linenum)
 						{

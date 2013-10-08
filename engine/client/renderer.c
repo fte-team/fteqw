@@ -345,25 +345,6 @@ cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04
 cvar_t r_glsl_offsetmapping_reliefmapping = CVARF("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
 
-cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
-#ifdef FTE_TARGET_WEB
-cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "0", CVAR_ARCHIVE);
-#else
-cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
-#endif
-cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_dlight_ambient		= SCVAR ("r_shadow_realtime_dlight_ambient", "0");
-cvar_t r_shadow_realtime_dlight_diffuse		= SCVAR ("r_shadow_realtime_dlight_diffuse", "1");
-cvar_t r_shadow_realtime_dlight_specular	= SCVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
-cvar_t r_editlights_import_radius			= SCVAR ("r_editlights_import_radius", "1");
-cvar_t r_editlights_import_ambient			= SCVAR ("r_editlights_import_ambient", "0");
-cvar_t r_editlights_import_diffuse			= SCVAR ("r_editlights_import_diffuse", "1");
-cvar_t r_editlights_import_specular			= SCVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
-cvar_t r_shadow_shadowmapping				= SCVARF ("debug_r_shadow_shadowmapping", "0", 0);
-cvar_t r_sun_dir							= SCVAR ("r_sun_dir", "0.2 0.5 0.8");
-cvar_t r_sun_colour							= SCVARF ("r_sun_colour", "0 0 0", CVAR_ARCHIVE);
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
@@ -630,17 +611,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
 
-	Cvar_Register (&r_shadow_realtime_world, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_world_shadows, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_dlight, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_dlight_ambient, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_dlight_diffuse, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_dlight_specular, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_dlight_shadows, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_realtime_world_lightmaps, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_shadowmapping, GRAPHICALNICETIES);
-	Cvar_Register (&r_sun_dir, GRAPHICALNICETIES);
-	Cvar_Register (&r_sun_colour, GRAPHICALNICETIES);
+	Sh_RegisterCvars();
+
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavastyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
@@ -1226,6 +1198,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 		cl.worldmodel = NULL;
 		CL_ClearEntityLists();	//shouldn't really be needed, but we're paranoid
 
+		//FIXME: this code should not be here. call CL_LoadModels instead? that does csqc loading etc though. :s
 TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=1 ; i<MAX_MODELS ; i++)
 		{
@@ -1234,7 +1207,13 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 
 			cl.model_precache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
-			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+
+#ifdef Q2CLIENT	//skip vweps
+			if (cls.protocol == CP_QUAKE2 && *cl.model_name[i] == '#')
+				cl.model_precache[i] = NULL;
+			else
+#endif
+				cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
 
 			if (!cl.model_precache[i] && i == 1)
 			{

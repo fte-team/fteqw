@@ -72,8 +72,9 @@ void GLSCR_UpdateScreen (void)
 	if (scr_disabled_for_loading)
 	{
 		extern float scr_disabled_time;
-		if (Sys_DoubleTime() - scr_disabled_time > 60 || key_dest != key_game)
+		if (Sys_DoubleTime() - scr_disabled_time > 60 || !Key_Dest_Has(~kdm_game))
 		{
+			//FIXME: instead of reenabling the screen, we should just draw the relevent things skipping only the game.
 			scr_disabled_for_loading = false;
 		}
 		else
@@ -115,7 +116,7 @@ void GLSCR_UpdateScreen (void)
 #endif
 		R2D_BrightenScreen();
 
-		if (key_dest == key_console)
+		if (key_dest_mask & kdm_console)
 			Con_DrawConsole(vid.height/2, false);
 		GL_EndRendering ();	
 		GL_DoSwap();
@@ -199,7 +200,9 @@ void GLSCR_UpdateScreen (void)
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
 
+	RSpeedRemark();
 	GL_EndRendering ();
+	RSpeedEnd(RSPEED_FINISH);
 }
 
 

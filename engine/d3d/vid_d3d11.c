@@ -816,12 +816,6 @@ static void	(D3D11_R_NewMap)					(void)
 	R_SetSky(cl.skyname);
 
 #ifdef RTLIGHTS
-	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
-	{
-		R_LoadRTLights();
-		if (rtlights_first == rtlights_max)
-			R_ImportRTLights(cl.worldmodel->entities);
-	}
 	Sh_PreGenerateLights();
 #endif
 }

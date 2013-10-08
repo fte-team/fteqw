@@ -630,11 +630,11 @@ void CL_CheckForResend (void)
 	char	data[2048];
 	double t1, t2;
 	int contype = 0;
-	unsigned int pext1, pext2;
 
 #ifndef CLIENTONLY
 	if (!cls.state && sv.state)
 	{
+		unsigned int pext1, pext2;
 		pext1 = 0;
 		pext2 = 0;
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
@@ -3849,10 +3849,11 @@ int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
 double Host_Frame (double time)
 {
+	static double		time0 = 0;
 	static double		time1 = 0;
 	static double		time2 = 0;
 	static double		time3 = 0;
-	int			pass1, pass2, pass3;
+	int			pass0, pass1, pass2, pass3;
 //	float fps;
 	double newrealtime;
 	static double spare;
@@ -3906,8 +3907,8 @@ double Host_Frame (double time)
 #ifdef VM_UI
 		UI_MenuState() != 0 || 
 #endif
-		key_dest == key_menu || 
-		key_dest == key_editor ||
+		Key_Dest_Has(kdm_menu) || 
+		Key_Dest_Has(kdm_editor) ||
 		cl.paused;
 	// TODO: check if minimized or unfocused
 
@@ -4048,6 +4049,9 @@ double Host_Frame (double time)
 
 	RSpeedEnd(RSPEED_PROTOCOL);
 
+	if (host_speeds.ival)
+		time0 = Sys_DoubleTime ();
+
 #ifndef CLIENTONLY
 	if (sv.state)
 	{
@@ -4106,12 +4110,13 @@ double Host_Frame (double time)
 
 	if (host_speeds.ival)
 	{
-		pass1 = (time1 - time3)*1000;
+		pass0 = (time0 - time3)*1000000;
 		time3 = Sys_DoubleTime ();
-		pass2 = (time2 - time1)*1000;
-		pass3 = (time3 - time2)*1000;
-		Con_TPrintf (TLC_HOSTSPEEDSOUTPUT,
-					pass1+pass2+pass3, pass1, pass2, pass3);
+		pass1 = (time1 - time0)*1000000;
+		pass2 = (time2 - time1)*1000000;
+		pass3 = (time3 - time2)*1000000;
+		Con_Printf ("%4i tot %4i idle %4i server %4i gfx %4i snd\n",
+					pass0+pass1+pass2+pass3, pass0, pass1, pass2, pass3);
 	}
 
 
@@ -4307,7 +4312,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	//if the renderer is already up and running, be prepared to reload content to match the new conback/font/etc
 	if (qrenderer != QR_NONE)
 		Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
-	if (key_dest == key_menu)
+	if (Key_Dest_Has(kdm_menu))
 		Cbuf_AddText ("closemenu\ntogglemenu\n", RESTRICT_LOCAL);	//make sure the menu has the right content loaded.
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to

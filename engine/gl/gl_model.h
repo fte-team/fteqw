@@ -29,6 +29,7 @@ struct trace_s;
 struct wedict_s;
 struct model_s;
 struct world_s;
+struct dlight_s;
 
 typedef enum {
 	SHADER_SORT_NONE,
@@ -81,8 +82,8 @@ typedef struct mesh_s
 	vec3_t			*snormals_array;/*required for rtlighting*/
 	vec3_t			*tnormals_array;/*required for rtlighting*/
 	vec2_t			*st_array;		/*texture coords*/
-	vec2_t			*lmst_array[MAXLIGHTMAPS];	/*second texturecoord set (merely dubbed lightmap, one for each potential lightstyle)*/
-	avec4_t			*colors4f_array[MAXLIGHTMAPS];/*floating point colours array*/
+	vec2_t			*lmst_array[MAXRLIGHTMAPS];	/*second texturecoord set (merely dubbed lightmap, one for each potential lightstyle)*/
+	avec4_t			*colors4f_array[MAXRLIGHTMAPS];/*floating point colours array*/
 	byte_vec4_t		*colors4b_array;/*byte colours array*/
 
     index_t			*indexes;
@@ -115,9 +116,9 @@ typedef struct batch_s
 	entity_t *ent;	/*used for shader properties*/
 	struct mfog_s *fog;
 
-	short lightmap[MAXLIGHTMAPS];	/*used for shader lightmap textures*/
-	unsigned char lmlightstyle[MAXLIGHTMAPS];
-	unsigned char vtlightstyle[MAXLIGHTMAPS];
+	short lightmap[MAXRLIGHTMAPS];	/*used for shader lightmap textures*/
+	unsigned char lmlightstyle[MAXRLIGHTMAPS];
+	unsigned char vtlightstyle[MAXRLIGHTMAPS];
 
 	unsigned int maxmeshes;	/*not used by backend*/
 	unsigned int flags;	/*backend flags (force transparency etc)*/
@@ -262,13 +263,13 @@ typedef struct vbo_s
 	vboarray_t coord;
 	vboarray_t coord2;
 	vboarray_t texcoord;
-	vboarray_t lmcoord[MAXLIGHTMAPS];
+	vboarray_t lmcoord[MAXRLIGHTMAPS];
 
 	vboarray_t normals;
 	vboarray_t svector;
 	vboarray_t tvector;
 
-	vboarray_t colours[MAXLIGHTMAPS];
+	vboarray_t colours[MAXRLIGHTMAPS];
 
 	vboarray_t bonenums;
 
@@ -359,15 +360,6 @@ typedef struct mfog_s
 	mplane_t		**planes;
 } mfog_t;
 
-#if MAX_SWDECALS
-typedef struct decal_s {
-	int xpos, ypos;
-	struct msurface_s *owner;
-	struct decal_s *next;
-	struct decal_s *prev;
-} decal_t;
-#endif
-
 
 typedef struct msurface_s
 {
@@ -380,7 +372,7 @@ typedef struct msurface_s
 	short		texturemins[2];
 	short		extents[2];
 
-	unsigned short	light_s[MAXLIGHTMAPS], light_t[MAXLIGHTMAPS];	// gl lightmap coordinates
+	unsigned short	light_s[MAXRLIGHTMAPS], light_t[MAXRLIGHTMAPS];	// gl lightmap coordinates
 
 	mfog_t		*fog;
 	mesh_t		*mesh;
@@ -394,19 +386,16 @@ typedef struct msurface_s
 	int			dlightframe;
 	int			dlightbits;
 
-	int			lightmaptexturenums[MAXLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
-	qbyte		styles[MAXLIGHTMAPS];
-	qbyte		vlstyles[MAXLIGHTMAPS];
-	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
+	int			lightmaptexturenums[MAXRLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
+	qbyte		styles[MAXQ1LIGHTMAPS];
+	qbyte		vlstyles[MAXRLIGHTMAPS];
+	int			cached_light[MAXQ1LIGHTMAPS];	// values currently used in lightmap
 	qboolean	cached_dlight;				// true if dynamic light in cache
-	qbyte		cached_colour[MAXLIGHTMAPS];
+	qbyte		cached_colour[MAXQ1LIGHTMAPS];
 #ifndef NOSTAINS
 	qboolean stained;
 #endif
 	qbyte		*samples;		// [numstyles*surfsize]
-#ifdef MAX_SWDECALS
-	decal_t		*decal;
-#endif
 } msurface_t;
 
 typedef struct mbrush_s
@@ -463,12 +452,11 @@ typedef struct mleaf_s
 
 	msurface_t	**firstmarksurface;
 	int			nummarksurfaces;
-	int			key;			// BSP sequence number for leaf's contents
 	qbyte		ambient_sound_level[NUM_AMBIENTS];
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
 	int			cluster;
-	struct mleaf_s *vischain;
+//	struct mleaf_s *vischain;
 #endif
 #ifdef Q2BSPS
 	//it's a q2 thing

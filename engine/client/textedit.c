@@ -84,7 +84,6 @@ static char OpenEditorFile[256];
 
 
 qboolean editoractive;	//(export)
-keydest_t editor_oldkeydest = key_game;
 qboolean editormodal;	//doesn't return. (export)
 static qboolean madechanges;
 static qboolean editenabled;
@@ -189,10 +188,7 @@ static void CloseEditor(void)
 {
 	fileblock_t *b;
 
-	if (key_dest == key_editor)
-		key_dest = editor_oldkeydest;
-	if (key_dest == key_editor)
-		key_dest = key_game;
+	Key_Dest_Remove(kdm_editor);
 	editoractive = false;
 	editprogfuncs = NULL;
 	cursorblock = NULL;
@@ -213,7 +209,7 @@ static void CloseEditor(void)
 
 	firstblock = NULL;
 
-	executionlinenum = -1;
+	executionlinenum = 0;
 }
 
 static qboolean EditorSaveFile(char *s)	//returns true if succesful
@@ -257,7 +253,7 @@ static qboolean EditorSaveFile(char *s)	//returns true if succesful
 
 	madechanges = false;
 	editenabled = true;
-	executionlinenum = -1;
+	executionlinenum = 0;
 
 	return true;
 }
@@ -284,10 +280,9 @@ static void EditorNewFile(void)
 	viewportystartblock = NULL;
 
 	madechanges = true;
-	executionlinenum = -1;
+	executionlinenum = 0;
 
-	editor_oldkeydest = key_dest;
-	key_dest = key_editor;
+	Key_Dest_Add(kdm_editor);
 	editoractive = true;
 	editenabled = true;
 }
@@ -312,7 +307,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 		{
 			Con_Printf("Couldn't open file \"%s\"\nA new file will be created\n", name);
 			strcpy(OpenEditorFile, name);
-			key_dest = key_console;
+			Key_Dest_Add(kdm_console);
 			EditorNewFile();
 			return;
 		}
@@ -393,11 +388,10 @@ static void EditorOpenFile(char *name, qboolean readonly)
 	viewportystartblock = NULL;
 
 	madechanges = false;
-	executionlinenum = -1;
+	executionlinenum = 0;
 	editenabled = !readonly;
 
-	editor_oldkeydest = key_dest;
-	key_dest = key_editor;
+	Key_Dest_Add(kdm_editor);
 	editoractive = true;
 	editprogfuncs = epf;
 }
@@ -410,7 +404,7 @@ void Editor_Key(int key, int unicode)
 	if (keybindings[key][0])
 		if (!strcmp(keybindings[key][0], "toggleconsole"))
 		{
-			key_dest = key_console;
+			Key_Dest_Add(kdm_console);
 			return;
 		}
 
@@ -515,6 +509,8 @@ void Editor_Key(int key, int unicode)
 	case K_MWHEELUP:
 	case K_UPARROW:
 	case K_PGUP:
+		if (!cursorblock)
+			break;
 		GetCursorpos();
 		{
 			int a;
@@ -686,9 +682,15 @@ void Editor_Key(int key, int unicode)
 		break;
 //	case K_STOP:
 	case K_ESCAPE:
-		if (editprogfuncs)
+		if (editprogfuncs && editormodal)
+		{
 			editprogfuncs->AbortStack(editprogfuncs);
-		CloseEditor();
+			CloseEditor();
+			executionlinenum = 0;
+			stepasm = true;
+		}
+		else
+			CloseEditor();
 		editormodal = false;
 		break;
 
@@ -1092,16 +1094,6 @@ void Editor_Draw(void)
 	int c;
 	fileblock_t *b;
 
-	if (key_dest != key_console)
-	{
-		if (editor_oldkeydest == key_menu && !editormodal)
-		{
-			CloseEditor();
-			return;
-		}
-		key_dest = key_editor;
-	}
-
 	if ((editoractive && cls.state == ca_disconnected) || editormodal)
 		R2D_EditorBackground();
 
@@ -1301,7 +1293,6 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 
 	if (!parms)
 	{
-		int oldkeydest = key_dest;
 		double oldrealtime = realtime;
 		editormodal = true;
 
@@ -1319,8 +1310,6 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		}
 		realtime = oldrealtime;
 
-		if (oldkeydest != key_console)
-			key_dest = oldkeydest;
 		editormodal = false;
 	}
 

@@ -155,6 +155,7 @@ struct world_s
 	model_t *(*Get_CModel)(struct world_s *w, int modelindex);
 	void (*Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);
 
+	unsigned int	keydestmask;	//menu:kdm_menu, csqc:kdm_game, server:0
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
 /*FTE_DEPRECATED*/	unsigned int	edict_size; //still used in copyentity

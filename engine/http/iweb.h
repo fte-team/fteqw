@@ -113,6 +113,10 @@ struct dl_download
 	char localname[MAX_OSPATH]; /*leave empty for a temp file*/
 	struct vfsfile_s *file;	/*downloaded to, if not already set when starting will open localname or a temp file*/
 
+	char postmimetype[64];
+	char *postdata;			/*if set, this is a post and not a get*/
+	size_t postlen;
+
 	/*stream status*/
 	enum
 	{
@@ -143,6 +147,7 @@ struct dl_download
 
 void HTTP_CL_Think(void);
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl));
+struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *data, size_t datalen, void (*NotifyFunction)(struct dl_download *dl));
 
 struct dl_download *DL_Create(const char *url);
 qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyFunction)(struct dl_download *dl));

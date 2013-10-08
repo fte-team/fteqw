@@ -122,10 +122,13 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_tempentity,	"CSQC_Parse_TempEntity");/*EXT_CSQC_ABSOLUTLY_VILE*/	\
 	\
 	/*These are pointers to the csqc's globals.*/	\
-	globalfloat(svtime,					"time");				/*float		Written before entering most qc functions*/	\
-	globalfloat(frametime,				"frametime");			/*float		Written before entering most qc functions*/	\
-	globalfloat(gamespeed,				"gamespeed");			/*float		Written before entering most qc functions*/	\
-	globalfloat(cltime,					"cltime");				/*float		Written before entering most qc functions*/	\
+	globalfloat(simtime,				"time");				/*float		The simulation(aka: smoothed server) time, speed drifts based upon latency*/	\
+	globalfloat(frametime,				"frametime");			/*float		Client render frame interval*/	\
+	globalfloat(gamespeed,				"gamespeed");			/*float		Multiplier for real time -> simulation time*/	\
+	globalfloat(cltime,					"cltime");				/*float		Clientside map uptime indepent of gamespeed, latency, and the server in general*/	\
+	globalfloat(netnewtime,				"servertime");			/*float		Server time of latest inbound network frame*/	\
+	globalfloat(netoldtime,				"serverprevtime");		/*float		Server time of previous inbound network frame */	\
+	globalfloat(netdeltatime,			"serverdeltatime");		/*float		new-old */	\
 	globalfloat(physics_mode,			"physics_mode");		/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
 	globalentity(other,					"other");				/*entity	Written before entering most qc functions*/	\
@@ -263,8 +266,8 @@ static void CSQC_FindGlobals(void)
 #undef globalstring
 #undef globalfunction
 
-	if (csqcg.svtime)
-		*csqcg.svtime = cl.servertime;
+	if (csqcg.simtime)
+		*csqcg.simtime = cl.servertime;
 	if (csqcg.cltime)
 		*csqcg.cltime = cl.time;
 
@@ -276,7 +279,7 @@ static void CSQC_FindGlobals(void)
 	csqc_world.g.physics_mode = csqcg.physics_mode;
 	csqc_world.g.frametime = csqcg.frametime;
 	csqc_world.g.newmis = (int*)PR_FindGlobal(csqcprogs, "newmis", 0, NULL);
-	csqc_world.g.time = csqcg.svtime;
+	csqc_world.g.time = csqcg.simtime;
 	csqc_world.g.v_forward = csqcg.forward;
 	csqc_world.g.v_right = csqcg.right;
 	csqc_world.g.v_up = csqcg.up;
@@ -468,8 +471,8 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 		out->g[FST_BASE].lerpfrac = in->xv->baselerpfrac;
 		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 		{
-			out->g[FST_BASE].frametime[0] = *csqcg.svtime - in->xv->baseframe1time;
-			out->g[FST_BASE].frametime[1] = *csqcg.svtime - in->xv->baseframe2time;
+			out->g[FST_BASE].frametime[0] = *csqcg.simtime - in->xv->baseframe1time;
+			out->g[FST_BASE].frametime[1] = *csqcg.simtime - in->xv->baseframe2time;
 		}
 		else
 		{
@@ -484,8 +487,8 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	out->g[FS_REG].lerpfrac = in->xv->lerpfrac;
 	if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 	{
-		out->g[FS_REG].frametime[0] = *csqcg.svtime - in->xv->frame1time;
-		out->g[FS_REG].frametime[1] = *csqcg.svtime - in->xv->frame2time;
+		out->g[FS_REG].frametime[0] = *csqcg.simtime - in->xv->frame1time;
+		out->g[FS_REG].frametime[1] = *csqcg.simtime - in->xv->frame2time;
 	}
 	else
 	{
@@ -969,9 +972,12 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 			ent = (void*)EDICT_NUM(prinst, e);
 			if (ent->isfree)
 				continue;
-			WPhys_RunThink (&csqc_world, (wedict_t*)ent);
-			if (ent->isfree)
-				continue;
+			if (ent->v->think)
+			{
+				WPhys_RunThink (&csqc_world, (wedict_t*)ent);
+				if (ent->isfree)
+					continue;
+			}
 			if (ent->xv->predraw)
 			{
 				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
@@ -1574,15 +1580,19 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 static void QCBUILTIN PF_cs_getstati(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	G_INT(OFS_RETURN) = csqc_playerview->stats[stnum];
+	if (stnum >= 128)
+		G_FLOAT(OFS_RETURN) = csqc_playerview->statsf[stnum];
+	else
+		G_INT(OFS_RETURN) = csqc_playerview->stats[stnum];
 }
 static void QCBUILTIN PF_cs_getstatbits(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//convert an int stat into a qc float.
+{	//read a numeric stat into a qc float.
+	//if bits offsets are specified, reads explicitly the integer version of the stat, allowing high bits to be read for items2/serverflags. the float stat should have the same value, just with lower precision as a float can't hold a 32bit value. maybe we should just use doubles.
 
 	int stnum = G_FLOAT(OFS_PARM0);
-	int val = csqc_playerview->stats[stnum];
 	if (prinst->callargc > 1)
 	{
+		int val = csqc_playerview->stats[stnum];
 		int first, count;
 		first = G_FLOAT(OFS_PARM1);
 		if (prinst->callargc > 2)
@@ -2080,7 +2090,7 @@ static void QCBUILTIN PF_cs_setsensativityscaler (pubprogfuncs_t *prinst, struct
 
 static void QCBUILTIN PF_cs_pointparticles (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int effectnum = G_FLOAT(OFS_PARM0)-1;
+	int effectnum = G_FLOAT(OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
 	float *vel = G_VECTOR(OFS_PARM2);
 	float count = G_FLOAT(OFS_PARM3);
@@ -2108,7 +2118,7 @@ static void QCBUILTIN PF_cs_trailparticles (pubprogfuncs_t *prinst, struct globa
 	}
 	else
 	{
-		efnum = G_FLOAT(OFS_PARM0)-1;
+		efnum = G_FLOAT(OFS_PARM0);
 		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 	}
 	efnum = CL_TranslateParticleFromServer(efnum);
@@ -2119,6 +2129,9 @@ static void QCBUILTIN PF_cs_trailparticles (pubprogfuncs_t *prinst, struct globa
 		pe->ParticleTrail(start, end, efnum, -ent->entnum, &ent->trailstate);
 }
 
+//0 for error, non-0 for success.
+//>0 match server
+//<0 are client-only.
 static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -2133,7 +2146,7 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 			return;
 		}
 	}
-	//use the server's index first.
+	//then look for an existing client id
 	for (i = 1; i < MAX_CSPARTICLESPRE && cl.particle_csname[i]; i++)
 	{
 		if (!strcmp(cl.particle_csname[i], effectname))
@@ -2149,16 +2162,12 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 		cl.particle_csprecache[i] = 1+P_FindParticleType(effectname);
 		if (cl.particle_csprecache[i])
 			cl.particle_csname[i] = strdup(effectname);
+		G_FLOAT(OFS_RETURN) = -i;
 	}
-	if (csqc_isdarkplaces)
-	{
-		//keep the effectinfo synced between server and client.
-		G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(effectname);
-	}
-	else
-	{
-		G_FLOAT(OFS_RETURN) = pe->FindParticleType(effectname)+1;
-	}
+	G_FLOAT(OFS_RETURN) = 0;
+
+	//if we're using dp network protocols, we should use the effectinfo.txt file as a lookup table instead.
+	//G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(effectname);
 }
 
 static void QCBUILTIN PF_cs_particleeffectquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3600,9 +3609,6 @@ static void CS_ConsoleCommand_f(void)
 static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_VarString(prinst, 0, pr_globals);
-	if (!strcmp(str, "+showscores") || !strcmp(str, "-showscores") ||
-		!strcmp(str, "+showteamscores") || !strcmp(str, "-showteamscores"))
-		return;
 	if (!Cmd_Exists(str))
 		Cmd_AddCommand(str, CS_ConsoleCommand_f);
 }
@@ -4372,6 +4378,7 @@ static struct {
 	{"pow",						PF_pow,	97},					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
 	{"findfloat",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 	{"checkextension",			PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
+	{"anglemod",				PF_anglemod,		102},
 
 //110
 	{"fopen",					PF_fopen,	110},				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)
@@ -4965,7 +4972,7 @@ void CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 
 	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
 	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)o);
-	*csqcg.svtime = w->physicstime;
+	*csqcg.simtime = w->physicstime;
 
 	PR_ExecuteProgram (w->progs, s->v->touch);
 
@@ -4977,7 +4984,7 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 {
 	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
 	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)w->edicts);
-	*csqcg.svtime = w->physicstime;
+	*csqcg.simtime = w->physicstime;
 
 	PR_ExecuteProgram (w->progs, s->v->think);
 }
@@ -5007,7 +5014,7 @@ qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwaterty
 	{
 		void *pr_globals = PR_globals(w->progs, PR_CURRENT);
 		*csqcg.self = EDICT_TO_PROG(w->progs, ent);
-		*csqcg.svtime = w->physicstime;
+		*csqcg.simtime = w->physicstime;
 		G_FLOAT(OFS_PARM0) = oldwatertype;
 		G_FLOAT(OFS_PARM1) = newwatertype;
 		PR_ExecuteProgram (w->progs, ent->xv->contentstransition);
@@ -5028,10 +5035,9 @@ void CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
 
 void CSQC_Shutdown(void)
 {
-	extern int mouseusedforgui;
 	if (csqcprogs)
 	{
-		mouseusedforgui = false;
+		key_dest_absolutemouse &= ~kdm_game;
 		CSQC_ForgetThreads();
 		PR_ResetFonts(true);
 		PR_Common_Shutdown(csqcprogs, false);
@@ -5290,6 +5296,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 
 	csqcprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	csqcprogparms.user = &csqc_world;
+	csqc_world.keydestmask = kdm_game;
 
 	csqctime = Sys_DoubleTime();
 	if (!csqcprogs)
@@ -5325,7 +5332,10 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 			else
 			{
 				if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) >= 0)
+				{
+					csqc_isdarkplaces = true;
 					loaded = true;
+				}
 				else if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) >= 0) 
 					loaded = true;
 				else
@@ -5696,7 +5706,11 @@ qboolean CSQC_DrawView(void)
 	if (csqcg.frametime)
 		*csqcg.frametime = host_frametime;
 
-	if (!csqc_isdarkplaces)
+	if (csqc_isdarkplaces)
+	{
+		csqc_world.physicstime = cl.servertime;
+	}
+	else
 	{
 		while(1)
 		{
@@ -5762,8 +5776,18 @@ qboolean CSQC_DrawView(void)
 
 	if (csqcg.cltime)
 		*csqcg.cltime = realtime;
-	if (csqcg.svtime)
-		*csqcg.svtime = cl.servertime;
+	if (csqcg.simtime)
+		*csqcg.simtime = cl.servertime;
+
+	if (cl.currentpackentities && cl.previouspackentities)
+	{
+		if (csqcg.netnewtime)
+			*csqcg.netnewtime = cl.currentpackentities->servertime;
+		if (csqcg.netoldtime)
+			*csqcg.netoldtime = cl.previouspackentities->servertime;
+		if (csqcg.netdeltatime)
+			*csqcg.netdeltatime = cl.currentpackentities->servertime - cl.previouspackentities->servertime;
+	}
 
 	CSQC_RunThreads();	//wake up any qc threads
 
@@ -6064,7 +6088,7 @@ qboolean CSQC_CenterPrint(int lplayernum, char *cmd)
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_centerprint);
-	return G_FLOAT(OFS_RETURN);
+	return G_FLOAT(OFS_RETURN) || csqc_isdarkplaces;
 }
 
 void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd)
@@ -6074,8 +6098,8 @@ void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd)
 
 	CSQC_ChangeLocalPlayer(lplayernum);
 
-	if (csqcg.svtime)
-		*csqcg.svtime = cl.servertime;
+	if (csqcg.simtime)
+		*csqcg.simtime = cl.servertime;
 	if (csqcg.cltime)
 		*csqcg.cltime = cl.time;
 
@@ -6168,10 +6192,17 @@ void CSQC_ParseEntities(void)
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
 	CL_CalcClientTime();
-	if (csqcg.svtime)		//estimated server time
-		*csqcg.svtime = cl.servertime;
+	if (csqcg.simtime)		//estimated server time
+		*csqcg.simtime = cl.servertime;
 	if (csqcg.cltime)	//smooth client time.
 		*csqcg.cltime = cl.time;
+
+	if (csqcg.netnewtime)
+		*csqcg.netnewtime = cl.gametime;
+	if (csqcg.netoldtime)
+		*csqcg.netoldtime = cl.oldgametime;
+	if (csqcg.netdeltatime)
+		*csqcg.netdeltatime = cl.gametime - cl.oldgametime;
 
 	if (csqcg.clientcommandframe)
 		*csqcg.clientcommandframe = cl.movesequence;

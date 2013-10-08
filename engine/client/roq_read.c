@@ -383,6 +383,8 @@ int i;
 	}
 	if(ri->buf != NULL)
 		BZ_Free(ri->buf);
+	if (ri->audio)
+		BZ_Free(ri->audio);
 	BZ_Free(ri);
 }
 

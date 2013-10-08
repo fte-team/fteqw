@@ -2643,18 +2643,6 @@ static void QCBUILTIN PF_vhlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = newv;
 }
 
-static void QCBUILTIN PF_anglemod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float v = G_FLOAT(OFS_PARM0);
-
-	while (v >= 360)
-		v = v - 360;
-	while (v < 0)
-		v = v + 360;
-
-	G_FLOAT(OFS_RETURN) = v;
-}
-
 /*
 =================
 PF_particle
@@ -9768,7 +9756,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510,	"string(string in)"},//DP_QC_URI_ESCAPE
 	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511,	"string(string in)"},//DP_QC_URI_ESCAPE
 	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512,	"float(entity ent)"},//DP_QC_NUM_FOR_EDICT
-	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	"float(string uril, float id)"},//DP_QC_URI_GET
+	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	"float(string uril, float id, optional string postmimetype, optional string postdata)"},//DP_QC_URI_GET
 	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"float(string str)"},
 	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	"float(float idx)"},
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
@@ -9970,7 +9958,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 			for (i = 0; BuiltinList[i].name; i++)
 			{
-				if (!strcmp(BuiltinList[i].name, com_token))
+				if (!strcmp(BuiltinList[i].name, com_token) && (BuiltinList[i].bifunc != PF_Fixme||!i))
 				{
 					pr_builtin[binum] = BuiltinList[i].bifunc;
 					break;

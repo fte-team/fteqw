@@ -844,16 +844,8 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 	qboolean		stat;
 	if (!info->fullscreen)
 	{
-		if (_windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
-		{
-			TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode\n"));
-			stat = VID_SetWindowedMode(info);
-		}
-		else
-		{
-			TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode 2\n"));
-			stat = VID_SetWindowedMode(info);
-		}
+		TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode\n"));
+		stat = VID_SetWindowedMode(info);
 	}
 	else
 	{

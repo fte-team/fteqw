@@ -1,8 +1,11 @@
 !!permu BUMP
+!!permu FRAMEBLEND
 !!permu SKELETAL
 !!permu UPPERLOWER
 !!permu FOG
 !!cvarf r_glsl_offsetmapping_scale
+!!cvardf r_glsl_pcf
+
 
 //this is the main shader responsible for realtime dlights.
 
@@ -10,9 +13,17 @@
 //s0=diffuse, s1=normal, s2=specular, s3=shadowmap
 //custom modifiers:
 //PCF(shadowmap)
-//CUBE(projected cubemap)
+//CUBEPROJ(projected cubemap)
 //SPOT(projected circle
 //CUBESHADOW
+
+#ifndef r_glsl_pcf
+#error r_glsl_pcf wasn't defined
+#endif
+#if r_glsl_pcf < 1
+	#undef r_glsl_pcf
+	#define r_glsl_pcf 9
+#endif
 
 #if 0 && defined(GL_ARB_texture_gather) && defined(PCF) 
 #extension GL_ARB_texture_gather : enable
@@ -33,9 +44,6 @@ varying vec3 eyevector;
 #if defined(PCF) || defined(CUBE) || defined(SPOT)
 varying vec4 vtexprojcoord;
 uniform mat4 l_cubematrix;
-#ifndef SPOT
-uniform mat4 l_projmatrix;
-#endif
 #endif
 #ifdef VERTEX_SHADER
 #include "sys/skeletal.h"
@@ -107,68 +115,65 @@ uniform float l_lightradius;
 uniform vec3 l_lightcolour;
 uniform vec3 l_lightcolourscale;
 #ifdef PCF
-uniform vec4 l_shadowmapinfo;	//xy are the texture scale, z is 1, w is the scale.
+uniform vec4 l_shadowmapproj; //light projection matrix info
+uniform vec2 l_shadowmapscale;	//xy are the texture scale, z is 1, w is the scale.
 #endif
 
 
 
+
 #ifdef PCF
-//#define shadow2DProj(t,c) (vec2(1.0,1.0))
-//#define shadow2DProj(t,c) texture2DProj(t,c).rg
-
-float ShadowmapFilter(void)
+vec3 ShadowmapCoord(void)
 {
-	//dehomogonize input
-	vec3 shadowcoord = (vtexprojcoord.xyz / vtexprojcoord.w);
-
-#ifdef CUBESHADOW
-//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
-//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
-#else
-
 #ifdef SPOT
 	//bias it. don't bother figuring out which side or anything, its not needed
 	//l_projmatrix contains the light's projection matrix so no other magic needed
-	shadowcoord.xyz = (shadowcoord.xyz + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
+	vtexprojcoord.z -= 0.015;
+	return (vtexprojcoord.xyz/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
+//#elif defined(CUBESHADOW)
+//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
+//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
 #else
 	//figure out which axis to use
 	//texture is arranged thusly:
 	//forward left  up
 	//back    right down
-	vec3 dir = abs(shadowcoord);
+	vec3 dir = abs(vtexprojcoord.xyz);
 	//assume z is the major axis (ie: forward from the light)
-	vec3 t = shadowcoord;
+	vec3 t = vtexprojcoord.xyz;
 	float ma = dir.z;
-	vec3 axis = vec3(1.0, 1.0, 1.0);
+	vec3 axis = vec3(0.5/3.0, 0.5/2.0, 0.5);
 	if (dir.x > ma)
 	{
 		ma = dir.x;
-		t = shadowcoord.zyx;
-		axis.x = 3.0;
+		t = vtexprojcoord.zyx;
+		axis.x = 0.5;
 	}
 	if (dir.y > ma)
 	{
 		ma = dir.y;
-		t = shadowcoord.xzy;
-		axis.x = 5.0;
+		t = vtexprojcoord.xzy;
+		axis.x = 2.5/3.0;
 	}
+	//if the axis is negative, flip it.
 	if (t.z > 0.0)
 	{
-		axis.y = 3.0;
+		axis.y = 1.5/2.0;
 		t.z = -t.z;
 	}
 
-
 	//we also need to pass the result through the light's projection matrix too
-	vec4 nsc =l_projmatrix*vec4(t, 1.0);
-	shadowcoord = (nsc.xyz / nsc.w);
-
-	//scale to match the light's precision and pinch inwards, so we never sample over the edge
-	shadowcoord.st *= l_shadowmapinfo.w * (1.0-l_shadowmapinfo.st);
-
-	//now bias and relocate it
-	shadowcoord = (shadowcoord + axis.xyz) * vec3(0.5/3.0, 0.5/2.0, 0.5);
+	//the 'matrix' we need only contains 5 actual values. and one of them is a -1. So we might as well just use a vec4.
+	//note: the projection matrix also includes scalers to pinch the image inwards to avoid sampling over borders, as well as to cope with non-square source image
+	//the resulting z is prescaled to result in a value between -0.5 and 0.5.
+	//also make sure we're in the right quadrant type thing
+	return axis + ((l_shadowmapproj.xyz*t.xyz + vec3(0.0, 0.0, l_shadowmapproj.w)) / -t.z);
 #endif
+}
+
+float ShadowmapFilter(void)
+{
+	vec3 shadowcoord = ShadowmapCoord();
 
 	#if 0//def GL_ARB_texture_gather
 		vec2 ipart, fpart;
@@ -185,20 +190,31 @@ float ShadowmapFilter(void)
 		return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0));	//blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.
 
 	#else
-		#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapinfo.xyz)).r
+		#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
 		float s = 0.0;
-		s += dosamp(-1.0, -1.0);
-		s += dosamp(-1.0, 0.0);
-		s += dosamp(-1.0, 1.0);
-		s += dosamp(0.0, -1.0);
-		s += dosamp(0.0, 0.0);
-		s += dosamp(0.0, 1.0);
-		s += dosamp(1.0, -1.0);
-		s += dosamp(1.0, 0.0);
-		s += dosamp(1.0, 1.0);
-		return s/9.0;
+		#if r_glsl_pcf >= 1 && r_glsl_pcf < 5
+			s += dosamp(0.0, 0.0);
+			return s;
+		#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9
+			s += dosamp(-1.0, 0.0);
+			s += dosamp(0.0, -1.0);
+			s += dosamp(0.0, 0.0);
+			s += dosamp(0.0, 1.0);
+			s += dosamp(1.0, 0.0);
+			return s/5.0;
+		#else
+			s += dosamp(-1.0, -1.0);
+			s += dosamp(-1.0, 0.0);
+			s += dosamp(-1.0, 1.0);
+			s += dosamp(0.0, -1.0);
+			s += dosamp(0.0, 0.0);
+			s += dosamp(0.0, 1.0);
+			s += dosamp(1.0, -1.0);
+			s += dosamp(1.0, 0.0);
+			s += dosamp(1.0, 1.0);
+			return s/9.0;
+		#endif
 	#endif
-#endif
 }
 #endif
 

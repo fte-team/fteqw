@@ -437,45 +437,22 @@ void Con_ToggleConsole_Force(void)
 	SCR_EndLoadingPlaque();
 	Key_ClearTyping ();
 
-	if (key_dest == key_console)
-	{
-		if (m_state)
-			key_dest = key_menu;
-		else
-			key_dest = key_game;
-	}
+	if (Key_Dest_Has(kdm_console))
+		Key_Dest_Remove(kdm_console);
 	else
-		key_dest = key_console;
+		Key_Dest_Add(kdm_console);
 }
 void Con_ToggleConsole_f (void)
 {
 #ifdef CSQC_DAT
-	if (key_dest == key_game && CSQC_ConsoleCommand("toggleconsole"))
+	if (!(key_dest_mask & kdm_editor) && CSQC_ConsoleCommand("toggleconsole"))
 	{
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_console);
 		return;
 	}
 #endif
 
 	Con_ToggleConsole_Force();
-}
-
-/*
-================
-Con_ToggleChat_f
-================
-*/
-void Con_ToggleChat_f (void)
-{
-	Key_ClearTyping ();
-
-	if (key_dest == key_console)
-	{
-		if (cls.state == ca_active)
-			key_dest = key_game;
-	}
-	else
-		key_dest = key_console;
 }
 
 void Con_ClearCon(console_t *con)
@@ -551,7 +528,8 @@ Con_MessageMode_f
 void Con_MessageMode_f (void)
 {
 	chat_team = false;
-	key_dest = key_message;
+	Key_Dest_Add(kdm_message);
+	Key_Dest_Remove(kdm_console);
 }
 
 /*
@@ -562,12 +540,13 @@ Con_MessageMode2_f
 void Con_MessageMode2_f (void)
 {
 	chat_team = true;
-	key_dest = key_message;
+	Key_Dest_Add(kdm_message);
+	Key_Dest_Remove(kdm_console);
 }
 
 void Con_ForceActiveNow(void)
 {
-	key_dest = key_console;
+	Key_Dest_Add(kdm_console);
 	scr_conlines = scr_con_current = vid.height;
 }
 
@@ -604,7 +583,6 @@ void Con_Init (void)
 	Cvar_Register (&con_separatechat, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
-	Cmd_AddCommand ("togglechat", Con_ToggleChat_f);
 	Cmd_AddCommand ("messagemode", Con_MessageMode_f);
 	Cmd_AddCommand ("messagemode2", Con_MessageMode2_f);
 	Cmd_AddCommand ("clear", Con_Clear_f);
@@ -1255,7 +1233,7 @@ void Con_DrawNotify (void)
 			Con_DrawNotifyOne(con);
 	}
 
-	if (key_dest == key_message)
+	if (Key_Dest_Has(kdm_message))
 	{
 		int x, y;
 		conchar_t *starts[8];
@@ -1798,7 +1776,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	y -= Font_CharHeight();
 	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
-	y = Con_DrawInput (con_current, key_dest == key_console, x, ex - x, y, selactive, selsx, selex, selsy, seley);
+	y = Con_DrawInput (con_current, Key_Dest_Has(kdm_console), x, ex - x, y, selactive, selsx, selex, selsy, seley);
 
 	l = con_current->display;
 
@@ -1826,7 +1804,7 @@ void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy,
 	Font_BeginString(font, fx, fy, &x, &y);
 	Font_BeginString(font, fx+fsx, fy+fsy, &sx, &sy);
 
-	if (con == con_current && key_dest == key_console)
+	if (con == con_current && Key_Dest_Has(kdm_console))
 	{
 		selactive = false;	//don't change selections if this is the main console and we're looking at the console, because that main console has focus instead anyway.
 		selsx = selsy = selex = seley = 0;
@@ -1972,6 +1950,7 @@ Con_NotifyBox
 void Con_NotifyBox (char *text)
 {
 	double		t1, t2;
+	qboolean hadconsole;
 
 // during startup for sound / cd warnings
 	Con_Printf("\n\n\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");
@@ -1982,7 +1961,8 @@ void Con_NotifyBox (char *text)
 	Con_Printf("\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");
 
 	key_count = -2;		// wait for a key down and up
-	key_dest = key_console;
+	hadconsole = !!Key_Dest_Has(kdm_console);
+	Key_Dest_Add(kdm_console);
 
 	do
 	{
@@ -1994,5 +1974,7 @@ void Con_NotifyBox (char *text)
 	} while (key_count < 0);
 
 	Con_Printf ("\n");
-	key_dest = key_game;
+
+	if (!hadconsole)
+		Key_Dest_Remove(kdm_console);
 }

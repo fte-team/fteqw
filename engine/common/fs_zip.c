@@ -16,6 +16,14 @@ typedef struct {
 	unsigned int mtime;
 	unsigned char xflags;
 	unsigned char os;
+	//unsigned short xlen;
+	//unsigned char xdata[xlen];
+	//unsigned char fname[];
+	//unsigned char fcomment[];
+	//unsigned short fhcrc;
+	//unsigned char compresseddata[];
+	//unsigned int crc32;
+	//unsigned int isize;
 } gzheader_t;
 #define sizeofgzheader_t 10
 

@@ -18,11 +18,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-int CDAudio_Init(void);
-void CDAudio_Play(int track, qboolean looping);
+void CDAudio_Init(void);
+qboolean CDAudio_Startup(void);	//called when the cd isn't currently valid. returns if its valid or not.
+int CDAudio_GetAudioDiskInfo(void);//returns number of tracks available, or 0 if the cd is not valid.
+void CDAudio_Play(int track);
 void CDAudio_Stop(void);
 void CDAudio_Pause(void);
 void CDAudio_Resume(void);
+void CDAudio_Eject(void);
+void CDAudio_CloseDoor(void);
 void CDAudio_Shutdown(void);
 void CDAudio_Update(void);
 

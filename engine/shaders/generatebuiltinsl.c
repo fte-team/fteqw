@@ -11,6 +11,7 @@ char shaders[][64] =
 	"crepuscular_opaque",
 	"crepuscular_rays",
 	"crepuscular_sky",
+	"depthonly",
 	"default2d",
 	"defaultadditivesprite",
 	"defaultskin",

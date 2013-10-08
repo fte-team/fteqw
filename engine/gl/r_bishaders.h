@@ -357,6 +357,34 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "depthonly",
+"!!permu FRAMEBLEND\n"
+"!!permu SKELETAL\n"
+
+//standard shader used for drawing shadowmap depth.
+//also used for masking off portals and other things that want depth and no colour.
+//must support skeletal and 2-way vertex blending or Bad Things Will Happen.
+//the vertex shader is responsible for calculating lighting values.
+
+"#ifdef VERTEX_SHADER\n"
+"#include \"sys/skeletal.h\"\n"
+"void main ()\n"
+"{\n"
+"gl_Position = skeletaltransform();\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"void main ()\n"
+"{\n"
+//must always draw something, supposedly. It might as well be black.
+"gl_FragColor = vec4(0, 0, 0, 1);\n"
+"}\n"
+"#endif\n"
+
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "default2d",
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -979,7 +1007,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(BUMP) && (defined(OFFSETMAPPING) || defined(DELUXE) || defined(SPECULAR))\n"
 "uniform sampler2D s_t2; //normal.rgb+height.a\n"
 "#endif\n"
+"#ifdef DELUXE\n"
 "uniform sampler2D s_t3; //deluxe0\n"
+"#endif\n"
 "#ifdef FULLBRIGHT\n"
 "uniform sampler2D s_t4; //fullbright\n"
 "#endif\n"
@@ -1267,46 +1297,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "gl_FragColor = pow(texture2D(s_t0, tc) * vc.g, vec4(vc.r)) + vc.b;\n"
-"}\n"
-"#endif\n"
-},
-#endif
-#ifdef D3D11QUAKE
-{QR_DIRECT3D11, 11, "defaultgammacb",
-//this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
-
-"struct a2v\n"
-"{\n"
-"float4 pos: POSITION;\n"
-"float2 tc: TEXCOORD0;\n"
-"float4 vcol: COLOR0;\n"
-"};\n"
-"struct v2f\n"
-"{\n"
-"float4 pos: SV_POSITION;\n"
-"float2 tc: TEXCOORD0;\n"
-"float4 vcol: COLOR0;\n"
-"};\n"
-
-"#include <ftedefs.h>\n"
-
-"#ifdef VERTEX_SHADER\n"
-"v2f main (a2v inp)\n"
-"{\n"
-"v2f outp;\n"
-"outp.pos = mul(m_projection, inp.pos);\n"
-"outp.tc = inp.tc;\n"
-"outp.vcol = inp.vcol;\n"
-"return outp;\n"
-"}\n"
-"#endif\n"
-
-"#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture;\n"
-"SamplerState SampleType;\n"
-"float4 main (v2f inp) : SV_TARGET\n"
-"{\n"
-"return pow(shaderTexture.Sample(SampleType, inp.tc) * inp.vcol.g, inp.vcol.r) + inp.vcol.b;\n"
 "}\n"
 "#endif\n"
 },
@@ -1601,10 +1591,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "rtlight",
 "!!permu BUMP\n"
+"!!permu FRAMEBLEND\n"
 "!!permu SKELETAL\n"
 "!!permu UPPERLOWER\n"
 "!!permu FOG\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
+"!!cvardf r_glsl_pcf\n"
+
 
 //this is the main shader responsible for realtime dlights.
 
@@ -1612,9 +1605,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //s0=diffuse, s1=normal, s2=specular, s3=shadowmap
 //custom modifiers:
 //PCF(shadowmap)
-//CUBE(projected cubemap)
+//CUBEPROJ(projected cubemap)
 //SPOT(projected circle
 //CUBESHADOW
+
+"#ifndef r_glsl_pcf\n"
+"#error r_glsl_pcf wasn't defined\n"
+"#endif\n"
+"#if r_glsl_pcf < 1\n"
+"#undef r_glsl_pcf\n"
+"#define r_glsl_pcf 9\n"
+"#endif\n"
 
 "#if 0 && defined(GL_ARB_texture_gather) && defined(PCF) \n"
 "#extension GL_ARB_texture_gather : enable\n"
@@ -1635,9 +1636,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
 "varying vec4 vtexprojcoord;\n"
 "uniform mat4 l_cubematrix;\n"
-"#ifndef SPOT\n"
-"uniform mat4 l_projmatrix;\n"
-"#endif\n"
 "#endif\n"
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
@@ -1709,68 +1707,65 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform vec3 l_lightcolour;\n"
 "uniform vec3 l_lightcolourscale;\n"
 "#ifdef PCF\n"
-"uniform vec4 l_shadowmapinfo; //xy are the texture scale, z is 1, w is the scale.\n"
+"uniform vec4 l_shadowmapproj; //light projection matrix info\n"
+"uniform vec2 l_shadowmapscale; //xy are the texture scale, z is 1, w is the scale.\n"
 "#endif\n"
 
 
 
+
 "#ifdef PCF\n"
-//#define shadow2DProj(t,c) (vec2(1.0,1.0))
-//#define shadow2DProj(t,c) texture2DProj(t,c).rg
-
-"float ShadowmapFilter(void)\n"
+"vec3 ShadowmapCoord(void)\n"
 "{\n"
-//dehomogonize input
-"vec3 shadowcoord = (vtexprojcoord.xyz / vtexprojcoord.w);\n"
-
-"#ifdef CUBESHADOW\n"
-//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
-//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
-"#else\n"
-
 "#ifdef SPOT\n"
 //bias it. don't bother figuring out which side or anything, its not needed
 //l_projmatrix contains the light's projection matrix so no other magic needed
-"shadowcoord.xyz = (shadowcoord.xyz + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+"vtexprojcoord.z -= 0.015;\n"
+"return (vtexprojcoord.xyz/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+//#elif defined(CUBESHADOW)
+//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
+//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
 "#else\n"
 //figure out which axis to use
 //texture is arranged thusly:
 //forward left  up
 //back    right down
-"vec3 dir = abs(shadowcoord);\n"
+"vec3 dir = abs(vtexprojcoord.xyz);\n"
 //assume z is the major axis (ie: forward from the light)
-"vec3 t = shadowcoord;\n"
+"vec3 t = vtexprojcoord.xyz;\n"
 "float ma = dir.z;\n"
-"vec3 axis = vec3(1.0, 1.0, 1.0);\n"
+"vec3 axis = vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
 "if (dir.x > ma)\n"
 "{\n"
 "ma = dir.x;\n"
-"t = shadowcoord.zyx;\n"
-"axis.x = 3.0;\n"
+"t = vtexprojcoord.zyx;\n"
+"axis.x = 0.5;\n"
 "}\n"
 "if (dir.y > ma)\n"
 "{\n"
 "ma = dir.y;\n"
-"t = shadowcoord.xzy;\n"
-"axis.x = 5.0;\n"
+"t = vtexprojcoord.xzy;\n"
+"axis.x = 2.5/3.0;\n"
 "}\n"
+//if the axis is negative, flip it.
 "if (t.z > 0.0)\n"
 "{\n"
-"axis.y = 3.0;\n"
+"axis.y = 1.5/2.0;\n"
 "t.z = -t.z;\n"
 "}\n"
 
-
 //we also need to pass the result through the light's projection matrix too
-"vec4 nsc =l_projmatrix*vec4(t, 1.0);\n"
-"shadowcoord = (nsc.xyz / nsc.w);\n"
-
-//scale to match the light's precision and pinch inwards, so we never sample over the edge
-"shadowcoord.st *= l_shadowmapinfo.w * (1.0-l_shadowmapinfo.st);\n"
-
-//now bias and relocate it
-"shadowcoord = (shadowcoord + axis.xyz) * vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
+//the 'matrix' we need only contains 5 actual values. and one of them is a -1. So we might as well just use a vec4.
+//note: the projection matrix also includes scalers to pinch the image inwards to avoid sampling over borders, as well as to cope with non-square source image
+//the resulting z is prescaled to result in a value between -0.5 and 0.5.
+//also make sure we're in the right quadrant type thing
+"return axis + ((l_shadowmapproj.xyz*t.xyz + vec3(0.0, 0.0, l_shadowmapproj.w)) / -t.z);\n"
 "#endif\n"
+"}\n"
+
+"float ShadowmapFilter(void)\n"
+"{\n"
+"vec3 shadowcoord = ShadowmapCoord();\n"
 
 "#if 0//def GL_ARB_texture_gather\n"
 "vec2 ipart, fpart;\n"
@@ -1787,8 +1782,19 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0)); //blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.\n"
 
 "#else\n"
-"#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapinfo.xyz)).r\n"
+"#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
 "float s = 0.0;\n"
+"#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
+"s += dosamp(0.0, 0.0);\n"
+"return s;\n"
+"#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9\n"
+"s += dosamp(-1.0, 0.0);\n"
+"s += dosamp(0.0, -1.0);\n"
+"s += dosamp(0.0, 0.0);\n"
+"s += dosamp(0.0, 1.0);\n"
+"s += dosamp(1.0, 0.0);\n"
+"return s/5.0;\n"
+"#else\n"
 "s += dosamp(-1.0, -1.0);\n"
 "s += dosamp(-1.0, 0.0);\n"
 "s += dosamp(-1.0, 1.0);\n"

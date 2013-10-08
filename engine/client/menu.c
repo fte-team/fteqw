@@ -177,10 +177,10 @@ int m_save_demonum;
 
 void M_CloseMenu_f (void)
 {
-	if (key_dest != key_menu)
+	if (!Key_Dest_Has(kdm_menu))
 		return;
 	M_RemoveAllMenus();
-	key_dest = key_game;
+	Key_Dest_Remove(kdm_menu);
 	m_state = m_none;
 }
 /*
@@ -192,15 +192,14 @@ void M_ToggleMenu_f (void)
 {
 	if (m_state)
 	{
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		return;
 	}
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand("togglemenu"))
 	{
-		if (key_dest == key_console)
-			key_dest = key_game;
+		Key_Dest_Remove(kdm_console);
 		return;
 	}
 #endif
@@ -213,13 +212,14 @@ void M_ToggleMenu_f (void)
 		return;
 #endif
 
-	if (key_dest == key_menu)
+	//it IS a toggle, so close the menu if its already active
+	if (Key_Dest_Has(kdm_menu))
 	{
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_menu);
 		m_state = m_none;
 		return;
 	}
-	if (key_dest == key_console)
+	if (Key_Dest_Has(kdm_console))
 	{
 		if (cls.state != ca_active)
 			M_Menu_Main_f();
@@ -364,7 +364,7 @@ void M_Menu_Keys_f (void)
 	int mgt;
 	extern cvar_t cl_splitscreen, cl_forcesplitclient;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(0);
@@ -511,7 +511,7 @@ int	helppagemin;
 
 void M_Menu_Help_f (void)
 {
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_help;
 	help_page = 0;
 
@@ -619,7 +619,7 @@ void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2
 	promptmenu_t *m;
 	char *t;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(m1)+strlen(m2)+strlen(m3)+strlen(optionyes)+strlen(optionyes)+strlen(optioncancel)+6);
@@ -827,7 +827,7 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 	case 'Y':
 	case 'y':
 		M_RemoveMenu(menu);
-		key_dest = key_console;
+		Key_Dest_Add(kdm_console);
 		CL_Disconnect ();
 		Sys_Quit ();
 		break;
@@ -910,7 +910,7 @@ void M_Menu_Quit_f (void)
 		Sys_Quit ();
 		break;
 	case 2:
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		m_state = m_complex;
 
 		quitmenu = M_CreateMenuInfront(0);
@@ -928,7 +928,7 @@ void M_Menu_Quit_f (void)
 		MC_AddBox (quitmenu, 56, 76, 25, 5);
 		break;
 	case 1:
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		m_state = m_complex;
 
 		quitmenu = M_CreateMenuInfront(0);
@@ -1166,7 +1166,7 @@ void M_Draw (int uimenu)
 	{
 		M_RemoveAllMenus();
 	}
-	if (key_dest != key_menu)
+	if (!Key_Dest_Has(kdm_menu))
 	{
 		m_state = m_none;
 		return;
@@ -1225,7 +1225,7 @@ void M_Keydown (int key, int unicode)
 	switch (m_state)
 	{
 	case m_none:
-		key_dest = key_console;
+		Key_Dest_Remove(kdm_menu);
 		return;
 
 	case m_help:

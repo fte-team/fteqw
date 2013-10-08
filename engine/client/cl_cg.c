@@ -533,7 +533,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_UPDATESCREEN:	//force a buffer swap cos loading won't refresh it soon.
-		if (key_dest != key_console)
+		if (!Key_Dest_Has(kdm_console))
 			scr_con_current = 0;
 		SCR_UpdateScreen();
 		break;

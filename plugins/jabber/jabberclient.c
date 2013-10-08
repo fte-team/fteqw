@@ -914,7 +914,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 		Q_strlcat(url, "&login_hint=", sizeof(url));
 		Q_strlcat_urlencode(url, jcl->oauth2.useraccount, sizeof(url));
 
-		Con_Printf("Please visit ^[^4%s\\url\\%s^] and then enter:\n^[/"COMMANDPREFIX"%i /oa2token <TOKEN>^]\n", url, url, jcl->accountnum);
+		Con_Printf("Please visit ^[^4%s\\url\\%s^] and then enter:\n^[/"COMMANDPREFIX"%i /oa2token <TOKEN>^]\nNote: you can right-click the link to copy it to your browser, and you can use ctrl+v to paste the resulting auth token as part of the given command.", url, url, jcl->accountnum);
 
 		//wait for user to act.
 		return -2;
@@ -2864,6 +2864,10 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	else
 	{
 		JCL_FindBuddy(jcl, from, &buddy, &bres);
+		if (!bres)
+		{
+			JCL_FindBuddy(jcl, va("%s/", from), &buddy, &bres);
+		}
 		JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", buddy->name);
 
 		if (bres)
@@ -3148,10 +3152,17 @@ int JCL_ClientFrame(jclient_t *jcl)
 				int outlen = -1;
 				if (jcl->forcetls > 0 && !jcl->issecure)
 				{
-					Con_Printf("XMPP: Unable to switch to TLS.\n");
-					XML_ConPrintTree(tree, 0);
+					if (BUILTINISVALID(Net_SetTLSClient))
+					{
+						Con_Printf("XMPP: Unable to switch to TLS. You are probably being man-in-the-middle attacked.\n");
+						XML_ConPrintTree(tree, 0);
+					}
+					else
+					{
+						Con_Printf("XMPP: Unable to switch to TLS. Your engine does not provide the feature. You can use the xmpp /autoconnect command to register your account instead, as this does not enforce the use of tls (but does still use it in case your future engine versions support it).\n");
+					}
 					XML_Destroy(tree);
-            		return JCL_KILL;
+					return JCL_KILL;
 				}
 				for (sm = 0; sm < sizeof(saslmethods)/sizeof(saslmethods[0]); sm++)
 				{
@@ -3174,7 +3185,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 				if (outlen == -2)
 				{
 					XML_Destroy(tree);
-            		return JCL_KILL;
+					return JCL_KILL;
 				}
 
 				if (outlen >= 0)
@@ -3195,14 +3206,14 @@ int JCL_ClientFrame(jclient_t *jcl)
 					Con_Printf("XMPP: No suitable auth methods. Unable to connect.\n");
 					XML_ConPrintTree(tree, 0);
 					XML_Destroy(tree);
-            		return JCL_KILL;
+					return JCL_KILL;
 				}
 			}
 			else	//we cannot auth, no suitable method.
 			{
 				Con_Printf("XMPP: Neither SASL or TLS are usable\n");
 				XML_Destroy(tree);
-            	return JCL_KILL;
+				return JCL_KILL;
 			}
 		}
 	}
@@ -4056,8 +4067,9 @@ void JCL_Command(int accid, char *console)
 
 	if (arg[0][0] == '/' && arg[0][1] != '/' && strcmp(arg[0]+1, "me"))
 	{
-		if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect") || !strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
+		if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect") || !strcmp(arg[0]+1, "autoopen") || !strcmp(arg[0]+1, "autoconnect") || !strcmp(arg[0]+1, "plainopen") || !strcmp(arg[0]+1, "plainconnect") || !strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
 		{	//tlsconnect is 'old'.
+			int tls;
 			if (!*arg[1])
 			{
 				Con_SubPrintf(console, "%s <account@domain/resource> <password> <server>\n", arg[0]+1);
@@ -4069,7 +4081,15 @@ void JCL_Command(int accid, char *console)
 				Con_TrySubPrint(console, "You are already connected\nPlease /quit first\n");
 				return;
 			}
-			jcl = jclients[accid] = JCL_Connect(accid, arg[3], !strncmp(arg[0]+1, "tls", 3), arg[1], arg[2]);
+			if (!strncmp(arg[0]+1, "tls", 3))
+				tls = 2;	//old initial-tls connect
+			else if (!strncmp(arg[0]+1, "plain", 5))
+				tls = -1;	//don't bother with tls. at all.
+			else if (!strncmp(arg[0]+1, "auto", 4))
+				tls = 0;	//use tls if its available, but don't really care otherwise.
+			else
+				tls = 1;	//require tls
+			jcl = jclients[accid] = JCL_Connect(accid, arg[3], tls, arg[1], arg[2]);
 			if (!jclients[accid])
 			{
 				Con_TrySubPrint(console, "Connect failed\n");
@@ -4081,12 +4101,18 @@ void JCL_Command(int accid, char *console)
 			Con_TrySubPrint(console, "^[/" COMMANDPREFIX " /connect USERNAME@DOMAIN/RESOURCE [PASSWORD] [XMPPSERVER]^]\n");
 			if (BUILTINISVALID(Net_SetTLSClient))
 			{
-				Con_Printf("eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com^] (using oauth2)\n");
-				Con_Printf("eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com mypassword talk.google.com^] (warning: password will be saved locally in plain text)\n");
-//				Con_Printf("eg for facebook: ^[/" COMMANDPREFIX " /connect myusername@chat.facebook.com mypassword chat.facebook.com^]\n");
-//				Con_Printf("eg for msn: ^[/" COMMANDPREFIX " /connect myusername@messanger.live.com mypassword^]\n");
+				Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com^] (using oauth2)\n");
+				Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com mypassword talk.google.com^] (warning: password will be saved locally in plain text)\n");
+//				Con_TrySubPrint(console, "eg for facebook: ^[/" COMMANDPREFIX " /connect myusername@chat.facebook.com mypassword chat.facebook.com^]\n");
+//				Con_TrySubPrint(console, "eg for msn: ^[/" COMMANDPREFIX " /connect myusername@messanger.live.com mypassword^]\n");
 			}
-			Con_Printf("Note that this info will be used the next time you start quake.\n");
+			else
+			{	//if we don't have tls support, we can still connect to google with oauth2
+				//no idea about other networks.
+				//however, the regular 'connect' command will insist on tls, so make sure the helpful command displayed is different
+				Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /autoconnect myusername@gmail.com^] (using oauth2)\n");
+			}
+			Con_TrySubPrint(console, "Note that this info will be used the next time you start quake.\n");
 
 			//small note:
 			//for the account 'me@example.com' the server to connect to can be displayed with:

@@ -129,9 +129,11 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[2] = 1;
 	dl->corona = bound(0, r_flashblend.value * 0.25, 1);
 	dl->coronascale = bound(0, r_flashblendscale.value, 1);
+#ifdef RTLIGHTS
 	dl->lightcolourscales[0] = r_shadow_realtime_dlight_ambient.value;
 	dl->lightcolourscales[1] = r_shadow_realtime_dlight_diffuse.value;
 	dl->lightcolourscales[2] = r_shadow_realtime_dlight_specular.value;
+#endif
 //	if (r_shadow_realtime_dlight_shadowmap.value)
 //		dl->flags |= LFLAG_SHADOWMAP;
 }
@@ -722,7 +724,6 @@ void CLFTE_ParseEntities(void)
 	unsigned int newnum, oldnum;
 	int			oldindex;
 	qboolean	isvalid = false;
-	entity_state_t *e;
 	qboolean removeflag;
 	int inputframe = cls.netchan.incoming_sequence;
 
@@ -4500,6 +4501,12 @@ void CL_LinkViewModel(void)
 	if (r_refdef.playerview->stats[STAT_HEALTH] <= 0)
 		return;
 
+	if (cl.intermission)
+		return;
+
+	if (pv->stats[STAT_WEAPON] <= 0 || pv->stats[STAT_WEAPON] >= MAX_MODELS)
+		return;
+
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
 		alpha = r_drawviewmodel.value;
 	else
@@ -4514,10 +4521,6 @@ void CL_LinkViewModel(void)
 		return;
 
 	V_ClearEntity(&ent);
-
-	ent.model = r_refdef.playerview->viewent.model;
-	if (!ent.model)
-		return;
 
 #ifdef PEXT_SCALE
 	ent.scale = 1;
@@ -4540,11 +4543,15 @@ void CL_LinkViewModel(void)
 		ent.flags |= Q2RF_TRANSLUCENT;
 	}
 
+	ent.model = cl.model_precache[pv->stats[STAT_WEAPON]];
+	if (!ent.model)
+		return;
+
 #ifdef HLCLIENT
 	if (!CLHL_AnimateViewEntity(&ent))
 #endif
 	{
-		ent.framestate.g[FS_REG].frame[0] = pv->viewent.framestate.g[FS_REG].frame[0];
+		ent.framestate.g[FS_REG].frame[0] = pv->stats[STAT_WEAPONFRAME];
 		ent.framestate.g[FS_REG].frame[1] = pv->oldframe;
 
 		if (ent.framestate.g[FS_REG].frame[0] != pv->prevframe)

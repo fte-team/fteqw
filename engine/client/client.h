@@ -271,7 +271,9 @@ typedef struct dlight_s
 	float	minlight;			// don't add when contributing less
 	float   color[3];
 	float	channelfade[3];
+#ifdef RTLIGHTS
 	vec3_t lightcolourscales; //ambient, diffuse, specular
+#endif
 	float	corona;
 	float	coronascale;
 
@@ -570,7 +572,9 @@ struct playerview_s
 		CAM_TRACK	= 1
 	} cam_auto;				//
 
-	entity_t	viewent;	// is this not utterly redundant yet?
+	vec3_t		vw_axis[3];	//weapons should be positioned relative to this
+	vec3_t		vw_origin;	//weapons should be positioned relative to this
+//	entity_t	viewent;	// is this not utterly redundant yet?
 	struct model_s *oldmodel;
 	float lerptime;
 	float frameduration;
@@ -1297,6 +1301,7 @@ extern	qboolean care_f_modified;
 void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
+void CLQ2_ClearParticleState(void);
 void CLQ2_ParseFrame (void);
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
 int CLQ2_RegisterTEntModels (void);
@@ -1370,7 +1375,9 @@ struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 qboolean Media_FakeTrack(int i, qboolean loop);
-qboolean Media_BackgroundTrack(char *track, char *looptrack);
+qboolean Media_BackgroundTrack(char *initialtrack, char *looptrack);
+void Media_NumberedTrack(int initialtrack, int looptrack);
+void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 #endif
 
 //these accept NULL for cin to mean the current fullscreen video

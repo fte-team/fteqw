@@ -33,25 +33,43 @@ static void SHM_Shutdown(void);
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 
-#define nearplane	(4)
 static texid_t shadowmap[2];
 
 static int shadow_fbo_id;
+static int shadow_fbo_depth_num;
 static int crepuscular_fbo_id;
 texid_t crepuscular_texture_id;
 shader_t *crepuscular_shader;
 
+cvar_t r_shadow_shadowmapping_nearclip = CVAR("r_shadow_shadowmapping_nearclip", "1");
+cvar_t r_shadow_shadowmapping_bias = CVAR("r_shadow_shadowmapping_bias", "0.03");
+cvar_t r_shadow_scissor = CVAR("r_shadow_scissor", "1");
+
+cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
+#ifdef FTE_TARGET_WEB
+cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "0", CVAR_ARCHIVE);
+#else
+cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
+#endif
+cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_dlight_ambient		= SCVAR ("r_shadow_realtime_dlight_ambient", "0");
+cvar_t r_shadow_realtime_dlight_diffuse		= SCVAR ("r_shadow_realtime_dlight_diffuse", "1");
+cvar_t r_shadow_realtime_dlight_specular	= SCVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+cvar_t r_editlights_import_radius			= SCVAR ("r_editlights_import_radius", "1");
+cvar_t r_editlights_import_ambient			= SCVAR ("r_editlights_import_ambient", "0");
+cvar_t r_editlights_import_diffuse			= SCVAR ("r_editlights_import_diffuse", "1");
+cvar_t r_editlights_import_specular			= SCVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+cvar_t r_shadow_shadowmapping				= SCVARF ("debug_r_shadow_shadowmapping", "0", 0);
+cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
+extern cvar_t r_shadow_shadowmapping_nearclip;
+extern cvar_t r_shadow_shadowmapping_bias;
+cvar_t r_sun_dir							= CVARD ("r_sun_dir", "0.2 0.5 0.8", "Specifies the direction that crepusular rays appear along");
+cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Specifies the colour of sunlight that appears in the form of crepuscular rays.");
+
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
 
-
-static struct {
-	int numlights;
-	int shadowsurfcount;
-
-	int numfrustumculled;
-	int numpvsculled;
-	int numscissorculled;
-} bench;
 
 
 /*
@@ -65,6 +83,7 @@ void Sh_Reset(void)
 	{
 		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
 		shadow_fbo_id = 0;
+		shadow_fbo_depth_num = 0;
 	}
 	if (shadowmap[0].num)
 	{
@@ -107,9 +126,9 @@ typedef struct shadowmesh_s
 {
 	enum
 	{
-		SMT_STENCILVOLUME,
-		SMT_SHADOWLESS,
-		SMT_SURFACES
+		SMT_STENCILVOLUME,	//build edges mesh (and surface list)
+		SMT_SHADOWMAP,		//build front faces mesh (and surface list)
+		SMT_SHADOWLESS		//build surface list only
 	} type;
 	unsigned int numindicies;
 	unsigned int maxindicies;
@@ -196,6 +215,44 @@ static void SHM_Vertex3fv (const float *v)
 	}
 }
 
+static void SHM_MeshFrontOnly(int numverts, vecV_t *verts, int numidx, index_t *idx)
+{
+	int first = sh_shmesh->numverts;
+	int v, i;
+	vecV_t *outv;
+	index_t *outi;
+
+	/*make sure there's space*/
+	v = (sh_shmesh->numverts+numverts + inc)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxverts < v)
+	{
+		v += 1024;
+		sh_shmesh->maxverts = v;
+		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, v * sizeof(*sh_shmesh->verts));
+	}
+
+	outv = sh_shmesh->verts + sh_shmesh->numverts;
+	for (v = 0; v < numverts; v++)
+	{
+		VectorCopy(verts[v], outv[v]);
+	}
+
+	v = (sh_shmesh->numindicies+numidx + inc)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxindicies < v)
+	{
+		v += 1024;
+		sh_shmesh->maxindicies = v;
+		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, v * sizeof(*sh_shmesh->indicies));
+	}
+	outi = sh_shmesh->indicies + sh_shmesh->numindicies;
+	for (i = 0; i < numidx; i++)
+	{
+		outi[i] = first + idx[i];
+	}
+
+	sh_shmesh->numverts += numverts;
+	sh_shmesh->numindicies += numidx;
+}
 static void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float pd)
 {
 	int v, i, idxs;
@@ -292,6 +349,8 @@ static void SH_FreeShadowMesh_(shadowmesh_t *sm)
 	sm->indicies = NULL;
 	Z_Free(sm->verts);
 	sm->verts = NULL;
+	sm->numindicies = 0;
+	sm->numverts = 0;
 
 	switch (qrenderer)
 	{
@@ -381,7 +440,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 		{
 			/*this shouldn't happen too often*/
 			if (sh_shmesh)
-			{
+			{	//FIXME: if the light is the same light, reuse the memory allocations where possible...
 				SH_FreeShadowMesh(sh_shmesh);
 			}
 
@@ -628,6 +687,11 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
 					SHM_Shadow_Cache_Surface(surf);
+					if (sh_shmesh->type == SMT_SHADOWMAP)
+					{
+						SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+						continue;
+					}
 					if (sh_shmesh->type != SMT_STENCILVOLUME)
 						continue;
 
@@ -977,7 +1041,10 @@ static void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 				continue;
 			surf->shadowframe = sh_shadowframe;
 
+			//FIXME: radius check
 			SHM_Shadow_Cache_Surface(surf);
+			if (sh_shmesh->type == SMT_SHADOWMAP)
+				SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
 		}
 		return;
 	}
@@ -1314,8 +1381,23 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 		else*/
 		{
 			SHM_BeginShadowMesh(dl, type);
+
+#if 0
+			{
+				int i;
+				msurface_t *surf;
+				for (i = 0; i < cl.worldmodel->numsurfaces; i+=2)
+				{
+					surf = &cl.worldmodel->surfaces[i];
+					SHM_Shadow_Cache_Surface(surf);
+					SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+				}
+				memset(sh_shmesh->litleaves, 0xff, sh_shmesh->leafbytes);
+			}
+#else
 			SHM_MarkLeavesQ1(dl, lvis);
 			SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
+#endif
 		}
 		break;
 #ifdef Q2BSPS
@@ -1328,11 +1410,26 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 #ifdef Q3BSPS
 	case fg_quake3:
 		/*q3 doesn't have edge info*/
-		SHM_BeginShadowMesh(dl, true);
+		SHM_BeginShadowMesh(dl, type);
+
+#if 0
+			{
+				int i;
+				msurface_t *surf;
+				for (i = 0; i < cl.worldmodel->numsurfaces; i++)
+				{
+					surf = &cl.worldmodel->surfaces[i];
+					SHM_Shadow_Cache_Surface(surf);
+					SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+				}
+				memset(sh_shmesh->litleaves, 0xff, sh_shmesh->leafbytes);
+			}
+#else
 		sh_shadowframe++;
 		SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
 		if (type == SMT_STENCILVOLUME)
 			SHM_ComposeVolume_BruteForce(dl);
+#endif
 		break;
 #endif
 	default:
@@ -1342,11 +1439,6 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	/*generate edge polys for map types that need it (q1/q2)*/
 	switch (type)
 	{
-	case SMT_SURFACES:
-		{
-			
-		}
-		break;
 	case SMT_STENCILVOLUME:
 		SHM_BeginQuads();
 		while(firstedge)
@@ -1597,8 +1689,12 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 	r->height = 1;
 	r->dmin = 0;
 	r->dmax = 1;
-	if (0)//!r_shadow_scissor.integer)
+	if (!r_shadow_scissor.ival)
 	{
+		r->x = 0;
+		r->y = 0;
+		r->width  = 1;
+		r->height = 1;
 		return false;
 	}
 	/*if view is inside the box, then skip this maths*/
@@ -1928,8 +2024,12 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 		else
 			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
 
-		if (TEXVALID(depthtexture))
-			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
+		if (shadow_fbo_depth_num != depthtexture.num)
+		{
+			shadow_fbo_depth_num = depthtexture.num;
+			if (TEXVALID(depthtexture))
+				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
+		}
 	}
 }
 #endif
@@ -1946,9 +2046,37 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 	}
 }
 
+//determine the 5 bounding points of a shadowmap light projection side
+static void Sh_LightFrustumPlanes(dlight_t *l, vec4_t *planes, int face)
+{
+	vec3_t tmp;
+	int axis0, axis1, axis2;
+	int dir;
+	int i;
+	//+x,+y,+z,-x,-y,-z
+	axis0 = (face+0)%3;	//our major axis
+	axis1 = (face+1)%3;
+	axis2 = (face+2)%3;
+	dir = (face >= 3)?-1:1;
+
+	//center point is always the same
+	VectorCopy(l->origin, planes[4]);
+	VectorScale(l->axis[axis0], dir, planes[4]);
+	VectorNormalize(planes[4]);
+	planes[4][3] = r_shadow_shadowmapping_nearclip.value + DotProduct(planes[4], l->origin);
+
+	for (i = 0; i < 4; i++)
+	{
+		VectorScale(l->axis[axis0], dir, tmp);
+		VectorMA(tmp,		((i&1)?1:-1), l->axis[axis1], tmp);
+		VectorMA(tmp,		((i&2)?1:-1), l->axis[axis2], planes[i]);
+		VectorNormalize(planes[i]);
+		planes[i][3] = DotProduct(planes[i], l->origin);
+	}
+}
+
 static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int smsize, float proj[16])
 {
-	qboolean oxv;
 	vec3_t t1,t2;
 	texture_t *tex;
 	int tno;
@@ -1959,21 +2087,21 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 	case 0:
 		//+x - forward
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, l->axis[0], l->axis[1], l->axis[2], l->origin);
-		r_refdef.flipcull = false;
+		r_refdef.flipcull = 0;
 		break;
 	case 1:
 		//+y - right
 		VectorNegate(l->axis[0], t1);
 		VectorNegate(l->axis[1], t2);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t2, t1, l->axis[2], l->origin);
-		r_refdef.flipcull = true;
+		r_refdef.flipcull = SHADER_CULL_FLIP;
 		break;
 	case 2:
 		//+z - down
 		VectorNegate(l->axis[0], t1);
 		VectorNegate(l->axis[2], t2);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t2, l->axis[1], t1, l->origin);
-		r_refdef.flipcull = true;
+		r_refdef.flipcull = SHADER_CULL_FLIP;
 		break;
 	case 3:
 		//-x - back
@@ -1981,20 +2109,20 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 //		VectorNegate(l->axis[1], t2);
 //		VectorNegate(l->axis[2], t3);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, t1, l->axis[1], l->axis[2], l->origin);
-		r_refdef.flipcull = true;
+		r_refdef.flipcull = SHADER_CULL_FLIP;
 		break;
 	case 4:
 		//-y - left
 		VectorNegate(l->axis[1], t1);
 		VectorNegate(l->axis[0], t2);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, l->axis[1], t2, l->axis[2], l->origin);
-		r_refdef.flipcull = false;
+		r_refdef.flipcull = 0;
 		break;
 	case 5:
 		//-z - up
 		VectorNegate(l->axis[0], t2);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, l->axis[2], l->axis[1], t2, l->origin);
-		r_refdef.flipcull = false;
+		r_refdef.flipcull = 0;
 		break;
 	}
 
@@ -2005,8 +2133,6 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 		qglViewport ((face%3 * SHADOWMAP_SIZE) + (SHADOWMAP_SIZE-smsize)/2, ((face>=3)*SHADOWMAP_SIZE) + (SHADOWMAP_SIZE-smsize)/2, smsize, smsize);
 	}
 
-	//fixme
-GL_CullFace(0);
 	R_SetFrustum(proj, r_refdef.m_view);
 
 #ifdef DBG_COLOURNOTDEPTH
@@ -2014,15 +2140,16 @@ GL_CullFace(0);
 #else
 	BE_SelectMode(BEM_DEPTHONLY);
 #endif
-	/*shadow meshes are always drawn as an external view*/
-	oxv = r_refdef.externalview;
-	r_refdef.externalview = true;
 
 	BE_SelectEntity(&r_worldentity);
 
+	GL_CullFace(SHADER_CULL_FRONT);
+
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
-		GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], NULL, smesh->numindicies, smesh->vebo[1], NULL);
+	{
+		GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], smesh->verts, smesh->numindicies, smesh->vebo[1], smesh->indicies);
+	}
 	else
 #endif
 	{
@@ -2055,8 +2182,6 @@ GL_CullFace(0);
 		break;
 	}
 
-	r_refdef.externalview = oxv;
-
 /*
 	{
 		int i;
@@ -2083,14 +2208,57 @@ GL_CullFace(0);
 */
 }
 
-void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
+qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 {
 	int f;
-	int smsize = SHADOWMAP_SIZE;
 	float oproj[16], oview[16];
 	shadowmesh_t *smesh;
 	int isspot = (l->fov != 0);
-	extern cvar_t temp1;
+	extern cvar_t r_shadow_shadowmapping_precision;
+	int sidevisible;
+	int oldflip = r_refdef.flipcull;
+	int oldexternalview = r_refdef.externalview;
+
+	if (!R_CullSphere(l->origin, 0))
+		sidevisible = l->fov?1:0x3f;	//assume all are visible if the central point is onscreen
+	else
+	{
+		sidevisible = 0;
+		//FIXME: if the fov is < 90, we need to clip by the near lightplane first
+		for (f = 0; f < (l->fov?1:6); f++)
+		{
+			vec4_t planes[5];
+			float dist;
+			int fp,lp;
+			Sh_LightFrustumPlanes(l, planes, f);
+			for (fp = 0; fp < FRUSTUMPLANES; fp++)
+			{
+				vec3_t nearest;
+				//make a guess based upon the frustum plane
+				VectorMA(l->origin, l->radius, frustum[fp].normal, nearest);
+				//clip that point to the various planes
+
+				for(lp = 0; lp < 5; lp++)
+				{
+					dist = DotProduct(nearest, planes[lp]) - planes[lp][3];
+					if (dist < 0)
+						VectorMA(nearest, dist, planes[lp], nearest);
+				}
+
+//				P_RunParticleEffect(nearest, vec3_origin, 15, 1);
+				//give up if the best point for any frustum plane is offscreen
+				dist = DotProduct(frustum[fp].normal, nearest) - frustum[fp].dist;
+				if (dist <= 0)
+					break;		
+			}
+			if (fp == FRUSTUMPLANES)
+				sidevisible |= 1u<<f;
+		}
+	}
+
+	//if nothing is visible, then there's no point generating any shadowmaps at all...
+	if (!sidevisible)
+		return false;
 
 	if (!TEXVALID(shadowmap[isspot]))
 	{
@@ -2099,7 +2267,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap2dspot***", SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0);
 			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 #ifdef DBG_COLOURNOTDEPTH
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 #endif
@@ -2109,7 +2277,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 			shadowmap[isspot] = GL_AllocNewTexture("***shadowmap2dcube***", SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0);
 			GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 #ifdef DBG_COLOURNOTDEPTH
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize*3, smsize*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 #endif
@@ -2133,12 +2301,11 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	smesh = SHM_BuildShadowMesh(l, lvis, NULL, true);
 
-	smsize = bound(16, temp1.ival, SHADOWMAP_SIZE);
-
 	/*set framebuffer*/
 	GL_BeginRenderBuffer_DepthOnly(shadowmap[isspot]);
 	GLBE_SetupForShadowMap(shadowmap[isspot], isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
 
+	BE_Scissor(NULL);
 	qglViewport(0, 0, smsize*3, smsize*2);
 	qglClear (GL_DEPTH_BUFFER_BIT);
 #ifdef DBG_COLOURNOTDEPTH
@@ -2148,35 +2315,27 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	memcpy(oproj, r_refdef.m_projection, sizeof(oproj));
 	memcpy(oview, r_refdef.m_view, sizeof(oview));
-	if (l->fov)
-	{
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, l->fov, l->fov, nearplane, l->radius);
-		if (!gl_config.nofixedfunc)
-		{
-			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection);
-			qglMatrixMode(GL_MODELVIEW);
-		}
 
-		/*single face*/
-		Sh_GenShadowFace(l, smesh, 0, smsize, r_refdef.m_projection);
+	Matrix4x4_CM_Projection_Far(r_refdef.m_projection, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius);
+	if (!gl_config.nofixedfunc)
+	{
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(r_refdef.m_projection);
+		qglMatrixMode(GL_MODELVIEW);
 	}
-	else
-	{
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, 90, 90, nearplane, l->radius);
-		if (!gl_config.nofixedfunc)
-		{
-			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection);
-			qglMatrixMode(GL_MODELVIEW);
-		}
 
-		/*generate faces*/
-		for (f = 0; f < 6; f++)
+	r_refdef.externalview = true;	//never any viewmodels
+
+	/*generate faces*/
+	for (f = 0; f < 6; f++)
+	{
+		if (sidevisible & (1u<<f))
 		{
+			RQuantAdd(RQUANT_SHADOWSIDES, 1);
 			Sh_GenShadowFace(l, smesh, f, smsize, r_refdef.m_projection);
 		}
 	}
+
 	/*end framebuffer*/
 	GL_EndRenderBuffer_DepthOnly(shadowmap[isspot], smsize);
 
@@ -2193,7 +2352,11 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	qglViewport(r_refdef.pxrect.x, vid.pixelheight - r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 
+	r_refdef.flipcull = oldflip;
+	r_refdef.externalview = oldexternalview;
 	R_SetFrustum(r_refdef.m_projection, r_refdef.m_view);
+
+	return true;
 }
 
 static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
@@ -2202,10 +2365,11 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	qbyte *lvis;
 	qbyte	lvisb[MAX_MAP_LEAFS/8];
 	srect_t rect;
+	int smsize;
 
 	if (R_CullSphere(l->origin, l->radius))
 	{
-		bench.numfrustumculled++;
+		RQuantAdd(RQUANT_RTLIGHT_CULL_FRUSTUM, 1);
 		return;	//this should be the more common case
 	}
 
@@ -2219,7 +2383,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
-		bench.numscissorculled++;
+		RQuantAdd(RQUANT_RTLIGHT_CULL_SCISSOR, 1);
 		return;
 	}
 
@@ -2231,8 +2395,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 			//fixme: check head node first?
 			if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
 			{
-					bench.numpvsculled++;
-					return;
+				RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
+				return;
 			}
 		}
 		else
@@ -2242,7 +2406,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 			lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 			{
-				bench.numpvsculled++;
+				RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
 				return;
 			}
 		}
@@ -2250,19 +2414,37 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	else
 		lvis = NULL;
 
-	BE_Scissor(NULL);
 
-	Sh_GenShadowMap(l, lvis);
+	if (l->fov != 0)
+		smsize = SHADOWMAP_SIZE;
+	else
+	{
+		//Stolen from DP. Actually, LH pasted it to me in IRC.
+		vec3_t nearestpoint;
+		vec3_t d;
+		float distance, lodlinear;
+		nearestpoint[0] = bound(l->origin[0]-l->radius, r_origin[0], l->origin[0]+l->radius);
+		nearestpoint[1] = bound(l->origin[1]-l->radius, r_origin[1], l->origin[1]+l->radius);
+		nearestpoint[2] = bound(l->origin[2]-l->radius, r_origin[2], l->origin[2]+l->radius);
+		VectorSubtract(nearestpoint, r_origin, d);
+		distance = VectorLength(d);
+		lodlinear = (l->radius * r_shadow_shadowmapping_precision.value) / sqrt(max(1.0f, distance / l->radius));
+		smsize = bound(16, lodlinear, SHADOWMAP_SIZE);
+	}
 
-	bench.numlights++;
+	if (!BE_SelectDLight(l, colour, l->fov?LSHADER_SPOT:LSHADER_SMAP))
+		return;	//can't get a shader loaded
+	if (!Sh_GenShadowMap(l, lvis, smsize))
+		return;
+
+	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
 	//may as well use scissors
 	BE_Scissor(&rect);
 
 	BE_SelectEntity(&r_worldentity);
 
-	GLBE_SelectDLight(l, colour);
-	BE_SelectMode(l->fov?BEM_SMAPLIGHTSPOT:BEM_SMAPLIGHT);
+	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(l, colour);
 
 }
@@ -2322,7 +2504,9 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			tex = cl.worldmodel->shadowbatches[tno].tex;
 			if (tex->shader->flags & SHADER_NODLIGHT)
 				continue;
+			//FIXME: it may be worth building a dedicated ebo
 			BE_DrawMesh_List(tex->shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
+			RQuantAdd(RQUANT_LITFACES, sm->batches[tno].count);
 		}
 
 		switch(qrenderer)
@@ -2504,10 +2688,9 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		if (ent->flags & (RF_NOSHADOW|Q2RF_BEAM))
 			continue;
 
-		{
-			if (ent->keynum == dl->key && ent->keynum)
-				continue;
-		}
+		if (ent->keynum == dl->key && ent->keynum)
+			continue;
+
 		if (!ent->model)
 			continue;
 
@@ -2553,7 +2736,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	if (R_CullSphere(dl->origin, dl->radius))
 	{
-		bench.numfrustumculled++;
+		RQuantAdd(RQUANT_RTLIGHT_CULL_FRUSTUM, 1);
 		return false;	//this should be the more common case
 	}
 
@@ -2570,7 +2753,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		//fixme: check head node first?
 		if (!Sh_LeafInView(dl->worldshadowmesh->litleaves, vvis))
 		{
-			bench.numpvsculled++;
+			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
 			return false;
 		}
 		lvis = NULL;
@@ -2582,7 +2765,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
-			bench.numpvsculled++;
+			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
 			return false;
 		}
 	}
@@ -2590,12 +2773,12 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	//sets up the gl scissor (and culls to view)
 	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
-		bench.numscissorculled++;
+		RQuantAdd(RQUANT_RTLIGHT_CULL_SCISSOR, 1);
 		return false;	//this doesn't cull often.
 	}
-	bench.numlights++;
+	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
-	BE_SelectDLight(dl, colour);
+	BE_SelectDLight(dl, colour, LSHADER_STANDARD);
 	BE_SelectMode(BEM_STENCIL);
 
 	//The backend doesn't maintain scissor state.
@@ -2786,7 +2969,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	if (R_CullSphere(dl->origin, dl->radius))
 	{
-		bench.numfrustumculled++;
+		RQuantAdd(RQUANT_RTLIGHT_CULL_FRUSTUM, 1);
 		return;	//this should be the more common case
 	}
 
@@ -2795,7 +2978,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		//fixme: check head node first?
 		if (!Sh_LeafInView(dl->worldshadowmesh->litleaves, vvis))
 		{
-			bench.numpvsculled++;
+			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
 			return;
 		}
 	}
@@ -2812,7 +2995,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
-			bench.numpvsculled++;
+			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
 			return;
 		}
 	}
@@ -2829,16 +3012,16 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 //sets up the gl scissor (actually just culls to view)
 	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
-		bench.numscissorculled++;
+		RQuantAdd(RQUANT_RTLIGHT_CULL_SCISSOR, 1);
 		return;	//was culled.
 	}
 
 	//should we actually scissor here? there's not really much point I suppose.
 	BE_Scissor(NULL);
 
-	bench.numlights++;
+	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
-	BE_SelectDLight(dl, colour);
+	BE_SelectDLight(dl, colour, LSHADER_STANDARD);
 	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 }
@@ -2918,7 +3101,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, r_nulltex, false);
 
 	BE_SelectMode(BEM_CREPUSCULAR);
-	BE_SelectDLight(dl, colours);
+	BE_SelectDLight(dl, colours, LSHADER_STANDARD);
 	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
 	GLBE_RenderToTexture(crepuscular_texture_id, r_nulltex, r_nulltex, r_nulltex, false);
@@ -2949,7 +3132,7 @@ void Sh_PreGenerateLights(void)
 {
 	unsigned int ignoreflags;
 	dlight_t *dl;
-	qboolean shadow;
+	int shadowtype;
 	int leaf;
 	qbyte *lvis;
 	qbyte	lvisb[MAX_MAP_LEAFS/8];
@@ -2957,7 +3140,8 @@ void Sh_PreGenerateLights(void)
 
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
-		R_LoadRTLights();
+		if (rtlights_first == rtlights_max)
+			R_LoadRTLights();
 		if (rtlights_first == rtlights_max)
 			R_ImportRTLights(cl.worldmodel->entities);
 	}
@@ -2966,25 +3150,34 @@ void Sh_PreGenerateLights(void)
 
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
 	{
-		if (!dl->radius)
-			continue;	//dead
+		if (dl->radius)
+		{
+			if (dl->flags & ignoreflags)
+			{
+				if (dl->flags & LFLAG_CREPUSCULAR)
+					continue;
 
-		if (!(dl->flags & ignoreflags))
-			continue;
+				if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
+					shadowtype = SMT_SHADOWLESS;
+				else if (dl->flags & LFLAG_SHADOWMAP || r_shadow_shadowmapping.ival)
+					shadowtype = SMT_SHADOWMAP;
+				else
+					shadowtype = SMT_STENCILVOLUME;
 
-		if (dl->flags & LFLAG_CREPUSCULAR)
-			continue;
-		else if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
-			shadow = false;
-		else if (dl->flags & LFLAG_SHADOWMAP)
-			shadow = false;
-		else
-			shadow = true;
+				leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
+				lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 
-		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+				SHM_BuildShadowMesh(dl, lvis, NULL, shadowtype);
+				continue;
+			}
+		}
 
-		SHM_BuildShadowMesh(dl, lvis, NULL, !shadow);
+		if (dl->worldshadowmesh)
+		{
+			SH_FreeShadowMesh(dl->worldshadowmesh);
+			dl->worldshadowmesh = NULL;
+			dl->rebuildcache = true;
+		}
 	}
 }
 
@@ -3004,10 +3197,6 @@ void Sh_DrawLights(qbyte *vis)
 	dlight_t *dl;
 	int i;
 	unsigned int ignoreflags;
-	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_dlight;
-	extern cvar_t r_shadow_realtime_world_shadows, r_shadow_realtime_dlight_shadows;
-	extern cvar_t r_sun_dir, r_sun_colour;
-	extern cvar_t r_shadow_shadowmapping;
 
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
 	{
@@ -3149,3 +3338,41 @@ void Sh_DrawLights(qbyte *vis)
 //	memset(&bench, 0, sizeof(bench));
 }
 #endif
+
+//stencil shadows generally require that the farclip distance is really really far away
+//so this little function is used to check if its needed or not.
+qboolean Sh_StencilShadowsActive(void)
+{
+#ifdef RTLIGHTS
+	//if shadowmapping is forced on all lights then we don't need special depth stuff
+//	if (r_shadow_shadowmapping.ival)
+//		return false;
+
+	return	(r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival) ||
+			(r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival);
+#else
+	return false;
+#endif
+}
+
+void Sh_RegisterCvars(void)
+{
+#ifdef RTLIGHTS
+#define REALTIMELIGHTING "Realtime Lighting"
+	Cvar_Register (&r_shadow_scissor,					REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_world,			REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_world_shadows,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_dlight,			REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_dlight_ambient,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_dlight_diffuse,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_dlight_specular,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_dlight_shadows,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_realtime_world_lightmaps,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_shadowmapping,				REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_shadowmapping_precision,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_shadowmapping_nearclip,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_shadowmapping_bias,		REALTIMELIGHTING);
+	Cvar_Register (&r_sun_dir,							REALTIMELIGHTING);
+	Cvar_Register (&r_sun_colour,						REALTIMELIGHTING);
+#endif
+}

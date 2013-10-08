@@ -1460,7 +1460,7 @@ int CLHL_ParseGamePacket(void)
 	case svc_cdtrack:
 		cl.cdtrack = MSG_ReadByte();
 		MSG_ReadByte();
-		CDAudio_Play ((qbyte)cl.cdtrack, true);
+		CDAudio_Play ((qbyte)cl.cdtrack, (qbyte)cl.cdtrack);
 		break;
 
 	case 35: //svc_weaponanimation:

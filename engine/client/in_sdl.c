@@ -36,30 +36,6 @@ void IN_DeactivateMouse(void)
 	SDL_WM_GrabInput(SDL_GRAB_OFF);
 }
 
-void IN_UpdateGrabs(int fullscreen, int activeapp)
-{
-	if (!vid_isfullscreen)
-	{
-		if (!_windowed_mouse.value)
-		{
-			if (mouseactive)
-			{
-				IN_DeactivateMouse ();
-			}
-		}
-		else
-		{
-			if ((key_dest == key_game||mouseusedforgui) && ActiveApp)
-				IN_ActivateMouse ();
-			else if (!(key_dest == key_game || mouseusedforgui) || !ActiveApp)
-				IN_DeactivateMouse ();
-		}
-	}
-}
-
-
-
-
 #define tenoh	0,0,0,0,0, 0,0,0,0,0
 #define fiftyoh tenoh, tenoh, tenoh, tenoh, tenoh
 #define hundredoh fiftyoh, fiftyoh

@@ -492,8 +492,6 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 {
 	float a;
 	int w, h;
-	if (!conback)
-		return;
 
 	w = vid.width;
 	h = vid.height;
@@ -515,7 +513,13 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 		h>>=1;
 		w>>=1;
 	}
-	if (a >= 1)
+	if (!conback)
+	{
+		R2D_ImageColours(0, 0, 0, a);
+		R2D_FillBlock(0, lastline-(int)vid.height, w, h);
+		R2D_ImageColours(1, 1, 1, 1);
+	}
+	else if (a >= 1)
 	{
 		R2D_ImageColours(1, 1, 1, 1);
 		R2D_ScalePic(0, lastline-(int)vid.height, w, h, conback);
@@ -579,7 +583,7 @@ void R2D_TileClear (float x, float y, float w, float h)
 
 void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (qrenderer == QR_NONE)
+	if (qrenderer == QR_NONE || !strcmp(var->string, "none"))
 	{
 		conback = NULL;
 		return;

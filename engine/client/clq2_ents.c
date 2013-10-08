@@ -107,8 +107,8 @@ void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
 #define	MAX_PARSE_ENTITIES	1024
 
 
-q2centity_t cl_entities[MAX_Q2EDICTS];
-entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
+static q2centity_t cl_entities[MAX_Q2EDICTS];
+entity_state_t	clq2_parse_entities[MAX_PARSE_ENTITIES];
 
 void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
 void CL_SmokeAndFlash(vec3_t origin);
@@ -629,6 +629,15 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		to->solid = MSG_ReadShort ();
 }
 
+void CLQ2_ClearParticleState(void)
+{
+	int i;
+	for (i = 0; i < MAX_Q2EDICTS; i++)
+	{
+		P_DelinkTrailstate(&cl_entities[i].trailstate);
+	}
+}
+
 /*
 ==================
 CL_DeltaEntity
@@ -637,14 +646,14 @@ Parses deltas from the given base and adds the resulting entity
 to the current frame
 ==================
 */
-void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, int bits)
+static void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, int bits)
 {
 	q2centity_t	*ent;
 	entity_state_t	*state;
 
 	ent = &cl_entities[newnum];
 
-	state = &cl_parse_entities[cl.parse_entities & (MAX_PARSE_ENTITIES-1)];
+	state = &clq2_parse_entities[cl.parse_entities & (MAX_PARSE_ENTITIES-1)];
 	cl.parse_entities++;
 	frame->num_entities++;
 
@@ -700,7 +709,7 @@ An svc_packetentities has just been parsed, deal with the
 rest of the data stream.
 ==================
 */
-void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
+static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 {
 	int			newnum;
 	int			bits;
@@ -722,7 +731,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 			oldnum = 99999;
 		else
 		{
-			oldstate = &cl_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
+			oldstate = &clq2_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
 			oldnum = oldstate->number;
 		}
 	}
@@ -751,7 +760,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 				oldnum = 99999;
 			else
 			{
-				oldstate = &cl_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
+				oldstate = &clq2_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
 				oldnum = oldstate->number;
 			}
 		}
@@ -769,7 +778,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 				oldnum = 99999;
 			else
 			{
-				oldstate = &cl_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
+				oldstate = &clq2_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
 				oldnum = oldstate->number;
 			}
 			continue;
@@ -787,7 +796,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 				oldnum = 99999;
 			else
 			{
-				oldstate = &cl_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
+				oldstate = &clq2_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
 				oldnum = oldstate->number;
 			}
 			continue;
@@ -816,7 +825,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 			oldnum = 99999;
 		else
 		{
-			oldstate = &cl_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
+			oldstate = &clq2_parse_entities[(oldframe->parse_entities+oldindex) & (MAX_PARSE_ENTITIES-1)];
 			oldnum = oldstate->number;
 		}
 	}
@@ -974,7 +983,7 @@ void CLQ2_FireEntityEvents (q2frame_t *frame)
 	for (pnum = 0 ; pnum<frame->num_entities ; pnum++)
 	{
 		num = (frame->parse_entities + pnum)&(MAX_PARSE_ENTITIES-1);
-		s1 = &cl_parse_entities[num];
+		s1 = &clq2_parse_entities[num];
 		if (s1->u.q2.event)
 			CLQ2_EntityEvent (s1);
 
@@ -1191,7 +1200,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 	for (pnum = 0 ; pnum<frame->num_entities ; pnum++)
 	{
-		s1 = &cl_parse_entities[(frame->parse_entities+pnum)&(MAX_PARSE_ENTITIES-1)];
+		s1 = &clq2_parse_entities[(frame->parse_entities+pnum)&(MAX_PARSE_ENTITIES-1)];
 
 		cent = &cl_entities[s1->number];
 
@@ -1744,9 +1753,9 @@ CL_AddViewWeapon
 void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 {
 	entity_t	gun;		// view model
-	entity_t	*view;
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
 	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
+	playerview_t *pv = &cl.playerview[0];
 
 	// allow the gun to be completely removed
 	if (!r_drawviewmodel.value)
@@ -1760,10 +1769,9 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 		return;
 
 	//generate root matrix..
-	view = &cl.playerview[0].viewent;
-	VectorCopy(cl.playerview[0].simorg, view->origin);
-	AngleVectors(cl.playerview[0].simangles, view->axis[0], view->axis[1], view->axis[2]);
-	VectorInverse(view->axis[1]);
+	VectorCopy(cl.playerview[0].simorg, pv->vw_origin);
+	AngleVectors(cl.playerview[0].simangles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
+	VectorInverse(pv->vw_axis[1]);
 
 	memset (&gun, 0, sizeof(gun));
 

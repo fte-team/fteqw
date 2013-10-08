@@ -92,6 +92,9 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 	{
 		CL_ClearTEntParticleState();
 		CL_ClearLerpEntsParticleState();
+#ifdef Q2CLIENT
+		CLQ2_ClearParticleState();
+#endif
 
 		pe->ShutdownParticles();
 	}

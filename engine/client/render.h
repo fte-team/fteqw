@@ -170,7 +170,7 @@ typedef struct
 	qboolean	externalview; /*draw external models and not viewmodels*/
 	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
 	qboolean	forcevis;	/*if true, vis comes from the forcedvis field instead of recalculated*/
-	qboolean	flipcull;	/*reflected/flipped view, requires inverted culling*/
+	unsigned int	flipcull;	/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
 	qboolean	useperspective; /*not orthographic*/
 
 	int			postprocshader; /*if set, renders to texture then invokes this shader*/
@@ -186,7 +186,7 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
-void BE_GenModelBatches(struct batch_s **batches);
+void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode);	//if dl, filters based upon the dlight.
 
 //gl_alias.c
 void GL_GAliasFlushSkinCache(void);
@@ -502,9 +502,16 @@ enum {
 	RQUANT_ENTBATCHES,
 	RQUANT_WORLDBATCHES,
 	RQUANT_2DBATCHES,
+
 	RQUANT_SHADOWFACES,
 	RQUANT_SHADOWEDGES,
+	RQUANT_SHADOWSIDES,
 	RQUANT_LITFACES,
+
+	RQUANT_RTLIGHT_DRAWN,
+	RQUANT_RTLIGHT_CULL_FRUSTUM,
+	RQUANT_RTLIGHT_CULL_PVS,
+	RQUANT_RTLIGHT_CULL_SCISSOR,
 
 	RQUANT_MAX
 };

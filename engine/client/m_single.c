@@ -72,7 +72,7 @@ void M_Menu_Save_f (void)
 	if (cl.intermission)
 		return;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
@@ -96,7 +96,7 @@ void M_Menu_Load_f (void)
 	menu_t *menu;
 	int		i;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 	
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
@@ -130,7 +130,7 @@ void M_Menu_SinglePlayer_f (void)
 	mpic_t *p;
 #endif
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 #ifdef CLIENTONLY
@@ -721,7 +721,7 @@ void M_Menu_Demos_f (void)
 	demomenu_t *info;
 	menu_t *menu;	
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
@@ -759,7 +759,7 @@ void M_Menu_MediaFiles_f (void)
 	demomenu_t *info;
 	menu_t *menu;	
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));

@@ -154,6 +154,7 @@ cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
 cvar_t pausable	= CVAR("pausable", "1");
+cvar_t sv_banproxies = CVARD("banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 
 
 //
@@ -580,10 +581,10 @@ void SV_DropClient (client_t *drop)
 	{
 		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
 #ifdef warningmsg
-#pragma warningmsg("This mans that we may not see the reason we kicked ourselves.")
+#pragma warningmsg("This means that we may not see the reason we kicked ourselves.")
 #endif
-		CL_Disconnect();
 		drop->state = cs_free;	//don't do zombie stuff
+		CL_Disconnect();
 	}
 	else
 #endif
@@ -2014,13 +2015,34 @@ client_t *SVC_DirectConnect(void)
 	{
 		if (!sv_listen_qw.value && net_from.type != NA_LOOPBACK)
 		{
-			SV_RejectMessage (SCP_BAD, "QuakeWorld protocols are not permitted on this server.\n");
+			SV_RejectMessage (protocol, "QuakeWorld protocols are not permitted on this server.\n");
 			Con_Printf ("* rejected connect from quakeworld\n");
 			return NULL;
 		}
 	}
 
-
+	if (sv_banproxies.ival)
+	{
+		//FIXME: allow them to spectate but not join
+		if (*Info_ValueForKey(userinfo[0], "*qwfwd"))
+		{
+			SV_RejectMessage (protocol, "Proxies are not permitted on this server.\n");
+			Con_Printf ("* rejected connect from qwfwd proxy\n");
+			return NULL;
+		}
+		if (*Info_ValueForKey(userinfo[0], "Qizmo"))
+		{
+			SV_RejectMessage (protocol, "Proxies are not permitted on this server.\n");
+			Con_Printf ("* rejected connect from qizmo proxy\n");
+			return NULL;
+		}
+		if (*Info_ValueForKey(userinfo[0], "*qtv"))
+		{
+			SV_RejectMessage (protocol, "Proxies are not permitted on this server.\n");
+			Con_Printf ("* rejected connect from qtv proxy (udp)\n");
+			return NULL;
+		}
+	}
 
 	while(!msg_badread)
 	{
@@ -3990,7 +4012,7 @@ float SV_Frame (void)
 		sv.gamespeed = 1;
 
 #ifndef SERVERONLY
-	isidle = !isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game && cls.state == ca_active;
+	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active;
 	/*server is effectively paused if there are no clients*/
 	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && (cls.state != ca_connected))
 		isidle = true;
@@ -4309,6 +4331,7 @@ void SV_InitLocal (void)
 #endif
 		Cvar_Set(&sv_public, "1");
 
+	Cvar_Register (&sv_banproxies, "Server Permissions");
 	Cvar_Register (&sv_master,	cvargroup_servercontrol);
 	Cvar_Register (&sv_masterport,	cvargroup_servercontrol);
 

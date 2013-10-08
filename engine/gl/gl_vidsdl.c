@@ -120,16 +120,13 @@ void GL_DoSwap (void)
 	{
 		if (!_windowed_mouse.value)
 		{
-			if (mouseactive)
-			{
-				IN_DeactivateMouse ();
-			}
+			IN_DeactivateMouse ();
 		}
 		else
 		{
-			if ((key_dest == key_game||mouseusedforgui) && ActiveApp)
+			if (!Key_MouseShouldBeFree() && ActiveApp)
 				IN_ActivateMouse ();
-			else if (!(key_dest == key_game || mouseusedforgui) || !ActiveApp)
+			else
 				IN_DeactivateMouse ();
 		}
 	}

@@ -77,17 +77,11 @@ struct {
 	struct font_s *font[4];
 } fontslot[FONT_SLOTS];
 
-static struct font_s *PR_CL_ChooseFont(pubprogfuncs_t *prinst, float szx, float szy)
+static struct font_s *PR_CL_ChooseFont(world_t *world, float szx, float szy)
 {
 	int fontidx = 0;	//default by default...
-	world_t *world = prinst->parms->user;
 	struct font_s *font = font_conchar;
 
-	if (world->g.drawfontscale)
-	{
-		szx *= world->g.drawfontscale[0];
-		szy *= world->g.drawfontscale[1];
-	}
 	if (world->g.drawfont)
 	{
 		fontidx = *world->g.drawfont;
@@ -111,8 +105,13 @@ static struct font_s *PR_CL_ChooseFont(pubprogfuncs_t *prinst, float szx, float 
 }
 void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, float szy, float *px, float *py)
 {
-	struct font_s *font = PR_CL_ChooseFont(prinst, szx, szy);
-
+	world_t *world = prinst->parms->user;
+	struct font_s *font = PR_CL_ChooseFont(world, szx, szy);
+	if (world->g.drawfontscale && (world->g.drawfontscale[0] || world->g.drawfontscale[1]))
+	{
+		szx *= world->g.drawfontscale[0];
+		szy *= world->g.drawfontscale[1];
+	}
 	Font_BeginScaledString(font, vx, vy, szx, szy, px, py);
 }
 int PR_findnamedfont(char *name, qboolean isslotname)
@@ -449,7 +448,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 
 //float	drawrawstring(vector position, string text, vector scale, vector rgb, float alpha, float flag) = #455;
 void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
+{	
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
@@ -567,8 +566,10 @@ void QCBUILTIN PF_CL_drawgetimagesize (pubprogfuncs_t *prinst, struct globalvars
 void QCBUILTIN PF_cl_getmousepos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ret = G_VECTOR(OFS_RETURN);
+	world_t *world = prinst->parms->user;
+	unsigned int target = world->keydestmask;
 
-	if (Key_MouseShouldBeFree())
+	if (key_dest_absolutemouse & target)
 	{
 		ret[0] = mousecursor_x;
 		ret[1] = mousecursor_y;
@@ -656,10 +657,17 @@ void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	float *size = G_VECTOR(OFS_PARM2);
 	float fontsize = G_FLOAT(OFS_PARM3);
 	console_t *con = Con_FindConsole(conname);
+	world_t *world = prinst->parms->user;
 	if (!con)
 		return;
 
-	Con_DrawOneConsole(con, PR_CL_ChooseFont(prinst, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
+	if (world->g.drawfontscale)
+	{
+//		szx *= world->g.drawfontscale[0];
+		fontsize *= world->g.drawfontscale[1];
+	}
+
+	Con_DrawOneConsole(con, PR_CL_ChooseFont(world, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
 }
 qboolean Key_Console (console_t *con, unsigned int unicode, int key);
 void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
@@ -690,7 +698,7 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		break;
 	case CSIE_MOUSEABS:
 		//x, y
-		if (con == con_current && key_dest == key_console)
+		if (con == con_current && (key_dest_mask & kdm_console))
 			break;	//no interfering with the main console!
 		con->mousecursor[0] = pa;
 		con->mousecursor[1] = pb;
@@ -932,16 +940,21 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	{
 	case 0:
 		// key_game
-		key_dest = ((cls.state == ca_active)?key_game:key_console);
+		if (!(cls.state == ca_active))
+			Key_Dest_Add(kdm_console);
+		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Remove(kdm_message);
 		break;
 	case 2:
 		// key_menu
-		key_dest = key_menu;
 		m_state = m_menu_dat;
+		Key_Dest_Remove(kdm_message);
+		Key_Dest_Add(kdm_menu);
 		break;
 	case 1:
 		// key_message
-		// key_dest = key_message
+		//Key_Dest_Remove(kdm_menu);
+		//Key_Dest_Add(kdm_message);
 		// break;
 	default:
 		PR_BIError (prinst, "PF_setkeydest: wrong destination %i !\n",(int)G_FLOAT(OFS_PARM0));
@@ -950,37 +963,31 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 //float	getkeydest(void)	= #602;
 void QCBUILTIN PF_cl_getkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	switch(key_dest)
+	if (Key_Dest_Has(kdm_menu))
 	{
-	case key_game:
-		G_FLOAT(OFS_RETURN) = 0;
-		break;
-	case key_menu:
 		if (m_state == m_menu_dat)
 			G_FLOAT(OFS_RETURN) = 2;
 		else
 			G_FLOAT(OFS_RETURN) = 3;
-		break;
-	case 1:
-		// key_message
-		// key_dest = key_message
-		// break;
-	default:
-		G_FLOAT(OFS_RETURN) = 3;
 	}
+//	else if (Key_Dest_Has(kdm_message))
+//		G_FLOAT(OFS_RETURN) = 1;
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 }
 
 //void	setmousetarget(float trg) = #603;
 void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	extern int mouseusedforgui;
+	world_t *world = prinst->parms->user;
+	unsigned int target = world->keydestmask;
 	switch ((int)G_FLOAT(OFS_PARM0))
 	{
-	case 1:	//1 is delta-based.
-		mouseusedforgui = false;
+	case 1:	//1 is delta-based (mt_menu).
+		key_dest_absolutemouse &= ~target;
 		break;
-	case 2:	//2 is absolute.
-		mouseusedforgui = true;
+	case 2:	//2 is absolute (mt_client).
+		key_dest_absolutemouse |= target;
 		break;
 	default:
 		PR_BIError(prinst, "PF_setmousetarget: not a valid destination\n");
@@ -990,8 +997,9 @@ void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s
 //float	getmousetarget(void)	  = #604;
 void QCBUILTIN PF_cl_getmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	extern int mouseusedforgui;
-	G_FLOAT(OFS_RETURN) = mouseusedforgui?2:1;
+	world_t *world = prinst->parms->user;
+	unsigned int target = world->keydestmask;
+	G_FLOAT(OFS_RETURN) = (key_dest_absolutemouse&target)?2:1;
 }
 
 static void QCBUILTIN PF_Remove_ (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1655,7 +1663,6 @@ jmp_buf mp_abort;
 
 void MP_Shutdown (void)
 {
-	extern int mouseusedforgui;
 	func_t temp;
 	if (!menu_world.progs)
 		return;
@@ -1683,10 +1690,10 @@ void MP_Shutdown (void)
 	Master_ClearMasks();
 #endif
 
-	key_dest = key_game;
+	Key_Dest_Remove(kdm_menu);
 	m_state = 0;
 
-	mouseusedforgui = false;
+	key_dest_absolutemouse &= ~kdm_menu;
 }
 
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
@@ -1787,6 +1794,7 @@ qboolean MP_Init (void)
 	menuprogparms.useeditor = NULL;//sorry... QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.user = &menu_world;
+	menu_world.keydestmask = kdm_menu;
 
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)

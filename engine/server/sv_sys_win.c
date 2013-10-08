@@ -916,8 +916,7 @@ void Signal_Error_Handler (int sig)
 void StartQuakeServer(void)
 {
 	quakeparms_t	parms;
-	static	char	bindir[MAX_OSPATH]; //unused variable
-	int				t;
+	static	char	bindir[MAX_OSPATH];
 
 	memset(&parms, 0, sizeof(parms));
 

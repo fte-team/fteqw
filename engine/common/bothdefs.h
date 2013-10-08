@@ -237,7 +237,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define R_XFLIP			//allow view to be flipped horizontally
 		#define TEXTEDITOR
 		#define DDS				//a sort of image file format.
+#ifndef RTLIGHTS
 		#define RTLIGHTS		//realtime lighting
+#endif
 
 		#define VM_Q1			//q1 qvm gamecode interface
 

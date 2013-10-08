@@ -1668,7 +1668,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		}
 
 
-		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival || qrenderer != QR_OPENGL)
+		if (Sh_StencilShadowsActive() || qrenderer != QR_OPENGL)
 		{
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
@@ -1898,7 +1898,6 @@ static void Mod_ClampModelSize(model_t *mod)
 #endif
 }
 
-#ifdef GLQUAKE
 static int R_FindTriangleWithEdge (index_t *indexes, int numtris, int start, int end, int ignore)
 {
 	int i;
@@ -1940,20 +1939,15 @@ static void Mod_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int
 		n[2] = R_FindTriangleWithEdge (indexes, numtris, index[0], index[2], i);
 	}
 }
-#endif
 void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 {
-#ifdef GLQUAKE
-	if (qrenderer != QR_OPENGL)
-		return;
-	if (r_shadow_realtime_dlight_shadows.ival || r_shadow_realtime_world_shadows.ival)
+	if (Sh_StencilShadowsActive())
 	{
 		int *neighbours;
 		neighbours = ZG_Malloc(&loadmodel->memgroup, sizeof(int)*galias->numindexes/3*3);
 		galias->ofs_trineighbours = neighbours;
 		Mod_BuildTriangleNeighbours(neighbours, galias->ofs_indexes, galias->numindexes/3);
 	}
-#endif
 }
 
 typedef struct

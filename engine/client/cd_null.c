@@ -17,12 +17,11 @@ void CDAudio_Update(void)
 {
 }
 
-int CDAudio_Init(void)
+void CDAudio_Init(void)
 {
-	return -1;
 }
 
-void CDAudio_Play(int track, qboolean looping)
+void CDAudio_Play(int track)
 {
 }
 
@@ -36,4 +35,22 @@ void CDAudio_Pause(void)
 
 void CDAudio_Resume(void)
 {
+}
+
+void CDAudio_Eject(void)
+{
+}
+
+void CDAudio_CloseDoor(void)
+{
+}
+
+int CDAudio_GetAudioDiskInfo(void)
+{
+	return -2;
+}
+
+int CDAudio_Startup(void)
+{
+	return -2;
 }

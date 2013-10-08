@@ -336,6 +336,8 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 	else
 	{
+		mousecursor_x += mx;
+		mousecursor_y += my;
 #ifdef VM_UI
 		if (UI_MousePosition(mx, my))
 		{
@@ -347,7 +349,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 
 	if (mouse->type == M_TOUCH)
 	{
-		if (m_strafeonright.ival && mouse->downpos[0] > vid.pixelwidth/2 && movements != NULL && (key_dest == key_game))
+		if (m_strafeonright.ival && mouse->downpos[0] > vid.pixelwidth/2 && movements != NULL && !Key_Dest_Has(kdm_game))
 		{
 			//if they're strafing, calculate the speed to move at based upon their displacement
 			if (mouse->down)
@@ -386,6 +388,13 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 	else
 	{
+		//if game is not focused, kill any mouse look
+		if (Key_Dest_Has(~kdm_game))
+		{
+			mx = 0;
+			my = 0;
+		}
+
 		if (mx || my)
 		if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
 		{

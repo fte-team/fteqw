@@ -637,8 +637,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 				"}\n"
 				;
 			break;
-		case BM_INVMOD:
-			namepostfix = "_invmod";
+		case BM_INVMODA:
+			namepostfix = "_invmoda";
 			defaultshader =
 				"{\n"
 					"program defaultsprite\n"
@@ -646,6 +646,22 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc GL_ZERO GL_ONE_MINUS_SRC_ALPHA\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		case BM_INVMODC:
+			namepostfix = "_invmodc";
+			defaultshader =
+				"{\n"
+					"program defaultsprite\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_ZERO GL_ONE_MINUS_SRC_COLOR\n"
 						"rgbgen vertex\n"
 						"alphagen vertex\n"
 					"}\n"
@@ -718,21 +734,95 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	}
 }
 
+static void P_ResetToDefaults(part_type_t *ptype)
+{
+	particle_t *parts;
+	skytris_t *st;
+	part_type_t *torun;
+	char tnamebuf[sizeof(ptype->name)];
+
+	// go with a lazy clear of list.. mark everything as DEAD and let
+	// the beam rendering handle removing nodes
+	beamseg_t *beamsegs = ptype->beams;
+	while (beamsegs)
+	{
+		beamsegs->flags |= BS_DEAD;
+		beamsegs = beamsegs->next;
+	}
+
+	// forget any particles before its wiped
+	while (ptype->particles)
+	{
+		parts = ptype->particles->next;
+		ptype->particles->next = free_particles;
+		free_particles = ptype->particles;
+		ptype->particles = parts;
+	}
+
+	// if we're in the runstate loop through and remove from linked list
+	if (ptype->state & PS_INRUNLIST)
+	{
+		if (part_run_list == ptype)
+			part_run_list = part_run_list->nexttorun;
+		else
+		{
+			for (torun = part_run_list; torun != NULL; torun = torun->nexttorun)
+			{
+				if (torun->nexttorun == ptype)
+					torun->nexttorun = torun->nexttorun->nexttorun;
+			}
+		}
+	}
+
+	//some things need to be preserved before we clear everything.
+	beamsegs = ptype->beams;
+	st = ptype->skytris;
+	strcpy(tnamebuf, ptype->name);
+
+	//free uneeded info
+	if (ptype->ramp)
+		BZ_Free(ptype->ramp);
+	if (ptype->models)
+		BZ_Free(ptype->models);
+
+	//reset everything we're too lazy to specifically set
+	memset(ptype, 0, sizeof(*ptype));
+
+	//now set any non-0 defaults.
+
+	ptype->beams = beamsegs;
+	ptype->skytris = st;
+	strcpy(ptype->name, tnamebuf);
+	ptype->assoc=P_INVALID;
+	ptype->inwater = P_INVALID;
+	ptype->cliptype = P_INVALID;
+	ptype->emit = P_INVALID;
+	ptype->alpha = 1;
+	ptype->alphachange = 1;
+	ptype->clipbounce = 0.8;
+	ptype->colorindex = -1;
+	ptype->rotationstartmin = -M_PI;	//start with a random angle
+	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
+	ptype->spawnchance = 1;
+	ptype->dl_time = 5000;
+	VectorSet(ptype->dl_rgb, 1, 1, 1);
+
+	ptype->randsmax = 1;
+	ptype->s2 = 1;
+	ptype->t2 = 1;
+}
+
 //Uses FTE's multiline console stuff.
 //This is the function that loads the effect descriptions (via console).
 static void P_ParticleEffect_f(void)
 {
 	char *var, *value;
 	char *buf;
-	particle_t *parts;
-	beamseg_t *beamsegs;
-	skytris_t *st;
 	qboolean settype = false;
 	qboolean setalphadelta = false;
 	qboolean setbeamlen = false;
 
-	part_type_t *ptype, *torun;
-	char tnamebuf[sizeof(ptype->name)];
+	part_type_t *ptype;
 	int pnum, assoc;
 	char *config = part_parsenamespace;
 
@@ -841,67 +931,7 @@ static void P_ParticleEffect_f(void)
 
 	pnum = ptype-part_type;
 
-	st = ptype->skytris;
-	if (ptype->ramp)
-		BZ_Free(ptype->ramp);
-	if (ptype->models)
-		BZ_Free(ptype->models);
-
-	while (ptype->particles) // empty particle list
-	{
-		parts = ptype->particles->next;
-		ptype->particles->next = free_particles;
-		free_particles = ptype->particles;
-		ptype->particles = parts;
-	}
-
-	// go with a lazy clear of list.. mark everything as DEAD and let
-	// the beam rendering handle removing nodes
-	beamsegs = ptype->beams;
-	while (beamsegs)
-	{
-		beamsegs->flags |= BS_DEAD;
-		beamsegs = beamsegs->next;
-	}
-
-	beamsegs = ptype->beams;
-
-	// if we're in the runstate loop through and remove from linked list
-	if (ptype->state & PS_INRUNLIST)
-	{
-		if (part_run_list == ptype)
-			part_run_list = part_run_list->nexttorun;
-		else
-		{
-			for (torun = part_run_list; torun != NULL; torun = torun->nexttorun)
-			{
-				if (torun->nexttorun == ptype)
-					torun->nexttorun = torun->nexttorun->nexttorun;
-			}
-		}
-	}
-
-	strcpy(tnamebuf, ptype->name);
-	memset(ptype, 0, sizeof(*ptype));
-//	ptype->particles = parts;
-	ptype->beams = beamsegs;
-	ptype->skytris = st;
-	strcpy(ptype->name, tnamebuf);
-	ptype->assoc=P_INVALID;
-	ptype->inwater = P_INVALID;
-	ptype->cliptype = P_INVALID;
-	ptype->emit = P_INVALID;
-	ptype->alpha = 1;
-	ptype->alphachange = 1;
-	ptype->clipbounce = 0.8;
-	ptype->colorindex = -1;
-	ptype->rotationstartmin = -M_PI;	//start with a random angle
-	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
-	ptype->spawnchance = 1;
-
-	ptype->randsmax = 1;
-	ptype->s2 = 1;
-	ptype->t2 = 1;
+	P_ResetToDefaults(ptype);
 
 	while(1)
 	{
@@ -1229,8 +1259,10 @@ static void P_ParticleEffect_f(void)
 				ptype->looks.blendmode = BM_ADD;
 			else if (!strcmp(value, "subtract"))
 				ptype->looks.blendmode = BM_SUBTRACT;
-			else if (!strcmp(value, "invmod"))
-				ptype->looks.blendmode = BM_INVMOD;
+			else if (!strcmp(value, "invmoda") || !strcmp(value, "invmod"))
+				ptype->looks.blendmode = BM_INVMODA;
+			else if (!strcmp(value, "invmodc"))
+				ptype->looks.blendmode = BM_INVMODC;
 			else if (!strcmp(value, "blendcolour") || !strcmp(value, "blendcolor"))
 				ptype->looks.blendmode = BM_BLENDCOLOUR;
 			else
@@ -1959,6 +1991,7 @@ static void P_ImportEffectInfo_f(void)
 					break;
 				}
 			}
+		//	P_ResetToDefaults(ptype);
 			ptype->loaded = part_parseweak?1:2;
 			ptype->scale = 1;
 			ptype->alpha = 0;
@@ -1969,7 +2002,6 @@ static void P_ImportEffectInfo_f(void)
 			ptype->rgb[0] = 1;
 			ptype->rgb[1] = 1;
 			ptype->rgb[2] = 1;
-			ptype->colorindex = -1;
 
 			ptype->spawnmode = SM_BOX;
 
@@ -1980,6 +2012,8 @@ static void P_ImportEffectInfo_f(void)
 			ptype->looks.type = PT_NORMAL;
 			ptype->looks.blendmode = BM_BLEND;
 			ptype->looks.stretch = 1;
+
+			ptype->dl_time = 100;
 		}
 		else if (!ptype)
 		{
@@ -1995,12 +2029,12 @@ static void P_ImportEffectInfo_f(void)
 			if (!strcmp(arg[1], "decal") || !strcmp(arg[1], "cdecal"))
 			{
 				ptype->looks.type = PT_CDECAL;
-				ptype->looks.blendmode = BM_INVMOD;
+				ptype->looks.blendmode = BM_INVMODC;
 			}
 			else if (!strcmp(arg[1], "udecal"))
 			{
 				ptype->looks.type = PT_UDECAL;
-				ptype->looks.blendmode = BM_INVMOD;
+				ptype->looks.blendmode = BM_INVMODC;
 			}
 			else if (!strcmp(arg[1], "alphastatic"))
 			{
@@ -2020,6 +2054,7 @@ static void P_ImportEffectInfo_f(void)
 			else if (!strcmp(arg[1], "spark"))
 			{
 				ptype->looks.type = PT_TEXTUREDSPARK;
+				ptype->looks.blendmode = BM_ADD;
 			}
 			else if (!strcmp(arg[1], "bubble"))
 			{
@@ -2029,7 +2064,7 @@ static void P_ImportEffectInfo_f(void)
 			else if (!strcmp(arg[1], "blood"))
 			{
 				ptype->looks.type = PT_NORMAL;
-				ptype->looks.blendmode = BM_INVMOD;
+				ptype->looks.blendmode = BM_INVMODC;
 				ptype->gravity = 800*1;
 			}
 			else if (!strcmp(arg[1], "beam"))
@@ -2142,7 +2177,7 @@ static void P_ImportEffectInfo_f(void)
 		else if (!strcmp(arg[0], "blend") && args == 2)
 		{
 			if (!strcmp(arg[1], "invmod"))
-				ptype->looks.blendmode = BM_INVMOD;
+				ptype->looks.blendmode = BM_INVMODC;
 			else if (!strcmp(arg[1], "alpha"))
 				ptype->looks.blendmode = BM_BLEND;
 			else if (!strcmp(arg[1], "add"))
@@ -2152,15 +2187,15 @@ static void P_ImportEffectInfo_f(void)
 		}
 		else if (!strcmp(arg[0], "orientation") && args == 2)
 		{
-//			if (!strcmp(arg[1], "billboard"))
-//				;
-//			else if (!strcmp(arg[1], "spark"))
-//				;
-//			else if (!strcmp(arg[1], "oriented"))
-//				;
-//			else if (!strcmp(arg[1], "beam"))
-//				;
-//			else
+			if (!strcmp(arg[1], "billboard"))
+				ptype->looks.type = PT_NORMAL;
+			else if (!strcmp(arg[1], "spark"))
+				ptype->looks.type = PT_TEXTUREDSPARK;
+			else if (!strcmp(arg[1], "oriented"))	//FIXME: not sure this points the right way. also, its double-sided in dp.
+				ptype->looks.type = PT_UDECAL;
+			else if (!strcmp(arg[1], "beam"))
+				ptype->looks.type = PT_BEAM;
+			else
 				Con_Printf("effectinfo 'orientation %s' not supported\n", arg[1]);
 		}
 		else if (!strcmp(arg[0], "lightradius") && args == 2)

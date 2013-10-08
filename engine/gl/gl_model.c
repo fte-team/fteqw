@@ -127,13 +127,16 @@ void Mod_BatchList_f(void)
 			{
 				for (batch = mod->batches[i]; batch; batch = batch->next)
 				{
+#if MAXRLIGHTMAPS > 1
 					if (batch->lightmap[3] >= 0)
 						Con_Printf("%s lm=(%i:%i %i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->lightmap[3], batch->lmlightstyle[3], batch->maxmeshes);
 					else if (batch->lightmap[2] >= 0)
 						Con_Printf("%s lm=(%i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->maxmeshes);
 					else if (batch->lightmap[1] >= 0)
 						Con_Printf("%s lm=(%i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->maxmeshes);
-					else if (batch->lmlightstyle[0] != 255)
+					else
+#endif
+						if (batch->lmlightstyle[0] != 255)
 						Con_Printf("%s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->maxmeshes);
 					else
 						Con_Printf("%s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
@@ -883,10 +886,11 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 			break;
 #endif
 
+		case BSPVERSION_LONG1:
+			Con_Printf("WARNING: %s is in a deprecated format\n", mod->name);
 		case 30:	//hl
 		case 29:	//q1
 		case 28:	//prerel
-		case BSPVERSION_LONG1:
 		case BSPVERSION_LONG2:
 			TRACE(("Mod_LoadModel: hl/q1 bsp\n"));
 			if (!Mod_LoadBrushModel (mod, buf))
@@ -2330,7 +2334,7 @@ qboolean Mod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 			out->firstedge = LittleLong(inl->firstedge);
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
-			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
 				out->styles[i] = inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
@@ -2342,7 +2346,7 @@ qboolean Mod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
-			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 				out->styles[i] = ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;
@@ -2506,7 +2510,7 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 		vbo.colours[sty].dummy = ptr;
 		ptr += sizeof(vec4_t)*maxverts;
 	}
-	for (; sty < MAXLIGHTMAPS; sty++)
+	for (; sty < MAXRLIGHTMAPS; sty++)
 		vbo.colours[sty].dummy = NULL;
 	vbo.texcoord.dummy = ptr;
 	ptr += sizeof(vec2_t)*maxverts;
@@ -2516,7 +2520,7 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 		vbo.lmcoord[sty].dummy = ptr;
 		ptr += sizeof(vec2_t)*maxverts;
 	}
-	for (; sty < MAXLIGHTMAPS; sty++)
+	for (; sty < MAXRLIGHTMAPS; sty++)
 		vbo.lmcoord[sty].dummy = NULL;
 	vbo.normals.dummy = ptr;
 	ptr += sizeof(vec3_t)*maxverts;
@@ -2547,7 +2551,7 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 				//set up the arrays. the arrangement is required for the backend to optimise vbos
 				mesh->xyz_array = (vecV_t*)vbo.coord.dummy + mesh->vbofirstvert;
 				mesh->st_array = (vec2_t*)vbo.texcoord.dummy + mesh->vbofirstvert;
-				for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 				{
 					if (vbo.lmcoord[sty].dummy)
 						mesh->lmst_array[sty] = (vec2_t*)vbo.lmcoord[sty].dummy + mesh->vbofirstvert;
@@ -2629,9 +2633,11 @@ static void Mod_Batches_Generate(model_t *mod)
 					lbatch->lightmap[0] == surf->lightmaptexturenums[0] &&
 					Vector4Compare(plane, lbatch->plane) &&
 					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
+#if MAXRLIGHTMAPS > 1
 					lbatch->lightmap[1] == surf->lightmaptexturenums[1] &&
 					lbatch->lightmap[2] == surf->lightmaptexturenums[2] &&
 					lbatch->lightmap[3] == surf->lightmaptexturenums[3] &&
+#endif
 					lbatch->fog == surf->fog)
 			batch = lbatch;
 		else
@@ -2643,9 +2649,11 @@ static void Mod_Batches_Generate(model_t *mod)
 							batch->lightmap[0] == surf->lightmaptexturenums[0] &&
 							Vector4Compare(plane, batch->plane) &&
 							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
+#if MAXRLIGHTMAPS > 1
 							batch->lightmap[1] == surf->lightmaptexturenums[1] &&
 							batch->lightmap[2] == surf->lightmaptexturenums[2] &&
 							batch->lightmap[3] == surf->lightmaptexturenums[3] &&
+#endif
 							batch->fog == surf->fog)
 					break;
 			}
@@ -2654,9 +2662,11 @@ static void Mod_Batches_Generate(model_t *mod)
 		{
 			batch = ZG_Malloc(&loadmodel->memgroup, sizeof(*batch));
 			batch->lightmap[0] = surf->lightmaptexturenums[0];
+#if MAXRLIGHTMAPS > 1
 			batch->lightmap[1] = surf->lightmaptexturenums[1];
 			batch->lightmap[2] = surf->lightmaptexturenums[2];
 			batch->lightmap[3] = surf->lightmaptexturenums[3];
+#endif
 			batch->texture = surf->texinfo->texture;
 			batch->next = mod->batches[sortid];
 			batch->ent = &r_worldentity;
@@ -2779,7 +2789,7 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 	{
 		surf = (msurface_t*)batch->mesh[0];
-		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
 			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
 			batch->lmlightstyle[sty] = surf->styles[sty];
@@ -2788,7 +2798,7 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 		for (j = 1; j < batch->maxmeshes; j++)
 		{
 			surf = (msurface_t*)batch->mesh[j];
-			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 			{
 				if (surf->lightmaptexturenums[sty] != batch->lightmap[sty] ||
 					//fixme: we should merge later (reverted matching) surfaces into the prior batch
@@ -2796,7 +2806,7 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 					surf->vlstyles[sty] != batch->vtlightstyle[sty])
 					break;
 			}
-			if (sty < MAXLIGHTMAPS)
+			if (sty < MAXRLIGHTMAPS)
 			{
 				nb = ZG_Malloc(&loadmodel->memgroup, sizeof(*batch));
 				*nb = *batch;
@@ -2805,7 +2815,7 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 				nb->mesh = batch->mesh + j*2;
 				nb->maxmeshes = batch->maxmeshes - j;
 				batch->maxmeshes = j;
-				for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 				{
 					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
 					nb->lmlightstyle[sty] = surf->styles[sty];
@@ -2846,9 +2856,9 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 	{
 		surf = (msurface_t*)batch->mesh[0];
 		Mod_LightmapAllocSurf (&lmallocator, surf, 0);
-		for (sty = 1; sty < MAXLIGHTMAPS; sty++)
+		for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
 			surf->lightmaptexturenums[sty] = -1;
-		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
 			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
 			batch->lmlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
@@ -2859,7 +2869,7 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 		{
 			surf = (msurface_t*)batch->mesh[j];
 			Mod_LightmapAllocSurf (&lmallocator, surf, 0);
-			for (sty = 1; sty < MAXLIGHTMAPS; sty++)
+			for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
 				surf->lightmaptexturenums[sty] = -1;
 			if (surf->lightmaptexturenums[0] != batch->lightmap[0])
 			{
@@ -2870,7 +2880,7 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 				nb->mesh = batch->mesh + j*2;
 				nb->maxmeshes = batch->maxmeshes - j;
 				batch->maxmeshes = j;
-				for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
 
 				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);

@@ -39,7 +39,9 @@ int		key_lastpress;
 int		edit_line=0;
 int		history_line=0;
 
-keydest_t	key_dest;
+unsigned int key_dest_mask;
+qboolean key_dest_console;
+unsigned int key_dest_absolutemouse;
 
 int		key_count;			// incremented every key event
 
@@ -1299,7 +1301,7 @@ void Key_Message (int key, int unicode)
 			CL_Say(chat_team, "");
 		}
 
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_message);
 		chat_bufferlen = 0;
 		chat_buffer[0] = 0;
 		return;
@@ -1307,7 +1309,7 @@ void Key_Message (int key, int unicode)
 
 	if (key == K_ESCAPE)
 	{
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_message);
 		chat_bufferlen = 0;
 		chat_buffer[0] = 0;
 		return;
@@ -1689,6 +1691,9 @@ void Key_Init (void)
 		key_lines[i][0] = ']';
 	}
 	key_linepos = 1;
+
+	key_dest_mask = kdm_game;
+	key_dest_absolutemouse = kdm_console | kdm_editor;
 	
 //
 // init ascii characters in console mode
@@ -1783,20 +1788,17 @@ qboolean Key_MouseShouldBeFree(void)
 
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 	extern cvar_t cl_prydoncursor;
-	extern int mouseusedforgui;
-	if (mouseusedforgui)	//I don't like this
+	if (key_dest_absolutemouse & key_dest_mask)
 		return true;
 
 //	if (!ActiveApp)
 //		return true;
 
-	if (key_dest == key_menu)
+	if (Key_Dest_Has(kdm_menu))
 	{
 		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)
 			return true;
 	}
-	if (key_dest == key_console || key_dest == key_editor)
-		return true;
 
 #ifdef VM_UI
 	if (UI_MenuState())
@@ -1876,7 +1878,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 					}
 				}
 			
-				if (keydown[k] && (key_dest != key_console && key_dest != key_message))
+				if (keydown[k] && !Key_Dest_Has(~kdm_game))
 				{
 					deltaused[k][keystate] = true;
 
@@ -1940,8 +1942,8 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		}
 
 	//yes, csqc is allowed to steal the escape key.
-	if (key != '`' && (!down || key != K_ESCAPE || (key_dest == key_game && !shift_down)))
-	if (key_dest == key_game && !Media_PlayingFullScreen())
+	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)))
+	if (!Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
 	{
 #ifdef CSQC_DAT
 		if (CSQC_KeyPress(key, unicode, down, devid))	//give csqc a chance to handle it.
@@ -1960,7 +1962,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	{
 #ifdef VM_UI
 #ifdef TEXTEDITOR
-		if (key_dest == key_game)
+		if (!Key_Dest_Has(~kdm_game))
 #endif
 		{
 			if (down && Media_PlayingFullScreen())
@@ -1974,49 +1976,34 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #endif
 
 		if (!down)
-		{
-			if (key_dest == key_menu)
-				M_Keyup (key, unicode);
 			return;
-		}
-		switch (key_dest)
+
+		if (Key_Dest_Has(kdm_console))
 		{
-		case key_message:
-			Key_Message (key, unicode);
-			break;
-		case key_menu:
-			M_Keydown (key, unicode);
-			break;
-#ifdef TEXTEDITOR
-		case key_editor:
+			if (cls.state || Key_Dest_Has(~(kdm_console|kdm_game)))
+				Key_Dest_Remove(kdm_console);
+			else
+				M_ToggleMenu_f ();
+		}
+		else if (Key_Dest_Has(kdm_editor))
 			Editor_Key (key, unicode);
-			break;
-#endif
-		case key_game:
+		else if (Key_Dest_Has(kdm_menu))
+			M_Keydown (key, unicode);
+		else if (Key_Dest_Has(kdm_message))
+			Key_Dest_Remove(kdm_message);
+		else
+		{
 			if (Media_PlayingFullScreen())
 			{
 				Media_StopFilm(true);
-				break;
+				if (!cls.state)
+					M_ToggleMenu_f ();
 			}
-		case key_console:
-			if (cls.state && key_dest == key_console)
-				key_dest = key_game;
 			else
 				M_ToggleMenu_f ();
-			break;
-		default:
-			Sys_Error ("Bad key_dest");
 		}
 		return;
 	}
-
-#ifndef NOMEDIA
-	if (key_dest == key_game && Media_PlayingFullScreen())
-	{
-		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
-		return;
-	}
-#endif
 
 //
 // key up events only generate commands if the game key binding is
@@ -2027,19 +2014,16 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 	if (!down)
 	{
-		switch (key_dest)
+		if (Key_Dest_Has(kdm_console))
 		{
-		case key_menu:
-			M_Keyup (key, unicode);
-			break;
-		case key_console:
 			con_current->mousecursor[0] = mousecursor_x;
 			con_current->mousecursor[1] = mousecursor_y;
 			Key_ConsoleRelease(con_current, key, unicode);
-			break;
-		default:
-			break;
 		}
+		if (Key_Dest_Has(kdm_menu))
+			M_Keyup (key, unicode);
+		if (Media_PlayingFullScreen())
+			Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
 
 		if (!deltaused[key][keystate])	//this wasn't down, so don't make it leave down state.
 			return;
@@ -2077,7 +2061,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 // during demo playback, most keys bring up the main menu
 //
-	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && conkey && key != K_TAB && key_dest == key_game)
+	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && conkey && key != K_TAB && !Key_Dest_Has(~kdm_game))
 	{
 		M_ToggleMenu_f ();
 		return;
@@ -2088,90 +2072,76 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 #ifdef VM_UI
 	if (key != '`' && key != '~')
-	if (key_dest == key_game || !down)
+	if (!Key_Dest_Has(~kdm_game) || !down)
 	{
 		if (UI_KeyPress(key, unicode, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
 			return;
 	}
 #endif
 
-	if (key && ((key_dest == key_menu && menubound[key])
-	|| (key_dest == key_console && !conkey)
-	|| (key_dest == key_game && ( cls.state == ca_active || (!conkey) ) ) ))
+
+	if (conkey && Key_Dest_Has(kdm_console))
 	{
-		/*don't auto-repeat binds as it breaks too many scripts*/
-		if (key_repeats[key] > 1)
-			return;
-
-		deltaused[key][keystate] = true;
-
-		if (devid)
-			Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
-		else
-			*p = 0;
-
-		if (key == K_RALT)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-			key = K_ALT;
-		if (key == K_RCTRL)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-			key = K_CTRL;
-		if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-			key = K_SHIFT;
-
-		kb = keybindings[key][keystate];
-		if (kb)
-		{
-			if (kb[0] == '+')
-			{	// button commands add keynum as a parm
-				Q_snprintfz (cmd, sizeof(cmd), "+%s%s %i\n", p, kb+1, key+oldstate*256);
-				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-			}
-			else
-			{
-				if (*p)Cbuf_AddText (p, bindcmdlevel[key][keystate]);
-				Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
-				Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
-			}
-		}
-
-		return;
-	}
-
-	if (!down)
-	{
-		switch (key_dest)
-		{
-		case key_menu:
-			M_Keyup (key, unicode);
-			break;
-		default:
-			break;
-		}
-		return;		// other systems only care about key down events
-	}
-
-	switch (key_dest)
-	{
-	case key_message:
-		Key_Message (key, unicode);
-		break;
-	case key_menu:
-		M_Keydown (key, unicode);
-		break;
-#ifdef TEXTEDITOR
-	case key_editor:
-		Editor_Key (key, unicode);
-		break;
-#endif
-	case key_game:
-	case key_console:
-		if ((key && unicode) || key == K_ENTER || key == K_KP_ENTER || key == K_TAB)
-			key_dest = key_console;
 		con_current->mousecursor[0] = mousecursor_x;
 		con_current->mousecursor[1] = mousecursor_y;
 		Key_Console (con_current, unicode, key);
-		break;
-	default:
-		Sys_Error ("Bad key_dest");
+		return;
+	}
+	if (Key_Dest_Has(kdm_editor))
+	{
+		Editor_Key (key, unicode);
+		return;
+	}
+	if (Key_Dest_Has(kdm_menu))
+	{
+		M_Keydown (key, unicode);
+		return;
+	}
+	if (Key_Dest_Has(kdm_message))
+	{
+		Key_Message (key, unicode);
+		return;
+	}
+	if (Media_PlayingFullScreen())
+	{
+		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
+		return;
+	}
+
+	//anything else is a key binding.
+
+	/*don't auto-repeat binds as it breaks too many scripts*/
+	if (key_repeats[key] > 1)
+		return;
+
+	deltaused[key][keystate] = true;
+
+	if (devid)
+		Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
+	else
+		*p = 0;
+
+	if (key == K_RALT)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+		key = K_ALT;
+	if (key == K_RCTRL)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+		key = K_CTRL;
+	if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+		key = K_SHIFT;
+
+	kb = keybindings[key][keystate];
+	if (kb)
+	{
+		if (kb[0] == '+')
+		{	// button commands add keynum as a parm
+			Q_snprintfz (cmd, sizeof(cmd), "+%s%s %i\n", p, kb+1, key+oldstate*256);
+			Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+		}
+		else
+		{
+			if (*p)Cbuf_AddText (p, bindcmdlevel[key][keystate]);
+			Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
+			Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
+		}
 	}
 }
 

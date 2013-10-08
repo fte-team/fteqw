@@ -1526,7 +1526,7 @@ void M_Complex_Draw(void)
 
 	if (!firstmenu)
 	{
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_menu);
 		m_state = m_none;
 		return;
 	}
@@ -1853,7 +1853,7 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 	if (key == K_ESCAPE)
 	{
 		extern int m_save_demonum;
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_menu);
 		m_state = m_none;
 		cls.demonum = m_save_demonum;
 		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && COM_CheckParm("-demos"))
@@ -1912,7 +1912,7 @@ void M_Menu_Main_f (void)
 		if (R2D_SafeCachePic("pics/m_main_game"))
 		{
 			m_state = m_complex;
-			key_dest = key_menu;
+			Key_Dest_Add(kdm_menu);
 
 			mainm = M_CreateMenu(0);
 			mainm->key = MC_Main_Key;
@@ -1963,7 +1963,7 @@ void M_Menu_Main_f (void)
 	else if (mgt == MGT_HEXEN2)
 	{
 		m_state = m_complex;
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		mainm = M_CreateMenu(0);
 		mainm->key = MC_Main_Key;
 
@@ -2003,7 +2003,7 @@ void M_Menu_Main_f (void)
 	else if (QBigFontWorks())
 	{
 		m_state = m_complex;
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		mainm = M_CreateMenu(0);
 
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
@@ -2037,7 +2037,7 @@ void M_Menu_Main_f (void)
 	else
 	{
 		m_state = m_complex;
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		mainm = M_CreateMenu(0);
 
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");

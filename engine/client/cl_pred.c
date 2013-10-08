@@ -32,7 +32,7 @@ extern usercmd_t independantphysics[MAX_SPLITS];
 
 #ifdef Q2CLIENT
 #define	MAX_PARSE_ENTITIES	1024
-extern entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
+extern entity_state_t	clq2_parse_entities[MAX_PARSE_ENTITIES];
 
 char *Get_Q2ConfigString(int i);
 
@@ -113,7 +113,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 	for (i=0 ; i<cl.q2frame.num_entities ; i++)
 	{
 		num = (cl.q2frame.parse_entities + i)&(MAX_PARSE_ENTITIES-1);
-		ent = &cl_parse_entities[num];
+		ent = &clq2_parse_entities[num];
 
 		if (!ent->solid)
 			continue;
@@ -202,7 +202,7 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 	for (i=0 ; i<cl.q2frame.num_entities ; i++)
 	{
 		num = (cl.q2frame.parse_entities + i)&(MAX_PARSE_ENTITIES-1);
-		ent = &cl_parse_entities[num];
+		ent = &clq2_parse_entities[num];
 
 		if (ent->solid != 31) // special value for bmodel
 			continue;
@@ -726,6 +726,8 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	plstate->pm_type = pmtype;
 	VectorCopy(state->origin, plstate->origin);
 	VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
+	VectorCopy(state->angles, plstate->viewangles);
+	plstate->viewangles[0] *= -3;
 
 	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
 	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
@@ -1126,11 +1128,13 @@ Con_DPrintf("%i:%f %f %i:%f (%f)\n", fromframe, fromtime, simtime, toframe, toti
 				pv->simorg[i] = (1-f)*fromstate->origin[i]   + f*tostate->origin[i];
 				pv->simvel[i] = (1-f)*fromstate->velocity[i] + f*tostate->velocity[i];
 
-/*				if (cl.spectator && Cam_TrackNum(vnum) >= 0)
-					pv->simangles[i] = LerpAngles16(from->playerstate[pnum].command.angles[i], to->playerstate[pnum].command.angles[i], f) * (360.0/65535);
-				else if (cls.demoplayback == DPB_QUAKEWORLD)
-					pv->simangles[i] = LerpAngles16(cmdfrom->cmd[vnum].angles[i], cmdto->cmd[vnum].angles[i], f) * (360.0/65535);
-*/			}
+
+				if (pv->viewentity != pv->playernum+1)
+				{
+					pv->simangles[i] = LerpAngles360(fromstate->viewangles[i], tostate->viewangles[i], f);// * (360.0/65535);
+//					pv->viewangles[i] = LerpAngles16(fromstate->command.angles[i], tostate->command.angles[i], f) * (360.0/65535);
+				}
+			}
 		}
 		CL_CatagorizePosition(pv);
 
@@ -1140,8 +1144,11 @@ Con_DPrintf("%i:%f %f %i:%f (%f)\n", fromframe, fromtime, simtime, toframe, toti
 	{
 		//keep the entity tracking the prediction position, so mirrors don't go all weird
 		VectorCopy(tostate->origin, le->origin);
-		VectorScale(pv->simangles, 1, le->angles);
-		le->angles[0] *= -0.333;
+		if (pv->stats[STAT_HEALTH] > 0)
+		{
+			VectorScale(pv->simangles, 1, le->angles);
+			le->angles[0] *= -0.333;
+		}
 	}
 
 //	if (cls.demoplayback)

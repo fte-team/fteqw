@@ -806,6 +806,7 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	float	yaw, pitch, move;
 	static float oldyaw = 0;
 	static float oldpitch = 0;
+	vec3_t vw_angles;
 	int i;
 
 	yaw = r_refdef.viewangles[YAW];
@@ -847,37 +848,36 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	oldyaw = yaw;
 	oldpitch = pitch;
 
-	pv->viewent.angles[YAW] = r_refdef.viewangles[YAW] + yaw;
-	pv->viewent.angles[PITCH] = r_refdef.viewangles[PITCH] + pitch;
+	vw_angles[YAW] = r_refdef.viewangles[YAW] + yaw;
+	vw_angles[PITCH] = r_refdef.viewangles[PITCH] + pitch;
 
-	pv->viewent.angles[YAW] = r_refdef.viewangles[YAW];
-	pv->viewent.angles[PITCH] = r_refdef.viewangles[PITCH];
-	pv->viewent.angles[ROLL] = r_refdef.viewangles[ROLL];
+	vw_angles[YAW] = r_refdef.viewangles[YAW];
+	vw_angles[PITCH] = r_refdef.viewangles[PITCH];
+	vw_angles[ROLL] = r_refdef.viewangles[ROLL];
 
-	AngleVectors(pv->viewent.angles, pv->viewent.axis[0], pv->viewent.axis[1], pv->viewent.axis[2]);
-	VectorInverse(pv->viewent.axis[1]);
-	pv->viewent.angles[PITCH]*=-1;
-
+	AngleVectors(vw_angles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
+	VectorInverse(pv->vw_axis[1]);
 
 
-	VectorCopy (r_refdef.vieworg, pv->viewent.origin);
+
+	VectorCopy (r_refdef.vieworg, pv->vw_origin);
 	for (i=0 ; i<3 ; i++)
 	{
-		pv->viewent.origin[i] += pv->viewent.axis[0][i]*bob*0.4;
-//		pv->viewent.origin[i] += pv->viewent.axis[1][i]*sin(cl.time*5.5342452354235)*0.1;
-//		pv->viewent.origin[i] += pv->viewent.axis[2][i]*bob*0.8;
+		pv->vw_origin[i] += pv->vw_axis[0][i]*bob*0.4;
+//		pv->vw_origin[i] += pv->vw_axis[1][i]*sin(cl.time*5.5342452354235)*0.1;
+//		pv->vw_origin[i] += pv->vw_axis[2][i]*bob*0.8;
 	}
 
 // fudge position around to keep amount of weapon visible
 // roughly equal with different FOV
 	if (scr_viewsize.value == 110)
-		pv->viewent.origin[2] += 1;
+		pv->vw_origin[2] += 1;
 	else if (scr_viewsize.value == 100)
-		pv->viewent.origin[2] += 2;
+		pv->vw_origin[2] += 2;
 	else if (scr_viewsize.value == 90)
-		pv->viewent.origin[2] += 1;
+		pv->vw_origin[2] += 1;
 	else if (scr_viewsize.value == 80)
-		pv->viewent.origin[2] += 0.5;
+		pv->vw_origin[2] += 0.5;
 }
 
 /*
@@ -939,9 +939,9 @@ void V_AddIdle (playerview_t *pv)
 	r_refdef.viewangles[PITCH] += v_idlescale.value * sin(cl.time*pitch_cycle) * pitch_level;
 	r_refdef.viewangles[YAW] += v_idlescale.value * sin(cl.time*yaw_cycle) * yaw_level;
 
-	pv->viewent.angles[ROLL] -= v_idlescale.value * sin(cl.time*roll_cycle) * roll_level;
-	pv->viewent.angles[PITCH] -= v_idlescale.value * sin(cl.time*pitch_cycle) * pitch_level;
-	pv->viewent.angles[YAW] -= v_idlescale.value * sin(cl.time*yaw_cycle) * yaw_level;
+//	pv->viewent.angles[ROLL] -= v_idlescale.value * sin(cl.time*roll_cycle) * roll_level;
+//	pv->viewent.angles[PITCH] -= v_idlescale.value * sin(cl.time*pitch_cycle) * pitch_level;
+//	pv->viewent.angles[YAW] -= v_idlescale.value * sin(cl.time*yaw_cycle) * yaw_level;
 }
 
 
@@ -997,15 +997,10 @@ V_CalcIntermissionRefdef
 */
 void V_CalcIntermissionRefdef (playerview_t *pv)
 {
-	entity_t	*view;
 	float		old;
-
-// view is the weapon model
-	view = &pv->viewent;
 
 	VectorCopy (pv->simorg, r_refdef.vieworg);
 	VectorCopy (pv->simangles, r_refdef.viewangles);
-	view->model = NULL;
 
 // always idle in intermission
 	old = v_idlescale.value;
@@ -1211,7 +1206,6 @@ V_CalcRefdef
 */
 void V_CalcRefdef (playerview_t *pv)
 {
-	entity_t	*view;
 	float		bob;
 	float		viewheight;
 	r_refdef.playerview = pv;
@@ -1223,9 +1217,6 @@ void V_CalcRefdef (playerview_t *pv)
 
 	VectorCopy(cl.fog_colour, r_refdef.gfog_rgbd);
 	r_refdef.gfog_rgbd[3] = cl.fog_density / 64;
-
-// view is the weapon model (only visible from inside body)
-	view = &pv->viewent;
 
 	if (v_viewheight.value < -7)
 		bob=-7;
@@ -1279,15 +1270,6 @@ void V_CalcRefdef (playerview_t *pv)
 
 // set up gun position
 	V_CalcGunPositionAngle (pv, bob);
-
-	if (pv->statsf[STAT_HEALTH] <= 0 || (unsigned int)pv->stats[STAT_WEAPON] >= MAX_MODELS)
- 		view->model = NULL;
- 	else
-		view->model = cl.model_precache[pv->stats[STAT_WEAPON]];
-#ifdef HLCLIENT
-	if (!CLHL_AnimateViewEntity(view))
-#endif
-		view->framestate.g[FS_REG].frame[0] = pv->stats[STAT_WEAPONFRAME];
 
 // set up the refresh position
 	if (v_gunkick.value)

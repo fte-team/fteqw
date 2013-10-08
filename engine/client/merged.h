@@ -266,8 +266,6 @@ typedef enum backendmode_e
 		BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
 		BEM_FOG,				//drawing a fog volume
         BEM_LIGHT,				//we have a valid light
-        BEM_SMAPLIGHTSPOT,		//we have a spot light using a shadowmap
-        BEM_SMAPLIGHT			//we have a light using a shadowmap
 } backendmode_t;
 
 typedef struct rendererinfo_s {
@@ -322,7 +320,7 @@ typedef struct rendererinfo_s {
 	//Uploads all modified lightmaps
 	void (*BE_UploadAllLightmaps)(void);
 	void (*BE_SelectEntity)(struct entity_s *ent);
-	void (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour);
+	qboolean (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour, unsigned int lmode);
 	void (*BE_Scissor)(srect_t *rect);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);

@@ -3290,6 +3290,7 @@ void CL_ParseModellist (qboolean lots)
 	int	nummodels;
 	char	*str;
 	int n;
+	int vwplayerindex = -1;
 
 // precache models and note certain default indexes
 	if (lots)
@@ -3310,6 +3311,8 @@ void CL_ParseModellist (qboolean lots)
 		if (!strcmp(cl.model_name[nummodels],"progs/spike.mdl"))
 			cl_spikeindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
+			cl_playerindex = nummodels;
+		if (*cl.model_name_vwep[0] && !strcmp(cl.model_name[nummodels],cl.model_name_vwep[0]) && cl_playerindex == -1)
 			cl_playerindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/h_player.mdl"))
 			cl_h_playerindex = nummodels;
@@ -3457,7 +3460,7 @@ void CLQ2_ParseConfigString (void)
 	else if (i == Q2CS_CDTRACK)
 	{
 //		if (cl.refresh_prepped)
-			CDAudio_Play (atoi(s), true);
+			Media_NumberedTrack (atoi(s), atoi(s));
 	}
 	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
 	{
@@ -5698,7 +5701,7 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_cdtrack:
 			cl.cdtrack = MSG_ReadByte ();
-			CDAudio_Play ((qbyte)cl.cdtrack, true);
+			Media_NumberedTrack ((qbyte)cl.cdtrack, (qbyte)cl.cdtrack);
 			break;
 
 		case svc_intermission:
@@ -6350,7 +6353,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.cdtrack = MSG_ReadByte ();
 			MSG_ReadByte ();
 
-			CDAudio_Play ((qbyte)cl.cdtrack, true);
+			Media_NumberedTrack ((qbyte)cl.cdtrack, (qbyte)cl.cdtrack);
 			break;
 
 		case svc_setview:

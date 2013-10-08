@@ -232,28 +232,27 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 {
 	if ((e->flags & Q2RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 	{
-		entity_t *view = &r_refdef.playerview->viewent;
 		float em[16];
 		float vm[16];
 
-		vm[0] = view->axis[0][0];
-		vm[1] = view->axis[0][1];
-		vm[2] = view->axis[0][2];
+		vm[0] = r_refdef.playerview->vw_axis[0][0];
+		vm[1] = r_refdef.playerview->vw_axis[0][1];
+		vm[2] = r_refdef.playerview->vw_axis[0][2];
 		vm[3] = 0;
 
-		vm[4] = view->axis[1][0];
-		vm[5] = view->axis[1][1];
-		vm[6] = view->axis[1][2];
+		vm[4] = r_refdef.playerview->vw_axis[1][0];
+		vm[5] = r_refdef.playerview->vw_axis[1][1];
+		vm[6] = r_refdef.playerview->vw_axis[1][2];
 		vm[7] = 0;
 
-		vm[8] = view->axis[2][0];
-		vm[9] = view->axis[2][1];
-		vm[10] = view->axis[2][2];
+		vm[8] = r_refdef.playerview->vw_axis[2][0];
+		vm[9] = r_refdef.playerview->vw_axis[2][1];
+		vm[10] = r_refdef.playerview->vw_axis[2][2];
 		vm[11] = 0;
 
-		vm[12] = view->origin[0];
-		vm[13] = view->origin[1];
-		vm[14] = view->origin[2];
+		vm[12] = r_refdef.playerview->vw_origin[0];
+		vm[13] = r_refdef.playerview->vw_origin[1];
+		vm[14] = r_refdef.playerview->vw_origin[2];
 		vm[15] = 1;
 
 		em[0] = e->axis[0][0];
@@ -425,13 +424,7 @@ void R_SetupGL (float stereooffset)
 
 		if (r_refdef.useperspective)
 		{
-			int stencilshadows = 0;
-	#ifdef RTLIGHTS
-			stencilshadows |= r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival;
-			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
-			//if (r_shadow_shadowmapping.ival)
-				stencilshadows = false;
-	#endif
+			int stencilshadows = Sh_StencilShadowsActive();
 
 			if ((!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
 			{
@@ -827,7 +820,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	{
 	case 1: /*fbo explicit mirror (fucked depth, working clip plane)*/
 		//fixme: pvs is surely wrong?
-		r_refdef.flipcull ^= true;
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 		R_MirrorMatrix(&plane);
 		break;
 	
@@ -896,7 +889,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 		}
 		else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 		{
-			r_refdef.flipcull ^= true;
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
 			R_MirrorMatrix(&plane);
 		}
 		else
@@ -1324,6 +1317,11 @@ void GLR_RenderView (void)
 		if (!r_worldentity.model || !cl.worldmodel)
 		{
 			GL_DoSwap();
+
+			GL_Set2D (false);
+			R2D_ImageColours(0, 0, 0, 1);
+			R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
+			R2D_ImageColours(1, 1, 1, 1);
 			return;
 		}
 //		Sys_Error ("R_RenderView: NULL worldmodel");

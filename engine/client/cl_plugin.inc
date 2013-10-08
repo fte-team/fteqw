@@ -27,19 +27,19 @@ qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qintptr_t
 			Plug_Menu_Event(3, 0);
 			menuplug = NULL;
 			currentplug = oldplug;
-			key_dest = key_game;
+			Key_Dest_Remove(kdm_menu);
 		}
 		if (VM_LONG(arg[0]) != 1)
 			return 1;
 		//give us menu control
 		menuplug = currentplug;
-		key_dest = key_menu;
+		Key_Dest_Add(kdm_menu);
 		m_state = m_plugin;
 		return 1;
 	case 2: //weather it's us or not.
 		return currentplug == menuplug && m_state == m_plugin;
 	case 3:	//weather a menu is active
-		return key_dest == key_menu;
+		return !!Key_Dest_Has(kdm_menu);
 	default:
 		return 0;
 	}
@@ -561,7 +561,7 @@ void Plug_Client_Close(plugin_t *plug)
 	if (menuplug == plug)
 	{
 		menuplug = NULL;
-		key_dest = key_game;
+		Key_Dest_Remove(kdm_menu);
 	}
 	if (protocolclientplugin == plug)
 	{

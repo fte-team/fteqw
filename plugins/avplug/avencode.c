@@ -269,7 +269,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 				videocodec = avcodec_find_encoder_by_name(codecname);
 				if (!videocodec)
 				{
-					Con_Printf("Unsupported avplug_codec \"%s\"\n", codecname);
+					Con_Printf("Unsupported avplug_videocodec \"%s\"\n", codecname);
 					return NULL;
 				}
 			}
@@ -290,7 +290,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 				audiocodec = avcodec_find_encoder_by_name(codecname);
 				if (!audiocodec)
 				{
-					Con_Printf("avplug: Unsupported avplug_codec \"%s\"\n", codecname);
+					Con_Printf("avplug: Unsupported avplug_audiocodec \"%s\"\n", codecname);
 					return NULL;
 				}
 			}

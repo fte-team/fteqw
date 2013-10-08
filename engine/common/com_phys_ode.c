@@ -1177,7 +1177,7 @@ void World_ODE_Init(void)
 	const char* dllname =
 	{
 # if defined(WIN64)
-		"libode1_64"
+		"libode1"
 # elif defined(WIN32)
 		"ode_double"
 # elif defined(MACOSX)

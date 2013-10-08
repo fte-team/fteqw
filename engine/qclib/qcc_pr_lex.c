@@ -655,7 +655,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a] = '\0';
 
-			QCC_PR_SkipToEndOfLine(true);
+			QCC_PR_SkipToEndOfLine(false);
 
 			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s", msg);
 		}
@@ -667,7 +667,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a-1] = '\0';
 
-			QCC_PR_SkipToEndOfLine(true);
+			QCC_PR_SkipToEndOfLine(false);
 
 			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s", msg);
 		}
@@ -693,7 +693,7 @@ pbool QCC_PR_Precompiler(void)
 
 			msg[a-1] = '\0';
 
-			QCC_PR_SkipToEndOfLine(true);
+			QCC_PR_SkipToEndOfLine(false);
 
 			if (strlen(msg) >= sizeof(QCC_copyright))
 				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
@@ -731,13 +731,6 @@ pbool QCC_PR_Precompiler(void)
 			pr_file_p=directive+8;
 
 			ForcedCRC = QCC_PR_LexInteger();
-
-			pr_file_p++;
-
-			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-				msg[a] = pr_file_p[a];
-
-			msg[a-1] = '\0';
 
 			QCC_PR_SkipToEndOfLine(true);
 		}

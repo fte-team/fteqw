@@ -1292,11 +1292,13 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 		if (gl_config.nofixedfunc)
 		{
 			prstrings[strings] =
-					"attribute vec3 v_position;\n"
+					"attribute vec3 v_position1;\n"
 					"#ifdef FRAMEBLEND\n"
 					"attribute vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
 					"#define v_position ((v_position*e_vblend.x)+(v_position2*e_vblend.y))\n"
+					"#else\n"
+					"#define v_position v_position1\n"
 					"#endif\n"
 					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
@@ -1429,14 +1431,18 @@ GLhandleARB GLSlang_CreateProgramObject (char *name, GLhandleARB vert, GLhandleA
 
 	qglBindAttribLocationARB(program, VATTR_VERTEX1, "v_position");
 	qglBindAttribLocationARB(program, VATTR_COLOUR, "v_colour");
+#if MAXRLIGHTMAPS > 1
 	qglBindAttribLocationARB(program, VATTR_COLOUR2, "v_colour2");
 	qglBindAttribLocationARB(program, VATTR_COLOUR3, "v_colour3");
 	qglBindAttribLocationARB(program, VATTR_COLOUR4, "v_colour4");
+#endif
 	qglBindAttribLocationARB(program, VATTR_TEXCOORD, "v_texcoord");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD, "v_lmcoord");
+#if MAXRLIGHTMAPS > 1
 	qglBindAttribLocationARB(program, VATTR_LMCOORD2, "v_lmcoord2");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD3, "v_lmcoord3");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD4, "v_lmcoord4");
+#endif
 	qglBindAttribLocationARB(program, VATTR_NORMALS, "v_normal");
 	qglBindAttribLocationARB(program, VATTR_SNORMALS, "v_svector");
 	qglBindAttribLocationARB(program, VATTR_TNORMALS, "v_tvector");

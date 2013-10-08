@@ -2063,10 +2063,9 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 			pad = 0;
 
 		Q_strncpyz(dest+pad, src, MAXTEMPBUFFERLEN-pad);
-		while(pad--)
+		while(pad)
 		{
-			pad--;
-			dest[pad] = ' ';
+			dest[--pad] = ' ';
 		}
 	}
 	else
@@ -3295,9 +3294,14 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 #ifdef WEBCLIENT
 	world_t *w = prinst->parms->user;
+	struct dl_download *dl;
+
 	unsigned char *url = PR_GetStringOfs(prinst, OFS_PARM0);
 	float id = G_FLOAT(OFS_PARM1);
-	struct dl_download *dl;
+	char *mimetype = (prinst->callargc >= 3)?PR_GetStringOfs(prinst, OFS_PARM2):"";
+	char *dataorsep = PR_GetStringOfs(prinst, OFS_PARM3);
+	int strbufid = G_FLOAT(OFS_PARM4);
+	//float cryptokey = G_FLOAT(OFS_PARM5);	//DP feature, not supported in FTE.
 
 	if (!pr_enable_uriget.ival)
 	{
@@ -3305,9 +3309,29 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}
-	Con_DPrintf("PF_uri_get(%s,%g)\n", url, id);
 
-	dl = HTTP_CL_Get(url, NULL, PR_uri_get_callback);
+	if (*mimetype)
+	{
+		char *data;
+		Con_DPrintf("PF_uri_post(%s,%g)\n", url, id);
+		if (strbufid)
+		{
+			//convert the string buffer into a simple string using dataorsep as a separator
+			//not supported at this time
+			dl = NULL;
+		}
+		else
+		{
+			//simple data post.
+			data = dataorsep;
+			dl = HTTP_CL_Put(url, mimetype, data, strlen(data), PR_uri_get_callback);
+		}
+	}
+	else
+	{
+		Con_DPrintf("PF_uri_get(%s,%g)\n", url, id);
+		dl = HTTP_CL_Get(url, NULL, PR_uri_get_callback);
+	}
 	if (dl)
 	{
 		dl->user_ctx = w;
@@ -3655,6 +3679,18 @@ void QCBUILTIN PF_floor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 void QCBUILTIN PF_ceil (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = ceil(G_FLOAT(OFS_PARM0));
+}
+
+void QCBUILTIN PF_anglemod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float v = G_FLOAT(OFS_PARM0);
+
+	while (v >= 360)
+		v = v - 360;
+	while (v < 0)
+		v = v + 360;
+
+	G_FLOAT(OFS_RETURN) = v;
 }
 
 //Maths functions
@@ -4691,6 +4727,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_UNLIMITEDTEMPSTRINGS"},
 	{"DP_QC_URI_ESCAPE",				2,	NULL, {"uri_escape", "uri_unescape"}},
 	{"DP_QC_URI_GET",					1,	NULL, {"uri_get"}},
+//test	{"DP_QC_URI_POST",					1,	NULL, {"uri_get"}},
 	{"DP_QC_VECTOANGLES_WITH_ROLL"},
 	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
 	{"DP_QC_WHICHPACK",					1,	NULL, {"whichpack"}},
@@ -4729,7 +4766,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"_DP_TE_QUADEFFECTS1",				4,	NULL, {"te_gunshotquad", "te_spikequad", "te_superspikequad", "te_explosionquad"}},
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
 	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
-	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
+	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {	"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike",
+													"te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
 	{"DP_VIEWZOOM"},
 	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
 	{"EXT_DIMENSION_VISIBILITY"},
@@ -4743,6 +4781,9 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CSQC_SERVERBROWSER",			12,	NULL, {	"gethostcachevalue", "gethostcachestring", "resethostcachemasks", "sethostcachemaskstring", "sethostcachemasknumber",
 													"resorthostcache", "sethostcachesort", "refreshhostcache", "gethostcachenumber", "gethostcacheindexforkey",
 													"addwantedhostcachekey", "getextresponse"}},	//normally only available to the menu. this also adds them to csqc.
+	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
+													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
+													"skel_delete", "frameforname", "frameduration"}},
 	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
@@ -4767,9 +4808,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}},
+	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},
 	{"FTE_QC_PAUSED"},
-	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
+	{"FTE_QC_RAGDOLL_WIP",				1,	NULL, {"ragupdate", "skel_set_bone_world", "skel_mmap"}},
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},	//includes the SV_ParseConnectionlessPacket event.
 	{"FTE_QC_TRACETRIGGER"},
 	{"FTE_SOLID_LADDER"},	//Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS

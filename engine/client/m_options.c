@@ -9,7 +9,7 @@ menu_t *M_Options_Title(int *y, int infosize)
 	struct menu_s *menu;
 	*y = 32;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(infosize);
@@ -215,7 +215,7 @@ void M_Menu_Audio_Speakers_f (void)
 	audiomenuinfo_t *info;
 	menu_t *menu;
 
-	key_dest = key_menu;
+	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
@@ -1074,6 +1074,8 @@ void M_Menu_Lighting_f (void)
 
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
+
+#ifdef RTLIGHTS
 	int lightselect, dlightselect;
 
 	if (r_shadow_realtime_world.ival)
@@ -1105,6 +1107,7 @@ void M_Menu_Lighting_f (void)
 		dlightselect = 1;
 	else
 		dlightselect = 0;
+#endif
 
 	{
 		lightingmenuinfo_t *info = menu->data;
@@ -1112,10 +1115,13 @@ void M_Menu_Lighting_f (void)
 		{
 			MB_REDTEXT("Lighting Options", false),
 			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+#ifdef RTLIGHTS
 			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
 			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
+			MB_CHECKBOXCVARTIP("Soft Shadows", r_shadow_shadowmapping, 0, "Enables softer shadows instead of course-edged pixelated shadows."),
 			MB_CMD("Apply Lighting", M_VideoApplyShadowLighting, "Applies set lighting modes and restarts video."),
 			MB_SPACING(4),
+#endif
 			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, loadlitvalues, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
 			MB_CHECKBOXCVAR("Lightstyle Lerp", r_lightstylesmooth, 0),
 			MB_SPACING(4),

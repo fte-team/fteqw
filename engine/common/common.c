@@ -2724,6 +2724,15 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			else if (str[1] == '[' && !linkstart)
 			{
+				if (keepmarkup)
+				{
+					if (!--outsize)
+						break;
+					*out++ = '^' | CON_HIDDEN;
+				}
+				if (!--outsize)
+					break;
+
 				//preserved flags and reset to white. links must contain their own colours.
 				linkinitflags = ext;
 				ext = COLOR_RED << CON_FGSHIFT;
@@ -2738,6 +2747,15 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			else if (str[1] == ']' && linkstart)
 			{
+				if (keepmarkup)
+				{
+					if (!--outsize)
+						break;
+					*out++ = '^' | CON_HIDDEN;
+				}
+
+				if (!--outsize)
+					break;
 				*out++ = ']';
 
 				//its a valid link, so we can hide it all now
@@ -2985,6 +3003,43 @@ messedup:
 	}
 	*out = 0;
 	return out;
+}
+
+//remaps conchar_t character values to something valid in unicode, such that it is likely to be printable with standard char sets.
+//unicode-to-ascii is not provided. you're expected to utf-8 the result or something.
+//does not handle colour codes or hidden chars. add your own escape sequences if you need that.
+//does not guarentee removal of control codes if eg the code was specified as an explicit unicode char.
+unsigned int COM_DeQuake(conchar_t chr)
+{
+	chr &= CON_CHARMASK;
+
+	/*only this range are quake chars*/
+	if (chr >= 0xe000 && chr < 0xe100)
+	{
+		chr &= 0xff;
+		if (chr >= 146 && chr < 156)
+			chr = chr - 146 + '0';
+		if (chr >= 0x12 && chr <= 0x1b)
+			chr = chr - 0x12 + '0';
+		if (chr == 143)
+			chr = '.';
+		if (chr == 128 || chr == 129 || chr == 130 || chr == 157 || chr == 158 || chr == 159)
+			chr = '-';
+		if (chr >= 128)
+			chr -= 128;
+		if (chr == 16)
+			chr = '[';
+		if (chr == 17)
+			chr = ']';
+		if (chr == 0x1c)
+			chr = 249;
+	}
+	/*this range contains pictograms*/
+	if (chr >= 0xe100 && chr < 0xe200)
+	{
+		chr = '?';
+	}
+	return chr;
 }
 
 //============================================================================

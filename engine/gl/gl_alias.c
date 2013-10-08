@@ -991,18 +991,17 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	if ((r_refdef.externalview || r_refdef.recurse) && e->flags & Q2RF_WEAPONMODEL)
 		return;
 
+	clmodel = e->model;
 	/*switch model if we're the player model, and the player skin says a new model*/
 	{
 		extern int cl_playerindex;
 		if (e->playerindex >= 0 && e->model == cl.model_precache[cl_playerindex])
 		{
 			clmodel = cl.players[e->playerindex].model;
-			if (clmodel && clmodel->type == mod_alias)
-				e->model = clmodel;
+			if (!clmodel || clmodel->type != mod_alias)
+				clmodel = e->model;	//oops, never mind
 		}
 	}
-
-	clmodel = e->model;
 
 	if (!(e->flags & Q2RF_WEAPONMODEL) && !e->framestate.bonestate)
 	{
@@ -1529,13 +1528,6 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 
 
 
-qboolean BE_ShouldDraw(entity_t *e)
-{
-	if (!r_refdef.externalview && (e->flags & Q2RF_EXTERNALMODEL))
-		return false;
-	return true;
-}
-
 #ifdef Q3CLIENT
 //q3 lightning gun
 static void R_DB_LightningBeam(batch_t *batch)
@@ -1705,12 +1697,12 @@ static void R_DB_Sprite(batch_t *batch)
 
 	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.playerview->viewentity > 0)
 	{
-		sprorigin[0] = r_refdef.playerview->viewent.origin[0];
-		sprorigin[1] = r_refdef.playerview->viewent.origin[1];
-		sprorigin[2] = r_refdef.playerview->viewent.origin[2];
-		VectorMA(sprorigin, e->origin[0], r_refdef.playerview->viewent.axis[0], sprorigin);
-		VectorMA(sprorigin, e->origin[1], r_refdef.playerview->viewent.axis[1], sprorigin);
-		VectorMA(sprorigin, e->origin[2], r_refdef.playerview->viewent.axis[2], sprorigin);
+		sprorigin[0] = r_refdef.playerview->vw_origin[0];
+		sprorigin[1] = r_refdef.playerview->vw_origin[1];
+		sprorigin[2] = r_refdef.playerview->vw_origin[2];
+		VectorMA(sprorigin, e->origin[0], r_refdef.playerview->vw_axis[0], sprorigin);
+		VectorMA(sprorigin, e->origin[1], r_refdef.playerview->vw_axis[1], sprorigin);
+		VectorMA(sprorigin, e->origin[2], r_refdef.playerview->vw_axis[2], sprorigin);
 		VectorMA(sprorigin, 12, vpn, sprorigin);
 
 		batch->flags |= BEF_FORCENODEPTH;
@@ -1745,7 +1737,7 @@ static void R_DB_Sprite(batch_t *batch)
 		{
 			vec3_t ea[3];
 			AngleVectors (e->angles, ea[0], ea[1], ea[2]);
-			Matrix3_Multiply(ea, r_refdef.playerview->viewent.axis, spraxis);
+			Matrix3_Multiply(ea, r_refdef.playerview->vw_axis, spraxis);
 		}
 		else
 			AngleVectors (e->angles, spraxis[0], spraxis[1], spraxis[2]);
@@ -1963,7 +1955,7 @@ void BE_GenPolyBatches(batch_t **batches)
 }
 void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches);
 
-void BE_GenModelBatches(batch_t **batches)
+void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemode)
 {
 	int		i;
 	entity_t *ent;
@@ -1982,19 +1974,34 @@ void BE_GenModelBatches(batch_t **batches)
 	if (!r_drawentities.ival)
 		return;
 
+	if (bemode == BEM_STANDARD)
+	{
 #ifndef CLIENTONLY
-	SV_AddDebugPolygons();
+		SV_AddDebugPolygons();
 #endif
 
-	Alias_FlushCache();
+		//the alias cache is a backend thing that provides support for multiple entities using the same skeleton.
+		//thus it needs to be cleared so that it won't reuse the cache over multiple frames.
+		Alias_FlushCache();
+	}
 
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
 		ent = &cl_visedicts[i];
 
-		if (!BE_ShouldDraw(ent))
+		if (!r_refdef.externalview && (ent->flags & Q2RF_EXTERNALMODEL))
 			continue;
+
+		if (bemode == BEM_STENCIL || bemode == BEM_DEPTHONLY)
+		{
+			if (ent->flags & (RF_NOSHADOW | Q2RF_ADDITIVE | RF_NODEPTHTEST | Q2RF_TRANSLUCENT))	//noshadow often isn't enough for legacy content.
+				continue;
+			if (ent->keynum == dl->key && ent->keynum)	//shadows are not cast from the entity that owns the light. it is expected to be inside.
+				continue;
+			if (ent->model && ent->model->engineflags & MDLF_FLAME)
+				continue;
+		}
 
 		switch(ent->rtype)
 		{

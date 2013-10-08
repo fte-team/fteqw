@@ -1851,6 +1851,9 @@ void Sbar_DrawScoreboard (void)
 	if (cls.protocol == CP_QUAKE2)
 		return;
 
+	if (Key_Dest_Has(~kdm_game))
+		return;
+
 #ifndef CLIENTONLY
 	/*no scoreboard in single player (if you want bots, set deathmatch)*/
 	if (sv.state && !cls.deathmatch && sv.allocated_client_slots == 1)

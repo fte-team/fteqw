@@ -170,9 +170,23 @@ K_MAX			= 256
 #define K_CTRL K_LCTRL
 #define K_ALT K_LALT
 
-typedef enum {key_game, key_console, key_message, key_menu, key_editor} keydest_t;
+typedef enum	//highest has priority
+{
+	kdm_game	= 1u<<0,	//should always be set
+	kdm_message	= 1u<<1,
+	kdm_menu	= 1u<<2,
+	kdm_editor	= 1u<<3,
+	kdm_console	= 1u<<4,
+} keydestmask_t;
 
-extern keydest_t	key_dest;
+//unsigned int Key_Dest_Get(void);	//returns highest priority destination
+#define Key_Dest_Add(kdm) (key_dest_mask |= (kdm))
+#define Key_Dest_Remove(kdm) (key_dest_mask &= ~(kdm))
+#define Key_Dest_Has(kdm) (key_dest_mask & (kdm))
+#define Key_Dest_Toggle(kdm) do {if (key_dest_mask & kdm) Key_Dest_Remove(kdm); else Key_Dest_Add(kdm);}while(0)
+
+extern unsigned int key_dest_absolutemouse;	//if the active key dest bit is set, the mouse is absolute.
+extern unsigned int key_dest_mask;
 extern char *keybindings[K_MAX][8];
 extern	int		key_repeats[K_MAX];
 extern	int		key_count;			// incremented every key event

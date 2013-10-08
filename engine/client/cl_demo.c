@@ -454,7 +454,8 @@ qboolean CL_GetDemoMessage (void)
 			cls.td_startframe = host_framecount;
 
 			//force the console up, we're done loading.
-			key_dest = key_game;
+			Key_Dest_Remove(kdm_console);
+			Key_Dest_Remove(kdm_menu);
 			scr_con_current = 0;
 		}
 
@@ -588,7 +589,7 @@ readnext:
 			cls.td_startframe = host_framecount;
 
 			//force the console up, we're done loading.
-			key_dest = key_game;
+			Key_Dest_Remove(kdm_console);
 			scr_con_current = 0;
 		}
 		if (cls.td_startframe == host_framecount+1)
@@ -1910,7 +1911,7 @@ void CL_QTVPoll (void)
 				if (!sourcesmenu)
 				{
 					m_state = m_complex;
-					key_dest = key_menu;
+					Key_Dest_Add(kdm_menu);
 					sourcesmenu = M_CreateMenu(0);
 
 					MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");

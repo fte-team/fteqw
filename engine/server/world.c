@@ -471,8 +471,8 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
 
-	if (ent->v->solid == SOLID_NOT)
-		return;
+//	if (ent->v->solid == SOLID_NOT)
+//		return;
 
 // find the first node that the ent's box crosses
 	node = w->areanodes;
@@ -1518,8 +1518,8 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			continue;	// points never interact
 
 	// might intersect, so do an exact clip
-		if (clip->trace.allsolid)
-			return;
+//		if (clip->trace.allsolid)
+//			return;
 		if (clip->passedict)
 		{
 		 	if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)

@@ -84,6 +84,12 @@ qboolean DL_Decide(struct dl_download *dl)
 	if (!*url)
 		url = dl->url;
 
+	if (dl->postdata)
+	{
+		DL_Abort(dl);
+		return false;	//safe to destroy it now
+	}
+
 	if (dl->ctx)
 	{
 		if (dl->status == DL_FAILED || dl->status == DL_FINISHED)
@@ -222,6 +228,12 @@ qboolean DL_Decide(struct dl_download *dl)
 	if (!*url)
 		url = dl->url;
 
+	if (dl->postdata)
+	{
+		DL_Abort(dl);
+		return false;	//safe to destroy it now
+	}
+
 	if (dl->ctx)
 	{
 		if (dl->status == DL_FAILED || dl->status == DL_FINISHED)
@@ -263,7 +275,7 @@ It doesn't use persistant connections.
 struct http_dl_ctx_s {
 	struct dl_download *dlctx;
 
-	SOCKET sock;
+	SOCKET sock;	//FIXME: support https.
 
 	char *buffer;
 
@@ -693,15 +705,38 @@ void HTTPDL_Establish(struct dl_download *dl)
 		return;
 	}
 
-	ExpandBuffer(con, 512*1024);
-	sprintf(con->buffer, 
-		"GET %s HTTP/1.1\r\n"
-		"Host: %s\r\n"
-		"Connection: close\r\n"
-		"Accept-Encoding: gzip\r\n"
-		"User-Agent: "FULLENGINENAME"\r\n"
-		"\r\n", uri, server);
-	con->bufferused = strlen(con->buffer);
+	if (dl->postdata)
+	{
+		ExpandBuffer(con, 1024 + strlen(uri) + strlen(server) + strlen(con->dlctx->postmimetype) + dl->postlen);
+		Q_snprintfz(con->buffer, con->bufferlen,
+			"POST %s HTTP/1.1\r\n"
+			"Host: %s\r\n"
+			"Content-Length: %i\r\n"
+			"Content-Type: %s\r\n"
+			"Connection: close\r\n"
+#ifndef NPFTE
+			"Accept-Encoding: gzip\r\n"
+#endif
+			"User-Agent: "FULLENGINENAME"\r\n"
+			"\r\n", uri, server, dl->postlen, dl->postmimetype);
+		con->bufferused = strlen(con->buffer);
+		memcpy(con->buffer + con->bufferused, dl->postdata, dl->postlen);
+		con->bufferused += dl->postlen;
+	}
+	else
+	{
+		ExpandBuffer(con, 512*1024);
+		Q_snprintfz(con->buffer, con->bufferlen,
+			"GET %s HTTP/1.1\r\n"
+			"Host: %s\r\n"
+			"Connection: close\r\n"
+#ifndef NPFTE
+			"Accept-Encoding: gzip\r\n"
+#endif
+			"User-Agent: "FULLENGINENAME"\r\n"
+			"\r\n", uri, server);
+		con->bufferused = strlen(con->buffer);
+	}
 	con->contentlength = -1;
 }
 
@@ -850,6 +885,8 @@ void DL_Close(struct dl_download *dl)
 		dl->abort(dl);
 	if (dl->file)
 		VFS_CLOSE(dl->file);
+	if (dl->postdata)
+		BZ_Free(dl->postdata);
 	free(dl);
 }
 
@@ -874,6 +911,20 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 	activedownloads = newdl;
 
 	return newdl;
+}
+
+struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *data, size_t datalen, void (*NotifyFunction)(struct dl_download *dl))
+{
+	struct dl_download *dl;
+	if (!*mime)
+		return NULL;
+
+	dl = HTTP_CL_Get(url, NULL, NotifyFunction);
+	Q_strncpyz(dl->postmimetype, mime, sizeof(dl->postmimetype));
+	dl->postdata = BZ_Malloc(datalen);
+	memcpy(dl->postdata, data, datalen);
+	dl->postlen = datalen;
+	return dl;
 }
 
 void HTTP_CL_Think(void)

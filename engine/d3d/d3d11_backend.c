@@ -1648,7 +1648,7 @@ static void D3D11BE_Cull(unsigned int cullflags)
 	D3D11_RASTERIZER_DESC rasterdesc;
 	ID3D11RasterizerState *newrasterizerstate;
 
-	cullflags |= r_refdef.flipcull;
+	cullflags ^= r_refdef.flipcull;
 
 	if (shaderstate.curcull != cullflags)
 	{
@@ -2685,7 +2685,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 
 	if (!view || VectorCompare(view->origin, view->oldorigin))
 	{
-		r_refdef.flipcull ^= true;
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 		R_MirrorMatrix(&plane);
 	}
 	else

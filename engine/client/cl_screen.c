@@ -64,6 +64,7 @@ void RSpeedShow(void)
 
 	RSpNames[RSPEED_FINISH] = "glFinish";
 
+	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS] = "Microseconds";
 	RQntNames[RQUANT_EPOLYS] = "Entity Polys";
 	RQntNames[RQUANT_WPOLYS] = "World Polys";
@@ -72,24 +73,33 @@ void RSpeedShow(void)
 	RQntNames[RQUANT_WORLDBATCHES] = "World Batches";
 	RQntNames[RQUANT_ENTBATCHES] = "Ent Batches";
 	RQntNames[RQUANT_SHADOWFACES] = "Shadow Faces";
-	RQntNames[RQUANT_SHADOWEDGES] = "Shadow edges";
+	RQntNames[RQUANT_SHADOWEDGES] = "Shadow Edges";
+	RQntNames[RQUANT_SHADOWSIDES] = "Shadowmap Sides";
 	RQntNames[RQUANT_LITFACES] = "Lit faces";
+
+	RQntNames[RQUANT_RTLIGHT_DRAWN] = "Lights Drawn";
+	RQntNames[RQUANT_RTLIGHT_CULL_FRUSTUM] = "Lights offscreen";
+	RQntNames[RQUANT_RTLIGHT_CULL_PVS] = "Lights PVS Culled";
+	RQntNames[RQUANT_RTLIGHT_CULL_SCISSOR] = "Lights Scissored";
 
 	if (r_speeds.ival > 1)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
-			s = va("%i %-20s", samplerspeeds[i], RSpNames[i]);
+			s = va("%g %-20s", samplerspeeds[i]/100.0, RSpNames[i]);
 			Draw_FunString(vid.width-strlen(s)*8, i*8, s);
 		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
-		s = va("%i %-20s", samplerquant[i], RQntNames[i]);
+		s = va("%g %-20s", samplerquant[i]/100.0, RQntNames[i]);
 		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
-	s = va("%f %-20s", 100000000.0f/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate");
-	Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+	if (r_speeds.ival > 1)
+	{
+		s = va("%f %-20s", 100000000.0f/(samplerspeeds[RSPEED_TOTALREFRESH]+samplerspeeds[RSPEED_FINISH]), "Framerate");
+		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+	}
 
 	if (++framecount>=100)
 	{
@@ -161,7 +171,6 @@ int scr_chatmode;
 extern cvar_t scr_chatmodecvar;
 
 
-int mouseusedforgui;
 float mousecursor_x, mousecursor_y;
 float mousemove_x, mousemove_y;
 
@@ -550,7 +559,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 void SCR_CheckDrawCenterString (void)
 {
-extern qboolean sb_showscores;
+	extern qboolean sb_showscores;
 	int pnum;
 	cprint_t *p;
 	vrect_t rect;
@@ -564,7 +573,7 @@ extern qboolean sb_showscores;
 
 		p->time_off -= host_frametime;
 
-		if (key_dest != key_game)	//don't let progs guis/centerprints interfere with the game menu
+		if (Key_Dest_Has(~kdm_game))	//don't let progs guis/centerprints interfere with the game menu
 			continue;
 
 		if (sb_showscores)	//this was annoying
@@ -1296,7 +1305,7 @@ void SCR_DrawPause (void)
 	if (!cl.paused)
 		return;
 
-	if (key_dest == key_menu)
+	if (Key_Dest_Has(kdm_menu))
 		return;
 
 	pic = R2D_SafeCachePic ("gfx/pause.lmp");
@@ -1586,7 +1595,7 @@ void SCR_ImageName (char *mapname)
 	GL_BeginRendering ();
 	SCR_DrawLoading();
 	SCR_SetUpToDrawConsole();
-	if (key_dest == key_console || !*levelshotname)
+	if (Key_Dest_Has(kdm_console) || !*levelshotname)
 		SCR_DrawConsole(!!*levelshotname);
 	GL_EndRendering();
 	scr_drawloading = false;
@@ -1622,24 +1631,27 @@ void SCR_SetUpToDrawConsole (void)
 		//android has an onscreen imm that we don't want to obscure
 		fullscreenpercent = scr_consize.value;
 #endif
-		if ((key_dest == key_console || key_dest == key_game) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
+		if ((!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
 		{
-			key_dest = key_console;
+			//force console to fullscreen if we're loading stuff
+			Key_Dest_Add(kdm_console);
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+		else if ((!Key_Dest_Has(~(kdm_console|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
+			//go fullscreen if we're not doing anything
 #ifdef VM_UI
-			if (key_dest == key_game && (UI_MenuState() || UI_OpenMenu()))
+			if (UI_MenuState() || UI_OpenMenu())
 				;
 			else
 #endif
 				if (cls.state < ca_demostart)
-				key_dest = key_console;
+					Key_Dest_Add(kdm_console);
 			scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		}
-		else if (key_dest == key_console || scr_chatmode)
+		else if (Key_Dest_Has(kdm_console) || scr_chatmode)
 		{
+			//go half-screen if we're meant to have the console visible
 			scr_conlines = vid.height*scr_consize.value;    // half screen
 			if (scr_conlines < 32)
 				scr_conlines = 32;	//prevent total loss of console.
@@ -1690,7 +1702,7 @@ void SCR_DrawConsole (qboolean noback)
 	}
 	else
 	{
-		if (key_dest == key_game || key_dest == key_message)
+		if (!Key_Dest_Has(kdm_console|kdm_menu))
 			Con_DrawNotify ();      // only draw notify in game
 	}
 }
@@ -2125,6 +2137,7 @@ void SCR_TileClear (void)
 // The 2d refresh stuff.
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 {
+	qboolean consolefocused = !!Key_Dest_Has(kdm_console);
 	RSpeedMark();
 
 	R2D_ImageColours(1, 1, 1, 1);
@@ -2183,7 +2196,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		Editor_Draw();
 #endif
 
-	if (key_dest != key_console)
+	//if the console is not focused, show it scrolling back up behind the menu
+	if (!consolefocused)
 		SCR_DrawConsole (false);
 
 	M_Draw (uimenu);
@@ -2191,7 +2205,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	MP_Draw();
 #endif
 
-	if (key_dest == key_console)
+	//but if the console IS focused, then always show it infront.
+	if (consolefocused)
 		SCR_DrawConsole (false);
 
 	if (Key_MouseShouldBeFree())

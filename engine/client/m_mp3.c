@@ -28,8 +28,8 @@ HWND hwnd_winamp;
 qboolean Media_EvaluateNextTrack(void);
 
 typedef struct mediatrack_s{
-	char filename[128];
-	char nicename[128];
+	char filename[MAX_QPATH];
+	char nicename[MAX_QPATH];
 	int length;
 	struct mediatrack_s *next;
 } mediatrack_t;
@@ -212,69 +212,150 @@ qboolean Media_EvaluateNextTrack(void)
 	return true;
 }
 
+static char cdloopingtrack[MAX_QPATH];
+static qboolean fakecdactive;
+
+#define REMAPPED_TRACKS 100
+static struct
+{
+	char fname[MAX_QPATH];
+} cdremap[REMAPPED_TRACKS];
+static qboolean cdenabled;
+static int cdplayingtrack;	//currently playing cd track (becomes 0 when paused)
+static int cdpausedtrack;	//currently paused cd track
+static int cdnumtracks;		//maximum cd track we can play.
+
 //flushes music channel on all soundcards, and the tracks that arn't decoded yet.
 void Media_Clear (void)
 {
+	//make sure we're not playing any cd music.
+	if (cdplayingtrack || cdpausedtrack)
+	{
+		cdplayingtrack = 0;
+		cdpausedtrack = 0;
+		CDAudio_Stop();
+	}
+
+	Q_strncpyz(currenttrack.filename, "", sizeof(currenttrack.filename));
+	fakecdactive = false;
+	media_playing = false;
+
 	S_Music_Clear(NULL);
 }
 
-qboolean fakecdactive;
 //fake cd tracks.
 qboolean Media_BackgroundTrack(char *track, char *looptrack)
 {
-	char *ext[] = {
+	unsigned int tracknum;
+	static char *path[] =
+	{
+		"music/",
+		"sound/cdtracks/",
+		"",
+		NULL
+	};
+	static char *ext[] =
+	{
 		"",
 		".ogg",
 #ifdef WINAVI
 		".mp3",
 #endif
 		".wav",
-		NULL};
-
+		NULL
+	};
+	char *trackend;
 	char trackname[MAX_QPATH];
-	int i;
-	if (!track || !*track)
+	int ie, ip;
+	qboolean found = false;
+
+	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
 		return false;
-	if (!looptrack || !*looptrack)
+	if (!looptrack || !*looptrack)	//null or empty looptrack loops using the primary track, for compat with q3.
 		looptrack = track;
-	for(i = 0; ext[i]; i++)
-	{
-		Q_snprintfz(trackname, sizeof(name), "%s%s", track, ext[i]);
-		if (COM_FCheckExists(trackname))
-		{
-			Media_Clear();
-			strcpy(currenttrack.filename, trackname);
-			fakecdactive = true;
-			media_playing = true;
-			return true;
-		}
+
+	//check if its a proper number (0123456789 without any other weird stuff. if so, we can use fake track paths or actual cd tracks)
+	tracknum = strtoul(track, &trackend, 0);
+	if (*trackend)
+		tracknum = 0;
+	if (tracknum > 0 && tracknum < REMAPPED_TRACKS && *cdremap[tracknum].fname)
+	{	//remap the track if its remapped.
+		track = cdremap[tracknum].fname;
+		tracknum = strtoul(track, &trackend, 0);
+		if (*trackend)
+			tracknum = 0;
 	}
-	return false;
-}
 
-qboolean Media_FakeTrack(int i, qboolean loop)
-{
-	char trackname[512];
-	qboolean found;
-
-	if (i > 0 && i <= 999)
+	if (!strcmp(looptrack, "-"))	//- for the looptrack argument can be used to prevent looping.
+		looptrack = "";
+	for(ip = 0; path[ip] && !found; ip++)
 	{
-		found = false;
-		if (!found && i <= 99)
+		if (tracknum)
 		{
-			sprintf(trackname, "music/track%02i", i);
-			if (Media_BackgroundTrack(trackname, loop?trackname:NULL))
-				return true;
+			if (tracknum <= 999)
+			{
+				for(ie = 0; ext[ie] && !found; ie++)
+				{
+					Q_snprintfz(trackname, sizeof(trackname), "%strack%03i%s", path[ip], tracknum, ext[ie]);
+					found = COM_FCheckExists(trackname);
+				}
+			}
+			if (tracknum <= 99)
+			{
+				for(ie = 0; ext[ie] && !found; ie++)
+				{
+					Q_snprintfz(trackname, sizeof(trackname), "%strack%02i%s", path[ip], tracknum, ext[ie]);
+					found = COM_FCheckExists(trackname);
+				}
+			}
 		}
+
 		if (!found)
 		{
-			sprintf(trackname, "sound/cdtracks/track%03i", i);
-			if (Media_BackgroundTrack(trackname, loop?trackname:NULL))
-				return true;
+			for(ie = 0; ext[ie] && !found; ie++)
+			{
+				Q_snprintfz(trackname, sizeof(trackname), "%s%s%s", path[ip], track, ext[ie]);
+				found = COM_FCheckExists(trackname);
+			}
 		}
 	}
 
-	fakecdactive = false;
+	if (found)
+	{
+		Q_strncpyz(cdloopingtrack, looptrack, sizeof(cdloopingtrack));
+
+		Media_Clear();
+		Q_strncpyz(currenttrack.filename, trackname, sizeof(currenttrack.filename));
+		fakecdactive = true;
+		media_playing = true;
+		return true;
+	}
+
+	if (tracknum && cdenabled)
+	{
+		Q_strncpyz(cdloopingtrack, looptrack, sizeof(cdloopingtrack));
+
+		//couldn't do a faketrack, resort to actual cd tracks, if we're allowed
+		if (!CDAudio_Startup())
+			return false;
+		if (cdnumtracks <= 0)
+			cdnumtracks = CDAudio_GetAudioDiskInfo();
+
+		if (tracknum > cdnumtracks)
+		{
+			Con_DPrintf("CDAudio: Bad track number %u.\n", tracknum);
+			return false;	//can't play that, sorry. its not an available track
+		}
+
+		if (cdplayingtrack == tracknum)
+			return true;	//already playing, don't need to do anything
+
+		Media_Clear();
+		cdpausedtrack = 0;
+		cdplayingtrack = tracknum;
+		CDAudio_Play(tracknum);
+		return true;
+	}
 	return false;
 }
 
@@ -285,6 +366,168 @@ void Media_NamedTrack_f(void)
 		Media_BackgroundTrack(Cmd_Argv(1), Cmd_Argv(2));
 	else
 		Media_BackgroundTrack(Cmd_Argv(1), Cmd_Argv(1));
+}
+
+void Media_SetPauseTrack(qboolean paused)
+{
+	if (paused)
+	{
+		cdpausedtrack = cdplayingtrack;
+		cdplayingtrack = 0;
+		CDAudio_Pause();
+	}
+	else
+	{
+		cdplayingtrack = cdpausedtrack;
+		cdpausedtrack = 0;
+		CDAudio_Resume();
+	}
+}
+
+void Media_NumberedTrack(int initialtrack, int looptrack)
+{
+	char *init = initialtrack?va("%i", initialtrack):NULL;
+	char *loop = looptrack?va("%i", looptrack):NULL;
+
+	Media_BackgroundTrack(init, loop);
+}
+
+void Media_EndedTrack(void)
+{
+	cdplayingtrack = 0;
+	cdpausedtrack = 0;
+
+	if (cdloopingtrack)
+		Media_BackgroundTrack(cdloopingtrack, cdloopingtrack);
+}
+
+void CD_f (void)
+{
+	char	*command;
+	int		ret;
+	int		n;
+
+	if (Cmd_Argc() < 2)
+		return;
+
+	command = Cmd_Argv (1);
+
+	if (Q_strcasecmp(command, "play") == 0)
+	{
+		Media_BackgroundTrack(Cmd_Argv(2), "-");
+		return;
+	}
+
+	if (Q_strcasecmp(command, "loop") == 0)
+	{
+		Media_BackgroundTrack(Cmd_Argv(2), NULL);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "remap") == 0)
+	{
+		ret = Cmd_Argc() - 2;
+		if (ret <= 0)
+		{
+			for (n = 1; n < REMAPPED_TRACKS; n++)
+				if (*cdremap[n].fname)
+					Con_Printf("  %u -> %s\n", n, cdremap[n].fname);
+			return;
+		}
+		for (n = 1; n <= ret; n++)
+			Q_strncpyz(cdremap[n].fname, Cmd_Argv (n+1), sizeof(cdremap[n].fname));
+		return;
+	}
+
+	if (!bgmvolume.ival)
+	{
+		Con_Printf("Background music is disabled. %s is 0\n", bgmvolume.name);
+		return;
+	}
+
+	if (!CDAudio_Startup())
+	{
+		Con_Printf("No cd drive detected\n");
+		return;
+	}
+
+	if (Q_strcasecmp(command, "on") == 0)
+	{
+		cdenabled = true;
+		return;
+	}
+
+	if (Q_strcasecmp(command, "off") == 0)
+	{
+		if (cdplayingtrack || cdpausedtrack)
+			CDAudio_Stop();
+		cdenabled = false;
+		return;
+	}
+
+	if (Q_strcasecmp(command, "reset") == 0)
+	{
+		cdenabled = true;
+		if (cdplayingtrack || cdpausedtrack)
+			CDAudio_Stop();
+		for (n = 0; n < REMAPPED_TRACKS; n++)
+			strcpy(cdremap[n].fname, "");
+		cdnumtracks = CDAudio_GetAudioDiskInfo();
+		return;
+	}
+
+	if (Q_strcasecmp(command, "close") == 0)
+	{
+		CDAudio_CloseDoor();
+		return;
+	}
+
+	if (cdnumtracks <= 0)
+	{
+		cdnumtracks = CDAudio_GetAudioDiskInfo();
+		if (cdnumtracks < 0)
+		{
+			Con_Printf("No CD in player.\n");
+			return;
+		}
+	}
+
+	if (Q_strcasecmp(command, "stop") == 0)
+	{
+		CDAudio_Stop();
+		return;
+	}
+
+	if (Q_strcasecmp(command, "pause") == 0)
+	{
+		Media_SetPauseTrack(true);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "resume") == 0)
+	{
+		Media_SetPauseTrack(false);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "eject") == 0)
+	{
+		if (cdplayingtrack || cdpausedtrack)
+			CDAudio_Stop();
+		CDAudio_Eject();
+		cdnumtracks = -1;
+		return;
+	}
+
+	if (Q_strcasecmp(command, "info") == 0)
+	{
+		Con_Printf("%u tracks\n", cdnumtracks);
+		if (cdplayingtrack > 0)
+			Con_Printf("Currently %s track %u\n", cdloopingtrack ? "looping" : "playing", cdplayingtrack);
+		else if (cdpausedtrack > 0)
+			Con_Printf("Paused %s track %u\n", cdloopingtrack ? "looping" : "playing", cdpausedtrack);
+		return;
+	}
 }
 
 //actually, this func just flushes and states that it should be playing. the ambientsound func actually changes the track.
@@ -310,8 +553,9 @@ void Media_Next_f (void)
 
 
 
-void M_Menu_Media_f (void) {
-	key_dest = key_menu;
+void M_Menu_Media_f (void)
+{
+	Key_Dest_Add(kdm_menu);
 	m_state = m_media;
 }
 
@@ -575,7 +819,7 @@ void M_Media_Key (int key)
 				mediatrack_t *newtrack;
 				newtrack = Z_Malloc(sizeof(mediatrack_t));
 				Q_strncpyz(newtrack->filename, media_iofilename, sizeof(newtrack->filename));
-				Q_strncpyz(newtrack->nicename, COM_SkipPath(media_iofilename), sizeof(newtrack->filename));
+				Q_strncpyz(newtrack->nicename, COM_SkipPath(media_iofilename), sizeof(newtrack->nicename));
 				newtrack->length = 0;
 				newtrack->next = tracks;
 				tracks = newtrack;
@@ -715,7 +959,7 @@ void Media_LoadTrackNames (char *listname)
 			else
 #endif
 				Q_strncpyz(newtrack->filename, filename, sizeof(newtrack->filename));
-			Q_strncpyz(newtrack->nicename, trackname, sizeof(newtrack->filename));
+			Q_strncpyz(newtrack->nicename, trackname, sizeof(newtrack->nicename));
 			newtrack->length = atoi(len);
 			newtrack->next = tracks;
 			tracks = newtrack;
@@ -739,7 +983,7 @@ void Media_LoadTrackNames (char *listname)
 
 			newtrack = Z_Malloc(sizeof(mediatrack_t));
 			Q_strncpyz(newtrack->filename, filename, sizeof(newtrack->filename));
-			Q_strncpyz(newtrack->nicename, COM_SkipPath(trackname), sizeof(newtrack->filename));
+			Q_strncpyz(newtrack->nicename, COM_SkipPath(trackname), sizeof(newtrack->nicename));
 			newtrack->length = 0;
 			newtrack->next = tracks;
 			tracks = newtrack;
@@ -764,6 +1008,9 @@ char *Media_NextTrack(int musicchannelnum)
 	if (bgmvolume.value <= 0 || !media_playing)
 		return NULL;
 
+	if (!fakecdactive)
+		Media_EndedTrack();
+
 	if (!loadedtracknames)
 		Media_LoadTrackNames("sound/media.m3u");
 	if (!tracks && !fakecdactive)
@@ -774,6 +1021,7 @@ char *Media_NextTrack(int musicchannelnum)
 		media_playing = false;
 		return NULL;
 	}
+	fakecdactive = false;
 
 //	if (cursndcard == sndcardinfo)	//figure out the next track (primary sound card, we could actually get different tracks on different cards (and unfortunatly do))
 //	{
@@ -2288,12 +2536,12 @@ qboolean Media_PlayFilm(char *name, qboolean enqueue)
 		CDAudio_Stop();
 		SCR_EndLoadingPlaque();
 
-		if (key_dest == key_menu)
+		if (Key_Dest_Has(kdm_menu))
 		{
-			key_dest = key_game;
+			Key_Dest_Remove(kdm_menu);
 			m_state = m_none;
 		}
-		if (key_dest != key_console)
+		if (!Key_Dest_Has(kdm_console))
 			scr_con_current=0;
 		return true;
 	}
@@ -2841,7 +3089,7 @@ qboolean Media_PausedDemo (void)
 	//capturedemo doesn't record any frames when the console is visible
 	//but that's okay, as we don't load any demo frames either.
 	if ((cls.demoplayback && Media_Capturing()) || capturepaused)
-		if (key_dest != key_game || scr_con_current > 0 || !cl.validsequence || capturepaused)
+		if (Key_Dest_Has(~kdm_game) || scr_con_current > 0 || !cl.validsequence || capturepaused)
 			return true;
 
 	return false;
@@ -3172,7 +3420,7 @@ void Media_RecordDemo_f(void)
 		Cmd_ShiftArgs(1, false);
 	Media_RecordFilm_f();
 	scr_con_current=0;
-	key_dest = key_game;
+	Key_Dest_Remove(kdm_console|kdm_menu);
 
 	if (currentcapture_funcs)
 		recordingdemo = true;
@@ -3890,6 +4138,13 @@ void Media_Init(void)
 	Cmd_AddCommand("music_rewind", Media_Rewind_f);
 	Cmd_AddCommand("music_next", Media_Next_f);
 	Cmd_AddCommand("music", Media_NamedTrack_f);
+
+	Cmd_AddCommand("cd", CD_f);
+	cdenabled = false;
+	if (COM_CheckParm("-nocdaudio"))
+		cdenabled = false;
+	if (COM_CheckParm("-cdaudio"))
+		cdenabled = true;
 
 #if defined(GLQUAKE)
 	Cmd_AddCommand("capture", Media_RecordFilm_f);

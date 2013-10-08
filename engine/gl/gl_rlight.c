@@ -328,7 +328,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 	static mesh_t *meshptr;
 	dlight_t	*l = cl_dlights + batch->surf_first;
 
-	BE_SelectDLight(l, l->color);
+	BE_SelectDLight(l, l->color, LSHADER_STANDARD);
 
 	if (!R_BuildDlightMesh (l, 2, 1, true))
 	{
@@ -1123,7 +1123,7 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 			{
 				lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
 
-				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
@@ -1137,7 +1137,7 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 			{
 				lightmap += dt * ((surf->extents[0]>>4)+1) + ds;
 
-				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
@@ -1288,7 +1288,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 
 					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
 					deluxmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
@@ -1317,7 +1317,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 
 					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds);
 					deluxmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
@@ -1346,7 +1346,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
 				{
 					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
@@ -1366,7 +1366,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 				else
 				{
 					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds);
-					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;

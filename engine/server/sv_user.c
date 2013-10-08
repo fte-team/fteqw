@@ -4922,7 +4922,7 @@ ucmd_t ucmds[] =
 	{"demoinfo", SV_MVDInfo_f},
 	{"dlsize", SV_DownloadSize_f},
 	{"download", SV_BeginDownload_f},
-	{"nextdl", SV_NextDownload_f},
+	{"nextdl", SV_NextDownload_f, true},
 
 	/*quakeworld specific things*/
 	{"join", Cmd_Join_f},
@@ -4930,8 +4930,8 @@ ucmd_t ucmds[] =
 	{"snap", SV_NoSnap_f},
 	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
 
-	{"enablecsqc", SV_EnableClientsCSQC},
-	{"disablecsqc", SV_DisableClientsCSQC},
+	{"enablecsqc", SV_EnableClientsCSQC, true},
+	{"disablecsqc", SV_DisableClientsCSQC, true},
 
 	{"vote", SV_Vote_f},
 
@@ -5040,7 +5040,7 @@ ucmd_t nqucmds[] =
 #endif
 
 	/*various misc extensions*/
-	{"pext",		SV_Pext_f},
+	{"pext",		SV_Pext_f, true},
 	{"enablecsqc",	SV_EnableClientsCSQC},
 	{"disablecsqc",	SV_DisableClientsCSQC},
 	{"challengeconnect", NULL},

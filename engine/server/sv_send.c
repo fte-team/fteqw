@@ -567,6 +567,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, 0);
 			break;
 
+		case MULTICAST_ONE_R:
+			reliable = true;
+		case MULTICAST_ONE:
+			if (svprogfuncs)
+			{
+				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+				pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+			}
+			mask = NULL;
+			break;
+
 		default:
 			mask = NULL;
 			SV_Error ("SV_Multicast: bad to:%i", to);
@@ -592,7 +603,12 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 			}
 
-			if (mask)
+			if (!mask)
+			{
+				if (pnum != j)
+					continue;
+			}
+			else 
 			{
 #ifdef Q2SERVER
 				if (ge)

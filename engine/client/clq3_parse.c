@@ -914,7 +914,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		cmd->upmove = 100;
 		cmd->buttons &= ~2;
 	}
-	if (key_dest != key_game || (keycatcher&3))
+	if (Key_Dest_Has(~kdm_game) || (keycatcher&3))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
 	cl.outframes[cl.movesequence&Q3UPDATE_MASK].cmd[0] = *cmd;

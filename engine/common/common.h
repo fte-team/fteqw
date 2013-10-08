@@ -301,6 +301,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen);
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen);
+unsigned int COM_DeQuake(conchar_t chr);
 
 //handles whatever charset is active, including ^U stuff.
 unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs);

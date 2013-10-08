@@ -468,21 +468,28 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 
 	if (cl_chasecam.value || scr_chatmode == 2)
 	{
+		float *neworg;
+//		float *newang;
+		if (pv->nolocalplayer)
+			neworg = cl.lerpents[pv->viewentity].origin;
+		else
+			neworg = player->origin;
+
 		if (scr_chatmode != 2)
 			pv->cam_lastviewtime = realtime;
 
-		VectorCopy(player->viewangles, pv->viewangles);
-		if (memcmp(player->origin, &self->origin, sizeof(player->origin)) != 0)
+//		VectorCopy(newang, pv->viewangles);
+		if (memcmp(neworg, &self->origin, sizeof(vec3_t)) != 0)
 		{
 			if (!cls.demoplayback)
 			{
 				MSG_WriteByte (&cls.netchan.message, clc_tmove);
-				MSG_WriteCoord (&cls.netchan.message, player->origin[0]);
-				MSG_WriteCoord (&cls.netchan.message, player->origin[1]);
-				MSG_WriteCoord (&cls.netchan.message, player->origin[2]);
+				MSG_WriteCoord (&cls.netchan.message, neworg[0]);
+				MSG_WriteCoord (&cls.netchan.message, neworg[1]);
+				MSG_WriteCoord (&cls.netchan.message, neworg[2]);
 			}
 			// move there locally immediately
-			VectorCopy(player->origin, self->origin);
+			VectorCopy(neworg, self->origin);
 		}
 		self->weaponframe = player->weaponframe;
 

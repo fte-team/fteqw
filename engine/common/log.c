@@ -13,51 +13,20 @@ cvar_t		log_enable[LOG_TYPES]	= {	CVARF("log_enable", "0", CVAR_NOTFROMSERVER),
 cvar_t		log_name[LOG_TYPES] = { CVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
 							CVARFC("log_name_players", "", CVAR_NOTFROMSERVER, Log_Name_Callback)};
 cvar_t		log_dir = CVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
-cvar_t		log_readable = CVARF("log_readable", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_readable = CVARFD("log_readable", "7", CVAR_NOTFROMSERVER, "Bitfield describing what to convert/strip. If 0, exact byte representation will be used.\n&1: Dequakify text.\n&2: Strip special markup.\n&4: Strip ansi control codes.");
 cvar_t		log_developer = CVARF("log_developer", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_rotate_files = CVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_rotate_size = CVARF("log_rotate_size", "131072", CVAR_NOTFROMSERVER);
+cvar_t		log_timestamps = CVARF("log_timestamps", "1", CVAR_NOTFROMSERVER);
+#ifdef _WIN32
+cvar_t		log_dosformat = CVARF("log_dosformat", "1", CVAR_NOTFROMSERVER);
+#else
 cvar_t		log_dosformat = CVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
+#endif
+qboolean	log_newline[LOG_TYPES];
 
 // externals
 extern char gamedirfile[];
-
-// table of readable characters, same as ezquake
-char readable[256] =
-{
-	'.', '_', '_', '_', '_', '.', '_', '_',
-	'_', '_', '\n', '_', '\n', '>', '.', '.',
-	'[', ']', '0', '1', '2', '3', '4', '5',
-	'6', '7', '8', '9', '.', '_', '_', '_',
-	' ', '!', '\"', '#', '$', '%', '&', '\'',
-	'(', ')', '*', '+', ',', '-', '.', '/',
-	'0', '1', '2', '3', '4', '5', '6', '7',
-	'8', '9', ':', ';', '<', '=', '>', '?',
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-	'x', 'y', 'z', '{', '|', '}', '~', '_',
-	'_', '_', '_', '_', '_', '.', '_', '_',
-	'_', '_', '_', '_', '_', '>', '.', '.',
-	'[', ']', '0', '1', '2', '3', '4', '5',
-	'6', '7', '8', '9', '.', '_', '_', '_',
-	' ', '!', '\"', '#', '$', '%', '&', '\'',
-	'(', ')', '*', '+', ',', '-', '.', '/',
-	'0', '1', '2', '3', '4', '5', '6', '7',
-	'8', '9', ':', ';', '<', '=', '>', '?',
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-	'x', 'y', 'z', '{', '|', '}', '~', '_'
-};
 
 // Log_Dir_Callback: called when a log_dir is changed
 void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
@@ -94,17 +63,20 @@ void Log_String (logtype_t lognum, char *s)
 	char *d; // directory
 	char *f; // filename
 	char *t;
-	char logbuf[1024];
+	char utf8[2048];
 	int i;
 	char fname[MAX_QPATH];
+	conchar_t cline[2048], *c;
+	unsigned int u;
 
 	if (!log_enable[lognum].value)
 		return;
 
 	// get directory/filename
-	d = gamedirfile;
 	if (log_dir.string[0])
 		d = log_dir.string;
+	else
+		d = "";//gamedirfile;
 
 	f = NULL;
 	switch(lognum)
@@ -124,63 +96,44 @@ void Log_String (logtype_t lognum, char *s)
 	if (!f)
 		return;
 
-	// readable translation and Q3 code removal, use t for final string to write
-	t = logbuf;
-	// max debuglog buf is 1024
-	for (i = 0; i < 1023; i++, s++)
+	COM_ParseFunString(CON_WHITEMASK, s, cline, sizeof(cline), !(log_readable.ival & 2));
+	t = utf8;
+	for (c = cline; *c; c++)
 	{
-		if (*s == 0)
-			break;
-		else if (((int)(log_readable.value) & 2) && *s == '^')
-		{
-			// log_readable 2 removes Q3 codes as well
-			char c = s[1];
-
-			if ((c >= '0' && c <= '9') || c == 'a' || c == 'b' || c == 'h' || c == 's' || c == 'r')
-			{
-				i--;
-				s++;
-			}
-			else if (c == '&')
-			{
-				if (isextendedcode(s[2]) && isextendedcode(s[3]))
-				{
-					i--;
-					s += 3;
-				}
-			}
-			else
-			{
-				*t = '^';
-				t++;
-			}
-		}
-		else if (log_dosformat.value && *s == '\n')
-		{
-			// convert \n to \r\n
-			*t = '\r';
-			t++;
-			i++;
-			if (i < 1023)
-			{
-				*t = '\n';
-				t++;
-			}
-		}
+		if ((*c & CON_HIDDEN) && (log_readable.ival & 2))
+			continue;
+		if (log_readable.ival&1)
+			u = COM_DeQuake(*c);
 		else
-		{
-			// use readable table to convert quake chars to reabable text
-			if ((int)(log_readable.value) & 1)
-				*t = readable[(unsigned char)(*s)]; // translate
-			else
-				*t = *s; // copy
-			t++;
-		}
-	}
+			u = *c&CON_CHARMASK;
 
+		//at the start of a new line, we might want a timestamp (so timestamps are correct for the first char of the line, instead of the preceeding \n)
+		if (log_newline[lognum])
+		{
+			if (log_timestamps.ival)
+			{
+				time_t unixtime = time(NULL);
+				strftime(t, utf8+sizeof(utf8)-1-t, "%Y-%m-%d %H:%M:%S ", localtime(&unixtime));
+				t += strlen(t);
+			}
+			log_newline[lognum] = false;
+		}
+
+		//make sure control codes are stripped. no exploiting xterm bugs please.
+		if ((log_readable.ival & 4) && ((u < 32 && u != '\t' && u != '\n') || u == 127 || (u >= 128 && u < 128+32))) //\r is stripped too
+			u = '?';
+		//if dos format logs, we insert a \r before every \n (also flag next char as the start of a new line)
+		if (u == '\n')
+		{
+			log_newline[lognum] = true;
+			if (log_dosformat.ival)
+				t += utf8_encode(t, '\r', utf8+sizeof(utf8)-1-t);
+		}
+		t += utf8_encode(t, u, utf8+sizeof(utf8)-1-t);
+	}
 	*t = 0;
 
-	Q_snprintfz(fname, sizeof(fname), "%s/%s.log",d,f);
+	Q_snprintfz(fname, sizeof(fname), "%s%s.log", d, f);
 
 	// file rotation
 	if (log_rotate_size.value >= 4096 && log_rotate_files.value >= 1)
@@ -189,11 +142,11 @@ void Log_String (logtype_t lognum, char *s)
 		vfsfile_t *fi;
 
 		// check file size, use x as temp
-		if ((fi = FS_OpenVFS(fname, "rb", FS_ROOT)))
+		if ((fi = FS_OpenVFS(fname, "rb", FS_GAMEONLY)))
 		{
 			x = VFS_GETLEN(fi);
 			VFS_CLOSE(fi);
-			x += i; // add string size to file size to never go over
+			x += strlen(utf8); // add string size to file size to never go over
 		}
 		else
 			x = 0;
@@ -206,22 +159,22 @@ void Log_String (logtype_t lognum, char *s)
 			i = log_rotate_files.value;
 
 			// unlink file at the top of the chain
-			snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, i);
-			FS_Remove(oldf, FS_ROOT);
+			snprintf(oldf, sizeof(oldf)-1, "%s%s.%i", d, f, i);
+			FS_Remove(oldf, FS_GAMEONLY);
 
 			// rename files through chain
 			for (x = i-1; x > 0; x--)
 			{
 				strcpy(newf, oldf);
-				snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, x);
+				snprintf(oldf, sizeof(oldf)-1, "%s%s.%i", d, f, x);
 
 				// check if file exists, otherwise skip
-				if ((fi = FS_OpenVFS(oldf, "rb", FS_ROOT)))
+				if ((fi = FS_OpenVFS(oldf, "rb", FS_GAMEONLY)))
 					VFS_CLOSE(fi);
 				else
 					continue; // skip nonexistant files
 
-				if (!FS_Rename(oldf, newf, FS_ROOT))
+				if (!FS_Rename(oldf, newf, FS_GAMEONLY))
 				{
 					// rename failed, disable log and bug out
 					Cvar_ForceSet(&log_enable[lognum], "0");
@@ -231,8 +184,8 @@ void Log_String (logtype_t lognum, char *s)
 			}
 
 			// TODO: option to compress file somewhere in here?
-			// rename our base file, which better exist...
-			if (!FS_Rename(f, oldf, FS_ROOT))
+			// rename our base file, which had better exist...
+			if (!FS_Rename(fname, oldf, FS_GAMEONLY))
 			{
 				// rename failed, disable log and bug out
 				Cvar_ForceSet(&log_enable[lognum], "0");
@@ -242,10 +195,10 @@ void Log_String (logtype_t lognum, char *s)
 		}
 	}
 
-	FS_CreatePath(f, FS_ROOT);
-	if ((fi = FS_OpenVFS(f, "ab", FS_ROOT)))
+	FS_CreatePath(fname, FS_GAMEONLY);
+	if ((fi = FS_OpenVFS(fname, "ab", FS_GAMEONLY)))
 	{
-		VFS_WRITE(fi, logbuf, strlen(logbuf));
+		VFS_WRITE(fi, utf8, strlen(utf8));
 		VFS_CLOSE(fi);
 	}
 	else
@@ -278,10 +231,10 @@ void SV_LogPlayer(client_t *cl, char *msg)
 		return;	//don't log botclients
 
 	snprintf(line, sizeof(line),
-			"%s\\%s\\%i\\%s\\%s\\%i%s\n",
+			"%s\\%s\\%i\\%s\\%s\\%i\\guid\\%s%s\n",
 			msg, cl->name, cl->userid,
 			NET_BaseAdrToString(remote_adr, sizeof(remote_adr), &cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(realip_adr, sizeof(realip_adr), &cl->realip) : "??"),
-			cl->netchan.remote_address.port, cl->userinfo);
+			cl->netchan.remote_address.port, cl->guid, cl->userinfo);
 
 	Log_String(LOG_PLAYER, line);
 }
@@ -365,6 +318,7 @@ void Log_Init(void)
 	{
 		Cvar_Register (&log_enable[i], CONLOGGROUP);
 		Cvar_Register (&log_name[i], CONLOGGROUP);
+		log_newline[i] = true;
 	}
 	Cvar_Register (&log_dir, CONLOGGROUP);
 	Cvar_Register (&log_readable, CONLOGGROUP);
@@ -372,6 +326,7 @@ void Log_Init(void)
 	Cvar_Register (&log_rotate_size, CONLOGGROUP);
 	Cvar_Register (&log_rotate_files, CONLOGGROUP);
 	Cvar_Register (&log_dosformat, CONLOGGROUP);
+	Cvar_Register (&log_timestamps, CONLOGGROUP);
 
 	Cmd_AddCommand("logfile", Log_Logfile_f);
 

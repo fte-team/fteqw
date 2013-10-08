@@ -28,7 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void GLBE_ClearVBO(vbo_t *vbo)
 {
-	int vboh[6 + MAXLIGHTMAPS];
+	int vboh[6 + MAXRLIGHTMAPS];
 	int i, j;
 	vboh[0] = vbo->indicies.gl.vbo;
 	vboh[1] = vbo->coord.gl.vbo;
@@ -36,7 +36,7 @@ void GLBE_ClearVBO(vbo_t *vbo)
 	vboh[3] = vbo->normals.gl.vbo;
 	vboh[4] = vbo->svector.gl.vbo;
 	vboh[5] = vbo->tvector.gl.vbo;
-	for (i = 0; i < MAXLIGHTMAPS; i++)
+	for (i = 0; i < MAXRLIGHTMAPS; i++)
 		vboh[6+i] = vbo->lmcoord[i].gl.vbo;
 
 	for (i = 0; i < 7; i++)
@@ -90,7 +90,7 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 		vbo->texcoord.gl.addr = (vec2_t*)((char*)vbo->texcoord.gl.addr - (char*)vdata);
 		vaostatic |= VATTR_TEXCOORD;
 	}
-	for (s = 0; s < MAXLIGHTMAPS; s++)
+	for (s = 0; s < MAXRLIGHTMAPS; s++)
 	{
 		if (vbo->colours[s].gl.addr)
 		{
@@ -99,9 +99,11 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 			switch(s)
 			{
 			default: vaostatic |= VATTR_COLOUR; break;
+#if MAXRLIGHTMAPS > 1
 			case 1: vaostatic |= VATTR_COLOUR2; break;
 			case 2: vaostatic |= VATTR_COLOUR3; break;
 			case 3: vaostatic |= VATTR_COLOUR4; break;
+#endif
 			}
 		}
 		if (vbo->lmcoord[s].gl.addr)
@@ -111,9 +113,11 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 			switch(s)
 			{
 			default: vaostatic |= VATTR_LMCOORD; break;
+#if MAXRLIGHTMAPS > 1
 			case 1: vaostatic |= VATTR_LMCOORD2; break;
 			case 2: vaostatic |= VATTR_LMCOORD3; break;
 			case 3: vaostatic |= VATTR_LMCOORD4; break;
+#endif
 			}
 		}
 	}
@@ -176,11 +180,11 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	vecV_t *coord;
 	vec2_t *texcoord;
-	vec2_t *lmcoord[MAXLIGHTMAPS];
+	vec2_t *lmcoord[MAXRLIGHTMAPS];
 	vec3_t *normals;
 	vec3_t *svector;
 	vec3_t *tvector;
-	vec4_t *colours[MAXLIGHTMAPS];
+	vec4_t *colours[MAXRLIGHTMAPS];
 	index_t *indicies;
 	batch_t *batch;
 	int vbosize;
@@ -224,14 +228,14 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	vbo->texcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
 	for (s = 0; s < lightmaps; s++)
 		vbo->lmcoord[s].gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
-	for (; s < MAXLIGHTMAPS; s++)
+	for (; s < MAXRLIGHTMAPS; s++)
 		vbo->lmcoord[s].gl.addr = NULL;
 	vbo->normals.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->svector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->tvector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	for (s = 0; s < lightmaps; s++)
 		vbo->colours[s].gl.addr = allocbuf(&p, maxvboverts, sizeof(vec4_t));
-	for (; s < MAXLIGHTMAPS; s++)
+	for (; s < MAXRLIGHTMAPS; s++)
 		vbo->lmcoord[s].gl.addr = NULL;
 	vbosize = (char*)p - (char*)vbo->coord.gl.addr;
 	if ((char*)p - (char*)vbo->vertdata > (maxvboverts+1)*pervertsize)
@@ -240,7 +244,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	coord = vbo->coord.gl.addr;
 	texcoord = vbo->texcoord.gl.addr;
-	for (s = 0; s < MAXLIGHTMAPS; s++)
+	for (s = 0; s < MAXRLIGHTMAPS; s++)
 	{
 		lmcoord[s] = vbo->lmcoord[s].gl.addr;
 		colours[s] = vbo->colours[s].gl.addr;

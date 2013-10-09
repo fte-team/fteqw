@@ -1340,6 +1340,7 @@ void GLBE_Init(void)
 					"program depthonly\n"
 					"{\n"
 						"depthwrite\n"
+						"maskcolor\n"
 					"}\n"
 				"}\n"
 			);

@@ -50,7 +50,7 @@ int CDAudio_GetAudioDiskInfo(void)
 	return -2;
 }
 
-int CDAudio_Startup(void)
+qboolean CDAudio_Startup(void)
 {
-	return -2;
+	return false;
 }

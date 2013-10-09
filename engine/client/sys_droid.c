@@ -131,7 +131,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 	#endif
 
 	ret = 0;
-	if (key_dest == key_console || key_dest == key_message || (key_dest == key_game && cls.state == ca_disconnected) || sys_osk.ival)
+	if (Key_Dest_Has(kdm_console|kdm_message) || (!Key_Dest_Has(~kdm_game) && cls.state == ca_disconnected) || sys_osk.ival)
 		ret |= 1;
 	if (vibrateduration)
 		ret |= 2;

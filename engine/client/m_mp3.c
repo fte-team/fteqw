@@ -196,7 +196,7 @@ void Media_EndedTrack(void)
 	cdplayingtrack = 0;
 	cdpausedtrack = 0;
 
-	if (cdloopingtrack)
+	if (*cdloopingtrack)
 		Media_BackgroundTrack(cdloopingtrack, cdloopingtrack);
 }
 
@@ -536,9 +536,9 @@ void CD_f (void)
 	{
 		Con_Printf("%u tracks\n", cdnumtracks);
 		if (cdplayingtrack > 0)
-			Con_Printf("Currently %s track %u\n", cdloopingtrack ? "looping" : "playing", cdplayingtrack);
+			Con_Printf("Currently %s track %u\n", *cdloopingtrack ? "looping" : "playing", cdplayingtrack);
 		else if (cdpausedtrack > 0)
-			Con_Printf("Paused %s track %u\n", cdloopingtrack ? "looping" : "playing", cdpausedtrack);
+			Con_Printf("Paused %s track %u\n", *cdloopingtrack ? "looping" : "playing", cdpausedtrack);
 		return;
 	}
 }

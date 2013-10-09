@@ -835,6 +835,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		else
 			l->cubetexture = r_nulltex;
 		break;
+#ifdef RTLIGHTS
 	case lfield_ambientscale:
 		l->lightcolourscales[0] = G_FLOAT(OFS_PARM2);
 		break;
@@ -844,6 +845,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 	case lfield_specularscale:
 		l->lightcolourscales[2] = G_FLOAT(OFS_PARM2);
 		break;
+#endif
 	default:
 		break;
 	}
@@ -894,6 +896,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 	case lfield_cubemapname:
 		RETURN_TSTRING(l->cubemapname);
 		break;
+#ifdef RTLIGHTS
 	case lfield_ambientscale:
 		G_FLOAT(OFS_RETURN) = l->lightcolourscales[0];
 		break;
@@ -903,6 +906,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 	case lfield_specularscale:
 		G_FLOAT(OFS_RETURN) = l->lightcolourscales[2];
 		break;
+#endif
 	default:
 		G_INT(OFS_RETURN) = 0;
 		break;

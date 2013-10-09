@@ -186,7 +186,14 @@ void *Z_MallocNamed(int size, char *file, int line)
 #else
 void *ZF_Malloc(int size)
 {
-#ifdef __linux__
+#ifdef ANDROID
+	void *ret = NULL;
+	//android is linux, but not gnu and thus not posix...
+	ret = memalign(max(sizeof(float)*4, sizeof(void*)), size);
+	if (ret)
+		memset(ret, 0, size);
+	return ret;
+#elif defined(__linux__)
 	void *ret = NULL;
 	if (!posix_memalign(&ret, max(sizeof(float)*4, sizeof(void*)), size))
 		memset(ret, 0, size);

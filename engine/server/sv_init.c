@@ -1503,10 +1503,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			}
 		}
 	}
+#ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
 		SVQ3_NewMapConnects();
 	}
+#endif
 
 	FS_ReferenceControl(0, 0);
 

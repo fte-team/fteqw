@@ -407,7 +407,7 @@ void SV_MVD_RunPendingConnections(void)
 						{
 						case QTVAM_NONE:
 							e = ("QTVSV 1\n"
-								 "PERROR: You need to provide a common auth method.\n\n");
+								 "PERROR: You need to provide a password.\n\n");
 							break;
 						case QTVAM_PLAIN:
 							p->hasauthed = !strcmp(qtv_password.string, password);
@@ -1026,6 +1026,7 @@ void SV_MVD_WriteReliables(void)
 		SV_WriteMVDMessage(&demo.recorder.backbuf, dem_all, 0, sv.time);
 		demo.recorder.backbuf_size[i] = 0;
 	}
+	demo.recorder.num_backbuf = 0;
 	demo.recorder.backbuf.cursize = 0;
 }
 

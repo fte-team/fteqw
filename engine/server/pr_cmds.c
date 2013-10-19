@@ -3197,6 +3197,7 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 
 qbyte	checkpvsbuffer[MAX_MAP_LEAFS/8];
 qbyte	*checkpvs;
+vec3_t	checkorg;
 
 int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 {
@@ -3204,7 +3205,6 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 //	qbyte	*pvs;
 	edict_t	*ent;
 	int		leaf;
-	vec3_t	org;
 
 // cycle to the next one
 
@@ -3240,9 +3240,14 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 	}
 
 // get the PVS for the entity
-	VectorAdd (ent->v->origin, ent->v->view_ofs, org);
-	leaf = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, org);
-	checkpvs = sv.world.worldmodel->funcs.LeafPVS (sv.world.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
+	VectorAdd (ent->v->origin, ent->v->view_ofs, checkorg);
+	if (sv.world.worldmodel->type == mod_heightmap)
+		checkpvs = NULL;
+	else
+	{
+		leaf = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, checkorg);
+		checkpvs = sv.world.worldmodel->funcs.LeafPVS (sv.world.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
+	}
 
 	return i;
 }
@@ -3269,6 +3274,7 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 	edict_t	*ent, *self;
 	int		l;
 	vec3_t	view;
+	vec3_t	dist;
 	world_t *w = &sv.world;
 
 // find a new check if on a new frame
@@ -3288,11 +3294,19 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 // if current entity can't possibly see the check entity, return 0
 	self = PROG_TO_EDICT(prinst, pr_global_struct->self);
 	VectorAdd (self->v->origin, self->v->view_ofs, view);
-	l = w->worldmodel->funcs.LeafnumForPoint(w->worldmodel, view)-1;
-	if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
-	{
-c_notvis++;
+
+	VectorSubtract(view, checkorg, dist);
+	if (DotProduct(dist, dist) > 2048*2048)
 		return 0;
+
+	if (checkpvs)
+	{
+		l = w->worldmodel->funcs.LeafnumForPoint(w->worldmodel, view)-1;
+		if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
+		{
+	c_notvis++;
+			return 0;
+		}
 	}
 
 // might be able to see it

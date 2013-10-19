@@ -673,6 +673,8 @@ readnext:
 
 
 			cl.outframes[i].senttime = realtime;
+			cl.outframes[i].server_message_num = cl.validsequence;
+			cl.outframes[i].cmd_sequence = cl.movesequence;
 			cls.netchan.outgoing_sequence++;
 			cl.movesequence = cls.netchan.outgoing_sequence;
 			for (i=0 ; i<3 ; i++)

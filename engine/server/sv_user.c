@@ -1997,7 +1997,7 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 
 	if (chunknum*CHUNKSIZE > host_client->downloadsize)
 	{
-		SV_ClientPrintf (host_client, PRINT_HIGH, "Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
+		SV_ClientPrintf (host_client, PRINT_HIGH, "Warning: Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
 		error = 2;
 	}
 

@@ -1552,6 +1552,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cl.ackedmovesequence = cl.movesequence;
 			i = cl.movesequence & UPDATE_MASK;
 			cl.movesequence++;
+			cl.outframes[i].server_message_num = cl.validsequence;
+			cl.outframes[i].cmd_sequence = cl.movesequence;
 			cl.outframes[i].senttime = realtime;		// we haven't gotten a reply yet
 //			cl.outframes[i].receivedtime = -1;		// we haven't gotten a reply yet
 
@@ -1591,6 +1593,14 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				CL_FinishMove(cmd, cmd->msec, plnum);
 
 				Cam_FinishMove(&cl.playerview[plnum], cmd);
+
+				{
+					player_state_t *from, *to;
+					playerview_t *pv = &cl.playerview[plnum];
+					from = &cl.inframes[cl.ackedmovesequence & UPDATE_MASK].playerstate[pv->playernum];
+					to = &cl.inframes[cl.movesequence & UPDATE_MASK].playerstate[pv->playernum];
+					CL_PredictUsercmd(pv->playernum, pv->viewentity, from, to, &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[plnum]);
+				}
 			}
 
 			while (clientcmdlist)

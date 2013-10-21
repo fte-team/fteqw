@@ -900,8 +900,8 @@ void CL_PredictMovePNum (int seat)
 		return;
 
 	//these things also force-disable prediction
-	if (	(cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
-			cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE)
+	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
+		cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || pv->cam_locked)
 	{
 		nopred = true;
 	}
@@ -932,14 +932,14 @@ void CL_PredictMovePNum (int seat)
 		//we're only interested in inbound frames, not outbound, but its outbound frames that contain the prediction timing, so we need to look that up
 		//(note that in qw, inframe[i].ack==i holds true, but this code tries to be generic for unsyncronised protocols)
 		//(note that in nq, using outbound times means we'll skip over dupe states without noticing, and input packets with dupes should also be handled gracefully)
-		Con_DPrintf("in:%i:%i out:%i:%i ack:%i\n", cls.netchan.incoming_sequence, cl.validsequence, cls.netchan.outgoing_sequence,cl.movesequence, cl.ackedmovesequence);
+//		Con_DPrintf("in:%i:%i out:%i:%i ack:%i\n", cls.netchan.incoming_sequence, cl.validsequence, cls.netchan.outgoing_sequence,cl.movesequence, cl.ackedmovesequence);
 		for (i = cl.validsequence; i >= cls.netchan.incoming_sequence - UPDATE_MASK; i--)
 		{
 			int out;
 			//skip frames which were not received, or are otherwise invalid. yay packetloss
 			if (cl.inframes[i & UPDATE_MASK].frameid != i || cl.inframes[i & UPDATE_MASK].invalid)
 			{
-				Con_DPrintf("stale incoming command %i\n", i);
+//				Con_DPrintf("stale incoming command %i\n", i);
 				continue;
 			}
 
@@ -948,7 +948,7 @@ void CL_PredictMovePNum (int seat)
 			backdate = &cl.outframes[out & UPDATE_MASK];
 			if (backdate->cmd_sequence != out)
 			{
-				Con_DPrintf("stale outgoing command %i (%i:%i:%i)\n", i, out, backdate->cmd_sequence, backdate->server_message_num);
+//				Con_DPrintf("stale outgoing command %i (%i:%i:%i)\n", i, out, backdate->cmd_sequence, backdate->server_message_num);
 				continue;
 			}
 			//okay, looks valid
@@ -968,10 +968,26 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 
-	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
+//	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
 
-	fromstate = &cl.inframes[fromframe & UPDATE_MASK].playerstate[pv->playernum];
-	tostate = &cl.inframes[toframe & UPDATE_MASK].playerstate[pv->playernum];
+	if (pv->cam_locked && cl.spectator && pv->viewentity && pv->viewentity <= cl.allocated_client_slots)
+	{
+		fromstate = &cl.inframes[fromframe & UPDATE_MASK].playerstate[pv->viewentity-1];
+		tostate = &cl.inframes[toframe & UPDATE_MASK].playerstate[pv->viewentity-1];
+	}
+	else
+	{
+		if (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV)
+		{
+			fromstate = &cl.inframes[cl.ackedmovesequence & UPDATE_MASK].playerstate[pv->playernum];
+			tostate = &cl.inframes[cl.movesequence & UPDATE_MASK].playerstate[pv->playernum];
+		}
+		else
+		{
+			fromstate = &cl.inframes[fromframe & UPDATE_MASK].playerstate[pv->playernum];
+			tostate = &cl.inframes[toframe & UPDATE_MASK].playerstate[pv->playernum];
+		}
+	}
 	pv->pmovetype = tostate->pm_type;
 	le = &cl.lerpplayers[pv->playernum];
 
@@ -1020,6 +1036,9 @@ void CL_PredictMovePNum (int seat)
 	CL_SetSolidPlayers();
 	pmove.skipent = pv->viewentity;
 
+	//just in case we don't run any prediction
+	VectorCopy(tostate->gravitydir, pmove.gravitydir);
+
 	cmdfrom = cmdto = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[seat];
 
 	if (!nopred)
@@ -1034,14 +1053,14 @@ void CL_PredictMovePNum (int seat)
 					//we must always predict a frame, just to ensure that the playerstate's jump status etc is valid for the next frame, even if we're not going to use it for interpolation.
 					//this assumes that we always have at least one video frame to each network frame, of course.
 					//note that q2 updates its values via networking rather than propagation.
-					Con_DPrintf(" propagate %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
+//					Con_DPrintf(" propagate %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
 					CL_PredictUsercmd (seat, pv->viewentity, tostate, &cl.inframes[(toframe+i) & UPDATE_MASK].playerstate[pv->playernum], &of->cmd[seat]);
 				}
 				break;
 			}
 			if (of->cmd_sequence != cl.ackedmovesequence+i)
 			{
-				Con_DPrintf("trying to predict a frame which is no longer valid\n");
+//				Con_DPrintf("trying to predict a frame which is no longer valid\n");
 				break;
 			}
 			fromtime = totime;
@@ -1058,7 +1077,7 @@ void CL_PredictMovePNum (int seat)
 			else
 				tostate = &framebuf[i&1];
 
-			Con_DPrintf(" pred %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
+//			Con_DPrintf(" pred %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
 			CL_PredictUsercmd (seat, pv->viewentity, fromstate, tostate, cmdto);
 		}
 
@@ -1087,7 +1106,7 @@ void CL_PredictMovePNum (int seat)
 
 				cmdto->msec = bound(0, msec, 250);
 
-				Con_DPrintf(" extrap %i: %f-%f\n", toframe, fromtime, simtime);
+//				Con_DPrintf(" extrap %i: %f-%f\n", toframe, fromtime, simtime);
 				CL_PredictUsercmd (seat, pv->viewentity, fromstate, tostate, cmdto);
 			}
 		}
@@ -1101,7 +1120,10 @@ void CL_PredictMovePNum (int seat)
 	{
 		VectorCopy (tostate->velocity, pv->simvel);
 		VectorCopy (tostate->origin, pv->simorg);
-Con_DPrintf("%f %f %f\n", fromtime, simtime, totime);
+
+		if (pv->viewentity && pv->viewentity != pv->playernum+1)
+			VectorCopy(tostate->viewangles, pv->simangles);
+//Con_DPrintf("%f %f %f\n", fromtime, simtime, totime);
 	}
 	else
 	{
@@ -1113,7 +1135,7 @@ Con_DPrintf("%f %f %f\n", fromtime, simtime, totime);
 			f = 0;
 		if (f > 1)
 			f = 1;
-Con_DPrintf("%i:%f %f %i:%f (%f)\n", fromframe, fromtime, simtime, toframe, totime, f);
+//Con_DPrintf("%i:%f %f %i:%f (%f)\n", fromframe, fromtime, simtime, toframe, totime, f);
 		VectorSubtract(tostate->origin, fromstate->origin, move);
 		if (DotProduct(move, move) > 128*128)
 		{
@@ -1129,7 +1151,7 @@ Con_DPrintf("%i:%f %f %i:%f (%f)\n", fromframe, fromtime, simtime, toframe, toti
 				pv->simvel[i] = (1-f)*fromstate->velocity[i] + f*tostate->velocity[i];
 
 
-				if (pv->viewentity != pv->playernum+1)
+				if (pv->viewentity && pv->viewentity != pv->playernum+1)
 				{
 					pv->simangles[i] = LerpAngles360(fromstate->viewangles[i], tostate->viewangles[i], f);// * (360.0/65535);
 //					pv->viewangles[i] = LerpAngles16(fromstate->command.angles[i], tostate->command.angles[i], f) * (360.0/65535);

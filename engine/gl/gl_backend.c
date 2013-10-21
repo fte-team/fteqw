@@ -1344,6 +1344,9 @@ void GLBE_Init(void)
 					"}\n"
 				"}\n"
 			);
+	//if the shader doesn't work, give up with that.
+	if (!shaderstate.depthonlyshader || !shaderstate.depthonlyshader->prog)
+		shaderstate.depthonlyshader = NULL;
 
 	//make sure the world draws correctly
 	r_worldentity.shaderRGBAf[0] = 1;

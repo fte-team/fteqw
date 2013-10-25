@@ -1391,7 +1391,7 @@ void GLR_RenderView (void)
 
 	GL_Set2D (false);
 
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || r_secondaryview)
 		return;
 
 	if (r_bloom.value)

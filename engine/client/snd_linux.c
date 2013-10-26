@@ -365,7 +365,7 @@ static qboolean QDECL OSS_Capture_Enumerate (void (QDECL *callback) (const char 
 	//SNDCTL_CARDINFO
 	return false;
 }
-void *OSS_Capture_Init(int rate, char *snddev)
+void *OSS_Capture_Init(int rate, const char *snddev)
 {
 	int tmp;
 	intptr_t fd;

@@ -1062,7 +1062,7 @@ static qboolean QDECL DSOUND_Capture_Enumerate (void (QDECL *callback) (const ch
 	return false;
 }
 
-static void *QDECL DSOUND_Capture_Init (int rate, char *device)
+static void *QDECL DSOUND_Capture_Init (int rate, const char *device)
 {
 	dsndcapture_t *result;
 	DSCBUFFERDESC bufdesc;

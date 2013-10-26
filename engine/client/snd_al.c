@@ -116,9 +116,12 @@ static AL_API void (AL_APIENTRY *palSourceUnqueueBuffers)(ALuint source, ALsizei
 typedef char ALCboolean;
 typedef char ALCchar;
 typedef int ALCint;
+typedef unsigned int ALCuint;
 typedef int ALCenum;
+typedef size_t ALCsizei;
 typedef struct ALCdevice_struct ALCdevice;
 typedef struct ALCcontext_struct ALCcontext;
+typedef void ALCvoid;
 
 static ALC_API ALCdevice *     (ALC_APIENTRY *palcOpenDevice)( const ALCchar *devicename );
 static ALC_API ALCboolean      (ALC_APIENTRY *palcCloseDevice)( ALCdevice *device );
@@ -134,13 +137,11 @@ static ALC_API ALCboolean      (ALC_APIENTRY *palcIsExtensionPresent)( ALCdevice
 #define ALC_DEFAULT_DEVICE_SPECIFIER             0x1004
 #define ALC_DEVICE_SPECIFIER                     0x1005
 #define ALC_EXTENSIONS                           0x1006
-#define ALC_ALL_DEVICES_SPECIFIER				 0x1013
+#define ALC_ALL_DEVICES_SPECIFIER				 0x1013	//ALC_ENUMERATE_ALL_EXT
 
 //#include "AL/alut.h"
 //#include "AL/al.h"
 //#include "AL/alext.h"
-
-
 
 //efx
 #define AL_AUXILIARY_SEND_FILTER                 0x20006
@@ -202,6 +203,19 @@ static AL_API ALvoid (AL_APIENTRY *palEffectiv)(ALuint effect, ALenum param, con
 static AL_API ALvoid (AL_APIENTRY *palEffectf)(ALuint effect, ALenum param, ALfloat flValue);
 static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, const ALfloat *pflValues);
 
+//capture-specific stuff
+static ALC_API void           (ALC_APIENTRY *palcGetIntegerv)( ALCdevice *device, ALCenum param, ALCsizei size, ALCint *data );
+static ALC_API ALCdevice *    (ALC_APIENTRY *palcCaptureOpenDevice)( const ALCchar *devicename, ALCuint frequency, ALCenum format, ALCsizei buffersize );
+static ALC_API ALCboolean     (ALC_APIENTRY *palcCaptureCloseDevice)( ALCdevice *device );
+static ALC_API void           (ALC_APIENTRY *palcCaptureStart)( ALCdevice *device );
+static ALC_API void           (ALC_APIENTRY *palcCaptureStop)( ALCdevice *device );
+static ALC_API void           (ALC_APIENTRY *palcCaptureSamples)( ALCdevice *device, ALCvoid *buffer, ALCsizei samples );
+#define ALC_CAPTURE_DEVICE_SPECIFIER             0x310
+#define ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER     0x311
+#define ALC_CAPTURE_SAMPLES                      0x312
+
+
+
 
 #define SOUNDVARS "OpenAL variables"
 
@@ -229,7 +243,8 @@ static cvar_t s_al_speedofsound = CVARFC("s_al_speedofsound", "343.3",0,OnChange
 static cvar_t s_al_dopplerfactor = CVARFC("s_al_dopplerfactor", "3.0",0,OnChangeALDopplerFactor);
 static cvar_t s_al_distancemodel = CVARFC("s_al_distancemodel", "2",0,OnChangeALDistanceModel);
 static cvar_t s_al_rolloff_factor = CVAR("s_al_rolloff_factor", "1");
-static cvar_t s_al_reference_distance = CVAR("s_al_reference_distance", "120");static cvar_t s_al_velocityscale = CVAR("s_al_velocityscale", "1");
+static cvar_t s_al_reference_distance = CVAR("s_al_reference_distance", "120");
+static cvar_t s_al_velocityscale = CVAR("s_al_velocityscale", "1");
 static cvar_t s_al_static_listener = CVAR("s_al_static_listener", "0");	//cheat
 
 typedef struct
@@ -379,6 +394,7 @@ static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, vec3_t origin, vec3_t for
 	}
 }
 
+//schanged says the sample has changed, otherwise its merely moved around a little, maybe changed in volume, but nothing that will restart it.
 static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned int schanged)
 {
 	oalinfo_t *oali = sc->handle;
@@ -904,6 +920,7 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 	return true;
 }
 
+#define SDRVNAME "OpenAL"
 static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver, const char *devicecode, const char *readabledevice))
 {
 	const char *devnames;
@@ -915,7 +932,7 @@ static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver
 		devnames = palcGetString(NULL, ALC_DEVICE_SPECIFIER);
 	while(*devnames)
 	{
-		callback("OpenAL", devnames, va("OAL:%s", devnames));
+		callback(SDRVNAME, devnames, va("OAL:%s", devnames));
 		devnames += strlen(devnames)+1;
 	}
 	return true;
@@ -923,9 +940,104 @@ static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver
 
 sounddriver_t OPENAL_Output =
 {
-	"OpenAL",
+	SDRVNAME,
 	OpenAL_InitCard,
 	OpenAL_Enumerate
 };
+
+
+#if defined(VOICECHAT)
+
+qboolean OpenAL_InitCapture(void)
+{
+	if (!OpenAL_InitLibrary())
+		return false;
+
+	//is there really much point checking for the name when the functions should exist or not regardless?
+	//if its not really supported, I would trust the open+enumerate operations to reliably fail. the functions are exported as actual symbols after all, not some hidden driver feature.
+	//it doesn't really matter if the default driver supports it, so long as one does, I guess.
+	//if (!palcIsExtensionPresent(NULL, "ALC_EXT_capture"))
+	//	return false;
+
+	if(!palcCaptureOpenDevice)
+	{
+		palcGetIntegerv = Sys_GetAddressForName(openallib, "alcGetIntegerv");
+
+		palcCaptureOpenDevice = Sys_GetAddressForName(openallib, "alcCaptureOpenDevice");
+		palcCaptureStart = Sys_GetAddressForName(openallib, "alcCaptureStart");
+		palcCaptureSamples = Sys_GetAddressForName(openallib, "alcCaptureSamples");
+		palcCaptureStop = Sys_GetAddressForName(openallib, "alcCaptureStop");
+		palcCaptureCloseDevice = Sys_GetAddressForName(openallib, "alcCaptureCloseDevice");
+	}
+
+	return palcGetIntegerv&&palcCaptureOpenDevice&&palcCaptureStart&&palcCaptureSamples&&palcCaptureStop&&palcCaptureCloseDevice;
+}
+qboolean QDECL OPENAL_Capture_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
+{
+	const char *devnames;
+	if (!OpenAL_InitCapture())
+		return true; //enumerate nothing if al is disabled
+
+	devnames = palcGetString(NULL, ALC_CAPTURE_DEVICE_SPECIFIER);
+	while(*devnames)
+	{
+		callback(SDRVNAME, devnames, va("OAL:%s", devnames));
+		devnames += strlen(devnames)+1;
+	}
+	return true;
+}
+//fte's capture api specifies mono 16.
+void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
+{
+	if (!device)	//no default devices please, too buggy for that.
+		return NULL;
+
+	if (!OpenAL_InitCapture())
+		return NULL; //enumerate nothing if al is disabled
+
+	if (!device || !*device)
+		device = palcGetString(NULL, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
+
+	return palcCaptureOpenDevice(device, samplerate, AL_FORMAT_MONO16, 0.5*samplerate);
+}
+void QDECL OPENAL_Capture_Start (void *ctx)
+{
+	ALCdevice *device = ctx;
+	palcCaptureStart(device);
+}
+unsigned int QDECL OPENAL_Capture_Update (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+{
+#define samplesize sizeof(short)
+	ALCdevice *device = ctx;
+	int avail = 0;
+	palcGetIntegerv(device, ALC_CAPTURE_SAMPLES, sizeof(ALint), &avail);
+	if (avail*samplesize < minbytes)
+		return 0;	//don't bother grabbing it if its below the threshold.
+	palcCaptureSamples(device, (ALCvoid *)buffer, avail);
+	return avail * samplesize;
+}
+void QDECL OPENAL_Capture_Stop (void *ctx)
+{
+	ALCdevice *device = ctx;
+	palcCaptureStop(device);
+}
+void QDECL OPENAL_Capture_Shutdown (void *ctx)
+{
+	ALCdevice *device = ctx;
+	palcCaptureCloseDevice(device);
+}
+
+snd_capture_driver_t OPENAL_Capture =
+{
+	1,
+	SDRVNAME,
+	OPENAL_Capture_Enumerate,
+	OPENAL_Capture_Init,
+	OPENAL_Capture_Start,
+	OPENAL_Capture_Update,
+	OPENAL_Capture_Stop,
+	OPENAL_Capture_Shutdown
+};
+#endif
 
 #endif

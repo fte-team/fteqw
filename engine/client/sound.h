@@ -315,7 +315,7 @@ typedef struct
 	int apiver;
 	char *drivername;
 	qboolean (QDECL *Enumerate) (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename));
-	void *(QDECL *Init) (int samplerate, char *device);			/*create a new context*/
+	void *(QDECL *Init) (int samplerate, const char *device);			/*create a new context*/
 	void (QDECL *Start) (void *ctx);		/*begin grabbing new data, old data is potentially flushed*/
 	unsigned int (QDECL *Update) (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);	/*grab the data into a different buffer*/
 	void (QDECL *Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/

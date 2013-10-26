@@ -409,6 +409,7 @@ static dllfunction_t qspeexdspfuncs[] =
 };
 #endif
 
+snd_capture_driver_t OPENAL_Capture;
 snd_capture_driver_t DSOUND_Capture;
 snd_capture_driver_t OSS_Capture;
 
@@ -416,6 +417,7 @@ snd_capture_driver_t *capturedrivers[] =
 {
 	&DSOUND_Capture,
 	&OSS_Capture,
+	&OPENAL_Capture,
 	NULL
 };
 
@@ -560,7 +562,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 					s_voip.decframesize[sender] = 320;
 					smode = s_voip.speex.modewb;
 				}
-				else if (codec = VOIP_SPEEX_ULTRAWIDE)
+				else if (codec == VOIP_SPEEX_ULTRAWIDE)
 				{
 					s_voip.decsamplerate[sender] = 32000;
 					s_voip.decframesize[sender] = 640;
@@ -814,25 +816,35 @@ static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
 static void S_Voip_TryInitCaptureContext(char *driver, char *device, int rate)
 {
 	int i;
+
+	s_voip.cdriver = NULL;
+
 	/*Add new drivers in order of priority*/
 	for (i = 0; capturedrivers[i]; i++)
 	{
-		if (capturedrivers[i]->Init)
+		if (capturedrivers[i]->Init && (!driver || !strcmp(capturedrivers[i]->drivername, driver)))
 		{
 			s_voip.cdriver = capturedrivers[i];
-			break;
+
+			s_voip.cdriverctx = s_voip.cdriver->Init(s_voip.encsamplerate, device);
+			if (s_voip.cdriverctx)
+			{
+				//success!
+				return;
+			}
 		}
 	}
 
-	/*no way to capture audio, give up early*/
-	if (!s_voip.cdriver || !s_voip.cdriver->Init)
-		Con_Printf("No microphone interfaces supported\n");
-	else
+	if (!s_voip.cdriver)
 	{
-		s_voip.cdriverctx = s_voip.cdriver->Init(s_voip.encsamplerate, NULL);
-		if (!s_voip.cdriverctx)
-			Con_Printf("No microphone detected\n");
+		if (!driver)
+			Con_Printf("No microphone drivers supported\n");
+		else
+			Con_Printf("Microphone driver \"%s\" is not valid\n", driver);
 	}
+	else
+		Con_Printf("No microphone detected\n");
+	s_voip.cdriver = NULL;
 }
 
 static void S_Voip_InitCaptureContext(int rate)
@@ -854,7 +866,7 @@ static void S_Voip_InitCaptureContext(int rate)
 			*sep++ = 0;
 		S_Voip_TryInitCaptureContext(com_token, sep, rate);
 	}
-	if (!sndcardinfo)
+	if (!s_voip.cdriver)
 		S_Voip_TryInitCaptureContext(NULL, NULL, rate);
 }
 
@@ -1022,7 +1034,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	}
 
 	/*couldn't init a driver?*/
-	if (!s_voip.cdriverctx)
+	if (!s_voip.cdriverctx || !s_voip.cdriver)
 	{
 		return;
 	}
@@ -1083,7 +1095,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	level = 0;
 	samps=0;
 	//*2 for 16bit audio input.
-	for (encpos = 0, outpos = 0; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; )
+	for (encpos = 0, outpos = 0; encpos+s_voip.encframesize*2 <= s_voip.capturepos && outpos+256 < sizeof(outbuf); )
 	{
 		start = (short*)(s_voip.capturebuf + encpos);
 
@@ -1133,7 +1145,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		case VOIP_SPEEX_WIDE:
 		case VOIP_SPEEX_ULTRAWIDE:
 			qspeex_bits_reset(&s_voip.speex.encbits);
-			for (; s_voip.capturepos-encpos >= s_voip.encframesize*2 && sizeof(outbuf)-outpos > 64; )
+			for (; encpos+s_voip.encframesize*2 <= s_voip.capturepos; )
 			{
 				start = (short*)(s_voip.capturebuf + encpos);
 				level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);

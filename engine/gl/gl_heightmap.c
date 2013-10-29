@@ -497,7 +497,9 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy)
 			s = Z_Malloc(sizeof(*s));
 			if (!s)
 				return NULL;
+#ifndef SERVERONLY
 			s->lightmap = -1;
+#endif
 		}
 
 		InsertLinkBefore(&s->recycle, &hm->recycle);
@@ -507,7 +509,9 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy)
 		hm->activesections++;
 		s->hmmod = hm;
 	}
+#ifndef SERVERONLY
 	s->numents = 0;
+#endif
 	s->flags = TSF_DIRTY;
 	return s;
 }
@@ -633,12 +637,12 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 	s->flags |= TSF_FAILEDLOAD;
 	s->holes = 0;
 
+#ifndef SERVERONLY
 	Q_strncpyz(s->texname[0], "", sizeof(s->texname[0]));
 	Q_strncpyz(s->texname[1], "", sizeof(s->texname[1]));
 	Q_strncpyz(s->texname[2], "", sizeof(s->texname[2]));
 	Q_strncpyz(s->texname[3], "", sizeof(s->texname[3]));
 
-#ifndef SERVERONLY
 	if (s->lightmap >= 0)
 	{
 		int j;
@@ -883,7 +887,11 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 				{
 					//noload avoids recursion.
 					s = Terr_GetSection(hm, sx+x, sy+y, TGS_NOLOAD|TGS_NODOWNLOAD|TGS_IGNOREFAILED);
-					if (!s || s->lightmap < 0)
+					if (!s || s->flags & TSF_FAILEDLOAD 
+#ifndef SERVERONLY
+						|| s->lightmap < 0
+#endif
+						)
 					{
 						offset = block->offset[x + y*SECTIONSPERBLOCK];
 						if (!offset)

@@ -39,7 +39,7 @@ cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
 
 void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 void CL_QueryServers(void);
-int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite);
+int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
 void MasterInfo_RemoveAllPlayers(void);
 
 master_t *master;

@@ -199,12 +199,31 @@ void SVQ1_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec
 Mod_Init
 ===============
 */
-void Mod_Init (void)
+void Mod_Init (qboolean initial)
 {
-	memset (mod_novis, 0xff, sizeof(mod_novis));
-	Cvar_Register(&sv_nogetlight, "Memory preservation");
-	Cvar_Register (&dpcompat_psa_ungroup, "Darkplaces compatibility");
-	Cvar_Register (&r_noframegrouplerp, "Graphical Nicaties");
+	if (initial)
+	{
+		memset (mod_novis, 0xff, sizeof(mod_novis));
+		Cvar_Register(&sv_nogetlight, "Memory preservation");
+		Cvar_Register (&dpcompat_psa_ungroup, "Darkplaces compatibility");
+		Cvar_Register (&r_noframegrouplerp, "Graphical Nicaties");
+	}
+}
+
+
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer))
+{
+	return 0;
+}
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer))
+{
+	return 0;
+}
+void Mod_UnRegisterModelFormat(int idx)
+{
+}
+void Mod_UnRegisterAllModelFormats(void *module)
+{
 }
 
 /*

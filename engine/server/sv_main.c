@@ -4935,7 +4935,6 @@ void SV_InitNet (void)
 	if (isDedicated)
 #endif
 	{
-		NET_Init ();
 		Netchan_Init ();
 	}
 

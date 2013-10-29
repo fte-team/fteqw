@@ -143,8 +143,8 @@ typedef struct {	//must be first of each structure type.
 	menutype_t type;
 	int posx;
 	int posy;
-	int width;
-	int height;
+	int width;		//total width
+	int height;		//total height
 	int extracollide; // dirty hack to stretch collide box left (the real fix is to have separate collide/render rects)
 	char *tooltip;
 	qboolean noselectionsound:1;
@@ -164,6 +164,7 @@ typedef struct {
 #define MAX_EDIT_LENGTH 256
 typedef struct {
 	menucommon_t common;
+	int captionwidth;
 	const char *caption;
 	cvar_t *cvar;
 	char text[MAX_EDIT_LENGTH];
@@ -180,6 +181,7 @@ typedef struct {
 	float largechange;
 	float vx;
 	cvar_t *var;
+	int textwidth;
 	const char *text;
 } menuslider_t;
 
@@ -187,6 +189,7 @@ typedef enum {CHK_CHECKED, CHK_TOGGLE} chk_set_t;
 typedef struct menucheck_s {
 	menucommon_t common;
 	const char *text;
+	int textwidth;
 	cvar_t *var;
 	int bits;
 	float value;
@@ -221,6 +224,7 @@ typedef struct {
 typedef struct {
 	menucommon_t common;
 
+	int captionwidth;
 	const char *caption;
 	const char **options;
 	const char **values;
@@ -231,6 +235,7 @@ typedef struct {
 
 typedef struct {
 	menucommon_t common;
+	int captionwidth;
 	char *caption;
 	char *command;
 } menubind_t;
@@ -288,28 +293,27 @@ typedef struct menu_s {
 menutext_t *MC_AddBufferedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign, qboolean red);
 menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
 menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
-menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command);
+menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
-menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max, float delta);
-menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
-menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
+menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta);
+menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int cvarbitmask);
+menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
 menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command);
 mpic_t *QBigFontWorks(void);
 menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char *text, char *command, ...);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
-menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const char **text, int initialvalue);
+menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue);
+menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
-menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
-menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name);
-menuedit_t *MC_AddEditCvarSlim(menu_t *menu, int x, int y, char *text, char *name);
+menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def);
+menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
 menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint);
-menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 
 typedef struct menubulk_s {
 	menutype_t type;

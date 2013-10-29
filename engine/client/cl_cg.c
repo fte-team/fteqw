@@ -24,8 +24,8 @@ extern int mod_numknown;
 #define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-#define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
-#define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
+#define VM_FROMSHANDLE(a) (a?r_shaders[a-1]:NULL)
+#define VM_TOSHANDLE(a) (a?a->id+1:0)
 
 extern model_t		box_model;
 
@@ -859,8 +859,15 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			float *org = VM_POINTER(arg[1]);
 			vec3_t *axis = VM_POINTER(arg[2]);
+			int inwater = VM_LONG(arg[3]);
 
-			S_UpdateListener(org, axis[0], axis[1], axis[2]);
+			r_refdef.audio.defaulted = false;
+			//r_refdef.audio.entity = VM_LONG(arg[0]);
+			VectorCopy(org, r_refdef.audio.origin);
+			VectorCopy(axis[0], r_refdef.audio.forward);
+			VectorCopy(axis[1], r_refdef.audio.right);
+			VectorCopy(axis[2], r_refdef.audio.up);
+			r_refdef.audio.inwater = inwater;
 		}
 		break;
 

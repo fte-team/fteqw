@@ -379,7 +379,7 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 
 	Sys_Printf ("%s", string);	// print to the console
 
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 	{
 		if (level < cl->messagelevel)
 			continue;
@@ -422,7 +422,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 
 	Sys_Printf ("%s", string);	// print to the console
 
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 	{
 		if (level < cl->messagelevel)
 			continue;
@@ -584,7 +584,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 
 		// send the data to all relevent clients
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		for (j = 0, client = svs.clients; j < svs.allocated_client_slots; j++, client++)
 		{
 			if (client->state != cs_spawned)
 				continue;
@@ -729,7 +729,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 
 		// send the data to all relevent clients
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		for (j = 0, client = svs.clients; j < sv.allocated_client_slots; j++, client++)
 		{
 			if (client->state != cs_spawned)
 				continue;
@@ -897,7 +897,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 
 	if (channel & 256)
 	{
-		channel -= 256;
+		channel &= ~256;
 		reliable = true;
 	}
 	else
@@ -1057,6 +1057,13 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, char *sampl
 		{
 			for (i=0 ; i<3 ; i++)
 				origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
+
+			//add the reliable flag for bsp objects.
+			//these sounds are often looped, and if the start is in the phs and the end isn't/gets dropped, then you end up with an annoying infinitely looping sample.
+			//making them all reliable avoids packetloss and phs issues.
+			//this applies only to pushers. you won't get extra latency on player actions because of this.
+			//be warned that it does mean you might be able to hear people triggering stuff on the other side of the map however.
+			channel |= 256;
 		}
 		else
 		{
@@ -1990,7 +1997,7 @@ void SV_FlushBroadcasts (void)
 	client_t *client;
 	int j;
 	// append the broadcast messages to each client messages
-	for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
+	for (j=0, client = svs.clients ; j<svs.allocated_client_slots ; j++, client++)
 	{
 		if (client->state < cs_connected)
 			continue;	// reliables go to all connected or spawned
@@ -2071,7 +2078,7 @@ void SV_UpdateToReliableMessages (void)
 	int curfrags;
 
 // check for changes to be sent over the reliable streams to all clients
-	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 	{
 		if ((svs.gametype == GT_Q1QVM || svs.gametype == GT_PROGS) && host_client->state == cs_spawned)
 		{
@@ -2184,7 +2191,7 @@ void SV_UpdateToReliableMessages (void)
 			}
 			if (host_client->old_frags != curfrags)
 			{
-				for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
+				for (j=0, client = svs.clients ; j<sv.allocated_client_slots ; j++, client++)
 				{
 					if (client->state < cs_connected)
 						continue;
@@ -2322,7 +2329,7 @@ void SV_SendClientMessages (void)
 	SV_UpdateToReliableMessages ();
 
 // build individual updates
-	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+	for (i=0, c = svs.clients ; i<svs.allocated_client_slots ; i++, c++)
 	{
 		if (c->state <= cs_zombie)
 			continue;
@@ -2712,7 +2719,7 @@ void SV_SendMessagesToAll (void)
 	int			i;
 	client_t	*c;
 
-	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+	for (i=0, c = svs.clients ; i<svs.allocated_client_slots ; i++, c++)
 		if (c->state)		// FIXME: should this only send to active?
 			c->send_message = true;
 

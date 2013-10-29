@@ -94,6 +94,7 @@ static int64_t AVIO_Seek(void *opaque, int64_t offset, int whence)
 {
 	struct decctx *ctx = opaque;
 	int64_t ret = ctx->fileofs;
+	whence &= ~AVSEEK_FORCE;
 	switch(whence)
 	{
 	case SEEK_SET:
@@ -110,7 +111,7 @@ static int64_t AVIO_Seek(void *opaque, int64_t offset, int whence)
 		return ctx->filelen;
 	}
 	pFS_Seek(ctx->file, ctx->fileofs & 0xffffffff, ctx->fileofs>>32);
-	return ret;
+	return ctx->fileofs;
 }
 
 static void AVDec_Destroy(void *vctx)
@@ -119,12 +120,14 @@ static void AVDec_Destroy(void *vctx)
 
 	// Free the video stuff
 	avpicture_free(&ctx->pFrameRGB);
+	if (ctx->pVCodecCtx)
+		avcodec_close(ctx->pVCodecCtx);
 	av_free(ctx->pVFrame);
-	avcodec_close(ctx->pVCodecCtx);
 
 	// Free the audio decoder
+	if (ctx->pACodecCtx)
+		avcodec_close(ctx->pACodecCtx);
 	av_free(ctx->pAFrame);
-	avcodec_close(ctx->pACodecCtx);
 
 	// Close the video file
 	avformat_close_input(&ctx->pFormatCtx);

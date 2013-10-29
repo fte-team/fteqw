@@ -37,7 +37,7 @@ int Player_IdtoSlot (int id)
 {
 	int j;
 
-	for (j = 0; j < MAX_CLIENTS; j++)
+	for (j = 0; j < cl.allocated_client_slots; j++)
 	{
 		if (cl.players[j].name[0] && cl.players[j].userid == id)
 			return j;
@@ -49,7 +49,7 @@ int Player_StringtoSlot(char *arg)
 {
 	int i, slot;
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (cl.players[i].name[0] && !strncmp(arg, cl.players[i].name, MAX_SCOREBOARDNAME - 1))
 			return i;
@@ -70,7 +70,7 @@ int Player_NametoSlot(char *name)
 {
 	int i;
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (cl.players[i].name[0] && !strncmp(cl.players[i].name, name, MAX_SCOREBOARDNAME - 1))
 			return i;
@@ -80,7 +80,7 @@ int Player_NametoSlot(char *name)
 
 int Player_SlottoId (int slot)
 {	
-	return (slot >= 0 && slot < MAX_CLIENTS && cl.players[slot].name[0]) ? cl.players[slot].userid : -1;
+	return (slot >= 0 && slot < cl.allocated_client_slots && cl.players[slot].name[0]) ? cl.players[slot].userid : -1;
 }
 
 char *Player_MyName (void)
@@ -128,7 +128,7 @@ static void Display_Ignorelist(void)
 
 	x = 0;
 	foundone = false;
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (cl.players[i].name[0] && cl.players[i].ignored)
 		{
@@ -147,7 +147,7 @@ static void Display_Ignorelist(void)
 
 	x = 0;
 	foundone = false;
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (cl.players[i].name[0] && cl.players[i].ignored)
 		{
@@ -410,7 +410,7 @@ static void Ignoreteam_f(void)
 		return;
 	}
 	arg = Cmd_Argv(1);
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (cl.players[i].name[0] && !cl.players[i].spectator && !strcmp(arg, cl.players[i].team))
 		{
@@ -476,7 +476,7 @@ static void UnignoreAll_f (void)
 		Con_Printf("%s : no arguments expected\n", Cmd_Argv(0));
 		return;
 	}
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 		Ignorelist_Del(i);
 	Con_Printf("User ignore list cleared\n");
 }

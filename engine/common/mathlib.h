@@ -164,6 +164,7 @@ void		Matrix4x4_CM_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const
 void		Matrix4x4_CM_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale);
 void		Matrix4x4_CM_ModelViewMatrix (float *modelview, const vec3_t viewangles, const vec3_t vieworg);
 void		Matrix4x4_CM_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
+void		Matrix4x4_CM_LightMatrixFromAxis(float *modelview, const vec3_t px, const vec3_t py, const vec3_t pz, const vec3_t vieworg);	//
 void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);
 void		Matrix4_Multiply (const float *a, const float *b, float *out);
 void		Matrix3x4_Multiply(const float *a, const float *b, float *out);

@@ -1709,12 +1709,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef PCF\n"
 "uniform vec4 l_shadowmapproj; //light projection matrix info\n"
 "uniform vec2 l_shadowmapscale; //xy are the texture scale, z is 1, w is the scale.\n"
-"#endif\n"
-
-
-
-
-"#ifdef PCF\n"
 "vec3 ShadowmapCoord(void)\n"
 "{\n"
 "#ifdef SPOT\n"
@@ -1814,6 +1808,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef OFFSETMAPPING\n"
 "#include \"sys/offsetmapping.h\"\n"
 "#endif\n"
+
 "void main ()\n"
 "{\n"
 //read raw texture samples (offsetmapping munges the tex coords first)
@@ -2036,16 +2031,67 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "varying vec2 lm;\n"
 "varying vec4 vc;\n"
 
+"#ifdef RTLIGHT\n"
+"varying vec3 lightvector;\n"
+//	#if defined(SPECULAR) || defined(OFFSETMAPPING)
+//		varying vec3 eyevector;
+//	#endif
+"#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
+"varying vec4 vtexprojcoord;\n"
+"#endif\n"
+"#endif\n"
+
+
+
+
+
 "#ifdef VERTEX_SHADER\n"
+
+"#ifdef RTLIGHT\n"
+"uniform vec3 l_lightposition;\n"
+//	#if defined(SPECULAR) || defined(OFFSETMAPPING)
+//		uniform vec3 e_eyepos;
+//	#endif
+"#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
+"uniform mat4 l_cubematrix;\n"
+"#endif\n"
+"attribute vec3 v_normal;\n"
+"attribute vec3 v_svector;\n"
+"attribute vec3 v_tvector;\n"
+"#endif\n"
+
 "attribute vec2 v_texcoord;\n"
 "attribute vec2 v_lmcoord;\n"
 "attribute vec4 v_colour;\n"
+
 "void main (void)\n"
 "{\n"
 "tc = v_texcoord.st;\n"
 "lm = v_lmcoord.st;\n"
 "vc = v_colour;\n"
 "gl_Position = ftetransform();\n"
+
+"#ifdef RTLIGHT\n"
+//light position is in model space, which is handy.
+"vec3 lightminusvertex = l_lightposition - v_position.xyz;\n"
+
+//no bumpmapping, so we can just use distance without regard for actual surface direction. we still do scalecos stuff. you might notice it on steep slopes.
+"lightvector = lightminusvertex;\n"
+//		lightvector.x = -dot(lightminusvertex, v_svector.xyz);
+//		lightvector.y = dot(lightminusvertex, v_tvector.xyz);
+//		lightvector.z = dot(lightminusvertex, v_normal.xyz);
+
+//		#if defined(SPECULAR)||defined(OFFSETMAPPING)
+//			vec3 eyeminusvertex = e_eyepos - v_position.xyz;
+//			eyevector.x = -dot(eyeminusvertex, v_svector.xyz);
+//			eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
+//			eyevector.z = dot(eyeminusvertex, v_normal.xyz);
+//		#endif
+"#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
+//for texture projections/shadowmapping on dlights
+"vtexprojcoord = (l_cubematrix*vec4(v_position.xyz, 1.0));\n"
+"#endif\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 
@@ -2062,17 +2108,68 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //mix values
 "uniform sampler2D s_t4;\n"
 
+"#ifdef PCF\n"
+"sampler2DShadow s_t5;\n"
+"#include \"sys/pcf.h\"\n"
+"#endif\n"
+
+//light levels
+"uniform vec4 e_lmscale;\n"
+
+"#ifdef RTLIGHT\n"
+"uniform float l_lightradius;\n"
+"uniform vec3 l_lightcolour;\n"
+"uniform vec3 l_lightcolourscale;\n"
+"#endif\n"
 
 "void main (void)\n"
 "{\n"
+"vec4 r;\n"
 "vec4 m = texture2D(s_t4, lm);\n"
 
-"gl_FragColor = fog4(vc*vec4(m.aaa,1.0)*(\n"
-"texture2D(s_t0, tc)*m.r\n"
-"+ texture2D(s_t1, tc)*m.g\n"
-"+ texture2D(s_t2, tc)*m.b\n"
-"+ texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b))\n"
-"));\n"
+"r  = texture2D(s_t0, tc)*m.r;\n"
+"r += texture2D(s_t1, tc)*m.g;\n"
+"r += texture2D(s_t2, tc)*m.b;\n"
+"r += texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b));\n"
+
+//vertex colours provide a scaler that applies even through rtlights.
+"r *= vc;\n"
+
+"#ifdef RTLIGHT\n"
+"vec3 nl = normalize(lightvector);\n"
+"float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
+"vec3 diff;\n"
+//	#ifdef BUMP
+//		colorscale *= (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
+//	#else
+"colorscale *= (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));\n"
+//	#endif
+
+//	#ifdef SPECULAR
+//		vec3 halfdir = normalize(normalize(eyevector) + nl);
+//		float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);
+//		diff += l_lightcolourscale.z * spec * specs.rgb;
+//	#endif
+
+
+
+"#if defined(SPOT)\n"
+"if (vtexprojcoord.w < 0.0) discard;\n"
+"vec2 spot = ((vtexprojcoord.st)/vtexprojcoord.w);\n"
+"colorscale *= 1.0-(dot(spot,spot));\n"
+"#endif\n"
+"#ifdef PCF\n"
+"colorscale *= ShadowmapFilter(s_t5);\n"
+"#endif\n"
+
+"r.rgb *= colorscale * l_lightcolour;\n"
+
+"gl_FragColor = fog4additive(r);\n"
+"#else\n"
+//lightmap is greyscale in m.a. probably we should just scale the texture mix, but precision errors when editing make me paranoid.
+"r *= e_lmscale*vec4(m.aaa,1.0);\n"
+"gl_FragColor = fog4(r);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 },

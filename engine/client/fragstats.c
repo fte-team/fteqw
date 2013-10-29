@@ -510,7 +510,7 @@ static int Stats_ExtractName(char **line)
 	int ml = 0;
 	int l;
 	bm = -1;
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (!qm_strcmp(cl.players[i].name, *line))
 		{

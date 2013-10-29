@@ -881,7 +881,7 @@ static void CountNearbyPlayers(qboolean dead)
 
 	state = cl.inframes[cl.oldparsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
-	for (i = 0; i < MAX_CLIENTS; i++, info++, state++) {
+	for (i = 0; i < cl.allocated_client_slots; i++, info++, state++) {
 		if (i != cl.playerview[SP].playernum && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
 			if (cl.teamplay && !strcmp(info->team, TP_PlayerTeam()))
 				vars.numfriendlies++;
@@ -1760,7 +1760,7 @@ int	TP_CountPlayers (void)
 	int	i, count;
 
 	count = 0;
-	for (i = 0; i < MAX_CLIENTS ; i++) {
+	for (i = 0; i < cl.allocated_client_slots ; i++) {
 		if (cl.players[i].name[0] && !cl.players[i].spectator)
 			count++;
 	}
@@ -1779,7 +1779,7 @@ char *TP_EnemyTeam (void)
 	static char	enemyteam[MAX_INFO_KEY];
 	char *myteam = TP_PlayerTeam();
 
-	for (i = 0; i < MAX_CLIENTS ; i++) {
+	for (i = 0; i < cl.allocated_client_slots ; i++) {
 		if (cl.players[i].name[0] && !cl.players[i].spectator)
 		{
 			strcpy (enemyteam, cl.players[i].team);
@@ -1804,7 +1804,7 @@ char *TP_EnemyName (void)
 
 	myname = TP_PlayerName ();
 
-	for (i = 0; i < MAX_CLIENTS ; i++) {
+	for (i = 0; i < cl.allocated_client_slots ; i++) {
 		if (cl.players[i].name[0] && !cl.players[i].spectator)
 		{
 			strcpy (enemyname, cl.players[i].name);
@@ -1945,7 +1945,7 @@ static void TP_Colourise_f (void)
 	}
 
 	Skin_FlushPlayers();
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		cl.players[i].colourised = TP_FindColours(cl.players[i].name);
 		CL_NewTranslation(i);
@@ -1989,7 +1989,7 @@ static void TP_TeamColor_f (void)
 		cl_teambottomcolor = bottom;
 
 		if (qrenderer != QR_NONE)	//make sure we have the renderer initialised...
-			for (i = 0; i < MAX_CLIENTS; i++)
+			for (i = 0; i < cl.allocated_client_slots; i++)
 				CL_NewTranslation(i);
 	}
 }
@@ -2030,7 +2030,7 @@ static void TP_EnemyColor_f (void)
 		cl_enemybottomcolor = bottom;
 
 		if (qrenderer != QR_NONE)	//make sure we have the renderer initialised...
-			for (i = 0; i < MAX_CLIENTS; i++)
+			for (i = 0; i < cl.allocated_client_slots; i++)
 				CL_NewTranslation(i);
 	}
 }
@@ -2098,7 +2098,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 	*offset = 0;
 	*plr = NULL;
 
-	for (i=0, player=cl.players ; i < MAX_CLIENTS ; i++, player++)
+	for (i=0, player=cl.players ; i < cl.allocated_client_slots ; i++, player++)
 	{
 		name = player->name;
 		if (!(*name))
@@ -2562,7 +2562,7 @@ static int CountTeammates (void)
 
 	count = 0;
 	myteam = cl.players[cl.playerview[SP].playernum].team;
-	for (i=0, player=cl.players; i < MAX_CLIENTS ; i++, player++) {
+	for (i=0, player=cl.players; i < cl.allocated_client_slots ; i++, player++) {
 		if (player->name[0] && !player->spectator && (i != cl.playerview[SP].playernum)
 									&& !strcmp(player->team, myteam))
 			count++;
@@ -2588,7 +2588,7 @@ static qboolean CheckTrigger (void)
 
 	count = 0;
 	myteam = cl.players[cl.playerview[SP].playernum].team;
-	for (i = 0, player= cl.players; i < MAX_CLIENTS; i++, player++) {
+	for (i = 0, player= cl.players; i < cl.allocated_client_slots; i++, player++) {
 		if (player->name[0] && !player->spectator && i != cl.playerview[SP].playernum && !strcmp(player->team, myteam))
 			count++;
 	}
@@ -2845,7 +2845,7 @@ static char *Utils_TF_ColorToTeam_Failsafe(int color)
 	memset(teams, 0, sizeof(teams));
 	memset(teamcounts, 0, sizeof(teamcounts));
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (!cl.players[i].name[0] || cl.players[i].spectator)
 			continue;
@@ -2974,7 +2974,7 @@ static void TP_FindPoint (void)
 
 	state = cl.inframes[cl.parsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
-	for (j = 0; j < MAX_CLIENTS; j++, info++, state++)
+	for (j = 0; j < cl.allocated_client_slots; j++, info++, state++)
 	{
 		if (state->messagenum != cl.parsecount || j == cl.playerview[SP].playernum || info->spectator)
 			continue;

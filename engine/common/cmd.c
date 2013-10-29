@@ -544,6 +544,8 @@ void Cmd_Exec_f (void)
 		s+=3;
 	}
 	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
+	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || com_file_untrusted))
+		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
 	Cbuf_InsertText (s, ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
 	FS_FreeFile(f);
 }
@@ -585,6 +587,53 @@ void Cmd_ShowAlias_f (void)
 	Con_Printf("Alias doesn't exist\n");
 }
 
+//returns a zoned string.
+char *Cmd_ParseMultiline(qboolean checkheader)
+{
+	char *result;
+	char *end;
+	int in = checkheader?0:1;
+	char *s;
+	result = NULL;
+	for(;;)
+	{
+		s = Cbuf_GetNext(Cmd_ExecLevel, false);
+		if (!*s)
+		{
+			if (in)
+				Con_Printf(CON_WARNING "WARNING: Multiline alias was not terminated\n");
+			break;
+		}
+		while (*s <= ' ' && *s)
+			s++;
+		for (end = s + strlen(s)-1; end >= s && *end <= ' '; end--)
+			*end = '\0';
+		if (!strcmp(s, "{"))
+		{
+			in++;
+			if (in == 1)
+				continue;	//don't embed the first one in the string, because that would be weird.
+		}
+		else if (!strcmp(s, "}"))
+		{
+			in--;
+			if (!in)
+				break;	//phew
+		}
+		if (result)
+		{
+			char *newv = (char*)Z_Malloc(strlen(result) + strlen(s) + 2);
+			sprintf(newv, "%s;%s", result, s);
+			Z_Free(result);
+			result = newv;
+		}
+		else
+			result = Z_StrDup(s);
+		if (!in)
+			break;
+	}
+	return result;
+}
 /*
 ===============
 Cmd_Alias_f
@@ -723,41 +772,7 @@ void Cmd_Alias_f (void)
 
 	if (multiline)
 	{	//fun! MULTILINE ALIASES!!!!
-		char *newv;
-		char *end;
-		int in = 1;
-		a->value = NULL;
-		for(;;)
-		{
-			s = Cbuf_GetNext(Cmd_ExecLevel, false);
-			if (!*s)
-			{
-				Con_Printf(CON_WARNING "WARNING: Multiline alias was not terminated\n");
-				break;
-			}
-			while (*s <= ' ' && *s)
-				s++;
-			for (end = s + strlen(s)-1; end >= s && *end <= ' '; end--)
-				*end = '\0';
-			if (!strcmp(s, "{"))
-				in++;
-			else if (!strcmp(s, "}"))
-			{
-				in--;
-				if (!in)
-					break;	//phew
-			}
-			if (a->value)
-			{
-				newv = (char*)Z_Malloc(strlen(a->value) + strlen(s) + 2);
-				sprintf(newv, "%s;%s", a->value, s);
-				Z_Free(a->value);
-				a->value = newv;
-			}
-			else
-				a->value = Z_StrDup(s);
-		}
-
+		a->value = Cmd_ParseMultiline(false);
 		return;
 	}
 
@@ -977,6 +992,8 @@ void Alias_WipeStuffedAliases(void)
 
 void Cvar_List_f (void);
 void Cvar_Reset_f (void);
+void Cvar_LockDefaults_f(void);
+void Cvar_PurgeDefaults_f(void);
 
 /*
 =============================================================================
@@ -2729,6 +2746,11 @@ void Cmd_set_f(void)
 			Con_Printf ("Server tried setting %s cvar\n", var->name);
 			return;
 		}
+		if (var->flags & CVAR_NOSET)
+		{
+			Con_Printf ("variable %s is readonly\n", var->name);
+			return;
+		}
 
 		if (Cmd_FromGamecode())
 		{
@@ -3074,6 +3096,8 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("macrolist", Cmd_MacroList_f);
 	Cmd_AddCommand ("cvarlist", Cvar_List_f);
 	Cmd_AddCommand ("cvarreset", Cvar_Reset_f);
+	Cmd_AddCommand ("cvar_lockdefaults", Cvar_LockDefaults_f);
+	Cmd_AddCommand ("cvar_purgedefaults", Cvar_PurgeDefaults_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 
 	Cmd_AddMacro("time", Macro_Time, true);
@@ -3090,7 +3114,7 @@ void Cmd_Init (void)
 	Cvar_Register (&cl_warncmd, "Warnings");
 
 #ifndef SERVERONLY
-	rcon_level.ival = atof(rcon_level.defaultstr);	//client is restricted to not be allowed to change restrictions.
+	rcon_level.ival = atof(rcon_level.enginevalue);	//client is restricted to not be allowed to change restrictions.
 #else
 	Cvar_Register(&rcon_level, "Access controls");		//server gains versatility.
 #endif

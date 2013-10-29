@@ -138,6 +138,17 @@ typedef struct entity_s
 #endif
 } entity_t;
 
+// plane_t structure
+typedef struct mplane_s
+{
+	vec3_t	normal;
+	float	dist;
+	qbyte	type;			// for texture axis selection and fast side tests
+	qbyte	signbits;		// signx + signy<<1 + signz<<1
+	qbyte	pad[2];
+} mplane_t;
+#define MAXFRUSTUMPLANES 7	//4 side, 1 near, 1 far (fog), 1 water plane.
+
 #define RDFD_FOV 1
 typedef struct
 {
@@ -164,6 +175,9 @@ typedef struct
 	float		m_projection[16];
 	float		m_view[16];
 
+	mplane_t	frustum[MAXFRUSTUMPLANES];
+	int			frustum_numplanes;
+
 	vec4_t		gfog_rgbd;
 
 	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
@@ -177,6 +191,16 @@ typedef struct
 	int			postproccube; /*postproc shader wants a cubemap, this is the mask of sides required*/
 
 	qbyte		*forcedvis;
+
+	struct
+	{
+		qboolean defaulted;
+		vec3_t origin;
+		vec3_t forward;
+		vec3_t right;
+		vec3_t up;
+		int inwater;
+	} audio;
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -217,7 +241,7 @@ int Surf_LightmapShift (struct model_s *model);
 #define	LMBLOCK_WIDTH		128
 #define	LMBLOCK_HEIGHT		128
 typedef struct glRect_s {
-	unsigned char l,t,w,h;
+	unsigned short l,t,w,h;
 } glRect_t;
 typedef unsigned char stmap;
 struct mesh_s;
@@ -335,8 +359,8 @@ extern	texid_t balltexture;
 extern	texid_t beamtexture;
 extern	texid_t ptritexture;
 
-void	Mod_Init (void);
-void Mod_Shutdown (void);
+void	Mod_Init (qboolean initial);
+void Mod_Shutdown (qboolean final);
 int Mod_TagNumForName(struct model_s *model, char *name);
 int Mod_SkinNumForName(struct model_s *model, char *name);
 int Mod_FrameNumForName(struct model_s *model, char *name);
@@ -356,6 +380,11 @@ void Mod_Think (void);
 void Mod_NowLoadExternal(void);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
+
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer));
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer));
+void Mod_UnRegisterModelFormat(int idx);
+void Mod_UnRegisterAllModelFormats(void *module);
 
 #ifdef RUNTIMELIGHTING
 void LightFace (int surfnum);

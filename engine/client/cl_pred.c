@@ -614,7 +614,7 @@ void CL_CalcClientTime(void)
 		if (oldst == 0)
 		{
 			int i;
-			for (i = 0; i < MAX_CLIENTS; i++)
+			for (i = 0; i < cl.allocated_client_slots; i++)
 			{
 				cl.players[i].entertime += cl.servertime;
 			}

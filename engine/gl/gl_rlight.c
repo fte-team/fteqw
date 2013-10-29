@@ -194,13 +194,14 @@ void R_InitFlashblends(void)
 				"blendfunc gl_one gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
+				"nodepth\n"
 			"}\n"
 		"}\n"
 		);
 	lpplight_shader = NULL;
 }
 
-static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscale, qboolean expand)
+static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscale, int dtype)
 {
 	int		i, j;
 //	float	a;
@@ -231,7 +232,7 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscal
 	}
 
 	VectorSubtract (light->origin, r_origin, v);
-	if (Length (v) < rad + gl_mindist.value*2)
+	if (dtype != 1 && Length (v) < rad + gl_mindist.value*2)
 	{	// view is inside the dlight
 		return false;
 	}
@@ -250,10 +251,14 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscal
 		bub_sin++; 
 		bub_cos++;
 	}
-	if (!expand)
-		VectorMA(flashblend_vcoords[0], -rad/1.5, vpn, flashblend_vcoords[0]);
-	else
+	if (dtype == 0)
 	{
+		//flashblend 3d-ish
+		VectorMA(flashblend_vcoords[0], -rad/1.5, vpn, flashblend_vcoords[0]);
+	}
+	else if (dtype != 1)
+	{
+		//prepass lights needs to be fully infront of the light. the glsl is a fullscreen-style effect, but we can benefit from early-z and scissoring
 		vec3_t diff;
 		VectorSubtract(r_origin, light->origin, diff);
 		VectorNormalize(diff);
@@ -274,10 +279,11 @@ void R_RenderDlights (void)
 	dlight_t	*l;
 	vec3_t waste1, waste2;
 	unsigned int beflags = 0;
-	float intensity;
+	float intensity, cscale;
+	qboolean coronastyle;
 
-	if (r_coronas.value)
-		beflags |= BEF_FORCENODEPTH;
+	if (!r_coronas.value && !r_flashblend.value)
+		return;
 
 //	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
@@ -293,32 +299,38 @@ void R_RenderDlights (void)
 
 		if (l->flags & LFLAG_FLASHBLEND)
 		{
+			if (!r_flashblend.value)
+				continue;
 			//dlights emitting from the local player are not visible as flashblends
 			if (l->key == r_refdef.playerview->viewentity)
 				continue;	//was a glow
 			if (l->key == -(r_refdef.playerview->viewentity))
 				continue;	//was a muzzleflash
+			coronastyle = false;
 		}
-
-		intensity = l->corona * 0.25;
-		if (r_flashblend.value && (l->flags & LFLAG_FLASHBLEND))
-			intensity = l->corona; /*intensity is already in the corona value...*/
 		else
-			intensity = l->corona * r_coronas.value;
-		if (intensity <= 0)
+			coronastyle = true;
+
+		cscale = l->coronascale;
+		intensity = l->corona * 0.25;
+		if (coronastyle)
+			intensity *= r_coronas.value;
+		else
+			intensity *= r_flashblend.value;
+		if (intensity <= 0 || cscale <= 0)
 			continue;
 
 		/*coronas use depth testing to compute visibility*/
-		if (r_coronas.value)
+		if (coronastyle)
 		{
 			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
 				continue;
 		}
 
-		if (!R_BuildDlightMesh (l, intensity, l->coronascale, false) && r_flashblend.value)
+		if (!R_BuildDlightMesh (l, intensity, cscale, coronastyle) && !coronastyle)
 			AddLightBlend (l->color[0], l->color[1], l->color[2], l->radius * 0.0003);
 		else
-			BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, beflags);
+			BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, (coronastyle?BEF_FORCENODEPTH|BEF_FORCEADDITIVE:0)|beflags);
 	}
 }
 
@@ -328,9 +340,9 @@ void R_GenDlightMesh(struct batch_s *batch)
 	static mesh_t *meshptr;
 	dlight_t	*l = cl_dlights + batch->surf_first;
 
-	BE_SelectDLight(l, l->color, LSHADER_STANDARD);
+	BE_SelectDLight(l, l->color, 0);
 
-	if (!R_BuildDlightMesh (l, 2, 1, true))
+	if (!R_BuildDlightMesh (l, 2, 1, 2))
 	{
 		int i;
 		static vec2_t s[4] = {{1, -1}, {-1, -1}, {-1, 1}, {1, 1}};
@@ -693,6 +705,7 @@ void R_ImportRTLights(char *entlump)
 				break;
 			VectorCopy(origin, dl->origin);
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorInverse(dl->axis[1]);
 			dl->radius = radius;
 			VectorCopy(color, dl->color);
 			dl->flags = 0;
@@ -827,6 +840,7 @@ void R_LoadRTLights(void)
 			dl->lightcolourscales[1] = diffusescale;
 			dl->lightcolourscales[2] = specularscale;
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorInverse(dl->axis[1]);
 
 			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));
 			if (*dl->cubemapname)

@@ -664,8 +664,8 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	{
 		news->light[0] = MSG_ReadShort();
 		news->light[1] = MSG_ReadShort();
-		news->light[1] = MSG_ReadShort();
-		news->light[1] = MSG_ReadShort();
+		news->light[2] = MSG_ReadShort();
+		news->light[3] = MSG_ReadShort();
 		news->lightstyle = MSG_ReadByte();
 		news->lightpflags = MSG_ReadByte();
 	}
@@ -1183,12 +1183,7 @@ void DP5_ParseDelta(entity_state_t *s)
 		int num;
 		num = s->number;
 		*s = nullentitystate;
-		s->trans = 255;
-		s->scale = 16;
 		s->number = num;
-		s->colormod[0] = (256)/8;
-		s->colormod[1] = (256)/8;
-		s->colormod[2] = (256)/8;
 		s->solid = ES_SOLID_BSP;
 //		s->active = true;
 	}
@@ -3245,11 +3240,12 @@ void CL_LinkPacketEntities (void)
 			dl = CL_NewDlight(state->number, ent->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
 			dl->corona = (state->lightpflags & PFLAGS_CORONA)?1:0;
 			dl->coronascale = 0.25;
+			dl->style = state->lightstyle;
 			dl->flags &= ~LFLAG_FLASHBLEND;
 			dl->flags |= (state->lightpflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 			if (state->skinnum)
 			{
-				VectorCopy(angles, ent->angles);
+				VectorCopy(ent->angles, angles);
 				angles[0]*=-1;	//pflags matches alias models.
 				AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 				VectorInverse(dl->axis[1]);
@@ -4207,7 +4203,7 @@ void CL_LinkPlayers (void)
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		predictplayers = false;
 
-	for (j=0, info=cl.players, state=frame->playerstate ; j < MAX_CLIENTS
+	for (j=0, info=cl.players, state=frame->playerstate ; j < cl.allocated_client_slots
 		; j++, info++, state++)
 	{
 		nametagseen[j] = false;
@@ -4742,7 +4738,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	frame = &cl.inframes[cl.parsecount&UPDATE_MASK];
 
 	for (j=0, pplayer = predicted_players, state=frame->playerstate;
-		j < MAX_CLIENTS;
+		j < cl.allocated_client_slots;
 		j++, pplayer++, state++)
 	{
 
@@ -4826,7 +4822,7 @@ void CL_SetSolidPlayers (void)
 	if (pmove.numphysent == MAX_PHYSENTS)	//too many.
 		return;
 
-	for (j=0, pplayer = predicted_players; j < MAX_CLIENTS;	j++, pplayer++)
+	for (j=0, pplayer = predicted_players; j < cl.allocated_client_slots;	j++, pplayer++)
 	{
 		if (!pplayer->active)
 			continue;	// not present this frame

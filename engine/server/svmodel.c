@@ -204,7 +204,7 @@ void Mod_Init (void)
 	memset (mod_novis, 0xff, sizeof(mod_novis));
 	Cvar_Register(&sv_nogetlight, "Memory preservation");
 	Cvar_Register (&dpcompat_psa_ungroup, "Darkplaces compatibility");
-	Cvar_Register (&r_noframegrouplerp, "Oooga booga");
+	Cvar_Register (&r_noframegrouplerp, "Graphical Nicaties");
 }
 
 /*
@@ -322,17 +322,17 @@ qbyte *Mod_LeafnumPVS (int ln, model_t *model, qbyte *buffer)
 
 /*
 ===================
-Mod_Flush
+Mod_Purge
 ===================
 */
-void Mod_Flush(qboolean force)
+void Mod_Purge(enum mod_purge_e type)
 {
 	int		i;
 	model_t	*mod;
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
-		if (mod->datasequence != mod_datasequence || force)
+		if (mod->datasequence != mod_datasequence || type != MP_MAPCHANGED)
 		{
 			//and obliterate anything else remaining in memory.
 			ZG_FreeGroup(&mod->memgroup);
@@ -1892,7 +1892,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	}
 
 #ifdef TERRAIN
-	lm->terrain = Mod_LoadTerrainInfo(lm, loadname);
+	lm->terrain = Mod_LoadTerrainInfo(lm, loadname, false);
 #endif
 
 	return true;

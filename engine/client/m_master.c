@@ -83,7 +83,7 @@ static void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboo
 		R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
 		R2D_FillBlock(xmin, y, xlen, 8);
 	}
-	Draw_FunStringWidth(xmin, y, str, xlen);
+	Draw_FunStringWidth(xmin, y, str, xlen, false, false);
 
 	if (x != NULL)
 		*x -= xlen + 8;
@@ -232,7 +232,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 				serverhighlight[(int)stype][2],
 				1.0);
 		}
-		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
+		else if (thisone == info->scrollpos + (int)(mousecursor_y-16)/8 && mousecursor_x < x)
 			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
 		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr))
 			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
@@ -246,14 +246,14 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		}
 		R2D_FillBlock(0, y, ths->common.width, 8);
 
-		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8); x-=4*8;}
-		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8); x-=4*8;}
-		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->players, si->maxplayers), 5*8); x-=6*8;}
-		if (sb_showmap.value)		{Draw_FunStringWidth((x-8*8), y, si->map, 8*8); x-=9*8;}
-		if (sb_showgamedir.value)	{Draw_FunStringWidth((x-8*8), y, si->gamedir, 8*8); x-=9*8;}
-		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, va("%i", si->ping), 3*8); x-=4*8;}
-		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, NET_AdrToString(adr, sizeof(adr), &si->adr), 21*8); x-=22*8;}
-		Draw_FunStringWidth(0, y, si->name, x);
+		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8, false, false); x-=4*8;}
+		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8, false, false); x-=4*8;}
+		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->players, si->maxplayers), 5*8, false, false); x-=6*8;}
+		if (sb_showmap.value)		{Draw_FunStringWidth((x-8*8), y, si->map, 8*8, false, false); x-=9*8;}
+		if (sb_showgamedir.value)	{Draw_FunStringWidth((x-8*8), y, si->gamedir, 8*8, false, false); x-=9*8;}
+		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, va("%i", si->ping), 3*8, false, false); x-=4*8;}
+		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, NET_AdrToString(adr, sizeof(adr), &si->adr), 21*8, false, false); x-=22*8;}
+		Draw_FunStringWidth(0, y, si->name, x, false, false);
 	}
 }
 static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
@@ -414,9 +414,9 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 				R2D_FillBlock (x, y, 28, 4);
 				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
 				R2D_FillBlock (x, y+4, 28, 4);
-				Draw_FunStringWidth (x, y, va("%3i", selectedserver.detail->players[i].frags), 28);
+				Draw_FunStringWidth (x, y, va("%3i", selectedserver.detail->players[i].frags), 28, false, false);
 
-				Draw_FunStringWidth (x+28, y, selectedserver.detail->players[i].name, 12*8);
+				Draw_FunStringWidth (x+28, y, selectedserver.detail->players[i].name, 12*8, false, false);
 			}
 	}
 }
@@ -644,27 +644,27 @@ void M_Menu_ServerList2_f(void)
 
 	strcpy(info->refreshtext, "Refresh");
 
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*3, "Map      ", &sb_showmap, 1);
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*4, "Gamedir  ", &sb_showgamedir, 1);
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*5, "Players  ", &sb_showplayers, 1);
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*6, "Fraglimit", &sb_showfraglimit, 1);
-	MC_AddCheckBox(menu, 0, vid.height - 64+8*7, "Timelimit", &sb_showtimelimit, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*3, "Map      ", &sb_showmap, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*4, "Gamedir  ", &sb_showgamedir, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*5, "Players  ", &sb_showplayers, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*6, "Fraglimit", &sb_showfraglimit, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*7, "Timelimit", &sb_showtimelimit, 1);
 
 #ifdef NQPROT
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*1, "List NQ   ", SL_ReFilter, 1);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "List NQ   ", SL_ReFilter, 1);
 #endif
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*2, "List QW   ", SL_ReFilter, 2);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "List QW   ", SL_ReFilter, 2);
 #ifdef Q2CLIENT
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*3, "List Q2   ", SL_ReFilter, 3);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "List Q2   ", SL_ReFilter, 3);
 #endif
 #ifdef Q3CLIENT
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*4, "List Q3   ", SL_ReFilter, 4);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*4, "List Q3   ", SL_ReFilter, 4);
 #endif
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
-	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
 
 	MC_AddCommand(menu, 64, 0, info->refreshtext, SL_DoRefresh);
 

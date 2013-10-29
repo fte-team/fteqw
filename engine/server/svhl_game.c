@@ -265,7 +265,7 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 
 	viewerpvs = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, ed->v.origin), NULL, 0);
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].state == cs_spawned)
 		{

@@ -79,6 +79,7 @@ cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_wireframe							= CVARF ("r_wireframe", "0",
 												CVAR_CHEAT);
+cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
@@ -616,6 +617,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavastyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
+	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
 
@@ -900,7 +902,7 @@ void R_ShutdownRenderer(void)
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
 	P_Shutdown();
-	Mod_Shutdown();
+	Mod_Shutdown(false);
 
 	IN_Shutdown();
 
@@ -1095,7 +1097,7 @@ TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 #endif
 	}
 TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
-	Mod_Init();
+	Mod_Init(false);
 
 //	host_hunklevel = Hunk_LowMark();
 
@@ -2020,10 +2022,6 @@ qbyte *R_MarkLeaves_Q1 (void)
 	return vis;
 }
 
-
-mplane_t	frustum[FRUSTUMPLANES];
-
-
 /*
 =================
 R_CullBox
@@ -2033,10 +2031,15 @@ Returns true if the box is completely outside the frustom
 */
 qboolean R_CullBox (vec3_t mins, vec3_t maxs)
 {
+	//this isn't very precise.
+	//checking each plane individually can be problematic
+	//if you have a large object behind the view, it can cross multiple planes, and be infront of each one at some point, yet should still be outside the view.
+	//this is quite noticable with terrain where the potential height of a section is essentually infinite.
+	//note that this is not a concern for spheres, just boxes.
 	int		i;
 
-	for (i=0 ; i<FRUSTUMPLANES ; i++)
-		if (BOX_ON_PLANE_SIDE (mins, maxs, &frustum[i]) == 2)
+	for (i = 0; i < r_refdef.frustum_numplanes; i++)
+		if (BOX_ON_PLANE_SIDE (mins, maxs, &r_refdef.frustum[i]) == 2)
 			return true;
 	return false;
 }
@@ -2047,9 +2050,9 @@ qboolean R_CullSphere (vec3_t org, float radius)
 	int		i;
 	float d;
 
-	for (i=0 ; i<FRUSTUMPLANES ; i++)
+	for (i = 0; i < r_refdef.frustum_numplanes; i++)
 	{
-		d = DotProduct(frustum[i].normal, org)-frustum[i].dist;
+		d = DotProduct(r_refdef.frustum[i].normal, org)-r_refdef.frustum[i].dist;
 		if (d <= -radius)
 			return true;
 	}
@@ -2157,38 +2160,55 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 	{
 		if (i & 1)
 		{
-			frustum[i].normal[0]	= mvp[3] + mvp[0+i/2];
-			frustum[i].normal[1]	= mvp[7] + mvp[4+i/2];
-			frustum[i].normal[2]	= mvp[11] + mvp[8+i/2];
-			frustum[i].dist			= mvp[15] + mvp[12+i/2];
+			r_refdef.frustum[i].normal[0]	= mvp[3] + mvp[0+i/2];
+			r_refdef.frustum[i].normal[1]	= mvp[7] + mvp[4+i/2];
+			r_refdef.frustum[i].normal[2]	= mvp[11] + mvp[8+i/2];
+			r_refdef.frustum[i].dist		= mvp[15] + mvp[12+i/2];
 		}
 		else
 		{
-			frustum[i].normal[0]	= mvp[3] - mvp[0+i/2];
-			frustum[i].normal[1]	= mvp[7] - mvp[4+i/2];
-			frustum[i].normal[2]	= mvp[11] - mvp[8+i/2];
-			frustum[i].dist			= mvp[15] - mvp[12+i/2];
+			r_refdef.frustum[i].normal[0]	= mvp[3] - mvp[0+i/2];
+			r_refdef.frustum[i].normal[1]	= mvp[7] - mvp[4+i/2];
+			r_refdef.frustum[i].normal[2]	= mvp[11] - mvp[8+i/2];
+			r_refdef.frustum[i].dist		= mvp[15] - mvp[12+i/2];
 		}
 
-		scale = 1/sqrt(DotProduct(frustum[i].normal, frustum[i].normal));
-		frustum[i].normal[0] *= scale;
-		frustum[i].normal[1] *= scale;
-		frustum[i].normal[2] *= scale;
-		frustum[i].dist	*= -scale;
+		scale = 1/sqrt(DotProduct(r_refdef.frustum[i].normal, r_refdef.frustum[i].normal));
+		r_refdef.frustum[i].normal[0]	*= scale;
+		r_refdef.frustum[i].normal[1]	*= scale;
+		r_refdef.frustum[i].normal[2]	*= scale;
+		r_refdef.frustum[i].dist		*= -scale;
 
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
+		r_refdef.frustum[i].type = PLANE_ANYZ;
+		r_refdef.frustum[i].signbits = SignbitsForPlane (&r_refdef.frustum[i]);
 	}
+
+	r_refdef.frustum_numplanes = 4;
 
 	if (r_refdef.recurse)
 		return;
 
-#if FRUSTUMPLANES > 4
+	r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = mvp[3] - mvp[2];
+	r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = mvp[7] - mvp[6];
+	r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] = mvp[11] - mvp[10];
+	r_refdef.frustum[r_refdef.frustum_numplanes].dist      = mvp[15] - mvp[14];
+
+	scale = 1/sqrt(DotProduct(r_refdef.frustum[r_refdef.frustum_numplanes].normal, r_refdef.frustum[r_refdef.frustum_numplanes].normal));
+	r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] *= scale;
+	r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] *= scale;
+	r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] *= scale;
+	r_refdef.frustum[r_refdef.frustum_numplanes].dist *= -scale;
+
+	r_refdef.frustum[r_refdef.frustum_numplanes].type      = PLANE_ANYZ;
+	r_refdef.frustum[r_refdef.frustum_numplanes].signbits  = SignbitsForPlane (&r_refdef.frustum[4]);
+
+	r_refdef.frustum_numplanes++;
+
 	//do far plane
 	//fog will not logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
 	if (r_refdef.gfog_rgbd[3] 
 #ifdef TERRAIN
-	&& cl.worldmodel && cl.worldmodel->terrain
+	&& cl.worldmodel && cl.worldmodel->type == mod_heightmap
 #else
 	&& 0
 #endif
@@ -2217,38 +2237,22 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 			culldist = culldist / (-r_refdef.gfog_rgbd[3]);
 		//anything drawn beyond this point is fully obscured by fog
 
-		frustum[4].normal[0] = mvp[3] - mvp[2];
-		frustum[4].normal[1] = mvp[7] - mvp[6];
-		frustum[4].normal[2] = mvp[11] - mvp[10];
-		frustum[4].dist      = mvp[15] - mvp[14];
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = mvp[3] - mvp[2];
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = mvp[7] - mvp[6];
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] = mvp[11] - mvp[10];
+		r_refdef.frustum[r_refdef.frustum_numplanes].dist      = mvp[15] - mvp[14];
 
-		scale = 1/sqrt(DotProduct(frustum[4].normal, frustum[4].normal));
-		frustum[4].normal[0] *= scale;
-		frustum[4].normal[1] *= scale;
-		frustum[4].normal[2] *= scale;
-//		frustum[4].dist *= scale;
-		frustum[4].dist	= DotProduct(r_origin, frustum[4].normal)-culldist;
+		scale = 1/sqrt(DotProduct(r_refdef.frustum[r_refdef.frustum_numplanes].normal, r_refdef.frustum[r_refdef.frustum_numplanes].normal));
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] *= scale;
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] *= scale;
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] *= scale;
+//		r_refdef.frustum[r_refdef.frustum_numplanes].dist *= scale;
+		r_refdef.frustum[r_refdef.frustum_numplanes].dist	= DotProduct(r_origin, r_refdef.frustum[r_refdef.frustum_numplanes].normal)-culldist;
 
-		frustum[4].type      = PLANE_ANYZ;
-		frustum[4].signbits  = SignbitsForPlane (&frustum[4]);
+		r_refdef.frustum[r_refdef.frustum_numplanes].type      = PLANE_ANYZ;
+		r_refdef.frustum[r_refdef.frustum_numplanes].signbits  = SignbitsForPlane (&r_refdef.frustum[r_refdef.frustum_numplanes]);
+		r_refdef.frustum_numplanes++;
 	}
-	else
-	{	
-		frustum[4].normal[0] = mvp[3] - mvp[2];
-		frustum[4].normal[1] = mvp[7] - mvp[6];
-		frustum[4].normal[2] = mvp[11] - mvp[10];
-		frustum[4].dist      = mvp[15] - mvp[14];
-
-		scale = 1/sqrt(DotProduct(frustum[4].normal, frustum[4].normal));
-		frustum[4].normal[0] *= scale;
-		frustum[4].normal[1] *= scale;
-		frustum[4].normal[2] *= scale;
-		frustum[4].dist *= -scale;
-
-		frustum[4].type      = PLANE_ANYZ;
-		frustum[4].signbits  = SignbitsForPlane (&frustum[4]);
-	}
-#endif
 }
 #else
 void R_SetFrustum (void)

@@ -769,7 +769,8 @@ typedef struct
 
 	struct ftenet_connections_s *sockets;
 
-	client_t	clients[MAX_CLIENTS];
+	int			allocated_client_slots;
+	client_t	*clients;
 	int			serverflags;		// episode completion information
 
 	double		last_heartbeat;

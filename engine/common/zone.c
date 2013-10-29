@@ -592,6 +592,7 @@ void Cache_Flush(void)
 #ifndef SERVERONLY
 	S_Purge(false);
 #endif
+	Mod_Purge(MP_FLUSH);
 }
 
 static void Hunk_Print_f (void)

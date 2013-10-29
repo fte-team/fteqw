@@ -39,14 +39,11 @@ char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
-qboolean Mod_LoadSpriteModel (model_t *mod, void *buffer);
-qboolean Mod_LoadSprite2Model (model_t *mod, void *buffer);
-qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
-qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
-#endif
-#ifdef HALFLIFEMODELS
-qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
 model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 
@@ -58,7 +55,7 @@ qboolean Mod_LoadDoomLevel(model_t *mod);
 void Mod_LoadDoomSprite (model_t *mod);
 #endif
 
-#define	MAX_MOD_KNOWN	2048
+#define	MAX_MOD_KNOWN	8192
 model_t	mod_known[MAX_MOD_KNOWN];
 int		mod_numknown;
 
@@ -438,33 +435,51 @@ void Mod_ClearAll (void)
 	mod_datasequence++;
 }
 
-//called after all new content has been precached
-void Mod_Flush(qboolean force)
+//can be called in one of two ways.
+//force=true: explicit flush. everything goes, even if its still in use.
+//force=false: map change. lots of stuff is no longer in use and can be freely flushed.
+//certain models cannot be safely flushed while still in use. such models will not be flushed even if forced (they may still be partially flushed).
+void Mod_Purge(enum mod_purge_e ptype)
 {
 	int		i;
 	model_t	*mod;
+	qboolean unused;
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
 		if (mod->needload)
 			continue;
 
+		unused = mod->datasequence != mod_datasequence;
+
 		//this model isn't active any more.
-		if (mod->datasequence != mod_datasequence || force)
+		if (unused || ptype != MP_MAPCHANGED)
 		{
-			Con_DPrintf("model \"%s\" no longer needed\n", mod->name);
+			if (unused)
+				Con_DPrintf("model \"%s\" no longer needed\n", mod->name);
+
+#ifdef TERRAIN
+			//we can safely flush all terrain sections at any time
+			if (mod->terrain && ptype != MP_MAPCHANGED)
+				Terr_PurgeTerrainModel(mod, false, true);
+#endif
+
 			//purge any vbos
 			if (mod->type == mod_brush)
 			{
+				//brush models cannot be safely flushed.
+				if (!unused && ptype != MP_RESET)
+					continue;
 				Surf_Clear(mod);
 			}
 
 #ifdef TERRAIN
-			//nuke terrain buffers
-			if (mod->terrain)
+			if (mod->type == mod_brush || mod->type == mod_heightmap)
 			{
-				Terr_PurgeTerrainModel(mod, false, false);
-				mod->terrain = NULL;
+				//heightmap/terrain models cannot be safely flushed (brush models might have terrain embedded).
+				if (!unused && ptype != MP_RESET)
+					continue;
+				Terr_FreeModel(mod);
 			}
 #endif
 
@@ -481,28 +496,71 @@ void Mod_Flush(qboolean force)
 Mod_Init
 ===============
 */
-void Mod_Init (void)
+void Mod_Init (qboolean initial)
 {
-	Mod_ClearAll();	//shouldn't be needed
-	Mod_Flush(true);//shouldn't be needed
-	mod_numknown = 0;
-	Q1BSP_Init();
+	if (!initial)
+	{
+		Mod_ClearAll();	//shouldn't be needed
+		Mod_Purge(MP_RESET);//shouldn't be needed
+		mod_numknown = 0;
+		Q1BSP_Init();
 
-	Cmd_AddCommand("mod_memlist", Mod_MemList_f);
-	Cmd_AddCommand("mod_batchlist", Mod_BatchList_f);
-	Cmd_AddCommand("mod_texturelist", Mod_TextureList_f);
-	Cmd_AddCommand("mod_usetexture", Mod_BlockTextureColour_f);
+		Cmd_AddCommand("mod_memlist", Mod_MemList_f);
+		Cmd_AddCommand("mod_batchlist", Mod_BatchList_f);
+		Cmd_AddCommand("mod_texturelist", Mod_TextureList_f);
+		Cmd_AddCommand("mod_usetexture", Mod_BlockTextureColour_f);
+	}
+
+	if (initial)
+	{
+		Alias_Register();
+
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 Sprite (spr)",			IDSPRITEHEADER,							Mod_LoadSpriteModel);
+#ifdef SP2MODELS
+		Mod_RegisterModelFormatMagic(NULL, "Quake2 Sprite (sp2)",			IDSPRITE2HEADER,						Mod_LoadSprite2Model);
+#endif
+
+		//q2/q3bsps
+#ifdef Q2BSPS
+		Mod_RegisterModelFormatMagic(NULL, "Quake2/Quake2 Map (bsp)",		IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#endif
+#ifdef Q3BSPS
+		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
+#endif
+
+		//doom maps
+#ifdef MAP_DOOM
+		Mod_RegisterModelFormatMagic(NULL, "Doom IWad Map",					(('D'<<24)+('A'<<16)+('W'<<8)+'I'),		Mod_LoadDoomLevel);
+		Mod_RegisterModelFormatMagic(NULL, "Doom PWad Map",					(('D'<<24)+('A'<<16)+('W'<<8)+'P'),		Mod_LoadDoomLevel);
+#endif
+
+		//q1-based formats
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 2PSB Map(bsp)",			BSPVERSION_LONG1,						Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 BSP2 Map(bsp)",			BSPVERSION_LONG2,						Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Half-Life Map (bsp)",			30,										Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 Map (bsp)",				29,										Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 Prerelease Map (bsp)",	28,										Mod_LoadBrushModel);
+	}
 }
 
-void Mod_Shutdown (void)
+void Mod_Shutdown (qboolean final)
 {
-	Mod_ClearAll();
-	Mod_Flush(true);
-	mod_numknown = 0;
+	if (final)
+	{
+		Mod_UnRegisterAllModelFormats(NULL);
+	}
+	else
+	{
+		Mod_ClearAll();
+		Mod_Purge(MP_RESET);
+		mod_numknown = 0;
 
-	Cmd_RemoveCommand("mod_batchlist");
-	Cmd_RemoveCommand("mod_texturelist");
-	Cmd_RemoveCommand("mod_usetexture");
+		Cmd_RemoveCommand("mod_memlist");
+		Cmd_RemoveCommand("mod_batchlist");
+		Cmd_RemoveCommand("mod_texturelist");
+		Cmd_RemoveCommand("mod_usetexture");
+	}
 }
 
 /*
@@ -604,6 +662,9 @@ model_t *Mod_FindName (char *name)
 		mod->particletrail = -1;
 	}
 
+	if (mod->needload == 2)
+		mod->needload = true;
+
 	//mark it as active, so it doesn't get flushed prematurely
 	mod->datasequence = mod_datasequence;
 	return mod;
@@ -630,6 +691,93 @@ void Mod_TouchModel (char *name)
 	}
 }
 
+static struct
+{
+	void *module;
+	char *formatname;
+	char *ident;
+	unsigned int magic;
+	qboolean (QDECL *load) (model_t *mod, void *buffer);
+} modelloaders[64];
+
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer))
+{
+	int i, free = -1;
+	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
+	{
+		if (modelloaders[i].ident && !strcmp(modelloaders[i].ident, magictext))
+		{
+			free = i;
+			break;	//extension match always replaces
+		}
+		else if (!modelloaders[i].load && free < 0)
+			free = i;
+	}
+	if (free < 0)
+		return 0;
+
+	modelloaders[free].module = module;
+	modelloaders[free].formatname = Z_StrDup(formatname);
+	modelloaders[free].magic = 0;
+	modelloaders[free].ident = Z_StrDup(magictext);
+	modelloaders[free].load = load;
+
+	return free+1;
+}
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer))
+{
+	int i, free = -1;
+	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
+	{
+		if (modelloaders[i].magic && modelloaders[i].magic == magic)
+		{
+			free = i;
+			break;	//extension match always replaces
+		}
+		else if (!modelloaders[i].load && free < 0)
+			free = i;
+	}
+	if (free < 0)
+		return 0;
+
+	modelloaders[free].module = module;
+	if (modelloaders[free].formatname)
+		Z_Free(modelloaders[free].formatname);
+	modelloaders[free].formatname = Z_StrDup(formatname);
+	modelloaders[free].magic = magic;
+	modelloaders[free].ident = NULL;
+	modelloaders[free].load = load;
+
+	return free+1;
+}
+
+void Mod_UnRegisterModelFormat(int idx)
+{
+	idx--;
+	if ((unsigned int)(idx) >= sizeof(modelloaders)/sizeof(modelloaders[0]))
+		return;
+
+	Z_Free(modelloaders[idx].ident);
+	modelloaders[idx].ident = NULL;
+	Z_Free(modelloaders[idx].formatname);
+	modelloaders[idx].formatname = NULL;
+	modelloaders[idx].magic = 0;
+	modelloaders[idx].load = NULL;
+	modelloaders[idx].module = NULL;
+
+	//FS_Restart will be needed
+}
+
+void Mod_UnRegisterAllModelFormats(void *module)
+{
+	int i;
+	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
+	{
+		if (modelloaders[i].module == module)
+			Mod_UnRegisterModelFormat(i+1);
+	}
+}
+
 /*
 ==================
 Mod_LoadModel
@@ -644,6 +792,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	char mdlbase[MAX_QPATH];
 	char *replstr;
 	qboolean doomsprite = false;
+	unsigned int magic, i;
 
 	char *ext;
 
@@ -684,6 +833,9 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 		mod->dollinfo = NULL;
 	}
 #endif
+
+	if (mod->needload == 2)
+		return mod;
 
 //
 // load the file
@@ -783,141 +935,40 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 //
 		Mod_DoCRC(mod, (char*)buf, com_filesize);
 
-		switch (LittleLong(*(unsigned *)buf))
+		magic = LittleLong(*(unsigned *)buf);
+		for(i = 0; i < sizeof(modelloaders) / sizeof(modelloaders[0]); i++)
 		{
-//The binary 3d mesh model formats
-		case RAPOLYHEADER:
-		case IDPOLYHEADER:
-			TRACE(("Mod_LoadModel: Q1 mdl\n"));
-			if (!Mod_LoadQ1Model(mod, buf))
+			if (modelloaders[i].load && modelloaders[i].magic == magic && !modelloaders[i].ident)
+				break;
+		}
+		if (i < sizeof(modelloaders) / sizeof(modelloaders[0]))
+		{
+			if (!modelloaders[i].load(mod, buf))
 				continue;
-			break;
-
-#ifdef MD2MODELS
-		case MD2IDALIASHEADER:
-			TRACE(("Mod_LoadModel: md2\n"));
-			if (!Mod_LoadQ2Model(mod, buf))
-				continue;
-			break;
-#endif
-
-#ifdef MD3MODELS
-		case MD3_IDENT:
-			TRACE(("Mod_LoadModel: md3\n"));
-			if (!Mod_LoadQ3Model (mod, buf))
-				continue;
-			Surf_BuildModelLightmaps(mod);
-			break;
-#endif
-
-#ifdef HALFLIFEMODELS
-		case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
-			TRACE(("Mod_LoadModel: HL mdl\n"));
-			if (!Mod_LoadHLModel (mod, buf))
-				continue;
-			break;
-#endif
-
-//Binary skeletal model formats
-#ifdef ZYMOTICMODELS
-		case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-			TRACE(("Mod_LoadModel: zym\n"));
-			if (!Mod_LoadZymoticModel(mod, buf))
-				continue;
-			break;
-#endif
-#ifdef DPMMODELS
-		case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-			TRACE(("Mod_LoadModel: dpm\n"));
-			if (!Mod_LoadDarkPlacesModel(mod, buf))
-				continue;
-			break;
-#endif
-
-#ifdef PSKMODELS
-		case ('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24):
-			TRACE(("Mod_LoadModel: psk\n"));
-			if (!Mod_LoadPSKModel (mod, buf))
-				continue;
-			break;
-#endif
-
-#ifdef INTERQUAKEMODELS
-		case ('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24):
-			TRACE(("Mod_LoadModel: IQM\n"));
-			if (!Mod_LoadInterQuakeModel (mod, buf))
-				continue;
-			break;
-#endif
-
-//Binary Sprites
-#ifdef SP2MODELS
-		case IDSPRITE2HEADER:
-			TRACE(("Mod_LoadModel: q2 sp2\n"));
-			if (!Mod_LoadSprite2Model (mod, buf))
-				continue;
-			break;
-#endif
-
-		case IDSPRITEHEADER:
-			TRACE(("Mod_LoadModel: q1 spr\n"));
-			if (!Mod_LoadSpriteModel (mod, buf))
-				continue;
-			break;
-
-
-	//Binary Map formats
-#if defined(Q2BSPS) || defined(Q3BSPS)
-		case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
-		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
-		case IDBSPHEADER:	//looks like id switched to have proper ids
-			TRACE(("Mod_LoadModel: q2/q3/raven/fusion bsp\n"));
-			if (!Mod_LoadQ2BrushModel (mod, buf))
-				continue;
-			Surf_BuildModelLightmaps(mod);
-			break;
-#endif
-#ifdef MAP_DOOM
-		case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
-		case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
-			TRACE(("Mod_LoadModel: doom iwad/pwad map\n"));
-			if (!Mod_LoadDoomLevel (mod))
-				continue;
-			break;
-#endif
-
-		case BSPVERSION_LONG1:
-			Con_Printf("WARNING: %s is in a deprecated format\n", mod->name);
-		case 30:	//hl
-		case 29:	//q1
-		case 28:	//prerel
-		case BSPVERSION_LONG2:
-			TRACE(("Mod_LoadModel: hl/q1 bsp\n"));
-			if (!Mod_LoadBrushModel (mod, buf))
-				continue;
-			Surf_BuildModelLightmaps(mod);
-			break;
-
-	//Text based misc types.
-		default:
-			//check for text based headers
+			if (mod->type == mod_brush)
+				Surf_BuildModelLightmaps(mod);
+		}
+		else
+		{
 			COM_Parse((char*)buf);
-#ifdef MD5MODELS
-			if (!strcmp(com_token, "MD5Version"))	//doom3 format, text based, skeletal
+			for(i = 0; i < sizeof(modelloaders) / sizeof(modelloaders[0]); i++)
 			{
-				TRACE(("Mod_LoadModel: md5mesh/md5anim\n"));
-				if (!Mod_LoadMD5MeshModel (mod, buf))
-					continue;
-				break;
+				if (modelloaders[i].load && modelloaders[i].ident && !strcmp(modelloaders[i].ident, com_token))
+					break;
 			}
-			if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
+			if (i < sizeof(modelloaders) / sizeof(modelloaders[0]))
 			{
-				TRACE(("Mod_LoadModel: blurgh\n"));
-				if (!Mod_LoadCompositeAnim (mod, buf))
+				if (!modelloaders[i].load(mod, buf))
 					continue;
-				break;
 			}
-#endif
+			else
+			{
+				Con_Printf(CON_WARNING "Unrecognised model format 0x%x (%c%c%c%c)\n", LittleLong(*(unsigned *)buf), ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
+				continue;
+			}
+		}
+
+/*
 #ifdef MAP_PROC
 			if (!strcmp(com_token, "CM"))	//doom3 map.
 			{
@@ -927,19 +978,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 				break;
 			}
 #endif
-#ifdef TERRAIN
-			if (!strcmp(com_token, "terrain"))	//custom format, text based.
-			{
-				TRACE(("Mod_LoadModel: terrain\n"));
-				if (!Terr_LoadTerrainModel(mod, buf))
-					continue;
-				break;
-			}
-#endif
-
-			Con_Printf(CON_WARNING "Unrecognised model format 0x%x (%c%c%c%c)\n", LittleLong(*(unsigned *)buf), ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
-			continue;
-		}
+*/
 
 		P_LoadedModel(mod);
 		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
@@ -974,7 +1013,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	mod->maxs[0] = 16;
 	mod->maxs[1] = 16;
 	mod->maxs[2] = 16;
-	mod->needload = true;
+	mod->needload = 2;
 	mod->engineflags = 0;
 	P_LoadedModel(mod);
 	return mod;
@@ -4007,7 +4046,7 @@ void Mod_FixupMinsMaxs(void)
 Mod_LoadBrushModel
 =================
 */
-qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer)
 {
 	int			i, j;
 	dheader_t	*header;
@@ -4275,7 +4314,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 TRACE(("LoadBrushModel %i\n", __LINE__));
 
 #ifdef TERRAIN
-	lm->terrain = Mod_LoadTerrainInfo(lm, loadname);
+	lm->terrain = Mod_LoadTerrainInfo(lm, loadname, false);
 #endif
 	return true;
 }
@@ -4445,7 +4484,7 @@ static void * Mod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int fra
 Mod_LoadSpriteModel
 =================
 */
-qboolean Mod_LoadSpriteModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -4569,7 +4608,7 @@ qboolean Mod_LoadSpriteModel (model_t *mod, void *buffer)
 }
 
 #ifdef SP2MODELS
-qboolean Mod_LoadSprite2Model (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;

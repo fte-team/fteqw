@@ -3809,6 +3809,7 @@ void COM_ParsePlusSets (void)
 	}
 }
 
+void Cvar_DefaultFree(char *str);
 /*
 ================
 COM_CheckRegistered
@@ -3837,8 +3838,14 @@ void COM_CheckRegistered (void)
 
 	newdef = static_registered?"1":"0";
 
-	if (strcmp(registered.defaultstr, newdef))
+	if (strcmp(registered.enginevalue, newdef))
 	{
+		if (registered.defaultstr != registered.enginevalue)
+		{
+			Cvar_DefaultFree(registered.defaultstr);
+			registered.defaultstr = NULL;
+		}
+		registered.enginevalue = newdef;
 		registered.defaultstr = newdef;
 		Cvar_ForceSet(&registered, newdef);
 		if (static_registered)
@@ -4002,7 +4009,9 @@ void COM_Version_f (void)
 	Con_Printf("Compiled with Cygwin\n");
 #endif
 
-#ifdef __GNUC__
+#ifdef __clang__
+	Con_Printf("Compiled with clang version: %i.%i.%i (%s)\n",__clang_major__, __clang_minor__, __clang_patchlevel__, __VERSION__);
+#elif defined(__GNUC__)
 	Con_Printf("Compiled with GCC version: %i.%i.%i (%s)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
 
 	#ifdef __OPTIMIZE__
@@ -4225,6 +4234,7 @@ void COM_Init (void)
 
 
 
+	nullentitystate.hexen2flags = SCALE_ORIGIN_ORIGIN;
 	nullentitystate.colormod[0] = 32;
 	nullentitystate.colormod[1] = 32;
 	nullentitystate.colormod[2] = 32;

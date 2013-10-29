@@ -110,9 +110,16 @@ void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaul
 
 #endif
 
-extern void	Mod_Init							(void);
+//mod_purge flags
+enum mod_purge_e
+{
+	MP_MAPCHANGED,	//new map. old stuff no longer needed
+	MP_FLUSH,		//user flush command. anything flushable goes.
+	MP_RESET		//*everything* is destroyed. renderer is going down.
+};
+
 extern void	Mod_ClearAll						(void);
-extern void Mod_Flush							(qboolean force);
+extern void Mod_Purge							(enum mod_purge_e type);
 extern struct model_s *Mod_ForName				(char *name, qboolean crash);
 extern struct model_s *Mod_FindName				(char *name);
 extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
@@ -138,7 +145,7 @@ char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(float x, float y, const void *str);
 void Draw_AltFunString(float x, float y, const void *str);
-void Draw_FunStringWidth(float x, float y, const void *str, int width);
+void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean rightalign, qboolean highlight);
 
 extern int r_regsequence;
 

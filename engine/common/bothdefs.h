@@ -236,7 +236,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
 		#define R_XFLIP			//allow view to be flipped horizontally
 		#define TEXTEDITOR
-		#define DDS				//a sort of image file format.
+		#define IMAGEFMT_DDS	//a sort of image file format.
+		#define IMAGEFMT_BLP	//a sort of image file format.
 #ifndef RTLIGHTS
 		#define RTLIGHTS		//realtime lighting
 #endif
@@ -403,7 +404,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef SERVERONLY
 	// undefine things not supported yet for D3D
 	#if defined(D3DQUAKE) && !defined(GLQUAKE)
-		#undef DDS // this is dumb
+		#undef IMAGEFMT_DDS // this is dumb
+		#undef IMAGEFMT_BLP // this is dumb
 	#endif
 
 #endif

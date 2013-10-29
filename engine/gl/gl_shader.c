@@ -218,7 +218,9 @@ static enum {
 	SPM_DOOM3,
 } shaderparsemode;
 
-shader_t	*r_shaders;
+unsigned int r_numshaders;
+unsigned int r_maxshaders;
+shader_t	**r_shaders;
 static hashtable_t shader_active_hash;
 void *shader_active_hash_mem;
 
@@ -1866,21 +1868,10 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 #endif
 }
 
-static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
+static char *Shader_ParseBody(char *debugname, char **ptr)
 {
-	/*accepts:
-	program
-	{
-		BLAH
-	}
-	where BLAH is both vertex+frag with #ifdefs
-	or
-	program fname
-	on one line.
-	*/
-	char *programbody;
+	char *body;
 	char *start, *end;
-	char *hash;
 
 	end = *ptr;
 	while (*end == ' ' || *end == '\t' || *end == '\r')
@@ -1893,7 +1884,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 			end++;
 		if (*end != '{')
 		{
-			Con_Printf("shader \"%s\" missing program string\n", shader->name);
+			Con_Printf("shader \"%s\" missing program string\n", debugname);
 		}
 		else
 		{
@@ -1910,22 +1901,45 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 				else if (*end == '{')
 					count++;
 			}
-			programbody = BZ_Malloc(end - start + 1);
-			memcpy(programbody, start, end-start);
-			programbody[end-start] = 0;
+			body = BZ_Malloc(end - start + 1);
+			memcpy(body, start, end-start);
+			body[end-start] = 0;
 			*ptr = end+1;/*skip over it all*/
 
-			shader->prog = malloc(sizeof(*shader->prog));
-			memset(shader->prog, 0, sizeof(*shader->prog));
-			shader->prog->refs = 1;
-			if (!Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0))
-			{
-				free(shader->prog);
-				shader->prog = NULL;
-			}
-
-			BZ_Free(programbody);
+			return body;
 		}
+	}
+	return NULL;
+}
+
+static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
+{
+	/*accepts:
+	program
+	{
+		BLAH
+	}
+	where BLAH is both vertex+frag with #ifdefs
+	or
+	program fname
+	on one line.
+	*/
+	char *programbody;
+	char *hash;
+
+	programbody = Shader_ParseBody(shader->name, ptr);
+	if (programbody)
+	{
+		shader->prog = malloc(sizeof(*shader->prog));
+		memset(shader->prog, 0, sizeof(*shader->prog));
+		shader->prog->refs = 1;
+		if (!Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0))
+		{
+			free(shader->prog);
+			shader->prog = NULL;
+		}
+
+		BZ_Free(programbody);
 		return;
 	}
 
@@ -2129,6 +2143,87 @@ static void Shader_DP_Camera(shader_t *shader, shaderpass_t *pass, char **ptr)
 	shader->sort = SHADER_SORT_PORTAL;
 }
 
+static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	int mode;
+	char tokencopy[1024];
+	char *token;
+	char *embed = NULL;
+	token = Shader_ParseString(ptr);
+	if (!Q_stricmp(token, "rtlight"))
+		mode = -1;	//all light types
+	else if (!Q_stricmp(token, "rtlight_only"))
+		mode = LSHADER_STANDARD;
+	else if (!Q_stricmp(token, "rtlight_smap"))
+		mode = LSHADER_SMAP;
+	else if (!Q_stricmp(token, "rtlight_spot"))
+		mode = LSHADER_SPOT;
+	else if (!Q_stricmp(token, "rtlight_cube"))
+		mode = LSHADER_CUBE;
+	else if (!Q_stricmp(token, "rtlight_cube_smap"))
+		mode = LSHADER_CUBE|LSHADER_SMAP;
+	else if (!Q_stricmp(token, "rtlight_cube_spot"))		//doesn't make sense.
+		mode = LSHADER_CUBE|LSHADER_SPOT;
+	else if (!Q_stricmp(token, "rtlight_spot_smap"))
+		mode = LSHADER_SMAP|LSHADER_SPOT;
+	else if (!Q_stricmp(token, "rtlight_cube_spot_smap"))	//doesn't make sense.
+		mode = LSHADER_CUBE|LSHADER_SPOT|LSHADER_SMAP;
+	else if (!Q_stricmp(token, "crepuscular"))
+		mode = bemoverride_crepuscular;
+	else if (!Q_stricmp(token, "depthonly"))
+		mode = bemoverride_depthonly;
+	else if (!Q_stricmp(token, "depthdark"))
+		mode = bemoverride_depthdark;
+	else if (!Q_stricmp(token, "prelight"))
+		mode = bemoverride_prelight;
+	else if (!Q_stricmp(token, "fog"))
+		mode = bemoverride_fog;
+	else
+	{
+		Con_DPrintf(CON_WARNING "Shader %s specifies unknown bemode %s.\n", shader->name, token);
+		return;	//not supported.
+	}
+
+	embed = Shader_ParseBody(shader->name, ptr);
+	if (embed)
+	{
+		int l = strlen(embed) + 6;
+		char *b = BZ_Malloc(l);
+		Q_snprintfz(b, l, "{\n%s\n}\n", embed);
+		BZ_Free(embed);
+		embed = b;
+		//generate a unique name
+		Q_snprintfz(tokencopy, sizeof(tokencopy), "%s_mode%i", shader->name, mode);
+	}
+	else
+	{
+		token = Shader_ParseString(ptr);
+		Q_strncpyz(tokencopy, token, sizeof(tokencopy));	//make sure things don't go squiff.
+	}
+
+	if (mode == -1)
+	{
+		//shorthand for rtlights
+		for (mode = 0; mode < LSHADER_MODES; mode++)
+		{
+			if ((mode & LSHADER_CUBE) && (mode & LSHADER_SPOT))
+				continue;
+			shader->bemoverrides[mode] = R_RegisterCustom(va("%s%s%s%s", 
+																tokencopy,
+																(mode & LSHADER_SMAP)?"#PCF":"",
+																(mode & LSHADER_SPOT)?"#SPOT":"",
+																(mode & LSHADER_CUBE)?"#CUBE":"")
+														, shader->usageflags, embed?Shader_DefaultScript:NULL, embed);
+		}
+	}
+	else
+	{
+		shader->bemoverrides[mode] = R_RegisterCustom(tokencopy, shader->usageflags, embed?Shader_DefaultScript:NULL, embed);
+	}
+	if (embed)
+		BZ_Free(embed);
+}
+
 static shaderkey_t shaderkeys[] =
 {
 	{"cull",			Shader_Cull},
@@ -2141,13 +2236,16 @@ static shaderkey_t shaderkeys[] =
 	{"sort",			Shader_Sort},
 	{"deformvertexes",	Shader_DeformVertexes},
 	{"portal",			Shader_Portal},
-	{"lpp_light",		Shader_Prelight},
 	{"entitymergable",	Shader_EntityMergable},
 
+	//fte extensions
+	{"lpp_light",		Shader_Prelight},
 	{"glslprogram",		Shader_GLSLProgramName},
-	{"program",			Shader_ProgramName},	//legacy
+	{"program",			Shader_ProgramName},	//gl or d3d
 	{"hlslprogram",		Shader_HLSLProgramName},	//for d3d
-	{"param",			Shader_ProgramParam},
+	{"param",			Shader_ProgramParam},	//legacy
+
+	{"bemode",			Shader_BEMode},
 
 	//dp compat
 	{"dp_camera",		Shader_DP_Camera},
@@ -3055,7 +3153,9 @@ qboolean Shader_Init (void)
 
 	if (!r_shaders)
 	{
-		r_shaders = calloc(MAX_SHADERS, sizeof(shader_t));
+		r_numshaders = 0;
+		r_maxshaders = 256;
+		r_shaders = calloc(r_maxshaders, sizeof(*r_shaders));
 
 		shader_hash = calloc (HASH_SIZE, sizeof(*shader_hash));
 
@@ -3216,15 +3316,17 @@ void Shader_Shutdown (void)
 	shader_t *shader;
 	shadercache_t *cache, *cache_next;
 
-	shader = r_shaders;
 	if (!r_shaders)
 		return;	/*nothing needs freeing yet*/
-	for (i = 0; i < MAX_SHADERS; i++, shader++)
+	for (i = 0; i < r_numshaders; i++)
 	{
-		if (!shader->uses)
+		shader = r_shaders[i];
+		if (!shader || !shader->uses)
 			continue;
 
 		Shader_Free(shader);
+		Z_Free(r_shaders[i]);
+		r_shaders[i] = NULL;
 	}
 
 	for (i = 0; i < HASH_SIZE; i++)
@@ -3240,6 +3342,9 @@ void Shader_Shutdown (void)
 	}
 
 	Shader_FlushGenerics();
+
+	r_maxshaders = 0;
+	r_numshaders = 0;
 
 	free(r_shaders);
 	r_shaders = NULL;
@@ -4977,18 +5082,21 @@ void R_UnloadShader(shader_t *shader)
 	if (shader->uses-- == 1)
 		Shader_Free(shader);
 }
-static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
+static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
 {
 	int i, f = -1;
 	char shortname[MAX_QPATH];
+	char *hash;
 	shader_t *s;
 
 	if (!*name)
 		name = "gfx/white";
 
-	if (strchr(name, '#'))
+	hash = strchr(name, '#');
+	if (hash)	//don't strip anything.
 	{
 		Q_strncpyz(shortname, name, sizeof(shortname));
+		hash = shortname+(hash-name);
 	}
 	else
 	{
@@ -5007,17 +5115,16 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 		//q3 has a separate (internal) shader for every lightmap.
 		if (!((s->usageflags ^ usageflags) & SUF_LIGHTMAP))
 		{
-			i = s - r_shaders;
-			r_shaders[i].uses++;
-			return i;
+			s->uses++;
+			return s;
 		}
 		s = Hash_GetNext(&shader_active_hash, shortname, s);
 	}
 
 	// not loaded, find a free slot
-	for (i = 0; i < MAX_SHADERS; i++)
+	for (i = 0; i < r_numshaders; i++)
 	{
-		if (!r_shaders[i].uses)
+		if (!r_shaders[i] || !r_shaders[i]->uses)
 		{
 			if ( f == -1 )	// free shader
 			{
@@ -5027,13 +5134,32 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 		}
 	}
 
-	if ( f == -1 )
+	if (f == -1)
 	{
-		Sys_Error( "R_LoadShader: Shader limit exceeded.");
-		return f;
+		shader_t **n;
+		int nm;
+		f = r_numshaders;
+		if (f == r_maxshaders)
+		{
+			nm = r_maxshaders * 2;
+			n = realloc(r_shaders, nm*sizeof(*n));
+			if (!n)
+			{
+				Sys_Error( "R_LoadShader: Shader limit exceeded.");
+				return NULL;
+			}
+			memset(n+r_maxshaders, 0, (nm - r_maxshaders)*sizeof(*n));
+			r_shaders = n;
+			r_maxshaders = nm;
+		}
 	}
 
-	s = &r_shaders[f];
+	s = r_shaders[f];
+	if (!s)
+		s = r_shaders[f] = Z_Malloc(sizeof(*s));
+	s->id = f;
+	if (r_numshaders < f+1)
+		r_numshaders = f+1;
 
 	Q_strncpyz(s->name, shortname, sizeof(s->name));
 	s->usageflags = usageflags;
@@ -5042,6 +5168,10 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 		s->genargs = strdup(genargs);
 	else
 		s->genargs = NULL;
+
+	//now strip off the hash so we find the right shader script
+	if (hash)
+		*hash = 0;
 
 	if (ruleset_allow_shaders.ival)
 	{
@@ -5052,21 +5182,21 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 			{
 				if (Shader_ParseShader(va("%s_gles2", shortname), shortname, s))
 				{
-					return f;
+					return s;
 				}
 			}
 			if (gl_config.glversion >= 3)
 			{
 				if (Shader_ParseShader(va("%s_glsl3", shortname), shortname, s))
 				{
-					return f;
+					return s;
 				}
 			}
 			if (gl_config.arb_shader_objects)
 			{
 				if (Shader_ParseShader(va("%s_glsl", shortname), shortname, s))
 				{
-					return f;
+					return s;
 				}
 			}
 		}
@@ -5077,7 +5207,7 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 			{
 				if (Shader_ParseShader(va("%s_hlsl", shortname), shortname, s))
 				{
-					return f;
+					return s;
 				}
 			}
 		}
@@ -5088,14 +5218,14 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 			{
 				if (Shader_ParseShader(va("%s_hlsl11", shortname), shortname, s))
 				{
-					return f;
+					return s;
 				}
 			}
 		}
 #endif
 		if (Shader_ParseShader(shortname, shortname, s))
 		{
-			return f;
+			return s;
 		}
 	}
 
@@ -5113,13 +5243,13 @@ static int R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defa
 				"}\n");
 		else
 			s->generator(shortname, s, s->genargs);
-		return f;
+		return s;
 	}
 	else
 	{
 		Shader_Free(s);
 	}
-	return -1;
+	return NULL;
 }
 
 void Shader_DoReload(void)
@@ -5147,9 +5277,10 @@ void Shader_DoReload(void)
 	Font_InvalidateColour();
 	Shader_ReloadGenerics();
 
-	for (s = r_shaders, i = 0; i < MAX_SHADERS; i++, s++)
+	for (i = 0; i < r_numshaders; i++)
 	{
-		if (!s->uses)
+		s = r_shaders[i];
+		if (!s || !s->uses)
 			continue;
 
 		strcpy(shortname, s->name);
@@ -5215,6 +5346,7 @@ cin_t *R_ShaderFindCinematic(char *name)
 #else
 	int i;
 	char shortname[MAX_QPATH];
+	shader_t *s;
 
 	if (!r_shaders)
 		return NULL;
@@ -5224,19 +5356,16 @@ cin_t *R_ShaderFindCinematic(char *name)
 	COM_CleanUpPath(shortname);
 
 	//try and find it
-	for (i = 0; i < MAX_SHADERS; i++)
+	for (i = 0; i < r_numshaders; i++)
 	{
-		if (!r_shaders[i].uses)
+		s = r_shaders[i];
+		if (!s || !s->uses)
 			continue;
 
-		if (!Q_stricmp (shortname, r_shaders[i].name) )
-			break;
+		if (!Q_stricmp (shortname, s->name) )
+			return R_ShaderGetCinematic(s);
 	}
-	if (i == MAX_SHADERS)
-		return NULL;
-
-	//found the named shader.
-	return R_ShaderGetCinematic(&r_shaders[i]);
+	return NULL;
 #endif
 }
 
@@ -5248,7 +5377,7 @@ shader_t *R_RegisterPic (char *name)
 	image_width = 64;
 	image_height = 64;
 
-	shader = &r_shaders[R_LoadShader (name, SUF_2D, Shader_Default2D, NULL)];
+	shader = R_LoadShader (name, SUF_2D, Shader_Default2D, NULL);
 
 	/*worth a try*/
 	if (shader->width <= 0)
@@ -5266,22 +5395,22 @@ shader_t *R_RegisterPic (char *name)
 
 shader_t *R_RegisterShader (char *name, unsigned int usageflags, const char *shaderscript)
 {
-	return &r_shaders[R_LoadShader (name, usageflags, Shader_DefaultScript, shaderscript)];
+	return R_LoadShader (name, usageflags, Shader_DefaultScript, shaderscript);
 }
 
 shader_t *R_RegisterShader_Lightmap (char *name)
 {
-	return &r_shaders[R_LoadShader (name, SUF_LIGHTMAP, Shader_DefaultBSPLM, NULL)];
+	return R_LoadShader (name, SUF_LIGHTMAP, Shader_DefaultBSPLM, NULL);
 }
 
 shader_t *R_RegisterShader_Vertex (char *name)
 {
-	return &r_shaders[R_LoadShader (name, 0, Shader_DefaultBSPVertex, NULL)];
+	return R_LoadShader (name, 0, Shader_DefaultBSPVertex, NULL);
 }
 
 shader_t *R_RegisterShader_Flare (char *name)
 {
-	return &r_shaders[R_LoadShader (name, 0, Shader_DefaultBSPFlare, NULL)];
+	return R_LoadShader (name, 0, Shader_DefaultBSPFlare, NULL);
 }
 
 shader_t *R_RegisterSkin (char *shadername, char *modname)
@@ -5296,7 +5425,7 @@ shader_t *R_RegisterSkin (char *shadername, char *modname)
 			memcpy(newsname, modname, b - modname);
 			memcpy(newsname + (b-modname), shadername, strlen(shadername)+1);
 			/*if the specified shader does not contain a path, try and load one relative to the name of the model*/
-			shader = &r_shaders[R_LoadShader (newsname, 0, Shader_DefaultSkin, NULL)];
+			shader = R_LoadShader (newsname, 0, Shader_DefaultSkin, NULL);
 
 			R_BuildDefaultTexnums(&shader->defaulttextures, shader);
 
@@ -5305,15 +5434,11 @@ shader_t *R_RegisterSkin (char *shadername, char *modname)
 				return shader;
 		}
 	}
-	shader = &r_shaders[R_LoadShader (shadername, 0, Shader_DefaultSkin, NULL)];
+	shader = R_LoadShader (shadername, 0, Shader_DefaultSkin, NULL);
 	return shader;
 }
 shader_t *R_RegisterCustom (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args)
 {
-	int i;
-	i = R_LoadShader (name, usageflags, defaultgen, args);
-	if (i < 0)
-		return NULL;
-	return &r_shaders[i];
+	return R_LoadShader (name, usageflags, defaultgen, args);
 }
 #endif //SERVERONLY

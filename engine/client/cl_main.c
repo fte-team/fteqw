@@ -300,7 +300,7 @@ void CL_MakeActive(char *gamename)
 
 	SCR_EndLoadingPlaque();
 
-	Mod_Flush(false);
+	Mod_Purge(MP_MAPCHANGED);
 
 	TP_ExecTrigger("f_spawn");
 }
@@ -3740,6 +3740,12 @@ void Host_DoRunFile(hrf_t *f)
 		return;
 	}
 
+	if (f->flags & HRF_MANIFEST)
+	{
+		Host_DoRunFile(f);
+		return;
+	}
+
 	VFS_SEEK(f->srcfile, 0);
 
 	f->dstfile = FS_OpenVFS(qname, "rb", FS_GAME);
@@ -4042,7 +4048,15 @@ double Host_Frame (double time)
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage
-			CL_MakeActive("QuakeWorld");
+			if (cls.protocol == CP_NETQUAKE)
+			{
+				//nq can send 'frames' without any entities before we're on the server, leading to short periods where the local player's position is not known. this is bad. so be more cautious with nq. this might break csqc.
+				CL_TransitionEntities();
+				if (cl.currentpackentities->num_entities)
+					CL_MakeActive("Quake");
+			}
+			else
+				CL_MakeActive("QuakeWorld");
 		}
 	}
 	CL_AllowIndependantSendCmd(true);
@@ -4070,6 +4084,13 @@ double Host_Frame (double time)
 	if (host_speeds.ival)
 		time1 = Sys_DoubleTime ();
 
+	r_refdef.audio.defaulted = true;
+	VectorClear(r_refdef.audio.origin);
+	VectorSet(r_refdef.audio.forward, 1, 0, 0);
+	VectorSet(r_refdef.audio.right, 0, 1, 0);
+	VectorSet(r_refdef.audio.up, 0, 0, 1);
+	r_refdef.audio.inwater = false;
+
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
 		extern mleaf_t	*r_viewleaf;
@@ -4081,30 +4102,16 @@ double Host_Frame (double time)
 			scr_chatmode = 0;
 
 		SCR_UpdateScreen ();
-		if (cls.state >= ca_active && r_viewleaf)
-			S_SetUnderWater(r_viewleaf->contents <= Q1CONTENTS_WATER);
-		else
-			S_SetUnderWater(false);
 	}
 
 	if (host_speeds.ival)
 		time2 = Sys_DoubleTime ();
 
 	// update audio
-#ifdef CSQC_DAT
-	if (!CSQC_SettingListener())
-#endif
-	{
-		if (cls.state == ca_active)
-		{
-			if (cls.protocol != CP_QUAKE3)
-				S_UpdateListener (r_origin, vpn, vright, vup);
-		}
-		else
-			S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
+	S_UpdateListener (r_refdef.audio.origin, r_refdef.audio.forward, r_refdef.audio.right, r_refdef.audio.up);
+	S_SetUnderWater(r_refdef.audio.inwater);
 
-		S_Update ();
-	}
+	S_Update ();
 
 	CDAudio_Update();
 
@@ -4278,9 +4285,11 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	int qrc, hrc, def;
 
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
-	Cbuf_AddText("unbindall", RESTRICT_LOCAL);
-	Cbuf_AddText("cvarreset *", RESTRICT_LOCAL);
+	Cbuf_AddText("unbindall\n", RESTRICT_LOCAL);
+	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
+	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
 	Cbuf_AddText(resetcommand, RESTRICT_LOCAL);
+	Cbuf_AddText("\n", RESTRICT_LOCAL);
 
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
@@ -4293,7 +4302,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
 	else
 	{	//they didn't give us an rc file!
-		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
+		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 		if (COM_FCheckExists ("config.cfg"))
 			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
@@ -4404,6 +4413,7 @@ void Host_Init (quakeparms_t *parms)
 	NET_InitClient ();
 	Netchan_Init ();
 	Renderer_Init();
+	Mod_Init(true);
 
 //	W_LoadWadFile ("gfx.wad");
 	Key_Init ();
@@ -4502,6 +4512,7 @@ void Host_Shutdown(void)
 	CL_FreeDlights();
 	CL_FreeVisEdicts();
 	M_Shutdown();
+	Mod_Shutdown(true);
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else

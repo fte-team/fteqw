@@ -1954,7 +1954,7 @@ void BE_GenPolyBatches(batch_t **batches)
 	}
 }
 void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches);
-
+model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemode)
 {
 	int		i;
@@ -2010,7 +2010,10 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			if (!ent->model)
 				continue;
 			if (ent->model->needload)
-				continue;
+			{
+				if (!Mod_LoadModel(ent->model, false))
+					continue;
+			}
 
 			if (cl.lerpents && (cls.allow_anyparticles))	//allowed or static
 			{

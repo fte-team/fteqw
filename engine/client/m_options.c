@@ -290,7 +290,6 @@ struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
 	return info;
 }
 
-menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 void M_Menu_Audio_f (void)
 {
 	int y;
@@ -544,6 +543,7 @@ const char *presetexec[] =
 	"r_drawflame 0;"
 	"r_waterstyle 0;"
 	"r_lavastyle 0;"
+	"r_coronas 0;"
 	"r_shadow_realtime_dlight 0;"
 	"r_shadow_realtime_world 0;"
 	"r_glsl_offsetmapping 0;"
@@ -567,7 +567,7 @@ const char *presetexec[] =
 	"r_lavastyle 1;"
 	"r_nolightdir 0;"
 
-	, // normal (faithful) options, with content replacement thrown in
+	, // normal (faithful) options, but with content replacement thrown in
 #ifdef MINIMAL
 	"r_particlesystem classic;"
 #else
@@ -582,6 +582,7 @@ const char *presetexec[] =
 	"r_replacemodels \"md3 md2\";"
 	"r_waterwarp 1;"
 	"r_drawflame 1;"
+	"r_coronas 1;"
 
 	, // nice options
 	"r_stains 0.75;"
@@ -1382,25 +1383,25 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
-	info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
-	info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions_q1, currentmap);	y+=8;
-	MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
+	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_q1, currentmap);	y+=8;
+	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
 	#ifdef TEXTEDITOR
-	MC_AddCheckBox(menu,	16, y,		"           Debugger", &debugger, 0); y+=8;
+	MC_AddCheckBox(menu,	16, 170, y,		"Debugger", &debugger, 0); y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "impulse 255\n"); y+=8;
 	#ifndef CLIENTONLY
-	MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,800,25);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
 	#endif
-	MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
-	MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
-	MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
 	#ifndef CLIENTONLY
-	MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
@@ -1496,20 +1497,20 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
-	info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
-	info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions_q2, currentmap);	y+=8;
-	MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
+	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_q2, currentmap);	y+=8;
+	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
 	#ifndef CLIENTONLY
-	MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,850,25);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,850,25);	y+=8;
 	#endif
-	MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
-	MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
-	MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
 	#ifndef CLIENTONLY
-	MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, y,	"     Unlimited Ammo", "dmflags 8192\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "give quad damage\n"); y+=8;
@@ -1854,23 +1855,23 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
 		#ifndef CLIENTONLY
-		info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
+		info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
 		#endif
-		info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
+		info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions, currentmap);	y+=8;
 		#ifndef CLIENTONLY
-		MC_AddCheckBox(menu,	16, y,		"                       Cheats", &sv_cheats,0);	y+=8;
+		MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Godmode", "god\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Flymode", "fly\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"                Toggle Noclip", "noclip\n"); y+=8;
 		#ifndef CLIENTONLY
-		MC_AddSlider(menu,	16, y,			"                      Gravity", &sv_gravity,0,800,25);	y+=8;
+		MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
 		#endif
-		MC_AddSlider(menu,	16, y,			"                Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, y,			"                   Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, y,			"                   Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
 		#ifndef CLIENTONLY
-		MC_AddSlider(menu,	16, y,			"           Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"         Sheep Transformation", "impulse 14\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"    Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;

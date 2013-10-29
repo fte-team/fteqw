@@ -190,14 +190,20 @@ typedef struct jclient_s
 		struct ft_s *next;
 		char fname[MAX_QPATH];
 		int size;
+		int sizedone;
 		char *with;
 		char md5hash[16];
+		int privateid;
+		char iqid[64];
 		char sid[64];
 		int blocksize;
 		unsigned short seq;
 		qhandle_t file;
-		qboolean begun;
-		qboolean transmitting;
+		qhandle_t stream;
+		qboolean begun;	//handshake
+		qboolean eof;
+		qboolean transmitting;	//we're offering
+		qboolean allowed;	//if false, don't handshake the transfer
 
 		enum
 		{
@@ -205,6 +211,7 @@ typedef struct jclient_s
 			FT_BYTESTREAM	//aka: relay
 		} method;
 	} *ft;
+	int privateidseq;
 #endif
 
 	buddy_t *buddies;
@@ -233,3 +240,5 @@ void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall);
 //jingle iq message handlers
 qboolean JCL_HandleGoogleSession(jclient_t *jcl, xmltree_t *tree, char *from, char *id);
 qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id);
+
+void JCL_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept);

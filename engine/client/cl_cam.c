@@ -71,28 +71,6 @@ qboolean Cam_DrawViewModel(playerview_t *pv)
 	}
 }
 
-// returns true if we should draw this player, we don't if we are chase camming
-qboolean Cam_DrawEntity(playerview_t *pv, int entitykey)
-{
-//	if (!entitykey)
-		return true;
-//	if (playernum == cl.playernum[pnum])
-//		return false;
-	if (cl.spectator)
-	{
-		if (pv->cam_auto && pv->cam_locked && (cl_chasecam.value||scr_chatmode==2) && 
-			pv->cam_spec_track+1 == entitykey && r_secondaryview != 2)
-			return false;
-	}
-	else
-	{
-		if (selfcam == 1 && !r_refdef.externalview)
-			if (entitykey == pv->viewentity)
-				return false;
-	}
-	return true;
-}
-
 int Cam_TrackNum(playerview_t *pv)
 {
 	if (!pv->cam_auto)
@@ -136,7 +114,7 @@ void Cam_Lock(playerview_t *pv, int playernum)
 
 	Sbar_Changed();
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 		CL_NewTranslation(i);
 }
 
@@ -152,7 +130,7 @@ trace_t Cam_DoTrace(vec3_t vec1, vec3_t vec2)
 #endif
 
 	VectorCopy (vec1, pmove.origin);
-	return PM_PlayerTrace(pmove.origin, vec2);
+	return PM_PlayerTrace(pmove.origin, vec2, MASK_PLAYERSOLID);
 }
 
 extern vec3_t	player_mins;
@@ -327,7 +305,7 @@ static void Cam_CheckHighTarget(playerview_t *pv)
 	playerview_t *spv;
 
 	j = -1;
-	for (i = 0, max = -9999; i < MAX_CLIENTS; i++)
+	for (i = 0, max = -9999; i < cl.allocated_client_slots; i++)
 	{
 		s = &cl.players[i];
 		if (s->name[0] && !s->spectator && s->frags > max)
@@ -536,7 +514,7 @@ void Cam_TrackCrosshairedPlayer(playerview_t *pv)
 	player = frame->playerstate + pv->playernum;
 	VectorCopy(player->origin, selforg);
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		player = frame->playerstate + i;
 		VectorSubtract(player->origin, selforg, dir);

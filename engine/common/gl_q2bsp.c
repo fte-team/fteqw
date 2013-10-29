@@ -4217,7 +4217,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	}
 
 #ifdef TERRAIN
-	im->terrain = Mod_LoadTerrainInfo(im, loadname);
+	im->terrain = Mod_LoadTerrainInfo(im, loadname, false);
 #endif
 
 	return &map_cmodels[0];
@@ -6020,7 +6020,7 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 
 
 int map_checksum;
-qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
 {
 	mod->fromgame = fg_quake2;
 	return CM_LoadMap(mod->name, buffer, true, &map_checksum) != NULL;

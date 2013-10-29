@@ -72,7 +72,7 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
  =======================================================================================================================
  */
 extern char loadname[];
-qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer)
 {
     /*~~*/
     int i;

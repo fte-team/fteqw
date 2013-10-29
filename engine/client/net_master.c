@@ -593,7 +593,7 @@ int Master_KeyForName(char *keyname)
 
 
 
-void Master_AddMaster (char *address, int type, char *description)
+void Master_AddMaster (char *address, enum mastertype_e mastertype, enum masterprotocol_e protocol, char *description)
 {
 	netadr_t adr;
 	master_t *mast;
@@ -610,7 +610,7 @@ void Master_AddMaster (char *address, int type, char *description)
 		return;
 	}
 
-	if (type < MT_SINGLEQW)	//broadcasts
+	if (mastertype == MT_BCAST)	//broadcasts
 	{
 		if (adr.type == NA_IP)
 			adr.type = NA_BROADCAST_IP;
@@ -622,13 +622,14 @@ void Master_AddMaster (char *address, int type, char *description)
 
 	for (mast = master; mast; mast = mast->next)
 	{
-		if (NET_CompareAdr(&mast->adr, &adr) && mast->type == type)	//already exists.
+		if (NET_CompareAdr(&mast->adr, &adr) && mast->mastertype == mastertype && mast->protocoltype == protocol)	//already exists.
 			return;
 	}
 	mast = Z_Malloc(sizeof(master_t)+strlen(description)+1+strlen(address)+1);
 	mast->adr = adr;
 	mast->address = mast->name + strlen(description)+1;
-	mast->type = type;
+	mast->mastertype = mastertype;
+	mast->protocoltype = protocol;
 	strcpy(mast->name, description);
 	strcpy(mast->address, address);
 
@@ -663,25 +664,32 @@ void MasterInfo_Shutdown(void)
 	Z_Free(visibleservers);
 }
 
-void Master_AddMasterHTTP (char *address, int mastertype, char *description)
+void Master_AddMasterHTTP (char *address, int mastertype, int protocoltype, char *description)
 {
 	master_t *mast;
-	int servertype;
+/*	int servertype;
 
-	if (mastertype == MT_MASTERHTTPQW)
-		servertype = 0;
-	else
+	if (protocoltype == MP_DP)
+		servertype = SS_DARKPLACES;
+	else if (protocoltype == MP_Q2)
+		servertype = SS_QUAKE2;
+	else if (protocoltype == MP_Q3)
+		servertype = SS_QUAKE3;
+	else if (protocoltype == MP_NQ)
 		servertype = SS_NETQUAKE;
-
+	else
+		servertype = 0;
+*/
 	for (mast = master; mast; mast = mast->next)
 	{
-		if (!strcmp(mast->address, address) && mast->type == mastertype)	//already exists.
+		if (!strcmp(mast->address, address) && mast->mastertype == mastertype && mast->protocoltype == protocoltype)	//already exists.
 			return;
 	}
 	mast = Z_Malloc(sizeof(master_t)+strlen(description)+1+strlen(address)+1);
 	mast->address = mast->name + strlen(description)+1;
-	mast->type = mastertype;
-	mast->servertype = servertype;
+	mast->mastertype = mastertype;
+	mast->protocoltype = protocoltype;
+//	mast->servertype = servertype;
 	strcpy(mast->name, description);
 	strcpy(mast->address, address);
 
@@ -690,13 +698,16 @@ void Master_AddMasterHTTP (char *address, int mastertype, char *description)
 }
 
 //build a linked list of masters.	Doesn't duplicate addresses.
-qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
+qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaulttype, int defaultprotocol, int depth)
 {
 	vfsfile_t *f;
 	char line[1024];
-	char file[1024];
-	char *name, *next;
+	char name[1024];
+	char entry[1024];
+	char *next, *sep;
 	int servertype;
+	int protocoltype;
+	qboolean favourite;
 
 	if (depth <= 0)
 		return false;
@@ -711,127 +722,132 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		if (*line == '#')	//comment
 			continue;
 
-		next = COM_Parse(line);
+		*name = 0;
+		favourite = false;
+		servertype = defaulttype;
+		protocoltype = defaultprotocol;
+
+		next = COM_ParseOut(line, entry, sizeof(entry));
 		if (!*com_token)
 			continue;
 
-		if (!strcmp(com_token, "file"))	//special case. Add a port if you have a server named 'file'... (unlikly)
+		//special cases. Add a port if you have a server named 'file'... (unlikly)
+		if (!strcmp(entry, "file"))
 		{
-			next = COM_Parse(next);
+			if (withcomment)
+				next = COM_ParseOut(next, name, sizeof(name));
+			next = COM_ParseOut(next, entry, sizeof(entry));
 			if (!next)
 				continue;
-			Q_strncpyz(file, com_token, sizeof(file));
+			servertype = MT_BAD;
 		}
-		else
-			*file = '\0';
-
-		*next = '\0';
-		next++;
-		name = COM_Parse(next);
-		servertype = -1;
-
-		if (!strcmp(com_token, "single:qw"))
-			servertype = MT_SINGLEQW;
-		else if (!strcmp(com_token, "single:q2"))
-			servertype = MT_SINGLEQ2;
-		else if (!strcmp(com_token, "single:q3"))
-			servertype = MT_SINGLEQ3;
-		else if (!strcmp(com_token, "single:dp"))
-			servertype = MT_SINGLEDP;
-		else if (!strcmp(com_token, "single:nq") || !strcmp(com_token, "single:q1"))
-			servertype = MT_SINGLENQ;
-		else if (!strcmp(com_token, "single"))
-			servertype = MT_SINGLEQW;
-
-		else if (!strcmp(com_token, "master:dp"))
-			servertype = MT_MASTERDP;
-		else if (!strcmp(com_token, "master:qw"))
-			servertype = MT_MASTERQW;
-		else if (!strcmp(com_token, "master:q2"))
-			servertype = MT_MASTERQ2;
-		else if (!strcmp(com_token, "master:q3"))
-			servertype = MT_MASTERQ3;
-		else if (!strcmp(com_token, "master:httpjson"))
-			servertype = MT_MASTERHTTPJSON;
-		else if (!strcmp(com_token, "master:httpnq"))
-			servertype = MT_MASTERHTTPNQ;
-		else if (!strcmp(com_token, "master:httpqw"))
-			servertype = MT_MASTERHTTPQW;
-		else if (!strcmp(com_token, "master"))	//any other sort of master, assume it's a qw master.
-			servertype = MT_MASTERQW;
-
-		else if (!strcmp(com_token, "bcast:qw"))
-			servertype = MT_BCASTQW;
-		else if (!strcmp(com_token, "bcast:q2"))
-			servertype = MT_BCASTQ2;
-		else if (!strcmp(com_token, "bcast:q3"))
-			servertype = MT_BCASTQ3;
-		else if (!strcmp(com_token, "bcast:nq"))
-			servertype = MT_BCASTNQ;
-		else if (!strcmp(com_token, "bcast:dp"))
-			servertype = MT_BCASTDP;
-		else if (!strcmp(com_token, "bcast"))
-			servertype = MT_BCASTQW;
-
-		else if (!strcmp(com_token, "favorite:qw"))
-			servertype = -MT_SINGLEQW;
-		else if (!strcmp(com_token, "favorite:q2"))
-			servertype = -MT_SINGLEQ2;
-		else if (!strcmp(com_token, "favorite:q3"))
-			servertype = -MT_SINGLEQ3;
-		else if (!strcmp(com_token, "favorite:nq"))
-			servertype = -MT_SINGLENQ;
-		else if (!strcmp(com_token, "favorite"))
-			servertype = -MT_SINGLEQW;
-
-
-		else
+		else if (!strcmp(entry, "master"))
 		{
-			name = next;	//go back one token.
-			servertype = defaulttype;
+			if (withcomment)
+				next = COM_ParseOut(next, name, sizeof(name));
+			next = COM_ParseOut(next, entry, sizeof(entry));
+			if (!next)
+				continue;
+			servertype = MT_MASTERUDP;
 		}
-
-		while(*name <= ' ' && *name != 0)	//skip whitespace
-			name++;
-
-		next = name + strlen(name)-1;
-		while(*next <= ' ' && next > name)
+		else if (!strcmp(entry, "url"))
 		{
-			*next = '\0';
-			next--;
+			if (withcomment)
+				next = COM_ParseOut(next, name, sizeof(name));
+			next = COM_ParseOut(next, entry, sizeof(entry));
+			servertype = MT_MASTERHTTP;
 		}
 
+		next = COM_Parse(next);
 
-		if (*file)
-			Master_LoadMasterList(file, servertype, depth);
-		else if (servertype < 0)
+		for(sep = com_token; sep; sep = next)
 		{
-			if (NET_StringToAdr(line, 0, &net_from))
-				CL_ReadServerInfo(va("\\hostname\\%s", name), -servertype, true);
-			else
-				Con_Printf("Failed to resolve address - \"%s\"\n", line);
+			next = strchr(sep, ':');
+			if (next)
+				*next = 0;
+
+			if (!strcmp(sep, "single"))
+				servertype = MT_SINGLE;
+			else if (!strcmp(sep, "master"))
+				servertype = MT_MASTERUDP;
+			else if (!strcmp(sep, "masterhttp"))
+				servertype = MT_MASTERHTTP;
+			else if (!strcmp(sep, "masterhttpjson"))
+				servertype = MT_MASTERHTTPJSON;
+			else if (!strcmp(sep, "bcast"))
+				servertype = MT_BCAST;
+
+			else if (!strcmp(com_token, "qw"))
+				protocoltype = MP_QW;
+			else if (!strcmp(com_token, "q2"))
+				protocoltype = MP_Q2;
+			else if (!strcmp(com_token, "q3"))
+				protocoltype = MP_Q3;
+			else if (!strcmp(com_token, "nq"))
+				protocoltype = MP_NQ;
+			else if (!strcmp(com_token, "dp"))
+				protocoltype = MP_DP;
+
+			//legacy compat
+			else if (!strcmp(com_token, "httpjson"))
+			{
+				servertype = MT_MASTERHTTPJSON;
+				protocoltype = MP_NQ;
+			}
+			else if (!strcmp(com_token, "httpnq"))
+			{
+				servertype = MT_MASTERHTTP;
+				protocoltype = MP_NQ;
+			}
+			else if (!strcmp(com_token, "httpqw"))
+			{
+				servertype = MT_MASTERHTTP;
+				protocoltype = MP_QW;
+			}
+
+			else if (!strcmp(com_token, "favourite") || !strcmp(com_token, "favorite"))
+				favourite = true;
 		}
+
+		if (!*name)
+		{
+			sep = name;
+			while(*next == ' ' || *next == '\t')
+				next++;
+			while (*next && sep < name+sizeof(name)-1)
+				*sep++ = *next++;
+			*sep = 0;
+		}
+
+		if (servertype == MT_BAD)
+			Master_LoadMasterList(entry, false, servertype, protocoltype, depth);
 		else
 		{
+			//favourites are added explicitly, with their name and stuff
+			if (favourite && servertype == MT_SINGLE)
+			{
+				if (NET_StringToAdr(entry, 0, &net_from))
+					CL_ReadServerInfo(va("\\hostname\\%s", name), -servertype, true);
+				else
+					Con_Printf("Failed to resolve address - \"%s\"\n", entry);
+			}
+
 			switch (servertype)
 			{
 			case MT_MASTERHTTPJSON:
-			case MT_MASTERHTTPNQ:
-			case MT_MASTERHTTPQW:
-				Master_AddMasterHTTP(line, servertype, name);
+			case MT_MASTERHTTP:
+				Master_AddMasterHTTP(entry, servertype, protocoltype, name);
 				break;
 			default:
-				Master_AddMaster(line, servertype, name);
+				Master_AddMaster(entry, servertype, protocoltype, name);
 				break;
 			}
-
 		}
 	}
 	VFS_CLOSE(f);
 
 	return true;
 }
-
 
 void NET_SendPollPacket(int len, void *data, netadr_t to)
 {
@@ -959,12 +975,12 @@ int Master_CheckPollSockets(void)
 #ifdef Q2CLIENT
 			if (!strcmp(s, "print"))
 			{
-				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEQ2, false);
+				CL_ReadServerInfo(MSG_ReadString(), MP_Q2, false);
 				continue;
 			}
 			if (!strcmp(s, "info"))	//parse a bit more...
 			{
-				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEQ2, false);
+				CL_ReadServerInfo(MSG_ReadString(), MP_Q2, false);
 				continue;
 			}
 #ifdef IPPROTO_IPV6
@@ -985,7 +1001,7 @@ int Master_CheckPollSockets(void)
 #ifdef Q3CLIENT
 			if (!strcmp(s, "statusResponse"))
 			{
-				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEQ3, false);
+				CL_ReadServerInfo(MSG_ReadString(), MP_Q3, false);
 				continue;
 			}
 #endif
@@ -1006,7 +1022,7 @@ int Master_CheckPollSockets(void)
 			}
 			if (!strcmp(s, "infoResponse"))	//parse a bit more...
 			{
-				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEDP, false);
+				CL_ReadServerInfo(MSG_ReadString(), MP_DP, false);
 				continue;
 			}
 
@@ -1025,7 +1041,7 @@ int Master_CheckPollSockets(void)
 
 			if (c == A2C_PRINT)	//qw server reply.
 			{
-				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEQW, false);
+				CL_ReadServerInfo(MSG_ReadString(), MP_QW, false);
 				continue;
 			}
 
@@ -1070,7 +1086,7 @@ int Master_CheckPollSockets(void)
 //				Q_strcat(name, name);
 			}
 
-			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MT_SINGLENQ, false);
+			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MP_NQ, false);
 		}
 #endif
 		continue;
@@ -1136,14 +1152,18 @@ void SListOptionChanged(serverinfo_t *newserver)
 }
 
 #ifdef WEBCLIENT
-void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
+void MasterInfo_ProcessHTTP(struct dl_download *dl)
 {
+	master_t *mast = dl->user_ctx;
+	vfsfile_t *file = dl->file;
+	int protocoltype = mast->protocoltype;
 	netadr_t adr;
 	char *s;
 	char *el;
 	serverinfo_t *info;
 	char adrbuf[MAX_ADR_SIZE];
 	char linebuffer[2048];
+	mast->dl = NULL;
 
 	if (!file)
 		return;
@@ -1173,7 +1193,18 @@ void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 			info = Z_Malloc(sizeof(serverinfo_t));
 			info->adr = adr;
 			info->sends = 1;
-			info->special = type;
+
+			if (protocoltype == MP_DP)
+				info->special = SS_DARKPLACES;
+			else if (protocoltype == MP_Q2)
+				info->special = SS_QUAKE2;
+			else if (protocoltype == MP_Q3)
+				info->special = SS_QUAKE3;
+			else if (protocoltype == MP_NQ)
+				info->special = SS_NETQUAKE;
+			else
+				info->special = 0;
+
 			info->refreshtime = 0;
 			info->ping = 0xffff;
 
@@ -1307,25 +1338,10 @@ void MasterInfo_ProcessHTTPJSON(struct dl_download *dl)
 		Con_Printf("Unable to query master at \"%s\"\n", dl->url);
 	}
 }
-
-// wrapper functions for the different server types
-void MasterInfo_ProcessHTTPNQ(struct dl_download *dl)
-{
-	master_t *mast = dl->user_ctx;
-	mast->dl = NULL;
-	MasterInfo_ProcessHTTP(dl->file, SS_NETQUAKE);
-}
-
-void MasterInfo_ProcessHTTPQW(struct dl_download *dl)
-{
-	master_t *mast = dl->user_ctx;
-	mast->dl = NULL;
-	MasterInfo_ProcessHTTP(dl->file, SS_GENERICQUAKEWORLD);
-}
 #endif
 
 //don't try sending to servers we don't support
-void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
+void MasterInfo_Request(master_t *mast)
 {
 	//static int mastersequence; // warning: unused variable âmastersequenceâ
 	if (!mast)
@@ -1334,68 +1350,9 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 	if (mast->sends)
 		mast->sends--;
 
-	switch(mast->type)
+	//these are generic requests
+	switch(mast->mastertype)
 	{
-#ifdef Q3CLIENT
-	case MT_BCASTQ3:
-	case MT_SINGLEQ3:
-		NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), mast->adr);
-		break;
-	case MT_MASTERQ3:
-		{
-			char *str;
-			str = va("%c%c%c%cgetservers %u empty full\x0A\n", 255, 255, 255, 255, 68);
-			NET_SendPollPacket (strlen(str), str, mast->adr);
-		}
-		break;
-#endif
-#ifdef Q2CLIENT
-	case MT_BCASTQ2:
-	case MT_SINGLEQ2:
-#endif
-	case MT_SINGLEQW:
-	case MT_BCASTQW:
-		NET_SendPollPacket (11, va("%c%c%c%cstatus\n", 255, 255, 255, 255), mast->adr);
-		break;
-#ifdef NQPROT
-	case MT_BCASTNQ:
-	case MT_SINGLENQ:
-		SZ_Clear(&net_message);
-		net_message.packing = SZ_RAWBYTES;
-		net_message.currentbit = 0;
-		MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
-		MSG_WriteByte(&net_message, CCREQ_SERVER_INFO);
-		MSG_WriteString(&net_message, NET_GAMENAME_NQ);	//look for either sort of server
-		MSG_WriteByte(&net_message, NET_PROTOCOL_VERSION);
-		*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
-		NET_SendPollPacket(net_message.cursize, net_message.data, mast->adr);
-		SZ_Clear(&net_message);
-		break;
-	case MT_MASTERDP:
-		{
-			char *str;
-			str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, com_protocolname.string, 3);
-			NET_SendPollPacket (strlen(str), str, mast->adr);
-		}
-		break;
-	case MT_SINGLEDP:
-	case MT_BCASTDP:
-		{
-			char *str;
-			str = va("%c%c%c%cgetinfo", 255, 255, 255, 255);
-			NET_SendPollPacket (strlen(str), str, mast->adr);
-		}
-		break;
-#endif
-	case MT_MASTERQW:
-		NET_SendPollPacket (3, "c\n", mast->adr);
-		break;
-#ifdef Q2CLIENT
-	case MT_MASTERQ2:
-		if (evenifwedonthavethefiles || COM_FDepthFile("pics/colormap.pcx", true)!=0x7fffffff)	//only query this master if we expect to be able to load it's maps.
-			NET_SendPollPacket (6, "query", mast->adr);
-		break;
-#endif
 #ifdef WEBCLIENT
 	case MT_MASTERHTTPJSON:
 		if (!mast->dl)
@@ -1405,30 +1362,94 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 				mast->dl->user_ctx = mast;
 		}
 		break;
-	case MT_MASTERHTTPNQ:
+	case MT_MASTERHTTP:
 		if (!mast->dl)
 		{
-			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
-			if (mast->dl)
-				mast->dl->user_ctx = mast;
-		}
-		break;
-	case MT_MASTERHTTPQW:
-		if (!mast->dl)
-		{
-			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPQW);
+			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTP);
 			if (mast->dl)
 				mast->dl->user_ctx = mast;
 		}
 		break;
 #endif
+	case MT_MASTERUDP:
+		switch(mast->protocoltype)
+		{
+#ifdef Q3CLIENT
+		case MP_Q3:
+			{
+				char *str;
+				str = va("%c%c%c%cgetservers %u empty full\x0A\n", 255, 255, 255, 255, 68);
+				NET_SendPollPacket (strlen(str), str, mast->adr);
+			}
+			break;
+#endif
+#ifdef Q2CLIENT
+		case MP_Q2:
+			NET_SendPollPacket (6, "query", mast->adr);
+			break;
+#endif
+		case MP_QW:
+			NET_SendPollPacket (3, "c\n", mast->adr);
+			break;
+#ifdef NQPROT
+		case MP_NQ:
+			//there is no nq udp master protocol
+			break;
+		case MP_DP:
+			{
+				char *str;
+				str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, com_protocolname.string, 3);
+				NET_SendPollPacket (strlen(str), str, mast->adr);
+			}
+			break;
+#endif
+		}
+		break;
+	case MT_BCAST:
+	case MT_SINGLE:	//FIXME: properly add the server and flag it for resending instead of directly pinging it
+		switch(mast->protocoltype)
+		{
+#ifdef Q3CLIENT
+		case MP_Q3:
+			NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), mast->adr);
+			break;
+#endif
+#ifdef Q2CLIENT
+		case MP_Q2:
+#endif
+		case MP_QW:
+			NET_SendPollPacket (11, va("%c%c%c%cstatus\n", 255, 255, 255, 255), mast->adr);
+			break;
+#ifdef NQPROT
+		case MP_NQ:
+			SZ_Clear(&net_message);
+			net_message.packing = SZ_RAWBYTES;
+			net_message.currentbit = 0;
+			MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+			MSG_WriteByte(&net_message, CCREQ_SERVER_INFO);
+			MSG_WriteString(&net_message, NET_GAMENAME_NQ);	//look for either sort of server
+			MSG_WriteByte(&net_message, NET_PROTOCOL_VERSION);
+			*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+			NET_SendPollPacket(net_message.cursize, net_message.data, mast->adr);
+			SZ_Clear(&net_message);
+			break;
+		case MP_DP:
+			{
+				char *str;
+				str = va("%c%c%c%cgetinfo", 255, 255, 255, 255);
+				NET_SendPollPacket (strlen(str), str, mast->adr);
+			}
+			break;
+#endif
+		}
+		break;
 	}
 }
 
 
 void MasterInfo_WriteServers(void)
 {
-	char *typename;
+	char *typename, *protoname;
 	master_t *mast;
 	serverinfo_t *server;
 	vfsfile_t *mf, *qws;
@@ -1443,58 +1464,51 @@ void MasterInfo_WriteServers(void)
 
 	for (mast = master; mast; mast=mast->next)
 	{
-		switch(mast->type)
+		switch(mast->mastertype)
 		{
-		case MT_MASTERQW:
-			typename = "master:qw";
+		case MT_MASTERUDP:
+			typename = "master";
 			break;
-		case MT_MASTERQ2:
-			typename = "master:q2";
+		case MT_MASTERHTTP:
+			typename = "masterhttp";
 			break;
-		case MT_MASTERQ3:
-			typename = "master:q3";
+		case MT_MASTERHTTPJSON:
+			typename = "masterjson";
 			break;
-		case MT_MASTERDP:
-			typename = "master:dp";
+		case MT_BCAST:
+			typename = "bcast";
 			break;
-		case MT_MASTERHTTPNQ:
-			typename = "master:httpnq";
-			break;
-		case MT_MASTERHTTPQW:
-			typename = "master:httpqw";
-			break;
-		case MT_BCASTQW:
-			typename = "bcast:qw";
-			break;
-		case MT_BCASTQ2:
-			typename = "bcast:q2";
-			break;
-		case MT_BCASTQ3:
-			typename = "bcast:q3";
-			break;
-		case MT_BCASTNQ:
-			typename = "bcast:nq";
-			break;
-		case MT_SINGLEQW:
-			typename = "single:qw";
-			break;
-		case MT_SINGLEQ2:
-			typename = "single:q2";
-			break;
-		case MT_SINGLEQ3:
-			typename = "single:q3";
-			break;
-		case MT_SINGLENQ:
-			typename = "single:nq";
-			break;
-		case MT_SINGLEDP:
-			typename = "single:dp";
+		case MT_SINGLE:
+			typename = "single";
 			break;
 		default:
-			typename = "writeerror";
+			typename = "??";
+			break;
+		}
+		switch(mast->protocoltype)
+		{
+		case MP_QW:
+			protoname = ":qw";
+			break;
+		case MP_Q2:
+			protoname = ":q2";
+			break;
+		case MP_Q3:
+			protoname = ":q3";
+			break;
+		case MP_NQ:
+			protoname = ":nq";
+			break;
+		case MP_DP:
+			protoname = ":dp";
+			break;
+		default:
+		case MP_UNSPECIFIED:
+			protoname = "";
+			break;
 		}
 		if (mast->address)
-			VFS_PUTS(mf, va("%s\t%s\t%s\n", mast->address , typename, mast->name));
+			VFS_PUTS(mf, va("%s\t%s\t%s\n", mast->address, typename, protoname, mast->name));
 		else
 			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &mast->adr), typename, mast->name));
 	}
@@ -1516,7 +1530,7 @@ void MasterInfo_WriteServers(void)
 				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q2", server->name));
 			else if (server->special & SS_NETQUAKE)
 				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:nq", server->name));
-			else if (qws)	//servers.txt doesn't support the extra info.
+			else if (qws)	//servers.txt doesn't support the extra info, so don't write it if its not needed
 				VFS_PUTS(qws, va("%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), server->name));
 			else	//read only? damn them!
 				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:qw", server->name));
@@ -1534,71 +1548,78 @@ void MasterInfo_WriteServers(void)
 void MasterInfo_Refresh(void)
 {
 	master_t *mast;
-	if (!Master_LoadMasterList("masters.txt",			MT_MASTERQW, 5))
+	qboolean loadedone;
+
+	loadedone = false;
+	loadedone |= Master_LoadMasterList("masters.txt", false, MT_MASTERUDP, MP_QW, 5);	//fte listing
+	loadedone |= Master_LoadMasterList("sources.txt", true, MT_MASTERUDP, MP_QW, 5);	//merge with ezquake compat listing
+
+	if (!loadedone)
 	{
-		Master_LoadMasterList("servers.txt",			MT_SINGLEQW, 1);
+		Master_LoadMasterList("servers.txt", false, MT_MASTERUDP, MP_QW, 1);
 
 //		if (q1servers)	//qw master servers
 		{
-			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld", MT_MASTERHTTPQW, "gameaholic's QW master");
-			//Master_AddMaster("satan.idsoftware.com:27000",			MT_MASTERQW, "id Limbo");
-			//Master_AddMaster("satan.idsoftware.com:27002",			MT_MASTERQW, "id CTF");
-			//Master_AddMaster("satan.idsoftware.com:27003",			MT_MASTERQW, "id TeamFortress");
-			//Master_AddMaster("satan.idsoftware.com:27004",			MT_MASTERQW, "id Miscilaneous");
-			//Master_AddMaster("satan.idsoftware.com:27006",			MT_MASTERQW, "id Deathmatch Only");
-			//Master_AddMaster("150.254.66.120:27000",		MT_MASTERQW, "Poland's master server.");
-			//Master_AddMaster("62.112.145.129:27000",		MT_MASTERQW, "Ocrana master server.");
-			//Master_AddMaster("master.edome.net",			MT_MASTERQW, "edome master server.");
-			//Master_AddMaster("qwmaster.barrysworld.com",	MT_MASTERQW, "barrysworld master server.");
-			//Master_AddMaster("213.221.174.165:27000",		MT_MASTERQW, "unknown1 master server.");
-			//Master_AddMaster("195.74.0.8",					MT_MASTERQW, "unknown2 master server.");
-			//Master_AddMaster("204.182.161.2",				MT_MASTERQW, "unknown5 master server.");
-			//Master_AddMaster("kubus.rulez.pl:27000",MT_MASTERQW, "Kubus");
-			//Master_AddMaster("telefrag.me:27000",MT_MASTERQW, "Telefrag.ME");
-			//Master_AddMaster("master.teamdamage.com:27000",		MT_MASTERQW, "TeamDamage");
-			Master_AddMaster("master.quakeservers.net:27000",	MT_MASTERQW, "QuakeServers.net");
-//			Master_AddMaster("masterserver.exhale.de:27000",	MT_MASTERQW, "team exhale");
-			Master_AddMaster("qwmaster.fodquake.net:27000",		MT_MASTERQW, "Fodquake master server.");
-			Master_AddMaster("qwmaster.ocrana.de:27000",		MT_MASTERQW, "Ocrana2 master server.");
-			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld",	MT_MASTERHTTP,	MP_QW, "gameaholic's QW master");
+			Master_AddMasterHTTP("http://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,	MP_QW, "QuakeServers.net (http)");
+			//Master_AddMaster("satan.idsoftware.com:27000",			MT_MASTERUDP,	MP_QW, "id Limbo");
+			//Master_AddMaster("satan.idsoftware.com:27002",			MT_MASTERUDP,	MP_QW, "id CTF");
+			//Master_AddMaster("satan.idsoftware.com:27003",			MT_MASTERUDP,	MP_QW, "id TeamFortress");
+			//Master_AddMaster("satan.idsoftware.com:27004",			MT_MASTERUDP,	MP_QW, "id Miscilaneous");
+			//Master_AddMaster("satan.idsoftware.com:27006",			MT_MASTERUDP,	MP_QW, "id Deathmatch Only");
+			//Master_AddMaster("150.254.66.120:27000",					MT_MASTERUDP,	MP_QW, "Poland's master server.");
+			//Master_AddMaster("62.112.145.129:27000",					MT_MASTERUDP,	MP_QW, "Ocrana master server.");
+			//Master_AddMaster("master.edome.net",						MT_MASTERUDP,	MP_QW, "edome master server.");
+			//Master_AddMaster("qwmaster.barrysworld.com",				MT_MASTERUDP,	MP_QW, "barrysworld master server.");
+			//Master_AddMaster("213.221.174.165:27000",					MT_MASTERUDP,	MP_QW, "unknown1 master server.");
+			//Master_AddMaster("195.74.0.8",							MT_MASTERUDP,	MP_QW, "unknown2 master server.");
+			//Master_AddMaster("204.182.161.2",							MT_MASTERUDP,	MP_QW, "unknown5 master server.");
+			//Master_AddMaster("kubus.rulez.pl:27000",					MT_MASTERUDP,	MP_QW, "Kubus");
+			//Master_AddMaster("telefrag.me:27000",						MT_MASTERUDP,	MP_QW, "Telefrag.ME");
+			//Master_AddMaster("master.teamdamage.com:27000",			MT_MASTERUDP,	MP_QW, "TeamDamage");
+			Master_AddMaster("master.quakeservers.net:27000",			MT_MASTERUDP,	MP_QW, "QuakeServers.net");
+//			Master_AddMaster("masterserver.exhale.de:27000",			MT_MASTERUDP,	MP_QW, "team exhale");
+			Master_AddMaster("qwmaster.fodquake.net:27000",				MT_MASTERUDP,	MP_QW, "Fodquake master server.");
+			Master_AddMaster("qwmaster.ocrana.de:27000",				MT_MASTERUDP,	MP_QW, "Ocrana2 master server.");
+			Master_AddMaster("255.255.255.255:27500",					MT_BCAST,		MP_QW, "Nearby QuakeWorld UDP servers.");
 		}
 
 //		if (q1servers)	//nq master servers
 		{
-			//Master_AddMaster("12.166.196.192:27950",			MT_MASTERDP, "DarkPlaces Master 3");
-			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTPNQ, "gameaholic's NQ master");
-			Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json", MT_MASTERHTTPJSON, "quakeone's server listing");
-			Master_AddMaster("69.59.212.88:27950"/*"ghdigital.com:27950"*/,				MT_MASTERDP, "DarkPlaces Master 1"); // LordHavoc
-			Master_AddMaster("64.22.107.125:27950"/*"dpmaster.deathmask.net:27950"*/,	MT_MASTERDP, "DarkPlaces Master 2"); // Willis
-			Master_AddMaster("92.62.40.73:27950"/*"dpmaster.tchr.no:27950"*/,			MT_MASTERDP, "DarkPlaces Master 3"); // tChr
+			//Master_AddMaster("12.166.196.192:27950",									MT_MASTERUDP,		MP_DP, "DarkPlaces Master 3");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NQ, "gameaholic's NQ master");
+			Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NQ, "quakeone's server listing");
+			Master_AddMaster("69.59.212.88:27950"/*"ghdigital.com:27950"*/,				MT_MASTERUDP,		MP_DP, "DarkPlaces Master 1"); // LordHavoc
+			Master_AddMaster("64.22.107.125:27950"/*"dpmaster.deathmask.net:27950"*/,	MT_MASTERUDP,		MP_DP, "DarkPlaces Master 2"); // Willis
+			Master_AddMaster("92.62.40.73:27950"/*"dpmaster.tchr.no:27950"*/,			MT_MASTERUDP,		MP_DP, "DarkPlaces Master 3"); // tChr
 #ifdef IPPROTO_IPV6
-			//Master_AddMaster("[2001:41d0:2:1628::4450]:27950",	MT_MASTERDP, "DarkPlaces Master 4"); // dpmaster.div0.qc.to (admin: divVerent)
+			//Master_AddMaster("[2001:41d0:2:1628::4450]:27950",						MT_MASTERUDP,		MP_DP, "DarkPlaces Master 4"); // dpmaster.div0.qc.to (admin: divVerent)
 #endif
-			Master_AddMaster("255.255.255.255:26000",		MT_BCASTNQ, "Nearby Quake1 servers");
-			Master_AddMaster("255.255.255.255:26000",			MT_BCASTDP, "Nearby DarkPlaces servers");
+			Master_AddMaster("255.255.255.255:26000",									MT_BCAST,			MP_NQ, "Nearby Quake1 servers");
+			Master_AddMaster("255.255.255.255:26000",									MT_BCAST,			MP_DP, "Nearby DarkPlaces servers");
 		}
 
 //		if (q2servers)	//q2
 		{
-			//Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake2", MT_MASTERHTTPQW, "gameaholic's Q2 master");
-			//Master_AddMaster("satan.idsoftware.com:27900",	MT_MASTERQ2, "id q2 Master.");
-			//Master_AddMaster("master.planetgloom.com:27900",MT_MASTERQ2, "Planetgloom.com");
-			//Master_AddMaster("master.q2servers.com:27900",	MT_MASTERQ2, "q2servers.com");
-			Master_AddMaster("netdome.biz:27900",			MT_MASTERQ2, "Netdome.biz");
-//			Master_AddMaster("masterserver.exhale.de:27900",MT_MASTERQ2, "team exhale");
-			Master_AddMaster("255.255.255.255:27910",		MT_BCASTQ2, "Nearby Quake2 UDP servers.");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake2",		MT_MASTERHTTP,		MP_QW, "gameaholic's Q2 master");
+			//Master_AddMaster("satan.idsoftware.com:27900",							MT_MASTERUDP,		MP_Q2, "id q2 Master.");
+			//Master_AddMaster("master.planetgloom.com:27900",							MT_MASTERUDP,		MP_Q2, "Planetgloom.com");
+			//Master_AddMaster("master.q2servers.com:27900",							MT_MASTERUDP,		MP_Q2, "q2servers.com");
+			Master_AddMaster("netdome.biz:27900",										MT_MASTERUDP,		MP_Q2, "Netdome.biz");
+//			Master_AddMaster("masterserver.exhale.de:27900",							MT_MASTERUDP,		MP_Q2, "team exhale");
+			Master_AddMaster("255.255.255.255:27910",									MT_BCAST,			MP_Q2, "Nearby Quake2 UDP servers.");
 #ifdef USEIPX
-			Master_AddMaster("00000000:ffffffffffff:27910",	MT_BCASTQ2, "Nearby Quake2 IPX servers.");
+			Master_AddMaster("00000000:ffffffffffff:27910",								MT_BCAST,			MP_Q2, "Nearby Quake2 IPX servers.");
 #endif
 		}
 
 		//q3
 		{
-			//Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3", MT_MASTERHTTPQW, "gameaholic's Q3 master");
-			Master_AddMaster("master.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master server.");
-//			Master_AddMaster("masterserver.exhale.de:27950",	MT_MASTERQ3, "team exhale");
-			//Master_AddMaster("master3.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master3 server.");
-			Master_AddMaster("255.255.255.255:27960",			MT_BCASTQ3, "Nearby Quake3 UDP servers.");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3",		MT_MASTERHTTP,		MP_Q3, "gameaholic's Q3 master");
+			Master_AddMaster("master.quake3arena.com:27950",							MT_MASTERUDP,		MP_Q3, "Quake3 master server.");
+//			Master_AddMaster("masterserver.exhale.de:27950",							MT_MASTERUDP,		MP_Q3, "team exhale");
+			//Master_AddMaster("master3.quake3arena.com:27950",							MT_MASTERUDP,		MP_Q3, "Quake3 master3 server.");
+			Master_AddMaster("255.255.255.255:27960",									MT_BCAST,		MP_Q3, "Nearby Quake3 UDP servers.");
 		}
 	}
 
@@ -1658,42 +1679,32 @@ void CL_QueryServers(void)
 
 	for (mast = master; mast; mast=mast->next)
 	{
-		switch (mast->type)
+		switch (mast->protocoltype)
 		{
-		case MT_BAD:
+		case MP_UNSPECIFIED:
 			continue;
-		case MT_MASTERHTTPNQ:
-		case MT_BCASTNQ:
-		case MT_SINGLENQ:
-		case MT_BCASTDP:
-		case MT_SINGLEDP:
-		case MT_MASTERDP:
+		case MP_DP:	//dpmaster allows the client to specify the protocol to query. this means it always matches the current game type, so don't bother allowing the user to disable it.
+			break;
+		case MP_NQ:
 			if (sb_hidenetquake.value)
 				continue;
 			break;
-		case MT_MASTERHTTPQW:
-		case MT_BCASTQW:
-		case MT_SINGLEQW:
-		case MT_MASTERQW:
+		case MP_QW:
 			if (sb_hidequakeworld.value)
 				continue;
 			break;
-		case MT_BCASTQ2:
-		case MT_SINGLEQ2:
-		case MT_MASTERQ2:
+		case MP_Q2:
 			if (sb_hidequake2.value)
 				continue;
 			break;
-		case MT_BCASTQ3:
-		case MT_MASTERQ3:
-		case MT_SINGLEQ3:
+		case MP_Q3:
 			if (sb_hidequake3.value)
 				continue;
 			break;
 		}
 
 		if (mast->sends > 0)
-			MasterInfo_Request(mast, false);
+			MasterInfo_Request(mast);
 	}
 
 
@@ -1849,7 +1860,7 @@ void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, 
 }
 
 //we got told about a server, parse it's info
-int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
+int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite)
 {
 	serverdetailedinfo_t details;
 
@@ -1901,18 +1912,18 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	else if (!strncmp(DISTRIBUTION, Info_ValueForKey(msg, "*version"), 3))
 		info->special |= SS_FTESERVER;
 
-	if (servertype == MT_SINGLEDP)
+	if (prototype == MP_DP)
 	{
 		if (atoi(Info_ValueForKey(msg, "protocol")) > 60)
 			info->special |= SS_QUAKE3;
 		else
 			info->special |= SS_DARKPLACES;
 	}
-	else if (servertype == MT_SINGLEQ2)
+	else if (prototype == MP_Q2)
 		info->special |= SS_QUAKE2;
-	else if (servertype == MT_SINGLEQ3)
+	else if (prototype == MP_Q3)
 		info->special |= SS_QUAKE3;
-	else if (servertype == MT_SINGLENQ)
+	else if (prototype == MP_NQ)
 		info->special |= SS_NETQUAKE;
 	if (favorite)	//was specifically named, not retrieved from a master.
 		info->special |= SS_FAVORITE;
@@ -1936,7 +1947,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	if (!strcmp(Info_ValueForKey(msg, "*progs"), "666") && !strcmp(Info_ValueForKey(msg, "*version"), "2.91"))
 		info->special |= SS_PROXY;	//qizmo
 
-	if (servertype == MT_SINGLEQ3 || servertype == MT_SINGLEQ2 || servertype == MT_SINGLEDP)
+	if (prototype == MP_Q3 || prototype == MP_Q2 || prototype == MP_DP)
 	{
 		Q_strncpyz(info->gamedir,	Info_ValueForKey(msg, "gamename"),	sizeof(info->gamedir));
 		Q_strncpyz(info->map,		Info_ValueForKey(msg, "mapname"),	sizeof(info->map));
@@ -1966,7 +1977,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	{
 		int clnum;
 
-		for (clnum=0; clnum < MAX_CLIENTS; clnum++)
+		for (clnum=0; clnum < cl.allocated_client_slots; clnum++)
 		{
 			nl = strchr(msg, '\n');
 			if (!nl)

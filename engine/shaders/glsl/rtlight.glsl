@@ -117,12 +117,6 @@ uniform vec3 l_lightcolourscale;
 #ifdef PCF
 uniform vec4 l_shadowmapproj; //light projection matrix info
 uniform vec2 l_shadowmapscale;	//xy are the texture scale, z is 1, w is the scale.
-#endif
-
-
-
-
-#ifdef PCF
 vec3 ShadowmapCoord(void)
 {
 #ifdef SPOT
@@ -222,6 +216,7 @@ float ShadowmapFilter(void)
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"
 #endif
+
 void main ()
 {
 //read raw texture samples (offsetmapping munges the tex coords first)

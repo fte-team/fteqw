@@ -282,6 +282,9 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 		if (pe->nonsolid)
 			continue;
 
+		if (pe->forcecontentsmask && !(pe->forcecontentsmask & MASK_PLAYERSOLID))
+			continue;
+
 	// get the clipping hull
 		if (pe->model)
 		{
@@ -297,7 +300,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 			hull = PM_HullForBox (mins, maxs);
 			VectorSubtract(pos, pe->origin, mins);
 
-			if (Q1BSP_HullPointContents(hull, mins) & FTECONTENTS_SOLID)
+			if (Q1BSP_HullPointContents(hull, mins) & MASK_PLAYERSOLID)
 				return false;
 		}
 	}
@@ -310,7 +313,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 PM_PlayerTrace
 ================
 */
-trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
+trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 {
 	trace_t		trace, total;
 	int			i;
@@ -329,6 +332,8 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 		if (pe->nonsolid)
 			continue;
 		if (pe->info == pmove.skipent)
+			continue;
+		if (pe->forcecontentsmask && !(pe->forcecontentsmask & solidmask))
 			continue;
 
 		if (!pe->model || pe->model->needload)
@@ -377,5 +382,5 @@ trace_t PM_TraceLine (vec3_t start, vec3_t end)
 {
 	VectorClear(player_mins);
 	VectorClear(player_maxs);
-	return PM_PlayerTrace(start, end);
+	return PM_PlayerTrace(start, end, MASK_PLAYERSOLID);
 }

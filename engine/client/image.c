@@ -2173,12 +2173,8 @@ void BoostGamma(qbyte *rgba, int width, int height)
 
 
 
-
-
-
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 
-#ifdef DDS
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
 #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
@@ -2186,6 +2182,7 @@ void BoostGamma(qbyte *rgba, int width, int height)
 #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                  0x83F3
 #endif
 
+#ifdef IMAGEFMT_DDS
 typedef struct {
 	unsigned int dwSize;
 	unsigned int dwFlags;
@@ -2209,7 +2206,7 @@ typedef struct {
 } ddsheader;
 
 
-texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
+texid_tf GL_ReadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 {
 	extern int		gl_filter_min;
 	extern int		gl_filter_max;
@@ -2223,7 +2220,7 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 	int divsize, blocksize;
 
 	ddsheader fmtheader;
-	if (*(int*)buffer != *(int*)"DDS ")
+	if (*(int*)buffer != *(int*)"DDS " || qrenderer != QR_OPENGL)
 		return r_nulltex;
 	buffer+=4;
 
@@ -2302,6 +2299,158 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 }
 #endif
 
+#ifdef IMAGEFMT_BLP
+texid_tf GL_ReadBLPFile(char *iname, unsigned char *buffer, int filesize)
+{
+	extern int		gl_filter_min;
+	extern int		gl_filter_max;
+
+	//FIXME: cba with endian.
+	int miplevel;
+	int w, h, i;
+	struct blp_s
+	{
+		char blp2[4];
+		int type;
+		qbyte encoding;
+		qbyte alphadepth;
+		qbyte alphaencoding;
+		qbyte hasmips;
+		unsigned int xres;
+		unsigned int yres;
+		unsigned int mipoffset[16];
+		unsigned int mipsize[16];
+		unsigned int palette[256];
+	} *blp;
+	unsigned int *tmpmem = NULL;
+	unsigned char *in;
+	unsigned int inlen;
+	texid_tf texnum;
+
+	blp = (void*)buffer;
+
+	if (memcmp(blp->blp2, "BLP2", 4) || blp->type != 1 || qrenderer != QR_OPENGL)
+		return r_nulltex;
+
+	w = blp->xres;
+	h = blp->yres;
+
+	texnum = GL_AllocNewTexture(iname, w, h, 0);
+	GL_MTBind(0, GL_TEXTURE_2D, texnum);
+
+	for (miplevel = 0; ; )
+	{
+		//if we ran out of mips to load, give up.
+		if (miplevel == 16 || !blp->mipoffset[miplevel] || !blp->mipsize[miplevel] || blp->mipoffset[miplevel]+blp->mipsize[miplevel] > filesize)
+		{
+			//if we got at least one mip, cap the mips. might help save some ram? naaah...
+			//if this is the first mip, well, its completely fucked.
+			if (miplevel--)
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevel);
+			break;
+		}
+		in = buffer + blp->mipoffset[miplevel];
+		inlen = blp->mipsize[miplevel];
+		if (blp->encoding == 2)
+		{
+			int type;
+			int blocksize;
+			//dxt compression
+			switch(blp->alphaencoding)
+			{
+			default:
+			case 0: //dxt1
+				if (blp->alphadepth)
+					type = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+				else
+					type = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+				blocksize = 8;
+				break;
+			case 1: //dxt2/3
+				type = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+				blocksize = 16;
+				break;
+			case 7: //dxt4/5
+				type = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+				blocksize = 16;
+				break;
+			}
+			if (inlen != ((w+3)/4) * ((h+3)/4) * blocksize)
+			{
+				Con_Printf("%s: mip level %i does not contain the correct amount of data\n", iname, miplevel);
+				if (miplevel--)
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevel);
+				break;
+			}
+			qglCompressedTexImage2DARB(GL_TEXTURE_2D, miplevel, type, w, h, 0, inlen, in);
+		}
+		else
+		{
+			if (inlen != w*h+((w*h*blp->alphadepth+7)>>3))
+			{
+				Con_Printf("%s: mip level %i does not contain the correct amount of data\n", iname, miplevel);
+				if (miplevel--)
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevel);
+				break;
+			}
+
+			if (!tmpmem)
+				tmpmem = malloc(4*w*h);
+
+			//8bit palette index
+			for (i = 0; i < w*h; i++)
+				tmpmem[i] = blp->palette[*in++] | 0xff000000;
+
+			switch(blp->alphadepth)
+			{
+			case 0:
+				//BGRX palette, 8bit
+				break;
+			case 1:
+				//BGRX palette, 8bit
+				//1bit trailing alpha
+				for (i = 0; i < w*h; i++)
+					tmpmem[i] = (tmpmem[i] & 0xffffff) | (*in++?0xff000000:0);
+				break;
+			case 4:
+				//BGRX palette, 8bit
+				//4bit trailing alpha
+				for (i = 0; i < w*h; i++)
+					tmpmem[i] = (tmpmem[i] & 0xffffff) | (*in++*0x11000000);
+				break;
+			case 8:
+				//BGRX palette, 8bit
+				//8bit trailing alpha
+				for (i = 0; i < w*h; i++)
+					tmpmem[i] = (tmpmem[i] & 0xffffff) | (*in++<<24);
+				break;
+			}
+			qglTexImage2D(GL_TEXTURE_2D, miplevel, GL_RGBA, w, h, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, tmpmem);
+		}
+
+		miplevel++;
+		if ((w <= 1 && h <= 1) || !blp->hasmips)
+			break;
+		w = (w+1)>>1;
+		h = (h+1)>>1;
+	}
+	if (tmpmem)
+		free(tmpmem);
+
+	if (miplevel>1)
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+	else
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+	return texnum;
+}
+#endif
+
 //returns r8g8b8a8
 qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname)
 {
@@ -2344,6 +2493,63 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 	return NULL;
 }
 
+static void *R_FlipImage32(void *in, int *inoutwidth, int *inoutheight, qboolean flipx, qboolean flipy, qboolean flipd)
+{
+	int x, y;
+	unsigned int *in32, *inr, *out32;
+	void *out;
+	int inwidth = *inoutwidth;
+	int inheight = *inoutheight;
+	int rowstride = inwidth;
+	int colstride = 1;
+
+	//simply return if no operation
+	if (!flipx && !flipy && !flipd)
+		return in;
+
+	inr = in;
+	out32 = out = BZ_Malloc(inwidth*inheight*4);
+
+	if (flipy)
+	{
+		inr += inwidth*inheight-inwidth;//start on the bottom row
+		rowstride *= -1;	//and we need to move up instead
+	}
+	if (flipx)
+	{
+		colstride *= -1;	//move backwards
+		inr += inwidth-1;	//start at the end of the row
+	}
+	if (flipd)
+	{ 
+		//switch the dimensions
+		int tmp = inwidth;
+		inwidth = inheight;
+		inheight = tmp;
+		//make sure the caller gets the new dimensions
+		*inoutwidth = inwidth;
+		*inoutheight = inheight;
+		//switch the strides
+		tmp = colstride;
+		colstride = rowstride;
+		rowstride = tmp;
+	}
+
+	//rows->rows, columns->columns
+	for (y = 0; y < inheight; y++)
+	{
+		in32 = inr;	//reset the input after each row, so we have truely independant row+column strides
+		inr += rowstride;
+		for (x = 0; x < inheight; x++)
+		{
+			*out32++ = *in32;
+			in32 += colstride;
+		}
+	}
+	BZ_Free(in);
+	return out;
+}
+
 static struct
 {
 	char *name;
@@ -2359,7 +2565,10 @@ static struct
 	{".png", 1},	//pngs, fairly common, but slow
 #endif
 	{".tga", 1},	//fairly fast to load
-#ifdef DDS
+#ifdef IMAGEFMT_BLP
+	{".blp", 1},	//blizzard picture, for the luls
+#endif
+#ifdef IMAGEFMT_DDS
 	{".dds", 1},	//compressed or something
 #endif
 	{"", 1}			//someone forgot an extension
@@ -2433,11 +2642,32 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	if ((flags & IF_TEXTYPE) == IF_CUBEMAP)
 	{
 		int j;
-		char *suf[] =
+		static struct
 		{
-			"rt", "lf", "ft", "bk", "up", "dn",	//FIXME: This is inverted and thus wrong
-			"px", "nx", "py", "ny", "pz", "nz",
-			"posx", "negx", "posy", "negy", "posz", "negz"
+			char *suffix;
+			qboolean flipx, flipy, flipd;
+		} cmscheme[] =
+		{
+			{"rt", true,  false, true},
+			{"lf", false, true,  true},
+			{"ft", true,  true,  false},
+			{"bk", false, false, false},
+			{"up", true,  false, true},
+			{"dn", true,  false, true},
+
+			{"px", false, false, false},
+			{"nx", false, false, false},
+			{"py", false, false, false},
+			{"ny", false, false, false},
+			{"pz", false, false, false},
+			{"nz", false, false, false},
+
+			{"posx", false, false, false},
+			{"negx", false, false, false},
+			{"posy", false, false, false},
+			{"negy", false, false, false},
+			{"posz", false, false, false},
+			{"negz", false, false, false}
 		};
 		flags |= IF_REPLACE;
 
@@ -2451,9 +2681,9 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 					continue;
 
 				buf = NULL;
-				for (j = 0; j < sizeof(suf)/sizeof(suf[0])/6; j++)
+				for (j = 0; j < sizeof(cmscheme)/sizeof(cmscheme[0])/6; j++)
 				{
-					snprintf(fname, sizeof(fname)-1, "%s%s%s", nicename, suf[i + 6*j], tex_extensions[e].name);
+					snprintf(fname, sizeof(fname)-1, "%s%s%s", nicename, cmscheme[i + 6*j].suffix, tex_extensions[e].name);
 					buf = COM_LoadFile (fname, 5);
 					if (buf)
 						break;
@@ -2467,6 +2697,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 						extern cvar_t vid_hardwaregamma;
 						if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 							BoostGamma(data, image_width, image_height);
+						data = R_FlipImage32(data, &image_width, &image_height, cmscheme[i + 6*j].flipx, cmscheme[i + 6*j].flipy, cmscheme[i + 6*j].flipd);
 						tex = R_LoadTexture32 (name, image_width, image_height, data, (flags | IF_REPLACE) + (i << IF_TEXTYPESHIFT));
 
 						BZ_Free(data);
@@ -2496,11 +2727,11 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			return tex;
 	}
 
-#ifdef DDS
+#ifdef IMAGEFMT_DDS
 	snprintf(fname, sizeof(fname)-1, "dds/%s.dds", nicename); /*should be safe if its null*/
 	if ((buf = COM_LoadFile (fname, 5)))
 	{
-		tex = GL_LoadTextureDDS(name, buf, com_filesize);
+		tex = GL_ReadTextureDDS(name, buf, com_filesize);
 		if (TEXVALID(tex))
 		{
 			BZ_Free(buf);
@@ -2510,7 +2741,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	}
 #endif
 
-	if (strchr(name, '/'))	//never look in a root dir for the pic
+	if (strchr(name, '/') || strchr(name, '\\'))	//never look in a root dir for the pic
 		i = 0;
 	else
 		i = 1;
@@ -2540,14 +2771,26 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
-#ifdef DDS
-				tex = GL_LoadTextureDDS(name, buf, com_filesize);
+#ifdef IMAGEFMT_DDS
+				tex = GL_ReadTextureDDS(name, buf, com_filesize);
 				if (TEXVALID(tex))
 				{
 					BZ_Free(buf);
 					return tex;
 				}
 #endif
+#ifdef IMAGEFMT_BLP
+				if (buf[0] == 'B' && buf[1] == 'L' && buf[2] == 'P' && buf[3] == '2') 
+				{
+					tex = GL_ReadBLPFile(name, buf, com_filesize);
+					if (TEXVALID(tex))
+					{
+						BZ_Free(buf);
+						return tex;
+					}
+				}
+#endif
+
 				hasalpha = false;
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, &hasalpha, fname)))
 				{

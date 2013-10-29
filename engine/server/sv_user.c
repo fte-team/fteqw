@@ -1486,7 +1486,7 @@ void SVQW_Spawn_f (void)
 // send current status of all other players
 
 	// normally this could overflow, but no need to check due to backbuf
-	for (i=0, client = svs.clients ; i<MAX_CLIENTS ; i++, client++)
+	for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
 		SV_FullClientUpdate(client, host_client);
 	SV_MVD_FullClientUpdate(NULL, host_client);
 
@@ -3230,7 +3230,7 @@ void SV_Say (qboolean team)
 
 	mvdrecording = sv.mvdrecording;
 	sv.mvdrecording = false;	//so that the SV_ClientPrintf doesn't send to all players.
-	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+	for (j = 0, client = svs.clients; j < svs.allocated_client_slots; j++, client++)
 	{
 		if (client->state != cs_spawned && client->state != cs_connected)
 			continue;
@@ -3321,7 +3321,7 @@ void SV_Pings_f (void)
 #ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 	{
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		for (j = 0, client = svs.clients; j < svs.allocated_client_slots; j++, client++)
 		{
 			if (!*sv.recordedplayer[j].userinfo)
 				continue;
@@ -3340,7 +3340,7 @@ void SV_Pings_f (void)
 		char *s;
 		ClientReliableWrite_Begin(host_client, svc_stufftext, 15+10*MAX_CLIENTS);
 		ClientReliableWrite_SZ(host_client, "pingplreport", 12);
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS && j < host_client->max_net_clients; j++, client++)
+		for (j = 0, client = svs.clients; j < sv.allocated_client_slots && j < host_client->max_net_clients; j++, client++)
 		{
 			s = va(" %i %i", SV_CalcPing(client, false), client->lossage);
 			ClientReliableWrite_SZ(host_client, s, strlen(s));
@@ -3351,7 +3351,7 @@ void SV_Pings_f (void)
 	}
 	else
 	{
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS && j < host_client->max_net_clients; j++, client++)
+		for (j = 0, client = svs.clients; j < sv.allocated_client_slots && j < host_client->max_net_clients; j++, client++)
 		{
 			if (client->state != cs_spawned)
 				continue;
@@ -3687,7 +3687,7 @@ void SV_SetInfo_f (void)
 
 		basic = SV_UserInfoIsBasic(key);
 
-		for (j = 0; j < MAX_CLIENTS; j++)
+		for (j = 0; j < svs.allocated_client_slots; j++)
 		{
 			client = svs.clients+j;
 			if (client->state < cs_connected)
@@ -5329,18 +5329,23 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			switch((int)check->v->skin)
 			{
 			case Q1CONTENTS_WATER:
+				pe->nonsolid = true;
 				pe->forcecontentsmask = FTECONTENTS_WATER;
 				break;
 			case Q1CONTENTS_LAVA:
+				pe->nonsolid = true;
 				pe->forcecontentsmask = FTECONTENTS_LAVA;
 				break;
 			case Q1CONTENTS_SLIME:
+				pe->nonsolid = true;
 				pe->forcecontentsmask = FTECONTENTS_SLIME;
 				break;
 			case Q1CONTENTS_SKY:
+				pe->nonsolid = true;
 				pe->forcecontentsmask = FTECONTENTS_SKY;
 				break;
 			case Q1CONTENTS_LADDER:
+				pe->nonsolid = true;
 				pe->forcecontentsmask = FTECONTENTS_LADDER;
 				break;
 			default:

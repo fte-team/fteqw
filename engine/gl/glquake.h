@@ -206,6 +206,7 @@ typedef struct {
 	qboolean arb_texture_compression;
 //	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
+	qboolean arb_shadow;
 	qboolean ext_framebuffer_objects;
 	qboolean ext_stencil_wrap;
 	qboolean ext_packed_depth_stencil;
@@ -276,8 +277,6 @@ extern	vec3_t		r_entorigin;
 extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
 extern	int			r_framecount;
-#define FRUSTUMPLANES 5
-extern	mplane_t	frustum[FRUSTUMPLANES];
 
 extern float r_wateralphaval;
 extern qboolean		r_loadbumpmapping;

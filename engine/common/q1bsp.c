@@ -739,19 +739,29 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 
 unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 {
+	int contents;
 	if (axis)
 	{
 		vec3_t transformed;
 		transformed[0] = DotProduct(point, axis[0]);
 		transformed[1] = DotProduct(point, axis[1]);
 		transformed[2] = DotProduct(point, axis[2]);
-		return Q1BSP_HullPointContents(&model->hulls[0], transformed);
+		return Q1BSP_PointContents(model, NULL, transformed);
 	}
-	if (!model->firstmodelsurface)
+	else
 	{
-		return Q1BSP_TranslateContents(Q1_ModelPointContents(model->nodes, point));
+		if (!model->firstmodelsurface)
+		{
+			contents = Q1BSP_TranslateContents(Q1_ModelPointContents(model->nodes, point));
+		}
+		else
+			contents = Q1BSP_HullPointContents(&model->hulls[0], point);
 	}
-	return Q1BSP_HullPointContents(&model->hulls[0], point);
+#ifdef TERRAIN
+	if (model->terrain)
+		contents |= Heightmap_PointContents(model, NULL, point);
+#endif
+	return contents;
 }
 
 void Q1BSP_LoadBrushes(model_t *model)

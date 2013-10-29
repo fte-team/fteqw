@@ -513,9 +513,8 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	coorddata coordd[3];
 	coorddata angled[3];
 
-	static entity_state_t defaultbaseline;
 	if (from == &((edict_t*)NULL)->baseline)
-		from = &defaultbaseline;
+		from = &nullentitystate;
 
 // send an update
 	bits = 0;
@@ -865,7 +864,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (to->tagentity != from->tagentity || to->tagindex != from->tagindex)
 		bits |= UF_TAGINFO;
 
-	if (to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle)
+	if (to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightpflags)
 		bits |= UF_LIGHT;
 
 	if (to->u.q1.traileffectnum != from->u.q1.traileffectnum)
@@ -1123,7 +1122,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	if (!client->pendingentbits)
 		return;
 	
-	if (client->delta_sequence <= 0)
+	if (client->delta_sequence < 0)
 		client->pendingentbits[0] = UF_REMOVE;
 
 	//if we're clearing the list and starting from scratch, just wipe all lingering state

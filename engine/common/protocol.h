@@ -1431,6 +1431,7 @@ typedef struct q1usercmd_s
 #define SCALE_ORIGIN_CENTER		0	// Scaling origin at object center
 #define SCALE_ORIGIN_BOTTOM		32	// Scaling origin at object bottom
 #define SCALE_ORIGIN_TOP		64	// Scaling origin at object top
+#define SCALE_ORIGIN_ORIGIN		(64|32)	// Scaling origin at object origin
 #define DRF_TRANSLUCENT			128
 
 

@@ -987,6 +987,13 @@ void VARGS Sys_Error (const char *error, ...)
 	SetHookState(false);
 #endif
 
+	TL_Shutdown();
+
+#ifdef USE_MSVCRT_DEBUG
+	if (_CrtDumpMemoryLeaks())
+		OutputDebugStringA("Leaks detected\n");
+#endif
+
 	exit (1);
 }
 

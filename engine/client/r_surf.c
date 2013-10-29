@@ -1447,7 +1447,7 @@ start:
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = frustum; c < FRUSTUMPLANES; c++, clipplane++)
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numplanes; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -1556,7 +1556,7 @@ static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = frustum; c < 4; c++, clipplane++)
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numplanes; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -1813,7 +1813,7 @@ start:
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = frustum; c < FRUSTUMPLANES; c++, clipplane++)
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numplanes; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -2065,6 +2065,21 @@ void Surf_SetupFrame(void)
 		VectorCopy(t2, player_maxs);
 	}
 	V_SetContentsColor (r_viewcontents);
+
+
+	if (r_refdef.audio.defaulted)
+	{
+		//first scene is the 'main' scene and audio defaults to that (unless overridden later in the frame)
+		r_refdef.audio.defaulted = false;
+		VectorCopy(r_origin, r_refdef.audio.origin);
+		VectorCopy(vpn, r_refdef.audio.forward);
+		VectorCopy(vright, r_refdef.audio.right);
+		VectorCopy(vup, r_refdef.audio.up);
+		if (r_viewcontents & FTECONTENTS_FLUID)
+			r_refdef.audio.inwater = true;
+		else
+			r_refdef.audio.inwater = false;
+	}
 }
 
 /*
@@ -2247,7 +2262,7 @@ void Surf_DrawWorld (void)
 			if (currententity->model->fromgame == fg_quake3)
 			{
 				entvis = surfvis = R_MarkLeaves_Q3 ();
-				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<FRUSTUMPLANES)-1);
+				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<r_refdef.frustum_numplanes)-1);
 				//Surf_LeafWorldNode ();
 			}
 			else
@@ -2453,7 +2468,7 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 
 		if (deluxe && ((i - numlightmaps)&1))
 		{
-			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8)*width*height);
+			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*4)*width*height);
 			lightmap[i]->width = width;
 			lightmap[i]->height = height;
 			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
@@ -2462,7 +2477,7 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 		}
 		else
 		{
-			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8 + sizeof(stmap)*3)*width*height);
+			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*4 + sizeof(stmap)*3)*width*height);
 			lightmap[i]->width = width;
 			lightmap[i]->height = height;
 			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);

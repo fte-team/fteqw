@@ -58,24 +58,25 @@ interface from being ambiguous.
 typedef struct cvar_s
 {
 	//must match q2's definition
-	char		*name;
-	char		*string;
-	char		*latched_string;	// for CVAR_LATCH vars
-	int			flags;
-	int			modified;	// increased each time the cvar is changed
-	float		value;
-	struct cvar_s *next;
+	char			*name;
+	char			*string;
+	char			*latched_string;	// for CVAR_LATCH vars
+	unsigned int	flags;
+	int				modified;	// increased each time the cvar is changed
+	float			value;
+	struct cvar_s	*next;
 
 	//free style :)
-	char		*name2;
+	char			*name2;
 
-	void		(*callback) (struct cvar_s *var, char *oldvalue);
-	char		*description;
-	char		*defaultstr;	//default
+	void			(*callback) (struct cvar_s *var, char *oldvalue);
+	char			*description;
+	char			*enginevalue;		//when changing manifest dir, the cvar will be reset to this value. never freed.
+	char			*defaultstr;		//this is the current mod's default value. set on first update.
 
 
-	int			ival;
-	qbyte		restriction;
+	int				ival;
+	qbyte			restriction;
 
 #ifdef HLSERVER
 	struct hlcvar_s	*hlcvar;
@@ -122,10 +123,10 @@ typedef struct cvar_group_s
 
 //freestyle
 #define CVAR_POINTER		(1<<5)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_FREEDEFAULT	(1<<6)  //the default string was malloced/needs to be malloced, free on unregister
+#define CVAR_UNUSED			(1<<6)  //the default string was malloced/needs to be malloced, free on unregister
 #define CVAR_NOTFROMSERVER	(1<<7)	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
 #define CVAR_USERCREATED	(1<<8)	//write a 'set' or 'seta' in front of the var name.
-#define CVAR_CHEAT		(1<<9)	//latch to the default, unless cheats are enabled.
+#define CVAR_CHEAT			(1<<9)	//latch to the default, unless cheats are enabled.
 #define CVAR_SEMICHEAT		(1<<10)	//if strict ruleset, force to 0/blank.
 #define CVAR_RENDERERLATCH	(1<<11)	//requires a vid_restart to reapply.
 #define CVAR_SERVEROVERRIDE	(1<<12)	//the server has overridden out local value - should probably be called SERVERLATCH
@@ -134,6 +135,8 @@ typedef struct cvar_group_s
 #define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
 #define CVAR_SHADERSYSTEM	(1<<16)	//change flushes shaders.
 #define CVAR_TELLGAMECODE   (1<<17) //tells the gamecode when it has changed, does not prevent changing, added as an optimisation
+
+#define CVAR_CONFIGDEFAULT	(1<<18)	//this cvar's default value has been changed to match a config.
 
 #define CVAR_LASTFLAG CVAR_SHADERSYSTEM
 

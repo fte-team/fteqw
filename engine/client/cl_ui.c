@@ -285,8 +285,8 @@ extern model_t mod_known[];
 #define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-#define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
-#define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
+#define VM_FROMSHANDLE(a) (a?r_shaders[a-1]:NULL)
+#define VM_TOSHANDLE(a) (a?a->id+1:0)
 
 
 struct q3refEntity_s {

@@ -353,8 +353,8 @@ void M_Menu_Setup_f (void)
 			MC_AddPicture(menu, 0, 173, 36, 42, "pics/m_main_logo");
 
 			menu->selecteditem = (menuoption_t*)
-			(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
-			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
+			(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
+			(info->modeledit = MC_AddCvarCombo(menu, 64, 160,72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
 			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
 			cu = MC_AddCustom(menu, 172-16, 88+16, NULL, 0);
 			cu->draw = MSetupQ2_TransDraw;
@@ -401,8 +401,8 @@ void M_Menu_Setup_f (void)
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
 
 	menu->selecteditem = (menuoption_t*)
-	(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
-	(info->teamedit = MC_AddEdit(menu, 64, 56, "Your team", team.string));
+	(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
+	(info->teamedit = MC_AddEdit(menu, 64, 160, 56, "Your team", team.string));
 	if (mgt == MGT_HEXEN2)
 	{
 		static const char *classnames[] =
@@ -415,10 +415,10 @@ void M_Menu_Setup_f (void)
 			NULL
 		};
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-		(info->classedit = MC_AddCombo(menu, 64, 72, "Your class", (const char **)classnames, pc->ival-1));
+		(info->classedit = MC_AddCombo(menu, 64, 160, 72, "Your class", (const char **)classnames, pc->ival-1));
 	}
 	else
-		(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
+		(info->skinedit = MC_AddEdit(menu, 64, 160, 72, "Your skin", skin.string));
 
 	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0);
 	ci->draw = MSetup_TransDraw;
@@ -600,7 +600,7 @@ void M_Menu_GameOptions_f (void)
 	menu->selecteditem = (menuoption_t*)
 	MC_AddCommand						(menu, 64, y,	" Start game", MultiBeginGame);y+=16;
 
-	info->hostnameedit	= MC_AddEdit	(menu, 64, y,	"   Hostname", name.string);y+=16;
+	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,	"   Hostname", name.string);y+=16;
 
 	for (players = 0; players < sizeof(numplayeroptions)/ sizeof(numplayeroptions[0]); players++)
 	{
@@ -608,22 +608,22 @@ void M_Menu_GameOptions_f (void)
 			break;
 	}
 
-	info->numplayers	= MC_AddCombo	(menu, 64, y,			"Max players", (const char **)numplayeroptions,	players);y+=8;
+	info->numplayers	= MC_AddCombo	(menu, 64, 160, y,			"Max players", (const char **)numplayeroptions,	players);y+=8;
 
-	info->deathmatch	= MC_AddCombo	(menu, 64, y,			" Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
-	info->teamplay		= MC_AddCombo	(menu, 64, y,			"   Teamplay", (const char **)teamplayoptions,		teamplay.value);y+=8;
-	info->skill			= MC_AddCombo	(menu, 64, y,			"      Skill", (const char **)skilloptions,			skill.value);y+=8;
-	info->rundedicated	= MC_AddCheckBox(menu, 64, y,			"  dedicated", NULL, 0);y+=8;
+	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			" Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
+	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			"   Teamplay", (const char **)teamplayoptions,		teamplay.value);y+=8;
+	info->skill			= MC_AddCombo	(menu, 64, 160, y,			"      Skill", (const char **)skilloptions,			skill.value);y+=8;
+	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			"  dedicated", NULL, 0);y+=8;
 	y+=8;
-	info->timelimit		= MC_AddCombo	(menu, 64, y,			" Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
-	info->fraglimit		= MC_AddCombo	(menu, 64, y,			" Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
+	info->timelimit		= MC_AddCombo	(menu, 64, 160, y,			" Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
+	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			" Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
-	MC_AddSlider	(menu, 64-7*8, y,					"Extra edict support", &pr_maxedicts, 512, 2047, 256);y+=8;
+	MC_AddSlider	(menu, 64-7*8, 160, y,					"Extra edict support", &pr_maxedicts, 512, 2047, 256);y+=8;
 	y+=8;
 	if (mgt == MGT_QUAKE2)
-		info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "base1");
+		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"        map", "base1");
 	else
-		info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "start");
+		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"        map", "start");
 	y += 16;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);

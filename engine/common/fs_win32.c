@@ -138,7 +138,8 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 	if (h == INVALID_HANDLE_VALUE)
 		return NULL;
 
-	if (write || append || text)
+	fsize = GetFileSize(h, NULL);
+	if (write || append || text || fsize > 1024*1024*5)
 	{
 		fsize = 0;
 		mh = INVALID_HANDLE_VALUE;
@@ -150,7 +151,6 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 	}
 	else
 	{
-		fsize = GetFileSize(h, NULL);
 		mh = CreateFileMapping(h, NULL, PAGE_READONLY, 0, 0, NULL);
 		if (mh == INVALID_HANDLE_VALUE)
 			mmap = NULL;

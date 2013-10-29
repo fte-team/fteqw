@@ -129,7 +129,7 @@ int PM_SlideMove (void)
 		for (i=0 ; i<3 ; i++)
 			end[i] = pmove.origin[i] + time_left * pmove.velocity[i];
 
-		trace = PM_PlayerTrace (pmove.origin, end);
+		trace = PM_PlayerTrace (pmove.origin, end, MASK_PLAYERSOLID);
 
 		if (trace.startsolid || trace.allsolid)
 		{	// entity is trapped in another solid
@@ -272,7 +272,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 		org = (-DotProduct(pmove.gravitydir, originalvel) < 0) ? pmove.origin : original;
 		VectorMA (org, movevars.stepheight, pmove.gravitydir, dest);
-		trace = PM_PlayerTrace (org, dest);
+		trace = PM_PlayerTrace (org, dest, MASK_PLAYERSOLID);
 		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 			return blocked;
 
@@ -291,7 +291,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 // move up a stair height
 	VectorMA (pmove.origin, -stepsize, pmove.gravitydir, dest);
-	trace = PM_PlayerTrace (pmove.origin, dest);
+	trace = PM_PlayerTrace (pmove.origin, dest, MASK_PLAYERSOLID);
 	if (!trace.startsolid && !trace.allsolid)
 	{
 		VectorCopy (trace.endpos, pmove.origin);
@@ -304,7 +304,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 // press down the stepheight
 	VectorMA (pmove.origin, stepsize, pmove.gravitydir, dest);
-	trace = PM_PlayerTrace (pmove.origin, dest);
+	trace = PM_PlayerTrace (pmove.origin, dest, MASK_PLAYERSOLID);
 	if (trace.fraction != 1 && -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 		goto usedown;
 	if (!trace.startsolid && !trace.allsolid)
@@ -396,7 +396,7 @@ void PM_Friction (void)
 		start[1] = stop[1] = pmove.origin[1] + pmove.velocity[1]/speed*16;
 		start[2] = pmove.origin[2] + player_mins[2];
 		stop[2] = start[2] - 34;
-		trace = PM_PlayerTrace (start, stop);
+		trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
 		if (trace.fraction == 1)
 			friction *= 2;
 
@@ -608,7 +608,7 @@ void PM_LadderMove (void)
 // assume it is a stair or a slope, so press down from stepheight above
 	VectorMA (pmove.origin, frametime, pmove.velocity, dest);
 	VectorMA(dest, -(movevars.stepheight + 1), pmove.gravitydir, start);
-	trace = PM_PlayerTrace (start, dest);
+	trace = PM_PlayerTrace (start, dest, MASK_PLAYERSOLID);
 	if (!trace.startsolid && !trace.allsolid)	// FIXME: check steep slope?
 	{	// walked up the step
 		VectorCopy (trace.endpos, pmove.origin);
@@ -749,7 +749,7 @@ void PM_CategorizePosition (void)
 	}
 	else
 	{
-		trace = PM_PlayerTrace (pmove.origin, point);
+		trace = PM_PlayerTrace (pmove.origin, point, MASK_PLAYERSOLID);
 		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 			pmove.onground = false;
 		else
@@ -829,7 +829,7 @@ void PM_CategorizePosition (void)
 		VectorMA (pmove.origin, 24, flatforward, fwd1);
 
 		//if we hit a wall when going forwards and we are in a ladder region, then we are on a ladder.
-		t = PM_PlayerTrace(pmove.origin, fwd1);
+		t = PM_PlayerTrace(pmove.origin, fwd1, MASK_PLAYERSOLID);
 		if (t.fraction < 1)
 		{
 			pmove.onladder = true;

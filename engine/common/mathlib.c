@@ -1041,6 +1041,26 @@ void Matrix4x4_RM_CreateTranslate (float *out, float x, float y, float z)
 	out[15] = 1;
 }
 
+void Matrix4x4_CM_LightMatrixFromAxis(float *modelview, const vec3_t px, const vec3_t py, const vec3_t pz, const vec3_t org)
+{
+	modelview[ 0] = px[0];
+	modelview[ 1] = py[0];
+	modelview[ 2] = pz[0];
+	modelview[ 3] = 0;
+	modelview[ 4] = px[1];
+	modelview[ 5] = py[1];
+	modelview[ 6] = pz[1];
+	modelview[ 7] = 0;
+	modelview[ 8] = px[2];
+	modelview[ 9] = py[2];
+	modelview[10] = pz[2];
+	modelview[11] = 0;
+	modelview[12] = -(px[0]*org[0] + px[1]*org[1] + px[2]*org[2]);
+	modelview[13] = -(py[0]*org[0] + py[1]*org[1] + py[2]*org[2]);
+	modelview[14] = -(pz[0]*org[0] + pz[1]*org[1] + pz[2]*org[2]);
+	modelview[15] = 1;
+}
+
 void Matrix4x4_CM_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
 	float tempmat[16];

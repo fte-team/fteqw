@@ -621,10 +621,10 @@ void Skin_NextDownload (void)
 void Skin_FlushPlayers(void)
 {	//wipe the skin info
 	int i;
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 		cl.players[i].skin = NULL;
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 		CL_NewTranslation(i);
 }
 

@@ -93,7 +93,7 @@ void SV_RecordDemo_f (void)
 	fwrite(mapname, 1, sizeof(char)*(strlen(mapname)+1), svdemofile);
 
 
-	for (clnum = 0; clnum < MAX_CLIENTS; clnum++)	//clear the server so the clients reconnect and send nice fresh messages.
+	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server so the clients reconnect and send nice fresh messages.
 	{
 		c = &svs.clients[clnum];
 		if (c->state <= cs_zombie)
@@ -149,7 +149,7 @@ void SV_PlayDemo_f(void)
 
 	svs.demoplayback = true;
 
-	for (clnum = 0; clnum < MAX_CLIENTS; clnum++)	//clear the server so new clients don't conflict.
+	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server so new clients don't conflict.
 	{
 		c = &svs.clients[clnum];
 		if (c->state <= cs_zombie)
@@ -266,7 +266,7 @@ void SV_LoadClientDemo_f (void)
 		memset(sv.demostate, 0, sizeof(entity_state_t)*MAX_EDICTS);
 	}
 /*
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		host_client = &svs.clients[i];
 		if (host_client->state == cs_spawned)

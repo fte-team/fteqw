@@ -390,6 +390,9 @@ void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHas
 			while (*n && *n != '\r' && *n != '\n' && *n != ';')
 				n++;
 
+			if (n-s >= sizeof(name))
+				continue;
+
 			memcpy(name, s, n - s);
 			name[n-s] = 0;
 			//precompute the name->block lookup. fte normally does the hashing outside the archive code.

@@ -875,6 +875,9 @@ static qboolean JCL_JingleHandleSessionTerminate(jclient_t *jcl, xmltree_t *tree
 }
 static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, char *from, struct c2c_s *c2c, buddy_t *b)
 {
+	//peer accepted our session
+	//make sure it actually was ours, and not theirs. sneaky sneaky.
+	//will generally contain some port info.
 	if (!c2c)
 	{
 		Con_DPrintf("Unknown session acceptance\n");
@@ -972,6 +975,51 @@ qboolean JCL_HandleGoogleSession(jclient_t *jcl, xmltree_t *tree, char *from, ch
 	return true;
 }
 #endif
+enum
+{
+	JE_ACKNOWLEDGE,
+	JE_UNSUPPORTED,
+	JE_OUTOFORDER,
+	JE_TIEBREAK,
+	JE_UNKNOWNSESSION,
+	JE_UNSUPPORTEDINFO
+};
+void JCL_JingleError(jclient_t *jcl, xmltree_t *tree, char *from, char *id, int type)
+{
+	switch(type)
+	{
+	case JE_ACKNOWLEDGE:
+		JCL_AddClientMessagef(jcl,
+			"<iq type='result' to='%s' id='%s' />", from, id);
+		break;
+	case JE_UNSUPPORTED:
+		JCL_AddClientMessagef(jcl,
+				"<iq id='%s' to='%s' type='error'>"
+				  "<error type='cancel'>"
+					"<bad-request xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+				  "</error>"
+				"</iq>", id, from);
+		break;
+	case JE_UNKNOWNSESSION:
+		JCL_AddClientMessagef(jcl,
+				"<iq id='%s' to='%s' type='error'>"
+				  "<error type='modify'>"
+					"<item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+					"<unknown-session xmlns='urn:xmpp:jingle:errors:1'/>"
+				  "</error>"
+				"</iq>", id, from);
+		break;
+	case JE_UNSUPPORTEDINFO:
+		JCL_AddClientMessagef(jcl,
+				"<iq id='%s' to='%s' type='error'>"
+				  "<error type='modify'>"
+					"<feature-not-implemented xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+					"<unsupported-info xmlns='urn:xmpp:jingle:errors:1'/>"
+				  "</error>"
+				"</iq>", id, from);
+		break;
+	}
+}
 qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 {
 	char *action = XML_GetParameter(tree, "action", "");
@@ -1002,22 +1050,85 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 	//FIXME: transport-info, transport-replace
 	if (!strcmp(action, "session-terminate"))
 	{
-		JCL_JingleHandleSessionTerminate(jcl, tree, c2c, link, b);
+		if (c2c)
+		{
+			JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
+			JCL_JingleHandleSessionTerminate(jcl, tree, c2c, link, b);
+		}
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
 	}
-	//content-accept
-	//content-add
-	//content-modify
-	//content-reject
-	//content-remove
-	//description-info
-	//security-info
-	//
+	else if (!strcmp(action, "content-accept"))
+	{
+		//response from content-add
+		if (c2c)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
+	}
+	else if (!strcmp(action, "content-add"))
+	{
+		//FIXME: must send content-reject
+		if (c2c)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
+	}
+	else if (!strcmp(action, "content-modify"))
+	{
+		//send an error to reject it
+		JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+	}
+	else if (!strcmp(action, "content-reject"))
+	{
+		//response from content-add. an error until we actually generate content-adds...
+		if (c2c)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
+	}
+	else if (!strcmp(action, "content-remove"))
+	{
+		if (c2c)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
+	}
+	else if (!strcmp(action, "description-info"))
+	{
+		//The description-info action is used to send informational hints about parameters related to the application type, such as the suggested height and width of a video display area or suggested configuration for an audio stream.
+		//just ack and ignore it
+		if (c2c)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
+	}
+	else if (!strcmp(action, "security-info"))
+	{
+		//The security-info action is used to send information related to establishment or maintenance of security preconditions.
+		//no security mechanisms supported...
+		if (c2c)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
+	}
+	else if (!strcmp(action, "session-info"))
+	{
+		if (tree->child)
+			JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTEDINFO);
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);	//serves as a ping.
+	}
+
 	else if (!strcmp(action, "transport-info"))
 	{	//peer wants to add ports.
 		if (c2c)
+		{
+			JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
 			JCL_JingleParsePeerPorts(jcl, c2c, tree, from, sid);
+		}
 		else
-			Con_DPrintf("Received transport-info without an active session\n");
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
 	}
 //FIXME: we need to add support for this to downgrade to raw if someone tries calling through a SIP gateway
 	else if (!strcmp(action, "transport-replace"))
@@ -1025,39 +1136,51 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 		if (c2c)
 		{
 			if (1)
+			{
+				JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
 				JCL_JingleSend(jcl, c2c, "transport-reject");
+			}
 			else
 			{
+				JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
 				JCL_JingleParsePeerPorts(jcl, c2c, tree, from, sid);
 				JCL_JingleSend(jcl, c2c, "transport-accept");
 			}
 		}
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
 	}
 	else if (!strcmp(action, "transport-reject"))
 	{
+		JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
 		JCL_JingleSend(jcl, c2c, "session-terminate");
 	}
 	else if (!strcmp(action, "session-accept"))
 	{
-		if (!JCL_JingleHandleSessionAccept(jcl, tree, from, c2c, b))
-			return false;
+		if (c2c)
+		{
+			//response from a message we sent.
+			if (JCL_JingleHandleSessionAccept(jcl, tree, from, c2c, b))
+				JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
+			else
+				JCL_JingleError(jcl, tree, from, id, JE_OUTOFORDER);
+		}
+		else
+			JCL_JingleError(jcl, tree, from, id, JE_UNKNOWNSESSION);
 	}
 	else if (!strcmp(action, "session-initiate"))
 	{
 //		Con_Printf("Peer initiating connection!\n");
 //		XML_ConPrintTree(tree, 0);
 
-		if (!JCL_JingleHandleInitiate(jcl, tree, from))
-			return false;
+		JCL_JingleError(jcl, tree, from, id, JE_ACKNOWLEDGE);
+
+		JCL_JingleHandleInitiate(jcl, tree, from);
 	}
 	else
 	{
-		Con_Printf("Unknown jingle action: %s\n", action);
-//		XML_ConPrintTree(tree, 0);
+		JCL_JingleError(jcl, tree, from, id, JE_UNSUPPORTED);
 	}
-
-	JCL_AddClientMessagef(jcl,
-		"<iq type='result' to='%s' id='%s' />", from, id);
 	return true;
 }
 #endif

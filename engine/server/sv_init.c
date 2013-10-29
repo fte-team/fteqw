@@ -552,7 +552,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 			sv.csqcentversion = NULL;
 		}
 	}
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].frameunion.frames)
 			Z_Free(svs.clients[i].frameunion.frames);
@@ -562,8 +562,40 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		*svs.clients[i].namebuf = '\0';
 		svs.clients[i].name = NULL;
 	}
+	free(svs.clients);
+	svs.clients = NULL;
+	svs.allocated_client_slots = 0;
 	SV_FlushLevelCache();
 	NET_CloseServer ();
+}
+
+void SV_UpdateMaxPlayers(int newmax)
+{
+	int i;
+	if (newmax != svs.allocated_client_slots)
+	{
+		for (i = newmax; i < svs.allocated_client_slots; i++)
+		{
+			if (svs.clients[i].state)
+				SV_DropClient(&svs.clients[i]);
+			svs.clients[i].namebuf[0] = '\0';						//kill all bots
+		}
+		if (newmax)
+			svs.clients = realloc(svs.clients, newmax*sizeof(*svs.clients));
+		else
+		{
+			free(svs.clients);
+			svs.clients = NULL;
+		}
+		for (i = svs.allocated_client_slots; i < newmax; i++)
+		{
+			memset(&svs.clients[i], 0, sizeof(svs.clients[i]));
+			svs.clients[i].name = svs.clients[i].namebuf;
+			svs.clients[i].team = svs.clients[i].teambuf;
+		}
+		svs.allocated_client_slots = sv.allocated_client_slots = newmax;
+	}
+	sv.allocated_client_slots = svs.allocated_client_slots;
 }
 
 /*
@@ -633,7 +665,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Rank_Flush();
 #endif
 
-		for (i = 0; i < MAX_CLIENTS; i++)
+		for (i = 0; i < svs.allocated_client_slots; i++)
 		{
 			if (svs.clients[i].state && ISQWCLIENT(&svs.clients[i]))
 				ReloadRanking(&svs.clients[i], svs.clients[i].name);
@@ -656,7 +688,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		svs.netprim.anglesize = 1;
 	}
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		svs.clients[i].datagram.prim = svs.netprim;
 		svs.clients[i].netchan.message.prim = svs.netprim;
@@ -800,7 +832,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #if defined(Q2BSPS)
 	if (usecinematic)
 	{
-		qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+		qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 		extern model_t *loadmodel;
 
 		strcpy (sv.name, server);
@@ -966,13 +998,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			Q1QVM_Shutdown();
 #endif
 
-		for (i=0 ; i<MAX_CLIENTS ; i++)	//server type changed, so we need to drop all clients. :(
-		{
-			if (svs.clients[i].state)
-				SV_DropClient(&svs.clients[i]);
-
-			svs.clients[i].namebuf[0] = '\0';						//kill all bots
-		}
+		SV_UpdateMaxPlayers(0);
 	}
 	svs.gametype = newgametype;
 
@@ -1049,7 +1075,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_SetLoadingFile("clients");
 #endif
 
-	for (i=0 ; i<MAX_CLIENTS ; i++)
+	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		svs.clients[i].edict = NULL;
 		svs.clients[i].name = svs.clients[i].namebuf;
@@ -1073,14 +1099,17 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			Cvar_Set(&coop, "1");
 		}
 #endif
-		/*only make one slot for single-player*/
-		if (!isDedicated && !deathmatch.value && !coop.value)
-			sv.allocated_client_slots = 1;
-		else
-			sv.allocated_client_slots = QWMAX_CLIENTS;
 		if (sv_playerslots.ival > 0)
-			sv.allocated_client_slots = sv_playerslots.ival;
-		sv.allocated_client_slots = bound(1, sv.allocated_client_slots, MAX_CLIENTS);	//bound it
+			i = sv_playerslots.ival;
+		else
+		{
+			/*only make one slot for single-player*/
+			if (!isDedicated && !deathmatch.value && !coop.value)
+				i = 1;
+			else
+				i = QWMAX_CLIENTS;
+		}
+		SV_UpdateMaxPlayers(i);
 
 		// leave slots at start for clients only
 		for (i=0 ; i<sv.allocated_client_slots ; i++)
@@ -1116,27 +1145,21 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				memset(svs.clients[i].csqcentversions, 0, sizeof(*svs.clients[i].csqcentversions) * svs.clients[i].max_net_ents);
 #endif
 		}
-		for (; i < MAX_CLIENTS; i++)
-		{
-			if (svs.clients[i].state)
-				SV_DropClient(&svs.clients[i]);
-			svs.clients[i].namebuf[0] = '\0';						//kill all bots
-		}
 		break;
 	case GT_QUAKE2:
 #ifdef Q2SERVER
-		for (i=0 ; i<MAX_CLIENTS ; i++)
+		SV_UpdateMaxPlayers(svq2_maxclients);
+		for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
 			q2ent = Q2EDICT_NUM(i+1);
 			q2ent->s.number = i+1;
 			svs.clients[i].q2edict = q2ent;
 		}
-		sv.allocated_client_slots = svq2_maxclients;
 #endif
 		break;
 	case GT_QUAKE3:
 #ifdef Q3SERVER
-		sv.allocated_client_slots = 32;
+		SV_UpdateMaxPlayers(32);
 #endif
 		break;
 	case GT_HALFLIFE:
@@ -1145,9 +1168,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 		break;
 	}
-	//fixme: properly kick any other clients (ie: without notifying gamecode).
+	//fixme: is this right?
 
-	for (i=0 ; i<MAX_CLIENTS ; i++)
+	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
 		Q_strncpyz(svs.clients[i].name, Info_ValueForKey(svs.clients[i].userinfo, "name"), sizeof(svs.clients[i].namebuf));
 		Q_strncpyz(svs.clients[i].team, Info_ValueForKey(svs.clients[i].userinfo, "team"), sizeof(svs.clients[i].teambuf));
@@ -1438,7 +1461,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (!startspot)
 	{
 		SV_FlushLevelCache();	//to make sure it's caught
-		for (i=0 ; i<MAX_CLIENTS ; i++)
+		for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
 			if (svs.clients[i].spawninfo)
 				Z_Free(svs.clients[i].spawninfo);

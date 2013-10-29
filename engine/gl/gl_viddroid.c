@@ -118,7 +118,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = info->width;
 	vid.pixelheight = info->height;
 	vid.numpages = 3;
-	gl_canstencil = 0;
 
 	const EGLint attribs[] = {
 		EGL_RENDERABLE_TYPE, (sys_glesversion>=2)?EGL_OPENGL_ES2_BIT:EGL_OPENGL_ES_BIT,

@@ -4422,7 +4422,7 @@ void CL_MuzzleFlash (int destsplit)
 
 		if (s1->number == i)
 		{
-			dl = CL_AllocDlight (-i);
+			dl = CL_AllocDlight (i);
 			VectorCopy (s1->origin,  dl->origin);
 			AngleVectors(s1->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			break;
@@ -4430,7 +4430,7 @@ void CL_MuzzleFlash (int destsplit)
 	}
 	if (pnum==pack->num_entities)
 	{	//that ent number doesn't exist, go for a player with that number
-		if ((unsigned)(i) <= MAX_CLIENTS && i > 0)
+		if ((unsigned)(i) <= cl.allocated_client_slots && i > 0)
 		{
 			pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[i-1];
 
@@ -4449,14 +4449,15 @@ void CL_MuzzleFlash (int destsplit)
 
 	dl->radius = 200 + (rand()&31);
 	dl->minlight = 32;
-	dl->die = cl.time + 0.1334;
-	dl->color[0] = 1.0;
-	dl->color[1] = 0.4;
-	dl->color[2] = 0.2;
+	dl->die = cl.time + 0.5;
+	dl->color[0] = 1.3;
+	dl->color[1] = 0.9;
+	dl->color[2] = 0.5;
 
 	dl->channelfade[0] = 1.5;
 	dl->channelfade[1] = 0.75;
 	dl->channelfade[2] = 0.375;
+	dl->decay = 500;
 }
 
 #ifdef Q2CLIENT
@@ -5075,7 +5076,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 	fullmessage[0] = 0;
 
 	// search for player names in message
-	for (i = 0, p = cl.players; i < MAX_CLIENTS; p++, i++)
+	for (i = 0, p = cl.players; i < cl.allocated_client_slots; p++, i++)
 	{
 		char *v;
 		char *name;
@@ -6162,16 +6163,16 @@ qboolean CLNQ_ParseNQPrints(char *s)
 					return false;
 				*s = 0;
 
-				for (i = 0; i < MAX_CLIENTS; i++)
+				for (i = 0; i < cl.allocated_client_slots; i++)
 				{
 					if (!strcmp(start, cl.players[i].name))
 						break;
 				}
-				if (i == MAX_CLIENTS)
+				if (i == cl.allocated_client_slots)
 				{
 
 				}
-				if (i != MAX_CLIENTS)
+				if (i != cl.allocated_client_slots)
 				{
 					cl.players[i].ping = atoi(pingstart);
 				}
@@ -6520,7 +6521,7 @@ void CLNQ_ParseServerMessage (void)
 				int a;
 				i = MSG_ReadByte ();
 				a = MSG_ReadByte ();
-				if (i < MAX_CLIENTS)
+				if (i < cl.allocated_client_slots)
 				{
 					cl.players[i].rtopcolor = a&0x0f;
 					cl.players[i].rbottomcolor = (a&0xf0)>>4;

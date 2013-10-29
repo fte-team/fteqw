@@ -560,11 +560,10 @@ void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	else
 		shad = R_RegisterSkin(str, NULL);
 	if (shad)
-		G_FLOAT(OFS_RETURN) = shad-r_shaders + 1;
+		G_FLOAT(OFS_RETURN) = shad->id+1;
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }
-
 
 void QCBUILTIN PF_cl_GetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

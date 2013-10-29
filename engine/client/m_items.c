@@ -473,11 +473,8 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 
 				if (option->slider.text)
 				{
-					if (!menu->cursoritem && menu->selecteditem == option)
-						Draw_AltFunString(x, y, option->slider.text);
-					else
-						Draw_FunString(x, y, option->slider.text);
-					x += strlen(option->slider.text)*8+28;
+					Draw_FunStringWidth(x, y, option->slider.text, option->slider.textwidth, true, !menu->cursoritem && menu->selecteditem == option);
+					x += option->slider.textwidth + 3*8;
 				}
 
 				if (range < 0)
@@ -522,11 +519,8 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 
 				if (option->check.text)
 				{
-					if (!menu->cursoritem && menu->selecteditem == option)
-						Draw_AltFunString(x, y, option->check.text);
-					else
-						Draw_FunString(x, y, option->check.text);
-					x += strlen(option->check.text)*8+28;
+					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, !menu->cursoritem && menu->selecteditem == option);
+					x += option->check.textwidth + 3*8;
 				}
 #if 0
 				if (on)
@@ -545,12 +539,8 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
 
-				//Fixme: variable width fonts
-				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_AltFunString(x, y, option->edit.caption);
-				else
-					Draw_FunString(x, y, option->edit.caption);
-				x+=strlen(option->edit.caption)*8+8;
+				Draw_FunStringWidth(x, y, option->edit.caption, option->edit.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);
+				x += option->edit.captionwidth + 3*8;
 				if (option->edit.slim)
 					x += 8; // more space for cursor
 				else
@@ -571,11 +561,9 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				int		keys[2];
 				char *keyname;
 
-				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_AltFunString(x, y, option->bind.caption);
-				else
-					Draw_FunString(x, y, option->bind.caption);
-				x += strlen(option->bind.caption)*8+28;
+				Draw_FunStringWidth(x, y, option->bind.caption, option->bind.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);
+				x += option->bind.captionwidth + 3*8;
+
 				{
 					extern cvar_t cl_forcesplitclient;
 
@@ -609,11 +597,9 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
 
-				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_AltFunString(x, y, option->combo.caption);
-				else
-					Draw_FunString(x, y, option->combo.caption);
-				x += strlen(option->combo.caption)*8+24;
+				Draw_FunStringWidth(x, y, option->combo.caption, option->combo.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);
+				x += option->combo.captionwidth + 3*8;
+
 				if (option->combo.numoptions)
 				{
 					if (!menu->cursoritem && menu->selecteditem == option)
@@ -719,18 +705,19 @@ menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean
 	return n;
 }
 
-menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command)
+menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command)
 {
 	menubind_t *n = Z_Malloc(sizeof(menutext_t) + strlen(caption)+1 + strlen(command)+1);
 	n->common.type = mt_bind;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = cx;
 	n->common.posy = y;
+	n->captionwidth = bx-cx;
 	n->caption = (char *)(n+1);
 	strcpy(n->caption, caption);
 	n->command = n->caption+strlen(n->caption)+1;
 	strcpy(n->command, command);
-	n->common.width = strlen(caption)*8 + 64;
+	n->common.width = n->captionwidth + 64;
 	n->common.height = 8;
 
 	n->common.next = menu->options;
@@ -850,15 +837,20 @@ menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
 	return n;
 }
 
-menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def)
+menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def)
 {
-	menuedit_t *n = Z_Malloc(sizeof(menuedit_t));
+	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
+	n->slim = false;
 	n->common.type = mt_edit;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = cx;
 	n->common.posy = y;
+	n->common.width = ex-cx+(17)*8;
+	n->common.height = n->slim?8:16;
 	n->modified = true;
-	n->caption = text;
+	n->captionwidth = ex-cx;
+	n->caption = (char *)(n+1);
+	strcpy((char *)(n+1), text);
 	Q_strncpyz(n->text, def, sizeof(n->text));
 
 	n->common.next = menu->options;
@@ -866,19 +858,21 @@ menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def)
 	return n;
 }
 
-menuedit_t *MC_AddEditCvar_Full(menu_t *menu, int x, int y, char *text, char *name, qboolean isslim)
+menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean isslim)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	cvar_t *cvar;
 	cvar = Cvar_Get(name, "", CVAR_USERCREATED|CVAR_ARCHIVE, NULL);	//well, this is a menu/
+	n->slim = isslim;
 	n->common.type = mt_edit;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = cx;
 	n->common.posy = y;
-	n->common.width = (strlen(text)+17)*8;
-	n->common.height = 8;
+	n->common.width = ex-cx+(17)*8;
+	n->common.height = n->slim?8:16;
 	n->common.tooltip = cvar->description;
 	n->modified = true;
+	n->captionwidth = ex-cx;
 	n->caption = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->cvar = cvar;
@@ -889,19 +883,8 @@ menuedit_t *MC_AddEditCvar_Full(menu_t *menu, int x, int y, char *text, char *na
 	Q_strncpyz(n->text, cvar->string, sizeof(n->text));
 
 	n->common.next = menu->options;
-	n->slim = isslim;
 	menu->options = (menuoption_t *)n;
 	return n;
-}
-
-menuedit_t *MC_AddEditCvarSlim(menu_t *menu, int x, int y, char *text, char *name)
-{
-	return MC_AddEditCvar_Full(menu, x, y, text, name, true);
-}
-
-menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
-{
-	return MC_AddEditCvar_Full(menu, x, y, text, name, false);
 }
 
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
@@ -934,15 +917,16 @@ menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint)
 	return n;
 }
 
-menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int bits)
+menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int bits)
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = tx;
 	n->common.posy = y;
 	n->common.height = 8;
-	n->common.width = (strlen(text)+7)*8;
+	n->textwidth = cx - tx;
+	n->common.width = cx-tx + 7*8;
 	n->common.tooltip = var?var->description:NULL;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
@@ -961,15 +945,16 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	menu->options = (menuoption_t *)n;
 	return n;
 }
-menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits)
+menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits)
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = tx;
 	n->common.posy = y;
 	n->common.height = 8;
-	n->common.width = (strlen(text)+7)*8;
+	n->textwidth = cx - tx;
+	n->common.width = cx-tx + 7*8;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->func = func;
@@ -981,17 +966,18 @@ menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qb
 }
 
 //delta may be 0
-menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max, float delta)
+menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta)
 {
 	menuslider_t *n = Z_Malloc(sizeof(menuslider_t)+strlen(text)+1);
 	n->common.type = mt_slider;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = tx;
 	n->common.posy = y;
 	n->common.height = 8;
-	n->common.width = (strlen(text)+SLIDER_RANGE+5)*8;
+	n->common.width = sx-tx + (SLIDER_RANGE+5)*8;
 	n->common.tooltip = var->description;
 	n->var = var;
+	n->textwidth = sx-tx;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 
@@ -1016,7 +1002,7 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 	return n;
 }
 
-menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const char **ops, int initialvalue)
+menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue)
 {
 	int numopts;
 	int optlen;
@@ -1046,10 +1032,11 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 	optbuf = (char*)(newops + numopts+1);
 	n->common.type = mt_combo;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = tx;
 	n->common.posy = y;
 	n->common.height = 8;
-	n->common.width = strlen(caption)*8 + maxoptlen*8;
+	n->common.width = cx-tx + maxoptlen*8;
+	n->captionwidth = cx-tx;
 	n->caption = caption;
 	n->options = (const char **)newops;
 
@@ -1074,7 +1061,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 
 	return n;
 }
-menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values)
+menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values)
 {
 	int numopts;
 	int optlen;
@@ -1108,11 +1095,12 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cv
 	optbuf = (char*)(newvalues + numopts+1);
 	n->common.type = mt_combo;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = tx;
 	n->common.posy = y;
 	n->common.height = 8;
-	n->common.width = strlen(caption)*8 + maxoptlen*8;
+	n->common.width = cx-tx + maxoptlen*8;
 	n->common.tooltip = cvar->description;
+	n->captionwidth = cx-tx;
 
 	strcpy(optbuf, caption);
 	n->caption = optbuf;
@@ -2148,21 +2136,21 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			}
 			break;
 		case mt_checkbox:
-			control = (union menuoption_s *)MC_AddCheckBox(menu, x, y, bulk->text, bulk->cvar, bulk->flags);
+			control = (union menuoption_s *)MC_AddCheckBox(menu, xleft, xtextend, y, bulk->text, bulk->cvar, bulk->flags);
 			control->check.func = bulk->func;
 			break;
 		case mt_slider:
-			control = (union menuoption_s *)MC_AddSlider(menu, x, y, bulk->text, bulk->cvar, bulk->min, bulk->max, bulk->delta);
+			control = (union menuoption_s *)MC_AddSlider(menu, xleft, xtextend, y, bulk->text, bulk->cvar, bulk->min, bulk->max, bulk->delta);
 			break;
 		case mt_combo:
 			switch (bulk->variant)
 			{
 			default:
 			case 0: // cvar combo
-				control = (union menuoption_s *)MC_AddCvarCombo(menu, x, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
+				control = (union menuoption_s *)MC_AddCvarCombo(menu, xleft, xtextend, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
 				break;
 			case 1: // combo with return value
-				control = (union menuoption_s *)MC_AddCombo(menu, x, y, bulk->text, bulk->options, bulk->selectedoption);
+				control = (union menuoption_s *)MC_AddCombo(menu, xleft, xtextend, y, bulk->text, bulk->options, bulk->selectedoption);
 				break;
 			}
 			break;
@@ -2172,11 +2160,11 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			default:
 			case 0:
 				y += 4;
-				control = (union menuoption_s *)MC_AddEditCvar(menu, x, y, bulk->text, bulk->cvarname);
+				control = (union menuoption_s *)MC_AddEditCvar(menu, xleft, xtextend, y, bulk->text, bulk->cvarname, false);
 				spacing += 4;
 				break;
 			case 1:
-				control = (union menuoption_s *)MC_AddEditCvarSlim(menu, x, y, bulk->text, bulk->cvarname);
+				control = (union menuoption_s *)MC_AddEditCvar(menu, xleft, xtextend, y, bulk->text, bulk->cvarname, true);
 				break;
 			}
 			break;

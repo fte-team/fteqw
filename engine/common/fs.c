@@ -17,6 +17,7 @@
 #endif
 
 hashtable_t filesystemhash;
+qboolean blockcache = true;
 qboolean com_fschanged = true;
 static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
@@ -339,7 +340,7 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 		char *newdir = Cmd_Argv(1);
 
 		//reject various evil path arguments.
-		if (!*newdir || strchr(newdir, '\n') || strchr(newdir, '\r') || strchr(newdir, '.') || strchr(newdir, ':') || strchr(newdir, '?') || strchr(newdir, '*') || strchr(newdir, '/') || strchr(newdir, '\\') || strchr(newdir, '$'))
+		if (!*newdir || strchr(newdir, '\n') || strchr(newdir, '\r') || !strcmp(newdir, ".") || !strcmp(newdir, "..") || strchr(newdir, ':') || strchr(newdir, '/') || strchr(newdir, '\\') || strchr(newdir, '$'))
 		{
 			Con_Printf("Illegal path specified: %s\n", newdir);
 		}
@@ -798,7 +799,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		goto fail;
 	}
 
-	if (com_fs_cache.ival)
+	if (com_fs_cache.ival && !blockcache)
 	{
 		if (com_fschanged)
 			FS_RebuildFSHash();
@@ -1100,7 +1101,7 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 		Q_strncpyz(outbuf, pattern, outlen);
 		pattern = outbuf;
 
-		Con_Printf("Warning: \\ characters in filename %s\n", pattern);
+		Con_DPrintf("Warning: \\ characters in filename %s\n", pattern);
 		while((s = strchr(pattern, '\\')))
 		{
 			*s = '/';
@@ -1615,12 +1616,19 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vp
 	newpak = FS_GetOldPath(param->oldpaths, pakfile);
 	if (!newpak)
 	{
-		fs_finds++;
-		if (!funcs->FindFile(funcs, &loc, descriptor, NULL))
-			return true;	//not found..
-		vfs = funcs->OpenVFS(funcs, &loc, "rb");
-		if (!vfs)
-			return true;
+		if (param->OpenNew == VFSOS_OpenPath)
+		{
+			vfs = NULL;
+		}
+		else
+		{
+			fs_finds++;
+			if (!funcs->FindFile(funcs, &loc, descriptor, NULL))
+				return true;	//not found..
+			vfs = funcs->OpenVFS(funcs, &loc, "rb");
+			if (!vfs)
+				return true;
+		}
 		newpak = param->OpenNew (vfs, pakfile);
 		if (!newpak)
 		{
@@ -1815,7 +1823,7 @@ void COM_RefreshFSCache_f(void)
 void COM_FlushFSCache(void)
 {
 	searchpath_t *search;
-	if (com_fs_cache.ival != 2)
+	if (com_fs_cache.ival && com_fs_cache.ival != 2)
 	{
 		for (search = com_searchpaths ; search ; search = search->next)
 		{
@@ -2105,7 +2113,7 @@ void COM_Gamedir (const char *dir)
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\n set dpcompat_trailparticles 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
-#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
+#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2*/
@@ -2166,12 +2174,15 @@ const gamemode_info_t gamemode_info[] = {
 	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
 	{"-et",			"et",		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
-	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
-	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},	NULL,	{"basewsw",						"fte"},		"Warsow"},
+	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},	NULL,	{"base",						"ftejk2"},	"Jedi Knight II: Jedi Outcast"},
+	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},	NULL,	{"basewsw",						"ftewsw"},	"Warsow"},
 
 	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},			NULL,	{"*doom.wad",					"ftedoom"},	"Doom"},
 	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
 	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
+
+	//for the luls
+	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},		NULL,	{"**.mpq",						"fted2"},	"Diablo 2"},
 
 	{NULL}
 };
@@ -2333,9 +2344,35 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	{
 		if (fs_manifest->gamepath[i].path && fs_manifest->gamepath[i].base)
 		{
-			FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_quakedir, fs_manifest->gamepath[i].path), reloadflags);
-			if (*com_homedir)
-				FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_homedir, fs_manifest->gamepath[i].path), reloadflags);
+			//paths with '*' actually result in loading packages without an actual gamedir. note that this does not imply that we can write anything.
+			if (*fs_manifest->gamepath[i].path == '*')
+			{
+				int j;
+				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, com_quakedir);
+				searchpath_t *search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
+				search->flags = 0;
+				search->handle = handle;
+				Q_strncpyz(search->purepath, "", sizeof(search->purepath));
+				Q_strncpyz(search->logicalpath, com_quakedir, sizeof(search->logicalpath));
+
+				for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+				{
+					if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
+						continue;
+					if (reloadflags & (1<<j))
+					{
+						FS_AddDataFiles(&oldpaths, search->purepath, search->logicalpath, search, searchpathformats[j].extension, searchpathformats[j].OpenNew);
+					}
+				}
+				handle->ClosePath(handle);
+				Z_Free(search);
+			}
+			else
+			{
+				FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_quakedir, fs_manifest->gamepath[i].path), reloadflags);
+				if (*com_homedir)
+					FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_homedir, fs_manifest->gamepath[i].path), reloadflags);
+			}
 		}
 	}
 	com_base_searchpaths = com_searchpaths;
@@ -2343,9 +2380,15 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	{
 		if (fs_manifest->gamepath[i].path && !fs_manifest->gamepath[i].base)
 		{
-			FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_quakedir, fs_manifest->gamepath[i].path), reloadflags);
-			if (*com_homedir)
-				FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_homedir, fs_manifest->gamepath[i].path), reloadflags);
+			if (*fs_manifest->gamepath[i].path == '*')
+			{
+			}
+			else
+			{
+				FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_quakedir, fs_manifest->gamepath[i].path), reloadflags);
+				if (*com_homedir)
+					FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_homedir, fs_manifest->gamepath[i].path), reloadflags);
+			}
 		}
 	}
 
@@ -2553,6 +2596,20 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "quake"))
 	{
+		char *prefix[] =
+		{
+			"c:/quake/",						//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
+			"c:/games/quake/",					//personally I use this
+#ifdef _WIN64
+			//quite a few people have nquake installed. we need to an api function to read the directory for non-english-windows users.
+			va("%s/nQuake/", getenv("%ProgramFiles(x86)%")),	//64bit builds should look in both places
+			va("%s/nQuake/", getenv("%ProgramFiles%")),			//
+#else
+			va("%s/nQuake/", getenv("%ProgramFiles%")),			//32bit builds will get the x86 version anyway.
+#endif
+			NULL
+		};
+		int i;
 		FILE *f;
 
 		//try and find it via steam
@@ -2563,13 +2620,17 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 		//well, okay, so they don't have quake installed from steam.
 
-		//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
-		if ((f = fopen("c:/quake/quake.exe", "rb")))
+		//check various 'unadvertised' paths
+		for (i = 0; prefix[i]; i++)
 		{
-			//HAHAHA! Found it!
-			fclose(f);
-			Q_strncpyz(basepath, "c:/quake", basepathlen);
-			return true;
+			char syspath[MAX_OSPATH];
+			Q_snprintfz(syspath, sizeof(syspath), "%sid1/pak0.pak", prefix[i]);
+			if ((f = fopen("c:/quake/quake.exe", "rb")))
+			{
+				fclose(f);
+				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
+				return true;
+			}
 		}
 	}
 
@@ -2941,6 +3002,25 @@ static void FS_StartupWithGame(int gamenum)
 }
 #endif
 
+static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
+{
+	int j;
+	vfsfile_t *f;
+	for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
+	{
+		if (!man->package[j].path)
+			continue;
+
+		f = VFSOS_Open(va("%s%s", basedir, man->package[j].path), "rb");
+		if (f)
+		{
+			VFS_CLOSE(f);
+			return true;
+		}
+	}
+	return false;
+}
+
 //just check each possible file, see if one is there.
 static qboolean FS_DirHasGame(char *basedir, int gameidx)
 {
@@ -2999,10 +3079,12 @@ static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fi
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
 	if (gamenum == -1)
 	{
+		char *ev, *v0 = COM_SkipPath(com_argv[0]);
 		for (i = 0; gamemode_info[i].argname; i++)
 		{
-			char *ev = COM_SkipPath(com_argv[0]);
-			ev = strstr(ev, gamemode_info[i].exename);
+			if (!gamemode_info[i].exename)
+				continue;
+			ev = strstr(v0, gamemode_info[i].exename);
 			if (ev && (!strchr(ev, '\\') && !strchr(ev, '/')))
 				gamenum = i;
 		}
@@ -3231,6 +3313,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	char newbasedir[MAX_OSPATH];
 	qboolean fixedbasedir;
 	qboolean reloadconfigs = false;
+	qboolean builtingame = false;
 	flocation_t loc;
 
 	//if any of these files change location, the configs will be re-execed.
@@ -3277,6 +3360,8 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	}
 	fs_manifest = man;
 
+	blockcache = true;
+
 	if (man->installation && *man->installation)
 	{
 		for (i = 0; gamemode_info[i].argname; i++)
@@ -3309,6 +3394,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 					man->defaultexec = Z_StrDup(gamemode_info[i].customexec);
 				}
 
+				builtingame = true;
 				if (!fixedbasedir && !FS_DirHasGame(newbasedir, i))
 					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath)))
 						Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
@@ -3316,6 +3402,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 			}
 		}
 	}
+
+	if (!builtingame && !fixedbasedir && !FS_DirHasAPackage(newbasedir, man))
+		if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath)))
+			Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
+
 	Q_strncpyz (com_quakedir, newbasedir, sizeof(com_quakedir));
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(com_quakedir, sizeof(com_quakedir));
@@ -3366,6 +3457,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 #endif
 			}
 		}
+		blockcache = false;
 	}
 
 	COM_Effectinfo_Clear();
@@ -3587,6 +3679,7 @@ void FS_RegisterDefaultFileSystems(void)
 	/*for systems that have case sensitive paths, also include *.PAK */
 	FS_RegisterFileSystemType(NULL, "PAK", FSPAK_LoadArchive, true);
 #endif
+	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);
 #ifdef AVAIL_ZLIB
 	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);
 	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);

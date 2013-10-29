@@ -615,7 +615,7 @@ void SV_Map_f (void)
 	}
 #endif
 
-	for (i=0 ; i<MAX_CLIENTS ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
+	for (i=0 ; i<svs.allocated_client_slots ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
 	{
 		if (svs.clients[i].state>cs_connected)	//so that we don't send a datagram
 			svs.clients[i].state=cs_connected;
@@ -627,7 +627,7 @@ void SV_Map_f (void)
 	SCR_ImageName(level);
 #endif
 
-	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 	{
 		/*pass the new map's name as an extension, so appropriate loading screens can be shown*/
 		if (ISNQCLIENT(host_client))
@@ -649,7 +649,7 @@ void SV_Map_f (void)
 	SCR_SetLoadingFile("server spawned");
 
 	//SV_BroadcastCommand ("cmd new\n");
-	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 	{	//this expanded code cuts out a packet when changing maps...
 		//but more usefully, it stops dp(and probably nq too) from timing out.
 		//make sure its all reset.
@@ -690,7 +690,7 @@ void SV_Map_f (void)
 
 
 	if (isDedicated)
-		Mod_Flush(false);
+		Mod_Purge(MP_MAPCHANGED);
 }
 
 void SV_KillServer_f(void)
@@ -1531,7 +1531,7 @@ void SV_Status_f (void)
 	{
 		Con_Printf ("frags userid address         name            rate ping drop  qport dl%% dls\n");
 		Con_Printf ("----- ------ --------------- --------------- ---- ---- ----- ----- --- ----\n");
-		for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
 			if (!cl->state)
 				continue;
@@ -1607,7 +1607,7 @@ void SV_ConSay_f(void)
 
 	Q_strcat(text, p);
 
-	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+	for (j = 0, client = svs.clients; j < svs.allocated_client_slots; j++, client++)
 	{
 		if (client->state == cs_free)
 			continue;
@@ -2052,7 +2052,7 @@ void SV_Snap (int uid)
 	char		checkname[MAX_OSPATH];
 	int			i;
 
-	for (i = 0, cl = svs.clients; i < MAX_CLIENTS; i++, cl++)
+	for (i = 0, cl = svs.clients; i < svs.allocated_client_slots; i++, cl++)
 	{
 		if (!cl->state)
 			continue;
@@ -2132,7 +2132,7 @@ void SV_SnapAll_f (void)
 	client_t *cl;
 	int			i;
 
-	for (i = 0, cl = svs.clients; i < MAX_CLIENTS; i++, cl++)
+	for (i = 0, cl = svs.clients; i < svs.allocated_client_slots; i++, cl++)
 	{
 		if (cl->state < cs_connected || cl->spectator)
 			continue;

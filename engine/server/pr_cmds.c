@@ -211,6 +211,8 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 		ent->xv->dimension_ghost = 0;
 		ent->xv->dimension_solid = 255;
 		ent->xv->dimension_hit = 255;
+		if (progstype != PROG_H2)
+			ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;	//if not running hexen2, default the scale origin to the actual origin.
 
 		ent->xv->Version = sv.csqcentversion[ent->entnum];
 		ent->xv->uniquespawnid = sv.csqcentversion[ent->entnum];
@@ -432,7 +434,7 @@ void PDECL PR_SSQC_Relocated(pubprogfuncs_t *pr, char *oldb, char *newb, int old
 		if (sv.strings.model_precache[i] >= oldb && sv.strings.model_precache[i] < oldb+oldlen)
 			sv.strings.model_precache[i] += newb - oldb;
 	}
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].name >= oldb && svs.clients[i].name < oldb+oldlen)
 			svs.clients[i].name += newb - oldb;
@@ -6762,7 +6764,7 @@ void SV_AddDebugPolygons(void)
 	if (gfuncs.AddDebugPolygons)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
-		for (i = 0; i < MAX_CLIENTS; i++)
+		for (i = 0; i < sv.allocated_client_slots; i++)
 			if (svs.clients[i].netchan.remote_address.type == NA_LOOPBACK)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.AddDebugPolygons);
@@ -9554,7 +9556,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
-	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default.")},// (EXT_CSQC)
+	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, float inwater)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default.")},// (EXT_CSQC)
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
 	{"serverkey",		PF_Fixme,	0,		0,		0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//

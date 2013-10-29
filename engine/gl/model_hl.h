@@ -232,7 +232,7 @@ void	QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM);
 //void	UploadTexture(hlmdl_tex_t *ptexture, qbyte *data, qbyte *pal);
 
 /* HL drawing */
-qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer);
 void	R_DrawHLModel(entity_t	*curent);
 
 /* physics stuff */

@@ -3194,7 +3194,7 @@ QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand)
 		//&foo (or &((&foo)[5]), which is basically an array). the result is a temp and thus cannot be assigned to (but should be possible to dereference further).
 		return QCC_PR_BuildRef(retbuf,
 				REF_GLOBAL,
-				QCC_PR_Statement(&pr_opcodes[OP_GLOBALADDRESS], operand->base, QCC_SupplyConversion(operand->index, ev_integer, true), NULL), 
+				QCC_PR_Statement(&pr_opcodes[OP_GLOBALADDRESS], operand->base, operand->index?QCC_SupplyConversion(operand->index, ev_integer, true):NULL, NULL), 
 				NULL,
 				QCC_PR_PointerType(operand->cast),
 				true);
@@ -6703,7 +6703,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				rhsr = QCC_PR_RefExpression (&rhsbuf, priority, exprflags | EXPR_DISALLOW_ARRAYASSIGN);
 
 				if (conditional&1)
-					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "Assignment in conditional");
+					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "suggest parenthesis for assignment used as truth value .");
 
 				rhsd = QCC_RefToDef(rhsr, true);
 

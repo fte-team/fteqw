@@ -5,32 +5,66 @@
 
 int selectitem;
 menu_t *menu_script;
-cvar_t menualias = SCVAR("menualias", "");
+
+void M_Script_Option (menu_t *menu, char *optionvalue)
+{
+	menuoption_t *mo;
+
+	char buf[8192];
+	//update the option
+	Cbuf_AddText(va("set option %s\n", COM_QuotedString(optionvalue, buf, sizeof(buf))), RESTRICT_LOCAL);
+
+	//expand private arguments
+	for (mo = menu->options, *buf = 0; mo; mo = mo->common.next)
+	{
+		if (mo->common.type == mt_edit)
+		{
+			if (strlen(buf) + strlen(mo->edit.text) + 2 >= sizeof(buf))
+				break;
+			memmove(buf+strlen(mo->edit.text)+1, buf, strlen(buf)+1);
+			memcpy(buf, mo->edit.text, strlen(mo->edit.text));
+			buf[strlen(mo->edit.text)] = ' ';
+		}
+	}
+	Cmd_TokenizeString(buf, false, false);
+	Cmd_ExpandString(menu->data, buf, sizeof(buf), RESTRICT_SERVER, true, true);
+
+	//and execute it as-is
+	Cbuf_AddText(buf, RESTRICT_LOCAL);
+	Cbuf_AddText("\n", RESTRICT_LOCAL);
+}
 
 void M_Script_Remove (menu_t *menu)
 {
-	menu_script = NULL;
-	Cbuf_AddText(va("set option cancel\n%s\n", menualias.string), RESTRICT_LOCAL);
-	Cvar_Set(&menualias, "");
+	if (menu == menu_script)
+		menu_script = NULL;
+
+	M_Script_Option(menu, "cancel");
 }
 qboolean M_Script_Key (int key, menu_t *menu)
 {
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_edit)
 		return false;
-	if (key >= '0' && key <= '9' && *menualias.string)
+	if (key >= '0' && key <= '9' && menu->data)
 	{
 		if (key == '0')	//specal case so that "hello" < "0"... (plus matches common impulses)
-			Cbuf_AddText(va("set option %i\n%s\n", 10, menualias.string), RESTRICT_LOCAL);
+			M_Script_Option(menu, "10");
 		else
-			Cbuf_AddText(va("set option %i\n%s\n", key-'0', menualias.string), RESTRICT_LOCAL);
+			M_Script_Option(menu, va("%i", key-'0'));
 		return true;
 	}
 	return false;
 }
 
+void M_MenuS_Callback_f (void)
+{
+	if (menu_script)
+	{
+		M_Script_Option(menu_script, Cmd_Argv(1));
+	}
+}
 void M_MenuS_Clear_f (void)
 {
-	Cvar_Set(&menualias, "");
 	if (menu_script)
 	{
 		M_RemoveMenu(menu_script);
@@ -76,10 +110,12 @@ void M_MenuS_Script_f (void)	//create a menu.
 	menu_script->remove = M_Script_Remove;
 	menu_script->key = M_Script_Key;
 	
-	if (Cmd_Argc() == 1 || !*alias)
-		Cvar_Set(&menualias, "_");
+	Key_Dest_Remove(kdm_console);
+
+	if (Cmd_Argc() == 1)
+		menu_script->data = Cmd_ParseMultiline(true);
 	else
-		Cvar_Set(&menualias, alias);
+		menu_script->data = Z_StrDup(alias);
 }
 
 void M_MenuS_Box_f (void)
@@ -115,7 +151,7 @@ void M_MenuS_CheckBox_f (void)
 	cvar = Cvar_Get(cvarname, text, 0, "User variables");
 	if (!cvar)
 		return;
-	MC_AddCheckBox(menu_script, x, y, text, cvar, bitmask);
+	MC_AddCheckBox(menu_script, x, x+160, y, text, cvar, bitmask);
 }
 
 void M_MenuS_Slider_f (void)
@@ -136,7 +172,7 @@ void M_MenuS_Slider_f (void)
 	cvar = Cvar_Get(cvarname, text, 0, "User variables");
 	if (!cvar)
 		return;
-	MC_AddSlider(menu_script, x, y, text, cvar, min, max, 0);
+	MC_AddSlider(menu_script, x, x+160, y, text, cvar, min, max, 0);
 }
 
 void M_MenuS_Picture_f (void)
@@ -175,7 +211,22 @@ void M_MenuS_Edit_f (void)
 		return;
 	}
 
-	MC_AddEditCvar(menu_script, x, y, text, def);
+	MC_AddEditCvar(menu_script, x, x+160, y, text, def, false);
+}
+void M_MenuS_EditPriv_f (void)
+{
+	int x = atoi(Cmd_Argv(1));
+	int y = atoi(Cmd_Argv(2));
+	char *text = Cmd_Argv(3);
+	char *def = Cmd_Argv(4);
+
+	if (!menu_script)
+	{
+		Con_Printf("%s with no active menu\n", Cmd_Argv(0));
+		return;
+	}
+
+	MC_AddEdit(menu_script, x, x+160, y, text, def);
 }
 
 void M_MenuS_Text_f (void)
@@ -195,7 +246,7 @@ void M_MenuS_Text_f (void)
 		MC_AddBufferedText(menu_script, x, y, text, false, false);
 	else
 	{
-		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, y, text, va("set option %s\n%s\n", command, menualias.string));
+		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, y, text, va("menucallback %s\n", command));
 		if (selectitem-- == 0)
 			menu_script->selecteditem = option;
 	}
@@ -218,7 +269,7 @@ void M_MenuS_TextBig_f (void)
 		MC_AddConsoleCommandQBigFont(menu_script, x, y, text, command);
 	else
 	{
-		option = (menuoption_t *)MC_AddConsoleCommandQBigFont(menu_script, x, y, text, va("set option %s\n%s\n", command, menualias.string));
+		option = (menuoption_t *)MC_AddConsoleCommandQBigFont(menu_script, x, y, text, va("menucallback %s\n", command));
 		if (selectitem-- == 0)
 			menu_script->selecteditem = option;
 	}
@@ -240,7 +291,7 @@ void M_MenuS_Bind_f (void)
 	if (!*caption)
 		caption = command;
 
-	MC_AddBind(menu_script, x, y, command, caption);
+	MC_AddBind(menu_script, x, x+160, y, command, caption);
 }
 
 void M_MenuS_Comboi_f (void)
@@ -278,7 +329,7 @@ void M_MenuS_Comboi_f (void)
 	}
 	opts[opt] = NULL;
 
-	MC_AddCvarCombo(menu_script, x, y, caption, var, (const char **)opts, (const char **)values);
+	MC_AddCvarCombo(menu_script, x, x+160, y, caption, var, (const char **)opts, (const char **)values);
 }
 
 char *Hunk_TempString(char *s)
@@ -352,7 +403,7 @@ void M_MenuS_Combos_f (void)
 	}
 	opts[opt] = NULL;
 
-	MC_AddCvarCombo(menu_script, x, y, caption, var, (const char **)opts, (const char **)values);
+	MC_AddCvarCombo(menu_script, x, x+160, y, caption, var, (const char **)opts, (const char **)values);
 }
 
 /*
@@ -370,10 +421,12 @@ menutext 0 24 "Cancel"
 */
 void M_Script_Init(void)
 {
-	Cmd_AddCommand("menuclear",	M_MenuS_Clear_f);
+	Cmd_AddCommandD("menuclear",	M_MenuS_Clear_f, "Pop the currently scripted menu.");
+	Cmd_AddCommandD("menucallback",	M_MenuS_Callback_f, "Explicitly invoke the active script menu's callback function with the given option set.");
 	Cmd_AddCommand("conmenu",	M_MenuS_Script_f);
 	Cmd_AddCommand("menubox",	M_MenuS_Box_f);
 	Cmd_AddCommand("menuedit",	M_MenuS_Edit_f);
+	Cmd_AddCommand("menueditpriv",	M_MenuS_EditPriv_f);
 	Cmd_AddCommand("menutext",	M_MenuS_Text_f);
 	Cmd_AddCommand("menutextbig",	M_MenuS_TextBig_f);
 	Cmd_AddCommand("menupic",	M_MenuS_Picture_f);
@@ -382,6 +435,4 @@ void M_Script_Init(void)
 	Cmd_AddCommand("menubind",	M_MenuS_Bind_f);
 	Cmd_AddCommand("menucomboi",	M_MenuS_Comboi_f);
 	Cmd_AddCommand("menucombos",	M_MenuS_Combos_f);
-
-	Cvar_Register(&menualias, "Scripting");
 }

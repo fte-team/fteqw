@@ -164,10 +164,11 @@ cvar_t	fraglimit		= CVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
 cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
-cvar_t	sv_playerslots	= CVARD("sv_playerslots", "", "Specify maximum number of player/spectator slots. This should generally be maxclients+maxspectators. Leave blank for a default value. Maximum value of "STRINGIFY(MAX_CLIENTS)".");
-cvar_t	maxclients		= CVARAF("maxclients",		"8",
-								 "sv_maxclients",			CVAR_SERVERINFO);
-cvar_t	maxspectators	= CVARF("maxspectators",	"8",	CVAR_SERVERINFO);
+cvar_t	sv_playerslots	= CVARAD("sv_playerslots",	"", 
+								 "maxplayers",		"Specify maximum number of player/spectator/bot slots, new value takes effect on the next map (this may result in players getting kicked). This should generally be maxclients+maxspectators. Leave blank for a default value.\nMaximum value of "STRINGIFY(MAX_CLIENTS)". Values above 16 will result in issues with vanilla NQ clients. Effective values other than 32 will result in issues with vanilla QW clients.");
+cvar_t	maxclients		= CVARAFD("maxclients",		"8",
+								 "sv_maxclients",			CVAR_SERVERINFO, "Specify the maximum number of players allowed on the server at once. Can be changed mid-map.");
+cvar_t	maxspectators	= CVARFD("maxspectators",	"8",	CVAR_SERVERINFO, "Specify the maximum number of spectators allowed on the server at once. Can be changed mid-map.");
 #ifdef SERVERONLY
 cvar_t	deathmatch		= CVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
 #else
@@ -389,7 +390,7 @@ void SV_FinalMessage (char *message)
 	MSG_WriteString (&sv.datagram, message);
 	MSG_WriteByte (&sv.datagram, svc_disconnect);
 
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 		if (cl->state >= cs_spawned)
 			if (ISNQCLIENT(cl) || ISQWCLIENT(cl))
 				Netchan_Transmit (&cl->netchan, sv.datagram.cursize
@@ -2195,7 +2196,7 @@ client_t *SVC_DirectConnect(void)
 	newcl->userinfo[sizeof(newcl->userinfo)-1] = '\0';
 
 	// if there is already a slot for this ip, drop it
-	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_free)
 			continue;
@@ -2945,7 +2946,7 @@ void SVC_ACK (void)
 	int slotnum;
 	char adr[MAX_ADR_SIZE];
 
-	for (slotnum = 0; slotnum < MAX_CLIENTS; slotnum++)
+	for (slotnum = 0; slotnum < svs.allocated_client_slots; slotnum++)
 	{
 		if (svs.clients[slotnum].state)
 		{
@@ -3506,7 +3507,7 @@ qboolean SV_ReadPackets (float *delay)
 	int			giveup = 5000; /*we're fucked if we need this to be this high, but at least we can retain some clients if we're really running that slow*/
 	int			cookie = 0;
 
-	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
+	for (i = 0; i < svs.allocated_client_slots; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
 		cl = &svs.clients[i];
 		while (cl->laggedpacket)
@@ -3613,7 +3614,7 @@ qboolean SV_ReadPackets (float *delay)
 		qport = MSG_ReadShort () & 0xffff;
 
 		// check for packets from connected clients
-		for (i=0, cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+		for (i=0, cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
 			if (cl->state == cs_free)
 				continue;
@@ -3701,7 +3702,7 @@ dominping:
 			break;
 		}
 
-		if (i != MAX_CLIENTS)
+		if (i != svs.allocated_client_slots)
 			continue;
 
 #ifdef Q3SERVER
@@ -3750,7 +3751,7 @@ void SV_CheckTimeouts (void)
 	droptime = realtime - timeout.value;
 	nclients = 0;
 
-	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_connected || cl->state == cs_spawned) {
 			if (!cl->spectator)
@@ -3966,7 +3967,7 @@ static void SV_PauseChanged(void)
 	int i;
 	client_t *cl;
 	// send notification to all clients
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 	{
 		if (!cl->state)
 			continue;
@@ -4785,14 +4786,17 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 		strcpy(newname, "unnamed");
 
 	// check to see if another user by the same name exists
-	while (1) {
-		for (i=0, client = svs.clients ; i<MAX_CLIENTS ; i++, client++) {
+	while (1)
+	{
+		for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
+		{
 			if (client->state < cs_connected || client == cl)
 				continue;
 			if (!stricmp(client->name, newname))
 				break;
 		}
-		if (i != MAX_CLIENTS) { // dup name
+		if (i != svs.allocated_client_slots)
+		{ // dup name
 			if (strlen(newname) > sizeof(cl->namebuf) - 1)
 				newname[sizeof(cl->namebuf) - 4] = 0;
 			p = newname;
@@ -4808,7 +4812,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			memmove(newname+10, p, strlen(p)+1);
 
 			sprintf(newname, "(%d)%-.40s", dupc++, newname+10);
-		} else
+		}
+		else
 			break;
 	}
 
@@ -4999,7 +5004,8 @@ void SV_Init (quakeparms_t *parms)
 #ifdef TERRAIN
 		Terr_Init();
 #endif
-		Mod_Init ();
+		Mod_Init (true);
+		Mod_Init (false);
 
 		PF_Common_RegisterCvars();
 	}

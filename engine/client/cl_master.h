@@ -11,29 +11,28 @@
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
-enum {
+enum mastertype_e
+{
 	MT_BAD,			//this would be an error
-	MT_MASTERHTTPNQ,  //an http/ftp based master server with NQ servers
-	MT_MASTERHTTPQW,//an http/ftp based master server with QW servers
-	MT_MASTERHTTPJSON,//quakeone's server listing
-	MT_BCASTQW,		//-1status
-	MT_BCASTQ2,		//-1status
-	MT_BCASTQ3,
-	MT_BCASTNQ,		//see code
-	MT_BCASTDP,
-	MT_SINGLEQW,	//-1status
-	MT_SINGLEQ2,	//-1status
-	MT_SINGLEQ3,
-	MT_SINGLENQ,	//see code.
-	MT_SINGLEDP,
-	MT_MASTERQW,	//c\n\0
-	MT_MASTERQ2,	//query
-	MT_MASTERQ3,
-	MT_MASTERDP		//-1getservers %s 3 empty full\x0A
+	MT_MASTERHTTPJSON,
+	MT_MASTERHTTP,
+	MT_MASTERUDP,
+	MT_BCAST,
+	MT_SINGLE,
+};
+enum masterprotocol_e
+{
+	MP_UNSPECIFIED,
+	MP_QW,
+	MP_Q2,
+	MP_Q3,
+	MP_NQ,
+	MP_DP
 };
 
 
-typedef enum{
+typedef enum
+{
 	SLKEY_PING,
 	SLKEY_MAP,
 	SLKEY_NAME,
@@ -60,7 +59,8 @@ typedef enum{
 	SLKEY_CUSTOM
 } hostcachekey_t;
 
-typedef enum {
+typedef enum
+{
 	SLIST_TEST_CONTAINS,
 	SLIST_TEST_NOTCONTAIN,
 	SLIST_TEST_LESSEQUAL,
@@ -75,12 +75,14 @@ typedef enum {
 
 
 //contains info about a server in greater detail. Could be too mem intensive.
-typedef struct serverdetailedinfo_s {
+typedef struct serverdetailedinfo_s
+{
 	char info[MAX_SERVERINFO_STRING];
 
 	int numplayers;
 
-	struct {
+	struct
+	{
 		int userid;
 		int frags;
 		float time;
@@ -93,7 +95,8 @@ typedef struct serverdetailedinfo_s {
 } serverdetailedinfo_t;
 
 //hold minimum info.
-typedef struct serverinfo_s {
+typedef struct serverinfo_s
+{
 	char name[64];	//hostname.
 	netadr_t adr;
 
@@ -127,18 +130,20 @@ typedef struct serverinfo_s {
 	struct serverinfo_s *next;
 } serverinfo_t;
 
-typedef struct master_s{
+typedef struct master_s
+{
 	struct master_s *next;
 	netadr_t adr;
 	char *address;	//text based address (http servers)
 	struct dl_download *dl;
-	int type;
-	int servertype;	//filled in for http servers
+	qbyte mastertype;
+	qbyte protocoltype;
 	int sends; /*needs to resend?*/
 	char name[1];
 } master_t;
 
-extern struct selectedserver_s {
+extern struct selectedserver_s
+{
 	qboolean inuse;
 	netadr_t adr;
 
@@ -147,7 +152,8 @@ extern struct selectedserver_s {
 	int linenum;
 } selectedserver;
 
-typedef struct player_s {
+typedef struct player_s
+{
 	char name[16];
 	int frags;
 	int colour;
@@ -167,7 +173,7 @@ void Master_SetupSockets(void);
 void CL_QueryServers(void);
 int Master_CheckPollSockets(void);
 void MasterInfo_Shutdown(void);
-void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);
+void MasterInfo_Request(master_t *mast);
 serverinfo_t *Master_InfoForServer (netadr_t *addr);
 serverinfo_t *Master_InfoForNum (int num);
 unsigned int Master_TotalCount(void);

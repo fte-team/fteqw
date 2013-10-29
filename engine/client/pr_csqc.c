@@ -720,8 +720,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	out->skinnum = in->v->skin;
 	out->fatness = in->xv->fatness;
 	ival = in->xv->forceshader;
-	if (ival >= 1 && ival <= MAX_SHADERS)
-		out->forcedshader = r_shaders + (ival-1);
+	if (ival >= 1 && ival <= r_numshaders)
+		out->forcedshader = r_shaders[(ival-1)];
 	else
 		out->forcedshader = NULL;
 
@@ -817,6 +817,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		break;
 	case lfield_angles:
 		AngleVectors(G_VECTOR(OFS_PARM2), l->axis[0], l->axis[1], l->axis[2]);
+		VectorInverse(l->axis[1]);
 		break;
 	case lfield_fov:
 		l->fov = G_FLOAT(OFS_PARM2);
@@ -852,6 +853,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 }
 static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	vec3_t v;
 	dlight_t *l;
 	unsigned int lno = G_FLOAT(OFS_PARM0);
 	enum lightfield_e field = G_FLOAT(OFS_PARM1);
@@ -882,7 +884,10 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN) = l->style;
 		break;
 	case lfield_angles:
-		VectorAngles(l->axis[0], l->axis[2], G_VECTOR(OFS_RETURN));
+		VectorAngles(l->axis[0], l->axis[2], v);
+		G_FLOAT(OFS_RETURN+0) = v[0]?v[0]:0;
+		G_FLOAT(OFS_RETURN+1) = v[1]?v[1]:0;
+		G_FLOAT(OFS_RETURN+2) = v[2]?v[2]:0;
 		break;
 	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
@@ -3617,25 +3622,21 @@ static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct glob
 		Cmd_AddCommand(str, CS_ConsoleCommand_f);
 }
 
-static qboolean csqc_usinglistener;
-qboolean CSQC_SettingListener(void)
-{	//stops the engine from setting the listener positions.
-	if (csqc_usinglistener)
-	{
-		csqc_usinglistener = false;
-		return true;
-	}
-	return false;
-}
 static void QCBUILTIN PF_cs_setlistener (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *origin = G_VECTOR(OFS_PARM0);
 	float *forward = G_VECTOR(OFS_PARM1);
 	float *right = G_VECTOR(OFS_PARM2);
 	float *up = G_VECTOR(OFS_PARM3);
-	csqc_usinglistener = true;
-	S_UpdateListener(origin, forward, right, up);
-	S_Update();
+	int inwater = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):false;
+
+	r_refdef.audio.defaulted = false;
+//	r_refdef.audio.entity = 0;
+	VectorCopy(origin, r_refdef.audio.origin);
+	VectorCopy(forward, r_refdef.audio.forward);
+	VectorCopy(right, r_refdef.audio.right);
+	VectorCopy(up, r_refdef.audio.up);
+	r_refdef.audio.inwater = inwater;
 }
 
 #define RSES_NOLERP 1
@@ -3763,12 +3764,7 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 {
 	ent->xv->entnum = pnum+1;
 
-	if (cl.spectator && !Cam_DrawEntity(0, pnum+1))
-	{
-		ent->v->modelindex = 0;
-	}
-	else
-		ent->v->modelindex = srcp->modelindex;
+	ent->v->modelindex = srcp->modelindex;
 	ent->v->skin = srcp->skinnum;
 
 	CSQC_LerpStateToCSQC(&cl.lerpplayers[pnum], ent, true);
@@ -4130,7 +4126,7 @@ static void QCBUILTIN PF_ReadServerEntityState(pubprogfuncs_t *prinst, struct gl
 	if (!pack)
 		return;	//we're lagging. can't do anything, just don't update
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		srcp = &cl.frames[cl.validsequence&UPDATE_MASK].playerstate[i];
 		ent = deltaedplayerents[i];
@@ -5072,8 +5068,6 @@ void CSQC_Shutdown(void)
 
 	in_sensitivityscale = 1;
 	csqc_world.num_edicts = 0;
-
-	csqc_usinglistener = false;
 }
 
 //when the qclib needs a file, it calls out to this function.
@@ -5229,7 +5223,6 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	csprogs_promiscuous = anycsqc;
 	csprogs_checksum = checksum;
 
-	csqc_usinglistener = false;
 	csqc_mayread = false;
 
 	csqc_singlecheats = cls.demoplayback;

@@ -243,7 +243,7 @@ void SV_Loadgame_f(void)
 
 
 
-	for (clnum = 0; clnum < MAX_CLIENTS; clnum++)	//clear the server for the level change.
+	for (clnum = 0; clnum < sv.allocated_client_slots; clnum++)	//clear the server for the level change.
 	{
 		cl = &svs.clients[clnum];
 		if (cl->state <= cs_zombie)
@@ -257,13 +257,7 @@ void SV_Loadgame_f(void)
 
 	if (version == 5 || version == 6)
 	{
-		slots = 1;
-		for (clnum = 1; clnum < MAX_CLIENTS; clnum++)	//kick all players fully. Load only player 1.
-		{
-			cl = &svs.clients[clnum];
-			cl->istobeloaded = false;
-			cl->state = cs_free;
-		}
+		SV_UpdateMaxPlayers(1);
 		cl = &svs.clients[0];
 #ifdef SERVERONLY
 		strcpy(cl->name, "");
@@ -279,7 +273,7 @@ void SV_Loadgame_f(void)
 		for (; i < NUM_SPAWN_PARMS; i++)
 			cl->spawn_parms[i] = 0;
 	}
-	else	//fte QuakeWorld saves ALL the clients on the server.
+	else	//fte saves ALL the clients on the server.
 	{
 		fscanf (f, "%f\n", &tfloat);
 		slots = tfloat;
@@ -289,6 +283,7 @@ void SV_Loadgame_f(void)
 			Con_Printf ("Corrupted save game");
 			return;
 		}
+		SV_UpdateMaxPlayers(slots);
 		for (clnum = 0; clnum < sv.allocated_client_slots; clnum++)	//work out which players we had when we saved, and hope they accepted the reconnect.
 		{
 			cl = &svs.clients[clnum];
@@ -310,12 +305,6 @@ void SV_Loadgame_f(void)
 
 			for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 				fscanf (f, "%f\n", &cl->spawn_parms[i]);
-		}
-		for (clnum = sv.allocated_client_slots; clnum < MAX_CLIENTS; clnum++)
-		{	//cleanup.
-			cl = &svs.clients[clnum];
-			cl->istobeloaded = false;
-			cl->state = cs_free;
 		}
 	}
 	if (version == 5 || version == 6)
@@ -431,7 +420,7 @@ void SV_Loadgame_f(void)
 		SV_LinkEdict (ent, false);
 	}
 
-	for (i=0 ; i<MAX_CLIENTS ; i++)
+	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i+1);
 		svs.clients[i].edict = ent;
@@ -712,7 +701,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	World_ClearWorld (&sv.world);
 
-	for (i=0 ; i<MAX_CLIENTS ; i++)
+	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		if (i < sv.allocated_client_slots)
 			ent = EDICT_NUM(svprogfuncs, i+1);
@@ -736,7 +725,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 		eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL);
 		if (eval)
-		for (i=0 ; i<MAX_CLIENTS ; i++)
+		for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
 			if (svs.clients[i].spawninfo)
 			{
@@ -1131,7 +1120,7 @@ void SV_Loadgame_f (void)
 		Con_TPrintf (STL_LOADGAMEFROM, filename);
 
 
-	for (clnum = 0; clnum < MAX_CLIENTS; clnum++)	//clear the server for the level change.
+	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server for the level change.
 	{
 		cl = &svs.clients[clnum];
 		if (cl->state <= cs_zombie)

@@ -438,6 +438,25 @@ typedef struct {
 	float factor;
 	float unit;
 } polyoffset_t;
+
+enum
+{
+	LSHADER_STANDARD=0u,	//stencil or shadowless
+	LSHADER_CUBE=1u<<0,		//has a cubemap
+	LSHADER_SMAP=1u<<1,		//filter based upon 6 directions of a shadowmap
+	LSHADER_SPOT=1u<<2,		//filter based upon a single spotlight shadowmap
+	LSHADER_MODES=1u<<3
+};
+enum
+{
+	//low numbers are used for various rtlight mode combinations
+	bemoverride_crepuscular = LSHADER_MODES,	//either black (non-sky) or a special crepuscular_sky shader
+	bemoverride_depthonly,		//depth masked. replace if you want alpha test.
+	bemoverride_depthdark,		//itself or a pure-black shader. replace for alpha test.
+	bemoverride_prelight,		//prelighting
+	bemoverride_fog,			//post-render volumetric fog
+	bemoverride_max
+};
 struct shader_s
 {
 	char name[MAX_QPATH];
@@ -446,13 +465,16 @@ struct shader_s
 		SUF_LIGHTMAP	= 1<<0,	//$lightmap passes are valid. otherwise collapsed to an rgbgen
 		SUF_2D			= 1<<1	//any loaded textures will obey 2d picmips rather than 3d picmips
 	} usageflags;	//
-	int uses;
-	int width;
+	int uses;	//released when the uses drops to 0
+	int width;	//when used as an image, this is the logical 'width' of the image
 	int height;
 	int numpasses;
 	texnums_t defaulttextures;
 	struct shader_s *next;
+	int id;
 	//end of shared fields.
+
+	shader_t *bemoverrides[bemoverride_max];
 
 	byte_vec4_t fog_color;
 	float fog_dist;
@@ -507,8 +529,9 @@ struct shader_s
 	bucket_t bucket;
 };
 
-#define MAX_SHADERS 2048	//fixme: this takes a lot of bss in the r_shaders list
-extern shader_t	*r_shaders;
+extern unsigned int r_numshaders;
+extern unsigned int r_maxshaders;
+extern shader_t	**r_shaders;
 extern int be_maxpasses;
 
 
@@ -551,15 +574,6 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 #define BEF_NOSHADOWS			128 //don't appear in shadows
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
 #define BEF_LINES				512	//draw line pairs instead of triangles.
-
-enum
-{
-	LSHADER_STANDARD,	//stencil or shadowless
-	LSHADER_CUBE,		//has a cubemap
-	LSHADER_SMAP,		//shadowmap
-	LSHADER_SPOT,		//spotlight+shadowmap
-	LSHADER_MODES
-};
 
 #ifdef GLQUAKE
 void GLBE_Init(void);
@@ -650,7 +664,7 @@ void Sh_RegisterCvars(void);
 //
 void GLBE_PushOffsetShadow(qboolean foobar);
 //sets up gl for depth-only FIXME
-void GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale);
+int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale);
 //Called from shadowmapping code into backend
 void GLBE_BaseEntTextures(void);
 void D3D9BE_BaseEntTextures(void);

@@ -176,23 +176,36 @@ void Draw_AltFunString(float x, float y, const void *str)
 }
 
 //Draws a marked up string no wider than $width virtual pixels.
-void Draw_FunStringWidth(float x, float y, const void *str, int width)
+void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean rightalign, qboolean highlight)
 {
 	conchar_t buffer[2048];
-	conchar_t *w = buffer;
+	conchar_t *w;
 	int px, py;
+	int fw = 0;
 
 	width = (width*vid.rotpixelwidth)/vid.width;
 
-	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
+	COM_ParseFunString(highlight?CON_ALTMASK:CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 
 	Font_BeginString(font_conchar, x, y, &px, &py);
-	while(*w)
+	if (rightalign)
+	{
+		for (w = buffer; *w; w++)
+		{
+			fw += Font_CharWidth(*w);
+		}
+		px += width;
+		if (fw > width)
+			fw = width;
+		px -= fw;
+	}
+
+	for (w = buffer; *w; w++)
 	{
 		width -= Font_CharWidth(*w);
 		if (width < 0)
 			return;
-		px = Font_DrawChar(px, py, *w++);
+		px = Font_DrawChar(px, py, *w);
 	}
 	Font_EndString(font_conchar);
 }
@@ -1293,12 +1306,12 @@ void Sbar_SortTeams (playerview_t *pv)
 
 	memset(teams, 0, sizeof(teams));
 // sort the teams
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 		teams[i].plow = 999;
 
 	ownnum = Sbar_PlayerNum(pv);
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		playerteam[i] = -1;
 		s = &cl.players[i];
@@ -2179,7 +2192,7 @@ static void Sbar_DrawTeamStatus(playerview_t *pv)
 	if (track == -1 || !cl.spectator)
 		track = pv->playernum;
 
-	for (p = 0; p < MAX_CLIENTS; p++)
+	for (p = 0; p < cl.allocated_client_slots; p++)
 	{
 		if (pv->playernum == p)	//self is not shown
 			continue;
@@ -2539,7 +2552,7 @@ void Sbar_IntermissionNumber (float x, float y, int num, int digits, int color, 
 }
 
 #define COL_TEAM_LOWAVGHIGH	COLUMN("low/avg/high", 12*8, {sprintf (num, "%3i/%3i/%3i", plow, pavg, phigh); Draw_FunString ( x, y, num); })
-#define COL_TEAM_TEAM		COLUMN("team", 4*8, 		{Draw_FunStringWidth ( x, y, tm->team, 4*8); \
+#define COL_TEAM_TEAM		COLUMN("team", 4*8, 		{Draw_FunStringWidth ( x, y, tm->team, 4*8, false, false); \
 		if (!strncmp(cl.players[pv->playernum].team, tm->team, 16))\
 		{\
 			Draw_FunString ( x - 1*8, y, "^Ue010");\
@@ -2686,14 +2699,14 @@ ping time frags name
 	int p = s->ping;									\
 	if (p < 0 || p > 999) p = 999;						\
 	sprintf(num, "%4i", p);								\
-	Draw_FunStringWidth(x, y, num, 4*8);				\
+	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
 })
 
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
 	sprintf(num, "%2i", p);								\
-	Draw_FunStringWidth(x, y, num, 2*8);				\
+	Draw_FunStringWidth(x, y, num, 2*8, false, false);	\
 })
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
@@ -2703,14 +2716,14 @@ ping time frags name
 		total = cl.servertime - s->entertime;			\
 	minutes = (int)total/60;							\
 	sprintf (num, "%4i", minutes);						\
-	Draw_FunStringWidth(x, y, num, 4*8);				\
+	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
 })
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {	\
 	int cx; int cy;										\
 	if (s->spectator)									\
 	{													\
-		Draw_FunStringWidth(x, y, "spectator", 5*8);	\
+		Draw_FunStringWidth(x, y, "spectator", 5*8, false, false);	\
 	}													\
 	else												\
 	{													\
@@ -2745,15 +2758,15 @@ ping time frags name
 {														\
 	if (!s->spectator)									\
 	{													\
-		Draw_FunStringWidth(x, y, s->team, 4*8);			\
+		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
 	}													\
 })
-#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunStringWidth(x, y, s->name, (cl.teamplay ? 12*8 : 16*8));})
-#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8);})
-#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8);})
-#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8);})
-#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8);})
-#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8);})
+#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunStringWidth(x, y, s->name, (cl.teamplay ? 12*8 : 16*8), false, false);})
+#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);})
+#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);})
+#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);})
+#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);})
+#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);})
 
 
 
@@ -3185,11 +3198,11 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 	// team and name
 		if (cl.teamplay)
 		{
-			Draw_FunStringWidth (x+48, y, s->team, 32);
-			Draw_FunStringWidth (x+48+40, y, name, MAX_DISPLAYEDNAME*8);
+			Draw_FunStringWidth (x+48, y, s->team, 32, false, false);
+			Draw_FunStringWidth (x+48+40, y, name, MAX_DISPLAYEDNAME*8, false, false);
 		}
 		else
-			Draw_FunStringWidth (x+48, y, name, MAX_DISPLAYEDNAME*8);
+			Draw_FunStringWidth (x+48, y, name, MAX_DISPLAYEDNAME*8, false, false);
 		y += 8;
 	}
 
@@ -3211,7 +3224,7 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 		tm = teams + k;
 
 	// draw pings
-		Draw_FunStringWidth (x, y, tm->team, 32);
+		Draw_FunStringWidth (x, y, tm->team, 32, false, false);
 
 	// draw total
 		sprintf (num, "%5i", tm->frags);

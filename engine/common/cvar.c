@@ -366,7 +366,7 @@ void Cvar_List_f (void)
 			}
 
 			// print default value
-			if (listflags & CLF_DEFAULT)
+			if (cmd->defaultstr && (listflags & CLF_DEFAULT))
 				Con_Printf(", default \"%s\"", cmd->defaultstr);
 
 			// print alternate name
@@ -407,6 +407,48 @@ void Cvar_List_f (void)
 	}
 }
 
+void Cvar_LockDefaults_f(void)
+{
+	cvar_group_t *grp;
+	cvar_t *cmd;
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
+		{
+			if (cmd->flags & (CVAR_NOSET | CVAR_CHEAT))
+				continue;
+
+			if (strcmp(cmd->string, cmd->defaultstr))
+			{
+				if (cmd->defaultstr != cmd->enginevalue)
+					Cvar_DefaultFree(cmd->defaultstr);
+				cmd->defaultstr = Cvar_DefaultAlloc(cmd->string);
+			}
+		}
+	}
+}
+void Cvar_PurgeDefaults_f(void)
+{
+	cvar_group_t *grp;
+	cvar_t *cmd;
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
+		{
+			if (!cmd->enginevalue)
+				continue;	//can't reset the cvar's default if its an engine cvar.
+			if (cmd->flags & CVAR_NOSET)
+				continue;
+
+			if (cmd->defaultstr != cmd->enginevalue)
+			{
+				Cvar_DefaultFree(cmd->defaultstr);
+				cmd->defaultstr = cmd->enginevalue;
+			}
+		}
+	}
+}
+
 #define CRF_ALTNAME 0x1
 void Cvar_Reset_f (void)
 {
@@ -416,6 +458,8 @@ void Cvar_Reset_f (void)
 	char *var;
 	char *search, *gsearch;
 	char strtmp[512];
+	char *resetval;
+	char *pendingval;
 
 	search = gsearch = NULL;
 	exclflags = 0;
@@ -479,9 +523,9 @@ void Cvar_Reset_f (void)
 	if (gsearch)
 		Q_strlwr(gsearch);
 
-	if (!strcmp(search, "*"))
+	if (search && !strcmp(search, "*"))
 		search = NULL;
-	if (!strcmp(gsearch, "*"))
+	if (gsearch && !strcmp(gsearch, "*"))
 		gsearch = NULL;
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
@@ -526,8 +570,19 @@ void Cvar_Reset_f (void)
 
 			if ((cmd->flags & CVAR_NOSET) && !search)
 				continue;
-			// reset cvar to default
-			Cvar_Set(cmd, cmd->defaultstr);
+
+			// reset cvar to default only if its okay to do so
+			if (cmd->defaultstr)
+				resetval = cmd->defaultstr;
+			else if (cmd->enginevalue)
+				resetval = cmd->enginevalue;
+			else
+				continue;	//no idea what to reset it to.
+			pendingval = cmd->string;
+			if (cmd->latched_string)
+				pendingval = cmd->latched_string;
+			if (strcmp(resetval, pendingval))
+				Cvar_Set(cmd, resetval);
 		}
 	}
 }
@@ -938,7 +993,7 @@ void Cvar_Free(cvar_t *tbf)
 	}
 unlinked:
 	Z_Free(tbf->string);
-	if (tbf->flags & CVAR_FREEDEFAULT)
+	if (tbf->defaultstr != tbf->enginevalue)
 		Cvar_DefaultFree(tbf->defaultstr);
 	if (tbf->latched_string)
 		Z_Free(tbf->latched_string);
@@ -964,8 +1019,12 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 	if (variable->defaultstr)
 		initial = variable->defaultstr;
-	else
+	else if (variable->enginevalue)
+		initial = variable->enginevalue;
+	else if (variable->string)
 		initial = variable->string;
+	else
+		initial = "";
 
 // check to see if it has already been defined
 	old = Cvar_FindVar (variable->name);
@@ -987,7 +1046,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 			variable->string = (char*)Z_Malloc (1);
 
 //cheat prevention - engine set default is the one that stays.
-			if (variable->flags & CVAR_FREEDEFAULT)
+			if (initial != variable->enginevalue)
 				variable->defaultstr = Cvar_DefaultAlloc(initial);
 			else
 				variable->defaultstr = initial;
@@ -1031,7 +1090,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 	variable->string = NULL;
 
-	if (variable->flags & CVAR_FREEDEFAULT)
+	if (initial != variable->enginevalue)
 		variable->defaultstr = Cvar_DefaultAlloc(initial);
 	else
 		variable->defaultstr = initial;
@@ -1065,7 +1124,7 @@ cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const ch
 	var->name = (char *)(var+1);
 	strcpy(var->name, name);
 	var->string = (char*)defaultvalue;
-	var->flags = flags|CVAR_POINTER|CVAR_FREEDEFAULT|CVAR_USERCREATED;
+	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
 
 	if (!Cvar_Register(var, group))
 		return NULL;
@@ -1147,16 +1206,18 @@ qboolean	Cvar_Command (int level)
 				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer)));
 				Con_Printf ("Effective value is %s\n", COM_QuotedString(v->string, buffer, sizeof(buffer)));
 			}
-			Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer)));
+			if (v->defaultstr)
+				Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer)));
 		}
 		else
 		{
-			if (!strcmp(v->string, v->defaultstr))
+			if (v->defaultstr && !strcmp(v->string, v->defaultstr))
 				Con_Printf ("\"%s\" is %s (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer)));
 			else
 			{
 				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer)));
-				Con_Printf("Default: %s\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer)));
+				if (v->defaultstr)
+					Con_Printf("Default: %s\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer)));
 			}
 		}
 		return true;
@@ -1184,7 +1245,7 @@ qboolean	Cvar_Command (int level)
 	{
 		if (Cmd_FromGamecode())
 		{
-			if (!strcmp(v->defaultstr, str))	//returning to default
+			if (!v->defaultstr || !strcmp(v->defaultstr, str))	//returning to default
 			{
 				v->flags &= ~CVAR_SERVEROVERRIDE;
 				if (v->latched_string)
@@ -1200,7 +1261,7 @@ qboolean	Cvar_Command (int level)
 	}
 	else if (Cmd_FromGamecode())
 	{//it's not latched yet
-		if (strcmp(v->defaultstr, str))
+		if (v->defaultstr && strcmp(v->defaultstr, str))
 		{	//lock the cvar, unless it's going to it's default value.
 			Cvar_LockFromServer(v, str);
 			return true;
@@ -1325,7 +1386,7 @@ void Cvar_Shutdown(void)
 			var = cvar_groups->cvars;
 			cvar_groups->cvars = var->next;
 
-			if (var->flags & CVAR_FREEDEFAULT)
+			if (var->defaultstr != var->enginevalue)
 			{
 				Cvar_DefaultFree(var->defaultstr);
 				var->defaultstr = NULL;

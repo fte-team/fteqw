@@ -167,13 +167,13 @@ void Validation_CheckIfResponse(char *text)
 
 		namelen = comp - text-1;
 
-		for (f_query_client = 0; f_query_client < MAX_CLIENTS; f_query_client++)
+		for (f_query_client = 0; f_query_client < cl.allocated_client_slots; f_query_client++)
 		{
 			if (strlen(cl.players[f_query_client].name) == namelen)
 				if (!strncmp(cl.players[f_query_client].name, text, namelen))
 					break;
 		}
-		if (f_query_client == MAX_CLIENTS)
+		if (f_query_client == cl.allocated_client_slots)
 			return; //looks like a validation, but it's not from a known client.
 	}
 

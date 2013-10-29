@@ -6,7 +6,7 @@ void DumpGLState(void);
 
 #ifdef GLQUAKE
 
-#define r_refract_fboival gl_config.ext_framebuffer_objects
+#define r_refract_fboival (gl_config.ext_framebuffer_objects && r_refract_fbo.ival)
 
 #include "glquake.h"
 #include "shader.h"
@@ -28,6 +28,7 @@ void DumpGLState(void);
 extern cvar_t gl_overbright;
 extern cvar_t gl_ati_truform;
 extern cvar_t r_wireframe;
+extern cvar_t r_refract_fbo;
 
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
@@ -87,6 +88,7 @@ struct {
 		const shader_t *depthnormshader;
 		texid_t tex_normals;
 		texid_t tex_diffuse;
+		int fbo_current;	//the one currently being rendered to
 		int fbo_diffuse;
 		int rb_depth;
 		int rb_stencil;
@@ -957,7 +959,7 @@ void R_IBrokeTheArrays(void)
 
 #ifdef RTLIGHTS
 //called from gl_shadow
-void GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale)
+int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale)
 {
 	extern cvar_t r_shadow_shadowmapping_bias;
 	extern cvar_t r_shadow_shadowmapping_nearclip;
@@ -988,6 +990,8 @@ void GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, f
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
 	BE_SelectMode(BEM_DEPTHONLY);
+
+	return shaderstate.fbo_current;
 }
 #endif
 
@@ -3358,9 +3362,9 @@ static qboolean GLBE_RegisterLightShader(int mode)
 	if (!shaderstate.inited_shader_light[mode])
 	{
 		char *name = va("rtlight%s%s%s", 
-			(mode & (1u<<LSHADER_SMAP))?"#PCF":"",
-			(mode & (1u<<LSHADER_SPOT))?"#SPOT":"",
-			(mode & (1u<<LSHADER_CUBE))?"#CUBE":"");
+			(mode & LSHADER_SMAP)?"#PCF":"",
+			(mode & LSHADER_SPOT)?"#SPOT":"",
+			(mode & LSHADER_CUBE)?"#CUBE":"");
 
 		shaderstate.inited_shader_light[mode] = true;
 		shaderstate.shader_light[mode] = R_RegisterCustom(name, SUF_NONE, Shader_LightPass, NULL);
@@ -3383,28 +3387,10 @@ static qboolean GLBE_RegisterLightShader(int mode)
 qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
 {
 	extern cvar_t gl_specular;
-#ifdef RTLIGHTS
-	float view[16];
-	extern cvar_t r_shadow_shadowmapping, r_shadow_shadowmapping_nearclip;
-
-	/*generate light projection information*/
-	if (lmode == LSHADER_SPOT)
-	{
-		float proj[16];
-		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, r_shadow_shadowmapping_nearclip.value, dl->radius);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(view, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
-		Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
-	}
-	if (lmode == LSHADER_SMAP)
-	{
-//		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, dl->radius);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(shaderstate.lightprojmatrix, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
-	}
-#endif
 
 	shaderstate.lastuniform = 0;
 	shaderstate.curdlight = dl;
-	shaderstate.lightmode =	1u<<lmode;
+	shaderstate.lightmode =	lmode;
 
 	/*simple info*/
 	shaderstate.lightradius = dl->radius;
@@ -3413,15 +3399,39 @@ qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
 	VectorCopy(colour, shaderstate.lightcolours);
 #ifdef RTLIGHTS
 	VectorCopy(dl->lightcolourscales, shaderstate.lightcolourscale);
-	shaderstate.lightcubemap = dl->cubetexture;
+	if (lmode & LSHADER_SPOT)
+		shaderstate.lightcubemap = r_nulltex;
+	else
+		shaderstate.lightcubemap = dl->cubetexture;
 
-	if (lmode != LSHADER_SPOT)
-	{
-		if (TEXVALID(shaderstate.lightcubemap) && GLBE_RegisterLightShader(shaderstate.lightmode | (1u<<LSHADER_CUBE)))
-			shaderstate.lightmode |= 1u<<LSHADER_CUBE;
-	}
+	if (TEXVALID(shaderstate.lightcubemap) && GLBE_RegisterLightShader(shaderstate.lightmode | LSHADER_CUBE))
+		shaderstate.lightmode |= LSHADER_CUBE;
 	if (!GLBE_RegisterLightShader(shaderstate.lightmode))
 		return false;
+
+	/*generate light projection information*/
+	if (shaderstate.lightmode & LSHADER_SPOT)
+	{
+		float view[16];
+		float proj[16];
+		extern cvar_t r_shadow_shadowmapping_nearclip;
+		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, r_shadow_shadowmapping_nearclip.value, dl->radius);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(view, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
+		Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
+	}
+	else if (shaderstate.lightmode & (LSHADER_SMAP|LSHADER_CUBE))
+	{
+		Matrix4x4_CM_LightMatrixFromAxis(shaderstate.lightprojmatrix, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
+		/*
+		vec3_t down;
+		vec3_t back;
+		vec3_t right;
+		VectorScale(dl->axis[2], -1, down);
+		VectorScale(dl->axis[1], 1, right);
+		VectorScale(dl->axis[0], 1, back);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(shaderstate.lightprojmatrix, down, back, right, dl->origin);
+		*/
+	}
 #endif
 
 	return true;
@@ -3513,6 +3523,10 @@ static void BE_LegacyLighting(void)
 	for (m = 0; m < shaderstate.meshcount; m++)
 	{
 		mesh = shaderstate.meshes[m];
+
+		//vbo-only mesh.
+		if (!mesh->xyz_array)
+			return;
 
 		col = coloursarray[0] + mesh->vbofirstvert*4;
 		ldir = texcoordarray[0] + mesh->vbofirstvert*3;
@@ -3613,6 +3627,7 @@ static void BE_LegacyLighting(void)
 
 static void DrawMeshes(void)
 {
+	const shader_t *altshader;
 	const shaderpass_t *p;
 	int passno;
 	int flags;
@@ -3678,24 +3693,39 @@ static void DrawMeshes(void)
 		break;
 #ifdef RTLIGHTS
 	case BEM_LIGHT:
-		if (!shaderstate.shader_light[shaderstate.lightmode])
-			BE_LegacyLighting();
+		altshader = shaderstate.curshader->bemoverrides[shaderstate.lightmode];
+		if (!altshader)
+			altshader = shaderstate.shader_light[shaderstate.lightmode];
+		if (altshader && altshader->prog)
+			BE_RenderMeshProgram(altshader, altshader->passes);
 		else
-			BE_RenderMeshProgram(shaderstate.shader_light[shaderstate.lightmode], shaderstate.shader_light[shaderstate.lightmode]->passes);
+			BE_LegacyLighting();
 		break;
 	case BEM_DEPTHNORM:
-		BE_RenderMeshProgram(shaderstate.depthnormshader, shaderstate.depthnormshader->passes);
+		altshader = shaderstate.curshader->bemoverrides[bemoverride_prelight];
+		if (!altshader)
+			altshader = shaderstate.depthnormshader;
+		if (altshader && altshader->prog)
+			BE_RenderMeshProgram(altshader, altshader->passes);
 		break;
 #endif
 	case BEM_CREPUSCULAR:
-		if (shaderstate.curshader->flags & SHADER_SKY)
-			BE_RenderMeshProgram(shaderstate.crepskyshader, shaderstate.crepskyshader->passes);
-		else
-			BE_RenderMeshProgram(shaderstate.crepopaqueshader, shaderstate.crepopaqueshader->passes);
+		altshader = shaderstate.curshader->bemoverrides[bemoverride_crepuscular];
+		if (!altshader && (shaderstate.curshader->flags & SHADER_SKY))
+			altshader = shaderstate.crepskyshader;
+		if (!altshader)
+			altshader = shaderstate.crepopaqueshader;
+
+		if (altshader && altshader->prog)
+			BE_RenderMeshProgram(altshader, altshader->passes);
 		break;
 	case BEM_DEPTHONLY:
-		if (shaderstate.depthonlyshader)
-			BE_RenderMeshProgram(shaderstate.depthonlyshader, shaderstate.depthonlyshader->passes);
+		altshader = shaderstate.curshader->bemoverrides[bemoverride_depthonly];
+		if (!altshader)
+			altshader = shaderstate.depthonlyshader;
+
+		if (altshader && altshader->prog)
+			BE_RenderMeshProgram(altshader, altshader->passes);
 		else
 		{
 			GL_DeSelectProgram();
@@ -4165,7 +4195,6 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				}
 				GL_ForceDepthWritable();
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, r_nulltex, true);
-				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.width/2;
@@ -4174,14 +4203,15 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect.width = vid.pixelwidth/2;
 				r_refdef.pxrect.height = vid.pixelheight/2;
 				r_refdef.pxrect.y = r_refdef.pxrect.height;
+				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				GLR_DrawPortal(batch, cl.worldmodel->batches, 1);
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
-				qglViewport (oprect.x, oprect.y - oprect.height, oprect.width, oprect.height);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
+				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 			}
 			if (batch->shader->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
 			{
@@ -4217,7 +4247,6 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					else
 						GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, r_nulltex, true);
 
-					qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 					r_refdef.vrect.x = 0;
 					r_refdef.vrect.y = 0;
 					r_refdef.vrect.width = vid.width/2;
@@ -4226,6 +4255,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					r_refdef.pxrect.width = vid.pixelwidth/2;
 					r_refdef.pxrect.height = vid.pixelheight/2;
 					r_refdef.pxrect.y = r_refdef.pxrect.height;
+					qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
@@ -4233,9 +4263,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GLR_DrawPortal(batch, cl.worldmodel->batches, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
-					qglViewport (oprect.x, oprect.y - oprect.height, oprect.width, oprect.height);
 					r_refdef.vrect = ovrect;
 					r_refdef.pxrect = oprect;
+					qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 				}
 				else
 					GLR_DrawPortal(batch, cl.worldmodel->batches, 3);
@@ -4245,6 +4275,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				vrect_t orect = r_refdef.vrect, oprect = r_refdef.pxrect;
 				if (!shaderstate.tex_ripplemap.num)
 				{
+					//FIXME: can we use RGB8 instead?
 					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2, 0);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
 					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -4254,7 +4285,6 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_ripplemap, r_nulltex, false);
-				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.width/2;
@@ -4263,6 +4293,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect.width = vid.pixelwidth/2;
 				r_refdef.pxrect.height = vid.pixelheight/2;
 				r_refdef.pxrect.y = r_refdef.pxrect.height;
+				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT);
@@ -4274,9 +4305,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.recurse = false;
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
-				qglViewport (oprect.x, oprect.height + oprect.y, oprect.width, oprect.height);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
+				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 			}
 			BE_SelectMode(oldbem);
 		}
@@ -4388,7 +4419,10 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 	shaderstate.tex_sourcecol = sourcecol;
 	shaderstate.tex_sourcedepth = sourcedepth;
 	if (!destcol.num)
-		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	{
+		shaderstate.fbo_current = 0;
+		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_current);
+	}
 	else
 	{
 		if (usedepth)
@@ -4422,6 +4456,7 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 			}
 			else
 				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
+			shaderstate.fbo_current = shaderstate.fbo_diffuse;
 
 			if (destdepth.num)
 				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, destdepth.num, 0);
@@ -4440,6 +4475,8 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 			}
 			else
 				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+
+			shaderstate.fbo_current = shaderstate.fbo_depthless;
 		}
 		
 		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, destcol.num, 0);
@@ -4585,6 +4622,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 	if (!r_refdef.recurse)
 	{
+		shaderstate.fbo_current = 0;	//just in case something crashed
 		GL_DoSwap();
 		if (shaderstate.wbatch + 50 > shaderstate.maxwbatches)
 		{

@@ -101,6 +101,11 @@ char	*VARGS Cmd_Argv (int arg);
 char	*VARGS Cmd_Args (void);
 extern int	Cmd_ExecLevel;
 
+//if checkheader is false, an opening { is expected to already have been parsed.
+//otherwise returns the contents of the block much like c.
+//returns a zoned string.
+char *Cmd_ParseMultiline(qboolean checkheader);
+
 extern cvar_t cmd_gamecodelevel, cmd_allowaccess;
 // The functions that execute commands get their parameters with these
 // functions. Cmd_Argv () will return an empty string, not a NULL

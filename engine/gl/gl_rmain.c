@@ -950,12 +950,17 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 //		qglClipPlane(GL_CLIP_PLANE0, glplane);
 //		qglEnable(GL_CLIP_PLANE0);
 //	}
-	frustum[4].normal[0] = plane.normal[0];
-	frustum[4].normal[1] = plane.normal[1];
-	frustum[4].normal[2] = plane.normal[2];
-	frustum[4].dist	= plane.dist + 0.01;
-	if (portaltype == 1 || portaltype == 2)
-		R_ObliqueNearClip(&frustum[4]);
+	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
+	{
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = plane.normal[0];
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = plane.normal[1];
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] = plane.normal[2];
+		r_refdef.frustum[r_refdef.frustum_numplanes].dist	= plane.dist + 0.01;
+
+		if (portaltype == 1 || portaltype == 2)
+			R_ObliqueNearClip(&r_refdef.frustum[r_refdef.frustum_numplanes]);
+		r_refdef.frustum_numplanes++;
+	}
 	R_RenderScene();
 //	if (qglClipPlane)
 //		qglDisable(GL_CLIP_PLANE0);
@@ -970,7 +975,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	/*broken stuff*/
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 
 	if (qglLoadMatrixf)
 	{
@@ -1392,6 +1396,9 @@ void GLR_RenderView (void)
 	GL_Set2D (false);
 
 	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || r_secondaryview)
+		return;
+
+	if (r_secondaryview)
 		return;
 
 	if (r_bloom.value)

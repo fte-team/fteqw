@@ -1160,7 +1160,6 @@ qboolean CSQC_MousePosition(float xabs, float yabs, int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod);
 void CSQC_ParseEntities(void);
-qboolean CSQC_SettingListener(void);
 
 qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
 void CSQC_DeltaStart(float time);
@@ -1188,7 +1187,6 @@ void CL_CalcClientTime(void);
 // cl_cam.c
 //
 qboolean Cam_DrawViewModel(playerview_t *pv);
-qboolean Cam_DrawEntity(playerview_t *pv, int entitykey);
 int Cam_TrackNum(playerview_t *pv);
 void Cam_Unlock(playerview_t *pv);
 void Cam_Lock(playerview_t *pv, int playernum);

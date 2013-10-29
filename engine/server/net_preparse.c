@@ -2124,7 +2124,7 @@ void NPP_MVDFlush(void)
 				sv.demostatevalid = true;
 			}
 			entnum = buffer[1] + (buffer[2]<<8);
-//			if (entnum < MAX_CLIENTS)
+//			if (entnum < svs.allocated_client_slots)
 //				break;
 			ent = &sv.demobaselines[entnum];
 

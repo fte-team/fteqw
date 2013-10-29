@@ -413,13 +413,13 @@ void M_Menu_Keys_f (void)
 			"3",
 			"4"
 		};
-		MC_AddCvarCombo(menu, 16, y, "Force client", &cl_forcesplitclient, (const char **)texts, (const char **)values);
+		MC_AddCvarCombo(menu, 16, 170, y, "Force client", &cl_forcesplitclient, (const char **)texts, (const char **)values);
 		y+=8;
 	}
 
 	while (bindnames->name)
 	{
-		MC_AddBind(menu, 16, y, bindnames->name, bindnames->command);
+		MC_AddBind(menu, 16, 170, y, bindnames->name, bindnames->command);
 		y += 8;
 
 		bindnames++;

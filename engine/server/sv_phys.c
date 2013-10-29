@@ -649,6 +649,11 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			continue;
 		}
 
+		//these pushes are contents brushes, and are not solid. water cannot crush. the player just enters the water.
+		//but, the player will be moved along with the water.
+		if (pusher->v->skin < 0)
+			continue;
+
 //		Con_Printf("Pusher hit %s\n", PR_GetString(w->progs, check->v->classname));
 		if (pusher->v->blocked)
 		{
@@ -768,7 +773,14 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 
 		// try moving the contacted entity
 		VectorAdd (check->v->origin, move, check->v->origin);
-		block = World_TestEntityPosition (w, check);
+		if (pusher->v->skin < 0)
+		{
+			pusher->v->solid = SOLID_NOT;
+			block = World_TestEntityPosition (w, check);
+			pusher->v->solid = oldsolid;
+		}
+		else
+			block = World_TestEntityPosition (w, check);
 		if (!block)
 		{	// pushed ok
 			World_LinkEdict (w, check, false);
@@ -800,6 +812,11 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 			World_LinkEdict (w, check, false);
 			continue;
 		}
+
+		//these pushes are contents brushes, and are not solid. water cannot crush. the player just enters the water.
+		//but, the player will be moved along with the water.
+		if (pusher->v->skin < 0)
+			continue;
 
 		VectorCopy (pushorig, pusher->v->origin);
 		World_LinkEdict (w, pusher, false);

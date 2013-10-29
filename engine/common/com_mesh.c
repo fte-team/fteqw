@@ -1459,8 +1459,15 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 	if (!inf->groups)
 	{
-		Con_DPrintf("Model with no frames (%s)\n", e->model->name);
-		return false;
+#ifdef SKELETALMODELS
+		if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
+		{}
+		else
+#endif
+		{
+			Con_DPrintf("Model with no frames (%s)\n", e->model->name);
+			return false;
+		}
 	}
 
 	if (meshcache.numcolours < inf->numverts)
@@ -1743,16 +1750,25 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 
 
-
-
-
-
-//The whole reason why model loading is supported in the server.
-qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentsmask, trace_t *trace)
+static float PlaneNearest(vec3_t normal, vec3_t mins, vec3_t maxs)
 {
-	galiasinfo_t *mod = Mod_Extradata(model);
-	galiasgroup_t *group;
-	galiaspose_t *pose;
+	float result;
+	return 128;
+#if 1
+	result  = fabs(normal[0] * maxs[0]);
+	result += fabs(normal[1] * maxs[1]);
+	result += fabs(normal[2] * maxs[2]);
+#else
+	result  = normal[0] * ((normal[0] < 0)?mins[0]:maxs[0]);
+	result += normal[1] * ((normal[1] < 0)?mins[1]:maxs[1]);
+	result += normal[2] * ((normal[2] < 0)?mins[2]:maxs[2]);
+#endif
+	return result;
+}
+
+static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+{
+	qboolean impacted = false;
 	int i;
 
 	float *p1, *p2, *p3;
@@ -1762,88 +1778,166 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 
 	float planedist;
 	float diststart, distend;
+	float expand;
 
 	float frac;
 //	float temp;
 
 	vec3_t impactpoint;
 
+	for (i = 0; i < numindexes; i+=3)
+	{
+		p1 = posedata[indexes[i+0]];
+		p2 = posedata[indexes[i+1]];
+		p3 = posedata[indexes[i+2]];
+
+		VectorSubtract(p1, p2, edge1);
+		VectorSubtract(p3, p2, edge2);
+		CrossProduct(edge1, edge2, normal);
+
+		expand = PlaneNearest(normal, mins, maxs);
+		planedist = DotProduct(p1, normal);
+		diststart = DotProduct(start, normal);
+		if (diststart <= planedist)
+			continue;	//start on back side.
+		distend = DotProduct(end, normal);
+		if (distend >= planedist)
+			continue;	//end on front side (as must start - doesn't cross).
+
+		frac = (diststart - planedist - 1) / (diststart-distend);
+		if (frac < 0)
+			frac = 0;
+
+		if (frac >= trace->fraction)	//already found one closer.
+			continue;
+
+		impactpoint[0] = start[0] + frac*(end[0] - start[0]);
+		impactpoint[1] = start[1] + frac*(end[1] - start[1]);
+		impactpoint[2] = start[2] + frac*(end[2] - start[2]);
+
+//		temp = DotProduct(impactpoint, normal)-planedist;
+
+		CrossProduct(edge1, normal, edgenormal);
+//		temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
+		if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal))
+			continue;
+
+		CrossProduct(normal, edge2, edgenormal);
+		if (DotProduct(impactpoint, edgenormal) > DotProduct(p3, edgenormal))
+			continue;
+
+		VectorSubtract(p1, p3, edge3);
+		CrossProduct(normal, edge3, edgenormal);
+		if (DotProduct(impactpoint, edgenormal) > DotProduct(p1, edgenormal))
+			continue;
+
+		trace->fraction = frac;
+		VectorCopy(impactpoint, trace->endpos);
+		VectorCopy(normal, trace->plane.normal);
+		impacted = true;
+	}
+	return impacted;
+}
+
+//The whole reason why model loading is supported in the server.
+qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentsmask, trace_t *trace)
+{
+	galiasinfo_t *mod = Mod_Extradata(model);
+	galiasgroup_t *group;
+	galiaspose_t *pose;
+
+	float frac;
+//	float temp;
+
 	vecV_t *posedata;
 	index_t *indexes;
 	int surfnum = 0;
 	int cursurfnum = -1;
 
+	vec3_t start_l, end_l;
+
+	if (axis)
+	{
+		start_l[0] = DotProduct(start, axis[0]);
+		start_l[1] = DotProduct(start, axis[1]);
+		start_l[2] = DotProduct(start, axis[2]);
+		end_l[0] = DotProduct(end, axis[0]);
+		end_l[1] = DotProduct(end, axis[1]);
+		end_l[2] = DotProduct(end, axis[2]);
+	}
+	else
+	{
+		VectorCopy(start, start_l);
+		VectorCopy(end, end_l);
+	}
+
 	while(mod)
 	{
 		indexes = mod->ofs_indexes;
-		group = mod->groupofs;
-		pose = group[0].poseofs;
-		posedata = pose->ofsverts;
 #ifdef SKELETALMODELS
-		if (mod->numbones && mod->shares_verts != cursurfnum)
+		if (!mod->groups)
 		{
-			float bonepose[MAX_BONES][12];
-			posedata = alloca(mod->numverts*sizeof(vecV_t));
-			frac = 1;
-			if (group->isheirachical)
-			{
-				if (mod->shares_bones != cursurfnum)
-					R_LerpBones(&frac, (float**)posedata, 1, mod->ofsbones, mod->numbones, bonepose);
-				Alias_TransformVerticies_SW((float*)bonepose, mod->ofsswtransforms, mod->numswtransforms, posedata, NULL);
-			}
-			else
-				Alias_TransformVerticies_SW((float*)posedata, mod->ofsswtransforms, mod->numswtransforms, posedata, NULL);
-
-			cursurfnum = mod->shares_verts;
+			//certain models have no possibility of animation.
+			posedata = mod->ofs_skel_xyz;
 		}
+		else
 #endif
-
-		for (i = 0; i < mod->numindexes; i+=3)
 		{
-			p1 = posedata[indexes[i+0]];
-			p2 = posedata[indexes[i+1]];
-			p3 = posedata[indexes[i+2]];
+			group = mod->groupofs;
+			pose = group[0].poseofs;
+			posedata = pose->ofsverts;
+#ifdef SKELETALMODELS
+			if (mod->numbones && mod->shares_verts != cursurfnum)
+			{
+				float bonepose[MAX_BONES][12];
+				posedata = alloca(mod->numverts*sizeof(vecV_t));
+				frac = 1;
+				if (group->isheirachical)
+				{
+					if (mod->shares_bones != cursurfnum)
+						R_LerpBones(&frac, (float**)posedata, 1, mod->ofsbones, mod->numbones, bonepose);
+					Alias_TransformVerticies_SW((float*)bonepose, mod->ofsswtransforms, mod->numswtransforms, posedata, NULL);
+				}
+				else
+					Alias_TransformVerticies_SW((float*)posedata, mod->ofsswtransforms, mod->numswtransforms, posedata, NULL);
 
-			VectorSubtract(p1, p2, edge1);
-			VectorSubtract(p3, p2, edge2);
-			CrossProduct(edge1, edge2, normal);
+				cursurfnum = mod->shares_verts;
+			}
+#endif
+		}
 
-			planedist = DotProduct(p1, normal);
-			diststart = DotProduct(start, normal);
-			if (diststart <= planedist)
-				continue;	//start on back side.
-			distend = DotProduct(end, normal);
-			if (distend >= planedist)
-				continue;	//end on front side (as must start - doesn't cross).
+		if (Mod_Trace_Trisoup(posedata, indexes, mod->numindexes, start_l, end_l, mins, maxs, trace) && axis)
+		{
+			if (axis)
+			{
+				vec3_t iaxis[3];
+				vec3_t norm;
+				Matrix3x3_RM_Invert_Simple((void *)axis, iaxis);
+				VectorCopy(trace->plane.normal, norm);
+				trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
+				trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
+				trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
+			}
 
-			frac = (diststart - planedist) / (diststart-distend);
+//			frac = traceinfo.truefraction;
+			/*
+			diststart = DotProduct(traceinfo.start, trace->plane.normal);
+			distend = DotProduct(traceinfo.end, trace->plane.normal);
+			if (diststart == distend)
+				frac = 0;
+			else
+			{
+				frac = (diststart - trace->plane.dist) / (diststart-distend);
+				if (frac < 0)
+					frac = 0;
+				else if (frac > 1)
+					frac = 1;
+			}*/
 
-			if (frac >= trace->fraction)	//already found one closer.
-				continue;
-
-			impactpoint[0] = start[0] + frac*(end[0] - start[0]);
-			impactpoint[1] = start[1] + frac*(end[1] - start[1]);
-			impactpoint[2] = start[2] + frac*(end[2] - start[2]);
-
-//			temp = DotProduct(impactpoint, normal)-planedist;
-
-			CrossProduct(edge1, normal, edgenormal);
-//			temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
-			if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal))
-				continue;
-
-			CrossProduct(normal, edge2, edgenormal);
-			if (DotProduct(impactpoint, edgenormal) > DotProduct(p3, edgenormal))
-				continue;
-
-			VectorSubtract(p1, p3, edge3);
-			CrossProduct(normal, edge3, edgenormal);
-			if (DotProduct(impactpoint, edgenormal) > DotProduct(p1, edgenormal))
-				continue;
-
-			trace->fraction = frac;
-			VectorCopy(impactpoint, trace->endpos);
-			VectorCopy(normal, trace->plane.normal);
+			/*okay, this is where it hits this plane*/
+//			trace->endpos[0] = traceinfo.start[0] + frac*(traceinfo.end[0] - traceinfo.start[0]);
+//			trace->endpos[1] = traceinfo.start[1] + frac*(traceinfo.end[1] - traceinfo.start[1]);
+//			trace->endpos[2] = traceinfo.start[2] + frac*(traceinfo.end[2] - traceinfo.start[2]);
 		}
 
 		mod = mod->nextsurf;
@@ -2307,7 +2401,7 @@ void Mod_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum
 }
 
 #if defined(D3DQUAKE) || defined(GLQUAKE)
-shader_t *Mod_LoadSkinFile(shader_t **shaders, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
+shader_t *Mod_LoadSkinFile(char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
 {
 	shader_t *shader;
 	char shadername[MAX_QPATH];
@@ -2797,7 +2891,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 }
 #endif
 
-qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	vec2_t *st_array;
@@ -3174,7 +3268,7 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 }
 
 #define MD2_MAX_TRIANGLES 4096
-qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	dmd2stvert_t *pinstverts;
@@ -3965,7 +4059,7 @@ typedef struct {
 } md3Shader_t;
 //End of Tenebrae 'assistance'
 
-qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t	*skin;
@@ -4294,7 +4388,7 @@ typedef struct zymvertex_s
 
 //this can generate multiple meshes (one for each shader).
 //but only one set of transforms are ever generated.
-qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
@@ -4483,7 +4577,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 			skin[j].numshaders = 1;	//non-sequenced skins.
 			skin[j].ofsshaders = shaders;
 
-			Mod_LoadSkinFile(shaders, surfname, j, NULL, 0, 0, NULL);
+			shaders[0] = Mod_LoadSkinFile(surfname, j, NULL, 0, 0, NULL);
 		}
 
 		root[i].ofsskins = skin;
@@ -4643,7 +4737,7 @@ typedef struct pskanimkeys_s
 } pskanimkeys_t;
 
 
-qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer)
 {
 	pskchunk_t *chunk;
 	unsigned int pos = 0;
@@ -5316,7 +5410,7 @@ typedef struct dpmvertex_s
 	// immediately followed by 1 or more dpmbonevert_t structures
 } dpmvertex_t;
 
-qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
@@ -5540,7 +5634,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 			skin[j].numshaders = 1;	//non-sequenced skins.
 			skin[j].ofsshaders = shaders;
 
-			Mod_LoadSkinFile(shaders, mesh->shadername, j, NULL, 0, 0, NULL);
+			shaders[0] = Mod_LoadSkinFile(mesh->shadername, j, NULL, 0, 0, NULL);
 		}
 
 		m->ofsskins = skin;
@@ -6694,7 +6788,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 #undef EXPECT
 }
 
-qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 {
 	galiasinfo_t *root;
 
@@ -6732,7 +6826,7 @@ clampgroup test/idle1.md5anim
 frames test/idle1.md5anim
 
 */
-qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 {
 	int i;
 
@@ -6932,3 +7026,36 @@ char *Mod_GetBoneName(struct model_s *model, int bonenum)
 	return "";
 }
 #endif //#if defined(D3DQUAKE) || defined(GLQUAKE)
+
+
+void Alias_Register(void)
+{
+	Mod_RegisterModelFormatMagic(NULL, "Quake1 Model (mdl)",				IDPOLYHEADER,							Mod_LoadQ1Model);
+	Mod_RegisterModelFormatMagic(NULL, "Hexen2 Model (mdl)",				RAPOLYHEADER,							Mod_LoadQ1Model);
+#ifdef MD2MODELS
+	Mod_RegisterModelFormatMagic(NULL, "Quake2 Model (md2)",				MD2IDALIASHEADER,						Mod_LoadQ2Model);
+#endif
+#ifdef MD3MODELS
+	Mod_RegisterModelFormatMagic(NULL, "Quake3 Model (md3)",				MD3_IDENT,								Mod_LoadQ3Model);
+#endif
+#ifdef HALFLIFEMODELS
+	Mod_RegisterModelFormatMagic(NULL, "Half-Life Model (mdl)",				(('T'<<24)+('S'<<16)+('D'<<8)+'I'),		Mod_LoadHLModel);
+#endif
+
+#ifdef ZYMOTICMODELS
+	Mod_RegisterModelFormatMagic(NULL, "Zymotic Model (zym)",				(('O'<<24)+('M'<<16)+('Y'<<8)+'Z'),		Mod_LoadZymoticModel);
+#endif
+#ifdef DPMMODELS
+	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			(('K'<<24)+('R'<<16)+('A'<<8)+'D'),		Mod_LoadDarkPlacesModel);
+#endif
+#ifdef PSKMODELS
+	Mod_RegisterModelFormatMagic(NULL, "Unreal Interchange Model (psk)",	('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24),	Mod_LoadPSKModel);
+#endif
+#ifdef INTERQUAKEMODELS
+	Mod_RegisterModelFormatMagic(NULL, "Inter-Quake Model (iqm)",			('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24),	Mod_LoadPSKModel);
+#endif
+#ifdef MD5MODELS
+	Mod_RegisterModelFormatText(NULL, "MD5 Mesh/Anim (md5mesh)",			"MD5Version",							Mod_LoadMD5MeshModel);
+	Mod_RegisterModelFormatText(NULL, "External Anim",						"EXTERNALANIM",							Mod_LoadCompositeAnim);
+#endif
+}

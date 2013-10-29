@@ -1,6 +1,9 @@
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "FTEQuake", "..\setup\setup.vdproj", "{E0EE8B50-3A75-42A9-B80A-787675979B0C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA} = {9767E236-8454-44E9-8999-CD5BDAFBE9BA}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "botlib", "botlib.vcproj", "{0018E098-B12A-4E4D-9B22-6772DA287080}"
 EndProject
@@ -387,7 +390,7 @@ Global
 		{72269FEE-293D-40BC-A7AE-E429F4496869}.Debug|x64.ActiveCfg = Debug|Win32
 		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLDebug|Win32.ActiveCfg = Debug|Win32
 		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLDebug|Win32.Build.0 = Debug|Win32
-		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLDebug|x64.ActiveCfg = Debug|Win32
+		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLDebug|x64.ActiveCfg = Debug|x64
 		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLRelease|Win32.ActiveCfg = Release|Win32
 		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLRelease|Win32.Build.0 = Release|Win32
 		{72269FEE-293D-40BC-A7AE-E429F4496869}.GLRelease|x64.ActiveCfg = Release|Win32
@@ -500,7 +503,6 @@ Global
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.D3DRelease|x64.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.D3DRelease|x64.Build.0 = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug Dedicated Server|Win32.ActiveCfg = Debug Dedicated Server|Win32
-		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug Dedicated Server|Win32.Build.0 = Debug Dedicated Server|Win32
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug Dedicated Server|x64.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug Dedicated Server|x64.Build.0 = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug|Win32.ActiveCfg = Debug Dedicated Server|x64

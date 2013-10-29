@@ -1512,7 +1512,7 @@ char *particle_set_high =
 "randomvel 0\n"
 
 "lightradius 350\n"
-"lightrgb    0.4 0.2 0.05\n"
+"lightrgb    1.4 1.2 1.05\n"
 "lighttime   0.5\n"
 "lightradiusfade 350\n"
 "lightrgbfade 2 2 2 \n"

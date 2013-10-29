@@ -232,18 +232,6 @@ typedef struct
 #define	SIDE_BACK	1
 #define	SIDE_ON		2
 
-
-// plane_t structure
-// !!! if this is changed, it must be changed in asm_i386.h too !!!
-typedef struct mplane_s
-{
-	vec3_t	normal;
-	float	dist;
-	qbyte	type;			// for texture axis selection and fast side tests
-	qbyte	signbits;		// signx + signy<<1 + signz<<1
-	qbyte	pad[2];
-} mplane_t;
-
 typedef struct vbo_s
 {
 	unsigned int numvisible;
@@ -992,9 +980,9 @@ qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 #ifdef TERRAIN
 void Terr_Init(void);
 void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
-qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
-void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean lightmapreusable);
-void *Mod_LoadTerrainInfo(model_t *mod, char *loadname);	//call this after loading a bsp
+void Terr_FreeModel(model_t *mod);
+void Terr_PurgeTerrainModel(model_t *hm, qboolean lightmapsonly, qboolean lightmapreusable);
+void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force);	//call this after loading a bsp
 qboolean Terrain_LocateSection(char *name, flocation_t *loc);	//used on servers to generate sections for download.
 qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, struct trace_s *trace);
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);

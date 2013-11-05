@@ -1405,9 +1405,9 @@ qcc-rel:
 qccgui-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lcomdlg32 -lcomctl32 -mwindows"
 qcc-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lcomdlg32 -lcomctl32 -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lcomdlg32 -lcomctl32 -mwindows"
 
 ifdef windir
 debugdir:

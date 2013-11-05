@@ -609,7 +609,7 @@ char *GetTooltipText(editor_t *editor)
 	{
 		QCC_def_t *def;
 		char *macro = QCC_PR_CheckCompConstTooltip(defname, buffer, buffer + sizeof(buffer));
-		if (*macro)
+		if (macro && *macro)
 			return macro;
 
 		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, false);

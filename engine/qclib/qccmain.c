@@ -1018,6 +1018,8 @@ strofs = (strofs+3)&~3;
 		printf ("%6i numglobaldefs (of %i)\n", numglobaldefs, MAX_GLOBALS);
 		printf ("%6i numfielddefs (%i unique) (of %i)\n", numfielddefs, pr.size_fields, MAX_FIELDS);
 		printf ("%6i numpr_globals (of %i)\n", numpr_globals, MAX_REGS);
+		printf ("%6i nummodels\n", nummodels);
+		printf ("%6i numsounds\n", numsounds);
 	}
 
 	if (!*destfile)

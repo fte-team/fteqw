@@ -717,28 +717,34 @@ ifeq ($(FTE_TARGET),nacl)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-gcc -DNACL -m32
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-strip
 		BITS=
+		NACLLIBS=newlib_x86_32/Release
 	endif
 	ifeq ($(NARCH),x86_64)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-gcc -DNACL -m64
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-strip
 		BITS=
+		NACLLIBS=newlib_x86_64/Release
 	endif
 	ifeq ($(NARCH),arm)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-gcc -DNACL
+		CC=NACL_SDK_ROOT/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-gcc -DNACL
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-strip
 		BITS=
+		NACLLIBS=newlib_arm/Release
 	endif
 	ifeq ($(NARCH),pnacl)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-clang -DNACL
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-strip
 		STRIPFLAGS=
 		BITS=
+		NACLLIBS=pnacl/Release
 	endif
 
 	BASELDFLAGS = -lm -lppapi_gles2 -lnosys -lppapi
 	IMAGELDFLAGS =
 
 	GL_CFLAGS+=$(SPEEXCFLAGS)
+	GL_CFLAGS+=-I$(realpath $(NACL_SDK_ROOT)/include)
+	BASELDFLAGS+=-L$(realpath $(NACL_SDK_ROOT)/lib/$(NACLLIBS))
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SPEEX_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
 

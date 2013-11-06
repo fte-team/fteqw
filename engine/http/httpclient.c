@@ -200,7 +200,7 @@ static void dlstarted(void* user_data, int32_t result)
 	readfinished(user_data, urlloader->ReadResponseBody(ctx->req, ctx->buffer, sizeof(ctx->buffer), ccb));
 }
 
-static void nadl_cleanup(void* user_data, int32_t result)
+static void nadl_cleanup_cb(void* user_data, int32_t result)
 {
 	struct nacl_dl *ctx = user_data;
 
@@ -217,7 +217,7 @@ void NADL_Cleanup(struct dl_download *dl)
 	//so set up a callback to do it later
 
 	dl->ctx = NULL;	//orphan
-	struct PP_CompletionCallback ccb = {nadl_cleanup, ctx, PP_COMPLETIONCALLBACK_FLAG_NONE};
+	struct PP_CompletionCallback ccb = {nadl_cleanup_cb, ctx, PP_COMPLETIONCALLBACK_FLAG_NONE};
 	ppb_core->CallOnMainThread(1000, ccb, 0);
 }
 
@@ -230,7 +230,7 @@ qboolean DL_Decide(struct dl_download *dl)
 
 	if (dl->postdata)
 	{
-		DL_Abort(dl);
+		NADL_Cleanup(dl);
 		return false;	//safe to destroy it now
 	}
 

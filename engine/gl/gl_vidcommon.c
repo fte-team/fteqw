@@ -290,27 +290,27 @@ void (APIENTRY myGLDEBUGPROCAMD)(GLenum source,
 	switch(type)
 	{
 	case GL_DEBUG_TYPE_ERROR_ARB:
-		OutputDebugString("Error: ");
+		OutputDebugStringA("Error: ");
 		break;
 	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB:
-		OutputDebugString("Depricated: ");
+		OutputDebugStringA("Depricated: ");
 		break;
 	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB:
-		OutputDebugString("Undefined: ");
+		OutputDebugStringA("Undefined: ");
 		break;
 	case GL_DEBUG_TYPE_PORTABILITY_ARB:
-		OutputDebugString("Portability: ");
+		OutputDebugStringA("Portability: ");
 		break;
 	case GL_DEBUG_TYPE_PERFORMANCE_ARB:
-		OutputDebugString("Performance: ");
+		OutputDebugStringA("Performance: ");
 		break;
 	default:
 	case GL_DEBUG_TYPE_OTHER_ARB:
-		OutputDebugString("Other: ");
+		OutputDebugStringA("Other: ");
 		break;
 	}
-	OutputDebugString(message);
-	OutputDebugString("\n");
+	OutputDebugStringA(message);
+	OutputDebugStringA("\n");
 }
 #endif
 
@@ -1154,8 +1154,7 @@ static const char *glsl_hdrs[] =
 			"#ifdef SPOT\n"
 				//bias it. don't bother figuring out which side or anything, its not needed
 				//l_projmatrix contains the light's projection matrix so no other magic needed
-				"vtexprojcoord.z -= 0.015;\n"
-				"return (vtexprojcoord.xyz/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+				"return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 			//"#elif defined(CUBESHADOW)\n"
 			//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
 			//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r

@@ -10,6 +10,8 @@ struct v2f
 	float2 tc: TEXCOORD0;
 	float2 lmtc: TEXCOORD1;
 	float4 vcol: COLOR0;
+	float3 vtexprojcoord: TEXCOORD2;
+	float3 vtexprojcoord: TEXCOORD2;
 };
 
 #include <ftedefs.h>
@@ -29,21 +31,49 @@ struct v2f
 #endif
 
 #ifdef FRAGMENT_SHADER
-	Texture2D shaderTexture[5];
-	SamplerState SampleType;
+	Texture2D shaderTexture[7];
+	SamplerState SampleType[7];
 
 	float4 main (v2f inp) : SV_TARGET
 	{
-return float4(1,1,1,1);
+		float4 result;
 
-//		float4 m = shaderTexture[4].Sample(SampleType, inp.tc) ;
+		float4 base = shaderTexture[0].Sample(SampleType[0], inp.tc);
+#ifdef BUMP
+		float4 bump = shaderTexture[1].Sample(SampleType[1], inp.tc);
+#else
+		float4 bump = float4(0, 0, 1, 0);
+#endif
+		float4 spec = shaderTexture[2].Sample(SampleType[2], inp.tc);
+#ifdef CUBE
+		float4 cubemap = shaderTexture[3].Sample(SampleType[3], inp.vtexprojcoord);
+#endif
+		//shadowmap 2d
+#ifdef LOWER
+		float4 lower = shaderTexture[5].Sample(SampleType[5], inp.tc);
+		base += lower;
+#endif
+#ifdef UPPER
+		float4 upper = shaderTexture[6].Sample(SampleType[6], inp.tc);
+		base += upper;
+#endif
 
-//		return inp.vcol*float4(m.aaa,1.0)*(
-//			  shaderTexture[0].Sample(SampleType, inp.tc)*m.r
-//			+ shaderTexture[1].Sample(SampleType, inp.tc)*m.g
-//			+ shaderTexture[2].Sample(SampleType, inp.tc)*m.b
-//			+ shaderTexture[3].Sample(SampleType, inp.tc)*1.0 - (m.r + m.g + m.b))
-//			;
+		float lightscale = max(1.0 - (dot(inp.lightvector,inp.lightvector)/(l_lightradius*l_lightradius)), 0.0);
+		float3 nl = normalize(inp.lightvector);
+		float bumpscale = max(dot(bump.xyz, nl), 0.0);
+		float3 halfdir = normalize(normalize(eyevector) + nl);
+		float specscale = pow(max(dot(halfdir, bumps), 0.0), 32.0 * spec.a);
 
+		result.a = base.a;
+		result.rgb = base.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * bumpscale);	//amient light + diffuse
+		result.rgb += spec.rgb * l_lightcolourscale.z * specscale;	//specular
+
+		result.rgb *= lightscale;	//fade light by distance
+
+#ifdef CUBE
+		result.rgb *= cubemap.rgb;	//fade by cubemap
+#endif
+
+		return result;
 	}
 #endif

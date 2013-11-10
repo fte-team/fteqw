@@ -274,8 +274,7 @@ void main ()
 	/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
 //diff.rgb = (vtexprojcoord.xyz/vtexprojcoord.w) * 0.5 + 0.5;
 	colorscale *= ShadowmapFilter();
-//	gl_FragColor.rgb = vec3(ShadowmapFilter());
-
+//	diff = ShadowmapCoord();
 #endif
 
 #if defined(PROJECTION)

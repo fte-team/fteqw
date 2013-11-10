@@ -82,8 +82,11 @@ uniform sampler2D s_t3;
 uniform sampler2D s_t4;
 
 #ifdef PCF
-	sampler2DShadow s_t5;
+	uniform sampler2DShadow s_t5;
 	#include "sys/pcf.h"
+#endif
+#ifdef CUBE
+	uniform samplerCube s_t6;
 #endif
 
 //light levels
@@ -136,6 +139,10 @@ void main (void)
 	#endif
 
 	r.rgb *= colorscale * l_lightcolour;
+
+	#ifdef CUBE
+		r.rgb *= textureCube(s_t6, vtexprojcoord.xyz).rgb;
+	#endif
 
 	gl_FragColor = fog4additive(r);
 #else

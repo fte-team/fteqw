@@ -384,6 +384,39 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 },
 #endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "depthonly",
+//used for generating shadowmaps and stuff that draws nothing.
+
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float3 normal: NORMAL;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"void main (v2f inp) : SV_TARGET\n"
+"{\n"
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "default2d",
 //this shader is present for support for gles/gl3core contexts
@@ -1866,8 +1899,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 /*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
 //diff.rgb = (vtexprojcoord.xyz/vtexprojcoord.w) * 0.5 + 0.5;
 "colorscale *= ShadowmapFilter();\n"
-//	gl_FragColor.rgb = vec3(ShadowmapFilter());
-
+//	diff = ShadowmapCoord();
 "#endif\n"
 
 "#if defined(PROJECTION)\n"
@@ -1942,6 +1974,240 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);\n"
 "float3 diff = tex2D(s_t0, inp.tc);\n"
 "return float4(diff * col, 1);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef D3D11QUAKE
+{QR_DIRECT3D11, 11, "rtlight",
+"!!permu BUMP\n"
+"!!permu FRAMEBLEND\n"
+"!!permu SKELETAL\n"
+"!!permu UPPERLOWER\n"
+"!!permu FOG\n"
+"!!cvarf r_glsl_offsetmapping_scale\n"
+"!!cvardf r_glsl_pcf\n"
+
+
+//this is the main shader responsible for realtime dlights.
+
+//texture units:
+//s0=diffuse, s1=normal, s2=specular, s3=shadowmap
+//custom modifiers:
+//PCF(shadowmap)
+//CUBEPROJ(projected cubemap)
+//SPOT(projected circle
+//CUBESHADOW
+
+"#undef CUBE //engine cannot load cubemaps properly with d3d yet.\n"
+
+"#ifndef r_glsl_pcf\n"
+"#error r_glsl_pcf wasn't defined\n"
+"#endif\n"
+"#if r_glsl_pcf < 1\n"
+"#undef r_glsl_pcf\n"
+"#define r_glsl_pcf 9\n"
+"#endif\n"
+
+"#ifdef UPPERLOWER\n"
+"#define UPPER\n"
+"#define LOWER\n"
+"#endif\n"
+
+
+"struct a2v\n"
+"{\n"
+"float4 pos: POSITION;\n"
+"float4 tc: TEXCOORD0;\n"
+"float3 n: NORMAL;\n"
+"float3 s: TANGENT;\n"
+"float3 t: BINORMAL;\n"
+"};\n"
+"struct v2f\n"
+"{\n"
+"float4 pos: SV_POSITION;\n"
+"float2 tc: TEXCOORD0;\n"
+"float3 lightvector: TEXCOORD1;\n"
+"float3 eyevector: TEXCOORD2;\n"
+"float3 vtexprojcoord: TEXCOORD3;\n"
+"};\n"
+
+"#include <ftedefs.h>\n"
+
+"#ifdef VERTEX_SHADER\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"float4 wpos;\n"
+"wpos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, wpos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.tc = inp.tc.xy;\n"
+"float3 lightminusvertex = l_lightposition - wpos.xyz;\n"
+"outp.lightvector.x = -dot(lightminusvertex, inp.s.xyz);\n"
+"outp.lightvector.y = dot(lightminusvertex, inp.t.xyz);\n"
+"outp.lightvector.z = dot(lightminusvertex, inp.n.xyz);\n"
+"float3 eyeminusvertex = e_eyepos - wpos.xyz;\n"
+"outp.eyevector.x = -dot(eyeminusvertex, inp.s.xyz);\n"
+"outp.eyevector.y = dot(eyeminusvertex, inp.t.xyz);\n"
+"outp.eyevector.z = dot(eyeminusvertex, inp.n.xyz);\n"
+"outp.vtexprojcoord = mul(l_cubematrix, wpos).xyz;\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+
+"#ifdef FRAGMENT_SHADER\n"
+
+"Texture2D tx_base : register(t0);\n"
+"Texture2D tx_bump : register(t1);\n"
+"Texture2D tx_spec : register(t2);\n"
+"TextureCube tx_cube : register(t3);\n"
+"Texture2D tx_smap : register(t4);\n"
+"Texture2D tx_lower : register(t5);\n"
+"Texture2D tx_upper : register(t6);\n"
+
+"SamplerState ss_base : register(s0);\n"
+"SamplerState ss_bump : register(s1);\n"
+"SamplerState ss_spec : register(s2);\n"
+"SamplerState ss_cube : register(s3);\n"
+"SamplerComparisonState ss_smap : register(s4);\n"
+"SamplerState ss_lower : register(s5);\n"
+"SamplerState ss_upper : register(s6);\n"
+
+"#ifdef PCF\n"
+"float3 ShadowmapCoord(float3 vtexprojcoord)\n"
+"{\n"
+"#ifdef SPOT\n"
+//bias it. don't bother figuring out which side or anything, its not needed
+//l_projmatrix contains the light's projection matrix so no other magic needed
+"vtexprojcoord.z -= 0.015;\n"
+"return (vtexprojcoord.xyz + float3(1.0, 1.0, 1.0)) * float3(0.5, 0.5, 0.5);\n"
+//#elif defined(CUBESHADOW)
+//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
+//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
+"#else\n"
+//figure out which axis to use
+//texture is arranged thusly:
+//forward left  up
+//back    right down
+"float3 dir = abs(vtexprojcoord.xyz);\n"
+//assume z is the major axis (ie: forward from the light)
+"float3 t = vtexprojcoord.xyz;\n"
+"float ma = dir.z;\n"
+"float3 axis = float3(0.5/3.0, 0.5/2.0, 0.5);\n"
+"if (dir.x > ma)\n"
+"{\n"
+"ma = dir.x;\n"
+"t = vtexprojcoord.zyx;\n"
+"axis.x = 0.5;\n"
+"}\n"
+"if (dir.y > ma)\n"
+"{\n"
+"ma = dir.y;\n"
+"t = vtexprojcoord.xzy;\n"
+"axis.x = 2.5/3.0;\n"
+"}\n"
+//if the axis is negative, flip it.
+"if (t.z > 0.0)\n"
+"{\n"
+"axis.y = 1.5/2.0;\n"
+"t.z = -t.z;\n"
+"}\n"
+
+//we also need to pass the result through the light's projection matrix too
+//the 'matrix' we need only contains 5 actual values. and one of them is a -1. So we might as well just use a vec4.
+//note: the projection matrix also includes scalers to pinch the image inwards to avoid sampling over borders, as well as to cope with non-square source image
+//the resulting z is prescaled to result in a value between -0.5 and 0.5.
+//also make sure we're in the right quadrant type thing
+"return axis + ((l_shadowmapproj.xyz*t.xyz + float3(0.0, 0.0, l_shadowmapproj.w)) / -t.z);\n"
+"#endif\n"
+"}\n"
+
+"float ShadowmapFilter(float3 vtexprojcoord)\n"
+"{\n"
+"float3 shadowcoord = ShadowmapCoord(vtexprojcoord);\n"
+
+//	#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
+
+//	#define dosamp(x,y) (tx_smap.Sample(ss_smap, shadowcoord.xy + (float2(x,y)*l_shadowmapscale.xy)).r < shadowcoord.z)
+"#define dosamp(x,y) (tx_smap.SampleCmpLevelZero(ss_smap, shadowcoord.xy+(float2(x,y)*l_shadowmapscale.xy), shadowcoord.z))\n"
+
+
+"float s = 0.0;\n"
+"#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
+"s += dosamp(0.0, 0.0);\n"
+"return s;\n"
+"#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9\n"
+"s += dosamp(-1.0, 0.0);\n"
+"s += dosamp(0.0, -1.0);\n"
+"s += dosamp(0.0, 0.0);\n"
+"s += dosamp(0.0, 1.0);\n"
+"s += dosamp(1.0, 0.0);\n"
+"return s/5.0;\n"
+"#else\n"
+"s += dosamp(-1.0, -1.0);\n"
+"s += dosamp(-1.0, 0.0);\n"
+"s += dosamp(-1.0, 1.0);\n"
+"s += dosamp(0.0, -1.0);\n"
+"s += dosamp(0.0, 0.0);\n"
+"s += dosamp(0.0, 1.0);\n"
+"s += dosamp(1.0, -1.0);\n"
+"s += dosamp(1.0, 0.0);\n"
+"s += dosamp(1.0, 1.0);\n"
+"return s/9.0;\n"
+"#endif\n"
+"}\n"
+"#endif\n"
+
+
+"float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"float2 tc = inp.tc; //TODO: offsetmapping.\n"
+
+"float4 base = tx_base.Sample(ss_base, tc);\n"
+"#ifdef BUMP\n"
+"float4 bump = tx_bump.Sample(ss_bump, tc);\n"
+"bump.rgb = normalize(bump.rgb - 0.5);\n"
+"#else\n"
+"float4 bump = float4(0, 0, 1, 0);\n"
+"#endif\n"
+"float4 spec = tx_spec.Sample(ss_spec, tc);\n"
+"#ifdef CUBE\n"
+"float4 cubemap = tx_cube.Sample(ss_cube, inp.vtexprojcoord);\n"
+"#endif\n"
+"#ifdef LOWER\n"
+"float4 lower = tx_lower.Sample(ss_lower, tc);\n"
+"base += lower;\n"
+"#endif\n"
+"#ifdef UPPER\n"
+"float4 upper = tx_upper.Sample(ss_upper, tc);\n"
+"base += upper;\n"
+"#endif\n"
+
+"float lightscale = max(1.0 - (dot(inp.lightvector,inp.lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
+"float3 nl = normalize(inp.lightvector);\n"
+"float bumpscale = max(dot(bump.xyz, nl), 0.0);\n"
+"float3 halfdir = normalize(normalize(inp.eyevector) + nl);\n"
+"float specscale = pow(max(dot(halfdir, bump.rgb), 0.0), 32.0 * spec.a);\n"
+
+"float4 result;\n"
+"result.a    = base.a;\n"
+"result.rgb  = base.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * bumpscale); //amient light + diffuse\n"
+"result.rgb += spec.rgb * l_lightcolourscale.z * specscale; //specular\n"
+
+"result.rgb *= lightscale * l_colour; //fade light by distance and light colour.\n"
+
+"#ifdef CUBE\n"
+"result.rgb *= cubemap.rgb; //fade by cubemap\n"
+"#endif\n"
+
+"#ifdef PCF\n"
+"result.rgb *= ShadowmapFilter(inp.vtexprojcoord);\n"
+"#endif\n"
+
+//TODO: fog
+"return result;\n"
 "}\n"
 "#endif\n"
 },
@@ -2109,8 +2375,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t4;\n"
 
 "#ifdef PCF\n"
-"sampler2DShadow s_t5;\n"
+"uniform sampler2DShadow s_t5;\n"
 "#include \"sys/pcf.h\"\n"
+"#endif\n"
+"#ifdef CUBE\n"
+"uniform samplerCube s_t6;\n"
 "#endif\n"
 
 //light levels
@@ -2164,6 +2433,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "r.rgb *= colorscale * l_lightcolour;\n"
 
+"#ifdef CUBE\n"
+"r.rgb *= textureCube(s_t6, vtexprojcoord.xyz).rgb;\n"
+"#endif\n"
+
 "gl_FragColor = fog4additive(r);\n"
 "#else\n"
 //lightmap is greyscale in m.a. probably we should just scale the texture mix, but precision errors when editing make me paranoid.
@@ -2188,6 +2461,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "float2 tc: TEXCOORD0;\n"
 "float2 lmtc: TEXCOORD1;\n"
 "float4 vcol: COLOR0;\n"
+"float3 vtexprojcoord: TEXCOORD2;\n"
+"float3 vtexprojcoord: TEXCOORD2;\n"
 "};\n"
 
 "#include <ftedefs.h>\n"
@@ -2207,22 +2482,50 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture[5];\n"
-"SamplerState SampleType;\n"
+"Texture2D shaderTexture[7];\n"
+"SamplerState SampleType[7];\n"
 
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"return float4(1,1,1,1);\n"
+"float4 result;\n"
 
-//		float4 m = shaderTexture[4].Sample(SampleType, inp.tc) ;
+"float4 base = shaderTexture[0].Sample(SampleType[0], inp.tc);\n"
+"#ifdef BUMP\n"
+"float4 bump = shaderTexture[1].Sample(SampleType[1], inp.tc);\n"
+"#else\n"
+"float4 bump = float4(0, 0, 1, 0);\n"
+"#endif\n"
+"float4 spec = shaderTexture[2].Sample(SampleType[2], inp.tc);\n"
+"#ifdef CUBE\n"
+"float4 cubemap = shaderTexture[3].Sample(SampleType[3], inp.vtexprojcoord);\n"
+"#endif\n"
+//shadowmap 2d
+"#ifdef LOWER\n"
+"float4 lower = shaderTexture[5].Sample(SampleType[5], inp.tc);\n"
+"base += lower;\n"
+"#endif\n"
+"#ifdef UPPER\n"
+"float4 upper = shaderTexture[6].Sample(SampleType[6], inp.tc);\n"
+"base += upper;\n"
+"#endif\n"
 
-//		return inp.vcol*float4(m.aaa,1.0)*(
-//			  shaderTexture[0].Sample(SampleType, inp.tc)*m.r
-//			+ shaderTexture[1].Sample(SampleType, inp.tc)*m.g
-//			+ shaderTexture[2].Sample(SampleType, inp.tc)*m.b
-//			+ shaderTexture[3].Sample(SampleType, inp.tc)*1.0 - (m.r + m.g + m.b))
-//			;
+"float lightscale = max(1.0 - (dot(inp.lightvector,inp.lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
+"float3 nl = normalize(inp.lightvector);\n"
+"float bumpscale = max(dot(bump.xyz, nl), 0.0);\n"
+"float3 halfdir = normalize(normalize(eyevector) + nl);\n"
+"float specscale = pow(max(dot(halfdir, bumps), 0.0), 32.0 * spec.a);\n"
 
+"result.a = base.a;\n"
+"result.rgb = base.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * bumpscale); //amient light + diffuse\n"
+"result.rgb += spec.rgb * l_lightcolourscale.z * specscale; //specular\n"
+
+"result.rgb *= lightscale; //fade light by distance\n"
+
+"#ifdef CUBE\n"
+"result.rgb *= cubemap.rgb; //fade by cubemap\n"
+"#endif\n"
+
+"return result;\n"
 "}\n"
 "#endif\n"
 },

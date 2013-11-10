@@ -285,7 +285,7 @@ void (APIENTRY myGLDEBUGPROCAMD)(GLenum source,
 					GLvoid* userParam)
 {
 #ifndef _WIN32
-#define OutputDebugString(s) puts(s)
+#define OutputDebugStringA(s) puts(s)
 #endif
 	switch(type)
 	{

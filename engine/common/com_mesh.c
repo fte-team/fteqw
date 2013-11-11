@@ -7052,7 +7052,7 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatMagic(NULL, "Unreal Interchange Model (psk)",	('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24),	Mod_LoadPSKModel);
 #endif
 #ifdef INTERQUAKEMODELS
-	Mod_RegisterModelFormatMagic(NULL, "Inter-Quake Model (iqm)",			('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24),	Mod_LoadPSKModel);
+	Mod_RegisterModelFormatMagic(NULL, "Inter-Quake Model (iqm)",			('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24),	Mod_LoadInterQuakeModel);
 #endif
 #ifdef MD5MODELS
 	Mod_RegisterModelFormatText(NULL, "MD5 Mesh/Anim (md5mesh)",			"MD5Version",							Mod_LoadMD5MeshModel);

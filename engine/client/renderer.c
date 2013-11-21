@@ -1423,7 +1423,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	if (newr->renderer && newr->renderer->rtype == QR_NONE)
 	{
 		Con_Printf("Client-only builds cannot use dedicated modes.\n");
-		return NULL;
+		return false;
 	}
 #endif
 

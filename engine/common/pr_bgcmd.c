@@ -3974,7 +3974,7 @@ void QCBUILTIN PF_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	//need to alter the client, or rewrite a bit of the server..
 
 	if (pr_globals)
-		Con_TPrintf(STL_BREAKSTATEMENT);
+		Con_Printf("Break Statement\n");
 	else if (developer.value!=2)
 		return;	//non developers cann't step.
 	for(;;)

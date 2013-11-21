@@ -18942,6 +18942,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29649,6 +29650,14 @@
 							Name="VCCLCompilerTool"
 							UsePrecompiledHeader="0"
 							CompileAs="2"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
 				</File>

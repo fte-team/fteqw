@@ -39,7 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static HANDLE hconsoleout;
 
 
-
+qboolean	WinNT;	//if true, use utf-16 file paths. if false, hope that paths are in ascii.
 
 
 #ifdef _DEBUG

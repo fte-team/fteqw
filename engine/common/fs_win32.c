@@ -28,8 +28,73 @@ typedef struct {
 	unsigned int offset;
 } vfsw32file_t;
 
-wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
-char *narrowen(char *out, size_t outlen, const wchar_t *wide);
+wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8)
+{
+	wchar_t *ret = out;
+	//utf-8 to utf-16, not ucs-2.
+	unsigned int codepoint;
+	int error;
+	if (!outlen)
+		return L"";
+	outlen /= sizeof(wchar_t);
+	outlen--;
+	while (*utf8)
+	{
+		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
+		if (error)
+			codepoint = 0xFFFDu;
+		if (codepoint > 0xffff)
+		{
+			if (outlen < 2)
+				break;
+			outlen -= 2;
+			codepoint -= 0x10000u;
+			*out++ = 0xD800 | (codepoint>>10);
+			*out++ = 0xDC00 | (codepoint&0x3ff);
+		}
+		else
+		{
+			if (outlen < 1)
+				break;
+			outlen -= 1;
+			*out++ = codepoint;
+		}
+	}
+	*out = 0;
+	return ret;
+}
+
+char *narrowen(char *out, size_t outlen, wchar_t *wide)
+{
+	char *ret = out;
+	int bytes;
+	unsigned int codepoint;
+	if (!outlen)
+		return "";
+	outlen--;
+	//utf-8 to utf-16, not ucs-2.
+	while (*wide)
+	{
+		codepoint = *wide++;
+		if (codepoint >= 0xD800u && codepoint <= 0xDBFFu)
+		{	//handle utf-16 surrogates
+			if (*wide >= 0xDC00u && *wide <= 0xDFFFu)
+			{
+				codepoint = (codepoint&0x3ff)<<10;
+				codepoint |= *wide++ & 0x3ff;
+			}
+			else
+				codepoint = 0xFFFDu;
+		}
+		bytes = utf8_encode(out, codepoint, outlen);
+		if (bytes <= 0)
+			break;
+		out += bytes;
+		outlen -= bytes;
+	}
+	*out = 0;
+	return ret;
+}
 
 
 static int QDECL VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)

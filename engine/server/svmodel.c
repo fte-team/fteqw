@@ -395,6 +395,8 @@ model_t *Mod_FindName (char *name)
 	{
 		if (mod_numknown == MAX_MOD_KNOWN)
 			SV_Error ("mod_numknown == MAX_MOD_KNOWN");
+		if (strlen(name) >= sizeof(mod->name))
+			Sys_Error ("model name is too long: %s", name);
 		strcpy (mod->name, name);
 		mod->needload = true;
 		mod_numknown++;

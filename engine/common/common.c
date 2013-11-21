@@ -419,12 +419,14 @@ int wildcmp(const char *wild, const char *string)
 	{
 		if (*wild == '*')
 		{
-			if (wild[1] == *string || *string == '/' || *string == '\\')
+			if (*string == '/' || *string == '\\')
 			{
 				//* terminates if we get a match on the char following it, or if its a \ or / char
 				wild++;
 				continue;
 			}
+			if (wildcmp(wild+1, string))
+				return true;
 			string++;
 		}
 		else if ((*wild == *string) || (*wild == '?'))
@@ -2916,6 +2918,8 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		}
 		else if (str[0] == '=' && str[1] == '`' && str[2] == 'k' && str[3] == '8' && str[4] == ':' && !keepmarkup)
 		{
+			//ezquake compat: koi8 compat for crazy russian people.
+			//we parse for compat but don't generate (they'll see utf-8 from us).
 			//this code can just recurse. saves affecting the rest of the code with weird encodings.
 			int l;
 			char temp[1024];
@@ -3315,7 +3319,7 @@ skipwhite:
 
 	if (c == '\\' && data[1] == '\"')
 	{
-		return COM_ParseCString(data+1, token, tokenlen);
+		return COM_ParseCString(data+1, token, tokenlen, NULL);
 	}
 
 // handle quoted strings specially
@@ -3600,6 +3604,10 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen)
 				*buf++ = '\\';
 				*buf++ = 'r';
 				break;
+			case '\t':
+				*buf++ = '\\';
+				*buf++ = 't';
+				break;
 			case '\'':
 				*buf++ = '\\';
 				*buf++ = '\'';
@@ -3640,13 +3648,16 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen)
 	}
 }
 
-char *COM_ParseCString (const char *data, char *token, int tokenlen)
+char *COM_ParseCString (const char *data, char *token, size_t sizeoftoken, size_t *lengthwritten)
 {
 	int		c;
-	int		len;
+	size_t		len;
 
 	len = 0;
 	token[0] = 0;
+
+	if (lengthwritten)
+		*lengthwritten = 0;
 
 	if (!data)
 		return NULL;
@@ -3678,9 +3689,11 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= tokenlen-2)
+			if (len >= sizeoftoken-2)
 			{
 				token[len] = '\0';
+				if (lengthwritten)
+					*lengthwritten = len;
 				return (char*)data;
 			}
 
@@ -3688,6 +3701,8 @@ skipwhite:
 			if (!c)
 			{
 				token[len] = 0;
+				if (lengthwritten)
+					*lengthwritten = len;
 				return (char*)data-1;
 			}
 			if (c == '\\')
@@ -3702,6 +3717,9 @@ skipwhite:
 					continue;
 				case 'n':
 					c = '\n';
+					break;
+				case 't':
+					c = '\t';
 					break;
 				case 'r':
 					c = '\r';
@@ -3723,6 +3741,8 @@ skipwhite:
 			if (c=='\"' || !c)
 			{
 				token[len] = 0;
+				if (lengthwritten)
+					*lengthwritten = len;
 				return (char*)data;
 			}
 			token[len] = c;
@@ -3733,7 +3753,7 @@ skipwhite:
 // parse a regular word
 	do
 	{
-		if (len >= tokenlen-1)
+		if (len >= sizeoftoken-1)
 			break;
 		token[len] = c;
 		data++;
@@ -3742,6 +3762,8 @@ skipwhite:
 	} while (c>32);
 
 	token[len] = 0;
+	if (lengthwritten)
+		*lengthwritten = len;
 	return (char*)data;
 }
 
@@ -4633,7 +4655,7 @@ void Info_RemoveKey (char *s, const char *key)
 
 	if (strstr (key, "\\"))
 	{
-		Con_TPrintf (TL_KEYHASSLASH);
+		Con_Printf ("Can't use a key with a \\\n");
 		return;
 	}
 
@@ -4775,19 +4797,19 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 
 	if (strstr (key, "\\") || strstr (value, "\\") )
 	{
-		Con_TPrintf (TL_KEYHASSLASH);
+		Con_Printf ("Can't use a key with a \\\n");
 		return;
 	}
 
 	if (strstr (key, "\"") || strstr (value, "\"") )
 	{
-		Con_TPrintf (TL_KEYHASQUOTE);
+		Con_Printf ("Can't use a key with a \"\n");
 		return;
 	}
 
 	if (strlen(key) >= MAX_INFO_KEY)// || strlen(value) >= MAX_INFO_KEY)
 	{
-		Con_TPrintf (TL_KEYTOOLONG);
+		Con_Printf ("Keys and values must be < %i characters.\n", MAX_INFO_KEY);
 		return;
 	}
 
@@ -4804,7 +4826,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 				Info_SetValueForStarKey (s, key, value, maxsize);
 				return;
 			}
-			Con_TPrintf (TL_INFOSTRINGTOOLONG);
+			Con_Printf ("Info string length exceeded on addition of %s\n", key);
 			return;
 		}
 	}
@@ -4816,7 +4838,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 
 	if ((int)(strlen(newv) + strlen(s) + 1) > maxsize)
 	{
-		Con_TPrintf (TL_INFOSTRINGTOOLONG);
+		Con_Printf ("Info string length exceeded on addition of %s\n", key);
 		return;
 	}
 
@@ -4854,7 +4876,7 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 {
 	if (key[0] == '*')
 	{
-		Con_TPrintf (TL_STARKEYPROTECTED);
+		Con_Printf ("Can't set * keys\n");
 		return;
 	}
 
@@ -4888,7 +4910,8 @@ void Info_Print (char *s, char *lineprefix)
 
 		if (!*s)
 		{
-			Con_TPrintf (TL_KEYHASNOVALUE);
+			//should never happen.
+			Con_Printf ("<no value>\n");
 			return;
 		}
 

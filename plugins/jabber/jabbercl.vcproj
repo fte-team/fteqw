@@ -41,6 +41,7 @@
 				PreprocessorDefinitions="FTEPLUGIN"
 				EnableFunctionLevelLinking="true"
 				BrowseInformation="1"
+				WarningLevel="3"
 				DebugInformationFormat="4"
 			/>
 			<Tool
@@ -184,6 +185,10 @@
 			</File>
 			<File
 				RelativePath="..\..\engine\common\sha1.c"
+				>
+			</File>
+			<File
+				RelativePath=".\sift.c"
 				>
 			</File>
 			<File

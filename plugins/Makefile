@@ -19,6 +19,18 @@ PLUG_CFLAGS=
 $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): avplug/libavformat/avformat.h
 endif
 
+#cygwin uses dll naming.
+ifeq ($(FTE_TARGET),cygwin)
+ifeq ($(BITS),64)
+PLUG_DEFFILE=plugin.def
+PLUG_NATIVE_EXT=amd.dll
+endif
+ifneq ($(BITS),64)
+PLUG_DEFFILE=plugin.def
+PLUG_NATIVE_EXT=x86.dll
+endif
+endif
+
 #if they're not on windows, we'll try asking the compiler directly
 #the check to see if its already set is to avoid asking msvc, which would probably break things.
 ifeq ($(PLUG_NATIVE_EXT),)
@@ -103,8 +115,8 @@ $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT)
 
-$(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+$(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lresolv
 native: $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT)
 
 

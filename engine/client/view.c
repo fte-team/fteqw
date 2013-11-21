@@ -298,9 +298,9 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = SCVARF("gamma", "0.8", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
-cvar_t		v_contrast = SCVARF("contrast", "1.3", CVAR_ARCHIVE);
-cvar_t		v_brightness = SCVARF("brightness", "0.0", CVAR_ARCHIVE);
+cvar_t		v_gamma = CVARFD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
+cvar_t		v_contrast = CVARFD("contrast", "1.0", CVAR_ARCHIVE, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
+cvar_t		v_brightness = CVARFD("brightness", "0.0", CVAR_ARCHIVE, "Brightness is how much 'white' to add to each and every pixel on the screen.");
 
 qbyte		gammatable[256];	// palette is sent through this
 
@@ -394,6 +394,7 @@ void V_ParseDamage (playerview_t *pv)
 		count = 10;
 
 #ifdef ANDROID
+	//later versions of android might support strength values, but the simple standard interface is duration only.
 	Sys_Vibrate(count);
 #endif
 
@@ -638,7 +639,7 @@ V_CalcBlend
 */
 void V_CalcBlend (float *hw_blend)
 {
-	extern qboolean r2d_noshadergamma;
+	extern qboolean r2d_canhwgamma;
 	float	a2;
 	int		j;
 	float *blend;
@@ -671,7 +672,7 @@ void V_CalcBlend (float *hw_blend)
 		}
 		else
 		{
-			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || r2d_noshadergamma)
+			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || !r2d_canhwgamma)
 				blend = sw_blend;
 			else	//powerup or contents?
 				blend = hw_blend;
@@ -701,7 +702,7 @@ V_UpdatePalette
 */
 void V_UpdatePalette (qboolean force)
 {
-	extern	qboolean r2d_noshadergamma;
+	extern	qboolean r2d_canhwgamma;
 	int		i;
 	float	newhw_blend[4];
 	int		ir, ig, ib;
@@ -758,9 +759,9 @@ void V_UpdatePalette (qboolean force)
 		}
 
 		applied = rf->VID_ApplyGammaRamps ((unsigned short*)ramps);
-		if (!applied && r2d_noshadergamma)
+		if (!applied && r2d_canhwgamma)
 			rf->VID_ApplyGammaRamps (NULL);
-		r2d_noshadergamma = applied;
+		r2d_canhwgamma = applied;
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);

@@ -38,7 +38,7 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_HIDDEN			0x00080000
 #define CON_BLINKTEXT		0x00040000
 #define CON_2NDCHARSETTEXT	0x00020000
-#define CON_RICHFORECOLOUR	0x00010000	//
+#define CON_RICHFORECOLOUR	0x00010000	//if set, the upper 3 nibbles are r4g4b4. background is clear, halfalpha is ignored.
 //#define CON_HIGHCHARSMASK	0x00000080 // Quake's alternative mask
 
 #define CON_FLAGSMASK		0xFFFF0000
@@ -134,6 +134,8 @@ typedef struct console_s
 	int		vislines;		// pixel lines
 	int		linesprinted;	// for notify times
 	qboolean unseentext;
+	unsigned parseflags;
+	conchar_t defaultcharbits;
 	int		commandcompletion;	//allows tab completion of quake console commands
 	void	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear.
 	void	(*redirect) (struct console_s *con, int key);	//if present, called every character.
@@ -178,7 +180,7 @@ void Con_History_Load(void);
 struct font_s;
 void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy, float fsx, float fsy);
 void Con_DrawConsole (int lines, qboolean noback);
-char *Con_CopyConsole(qboolean nomarkup);
+char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink);
 void Con_Print (char *txt);
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
@@ -211,3 +213,4 @@ void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 #else
 #define TRACE(x)
 #endif
+

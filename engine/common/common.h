@@ -273,7 +273,7 @@ extern	qboolean	com_eof;
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
 char *COM_ParseOut (const char *data, char *out, int outlen);
 char *COM_ParseStringSet (const char *data);
-char *COM_ParseCString (const char *data, char *out, int outlen);
+char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str);
@@ -526,6 +526,11 @@ void T_FreeStrings(void);
 char *T_GetString(int num);
 void T_FreeInfoStrings(void);
 char *T_GetInfoString(int num);
+
+struct po_s;
+const char *PO_GetText(struct po_s *po, const char *msg);
+struct po_s *PO_Load(vfsfile_t *file);
+void PO_Close(struct po_s *po);
 
 //
 // log.c

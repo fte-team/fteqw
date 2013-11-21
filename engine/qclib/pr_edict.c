@@ -251,7 +251,7 @@ fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *ppf, unsigned int *count)
 ED_FindField
 ============
 */
-fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name)
+fdef_t *ED_FindField (progfuncs_t *progfuncs, const char *name)
 {
 	unsigned int			i;
 
@@ -315,7 +315,7 @@ unsigned int ED_FindGlobalOfs (progfuncs_t *progfuncs, char *name)
 	return 0;
 }
 
-ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum)
+ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum)
 {
 	ddef16_t		*def;
 	unsigned int			i;
@@ -328,7 +328,7 @@ ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum
 	}
 	return NULL;
 }
-ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum)
+ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum)
 {
 	ddef32_t		*def;
 	unsigned int			i;
@@ -342,7 +342,7 @@ ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum
 	return NULL;
 }
 
-ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type)
+ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type)
 {
 	ddef16_t		*def;
 	unsigned int			i;
@@ -366,7 +366,7 @@ ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, prog
 }
 
 
-ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type)
+ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type)
 {
 	ddef32_t		*def;
 	unsigned int			i;
@@ -419,7 +419,7 @@ unsigned int *ED_FindGlobalOfsFromProgs (progfuncs_t *progfuncs, char *name, pro
 ED_FindFunction
 ============
 */
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *prnum, progsnum_t fromprogs)
+dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *prnum, progsnum_t fromprogs)
 {
 	dfunction_t		*func;
 	unsigned int				i;
@@ -1042,7 +1042,7 @@ void ED_Count (progfuncs_t *progfuncs)
 ED_NewString
 =============
 */
-char *PDECL ED_NewString (pubprogfuncs_t *ppf, char *string, int minlength)
+char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength, pbool demarkup)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	char	*newc, *new_p;
@@ -1060,7 +1060,7 @@ char *PDECL ED_NewString (pubprogfuncs_t *ppf, char *string, int minlength)
 
 	for (i=0 ; i< l ; i++)
 	{
-		if (string[i] == '\\' && i < l-1 && string[i+1] != 0)
+		if (demarkup && string[i] == '\\' && i < l-1 && string[i+1] != 0)
 		{
 			i++;
 			if (string[i] == 'n')
@@ -1097,7 +1097,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, char *s)
 	switch (type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_string:
-		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0));
+		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0, true));
 		eval->string = st;
 		break;
 
@@ -1181,7 +1181,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 	switch (type)
 	{
 	case ev_string:
-		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0));
+		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0, true));
 		*(string_t *)(progfuncs->funcs.stringtable + qcptr) = st;
 		break;
 

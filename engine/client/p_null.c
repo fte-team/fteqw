@@ -7,7 +7,7 @@
 //returns a valid effect if its existance is known.
 static int PNULL_FindParticleType(char *name)
 {
-	Con_DPrintf("P_FindParticleType %s\n", name);
+//	Con_DPrintf("P_FindParticleType %s\n", name);
 	return P_INVALID;
 }
 

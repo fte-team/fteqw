@@ -70,16 +70,17 @@ typedef struct {
 	//Make SURE that the engine has resolved all cvar pointers into globals before this happens.
 	plugin_t *plugin;
 	char name[64];
-	qboolean picfromwad;
+	int type;
+	char *script;
 	mpic_t *pic;
 } pluginimagearray_t;
 int pluginimagearraylen;
 pluginimagearray_t *pluginimagearray;
 
-qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr_t *arg)
+#include "shader.h"
+
+qintptr_t VARGS Plug_Draw_LoadImage(char *name, int type, char *script)
 {
-	char *name = VM_POINTER(arg[0]);
-	qboolean fromwad = arg[1];
 	int i;
 
 	mpic_t *pic;
@@ -109,7 +110,11 @@ qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr
 
 	if (qrenderer != QR_NONE)
 	{
-		if (fromwad)
+		if (type == 3)
+			pic = NULL;
+		else if (type == 2)
+			pic = R_RegisterShader(name, SUF_NONE, script);
+		else if (type)
 			pic = R2D_SafePicFromWad(name);
 		else
 			pic = R2D_SafeCachePic(name);
@@ -118,10 +123,57 @@ qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr
 		pic = NULL;
 
 	Q_strncpyz(pluginimagearray[i].name, name, sizeof(pluginimagearray[i].name));
-	pluginimagearray[i].picfromwad = fromwad;
+	pluginimagearray[i].type = type;
 	pluginimagearray[i].pic = pic;
 	pluginimagearray[i].plugin = currentplug;
+	pluginimagearray[i].script = script?Z_StrDup(script):NULL;
 	return i + 1;
+}
+
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	qintptr_t ret = 0;
+	char *name = VM_POINTER(arg[0]);
+	char *mimetype = VM_POINTER(arg[1]);
+	void *codeddata = VM_POINTER(arg[2]);
+	unsigned int datalength = VM_LONG(arg[3]);
+	texid_t t;
+	qbyte *rgbdata;
+	unsigned int width, height;
+	
+	if (VM_OOB(arg[2], arg[3]))
+		return 0;
+		
+	if ((rgbdata = Read32BitImageFile(codeddata, datalength, &width, &height, NULL, name)))
+	{
+		name = va("%s/", name);
+		t = R_FindTexture(name, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+		if (!TEXVALID(t))
+			t = R_AllocNewTexture(name, width, height, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+		if (TEXVALID(t))
+		{
+			R_Upload(t, name, TF_RGBA32, rgbdata, NULL, width, height, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			ret = Plug_Draw_LoadImage(name, 3, NULL);
+		}
+		
+		BZ_Free(rgbdata);
+	}
+	return ret;
+}
+qintptr_t VARGS Plug_Draw_LoadImageShader(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	char *script = VM_POINTER(arg[1]);
+	return Plug_Draw_LoadImage(name, 2, script);
+}
+qintptr_t VARGS Plug_Draw_LoadImagePic(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	int type = arg[1];
+	if (type != 0 && type != 1)
+		return 0;
+	return Plug_Draw_LoadImage(name, type, NULL);
 }
 
 void Plug_DrawReloadImages(void)
@@ -172,7 +224,7 @@ qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *
 
 	if (pluginimagearray[i].pic)
 		pic = pluginimagearray[i].pic;
-	else if (pluginimagearray[i].picfromwad)
+	else if (pluginimagearray[i].type == 1)
 		return 0;	//wasn't loaded.
 	else
 	{
@@ -211,6 +263,29 @@ qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr
 		return 0;
 	Font_BeginString(font_conchar, arg[0], arg[1], &x, &y);
 	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000 | (unsigned int)arg[2]);
+	Font_EndString(font_conchar);
+	return 0;
+}
+qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int ipx, px, py;
+	conchar_t buffer[2048], *str;
+	if (qrenderer == QR_NONE)
+		return 0;
+	COM_ParseFunString(CON_WHITEMASK, VM_POINTER(arg[2]), buffer, sizeof(buffer), false);
+	str = buffer;
+	Font_BeginString(font_conchar, VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), &px, &py);
+	ipx = px;
+	while(*str)
+	{
+		if ((*str & CON_CHARMASK) == '\n')
+			py += Font_CharHeight();
+		else if ((*str & CON_CHARMASK) == '\r')
+			px = ipx;
+		else
+			px = Font_DrawChar(px, py, *str);
+		str++;
+	}
 	Font_EndString(font_conchar);
 	return 0;
 }
@@ -525,9 +600,12 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, PLUG_BIF_NEEDSRENDERER);
 
-	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImage, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_LoadImageData",		Plug_Draw_LoadImageData, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_LoadImageShader",	Plug_Draw_LoadImageShader, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImagePic, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_String",				Plug_Draw_String, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, PLUG_BIF_NEEDSRENDERER);

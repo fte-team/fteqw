@@ -163,7 +163,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 
 	tgaheader_t tgaheader;
 
-	if (buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32)
+	if (length < 18 || buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32)
 		return NULL;	//BUMMER!
 
 	tgaheader.id_len = buf[0];
@@ -1631,6 +1631,9 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 // parse the PCX file
 //
 
+	if (length < sizeof(*pcx))
+		return NULL;
+
 	pcx = (pcx_t *)buf;
 
 	xmin = LittleShort(pcx->xmin);
@@ -2462,7 +2465,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 	}
 
 #ifdef AVAIL_PNGLIB
-	if ((buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height, fname)))
+	if (len > 4 && (buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, len, width, height, fname)))
 	{
 		TRACE(("dbg: Read32BitImageFile: png\n"));
 		return data;
@@ -2470,19 +2473,19 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 #endif
 #ifdef AVAIL_JPEGLIB
 	//jpeg jfif only.
-	if ((buf[0] == 0xff && buf[1] == 0xd8 && buf[2] == 0xff && buf[3] == 0xe0) && (data = ReadJPEGFile(buf, com_filesize, width, height)))
+	if (len > 4 && (buf[0] == 0xff && buf[1] == 0xd8 && buf[2] == 0xff && buf[3] == 0xe0) && (data = ReadJPEGFile(buf, len, width, height)))
 	{
 		TRACE(("dbg: Read32BitImageFile: jpeg\n"));
 		return data;
 	}
 #endif
-	if ((data = ReadPCXFile(buf, com_filesize, width, height)))
+	if ((data = ReadPCXFile(buf, len, width, height)))
 	{
 		TRACE(("dbg: Read32BitImageFile: pcx\n"));
 		return data;
 	}
 
-	if ((buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, com_filesize, width, height)))
+	if (len > 2 && (buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, len, width, height)))
 	{
 		TRACE(("dbg: Read32BitImageFile: bitmap\n"));
 		return data;
@@ -2610,22 +2613,28 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	image_width = 0;
 	image_height = 0;
 
-	COM_StripExtension(name, nicename, sizeof(nicename));
+	if (flags & IF_EXACTEXTENSION)
+		Q_strncpyz(nicename, name, sizeof(nicename));
+	else
+		COM_StripExtension(name, nicename, sizeof(nicename));
 
 	while((data = strchr(nicename, '*')))
 	{
 		*data = '#';
 	}
 
-	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
-	if (subpath && *subpath && !(flags & IF_REPLACE))
+	if (subpath)
 	{
-		tex = R_FindTexture(fname, flags);
-		if (TEXVALID(tex))	//don't bother if it already exists.
+		snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
+		if (*subpath && !(flags & IF_REPLACE))
 		{
-			image_width = tex.ref->width;
-			image_height = tex.ref->height;
-			return tex;
+			tex = R_FindTexture(fname, flags);
+			if (TEXVALID(tex))	//don't bother if it already exists.
+			{
+				image_width = tex.ref->width;
+				image_height = tex.ref->height;
+				return tex;
+			}
 		}
 	}
 	if (!(flags & IF_SUBDIRONLY) && !(flags & IF_REPLACE))
@@ -2675,7 +2684,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		for (i = 0; i < 6; i++)
 		{
 			tex = r_nulltex;
-			for (e = sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
+			for (e = (flags & IF_EXACTEXTENSION)?0:sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
 			{
 				if (!tex_extensions[e].enabled)
 					continue;
@@ -2751,7 +2760,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	{
 		if (!tex_path[i].enabled)
 			continue;
-		for (e = sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
+		for (e = (flags & IF_EXACTEXTENSION)?0:sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
 		{
 			if (!tex_extensions[e].enabled)
 				continue;
@@ -2856,7 +2865,10 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	if (!(flags & IF_SUBDIRONLY))
 	{
 		/*still failed? attempt to load quake lmp files, which have no real format id*/
-		snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
+		if (flags & IF_EXACTEXTENSION)
+			Q_strncpyz(fname, nicename, sizeof(fname));
+		else
+			snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
 		if ((buf = COM_LoadFile (fname, 5)))
 		{
 			extern cvar_t vid_hardwaregamma;
@@ -2865,7 +2877,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			{
 				image_width = LittleLong(((int*)buf)[0]);
 				image_height = LittleLong(((int*)buf)[1]);
-				if (image_width*image_height+8 == com_filesize)
+				if (image_width >= 4 && image_height >= 4 && image_width*image_height+8 == com_filesize)
 				{
 					tex = R_LoadTexture8(name, image_width, image_height, buf+8, flags, 1);
 				}

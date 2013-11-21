@@ -8,6 +8,8 @@ Network limitations:
 		auth mechanism: oauth2(tls+nontls) or plain(tls-only). no digests supported, so mitm can easily grab your password if they use certificate authority hackery, so DO NOT log in from work.
 		oauth2: I've registered a clientid for use with googletalk's network, but the whole web-browser-is-required crap makes it near unusable. We'll try it if they omit a password.
 		otherwise a complete implementation.
+		other users appear unresponsive and permanently away. this is a wtf on google's part and not something I can trivially work around. these people are really offline but have previously used 'google hangouts', and google insist on the UI nightmare infecting other clients too.
+		appears to hack avatar vcards into all presence messages, which is just an interesting thing to note as it seems to keep fucking up resulting in extra queries for avatar images.
 
 	facebook:
 		username: foobar@chat.facebook.com
@@ -16,6 +18,7 @@ Network limitations:
 		no roster control
 		completely untested. I've no interest in signing up to be tracked constantly (but somehow google is okay... go figure... I guess I'm just trying to avoid a double-whammy)
 		oauth2: no idea where to register a clientid, or what the correct addresses are. a google search implies they don't do refresh tokens properly. sticking with digest-md5 should work.
+		*should* work for chat.
 
 	msn:
 		username: foobar@messenger.live.com (NOT foobar@live.com - this will timeout)
@@ -35,13 +38,21 @@ Network limitations:
 		may have self-signed certificate issues, depends on installation.
 
 client compat:
+	hangouts:
+		UI nightmare infects the entire network and thus other clients also.
+		voip not supported. does not advertise any extensions and thus no voip.
+		no file transfer support.
+
 	googletalk:
-		implements old version of jingle. voice calls not compatible.
+		impossible to download from google any more. completely unsupported.
+		implements old version of jingle. voice calls appear to not work.
+		does not support SI file transfer.
 		not tested by me.
 
 	pidgin:
-		(linux) has issues with jingle+ice, and can be made to crash. voip uses speex. pidgin's ice seems vulnerable to dropped packets.
+		(linux) has issues with jingle+ice, and can easily be made to crash. voip uses speex. pidgin's ice seems vulnerable to dropped packets.
 		(windows) doesn't support voice calls
+		file transfer works.
 		otherwise works.
 */
 
@@ -240,9 +251,94 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 	return false;
 }
 #else
+#include <resolv.h>
+#include <arpa/nameser.h>
 qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 {
-	return false;
+	int questions;
+	int answers;
+	qbyte answer[512];
+	qbyte dname[512];
+	int len, i;
+	static qboolean inited;
+	qbyte *msg, *eom, *cp;
+
+	len = res_query(host, C_IN, T_SRV, &answer, sizeof(answer));
+	if (len < 12)
+	{
+		Con_Printf("srv lookup failed for %s\n", host);
+		return false;
+	}
+
+	eom = answer+len;
+
+	questions = (answer[4]<<8) | answer[5];
+	answers = (answer[6]<<8) | answer[7];
+//	id @ 0
+//	bits @ 2
+//	questioncount@4
+///	answer count@6
+//	nameserver record count @8
+//	additional record count @10
+
+//	questions@12
+//	answers@12+sizeof(questions)
+
+	if (answers < 1)
+		return false;
+
+	msg = answer+12;
+
+	while(questions --> 0)
+	{
+		dn_expand(answer, eom, msg, dname, sizeof(dname));
+//		Con_Printf("Skip question %s\n", dname);
+		i = dn_skipname(msg, eom);
+		if (i <= 0)
+			return false;
+		msg += i;
+		msg += 2;//query type
+		msg += 2;//query class
+	}
+
+	while(answers --> 0)
+	{
+		i = dn_expand(answer, eom, msg, dname, sizeof(dname));
+//		i = dn_skipname(msg, eom);
+		msg += i;
+		msg += 2;//query type
+		msg += 2;//query class
+		msg += 4;//ttl
+		i = (msg[0]<<8) | msg[1];
+		msg+=2;
+		//noone tried to send the wrong type then, woo.
+		if (!strcmp(dname, host))
+		{
+			int port;
+			//we're not serving to other dns servers, and it seems they're already getting randomized, so just grab the first without rerandomizing.
+			msg += 2;//priority
+			msg += 2;//weight
+			port = (msg[0]<<8) | msg[1];
+			msg += 2;//port
+			dn_expand(answer, eom, msg, dname, sizeof(dname));
+			Q_snprintf(out, outlen, "[%s]:%i", dname, port);
+//			Con_Printf("Resolved to %s\n", out);
+			return true;
+		}
+		dn_expand(answer, eom, msg, out, outlen);
+//		Con_Printf("Ignoring resolution to %s\n", out);
+		msg += i;
+	}
+
+//type (2 octets)
+//class (2 octets)
+//TTL (4 octets)
+//resource data length (2 octets)
+//resource data (variable length)
+
+	if (i < 0)
+		return false;
+	return true;
 }
 #endif
 
@@ -291,7 +387,7 @@ void Base64_Add(char *s, int len)
 		Base64_Byte(*us++);
 }
 
-void Base64_Finish(void)
+char *Base64_Finish(void)
 {
 	//output is always a multiple of four
 
@@ -323,6 +419,8 @@ void Base64_Finish(void)
 	base64_len = 0; //for next time (use strlen)
 	base64_bits = 0;
 	base64_cur = 0;
+
+	return base64;
 }
 
 //decode a base64 byte to a 0-63 value. Cannot cope with =.
@@ -340,6 +438,7 @@ static int Base64_DecodeByte(char byt)
         return 63;
     return -1;
 }
+//FIXME: we should be able to skip whitespace.
 int Base64_Decode(char *out, int outlen, char *src, int srclen)
 {
 	int len = 0;
@@ -385,6 +484,24 @@ void JCL_Command(int accid, char *consolename);
 void JCL_LoadConfig(void);
 void JCL_WriteConfig(void);
 
+struct {
+	char *names;
+	unsigned int cap;
+} capnames[] =
+{
+	{"avatars", CAP_AVATARS},
+	{"jingle_voice", CAP_VOICE},
+	{"jingle_video", CAP_VIDEO},
+	{"google_voice", CAP_GOOGLE_VOICE},
+	{"quake_invite", CAP_GAMEINVITE},
+	{"poke", CAP_POKE},
+#ifdef FILETRANSFERS
+	{"si_filetransfer", CAP_SIFT},
+#endif
+	{NULL}
+};
+
+
 qintptr_t JCL_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
@@ -405,6 +522,7 @@ qintptr_t JCL_ExecuteCommand(qintptr_t *args)
 }
 
 qintptr_t JCL_ConsoleLink(qintptr_t *args);
+qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args);
 qintptr_t JCL_ConExecuteCommand(qintptr_t *args);
 
 qintptr_t JCL_Frame(qintptr_t *args);
@@ -423,6 +541,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 			Con_Printf("XMPP Plugin Loaded. For help, use: ^[/"COMMANDPREFIX" /help^]\n");
 
 		Plug_Export("ConsoleLink", JCL_ConsoleLink);
+		Plug_Export("ConsoleLinkMouseOver", JCL_ConsoleLinkMouseOver);
 
 		if (!Plug_Export("ConExecuteCommand", JCL_ConExecuteCommand))
 		{
@@ -700,7 +819,7 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	//sasl SCRAM-SHA-1 challenge
 	//send back the same 'r' attribute
 	buf_t saslchal;
-	int l, i;
+	int i;
 	buf_t salt;
 	buf_t csn;
 	buf_t itr;
@@ -708,22 +827,12 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	buf_t sigkey;
 	char salted_password[20];
 	char proof[20];
-	char proof64[30];
 	char clientkey[20];
 	char storedkey[20];
 	char clientsignature[20];
 	char *username = jcl->username;
 	char *password = jcl->password;
 
-#if 0
-	/*hack zone*/
-	in = "r=fyko+d2lbbFgONRv9qkxdawL3rfcNHYJY1ZVvWVs7j,s=QSXCR+Q6sek8bf92,i=4096";
-	inlen = strlen(in);
-	strcpy(jcl->authnonce, "wvDh8bTUrSc=");//"fyko+d2lbbFgONRv9qkxdawL");
-	username = "user";
-	password = "pencil";
-	//should result in "c=biws,r=fyko+d2lbbFgONRv9qkxdawL3rfcNHYJY1ZVvWVs7j,p=v0X8v3Bz2T0CJGbJQyF0X+HI4Ts="
-#endif
 	saslchal.len = 0;
 	buf_cat(&saslchal, in, inlen);
 	
@@ -734,7 +843,7 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 
 	salt.len = Base64_Decode(salt.buf, sizeof(salt.buf), salt.buf, salt.len);
 	
-	//FIXME: should we validate that csn is prefixed with our cnonce?
+	//FIXME: we should validate that csn is prefixed with our cnonce
 
 	//this is the first part of the message we're about to send, with no proof.
 	//c(channel) is mandatory but nulled and forms part of the hash
@@ -837,7 +946,6 @@ void Q_strlcat_urlencode(char *d, const char *s, int n)
 }
 static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 {
-	char msg[4096];
 	char proto[256];
 	char host[256];
 	char resource[256];
@@ -922,7 +1030,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 		Q_strlcat(url, "&login_hint=", sizeof(url));
 		Q_strlcat_urlencode(url, jcl->oauth2.useraccount, sizeof(url));
 
-		Con_Printf("Please visit ^[^4%s\\url\\%s^] and then enter:\n^[/"COMMANDPREFIX"%i /oa2token <TOKEN>^]\nNote: you can right-click the link to copy it to your browser, and you can use ctrl+v to paste the resulting auth token as part of the given command.", url, url, jcl->accountnum);
+		Con_Printf("Please visit ^[^4%s\\url\\%s^] and then enter:\n^[/"COMMANDPREFIX"%i /oa2token <TOKEN>^]\nNote: you can right-click the link to copy it to your browser, and you can use ctrl+v to paste the resulting auth token as part of the given command.\n", url, url, jcl->accountnum);
 
 		//wait for user to act.
 		return -2;
@@ -989,7 +1097,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 		if (l < 0 || l > rl)
 			l = rl;
 		x = XML_FromJSON(NULL, "oauth2", result, &l, rl);
-		XML_ConPrintTree(x, 1);
+		XML_ConPrintTree(x, "", 1);
 		free(jcl->oauth2.accesstoken);
 		free(jcl->oauth2.refreshtoken);
 		jcl->oauth2.accesstoken = strdup(XML_GetChildBody(x, "access_token", ""));
@@ -1054,7 +1162,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 		if (l < 0 || l > rl)
 			l = rl;
 		x = XML_FromJSON(NULL, "oauth2", result, &l, rl);
-		XML_ConPrintTree(x, 1);
+		XML_ConPrintTree(x, "", 1);
 
 		newrefresh = XML_GetChildBody(x, "refresh_token", NULL);
 		free(jcl->oauth2.accesstoken);
@@ -1114,12 +1222,13 @@ https://oauth.live.com/authorize?client_id=000000004C07035A&scope=wl.messenger,w
 struct subtree_s;
 
 void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
-qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres);
+qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres, qboolean create);
 void JCL_GeneratePresence(jclient_t *jcl, qboolean force);
 struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, struct subtree_s *tree, struct iq_s *iq), char *iqtype, char *target, char *fmt, ...);
 struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
 void JCL_CloseConnection(jclient_t *jcl, qboolean reconnect);
 void JCL_JoinMUCChat(jclient_t *jcl, char *room, char *server, char *myhandle, char *password);
+static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq);
 
 void JCL_GenLink(jclient_t *jcl, char *out, int outlen, char *action, char *context, char *contextres, char *sid, char *txtfmt, ...)
 {
@@ -1127,10 +1236,12 @@ void JCL_GenLink(jclient_t *jcl, char *out, int outlen, char *action, char *cont
 	qboolean textonly = false;
 	*out = 0;
 	if (!strchr(txtfmt, '%'))
-	{
+	{	//protect against potential bugs and exploits.
 		Q_strlcpy(out, "bad link text", outlen);
 		return;
 	}
+	//FIXME: validate that there is no \\ markup within any section that would break the link.
+	//FIXME: validate that ^[ and ^] are not used, as that would also mess things up. add markup for every ^?
 	if (textonly)
 	{
 		va_start(argptr, txtfmt);
@@ -1189,10 +1300,121 @@ char *TrimResourceFromJid(char *jid)
 	return NULL;
 }
 
+qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
+{
+	jclient_t *jcl;
+//	char text[256];
+	char link[256];
+	char who[256];
+	char what[256];
+	char which[256];
+	char *actiontext;
+	int i;
+	buddy_t *b, *me;
+	bresource_t *br;
+	float x = *(float*)&args[0];
+	float y = *(float*)&args[1];
+
+//	pCmd_Argv(0, text, sizeof(text));
+	pCmd_Argv(1, link, sizeof(link));
+
+	JCL_Info_ValueForKey(link, "xmpp", who, sizeof(who));
+	JCL_Info_ValueForKey(link, "xmppact", what, sizeof(what));
+	JCL_Info_ValueForKey(link, "xmppacc", which, sizeof(which));
+
+	if (!*who)
+		return false;
+
+	i = atoi(which);
+	i = bound(0, i, sizeof(jclients)/sizeof(jclients[0]));
+	jcl = jclients[i];
+
+	x += 16;
+
+	if (!jcl)
+		return false;
+
+	if (jcl->status != JCL_ACTIVE)
+	{
+		pDraw_String(x, y, "^&C0You are currently offline");
+		return true;
+	}
+
+	if (!strcmp(what, "pauth"))
+		actiontext = "Befriend";
+	else if (!strcmp(what, "pdeny"))
+		actiontext = "Decline";
+#ifdef FILETRANSFERS
+	else if (!strcmp(what, "fauth") && (jcl->enabledcapabilities & CAP_SIFT))
+		actiontext = "Receive";
+	else if (!strcmp(what, "fdeny") && (jcl->enabledcapabilities & CAP_SIFT))
+		actiontext = "Decline";
+#endif
+#ifdef JINGLE
+	else if (!strcmp(what, "jauth") && (jcl->enabledcapabilities & (CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO|CAP_GOOGLE_VOICE)))
+		actiontext = "Answer";
+	else if (!strcmp(what, "jdeny") && (jcl->enabledcapabilities & (CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO|CAP_GOOGLE_VOICE)))
+		actiontext = "Hang Up";
+	else if (!strcmp(what, "join") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
+		actiontext = "Join Game";
+	else if (!strcmp(what, "invite") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
+		actiontext = "Invite To Game";
+	else if (!strcmp(what, "call") && (jcl->enabledcapabilities & (CAP_VOICE|CAP_GOOGLE_VOICE)))
+		actiontext = "Call";
+	else if (!strcmp(what, "vidcall") && (jcl->enabledcapabilities & CAP_VIDEO))
+		actiontext = "Video Call";
+#endif
+	else if (!strcmp(what, "mucjoin"))
+		actiontext = "Join Chat:";
+	else if ((*who && !*what) || !strcmp(what, "msg"))
+		actiontext = "Chat With";
+	else
+		return false;
+
+	JCL_FindBuddy(jcl, who, &b, &br, false);
+	if (!b)
+		return false;
+	JCL_FindBuddy(jcl, jcl->jid, &me, NULL, true);
+
+	if (jcl->enabledcapabilities & CAP_AVATARS)
+	{
+		if (b->vcardphotochanged && b->friended)
+		{
+			b->vcardphotochanged = false;
+			Con_DPrintf("Querying %s's photo\n", b->accountdomain);
+			JCL_SendIQf(jcl, JCL_BuddyVCardReply, "get", b->accountdomain, "<vCard xmlns='vcard-temp'/>");
+		}
+		if (b->image)
+		{
+			//xep-0153: The image height and width SHOULD be between thirty-two (32) and ninety-six (96) pixels; the recommended size is sixty-four (64) pixels high and sixty-four (64) pixels wide.
+			//96 just feels far too large for a game that was origionally running at a resolution of 320*200.
+			//FIXME: we should proably respect the image's aspect ratio...
+#define IMGSIZE 96/2
+			pDraw_Image (x, y, IMGSIZE, IMGSIZE, 0, 0, 1, 1, b->image);
+			x += IMGSIZE+8;
+		}
+	}
+
+	pDraw_String(x, y, va("^&F0%s ^2%s", actiontext, b->name));
+	y+=8;
+	pDraw_String(x, y, va("^&F0%s", b->accountdomain));
+	y+=8;
+	if (br)
+	{
+		pDraw_String(x, y, va("^&F0  %s", br->resource));
+		y+=8;
+	}
+	if (b == me)
+		pDraw_String(x, y, "^&90" "You");
+	else if (!b->friended)
+		pDraw_String(x, y, "^&C0" "Unknown");
+	y+=8;
+
+	return true;
+}
 qintptr_t JCL_ConsoleLink(qintptr_t *args)
 {
 	jclient_t *jcl;
-	char text[256];
 	char link[256];
 	char who[256];
 	char what[256];
@@ -1226,52 +1448,59 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		return true;
 	}
 #ifdef FILETRANSFERS
-	else if (!strcmp(what, "fauth"))
+	else if (!strcmp(what, "fauth") && (jcl->enabledcapabilities & CAP_SIFT))
 	{
 		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
 		if (jcl && jcl->status == JCL_ACTIVE)
-			JCL_FT_AcceptFile(jcl, atoi(what), true);
+			XMPP_FT_AcceptFile(jcl, atoi(what), true);
 		return true;
 	}
-	else if (!strcmp(what, "fdeny"))
+	else if (!strcmp(what, "fdeny") && (jcl->enabledcapabilities & CAP_SIFT))
 	{
 		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
 		if (jcl && jcl->status == JCL_ACTIVE)
-			JCL_FT_AcceptFile(jcl, atoi(what), false);
+			XMPP_FT_AcceptFile(jcl, atoi(what), false);
 		return true;
 	}
 #endif
 #ifdef JINGLE
-	else if (!strcmp(what, "jauth"))
+	//jauth/jdeny are used to accept/cancel all jingle/gingle content types.
+	else if (!strcmp(what, "jauth") && (jcl->enabledcapabilities & (CAP_VOICE|CAP_VIDEO|CAP_GAMEINVITE|CAP_GOOGLE_VOICE)))
 	{
 		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, what, true, ICEP_INVALID);
 		return true;
 	}
-	else if (!strcmp(what, "jdeny"))
+	else if (!strcmp(what, "jdeny") && (jcl->enabledcapabilities & (CAP_VOICE|CAP_VIDEO|CAP_GAMEINVITE|CAP_GOOGLE_VOICE)))
 	{
 		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, what, false, ICEP_INVALID);
 		return true;
 	}
-	else if (!strcmp(what, "join"))
+	else if (!strcmp(what, "join") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_QWCLIENT);
 		return true;
 	}
-	else if (!strcmp(what, "invite"))
+	else if (!strcmp(what, "invite") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_QWSERVER);
 		return true;
 	}
-	else if (!strcmp(what, "call"))
+	else if (!strcmp(what, "call") && (jcl->enabledcapabilities & (CAP_VOICE|CAP_GOOGLE_VOICE)))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_VOICE);
+		return true;
+	}
+	else if (!strcmp(what, "vidcall") && (jcl->enabledcapabilities & (CAP_VIDEO)))
+	{
+		if (jcl && jcl->status == JCL_ACTIVE)
+			JCL_Join(jcl, who, NULL, true, ICEP_VIDEO);
 		return true;
 	}
 #endif
@@ -1288,14 +1517,16 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 			buddy_t *b;
 			bresource_t *br;
 
-			JCL_FindBuddy(jcl, *who?who:jcl->defaultdest, &b, &br);
-			f = b->name;
-			b->defaultresource = br;
+			if (JCL_FindBuddy(jcl, *who?who:jcl->defaultdest, &b, &br, true))
+			{
+				f = b->name;
+				b->defaultresource = br;
 
-			if (BUILTINISVALID(Con_SubPrint))
-				pCon_SubPrint(f, "");
-			if (BUILTINISVALID(Con_SetActive))
-				pCon_SetActive(f);
+				if (BUILTINISVALID(Con_SubPrint))
+					pCon_SubPrint(f, "");
+				if (BUILTINISVALID(Con_SetActive))
+					pCon_SetActive(f);
+			}
 		}
 		return true;
 	}
@@ -1368,7 +1599,7 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 		jcl->outbuflen -= sent;
 	}
 	else if (sent < 0)
-		Con_Printf("Error sending\n");
+		Con_Printf("XMPP: Error sending\n");
 //	else
 //		Con_Printf("Unable to send anything\n");
 }
@@ -1563,6 +1794,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	};
 	jclient_t *jcl;
 	xmltree_t *oauth2;
+	xmltree_t *features;
 	char oauthname[256];
 
 	jcl = malloc(sizeof(jclient_t));
@@ -1572,11 +1804,14 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	memset(jcl, 0, sizeof(jclient_t));
 	jcl->socket = -1;
 
+	jcl->enabledcapabilities = CAP_DEFAULTENABLEDCAPS;
+
 	jcl->accountnum = atoi(XML_GetParameter(acc, "id", "1"));
 
 	//make sure dependant properties are listed beneath their dependancies...
 	jcl->forcetls = atoi(XML_GetChildBody(acc, "forcetls", "1"));
-	jcl->streamdebug = !!atoi(XML_GetChildBody(acc, "streamdebug", "0"));
+	jcl->streamdebug = atoi(XML_GetChildBody(acc, "streamdebug", "0"));
+	jcl->streamdebug = bound(0, jcl->streamdebug, 2);
 	Q_strlcpy(jcl->serveraddr, XML_GetChildBody(acc, "serveraddr", ""), sizeof(jcl->serveraddr));
 	jcl->serverport = atoi(XML_GetChildBody(acc, "serverport", (jcl->forcetls==2)?"5223":"5222"));
 	Q_strlcpy(jcl->username, XML_GetChildBody(acc, "username", "user"), sizeof(jcl->username));
@@ -1634,12 +1869,31 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	jcl->allowauth_scramsha1	= atoi(XML_GetChildBody(acc, "allowauth_scram_sha_1",	"1"));
 	jcl->allowauth_oauth2		= atoi(XML_GetChildBody(acc, "allowauth_oauth2",		jcl->oauth2.saslmethod?"1":"0"));
 
+	jcl->savepassword	= atoi(XML_GetChildBody(acc, "savepassword",	"0"));
+
+	features = XML_ChildOfTree(acc, "features", 0);
+	if (features && XML_GetParameter(features, "ver", JCL_BUILD))
+	{
+		char *val;
+		int j;
+		for (j = 0; capnames[j].names; j++)
+		{
+			val = XML_GetChildBody(features, capnames[j].names, NULL);
+			if (val)
+			{
+				if (atoi(val))
+					jcl->enabledcapabilities |= capnames[j].cap;
+				else
+					jcl->enabledcapabilities &= ~capnames[j].cap;
+			}
+		}
+	}
+
 	return jcl;
 }
 
 jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, char *password)
 {
-	char srvserver[256];
 	char gamename[64];
 	jclient_t *jcl;
 	char *domain;
@@ -1743,7 +1997,7 @@ void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 }
 
 //FIXME: add flags to avoid creation
-qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres)
+qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres, qboolean create)
 {
 	char name[256];
 	char *res;
@@ -1766,12 +2020,13 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 		if (!strcmp(b->accountdomain, name))
 			break;
 	}
-	if (!b)
+	if (!b && create)
 	{
 		b = malloc(sizeof(*b) + strlen(name));
 		memset(b, 0, sizeof(*b));
 		b->next = jcl->buddies;
 		jcl->buddies = b;
+//		b->vcardphotochanged = true;	//don't know what it is, query their photo as needed. google sucks, and things stop working.
 		strcpy(b->accountdomain, name);
 		Q_strlcpy(b->name, name, sizeof(b->name));	//default
 	}
@@ -1783,7 +2038,7 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 			if (!strcmp(r->resource, res))
 				break;
 		}
-		if (!r)
+		if (!r && create)
 		{
 			r = malloc(sizeof(*r) + strlen(res));
 			memset(r, 0, sizeof(*r));
@@ -1795,7 +2050,10 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 	}
 	else if (bres)
 		*bres = NULL;
-	return false;
+
+	if (bres)
+		return *bres != NULL;
+	return *buddy != NULL;
 }
 
 void JCL_IQTimeouts(jclient_t *jcl)
@@ -1873,6 +2131,71 @@ struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl
 		XML_Destroy(node);
 	return n;
 }
+
+qboolean XMPP_NewGoogleMailsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	int i, j;
+	xmltree_t *mailbox = XML_ChildOfTreeNS(tree, "google:mail:notify", "mailbox", 0);
+//	char *url = XML_GetParameter(mailbox, "url", "");
+//	int totalmatched = atoi(XML_GetParameter(mailbox, "total-matched", "0"));
+//	char *resulttime = XML_GetParameter(mailbox, "result-time", "");
+	xmltree_t *mailthread;
+	xmltree_t *senders, *sender;
+	char *subject;
+	char *sendername;
+	char *cleanup;
+	char *mailurl;
+
+	for (i = 0; ; i++)
+	{
+		mailthread = XML_ChildOfTree(mailbox, "mail-thread-info", i);
+		if (!mailthread)
+			break;
+
+//		tid = XML_GetParameter(mailthread, "tid", "");
+		mailurl = XML_GetParameter(mailthread, "url", "");
+//		participation = XML_GetParameter(mailthread, "participation", "");
+//		messages = XML_GetParameter(mailthread, "messages", "");
+//		date = XML_GetParameter(mailthread, "date", "");
+//		labels = XML_GetChildBody(mailthread, "labels", "");
+		subject = XML_GetChildBody(mailthread, "subject", "");
+		if (!*subject)
+			subject = XML_GetChildBody(mailthread, "snippet", "<NO SUBJECT>");
+
+		senders = XML_ChildOfTree(mailthread, "senders", 0);
+		for (j = 0; ; j++)
+		{
+			sender = XML_ChildOfTree(senders, "sender", j);
+			if (!sender)
+				break;
+//			address = XML_GetParameter(sender, "address", "");
+			sendername = XML_GetParameter(sender, "name", "");
+			if (!*sendername)
+				sendername = XML_GetParameter(sender, "address", "");
+//			originator = XML_GetParameter(sender, "originator", "");
+			if (atoi(XML_GetParameter(sender, "unread", "1")))
+			{
+				//we trust the server to not feed us gibberish like \r or \n chars.
+				//however, other chars may be problematic and could break/hack the link markup.
+				for (cleanup = sendername; (cleanup = strchr(cleanup, '^')) != NULL; )
+					*cleanup = ' ';
+				for (cleanup = sendername; (cleanup = strchr(cleanup, '\\')) != NULL; )
+					*cleanup = '/';
+				for (cleanup = subject; (cleanup = strchr(cleanup, '^')) != NULL; )
+					*cleanup = ' ';
+				for (cleanup = subject; (cleanup = strchr(cleanup, '\\')) != NULL; )
+					*cleanup = '/';
+				for (cleanup = mailurl; (cleanup = strstr(cleanup, "^]")) != NULL; )
+					*cleanup = '_';	//FIXME: %5E
+				for (cleanup = mailurl; (cleanup = strchr(cleanup, '\\')) != NULL; )
+					*cleanup = '/';	//FIXME: %5C
+				Con_Printf("^[^4New spam from %s: %s\\url\\%s^]\n", sendername, subject, mailurl);
+			}
+		}
+	}
+	return true;
+}
+
 static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
 {
 	xmltree_t *i;
@@ -1883,7 +2206,7 @@ static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
 		char *name = XML_GetParameter(i, "name", "");
 		char *jid = XML_GetParameter(i, "jid", "");
 //		char *sub = XML_GetParameter(i, "subscription", "");
-		JCL_FindBuddy(jcl, jid, &buddy, NULL);
+		JCL_FindBuddy(jcl, jid, &buddy, NULL, true);
 
 		if (*name)
 			Q_strlcpy(buddy->name, name, sizeof(buddy->name));
@@ -1923,12 +2246,98 @@ static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 	}
 	return false;
 }
-static qboolean JCL_VCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
-	xmltree_t *vc, *fn, *nickname;
+	char photodata[65536];
+	xmltree_t *vc, *photo, *photobinval;
+//	char *nickname;
+	char *photomime;
+
+	buddy_t *b;
+	char *from = XML_GetParameter(tree, "from", jcl->domain);
+
+	JCL_FindBuddy(jcl, from, &b, NULL, false);
+	if (!b)
+	{
+		Con_DPrintf("unknown vcard from %s\n", from);
+		return false;
+	}
+
+	vc = XML_ChildOfTree(tree, "vCard", 0);
+	if (!vc)
+	{
+		Con_DPrintf("invalid vcard from %s\n", from);
+		return false;
+	}
+//	nickname = XML_GetChildBody(vc, "NICKNAME", NULL);
+//	if (nickname)
+//		Q_strlcpy(b->name, nickname, sizeof(b->name));
+
+	photo = XML_ChildOfTree(vc, "PHOTO", 0);
+	photobinval = XML_ChildOfTree(photo, "BINVAL", 0);
+
+	if (jcl->enabledcapabilities & CAP_AVATARS)
+	{
+		if (photobinval)
+		{
+			unsigned int photosize = Base64_Decode(photodata, sizeof(photodata), photobinval->body, strlen(photobinval->body));
+			photomime = XML_GetChildBody(photo, "TYPE", "");
+			//xep-0153: If the <TYPE/> is something other than image/gif, image/jpeg, or image/png, it SHOULD be ignored.
+			if (strcmp(photomime, "image/png") && strcmp(photomime, "image/jpeg") && strcmp(photomime, "image/gif"))
+				photomime = "";
+			b->image = pDraw_LoadImageData(va("xmpp/%s", b->accountdomain), photomime, photodata, photosize);
+			Con_DPrintf("vcard photo updated from %s\n", from);
+		}
+		else
+		{
+			b->image = pDraw_LoadImageData(va("xmpp/%s", b->accountdomain), "", NULL, 0);
+			Con_DPrintf("vcard photo invalidated from %s\n", from);
+		}
+	}
+	else
+		Con_DPrintf("vcard photo ignored from %s\n", from);
+
+	return true;
+}
+static qboolean JCL_MyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	char photodata[65536];
+	char digest[20];
+	xmltree_t *vc, *fn, *nickname, *photo, *photobinval;
+
+	//make sure our image is loaded etc
+	JCL_BuddyVCardReply(jcl, tree, iq);
+
 	vc = XML_ChildOfTree(tree, "vCard", 0);
 	fn = XML_ChildOfTree(vc, "FN", 0);
 	nickname = XML_ChildOfTree(vc, "NICKNAME", 0);
+
+	photo = XML_ChildOfTree(vc, "PHOTO", 0);
+	photobinval = XML_ChildOfTree(photo, "BINVAL", 0);
+	if (!tree || !photobinval)
+	{
+		//server doesn't support vcards?
+		if (jcl->vcardphotohashstatus != VCP_NONE)
+		{
+			jcl->vcardphotohashstatus = VCP_NONE;
+			jcl->vcardphotohashchanged = true;
+			*jcl->vcardphotohash = 0;
+		}
+	}
+	else
+	{
+		char *hex = "0123456789abcdef";
+		int photosize;
+		int digestsize;
+		photosize = Base64_Decode(photodata, sizeof(photodata), photobinval->body, strlen(photobinval->body));
+		digestsize = SHA1(digest, sizeof(digest), photodata, photosize);
+		if (jcl->vcardphotohashstatus != VCP_KNOWN || memcmp(jcl->vcardphotohash, digest, sizeof(jcl->vcardphotohash)))
+		{
+			memcpy(jcl->vcardphotohash, digest, sizeof(jcl->vcardphotohash));
+			jcl->vcardphotohashchanged = true;
+			jcl->vcardphotohashstatus = VCP_KNOWN;
+		}
+	}
 
 	if (nickname && *nickname->body)
 		Q_strlcpy(jcl->localalias, nickname->body, sizeof(jcl->localalias));
@@ -1936,55 +2345,90 @@ static qboolean JCL_VCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 		Q_strlcpy(jcl->localalias, fn->body, sizeof(jcl->localalias));
 	return true;
 }
+static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#info", "query", 0);
+	xmltree_t *feature;
+	char *featurename;
+	int f;
+	qboolean gmail = false;
+
+	if (!query)
+		return false;
+
+	for (f = 0; ; f++)
+	{
+		feature = XML_ChildOfTree(query, "feature", f);
+		if (!feature)
+			break;
+		featurename = XML_GetParameter(feature, "var", "");
+		if (!strcmp(featurename, "google:mail:notify"))
+			gmail = true;
+		else
+		{
+			Con_DPrintf("Server supports feature %s\n", featurename);
+		}
+	}
+
+	if (gmail)
+		JCL_SendIQf(jcl, XMPP_NewGoogleMailsReply, "get", NULL, "<query xmlns='google:mail:notify'/>");
+	
+	return true;
+}
 static qboolean JCL_SessionReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	JCL_SendIQf(jcl, JCL_RosterReply, "get", NULL, "<query xmlns='jabber:iq:roster'/>");
-	JCL_SendIQf(jcl, JCL_VCardReply, "get", NULL, "<vCard xmlns='vcard-temp'/>");
+	JCL_SendIQf(jcl, JCL_MyVCardReply, "get", NULL, "<vCard xmlns='vcard-temp'/>");
+	JCL_SendIQf(jcl, JCL_ServerFeatureReply, "get", jcl->domain, "<query xmlns='http://jabber.org/protocol/disco#info'/>");
 	return true;
 }
 
-
-static char *caps[] =
+static struct
+{
+	char *name;
+	unsigned int withcap;
+} caps[] =
 {
 #if 1
-	"http://jabber.org/protocol/caps",
-	"http://jabber.org/protocol/disco#info",
-//	"http://jabber.org/protocol/disco#items",
+	{"http://jabber.org/protocol/caps"},
+	{"http://jabber.org/protocol/disco#info"},
+//	{"http://jabber.org/protocol/disco#items"},
 
-	"jabber:iq:version", 
+	{"jabber:iq:version"},
 	#ifdef JINGLE
-		"urn:xmpp:jingle:1",
-		QUAKEMEDIAXMLNS,
+		{"urn:xmpp:jingle:1", CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO},
+		{QUAKEMEDIAXMLNS, CAP_GAMEINVITE},
 		#ifdef VOIP
 			#ifdef VOIP_LEGACY
-				"http://www.google.com/xmpp/protocol/session",	//so google's non-standard clients can chat with us
-				"http://www.google.com/xmpp/protocol/voice/v1", //so google's non-standard clients can chat with us
-				//	"http://www.google.com/xmpp/protocol/camera/v1",	//can send video
-				//	"http://www.google.com/xmpp/protocol/video/v1",	//can receive video
+				{"http://www.google.com/xmpp/protocol/session", CAP_GOOGLE_VOICE},	//so google's non-standard clients can chat with us
+				{"http://www.google.com/xmpp/protocol/voice/v1", CAP_GOOGLE_VOICE}, //so google's non-standard clients can chat with us
+				{"http://www.google.com/xmpp/protocol/camera/v1", CAP_GOOGLE_VOICE},	//can send video
+//				{"http://www.google.com/xmpp/protocol/video/v1", CAP_GOOGLE_VOICE},	//can receive video
 			#endif
 			#ifndef VOIP_LEGACY_ONLY
-				"urn:xmpp:jingle:apps:rtp:1",
-				"urn:xmpp:jingle:apps:rtp:audio",
+				{"urn:xmpp:jingle:apps:rtp:1", CAP_VOICE|CAP_VIDEO},
+				{"urn:xmpp:jingle:apps:rtp:audio", CAP_VOICE},
+				{"urn:xmpp:jingle:apps:rtp:video", CAP_VIDEO},
 			#endif
 		#endif
 		//"urn:xmpp:jingle:apps:rtp:video",//we don't support rtp video chat
-		"urn:xmpp:jingle:transports:raw-udp:1",
+		{"urn:xmpp:jingle:transports:raw-udp:1", CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO},
 		#ifndef NOICE
-			"urn:xmpp:jingle:transports:ice-udp:1",
+			{"urn:xmpp:jingle:transports:ice-udp:1", CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO},
 		#endif
 	#endif
 	#ifndef Q3_VM
-		"urn:xmpp:time",
+		{"urn:xmpp:time"},
 	#endif
-	"urn:xmpp:ping",	//FIXME: I'm not keen on this. I only added support to stop errors from pidgin when trying to debug.
-	"urn:xmpp:attention:0",	//poke.
+	{"urn:xmpp:ping"},	//FIXME: I'm not keen on this. I only added support to stop errors from pidgin when trying to debug.
+	{"urn:xmpp:attention:0"},	//poke.
 
 	//file transfer
 	#ifdef FILETRANSFERS
-		"http://jabber.org/protocol/si",
-		"http://jabber.org/protocol/si/profile/file-transfer",
-		"http://jabber.org/protocol/ibb",
-		"http://jabber.org/protocol/bytestreams",
+		{"http://jabber.org/protocol/si", CAP_SIFT},
+		{"http://jabber.org/protocol/si/profile/file-transfer", CAP_SIFT},
+		{"http://jabber.org/protocol/ibb", CAP_SIFT},
+		{"http://jabber.org/protocol/bytestreams", CAP_SIFT},
 	#endif
 #else
 	//for testing, this is the list of features pidgin supports (which is the other client I'm testing against).
@@ -2028,17 +2472,19 @@ static char *caps[] =
 	"http://jabber.org/protocol/nick+notify",
 	"http://jabber.org/protocol/ibb",
 #endif
-	NULL
+	{NULL}
 };
-static void buildcaps(char *out, int outlen)
+static void buildcaps(jclient_t *jcl, char *out, int outlen)
 {
 	int i;
 	Q_strncpyz(out, "<identity category='client' type='pc' name='FTEQW'/>", outlen);
 
-	for (i = 0; caps[i]; i++)
+	for (i = 0; caps[i].name; i++)
 	{
+		if (!(caps[i].withcap & jcl->enabledcapabilities))
+			continue;
 		Q_strlcat(out, "<feature var='", outlen);
-		Q_strlcat(out, caps[i], outlen);
+		Q_strlcat(out, caps[i].name, outlen);
 		Q_strlcat(out, "'/>", outlen);
 	}
 }
@@ -2049,17 +2495,19 @@ static int qsortcaps(const void *va, const void *vb)
 	return strcmp(a, b);
 }
 int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
-char *buildcapshash(void)
+char *buildcapshash(jclient_t *jcl)
 {
 	int i, l;
 	char out[8192];
 	int outlen = sizeof(out);
 	unsigned char digest[64];
 	Q_strlcpy(out, "client/pc//FTEQW<", outlen);
-	qsort(caps, sizeof(caps)/sizeof(caps[0]) - 1, sizeof(char*), qsortcaps); 
-	for (i = 0; caps[i]; i++)
+	qsort(caps, sizeof(caps)/sizeof(caps[0]) - 1, sizeof(caps[0]), qsortcaps); 
+	for (i = 0; caps[i].name; i++)
 	{
-		Q_strlcat(out, caps[i], outlen);
+		if (!(caps[i].withcap & jcl->enabledcapabilities))
+			continue;
+		Q_strlcat(out, caps[i].name, outlen);
 		Q_strlcat(out, "<", outlen);
 	}
 	l = SHA1(digest, sizeof(digest), out, strlen(out));
@@ -2067,6 +2515,61 @@ char *buildcapshash(void)
 		Base64_Byte(digest[i]);
 	Base64_Finish();
 	return base64;
+}
+
+//xep-0115 1.4+
+//xep-0153
+char *buildcapsvcardpresence(jclient_t *jcl, char *caps, size_t sizeofcaps)
+{
+	char *vcard;
+	char *voiceext = "";	//xep-0115 1.0
+#ifdef VOIP_LEGACY
+	if (jcl->enabledcapabilities & CAP_GOOGLE_VOICE)
+		voiceext = " ext='voice-v1 camera-v1 video-v1'";
+#endif
+
+	Q_snprintf(caps, sizeofcaps,
+		"<c xmlns='http://jabber.org/protocol/caps'"
+		" hash='sha-1'"
+		" node='"DISCONODE"'"
+		" ver='%s'"
+		"%s/>"
+		, buildcapshash(jcl), voiceext);
+
+	//xep-0153
+	vcard = caps+strlen(caps);
+	sizeofcaps -= strlen(caps);
+	if (jcl->vcardphotohashstatus == VCP_NONE)
+	{
+		//let other people know that we don't have one. yay. pointless. whatever.
+		Q_snprintf(vcard, sizeofcaps,
+				"<x xmlns='vcard-temp:x:update'><photo/></x>");
+	}
+	else if (jcl->vcardphotohashstatus == VCP_KNOWN)
+	{
+		char *hex = "0123456789abcdef";
+		char inhex[41];
+		int i, o;
+		for (i = 0, o = 0; i < sizeof(jcl->vcardphotohash); i++)
+		{
+			inhex[o++] = hex[jcl->vcardphotohash[(i>>4) & 0xf]];
+			inhex[o++] = hex[jcl->vcardphotohash[(i>>0) & 0xf]];
+		}
+		inhex[o] = 0;
+
+		//if we know the vcard hash, we must tell other people what it is or if its changed, etc.
+		Q_snprintf(vcard, sizeofcaps,
+			"<x xmlns='vcard-temp:x:update'><photo>%s</photo></x>", inhex);
+	}
+	else
+	{
+		//always include a vcard update tag.
+		//this says that we won't corrupt other resource's vcard.
+		//note that googletalk seems to hack the current vcard hash anyway. don't test this feature on that network.
+		Q_snprintf(vcard, sizeofcaps,
+			"<x xmlns='vcard-temp:x:update'/>");
+	}
+	return caps;
 }
 
 void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
@@ -2081,7 +2584,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 	//FIXME: block from people who we don't know.
 
 	id = XML_GetParameter(tree, "id", "");
-	from = XML_GetParameter(tree, "from", "");
+	from = XML_GetParameter(tree, "from", jcl->domain);
 //	to = XML_GetParameter(tree, "to", "");
 
 	f = XML_GetParameter(tree, "type", "");
@@ -2097,8 +2600,8 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 				char *node = XML_GetParameter(ot, "node", NULL);
 				unparsable = false;
 
-				buildcaps(msg, sizeof(msg));
-				Q_snprintf(hashednode, sizeof(hashednode),DISCONODE"#%s", buildcapshash());
+				buildcaps(jcl, msg, sizeof(msg));
+				Q_snprintf(hashednode, sizeof(hashednode),DISCONODE"#%s", buildcapshash(jcl));
 
 				if (!node || !strcmp(node, hashednode))
 				{
@@ -2110,12 +2613,30 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 							"</iq>", from, id, node?node:hashednode, msg);
 				}
 #ifdef VOIP_LEGACY
-				else if (!strcmp(node, DISCONODE"#voice-v1"))
+				else if (!strcmp(node, DISCONODE"#voice-v1") && (jcl->enabledcapabilities & CAP_GOOGLE_VOICE))
 				{
 					JCL_AddClientMessagef(jcl,
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
 									"<feature var='http://www.google.com/xmpp/protocol/voice/v1'/>"
+								"</query>"
+							"</iq>", from, id, node, msg);
+				}
+				else if (!strcmp(node, DISCONODE"#camera-v1") && (jcl->enabledcapabilities & CAP_GOOGLE_VOICE))
+				{
+					JCL_AddClientMessagef(jcl,
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
+									"<feature var='http://www.google.com/xmpp/protocol/camera/v1'/>"
+								"</query>"
+							"</iq>", from, id, node, msg);
+				}
+				else if (!strcmp(node, DISCONODE"#video-v1") && (jcl->enabledcapabilities & CAP_GOOGLE_VOICE))
+				{
+					JCL_AddClientMessagef(jcl,
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
+									"<feature var='http://www.google.com/xmpp/protocol/video/v1'/>"
 								"</query>"
 							"</iq>", from, id, node, msg);
 				}
@@ -2220,7 +2741,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 			unparsable = false;
 
 			Con_Printf("Unsupported iq get\n");
-			XML_ConPrintTree(tree, 0);
+			XML_ConPrintTree(tree, "", 0);
 
 			//tell them OH NOES, instead of requiring some timeout.
 			Q_snprintf(msg, sizeof(msg),
@@ -2235,255 +2756,40 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 	else if (!strcmp(f, "set"))
 	{
 		xmltree_t *c;
+
 #ifdef FILETRANSFERS
-/*
-		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/bytestreams", "query", 0);
-		if (ot)
-		{
-			struct ft_s *ft;
-			char *sid = XML_GetParameter(ot, "sid", "");
-			for (ft = jcl->ft; ft; ft = ft->next)
-			{
-				if (!strcmp(ft->sid, sid) && !strcmp(ft->with, from))
-				{
-					if (ft->allowed && !ft->begun && ft->transmitting == false)
-					{
-						char *jid;
-						char *host;
-						int port;
-						char *req;
-						char digest[20];
-						char domain[41];
-						char *hex="0123456789abcdef";
-						int j, i;
-						for (i = 0; ; i++)
-						{
-							c = XML_ChildOfTree(ot, "streamhost", i);
-							if (!c)
-								break;
-							jid = XML_GetParameter(c, "jid", "");
-							host = XML_GetParameter(c, "host", "");
-							port = atoi(XML_GetParameter(c, "port", "0"));
-							if (port <= 0 || port > 65535)
-								continue;
-							ft->stream = pNet_TCPConnect(host, port);
-							if (ft->stream == -1)
-								continue;
-
-							//'authenticate' with socks5 proxy.
-							pNet_Send(ft->stream, "\x05\0x1\x00", 3);
-
-							//sid+requester(them)+target(us)
-							req = va("%s%s%s", ft->sid, ft->with, jcl->jid);
-							SHA1(digest, sizeof(digest), req, strlen(req));
-							//in hex
-							for (req = domain, j=0; j < 20; j++)
-							{
-								*req++ = hex[(digest[j]>>4) & 0xf];
-								*req++ = hex[(digest[j]>>0) & 0xf];
-							}
-							*req = 0;
-
-							//connect with hostname(3).
-							req = va("\x05\0x1\x00\x03%s\x00\x00", domain);
-							pNet_Send(ft->stream, req, strlen(domain)+6);
-							break;
-						}
-					}
-				}
-			}
-		}
-*/
-		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/ibb", "open", 0);
-		if (ot)
-		{
-			struct ft_s *ft;
-			char *sid = XML_GetParameter(ot, "sid", "");
-			int blocksize = atoi(XML_GetParameter(ot, "block-size", "4096"));	//technically this is required.
-			char *stanza = XML_GetParameter(ot, "stanza", "iq");
-			for (ft = jcl->ft; ft; ft = ft->next)
-			{
-				if (!strcmp(ft->sid, sid) && !strcmp(ft->with, from))
-				{
-					if (ft->allowed && !ft->begun && ft->transmitting == false)
-					{
-						if (blocksize > 65536 || strcmp(stanza, "iq"))
-						{	//blocksize: MUST NOT be greater than 65535
-							JCL_AddClientMessagef(jcl, 
-									"<iq id='%s' to='%s' type='error'>"
-										"<error type='modify'>"
-											"<not-acceptable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
-										"</error>"
-									"</iq>"
-									, id, from);
-						}
-						else if (blocksize > 4096)
-						{	//ask for smaller chunks
-							JCL_AddClientMessagef(jcl, 
-								"<iq id='%s' to='%s' type='error'>"
-									"<error type='modify'>"
-										"<resource-constraint xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
-									"</error>"
-								"</iq>"
-								, id, from);
-						}
-						else
-						{	//it looks okay
-							pFS_Open(ft->fname, &ft->file, 2);
-							ft->method = FT_IBB;
-							ft->blocksize = blocksize;
-							ft->begun = true;
-							//if its okay...
-							JCL_AddClientMessagef(jcl, "<iq id='%s' to='%s' type='result'/>", id, from);
-						}
-						break;
-					}
-				}
-			}
-		}
-		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/ibb", "close", 0);
-		if (ot)
-		{
-			struct ft_s **link, *ft;
-			char *sid = XML_GetParameter(ot, "sid", "");
-			for (link = &jcl->ft; *link; link = &(*link)->next)
-			{
-				ft = *link;
-				if (!strcmp(ft->sid, sid) && !strcmp(ft->with, from))
-				{
-					if (ft->begun && ft->method == FT_IBB)
-					{
-						int size;
-						pFS_Close(ft->file);
-						if (ft->transmitting)
-						{
-							if (ft->eof)
-								Con_Printf("Sent \"%s\" to \"%s\"\n", ft->fname, ft->with);
-							else
-								Con_Printf("%s aborted transfer of \"%s\"\n", from, ft->fname);
-						}
-						else
-						{
-							size = pFS_Open(ft->fname, &ft->file, 1);
-							pFS_Close(ft->file);
-							if (size == ft->size)
-								Con_Printf("Received file \"%s\" successfully\n", ft->fname);
-							else
-								Con_Printf("%s aborted transfer of \"%s\"\n", from, ft->fname);
-						}
-						*link = ft->next;
-						free(ft);
-						//if its okay...
-						JCL_AddClientMessagef(jcl, "<iq id='%s' to='%s' type='result'/>", id, from);
-						return;
-					}
-				}
-			}
-		}
-		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/ibb", "data", 0);
-		if (ot)
-		{
-			char block[65536];
-			char *sid = XML_GetParameter(ot, "sid", "");
-			unsigned short seq = atoi(XML_GetParameter(ot, "seq", "0"));
-			int blocksize;
-			struct ft_s *ft;
-			for (ft = jcl->ft; ft; ft = ft->next)
-			{
-				if (!strcmp(ft->sid, sid) && !ft->transmitting)
-				{
-					blocksize = Base64_Decode(block, sizeof(block), ot->body, strlen(ot->body));
-					if (blocksize && blocksize <= ft->blocksize)
-					{
-						pFS_Write(ft->file, block, blocksize);
-						JCL_AddClientMessagef(jcl, "<iq id='%s' to='%s' type='result'/>", id, from);
-						return;
-					}
-					else
-						Con_Printf("XMPP: Invalid blocksize in file transfer from %s\n", from);
-					break;
-				}
-			}
-		}
-
-		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/si", "si", 0);
-		if (ot)
-		{
-			char *profile = XML_GetParameter(ot, "profile", "");
-			unparsable = false;
-
-			if (!strcmp(profile, "http://jabber.org/protocol/si/profile/file-transfer"))
-			{
-				char *s;
-				xmltree_t *repiq, *repsi, *c;
-				char *mimetype = XML_GetParameter(ot, "mime-type", "text/plain");
-				char *sid = XML_GetParameter(ot, "id", "");
-				xmltree_t *file = XML_ChildOfTreeNS(ot, "http://jabber.org/protocol/si/profile/file-transfer", "file", 0);
-				char *fname = XML_GetParameter(file, "name", "file.txt");
-				char *date = XML_GetParameter(file, "date", "");
-				char *md5hash = XML_GetParameter(file, "hash", "");
-				int fsize = strtoul(XML_GetParameter(file, "size", "0"), NULL, 0);
-				char *desc = XML_GetChildBody(file, "desc", "");
-				char authlink[512];
-				char denylink[512];
-				
-				//file transfer offer
-				struct ft_s *ft = malloc(sizeof(*ft) + strlen(from)+1);
-				memset(ft, 0, sizeof(*ft));
-				ft->next = jcl->ft;
-				jcl->ft = ft;
-				ft->privateid = ++jcl->privateidseq;
-
-				ft->transmitting = false;
-				Q_strlcpy(ft->iqid, id, sizeof(ft->iqid));
-				Q_strlcpy(ft->sid, sid, sizeof(ft->sid));
-				Q_strlcpy(ft->fname, fname, sizeof(ft->sid));
-				Base64_Decode(ft->md5hash, sizeof(ft->md5hash), md5hash, strlen(md5hash));
-				ft->size = fsize;
-				ft->file = -1;
-				ft->with = (char*)(ft+1);
-				strcpy(ft->with, from);
-				ft->method = (fsize > 1024*128)?FT_BYTESTREAM:FT_IBB;	//favour bytestreams for large files. for small files, just use ibb as it saves sorting out proxies.
-				ft->begun = false;
-
-				//FIXME: make bytestreams work.
-				ft->method = FT_IBB;
-
-				JCL_GenLink(jcl, authlink, sizeof(authlink), "fauth", from, NULL, va("%i", ft->privateid), "%s", "Accept");
-				JCL_GenLink(jcl, denylink, sizeof(denylink), "fdeny", from, NULL, va("%i", ft->privateid), "%s", "Deny");
-
-				Con_Printf("%s has offered to send you \"%s\" (%i bytes). %s %s\n", from, fname, fsize, authlink, denylink);
-			}
-			else
-			{
-				//profile not understood
-				JCL_AddClientMessagef(jcl,
-						"<iq type='error' to='%s' id='%s'>"
-							"<error code='400' type='cancel'>"
-								"<bad-request xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
-								"<bad-profile xmlns='http://jabber.org/protocol/si'/>"
-							"</error>"
-						"</iq>", from, id);
-			}
-		}
+		if (XMPP_FT_ParseIQSet(jcl, from, id, tree))
+			return;
 #endif
+
 		c = XML_ChildOfTree(tree, "query", 0);
-		if (c && !strcmp(c->xmlns, "jabber:iq:roster"))
+		if (c && !strcmp(c->xmlns, "jabber:iq:roster") && !strcmp(from, jcl->domain))
 		{
 			unparsable = false;
 			JCL_RosterUpdate(jcl, c);
 		}
 
+		//google-specific - new mail notifications.
+		c = XML_ChildOfTree(tree, "new-mail", 0);
+		if (c && !strcmp(c->xmlns, "google:mail:notify") && !strcmp(from, jcl->domain))
+		{
+			JCL_AddClientMessagef(jcl, "<iq type='result' to='%s' id='%s' />", from, id);
+			JCL_SendIQf(jcl, XMPP_NewGoogleMailsReply, "get", "", "<query xmlns='google:mail:notify'/>");
+			return;
+		}
+
 #ifdef JINGLE
 		c = XML_ChildOfTreeNS(tree, "urn:xmpp:jingle:1", "jingle", 0);
-		if (c)
+		if (c && (jcl->enabledcapabilities & (CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO)))
 			unparsable = !JCL_ParseJingle(jcl, c, from, id);
 #ifdef VOIP_LEGACY
 		c = XML_ChildOfTreeNS(tree, "http://www.google.com/session", "session", 0);
-		if (c)
+		if (c && (jcl->enabledcapabilities & (CAP_GOOGLE_VOICE)))
 			unparsable = !JCL_HandleGoogleSession(jcl, c, from, id);
 #endif
 #endif
+
+
 
 		if (unparsable)
 		{
@@ -2503,7 +2809,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 	{
 		char *id = XML_GetParameter(tree, "id", "");
 		struct iq_s **link, *iq;
-		char *from = XML_GetParameter(tree, "from", "");
+		char *from = XML_GetParameter(tree, "from", jcl->domain);
 		unparsable = false;
 		for (link = &jcl->pendingiqs; *link; link = &(*link)->next)
 		{
@@ -2521,7 +2827,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 				if (!iq->callback(jcl, !strcmp(f, "error")?NULL:tree, iq))
 				{
 					Con_Printf("Invalid iq result\n");
-					XML_ConPrintTree(tree, 0);
+					XML_ConPrintTree(tree, "", 0);
 				}
 			}
 			free(iq);
@@ -2529,7 +2835,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 		else
 		{
 			Con_Printf("Unrecognised iq result\n");
-			XML_ConPrintTree(tree, 0);
+			XML_ConPrintTree(tree, "", 0);
 		}
 	}
 	
@@ -2537,18 +2843,18 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 	{
 		unparsable = false;
 		Con_Printf("Unrecognised iq type\n");
-		XML_ConPrintTree(tree, 0);
+		XML_ConPrintTree(tree, "", 0);
 	}
 }
 void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 {
 	xmltree_t *ot;
 	qboolean unparsable = true;
-	char *f = XML_GetParameter(tree, "from", NULL);
+	char *f = XML_GetParameter(tree, "from", jcl->domain);
 	char *type = XML_GetParameter(tree, "type", "normal");
-	char *ctx;
+	char *ctx = f;
 
-	if (f && !strcmp(f, jcl->jid))
+	if (!strcmp(f, jcl->jid))
 		unparsable = false;
 	else
 	{
@@ -2558,19 +2864,21 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			bresource_t *br;
 			Q_strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
 
-			JCL_FindBuddy(jcl, f, &b, &br);
-			ctx = b->name;
-			if (!strcmp(type, "groupchat"))
-				f = br->resource;
-			else if (b->chatroom)	//need to use the full resource for private chat within a room
+			if (JCL_FindBuddy(jcl, f, &b, &br, true))
 			{
-				ctx = f;
-				f = br->resource;
-			}
-			else
-			{
-				f = b->name;
-				b->defaultresource = br;
+				ctx = b->name;
+				if (!strcmp(type, "groupchat"))
+					f = br->resource;
+				else if (b->chatroom)	//need to use the full resource for private chat within a room
+				{
+					ctx = f;
+					f = br->resource;
+				}
+				else
+				{
+					f = b->name;
+					b->defaultresource = br;
+				}
 			}
 		}
 
@@ -2637,19 +2945,21 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			xmltree_t *inv = XML_ChildOfTree(ot, "invite", 0);
 			if (inv)
 			{
-				char *who = XML_GetParameter(inv, "from", "");
+				char *who = XML_GetParameter(inv, "from", jcl->domain);
 				char *reason = XML_GetChildBody(inv, "reason", NULL);
 				char *password = XML_GetChildBody(ot, "password", 0);
 				char link[512];
 				buddy_t *b;
-				JCL_FindBuddy(jcl, f, &b, NULL);
-				if (b->chatroom)
-					return;	//we already know about it. don't spam.
-				JCL_GenLink(jcl, link, sizeof(link), "mucjoin", f, NULL, password, "%s", f);
-				if (reason)
-					Con_SubPrintf(ctx, "* ^2%s^7 has invited you to join %s: %s.\n", who, link, reason);
-				else
-					Con_SubPrintf(ctx, "* ^2%s^7 has invited you to join %s.\n", who, link);
+				if (JCL_FindBuddy(jcl, f, &b, NULL, true))
+				{
+					if (b->chatroom)
+						return;	//we already know about it. don't spam.
+					JCL_GenLink(jcl, link, sizeof(link), "mucjoin", f, NULL, password, "%s", f);
+					if (reason)
+						Con_SubPrintf(ctx, "* ^2%s^7 has invited you to join %s: %s.\n", who, link, reason);
+					else
+						Con_SubPrintf(ctx, "* ^2%s^7 has invited you to join %s.\n", who, link);
+				}
 				return; //ignore any body/jabber:x:conference
 			}
 		}
@@ -2695,18 +3005,19 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			if (jcl->streamdebug)
 			{
 				Con_Printf("Received a message without a body\n");
-				XML_ConPrintTree(tree, 0);
+				XML_ConPrintTree(tree, "", 0);
 			}
 		}
 	}
 }
 
-unsigned int JCL_ParseCaps(char *account, char *resource, xmltree_t *query)
+unsigned int JCL_ParseCaps(jclient_t *jcl, char *account, char *resource, xmltree_t *query)
 {
 	xmltree_t *feature;
 	unsigned int caps = 0;
 	qboolean rtp = false;
 	qboolean rtpaudio = false;
+	qboolean rtpvideo = false;
 	qboolean quake = false;
 	qboolean ice = false;
 	qboolean raw = false;
@@ -2727,6 +3038,8 @@ unsigned int JCL_ParseCaps(char *account, char *resource, xmltree_t *query)
 #ifndef VOIP_LEGACY_ONLY
 		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:audio"))
 			rtpaudio = true;
+		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:video"))
+			rtpvideo = true;
 #endif
 		if (!strcmp(var, "urn:xmpp:jingle:apps:rtp:1"))
 			rtp = true;		//kinda implied, but ensures version is okay
@@ -2739,9 +3052,7 @@ unsigned int JCL_ParseCaps(char *account, char *resource, xmltree_t *query)
 
 #ifdef VOIP_LEGACY
 		if (!strcmp(var, "http://www.google.com/xmpp/protocol/voice/v1"))
-			caps |= CAP_FUGOOG_VOICE;	//legacy crap, so we can call google's official clients, which do not follow current xmpp standards.
-		if (!strcmp(var, "http://www.google.com/xmpp/protocol/session"))
-			caps |= CAP_FUGOOG_SESSION;	//legacy crap, so we can call google's official clients, which do not follow current xmpp standards.
+			caps |= CAP_GOOGLE_VOICE;	//legacy crap, so we can call google's official clients, which do not follow current xmpp standards.
 #endif
 
 		if (!strcmp(var, "http://jabber.org/protocol/si"))
@@ -2756,11 +3067,15 @@ unsigned int JCL_ParseCaps(char *account, char *resource, xmltree_t *query)
 	{
 		if (rtpaudio && rtp)
 			caps |= CAP_VOICE;
+		if (rtpvideo && rtp)
+			caps |= CAP_VIDEO;
 		if (quake)
-			caps |= CAP_INVITE;
+			caps |= CAP_GAMEINVITE;
 	}
 	if (si && sift && ibb)
 		caps |= CAP_SIFT;
+
+	caps &= jcl->enabledcapabilities;
 
 	return caps;
 }
@@ -2769,20 +3084,21 @@ void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres);
 qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	xmltree_t *query = XML_ChildOfTree(tree, "query", 0);
-	xmltree_t *feature;
-	char *var;
-	int i = 0;
 	unsigned int caps = 0;
 	buddy_t *b, *ob;
 	bresource_t *r, *or;
-	JCL_FindBuddy(jcl, iq->to, &b, &r);
+	if (!JCL_FindBuddy(jcl, iq->to, &b, &r, true))
+		return false;
 
 	if (!query)
-		caps = CAP_QUERYFAILED;
+	{
+		caps &= ~(CAP_QUERYING|CAP_QUERIED);
+		caps |= CAP_QUERYFAILED;
+	}
 	else
 	{
 //		XML_ConPrintTree(tree, 0);
-		caps = JCL_ParseCaps(b->accountdomain, r->resource, query);
+		caps = JCL_ParseCaps(jcl, b->accountdomain, r->resource, query);
 	}
 
 	if (b && r)
@@ -2792,7 +3108,7 @@ qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 //			Con_Printf("%s/%s caps = %x\n", b->accountdomain, r->resource, caps);
 			if (!(r->caps & CAP_QUERIED))
 				r->caps = CAP_QUERIED;	//reset it
-			r->caps |= CAP_QUERIED | caps;
+			r->caps |= caps;
 
 			//as we got a valid response, make sure other resources running the same software get the same caps
 			for (ob = jcl->buddies; ob; ob = ob->next)
@@ -2845,6 +3161,7 @@ void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 	buddy_t *b;
 	bresource_t *r;
 	char extname[64], *ext;
+	qboolean googlefuckedup;
 
 	//ignore it if we're already asking them...
 	if (bres->caps & (CAP_QUERYING|CAP_QUERIED|CAP_QUERYFAILED))
@@ -2884,7 +3201,12 @@ void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 //	Con_Printf("%s/%s querying (%s#%s)\n", buddy->accountdomain, bres->resource, bres->client_node, bres->client_ver);
 	//okay, this is the first time we've seen that software version. ask it what it supports, and hope we get a valid response...
 	bres->caps = CAP_QUERYING;
+	bres->buggycaps = 0;
 	JCL_SendIQf(jcl, JCL_ClientDiscoInfo, "get", va("%s/%s", buddy->accountdomain, bres->resource), "<query xmlns='http://jabber.org/protocol/disco#info' node='%s#%s'/>", bres->client_node, bres->client_ver);
+
+	//one of google's nodes. ONLY google get this fucked up evil hack because they're the only ones that are arrogant enough to not bother to query what that 'ext' actually means - and then to not even bother to tell other clients.
+	//every other client is expected to have its act together and not fuck up like this.
+	googlefuckedup = !!strstr(bres->client_node, "google.com") || !!strstr(bres->client_node, "android.com");
 
 	//and ask for info about each extension too. which should only be used if the specified version isn't a hash.
 	if (bres->client_hash && !*bres->client_hash)
@@ -2892,6 +3214,15 @@ void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 		for (ext = bres->client_ext; ext; )
 		{
 			ext = JCL_ParseOut(ext, extname, sizeof(extname));
+#ifdef VOIP_LEGACY
+			if (googlefuckedup)
+			{
+				//work around repeated bugs in google's various clients.
+				if (!strcmp(extname, "voice-v1"))
+					bres->buggycaps |= CAP_GOOGLE_VOICE;
+			}
+#endif
+
 			if (*extname)
 				JCL_SendIQf(jcl, JCL_ClientDiscoInfo, "get", va("%s/%s", buddy->accountdomain, bres->resource), "<query xmlns='http://jabber.org/protocol/disco#info' node='%s#%s'/>", bres->client_node, extname);
 		}
@@ -2902,7 +3233,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	buddy_t *buddy;
 	bresource_t *bres;
 
-	char *from = XML_GetParameter(tree, "from", "");
+	char *from = XML_GetParameter(tree, "from", jcl->domain);
 	xmltree_t *show = XML_ChildOfTree(tree, "show", 0);
 	xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
 	xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
@@ -2915,7 +3246,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	char oldbstatus[128];
 	char oldfstatus[128];
 
-	if (quake && !strcmp(quake->xmlns, "fteqw.com:game"))
+	if (quake && !strcmp(quake->xmlns, "fteqw.com:game") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
 	{
 		serverip = XML_GetParameter(quake, "serverip", NULL);
 		servermap = XML_GetParameter(quake, "servermap", NULL);
@@ -2923,6 +3254,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 
 	if (type && !strcmp(type, "subscribe"))
 	{
+		//they want us to let them see us.
 		char pauth[512], pdeny[512];
 		JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", from);
 		JCL_GenLink(jcl, pauth, sizeof(pauth), "pauth", from, NULL, NULL, "%s", "Authorize");
@@ -2931,25 +3263,28 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	}
 	else if (type && !strcmp(type, "subscribed"))
 	{
+		//they allowed us to add them.
 		JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", from);
 		Con_Printf("%s is now your friend!\n", startconvo);
 	}
 	else if (type && !strcmp(type, "unsubscribe"))
 	{
+		//they removed us.
 		JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", from);
 		Con_Printf("%s has unfriended you\n", startconvo);
 	}
 	else if (type && !strcmp(type, "unsubscribed"))
 	{
+		//we removed them.
 		JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", from);
-		Con_Printf("%s is no longer unfriended you\n", startconvo);
+		Con_Printf("%s is no longer your friend\n", startconvo);
 	}
 	else
 	{
-		JCL_FindBuddy(jcl, from, &buddy, &bres);
+		JCL_FindBuddy(jcl, from, &buddy, &bres, true);
 		if (!bres)
 		{
-			JCL_FindBuddy(jcl, va("%s/", from), &buddy, &bres);
+			JCL_FindBuddy(jcl, va("%s/", from), &buddy, &bres, true);
 		}
 		JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", buddy->name);
 
@@ -2982,6 +3317,29 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 			}
 			else
 			{
+				xmltree_t *vcu;
+				char *photohash;
+				buddy_t *me;
+				vcu = XML_ChildOfTreeNS(tree, "vcard-temp:x:update", "x", 0);
+				photohash = XML_GetChildBody(vcu, "photo", buddy->vcardphotohash);
+				if (strcmp(buddy->vcardphotohash, photohash))
+				{
+					Con_DPrintf("%s changed their photo from \"%s\" to \"%s\"\n", from, buddy->vcardphotohash, photohash);
+
+					Q_strlcpy(buddy->vcardphotohash, photohash, sizeof(buddy->vcardphotohash));
+					buddy->vcardphotochanged = true;
+				}
+
+				JCL_FindBuddy(jcl, jcl->jid, &me, NULL, true);
+				if (buddy == me)
+				{
+					if (strcmp(buddy->vcardphotohash, jcl->vcardphotohash))
+					{
+						jcl->vcardphotohashstatus = VCP_UNKNOWN;
+						JCL_SendIQf(jcl, JCL_MyVCardReply, "get", NULL, "<vCard xmlns='vcard-temp'/>");
+					}
+				}
+
 				Q_strlcpy(bres->bstatus, (show && *show->body)?show->body:"present", sizeof(bres->bstatus));
 
 				if (caps)
@@ -3042,7 +3400,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 		else
 		{
 			Con_Printf("Weird presence:\n");
-			XML_ConPrintTree(tree, 0);
+			XML_ConPrintTree(tree, "", 0);
 		}
 	}
 }
@@ -3055,7 +3413,6 @@ int JCL_ClientFrame(jclient_t *jcl)
 {
 	int pos;
 	xmltree_t *tree, *ot;
-	char *f;
 	int ret;
 	qboolean unparsable;
 
@@ -3070,6 +3427,9 @@ int JCL_ClientFrame(jclient_t *jcl)
 	if (ret < 0)
 	{
 		Con_Printf("XMPP: socket error\n");
+		if (jcl->socket != -1)
+			pNet_Close(jcl->socket);
+		jcl->socket = -1;
 		return JCL_KILL;
 	}
 
@@ -3123,7 +3483,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 			tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true, "");
 		}
 
-		if (jcl->streamdebug)
+		if (jcl->streamdebug == 2)
 		{
 			char t = jcl->bufferedinmessage[pos];
 			jcl->bufferedinmessage[pos] = 0;
@@ -3177,7 +3537,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 		pos = 0;
 		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, false, jcl->defaultnamespace);
 
-		if (jcl->streamdebug && tree)
+		if (jcl->streamdebug == 2 && tree)
 		{
 			char t = jcl->bufferedinmessage[pos];
 			jcl->bufferedinmessage[pos] = 0;
@@ -3196,6 +3556,9 @@ int JCL_ClientFrame(jclient_t *jcl)
 //	Con_Printf("read\n");
 //	XML_ConPrintTree(tree, 0);
 
+	if (jcl->streamdebug == 1)
+		XML_ConPrintTree(tree, "xmppin", 0);
+
 	jcl->timeout = jclient_curtime + 60*1000;
 
 	unparsable = true;
@@ -3213,8 +3576,6 @@ int JCL_ClientFrame(jclient_t *jcl)
 			jcl->connected = true;
 
 			JCL_WriteConfig();
-
-//			JCL_AddClientMessageString(jcl, "<iq type='get' to='gmail.com' id='H_2'><query xmlns='http://jabber.org/protocol/disco#info'/></iq>");
 		}
 
 
@@ -3239,7 +3600,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 					if (BUILTINISVALID(Net_SetTLSClient))
 					{
 						Con_Printf("XMPP: Unable to switch to TLS. You are probably being man-in-the-middle attacked.\n");
-						XML_ConPrintTree(tree, 0);
+						XML_ConPrintTree(tree, "", 0);
 					}
 					else
 					{
@@ -3293,7 +3654,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 				else
 				{
 					Con_Printf("XMPP: No suitable auth methods. Unable to connect.\n");
-					XML_ConPrintTree(tree, 0);
+					XML_ConPrintTree(tree, "", 0);
 					XML_Destroy(tree);
 					return JCL_KILL;
 				}
@@ -3373,21 +3734,34 @@ int JCL_ClientFrame(jclient_t *jcl)
 	}
 	else if (!strcmp(tree->name, "error"))
 	{
-		ot = XML_ChildOfTree(tree, "see-other-host", 0);
-		if (ot)
+		xmltree_t *condition;
+		condition = XML_ChildOfTree(tree, "success", 0);
+		if (!condition)
+			condition = XML_ChildOfTree(tree, "see-other-host", 0);
+		if (!condition)
+			condition = XML_ChildOfTree(tree, "invalid-xml", 0);
+
+		if (condition && !strcmp(condition->name, "see-other-host"))
 		{
 			//msn needs this, apparently
-			Q_strlcpy(jcl->redirserveraddr, ot->body, sizeof(jcl->redirserveraddr));
+			Q_strlcpy(jcl->redirserveraddr, condition->body, sizeof(jcl->redirserveraddr));
 			JCL_CloseConnection(jcl, true);
 			if (!JCL_Reconnect(jcl))
 				return JCL_KILL;
 			return JCL_CONTINUE;
 		}
+		else if (condition && !strcmp(condition->name, "success"))
+		{
+			Con_Printf("XMPP error: success\n");
+			unparsable = false;
+		}
 		else
 		{
 			ot = XML_ChildOfTree(tree, "text", 0);
 			if (ot)
-				Con_Printf("XMPP: %s\n", ot->body);
+				Con_Printf("XMPP error: %s\n", ot->body);
+			else if (condition)
+				Con_Printf("XMPP error: %s\n", condition->name);
 			else
 				Con_Printf("XMPP: Unknown error\n");
 
@@ -3434,7 +3808,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 	else
 	{
 		Con_Printf("JCL unrecognised stanza: %s\n", tree->name);
-		XML_ConPrintTree(tree, 0);
+		XML_ConPrintTree(tree, "", 0);
 	}
 
 	memmove(jcl->bufferedinmessage, jcl->bufferedinmessage+pos, jcl->bufferedinammount-pos);
@@ -3444,7 +3818,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 	if (unparsable)
 	{
 		Con_Printf("XMPP: Input corrupt, urecognised, or unusable. Disconnecting.\n");
-		XML_ConPrintTree(tree, 0);
+		XML_ConPrintTree(tree, "", 0);
 		XML_Destroy(tree);
 		return JCL_KILL;
 	}
@@ -3523,22 +3897,14 @@ void JCL_GeneratePresence(jclient_t *jcl, qboolean force)
 		}
 	}
 
-	if (force || strcmp(jcl->curquakeserver, *servermap?servermap:serveraddr))
+	if (force || jcl->vcardphotohashchanged || strcmp(jcl->curquakeserver, *servermap?servermap:serveraddr))
 	{
-		char caps[256];
+		char caps[512];
+		jcl->vcardphotohashchanged = false;
 		Q_strlcpy(jcl->curquakeserver, *servermap?servermap:serveraddr, sizeof(jcl->curquakeserver));
 		Con_DPrintf("Sending presence %s\n", jcl->curquakeserver);
 
-		//xep-0115 1.4+
-		Q_snprintf(caps, sizeof(caps),
-			"<c xmlns='http://jabber.org/protocol/caps'"
-			" hash='sha-1'"
-			" node='"DISCONODE"'"
-			" ver='%s'"
-#ifdef VOIP_LEGACY
-			" ext='voice-v1'"
-#endif
-			"/>", buildcapshash());
+		buildcapsvcardpresence(jcl, caps, sizeof(caps));
 
 		if (!*jcl->curquakeserver)
 			JCL_AddClientMessagef(jcl,
@@ -3598,6 +3964,18 @@ qintptr_t JCL_Frame(qintptr_t *args)
 					JCL_CloseConnection(jcl, true);
 				else
 					JCL_FlushOutgoing(jcl);
+
+				if (stat == JCL_DONE)
+				{
+					XMPP_FT_Frame(jcl);
+
+					if (jclient_curtime > jcl->timeout)
+					{
+						//client needs to send something valid as a keep-alive so routers don't silently forget mappings.
+						JCL_SendIQf(jcl, NULL, "get", NULL, "<ping xmlns='urn:xmpp:ping'/>");
+						jcl->timeout = jclient_curtime + 60*1000;
+					}
+				}
 			}
 
 #ifdef JINGLE
@@ -3611,8 +3989,8 @@ qintptr_t JCL_Frame(qintptr_t *args)
 
 void JCL_WriteConfig(void)
 {
-	xmltree_t *m, *n, *oauth2;
-	int i;
+	xmltree_t *m, *n, *oauth2, *features;
+	int i, j;
 	qhandle_t config;
 
 
@@ -3626,9 +4004,11 @@ void JCL_WriteConfig(void)
 			n = XML_CreateNode(m, "account", "", "");
 			XML_AddParameteri(n, "id", i);
 
-			XML_CreateNode(n, "streamdebug", "", jcl->streamdebug?"1":"0");
+			Q_snprintf(foo, sizeof(foo), "%i", jcl->streamdebug);
+			XML_CreateNode(n, "streamdebug", "", foo);
 			Q_snprintf(foo, sizeof(foo), "%i", jcl->forcetls);
 			XML_CreateNode(n, "forcetls", "", foo);
+			XML_CreateNode(n, "savepassword", "", jcl->savepassword?"1":"0");
 			XML_CreateNode(n, "allowauth_plain_nontls", "", jcl->allowauth_plainnontls?"1":"0");
 			XML_CreateNode(n, "allowauth_plain_tls", "", jcl->allowauth_plaintls?"1":"0");
 			XML_CreateNode(n, "allowauth_digest_md5", "", jcl->allowauth_digestmd5?"1":"0");
@@ -3659,6 +4039,13 @@ void JCL_WriteConfig(void)
 			XML_CreateNode(n, "serverport", "", foo);
 			XML_CreateNode(n, "certificatedomain", "", jcl->certificatedomain);
 			XML_CreateNode(n, "inactive", "", jcl->status == JCL_INACTIVE?"1":"0");
+
+			features = XML_CreateNode(n, "features", "", "");
+			XML_AddParameter(features, "ver", JCL_BUILD);
+			for (j = 0; capnames[j].names; j++)
+			{
+				XML_CreateNode(features, capnames[j].names, "", (jcl->enabledcapabilities & capnames[j].cap)?"1":"0");
+			}
 		}
 	}
 
@@ -3764,7 +4151,7 @@ static void JCL_PrintBuddyStatus(char *console, jclient_t *jcl, buddy_t *b, bres
 	else
 		Con_SubPrintf(console, "%s", r->bstatus);
 
-	if ((r->caps & CAP_INVITE) && !r->servertype)
+	if ((r->caps & CAP_GAMEINVITE) && !r->servertype)
 	{
 		char invitelink[512];
 		JCL_GenLink(jcl, invitelink, sizeof(invitelink), "invite", b->accountdomain, r->resource, NULL, "%s", "Invite");
@@ -3776,10 +4163,10 @@ static void JCL_PrintBuddyStatus(char *console, jclient_t *jcl, buddy_t *b, bres
 		JCL_GenLink(jcl, calllink, sizeof(calllink), "call", b->accountdomain, r->resource, NULL, "%s", "Call");
 		Con_SubPrintf(console, " %s", calllink);
 	}
-	else if ((r->caps & CAP_FUGOOG_VOICE) && (r->caps & CAP_FUGOOG_SESSION))
+	else if ((r->caps|r->buggycaps) & CAP_GOOGLE_VOICE)
 	{
 		char calllink[512];
-		JCL_GenLink(jcl, calllink, sizeof(calllink), "call", b->accountdomain, r->resource, NULL, "%s", "Call(NS)");
+		JCL_GenLink(jcl, calllink, sizeof(calllink), "call", b->accountdomain, r->resource, NULL, "%s", "Call");
 		Con_SubPrintf(console, " %s", calllink);
 	}
 }
@@ -3790,6 +4177,7 @@ void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 	struct c2c_s *c2c;
 	struct ft_s *ft;
 	char convolink[512], actlink[512];
+	int c;
 	if (!jcl->buddies)
 		Con_SubPrintf(console, "You have no friends\n");
 	for (b = jcl->buddies; b; b = b->next)
@@ -3833,25 +4221,35 @@ void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 		Con_SubPrintf(console, "Active sessions:\n");
 	for (c2c = jcl->c2c; c2c; c2c = c2c->next)
 	{
-		JCL_FindBuddy(jcl, c2c->with, &b, &r);
-		switch(c2c->mediatype)
+		qboolean voice = false, video = false, server = false, client = false;
+		JCL_FindBuddy(jcl, c2c->with, &b, &r, true);
+		for (c = 0; c < c2c->contents; c++)
 		{
-		case ICEP_VOICE:
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, b->accountdomain, r->resource, NULL, "%s", b->name);
-			JCL_GenLink(jcl, actlink, sizeof(actlink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Hang Up");
-			Con_SubPrintf(console, "    %s: voice %s\n", convolink, actlink);
-			break;
-		case ICEP_QWSERVER:
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, b->accountdomain, r->resource, NULL, "%s", b->name);
-			JCL_GenLink(jcl, actlink, sizeof(actlink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Kick");
-			Con_SubPrintf(console, "    %s: server %s\n", convolink, actlink);
-			break;
-		case ICEP_QWCLIENT:
-			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, b->accountdomain, r->resource, NULL, "%s", b->name);
-			JCL_GenLink(jcl, actlink, sizeof(actlink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Disconnect");
-			Con_SubPrintf(console, "    %s: client %s\n", convolink, actlink);
-			break;
+			switch(c2c->content[c].mediatype)
+			{
+			case ICEP_VOICE:	voice = true; 	break;
+			case ICEP_VIDEO:	video = true; 	break;
+			case ICEP_QWSERVER: server = true; 	break;
+			case ICEP_QWCLIENT: client = true; 	break;
+			}
 		}
+		JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, b->accountdomain, r->resource, NULL, "%s", b->name);
+		Con_SubPrintf(console, "    %s: ", convolink);
+		if (video)
+			Con_SubPrintf(console, "video ");
+		if (voice)
+			Con_SubPrintf(console, "voice ");
+		if (server)
+			Con_SubPrintf(console, "server ");
+		if (client)
+			Con_SubPrintf(console, "client ");
+		if (server)
+			JCL_GenLink(jcl, actlink, sizeof(actlink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Kick");
+		else if (video || voice)
+			JCL_GenLink(jcl, actlink, sizeof(actlink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Hang Up");
+		else
+			JCL_GenLink(jcl, actlink, sizeof(actlink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Disconnect");
+		Con_SubPrintf(console, "%s\n", actlink);
 	}
 #endif
 
@@ -3860,7 +4258,7 @@ void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 		Con_SubPrintf(console, "Active file transfers:\n");
 	for (ft = jcl->ft; ft; ft = ft->next)
 	{
-		JCL_FindBuddy(jcl, ft->with, &b, &r);
+		JCL_FindBuddy(jcl, ft->with, &b, &r, true);
 		JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, b->accountdomain, r->resource, NULL, "%s", b->name);
 		JCL_GenLink(jcl, actlink, sizeof(actlink), "fdeny", ft->with, NULL, ft->sid, "%s", "Cancel");
 		Con_SubPrintf(console, "    %s: %s\n", convolink, ft->fname);
@@ -3874,7 +4272,8 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 	char *con;
 	buddy_t *b;
 	bresource_t *br;
-	JCL_FindBuddy(jcl, to, &b, &br);
+	if (!JCL_FindBuddy(jcl, to, &b, &br, true))
+		return;
 	if (b->chatroom)
 	{
 		if (br)
@@ -3915,7 +4314,8 @@ void JCL_AttentionMessage(jclient_t *jcl, char *to, char *msg)
 	xmltree_t *m;
 	char *s;
 
-	JCL_FindBuddy(jcl, to, &b, &br);
+	if (!JCL_FindBuddy(jcl, to, &b, &br, true))
+		return;
 	if (!br)
 		br = b->defaultresource;
 	if (!br)
@@ -4023,206 +4423,12 @@ void JCL_JoinMUCChat(jclient_t *jcl, char *room, char *server, char *myhandle, c
 		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", room, server, myhandle);
 	else
 		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s/%s", room, myhandle);
-	JCL_FindBuddy(jcl, roomserverhandle, &b, &r);
+	if (!JCL_FindBuddy(jcl, roomserverhandle, &b, &r, true))
+		return;
 	b->chatroom = true;
-	Q_snprintf(caps, sizeof(caps),
-		"<c xmlns='http://jabber.org/protocol/caps'"
-		" hash='sha-1'"
-		" node='"DISCONODE"'"
-		" ver='%s'"
-#ifdef VOIP_LEGACY
-		" ext='voice-v1'"
-#endif
-		"/>", buildcapshash());
+	buildcapsvcardpresence(jcl, caps, sizeof(caps));
 	JCL_AddClientMessagef(jcl, "<presence to='%s'><x xmlns='http://jabber.org/protocol/muc'><password>%s</password></x>%s</presence>", roomserverhandle, password, caps);
 }
-
-#ifdef FILETRANSFERS
-void JCL_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept)
-{
-	struct ft_s *ft, **link;
-	char *s;
-	xmltree_t *repiq, *repsi, *c;
-
-	for (link = &jcl->ft; ft=*link; link = &(*link)->next)
-	{
-		if (ft->privateid == fileid)
-			break;
-	}
-	if (!ft)
-	{
-		Con_Printf("File not known\n");
-		return;
-	}
-
-	if (!accept)
-	{
-		Con_Printf("Declining file \"%s\" from \"%s\" (%i bytes)\n", ft->fname, ft->with, ft->size);
-
-		if (!ft->allowed)
-		{
-			JCL_AddClientMessagef(jcl,
-						"<iq type='error' to='%s' id='%s'>"
-							"<error type='cancel'>"
-							"<forbidden xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
-								"<text>Offer Declined</text>"
-							"</error>"
-						"</iq>", ft->with, ft->iqid);
-		}
-		else
-		{
-			//FIXME: send a proper cancel
-		}
-
-		pFS_Close(ft->file);
-		*link = ft->next;
-		free(ft);
-	}
-	else
-	{
-		Con_Printf("Receiving file \"%s\" from \"%s\" (%i bytes)\n", ft->fname, ft->with, ft->size);
-		ft->allowed = true;
-
-		//generate a response.
-		//FIXME: we ought to delay response until after we prompt.
-		repiq = XML_CreateNode(NULL, "iq", "", "");
-		XML_AddParameter(repiq, "type", "result");
-		XML_AddParameter(repiq, "to", ft->with);
-		XML_AddParameter(repiq, "id", ft->iqid);
-		repsi = XML_CreateNode(repiq, "si", "http://jabber.org/protocol/si", "");
-		XML_CreateNode(repsi, "file", "http://jabber.org/protocol/si/profile/file-transfer", "");	//I don't really get the point of this.
-		c = XML_CreateNode(repsi, "feature", "http://jabber.org/protocol/feature-neg", "");
-		c = XML_CreateNode(c, "x", "jabber:x:data", "");
-		XML_AddParameter(c, "type", "submit");
-		c = XML_CreateNode(c, "field", "", "");
-		XML_AddParameter(c, "var", "stream-method");
-		if (ft->method == FT_IBB)
-			c = XML_CreateNode(c, "value", "", "http://jabber.org/protocol/ibb");
-		else if (ft->method == FT_BYTESTREAM)
-			c = XML_CreateNode(c, "value", "", "http://jabber.org/protocol/bytestreams");
-
-		s = XML_GenerateString(repiq, false);
-		JCL_AddClientMessageString(jcl, s);
-		free(s);
-		XML_Destroy(repiq);
-	}
-}
-
-qboolean JCL_FT_IBBChunked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
-{
-	char *from = XML_GetParameter(x, "from", "");
-	struct ft_s *ft = iq->usrptr, **link, *v;
-	for (link = &jcl->ft; (v=*link); link = &(*link)->next)
-	{
-		if (v == ft)
-		{
-			//its still valid
-			if (x)
-			{
-				char rawbuf[4096];
-				int sz;
-				sz = pFS_Read(ft->file, rawbuf, ft->blocksize);
-				Base64_Add(rawbuf, sz);
-				Base64_Finish();
-
-				if (sz > 0)
-				{
-					ft->sizedone += sz;
-					if (ft->sizedone == ft->size)
-						ft->eof = true;
-				}
-
-				if (sz && strlen(base64))
-				{
-					x = XML_CreateNode(NULL, "data", "http://jabber.org/protocol/ibb", base64);
-					XML_AddParameteri(x, "seq", ft->seq++);
-					XML_AddParameter(x, "sid", ft->sid);
-					JCL_SendIQNode(jcl, JCL_FT_IBBChunked, "set", from, x, true)->usrptr = ft;
-					return true;
-				}
-				//else eof
-			}
-
-			//errored or ended
-
-			if (x)
-				Con_Printf("Transfer of %s to %s completed\n", ft->fname, ft->with);
-			else
-				Con_Printf("%s aborted %s\n", ft->with, ft->fname);
-			x = XML_CreateNode(NULL, "close", "http://jabber.org/protocol/ibb", "");
-			XML_AddParameter(x, "sid", ft->sid);
-			JCL_SendIQNode(jcl, NULL, "set", from, x, true)->usrptr = ft;
-
-			//errored
-			pFS_Close(ft->file);
-			*link = ft->next;
-			free(ft);
-			return true;
-		}
-	}
-	return true;	//the ack can come after the bytestream has already finished sending. don't warn about that.
-}
-qboolean JCL_FT_IBBBegun(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
-{
-	struct ft_s *ft = iq->usrptr, **link, *v;
-	for (link = &jcl->ft; (v=*link); link = &(*link)->next)
-	{
-		if (v == ft)
-		{
-			//its still valid
-			if (!x)
-			{
-				Con_Printf("%s aborted %s\n", ft->with, ft->fname);
-				//errored
-				pFS_Close(ft->file);
-				*link = ft->next;
-				free(ft);
-			}
-			else
-			{
-				ft->begun = true;
-				ft->method = FT_IBB;
-				JCL_FT_IBBChunked(jcl, x, iq);
-			}
-			return true;
-		}
-	}
-	return false;
-}
-qboolean JCL_FT_OfferAcked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
-{
-	struct ft_s *ft = iq->usrptr, **link, *v;
-
-	for (link = &jcl->ft; (v=*link); link = &(*link)->next)
-	{
-		if (v == ft)
-		{
-			//its still valid
-			if (!x)
-			{
-				Con_Printf("%s doesn't want %s\n", ft->with, ft->fname);
-				//errored
-				pFS_Close(ft->file);
-				*link = ft->next;
-				free(ft);
-			}
-			else
-			{
-				xmltree_t *xo;
-				Con_Printf("%s accepted %s\n", ft->with, ft->fname);
-				xo = XML_CreateNode(NULL, "open", "http://jabber.org/protocol/ibb", "");
-				XML_AddParameter(xo, "sid", ft->sid);
-				XML_AddParameteri(xo, "block-size", ft->blocksize);
-				//XML_AddParameter(xo, "stanza", "iq");
-
-				JCL_SendIQNode(jcl, JCL_FT_IBBBegun, "set", XML_GetParameter(x, "from", ""), xo, true)->usrptr = ft;
-			}
-			return true;
-		}
-	}
-	return false;
-}
-#endif
 
 void XMPP_Menu_Password(jclient_t *acc)
 {
@@ -4231,13 +4437,17 @@ void XMPP_Menu_Password(jclient_t *acc)
 				"{\n"
 					"menuclear\n"
 					"if (option == \"SignIn\")\n"
-					"{\n"COMMANDPREFIX" /password ${0}\n}\n"
+					"{\n"
+					COMMANDPREFIX" /set savepassword $_t1\n"
+					COMMANDPREFIX" /password ${0}\n"
+					"}\n"
 				"}\n", false);
 
 	y = 36;
 	pCmd_AddText(va("menutext 48 %i \"^sXMPP Sign In\"\n", y), false); y+=16;
 	pCmd_AddText(va("menutext 48 %i \"^sPlease provide your password for\"\n", y), false); y+=16;
 	pCmd_AddText(va("menueditpriv 48 %i \"%s@%s\" \"example\"\n", y, acc->username, acc->domain), false);y+=16;
+	pCmd_AddText(va("set _t1 0\nmenucheck 48 %i \"Save Password\" _t1 1\n", y), false); y+=16;
 	pCmd_AddText(va("menutext 48 %i \"Sign In\" SignIn\n", y), false);
 	pCmd_AddText(va("menutext 256 %i \"Cancel\" cancel\n", y), false);
 }
@@ -4383,6 +4593,19 @@ void JCL_Command(int accid, char *console)
 			if (jcl->status == JCL_INACTIVE)
 				jcl->status = JCL_DEAD;
 		}
+		else if (!strcmp(arg[0]+1, "set"))
+		{
+			if (!strcmp(arg[1], "savepassword"))
+				jcl->savepassword = atoi(arg[2]);
+			else if (!strcmp(arg[1], "avatars"))
+				jcl->enabledcapabilities = (jcl->enabledcapabilities & ~CAP_AVATARS) | (atoi(arg[2])?CAP_AVATARS:0);
+			else if (!strcmp(arg[1], "debug"))
+				jcl->streamdebug = atoi(arg[2]);
+			else if (!strcmp(arg[1], "resource"))
+				Q_strlcpy(jcl->resource, arg[2], sizeof(jcl->resource));
+			else
+				Con_SubPrintf(console, "Sorry, setting not recognised.\n", arg[0]);
+		}
 		else if (!strcmp(arg[0]+1, "password"))
 		{
 			Q_strncpyz(jcl->password, arg[1], sizeof(jcl->password));
@@ -4463,10 +4686,13 @@ void JCL_Command(int accid, char *console)
 #ifdef FILETRANSFERS
 		else if (!strcmp(arg[0]+1, "sendfile"))
 		{
-			xmltree_t *xfile, *xsi, *c;
 			char *fname = arg[1];
-			//file transfer offer
-			struct ft_s *ft;
+		
+			if (!(jcl->enabledcapabilities & CAP_SIFT))
+			{
+				Con_SubPrintf(console, "XMPP: file transfers are not enabled for this account. Edit your config.\n");
+				return;
+			}
 
 			if (!*fname || strchr(fname, '*'))
 			{
@@ -4477,41 +4703,7 @@ void JCL_Command(int accid, char *console)
 			{
 				JCL_ToJID(jcl, *arg[2]?arg[2]:console, nname, sizeof(nname), true);
 
-				Con_SubPrintf(console, "Offering %s to %s.\n", fname, nname);
-
-				ft = malloc(sizeof(*ft));
-				memset(ft, 0, sizeof(*ft));
-				ft->next = jcl->ft;
-				jcl->ft = ft;
-				ft->allowed = true;
-				ft->transmitting = true;
-				ft->blocksize = 4096;
-				Q_strlcpy(ft->fname, fname, sizeof(ft->fname));
-				Q_snprintf(ft->sid, sizeof(ft->sid), "%x%s", rand(), ft->fname);
-				Q_strlcpy(ft->md5hash, "", sizeof(ft->md5hash));
-				ft->size = pFS_Open(ft->fname, &ft->file, 1);
-				ft->with = strdup(nname);
-				ft->method = FT_IBB;
-				ft->begun = false;
-
-				//generate an offer.
-				xsi = XML_CreateNode(NULL, "si", "http://jabber.org/protocol/si", "");
-					XML_AddParameter(xsi, "profile", "http://jabber.org/protocol/si/profile/file-transfer");
-					XML_AddParameter(xsi, "id", ft->sid);
-				//XML_AddParameter(xsi, "mime-type", "text/plain");
-				xfile = XML_CreateNode(xsi, "file", "http://jabber.org/protocol/si/profile/file-transfer", "");	//I don't really get the point of this.
-					XML_AddParameter(xfile, "name", ft->fname);
-					XML_AddParameteri(xfile, "size", ft->size);
-				c = XML_CreateNode(xsi, "feature", "http://jabber.org/protocol/feature-neg", "");
-					c = XML_CreateNode(c, "x", "jabber:x:data", "");
-						XML_AddParameter(c, "type", "form");
-						c = XML_CreateNode(c, "field", "", "");
-							XML_AddParameter(c, "var", "stream-method");
-							XML_AddParameter(c, "type", "listsingle");
-								XML_CreateNode(XML_CreateNode(c, "option", "", ""), "value", "", "http://jabber.org/protocol/ibb");
-	//							XML_CreateNode(XML_CreateNode(c, "option", "", ""), "value", "", "http://jabber.org/protocol/bytestreams");
-
-				JCL_SendIQNode(jcl, JCL_FT_OfferAcked, "set", nname, xsi, true)->usrptr = ft;
+				XMPP_FT_SendFile(jcl, console, nname, fname);
 			}
 		}
 #endif
@@ -4525,10 +4717,12 @@ void JCL_Command(int accid, char *console)
 			buddy_t *b;
 			bresource_t *r;
 			Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", arg[1], arg[2], arg[3]);
-			JCL_FindBuddy(jcl, roomserverhandle, &b, &r);
-			b->chatroom = true;
-			JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", roomserverhandle);
-			JCL_ForgetBuddy(jcl, b, NULL);
+			if (JCL_FindBuddy(jcl, roomserverhandle, &b, &r, false))
+			{
+				b->chatroom = true;
+				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", roomserverhandle);
+				JCL_ForgetBuddy(jcl, b, NULL);
+			}
 		}
 		else if (!strcmp(arg[0]+1, "slap")) 
 		{
@@ -4581,7 +4775,7 @@ void JCL_Command(int accid, char *console)
 	}
 	else
 	{
-		if (jcl)
+		if (jcl && jcl->status == JCL_ACTIVE)
 		{
 			msg = imsg;
 

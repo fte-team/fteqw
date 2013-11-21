@@ -963,14 +963,17 @@ int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, fl
 {
 	extern cvar_t r_shadow_shadowmapping_bias;
 	extern cvar_t r_shadow_shadowmapping_nearclip;
+	float n = r_shadow_shadowmapping_nearclip.value;
+	float f = shaderstate.lightradius;
+	float b = r_shadow_shadowmapping_bias.value;
 	//FIXME: this is used for rendering, not for shadow generation!
 #define SHADOWMAP_SIZE 512
 	//projection frustum, slots 10+11. scaled by 0.5
 	//lightshadowmapproj is a projection matrix packed into a vec4, with various texture scaling stuff built in.
 	shaderstate.lightshadowmapproj[0] = shadowscale * (1.0-(1.0/texwidth)) * 0.5/3.0;
 	shaderstate.lightshadowmapproj[1] = shadowscale * (1.0-(1.0/texheight)) * 0.5/2.0;
-	shaderstate.lightshadowmapproj[2] = 0.5*(shaderstate.lightradius+r_shadow_shadowmapping_nearclip.value)/(r_shadow_shadowmapping_nearclip.value-shaderstate.lightradius);
-	shaderstate.lightshadowmapproj[3] = (shaderstate.lightradius*r_shadow_shadowmapping_nearclip.value)/(r_shadow_shadowmapping_nearclip.value-shaderstate.lightradius) - 0.5*r_shadow_shadowmapping_bias.value*r_shadow_shadowmapping_nearclip.value*(1024/texheight);
+	shaderstate.lightshadowmapproj[2] = 0.5*(f+n)/(n-f);
+	shaderstate.lightshadowmapproj[3] = (f*n)/(n-f) - b*n*(1024/texheight);
 
 	shaderstate.lightshadowmapscale[0] = 1.0/(SHADOWMAP_SIZE*3);
 	shaderstate.lightshadowmapscale[1] = 1.0/(SHADOWMAP_SIZE*2);
@@ -1252,6 +1255,7 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 				f = 0;
 			if (f > 1)
 				f = 1;
+			f *= (float)t / (FOGT-1);
 
 			fogdata[t*FOGS + s][0] = 255;
 			fogdata[t*FOGS + s][1] = 255;
@@ -1319,6 +1323,7 @@ void GLBE_Init(void)
 		shaderstate.dummybatch.lightmap[i] = -1;
 
 #ifdef RTLIGHTS
+	Sh_CheckSettings();
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
 		if (r_shadow_shadowmapping.ival)
@@ -1420,6 +1425,7 @@ static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 	int			i;
 
 	float z;
+	float eye, point;
 	vec4_t zmat;
 
 	//generate a simple matrix to calc only the projected z coord
@@ -1430,11 +1436,29 @@ static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 
 	Vector4Scale(zmat, shaderstate.fogfar, zmat);
 
+	if (fog->visibleplane)
+		eye = (DotProduct(r_refdef.vieworg, fog->visibleplane->normal) - fog->visibleplane->dist);
+	else
+		eye = 1;
+//	if (eye < 1)
+//		eye = 1;
+
 	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
 	{
 		z = DotProduct(xyz, zmat) + zmat[3];
 		st[0] = z;
 		st[1] = realtime - (int)realtime;
+
+		if (fog->visibleplane)
+			point = (DotProduct(xyz, fog->visibleplane->normal) - fog->visibleplane->dist);
+		else
+			point = 1;
+		if (eye < 0)
+			st[1] = (point < 0)?1:0;
+		else
+			st[1] = point / (point - eye);
+		if (st[1] > 31/32.0)
+			st[1] = 31/32.0;
 	}
 }
 
@@ -3443,10 +3467,10 @@ void GLBE_Scissor(srect_t *rect)
 	{
 		qglScissor(
 			floor(r_refdef.pxrect.x + rect->x*r_refdef.pxrect.width),
-			floor((r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height) - r_refdef.pxrect.height),
+			floor((r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height) - r_refdef.pxrect.maxheight),
 			ceil(rect->width * r_refdef.pxrect.width),
 			ceil(rect->height * r_refdef.pxrect.height));
-		qglEnable(GL_SCISSOR_TEST);
+//		qglEnable(GL_SCISSOR_TEST);
 
 		if (qglDepthBoundsEXT)
 		{
@@ -4156,6 +4180,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 		if (batch->shader->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT)
 				continue;
+		if (batch->shader->flags & SHADER_NOSHADOWS)
+			if (shaderstate.mode == BEM_DEPTHONLY)
+				continue;
 		if (batch->shader->flags & SHADER_SKY)
 		{
 			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)
@@ -4182,7 +4209,8 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 			if ((batch->shader->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
-				vrect_t orect = r_refdef.vrect, oprect = r_refdef.pxrect;
+				vrect_t orect = r_refdef.vrect;
+				pxrect_t oprect = r_refdef.pxrect;
 				if (!shaderstate.tex_reflection.num)
 				{
 					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth/2, vid.pixelheight/2, 0);
@@ -4200,10 +4228,11 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.vrect.width = vid.width/2;
 				r_refdef.vrect.height = vid.height/2;
 				r_refdef.pxrect.x = 0;
+				r_refdef.pxrect.y = 0;
 				r_refdef.pxrect.width = vid.pixelwidth/2;
 				r_refdef.pxrect.height = vid.pixelheight/2;
-				r_refdef.pxrect.y = r_refdef.pxrect.height;
-				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+				r_refdef.pxrect.maxheight = vid.pixelheight/2;
+				GL_ViewportUpdate();
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -4211,13 +4240,14 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
-				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+				GL_ViewportUpdate();
 			}
 			if (batch->shader->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
 			{
 				if (r_refract_fboival)
 				{
-					vrect_t ovrect = r_refdef.vrect, oprect = r_refdef.pxrect;
+					vrect_t ovrect = r_refdef.vrect;
+					pxrect_t oprect = r_refdef.pxrect;
 					GL_ForceDepthWritable();
 
 					if (!shaderstate.tex_refraction.num)
@@ -4252,10 +4282,11 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					r_refdef.vrect.width = vid.width/2;
 					r_refdef.vrect.height = vid.height/2;
 					r_refdef.pxrect.x = 0;
+					r_refdef.pxrect.y = 0;
 					r_refdef.pxrect.width = vid.pixelwidth/2;
 					r_refdef.pxrect.height = vid.pixelheight/2;
-					r_refdef.pxrect.y = r_refdef.pxrect.height;
-					qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+					r_refdef.pxrect.maxheight = vid.pixelheight/2;
+					GL_ViewportUpdate();
 
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
@@ -4265,14 +4296,15 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 					r_refdef.vrect = ovrect;
 					r_refdef.pxrect = oprect;
-					qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+					GL_ViewportUpdate();
 				}
 				else
 					GLR_DrawPortal(batch, cl.worldmodel->batches, 3);
 			}
 			if ((batch->shader->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
-				vrect_t orect = r_refdef.vrect, oprect = r_refdef.pxrect;
+				vrect_t orect = r_refdef.vrect;
+				pxrect_t oprect = r_refdef.pxrect;
 				if (!shaderstate.tex_ripplemap.num)
 				{
 					//FIXME: can we use RGB8 instead?
@@ -4290,10 +4322,11 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.vrect.width = vid.width/2;
 				r_refdef.vrect.height = vid.height/2;
 				r_refdef.pxrect.x = 0;
+				r_refdef.pxrect.y = 0;
 				r_refdef.pxrect.width = vid.pixelwidth/2;
 				r_refdef.pxrect.height = vid.pixelheight/2;
-				r_refdef.pxrect.y = r_refdef.pxrect.height;
-				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+				r_refdef.pxrect.maxheight = vid.pixelheight/2;
+				GL_ViewportUpdate();
 
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT);
@@ -4307,7 +4340,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
-				qglViewport (r_refdef.pxrect.x, r_refdef.pxrect.height-r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+				GL_ViewportUpdate();
 			}
 			BE_SelectMode(oldbem);
 		}
@@ -4705,7 +4738,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		}
 
 #ifdef RTLIGHTS
-		if (vis && r_shadow_realtime_world.ival)
+		if (drawworld && r_shadow_realtime_world.ival)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif

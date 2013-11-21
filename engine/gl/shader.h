@@ -278,16 +278,21 @@ typedef struct shaderpass_s {
 	enum {
 		SHADER_PASS_CLAMP		= 1<<0,	//needed for d3d's sampler states, infects image flags
 		SHADER_PASS_NEAREST		= 1<<1,	//needed for d3d's sampler states, infects image flags
-		SHADER_PASS_NOMIPMAP    = 1<<2,	//infects image flags
-		SHADER_PASS_NOCOLORARRAY = 1<< 3,
+		SHADER_PASS_DEPTHCMP	= 1<<2,	//needed for d3d's sampler states
+		SHADER_PASS_NOMIPMAP    = 1<<3,	//infects image flags
+		SHADER_PASS_NOCOLORARRAY = 1<< 4,
 
 		//FIXME: remove these
-		SHADER_PASS_VIDEOMAP	= 1 << 4,
-		SHADER_PASS_DETAIL		= 1 << 5,
-		SHADER_PASS_LIGHTMAP	= 1 << 6,
-		SHADER_PASS_DELUXMAP	= 1 << 7,
-		SHADER_PASS_ANIMMAP		= 1 << 8
+		SHADER_PASS_VIDEOMAP	= 1 << 5,
+		SHADER_PASS_DETAIL		= 1 << 6,
+		SHADER_PASS_LIGHTMAP	= 1 << 7,
+		SHADER_PASS_DELUXMAP	= 1 << 8,
+		SHADER_PASS_ANIMMAP		= 1 << 9
 	} flags;
+
+#ifdef D3D11QUAKE
+	void *becache;	//cache for blendstate objects.
+#endif
 } shaderpass_t;
 
 typedef struct
@@ -414,9 +419,13 @@ union programhandle_u
 	{
 		void *vert;
 		void *frag;
-		void *ctabf;
-		void *ctabv;
-		void *layout;
+		#ifdef D3D9QUAKE
+			void *ctabf;
+			void *ctabv;
+		#endif
+		#ifdef D3D11QUAKE
+			void *layout;
+		#endif
 	} hlsl;
 #endif
 };
@@ -513,6 +522,7 @@ struct shader_s
 		SHADER_HASNORMALMAP		= 1 << 22,	//says that we need to load a normalmap texture
 		SHADER_HASRIPPLEMAP		= 1 << 23,	//water surface disturbances for water splashes
 		SHADER_HASGLOSS			= 1 << 24,	//
+		SHADER_NOSHADOWS		= 1 << 25,	//don't cast shadows
 	} flags;
 
 	program_t *prog;
@@ -552,6 +562,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultWaterShader(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultScript(char *shortname, shader_t *s, const void *args);
@@ -641,8 +652,9 @@ void D3D11BE_SelectEntity(entity_t *ent);
 qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
 
 qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu, char **precompilerconstants, char *vert, char *frag);
+void D3D11Shader_DeleteProgram(program_t *prog);
 int D3D11Shader_FindUniform(union programhandle_u *h, int type, char *name);
-void D3D11Shader_Init(void);
+qboolean D3D11Shader_Init(unsigned int featurelevel);
 void D3D11BE_Reset(qboolean before);
 void D3D11BE_SetupViewCBuffer(void);
 void D3D11_UploadLightmap(lightmapinfo_t *lm);
@@ -668,10 +680,12 @@ int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, fl
 //Called from shadowmapping code into backend
 void GLBE_BaseEntTextures(void);
 void D3D9BE_BaseEntTextures(void);
+void D3D11BE_BaseEntTextures(void);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis);
+void Sh_CheckSettings(void);
 void SH_FreeShadowMesh(struct shadowmesh_s *sm);
 //frees all memory
 void Sh_Shutdown(void);

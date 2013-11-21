@@ -105,8 +105,8 @@ struct pubprogfuncs_s
 	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, struct edict_s *ed);	//will save just one entities vars
 	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
-	union eval_s	*(PDECL *FindGlobal)		(pubprogfuncs_t *prinst, char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
-	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
+	union eval_s	*(PDECL *FindGlobal)		(pubprogfuncs_t *prinst, const char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
+	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(PDECL *Tempmem)					(pubprogfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 
 	union eval_s	*(PDECL *GetEdictFieldValue)(pubprogfuncs_t *prinst, struct edict_s *ent, char *name, evalc_t *s); //get an entityvar (cache it) and return the possible values
@@ -154,7 +154,7 @@ struct pubprogfuncs_s
 	int (PDECL *QueryField)						(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 
 	void (PDECL *EntClear)						(pubprogfuncs_t *progfuncs, struct edict_s *e);
-	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
+	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, int prnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx);
 
 	void *(PDECL *AddressableAlloc)				(pubprogfuncs_t *progfuncs, unsigned int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
 
@@ -272,7 +272,7 @@ typedef union eval_s
 
 #define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
 #define PR_FindGlobal(pf, name, progs, type)				(*pf->FindGlobal)			(pf, name, progs, type)
-#define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
+#define PR_AddString(pf, ed, len, demarkup)					(*pf->AddString)			(pf, ed, len, demarkup)
 #define PR_Alloc(pf,size,whatfor)							(*pf->Tempmem)				(pf, size, whatfor)
 #define PR_AddressableAlloc(pf,size)						(*pf->AddressableAlloc)		(pf, size)
 #define PR_AddressableFree(pf,mem)							(*pf->AddressableFree)		(pf, mem)
@@ -306,7 +306,7 @@ typedef union eval_s
 #define PR_SetStringOfs(p,o,s) (G_INT(o) = s - p->stringtable)
 */
 //#define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
-#define PR_NewString(p, s, l) PR_SetString(p, PR_AddString(p, s, l))
+#define PR_NewString(p, s, l) PR_SetString(p, PR_AddString(p, s, l, false))
 /**/
 
 #define ev_prog ev_integer

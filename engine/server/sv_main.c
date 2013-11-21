@@ -1946,7 +1946,7 @@ client_t *SVC_DirectConnect(void)
 
 		s = Info_ValueForKey(userinfo[0], "challenge");
 		if (!strncmp(s, DISTRIBUTION, strlen(DISTRIBUTION)))
-			challenge = atoi(s+3);
+			challenge = atoi(s+strlen(DISTRIBUTION));
 		else
 			challenge = atoi(s);
 

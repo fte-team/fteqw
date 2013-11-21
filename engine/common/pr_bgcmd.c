@@ -146,7 +146,7 @@ void PF_InitTempStrings(pubprogfuncs_t *prinst)
 	pr_tempstringsize.flags |= CVAR_NOSET;
 
 	if (pr_tempstringcount.value >= 2)
-		prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS);
+		prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS, false);
 	else
 		prinst->tempstringbase = 0;
 	prinst->tempstringnum = 0;
@@ -4566,7 +4566,7 @@ void PR_AutoCvar(pubprogfuncs_t *prinst, cvar_t *var)
 	}
 }
 
-void PDECL PR_FoundAutoCvarGlobal(pubprogfuncs_t *progfuncs, char *name, eval_t *val, etype_t type)
+void PDECL PR_FoundAutoCvarGlobal(pubprogfuncs_t *progfuncs, char *name, eval_t *val, etype_t type, void *ctx)
 {
 	cvar_t *var;
 	char *vals;
@@ -4605,9 +4605,54 @@ void PDECL PR_FoundAutoCvarGlobal(pubprogfuncs_t *progfuncs, char *name, eval_t 
 	PR_AutoCvarApply(progfuncs, val, type, var);
 }
 
-void PR_AutoCvarSetup(pubprogfuncs_t *prinst)
+void PDECL PR_FoundDoTranslateGlobal(pubprogfuncs_t *progfuncs, char *name, eval_t *val, etype_t type, void *ctx)
 {
-	prinst->FindPrefixGlobals (prinst, "autocvar_", PR_FoundAutoCvarGlobal);
+	const char *olds;
+	const char *news;
+	if ((type & ~DEF_SAVEGLOBAL) != ev_string)
+		return;
+
+	olds = PR_GetString(progfuncs, val->string);
+	news = PO_GetText(ctx, olds);
+	if (news != olds)
+		val->string = PR_NewString(progfuncs, news, 0);
+}
+
+//called after each progs is loaded
+void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
+{
+	vfsfile_t *f = NULL;
+	char lang[64], *h;
+	extern cvar_t language;
+	if (newprogs == -1)
+		return;
+	if (*language.string)
+	{
+		Q_strncpyz(lang, language.string, sizeof(lang));
+		while ((h = strchr(lang, '-')))
+			*h = '_';
+		for(;;)
+		{
+			if (!*lang)
+				break;
+			f = FS_OpenVFS(va("%s.%s.po", modulename, lang), "rb", FS_GAME);
+			if (f)
+				break;
+			h = strchr(lang, '_');
+			if (h)
+				*h = 0;
+			else
+				break;
+		}
+	}
+
+	if (f)
+	{
+		void *pofile = PO_Load(f);
+		prinst->FindPrefixGlobals (prinst, newprogs, "dotranslate_", PR_FoundDoTranslateGlobal, pofile);
+		PO_Close(pofile);
+	}
+	prinst->FindPrefixGlobals (prinst, newprogs, "autocvar_", PR_FoundAutoCvarGlobal, NULL);
 }
 
 lh_extension_t QSG_Extensions[] = {

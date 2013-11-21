@@ -3,7 +3,7 @@
 #include "shader.h"
 #include "gl_draw.h"
 
-qboolean r2d_noshadergamma;	//says the video code has successfully activated hardware gamma
+qboolean r2d_canhwgamma;	//says the video code has successfully activated hardware gamma
 texid_t missing_texture;
 texid_t missing_texture_gloss;
 texid_t missing_texture_normal;
@@ -629,7 +629,7 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 		};
 		qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen);
 		LOGFONT lf = {0};
-		CHOOSEFONT cf = {sizeof(cf)};
+		CHOOSEFONTA cf = {sizeof(cf)};
 		extern HWND	mainwindow;
 		extern qboolean	WinNT;
 		font_conchar = Font_LoadFont(8, "");
@@ -831,7 +831,7 @@ void R2D_BrightenScreen (void)
 	if (fabs(v_contrast.value - 1.0) < 0.05 && fabs(v_brightness.value - 0) < 0.05 && fabs(v_gamma.value - 1) < 0.05)
 		return;
 
-	if (r2d_noshadergamma)
+	if (r2d_canhwgamma)
 		return;
 
 	if (v_gamma.value != 1 && shader_gammacb->prog)

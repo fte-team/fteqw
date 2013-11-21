@@ -1,6 +1,6 @@
 #include "quakedef.h"
 #include "fs.h"
-#include <windows.h>
+#include "winquake.h"
 
 #ifndef INVALID_SET_FILE_POINTER
 #define INVALID_SET_FILE_POINTER ~0
@@ -8,6 +8,7 @@
 
 //read-only memory mapped files.
 //for write access, we use the stdio module as a fallback.
+//do you think anyone will ever notice that utf8 filenames work even in windows? probably not. oh well, worth a try.
 
 #define VFSW32_Open VFSOS_Open
 #define VFSW32_OpenPath VFSOS_OpenPath
@@ -26,6 +27,11 @@ typedef struct {
 	unsigned int length;
 	unsigned int offset;
 } vfsw32file_t;
+
+wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
+char *narrowen(char *out, size_t outlen, const wchar_t *wide);
+
+
 static int QDECL VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	DWORD read;
@@ -127,14 +133,30 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 	if (strchr(mode, '+'))
 		read = write = true;
 
-	if ((write && read) || append)
-		h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	else if (write)
-		h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	else if (read)
-		h = CreateFileA(osname, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (!WinNT)
+	{
+		if ((write && read) || append)
+			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		else if (write)
+			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		else if (read)
+			h = CreateFileA(osname, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		else
+			h = INVALID_HANDLE_VALUE;
+	}
 	else
-		h = INVALID_HANDLE_VALUE;
+	{
+		wchar_t wide[MAX_OSPATH];
+		widen(wide, sizeof(wide), osname);
+		if ((write && read) || append)
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		else if (write)
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		else if (read)
+			h = CreateFileW(wide, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		else
+			h = INVALID_HANDLE_VALUE;
+	}
 	if (h == INVALID_HANDLE_VALUE)
 		return NULL;
 
@@ -251,6 +273,7 @@ static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc
 	FILE *f;
 	int len;
 	char netpath[MAX_OSPATH];
+	wchar_t wide[MAX_OSPATH];
 
 
 	if (hashedresult && (void *)hashedresult != wp)
@@ -267,7 +290,10 @@ static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc
 // check a file in the directory tree
 	snprintf (netpath, sizeof(netpath)-1, "%s/%s", wp->rootpath, filename);
 
-	f = fopen(netpath, "rb");
+	if (!WinNT)
+		f = fopen(netpath, "rb");
+	else
+		f = _wfopen(widen(wide, sizeof(wide), netpath), L"rb");
 	if (!f)
 		return false;
 
@@ -289,7 +315,11 @@ static void QDECL VFSW32_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, c
 //	vfsw32path_t *wp = handle;
 
 	FILE *f;
-	f = fopen(loc->rawname, "rb");
+	wchar_t wide[MAX_OSPATH];
+	if (!WinNT)
+		f = fopen(loc->rawname, "rb");
+	else
+		f = _wfopen(widen(wide, sizeof(wide), loc->rawname), L"rb");
 	if (!f)	//err...
 		return;
 	fseek(f, loc->offset, SEEK_SET);
@@ -302,6 +332,30 @@ static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *m
 	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);
 }
 
+qboolean QDECL VFSW32_RenameFile(searchpathfuncs_t *handle, const char *oldfname, const char *newfname)
+{
+	vfsw32path_t *wp = (vfsw32path_t*)handle;
+	char oldsyspath[MAX_OSPATH];
+	char newsyspath[MAX_OSPATH];
+	snprintf (oldsyspath, sizeof(oldsyspath)-1, "%s/%s", wp->rootpath, oldfname);
+	snprintf (newsyspath, sizeof(newsyspath)-1, "%s/%s", wp->rootpath, newfname);
+	return Sys_Rename(oldsyspath, newsyspath);
+}
+qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *filename)
+{
+	vfsw32path_t *wp = (vfsw32path_t*)handle;
+	char syspath[MAX_OSPATH];
+	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
+	return Sys_remove(syspath);
+}
+qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filename)
+{
+	vfsw32path_t *wp = (vfsw32path_t*)handle;
+	char syspath[MAX_OSPATH];
+	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
+	Sys_mkdir(syspath);
+	return true;
+}
 
 searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
 {
@@ -312,9 +366,12 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc
 	np = Z_Malloc(sizeof(*np) + dlen);
 	if (np)
 	{
+		wchar_t wide[MAX_OSPATH];
 		memcpy(np->rootpath, desc, dlen+1);
-
-		np->changenotification = FindFirstChangeNotification(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME);
+		if (!WinNT)
+			np->changenotification = FindFirstChangeNotificationA(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME);
+		else
+			np->changenotification = FindFirstChangeNotificationW(widen(wide, sizeof(wide), np->rootpath), true, FILE_NOTIFY_CHANGE_FILE_NAME);
 	}
 
 	np->pub.fsver			= FSVER;
@@ -325,5 +382,10 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc
 	np->pub.EnumerateFiles	= VFSW32_EnumerateFiles;
 	np->pub.OpenVFS			= VFSW32_OpenVFS;
 	np->pub.PollChanges		= VFSW32_PollChanges;
+
+	np->pub.RenameFile		= VFSW32_RenameFile;
+	np->pub.RemoveFile		= VFSW32_RemoveFile;
+	np->pub.MkDir			= VFSW32_MkDir;
+
 	return &np->pub;
 }

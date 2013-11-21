@@ -1804,7 +1804,7 @@ void CL_FullInfo_f (void)
 
 		if (!*s)
 		{
-			Con_TPrintf (TL_KEYHASNOVALUE);
+			Con_Printf ("key %s has no value\n", key);
 			return;
 		}
 
@@ -1899,7 +1899,7 @@ void CL_SetInfo_f (void)
 
 				return;
 			}
-		Con_TPrintf (TL_STARKEYPROTECTED);
+		Con_Printf ("Can't set * keys\n");
 		return;
 	}
 
@@ -3458,7 +3458,7 @@ void VARGS Host_EndGame (char *message, ...)
 	vsnprintf (string,sizeof(string)-1, message,argptr);
 	va_end (argptr);
 	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME, string);
-	Con_TPrintf (TL_NL);
+	Con_Printf ("\n");
 
 	SCR_EndLoadingPlaque();
 
@@ -4349,9 +4349,7 @@ void Host_FinishLoading(void)
 
 	CL_ArgumentOverrides();
 
-Con_TPrintf (TL_NL);
-	Con_Printf ("%s", version_string());
-Con_TPrintf (TL_NL);
+	Con_Printf ("\n%s\n", version_string());
 
 	Con_DPrintf("This program is free software; you can redistribute it and/or "
 				"modify it under the terms of the GNU General Public License "

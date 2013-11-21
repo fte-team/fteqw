@@ -2,6 +2,9 @@
 
 #include "xml.h"
 
+//fixme
+void (*Con_TrySubPrint)(const char *conname, const char *message);
+
 void XML_Destroy(xmltree_t *t);
 
 char *XML_GetParameter(xmltree_t *t, char *paramname, char *def)
@@ -563,7 +566,7 @@ char *XML_GetChildBody(xmltree_t *t, char *paramname, char *def)
 	return def;
 }
 
-void XML_ConPrintTree(xmltree_t *t, int indent)
+void XML_ConPrintTree(xmltree_t *t, char *subconsole, int indent)
 {
 	int start, c, chunk;
 	struct buf_ctx buf = {NULL, 0, 0};
@@ -577,7 +580,7 @@ void XML_ConPrintTree(xmltree_t *t, int indent)
 			chunk = 128;
 		c = buf.buf[start+chunk];
 		buf.buf[start+chunk] = 0;
-		Con_Printf("%s", buf.buf+start);
+		Con_TrySubPrint(subconsole, buf.buf+start);
 		buf.buf[start+chunk] = c;
 
 		start += chunk;
@@ -649,8 +652,6 @@ static qboolean XML_ParseString(char *msg, int *pos, int max, char *out, int out
 xmltree_t *XML_FromJSON(xmltree_t *t, char *name, char *json, int *jsonpos, int jsonlen)
 {
 	char child[4096];
-	char *start;
-	char *end;
 	XML_SkipWhite(json, jsonpos, jsonlen);
 
 	if (*jsonpos < jsonlen && json[*jsonpos] == '{')

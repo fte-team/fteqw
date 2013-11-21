@@ -1007,7 +1007,7 @@ progsnum_t AddProgs(char *name)
 
 	Con_Printf("Loaded %s\n", name);
 
-	PR_AutoCvarSetup(svprogfuncs);
+	PR_ProgsAdded(svprogfuncs, num, name);
 
 	if (!svs.numprogs)
 	{
@@ -2261,6 +2261,11 @@ static void QCBUILTIN PF_setorigin (pubprogfuncs_t *prinst, struct globalvars_s 
 	float	*org;
 
 	e = G_EDICT(prinst, OFS_PARM0);
+	if (e->readonly)
+	{
+		Con_Printf("setorigin on entity %i\n", e->entnum);
+		return;
+	}
 	org = G_VECTOR(OFS_PARM1);
 	VectorCopy (org, e->v->origin);
 	World_LinkEdict (&sv.world, (wedict_t*)e, false);
@@ -2291,6 +2296,11 @@ static void QCBUILTIN PF_setsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 		}
 		return;
 	}
+	if (e->readonly)
+	{
+		Con_Printf("setsize on entity %i\n", e->entnum);
+		return;
+	}
 	min = G_VECTOR(OFS_PARM1);
 	max = G_VECTOR(OFS_PARM2);
 	VectorCopy (min, e->v->mins);
@@ -2312,6 +2322,12 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, char *m)
 {
 	int		i;
 	model_t	*mod;
+
+	if (e->readonly)
+	{
+		Con_Printf("setmodel on entity %i\n", e->entnum);
+		return;
+	}
 
 // check to see if model was properly precached
 	if (!m || !*m)
@@ -2338,7 +2354,7 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, char *m)
 					sv.strings.model_precache[i] = m;	//in a qvm, we expect the caller to have used a static location.
 				else
 #endif
-					m = sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
+					m = sv.strings.model_precache[i] = PR_AddString(prinst, m, 0, false);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))	//always precache bsps
 					sv.models[i] = Mod_FindName(m);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
@@ -3829,7 +3845,7 @@ int PF_precache_model_Internal (pubprogfuncs_t *prinst, char *s, qboolean queryo
 				sv.strings.model_precache[i] = s;
 			else
 #endif
-				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
+				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0, false);
 			s = sv.strings.model_precache[i];
 			if (!strcmp(s + strlen(s) - 4, ".bsp") || sv_gameplayfix_setmodelrealbox.ival)
 				sv.models[i] = Mod_ForName(s, false);
@@ -3918,7 +3934,7 @@ void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars
 					sv.strings.vw_model_precache[i] = s;
 				else
 #endif
-					sv.strings.vw_model_precache[i] = PR_AddString(prinst, s, 0);
+					sv.strings.vw_model_precache[i] = PR_AddString(prinst, s, 0, false);
 				return;
 			}
 			if (!strcmp(sv.strings.vw_model_precache[i], s))

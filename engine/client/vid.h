@@ -38,7 +38,7 @@ typedef struct {
 	int wait;	//-1 = default, 0 = off, 1 = on, 2 = every other
 	int multisample;	//for opengl antialiasing (which requires context stuff)
 	int triplebuffer;
-	char glrenderer[MAX_QPATH];
+	char subrenderer[MAX_QPATH];
 	struct rendererinfo_s *renderer;
 } rendererstate_t;
 extern rendererstate_t currentrendererstate;
@@ -47,6 +47,14 @@ typedef struct vrect_s
 {
 	float				x,y,width,height;
 } vrect_t;
+typedef struct
+{
+	int x;
+	int y;
+	int width;
+	int height;
+	int maxheight;	//vid.pixelheight or so
+} pxrect_t;
 
 typedef struct
 {

@@ -65,7 +65,7 @@
 			};
 		};
 
-		#if !(_MSC_VER >= 1500)
+		#if !defined(in_addr6)
 		struct in6_addr
 		{
 			u_char	s6_addr[16];	/* IPv6 address */
@@ -206,8 +206,8 @@ struct icecandinfo_s
 	enum
 	{
 		ICE_HOST=0,
-		ICE_SRFLX=1,
-		ICE_PRFLX=2,
+		ICE_SRFLX=1,	//Server Reflexive (from stun, etc)
+		ICE_PRFLX=2,	//Peer Reflexive 
 		ICE_RELAY=3,
 	} type;				//says what sort of proxy is used.
 	char reladdr[64];	//when proxied, this is our local info
@@ -220,7 +220,8 @@ enum iceproto_e
 	ICEP_INVALID,	//not allowed..
 	ICEP_QWSERVER,	//we're server side
 	ICEP_QWCLIENT,	//we're client side
-	ICEP_VOICE		//speex. requires client.
+	ICEP_VOICE,		//speex. requires client.
+	ICEP_VIDEO		//err... REALLY?!?!?
 };
 enum icemode_e
 {
@@ -248,3 +249,43 @@ typedef struct
 } icefuncs_t;
 extern icefuncs_t iceapi;
 #endif
+
+
+
+#define FTENET_ADDRTYPES 2
+typedef struct ftenet_generic_connection_s {
+	char name[MAX_QPATH];
+
+	int (*GetLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *local, int adridx);
+	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
+	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
+	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t *to);
+	void (*Close)(struct ftenet_generic_connection_s *con);
+#ifdef HAVE_PACKET
+	int (*SetReceiveFDSet) (struct ftenet_generic_connection_s *con, fd_set *fdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
+#endif
+
+	netadrtype_t addrtype[FTENET_ADDRTYPES];
+	qboolean islisten;
+#ifdef HAVE_PACKET
+	SOCKET thesocket;
+#else
+	int thesocket;
+#endif
+} ftenet_generic_connection_t;
+
+#define MAX_CONNECTIONS 8
+typedef struct ftenet_connections_s
+{
+	qboolean islisten;
+	ftenet_generic_connection_t *conn[MAX_CONNECTIONS];
+} ftenet_connections_t;
+
+void ICE_Tick(void);
+qboolean ICE_WasStun(netsrc_t netsrc);
+void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int type);
+void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrno, int type);
+
+ftenet_connections_t *FTENET_CreateCollection(qboolean listen);
+void FTENET_CloseCollection(ftenet_connections_t *col);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);

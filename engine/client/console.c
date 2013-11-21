@@ -83,6 +83,9 @@ void Con_Finit (console_t *con)
 
 	con->selstartline = NULL;
 	con->selendline = NULL;
+
+	con->defaultcharbits = CON_WHITEMASK;
+	con->parseflags = 0;
 }
 
 /*returns a bitmask:
@@ -636,7 +639,7 @@ void Con_PrintCon (console_t *con, char *txt)
 	conline_t *oc;
 	conline_t *reuse;
 
-	COM_ParseFunString(CON_WHITEMASK, txt, expanded, sizeof(expanded), false);
+	COM_ParseFunString(con->defaultcharbits, txt, expanded, sizeof(expanded), con->parseflags);
 
 	c = expanded;
 	if (*c)
@@ -645,7 +648,7 @@ void Con_PrintCon (console_t *con, char *txt)
 	{
 		conchar_t *o;
 
-		switch (*c & (CON_CHARMASK))
+		switch (*c & (CON_CHARMASK|CON_HIDDEN))
 		{
 		case '\r':
 			con->cr = true;
@@ -1239,13 +1242,32 @@ void Con_DrawNotify (void)
 		conchar_t *starts[8];
 		conchar_t *ends[8];
 		conchar_t markup[MAXCMDLINE+64];
-		conchar_t *c;
-		int lines, i;
+		conchar_t *c, *end;
+		char *foo = va(chat_team?"say_team: %s":"say: %s", chat_buffer?chat_buffer:"");
+		int lines, i, pos;
 		Font_BeginString(font_conchar, 0, 0, &x, &y);
 		y = con_main.notif_l * Font_CharHeight();
-		c = COM_ParseFunString(CON_WHITEMASK, va(chat_team?"say_team: %s":"say: %s", chat_buffer), markup, sizeof(markup), true);
-		*c++ = (0xe00a+((int)(realtime*con_cursorspeed)&1))|CON_WHITEMASK;
-		lines = Font_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
+
+		i = chat_team?10:5;
+		pos = strlen(foo)+i;
+		pos = min(pos, chat_bufferpos + i);
+
+		//figure out where the cursor is, if its safe
+		i = foo[pos];
+		foo[pos] = 0;
+		c = COM_ParseFunString(CON_WHITEMASK, foo, markup, sizeof(markup), PFS_KEEPMARKUP|PFS_FORCEUTF8);
+		foo[pos] = i;
+
+		//k, build the string properly.
+		end = COM_ParseFunString(CON_WHITEMASK, foo, markup, sizeof(markup) - sizeof(markup[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+
+		//and overwrite the cursor so that it blinks.
+		if (((int)(realtime*con_cursorspeed)&1))
+			*c = 0xe00b|CON_WHITEMASK;
+		if (c == end)
+			end++;
+
+		lines = Font_LineBreaks(markup, end, Font_ScreenWidth(), 8, starts, ends);
 		for (i = 0; i < lines; i++)
 		{
 			x = 0;
@@ -1444,7 +1466,7 @@ int Con_DrawAlternateConsoles(int lines)
 			consshown++;
 	}
 
-	if (lines == scr_conlines && consshown > 1) 
+	if (lines == (int)scr_conlines && consshown > 1) 
 	{
 		int mx, my, h;
 		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &mx, &my);
@@ -1506,6 +1528,9 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 		for (x = sx ; x<ex; )
 			x = (Font_DrawChar (x, y, '^'|CON_WHITEMASK)-x)*4+x;
 	}
+
+	if (!selactive)
+		selactive = 2;
 
 	//deactivate the selection if the start and end is outside
 	if (
@@ -1671,9 +1696,9 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						if (y >= seley)
 						{
 							send = sstart;
-							for (i = 0; i < linelength; i++)
+							for (i = 0; i < linelength; )
 							{
-								send += Font_CharWidth(s[i]);
+								send += Font_CharWidth(s[i++]);
 
 								if (send > selex)
 									break;
@@ -1681,7 +1706,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 
 							con->selendline = l;
 							if (s)
-								con->selendoffset = (s+i+1) - (conchar_t*)(l+1);
+								con->selendoffset = (s+i) - (conchar_t*)(l+1);
 							else
 								con->selendoffset = 0;
 						}
@@ -1701,8 +1726,11 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 							else
 								con->selstartoffset = 0;
 						}
-						R2D_ImagePaletteColour(0, 1.0);
-						R2D_FillBlock((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight);
+						if (selactive == 1)
+						{
+							R2D_ImagePaletteColour(0, 1.0);
+							R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+						}
 					}
 				}
 			}
@@ -1720,6 +1748,8 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	}
 	return y;
 }
+
+void Draw_ExpandedString(float x, float y, conchar_t *str);
 
 /*
 ================
@@ -1795,6 +1825,57 @@ void Con_DrawConsole (int lines, qboolean noback)
 	}
 
 	Font_EndString(font_conchar);
+
+	if (con_current->selstartline)
+	{
+		char *mouseover = Con_CopyConsole(false, true);
+		if (mouseover)
+		{
+			char *end = strstr(mouseover, "^]");
+			char *info = strchr(mouseover, '\\');
+			char *key;
+			if (!info)
+				info = "";
+			*end = 0;
+			if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
+			{
+				float x = mousecursor_x+8;
+				float y = mousecursor_y+8;
+				float ih = 0;
+				key = Info_ValueForKey(info, "tipimg");
+				if (*key)
+				{
+					shader_t *s = R2D_SafeCachePic(key);
+					if (s)
+					{
+						R2D_Image(x, y, s->width, s->height, 0, 0, 1, 1, s);
+						ih = s->height;
+						x += s->width + 8;
+					}
+				}
+				key = Info_ValueForKey(info, "tip");
+				if (*key)
+				{
+					//FIXME: draw a proper background.
+					//FIXME: support line breaks.
+					conchar_t buffer[2048], *starts[8], *ends[8];
+					int lines, i, px, py;
+					Font_BeginString(font_conchar, x, y, &px, &py);
+					lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK|CON_NONCLEARBG, key, buffer, sizeof(buffer), false), 256, 8, starts, ends);
+					ih = max(Font_CharHeight()*lines, ih)/2;
+					y += ih - (Font_CharHeight()*lines)/2;
+					Font_BeginString(font_conchar, x, y, &px, &py);
+					for (i = 0; i < lines; i++)
+					{
+						Font_LineDraw(px, py, starts[i], ends[i]);
+						py += Font_CharHeight();
+					}
+					Font_EndString(font_conchar);
+				}
+			}
+		}
+		Z_Free(mouseover);
+	}
 }
 
 void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy, float fsx, float fsy)
@@ -1833,7 +1914,7 @@ void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy,
 }
 
 
-char *Con_CopyConsole(qboolean nomarkup)
+char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 {
 	console_t *con = con_current;
 	conchar_t *cur;
@@ -1845,9 +1926,6 @@ char *Con_CopyConsole(qboolean nomarkup)
 
 	if (!con->selstartline || !con->selendline)
 		return NULL;
-
-	maxlen = 1024*1024;
-	result = Z_Malloc(maxlen+1);
 
 //	for (cur = (conchar_t*)(selstartline+1), finalendoffset = 0; cur < (conchar_t*)(selstartline+1) + selstartline->length; cur++, finalendoffset++)
 //		result[finalendoffset] = *cur & 0xffff;
@@ -1907,6 +1985,15 @@ char *Con_CopyConsole(qboolean nomarkup)
 			break;
 		}
 	}
+
+	if (onlyiflink)
+	{
+		if (*cur != CON_LINKSTART)
+			return NULL;
+	}
+
+	maxlen = 1024*1024;
+	result = Z_Malloc(maxlen+1);
 
 	outlen = 0;
 	for (;;)

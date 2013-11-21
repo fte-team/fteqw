@@ -654,6 +654,8 @@ model_t *Mod_FindName (char *name)
 	{
 		if (mod_numknown == MAX_MOD_KNOWN)
 			Sys_Error ("mod_numknown == MAX_MOD_KNOWN");
+		if (strlen(name) >= sizeof(mod->name))
+			Sys_Error ("model name is too long: %s", name);
 		memset(mod, 0, sizeof(model_t));	//clear the old model as the renderers use the same globals
 		strcpy (mod->name, name);
 		mod->needload = true;

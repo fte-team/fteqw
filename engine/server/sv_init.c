@@ -69,7 +69,7 @@ int SV_ModelIndex (char *name)
 				sv.strings.model_precache[i] = name;
 			else
 #endif
-				sv.strings.model_precache[i] = PR_AddString(svprogfuncs, name, 0);
+				sv.strings.model_precache[i] = PR_AddString(svprogfuncs, name, 0, false);
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 
@@ -1027,10 +1027,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		strcpy(sv.strings.sound_precache[0], "");
 		sv.strings.model_precache[0] = "";
 
-		sv.strings.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0);
+		sv.strings.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0, false);
 		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
-			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0);
+			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0, false);
 			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
@@ -1134,8 +1134,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			else
 #endif
 			{
-				svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
-				svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
+				svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf), false);
+				svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf), false);
 			}
 
 #ifdef PEXT_CSQC

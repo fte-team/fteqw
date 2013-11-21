@@ -456,7 +456,7 @@ int QDECL main(int argc, char **argv)
 
 	memset(&parms, 0, sizeof(parms));
 
-	parms.basedir = ".";
+	parms.basedir = "./";
 
 	parms.argc = argc;
 	parms.argv = (const char**)argv;

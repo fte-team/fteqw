@@ -747,7 +747,7 @@ static void CL_EntStateToPlayerCommand(usercmd_t *cmd, entity_state_t *state, fl
 //	extra += realtime - cl.inframes[cl.validsequence&UPDATE_MASK].receivedtime;
 //	extra += (cl.inframes[cl.validsequence&UPDATE_MASK].receivedtime - cl.inframes[cl.oldvalidsequence&UPDATE_MASK].receivedtime)*4;
 	msec = 1000*extra;
-	Con_DPrintf("%i: age = %i, stale=%i\n", state->number, msec, state->u.q1.msec);
+//	Con_DPrintf("%i: age = %i, stale=%i\n", state->number, msec, state->u.q1.msec);
 	msec += state->u.q1.msec;	//this is the age on the server
 	cmd->msec = bound(0, msec, 250);
 

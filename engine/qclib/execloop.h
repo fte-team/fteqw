@@ -513,7 +513,7 @@ reeval:
 				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
 				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
 				pr_xstatement = st-pr_statements;
-				if (PR_RunWarning(&progfuncs->funcs, "assignment to read-only entity in %s (%s.%s)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
+				if (PR_RunWarning(&progfuncs->funcs, "assignment to read-only entity %i in %s (%s.%s)", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
 				{
 					st--;
 					goto cont;
@@ -542,7 +542,7 @@ reeval:
 		{
 			pr_xstatement = st-pr_statements;
 			
-			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 			{
 				st--;
 				goto cont;
@@ -561,7 +561,7 @@ reeval:
 		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "OP_LOAD_V references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "OP_LOAD_V references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
@@ -601,7 +601,7 @@ reeval:
 
 	case OP_IF_F:
 		RUNAWAYCHECK();
-		if (OPA->_int)
+		if (OPA->_float)
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 

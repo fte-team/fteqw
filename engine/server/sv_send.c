@@ -2300,7 +2300,7 @@ void SV_SendClientMessages (void)
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
-		for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+		for (i=0, c = svs.clients ; i<svs.allocated_client_slots ; i++, c++)
 		{
 			if (c->state <= cs_zombie)
 				continue;

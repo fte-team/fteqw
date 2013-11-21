@@ -1342,31 +1342,31 @@ static void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 		break;
 
 	case VF_VIEWPORT:
-		r[0] = r_refdef.vrect.width;
-		r[1] = r_refdef.vrect.height;
+		r[0] = r_refdef.grect.width;
+		r[1] = r_refdef.grect.height;
 		break;
 
 	case VF_SIZE_X:
-		*r = r_refdef.vrect.width;
+		*r = r_refdef.grect.width;
 		break;
 	case VF_SIZE_Y:
-		*r = r_refdef.vrect.height;
+		*r = r_refdef.grect.height;
 		break;
 	case VF_SIZE:
-		r[0] = r_refdef.vrect.width;
-		r[1] = r_refdef.vrect.height;
+		r[0] = r_refdef.grect.width;
+		r[1] = r_refdef.grect.height;
 		r[2] = 0;
 		break;
 
 	case VF_MIN_X:
-		*r = r_refdef.vrect.x;
+		*r = r_refdef.grect.x;
 		break;
 	case VF_MIN_Y:
-		*r = r_refdef.vrect.y;
+		*r = r_refdef.grect.y;
 		break;
 	case VF_MIN:
-		r[0] = r_refdef.vrect.x;
-		r[1] = r_refdef.vrect.y;
+		r[0] = r_refdef.grect.x;
+		r[1] = r_refdef.grect.y;
 		break;
 
 	case VF_DRAWWORLD:
@@ -3415,7 +3415,7 @@ static void QCBUILTIN PF_cs_addprogs (pubprogfuncs_t *prinst, struct globalvars_
 	{
 		newp = PR_LoadProgs(prinst, s, 0, NULL, 0);
 		if (newp >= 0)
-			PR_AutoCvarSetup(csqcprogs);
+			PR_ProgsAdded(csqcprogs, newp, s);
 	}
 	G_FLOAT(OFS_RETURN) = newp;
 }
@@ -5298,6 +5298,8 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	csqctime = Sys_DoubleTime();
 	if (!csqcprogs)
 	{
+		int csprogsnum = -1;
+		int csaddonnum = -1;
 		in_sensitivityscale = 1;
 		csqcmapentitydataloaded = true;
 		csqcprogs = InitProgs(&csqcprogparms);
@@ -5324,45 +5326,39 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqc_isdarkplaces = false;
 		if (csdatenabled || csqc_singlecheats || anycsqc)
 		{
-			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0) >= 0)
-				loaded = true;
-			else
+			csprogsnum = PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0);
+			if (csprogsnum == -1)
 			{
-				if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) >= 0)
-				{
+				csprogsnum = PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0);
+				if (csprogsnum >= 0)
 					csqc_isdarkplaces = true;
-					loaded = true;
-				}
-				else if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) >= 0) 
-					loaded = true;
 				else
-					loaded = false;
+					csprogsnum = PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0);
 
-				if (loaded)
+				if (csprogsnum != -1)
 					Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
 			}
 		}
 
 		if (csqc_singlecheats || anycsqc)
 		{
-			if (PR_LoadProgs(csqcprogs, "csaddon.dat", 0, NULL, 0) >= 0)
-			{
+			csaddonnum = PR_LoadProgs(csqcprogs, "csaddon.dat", 0, NULL, 0);
+			if (csaddonnum >= 0)
 				Con_DPrintf("loaded csaddon.dat...\n");
-				loaded = true;
-			}
 			else
 				Con_DPrintf("unable to find csaddon.dat.\n");
 		}
 		else
 			Con_DPrintf("skipping csaddon.dat due to cheat restrictions\n");
 
-		if (!loaded)
+		if (csprogsnum == -1 && csaddonnum == -1)
 		{
 			CSQC_Shutdown();
 			return false;
 		}
 
-		PR_AutoCvarSetup(csqcprogs);
+		PR_ProgsAdded(csqcprogs, csprogsnum, "csprogs.dat");
+		PR_ProgsAdded(csqcprogs, csaddonnum, "csaddon.dat");
 
 		PF_InitTempStrings(csqcprogs);
 

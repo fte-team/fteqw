@@ -711,7 +711,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	parms.basedir = ".";
+	parms.basedir = "./";
 
 	SV_Init (&parms);
 

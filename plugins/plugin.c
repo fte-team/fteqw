@@ -148,6 +148,12 @@ BUILTIN(void, LocalSound, (char *soundname));
 BUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 #undef ARGNAMES
 
+#define ARGNAMES ,name,mime,data,datalen
+BUILTINR(qhandle_t, Draw_LoadImageData, (char *name, char *mime, void *data, unsigned int datalen));	//force-replace a texture.
+#undef ARGNAMES
+#define ARGNAMES ,name,shaderscript
+BUILTINR(qhandle_t, Draw_LoadImageShader, (char *name, char *shaderscript));	//some shader script
+#undef ARGNAMES
 #define ARGNAMES ,name,iswadimage
 BUILTINR(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
 #undef ARGNAMES
@@ -160,8 +166,11 @@ BUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(w),PASSFLOAT(h)
 BUILTIN(void, Draw_Fill,	(float x, float y, float w, float h));
 #undef ARGNAMES
-#define ARGNAMES ,x,y,characture
-BUILTIN(void, Draw_Character, (int x, int y, unsigned int characture));
+#define ARGNAMES ,x,y,character
+BUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
+#undef ARGNAMES
+#define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),string
+BUILTIN(void, Draw_String, (float x, float y, char *string));
 #undef ARGNAMES
 #define ARGNAMES ,palcol
 BUILTIN(void, Draw_Colourp, (int palcol));
@@ -366,11 +375,14 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(GetLocationName);
 
 	//drawing routines
+	CHECKBUILTIN(Draw_LoadImageData);
+	CHECKBUILTIN(Draw_LoadImageShader);
 	CHECKBUILTIN(Draw_LoadImage);
 	CHECKBUILTIN(Draw_Image);
 	CHECKBUILTIN(Draw_Line);
 	CHECKBUILTIN(Draw_Fill);
 	CHECKBUILTIN(Draw_Character);
+	CHECKBUILTIN(Draw_String);
 	CHECKBUILTIN(Draw_Colourp);
 	CHECKBUILTIN(Draw_Colour3f);
 	CHECKBUILTIN(Draw_Colour4f);

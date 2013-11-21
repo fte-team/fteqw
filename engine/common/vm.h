@@ -70,6 +70,7 @@ qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
 void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);
 qboolean	Plug_ConsoleLink(char *text, char *info);
+qboolean	Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info);
 void		Plug_DrawReloadImages(void);
 void		Plug_Initialise(qboolean fromgamedir);
 void		Plug_Shutdown(qboolean preliminary);

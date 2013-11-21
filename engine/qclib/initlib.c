@@ -562,7 +562,7 @@ int PDECL PR_GetFuncArgCount(pubprogfuncs_t *ppf, func_t func)
 	}
 }
 
-func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, char *funcname, progsnum_t pnum)
+func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t pnum)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	dfunction_t *f=NULL;
@@ -616,45 +616,54 @@ func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, char *funcname, progsnum_t pnum)
 	return 0;
 }
 
-void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) )
+void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, int pnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int i;
 	ddef16_t		*def16;
 	ddef32_t		*def32;
 	int len = strlen(prefix);
-	unsigned int pnum;
 
-	for (pnum = 0; pnum < maxprogs; pnum++)
+	if (pnum == PR_CURRENT)
+		pnum = pr_typecurrent;
+	if (pnum == PR_ANY)
 	{
-		if (!pr_progstate[pnum].progs)
-			continue;
-
-		switch(pr_progstate[pnum].structtype)
+		for (pnum = 0; (unsigned)pnum < maxprogs; pnum++)
 		{
-		case PST_DEFAULT:
-		case PST_KKQWSV:
-			for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
-			{
-				def16 = &pr_progstate[pnum].globaldefs16[i];
-				if (!strncmp(def16->s_name+progfuncs->funcs.stringtable,prefix, len))
-					found(&progfuncs->funcs, def16->s_name+progfuncs->funcs.stringtable, (eval_t *)&pr_progstate[pnum].globals[def16->ofs], def16->type);
-			}
-			break;
-		case PST_QTEST:
-		case PST_FTE32:
-			for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
-			{
-				def32 = &pr_progstate[pnum].globaldefs32[i];
-				if (!strncmp(def32->s_name+progfuncs->funcs.stringtable,prefix, len))
-					found(&progfuncs->funcs, def32->s_name+progfuncs->funcs.stringtable, (eval_t *)&pr_progstate[pnum].globals[def32->ofs], def32->type);
-			}
-			break;
+			if (!pr_progstate[pnum].progs)
+				continue;
+			QC_FindPrefixedGlobals(ppf, pnum, prefix, found, ctx);
 		}
+		return;
+	}
+
+	if (!pr_progstate[pnum].progs)
+		return;
+
+	switch(pr_progstate[pnum].structtype)
+	{
+	case PST_DEFAULT:
+	case PST_KKQWSV:
+		for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
+		{
+			def16 = &pr_progstate[pnum].globaldefs16[i];
+			if (!strncmp(def16->s_name+progfuncs->funcs.stringtable,prefix, len))
+				found(&progfuncs->funcs, def16->s_name+progfuncs->funcs.stringtable, (eval_t *)&pr_progstate[pnum].globals[def16->ofs], def16->type, ctx);
+		}
+		break;
+	case PST_QTEST:
+	case PST_FTE32:
+		for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
+		{
+			def32 = &pr_progstate[pnum].globaldefs32[i];
+			if (!strncmp(def32->s_name+progfuncs->funcs.stringtable,prefix, len))
+				found(&progfuncs->funcs, def32->s_name+progfuncs->funcs.stringtable, (eval_t *)&pr_progstate[pnum].globals[def32->ofs], def32->type, ctx);
+		}
+		break;
 	}
 }
 
-eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, char *globname, progsnum_t pnum, etype_t *type)
+eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_t pnum, etype_t *type)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int i;

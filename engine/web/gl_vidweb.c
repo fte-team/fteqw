@@ -23,7 +23,7 @@ static void VID_Resized(int width, int height)
 	extern cvar_t vid_conautoscale, vid_conwidth;
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
-Con_Printf("Resized: %i %i\n", vid.pixelwidth, vid.pixelheight);
+//Con_Printf("Resized: %i %i\n", vid.pixelwidth, vid.pixelheight);
 
 	Cvar_ForceCallback(&vid_conautoscale);
 	Cvar_ForceCallback(&vid_conwidth);

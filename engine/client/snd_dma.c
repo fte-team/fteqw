@@ -1266,17 +1266,20 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 
 #ifdef SUPPORT_ICE
-		switch(s_voip.enccodec)
+		if (rtpstream)
 		{
-		case VOIP_SPEEX_NARROW:
-		case VOIP_SPEEX_WIDE:
-		case VOIP_SPEEX_ULTRAWIDE:
-		case VOIP_SPEEX_OLD:
-			NET_RTP_Transmit(initseq, inittimestamp, va("speex@%i", s_voip.encsamplerate), outbuf, outpos);
-			break;
-		case VOIP_OPUS:
-			NET_RTP_Transmit(initseq, inittimestamp, "opus", outbuf, outpos);
-			break;
+			switch(s_voip.enccodec)
+			{
+			case VOIP_SPEEX_NARROW:
+			case VOIP_SPEEX_WIDE:
+			case VOIP_SPEEX_ULTRAWIDE:
+			case VOIP_SPEEX_OLD:
+				NET_RTP_Transmit(initseq, inittimestamp, va("speex@%i", s_voip.encsamplerate), outbuf, outpos);
+				break;
+			case VOIP_OPUS:
+				NET_RTP_Transmit(initseq, inittimestamp, "opus", outbuf, outpos);
+				break;
+			}
 		}
 #endif
 

@@ -189,6 +189,28 @@ static void *AVDec_Create(char *medianame)
 
 		ctx->pFormatCtx->pb = ioctx;
 	}
+	/*
+small how-to note for if I ever try to add support for voice-and-video rtp decoding.
+this stuff is presumably needed to handle ICE+stun+ports etc.
+I prolly need to hack around with adding rtcp too. :s
+
+rtsp: Add support for depacketizing RTP data via custom IO
+
+To use this, set sdpflags=custom_io to the sdp demuxer. During
+the avformat_open_input call, the SDP is read from the AVFormatContext
+AVIOContext (ctx->pb) - after the avformat_open_input call,
+during the av_read_frame() calls, the same ctx->pb is used for reading
+packets (and sending back RTCP RR packets).
+
+Normally, one would use this with a read-only AVIOContext for the
+SDP during the avformat_open_input call, then close that one and
+replace it with a read-write one for the packets after the
+avformat_open_input call has returned.
+
+This allows using the RTP depacketizers as "pure" demuxers, without
+having them tied to the libavformat network IO.
+	*/
+
 
 	// Open video file
 	if(avformat_open_input(&ctx->pFormatCtx, medianame, NULL, NULL)==0)

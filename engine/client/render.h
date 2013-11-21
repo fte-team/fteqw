@@ -152,8 +152,8 @@ typedef struct mplane_s
 #define RDFD_FOV 1
 typedef struct
 {
-	vrect_t		grect;				// game rectangle. fullscreen except for csqc/splitscreen. 
-	vrect_t		vrect;				// subwindow in grect for 3d view
+	vrect_t		grect;				// game rectangle. fullscreen except for csqc/splitscreen/hud.
+	vrect_t		vrect;				// subwindow in grect for 3d view. equal to grect if no hud.
 
 	vec3_t		pvsorigin;			/*render the view using this point for pvs (useful for mirror views)*/
 	vec3_t		vieworg;			/*logical view center*/
@@ -180,7 +180,7 @@ typedef struct
 
 	vec4_t		gfog_rgbd;
 
-	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
+	pxrect_t	pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
 	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
 	qboolean	forcevis;	/*if true, vis comes from the forcedvis field instead of recalculated*/
@@ -308,6 +308,7 @@ enum imageflags
 	IF_TEXTYPE = (1<<6) | (1<<7) | (1<<8), /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_TEXTYPESHIFT = 6, /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP = 1<<9,
+	IF_EXACTEXTENSION = 1<<29,
 	IF_REPLACE = 1<<30,
 	IF_SUBDIRONLY = 1<<31
 };

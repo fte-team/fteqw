@@ -365,6 +365,52 @@ static void D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, unsigned 
 	D3D9_LoadTexture_32(tex, trans, width, height, flags);
 }
 
+static void genNormalMap(unsigned int *nmap, qbyte *pixels, int w, int h, float scale)
+{
+	int i, j, wr, hr;
+	unsigned char r, g, b;
+	float sqlen, reciplen, nx, ny, nz;
+
+	const float oneOver255 = 1.0f/255.0f;
+
+	float c, cx, cy, dcx, dcy;
+
+	wr = w;
+	hr = h;
+
+	for (i=0; i<h; i++)
+	{
+		for (j=0; j<w; j++)
+		{
+			/* Expand [0,255] texel values to the [0,1] range. */
+			c = pixels[i*wr + j] * oneOver255;
+			/* Expand the texel to its right. */
+			cx = pixels[i*wr + (j+1)%wr] * oneOver255;
+			/* Expand the texel one up. */
+			cy = pixels[((i+1)%hr)*wr + j] * oneOver255;
+			dcx = scale * (c - cx);
+			dcy = scale * (c - cy);
+
+			/* Normalize the vector. */
+			sqlen = dcx*dcx + dcy*dcy + 1;
+			reciplen = 1.0f/(float)sqrt(sqlen);
+			nx = dcx*reciplen;
+			ny = -dcy*reciplen;
+			nz = reciplen;
+
+			/* Repack the normalized vector into an RGB unsigned qbyte
+			   vector in the normal map image. */
+			r = (qbyte) (128 + 127*nx);
+			g = (qbyte) (128 + 127*ny);
+			b = (qbyte) (128 + 127*nz);
+
+			/* The highest resolution mipmap level always has a
+			   unit length magnitude. */
+			nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
+		}
+	}
+}
+
 void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 	switch (fmt)
@@ -419,12 +465,30 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 	case TF_8PAL24:
 	case TF_8PAL32:
 		break;
-
 	}
 	tex = d3d_lookup_texture(identifier);
 
 	switch (fmt)
 	{
+	case TF_HEIGHT8PAL:
+		{
+			texid_t t;
+			extern cvar_t r_shadow_bumpscale_basetexture;
+			unsigned int *norm = malloc(width*height*4);
+			genNormalMap(norm, data, width, height, r_shadow_bumpscale_basetexture.value);
+			t = D3D9_LoadTexture(identifier, width, height, TF_RGBA32, data, flags);
+			free(norm);
+			return t;
+		}
+	case TF_HEIGHT8:
+		{
+			extern cvar_t r_shadow_bumpscale_basetexture;
+			unsigned int *norm = malloc(width*height*4);
+			genNormalMap(norm, data, width, height, r_shadow_bumpscale_basetexture.value);
+			D3D9_LoadTexture_32(tex, norm, width, height, flags);
+			free(norm);
+			return tex->tex;
+		}
 	case TF_SOLID8:
 	case TF_TRANS8:
 	case TF_H2_T7G1:
@@ -439,7 +503,7 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 		D3D9_LoadTexture_32(tex, data, width, height, flags);
 		return tex->tex;
 	default:
-		OutputDebugString(va("D3D9_LoadTexture doesn't support fmt %i", fmt));
+		OutputDebugString(va("D3D9_LoadTexture doesn't support fmt %i (%s)\n", fmt, identifier));
 		return r_nulltex;
 	}
 }

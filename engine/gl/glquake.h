@@ -421,20 +421,18 @@ void R_InitBloomTextures(void);
 #endif
 
 //
-// gl_rsurf.c
-//
-#ifdef GLQUAKE
-void GL_LoadShaders(void);
-#endif
-
-
-//
 // gl_ngraph.c
 //
 void R_NetGraph (void);
 
 
 #if defined(GLQUAKE)
+
+//updates the viewport correctly.
+//pxrect.y is relative to the top.
+//gl requires viewports specified relative to the bottom.
+//so we need to do a little extra maths, which keeps confusing me, so one macro to ensure consistancy.
+#define GL_ViewportUpdate() qglViewport(r_refdef.pxrect.x, r_refdef.pxrect.maxheight-(r_refdef.pxrect.y+r_refdef.pxrect.height), r_refdef.pxrect.width, r_refdef.pxrect.height)
 
 #ifdef GL_STATIC
 //these are the functions that are valid in gles2.

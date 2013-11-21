@@ -830,6 +830,8 @@ static void Shader_FogParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		shader->fog_dist = 128.0f;
 	}
 	shader->fog_dist = 1.0f / shader->fog_dist;
+
+	shader->flags |= SHADER_NODLIGHT|SHADER_NOSHADOWS;
 }
 
 static void Shader_SurfaceParm ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -1143,10 +1145,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 }
 typedef struct sgeneric_s
 {
+	program_t prog;
 	struct sgeneric_s *next;
 	char *name;
 	qboolean failed;
-	program_t prog;
 } sgeneric_t;
 static sgeneric_t *sgenerics;
 struct sbuiltin_s
@@ -1436,6 +1438,10 @@ void Shader_UnloadProg(program_t *prog)
 		}
 	}
 #endif
+#ifdef D3D11QUAKE
+	if (qrenderer == QR_DIRECT3D11)
+		D3D11Shader_DeleteProgram(prog);
+#endif
 	free(prog);
 }
 static void Shader_FlushGenerics(void)
@@ -1449,7 +1455,7 @@ static void Shader_FlushGenerics(void)
 		if (g->prog.refs == 1)
 		{
 			g->prog.refs--;
-			free(g);
+			Shader_UnloadProg(&g->prog);
 		}
 		else
 			Con_Printf("generic shader still used\n"); 
@@ -1963,9 +1969,13 @@ static void Shader_ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr
 {
 	Shader_SLProgramName(shader,pass,ptr,qrenderer);
 }
-static void Shader_HLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
+static void Shader_HLSL9ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D9);
+}
+static void Shader_HLSL11ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D11);
 }
 
 static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -2242,7 +2252,8 @@ static shaderkey_t shaderkeys[] =
 	{"lpp_light",		Shader_Prelight},
 	{"glslprogram",		Shader_GLSLProgramName},
 	{"program",			Shader_ProgramName},	//gl or d3d
-	{"hlslprogram",		Shader_HLSLProgramName},	//for d3d
+	{"hlslprogram",		Shader_HLSL9ProgramName},	//for d3d
+	{"hlsl11program",	Shader_HLSL11ProgramName},	//for d3d
 	{"param",			Shader_ProgramParam},	//legacy
 
 	{"bemode",			Shader_BEMode},
@@ -2334,6 +2345,7 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_SHADOWMAP;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+		pass->flags |= SHADER_PASS_DEPTHCMP;
 	}
 	else if (!Q_stricmp (tname, "$lightcubemap"))
 	{
@@ -4581,6 +4593,10 @@ char *Shader_DefaultBSPWater(char *shortname)
 	}
 }
 
+void Shader_DefaultWaterShader(char *shortname, shader_t *s, const void *args)
+{
+	Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(shortname));
+}
 void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
 {
 	if (!strncmp(shortname, "sky/", 4))

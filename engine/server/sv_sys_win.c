@@ -929,7 +929,7 @@ void StartQuakeServer(void)
 	*COM_SkipPath(bindir) = 0;
 	parms.binarydir = bindir;
 
-	parms.basedir = ".";
+	parms.basedir = "./";
 
 	SV_Init (&parms);
 

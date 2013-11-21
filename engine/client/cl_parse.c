@@ -3308,6 +3308,7 @@ void CL_ParseModellist (qboolean lots)
 			Host_EndGame ("Server sent too many model_precache");
 		strcpy (cl.model_name[nummodels], str);
 
+		//qw has a special network protocol for spikes.
 		if (!strcmp(cl.model_name[nummodels],"progs/spike.mdl"))
 			cl_spikeindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
@@ -3319,12 +3320,13 @@ void CL_ParseModellist (qboolean lots)
 		if (!strcmp(cl.model_name[nummodels],"progs/flag.mdl"))
 			cl_flagindex = nummodels;
 
+		//rocket to grenade
 		if (!strcmp(cl.model_name[nummodels],"progs/missile.mdl"))
 			cl_rocketindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/grenade.mdl"))
 			cl_grenadeindex = nummodels;
 
-
+		//cl_gibfilter
 		if (!strcmp(cl.model_name[nummodels],"progs/gib1.mdl"))
 			cl_gib1index = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/gib2.mdl"))
@@ -5271,7 +5273,7 @@ void CL_ParsePrecache(void)
 			if (!model)
 				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;
-			strcpy (cl.model_name[i], s);
+			Q_strncpyz (cl.model_name[i], s, sizeof(cl.model_name[i]));
 
 			cl.model_precaches_added = true;
 		}
@@ -5290,7 +5292,7 @@ void CL_ParsePrecache(void)
 			if (!sfx)
 				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
 			cl.sound_precache[i] = sfx;
-			strcpy (cl.sound_name[i], s);
+			Q_strncpyz (cl.sound_name[i], s, sizeof(cl.sound_name[i]));
 		}
 		else
 			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
@@ -5817,10 +5819,7 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_setpause:
 			cl.paused = MSG_ReadByte ();
-			if (cl.paused)
-				CDAudio_Pause ();
-			else
-				CDAudio_Resume ();
+//			Media_SetPauseTrack(!!cl.paused);
 			break;
 
 //		case svc_ftesetclientpersist:

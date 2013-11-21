@@ -67,6 +67,8 @@ void GLSCR_UpdateScreen (void)
 	qboolean noworld;
 	RSpeedMark();
 
+	r_refdef.pxrect.maxheight = vid.pixelheight;
+
 	vid.numpages = 2 + vid_triplebuffer.value;
 
 	if (scr_disabled_for_loading)

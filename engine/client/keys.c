@@ -457,6 +457,8 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 
 	if (con->mousedown[2] == 1)
 	{
+		//left-mouse.
+		//scroll the console with the mouse. trigger links on release.
 		while (con->mousecursor[1] - con->mousedown[1] > 8 && con->display->older)
 		{
 			con->mousedown[1] += 8;
@@ -476,13 +478,22 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 	}
 	else if (con->mousedown[2] == 2)
 	{
+		//right-mouse
+		//select. copy-to-clipboard on release.
 		*sx = con->mousedown[0];
 		*sy = con->mousedown[1];
 		*ex = con->mousecursor[0];
 		*ey = con->mousecursor[1];
 		return true;
 	}
-	return false;
+	else
+	{
+		*sx = con->mousecursor[0];
+		*sy = con->mousecursor[1];
+		*ex = con->mousecursor[0];
+		*ey = con->mousecursor[1];
+		return false;
+	}
 }
 
 /*insert the given text at the console input line at the current cursor pos*/
@@ -745,7 +756,7 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 		con->mousedown[2] = 0;
 		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
 		{
-			buffer = Con_CopyConsole(false);
+			buffer = Con_CopyConsole(false, false);
 			Con_Footerf(false, "");
 			if (!buffer)
 				return;
@@ -821,7 +832,7 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 	if (key == K_MOUSE2 && con->mousedown[2] == 2)
 	{
 		con->mousedown[2] = 0;
-		buffer = Con_CopyConsole(true);	//don't keep markup if we're copying to the clipboard
+		buffer = Con_CopyConsole(true, false);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
 		Sys_SaveClipboard(buffer);
@@ -925,6 +936,210 @@ static unsigned char *utf_right(unsigned char *start, unsigned char *cursor)
 	return cursor;
 }
 
+void Key_EntryInsert(unsigned char **line, int *linepos, char *instext)
+{
+	int i;
+	int len, olen;
+	char *old;
+
+	if (!*instext)
+		return;
+
+	old = (*line);
+	len = strlen(instext);
+	olen = strlen(old);
+	*line = BZ_Malloc(olen + len + 1);
+	memcpy(*line, old, *linepos);
+	memcpy(*line+*linepos, instext, len);
+	memcpy(*line+*linepos+len, old+*linepos, olen - *linepos+1);
+	Z_Free(old);
+	for (i = *linepos; i < *linepos+len; i++)
+	{
+		if ((*line)[i] == '\r')
+			(*line)[i] = ' ';
+		else if ((*line)[i] == '\n')
+			(*line)[i] = ';';
+	}
+	*linepos += len;
+}
+
+qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int key, unsigned int unicode)
+{
+	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
+	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
+	char utf8[8];
+
+	if (key == K_LEFTARROW || key == K_KP_LEFTARROW)
+	{
+		if (ctrl)
+		{
+			//ignore whitespace if we're at the end of the word
+			while (*linepos > 0 && (*line)[*linepos-1] == ' ')
+				*linepos = utf_left((*line)+lineoffset, (*line) + *linepos) - (*line);
+			//keep skipping until we find the start of that word
+			while (ctrl && *linepos > lineoffset && (*line)[*linepos-1] != ' ')
+				*linepos = utf_left((*line)+lineoffset, (*line) + *linepos) - (*line);
+		}
+		else
+			*linepos = utf_left((*line)+lineoffset, (*line) + *linepos) - (*line);
+		return true;
+	}
+	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW)
+	{
+		if ((*line)[*linepos])
+		{
+			*linepos = utf_right((*line)+lineoffset, (*line) + *linepos) - (*line);
+			if (ctrl)
+			{
+				//skip over the word
+				while ((*line)[*linepos] && (*line)[*linepos] != ' ')
+					*linepos = utf_right((*line)+lineoffset, (*line) + *linepos) - (*line);
+				//as well as any trailing whitespace
+				while ((*line)[*linepos] == ' ')
+					*linepos = utf_right((*line)+lineoffset, (*line) + *linepos) - (*line);
+			}
+			return true;
+		}
+		else
+			unicode = ' ';
+	}
+
+	if (key == K_DEL || key == K_KP_DEL)
+	{
+		if ((*line)[*linepos])
+		{
+			int charlen = utf_right((*line)+lineoffset, (*line) + *linepos) - ((*line) + *linepos);
+			memmove((*line)+*linepos, (*line)+*linepos+charlen, strlen((*line)+*linepos+charlen)+1);
+			return true;
+		}
+		else
+			key = K_BACKSPACE;
+	}
+
+	if (key == K_BACKSPACE)
+	{
+		if (*linepos > lineoffset)
+		{
+			int charlen = ((*line)+*linepos) - utf_left((*line)+lineoffset, (*line) + *linepos);
+			memmove((*line)+*linepos-charlen, (*line)+*linepos, strlen((*line)+*linepos)+1);
+			*linepos -= charlen;
+		}
+		if (!(*line)[lineoffset])	//oops?
+			con_commandmatch = 0;
+		return true;
+	}
+
+
+
+	if (key == K_HOME || key == K_KP_HOME)
+	{
+		*linepos = lineoffset;
+		return true;
+	}
+
+	if (key == K_END || key == K_KP_END)
+	{
+		*linepos = strlen(*line);
+		return true;
+	}
+
+	//beware that windows translates ctrl+c and ctrl+v to a control char
+	if (((unicode=='C' || unicode=='c' || unicode==3) && ctrl) || (ctrl && key == K_INS))
+	{
+		Sys_SaveClipboard(*line);
+		return true;
+	}
+
+	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
+	{
+		char *clipText = Sys_GetClipboard();
+		if (clipText)
+		{
+			Key_EntryInsert(line, linepos, clipText);
+			Sys_CloseClipboard(clipText);
+		}
+		return true;
+	}
+
+	if (unicode < ' ')
+	{
+		//if the user is entering control codes, then the ctrl+foo mechanism is probably unsupported by the unicode input stuff, so give best-effort replacements.
+		switch(unicode)
+		{
+		case 27/*'['*/: unicode = 0xe010; break;
+		case 29/*']'*/: unicode = 0xe011; break;
+		case 7/*'g'*/: unicode = 0xe086; break;
+		case 18/*'r'*/: unicode = 0xe087; break;
+		case 25/*'y'*/: unicode = 0xe088; break;
+		case 2/*'b'*/: unicode = 0xe089; break;
+		case 19/*'s'*/: unicode = 0xe080; break;
+		case 4/*'d'*/: unicode = 0xe081; break;
+		case 6/*'f'*/: unicode = 0xe082; break;
+		case 1/*'a'*/: unicode = 0xe083; break;
+		case 21/*'u'*/: unicode = 0xe01d; break;
+		case 9/*'i'*/: unicode = 0xe01e; break;
+		case 15/*'o'*/: unicode = 0xe01f; break;
+		case 10/*'j'*/: unicode = 0xe01c; break;
+		case 16/*'p'*/: unicode = 0xe09c; break;
+		case 13/*'m'*/: unicode = 0xe08b; break;
+		case 11/*'k'*/: unicode = 0xe08d; break;
+		case 14/*'n'*/: unicode = '\r'; break;
+		default:
+//			if (unicode)
+//				Con_Printf("escape code %i\n", unicode);
+
+			//even if we don't print these, we still need to cancel them in the caller.
+			if (key == K_LALT || key == K_RALT ||
+				key == K_LCTRL || key == K_RCTRL ||
+				key == K_LSHIFT || key == K_RSHIFT)
+				return true;
+			return false;
+		}
+	}
+	else if (com_parseutf8.ival >= 0)	//don't do this for iso8859-1. the major user of that is hexen2 which doesn't have these chars.
+	{
+		if (ctrl && !keydown[K_RALT])
+		{
+			if (unicode >= '0' && unicode <= '9')
+				unicode = unicode - '0' + 0xe012;	// yellow number
+			else switch (unicode)
+			{
+				case '[': unicode = 0xe010; break;
+				case ']': unicode = 0xe011; break;
+				case 'g': unicode = 0xe086; break;
+				case 'r': unicode = 0xe087; break;
+				case 'y': unicode = 0xe088; break;
+				case 'b': unicode = 0xe089; break;
+				case '(': unicode = 0xe080; break;
+				case '=': unicode = 0xe081; break;
+				case ')': unicode = 0xe082; break;
+				case 'a': unicode = 0xe083; break;
+				case '<': unicode = 0xe01d; break;
+				case '-': unicode = 0xe01e; break;
+				case '>': unicode = 0xe01f; break;
+				case ',': unicode = 0xe01c; break;
+				case '.': unicode = 0xe09c; break;
+				case 'B': unicode = 0xe08b; break;
+				case 'C': unicode = 0xe08d; break;
+				case 'n': unicode = '\r'; break;
+			}
+		}
+
+		if (keydown[K_LALT] && unicode > 32 && unicode < 128)
+			unicode |= 0xe080;		// red char
+	}
+
+	unicode = utf8_encode(utf8, unicode, sizeof(utf8)-1);
+	if (unicode)
+	{
+		utf8[unicode] = 0;
+		Key_EntryInsert(line, linepos, utf8);
+		return true;
+	}
+
+	return false;
+}
+
 /*
 ====================
 Key_Console
@@ -936,8 +1151,6 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 {
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
-	char	*clipText;
-	char utf8[8];
 
 	//weirdness for the keypad.
 	if ((unicode >= '0' && unicode <= '9') || unicode == '.')
@@ -959,9 +1172,8 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
-		int xpos, ypos;
-		xpos = (int)((con->mousecursor[0]*vid.width)/(vid.pixelwidth*8));
-		ypos = (int)((con->mousecursor[1]*vid.height)/(vid.pixelheight*8));
+	//	int xpos = (int)((con->mousecursor[0]*vid.width)/(vid.pixelwidth*8));
+		int ypos = (int)((con->mousecursor[1]*vid.height)/(vid.pixelheight*8));
 		con->mousedown[0] = con->mousecursor[0];
 		con->mousedown[1] = con->mousecursor[1];
 		if (ypos == 0 && con_mouseover)
@@ -1024,66 +1236,6 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	if (key != K_CTRL && key != K_SHIFT && con_commandmatch)
 		con_commandmatch=1;
 	
-	if (key == K_LEFTARROW || key == K_KP_LEFTARROW)
-	{
-		if (ctrl)
-		{
-			//ignore whitespace if we're at the end of the word
-			while (key_linepos > 0 && key_lines[edit_line][key_linepos-1] == ' ')
-				key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-			//keep skipping until we find the start of that word
-			while (ctrl && key_linepos > 1 && key_lines[edit_line][key_linepos-1] != ' ')
-				key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-		}
-		else
-			key_linepos = utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-		return true;
-	}
-	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW)
-	{
-		if (key_lines[edit_line][key_linepos])
-		{
-			key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-			if (ctrl)
-			{
-				//skip over the word
-				while (key_lines[edit_line][key_linepos] && key_lines[edit_line][key_linepos] != ' ')
-					key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-				//as well as any trailing whitespace
-				while (key_lines[edit_line][key_linepos] == ' ')
-					key_linepos = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - key_lines[edit_line];
-			}
-			return true;
-		}
-		else
-			unicode = ' ';
-	}
-
-	if (key == K_DEL || key == K_KP_DEL)
-	{
-		if (key_lines[edit_line][key_linepos])
-		{
-			int charlen = utf_right(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos) - (key_lines[edit_line] + key_linepos);
-			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+1);
-			return true;
-		}
-		else
-			key = K_BACKSPACE;
-	}
-
-	if (key == K_BACKSPACE)
-	{
-		if (key_linepos > 1)
-		{
-			int charlen = (key_lines[edit_line]+key_linepos) - utf_left(key_lines[edit_line]+1, key_lines[edit_line] + key_linepos);
-			memmove(key_lines[edit_line]+key_linepos-charlen, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-			key_linepos -= charlen;
-		}
-		if (!key_lines[edit_line][1])
-			con_commandmatch = 0;
-		return true;
-	}
-
 	if (key == K_UPARROW || key == K_KP_UPARROW)
 	{
 		do
@@ -1169,140 +1321,65 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		return true;
 	}
 
-	if (key == K_HOME || key == K_KP_HOME)
+	if ((key == K_HOME || key == K_KP_HOME) && ctrl)
 	{
-		if (ctrl)
-			con->display = con->oldest;
-		else
-			key_linepos = 1;
+		con->display = con->oldest;
 		return true;
 	}
 
-	if (key == K_END || key == K_KP_END)
+	if ((key == K_END || key == K_KP_END) && ctrl)
 	{
-		if (ctrl)
-			con->display = con->current;
-		else
-			key_linepos = strlen(key_lines[edit_line]);
+		con->display = con->current;
 		return true;
 	}
 
-	//beware that windows translates ctrl+c and ctrl+v to a control char
-	if (((unicode=='C' || unicode=='c' || unicode==3) && ctrl) || (ctrl && key == K_INS))
-	{
-		Sys_SaveClipboard(key_lines[edit_line]+1);
-		return true;
-	}
-
-	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
-	{
-		clipText = Sys_GetClipboard();
-		if (clipText)
-		{
-			Key_ConsoleInsert(clipText);
-			Sys_CloseClipboard(clipText);
-		}
-		return true;
-	}
-
-	if (unicode < ' ')
-	{
-		//if the user is entering control codes, then the ctrl+foo mechanism is probably unsupported by the unicode input stuff, so give best-effort replacements.
-		switch(unicode)
-		{
-		case 27/*'['*/: unicode = 0xe010; break;
-		case 29/*']'*/: unicode = 0xe011; break;
-		case 7/*'g'*/: unicode = 0xe086; break;
-		case 18/*'r'*/: unicode = 0xe087; break;
-		case 25/*'y'*/: unicode = 0xe088; break;
-		case 2/*'b'*/: unicode = 0xe089; break;
-		case 19/*'s'*/: unicode = 0xe080; break;
-		case 4/*'d'*/: unicode = 0xe081; break;
-		case 6/*'f'*/: unicode = 0xe082; break;
-		case 1/*'a'*/: unicode = 0xe083; break;
-		case 21/*'u'*/: unicode = 0xe01d; break;
-		case 9/*'i'*/: unicode = 0xe01e; break;
-		case 15/*'o'*/: unicode = 0xe01f; break;
-		case 10/*'j'*/: unicode = 0xe01c; break;
-		case 16/*'p'*/: unicode = 0xe09c; break;
-		case 13/*'m'*/: unicode = 0xe08b; break;
-		case 11/*'k'*/: unicode = 0xe08d; break;
-		case 14/*'n'*/: unicode = '\r'; break;
-		default:
-//			if (unicode)
-//				Con_Printf("escape code %i\n", unicode);
-
-			//even if we don't print these, we still need to cancel them in the caller.
-			if (key == K_LALT || key == K_RALT ||
-				key == K_LCTRL || key == K_RCTRL ||
-				key == K_LSHIFT || key == K_RSHIFT)
-				return true;
-			return false;
-		}
-	}
-	else if (com_parseutf8.ival >= 0)	//don't do this for iso8859-1. the major user of that is hexen2 which doesn't have these chars.
-	{
-		if (ctrl && !keydown[K_RALT])
-		{
-			if (unicode >= '0' && unicode <= '9')
-				unicode = unicode - '0' + 0xe012;	// yellow number
-			else switch (unicode)
-			{
-				case '[': unicode = 0xe010; break;
-				case ']': unicode = 0xe011; break;
-				case 'g': unicode = 0xe086; break;
-				case 'r': unicode = 0xe087; break;
-				case 'y': unicode = 0xe088; break;
-				case 'b': unicode = 0xe089; break;
-				case '(': unicode = 0xe080; break;
-				case '=': unicode = 0xe081; break;
-				case ')': unicode = 0xe082; break;
-				case 'a': unicode = 0xe083; break;
-				case '<': unicode = 0xe01d; break;
-				case '-': unicode = 0xe01e; break;
-				case '>': unicode = 0xe01f; break;
-				case ',': unicode = 0xe01c; break;
-				case '.': unicode = 0xe09c; break;
-				case 'B': unicode = 0xe08b; break;
-				case 'C': unicode = 0xe08d; break;
-				case 'n': unicode = '\r'; break;
-			}
-		}
-
-		if (keydown[K_LALT] && unicode > 32 && unicode < 128)
-			unicode |= 0xe080;		// red char
-	}
-
-	unicode = utf8_encode(utf8, unicode, sizeof(utf8)-1);
-	if (unicode)
-	{
-		utf8[unicode] = 0;
-		Key_ConsoleInsert(utf8);
-		return true;
-	}
-
-	return false;
+	return Key_EntryLine(&key_lines[edit_line], 1, &key_linepos, key, unicode);
 }
 
 //============================================================================
 
 qboolean	chat_team;
-char		chat_buffer[MAXCMDLINE];
-int			chat_bufferlen = 0;
+unsigned char		*chat_buffer;
+int			chat_bufferpos;
 
 void Key_Message (int key, int unicode)
 {
+	if (!chat_buffer)
+	{
+		chat_buffer = BZ_Malloc(1);
+		chat_buffer[0] = 0;
+		chat_bufferpos = 0;
+	}
 
 	if (key == K_ENTER || key == K_KP_ENTER)
 	{
-		if (chat_buffer[0])
+		if (chat_buffer && chat_buffer[0])
 		{	//send it straight into the command.
-			Cmd_TokenizeString(va("%s %s", chat_team?"say_team":"say", chat_buffer), true, false);
+			char *line = chat_buffer;
+			char deutf8[8192];
+			if (com_parseutf8.ival <= 0)
+			{
+				unsigned int unicode;
+				int err;
+				int len = 0;
+				while(*line)
+				{
+					unicode = utf8_decode(&err, line, &line);
+					if (com_parseutf8.ival < 0)
+						len += iso88591_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
+					else
+						len += qchar_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
+				}
+				deutf8[len] = 0;
+				line = deutf8;
+			}
+
+			Cmd_TokenizeString(va("%s %s", chat_team?"say_team":"say", line), true, false);
 			CL_Say(chat_team, "");
 		}
 
 		Key_Dest_Remove(kdm_message);
-		chat_bufferlen = 0;
+		chat_bufferpos = 0;
 		chat_buffer[0] = 0;
 		return;
 	}
@@ -1310,29 +1387,12 @@ void Key_Message (int key, int unicode)
 	if (key == K_ESCAPE)
 	{
 		Key_Dest_Remove(kdm_message);
-		chat_bufferlen = 0;
+		chat_bufferpos = 0;
 		chat_buffer[0] = 0;
 		return;
 	}
 
-	if (key < 32 || key > 127)
-		return;	// non printable
-
-	if (key == K_BACKSPACE)
-	{
-		if (chat_bufferlen)
-		{
-			chat_bufferlen--;
-			chat_buffer[chat_bufferlen] = 0;
-		}
-		return;
-	}
-
-	if (chat_bufferlen == sizeof(chat_buffer)-1)
-		return; // all full
-
-	chat_buffer[chat_bufferlen++] = unicode;
-	chat_buffer[chat_bufferlen] = 0;
+	Key_EntryLine(&chat_buffer, 0, &chat_bufferpos, key, unicode);
 }
 
 //============================================================================

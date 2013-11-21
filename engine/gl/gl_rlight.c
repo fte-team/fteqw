@@ -860,6 +860,7 @@ void R_SaveRTLights_f(void)
 	vfsfile_t *f;
 	unsigned int i;
 	char fname[MAX_QPATH];
+	char sysname[MAX_OSPATH];
 	vec3_t ang;
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
@@ -896,7 +897,9 @@ void R_SaveRTLights_f(void)
 			));
 	}
 	VFS_CLOSE(f);
-	Con_Printf("rtlights saved to %s\n", fname);
+
+	FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
+	Con_Printf("rtlights saved to %s\n", sysname);
 }
 
 void R_ReloadRTLights_f(void)

@@ -226,12 +226,12 @@ endif
 
 
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
-	ifneq ($(shell $(CC) -v 2>&1 | grep mingw),)
-		FTE_TARGET=win32
-	endif
-	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
+	ifneq ($(shell uname 2>&1 | grep CYGWIN),)
 		FTE_TARGET=cygwin
 		ANDROID_SCRIPT=android.bat
+	endif
+	ifneq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		FTE_TARGET=win32
 	endif
 	ifeq ($(FTE_TARGET),) 	#still not set
 
@@ -256,7 +256,7 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 		#else I've no idea what it is you're running
 	endif
 
-	FTE_TARGET ?= sdl	#so go for sdl.
+	FTE_TARGET ?= unk	#so go for sdl.
 endif
 
 ifneq ($(shell ls|grep config.h),)
@@ -323,22 +323,22 @@ ifeq ($(FTE_TARGET),macosx)
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
-ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
-	BASELDFLAGS=-lm
-	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
-
-	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
-		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
-	endif
-
-	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
-	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
-
-	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
-		RELEASE_CFLAGS+= -D_SDL
-		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -L./libs/mingw64-libs
-	endif
-endif
+#ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
+#	BASELDFLAGS=-lm
+#	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
+#
+#	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
+#		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
+#	endif
+#
+#	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
+#	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
+#
+#	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
+#		RELEASE_CFLAGS+= -D_SDL
+#		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -L./libs/mingw64-libs
+#	endif
+#endif
 
 IMAGELDFLAGS ?= -lpng -ljpeg
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
@@ -617,6 +617,7 @@ COMMON_OBJS = \
 	log.o 		\
 	net_chan.o 		\
 	net_wins.o 		\
+	net_ice.o 		\
 	zone.o 		\
 	qvm.o	\
 	r_d3.o	\
@@ -1101,20 +1102,20 @@ ifeq ($(FTE_TARGET),cygwin)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqwglcyg$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../fteqwclglcyg$(EXEPOSTFIX)
-	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
+	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS) -lz -lltdl
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC -DUSE_LIBTOOL
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqwcyg$(EXEPOSTFIX)
 	MCL_EXE_NAME=../fteqwclcyg$(EXEPOSTFIX)
-	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
-	M_CFLAGS=$(GLCFLAGS) $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC
+	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS) -lz -lltdl
+	M_CFLAGS=$(GLCFLAGS) $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC -DUSE_LIBTOOL
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin
 
-
+	LIBS_DIR = $(BASE_DIR)/libs
 
 	MINGL_EXE_NAME=../fteqwminglcyg$(EXEPOSTFIX)
 	MINGL_DIR=mingl_cygwin

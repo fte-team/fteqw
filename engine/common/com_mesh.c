@@ -7,6 +7,7 @@ extern char loadname[];
 qboolean		r_loadbumpmapping;
 extern cvar_t dpcompat_psa_ungroup;
 extern cvar_t r_noframegrouplerp;
+extern cvar_t r_lerpmuzzlehack;
 
 //Common loader function.
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
@@ -1259,7 +1260,7 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 	}
 }
 
-static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, float expand)
+static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, float expand, float lerpcutoff)
 {
 	extern cvar_t r_nolerp; // r_nolightdir is unused
 	float blerp = 1-lerp;
@@ -1293,11 +1294,12 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 
 		if (expand)
 		{
+			vecV_t *oxyz = mesh->xyz_array;
 			for (i = 0; i < mesh->numvertexes; i++)
 			{
-				mesh->xyz_array[i][0] = p1v[i][0] + p1n[i][0]*expand;
-				mesh->xyz_array[i][1] = p1v[i][1] + p1n[i][1]*expand;
-				mesh->xyz_array[i][2] = p1v[i][2] + p1n[i][2]*expand;
+				oxyz[i][0] = p1v[i][0] + p1n[i][0]*expand;
+				oxyz[i][1] = p1v[i][1] + p1n[i][1]*expand;
+				oxyz[i][2] = p1v[i][2] + p1n[i][2]*expand;
 			}
 			return;
 		}
@@ -1306,24 +1308,60 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 	else
 	{
-		for (i = 0; i < mesh->numvertexes; i++)
+		vecV_t *oxyz = mesh->xyz_array;
+		vec3_t *onorm = mesh->normals_array;
+		if (lerpcutoff)
 		{
-			mesh->normals_array[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
-			mesh->normals_array[i][1] = p1n[i][1]*lerp + p2n[i][1]*blerp;
-			mesh->normals_array[i][2] = p1n[i][2]*lerp + p2n[i][2]*blerp;
+			vec3_t d;
+			lerpcutoff *= lerpcutoff;
+			for (i = 0; i < mesh->numvertexes; i++)
+			{
+				VectorSubtract(p2v[i], p1v[i], d);
+				if (DotProduct(d, d) > lerpcutoff)
+				{
+					//just use the current frame if we're over the lerp threshold.
+					//these verts are considered to have teleported.
+					onorm[i][0] = p2n[i][0];
+					onorm[i][1] = p2n[i][1];
+					onorm[i][2] = p2n[i][2];
 
-			mesh->xyz_array[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
-			mesh->xyz_array[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
-			mesh->xyz_array[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
+					oxyz[i][0] = p2v[i][0];
+					oxyz[i][1] = p2v[i][1];
+					oxyz[i][2] = p2v[i][2];
+				}
+				else
+				{
+					onorm[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
+					onorm[i][1] = p1n[i][1]*lerp + p2n[i][1]*blerp;
+					onorm[i][2] = p1n[i][2]*lerp + p2n[i][2]*blerp;
+
+					oxyz[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
+					oxyz[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
+					oxyz[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
+				}
+			}
+		}
+		else
+		{
+			for (i = 0; i < mesh->numvertexes; i++)
+			{
+				onorm[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
+				onorm[i][1] = p1n[i][1]*lerp + p2n[i][1]*blerp;
+				onorm[i][2] = p1n[i][2]*lerp + p2n[i][2]*blerp;
+
+				oxyz[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
+				oxyz[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
+				oxyz[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
+			}
 		}
 
 		if (expand)
 		{
 			for (i = 0; i < mesh->numvertexes; i++)
 			{
-				mesh->xyz_array[i][0] += mesh->normals_array[i][0]*expand;
-				mesh->xyz_array[i][1] += mesh->normals_array[i][1]*expand;
-				mesh->xyz_array[i][2] += mesh->normals_array[i][2]*expand;
+				oxyz[i][0] += onorm[i][0]*expand;
+				oxyz[i][1] += onorm[i][1]*expand;
+				oxyz[i][2] += onorm[i][2]*expand;
 			}
 		}
 	}
@@ -1450,6 +1488,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 {
 	extern cvar_t r_nolerp;
 	galiasgroup_t *g1, *g2;
+	float lerpcutoff;
 
 	int frame1;
 	int frame2;
@@ -1674,13 +1713,14 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			frame2=0;
 		}
 
+		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
 
-		if (Sh_StencilShadowsActive() || qrenderer != QR_OPENGL)
+		if (Sh_StencilShadowsActive() || qrenderer != QR_OPENGL || e->fatness || lerpcutoff)
 		{
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
 			mesh->xyz_blendw[1] = 0;
-			R_LerpFrames(mesh,	&g1->poseofs[frame1], &g2->poseofs[frame2], 1-lerp, e->fatness);
+			R_LerpFrames(mesh,	&g1->poseofs[frame1], &g2->poseofs[frame2], 1-lerp, e->fatness, lerpcutoff);
 		}
 		else
 		{
@@ -2610,7 +2650,7 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 
 //greatly reduced version of Q1_LoadSkins
 //just skips over the data
-static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, qboolean alpha)
+static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, unsigned int skintranstype)
 {
 	int i;
 	int s;
@@ -3175,6 +3215,21 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer)
 	mod->meshinfo = galias;
 
 	mod->funcs.NativeTrace = Mod_Trace;
+
+	if (!strcmp(mod->name, "progs/v_shot.mdl"))
+		galias->lerpcutoff = 20;
+	else if (!strcmp(mod->name, "progs/v_shot2.mdl"))
+		galias->lerpcutoff = 20;
+	else if (!strcmp(mod->name, "progs/v_nail.mdl"))
+		galias->lerpcutoff = 7;
+	else if (!strcmp(mod->name, "progs/v_nail2.mdl"))
+		galias->lerpcutoff = 6;
+	else if (!strcmp(mod->name, "progs/v_rock.mdl"))
+		galias->lerpcutoff = 30;
+	else if (!strcmp(mod->name, "progs/v_rock2.mdl"))
+		galias->lerpcutoff = 30;
+	else if (!strcmp(mod->name, "progs/v_light.mdl"))
+		galias->lerpcutoff = 30;
 
 	return true;
 }
@@ -6185,7 +6240,7 @@ qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 
 
 
-qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 {
 	int i;
 	galiasinfo_t *root;

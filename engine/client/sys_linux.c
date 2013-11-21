@@ -51,6 +51,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <pthread.h>
 #endif
 
+#define USE_LIBTOOL
+#ifdef USE_LIBTOOL
+#include <ltdl.h>
+#endif
+
 #include "quakedef.h"
 
 #undef malloc
@@ -67,7 +72,7 @@ long	sys_parentwindow;
 
 qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
-char *basedir = ".";
+char *basedir = "./";
 
 qboolean Sys_InitTerminal (void)	//we either have one or we don't.
 {
@@ -244,6 +249,10 @@ void Sys_Quit (void)
 {
 	Host_Shutdown();
 	fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
+
+#ifdef USE_LIBTOOL
+	lt_dlexit();
+#endif
 	exit(0);
 }
 
@@ -268,6 +277,9 @@ void Sys_Error (const char *error, ...)
 	fprintf(stderr, "Error: %s\n", string);
 
 	Host_Shutdown ();
+#ifdef USE_LIBTOOL
+	lt_dlexit();
+#endif
 	exit (1);
 }
 
@@ -454,6 +466,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 					if (!func(file, st.st_size, parm, spath))
 					{
+						Con_DPrintf("giving up on search after finding %s\n", file);
 						closedir(dir);
 						return false;
 					}
@@ -492,6 +505,52 @@ unsigned int Sys_Milliseconds (void)
 	return Sys_DoubleTime() * 1000;
 }
 
+#ifdef USE_LIBTOOL
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	lt_dlclose((void*)lib);
+}
+
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
+{
+	int i;
+	dllhandle_t lib;
+
+	lib = NULL;
+	if (!lib)
+		lib = lt_dlopenext (name);
+	if (!lib)
+	{
+		Con_DPrintf("%s: %s\n", name, lt_dlerror());
+		return NULL;
+	}
+
+	if (funcs)
+	{
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = lt_dlsym(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Con_DPrintf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
+	}
+
+	return (dllhandle_t*)lib;
+}
+
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
+{
+	if (!module)
+		return NULL;
+	return lt_dlsym(module, exportname);
+}
+#else
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);
@@ -538,6 +597,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 		return NULL;
 	return dlsym(module, exportname);
 }
+#endif
 
 // =======================================================================
 //friendly way to crash, including stack traces. should help reduce gdb use.
@@ -671,13 +731,17 @@ int main (int c, const char **v)
 	quakeparms_t parms;
 	int j;
 
-//	static char cwd[1024];
-	static char bindir[1024];
+//	char cwd[1024];
+	char bindir[1024];
 
 	signal(SIGFPE, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
 
 	memset(&parms, 0, sizeof(parms));
+
+#ifdef USE_LIBTOOL
+	lt_dlinit();
+#endif
 
 	parms.argc = c;
 	parms.argv = v;

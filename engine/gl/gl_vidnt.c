@@ -1081,7 +1081,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	do
 	{
 		TRACE(("dbg: VID_AttachGL: GLInitialise\n"));
-		if (GLInitialise(info->glrenderer))
+		if (GLInitialise(info->subrenderer))
 		{
 			maindc = GetDC(mainwindow);
 			TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
@@ -1090,13 +1090,13 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			ReleaseDC(mainwindow, maindc);
 		}
 
-		if (!*info->glrenderer || !stricmp(info->glrenderer, "opengl32.dll") || !stricmp(info->glrenderer, "opengl32"))	//go for windows system dir if we failed with the default. Should help to avoid the 3dfx problem.
+		if (!*info->subrenderer || !stricmp(info->subrenderer, "opengl32.dll") || !stricmp(info->subrenderer, "opengl32"))	//go for windows system dir if we failed with the default. Should help to avoid the 3dfx problem.
 		{
 			char systemgl[MAX_OSPATH+1];
 			GetSystemDirectory(systemgl, sizeof(systemgl)-1);
 			strncat(systemgl, "\\", sizeof(systemgl)-1);
-			if (*info->glrenderer)
-				strncat(systemgl, info->glrenderer, sizeof(systemgl)-1);
+			if (*info->subrenderer)
+				strncat(systemgl, info->subrenderer, sizeof(systemgl)-1);
 			else
 				strncat(systemgl, "opengl32.dll", sizeof(systemgl)-1);
 			TRACE(("dbg: VID_AttachGL: GLInitialise (system dir specific)\n"));

@@ -402,12 +402,16 @@ void Media_SetPauseTrack(qboolean paused)
 {
 	if (paused)
 	{
+		if (!cdplayingtrack)
+			return;
 		cdpausedtrack = cdplayingtrack;
 		cdplayingtrack = 0;
 		CDAudio_Pause();
 	}
 	else
 	{
+		if (!cdpausedtrack)
+			return;
 		cdplayingtrack = cdpausedtrack;
 		cdpausedtrack = 0;
 		CDAudio_Resume();

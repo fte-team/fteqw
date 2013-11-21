@@ -8,6 +8,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "botlib", "botlib.vcproj", "{0018E098-B12A-4E4D-9B22-6772DA287080}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fteqcc", "..\qclib\dotnet2005\qcc.vcproj", "{2866F783-6B44-4655-A38D-D53874037454}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9767E236-8454-44E9-8999-CD5BDAFBE9BA} = {9767E236-8454-44E9-8999-CD5BDAFBE9BA}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtvprox", "..\..\fteqtv\dotnet2005\qtvprox.vcproj", "{62669E6C-7E18-4E4D-BA54-DFBE29E7D24E}"
 EndProject
@@ -314,7 +317,6 @@ Global
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.D3DDebug|Win32.ActiveCfg = Debug|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.D3DDebug|x64.ActiveCfg = Release|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.D3DRelease|Win32.ActiveCfg = Release|Win32
-		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.D3DRelease|Win32.Build.0 = Release|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.D3DRelease|x64.ActiveCfg = Release|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.Debug Dedicated Server|Win32.ActiveCfg = Debug|Win32
 		{4735677B-6D5A-4BE6-A945-CB32DEADBEEF}.Debug Dedicated Server|x64.ActiveCfg = Debug|Win32

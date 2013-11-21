@@ -393,8 +393,6 @@ char *MD5_ToHex(char *input, int inputlen, char *ret, int retlen)
 }
 char *MD5_ToBinary(char *input, int inputlen, char *ret, int retlen)
 {
-	int v, i;
-	unsigned char	digest[16];
 	MD5_CTX		ctx;
 
 	if (retlen < 16)

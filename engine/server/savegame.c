@@ -454,14 +454,14 @@ void LoadModelsAndSounds(vfsfile_t *f)
 	char	str[32768];
 	int i;
 
-	sv.strings.model_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	sv.strings.model_precache[0] = PR_AddString(svprogfuncs, "", 0, false);
 	for (i=1; i < MAX_MODELS; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
 			break;
 
-		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, str, 0);
+		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, str, 0, false);
 	}
 	if (i == MAX_MODELS)
 	{
@@ -709,8 +709,8 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 			ent = NULL;
 		svs.clients[i].edict = ent;
 
-		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
-		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
+		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf), false);
+		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf), false);
 
 		if (ent)
 			svs.clients[i].playerclass = ent->xv->playerclass;

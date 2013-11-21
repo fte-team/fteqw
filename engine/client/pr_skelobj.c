@@ -1038,7 +1038,7 @@ static skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 			if (!skelobjects[skelidx].numbones)
 			{
 				skelobjects[skelidx].numbones = bonecount;
-				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
+				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount, false);
 			}
 			skelobjects[skelidx].world = prinst->parms->user;
 			if (numskelobjectsused <= skelidx)

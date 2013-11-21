@@ -189,7 +189,7 @@ void R_BloomBlend (void)
 
 	/*grab the screen, because we failed to do it earlier*/
 	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
-	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, r_refdef.pxrect.x, r_refdef.pxrect.y - r_refdef.pxrect.height, r_refdef.pxrect.width, r_refdef.pxrect.height);
+	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, r_refdef.pxrect.x, r_refdef.pxrect.maxheight - (r_refdef.pxrect.y+r_refdef.pxrect.height), r_refdef.pxrect.width, r_refdef.pxrect.height);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -228,6 +228,8 @@ void R_BloomBlend (void)
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 	}
+	r_worldentity.glowmod[0] = 0;
+	r_worldentity.glowmod[1] = 0;
 
 	GL_Set2D(false);
 

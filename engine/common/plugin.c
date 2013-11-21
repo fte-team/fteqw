@@ -41,6 +41,7 @@ typedef struct plugin_s {
 	int executestring;
 #ifndef SERVERONLY
 	int consolelink;
+	int consolelinkmouseover;
 	int conexecutecommand;
 	int menufunction;
 	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
@@ -341,6 +342,8 @@ static qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const 
 #ifndef SERVERONLY
 	else if (!strcmp(name, "ConsoleLink"))
 		currentplug->consolelink = functionid;
+	else if (!strcmp(name, "ConsoleLinkMouseOver"))
+		currentplug->consolelinkmouseover = functionid;
 	else if (!strcmp(name, "ConExecuteCommand"))
 		currentplug->conexecutecommand = functionid;
 	else if (!strcmp(name, "MenuEvent"))
@@ -950,6 +953,8 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 	}
 	if (!strcmp(fname, "**plugconfig"))
 		f = FS_OpenVFS(va("%s.cfg", currentplug->name), mode, FS_ROOT);
+	else if (arg[2] == 2)
+		f = FS_OpenVFS(fname, mode, FS_GAMEONLY);
 	else
 		f = FS_OpenVFS(fname, mode, FS_GAME);
 	if (!f)
@@ -1210,8 +1215,8 @@ void Plug_Load_f(void)
 	{
 		Con_Printf("Loads a plugin\n");
 		Con_Printf("plug_load [pluginpath]\n");
-		Con_Printf("example pluginpath: plugins/blah\n");
-		Con_Printf("will load blahx86.dll or blah.so\n");
+		Con_Printf("example pluginpath: blah\n");
+		Con_Printf("will load fteplug_blah"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX" or $gamedir/plugins/blah.qvm\n");
 		return;
 	}
 	if (!Plug_Load(plugin, PLUG_EITHER))
@@ -1321,7 +1326,8 @@ void Plug_Initialise(qboolean fromgamedir)
 	if (!fromgamedir)
 	{
 		FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
-		Sys_EnumerateFiles(nat, "fteplug_*"ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+		Con_Printf("Loading plugins from %s\n", nat);
+		Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
 	}
 	if (fromgamedir)
 	{
@@ -1380,8 +1386,28 @@ qboolean Plugin_ExecuteString(void)
 }
 
 #ifndef SERVERONLY
+qboolean Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info)
+{
+	qboolean result = false;
+	plugin_t *oldplug = currentplug;
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->consolelinkmouseover)
+		{
+			char buffer[2048];
+			Q_strncpyz(buffer, va("\"%s\" \"%s\"", text, info), sizeof(buffer));
+			Cmd_TokenizeString(buffer, false, false);
+			result = VM_Call(currentplug->vm, currentplug->consolelinkmouseover, *(int*)&(x), *(int*)&(y));
+			if (result)
+				break;
+		}
+	}
+	currentplug = oldplug;
+	return result;
+}
 qboolean Plug_ConsoleLink(char *text, char *info)
 {
+	qboolean result = false;
 	plugin_t *oldplug = currentplug;
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
@@ -1390,11 +1416,13 @@ qboolean Plug_ConsoleLink(char *text, char *info)
 			char buffer[2048];
 			Q_strncpyz(buffer, va("\"%s\" \"%s\"", text, info), sizeof(buffer));
 			Cmd_TokenizeString(buffer, false, false);
-			VM_Call(currentplug->vm, currentplug->consolelink);
+			result = VM_Call(currentplug->vm, currentplug->consolelink);
+			if (result)
+				break;
 		}
 	}
 	currentplug = oldplug;
-	return false;
+	return result;
 }
 
 void Plug_SubConsoleCommand(console_t *con, char *line)

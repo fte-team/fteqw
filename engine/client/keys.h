@@ -192,8 +192,8 @@ extern	int		key_repeats[K_MAX];
 extern	int		key_count;			// incremented every key event
 extern	int		key_lastpress;
 
-extern char chat_buffer[];
-extern	int chat_bufferlen;
+extern unsigned char *chat_buffer;
+extern	int chat_bufferpos;
 extern	qboolean	chat_team;
 
 void Key_Event (int devid, int key, unsigned int unicode, qboolean down);

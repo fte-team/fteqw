@@ -2,7 +2,6 @@
 
 static char *defaultlanguagetext =
 "STL_LANGUAGENAME \"English\"\n"
-"TL_NL \"\\n\"\n"
 "TL_STNL \"%s\\n\"\n"
 "STL_CLIENTCONNECTED \"client %s connected\\n\"\n"
 "STL_SPECTATORCONNECTED \"spectator %s connected\\n\"\n"
@@ -262,7 +261,8 @@ static char *defaultlanguagetext =
 
 
 
-cvar_t language = SCVAR("language", "en-gb");
+char sys_language[64] = "";
+cvar_t language = SCVAR("language", sys_language);
 char lastlang[9];
 
 typedef struct trans_s {
@@ -551,7 +551,7 @@ void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the fir
 				break;
 		}
 
-		s = COM_ParseCString(s, com_token, sizeof(com_token));
+		s = COM_ParseCString(s, com_token, sizeof(com_token), NULL);
 		if (i == STL_MAXSTL)	//silently ignore - allow other servers or clients to add stuff
 			continue;
 
@@ -850,6 +850,7 @@ char *T_GetString(int num)
 //#endif
 
 #ifndef SERVERONLY
+//for hexen2's objectives and stuff.
 static char *info_strings_list;
 static char **info_strings_table;
 static int info_strings_count;
@@ -915,3 +916,128 @@ char *T_GetInfoString(int num)
 }
 #endif
 
+struct poline_s
+{
+	bucket_t buck;
+	struct poline_s *next;
+	char *orig;
+	char *translated;
+};
+
+struct po_s
+{
+	hashtable_t hash;
+
+	struct poline_s *lines;
+};
+
+const char *PO_GetText(struct po_s *po, const char *msg)
+{
+	struct poline_s *line;
+	line = Hash_Get(&po->hash, msg);
+	if (line)
+		return line->translated;
+	return msg;
+}
+static void PO_AddText(struct po_s *po, const char *orig, const char *trans)
+{
+	size_t olen = strlen(orig)+1;
+	size_t tlen = strlen(trans)+1;
+	struct poline_s *line = Z_Malloc(sizeof(*line)+olen+tlen);
+	memcpy(line+1, orig, olen);
+	orig = (const char*)(line+1);
+	line->translated = (char*)(line+1)+olen;
+	memcpy(line->translated, trans, tlen);
+	trans = (const char*)(line->translated);
+	Hash_Add(&po->hash, orig, line, &line->buck);
+}
+struct po_s *PO_Load(vfsfile_t *file)
+{
+	struct po_s *po;
+	unsigned int buckets = 1024;
+	char *in, *end;
+	int inlen;
+	char msgid[32768];
+	char msgstr[32768];
+
+	po = Z_Malloc(sizeof(*po) + Hash_BytesForBuckets(buckets));
+	Hash_InitTable(&po->hash, buckets, po+1);
+
+	inlen = file?VFS_GETLEN(file):0;
+	in = BZ_Malloc(inlen+1);
+	if (file)
+		VFS_READ(file, in, inlen);
+	in[inlen] = 0;
+	if (file)
+		VFS_CLOSE(file);
+
+	end = in + inlen;
+	while(in < end)
+	{
+		while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
+			in++;
+		if (*in == '#')
+		{
+			while (*in && *in != '\n')
+				in++;
+		}
+		else if (!strncmp(in, "msgid", 5) && (in[5] == ' ' || in[5] == '\t' || in[5] == '\r' || in[5] == '\n'))
+		{
+			size_t start = 0;
+			size_t ofs = 0;
+			in += 5;
+			while(1)
+			{
+				while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
+					in++;
+				if (*in == '\"')
+				{
+					in = COM_ParseCString(in, msgid+start, sizeof(msgid) - start, &ofs);
+					start += ofs;
+				}
+				else
+					break;
+			}
+		}
+		else if (!strncmp(in, "msgstr", 6) && (in[6] == ' ' || in[6] == '\t' || in[6] == '\r' || in[6] == '\n'))
+		{
+			size_t start = 0;
+			size_t ofs = 0;
+			in += 6;
+			while(1)
+			{
+				while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
+					in++;
+				if (*in == '\"')
+				{
+					in = COM_ParseCString(in, msgstr+start, sizeof(msgstr) - start, &ofs);
+					start += ofs;
+				}
+				else
+					break;
+			}
+
+//			if (*msgid && start)
+				PO_AddText(po, msgid, msgstr);
+		}
+		else
+		{
+			//some sort of junk?
+			in++;
+			while (*in && *in != '\n')
+				in++;
+		}
+	}
+
+	return po;
+}
+void PO_Close(struct po_s *po)
+{
+	while(po->lines)
+	{
+		struct poline_s *r = po->lines;
+		po->lines = r->next;
+		Z_Free(r);
+	}
+	Z_Free(po);
+}

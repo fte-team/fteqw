@@ -383,21 +383,21 @@ void R_SetupGL (float stereooffset)
 		//
 		x = r_refdef.vrect.x * (int)vid.pixelwidth/(int)vid.width;
 		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
-		y = (vid.height-r_refdef.vrect.y) * (int)vid.pixelheight/(int)vid.height;
-		y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * (int)vid.pixelheight/(int)vid.height;
+		y = (r_refdef.vrect.y) * (int)vid.pixelheight/(int)vid.height;
+		y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
 
 		// fudge around because of frac screen scale
 		if (x > 0)
 			x--;
 		if (x2 < vid.pixelwidth)
 			x2++;
-		if (y2 < 0)
-			y2--;
-		if (y < vid.pixelheight)
-			y++;
+		if (y2 < vid.pixelheight)
+			y2++;
+		if (y > 0)
+			y--;
 
 		w = x2 - x;
-		h = y - y2;
+		h = y2 - y;
 
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
@@ -413,8 +413,9 @@ void R_SetupGL (float stereooffset)
 		r_refdef.pxrect.y = y;
 		r_refdef.pxrect.width = w;
 		r_refdef.pxrect.height = h;
+		r_refdef.pxrect.maxheight = vid.pixelheight;
 
-		qglViewport (x, y2, w, h);
+		GL_ViewportUpdate();
 
 		if (r_waterwarp.value<0 && (r_viewcontents & FTECONTENTS_FLUID))
 		{
@@ -1140,7 +1141,7 @@ qboolean R_RenderScene_Cubemap(void)
 	vec3_t saveang;
 
 	vrect_t vrect;
-	vrect_t prect;
+	pxrect_t prect;
 
 	shader_t *shader;
 	int facemask;
@@ -1274,27 +1275,28 @@ qboolean R_RenderScene_Cubemap(void)
 	}
 
 	r_refdef.vrect = vrect;
+	r_refdef.pxrect = prect;
 
-	qglViewport (prect.x, vid.pixelheight - (prect.y+prect.height), prect.width, prect.height);
-
+	//GL_ViewportUpdate();
+	GL_Set2D(false);
 	// go 2d
-	qglMatrixMode(GL_PROJECTION);
+/*	qglMatrixMode(GL_PROJECTION);
 	qglPushMatrix();
 	qglLoadIdentity ();
 	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
-
+*/
 	// draw it through the shader
 	R2D_Image(0, 0, vid.width, vid.height, -0.5, 0.5, 0.5, -0.5, shader);
 
 	//revert the matricies
-	qglMatrixMode(GL_PROJECTION);
+/*	qglMatrixMode(GL_PROJECTION);
 	qglPopMatrix();
 	qglMatrixMode(GL_MODELVIEW);
 	qglPopMatrix();
-
+*/
 	return true;
 }
 
@@ -1318,7 +1320,7 @@ void GLR_RenderView (void)
 	}
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-		if (!r_worldentity.model || !cl.worldmodel)
+		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
 		{
 			GL_DoSwap();
 

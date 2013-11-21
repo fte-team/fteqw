@@ -1761,7 +1761,7 @@ void SV_Serverinfo_f (void)
 
 				return;
 			}
-		Con_TPrintf (TL_STARKEYPROTECTED);
+		Con_Printf ("Can't set * keys\n");
 		return;
 	}
 	Q_strncpyz(value, Cmd_Argv(2), sizeof(value));
@@ -1820,7 +1820,7 @@ void SV_Localinfo_f (void)
 				Info_RemoveNonStarKeys(localinfo);
 				return;
 			}
-		Con_TPrintf (TL_STARKEYPROTECTED);
+		Con_Printf ("Can't set * keys\n");
 		return;
 	}
 	old = Info_ValueForKey(localinfo, Cmd_Argv(1));

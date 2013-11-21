@@ -1142,7 +1142,7 @@ void INS_Init (void)
 	Cmd_AddCommand ("force_centerview", Force_CenterView_f);
 	Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
 
-	uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
+	uiWheelMessage = RegisterWindowMessageA ( "MSWHEEL_ROLLMSG" );
 
 #ifdef USINGRAWINPUT
 	Cvar_Register (&in_rawinput, "Input Controls");

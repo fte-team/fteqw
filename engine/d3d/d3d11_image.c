@@ -6,6 +6,8 @@
 extern ID3D11Device *pD3DDev11;
 extern ID3D11DeviceContext *d3ddevctx;
 
+//FIXME: need support for cubemaps.
+
 typedef struct d3dtexture_s
 {
 	texcom_t com;
@@ -535,6 +537,53 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 	lm->lightmap_texture = ToTexID(tex);
 }
 
+static void genNormalMap(unsigned int *nmap, qbyte *pixels, int w, int h, float scale)
+{
+	int i, j, wr, hr;
+	unsigned char r, g, b;
+	float sqlen, reciplen, nx, ny, nz;
+
+	const float oneOver255 = 1.0f/255.0f;
+
+	float c, cx, cy, dcx, dcy;
+
+	wr = w;
+	hr = h;
+
+	for (i=0; i<h; i++)
+	{
+		for (j=0; j<w; j++)
+		{
+			/* Expand [0,255] texel values to the [0,1] range. */
+			c = pixels[i*wr + j] * oneOver255;
+			/* Expand the texel to its right. */
+			cx = pixels[i*wr + (j+1)%wr] * oneOver255;
+			/* Expand the texel one up. */
+			cy = pixels[((i+1)%hr)*wr + j] * oneOver255;
+			dcx = scale * (c - cx);
+			dcy = scale * (c - cy);
+
+			/* Normalize the vector. */
+			sqlen = dcx*dcx + dcy*dcy + 1;
+			reciplen = 1.0f/(float)sqrt(sqlen);
+			nx = dcx*reciplen;
+			ny = -dcy*reciplen;
+			nz = reciplen;
+
+			/* Repack the normalized vector into an RGB unsigned qbyte
+			   vector in the normal map image. */
+			r = (qbyte) (128 + 127*nx);
+			g = (qbyte) (128 + 127*ny);
+			b = (qbyte) (128 + 127*nz);
+
+			/* The highest resolution mipmap level always has a
+			   unit length magnitude. */
+			nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
+		}
+	}
+}
+
+
 texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
 	d3d11texture_t *tex;
@@ -579,6 +628,24 @@ texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadf
 
 	switch (fmt)
 	{
+	case TF_HEIGHT8PAL:
+		{
+			extern cvar_t r_shadow_bumpscale_basetexture;
+			unsigned int *norm = malloc(width*height*4);
+			genNormalMap(norm, data, width, height, r_shadow_bumpscale_basetexture.value);
+			D3D11_LoadTexture_32(tex, norm, width, height, flags);
+			free(norm);
+			return ToTexID(tex);
+		}
+	case TF_HEIGHT8:
+		{
+			extern cvar_t r_shadow_bumpscale_basetexture;
+			unsigned int *norm = malloc(width*height*4);
+			genNormalMap(norm, data, width, height, r_shadow_bumpscale_basetexture.value);
+			D3D11_LoadTexture_32(tex, norm, width, height, flags);
+			free(norm);
+			return ToTexID(tex);
+		}
 	case TF_SOLID8:
 	case TF_TRANS8:
 	case TF_H2_T7G1:
@@ -592,9 +659,6 @@ texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadf
 	case TF_RGBA32:
 		D3D11_LoadTexture_32(tex, data, width, height, flags);
 		return ToTexID(tex);
-	case TF_HEIGHT8PAL:
-		OutputDebugString(va("D3D11_LoadTexture doesn't support fmt TF_HEIGHT8PAL (%s)\n", identifier));
-		return r_nulltex;
 	default:
 		OutputDebugString(va("D3D11_LoadTexture doesn't support fmt %i (%s)\n", fmt, identifier));
 		return r_nulltex;
@@ -633,5 +697,116 @@ texid_t D3D11_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte 
 	}
 	return D3D11_LoadTexture8Pal32(identifier, width, height, data, (qbyte*)pal32, flags);
 }
+
+#ifdef RTLIGHTS
+static const int shadowfmt = 1;
+static const int shadowfmts[][3] =
+{
+	//sampler,				creation,			render
+	{DXGI_FORMAT_R24_UNORM_X8_TYPELESS, DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT},
+	{DXGI_FORMAT_R16_UNORM, DXGI_FORMAT_R16_TYPELESS, DXGI_FORMAT_D16_UNORM},
+	{DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM}
+};
+d3d11texture_t shadowmap_texture[2];
+ID3D11DepthStencilView *shadowmap_dsview[2];
+ID3D11RenderTargetView *shadowmap_rtview[2];
+texid_t D3D11_GetShadowMap(int id)
+{
+	d3d11texture_t *tex = &shadowmap_texture[id];
+	texid_t tid;
+	tid.ref = &tex->com;
+	if (!tex->view)
+	{
+		D3D11_SHADER_RESOURCE_VIEW_DESC desc;
+		desc.Format = shadowfmts[shadowfmt][0];
+		desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		desc.Texture2D.MostDetailedMip = 0;
+		desc.Texture2D.MipLevels = -1;
+		ID3D11Device_CreateShaderResourceView(pD3DDev11, (ID3D11Resource *)tex->tex2d, &desc, &tex->view);
+	}
+	tid.ptr = NULL;
+	return tid;
+}
+void D3D11_TerminateShadowMap(void)
+{
+	int i;
+	for (i = 0; i < sizeof(shadowmap_texture)/sizeof(shadowmap_texture[0]); i++)
+	{
+		if (shadowmap_dsview[i])
+			ID3D11DepthStencilView_Release(shadowmap_dsview[i]);
+		shadowmap_dsview[i] = NULL;
+		if (shadowmap_texture[i].tex2d)
+			ID3D11DepthStencilView_Release(shadowmap_texture[i].tex2d);
+		shadowmap_texture[i].tex2d = NULL;
+	}
+}
+void D3D11_BeginShadowMap(int id, int w, int h)
+{
+	D3D11_TEXTURE2D_DESC texdesc;
+	HRESULT hr;
+
+	if (!shadowmap_dsview[id] && !shadowmap_rtview[id])
+	{
+		memset(&texdesc, 0, sizeof(texdesc));
+
+		texdesc.Width = w;
+		texdesc.Height = h;
+		texdesc.MipLevels = 1;
+		texdesc.ArraySize = 1;
+		texdesc.Format = shadowfmts[shadowfmt][1];
+		texdesc.SampleDesc.Count = 1;
+		texdesc.SampleDesc.Quality = 0;
+		texdesc.Usage = D3D11_USAGE_DEFAULT;
+		texdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+		texdesc.CPUAccessFlags = 0;
+		texdesc.MiscFlags = 0;
+
+		if (shadowfmt == 2)
+			texdesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+		// Create the texture
+		hr = ID3D11Device_CreateTexture2D(pD3DDev11, &texdesc, NULL, &shadowmap_texture[id].tex2d);
+		if (FAILED(hr))
+			Sys_Error("Failed to create depth texture\n");
+
+
+		if (shadowfmt == 2)
+		{
+			hr = ID3D11Device_CreateRenderTargetView(pD3DDev11, (ID3D11Resource *)shadowmap_texture[id].tex2d, NULL, &shadowmap_rtview[id]);
+		}
+		else
+		{
+			D3D11_DEPTH_STENCIL_VIEW_DESC rtdesc;
+			rtdesc.Format = shadowfmts[shadowfmt][2];
+			rtdesc.Flags = 0;
+			rtdesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+			rtdesc.Texture2D.MipSlice = 0;
+			hr = ID3D11Device_CreateDepthStencilView(pD3DDev11, (ID3D11Resource *)shadowmap_texture[id].tex2d, &rtdesc, &shadowmap_dsview[id]);
+		}
+		if (FAILED(hr))
+			Sys_Error("ID3D11Device_CreateDepthStencilView failed\n");
+	}
+	if (shadowfmt == 2)
+	{
+		float colours[4] = {0, 1, 0, 0};
+		colours[0] = frandom();
+		colours[1] = frandom();
+		colours[2] = frandom();
+		ID3D11DeviceContext_OMSetRenderTargets(d3ddevctx, 1, &shadowmap_rtview[id], shadowmap_dsview[id]);
+		ID3D11DeviceContext_ClearRenderTargetView(d3ddevctx, shadowmap_rtview[id], colours);
+	}
+	else
+	{
+		ID3D11DeviceContext_OMSetRenderTargets(d3ddevctx, 0, NULL, shadowmap_dsview[id]);
+		ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, shadowmap_dsview[id], D3D11_CLEAR_DEPTH, 1.0f, 0);
+	}
+}
+void D3D11_EndShadowMap(void)
+{
+	extern ID3D11RenderTargetView *fb_backbuffer;
+	extern ID3D11DepthStencilView *fb_backdepthstencil;
+	ID3D11DeviceContext_OMSetRenderTargets(d3ddevctx, 1, &fb_backbuffer, fb_backdepthstencil);
+}
+#endif
 
 #endif

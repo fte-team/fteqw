@@ -21,6 +21,7 @@ It also means for explosions and local stuff, the server will merely restate cha
 */
 cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
 cvar_t mod_terrain_defaulttexture = CVARD("mod_terrain_defaulttexture", "", "Newly created terrain tiles will use this texture. This should generally be updated by the terrain editor.");
+cvar_t mod_terrain_savever = CVARD("mod_terrain_savever", "", "Which terrain section version to write if terrain was edited.");
 
 /*
 terminology:
@@ -56,12 +57,16 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe);
 #define HMLMSTRIDE (LMCHUNKS*SECTTEXSIZE)
 
 #define SECTION_MAGIC (*(int*)"HMMS")
-#define SECTION_VER	1
+#define SECTION_VER_DEFAULT	1
 /*simple version history:
 ver=0
 	SECTHEIGHTSIZE=16
 ver=1
 	SECTHEIGHTSIZE=17 (oops, makes holes more usable)
+	(holes in this format are no longer supported)
+ver=2
+	uses deltas instead of absolute values
+	variable length image names
 */
 
 #define TGS_NOLOAD			0
@@ -75,8 +80,10 @@ ver=1
 enum
 {
 	//these flags can be found on disk
-	TSF_HASWATER	= 1u<<0,
+	TSF_HASWATER_V0	= 1u<<0,	//no longer flagged.
 	TSF_HASCOLOURS	= 1u<<1,
+	TSF_HASHEIGHTS	= 1u<<2,
+	TSF_HASSHADOW	= 1u<<3,
 
 	//these flags are found only on disk
 	TSF_COMPRESSED	= 1u<<31,
@@ -89,6 +96,11 @@ enum
 	TSF_EDITED		= 1u<<31	//says it needs to be written if saved
 
 #define TSF_INTERNAL	(TSF_RELIGHT|TSF_DIRTY|TSF_EDITED|TSF_NOTIFY|TSF_FAILEDLOAD)
+};
+enum
+{
+	TMF_SCALE	= 1u<<0,
+	//what else do we want? alpha? colormod perhaps?
 };
 
 typedef struct
@@ -105,12 +117,12 @@ typedef struct
 typedef struct
 {
 	unsigned int flags;
-	char texname[4][32];	//FIXME: 32 is not enough. make variable length.
-	unsigned int texmap[SECTTEXSIZE][SECTTEXSIZE];	//FIXME: RLE? at least strip out unused channels.
+	char texname[4][32];
+	unsigned int texmap[SECTTEXSIZE][SECTTEXSIZE];
 	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
-	unsigned short holes;	//FIXME: use 16 shorts? 8 bytes? WHAT DO YOU WANT FROM ME?!?
+	unsigned short holes;
 	unsigned short reserved0;
-	float waterheight;		//needs separate holes. possibly multiple sets of water. maybe a heightmap. independant shader name.
+	float waterheight;
 	float minh;
 	float maxh;
 	int ents_num;
@@ -147,17 +159,30 @@ typedef struct hmpolyset_s
 	mesh_t *amesh;
 	vbo_t vbo;
 } hmpolyset_t;
+struct hmwater_s
+{
+	struct hmwater_s *next;
+	unsigned int contentmask;
+	qboolean simple;
+	float minheight;
+	float maxheight;
+	shader_t *shader;
+	qbyte holes[8];
+	float heights[9*9];
+};
 typedef struct
 {
 	link_t recycle;
 	int sx, sy;
 
 	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
-	unsigned short holes;
+	unsigned char holes[8];
 	unsigned int flags;
-	float waterheight;
+	float maxh_cull;	//includes water+mesh heights
 	float minh, maxh;
 	struct heightmap_s *hmmod;
+
+	struct hmwater_s *water;
 
 #ifndef SERVERONLY
 	pvscache_t pvscache;
@@ -185,13 +210,13 @@ typedef struct
 typedef struct heightmap_s
 {
 	char path[MAX_QPATH];
+	char watershadername[MAX_QPATH];	//typically the name of the ocean or whatever.
 	int firstsegx, firstsegy;
 	int maxsegx, maxsegy; //tex/cull sections
 	float sectionsize;	//each section is this big, in world coords
 	hmcluster_t *cluster[MAXCLUSTERS*MAXCLUSTERS];
 	shader_t *skyshader;
 	shader_t *shader;
-	shader_t *watershader;
 	mesh_t skymesh;
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
@@ -226,7 +251,6 @@ typedef struct heightmap_s
 	vec2_t relightmin;
 #endif
 } heightmap_t;
-
 
 #ifndef SERVERONLY
 static void ted_dorelight(heightmap_t *hm);
@@ -390,6 +414,10 @@ static char *Terr_DiskBlockName(heightmap_t *hm, int sx, int sy)
 	sy &= CHUNKLIMIT-1;
 	sx /= SECTIONSPERBLOCK;
 	sy /= SECTIONSPERBLOCK;
+	if (sx >= CHUNKBIAS/SECTIONSPERBLOCK)
+		sx |= 0xffffff00;
+	if (sy >= CHUNKBIAS/SECTIONSPERBLOCK)
+		sy |= 0xffffff00;
 	return va("maps/%s/block_%s_%s.hms", hm->path, genextendedhex(sx, xpart), genextendedhex(sy, ypart));
 }
 static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy)
@@ -516,6 +544,26 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy)
 	return s;
 }
 
+static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
+{
+	int i;
+	struct hmwater_s *w;
+	w = Z_Malloc(sizeof(*s->water));
+	w->next = s->water;
+	s->water = w;
+#ifndef SERVERONLY
+	w->shader = R_RegisterCustom (s->hmmod->watershadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
+#endif
+	w->simple = true;
+	memset(w->holes, 0, sizeof(w->holes));
+	for (i = 0; i < 9*9; i++)
+		w->heights[i] = maxheight;
+	w->maxheight = w->minheight = maxheight;
+	if (s->maxh_cull < w->maxheight)
+		s->maxh_cull = w->maxheight;
+	return w;
+}
+
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
 	dsmesh_t *dm;
@@ -524,15 +572,18 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	int i;
 
 	unsigned int flags = LittleLong(ds->flags);
-	s->flags |= flags & ~TSF_INTERNAL;
+	s->flags |= flags & ~(TSF_INTERNAL|TSF_HASWATER_V0);
 	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
 	{
 		s->heights[i] = LittleFloat(ds->heights[i]);
 	}
 	s->minh = ds->minh;
 	s->maxh = ds->maxh;
-	s->waterheight = ds->waterheight;
-	s->holes = ds->holes;
+	if (flags & TSF_HASWATER_V0)
+		Terr_GenerateWater(s, ds->waterheight);
+
+	memset(s->holes, 0, sizeof(s->holes));
+//	s->holes = ds->holes;
 
 	ptr = ds+1;
 
@@ -630,12 +681,477 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	return ptr;
 }
 
+
+
+
+struct terrstream_s
+{
+	qbyte *buffer;
+	int maxsize;
+	int pos;
+};
+//I really hope these get inlined properly.
+static int Terr_Read_SInt(struct terrstream_s *strm)
+{
+	int val;
+	strm->pos = (strm->pos + sizeof(val)-1) & ~(sizeof(val)-1);
+	val = *(int*)(strm->buffer+strm->pos);
+	strm->pos += sizeof(val);
+	return LittleLong(val);
+}
+static qbyte Terr_Read_Byte(struct terrstream_s *strm)
+{
+	qbyte val;
+	val = *(qbyte*)(strm->buffer+strm->pos);
+	strm->pos += sizeof(val);
+	return val;
+}
+static float Terr_Read_Float(struct terrstream_s *strm)
+{
+	float val;
+	strm->pos = (strm->pos + sizeof(val)-1) & ~(sizeof(val)-1);
+	val = *(float*)(strm->buffer+strm->pos);
+	strm->pos += sizeof(val);
+	return LittleFloat(val);
+}
+static char *Terr_Read_String(struct terrstream_s *strm, char *val, int maxlen)
+{
+	int len = strlen(strm->buffer + strm->pos);
+	maxlen = min(len, maxlen-1);	//truncate
+	memcpy(val, strm->buffer + strm->pos, maxlen);
+	val[maxlen] = 0;
+	strm->pos += len+1;
+	return val;
+}
+#ifndef SERVERONLY
+static void Terr_Write_SInt(struct terrstream_s *strm, int val)
+{
+	val = LittleLong(val);
+	strm->pos = (strm->pos + sizeof(val)-1) & ~(sizeof(val)-1);
+	*(int*)(strm->buffer+strm->pos) = val;
+	strm->pos += sizeof(val);
+}
+static void Terr_Write_Byte(struct terrstream_s *strm, qbyte val)
+{
+	*(qbyte*)(strm->buffer+strm->pos) = val;
+	strm->pos += sizeof(val);
+}
+static void Terr_Write_Float(struct terrstream_s *strm, float val)
+{
+	val = LittleFloat(val);
+	strm->pos = (strm->pos + sizeof(val)-1) & ~(sizeof(val)-1);
+	*(float*)(strm->buffer+strm->pos) = val;
+	strm->pos += sizeof(val);
+}
+static void Terr_Write_String(struct terrstream_s *strm, char *val)
+{
+	int len = strlen(val)+1;
+	memcpy(strm->buffer + strm->pos, val, len);
+	strm->pos += len;
+}
+static void Terr_TrimWater(hmsection_t *s)
+{
+	int i;
+	struct hmwater_s *w, **link;
+
+	for (link = &s->water; (w = *link); link = &(*link)->next)
+	{
+		//one has a height above the terrain?
+		for (i = 0; i < 9*9; i++)
+			if (w->heights[i] > s->minh)
+				break;
+		if (i == 9*9)
+		{
+			*link = w->next;
+			Z_Free(w);
+			continue;
+		}
+	}
+}
+static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int sy)
+{
+	qbyte buffer[65536], last, delta, *lm;
+	struct terrstream_s strm = {buffer, sizeof(buffer), 0};
+	unsigned int flags = s->flags;
+	int i, j, x, y;
+	struct hmwater_s *w;
+
+	flags &= ~(TSF_INTERNAL);
+	flags &= ~(TSF_HASCOLOURS|TSF_HASHEIGHTS|TSF_HASSHADOW);
+
+	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+	{
+		if (s->colours[i][0] != 1 || s->colours[i][1] != 1 || s->colours[i][2] != 1 || s->colours[i][3] != 1)
+		{
+			flags |= TSF_HASCOLOURS;
+			break;
+		}
+	}
+	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+	{
+		if (s->heights[i] != s->heights[0])
+		{
+			flags |= TSF_HASHEIGHTS;
+			break;
+		}
+	}
+
+	lm = lightmap[s->lightmap]->lightmaps;
+	lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+	for (y = 0; y < SECTTEXSIZE; y++)
+	{
+		for (x = 0; x < SECTTEXSIZE; x++)
+		{
+			if (lm[x*4+3] != 255)
+			{
+				flags |= TSF_HASSHADOW;
+				y = SECTTEXSIZE;
+				break;
+			}
+		}
+		lm += (HMLMSTRIDE)*lightmap_bytes;
+	}
+
+	//write the flags so the loader knows what to load
+	Terr_Write_SInt(&strm, flags);
+
+	//if heights are compressed, only the first is present.
+	if (!(flags & TSF_HASHEIGHTS))
+		Terr_Write_Float(&strm, s->heights[0]);
+	else
+	{
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+			Terr_Write_Float(&strm, s->heights[i]);
+	}
+
+	for (i = 0; i < sizeof(s->holes); i++)
+		Terr_Write_Byte(&strm, s->holes[i]);
+
+	Terr_TrimWater(s);
+	for (j = 0, w = s->water; w; j++)
+		w = w->next;
+	Terr_Write_SInt(&strm, j);
+	for (i = 0; i < j; i++)
+	{
+		char *shadername = w->shader->name;
+		int fl = 0;
+
+		if (strcmp(shadername, hm->watershadername))
+			fl |= 1;
+		for (x = 0; x < 8; x++)
+			if (w->holes[x])
+				break;
+		fl |= ((x==8)?0:2);
+		for (x = 0; x < 9*9; x++)
+			if (w->heights[x] != w->heights[0])
+				break;
+		fl |= ((x==9*9)?0:4);
+
+		
+		Terr_Write_SInt(&strm, fl);
+		Terr_Write_SInt(&strm, w->contentmask);
+		if (fl & 1)
+			Terr_Write_String(&strm, shadername);
+		if (fl & 2)
+		{
+			for (x = 0; x < 8; x++)
+				Terr_Write_Byte(&strm, w->holes[x]);
+		}
+		if (fl & 4)
+		{
+			for (x = 0; x < 9*9; x++)
+				Terr_Write_Float(&strm, w->heights[x]);
+		}
+		else
+			Terr_Write_Float(&strm, w->heights[0]);
+	}
+
+	if (flags & TSF_HASCOLOURS)
+	{
+		//FIXME: bytes? channels?
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			Terr_Write_Float(&strm, s->colours[i][0]);
+			Terr_Write_Float(&strm, s->colours[i][1]);
+			Terr_Write_Float(&strm, s->colours[i][2]);
+			Terr_Write_Float(&strm, s->colours[i][3]);
+		}
+	}
+
+	for (j = 0; j < 4; j++)
+		Terr_Write_String(&strm, s->texname[j]);
+	for (j = 0; j < 4; j++)
+	{
+		if (j == 3)
+		{
+			//only write the channel if it has actual data
+			if (!(flags & TSF_HASSHADOW))
+				continue;
+		}
+		else
+		{
+			//only write the data if there's actually a texture.
+			//its not meant to be possible to delete a texture without deleting its data too.
+			//
+			if (!*s->texname[2-j])
+				continue;
+		}
+
+		//write the channel
+		last = 0;
+		lm = lightmap[s->lightmap]->lightmaps;
+		lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+		for (y = 0; y < SECTTEXSIZE; y++)
+		{
+			for (x = 0; x < SECTTEXSIZE; x++)
+			{
+				delta = lm[x*4+j] - last;
+				last = lm[x*4+j];
+				Terr_Write_Byte(&strm, delta);
+			}
+			lm += (HMLMSTRIDE)*lightmap_bytes;
+		}
+	}
+
+	Terr_Write_SInt(&strm, s->numents);
+	for (i = 0; i < s->numents; i++)
+	{
+		unsigned int mf;
+		mf = 0;
+		if (s->ents[i].scale != 1)
+			mf |= TMF_SCALE;
+
+		//make sure we don't overflow. we should always be aligned at this point.
+		if (strm.pos > strm.maxsize/2)
+		{
+			VFS_WRITE(f, strm.buffer, strm.pos);
+			strm.pos = 0;
+		}
+
+		if (s->ents[i].model)
+			Terr_Write_String(&strm, s->ents[i].model->name);
+		else
+			Terr_Write_String(&strm, "*invalid");
+		Terr_Write_Float(&strm, s->ents[i].origin[0]+(CHUNKBIAS-sx)*hm->sectionsize);
+		Terr_Write_Float(&strm, s->ents[i].origin[1]+(CHUNKBIAS-sy)*hm->sectionsize);
+		Terr_Write_Float(&strm, s->ents[i].origin[2]);
+		Terr_Write_Float(&strm, s->ents[i].axis[0][0]);
+		Terr_Write_Float(&strm, s->ents[i].axis[0][1]);
+		Terr_Write_Float(&strm, s->ents[i].axis[0][2]);
+		Terr_Write_Float(&strm, s->ents[i].axis[1][0]);
+		Terr_Write_Float(&strm, s->ents[i].axis[1][1]);
+		Terr_Write_Float(&strm, s->ents[i].axis[1][2]);
+		Terr_Write_Float(&strm, s->ents[i].axis[2][0]);
+		Terr_Write_Float(&strm, s->ents[i].axis[2][1]);
+		Terr_Write_Float(&strm, s->ents[i].axis[2][2]);
+		if (mf & TMF_SCALE)
+			Terr_Write_Float(&strm, s->ents[i].scale);
+	}
+
+	//reset it in case the buffer is getting a little full
+	strm.pos = (strm.pos + sizeof(int)-1) & ~(sizeof(int)-1);
+	VFS_WRITE(f, strm.buffer, strm.pos);
+	strm.pos = 0;
+}
+#endif
+static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
+{
+	char modelname[MAX_QPATH];
+	struct terrstream_s strm = {ptr, len, 0};
+	float f;
+	int i, j, x, y;
+	qbyte *lm, delta, last;
+	unsigned int flags = Terr_Read_SInt(&strm);
+	qboolean present;
+
+	s->flags |= flags & ~TSF_INTERNAL;
+	if (flags & TSF_HASHEIGHTS)
+	{
+		s->minh = s->maxh = s->heights[0] = Terr_Read_Float(&strm);
+		for (i = 1; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			f = Terr_Read_Float(&strm);
+			if (s->minh > f)
+				s->minh = f;
+			if (s->maxh < f)
+				s->maxh = f;
+			s->heights[i] = f;
+		}
+	}
+	else
+	{
+		s->minh = s->maxh = f = Terr_Read_Float(&strm);
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+			s->heights[i] = f;
+	}
+	
+	for (i = 0; i < sizeof(s->holes); i++)
+		s->holes[i] = Terr_Read_Byte(&strm);
+
+	j = Terr_Read_SInt(&strm);
+	for (i = 0; i < j; i++)
+	{
+		struct hmwater_s *w = Z_Malloc(sizeof(*w));
+		char shadername[MAX_QPATH];
+		int fl = Terr_Read_SInt(&strm);
+		w->next = s->water;
+		s->water = w;
+		w->contentmask = Terr_Read_SInt(&strm);
+		if (fl & 1)
+			Terr_Read_String(&strm, shadername, sizeof(shadername));
+		else
+			Q_strncpyz(shadername, hm->watershadername, sizeof(hm->watershadername));
+#ifndef SERVERONLY
+//		CL_CheckOrEnqueDownloadFile(shadername, NULL, 0);
+		w->shader = R_RegisterCustom (shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
+#endif
+		if (fl & 2)
+		{
+			for (x = 0; x < 8; x++)
+				w->holes[i] = Terr_Read_Byte(&strm);
+		}
+		if (fl & 4)
+		{
+			for (x = 0; x < 9*9; x++)
+			{
+				w->heights[x] = Terr_Read_Float(&strm);
+			}
+		}
+		else
+		{	//all heights the same can be used as a way to compress the data
+			w->minheight = w->maxheight = Terr_Read_Float(&strm);
+			for (x = 0; x < 9*9; x++)
+				w->heights[x] = w->minheight = w->maxheight;
+		}
+	}
+
+	//dedicated server can stop reading here.
+
+#ifndef SERVERONLY
+	if (flags & TSF_HASCOLOURS)
+	{
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			s->colours[i][0] = Terr_Read_Float(&strm);
+			s->colours[i][1] = Terr_Read_Float(&strm);
+			s->colours[i][2] = Terr_Read_Float(&strm);
+			s->colours[i][3] = Terr_Read_Float(&strm);
+		}
+	}
+	else
+	{
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			s->colours[i][0] = 1;
+			s->colours[i][1] = 1;
+			s->colours[i][2] = 1;
+			s->colours[i][3] = 1;
+		}
+	}
+
+	for (j = 0; j < 4; j++)
+		Terr_Read_String(&strm, s->texname[j], sizeof(s->texname[j]));
+	for (j = 0; j < 4; j++)
+	{
+		if (j == 3)
+			present = !!(flags & TSF_HASSHADOW);
+		else
+			present = !!(*s->texname[2-j]);
+
+		if (present)
+		{
+			//read the channel
+			if (s->lightmap >= 0)
+			{
+				last = 0;
+				lm = lightmap[s->lightmap]->lightmaps;
+				lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+				for (y = 0; y < SECTTEXSIZE; y++)
+				{
+					for (x = 0; x < SECTTEXSIZE; x++)
+					{
+						delta = Terr_Read_Byte(&strm);
+						last += delta;
+						lm[x*4+j] = last;
+					}
+					lm += (HMLMSTRIDE)*lightmap_bytes;
+				}
+			}
+			else
+			{
+				strm.pos += SECTTEXSIZE*SECTTEXSIZE;
+			}
+		}
+		else if (s->lightmap >= 0)
+		{
+			last = ((j==3)?255:0);
+			lm = lightmap[s->lightmap]->lightmaps;
+			lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+			for (y = 0; y < SECTTEXSIZE; y++)
+			{
+				for (x = 0; x < SECTTEXSIZE; x++)
+					lm[x*4+j] = last;
+				lm += (HMLMSTRIDE)*lightmap_bytes;
+			}
+		}
+	}
+
+	/*load any static ents*/
+	s->numents = Terr_Read_SInt(&strm);
+	if (s->maxents)
+		BZ_Free(s->ents);
+	s->maxents = s->numents;
+	if (s->maxents)
+		s->ents = BZ_Malloc(sizeof(*s->ents) * s->maxents);
+	else
+		s->ents = NULL;
+	if (!s->ents)
+		s->numents = s->maxents = 0;
+	for (i = 0; i < s->numents; i++)
+	{
+		unsigned int mf;
+		mf = Terr_Read_SInt(&strm);
+		memset(&s->ents[i], 0, sizeof(s->ents[i]));
+		s->ents[i].model = Mod_FindName(Terr_Read_String(&strm, modelname, sizeof(modelname)));
+		s->ents[i].origin[0] = Terr_Read_Float(&strm);
+		s->ents[i].origin[1] = Terr_Read_Float(&strm);
+		s->ents[i].origin[2] = Terr_Read_Float(&strm);
+		s->ents[i].axis[0][0] = Terr_Read_Float(&strm);
+		s->ents[i].axis[0][1] = Terr_Read_Float(&strm);
+		s->ents[i].axis[0][2] = Terr_Read_Float(&strm);
+		s->ents[i].axis[1][0] = Terr_Read_Float(&strm);
+		s->ents[i].axis[1][1] = Terr_Read_Float(&strm);
+		s->ents[i].axis[1][2] = Terr_Read_Float(&strm);
+		s->ents[i].axis[2][0] = Terr_Read_Float(&strm);
+		s->ents[i].axis[2][1] = Terr_Read_Float(&strm);
+		s->ents[i].axis[2][2] = Terr_Read_Float(&strm);
+		s->ents[i].scale = (mf&TMF_SCALE)?Terr_Read_Float(&strm):1;
+
+		s->ents[i].drawflags = SCALE_ORIGIN_ORIGIN;
+		s->ents[i].playerindex = -1;
+		s->ents[i].origin[0] += (s->sx-CHUNKBIAS)*hm->sectionsize;
+		s->ents[i].origin[1] += (s->sy-CHUNKBIAS)*hm->sectionsize;
+		s->ents[i].shaderRGBAf[0] = 1;
+		s->ents[i].shaderRGBAf[1] = 1;
+		s->ents[i].shaderRGBAf[2] = 1;
+		s->ents[i].shaderRGBAf[3] = 1;
+
+		if (!s->ents[i].model)
+		{
+			s->numents--;
+			i--;
+		}
+	}
+#endif
+	return ptr;
+}
+
 static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 {
 	int i;
 
 	s->flags |= TSF_FAILEDLOAD;
-	s->holes = 0;
+	memset(s->holes, 0, sizeof(s->holes));
 
 #ifndef SERVERONLY
 	Q_strncpyz(s->texname[0], "", sizeof(s->texname[0]));
@@ -674,6 +1190,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 		s->colours[i][2] = 1;
 		s->colours[i][3] = 1;
 	}
+	s->mesh.colors4f_array[0] = s->colours;
 #endif
 
 #if 0//def DEBUG
@@ -765,7 +1282,6 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, void *filebase, unsigned int filelen)
 {
 	void *ptr = filebase;
-	unsigned int flags;
 
 	hmsection_t *s;
 	hmcluster_t *cluster;
@@ -774,13 +1290,6 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, v
 	if (!cluster)
 		cluster = hm->cluster[clusternum] = Z_Malloc(sizeof(*cluster));
 	s = cluster->section[(sx%MAXSECTIONS) + (sy%MAXSECTIONS)*MAXSECTIONS];
-
-	if (!ptr || ver != SECTION_VER)
-	{
-		filelen = 0;
-		flags = 0;
-		ptr = NULL;
-	}
 
 	if (!s)
 	{
@@ -793,15 +1302,14 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, v
 	Terr_InitLightmap(s, false);
 #endif
 
-	if (ptr)
-	{
-
-		/*load the heights*/
+	s->flags &= ~TSF_FAILEDLOAD;
+	if (ptr && ver == 1)
 		Terr_ReadV1(hm, s, ptr, filelen);
-		s->flags &= ~TSF_FAILEDLOAD;
-	}
+	else if (ptr && ver == 2)
+		Terr_ReadV2(hm, s, ptr, filelen);
 	else
 	{
+		s->flags |= TSF_FAILEDLOAD;
 //		s->flags |= TSF_RELIGHT;
 		Terr_GenerateDefault(hm, s);
 	}
@@ -921,6 +1429,11 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 			FS_FreeFile(diskimage);
 	}
 
+#ifdef ADT
+	if (Terr_ImportADT(hm, sx, sy, flags))
+		return;
+#endif
+
 	//generate a dummy one
 	Terr_ReadSection(hm, 0, sx, sy, NULL, 0);
 
@@ -940,16 +1453,18 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	dsection_v1_t ds;
 	vec4_t dcolours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	int nothing = 0;
+	float waterheight = s->minh;
+	struct hmwater_s *w = s->water;
 
 	memset(&ds, 0, sizeof(ds));
 	memset(&dm, 0, sizeof(dm));
 
 	//mask off the flags which are only valid in memory
-	ds.flags = s->flags & ~(TSF_INTERNAL);
+	ds.flags = s->flags & ~(TSF_INTERNAL|TSF_HASWATER_V0);
 
 	//kill the haswater flag if its entirely above any possible water anyway.
-	if (s->waterheight < s->minh)
-		ds.flags &= ~TSF_HASWATER;
+	if (w)
+		ds.flags |= TSF_HASWATER_V0;
 	ds.flags &= ~TSF_HASCOLOURS;	//recalculated
 
 	Q_strncpyz(ds.texname[0], s->texname[0], sizeof(ds.texname[0]));
@@ -982,8 +1497,8 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 			dcolours[i][0] = dcolours[i][1] = dcolours[i][2] = dcolours[i][3] = LittleFloat(1);
 		}
 	}
-	ds.waterheight = s->waterheight;
-	ds.holes = s->holes;
+	ds.waterheight = w?w->heights[4*8+4]:s->minh;
+	ds.holes = 0;//s->holes;
 	ds.minh = s->minh;
 	ds.maxh = s->maxh;
 	ds.ents_num = s->numents;
@@ -1013,6 +1528,14 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 			VFS_WRITE(f, &nothing, pad);
 	}
 }
+
+static void Terr_Save(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int sy, int ver)
+{
+	if (ver == 1)
+		Terr_SaveV1(hm, s, f, sx, sy);
+	else if (ver == 2)
+		Terr_SaveV2(hm, s, f, sx, sy);
+}
 #endif
 
 //doesn't clear edited/dirty flags or anything
@@ -1024,6 +1547,9 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	vfsfile_t *f;
 	char *fname;
 	int x, y;
+	int writever = mod_terrain_savever.ival;
+	if (!writever)
+		writever = SECTION_VER_DEFAULT;
 	//if its invalid or doesn't contain all the data...
 	if (!s || s->lightmap < 0)
 		return true;
@@ -1057,7 +1583,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 
 		memset(&dbh, 0, sizeof(dbh));
 		dbh.magic = LittleLong(SECTION_MAGIC);
-		dbh.ver = LittleLong(SECTION_VER | 0x80000000);
+		dbh.ver = LittleLong(writever | 0x80000000);
 		VFS_WRITE(f, &dbh, sizeof(dbh));
 		for (y = 0; y < SECTIONSPERBLOCK; y++)
 		{
@@ -1067,7 +1593,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 				if (s)
 				{
 					dbh.offset[y*SECTIONSPERBLOCK + x] = VFS_TELL(f);
-					Terr_SaveV1(hm, s, f, sx+x, sy+y);
+					Terr_Save(hm, s, f, sx+x, sy+y, writever);
 					s->flags &= ~TSF_EDITED;
 				}
 				else
@@ -1095,9 +1621,9 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 
 		memset(&dsh, 0, sizeof(dsh));
 		dsh.magic = SECTION_MAGIC;
-		dsh.ver = SECTION_VER;
+		dsh.ver = writever;
 		VFS_WRITE(f, &dsh, sizeof(dsh));
-		Terr_SaveV1(hm, s, f, sx, sy);
+		Terr_Save(hm, s, f, sx, sy, writever);
 		VFS_CLOSE(f);
 	}
 	return true;
@@ -1436,14 +1962,15 @@ void Terr_FreeModel(model_t *mod)
 	}
 }
 #ifndef SERVERONLY
-void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, float waterz, float r, float g, float b, float a)
+void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmwater_s *w)
 {
 	scenetris_t *t;
 	int flags = BEF_NOSHADOWS;
 	int firstv;
+	int y, x;
 	
 	//need to filter by height too, or reflections won't work properly.
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == hm->watershader && cl_stris[cl_numstris-1].flags == flags && cl_strisvertv[cl_stris[cl_numstris-1].firstvert][2] == waterz)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == w->shader && cl_stris[cl_numstris-1].flags == flags && cl_strisvertv[cl_stris[cl_numstris-1].firstvert][2] == w->maxheight)
 	{
 		t = &cl_stris[cl_numstris-1];
 	}
@@ -1455,7 +1982,7 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, float wate
 			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
 		}
 		t = &cl_stris[cl_numstris++];
-		t->shader = hm->watershader;
+		t->shader = w->shader;
 		t->flags = flags;
 		t->firstidx = cl_numstrisidx;
 		t->firstvert = cl_numstrisvert;
@@ -1463,64 +1990,115 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, float wate
 		t->numidx = 0;
 	}
 
-	if (cl_numstrisidx+12 > cl_maxstrisidx)
+	if (!w->simple)
 	{
-		cl_maxstrisidx=cl_numstrisidx+12 + 64;
-		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		float step = (maxs[0] - mins[0]) / 8;
+		if (cl_numstrisidx+9*9*6 > cl_maxstrisidx)
+		{
+			cl_maxstrisidx=cl_numstrisidx+12 + 9*9*6*4;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+		if (cl_numstrisvert+9*9 > cl_maxstrisvert)
+		{
+			cl_maxstrisvert+=9*9+64;
+			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		}
+
+		firstv = t->numvert;
+		for (y = 0; y < 9; y++)
+		{
+			for (x = 0; x < 9; x++)
+			{
+				cl_strisvertv[cl_numstrisvert][0] = mins[0] + step*x;
+				cl_strisvertv[cl_numstrisvert][1] = mins[1] + step*y;
+				cl_strisvertv[cl_numstrisvert][2] = w->heights[x + y*8];
+				cl_strisvertt[cl_numstrisvert][0] = cl_strisvertv[cl_numstrisvert][0]/64;
+				cl_strisvertt[cl_numstrisvert][1] = cl_strisvertv[cl_numstrisvert][1]/64;
+				Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+				cl_numstrisvert++;
+			}
+		}
+		for (y = 0; y < 8; y++)
+		{
+			for (x = 0; x < 8; x++)
+			{
+				if (w->holes[y] & (1u<<x))
+					continue;
+				cl_strisidx[cl_numstrisidx++] = firstv+(x+0)+(y+0)*9;
+				cl_strisidx[cl_numstrisidx++] = firstv+(x+0)+(y+1)*9;
+				cl_strisidx[cl_numstrisidx++] = firstv+(x+1)+(y+0)*9;
+
+				cl_strisidx[cl_numstrisidx++] = firstv+(x+1)+(y+0)*9;
+				cl_strisidx[cl_numstrisidx++] = firstv+(x+0)+(y+1)*9;
+				cl_strisidx[cl_numstrisidx++] = firstv+(x+1)+(y+1)*9;
+			}
+		}
+		t->numidx = cl_numstrisidx - t->firstidx;
+		t->numvert = cl_numstrisvert - t->firstvert;
 	}
-	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	else
 	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		if (cl_numstrisidx+12 > cl_maxstrisidx)
+		{
+			cl_maxstrisidx=cl_numstrisidx+12 + 64;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+		if (cl_numstrisvert+4 > cl_maxstrisvert)
+		{
+			cl_maxstrisvert+=64;
+			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		}
+
+		{
+			VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], mins[1], w->maxheight);
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector2Set(cl_strisvertt[cl_numstrisvert], mins[0]/64, mins[1]/64);
+			cl_numstrisvert++;
+
+			VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], maxs[1], w->maxheight);
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector2Set(cl_strisvertt[cl_numstrisvert], mins[0]/64, maxs[1]/64);
+			cl_numstrisvert++;
+
+			VectorSet(cl_strisvertv[cl_numstrisvert], maxs[0], maxs[1], w->maxheight);
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector2Set(cl_strisvertt[cl_numstrisvert], maxs[0]/64, maxs[1]/64);
+			cl_numstrisvert++;
+
+			VectorSet(cl_strisvertv[cl_numstrisvert], maxs[0], mins[1], w->maxheight);
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector2Set(cl_strisvertt[cl_numstrisvert], maxs[0]/64, mins[1]/64);
+			cl_numstrisvert++;
+		}
+
+
+		firstv = t->numvert;
+
+		/*build the triangles*/
+		cl_strisidx[cl_numstrisidx++] = firstv + 0;
+		cl_strisidx[cl_numstrisidx++] = firstv + 1;
+		cl_strisidx[cl_numstrisidx++] = firstv + 2;
+
+		cl_strisidx[cl_numstrisidx++] = firstv + 0;
+		cl_strisidx[cl_numstrisidx++] = firstv + 2;
+		cl_strisidx[cl_numstrisidx++] = firstv + 3;
+
+		cl_strisidx[cl_numstrisidx++] = firstv + 3;
+		cl_strisidx[cl_numstrisidx++] = firstv + 2;
+		cl_strisidx[cl_numstrisidx++] = firstv + 1;
+
+		cl_strisidx[cl_numstrisidx++] = firstv + 3;
+		cl_strisidx[cl_numstrisidx++] = firstv + 1;
+		cl_strisidx[cl_numstrisidx++] = firstv + 0;
+
+
+		t->numidx = cl_numstrisidx - t->firstidx;
+		t->numvert = cl_numstrisvert - t->firstvert;
 	}
-
-	{
-		VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], mins[1], waterz);
-		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, a);
-		Vector2Set(cl_strisvertt[cl_numstrisvert], mins[0]/64, mins[1]/64);
-		cl_numstrisvert++;
-
-		VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], maxs[1], waterz);
-		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, a);
-		Vector2Set(cl_strisvertt[cl_numstrisvert], mins[0]/64, maxs[1]/64);
-		cl_numstrisvert++;
-
-		VectorSet(cl_strisvertv[cl_numstrisvert], maxs[0], maxs[1], waterz);
-		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, a);
-		Vector2Set(cl_strisvertt[cl_numstrisvert], maxs[0]/64, maxs[1]/64);
-		cl_numstrisvert++;
-
-		VectorSet(cl_strisvertv[cl_numstrisvert], maxs[0], mins[1], waterz);
-		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, a);
-		Vector2Set(cl_strisvertt[cl_numstrisvert], maxs[0]/64, mins[1]/64);
-		cl_numstrisvert++;
-	}
-
-
-	firstv = t->numvert;
-
-	/*build the triangles*/
-	cl_strisidx[cl_numstrisidx++] = firstv + 0;
-	cl_strisidx[cl_numstrisidx++] = firstv + 1;
-	cl_strisidx[cl_numstrisidx++] = firstv + 2;
-
-	cl_strisidx[cl_numstrisidx++] = firstv + 0;
-	cl_strisidx[cl_numstrisidx++] = firstv + 2;
-	cl_strisidx[cl_numstrisidx++] = firstv + 3;
-
-	cl_strisidx[cl_numstrisidx++] = firstv + 3;
-	cl_strisidx[cl_numstrisidx++] = firstv + 2;
-	cl_strisidx[cl_numstrisidx++] = firstv + 1;
-
-	cl_strisidx[cl_numstrisidx++] = firstv + 3;
-	cl_strisidx[cl_numstrisidx++] = firstv + 1;
-	cl_strisidx[cl_numstrisidx++] = firstv + 0;
-
-
-	t->numidx = cl_numstrisidx - t->firstidx;
-	t->numvert = cl_numstrisvert - t->firstvert;
 }
 
 static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
@@ -1558,12 +2136,14 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 			for (vx = 0; vx < SECTHEIGHTSIZE-1; vx++)
 			{
 				float st[2], inst[2];
-#if SECTHEIGHTSIZE >= 4
+#if SECTHEIGHTSIZE == 17
 				int holebit;
+				int holerow;
 
 				//skip generation of the mesh above holes
-				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>2) + (vy/(SECTHEIGHTSIZE>>2))*4);
-				if (s->holes & holebit)
+				holerow = vy/(SECTHEIGHTSIZE>>1);
+				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>1));
+				if (s->holes[holerow] & holebit)
 					continue;
 #endif
 
@@ -1784,12 +2364,14 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 				float d1,d2;
 	#endif
 
-	#if SECTHEIGHTSIZE >= 4
+	#if SECTHEIGHTSIZE == 17
+				int holerow;
 				int holebit;
 
 				//skip generation of the mesh above holes
-				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>2) + (vy/(SECTHEIGHTSIZE>>2))*4);
-				if (s->holes & holebit)
+				holerow = vy/(SECTHEIGHTSIZE>>1);
+				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>1));
+				if (s->holes[holerow] & holebit)
 					continue;
 	#endif
 				v = vx + vy*(SECTHEIGHTSIZE);
@@ -1835,9 +2417,7 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 		mins[2] = s->minh;
 		maxs[0] = (x+1-CHUNKBIAS) * hm->sectionsize;
 		maxs[1] = (y+1-CHUNKBIAS) * hm->sectionsize;
-		maxs[2] = s->maxh;
-		if (s->flags & TSF_HASWATER)
-			maxs[2] = max(maxs[2], s->waterheight);
+		maxs[2] = s->maxh_cull;
 		model->funcs.FindTouchedLeafs(model, &s->pvscache, mins, maxs);
 	}
 
@@ -1916,6 +2496,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 {
 	vec3_t mins, maxs;
 	hmsection_t *s;
+	struct hmwater_s *wa;
 	int i;
 	batch_t *b;
 	heightmap_t *hm = ctx->hm;
@@ -1968,9 +2549,12 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		//chuck out any batches for models in this section
 		for (i = 0; i < s->numents; i++)
 		{
+			vec3_t dist;
+			float a;
 			model_t *model = s->ents[i].model;
 			if (!model)
 				continue;
+
 			if (model->needload == 1)
 			{
 				if (hm->beinglazy)
@@ -1980,6 +2564,21 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			}
 			if (model->needload)
 				continue;
+
+			VectorSubtract(s->ents[i].origin, r_origin, dist);
+			a = VectorLength(dist);
+			a = 1024 - a + model->radius*16;
+			a /= model->radius;
+			if (a < 0)
+				continue;
+			if (a >= 1)
+			{
+				a = 1;
+				s->ents[i].flags &= ~Q2RF_TRANSLUCENT;
+			}
+			else
+				s->ents[i].flags |= Q2RF_TRANSLUCENT;
+			s->ents[i].shaderRGBAf[3] = a;
 			switch(model->type)
 			{
 			case mod_alias:
@@ -1991,13 +2590,13 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			}
 		}
 
-		if (s->flags & TSF_HASWATER)
+		for (wa = s->water; wa; wa = wa->next)
 		{
-			mins[2] = s->waterheight;
-			maxs[2] = s->waterheight;
+			mins[2] = wa->minheight;
+			maxs[2] = wa->maxheight;
 			if (!R_CullBox(mins, maxs))
 			{
-				Terr_DrawTerrainWater(hm, mins, maxs, s->waterheight, 1, 1, 1, 1);
+				Terr_DrawTerrainWater(hm, mins, maxs, wa);
 			}
 		}
 
@@ -2258,8 +2857,11 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	float x, y;
 	float z, tz;
 	int sx, sy;
+	unsigned int holerow;
 	unsigned int holebit;
 	hmsection_t *s;
+	struct hmwater_s *w;
+	unsigned int contents;
 	const float wbias = CHUNKBIAS * hm->sectionsize;
 
 	sx = (org[0]+wbias)/hm->sectionsize;
@@ -2284,8 +2886,9 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	sx = x; x-=sx;
 	sy = y; y-=sy;
 
-	holebit = 1u<<(sx/(SECTHEIGHTSIZE>>2) + (sy/(SECTHEIGHTSIZE>>2))*4);
-	if (s->holes & (1u<<holebit))
+	holerow = sy/(SECTHEIGHTSIZE>>1);
+	holebit = 1u<<(sx/(SECTHEIGHTSIZE>>1));
+	if (s->holes[holerow] & (1u<<holebit))
 		return FTECONTENTS_EMPTY;
 
 	//made of two triangles:
@@ -2318,10 +2921,16 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	}
 	if (z <= tz)
 		return FTECONTENTS_SOLID;	//contained within
-	if (s->flags & TSF_HASWATER)
-		if (z < s->waterheight)
-			return FTECONTENTS_WATER;
-	return FTECONTENTS_EMPTY;
+
+	contents = FTECONTENTS_EMPTY;
+	for (w = s->water; w; w = w->next)
+	{
+		if (w->holes[holerow] & (1u<<holebit))
+			continue;
+		if (z < w->maxheight)	//FIXME
+			contents |= w->contentmask;
+	}
+	return contents;
 }
 
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
@@ -2503,6 +3112,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 #endif
 	int sx, sy;
 	hmsection_t *s;
+	unsigned int holerow;
 	unsigned int holebit;
 
 	sx = tx/(SECTHEIGHTSIZE-1);
@@ -2563,8 +3173,9 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	tx = tx % (SECTHEIGHTSIZE-1);
 	ty = ty % (SECTHEIGHTSIZE-1);
 
-	holebit = 1u<<(tx/(SECTHEIGHTSIZE>>2) + (ty/(SECTHEIGHTSIZE>>2))*4);
-	if (s->holes & holebit)
+	holerow = ty/(SECTHEIGHTSIZE>>1);
+	holebit = 1u<<(tx/(SECTHEIGHTSIZE>>1));
+	if (s->holes[holerow] & holebit)
 		return;	//no collision with holes
 
 	switch(tr->hm->mode)
@@ -2970,15 +3581,16 @@ static void ted_dorelight(heightmap_t *hm)
 }
 static void ted_sethole(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
+	unsigned int row = idx>>4;
 	unsigned int bit;
 	unsigned int mask;
-	mask = 1u<<idx;
-	if (*(float*)ctx)
+	mask = 1u<<(idx&7);
+	if (*(float*)ctx >= 1)
 		bit = mask;
 	else
 		bit = 0;
 	s->flags |= TSF_NOTIFY|TSF_DIRTY|TSF_EDITED;
-	s->holes = (s->holes & ~mask) | bit;
+	s->holes[row] = (s->holes[row] & ~mask) | bit;
 }
 static void ted_heighttally(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
@@ -3007,6 +3619,28 @@ static void ted_heightset(void *ctx, hmsection_t *s, int idx, float wx, float wy
 	s->flags |= TSF_NOTIFY|TSF_DIRTY|TSF_EDITED|TSF_RELIGHT;
 	/*set the terrain to a specific value*/
 	s->heights[idx] = *(float*)ctx;
+}
+
+static void ted_waterset(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength)
+{
+	struct hmwater_s *w = s->water;
+	if (!w)
+		w = Terr_GenerateWater(s, *(float*)ctx);
+	s->flags |= TSF_NOTIFY|TSF_DIRTY|TSF_EDITED;
+
+	//FIXME: water doesn't render properly. don't let people make dodgy water regions because they can't see it.
+	//this is temp code.
+	//for (idx = 0; idx < 9*9; idx++)
+		//w->heights[idx] = *(float*)ctx;
+	//end fixme
+
+	w->heights[idx] = *(float*)ctx;
+	if (w->minheight > w->heights[idx])
+		w->minheight = w->heights[idx];
+	if (w->maxheight < w->heights[idx])
+		w->maxheight = w->heights[idx];
+
+	//FIXME: what about holes?
 }
 
 static void ted_mixconcentrate(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
@@ -3363,7 +3997,10 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				return;
 			ted_sethole(&quant, s, (x&3) + (y&3)*4, x/4, y/4, 0);
 		}
-	*/	ted_itterate(hm, tid_linear, pos, radius, 1, 4, ted_sethole, &quant);
+	*/	
+		pos[0] -= 0.5 * hm->sectionsize / 8;
+		pos[1] -= 0.5 * hm->sectionsize / 8;
+		ted_itterate(hm, tid_linear, pos, radius, 1, 8, ted_sethole, &quant);
 		break;
 	case ter_height_set:
 		ted_itterate(hm, tid_linear, pos, radius, 1, SECTHEIGHTSIZE, ted_heightset, &quant);
@@ -3396,20 +4033,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
 		break;
 	case ter_water_set:
-		{
-			int x, y;
-			hmsection_t *s;
-			x = pos[0] / hm->sectionsize;
-			y = pos[1] / hm->sectionsize;
-			x = bound(hm->firstsegx, x, hm->maxsegy-1);
-			y = bound(hm->firstsegy, y, hm->maxsegy-1);
-		
-			s = Terr_GetSection(hm, x, y, TGS_LOAD);
-			if (!s)
-				return;
-			s->flags |= TSF_HASWATER|TSF_EDITED;
-			s->waterheight = quant;
-		}
+		ted_itterate(hm, tid_linear, pos, radius, 1, 9, ted_waterset, &quant);
 		break;
 	case ter_lower:
 		quant *= -1;
@@ -3603,6 +4227,7 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
 	{
+		Q_strncpyz(hm->watershadername, va("water/%s", hm->path), sizeof(hm->watershadername));
 		if (skyname)
 			hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
 		else
@@ -3642,6 +4267,9 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 								"}\n"
 								"{\n"
 									"map $shadowmap\n"
+								"}\n"
+								"{\n"
+									"map $lightcubemap\n"
 								"}\n"
 								//woo, one glsl to rule them all
 								"program terrain#RTLIGHT\n"
@@ -3685,23 +4313,6 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 				);
 			break;
 		}
-
-
-		hm->watershader = R_RegisterCustom ("*water1", SUF_LIGHTMAP, NULL, NULL);
-		if (!hm->watershader)
-			hm->watershader = R_RegisterCustom ("warp/terrain", SUF_NONE, Shader_DefaultBSPQ2, NULL);
-		if (!TEXVALID(hm->watershader->defaulttextures.base))
-			hm->watershader->defaulttextures.base = R_LoadHiResTexture("terwater", NULL, IF_NOALPHA);
-		if (!TEXVALID(hm->watershader->defaulttextures.bump))
-			hm->watershader->defaulttextures.bump = R_LoadBumpmapTexture("terwater_bump", NULL);
-		if (!TEXVALID(hm->watershader->defaulttextures.bump))
-		{
-			unsigned char dat[64*64] = {0};
-			int i;
-			for (i = 0; i < 64*64; i++)
-				dat[i] = rand()&15;
-			hm->watershader->defaulttextures.bump = R_LoadTexture8BumpPal("terwater_bump", 64, 64, dat, 0);
-		}
 	}
 #endif
 }
@@ -3716,7 +4327,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer)
 
 	COM_FileBase(mod->name, shadername, sizeof(shadername));
 	strcpy(shadername, "terrainshader");
-	strcpy(skyname, "night");
+	strcpy(skyname, "sky1");
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "terrain"))
@@ -3960,8 +4571,13 @@ void Mod_Terrain_Reload_f(void)
 
 void Terr_Init(void)
 {
+#ifdef M2
+	GL_M2_Init();
+#endif
+
 	Cvar_Register(&mod_terrain_networked, "Terrain");
 	Cvar_Register(&mod_terrain_defaulttexture, "Terrain");
+	Cvar_Register(&mod_terrain_savever, "Terrain");
 	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
 	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
 #ifndef SERVERONLY

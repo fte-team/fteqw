@@ -174,7 +174,7 @@ void QCBUILTIN PF_stoh (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_htos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PR_fclose_progs (pubprogfuncs_t *prinst);
 char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
-void PR_AutoCvarSetup(pubprogfuncs_t *prinst);
+void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename);
 void PR_AutoCvar(pubprogfuncs_t *prinst, cvar_t *var);
 void QCBUILTIN PF_numentityfields (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_entityfieldname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

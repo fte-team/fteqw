@@ -11037,8 +11037,17 @@ void QCC_PR_ParseDefs (char *classname)
 				}
 				else
 				{
-					QCC_PR_CheckToken("#");
-					QCC_PR_Lex();
+					if (type->type == ev_string && QCC_PR_CheckName("_"))
+					{
+						QCC_PR_Expect("(");
+						QCC_PR_Lex();
+						QCC_PR_Expect(")");
+					}
+					else
+					{
+						QCC_PR_CheckToken("#");
+						QCC_PR_Lex();
+					}
 				}
 				continue;
 			}

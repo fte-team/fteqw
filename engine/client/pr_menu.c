@@ -626,6 +626,36 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		if (value)
 			con->unseentext = atoi(value);
 	}
+	else if (!strcmp(field, "markup"))
+	{
+		int cur;
+		if (con->parseflags & PFS_NOMARKUP)
+			cur = 0;
+		else if (con->parseflags & PFS_KEEPMARKUP)
+			cur = 2;
+		else
+			cur = 1;
+		RETURN_TSTRING(va("%i", cur));
+		if (value)
+		{
+			cur = atoi(value);
+			con->parseflags &= ~(PFS_NOMARKUP|PFS_KEEPMARKUP);
+			if (cur == 0)
+				con->parseflags |= PFS_NOMARKUP;
+			else if (cur == 2)
+				con->parseflags |= PFS_KEEPMARKUP;
+		}
+	}
+	else if (!strcmp(field, "forceutf8"))
+	{
+		RETURN_TSTRING((con->parseflags&PFS_FORCEUTF8)?"1":"0");
+		if (value)
+		{
+			con->parseflags &= ~PFS_FORCEUTF8;
+			if (atoi(value))
+				con->parseflags |= PFS_FORCEUTF8;
+		}
+	}
 	else if (!strcmp(field, "hidden"))
 	{
 		RETURN_TSTRING((con->flags & CON_HIDDEN)?"1":"0");
@@ -1799,10 +1829,12 @@ qboolean MP_Init (void)
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)
 	{
+		int mprogs;
 		Con_DPrintf("Initializing menu.dat\n");
 		menu_world.progs = InitProgs(&menuprogparms);
 		PR_Configure(menu_world.progs, 64*1024*1024, 1);
-		if (PR_LoadProgs(menu_world.progs, "menu.dat", 10020, NULL, 0) < 0) //no per-progs builtins.
+		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat", 10020, NULL, 0);
+		if (mprogs < 0) //no per-progs builtins.
 		{
 			//failed to load or something
 //			CloseProgs(menu_world.progs);
@@ -1826,7 +1858,7 @@ qboolean MP_Init (void)
 		menu_world.g.drawfont = (float*)PR_FindGlobal(menu_world.progs, "drawfont", 0, NULL);
 		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);
 
-		PR_AutoCvarSetup(menu_world.progs);
+		PR_ProgsAdded(menu_world.progs, mprogs, "menu.dat");
 
 		menuentsize = PR_InitEnts(menu_world.progs, 8192);
 

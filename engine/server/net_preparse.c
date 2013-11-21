@@ -1378,7 +1378,7 @@ void NPP_NQWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 	if (!bufferlen)
 		Con_Printf("NQWriteEntity: Messages should start with WriteByte\n");
 
-	if (majortype == svc_temp_entity && data >= 0 && data <= sv.allocated_client_slots)
+	if (majortype == svc_temp_entity && data > 0 && data <= sv.allocated_client_slots)
 		if (svs.clients[data-1].viewent)
 			data = svs.clients[data-1].viewent;
 

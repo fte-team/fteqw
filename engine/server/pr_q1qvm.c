@@ -463,7 +463,7 @@ static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, 
 	return NULL;
 }
 
-static eval_t	*QDECL Q1QVMPF_FindGlobal		(pubprogfuncs_t *prinst, char *name, progsnum_t num, etype_t *type)
+static eval_t	*QDECL Q1QVMPF_FindGlobal		(pubprogfuncs_t *prinst, const char *name, progsnum_t num, etype_t *type)
 {
 	return NULL;
 }

@@ -76,7 +76,7 @@ RECT		window_rect;
 int window_x, window_y;
 
 
-void BuildGammaTable (float g, float c);
+/*void BuildGammaTable (float g, float c);
 static void	D3D9_VID_GenPaletteTables (unsigned char *palette)
 {
 	extern unsigned short		ramps[3][256];
@@ -146,7 +146,7 @@ static void	D3D9_VID_GenPaletteTables (unsigned char *palette)
 	if (pD3DDev9)
 		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
 }
-
+*/
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 static modestate_t modestate;
 
@@ -719,7 +719,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	GetWindowRect(mainwindow, &window_rect);
 
 
-	D3D9_VID_GenPaletteTables(palette);
+//	D3D9_VID_GenPaletteTables(palette);
 
 	{
 		extern qboolean	mouseactive;
@@ -863,8 +863,6 @@ static void	(D3D9_VID_SetWindowCaption)		(char *msg)
 {
 	SetWindowText(mainwindow, msg);
 }
-
-void d3dx_ortho(float *m);
 
 void D3D9_Set2D (void)
 {

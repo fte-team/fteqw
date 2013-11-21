@@ -81,7 +81,7 @@ int CDAudio_GetAudioDiskInfo(void)
 qboolean CDAudio_Startup(void)
 {
 	DWORD	dwReturn;
-	static MCI_OPEN_PARMS	mciOpenParms;
+	static MCI_OPEN_PARMSA	mciOpenParms;
     static MCI_SET_PARMS	mciSetParms;
 
 	if (initializefailed)
@@ -268,6 +268,9 @@ void CDAudio_Pause(void)
 {
 	DWORD				dwReturn;
 	static MCI_GENERIC_PARMS	mciGenericParms;
+
+	if (!pollneeded)
+		return;
 
 	mciGenericParms.dwCallback = (DWORD_PTR)mainwindow;
 	dwReturn = mciSendCommand(wDeviceID, MCI_PAUSE, 0, (DWORD_PTR)(LPVOID) &mciGenericParms);

@@ -408,7 +408,7 @@ void M_MenuS_Combos_f (void)
 
 /*
 menuclear
-menualias menucallback
+conmenu menucallback
 
 menubox 0 0 320 8
 menutext 0 0 "GO GO GO!!!" 		"radio21"

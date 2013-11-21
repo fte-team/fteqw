@@ -726,8 +726,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
 #if !defined(GL_STATIC)
-	/*vbos*/
-	if (gl_config.gles && gl_config.glversion >= 2)
+	/*vbos, were made core in gl1.5 or gles2.0*/
+	if ((gl_config.gles && gl_config.glversion >= 2) || (!gl_config.gles && (gl_major_version > 1 || (gl_major_version == 1 && gl_minor_version >= 5))))
 	{
 		qglGenBuffersARB = (void *)getglext("glGenBuffers");
 		qglDeleteBuffersARB = (void *)getglext("glDeleteBuffers");

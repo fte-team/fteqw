@@ -203,7 +203,11 @@ static qboolean x11_initlib(void)
 
 	if (!x11.lib)
 	{
+#ifdef __CYGWIN__
+		x11.lib = Sys_LoadLibrary("cygX11-6.dll", x11_functable);
+#else
 		x11.lib = Sys_LoadLibrary("libX11.so.6", x11_functable);
+#endif
 		if (!x11.lib)
 			x11.lib = Sys_LoadLibrary("libX11", x11_functable);
 
@@ -472,7 +476,7 @@ char clipboard_buffer[SYS_CLIPBOARD_SIZE];
 
 /*-----------------------------------------------------------------------*/
 
-static void *gllibrary;
+static dllhandle_t *gllibrary;
 
 XVisualInfo* (*qglXChooseVisual) (Display *dpy, int screen, int *attribList);
 void (*qglXSwapBuffers) (Display *dpy, GLXDrawable drawable);
@@ -483,34 +487,36 @@ void *(*qglXGetProcAddress) (char *name);
 
 void GLX_CloseLibrary(void)
 {
-	dlclose(gllibrary);
+	Sys_CloseLibrary(gllibrary);
 	gllibrary = NULL;
 }
 
 qboolean GLX_InitLibrary(char *driver)
 {
+	dllfunction_t funcs[] =
+	{
+		{(void*)&qglXChooseVisual,		"glXChooseVisual"},
+		{(void*)&qglXSwapBuffers,		"glXSwapBuffers"},
+		{(void*)&qglXMakeCurrent,		"glXMakeCurrent"},
+		{(void*)&qglXCreateContext,		"glXCreateContext"},
+		{(void*)&qglXDestroyContext,	"glXDestroyContext"},
+		{NULL,							NULL}
+	};
+
 	if (driver && *driver)
-		gllibrary = dlopen(driver, RTLD_LAZY);
+		gllibrary = Sys_LoadLibrary(driver, funcs);
 	else
 		gllibrary = NULL;
 	if (!gllibrary)	//I hate this.
-		gllibrary = dlopen("libGL.so.1", RTLD_LAZY);
+		gllibrary = Sys_LoadLibrary("libGL.so.1", funcs);
 	if (!gllibrary)
-		gllibrary = dlopen("libGL.so", RTLD_LAZY);
+		gllibrary = Sys_LoadLibrary("libGL", funcs);
 	if (!gllibrary)
 		return false;
 
-	qglXChooseVisual = dlsym(gllibrary, "glXChooseVisual");
-	qglXSwapBuffers = dlsym(gllibrary, "glXSwapBuffers");
-	qglXMakeCurrent = dlsym(gllibrary, "glXMakeCurrent");
-	qglXCreateContext = dlsym(gllibrary, "glXCreateContext");
-	qglXDestroyContext = dlsym(gllibrary, "glXDestroyContext");
-	qglXGetProcAddress = dlsym(gllibrary, "glXGetProcAddress");
+	qglXGetProcAddress = Sys_GetAddressForName(gllibrary, "glXGetProcAddress");
 	if (!qglXGetProcAddress)
-		qglXGetProcAddress = dlsym(gllibrary, "glXGetProcAddressARB");
-
-	if (!qglXSwapBuffers && !qglXDestroyContext && !qglXCreateContext && !qglXMakeCurrent && !qglXChooseVisual)
-		return false;
+		qglXGetProcAddress = Sys_GetAddressForName(gllibrary, "glXGetProcAddressARB");
 
 	return true;
 }
@@ -525,7 +531,7 @@ void *GLX_GetSymbol(char *name)
 		symb = NULL;
 
 	if (!symb)
-		symb = dlsym(gllibrary, name);
+		symb = Sys_GetAddressForName(gllibrary, name);
 	return symb;
 }
 
@@ -1431,7 +1437,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	{
 #ifdef USE_EGL
 	case PSL_EGL:
-		if (!EGL_LoadLibrary(info->glrenderer))
+		if (!EGL_LoadLibrary(info->subrenderer))
 		{
 			Con_Printf("couldn't load EGL library\n");
 			return false;
@@ -1439,7 +1445,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		break;
 #endif
 	case PSL_GLX:
-		if (!GLX_InitLibrary(info->glrenderer))
+		if (!GLX_InitLibrary(info->subrenderer))
 		{
 			Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
 			return false;
@@ -1526,7 +1532,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		if ((!(fullscreenflags & FULLSCREEN_VMODE) || vm.usemode <= 0) && X_CheckWMFullscreenAvailable())
 			fullscreenflags |= FULLSCREEN_WM;
 		else
-                        fullscreenflags |= FULLSCREEN_LEGACY;
+			fullscreenflags |= FULLSCREEN_LEGACY;
 	}
 	else if (sys_parentwindow)
 	{
@@ -1573,7 +1579,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	CL_UpdateWindowTitle();
 	/*make it visible*/
 
-	if (fullscreen & FULLSCREEN_VMODE)
+	if (fullscreenflags & FULLSCREEN_VMODE)
 	{
 		x11.pXRaiseWindow(vid_dpy, vid_window);
 		x11.pXWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 0, 0);

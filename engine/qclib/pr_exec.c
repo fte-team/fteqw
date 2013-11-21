@@ -783,7 +783,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 		switch (type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
-			*(string_t *)val = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, assignment, 0));
+			*(string_t *)val = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, assignment, 0, true));
 			break;
 
 		case ev_float:

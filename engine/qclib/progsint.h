@@ -365,7 +365,7 @@ void PR_Profile_f (void);
 struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *progfuncs);
 void PDECL ED_Free (pubprogfuncs_t *progfuncs, struct edict_s *ed);
 
-char *PDECL ED_NewString (pubprogfuncs_t *progfuncs, char *string, int minlength);
+char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength, pbool demarkup);
 // returns a copy of the string allocated from the server's string heap
 
 void PDECL ED_Print (pubprogfuncs_t *progfuncs, struct edict_s *ed);
@@ -462,15 +462,15 @@ struct qcthread_s *PDECL PR_ForkStack	(pubprogfuncs_t *progfuncs);
 void PDECL PR_ResumeThread			(pubprogfuncs_t *progfuncs, struct qcthread_s *thread);
 void	PDECL PR_AbortStack			(pubprogfuncs_t *progfuncs);
 
-eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *prfuncs, char *globname, progsnum_t pnum, etype_t *type);
-ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type);
-ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type);
-ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
-ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
-fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name);
+eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *prfuncs, const char *globname, progsnum_t pnum, etype_t *type);
+ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type);
+ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type);
+ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum);
+ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum);
+fdef_t *ED_FindField (progfuncs_t *progfuncs, const char *name);
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pnum, progsnum_t fromprogs);
-func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, char *funcname, progsnum_t pnum);
+dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *pnum, progsnum_t fromprogs);
+func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, const char *funcname, progsnum_t pnum);
 void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int max_progs);
 int PDECL PR_InitEnts(pubprogfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool verbose);

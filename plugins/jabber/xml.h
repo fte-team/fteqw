@@ -32,6 +32,6 @@ void XML_Destroy(xmltree_t *t);
 xmltree_t *XML_ChildOfTree(xmltree_t *t, char *name, int childnum);
 xmltree_t *XML_ChildOfTreeNS(xmltree_t *t, char *xmlns, char *name, int childnum);
 char *XML_GetChildBody(xmltree_t *t, char *paramname, char *def);
-void XML_ConPrintTree(xmltree_t *t, int indent);
+void XML_ConPrintTree(xmltree_t *t, char *subconsole, int indent);
 
 xmltree_t *XML_FromJSON(xmltree_t *t, char *name, char *json, int *jsonpos, int jsonlen);

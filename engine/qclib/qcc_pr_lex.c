@@ -1487,16 +1487,7 @@ void QCC_PR_LexString (void)
 			if (len >= sizeof(pr_immediate_string)-1)
 				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
 
-			while(*pr_file_p && qcc_iswhite(*pr_file_p))
-			{
-				if (*pr_file_p == '\n')
-				{
-					pr_file_p++;
-					QCC_PR_NewLine(false);
-				}
-				else
-					pr_file_p++;
-			}
+			QCC_PR_LexWhitespace();
 			if (*pr_file_p == '\"')	//have annother go
 			{
 				pr_file_p++;

@@ -27,10 +27,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define	VERSION		2.56
 #ifndef DISTRIBUTION
-	#define DISTRIBUTION "FTE"
-	#define DISTRIBUTIONLONG "Forethought Entertainment"
-	#define FULLENGINENAME "FTE QuakeWorld"
-	#define ENGINEWEBSITE "http://www.fteqw.com"
+	#define DISTRIBUTION "FTE"	//short name used to identify this engine. must be a single word
+	#define DISTRIBUTIONLONG "Forethought Entertainment"	//effectively the 'company' name
+	#define FULLENGINENAME "FTE QuakeWorld"	//the posh name for the engine
+	#define ENGINEWEBSITE "http://www.fteqw.com"	//url for program
 #endif
 
 
@@ -87,25 +87,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 
 	#define AVAIL_OGGVORBIS
-	#if !defined(__CYGWIN__) && !defined(MINGW) && !defined(MACOSX)
+	#if defined(__CYGWIN__)
+		#define AVAIL_ZLIB
+	#else
 		#define AVAIL_PNGLIB
 		#define AVAIL_JPEGLIB
 		#define AVAIL_ZLIB
-
 		#define AVAIL_OGGVORBIS
-
-		/* Jogi's OpenAL support */
-		#define AVAIL_OPENAL
 	#endif
 
-#if defined(MINGW) || defined(MACOSX)
-	#define AVAIL_PNGLIB
-	#define AVAIL_ZLIB
-	#define AVAIL_JPEGLIB
-	#define AVAIL_OGGVORBIS
-#endif
+	#define AVAIL_OPENAL
 
-#if !defined(NO_DIRECTX) && !defined(NODIRECTX)
+#if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
 	#define AVAIL_DDRAW
 	#define AVAIL_DSOUND
@@ -114,8 +107,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if defined(_WIN32) && !defined(_SDL)
 	#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
-#elif defined(__linux__)
-//	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
+#elif defined(__linux__) || defined(__CYGWIN__)
+	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
 #endif
 #if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
 	#define HAVE_SSL
@@ -358,6 +351,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBSERVER
 #endif
 
+#ifndef AVAIL_ZLIB
+	#undef SUPPORT_ICE
+#endif
+
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
 	#undef Q2CLIENT
 	#undef Q3CLIENT
@@ -446,6 +443,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#else
 			#define PLATFORM	"Win32"
 		#endif
+		#define ARCH_DL_POSTFIX ".dll"
+	#elif defined(__CYGWIN__)
+		#define PLATFORM		"Cygwin"	/*technically also windows*/
 		#define ARCH_DL_POSTFIX ".dll"
 	#elif defined(ANDROID)
 		#define PLATFORM		"Android"	/*technically also linux*/

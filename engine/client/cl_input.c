@@ -1797,7 +1797,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (cls.demorecording)
 		CL_WriteDemoCmd(cmd);
 
-	Con_DPrintf("generated sequence %i\n", cl.movesequence);
+//	Con_DPrintf("generated sequence %i\n", cl.movesequence);
 	cl.movesequence++;
 
 #ifdef IRCCONNECT

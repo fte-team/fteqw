@@ -6,7 +6,7 @@
 //configuration
 
 //#define NOICE	//if defined, we only do simple raw udp connections.
-//#define FILETRANSFERS		//IBB only, speeds suck. autoaccept is forced on. no protection from mods stuffcmding sendfile commands. needs more extensive testing
+#define FILETRANSFERS		//IBB only, speeds suck. autoaccept is forced on. no protection from mods stuffcmding sendfile commands. needs more extensive testing
 #define QUAKECONNECT		//including quake ICE connections (depends upon jingle)
 #define VOIP				//enables voice chat (depends upon jingle)
 #define VOIP_LEGACY			//enables google-only voice chat compat. google have not kept up with the standardisation of jingle (aka: gingle).
@@ -24,27 +24,35 @@
 #define JCL_BUILD "3"
 #define DEFAULTDOMAIN ""
 #define DEFAULTRESOURCE "Quake"
-#define QUAKEMEDIATYPE "quake"
 #define QUAKEMEDIAXMLNS "http://fteqw.com/protocol/quake"
 #define DISCONODE		"http://fteqw.com/ftexmpp"	//some sort of client identifier
 #define DEFAULTICEMODE ICEM_ICE
+
+#define MEDIATYPE_QUAKE "quake"
+#define MEDIATYPE_VIDEO "video"
+#define MEDIATYPE_AUDIO "audio"
 
 
 
 #define JCL_MAXMSGLEN 10000
 
 //values are not on the wire or anything
-#define CAP_QUERYING		(1<<0)	//we've sent a query and are waiting for the response.
-#define CAP_QUERIED			(1<<1)	//feature capabilities are actually know.
-#define CAP_QUERYFAILED		(1<<2)	//caps request failed due to bad hash or some such.
-#define CAP_VOICE			(1<<3)	//supports voice
+#define CAP_VOICE			(1u<<0)		//supports voice
+#define CAP_GOOGLE_VOICE	(1u<<1)		//google supports some old non-standard version of jingle.
+#define CAP_VIDEO			(1u<<2)		//supports video calls
 
-#define CAP_INVITE			(1<<4)	//supports game invites.
-#define CAP_POKE			(1<<5)	//can be slapped.
-#define CAP_SIFT			(1<<6)	//non-jingle file transfers
+#define CAP_GAMEINVITE		(1u<<3)		//supports game invites. custom/private protocol
+#define CAP_POKE			(1u<<4)		//can be slapped.
+#define CAP_SIFT			(1u<<5)		//non-jingle file transfers
+#define	CAP_AVATARS			(1u<<6)		//can enable querying for user avatars, but cannot disable advertising our own.
 
-#define CAP_FUGOOG_VOICE	(1<<7)	//fuck you, google.
-#define CAP_FUGOOG_SESSION	(1<<8)	//fuck you, google.
+//not actually capabilities, but just down to how we handle querying them.
+#define CAP_QUERYING		(1u<<29)	//we've sent a query and are waiting for the response.
+#define CAP_QUERIED			(1u<<30)	//feature capabilities are actually know.
+#define CAP_QUERYFAILED		(1u<<31)	//caps request failed due to bad hash or some such.
+
+//features that default to disabled.
+#define CAP_DEFAULTENABLEDCAPS (CAP_VOICE/*|CAP_VIDEO*/|CAP_GAMEINVITE|CAP_POKE|CAP_AVATARS/*|CAP_SIFT*/|CAP_GOOGLE_VOICE)
 
 typedef struct bresource_s
 {
@@ -53,6 +61,7 @@ typedef struct bresource_s
 	char server[256];
 	int servertype;	//0=none, 1=already a client, 2=joinable
 
+	unsigned int buggycaps;
 	unsigned int caps;
 	char *client_node;	//vendor name
 	char *client_ver;	//cap hash value
@@ -70,8 +79,11 @@ typedef struct buddy_s
 	int defaulttimestamp;
 	qboolean friended;
 	qboolean chatroom;	//chatrooms are bizzare things that need special handling.
+	qboolean vcardphotochanged;
 
 	char name[256];
+	char vcardphotohash[41];
+	qhandle_t image;
 
 	struct buddy_s *next;
 	char accountdomain[1];	//no resource on there
@@ -90,6 +102,8 @@ typedef struct jclient_s
 		JCL_ACTIVE		//we're connected, we got a buddy list and everything
 	} status;
 	unsigned int timeout;		//reconnect/ping timer
+
+	unsigned int enabledcapabilities;
 
 	qhandle_t socket;
 
@@ -116,6 +130,7 @@ typedef struct jclient_s
 	char resource[256];
 	char certificatedomain[256];
 	int forcetls;	//-1=off, 0=ifpossible, 1=fail if can't upgrade, 2=old-style tls
+	qboolean savepassword;
 	qboolean allowauth_plainnontls;	//allow plain plain
 	qboolean allowauth_plaintls;	//allow tls plain
 	qboolean allowauth_digestmd5;	//allow digest-md5 auth
@@ -124,6 +139,14 @@ typedef struct jclient_s
 	
 	char jid[256];	//this is our full username@domain/resource string
 	char localalias[256];//this is what's shown infront of outgoing messages. >> by default until we can get our name.
+	char vcardphotohash[20];	//20-byte sha1 hash.
+	enum
+	{
+		VCP_UNKNOWN,
+		VCP_NONE,
+		VCP_KNOWN
+	} vcardphotohashstatus;
+	qboolean vcardphotohashchanged;	//forces a presence send.
 
 	char authnonce[256];
 	int authmode;
@@ -134,7 +157,7 @@ typedef struct jclient_s
 
 	qboolean connected;	//fully on server and authed and everything.
 	qboolean issecure;	//tls enabled (either upgraded or initially)
-	qboolean streamdebug;	//echo the stream to subconsoles
+	int streamdebug;	//echo the stream to subconsoles
 
 	qboolean preapproval;	//server supports presence preapproval
 
@@ -169,15 +192,20 @@ typedef struct jclient_s
 	struct c2c_s
 	{
 		struct c2c_s *next;
-		enum iceproto_e mediatype;
-		enum icemode_e method;	//ICE_RAW or ICE_ICE. this is what the peer asked for. updated if we degrade it.
 		qboolean accepted;	//connection is going
 		qboolean creator;	//true if we're the creator.
 		unsigned int peercaps;
 
-		struct icestate_s *ice;
-		char *peeraddr;
-		int peerport;
+		struct
+		{
+			char name[64];	//uniquely identifies the content within the session.
+			enum iceproto_e mediatype;
+			enum icemode_e method;	//ICE_RAW or ICE_ICE. this is what the peer asked for. updated if we degrade it.
+			struct icestate_s *ice;
+			char *peeraddr;
+			int peerport;
+		} content[3];
+		int contents;
 
 		char *with;
 		char sid[1];
@@ -205,8 +233,26 @@ typedef struct jclient_s
 		qboolean transmitting;	//we're offering
 		qboolean allowed;	//if false, don't handshake the transfer
 
+		struct
+		{
+			char jid[128];
+			char host[40];
+			int port;
+		} streamhosts[16];
+		int nexthost;
 		enum
 		{
+			STRM_IDLE,
+			STRM_AUTH,
+			STRM_AUTHED,
+			STRM_ACTIVE
+		} streamstatus;
+		char indata[64];	//only for handshake data
+		int inlen;
+
+		enum
+		{
+			FT_NOTSTARTED,
 			FT_IBB,			//in-band bytestreams
 			FT_BYTESTREAM	//aka: relay
 		} method;
@@ -228,7 +274,8 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen);
 //xmpp functionality
 struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
 void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
-qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres);
+void JCL_AddClientMessageString(jclient_t *jcl, char *msg);
+qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres, qboolean create);
 
 //quake functionality
 void JCL_GenLink(jclient_t *jcl, char *out, int outlen, char *action, char *context, char *contextres, char *sid, char *txtfmt, ...);
@@ -241,4 +288,12 @@ void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall);
 qboolean JCL_HandleGoogleSession(jclient_t *jcl, xmltree_t *tree, char *from, char *id);
 qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id);
 
-void JCL_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept);
+void XMPP_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept);
+qboolean XMPP_FT_OfferAcked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq);
+qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t *tree);
+void XMPP_FT_SendFile(jclient_t *jcl, char *console, char *to, char *fname);
+void XMPP_FT_Frame(jclient_t *jcl);
+
+void Base64_Add(char *s, int len);
+char *Base64_Finish(void);
+int Base64_Decode(char *out, int outlen, char *src, int srclen);

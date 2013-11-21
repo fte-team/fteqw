@@ -517,10 +517,10 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		if (con->gzip)
 		{
-#ifdef NPFTE
-			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
-#else
+#if !defined(NPFTE) && defined(AVAIL_ZLIB)
 			con->file = FS_OpenTemp();
+#else
+			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
 #endif
 		}
 		else
@@ -618,7 +618,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				dl->status = DL_FAILED;
 			else
 			{
-#ifndef NPFTE
+#if !defined(NPFTE) && defined(AVAIL_ZLIB)
 				if (con->gzip)
 				{
 					VFS_SEEK(con->file, 0);
@@ -714,7 +714,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 			"Content-Length: %i\r\n"
 			"Content-Type: %s\r\n"
 			"Connection: close\r\n"
-#ifndef NPFTE
+#if !defined(NPFTE) && defined(AVAIL_ZLIB)
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"
@@ -730,7 +730,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 			"GET %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
 			"Connection: close\r\n"
-#ifndef NPFTE
+#if !defined(NPFTE) && defined(AVAIL_ZLIB)
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"

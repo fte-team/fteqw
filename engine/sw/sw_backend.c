@@ -487,7 +487,7 @@ static void SWBE_SubmitMeshesSortList(batch_t *sortlist)
 			continue;
 
 		if (batch->flags & BEF_NODLIGHT)
-			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
+			if (shaderstate.mode == BEM_LIGHT)
 				continue;
 		if (batch->flags & BEF_NOSHADOWS)
 			if (shaderstate.mode == BEM_STENCIL)
@@ -501,7 +501,7 @@ static void SWBE_SubmitMeshesSortList(batch_t *sortlist)
 		if (batch->shader->flags & SHADER_NODRAW)
 			continue;
 		if (batch->shader->flags & SHADER_NODLIGHT)
-			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
+			if (shaderstate.mode == BEM_LIGHT)
 				continue;
 		if (batch->shader->flags & SHADER_SKY)
 		{
@@ -606,7 +606,7 @@ void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
 
 		shaderstate.wbatch = 0;
 	}
-	BE_GenModelBatches(batches);
+	BE_GenModelBatches(batches, NULL, shaderstate.mode);
 //	R_GenDlightBatches(batches);
 
 	shaderstate.curentity = NULL;

@@ -1296,6 +1296,10 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 		for (var = grp->cvars ; var ; var = var->next)
 			if (var->flags & CVAR_ARCHIVE || (all && var != &cl_warncmd))
 			{
+				//yeah, don't force-save readonly cvars.
+				if (var->flags & CVAR_NOSET)
+					continue;
+
 				if (!writtengroupheader)
 				{
 					writtengroupheader = true;

@@ -119,6 +119,7 @@ cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
+cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
 cvar_t r_nolerp								= CVARF  ("r_nolerp", "0", CVAR_ARCHIVE);
 cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 cvar_t r_nolightdir							= CVARF  ("r_nolightdir", "0", CVAR_ARCHIVE);
@@ -402,6 +403,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_postprocshader, GLRENDEREROPTIONS);
 
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
+	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noportals, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
@@ -426,8 +428,6 @@ void GLRenderer_Init(void)
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 #endif
-	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
-	Cvar_Register (&gl_specular_fallback, GRAPHICALNICETIES);
 
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
 
@@ -611,6 +611,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_coronas, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
+	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
+	Cvar_Register (&gl_specular_fallback, GRAPHICALNICETIES);
 
 	Sh_RegisterCvars();
 
@@ -1335,44 +1337,31 @@ void R_ReloadRenderer_f (void)
 #define DEFAULT_HEIGHT 480
 #define DEFAULT_BPP 32
 
-void R_RestartRenderer_f (void)
+//use Cvar_ApplyLatches(CVAR_RENDERERLATCH) beforehand.
+qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 {
 	int i, j;
-	rendererstate_t oldr;
-	rendererstate_t newr;
-	if (r_blockvidrestart)
-	{
-		Con_Printf("Ignoring vid_restart from config\n");
-		return;
-	}
 
-	M_Shutdown();
-	memset(&newr, 0, sizeof(newr));
+	memset(newr, 0, sizeof(*newr));
 
-TRACE(("dbg: R_RestartRenderer_f\n"));
+	newr->width = vid_width.value;
+	newr->height = vid_height.value;
 
-	Media_CaptureDemoEnd();
-
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
-
-	newr.width = vid_width.value;
-	newr.height = vid_height.value;
-
-	newr.triplebuffer = vid_triplebuffer.value;
-	newr.multisample = vid_multisample.value;
-	newr.bpp = vid_bpp.value;
-	newr.fullscreen = vid_fullscreen.value;
-	newr.rate = vid_refreshrate.value;
-	newr.stereo = (r_stereo_method.ival == 1);
+	newr->triplebuffer = vid_triplebuffer.value;
+	newr->multisample = vid_multisample.value;
+	newr->bpp = vid_bpp.value;
+	newr->fullscreen = vid_fullscreen.value;
+	newr->rate = vid_refreshrate.value;
+	newr->stereo = (r_stereo_method.ival == 1);
 
 	if (!*_vid_wait_override.string || _vid_wait_override.value < 0)
-		newr.wait = -1;
+		newr->wait = -1;
 	else
-		newr.wait = _vid_wait_override.value;
+		newr->wait = _vid_wait_override.value;
 
-	Q_strncpyz(newr.glrenderer, gl_driver.string, sizeof(newr.glrenderer));
+	newr->renderer = NULL;
 
-	newr.renderer = NULL;
+	rendererstring = COM_Parse(rendererstring);
 	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 	{
 		if (!rendererinfo[i]->description)
@@ -1381,14 +1370,82 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		{
 			if (!rendererinfo[i]->name[j])
 				continue;
-			if (!stricmp(rendererinfo[i]->name[j], vid_renderer.string))
+			if (!stricmp(rendererinfo[i]->name[j], com_token))
 			{
-				newr.renderer = rendererinfo[i];
+				newr->renderer = rendererinfo[i];
 				break;
 			}
 		}
 	}
-	if (!newr.renderer)
+
+	rendererstring = COM_Parse(rendererstring);
+	if (*com_token)
+		Q_strncpyz(newr->subrenderer, com_token, sizeof(newr->subrenderer));
+	else if (newr->renderer && newr->renderer->rtype == QR_OPENGL)
+		Q_strncpyz(newr->subrenderer, gl_driver.string, sizeof(newr->subrenderer));
+
+	// use desktop settings if set to 0 and not dedicated
+	if (newr->renderer && newr->renderer->rtype != QR_NONE)
+	{
+		int dbpp, dheight, dwidth, drate;
+		extern qboolean isPlugin;
+
+		if ((!newr->fullscreen && !vid_desktopsettings.value && !isPlugin) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		{
+			// force default values for systems not supporting desktop parameters
+			dwidth = DEFAULT_WIDTH;
+			dheight = DEFAULT_HEIGHT;
+			dbpp = DEFAULT_BPP;
+			drate = 0;
+		}
+
+		if (vid_desktopsettings.value)
+		{
+			newr->width = dwidth;
+			newr->height = dheight;
+			newr->bpp = dbpp;
+			newr->rate = drate;
+		}
+		else
+		{
+			if (newr->width <= 0 || newr->height <= 0)
+			{
+				newr->width = dwidth;
+				newr->height = dheight;
+			}
+
+			if (newr->bpp <= 0)
+				newr->bpp = dbpp;
+		}
+	}
+
+#ifdef CLIENTONLY
+	if (newr->renderer && newr->renderer->rtype == QR_NONE)
+	{
+		Con_Printf("Client-only builds cannot use dedicated modes.\n");
+		return NULL;
+	}
+#endif
+
+	return newr->renderer != NULL;
+}
+
+void R_RestartRenderer_f (void)
+{
+	rendererstate_t oldr;
+	rendererstate_t newr;
+	if (r_blockvidrestart)
+	{
+		Con_Printf("Ignoring vid_restart from config\n");
+		return;
+	}
+
+	memset(&newr, 0, sizeof(newr));
+
+TRACE(("dbg: R_RestartRenderer_f\n"));
+
+	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+	if (!R_BuildRenderstate(&newr, vid_renderer.string))
 	{
 		int i;
 		if (*vid_renderer.string)
@@ -1408,40 +1465,8 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		return;
 	}
 
-	// use desktop settings if set to 0 and not dedicated
-	if (newr.renderer->rtype != QR_NONE)
-	{
-		int dbpp, dheight, dwidth, drate;
-		extern qboolean isPlugin;
-
-		if ((!newr.fullscreen && !vid_desktopsettings.value && !isPlugin) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
-		{
-			// force default values for systems not supporting desktop parameters
-			dwidth = DEFAULT_WIDTH;
-			dheight = DEFAULT_HEIGHT;
-			dbpp = DEFAULT_BPP;
-			drate = 0;
-		}
-
-		if (vid_desktopsettings.value)
-		{
-			newr.width = dwidth;
-			newr.height = dheight;
-			newr.bpp = dbpp;
-			newr.rate = drate;
-		}
-		else
-		{
-			if (newr.width <= 0 || newr.height <= 0)
-			{
-				newr.width = dwidth;
-				newr.height = dheight;
-			}
-
-			if (newr.bpp <= 0)
-				newr.bpp = dbpp;
-		}
-	}
+	M_Shutdown();
+	Media_CaptureDemoEnd();
 
 	TRACE(("dbg: R_RestartRenderer_f renderer %i\n", newr.renderer));
 
@@ -1502,9 +1527,10 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 void R_SetRenderer_f (void)
 {
-	int i, j;
-	int best;
+	int i;
 	char *param = Cmd_Argv(1);
+	rendererstate_t newr;
+
 	if (Cmd_Argc() == 1 || !stricmp(param, "help"))
 	{
 		Con_Printf ("\nValid setrenderer parameters are:\n");
@@ -1516,32 +1542,7 @@ void R_SetRenderer_f (void)
 		return;
 	}
 
-	best = -1;
-	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
-	{
-		if (!rendererinfo[i]->description)
-			continue;	//not valid in this build. :(
-		for (j = 4-1; j >= 0; j--)
-		{
-			if (!rendererinfo[i]->name[j])
-				continue;
-			if (!stricmp(rendererinfo[i]->name[j], param))
-			{
-				best = i;
-				break;
-			}
-		}
-	}
-
-#ifdef CLIENTONLY
-	if (best == 0)
-	{
-		Con_Printf("Client-only builds cannot use dedicated modes.\n");
-		return;
-	}
-#endif
-
-	if (best == -1)
+	if (!R_BuildRenderstate(&newr, param))
 	{
 		Con_Printf("setrenderer: parameter not supported (%s)\n", param);
 		return;

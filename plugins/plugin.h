@@ -217,11 +217,14 @@ EBUILTIN(void, Menu_Control, (int mnum));
 #define MENU_GRAB 1
 EBUILTIN(int, Key_GetKeyCode, (char *keyname));
 
-EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
+EBUILTIN(qhandle_t, Draw_LoadImageData, (char *name, char *mime, void *data, unsigned int datasize));	//load/replace a named texture
+EBUILTIN(qhandle_t, Draw_LoadImageShader, (char *name, char *defaultshader));	//loads a shader.
+EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad. loads a shader.
 EBUILTIN(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
 EBUILTIN(void, Draw_Fill,	(float x, float y, float w, float h));
 EBUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
 EBUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
+EBUILTIN(void, Draw_String, (float x, float y, char *string));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));

@@ -47,9 +47,6 @@
 
 DEFINE_QGUID(qIID_ID3D11Texture2D,0x6f15aaf2,0xd208,0x4e89,0x9a,0xb4,0x48,0x95,0x35,0xd3,0x4f,0x9c);
 
-//static void D3D11_GetBufferSize(int *width, int *height); //not defined
-static void resetD3D11(void);
-//static LPDIRECT3D11 pD3D;
 ID3D11Device *pD3DDev11;
 ID3D11DeviceContext *d3ddevctx;
 IDXGISwapChain *d3dswapchain;
@@ -58,7 +55,6 @@ ID3D11RenderTargetView *fb_backbuffer;
 ID3D11DepthStencilView *fb_backdepthstencil;
 
 void *d3d11mod;
-float d3d_trueprojection[16];
 
 qboolean vid_initializing;
 
@@ -81,77 +77,59 @@ int window_x, window_y;
 static void released3dbackbuffer(void);
 static qboolean resetd3dbackbuffer(int width, int height);
 
-void BuildGammaTable (float g, float c);
-static void	D3D11_VID_GenPaletteTables (unsigned char *palette)
+#if 0//def _DEBUG
+#include <dxgidebug.h>
+const GUID IID_IDXGIDebug = { 0x119E7452,0xDE9E,0x40fe, { 0x88,0x06,0x88,0xF9,0x0C,0x12,0xB4,0x41 } };
+
+const GUID DXGI_DEBUG_ALL = { 0xe48ae283, 0xda80, 0x490b, {0x87, 0xe6, 0x43, 0xe9, 0xa9, 0xcf, 0xda, 0x8 }};
+
+void DoDXGIDebug(void)
 {
-	extern unsigned short		ramps[3][256];
-	qbyte	*pal;
-	unsigned r,g,b;
-	unsigned v;
-	unsigned short i;
-	unsigned	*table;
-	extern qbyte gammatable[256];
+	IDXGIDebug *dbg = NULL;
 
-	if (palette)
+	HRESULT (WINAPI *pDXGIGetDebugInterface)(REFIID riid, void **ppDebug);
+	dllfunction_t dxdidebugfuncs[] =
 	{
-		extern cvar_t v_contrast;
-		BuildGammaTable(v_gamma.value, v_contrast.value);
-
-		//
-		// 8 8 8 encoding
-		//
-		if (1)//vid_hardwaregamma.value)
-		{
-		//	don't built in the gamma table
-
-			pal = palette;
-			table = d_8to24rgbtable;
-			for (i=0 ; i<256 ; i++)
-			{
-				r = pal[0];
-				g = pal[1];
-				b = pal[2];
-				pal += 3;
-
-		//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-		//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-				v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-				*table++ = v;
-			}
-			d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
-		}
-		else
-		{
-	//computer has no hardware gamma (poor suckers) increase table accordingly
-
-			pal = palette;
-			table = d_8to24rgbtable;
-			for (i=0 ; i<256 ; i++)
-			{
-				r = gammatable[pal[0]];
-				g = gammatable[pal[1]];
-				b = gammatable[pal[2]];
-				pal += 3;
-
-		//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
-		//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
-				v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
-				*table++ = v;
-			}
-			d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
-		}
-
-		if (LittleLong(1) != 1)
-		{
-			for (i=0 ; i<256 ; i++)
-				d_8to24rgbtable[i] = LittleLong(d_8to24rgbtable[i]);
-		}
+		{(void**)&pDXGIGetDebugInterface, "DXGIGetDebugInterface"},
+		{NULL}
+	};
+	pDXGIGetDebugInterface = NULL;
+	Sys_LoadLibrary("dxgidebug", dxdidebugfuncs);
+	pDXGIGetDebugInterface(&IID_IDXGIDebug, &dbg);
+	if (dbg)
+	{
+		IDXGIDebug_ReportLiveObjects(dbg, DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+		IDXGIDebug_Release(dbg);
 	}
+}
+#else
+#define DoDXGIDebug()
+#endif
 
-//	if (pD3DDev11)
-	//	d3dswapchain->Set
-		//IDirect3DDevice11_SetGammaRamp();
-//		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
+char *D3D_NameForResult(HRESULT hr)
+{
+	if (hr == DXGI_ERROR_DEVICE_REMOVED && pD3DDev11)
+		hr = ID3D11Device_GetDeviceRemovedReason(pD3DDev11);
+
+	switch(hr)
+	{
+	case E_OUTOFMEMORY:						return "E_OUTOFMEMORY";
+	case E_NOINTERFACE:						return "E_NOINTERFACE";
+	case DXGI_ERROR_DEVICE_HUNG:			return "DXGI_ERROR_DEVICE_HUNG";
+	case DXGI_ERROR_DEVICE_REMOVED:			return "DXGI_ERROR_DEVICE_REMOVED";
+	case DXGI_ERROR_DEVICE_RESET:			return "DXGI_ERROR_DEVICE_RESET";
+	case DXGI_ERROR_DRIVER_INTERNAL_ERROR:	return "DXGI_ERROR_DRIVER_INTERNAL_ERROR";
+	case DXGI_ERROR_INVALID_CALL:			return "DXGI_ERROR_INVALID_CALL";
+	default:								return va("%x", hr);
+	}
+}
+
+static void D3D11_PresentOrCrash(void)
+{
+	extern cvar_t _vid_wait_override;
+	HRESULT hr = IDXGISwapChain_Present(d3dswapchain, _vid_wait_override.ival, 0);
+	if (FAILED(hr))
+		Sys_Error("IDXGISwapChain_Present: %s\n", D3D_NameForResult(hr));
 }
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
@@ -422,7 +400,6 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			vid.pixelwidth = window_rect.right - window_rect.left;
 			vid.pixelheight = window_rect.bottom - window_rect.top;
 			resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
-			resetD3D11();
 			D3D11BE_Reset(false);
 			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
 			break;
@@ -476,36 +453,6 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
     /* return 1 if handled message, 0 if not */
     return lRet;
-}
-static void resetD3D11(void)
-{
-#if 0
-	HRESULT res;
-	res = IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
-	if (FAILED(res))
-	{
-		Con_Printf("IDirect3DDevice9_Reset failed (%u)\n", res&0xffff);
-		return;
-	}
-
-
-	/*clear the screen to black as soon as we start up, so there's no lingering framebuffer state*/
-	IDirect3DDevice9_BeginScene(pD3DDev9);
-	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
-	IDirect3DDevice9_EndScene(pD3DDev9);
-	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
-
-
-
-
-
-
-
-	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_DITHERENABLE, FALSE);
-	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_SPECULARENABLE, FALSE);
-	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_TEXTUREPERSPECTIVE, TRUE);
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_LIGHTING, FALSE);
-#endif
 }
 
 #if (WINVER < 0x500) && !defined(__GNUC__)
@@ -576,23 +523,46 @@ static qboolean resetd3dbackbuffer(int width, int height)
 static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN func, IDXGIAdapter *adapt)
 {
 	int flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
+	D3D_DRIVER_TYPE drivertype;
 	DXGI_SWAP_CHAIN_DESC scd;
 	D3D_FEATURE_LEVEL flevel, flevels[] =
 	{
+		//D3D_FEATURE_LEVEL_11_1,
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
 		D3D_FEATURE_LEVEL_10_0,
-		D3D_FEATURE_LEVEL_9_3,
-		D3D_FEATURE_LEVEL_9_2,
-		D3D_FEATURE_LEVEL_9_1
+
+		//FIXME: need npot.
+//		D3D_FEATURE_LEVEL_9_3,
+//		D3D_FEATURE_LEVEL_9_2,
+//		D3D_FEATURE_LEVEL_9_1
 	};
 	memset(&scd, 0, sizeof(scd));
 
+	if (!stricmp(info->subrenderer, "debug"))
+		flags |= D3D11_CREATE_DEVICE_DEBUG;
+
+	if (!stricmp(info->subrenderer, "warp"))
+		drivertype = D3D_DRIVER_TYPE_WARP;
+	else if (!stricmp(info->subrenderer, "ref"))
+		drivertype = D3D_DRIVER_TYPE_REFERENCE;
+	else if (!stricmp(info->subrenderer, "hw"))
+		drivertype = D3D_DRIVER_TYPE_HARDWARE;
+	else if (!stricmp(info->subrenderer, "null"))
+		drivertype = D3D_DRIVER_TYPE_NULL;
+	else if (!stricmp(info->subrenderer, "software"))
+		drivertype = D3D_DRIVER_TYPE_SOFTWARE;
+	else if (!stricmp(info->subrenderer, "unknown"))
+		drivertype = D3D_DRIVER_TYPE_UNKNOWN;
+	else
+		drivertype = adapt?D3D_DRIVER_TYPE_UNKNOWN:D3D_DRIVER_TYPE_HARDWARE;
+
+	//for stereo support, we would have to rewrite all of this in a way that would make us dependant upon windows 8 or 7+platform update, which would exclude vista.
 	scd.BufferDesc.Width = info->width;
 	scd.BufferDesc.Height = info->height;
 	scd.BufferDesc.RefreshRate.Numerator = 0;
 	scd.BufferDesc.RefreshRate.Denominator = 0;
-	scd.BufferCount = 1;	//back buffer count
+	scd.BufferCount = 1+info->triplebuffer;	//back buffer count
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	//32bit colour
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.OutputWindow = hWnd;
@@ -604,14 +574,16 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 //	flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-	if (adapt)
+	if (drivertype == D3D_DRIVER_TYPE_UNKNOWN && adapt)
 	{
 		DXGI_ADAPTER_DESC adesc;
-		adapt->lpVtbl->GetDesc(adapt, &adesc);
+		IDXGIAdapter_GetDesc(adapt, &adesc);
 		Con_Printf("D3D11 Adaptor: %S\n", adesc.Description);
 	}
+	else
+		adapt = NULL;
 
-	if (FAILED(func(adapt, adapt?D3D_DRIVER_TYPE_UNKNOWN:D3D_DRIVER_TYPE_HARDWARE, NULL, flags,
+	if (FAILED(func(adapt, drivertype, NULL, flags,
 				flevels, sizeof(flevels)/sizeof(flevels[0]),
 				D3D11_SDK_VERSION,
 				&scd,
@@ -634,7 +606,11 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	}
 
 	vid.numpages = scd.BufferCount;
-	D3D11Shader_Init();
+	if (!D3D11Shader_Init(flevel))
+	{
+		Con_Printf("Unable to intialise a suitable HLSL compiler, please install the DirectX runtime.\n");
+		return false;
+	}
 	return true;
 }
 
@@ -643,8 +619,8 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 	static dllhandle_t *d3d11dll;
 	static dllhandle_t *dxgi;
 	static PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN fnc;
-	static HRESULT (*pCreateDXGIFactory1)(REFIID riid, void **ppFactory);
-	IID factiid = {0x770aae78, 0xf26f, 0x4dba, 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87};
+	static HRESULT (WINAPI *pCreateDXGIFactory1)(IID *riid, void **ppFactory);
+	static IID factiid = {0x770aae78, 0xf26f, 0x4dba, 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87};
 	IDXGIFactory1 *fact = NULL;
 	IDXGIAdapter *adapt = NULL;
 	dllfunction_t d3d11funcs[] =
@@ -658,32 +634,37 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 		{NULL}
 	};
 
-	if (!d3d11mod)
-		d3d11mod = Sys_LoadLibrary("d3d11", d3d11funcs);
 	if (!dxgi)
 		dxgi = Sys_LoadLibrary("dxgi", dxgifuncs);
+	if (!d3d11mod)
+		d3d11mod = Sys_LoadLibrary("d3d11", d3d11funcs);
 
 	if (!d3d11mod)
 		return;
 
 	if (pCreateDXGIFactory1)
 	{
-		pCreateDXGIFactory1(&factiid, &fact);
+		HRESULT hr;
+		hr = pCreateDXGIFactory1(&factiid, &fact);
+		if (FAILED(hr))
+			Con_Printf("CreateDXGIFactory1 failed: %s\n", D3D_NameForResult(hr));
 		if (fact)
 		{
-			fact->lpVtbl->EnumAdapters(fact, 0, &adapt);
+			IDXGIFactory1_EnumAdapters(fact, 0, &adapt);
 		}
 	}
 
 	
 	initD3D11Device(hWnd, info, fnc, adapt);
 
+	if (adapt)
+		IDXGIAdapter_Release(adapt);
 	if (fact)
 	{
 		//DXGI SUCKS and fucks up alt+tab every single time. its pointless to go from fullscreen to fullscreen-with-taskbar-obscuring-half-the-window.
 		//I'm just going to handle that stuff myself.
-		fact->lpVtbl->MakeWindowAssociation(fact, hWnd, DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER|DXGI_MWA_NO_PRINT_SCREEN);
-		fact->lpVtbl->Release(fact);
+		IDXGIFactory1_MakeWindowAssociation(fact, hWnd, DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER|DXGI_MWA_NO_PRINT_SCREEN);
+		IDXGIFactory1_Release(fact);
 	}
 }
 
@@ -739,9 +720,12 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	// Try as specified.
 
+	DoDXGIDebug();
+
 	initD3D11(mainwindow, info);
 	if (!pD3DDev11)
 	{
+		DoDXGIDebug();
 		Con_Printf("No suitable D3D11 device found\n");
 		return false;
 	}
@@ -749,6 +733,8 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	if (info->fullscreen)
 		IDXGISwapChain_SetFullscreenState(d3dswapchain, true, NULL);
 
+	vid.pixelwidth = width;
+	vid.pixelheight = height;
 
 	while (PeekMessage(&msg, NULL,  0, 0, PM_REMOVE))
 	{
@@ -760,28 +746,12 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	ShowWindow(mainwindow, SW_SHOWNORMAL);
 
-//	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
-//	IDirect3DDevice9_BeginScene(pD3DDev9);
-//	IDirect3DDevice9_EndScene(pD3DDev9);
-//	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
-
-
-
-//	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &width, &height);
-	vid.pixelwidth = width;
-	vid.pixelheight = height;
-
-	vid.width = width;
-	vid.height = height;
+	vid.width = vid.pixelwidth;
+	vid.height = vid.pixelheight;
 
 	vid_initializing = false;
 
-//	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_LIGHTING, FALSE);
-
 	GetWindowRect(mainwindow, &window_rect);
-
-
-	D3D11_VID_GenPaletteTables(palette);
 
 	{
 		extern qboolean	mouseactive;
@@ -843,10 +813,15 @@ static void	 (D3D11_VID_DeInit)				(void)
 		IDXGISwapChain_Release(d3dswapchain);
 	d3dswapchain = NULL;
 	if (pD3DDev11)
-		pD3DDev11->lpVtbl->Release(pD3DDev11);
+		ID3D11Device_Release(pD3DDev11);
 	pD3DDev11 = NULL;
+
 	if (d3ddevctx)
-		d3ddevctx->lpVtbl->Release(d3ddevctx);
+	{
+		ID3D11DeviceContext_ClearState(d3ddevctx);
+		ID3D11DeviceContext_Flush(d3ddevctx);
+		ID3D11DeviceContext_Release(d3ddevctx);
+	}
 	d3ddevctx = NULL;
 
 	if (mainwindow)
@@ -854,98 +829,77 @@ static void	 (D3D11_VID_DeInit)				(void)
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
+
+	DoDXGIDebug();
 }
 
 static qboolean	D3D11_VID_ApplyGammaRamps(unsigned short *ramps)
 {
 	return false;
 }
-static char	*(D3D11_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
+static char	*D3D11_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
 {
-	return NULL;
-#if 0
-	IDirect3DSurface9 *backbuf, *surf;
-	D3DLOCKED_RECT rect;
-	D3DSURFACE_DESC desc;
-	int i, j, c;
-	qbyte *ret = NULL;
-	qbyte *p;
-
-	/*DON'T read the front buffer.
-	this function can be used by the quakeworld remote screenshot 'snap' feature,
-	so DO NOT read the frontbuffer because it can show other information than just quake to third parties*/
-
-	if (!FAILED(IDirect3DDevice9_GetRenderTarget(pD3DDev9, 0, &backbuf)))
+	//don't directly map the frontbuffer, as that can hold other things.
+	//create a texture, copy the (gpu)backbuffer to that (cpu)texture
+	//then map the (cpu)texture and copy out the parts we need, reordering as needed.
+	D3D11_MAPPED_SUBRESOURCE lock;
+	qbyte *rgb, *in, *r = NULL;
+	unsigned int x,y;
+	D3D11_TEXTURE2D_DESC texDesc;
+	ID3D11Texture2D *texture;
+	ID3D11Resource *backbuffer;
+	texDesc.ArraySize = 1;
+	texDesc.BindFlags = 0;
+	texDesc.CPUAccessFlags = 0;
+	texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	texDesc.Width = vid.pixelwidth;
+	texDesc.Height = vid.pixelheight;
+	texDesc.MipLevels = 1;
+	texDesc.MiscFlags = 0;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Usage = D3D11_USAGE_STAGING;
+	texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	if (FAILED(ID3D11Device_CreateTexture2D(pD3DDev11, &texDesc, 0, &texture)))
+		return NULL;
+	ID3D11RenderTargetView_GetResource(fb_backbuffer, &backbuffer);
+	ID3D11DeviceContext_CopyResource(d3ddevctx, (ID3D11Resource*)texture, backbuffer);
+	ID3D11Resource_Release(backbuffer);
+	if (!FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)texture, 0, D3D11_MAP_READ, 0, &lock)))
 	{
-		if (!FAILED(IDirect3DSurface9_GetDesc(backbuf, &desc)))
-		if (desc.Format == D3DFMT_X8R8G8B8 || desc.Format == D3DFMT_A8R8G8B8)
-		if (!FAILED(IDirect3DDevice9_CreateOffscreenPlainSurface(pD3DDev9,
-					desc.Width, desc.Height, desc.Format,
-					D3DPOOL_SYSTEMMEM, &surf, NULL))
-			)
+		r = rgb = BZ_Malloc(prepad + 3 * vid.pixelwidth * vid.pixelheight);
+		r += prepad;
+		for (y = vid.pixelheight; y-- > 0; )
 		{
-
-			if (!FAILED(IDirect3DDevice9_GetRenderTargetData(pD3DDev9, backbuf, surf)))
-			if (!FAILED(IDirect3DSurface9_LockRect(surf, &rect, NULL, D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_READONLY|D3DLOCK_NOSYSLOCK)))
+			in = lock.pData;
+			in += y * lock.RowPitch;
+			for (x = 0; x < vid.pixelwidth; x++, rgb+=3, in+=4)
 			{
-				ret = BZ_Malloc(prepad + desc.Width*desc.Height*3);
-				if (ret)
-				{
-					// read surface rect and convert 32 bgra to 24 rgb and flip
-					c = prepad+desc.Width*desc.Height*3;
-					p = (qbyte *)rect.pBits;
-
-					for (i=c-(3*desc.Width); i>=prepad; i-=(3*desc.Width))
-					{
-						for (j=0; j<desc.Width; j++)
-						{
-							ret[i+j*3+0] = p[j*4+2];
-							ret[i+j*3+1] = p[j*4+1];
-							ret[i+j*3+2] = p[j*4+0];
-						}
-						p += rect.Pitch;
-					}
-
-					*truevidwidth = desc.Width;
-					*truevidheight = desc.Height;
-				}
-
-				IDirect3DSurface9_UnlockRect(surf);
+				rgb[0] = in[0];
+				rgb[1] = in[1];
+				rgb[2] = in[2];
 			}
-			IDirect3DSurface9_Release(surf);
 		}
-		IDirect3DSurface9_Release(backbuf);
+		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)texture, 0);
 	}
-
-	return ret;
-#endif
+	ID3D11Texture2D_Release(texture);
+	*truevidwidth = vid.pixelwidth;
+	*truevidheight = vid.pixelheight;
+	return r;
 }
 static void	(D3D11_VID_SetWindowCaption)		(char *msg)
 {
 	SetWindowText(mainwindow, msg);
 }
 
-void d3dx_ortho(float *m);
-
 void D3D11_Set2D (void)
 {
 	D3D11_VIEWPORT vport;
 
-	Matrix4x4_CM_OrthographicD3D(r_refdef.m_projection, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
-	memcpy(d3d_trueprojection, r_refdef.m_projection, sizeof(d3d_trueprojection));
+//	Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
+	Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, 0, 99999);
 	Matrix4x4_Identity(r_refdef.m_view);
-#if 0
-	float m[16];
 
-	Matrix4x4_CM_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)m);
-
-	Matrix4x4_Identity(m);
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
-
-	Matrix4x4_Identity(m);
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)m);
-#endif
 	vport.TopLeftX = 0;
 	vport.TopLeftY = 0;
 	vport.Width = vid.pixelwidth;
@@ -953,21 +907,12 @@ void D3D11_Set2D (void)
 	vport.MinDepth = 0;
 	vport.MaxDepth = 1;
 
-    d3ddevctx->lpVtbl->RSSetViewports(d3ddevctx, 1, &vport);
+    ID3D11DeviceContext_RSSetViewports(d3ddevctx, 1, &vport);
 	D3D11BE_SetupViewCBuffer();
 }
 
-/*
-static int d3d11error(int i)
-{
-	if (FAILED(i))// != D3D_OK)
-		Con_Printf("D3D error: %i\n", i);
-	return i;
-}
-*/
 static void	(D3D11_SCR_UpdateScreen)			(void)
 {
-	extern cvar_t _vid_wait_override;
 	//extern int keydown[];
 	//extern cvar_t vid_conheight;
 	int uimenu;
@@ -983,7 +928,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 		ID3D11DeviceContext_ClearRenderTargetView(d3ddevctx, fb_backbuffer, colours);
 	}
 
-#if 1
 	if (d3d_resized)
 	{
 		extern cvar_t vid_conautoscale, vid_conwidth;
@@ -992,22 +936,9 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 		// force width/height to be updated
 		//vid.pixelwidth = window_rect.right - window_rect.left;
 		//vid.pixelheight = window_rect.bottom - window_rect.top;
-/*		D3DVID_UpdateWindowStatus(mainwindow);
-
-		released3dbackbuffer();
-		IDXGISwapChain_ResizeBuffers(d3dswapchain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
-
-		D3D11BE_Reset(true);
-		vid.pixelwidth = window_rect.right - window_rect.left;
-		vid.pixelheight = window_rect.bottom - window_rect.top;
-		resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
-		resetD3D11();
-		D3D11BE_Reset(false);
-*/
 		Cvar_ForceCallback(&vid_conautoscale);
 		Cvar_ForceCallback(&vid_conwidth);
 	}
-#endif
 
 	if (scr_disabled_for_loading)
 	{
@@ -1023,7 +954,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 			SCR_DrawLoading ();
 			scr_drawloading = false;
 //			IDirect3DDevice9_EndScene(pD3DDev9);
-			IDXGISwapChain_Present(d3dswapchain, _vid_wait_override.ival, 0);
+			D3D11_PresentOrCrash();
 			RSpeedEnd(RSPEED_TOTALREFRESH);
 			return;
 		}
@@ -1073,7 +1004,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 #endif
 //		R2D_BrightenScreen();
 //		IDirect3DDevice9_EndScene(pD3DDev9);
-		IDXGISwapChain_Present(d3dswapchain, _vid_wait_override.ival, 0);
+		D3D11_PresentOrCrash();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
 	}
@@ -1141,10 +1072,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
 
-
-//	d3d11error(IDirect3DDevice9_EndScene(pD3DDev9));
-
-	IDXGISwapChain_Present(d3dswapchain, _vid_wait_override.ival, 0);
+	D3D11_PresentOrCrash();
 
 	window_center_x = (window_rect.left + window_rect.right)/2;
 	window_center_y = (window_rect.top + window_rect.bottom)/2;
@@ -1214,14 +1142,6 @@ static void D3D11_SetupViewPort(void)
 	w = x2 - x;
 	h = y2 - y;
 
-//	vport.X = x;
-//	vport.Y = y;
-//	vport.Width = w;
-//	vport.Height = h;
-//	vport.MinZ = 0;
-//	vport.MaxZ = 1;
-//	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
-
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
@@ -1235,56 +1155,49 @@ static void D3D11_SetupViewPort(void)
 
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
-//	d3d11error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view));
-
-	/*d3d projection matricies scale depth to 0 to 1*/
-	Matrix4x4_CM_Projection_Inf(d3d_trueprojection, fov_x, fov_y, gl_mindist.value/2);
-//	d3d11error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection));
-	/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
 	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
 }
 
 static void	(D3D11_R_RenderView)				(void)
 {
+	float x, x2, y, y2;
+
 	D3D11_SetupViewPort();
 	//unlike gl, we clear colour beforehand, because that seems more sane.
 	//always clear depth
 	ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, fb_backdepthstencil, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
 
+	x = (r_refdef.vrect.x * (int)vid.pixelwidth)/(int)vid.width;
+	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
+	y = (r_refdef.vrect.y * (int)vid.pixelheight)/(int)vid.height;
+	y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
+	r_refdef.pxrect.x = floor(x);
+	r_refdef.pxrect.y = floor(y);
+	r_refdef.pxrect.width = (int)ceil(x2) - r_refdef.pxrect.x;
+	r_refdef.pxrect.height = (int)ceil(y2) - r_refdef.pxrect.y;
+
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
+//	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+//	{
+//		if (cl.worldmodel)
+//			P_DrawParticles ();
+//	}
+	
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-	{
-		if (cl.worldmodel)
-			P_DrawParticles ();
-	}
+		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
+		{
+			D3D11_Set2D ();
+			R2D_ImageColours(0, 0, 0, 1);
+			R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
+			R2D_ImageColours(1, 1, 1, 1);
+			return;
+		}
 	Surf_DrawWorld();
 	RQ_RenderBatchClear();
 
 	D3D11_Set2D ();
 }
-
-void	(D3D11_R_NewMap)					(void);
-void	(D3D11_R_PreNewMap)				(void);
-
-void	(D3D11_R_PushDlights)			(void);
-void	(D3D11_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
-void	(D3D11_R_LessenStains)			(void);
-
-qboolean (D3D11_VID_Init)				(rendererstate_t *info, unsigned char *palette);
-void	 (D3D11_VID_DeInit)				(void);
-void	(D3D11_VID_SetPalette)			(unsigned char *palette);
-void	(D3D11_VID_ShiftPalette)			(unsigned char *palette);
-char	*(D3D11_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
-void	(D3D11_VID_SetWindowCaption)		(char *msg);
-
-void	(D3D11_SCR_UpdateScreen)			(void);
-
-
-
-
-
-
 
 rendererinfo_t d3d11rendererinfo =
 {

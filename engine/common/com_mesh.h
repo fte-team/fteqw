@@ -104,6 +104,7 @@ typedef struct galiasinfo_s
 	int numindexes;
 
 	int *ofs_trineighbours;
+	float lerpcutoff;	//hack. should probably be part of the entity structure, but I really don't want new models (and thus code) to have access to this ugly inefficient hack. make your models properly in the first place.
 
 	int numskins;
 #ifndef SERVERONLY

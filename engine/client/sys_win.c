@@ -198,7 +198,7 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 
 int		starttime;
 qboolean ActiveApp, Minimized;
-qboolean	WinNT;
+qboolean	WinNT;	//NT has a) proper unicode support that does not unconditionally result in errors. b) a few different registry paths.
 
 static HANDLE		hinput, houtput;
 
@@ -445,7 +445,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 			}
 			Sys_SaveClipboard(stacklog+logstart);
 #ifdef _MSC_VER
-			if (MessageBox(0, stacklog, "KABOOM!", MB_ICONSTOP|MB_YESNO) != IDYES)
+			if (MessageBoxA(0, stacklog, "KABOOM!", MB_ICONSTOP|MB_YESNO) != IDYES)
 				return EXCEPTION_EXECUTE_HANDLER;
 #else
 			MessageBox(0, stacklog, "KABOOM!", MB_ICONSTOP);
@@ -454,7 +454,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 		}
 		else
 		{
-			if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
+			if (MessageBoxA(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
 				return EXCEPTION_EXECUTE_HANDLER;
 		}
 	}
@@ -471,7 +471,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	{
 		if (iswatchdog)
 		{
-			switch (MessageBox(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL))
+			switch (MessageBoxA(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL))
 			{
 			case IDYES:
 				break;	//take a dump.
@@ -675,133 +675,343 @@ FILE IO
 ===============================================================================
 */
 
+
+wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8)
+{
+	wchar_t *ret = out;
+	//utf-8 to utf-16, not ucs-2.
+	unsigned int codepoint;
+	int error;
+	if (!outlen)
+		return L"";
+	outlen /= sizeof(wchar_t);
+	outlen--;
+	while (*utf8)
+	{
+		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
+		if (error)
+			codepoint = 0xFFFDu;
+		if (codepoint > 0xffff)
+		{
+			if (outlen < 2)
+				break;
+			outlen -= 2;
+			codepoint -= 0x10000u;
+			*out++ = 0xD800 | (codepoint>>10);
+			*out++ = 0xDC00 | (codepoint&0x3ff);
+		}
+		else
+		{
+			if (outlen < 1)
+				break;
+			outlen -= 1;
+			*out++ = codepoint;
+		}
+	}
+	*out = 0;
+	return ret;
+}
+
+char *narrowen(char *out, size_t outlen, wchar_t *wide)
+{
+	char *ret = out;
+	int bytes;
+	unsigned int codepoint;
+	if (!outlen)
+		return "";
+	outlen--;
+	//utf-8 to utf-16, not ucs-2.
+	while (*wide)
+	{
+		codepoint = *wide++;
+		if (codepoint >= 0xD800u && codepoint <= 0xDBFFu)
+		{	//handle utf-16 surrogates
+			if (*wide >= 0xDC00u && *wide <= 0xDFFFu)
+			{
+				codepoint = (codepoint&0x3ff)<<10;
+				codepoint |= *wide++ & 0x3ff;
+			}
+			else
+				codepoint = 0xFFFDu;
+		}
+		bytes = utf8_encode(out, codepoint, outlen);
+		if (bytes <= 0)
+			break;
+		out += bytes;
+		outlen -= bytes;
+	}
+	*out = 0;
+	return ret;
+}
+
 void Sys_mkdir (char *path)
 {
-	_mkdir (path);
+	if (WinNT)
+	{
+		wchar_t wide[MAX_OSPATH];
+		widen(wide, sizeof(wide), path);
+		CreateDirectoryW(wide, NULL);
+	}
+	else
+		_mkdir (path);
 }
 
 qboolean Sys_remove (char *path)
 {
-	if (remove (path) != 0)
+	if (WinNT)
 	{
-		int e = errno;
-		if (e == ENOENT)
-			return true;	//return success if it doesn't already exist.
-		return false;
+		wchar_t wide[MAX_OSPATH];
+		widen(wide, sizeof(wide), path);
+		if (DeleteFileW(wide))
+			return true;	//success
+		if (GetLastError() == ERROR_FILE_NOT_FOUND)
+			return true;	//succeed when the file already didn't exist
+		return false;		//other errors? panic
 	}
-
-	return true;
+	else
+	{
+		if (remove (path) != 0)
+		{
+			int e = errno;
+			if (e == ENOENT)
+				return true;	//return success if it doesn't already exist.
+			return false;
+		}
+		return true;
+	}
 }
 
 qboolean Sys_Rename (char *oldfname, char *newfname)
 {
-	return !rename(oldfname, newfname);
+	if (WinNT)
+	{
+		wchar_t oldwide[MAX_OSPATH];
+		wchar_t newwide[MAX_OSPATH];
+		widen(oldwide, sizeof(oldwide), oldfname);
+		widen(newwide, sizeof(newwide), newfname);
+		return MoveFileW(oldwide, newwide);
+	}
+	else
+		return !rename(oldfname, newfname);
 }
 
 static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
-	HANDLE r;
-	WIN32_FIND_DATA fd;
-	int nest = neststart;	//neststart refers to just after a /
 	qboolean go;
-	qboolean wild = false;
-
-	while(match[nest] && match[nest] != '/')
+	if (!WinNT)
 	{
-		if (match[nest] == '?' || match[nest] == '*')
-			wild = true;
-		nest++;
-	}
-	if (match[nest] == '/')
-	{
-		char submatch[MAX_OSPATH];
-		char tmproot[MAX_OSPATH];
-		char file[MAX_OSPATH];
+		HANDLE r;
+		WIN32_FIND_DATAA fd;
+		int nest = neststart;	//neststart refers to just after a /
+		qboolean wild = false;
 
-		if (!wild)
-			return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
-
-		if (nest-neststart+1> MAX_OSPATH)
-			return 1;
-		memcpy(submatch, match+neststart, nest - neststart);
-		submatch[nest - neststart] = 0;
-		nest++;
-
-		if (neststart+4 > MAX_OSPATH)
-			return 1;
-		memcpy(tmproot, match, neststart);
-		strcpy(tmproot+neststart, "*.*");
-
-		r = FindFirstFile(tmproot, &fd);
-		strcpy(tmproot+neststart, "");
-		if (r==(HANDLE)-1)
-			return 1;
-		go = true;
-		do
+		while(match[nest] && match[nest] != '/')
 		{
-			if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
-			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			if (match[nest] == '?' || match[nest] == '*')
+				wild = true;
+			nest++;
+		}
+		if (match[nest] == '/')
+		{
+			char submatch[MAX_OSPATH];
+			char tmproot[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			if (!wild)
+				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
+
+			if (nest-neststart+1> MAX_OSPATH)
+				return 1;
+			memcpy(submatch, match+neststart, nest - neststart);
+			submatch[nest - neststart] = 0;
+			nest++;
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			r = FindFirstFile(tmproot, &fd);
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
 			{
-				if (wildcmp(submatch, fd.cFileName))
+				if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 				{
-					int newnest;
-					if (strlen(tmproot) + strlen(fd.cFileName) + strlen(match+nest) + 2 < MAX_OSPATH)
+					if (wildcmp(submatch, fd.cFileName))
 					{
-						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
-						newnest = strlen(file);
-						strcpy(file+newnest, match+nest);
-						go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+						int newnest;
+						if (strlen(tmproot) + strlen(fd.cFileName) + strlen(match+nest) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
+							newnest = strlen(file);
+							strcpy(file+newnest, match+nest);
+							go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+						}
 					}
 				}
-			}
-		} while(FindNextFile(r, &fd) && go);
-		FindClose(r);
+			} while(FindNextFile(r, &fd) && go);
+			FindClose(r);
+		}
+		else
+		{
+			const char *submatch = match + neststart;
+			char tmproot[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			r = FindFirstFile(tmproot, &fd);
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
+			{
+				if (*fd.cFileName == '.')
+					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, fd.cFileName))
+					{
+						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
+							go = func(file, fd.nFileSizeLow, parm, spath);
+						}
+					}
+				}
+				else
+				{
+					if (wildcmp(submatch, fd.cFileName))
+					{
+						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
+							go = func(file, fd.nFileSizeLow, parm, spath);
+						}
+					}
+				}
+			} while(FindNextFile(r, &fd) && go);
+			FindClose(r);
+		}
 	}
 	else
 	{
-		const char *submatch = match + neststart;
-		char tmproot[MAX_OSPATH];
-		char file[MAX_OSPATH];
+		HANDLE r;
+		WIN32_FIND_DATAW fd;
+		int nest = neststart;	//neststart refers to just after a /
+		qboolean wild = false;
 
-		if (neststart+4 > MAX_OSPATH)
-			return 1;
-		memcpy(tmproot, match, neststart);
-		strcpy(tmproot+neststart, "*.*");
-
-		r = FindFirstFile(tmproot, &fd);
-		strcpy(tmproot+neststart, "");
-		if (r==(HANDLE)-1)
-			return 1;
-		go = true;
-		do
+		while(match[nest] && match[nest] != '/')
 		{
-			if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
-			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
-			{
-				if (wildcmp(submatch, fd.cFileName))
-				{
-					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
-					{
-						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
-						go = func(file, fd.nFileSizeLow, parm, spath);
-					}
-				}
-			}
-			else
-			{
-				if (wildcmp(submatch, fd.cFileName))
-				{
-					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
-					{
-						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
-						go = func(file, fd.nFileSizeLow, parm, spath);
-					}
-				}
-			}
-		} while(FindNextFile(r, &fd) && go);
-		FindClose(r);
-	}
+			if (match[nest] == '?' || match[nest] == '*')
+				wild = true;
+			nest++;
+		}
+		if (match[nest] == '/')
+		{
+			char utf8[MAX_OSPATH];
+			wchar_t wroot[MAX_OSPATH];
+			char submatch[MAX_OSPATH];
+			char tmproot[MAX_OSPATH];
+			char file[MAX_OSPATH];
 
+			if (!wild)
+				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
+
+			if (nest-neststart+1> MAX_OSPATH)
+				return 1;
+			memcpy(submatch, match+neststart, nest - neststart);
+			submatch[nest - neststart] = 0;
+			nest++;
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
+			{
+				narrowen(utf8, sizeof(utf8), fd.cFileName);
+				if (*utf8 == '.');	//don't ever find files with a name starting with '.'
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, utf8))
+					{
+						int newnest;
+						if (strlen(tmproot) + strlen(utf8) + strlen(match+nest) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, utf8);
+							newnest = strlen(file);
+							strcpy(file+newnest, match+nest);
+							go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+						}
+					}
+				}
+			} while(FindNextFileW(r, &fd) && go);
+			FindClose(r);
+		}
+		else
+		{
+			const char *submatch = match + neststart;
+			char tmproot[MAX_OSPATH];
+			wchar_t wroot[MAX_OSPATH];
+			char utf8[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
+			{
+				narrowen(utf8, sizeof(utf8), fd.cFileName);
+				if (*utf8 == '.')
+					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, utf8))
+					{
+						if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
+							go = func(file, fd.nFileSizeLow, parm, spath);
+						}
+					}
+				}
+				else
+				{
+					if (wildcmp(submatch, utf8))
+					{
+						if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
+							go = func(file, fd.nFileSizeLow, parm, spath);
+						}
+					}
+				}
+			} while(FindNextFileW(r, &fd) && go);
+			FindClose(r);
+		}
+	}
 	return go;
 }
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
@@ -937,7 +1147,7 @@ void Sys_Init (void)
 	if ((vinfo.dwMajorVersion < 4) ||
 		(vinfo.dwPlatformId == VER_PLATFORM_WIN32s))
 	{
-		Sys_Error ("QuakeWorld requires at least Win95 or NT 4.0");
+		Sys_Error (FULLENGINENAME " requires at least Win95 or NT 4.0");
 	}
 
 	if (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT)
@@ -2401,6 +2611,8 @@ void VARGS Signal_Error_Handler(int i)
 #endif
 */
 
+extern char sys_language[64];
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -2409,6 +2621,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	char	cwd[1024], bindir[1024];
 	const char *qtvfile = NULL;
 	int delay = 0;
+	char lang[32];
+	char ctry[32];
 
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
@@ -2616,6 +2830,15 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				}
 
 			}
+		}
+
+		//98+/nt4+
+		if (GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_SISO639LANGNAME, lang, sizeof(lang)) > 0)
+		{
+			if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_SISO3166CTRYNAME, ctry, sizeof(ctry)) > 0)
+				Q_snprintfz(sys_language, sizeof(sys_language), "%s_%s", lang, ctry); 
+			else
+				Q_snprintfz(sys_language, sizeof(sys_language), "%s", lang); 
 		}
 
 		TL_InitLanguages();

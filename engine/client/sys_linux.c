@@ -51,7 +51,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <pthread.h>
 #endif
 
+#ifdef __CYGWIN__
 #define USE_LIBTOOL
+#endif
 #ifdef USE_LIBTOOL
 #include <ltdl.h>
 #endif

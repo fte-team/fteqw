@@ -323,22 +323,22 @@ ifeq ($(FTE_TARGET),macosx)
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
-#ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
-#	BASELDFLAGS=-lm
-#	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
-#
-#	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
-#		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
-#	endif
-#
-#	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
-#	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
-#
-#	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
-#		RELEASE_CFLAGS+= -D_SDL
-#		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -L./libs/mingw64-libs
-#	endif
-#endif
+ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
+	BASELDFLAGS=-lm
+	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
+
+	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
+		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
+	endif
+
+	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
+	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
+
+	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
+		RELEASE_CFLAGS+= -D_SDL
+		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -L./libs/mingw64-libs
+	endif
+endif
 
 IMAGELDFLAGS ?= -lpng -ljpeg
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg

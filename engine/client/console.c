@@ -1837,7 +1837,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 			if (!info)
 				info = "";
 			*end = 0;
+#ifdef PLUGINS
 			if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
+#endif
 			{
 				float x = mousecursor_x+8;
 				float y = mousecursor_y+8;

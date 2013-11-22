@@ -409,7 +409,9 @@ static dllfunction_t qspeexdspfuncs[] =
 };
 #endif
 
-snd_capture_driver_t OPENAL_Capture;
+#ifdef AVAIL_OPENAL
+extern snd_capture_driver_t OPENAL_Capture;
+#endif
 snd_capture_driver_t DSOUND_Capture;
 snd_capture_driver_t OSS_Capture;
 
@@ -417,7 +419,9 @@ snd_capture_driver_t *capturedrivers[] =
 {
 	&DSOUND_Capture,
 	&OSS_Capture,
+#ifdef AVAIL_OPENAL
 	&OPENAL_Capture,
+#endif
 	NULL
 };
 
@@ -1472,7 +1476,9 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 
 
 sounddriver_t DSOUND_Output;
-sounddriver_t OPENAL_Output;
+#ifdef AVAIL_OPENAL
+extern sounddriver_t OPENAL_Output;
+#endif
 
 sounddriver pALSA_InitCard;
 sounddriver pSNDIO_InitCard;
@@ -1489,7 +1495,9 @@ extern sounddriver pPPAPI_InitCard;
 //in order of preference
 sounddriver_t *outputdrivers[] =
 {
+#ifdef AVAIL_OPENAL
 	&OPENAL_Output,
+#endif
 	&DSOUND_Output,
 	NULL
 };

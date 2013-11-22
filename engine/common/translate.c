@@ -1017,7 +1017,7 @@ struct po_s *PO_Load(vfsfile_t *file)
 					break;
 			}
 
-//			if (*msgid && start)
+			if (*msgid && start)
 				PO_AddText(po, msgid, msgstr);
 		}
 		else

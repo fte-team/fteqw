@@ -1979,8 +1979,6 @@ qbyte *PR_OpenFile(char *filename, qbyte *buffer)
 	return svprogfuncs->filefromprogs(svprogfuncs, prnumforfile, filename, NULL, buffer);
 }
 
-char *Translate(char *message);
-
 
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))

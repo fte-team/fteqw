@@ -2026,7 +2026,7 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 #define DF_GIB		(1<<9)
 
 	demo_frame = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK];
-	for (j=0,cl=svs.clients, dcl = demo_frame->clients; j<MAX_CLIENTS ; j++,cl++, dcl++)
+	for (j=0,cl=svs.clients, dcl = demo_frame->clients; j < svs.allocated_client_slots ; j++,cl++, dcl++)
 	{
 		if (cl->state != cs_spawned)
 			continue;

@@ -2559,7 +2559,7 @@ void SV_SendMVDMessage(void)
 	if (sv.time - demo.time < 1.0/min_fps)
 		return;
 
-	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+	for (i=0, c = svs.clients ; i<svs.allocated_client_slots && i < 32; i++, c++)
 	{
 		if (c->state != cs_spawned)
 			continue;	// datagrams only go to spawned
@@ -2586,7 +2586,7 @@ void SV_SendMVDMessage(void)
 	if (demo.recorder.fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
 		m = MAX_CL_STATS;
 
-	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
+	for (i=0, c = svs.clients ; i<svs.allocated_client_slots && i < 32; i++, c++)
 	{
 		if (c->state != cs_spawned)
 			continue;	// datagrams only go to spawned

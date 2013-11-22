@@ -55,9 +55,9 @@ void(textfield_t *fld, string text) textfield_fill =
 		if (end < 0)
 			break;
 		while(text[start] == '\t')
-			++start;
+			start+=1;
 term = end;
-if (term) if (text[term-1] == '\r') term--;
+if (term) if (text[term-1] == '\r') term-=1;
 		line = substring(text, start, term - start);
 		end += 1;
 
@@ -106,11 +106,11 @@ void(vector pos, textfield_t *fld, textfield_linedesc_t *fields) textfield_draw 
 	cmd = substring(cmd, 0, llen);
 
 	/*show command completion box*/
-	for (l = 0; fields[l].name; l++)
+	for (l = 0; fields[l].name; l+=1)
 	{
 		if (!strncmp(fields[l].name, cmd, llen))
 		{
-			nummatches++;
+			nummatches+=1;
 			lastmatch = l;
 			/*if its an exact match, then stop here*/
 			if (cmd == fields[l].name)
@@ -128,7 +128,7 @@ void(vector pos, textfield_t *fld, textfield_linedesc_t *fields) textfield_draw 
 	else
 	{
 		/*show command completion box*/
-		for (l = 0; fields[l].name; l++)
+		for (l = 0; fields[l].name; l+=1)
 		{
 			if (!strncmp(fields[l].name, cmd, llen))
 			{
@@ -215,7 +215,7 @@ float(textfield_t *fld, float keyc, float unic, vector m) textfield_key
 			l = strcat(l, r);
 			strunzone(fld->lines[fld->cursorline - 1i]);
 			fld->lines[fld->cursorline - 1i] = strzone(l);
-			for (i = fld->cursorline; i < fld->linecount - 1i; i++)
+			for (i = fld->cursorline; i < fld->linecount - 1i; i+=1)
 			{
 				fld->lines[i] = fld->lines[i + 1i];
 			}
@@ -241,7 +241,7 @@ float(textfield_t *fld, float keyc, float unic, vector m) textfield_key
 			l = strcat(l, r);
 			strunzone(fld->lines[fld->cursorline]);
 			fld->lines[fld->cursorline] = strzone(l);
-			for (i = fld->cursorline + 1i; i < fld->linecount - 1i; i++)
+			for (i = fld->cursorline + 1i; i < fld->linecount - 1i; i+=1)
 			{
 				fld->lines[i] = fld->lines[i + 1i];
 			}
@@ -297,7 +297,7 @@ float(textfield_t *fld, float keyc, float unic, vector m) textfield_key
 		{
 			/*shift trailing lines down*/
 			fld->linecount = fld->linecount + 1i;
-			for (i = fld->linecount - 1i; i > fld->cursorline; i--)
+			for (i = fld->linecount - 1i; i > fld->cursorline; i-=1)
 			{
 				fld->lines[i] = fld->lines[i - 1i];
 			}

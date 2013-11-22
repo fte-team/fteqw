@@ -85,7 +85,7 @@ static void spline_calclength(spline_t *s)
 {
 	int i;
 	s->totallength = 0;
-	for (i = 0; i < s->numpoints - 1; i++)
+	for (i = 0; i < s->numpoints - 1; i+=1)
 	{
 		s->totallength = s->totallength + vlen(s->pos[i] - s->pos[i+1]);
 	}
@@ -185,11 +185,11 @@ void (vector pos, float point_size, vector color) draw_point
 	offsets[3] = point;
 
 	point1_z = -(point_size/2);
-	for (i=0; i<4; i++)
+	for (i=0; i<4; i+=1)
 		points[i] = offsets[i] + point1 + pos;
 
 	point1_z = (point_size/2);
-	for (i=4; i<8; i++)
+	for (i=4; i<8; i+=1)
 		points[i] = offsets[i-4] + point1 + pos;
 
 	/*
@@ -295,7 +295,7 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 		t2 = pow(t1, s->numpoints - 1i);
 		t3 = pow(frac_time, s->numpoints - 1i);
 
-		for (i=0; i<s->numpoints; i++)
+		for (i=0; i<s->numpoints; i+=1)
 		{
 			if (i == 0i)
 			{
@@ -322,7 +322,7 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 		t5 = 1 / (float)(s->numpoints - 3i);
 		for (i=1, t4=t5; t4<frac_time; t4 = t4 + t5)
 		{
-			i++;
+			i+=1;
 		}
 
 		if (i >= s->numpoints)
@@ -415,7 +415,7 @@ static void(spline_t *s) spline_draw =
 	//fakeline(pos2, s->pos[s->numpoints-1]);
 
 //	draw points
-	for (i=0; i<s->numpoints; i++)
+	for (i=0; i<s->numpoints; i+=1)
 	{
 		psize = 5;
 		color = '0.25 0.25 0.25';

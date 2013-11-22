@@ -18,7 +18,7 @@ void() editor_lights_add =
 	if (!tempent)
 		tempent = spawn();
 
-	l = dynamiclight_get(-1, -1);
+	l = (float)dynamiclight_get(-1, -1);
 	precache_model(autocvar_cg_editor_lightmodel); /*just to silence it*/
 	setmodel(tempent, autocvar_cg_editor_lightmodel);
 	while(l > 0)
@@ -184,7 +184,7 @@ void(vector m) editor_lights_overlay =
 	fldname[NUMLFIELDS+2] = strcat("realtime world: ", cvar("r_shadow_realtime_world")?"on":"off");
 	fldname[NUMLFIELDS+3] = strcat("realtime dlight: ", cvar("r_shadow_realtime_dynamic")?"on":"off");
 
-	for (i = 1f; i <= NUMLFIELDS; i++)
+	for (i = 1f; i <= NUMLFIELDS; i+=1)
 	{
 		if (editfield == i)
 			s = editvalue;
@@ -202,7 +202,7 @@ void(vector m) editor_lights_overlay =
 		drawrawstring('0 32 0' + '0 8 0' * (float)i, s, '8 8 0', col, 1);
 	}
 
-	for (i = NUMLFIELDS+1f; i <= NUMLFIELDS+NUMCMDS; i++)
+	for (i = NUMLFIELDS+1f; i <= NUMLFIELDS+NUMCMDS; i+=1)
 	{
 		s = strcat(ftos(i), " ", fldname[i]);
 
@@ -248,12 +248,12 @@ static void(vector fwd, vector vorg) selectbestlight =
 {
 	float l, b=selectedlight, d, bd;
 	vector ldir;
-	l = dynamiclight_get(-1f, -1f);
+	l = (float)dynamiclight_get(-1f, -1f);
 	bd = 0;
 	while(l > 0)
 	{
-		l--;
-		ldir = dynamiclight_get(l, LFIELD_ORIGIN);
+		l-=1;
+		ldir = (vector)dynamiclight_get(l, LFIELD_ORIGIN);
 		ldir = normalize(ldir - vorg);
 		d = fwd*ldir;
 		if (d > bd)
@@ -348,9 +348,9 @@ float(float keyc, float unic, vector m) editor_lights_key =
 		editvalue = strzone(readfield(editfield, 1));
 	}
 	else if (unic == '=')
-		selectedlight++;
+		selectedlight+=1;
 	else if (unic == '-')
-		selectedlight--;
+		selectedlight-=1;
 	else if (unic == 'n' || unic == 'N')
 		localcmd("noclip\n");
 //	else if (unic == 's' || unic == 'S')
@@ -376,7 +376,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 	else if (unic == 'i' || unic == 'I')
 	{
 		float oldl = selectedlight;
-		for (selectedlight = 32; ; selectedlight++)
+		for (selectedlight = 32; ; selectedlight+=1)
 		{
 			if (!(float)dynamiclight_get(selectedlight, LFIELD_RADIUS))
 			{
@@ -422,26 +422,26 @@ float(float keyc, float unic, vector m) editor_lights_key =
 	}
 	else if (unic == '[')
 	{
-		o = getproperty(11);
+		o = (vector)getproperty(11);
 		traceline(o, t, TRUE, world);
 		dynamiclight_set(selectedlight, LFIELD_ORIGIN, dynamiclight_get(selectedlight, LFIELD_ORIGIN) - trace_plane_normal);
 	}
 	else if (unic == ']')
 	{
-		o = getproperty(11);
+		o = (vector)getproperty(11);
 		traceline(o, t, TRUE, world);
 		dynamiclight_set(selectedlight, LFIELD_ORIGIN, dynamiclight_get(selectedlight, LFIELD_ORIGIN) + trace_plane_normal);
 	}
 	else if (unic == '\'' || unic == '@')
 	{
-		o = getproperty(11);
+		o = (vector)getproperty(11);
 		traceline(o, t, TRUE, world);
-		dynamiclight_set(selectedlight, LFIELD_RADIUS, 1.5*vlen(trace_endpos - dynamiclight_get(selectedlight, LFIELD_ORIGIN)));
+		dynamiclight_set(selectedlight, LFIELD_RADIUS, 1.5*vlen(trace_endpos - (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN)));
 	}
 	else if (unic == '#')
 	{
 		float fl;
-		fl = dynamiclight_get(selectedlight, LFIELD_FLAGS);
+		fl = (float)dynamiclight_get(selectedlight, LFIELD_FLAGS);
 		if (fl & LFLAG_NOSHADOWS)
 			fl -= LFLAG_NOSHADOWS;
 		else

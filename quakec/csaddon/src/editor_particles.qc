@@ -148,7 +148,7 @@ static int(string src, int *start) skipblock =
 		{
 			if (!level)
 				*start = le+1;
-			++level;
+			level+=1;
 		}
 		else if (line == "}")
 		{
@@ -196,7 +196,7 @@ static void() updateloadedparticles =
 					pdesc[numptypes].end = le;
 
 //					print("particle: ", pdesc[numptypes].efname, "\n", substring(particlesfile, pdesc[numptypes].start, pdesc[numptypes].end - pdesc[numptypes].start), "\n");
-					++numptypes;
+					numptypes+=1;
 				}
 			}
 		ls = le+1;
@@ -277,7 +277,7 @@ static void() applyparticles =
 		localcmd("}\n");
 
 		sln = strcat("+", pdesc[cureffect].efname);
-		for (i = cureffect + 1; i < numptypes; i++)
+		for (i = cureffect + 1; i < numptypes; i+=1)
 		{
 			if (pdesc[i].efname == sln)
 			{
@@ -393,7 +393,7 @@ void(vector mousepos) editor_particles_overlay =
 	if (ef < 0)
 		ef = 0;
 	y = '0 32 0';
-	for (; ; ef++)
+	for (; ; ef+=1)
 	{
 		if (ef >= numptypes)
 			break;
@@ -406,5 +406,5 @@ void(vector mousepos) editor_particles_overlay =
 		y_y += 8;
 	}
 
-	textfield_draw('128 32 0', &tf_particle, fields);
+	textfield_draw('128 32 0', &tf_particle, &fields[0]);
 };

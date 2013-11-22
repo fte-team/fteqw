@@ -498,7 +498,7 @@ void(vector mousepos) editor_terrain_overlay =
 	if (texturesearchhighlighted)
 	{
 		strunzone(texturesearchhighlighted);
-		texturesearchhighlighted = 0;
+		texturesearchhighlighted = __NULL__;
 	}
 	if (curtool == ter_tex)
 	{

@@ -89,10 +89,10 @@ void() wrap_renderscene =
 								"clampmap $3d:",autocvar_ca_colourtint,"\n"
 							"}\n"
 						//else (glsl not available)
-						"][\n"
+						"else\n"
 							//just don't draw anything.
 							"surfaceparm nodraw\n"
-						"]\n"
+						"endif\n"
 					"}\n"
 				);
 			drawpic(getproperty(VF_MIN), shdrname, getproperty(VF_SIZE), '1 1 1', 1);
@@ -115,7 +115,7 @@ void() wrap_renderscene =
 
 	renderscene();
 
-	for (i = 0; i < MODE_COUNT; i++)
+	for (i = 0; i < MODE_COUNT; i+=1)
 	{
 		if (autocvar_ca_editormode == i+1)
 			col = '1 0 0';
@@ -406,11 +406,11 @@ void(float prevprogs) init =
 		externset(0, wrap_InputEvent, "CSQC_InputEvent");
 	}
 	csfixups();
-	localcmd(sprintf("alias rtlight_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_LIGHTEDIT));
-	localcmd(sprintf("alias camquake_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_SPLINEEDIT));
-	localcmd(sprintf("alias terrain_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_TERRAINEDIT));
-	localcmd(sprintf("alias r_part_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_PARTICLEEDIT));
-	localcmd(sprintf("alias entities_editor \"set ca_show 1; set ca_editormode %s\"\n", MODE_ENTSEDIT));
+	localcmd(sprintf("alias rtlight_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_LIGHTEDIT));
+	localcmd(sprintf("alias camquake_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_SPLINEEDIT));
+	localcmd(sprintf("alias terrain_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_TERRAINEDIT));
+	localcmd(sprintf("alias r_part_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_PARTICLEEDIT));
+	localcmd(sprintf("alias entities_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_ENTSEDIT));
 };
 
 void() CSQC_Shutdown =

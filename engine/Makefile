@@ -733,8 +733,8 @@ ifeq ($(FTE_TARGET),nacl)
 		NACLLIBS=newlib_arm/Release
 	endif
 	ifeq ($(NARCH),pnacl)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-clang -DNACL
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_pnacl/newlib/bin/pnacl-strip
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-clang -DNACL
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-strip
 		STRIPFLAGS=
 		BITS=
 		NACLLIBS=pnacl/Release

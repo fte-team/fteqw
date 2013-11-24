@@ -34,6 +34,7 @@ endif
 #if they're not on windows, we'll try asking the compiler directly
 #the check to see if its already set is to avoid asking msvc, which would probably break things.
 ifeq ($(PLUG_NATIVE_EXT),)
+LIBRESOLV=-lresolv
 ifneq ($(shell echo|$(CC) -E -dM -|grep __amd64__),)
 PLUG_NATIVE_EXT=amd.so
 endif
@@ -116,7 +117,7 @@ $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_
 native: $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT)
 
 $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lresolv
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
 native: $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT)
 
 

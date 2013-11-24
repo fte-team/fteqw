@@ -2125,6 +2125,7 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 {
 	struct ifaddrs *ifa;
 	int fam;
+	int idx;
 	unsigned int time = Sys_Milliseconds();
 	if (time - iftime > 1000 && iflist)
 	{

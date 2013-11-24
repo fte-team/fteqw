@@ -109,7 +109,7 @@ distclean:
 
 $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iavplug/msvc_lib $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
-native: $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT)
+#native: $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT)
 
 $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)

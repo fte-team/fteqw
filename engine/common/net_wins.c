@@ -2017,6 +2017,162 @@ void FTENET_Generic_Close(ftenet_generic_connection_t *con)
 	Z_Free(con);
 }
 
+#ifdef _WIN32
+int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qboolean ipv4, qboolean ipv6)
+{
+	//in win32, we can look up our own hostname to retrieve a list of local interface addresses.
+	netadr_t adr;
+#ifdef USE_GETHOSTNAME_LOCALLISTING
+	char		adrs[MAX_ADR_SIZE];
+	int b;
+#endif
+	int idx = 0;
+
+	gethostname(adrs, sizeof(adrs));
+#ifdef IPPROTO_IPV6
+	if (pgetaddrinfo)
+	{
+		struct addrinfo hints, *result, *itr;
+		memset(&hints, 0, sizeof(struct addrinfo));
+		hints.ai_family = 0;    /* Allow IPv4 or IPv6 */
+		hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+		hints.ai_flags = 0;
+		hints.ai_protocol = 0;          /* Any protocol */
+
+		if (pgetaddrinfo(adrs, NULL, &hints, &result) == 0)
+		{
+			for (itr = result; itr; itr = itr->ai_next)
+			{
+				if ((itr->ai_addr->sa_family == AF_INET && ipv4)
+					|| (itr->ai_addr->sa_family == AF_INET6 && ipv6)
+#ifdef USEIPX
+					|| (itr->ai_addr->sa_family == AF_IPX && ipx)
+#endif
+					)
+				if (idx++ == count)
+				{
+					SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, out);
+					out->port = port;
+				}
+			}
+			pfreeaddrinfo(result);
+
+			/*if none found, fill in the 0.0.0.0 or whatever*/
+			if (!idx)
+			{
+				idx++;
+				memset(out, 0, sizeof(*out));
+				out->port = port;
+				if (ipv6)
+					out->type = NA_IPV6;
+				else if (ipv4)
+					out->type = NA_IP;
+				else if (ipx)
+					out->type = NA_IPX;
+				else
+					out->type = NA_INVALID;
+			}
+		}
+	}
+	else
+#endif
+	{
+		struct hostent *h;
+		h = gethostbyname(adrs);
+		b = 0;
+#ifdef HAVE_IPV4
+		if(h && h->h_addrtype == AF_INET)
+		{
+			for (b = 0; h->h_addr_list[b]; b++)
+			{
+				struct sockaddr_in from;
+				from.sin_family = AF_INET;
+				memcpy(&from.sin_addr, h->h_addr_list[b], sizeof(&from.sin_addr));
+				SockadrToNetadr((struct sockaddr_qstorage*)&from, &adr);
+				if (idx++ == count)
+					*out = adr;
+			}
+		}
+#endif
+#ifdef IPPROTO_IPV6
+		if(h && h->h_addrtype == AF_INET6)
+		{
+			for (b = 0; h->h_addr_list[b]; b++)
+			{
+				struct sockaddr_in6 from;
+				from.sin6_family = AF_INET6;
+				memcpy(&from.sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
+				SockadrToNetadr((struct sockaddr_qstorage*)&from, &adr);
+				if (idx++ == count)
+					*out = adr;
+			}
+		}
+#endif
+	}
+	return idx;
+}
+
+#elif defined(__linux__)
+//in linux, looking up our own hostname to retrieve a list of local interface addresses will give no indication that other systems are able to do the same thing and is thus not supported.
+//there's some special api instead
+//glibc 2.3.
+//also available with certain bsds.
+#include <ifaddrs.h>
+
+static struct ifaddrs *iflist;
+unsigned int iftime;	//requery sometimes.
+int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qboolean ipv4, qboolean ipv6
+{
+	struct ifaddrs *ifa;
+	int fam;
+	unsigned int time = Sys_Milliseconds();
+	if (time - iftime > 1000 && iflist)
+	{
+		freeifaddrs(iflist)
+		iflist = NULL;
+	}
+	if (!iflist)
+	{
+		iftime = time;
+		getifaddrs(&iflist);
+	}
+
+	for (ifa = iflist; ifa; ifa = ifa->ifa_next)
+	{
+		//can happen if the interface is not bound.
+		if (ifa->ifa_addr == NULL)
+			continue;
+
+		//filter out families that we're not interested in.
+		fam = ifa->ifa_addr->sa_family;
+		if (
+#ifdef HAVE_IPV4
+			(fam == AF_INET && ipv4) ||
+#endif
+#ifdef HAVE_IPV6
+			(fam == AF_INET6 && ipv6) ||
+#endif
+#ifdef USEIPX
+			(fam == AF_IPX && ipx) ||
+#endif
+			0)
+		{
+			if (idx++ == count)
+			{
+				SockadrToNetadr(&ifa->ifa_addr, out);
+				out->port = port;
+			}
+		}
+	}
+	return idx;
+}
+#else
+int FTENET_GetLocalAddress(netadr_t *out, int count)
+{
+	return 0;
+}
+#endif
+
 int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *out, int count)
 {
 #ifndef HAVE_PACKET
@@ -2025,10 +2181,6 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 	struct sockaddr_qstorage	from;
 	int fromsize = sizeof(from);
 	netadr_t adr;
-#ifdef USE_GETHOSTNAME_LOCALLISTING
-	char		adrs[MAX_ADR_SIZE];
-	int b;
-#endif
 	int idx = 0;
 
 	if (getsockname (con->thesocket, (struct sockaddr*)&from, &fromsize) != -1)
@@ -2037,6 +2189,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 		SockadrToNetadr(&from, &adr);
 
 #ifdef USE_GETHOSTNAME_LOCALLISTING
+		//if its bound to 'any' address, ask the system what addresses it actually accepts.
 		if (adr.type == NA_IPV6 &&
 			!*(int*)&adr.address.ip6[0] &&
 			!*(int*)&adr.address.ip6[4] &&
@@ -2044,117 +2197,43 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 			*(short*)&adr.address.ip6[10]==(short)0xffff && 
 			!*(int*)&adr.address.ip6[12])
 		{
-			/*ipv4-mapped address ANY, pretend we read blank*/
-			b = sizeof(adr.address);
+			//ipv6 socket bound to the ipv4-any address is a bit weird, but oh well.
+			//FIXME: should we first validate that we support hybrid sockets?
+			idx = FTENET_GetLocalAddress(out, adr.port, count, false, true, false);
 		}
 		else
 		{
+			int b;
 			for (b = 0; b < sizeof(adr.address); b++)
 				if (((unsigned char*)&adr.address)[b] != 0)
 					break;
-		}
-		if (b == sizeof(adr.address))
-		{
-			gethostname(adrs, sizeof(adrs));
-#ifdef IPPROTO_IPV6
-			if (pgetaddrinfo)
-			{
-				struct addrinfo hints, *result, *itr;
-				memset(&hints, 0, sizeof(struct addrinfo));
-				hints.ai_family = 0;    /* Allow IPv4 or IPv6 */
-				hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-				hints.ai_flags = 0;
-				hints.ai_protocol = 0;          /* Any protocol */
 
-				if (pgetaddrinfo(adrs, NULL, &hints, &result) != 0)
+			if (b == sizeof(adr.address))
+			{
+				qboolean ipx=false, ipv4=false, ipv6=false;
+				if (adr.type == NA_IP)
+					ipv4 = true;
+				else if (adr.type == NA_IPX)
+					ipx = true;
+				else if (adr.type == NA_IPV6)
 				{
-					if (idx++ == count)
-						*out = adr;
-				}
-				else
-				{
-					for (itr = result; itr; itr = itr->ai_next)
-					{
-						if (itr->ai_addr->sa_family != ((struct sockaddr_in*)&from)->sin_family)
-						{
 #ifdef IPV6_V6ONLY
-							if (((struct sockaddr_in*)&from)->sin_family == AF_INET6 && itr->ai_addr->sa_family == AF_INET)
-							{
-								int ipv6only = true;
-								int optlen = sizeof(ipv6only);
-								getsockopt(con->thesocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&ipv6only, &optlen);
-								if (ipv6only)
-									continue;
-							}
-							else
+					int ipv6only = true;
+					int optlen = sizeof(ipv6only);
+					getsockopt(con->thesocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&ipv6only, &optlen);
+					if (!ipv6only)
+						ipv4 = true;
 #endif
-								continue;
-						}
+					ipv6 = true;
+				}
 
-						if (itr->ai_addr->sa_family == AF_INET
-							|| itr->ai_addr->sa_family == AF_INET6
-#ifdef USEIPX
-							|| itr->ai_addr->sa_family == AF_IPX
-#endif
-							)
-						if (idx++ == count)
-						{
-							SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, out);
-							out->port = ((struct sockaddr_in*)&from)->sin_port;
-						}
-					}
-					pfreeaddrinfo(result);
-
-					/*if none found, fill in the 0.0.0.0 or whatever*/
-					if (!idx)
-					{
-						idx++;
-						*out = adr;
-					}
-				}
-			}
-			else
-#endif
-			{
-				struct hostent *h;
-				h = gethostbyname(adrs);
-				b = 0;
-#ifdef HAVE_IPV4
-				if(h && h->h_addrtype == AF_INET)
-				{
-					for (b = 0; h->h_addr_list[b]; b++)
-					{
-						((struct sockaddr_in*)&from)->sin_family = AF_INET;
-						memcpy(&((struct sockaddr_in*)&from)->sin_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in*)&from)->sin_addr));
-						SockadrToNetadr(&from, &adr);
-						if (idx++ == count)
-							*out = adr;
-					}
-				}
-#endif
-#ifdef IPPROTO_IPV6
-				if(h && h->h_addrtype == AF_INET6)
-				{
-					for (b = 0; h->h_addr_list[b]; b++)
-					{
-						((struct sockaddr_in*)&from)->sin_family = AF_INET6;
-						memcpy(&((struct sockaddr_in6*)&from)->sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
-						SockadrToNetadr(&from, &adr);
-						if (idx++ == count)
-							*out = adr;
-					}
-				}
-#endif
-
-				if (b == 0)
-				{
-					if (idx++ == count)
-						*out = adr;
-				}
+				idx = FTENET_GetLocalAddress(out, adr.port, count, ipx, ipv4, ipv6);
 			}
 		}
-		else
 #endif
+
+		//and use the bound address (even if its 0.0.0.0) if we didn't grab a list from the system.
+		if (!idx)
 		{
 			if (adr.type == NA_IPV6 &&
 				!*(int*)&adr.address.ip6[0] &&
@@ -2457,7 +2536,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	//
 	// determine my name & address if we don't already know it
 	//
-	if (!net_local_cl_ipadr.type == NA_INVALID)
+	if (net_local_cl_ipadr.type == NA_INVALID)
 		NET_GetLocalAddress (newsocket, &net_local_cl_ipadr);
 
 	newcon = Z_Malloc(sizeof(*newcon));
@@ -4143,10 +4222,12 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolea
 #include <ppapi/c/ppb_core.h>
 #include <ppapi/c/ppb_websocket.h>
 #include <ppapi/c/ppb_var.h>
+#include <ppapi/c/ppb_var_array_buffer.h>
 #include <ppapi/c/ppb_instance.h>
 extern PPB_Core *ppb_core;
 extern PPB_WebSocket *ppb_websocket_interface;
 extern PPB_Var *ppb_var_interface;
+extern PPB_VarArrayBuffer *ppb_vararraybuffer_interface;
 extern PP_Instance pp_instance;
 
 typedef struct
@@ -4223,36 +4304,50 @@ static qboolean FTENET_NaClWebSocket_GetPacket(ftenet_generic_connection_t *gcon
 	int len = 0;
 	if (wsc->havepacket)
 	{
-		unsigned char *utf8 = (unsigned char *)ppb_var_interface->VarToUtf8(wsc->incomingpacket, &len);
-		unsigned char *out = (unsigned char *)net_message_buffer;
-
-		wsc->havepacket = false;
-		memcpy(&net_from, &wsc->remoteadr, sizeof(net_from));
-
-		while(len && out < net_message_buffer + sizeof(net_message_buffer))
+		if (wsc->incomingpacket.type == PP_VARTYPE_ARRAY_BUFFER)
 		{
-			if ((*utf8 & 0xe0)==0xc0 && len > 1)
+			uint32_t length;
+			void *buf = ppb_vararraybuffer_interface->Map(wsc->incomingpacket);
+			if (buf && ppb_vararraybuffer_interface->ByteLength(wsc->incomingpacket, &length))
 			{
-				*out = ((utf8[0] & 0x1f)<<6) | ((utf8[1] & 0x3f)<<0);
-				utf8+=2;
-				len -= 2;
-			}
-			else if (*utf8 & 0x80)
-			{
-				*out = '?';
-				utf8++;
-				len -= 1;
+				net_message.cursize = length;
+				memcpy(net_message_buffer, buf, length);
+				ppb_vararraybuffer_interface->Unmap(wsc->incomingpacket);
 			}
 			else
-			{
-				*out = utf8[0];
-				utf8++;
-				len -= 1;
-			}
-			out++;
+				net_message.cursize = 0;
 		}
-		net_message.cursize = out - net_message_buffer;
+		else
+		{
+			unsigned char *utf8 = (unsigned char *)ppb_var_interface->VarToUtf8(wsc->incomingpacket, &len);
+			unsigned char *out = (unsigned char *)net_message_buffer;
 
+			while(len && out < net_message_buffer + sizeof(net_message_buffer))
+			{
+				if ((*utf8 & 0xe0)==0xc0 && len > 1)
+				{
+					*out = ((utf8[0] & 0x1f)<<6) | ((utf8[1] & 0x3f)<<0);
+					utf8+=2;
+					len -= 2;
+				}
+				else if (*utf8 & 0x80)
+				{
+					*out = '?';
+					utf8++;
+					len -= 1;
+				}
+				else
+				{
+					*out = utf8[0];
+					utf8++;
+					len -= 1;
+				}
+				out++;
+			}
+			net_message.cursize = out - net_message_buffer;
+		}
+		memcpy(&net_from, &wsc->remoteadr, sizeof(net_from));
+		wsc->havepacket = false;
 		ppb_var_interface->Release(wsc->incomingpacket);
 
 		if (!wsc->failed)
@@ -4278,12 +4373,20 @@ static qboolean FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gco
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	int res;
-	int outchars = 0;
-	unsigned char outdata[length*2+1];
-	unsigned char *out=outdata, *in=data;
 	if (wsc->failed)
 		return false;
 
+#if 0
+	struct PP_Var str = ppb_vararraybuffer_interface->Create(length);
+	void *out = ppb_vararraybuffer_interface->Map(wsc->incomingpacket);
+	if (!out)
+		return false;
+	memcpy(out, data, length);
+	ppb_vararraybuffer_interface->Unmap(wsc->incomingpacket);
+#else
+	int outchars = 0;
+	unsigned char outdata[length*2+1];
+	unsigned char *out=outdata, *in=data;
 	while(length-->0)
 	{
 		if (!*in)
@@ -4304,6 +4407,7 @@ static qboolean FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gco
 	}
 	*out = 0;
 	struct PP_Var str = ppb_var_interface->VarFromUtf8(outdata, out - outdata);
+#endif
 	res = ppb_websocket_interface->SendMessage(wsc->sock, str);
 //	Sys_Printf("FTENET_WebSocket_SendPacket: result %i\n", res);
 	ppb_var_interface->Release(str);
@@ -4905,11 +5009,12 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 }
 #endif
 
+//this function is used to determine the 'default' local address.
+//this is used for compat with gamespy which insists on sending us a packet via that interface and not something more sensible like 127.0.0.1
+//thus its only needed on windows and with ipv4.
 void NET_GetLocalAddress (int socket, netadr_t *out)
 {
-#ifndef HAVE_PACKET
-	out->type = NA_INVALID;
-#else
+#ifdef _WIN32
 	char	buff[512];
 	char	adrbuf[MAX_ADR_SIZE];
 	struct sockaddr_qstorage	address;
@@ -4940,11 +5045,15 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 			*(int *)out->address.ip = *(int *)adr.address.ip;	//change it to what the machine says it is, rather than the socket.
 	}
 
-	if (notvalid)
-		Con_Printf("Couldn't detect local ip\n");
-	else
+	if (!notvalid)
+	{
 		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
+		return;
+	}
+	Con_Printf("Couldn't detect local ip\n");
 #endif
+
+	out->type = NA_INVALID;
 }
 
 #ifndef CLIENTONLY

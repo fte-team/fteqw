@@ -2571,7 +2571,7 @@ client_connect:	//fixme: make function
 		char	cmdtext[2048];
 
 		Con_TPrintf (TLC_CONLESS_CONCMD);
-		if (net_from.type != net_local_cl_ipadr.type
+		if (net_from.type != net_local_cl_ipadr.type || net_from.type != NA_IP
 			|| ((*(unsigned *)net_from.address.ip != *(unsigned *)net_local_cl_ipadr.address.ip) && (*(unsigned *)net_from.address.ip != htonl(INADDR_LOOPBACK))))
 		{
 			Con_TPrintf (TLC_CMDFROMREMOTE);

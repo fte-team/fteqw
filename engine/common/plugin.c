@@ -1326,7 +1326,7 @@ void Plug_Initialise(qboolean fromgamedir)
 	if (!fromgamedir)
 	{
 		FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
-		Con_Printf("Loading plugins from %s\n", nat);
+		Con_DPrintf("Loading plugins from \"%s\"\n", nat);
 		Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
 	}
 	if (fromgamedir)

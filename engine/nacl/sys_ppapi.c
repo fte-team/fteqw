@@ -10,6 +10,7 @@
 #include <ppapi/c/ppb_input_event.h>
 #include <ppapi/c/ppp_input_event.h>
 #include <ppapi/c/ppb_var.h>
+#include <ppapi/c/ppb_var_array_buffer.h>
 #include <ppapi/c/ppb_messaging.h>
 #include <ppapi/c/ppb_file_system.h>
 #include <ppapi/c/ppb_file_ref.h>
@@ -34,6 +35,7 @@ PPB_Graphics3D *graphics3d_interface = NULL;
 PPB_Instance *instance_interface = NULL;
 PPB_Messaging *ppb_messaging_interface = NULL;
 PPB_Var *ppb_var_interface = NULL;
+PPB_VarArrayBuffer *ppb_vararraybuffer_interface = NULL;
 PPB_InputEvent *ppb_inputevent_interface = NULL;
 PPB_KeyboardInputEvent *ppb_keyboardinputevent_interface = NULL;
 PPB_MouseInputEvent *ppb_mouseinputevent_interface = NULL;
@@ -502,7 +504,15 @@ static PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resou
 //		Con_Printf("rawkeydown\n");
 		return PP_FALSE;
 	case PP_INPUTEVENT_TYPE_KEYDOWN:
-		IN_KeyEvent(0, 1, domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource)), 0);
+		{
+			int k = domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource));
+			int u = 0;
+			if (k == K_TAB)
+				u = '\t';
+			if (k == K_ENTER)
+				u = '\r';
+			IN_KeyEvent(0, 1, k, u);
+		}
 		return PP_FALSE;
 	case PP_INPUTEVENT_TYPE_KEYUP:
 		IN_KeyEvent(0, 0, domkeytoquake(ppb_keyboardinputevent_interface->GetKeyCode(resource)), 0);
@@ -558,6 +568,10 @@ static PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resou
 					len--;
 				}
 
+				//these keys are handled by actual proper keys
+				if (c == '\t' || c == '\r')
+					continue;
+
 				IN_KeyEvent(0, true, 0, c);
 				IN_KeyEvent(0, false, 0, c);
 			}
@@ -585,6 +599,7 @@ static void Instance_DidChangeView(PP_Instance instance, PP_Resource view_resour
 }
 static void Instance_DidChangeFocus(PP_Instance instance, PP_Bool has_focus)
 {
+//	ActiveApp = has_focus;
 }
 static PP_Bool Instance_HandleDocumentLoad(PP_Instance instance, PP_Resource url_loader)
 {
@@ -616,6 +631,7 @@ PP_EXPORT int32_t PPP_InitializeModule(PP_Module a_module_id, PPB_GetInterface g
 	ppb_fullscreen_interface = (PPB_Fullscreen*)(get_browser(PPB_FULLSCREEN_INTERFACE));
 	ppb_websocket_interface = (PPB_WebSocket*)(get_browser(PPB_WEBSOCKET_INTERFACE));
 	ppb_view_instance = (PPB_View*)(get_browser(PPB_VIEW_INTERFACE));
+	ppb_vararraybuffer_interface = (PPB_View*)(get_browser(PPB_VAR_ARRAY_BUFFER_INTERFACE));
 
 	glInitializePPAPI(sys_gbi);
 

@@ -62,7 +62,8 @@ void GL_DoSwap(void)
 		case PP_OK:
 			break;
 		case PP_ERROR_INPROGRESS:
-			Con_DPrintf("chrome can't handle vid_wait 0\n");
+			Con_DPrintf("chrome still can't handle vid_wait 0. forcing vsync\n");
+			_vid_wait_override.ival = 1;
 			break;
 		default:
 			Con_DPrintf("unknown error on SwapBuffers call\n");

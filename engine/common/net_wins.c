@@ -2121,7 +2121,7 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 
 static struct ifaddrs *iflist;
 unsigned int iftime;	//requery sometimes.
-int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qboolean ipv4, qboolean ipv6
+int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qboolean ipv4, qboolean ipv6)
 {
 	struct ifaddrs *ifa;
 	int fam;

@@ -2128,7 +2128,7 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 	unsigned int time = Sys_Milliseconds();
 	if (time - iftime > 1000 && iflist)
 	{
-		freeifaddrs(iflist)
+		freeifaddrs(iflist);
 		iflist = NULL;
 	}
 	if (!iflist)

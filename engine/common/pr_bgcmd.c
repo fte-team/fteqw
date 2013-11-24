@@ -4624,7 +4624,7 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 	vfsfile_t *f = NULL;
 	char lang[64], *h;
 	extern cvar_t language;
-	if (newprogs == -1)
+	if (!prinst || newprogs < 0)
 		return;
 	if (*language.string)
 	{

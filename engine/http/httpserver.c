@@ -195,7 +195,7 @@ typedef struct HTTP_active_connections_s {
 	http_mode_t mode;
 	qboolean modeswitched;
 	qboolean closeaftertransaction;
-	qboolean close;
+	char *closereason;
 	qboolean acceptgzip;
 
 	char *inbuffer;
@@ -258,8 +258,9 @@ void HTTP_RunExisting (void)
 
 		cl = *link;
 
-		if (cl->close)
+		if (cl->closereason)
 		{
+			IWebPrintf("Closing connection: %s\n", cl->closereason);
 
 			*link = cl->next;
 			closesocket(cl->datasock);
@@ -287,7 +288,7 @@ void HTTP_RunExisting (void)
 			{
 				if (cl->inbuffersize>128*1024)
 				{
-					cl->close = true;	//that's just taking the piss.
+					cl->closereason = "headers larger than 128kb";	//that's just taking the piss.
 					continue;
 				}
 
@@ -306,13 +307,13 @@ void HTTP_RunExisting (void)
 				{
 					if (qerrno != EWOULDBLOCK)	//they closed on us. Assume end.
 					{
-						cl->close = true;
+						cl->closereason = "recv error";
 					}
 					continue;
 				}
 				if (ammount == 0)
 				{
-					cl->close = true;
+					cl->closereason = "peer closed connection";
 					continue;
 				}
 			}
@@ -337,7 +338,7 @@ cont:
 
 			if (!*resource)
 			{
-				cl->close = true;	//even if they forgot to specify a resource, we didn't find an HTTP so we have no option but to close.
+				cl->closereason = "not http";	//even if they forgot to specify a resource, we didn't find an HTTP so we have no option but to close.
 				continue;
 			}
 
@@ -363,9 +364,15 @@ cont:
 			if (!strnicmp(buf2, "HTTP/", 5))
 			{
 				if (!strncmp(buf2, "HTTP/1.1", 8))
+				{
 					HTTPmarkup = 3;
+					cl->closeaftertransaction = false;
+				}
 				else if (!strncmp(buf2, "HTTP/1", 6))
+				{
 					HTTPmarkup = 2;
+					cl->closeaftertransaction = true;
+				}
 				else
 				{
 					HTTPmarkup = 1;	//0.9... lamer.
@@ -430,6 +437,8 @@ cont:
 					}
 					else if (!strnicmp(msg, "Connection: close", 17))
 						cl->closeaftertransaction = true;
+					else if (!strnicmp(msg, "Connection: Keep-Alive", 22))
+						cl->closeaftertransaction = false;
 
 					while(*msg != '\n')
 					{
@@ -529,10 +538,11 @@ cont:
 				}
 				else
 				{
+					//fixme: add connection: keep-alive or whatever so that ie3 is happy...
 					if (HTTPmarkup>=3)
-						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", (int)VFS_GETLEN(cl->file));
+						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
 					else if (HTTPmarkup==2)
-						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", (int)VFS_GETLEN(cl->file));
+						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
 					else if (HTTPmarkup)
 						sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 					else
@@ -570,7 +580,7 @@ notimplemented:
 				else
 				{
 					msg = NULL;
-					cl->close = true;
+					cl->closereason = "unsupported http version";
 				}
 
 				if (msg)
@@ -615,7 +625,7 @@ notimplemented:
 				localerrno = qerrno;
 				if (localerrno != EWOULDBLOCK)
 				{
-					cl->close = true;
+					cl->closereason = "some error when sending";
 				}
 			}
 			else if (ammount||!cl->outbufferused)
@@ -627,11 +637,11 @@ notimplemented:
 					cl->modeswitched = true;
 					cl->mode = HTTP_WAITINGFORREQUEST;
 					if (cl->closeaftertransaction)
-						cl->close = true;
+						cl->closereason = "file sent";
 				}
 			}
 			else
-				cl->close = true;
+				cl->closereason = "peer prematurely closed connection";
 			break;
 
 	/*	case HTTP_RECEIVING:
@@ -715,6 +725,8 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 #ifndef WEBSVONLY
 	SockadrToNetadr(&from, &na);
 	IWebPrintf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), &na));
+#else
+	IWebPrintf("New http connection from %s\n", inet_ntoa(((struct sockaddr_in*)&from)->sin_addr));
 #endif
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));

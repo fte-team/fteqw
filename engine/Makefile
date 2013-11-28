@@ -38,6 +38,8 @@ ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
 	NATIVE_RELEASE_DIR=$(shell cygpath -m $(RELEASE_DIR))
 	NATIVE_DEBUG_DIR=$(shell cygpath -m $(DEBUG_DIR))
 endif
+NATIVE_RELEASE_DIR?=$(RELEASE_DIR)
+NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
 
 #correct the gcc build when cross compiling
@@ -286,9 +288,6 @@ LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
 NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
-
-#NATIVE_RELEASE_DIR?=$(RELEASE_DIR)
-#NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
 ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
 

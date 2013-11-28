@@ -725,12 +725,16 @@ public class FTEDroidActivity extends Activity
 				if (data.getScheme().equals("content"))
 				{	//wtf.
 					Cursor cursor = this.getContentResolver().query(data, null, null, null, null);
-                    cursor.moveToFirst();   
-                    myloc = cursor.getString(0);
-                    cursor.close();
+					cursor.moveToFirst();   
+					myloc = cursor.getString(0);
+					cursor.close();
+					android.util.Log.i("FTEDroid", "intent content: " + myloc);
 				}
 				else
+				{
 					myloc = data.toString();
+					android.util.Log.i("FTEDroid", "intent url: " + myloc);
+				}
 				FTEDroidEngine.openfile(myloc);
 			}
 		}

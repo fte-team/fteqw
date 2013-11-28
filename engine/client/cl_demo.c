@@ -74,6 +74,10 @@ void CL_StopPlayback (void)
 	cls.demoplayback = DPB_NONE;
 	cls.demoseeking = false;	//just in case
 
+	if (cls.demoindownload)
+		cls.demoindownload->status = DL_FAILED;
+	cls.demoindownload = NULL;
+
 	if (cls.timedemo)
 		CL_FinishTimeDemo ();
 }
@@ -1550,15 +1554,53 @@ void CL_PlayDemo_f (void)
 	CL_PlayDemo(demoname);
 }
 
-void CL_PlayDemo(char *demoname)
+void CL_DemoStreamFullyDownloaded(struct dl_download *dl)
 {
-	char	name[256];
-	int ft, neg = false;
-	int len;
-	char type;
-	char chr;
-	int protocol;
-	int start;
+	//let the file get closed by the demo playback code.
+	dl->file = NULL;
+	//kill the reference now that its done.
+	if (cls.demoindownload == dl)
+		cls.demoindownload = NULL;
+}
+//dl is provided so that we can receive files via chunked/gziped http downloads and on systems that don't provide sockets etc. its tracked so we can cancel the download if the client aborts playback early.
+void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, int demotype, float bufferdelay)
+{
+	int protocol = CP_UNKNOWN;
+
+	if (demotype == DPB_NONE)
+	{
+		//peek etc?
+	}
+
+	switch(demotype)
+	{
+	case DPB_EZTV:
+	case DPB_MVD:
+	case DPB_QUAKEWORLD:
+		protocol = CP_QUAKEWORLD;
+		break;
+#ifdef Q2CLIENT
+	case DPB_QUAKE2:
+		protocol = CP_QUAKE2;
+		break;
+#endif
+#ifdef NQPROT
+	case DPB_NETQUAKE:
+		protocol = CP_NETQUAKE;
+		break;
+#endif
+	default:
+		break;
+	}
+
+	if (protocol == CP_UNKNOWN)
+	{
+		Con_Printf ("ERROR: demo format not supported: \"%s\".\n", filename);
+		return;
+	}
+
+	if (dl)
+		dl->notifycomplete = CL_DemoStreamFullyDownloaded;
 
 //
 // disconnect from server
@@ -1569,31 +1611,77 @@ void CL_PlayDemo(char *demoname)
 //
 // open the demo file
 //
+	cls.demoindownload = dl;
+	cls.demoinfile = file;
+	if (!cls.demoinfile)
+	{
+		Con_Printf ("ERROR: couldn't open \"%s\".\n", filename);
+		cls.demonum = -1;		// stop demo loop
+		return;
+	}
+	if (filename)
+	{
+		Q_strncpyz (lastdemoname, filename, sizeof(lastdemoname));
+		Con_Printf ("Playing demo from %s.\n", filename);
+	}
+
+	cls.findtrack = (demotype == DPB_MVD || demotype == DPB_EZTV);
+
+	cls.demoplayback = demotype;
+	cls.protocol = protocol;
+	cls.state = ca_demostart;
+	net_message.packing = SZ_RAWBYTES;
+	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
+
+	demtime = -bufferdelay;
+	cl.gametime = -bufferdelay;
+	cl.gametimemark = demtime;
+	if (demtime < -0.5)
+		Con_Printf("Buffering for %g seconds\n", bufferdelay);
+	cls.netchan.last_received=demtime;
+
+	TP_ExecTrigger ("f_demostart");
+}
+
+void CL_PlayDemo(char *demoname)
+{
+	char	name[256];
+	int ft, neg = false;
+	int len;
+	char type;
+	char chr;
+	int protocol;
+	int start;
+	vfsfile_t *f;
+
+//
+// open the demo file
+//
 	Q_strncpyz (name, demoname, sizeof(name));
 	COM_DefaultExtension (name, ".qwd", sizeof(name));
 	if (*name == '#')
-		cls.demoinfile = VFSOS_Open(name+1, "rb");
+		f = VFSOS_Open(name+1, "rb");
 	else
-		cls.demoinfile = FS_OpenVFS(name, "rb", FS_GAME);
-	if (!cls.demoinfile)
+		f = FS_OpenVFS(name, "rb", FS_GAME);
+	if (!f)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".dem", sizeof(name));
 		if (*name == '#')
-			cls.demoinfile = VFSOS_Open(name+1, "rb");
+			f = VFSOS_Open(name+1, "rb");
 		else
-			cls.demoinfile = FS_OpenVFS(name, "rb", FS_GAME);
+			f = FS_OpenVFS(name, "rb", FS_GAME);
 	}
-	if (!cls.demoinfile)
+	if (!f)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".mvd", sizeof(name));
 		if (*name == '#')
-			cls.demoinfile = VFSOS_Open(name+1, "rb");
+			f = VFSOS_Open(name+1, "rb");
 		else
-			cls.demoinfile = FS_OpenVFS(name, "rb", FS_GAME);
+			f = FS_OpenVFS(name, "rb", FS_GAME);
 	}
-	if (!cls.demoinfile)
+	if (!f)
 	{
 		Con_Printf ("ERROR: couldn't open \"%s\".\n", demoname);
 		cls.demonum = -1;		// stop demo loop
@@ -1602,115 +1690,56 @@ void CL_PlayDemo(char *demoname)
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
 	Con_Printf ("Playing demo from %s.\n", name);
 
-	if (!VFS_GETLEN (cls.demoinfile))
+	if (!VFS_GETLEN (f))
 	{
-		VFS_CLOSE(cls.demoinfile);
-		cls.demoinfile = NULL;
+		VFS_CLOSE(f);
 		Con_Printf ("demo \"%s\" is empty.\n", demoname);
-		cls.demonum = -1;		// stop demo loop
 		return;
 	}
 
-	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd") ||
-		!Q_strcasecmp(name + strlen(name) - 6, "mvd.gz"))
-	{
-		cls.demoplayback = DPB_MVD;
-		cls.findtrack = true;
-	}
-	else
-		cls.demoplayback = DPB_QUAKEWORLD;
+	//figure out where we started
+	start = VFS_TELL(f);
 
-	cls.state = ca_demostart;
-	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
-	demtime = 0;
-	cl.gametime = 0;
-	cl.gametimemark = demtime;
-
-	cls.netchan.last_received=demtime;
-
-
-	start = VFS_TELL(cls.demoinfile);
-	VFS_READ(cls.demoinfile, &len, sizeof(len));
-	VFS_READ(cls.demoinfile, &type, sizeof(type));
-	VFS_READ(cls.demoinfile, &protocol, sizeof(protocol));
-	VFS_SEEK(cls.demoinfile, start);
+	//check if its a quake2 demo.
+	VFS_READ(f, &len, sizeof(len));
+	VFS_READ(f, &type, sizeof(type));
+	VFS_READ(f, &protocol, sizeof(protocol));
+	VFS_SEEK(f, start);
 	if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
 	{
-#ifdef Q2CLIENT
-		cls.demoplayback = DPB_QUAKE2;
-		cls.protocol = CP_QUAKE2;
-#else
-		Con_Printf ("ERROR: cannot play Quake2 demos.\n");
-		CL_StopPlayback();
+		CL_PlayDemoStream(f, NULL, name, DPB_QUAKE2, 0);
 		return;
-#endif
 	}
-	else
+
+	//not quake2, check if its NQ
+	ft = 0;	//work out if the first line is a int for the track number.
+	while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
 	{
-		ft = 0;	//work out if the first line is a int for the track number.
-		while ((VFS_READ(cls.demoinfile, &chr, 1)==1) && (chr != '\n'))
-		{
-			if (chr == '-')
-				neg = true;
-			else if (chr < '0' || chr > '9')
-				break;
-			else
-				ft = ft * 10 + ((int)chr - '0');
-		}
-		if (neg)
-			ft *= -1;
-		if (chr == '\n')
-		{
-#ifndef NQPROT
-			Con_Printf ("ERROR: cannot play NQ demos.\n");
-			CL_StopPlayback();
-			return;
-#else
-			//fixme: play that cdtrack.
-			cls.protocol = CP_NETQUAKE;
-			cls.demoplayback = DPB_NETQUAKE;	//nq demos. :o)
-#endif
-		}
+		if (chr == '-')
+			neg = true;
+		else if (chr < '0' || chr > '9')
+			break;
 		else
-		{
-			cls.protocol = CP_QUAKEWORLD;
-
-			VFS_SEEK(cls.demoinfile, start);	//quakeworld demo, so go back to start.
-		}
+			ft = ft * 10 + ((int)chr - '0');
 	}
+	if (neg)
+		ft *= -1;
+	if (chr == '\n')
+	{
+		CL_PlayDemoStream(f, NULL, name, DPB_NETQUAKE, 0);
+		return;
+	}
+	VFS_SEEK(f, start);
 
-	TP_ExecTrigger ("f_demostart");
-}
+	//its not NQ then. must be QuakeWorld, either .qwd or .mvd
+	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.
 
-void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
-{
-	CL_Disconnect_f ();
-
-	cls.demoinfile = newf;
-
-	demo_flushcache();	//just in case
-
-	if (iseztv)
-		cls.demoplayback = DPB_EZTV;
+	//mvd and qwd have no identifying markers, other than the extension.
+	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd") ||
+		!Q_strcasecmp(name + strlen(name) - 6, "mvd.gz"))
+		CL_PlayDemoStream(f, NULL, name, DPB_MVD, 0);
 	else
-		cls.demoplayback = DPB_MVD;
-
-	cls.findtrack = true;
-
-	cls.state = ca_demostart;
-	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
-	demtime = -BUFFERTIME;
-	cl.gametime = -BUFFERTIME;
-	cl.gametimemark = demtime;
-	if (demtime < -0.5)
-		Con_Printf("Buffering for %i seconds\n", (int)-demtime);
-
-	cls.netchan.last_received=realtime;
-
-	cls.protocol = CP_QUAKEWORLD;
-	TP_ExecTrigger ("f_demostart");
+		CL_PlayDemoStream(f, NULL, name, DPB_NETQUAKE, 0);
 }
 
 /*used with qtv*/
@@ -1779,7 +1808,8 @@ void CL_QTVPoll (void)
 
 	if (qtvrequestsize >= sizeof(qtvrequestbuffer) - 1)
 	{
-		Con_Printf("%i of %i...\n", qtvrequestsize, (int)sizeof(qtvrequestbuffer));
+		//flag it as an error if the response is larger than we can handle.
+		//this error gets ignored if the header is okay (any actual errors will get reported again by the demo code anyway), and only counts if the end of the reply header was not found.
 		len = -1;
 	}
 	if (!qtvrequestsize && len == 0)
@@ -1934,7 +1964,7 @@ void CL_QTVPoll (void)
 
 	if (streamavailable)
 	{
-		CL_QTVPlay(qtvrequest, iseztv);
+		CL_PlayDemoStream(qtvrequest, NULL, NULL, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
 		qtvrequest = NULL;
 		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
 		return;
@@ -2219,7 +2249,7 @@ void CL_QTVPlay_f (void)
 	if (raw)
 	{
 		VFS_WRITE(newf, msg, msglen);
-		CL_QTVPlay(newf, false);
+		CL_PlayDemoStream(qtvrequest, NULL, qtvhostname, DPB_MVD, BUFFERTIME);
 	}
 	else
 	{

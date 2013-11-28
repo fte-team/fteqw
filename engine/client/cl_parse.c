@@ -1413,7 +1413,7 @@ void CL_RequestNextDownload (void)
 
 	int stage;
 	/*already downloading*/
-	if (cls.downloadmethod)
+	if (cls.downloadmethod && !cls.demoplayback)
 		return;
 
 	/*request downloads only if we're at the point where we've received a complete list of them*/
@@ -1442,7 +1442,7 @@ void CL_RequestNextDownload (void)
 			fl = dl->flags;
 
 			/*if we don't require downloads don't queue requests until we're actually on the server, slightly more deterministic*/
-			if (cls.state == ca_active || requiredownloads.value || (fl & DLLF_REQUIRED))
+			if (cls.state == ca_active || (requiredownloads.value && !cls.demoplayback) || (fl & DLLF_REQUIRED))
 			{
 				if ((fl & DLLF_OVERWRITE) || !CL_CheckFile (dl->localname))
 				{

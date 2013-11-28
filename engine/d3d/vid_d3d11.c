@@ -522,7 +522,7 @@ static qboolean resetd3dbackbuffer(int width, int height)
 
 static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN func, IDXGIAdapter *adapt)
 {
-	int flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
+	int flags = 0;//= D3D11_CREATE_DEVICE_SINGLETHREADED;
 	D3D_DRIVER_TYPE drivertype;
 	DXGI_SWAP_CHAIN_DESC scd;
 	D3D_FEATURE_LEVEL flevel, flevels[] =

@@ -1733,7 +1733,6 @@ WinMain
 HINSTANCE	global_hInstance;
 int			global_nCmdShow;
 char		*argv[MAX_NUM_ARGVS];
-static char	exename[MAX_PATH];
 HWND		hwnd_dialog;
 
 
@@ -2548,6 +2547,58 @@ void VARGS Signal_Error_Handler(int i)
 
 extern char sys_language[64];
 
+static int Sys_ProcessCommandline(char **argv, int maxargc, char *argv0)
+{
+	int argc = 0, i;
+	wchar_t *wc = GetCommandLineW();
+	unsigned char utf8cmdline[4096], *cl = utf8cmdline;
+	narrowen(utf8cmdline, sizeof(utf8cmdline), wc);
+
+//	argv[argc] = argv0;
+//	argc++;
+
+	while (*cl && (argc < maxargc))
+	{
+		while (*cl && *cl <= 32)
+			cl++;
+
+		if (*cl)
+		{
+			if (*cl == '\"')
+			{
+				cl++;
+
+				argv[argc] = cl;
+				argc++;
+
+				while (*cl && *cl != '\"')
+					cl++;
+			}
+			else
+			{
+				argv[argc] = cl;
+				argc++;
+
+
+				while (*cl && *cl > 32)
+					cl++;
+			}
+
+			if (*cl)
+			{
+				*cl = 0;
+				cl++;
+			}
+		}
+	}
+	argv[argc] = argv0;
+	if (argc < 1)
+		argc = 1;
+	for (i = 0; i < argc; i++)
+		argv[i] = strdup(argv[i]);
+	return i;
+}
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -2562,6 +2613,15 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
+
+	/* determine if we're on nt early, so we don't do the wrong thing when checking commandlines */
+	{
+		OSVERSIONINFOA vinfo;
+		vinfo.dwOSVersionInfoSize = sizeof(vinfo);
+		if (GetVersionExA (&vinfo))
+			WinNT = vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT;
+	}
+
 #if defined(_DEBUG) && defined(MULTITHREAD)
 	Sys_SetThreadName(-1, "main thread");
 #endif
@@ -2626,44 +2686,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		global_hInstance = hInstance;
 		global_nCmdShow = nCmdShow;
 
-		parms.argc = 1;
-		argv[0] = exename;
-
-		while (*lpCmdLine && (parms.argc < MAX_NUM_ARGVS))
-		{
-			while (*lpCmdLine && ((*lpCmdLine <= 32) || (*lpCmdLine > 126)))
-				lpCmdLine++;
-
-			if (*lpCmdLine)
-			{
-				if (*lpCmdLine == '\"')
-				{
-					lpCmdLine++;
-
-					argv[parms.argc] = lpCmdLine;
-					parms.argc++;
-
-					while (*lpCmdLine && *lpCmdLine != '\"')
-						lpCmdLine++;
-				}
-				else
-				{
-					argv[parms.argc] = lpCmdLine;
-					parms.argc++;
-
-
-					while (*lpCmdLine && ((*lpCmdLine > 32) && (*lpCmdLine <= 126)))
-						lpCmdLine++;
-				}
-
-				if (*lpCmdLine)
-				{
-					*lpCmdLine = 0;
-					lpCmdLine++;
-				}
-			}
-		}
-
 #ifdef RESTARTTEST
 		setjmp (restart_jmpbuf);
 #endif
@@ -2676,7 +2698,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 		else
 			GetModuleFileNameA(NULL, bindir, sizeof(bindir)-1);
-		Q_strncpyz(exename, bindir, sizeof(exename));
+		parms.argc = Sys_ProcessCommandline(argv, MAX_NUM_ARGVS, bindir);
 		*COM_SkipPath(bindir) = 0;
 		parms.argv = (const char **)argv;
 
@@ -2724,8 +2746,18 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (COM_CheckParm("-outputdebugstring"))
 			debugout = true;
 
-		if (!GetCurrentDirectory (sizeof(cwd), cwd))
-			Sys_Error ("Couldn't determine current directory");
+		if (WinNT)
+		{
+			wchar_t wcwd[MAX_OSPATH];
+			if (!GetCurrentDirectoryW (sizeof(wcwd)/sizeof(wchar_t), wcwd))
+				Sys_Error ("Couldn't determine current directory");
+			narrowen(cwd, sizeof(cwd), wcwd);
+		}
+		else
+		{
+			if (!GetCurrentDirectoryA (sizeof(cwd), cwd))
+				Sys_Error ("Couldn't determine current directory");
+		}
 		if (parms.argc >= 2)
 		{
 			if (*parms.argv[1] != '-' && *parms.argv[1] != '+')

@@ -30,6 +30,16 @@ WHOAMI:=$(shell whoami)
 #linux->nacl (FTE_TARGET=nacl NARCH=x86_64)
 #if you are cross compiling, you'll need to use FTE_TARGET=mytarget
 
+#cygwin's make's paths confuses non-cygwin things
+RELEASE_DIR=$(BASE_DIR)/release
+DEBUG_DIR=$(BASE_DIR)/debug
+PROFILE_DIR=$(BASE_DIR)/profile
+ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
+	NATIVE_RELEASE_DIR=$(shell cygpath -m $(RELEASE_DIR))
+	NATIVE_DEBUG_DIR=$(shell cygpath -m $(DEBUG_DIR))
+endif
+
+
 #correct the gcc build when cross compiling
 ifeq ($(FTE_TARGET),win32)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
@@ -95,6 +105,8 @@ ifeq ($(FTE_TARGET),droid)
 		#set up for linux
 		TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-
 	else
+		#FIXME: support mingw too...
+
 		#we're running upon windows
 		ifeq ($(DROID_ARCH),x86)
 			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows-x86_64/bin/i686-linux-android-
@@ -275,9 +287,8 @@ PROGS_DIR=$(BASE_DIR)/qclib
 NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
 
-RELEASE_DIR=$(BASE_DIR)/release
-DEBUG_DIR=$(BASE_DIR)/debug
-PROFILE_DIR=$(BASE_DIR)/profile
+#NATIVE_RELEASE_DIR?=$(RELEASE_DIR)
+#NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
 ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
 
@@ -1593,7 +1604,7 @@ endif
 	@echo
 	@$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(ANDROID_HOME)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
+	$(ANDROID_HOME)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
 
 droid-opt:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore

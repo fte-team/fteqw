@@ -154,7 +154,7 @@ cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
 cvar_t pausable	= CVAR("pausable", "1");
-cvar_t sv_banproxies = CVARD("banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
+cvar_t sv_banproxies = CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 
 
 //

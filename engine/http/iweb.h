@@ -142,9 +142,11 @@ struct dl_download
 
 	/*not used internally by the backend, but used by HTTP_CL_Get/thread wrapper*/
 	struct dl_download *next;
-	void (*notify) (struct dl_download *dl);
+	void (*notifystarted) (struct dl_download *dl, char *mimetype);	//mime can be null for some protocols, read dl->totalsize for size.
+	void (*notifycomplete) (struct dl_download *dl);
 };
 
+vfsfile_t *VFSPIPE_Open(void);
 void HTTP_CL_Think(void);
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl));
 struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *data, size_t datalen, void (*NotifyFunction)(struct dl_download *dl));

@@ -79,7 +79,7 @@ cvar_t	voteminimum	= SCVAR("voteminimum", "4");
 cvar_t	votepercent	= SCVAR("votepercent", "-1");
 cvar_t	votetime	= SCVAR("votetime", "10");
 
-cvar_t	pr_allowbutton1 = SCVARF("pr_allowbutton1", "1", CVAR_LATCH);
+cvar_t	pr_allowbutton1 = CVARFD("pr_allowbutton1", "1", CVAR_LATCH, "The button1 field is believed to have been intended to work with the +use command, but it was never hooked up. In NetQuake, this field was often repurposed for other things as it was not otherwise used (and cannot be removed without breaking the crc), while third-party QuakeWorld engines did decide to implement it as believed was intended. As a result, this cvar only applies to QuakeWorld mods and a value of 1 is only likely to cause issues with NQ mods that were ported to QW.");
 extern cvar_t sv_minping;
 
 
@@ -5692,7 +5692,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 	sv_player->v->button0 = ucmd->buttons & 1;
 	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
-	if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+	if (pr_allowbutton1.ival && progstype == PROG_QW)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 		sv_player->v->button1 = ((ucmd->buttons >> 2) & 1);
 // DP_INPUTBUTTONS
 	sv_player->xv->button3 = ((ucmd->buttons >> 2) & 1);
@@ -6813,7 +6813,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	host_client->edict->v->button0 = bits & 1;
 	host_client->edict->v->button2 = (bits >> 1) & 1;
-	if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+	if (pr_allowbutton1.ival && progstype == PROG_QW)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 		host_client->edict->v->button1 = ((bits >> 2) & 1);
 // DP_INPUTBUTTONS
 	host_client->edict->xv->button3 = ((bits >> 2) & 1);

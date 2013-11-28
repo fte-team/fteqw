@@ -325,6 +325,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	struct http_dl_ctx_s *con = dl->ctx;
 	char buffer[256];
 	char Location[256];
+	char mimetype[256];
 	char *nl;
 	char *msg;
 	int ammount;
@@ -368,6 +369,10 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		msg = con->buffer;
 		con->chunking = false;
+		con->contentlength = 0;
+		con->gzip = false;
+		*mimetype = 0;
+		*Location = 0;
 		if (strnicmp(msg, "HTTP/", 5))
 		{	//pre version 1. (lame servers.
 			con->state = HC_GETTING;
@@ -404,6 +409,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					break;//not complete, don't bother trying to parse it.
 				if (!strnicmp(msg, "Content-Length: ", 16))
 					con->contentlength = atoi(msg+16);
+				else if (!strnicmp(msg, "Content-Type:", 13))
+				{
+					*nl = '\0';
+					Q_strncpyz(mimetype, COM_TrimString(msg+13), sizeof(mimetype));
+					*nl = '\n';
+				}
 				else if (!strnicmp(msg, "Location: ", 10))
 				{
 					*nl = '\0';
@@ -496,6 +507,9 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			memmove(con->buffer, con->buffer+ammount, con->bufferused);
 		}
 
+		if (dl->notifystarted)
+			dl->notifystarted(dl, *mimetype?mimetype:NULL);
+
 		if (!dl->file)
 		{
 #ifndef NPFTE
@@ -521,6 +535,8 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			con->file = FS_OpenTemp();
 #else
 			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
+			dl->status = DL_FAILED;
+			return false;
 #endif
 		}
 		else
@@ -803,8 +819,8 @@ static int DL_Thread_Work(void *arg)
 		{
 #ifdef NPFTE
 			//the plugin doesn't have a download loop
-			if (dl->notify)
-				dl->notify(dl);
+			if (dl->notifycomplete)
+				dl->notifycomplete(dl);
 			if (dl->file)
 				VFS_CLOSE(dl->file);
 #else
@@ -830,7 +846,7 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 	if (file)
 		dl->file = file;
 	if (NotifyFunction)
-		dl->notify = NotifyFunction;
+		dl->notifycomplete = NotifyFunction;
 
 	dl->threadctx = Sys_CreateThread("download", DL_Thread_Work, dl, THREADP_NORMAL, 0);
 	if (!dl->threadctx)
@@ -896,14 +912,14 @@ void DL_Close(struct dl_download *dl)
 
 static struct dl_download *activedownloads;
 unsigned int shownbytestart;
-/*create a download context and add it to the list, for lazy people*/
+/*create a download context and add it to the list, for lazy people. not threaded*/
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl))
 {
 	struct dl_download *newdl = DL_Create(url);
 	if (!newdl)
 		return newdl;
 
-	newdl->notify = NotifyFunction;
+	newdl->notifycomplete = NotifyFunction;
 	if (localfile)
 		Q_strncpyz(newdl->localname, localfile, sizeof(newdl->localname));
 
@@ -951,10 +967,10 @@ void HTTP_CL_Think(void)
 		if (!dl->poll(dl))
 		{
 			*link = dl->next;
-			if (dl->file)
+			if (dl->file && dl->file->Seek)
 				VFS_SEEK(dl->file, 0);
-			if (dl->notify)
-				dl->notify(dl);
+			if (dl->notifycomplete)
+				dl->notifycomplete(dl);
 			DL_Close(dl);
 			continue;
 		}
@@ -992,3 +1008,86 @@ void HTTP_CL_Think(void)
 }
 #endif
 #endif	/*WEBCLIENT*/
+
+
+typedef struct 
+{
+	vfsfile_t funcs;
+
+	char *data;
+	int maxlen;
+	int writepos;
+	int readpos;
+} vfspipe_t;
+
+void QDECL VFSPIPE_Close(vfsfile_t *f)
+{
+	vfspipe_t *p = (vfspipe_t*)f;
+	free(p->data);
+	free(p);
+}
+unsigned long QDECL VFSPIPE_GetLen(vfsfile_t *f)
+{
+	vfspipe_t *p = (vfspipe_t*)f;
+	return p->writepos - p->readpos;
+}
+//unsigned long QDECL VFSPIPE_Tell(vfsfile_t *f)
+//{
+//	return 0;
+//}
+//qboolean QDECL VFSPIPE_Seek(vfsfile_t *f, unsigned long offset)
+//{
+//	Con_Printf("Seeking is a bad plan, mmkay?\n");
+//	return false;
+//}
+int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
+{
+	vfspipe_t *p = (vfspipe_t*)f;
+	if (len > p->writepos - p->readpos)
+		len = p->writepos - p->readpos;
+	memcpy(buffer, p->data+p->readpos, len);
+	p->readpos += len;
+
+	if (p->readpos > 8192)
+	{
+		//shift the memory down periodically
+		//fixme: use cyclic buffer? max size, etc?
+		memmove(p->data, p->data+p->readpos, p->writepos-p->readpos);
+
+		p->writepos -= p->readpos;
+		p->readpos = 0;
+	}
+	return len;
+}
+int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
+{
+	vfspipe_t *p = (vfspipe_t*)f;
+	if (p->writepos + len > p->maxlen)
+	{
+		p->maxlen = p->writepos + len;
+		p->data = realloc(p->data, p->maxlen);
+	}
+	memcpy(p->data+p->writepos, buffer, len);
+	p->writepos += len;
+	return len;
+}
+
+vfsfile_t *VFSPIPE_Open(void)
+{
+	vfspipe_t *newf;
+	newf = malloc(sizeof(*newf));
+	newf->data = NULL;
+	newf->maxlen = 0;
+	newf->readpos = 0;
+	newf->writepos = 0;
+	newf->funcs.Close = VFSPIPE_Close;
+	newf->funcs.Flush = NULL;
+	newf->funcs.GetLen = VFSPIPE_GetLen;
+	newf->funcs.ReadBytes = VFSPIPE_ReadBytes;
+	newf->funcs.Seek = NULL;//VFSPIPE_Seek;
+	newf->funcs.Tell = NULL;//VFSPIPE_Tell;
+	newf->funcs.WriteBytes = VFSPIPE_WriteBytes;
+	newf->funcs.seekingisabadplan = true;
+
+	return &newf->funcs;
+}

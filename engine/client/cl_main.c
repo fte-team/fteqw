@@ -3586,13 +3586,20 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_NOOVERWRITE	(1<<1)
 #define HRF_ABORT		(1<<3)
 #define HRF_OPENED		(1<<4)
-#define HRF_DEMO		(1<<8)
-#define HRF_QTVINFO		(1<<9)
-#define HRF_MANIFEST	(1<<10)
-#define HRF_BSP			(1<<11)
-#define HRF_PACKAGE		(1<<12)
+
+#define HRF_DEMO_MVD	(1<<8)
+#define HRF_DEMO_QWD	(1<<9)
+#define HRF_DEMO_DM2	(1<<10)
+#define HRF_DEMO_DEM	(1<<11)
+
+#define HRF_QTVINFO		(1<<12)
+#define HRF_MANIFEST	(1<<13)
+#define HRF_BSP			(1<<14)
+#define HRF_PACKAGE		(1<<15)
 
 #define HRF_ACTION (HRF_OVERWRITE|HRF_NOOVERWRITE|HRF_ABORT)
+#define HRF_DEMO		(HRF_DEMO_MVD|HRF_DEMO_QWD|HRF_DEMO_DM2|HRF_DEMO_DEM)
+#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE)
 typedef struct {
 	unsigned int flags;
 	vfsfile_t *srcfile;
@@ -3600,8 +3607,10 @@ typedef struct {
 	char fname[1];	//system path or url.
 } hrf_t;
 
+int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
-
+void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *, char *filename, int demotype, float bufferdelay);
+void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);
 
 void Host_RunFileDownloaded(struct dl_download *dl)
 {
@@ -3611,6 +3620,75 @@ void Host_RunFileDownloaded(struct dl_download *dl)
 	dl->file = NULL;
 
 	Host_DoRunFile(f);
+}
+void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
+{
+	//at this point the file is still downloading, so don't copy it out just yet.
+	hrf_t *f = dl->user_ctx;
+
+	if (mimetype && !(f->flags & HRF_FILETYPES))
+	{
+		if (!strcmp(mimetype, "application/x-qtv"))	//what uses this?
+			f->flags |= HRF_QTVINFO;
+		else if (!strcmp(mimetype, "text/x-quaketvident"))
+			f->flags |= HRF_QTVINFO;
+		else if (!strcmp(mimetype, "application/x-ftemanifest"))
+			f->flags |= HRF_MANIFEST;
+		else if (!strcmp(mimetype, "application/x-multiviewdemo"))
+			f->flags |= HRF_MVD;
+//		else if (!strcmp(mimetype, "application/x-ftebsp"))
+//			f->flags |= HRF_BSP;
+//		else if (!strcmp(mimetype, "application/x-ftepackage"))
+//			f->flags |= HRF_PACKAGE;
+	}
+
+	//FIXME: HRF_DEMO should be able to stream. create a vfs pipe for the download code to write to?
+
+	if (!(f->flags & HRF_FILETYPES))
+	{
+		char *ext = COM_FileExtension(f->fname);
+		if (!strcmp(ext, "qwd"))
+			f->flags |= HRF_DEMO_QWD;
+		else if (!strcmp(ext, "mvd"))
+			f->flags |= HRF_DEMO_MVD;
+		else if (!strcmp(ext, "dm2"))
+			f->flags |= HRF_DEMO_DM2;
+		else if (!strcmp(ext, "dem"))
+			f->flags |= HRF_DEMO_DEM;
+		else if (!strcmp(ext, "qtv"))
+			f->flags |= HRF_QTVINFO;
+		else if (!strcmp(ext, "fmf"))
+			f->flags |= HRF_MANIFEST;
+		else if (!strcmp(ext, "bsp"))
+			f->flags |= HRF_BSP;
+		else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
+			f->flags |= HRF_PACKAGE;
+		else
+		{
+			//file type not guessable from extension.
+			f->flags |= HRF_ABORT;
+			Host_DoRunFile(f);
+			return;
+		}
+
+		if (f->flags & HRF_MANIFEST)
+			waitingformanifest++;
+	}
+
+	if (f->flags & HRF_DEMO_QWD)
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_QUAKEWORLD, 0);
+	else if (f->flags & HRF_DEMO_MVD)
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_MVD, 0);
+	else if (f->flags & HRF_DEMO_DM2)
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_QUAKE2, 0);
+	else if (f->flags & HRF_DEMO_DEM)
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_NETQUAKE, 0);
+	else
+		return;
+
+	f->flags |= HRF_ABORT;
+	Host_DoRunFile(f);
+	return;
 }
 void Host_RunFilePrompted(void *ctx, int button)
 {
@@ -3630,7 +3708,6 @@ void Host_RunFilePrompted(void *ctx, int button)
 	Host_DoRunFile(f);
 }
 
-qboolean waitingformanifest;
 void Host_DoRunFile(hrf_t *f)
 {
 	char qname[MAX_QPATH];
@@ -3652,20 +3729,55 @@ void Host_DoRunFile(hrf_t *f)
 		return;
 	}
 
+	if (!(f->flags & HRF_FILETYPES))
+	{
+		char *ext;
+
+#ifdef WEBCLIENT
+		if (!strncmp(f->fname, "http://", 7) && !f->srcfile)
+		{
+			if (!(f->flags & HRF_OPENED))
+			{
+				struct dl_download *dl;
+				f->flags |= HRF_OPENED;
+				dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
+				dl->notifystarted = Host_BeginFileDownload;
+				dl->user_ctx = f;
+				return;
+			}
+		}
+#endif
+
+		//if we get here, we have no mime type to give us any clues.
+		ext = COM_FileExtension(f->fname);
+		if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "dm2") || !strcmp(ext, "mvd"))
+			f->flags |= HRF_DEMO;
+		if (!strcmp(ext, "qtv"))
+			f->flags |= HRF_QTVINFO;
+		if (!strcmp(ext, "fmf"))
+			f->flags |= HRF_MANIFEST;
+		if (!strcmp(ext, "bsp"))
+			f->flags |= HRF_BSP;
+		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
+			f->flags |= HRF_PACKAGE;
+
+		//if we still don't know what it is, give up.
+		if (!(f->flags & HRF_FILETYPES))
+		{
+			f->flags |= HRF_ABORT;
+			Host_DoRunFile(f);
+			return;
+		}
+
+		if (f->flags & HRF_MANIFEST)
+			waitingformanifest++;
+	}
+
 	if (f->flags & HRF_DEMO)
 	{
 		//play directly via system path, no prompts needed
 		Cbuf_AddText(va("playdemo \"#%s\"\n", f->fname), RESTRICT_LOCAL);
 
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
-	}
-	else if (f->flags & HRF_QTVINFO)
-	{
-		//play directly via url/system path, no prompts needed
-		Cbuf_AddText(va("qtvplay \"#%s\"\n", f->fname), RESTRICT_LOCAL);
-	
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
@@ -3709,13 +3821,14 @@ void Host_DoRunFile(hrf_t *f)
 			}
 		}
 	}
-	else
+	else if (!(f->flags & HRF_QTVINFO))
 	{
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
 	}
 
+	//at this point we need the file to have been opened.
 	if (!(f->flags & HRF_OPENED))
 	{
 		f->flags |= HRF_OPENED;
@@ -3725,6 +3838,7 @@ void Host_DoRunFile(hrf_t *f)
 			if (!strncmp(f->fname, "http://", 7))
 			{
 				struct dl_download *dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
+				dl->notifystarted = Host_BeginFileDownload;
 				dl->user_ctx = f;
 				return;
 			}
@@ -3742,6 +3856,17 @@ void Host_DoRunFile(hrf_t *f)
 
 	if (f->flags & HRF_MANIFEST)
 	{
+		Host_DoRunFile(f);
+		return;
+	}
+
+	if (f->flags & HRF_QTVINFO)
+	{
+		//pass the file object to the qtv code instead of trying to install it.
+		CL_ParseQTVDescriptor(f->srcfile, f->fname);
+		f->srcfile = NULL;
+
+		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
 	}
@@ -3818,24 +3943,9 @@ void Host_DoRunFile(hrf_t *f)
 //if file is specified, takes full ownership of said file, including destruction.
 qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 {
-	char *ext = COM_FileExtension(fname);
 	hrf_t *f = Z_Malloc(sizeof(*f) + nlen);
 	memcpy(f->fname, fname, nlen);
 	f->fname[nlen] = 0;
-
-	if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
-		f->flags |= HRF_DEMO;
-	if (!strcmp(ext, "qtv"))
-		f->flags |= HRF_QTVINFO;
-	if (!strcmp(ext, "fmf"))
-		f->flags |= HRF_MANIFEST;
-	if (!strcmp(ext, "bsp"))
-		f->flags |= HRF_BSP;
-	if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
-		f->flags |= HRF_PACKAGE;
-
-	if (f->flags & HRF_MANIFEST)
-		waitingformanifest++;
 
 	Host_DoRunFile(f);
 	return true;
@@ -3894,7 +4004,6 @@ double Host_Frame (double time)
 
 	if (r_blockvidrestart)
 	{
-		extern qboolean waitingformanifest;
 		if (waitingformanifest)
 			return 0.1;
 		Host_FinishLoading();
@@ -4284,10 +4393,10 @@ void CL_ExecInitialConfigs(char *resetcommand)
 {
 	int qrc, hrc, def;
 
-	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("unbindall\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
+	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText(resetcommand, RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 

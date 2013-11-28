@@ -2112,7 +2112,7 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 	return idx;
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) && !defined(ANDROID)
 //in linux, looking up our own hostname to retrieve a list of local interface addresses will give no indication that other systems are able to do the same thing and is thus not supported.
 //there's some special api instead
 //glibc 2.3.
@@ -5043,7 +5043,28 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	if (out->type == NA_IP)
 	{
 		if (!*(int*)out->address.ip)	//socket was set to auto
-			*(int *)out->address.ip = *(int *)adr.address.ip;	//change it to what the machine says it is, rather than the socket.
+		{
+			if (adr.type == NA_IP)
+				*(int *)out->address.ip = *(int *)adr.address.ip;	//change it to what the machine says it is, rather than the socket.
+		}
+	}
+	if (out->type == NA_IPV6)
+	{
+		if (!((int*)out->address.ip6)[0] &&
+			!((int*)out->address.ip6)[1] &&
+			!((short*)out->address.ip6)[4] &&
+			(!((short*)out->address.ip6)[5] || ((unsigned short*)out->address.ip6)[5]==0xffffu)
+			&& !((int*)out->address.ip6)[3])	//ipv6 any or ipv4-mapped any.
+		{
+			if (adr.type == NA_IP)
+			{
+				memset(out->address.ip6, 0, sizeof(out->address.ip6));
+				((short *)out->address.ip6)[5] = 0xffff;
+				((int *)out->address.ip6)[3] = *(int *)adr.address.ip;
+			}
+			else if (adr.type == NA_IPV6)
+				memcpy(out->address.ip6, adr.address.ip6, sizeof(out->address.ip6));
+		}
 	}
 
 	if (!notvalid)

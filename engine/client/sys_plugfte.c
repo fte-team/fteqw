@@ -432,6 +432,7 @@ skipwhite:
 	return (char*)data;
 }
 
+#if 0
 typedef struct 
 {
 	vfsfile_t funcs;
@@ -513,7 +514,7 @@ vfsfile_t *VFSPIPE_Open(void)
 
 	return &newf->funcs;
 }
-
+#endif
 
 
 

@@ -415,6 +415,7 @@ typedef struct
 	float		demoseektime;
 	qboolean	timedemo;
 	vfsfile_t	*demoinfile;
+	struct dl_download *demoindownload; 
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo

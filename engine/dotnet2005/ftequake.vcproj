@@ -29644,6 +29644,14 @@
 					RelativePath="..\common\net_sellingmysoultothedevil.cpp"
 					>
 					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
 						Name="GLDebug|Win32"
 						>
 						<Tool

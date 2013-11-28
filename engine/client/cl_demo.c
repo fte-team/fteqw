@@ -1700,6 +1700,7 @@ void CL_PlayDemo(char *demoname)
 	//figure out where we started
 	start = VFS_TELL(f);
 
+#ifdef Q2CLIENT
 	//check if its a quake2 demo.
 	VFS_READ(f, &len, sizeof(len));
 	VFS_READ(f, &type, sizeof(type));
@@ -1710,7 +1711,9 @@ void CL_PlayDemo(char *demoname)
 		CL_PlayDemoStream(f, NULL, name, DPB_QUAKE2, 0);
 		return;
 	}
+#endif
 
+#ifdef NQPROT
 	//not quake2, check if its NQ
 	ft = 0;	//work out if the first line is a int for the track number.
 	while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
@@ -1730,6 +1733,7 @@ void CL_PlayDemo(char *demoname)
 		return;
 	}
 	VFS_SEEK(f, start);
+#endif
 
 	//its not NQ then. must be QuakeWorld, either .qwd or .mvd
 	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.

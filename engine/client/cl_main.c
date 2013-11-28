@@ -3635,7 +3635,7 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 		else if (!strcmp(mimetype, "application/x-ftemanifest"))
 			f->flags |= HRF_MANIFEST;
 		else if (!strcmp(mimetype, "application/x-multiviewdemo"))
-			f->flags |= HRF_MVD;
+			f->flags |= HRF_DEMO_MVD;
 //		else if (!strcmp(mimetype, "application/x-ftebsp"))
 //			f->flags |= HRF_BSP;
 //		else if (!strcmp(mimetype, "application/x-ftepackage"))
@@ -3665,7 +3665,7 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 			f->flags |= HRF_PACKAGE;
 		else
 		{
-			//file type not guessable from extension.
+			//file type not guessable from extension either.
 			f->flags |= HRF_ABORT;
 			Host_DoRunFile(f);
 			return;
@@ -3679,10 +3679,17 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_QUAKEWORLD, 0);
 	else if (f->flags & HRF_DEMO_MVD)
 		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_MVD, 0);
+#ifdef Q2CLIENT
 	else if (f->flags & HRF_DEMO_DM2)
 		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_QUAKE2, 0);
-	else if (f->flags & HRF_DEMO_DEM)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_NETQUAKE, 0);
+#endif
+#ifdef NQPROT
+//fixme: the demo code can't handle the cd track like this.
+//	else if (f->flags & HRF_DEMO_DEM)
+//		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_NETQUAKE, 0);
+#endif
+	else if (f->flags & HRF_DEMO)
+		Con_Printf("%s: format not supported\n", f->fname);	//demos that are not supported in this build for one reason or another
 	else
 		return;
 
@@ -3750,15 +3757,21 @@ void Host_DoRunFile(hrf_t *f)
 
 		//if we get here, we have no mime type to give us any clues.
 		ext = COM_FileExtension(f->fname);
-		if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "dm2") || !strcmp(ext, "mvd"))
-			f->flags |= HRF_DEMO;
-		if (!strcmp(ext, "qtv"))
+		if (!strcmp(ext, "qwd"))
+			f->flags |= HRF_DEMO_QWD;
+		else if (!strcmp(ext, "mvd"))
+			f->flags |= HRF_DEMO_MVD;
+		else if (!strcmp(ext, "dm2"))
+			f->flags |= HRF_DEMO_DM2;
+		else if (!strcmp(ext, "dem"))
+			f->flags |= HRF_DEMO_DEM;
+		else if (!strcmp(ext, "qtv"))
 			f->flags |= HRF_QTVINFO;
-		if (!strcmp(ext, "fmf"))
+		else if (!strcmp(ext, "fmf"))
 			f->flags |= HRF_MANIFEST;
-		if (!strcmp(ext, "bsp"))
+		else if (!strcmp(ext, "bsp"))
 			f->flags |= HRF_BSP;
-		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
+		else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
 			f->flags |= HRF_PACKAGE;
 
 		//if we still don't know what it is, give up.

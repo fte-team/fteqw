@@ -1646,11 +1646,6 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 void CL_PlayDemo(char *demoname)
 {
 	char	name[256];
-	int ft, neg = false;
-	int len;
-	char type;
-	char chr;
-	int protocol;
 	int start;
 	vfsfile_t *f;
 
@@ -1701,38 +1696,47 @@ void CL_PlayDemo(char *demoname)
 	start = VFS_TELL(f);
 
 #ifdef Q2CLIENT
-	//check if its a quake2 demo.
-	VFS_READ(f, &len, sizeof(len));
-	VFS_READ(f, &type, sizeof(type));
-	VFS_READ(f, &protocol, sizeof(protocol));
-	VFS_SEEK(f, start);
-	if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
 	{
-		CL_PlayDemoStream(f, NULL, name, DPB_QUAKE2, 0);
-		return;
+		int len;
+		char type;
+		int protocol;
+		//check if its a quake2 demo.
+		VFS_READ(f, &len, sizeof(len));
+		VFS_READ(f, &type, sizeof(type));
+		VFS_READ(f, &protocol, sizeof(protocol));
+		VFS_SEEK(f, start);
+		if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
+		{
+			CL_PlayDemoStream(f, NULL, name, DPB_QUAKE2, 0);
+			return;
+		}
 	}
 #endif
 
 #ifdef NQPROT
-	//not quake2, check if its NQ
-	ft = 0;	//work out if the first line is a int for the track number.
-	while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
 	{
-		if (chr == '-')
-			neg = true;
-		else if (chr < '0' || chr > '9')
-			break;
-		else
-			ft = ft * 10 + ((int)chr - '0');
+		int ft = 0, neg = false;
+		char chr;
+		//not quake2, check if its NQ
+		//work out if the first line is a int for the track number.
+		while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
+		{
+			if (chr == '-')
+				neg = true;
+			else if (chr < '0' || chr > '9')
+				break;
+			else
+				ft = ft * 10 + ((int)chr - '0');
+		}
+		if (neg)
+			ft *= -1;
+		if (chr == '\n')
+		{
+			CL_PlayDemoStream(f, NULL, name, DPB_NETQUAKE, 0);
+			return;
+		}
+		VFS_SEEK(f, start);
 	}
-	if (neg)
-		ft *= -1;
-	if (chr == '\n')
-	{
-		CL_PlayDemoStream(f, NULL, name, DPB_NETQUAKE, 0);
-		return;
-	}
-	VFS_SEEK(f, start);
 #endif
 
 	//its not NQ then. must be QuakeWorld, either .qwd or .mvd
@@ -1743,7 +1747,7 @@ void CL_PlayDemo(char *demoname)
 		!Q_strcasecmp(name + strlen(name) - 6, "mvd.gz"))
 		CL_PlayDemoStream(f, NULL, name, DPB_MVD, 0);
 	else
-		CL_PlayDemoStream(f, NULL, name, DPB_NETQUAKE, 0);
+		CL_PlayDemoStream(f, NULL, name, DPB_QUAKEWORLD, 0);
 }
 
 /*used with qtv*/

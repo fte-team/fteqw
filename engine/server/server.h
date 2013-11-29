@@ -1042,7 +1042,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj);
 void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
-void SV_PrintToClient(client_t *cl, int level, char *string);
+void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...) LIKEPRINTF(3);

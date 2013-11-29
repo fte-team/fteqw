@@ -160,12 +160,12 @@ void Con_TPrintf (translation_t stringnum, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	char *fmt;
-
+	const char *fmt;
+ 
 	// add to redirected message
 	if (sv_redirected)
 	{
-		fmt = languagetext[stringnum][sv_redirectedlang];
+		fmt = langtext(stringnum,sv_redirectedlang);
 		va_start (argptr,stringnum);
 		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
@@ -176,7 +176,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 		return;
 	}
 
-	fmt = languagetext[stringnum][svs.language];
+	fmt = langtext(stringnum,svs.language);
 
 	va_start (argptr,stringnum);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);

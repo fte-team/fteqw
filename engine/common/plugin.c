@@ -252,7 +252,7 @@ plugin_t *Plug_Load(char *file, int type)
 	currentplug = newplug;
 	if (newplug->vm)
 	{
-		Con_Printf("Created plugin %s\n", file);
+		Con_TPrintf("Created plugin %s\n", file);
 
 		newplug->next = plugs;
 		plugs = newplug;

@@ -484,7 +484,7 @@ void COM_Path_f (void)
 {
 	searchpath_t	*s;
 
-	Con_TPrintf (TL_CURRENTSEARCHPATH);
+	Con_TPrintf ("Current search path:\n");
 
 	if (com_purepaths || fs_puremode)
 	{
@@ -1259,6 +1259,11 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 	case FS_SKINS:	//load from paks in preference to system paths. overwriting be damned.
 		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
 		break;
+	case FS_BINARYPATH:
+		if (*mode == 'w')
+			COM_CreatePath(fullname);
+		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
+		return VFSOS_Open(fullname, mode);
 	case FS_ROOT:	//always bypass packs and gamedirs
 		if (*com_homedir)
 		{
@@ -1966,6 +1971,15 @@ void COM_Gamedir (const char *dir)
 	if (!fs_manifest)
 		FS_ChangeGame(NULL, true);
 
+	//don't allow leading dots, hidden files are evil.
+	//don't allow complex paths. those are evil too.
+	if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
+		|| strstr(dir, "\\") || strstr(dir, ":") )
+	{
+		Con_Printf ("Gamedir should be a single filename, not a path\n");
+		return;
+	}
+
 	man = FS_Manifest_Clone(fs_manifest);
 	FS_Manifest_PurgeGamedirs(man);
 	if (*dir)
@@ -2342,10 +2356,20 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 	for (i = 0; i < sizeof(fs_manifest->gamepath) / sizeof(fs_manifest->gamepath[0]); i++)
 	{
-		if (fs_manifest->gamepath[i].path && fs_manifest->gamepath[i].base)
+		char *dir = fs_manifest->gamepath[i].path;
+		if (dir && fs_manifest->gamepath[i].base)
 		{
+			//don't allow leading dots, hidden files are evil.
+			//don't allow complex paths. those are evil too.
+			if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
+				|| strstr(dir, "\\") || strstr(dir, ":") )
+			{
+				Con_Printf ("Gamedir should be a single filename, not a path\n");
+				continue;
+			}
+
 			//paths with '*' actually result in loading packages without an actual gamedir. note that this does not imply that we can write anything.
-			if (*fs_manifest->gamepath[i].path == '*')
+			if (*dir == '*')
 			{
 				int j;
 				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, com_quakedir);
@@ -2369,25 +2393,35 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_quakedir, fs_manifest->gamepath[i].path), reloadflags);
+				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_quakedir, dir), reloadflags);
 				if (*com_homedir)
-					FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_homedir, fs_manifest->gamepath[i].path), reloadflags);
+					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homedir, dir), reloadflags);
 			}
 		}
 	}
 	com_base_searchpaths = com_searchpaths;
 	for (i = 0; i < sizeof(fs_manifest->gamepath) / sizeof(fs_manifest->gamepath[0]); i++)
 	{
-		if (fs_manifest->gamepath[i].path && !fs_manifest->gamepath[i].base)
+		char *dir = fs_manifest->gamepath[i].path;
+		if (dir && !fs_manifest->gamepath[i].base)
 		{
-			if (*fs_manifest->gamepath[i].path == '*')
+			//don't allow leading dots, hidden files are evil.
+			//don't allow complex paths. those are evil too.
+			if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
+				|| strstr(dir, "\\") || strstr(dir, ":") )
+			{
+				Con_Printf ("Gamedir should be a single filename, not a path\n");
+				continue;
+			}
+
+			if (*dir == '*')
 			{
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_quakedir, fs_manifest->gamepath[i].path), reloadflags);
+				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_quakedir, dir), reloadflags);
 				if (*com_homedir)
-					FS_AddGameDirectory(&oldpaths, fs_manifest->gamepath[i].path, va("%s%s", com_homedir, fs_manifest->gamepath[i].path), reloadflags);
+					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homedir, dir), reloadflags);
 			}
 		}
 	}
@@ -3652,7 +3686,7 @@ void COM_InitFilesystem (void)
 		*com_homedir = '\0';
 
 	if (*com_homedir)
-		Con_Printf("Using home directory \"%s\"\n", com_homedir);
+		Con_TPrintf("Using home directory \"%s\"\n", com_homedir);
 
 #ifdef PLUGINS
 	Plug_Initialise(false);

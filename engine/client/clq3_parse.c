@@ -634,9 +634,9 @@ void CLQ3_ParseServerMessage (void)
 		return;	//was a fragment.
 
 	if (cl_shownet.value == 1)
-		Con_TPrintf (TL_INT_SPACE,net_message.cursize);
+		Con_Printf ("%i ",net_message.cursize);
 	else if (cl_shownet.value == 2)
-		Con_TPrintf (TLC_LINEBREAK_MINUS);
+		Con_Printf ("------------------\n");
 
 	net_message.packing = SZ_RAWBYTES;
 	MSG_BeginReading(msg_nullnetprim);

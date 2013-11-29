@@ -103,7 +103,7 @@ int FTP_BeginListening(int aftype, int port)
 	//ZOID -- check for interface binding option
 		if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
 			((struct sockaddr_in*)&address)->sin_addr.s_addr = inet_addr(com_argv[i+1]);
-			Con_TPrintf(TL_NETBINDINTERFACE,
+			Con_TPrintf("Binding to IP Interface Address of %s\n",
 					inet_ntoa(((struct sockaddr_in*)&address)->sin_addr));
 		} else
 			((struct sockaddr_in*)&address)->sin_addr.s_addr = INADDR_ANY;
@@ -404,7 +404,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
 			return true;
 
-		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
+		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
 		return true;
 	}
 	if (*cl->messagebuffer)
@@ -954,12 +954,12 @@ unsigned long _true = true;
 
 		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
 		{
-			Con_TPrintf (TL_CONNECTIONLOSTORABORTED);
+			Con_TPrintf ("Connection lost or aborted\n");
 			return false;
 		}
 
 
-		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
+		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
 		return false;
 	}
 

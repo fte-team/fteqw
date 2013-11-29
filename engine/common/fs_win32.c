@@ -41,7 +41,7 @@ wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8)
 	while (*utf8)
 	{
 		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
-		if (error)
+		if (error || codepoint > 0x10FFFFu)
 			codepoint = 0xFFFDu;
 		if (codepoint > 0xffff)
 		{

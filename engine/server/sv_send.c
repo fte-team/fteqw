@@ -231,7 +231,8 @@ EVENT MESSAGES
 =============================================================================
 */
 
-void SV_PrintToClient(client_t *cl, int level, char *string)
+//Directly print to a client without translating nor printing into an mvd. generally for error messages due to the lack of mvd thing.
+void SV_PrintToClient(client_t *cl, int level, const char *string)
 {
 	switch (cl->protocol)
 	{
@@ -264,6 +265,12 @@ void SV_PrintToClient(client_t *cl, int level, char *string)
 #endif
 		break;
 	}
+}
+//translate it, but avoid 'public' mvd prints.
+void SV_TPrintToClient(client_t *cl, int level, const char *string)
+{
+	string = langtext(string, cl->language);
+	SV_PrintToClient(cl, level, string);
 }
 
 void SV_StuffcmdToClient(client_t *cl, char *string)
@@ -298,6 +305,7 @@ void SV_StuffcmdToClient(client_t *cl, char *string)
 SV_ClientPrintf
 
 Sends text across to be displayed if the level passes
+Is included in mvds.
 =================
 */
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
@@ -333,7 +341,7 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 {
 	va_list		argptr;
 	char		string[1024];
-	char *fmt = languagetext[stringnum][cl->language];
+	const char *fmt = langtext(stringnum, cl->language);
 
 	if (level < cl->messagelevel)
 		return;
@@ -411,7 +419,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 	client_t	*cl;
 	int			i;
 	int oldlang=-1;
-	char *fmt = languagetext[stringnum][oldlang=svs.language];
+	const char *fmt = langtext(stringnum, oldlang=svs.language);
 
 	va_start (argptr,stringnum);
 	vsnprintf (string,sizeof(string)-1, fmt,argptr);
@@ -433,7 +441,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 
 		if (oldlang!=cl->language)
 		{
-			fmt = languagetext[stringnum][oldlang=cl->language];
+			fmt = langtext(stringnum, oldlang=cl->language);
 
 			va_start (argptr,stringnum);
 			vsnprintf (string,sizeof(string)-1, fmt,argptr);

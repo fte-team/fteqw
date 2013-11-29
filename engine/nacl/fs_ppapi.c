@@ -526,7 +526,7 @@ searchpathfuncs_t *QDECL FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *des
 
 #else
 
-this code is old and won't work.
+//this code is old and won't work.
 
 #define FSPPAPI_OpenTemp FS_OpenTemp
 #define VFSPPAPI_Open VFSOS_Open

@@ -255,7 +255,7 @@ BUILTINR(float, cos, (float f));
 #endif
 
 
-char	*va(char *format, ...)	//Identical in function to the one in Quake, though I can assure you that I wrote it...
+char	*va(const char *format, ...)	//Identical in function to the one in Quake, though I can assure you that I wrote it...
 {					//It's not exactly hard, just easy to use, so gets duplicated lots.
 	va_list		argptr;
 	static char		string[1024];

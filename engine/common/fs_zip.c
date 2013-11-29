@@ -677,7 +677,7 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	if (!zip->handle)
 	{
 		Z_Free(zip);
-		Con_TPrintf (TL_COULDNTOPENZIP, desc);
+		Con_TPrintf ("Failed opening zipfile \"%s\" corrupt?\n", desc);
 		return NULL;
 	}
 
@@ -707,7 +707,7 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	zip->references = 1;
 	zip->currentfile = NULL;
 
-	Con_TPrintf (TL_ADDEDZIPFILE, desc, zip->numfiles);
+	Con_TPrintf ("Added zipfile %s (%i files)\n", desc, zip->numfiles);
 
 	zip->pub.fsver				= FSVER;
 	zip->pub.GetPathDetails		= FSZIP_GetPathDetails;

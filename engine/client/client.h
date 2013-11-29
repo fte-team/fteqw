@@ -440,7 +440,7 @@ typedef struct
 #ifdef NQPROT
 	int signon;
 #endif
-	translation_t language;
+	int language;
 
 	colourised_t *colourised;
 } client_static_t;

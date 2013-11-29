@@ -225,7 +225,7 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	{
 		if (developer.value)
 		{
-			Con_TPrintf(STL_CANTFREEWORLD);
+			Con_TPrintf("cannot free world entity\n");
 			PR_StackTrace(svprogfuncs);
 			svprogfuncs->pr_trace = 1;
 		}
@@ -233,7 +233,7 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	}
 	if (NUM_FOR_EDICT(svprogfuncs, ed) <= sv.allocated_client_slots)
 	{
-		Con_TPrintf(STL_CANTFREEPLAYERS);
+		Con_TPrintf("cannot free player entities\n");
 		PR_StackTrace(svprogfuncs);
 		svprogfuncs->pr_trace = 1;
 		return false;
@@ -1005,7 +1005,7 @@ progsnum_t AddProgs(char *name)
 	if (num == 0)
 		PR_LoadGlabalStruct();
 
-	Con_Printf("Loaded %s\n", name);
+	Con_TPrintf("Loaded progs %s\n", name);
 
 	PR_ProgsAdded(svprogfuncs, num, name);
 
@@ -1102,7 +1102,7 @@ void PR_Compile_f(void)
 
 	time = Sys_DoubleTime() - time;
 
-	Con_TPrintf(STL_COMPILEROVER, time);
+	Con_TPrintf("Compile took %f secs\n", time);
 }
 
 void PR_ApplyCompilation_f (void)
@@ -2289,14 +2289,14 @@ static void QCBUILTIN PF_setsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 	{
 		if (progstype != PROG_H2)
 		{
-			Con_TPrintf(STL_EDICTWASFREE, "setsize");
+			Con_TPrintf("%s edict was free\n", "setsize");
 			prinst->pr_trace = 1;
 		}
 		return;
 	}
 	if (e->readonly)
 	{
-		Con_Printf("setsize on entity %i\n", e->entnum);
+		Con_TPrintf("setsize on entity %i\n", e->entnum);
 		return;
 	}
 	min = G_VECTOR(OFS_PARM1);
@@ -2556,7 +2556,7 @@ static void QCBUILTIN PF_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
-		Con_TPrintf (STL_BADSPRINT);
+		Con_TPrintf ("tried to sprint to a non-client\n");
 		return;
 	}
 
@@ -2605,7 +2605,7 @@ void PF_centerprint_Internal (int entnum, qboolean plaque, char *s)
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
-		Con_TPrintf (STL_BADSPRINT);
+		Con_TPrintf ("tried to sprint to a non-client\n");
 		return;
 	}
 
@@ -2934,7 +2934,7 @@ void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuat
 
 	if (!*sv.strings.sound_precache[soundnum])
 	{
-		Con_TPrintf (STL_NOPRECACHE, samp);
+		Con_TPrintf ("no precache: %s\n", samp);
 		return;
 	}
 
@@ -6169,7 +6169,7 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (old != RD_NONE)
 		SV_EndRedirect();
 
-	SV_BeginRedirect(RD_OBLIVION, LANGDEFAULT);
+	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 	Cbuf_Execute();
 	Q_strncpyz(output, outputbuf, sizeof(output));
 	SV_EndRedirect();

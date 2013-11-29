@@ -615,6 +615,28 @@ static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
 		//not cached, can't get.
 		c = Font_TryLoadGlyph(f, charidx);
 
+		if (!c && charidx >= 0x400 && charidx <= 0x45f)
+		{	//apparently there's a lot of russian players out there.
+			//if we just replace all their chars with a '?', they're gonna get pissed.
+			//so lets at least attempt to provide some default mapping that makes sense even if they don't have a full font.
+			//koi8-u is a mapping useful with 7-bit email because the message is still vaugely readable in latin if the high bits get truncated.
+			//not being a language specialist, I'm just going to use that mapping, with the high bit truncated to ascii (which mostly exists in the quake charset).
+			//this exact table is from ezquake. because I'm too lazy to figure out the proper mapping. (beware of triglyphs)
+			static char *wc2koi_table =
+				"?3??4?67??" "??" "??" ">?"
+				"abwgdevzijklmnop"
+				"rstufhc~{}/yx|`q"
+				"ABWGDEVZIJKLMNOP"
+				"RSTUFHC^[]_YX\\@Q"
+				"?#??$?&'??" "??" "??.?";
+			charidx = wc2koi_table[charidx - 0x400];
+			if (charidx != '?')
+			{
+				c = &f->chars[charidx];
+				if (c->texplane == INVALIDPLANE)
+					c = Font_TryLoadGlyph(f, charidx);
+			}
+		}
 		if (!c)
 		{
 			charidx = 0xfffd;	//unicode's replacement char

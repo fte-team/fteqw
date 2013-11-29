@@ -582,7 +582,7 @@ void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int f
 	strcpy (cls.downloadremotename, filename);
 	strcpy (cls.downloadlocalname, localname);
 	if (!(flags & DLLF_TEMPORARY))
-		Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadlocalname);
+		Con_TPrintf ("Downloading %s...\n", cls.downloadlocalname);
 
 	// download to a temp name, and only rename
 	// to the real name when done, so if interrupted
@@ -737,7 +737,7 @@ qboolean CL_CheckFile(char *filename)
 {
 	if (strstr (filename, ".."))
 	{
-		Con_TPrintf (TL_NORELATIVEPATHS);
+		Con_TPrintf ("Refusing to download a path with ..\n");
 		return true;
 	}
 
@@ -803,7 +803,7 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned 
 	//ZOID - can't download when recording
 	if (cls.demorecording)
 	{
-		Con_TPrintf (TL_NODOWNLOADINDEMO, filename);
+		Con_TPrintf ("Unable to download %s in record mode.\n", filename);
 		return true;
 	}
 	//ZOID - can't download when playback
@@ -1936,7 +1936,7 @@ void CL_ParseDownload (void)
 		/*quakeforge http download redirection*/
 		if (cls.downloadqw)
 		{
-			Con_TPrintf (TL_CLS_DOWNLOAD_ISSET);
+			Con_Printf ("cls.download shouldn't have been set\n");
 			VFS_CLOSE (cls.downloadqw);
 			cls.downloadqw = NULL;
 		}
@@ -1964,10 +1964,10 @@ void CL_ParseDownload (void)
 
 	if (size < 0)
 	{
-		Con_TPrintf (TL_FILENOTFOUND);
+		Con_TPrintf ("File not found.\n");
 		if (cls.downloadqw)
 		{
-			Con_TPrintf (TL_CLS_DOWNLOAD_ISSET);
+			Con_Printf ("cls.download shouldn't have been set\n");
 			VFS_CLOSE (cls.downloadqw);
 			cls.downloadqw = NULL;
 		}
@@ -1994,7 +1994,7 @@ void CL_ParseDownload (void)
 		if (!cls.downloadqw)
 		{
 			msg_readcount += size;
-			Con_TPrintf (TL_FAILEDTOOPEN, cls.downloadtempname);
+			Con_TPrintf ("Failed to open %s\n", cls.downloadtempname);
 			CL_DownloadFailed(cls.downloadremotename, true);
 			CL_RequestNextDownload ();
 			return;
@@ -2257,7 +2257,7 @@ Con_DPrintf ("UPLOAD: %6d: %d written\n", upload_pos - r, r);
 	if (upload_pos != upload_size)
 		return;
 
-	Con_TPrintf (TL_UPLOADCOMPLEATE);
+	Con_TPrintf ("Upload completed\n");
 
 	CL_StopUpload();
 }
@@ -2443,7 +2443,7 @@ void CLQW_ParseServerData (void)
 
 	if (cls.fteprotocolextensions2||cls.fteprotocolextensions)
 		if (developer.ival || cl_shownet.ival)
-			Con_TPrintf (TL_FTEEXTENSIONS, cls.fteprotocolextensions2, cls.fteprotocolextensions);
+			Con_TPrintf ("Using FTE extensions 0x%x%08x\n", cls.fteprotocolextensions2, cls.fteprotocolextensions);
 
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
@@ -2609,8 +2609,8 @@ void CLQW_ParseServerData (void)
 	Con_Printf ("\n\n");
 	Con_Printf ("\1%s\n", str);
 #else
-	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
-	Con_TPrintf (TLC_PC_PS_NL, 2, str);
+	Con_TPrintf ("\n\n^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n\n");
+	Con_Printf ("%c%s\n", 2, str);
 #endif
 
 	if (CL_RemoveClientCommands("new"))	//mvdsv is really appaling some times.
@@ -2745,8 +2745,8 @@ void CLQ2_ParseServerData (void)
 	else
 	{
 		// seperate the printfs so the server message can have a color
-		Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
-		Con_TPrintf (TLC_PC_PS_NL, 2, str);
+		Con_TPrintf ("\n\n^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n\n");
+		Con_Printf ("%c%s\n", 2, str);
 
 		Media_StopFilm(true);
 
@@ -2890,7 +2890,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	char	*str;
 	int gametype;
 	if (developer.ival)
-		Con_TPrintf (TLC_GOTSVDATAPACKET);
+		Con_TPrintf ("Serverdata packet received.\n");
 	SCR_SetLoadingStage(LS_CLIENT);
 	CL_ClearState ();
 	Stats_NewMap();
@@ -2917,8 +2917,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	Con_Printf ("\n\n");
 	Con_Printf ("\1%s\n", str);
 #else
-	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
-	Con_TPrintf (TLC_PC_PS_NL, 2, str);
+	Con_TPrintf ("\n\n^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n\n");
+	Con_Printf ("%c%s\n", 2, str);
 #endif
 
 	SCR_BeginLoadingPlaque();
@@ -2934,7 +2934,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			break;
 		if (nummodels==MAX_MODELS)
 		{
-			Con_TPrintf (TLC_TOOMANYMODELPRECACHES);
+			Con_TPrintf ("Server sent too many model precaches\n");
 			return;
 		}
 		strcpy (cl.model_name[nummodels], str);
@@ -2951,7 +2951,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			break;
 		if (numsounds==MAX_SOUNDS)
 		{
-			Con_TPrintf (TLC_TOOMANYSOUNDPRECACHES);
+			Con_TPrintf ("Server sent too many sound precaches\n");
 			return;
 		}
 		strcpy (cl.sound_name[numsounds], str);
@@ -3724,7 +3724,7 @@ void CL_ParseStatic (int version)
 
 	if (!cl.worldmodel || cl.worldmodel->needload)
 	{
-		Con_TPrintf (TLC_PARSESTATICWITHNOMAP);
+		Con_TPrintf ("Warning: Parsestatic and no map loaded yet\n");
 		return;
 	}
 	if (ent->model)
@@ -5384,9 +5384,9 @@ void CLQW_ParseServerMessage (void)
 
 	//
 	if (cl_shownet.value == 1)
-		Con_TPrintf (TL_INT_SPACE,net_message.cursize);
+		Con_Printf ("%i ",net_message.cursize);
 	else if (cl_shownet.value >= 2)
-		Con_TPrintf (TLC_LINEBREAK_MINUS);
+		Con_Printf ("------------------\n");
 
 
 	CL_ParseClientdata ();
@@ -5907,9 +5907,9 @@ void CLQ2_ParseServerMessage (void)
 // if recording demos, copy the message out
 //
 	if (cl_shownet.value == 1)
-		Con_TPrintf (TL_INT_SPACE,net_message.cursize);
+		Con_Printf ("%i ",net_message.cursize);
 	else if (cl_shownet.value == 2)
-		Con_TPrintf (TLC_LINEBREAK_MINUS);
+		Con_Printf ("------------------\n");
 
 
 	CL_ParseClientdata ();
@@ -5976,7 +5976,7 @@ void CLQ2_ParseServerMessage (void)
 				Host_EndGame ("Server disconnected");
 			return;
 		case svcq2_reconnect:	//8
-			Con_TPrintf (TLC_RECONNECTING);
+			Con_TPrintf ("reconnecting...\n");
 			CL_SendClientCommand(true, "new");
 			break;
 		case svcq2_sound:		//9			// <see code>
@@ -6207,9 +6207,9 @@ void CLNQ_ParseServerMessage (void)
 // if recording demos, copy the message out
 //
 	if (cl_shownet.value == 1)
-		Con_TPrintf (TL_INT_SPACE,net_message.cursize);
+		Con_Printf ("%i ",net_message.cursize);
 	else if (cl_shownet.value == 2)
-		Con_TPrintf (TLC_LINEBREAK_MINUS);
+		Con_Printf ("------------------\n");
 
 
 	CL_ParseClientdata ();

@@ -35,7 +35,6 @@ void PF_Common_RegisterCvars(void)
 	WPhys_Init();
 }
 
-char *Translate(char *message);
 char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals)
 {
 #define VARSTRINGLEN 16384+8
@@ -55,7 +54,6 @@ char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_g
 		s = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
 		if (s)
 		{
-			s = Translate(s);
 			if (strlen(out)+strlen(s)+1 >= VARSTRINGLEN)
 				Con_DPrintf("VarString (builtin call ending with strings) exceeded maximum string length of %i chars", VARSTRINGLEN);
 

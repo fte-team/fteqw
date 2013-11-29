@@ -345,7 +345,7 @@ void Cvar_List_f (void)
 
 			// print cvar list header
 			if (!(listflags & CLF_RAW) && !num)
-				Con_TPrintf(TL_CVARLISTHEADER);
+				Con_TPrintf("CVar list:\n");
 
 			// print group header
 			if (!(listflags & CLF_RAW) && !gnum)

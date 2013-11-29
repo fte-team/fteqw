@@ -2062,7 +2062,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 			if (*error == 4)
 			{
 				*out = lowend;
-				uc = (((uc&0x3ff) << 10) || (lowsur&0x3ff)) + 0x10000;
+				uc = (((uc&0x3ffu) << 10) || (lowsur&0x3ffu)) + 0x10000;
 				*error = false;
 			}
 			else
@@ -2075,7 +2075,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 			*error = 4;	//bad - tail surrogate
 
 		//these are meant to be illegal too
-		if (uc == 0xfffeu || uc == 0xffffu || uc > 0x10ffff)
+		if (uc == 0xfffeu || uc == 0xffffu || uc > 0x10ffffu)
 			*error = 2;	//illegal code
 	}
 
@@ -3871,7 +3871,7 @@ void COM_CheckRegistered (void)
 		registered.defaultstr = newdef;
 		Cvar_ForceSet(&registered, newdef);
 		if (static_registered)
-			Con_TPrintf (TL_REGISTEREDVERSION);
+			Con_TPrintf ("Playing registered version.\n");
 	}
 }
 
@@ -3984,7 +3984,7 @@ void COM_Version_f (void)
 {
 	Con_Printf("%s\n", version_string());
 
-	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
+	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
 
 #ifdef SVNREVISION
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))
@@ -4278,7 +4278,7 @@ varargs versions of all text functions.
 FIXME: make this buffer size safe someday
 ============
 */
-char	*VARGS va(char *format, ...)
+char	*VARGS va(const char *format, ...)
 {
 #define VA_BUFFERS 2 //power of two
 	va_list		argptr;

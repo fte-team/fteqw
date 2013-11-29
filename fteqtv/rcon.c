@@ -195,7 +195,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 		// don't change it!
 		if (strlen(value) - strlen(v) + strlen(s) + 1 > maxsize)
 		{
-	//		Con_TPrintf (TL_INFOSTRINGTOOLONG);
+	//		Con_Printf ("Info string length exceeded\n");
 			return;
 		}
 	}

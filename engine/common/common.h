@@ -321,7 +321,7 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen);
 char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
 
-char	*VARGS va(char *format, ...) LIKEPRINTF(1);
+char	*VARGS va(const char *format, ...) LIKEPRINTF(1);
 // does a varargs printf into a temp buffer
 
 //============================================================================

@@ -65,6 +65,8 @@ cvar_t		cl_chatmode = SCVAR("cl_chatmode", "2");
 cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
 cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
 cvar_t		con_separatechat = CVAR("con_separatechat", "0");
+cvar_t		con_timestamps = CVAR("con_timestamps", "0");
+cvar_t		con_timeformat = CVAR("con_timeformat", "(%H:%M:%S) ");
 
 #define	NUM_CON_TIMES 24
 
@@ -570,7 +572,7 @@ void Con_Init (void)
 	Q_strncpyz(con_main.title, "MAIN", sizeof(con_main.title));
 
 	con_initialized = true;
-	Con_Printf ("Console initialized.\n");
+	Con_TPrintf ("Console initialized.\n");
 
 //
 // register our commands
@@ -584,6 +586,8 @@ void Con_Init (void)
 	Cvar_Register (&con_numnotifylines_chat, "Console controls");
 	Cvar_Register (&con_notifytime_chat, "Console controls");
 	Cvar_Register (&con_separatechat, "Console controls");
+	Cvar_Register (&con_timestamps, "Console controls");
+	Cvar_Register (&con_timeformat, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("messagemode", Con_MessageMode_f);
@@ -632,6 +636,35 @@ If no console is visible, the notify window will pop up.
 ================
 */
 
+void Con_PrintConChars (console_t *con, conchar_t *c, int len)
+{
+	conline_t *oc;
+	conchar_t *o;
+	if (con->selstartline == con->current)
+		con->selstartline = NULL;
+	if (con->selendline == con->current)
+		con->selendline = NULL;
+
+	oc = con->current;
+	if (oc->length+len > oc->maxlength)
+	{
+		oc->maxlength = (oc->length+len)+8;
+		if (oc->maxlength < oc->length)
+			oc->length = 0;	//don't crash from console line overflows.
+		con->current = BZ_Realloc(con->current, sizeof(*con->current)+(oc->maxlength)*sizeof(conchar_t));
+	}
+	if (con->display == oc)
+		con->display = con->current;
+	if (con->oldest == oc)
+		con->oldest = con->current;
+
+	if (con->current->older)
+		con->current->older->newer = con->current;
+	o = (conchar_t *)(con->current+1)+con->current->length;
+	memcpy(o, c, sizeof(*o) * len);
+	con->current->length+=len;
+}
+
 void Con_PrintCon (console_t *con, char *txt)
 {
 	conchar_t expanded[4096];
@@ -648,7 +681,7 @@ void Con_PrintCon (console_t *con, char *txt)
 	{
 		conchar_t *o;
 
-		switch (*c & (CON_CHARMASK|CON_HIDDEN))
+		switch (*c & (CON_CHARMASK|CON_HIDDEN))	//include hidden so we don't do \r or \n on hidden chars, allowing them to be embedded in links and stuff.
 		{
 		case '\r':
 			con->cr = true;
@@ -702,8 +735,6 @@ void Con_PrintCon (console_t *con, char *txt)
 			con->current->newer = reuse;
 			con->current = reuse;
 			con->current->length = 0;
-			o = (conchar_t *)(con->current+1)+con->current->length;
-			*o = 0;
 			if (con->display == con->current->older)
 				con->display = con->current;
 			break;
@@ -714,15 +745,26 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->cr = false;
 			}
 
+			if (!con->current->length && con_timestamps.ival)
+			{
+				char timeasc[64];
+				conchar_t timecon[64], *timeconend;
+				time_t rawtime;
+				time (&rawtime);
+				strftime(timeasc, sizeof(timeasc), con_timeformat.string, localtime (&rawtime));
+				timeconend = COM_ParseFunString(con->defaultcharbits, timeasc, timecon, sizeof(timecon), false);
+				Con_PrintConChars(con, timecon, timeconend-timecon);
+			}
+
 			if (con->selstartline == con->current)
 				con->selstartline = NULL;
 			if (con->selendline == con->current)
 				con->selendline = NULL;
 
 			oc = con->current;
-			if (oc->length+2 > oc->maxlength)
+			if (oc->length+1 > oc->maxlength)
 			{
-				oc->maxlength = (oc->length+2)+8;
+				oc->maxlength = (oc->length+1)+8;
 				if (oc->maxlength < oc->length)
 					oc->length = 0;	//don't crash from console line overflows.
 				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(oc->maxlength)*sizeof(conchar_t));
@@ -736,7 +778,6 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->current->older->newer = con->current;
 			o = (conchar_t *)(con->current+1)+con->current->length;
 			*o = *c;
-			o[1] = 0;
 			con->current->length+=1;
 			break;
 		}
@@ -832,7 +873,7 @@ void VARGS Con_TPrintf (translation_t text, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	char *fmt = languagetext[text][cls.language];
+	const char *fmt = langtext(text, cls.language);
 
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
@@ -846,7 +887,7 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	char *fmt = languagetext[text][cls.language];
+	const char *fmt = langtext(text, cls.language);
 
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);

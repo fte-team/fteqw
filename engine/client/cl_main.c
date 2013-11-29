@@ -480,7 +480,7 @@ void CL_SendConnectPacket (int mtu,
 
 	if (!NET_StringToAdr (cls.servername, PORT_QWSERVER, &adr))
 	{
-		Con_TPrintf (TLC_BADSERVERADDRESS);
+		Con_TPrintf ("Bad server address\n");
 		connect_time = -1;
 		return;
 	}
@@ -490,7 +490,7 @@ void CL_SendConnectPacket (int mtu,
 
 	if (!NET_IsClientLegal(&adr))
 	{
-		Con_TPrintf (TLC_ILLEGALSERVERADDRESS);
+		Con_TPrintf ("Illegal server address\n");
 		connect_time = -1;
 		return;
 	}
@@ -724,7 +724,7 @@ void CL_CheckForResend (void)
 		{
 			if (!NET_StringToAdr (cls.servername, connect_defaultport, &adr))
 			{
-				Con_TPrintf (TLC_BADSERVERADDRESS);
+				Con_TPrintf ("Bad server address\n");
 				connect_time = -1;
 				SCR_EndLoadingPlaque();
 				return;
@@ -794,14 +794,14 @@ void CL_CheckForResend (void)
 	t1 = Sys_DoubleTime ();
 	if (!NET_StringToAdr (cls.servername, connect_defaultport, &adr))
 	{
-		Con_TPrintf (TLC_BADSERVERADDRESS);
+		Con_TPrintf ("Bad server address\n");
 		connect_time = -1;
 		SCR_EndLoadingPlaque();
 		return;
 	}
 	if (!NET_IsClientLegal(&adr))
 	{
-		Con_TPrintf (TLC_ILLEGALSERVERADDRESS);
+		Con_TPrintf ("Illegal server address\n");
 		SCR_EndLoadingPlaque();
 		connect_time = -1;
 		return;
@@ -822,7 +822,7 @@ void CL_CheckForResend (void)
 	CLQ3_SendAuthPacket(&adr);
 #endif
 
-	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
+	Con_TPrintf ("Connecting to %s...\n", cls.servername);
 
 	if (connect_tries == 0)
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, false))
@@ -895,7 +895,7 @@ void CL_BeginServerReconnect(void)
 #ifndef CLIENTONLY
 	if (isDedicated)
 	{
-		Con_TPrintf (TLC_DEDICATEDCANNOTCONNECT);
+		Con_TPrintf ("Connect ignored - dedicated. set a renderer first\n");
 		return;
 	}
 #endif
@@ -914,7 +914,7 @@ void CL_Connect_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (TLC_SYNTAX_CONNECT);
+		Con_TPrintf ("usage: connect <server>\n");
 		return;
 	}
 
@@ -989,7 +989,7 @@ void CLNQ_Connect_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (TLC_SYNTAX_CONNECT);
+		Con_TPrintf ("usage: connect <server>\n");
 		return;
 	}
 
@@ -1047,8 +1047,8 @@ void CL_Rcon_f (void)
 	{
 		if (Cmd_Argc() < 3)
 		{
-			Con_TPrintf (TLC_NORCONPASSWORD);
-			Con_Printf("usage: rcon (password) <command>\n");
+			Con_TPrintf ("'rcon_password' is not set.\n");
+			Con_TPrintf("usage: rcon (password) <command>\n");
 			return;
 		}
 		password = Cmd_Argv(1);
@@ -1085,7 +1085,7 @@ void CL_Rcon_f (void)
 	{
 		if (!strlen(rcon_address.string))
 		{
-			Con_TPrintf (TLC_NORCONDEST);
+			Con_TPrintf ("You must either be connected,\nor set the 'rcon_address' cvar\nto issue rcon commands\n");
 
 			return;
 		}
@@ -1392,7 +1392,7 @@ void CL_User_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (TLC_SYNTAX_USER);
+		Con_TPrintf ("Usage: user <username / userid>\n");
 		return;
 	}
 
@@ -1413,7 +1413,7 @@ void CL_User_f (void)
 		}
 	}
 	if (!found)
-		Con_TPrintf (TLC_USER_NOUSER);
+		Con_TPrintf ("User not in server.\n");
 }
 
 /*
@@ -1429,18 +1429,18 @@ void CL_Users_f (void)
 	int		c;
 
 	c = 0;
-	Con_TPrintf (TLC_USERBANNER);
-	Con_TPrintf (TLC_USERBANNER2);
+	Con_TPrintf ("userid frags name\n");
+	Con_TPrintf ("------ ----- ----\n");
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
 		if (cl.players[i].name[0])
 		{
-			Con_TPrintf (TLC_USERLINE, cl.players[i].userid, cl.players[i].frags, cl.players[i].name);
+			Con_TPrintf ("%6i %4i %s\n", cl.players[i].userid, cl.players[i].frags, cl.players[i].name);
 			c++;
 		}
 	}
 
-	Con_TPrintf (TLC_USERTOTAL, c);
+	Con_TPrintf ("%i total users\n", c);
 }
 
 int CL_ParseColour(char *colt)
@@ -1469,10 +1469,10 @@ void CL_Color_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf (TLC_COLOURCURRENT,
+		Con_TPrintf ("\"color\" is \"%s %s\"\n",
 			Info_ValueForKey (cls.userinfo[pnum], "topcolor"),
 			Info_ValueForKey (cls.userinfo[pnum], "bottomcolor") );
-		Con_TPrintf (TLC_SYNTAX_COLOUR);
+		Con_TPrintf ("usage: color <0xRRGGBB> [0xRRGGBB]\n");
 		return;
 	}
 
@@ -1752,7 +1752,7 @@ void CL_FullServerinfo_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (TLC_SYNTAX_FULLSERVERINFO);
+		Con_TPrintf ("usage: fullserverinfo <complete info string>\n");
 		return;
 	}
 
@@ -1762,7 +1762,7 @@ void CL_FullServerinfo_f (void)
 		v = Q_atof(p);
 		if (v) {
 			if (!server_version)
-				Con_TPrintf (TLC_SERVER_VERSION, v);
+				Con_TPrintf ("Version %1.2f Server\n", v);
 			server_version = v;
 		}
 	}
@@ -1788,7 +1788,7 @@ void CL_FullInfo_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (TLC_SYNTAX_FULLINFO);
+		Con_TPrintf ("fullinfo <complete info string>\n");
 		return;
 	}
 
@@ -1871,7 +1871,7 @@ void CL_SetInfo_f (void)
 	}
 	if (Cmd_Argc() != 3)
 	{
-		Con_TPrintf (TLC_SYNTAX_SETINFO);
+		Con_TPrintf ("usage: setinfo [ <key> <value> ]\n");
 		return;
 	}
 	if (!stricmp(Cmd_Argv(1), pmodel_name) || !strcmp(Cmd_Argv(1), emodel_name))
@@ -1939,7 +1939,7 @@ void CL_Packet_f (void)
 
 	if (Cmd_Argc() != 3)
 	{
-		Con_TPrintf (TLC_PACKET_SYNTAX);
+		Con_TPrintf ("usage: packet <destination> <contents>\n");
 		return;
 	}
 
@@ -2159,7 +2159,7 @@ void CL_Changing_f (void)
 	if (cls.state)
 	{
 		cls.state = ca_connected;	// not active anymore, but not disconnected
-		Con_TPrintf (TLC_CHANGINGMAP);
+		Con_TPrintf ("\nChanging map...\n");
 	}
 	else
 		Con_Printf("Changing while not connected\n");
@@ -2192,14 +2192,14 @@ void CL_Reconnect_f (void)
 
 	if (cls.state == ca_connected)
 	{
-		Con_TPrintf (TLC_RECONNECTING);
+		Con_TPrintf ("reconnecting...\n");
 		CL_SendClientCommand(true, "new");
 		return;
 	}
 
 	if (!*cls.servername)
 	{
-		Con_TPrintf (TLC_RECONNECT_NOSERVER);
+		Con_TPrintf ("No server to reconnect to...\n");
 		return;
 	}
 
@@ -2292,7 +2292,7 @@ void CL_ConnectionlessPacket (void)
 	}
 
 	if (cls.demoplayback == DPB_NONE && net_from.type != NA_LOOPBACK)
-		Con_TPrintf (TL_ST_COLON, NET_AdrToString (adr, sizeof(adr), &net_from));
+		Con_Printf ("%s: ", NET_AdrToString (adr, sizeof(adr), &net_from));
 //	Con_DPrintf ("%s", net_message.data + 4);
 
 	if (c == S2C_CHALLENGE)
@@ -2300,7 +2300,7 @@ void CL_ConnectionlessPacket (void)
 		static unsigned int lasttime = 0xdeadbeef;
 		unsigned int curtime = Sys_Milliseconds();
 		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
-		Con_TPrintf (TLC_S2C_CHALLENGE);
+		Con_TPrintf ("challenge\n");
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
@@ -2453,7 +2453,7 @@ void CL_ConnectionlessPacket (void)
 
 		if (!strcmp(s, "print"))
 		{
-			Con_TPrintf (TLC_A2C_PRINT);
+			Con_TPrintf ("print\n");
 
 			s = MSG_ReadString ();
 			Con_Printf ("%s", s);
@@ -2480,7 +2480,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		else
 		{
-			Con_TPrintf (TLC_Q2CONLESSPACKET_UNKNOWN, s);
+			Con_TPrintf ("unknown connectionless packet for q2:  %s\n", s);
 			msg_readcount = c;
 			c = MSG_ReadByte();
 		}
@@ -2535,11 +2535,11 @@ void CL_ConnectionlessPacket (void)
 client_connect:	//fixme: make function
 #endif
 		if (net_from.type != NA_LOOPBACK)
-			Con_TPrintf (TLC_GOTCONNECTION);
+			Con_TPrintf ("connection\n");
 		if (cls.state >= ca_connected)
 		{
 			if (cls.demoplayback == DPB_NONE)
-				Con_TPrintf (TLC_DUPCONNECTION);
+				Con_TPrintf ("Dup connect received.  Ignored.\n");
 			return;
 		}
 		compress = cls.netchan.compress;
@@ -2554,7 +2554,7 @@ client_connect:	//fixme: make function
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
 		if (cls.netchan.remote_address.type != NA_LOOPBACK)
-			Con_TPrintf (TLC_CONNECTED);
+			Con_TPrintf ("Connected.\n");
 		allowremotecmd = false; // localid required now for remote cmds
 
 		total_loading_size = 100;
@@ -2570,11 +2570,10 @@ client_connect:	//fixme: make function
 	{
 		char	cmdtext[2048];
 
-		Con_TPrintf (TLC_CONLESS_CONCMD);
 		if (net_from.type != net_local_cl_ipadr.type || net_from.type != NA_IP
 			|| ((*(unsigned *)net_from.address.ip != *(unsigned *)net_local_cl_ipadr.address.ip) && (*(unsigned *)net_from.address.ip != htonl(INADDR_LOOPBACK))))
 		{
-			Con_TPrintf (TLC_CMDFROMREMOTE);
+			Con_TPrintf ("Command packet from remote host.  Ignored.\n");
 			return;
 		}
 #ifdef _WIN32
@@ -2582,6 +2581,8 @@ client_connect:	//fixme: make function
 		SetForegroundWindow (mainwindow);
 #endif
 		s = MSG_ReadString ();
+
+		Con_TPrintf ("client command: %s\n", s);
 
 		Q_strncpyz(cmdtext, s, sizeof(cmdtext));
 
@@ -2592,12 +2593,14 @@ client_connect:	//fixme: make function
 		while (*s && isspace(s[strlen(s) - 1]))
 			s[strlen(s) - 1] = 0;
 
-		if (!allowremotecmd && (!*localid.string || strcmp(localid.string, s))) {
-			if (!*localid.string) {
-				Con_TPrintf (TLC_LOCALID_NOTSET);
+		if (!allowremotecmd && (!*localid.string || strcmp(localid.string, s)))
+		{
+			if (!*localid.string)
+			{
+				Con_TPrintf ("^&C0Command packet received from local host, but no localid has been set.  You may need to upgrade your server browser.\n");
 				return;
 			}
-			Con_TPrintf (TLC_LOCALID_BAD,
+			Con_TPrintf ("^&C0Invalid localid on command packet received from local host. \n|%s| != |%s|\nYou may need to reload your server browser and QuakeWorld.\n",
 				s, localid.string);
 			Cvar_Set(&localid, "");
 			return;
@@ -2612,14 +2615,14 @@ client_connect:	//fixme: make function
 	{
 		if (!strncmp(net_message.data+4, "print\n", 6))
 		{
-			Con_TPrintf (TLC_A2C_PRINT);
+			Con_TPrintf ("print\n");
 			Con_Printf ("%s", net_message.data+10);
 			return;
 		}
 	}
 	if (c == A2C_PRINT)
 	{
-		Con_TPrintf (TLC_A2C_PRINT);
+		Con_TPrintf ("print\n");
 
 		s = MSG_ReadString ();
 		Con_Printf ("%s", s);
@@ -2639,7 +2642,7 @@ client_connect:	//fixme: make function
 		return;
 	}
 
-	Con_TPrintf (TLC_CONLESSPACKET_UNKNOWN, c);
+	Con_TPrintf ("unknown connectionless packet:  %c\n", c);
 }
 
 #ifdef NQPROT
@@ -2663,7 +2666,7 @@ void CLNQ_ConnectionlessPacket(void)
 		if (cls.state >= ca_connected)
 		{
 			if (cls.demoplayback == DPB_NONE)
-				Con_TPrintf (TLC_DUPCONNECTION);
+				Con_TPrintf ("Dup connect received.  Ignored.\n");
 			return;
 		}
 		port = htons((unsigned short)MSG_ReadLong());
@@ -2696,7 +2699,7 @@ void CLNQ_ConnectionlessPacket(void)
 		cls.netchan.compress = 0;
 		cls.protocol = CP_NETQUAKE;
 		cls.state = ca_connected;
-		Con_TPrintf (TLC_CONNECTED);
+		Con_TPrintf ("Connected.\n");
 
 		total_loading_size = 100;
 		current_loading_size = 0;
@@ -2769,7 +2772,7 @@ void CL_ReadPackets (void)
 
 		if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
 		{
-			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(adr, sizeof(adr), &net_from));
+			Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
 			continue;
 		}
 
@@ -2867,7 +2870,7 @@ void CL_ReadPackets (void)
 		if (!sv.state)
 #endif
 		{
-			Con_TPrintf (TLC_SERVERTIMEOUT);
+			Con_TPrintf ("\nServer connection timed out.\n");
 			CL_Disconnect ();
 			return;
 		}
@@ -2937,19 +2940,19 @@ void CL_Download_f (void)
 
 	if ((cls.state == ca_disconnected || cls.demoplayback) && cls.demoplayback != DPB_EZTV)
 	{
-		Con_TPrintf (TLC_CONNECTFIRST);
+		Con_TPrintf ("Must be connected.\n");
 		return;
 	}
 
 	if (cls.netchan.remote_address.type == NA_LOOPBACK)
 	{
-		Con_TPrintf (TLC_CONNECTFIRST);
+		Con_TPrintf ("Must be connected.\n");
 		return;
 	}
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (TLC_SYNTAX_DOWNLOAD);
+		Con_TPrintf ("Usage: download <datafile>\n");
 		return;
 	}
 
@@ -3457,7 +3460,7 @@ void VARGS Host_EndGame (char *message, ...)
 	va_start (argptr,message);
 	vsnprintf (string,sizeof(string)-1, message,argptr);
 	va_end (argptr);
-	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME, string);
+	Con_TPrintf ("^&C0Host_EndGame: %s\n", string);
 	Con_Printf ("\n");
 
 	SCR_EndLoadingPlaque();
@@ -3491,7 +3494,7 @@ void VARGS Host_Error (char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
-	Con_TPrintf (TLC_HOSTFATALERROR, string);
+	Con_TPrintf ("Host_Error: %s\n", string);
 
 	CL_Disconnect ();
 	cls.demonum = -1;
@@ -3520,7 +3523,7 @@ void Host_WriteConfiguration (void)
 	{
 		if (strchr(cfg_save_name.string, '.'))
 		{
-			Con_TPrintf (TLC_CONFIGCFG_WRITEFAILED);
+			Con_TPrintf ("Couldn't write config.cfg.\n");
 			return;
 		}
 
@@ -3529,7 +3532,7 @@ void Host_WriteConfiguration (void)
 		f = FS_OpenVFS(savename, "wb", FS_GAMEONLY);
 		if (!f)
 		{
-			Con_TPrintf (TLC_CONFIGCFG_WRITEFAILED);
+			Con_TPrintf ("Couldn't write config.cfg.\n");
 			return;
 		}
 
@@ -4317,7 +4320,7 @@ void CL_StartCinematicOrMenu(void)
 	UI_Start();
 #endif
 
-	Con_TPrintf (TLC_QUAKEWORLD_INITED, *fs_gamename.string?fs_gamename.string:"Nothing");
+	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s Initialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing");
 
 	//there might be some console command or somesuch waiting for the renderer to begin (demos or map command or whatever all need model support).
 	realtime+=1;
@@ -4509,6 +4512,7 @@ void Host_Init (quakeparms_t *parms)
 	host_parms = *parms;
 
 	Cvar_Init();
+	TranslateInit();
 	Memory_Init ();
 
 	/*memory is working, its safe to printf*/
@@ -4548,7 +4552,6 @@ void Host_Init (quakeparms_t *parms)
 	PF_Common_RegisterCvars();
 #endif
 
-	TranslateInit();
 #ifndef CLIENTONLY
 	SV_Init(parms);
 #endif
@@ -4572,7 +4575,7 @@ void Host_Init (quakeparms_t *parms)
 #endif
 
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
-	//Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
+	//Con_Printf ("%4.1f megs RAM available.\n", parms->memsize/ (1024*1024.0));
 
 	R_SetRenderer(NULL);//set the renderer stuff to unset...
 

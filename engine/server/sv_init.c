@@ -428,7 +428,7 @@ void SV_CalcPHS (void)
 		}
 	}
 	if (developer.value)
-		Con_TPrintf (STL_BUILDINGPHS);
+		Con_TPrintf ("Building PHS...\n");
 
 	sv.phs = ZG_Malloc (&sv.world.worldmodel->memgroup, rowbytes*num);
 
@@ -500,7 +500,7 @@ void SV_CalcPHS (void)
 
 	if (num)
 		if (developer.value)
-			Con_TPrintf (STL_PHSINFO, vcount/num, count/num, num);
+			Con_TPrintf ("Average leafs visible / hearable / total: %i / %i / %i\n", vcount/num, count/num, num);
 }
 
 unsigned SV_CheckModel(char *mdl)
@@ -525,7 +525,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 	int i;
 	if (sv.state)
 	{
-		Con_TPrintf(STL_SERVERUNSPAWNED);
+		Con_TPrintf("Server ended\n");
 		SV_FinalMessage("Server unspawned\n");
 
 		if (sv.mvdrecording)
@@ -1456,7 +1456,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	Info_SetValueForKey (svs.info, "map", sv.name, MAX_SERVERINFO_STRING);
 	if (sv.allocated_client_slots != 1)
-		Con_TPrintf (STL_SERVERSPAWNED);	//misc filenotfounds can be misleading.
+		Con_TPrintf ("Server spawned.\n");	//misc filenotfounds can be misleading.
 
 	if (!startspot)
 	{

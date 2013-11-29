@@ -214,7 +214,7 @@ void Cbuf_AddText (const char *text, int level)
 
 		if (newmax > cmd_maxbuffersize.ival && cmd_maxbuffersize.ival)
 		{
-			Con_TPrintf (TL_FUNCOVERFLOW, "Cbuf_AddText");
+			Con_TPrintf ("%s: overflow\n", "Cbuf_AddText");
 			return;
 		}
 		while (newmax < cmd_text[level].buf.cursize + l)
@@ -509,7 +509,7 @@ void Cmd_Exec_f (void)
 
 	if (Cmd_Argc () != 2)
 	{
-		Con_TPrintf (TL_EXECCOMMANDUSAGE);
+		Con_TPrintf ("exec <filename> : execute a script file\n");
 		return;
 	}
 
@@ -531,11 +531,11 @@ void Cmd_Exec_f (void)
 		;
 	else
 	{
-		Con_TPrintf (TL_EXECFAILED,name);
+		Con_TPrintf ("couldn't exec %s\n",name);
 		return;
 	}
 	if (cl_warncmd.ival || developer.ival)
-		Con_TPrintf (TL_EXECING,name);
+		Con_TPrintf ("execing %s\n",name);
 
 	s = f;
 	if (s[0] == '\xef' && s[1] == '\xbb' && s[2] == '\xbf')
@@ -656,7 +656,7 @@ void Cmd_Alias_f (void)
 		{
 			if (Cmd_ExecLevel==RESTRICT_SERVER)
 			{
-				Con_TPrintf (TL_CURRENTALIASCOMMANDS);
+				Con_TPrintf ("Current alias commands:\n");
 				for (a = cmd_alias ; a ; a=a->next)
 				{
 					if (a->flags & ALIAS_FROMSERVER)
@@ -666,7 +666,7 @@ void Cmd_Alias_f (void)
 		}
 		else
 		{
-			Con_TPrintf (TL_CURRENTALIASCOMMANDS);
+			Con_TPrintf ("Current alias commands:\n");
 			for (a = cmd_alias ; a ; a=a->next)
 			{
 	/*			extern int con_linewidth;
@@ -682,7 +682,7 @@ void Cmd_Alias_f (void)
 	s = Cmd_Argv(1);
 	if (strlen(s) >= MAX_ALIAS_NAME || !strcmp(s, "say"))	//reject aliasing the say command. We use it as an easy way to warn that our player is cheating.
 	{
-		Con_TPrintf (TL_ALIASNAMETOOLONG);
+		Con_TPrintf ("Alias name is too long\n");
 		return;
 	}
 
@@ -727,7 +727,7 @@ void Cmd_Alias_f (void)
 		{
 			if ((a->restriction?a->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			{
-				Con_TPrintf (TL_ALIASRESTRICTIONLEVELERROR);
+				Con_TPrintf ("Alias is already bound with a higher restriction\n");
 				return;
 			}
 
@@ -869,7 +869,7 @@ void Cmd_AliasLevel_f (void)
 	int level;
 	if (Cmd_Argc() < 2 || Cmd_Argc() > 3)
 	{
-		Con_TPrintf(TL_ALIASLEVELCOMMANDUSAGE);
+		Con_TPrintf("aliaslevel <var> [execlevel]\n");
 		return;
 	}
 
@@ -882,7 +882,7 @@ void Cmd_AliasLevel_f (void)
 	}
 	if (!a)
 	{
-		Con_TPrintf(TL_ALIASNOTFOUND);
+		Con_TPrintf("Alias not found\n");
 		return;
 	}
 
@@ -898,17 +898,17 @@ void Cmd_AliasLevel_f (void)
 
 		if (level > Cmd_ExecLevel || (a->restriction?a->restriction:rcon_level.ival) > Cmd_ExecLevel)
 		{
-			Con_TPrintf(TL_ALIASRAISELEVELERROR);
+			Con_TPrintf("You arn't allowed to raise a command above your own level\n");
 			return;
 		}
 
 		a->execlevel = level;
 
 		if (a->restriction == 1)
-			Con_TPrintf(TL_ALIASRESTRICTIONLEVELWARN, a->name);
+			Con_TPrintf("WARNING: %s is available to all clients, any client will be able to use it at the new level.\n", a->name);
 	}
 	else
-		Con_TPrintf(TL_ALIASRESTRICTLEVEL, s, a->execlevel);
+		Con_TPrintf("alias %s is set to run at the user level of %i\n", s, a->execlevel);
 }
 
 //lists commands, also prints restriction level
@@ -930,7 +930,7 @@ void Cmd_AliasList_f (void)
 		if (flags && !(cmd->flags & flags))
 			continue;
 		if (!num)
-			Con_TPrintf(TL_ALIASLIST);
+			Con_TPrintf("Alias list:\n");
 		if (cmd->execlevel)
 			Con_Printf("(%2i)(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->execlevel, cmd->name);
 		else
@@ -1569,7 +1569,7 @@ void Cmd_RestrictCommand_f (void)
 			level = RESTRICT_MAX;
 			if (level > Cmd_ExecLevel)
 			{
-				Con_TPrintf(TL_RESTRICTCOMMANDRAISE);
+				Con_TPrintf("You arn't allowed to raise a command above your own level\n");
 				return;
 			}
 		}
@@ -1585,12 +1585,12 @@ void Cmd_RestrictCommand_f (void)
 			if (Cmd_Argc() == 2)
 			{
 				if (cmd->restriction)
-					Con_TPrintf (TL_RESTRICTCURRENTLEVEL, cmd_name, (int)cmd->restriction);
+					Con_TPrintf ("%s is restricted to %i\n", cmd_name, (int)cmd->restriction);
 				else
-					Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, rcon_level.ival);
+					Con_TPrintf ("%s is restricted to rcon_level (%i)\n", cmd_name, rcon_level.ival);
 			}
 			else if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
-				Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
+				Con_TPrintf("You arn't allowed to alter a level above your own\n");
 			else
 				cmd->restriction = level;
 			return;
@@ -1604,12 +1604,12 @@ void Cmd_RestrictCommand_f (void)
 		if (Cmd_Argc() == 2)
 		{
 			if (v->restriction)
-				Con_TPrintf (TL_RESTRICTCURRENTLEVEL, cmd_name, (int)v->restriction);
+				Con_TPrintf ("%s is restricted to %i\n", cmd_name, (int)v->restriction);
 			else
-				Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, rcon_level.ival);
+				Con_TPrintf ("%s is restricted to rcon_level (%i)\n", cmd_name, rcon_level.ival);
 		}
 		else if ((v->restriction?v->restriction:rcon_level.ival) > Cmd_ExecLevel)
-			Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
+			Con_TPrintf("You arn't allowed to alter a level above your own\n");
 		else
 			v->restriction = level;
 
@@ -1624,19 +1624,19 @@ void Cmd_RestrictCommand_f (void)
 			if (Cmd_Argc() == 2)
 			{
 				if (a->restriction)
-					Con_TPrintf (TL_RESTRICTCURRENTLEVEL, cmd_name, (int)a->restriction);
+					Con_TPrintf ("%s is restricted to %i\n", cmd_name, (int)a->restriction);
 				else
-					Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, rcon_level.ival);
+					Con_TPrintf ("%s is restricted to rcon_level (%i)\n", cmd_name, rcon_level.ival);
 			}
 			else if ((a->restriction?a->restriction:rcon_level.ival) > Cmd_ExecLevel)
-				Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
+				Con_TPrintf("You arn't allowed to alter a level above your own\n");
 			else
 				a->restriction = level;
 			return;
 		}
 	}
 
-	Con_TPrintf (TL_RESTRICTNOTDEFINED, cmd_name);
+	Con_TPrintf ("restrict: %s not defined\n", cmd_name);
 	return;
 }
 
@@ -1833,7 +1833,7 @@ void Cmd_List_f (void)
 		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			continue;
 		if (!num)
-			Con_TPrintf(TL_COMMANDLISTHEADER);
+			Con_TPrintf("Command list:\n");
 		Con_Printf("(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->name);
 		num++;
 	}
@@ -1858,7 +1858,7 @@ void Cmd_ForwardToServer (void)
 	if (cls.state == ca_disconnected)
 	{
 		if (cl_warncmd.ival)
-			Con_TPrintf (TL_CANTXNOTCONNECTED, Cmd_Argv(0));
+			Con_TPrintf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -1895,7 +1895,7 @@ void Cmd_ForwardToServer_f (void)
 {
 	if (cls.state == ca_disconnected)
 	{
-		Con_TPrintf (TL_CANTXNOTCONNECTED, Cmd_Argv(0));
+		Con_TPrintf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -1969,7 +1969,7 @@ void	Cmd_ExecuteString (char *text, int level)
 				break;	//yes, I know we found it... (but it's the wrong case, go for an alias or cvar instead FIRST)
 
 			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
-				Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
+				Con_TPrintf("%s was restricted.\n", cmd_argv[0]);
 			else if (!cmd->function)
 			{
 #ifdef VM_CG
@@ -2010,7 +2010,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			if ((a->restriction?a->restriction:rcon_level.ival) > level)
 			{
-				Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
+				Con_TPrintf("%s was restricted.\n", cmd_argv[0]);
 				return;
 			}
 			if (a->execlevel)
@@ -2045,7 +2045,7 @@ void	Cmd_ExecuteString (char *text, int level)
 	if (cmd)	//go for skipped ones
 	{
 		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
-			Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
+			Con_TPrintf("%s was restricted.\n", cmd_argv[0]);
 		else if (!cmd->function)
 			Cmd_ForwardToServer ();
 		else
@@ -2094,7 +2094,7 @@ void	Cmd_ExecuteString (char *text, int level)
 	}
 #endif
 	if (cl_warncmd.value || developer.value)
-		Con_TPrintf (TL_COMMANDNOTDEFINED, Cmd_Argv(0));
+		Con_TPrintf ("Unknown command \"%s\"\n", Cmd_Argv(0));
 }
 
 
@@ -2532,7 +2532,7 @@ void Cmd_if_f(void)
 
 	if (Cmd_Argc()==1)
 	{
-		Con_TPrintf(TL_IFSYNTAX);
+		Con_TPrintf("if <condition> <statement> [elseif <condition> <statement>] [...] [else <statement>]\n");
 		return;
 	}
 
@@ -2544,7 +2544,7 @@ elseif:
 	for(ret = If_Token(text, (const char **)&end); *ret; ret++) {if (*ret != '0' && *ret != '.')break;}
 	if (!end)
 	{
-		Con_TPrintf(TL_IFSYNTAXERROR);
+		Con_TPrintf("Not terminated\n");
 		If_Token_Clear(ts);
 		return;
 	}
@@ -2668,7 +2668,7 @@ void Cmd_set_f(void)
 
 	if (Cmd_Argc()<3)
 	{
-		Con_TPrintf(TL_SETSYNTAX);
+		Con_TPrintf("set <var> <equation>\n");
 		return;
 	}
 

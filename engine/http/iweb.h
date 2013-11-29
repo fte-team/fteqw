@@ -11,10 +11,6 @@
 #endif
 
 #define Con_TPrintf IWebPrintf
-#define TL_NETBINDINTERFACE			"binding to %s"
-#define TL_CONNECTIONLOSTORABORTED	"connection lost or aborted"
-#define TL_NETGETPACKETERROR		"get packet error"
-
 #define IWebPrintf printf
 #define com_gamedir "."	//current dir.
 

@@ -2283,13 +2283,13 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 		if (err == EMSGSIZE)
 		{
 			SockadrToNetadr (&from, &net_from);
-			Con_TPrintf (TL_OVERSIZEPACKETFROM,
+			Con_TPrintf ("Warning:  Oversize packet from %s\n",
 				NET_AdrToString (adr, sizeof(adr), &net_from));
 			return false;
 		}
 		if (err == ECONNABORTED || err == ECONNRESET)
 		{
-			Con_TPrintf (TL_CONNECTIONLOSTORABORTED);	//server died/connection lost.
+			Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
 #ifndef SERVERONLY
 			if (cls.state != ca_disconnected && !con->islisten)
 			{
@@ -2314,7 +2314,7 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 	net_message.cursize = ret;
 	if (net_message.cursize == sizeof(net_message_buffer) )
 	{
-		Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
+		Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 		return false;
 	}
 
@@ -2399,7 +2399,7 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 			Con_DPrintf("NET_SendPacket Warning: %i\n", ecode);
 		else
 #endif
-			Con_TPrintf (TL_NETSENDERROR, ecode);
+			Con_TPrintf ("NET_SendPacket ERROR: %i\n", ecode);
 	}
 	return true;
 #endif
@@ -2714,7 +2714,7 @@ qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 			{
 				if (err == ECONNABORTED || err == ECONNRESET)
 				{
-					Con_TPrintf (TL_CONNECTIONLOSTORABORTED);	//server died/connection lost.
+					Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
 				}
 				else
 					Con_Printf ("TCPConnect_GetPacket: Error (%i): %s\n", err, strerror(err));
@@ -3021,7 +3021,7 @@ handshakeerror:
 			net_message.cursize = BigShort(*(short*)st->inbuffer);
 			if (net_message.cursize >= sizeof(net_message_buffer) )
 			{
-				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
+				Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 				goto closesvstream;
 			}
 			if (net_message.cursize+2 > st->inlen)
@@ -3175,7 +3175,7 @@ handshakeerror:
 					net_message.cursize = paylen;
 					if (net_message.cursize >= sizeof(net_message_buffer) )
 					{
-						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
+						Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 						goto closesvstream;
 					}
 					memcpy(net_message_buffer, st->inbuffer+payoffs, paylen);
@@ -3759,7 +3759,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 					net_message.cursize = 4 + endl - s;
 					if (net_message.cursize >= sizeof(net_message_buffer) )
 					{
-						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
+						Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 						break;
 					}
 
@@ -3886,7 +3886,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 						net_message.cursize = st->inlen;
 						if (net_message.cursize >= sizeof(net_message_buffer) )
 						{
-							Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
+							Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 							break;
 						}
 
@@ -3918,7 +3918,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 			code = strtoul(s, (char **)&s, 10);
 			switch (code)
 			{
-			case 001:
+			case   1:
 				{
 					if (con->ircserver.address.irc.channel)
 					{
@@ -4363,7 +4363,7 @@ static qboolean FTENET_NaClWebSocket_GetPacket(ftenet_generic_connection_t *gcon
 		if (len)
 		{
 			char adr[64];
-			Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), &net_from));
+			Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 			return false;
 		}
 		return true;
@@ -4703,7 +4703,7 @@ int maxport = port + 100;
 		if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc)
 		{
 			((struct sockaddr_in*)&address)->sin_addr.s_addr = inet_addr(com_argv[i+1]);
-			Con_TPrintf(TL_NETBINDINTERFACE,
+			Con_TPrintf("Binding to IP Interface Address of %s\n",
 					inet_ntoa(address.sin_addr));
 		}
 		else
@@ -4784,7 +4784,7 @@ int maxport = port + 100;
 //ZOID -- check for interface binding option
 	if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc) {
 		address.sin_addr.s_addr = inet_addr(com_argv[i+1]);
-		Con_TPrintf(TL_NETBINDINTERFACE,
+		Con_TPrintf("Binding to IP Interface Address of %s\n",
 				inet_ntoa(address.sin_addr));
 	} else
 		address.sin_addr.s_addr = INADDR_ANY;
@@ -4852,7 +4852,7 @@ int maxport = port + 100;
 //ZOID -- check for interface binding option
 //	if ((i = COM_CheckParm("-ip6")) != 0 && i < com_argc) {
 //		address.sin6_addr = inet_addr(com_argv[i+1]);
-///		Con_TPrintf(TL_NETBINDINTERFACE,
+///		Con_TPrintf("Binding to IP Interface Address of %s\n",
 //				inet_ntoa(address.sin6_addr));
 //	} else
 		memset(&address.sin6_addr, 0, sizeof(struct in6_addr));
@@ -5069,7 +5069,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 
 	if (!notvalid)
 	{
-		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
+		Con_TPrintf("IP address %s\n", NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
 		return;
 	}
 	Con_Printf("Couldn't detect local ip\n");
@@ -5218,7 +5218,7 @@ void NET_InitClient(void)
 	net_message.maxsize = sizeof(net_message_buffer);
 	net_message.data = net_message_buffer;
 
-	Con_TPrintf(TL_CLIENTPORTINITED);
+	Con_TPrintf("Client port Initialized\n");
 }
 #endif
 

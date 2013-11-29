@@ -302,7 +302,7 @@ void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language,
 	va_list		argptr;
 	static char		string[8192];		// ??? why static?
 
-	char *format = langtext(text, language);
+	const char *format = langtext(text, language);
 
 	string[0] = A2C_PRINT;
 	
@@ -636,7 +636,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (chan->message.overflowed)
 	{
 		chan->fatal_error = true;
-		Con_TPrintf (TL_OUTMESSAGEOVERFLOW
+		Con_TPrintf ("%s:Outgoing message overflow\n"
 			, NET_AdrToString (remote_adr, sizeof(remote_adr), &chan->remote_address));
 		return 0;
 	}
@@ -866,7 +866,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	if (sequence <= (unsigned)chan->incoming_sequence)
 	{
 		if (showdrop.value)
-			Con_TPrintf (TL_OUTOFORDERPACKET
+			Con_TPrintf ("%s:Out of order packet %i at %i\n"
 				, NET_AdrToString (adr, sizeof(adr), &chan->remote_address)
 				,  sequence
 				, chan->incoming_sequence);
@@ -944,7 +944,7 @@ qboolean Netchan_Process (netchan_t *chan)
 		chan->drop_count += 1;
 
 		if (showdrop.value)
-			Con_TPrintf (TL_DROPPEDPACKETCOUNT
+			Con_TPrintf ("%s:Dropped %i packets at %i\n"
 			, NET_AdrToString (adr, sizeof(adr), &chan->remote_address)
 			, sequence-(chan->incoming_sequence+1)
 			, sequence);

@@ -560,9 +560,9 @@ void SV_DropClient (client_t *drop)
 	if (!drop->redirect && drop->state > cs_zombie)
 	{
 		if (drop->spectator)
-			Con_Printf ("Spectator \"%s\" removed\n",drop->name);
+			Con_TPrintf ("Spectator \"%s\" removed\n",drop->name);
 		else
-			Con_Printf ("Client \"%s\" removed\n",drop->name);
+			Con_TPrintf ("Client \"%s\" removed\n",drop->name);
 	}
 
 	if (drop->download)
@@ -743,7 +743,7 @@ void PIN_SaveMessages(void)
 	f = FS_OpenVFS("pinned.txt", "wb", FS_GAMEONLY);
 	if (!f)
 	{
-		Con_Printf("couldn't write to %s\n", "pinned.txt");
+		Con_TPrintf("couldn't write to %s\n", "pinned.txt");
 		return;
 	}
 
@@ -1041,7 +1041,7 @@ void SVC_Status (void)
 		displayflags = STATUS_SERVERINFO|STATUS_PLAYERS;
 
 	Cmd_TokenizeString ("status", false, false);
-	SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
+	SV_BeginRedirect (RD_PACKET, TL_FindLanguage(""));
 	if (displayflags&STATUS_SERVERINFO)
 		Con_Printf ("%s\n", svs.info);
 	for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -1256,7 +1256,7 @@ void SV_CheckLog (void)
 		svs.logsequence++;
 		sz = &svs.log[svs.logsequence&1];
 		sz->cursize = 0;
-		Con_Printf ("beginning fraglog sequence %i\n", svs.logsequence);
+		Con_TPrintf ("beginning fraglog sequence %i\n", svs.logsequence);
 	}
 
 }
@@ -1542,7 +1542,7 @@ void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, translation
 {
 	va_list		argptr;
 	char		string[8192];
-	char *format = langtext(text, language);
+	const char *format = langtext(text, language);
 
 	va_start (argptr, text);
 	if (q2)
@@ -1903,7 +1903,7 @@ client_t *SVC_DirectConnect(void)
 //			break;
 		default:
 			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
-			Con_Printf ("* rejected connect from incompatable client\n");
+			Con_TPrintf ("* rejected connect from incompatable client\n");
 			return NULL;
 		}
 
@@ -1926,7 +1926,7 @@ client_t *SVC_DirectConnect(void)
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
 		{
 			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
-			Con_Printf ("* rejected connect from incompatible client\n");
+			Con_TPrintf ("* rejected connect from incompatible client\n");
 			return NULL;
 		}
 		//it's a darkplaces client.
@@ -1937,7 +1937,7 @@ client_t *SVC_DirectConnect(void)
 			//reason: dp is too similar for concerns about unsupported code, while the main reason why we disable nq is because of the lack of challenges
 			//(and no, this isn't a way to bypass invalid challenges)
 			protocol = SCP_NETQUAKE;
-			Con_Printf ("* DP without sv_bigcoords 1\n");
+			Con_TPrintf ("* DP without sv_bigcoords 1\n");
 		}
 		else if (strstr(s, "DP7"))
 			protocol = SCP_DARKPLACES7;
@@ -1968,7 +1968,7 @@ client_t *SVC_DirectConnect(void)
 			if (numssclients<1 || numssclients > MAX_SPLITS)
 			{
 				SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
-				Con_Printf ("* rejected connect from broken client\n");
+				Con_TPrintf ("* rejected connect from broken client\n");
 				return NULL;
 			}
 		}
@@ -1991,7 +1991,7 @@ client_t *SVC_DirectConnect(void)
 		else if (version != PROTOCOL_VERSION_QW)
 		{
 			SV_RejectMessage (SCP_BAD, "Server is protocol version %i, received %i\n", PROTOCOL_VERSION_QW, version);
-			Con_Printf ("* rejected connect from version %i\n", version);
+			Con_TPrintf ("* rejected connect from version %i\n", version);
 			return NULL;
 		}
 		else
@@ -2017,7 +2017,7 @@ client_t *SVC_DirectConnect(void)
 		if (!sv_listen_qw.value && net_from.type != NA_LOOPBACK)
 		{
 			SV_RejectMessage (protocol, "QuakeWorld protocols are not permitted on this server.\n");
-			Con_Printf ("* rejected connect from quakeworld\n");
+			Con_TPrintf ("* rejected connect from quakeworld\n");
 			return NULL;
 		}
 	}
@@ -2028,19 +2028,19 @@ client_t *SVC_DirectConnect(void)
 		if (*Info_ValueForKey(userinfo[0], "*qwfwd"))
 		{
 			SV_RejectMessage (protocol, "Proxies are not permitted on this server.\n");
-			Con_Printf ("* rejected connect from qwfwd proxy\n");
+			Con_TPrintf ("* rejected connect from qwfwd proxy\n");
 			return NULL;
 		}
 		if (*Info_ValueForKey(userinfo[0], "Qizmo"))
 		{
 			SV_RejectMessage (protocol, "Proxies are not permitted on this server.\n");
-			Con_Printf ("* rejected connect from qizmo proxy\n");
+			Con_TPrintf ("* rejected connect from qizmo proxy\n");
 			return NULL;
 		}
 		if (*Info_ValueForKey(userinfo[0], "*qtv"))
 		{
 			SV_RejectMessage (protocol, "Proxies are not permitted on this server.\n");
-			Con_Printf ("* rejected connect from qtv proxy (udp)\n");
+			Con_TPrintf ("* rejected connect from qtv proxy (udp)\n");
 			return NULL;
 		}
 	}
@@ -2111,7 +2111,7 @@ client_t *SVC_DirectConnect(void)
 				stricmp(spectator_password.string, "none") &&
 				strcmp(spectator_password.string, s) )
 			{	// failed
-				Con_Printf ("%s:spectator password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &net_from));
+				Con_TPrintf ("%s:spectator password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &net_from));
 				SV_RejectMessage (protocol, "requires a spectator password\n\n");
 				return NULL;
 			}
@@ -2126,7 +2126,7 @@ client_t *SVC_DirectConnect(void)
 				stricmp(password.string, "none") &&
 				strcmp(password.string, s) )
 			{
-				Con_Printf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &net_from));
+				Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &net_from));
 				SV_RejectMessage (protocol, "server requires a password\n\n");
 				return NULL;
 			}
@@ -2207,9 +2207,9 @@ client_t *SVC_DirectConnect(void)
 			if (cl->state == cs_connected)
 			{
 				if (cl->protocol != protocol)
-					Con_Printf("%s: diff prot connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+					Con_TPrintf("%s: diff prot connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 				else
-					Con_Printf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+					Con_TPrintf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 
 				cl->protocol = SCP_BAD;	//make sure the netchan doesn't try sending anything.
 				SV_DropClient(cl);
@@ -2229,7 +2229,7 @@ client_t *SVC_DirectConnect(void)
 			}*/
 			else
 			{
-				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				Con_TPrintf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 //				SV_DropClient (cl);
 			}
 			break;
@@ -2356,14 +2356,14 @@ client_t *SVC_DirectConnect(void)
 			if (!svprogfuncs)
 			{
 				SV_RejectMessage (protocol, "\nserver is full\n\n");
-				Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				Con_TPrintf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 			}
 			else
 			{
 				if (spectator && spectators >= maxspectators.ival)
 				{
 					SV_RejectMessage (protocol, "\nserver is full (%i of %i spectators)\n\n", spectators, maxspectators.ival);
-					Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+					Con_TPrintf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 				}
 				else if (!spectator && clients >= maxclients.ival)
 					SV_RejectMessage (protocol, "\nserver is full (%i of %i players)\n\n", clients, maxclients.ival);
@@ -2473,7 +2473,7 @@ client_t *SVC_DirectConnect(void)
 		if (pext_ezquake_nochunks.ival)
 		{
 			newcl->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
-			Con_Printf("%s: ignoring ezquake chunked downloads extension.\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			Con_TPrintf("%s: ignoring ezquake chunked downloads extension.\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 		}
 	}
 
@@ -2555,7 +2555,7 @@ client_t *SVC_DirectConnect(void)
 			if (!Rank_GetPlayerStats(newcl->rankid, &rs))
 			{
 				SV_RejectMessage (protocol, "Rankings/Account system failed\n");
-				Con_Printf("banned player %s is trying to connect\n", newcl->name);
+				Con_TPrintf("banned player %s is trying to connect\n", newcl->name);
 				newcl->name[0] = 0;
 				memset (newcl->userinfo, 0, sizeof(newcl->userinfo));
 				newcl->state = cs_free;
@@ -2564,15 +2564,15 @@ client_t *SVC_DirectConnect(void)
 
 			if (rs.flags1 & RANK_MUTED)
 			{
-				SV_BroadcastTPrintf(PRINT_MEDIUM, STL_CLIENTISSTILLMUTED, newcl->name);
+				SV_BroadcastTPrintf(PRINT_MEDIUM, "%s is muted (still)\n", newcl->name);
 			}
 			if (rs.flags1 & RANK_CUFFED)
 			{
-				SV_BroadcastTPrintf(PRINT_LOW, STL_CLIENTISSTILLCUFFED, newcl->name);
+				SV_BroadcastTPrintf(PRINT_LOW, "%s is now cuffed permanently\n", newcl->name);
 			}
 			if (rs.flags1 & RANK_CRIPPLED)
 			{
-				SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTISSTILLCRIPPLED, newcl->name);
+				SV_BroadcastTPrintf(PRINT_HIGH, "%s is still crippled\n", newcl->name);
 			}
 
 			if (rs.timeonserver)
@@ -2597,9 +2597,9 @@ client_t *SVC_DirectConnect(void)
 				}
 
 				if (rs.timeonserver > 3*60)	//woo. Ages.
-					s = va(langtext(STL_BIGGREETING, newcl->language), newcl->name, (int)(rs.timeonserver/(60*60)), (int)((int)(rs.timeonserver/60)%(60)));
+					s = va(langtext("Welcome back %s. You have previously spent %i:%i hours connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/(60*60)), (int)((int)(rs.timeonserver/60)%(60)));
 				else	//measure this guy in minuites.
-					s = va(langtext(STL_SHORTGREETING, newcl->language), newcl->name, (int)(rs.timeonserver/60));
+					s = va(langtext("Welcome back %s. You have previously spent %i mins connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/60));
 
 				SV_OutOfBandPrintf (protocol == SCP_QUAKE2, &adr, s);
 			}
@@ -2607,7 +2607,7 @@ client_t *SVC_DirectConnect(void)
 			{
 				SV_GetNewSpawnParms(newcl);
 
-				SV_OutOfBandTPrintf (protocol == SCP_QUAKE2, &adr, newcl->language, STL_FIRSTGREETING, newcl->name, (int)rs.timeonserver);
+				SV_OutOfBandTPrintf (protocol == SCP_QUAKE2, &adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
 			}
 			//else loaded players already have their initial parms set
 		}
@@ -2635,12 +2635,12 @@ client_t *SVC_DirectConnect(void)
 		}
 		else if (newcl->spectator)
 		{
-			SV_BroadcastTPrintf(PRINT_LOW, STL_SPECTATORCONNECTED, newcl->name);
+			SV_BroadcastTPrintf(PRINT_LOW, "spectator %s connected\n", newcl->name);
 //			Con_Printf ("Spectator %s connected\n", newcl->name);
 		}
 		else
 		{
-			SV_BroadcastTPrintf(PRINT_LOW, STL_CLIENTCONNECTED, newcl->name);
+			SV_BroadcastTPrintf(PRINT_LOW, "client %s connected\n", newcl->name);
 //			Con_DPrintf ("Client %s connected\n", newcl->name);
 		}
 	}
@@ -2648,12 +2648,12 @@ client_t *SVC_DirectConnect(void)
 	{
 		if (newcl->spectator)
 		{
-			SV_BroadcastTPrintf(PRINT_LOW, STL_RECORDEDSPECTATORCONNECTED, newcl->name);
+			SV_BroadcastTPrintf(PRINT_LOW, "recorded spectator %s connected\n", newcl->name);
 //			Con_Printf ("Recorded spectator %s connected\n", newcl->name);
 		}
 		else
 		{
-			SV_BroadcastTPrintf(PRINT_LOW, STL_RECORDEDCLIENTCONNECTED, newcl->name);
+			SV_BroadcastTPrintf(PRINT_LOW, "recorded client %s connected\n", newcl->name);
 //			Con_DPrintf ("Recorded client %s connected\n", newcl->name);
 		}
 	}
@@ -2789,7 +2789,7 @@ void SVC_RemoteCommand (void)
 		char *br = SV_BannedReason(&net_from);
 		if (br)
 		{
-			Con_Printf ("Rcon from banned ip %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
+			Con_TPrintf ("Rcon from banned ip %s: %s\n", NET_AdrToString (adr, sizeof(adr), &net_from), br);
 			return;
 		}
 	}
@@ -2823,10 +2823,10 @@ void SVC_RemoteCommand (void)
 						return;
 
 
-					Con_Printf ("Rcon from %s:\n%s\n"
+					Con_TPrintf ("Rcon from %s:\n%s\n"
 						, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-					SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
+					SV_BeginRedirect (RD_PACKET, svs.language);
 
 					remaining[0] = 0;
 
@@ -2834,9 +2834,9 @@ void SVC_RemoteCommand (void)
 					{
 						if (strlen(remaining)+strlen(Cmd_Argv(i))>=sizeof(remaining)-2)
 						{
-							Con_Printf("Rcon was too long\n");
+							Con_TPrintf("Rcon was too long\n");
 							SV_EndRedirect ();
-							Con_Printf ("Rcon from %s:\n%s\n"
+							Con_TPrintf ("Rcon from %s:\n%s\n"
 								, NET_AdrToString (adr, sizeof(adr), &net_from), "Was too long - possible buffer overflow attempt");
 							return;
 						}
@@ -2853,21 +2853,21 @@ void SVC_RemoteCommand (void)
 		}
 #endif
 
-		Con_Printf ("Bad rcon from %s:\n%s\n"
+		Con_TPrintf ("Bad rcon from %s:\n%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
+		SV_BeginRedirect (RD_PACKET, svs.language);
 
-		Con_Printf ("Bad rcon_password.\n");
+		Con_TPrintf ("Bad rcon_password.\n");
 
 	}
 	else
 	{
 
-		Con_Printf ("Rcon from %s:\n%s\n"
+		Con_TPrintf ("Rcon from %s:\n%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
+		SV_BeginRedirect (RD_PACKET, svs.language);
 
 		remaining[0] = 0;
 
@@ -2875,9 +2875,9 @@ void SVC_RemoteCommand (void)
 		{
 			if (strlen(remaining)+strlen(Cmd_Argv(i))>=sizeof(remaining)-2)
 			{
-				Con_Printf("Rcon was too long\n");
+				Con_TPrintf("Rcon was too long\n");
 				SV_EndRedirect ();
-				Con_Printf ("Rcon from %s:\n%s\n"
+				Con_TPrintf ("Rcon from %s:\n%s\n"
 					, NET_AdrToString (adr, sizeof(adr), &net_from), "Was too long - possible buffer overflow attempt");
 				return;
 			}
@@ -2920,19 +2920,19 @@ void SVC_RealIP (void)
 
 	if (NET_AddressSmellsFunny(&net_from))
 	{
-		Con_Printf("funny realip address: %s, ", NET_AdrToString(adr, sizeof(adr), &net_from));
-		Con_Printf("proxy address: %s\n", NET_AdrToString(adr, sizeof(adr), &svs.clients[slotnum].netchan.remote_address));
+		Con_TPrintf("funny realip address: %s, ", NET_AdrToString(adr, sizeof(adr), &net_from));
+		Con_TPrintf("proxy address: %s\n", NET_AdrToString(adr, sizeof(adr), &svs.clients[slotnum].netchan.remote_address));
 		return;
 	}
 
 	banreason = SV_BannedReason(&net_from);
 	if (banreason)
 	{
-		Con_Printf("%s has a banned realip\n", svs.clients[slotnum].name);
+		Con_TPrintf("%s has a banned realip\n", svs.clients[slotnum].name);
 		if (*banreason)
-			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\nReason: %s\n", banreason);
+			SV_ClientTPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\nReason: %s\n", banreason);
 		else
-			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\n");
+			SV_ClientTPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\n");
 		SV_DropClient(&svs.clients[slotnum]);
 		return;
 	}
@@ -2967,7 +2967,7 @@ void SVC_ACK (void)
 			}
 		}
 	}
-	Con_Printf ("A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
+	Con_TPrintf ("A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 }
 
 //returns false to block replies
@@ -3011,7 +3011,7 @@ qboolean SV_ConnectionlessPacket (void)
 
 	if (net_message.cursize >= MAX_QWMSGLEN)	//add a null term in message space
 	{
-		Con_Printf("Oversized packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
+		Con_TPrintf("Oversized packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 		net_message.cursize=MAX_QWMSGLEN-1;
 	}
 	net_message.data[net_message.cursize] = '\0';	//terminate it properly. Just in case.
@@ -3069,7 +3069,7 @@ qboolean SV_ConnectionlessPacket (void)
 #endif
 			if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
-			Netchan_OutOfBandPrint (NS_SERVER, &net_from, "%c\nThis server requires client validation.\nPlease use the "DISTRIBUTION" validation program\n", A2C_PRINT);
+			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, svs.language, "%c\nThis server requires client validation.\nPlease use the "DISTRIBUTION" validation program\n", A2C_PRINT);
 		}
 		else
 		{
@@ -3108,7 +3108,7 @@ qboolean SV_ConnectionlessPacket (void)
 		unsigned int ct = Sys_Milliseconds();
 		if (ct - lt > 5*1000)
 		{
-			Con_Printf ("bad connectionless packet from %s: \"%s\"\n", NET_AdrToString (adr, sizeof(adr), &net_from), c);
+			Con_TPrintf ("bad connectionless packet from %s: \"%s\"\n", NET_AdrToString (adr, sizeof(adr), &net_from), c);
 			lt = ct;
 		}
 	}
@@ -3584,9 +3584,9 @@ qboolean SV_ReadPackets (float *delay)
 		if (banreason)
 		{
 			if (*banreason)
-				Netchan_OutOfBandPrint(NS_SERVER, &net_from, "%cYou are banned: %s\n", A2C_PRINT, banreason);
+				Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "%cYou are banned: %s\n", A2C_PRINT, banreason);
 			else
-				Netchan_OutOfBandPrint(NS_SERVER, &net_from, "%cYou are banned\n", A2C_PRINT);
+				Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "%cYou are banned\n", A2C_PRINT);
 			continue;
 		}
 
@@ -3756,8 +3756,9 @@ void SV_CheckTimeouts (void)
 		if (cl->state == cs_connected || cl->state == cs_spawned) {
 			if (!cl->spectator)
 				nclients++;
-			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD) {
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTTIMEDOUT, cl->name);
+			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD)
+			{
+				SV_BroadcastTPrintf (PRINT_HIGH, "Client %s timed out\n", cl->name);
 				SV_DropClient (cl);
 				cl->state = cs_free;	// don't bother with zombie state for local player.
 			}
@@ -3778,7 +3779,7 @@ void SV_CheckTimeouts (void)
 
 				cl->istobeloaded=false;
 
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_LOADZOMIBETIMEDOUT, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "LoadZombie %s timed out\n", cl->name);
 //				cl->state = cs_zombie;	// the real zombieness starts now
 //				cl->connection_started = realtime;
 			}
@@ -3788,7 +3789,7 @@ void SV_CheckTimeouts (void)
 	{
 		// nobody left, unpause the server
 		if (SV_TogglePause(NULL))
-			SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTLESSUNPAUSE);
+			SV_BroadcastTPrintf(PRINT_HIGH, "pause released due to empty server\n");
 	}
 }
 
@@ -4125,7 +4126,7 @@ void SV_MVDStream_Poll(void);
 
 	if (sv.multicast.cursize)
 	{
-		Con_Printf("Unterminated multicast\n");
+		Con_TPrintf("Unterminated multicast\n");
 		sv.multicast.cursize=0;
 	}
 
@@ -4170,7 +4171,7 @@ void SV_MVDStream_Poll(void);
 
 		if (sv.multicast.cursize)
 		{
-			Con_Printf("Unterminated multicast\n");
+			Con_TPrintf("Unterminated multicast\n");
 			sv.multicast.cursize=0;
 		}
 
@@ -4474,7 +4475,7 @@ void Master_Heartbeat (void)
 			else if (!NET_StringToAdr(sv_masterlist[i].cv.string, 0, &sv_masterlist[i].adr))
 			{
 				sv_masterlist[i].adr.port = 0;
-				Con_Printf ("Couldn't resolve master \"%s\"\n", sv_masterlist[i].cv.string);
+				Con_TPrintf ("Couldn't resolve master \"%s\"\n", sv_masterlist[i].cv.string);
 			}
 			else
 			{
@@ -4527,7 +4528,7 @@ void Master_Heartbeat (void)
 					}
 
 					if (sv_reportheartbeats.value)
-						Con_Printf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr), sv_masterlist[i].cv.string);
+						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr), sv_masterlist[i].cv.string);
 
 					NET_SendPacket (NS_SERVER, strlen(string), string, &sv_masterlist[i].adr);
 				}
@@ -4536,7 +4537,7 @@ void Master_Heartbeat (void)
 				if (sv_listen_dp.value || sv_listen_nq.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
-						Con_Printf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr), sv_masterlist[i].cv.string);
+						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr), sv_masterlist[i].cv.string);
 
 					{
 						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
@@ -4618,7 +4619,7 @@ void Master_Shutdown (void)
 			{
 			case MP_QUAKEWORLD:
 				if (sv_reportheartbeats.value)
-					Con_Printf ("Sending shutdown to %s\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr));
+					Con_TPrintf ("Sending shutdown to %s\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr));
 
 				NET_SendPacket (NS_SERVER, strlen(string), string, &sv_masterlist[i].adr);
 				break;
@@ -4820,7 +4821,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{
 		if (cl->ismuted && *cl->name && verbose)	//!verbose is a gamecode-forced update, where the gamecode is expected to know what its doing.
-			SV_ClientTPrintf (cl, PRINT_HIGH, STL_NONAMEASMUTE);
+			SV_ClientTPrintf (cl, PRINT_HIGH, "Muted players may not change their names\n");
 		else
 		{
 
@@ -4834,8 +4835,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 				}
 				else if (cl->lastnamecount++ > 4 && verbose)
 				{
-					SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTKICKEDNAMESPAM, cl->name);
-					SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKEDNAMESPAM);
+					SV_BroadcastTPrintf (PRINT_HIGH, "%s was kicked for name spamming\n", cl->name);
+					SV_ClientTPrintf (cl, PRINT_HIGH, "You were kicked for name spamming\n");
 					SV_DropClient (cl);
 					return;
 				}
@@ -4843,7 +4844,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
 			{
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, newname);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s changed their name to %s\n", cl->name, newname);
 			}
 			Q_strncpyz (cl->name, newname, sizeof(cl->namebuf));
 
@@ -4855,7 +4856,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 #ifdef SVRANKING
 			}
 			else if (cl->state >= cs_spawned && *rank_filename.string && verbose)
-				SV_ClientPrintf(cl, PRINT_HIGH, "Your rankings name has not been changed\n");
+				SV_ClientTPrintf(cl, PRINT_HIGH, "Your rankings name has not been changed\n");
 #endif
 		}
 	}
@@ -4863,22 +4864,17 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	Info_SetValueForKey(cl->userinfo, "name", newname, sizeof(cl->userinfo));
 
 	val = Info_ValueForKey (cl->userinfo, "lang");
-	cl->language = atoi(val);
-	if (!cl->language)
-		cl->language = LANGDEFAULT;
+	cl->language = *val?TL_FindLanguage(val):svs.language;
 
 	val = Info_ValueForKey (cl->userinfo, "nogib");
-	if (atoi(val))
-		cl->gibfilter = true;
-	else
-		cl->gibfilter = false;
+	cl->gibfilter = !!atoi(val);
 
 	// rate command
 	val = Info_ValueForKey (cl->userinfo, "rate");
 	if (strlen(val))
 		cl->rate = atoi(val);
 	else
-		cl->rate = ISNQCLIENT(cl)?10000:2500;
+		cl->rate = ISNQCLIENT(cl)?10000:2500;	//an nq client cannot cope with quakeworld's default rate, and typically doesn't have rate set either.
 
 	val = Info_ValueForKey (cl->userinfo, "drate");
 	if (strlen(val))
@@ -5057,11 +5053,11 @@ void SV_Init (quakeparms_t *parms)
 		Cbuf_Execute ();
 
 
-		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
+		Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
 
 		Con_Printf ("%s\n", version_string());
 
-		Con_TPrintf (STL_INITED, *fs_gamename.string?fs_gamename.string:"Nothing");
+		Con_TPrintf ("======== %s Initialized ========\n", *fs_gamename.string?fs_gamename.string:"Nothing");
 
 		// if a map wasn't specified on the command line, spawn start.map
 		//aliases require that we flush the cbuf in order to actually see the results.

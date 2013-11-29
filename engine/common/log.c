@@ -278,7 +278,7 @@ void SV_Fraglogfile_f (void)
 
 	if (sv_fraglogfile)
 	{
-		Con_TPrintf (STL_FLOGGINGOFF);
+		Con_TPrintf ("Frag file logging off.\n");
 		VFS_CLOSE (sv_fraglogfile);
 		sv_fraglogfile = NULL;
 		return;
@@ -300,12 +300,12 @@ void SV_Fraglogfile_f (void)
 	}
 	if (i==1000)
 	{
-		Con_TPrintf (STL_FLOGGINGFAILED);
+		Con_TPrintf ("Can't open any logfiles.\n");
 		sv_fraglogfile = NULL;
 		return;
 	}
 
-	Con_TPrintf (STL_FLOGGINGTO, name);
+	Con_TPrintf ("Logging frags to %s.\n", name);
 }
 */
 

@@ -74,13 +74,13 @@ void SV_Savegame_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (STL_SAVESYNTAX);
+		Con_Printf ("save <savename> : save a game\n");
 		return;
 	}
 
 	if (strstr(Cmd_Argv(1), ".."))
 	{
-		Con_TPrintf (STL_NORELATIVEPATHS);
+		Con_TPrintf ("Relative pathnames are not allowed\n");
 		return;
 	}
 
@@ -93,11 +93,11 @@ void SV_Savegame_f (void)
 	sprintf (name, "%s/saves/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (name, ".sav");
 
-	Con_TPrintf (STL_SAVEGAMETO, name);
+	Con_TPrintf ("Saving game to %s...\n", name);
 	f = fopen (name, "w");
 	if (!f)
 	{
-		Con_TPrintf (STL_ERRORCOULDNTOPEN);
+		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);
 		return;
 	}
 
@@ -214,11 +214,11 @@ void SV_Loadgame_f(void)
 // been used.  The menu calls it before stuffing loadgame command
 //	SCR_BeginLoadingPlaque ();
 
-	Con_TPrintf (STL_LOADGAMEFROM, filename);
+	Con_TPrintf ("Loading game from %s...\n", filename);
 	f = fopen (filename, "rb");
 	if (!f)
 	{
-		Con_TPrintf (STL_ERRORCOULDNTOPEN);
+		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);
 		return;
 	}
 
@@ -226,7 +226,7 @@ void SV_Loadgame_f(void)
 	if (version != SAVEGAME_VERSION && version != 5 && version != 6)	//5 for NQ, 6 for ZQ/FQ
 	{
 		fclose (f);
-		Con_TPrintf (STL_BADSAVEVERSION, version, SAVEGAME_VERSION);
+		Con_TPrintf ("Savegame is version %i, not %i\n", version, SAVEGAME_VERSION);
 		return;
 	}
 	fscanf (f, "%s\n", str);
@@ -352,7 +352,7 @@ void SV_Loadgame_f(void)
 	if (sv.state != ss_active)
 	{
 		fclose (f);
-		Con_TPrintf (STL_LOADFAILED);
+		Con_TPrintf ("Couldn't load map\n");
 		return;
 	}
 
@@ -544,7 +544,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 		Q_snprintfz (name, sizeof(name), "saves/%s", level);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
-//	Con_TPrintf (STL_LOADGAMEFROM, name);
+//	Con_TPrintf ("Loading game from %s...\n", name);
 
 #ifdef Q2SERVER
 	if (gametype == GT_QUAKE2)
@@ -586,7 +586,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	if (version != CACHEGAME_VERSION)
 	{
 		VFS_CLOSE (f);
-		Con_TPrintf (STL_BADSAVEVERSION, version, CACHEGAME_VERSION);
+		Con_TPrintf ("Savegame is version %i, not %i\n", version, CACHEGAME_VERSION);
 		return false;
 	}
 	VFS_GETS(f, str, sizeof(str));	//comment
@@ -622,7 +622,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	if (sv.state != ss_active)
 	{
 		VFS_CLOSE (f);
-		Con_TPrintf (STL_LOADFAILED);
+		Con_TPrintf ("Couldn't load map\n");
 		return false;
 	}
 
@@ -839,7 +839,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	FS_CreatePath(name, FS_GAMEONLY);
 
 	if (!dontharmgame)	//save game in progress
-		Con_TPrintf (STL_SAVEGAMETO, name);
+		Con_TPrintf ("Saving game to %s...\n", name);
 
 #ifdef Q2SERVER
 	if (ge)
@@ -865,7 +865,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	f = FS_OpenVFS (name, "wb", FS_GAME);
 	if (!f)
 	{
-		Con_TPrintf (STL_ERRORCOULDNTOPEN);
+		Con_TPrintf ("ERROR: couldn't open %s.\n", name);
 		return;
 	}
 
@@ -1100,7 +1100,7 @@ void SV_Loadgame_f (void)
 	f = FS_OpenVFS (filename, "rb", FS_GAME);
 	if (!f)
 	{
-		Con_TPrintf (STL_ERRORCOULDNTOPEN);
+		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);
 		return;
 	}
 
@@ -1109,7 +1109,7 @@ void SV_Loadgame_f (void)
 	if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
 	{
 		VFS_CLOSE (f);
-		Con_TPrintf (STL_BADSAVEVERSION, version, FTESAVEGAME_VERSION);
+		Con_TPrintf ("Savegame is version %i, not %i\n", version, FTESAVEGAME_VERSION);
 		return;
 	}
 	gametype = version - FTESAVEGAME_VERSION;
@@ -1117,7 +1117,7 @@ void SV_Loadgame_f (void)
 #ifndef SERVERONLY
 	if (!cls.state)
 #endif
-		Con_TPrintf (STL_LOADGAMEFROM, filename);
+		Con_TPrintf ("Loading game from %s...\n", filename);
 
 
 	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server for the level change.

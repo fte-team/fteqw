@@ -165,7 +165,7 @@ SV_Quit_f
 void SV_Quit_f (void)
 {
 	SV_FinalMessage ("server shutdown\n");
-	Con_TPrintf (STL_SHUTTINGDOWN);
+	Con_TPrintf ("Shutting down.\n");
 	SV_Shutdown ();
 	Sys_Quit ();
 }
@@ -182,7 +182,7 @@ void SV_Fraglogfile_f (void)
 
 	if (sv_fraglogfile)
 	{
-		Con_TPrintf (STL_FLOGGINGOFF);
+		Con_TPrintf ("Frag file logging off.\n");
 		VFS_CLOSE (sv_fraglogfile);
 		sv_fraglogfile = NULL;
 		return;
@@ -204,12 +204,12 @@ void SV_Fraglogfile_f (void)
 	}
 	if (i==1000)
 	{
-		Con_TPrintf (STL_FLOGGINGFAILED);
+		Con_TPrintf ("Can't open any logfiles.\n");
 		sv_fraglogfile = NULL;
 		return;
 	}
 
-	Con_TPrintf (STL_FLOGGINGTO, name);
+	Con_TPrintf ("Logging frags to %s.\n", name);
 }
 
 
@@ -239,7 +239,7 @@ qboolean SV_SetPlayer (void)
 			return true;
 		}
 	}
-	Con_TPrintf (STL_USERIDNOTONSERVER, idnum);
+	Con_TPrintf ("Userid %i is not on the server\n", idnum);
 	return false;
 }
 
@@ -255,7 +255,7 @@ void SV_God_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		Con_TPrintf (STL_NEEDCHEATPARM);
+		Con_TPrintf ("You must run the server with +sv_cheats 1 to enable this command.\n");
 		return;
 	}
 
@@ -265,9 +265,9 @@ void SV_God_f (void)
 	SV_LogPlayer(host_client, "god cheat");
 	sv_player->v->flags = (int)sv_player->v->flags ^ FL_GODMODE;
 	if ((int)sv_player->v->flags & FL_GODMODE)
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODON);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "godmode ON\n");
 	else
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODOFF);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "godmode OFF\n");
 }
 
 
@@ -275,7 +275,7 @@ void SV_Noclip_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		Con_TPrintf (STL_NEEDCHEATPARM);
+		Con_TPrintf ("You must run the server with +sv_cheats 1 to enable this command.\n");
 		return;
 	}
 
@@ -286,12 +286,12 @@ void SV_Noclip_f (void)
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOCLIPON);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "noclip ON\n");
 	}
 	else
 	{
 		sv_player->v->movetype = MOVETYPE_WALK;
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOCLIPOFF);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
 	}
 }
 
@@ -311,7 +311,7 @@ void SV_Give_f (void)
 
 	if (!SV_MayCheat())
 	{
-		Con_TPrintf (STL_NEEDCHEATPARM);
+		Con_TPrintf ("You must run the server with +sv_cheats 1 to enable this command.\n");
 		return;
 	}
 
@@ -368,7 +368,7 @@ void SV_Give_f (void)
 			oldself = pr_global_struct->self;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			Cmd_ShiftArgs(1, false);
-			Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+			Con_TPrintf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 			pr_global_struct->self = oldself;
 		}
 	}
@@ -439,7 +439,7 @@ void SV_Map_f (void)
 
 	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 	{
-		Con_TPrintf (STL_MAPCOMMANDUSAGE);
+		Con_TPrintf ("map <levelname> : continue game on a new level\n");
 		return;
 	}
 
@@ -554,7 +554,7 @@ void SV_Map_f (void)
 			{
 				// FTE is still a Quake engine so report BSP missing
 				snprintf (expanded, sizeof(expanded), exts[0], level);
-				Con_TPrintf (STL_CANTFINDMAP, expanded);
+				Con_TPrintf ("Can't find %s\n", expanded);
 #ifndef SERVERONLY
 				SCR_SetLoadingStage(LS_NONE);
 #endif
@@ -716,17 +716,17 @@ void SV_Kick_f (void)
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASKICKED, cl->name);
+		SV_BroadcastTPrintf (PRINT_HIGH, "%s was kicked\n", cl->name);
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
-		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKED);
+		SV_ClientTPrintf (cl, PRINT_HIGH, "You were kicked\n");
 
 		SV_LogPlayer(cl, "kicked");
 		SV_DropClient (cl);
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 /*for q3's kick bot menu*/
@@ -742,10 +742,10 @@ void SV_KickSlot_f (void)
 	{
 		cl = &svs.clients[clnum];
 
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASKICKED, cl->name);
+		SV_BroadcastTPrintf (PRINT_HIGH, "%s was kicked\n", cl->name);
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
-		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKED);
+		SV_ClientTPrintf (cl, PRINT_HIGH, "You were kicked\n");
 
 		SV_LogPlayer(cl, "kicked");
 		SV_DropClient (cl);
@@ -794,16 +794,16 @@ void SV_BanName_f (void)
 		if (reasonsize)
 			Q_strcpy(nb->reason, reason);
 
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASBANNED, cl->name);
+		SV_BroadcastTPrintf (PRINT_HIGH, "%s was banned\n", cl->name);
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
-		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
+		SV_ClientTPrintf (cl, PRINT_HIGH, "You were banned\n");
 		SV_LogPlayer(cl, "banned name");
 		SV_DropClient (cl);
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 void SV_KickBanIP(netadr_t *banadr, netadr_t *banmask, char *reason)
@@ -836,10 +836,10 @@ void SV_KickBanIP(netadr_t *banadr, netadr_t *banmask, char *reason)
 		if (shouldkick)
 		{
 			// match, so kick
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASBANNED, cl->name);
+			SV_BroadcastTPrintf (PRINT_HIGH, "%s was banned\n", cl->name);
 			// print directly, because the dropped client won't get the
 			// SV_BroadcastPrintf message
-			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
+			SV_ClientTPrintf (cl, PRINT_HIGH, "You were banned\n");
 			SV_LogPlayer(cl, "banned ip");
 			SV_DropClient (cl);
 		}
@@ -1150,7 +1150,7 @@ void SV_ForceName_f (void)
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 void SV_CripplePlayer_f (void)
@@ -1168,24 +1168,24 @@ void SV_CripplePlayer_f (void)
 			if (persist && cl->rankid)
 			{
 				cl->iscrippled = 2;
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISCRIPPLEDPERMANENTLY, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s is now crippled permanently\n", cl->name);
 			}
 			else
 			{
 				cl->iscrippled = true;
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISCRIPPLED, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s is crippled\n", cl->name);
 			}
 		}
 		else
 		{
 			SV_LogPlayer(cl, "uncrippled");
 			cl->iscrippled = false;
-			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCRIPPLED);
+			SV_ClientTPrintf (cl, PRINT_HIGH, "You are no longer crippled\n");
 		}
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 void SV_Mute_f (void)
@@ -1203,24 +1203,24 @@ void SV_Mute_f (void)
 			if (persist && cl->rankid)
 			{
 				cl->ismuted = 2;
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISMUTEDPERMANENTLY, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s was muted permanently\n", cl->name);
 			}
 			else
 			{
 				cl->ismuted = true;
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISMUTED, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s was muted\n", cl->name);
 			}
 		}
 		else
 		{
 			SV_LogPlayer(cl, "unmuted");
 			cl->ismuted = false;
-			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTMUTED);
+			SV_ClientTPrintf (cl, PRINT_HIGH, "You are no longer muted\n");
 		}
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 void SV_Cuff_f (void)
@@ -1238,24 +1238,24 @@ void SV_Cuff_f (void)
 			if (persist && cl->rankid)
 			{
 				cl->iscuffed = 2;
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISCUFFEDPERMANENTLY, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s is still cuffed\n", cl->name);
 			}
 			else
 			{
 				cl->iscuffed = true;
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISCUFFED, cl->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s is cuffed\n", cl->name);
 			}
 		}
 		else
 		{
 			SV_LogPlayer(cl, "uncuffed");
 			cl->iscuffed = false;
-			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCUFFED);
+			SV_ClientTPrintf (cl, PRINT_HIGH, "You are no longer cuffed\n");
 		}
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 void SV_Floodprot_f(void)
@@ -1657,7 +1657,7 @@ void SV_ConSayOne_f (void)
 		SV_ClientPrintf(to, PRINT_CHAT, "%s", text);
 	}
 	if (!clnum)
-		Con_TPrintf(STL_USERDOESNTEXIST, Cmd_Argv(1));
+		Con_TPrintf("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
 /*
@@ -1729,14 +1729,14 @@ void SV_Serverinfo_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf (STL_SERVERINFOSETTINGS);
+		Con_TPrintf ("Server info settings:\n");
 		Info_Print (svs.info, "");
 		return;
 	}
 
 	if (Cmd_Argc() < 3)
 	{
-		Con_TPrintf (STL_SERVERINFOSYNTAX);
+		Con_TPrintf ("usage: serverinfo [ <key> <value> ]\n");
 		return;
 	}
 
@@ -1801,14 +1801,14 @@ void SV_Localinfo_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf (STL_LOCALINFOSETTINGS);
+		Con_TPrintf ("Local info settings:\n");
 		Info_Print (localinfo, "");
 		return;
 	}
 
 	if (Cmd_Argc() != 3)
 	{
-		Con_TPrintf (STL_LOCALINFOSYNTAX);
+		Con_TPrintf ("usage: localinfo [ <key> <value> ]\n");
 		return;
 	}
 
@@ -1875,7 +1875,7 @@ void SV_User_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (STL_USERINFOSYNTAX);
+		Con_TPrintf ("Usage: info <userid>\n");
 		return;
 	}
 
@@ -1954,7 +1954,7 @@ void SV_User_f (void)
 	}
 
 	if (clnum == -1)
-		Con_TPrintf (STL_USERIDNOTONSERVER, atoi(Cmd_Argv(1)));
+		Con_TPrintf ("Userid %i is not on the server\n", atoi(Cmd_Argv(1)));
 }
 
 /*
@@ -1978,13 +1978,13 @@ void SV_Gamedir (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf (STL_CURRENTGAMEDIR, Info_ValueForKey (svs.info, "*gamedir"));
+		Con_TPrintf ("Current gamedir: %s\n", Info_ValueForKey (svs.info, "*gamedir"));
 		return;
 	}
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (STL_SVGAMEDIRUSAGE);
+		Con_TPrintf ("Usage: sv_gamedir <newgamedir>\n");
 		return;
 	}
 
@@ -1993,7 +1993,7 @@ void SV_Gamedir (void)
 	if (strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
 	{
-		Con_TPrintf (STL_GAMEDIRCANTBEPATH);
+		Con_TPrintf ("%s should be a single filename, not a path\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2013,13 +2013,13 @@ void SV_Gamedir_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf (STL_CURRENTGAMEDIR, FS_GetGamedir());
+		Con_TPrintf ("Current gamedir: %s\n", FS_GetGamedir());
 		return;
 	}
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (STL_GAMEDIRUSAGE);
+		Con_TPrintf ("Usage: gamedir <newgamedir>\n");
 		return;
 	}
 
@@ -2028,7 +2028,7 @@ void SV_Gamedir_f (void)
 	if (strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
 	{
-		Con_TPrintf (STL_GAMEDIRCANTBEPATH);
+		Con_TPrintf ("%s should be a single filename, not a path\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2061,7 +2061,7 @@ void SV_Snap (int uid)
 	}
 	if (i >= MAX_CLIENTS)
 	{
-		Con_TPrintf (STL_USERDOESNTEXIST);
+		Con_TPrintf ("Couldn't find user number %i\n", uid);
 		return;
 	}
 	if (!ISQWCLIENT(cl))
@@ -2086,7 +2086,7 @@ void SV_Snap (int uid)
 	}
 	if (i==100)
 	{
-		Con_TPrintf (STL_SNAPTOOMANYFILES);
+		Con_TPrintf ("Snap: Couldn't create a file, clean some out.\n");
 		return;
 	}
 	strcpy(cl->uploadfn, checkname);
@@ -2099,7 +2099,7 @@ void SV_Snap (int uid)
 
 	ClientReliableWrite_Begin (cl, svc_stufftext, 24);
 	ClientReliableWrite_String (cl, "cmd snap\n");
-	Con_TPrintf (STL_SNAPREQUEST, uid);
+	Con_TPrintf ("Requesting snap from user %d...\n", uid);
 }
 
 /*
@@ -2113,7 +2113,7 @@ void SV_Snap_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_TPrintf (STL_SNAPUSAGE);
+		Con_TPrintf ("Usage:  snap <userid>\n");
 		return;
 	}
 

@@ -1116,7 +1116,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 			if (old != RD_NONE)
 				SV_EndRedirect();
 
-			SV_BeginRedirect(RD_OBLIVION, LANGDEFAULT);
+			SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 			Cbuf_Execute();
 			Q_strncpyz(output, outputbuf, outputlen);
 			SV_EndRedirect();

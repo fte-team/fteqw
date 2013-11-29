@@ -208,7 +208,7 @@ void CL_Say_f (void)
 			SV_ConSay_f();
 		else
 #endif
-			Con_TPrintf (TL_CANTXNOTCONNECTED, Cmd_Argv(0));
+			Con_TPrintf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -216,7 +216,7 @@ void CL_Say_f (void)
 	{
 		if (strcmp(Info_ValueForKey(cl.serverinfo, "*distrib"), DISTRIBUTION) || atoi(Info_ValueForKey(cl.serverinfo, "*ver")) < PRE_SAYONE)
 		{
-			Con_TPrintf (TLC_REQUIRESSERVERMOD, Cmd_Argv(0));
+			Con_Printf ("%s is only available with server support\n", Cmd_Argv(0));
 			return;
 		}
 	}

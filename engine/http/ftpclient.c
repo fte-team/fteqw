@@ -279,11 +279,11 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 
 		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
 		{
-			Con_TPrintf (TL_CONNECTIONLOSTORABORTED);
+			Con_TPrintf ("Connection lost or aborted\n");
 			return true;
 		}
 
-//		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
+//		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
 		return true;
 	}	
 

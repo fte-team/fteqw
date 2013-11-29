@@ -150,7 +150,7 @@ qboolean HTTP_ServerInit(int port)
 	if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc)
 	{
 		address.sin_addr.s_addr = inet_addr(com_argv[i+1]);
-		Con_TPrintf(TL_NETBINDINTERFACE,
+		Con_TPrintf("Binding to IP Interface Address of %s\n",
 				inet_ntoa(address.sin_addr));
 	}
 	else
@@ -706,12 +706,12 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 
 		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
 		{
-			Con_TPrintf (TL_CONNECTIONLOSTORABORTED);
+			Con_TPrintf ("Connection lost or aborted\n");
 			return false;
 		}
 
 
-		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
+		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
 		return false;
 	}
 

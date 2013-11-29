@@ -79,7 +79,7 @@ void ClientReliable_FinishWrite(client_t *cl)
 		if (cl->backbuf.overflowed)
 		{
 			if (!cl->netchan.message.overflowed)
-				Con_TPrintf (STL_MESSAGEOVERFLOW,cl->num_backbuf,cl->name);
+				Con_TPrintf ("WARNING: backbuf [%d] reliable overflow for %s\n",cl->num_backbuf,cl->name);
 			cl->netchan.message.overflowed = true; // this will drop the client
 		}
 	}

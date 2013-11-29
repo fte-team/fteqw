@@ -999,7 +999,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		isDedicated = false;
 #endif
 		if (newr)
-			Con_Printf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
+			Con_TPrintf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
@@ -1313,7 +1313,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 	if (newr && qrenderer != QR_NONE)
 	{
-		Con_Printf("%s renderer initialized\n", newr->renderer->description);
+		Con_TPrintf("%s renderer initialized\n", newr->renderer->description);
 	}
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));

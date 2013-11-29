@@ -247,7 +247,7 @@ EBUILTIN(qhandle_t, Net_Accept, (qhandle_t socket, char *address, int addresssiz
 EBUILTIN(int, Net_Recv, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(void, Net_Close, (qhandle_t socket));
-#define N_WOULDBLOCK -1
+#define N_WOULDBLOCK 0
 #define NET_CLIENTPORT -1
 #define NET_SERVERPORT -2
 
@@ -261,7 +261,7 @@ EBUILTIN(float, sin, (float f));
 #endif
 
 typedef qintptr_t (*export_t) (qintptr_t *args);
-char	*va(char *format, ...);
+char	*va(const char *format, ...);
 qintptr_t Plug_Init(qintptr_t *args);
 qboolean Plug_Export(const char *name, export_t func);
 void Con_Printf(const char *format, ...);

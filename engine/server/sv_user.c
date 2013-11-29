@@ -257,7 +257,7 @@ void SV_New_f (void)
 //spawns.  These functions are written to not overflow
 /*	if (host_client->num_backbuf)
 	{
-		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
+		Con_Printf("WARNING %s: [SV_New] Back buffered (%d0, clearing)\n", host_client->name, host_client->netchan.message.cursize);
 		host_client->num_backbuf = 0;
 		SZ_Clear(&host_client->netchan.message);
 	}
@@ -1429,7 +1429,7 @@ void SVQW_PreSpawn_f (void)
 		{
 			char *msg;
 			SV_ClientTPrintf (host_client, PRINT_HIGH,
-				STL_MAPCHEAT,
+				"Map model file does not match (%s), %i != %i/%i.\nYou may need a new version of the map, or the proper install files.\n",
 				sv.modelname, check, sv.world.worldmodel->checksum, sv.world.worldmodel->checksum2);
 
 
@@ -1848,7 +1848,7 @@ void SV_Begin_f (void)
 
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_POSSIBLEMODELCHEAT, host_client->name);
+			SV_BroadcastTPrintf (PRINT_HIGH, "warning: %s eyes or player model does not match\n", host_client->name);
 	}
 
 	// if we are paused, tell the client
@@ -1860,7 +1860,7 @@ void SV_Begin_f (void)
 			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
 		if (sv.paused&~4)
-			SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED);
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "server is paused\n");
 	}
 
 	if (sendangles)
@@ -1997,7 +1997,7 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 
 	if (chunknum*CHUNKSIZE > host_client->downloadsize)
 	{
-		SV_ClientPrintf (host_client, PRINT_HIGH, "Warning: Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Warning: Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
 		error = 2;
 	}
 
@@ -2187,7 +2187,7 @@ void SV_NextUpload (void)
 
 	if (!*host_client->uploadfn)
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_UPLOADDENIED);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "Upload denied\n");
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
 		ClientReliableWrite_String (host_client, "stopul\n");
 
@@ -3032,8 +3032,7 @@ void SV_SayOne_f (void)
 
 		if (host_client->ismuted)
 		{
-			SV_ClientTPrintf(host_client, PRINT_CHAT,
-					STL_YOUAREMUTED);
+			SV_ClientTPrintf(host_client, PRINT_CHAT, "%s is muted\n");
 			return;
 		}
 
@@ -3072,7 +3071,7 @@ void SV_SayOne_f (void)
 
 	if (clnum==-1)	//none found
 	{
-		SV_ClientTPrintf(host_client, PRINT_CHAT, STL_NAMEDCLIENTDOESNTEXIST);
+		SV_ClientTPrintf(host_client, PRINT_CHAT, "client does not exist\n");
 		return;
 	}
 }
@@ -3167,8 +3166,7 @@ void SV_Say (qboolean team)
 
 	if (host_client->ismuted)
 	{
-		SV_ClientTPrintf(host_client, PRINT_CHAT,
-			STL_MUTEDCHAT);
+		SV_ClientTPrintf(host_client, PRINT_CHAT, "You cannot chat while muted\n");
 		return;
 	}
 
@@ -3179,9 +3177,7 @@ void SV_Say (qboolean team)
 
 	if ((floodtime=SV_CheckFloodProt(host_client)))
 	{
-		SV_ClientTPrintf(host_client, PRINT_CHAT,
-				STL_FLOODPROTTIME,
-					(int) (floodtime));
+		SV_ClientTPrintf(host_client, PRINT_CHAT, "You can't talk for %i more seconds\n", (int) (floodtime));
 		return;
 	}
 	SV_PushFloodProt(host_client);
@@ -3196,7 +3192,7 @@ void SV_Say (qboolean team)
 
 	if (strlen(text)+strlen(p)+2 >= sizeof(text)-10)
 	{
-		SV_ClientTPrintf(host_client, PRINT_CHAT, STL_BUFFERPROTECTION);
+		SV_ClientTPrintf(host_client, PRINT_CHAT, "buffer overflow protection: failiure\n");
 		return;
 	}
 	if (svprogfuncs)
@@ -3399,7 +3395,7 @@ void SV_Kill_f (void)
 
 	if (sv_player->v->health <= 0)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUICIDEWHENDEAD);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Can't suicide -- Already dead\n");
 		return;
 	}
 
@@ -3450,22 +3446,22 @@ void SV_Pause_f (void)
 {
 	if (!pausable.value)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_CANTPAUSE);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Can't pause. Not allowed\n");
 		return;
 	}
 
 	if (host_client->spectator && !svs.demoplayback)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_CANTPAUSESPEC);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Spectators may not pause the game\n");
 		return;
 	}
 
 	if (SV_TogglePause(host_client))
 	{
 		if (sv.paused & 1)
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTPAUSED, host_client->name);
+			SV_BroadcastTPrintf (PRINT_HIGH, "%s paused the game\n", host_client->name);
 		else
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTUNPAUSED, host_client->name);
+			SV_BroadcastTPrintf (PRINT_HIGH, "%s unpaused the game\n", host_client->name);
 	}
 
 }
@@ -3490,7 +3486,7 @@ void SV_Drop_f (void)
 		else
 		{
 			if (!host_client->spectator)
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTDROPPED, host_client->name);
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s dropped\n", host_client->name);
 		}
 		host_client->drop = true;
 	}
@@ -3536,7 +3532,7 @@ void SV_PTrack_f (void)
 
 	if (!SV_CanTrack(host_client, i+1))
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_INVALIDTRACKCLIENT);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "invalid player to track\n");
 		host_client->spec_track = 0;
 		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 		tent = EDICT_NUM(svprogfuncs, 0);
@@ -3573,7 +3569,7 @@ void SV_Rate_f (void)
 	Info_SetValueForKey (host_client->userinfo, "rate", Cmd_Argv(1), sizeof(host_client->userinfo));
 	SV_ExtractFromUserinfo (host_client, true);
 
-	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_RATESETTO, SV_RateForClient(host_client));
+	SV_ClientTPrintf (host_client, PRINT_HIGH, "rate is changed to %i\n", SV_RateForClient(host_client));
 }
 
 
@@ -3588,14 +3584,14 @@ void SV_Msg_f (void)
 {
 	if (Cmd_Argc() != 2)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_CURRENTMSGLEVEL,
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "current msg level is %i\n",
 			host_client->messagelevel);
 		return;
 	}
 
 	host_client->messagelevel = atoi(Cmd_Argv(1));
 
-	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_MSGLEVELSET, host_client->messagelevel);
+	SV_ClientTPrintf (host_client, PRINT_HIGH, "new msg level set to %i\n", host_client->messagelevel);
 }
 
 qboolean SV_UserInfoIsBasic(char *infoname)
@@ -3755,7 +3751,7 @@ void SV_NoSnap_f(void)
 	if (*host_client->uploadfn)
 	{
 		*host_client->uploadfn = 0;
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_SNAPREFUSED, host_client->name);
+		SV_BroadcastTPrintf (PRINT_HIGH, "%s refused remote screenshot\n", host_client->name);
 	}
 }
 
@@ -3860,12 +3856,12 @@ void SV_Vote_f (void)
 
 	if (!votelevel.value)
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_NOVOTING);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "Voting was dissallowed\n");
 		return;
 	}
 	if (host_client->ismuted)
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_MUTEDVOTE);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "Sorry, you cannot vote when muted as it may allow you to send a message.\n");
 		return;
 	}
 
@@ -3879,7 +3875,7 @@ void SV_Vote_f (void)
 		base = NULL;
 	if (strchr(command, ';') || !strcmp(command, "if"))
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_BADVOTE);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "You arn't allowed to vote for that\n");
 		return;
 	}
 	num = Cmd_Level(command);
@@ -3887,7 +3883,7 @@ void SV_Vote_f (void)
 		*base = ' ';
 	if (num != Cmd_ExecLevel)
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_BADVOTE);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "You arn't allowed to vote for that\n");
 		return;
 	}
 
@@ -3901,13 +3897,13 @@ void SV_Vote_f (void)
 	if (VoteCount(command, id))
 	{
 		VoteRemoveCommands(command, id);
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_OLDVOTEREMOVED);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "Old vote removed.\n");
 		return;
 	}
 	if (VoteCount(NULL, id)>=3)
 	{
 		VoteRemoveCommands(NULL, id);
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_VOTESREMOVED);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "All votes removed.\n");
 	}
 
 	num = VoteCount(command, -1)+1;
@@ -3922,7 +3918,7 @@ void SV_Vote_f (void)
 
 	if (passes)	//>min number of votes, and meets the percent required
 	{
-		SV_BroadcastTPrintf(PRINT_HIGH, STL_FINALVOTE, host_client->name, command);
+		SV_BroadcastTPrintf(PRINT_HIGH, "%s casts final vote for '%s'\n", host_client->name, command);
 
 		VoteRemoveCommands(command, -1);
 		Cbuf_AddText(command, votelevel.value);
@@ -3932,7 +3928,7 @@ void SV_Vote_f (void)
 	}
 	else	//otherwise, try later.
 	{
-		SV_BroadcastTPrintf(PRINT_HIGH, STL_VOTE, host_client->name, command);
+		SV_BroadcastTPrintf(PRINT_HIGH, "%s casts a vote for '%s'\n", host_client->name, command);
 
 		VoteAdd(command, id);
 	}
@@ -3958,15 +3954,15 @@ void Cmd_God_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
 	SV_LogPlayer(host_client, "god cheat");
 	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_GODMODE) & FL_GODMODE)
-		SV_ClientPrintf (host_client, PRINT_HIGH, "godmode ON\n");
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "godmode ON\n");
 	else
-		SV_ClientPrintf (host_client, PRINT_HIGH, "godmode OFF\n");
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "godmode OFF\n");
 }
 
 
@@ -3985,7 +3981,7 @@ void Cmd_Give_f (void)
 
 	if (!SV_MayCheat())
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -4024,21 +4020,21 @@ void Cmd_Give_f (void)
 			sv_player->v->ammo_cells = v;
 			break;
 		default:
-			Con_Printf("give: unknown item\n");
+			SV_TPrintToClient(host_client, PRINT_HIGH, "give: unknown item\n");
 		}
 	}
 	else
 	{
 		if (developer.value < 2 && host_client->netchan.remote_address.type != NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
 		{
-			SV_PrintToClient(host_client, PRINT_HIGH, "'give' debugging command requires developer 2 set on the server before you may use it\n");
+			SV_TPrintToClient(host_client, PRINT_HIGH, "'give' debugging command requires developer 2 set on the server before you may use it\n");
 		}
 		else
 		{
 			int oldself;
 			oldself = pr_global_struct->self;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-			SV_ClientPrintf(host_client, PRINT_HIGH, "Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 			pr_global_struct->self = oldself;
 		}
 	}
@@ -4048,7 +4044,7 @@ void Cmd_Noclip_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -4057,7 +4053,7 @@ void Cmd_Noclip_f (void)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
 		sv_player->v->solid = SOLID_TRIGGER;
-		SV_ClientPrintf (host_client, PRINT_HIGH, "noclip ON\n");
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "noclip ON\n");
 	}
 	else
 	{
@@ -4066,7 +4062,7 @@ void Cmd_Noclip_f (void)
 			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
 			sv_player->v->solid = SOLID_NOT;
-		SV_ClientPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
 	}
 }
 
@@ -4074,7 +4070,7 @@ void Cmd_Fly_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -4082,7 +4078,7 @@ void Cmd_Fly_f (void)
 	if (sv_player->v->movetype != MOVETYPE_FLY)
 	{
 		sv_player->v->movetype = MOVETYPE_FLY;
-		SV_ClientPrintf (host_client, PRINT_HIGH, "flymode ON\n");
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "flymode ON\n");
 	}
 	else
 	{
@@ -4091,7 +4087,7 @@ void Cmd_Fly_f (void)
 			sv_player->v->solid = SOLID_SLIDEBOX;
 		else
 			sv_player->v->solid = SOLID_NOT;
-		SV_ClientPrintf (host_client, PRINT_HIGH, "flymode OFF\n");
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "flymode OFF\n");
 	}
 }
 
@@ -4105,7 +4101,7 @@ void Cmd_SetPos_f(void)
 {
 	if (!SV_MayCheat())
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -4118,7 +4114,7 @@ void Cmd_SetPos_f(void)
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
-		SV_PrintToClient(host_client, PRINT_HIGH, "noclip on\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "noclip on\n");
 	}
 
 	sv_player->v->origin[0] = atof(Cmd_Argv(1));
@@ -4197,19 +4193,19 @@ void Cmd_Join_f (void)
 
 	if (svs.gametype != GT_PROGS)
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
 		return;
 	}
 
 	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Your QW client doesn't support this command\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Your game client doesn't support this command\n");
 		return;
 	}
 
 	if (password.string[0] && stricmp(password.string, "none"))
 	{
-		SV_ClientPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "player", "player");
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "player", "player");
 		return;
 	}
 
@@ -4225,7 +4221,7 @@ void Cmd_Join_f (void)
 	}
 	if (numclients+seats > maxclients.value)
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Can't join, all player slots full\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Can't join, all player slots full\n");
 		return;
 	}
 
@@ -4307,19 +4303,19 @@ void Cmd_Observe_f (void)
 
 	if (svs.gametype != GT_PROGS)
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
 		return;
 	}
 
 	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Your QW client doesn't support this command\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Your game client doesn't support this command\n");
 		return;
 	}
 
 	if (spectator_password.string[0] && stricmp(spectator_password.string, "none"))
 	{
-		SV_ClientPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "spectator", "spectator");
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "spectator", "spectator");
 		return;
 	}
 
@@ -4335,7 +4331,7 @@ void Cmd_Observe_f (void)
 	}
 	if (numspectators+seats > maxspectators.value)
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "Can't join, all spectator slots full\n");
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Can't join, all spectator slots full\n");
 		return;
 	}
 
@@ -4489,7 +4485,7 @@ void SV_DisableClientsCSQC(void)
 }
 
 void SV_UserCmdMVDList_f (void);
-void SV_STFU_f(void)
+static void SV_STFU_f(void)
 {
 	char *msg;
 	SV_ClientPrintf(host_client, 255, "stfu\n");
@@ -4663,7 +4659,7 @@ void SVNQ_Begin_f (void)
 
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
-			SV_BroadcastPrintf (PRINT_HIGH, "warning: %s eyes or player model not verified\n", host_client->name);
+			SV_BroadcastTPrintf (PRINT_HIGH, "warning: %s eyes or player model not verified\n", host_client->name);
 	}
 
 
@@ -4676,7 +4672,7 @@ void SVNQ_Begin_f (void)
 			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
 		if (sv.paused&~4)
-			SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED!=0);
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "server is paused\n");
 	}
 
 	if (sendangles)
@@ -4785,6 +4781,8 @@ void SVNQ_Ping_f(void)
 	int i;
 	client_t *cl;
 
+	//don't translate this, most advanced clients (including us) automate and parse them, the results being visible in the scoreboard and NOT the console.
+	//translating these prints can thus confuse things greatly.
 	SV_PrintToClient(host_client, PRINT_HIGH, "Client ping times:\n");
 	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
 	{
@@ -4897,7 +4895,7 @@ ucmd_t ucmds[] =
 	{"begin", SV_Begin_f, true},
 
 	/*ezquake warning*/
-	{"al", SV_STFU_f, true},
+	{"al", SV_STFU_f, true},	//can probably be removed now.
 
 	{"drop", SV_Drop_f},
 	{"disconnect", SV_Drop_f},
@@ -5148,7 +5146,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 				return;
 			}
 
-			Con_Printf ("cmd from %s:\n%s\n"
+			Con_TPrintf ("cmd from %s:\n%s\n"
 				, host_client->name, net_message.data+4);
 
 			SV_BeginRedirect (RD_CLIENT, host_client->language);
@@ -5176,7 +5174,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 			return;
 		}
 #endif
-		Con_Printf ("Bad user command: %s\n", Cmd_Argv(0));
+		Con_TPrintf ("Bad user command: %s\n", Cmd_Argv(0));
 	}
 
 	host_client = oldhost;
@@ -5572,14 +5570,14 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			{
 				host_client->msec_cheating++;
 				SV_BroadcastTPrintf(PRINT_HIGH,
-						STL_SPEEDCHEATPOSSIBLE,
+						"Speed cheat possibility, analyzing:\n  %d %.1f %d for: %s\n",
 							host_client->msecs, tmp_time,
 							host_client->msec_cheating, host_client->name);
 
 				if (host_client->msec_cheating >= 2)
 				{
 					SV_BroadcastTPrintf(PRINT_HIGH,
-							STL_SPEEDCHEATKICKED,
+							"%s was kicked for speedcheating (%s)\n",
 								host_client->name, NET_AdrToString(adr, sizeof(adr), &host_client->netchan.remote_address));
 					host_client->drop = true;	//drop later
 				}

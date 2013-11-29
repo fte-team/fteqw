@@ -372,7 +372,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc)
 
 	pack->references++;
 
-	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
+	Con_TPrintf ("Added packfile %s (%i files)\n", desc, numpackfiles);
 
 	pack->pub.fsver			= FSVER;
 	pack->pub.GetPathDetails = FSPAK_GetPathDetails;
@@ -555,7 +555,7 @@ newsection:
 
 	pack->references++;
 
-	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
+	Con_TPrintf ("Added packfile %s (%i files)\n", desc, numpackfiles);
 
 	pack->pub.fsver			= FSVER;
 	pack->pub.GetPathDetails = FSPAK_GetPathDetails;

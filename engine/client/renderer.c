@@ -617,6 +617,7 @@ void Renderer_Init(void)
 	Sh_RegisterCvars();
 
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
+	Cvar_Register (&r_slimestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavastyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);

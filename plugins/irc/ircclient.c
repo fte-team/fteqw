@@ -66,7 +66,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 		//Cmd_AddText("\n", false);
 	}
 
-	strlcpy(lwr, commandname, sizeof(lwr));
+	Q_strlcpy(lwr, commandname, sizeof(lwr));
 	for (i = strlen(lwr); *subname && i < sizeof(lwr)-2; i++, subname++)
 	{
 		if (*subname >= 'A' && *subname <= 'Z')
@@ -252,7 +252,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 			}
 		}
 		else
-			strlcpy(commandname, "irc", sizeof(commandname));
+			Q_strlcpy(commandname, "irc", sizeof(commandname));
 
 		Cmd_AddCommand(commandname);
 
@@ -315,7 +315,7 @@ void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 	strcpy(output, msg);
 	strcat(output, "\n");
 
-	Net_Send(irc->socket, output, strlen(output));	//FIXME: This needs rewriting to cope with errors.
+	Net_Send(irc->socket, output, strlen(output));	//FIXME: This needs rewriting to cope with errors+throttle.
 
 	if (irc_debug.value == 1) { Con_SubPrintf(DEFAULTCONSOLE,COLOURYELLOW "<< %s \n",msg); }
 }
@@ -346,7 +346,7 @@ ircclient_t *IRC_Connect(char *server, int defport)
 		return NULL;
 	}
 
-	strlcpy(irc->server, server, sizeof(irc->server));
+	Q_strlcpy(irc->server, server, sizeof(irc->server));
 
 	IRC_CvarUpdate();
 
@@ -369,7 +369,7 @@ void IRC_SetPass(ircclient_t *irc, char *pass)
 }
 void IRC_SetNick(ircclient_t *irc, char *nick)
 {
-	strlcpy(irc->nick, nick, sizeof(irc->nick)); // broken
+	Q_strlcpy(irc->nick, nick, sizeof(irc->nick)); // broken
 	IRC_AddClientMessage(irc, va("NICK %s", irc->nick));
 	irc->nickcycle=0;
 }
@@ -381,10 +381,20 @@ void IRC_SetUser(ircclient_t *irc, char *user)
 }
 void IRC_JoinChannel(ircclient_t *irc, char *channel, char *key) // i screwed up, its actually: <channel>{,<channel>} [<key>{,<key>}]
 {
-	if ( *channel != '#' )
-		IRC_AddClientMessage(irc, va("JOIN #%s %s", channel,key));
+	if (key)
+	{
+		/*if (*channel != '#')
+			IRC_AddClientMessage(irc, va("JOIN #%s %s", channel,key));
+		else*/
+			IRC_AddClientMessage(irc, va("JOIN %s %s", channel,key));
+	}
 	else
-		IRC_AddClientMessage(irc, va("JOIN %s %s", channel,key));
+	{
+		/*if (*channel != '#')
+			IRC_AddClientMessage(irc, va("JOIN #%s", channel));
+		else*/
+		IRC_AddClientMessage(irc, va("JOIN %s", channel));
+	}
 }
 
 
@@ -849,17 +859,12 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	ret = Net_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);
 	if (ret == 0)
-		return IRC_KILL;
-	if (ret < 0)
 	{
-		if (ret == N_WOULDBLOCK)
-		{
-			if (!irc->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
-				return IRC_DONE;	//remove
-		}
-		else
-			return IRC_KILL;
+		if (!irc->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
+			return IRC_DONE;	//remove
 	}
+	if (ret < 0)
+		return IRC_KILL;
 
 	if (ret>0)
 		irc->bufferedinammount+=ret;
@@ -916,9 +921,9 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 
 		if (sp-msg >= sizeof(prefix))
-			strlcpy(prefix, msg+1, sizeof(prefix));
+			Q_strlcpy(prefix, msg+1, sizeof(prefix));
 		else
-			strlcpy(prefix, msg+1, sp-msg);
+			Q_strlcpy(prefix, msg+1, sp-msg);
 
 		msg = sp;
 		while(*msg == ' ')
@@ -1163,15 +1168,10 @@ int IRC_ClientFrame(ircclient_t *irc)
 	{
 		char *exc = strchr(prefix, '!');
 		char *col = strchr(msg+5, ':');
-		if (!col)
-			col = msg+5;
-		else col+=1;
-		if (exc)
+		if (exc && col)
 		{
-			if (!col)
-				col = DEFAULTCONSOLE;
 			*exc = '\0';
-			Con_SubPrintf(col, "%s leaves channel %s\n", prefix, col);
+			Con_SubPrintf(msg+5, "%s leaves channel %s\n", prefix, col);
 		}
 		else Con_SubPrintf(DEFAULTCONSOLE, COLOURGREEN ":%sPART %s\n", prefix, msg+5);
 	}
@@ -1357,18 +1357,18 @@ void IRC_Command(char *dest)
 		{
 			if (ircclient)
 			{
-				Con_Printf("You are already connected\nPlease /quit first\n");
+				Con_SubPrintf(dest, "You are already connected\nPlease /quit first\n");
 				return;
 			}
 			msg = COM_Parse(msg);
 			ircclient = IRC_Connect(com_token, 6667);
 			if (ircclient)
 			{
-				Con_Printf("Trying to connect\n");
+				Con_SubPrintf(dest, "Trying to connect\n");
 				IRC_SetPass(ircclient, "");
 
 				msg = COM_Parse(msg);
-				strlcpy(ircclient->autochannels, com_token, sizeof(ircclient->autochannels));
+				Q_strlcpy(ircclient->autochannels, com_token, sizeof(ircclient->autochannels));
 
 				msg = COM_Parse(msg);
 				if (*com_token)
@@ -1391,13 +1391,13 @@ void IRC_Command(char *dest)
 		else if (!strcmp(com_token+1, "user"))
 		{
 			msg = COM_Parse(msg);
-			strlcpy(defaultuser, com_token, sizeof(defaultuser));
+			Q_strlcpy(defaultuser, com_token, sizeof(defaultuser));
 			if (ircclient)
 				IRC_SetUser(ircclient, defaultuser);
 		}
 		else if (!ircclient)
 		{
-			Con_Printf("Not connected, please connect to an irc server first.\n");
+			Con_SubPrintf(dest, "Not connected, please connect to an irc server first.\n");
 		}
 
 		//ALL other commands require you to be connected.
@@ -1470,7 +1470,7 @@ void IRC_Command(char *dest)
 		else if (!strcmp(com_token+1, "dest"))
 		{
 			msg = COM_Parse(msg);
-			strlcpy(ircclient->defaultdest, com_token, sizeof(ircclient->defaultdest));
+			Q_strlcpy(ircclient->defaultdest, com_token, sizeof(ircclient->defaultdest));
 		}
 		else if (!strcmp(com_token+1, "ping"))
 		{
@@ -1503,7 +1503,7 @@ void IRC_Command(char *dest)
 		{
 			if (!*dest)
 			{
-				Con_SubPrintf(DEFAULTCONSOLE, "No channel joined. Try /join #<channel>\n");
+				Con_SubPrintf(dest, "No channel joined. Try /join #<channel>\n");
 			}
 			else
 			{

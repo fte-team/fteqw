@@ -1074,7 +1074,7 @@ void SV_Savegame_f (void)
 {
 	SV_Savegame(Cmd_Argv(1));
 }
-
+void SV_UpdateMaxPlayers(int newmax);
 void SV_Loadgame_f (void)
 {
 	levelcache_t *cache;
@@ -1138,6 +1138,8 @@ void SV_Loadgame_f (void)
 
 	VFS_GETS(f, str, sizeof(str)-1);
 	slots = atoi(str);
+	if (slots > svs.allocated_client_slots)
+		SV_UpdateMaxPlayers(slots);
 	for (cl = svs.clients, clnum=0; clnum < slots; cl++,clnum++)
 	{
 		if (cl->state > cs_zombie)

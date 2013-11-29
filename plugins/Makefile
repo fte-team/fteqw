@@ -120,8 +120,9 @@ $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
 native: $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT)
 
+#irc plugin can still be built as a qvm.
 $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -o $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT)
 
 native: 

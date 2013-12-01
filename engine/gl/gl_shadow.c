@@ -803,7 +803,9 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 	if (node->contents != -1)
 	{
 		pleaf = (mleaf_t *)node;
-		SHM_Shadow_Cache_Leaf(pleaf);
+
+		if (pleaf->cluster >= 0)
+			sh_shmesh->litleaves[pleaf->cluster>>3] |= 1<<(pleaf->cluster&7);
 
 		mark = pleaf->firstmarksurface;
 		c = pleaf->nummarksurfaces;
@@ -901,6 +903,11 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
 					SHM_Shadow_Cache_Surface(surf);
+					if (sh_shmesh->type == SMT_SHADOWMAP)
+					{
+						SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+						continue;
+					}
 					if (sh_shmesh->type != SMT_STENCILVOLUME)
 						continue;
 

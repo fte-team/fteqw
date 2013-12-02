@@ -649,8 +649,8 @@ void M_Menu_Preset_f (void)
 	};
 	menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, bulk, 16, 216, y);
-	//bottoms up! highlight 'fast' as the default option
-	menu->selecteditem = menu->options->common.next->common.next->common.next->common.next;
+	//bottoms up! highlight 'normal' as the default option
+	menu->selecteditem = menu->options->common.next->common.next->common.next;
 	menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 }
 

@@ -608,6 +608,56 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 
 #ifdef _WIN32
 #include <windows.h>
+qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
+{
+	char *match;
+	if (!fontfilename)
+		return true;
+	match = strstr(buffer, fontfilename);
+	if (!match)
+		return false;
+	if (!(match == buffer || match[-1] == ','))
+		return false;
+	match += strlen(fontfilename);
+	if (*match && *match != ',')
+		return false;
+	return true;
+}
+extern qboolean	WinNT;
+qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen);
+qboolean MyRegGetStringValueMultiSz(HKEY base, char *keyname, char *valuename, void *data, int datalen);
+void R2D_Font_AddFontLink(char *buffer, int buffersize, char *fontname)
+{
+	char link[1024];
+	char *res, *comma, *othercomma, *nl;
+	if (fontname)
+	if (MyRegGetStringValueMultiSz(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\FontLink\\SystemLink":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\FontLink\\SystemLink", fontname, link, sizeof(link)))
+	{
+		res = nl = link;
+		while (*nl)
+		{
+			nl += strlen(nl);
+			nl++;
+			comma = strchr(res, ',');
+			if (comma)
+			{
+				*comma++ = 0;
+				othercomma = strchr(comma, ',');
+				if (othercomma)
+					*othercomma = 0;
+			}
+			else
+				comma = "";
+			if (!R2D_Font_WasAdded(buffer, res))
+			{
+				Q_strncatz(buffer, ",", buffersize);
+				Q_strncatz(buffer, res, buffersize);
+				R2D_Font_AddFontLink(buffer, buffersize, comma);
+			}
+			res = nl;
+		}
+	}
+}
 #endif
 void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -631,7 +681,6 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 		LOGFONT lf = {0};
 		CHOOSEFONTA cf = {sizeof(cf)};
 		extern HWND	mainwindow;
-		extern qboolean	WinNT;
 		font_conchar = Font_LoadFont(8, "");
 
 		cf.hwndOwner = mainwindow;
@@ -643,22 +692,26 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 					
 		if (pChooseFontA && pChooseFontA(&cf))
 		{
-			char fname[MAX_OSPATH];
+			char fname[MAX_OSPATH*8];
 			char *keyname;
-			keyname = va("%s%s%s (TrueType)", lf.lfFaceName, lf.lfWeight>=FW_BOLD?" Bold":"", lf.lfItalic?" Italic":"");
-			if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
+			*fname = 0;
+			//FIXME: should enumerate and split & and ignore sizes and () crap.
+			if (!*fname)
 			{
-				Cvar_Set(var, fname);
-				return;
+				keyname = va("%s%s%s (TrueType)", lf.lfFaceName, lf.lfWeight>=FW_BOLD?" Bold":"", lf.lfItalic?" Italic":"");
+				if (!MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
+					*fname = 0;
 			}
-			keyname = va("%s (OpenType)", lf.lfFaceName);
-			if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
+			if (!*fname)
 			{
-				Cvar_Set(var, fname);
-				return;
+				keyname = va("%s (OpenType)", lf.lfFaceName);
+				if (!MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
+					*fname = 0;
 			}
+
+			R2D_Font_AddFontLink(fname, sizeof(fname), lf.lfFaceName);
+			Cvar_Set(var, fname);
 		}
-		Cvar_Set(var, "");
 		return;
 	}
 #endif

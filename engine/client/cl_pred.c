@@ -285,6 +285,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	{
 		frame = ack & (UPDATE_MASK);
 		cmd = (q2usercmd_t*)&cl.outframes[frame].cmd[0];
+		cmd->msec = cl.outframes[frame].cmd[0].msec;
 
 		pm.cmd = *cmd;
 		Q2_Pmove (&pm);
@@ -296,6 +297,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	if (independantphysics[0].msec)
 	{
 		cmd = (q2usercmd_t*)&independantphysics[0];
+		cmd->msec = independantphysics[0].msec;
 
 		pm.cmd = *cmd;
 		Q2_Pmove (&pm);

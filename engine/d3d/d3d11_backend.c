@@ -268,7 +268,7 @@ static void BE_CreateSamplerStates(void)
 			if (flags & SHADER_PASS_NEAREST)
 				sampdesc.Filter = D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
 			else
-				sampdesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+				sampdesc.Filter = /*D3D11_FILTER_MIN_MAG_MIP_POINT;D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;*/D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 			sampdesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 		}
 		if (flags & SHADER_PASS_CLAMP)
@@ -2799,7 +2799,7 @@ void D3D11BE_SubmitBatch(batch_t *batch)
 	shaderstate.batchvbo = batch->vbo;
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = batch->shader;
-	shaderstate.curtexnums = batch->skin;
+	shaderstate.curtexnums = batch->skin?batch->skin:&batch->shader->defaulttextures;
 	shaderstate.flags = batch->flags;
 
 	if (!shaderstate.batchvbo)
@@ -2864,11 +2864,6 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
-		else if (batch->texture)
-		{
-			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
-			batch->skin = &batch->shader->defaulttextures;
-		}
 
 		if (batch->shader->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT)
@@ -3149,9 +3144,6 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 				if (batch->buildmeshes)
 					batch->buildmeshes(batch);
-				else
-					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
-
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
 				BE_SelectMode(BEM_DEPTHONLY);

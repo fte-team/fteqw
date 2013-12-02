@@ -1726,7 +1726,7 @@ typedef struct _TargaHeader {
 
 
 #if defined(AVAIL_JPEGLIB) && !defined(NO_JPEG)
-	void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
+qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
 #endif
 #ifdef AVAIL_PNGLIB
 int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height);
@@ -1783,14 +1783,14 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 #ifdef AVAIL_PNGLIB
 	if (!strcmp(ext, "png"))
 	{
-		Image_WritePNG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
+		return Image_WritePNG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
 		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
 	{
-		screenshotJPEG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
+		return screenshotJPEG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif

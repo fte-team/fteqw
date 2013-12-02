@@ -349,7 +349,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 
 	if (mouse->type == M_TOUCH)
 	{
-		if (m_strafeonright.ival && mouse->downpos[0] > vid.pixelwidth/2 && movements != NULL && !Key_Dest_Has(kdm_game))
+		if (m_strafeonright.ival && mouse->downpos[0] > vid.pixelwidth/2 && movements != NULL && !Key_Dest_Has(~kdm_game))
 		{
 			//if they're strafing, calculate the speed to move at based upon their displacement
 			if (mouse->down)

@@ -1617,7 +1617,7 @@ void SV_SpawnSpectator (void)
 	// search for an info_playerstart to spawn the spectator at
 	//this is only useful when a mod doesn't nativly support spectators. old qw on nq mods.
 
-	for (i=MAX_CLIENTS+1 ; i<sv.world.num_edicts ; i++)
+	for (i=svs.allocated_client_slots+1 ; i<sv.world.num_edicts ; i++)
 	{
 		e = EDICT_NUM(svprogfuncs, i);
 		if (!strcmp(PR_GetString(svprogfuncs, e->v->classname), "info_player_start"))
@@ -2307,7 +2307,7 @@ void SV_VoiceReadPacket(void)
 	/*figure out which team members are meant to receive it*/
 	for (j = 0; j < (MAX_CLIENTS+7)/8; j++)
 		ring->receiver[j] = 0;
-	for (j = 0, cl = svs.clients; j < sv.allocated_client_slots; j++, cl++)
+	for (j = 0, cl = svs.clients; j < svs.allocated_client_slots; j++, cl++)
 	{
 		if (cl->state != cs_spawned && cl->state != cs_connected)
 			continue;
@@ -2458,7 +2458,7 @@ void SV_Voice_Ignore_f(void)
 			type = -1;
 	}
 	other = atoi(Cmd_Argv(1));
-	if (other >= MAX_CLIENTS)
+	if (other >= svs.allocated_client_slots)
 		return;
 
 	switch(type)
@@ -2486,7 +2486,7 @@ void SV_Voice_Target_f(void)
 	else if (*t >= '0' && *t <= '9')
 	{
 		other = atoi(t);
-		if (other >= MAX_CLIENTS)
+		if (other >= svs.allocated_client_slots)
 			return;
 		host_client->voice_target = VT_PLAYERSLOT0 + other;
 	}
@@ -3334,7 +3334,7 @@ void SV_Pings_f (void)
 	if (ISNQCLIENT(host_client))
 	{
 		char *s;
-		ClientReliableWrite_Begin(host_client, svc_stufftext, 15+10*MAX_CLIENTS);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 15+10*sv.allocated_client_slots);
 		ClientReliableWrite_SZ(host_client, "pingplreport", 12);
 		for (j = 0, client = svs.clients; j < sv.allocated_client_slots && j < host_client->max_net_clients; j++, client++)
 		{
@@ -4784,7 +4784,7 @@ void SVNQ_Ping_f(void)
 	//don't translate this, most advanced clients (including us) automate and parse them, the results being visible in the scoreboard and NOT the console.
 	//translating these prints can thus confuse things greatly.
 	SV_PrintToClient(host_client, PRINT_HIGH, "Client ping times:\n");
-	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (!cl->state)
 			continue;

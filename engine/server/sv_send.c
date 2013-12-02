@@ -476,7 +476,7 @@ void VARGS SV_BroadcastCommand (char *fmt, ...)
 	vsnprintf (string,sizeof(string), fmt,argptr);
 	va_end (argptr);
 
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 	{
 		if (cl->controller)
 			continue;
@@ -2140,7 +2140,7 @@ void SV_UpdateToReliableMessages (void)
 			{
 				if (host_client->old_frags != (int)host_client->edict->v->frags)
 				{
-					for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
+					for (j=0, client = svs.clients ; j<svs.allocated_client_slots ; j++, client++)
 					{
 						if (client->state < cs_connected)
 							continue;

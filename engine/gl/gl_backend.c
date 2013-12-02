@@ -4115,8 +4115,8 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 				if (batch->buildmeshes)
 					batch->buildmeshes(batch);
-				else
-					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
+//				else
+//					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
@@ -4165,13 +4165,14 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			if (shaderstate.mode == BEM_STENCIL || shaderstate.mode == BEM_DEPTHONLY)	//fixme: depthonly is not just shadows.
 				continue;
 
+		//buildmeshes updates shaders and generates pose information for sufaces that need it.
+		//the shader flags checked *after* this call may be a performance issue if it generated lots of new mesh data.
+		//FIXME: should we assume that the batch's shader will have the same flags?
 		if (batch->buildmeshes)
 		{
 			TRACE(("GLBE_SubmitMeshesSortList: build\n"));
 			batch->buildmeshes(batch);
 		}
-		else if (batch->texture)
-			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 
 		TRACE(("GLBE_SubmitMeshesSortList: shader %s\n", batch->shader->name));
 

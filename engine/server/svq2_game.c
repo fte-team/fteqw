@@ -92,7 +92,7 @@ static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 		return;
 
 	p = Q2NUM_FOR_EDICT(ent);
-	if (p < 1 || p > MAX_CLIENTS)
+	if (p < 1 || p > svs.allocated_client_slots)
 		return;
 
 	client = svs.clients + (p-1);
@@ -145,7 +145,7 @@ static void VARGS PFQ2_cprintf (q2edict_t *ent, int level, char *fmt, ...)
 	if (ent)
 	{
 		n = Q2NUM_FOR_EDICT(ent);
-		if (n < 1 || n > MAX_CLIENTS)
+		if (n < 1 || n > svs.allocated_client_slots)
 		{
 			Sys_Error ("cprintf to a non-client");
 			return;
@@ -183,7 +183,7 @@ static void VARGS PFQ2_centerprintf (q2edict_t *ent, char *fmt, ...)
 	int			n;
 	
 	n = Q2NUM_FOR_EDICT(ent);
-	if (n < 1 || n > MAX_CLIENTS)
+	if (n < 1 || n > svs.allocated_client_slots)
 		return;	// Com_Error (ERR_DROP, "centerprintf to a non-client");
 
 	if (svs.clients[n-1].state < cs_connected)

@@ -1238,11 +1238,16 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 			out->mipadjust = 1;
 
 		if (out->flags & TI_SKY)
-			snprintf(sname, sizeof(sname), "sky/%s", in->texture);
+			snprintf(sname, sizeof(sname), "sky/%s%s", in->texture, in->nexttexinfo==-1?"":"#ANIMLOOP");
 		else if (out->flags & (TI_WARP|TI_TRANS33|TI_TRANS66))
-			snprintf(sname, sizeof(sname), "%s/%s#ALPHA=%s", ((out->flags&TI_WARP)?"warp":"trans"), in->texture, ((out->flags&TI_TRANS66)?"0.66":(out->flags&TI_TRANS33?"0.33":"1")));
+			snprintf(sname, sizeof(sname), "%s/%s#ALPHA=%s%s", ((out->flags&TI_WARP)?"warp":"trans"), in->texture, ((out->flags&TI_TRANS66)?"0.66":(out->flags&TI_TRANS33?"0.33":"1")), in->nexttexinfo==-1?"":"#ANIMLOOP");
 		else
-			snprintf(sname, sizeof(sname), "wall/%s", in->texture);
+			snprintf(sname, sizeof(sname), "wall/%s%s", in->texture, in->nexttexinfo==-1?"":"#ANIMLOOP");
+
+		//in q2, 'TEX_SPECIAL' is TI_LIGHT, and that conflicts.
+		out->flags &= ~TI_LIGHT;
+		if (out->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
+			out->flags |= TEX_SPECIAL;
 
 		//compact the textures.
 		for (j=0; j < texcount; j++)
@@ -1275,6 +1280,29 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 
 			loadmodel->textures[texcount++] = out->texture;
 		}
+
+		if (in->nexttexinfo != -1)
+		{
+			Con_DPrintf("FIXME: %s should animate to %s\n", in->texture, (in->nexttexinfo+(q2texinfo_t *)(cmod_base + l->fileofs))->texture);
+		}
+	}
+
+	in = (void *)(cmod_base + l->fileofs);
+	out = loadmodel->texinfo;
+	for (i=0 ; i<count ; i++)
+	{
+		if (in[i].nexttexinfo >= 0 && in[i].nexttexinfo < count)
+			out[i].texture->anim_next = out[in[i].nexttexinfo].texture;
+	}
+	for (i=0 ; i<count ; i++)
+	{
+		texture_t *tex;
+		if (!out[i].texture->anim_next)
+			continue;
+
+		out[i].texture->anim_total = 1;
+		for (tex = out[i].texture->anim_next ; tex && tex != out[i].texture ; tex=tex->anim_next)
+			out[i].texture->anim_total++;
 	}
 
 	loadmodel->numtextures = texcount;
@@ -6035,4 +6063,3 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 }
 #endif
-

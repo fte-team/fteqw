@@ -769,8 +769,8 @@ typedef struct
 
 	struct ftenet_connections_s *sockets;
 
-	int			allocated_client_slots;
-	client_t	*clients;
+	int			allocated_client_slots;	//number of entries in the clients array
+	client_t	*clients;			//[svs.allocated_client_slots]
 	int			serverflags;		// episode completion information
 
 	double		last_heartbeat;

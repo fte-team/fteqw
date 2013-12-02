@@ -10364,6 +10364,8 @@ void PR_DumpPlatform_f(void)
 		{"noise3",				".string", QW|NQ},
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
+		{"time",				"float", MENU,	"The current local time. Increases while paused."},
+
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},
 #define comfieldentity(name,desc) {#name, ".entity", FL, desc},

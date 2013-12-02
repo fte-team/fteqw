@@ -533,7 +533,7 @@ void Key_DefaultLinkClicked(char *text, char *info)
 	{
 		unsigned int player = atoi(c);
 		int i;
-		if (player >= MAX_CLIENTS || !*cl.players[player].name)
+		if (player >= cl.allocated_client_slots || !*cl.players[player].name)
 			return;
 
 		c = Info_ValueForKey(info, "action");
@@ -1874,6 +1874,7 @@ qboolean Key_MouseShouldBeFree(void)
 	return false;
 }
 
+int Sbar_TranslateHudClick(void);
 /*
 ===================
 Key_Event
@@ -2195,6 +2196,18 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		key = K_CTRL;
 	if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
 		key = K_SHIFT;
+
+	if ((key == K_MOUSE1 || key == K_MOUSE2) && 1)
+	{
+		int nkey = Sbar_TranslateHudClick();
+		if (nkey)
+		{
+			//handle +/- events 'properly' the only safe way we can - by releasing them instantly and discarding the mouse-up event.
+			Key_Event(devid, nkey, 0, true);
+			Key_Event(devid, nkey, 0, false);
+			return;
+		}
+	}
 
 	kb = keybindings[key][keystate];
 	if (kb)

@@ -1322,7 +1322,7 @@ void SVHL_SpawnEntities(char *entstring)
 
 	//initialise globals
 	SVHL_Globals.stringbase = "";
-	SVHL_Globals.maxclients = MAX_CLIENTS;
+	SVHL_Globals.maxclients = svs.allocated_client_slots;
 	SVHL_Globals.deathmatch = deathmatch.value;
 	SVHL_Globals.coop = coop.value;
 	SVHL_Globals.serverflags = 0;

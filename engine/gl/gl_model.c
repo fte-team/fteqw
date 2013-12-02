@@ -2619,6 +2619,60 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 	}
 }
 
+//q1 autoanimates. if the frame is set, it uses the alternate animation.
+void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
+{
+	texture_t *base = batch->texture;
+	int		reletive;
+	int		count;
+
+	if (batch->ent->framestate.g[FS_REG].frame[0])
+	{
+		if (base->alternate_anims)
+			base = base->alternate_anims;
+	}
+
+	if (base->anim_total)
+	{
+		reletive = (int)(cl.time*10) % base->anim_total;
+
+		count = 0;
+		while (base->anim_min > reletive || base->anim_max <= reletive)
+		{
+			base = base->anim_next;
+			if (!base)
+				Sys_Error ("R_TextureAnimation: broken cycle");
+			if (++count > 100)
+				Sys_Error ("R_TextureAnimation: infinite cycle");
+		}
+	}
+
+	batch->shader = base->shader;
+}
+
+//q2 has direct control over the texture frames used, but typically has the client generate the frame (different flags autogenerate different ranges).
+void Mod_UpdateBatchShader_Q2 (struct batch_s *batch)
+{
+	texture_t *base = batch->texture;
+	int		reletive;
+	int frame = batch->ent->framestate.g[FS_REG].frame[0];
+	if (batch->ent == &r_worldentity)
+		frame = cl.time*2;
+
+	if (base->anim_total)
+	{
+		reletive = frame % base->anim_total;
+		while (reletive --> 0)
+		{
+			base = base->anim_next;
+			if (!base)
+				Sys_Error ("R_TextureAnimation: broken cycle");
+		}
+	}
+
+	batch->shader = base->shader;
+}
+
 /*
 batch->firstmesh is set only in and for this function, its cleared out elsewhere
 */
@@ -2709,6 +2763,14 @@ static void Mod_Batches_Generate(model_t *mod)
 			batch->lightmap[3] = surf->lightmaptexturenums[3];
 #endif
 			batch->texture = surf->texinfo->texture;
+			batch->shader = surf->texinfo->texture->shader;
+			if (surf->texinfo->texture->alternate_anims || surf->texinfo->texture->anim_total)
+			{
+				if (mod->fromgame == fg_quake2)
+					batch->buildmeshes = Mod_UpdateBatchShader_Q2;
+				else
+					batch->buildmeshes = Mod_UpdateBatchShader_Q1;
+			}
 			batch->next = mod->batches[sortid];
 			batch->ent = &r_worldentity;
 			batch->fog = surf->fog;

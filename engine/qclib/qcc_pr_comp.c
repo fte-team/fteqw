@@ -10714,7 +10714,7 @@ void QCC_PR_ParseDefs (char *classname)
 			isconstant = true;
 		else if (QCC_PR_CheckKeyword(keyword_var, "var"))
 			isvar = true;
-		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_var, "static"))
+		else if (QCC_PR_CheckKeyword(keyword_var, "static"))
 			isstatic = true;
 		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_var, "nonstatic"))
 			isstatic = false;

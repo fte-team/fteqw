@@ -3327,7 +3327,7 @@ void CL_LinkPacketEntities (void)
 			ent->topcolour    = (state->colormap>>4) & 0xf;
 			ent->bottomcolour = (state->colormap>>0) & 0xf;
 		}
-		else if (state->colormap > 0 && state->colormap <= MAX_CLIENTS)
+		else if (state->colormap > 0 && state->colormap <= cl.allocated_client_slots)
 		{
 			ent->playerindex = state->colormap-1;
 			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;

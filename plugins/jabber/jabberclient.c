@@ -3206,7 +3206,7 @@ void JCL_CheckClientCaps(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 
 	//one of google's nodes. ONLY google get this fucked up evil hack because they're the only ones that are arrogant enough to not bother to query what that 'ext' actually means - and then to not even bother to tell other clients.
 	//every other client is expected to have its act together and not fuck up like this.
-	googlefuckedup = !!strstr(bres->client_node, "google.com") || !!strstr(bres->client_node, "android.com");
+	googlefuckedup = bres->client_node && (!!strstr(bres->client_node, "google.com") || !!strstr(bres->client_node, "android.com"));
 
 	//and ask for info about each extension too. which should only be used if the specified version isn't a hash.
 	if (bres->client_hash && !*bres->client_hash)

@@ -672,7 +672,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 			Cam_Lock(pv, i);
 			return;
 		}
-		i = (i + 1) % MAX_CLIENTS;
+		i = (i + 1) % cl.allocated_client_slots;
 	} while (i != end);
 	// stay on same guy?
 	i = pv->cam_spec_track;

@@ -39,6 +39,7 @@ qboolean triedtoloadfreetype;
 dllhandle_t *fontmodule;
 FT_Error (VARGS *pFT_Init_FreeType)		(FT_Library  *alibrary);
 FT_Error (VARGS *pFT_Load_Char)			(FT_Face face, FT_ULong char_code, FT_Int32 load_flags);
+FT_UInt	 (VARGS *pFT_Get_Char_Index)	(FT_Face face, FT_ULong charcode);
 FT_Error (VARGS *pFT_Set_Pixel_Sizes)	(FT_Face face, FT_UInt pixel_width, FT_UInt pixel_height);
 FT_Error (VARGS *pFT_New_Face)			(FT_Library library, const char *pathname, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_New_Memory_Face)	(FT_Library library, const FT_Byte* file_base, FT_Long file_size, FT_Long face_index, FT_Face *aface);
@@ -162,6 +163,22 @@ static const char *imgs[] =
 #define PLANEWIDTH (1<<8)
 #define PLANEHEIGHT PLANEWIDTH
 
+//windows' font linking allows linking multiple extra fonts to a main font.
+//this means that a single selected font can use chars from lots of different files if the first one(s) didn't provide that font.
+//they're provided as fallbacks.
+#define MAX_FTFACES 32
+
+typedef struct ftfontface_s
+{
+	struct ftfontface_s *next;
+	struct ftfontface_s **link;	//like prev, but not.
+	char name[MAX_OSPATH];
+	int refs;
+	int activeheight;	//needs reconfiguring when different sizes are used
+	FT_Face face;
+	void *membuf;
+} ftfontface_t;
+static ftfontface_t *ftfaces;
 
 
 #define GEN_CONCHAR_GLYPHS 0	//set to 0 or 1 to define whether to generate glyphs from conchars too, or if it should just draw them as glquake always used to
@@ -170,6 +187,8 @@ extern cvar_t con_ocranaleds;
 
 typedef struct font_s
 {
+	//FIXME: use a hash table? will need it if we go beyond ucs-2.
+	//currently they're in a single block so the font can be checked from scanning the active chars when shutting down. we could instead scan all 65k chars in every font instead...
 	struct charcache_s
 	{
 		struct charcache_s *nextchar;
@@ -186,18 +205,20 @@ typedef struct font_s
 		short top;
 		short left;
 	} chars[FONTCHARS];
-	char name[64];
+	char name[MAX_OSPATH];
 
 	short charheight;
 	texid_t singletexture;
 #ifdef AVAIL_FREETYPE
-	FT_Face face;
-	void *membuf;
+	//FIXME: multiple sized font_t objects should refer to a single FT_Face.
+	int ftfaces;
+	ftfontface_t *face[MAX_FTFACES];
 #endif
 	struct font_s *alt;
 	vec3_t alttint;
 } font_t;
 
+//shared between fonts.
 typedef struct {
 	texid_t texnum[FONTPLANES];
 	texid_t defaultfont;
@@ -214,7 +235,6 @@ typedef struct {
 	shader_t *shader;
 	shader_t *backshader;
 } fontplanes_t;
-
 static fontplanes_t fontplanes;
 	
 #define FONT_CHAR_BUFFER 512
@@ -582,23 +602,34 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 	}
 
 #ifdef AVAIL_FREETYPE
-	if (f->face)
+	if (f->ftfaces)
 	{
-		if (pFT_Load_Char(f->face, charidx, FT_LOAD_RENDER) == 0)
+		int file;
+		for (file = 0; file < f->ftfaces; file++)
 		{
-			FT_GlyphSlot slot;
-			FT_Bitmap *bm;
-
-			slot = f->face->glyph;
-			bm = &slot->bitmap;
-			c = Font_LoadGlyphData(f, charidx, true, bm->buffer, bm->width, bm->rows, bm->pitch); 
-
-			if (c)
+			FT_Face face = f->face[file]->face;
+			if (f->face[file]->activeheight != f->charheight)
 			{
-				c->advance = slot->advance.x >> 6;
-				c->left = slot->bitmap_left;
-				c->top = f->charheight*3/4 - slot->bitmap_top;
-				return c;
+				f->face[file]->activeheight = f->charheight;
+				pFT_Set_Pixel_Sizes(face, 0, f->charheight);
+			}
+			if (charidx == 0xfffe || pFT_Get_Char_Index(face, charidx))	//ignore glyph 0 (undefined)
+			if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER) == 0)
+			{
+				FT_GlyphSlot slot;
+				FT_Bitmap *bm;
+
+				slot = face->glyph;
+				bm = &slot->bitmap;
+				c = Font_LoadGlyphData(f, charidx, true, bm->buffer, bm->width, bm->rows, bm->pitch); 
+
+				if (c)
+				{
+					c->advance = slot->advance.x >> 6;
+					c->left = slot->bitmap_left;
+					c->top = f->charheight*3/4 - slot->bitmap_top;
+					return c;
+				}
 			}
 		}
 	}
@@ -658,18 +689,35 @@ static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
 qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 {
 #ifdef AVAIL_FREETYPE
+	ftfontface_t *qface;
 	FT_Face face = NULL;
 	FT_Error error;
 	flocation_t loc;
 	void *fbase = NULL;
 	if (!*fontfilename)
 		return false;
+
+	//ran out of font slots.
+	if (f->ftfaces == MAX_FTFACES)
+		return false;
+
+	for (qface = ftfaces; qface; qface = qface->next)
+	{
+		if (!strcmp(qface->name, fontfilename))
+		{
+			qface->refs++;
+			f->face[f->ftfaces++] = qface;
+			return true;
+		}
+	}
+
 	if (!fontlib)
 	{
 		dllfunction_t ft2funcs[] =
 		{
 			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
 			{(void**)&pFT_Load_Char, "FT_Load_Char"},
+			{(void**)&pFT_Get_Char_Index, "FT_Get_Char_Index"},
 			{(void**)&pFT_Set_Pixel_Sizes, "FT_Set_Pixel_Sizes"},
 			{(void**)&pFT_New_Face, "FT_New_Face"},
 			{(void**)&pFT_New_Memory_Face, "FT_New_Memory_Face"},
@@ -763,8 +811,17 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		if (!error)
 		{
 			/*success!*/
-			f->membuf = fbase;
-			f->face = face;
+			qface = Z_Malloc(sizeof(*qface));
+			qface->link = &ftfaces;
+			qface->next = *qface->link;
+			*qface->link = qface;
+			qface->face = face;
+			qface->membuf = fbase;
+			qface->refs++;
+			qface->activeheight = height;
+			Q_strncpyz(qface->name, fontfilename, sizeof(qface->name));
+
+			f->face[f->ftfaces++] = qface;
 			return true;
 		}
 	}
@@ -1149,7 +1206,27 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 		else
 			f->alt = Font_LoadFont(vheight, aname+1);
 	}
-	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
+
+	{
+		char *start;
+		start = fontfilename;
+		for(;;)
+		{
+			char *end = strchr(start, ',');
+			if (end)
+				*end = 0;
+			Font_LoadFreeTypeFont(f, height, start);
+			if (end)
+			{
+				*end = ',';
+				start = end+1;
+			}
+			else
+				break;
+		}
+	}
+
+	if (!f->ftfaces)
 	{
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
@@ -1245,10 +1322,22 @@ void Font_Free(struct font_s *f)
 	}
 
 #ifdef AVAIL_FREETYPE
-	if (f->face)
-		pFT_Done_Face(f->face);
-	if (f->membuf)
-		BZ_Free(f->membuf);
+	while(f->ftfaces --> 0)
+	{
+		ftfontface_t *qface = f->face[f->ftfaces];
+		qface->refs--;
+		if (!qface->refs)
+		{
+			if (qface->face)
+				pFT_Done_Face(qface->face);
+			if (qface->membuf)
+				BZ_Free(qface->membuf);
+			*qface->link = qface->next;
+			if (qface->next)
+				qface->next->link = qface->link;
+			Z_Free(qface);
+		}
+	}
 #endif
 	Z_Free(f);
 }

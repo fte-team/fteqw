@@ -979,6 +979,8 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		// key_menu
 		m_state = m_menu_dat;
 		Key_Dest_Remove(kdm_message);
+		if (!Key_Dest_Has(kdm_menu))
+			Key_Dest_Remove(kdm_console);
 		Key_Dest_Add(kdm_menu);
 		break;
 	case 1:
@@ -1525,7 +1527,7 @@ static struct {
 	{"bufstr_add",				PF_bufstr_add,				448},
 	{"bufstr_free",				PF_bufstr_free,				449},
 															//gap
-	{"is_cached_pic",			PF_CL_is_cached_pic,		451},
+	{"iscachedpic",				PF_CL_is_cached_pic,		451},
 	{"precache_pic",			PF_CL_precache_pic,			452},
 	{"free_pic",				PF_CL_free_pic,				453},
 	{"drawcharacter",			PF_CL_drawcharacter,		454},
@@ -1568,7 +1570,7 @@ static struct {
 	{"gecko_keyevent",			PF_cs_gecko_keyevent,		490},
 	{"gecko_mousemove",			PF_cs_gecko_mousemove,		491},
 	{"gecko_resize",			PF_cs_gecko_resize,			492},
-	{"gecko_get_texture_extent",PF_gecko_get_texture_extent,493},
+	{"gecko_get_texture_extent",PF_cs_gecko_get_texture_extent,493},
 	{"crc16",					PF_crc16,					494},
 	{"cvar_type",				PF_cvar_type,				495},
 	{"numentityfields",			PF_numentityfields,			496},

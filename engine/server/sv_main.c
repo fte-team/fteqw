@@ -114,8 +114,8 @@ cvar_t	allow_download_sounds = CVAR("allow_download_sounds", "1");
 cvar_t	allow_download_demos = CVAR("allow_download_demos", "1");
 cvar_t	allow_download_maps = CVAR("allow_download_maps", "1");
 cvar_t	allow_download_anymap = CVAR("allow_download_pakmaps", "0");
-cvar_t	allow_download_pakcontents = CVAR("allow_download_pakcontents", "1");
-cvar_t	allow_download_root = CVAR("allow_download_root", "0");
+cvar_t	allow_download_pakcontents = CVARD("allow_download_pakcontents", "1", "controls whether clients connected to this server are allowed to download files from within packages. Does NOT implicitly allow downloading bsps, set allow_download_pakmaps to enable that.");
+cvar_t	allow_download_root = CVAR("allow_download_root", "0", "If set, enables downloading from the root of the gamedir (not the basedir). This setting is dangerous as it can allow downloading configs.");
 cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
 cvar_t	allow_download_packages = CVAR("allow_download_packages", "1");
 cvar_t	allow_download_refpackages = CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
@@ -1044,7 +1044,7 @@ void SVC_Status (void)
 	SV_BeginRedirect (RD_PACKET, TL_FindLanguage(""));
 	if (displayflags&STATUS_SERVERINFO)
 		Con_Printf ("%s\n", svs.info);
-	for (i=0 ; i<MAX_CLIENTS ; i++)
+	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
 		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && ((cl->spectator && displayflags&STATUS_SPECTATORS) || (!cl->spectator && displayflags&STATUS_PLAYERS)))
@@ -1107,7 +1107,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	if (!sv_listen_nq.ival && !sv_listen_dp.ival)
 		return;
 
-	for (i=0 ; i<MAX_CLIENTS ; i++)
+	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
 		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
@@ -1167,7 +1167,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 			resp[-1] = '\n';	//replace the null terminator that we already wrote
 
 			//on the following lines we have an entry for each client
-			for (i=0 ; i<MAX_CLIENTS ; i++)
+			for (i=0 ; i<svs.allocated_client_slots ; i++)
 			{
 				cl = &svs.clients[i];
 				if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
@@ -1221,7 +1221,7 @@ void SVC_InfoQ2 (void)
 	else
 	{
 		count = 0;
-		for (i=0 ; i<maxclients.value ; i++)
+		for (i=0 ; i<svs.allocated_client_slots ; i++)
 			if (svs.clients[i].state >= cs_connected)
 				count++;
 
@@ -2517,7 +2517,7 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->realip_ping = (((rand()^(rand()<<8) ^ *(int*)&realtime)&0xffffff)<<8) | (newcl-svs.clients);
 
-	if (newcl->istobeloaded)
+	if (newcl->istobeloaded && newcl->edict)
 		newcl->playerclass = newcl->edict->xv->playerclass;
 
 	// parse some info from the info strings
@@ -2902,7 +2902,7 @@ void SVC_RealIP (void)
 	slotnum = atoi(Cmd_Argv(1));
 	cookie = atoi(Cmd_Argv(2));
 
-	if (slotnum >= MAX_CLIENTS)
+	if (slotnum >= svs.allocated_client_slots)
 	{
 		//a malitious user
 		return;
@@ -4516,7 +4516,7 @@ void Master_Heartbeat (void)
 					{
 						// count active users
 						active = 0;
-						for (j=0 ; j<MAX_CLIENTS ; j++)
+						for (j=0 ; j<svs.allocated_client_slots ; j++)
 							if (svs.clients[j].state == cs_connected ||
 							svs.clients[j].state == cs_spawned )
 								active++;

@@ -4079,14 +4079,18 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			if (newparm->type == ev_function)
 			{
 				if (isstatic)
-					QCC_PR_ParseError(ERR_INTERNAL, "%s::%s static functions are not supported at this time.", classname, parmname);
+				{
+					isstatic = false;
+					isnonvirt = true;
+//					QCC_PR_ParseError(ERR_INTERNAL, "%s::%s static member functions are not supported at this time.", classname, parmname);
+				}
 
 				if (!strcmp(classname, parmname))
 				{
 					if (isstatic)
 						QCC_PR_ParseError(ERR_INTERNAL, "Constructor %s::%s may not be static.", classname, pr_token);
 					if (!isvirt)
-						isnonvirt = true;//silently promote constructors to nonvirt
+						isnonvirt = true;//silently promote constructors to static
 				}
 				else if (!isvirt && !isnonvirt && !isstatic)
 				{

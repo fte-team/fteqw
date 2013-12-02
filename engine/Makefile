@@ -917,7 +917,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	# The extra object file called resources.o is specific for MinGW to link the icon in
 
 	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
-	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
+	ifneq ($(shell $(CC) -dumpmachine 2>&1 | grep cygwin),)
 		W32_CFLAGS=-mno-cygwin
 	endif
 	

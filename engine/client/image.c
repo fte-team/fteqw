@@ -607,7 +607,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 	}
 	else
 		Con_Printf("Unsupported version\n");
-return NULL;
+	return NULL;
 }
 
 #ifdef AVAIL_PNGLIB
@@ -745,16 +745,6 @@ qboolean LibPNG_Init(void)
 #endif
 	return LIBPNG_LOADED();
 }
-
-
-
-#if defined(MING)	//hehehe... add annother symbol so the statically linked cygwin libpng can link
-#undef setjmp
-int setjmp (jmp_buf jb)
-{
-	return _setjmp(jb);
-}
-#endif
 
 typedef struct {
 	char *data;
@@ -1441,7 +1431,7 @@ METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
+qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
@@ -1450,7 +1440,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	JSAMPROW row_pointer[1];
 
 	if (!LIBJPEG_LOADED())
-		return;
+		return false;
 
 	if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 	{
@@ -1458,7 +1448,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 		if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 		{
 			Con_Printf("Error opening %s\n", filename);
-			return;
+			return false;
 		}
 	}
 
@@ -1478,7 +1468,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 		VFS_CLOSE(outfile);
 		FS_Remove(filename, FS_GAME);
 		Con_Printf("Failed to create jpeg\n");
-		return;
+		return false;
 	}
 	#ifdef DYNAMIC_LIBJPEG
 		qjpeg_create_compress(&cinfo);
@@ -1529,6 +1519,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	#else
 		jpeg_destroy_compress(&cinfo);
 	#endif
+	return true;
 }
 #endif
 #endif

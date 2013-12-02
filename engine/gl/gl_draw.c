@@ -138,6 +138,7 @@ unsigned char *d_15to8table;
 qboolean inited15to8;
 #endif
 
+int maxtexsize;	//max_size for 2d images.
 extern cvar_t		gl_max_size;
 extern cvar_t		gl_picmip;
 extern cvar_t		gl_lerpimages;
@@ -450,22 +451,19 @@ void GLDraw_Init (void)
 {
 	char	ver[40];
 
-	int maxtexsize;
-
 	if (gltextures)
 		gltextures = NULL;
 
 	memset(gltexturetablebuckets, 0, sizeof(gltexturetablebuckets));
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
 
+	maxtexsize = 256;
 	qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxtexsize);
 	if (gl_max_size.value > maxtexsize)
 	{
 		sprintf(ver, "%i", maxtexsize);
 		Cvar_ForceSet (&gl_max_size, ver);
 	}
-
-	maxtexsize = gl_max_size.value;
 
 	if (uploadmemorybuffer)
 		BZ_Free(uploadmemorybuffer);
@@ -1035,8 +1033,9 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 }
 
 
-void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
+void GL_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flags)
 {
+	qboolean mipmap = flags & IF_NOMIPMAP;
 	if (r_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
@@ -1060,25 +1059,36 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
 		}
 	}
 
-	if (mipmap)
+	if (flags & IF_NOMIPMAP)
 	{
-		TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
-		*scaled_width >>= (int)gl_picmip.value;
-		*scaled_height >>= (int)gl_picmip.value;
+		*scaled_width >>= gl_picmip2d.ival;
+		*scaled_height >>= gl_picmip2d.ival;
 	}
 	else
 	{
-		*scaled_width >>= (int)gl_picmip2d.value;
-		*scaled_height >>= (int)gl_picmip2d.value;
+		TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
+		*scaled_width >>= gl_picmip.ival;
+		*scaled_height >>= gl_picmip.ival;
 	}
 
 	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
-	if (gl_max_size.value)
+
+	if (maxtexsize)
 	{
-		if (*scaled_width > gl_max_size.value)
-			*scaled_width = gl_max_size.value;
-		if (*scaled_height > gl_max_size.value)
-			*scaled_height = gl_max_size.value;
+		if (*scaled_width > maxtexsize)
+			*scaled_width = maxtexsize;
+		if (*scaled_height > maxtexsize)
+			*scaled_height = maxtexsize;
+	}
+	if (!(flags & IF_UIPIC))
+	{
+		if (gl_max_size.value)
+		{
+			if (*scaled_width > gl_max_size.value)
+				*scaled_width = gl_max_size.value;
+			if (*scaled_height > gl_max_size.value)
+				*scaled_height = gl_max_size.value;
+		}
 	}
 
 	if (*scaled_width < 1)
@@ -1139,7 +1149,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	scaled_width = width;
 	scaled_height = height;
-	GL_RoundDimensions(&scaled_width, &scaled_height, !(flags & IF_NOMIPMAP));
+	GL_RoundDimensions(&scaled_width, &scaled_height, flags);
 
 	if (!(flags & IF_NOALPHA))
 	{	//make sure it does actually have those alpha pixels (q3 compat)
@@ -1402,7 +1412,7 @@ void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight, un
 
 	outwidth = inwidth;
 	outheight = inheight;
-	GL_RoundDimensions(&outwidth, &outheight, !(flags&IF_NOMIPMAP));
+	GL_RoundDimensions(&outwidth, &outheight, flags);
 
 	if (outwidth*outheight*4 > sizeofuploadmemorybufferintermediate)
 	{
@@ -1472,7 +1482,7 @@ void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheigh
 
 	outwidth = inwidth;
 	outheight = inheight;
-	GL_RoundDimensions(&outwidth, &outheight, !(flags&IF_NOMIPMAP));
+	GL_RoundDimensions(&outwidth, &outheight, flags);
 
 	if (outwidth*outheight*4 > sizeofuploadmemorybufferintermediate)
 	{
@@ -1540,7 +1550,7 @@ void GL_Upload8Grey (unsigned char*data, int width, int height, unsigned int fla
 
 	scaled_width = width;
 	scaled_height = height;
-	GL_RoundDimensions(&scaled_width, &scaled_height, !(flags&IF_NOMIPMAP));
+	GL_RoundDimensions(&scaled_width, &scaled_height, flags);
 
 	if (scaled_width * scaled_height*4 > sizeofuploadmemorybuffer)
 	{
@@ -1718,7 +1728,7 @@ static unsigned int * genNormalMap(qbyte *pixels, int w, int h, float scale)
 }
 
 //PENTA
-void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, float bumpscale)
+void GL_UploadBump(qbyte *data, int width, int height, unsigned int flags, float bumpscale)
 {
     unsigned char	*scaled;
 	int			scaled_width, scaled_height;
@@ -1728,7 +1738,7 @@ void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, floa
 
 	scaled_width = width;
 	scaled_height = height;
-	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
+	GL_RoundDimensions(&scaled_width, &scaled_height, flags);
 
 	if (scaled_width*scaled_height*4 > sizeofuploadmemorybuffer)
 	{
@@ -1757,7 +1767,7 @@ void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, floa
 
 	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	if (mipmap)
+	if (!(flags & IF_NOMIPMAP))
 	{
 		int		miplevel;
 
@@ -1781,7 +1791,7 @@ void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, floa
 		}
 	}
 
-	if (mipmap)
+	if (!(flags & IF_NOMIPMAP))
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
 		if (0 & IF_NEAREST)
@@ -1809,7 +1819,7 @@ void GL_UploadBump(qbyte *data, int width, int height, unsigned int mipmap, floa
 
 #ifdef GL_USE8BITTEX
 #ifdef GL_EXT_paletted_texture
-void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha)
+void GL_Upload8_EXT (qbyte *data, int width, int height,  unsigned int flags, qboolean alpha)
 {
 	int			i, s;
 	qboolean	noalpha;
@@ -1837,7 +1847,7 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 
 	scaled_width = width;
 	scaled_height = height;
-	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
+	GL_RoundDimensions(&scaled_width, &scaled_height, flags);
 
 	if (scaled_width*scaled_height*4 > sizeofuploadmemorybuffer)
 	{
@@ -2014,7 +2024,7 @@ void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int fl
 #ifdef GL_USE8BITTEX
 #ifdef GL_EXT_paletted_texture
 	if (GLVID_Is8bit() && !alpha && (data!=scrap_texels[0])) {
-		GL_Upload8_EXT (data, width, height, mipmap, alpha);
+		GL_Upload8_EXT (data, width, height, flags, alpha);
 		return;
 	}
 #endif

@@ -967,8 +967,15 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 	{
 		if (mask & MASK_DELTA)
 		{
-			CL_LinkPlayers ();
-			CL_LinkPacketEntities ();
+#ifdef Q2CLIENT
+			if (cls.protocol == CP_QUAKE2)
+				CLQ2_AddEntities();
+			else
+#endif
+			{
+				CL_LinkPlayers ();
+				CL_LinkPacketEntities ();
+			}
 		}
 	}
 

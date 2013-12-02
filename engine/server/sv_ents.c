@@ -2138,7 +2138,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		clstate_t clst;
 		extern float olddemotime, nextdemotime;
 
-		for (i=0 ; i<MAX_CLIENTS ; i++)
+		for (i=0 ; i<svs.allocated_client_slots ; i++)
 		{
 			//FIXME: Add PVS stuff.
 
@@ -2222,7 +2222,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		clst.fteext = 0;//client->fteprotocolextensions;
 		clst.zext = 0;//client->zquake_extensions;
 		clst.vw_index = 0;
-		clst.playernum = MAX_CLIENTS-1;
+		clst.playernum = svs.allocated_client_slots-1;
 		clst.isself = true;
 		clst.modelindex = 0;
 		clst.hull = 1;
@@ -2761,7 +2761,7 @@ static void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack
 			if (!dement->modelindex)
 				continue;
 
-			if (e >= 1 && e <= MAX_CLIENTS)
+			if (e >= 1 && e <= svs.allocated_client_slots)
 				continue;
 
 			if (pack->num_entities == pack->max_entities)

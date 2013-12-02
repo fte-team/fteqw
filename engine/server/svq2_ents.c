@@ -287,7 +287,7 @@ void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, size
 			if (msg->cursize+128 > msg->maxsize)
 				memcpy(newent, oldent, sizeof(*newent));	//too much data, so set the ent up as the same as the old, so it's sent next frame
 			else
-				MSGQ2_WriteDeltaEntity (oldent, newent, msg, false, newent->number <= MAX_CLIENTS);
+				MSGQ2_WriteDeltaEntity (oldent, newent, msg, false, newent->number <= svs.allocated_client_slots);
 			oldindex++;
 			newindex++;
 			continue;

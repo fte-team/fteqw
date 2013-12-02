@@ -1627,6 +1627,54 @@ void Sbar_DrawInventory (playerview_t *pv)
 	}
 }
 
+static qboolean PointInBox(float px, float py, float x, float y, float w, float h)
+{
+	if (px >= x && px < x+w)
+		if (py >= y && py < y+h)
+			return true;
+	return false;
+}
+int Sbar_TranslateHudClick(void)
+{
+	int i;
+	float vx = mousecursor_x - sbar_rect.x;
+	float vy = mousecursor_y - (sbar_rect.y + (sbar_rect.height-SBAR_HEIGHT));
+
+	qboolean headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
+	qboolean hudswap = cl_hudswap.value; // Get that nasty float out :)
+
+	//inventory. clicks do specific-weapon impulses.
+	if (sb_lines > 24)
+	{
+		for (i=0 ; i<7 ; i++)
+		{
+			if (headsup)
+			{
+				if (i || sbar_rect.height>200)
+					if (PointInBox (vx, vy, (hudswap) ? 0 : (sbar_rect.width-24),-68-(7-i)*16, 24,16))
+						return '2' + i;
+			}
+			else
+			{
+				if (PointInBox (vx, vy, i*24, -16, (i==6)?48:24, 16))
+					return '2' + i;
+			}
+		}
+	}
+
+	//armour. trigger backtick, to toggle the console (which enables the on-screen keyboard on android).
+	if (PointInBox (vx, vy, 0, 0, 96, 24))
+		return '`';
+	//face. do showscores.
+	if (PointInBox (vx, vy, 112, 0, 96, 24))
+		return K_TAB;
+	//currentammo+icon. trigger '/' binding, which defaults to weapon-switch (impulse 10)
+	if (PointInBox (vx, vy, 224, 0, 96, 24))
+		return '/';
+
+	return 0;
+}
+
 //=============================================================================
 
 /*

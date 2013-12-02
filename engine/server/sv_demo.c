@@ -310,7 +310,7 @@ void SV_LoadClientDemo_f (void)
 		SV_BroadcastCommand ("changing\n");	//but this arrives BEFORE the serverdata
 
 		ohc = host_client;
-		for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+		for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 		{
 			if (host_client->state != cs_spawned)
 				continue;
@@ -506,7 +506,7 @@ qboolean SV_ReadMVD (void)
 			sv.democausesreconnect = false;
 			svs.spawncount++;
 
-			for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+			for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 			{
 				if (host_client->state != cs_spawned)
 					continue;
@@ -525,7 +525,7 @@ qboolean SV_ReadMVD (void)
 	{
 		if (!svd.demofile)
 		{	//demo ended.
-			for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+			for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 			{
 				cl->sendinfo = true;
 			}
@@ -561,7 +561,7 @@ qboolean SV_ReadMVD (void)
 			break;
 //				case dem_read:	//baseline stuff
 		case dem_single:
-			for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+			for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 			{
 				if (!cl->state)
 					continue;
@@ -585,7 +585,7 @@ qboolean SV_ReadMVD (void)
 		VFS_CLOSE(svd.demofile);
 		svd.demofile = NULL;
 
-		for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+		for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 		{
 			if (host_client->state != cs_spawned)
 				continue;

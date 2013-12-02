@@ -1877,7 +1877,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 			char *key;
 			if (!info)
 				info = "";
-			*end = 0;
+			if (end)
+				*end = 0;
 #ifdef PLUGINS
 			if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
 #endif

@@ -2242,7 +2242,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 			if (!smesh->batches[tno].count)
 				continue;
 			tex = cl.worldmodel->shadowbatches[tno].tex;
-			if (tex->shader->flags & SHADER_NODLIGHT)
+			if (tex->shader->flags & SHADER_NODLIGHT)	//FIXME: shadows not lights
 				continue;
 			BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
 		}
@@ -2588,6 +2588,7 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 {
 	int tno;
 	texture_t *tex;
+	shader_t *shader;
 	shadowmesh_t *sm;
 
 	sm = light->worldshadowmesh;
@@ -2600,10 +2601,11 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			if (!sm->batches[tno].count)
 				continue;
 			tex = cl.worldmodel->shadowbatches[tno].tex;
-			if (tex->shader->flags & SHADER_NODLIGHT)
+			shader = R_TextureAnimation(false, tex)->shader;
+			if (shader->flags & SHADER_NODLIGHT)
 				continue;
 			//FIXME: it may be worth building a dedicated ebo
-			BE_DrawMesh_List(tex->shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
+			BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &shader->defaulttextures, 0);
 			RQuantAdd(RQUANT_LITFACES, sm->batches[tno].count);
 		}
 

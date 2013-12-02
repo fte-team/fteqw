@@ -802,7 +802,7 @@ void Rank_Refresh_f(void)
 		return;
 	}
 
-	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 	{
 		if (host_client->state != cs_spawned)
 			continue;

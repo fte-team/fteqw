@@ -1491,7 +1491,7 @@ void SV_Status_f (void)
 		Con_Printf ("name               userid frags\n");
         Con_Printf ("  address          rate ping drop\n");
 		Con_Printf ("  ---------------- ---- ---- -----\n");
-		for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
 			if (!cl->state)
 				continue;
@@ -2059,7 +2059,7 @@ void SV_Snap (int uid)
 		if (cl->userid == uid)
 			break;
 	}
-	if (i >= MAX_CLIENTS)
+	if (i >= svs.allocated_client_slots)
 	{
 		Con_TPrintf ("Couldn't find user number %i\n", uid);
 		return;

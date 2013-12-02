@@ -1306,7 +1306,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{	// use custom player skin
 				ent.skinnum = 0;
 
-				player = &cl.players[s1->skinnum%MAX_CLIENTS];
+				player = &cl.players[(s1->skinnum&0xff)%cl.allocated_client_slots];
 				ent.model = player->model;
 				if (!ent.model || ent.model->needload)	//we need to do better than this
 				{
@@ -1316,7 +1316,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					if (!ent.model || ent.model->needload)
 						ent.model = Mod_ForName("players/male/tris.md2", false);
 				}
-				ent.playerindex = s1->skinnum%MAX_CLIENTS;
+				ent.playerindex = (s1->skinnum&0xff)%cl.allocated_client_slots;
 				player->model = ent.model;
 /*				ci = &cl.clientinfo[s1->skinnum & 0xff];
 //				ent.skin = ci->skin;
@@ -1404,7 +1404,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
  	ent.angles[0]*=-1;	//q2 has it fixed.
 
-		if (s1->number == cl.playerview[pnum].playernum+1)	//woo! this is us!
+		if (s1->number == cl.playerview[0].playernum+1)	//woo! this is us!
 		{
 //			VectorCopy(cl.predicted_origin, ent.origin);
 //			VectorCopy(cl.predicted_origin, ent.oldorigin);

@@ -166,7 +166,7 @@ baseline will be transmitted
 			continue;
 		// create baselines for all player slots,
 		// and any other edict that has a visible model
-		if (entnum > MAX_CLIENTS && !svent->v->modelindex)
+		if (entnum > svs.allocated_client_slots && !svent->v->modelindex)
 			continue;
 
 	//
@@ -176,7 +176,7 @@ baseline will be transmitted
 		VectorCopy (svent->v->angles, svent->baseline.angles);
 		svent->baseline.frame = svent->v->frame;
 		svent->baseline.skinnum = svent->v->skin;
-		if (entnum > 0 && entnum <= MAX_CLIENTS)
+		if (entnum > 0 && entnum <= svs.allocated_client_slots)
 		{
 			svent->baseline.colormap = entnum;
 			svent->baseline.modelindex = SV_ModelIndex("progs/player.mdl")&255;
@@ -1330,53 +1330,30 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		char crc[12];
 		sprintf(crc, "%i", QCRC_Block(file, com_filesize));
 		Info_SetValueForStarKey(svs.info, "*entfile", crc, MAX_SERVERINFO_STRING);
-		switch(svs.gametype)
-		{
-		case GT_MAX:
-			break;
-		case GT_Q1QVM:
-		case GT_PROGS:
-			sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
-			break;
-		case GT_QUAKE2:
-#ifdef Q2SERVER
-			ge->SpawnEntities(sv.name, file, startspot?startspot:"");
-#endif
-			break;
-		case GT_QUAKE3:
-			break;
-		case GT_HALFLIFE:
-#ifdef HLSERVER
-			SVHL_SpawnEntities(file);
-#endif
-			break;
-		}
-		BZ_Free(file);
 	}
 	else
-	{
 		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
-		switch(svs.gametype)
-		{
-		case GT_MAX:
-			break;
-		case GT_Q1QVM:
-		case GT_PROGS:
-			sv.world.edict_size = PR_LoadEnts(svprogfuncs, sv.world.worldmodel->entities, spawnflagmask);
-			break;
-		case GT_QUAKE2:
+
+	switch(svs.gametype)
+	{
+	case GT_MAX:
+		break;
+	case GT_Q1QVM:
+	case GT_PROGS:
+		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file?file :sv.world.worldmodel->entities, spawnflagmask);
+		break;
+	case GT_QUAKE2:
 #ifdef Q2SERVER
-			ge->SpawnEntities(sv.name, sv.world.worldmodel->entities, startspot?startspot:"");
+		ge->SpawnEntities(sv.name, file?file :sv.world.worldmodel->entities, startspot?startspot:"");
 #endif
-			break;
-		case GT_QUAKE3:
-			break;
-		case GT_HALFLIFE:
+		break;
+	case GT_QUAKE3:
+		break;
+	case GT_HALFLIFE:
 #ifdef HLSERVER
-			SVHL_SpawnEntities(sv.world.worldmodel->entities);
+		SVHL_SpawnEntities(file?file :sv.world.worldmodel->entities));
 #endif
-			break;
-		}
+		break;
 	}
 
 #ifndef SERVERONLY

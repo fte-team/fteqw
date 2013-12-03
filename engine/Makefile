@@ -92,6 +92,9 @@ endif
 
 USER_TARGET:=$(FTE_TARGET)
 
+#make droid-rel doesn't get the right stuff
+#add an autoexec file. its only small.
+DROID_PACKSU?= $(BASE_DIR)/droid/autoexec.cfg
 ANDROID_NDK_ROOT?=~/android-ndk-r8e
 ANDROID_HOME?=~/android-sdk-linux
 ANT?=ant

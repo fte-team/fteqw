@@ -3645,8 +3645,6 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 //			f->flags |= HRF_PACKAGE;
 	}
 
-	//FIXME: HRF_DEMO should be able to stream. create a vfs pipe for the download code to write to?
-
 	if (!(f->flags & HRF_FILETYPES))
 	{
 		char *ext = COM_FileExtension(f->fname);
@@ -3691,6 +3689,12 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 //	else if (f->flags & HRF_DEMO_DEM)
 //		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_NETQUAKE, 0);
 #endif
+	else if (f->flags & (HRF_MANIFEST | HRF_QTVINFO))
+	{
+		//just use a pipe instead of a temp file, working around an issue with temp files on android
+		dl->file = VFSPIPE_Open();
+		return;
+	}
 	else if (f->flags & HRF_DEMO)
 		Con_Printf("%s: format not supported\n", f->fname);	//demos that are not supported in this build for one reason or another
 	else

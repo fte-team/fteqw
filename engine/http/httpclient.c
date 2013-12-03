@@ -523,7 +523,10 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 #endif
 			if (!dl->file)
 			{
-				Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
+				if (*dl->localname)
+					Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
+				else
+					Con_Printf("HTTP: Couldn't open temporary file\n");
 				dl->status = DL_FAILED;
 				return false;
 			}

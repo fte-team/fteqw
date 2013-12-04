@@ -707,7 +707,7 @@ menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean
 
 menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command)
 {
-	menubind_t *n = Z_Malloc(sizeof(menutext_t) + strlen(caption)+1 + strlen(command)+1);
+	menubind_t *n = Z_Malloc(sizeof(*n) + strlen(caption)+1 + strlen(command)+1);
 	n->common.type = mt_bind;
 	n->common.iszone = true;
 	n->common.posx = cx;

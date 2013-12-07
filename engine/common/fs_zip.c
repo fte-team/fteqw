@@ -217,7 +217,8 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 
 		qinflateEnd(&strm);
 
-		VFS_SEEK(temp, 0);
+		if (temp->Seek)
+			VFS_SEEK(temp, 0);
 	}
 	VFS_CLOSE(infile);
 

@@ -1028,26 +1028,27 @@ pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
 				int newtype = qcc_targetformat;
-				if (!QC_strcasecmp(msg, "H2") || !QC_strcasecmp(msg, "HEXEN2"))
+				QCC_COM_Parse(msg);
+				if (!QC_strcasecmp(qcc_token, "H2") || !QC_strcasecmp(qcc_token, "HEXEN2"))
 					newtype = QCF_HEXEN2;
-				else if (!QC_strcasecmp(msg, "KK7"))
+				else if (!QC_strcasecmp(qcc_token, "KK7"))
 					newtype = QCF_KK7;
-				else if (!QC_strcasecmp(msg, "DP") || !QC_strcasecmp(msg, "DARKPLACES"))
+				else if (!QC_strcasecmp(qcc_token, "DP") || !QC_strcasecmp(qcc_token, "DARKPLACES"))
 					newtype = QCF_DARKPLACES;
-				else if (!QC_strcasecmp(msg, "FTEDEBUG"))
+				else if (!QC_strcasecmp(qcc_token, "FTEDEBUG"))
 					newtype = QCF_FTEDEBUG;
-				else if (!QC_strcasecmp(msg, "FTE"))
+				else if (!QC_strcasecmp(qcc_token, "FTE"))
 					newtype = QCF_FTE;
-				else if (!QC_strcasecmp(msg, "FTEH2"))
+				else if (!QC_strcasecmp(qcc_token, "FTEH2"))
 					newtype = QCF_FTEH2;
-				else if (!QC_strcasecmp(msg, "STANDARD") || !QC_strcasecmp(msg, "ID"))
+				else if (!QC_strcasecmp(qcc_token, "STANDARD") || !QC_strcasecmp(qcc_token, "ID"))
 					newtype = QCF_STANDARD;
-				else if (!QC_strcasecmp(msg, "DEBUG"))
+				else if (!QC_strcasecmp(qcc_token, "DEBUG"))
 					newtype = QCF_FTEDEBUG;
-				else if (!QC_strcasecmp(msg, "QTEST"))
+				else if (!QC_strcasecmp(qcc_token, "QTEST"))
 					newtype = QCF_QTEST;
 				else
-					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", msg);
+					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", qcc_token);
 
 				if (numstatements > 1)
 				{

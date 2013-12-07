@@ -28,6 +28,7 @@ typedef struct {
 	unsigned int offset;
 } vfsw32file_t;
 
+//outlen is the size of out in _BYTES_.
 wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8)
 {
 	wchar_t *ret = out;

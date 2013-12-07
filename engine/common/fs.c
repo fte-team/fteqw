@@ -2193,7 +2193,7 @@ const gamemode_info_t gamemode_info[] = {
 
 	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},			NULL,	{"*doom.wad",					"ftedoom"},	"Doom"},
 	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
-	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
+	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},			NULL,	{"based3",						"ftedoom3"},"Doom3"},
 
 	//for the luls
 	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},		NULL,	{"**.mpq",						"fted2"},	"Diablo 2"},

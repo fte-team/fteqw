@@ -627,7 +627,19 @@ public class FTEDroidActivity extends Activity
 			sendKey(false, mapKey(keyCode, uc), uc);
 			return true;
 		}
+/*
+		@Override
+		public InputConnection onCreateInputConnection(EditorInfo outAttrs)
+		{
+			Log.d(TAG, "onCreateInputConnection");
 
+			BaseInputConnection fic = new BaseInputConnection(this, false);
+			outAttrs.actionLabel = null;
+			outAttrs.inputType = InputType.TYPE_NULL;
+			outAttrs.imeOptions = EditorInfo.IME_ACTION_NEXT;
+			return fic;
+		}
+*/
 		public void onAccuracyChanged(Sensor sensor, int accuracy)
 		{
 		}

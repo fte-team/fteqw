@@ -3748,7 +3748,7 @@ void Host_DoRunFile(hrf_t *f)
 		char *ext;
 
 #ifdef WEBCLIENT
-		if (!strncmp(f->fname, "http://", 7) && !f->srcfile)
+		if ((!strncmp(f->fname, "http://", 7) || !strncmp(f->fname, "https://", 8)) && !f->srcfile)
 		{
 			if (!(f->flags & HRF_OPENED))
 			{
@@ -3869,6 +3869,7 @@ void Host_DoRunFile(hrf_t *f)
 
 	if (!f->srcfile)
 	{
+		Con_Printf("Unable to open %s\n", f->fname);
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
@@ -3897,8 +3898,11 @@ void Host_DoRunFile(hrf_t *f)
 	if (f->dstfile)
 	{
 		//do a real diff.
-		if (VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
+		if (f->srcfile->seekingisabadplan || VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
+		{
+			//if we can't seek, or the sizes differ, just assume that the file is modified.
 			haschanged = true;
+		}
 		else
 		{
 			int len = VFS_GETLEN(f->srcfile);
@@ -3908,8 +3912,8 @@ void Host_DoRunFile(hrf_t *f)
 			VFS_READ(f->srcfile, sbuf, len);
 			VFS_READ(f->dstfile, dbuf, len);
 			haschanged = memcmp(sbuf, dbuf, len);
+			VFS_SEEK(f->srcfile, 0);
 		}
-		VFS_SEEK(f->srcfile, 0);
 		VFS_CLOSE(f->dstfile);
 		f->dstfile = NULL;
 	}
@@ -3963,9 +3967,35 @@ void Host_DoRunFile(hrf_t *f)
 //if file is specified, takes full ownership of said file, including destruction.
 qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 {
-	hrf_t *f = Z_Malloc(sizeof(*f) + nlen);
+	hrf_t *f;
+#ifdef _WIN32
+	//win32 file urls are basically fucked, so defer to the windows api.
+	char utf8[MAX_OSPATH*3];
+	if (nlen >= 7 && !strncmp(fname, "file://", 7))
+	{
+		qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen);
+		if (!Sys_ResolveFileURL(fname, nlen, utf8, sizeof(utf8)))
+		{
+			Con_Printf("Cannot resolve file url\n");
+			return false;
+		}
+		fname = utf8;
+		nlen = strlen(fname);
+	}
+#else
+	//unix file urls are fairly consistant.
+	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
+	{
+		fname += 7;
+		nlen -= 7;
+	}
+#endif
+
+	f = Z_Malloc(sizeof(*f) + nlen);
 	memcpy(f->fname, fname, nlen);
 	f->fname[nlen] = 0;
+
+	Con_Printf("Opening external file: %s\n", f->fname);
 
 	Host_DoRunFile(f);
 	return true;

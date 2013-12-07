@@ -1896,9 +1896,13 @@ static void MP_GameCommand_f(void)
 	if (!gamecommand)
 		return;
 
+	if (setjmp(mp_abort))
+		return;
+	inmenuprogs++;
 	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menu_world.progs, Cmd_Args()));
 	PR_ExecuteProgram (menu_world.progs, gamecommand);
+	inmenuprogs--;
 }
 
 void MP_CoreDump_f(void)

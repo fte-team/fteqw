@@ -29,7 +29,8 @@ vmcvar_t	*cvarlist[] ={
 	&irc_altnick,
 	&irc_realname,
 	&irc_ident,
-	&irc_timestamp
+	&irc_timestamp,
+	NULL
 };
 
 
@@ -214,16 +215,22 @@ void IRC_InitCvars(void)
 {
 	vmcvar_t *v;
 	int i;
-	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
+	for (i=0; cvarlist[i]; i++)
+	{
+		v = cvarlist[i];
 		v->handle = pCvar_Register(v->name, v->string, v->flags, v->group);
+	}
 }
 
 int IRC_CvarUpdate(void) // perhaps void instead?
 {
 	vmcvar_t *v;
 	int i;
-	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
+	for (i=0; cvarlist[i]; i++)
+	{
+		v = cvarlist[i];
 		v->modificationcount = pCvar_Update(v->handle, &v->modificationcount, v->string, &v->value);
+	}
 	return 0;
 }
 

@@ -814,6 +814,7 @@ pbool QCC_WriteData (int crc)
 		}
 		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
+			s_file = def->s_file;
 			sprintf(element, "%s_x", def->name);
 			comp_x = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
 			sprintf(element, "%s_y", def->name);

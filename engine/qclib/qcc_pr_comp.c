@@ -2346,7 +2346,7 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			{
 				if (var_a->type->type == var_b->type->type)
 				{
-					if (var_a->temp)
+					if (var_a->temp && !var_a->temp->used)
 					{
 						statement = &statements[numstatements-1];
 						statement->c = var_b->ofs;
@@ -2936,6 +2936,25 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			numstatements++;
 			break;
 
+		//statements where the rhs is a const int and can be swapped with a float
+		case OP_ADD_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_LT_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		//statements where the lhs is a const int and can be swapped with a float
+		case OP_ADD_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_LT_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+
 		default:
 			QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target", op->name, op->opname);
 			break;
@@ -3475,10 +3494,10 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC
 			/*don't free these temps yet, free them after the return check*/
 		}
 		else if (arglist[i]->type->size == 3 || !opt_nonvec_parms)
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], arglist[i], d, (QCC_dstatement_t **)0xffffffff));
+			QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_V], arglist[i], d, NULL, 0));
 		else
 		{
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], arglist[i], d, (QCC_dstatement_t **)0xffffffff));
+			QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], arglist[i], d, NULL, 0));
 			optres_nonvec_parms++;
 		}
 	}
@@ -6075,6 +6094,7 @@ QCC_def_t *QCC_LoadFromArray(QCC_def_t *base, QCC_def_t *index, QCC_type_t *t, p
 	{
 		/*emulate the array access using a function call to do the read for us*/
 		QCC_def_t *args[1], *funcretr;
+		temp_t *itmp;
 
 		base->references++;
 
@@ -6092,6 +6112,10 @@ QCC_def_t *QCC_LoadFromArray(QCC_def_t *base, QCC_def_t *index, QCC_type_t *t, p
 			fparms[0].type = type_float;
 			funcretr = QCC_PR_GetDef(ftype, qcva("ArrayGet*%s", base->name), NULL, true, 0, false);
 		}
+
+		itmp = index->temp;
+		if (preserve)
+			index->temp = NULL;
 
 		/*make sure the function type that we're calling exists*/
 
@@ -6137,6 +6161,7 @@ QCC_def_t *QCC_LoadFromArray(QCC_def_t *base, QCC_def_t *index, QCC_type_t *t, p
 			}
 			base->type = t;
 		}
+		index->temp = itmp;
 	}
 	return base;
 }
@@ -9509,10 +9534,10 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 
 		QCC_PR_Statement3(&pr_opcodes[OP_CONV_FTOI], index, NULL, index, true);	//address stuff is integer based, but standard qc (which this accelerates in supported engines) only supports floats
 		QCC_PR_SimpleStatement (OP_BOUNDCHECK, index->ofs, ((int*)qcc_pr_globals)[def->ofs-1]+1, 0, true);//annoy the programmer. :p
-		if (def->type->size != 1)//shift it upwards for larger types
+		if (def->type->type == ev_vector)//shift it upwards for larger types
 			QCC_PR_Statement3(&pr_opcodes[OP_MUL_I], index, QCC_MakeIntConst(def->type->size), index, true);
 		QCC_PR_Statement3(&pr_opcodes[OP_GLOBALADDRESS], def, index, index, true);	//comes with built in add
-		if (def->type->size >= 3)
+		if (def->type->type == ev_vector)
 			QCC_PR_Statement3(&pr_opcodes[OP_STOREP_V], value, index, NULL, true);	//*b = a
 		else
 			QCC_PR_Statement3(&pr_opcodes[OP_STOREP_F], value, index, NULL, true);

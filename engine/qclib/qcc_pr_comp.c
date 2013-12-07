@@ -154,6 +154,7 @@ QCC_ref_t *QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *refbuf, QCC_ref_t *d, pbool allowarrayassign, pbool makestructpointers);
 QCC_ref_t *QCC_PR_BuildRef(QCC_ref_t *retbuf, unsigned int reftype, QCC_def_t *base, QCC_def_t *index, QCC_type_t *cast, pbool	readonly);
 QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pbool preservedest);
+void QCC_PR_DiscardRef(QCC_ref_t *ref);
 
 enum
 {
@@ -6217,6 +6218,8 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_POINTER:
 		tmp = QCC_GetTemp(ref->cast);
 		QCC_LoadFromPointer(tmp->ofs, ref->base->ofs, ref->index?ref->index->ofs:0, ref->cast);
+		if (freetemps)
+			QCC_PR_DiscardRef(ref);
 		return tmp;
 	case REF_FIELD:
 		return QCC_PR_ExpandField(ref->base, ref->index, ref->cast, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));

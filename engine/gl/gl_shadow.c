@@ -2601,7 +2601,10 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			if (!sm->batches[tno].count)
 				continue;
 			tex = cl.worldmodel->shadowbatches[tno].tex;
-			shader = R_TextureAnimation(false, tex)->shader;
+			if (cl.worldmodel->fromgame == fg_quake2)
+				shader = R_TextureAnimation_Q2(tex)->shader;
+			else
+				shader = R_TextureAnimation(false, tex)->shader;
 			if (shader->flags & SHADER_NODLIGHT)
 				continue;
 			//FIXME: it may be worth building a dedicated ebo
@@ -3248,9 +3251,9 @@ void Sh_PreGenerateLights(void)
 
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
-		if (rtlights_first == rtlights_max)
+		if (RTL_FIRST == rtlights_max)
 			R_LoadRTLights();
-		if (rtlights_first == rtlights_max)
+		if (RTL_FIRST == rtlights_max)
 			R_ImportRTLights(cl.worldmodel->entities);
 	}
 

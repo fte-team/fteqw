@@ -549,7 +549,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 #ifdef Q2SERVER
 	if (gametype == GT_QUAKE2)
 	{
-		char syspath[MAX_OSPATH];
+		flocation_t loc;
 		SV_SpawnServer (level, startspot, false, false);
 
 		World_ClearWorld(&sv.world);
@@ -559,10 +559,17 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 			return false;
 		}
 
-		if (!FS_NativePath(name, FS_GAME, syspath, sizeof(syspath)))
+		if (!FS_FLocateFile(name, FSLFRT_IFFOUND, &loc))
+		{
+			Con_Printf("Couldn't find %s.\n", name);
 			return false;
-
-		ge->ReadLevel(syspath);
+		}
+		if (!*loc.rawname || loc.offset)
+		{
+			Con_Printf("%s is inside a package and cannot be used by the quake2 gamecode.\n", name);
+			return false;
+		}
+		ge->ReadLevel(loc.rawname);
 
 		for (i=0 ; i<100 ; i++)	//run for 10 secs to iron out a few bugs.
 			ge->RunFrame ();
@@ -1068,6 +1075,18 @@ void SV_Savegame (char *savename)
 	VFS_PRINTF (f, "%s\n", sv.name);
 
 	VFS_CLOSE(f);
+
+#ifdef Q2SERVER
+	//save the player's inventory and other map-persistant state that is owned by the gamecode.
+	if (ge)
+	{
+		char syspath[256];
+		if (!FS_NativePath(va("saves/%s/game.gsv", savename), FS_GAMEONLY, syspath, sizeof(syspath)))
+			return;
+		ge->WriteGame(syspath, false);
+		FS_FlushFSHashReally();
+	}
+#endif
 }
 
 void SV_Savegame_f (void)
@@ -1263,6 +1282,24 @@ void SV_Loadgame_f (void)
 		;
 
 	VFS_CLOSE(f);
+
+#ifdef Q2SERVER
+	if (gametype == GT_QUAKE2)
+	{
+		flocation_t loc;
+		char *name = va("saves/%s/game.gsv", savename);
+		if (!FS_FLocateFile(name, FSLFRT_IFFOUND, &loc))
+			Con_Printf("Couldn't find %s.\n", name);
+		else if (!*loc.rawname || loc.offset)
+			Con_Printf("%s is inside a package and cannot be used by the quake2 gamecode.\n", name);
+		else
+		{
+			SVQ2_InitGameProgs();
+			if (ge)
+				ge->ReadGame(loc.rawname);
+		}
+	}
+#endif
 
 	svs.gametype = gametype;
 	SV_LoadLevelCache(savename, str, "", true);

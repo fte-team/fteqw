@@ -9551,11 +9551,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"pointparticles",	PF_sv_pointparticles,0,	0,	0,		337,	D("void(float effectnum, vector origin, optional vector dir, optional float count)", "Spawn a load of particles from the given effect at the given point traveling or aiming along the direction specified. The number of particles are scaled by the count argument.")},// (EXT_CSQC)
 
 	{"cprint",			PF_Fixme,	0,		0,		0,		338,	D("void(string s, ...)", "Print into the center of the screen just as ssqc's centerprint would appear.")},//(EXT_CSQC)
-	{"print",			PF_print,	0,		0,		0,		339,	D("void(string s, ...)", "Unambiguously print on the local system's console, even in ssqc (doesn't care about the value of the developer cvar).")},//(EXT_CSQC)
+	{"print",			PF_print,	0,		0,		0,		339,	D("void(string s, ...)", "Unconditionally print on the local system's console, even in ssqc (doesn't care about the value of the developer cvar).")},//(EXT_CSQC)
 
 
 	{"keynumtostring",	PF_Fixme,	0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (EXT_CSQC)
-	{"keynumtostring_csqc",	PF_Fixme,	0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
+	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl).")},// (EXT_CSQC)
 

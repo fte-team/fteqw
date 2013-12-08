@@ -339,8 +339,8 @@ cvar_t r_shadows						= SCVARF ("r_shadows", "0",
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "Experimental. Attempt to use a different lighting mechanism.");
 
-cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
-cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
+cvar_t r_shadow_bumpscale_basetexture		= CVARD  ("r_shadow_bumpscale_basetexture", "0", "bumpyness scaler for generation of fallback normalmap textures from models");
+cvar_t r_shadow_bumpscale_bumpmap			= CVARD  ("r_shadow_bumpscale_bumpmap", "4", "bumpyness scaler for _bump textures");
 
 cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
@@ -1737,6 +1737,29 @@ texture_t *R_TextureAnimation (int frame, texture_t *base)
 			Sys_Error ("R_TextureAnimation: broken cycle");
 		if (++count > 100)
 			Sys_Error ("R_TextureAnimation: infinite cycle");
+	}
+
+	return base;
+}
+
+texture_t *R_TextureAnimation_Q2 (texture_t *base)
+{
+	int		reletive;
+	int		frame;
+	
+	if (!base->anim_total)
+		return base;
+
+	//this is only ever used on world. everything other than rtlights have proper batches.
+	frame = cl.time*2;	//q2 is lame
+
+	reletive = frame % base->anim_total;
+
+	while (reletive --> 0)
+	{
+		base = base->anim_next;
+		if (!base)
+			Sys_Error ("R_TextureAnimation: broken cycle");
 	}
 
 	return base;

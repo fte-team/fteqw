@@ -2716,6 +2716,8 @@ qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 				{
 					Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
 				}
+				else if (err == ENOTCONN)
+					Con_Printf ("TCPConnect_GetPacket: connection failed\n");
 				else
 					Con_Printf ("TCPConnect_GetPacket: Error (%i): %s\n", err, strerror(err));
 
@@ -4242,6 +4244,7 @@ typedef struct
 	qboolean havepacket;
 
 	qboolean failed;
+	int showerror;
 } ftenet_websocket_connection_t;
 
 static void websocketgot(void *user_data, int32_t result)
@@ -4255,6 +4258,7 @@ static void websocketgot(void *user_data, int32_t result)
 	{
 		Sys_Printf("%s: %i\n", __func__, result);
 		wsc->failed = true;
+		wsc->showerror = result;
 	}
 }
 static void websocketconnected(void *user_data, int32_t result)
@@ -4274,6 +4278,7 @@ static void websocketconnected(void *user_data, int32_t result)
 		Sys_Printf("%s: %i\n", __func__, result);
 		//some sort of error connecting, make it timeout now
 		wsc->failed = true;
+		wsc->showerror = result;
 	}
 }
 static void websocketclosed(void *user_data, int32_t result)
@@ -4368,6 +4373,54 @@ static qboolean FTENET_NaClWebSocket_GetPacket(ftenet_generic_connection_t *gcon
 		}
 		return true;
 	}
+
+	if (wsc->showerror != PP_OK)
+	{
+		switch(wsc->showerror)
+		{
+		case PP_ERROR_FAILED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_FAILED\n");
+			break;
+		case PP_ERROR_ABORTED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_ABORTED\n");
+			break;
+		case PP_ERROR_NOTSUPPORTED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_NOTSUPPORTED\n");
+			break;
+		case PP_ERROR_CONNECTION_CLOSED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_CONNECTION_CLOSED\n");
+			break;
+		case PP_ERROR_CONNECTION_RESET:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_CONNECTION_RESET\n");
+			break;
+		case PP_ERROR_CONNECTION_REFUSED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_CONNECTION_REFUSED\n");
+			break;
+		case PP_ERROR_CONNECTION_ABORTED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_CONNECTION_ABORTED\n");
+			break;
+		case PP_ERROR_CONNECTION_FAILED:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_CONNECTION_FAILED\n");
+			break;
+		case PP_ERROR_CONNECTION_TIMEDOUT:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_CONNECTION_TIMEDOUT\n");
+			break;
+		case PP_ERROR_ADDRESS_INVALID:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_ADDRESS_INVALID\n");
+			break;
+		case PP_ERROR_ADDRESS_UNREACHABLE:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_ADDRESS_UNREACHABLE\n");
+			break;
+		case PP_ERROR_ADDRESS_IN_USE:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: PP_ERROR_ADDRESS_IN_USE\n");
+			break;
+		default:
+			Con_TPrintf ("FTENET_NaClWebSocket_GetPacket: error %i\n", wsc->showerror);
+			break;
+		}
+		wsc->showerror = PP_OK;
+	}
+
 	return false;
 }
 static qboolean FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
@@ -4520,9 +4573,9 @@ int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote
 	return collection->conn[remote->connum-1]->GetLocalAddress(collection->conn[remote->connum-1], local, idx);
 }
 
-void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
+qboolean NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
 {
-	char buffer[64];
+//	char buffer[64];
 	ftenet_connections_t *collection;
 	int i;
 
@@ -4530,7 +4583,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
 	{
 #ifdef CLIENTONLY
 		Sys_Error("NET_GetPacket: Bad netsrc");
-		return;
+		return false;
 #else
 		collection = svs.sockets;
 #endif
@@ -4539,26 +4592,26 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
 	{
 #ifdef SERVERONLY
 		Sys_Error("NET_GetPacket: Bad netsrc");
-		return;
+		return false;
 #else
 		collection = cls.sockets;
 #endif
 	}
 
 	if (!collection)
-		return;
+		return false;
 
 	if (net_fakeloss.value)
 	{
 		if (frandom () < net_fakeloss.value)
-			return;
+			return true;
 	}
 
 	if (to->connum)
 	{
 		if (collection->conn[to->connum-1])
 			if (collection->conn[to->connum-1]->SendPacket(collection->conn[to->connum-1], length, data, to))
-				return;
+				return true;
 	}
 
 	for (i = 0; i < MAX_CONNECTIONS; i++)
@@ -4566,10 +4619,11 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
 		if (!collection->conn[i])
 			continue;
 		if (collection->conn[i]->SendPacket(collection->conn[i], length, data, to))
-			return;
+			return true;
 	}
 
-	Con_Printf("No route to %s - try reconnecting\n", NET_AdrToString(buffer, sizeof(buffer), to));
+//	Con_Printf("No route to %s - try reconnecting\n", NET_AdrToString(buffer, sizeof(buffer), to));
+	return false;
 }
 
 qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
@@ -4586,6 +4640,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 	case NA_IRC:
 		if (!FTENET_AddToCollection(collection, routename, host, adr.type, islisten))
 			return false;
+		Con_Printf("Establishing connection to %s\n", host);
 		break;
 	default:
 		//not recognised, or not needed

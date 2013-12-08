@@ -495,8 +495,6 @@ static void SWBE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
-		else if (batch->texture)
-			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 
 		if (batch->shader->flags & SHADER_NODRAW)
 			continue;

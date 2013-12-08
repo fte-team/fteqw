@@ -92,7 +92,7 @@ void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 int			NET_GetPacket (netsrc_t netsrc, int firstsock);
-void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t *to);
+qboolean	NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t *to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);

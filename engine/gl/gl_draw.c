@@ -89,7 +89,7 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void 
 
 texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
-	extern cvar_t r_shadow_bumpscale_basetexture;
+	extern cvar_t r_shadow_bumpscale_basetexture, r_shadow_bumpscale_bumpmap;
 	switch(fmt)
 	{
 	case TF_INVALID:
@@ -117,8 +117,9 @@ texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt
 		return GL_LoadTexture(name, width, height, data, flags, 4);
 
 	case TF_HEIGHT8PAL:
-	case TF_HEIGHT8:
 		return GL_LoadTexture8Bump(name, width, height, data, flags, r_shadow_bumpscale_basetexture.value);
+	case TF_HEIGHT8:
+		return GL_LoadTexture8Bump(name, width, height, data, flags, r_shadow_bumpscale_bumpmap.value);
 
 	default:
 		Sys_Error("Unsupported image format type\n");

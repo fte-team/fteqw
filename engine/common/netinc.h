@@ -124,6 +124,9 @@
 	#ifdef EACCES
 		#undef EACCES
 	#endif
+	#ifdef ENOTCONN
+		#undef ENOTCONN
+	#endif
 
 	#define EWOULDBLOCK		WSAEWOULDBLOCK
 	#define EINPROGRESS		WSAEINPROGRESS

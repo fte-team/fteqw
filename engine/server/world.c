@@ -1709,6 +1709,13 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	else
 		clip.hitcontentsmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
 
+	if (type & MOVE_ONLYENT)
+	{
+		if (!passedict)
+			passedict = w->edicts;
+		return World_ClipMoveToEntity (w, passedict, passedict->v->origin, start, mins, maxs, end, hullnum, clip.type & MOVE_HITMODEL, clip.hitcontentsmask);
+	}
+
 // clip to world
 	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false, clip.hitcontentsmask);
 

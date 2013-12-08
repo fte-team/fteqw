@@ -630,6 +630,7 @@ void CL_CheckForResend (void)
 	char	data[2048];
 	double t1, t2;
 	int contype = 0;
+	qboolean keeptrying = true;
 
 #ifndef CLIENTONLY
 	if (!cls.state && sv.state)
@@ -828,6 +829,8 @@ void CL_CheckForResend (void)
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, false))
 		{
 			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
+			connect_time = -1;
+			SCR_EndLoadingPlaque();
 			return;
 		}
 
@@ -839,7 +842,7 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+		keeptrying &= NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
 	}
 	/*NQ*/
 #ifdef NQPROT
@@ -871,11 +874,18 @@ void CL_CheckForResend (void)
 			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &adr);
+		keeptrying &= NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &adr);
 	}
 #endif
 
 	connect_tries++;
+
+	if (!keeptrying)
+	{
+		Con_TPrintf ("No route to host, giving up\n");
+		connect_time = -1;
+		SCR_EndLoadingPlaque();
+	}
 }
 
 void CL_BeginServerConnect(int port)

@@ -340,7 +340,7 @@ void M_Menu_SinglePlayer_f (void)
 	{
 		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-		b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
+		b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;map start\n");
 		menu->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;

@@ -342,17 +342,11 @@ reeval:
 		ptr->_int = (int)OPA->_float;
 		break;
 	case OP_STOREP_I:
-	case OP_GSTOREP_I:
 	case OP_STOREP_F:
-	case OP_GSTOREP_F:
 	case OP_STOREP_ENT:
-	case OP_GSTOREP_ENT:
 	case OP_STOREP_FLD:		// integers
-	case OP_GSTOREP_FLD:
 	case OP_STOREP_S:
-	case OP_GSTOREP_S:
 	case OP_STOREP_FNC:		// pointers
-	case OP_GSTOREP_FNC:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
@@ -362,11 +356,10 @@ reeval:
 		ptr->_int = OPA->_int;
 		break;
 	case OP_STOREP_V:
-	case OP_GSTOREP_V:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_vector[0] = OPA->_vector[0];
@@ -378,7 +371,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		*(unsigned char *)ptr = (char)OPA->_float;
@@ -397,7 +390,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float *= OPA->_float);
@@ -406,7 +399,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		tmpf = OPA->_float;
 		ptr = QCPOINTER(OPB);
@@ -422,7 +415,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float /= OPA->_float);
@@ -440,7 +433,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float += OPA->_float);
@@ -449,7 +442,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_vector[0] = (ptr->_vector[0] += OPA->_vector[0]);
@@ -469,7 +462,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float -= OPA->_float);
@@ -478,7 +471,7 @@ reeval:
 		if (QCPOINTERWRITEFAIL(OPB))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_vector[0] = (ptr->_vector[0] -= OPA->_vector[0]);
@@ -664,6 +657,7 @@ reeval:
 				PR_SwitchProgsParms(progfuncs, callerprogs);
 
 				//break/skip the instruction.
+				PR_StackTrace(&progfuncs->funcs);
 				printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 #ifndef DEBUGABLE
 				progfuncs->funcs.pr_trace++;
@@ -1168,14 +1162,61 @@ reeval:
 		break;
 
 	case OP_GADDRESS: //return glob[aint+bfloat]
+		//this instruction is not implemented due to the weirdness of it.
+		//its theoretically a more powerful load... but untyped?
+		//or is it meant to be an LEA instruction (that could simply be switched with 
+		pr_xstatement = st-pr_statements;
+		PR_RunError (&progfuncs->funcs, "OP_GADDRESS not implemented (found in %s)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+		break;
 	case OP_GLOAD_I:
 	case OP_GLOAD_F:
 	case OP_GLOAD_FLD:
 	case OP_GLOAD_ENT:
 	case OP_GLOAD_S:
 	case OP_GLOAD_FNC:
-		pr_xstatement = st-pr_statements;
-		PR_RunError(&progfuncs->funcs, "Extra opcode not implemented\n");
+		if (OPA->_int < 0 || OPA->_int*4 >= current_progstate->globals_size)
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = ((eval_t *)&glob[OPA->_int]);
+		OPC->_int = ptr->_int;
+		break;
+	case OP_GLOAD_V:
+		if (OPA->_int < 0 || (OPA->_int+2)*4 >= current_progstate->globals_size)
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = ((eval_t *)&glob[OPA->_int]);
+		OPC->_vector[0] = ptr->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2];
+		break;
+	case OP_GSTOREP_I:
+	case OP_GSTOREP_F:
+	case OP_GSTOREP_ENT:
+	case OP_GSTOREP_FLD:
+	case OP_GSTOREP_S:
+	case OP_GSTOREP_FNC:
+		if (OPB->_int < 0 || OPB->_int*4 >= current_progstate->globals_size)
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = ((eval_t *)&glob[OPB->_int]);
+		ptr->_int = OPA->_int;
+		break;
+	case OP_GSTOREP_V:
+		if (OPB->_int < 0 || (OPB->_int+2)*4 >= current_progstate->globals_size)
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = ((eval_t *)&glob[OPB->_int]);
+		ptr->_vector[0] = OPA->_vector[0];
+		ptr->_vector[1] = OPA->_vector[1];
+		ptr->_vector[2] = OPA->_vector[2];
 		break;
 
 	case OP_BOUNDCHECK:

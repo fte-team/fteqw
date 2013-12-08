@@ -3467,10 +3467,10 @@ void GLBE_Scissor(srect_t *rect)
 	{
 		qglScissor(
 			floor(r_refdef.pxrect.x + rect->x*r_refdef.pxrect.width),
-			floor((r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height) - r_refdef.pxrect.maxheight),
+			floor(r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height),// - r_refdef.pxrect.maxheight),
 			ceil(rect->width * r_refdef.pxrect.width),
 			ceil(rect->height * r_refdef.pxrect.height));
-//		qglEnable(GL_SCISSOR_TEST);
+		qglEnable(GL_SCISSOR_TEST);
 
 		if (qglDepthBoundsEXT)
 		{
@@ -4115,9 +4115,6 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 				if (batch->buildmeshes)
 					batch->buildmeshes(batch);
-//				else
-//					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
-
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
 				GLBE_SelectMode(BEM_DEPTHONLY);
@@ -4200,6 +4197,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if ((batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
 		{
+			float oldil;
 			int oldbem;
 			//these flags require rendering some view as an fbo
 			if (r_refdef.recurse)
@@ -4207,6 +4205,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			if (shaderstate.mode != BEM_STANDARD && shaderstate.mode != BEM_DEPTHDARK)
 				continue;
 			oldbem = shaderstate.mode;
+			oldil = shaderstate.identitylighting;
 
 			if ((batch->shader->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
@@ -4344,6 +4343,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				GL_ViewportUpdate();
 			}
 			BE_SelectMode(oldbem);
+			shaderstate.identitylighting = oldil;
 		}
 
 		GLBE_SubmitBatch(batch);

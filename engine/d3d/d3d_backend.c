@@ -2754,10 +2754,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
 		else if (batch->texture)
-		{
-			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 			batch->skin = &batch->shader->defaulttextures;
-		}
 
 		if (batch->shader->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT)
@@ -3037,9 +3034,6 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 				if (batch->buildmeshes)
 					batch->buildmeshes(batch);
-				else
-					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
-
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
 				BE_SelectMode(BEM_DEPTHONLY);

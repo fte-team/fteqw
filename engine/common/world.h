@@ -122,6 +122,7 @@ typedef struct q2trace_s
 #define MOVE_EVERYTHING	32	//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
 #define MOVE_LAGGED		64	//trace touches current last-known-state, instead of actual ents (just affects players for now)
 #define MOVE_ENTCHAIN	128 //chain of impacted ents, otherwise result shows only world
+#define MOVE_ONLYENT	256 //test the trace against a single entity, ignoring non-solid/owner/etc flags (but respecting contents).
 
 typedef struct areanode_s
 {

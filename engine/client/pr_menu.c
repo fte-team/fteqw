@@ -1498,7 +1498,7 @@ static struct {
 	{"hash_getcb",				PF_hash_getcb,				293},
 	{"checkcommand",			PF_checkcommand,			294},
 															//gap
-	{"print",					PF_print,					339},
+	{"print_csqc",				PF_print,					339},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
 	{"stringtokeynum",			PF_cl_stringtokeynum,		341},
 	{"getkeybind",				PF_cl_getkeybind,			342},
@@ -1879,6 +1879,8 @@ qboolean MP_Init (void)
 		if (mp_init_function)
 			PR_ExecuteProgram(menu_world.progs, mp_init_function);
 		inmenuprogs--;
+
+		EDICT_NUM(menu_world.progs, 0)->readonly = true;
 
 		Con_DPrintf("Initialized menu.dat\n");
 		return true;

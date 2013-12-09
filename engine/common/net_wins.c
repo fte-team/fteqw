@@ -1572,6 +1572,14 @@ qboolean FTENET_Loop_GetPacket(ftenet_generic_connection_t *con)
 	return NET_GetLoopPacket(con->thesocket, &net_from, &net_message);
 }
 
+#ifdef HAVE_PACKET
+//just a null function so we don't pass bad things to select.
+int FTENET_Loop_SetReceiveFDSet(ftenet_generic_connection_t *gcon, fd_set *fdset)
+{
+	return 0;
+}
+#endif
+
 qboolean FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, void *data, netadr_t *to)
 {
 	if (to->type == NA_LOOPBACK)
@@ -1609,6 +1617,9 @@ static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean iss
 		newcon->GetPacket = FTENET_Loop_GetPacket;
 		newcon->SendPacket = FTENET_Loop_SendPacket;
 		newcon->Close = FTENET_Loop_Close;
+#ifdef HAVE_PACKET
+		newcon->SetReceiveFDSet = FTENET_Loop_SetReceiveFDSet;
+#endif
 
 		newcon->islisten = isserver;
 		newcon->addrtype[0] = NA_LOOPBACK;
@@ -2605,6 +2616,7 @@ typedef struct ftenet_tcpconnect_stream_s {
 		TCPC_QIZMO,			//'qizmo\n' handshake, followed by packets prefixed with a 16bit packet length.
 		TCPC_WEBSOCKETU,	//utf-8 encoded data.
 		TCPC_WEBSOCKETB,	//binary encoded data (subprotocol = 'binary')
+		TCPC_WEBSOCKETNQ,	//raw nq msg buffers with no encapsulation or handshake
 	} clienttype;
 	char inbuffer[3000];
 	char outbuffer[3000];
@@ -2612,6 +2624,8 @@ typedef struct ftenet_tcpconnect_stream_s {
 	float timeouttime;
 	netadr_t remoteaddr;
 	struct ftenet_tcpconnect_stream_s *next;
+
+	int fakesequence;	//TCPC_WEBSOCKETNQ
 } ftenet_tcpconnect_stream_t;
 
 typedef struct {
@@ -2896,29 +2910,56 @@ closesvstream:
 							char acceptkey[20*2];
 							unsigned char sha1digest[20];
 							char *blurgh;
+							char *protoname = "";
 							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 							st->inlen -= i;
 
 							blurgh = va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY]);
 							tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), blurgh, strlen(blurgh)));
 
-							Con_Printf("Websocket request for %s from %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
+							Con_Printf("Websocket request for %s from %s (%s)\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), arg[WCATTR_WSPROTO]);
 
-							resp = va(	"HTTP/1.1 101 WebSocket Protocol Handshak\r\n"
+							if (!strcmp(arg[WCATTR_WSPROTO], "quake"))
+							{
+								st->clienttype = TCPC_WEBSOCKETNQ;	//emscripten doesn't give us a choice, but its compact.
+								protoname = "Sec-WebSocket-Protocol: quake\r\n";
+							}
+							else if (!strcmp(arg[WCATTR_WSPROTO], "binary"))
+							{
+								st->clienttype = TCPC_WEBSOCKETB;	//emscripten doesn't give us a choice, but its compact.
+								protoname = "Sec-WebSocket-Protocol: binary\r\n";	//emscripten is a bit limited
+							}
+							else
+							{
+								st->clienttype = TCPC_WEBSOCKETU;	//nacl supports only utf-8 encoded data, at least at the time I implemented it.
+								protoname = va("Sec-WebSocket-Protocol: %s\r\n", arg[WCATTR_WSPROTO]);	//emscripten is a bit limited
+							}
+
+							resp = va(	"HTTP/1.1 101 WebSocket Protocol Handshake\r\n"
 										"Upgrade: websocket\r\n"
 										"Connection: Upgrade\r\n"
 										"Access-Control-Allow-Origin: *\r\n"	//allow cross-origin requests. this means you can use any domain to play on any public server.
 										"Sec-WebSocket-Accept: %s\r\n"
-//										"Sec-WebSocket-Protocol: FTEWebSocket\r\n"
-										"\r\n", acceptkey);
+//										"%s"
+										"\r\n", acceptkey, protoname);
 							//send the websocket handshake response.
 							send(st->socketnum, resp, strlen(resp), 0);
 
 							//and the connection is okay
-							if (!strcmp(arg[WCATTR_WSPROTO], "binary"))
-								st->clienttype = TCPC_WEBSOCKETB;	//emscripten doesn't give us a choice, but its compact.
-							else
-								st->clienttype = TCPC_WEBSOCKETU;	//nacl supports only utf-8 encoded data, at least at the time I implemented it.
+
+							if (st->clienttype == TCPC_WEBSOCKETNQ)
+							{
+								//hide a connection request in there...
+								net_message.cursize = 0;
+								net_message.packing = SZ_RAWBYTES;
+								net_message.currentbit = 0;
+								net_from = st->remoteaddr;
+								MSG_WriteLong(&net_message, LongSwap(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
+								MSG_WriteByte(&net_message, CCREQ_CONNECT);
+								MSG_WriteString(&net_message, NET_GAMENAME_NQ);
+								MSG_WriteByte(&net_message, NET_PROTOCOL_VERSION);
+								return true;
+							}
 						}
 					}
 					else
@@ -3053,6 +3094,7 @@ handshakeerror:
 			return true;
 		case TCPC_WEBSOCKETU:
 		case TCPC_WEBSOCKETB:
+		case TCPC_WEBSOCKETNQ:
 			while (st->inlen >= 2)
 			{
 				unsigned short ctrl = ((unsigned char*)st->inbuffer)[0]<<8 | ((unsigned char*)st->inbuffer)[1];
@@ -3175,12 +3217,22 @@ handshakeerror:
 				case 2: /*binary frame*/
 //					Con_Printf ("websocket binary frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 					net_message.cursize = paylen;
-					if (net_message.cursize >= sizeof(net_message_buffer) )
+					if (net_message.cursize+8 >= sizeof(net_message_buffer) )
 					{
 						Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 						goto closesvstream;
 					}
-					memcpy(net_message_buffer, st->inbuffer+payoffs, paylen);
+					if (st->clienttype == TCPC_WEBSOCKETNQ)
+					{
+						payoffs+=1;
+						paylen-=1;
+						memcpy(net_message_buffer+8, st->inbuffer+payoffs, paylen);
+						net_message.cursize=paylen+8;
+						((int*)net_message_buffer)[0] = BigLong(NETFLAG_UNRELIABLE | net_message.cursize);
+						((int*)net_message_buffer)[1] = LongSwap(++st->fakesequence);
+					}
+					else
+						memcpy(net_message_buffer, st->inbuffer+payoffs, paylen);
 					break;
 				case 8:	/*connection close*/
 					Con_Printf ("websocket closure %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
@@ -3284,11 +3336,20 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 					memcpy(st->outbuffer, data, length);
 					st->outlen = length;
 					break;
+				case TCPC_WEBSOCKETNQ:
+					if (length < 8 || ((char*)data)[0] & 0x80)
+						break;
+//					length = 2;
+//					data = "\1\1";
+					length-=7;
+					data=(char*)data + 7;
+					*(char*)data = 1;	//for compat with webquake, we add an extra byte at the start. 1 for reliable, 2 for unreliable.
+					//fallthrough
 				case TCPC_WEBSOCKETU:
 				case TCPC_WEBSOCKETB:
 					{
 						/*as a server, we don't need the mask stuff*/
-						unsigned short ctrl = (st->clienttype==TCPC_WEBSOCKETB)?0x8200:0x8100;
+						unsigned short ctrl = (st->clienttype==TCPC_WEBSOCKETU)?0x8100:0x8200;
 						unsigned int paylen = 0;
 						unsigned int payoffs = 2;
 						int i;

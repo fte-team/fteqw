@@ -553,6 +553,16 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
+		if (chan->remote_address.type == NA_TCP && chan->reliable_length)
+		{
+			//if over tcp, everything is assumed to be reliable. pretend it got acked.
+			chan->reliable_length = 0;	//they got the entire message
+			chan->reliable_start = 0;
+			chan->incoming_reliable_acknowledged = chan->reliable_sequence;
+			chan->reliable_sequence++;
+			chan->nqreliable_allowed = true;
+		}
+
 		/*unreliables flood out, but reliables are tied to server sequences*/
 		if (chan->nqreliable_resendtime < realtime)
 			chan->nqreliable_allowed = true;
@@ -572,7 +582,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			{
 				MSG_WriteLong(&send, 0);
 				MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
-				if (i > MAX_NQDATAGRAM)
+				if (i > MAX_NQDATAGRAM && chan->remote_address.type != NA_TCP)
 					i = MAX_NQDATAGRAM;
 
 				SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);

@@ -425,6 +425,7 @@ void SVNQ_New_f (void)
 	int op;
 	unsigned int protext1 = 0, protext2 = 0, protmain = 0, protfl = 0;
 	char *protoname;
+	extern cvar_t sv_listen_nq;
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -438,7 +439,7 @@ void SVNQ_New_f (void)
 		return;
 	}
 
-	if (!host_client->pextknown)
+	if (!host_client->pextknown && sv_listen_nq.ival != 1)	//1 acts as a legacy mode, used for clients that can't cope with cmd before serverdata (either because they crash out or because they refuse to send reliables until after they got the first serverdata)
 	{
 		char *msg = va("cmd pext\n");
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));

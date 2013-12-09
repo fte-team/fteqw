@@ -125,7 +125,7 @@ cvar_t	allow_download_copyrighted = CVAR("allow_download_copyrighted", "0");
 
 cvar_t sv_public = CVAR("sv_public", "0");
 cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
-cvar_t sv_listen_nq = CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server. 0 = don't let them in. 1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks). 2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
+cvar_t sv_listen_nq = CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
 cvar_t sv_listen_dp = CVAR("sv_listen_dp", "0"); /*kinda fucked right now*/
 cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
 cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
@@ -2625,6 +2625,7 @@ client_t *SVC_DirectConnect(void)
 	{
 		SV_AcceptMessage (protocol);
 
+		newcl->state = cs_free;
 		if (ISNQCLIENT(newcl))
 		{
 			//FIXME: we should delay this until we actually have a name, because right now they'll be called unnamed or unconnected or something
@@ -2643,6 +2644,7 @@ client_t *SVC_DirectConnect(void)
 			SV_BroadcastTPrintf(PRINT_LOW, "client %s connected\n", newcl->name);
 //			Con_DPrintf ("Client %s connected\n", newcl->name);
 		}
+		newcl->state = cs_connected;
 	}
 	else
 	{

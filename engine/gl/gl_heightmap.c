@@ -1560,7 +1560,6 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 		dblock_t dbh;
 		sx = sx & ~(SECTIONSPERBLOCK-1);
 		sy = sy & ~(SECTIONSPERBLOCK-1);
-		fname = Terr_DiskBlockName(hm, sx, sy);
 
 		//make sure its loaded before we replace the file
 		for (y = 0; y < SECTIONSPERBLOCK; y++)
@@ -1573,6 +1572,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 			}
 		}
 
+		fname = Terr_DiskBlockName(hm, sx, sy);
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 		if (!f)

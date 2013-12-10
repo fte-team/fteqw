@@ -1805,6 +1805,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 
 	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis )
 	{
+		vis = NULL;
 		// mark everything
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{

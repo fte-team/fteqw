@@ -2262,7 +2262,7 @@ void Surf_DrawWorld (void)
 				CM_WriteAreaBits(cl.worldmodel, areabits, clientarea);
 			}
 #ifdef Q3BSPS
-			if (currententity->model->fromgame == fg_quake3)
+			if (cl.worldmodel->fromgame == fg_quake3)
 			{
 				entvis = surfvis = R_MarkLeaves_Q3 ();
 				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<r_refdef.frustum_numplanes)-1);

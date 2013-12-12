@@ -3297,10 +3297,9 @@ void CL_LinkPacketEntities (void)
 
 		ent->keynum = state->number;
 
-		if (cl_r2g.value && state->modelindex == cl_rocketindex && cl_rocketindex && cl_grenadeindex)
-			ent->model = cl.model_precache[cl_grenadeindex];
-		else
-			ent->model = model;
+		if (cl_r2g.value && state->modelindex == cl_rocketindex && cl_rocketindex != -1 && cl_grenadeindex != -1)
+			model = cl.model_precache[cl_grenadeindex];
+		ent->model = model;
 
 		ent->flags = 0;
 		if (state->dpflags & RENDER_VIEWMODEL)
@@ -3410,7 +3409,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 #ifdef RAGDOLL
-		if (ent->model->dollinfo)
+		if (model && model->dollinfo)
 			rag_updatedeltaent(ent, le);
 #endif
 

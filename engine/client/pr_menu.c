@@ -322,13 +322,12 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	p = R2D_SafeCachePic(picname);
 	if (!p)
 		p = R2D_SafePicFromWad(picname);
+	G_FLOAT(OFS_RETURN) = !!p;
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
 	r2d_be_flags = 0;
-
-	G_FLOAT(OFS_RETURN) = 1;
 }
 
 void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

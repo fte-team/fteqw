@@ -352,7 +352,7 @@ typedef enum {FSLFRT_IFFOUND, FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_A
 //returns -1 if couldn't find.
 int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
-char *FS_WhichPackForLocation(flocation_t *loc);
+char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
 
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);

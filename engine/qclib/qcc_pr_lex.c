@@ -3546,6 +3546,9 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 {
 	char *ret;
 
+	if (type->type == ev_void)
+		return "void";
+
 	if (type->type == ev_pointer)
 	{
 		if (buffersize < 0)

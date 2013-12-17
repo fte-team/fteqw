@@ -4366,7 +4366,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 				}
 			}
 
-			if (arg == 1 && !STRCMP(func->name, "setmodel"))
+			if (arg == 1 && func->name && !STRCMP(func->name, "setmodel"))
 			{
 				QCC_SetModel(e);
 			}
@@ -5802,6 +5802,7 @@ void QCC_StoreToOffset(int dest, int source, QCC_type_t *type)
 }*/
 void QCC_StoreToDef(QCC_def_t *dest, QCC_def_t *source, QCC_type_t *type, pbool preservesource, pbool preservedest)
 {
+	int i;
 	int flags = 0;
 	if (preservesource)
 		flags |= STFL_PRESERVEA;
@@ -5810,6 +5811,18 @@ void QCC_StoreToDef(QCC_def_t *dest, QCC_def_t *source, QCC_type_t *type, pbool 
 	//fixme: we should probably handle entire structs or something
 	switch(type->type)
 	{
+	case ev_struct:
+	case ev_union:
+		//don't bother trying to optimise any temps here, its not likely to happen anyway.
+		for (i = 0; i+2 < type->size; i+=3)
+			QCC_PR_SimpleStatement(OP_STORE_V, source->ofs+i, dest->ofs+i, 0, false);
+		for (; i < type->size; i++)
+			QCC_PR_SimpleStatement(OP_STORE_F, source->ofs+i, dest->ofs+i, 0, false);
+		if (!preservesource)
+			QCC_FreeTemp(source);
+		if (!preservedest)
+			QCC_FreeTemp(dest);
+		break;
 	default:
 	case ev_float:
 		QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], source, dest, NULL, flags);
@@ -10221,12 +10234,11 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 				dt->initialized = 1;
 			}
 		}
-		else if (type->type == ev_struct || type->type == ev_union)
+		else if ((type->type == ev_struct || type->type == ev_union) && QCC_PR_CheckToken("{"))
 		{
 			//structs go recursive
 			unsigned int partnum;
 			pbool isunion;
-			QCC_PR_Expect("{");
 
 			isunion = ((type)->type == ev_union);
 			for (partnum = 0; partnum < (type)->num_parms; partnum++)
@@ -10259,8 +10271,11 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 					tmp = QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], tmp, 0, NULL);
 				else
 				{
-
-					QCC_PR_ParseErrorPrintDef (ERR_BADIMMEDIATETYPE, def, "wrong initializer type for %s. got %s, needed %s", def->name, tmp->type->name, type->name);
+					char gottype[256];
+					char needtype[256];
+					TypeName(tmp->type, gottype, sizeof(gottype));
+					TypeName(type, needtype, sizeof(needtype));
+					QCC_PR_ParseErrorPrintDef (ERR_BADIMMEDIATETYPE, def, "wrong initializer type for %s. got %s, needed %s", def->name, gottype, needtype);
 				}
 			}
 		}

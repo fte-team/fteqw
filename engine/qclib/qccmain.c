@@ -955,7 +955,7 @@ pbool QCC_WriteData (int crc)
 
 		for (h = 0; h < numglobaldefs; h++)
 		{
-			if (i == h)
+			if (i == h || !(qcc_globals[h].type & DEF_SAVEGLOBAL))
 				continue;
 			if (dd->ofs == qcc_globals[h].ofs)
 			{
@@ -974,7 +974,7 @@ pbool QCC_WriteData (int crc)
 	{
 		dd = &fields[i];
 
-		if (dd->type == ev_vector)	//just ignore vectors.
+		if (dd->type == ev_vector || dd->type == ev_struct || dd->type == ev_union)	//just ignore vectors, structs, and unions.
 			continue;
 
 		for (h = 1; h < numfielddefs; h++)
@@ -985,7 +985,7 @@ pbool QCC_WriteData (int crc)
 			{
 				if (dd->type != fields[h].type)
 				{
-					if (fields[h].type != ev_vector)
+					if (fields[h].type != ev_vector && fields[h].type != ev_struct && fields[h].type != ev_union)
 					{
 						QCC_PR_Warning(0, NULL, 0, "Mismatched union field types (%s and %s)", strings+dd->s_name, strings+fields[h].s_name);
 					}

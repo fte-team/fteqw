@@ -1558,11 +1558,12 @@ void PF_fcloseall (pubprogfuncs_t *prinst)
 void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *srcname = PR_GetStringOfs(prinst, OFS_PARM0);
+	qboolean makereferenced = prinst->callargc>1?G_FLOAT(OFS_PARM1):true;
 	flocation_t loc;
 
 	if (FS_FLocateFile(srcname, FSLFRT_IFFOUND, &loc))
 	{
-		srcname = FS_WhichPackForLocation(&loc);
+		srcname = FS_WhichPackForLocation(&loc, makereferenced);
 		if (srcname == NULL)
 			srcname = "";
 		RETURN_TSTRING(srcname);

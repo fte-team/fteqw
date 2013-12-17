@@ -1647,6 +1647,12 @@ void CL_CheckServerInfo(void)
 	if (cl.spectator || cls.demoplayback || !stricmp(s, "on"))
 		cls.allow_cheats = true;
 
+#ifndef CLIENTONLY
+	//allow cheats in single player regardless of sv_cheats.
+	if (sv.state == ss_active && sv.allocated_client_slots == 1)
+		cls.allow_cheats = true;
+#endif
+
 	s = Info_ValueForKey(cl.serverinfo, "strict");
 	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.ival)
 	{

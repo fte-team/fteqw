@@ -480,6 +480,15 @@ COM_Path_f
 
 ============
 */
+static void COM_PathLine(searchpath_t *s)
+{
+	Con_Printf("%s  %s%s%s%s%s\n", s->logicalpath,
+		(s->flags & SPF_REFERENCED)?"^[(ref)\\tip\\Referenced\\desc\\Package will auto-download to clients^]":"",
+		(s->flags & SPF_TEMPORARY)?"^[(temp)\\tip\\Temporary\\desc\\Flushed on map change^]":"",
+		(s->flags & SPF_COPYPROTECTED)?"^[(c)\\tip\\Copyrighted\\desc\\Copy-Protected and is not downloadable^]":"",
+		(s->flags & SPF_EXPLICIT)?"^[(e)\\tip\\Explicit\\desc\\Loaded explicitly by the gamedir^]":"",
+		(s->flags & SPF_UNTRUSTED)?"^[(u)\\tip\\Untrusted\\desc\\Configs and scripts will not be given access to passwords^]":"" );
+}
 void COM_Path_f (void)
 {
 	searchpath_t	*s;
@@ -491,12 +500,7 @@ void COM_Path_f (void)
 		Con_Printf ("Pure paths:\n");
 		for (s=com_purepaths ; s ; s=s->nextpure)
 		{
-			Con_Printf("%s  %s%s%s%s%s\n", s->logicalpath,
-					(s->flags & SPF_REFERENCED)?"(ref)":"",
-					(s->flags & SPF_TEMPORARY)?"(temp)":"",
-					(s->flags & SPF_COPYPROTECTED)?"(c)":"",
-					(s->flags & SPF_EXPLICIT)?"(e)":"",
-					(s->flags & SPF_UNTRUSTED)?"(u)":"" );
+			COM_PathLine(s);
 		}
 		Con_Printf ("----------\n");
 		if (fs_puremode == 2)
@@ -511,12 +515,7 @@ void COM_Path_f (void)
 		if (s == com_base_searchpaths)
 			Con_Printf ("----------\n");
 
-		Con_Printf("%s  %s%s%s%s%s\n", s->logicalpath,
-				(s->flags & SPF_REFERENCED)?"(ref)":"",
-				(s->flags & SPF_TEMPORARY)?"(temp)":"",
-				(s->flags & SPF_COPYPROTECTED)?"(c)":"",
-				(s->flags & SPF_EXPLICIT)?"(e)":"",
-				(s->flags & SPF_UNTRUSTED)?"(u)":"" );
+		COM_PathLine(s);
 	}
 }
 
@@ -883,19 +882,24 @@ out:
 		return depth;
 }
 
-char *FS_WhichPackForLocation(flocation_t *loc)
+char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
 {
 	char *ret;
 	if (!loc->search)
 		return NULL;	//huh? not a valid location.
 
 	ret = strchr(loc->search->purepath, '/');
-	if (!ret)
-		return NULL;
-	ret++;
-	if (strchr(ret, '/'))
-		return NULL;
-	return ret;
+	if (ret)
+	{
+		ret++;
+		if (!strchr(ret, '/'))
+		{
+			if (makereferenced)
+				loc->search->flags |= SPF_REFERENCED;
+			return ret;
+		}
+	}
+	return NULL;
 }
 
 /*requires extension*/
@@ -1572,16 +1576,18 @@ qboolean COM_LoadMapPackFile (const char *filename, int ofs)
 }
 
 static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *probablepath, searchpathfuncs_t *handle, unsigned int flags, unsigned int loadstuff);
-searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir)
+searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir, unsigned int *keepflags)
 {
 	searchpath_t *p;
 	searchpathfuncs_t *r = NULL;
+	*keepflags = 0;
 	while(*oldpaths)
 	{
 		p = *oldpaths;
 
 		if (!stricmp(p->logicalpath, dir))
 		{
+			*keepflags |= p->flags & (SPF_REFERENCED | SPF_UNTRUSTED);
 			*oldpaths = p->next;
 			r = p->handle;
 			Z_Free(p);
@@ -1609,6 +1615,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vp
 	char			pakfile[MAX_OSPATH];
 	char			purefile[MAX_OSPATH];
 	flocation_t loc;
+	unsigned int keptflags = 0;
 
 	Q_snprintfz (pakfile, sizeof(pakfile), "%s%s", param->parentdesc, descriptor);
 
@@ -1618,7 +1625,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vp
 			return true; //already loaded (base paths?)
 	}
 
-	newpak = FS_GetOldPath(param->oldpaths, pakfile);
+	newpak = FS_GetOldPath(param->oldpaths, pakfile, &keptflags);
 	if (!newpak)
 	{
 		if (param->OpenNew == VFSOS_OpenPath)
@@ -1647,7 +1654,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vp
 		snprintf (purefile, sizeof(purefile), "%s/%s", param->puredesc, descriptor);
 	else
 		Q_strncpyz(purefile, descriptor, sizeof(purefile));
-	FS_AddPathHandle(param->oldpaths, purefile, pakfile, newpak, ((!Q_strncasecmp(descriptor, "pak", 3))?SPF_COPYPROTECTED:0), (unsigned int)-1);
+	FS_AddPathHandle(param->oldpaths, purefile, pakfile, newpak, ((!Q_strncasecmp(descriptor, "pak", 3))?SPF_COPYPROTECTED:0)|keptflags, (unsigned int)-1);
 
 	return true;
 }
@@ -1661,6 +1668,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	char			pakfile[MAX_OSPATH];
 	char			logicalpaths[MAX_OSPATH];	//with a slash
 	char			purefile[MAX_OSPATH];
+	unsigned int	keptflags;
 	vfsfile_t *vfs;
 	flocation_t loc;
 	wildpaks_t wp;
@@ -1679,7 +1687,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
 		snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
 
-		handle = FS_GetOldPath(oldpaths, pakfile);
+		handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
 		if (!handle)
 		{
 			vfs = search->handle->OpenVFS(search->handle, &loc, "r");
@@ -1689,7 +1697,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 			if (!handle)
 				break;
 		}
-		FS_AddPathHandle(oldpaths, purefile, pakfile, handle, SPF_COPYPROTECTED, (unsigned int)-1);
+		FS_AddPathHandle(oldpaths, purefile, pakfile, handle, SPF_COPYPROTECTED|keptflags, (unsigned int)-1);
 	}
 
 	//now load the random ones
@@ -1732,7 +1740,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 					}
 					if (!oldp)
 					{
-						handle = FS_GetOldPath(oldpaths, lname);
+						handle = FS_GetOldPath(oldpaths, lname, &keptflags);
 						if (!handle)
 						{
 							if (search->handle->FindFile(search->handle, &loc, pname+ptlen+1, NULL))
@@ -1753,7 +1761,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 							}
 						}
 						if (handle)
-							FS_AddPathHandle(oldpaths, fs_manifest->package[i].path, lname, handle, SPF_COPYPROTECTED|SPF_UNTRUSTED, (unsigned int)-1);
+							FS_AddPathHandle(oldpaths, fs_manifest->package[i].path, lname, handle, SPF_COPYPROTECTED|SPF_UNTRUSTED|keptflags, (unsigned int)-1);
 					}
 				}
 			}
@@ -1859,6 +1867,7 @@ then loads and adds pak1.pak pak2.pak ...
 */
 void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const char *dir, unsigned int loadstuff)
 {
+	unsigned int	keptflags;
 	searchpath_t	*search;
 
 	char			*p;
@@ -1880,11 +1889,11 @@ void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const ch
 //
 // add the directory to the search path
 //
-	handle = FS_GetOldPath(oldpaths, dir);
+	handle = FS_GetOldPath(oldpaths, dir, &keptflags);
 	if (!handle)
 		handle = VFSOS_OpenPath(NULL, dir);
 
-	FS_AddPathHandle(oldpaths, puredir, dir, handle, SPF_EXPLICIT, loadstuff);
+	FS_AddPathHandle(oldpaths, puredir, dir, handle, SPF_EXPLICIT|keptflags, loadstuff);
 }
 
 searchpathfuncs_t *COM_IteratePaths (void **iterator, char *buffer, int buffersize)

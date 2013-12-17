@@ -570,23 +570,15 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		QC_snprintfz (line, sizeof(line), "'%g %g %g'", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	case ev_pointer:
-		QC_snprintfz (line, sizeof(line), "pointer");
+		QC_snprintfz (line, sizeof(line), "%#x", val->_int);
 		{
 //			int entnum;
 //			int valofs;
-			if (val->_int == 0)
-			{
-				QC_snprintfz (line, sizeof(line), "NULL pointer");
-				break;
-			}
 		//FIXME: :/
-			QC_snprintfz (line, sizeof(line), "UNKNOWN");
 //			entnum = ((qbyte *)val->edict - (qbyte *)sv_edicts) / pr_edict_size;
 //			valofs = (int *)val->edict - (int *)edvars(EDICT_NUM(progfuncs, entnum));
 //			fielddef = ED_FieldAtOfs (progfuncs, valofs );
-//			if (!fielddef)
-//				sprintf(line, "ent%i.%s", entnum, "UNKNOWN");
-//			else
+//			if (fielddef)
 //				sprintf(line, "ent%i.%s", entnum, fielddef->s_name);
 		}
 		break;
@@ -707,6 +699,9 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		else
 			sprintf (line, "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
+	case ev_pointer:
+		QC_snprintfz (line, sizeof(line), "%#x", val->_int);
+		break;
 	default:
 		sprintf (line, "bad type %i", type);
 		break;
@@ -769,6 +764,8 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		else
 			sprintf (line, "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
+	case ev_pointer:
+		QC_snprintfz (line, sizeof(line), "%#x", val->_int);
 		break;
 	default:
 		sprintf (line, "bad type %i", type);
@@ -2366,9 +2363,8 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, char *buf, int *size, 
 		ent = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
 	else
 		ent = (edictrun_t *)ed;
-	ent->isfree = false;
 
-	if (externs->entspawn)
+	if (ent->isfree && externs->entspawn)
 		externs->entspawn((struct edict_s *) ent, false);
 
 	buf = ED_ParseEdict(progfuncs, buf, ent);

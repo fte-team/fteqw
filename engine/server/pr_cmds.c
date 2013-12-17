@@ -9124,7 +9124,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setsize",			PF_setsize,			4,		4,		4,		0,	D("void(entity e, vector min, vector max)", "Sets the e's mins and maxs fields. Also relinks collision state, which sets absmin and absmax too.")},
 	{"qtest_setabssize",PF_setsize,			5,		0,		0,		0,	D("void(entity e, vector min, vector max)", "qtest"), true},
 	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5,	D("void(float style, float val)", "Sets the lightstyle to an explicit numerical level. From Hexen2.")},
-	{"break",			PF_break,			6,		6,		6,		0,	D("void()", "Trigger a debugging event. FTE will break into the qc debugger. Other engines may crash with a debug execption.")},
+	{"breakpoint",		PF_break,			6,		6,		6,		0,	D("void()", "Trigger a debugging event. FTE will break into the qc debugger. Other engines may crash with a debug execption.")},
 	{"random",			PF_random,			7,		7,		7,		0,	D("float()", "Returns a random value between 0 and 1. Be warned, this builtin can return 1 in most engines, which can break arrays.")},
 	{"sound",			PF_sound,			8,		8,		8,		0,	D("void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags)", "Starts a sound centered upon the given entity.\nchan is the entity sound channel to use, channel 0 will allow you to mix many samples at once, others will replace the old sample\n'samp' must have been precached first\nif specified, 'speedpct' should normally be around 100 (or =0), 200 for double speed or 50 for half speed.\nflags&1 means the sound should be sent reliably.")},
 	{"normalize",		PF_normalize,		9,		9,		9,		0,	D("vector(vector v)", "Shorten or lengthen a direction vector such that it is only one quake unit long.")},
@@ -9559,6 +9559,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl).")},// (EXT_CSQC)
 
+	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking)")},	// #343 This is a DP extension
 	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods.")},	// #344 This is a DP extension
 
 	{"getinputstate",	PF_Fixme,	0,		0,		0,		345,	D("float(float inputsequencenum)", "Looks up an input frame from the log, setting the input_* globals accordingly.\nThe sequence number range used for prediction should normally be servercommandframe < sequence <= clientcommandframe.\nThe sequence equal to clientcommandframe will change between input frames.")},// (EXT_CSQC)
@@ -9776,7 +9777,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501,	"void(float to, string s, float sz)"},//DP_SV_WRITEPICTURE
 	{"ReadPicture",		PF_Fixme,			0,		0,		0,		501,	"string()"},//DP_SV_WRITEPICTURE
 //	{"boxparticles",	PF_Fixme,			0,		0,		0,		502,	"void(float effectindex, entity own, vector org_from, vector org_to, vector dir_from, vector dir_to, float countmultiplier, float flags)"},
-	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	"string(string filename)"},//DP_QC_WHICHPACK
+	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	D("string(string filename, optional float makereferenced)", "Returns the pak file name that contains the file specified. progs/player.mdl will generally return something like 'pak0.pak'. If makereferenced is true, clients will automatically be told that the returned package should be pre-downloaded and used, even if allow_download_refpackages is not set.")},//DP_QC_WHICHPACK
 	{"getentity",		PF_Fixme,			0,		0,		0,		504,	"__variant(float entnum, float fieldnum)"},//DP_CSQC_QUERYRENDERENTITY
 //	{"undefined",		PF_Fixme,			0,		0,		0,		505,	""},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		506,	""},

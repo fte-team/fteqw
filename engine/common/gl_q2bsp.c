@@ -10,8 +10,8 @@
 #include <alloca.h>
 #endif
 
-#define MAX_Q3MAP_INDICES 0x800000	//just a sanity limit
-#define	MAX_Q3MAP_VERTEXES	0x80000	//just a sanity limit
+#define MAX_Q3MAP_INDICES 0x8000000	//just a sanity limit
+#define	MAX_Q3MAP_VERTEXES	0x800000	//just a sanity limit
 #define	MAX_Q3MAP_BRUSHSIDES	0x30000
 #define MAX_CM_BRUSHSIDES		(MAX_Q3MAP_BRUSHSIDES << 1)
 #define MAX_CM_PATCH_VERTS		(4096)

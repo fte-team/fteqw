@@ -41,9 +41,11 @@ extern cvar_t vid_conautoscale;
 #define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, DISTRIBUTION"Droid", __VA_ARGS__))
 #define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, DISTRIBUTION"Droid", __VA_ARGS__))
 
-void Sys_Vibrate(int count)
+void Sys_Vibrate(float count)
 {
-	vibrateduration = count*10*sys_vibrate.value;
+	if (count < 0)
+		count = 0;
+	vibrateduration += count*10*sys_vibrate.value;
 }
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_getvibrateduration(JNIEnv *env, jobject obj)
 {

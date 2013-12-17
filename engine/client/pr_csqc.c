@@ -2310,6 +2310,16 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->servertime = *csqcg.input_servertime*1000;
 }
 
+//#343
+static void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	if (G_FLOAT(OFS_PARM0))
+		key_dest_absolutemouse |= world->keydestmask;
+	else
+		key_dest_absolutemouse &= ~world->keydestmask;
+}
+
 //get the input commands, and stuff them into some globals.
 static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4572,8 +4582,8 @@ static struct {
 	{"stringtokeynum",			PF_cl_stringtokeynum,			341},	// #341 float(string keyname) stringtokeynum (EXT_CSQC)
 	{"getkeybind",				PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
-//	{"?",	PF_Fixme,						343},	// #343
-	{"getmousepos",				PF_cl_getmousepos,						344},	// #344 This is a DP extension
+	{"setcursormode",			PF_cl_setcursormode,			343},	// #343 This is a DP extension
+	{"getmousepos",				PF_cl_getmousepos,				344},	// #344 This is a DP extension
 
 	{"getinputstate",			PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
 	{"setsensitivityscaler",	PF_cs_setsensativityscaler, 	346},	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
@@ -6185,7 +6195,7 @@ void CSQC_ParseEntities(void)
 		Host_EndGame("CSQC needs to be initialized for this server.\n");
 
 	if (!csqcg.ent_update || !csqcg.self)
-		Host_EndGame("CSQC is unable to parse entities\n");
+		Host_EndGame("CSQC has no CSQC_Ent_Update function\n");
 	if (!csqc_world.worldmodel || csqc_world.worldmodel->needload)
 		Host_EndGame("world is not yet initialised\n");
 

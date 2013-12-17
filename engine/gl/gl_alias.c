@@ -1921,9 +1921,9 @@ void BE_GenPolyBatches(batch_t **batches)
 {
 	shader_t *shader = NULL;
 	batch_t *b;
-	unsigned int i;
+	unsigned int i = cl_numstris;
 
-	for (i = 0; i < cl_numstris; i++)
+	while (i-- > 0)
 	{
 		if (!cl_stris[i].numidx)
 			continue;

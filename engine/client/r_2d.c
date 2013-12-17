@@ -772,10 +772,12 @@ void R2D_Console_Resize(void)
 		yratio = 1;
 	}
 
+	if (!cwidth && !cheight)
+		cheight = 480;
 	if (cheight && !cwidth)
-		cwidth = (cheight*4)/3;
+		cwidth = (cheight*vid.rotpixelwidth)/vid.rotpixelheight;
 	if (cwidth && !cheight)
-		cheight = (cwidth*3)/4;
+		cheight = (cwidth*vid.rotpixelheight)/vid.rotpixelwidth;
 
 	if (!cwidth)
 		cwidth = vid.rotpixelwidth;
@@ -883,6 +885,10 @@ void R2D_BrightenScreen (void)
 
 	if (fabs(v_contrast.value - 1.0) < 0.05 && fabs(v_brightness.value - 0) < 0.05 && fabs(v_gamma.value - 1) < 0.05)
 		return;
+
+	//don't go crazy with brightness. that makes it unusable and is thus unsafe - and worse, lots of people assume its based around 1 (like gamma and contrast are). cap to 0.5
+	if (v_brightness.value > 0.5)
+		v_brightness.value = 0.5;
 
 	if (r2d_canhwgamma)
 		return;

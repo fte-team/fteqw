@@ -304,7 +304,7 @@ void SV_New_f (void)
 		ClientReliableWrite_Byte (host_client, (host_client->spectator?128:0) | splitnum); //read each player's userinfo to see if its a spectator or not. this hint is merely a cheat.
 		for (split = host_client; split; split = split->controlled)
 		{
-			playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
+			playernum = split - svs.clients;// NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
 			if (sv.state == ss_cinematic)
 				playernum = -1;
 			ClientReliableWrite_Byte (host_client, playernum);
@@ -2728,7 +2728,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 
 		if (replacementname)
 		{
-			char *pakname = FS_WhichPackForLocation(loc);
+			char *pakname = FS_WhichPackForLocation(loc, false);
 			if (pakname && SV_AllowDownload(pakname))
 			{
 				//return loc of the pak instead.
@@ -3943,6 +3943,9 @@ void Cmd_Notarget_f (void)
 		return;
 	}
 
+	if (svs.gametype != GT_PROGS)
+		return;
+
 	SV_LogPlayer(host_client, "notarget cheat");
 	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_NOTARGET) & FL_NOTARGET)
 		SV_ClientPrintf (host_client, PRINT_HIGH, "notarget ON\n");
@@ -3958,6 +3961,9 @@ void Cmd_God_f (void)
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
+
+	if (svs.gametype != GT_PROGS)
+		return;
 
 	SV_LogPlayer(host_client, "god cheat");
 	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_GODMODE) & FL_GODMODE)
@@ -3985,6 +3991,9 @@ void Cmd_Give_f (void)
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
+
+	if (svs.gametype != GT_PROGS)
+		return;
 
 	t = Cmd_Argv(1);
 	v = atoi (Cmd_Argv(2));
@@ -4049,6 +4058,9 @@ void Cmd_Noclip_f (void)
 		return;
 	}
 
+	if (svs.gametype != GT_PROGS)
+		return;
+
 	SV_LogPlayer(host_client, "noclip cheat");
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
@@ -4074,6 +4086,9 @@ void Cmd_Fly_f (void)
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
+
+	if (svs.gametype != GT_PROGS)
+		return;
 
 	SV_LogPlayer(host_client, "fly cheat");
 	if (sv_player->v->movetype != MOVETYPE_FLY)
@@ -4105,6 +4120,9 @@ void Cmd_SetPos_f(void)
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
+
+	if (svs.gametype != GT_PROGS)
+		return;
 
 	if (Cmd_Argc() != 4)
 	{

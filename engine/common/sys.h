@@ -89,7 +89,7 @@ void Sys_SendKeyEvents (void);
 
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath);
 
-void Sys_Vibrate(int count);
+void Sys_Vibrate(float count);
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 

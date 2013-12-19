@@ -163,6 +163,7 @@ static const char *imgs[] =
 #define PLANEWIDTH (1<<8)
 #define PLANEHEIGHT PLANEWIDTH
 
+#ifdef AVAIL_FREETYPE
 //windows' font linking allows linking multiple extra fonts to a main font.
 //this means that a single selected font can use chars from lots of different files if the first one(s) didn't provide that font.
 //they're provided as fallbacks.
@@ -179,6 +180,7 @@ typedef struct ftfontface_s
 	void *membuf;
 } ftfontface_t;
 static ftfontface_t *ftfaces;
+#endif
 
 
 #define GEN_CONCHAR_GLYPHS 0	//set to 0 or 1 to define whether to generate glyphs from conchars too, or if it should just draw them as glquake always used to
@@ -1226,7 +1228,9 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 		}
 	}
 
+#ifdef AVAIL_FREETYPE
 	if (!f->ftfaces)
+#endif
 	{
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)

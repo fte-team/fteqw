@@ -21,6 +21,7 @@ qboolean blockcache = true;
 qboolean com_fschanged = true;
 static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
+extern cvar_t cfg_reload_on_gamedir;
 int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
@@ -2007,7 +2008,7 @@ void COM_Gamedir (const char *dir)
 		}
 		Z_Free(dup);
 	}
-	FS_ChangeGame(man, true);
+	FS_ChangeGame(man, cfg_reload_on_gamedir.ival);
 
 #if 0
 	char thispath[64];
@@ -3362,11 +3363,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	//if any of these files change location, the configs will be re-execed.
 	//note that we reuse path handles if they're still valid, so we can just check the pointer to see if it got unloaded/replaced.
 	char *conffile[] = {"quake.rc", "hexen.rc", "default.cfg", "server.cfg", NULL};
-	searchpath_t *confpath[sizeof(conffile)/sizeof(conffile[0])];
+	searchpathfuncs_t *confpath[sizeof(conffile)/sizeof(conffile[0])];
 	for (i = 0; conffile[i]; i++)
 	{
 		FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);	//q1
-		confpath[i] = loc.search;
+		confpath[i] = loc.search?loc.search->handle:NULL;
 	}
 
 	i = COM_CheckParm ("-basedir");
@@ -3477,8 +3478,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 		for (i = 0; conffile[i]; i++)
 		{
 			FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);
-			if (confpath[i] != loc.search)
+			if (confpath[i] != (loc.search?loc.search->handle:NULL))
+			{
 				reloadconfigs = true;
+				Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+			}
 		}
 
 		if (reloadconfigs)

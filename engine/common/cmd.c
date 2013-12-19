@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
 cvar_t com_fs_cache			= SCVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
@@ -3062,6 +3063,7 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
 	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
+	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
 
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);

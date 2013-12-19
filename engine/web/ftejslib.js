@@ -88,11 +88,10 @@ mergeInto(LibraryManager.library,
 					//we don't steal that because its impossible to leave it again once used.
 					if (FTEC.evcb.key != 0 && event.keyCode != 122)
 					{
-						Runtime.dynCall('viiii', FTEC.evcb.key, [0, event.type=='keydown', event.keyCode, 0]);
-						event.preventDefault();
+						if (Runtime.dynCall('iiiii', FTEC.evcb.key, [0, event.type=='keydown', event.keyCode, 0]))
+							event.preventDefault();
 					}
 					break;
-				case 'keydown':
 				default:
 					console.log(event);
 			}
@@ -108,7 +107,7 @@ mergeInto(LibraryManager.library,
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
-			['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keydown', 'keyup'].forEach(function(event)
+			['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup'].forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
 			});

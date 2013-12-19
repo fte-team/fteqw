@@ -30,42 +30,51 @@ static void VID_Resized(int width, int height)
 }
 static unsigned int domkeytoquake(unsigned int code)
 {
-        unsigned int tab[256] =
-        {
-                /*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
-                /* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
-                /* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-                /* 48*/ '0','1','2','3','4','5','6','7',                '8','9',0,0,0,0,0,0,
+	unsigned int tab[256] =
+	{
+		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
+		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
+		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
+		/* 48*/ '0','1','2','3','4','5','6','7',                '8','9',0,0,0,0,0,0,
 
-                /* 64*/ 0,'a','b','c','d','e','f','g',          'h','i','j','k','l','m','n','o',
-                /* 80*/ 'p','q','r','s','t','u','v','w',                'x','y','z',K_LWIN,K_RWIN,K_APP,0,0,
-                /* 96*/ K_KP_INS,K_KP_END,K_KP_DOWNARROW,K_KP_PGDN,K_KP_LEFTARROW,K_KP_5,K_KP_RIGHTARROW,K_KP_HOME,             K_KP_UPARROW,K_KP_PGDN,K_KP_STAR,K_KP_PLUS,0,K_KP_MINUS,K_KP_DEL,K_KP_SLASH,
-                /*112*/ K_F1,K_F2,K_F3,K_F4,K_F5,K_F6,K_F7,K_F8,K_F9,K_F10,K_F11,K_F12,0,0,0,0,
-                /*128*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
-                /*144*/ K_KP_NUMLOCK,K_SCRLCK,0,0,0,0,0,0,              0,0,0,0,0,0,0,0,
-                /*160*/ 0,0,0,'#',0,0,0,0,                0,0,0,0,0,0,0,0,
-                /*176*/ 0,0,0,0,0,0,0,0,                0,0,';','=',',','-','.','/',
-                /*192*/ '`',0,0,0,0,0,0,0,             0,0,0,0,0,0,0,0,
-                /*208*/ 0,0,0,0,0,0,0,0,                0,0,0,'[','\\',']','\'','`',
-                /*224*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
-                /*240*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
-        };
+		/* 64*/ 0,'a','b','c','d','e','f','g',          'h','i','j','k','l','m','n','o',
+		/* 80*/ 'p','q','r','s','t','u','v','w',                'x','y','z',K_LWIN,K_RWIN,K_APP,0,0,
+		/* 96*/ K_KP_INS,K_KP_END,K_KP_DOWNARROW,K_KP_PGDN,K_KP_LEFTARROW,K_KP_5,K_KP_RIGHTARROW,K_KP_HOME,             K_KP_UPARROW,K_KP_PGDN,K_KP_STAR,K_KP_PLUS,0,K_KP_MINUS,K_KP_DEL,K_KP_SLASH,
+		/*112*/ K_F1,K_F2,K_F3,K_F4,K_F5,K_F6,K_F7,K_F8,K_F9,K_F10,K_F11,K_F12,0,0,0,0,
+		/*128*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
+		/*144*/ K_KP_NUMLOCK,K_SCRLCK,0,0,0,0,0,0,              0,0,0,0,0,0,0,0,
+		/*160*/ 0,0,0,'#',0,0,0,0,                0,0,0,0,0,0,0,0,
+		/*176*/ 0,0,0,0,0,0,0,0,                0,0,';','=',',','-','.','/',
+		/*192*/ '`',0,0,0,0,0,0,0,             0,0,0,0,0,0,0,0,
+		/*208*/ 0,0,0,0,0,0,0,0,                0,0,0,'[','\\',']','\'','`',
+		/*224*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
+		/*240*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
+	};
 	if (!code)
 		return 0;
-        if (code >= sizeof(tab)/sizeof(tab[0]))
-        {
-                Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
-                return 0;
-        }
-        if (!tab[code])
-                Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
+	if (code >= sizeof(tab)/sizeof(tab[0]))
+	{
+		Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
+		return 0;
+	}
+	if (!tab[code])
+		Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
 
-        Con_DPrintf("You just pressed dom key %u, which is quake key %u\n", code, tab[code]);
-        return tab[code];
+	Con_DPrintf("You just pressed dom key %u, which is quake key %u\n", code, tab[code]);
+	return tab[code];
 }
-static void DOM_KeyEvent(int devid, int down, int scan, int uni)
+static int DOM_KeyEvent(int devid, int down, int scan, int uni)
 {
 	IN_KeyEvent(0, down, domkeytoquake(scan), uni);
+	//Chars which don't map to some printable ascii value get preventDefaulted.
+	//This is to stop fucking annoying fucking things like backspace randomly destroying the page and thus game.
+	//And it has to be conditional, or we don't get any unicode chars at all.
+	//The behaviour browsers seem to give is retardedly unhelpful, and just results in hacks to detect keys that appear to map to ascii...
+	//Preventing the browser from leaving the page etc should NOT mean I can no longer get ascii/unicode values, only that the browser stops trying to do something random due to the event.
+	//If you are the person that decreed that this is the holy way, then please castrate yourself now.
+	if (scan < ' ' || scan >= 127)
+		return TRUE;
+	return FALSE;
 }
 static void DOM_ButtonEvent(int devid, int down, int button)
 {

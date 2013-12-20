@@ -73,8 +73,8 @@ static int DOM_KeyEvent(int devid, int down, int scan, int uni)
 	//Preventing the browser from leaving the page etc should NOT mean I can no longer get ascii/unicode values, only that the browser stops trying to do something random due to the event.
 	//If you are the person that decreed that this is the holy way, then please castrate yourself now.
 	if (scan < ' ' || scan >= 127)
-		return TRUE;
-	return FALSE;
+		return true;
+	return false;
 }
 static void DOM_ButtonEvent(int devid, int down, int button)
 {

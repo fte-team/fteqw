@@ -33,6 +33,6 @@ int emscriptenfte_setupcanvas(
 	void(*Resized)(int newwidth, int newheight),
 	void(*Mouse)(int devid,int abs,float x,float y,float z,float size),
 	void(*Button)(int devid, int down, int mbutton),
-	void(*Keyboard)(int devid, int down, int keycode, int unicode)
+	int(*Keyboard)(int devid, int down, int keycode, int unicode)
 	);
 

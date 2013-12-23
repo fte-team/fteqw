@@ -121,7 +121,7 @@ qboolean SV_AddNailUpdate (edict_t *ent)
 	if (ent->v->modelindex != sv_nailmodel
 		&& ent->v->modelindex != sv_supernailmodel)
 		return false;
-	if (sv_nailhack.value)
+	if (sv_nailhack.value || (host_client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 		return false;
 
 #ifdef SERVER_DEMO_PLAYBACK
@@ -3040,7 +3040,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 {
 //pvs and clent can be null, but only if the other is also null
 	int e, i;
-	edict_t *ent, *trackent;
+	edict_t *ent, *trackent, *tracecullent;
 	entity_state_t	*state;
 #define DEPTHOPTIMISE
 #ifdef DEPTHOPTIMISE
@@ -3116,6 +3116,8 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	for ( ; e<limit ; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
+		if (ent->isfree)
+			continue;
 
 		if (ent->xv->customizeentityforclient)
 		{
@@ -3140,46 +3142,56 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 			}
 		}
 
+		pvsflags = ent->xv->pvsflags;
 		if (ent->xv->viewmodelforclient)
 		{
 			if (ent->xv->viewmodelforclient != (clent?EDICT_TO_PROG(svprogfuncs, clent):0))
 				continue;
-			pvsflags = PVSF_IGNOREPVS;
+			tracecullent = NULL;
 		}
 		else if (ent == clent || ent == trackent)
-		{
-			pvsflags = PVSF_IGNOREPVS;
-		}
+			tracecullent = NULL;
 		else
 		{
 			// ignore ents without visible models
 			if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC) && ent->v->skin >= 0)
 				continue;
 
-			pvsflags = ent->xv->pvsflags;
 			if (pvs)	//self doesn't get a pvs test, to cover teleporters
 			{
 				if ((int)ent->v->effects & EF_NODEPTHTEST)
-				{
-				}
+					tracecullent = NULL;
 				else if ((pvsflags & PVSF_MODE_MASK) < PVSF_USEPHS)
 				{
 					//branch out to the pvs testing.
 					if (ent->xv->tag_entity)
 					{
-						edict_t *p = ent;
 						int c = 10;
-						while(p->xv->tag_entity&&c-->0)
+						tracecullent = ent;
+						while(tracecullent->xv->tag_entity&&c-->0)
 						{
-							p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
+							tracecullent = EDICT_NUM(svprogfuncs, tracecullent->xv->tag_entity);
 						}
-						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)p)->pvsinfo, pvs))
-							continue;
+						if (tracecullent == clent)
+							tracecullent = NULL;
+						else if (tracecullent->xv->viewmodelforclient)
+						{
+							//special hack so viewmodelforclient on the root of the tagged entity overrides pvs
+							if (tracecullent->xv->viewmodelforclient != (clent?EDICT_TO_PROG(svprogfuncs, clent):0))
+								continue;
+							tracecullent = NULL;	//don't tracecull
+						}
+						else
+						{
+							if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)tracecullent)->pvsinfo, pvs))
+								continue;
+						}
 					}
 					else
 					{
 						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, pvs))
 							continue;
+						tracecullent = ent;
 					}
 				}
 				else if ((pvsflags & PVSF_MODE_MASK) == PVSF_USEPHS && sv.world.worldmodel->fromgame == fg_quake)
@@ -3197,11 +3209,16 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 							continue;
 						}
 					}
+					tracecullent = NULL;
 				}
+				else
+					tracecullent = NULL;
 
 				if (client->gibfilter && SV_GibFilter(ent))
 					continue;
 			}
+			else
+				tracecullent = NULL;
 		}
 
 		//DP_SV_NODRAWONLYTOCLIENT
@@ -3228,10 +3245,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				continue;	//not in this dimension - sorry...
 
 
-		if (!ignorepvs && ent != clent && (pvsflags & PVSF_MODE_MASK)==PVSF_NORMALPVS && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))
+		if (!ignorepvs && ent != clent && tracecullent && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))
 		{	//more expensive culling
 			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
-				if (Cull_Traceline(clent, ent))
+				if (Cull_Traceline(clent, tracecullent))
 					continue;
 		}
 

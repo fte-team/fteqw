@@ -198,7 +198,7 @@ extern	qboolean	chat_team;
 
 void Key_Event (int devid, int key, unsigned int unicode, qboolean down);
 void Key_Init (void);
-void Key_WriteBindings (vfsfile_t *f);
+void Key_WriteBindings (struct vfsfile_s *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown

@@ -260,7 +260,7 @@ void SVNQ_CreateBaseline (void)
 			if (!svent->baseline.modelindex)
 				svent->baseline.modelindex = playermodel;
 		}
-		svent->baseline.modelindex&=255;
+		svent->baseline.modelindex&=255;	//FIXME
 	}
 }
 
@@ -598,6 +598,83 @@ void SV_UpdateMaxPlayers(int newmax)
 	sv.allocated_client_slots = svs.allocated_client_slots;
 }
 
+static void SV_SetupNetworkBuffers(qboolean bigcoords)
+{
+	int i;
+
+	//determine basic primitive sizes.
+	if (bigcoords)
+	{
+		svs.netprim.coordsize = 4;
+		svs.netprim.anglesize = 2;
+	}
+	else
+	{
+		svs.netprim.coordsize = 2;
+		svs.netprim.anglesize = 1;
+	}
+
+	//FIXME: this should be part of sv_new_f or something instead, so that any angles sent by clients won't be invalid
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		svs.clients[i].datagram.prim = svs.netprim;
+		svs.clients[i].netchan.message.prim = svs.netprim;
+	}
+
+	//
+	sv.datagram.maxsize = sizeof(sv.datagram_buf);
+	sv.datagram.data = sv.datagram_buf;
+	sv.datagram.allowoverflow = true;
+	sv.datagram.prim = svs.netprim;
+
+	sv.reliable_datagram.maxsize = sizeof(sv.reliable_datagram_buf);
+	sv.reliable_datagram.data = sv.reliable_datagram_buf;
+	sv.reliable_datagram.prim = svs.netprim;
+
+	sv.multicast.maxsize = sizeof(sv.multicast_buf);
+	sv.multicast.data = sv.multicast_buf;
+	sv.multicast.prim = svs.netprim;
+
+#ifdef NQPROT
+	sv.nqdatagram.maxsize = sizeof(sv.nqdatagram_buf);
+	sv.nqdatagram.data = sv.nqdatagram_buf;
+	sv.nqdatagram.allowoverflow = true;
+	sv.nqdatagram.prim = svs.netprim;
+
+	sv.nqreliable_datagram.maxsize = sizeof(sv.nqreliable_datagram_buf);
+	sv.nqreliable_datagram.data = sv.nqreliable_datagram_buf;
+	sv.nqreliable_datagram.prim = svs.netprim;
+
+	sv.nqmulticast.maxsize = sizeof(sv.nqmulticast_buf);
+	sv.nqmulticast.data = sv.nqmulticast_buf;
+	sv.nqmulticast.prim = svs.netprim;
+#endif
+
+#ifdef Q2SERVER
+	sv.q2datagram.maxsize = sizeof(sv.q2datagram_buf);
+	sv.q2datagram.data = sv.q2datagram_buf;
+	sv.q2datagram.allowoverflow = true;
+	sv.q2datagram.prim = svs.netprim;
+
+	sv.q2reliable_datagram.maxsize = sizeof(sv.q2reliable_datagram_buf);
+	sv.q2reliable_datagram.data = sv.q2reliable_datagram_buf;
+	sv.q2reliable_datagram.prim = svs.netprim;
+
+	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
+	sv.q2multicast.data = sv.q2multicast_buf;
+	sv.q2multicast.prim = svs.netprim;
+#endif
+
+	sv.master.maxsize = sizeof(sv.master_buf);
+	sv.master.data = sv.master_buf;
+	sv.master.prim = msg_nullnetprim;
+
+	sv.signon.maxsize = sizeof(sv.signon_buffers[0]);
+	sv.signon.data = sv.signon_buffers[0];
+	sv.signon.prim = svs.netprim;
+	sv.num_signon_buffers = 1;
+}
+
 /*
 ================
 SV_SpawnServer
@@ -677,21 +754,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		T_FreeStrings();
 	}
 
-	if (sv_bigcoords.value)
-	{
-		svs.netprim.coordsize = 4;
-		svs.netprim.anglesize = 2;
-	}
-	else
-	{
-		svs.netprim.coordsize = 2;
-		svs.netprim.anglesize = 1;
-	}
-
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
-		svs.clients[i].datagram.prim = svs.netprim;
-		svs.clients[i].netchan.message.prim = svs.netprim;
 		svs.clients[i].nextservertimeupdate = 0;
 		if (!svs.clients[i].state)	//bots with the net_preparse module.
 			svs.clients[i].userinfo[0] = '\0';	//clear the userinfo to clear the name
@@ -732,57 +796,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	// wipe the entire per-level structure
 	memset (&sv, 0, sizeof(sv));
 
-	sv.datagram.maxsize = sizeof(sv.datagram_buf);
-	sv.datagram.data = sv.datagram_buf;
-	sv.datagram.allowoverflow = true;
-	sv.datagram.prim = svs.netprim;
-
-	sv.reliable_datagram.maxsize = sizeof(sv.reliable_datagram_buf);
-	sv.reliable_datagram.data = sv.reliable_datagram_buf;
-	sv.reliable_datagram.prim = svs.netprim;
-
-	sv.multicast.maxsize = sizeof(sv.multicast_buf);
-	sv.multicast.data = sv.multicast_buf;
-	sv.multicast.prim = svs.netprim;
-
-#ifdef NQPROT
-	sv.nqdatagram.maxsize = sizeof(sv.nqdatagram_buf);
-	sv.nqdatagram.data = sv.nqdatagram_buf;
-	sv.nqdatagram.allowoverflow = true;
-	sv.nqdatagram.prim = svs.netprim;
-
-	sv.nqreliable_datagram.maxsize = sizeof(sv.nqreliable_datagram_buf);
-	sv.nqreliable_datagram.data = sv.nqreliable_datagram_buf;
-	sv.nqreliable_datagram.prim = svs.netprim;
-
-	sv.nqmulticast.maxsize = sizeof(sv.nqmulticast_buf);
-	sv.nqmulticast.data = sv.nqmulticast_buf;
-	sv.nqmulticast.prim = svs.netprim;
-#endif
-
-#ifdef Q2SERVER
-	sv.q2datagram.maxsize = sizeof(sv.q2datagram_buf);
-	sv.q2datagram.data = sv.q2datagram_buf;
-	sv.q2datagram.allowoverflow = true;
-	sv.q2datagram.prim = svs.netprim;
-
-	sv.q2reliable_datagram.maxsize = sizeof(sv.q2reliable_datagram_buf);
-	sv.q2reliable_datagram.data = sv.q2reliable_datagram_buf;
-	sv.q2reliable_datagram.prim = svs.netprim;
-
-	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
-	sv.q2multicast.data = sv.q2multicast_buf;
-	sv.q2multicast.prim = svs.netprim;
-#endif
-
-	sv.master.maxsize = sizeof(sv.master_buf);
-	sv.master.data = sv.master_buf;
-	sv.master.prim = msg_nullnetprim;
-
-	sv.signon.maxsize = sizeof(sv.signon_buffers[0]);
-	sv.signon.data = sv.signon_buffers[0];
-	sv.signon.prim = svs.netprim;
-	sv.num_signon_buffers = 1;
+	SV_SetupNetworkBuffers(sv_bigcoords.ival);
 
 	if (allow_download_refpackages.ival)
 		FS_ReferenceControl(1, 1);
@@ -1084,7 +1098,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	switch (svs.gametype)
 	{
-	case GT_MAX:
+	default:
+		SV_Error("bad gametype");
 		break;
 	case GT_Q1QVM:
 	case GT_PROGS:
@@ -1146,8 +1161,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 		}
 		break;
-	case GT_QUAKE2:
 #ifdef Q2SERVER
+	case GT_QUAKE2:
 		SV_UpdateMaxPlayers(svq2_maxclients);
 		for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
@@ -1155,18 +1170,19 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			q2ent->s.number = i+1;
 			svs.clients[i].q2edict = q2ent;
 		}
-#endif
 		break;
-	case GT_QUAKE3:
+#endif
 #ifdef Q3SERVER
+	case GT_QUAKE3:
 		SV_UpdateMaxPlayers(32);
-#endif
 		break;
-	case GT_HALFLIFE:
+#endif
 #ifdef HLSERVER
+	case GT_HALFLIFE:
 		SVHL_SetupGame();
-#endif
+		SV_UpdateMaxPlayers(32);
 		break;
+#endif
 	}
 	//fixme: is this right?
 
@@ -1271,7 +1287,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		if (progstype == PROG_QW)
 			// run the frame start qc function to let progs check cvars
 			SV_ProgStartFrame ();	//prydon gate seems to fail because of this allowance
-
 	}
 
 	// load and spawn all other entities
@@ -1336,24 +1351,23 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	switch(svs.gametype)
 	{
-	case GT_MAX:
+	default:
 		break;
 	case GT_Q1QVM:
 	case GT_PROGS:
 		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file?file :sv.world.worldmodel->entities, spawnflagmask);
 		break;
-	case GT_QUAKE2:
 #ifdef Q2SERVER
+	case GT_QUAKE2:
 		ge->SpawnEntities(sv.name, file?file :sv.world.worldmodel->entities, startspot?startspot:"");
-#endif
 		break;
+#endif
 	case GT_QUAKE3:
 		break;
-	case GT_HALFLIFE:
 #ifdef HLSERVER
-		SVHL_SpawnEntities(file?file :sv.world.worldmodel->entities));
+	case GT_HALFLIFE:
+		SVHL_SpawnEntities(file?file :sv.world.worldmodel->entities);		break;
 #endif
-		break;
 	}
 
 #ifndef SERVERONLY
@@ -1461,6 +1475,33 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	//SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
 #endif
+
+	/*world is now spawned. switch to big coords if there are entities outside the bounds of the map*/
+	if (!*sv_bigcoords.string && svprogfuncs)
+	{
+		float extent = 0, ne;
+		//fixme: go off bsp extents instead?
+		for(i = 1; i < sv.world.num_edicts; i++)
+		{
+			ent = EDICT_NUM(svprogfuncs, i);
+			for (j = 0; j < 3; j++)
+			{
+				ne = fabs(ent->v->origin[j]);
+				if (extent < ne)
+					extent = ne;
+			}
+		}
+		if (extent > (1u<<15)/8)
+		{
+			if (sv.num_signon_buffers > 1 || sv.signon.cursize)
+				Con_Printf("Cannot auto-enable extended coords as the init buffer was used\n");
+			else
+			{
+				Con_Printf("Switching to extended coord sizes\n");
+				SV_SetupNetworkBuffers(true);
+			}
+		}
+	}
 
 	/*DP_BOTCLIENT bots should move over to the new map too*/
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)

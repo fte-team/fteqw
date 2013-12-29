@@ -41,6 +41,7 @@ extern cvar_t gl_screenangle;
 extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
 extern cvar_t vid_conwidth;
+extern cvar_t con_textsize;
 void R2D_Font_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue);
@@ -115,9 +116,15 @@ void R2D_Shutdown(void)
 	cl_numstris = 0;
 	cl_maxstris = 0;
 
-	if (font_conchar)
-		Font_Free(font_conchar);
-	font_conchar = NULL; 
+	if (font_console == font_default)
+		font_console = NULL;
+
+	if (font_console)
+		Font_Free(font_console);
+	font_console = NULL; 
+	if (font_default)
+		Font_Free(font_default);
+	font_default = NULL; 
 	if (font_tiny)
 		Font_Free(font_tiny);
 	font_tiny = NULL; 
@@ -659,17 +666,30 @@ void R2D_Font_AddFontLink(char *buffer, int buffersize, char *fontname)
 	}
 }
 #endif
-void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
+void R2D_Font_Changed(void)
 {
-	if (font_conchar)
-		Font_Free(font_conchar);
-	font_conchar = NULL;
+	if (!con_textsize.modified)
+		return;
+	con_textsize.modified = false;
+
+	if (font_console == font_default)
+		font_console = NULL;
+	if (font_console)
+		Font_Free(font_console);
+	font_console = NULL;
+	if (font_default)
+		Font_Free(font_default);
+	font_default = NULL;
+
+#if defined(MENU_DAT) || defined(CSQC_DAT)
+	PR_ResetFonts(0);
+#endif
 
 	if (qrenderer == QR_NONE)
 		return;
 
 #if defined(_WIN32) && !defined(_SDL)
-	if (!strcmp(var->string, "?"))
+	if (!strcmp(gl_font.string, "?"))
 	{
 		BOOL (APIENTRY *pChooseFontA)(LPCHOOSEFONTA) = NULL;
 		dllfunction_t funcs[] =
@@ -681,7 +701,11 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 		LOGFONT lf = {0};
 		CHOOSEFONTA cf = {sizeof(cf)};
 		extern HWND	mainwindow;
-		font_conchar = Font_LoadFont(8, "");
+		font_default = Font_LoadFont(8, "");
+		if (con_textsize.ival != 8 && con_textsize.ival >= 1)
+			font_console = Font_LoadFont(con_textsize.ival, "");
+		if (!font_console)
+			font_console = font_default;
 
 		cf.hwndOwner = mainwindow;
 		cf.iPointSize = (8 * vid.rotpixelheight)/vid.height;
@@ -710,15 +734,29 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 			}
 
 			R2D_Font_AddFontLink(fname, sizeof(fname), lf.lfFaceName);
-			Cvar_Set(var, fname);
+			Cvar_Set(&gl_font, fname);
 		}
 		return;
 	}
 #endif
 
-	font_conchar = Font_LoadFont(8, var->string);
-	if (!font_conchar && *var->string)
-		font_conchar = Font_LoadFont(8, "");
+	font_default = Font_LoadFont(8, gl_font.string);
+	if (!font_default && *gl_font.string)
+		font_default = Font_LoadFont(8, "");
+
+	if (con_textsize.ival != 8 && con_textsize.ival >= 1)
+	{
+		font_console = Font_LoadFont(con_textsize.ival, gl_font.string);
+		if (!font_console)
+			font_console = Font_LoadFont(con_textsize.ival, "");
+	}
+	if (!font_console)
+		font_console = font_default;
+}
+
+void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
+{
+	con_textsize.modified = true;
 }
 
 // console size manipulation callbacks
@@ -795,18 +833,7 @@ void R2D_Console_Resize(void)
 	vid.width = cwidth;
 	vid.height = cheight;
 
-	if (font_tiny)
-		Font_Free(font_tiny);
-	font_tiny = NULL;
-	if (font_conchar)
-		Font_Free(font_conchar);
-	font_conchar = NULL;
-
 	Cvar_ForceCallback(&gl_font);
-
-#if defined(MENU_DAT) || defined(CSQC_DAT)
-	PR_ResetFonts(false);
-#endif
 
 #ifdef PLUGINS
 	Plug_ResChanged();
@@ -1201,13 +1228,13 @@ void R2D_DrawCrosshair(void)
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
 			SCR_CrosshairPosition(&cl.playerview[sc], &sx, &sy);
-			Font_BeginScaledString(font_conchar, sx, sy, size, size, &sx, &sy);
+			Font_BeginScaledString(font_default, sx, sy, size, size, &sx, &sy);
 			sx -= Font_CharScaleWidth('+' | 0xe000 | CON_WHITEMASK)/2;
 			sy -= Font_CharScaleHeight()/2;
 			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
 			Font_DrawScaleChar(sx, sy, '+' | 0xe000 | CON_WHITEMASK);
 			Font_InvalidateColour();
-			Font_EndString(font_conchar);
+			Font_EndString(font_default);
 		}
 		return;
 	}

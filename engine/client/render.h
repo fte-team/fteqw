@@ -149,6 +149,7 @@ typedef struct mplane_s
 } mplane_t;
 #define MAXFRUSTUMPLANES 7	//4 side, 1 near, 1 far (fog), 1 water plane.
 
+#define R_MAX_RECURSE	6
 #define RDFD_FOV 1
 typedef struct
 {
@@ -182,7 +183,7 @@ typedef struct
 
 	pxrect_t	pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
-	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
+	int			recurse;	/*in a mirror/portal/half way through drawing something else*/
 	qboolean	forcevis;	/*if true, vis comes from the forcedvis field instead of recalculated*/
 	unsigned int	flipcull;	/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
 	qboolean	useperspective; /*not orthographic*/
@@ -275,7 +276,7 @@ void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
-void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist, int portaltype);
+void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist, struct batch_s *depthmasklist[2], int portaltype);
 
 void GLR_PreNewMap(void);
 void GLR_NewMap (void);
@@ -352,6 +353,8 @@ extern int image_width, image_height;
 texid_tf R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags);
 texid_tf R_LoadHiResTexture(char *name, char *subpath, unsigned int flags);
 texid_tf R_LoadBumpmapTexture(char *name, char *subpath);
+
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
 
 extern	texid_t	particletexture;
 extern	texid_t particlecqtexture;

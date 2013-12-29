@@ -21,9 +21,14 @@ struct hlcvar_s *QDECL GHL_CVarGetPointer(char *varname);
  //I hope you're c99 and have a __func__
 #endif
 
+extern cvar_t temp1;
 #define ignore(s) Con_Printf("Fixme: " s "\n")
 #define notimpl(l) Con_Printf("halflife cl builtin not implemented on line %i\n", l)
 #define notimpf(f) Con_Printf("halflife cl builtin %s not implemented\n", f)
+#define notimp() Con_Printf("halflife cl builtin %s not implemented\n", __func__)
+#define bi_begin() if (temp1.ival)Con_Printf("enter %s\n", __func__)
+#define bi_end() if (temp1.ival)Con_Printf("leave %s\n", __func__)
+#define bi_trace() bi_begin(); bi_end()
 
 #if HLCLIENT >= 1
 #define HLCL_API_VERSION HLCLIENT
@@ -34,21 +39,28 @@ struct hlcvar_s *QDECL GHL_CVarGetPointer(char *varname);
 
 
 void *vgui_panel;
+void *(QDECL *vgui_init)(void);
+void (QDECL *vgui_frame)(void);
+void (QDECL *vgui_key)(int down, int scan);
+void (QDECL *vgui_mouse)(int x, int y);
+
 qboolean VGui_Setup(void)
 {
 	void *vguidll;
-	int (QDECL *init)(void);
 
 	dllfunction_t funcs[] =
 	{
-		{(void*)&init, "init"},
+		{(void*)&vgui_init, "init"},
+		{(void*)&vgui_frame, "frame"},
+		{(void*)&vgui_key, "key"},
+		{(void*)&vgui_mouse, "mouse"},
 		{NULL}
 	};
 
 	vguidll = Sys_LoadLibrary("vguiwrap", funcs);
 
 	if (vguidll)
-		vgui_panel = init();
+		vgui_panel = vgui_init();
 	return !!vgui_panel;
 }
 
@@ -89,17 +101,17 @@ typedef struct
 {
 	short lerpmsecs;
 	qbyte msec;
+	//pad1
 	vec3_t viewangles;
-
 	float forwardmove;
 	float sidemove;
 	float upmove;
-
 	qbyte lightlevel;
+	//pad1
 	unsigned short buttons;
 	qbyte impulse;
 	qbyte weaponselect;
-
+	//pad2
 	int impact_index;
 	vec3_t impact_position;
 } hlusercmd_t;
@@ -120,6 +132,7 @@ typedef struct
 	qbyte isus;
 	qbyte isspec;
 	qbyte pl;
+	//pad3
 	char *model;
 	short tcolour;
 	short bcolour;
@@ -372,11 +385,16 @@ int hl_viewmodelsequencebody;
 
 HLPIC QDECL CLGHL_pic_load (char *picname)
 {
-	return Mod_ForName(picname, false);
+	void *ret;
+	bi_begin();
+	ret = Mod_ForName(picname, false);
+	bi_end();
+	return ret;
 //	return R2D_SafeCachePic(picname);
 }
 int QDECL CLGHL_pic_getnumframes (HLPIC pic)
 {
+	bi_trace();
 	if (pic)
 		return pic->numframes;
 	else
@@ -387,9 +405,10 @@ static mspriteframe_t *getspriteframe(HLPIC pic, int frame)
 {
 	msprite_t		*psprite;
 	mspritegroup_t *pgroup;
+	bi_trace();
 	if (!pic)
 		return NULL;
-	psprite = pic->cache.data;
+	psprite = pic->meshinfo;
 	if (!psprite)
 		return NULL;
 
@@ -404,6 +423,7 @@ static mspriteframe_t *getspriteframe(HLPIC pic, int frame)
 static mpic_t *getspritepic(HLPIC pic, int frame)
 {
 	mspriteframe_t *f;
+	bi_trace();
 	f = getspriteframe(pic, frame);
 	if (f)
 		return f->shader;
@@ -413,6 +433,7 @@ static mpic_t *getspritepic(HLPIC pic, int frame)
 int QDECL CLGHL_pic_getheight (HLPIC pic, int frame)
 {
 	mspriteframe_t *pframe;
+	bi_trace();
 
 	pframe = getspriteframe(pic, frame);
 	if (!pframe)
@@ -423,6 +444,7 @@ int QDECL CLGHL_pic_getheight (HLPIC pic, int frame)
 int QDECL CLGHL_pic_getwidth (HLPIC pic, int frame)
 {
 	mspriteframe_t *pframe;
+	bi_trace();
 
 	pframe = getspriteframe(pic, frame);
 	if (!pframe)
@@ -432,12 +454,14 @@ int QDECL CLGHL_pic_getwidth (HLPIC pic, int frame)
 }
 void QDECL CLGHL_pic_select (HLPIC pic, int r, int g, int b)
 {
+	bi_trace();
 	selectedpic = pic;
 	R2D_ImageColours(r/255.0f, g/255.0f, b/255.0f, 1);
 }
 void QDECL CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
 {
 	mpic_t *pic = getspritepic(selectedpic, frame);
+	bi_trace();
 	if (!pic)
 		return;
 
@@ -453,6 +477,7 @@ void QDECL CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
 void QDECL CLGHL_pic_drawcuralphtest (int frame, int x, int y, hlsubrect_t *loc)
 {
 	mpic_t *pic = getspritepic(selectedpic, frame);
+	bi_trace();
 	if (!pic)
 		return;
 	//use some kind of alpha
@@ -467,6 +492,8 @@ void QDECL CLGHL_pic_drawcuralphtest (int frame, int x, int y, hlsubrect_t *loc)
 void QDECL CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
 {
 	mpic_t *pic = getspritepic(selectedpic, frame);
+
+	bi_trace();
 	if (!pic)
 		return;
 
@@ -494,9 +521,23 @@ void QDECL CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
 }
 void QDECL CLGHL_pic_enablescissor (int x, int y, int width, int height)
 {
+	srect_t srect;
+
+	bi_trace();
+
+	srect.x = x / vid.width;
+	srect.y = y / vid.height;
+	srect.width = width / vid.width;
+	srect.height = height / vid.height;
+	srect.dmin = -99999;
+	srect.dmax = 99999;
+	srect.y = (1-srect.y) - srect.height;
+	BE_Scissor(&srect);
 }
 void QDECL CLGHL_pic_disablescissor (void)
 {
+	bi_trace();
+	BE_Scissor(NULL);
 }
 hlspriteinf_t *QDECL CLGHL_pic_parsepiclist (char *filename, int *numparsed)
 {
@@ -505,6 +546,8 @@ hlspriteinf_t *QDECL CLGHL_pic_parsepiclist (char *filename, int *numparsed)
 	int entries;
 	void *file;
 	char *pos;
+
+	bi_trace();
 
 	*numparsed = 0;
 
@@ -556,10 +599,12 @@ hlspriteinf_t *QDECL CLGHL_pic_parsepiclist (char *filename, int *numparsed)
 
 void QDECL CLGHL_fillrgba (int x, int y, int width, int height, int r, int g, int b, int a)
 {
+	bi_trace();
 }
 int QDECL CLGHL_getscreeninfo (hlscreeninfo_t *info)
 {
 	int i;
+	bi_trace();
 	if (info->size != sizeof(*info))
 		return false;
 
@@ -574,10 +619,12 @@ int QDECL CLGHL_getscreeninfo (hlscreeninfo_t *info)
 }
 void QDECL CLGHL_setcrosshair (HLPIC pic, hlsubrect_t rect, int r, int g, int b)
 {
+	bi_trace();
 }
 
 struct hlcvar_s *QDECL CLGHL_cvar_register (char *name, char *defvalue, int flags)
 {
+	bi_trace();
 	if (Cvar_Get(name, defvalue, 0, "Halflife cvars"))
 		return GHL_CVarGetPointer(name);
 	else
@@ -586,6 +633,7 @@ struct hlcvar_s *QDECL CLGHL_cvar_register (char *name, char *defvalue, int flag
 float QDECL CLGHL_cvar_getfloat (char *name)
 {
 	cvar_t *var = Cvar_FindVar(name);
+	bi_trace();
 	if (var)
 		return var->value;
 	return 0;
@@ -593,6 +641,7 @@ float QDECL CLGHL_cvar_getfloat (char *name)
 char *QDECL CLGHL_cvar_getstring (char *name)
 {
 	cvar_t *var = Cvar_FindVar(name);
+	bi_trace();
 	if (var)
 		return var->string;
 	return "";
@@ -600,11 +649,13 @@ char *QDECL CLGHL_cvar_getstring (char *name)
 
 void QDECL CLGHL_cmd_register (char *name, xcommand_t func)
 {
+	bi_trace();
 	Cmd_AddCommand(name, func);
 }
 void QDECL CLGHL_hooknetmsg (char *msgname, void *func)
 {
 	int i;
+	bi_trace();
 	//update the current list now.
 	for (i = 0; i < sizeof(usermsgs)/sizeof(usermsgs[0]); i++)
 	{
@@ -631,16 +682,19 @@ void QDECL CLGHL_hooknetmsg (char *msgname, void *func)
 }
 void QDECL CLGHL_forwardcmd (char *command)
 {
+	bi_trace();
 	CL_SendClientCommand(true, "%s", command);
 }
 void QDECL CLGHL_localcmd (char *command)
 {
+	bi_trace();
 	Cbuf_AddText(command, RESTRICT_SERVER);
 }
 
 void QDECL CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
 {
 	player_info_t *player;
+	bi_trace();
 	entnum--;
 	if (entnum < 0 || entnum >= MAX_CLIENTS)
 		return;
@@ -662,6 +716,7 @@ void QDECL CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
 void QDECL CLGHL_startsound_name (char *name, float vol)
 {
 	sfx_t *sfx = S_PrecacheSound (name);
+	bi_trace();
 	if (!sfx)
 	{
 		Con_Printf ("CLGHL_startsound_name: can't cache %s\n", name);
@@ -672,6 +727,7 @@ void QDECL CLGHL_startsound_name (char *name, float vol)
 void QDECL CLGHL_startsound_idx (int idx, float vol)
 {
 	sfx_t *sfx = cl.sound_precache[idx];
+	bi_trace();
 	if (!sfx)
 	{
 		Con_Printf ("CLGHL_startsound_name: index not precached %s\n", name);
@@ -682,68 +738,80 @@ void QDECL CLGHL_startsound_idx (int idx, float vol)
 
 void QDECL CLGHL_anglevectors (float *ina, float *outf, float *outr, float *outu)
 {
+	bi_trace();
 	AngleVectors(ina, outf, outr, outu);
 }
 
 hlmsginfo_t *QDECL CLGHL_get_message_info (char *name)
 {
-	//fixme: add parser
+	//fixme: add parser for titles.txt
 	hlmsginfo_t *ret;
+	bi_trace();
 	ret = Z_Malloc(sizeof(*ret));
 	memset(ret, 0, sizeof(*ret));
 	ret->name = name;
 	ret->message = name;
-	ret->x = 0;
-	ret->y = 0;
+	ret->x = -1;
+	ret->y = -1;
 	*(int*)&ret->c1 = 0xffffffff;
 	*(int*)&ret->c2 = 0xffffffff;
 	ret->effect = 0;
-	ret->fadein = 0;
-	ret->fadeout = 0;
+	ret->fadein = 1;
+	ret->fadeout = 1.5;
 	ret->fxtime = 0;
-	ret->holdtime = 1000;
+	ret->holdtime = 3;
 	return ret;
 }
 int QDECL CLGHL_drawchar (int x, int y, int charnum, int r, int g, int b)
 {
+	bi_trace();
 	return 0;
 }
 int QDECL CLGHL_drawstring (int x, int y, char *string)
 {
+	bi_trace();
 	return 0;
 }
 void QDECL CLGHL_settextcolour(float r, float g, float b)
 {
+	bi_trace();
 }
 void QDECL CLGHL_drawstring_getlen (char *string, int *outlen, int *outheight)
 {
+	bi_trace();
 	*outlen = strlen(string)*8;
 	*outheight = 8;
 }
 void QDECL CLGHL_consoleprint (char *str)
 {
+	bi_trace();
 	Con_Printf("%s", str);
 }
 void QDECL CLGHL_centerprint (char *str)
 {
+	bi_trace();
 	SCR_CenterPrint(0, str, true);
 }
 
 
 int QDECL CLGHL_getwindowcenterx(void)
 {
+	bi_trace();
 	return window_center_x;
 }
 int QDECL CLGHL_getwindowcentery(void)
 {
+	bi_trace();
 	return window_center_y;
 }
 void QDECL CLGHL_getviewnangles(float*ang)
 {
+	bi_trace();
 	VectorCopy(cl.playerview[0].viewangles, ang);
 }
 void QDECL CLGHL_setviewnangles(float*ang)
 {
+	bi_trace();
 	VectorCopy(ang, cl.playerview[0].viewangles);
 }
 void QDECL CLGHL_getmaxclients(float*ang){notimpf(__func__);}
@@ -751,25 +819,29 @@ void QDECL CLGHL_cvar_setvalue(char *cvarname, char *value){notimpf(__func__);}
 
 int QDECL CLGHL_cmd_argc(void)
 {
+	bi_trace();
 	return Cmd_Argc();
 }
 char *QDECL CLGHL_cmd_argv(int i)
 {
+	bi_trace();
 	return Cmd_Argv(i);
 }
-#define CLGHL_con_printf Con_Printf//void CLGHL_con_printf(char *fmt, ...){notimp(__LINE__);}
-#define CLGHL_con_dprintf Con_DPrintf//void CLGHL_con_dprintf(char *fmt, ...){notimp(__LINE__);}
+#define CLGHL_con_printf Con_Printf
+#define CLGHL_con_dprintf Con_DPrintf
 void QDECL CLGHL_con_notificationprintf(int pos, char *fmt, ...){notimpf(__func__);}
 void QDECL CLGHL_con_notificationprintfex(void *info, char *fmt, ...){notimpf(__func__);}
 char *QDECL CLGHL_physkey(char *key){notimpf(__func__);return NULL;}
 char *QDECL CLGHL_serverkey(char *key){notimpf(__func__);return NULL;}
 float QDECL CLGHL_getclientmaxspeed(void)
 {
+	bi_trace();
 	return 320;
 }
 int QDECL CLGHL_checkparm(char *str, const char **next)
 {
 	int i;
+	bi_trace();
 	i = COM_CheckParm(str);
 	if (next)
 	{
@@ -782,6 +854,7 @@ int QDECL CLGHL_checkparm(char *str, const char **next)
 }
 int QDECL CLGHL_keyevent(int key, int down)
 {
+	bi_trace();
 	if (key >= 241 && key <= 241+5)
 		Key_Event(0, K_MOUSE1+key-241, 0, down);
 	else
@@ -789,11 +862,18 @@ int QDECL CLGHL_keyevent(int key, int down)
 	return true;	//fixme: check the return type
 }
 void QDECL CLGHL_getmousepos(int *outx, int *outy){notimpf(__func__);}
-int QDECL CLGHL_movetypeisnoclip(void){notimpf(__func__);return 0;}
+int QDECL CLGHL_movetypeisnoclip(void)
+{
+	bi_trace();
+	if (cl.playerview[0].pmovetype == PM_SPECTATOR)
+		return true;
+	return false;
+}
 struct hlclent_s *QDECL CLGHL_getlocalplayer(void){notimpf(__func__);return NULL;}
 struct hlclent_s *QDECL CLGHL_getviewent(void){notimpf(__func__);return NULL;}
 struct hlclent_s *QDECL CLGHL_getentidx(int idx)
 {
+	bi_trace();
 	notimpf(__func__);return NULL;
 }
 float QDECL CLGHL_getlocaltime(void){return cl.time;}
@@ -813,6 +893,7 @@ unsigned short QDECL CLGHL_precacheevent(int evtype, char *name){notimpf(__func_
 void QDECL CLGHL_playevent(int flags, struct hledict_s *ent, unsigned short evindex, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2){notimpf(__func__);}
 void QDECL CLGHL_weaponanimate(int newsequence, int body)
 {
+	bi_trace();
 	hl_viewmodelsequencetime = cl.time;
 	hl_viewmodelsequencecur = newsequence;
 	hl_viewmodelsequencebody = body;
@@ -821,28 +902,34 @@ float QDECL CLGHL_randfloat(float minv, float maxv){notimpf(__func__);return min
 long QDECL CLGHL_randlong(long minv, long maxv){notimpf(__func__);return minv;}
 void QDECL CLGHL_hookevent(char *name, void (*func)(struct hlevent_s *event))
 {
+	bi_trace();
 	Con_Printf("CLGHL_hookevent: not implemented. %s\n", name);
 //	notimpf(__func__);
 }
 int QDECL CLGHL_con_isshown(void)
 {
+	bi_trace();
 	return scr_con_current > 0;
 }
 char *QDECL CLGHL_getgamedir(void)
 {
 	extern char	gamedirfile[];
+	bi_trace();
 	return gamedirfile;
 }
 struct hlcvar_s *QDECL CLGHL_cvar_find(char *name)
 {
+	bi_trace();
 	return GHL_CVarGetPointer(name);
 }
 char *QDECL CLGHL_lookupbinding(char *command)
 {
+	bi_trace();
 	return NULL;
 }
 char *QDECL CLGHL_getlevelname(void)
 {
+	bi_trace();
 	if (!cl.worldmodel)
 		return "";
 	return cl.worldmodel->name;
@@ -851,10 +938,12 @@ void QDECL CLGHL_getscreenfade(struct hlsfade_s *fade){notimpf(__func__);}
 void QDECL CLGHL_setscreenfade(struct hlsfade_s *fade){notimpf(__func__);}
 void *QDECL CLGHL_vgui_getpanel(void)
 {
+	bi_trace();
 	return vgui_panel;
 }
 void QDECL CLGHL_vgui_paintback(int extents[4])
 {
+	bi_trace();
 	notimpf(__func__);
 }
 
@@ -862,6 +951,7 @@ void *QDECL CLGHL_loadfile(char *path, int alloctype, int *length)
 {
 	void *ptr = NULL;
 	int flen = -1;
+	bi_trace();
 	if (alloctype == 5)
 	{
 		flen = FS_LoadFile(path, &ptr);
@@ -876,10 +966,12 @@ void *QDECL CLGHL_loadfile(char *path, int alloctype, int *length)
 }
 char *QDECL CLGHL_parsefile(char *data, char *token)
 {
+	bi_trace();
 	return COM_ParseOut(data, token, 1024);
 }
 void QDECL CLGHL_freefile(void *file)
 {
+	bi_trace();
 	//only valid for alloc type 5
 	FS_FreeFile(file);
 }
@@ -887,10 +979,12 @@ void QDECL CLGHL_freefile(void *file)
 
 int QDECL CLGHL_forcedspectator(void)
 {
+	bi_trace();
 	return cls.demoplayback;
 }
 model_t *QDECL CLGHL_loadmapsprite(char *name)
 {
+	bi_trace();
 	notimpf(__func__);return NULL;
 }
 
@@ -906,12 +1000,14 @@ int QDECL CLGHL_playerfromtracker(int tracker){notimpf(__func__);return 0;}
 int QDECL CLGHL_sendcmd_unreliable(char *cmd){notimpf(__func__);return 0;}
 void QDECL CLGHL_getsysmousepos(long *xandy)
 {
+	bi_trace();
 #ifdef _WIN32
 	GetCursorPos((LPPOINT)xandy);
 #endif
 }
 void QDECL CLGHL_setsysmousepos(int x, int y)
 {
+	bi_trace();
 #ifdef _WIN32
 	SetCursorPos(x, y);
 #endif
@@ -919,6 +1015,7 @@ void QDECL CLGHL_setsysmousepos(int x, int y)
 void QDECL CLGHL_setmouseenable(qboolean enable)
 {
 	extern cvar_t _windowed_mouse;
+	bi_trace();
 	Cvar_Set(&_windowed_mouse, enable?"1":"0");
 }
 
@@ -927,29 +1024,33 @@ void QDECL CLGHL_setmouseenable(qboolean enable)
 #if HLCL_API_VERSION >= 7
 int QDECL CLGHL_demo_isrecording(void)
 {
+	bi_trace();
 	return cls.demorecording;
 }
 int QDECL CLGHL_demo_isplaying(void)
 {
+	bi_trace();
 	return cls.demoplayback;
 }
 int QDECL CLGHL_demo_istimedemo(void)
 {
+	bi_trace();
 	return cls.timedemo;
 }
 void QDECL CLGHL_demo_writedata(int size, void *data)
 {
+	bi_trace();
 	notimpf(__func__);
 }
 
 struct hl_demo_api_s hl_demo_api = 
 {
-		CLGHL_demo_isrecording,
-		CLGHL_demo_isplaying,
-		CLGHL_demo_istimedemo,
-		CLGHL_demo_writedata,
+	CLGHL_demo_isrecording,
+	CLGHL_demo_isplaying,
+	CLGHL_demo_istimedemo,
+	CLGHL_demo_writedata,
 
-		0xdeadbeef
+	0xdeadbeef
 };
 #endif
 
@@ -1153,7 +1254,8 @@ void CLHL_UnloadClientGame(void)
 void CLHL_LoadClientGame(void)
 {
 	char fullname[MAX_OSPATH];
-	char *path;
+	char path[MAX_OSPATH];
+	void *iterator;
 
 	int (QDECL *initfunc)(CLHL_enginecgamefuncs_t *funcs, int version);
 	dllfunction_t funcs[] =
@@ -1166,19 +1268,14 @@ void CLHL_LoadClientGame(void)
 
 	memset(&CLHL_cgamefuncs, 0, sizeof(CLHL_cgamefuncs));
 
-	clg = NULL;//Sys_LoadLibrary("C:/Incoming/d/Half-Life/sdks/hlsdk-2.3-p3/hlsdk-2.3-p3/multiplayer/cl_dll/Debug/client", funcs);
-	if (!clg)
+	clg = NULL;
+	iterator = NULL;
+	while(COM_IteratePaths(&iterator, path, sizeof(path)))
 	{
-		path = NULL;
-		while((path = COM_NextPath (path)))
-		{
-			if (!path)
-				return;		// couldn't find one anywhere
-			snprintf (fullname, sizeof(fullname), "%s/%s", path, "cl_dlls/client");
-			clg = Sys_LoadLibrary(fullname, funcs);
-			if (clg)
-				break;
-		}
+		snprintf (fullname, sizeof(fullname), "%s%s", path, "cl_dlls/client");
+		clg = Sys_LoadLibrary(fullname, funcs);
+		if (clg)
+			break;
 	}
 
 	if (!clg)
@@ -1244,6 +1341,7 @@ int CLHL_DrawHud(void)
 {
 	extern kbutton_t in_attack;
 	hllocalclientdata_t state;
+	int ret;
 
 	if (!clg || !CLHL_cgamefuncs.HUD_Redraw)
 		return false;
@@ -1263,11 +1361,12 @@ int CLHL_DrawHud(void)
 	state.weapons = cl.playerview[0].stats[STAT_ITEMS];
 	state.fov = 90;
 
-	V_StopPitchDrift(0);
+	V_StopPitchDrift(&cl.playerview[0]);
 
 	CLHL_cgamefuncs.HUD_UpdateClientData(&state, cl.time);
 
-	return CLHL_cgamefuncs.HUD_Redraw(cl.time, cl.intermission);	
+	ret = CLHL_cgamefuncs.HUD_Redraw(cl.time, cl.intermission);	
+	return ret;
 }
 
 int CLHL_AnimateViewEntity(entity_t *ent)

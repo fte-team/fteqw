@@ -247,7 +247,8 @@ void GLR_ReInit (void)
 
 	R_InitBloomTextures();
 }
-/*
+
+#if 1
 typedef struct
 {
    long offset;                 	// Position of the entry in WAD
@@ -266,57 +267,66 @@ typedef struct
 } wad2_t;
 void R_MakeTexWad_f(void)
 {
+	//this function is written as little endian. nothing will fix that.
 	miptex_t dummymip = {"", 0, 0, {0, 0, 0, 0}};
 	wad2_t wad2 = {"WAD2",0,0};
 	wad2entry_t entry[2048];
 	int entries = 0, i;
-	FILE *f;
+	vfsfile_t *f;
 	char base[128];
-	char *texname;
 //	qbyte b;
-	float scale;
+	qboolean hasalpha;
 	int width, height;
 
 	qbyte *buf, *outmip;
 	qbyte *mip, *stack;
 
-//	WIN32_FIND_DATA fd;
-//	HANDLE h;
+	char *wadname = Cmd_Argv(1);
+	char *imagename = Cmd_Argv(2);
+	float scale = atof(Cmd_Argv(3));
 
-	scale = atof(Cmd_Argv(2));
 	if (!scale)
 		scale = 2;
 
-//	h = FindFirstFile(va("%s/textures/ *.tga", com_gamedir), &fd);	//if this is uncommented, clear that space... (gcc warning fix)
-	if (!shader)
+	if (!*wadname || !*imagename)
 		return;
+	f=FS_OpenVFS(wadname, "w+b", FS_GAMEONLY);
+	if (!f)
+		return;
+
 	mip = BZ_Malloc(1024*1024);
 //	initbuf = BZ_Malloc(1024*1024*4);
 	stack = BZ_Malloc(1024*1024*4+1024);
-	f=fopen(va("%s/shadrtex.wad", com_gamedir), "wb");
-	fwrite(&wad2, 1, sizeof(wad2_t), f);
 
-	for (shad = shader; shad; shad=shad->next)
+	VFS_SEEK(f, 0);
+	VFS_READ(f, &wad2, sizeof(wad2_t));
+
+	VFS_SEEK(f, wad2.offset);
+	VFS_READ(f, entry, sizeof(entry[0]) * wad2.num);
+
+	//find the end of the data.
+	wad2.offset = sizeof(wad2_t);
+	for (entries = 0; entries < wad2.num; entries++)
+		if (wad2.offset < entry[entries].offset + entry[entries].dsize)
+			wad2.offset = entry[entries].offset + entry[entries].dsize;
+	VFS_SEEK(f, wad2.offset);
+
 	{
-		texname = shad->editorname;
-		if (!*texname)
-			continue;
-		COM_StripExtension(shad->name, base);
+		COM_StripExtension(imagename, base, sizeof(base));
 		base[15]=0;
 		for (i =0; i < entries; i++)
-			if (!strcmp(entry[entries].name, base))
+			if (!stricmp(entry[i].name, base))
 				break;
 		if (i != entries)
-		{
-			Con_Printf("Skipped %s - duplicated shrunken name\n", texname);
-			continue;
-		}
-		entry[entries].offset = ftell(f);
-		entry[entries].dsize = entry[entries].size = 0;
-		entry[entries].type = TYP_MIPTEX;
-		entry[entries].cmprs = 0;
-		entry[entries].dummy = 0;
-		strcpy(entry[entries].name, base);
+			Con_Printf("Replacing %s, you'll want to compact your wad at some point.\n", base);	//this will leave a gap. we don't support compacting.
+		else
+			entries++;
+		entry[i].offset = VFS_TELL(f);
+		entry[i].dsize = entry[i].size = 0;
+		entry[i].type = TYP_MIPTEX;
+		entry[i].cmprs = 0;
+		entry[i].dummy = 0;
+		strcpy(entry[i].name, base);
 
 		strcpy(dummymip.name, base);
 
@@ -330,29 +340,29 @@ void R_MakeTexWad_f(void)
 			char *path[] ={
 		"%s",
 		"override/%s.tga",
-		"override/%s.pcx",
+
+		"textures/%s.png",
+		"textures/%s.tga",
+
+		"%s.png",
 		"%s.tga",
 		"progs/%s"};
 			for (h = 0, buf=NULL; h < sizeof(path)/sizeof(char *); h++)
 			{			
-				buf = COM_LoadStackFile(va(path[h], texname), stack, 1024*1024*4+1024);
+				buf = COM_LoadStackFile(va(path[h], imagename), stack, 1024*1024*4+1024);
 				if (buf)
 					break;
 			}
-			if (!buf)
+			if (buf)
+				data = Read32BitImageFile(buf, com_filesize, &width, &height, &hasalpha, imagename);
+			else
+				data = NULL;
+			if (!data)
 			{
-				Con_Printf("Failed to find texture \"%s\"\n", texname);
-				continue;
+				data = Z_Malloc(16*16*4);
+				width = 16;
+				height = 16;
 			}
-
-
-data = ReadTargaFile(buf, com_filesize, &width, &height, false);
-if (!data)
-{
-	BZ_Free(data);
-	Con_Printf("Skipped %s - file type not supported (bad bpp?)\n", texname);
-	continue;
-}
 
 			dummymip.width = (int)(width/scale) & ~0xf;
 			dummymip.height = (int)(height/scale) & ~0xf;
@@ -360,6 +370,10 @@ if (!data)
 				dummymip.width=16;
 			if (dummymip.height<=0)
 				dummymip.height=16;
+			if (dummymip.width > 1024)
+				dummymip.width = 1024;
+			if (dummymip.height > 1024)
+				dummymip.height = 1024;
 
 			dummymip.offsets[0] = sizeof(dummymip);
 			dummymip.offsets[1] = dummymip.offsets[0]+dummymip.width*dummymip.height;
@@ -371,7 +385,7 @@ if (!data)
 			yi = (float)height/dummymip.height;
 
 
-			fwrite(&dummymip, 1, sizeof(dummymip), f);
+			VFS_WRITE(f, &dummymip, sizeof(dummymip));
 			outmip=mip;
 			for (outmip=mip, y = 0; y < height; y+=yi)
 			for (x = 0; x < width; x+=xi)
@@ -380,7 +394,7 @@ if (!data)
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);
 			}
-			fwrite(mip, dummymip.width, dummymip.height, f);
+			VFS_WRITE(f, mip, dummymip.width * dummymip.height);
 			for (outmip=mip, y = 0; y < height; y+=yi*2)
 			for (x = 0; x < width; x+=xi*2)
 			{
@@ -388,7 +402,7 @@ if (!data)
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);				
 			}
-			fwrite(mip, dummymip.width/2, dummymip.height/2, f);
+			VFS_WRITE(f, mip, (dummymip.width/2) * (dummymip.height/2));
 			for (outmip=mip, y = 0; y < height; y+=yi*4)
 			for (x = 0; x < width; x+=xi*4)
 			{
@@ -396,7 +410,7 @@ if (!data)
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);				
 			}
-			fwrite(mip, dummymip.width/4, dummymip.height/4, f);
+			VFS_WRITE(f, mip, (dummymip.width/4) * (dummymip.height/4));
 			for (outmip=mip, y = 0; y < height; y+=yi*8)
 			for (x = 0; x < width; x+=xi*8)
 			{
@@ -404,30 +418,29 @@ if (!data)
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);
 			}
-			fwrite(mip, dummymip.width/8, dummymip.height/8, f);
+			VFS_WRITE(f, mip, (dummymip.width/8) * (dummymip.height/8));
 
 			BZ_Free(data);
 		}
-		entries++;
+		entry[i].dsize = VFS_TELL(f) - entry[i].offset;
 		Con_Printf("Added %s\n", base);
-		GLSCR_UpdateScreen();
 	}
 
-	wad2.offset = ftell(f);
+	wad2.offset = VFS_TELL(f);
 	wad2.num = entries;
-	fwrite(entry, entries, sizeof(wad2entry_t), f);
-	fseek(f, 0, SEEK_SET);
-	fwrite(&wad2, 1, sizeof(wad2_t), f);
-	fclose(f);
+	VFS_WRITE(f, entry, entries*sizeof(wad2entry_t));
+	VFS_SEEK(f, 0);
+	VFS_WRITE(f, &wad2, sizeof(wad2_t));
+	VFS_CLOSE(f);
 
 
 	BZ_Free(mip);
 //	BZ_Free(initbuf);
 	BZ_Free(stack);
 
-	Con_Printf("Written %i mips to textures.wad\n", entries);
+	Con_Printf("%s now has %i entries\n", wadname, entries);
 }
-*/
+#endif
 void GLR_TimeRefresh_f (void);
 
 extern cvar_t v_contrast, r_drawflat;
@@ -467,7 +480,7 @@ void GLR_Init (void)
 {	
 	Cmd_AddCommand ("timerefresh", GLR_TimeRefresh_f);
 
-//	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
+	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
 
 //	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
 //	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);

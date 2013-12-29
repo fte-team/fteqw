@@ -149,6 +149,7 @@ void M_Menu_SinglePlayer_f (void)
 
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_game");
 
+		//quake2 uses the 'newgame' alias.
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 40,	"Easy",		"closemenu; skill 0;deathmatch 0; coop 0;newgame\n");
 		MC_AddConsoleCommand	(menu, 64, 48,	"Medium",	"closemenu; skill 1;deathmatch 0; coop 0;newgame\n");
@@ -264,6 +265,7 @@ void M_Menu_SinglePlayer_f (void)
 		else
 		{
 			MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title1.lmp");
+			//startmap selection in hexen2 is nasty.
 			if (havemp)
 			{
 				menu->selecteditem = (menuoption_t*)
@@ -314,7 +316,7 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;map start\n");
+		MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;startmap_sp\n");
 		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
 
@@ -340,7 +342,7 @@ void M_Menu_SinglePlayer_f (void)
 	{
 		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-		b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;map start\n");
+		b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;startmap_sp\n");
 		menu->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;

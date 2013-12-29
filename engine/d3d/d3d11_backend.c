@@ -268,7 +268,7 @@ static void BE_CreateSamplerStates(void)
 			if (flags & SHADER_PASS_NEAREST)
 				sampdesc.Filter = D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
 			else
-				sampdesc.Filter = /*D3D11_FILTER_MIN_MAG_MIP_POINT;D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;*/D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+				sampdesc.Filter = /*D3D11_FILTER_MIN_MAG_MIP_POINT;*/D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;/*D3D11_FILTER_MIN_MAG_MIP_LINEAR*/;
 			sampdesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 		}
 		if (flags & SHADER_PASS_CLAMP)
@@ -2053,7 +2053,8 @@ static void BE_DrawMeshChain_Internal(void)
 			BE_RenderMeshProgram(shaderstate.shader_rtlight[shaderstate.curlmode], vertcount, idxfirst, idxcount);
 		break;
 	case BEM_DEPTHONLY:
-		BE_RenderMeshProgram(shaderstate.depthonly, vertcount, idxfirst, idxcount);
+		if (shaderstate.depthonly->prog)
+			BE_RenderMeshProgram(shaderstate.depthonly, vertcount, idxfirst, idxcount);
 #if 0
 		shaderstate.lastpasscount = 0;
 		i = 0;

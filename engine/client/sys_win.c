@@ -852,11 +852,8 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 		}
 		if (match[nest] == '/')
 		{
-			char utf8[MAX_OSPATH];
-			wchar_t wroot[MAX_OSPATH];
 			char submatch[MAX_OSPATH];
 			char tmproot[MAX_OSPATH];
-			char file[MAX_OSPATH];
 
 			if (!wild)
 				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
@@ -872,13 +869,18 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 			memcpy(tmproot, match, neststart);
 			strcpy(tmproot+neststart, "*.*");
 
-			r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			{
+				wchar_t wroot[MAX_OSPATH];
+				r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			}
 			strcpy(tmproot+neststart, "");
 			if (r==(HANDLE)-1)
 				return 1;
 			go = true;
 			do
 			{
+				char utf8[MAX_OSPATH];
+				char file[MAX_OSPATH];
 				narrowen(utf8, sizeof(utf8), fd.cFileName);
 				if (*utf8 == '.');	//don't ever find files with a name starting with '.'
 				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
@@ -902,22 +904,25 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 		{
 			const char *submatch = match + neststart;
 			char tmproot[MAX_OSPATH];
-			wchar_t wroot[MAX_OSPATH];
-			char utf8[MAX_OSPATH];
-			char file[MAX_OSPATH];
 
 			if (neststart+4 > MAX_OSPATH)
 				return 1;
 			memcpy(tmproot, match, neststart);
 			strcpy(tmproot+neststart, "*.*");
 
-			r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			{
+				wchar_t wroot[MAX_OSPATH];
+				r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			}
 			strcpy(tmproot+neststart, "");
 			if (r==(HANDLE)-1)
 				return 1;
 			go = true;
 			do
 			{
+				char utf8[MAX_OSPATH];
+				char file[MAX_OSPATH];
+
 				narrowen(utf8, sizeof(utf8), fd.cFileName);
 				if (*utf8 == '.')
 					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)

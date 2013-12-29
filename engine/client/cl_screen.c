@@ -580,7 +580,7 @@ void SCR_CheckDrawCenterString (void)
 			continue;
 
 		SCR_VRectForPlayer(&rect, pnum);
-		SCR_DrawCenterString(&rect, p, font_conchar);
+		SCR_DrawCenterString(&rect, p, font_default);
 	}
 }
 
@@ -599,13 +599,26 @@ void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaul
 	p.time_off = scr_centertime.value;
 	p.time_start = cl.time;
 
-	SCR_DrawCenterString(&r, &p, font_conchar);
+	SCR_DrawCenterString(&r, &p, font_default);
 }
 
 void SCR_DrawCursor(int prydoncursornum)
 {
 	extern cvar_t cl_cursor, cl_cursorbias, cl_cursorsize;
 	mpic_t *p;
+
+	if (key_dest_absolutemouse & kdm_game)
+	{
+		//if the game is meant to be drawing a cursor, don't draw one over the top.
+		key_dest_absolutemouse &= ~kdm_game;
+		if (!Key_MouseShouldBeFree())
+		{	//unless something else wants a cursor too.
+			key_dest_absolutemouse |= kdm_game;
+			return;
+		}
+		key_dest_absolutemouse |= kdm_game;
+	}
+
 	if (!*cl_cursor.string || prydoncursornum>1)
 		p = R2D_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
 	else
@@ -620,11 +633,11 @@ void SCR_DrawCursor(int prydoncursornum)
 	else
 	{
 		float x, y;
-		Font_BeginScaledString(font_conchar, mousecursor_x, mousecursor_y, 8, 8, &x, &y);
+		Font_BeginScaledString(font_default, mousecursor_x, mousecursor_y, 8, 8, &x, &y);
 		x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
 		y -= Font_CharHeight()/2;
 		Font_DrawScaleChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
-		Font_EndString(font_conchar);
+		Font_EndString(font_default);
 	}
 }
 static void SCR_DrawSimMTouchCursor(void)
@@ -635,11 +648,11 @@ static void SCR_DrawSimMTouchCursor(void)
 	{
 		if (multicursor_active[i])
 		{
-			Font_BeginScaledString(font_conchar, multicursor_x[i], multicursor_y[i], 8, 8, &x, &y);
+			Font_BeginScaledString(font_default, multicursor_x[i], multicursor_y[i], 8, 8, &x, &y);
 			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
 			y -= Font_CharHeight()/2;
 			Font_DrawScaleChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
-			Font_EndString(font_conchar);
+			Font_EndString(font_default);
 		}
 	}
 }
@@ -1090,7 +1103,7 @@ void SCR_StringXY(char *str, float x, float y)
 	char *s2;
 	int px, py;
 
-	Font_BeginString(font_conchar, ((x<0)?vid.width:x), ((y<0)?vid.height - sb_lines:y), &px, &py);
+	Font_BeginString(font_default, ((x<0)?vid.width:x), ((y<0)?vid.height - sb_lines:y), &px, &py);
 
 	if (x < 0)
 	{
@@ -1103,7 +1116,7 @@ void SCR_StringXY(char *str, float x, float y)
 
 	while (*str)
 		px = Font_DrawChar(px, py, CON_WHITEMASK|*str++);
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 }
 
 void SCR_DrawFPS (void)

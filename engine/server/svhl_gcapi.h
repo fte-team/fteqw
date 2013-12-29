@@ -413,7 +413,7 @@ typedef struct
 	unk (QDECL *SaveSpawnParms)(unk);
 	float (QDECL *VecToYaw)(float *inv);
 	void (QDECL *VecToAngles)(float *inv, float *outa);
-	unk (QDECL *MoveToOrigin)(unk);
+	void (QDECL *MoveToOrigin)(hledict_t *ent, vec3_t dest, float dist, int moveflags);
 	unk (QDECL *ChangeYaw)(unk);
 	unk (QDECL *ChangePitch)(unk);
 	hledict_t *(QDECL *FindEntityByString)(hledict_t *last, char *field, char *value);
@@ -524,7 +524,7 @@ typedef struct
 	unk (QDECL *GetPlayerWONId)(unk);
 	unk (QDECL *Info_RemoveKey)(unk);
 	unk (QDECL *GetPhysicsKeyValue)(unk);
-	unk (QDECL *SetPhysicsKeyValue)(unk);
+	void (QDECL *SetPhysicsKeyValue)(hledict_t *ent, char *key, char *value);
 	unk (QDECL *GetPhysicsInfoString)(unk);
 	unsigned short (QDECL *PrecacheEvent)(int eventtype, char *eventname);
 	void (QDECL *PlaybackEvent)(int flags, hledict_t *ent, unsigned short eventidx, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2);
@@ -549,7 +549,7 @@ typedef struct
 	unk (QDECL *Voice_GetClientListening)(unk);
 	qboolean (QDECL *Voice_SetClientListening)(int listener, int sender, int shouldlisten);
 	//140
-	unk (QDECL *GetPlayerAuthId)(unk);
+	char *(QDECL *GetPlayerAuthId)(hledict_t *playerent);
 	unk (QDECL *SequenceGet)(unk);
 	unk (QDECL *SequencePickSentence)(unk);
 	unk (QDECL *GetFileSize)(unk);

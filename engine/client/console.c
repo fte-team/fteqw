@@ -67,6 +67,7 @@ cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
 cvar_t		con_separatechat = CVAR("con_separatechat", "0");
 cvar_t		con_timestamps = CVAR("con_timestamps", "0");
 cvar_t		con_timeformat = CVAR("con_timeformat", "(%H:%M:%S) ");
+cvar_t		con_textsize = CVARD("con_textsize", "8", "Resize the console text to be a different height, scaled separately from the hud. The value is the height in (virtual) pixels.");
 
 #define	NUM_CON_TIMES 24
 
@@ -588,6 +589,7 @@ void Con_Init (void)
 	Cvar_Register (&con_separatechat, "Console controls");
 	Cvar_Register (&con_timestamps, "Console controls");
 	Cvar_Register (&con_timeformat, "Console controls");
+	Cvar_Register (&con_textsize, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("messagemode", Con_MessageMode_f);
@@ -1183,7 +1185,7 @@ void Con_DrawNotifyOne (console_t *con)
 	int maxlines;
 	float t;
 
-	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_BeginString(font_console, x, y, &x, &y);
 	Font_Transform(con->notif_w, 0, &w, NULL);
 
 	if (con->notif_l < 0)
@@ -1250,7 +1252,7 @@ void Con_DrawNotifyOne (console_t *con)
 		lines++;
 	}
 
-	Font_EndString(font_conchar);
+	Font_EndString(font_console);
 }
 
 void Con_DrawNotify (void)
@@ -1286,7 +1288,7 @@ void Con_DrawNotify (void)
 		conchar_t *c, *end;
 		char *foo = va(chat_team?"say_team: %s":"say: %s", chat_buffer?chat_buffer:"");
 		int lines, i, pos;
-		Font_BeginString(font_conchar, 0, 0, &x, &y);
+		Font_BeginString(font_console, 0, 0, &x, &y);
 		y = con_main.notif_l * Font_CharHeight();
 
 		i = chat_team?10:5;
@@ -1315,7 +1317,7 @@ void Con_DrawNotify (void)
 			Font_LineDraw(x, y, starts[i], ends[i]);
 			y += Font_CharHeight();
 		}
-		Font_EndString(font_conchar);
+		Font_EndString(font_console);
 	}
 }
 
@@ -1510,8 +1512,8 @@ int Con_DrawAlternateConsoles(int lines)
 	if (lines == (int)scr_conlines && consshown > 1) 
 	{
 		int mx, my, h;
-		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &mx, &my);
-		Font_BeginString(font_conchar, 0, y, &x, &y);
+		Font_BeginString(font_console, mousecursor_x, mousecursor_y, &mx, &my);
+		Font_BeginString(font_console, 0, y, &x, &y);
 		h = Font_CharHeight();
 		for (x = 0, con = &con_main; con; con = con->next)
 		{
@@ -1525,7 +1527,7 @@ int Con_DrawAlternateConsoles(int lines)
 			lx = 0;
 			for (lx = x, start = buffer; start < end; start++)
 			{
-				lx = Font_CharEndCoord(font_conchar, lx, *start);
+				lx = Font_CharEndCoord(font_console, lx, *start);
 			}
 			if (lx > Font_ScreenWidth())
 			{
@@ -1535,7 +1537,7 @@ int Con_DrawAlternateConsoles(int lines)
 			for (lx = x, start = buffer; start < end; start++)
 			{
 				Font_DrawChar(lx, y, *start);
-				lx = Font_CharEndCoord(font_conchar, lx, *start);
+				lx = Font_CharEndCoord(font_console, lx, *start);
 			}
 			lx += 8;
 			if (mx >= x && mx < lx && my >= y && my < y+h)
@@ -1543,7 +1545,7 @@ int Con_DrawAlternateConsoles(int lines)
 			x = lx;
 		}
 		y+= h;
-		Font_EndString(font_conchar);
+		Font_EndString(font_console);
 
 		y = (y*(int)vid.height) / (float)vid.rotpixelheight;
 	}
@@ -1838,9 +1840,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 	con_current->selendline = NULL;
 	selactive = Key_GetConsoleSelectionBox(con_current, &selsx, &selsy, &selex, &seley);
 
-	Font_BeginString(font_conchar, x, y, &x, &y);
-	Font_BeginString(font_conchar, selsx, selsy, &selsx, &selsy);
-	Font_BeginString(font_conchar, selex, seley, &selex, &seley);
+	Font_BeginString(font_console, x, y, &x, &y);
+	Font_BeginString(font_console, selsx, selsy, &selsx, &selsy);
+	Font_BeginString(font_console, selex, seley, &selex, &seley);
 	ex = Font_ScreenWidth();
 	sx = x;
 	ex -= sx;
@@ -1857,7 +1859,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	{
 		char *version = version_string();
 		int i;
-		Font_BeginString(font_conchar, vid.width, lines, &x, &y);
+		Font_BeginString(font_console, vid.width, lines, &x, &y);
 		y -= Font_CharHeight();
 		for (i = 0; version[i]; i++)
 			x -= Font_CharWidth(version[i] | CON_WHITEMASK|CON_HALFALPHA);
@@ -1865,7 +1867,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 			x = Font_DrawChar(x, y, version[i] | CON_WHITEMASK|CON_HALFALPHA);
 	}
 
-	Font_EndString(font_conchar);
+	Font_EndString(font_console);
 
 	if (con_current->selstartline)
 	{
@@ -1904,17 +1906,17 @@ void Con_DrawConsole (int lines, qboolean noback)
 					//FIXME: support line breaks.
 					conchar_t buffer[2048], *starts[8], *ends[8];
 					int lines, i, px, py;
-					Font_BeginString(font_conchar, x, y, &px, &py);
+					Font_BeginString(font_console, x, y, &px, &py);
 					lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK|CON_NONCLEARBG, key, buffer, sizeof(buffer), false), 256, 8, starts, ends);
 					ih = max(Font_CharHeight()*lines, ih)/2;
 					y += ih - (Font_CharHeight()*lines)/2;
-					Font_BeginString(font_conchar, x, y, &px, &py);
+					Font_BeginString(font_console, x, y, &px, &py);
 					for (i = 0; i < lines; i++)
 					{
 						Font_LineDraw(px, py, starts[i], ends[i]);
 						py += Font_CharHeight();
 					}
-					Font_EndString(font_conchar);
+					Font_EndString(font_console);
 				}
 			}
 		}

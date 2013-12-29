@@ -91,6 +91,9 @@ int PM_TransformedModelPointContents (model_t *mod, vec3_t p, vec3_t origin, vec
 	vec3_t p_l, axis[3];
 	VectorSubtract (p, origin, p_l);
 
+	if (!mod->funcs.PointContents)
+		return FTECONTENTS_EMPTY;
+
 	// rotate start and end into the models frame of reference
 	if (angles[0] || angles[1] || angles[2])
 	{
@@ -117,10 +120,12 @@ int PM_PointContents (vec3_t p)
 	physent_t *pe;
 	model_t *pm;
 
+	//check world.
 	pm = pmove.physents[0].model;
 	if (!pm || pm->needload)
 		return FTECONTENTS_EMPTY;
 	pc = pm->funcs.PointContents(pm, NULL, p);
+
 	//we need this for e2m2 - waterjumping on to plats wouldn't work otherwise.
 	for (num = 1; num < pmove.numphysent; num++)
 	{

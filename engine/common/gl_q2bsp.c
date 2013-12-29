@@ -294,7 +294,7 @@ static int			numplanes;
 static mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
 
 static int			numleafs = 1;	// allow leaf funcs to be called without a map
-static mleaf_t		map_leafs[MAX_MAP_LEAFS];
+static mleaf_t		map_leafs[(MAX_MAP_LEAFS+7)/8];
 static int			emptyleaf;
 
 static int			numleafbrushes;

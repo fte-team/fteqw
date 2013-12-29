@@ -107,9 +107,9 @@ once a batch is known to the backend for that frame, its shader, vbo, ent, light
 typedef struct batch_s
 {
 	mesh_t **mesh; /*list must be long enough for all surfaces that will form part of this batch times two, for mirrors/portals*/
-	unsigned int firstmesh;
-	unsigned int meshes;
 	struct batch_s *next;
+	unsigned int meshes;
+	unsigned int firstmesh;
 
 	shader_t *shader;
 	struct vbo_s *vbo;
@@ -126,6 +126,9 @@ typedef struct batch_s
 	struct texnums_s *skin;
 
 	void (*buildmeshes)(struct batch_s *b);
+#if R_MAX_RECURSE > 2
+	unsigned int recursefirst[R_MAX_RECURSE-2];	//fixme: should thih, firstmesh, and meshes be made ushorts?
+#endif
 	/*caller-use, not interpreted by backend*/
 	union
 	{
@@ -830,7 +833,7 @@ typedef struct model_s
 {
 	char		name[MAX_QPATH];
 	int			datasequence;
-	qboolean	needload;		// bmodels and sprites don't cache normally
+	int			needload;		// if needload is set, the model is not currently valid. 0=false, 1=true, 2 means it was never valid (and please don't spam about it still being invalid). most code should treat this as a simple boolean.
 	qboolean	tainted;
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
 

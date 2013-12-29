@@ -71,6 +71,8 @@ void GLSCR_UpdateScreen (void)
 
 	vid.numpages = 2 + vid_triplebuffer.value;
 
+	R2D_Font_Changed();
+
 	if (scr_disabled_for_loading)
 	{
 		extern float scr_disabled_time;

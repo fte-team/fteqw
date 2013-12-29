@@ -1019,7 +1019,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	int mdlidx = ent->v->modelindex;
 
 // get the clipping hull
-	if (ent->v->solid == SOLID_BSP && mdlidx)
+	if ((ent->v->solid == SOLID_BSP || ent->v->solid == SOLID_PORTAL) && mdlidx)
 	{
 		model = w->Get_CModel(w, mdlidx);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
@@ -1040,7 +1040,13 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	}
 
 // trace a line through the apropriate clipping hull
-	if (ent->v->solid != SOLID_BSP)
+	if (ent->v->solid == SOLID_PORTAL)
+	{
+		//solid_portal cares only about origins and as such has no mins/max
+		TransformedTrace(model, 0, ent->v->frame, start, end, vec3_origin, vec3_origin, &trace, eorg, ent->v->angles, hitcontentsmask);
+		hitmodel = false;
+	}
+	else if (ent->v->solid != SOLID_BSP)
 	{
 		ent->v->angles[0]*=-1;	//carmack made bsp models rotate wrongly.
 		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
@@ -1532,6 +1538,9 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 		else
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
+
+		if (trace.startsolid && touch->v->solid == SOLID_PORTAL)
+			continue;
 
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)

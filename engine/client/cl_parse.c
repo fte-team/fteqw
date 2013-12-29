@@ -5877,12 +5877,12 @@ void CLQW_ParseServerMessage (void)
 
 		case svcfte_cgamepacket:
 			csqcpacket = true;
-#ifdef HLCLIENT
-			if (CLHL_ParseGamePacket())
-				break;
-#endif
 #ifdef CSQC_DAT
 			if (CSQC_ParseGamePacket())
+				break;
+#endif
+#ifdef HLCLIENT
+			if (CLHL_ParseGamePacket())
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");

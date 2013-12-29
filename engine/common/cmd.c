@@ -2094,7 +2094,7 @@ void	Cmd_ExecuteString (char *text, int level)
 		return;
 	}
 #endif
-	if (cl_warncmd.value || developer.value)
+	if ((cl_warncmd.value && level <= RESTRICT_LOCAL) || developer.value)
 		Con_TPrintf ("Unknown command \"%s\"\n", Cmd_Argv(0));
 }
 

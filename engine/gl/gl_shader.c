@@ -489,6 +489,7 @@ static void Shader_ParseVector(shader_t *shader, char **ptr, vec3_t v)
 	char *scratch;
 	char *token;
 	qboolean bracket;
+	qboolean fromcvar = false;
 
 	token = Shader_ParseString(ptr);
 	if (*token == '$')
@@ -507,6 +508,7 @@ static void Shader_ParseVector(shader_t *shader, char **ptr, vec3_t v)
 		scratch = var->string;
 
 		token = Shader_ParseString( ptr);
+		fromcvar = true;
 	}
 	if (!Q_stricmp (token, "("))
 	{
@@ -522,12 +524,22 @@ static void Shader_ParseVector(shader_t *shader, char **ptr, vec3_t v)
 		bracket = false;
 
 	v[0] = atof ( token );
-	v[1] = Shader_ParseFloat (shader, ptr );
+	
+	token = Shader_ParseString ( ptr );
+	if ( !token[0] ) {
+		v[1] = fromcvar?v[0]:0;
+	} else if (bracket &&  token[strlen(token)-1] == ')' ) {
+		bracket = false;
+		token[strlen(token)-1] = 0;
+		v[1] = atof ( token );
+	} else {
+		v[1] = atof ( token );
+	}
 
 	token = Shader_ParseString ( ptr );
 	if ( !token[0] ) {
-		v[2] = 0;
-	} else if ( token[strlen(token)-1] == ')' ) {
+		v[2] = fromcvar?v[1]:0;
+	} else if (bracket && token[strlen(token)-1] == ')' ) {
 		token[strlen(token)-1] = 0;
 		v[2] = atof ( token );
 	} else {

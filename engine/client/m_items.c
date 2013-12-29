@@ -483,14 +483,14 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 					range = 1;
 				option->slider.vx = x;
 				x -= 8;
-				Font_BeginString(font_conchar, x, y, &x, &y);
+				Font_BeginString(font_default, x, y, &x, &y);
 				x = Font_DrawChar(x, y, 0xe080 | CON_WHITEMASK);
 				s = x;
 				for (i=0 ; i<SLIDER_RANGE ; i++)
 					x = Font_DrawChar(x, y, 0xe081 | CON_WHITEMASK);
 				Font_DrawChar(x, y, 0xe082 | CON_WHITEMASK);
 				Font_DrawChar(s + (x-s) * range - Font_CharWidth(0xe083 | CON_WHITEMASK)/2, y, 0xe083 | CON_WHITEMASK);
-				Font_EndString(font_conchar);
+				Font_EndString(font_default);
 			}
 			break;
 		case mt_checkbox:

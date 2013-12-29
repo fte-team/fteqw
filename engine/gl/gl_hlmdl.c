@@ -199,6 +199,11 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer)
 		shaders[i]->defaulttextures.base = R_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, IF_NOALPHA|IF_NOGAMMA);
     }
 
+	model->numskins = texheader->numtextures;
+	model->skins = ZG_Malloc(&mod->memgroup, model->numskins*sizeof(*model->skins));
+	memcpy(model->skins, (short *) ((qbyte *) texheader + texheader->skins), model->numskins*sizeof(*model->skins));
+
+
 	if (texmem)
 		Z_Free(texmem);
 
@@ -665,19 +670,16 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 	hlmodelcache_t *modelc = Mod_Extradata(rent->model);
 	hlmodel_t model;
 	int						body, m;
-	short					*skins;
 	int batchid = 0;
 	static mesh_t bmesh, *mptr = &bmesh;
 
 	//general model
 	model.header	= (hlmdl_header_t *)			((char *)modelc + modelc->header);
-	model.texheader	= (hlmdl_header_t *)			((char *)modelc + modelc->texheader);
+//	model.texheader	= (hlmdl_header_t *)			((char *)modelc + modelc->texheader);
 	model.textures	= (hlmdl_tex_t *)				((char *)modelc + modelc->textures);
 	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
 	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
 	model.shaders	= (shader_t **)					((char *)modelc + modelc->shaders);
-
-	skins = (short *) ((qbyte *) model.texheader + model.texheader->skins);
 
 	for (body = 0; body < model.header->numbodyparts; body++)
     {
@@ -697,6 +699,8 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
             float			tex_h;
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+			if (mesh->skinindex >= modelc->numskins)
+				continue;
 
 			if (batches)
 			{
@@ -707,7 +711,7 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				if (!b)
 					return;
 
-				shader = model.shaders[skins[mesh->skinindex]];
+				shader = model.shaders[modelc->skins[mesh->skinindex]];
 				b->buildmeshes = R_HL_BuildMesh;
 				b->ent = rent;
 				b->mesh = NULL;
@@ -754,8 +758,8 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 			{
 				if (batchid == b->surf_first)
 				{
-					tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
-					tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
+					tex_w = 1.0f / model.textures[modelc->skins[mesh->skinindex]].w;
+					tex_h = 1.0f / model.textures[modelc->skins[mesh->skinindex]].h;
 	
 					b->mesh = &mptr;
 					R_HL_BuildFrame(&model, amodel, b->ent, (short *) ((qbyte *) model.header + mesh->index), tex_w, tex_h, b->mesh[0]);

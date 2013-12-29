@@ -1144,6 +1144,7 @@ qboolean CSQC_UnconnectedInit(void);
 qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum);
 qboolean CSQC_ConsoleLink(char *text, char *info);
 void CSQC_RegisterCvarsAndThings(void);
+qboolean CSQC_SetupToRenderPortal(int entnum);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);

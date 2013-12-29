@@ -2138,7 +2138,7 @@ qboolean Mod_LoadSubmodels (lump_t *l)
 			}
 			for ( ; j<MAX_MAP_HULLSM ; j++)
 				out->headnode[j] = 0;
-			for (j=0 ; j<3 ; j++)
+			for (j=0 ; j<4 ; j++)
 				out->hullavailable[j] = true;
 			for ( ; j<MAX_MAP_HULLSM ; j++)
 				out->hullavailable[j] = false;
@@ -3049,7 +3049,7 @@ void Mod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mo
 	/*assign each mesh to a batch, generating as needed*/
 	Mod_Batches_Generate(mod);
 
-	bmeshes = ZG_Malloc(&loadmodel->memgroup, sizeof(*bmeshes)*mod->nummodelsurfaces*2);
+	bmeshes = ZG_Malloc(&loadmodel->memgroup, sizeof(*bmeshes)*mod->nummodelsurfaces*R_MAX_RECURSE);
 
 	//we now know which batch each surface is in, and how many meshes there are in each batch.
 	//allocate the mesh-pointer-lists for each batch. *2 for recursion.
@@ -3057,7 +3057,7 @@ void Mod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mo
 	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 	{
 		batch->mesh = bmeshes + i;
-		i += batch->maxmeshes*2;
+		i += batch->maxmeshes*R_MAX_RECURSE;
 	}
 	//store the *surface* into the batch's mesh list (yes, this is an evil cast hack, but at least both are pointers)
 	for (i=0; i<mod->nummodelsurfaces; i++)
@@ -3250,6 +3250,11 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
+		if (count > MAX_MAP_LEAFS)
+		{
+			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
+			return false;
+		}
 		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
@@ -3307,6 +3312,11 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
+		if (count > MAX_MAP_LEAFS)
+		{
+			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
+			return false;
+		}
 		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
@@ -3364,6 +3374,11 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 			return false;
 		}
 		count = l->filelen / sizeof(*in);
+		if (count > MAX_MAP_LEAFS)
+		{
+			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
+			return false;
+		}
 		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 		loadmodel->leafs = out;
@@ -4561,7 +4576,7 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
 	int					numframes;
 	int					size;
 	dspriteframetype_t	*pframetype;
-//	int rendertype=0;
+	int rendertype=SPRHL_ALPHATEST;
 	unsigned char pal[256*4];
 	int sptype;
 	
@@ -4582,7 +4597,7 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
 	if (LittleLong(pin->version) == SPRITEHL_VERSION)
 	{
 		pin = (dsprite_t*)((char*)pin + 4);
-		/*rendertype =*/ LittleLong (pin->type);	//not sure what the values mean.
+		rendertype = LittleLong (pin->type);	//not sure what the values mean.
 	}
 
 	numframes = LittleLong (pin->numframes);
@@ -4592,6 +4607,22 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
 	psprite = ZG_Malloc(&loadmodel->memgroup, size);
 
 	mod->meshinfo = psprite;
+	switch(sptype)
+	{
+	case SPR_VP_PARALLEL_UPRIGHT:
+	case SPR_FACING_UPRIGHT:
+	case SPR_VP_PARALLEL:
+	case SPR_ORIENTED:
+//	case SPR_VP_PARALLEL_ORIENTED:
+//	case SPRDP_LABEL:
+//	case SPRDP_LABEL_SCALE:
+//	case SPRDP_OVERHEAD:
+		break;
+	default:
+		Con_DPrintf(CON_ERROR "%s has unsupported sprite type %i\n", mod->name, sptype);
+		sptype = SPR_VP_PARALLEL;
+		break;
+	}
 	psprite->type = sptype;
 
 	psprite->maxwidth = LittleLong (pin->width);
@@ -4621,12 +4652,27 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
 			return false;
 		}
 
-		for (i = 0; i < 256; i++)
+		if (rendertype == SPRHL_INDEXALPHA)
 		{
-			pal[i*4+0] = *src++;
-			pal[i*4+1] = *src++;
-			pal[i*4+2] = *src++;
-			pal[i*4+3] = 255;
+			Con_Printf(CON_ERROR "%s: SPRHL_INDEXALPHA sprites are not supported\n", mod->name);
+			return false;
+		}
+		else
+		{
+			for (i = 0; i < 256; i++)
+			{//FIXME: bgr?
+				pal[i*4+0] = *src++;
+				pal[i*4+1] = *src++;
+				pal[i*4+2] = *src++;
+				pal[i*4+3] = 255;
+			}
+			if (rendertype == SPRHL_ALPHATEST)
+			{
+				pal[255*4+0] = 0;
+				pal[255*4+1] = 0;
+				pal[255*4+2] = 0;
+				pal[255*4+3] = 0;
+			}
 		}
 
 		pframetype = (dspriteframetype_t *)(src);

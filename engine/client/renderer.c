@@ -330,7 +330,7 @@ cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 cvar_t vid_triplebuffer						= CVARAF ("vid_triplebuffer", "1",
 												"gl_triplebuffer", CVAR_ARCHIVE);
 
-cvar_t r_noportals							= SCVAR  ("r_noportals", "0");
+cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of portals the camera is allowed to recurse through.");
 cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 												CVAR_ARCHIVE);
@@ -405,7 +405,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);
-	Cvar_Register (&r_noportals, GLRENDEREROPTIONS);
+	Cvar_Register (&r_portalrecursion, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
@@ -1970,12 +1970,12 @@ qbyte *R_CalcVis_Q1 (void)
 
 qbyte *R_MarkLeaves_Q1 (void)
 {
-	static qbyte	fatvis[2][MAX_MAP_LEAFS/8];
-	static qbyte	*cvis[2];
+	static qbyte	fatvis[R_MAX_RECURSE][MAX_MAP_LEAFS/8];
+	static qbyte	*cvis[R_MAX_RECURSE];
 	qbyte *vis;
 	mnode_t	*node;
 	int		i;
-	qboolean portal = r_refdef.recurse;
+	int portal = r_refdef.recurse;
 
 	//for portals to work, we need two sets of any pvs caches
 	//this means lights can still check pvs at the end of the frame despite recursing in the mean time

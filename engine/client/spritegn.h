@@ -73,6 +73,7 @@ typedef struct {
 	int			ident;
 	int			version;
 	int			type;
+	//int		rendermode;	//present only in halflife sprites.
 	float		boundingradius;
 	int			width;
 	int			height;
@@ -81,11 +82,19 @@ typedef struct {
 	synctype_t	synctype;
 } dsprite_t;
 
-#define SPR_VP_PARALLEL_UPRIGHT		0
-#define SPR_FACING_UPRIGHT			1
-#define SPR_VP_PARALLEL				2
-#define SPR_ORIENTED				3
-#define SPR_VP_PARALLEL_ORIENTED	4
+#define SPR_VP_PARALLEL_UPRIGHT		0	//xy faces view. z is always up.
+#define SPR_FACING_UPRIGHT			1	//xy faces view. z is always up.
+#define SPR_VP_PARALLEL				2	//faces camera (traditional sprite)
+#define SPR_ORIENTED				3	//uses axis
+#define SPR_VP_PARALLEL_ORIENTED	4	//faces camera *then* rotated
+#define SPRDP_LABEL               	5
+#define SPRDP_LABEL_SCALE         	6
+#define SPRDP_OVERHEAD				7
+
+#define SPRHL_OPAQUE	0
+#define SPRHL_ADDITIVE	1
+#define SPRHL_INDEXALPHA	2
+#define SPRHL_ALPHATEST	3
 
 typedef struct {
 	int			origin[2];

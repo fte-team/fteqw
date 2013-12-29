@@ -141,6 +141,7 @@ keyname_t keynames[] =
 	{"KP_PLUS",		K_KP_PLUS},
 	{"KP_NUMLOCK",	K_KP_NUMLOCK},
 	{"KP_STAR",		K_KP_STAR},
+	{"KP_MULTIPLY",	K_KP_STAR},
 	{"KP_EQUALS",	K_KP_EQUALS},
 
 	//fuhquake compatible.
@@ -1568,7 +1569,8 @@ void Key_Unbind_f (void)
 	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
 	if (b==-1)
 	{
-		Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
+		if (cl_warncmd.ival)
+			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
 	}
 
@@ -1605,7 +1607,8 @@ void Key_Bind_f (void)
 	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
 	if (b==-1)
 	{
-		Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
+		if (cl_warncmd.ival)
+			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
 	}
 
@@ -1652,7 +1655,8 @@ void Key_BindLevel_f (void)
 	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
 	if (b==-1)
 	{
-		Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
+		if (cl_warncmd.ival)
+			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
 	}
 

@@ -111,7 +111,7 @@ int reorganisefields;
 
 
 //pr_exec.c
-#define	MAX_STACK_DEPTH		64
+#define	MAX_STACK_DEPTH		1024	//insanely high value requried for xonotic.
 	prstack_t pr_stack[MAX_STACK_DEPTH];
 #define pr_stack prinst.pr_stack
 	int pr_depth;

@@ -68,23 +68,24 @@ void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvar
 }
 
 #define FONT_SLOTS 16
-#define FONT_SIZES 4
+#define FONT_SIZES 16
 struct {
+	unsigned int owner;	//kdm_foo. whoever has an interest in this font. font is purged when this becomes 0.
 	char slotname[16];
-	char facename[64];
+	char facename[MAX_OSPATH];
 	int sizes;
-	int size[4];
-	struct font_s *font[4];
+	int size[FONT_SIZES];
+	struct font_s *font[FONT_SIZES];
 } fontslot[FONT_SLOTS];
 
-static struct font_s *PR_CL_ChooseFont(world_t *world, float szx, float szy)
+struct font_s *PR_CL_ChooseFont(float *fontsel, float szx, float szy)
 {
 	int fontidx = 0;	//default by default...
-	struct font_s *font = font_conchar;
+	struct font_s *font = font_default;
 
-	if (world->g.drawfont)
+	if (fontsel)
 	{
-		fontidx = *world->g.drawfont;
+		fontidx = *fontsel;
 	}
 
 	if (fontidx >= 0 && fontidx < FONT_SLOTS)
@@ -106,7 +107,7 @@ static struct font_s *PR_CL_ChooseFont(world_t *world, float szx, float szy)
 void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, float szy, float *px, float *py)
 {
 	world_t *world = prinst->parms->user;
-	struct font_s *font = PR_CL_ChooseFont(world, szx, szy);
+	struct font_s *font = PR_CL_ChooseFont(world->g.drawfont, szx, szy);
 	if (world->g.drawfontscale && (world->g.drawfontscale[0] || world->g.drawfontscale[1]))
 	{
 		szx *= world->g.drawfontscale[0];
@@ -135,11 +136,18 @@ int PR_findnamedfont(char *name, qboolean isslotname)
 	}
 	return -1;
 }
-void PR_ResetFonts(qboolean purge)
+//purgeowner 0 will reload all fonts. other values will purge only fonts which are now unused.
+void PR_ResetFonts(unsigned int purgeowner)
 {
 	int i, j;
 	for (i = 0; i < FONT_SLOTS; i++)
 	{
+		fontslot[i].owner &= ~purgeowner;
+
+		//don't bother flushing fonts when we don't really need to.
+		if (fontslot[i].owner && purgeowner)
+			return;
+
 		for (j = 0; j < fontslot[i].sizes; j++)
 		{
 			if (fontslot[i].font[j])
@@ -147,16 +155,22 @@ void PR_ResetFonts(qboolean purge)
 			fontslot[i].font[j] = NULL;
 		}
 
-		if (purge)
+		//if noone is interested in it now, it can be purged fully.
+		if (!fontslot[i].owner)
 		{
 			fontslot[i].sizes = 0;
 			fontslot[i].slotname[0] = '\0';
 			fontslot[i].facename[0] = '\0';
 		}
 		else
-		{
+		{	//otherwise load it.
 			for (j = 0; j < fontslot[i].sizes; j++)
-				fontslot[i].font[j] = Font_LoadFont(fontslot[i].size[j], fontslot[i].facename);
+			{
+				if (qrenderer == QR_NONE)
+					fontslot[i].font[j] = NULL;
+				else
+					fontslot[i].font[j] = Font_LoadFont(fontslot[i].size[j], fontslot[i].facename);
+			}
 		}
 	}
 }
@@ -174,6 +188,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	//float fix_scale = G_FLOAT(OFS_PARM4);
 	//float fix_voffset = G_FLOAT(OFS_PARM5);
 	int i, sz;
+	world_t *world = prinst->parms->user;
 
 	G_FLOAT(OFS_RETURN) = 0;	//return default on failure.
 
@@ -200,7 +215,9 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				Font_Free(fontslot[slotnum].font[i]);
 			fontslot[slotnum].font[i] = NULL;
 		}
+		fontslot[slotnum].owner = 0;
 	}
+	fontslot[slotnum].owner |= world->keydestmask;
 
 	while(*sizestr)
 	{
@@ -216,11 +233,111 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			if (i >= FONT_SIZES)
 				break;
 			fontslot[slotnum].size[i] = sz;
-			fontslot[slotnum].font[i] = Font_LoadFont(fontslot[slotnum].size[i], facename);
+			if (qrenderer == QR_NONE)
+				fontslot[slotnum].font[i] = NULL;
+			else
+				fontslot[slotnum].font[i] = Font_LoadFont(fontslot[slotnum].size[i], facename);
 			fontslot[slotnum].sizes++;
 		}
 	}
 	G_FLOAT(OFS_RETURN) = slotnum;
+}
+
+void CL_LoadFont_f(void)
+{
+	//console command for compat with dp/debug.
+	if (Cmd_Argc() == 1)
+	{
+		int i, j;
+		for (i = 0; i < FONT_SLOTS; i++)
+		{
+			if (fontslot[i].sizes)
+			{
+				Con_Printf("%s: %s (", fontslot[i].slotname, fontslot[i].facename);
+				for (j = 0; j < fontslot[i].sizes; j++)
+				{
+					if (j)
+						Con_Printf(", ", fontslot[i].size[j]);
+					Con_Printf("%i", fontslot[i].size[j]);
+				}
+				Con_Printf(")\n");
+			}
+		}
+	}
+	else
+	{
+		int i;
+		int slotnum = 0;
+		char *slotname = Cmd_Argv(1);
+		char *facename = Cmd_Argv(2);
+		int sizenum = 3;
+
+		//loadfont slot face size1 size2...
+
+		slotnum = PR_findnamedfont(slotname, true);
+		if (slotnum < 0)
+		{
+			char *dpnames[] = {"default", "console", "sbar", "notify", "chat", "centerprint", "infobar", "menu", "user0", "user1", "user2", "user3", "user4", "user5", "user6", "user7", NULL};
+			for (i = 0; dpnames[i]; i++)
+			{
+				if (!strcmp(dpnames[i], slotname))
+				{
+					//assign it to this slot only if this slot does not already have a face. avoids corrupting already-loaded fonts.
+					if (!*fontslot[i].facename)
+						slotnum = i;
+					break;
+				}
+			}
+			if (slotnum < 0)
+				slotnum = PR_findnamedfont("", true);	//whatever is still free
+		}
+		if (slotnum < 0)
+		{
+			Con_Printf("out of font slots\n");
+			return;
+		}
+
+		//if there's a new font in this slot, purge the old and change the name+face strings
+		if (stricmp(fontslot[slotnum].slotname, slotname) || stricmp(fontslot[slotnum].facename, facename))
+		{
+			Q_strncpyz(fontslot[slotnum].slotname, slotname, sizeof(fontslot[slotnum].slotname));
+			Q_strncpyz(fontslot[slotnum].facename, facename, sizeof(fontslot[slotnum].facename));
+			for (i = 0; i < fontslot[slotnum].sizes; i++)
+			{
+				if (fontslot[slotnum].font[i])
+					Font_Free(fontslot[slotnum].font[i]);
+				fontslot[slotnum].font[i] = NULL;
+			}
+			fontslot[slotnum].owner = 0;
+		}
+		if (!*facename)
+			return;
+		fontslot[slotnum].owner |= kdm_console;	//fonts owned by the console are never forgotten.
+		
+		while(sizenum < Cmd_Argc())
+		{
+			int sz = atoi(Cmd_Argv(sizenum++));
+			if (sz <= 0)
+				sz = 8;
+
+			for (i = 0; i < fontslot[slotnum].sizes; i++)
+			{
+				if (fontslot[slotnum].size[i] == sz)
+					break;
+			}
+			if (i == fontslot[slotnum].sizes)
+			{
+				if (i >= FONT_SIZES)
+					break;
+				fontslot[slotnum].size[i] = sz;
+				if (qrenderer == QR_NONE)
+					fontslot[slotnum].font[i] = NULL;
+				else
+					fontslot[slotnum].font[i] = Font_LoadFont(fontslot[slotnum].size[i], facename);
+				fontslot[slotnum].sizes++;
+			}
+		}
+	}
 }
 
 void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -696,7 +813,7 @@ void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		fontsize *= world->g.drawfontscale[1];
 	}
 
-	Con_DrawOneConsole(con, PR_CL_ChooseFont(world, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
+	Con_DrawOneConsole(con, PR_CL_ChooseFont(world->g.drawfont, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
 }
 qboolean Key_Console (console_t *con, unsigned int unicode, int key);
 void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
@@ -1715,7 +1832,7 @@ void MP_Shutdown (void)
 	PR_Common_Shutdown(menu_world.progs, false);
 	menu_world.progs->CloseProgs(menu_world.progs);
 	memset(&menu_world, 0, sizeof(menu_world));
-	PR_ResetFonts(true);
+	PR_ResetFonts(kdm_menu);
 
 #ifdef CL_MASTER
 	Master_ClearMasks();
@@ -1960,6 +2077,7 @@ void MP_RegisterCvarsAndCmds(void)
 	Cmd_AddCommand("menu_restart", MP_Reload_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
+	Cmd_AddCommand("loadfont", CL_LoadFont_f);
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);

@@ -1167,14 +1167,14 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 qboolean csqc_rebuildmatricies;
 float csqc_proj_matrix[16];
 float csqc_proj_matrix_inverse[16];
-void V_ApplyAFov(void);
+void V_ApplyAFov(playerview_t *pv);
 void buildmatricies(void)
 {
 	float modelview[16];
 	float proj[16];
+	float ofovx = r_refdef.fov_x,ofovy=r_refdef.fov_y;
 
-	if (r_refdef.dirty & RDFD_FOV)
-		V_ApplyAFov();
+	V_ApplyAFov(csqc_playerview);
 
 	/*build modelview and projection*/
 	Matrix4x4_CM_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
@@ -1187,6 +1187,9 @@ void buildmatricies(void)
 	Matrix4_Invert(csqc_proj_matrix, csqc_proj_matrix_inverse);
 
 	csqc_rebuildmatricies = false;
+
+	r_refdef.fov_x = ofovx,
+	r_refdef.fov_y = ofovy;
 }
 static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2102,6 +2105,31 @@ static void QCBUILTIN PF_objerror (pubprogfuncs_t *prinst, struct globalvars_s *
 static void QCBUILTIN PF_cs_setsensativityscaler (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	in_sensitivityscale = G_FLOAT(OFS_PARM0);
+}
+
+static void QCBUILTIN PF_cs_boxparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int effectnum = CL_TranslateParticleFromServer(G_FLOAT(OFS_PARM0));
+	csqcedict_t *ent	= (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+	float *org_from		= G_VECTOR(OFS_PARM2);
+	float *org_to		= G_VECTOR(OFS_PARM3);
+	float *vel_from		= G_VECTOR(OFS_PARM4);
+	float *vel_to		= G_VECTOR(OFS_PARM5);
+	float count			= G_FLOAT(OFS_PARM6);
+	int flags			= (prinst->callargc < 7)?0:G_FLOAT(OFS_PARM7);
+
+	if (flags & 128)
+	{
+		flags &= ~128;
+		P_ParticleTrail(org_from, org_to, effectnum, 0, NULL);
+	}
+	else
+	{
+		P_RunParticleCube(effectnum, org_from, org_to, vel_from, vel_to, count, 0, true, 0);
+	}
+
+	if (flags)
+		Con_DPrintf("PF_cs_boxparticles: flags & %x is not supported\n", flags);
 }
 
 static void QCBUILTIN PF_cs_pointparticles (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3295,7 +3323,7 @@ static void QCBUILTIN PF_cl_te_particlecube (pubprogfuncs_t *prinst, struct glob
 	float gravity = G_FLOAT(OFS_PARM5);
 	float jitter = G_FLOAT(OFS_PARM6);
 
-	P_RunParticleCube(minb, maxb, vel, howmany, color, gravity, jitter);
+	P_RunParticleCube(P_INVALID, minb, maxb, vel, vel, howmany, color, gravity, jitter);
 }
 static void QCBUILTIN PF_cl_te_spark (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4111,7 +4139,31 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 	}
 }
 
+static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	extern cvar_t cl_forcesplitclient;
+	Con_DPrintf("Warning: V_CalcRefdef (builtin 640) not implemented.\n");
+//	if (ent->xv->entnum >= 1 && ent->xv->entnum <= MAX_CLIENTS)
+//		CSQC_ChangeLocalPlayer(ent->xv->entnum-1);
 
+	csqc_rebuildmatricies = true;
+
+	CL_DecayLights ();
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
+	skel_dodelete(csqcprogs);
+#endif
+	CL_ClearEntityLists();
+
+	V_ClearRefdef(csqc_playerview);
+	r_refdef.drawsbar = false;	//csqc defaults to no sbar.
+	csqc_addcrosshair = false;
+
+	VectorCopy(ent->v->origin, csqc_playerview->simorg);
+
+	V_CalcRefdef(csqc_playerview);	//set up the defaults
+}
 
 #if 1
 //static void QCBUILTIN PF_ReadServerEntityState(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4275,9 +4327,6 @@ static void QCBUILTIN PF_ReadServerEntityState(pubprogfuncs_t *prinst, struct gl
 //PF_ - common, works on any vm
 //PF_cs_ - works in csqc only (dependant upon globals or fields)
 //PF_cl_ - works in csqc and menu (if needed...)
-
-//these are the builtins that still need to be added.
-#define PS_cs_setattachment		PF_Fixme
 
 //warning: functions that depend on globals are bad, mkay?
 static struct {
@@ -4466,7 +4515,7 @@ static struct {
 	{"shaderforname",			PF_shaderforname,	238},	// #238
 	{"te_bloodqw",				PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
 
-//	{"checkpvs",				PF_checkpvs,		240},
+	{"checkpvs",				PF_checkpvs,		240},
 //	{"matchclientname",			PF_matchclient,		241},
 	{"sendpacket",				PF_NoCSQC,			242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
 
@@ -4694,7 +4743,7 @@ static struct {
 	{"clientcommand",			PF_NoCSQC,			440},		// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
 	{"tokenize",				PF_Tokenize,		441},		// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",					PF_ArgV,			442},		// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"setattachment",			PS_cs_setattachment,443},		// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
+	{"setattachment",			PF_setattachment,	443},		// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
 	{"search_begin",			PF_search_begin,	444},		// #444 float	search_begin(string pattern, float caseinsensitive, float quiet) (DP_QC_FS_SEARCH)
 
 	{"search_end",				PF_search_end,			445},	// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
@@ -4799,7 +4848,7 @@ static struct {
 //DP_SV_WRITEPICTURE
 	{"WritePicture",			PF_ReadPicture,				501},	// #501 void(float to, string s, float sz) WritePicture
 
-//	{"boxparticles",			PF_Fixme,					502},
+	{"boxparticles",			PF_cs_boxparticles,			502},
 
 //DP_QC_WHICHPACK
 	{"whichpack",				PF_whichpack,				503},	// #503 string(string filename) whichpack
@@ -4872,7 +4921,8 @@ static struct {
 	{"getbindmaps",				PF_cl_GetBindMap,			631},
 	{"setbindmaps",				PF_cl_SetBindMap,			632},
 
-	{"digest_hex",				PF_digest_hex,		639},
+	{"digest_hex",				PF_digest_hex,				639},
+	{"V_CalcRefdef",			PF_V_CalcRefdef,			640},
 
 	{NULL}
 };
@@ -5056,7 +5106,7 @@ void CSQC_Shutdown(void)
 	{
 		key_dest_absolutemouse &= ~kdm_game;
 		CSQC_ForgetThreads();
-		PR_ResetFonts(true);
+		PR_ResetFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
 		csqcprogs->CloseProgs(csqcprogs);
 	}
@@ -5695,6 +5745,46 @@ void CSQC_CvarChanged(cvar_t *var)
 	}
 }
 
+//evil evil function. calling qc from inside the renderer is BAD.
+qboolean CSQC_SetupToRenderPortal(int entkeynum)
+{
+#ifdef TEXTEDITOR
+	extern qboolean editormodal;
+	if (editormodal)
+		return false;
+#endif
+
+	if (csqcprogs && entkeynum < 0)
+	{
+		csqcedict_t *e = (void*)EDICT_NUM(csqcprogs, -entkeynum);
+		if (e->xv->camera_transform)
+		{
+			int oself = *csqcg.self;
+			void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+			*csqcg.self = EDICT_TO_PROG(csqcprogs, e);
+			VectorCopy(r_refdef.vieworg, G_VECTOR(OFS_PARM0));
+			VectorAngles(vpn, vup, G_VECTOR(OFS_PARM1));
+			VectorCopy(vpn, csqcg.forward);
+			VectorCopy(vright, csqcg.right);
+			VectorCopy(vup, csqcg.up);
+			VectorCopy(r_refdef.vieworg/*r_refdef.pvsorigin*/, csqcg.trace_endpos);
+
+			PR_ExecuteProgram (csqcprogs, e->xv->camera_transform);
+
+			VectorCopy(csqcg.forward, vpn);
+			VectorCopy(csqcg.right, vright);
+			VectorCopy(csqcg.up, vup);
+			VectorCopy(G_VECTOR(OFS_RETURN), r_refdef.vieworg);
+			VectorCopy(csqcg.trace_endpos, r_refdef.pvsorigin);
+
+			*csqcg.self = oself;
+			return true;
+		}
+	}
+	return false;
+}
+
 qboolean CSQC_DrawView(void)
 {
 	int ticlimit = 10;
@@ -6304,10 +6394,10 @@ void CSQC_ParseEntities(void)
 				if (msg_readcount != packetstart+packetsize)
 				{
 					if (msg_readcount > packetstart+packetsize)
-						Con_Printf("CSQC overread entity %i. Size %i, read %i\n", entnum, packetsize, msg_readcount - packetsize);
+						Con_Printf("CSQC overread entity %i. Size %i, read %i", entnum, packetsize, msg_readcount - packetstart);
 					else
-						Con_Printf("CSQC underread entity %i. Size %i, read %i\n", entnum, packetsize, msg_readcount - packetsize);
-					Con_Printf("First byte is %i\n", net_message.data[msg_readcount]);
+						Con_Printf("CSQC underread entity %i. Size %i, read %i", entnum, packetsize, msg_readcount - packetstart);
+					Con_Printf(", first byte is %i(%x)\n", net_message.data[msg_readcount], net_message.data[msg_readcount]);
 #ifndef CLIENTONLY
 					if (sv.state)
 					{

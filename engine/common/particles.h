@@ -130,7 +130,7 @@ typedef struct {
 	int (*ParticleTrail) (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk);
 	int (*RunParticleEffectState) (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk);
 	void (*RunParticleWeather) (vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname);
-	void (*RunParticleCube) (vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter);
+	void (*RunParticleCube) (int typenum, vec3_t minb, vec3_t maxb, vec3_t dir_min, vec3_t dir_max, float count, int colour, qboolean gravity, float jitter); //typenum may be P_INVALID
 	void (*RunParticleEffect) (vec3_t org, vec3_t dir, int color, int count);
 	void (*RunParticleEffect2) (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count);
 	void (*RunParticleEffect3) (vec3_t org, vec3_t box, int color, int effect, int count);

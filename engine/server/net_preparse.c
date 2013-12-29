@@ -578,6 +578,7 @@ static int multicasttype;
 static int requireextension;
 static qboolean ignoreprotocol;
 static int te_515sevilhackworkaround;
+qboolean ssqc_deprecated_warned;
 
 #define svc_setfrags 14
 #define svc_updatecolors 17
@@ -761,17 +762,19 @@ void NPP_NQFlush(void)
 		default:
 			if (te_515sevilhackworkaround)
 			{
-				/*shift the data up by two bytes, but don't care about the first byte*/
-				memmove(buffer+3, buffer+1, bufferlen-1);
+				if (sv.csqcdebug)
+				{
+					/*shift the data up by two bytes, but don't care about the first byte*/
+					memmove(buffer+3, buffer+1, bufferlen-1);
 
+					/*add a length in the 2nd/3rd bytes, if needed*/
+					buffer[1] = (bufferlen-1);
+					buffer[2] = (bufferlen-1) >> 8;
+
+					bufferlen += 2;
+				}
 				/*replace the svc itself*/
 				buffer[0] = svcfte_cgamepacket;
-
-				/*add a length in the 2nd/3rd bytes*/
-				buffer[1] = (bufferlen-1);
-				buffer[2] = (bufferlen-1) >> 8;
-
-				bufferlen += 2;
 			}
 			break;
 		case TENQ_EXPLOSION2:	//happens with rogue.
@@ -985,6 +988,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 3;
 			ignoreprotocol = true;
 			break;
+		case svcfte_cgamepacket:
+			protocollen = sizeof(buffer);
+			break;
 		default:
 			Con_DPrintf("NQWriteByte: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);
@@ -1131,8 +1137,14 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				else
 				{
 					te_515sevilhackworkaround = true;
-					Con_Printf("NQWriteByte: unknown tempentity %i\n", data);
-					PR_StackTrace(svprogfuncs);
+					if (!ssqc_deprecated_warned)
+					{
+						ssqc_deprecated_warned = true;
+						Con_Printf("NQWriteByte: invalid tempentity %i. Future errors will be dprinted. You may need to enable sv_csqcdebug.\n", data);
+						PR_StackTrace(svprogfuncs);
+					}
+					else
+						Con_DPrintf("NQWriteByte: unknown tempentity %i\n", data);
 				}
 				break;
 			}
@@ -1843,6 +1855,9 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_setpause:
 			protocollen = 2;
+			break;
+		case svcfte_cgamepacket:
+			protocollen = sizeof(buffer);
 			break;
 		default:
 			Con_DPrintf("QWWriteByte: bad protocol %i\n", (int)data);

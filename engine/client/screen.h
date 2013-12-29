@@ -115,9 +115,10 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 int Font_LineWidth(conchar_t *start, conchar_t *end);
 float Font_LineScaleWidth(conchar_t *start, conchar_t *end);
 void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end);
-extern struct font_s *font_conchar;
+extern struct font_s *font_default;
+extern struct font_s *font_console;
 extern struct font_s *font_tiny;
-void PR_ResetFonts(qboolean purge);	//for menu/csqc
+void PR_ResetFonts(unsigned int purgeowner);	//for menu/csqc
 /*end fonts*/
 
 void R_NetgraphInit(void);

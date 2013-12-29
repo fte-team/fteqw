@@ -97,7 +97,7 @@ QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
 //QCC_def_t	*def_for_type[9] = {&def_void, &def_string, &def_float, &def_vector, &def_entity, &def_field, &def_function, &def_pointer, &def_integer};
 
-void QCC_PR_LexWhitespace (void);
+void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 
 
 
@@ -747,7 +747,7 @@ pbool QCC_PR_Precompiler(void)
 
 			while(1)
 			{
-				QCC_PR_LexWhitespace();
+				QCC_PR_LexWhitespace(false);
 				if (!QCC_PR_SimpleGetToken())
 				{
 					if (!*pr_file_p)
@@ -1488,7 +1488,7 @@ void QCC_PR_LexString (void)
 			if (len >= sizeof(pr_immediate_string)-1)
 				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
 
-			QCC_PR_LexWhitespace();
+			QCC_PR_LexWhitespace(false);
 			if (*pr_file_p == '\"')	//have annother go
 			{
 				pr_file_p++;
@@ -1835,11 +1835,11 @@ void QCC_PR_LexVector (void)
 	}
 	pr_token_type = tt_immediate;
 	pr_immediate_type = type_vector;
-	QCC_PR_LexWhitespace ();
+	QCC_PR_LexWhitespace (false);
 	for (i=0 ; i<3 ; i++)
 	{
 		pr_immediate.vector[i] = QCC_PR_LexFloat ();
-		QCC_PR_LexWhitespace ();
+		QCC_PR_LexWhitespace (false);
 
 		if (*pr_file_p == '\'' && i == 1)
 		{
@@ -1920,7 +1920,7 @@ void QCC_PR_LexPunctuation (void)
 PR_LexWhitespace
 ==============
 */
-void QCC_PR_LexWhitespace (void)
+void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 {
 	int		c;
 
@@ -1932,7 +1932,8 @@ void QCC_PR_LexWhitespace (void)
 			if (c=='\n')
 			{
 				pr_file_p++;
-				QCC_PR_NewLine (false);
+				if (!inhibitpreprocessor)
+					QCC_PR_NewLine (false);
 				if (!pr_file_p)
 					return;
 			}
@@ -1950,7 +1951,8 @@ void QCC_PR_LexWhitespace (void)
 
 			if (*pr_file_p == '\n')
 				pr_file_p++;	//don't break on eof.
-			QCC_PR_NewLine(false);
+			if (!inhibitpreprocessor)
+				QCC_PR_NewLine(false);
 			continue;
 		}
 
@@ -1962,7 +1964,8 @@ void QCC_PR_LexWhitespace (void)
 			{
 				if (pr_file_p[0]=='\n')
 				{
-					QCC_PR_NewLine(true);
+					if (!inhibitpreprocessor)
+						QCC_PR_NewLine(true);
 				}
 				if (pr_file_p[1] == 0)
 				{
@@ -2274,6 +2277,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 
 	cnst->used = false;
 	cnst->numparams = 0;
+	cnst->evil = false;
 	strcpy(cnst->name, name);
 	cnst->namelen = strlen(name);
 	cnst->value = cnst->name + strlen(cnst->name);
@@ -2323,27 +2327,43 @@ void QCC_PR_ConditionCompilation(void)
 
 	if (*pr_file_p == '(')
 	{
-		s = pr_file_p+1;
-		while(*pr_file_p++)
+		pr_file_p++;
+		while(qcc_iswhitesameline(*pr_file_p))
+			pr_file_p++;
+		s = pr_file_p;
+		for (;;)
 		{
-			if (*pr_file_p == ',')
+			if (*pr_file_p == ',' || *pr_file_p == ')')
 			{
+				int nl;
+				nl = pr_file_p-s;
+				while(qcc_iswhitesameline(s[nl]))
+					nl--;
 				if (cnst->numparams >= MAXCONSTANTPARAMS)
 					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
-				strncpy(cnst->params[cnst->numparams], s, pr_file_p-s);
-				cnst->params[cnst->numparams][pr_file_p-s] = '\0';
-				cnst->numparams++;
-				pr_file_p++;
+				if (nl >= MAXCONSTANTPARAMLENGTH)
+					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "parameter name is too long (max %i)", MAXCONSTANTPARAMLENGTH);
+				if (nl == 3 && s[0] == '.' && s[1] == '.' && s[2] == '.')
+				{
+					cnst->varg = true;
+					if (*pr_file_p != ')')
+						QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "varadic argument must be last");
+				}
+				else
+				{
+					memcpy(cnst->params[cnst->numparams], s, nl);
+					cnst->params[cnst->numparams][nl] = '\0';
+					cnst->numparams++;
+				}
+				if (*pr_file_p++ == ')')
+					break;
+				while(qcc_iswhitesameline(*pr_file_p))
+					pr_file_p++;
 				s = pr_file_p;
 			}
-			if (*pr_file_p == ')')
+			if(!*pr_file_p++)
 			{
-				if (cnst->numparams >= MAXCONSTANTPARAMS)
-					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
-				strncpy(cnst->params[cnst->numparams], s, pr_file_p-s);
-				cnst->params[cnst->numparams][pr_file_p-s] = '\0';
-				cnst->numparams++;
-				pr_file_p++;
+				QCC_PR_ParseError(ERR_EXPECTED, "missing ) in macro parameter list", MAXCONSTANTPARAMS);
 				break;
 			}
 		}
@@ -2402,8 +2422,10 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 					;
 				if (*exploitcheck == '#')
 				{
-					QCC_PR_ParseWarning(WARN_EVILPREPROCESSOR, "preprocessor directive within preprocessor macro %s", cnst->name);
 					*d++ = '\n';
+					if (!cnst->evil)
+						QCC_PR_ParseWarning(WARN_EVILPREPROCESSOR, "preprocessor directive within preprocessor macro %s", cnst->name);
+					cnst->evil = true;
 					preprocessorhack = true;
 				}
 				else if (preprocessorhack)
@@ -2417,9 +2439,28 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 		{
 			break;
 		}
-
-		if (!quote && s[0]=='/'&&(s[1]=='/'||s[1]=='*'))
-			break;
+		if (!quote && s[0]=='/'&&s[1]=='/')
+			break;	//c++ style comments can just be ignored
+		if (!quote && s[0]=='/'&&s[1]=='*')
+		{	//multi-line c style comments become part of the define itself. this also negates the need for \ at the end of lines.
+			//although we don't bother embedding.
+			s+=2;
+			for(;;)
+			{
+				if (!s[0])
+				{
+					QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "EOF inside quote in define %s", cnst->name);
+					break;
+				}
+				if (s[0]=='*'&&s[1]=='/')
+				{
+					s+=2;
+					break;
+				}
+				s++;
+			}
+			continue;
+		}
 		if (*s == '\"')
 			quote=!quote;
 
@@ -2542,8 +2583,7 @@ int QCC_PR_CheckCompConst(void)
 				int plevel=0;
 
 				pr_file_p++;
-				while(*pr_file_p == ' ' || *pr_file_p == '\t')
-					pr_file_p++;
+				QCC_PR_LexWhitespace(false);
 				start = pr_file_p;
 				while(1)
 				{
@@ -2558,25 +2598,27 @@ int QCC_PR_CheckCompConst(void)
 						plevel++;
 					else if (!plevel && (*pr_file_p == ',' || *pr_file_p == ')'))
 					{
-						paramoffset[param++] = start;
-						start = pr_file_p+1;
-						if (*pr_file_p == ')')
+						if (*pr_file_p == ',' && c->varg && param >= c->numparams)
+							;	//skip extra trailing , arguments if we're varging.
+						else
 						{
+							paramoffset[param++] = start;
+							start = pr_file_p+1;
+							if (*pr_file_p == ')')
+							{
+								*pr_file_p = '\0';
+								pr_file_p++;
+								break;
+							}
 							*pr_file_p = '\0';
 							pr_file_p++;
-							break;
+							QCC_PR_LexWhitespace(false);
+							start = pr_file_p;
+							// move back by one char because we move forward by one at the end of the loop
+							pr_file_p--;
+							if (param == MAXCONSTANTPARAMS || param > c->numparams)
+								QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
 						}
-						*pr_file_p = '\0';
-						pr_file_p++;
-						while(*pr_file_p == ' ' || *pr_file_p == '\t')
-						{
-							pr_file_p++;
-							start++;
-						}
-						// move back by one char because we move forward by one at the end of the loop
-						pr_file_p--;
-						if (param == MAXCONSTANTPARAMS)
-							QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
 					} else if (*pr_file_p == ')' )
 						plevel--;
 					else if(*pr_file_p == '\n')
@@ -2601,12 +2643,13 @@ int QCC_PR_CheckCompConst(void)
 				{
 					whitestart = bufferlen;
 					starttok = pr_file_p;
-					while(qcc_iswhite(*pr_file_p))	//copy across whitespace
+					/*while(qcc_iswhite(*pr_file_p))	//copy across whitespace
 					{
 						if (!*pr_file_p)
 							break;
 						pr_file_p++;
-					}
+					}*/
+					QCC_PR_LexWhitespace(true);
 					if (starttok != pr_file_p)
 					{
 						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   starttok, pr_file_p - starttok);
@@ -2653,7 +2696,8 @@ int QCC_PR_CheckCompConst(void)
 							{
 								QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "#", 1);
 								QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   qcc_token, strlen(qcc_token));
-								//QCC_PR_ParseWarning(0, "Stringification ignored");
+								if (!c->evil)
+									QCC_PR_ParseWarning(0, "'#' is not followed by a macro parameter in %s", c->name);
 							}
 							continue;	//already did this one
 						}
@@ -2663,7 +2707,7 @@ int QCC_PR_CheckCompConst(void)
 					if (!pr_file_p)
 						break;
 
-					for (p = 0; p < param; p++)
+					for (p = 0; p < c->numparams; p++)
 					{
 						if (!STRCMP(qcc_token, c->params[p]))
 						{
@@ -2671,7 +2715,9 @@ int QCC_PR_CheckCompConst(void)
 							break;
 						}
 					}
-					if (p == param)
+					if (c->varg && !STRCMP(qcc_token, "__VA_ARGS__"))
+						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[c->numparams], strlen(paramoffset[c->numparams]));
+					else if (p == c->numparams)
 						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   qcc_token, strlen(qcc_token));
 				}
 
@@ -2863,7 +2909,7 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	QCC_PR_LexWhitespace ();
+	QCC_PR_LexWhitespace (false);
 
 	pr_token_line_last = pr_token_line;
 	pr_token_line = pr_source_line;
@@ -2975,18 +3021,26 @@ void QCC_PR_Lex (void)
 
 //=============================================================================
 
-
+pbool QCC_Temp_Describe(QCC_def_t *def, char *buffer, int buffersize);
 void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 {
 	if (!qccwarningaction[type])
 		return;
 	if (def->s_file)
 	{
-		char buffer[512];
-		if (flag_msvcstyle)
-			printf ("%s(%i) :    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, buffer, sizeof(buffer)), def->name);
+		char tybuffer[512];
+		char tmbuffer[512];
+		if (QCC_Temp_Describe(def, tmbuffer, sizeof(tmbuffer)))
+		{
+			printf ("%s:%i:    (%s)(%s)\n", strings + def->s_file, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), tmbuffer);
+		}
 		else
-			printf ("%s:%i:    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, buffer, sizeof(buffer)), def->name);
+		{
+			if (flag_msvcstyle)
+				printf ("%s(%i) :    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
+			else
+				printf ("%s:%i:    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
+		}
 	}
 }
 void *errorscope;
@@ -3418,6 +3472,8 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 		return 1;
 	if (a->vargs != b->vargs)
 		return 1;
+	if (a->vargcount != b->vargcount)
+		return 1;
 
 	if (a->size != b->size)
 		return 1;
@@ -3459,6 +3515,9 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 			return 1;
 	}
 	else if (a->size != b->size)
+		return 1;
+
+	if (a->vargcount != b->vargcount)
 		return 1;
 
 	t = a->num_parms;
@@ -3714,6 +3773,7 @@ char	pr_parm_names[MAX_PARMS+MAX_EXTRA_PARMS][MAX_NAME];
 #else
 char	pr_parm_names[MAX_PARMS][MAX_NAME];
 #endif
+char *pr_parm_argcount_name;
 
 int recursivefunctiontype;
 
@@ -3734,6 +3794,8 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 	ftype->aux_type = returntype;	// return type
 	ftype->num_parms = 0;
 
+	if (definenames)
+		pr_parm_argcount_name = NULL;
 
 	if (!QCC_PR_CheckToken (")"))
 	{
@@ -3788,7 +3850,22 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			numparms++;
 		} while (QCC_PR_CheckToken (","));
 
-		QCC_PR_Expect (")");
+		if (ftype->vargs)
+		{
+			if (!QCC_PR_CheckToken (")"))
+			{
+				name = QCC_PR_ParseName();
+				if (definenames)
+				{
+					pr_parm_argcount_name = qccHunkAlloc(strlen(name)+1);
+					strcpy(pr_parm_argcount_name, name);
+				}
+				ftype->vargcount = true;
+				QCC_PR_Expect (")");
+			}
+		}
+		else
+			QCC_PR_Expect (")");
 	}
 	ftype->num_parms = numparms;
 	ftype->params = qccHunkAlloc(sizeof(*ftype->params) * numparms);
@@ -3812,6 +3889,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 	ftype->aux_type = returntype;	// return type
 	ftype->num_parms = 0;
 
+	pr_parm_argcount_name = NULL;
 
 	if (!QCC_PR_CheckToken (")"))
 	{

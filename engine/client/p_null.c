@@ -15,7 +15,7 @@ static int PNULL_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float coun
 static int PNULL_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk){return 1;}
 static int PNULL_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk){return 1;}
 static void PNULL_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname){}
-static void PNULL_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter){}
+static void PNULL_RunParticleCube(int typenum, vec3_t minb, vec3_t maxb, vec3_t dir_min, vec3_t dir_max, float count, int colour, qboolean gravity, float jitter){}
 static void PNULL_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count){}
 static void PNULL_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count){}
 static void PNULL_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int effect, int count){}

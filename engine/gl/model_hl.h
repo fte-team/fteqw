@@ -224,6 +224,8 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
     int bones;
     int bonectls;
 	int shaders;
+	short *skins;
+	int numskins;
 } hlmodelcache_t;
 
 /* HL mathlib prototypes: */

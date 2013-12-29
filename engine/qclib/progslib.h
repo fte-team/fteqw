@@ -256,7 +256,7 @@ typedef union eval_s
 #define PR_SaveEnts(pf, buf, size, maxsize, mode)			(*pf->save_ents)			(pf, buf, size, maxsize, mode)
 
 #define EDICT_NUM(pf, num)									(*pf->EDICT_NUM)			(pf, num)
-#define NUM_FOR_EDICT(pf, e)								(*pf->NUM_FOR_EDICT)		(pf, e)
+#define NUM_FOR_EDICT(pf, e)								(*pf->NUM_FOR_EDICT)		(pf, (struct edict_s*)(e))
 #define SetGlobalEdict(pf, ed, ofs)							(*pf->SetGlobalEdict)		(pf, ed, ofs)
 #define PR_VarString(pf,first)								(*pf->VarString)			(pf,first)
 

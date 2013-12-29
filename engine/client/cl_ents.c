@@ -1624,6 +1624,19 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		model = ps->modelindex;
 
 		CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpents[parenttagent]);
+
+		/*inherit certain properties from the parent entity*/
+		if (ps->dpflags & RENDER_VIEWMODEL)
+			ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+		if ((ps->dpflags & RENDER_EXTERIORMODEL) || r_refdef.playerview->viewentity == ps->number)
+			ent->flags |= Q2RF_EXTERNALMODEL;
+
+		if (ent->playerindex == -1 && ps->colormap > 0 && ps->colormap <= cl.allocated_client_slots)
+		{
+			ent->playerindex = ps->colormap-1;
+			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;
+			ent->bottomcolour = cl.players[ent->playerindex].tbottomcolor;
+		}
 	}
 	else
 	{

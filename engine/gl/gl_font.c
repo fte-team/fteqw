@@ -24,7 +24,8 @@ int Font_DrawChar(int px, int py, unsigned int charcode);
 float Font_DrawScaleChar(float px, float py, unsigned int charcode); /*avoid using*/
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
-struct font_s *font_conchar;
+struct font_s *font_default;
+struct font_s *font_console;
 struct font_s *font_tiny;
 extern unsigned int r2d_be_flags;
 
@@ -171,8 +172,8 @@ static const char *imgs[] =
 
 typedef struct ftfontface_s
 {
-	struct ftfontface_s *next;
-	struct ftfontface_s **link;	//like prev, but not.
+	struct ftfontface_s *fnext;
+	struct ftfontface_s **flink;	//like prev, but not.
 	char name[MAX_OSPATH];
 	int refs;
 	int activeheight;	//needs reconfiguring when different sizes are used
@@ -703,7 +704,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 	if (f->ftfaces == MAX_FTFACES)
 		return false;
 
-	for (qface = ftfaces; qface; qface = qface->next)
+	for (qface = ftfaces; qface; qface = qface->fnext)
 	{
 		if (!strcmp(qface->name, fontfilename))
 		{
@@ -814,9 +815,11 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		{
 			/*success!*/
 			qface = Z_Malloc(sizeof(*qface));
-			qface->link = &ftfaces;
-			qface->next = *qface->link;
-			*qface->link = qface;
+			qface->flink = &ftfaces;
+			qface->fnext = *qface->flink;
+			*qface->flink = qface;
+			if (qface->fnext)
+				qface->fnext->flink = &qface->fnext;
 			qface->face = face;
 			qface->membuf = fbase;
 			qface->refs++;
@@ -1336,9 +1339,9 @@ void Font_Free(struct font_s *f)
 				pFT_Done_Face(qface->face);
 			if (qface->membuf)
 				BZ_Free(qface->membuf);
-			*qface->link = qface->next;
-			if (qface->next)
-				qface->next->link = qface->link;
+			*qface->flink = qface->fnext;
+			if (qface->fnext)
+				qface->fnext->flink = qface->flink;
 			Z_Free(qface);
 		}
 	}

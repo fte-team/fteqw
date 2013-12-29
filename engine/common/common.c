@@ -2062,7 +2062,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 			if (*error == 4)
 			{
 				*out = lowend;
-				uc = (((uc&0x3ffu) << 10) || (lowsur&0x3ffu)) + 0x10000;
+				uc = (((uc&0x3ffu) << 10) | (lowsur&0x3ffu)) + 0x10000;
 				*error = false;
 			}
 			else
@@ -2115,7 +2115,7 @@ unsigned int unicode_decode(int *error, const void *in, char **out)
 	{	//quake
 		*error = 0;
 		charcode = *(unsigned char*)in;
-		if (charcode != '\n' && charcode != '\t' && charcode != '\r' && (charcode < ' ' || charcode > 127))
+		if (charcode && charcode != '\n' && charcode != '\t' && charcode != '\r' && (charcode < ' ' || charcode > 127))
 			charcode |= 0xe000;
 		*out = (char*)in + 1;
 	}
@@ -2856,6 +2856,27 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 					continue;
 				}
 			}
+			else if (str[1] == 'x')	//RGB colours
+			{
+				if (ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
+				{
+					int r, g, b;
+					r = dehex(str[2]);
+					g = dehex(str[3]);
+					b = dehex(str[4]);
+
+					ext = (ext & ~CON_RICHFOREMASK) | CON_RICHFORECOLOUR;
+					ext |= r<<CON_RICHRSHIFT;
+					ext |= g<<CON_RICHGSHIFT;
+					ext |= b<<CON_RICHBSHIFT;
+
+					if (!keepmarkup)
+					{
+						str += 5;
+						continue;
+					}
+				}
+			}
 			else if (str[1] == '^')
 			{
 				if (keepmarkup)
@@ -2887,8 +2908,6 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 			if (ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
 			{
-				//we don't support the full 12bit colour depth (only 4-bit CGA)
-				//so find the closest that we do support
 				int r, g, b;
 				r = dehex(str[2]);
 				g = dehex(str[3]);

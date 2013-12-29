@@ -97,6 +97,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 
 	#define AVAIL_OPENAL
+	#define AVAIL_FREETYPE
 
 #if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
@@ -132,7 +133,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define BOTLIB_STATIC
 #endif
 
-#define AVAIL_FREETYPE
 #ifdef _WIN32
 //needs testing on other platforms
 //#define AVAIL_OPENAL
@@ -159,8 +159,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(NO_FREETYPE)
 	#undef AVAIL_FREETYPE
 #endif
-
-//#define AVAIL_FREETYPE
 
 //set any additional defines or libs in win32
 	#define SVRANKING

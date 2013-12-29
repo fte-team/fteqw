@@ -96,6 +96,7 @@ char cvargroup_progs[] = "Progs variables";
 
 evalc_t evalc_idealpitch, evalc_pitch_speed;
 
+qboolean ssqc_deprecated_warned;
 int pr_teamfield;
 unsigned int h2infoplaque[2];	/*hexen2 stat*/
 
@@ -1341,6 +1342,8 @@ void Q_InitProgs(void)
 	char *as, *a;
 	progsnum_t prnum, oldprnum=-1;
 	int d1, d2;
+
+	ssqc_deprecated_warned = false;
 
 	QC_Clear();
 
@@ -8659,48 +8662,6 @@ static void QCBUILTIN PF_ChangePic(pubprogfuncs_t *prinst, struct globalvars_s *
 	}
 }
 
-
-
-
-
-int SV_TagForName(int modelindex, char *tagname)
-{
-	model_t *model = SVPR_GetCModel(&sv.world, modelindex);
-	if (!model)
-		return 0;
-
-	return Mod_TagNumForName(model, tagname);
-}
-
-static void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t *e = G_EDICT(prinst, OFS_PARM0);
-	edict_t *tagentity = G_EDICT(prinst, OFS_PARM1);
-	char *tagname = PR_GetStringOfs(prinst, OFS_PARM2);
-
-	model_t *model;
-
-	int tagidx;
-
-	tagidx = 0;
-
-	if (tagentity != (edict_t*)sv.world.edicts && tagname && tagname[0])
-	{
-		model = SVPR_GetCModel(&sv.world, tagentity->v->modelindex);
-		if (model)
-		{
-			tagidx = Mod_TagNumForName(model, tagname);
-			if (tagidx == 0)
-				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
-		}
-		else
-			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname);
-	}
-
-	e->xv->tag_entity = EDICT_TO_PROG(prinst,tagentity);
-	e->xv->tag_index = tagidx;
-}
-
 //the first implementation of this function was (float type, float num, string name)
 //it is now float num, float type, .field
 //EXT_CSQC_1
@@ -8947,21 +8908,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
  		return true;
 	}
 	return false;
-}
-
-qbyte qcpvs[(MAX_MAP_LEAFS+7)/8];
-//#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
-//note: this requires a correctly setorigined entity.
-static void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *viewpos = G_VECTOR(OFS_PARM0);
-	edict_t *ent = G_EDICT(prinst, OFS_PARM1);
-
-	//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
-	//and yeah, this is overkill what with the whole fat thing and all.
-	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
-
-	G_FLOAT(OFS_RETURN) = sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, qcpvs);
 }
 
 //entity(string match [, float matchnum]) matchclient = #241;
@@ -9776,7 +9722,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"putentityfieldstring",PF_putentityfieldstring,0,0,	0,		500,	"float(float fieldnum, entity ent, string s)"},//DP_QC_ENTITYDATA
 	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501,	"void(float to, string s, float sz)"},//DP_SV_WRITEPICTURE
 	{"ReadPicture",		PF_Fixme,			0,		0,		0,		501,	"string()"},//DP_SV_WRITEPICTURE
-//	{"boxparticles",	PF_Fixme,			0,		0,		0,		502,	"void(float effectindex, entity own, vector org_from, vector org_to, vector dir_from, vector dir_to, float countmultiplier, float flags)"},
+	{"boxparticles",	PF_Fixme,			0,		0,		0,		502,	"void(float effectindex, entity own, vector org_from, vector org_to, vector dir_from, vector dir_to, float countmultiplier, optional float flags)"},
 	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	D("string(string filename, optional float makereferenced)", "Returns the pak file name that contains the file specified. progs/player.mdl will generally return something like 'pak0.pak'. If makereferenced is true, clients will automatically be told that the returned package should be pre-downloaded and used, even if allow_download_refpackages is not set.")},//DP_QC_WHICHPACK
 	{"getentity",		PF_Fixme,			0,		0,		0,		504,	"__variant(float entnum, float fieldnum)"},//DP_CSQC_QUERYRENDERENTITY
 //	{"undefined",		PF_Fixme,			0,		0,		0,		505,	""},
@@ -10419,6 +10365,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_StuffCmd",		"noref void(string msg)", CS, "Gives the CSQC a chance to intercept stuffcmds. Use the tokenize builtin to parse the message. Unrecognised commands would normally be localcmded, but its probably better to drop unrecognised stuffcmds completely."},
 		{"CSQC_Parse_CenterPrint",	"noref float(string msg)", CS, "Gives the CSQC a chance to intercept centerprints. Return true if you wish the engine to otherwise ignore the centerprint."},
 		{"CSQC_Parse_Print",		"noref void(string printmsg, float printlvl)", CS, "Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself."},
+		{"CSQC_Parse_Event",		"noref void()", CS, "Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message."},
 		{"CSQC_InputEvent",			"noref float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
 		{"CSQC_Input_Frame",		"noref void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
 		{"CSQC_ConsoleCommand",		"noref float(string cmd)", CS, "Called if the user uses any console command registed via registercommand."},
@@ -10428,7 +10375,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Event_Sound",		"noref float(float entnum, float channel, float soundname, float vol, float attenuation, vector pos, float pitchmod)", CS},
 //		{"CSQC_ServerSound",		"//void()", CS},
 		{"CSQC_LoadResource",		"noref float(string resname, string restype)", CS, "Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called."},
-		{"CSQC_Parse_TempEntity",	"noref float()", CS,	"Please don't use this."},
+		{"CSQC_Parse_TempEntity",	"noref float()", CS,	"Please don't use this. Use CSQC_Parse_Event and multicasts instead."},
 
 		{"GameCommand",				"noref void(string cmdtext)", CS|MENU},
 
@@ -10447,7 +10394,7 @@ void PR_DumpPlatform_f(void)
 		{"FONT_DEFAULT",			"const float", CS|MENU, NULL, 0},
 
 		{"TRUE",					"const float", ALL, NULL, 1},
-		{"FALSE",					"const float", ALL, NULL, 0},
+		{"FALSE",					"const float", ALL, "File not found...", 0},
 
 		{"MOVETYPE_NONE",			"const float", QW|NQ|CS, NULL, MOVETYPE_NONE},
 		{"MOVETYPE_WALK",			"const float", QW|NQ|CS, NULL, MOVETYPE_WALK},
@@ -10460,7 +10407,7 @@ void PR_DumpPlatform_f(void)
 		{"MOVETYPE_BOUNCE",			"const float", QW|NQ|CS, NULL, MOVETYPE_BOUNCE},
 		{"MOVETYPE_BOUNCEMISSILE",	"const float", QW|NQ|CS, NULL, MOVETYPE_BOUNCEMISSILE},
 		{"MOVETYPE_FOLLOW",			"const float", QW|NQ|CS, NULL, MOVETYPE_FOLLOW},
-		{"MOVETYPE_WALLWALK",		"const float", QW|NQ|CS, NULL, MOVETYPE_WALLWALK},
+		{"MOVETYPE_WALLWALK",		"const float", QW|NQ|CS, "Players using this movetype will be able to orient themselves to walls, and then run up them.", MOVETYPE_WALLWALK},
 		{"MOVETYPE_PHYSICS",		"const float", QW|NQ|CS, NULL, MOVETYPE_PHYSICS},
 
 		{"SOLID_NOT",				"const float", QW|NQ|CS, NULL, SOLID_NOT},
@@ -10493,16 +10440,19 @@ void PR_DumpPlatform_f(void)
 		{"CONTENT_SKY",		"const float", QW|NQ|CS, NULL, Q1CONTENTS_SKY},
 		{"CONTENT_LADDER",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_LADDER},
 
-		{"CHAN_AUTO",		"const float", QW|NQ|CS, NULL, CHAN_AUTO},
+		{"CHAN_AUTO",		"const float", QW|NQ|CS, "The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other.", CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},
 		{"CHAN_VOICE",		"const float", QW|NQ|CS, NULL, CHAN_VOICE},
 		{"CHAN_ITEM",		"const float", QW|NQ|CS, NULL, CHAN_ITEM},
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
 
-		{"ATTN_NONE",		"const float", QW|NQ|CS, NULL, ATTN_NONE},
-		{"ATTN_NORM",		"const float", QW|NQ|CS, NULL, ATTN_NORM},
-		{"ATTN_IDLE",		"const float", QW|NQ|CS, NULL, 2},	//including these for completeness, despite them being defined by the gamecode rather than the engine api.
-		{"ATTN_STATIC",		"const float", QW|NQ|CS, NULL, 3},
+		{"ATTN_NONE",		"const float", QW|NQ|CS, "Sounds with this attenuation can be heard throughout the map", ATTN_NONE},
+		{"ATTN_NORM",		"const float", QW|NQ|CS, "Standard attenuation", ATTN_NORM},
+		{"ATTN_IDLE",		"const float", QW|NQ|CS, "Extra attenuation so that sounds don't travel too far.", 2},	//including these for completeness, despite them being defined by the gamecode rather than the engine api.
+		{"ATTN_STATIC",		"const float", QW|NQ|CS, "Even more attenuation to avoid torches drowing out everything else throughout the map.", 3},
+
+		//not putting other svcs here, qc shouldn't otherwise need to generate svcs directly.
+		{"SVC_CGAMEPACKET",		"const float", QW|NQ, "Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads.", svcfte_cgamepacket},
 
 		{"MSG_BROADCAST",		"const float", QW|NQ, NULL, MSG_BROADCAST},
 		{"MSG_ONE",				"const float", QW|NQ, NULL, MSG_ONE},
@@ -10544,9 +10494,9 @@ void PR_DumpPlatform_f(void)
 		{"INFOKEY_P_PROTOCOL",	"const string", QW|NQ, "The network protocol the client is using to connect to the server.", 0, "\"protocol\""},
 		{"INFOKEY_P_MUTED",		"const string", CS, "0: we can see the result of the player's say/say_team commands.   1: we see no say/say_team messages from this player. Use the ignore command to toggle this value.", 0, "\"ignored\""},
 		{"INFOKEY_P_VOIP_MUTED","const string", CS, "0: we can hear this player when they speak (assuming voip is generally enabled). 1: we ignore everything this player says. Use cl_voip_mute to change the values.", 0, "\"vignored\""},
-		{"INFOKEY_P_ENTERTIME",	"const string", CS, NULL, 0, "\"entertime\""},
-		{"INFOKEY_P_FRAGS",		"const string", CS, NULL, 0, "\"frags\""},
-		{"INFOKEY_P_PACKETLOSS","const string", CS, NULL, 0, "\"pl\""},
+		{"INFOKEY_P_ENTERTIME",	"const string", CS, "Reads the timestamp at which the player entered the game, in terms of csqc's time global.", 0, "\"entertime\""},
+		{"INFOKEY_P_FRAGS",		"const string", CS, "Reads a player's frag count.", 0, "\"frags\""},
+		{"INFOKEY_P_PACKETLOSS","const string", CS, "Reads a player's packetloss, as a percentage.", 0, "\"pl\""},
 		{"INFOKEY_P_VOIPSPEAKING","const string", CS, "Boolean value that says whether the given player is currently sending voice information.", 0, "\"voipspeaking\""},
 		{"INFOKEY_P_VOIPLOUDNESS","const string", CS, "Only valid for the local player. Gives a value between 0 and 1 to indicate to the user how loud their mic is.", 0, "\"voiploudness\""},
 
@@ -10572,10 +10522,11 @@ void PR_DumpPlatform_f(void)
 		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, NULL, MOVE_NOMONSTERS},
 		{"MOVE_MISSILE",		"const float", QW|NQ|CS, NULL, MOVE_MISSILE},
 		{"MOVE_HITMODEL",		"const float", QW|NQ|CS, "Traces will impact the actual mesh of the model instead of merely their bounding box. Should generally only be used for tracelines. Note that this flag is unreliable as an object can animate through projectiles. The bounding box MUST be set to completely encompass the entity or those extra areas will be non-solid (leaving a hole for things to go through).", MOVE_HITMODEL},
-		{"MOVE_TRIGGERS",		"const float", QW|NQ|CS, NULL, MOVE_TRIGGERS},
-		{"MOVE_EVERYTHING",		"const float", QW|NQ|CS, NULL, MOVE_EVERYTHING},
+		{"MOVE_TRIGGERS",		"const float", QW|NQ|CS, "This trace type will impact only triggers. It will ignore non-solid entities.", MOVE_TRIGGERS},
+		{"MOVE_EVERYTHING",		"const float", QW|NQ|CS, "This type of trace will hit solids and triggers alike. Even non-solid entities.", MOVE_EVERYTHING},
 		{"MOVE_LAGGED",			"const float", QW|NQ, "Will use antilag based upon the player's latency. Traces will be performed against old positions for entities instead of their current origin.", MOVE_LAGGED},
 		{"MOVE_ENTCHAIN",		"const float", QW|NQ|CS, "Returns a list of entities impacted via the trace_ent.chain field", MOVE_ENTCHAIN},
+		{"MOVE_ONLYENT",		"const float", QW|NQ|CS, "Traces that use this trace type will collide against *only* the entity specified, and will ignore all owner/solid/dimension etc fields, they will still adhere to contents though.", MOVE_ONLYENT},
 
 		{"EF_BRIGHTFIELD",		"const float", QW|NQ|CS, NULL, EF_BRIGHTFIELD},
 		{"EF_MUZZLEFLASH",		"const float",    NQ|CS, NULL, EF_MUZZLEFLASH},
@@ -10610,7 +10561,7 @@ void PR_DumpPlatform_f(void)
 //		{"EV_FUNCTION",			"const float", QW|NQ, NULL, ev_function},
 //		{"EV_POINTER",			"const float", QW|NQ, NULL, ev_pointer},
 		{"EV_INTEGER",			"const float", QW|NQ, NULL, ev_integer},
-//		{"EV_INTEGER",			"const float", QW|NQ, NULL, ev_variant},
+//		{"EV_VARIANT",			"const float", QW|NQ, NULL, ev_variant},
 //		{"EV_STRUCT",			"const float", QW|NQ, NULL, ev_struct},
 //		{"EV_UNION",			"const float", QW|NQ, NULL, ev_union},
 
@@ -10639,21 +10590,21 @@ void PR_DumpPlatform_f(void)
 		{"VF_SIZE",				"const float", CS, NULL, VF_SIZE},
 		{"VF_SIZE_X",			"const float", CS, NULL, VF_SIZE_X},
 		{"VF_SIZE_Y",			"const float", CS, NULL, VF_SIZE_Y},
-		{"VF_VIEWPORT",			"const float", CS, NULL, VF_VIEWPORT},
+		{"VF_VIEWPORT",			"const float", CS, "vector+vector. Two argument shortcut for VF_MIN and VF_SIZE", VF_VIEWPORT},
 		{"VF_FOV",				"const float", CS, "sets both fovx and fovy. consider using afov instead.", VF_FOV},
 		{"VF_FOVX",				"const float", CS, "horizontal field of view. does not consider aspect at all.", VF_FOVX},
 		{"VF_FOVY",				"const float", CS, "vertical field of view. does not consider aspect at all.", VF_FOVY},
-		{"VF_ORIGIN",			"const float", CS, NULL, VF_ORIGIN},
+		{"VF_ORIGIN",			"const float", CS, "The origin of the view. Not of the player.", VF_ORIGIN},
 		{"VF_ORIGIN_X",			"const float", CS, NULL, VF_ORIGIN_X},
 		{"VF_ORIGIN_Y",			"const float", CS, NULL, VF_ORIGIN_Y},
 		{"VF_ORIGIN_Z",			"const float", CS, NULL, VF_ORIGIN_Z},
-		{"VF_ANGLES",			"const float", CS, NULL, VF_ANGLES},
+		{"VF_ANGLES",			"const float", CS, "The angles the view will be drawn at. Not the angle the client reports to the server.", VF_ANGLES},
 		{"VF_ANGLES_X",			"const float", CS, NULL, VF_ANGLES_X},
 		{"VF_ANGLES_Y",			"const float", CS, NULL, VF_ANGLES_Y},
 		{"VF_ANGLES_Z",			"const float", CS, NULL, VF_ANGLES_Z},
-		{"VF_DRAWWORLD",		"const float", CS, NULL, VF_DRAWWORLD},
-		{"VF_DRAWENGINESBAR",	"const float", CS, NULL, VF_ENGINESBAR},
-		{"VF_DRAWCROSSHAIR",	"const float", CS, NULL, VF_DRAWCROSSHAIR},
+		{"VF_DRAWWORLD",		"const float", CS, "boolean. If set to 1, the engine will draw the world and static/persistant rtlights. If 0, the world will be skipped and everything will be fullbright.", VF_DRAWWORLD},
+		{"VF_DRAWENGINESBAR",	"const float", CS, "boolean. If set to 1, the sbar will be drawn, and viewsize will be honoured automatically.", VF_ENGINESBAR},
+		{"VF_DRAWCROSSHAIR",	"const float", CS, "boolean. If set to 1, the engine will draw its default crosshair.", VF_DRAWCROSSHAIR},
 
 		{"VF_CL_VIEWANGLES",	"const float", CS, NULL, VF_CL_VIEWANGLES_V},
 		{"VF_CL_VIEWANGLES_X",	"const float", CS, NULL, VF_CL_VIEWANGLES_X},

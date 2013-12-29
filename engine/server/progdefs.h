@@ -200,10 +200,12 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(fatness,NULL)/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha,NULL)/*DP_ENT_ALPHA*/\
 	comfieldentity(tag_entity,NULL)\
+	comfieldfloat(tag_index,NULL)\
 	comfieldfloat(skeletonindex,NULL)		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod,NULL)\
 	comfieldvector(glowmod,NULL)\
 	comfieldvector(gravitydir,NULL)\
+	comfieldfunction(camera_transform,".vector(vector org, vector ang)", NULL)\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
 	comfieldfloat(friction,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(erp,NULL)/*DP_...PHYSICS*/\
@@ -229,7 +231,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(button7,NULL)\
 	comfieldfloat(button8,NULL)\
 	comfieldfloat(viewzoom,NULL)/*DP_VIEWZOOM*/\
-	comfieldfloat(tag_index,NULL)\
 	comfieldfloat(glow_size,NULL)\
 	comfieldfloat(glow_color,NULL)\
 	comfieldfloat(glow_trail,NULL)\

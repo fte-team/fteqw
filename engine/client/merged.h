@@ -64,6 +64,7 @@ void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic,
 void R2D_TileClear (float x, float y, float w, float h);
 void R2D_FadeScreen (void);
 
+void R2D_Font_Changed(void);
 void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
 void R2D_EditorBackground (void);
 

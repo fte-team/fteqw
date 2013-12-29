@@ -743,7 +743,7 @@ static float sgn(float a)
     if (a < 0.0F) return (-1.0F);
     return (0.0F);
 }
-void R_ObliqueNearClip(mplane_t *wplane)
+void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
 {
 	float f;
 	vec4_t q, c;
@@ -751,9 +751,9 @@ void R_ObliqueNearClip(mplane_t *wplane)
 	vec4_t vplane;
 
 	//convert world plane into view space
-	Matrix4x4_CM_Transform3x3(r_refdef.m_view, wplane->normal, vplane);
+	Matrix4x4_CM_Transform3x3(viewmat, wplane->normal, vplane);
 	VectorScale(wplane->normal, wplane->dist, ping);
-	Matrix4x4_CM_Transform3(r_refdef.m_view, ping, pong);
+	Matrix4x4_CM_Transform3(viewmat, ping, pong);
 	vplane[3] = -DotProduct(pong, vplane);
 
 	// Calculate the clip-space corner point opposite the clipping plane
@@ -776,17 +776,17 @@ void R_ObliqueNearClip(mplane_t *wplane)
 	r_refdef.m_projection[10] = c[2] + 1.0F;
 	r_refdef.m_projection[14] = c[3];
 }
-void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
+void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
 	entity_t *view;
 //	GLdouble glplane[4];
 	plane_t plane;
+	float vmat[16];
 	refdef_t oldrefdef;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
-	int sort;
 	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
 
-	if (r_refdef.recurse)
+	if (r_refdef.recurse >= R_MAX_RECURSE-1)
 		return;
 
 	if (!mesh->normals_array)
@@ -806,14 +806,14 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 		if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist > batch->shader->portaldist)
 			return;
 	}
-	//if we're behind it, then also don't draw anything.
-	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < 0)
+	//if we're behind it, then also don't draw anything. for our purposes, behind is when the entire near clipplane is behind.
+	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < -gl_mindist.value)
 		return;
 
 	TRACE(("GLR_DrawPortal: portal type %i\n", portaltype));
 
 	oldrefdef = r_refdef;
-	r_refdef.recurse = true;
+	r_refdef.recurse+=1;
 
 	r_refdef.externalview = true;
 
@@ -823,6 +823,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 		//fixme: pvs is surely wrong?
 		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 		R_MirrorMatrix(&plane);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 		break;
 	
 	case 2:	/*fbo refraction (fucked depth, working clip plane)*/
@@ -876,10 +877,30 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 			}
 //			memset(newvis, 0xff, pvsbytes);
 		}
+		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 		break;
 
-	default:	/*q3 portal*/
-		if (batch->ent != &r_worldentity)
+	case 0:		/*q3 portal*/
+	default:
+		if (CSQC_SetupToRenderPortal(batch->ent->keynum))
+		{
+			plane_t oplane = plane;
+			float ivmat[16], trmat[16];
+
+			//transform the old surface plane into the new view matrix
+			Matrix4_Invert(r_refdef.m_view, ivmat);
+			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+			Matrix4_Multiply(ivmat, vmat, trmat);
+			plane.normal[0] = (oplane.normal[0] * trmat[0] + oplane.normal[1] * trmat[4] + oplane.normal[2] * trmat[8]);
+			plane.normal[1] = (oplane.normal[0] * trmat[1] + oplane.normal[1] * trmat[5] + oplane.normal[2] * trmat[9]);
+			plane.normal[2] = (oplane.normal[0] * trmat[2] + oplane.normal[1] * trmat[6] + oplane.normal[2] * trmat[10]);
+			plane.dist = -oplane.dist + trmat[12]*oplane.normal[0] + trmat[13]*oplane.normal[1] + trmat[14]*oplane.normal[2];
+
+			VectorNegate(plane.normal, plane.normal);
+			if (Cvar_Get("temp_useplaneclip", "1", 0, "temp")->ival)
+				portaltype = 1;	//make sure the near clipplane is used.
+		}
+		else if (batch->ent != &r_worldentity)
 		{
 			float d;
 			view = batch->ent;
@@ -887,11 +908,13 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 			d-= 0.1;	//nudge it past.
 			VectorAdd(r_refdef.vieworg, view->oldorigin, r_refdef.vieworg);		//trivial offset for the warpzone.
 			VectorMA(r_refdef.vieworg, -d, plane.normal, r_refdef.pvsorigin);	//clip the pvs origin to the plane.
+			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 		}
 		else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 		{
 			r_refdef.flipcull ^= SHADER_CULL_FLIP;
 			R_MirrorMatrix(&plane);
+			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 		}
 		else
 		{
@@ -922,35 +945,23 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 			TransformDir(vpn, paxis, vaxis, vpn);
 			TransformDir(vright, paxis, vaxis, vright);
 			TransformDir(vup, paxis, vaxis, vup);
+			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 		}
 		break;
 	}
-	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
-	VectorAngles(vpn, vup, r_refdef.viewangles);
-	VectorCopy(r_refdef.vieworg, r_origin);
-
-/*FIXME: the batch stuff should be done in renderscene*/
-
-	/*fixup the first mesh index*/
-	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
-	for (batch = blist[sort]; batch; batch = batch->next)
-	{
-		batch->firstmesh = batch->meshes;
-	}
-
-	GL_CullFace(0);
 
 	/*FIXME: can we get away with stenciling the screen?*/
 	/*Add to frustum culling instead of clip planes?*/
-//	if (qglClipPlane)
-//	{
-//		glplane[0] = -plane.normal[0];
-//		glplane[1] = -plane.normal[1];
-//		glplane[2] = -plane.normal[2];
-//		glplane[3] = plane.dist;
-//		qglClipPlane(GL_CLIP_PLANE0, glplane);
-//		qglEnable(GL_CLIP_PLANE0);
-//	}
+/*	if (qglClipPlane)
+	{
+		GLdouble glplane[4];
+		glplane[0] = -plane.normal[0];
+		glplane[1] = -plane.normal[1];
+		glplane[2] = -plane.normal[2];
+		glplane[3] = plane.dist;
+		qglClipPlane(GL_CLIP_PLANE0, glplane);
+		qglEnable(GL_CLIP_PLANE0);
+	}*/
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
 		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = plane.normal[0];
@@ -959,18 +970,56 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 		r_refdef.frustum[r_refdef.frustum_numplanes].dist	= plane.dist + 0.01;
 
 		if (portaltype == 1 || portaltype == 2)
-			R_ObliqueNearClip(&r_refdef.frustum[r_refdef.frustum_numplanes]);
+			R_ObliqueNearClip(vmat, &r_refdef.frustum[r_refdef.frustum_numplanes]);
 		r_refdef.frustum_numplanes++;
 	}
+
+	GL_CullFace(0);
+	if (depthmasklist)
+	{
+		/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
+		/*we can only do this AFTER the oblique perspective matrix is calculated, to avoid depth inconsistancies, while we still have the old view matrix*/
+		int i;
+		batch_t *dmask = NULL;
+		if (qglLoadMatrixf)
+		{
+			qglMatrixMode(GL_PROJECTION);
+			qglLoadMatrixf(r_refdef.m_projection);
+		}
+		currententity = NULL;
+		if (gl_config.arb_depth_clamp)
+			qglEnable(GL_DEPTH_CLAMP_ARB);
+		GL_ForceDepthWritable();
+		GLBE_SelectMode(BEM_DEPTHONLY);
+		for (i = 0; i < 2; i++)
+		{
+			for (dmask = depthmasklist[i]; dmask; dmask = dmask->next)
+			{
+				if (dmask == batch)
+					continue;
+				if (dmask->meshes == dmask->firstmesh)
+					continue;
+				GLBE_SubmitBatch(dmask);
+			}
+		}
+		GLBE_SelectMode(BEM_STANDARD);
+		if (gl_config.arb_depth_clamp)
+			qglDisable(GL_DEPTH_CLAMP_ARB);
+
+		currententity = NULL;
+	}
+
+	//now determine the stuff the backend will use.
+	memcpy(r_refdef.m_view, vmat, sizeof(float)*16);
+	VectorAngles(vpn, vup, r_refdef.viewangles);
+	r_refdef.viewangles[0] *= -1;
+	VectorCopy(r_refdef.vieworg, r_origin);
+
+	//FIXME: R_RenderScene is currently overriding r_refdef.frustum_numplanes and discarding our new near plane, resulting in wasted draw calls.
 	R_RenderScene();
 //	if (qglClipPlane)
 //		qglDisable(GL_CLIP_PLANE0);
 
-	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
-	for (batch = blist[sort]; batch; batch = batch->next)
-	{
-		batch->firstmesh = 0;
-	}
 	r_refdef = oldrefdef;
 
 	/*broken stuff*/
@@ -994,6 +1043,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 #ifdef warningmsg
 #pragma warningmsg("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")
 #endif
+	currententity = NULL;
 }
 
 

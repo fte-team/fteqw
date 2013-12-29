@@ -886,11 +886,11 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 	{
 	case UTF16LE:
 		w = 2;
-		maxperchar = 3;
+		maxperchar = 4;
 		break;
 	case UTF16BE:
 		w = 2;
-		maxperchar = 3;
+		maxperchar = 4;
 		break;
 	case UTF32LE:
 		w = 4;
@@ -910,14 +910,25 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 	{
 		switch(type)
 		{
-		default:
 		case UTF16LE:
-			inc = *inputf++;
-			inc|= (*inputf++)<<8;
-			break;
 		case UTF16BE:
-			inc = (*inputf++)<<8;
-			inc|= *inputf++;
+			inc = inputf[type==UTF16BE];
+			inc|= inputf[type==UTF16LE]<<8;
+			inputf += 2;
+			//handle surrogates
+			if (inc >= 0xd800u && inc < 0xdc00u && i+1 < chars)
+			{
+				unsigned int l;
+
+				l = inputf[type==UTF16BE];
+				l|= inputf[type==UTF16LE]<<8;
+				if (l >= 0xdc00u && l < 0xe000u)
+				{
+					inputf+=2;
+					inc = ((inc & 0x3ffu)<<10) | (l & 0x3ffu) + 0x10000;
+					i++;
+				}
+			}
 			break;
 		case UTF32LE:
 			inc = *inputf++;

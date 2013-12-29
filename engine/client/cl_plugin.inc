@@ -261,9 +261,9 @@ qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr
 	int x, y;
 	if (qrenderer == QR_NONE)
 		return 0;
-	Font_BeginString(font_conchar, arg[0], arg[1], &x, &y);
+	Font_BeginString(font_default, arg[0], arg[1], &x, &y);
 	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000 | (unsigned int)arg[2]);
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 	return 0;
 }
 qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -274,7 +274,7 @@ qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qintptr_t 
 		return 0;
 	COM_ParseFunString(CON_WHITEMASK, VM_POINTER(arg[2]), buffer, sizeof(buffer), false);
 	str = buffer;
-	Font_BeginString(font_conchar, VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), &px, &py);
+	Font_BeginString(font_default, VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), &px, &py);
 	ipx = px;
 	while(*str)
 	{
@@ -286,7 +286,7 @@ qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qintptr_t 
 			px = Font_DrawChar(px, py, *str);
 		str++;
 	}
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 	return 0;
 }
 

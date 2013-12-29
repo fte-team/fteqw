@@ -230,6 +230,7 @@ char *QC_ucase(char *str)
 	return s;
 }
 
+//#define STACKTRACE
 void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 {
 	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
@@ -282,18 +283,18 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 			}
 
 #ifdef STACKTRACE
-
+			if (i == pr_depth)
 			for (arg = 0; arg < f->locals; arg++)
 			{
 				ddef16_t *local;
 				local = ED_GlobalAtOfs16(progfuncs, f->parm_start+arg);
 				if (!local)
 				{
-					printf("    ofs %i: %f : %i\n", f->parm_start+arg, *(float *)(globalbase - f->locals+arg), *(int *)(globalbase - f->locals+arg) );
+					//printf("    ofs %i: %f : %i\n", f->parm_start+arg, *(float *)(globalbase - f->locals+arg), *(int *)(globalbase - f->locals+arg) );
 				}
 				else
 				{
-					printf("    %s: %s\n", local->s_name+progfuncs->stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg)));
+					printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg), false));
 					if (local->type == ev_vector)
 						arg+=2;
 				}
@@ -427,7 +428,7 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsn
 		pr_depth--;
 		PR_StackTrace (&progfuncs->funcs);
 
-		printf ("stack overflow on call to %s\n", progfuncs->funcs.stringtable+f->s_name);
+		printf ("stack overflow on call to %s (depth %i)\n", progfuncs->funcs.stringtable+f->s_name, pr_depth);
 
 		//comment this out if you want the progs to try to continue anyway (could cause infinate loops)
 		PR_AbortStack(&progfuncs->funcs);

@@ -7368,6 +7368,7 @@ void SV_ClientThink (void)
 
 	VectorCopy (sv_player->v->v_angle, v_angle);
 //	VectorAdd (sv_player->v->v_angle, sv_player->v->punchangle, v_angle);
+	//FIXME: gravitydir stuff, the roll value gets destroyed for intents
 	angles[ROLL] = V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
 	if (!sv_player->v->fixangle)
 	{

@@ -37,7 +37,7 @@ qboolean Mod_LoadQ3Model (model_t *mod, void *buffer);
 qboolean Mod_LoadZymoticModel (model_t *mod, void *buffer);
 qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 
-qbyte	mod_novis[MAX_MAP_LEAFS/8];
+qbyte	mod_novis[(MAX_MAP_LEAFS+7)/8];
 
 #define	MAX_MOD_KNOWN	512
 model_t	mod_known[MAX_MOD_KNOWN];
@@ -323,7 +323,7 @@ qbyte *Mod_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 
 qbyte *Mod_LeafPVS (mleaf_t *leaf, model_t *model, qbyte *buffer)
 {
-	static qbyte	decompressed[MAX_MAP_LEAFS/8];
+	static qbyte	decompressed[(MAX_MAP_LEAFS+7)/8];
 
 	if (leaf == model->leafs)
 		return mod_novis;

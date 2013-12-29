@@ -1603,7 +1603,7 @@ void CL_ParseTEnt (void)
 			gravity = MSG_ReadByte ();	//gravity flag
 			jitter = MSG_ReadCoord();	//jitter
 
-			P_RunParticleCube(pos, pos2, dir, cnt, colour, gravity, jitter);
+			P_RunParticleCube(P_INVALID, pos, pos2, dir, dir, cnt, colour, gravity, jitter);
 		}
 		break;
 	case TEDP_PARTICLERAIN:

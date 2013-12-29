@@ -318,6 +318,7 @@ typedef struct QCC_type_s
 	unsigned int size;
 	pbool typedefed:1;
 	pbool vargs:1;
+	pbool vargcount:1;
 	char *name;
 	char *aname;
 } QCC_type_t;
@@ -330,6 +331,7 @@ typedef struct temp_s {
 #ifdef WRITEASM
 	struct QCC_def_s	*lastfunc;
 #endif
+	int laststatement;
 	struct temp_s	*next;
 	int used;
 	unsigned int size;
@@ -347,6 +349,7 @@ typedef struct QCC_def_s
 	gofs_t		ofs;
 	struct QCC_def_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
+	struct QCC_def_s	*generatedfor;
 	int			initialized;	// 1 when a declaration included "= immediate"
 	int			constant;		// 1 says we can use the value over and over again
 
@@ -445,8 +448,10 @@ typedef struct
 	char *value;
 	char params[MAXCONSTANTPARAMS][MAXCONSTANTPARAMLENGTH];
 	int numparams;
-	pbool used;
-	pbool inside;
+	pbool used:1;
+	pbool inside:1;
+	pbool evil:1;
+	pbool varg:1;
 
 	int namelen;
 } CompilerConstant_t;
@@ -629,6 +634,7 @@ enum {
 	WARN_UNDEFNOTDEFINED,
 	WARN_PRECOMPILERMESSAGE,
 	WARN_TOOMANYPARAMETERSFORFUNC,
+	WARN_TOOMANYPARAMETERSVARARGS,
 	WARN_STRINGTOOLONG,
 	WARN_BADTARGET,
 	WARN_BADPRAGMA,
@@ -696,7 +702,6 @@ enum {
 	ERR_TOOMANYCASES,
 	ERR_TOOMANYLABELS,
 	ERR_TOOMANYOPENFILES,
-	ERR_TOOMANYPARAMETERSVARARGS,
 	ERR_TOOMANYTOTALPARAMETERS,
 
 	//these are probably yours, or qcc being fussy.
@@ -835,6 +840,7 @@ void QCC_PR_PrintDefs (void);
 
 void QCC_PR_SkipToSemicolon (void);
 
+extern char *pr_parm_argcount_name;
 #define MAX_EXTRA_PARMS 128
 #ifdef MAX_EXTRA_PARMS
 extern	char		pr_parm_names[MAX_PARMS+MAX_EXTRA_PARMS][MAX_NAME];
@@ -862,8 +868,8 @@ extern	QCC_string_t	s_file;			// filename for function definition
 
 extern	QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
-void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname);
-void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname);
+void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *arrayname);
+void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *arrayname);
 void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype);
 
 void PostCompile(void);

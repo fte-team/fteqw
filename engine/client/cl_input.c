@@ -696,14 +696,17 @@ void CL_ClampPitch (int pnum)
 		vang[PITCH] *= -1;
 
 		/*edit it*/
-		if (vang[PITCH] < -180)
+		vang[PITCH] += cl.playerview[pnum].viewanglechange[PITCH];
+		vang[YAW] += cl.playerview[pnum].viewanglechange[YAW];
+		if (vang[PITCH] <= -180)
 			vang[PITCH] += 360;
 		if (vang[PITCH] > 180)
 			vang[PITCH] -= 360;
-		if (vang[ROLL] > 180)
+		if (vang[ROLL] >= 180)
 			vang[ROLL] -= 360;
-		vang[PITCH] += cl.playerview[pnum].viewanglechange[PITCH];
-		vang[YAW] += cl.playerview[pnum].viewanglechange[YAW];
+		if (vang[ROLL] < -180)
+			vang[ROLL] += 360;
+
 		/*keep the player looking relative to their ground (smoothlyish)*/
 		if (!vang[ROLL])
 		{
@@ -715,9 +718,15 @@ void CL_ClampPitch (int pnum)
 			if (fabs(vang[ROLL]) < host_frametime*180)
 				vang[ROLL] = 0;
 			else if (vang[ROLL] > 0)
+			{
+				Con_Printf("Roll %f\n", vang[ROLL]);
 				vang[ROLL] -= host_frametime*180;
+			}
 			else
+			{
+				Con_Printf("Roll %f\n", vang[ROLL]);
 				vang[ROLL] += host_frametime*180;
+			}
 		}
 		VectorClear(cl.playerview[pnum].viewanglechange);
 		/*clamp pitch*/
@@ -737,6 +746,10 @@ void CL_ClampPitch (int pnum)
 		VectorAngles(view[0], view[2], cl.playerview[pnum].viewangles);
 		cl.playerview[pnum].viewangles[PITCH] *= -1;
 
+		if (cl.playerview[pnum].viewangles[ROLL] >= 360)
+			cl.playerview[pnum].viewangles[ROLL] -= 360;
+		if (cl.playerview[pnum].viewangles[ROLL] < 0)
+			cl.playerview[pnum].viewangles[ROLL] += 360;
 		if (cl.playerview[pnum].viewangles[PITCH] < -180)
 			cl.playerview[pnum].viewangles[PITCH] += 360;
 		return;

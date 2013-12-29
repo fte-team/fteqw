@@ -909,7 +909,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 	else
 		c = NULL;
 
-	Font_BeginString(font_conchar, nx, vy, &nx, &y);
+	Font_BeginString(font_default, nx, vy, &nx, &y);
 
 	if (ts < 1)
 		ts = 4;
@@ -946,7 +946,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 				nnx-=(nnx - -viewportx)%ts;
 			}
 			else
-				nnx = Font_CharEndCoord(font_conchar, nx, (int)d[i] | (colour));
+				nnx = Font_CharEndCoord(font_default, nx, (int)d[i] | (colour));
 
 			if (smx >= nx && smx <= nnx)
 			{
@@ -1048,14 +1048,14 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 			{
 				if (*tooltip == '\n')
 					break;
-				smx = Font_CharEndCoord(font_conchar, smx, *tooltip);
+				smx = Font_CharEndCoord(font_default, smx, *tooltip);
 			}
 			y = Font_CharHeight();
-			Font_EndString(font_conchar);
+			Font_EndString(font_default);
 			R2D_ImageColours(0, 0, 0, 1);
 			R2D_FillBlock(((nx)*vid.width) / vid.pixelwidth, ((smy)*vid.height) / vid.pixelheight, ((smx - nx)*vid.width) / vid.pixelwidth, (y*vid.height) / vid.pixelheight);
 			R2D_ImageColours(1, 1, 1, 1);
-			Font_BeginString(font_conchar, nx, vy, &y, &y);
+			Font_BeginString(font_default, nx, vy, &y, &y);
 			for(smx = nx; t < tooltip; t++)
 			{
 				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT) | *t);
@@ -1065,7 +1065,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 			smy += Font_CharHeight();
 		}
 	}
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 }
 
 static fileblock_t *firstline(void)

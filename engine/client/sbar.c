@@ -150,12 +150,12 @@ int Sbar_BottomColour(player_info_t *p)
 void Draw_ExpandedString(float x, float y, conchar_t *str)
 {
 	int px, py;
-	Font_BeginString(font_conchar, x, y, &px, &py);
+	Font_BeginString(font_default, x, y, &px, &py);
 	while(*str)
 	{
 		px = Font_DrawChar(px, py, *str++);
 	}
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 }
 
 //Draws a marked-up string using the regular char set with no width limit. doesn't support new lines
@@ -187,7 +187,7 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean 
 
 	COM_ParseFunString(highlight?CON_ALTMASK:CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 
-	Font_BeginString(font_conchar, x, y, &px, &py);
+	Font_BeginString(font_default, x, y, &px, &py);
 	if (rightalign)
 	{
 		for (w = buffer; *w; w++)
@@ -207,7 +207,7 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean 
 			return;
 		px = Font_DrawChar(px, py, *w);
 	}
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 }
 
 static qboolean largegame = false;
@@ -999,9 +999,9 @@ Draws one solid graphics character
 void Sbar_DrawCharacter (float x, float y, int num)
 {
 	int px, py;
-	Font_BeginString(font_conchar, sbar_rect.x + x + 4, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &px, &py);
+	Font_BeginString(font_default, sbar_rect.x + x + 4, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &px, &py);
 	Font_DrawChar(px, py, num | 0xe000 | CON_WHITEMASK);
-	Font_EndString(font_conchar);
+	Font_EndString(font_default);
 }
 
 /*
@@ -2359,7 +2359,7 @@ static void Sbar_Voice(int y)
 		int s, i;
 		float range = loudness/100.0f;
 		w = 0;
-		Font_BeginString(font_conchar, sbar_rect.x + sbar_rect.width/2, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
+		Font_BeginString(font_default, sbar_rect.x + sbar_rect.width/2, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
 		w += Font_CharWidth(0xe080 | CON_WHITEMASK);
 		w += Font_CharWidth(0xe081 | CON_WHITEMASK)*16;
 		w += Font_CharWidth(0xe082 | CON_WHITEMASK);
@@ -2378,7 +2378,7 @@ static void Sbar_Voice(int y)
 			x = Font_DrawChar(x, y, 0xe081 | CON_WHITEMASK);
 		Font_DrawChar(x, y, 0xe082 | CON_WHITEMASK);
 		Font_DrawChar(s + (x-s) * range - Font_CharWidth(0xe083 | CON_WHITEMASK)/2, y, 0xe083 | CON_WHITEMASK);
-		Font_EndString(font_conchar);
+		Font_EndString(font_default);
 	}
 #endif
 }
@@ -2784,22 +2784,22 @@ ping time frags name
 		f = s->frags;									\
 		sprintf(num, "%3i",f);							\
 														\
-		Font_BeginString(font_conchar, x+8, y, &cx, &cy);	\
+		Font_BeginString(font_default, x+8, y, &cx, &cy);	\
 		Font_DrawChar(cx, cy, num[0] | 0xe000 | CON_WHITEMASK);	\
-		Font_BeginString(font_conchar, x+16, y, &cx, &cy);	\
+		Font_BeginString(font_default, x+16, y, &cx, &cy);	\
 		Font_DrawChar(cx, cy, num[1] | 0xe000 | CON_WHITEMASK);	\
-		Font_BeginString(font_conchar, x+24, y, &cx, &cy);	\
+		Font_BeginString(font_default, x+24, y, &cx, &cy);	\
 		Font_DrawChar(cx, cy, num[2] | 0xe000 | CON_WHITEMASK);	\
 														\
 		if ((cl.spectator && k == Cam_TrackNum(pv)) ||\
 			(!cl.spectator && k == pv->playernum))	\
 		{												\
-			Font_BeginString(font_conchar, x, y, &cx, &cy);	\
+			Font_BeginString(font_default, x, y, &cx, &cy);	\
 			Font_DrawChar(cx, cy, 16 | 0xe000 | CON_WHITEMASK);	\
-			Font_BeginString(font_conchar, x+32, y, &cx, &cy);	\
+			Font_BeginString(font_default, x+32, y, &cx, &cy);	\
 			Font_DrawChar(cx, cy, 17 | 0xe000 | CON_WHITEMASK);	\
 		}												\
-		Font_EndString(font_conchar);					\
+		Font_EndString(font_default);					\
 	}													\
 })
 #define COLUMN_TEAMNAME COLUMN(team, 4*8,				\
@@ -3226,19 +3226,19 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 		f = s->frags;
 		sprintf (num, "%3i",f);
 
-		Font_BeginString(font_conchar, x+8, y, &px, &py);
+		Font_BeginString(font_default, x+8, y, &px, &py);
 		Font_DrawChar ( px, py, num[0] | 0xe000 | CON_WHITEMASK);
-		Font_BeginString(font_conchar, x+16, y, &px, &py);
+		Font_BeginString(font_default, x+16, y, &px, &py);
 		Font_DrawChar ( px, py, num[1] | 0xe000 | CON_WHITEMASK);
-		Font_BeginString(font_conchar, x+24, y, &px, &py);
+		Font_BeginString(font_default, x+24, y, &px, &py);
 		Font_DrawChar ( px, py, num[2] | 0xe000 | CON_WHITEMASK);
 
 		if ((cl.spectator && k == pv->cam_spec_track) ||
 			(!cl.spectator && k == pv->playernum))
 		{
-			Font_BeginString(font_conchar, x, y, &px, &py);
+			Font_BeginString(font_default, x, y, &px, &py);
 			Font_DrawChar ( px, py, 16 | 0xe000 | CON_WHITEMASK);
-			Font_BeginString(font_conchar, x+32, y, &px, &py);
+			Font_BeginString(font_default, x+32, y, &px, &py);
 			Font_DrawChar ( px, py, 17 | 0xe000 | CON_WHITEMASK);
 		}
 
@@ -3280,11 +3280,11 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 
 		if (!strncmp(cl.players[pv->playernum].team, tm->team, 16))
 		{
-			Font_BeginString(font_conchar, x-8, y, &px, &py);
+			Font_BeginString(font_default, x-8, y, &px, &py);
 			Font_DrawChar(px, py, 16|0xe000|CON_WHITEMASK);
-			Font_BeginString(font_conchar, x+32, y, &px, &py);
+			Font_BeginString(font_default, x+32, y, &px, &py);
 			Font_DrawChar(px, py, 17|0xe000|CON_WHITEMASK);
-			Font_EndString(font_conchar);
+			Font_EndString(font_default);
 		}
 
 		y += 8;

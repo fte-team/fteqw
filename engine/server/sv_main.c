@@ -1709,8 +1709,13 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	int i;
 	int maxpacketentities;
 	extern cvar_t pr_maxedicts;
-	client->maxmodels = 256;
 
+	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
+	if (svs.gametype == GT_HALFLIFE)
+		client->fteprotocolextensions2 &= ~PEXT2_REPLACEMENTDELTAS;
+
+	//
+	client->maxmodels = 256;
 	if (client->fteprotocolextensions & PEXT_256PACKETENTITIES)
 		maxpacketentities = MAX_EXTENDED_PACKET_ENTITIES;
 	else
@@ -5034,7 +5039,7 @@ void SV_Init (quakeparms_t *parms)
 #ifdef SVRANKING
 	Rank_RegisterCommands();
 #endif
-	Cbuf_AddText("alias restart \"map .\"\nalias newgame \"map start\"\n", RESTRICT_LOCAL);
+	Cbuf_AddText("alias restart \"map .\"\nalias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
 
 #ifndef SERVERONLY
 	if (isDedicated)

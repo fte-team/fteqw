@@ -2214,21 +2214,21 @@ static void P_ImportEffectInfo_f(void)
 			ptype->flags = (ptype->flags & ~PT_NODLSHADOW) | (!atoi(arg[1])?PT_NODLSHADOW:0);
 		else if (!strcmp(arg[0], "lightcubemapnum") && args == 2)
 			ptype->dl_cubemapnum = atoi(arg[1]);
-#if 0
-		else if (!strcmp(arg[0], "staincolor") && args == 2)
-			;
-		else if (!strcmp(arg[0], "stainalpha") && args == 2)
-			;
-		else if (!strcmp(arg[0], "stainsize") && args == 2)
-			;
-		else if (!strcmp(arg[0], "staintex") && args == 2)
-			;
-		else if (!strcmp(arg[0], "stainless") && args == 1)
-			;
-		else if (!strcmp(arg[0], "rotate") && args == 2)
-			;
-		else if (!strcmp(arg[0], "rotate") && args == 4)
-			;
+#if 1
+		else if (!strcmp(arg[0], "staincolor") && args == 3)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		else if (!strcmp(arg[0], "stainalpha") && args == 3)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		else if (!strcmp(arg[0], "stainsize") && args == 3)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		else if (!strcmp(arg[0], "staintex") && args == 3)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		else if (!strcmp(arg[0], "stainless") && args == 2)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		else if (!strcmp(arg[0], "rotate") && args == 3)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		else if (!strcmp(arg[0], "rotate") && args == 5)
+			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
 #endif
 		else
 			Con_Printf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
@@ -3940,14 +3940,15 @@ static void PScript_RunParticleEffect4 (vec3_t org, float radius, int color, int
 	}
 }
 
-static void PScript_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter)
+static void PScript_RunParticleCube(int ptype, vec3_t minb, vec3_t maxb, vec3_t dir_min, vec3_t dir_max, float count, int colour, qboolean gravity, float jitter)
 {
 	vec3_t org;
 	int			i, j;
 	float		num;
 	float invcount;
 
-	int ptype = P_FindParticleType(va("te_cube%s_%i", gravity?"_g":"", colour));
+	if (ptype < 0)
+		ptype = P_FindParticleType(va("te_cube%s_%i", gravity?"_g":"", colour));
 	if (ptype < 0)
 	{
 		ptype = P_FindParticleType(va("te_cube%s", gravity?"_g":""));
@@ -3970,7 +3971,7 @@ static void PScript_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float 
 			num = rand() / (float)RAND_MAX;
 			org[j] = minb[j] + num*(maxb[j]-minb[j]);
 		}
-		P_RunParticleEffectType(org, dir, invcount, ptype);
+		P_RunParticleEffectType(org, dir_min, invcount, ptype);
 	}
 }
 

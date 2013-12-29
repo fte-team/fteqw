@@ -139,6 +139,8 @@ V_CalcBob
 float V_CalcBob (playerview_t *pv, qboolean queryold)
 {
 	float	cycle;
+	float	hspeed, bob;
+	vec3_t	hvel;
 
 	if (cl.spectator)
 		return 0;
@@ -163,14 +165,12 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 
 // bob is proportional to simulated velocity in the xy plane
 // (don't count Z, or jumping messes it up)
-//FIXME: gravitydir
-
-	pv->bob = sqrt(pv->simvel[0]*pv->simvel[0] + pv->simvel[1]*pv->simvel[1]) * cl_bob.value;
-	pv->bob = pv->bob*0.3 + pv->bob*0.7*sin(cycle);
-	if (pv->bob > 4)
-		pv->bob = 4;
-	else if (pv->bob < -7)
-		pv->bob = -7;
+	hspeed = DotProduct(pv->simvel, pv->gravitydir);
+	VectorMA(pv->simvel, hspeed, pv->gravitydir, hvel);
+	hspeed = VectorLength(hvel);
+	hspeed = bound(0, hspeed, 400);
+	bob = hspeed * bound(0, cl_bob.value, 0.05);
+	pv->bob = bob*0.3 + bob*0.7*sin(cycle);
 	return pv->bob;
 
 }
@@ -1028,7 +1028,7 @@ float CalcFov (float fov_x, float width, float height)
 
     return a;
 }
-void V_ApplyAFov(void)
+void V_ApplyAFov(playerview_t *pv)
 {
 	//explicit fov overrides aproximate fov.
 	//aproximate fov is our regular fov value. explicit is settable by gamecode for weird aspect ratios
@@ -1040,8 +1040,8 @@ void V_ApplyAFov(void)
 		float afov = r_refdef.afov;
 		if (!afov)	//make sure its sensible.
 			afov = scr_fov.value;
-		if (r_refdef.playerview->stats[STAT_VIEWZOOM])
-			afov *= r_refdef.playerview->stats[STAT_VIEWZOOM]/255.0f;
+		if (pv && pv->stats[STAT_VIEWZOOM])
+			afov *= pv->stats[STAT_VIEWZOOM]/255.0f;
 
 		ws = 1;
 		if (r_stereo_method.ival == 5 && r_stereo_separation.value)
@@ -1152,7 +1152,7 @@ void V_ApplyRefdef (void)
 	r_refdef.vrect.y += r_refdef.grect.y;
 
 	if (r_refdef.dirty & RDFD_FOV)
-		V_ApplyAFov();
+		V_ApplyAFov(r_refdef.playerview);
 
 	r_refdef.dirty = 0;
 }

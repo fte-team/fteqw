@@ -3504,8 +3504,8 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 #endif
 			}
 		}
-		blockcache = false;
 	}
+	blockcache = false;
 
 	COM_Effectinfo_Clear();
 #ifndef SERVERONLY

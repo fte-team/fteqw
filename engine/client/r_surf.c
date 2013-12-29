@@ -926,10 +926,10 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		}
 		else if (!currentmodel->lightdata)
 		{
-			/*fullbright if map is not lit*/
+			/*fullbright if map is not lit. but not overbright*/
 			for (i=0 ; i<size*3 ; i++)
 			{
-				blocklights[i] = 255*256;
+				blocklights[i] = 128*256;
 			}
 		}
 		else if (!surf->samples)
@@ -1887,26 +1887,73 @@ start:
 }
 #endif
 
-static void Surf_CleanChains(void)
+static void Surf_PushChains(model_t *model)
 {
-	model_t *model = cl.worldmodel;
 	batch_t *batch;
 	int i;
 
-	if (r_refdef.recurse)
+	if (r_refdef.recurse == R_MAX_RECURSE)
+		Sys_Error("Recursed too deep\n");
+
+	if (!r_refdef.recurse)
+	{
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		for (batch = model->batches[i]; batch; batch = batch->next)
+		{
+			batch->firstmesh = 0;
+		}
+	}
+#if R_MAX_RECURSE > 2
+	else if (r_refdef.recurse > 1)
+	{
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		for (batch = model->batches[i]; batch; batch = batch->next)
+		{
+			batch->recursefirst[r_refdef.recurse] = batch->firstmesh;
+			batch->firstmesh = batch->meshes;
+		}
+	}
+#endif
+	else
+	{
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		for (batch = model->batches[i]; batch; batch = batch->next)
+		{
+			batch->firstmesh = batch->meshes;
+		}
+	}
+}
+static void Surf_PopChains(model_t *model)
+{
+	batch_t *batch;
+	int i;
+
+	if (!r_refdef.recurse)
+	{
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		for (batch = model->batches[i]; batch; batch = batch->next)
+		{
+			batch->meshes = 0;
+		}
+	}
+#if R_MAX_RECURSE > 2
+	else if (r_refdef.recurse > 1)
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
 		for (batch = model->batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = batch->firstmesh;
+			batch->firstmesh = batch->recursefirst[r_refdef.recurse];
 		}
 	}
+#endif
 	else
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
 		for (batch = model->batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = batch->firstmesh;
+			batch->firstmesh = 0;
 		}
 	}
 }
@@ -2191,6 +2238,9 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		if (b->buildmeshes)
 			b->buildmeshes(b);
 
+		if (!b->shader)
+			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
+
 		if (bef & BEF_FORCEADDITIVE)
 		{
 			b->next = batches[SHADER_SORT_ADDITIVE];
@@ -2243,6 +2293,8 @@ void Surf_DrawWorld (void)
 		RSpeedRemark();
 
 		Surf_LightmapShift(cl.worldmodel);
+
+		Surf_PushChains(cl.worldmodel);
 
 #ifdef Q2BSPS
 		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
@@ -2337,7 +2389,7 @@ void Surf_DrawWorld (void)
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
 			Surf_LessenStains();
 
-		Surf_CleanChains();
+		Surf_PopChains(cl.worldmodel);
 	}
 }
 
@@ -2589,7 +2641,11 @@ void Surf_BuildModelLightmaps (model_t *m)
 	shift = Surf_LightmapShift(currentmodel);
 
 	if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
+	{
+		if (!cl.model_precache[1] || cl.model_precache[1]->needload)
+			return;
 		newfirst = cl.model_precache[1]->lightmaps.first;
+	}
 	else
 	{
 		if (!m->lightdata && m->lightmaps.count && m->fromgame == fg_quake3)
@@ -2758,6 +2814,8 @@ void Surf_BuildLightmaps (void)
 		m = cl.model_precache[j];
 		if (!m)
 			break;
+		if (m->needload)
+			continue;
 		Surf_BuildModelLightmaps(m);
 	}
 	for (j=1 ; j<MAX_CSMODELS ; j++)

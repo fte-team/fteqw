@@ -257,6 +257,60 @@ static void ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce
 			out[i] = 0;
 }
 
+static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, vec3_t org, vec3_t move)
+{
+	int oself = *w->g.self;
+	void *pr_globals = PR_globals(w->progs, PR_CURRENT);
+
+	*w->g.self = EDICT_TO_PROG(w->progs, portal);
+	//transform origin+velocity etc
+	VectorCopy(org, G_VECTOR(OFS_PARM0));
+	VectorAngles(ent->v->angles, vup, G_VECTOR(OFS_PARM1));
+	VectorCopy(ent->v->velocity, w->g.v_forward);
+	VectorCopy(move, w->g.v_right);
+	VectorCopy(ent->xv->gravitydir, w->g.v_up);
+	if (!DotProduct(w->g.v_up, w->g.v_up))
+		w->g.v_up[2] = -1;
+
+	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
+
+	VectorCopy(G_VECTOR(OFS_RETURN), org);
+//	VectorCopy(w->g.v_forward, ent->v->velocity);
+	VectorCopy(w->g.v_right, move);
+//	VectorCopy(w->g.v_up, ent->xv->gravitydir);
+
+
+	//transform the angles too
+	VectorCopy(org, G_VECTOR(OFS_PARM0));
+	if (ent->entnum <= svs.allocated_client_slots)
+	{
+		VectorCopy(ent->v->v_angle, ent->v->angles);
+		ent->v->fixangle = true;
+	}
+	else
+		ent->v->angles[0] *= -1;
+	VectorAngles(ent->v->angles, vup, G_VECTOR(OFS_PARM1));
+	AngleVectors(ent->v->angles, w->g.v_forward, w->g.v_right, w->g.v_up);
+	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
+	VectorAngles(w->g.v_forward, w->g.v_up, ent->v->angles);
+	if (ent->entnum <= svs.allocated_client_slots)
+		ent->v->angles[0] *= -1;
+
+	/*
+	avelocity is horribly dependant upon eular angles. trying to treat it as a matrix is folly.
+	if (DotProduct(ent->v->avelocity, ent->v->avelocity))
+	{
+		ent->v->avelocity[0] *= -1;
+		AngleVectors(ent->v->avelocity, w->g.v_forward, w->g.v_right, w->g.v_up);
+		PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
+		VectorAngles(w->g.v_forward, w->g.v_up, ent->v->avelocity);
+		ent->v->avelocity[0] *= -1;
+	}
+	*/
+
+	*w->g.self = oself;
+}
+
 
 
 /*
@@ -285,6 +339,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 	vec3_t		end;
 	float		time_left;
 	int			blocked;
+	wedict_t	*impact;
 	vec3_t diff;
 
 	numbumps = 4;
@@ -301,7 +356,26 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 		for (i=0 ; i<3 ; i++)
 			end[i] = ent->v->origin[i] + time_left * ent->v->velocity[i];
 
-		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
+		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
+
+		impact = trace.ent;
+		if (impact && impact->v->solid == SOLID_PORTAL)
+		{
+			vec3_t move;
+			vec3_t from;
+			float firstfrac = trace.fraction;
+Con_Printf("Player hit portal %i\n", impact->entnum);
+			VectorCopy(trace.endpos, from);	//just in case
+			VectorSubtract(end, trace.endpos, move);
+			WPhys_PortalTransform(w, ent, impact, trace.endpos, move);
+			VectorAdd(trace.endpos, move, end);
+			trace = World_Move (w, from, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
+			trace.fraction = firstfrac + (1-firstfrac)*trace.fraction;
+
+			//if we follow the portal, then we need to fix up some velocities.
+			if (trace.fraction > 0)
+				VectorCopy (ent->v->velocity, primal_velocity);
+		}
 
 		if (trace.startsolid)
 		{	// entity is trapped in another solid
@@ -463,6 +537,7 @@ static trace_t WPhys_PushEntity (world_t *w, wedict_t *ent, vec3_t push, unsigne
 {
 	trace_t	trace;
 	vec3_t	end;
+	wedict_t *impact;
 
 	VectorAdd (ent->v->origin, push, end);
 
@@ -470,12 +545,28 @@ static trace_t WPhys_PushEntity (world_t *w, wedict_t *ent, vec3_t push, unsigne
 		traceflags |= MOVE_LAGGED;
 
 	if (ent->v->movetype == MOVETYPE_FLYMISSILE)
-		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_MISSILE|traceflags, (wedict_t*)ent);
+		traceflags |= MOVE_MISSILE;
 	else if (ent->v->solid == SOLID_TRIGGER || ent->v->solid == SOLID_NOT)
 	// only clip against bmodels
-		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NOMONSTERS|traceflags, (wedict_t*)ent);
+		traceflags |= MOVE_NOMONSTERS;
 	else
-		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL|traceflags, (wedict_t*)ent);
+		traceflags |= MOVE_NORMAL;
+
+	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, traceflags, (wedict_t*)ent);
+
+	impact = trace.ent;
+	if (impact && impact->v->solid == SOLID_PORTAL)
+	{
+		vec3_t move;
+		vec3_t from;
+		float firstfrac = trace.fraction;
+		VectorCopy(trace.endpos, from);	//just in case
+		VectorSubtract(end, trace.endpos, move);
+		WPhys_PortalTransform(w, ent, impact, from, move);
+		VectorAdd(from, move, end);
+		trace = World_Move (w, from, ent->v->mins, ent->v->maxs, end, traceflags, (wedict_t*)ent);
+		trace.fraction = firstfrac + (1-firstfrac)*trace.fraction;
+	}
 
 	/*hexen2's movetype_swim does not allow swimming entities to move out of water. this implementation is quite hacky, but matches hexen2 well enough*/
 	if (ent->v->movetype == MOVETYPE_H2SWIM)

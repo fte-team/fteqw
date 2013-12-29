@@ -58,7 +58,7 @@ static const char LIGHTPASS_SHADER[] = "\
 	}\n\
 }";
 
-extern cvar_t r_glsl_offsetmapping, r_noportals;
+extern cvar_t r_glsl_offsetmapping, r_portalrecursion;
 
 static void BE_SendPassBlendDepthMask(unsigned int sbits);
 void GLBE_SubmitBatch(batch_t *batch);
@@ -3241,6 +3241,7 @@ void GLBE_SelectMode(backendmode_t mode)
 {
 	extern int gldepthfunc;
 
+//	shaderstate.lastuniform = 0;
 	if (mode != shaderstate.mode)
 	{
 		shaderstate.mode = mode;
@@ -3488,6 +3489,9 @@ void GLBE_Scissor(srect_t *rect)
 */		qglDisable(GL_SCISSOR_TEST);
 		if (qglDepthBoundsEXT)
 			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+
+//		if (qglDepthBoundsEXT)
+//			qglDepthBoundsEXT(0, 1);
 	}
 }
 
@@ -4101,7 +4105,7 @@ void GLBE_SubmitBatch(batch_t *batch)
 
 static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 {
-	batch_t *batch, *old;
+	batch_t *batch, *masklists[2];
 	int i;
 	/*attempt to draw portal shaders*/
 	if (shaderstate.mode == BEM_STANDARD)
@@ -4116,34 +4120,33 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 				if (batch->buildmeshes)
 					batch->buildmeshes(batch);
 
-				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
-				GLBE_SelectMode(BEM_DEPTHONLY);
-				for (old = worldlist[SHADER_SORT_PORTAL]; old && old != batch; old = old->next)
-				{
-					if (old->meshes == old->firstmesh)
-						continue;
-					GLBE_SubmitBatch(old);
-				}
-				if (!old)
-				{
-					for (old = dynamiclist; old != batch; old = old->next)
-					{
-						if (old->meshes == old->firstmesh)
-							continue;
-						GLBE_SubmitBatch(old);
-					}
-				}
-				GLBE_SelectMode(BEM_STANDARD);
-
-				GLR_DrawPortal(batch, worldlist, 0);
+				masklists[0] = worldlist[SHADER_SORT_PORTAL];
+				masklists[1] = dynamiclist;
+				GLR_DrawPortal(batch, worldlist, masklists, 0);
 
 				/*clear depth again*/
 				GL_ForceDepthWritable();
 				qglClear(GL_DEPTH_BUFFER_BIT);
-				currententity = &r_worldentity;
-				shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 			}
 		}
+		//make sure the current scene doesn't draw over the portal where its not meant to. clamp depth so the near clip plane doesn't cause problems.
+		if (gl_config.arb_depth_clamp)
+			qglEnable(GL_DEPTH_CLAMP_ARB);
+		for (i = 0; i < 2; i++)
+		{
+			for (batch = i?dynamiclist:worldlist[SHADER_SORT_PORTAL]; batch; batch = batch->next)
+			{
+				if (batch->meshes == batch->firstmesh)
+					continue;
+
+				/*draw depth only, to mask it off*/
+				GLBE_SelectMode(BEM_DEPTHONLY);
+				GLBE_SubmitBatch(batch);
+				GLBE_SelectMode(BEM_STANDARD);
+			}
+		}
+		if (gl_config.arb_depth_clamp)
+			qglDisable(GL_DEPTH_CLAMP_ARB);
 	}
 }
 
@@ -4172,6 +4175,16 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 		}
 
 		TRACE(("GLBE_SubmitMeshesSortList: shader %s\n", batch->shader->name));
+
+		//FIXME:!!
+		if (!batch->shader)
+		{
+			Con_Printf("Shader not set...\n");
+			if (batch->texture)
+				batch->shader = R_TextureAnimation(0, batch->texture)->shader;
+			else
+				continue;
+		}
 
 		if (batch->shader->flags & SHADER_NODRAW)
 			continue;
@@ -4236,7 +4249,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-				GLR_DrawPortal(batch, cl.worldmodel->batches, 1);
+				GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, 1);
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
@@ -4291,7 +4304,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-					GLR_DrawPortal(batch, cl.worldmodel->batches, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
+					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
 					r_refdef.vrect = ovrect;
@@ -4299,7 +4312,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GL_ViewportUpdate();
 				}
 				else
-					GLR_DrawPortal(batch, cl.worldmodel->batches, 3);
+					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, 3);
 			}
 			if ((batch->shader->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
@@ -4333,9 +4346,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 //				r_refdef.waterheight = DotProduct(batch->mesh[0]->xyz_array[0], batch->mesh[0]->normals_array[0]);
 
-				r_refdef.recurse = true; //paranoid, should stop potential infinite loops
+				r_refdef.recurse+=1; //paranoid, should stop potential infinite loops
 				GLBE_SubmitMeshes(true, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
-				r_refdef.recurse = false;
+				r_refdef.recurse-=1;
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
 				r_refdef.vrect = orect;
@@ -4354,12 +4367,13 @@ void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop)
 {
 	model_t *model = cl.worldmodel;
 	int i;
+	int portaldepth = r_portalrecursion.ival;
 
 	for (i = start; i <= stop; i++)
 	{
 		if (drawworld)
 		{
-			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
+			if (i == SHADER_SORT_PORTAL && r_refdef.recurse < portaldepth)
 				GLBE_SubmitMeshesPortals(model->batches, shaderstate.mbatches[i]);
 
 			GLBE_SubmitMeshesSortList(model->batches[i]);

@@ -305,7 +305,7 @@ void QCBUILTIN PF_getsurfacetexture(pubprogfuncs_t *prinst, struct globalvars_s 
 	if (!model || model->type != mod_brush)
 		return;
 
-	if (surfnum < 0 || surfnum > model->nummodelsurfaces)
+	if (surfnum < 0 || surfnum >= model->nummodelsurfaces)
 		return;
 	surfnum += model->firstmodelsurface;
 	surf = &model->surfaces[surfnum];
@@ -596,6 +596,57 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 			}
 		}
 	}
+}
+
+qbyte qcpvs[(MAX_MAP_LEAFS+7)/8];
+//#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
+//note: this requires a correctly setorigined entity.
+void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	float *viewpos = G_VECTOR(OFS_PARM0);
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM1);
+
+	if (!world->worldmodel || world->worldmodel->needload)
+		G_FLOAT(OFS_RETURN) = false;
+	else
+	{
+		//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
+		//and yeah, this is overkill what with the whole fat thing and all.
+		world->worldmodel->funcs.FatPVS(world->worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
+
+		G_FLOAT(OFS_RETURN) = world->worldmodel->funcs.EdictInFatPVS(world->worldmodel, &ent->pvsinfo, qcpvs);
+	}
+}
+
+void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t *e = G_WEDICT(prinst, OFS_PARM0);
+	wedict_t *tagentity = G_WEDICT(prinst, OFS_PARM1);
+	char *tagname = PR_GetStringOfs(prinst, OFS_PARM2);
+	world_t *world = prinst->parms->user;
+
+	model_t *model;
+
+	int tagidx;
+
+	tagidx = 0;
+
+	if (tagentity != world->edicts && tagname && tagname[0])
+	{
+		model = world->Get_CModel(world, tagentity->v->modelindex);
+		if (model)
+		{
+			tagidx = Mod_TagNumForName(model, tagname);
+			if (tagidx == 0)
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
+		}
+		else
+			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname);
+	}
+
+	e->xv->tag_entity = EDICT_TO_PROG(prinst, tagentity);
+	e->xv->tag_index = tagidx;
 }
 
 #ifndef TERRAIN
@@ -2241,13 +2292,15 @@ void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 //returns character at position X
 void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int err;
+	char *next;
 	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
 	int ofs = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
 
 	if (VMUTF8)
 	{
 		if (ofs < 0)
-			ofs = unicode_charcount(instr, ~0)+ofs;
+			ofs = unicode_charcount(instr, 1<<30)+ofs;
 		ofs = unicode_byteofsfromcharofs(instr, ofs);
 	}
 	else
@@ -2259,7 +2312,7 @@ void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (ofs && (ofs < 0 || ofs > strlen(instr)))
 		G_FLOAT(OFS_RETURN) = '\0';
 	else
-		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(NULL, instr+ofs, NULL):(unsigned char)instr[ofs];
+		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(&err, instr+ofs, &next):(unsigned char)instr[ofs];
 }
 
 //FTE_STRINGS
@@ -2466,7 +2519,7 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	//UTF-8-FIXME: start+length are chars not bytes...
 
 	if (VMUTF8)
-		slen = unicode_charcount(s, ~0);
+		slen = unicode_charcount(s, 1<<30);
 	else
 		slen = strlen(s);
 
@@ -2506,7 +2559,7 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_strlen(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (VMUTF8)
-		G_FLOAT(OFS_RETURN) = unicode_charcount(PR_GetStringOfs(prinst, OFS_PARM0), ~0);
+		G_FLOAT(OFS_RETURN) = unicode_charcount(PR_GetStringOfs(prinst, OFS_PARM0), 1<<30);
 	else
 		G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
 }

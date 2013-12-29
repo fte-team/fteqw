@@ -202,7 +202,7 @@ static void PClassic_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, fl
 }
 
 //DP extension: add particles within a box.
-static void PClassic_RunParticleCube(vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, qboolean gravity, float jitter)
+static void PClassic_RunParticleCube(int ptype, vec3_t minb, vec3_t maxb, vec3_t dir_min, vec3_t dir_max, float count, int colour, qboolean gravity, float jitter)
 {
 }
 

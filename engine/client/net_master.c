@@ -505,6 +505,9 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 {
 	static char adr[MAX_ADR_SIZE];
 
+	if (!server)
+		return "";
+
 	if (keynum < SLKEY_CUSTOM)
 	{
 		switch(keynum)

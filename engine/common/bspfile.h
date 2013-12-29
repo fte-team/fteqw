@@ -30,13 +30,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define	MAX_MAP_ENTITIES	1024
 //#define	MAX_MAP_ENTSTRING	65536
 
-#define	MAX_MAP_PLANES				65636*2		//sanity (used by q2)
-#define	SANITY_MAX_MAP_NODES		65535		//sanity
-#define	SANITY_MAX_MAP_CLIPNODES	65535		//sanity
-#define	MAX_MAP_LEAFS				65535		//pvs buffer size. not sanity.
-#define	SANITY_MAX_MAP_VERTS		65535		//sanity
-#define	SANITY_MAX_MAP_FACES		65535		//sanity
-//#define	MAX_MAP_MARKSURFACES 65535	//sanity
+#define	MAX_MAP_PLANES				65536*2		//sanity (used by q2)
+#define	SANITY_MAX_MAP_NODES		65536		//sanity
+#define	SANITY_MAX_MAP_CLIPNODES	65536		//sanity
+#define	MAX_MAP_LEAFS				65536		//pvs buffer size. not sanity.
+#define	SANITY_MAX_MAP_VERTS		65536		//sanity
+#define	SANITY_MAX_MAP_FACES		65536		//sanity
+//#define	MAX_MAP_MARKSURFACES 65536	//sanity
 //#define	MAX_MAP_TEXINFO		4096	//sanity
 #define	MAX_MAP_EDGES		256000
 //#define	MAX_MAP_SURFEDGES	512000

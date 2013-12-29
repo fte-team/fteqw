@@ -1592,7 +1592,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
 					if (snd_speed != sc->sn.speed)
 					{
-						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\n", sc->name);
+						Con_TPrintf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\n", sc->name);
 						S_ShutdownCard(sc);
 						continue;
 					}
@@ -1624,7 +1624,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
 					if (snd_speed != sc->sn.speed)
 					{
-						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
+						Con_TPrintf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
 						S_ShutdownCard(sc);
 						continue;
 					}
@@ -1640,7 +1640,10 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
 	}
 
 	Z_Free(sc);
-	Con_Printf("Could not start \"%s\" device \"%s\"\n", driver?driver:"audio", device?device:"default");
+	if (!driver)
+		Con_TPrintf("Could not start audio device \"%s\"\n", device?device:"default");
+	else
+		Con_TPrintf("Could not start \"%s\" device \"%s\"\n", driver, device?device:"default");
 	return NULL;
 }
 

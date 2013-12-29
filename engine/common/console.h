@@ -93,8 +93,6 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_ERROR   "^&C0"
 #define CON_NOTICE  "^&-1"
 
-#define		CON_TEXTSIZE	16384
-
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 #define ishexcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || (x >= 'a' && x <= 'f'))
 

@@ -23,7 +23,7 @@ pbool qcc_nopragmaoptimise;
 extern unsigned int locals_marshalled;
 
 pbool QCC_PR_SimpleGetToken (void);
-void QCC_PR_LexWhitespace (void);
+void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 
 void *FS_ReadToMem(char *fname, void *membuf, int *len);
 void FS_CloseFromMem(void *mem);
@@ -722,7 +722,7 @@ pbool QCC_WriteData (int crc)
 		else
 		{
 			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
-				printf("An enhanced QCVM will be required (FTE/QF/KK)\n");
+				printf("Globals exceeds 32k - an enhanced QCVM will be required\n");
 			else
 				printf("Progs should run on any QuakeC VM\n");
 			break;
@@ -1872,7 +1872,7 @@ int QCC_PR_FinishCompilation (void)
 // check to make sure all functions prototyped have code
 	for (d=pr.def_head.next ; d ; d=d->next)
 	{
-		if (d->type->type == ev_function && !d->scope)// function parms are ok
+		if (d->type->type == ev_function && d->constant)// function parms are ok
 		{
 //			f = G_FUNCTION(d->ofs);
 //			if (!f || (!f->code && !f->builtin) )
@@ -1880,18 +1880,19 @@ int QCC_PR_FinishCompilation (void)
 			{
 				if (!strncmp(d->name, "ArrayGet*", 9))
 				{
-					QCC_PR_EmitArrayGetFunction(d, d->name+9);
+					QCC_PR_EmitArrayGetFunction(d, d->generatedfor, d->name+9);
 					pr_scope = NULL;
 					continue;
 				}
 				if (!strncmp(d->name, "ArraySet*", 9))
 				{
-					QCC_PR_EmitArraySetFunction(d, d->name+9);
+					QCC_PR_EmitArraySetFunction(d, d->generatedfor, d->name+9);
 					pr_scope = NULL;
 					continue;
 				}
 				if (!strncmp(d->name, "spawnfunc_", 10))
 				{
+					//not all of these will have a class defined, as some will be regular spawn functions, so don't error on that
 					t = QCC_TypeForName(d->name+10);
 					if (t)
 					{
@@ -3203,7 +3204,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	numpr_globals=0;
 
 	Hash_InitTable(&globalstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
-	Hash_InitTable(&localstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
+	Hash_InitTable(&localstable, 128, qccHunkAlloc(Hash_BytesForBuckets(128)));
 	Hash_InitTable(&floatconstdefstable, MAX_REGS/2+1, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2+1)));
 	Hash_InitTable(&stringconstdefstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
 	Hash_InitTable(&stringconstdefstable_trans, 1000, qccHunkAlloc(Hash_BytesForBuckets(1000)));
@@ -3380,7 +3381,7 @@ newstyle:
 	}
 
 	pr_file_p = qccmsrc;
-	QCC_PR_LexWhitespace();
+	QCC_PR_LexWhitespace(false);
 	qccmsrc = pr_file_p;
 
 	s = qccmsrc;

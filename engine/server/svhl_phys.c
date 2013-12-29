@@ -648,6 +648,7 @@ SV_Push
 
 ============
 */
+#define MAX_PUSHED_ENTITIES 1024
 qboolean SVHL_Push (hledict_t *pusher, vec3_t move, vec3_t amove)
 {
 	int			i, e;
@@ -655,8 +656,8 @@ qboolean SVHL_Push (hledict_t *pusher, vec3_t move, vec3_t amove)
 	vec3_t		mins, maxs;
 	vec3_t		pushorig;
 	int			num_moved;
-	hledict_t	*moved_edict[MAX_EDICTS];
-	vec3_t		moved_from[MAX_EDICTS];
+	hledict_t	*moved_edict[MAX_PUSHED_ENTITIES];
+	vec3_t		moved_from[MAX_PUSHED_ENTITIES];
 	float oldsolid;
 
 	if (amove[0] || amove[1] || amove[2])
@@ -715,45 +716,48 @@ qboolean SVHL_Push (hledict_t *pusher, vec3_t move, vec3_t amove)
 				continue;
 		}
 
-		VectorCopy (check->v.origin, moved_from[num_moved]);
-		moved_edict[num_moved] = check;
-		num_moved++;
-
-//		check->v.flags = (int)check->v.flags & ~FL_ONGROUND;
-
-		// try moving the contacted entity
-		VectorAdd (check->v.origin, move, check->v.origin);
-		block = SVHL_TestEntityPosition (check);
-		if (!block)
-		{	// pushed ok
-			SVHL_LinkEdict (check, false);
-			continue;
-		}
-
-		// if it is ok to leave in the old position, do it
-		VectorSubtract (check->v.origin, move, check->v.origin);
-		block = SVHL_TestEntityPosition (check);
-		if (!block)
+		if (num_moved < MAX_PUSHED_ENTITIES)
 		{
-			//if leaving it where it was, allow it to drop to the floor again (useful for plats that move downward)
-			check->v.flags = (int)check->v.flags & ~FL_ONGROUND;
+			VectorCopy (check->v.origin, moved_from[num_moved]);
+			moved_edict[num_moved] = check;
+			num_moved++;
 
-			num_moved--;
-			continue;
-		}
+	//		check->v.flags = (int)check->v.flags & ~FL_ONGROUND;
 
-	// if it is still inside the pusher, block
-		if (check->v.mins[0] == check->v.maxs[0])
-		{
-			SVHL_LinkEdict (check, false);
-			continue;
-		}
-		if (check->v.solid == SOLID_NOT || check->v.solid == SOLID_TRIGGER)
-		{	// corpse
-			check->v.mins[0] = check->v.mins[1] = 0;
-			VectorCopy (check->v.mins, check->v.maxs);
-			SVHL_LinkEdict (check, false);
-			continue;
+			// try moving the contacted entity
+			VectorAdd (check->v.origin, move, check->v.origin);
+			block = SVHL_TestEntityPosition (check);
+			if (!block)
+			{	// pushed ok
+				SVHL_LinkEdict (check, false);
+				continue;
+			}
+
+			// if it is ok to leave in the old position, do it
+			VectorSubtract (check->v.origin, move, check->v.origin);
+			block = SVHL_TestEntityPosition (check);
+			if (!block)
+			{
+				//if leaving it where it was, allow it to drop to the floor again (useful for plats that move downward)
+				check->v.flags = (int)check->v.flags & ~FL_ONGROUND;
+
+				num_moved--;
+				continue;
+			}
+
+			// if it is still inside the pusher, block
+			if (check->v.mins[0] == check->v.maxs[0])
+			{
+				SVHL_LinkEdict (check, false);
+				continue;
+			}
+			if (check->v.solid == SOLID_NOT || check->v.solid == SOLID_TRIGGER)
+			{	// corpse
+				check->v.mins[0] = check->v.mins[1] = 0;
+				VectorCopy (check->v.mins, check->v.maxs);
+				SVHL_LinkEdict (check, false);
+				continue;
+			}
 		}
 
 		VectorCopy (pushorig, pusher->v.origin);

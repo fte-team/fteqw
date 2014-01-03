@@ -234,7 +234,7 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 		}
 		BZ_Free(p);
 	}
-	else*/ if (gl_config.gles)
+	else*/ if (gl_config.gles || (vid.pixelwidth&3))
 	{
 		qbyte *p;
 

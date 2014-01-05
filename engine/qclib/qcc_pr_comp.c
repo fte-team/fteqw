@@ -1838,7 +1838,7 @@ pbool QCC_Temp_Describe(QCC_def_t *def, char *buffer, int buffersize)
 	switch(s->op)
 	{
 	default:
-		_snprintf(buffer, buffersize, "%s %s %s", QCC_VarAtOffset(s->a, 1), pr_opcodes[s->op].name, QCC_VarAtOffset(s->b, 1));
+		QC_snprintfz(buffer, buffersize, "%s %s %s", QCC_VarAtOffset(s->a, 1), pr_opcodes[s->op].name, QCC_VarAtOffset(s->b, 1));
 		break;
 	}
 	return true;

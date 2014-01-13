@@ -665,9 +665,6 @@ void D3D11BE_VBO_Destroy(vboarray_t *vearray);
 void D3D11BE_Scissor(srect_t *rect);
 #endif
 
-//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
-void BE_DrawNonWorld (void);
-
 //Builds a hardware shader from the software representation
 void BE_GenerateProgram(shader_t *shader);
 

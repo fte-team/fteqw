@@ -1627,8 +1627,6 @@ static void SVHL_RunCmdR(hledict_t *ed, usercmd_t *ucmd)
 	int i;
 	hledict_t *other;
 extern cvar_t temp1;
-extern vec3_t	player_mins;
-extern vec3_t	player_maxs;
 
 	// chop up very long commands
 	if (ucmd->msec > 50)

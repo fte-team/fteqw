@@ -2511,7 +2511,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
 		else
 			VectorCopy(surf->plane->normal, mesh->normals_array[i]);
-		VectorNegate(surf->texinfo->vecs[0], mesh->snormals_array[i]);
+		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
 		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
 		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
 		d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);

@@ -2101,15 +2101,14 @@ void Surf_SetupFrame(void)
 
 	/*pick up any extra water entities*/
 	{
-		extern vec3_t player_maxs, player_mins;
 		vec3_t t1,t2;
-		VectorCopy(player_mins, t1);
-		VectorCopy(player_maxs, t2);
-		VectorClear(player_maxs);
-		VectorClear(player_mins);
+		VectorCopy(pmove.player_mins, t1);
+		VectorCopy(pmove.player_maxs, t2);
+		VectorClear(pmove.player_maxs);
+		VectorClear(pmove.player_mins);
 		r_viewcontents |= PM_ExtraBoxContents(r_origin);
-		VectorCopy(t1, player_mins);
-		VectorCopy(t2, player_maxs);
+		VectorCopy(t1, pmove.player_mins);
+		VectorCopy(t2, pmove.player_maxs);
 	}
 	V_SetContentsColor (r_viewcontents);
 

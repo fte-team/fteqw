@@ -4887,6 +4887,8 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 			"endif\n"
 		"}\n"
 		);
+
+	s->flags |= SHADER_NOIMAGE;
 }
 void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args)
 {

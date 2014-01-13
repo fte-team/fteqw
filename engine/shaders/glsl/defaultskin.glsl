@@ -35,7 +35,7 @@ void main ()
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
-	eyevector.x = -dot(eyeminusvertex, s.xyz);
+	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #else

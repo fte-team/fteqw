@@ -2397,8 +2397,6 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int msecs;
-	extern vec3_t	player_mins;
-	extern vec3_t	player_maxs;
 
 	csqcedict_t *ent;
 	if (prinst->callargc >= 1)
@@ -2435,8 +2433,8 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 		pmove.waterjumptime = 0;
 		VectorCopy(ent->v->origin, pmove.origin);
 		VectorCopy(ent->v->velocity, pmove.velocity);
-		VectorCopy(ent->v->maxs, player_maxs);
-		VectorCopy(ent->v->mins, player_mins);
+		VectorCopy(ent->v->maxs, pmove.player_maxs);
+		VectorCopy(ent->v->mins, pmove.player_mins);
 	}
 	else
 	{
@@ -2448,8 +2446,8 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 			pmove.waterjumptime = *csqcg.pmove_waterjumptime;
 		VectorCopy(csqcg.pmove_org, pmove.origin);
 		VectorCopy(csqcg.pmove_vel, pmove.velocity);
-		VectorCopy(csqcg.pmove_maxs, player_maxs);
-		VectorCopy(csqcg.pmove_mins, player_mins);
+		VectorCopy(csqcg.pmove_maxs, pmove.player_maxs);
+		VectorCopy(csqcg.pmove_mins, pmove.player_mins);
 	}
 
 	CL_SetSolidEntities();
@@ -2929,79 +2927,6 @@ static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvar
 	cl_lightstyle[stnum].colour = colourflags;
 	Q_strncpyz (cl_lightstyle[stnum].map,  str, sizeof(cl_lightstyle[stnum].map));
 	cl_lightstyle[stnum].length = Q_strlen(cl_lightstyle[stnum].map);
-}
-
-static void QCBUILTIN PF_cs_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	csqcedict_t		*ent;
-	float		ideal, current, move, speed;
-
-	ent = (void*)PROG_TO_EDICT(prinst, *csqcg.self);
-	current = anglemod( ent->v->angles[1] );
-	ideal = ent->v->ideal_yaw;
-	speed = ent->v->yaw_speed;
-
-	if (current == ideal)
-		return;
-	move = ideal - current;
-	if (ideal > current)
-	{
-		if (move >= 180)
-			move = move - 360;
-	}
-	else
-	{
-		if (move <= -180)
-			move = move + 360;
-	}
-	if (move > 0)
-	{
-		if (move > speed)
-			move = speed;
-	}
-	else
-	{
-		if (move < -speed)
-			move = -speed;
-	}
-
-	ent->v->angles[1] = anglemod (current + move);
-}
-static void QCBUILTIN PF_cs_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	csqcedict_t		*ent;
-	float		ideal, current, move, speed;
-
-	ent = (void*)PROG_TO_EDICT(prinst, *csqcg.self);
-	current = anglemod( ent->v->angles[0] );
-	ideal = ent->xv->ideal_pitch;
-	speed = ent->xv->pitch_speed;
-
-	if (current == ideal)
-		return;
-	move = ideal - current;
-	if (ideal > current)
-	{
-		if (move >= 180)
-			move = move - 360;
-	}
-	else
-	{
-		if (move <= -180)
-			move = move + 360;
-	}
-	if (move > 0)
-	{
-		if (move > speed)
-			move = speed;
-	}
-	else
-	{
-		if (move < -speed)
-			move = -speed;
-	}
-
-	ent->v->angles[0] = anglemod (current + move);
 }
 
 static void QCBUILTIN PF_cs_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4387,7 +4312,7 @@ static struct {
 	{"localcmd",				PF_localcmd,	46},			// #46 void(string str) localcmd (QUAKE)
 	{"nextent",					PF_nextent,	47},				// #47 entity(entity e) nextent (QUAKE)
 	{"particle",				PF_cs_particle,	48},		// #48 void(vector org, vector dir, float colour, float count) particle (QUAKE)
-	{"changeyaw",				PF_cs_changeyaw,	49},		// #49 void() changeyaw (QUAKE)
+	{"changeyaw",				PF_changeyaw,	49},			// #49 void() changeyaw (QUAKE)
 //50
 //	{"?",	PF_Fixme,	50},				// #50
 	{"vectoangles",				PF_vectoangles,	51},			// #51 vector(vector v) vectoangles (QUAKE)
@@ -4405,7 +4330,7 @@ static struct {
 	{"sin",						PF_Sin,	60},					// #60 float(float angle) sin (DP_QC_SINCOSSQRTPOW)
 	{"cos",						PF_Cos,	61},					// #61 float(float angle) cos (DP_QC_SINCOSSQRTPOW)
 	{"sqrt",					PF_Sqrt,	62},				// #62 float(float value) sqrt (DP_QC_SINCOSSQRTPOW)
-	{"changepitch",				PF_cs_changepitch,	63},		// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
+	{"changepitch",				PF_changepitch,	63},			// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
 	{"tracetoss",				PF_cs_tracetoss,	64},		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACETOSS)
 
 	{"etos",					PF_etos,	65},				// #65 string(entity ent) etos (DP_QC_ETOS)
@@ -4897,7 +4822,7 @@ static struct {
 	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
 	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
 	{"parseentitydata",			PF_parseentitydata,			613},
-	{"stringtokeynum",			PF_cl_stringtokeynum,		614},
+	{"stringtokeynum_menu",		PF_cl_stringtokeynum,		614},
 
 	{"resethostcachemasks",		PF_cl_resethostcachemasks,	615},
 	{"sethostcachemaskstring",	PF_cl_sethostcachemaskstring,616},

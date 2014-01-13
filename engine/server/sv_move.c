@@ -255,6 +255,8 @@ void World_changeyaw (wedict_t *ent)
 {
 	float		ideal, current, move, speed;
 
+	//FIXME: gravitydir. reorient the angles to change the yaw with respect to the current ground surface.
+
 	current = anglemod( ent->v->angles[1] );
 	ideal = ent->v->ideal_yaw;
 	speed = ent->v->yaw_speed;
@@ -305,6 +307,7 @@ qboolean World_StepDirection (world_t *world, wedict_t *ent, float yaw, float di
 	World_changeyaw(ent);
 
 	yaw = yaw*M_PI*2 / 360;
+	//FIXME: gravitydir
 	move[0] = cos(yaw)*dist;
 	move[1] = sin(yaw)*dist;
 	move[2] = 0;

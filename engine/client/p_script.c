@@ -621,7 +621,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 				"}\n"
 				;
 			break;
-		case BM_ADD:
+		case BM_ADDA:
 			namepostfix = "_add";
 			defaultshader =
 				"{\n"
@@ -630,6 +630,22 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc GL_SRC_ALPHA GL_ONE\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		case BM_ADDC:
+			namepostfix = "_add";
+			defaultshader =
+				"{\n"
+					"program defaultsprite\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_COLOR GL_ONE\n"
 						"rgbgen vertex\n"
 						"alphagen vertex\n"
 					"}\n"
@@ -1255,8 +1271,10 @@ static void P_ParticleEffect_f(void)
 			ptype->stainonimpact = atof(value);
 		else if (!strcmp(var, "blend"))
 		{
-			if (!strcmp(value, "add"))
-				ptype->looks.blendmode = BM_ADD;
+			if (!strcmp(value, "adda") || !strcmp(value, "add"))
+				ptype->looks.blendmode = BM_ADDA;
+			else if (!strcmp(value, "addc"))
+				ptype->looks.blendmode = BM_ADDC;
 			else if (!strcmp(value, "subtract"))
 				ptype->looks.blendmode = BM_SUBTRACT;
 			else if (!strcmp(value, "invmoda") || !strcmp(value, "invmod"))
@@ -2005,6 +2023,7 @@ static void P_ImportEffectInfo_f(void)
 
 			ptype->spawnmode = SM_BOX;
 
+			ptype->colorindex = -1;
 			ptype->spawnchance = 1;
 			ptype->randsmax = 1;
 			ptype->looks.scalefactor = 2;
@@ -2044,22 +2063,22 @@ static void P_ImportEffectInfo_f(void)
 			else if (!strcmp(arg[1], "static"))
 			{
 				ptype->looks.type = PT_NORMAL;
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 			}
 			else if (!strcmp(arg[1], "smoke"))
 			{
 				ptype->looks.type = PT_NORMAL;
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 			}
 			else if (!strcmp(arg[1], "spark"))
 			{
 				ptype->looks.type = PT_TEXTUREDSPARK;
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 			}
 			else if (!strcmp(arg[1], "bubble"))
 			{
 				ptype->looks.type = PT_NORMAL;
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 			}
 			else if (!strcmp(arg[1], "blood"))
 			{
@@ -2070,12 +2089,12 @@ static void P_ImportEffectInfo_f(void)
 			else if (!strcmp(arg[1], "beam"))
 			{
 				ptype->looks.type = PT_BEAM;
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 			}
 			else if (!strcmp(arg[1], "snow"))
 			{
 				ptype->looks.type = PT_NORMAL;
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 				//should have some sort of wind/flutter with it
 			}
 			else
@@ -2181,7 +2200,7 @@ static void P_ImportEffectInfo_f(void)
 			else if (!strcmp(arg[1], "alpha"))
 				ptype->looks.blendmode = BM_BLEND;
 			else if (!strcmp(arg[1], "add"))
-				ptype->looks.blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADDA;
 			else
 				Con_Printf("effectinfo 'blend %s' not supported\n", arg[1]);
 		}

@@ -132,9 +132,6 @@ trace_t Cam_DoTrace(vec3_t vec1, vec3_t vec2)
 	VectorCopy (vec1, pmove.origin);
 	return PM_PlayerTrace(pmove.origin, vec2, MASK_PLAYERSOLID);
 }
-
-extern vec3_t	player_mins;
-extern vec3_t	player_maxs;
 	
 // Returns distance or 9999 if invalid for some reason
 static float Cam_TryFlyby(vec3_t selforigin, vec3_t playerorigin, vec3_t vec, qboolean checkvis)
@@ -143,10 +140,10 @@ static float Cam_TryFlyby(vec3_t selforigin, vec3_t playerorigin, vec3_t vec, qb
 	trace_t trace;
 	float len;
 
-	player_mins[0] = player_mins[1] = -16;
-	player_mins[2] = -24;
-	player_maxs[0] = player_maxs[1] = 16;
-	player_maxs[2] = 32;
+	pmove.player_mins[0] = pmove.player_mins[1] = -16;
+	pmove.player_mins[2] = -24;
+	pmove.player_maxs[0] = pmove.player_maxs[1] = 16;
+	pmove.player_maxs[2] = 32;
 
 	VectorAngles(vec, NULL, v);
 //	v[0] = -v[0];

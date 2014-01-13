@@ -299,18 +299,18 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 unsigned int utf8_decode(int *error, const void *in, char **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
-unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen);
-unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen);
+unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
+unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int COM_DeQuake(conchar_t chr);
 
 //handles whatever charset is active, including ^U stuff.
-unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs);
-unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs);
-unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen);
-unsigned int unicode_decode(int *error, const void *in, char **out);
-size_t unicode_strtolower(char *in, char *out, size_t outsize);
-size_t unicode_strtoupper(char *in, char *out, size_t outsize);
-unsigned int unicode_charcount(char *in, size_t buffersize);
+unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs, qboolean markup);
+unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs, qboolean markup);
+unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
+unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup);
+size_t unicode_strtolower(char *in, char *out, size_t outsize, qboolean markup);
+size_t unicode_strtoupper(char *in, char *out, size_t outsize, qboolean markup);
+unsigned int unicode_charcount(char *in, size_t buffersize, qboolean markup);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);

@@ -364,8 +364,6 @@ CL_PredictUsercmd
 */
 void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state_t *to, usercmd_t *u)
 {
-	extern vec3_t player_mins;
-	extern vec3_t player_maxs;
 	// split up very long moves
 	if (u->msec > 50)
 	{
@@ -408,8 +406,8 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	movevars.bunnyspeedcap = cl.bunnyspeedcap;
 	pmove.onladder = false;
 
-	VectorCopy(from->szmins, player_mins);
-	VectorCopy(from->szmaxs, player_maxs);
+	VectorCopy(from->szmins, pmove.player_mins);
+	VectorCopy(from->szmaxs, pmove.player_maxs);
 
 	PM_PlayerMove (cl.gamespeed);
 
@@ -427,8 +425,8 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	to->weaponframe = from->weaponframe;
 	to->pm_type = from->pm_type;
 
-	VectorCopy(player_mins, to->szmins);
-	VectorCopy(player_maxs, to->szmaxs);
+	VectorCopy(pmove.player_mins, to->szmins);
+	VectorCopy(pmove.player_maxs, to->szmaxs);
 }
 
 

@@ -58,12 +58,12 @@ void main ()
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	tcbase = v_texcoord;	//pass the texture coords straight through
 	vec3 lightminusvertex = l_lightposition - w.xyz;
-	lightvector.x = -dot(lightminusvertex, s.xyz);
+	lightvector.x = dot(lightminusvertex, s.xyz);
 	lightvector.y = dot(lightminusvertex, t.xyz);
 	lightvector.z = dot(lightminusvertex, n.xyz);
 #if defined(SPECULAR)||defined(OFFSETMAPPING)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
-	eyevector.x = -dot(eyeminusvertex, s.xyz);
+	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #endif

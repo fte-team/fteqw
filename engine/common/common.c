@@ -2082,15 +2082,15 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 	return uc;
 }
 
-unsigned int unicode_decode(int *error, const void *in, char **out)
+unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup)
 {
 	unsigned int charcode;
-	if (((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
+	if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
 	{
 		*out = (char*)in + 6;
 		charcode = (dehex(((char*)in)[2]) << 12) | (dehex(((char*)in)[2]) << 8) | (dehex(((char*)in)[2]) << 4) | (dehex(((char*)in)[2]) << 0);
 	}
-	else if (((char*)in)[0] == '^' && ((char*)in)[1] == '{')
+	else if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == '{')
 	{
 		*out = (char*)in + 2;
 		charcode = 0;
@@ -2173,9 +2173,10 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 	return bcount;
 }
 
-unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen)
+unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup)
 {
 	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+	//FIXME: is it a bug that we can't distinguish between true ascii and 0xe0XX ?
 	if (((unicode >= 32 || unicode == '\n' || unicode == '\t' || unicode == '\r') && unicode < 128) || (unicode >= 0xe000 && unicode <= 0xe0ff))
 	{	//quake compatible chars
 		if (maxlen < 1)
@@ -2183,54 +2184,11 @@ unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen)
 		*out++ = unicode;
 		return 1;
 	}
-	else if (unicode > 0xffff)
-	{	//chars longer than 16 bits
-		char *o = out;
-		if (maxlen < 11)
-			return 0;
-		*out++ = '^';
-		*out++ = '{';
-		if (unicode > 0xfffffff)
-			*out++ = hex[(unicode>>28)&15];
-		if (unicode > 0xffffff)
-			*out++ = hex[(unicode>>24)&15];
-		if (unicode > 0xfffff)
-			*out++ = hex[(unicode>>20)&15];
-		if (unicode > 0xffff)
-			*out++ = hex[(unicode>>16)&15];
-		if (unicode > 0xfff)
-			*out++ = hex[(unicode>>12)&15];
-		if (unicode > 0xff)
-			*out++ = hex[(unicode>>8)&15];
-		if (unicode > 0xf)
-			*out++ = hex[(unicode>>4)&15];
-		if (unicode > 0x0)
-			*out++ = hex[(unicode>>0)&15];
-		*out++ = '}';
-		return out - o;
-	}
-	else
-	{	//16bit chars
-		if (maxlen < 6)
-			return 0;
-		*out++ = '^';
-		*out++ = 'U';
-		*out++ = hex[(unicode>>12)&15];
-		*out++ = hex[(unicode>>8)&15];
-		*out++ = hex[(unicode>>4)&15];
-		*out++ = hex[(unicode>>0)&15];
-		return 6;
-	}
-}
-
-unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen)
-{
-	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-	if (unicode < 256)
-	{	//iso8859-1 compatible chars
+	else if (!markup)
+	{
 		if (maxlen < 1)
 			return 0;
-		*out++ = unicode;
+		*out++ = '?';
 		return 1;
 	}
 	else if (unicode > 0xffff)
@@ -2273,25 +2231,82 @@ unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen)
 	}
 }
 
-unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen)
+unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboolean markup)
+{
+	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+	if (unicode < 256 || (unicode >= 0xe020 && unicode < 0xe080))
+	{	//iso8859-1 compatible chars
+		if (maxlen < 1)
+			return 0;
+		*out++ = unicode;
+		return 1;
+	}
+	else if (!markup)
+	{
+		if (maxlen < 1)
+			return 0;
+		*out++ = '?';
+		return 1;
+	}
+	else if (unicode > 0xffff)
+	{	//chars longer than 16 bits
+		char *o = out;
+		if (maxlen < 11)
+			return 0;
+		*out++ = '^';
+		*out++ = '{';
+		if (unicode > 0xfffffff)
+			*out++ = hex[(unicode>>28)&15];
+		if (unicode > 0xffffff)
+			*out++ = hex[(unicode>>24)&15];
+		if (unicode > 0xfffff)
+			*out++ = hex[(unicode>>20)&15];
+		if (unicode > 0xffff)
+			*out++ = hex[(unicode>>16)&15];
+		if (unicode > 0xfff)
+			*out++ = hex[(unicode>>12)&15];
+		if (unicode > 0xff)
+			*out++ = hex[(unicode>>8)&15];
+		if (unicode > 0xf)
+			*out++ = hex[(unicode>>4)&15];
+		if (unicode > 0x0)
+			*out++ = hex[(unicode>>0)&15];
+		*out++ = '}';
+		return out - o;
+	}
+	else
+	{	//16bit chars
+		if (maxlen < 6)
+			return 0;
+		*out++ = '^';
+		*out++ = 'U';
+		*out++ = hex[(unicode>>12)&15];
+		*out++ = hex[(unicode>>8)&15];
+		*out++ = hex[(unicode>>4)&15];
+		*out++ = hex[(unicode>>0)&15];
+		return 6;
+	}
+}
+
+unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen, qboolean markup)
 {
 	if (com_parseutf8.ival > 0)
 		return utf8_encode(out, unicode, maxlen);
 	else if (com_parseutf8.ival)
-		return iso88591_encode(out, unicode, maxlen);
+		return iso88591_encode(out, unicode, maxlen, markup);
 	else
-		return qchar_encode(out, unicode, maxlen);
+		return qchar_encode(out, unicode, maxlen, markup);
 }
 
 //char-based strlen.
-unsigned int unicode_charcount(char *in, size_t buffersize)
+unsigned int unicode_charcount(char *in, size_t buffersize, qboolean markup)
 {
 	int error;
 	char *end = in + buffersize;
 	int chars = 0;
 	for(chars = 0; in < end && *in; chars+=1)
 	{
-		unicode_decode(&error, in, &in);
+		unicode_decode(&error, in, &in, markup);
 
 		if (in > end)
 			break;	//exceeded buffer size uncleanly
@@ -2300,7 +2315,7 @@ unsigned int unicode_charcount(char *in, size_t buffersize)
 }
 
 //handy hacky function.
-unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs)
+unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs, qboolean markup)
 {
 	char *in = str;
 	int error;
@@ -2310,19 +2325,19 @@ unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs)
 		if (chars >= charofs)
 			return in - str;
 
-		unicode_decode(&error, in, &in);
+		unicode_decode(&error, in, &in, markup);
 	}
 	return in - str;
 }
 //handy hacky function.
-unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs)
+unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs, qboolean markup)
 {
 	int error;
 	char *end = str + byteofs;
 	int chars = 0;
 	for(chars = 0; str < end && *str; chars+=1)
 	{
-		unicode_decode(&error, str, &str);
+		unicode_decode(&error, str, &str, markup);
 
 		if (str > end)
 			break;	//exceeded buffer size uncleanly
@@ -2348,7 +2363,7 @@ int towlower(int c)
 }
 #endif
 
-size_t unicode_strtoupper(char *in, char *out, size_t outsize)
+size_t unicode_strtoupper(char *in, char *out, size_t outsize, qboolean markup)
 {
 	//warning: towupper is locale-specific (eg: turkish has both I and dotted-I and thus i should transform to dotted-I rather than to I).
 	//also it can't easily cope with accent prefixes.
@@ -2359,12 +2374,12 @@ size_t unicode_strtoupper(char *in, char *out, size_t outsize)
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, &in);
+		c = unicode_decode(&error, in, &in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towupper(c & 0x7f) + (c & 0xff80);
 		else
 			c = towupper(c);
-		l = unicode_encode(out, c, outsize - l);
+		l = unicode_encode(out, c, outsize - l, markup);
 		out += l;
 	}
 	*out = 0;
@@ -2372,7 +2387,7 @@ size_t unicode_strtoupper(char *in, char *out, size_t outsize)
 	return l;
 }
 
-size_t unicode_strtolower(char *in, char *out, size_t outsize)
+size_t unicode_strtolower(char *in, char *out, size_t outsize, qboolean markup)
 {
 	//warning: towlower is locale-specific (eg: turkish has both i and dotless-i and thus I should transform to dotless-i rather than to i).
 	//also it can't easily cope with accent prefixes.
@@ -2383,12 +2398,12 @@ size_t unicode_strtolower(char *in, char *out, size_t outsize)
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, &in);
+		c = unicode_decode(&error, in, &in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towlower(c & 0x7f) + (c & 0xff80);
 		else
 			c = towlower(c);
-		l = unicode_encode(out, c, outsize - l);
+		l = unicode_encode(out, c, outsize - l, markup);
 		out += l;
 	}
 	*out = 0;
@@ -2573,7 +2588,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 			if (ignoreflags && (*str & CON_HIDDEN))
 				continue;
 
-			c = unicode_encode(out, (*str++ & CON_CHARMASK), outsize-1);
+			c = unicode_encode(out, (*str++ & CON_CHARMASK), outsize-1, !ignoreflags);
 			if (!c)
 				break;
 			outsize -= c;

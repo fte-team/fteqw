@@ -786,11 +786,22 @@ Sets com_filesize and one of handle or file
 //returns -1 if couldn't find.
 int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation_t *loc)
 {
-	int depth=0, len;
+	int depth=0;
 	searchpath_t	*search;
 	char cleanpath[MAX_QPATH];
+	flocation_t allownoloc;
 
 	void *pf;
+	unsigned int found = FF_NOTFOUND;
+
+	if (!loc)
+		loc = &allownoloc;
+
+	loc->index = 0;
+	loc->offset = 0;
+	*loc->rawname = 0;
+	loc->search = NULL;
+	loc->len = -1;
 
 	filename = FS_GetCleanPath(filename, cleanpath, sizeof(cleanpath));
 	if (!filename)
@@ -810,60 +821,98 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	else
 		pf = NULL;
 
-	if (com_purepaths)
+	if (com_purepaths && found == FF_NOTFOUND)
 	{
+		//check if its in one of the 'pure' packages. these override the default ones.
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
 			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
 			fs_finds++;
-			if (search->handle->FindFile(search->handle, loc, filename, pf))
+			found = search->handle->FindFile(search->handle, loc, filename, pf);
+			if (found)
 			{
-				if (loc)
-				{
-					search->flags |= fs_referencetype;
-					loc->search = search;
-					len = loc->len;
-				}
-				else
-					len = 0;
+				search->flags |= fs_referencetype;
+				loc->search = search;
+
 				com_file_copyprotected = !!(search->flags & SPF_COPYPROTECTED);
 				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);
-				goto out;
+				break;
 			}
 		}
 	}
 
-	if (fs_puremode < 2)
+	if (fs_puremode < 2 && found == FF_NOTFOUND)
 	{
-//
-// search through the path, one element at a time
-//
+		// optionally check the non-pure paths too.
 		for (search = com_searchpaths ; search ; search = search->next)
 		{
 			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
 			fs_finds++;
-			if (search->handle->FindFile(search->handle, loc, filename, pf))
+			found = search->handle->FindFile(search->handle, loc, filename, pf);
+			if (found)
 			{
 				search->flags |= fs_referencetype;
-				if (loc)
-				{
-					loc->search = search;
-					len = loc->len;
-				}
-				else
-					len = 1;
+				loc->search = search;
 				com_file_copyprotected = !!(search->flags & SPF_COPYPROTECTED);
 				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);
-				goto out;
+				break;
 			}
 		}
 	}
 fail:
-	if (loc)
-		loc->search = NULL;
-	depth = 0x7fffffff;
-	len = -1;
-out:
+	if (found == FF_SYMLINK)
+	{
+		static int blocklink;
+		if (blocklink < 4 && loc->len < MAX_QPATH)
+		{
+			//read the link target
+			char *s, *b;
+			char targname[MAX_QPATH];
+			char mergedname[MAX_QPATH];
+			targname[loc->len] = 0;
+			loc->search->handle->ReadFile(loc->search->handle, loc, targname);
+
+			//properlyish unixify
+			while(s = strchr(targname, '\\'))
+				*s = '/';
+			if (*targname == '/')
+				Q_strncpyz(mergedname, targname+1, sizeof(mergedname));
+			else
+			{
+				Q_strncpyz(mergedname, filename, sizeof(mergedname));
+				while(s = strchr(mergedname, '\\'))
+					*s = '/';
+				b = COM_SkipPath(mergedname);
+				*b = 0;
+				for (s = targname; !strncmp(s, "../", 3) && b > mergedname; )
+				{
+					s += 3;
+					if (b[-1] == '/')
+						*--b = 0;
+					*b = 0;
+					b = strrchr(mergedname, '/');
+					if (b)
+						*++b = 0;
+					else
+					{
+						//no prefix left.
+						*mergedname = 0;
+						break;
+					}
+				}
+				b = mergedname + strlen(mergedname);
+				Q_strncpyz(b, s, sizeof(mergedname) - (b - mergedname));
+			}
+
+			//and locate that instead.
+			blocklink++;
+			depth = FS_FLocateFile(mergedname, returntype, loc);
+			blocklink--;
+			if (!loc->search)
+				Con_Printf("Symlink %s -> %s (%s) is dead\n", filename, targname, mergedname);
+			return depth;
+		}
+	}
 
 /*	if (len>=0)
 	{
@@ -876,11 +925,19 @@ out:
 		Con_Printf("Failed\n");
 */
 	if (returntype == FSLFRT_IFFOUND)
-		return len != -1;
+		return (found != FF_NOTFOUND) && (loc->len != -1);
 	else if (returntype == FSLFRT_LENGTH)
-		return len;
+	{
+		if (found == FF_NOTFOUND)
+			return -1;
+		return loc->len;
+	}
 	else
+	{
+		if (found == FF_NOTFOUND)
+			return 0x7fffffff;
 		return depth;
+	}
 }
 
 char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)

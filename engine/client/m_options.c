@@ -555,6 +555,7 @@ const char *presetexec[] =
 	"r_part_density 0.25;"
 	"cl_nolerp 1;"
 	"r_lerpmuzzlehack 0;"
+	"v_gunkick 0;"
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -587,6 +588,7 @@ const char *presetexec[] =
 	"r_coronas 1;"
 	"cl_nolerp 0;"
 	"r_lerpmuzzlehack 1;"
+	"v_gunkick 1;"
 
 	, // nice options
 	"r_stains 0.75;"

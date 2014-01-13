@@ -4205,6 +4205,9 @@ void CL_LinkPlayers (void)
 	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
 
+	if (cl.paused)
+		predictmsmult = 0;
+
 	playertime = realtime - cls.latency + 0.02;
 	if (playertime > realtime)
 		playertime = realtime;
@@ -4445,16 +4448,15 @@ void CL_LinkPlayers (void)
 		if ((r_showbboxes.ival & 3) == 3)
 		{
 			vec3_t min, max;
-			extern vec3_t player_mins, player_maxs;
 			shader_t *s = R_RegisterShader("bboxshader", SUF_NONE, NULL);
 			if (s)
 			{
-				VectorAdd(state->origin, player_mins, min);
-				VectorAdd(state->origin, player_maxs, max);
+				VectorAdd(state->origin, pmove.player_mins, min);
+				VectorAdd(state->origin, pmove.player_maxs, max);
 				CLQ1_AddOrientedCube(s, min, max, NULL, 0.1, 0, 0, 1);
 
-				VectorAdd(ent->origin, player_mins, min);
-				VectorAdd(ent->origin, player_maxs, max);
+				VectorAdd(ent->origin, pmove.player_mins, min);
+				VectorAdd(ent->origin, pmove.player_maxs, max);
 				CLQ1_AddOrientedCube(s, min, max, NULL, 0, 0, 0.1, 1);
 			}
 		}
@@ -4821,8 +4823,6 @@ pmove must be setup with world and solid entity hulls before calling
 void CL_SetSolidPlayers (void)
 {
 	int		j;
-	extern	vec3_t	player_mins;
-	extern	vec3_t	player_maxs;
 	struct predicted_player *pplayer;
 	physent_t *pent;
 
@@ -4845,8 +4845,8 @@ void CL_SetSolidPlayers (void)
 		memset(pent, 0, sizeof(physent_t));
 		VectorCopy(pplayer->origin, pent->origin);
 		pent->info = j+1;
-		VectorCopy(player_mins, pent->mins);
-		VectorCopy(player_maxs, pent->maxs);
+		VectorCopy(pmove.player_mins, pent->mins);
+		VectorCopy(pmove.player_maxs, pent->maxs);
 		if (++pmove.numphysent == MAX_PHYSENTS)	//we just hit 88 miles per hour.
 			break;
 		pent++;

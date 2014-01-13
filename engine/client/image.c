@@ -22,6 +22,26 @@ cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upsid
 cvar_t r_dodgypcxfiles = SCVAR("r_dodgypcxfiles", "0");	//Quake 2's PCX loading isn't complete,
 													//and some Q2 mods include PCX files
 													//that only work with this assumption
+
+char *r_defaultimageextensions =
+#ifdef IMAGEFMT_DDS
+	"dds "	//compressed or something
+#endif
+	"tga"	//fairly fast to load
+#ifdef AVAIL_PNGLIB
+	" png"	//pngs, fairly common, but slow
+#endif
+	//" bmp"	//wtf? at least not lossy
+#ifdef AVAIL_JPEGLIB
+	" jpg"	//q3 uses some jpegs, for some reason
+#endif
+#ifdef IMAGEFMT_BLP
+	//" blp"	//blizzard picture, for the luls
+#endif
+	" pcx"	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
+	;
+void R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
+cvar_t r_imageexensions = CVARC("r_imageexensions", NULL, R_ImageExtensions_Callback);
 #endif
 
 #ifndef _WIN32
@@ -2482,6 +2502,26 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 		return data;
 	}
 
+	if (len >= 8)	//.lmp has no magic id. guess at it.
+	{
+		int w = LittleLong(((int*)buf)[0]);
+		int h = LittleLong(((int*)buf)[1]);
+		int i;
+		if (w >= 4 && h >= 4 && w*h+sizeof(int)*2 == com_filesize)
+		{
+			unsigned int *in = (unsigned int*)buf+2;
+			data = BZ_Malloc(w * h * sizeof(int));
+			for (i = 0; i < w * h; i++)
+			{
+				((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
+			}
+			*width = w;
+			*height = h;
+			*hasalpha = false;
+			return data;
+		}
+	}
+
 	TRACE(("dbg: Read32BitImageFile: life sucks\n"));
 
 	return NULL;
@@ -2544,29 +2584,32 @@ static void *R_FlipImage32(void *in, int *inoutwidth, int *inoutheight, qboolean
 	return out;
 }
 
+int tex_extensions_count;
+#define tex_extensions_max 15
 static struct
 {
-	char *name;
-	int enabled;
-} tex_extensions[] =
-{//reverse order of preference - (match commas with optional file types)
-	{".pcx", 1},	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
-#ifdef AVAIL_JPEGLIB
-	{".jpg", 1},	//q3 uses some jpegs, for some reason
-#endif
-	{".bmp", 0},	//wtf? at least not lossy
-#ifdef AVAIL_PNGLIB
-	{".png", 1},	//pngs, fairly common, but slow
-#endif
-	{".tga", 1},	//fairly fast to load
-#ifdef IMAGEFMT_BLP
-	{".blp", 1},	//blizzard picture, for the luls
-#endif
-#ifdef IMAGEFMT_DDS
-	{".dds", 1},	//compressed or something
-#endif
-	{"", 1}			//someone forgot an extension
-};
+	char name[6];
+} tex_extensions[tex_extensions_max];
+void R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue)
+{
+	char *v = var->string;
+	tex_extensions_count = 0;
+
+	while (tex_extensions_count < tex_extensions_max)
+	{
+		v = COM_Parse(v);
+		if (!v)
+			break;
+		Q_snprintfz(tex_extensions[tex_extensions_count].name, sizeof(tex_extensions[tex_extensions_count].name), ".%s", com_token); 
+		tex_extensions_count++;
+	}
+
+	if (tex_extensions_count < tex_extensions_max)
+	{
+		Q_snprintfz(tex_extensions[tex_extensions_count].name, sizeof(tex_extensions[tex_extensions_count].name), ""); 
+		tex_extensions_count++;
+	}
+}
 
 static struct
 {
@@ -2675,11 +2718,8 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		for (i = 0; i < 6; i++)
 		{
 			tex = r_nulltex;
-			for (e = (flags & IF_EXACTEXTENSION)?0:sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
+			for (e = (flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0; e < tex_extensions_count; e++)
 			{
-				if (!tex_extensions[e].enabled)
-					continue;
-
 				buf = NULL;
 				for (j = 0; j < sizeof(cmscheme)/sizeof(cmscheme[0])/6; j++)
 				{
@@ -2737,6 +2777,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			BZ_Free(buf);
 			return tex;
 		}
+		Con_Printf("%s is not a dds file\n", fname);
 		BZ_Free(buf);
 	}
 #endif
@@ -2751,11 +2792,8 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	{
 		if (!tex_path[i].enabled)
 			continue;
-		for (e = (flags & IF_EXACTEXTENSION)?0:sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
+		for (e = (flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0; e < tex_extensions_count; e++)
 		{
-			if (!tex_extensions[e].enabled)
-				continue;
-
 			if (tex_path[i].args >= 3)
 			{
 				if (!subpath)
@@ -2771,6 +2809,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
+				//these formats have special handling, because they cannot be implemented via Read32BitImageFile - they don't result in rgba images.
 #ifdef IMAGEFMT_DDS
 				tex = GL_ReadTextureDDS(name, buf, com_filesize);
 				if (TEXVALID(tex))

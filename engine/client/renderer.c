@@ -217,6 +217,8 @@ cvar_t	r_stereo_method						= CVARD("r_stereo_method", "0", "Value 0 = Off.\nVal
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
+extern char *r_defaultimageextensions;
+extern cvar_t r_imageexensions;
 extern cvar_t r_drawentities;
 extern cvar_t r_drawviewmodel;
 extern cvar_t r_drawworld;
@@ -599,6 +601,9 @@ void Renderer_Init(void)
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
 	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");
+	r_imageexensions.enginevalue = r_defaultimageextensions;
+	Cvar_Register(&r_imageexensions, GRAPHICALNICETIES);
+	r_imageexensions.callback(&r_imageexensions, NULL);
 	Cvar_Register(&r_loadlits, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth_limit, GRAPHICALNICETIES);
@@ -2210,9 +2215,6 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 	}
 
 	r_refdef.frustum_numplanes = 4;
-
-	if (r_refdef.recurse)
-		return;
 
 	r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = mvp[3] - mvp[2];
 	r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = mvp[7] - mvp[6];

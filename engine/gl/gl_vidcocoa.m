@@ -612,7 +612,7 @@ void flushCocoa(void)
 
 void cocoaGamma(unsigned short *r,unsigned short *g,unsigned short *b)
 {
-	CGByteValue gammatable[3*256];
+	uint8_t gammatable[3*256];
 	int i;
 
 	// convert the gamma values

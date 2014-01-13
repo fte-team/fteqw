@@ -385,10 +385,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 		while(*line)
 		{
 			unicode = utf8_decode(&err, line, &line);
-			if (com_parseutf8.ival < 0)
-				len += iso88591_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
-			else
-				len += qchar_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
+			len += unicode_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len, true);
 		}
 		deutf8[len] = 0;
 		line = deutf8;
@@ -1366,10 +1363,7 @@ void Key_Message (int key, int unicode)
 				while(*line)
 				{
 					unicode = utf8_decode(&err, line, &line);
-					if (com_parseutf8.ival < 0)
-						len += iso88591_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
-					else
-						len += qchar_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len);
+					len += unicode_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len, true);
 				}
 				deutf8[len] = 0;
 				line = deutf8;

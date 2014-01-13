@@ -90,6 +90,7 @@ cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");//never run a tick slower than this
 cvar_t	sv_limittics = SCVAR("sv_limittics","3");//
 
 cvar_t	sv_nailhack = SCVAR("sv_nailhack","0");
+cvar_t	sv_nopvs	= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
 
 
 cvar_t	timeout = SCVAR("timeout","65");		// seconds without any message
@@ -4383,6 +4384,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_minping, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);
+	Cvar_Register (&sv_nopvs, cvargroup_servercontrol);
 	Cvar_Register (&pext_ezquake_nochunks, cvargroup_servercontrol);
 
 	Cmd_AddCommand ("sv_impulse", SV_Impulse_f);

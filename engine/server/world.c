@@ -1494,7 +1494,7 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 					continue;
 		}
 
-		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
+		if ((clip->type & MOVE_NOMONSTERS) && (touch->v->solid != SOLID_BSP && touch->v->solid != SOLID_PORTAL))
 			continue;
 
 		if (clip->passedict)

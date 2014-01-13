@@ -388,16 +388,20 @@ struct traceinfo_s
 
 #if 0
 #include "shader.h"
-void TestDrawPlane(float *normal, float dist, float r, float g, float b)
+void BE_GenPolyBatches(batch_t **batches);
+void TestDrawPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue)
 {
 	scenetris_t *t;
+	if (!enqueue)
+		cl_numstris = 0;
+
 	if (cl_numstris == cl_maxstris)
 	{
 		cl_maxstris+=8;
 		cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
 	}
 	t = &cl_stris[cl_numstris++];
-	t->shader = R_RegisterShader("testplane", "{\n{\nmap $whiteimage\nrgbgen vertex\nalphagen vertex\nblendfunc add\nnodepth\n}\n}\n");
+	t->shader = R_RegisterShader("testplane", SUF_NONE, "{\n{\nmap $whiteimage\nrgbgen vertex\nalphagen vertex\nblendfunc add\nnodepth\n}\n}\n");
 	t->firstidx = cl_numstrisidx;
 	t->firstvert = cl_numstrisvert;
 	t->numvert = 0;
@@ -464,6 +468,15 @@ void TestDrawPlane(float *normal, float dist, float r, float g, float b)
 
 	t->numidx = cl_numstrisidx - t->firstidx;
 	t->numvert += 4;
+
+	if (!enqueue)
+	{
+//		int oldents = cl_numvisedicts;
+//		cl_numvisedicts = 0;
+		BE_DrawWorld(false, NULL);
+		cl_numstris = 0;
+//		cl_numvisedicts = oldents;
+	}
 }
 #endif
 

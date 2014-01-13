@@ -565,7 +565,8 @@ void R_RenderScene (void)
 		R_SetupGL (stereooffset[i]);
 
 		TRACE(("dbg: calling R_SetFrustrum\n"));
-		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		if (!r_refdef.recurse)
+			R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 
 		RQ_BeginFrame();
 
@@ -776,6 +777,7 @@ void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
 	r_refdef.m_projection[10] = c[2] + 1.0F;
 	r_refdef.m_projection[14] = c[3];
 }
+//void TestDrawPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
 void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
 	entity_t *view;
@@ -783,6 +785,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	plane_t plane;
 	float vmat[16];
 	refdef_t oldrefdef;
+	vec3_t r;
+	int i;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
 	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
 
@@ -821,9 +825,14 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	{
 	case 1: /*fbo explicit mirror (fucked depth, working clip plane)*/
 		//fixme: pvs is surely wrong?
-		r_refdef.flipcull ^= SHADER_CULL_FLIP;
+//		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 		R_MirrorMatrix(&plane);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+
+		VectorCopy(mesh->xyz_array[0], r_refdef.pvsorigin);
+		for (i = 1; i < mesh->numvertexes; i++)
+			VectorAdd(r_refdef.pvsorigin, mesh->xyz_array[i], r_refdef.pvsorigin);
+		VectorScale(r_refdef.pvsorigin, 1.0/mesh->numvertexes, r_refdef.pvsorigin);
 		break;
 	
 	case 2:	/*fbo refraction (fucked depth, working clip plane)*/
@@ -896,7 +905,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			plane.normal[2] = (oplane.normal[0] * trmat[2] + oplane.normal[1] * trmat[6] + oplane.normal[2] * trmat[10]);
 			plane.dist = -oplane.dist + trmat[12]*oplane.normal[0] + trmat[13]*oplane.normal[1] + trmat[14]*oplane.normal[2];
 
-			VectorNegate(plane.normal, plane.normal);
 			if (Cvar_Get("temp_useplaneclip", "1", 0, "temp")->ival)
 				portaltype = 1;	//make sure the near clipplane is used.
 		}
@@ -912,9 +920,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		}
 		else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 		{
-			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+			//a portal with no portal entity, or a portal rentity with an origin equal to its oldorigin, is a mirror.
+//			r_refdef.flipcull ^= SHADER_CULL_FLIP;
 			R_MirrorMatrix(&plane);
 			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+
+			VectorCopy(mesh->xyz_array[0], r_refdef.pvsorigin);
+			for (i = 1; i < mesh->numvertexes; i++)
+				VectorAdd(r_refdef.pvsorigin, mesh->xyz_array[i], r_refdef.pvsorigin);
+			VectorScale(r_refdef.pvsorigin, 1.0/mesh->numvertexes, r_refdef.pvsorigin);
 		}
 		else
 		{
@@ -962,19 +976,33 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		qglClipPlane(GL_CLIP_PLANE0, glplane);
 		qglEnable(GL_CLIP_PLANE0);
 	}*/
+	R_SetFrustum (r_refdef.m_projection, vmat);
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = plane.normal[0];
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = plane.normal[1];
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] = plane.normal[2];
-		r_refdef.frustum[r_refdef.frustum_numplanes].dist	= plane.dist + 0.01;
+		extern int SignbitsForPlane (mplane_t *out);
+		mplane_t fp;
+		VectorCopy(plane.normal, fp.normal);
+		fp.dist = plane.dist;
+
+		if (DotProduct(fp.normal, vpn) < 0)
+		{
+			VectorNegate(fp.normal, fp.normal);
+			fp.dist *= -1;
+		}
+
+		fp.type = PLANE_ANYZ;
+		fp.signbits = SignbitsForPlane (&fp);
 
 		if (portaltype == 1 || portaltype == 2)
-			R_ObliqueNearClip(vmat, &r_refdef.frustum[r_refdef.frustum_numplanes]);
-		r_refdef.frustum_numplanes++;
+			R_ObliqueNearClip(vmat, &fp);
+
+		//our own culling should be an epsilon forwards so we don't still draw things behind the line due to precision issues.
+		fp.dist += 0.01;
+		r_refdef.frustum[r_refdef.frustum_numplanes++] = fp;
 	}
 
-	GL_CullFace(0);
+	//force culling to update to match the new front face.
+//	memcpy(r_refdef.m_view, vmat, sizeof(float)*16);
 	if (depthmasklist)
 	{
 		/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
@@ -985,10 +1013,14 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		{
 			qglMatrixMode(GL_PROJECTION);
 			qglLoadMatrixf(r_refdef.m_projection);
+
+			//portals to mask are relative to the old view still.
+			qglMatrixMode(GL_MODELVIEW);
+			qglLoadMatrixf(r_refdef.m_view);
 		}
 		currententity = NULL;
 		if (gl_config.arb_depth_clamp)
-			qglEnable(GL_DEPTH_CLAMP_ARB);
+			qglEnable(GL_DEPTH_CLAMP_ARB);	//ignore the near clip plane(ish), this means nearer portals can still mask further ones.
 		GL_ForceDepthWritable();
 		GLBE_SelectMode(BEM_DEPTHONLY);
 		for (i = 0; i < 2; i++)
@@ -1015,10 +1047,28 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	r_refdef.viewangles[0] *= -1;
 	VectorCopy(r_refdef.vieworg, r_origin);
 
-	//FIXME: R_RenderScene is currently overriding r_refdef.frustum_numplanes and discarding our new near plane, resulting in wasted draw calls.
+	//determine r_refdef.flipcull & SHADER_CULL_FLIP based upon whether right is right or not.
+	CrossProduct(vpn, vup, r);
+	if (DotProduct(r, vright) < 0)
+		r_refdef.flipcull |= SHADER_CULL_FLIP;
+	else
+		r_refdef.flipcull &= ~SHADER_CULL_FLIP;
+	GL_CullFace(0);//make sure flipcull takes effect
+
+	//FIXME: just call Surf_DrawWorld instead?
 	R_RenderScene();
 //	if (qglClipPlane)
 //		qglDisable(GL_CLIP_PLANE0);
+
+	//the front of the plane should generally point away from the camera, and will be drawn in bright green. woo
+//	TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.5, 0.0, false);
+//	TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.5, 0.0, false);
+	//the back of the plane points towards the camera, and will be drawn in blue, for the luls
+//	VectorNegate(plane.normal, plane.normal);
+//	plane.dist *= -1;
+//	TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.0, 0.2, false);
+//	TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.0, 0.2, false);
+
 
 	r_refdef = oldrefdef;
 
@@ -1036,7 +1086,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		qglLoadMatrixf(r_refdef.m_view);
 	}
 
-	GL_CullFace(0);
+	GL_CullFace(0);//make sure flipcull reversion takes effect
 
 	TRACE(("GLR_DrawPortal: portal drawn\n"));
 

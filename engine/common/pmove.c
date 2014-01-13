@@ -27,10 +27,6 @@ float		frametime;
 
 vec3_t		forward, right, up;
 
-vec3_t	player_mins = {-16, -16, -24};
-vec3_t	player_maxs = {16, 16, 32};
-
-
 void PM_Init (void)
 {
 	PM_InitBoxHull();
@@ -89,6 +85,50 @@ void PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 	}
 }
 
+#include "pr_common.h"
+static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t move)
+{
+	qboolean okay = true;
+	wedict_t *portal = WEDICT_NUM(w->progs, portalnum);
+	int oself = *w->g.self;
+	void *pr_globals = PR_globals(w->progs, PR_CURRENT);
+
+	*w->g.self = EDICT_TO_PROG(w->progs, portal);
+	//transform origin+velocity etc
+	VectorCopy(org, G_VECTOR(OFS_PARM0));
+	VectorCopy(pmove.angles, G_VECTOR(OFS_PARM1));
+	VectorCopy(pmove.velocity, w->g.v_forward);
+	VectorCopy(move, w->g.v_right);
+	VectorCopy(pmove.gravitydir, w->g.v_up);
+	if (!DotProduct(w->g.v_up, w->g.v_up))
+		w->g.v_up[2] = -1;
+
+	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
+
+	//make sure the new origin is okay for the player. back out if its invalid.
+	if (!PM_TestPlayerPosition(G_VECTOR(OFS_RETURN)))
+		okay = false;
+	else
+	{
+		VectorCopy(G_VECTOR(OFS_RETURN), org);
+		VectorCopy(w->g.v_forward, pmove.velocity);
+		VectorCopy(w->g.v_right, move);
+		VectorCopy(w->g.v_up, pmove.gravitydir);
+
+
+		//transform the angles too
+		VectorCopy(org, G_VECTOR(OFS_PARM0));
+		pmove.angles[0] *= -1;
+		VectorCopy(pmove.angles, G_VECTOR(OFS_PARM1));
+		AngleVectors(pmove.angles, w->g.v_forward, w->g.v_right, w->g.v_up);
+		PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
+		VectorAngles(w->g.v_forward, w->g.v_up, pmove.angles);
+		pmove.angles[0] *= -1;
+	}
+
+	*w->g.self = oself;
+	return okay;
+}
 
 /*
 ============
@@ -130,6 +170,33 @@ int PM_SlideMove (void)
 			end[i] = pmove.origin[i] + time_left * pmove.velocity[i];
 
 		trace = PM_PlayerTrace (pmove.origin, end, MASK_PLAYERSOLID);
+
+		if (trace.entnum >= 0 && pmove.world)
+		{
+			physent_t *impact = &pmove.physents[trace.entnum];
+			if (impact->isportal)
+			{
+				vec3_t move;
+				vec3_t from;
+				float firstfrac = trace.fraction;
+
+				VectorCopy(trace.endpos, from);	//just in case
+				VectorSubtract(end, trace.endpos, move);
+				if (PM_PortalTransform(pmove.world, impact->info, from, move))
+				{
+					VectorAdd(from, move, end);
+					
+					//if we follow the portal, then we basically need to restart from the other side.
+					time_left -= time_left * trace.fraction;
+					VectorCopy (pmove.velocity, primal_velocity);
+					VectorCopy (pmove.velocity, original_velocity);
+					numplanes = 0;
+					
+					trace = PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
+				}
+			}
+		}
+
 
 		if (trace.startsolid || trace.allsolid)
 		{	// entity is trapped in another solid
@@ -394,7 +461,7 @@ void PM_Friction (void)
 		// if the leading edge is over a dropoff, increase friction
 		start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
 		start[1] = stop[1] = pmove.origin[1] + pmove.velocity[1]/speed*16;
-		start[2] = pmove.origin[2] + player_mins[2];
+		start[2] = pmove.origin[2] + pmove.player_mins[2];
 		stop[2] = start[2] - 34;
 		trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
 		if (trace.fraction == 1)
@@ -725,12 +792,12 @@ void PM_CategorizePosition (void)
 	if (pmove.pm_type == PM_WALLWALK)
 	{
 		vec3_t tmin,tmax;
-		VectorCopy(player_mins, tmin);
-		VectorCopy(player_maxs, tmax);
+		VectorCopy(pmove.player_mins, tmin);
+		VectorCopy(pmove.player_maxs, tmax);
 		VectorMA(pmove.origin, -48, up, point);
 		trace = PM_TraceLine(pmove.origin, point);
-		VectorCopy(tmin, player_mins);
-		VectorCopy(tmax, player_maxs);
+		VectorCopy(tmin, pmove.player_mins);
+		VectorCopy(tmax, pmove.player_maxs);
 
 		if (trace.fraction < 1)
 			VectorNegate(trace.plane.normal, pmove.gravitydir);
@@ -771,19 +838,19 @@ void PM_CategorizePosition (void)
 	pmove.waterlevel = 0;
 	pmove.watertype = FTECONTENTS_EMPTY;
 
-	point[2] = pmove.origin[2] + player_mins[2] + 1;
+	point[2] = pmove.origin[2] + pmove.player_mins[2] + 1;
 	cont = PM_PointContents (point);
 
 	if (cont & FTECONTENTS_FLUID)
 	{
 		pmove.watertype = cont;
 		pmove.waterlevel = 1;
-		point[2] = pmove.origin[2] + (player_mins[2] + player_maxs[2])*0.5;
+		point[2] = pmove.origin[2] + (pmove.player_mins[2] + pmove.player_maxs[2])*0.5;
 		cont = PM_PointContents (point);
 		if (cont & FTECONTENTS_FLUID)
 		{
 			pmove.waterlevel = 2;
-			point[2] = pmove.origin[2] + player_mins[2]+24+DEFAULT_VIEWHEIGHT;
+			point[2] = pmove.origin[2] + pmove.player_mins[2]+24+DEFAULT_VIEWHEIGHT;
 			cont = PM_PointContents (point);
 			if (cont & FTECONTENTS_FLUID)
 				pmove.waterlevel = 3;
@@ -807,7 +874,7 @@ void PM_CategorizePosition (void)
 
 		VectorMA (pmove.origin, 24, flatforward, fwd1);
 
-		t = CM_BoxTrace(pmove.physents[0].model, pmove.origin, fwd1, player_mins, player_maxs, MASK_PLAYERSOLID);
+		t = CM_BoxTrace(pmove.physents[0].model, pmove.origin, fwd1, pmove.player_mins, pmove.player_maxs, MASK_PLAYERSOLID);
 		if (t.surface->flags & Q3SURF_LADDER)
 		{
 			pmove.onladder = true;
@@ -945,7 +1012,7 @@ void PM_CheckWaterJump (void)
 	VectorNormalize (flatforward);
 
 	VectorMA (pmove.origin, 24, flatforward, spot);
-	spot[2] += 8 + 24+player_mins[2];	//hexen2 fix. calculated from the normal bottom of bbox
+	spot[2] += 8 + 24+pmove.player_mins[2];	//hexen2 fix. calculated from the normal bottom of bbox
 	cont = PM_PointContents (spot);
 	if (!(cont & FTECONTENTS_SOLID))
 		return;

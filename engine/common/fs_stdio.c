@@ -240,14 +240,14 @@ static void QDECL FSSTDIO_BuildHash(searchpathfuncs_t *handle, int depth, void (
 	sp->AddFileHash = AddFileHash;
 	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, AddFileHash, handle);
 }
-static qboolean QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	stdiopath_t *sp = (void*)handle;
 	int len;
 	char netpath[MAX_OSPATH];
 
 	if (hashedresult && (void *)hashedresult != handle)
-		return false;
+		return FF_NOTFOUND;
 
 /*
 	if (!static_registered)
@@ -272,7 +272,7 @@ static qboolean QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *lo
 	{
 		FILE *f = fopen(netpath, "rb");
 		if (!f)
-			return false;
+			return FF_NOTFOUND;
 
 		fseek(f, 0, SEEK_END);
 		len = ftell(f);
@@ -286,7 +286,7 @@ static qboolean QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *lo
 		loc->index = 0;
 		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
-	return true;
+	return FF_FOUND;
 }
 static void QDECL FSSTDIO_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {

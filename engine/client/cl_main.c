@@ -88,7 +88,7 @@ cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
 cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
 
-cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, nqid, nq, fitz, dp6, dp7.");
+cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "", "Which protocol to use for single-player/the internal client. Should be one of: qw, nqid, nq, fitz, dp6, dp7. If empty, will use qw protocols for qw mods, and nq protocols for nq mods.");
 
 
 cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
@@ -661,7 +661,7 @@ void CL_CheckForResend (void)
 		default:
 			cl.movesequence = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
-			{
+			{	//qw with all supported extensions -default
 				pext1 = Net_PextMask(1, false);
 				pext2 = Net_PextMask(2, false);
 				cls.protocol = CP_QUAKEWORLD;
@@ -695,14 +695,17 @@ void CL_CheckForResend (void)
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_DP7;
 			}
-			else if (progstype == PROG_QW)
+			else if (progstype == PROG_QW || progstype == PROG_H2)	//h2 depends on various extensions and doesn't really match either protocol.
 			{
 				cls.protocol = CP_QUAKEWORLD;
 				pext1 = Net_PextMask(1, false);
 				pext2 = Net_PextMask(2, false);
 			}
 			else
+			{
 				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_FITZ666;
+			}
 
 			//make sure the protocol within demos is actually correct/sane
 			if (cls.demorecording == 1 && cls.protocol != CP_QUAKEWORLD)
@@ -715,6 +718,7 @@ void CL_CheckForResend (void)
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_FITZ666;
+				//FIXME: use pext.
 			}
 			break;
 		}

@@ -197,6 +197,11 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
 
 	for (i = 0; i < v; i++)
 	{
+		//hack stuff to match dp/tenebrae
+//		VectorNegate(s[1], s[i]);
+		VectorNegate(t[i], t[i]);
+
+		//strip away any variance against the normal to keep it perpendicular, then normalize
 		f = -DotProduct(s[i], n[i]);
 		VectorMA(s[i], f, n[i], tmp);
 		VectorNormalize2(tmp, s[i]);
@@ -4308,7 +4313,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer)
 					R_BuildDefaultTexnums(NULL, shaders[i]);
 
 					if (shaders[i]->flags & SHADER_NOIMAGE)
-						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[i]->name, loadmodel->name);
+						Con_Printf("Unable to load texture for shader \"%s\" on mesh \"%s\" for model \"%s\"\n", shaders[i]->name, surf->name, loadmodel->name);
 				}
 
 				inshader++;
@@ -6174,7 +6179,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		shaders[i] = R_RegisterSkin(skin[i].name, mod->name);
 		R_BuildDefaultTexnums(NULL, shaders[i]);
 		if (shaders[i]->flags & SHADER_NOIMAGE)
-			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[i]->name, loadmodel->name);
+			Con_Printf("Unable to load texture for shader \"%s\" on polyset \"%s\" for model \"%s\"\n", shaders[i]->name, strings+mesh[i].name, loadmodel->name);
 		gai[i].ofs_st_array = (otcoords+offset);
 #endif
 

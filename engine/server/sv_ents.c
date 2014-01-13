@@ -27,6 +27,7 @@ void SV_CleanupEnts(void);
 extern cvar_t sv_nailhack;
 extern cvar_t sv_cullentities_trace;
 extern cvar_t sv_cullplayers_trace;
+extern cvar_t sv_nopvs;
 
 /*
 =============================================================================
@@ -2300,7 +2301,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				continue;
 
 			// ignore if not touching a PV leaf
-			if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, pvs))
+			if (pvs && !sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, pvs))
 				continue;
 
 			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
@@ -3404,7 +3405,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	client_frame_t	*frame;
 	qbyte pvsbuffer[(MAX_MAP_LEAFS+7)/8];
 
-
 	// this is the frame we are creating
 	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
 	if (!sv.paused)
@@ -3419,11 +3419,13 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	else
 	{
 		clent = client->edict;
+		if (sv_nopvs.ival)
+			pvs = NULL;
 #ifdef HLSERVER
-		if (svs.gametype == GT_HALFLIFE)
+		else if (svs.gametype == GT_HALFLIFE)
 			pvs = SVHL_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
-		else
 #endif
+		else 
 			pvs = SV_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
 	}
 

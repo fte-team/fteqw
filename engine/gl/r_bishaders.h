@@ -555,7 +555,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec3 n, s, t, w;\n"
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
-"eyevector.x = -dot(eyeminusvertex, s.xyz);\n"
+"eyevector.x = dot(eyeminusvertex, s.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#else\n"
@@ -923,7 +923,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec4 col = texture2D(s_t0, tc);\n"
 "#ifdef MASK\n"
-"if (col.a < 0.5)\n"
+"if (col.a < float(MASK))\n"
 "discard;\n"
 "#endif\n"
 "gl_FragColor = fog4blend(col * vc * e_colourident);\n"
@@ -1017,7 +1017,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
 "vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
-"eyevector.x = -dot(eyeminusvertex, v_svector.xyz);\n"
+"eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
 "#endif\n"
@@ -1683,12 +1683,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "tcbase = v_texcoord; //pass the texture coords straight through\n"
 "vec3 lightminusvertex = l_lightposition - w.xyz;\n"
-"lightvector.x = -dot(lightminusvertex, s.xyz);\n"
+"lightvector.x = dot(lightminusvertex, s.xyz);\n"
 "lightvector.y = dot(lightminusvertex, t.xyz);\n"
 "lightvector.z = dot(lightminusvertex, n.xyz);\n"
 "#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
-"eyevector.x = -dot(eyeminusvertex, s.xyz);\n"
+"eyevector.x = dot(eyeminusvertex, s.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#endif\n"
@@ -2343,13 +2343,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 //no bumpmapping, so we can just use distance without regard for actual surface direction. we still do scalecos stuff. you might notice it on steep slopes.
 "lightvector = lightminusvertex;\n"
-//		lightvector.x = -dot(lightminusvertex, v_svector.xyz);
+//		lightvector.x = dot(lightminusvertex, v_svector.xyz);
 //		lightvector.y = dot(lightminusvertex, v_tvector.xyz);
 //		lightvector.z = dot(lightminusvertex, v_normal.xyz);
 
 //		#if defined(SPECULAR)||defined(OFFSETMAPPING)
 //			vec3 eyeminusvertex = e_eyepos - v_position.xyz;
-//			eyevector.x = -dot(eyeminusvertex, v_svector.xyz);
+//			eyevector.x = dot(eyeminusvertex, v_svector.xyz);
 //			eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
 //			eyevector.z = dot(eyeminusvertex, v_normal.xyz);
 //		#endif

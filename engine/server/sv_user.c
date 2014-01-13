@@ -112,8 +112,6 @@ extern char cvargroup_serverinfo[];
 extern char cvargroup_serverphysics[];
 extern char cvargroup_servercontrol[];
 
-extern	vec3_t	player_mins, player_maxs;
-
 extern cvar_t pausable;
 
 
@@ -4822,6 +4820,8 @@ void SV_Pext_f(void)
 		return;
 	host_client->pextknown = true;
 
+	host_client->fteprotocolextensions = 0;
+	host_client->fteprotocolextensions2 = 0;
 	for (i = 1; i < Cmd_Argc(); )
 	{
 		tag = Cmd_Argv(i++);
@@ -5300,6 +5300,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 	edict_t		*check;
 	int			pl;
 	int			i;
+	int			solid;
 	physent_t	*pe;
 
 	model_t *model;
@@ -5316,10 +5317,14 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			continue;		// player's own missile
 		if (check == player)
 			continue;
-		if ((check->v->solid == SOLID_TRIGGER && check->v->skin < 0) || check->v->solid == SOLID_BSP
-			|| check->v->solid == SOLID_BBOX
-			|| check->v->solid == SOLID_SLIDEBOX
-			//|| (check->v->solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
+		solid = check->v->solid;
+		if (
+			(solid == SOLID_TRIGGER && check->v->skin < 0)
+			|| solid == SOLID_BSP
+			|| solid == SOLID_PORTAL
+			|| solid == SOLID_BBOX
+			|| solid == SOLID_SLIDEBOX
+			//|| (solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
 			)
 		{
 
@@ -5342,7 +5347,8 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 
 			VectorCopy (check->v->origin, pe->origin);
 			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
-			pe->nonsolid = check->v->solid == SOLID_TRIGGER;
+			pe->nonsolid = solid == SOLID_TRIGGER;
+			pe->isportal = solid == SOLID_PORTAL;
 			switch((int)check->v->skin)
 			{
 			case Q1CONTENTS_WATER:
@@ -5369,7 +5375,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 				pe->forcecontentsmask = 0;
 				break;
 			}
-			if (check->v->solid == SOLID_BSP)
+			if (solid == SOLID_PORTAL || solid == SOLID_BSP)
 			{
 				if(progstype != PROG_H2)
 					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
@@ -5827,13 +5833,13 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 //	memset(&pmove, 0, sizeof(pmove));
 //	memset(&movevars, 0, sizeof(movevars));
 
-	player_mins[0] = sv_player->v->mins[0];
-	player_mins[1] = sv_player->v->mins[1];
-	player_mins[2] = sv_player->v->mins[2];
+	pmove.player_mins[0] = sv_player->v->mins[0];
+	pmove.player_mins[1] = sv_player->v->mins[1];
+	pmove.player_mins[2] = sv_player->v->mins[2];
 
-	player_maxs[0] = sv_player->v->maxs[0];
-	player_maxs[1] = sv_player->v->maxs[1];
-	player_maxs[2] = sv_player->v->maxs[2];
+	pmove.player_maxs[0] = sv_player->v->maxs[0];
+	pmove.player_maxs[1] = sv_player->v->maxs[1];
+	pmove.player_maxs[2] = sv_player->v->maxs[2];
 
 	VectorCopy(sv_player->xv->gravitydir, pmove.gravitydir);
 
@@ -5884,6 +5890,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	else
 		pmove.onladder = false;
 
+	pmove.world = &sv.world;
 #if 0
 {
 	int before, after;
@@ -5898,6 +5905,7 @@ if (sv_player->v->health > 0 && before && !after )
 #else
 	PM_PlayerMove (sv.gamespeed);
 #endif
+	pmove.world = NULL;
 
 	host_client->jump_held = pmove.jump_held;
 	if (progstype != PROG_QW)	//this is just annoying.
@@ -5933,7 +5941,8 @@ if (sv_player->v->health > 0 && before && !after )
 	VectorCopy (pmove.origin, sv_player->v->origin);
 	VectorCopy (pmove.angles, sv_player->v->v_angle);
 
-	if (pmove.gravitydir[0] || pmove.gravitydir[1] || pmove.gravitydir[2] != -1)
+	VectorCopy (pmove.gravitydir, sv_player->xv->gravitydir);
+	if (pmove.gravitydir[0] || pmove.gravitydir[1] || (pmove.gravitydir[2] && pmove.gravitydir[2] != -1))
 	{
 		if (!sv_player->v->fixangle)
 		{
@@ -5955,13 +5964,13 @@ if (sv_player->v->health > 0 && before && !after )
 		}
 	}
 
-	player_mins[0] = -16;
-	player_mins[1] = -16;
-	player_mins[2] = -24;
+	pmove.player_mins[0] = -16;
+	pmove.player_mins[1] = -16;
+	pmove.player_mins[2] = -24;
 
-	player_maxs[0] = 16;
-	player_maxs[1] = 16;
-	player_maxs[2] = 32;
+	pmove.player_maxs[0] = 16;
+	pmove.player_maxs[1] = 16;
+	pmove.player_maxs[2] = 32;
 
 	VectorCopy(sv_player->v->velocity, old_vel);
 	VectorCopy(pmove.velocity, new_vel);

@@ -212,7 +212,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(jointtype,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(mass,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncefactor,NULL)/*DP_...PHYSICS*/\
-	comfieldfloat(bouncestop,NULL)/*DP_...PHYSICS*/
+	comfieldfloat(bouncestop,NULL)/*DP_...PHYSICS*/\
+	comfieldfloat(idealpitch,NULL)/*DP_QC_CHANGEPITCH (inconsistant naming)*/\
+	comfieldfloat(pitch_speed,NULL)/*DP_QC_CHANGEPITCH*/
 
 #define svextqcfields \
 	comfieldfloat(maxspeed,NULL)/*added in quake 1.09*/\
@@ -284,10 +286,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(basesubblendfrac,NULL)	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
 							\
 	comfieldfloat(drawmask,NULL)	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
-	comfieldfunction(predraw, ".void()",NULL)	/*If present, is called just before it's drawn.*/	\
-							\
-	comfieldfloat(ideal_pitch,NULL)\
-	comfieldfloat(pitch_speed,NULL)
+	comfieldfunction(predraw, ".void()",NULL)	/*If present, is called just before it's drawn.*/	
 
 typedef struct stdentvars_s //standard = standard for qw
 {

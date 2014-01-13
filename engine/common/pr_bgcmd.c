@@ -9,6 +9,8 @@
 #include <ctype.h>
 
 #define VMUTF8 0
+#define VMUTF8MARKUP false
+
 
 static char *cvargroup_progs = "Progs variables";
 
@@ -2017,9 +2019,9 @@ void QCBUILTIN PF_strncasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 		if (VMUTF8)
 		{
-			aofs = aofs?unicode_byteofsfromcharofs(a, aofs):0;
-			bofs = bofs?unicode_byteofsfromcharofs(b, bofs):0;
-			len = max(unicode_byteofsfromcharofs(a+aofs, len), unicode_byteofsfromcharofs(b+bofs, len));
+			aofs = aofs?unicode_byteofsfromcharofs(a, aofs, VMUTF8MARKUP):0;
+			bofs = bofs?unicode_byteofsfromcharofs(b, bofs, VMUTF8MARKUP):0;
+			len = max(unicode_byteofsfromcharofs(a+aofs, len, VMUTF8MARKUP), unicode_byteofsfromcharofs(b+bofs, len, VMUTF8MARKUP));
 		}
 		else
 		{
@@ -2050,9 +2052,9 @@ void QCBUILTIN PF_strncmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 
 		if (VMUTF8)
 		{
-			aofs = aofs?unicode_byteofsfromcharofs(a, aofs):0;
-			bofs = bofs?unicode_byteofsfromcharofs(b, bofs):0;
-			len = max(unicode_byteofsfromcharofs(a+aofs, len), unicode_byteofsfromcharofs(b+bofs, len));
+			aofs = aofs?unicode_byteofsfromcharofs(a, aofs, VMUTF8MARKUP):0;
+			bofs = bofs?unicode_byteofsfromcharofs(b, bofs, VMUTF8MARKUP):0;
+			len = max(unicode_byteofsfromcharofs(a+aofs, len, VMUTF8MARKUP), unicode_byteofsfromcharofs(b+bofs, len, VMUTF8MARKUP));
 		}
 		else
 		{
@@ -2280,7 +2282,7 @@ void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	{
 		ch = G_FLOAT(OFS_PARM0 + i*3);
 		if (VMUTF8 || ch > 0xff)
-			s += unicode_encode(s, ch, (string+sizeof(string)-1)-s);
+			s += unicode_encode(s, ch, (string+sizeof(string)-1)-s, VMUTF8MARKUP);
 		else
 			*s++ = G_FLOAT(OFS_PARM0 + i*3);
 	}
@@ -2300,8 +2302,8 @@ void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (VMUTF8)
 	{
 		if (ofs < 0)
-			ofs = unicode_charcount(instr, 1<<30)+ofs;
-		ofs = unicode_byteofsfromcharofs(instr, ofs);
+			ofs = unicode_charcount(instr, 1<<30, VMUTF8MARKUP)+ofs;
+		ofs = unicode_byteofsfromcharofs(instr, ofs, VMUTF8MARKUP);
 	}
 	else
 	{
@@ -2312,7 +2314,7 @@ void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (ofs && (ofs < 0 || ofs > strlen(instr)))
 		G_FLOAT(OFS_RETURN) = '\0';
 	else
-		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(&err, instr+ofs, &next):(unsigned char)instr[ofs];
+		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(&err, instr+ofs, &next, VMUTF8MARKUP):(unsigned char)instr[ofs];
 }
 
 //FTE_STRINGS
@@ -2325,7 +2327,7 @@ void QCBUILTIN PF_strstrofs (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	int firstofs = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
 
 	if (VMUTF8)
-		firstofs = unicode_byteofsfromcharofs(instr, firstofs);
+		firstofs = unicode_byteofsfromcharofs(instr, firstofs, VMUTF8MARKUP);
 
 	if (firstofs && (firstofs < 0 || firstofs > strlen(instr)))
 	{
@@ -2337,7 +2339,7 @@ void QCBUILTIN PF_strstrofs (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (!match)
 		G_FLOAT(OFS_RETURN) = -1;
 	else
-		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_charofsfrombyteofs(instr, match-instr):(match - instr);
+		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_charofsfrombyteofs(instr, match-instr, VMUTF8MARKUP):(match - instr);
 }
 
 //float(string input) stof
@@ -2519,7 +2521,7 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	//UTF-8-FIXME: start+length are chars not bytes...
 
 	if (VMUTF8)
-		slen = unicode_charcount(s, 1<<30);
+		slen = unicode_charcount(s, 1<<30, VMUTF8MARKUP);
 	else
 		slen = strlen(s);
 
@@ -2545,8 +2547,8 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (VMUTF8)
 	{
-		start = unicode_byteofsfromcharofs(s, start);
-		length = unicode_byteofsfromcharofs(s+start, length);
+		start = unicode_byteofsfromcharofs(s, start, VMUTF8MARKUP);
+		length = unicode_byteofsfromcharofs(s+start, length, VMUTF8MARKUP);
 	}
 	s += start;
 
@@ -2559,7 +2561,7 @@ void QCBUILTIN PF_substring (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_strlen(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (VMUTF8)
-		G_FLOAT(OFS_RETURN) = unicode_charcount(PR_GetStringOfs(prinst, OFS_PARM0), 1<<30);
+		G_FLOAT(OFS_RETURN) = unicode_charcount(PR_GetStringOfs(prinst, OFS_PARM0), 1<<30, VMUTF8MARKUP);
 	else
 		G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
 }
@@ -2691,7 +2693,7 @@ void QCBUILTIN PF_strtolower (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
 
-	unicode_strtolower(in, result, sizeof(result));
+	unicode_strtolower(in, result, sizeof(result), VMUTF8MARKUP);
 
 	RETURN_TSTRING(result);
 }
@@ -2702,7 +2704,7 @@ void QCBUILTIN PF_strtoupper (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
 
-	unicode_strtoupper(in, result, sizeof(result));
+	unicode_strtoupper(in, result, sizeof(result), VMUTF8MARKUP);
 
 	RETURN_TSTRING(result);
 }
@@ -2724,7 +2726,7 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	else
 		tm = gmtime(&ctime);
 	strftime(result, sizeof(result), in, tm);
-	unicode_strtoupper(result, uresult, sizeof(uresult));
+	unicode_strtoupper(result, uresult, sizeof(uresult), VMUTF8MARKUP);
 
 	RETURN_TSTRING(uresult);
 }
@@ -3762,7 +3764,94 @@ void QCBUILTIN PF_randomvector (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	VectorCopy (temp, G_VECTOR(OFS_RETURN));
 }
 
+
+/*
+==============
+PF_changeyaw
+
+This was a major timewaster in progs, so it was converted to C
+
+FIXME: add gravitydir support
+==============
+*/
+void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t		*ent;
+	float		ideal, current, move, speed;
+
+	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	current = anglemod( ent->v->angles[1] );
+	ideal = ent->v->ideal_yaw;
+	speed = ent->v->yaw_speed;
+
+	if (current == ideal)
+		return;
+	move = ideal - current;
+	if (ideal > current)
+	{
+		if (move >= 180)
+			move = move - 360;
+	}
+	else
+	{
+		if (move <= -180)
+			move = move + 360;
+	}
+	if (move > 0)
+	{
+		if (move > speed)
+			move = speed;
+	}
+	else
+	{
+		if (move < -speed)
+			move = -speed;
+	}
+
+	ent->v->angles[1] = anglemod (current + move);
+}
+
+//void() changepitch = #63;
+//FIXME: support gravitydir
+void QCBUILTIN PF_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t		*ent;
+	float		ideal, current, move, speed;
+
+	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	current = anglemod( ent->v->angles[1] );
+	ideal = ent->xv->idealpitch;
+	speed = ent->xv->pitch_speed;
+
+	if (current == ideal)
+		return;
+	move = ideal - current;
+	if (ideal > current)
+	{
+		if (move >= 180)
+			move = move - 360;
+	}
+	else
+	{
+		if (move <= -180)
+			move = move + 360;
+	}
+	if (move > 0)
+	{
+		if (move > speed)
+			move = speed;
+	}
+	else
+	{
+		if (move < -speed)
+			move = -speed;
+	}
+
+	ent->v->angles[1] = anglemod (current + move);
+}
+
 //float vectoyaw(vector)
+//FIXME: support gravitydir
 void QCBUILTIN PF_vectoyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1;

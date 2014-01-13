@@ -24,7 +24,7 @@ void main ()
 {
 	vec4 col = texture2D(s_t0, tc);
 #ifdef MASK
-	if (col.a < 0.5)
+	if (col.a < float(MASK))
 		discard;
 #endif
 	gl_FragColor = fog4blend(col * vc * e_colourident);

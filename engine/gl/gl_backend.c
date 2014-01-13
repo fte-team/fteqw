@@ -326,10 +326,10 @@ void GL_SetShaderState2D(qboolean is2d)
 	BE_SelectMode(BEM_STANDARD);
 
 
-	if (cl.paused || cls.state < ca_active)
+//	if (cl.paused || cls.state < ca_active)
 		shaderstate.updatetime = r_refdef.time;
-	else
-		shaderstate.updatetime = cl.servertime;
+//	else
+//		shaderstate.updatetime = cl.servertime;
 	BE_SelectEntity(&r_worldentity);
 	shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 }
@@ -4731,10 +4731,10 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
 	R_GenDlightBatches(batches);
 	shaderstate.curentity = &r_worldentity;
-	if (cl.paused || cls.state < ca_active)
+//	if (cl.paused || cls.state < ca_active)
 		shaderstate.updatetime = r_refdef.time;
-	else
-		shaderstate.updatetime = cl.servertime;
+//	else
+//		shaderstate.updatetime = cl.servertime;
 
 	GLBE_SelectEntity(&r_worldentity);
 
@@ -4831,7 +4831,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	}
 
 	GLBE_SelectEntity(&r_worldentity);
-	shaderstate.curtime = shaderstate.updatetime = realtime;
+//	shaderstate.curtime = shaderstate.updatetime = realtime;
 
 	shaderstate.identitylighting = 1;
 

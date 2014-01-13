@@ -42,7 +42,7 @@ void main ()
 {
 #if defined(OFFSETMAPPING) || defined(SPECULAR)
 	vec3 eyeminusvertex = e_eyepos - v_position.xyz;
-	eyevector.x = -dot(eyeminusvertex, v_svector.xyz);
+	eyevector.x = dot(eyeminusvertex, v_svector.xyz);
 	eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
 	eyevector.z = dot(eyeminusvertex, v_normal.xyz);
 #endif

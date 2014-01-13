@@ -2,6 +2,10 @@
 
 #define FSVER 2
 
+#define FF_NOTFOUND	0	//file wasn't found
+#define FF_FOUND	1	//file was found
+#define FF_SYMLINK	2	//file contents are the name of a different file (symlink). do a recursive lookup on the name
+
 typedef struct
 {
 	bucket_t buck;
@@ -14,26 +18,26 @@ extern int fs_hash_files;	//for tracking efficiency. no functional use.
 struct searchpath_s;
 struct searchpathfuncs_s
 {
-	int		fsver;
-	void	(QDECL *ClosePath)(searchpathfuncs_t *handle);
+	int				fsver;
+	void			(QDECL *ClosePath)(searchpathfuncs_t *handle);
 
-	void	(QDECL *GetPathDetails)(searchpathfuncs_t *handle, char *outdetails, unsigned int sizeofdetails);
-	void	(QDECL *BuildHash)(searchpathfuncs_t *handle, int depth, void (QDECL *FS_AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle));
-	qboolean (QDECL *FindFile)(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult);	//true if found (hashedresult can be NULL)
+	void			(QDECL *GetPathDetails)(searchpathfuncs_t *handle, char *outdetails, unsigned int sizeofdetails);
+	void			(QDECL *BuildHash)(searchpathfuncs_t *handle, int depth, void (QDECL *FS_AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle));
+	unsigned int	(QDECL *FindFile)(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult);	//true if found (hashedresult can be NULL)
 		//note that if rawfile and offset are set, many Com_FileOpens will read the raw file
 		//otherwise ReadFile will be called instead.
-	void	(QDECL *ReadFile)(searchpathfuncs_t *handle, flocation_t *loc, char *buffer);	//reads the entire file in one go (size comes from loc, so make sure the loc is valid, this is for performance with compressed archives)
-	int		(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm);
+	void			(QDECL *ReadFile)(searchpathfuncs_t *handle, flocation_t *loc, char *buffer);	//reads the entire file in one go (size comes from loc, so make sure the loc is valid, this is for performance with compressed archives)
+	int				(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm);
 
-	int		(QDECL *GeneratePureCRC) (searchpathfuncs_t *handle, int seed, int usepure);
+	int				(QDECL *GeneratePureCRC) (searchpathfuncs_t *handle, int seed, int usepure);
 
-	vfsfile_t *(QDECL *OpenVFS)(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
+	vfsfile_t *		(QDECL *OpenVFS)(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
 
-	qboolean	(QDECL *PollChanges)(searchpathfuncs_t *handle);	//returns true if there were changes
+	qboolean		(QDECL *PollChanges)(searchpathfuncs_t *handle);	//returns true if there were changes
 
-	qboolean	(QDECL *RenameFile)(searchpathfuncs_t *handle, const char *oldname, const char *newname);	//returns true on success, false if source doesn't exist, or if dest does.
-	qboolean	(QDECL *RemoveFile)(searchpathfuncs_t *handle, const char *filename);	//returns true on success, false if it wasn't found or is readonly.
-	qboolean	(QDECL *MkDir)(searchpathfuncs_t *handle, const char *filename);	//is this really needed?
+	qboolean		(QDECL *RenameFile)(searchpathfuncs_t *handle, const char *oldname, const char *newname);	//returns true on success, false if source doesn't exist, or if dest does.
+	qboolean		(QDECL *RemoveFile)(searchpathfuncs_t *handle, const char *filename);	//returns true on success, false if it wasn't found or is readonly.
+	qboolean		(QDECL *MkDir)(searchpathfuncs_t *handle, const char *filename);	//is this really needed?
 };
 //searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc);	//returns a handle to a new pak/path
 

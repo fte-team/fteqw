@@ -53,19 +53,19 @@ cvar_t	sv_airaccelerate	 = SCVAR( "sv_airaccelerate", "0.7");
 cvar_t	sv_wateraccelerate	 = SCVAR( "sv_wateraccelerate", "10");
 cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
 cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
-cvar_t	sv_gameplayfix_noairborncorpse = SCVAR( "sv_gameplayfix_noairborncorpse", "0");
-cvar_t	sv_gameplayfix_multiplethinks = CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
+cvar_t	sv_gameplayfix_noairborncorpse	= SCVAR( "sv_gameplayfix_noairborncorpse", "0");
+cvar_t	sv_gameplayfix_multiplethinks	= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
+cvar_t	sv_gameplayfix_stepdown			= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
-cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",
-					  "sv_stepheight", CVAR_SERVERINFO, "If empty, the value 18 will be used instead.");
+cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERVERINFO, "If empty, the value 18 will be used instead. This is the size of the step you can step up or down.");
 
-cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "", CVAR_SERVERINFO);
-cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "", CVAR_SERVERINFO);
-cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "", CVAR_SERVERINFO);
-cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
-cvar_t	pm_airstep			 = SCVARF("pm_airstep", "", CVAR_SERVERINFO);
-cvar_t	pm_walljump			 = SCVARF("pm_walljump", "", CVAR_SERVERINFO);
+cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
+cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
+cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
+cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
+cvar_t	pm_airstep			 = CVARF("pm_airstep", "", CVAR_SERVERINFO);
+cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
@@ -86,6 +86,7 @@ void WPhys_Init(void)
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,	cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_stepdown,		cvargroup_serverphysics);
 }
 
 #define	MOVE_EPSILON	0.01
@@ -265,7 +266,7 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	*w->g.self = EDICT_TO_PROG(w->progs, portal);
 	//transform origin+velocity etc
 	VectorCopy(org, G_VECTOR(OFS_PARM0));
-	VectorAngles(ent->v->angles, vup, G_VECTOR(OFS_PARM1));
+	VectorCopy(ent->v->angles, G_VECTOR(OFS_PARM1));
 	VectorCopy(ent->v->velocity, w->g.v_forward);
 	VectorCopy(move, w->g.v_right);
 	VectorCopy(ent->xv->gravitydir, w->g.v_up);
@@ -275,9 +276,9 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 
 	VectorCopy(G_VECTOR(OFS_RETURN), org);
-//	VectorCopy(w->g.v_forward, ent->v->velocity);
+	VectorCopy(w->g.v_forward, ent->v->velocity);
 	VectorCopy(w->g.v_right, move);
-//	VectorCopy(w->g.v_up, ent->xv->gravitydir);
+	VectorCopy(w->g.v_up, ent->xv->gravitydir);
 
 
 	//transform the angles too
@@ -289,7 +290,7 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	}
 	else
 		ent->v->angles[0] *= -1;
-	VectorAngles(ent->v->angles, vup, G_VECTOR(OFS_PARM1));
+	VectorCopy(ent->v->angles, G_VECTOR(OFS_PARM1));
 	AngleVectors(ent->v->angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 	VectorAngles(w->g.v_forward, w->g.v_up, ent->v->angles);
@@ -364,17 +365,19 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 			vec3_t move;
 			vec3_t from;
 			float firstfrac = trace.fraction;
-Con_Printf("Player hit portal %i\n", impact->entnum);
+
 			VectorCopy(trace.endpos, from);	//just in case
 			VectorSubtract(end, trace.endpos, move);
-			WPhys_PortalTransform(w, ent, impact, trace.endpos, move);
-			VectorAdd(trace.endpos, move, end);
+			WPhys_PortalTransform(w, ent, impact, from, move);
+			VectorAdd(from, move, end);
+			
+			//if we follow the portal, then we basically need to restart from the other side.
+			time_left -= time_left * trace.fraction;
+			VectorCopy (ent->v->velocity, primal_velocity);
+			VectorCopy (ent->v->velocity, original_velocity);
+			numplanes = 0;
+			
 			trace = World_Move (w, from, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
-			trace.fraction = firstfrac + (1-firstfrac)*trace.fraction;
-
-			//if we follow the portal, then we need to fix up some velocities.
-			if (trace.fraction > 0)
-				VectorCopy (ent->v->velocity, primal_velocity);
 		}
 
 		if (trace.startsolid)
@@ -1092,12 +1095,30 @@ A moving object that doesn't obey physics
 */
 static void WPhys_Physics_Noclip (world_t *w, wedict_t *ent)
 {
+	vec3_t end;
+	trace_t trace;
+	wedict_t *impact;
+
 // regular thinking
 	if (!WPhys_RunThink (w, ent))
 		return;
 
 	VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
-	VectorMA (ent->v->origin, host_frametime, ent->v->velocity, ent->v->origin);
+	VectorMA (ent->v->origin, host_frametime, ent->v->velocity, end);
+
+	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NOMONSTERS, (wedict_t*)ent);
+	impact = trace.ent;
+	if (impact && impact->v->solid == SOLID_PORTAL)
+	{
+		vec3_t move;
+		vec3_t from;
+		float firstfrac = trace.fraction;
+		VectorCopy(trace.endpos, from);	//just in case
+		VectorSubtract(end, trace.endpos, move);
+		WPhys_PortalTransform(w, ent, impact, from, move);
+		VectorAdd(from, move, end);
+	}
+	VectorCopy(end, ent->v->origin);
 
 	World_LinkEdict (w, (wedict_t*)ent, false);
 }
@@ -1846,7 +1867,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 			WPhys_WallFriction (ent, &steptrace);
 		}
 	}
-	else if (/*!sv_gameplayfix_stepdown.integer || */!oldonground || start_velocity[2] > 0 || ((int)ent->v->flags & FL_ONGROUND) || ent->v->waterlevel >= 2)
+	else if (!sv_gameplayfix_stepdown.ival || !oldonground || start_velocity[2] > 0 || ((int)ent->v->flags & FL_ONGROUND) || ent->v->waterlevel >= 2)
 		return;
 
 	// move down

@@ -719,12 +719,12 @@ void CL_ClampPitch (int pnum)
 				vang[ROLL] = 0;
 			else if (vang[ROLL] > 0)
 			{
-				Con_Printf("Roll %f\n", vang[ROLL]);
+//				Con_Printf("Roll %f\n", vang[ROLL]);
 				vang[ROLL] -= host_frametime*180;
 			}
 			else
 			{
-				Con_Printf("Roll %f\n", vang[ROLL]);
+//				Con_Printf("Roll %f\n", vang[ROLL]);
 				vang[ROLL] += host_frametime*180;
 			}
 		}

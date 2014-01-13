@@ -588,7 +588,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 	while(*text)
 	{
 		if (1)//VMUTF8)
-			c = unicode_decode(&error, text, &text);
+			c = unicode_decode(&error, text, &text, false);
 		else
 		{
 			//FIXME: which charset is this meant to be using?
@@ -1616,7 +1616,7 @@ static struct {
 															//gap
 	{"print_csqc",				PF_print,					339},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
-	{"stringtokeynum",			PF_cl_stringtokeynum,		341},
+	{"stringtokeynum_csqc",		PF_cl_stringtokeynum,		341},
 	{"getkeybind",				PF_cl_getkeybind,			342},
 															//gap
 	{"isdemo",					PF_isdemo,					349},

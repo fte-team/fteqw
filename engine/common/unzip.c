@@ -346,28 +346,21 @@ extern int ZEXPORT unzGetGlobalInfo (unzFile file, unz_global_info *pglobal_info
   Get Info about the current file in the zipfile, with internal only info
 */
 local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
-                                                  unz_file_info *pfile_info,
-                                                  unz_file_info_internal 
-                                                  *pfile_info_internal,
-                                                  char *szFileName,
-						  unsigned long fileNameBufferSize,
-                                                  void *extraField,
-						  unsigned long extraFieldBufferSize,
-                                                  char *szComment,
-						  unsigned long commentBufferSize);
-
-local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
                                               unz_file_info *pfile_info,
                                               unz_file_info_internal *pfile_info_internal,
 					      char *szFileName, unsigned long fileNameBufferSize,
 					      void *extraField, unsigned long extraFieldBufferSize,
-					      char *szComment,  unsigned long commentBufferSize) {
+					      char *szComment,  unsigned long commentBufferSize,
+						  int *issymlink) {
 	unz_s* s;
 	unz_file_info file_info;
 	unz_file_info_internal file_info_internal = {0};
 	int err=UNZ_OK;
 	unsigned long uMagic = 0;
 	long lSeek=0;
+
+	if (issymlink)
+		*issymlink = 0;
 
 	if (!file) return UNZ_PARAMERROR;
 	s=(unz_s*)file;
@@ -474,6 +467,21 @@ local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
 
 	if ((err==UNZ_OK) && (pfile_info_internal)) *pfile_info_internal=file_info_internal;
 
+	if (issymlink)
+	{
+		int madeby = file_info.version>>8;
+		//vms, unix, or beos file attributes includes a symlink attribute.
+		//symlinks mean the file contents is just the name of another file.
+		if (madeby == 2 || madeby == 3 || madeby == 16)
+		{
+			unsigned short unixattr = file_info.external_fa>>16;
+			if ((unixattr & 0xF000) == 0xA000)//fa&S_IFMT==S_IFLNK 
+				*issymlink = 1;
+			else if ((unixattr & 0xA000) == 0xA000)//fa&S_IFMT==S_IFLNK 
+				*issymlink = 1;
+		}
+	}
+
 	return err;
 }
 
@@ -492,7 +500,8 @@ extern int ZEXPORT unzGetCurrentFileInfo (unzFile file,
 	return unzlocal_GetCurrentFileInfoInternal(file,pfile_info,NULL,
 												szFileName,fileNameBufferSize,
 												extraField,extraFieldBufferSize,
-												szComment,commentBufferSize);
+												szComment,commentBufferSize,
+												NULL);
 }
 
 /*
@@ -508,7 +517,7 @@ extern int ZEXPORT unzGoToFirstFile (unzFile file) {
 	s->num_file=0;
 	err=unzlocal_GetCurrentFileInfoInternal(file,&s->cur_file_info,
 											 &s->cur_file_info_internal,
-											 NULL,0,NULL,0,NULL,0);
+											 NULL,0,NULL,0,NULL,0,NULL);
 	s->current_file_ok = (err == UNZ_OK);
 	return err;
 }
@@ -533,19 +542,20 @@ extern int ZEXPORT unzGoToNextFile (unzFile file) {
 	s->num_file++;
 	err = unzlocal_GetCurrentFileInfoInternal(file,&s->cur_file_info,
 											   &s->cur_file_info_internal,
-											   NULL,0,NULL,0,NULL,0);
+											   NULL,0,NULL,0,NULL,0, NULL);
 	s->current_file_ok = (err == UNZ_OK);
 	return err;
 }
 
 
 extern int ZEXPORT unzLocateFileMy (unzFile file, unsigned long num, unsigned long pos) {
+	int islink;
 	unz_s* s;	
 	s = (unz_s *)file;
 	s->pos_in_central_dir = pos;
 	s->num_file = num;
-	unzlocal_GetCurrentFileInfoInternal(file,&s->cur_file_info,&s->cur_file_info_internal,NULL,0,NULL,0,NULL,0);
-	return 1;
+	unzlocal_GetCurrentFileInfoInternal(file,&s->cur_file_info,&s->cur_file_info_internal,NULL,0,NULL,0,NULL,0,&islink);
+	return islink?2:1;
 }
 
 

@@ -287,18 +287,19 @@ static void QDECL FSZIP_BuildHash(searchpathfuncs_t *handle, int depth, void (QD
 		AddFileHash(depth, zip->files[i].name, &zip->files[i].bucket, &zip->files[i]);
 	}
 }
-static qboolean QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static int QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	zpackfile_t *pf = hashedresult;
 	int i;
 	zipfile_t	*zip = (void*)handle;
+	int ret = FF_NOTFOUND;
 
 // look through all the pak file elements
 
 	if (pf)
 	{	//is this a pointer to a file in this pak?
 		if (pf < zip->files || pf >= zip->files + zip->numfiles)
-			return false;	//was found in a different path
+			return FF_NOTFOUND;	//was found in a different path
 	}
 	else
 	{
@@ -314,6 +315,7 @@ static qboolean QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *loc,
 
 	if (pf)
 	{
+		ret = FF_FOUND;
 		if (loc)
 		{
 			loc->index = pf - zip->files;
@@ -321,7 +323,8 @@ static qboolean QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *loc,
 			loc->offset = pf->filepos;
 			loc->len = pf->filelen;
 
-			unzLocateFileMy (zip->handle, loc->index, zip->files[loc->index].filepos);
+			if (unzLocateFileMy (zip->handle, loc->index, zip->files[loc->index].filepos) == 2)
+				ret = FF_SYMLINK;
 			loc->offset = unzGetCurrentFileUncompressedPos(zip->handle);
 //			if (loc->offset<0)
 //			{	//file not found, or is compressed.
@@ -329,9 +332,11 @@ static qboolean QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *loc,
 //				loc->offset=0;
 //			}
 		}
-		return true;
+		else
+			ret = FF_FOUND;
+		return ret;
 	}
-	return false;
+	return FF_NOTFOUND;
 }
 
 static void QDECL FSZIP_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)

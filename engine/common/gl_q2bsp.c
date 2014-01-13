@@ -360,8 +360,8 @@ static vec2_t		*map_vertstmexcoords;
 static vec2_t		*map_vertlstmexcoords[MAXRLIGHTMAPS];
 static vec4_t		*map_colors4f_array[MAXRLIGHTMAPS];
 static vec3_t		*map_normals_array;
-static vec3_t		*map_svector_array;
-static vec3_t		*map_tvector_array;
+//static vec3_t		*map_svector_array;
+//static vec3_t		*map_tvector_array;
 
 q3cface_t	*map_faces;
 static int			numfaces;
@@ -2085,7 +2085,8 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 {
 	q3dvertex_t	*in;
 	vecV_t		*out;
-	vec3_t		*nout, *sout, *tout;
+	vec3_t		*nout;
+	//, *sout, *tout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
@@ -2109,8 +2110,8 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	lmout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*lmout));
 	cout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*cout));
 	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
-	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
-	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
+//	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
+//	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
@@ -2119,8 +2120,8 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 		map_colors4f_array[i] = cout;
 	}
 	map_normals_array = nout;
-	map_svector_array = sout;
-	map_tvector_array = tout;
+//	map_svector_array = sout;
+//	map_tvector_array = tout;
 	numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
@@ -2148,7 +2149,8 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 {
 	rbspvertex_t	*in;
 	vecV_t		*out;
-	vec3_t		*nout, *sout, *tout;
+	vec3_t		*nout;
+	//, *sout, *tout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
@@ -2173,8 +2175,8 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 	lmout = ZG_Malloc(&loadmodel->memgroup, MAXRLIGHTMAPS*count*sizeof(*lmout));
 	cout = ZG_Malloc(&loadmodel->memgroup, MAXRLIGHTMAPS*count*sizeof(*cout));
 	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
-	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*sout));
-	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*tout));
+//	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*sout));
+//	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*tout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
@@ -2183,8 +2185,8 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 		map_colors4f_array[sty] = cout + sty*count;
 	}
 	map_normals_array = nout;
-	map_svector_array = sout;
-	map_tvector_array = tout;
+//	map_svector_array = sout;
+//	map_tvector_array = tout;
 	numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)

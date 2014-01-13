@@ -4348,97 +4348,6 @@ static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 }
 
 /*
-==============
-PF_changeyaw
-
-This was a major timewaster in progs, so it was converted to C
-==============
-*/
-static void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t		*ent;
-	float		ideal, current, move, speed;
-
-	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
-	current = anglemod( ent->v->angles[1] );
-	ideal = ent->v->ideal_yaw;
-	speed = ent->v->yaw_speed;
-
-	if (current == ideal)
-		return;
-	move = ideal - current;
-	if (ideal > current)
-	{
-		if (move >= 180)
-			move = move - 360;
-	}
-	else
-	{
-		if (move <= -180)
-			move = move + 360;
-	}
-	if (move > 0)
-	{
-		if (move > speed)
-			move = speed;
-	}
-	else
-	{
-		if (move < -speed)
-			move = -speed;
-	}
-
-	ent->v->angles[1] = anglemod (current + move);
-}
-
-//void() changepitch = #63;
-static void QCBUILTIN PF_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t		*ent;
-	float		ideal, current, move, speed;
-	eval_t *eval;
-
-	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
-	current = anglemod( ent->v->angles[1] );
-
-	eval = prinst->GetEdictFieldValue(prinst, ent, "idealpitch", &evalc_idealpitch);
-	if (eval)
-		ideal = eval->_float;
-	else
-		ideal = 0;
-	eval = prinst->GetEdictFieldValue(prinst, ent, "pitch_speed", &evalc_pitch_speed);
-	if (eval)
-		speed = eval->_float;
-	else
-		speed = 0;
-
-	if (current == ideal)
-		return;
-	move = ideal - current;
-	if (ideal > current)
-	{
-		if (move >= 180)
-			move = move - 360;
-	}
-	else
-	{
-		if (move <= -180)
-			move = move + 360;
-	}
-	if (move > 0)
-	{
-		if (move > speed)
-			move = speed;
-	}
-	else
-	{
-		if (move < -speed)
-			move = -speed;
-	}
-
-	ent->v->angles[1] = anglemod (current + move);
-}
-/*
 ===============================================================================
 
 MESSAGE WRITING
@@ -8690,7 +8599,6 @@ static void QCBUILTIN PF_globalstat(pubprogfuncs_t *prinst, struct globalvars_s 
 static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int i, n;
-	extern vec3_t player_maxs, player_mins;
 	extern qbyte playertouch[];
 	unsigned int msecs;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
@@ -8724,8 +8632,8 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 
 	VectorCopy(ent->v->origin, pmove.origin);
 	VectorCopy(ent->v->velocity, pmove.velocity);
-	VectorCopy(ent->v->maxs, player_maxs);
-	VectorCopy(ent->v->mins, player_mins);
+	VectorCopy(ent->v->maxs, pmove.player_maxs);
+	VectorCopy(ent->v->mins, pmove.player_mins);
 
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
@@ -8797,6 +8705,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 			sv.world.Event_Touch(&sv.world, (wedict_t*)touched, (wedict_t*)ent);
 			playertouch[n/8] |= 1 << (n%8);
 		}
+		pmove.numtouch = 0;
 	}
 }
 
@@ -9503,6 +9412,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"keynumtostring",	PF_Fixme,	0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (EXT_CSQC)
 	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
+	{"stringtokeynum_csqc",	PF_Fixme,0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (found in menuqc)
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl).")},// (EXT_CSQC)
 
 	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking)")},	// #343 This is a DP extension
@@ -9785,6 +9695,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"gethostcachestring",PF_Fixme,			0,		0,		0,		612,	"string(float type, float hostnr)"},
 	{"parseentitydata",	PF_parseentitydata,	0,		0,		0,		613,	"void(entity e, string s)"},
 	{"stringtokeynum",	PF_Fixme,			0,		0,		0,		614,	"float(string key)"},
+	{"stringtokeynum_menu",	PF_Fixme,		0,		0,		0,		614,	"float(string key)"},
 	{"resethostcachemasks",PF_Fixme,		0,		0,		0,		615,	"void()"},
 	{"sethostcachemaskstring",PF_Fixme,		0,		0,		0,		616,	"void(float mask, float fld, string str, float op)"},
 	{"sethostcachemasknumber",PF_Fixme,		0,		0,		0,		617,	"void(float mask, float fld, float num, float op)"},

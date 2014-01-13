@@ -1276,7 +1276,7 @@ void V_CalcRefdef (playerview_t *pv)
 	if (v_gunkick.value)
 		r_refdef.viewangles[PITCH] += pv->punchangle*v_gunkick.value;
 
-	r_refdef.time = realtime;
+	r_refdef.time = cl.servertime;
 
 // smooth out stair step ups
 

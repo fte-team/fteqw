@@ -50,13 +50,13 @@ void main (void)
 
 		//no bumpmapping, so we can just use distance without regard for actual surface direction. we still do scalecos stuff. you might notice it on steep slopes.
 		lightvector = lightminusvertex;
-//		lightvector.x = -dot(lightminusvertex, v_svector.xyz);
+//		lightvector.x = dot(lightminusvertex, v_svector.xyz);
 //		lightvector.y = dot(lightminusvertex, v_tvector.xyz);
 //		lightvector.z = dot(lightminusvertex, v_normal.xyz);
 
 //		#if defined(SPECULAR)||defined(OFFSETMAPPING)
 //			vec3 eyeminusvertex = e_eyepos - v_position.xyz;
-//			eyevector.x = -dot(eyeminusvertex, v_svector.xyz);
+//			eyevector.x = dot(eyeminusvertex, v_svector.xyz);
 //			eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
 //			eyevector.z = dot(eyeminusvertex, v_normal.xyz);
 //		#endif

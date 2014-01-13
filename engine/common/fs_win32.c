@@ -333,7 +333,7 @@ static void QDECL VFSW32_BuildHash(searchpathfuncs_t *handle, int hashdepth, voi
 	wp->hashdepth = hashdepth;
 	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
-static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	vfsw32path_t *wp = (void*)handle;
 	FILE *f;
@@ -343,7 +343,7 @@ static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc
 
 
 	if (hashedresult && (void *)hashedresult != wp)
-		return false;
+		return FF_NOTFOUND;
 
 /*
 	if (!static_registered)
@@ -361,7 +361,7 @@ static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc
 	else
 		f = _wfopen(widen(wide, sizeof(wide), netpath), L"rb");
 	if (!f)
-		return false;
+		return FF_NOTFOUND;
 
 	fseek(f, 0, SEEK_END);
 	len = ftell(f);
@@ -374,7 +374,7 @@ static qboolean QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc
 		snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename);
 	}
 
-	return true;
+	return FF_FOUND;
 }
 static void QDECL VFSW32_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
@@ -398,7 +398,7 @@ static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *m
 	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);
 }
 
-qboolean QDECL VFSW32_RenameFile(searchpathfuncs_t *handle, const char *oldfname, const char *newfname)
+static qboolean QDECL VFSW32_RenameFile(searchpathfuncs_t *handle, const char *oldfname, const char *newfname)
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	char oldsyspath[MAX_OSPATH];
@@ -407,14 +407,14 @@ qboolean QDECL VFSW32_RenameFile(searchpathfuncs_t *handle, const char *oldfname
 	snprintf (newsyspath, sizeof(newsyspath)-1, "%s/%s", wp->rootpath, newfname);
 	return Sys_Rename(oldsyspath, newsyspath);
 }
-qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *filename)
+static qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *filename)
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	char syspath[MAX_OSPATH];
 	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
 	return Sys_remove(syspath);
 }
-qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filename)
+static qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filename)
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	char syspath[MAX_OSPATH];

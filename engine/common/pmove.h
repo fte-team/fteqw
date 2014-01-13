@@ -42,9 +42,10 @@ typedef struct
 	vec3_t	angles;
 	model_t	*model;		// only for bsp models
 	vec3_t	mins, maxs;	// only for non-bsp models
-	unsigned short	info;		// for client or server to identify
-	qbyte		nonsolid;
-	qbyte		notouch;
+	unsigned int	info;		// for client or server to identify
+	qbyte		nonsolid;		//contributes to contents, but does not block. FIXME: why not just use the contentsmask directly?
+	qbyte		notouch;		//don't trigger touch events. FIXME: why are these entities even in the list?
+	qbyte		isportal;		//special portal traversion required
 	unsigned int forcecontentsmask;
 } physent_t;
 
@@ -62,6 +63,8 @@ typedef struct
 	int			jump_msec;	// msec since last jump
 	float		waterjumptime;
 	int			pm_type;
+	vec3_t		player_mins;
+	vec3_t		player_maxs;
 
 	// world state
 	int			numphysent;
@@ -82,6 +85,8 @@ typedef struct
 								// when onground is true
 	int			waterlevel;
 	int			watertype;
+
+	struct world_s		*world;
 } playermove_t;
 
 typedef struct {

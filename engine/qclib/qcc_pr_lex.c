@@ -1959,9 +1959,10 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 	// skip /* */ comments
 		if (c=='/' && pr_file_p[1] == '*')
 		{
-			pr_file_p+=2;
+			pr_file_p+=1;
 			do
 			{
+				pr_file_p++;
 				if (pr_file_p[0]=='\n')
 				{
 					if (!inhibitpreprocessor)
@@ -1973,7 +1974,6 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 					pr_file_p++;
 					return;
 				}
-				pr_file_p++;
 			} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
 			pr_file_p+=2;
 			continue;
@@ -3309,26 +3309,25 @@ pbool QCC_PR_CheckTokenComment(char *string, char **comment)
 			// parse /* comments
 			else if (c=='/' && pr_file_p[1] == '*' && replace)
 			{
-				pr_file_p+=2;
-				start = pr_file_p;
+				pr_file_p+=1;
+				start = pr_file_p+1;
 
 				do
 				{
+					pr_file_p++;
 					if (pr_file_p[0]=='\n')
 					{
-						pr_file_p++;
 						QCC_PR_NewLine(true);
 					}
 					else if (pr_file_p[1] == 0)
 					{
 						QCC_PR_ParseError(0, "EOF inside comment\n");
-						pr_file_p++;
-						pr_file_p-=2;
 						break;
 					}
-					else
-						pr_file_p++;
 				} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
+
+				if (pr_file_p[1] == 0)
+					break;
 
 				old = replace?NULL:*comment;
 				replace = false;

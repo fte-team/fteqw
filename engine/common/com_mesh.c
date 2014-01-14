@@ -197,10 +197,6 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
 
 	for (i = 0; i < v; i++)
 	{
-		//hack stuff to match dp/tenebrae
-//		VectorNegate(s[1], s[i]);
-		VectorNegate(t[i], t[i]);
-
 		//strip away any variance against the normal to keep it perpendicular, then normalize
 		f = -DotProduct(s[i], n[i]);
 		VectorMA(s[i], f, n[i], tmp);

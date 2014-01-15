@@ -1182,6 +1182,9 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			if (client->pendingentbits[j] & UF_REMOVE)
 				client->pendingentbits[j] = (client->pendingentbits[j] & ~UF_REMOVE) | UF_RESET2;
 			client->pendingentbits[j] |= SVFTE_DeltaCalcBits(o, n);
+			//even if prediction is disabled, we want to force velocity info to be sent for the local player. This is used by view bob and things.
+			if (j == client->edict->entnum && (n->u.q1.velocity[0] || n->u.q1.velocity[1] || n->u.q1.velocity[2]))
+				client->pendingentbits[j] |= UF_PREDINFO;
 		}
 		*o = *n;
 		j++;
@@ -2846,6 +2849,12 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 				state->u.q1.msec = bound(0, 1000*(sv.time - cl->localtime), 255);
 			}
 
+			state->u.q1.velocity[0] = ent->v->velocity[0] * 8;
+			state->u.q1.velocity[1] = ent->v->velocity[1] * 8;
+			state->u.q1.velocity[2] = ent->v->velocity[2] * 8;
+		}
+		else if (ent == cl->edict)
+		{
 			state->u.q1.velocity[0] = ent->v->velocity[0] * 8;
 			state->u.q1.velocity[1] = ent->v->velocity[1] * 8;
 			state->u.q1.velocity[2] = ent->v->velocity[2] * 8;

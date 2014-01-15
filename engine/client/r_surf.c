@@ -1464,7 +1464,7 @@ start:
 	{
 		pleaf = (mleaf_t *)node;
 
-		c = pleaf - cl.worldmodel->leafs;
+		c = (pleaf - cl.worldmodel->leafs)-1;
 		frustumvis[c>>3] |= 1<<(c&7);
 
 		mark = pleaf->firstmarksurface;
@@ -2347,6 +2347,7 @@ void Surf_DrawWorld (void)
 #ifdef TERRAIN
 		if (currentmodel->type == mod_heightmap)
 		{
+			frustumvis = NULL;
 			entvis = surfvis = NULL;
 		}
 		else

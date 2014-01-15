@@ -343,7 +343,7 @@ static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
 {
 	int i;
 
-	i = leaf - cl.worldmodel->leafs;
+	i = (leaf - cl.worldmodel->leafs)-1;
 	sh_shmesh->litleaves[i>>3] |= 1<<(i&7);
 }
 

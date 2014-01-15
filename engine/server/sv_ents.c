@@ -1147,8 +1147,8 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			memset(&client->sentents.entities[client->sentents.max_entities], 0, sizeof(client->sentents.entities[0]) * (j - client->sentents.max_entities));
 			client->sentents.max_entities = j;
 		}
-		if (j > client->sentents.num_entities)
-			client->sentents.num_entities = j;
+		while(j > client->sentents.num_entities)
+			client->pendingentbits[client->sentents.num_entities++] = UF_RESET|UF_RESET2;
 	}
 
 	/*figure out the entitys+bits that changed (removed and active)*/

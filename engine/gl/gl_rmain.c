@@ -891,6 +891,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 
 	case 0:		/*q3 portal*/
 	default:
+#ifdef CSQC_DAT
 		if (CSQC_SetupToRenderPortal(batch->ent->keynum))
 		{
 			plane_t oplane = plane;
@@ -908,17 +909,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			if (Cvar_Get("temp_useplaneclip", "1", 0, "temp")->ival)
 				portaltype = 1;	//make sure the near clipplane is used.
 		}
-		else if (batch->ent != &r_worldentity)
-		{
-			float d;
-			view = batch->ent;
-			d = DotProduct(r_refdef.vieworg, plane.normal) - plane.dist;
-			d-= 0.1;	//nudge it past.
-			VectorAdd(r_refdef.vieworg, view->oldorigin, r_refdef.vieworg);		//trivial offset for the warpzone.
-			VectorMA(r_refdef.vieworg, -d, plane.normal, r_refdef.pvsorigin);	//clip the pvs origin to the plane.
-			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
-		}
-		else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
+		else
+#endif
+			if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 		{
 			//a portal with no portal entity, or a portal rentity with an origin equal to its oldorigin, is a mirror.
 //			r_refdef.flipcull ^= SHADER_CULL_FLIP;

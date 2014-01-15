@@ -781,18 +781,20 @@ Sbar_Init
 ===============
 */
 
-qboolean sbar_loaded;
+static qboolean sbar_loaded;
 
-char *failedpic;
+static qboolean failedpic;
 mpic_t *Sbar_PicFromWad(char *name)
 {
 	mpic_t *ret;
-	ret = R2D_SafePicFromWad(name);
+	char savedname[MAX_QPATH];
+	Q_strncpyz(savedname, name, sizeof(savedname));
+	ret = R2D_SafePicFromWad(savedname);
 
 	if (ret)
 		return ret;
 
-	failedpic = name;
+	failedpic = true;
 	return NULL;
 }
 void Sbar_Flush (void)
@@ -812,7 +814,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 		sbarfailed = true;
 		return;
 	}
-	failedpic = NULL;
+	failedpic = false;
 
 	sbarfailed = false;
 
@@ -901,12 +903,8 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 
 	if (failedpic)
 		sbarfailed = true;
-	failedpic = NULL;
-
-
-
 	//try to detect rogue wads, and thus the stats we will be getting from the server.
-	failedpic = NULL;
+	failedpic = false;
 
 	rsb_invbar[0] = Sbar_PicFromWad ("r_invbar1");
 	rsb_invbar[1] = Sbar_PicFromWad ("r_invbar2");

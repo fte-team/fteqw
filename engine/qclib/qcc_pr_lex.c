@@ -1321,287 +1321,356 @@ void QCC_PR_LexString (void)
 	int		c;
 	int		len;
 	char	*end, *cnst;
+	int		raw;
+	char	rawdelim[64];
 
-	int texttype=0;
+	int texttype;
+	pbool first = true;
 
-	len = 0;
-	pr_file_p++;
-	do
+	for(;;)
 	{
-		c = *pr_file_p++;
-		if (!c)
-			QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
-		if (c=='\n')
-			QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "newline inside quote");
-		if (c=='\\')
-		{	// escape char
+		raw = 0;
+		texttype = 0;
+
+		QCC_PR_LexWhitespace(false);
+
+		if (*pr_file_p == 'R' && pr_file_p[1] == '\"')
+		{
+			/*R"delim(fo
+			o)delim" -> "fo\no"
+			the []
+			*/
+			raw = 1;
+			pr_file_p+=2;
+
+			while (1)
+			{
+				c = *pr_file_p++;
+				if (c == '(')
+				{
+					rawdelim[0] = ')';
+					break;
+				}
+				if (!c || raw >= sizeof(rawdelim)-1)
+					QCC_PR_ParseError (ERR_EOF, "EOF while parsing raw string delimiter. Expected: R\"delim(string)delim\"");
+				rawdelim[raw++] = c;
+			}
+			rawdelim[raw++] = '\"';
+		}
+		else if (*pr_file_p == '\"')
+			pr_file_p++;
+		else if (first)
+			QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Expected string constant");
+		else
+			break;
+		first = false;
+
+		len = 0;
+		for(;;)
+		{
 			c = *pr_file_p++;
 			if (!c)
 				QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
-			if (c == 'n')
-				c = '\n';
-			else if (c == 'r')
-				c = '\r';
-			else if (c == '"')
-				c = '"';
-			else if (c == 't')
-				c = '\t';	//tab
-			else if (c == 'a')
-				c = '\a';	//bell
-			else if (c == 'v')
-				c = '\v';	//vertical tab
-			else if (c == 'f')
-				c = '\f';	//form feed
-			else if (c == 's' || c == 'b')
-			{
-				texttype ^= 128;
+
+			//these two conditions are generally part of the C preprocessor.
+			if (c == '\\' && *pr_file_p == '\r' && pr_file_p[1] == '\n')
+			{	//dos format
+				pr_file_p += 2;
+				pr_source_line++;
 				continue;
 			}
-			//else if (c == 'b')
-			//	c = '\b';
-			else if (c == '[')
-				c = 16;	//quake specific
-			else if (c == ']')
-				c = 17;	//quake specific
-			else if (c == '{')
-			{
-				int d;
-				c = 0;
-				while ((d = *pr_file_p++) != '}')
-				{
-					c = c * 10 + d - '0';
-					if (d < '0' || d > '9' || c > 255)
-						QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
-				}
-			}
-			else if (c == '.')
-				c = 0x1c | texttype;
-			else if (c == '<')
-				c = 29;
-			else if (c == '-')
-				c = 30;
-			else if (c == '>')
-				c = 31;
-			else if (c == 'u' || c == 'U')
-			{
-				//lower case u specifies exactly 4 nibbles.
-				//upper case U specifies variable length. terminate with a double-doublequote pair, or some other non-hex char.
-				int count = 0;
-				unsigned long d;
-				unsigned long unicode;
-				unicode = 0;
-				for(;;)
-				{
-					d = (unsigned char)*pr_file_p;
-					if (d >= '0' && d <= '9')
-						unicode = (unicode*16) + (d - '0');
-					else if (d >= 'A' && d <= 'F')
-						unicode = (unicode*16) + (d - 'A') + 10;
-					else if (d >= 'a' && d <= 'f')
-						unicode = (unicode*16) + (d - 'a') + 10;
-					else
-						break;
-					count++;
-					pr_file_p++;
-				}
-				if (!count || ((c=='u')?(count!=4):(count>8)) || unicode > 0x10FFFFu)	//RFC 3629 imposes the same limit as UTF-16 surrogate pairs.
-					QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Bad character code");
-
-				//figure out the count of bytes required to encode this char
-				count = 1;
-				d = 0x7f;
-				while (unicode > d)
-				{
-					count++;
-					d = (d<<5) | 0x1f;
-				}
-
-				//error if needed
-				if (len+count >= sizeof(pr_token))
-					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
-
-				//output it.
-				if (count == 1)
-					pr_token[len++] = (unsigned char)(c&0x7f);
-				else
-				{
-					c = count*6;
-					pr_token[len++] = (unsigned char)((unicode>>c)&(0x0000007f>>count)) | (0xffffff00 >> count);
-					do
-					{
-						c = c-6;
-						pr_token[len++] = (unsigned char)((unicode>>c)&0x3f) | 0x80;
-					}
-					while(c);
-				}
+			if (c == '\\' && (*pr_file_p == '\r' || pr_file_p[1] == '\n'))
+			{	//mac + unix format
+				pr_file_p += 1;
+				pr_source_line++;
 				continue;
 			}
-			else if (c == 'x' || c == 'X')
+
+			if (raw)
 			{
-				int d;
-				c = 0;
+				//raw strings contain very little parsing. just delimiter and \NL support.
+				if (c == rawdelim[0] && !strncmp(pr_file_p, rawdelim+1, raw-1))
+				{
+					pr_file_p += raw-1;
+					break;
+				}
 
-				d = (unsigned char)*pr_file_p++;
-				if (d >= '0' && d <= '9')
-					c += d - '0';
-				else if (d >= 'A' && d <= 'F')
-					c += d - 'A' + 10;
-				else if (d >= 'a' && d <= 'f')
-					c += d - 'a' + 10;
-				else
-					QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
-
-				c *= 16;
-
-				d = (unsigned char)*pr_file_p++;
-				if (d >= '0' && d <= '9')
-					c += d - '0';
-				else if (d >= 'A' && d <= 'F')
-					c += d - 'A' + 10;
-				else if (d >= 'a' && d <= 'f')
-					c += d - 'a' + 10;
-				else
-					QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
-			}
-			else if (c == '\\')
-				c = '\\';
-			else if (c == '\'')
-				c = '\'';
-			else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
-				c = 18 + c - '0';
-			else if (c == '\r')
-			{	//sigh
-				c = *pr_file_p++;
-				if (c != '\n')
-					QCC_PR_ParseWarning(WARN_HANGINGSLASHR, "Hanging \\\\\r");
-				pr_source_line++;
-			}
-			else if (c == '\n')
-			{	//sigh
-				pr_source_line++;
+				//make sure line numbers are correct
+				if (c == '\r' && *pr_file_p != '\n')
+					pr_source_line++;	//mac
+				if (c == '\n')	//dos/unix
+					pr_source_line++;
 			}
 			else
-				QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "Unknown escape char %c", c);
-		}
-		else if (c=='\"')
-		{
-			if (len >= sizeof(pr_immediate_string)-1)
-				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
-
-			QCC_PR_LexWhitespace(false);
-			if (*pr_file_p == '\"')	//have annother go
 			{
-				pr_file_p++;
-				continue;
-			}
-			pr_token[len] = 0;
-			pr_token_type = tt_immediate;
-			pr_immediate_type = type_string;
-			strcpy (pr_immediate_string, pr_token);
-
-			if (qccwarningaction[WARN_NOTUTF8])
-			{
-				len = 0;
-				//this doesn't do over-long checks.
-				for (c = 0; pr_token[c]; c++)
-				{
-					if (len)
+				if (c=='\n')
+					QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "newline inside quote");
+				if (c=='\\')
+				{	// escape char
+					c = *pr_file_p++;
+					if (!c)
+						QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
+					if (c == 'n')
+						c = '\n';
+					else if (c == 'r')
+						c = '\r';
+					else if (c == '"')
+						c = '"';
+					else if (c == 't')
+						c = '\t';	//tab
+					else if (c == 'a')
+						c = '\a';	//bell
+					else if (c == 'v')
+						c = '\v';	//vertical tab
+					else if (c == 'f')
+						c = '\f';	//form feed
+					else if (c == 's' || c == 'b')
 					{
-						if ((pr_token[c] & 0xc0) != 0x80)
-							break;
-						len--;
+						texttype ^= 128;
+						continue;
 					}
-					else if (pr_token[c] & 0x80)
+					//else if (c == 'b')
+					//	c = '\b';
+					else if (c == '[')
+						c = 16;	//quake specific
+					else if (c == ']')
+						c = 17;	//quake specific
+					else if (c == '{')
 					{
-						if (!(pr_token[c] & 0x40))
+						int d;
+						c = 0;
+						while ((d = *pr_file_p++) != '}')
 						{
-							//error.
-							len = 1;
-							break;
+							c = c * 10 + d - '0';
+							if (d < '0' || d > '9' || c > 255)
+								QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
 						}
-						else if (!(pr_token[c] & 0x20))
-							len = 2;
-						else if (!(pr_token[c] & 0x10))
-							len = 3;
-						else if (!(pr_token[c] & 0x08))
-							len = 4;
-						else if (!(pr_token[c] & 0x04))
-							len = 5;
-						else if (!(pr_token[c] & 0x02))
-							len = 6;
-						else if (!(pr_token[c] & 0x01))
-							len = 7;
+					}
+					else if (c == '.')
+						c = 0x1c | texttype;
+					else if (c == '<')
+						c = 29;
+					else if (c == '-')
+						c = 30;
+					else if (c == '>')
+						c = 31;
+					else if (c == 'u' || c == 'U')
+					{
+						//lower case u specifies exactly 4 nibbles.
+						//upper case U specifies variable length. terminate with a double-doublequote pair, or some other non-hex char.
+						int count = 0;
+						unsigned long d;
+						unsigned long unicode;
+						unicode = 0;
+						for(;;)
+						{
+							d = (unsigned char)*pr_file_p;
+							if (d >= '0' && d <= '9')
+								unicode = (unicode*16) + (d - '0');
+							else if (d >= 'A' && d <= 'F')
+								unicode = (unicode*16) + (d - 'A') + 10;
+							else if (d >= 'a' && d <= 'f')
+								unicode = (unicode*16) + (d - 'a') + 10;
+							else
+								break;
+							count++;
+							pr_file_p++;
+						}
+						if (!count || ((c=='u')?(count!=4):(count>8)) || unicode > 0x10FFFFu)	//RFC 3629 imposes the same limit as UTF-16 surrogate pairs.
+							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Bad unicode character code");
+
+						//figure out the count of bytes required to encode this char
+						count = 1;
+						d = 0x7f;
+						while (unicode > d)
+						{
+							count++;
+							d = (d<<5) | 0x1f;
+						}
+
+						//error if needed
+						if (len+count >= sizeof(pr_token))
+							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+
+						//output it.
+						if (count == 1)
+							pr_token[len++] = (unsigned char)(c&0x7f);
 						else
-							len = 8;
+						{
+							c = count*6;
+							pr_token[len++] = (unsigned char)((unicode>>c)&(0x0000007f>>count)) | (0xffffff00 >> count);
+							do
+							{
+								c = c-6;
+								pr_token[len++] = (unsigned char)((unicode>>c)&0x3f) | 0x80;
+							}
+							while(c);
+						}
+						continue;
+					}
+					else if (c == 'x' || c == 'X')
+					{
+						int d;
+						c = 0;
+
+						d = (unsigned char)*pr_file_p++;
+						if (d >= '0' && d <= '9')
+							c += d - '0';
+						else if (d >= 'A' && d <= 'F')
+							c += d - 'A' + 10;
+						else if (d >= 'a' && d <= 'f')
+							c += d - 'a' + 10;
+						else
+							QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+
+						c *= 16;
+
+						d = (unsigned char)*pr_file_p++;
+						if (d >= '0' && d <= '9')
+							c += d - '0';
+						else if (d >= 'A' && d <= 'F')
+							c += d - 'A' + 10;
+						else if (d >= 'a' && d <= 'f')
+							c += d - 'a' + 10;
+						else
+							QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+					}
+					else if (c == '\\')
+						c = '\\';
+					else if (c == '\'')
+						c = '\'';
+					else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
+						c = 18 + c - '0';
+					else if (c == '\r')
+					{	//sigh
+						c = *pr_file_p++;
+						if (c != '\n')
+							QCC_PR_ParseWarning(WARN_HANGINGSLASHR, "Hanging \\\\\r");
+						pr_source_line++;
+					}
+					else if (c == '\n')
+					{	//sigh
+						pr_source_line++;
+					}
+					else
+						QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "Unknown escape char %c", c);
+				}
+				else if (c=='\"')
+				{
+					break;
+				}
+				else if (c == '#')
+				{
+					for (end = pr_file_p; ; end++)
+					{
+						if (qcc_iswhite(*end))
+							break;
+
+						if (*end == ')'
+							||	*end == '('
+							||	*end == '+'
+							||	*end == '-'
+							||	*end == '*'
+							||	*end == '/'
+							||	*end == '\\'
+							||	*end == '|'
+							||	*end == '&'
+							||	*end == '='
+							||	*end == '^'
+							||	*end == '~'
+							||	*end == '['
+							||	*end == ']'
+							||	*end == '\"'
+							||	*end == '{'
+							||	*end == '}'
+							||	*end == ';'
+							||	*end == ':'
+							||	*end == ','
+							||	*end == '.'
+							||	*end == '#')
+								break;
+					}
+
+					c = *end;
+					*end = '\0';
+					cnst = QCC_PR_CheckCompConstString(pr_file_p);
+					if (cnst==pr_file_p)
+						cnst=NULL;
+					*end = c;
+					c = '#';	//undo
+					if (cnst)
+					{
+						QCC_PR_ParseWarning(WARN_MACROINSTRING, "Macro expansion in string");
+
+						if (len+strlen(cnst) >= sizeof(pr_token)-1)
+							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+
+						strcpy(pr_token+len, cnst);
+						len+=strlen(cnst);
+						pr_file_p = end;
+						continue;
 					}
 				}
-				if (len)
-					QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
+				else if (c == 0x7C && flag_acc)	//reacc support... reacc is strange.
+					c = '\n';
+				else
+					c |= texttype;
 			}
-			return;
+
+			if (len >= sizeof(pr_token)-1)
+				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+			pr_token[len] = c;
+			len++;
 		}
-		else if (c == '#')
+	}
+
+	if (len > sizeof(pr_immediate_string)-1)
+		QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
+
+	pr_token[len] = 0;
+	pr_token_type = tt_immediate;
+	pr_immediate_type = type_string;
+	strcpy (pr_immediate_string, pr_token);
+
+	if (qccwarningaction[WARN_NOTUTF8])
+	{
+		len = 0;
+		//this doesn't do over-long checks.
+		for (c = 0; pr_token[c]; c++)
 		{
-			for (end = pr_file_p; ; end++)
+			if (len)
 			{
-				if (qcc_iswhite(*end))
+				if ((pr_token[c] & 0xc0) != 0x80)
 					break;
-
-				if (*end == ')'
-					||	*end == '('
-					||	*end == '+'
-					||	*end == '-'
-					||	*end == '*'
-					||	*end == '/'
-					||	*end == '\\'
-					||	*end == '|'
-					||	*end == '&'
-					||	*end == '='
-					||	*end == '^'
-					||	*end == '~'
-					||	*end == '['
-					||	*end == ']'
-					||	*end == '\"'
-					||	*end == '{'
-					||	*end == '}'
-					||	*end == ';'
-					||	*end == ':'
-					||	*end == ','
-					||	*end == '.'
-					||	*end == '#')
-						break;
+				len--;
 			}
-
-			c = *end;
-			*end = '\0';
-			cnst = QCC_PR_CheckCompConstString(pr_file_p);
-			if (cnst==pr_file_p)
-				cnst=NULL;
-			*end = c;
-			c = '#';	//undo
-			if (cnst)
+			else if (pr_token[c] & 0x80)
 			{
-				QCC_PR_ParseWarning(WARN_MACROINSTRING, "Macro expansion in string");
-
-				if (len+strlen(cnst) >= sizeof(pr_token)-1)
-					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
-
-				strcpy(pr_token+len, cnst);
-				len+=strlen(cnst);
-				pr_file_p = end;
-				continue;
+				if (!(pr_token[c] & 0x40))
+				{
+					//error.
+					len = 1;
+					break;
+				}
+				else if (!(pr_token[c] & 0x20))
+					len = 2;
+				else if (!(pr_token[c] & 0x10))
+					len = 3;
+				else if (!(pr_token[c] & 0x08))
+					len = 4;
+				else if (!(pr_token[c] & 0x04))
+					len = 5;
+				else if (!(pr_token[c] & 0x02))
+					len = 6;
+				else if (!(pr_token[c] & 0x01))
+					len = 7;
+				else
+					len = 8;
 			}
 		}
-		else if (c == 0x7C && flag_acc)	//reacc support... reacc is strange.
-			c = '\n';
-		else
-			c |= texttype;
-
-		pr_token[len] = c;
-		len++;
-		if (len >= sizeof(pr_token)-1)
-			QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
-	} while (1);
+		if (len)
+			QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
+	}
 }
 #endif
 
@@ -2939,7 +3008,7 @@ void QCC_PR_Lex (void)
 	}
 
 // handle quoted strings as a unit
-	if (c == '\"')
+	if (c == '\"' || (c == 'R' && pr_file_p[1] == '\"'))
 	{
 		QCC_PR_LexString ();
 		return;

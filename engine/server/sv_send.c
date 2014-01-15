@@ -1253,12 +1253,50 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	client->nextservertimeupdate = sv.physicstime;
 */
 
-#ifdef NQPROT
-	if (ISQWCLIENT(client))
-		return;
-
 	ent = client->edict;
 
+#ifdef NQPROT
+	if (progstype != PROG_QW)
+	{
+		if (ISQWCLIENT(client))
+		{
+			//quakeworld clients drop the punch angle themselves.
+			while (ent->xv->punchangle[0] < -3)
+			{
+				ent->xv->punchangle[0] += 4;
+				MSG_WriteByte (msg, svc_bigkick);
+			}
+			while (ent->xv->punchangle[0] < -1)
+			{
+				ent->xv->punchangle[0] += 2;
+				MSG_WriteByte (msg, svc_smallkick);
+			}
+			ent->xv->punchangle[1] = 0;
+			ent->xv->punchangle[2] = 0;
+		}
+		else
+		{
+			for (i = 0; i < 3; i++)
+			{
+				//nq clients require the server to do it (interpolating, if its a decent client).
+				if (ent->xv->punchangle[i] < 0)
+				{
+					ent->xv->punchangle[i] += 10 * (1/77.0);
+					if (ent->xv->punchangle[i] > 0)
+						ent->xv->punchangle[i] = 0;
+				}
+				if (ent->xv->punchangle[i] < 0)
+				{
+					ent->xv->punchangle[i] -= 10 * (1/77.0);
+					if (ent->xv->punchangle[i] < 0)
+						ent->xv->punchangle[i] = 0;
+				}
+			}
+		}
+	}
+
+	if (ISQWCLIENT(client))
+		return;
 
 	if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 	{
@@ -1303,8 +1341,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 	for (i=0 ; i<3 ; i++)
 	{
-//		if (ent->v->punchangle[i])
-//			bits |= (SU_PUNCH1<<i);
+		if (ent->xv->punchangle[i])
+			bits |= (SU_PUNCH1<<i);
 		if (ent->v->velocity[i])
 			bits |= (SU_VELOCITY1<<i);
 	}
@@ -1377,8 +1415,13 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 	for (i=0 ; i<3 ; i++)
 	{
-//		if (bits & (SU_PUNCH1<<i))
-//			MSG_WriteChar (msg, ent->v->punchangle[i]);
+		if (bits & (SU_PUNCH1<<i))
+		{
+			if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+				MSG_WriteAngle16 (msg, ent->xv->punchangle[i]);
+			else
+				MSG_WriteChar (msg, ent->xv->punchangle[i]);
+		}
 		if (bits & (SU_VELOCITY1<<i))
 		{
 			if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)

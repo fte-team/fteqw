@@ -764,9 +764,10 @@ int main (int c, const char **v)
 #endif
 
 	parms.basedir = basedir;
+	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.
 #ifdef __linux__
 	//attempt to figure out where the exe is located
-	if (readlink("/proc/self/exe", bindir, sizeof(bindir)) > 0)
+	if (readlink("/proc/self/exe", bindir, sizeof(bindir)-1) > 0)
 	{
 		*COM_SkipPath(bindir) = 0;
 		printf("Binary is located at \"%s\"\n", bindir);
@@ -774,7 +775,7 @@ int main (int c, const char **v)
 	}
 /*#elif defined(__bsd__)
 	//attempt to figure out where the exe is located
-	if (readlink("/proc/self/file", bindir, sizeof(bindir)) > 0)
+	if (readlink("/proc/self/file", bindir, sizeof(bindir)-1) > 0)
 	{
 		*COM_SkipPath(bindir) = 0;
 		printf("Binary is located at "%s"\n", bindir);

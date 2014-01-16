@@ -4566,7 +4566,6 @@ void Host_Init (quakeparms_t *parms)
 	host_parms = *parms;
 
 	Cvar_Init();
-	TranslateInit();
 	Memory_Init ();
 
 	/*memory is working, its safe to printf*/

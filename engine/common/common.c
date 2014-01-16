@@ -4287,7 +4287,7 @@ void COM_Init (void)
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
 
-
+	TranslateInit();
 
 
 	nullentitystate.hexen2flags = SCALE_ORIGIN_ORIGIN;

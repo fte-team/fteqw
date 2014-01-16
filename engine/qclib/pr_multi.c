@@ -298,25 +298,9 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 	fnum = prinst.numfields;
 	prinst.numfields++;
 	prinst.field[fnum].name = name;	
-	if (type == ev_vector)
-	{
-		char *n;		
-		namelen = strlen(name)+5;	
-
-		n=PRHunkAlloc(progfuncs, namelen, "str");
-		sprintf(n, "%s_x", name);
-		ofs = QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, engineofs, progsofs);
-		prinst.field[fnum].ofs = ofs+progfuncs->funcs.fieldadjust;
-
-		n=PRHunkAlloc(progfuncs, namelen, "str");
-		sprintf(n, "%s_y", name);
-		QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, (engineofs==-1)?-1:(engineofs+4), (progsofs==-1)?-1:progsofs+1);
-
-		n=PRHunkAlloc(progfuncs, namelen, "str");
-		sprintf(n, "%s_z", name);
-		QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, (engineofs==-1)?-1:(engineofs+8), (progsofs==-1)?-1:progsofs+2);
-	}
-	else if (engineofs >= 0)
+	prinst.field[fnum].type = type;
+	prinst.field[fnum].progsofs = progsofs;
+	if (engineofs >= 0)
 	{	//the engine is setting up a list of required field indexes.
 
 		//paranoid checking of the offset.
@@ -346,28 +330,32 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 		//if the progs field offset matches annother offset in the same progs, make it match up with the earlier one.
 		if (progsofs>=0)
 		{
+			unsigned otherofs;
 			for (i = 0; i < prinst.numfields-1; i++)
 			{
-				if (prinst.field[i].progsofs == (unsigned)progsofs)
+				otherofs = prinst.field[i].progsofs;
+				if (otherofs == -1)	//qc unions work purely by progs offsets, not by engine offsets.
+					continue;		//this is because there really is no reliable mapping between progs and engine, so don't get confused.
+				if (otherofs == (unsigned)progsofs)
 				{
 #ifdef MAPPING_DEBUG
-					printf("found union field %s %i -> %i\n", prinst.field[i].name, prinst.field[i].progsofs, prinst.field[i].ofs);
+					printf("union(%s) ", prinst.field[i].name);
 #endif
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs;
 					break;
 				}
-				if (prinst.field[i].type == ev_vector && prinst.field[i].progsofs+1 == (unsigned)progsofs)
+				if (prinst.field[i].type == ev_vector && otherofs+1 == (unsigned)progsofs)
 				{
 #ifdef MAPPING_DEBUG
-					printf("found union field %s %i -> %i\n", prinst.field[i].name, prinst.field[i].progsofs+1, prinst.field[i].ofs+1);
+					printf("union(%s) ", prinst.field[i].name);
 #endif
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs+1;
 					break;
 				}
-				if (prinst.field[i].type == ev_vector && prinst.field[i].progsofs+2 == (unsigned)progsofs)
+				if (prinst.field[i].type == ev_vector && otherofs+2 == (unsigned)progsofs)
 				{
 #ifdef MAPPING_DEBUG
-					printf("found union field %s %i -> %i\n", prinst.field[i].name, prinst.field[i].progsofs+2, prinst.field[i].ofs+2);
+					printf("union(%s) ", prinst.field[i].name);
 #endif
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs+2;
 					break;
@@ -381,13 +369,29 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 
 	if (max_fields_size && fields_size > max_fields_size)
 		Sys_Error("Allocated too many additional fields after ents were inited.");
-	prinst.field[fnum].type = type;
-
-	prinst.field[fnum].progsofs = progsofs;
 
 #ifdef MAPPING_DEBUG
 	printf("Field %s %i -> %i\n", name, prinst.field[fnum].progsofs,prinst.field[fnum].ofs);
 #endif
+
+	if (type == ev_vector)
+	{
+		//vectors define float fields too. this avoids issues if the mod has (pointless) anti-decompile field reordering/stripping that works thanks to decompilers expecting things to be ordered exactly..
+		char *n;		
+		namelen = strlen(name)+5;	
+
+		n=PRHunkAlloc(progfuncs, namelen, "str");
+		sprintf(n, "%s_x", name);
+		ofs = QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, engineofs, progsofs);
+
+		n=PRHunkAlloc(progfuncs, namelen, "str");
+		sprintf(n, "%s_y", name);
+		QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, (engineofs==-1)?-1:(engineofs+4), (progsofs==-1)?-1:progsofs+1);
+
+		n=PRHunkAlloc(progfuncs, namelen, "str");
+		sprintf(n, "%s_z", name);
+		QC_RegisterFieldVar(&progfuncs->funcs, ev_float, n, (engineofs==-1)?-1:(engineofs+8), (progsofs==-1)?-1:progsofs+2);
+	}
 	
 	//we've finished setting the structure	
 	return ofs - progfuncs->funcs.fieldadjust;

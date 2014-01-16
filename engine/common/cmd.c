@@ -3106,6 +3106,7 @@ void Cmd_Init (void)
 	Cmd_AddMacro("ukdate", Macro_UKDate, false);
 	Cmd_AddMacro("usdate", Macro_USDate, false);
 	Cmd_AddMacro("date", Macro_ProperDate, false);
+	Cmd_AddMacro("properdate", Macro_ProperDate, false);
 	Cmd_AddMacro("version", Macro_Version, false);
 	Cmd_AddMacro("qt", Macro_Quote, false);
 

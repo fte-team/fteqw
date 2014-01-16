@@ -3175,6 +3175,7 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		ent = &cl_visedicts[cl_numvisedicts];
+		ent->rtype = RT_MODEL;
 		ent->playerindex = -1;
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;

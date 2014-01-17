@@ -32,9 +32,10 @@ extern char gamedirfile[];
 void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 {
 	char *t = var->string;
+	char *e = t + (*t?strlen(t):0);
 
-	// sanity check for directory
-	if (strstr(t, "..") || strstr(t, ":") || *t == '/' || *t == '\\')
+	// sanity check for directory. // is equivelent to /../ on some systems, so make sure that can't be used either. : is for drives on windows or amiga, or alternative thingies on windows, so block thoses completely.
+	if (strstr(t, "..") || strstr(t, ":") || *t == '/' || *t == '\\' || *e == '/' || *e == '\\' || strstr(t, "//") || strstr(t, "\\\\"))
 	{
 		Con_Printf(CON_NOTICE "%s forced to default due to invalid characters.\n", var->name);
 		// recursion is avoided by assuming the default value is sane
@@ -133,7 +134,10 @@ void Log_String (logtype_t lognum, char *s)
 	}
 	*t = 0;
 
-	Q_snprintfz(fname, sizeof(fname), "%s%s.log", d, f);
+	if (*d)
+		Q_snprintfz(fname, sizeof(fname), "%s/%s.log", d, f);
+	else
+		Q_snprintfz(fname, sizeof(fname), "%s.log", f);
 
 	// file rotation
 	if (log_rotate_size.value >= 4096 && log_rotate_files.value >= 1)
@@ -159,14 +163,14 @@ void Log_String (logtype_t lognum, char *s)
 			i = log_rotate_files.value;
 
 			// unlink file at the top of the chain
-			snprintf(oldf, sizeof(oldf)-1, "%s%s.%i", d, f, i);
+			Q_snprintfz(oldf, sizeof(oldf), "%s.%i", fname, i);
 			FS_Remove(oldf, FS_GAMEONLY);
 
 			// rename files through chain
 			for (x = i-1; x > 0; x--)
 			{
 				strcpy(newf, oldf);
-				snprintf(oldf, sizeof(oldf)-1, "%s%s.%i", d, f, x);
+				Q_snprintfz(oldf, sizeof(oldf), "%s.%i", fname, x);
 
 				// check if file exists, otherwise skip
 				if ((fi = FS_OpenVFS(oldf, "rb", FS_GAMEONLY)))

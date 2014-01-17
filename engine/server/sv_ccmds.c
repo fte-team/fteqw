@@ -1024,7 +1024,10 @@ void SV_Unban_f (void)
 	}
 
 	if (!Q_strcasecmp(Cmd_Argv(1), "all"))
+	{
+		Con_Printf("removing all banned addresses\n");
 		all = true;
+	}
 	else if (!NET_StringToAdrMasked(Cmd_Argv(1), &unbanadr, &unbanmask))
 	{
 		Con_Printf("invalid address or mask\n");
@@ -1041,20 +1044,23 @@ void SV_Unban_f (void)
 			Z_Free(nb);
 
 			if (!all)
-				break;
+				return;
 		}
 		else
 		{
 			link = &(*link)->next;
 		}
 	}
+
+	if (!all)
+		Con_Printf("address was not banned\n");
 }
 
 void SV_Unfilter_f (void)
 {
 	qboolean all = false;
-	bannedips_t *nb = svs.bannedips;
-	bannedips_t *nbnext;
+	bannedips_t **link;
+	bannedips_t *nb;
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
 	char adr[MAX_ADR_SIZE];
@@ -1066,28 +1072,36 @@ void SV_Unfilter_f (void)
 	}
 
 	if (!Q_strcasecmp(Cmd_Argv(1), "all"))
+	{
+		Con_Printf("removing all filtered addresses\n");
 		all = true;
+	}
 	else if (!NET_StringToAdrMasked(Cmd_Argv(1), &unbanadr, &unbanmask))
 	{
 		Con_Printf("invalid address or mask\n");
 		return;
 	}
 
-	while (nb)
+	for (link = &svs.bannedips ; (nb = *link) ; )
 	{
-		nbnext = nb->next;
 		if (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask)))
 		{
 			if (!all)
 				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
-			if (svs.bannedips == nb)
-				svs.bannedips = nbnext;
+			*link = nb->next;
 			Z_Free(nb);
-			break;
-		}
 
-		nb = nbnext;
+			if (!all)
+				return;
+		}
+		else
+		{
+			link = &(*link)->next;
+		}
 	}
+
+	if (!all)
+		Con_Printf("address was not filtered\n");
 }
 
 void SV_WriteIP_f (void)
@@ -1114,6 +1128,8 @@ void SV_WriteIP_f (void)
 	{
 		if (bi->type == BAN_BAN)
 			s = "banip";
+		else if (bi->type == BAN_PERMIT)
+			s = "allowip";
 		else
 			s = "addip";
 		if (bi->reason[0])

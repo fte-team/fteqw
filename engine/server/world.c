@@ -493,7 +493,7 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	InsertLinkBefore (&ent->area, &node->edicts);
 	
 // if touch_triggers, touch all entities at this node and decend for more
-	if (touch_triggers)
+	if (touch_triggers && ent->v->solid != SOLID_NOT)
 		World_TouchLinks (w, ent, w->areanodes);
 }
 

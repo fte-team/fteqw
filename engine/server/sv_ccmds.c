@@ -948,7 +948,7 @@ void SV_FilterIP_f (void)
 		if (NET_CompareAdr(&nb->adr, &banadr) && NET_CompareAdr(&nb->adrmask, &banmask))
 		{
 			Con_Printf("%s is already banned\n", Cmd_Argv(1));
-			break;
+			return;
 		}
 		nb = nb->next;
 	}

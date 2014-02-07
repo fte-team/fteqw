@@ -221,10 +221,10 @@ void GLVID_DeInit (void)
 	SDL_SetWindowGammaRamp(sdlwindow, NULL, NULL, NULL);
 	SDL_GL_DeleteContext(sdlcontext);
 	SDL_DestroyWindow(sdlwindow);
+	sdlwindow = NULL;
 #else
 	SDL_SetGammaRamp (intitialgammaramps[0], intitialgammaramps[1], intitialgammaramps[2]);
 #endif
-	sdlwindow = NULL;
 
 	SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }

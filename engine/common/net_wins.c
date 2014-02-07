@@ -2157,11 +2157,11 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 
 static struct ifaddrs *iflist;
 unsigned int iftime;	//requery sometimes.
-int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qboolean ipv4, qboolean ipv6)
+int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,   unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 	struct ifaddrs *ifa;
 	int fam;
-	int idx;
+	int idx = 0;
 	unsigned int time = Sys_Milliseconds();
 	if (time - iftime > 1000 && iflist)
 	{
@@ -2174,7 +2174,7 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 		getifaddrs(&iflist);
 	}
 
-	for (ifa = iflist; ifa; ifa = ifa->ifa_next)
+	for (ifa = iflist; ifa && idx < maxaddresses; ifa = ifa->ifa_next)
 	{
 		//can happen if the interface is not bound.
 		if (ifa->ifa_addr == NULL)
@@ -2194,17 +2194,16 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 #endif
 			0)
 		{
-			if (idx++ == count)
-			{
-				SockadrToNetadr(&ifa->ifa_addr, out);
-				out->port = port;
-			}
+			SockadrToNetadr(&ifa->ifa_addr, addresses[idx]);
+			addresses[idx]->port = port;
+			adrflags[idx] = 0;
+			idx++;
 		}
 	}
 	return idx;
 }
 #else
-int FTENET_GetLocalAddress(netadr_t *out, int count)
+int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,   unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 	return 0;
 }

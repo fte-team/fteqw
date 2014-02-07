@@ -586,6 +586,24 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
 #define BEF_LINES				512	//draw line pairs instead of triangles.
 
+typedef struct
+{
+	int fbo;
+	int rb_size[2];
+	int rb_depth;
+	int rb_stencil;
+	int rb_depthstencil;
+	texid_t colour;
+	unsigned int enables;
+} fbostate_t;
+#define FBO_RB_COLOUR		1
+#define FBO_RB_DEPTH		2
+#define FBO_RB_STENCIL		4
+#define FBO_RESET			8	//resize all renderbuffers / free any that are not active. implied if the sizes differ
+#define FBO_TEX_COLOUR		16	//internal
+#define FBO_TEX_DEPTH		32	//internal
+#define FBO_TEX_STENCIL		64	//internal
+
 #ifdef GLQUAKE
 void GLBE_Init(void);
 void GLBE_Shutdown(void);
@@ -610,23 +628,6 @@ void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *va
 void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
 void GLBE_VBO_Destroy(vboarray_t *vearray);
 
-typedef struct
-{
-	int fbo;
-	int rb_size[2];
-	int rb_depth;
-	int rb_stencil;
-	int rb_depthstencil;
-	texid_t colour;
-	unsigned int enables;
-} fbostate_t;
-#define FBO_RB_COLOUR		1
-#define FBO_RB_DEPTH		2
-#define FBO_RB_STENCIL		4
-#define FBO_RESET			8	//resize all renderbuffers / free any that are not active. implied if the sizes differ
-#define FBO_TEX_COLOUR		16	//internal
-#define FBO_TEX_DEPTH		32	//internal
-#define FBO_TEX_STENCIL		64	//internal
 void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth);
 int GLBE_FBO_Push(fbostate_t *state);
 void GLBE_FBO_Pop(int oldfbo);

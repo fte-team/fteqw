@@ -612,9 +612,11 @@ void Sys_SendKeyEvents(void)
 			IN_KeyEvent(event.button.which, event.button.state, tbl_sdltoquakemouse[event.button.button-1], 0);
 			break;
 
+#if SDL_MAJOR_VERSION >= 2
 		case SDL_APP_TERMINATING:
 			Cbuf_AddText("quit force\n", RESTRICT_LOCAL);
 			break;
+#endif
 		case SDL_QUIT:
 			Cbuf_AddText("quit\n", RESTRICT_LOCAL);
 			break;

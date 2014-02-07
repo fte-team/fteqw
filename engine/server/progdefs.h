@@ -207,6 +207,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(gravitydir,NULL)\
 	comfieldfunction(camera_transform,".vector(vector org, vector ang)", NULL)\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
+	comfieldfloat(geomtype,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(friction,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(erp,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(jointtype,NULL)/*DP_...PHYSICS*/\
@@ -240,21 +241,21 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(color,NULL)/*Hexen2 has a .float color, the warnings should be benign*/ \
 	comfieldfloat(light_lev,NULL)\
 	comfieldfloat(style,NULL)\
-	comfieldfloat(pflags,NULL)\
+	comfieldfloat(pflags,"Realtime lighting flags")\
 	comfieldfloat(clientcolors,NULL)\
-	comfieldfloat(dimension_see,NULL)/*EXT_DIMENSION_VISIBLE*/\
-	comfieldfloat(dimension_seen,NULL)/*EXT_DIMENSION_VISIBLE*/\
-	comfieldfloat(dimension_ghost,NULL)/*EXT_DIMENSION_GHOST*/\
-	comfieldfloat(dimension_ghost_alpha,NULL)/*EXT_DIMENSION_GHOST*/\
+	comfieldfloat(dimension_see,"This is the dimension mask (bitfield) that the client is allowed to see. Entities and events not in this dimension mask will be invisible.")/*EXT_DIMENSION_VISIBLE*/\
+	comfieldfloat(dimension_seen,"This is the dimension mask (bitfield) that the client is visible within. Clients that cannot see this dimension mask will not see this entity.")/*EXT_DIMENSION_VISIBLE*/\
+	comfieldfloat(dimension_ghost,"If this entity is visible only within these dimensions, it will become transparent, as if a ghost.")/*EXT_DIMENSION_GHOST*/\
+	comfieldfloat(dimension_ghost_alpha,"If this entity is subject to dimension_ghost, this is the scaler for its alpha value. If 0, 0.5 will be used instead.")/*EXT_DIMENSION_GHOST*/\
 	comfieldfloat(playerclass,NULL)/*hexen2 requirements*/\
 	comfieldfloat(drawflags,NULL)/*hexen2*/\
 	comfieldfloat(hasted,NULL)/*hexen2 uses this AS WELL as maxspeed*/\
 	comfieldfloat(light_level,NULL)/*hexen2's grabbing light level from client*/\
-	comfieldfloat(abslight,NULL)/*hexen2's force a lightlevel*/\
+	comfieldfloat(abslight,"Allows overriding light levels. Use drawflags to state that this field should actually be used.")/*hexen2's force a lightlevel*/\
 	comfieldfunction(SendEntity, ".float(entity playerent, float changedflags)",NULL)/*EXT_CSQC*/\
 	comfieldfloat(SendFlags,NULL)/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
-	comfieldfloat(Version,NULL)/*EXT_CSQC (obsolete)*/\
-	comfieldfloat(pvsflags,NULL)/*EXT_CSQC_1*/\
+	comfieldfloat(Version,"Obsolete")/*EXT_CSQC (obsolete)*/\
+	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
 	comfieldfloat(modelflags,NULL)\
 	comfieldfloat(uniquespawnid,NULL)/*FTE_ENT_UNIQUESPAWNID*/\
 	comfieldfunction(customizeentityforclient, ".float()",NULL)
@@ -379,7 +380,7 @@ typedef struct
 	int orientpeer;
 
 	//ode info
-	int shape;
+	int geomshape;
 	vec3_t dimensions;
 	float mass;
 } odebodyinfo_t;
@@ -410,6 +411,21 @@ typedef struct
 	vec3_t offset,	offset2;
 	vec3_t axis,	axis2;
 } odejointinfo_t;
+
+typedef struct odecommandqueue_s
+{
+	struct odecommandqueue_s *next;
+	enum
+	{
+		ODECMD_ENABLE,
+		ODECMD_DISABLE,
+		ODECMD_FORCE,
+		ODECMD_TORQUE,
+	} command;
+	struct wedict_s *edict;
+	vec3_t v1;
+	vec3_t v2;
+} odecommandqueue_t;
 
 typedef struct
 {
@@ -469,5 +485,7 @@ typedef struct
 	// max velocity for a 1-unit radius object at current step to prevent
 	// missed collisions
 	vec_t ode_movelimit;
+	odecommandqueue_t *cmdqueuehead;
+	odecommandqueue_t *cmdqueuetail;
 } worldode_t;
 #endif

@@ -30,7 +30,7 @@ typedef struct svm_server_s {
 } svm_server_t;
 
 typedef struct {
-	int socketudp;
+	SOCKET socketudp;
 	float time;
 	int port;
 
@@ -151,7 +151,7 @@ void SVM_Think(int port)
 	net_message.cursize = recvfrom(svm.socketudp, net_message_buffer, sizeof(net_message_buffer)-1, 0, (struct sockaddr *)&addr, &addrlen);
 	if (net_message.cursize <= 0)
 	{
-		addrlen = qerrno;
+		addrlen = neterrno();
 
 
 		return;

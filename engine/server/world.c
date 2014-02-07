@@ -471,9 +471,6 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
 
-//	if (ent->v->solid == SOLID_NOT)
-//		return;
-
 // find the first node that the ent's box crosses
 	node = w->areanodes;
 	while (1)

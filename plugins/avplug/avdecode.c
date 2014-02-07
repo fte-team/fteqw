@@ -352,10 +352,16 @@ static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, 
 						{
 							float *in = (void*)auddata;
 							signed short *out = (void*)auddata;
+							int v;
 							unsigned int i;
 							for (i = 0; i < auddatasize/sizeof(*in); i++)
 							{
-								out[i] = (short)(in[i]*32767);
+								v = (short)(in[i]*32767);
+								if (v < -32767)
+									v = -32767;
+								else if (v > 32767)
+									v = 32767;
+								out[i] = v;
 							}
 							auddatasize/=2;
 							width = 2;

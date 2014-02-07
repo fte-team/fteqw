@@ -34,6 +34,15 @@ static avec4_t	draw_mesh_colors[4];
 index_t r_quad_indexes[6] = {0, 1, 2, 2, 3, 0};
 unsigned int r2d_be_flags;
 
+static struct
+{
+	texid_t id;
+	int width;
+	int height;
+	uploadfmt_t fmt;
+} *rendertargets;
+static unsigned int numrendertargets;
+
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font;
@@ -115,6 +124,11 @@ void R2D_Shutdown(void)
 	cl_maxstrisvert = 0;
 	cl_numstris = 0;
 	cl_maxstris = 0;
+
+	while (numrendertargets>0)
+		R_DestroyTexture(rendertargets[--numrendertargets].id);
+	free(rendertargets);
+	rendertargets = NULL;
 
 	if (font_console == font_default)
 		font_console = NULL;
@@ -344,8 +358,8 @@ mpic_t *R2D_SafePicFromWad (char *name)
 	char newnamegfx[32];
 	shader_t *s;
 	
-	snprintf(newnamewad, sizeof(newnamewad), "wad/%s.lmp", name);
-	snprintf(newnamegfx, sizeof(newnamegfx), "gfx/%s.lmp", name);
+	snprintf(newnamewad, sizeof(newnamewad), "wad/%s", name);
+	snprintf(newnamegfx, sizeof(newnamegfx), "gfx/%s", name);
 
 	s = R_RegisterPic(newnamewad);
 	if (!(s->flags & SHADER_NOIMAGE))
@@ -615,7 +629,7 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(_SDL)
 #include <windows.h>
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 {
@@ -1279,6 +1293,77 @@ void R2D_DrawCrosshair(void)
 	R2D_ImageColours(1, 1, 1, 1);
 }
 
+//resize a texture for a render target and specify the format of it.
+//pass TF_INVALID and sizes=0 to get without configuring (shaders that hardcode an $rt1 etc).
+texid_t R2D_RT_Configure(unsigned int id, int width, int height, uploadfmt_t rtfmt)
+{
+	id--;	//0 is invalid.
+	if (id < 0 || id > 255)	//sanity limit
+		return r_nulltex;
+
+	//extend the array if needed. these should be fairly light.
+	if (id >= numrendertargets)
+	{
+		rendertargets = realloc(rendertargets, (id+1) * sizeof(*rendertargets));
+		while(numrendertargets <= id)
+		{
+			rendertargets[numrendertargets].id = r_nulltex;
+			rendertargets[numrendertargets].width = 0;
+			rendertargets[numrendertargets].height = 0;
+			rendertargets[numrendertargets].fmt = TF_INVALID;
+			numrendertargets++;
+		}
+	}
+
+	if (!TEXVALID(rendertargets[id].id))
+		rendertargets[id].id = R_AllocNewTexture(va("", id+1), 0, 0, IF_NOMIPMAP);
+	if (rtfmt)
+	{
+		switch(rtfmt)
+		{
+		case 1: rtfmt = TF_RGBA32;	break;
+		case 2: rtfmt = TF_RGBA16F;	break;
+		case 3: rtfmt = TF_RGBA32F;	break;
+		case 4: rtfmt = TF_DEPTH16;	break;
+		case 5: rtfmt = TF_DEPTH24;	break;
+		case 6: rtfmt = TF_DEPTH32;	break;
+		default:rtfmt = TF_INVALID;	break;
+		}
+
+//		if (rendertargets[id].fmt != rtfmt || rendertargets[id].width != width || rendertargets[id].height != height)
+		{
+			rendertargets[id].fmt = rtfmt;
+			rendertargets[id].width = width;
+			rendertargets[id].height = height;
+			R_Upload(rendertargets[id].id, "", rtfmt, NULL, NULL, width, height, IF_NOMIPMAP);
+		}
+	}
+	return rendertargets[id].id;
+}
+texid_t R2D_RT_GetTexture(unsigned int id, unsigned int *width, unsigned int *height)
+{
+	if (!id)
+	{
+		*width = 0;
+		*height = 0;
+		return r_nulltex;
+	}
+	id--;
+	if (id >= numrendertargets)
+	{
+		Con_Printf("Render target %u is not configured\n", id);
+		R2D_RT_Configure(id, 0, 0, TF_INVALID);
+		if (id >= numrendertargets)
+		{
+			*width = 0;
+			*height = 0;
+			return r_nulltex;
+		}
+	}
+	*width = rendertargets[id].width;
+	*height = rendertargets[id].height;
+	return rendertargets[id].id;
+}
 
 #endif
 

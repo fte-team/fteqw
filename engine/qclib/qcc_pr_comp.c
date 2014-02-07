@@ -4932,6 +4932,16 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 
 	ed = QCC_PR_GetDef(type_entity, "self", NULL, true, 0, false);
 
+	{
+		QCC_def_t *fclassname = QCC_PR_GetDef(NULL, "classname", NULL, false, 0, false);
+		if (fclassname)
+		{
+			QCC_def_t *point = QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], ed, fclassname, NULL);
+			type_pointer->aux_type = type_string;
+			QCC_PR_Statement(&pr_opcodes[OP_STOREP_FNC], QCC_MakeStringConst(basetype->name), point, NULL);
+		}
+	}
+
 	QCC_PR_EmitClassFunctionTable(basetype, basetype, ed);
 
 	//FIXME: these constructors are called in the wrong order

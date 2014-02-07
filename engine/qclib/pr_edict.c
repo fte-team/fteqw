@@ -2309,7 +2309,9 @@ char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, int maxsize, 
 	fdef_t	*d;
 	int		*v;
 	unsigned int		i;unsigned int j;
-	char	*name;
+	char	*name, *mname;
+	char	*classname = NULL;
+	int		classnamelen = 0;
 	int		type;
 
 //	if (ed->free)
@@ -2337,6 +2339,40 @@ char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, int maxsize, 
 				break;
 		if (j == type_size[type])
 			continue;
+
+		if (strstr(name, "::"))
+		{
+			if (*name != ':')
+				continue;	//don't directly generate anything from class::foo
+
+			if (!classname)
+			{
+				fdef_t *cnfd;
+				cnfd = ED_FindField(progfuncs, "classname");
+				if (cnfd)
+				{
+					string_t *v;
+					v = (string_t *)((char *)edvars(ed) + cnfd->ofs*4);
+					classname = PR_StringToNative(&progfuncs->funcs, *v);
+				}
+				else
+					classname = "";
+				classnamelen = strlen(classname);
+			}
+			for (j = i+1; j < prinst.numfields; j++)
+			{
+				if (prinst.field[j].ofs == d->ofs)
+				{
+					mname = prinst.field[j].name;
+					if (!strncmp(mname, classname, classnamelen) && mname[classnamelen] == ':')
+					{
+						//okay, we have a match...
+						name = prinst.field[j].name;
+						break;
+					}
+				}
+			}
+		}
 
 		//add it to the file
 		AddS("\""); AddS(name); AddS("\" \""); AddS(PR_UglyValueString(&progfuncs->funcs, d->type, (eval_t *)v)); AddS("\"\n");

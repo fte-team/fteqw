@@ -28,6 +28,9 @@ WHOAMI:=$(shell whoami)
 #linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
 #linux->javascript (FTE_TARGET=web)
 #linux->nacl (FTE_TARGET=nacl NARCH=x86_64)
+#win32->nacl
+#linux->droid (make droid)
+#win32->droid (make droid)
 #if you are cross compiling, you'll need to use FTE_TARGET=mytarget
 
 #cygwin's make's paths confuses non-cygwin things
@@ -35,9 +38,14 @@ RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 PROFILE_DIR=$(BASE_DIR)/profile
 ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
-	NATIVE_RELEASE_DIR=$(shell cygpath -m $(RELEASE_DIR))
-	NATIVE_DEBUG_DIR=$(shell cygpath -m $(DEBUG_DIR))
+	OUT_DIR?=.
+	NATIVE_OUT_DIR:=$(shell cygpath -m $(OUT_DIR))
+	NATIVE_BASE_DIR:=$(shell cygpath -m $(BASE_DIR))
+	NATIVE_RELEASE_DIR:=$(shell cygpath -m $(RELEASE_DIR))
+	NATIVE_DEBUG_DIR:=$(shell cygpath -m $(DEBUG_DIR))
 endif
+NATIVE_OUT_DIR?=$(OUT_DIR)
+NATIVE_BASE_DIR?=$(BASE_DIR)
 NATIVE_RELEASE_DIR?=$(RELEASE_DIR)
 NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
@@ -346,11 +354,6 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 
 	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
 	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
-
-	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
-		RELEASE_CFLAGS+= -D_SDL
-		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -L./libs/mingw64-libs
-	endif
 endif
 
 IMAGELDFLAGS ?= -lpng -ljpeg
@@ -369,13 +372,15 @@ else
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
-SDL_INCLUDES=-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL
+SDL_INCLUDES=
+#-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL
 BOTLIB_CFLAGS=-I$(BOTLIB_DIR) -DBOTLIB
 BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(BOTLIB_CFLAGS) $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
-DEBUG_CFLAGS=-ggdb -g -DDEBUG
+DEBUG_CFLAGS?=-ggdb -g
+DEBUG_CFLAGS+=-DDEBUG
 RELEASE_CFLAGS?=-O3 -ffast-math $(CPUOPTIMIZATIONS)
 
 #incase our compiler doesn't support it (mingw)
@@ -682,12 +687,15 @@ BOTLIB_OBJS = 			\
 GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 GL_EXE_NAME=../fteqw_sdl.gl$(BITS)
 GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
+SDLCONFIG?=sdl-config
+CC_MACHINE:=$(shell $(CC) -dumpmachine)
+#SDLCONFIG:=libs/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs/sdl2_mingw/$(CC_MACHINE)
 ifdef windir
-	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
+	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --libs`
 else
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `sdl-config --libs`
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --libs`
 endif
-GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
+GL_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags`
 GLB_DIR=gl_sdl$(FTE_TARGET)$(BITS)
 GLCL_DIR=glcl_sdl$(FTE_TARGET)$(BITS)
 
@@ -702,14 +710,14 @@ MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
 MB_DIR=m_sdl$(FTE_TARGET)$(BITS)
 M_EXE_NAME=../fteqw_sdl$(BITS)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
-M_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags` -D_MERGED_SDL
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 
 ifdef windir
-	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
+	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --libs`
 else
 	#pthread is needed because of SDL.
-	M_LDFLAGS=$(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
+	M_LDFLAGS=$(MLDFLAGS) `$(SDLCONFIG) --libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 endif
 
 
@@ -793,12 +801,12 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	GL_EXE_NAME=../fteqw_sdl_gl$(BITS)$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../fteqwcl_sdl$(BITS)$(EXEPOSTFIX)
 	ifdef windir
-		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
+		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --libs`
 	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
 	endif
 	
-	GL_CFLAGS=-D_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` $(DX7SDK) $(SPEEXCFLAGS)
+	GL_CFLAGS=-D_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDLCONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		GL_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -817,7 +825,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl$(BITS)$(EXEPOSTFIX)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
+	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		M_CFLAGS+= -D_MINGW_VFPRINTF
@@ -826,17 +834,17 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 	
 	ifdef windir
-		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
+		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --libs`
 	else
 		#pthread is needed because of SDL.
-		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDL_CONFIG) --libs` $(IMAGELDFLAGS)
 	endif
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `sdl-config --cflags` $(DX7SDK) $(SPEEXCFLAGS)
+	D3D_CFLAGS=$(D3DCFLAGS) -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		D3D_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -847,19 +855,23 @@ endif
 
 #FTE_TARGET=vc (Visual C)
 ifeq ($(FTE_TARGET),vc)
+	DEBUG_CFLAGS=
+	MSVCDIR=Microsoft Visual Studio 10.0
+	WINDOWSSDKDIR=C:/Program Files/Microsoft SDKs/Windows/v7.1
 	ifeq ($(BITS),64)
 		WINDRES=x86_64-w64-mingw32-windres
 
-		MSVCPATH=C:/Program Files (x86)/Microsoft Visual Studio 8/VC/BIN/amd64/
+		MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/amd64/
 
-		MSVCINC=-I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\include"
-		MSVCLIB=/LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\lib\amd64" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\LIB\AMD64"
+		MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\include"
+		MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\VC\ATLMFC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\VC\LIB\amd64" /LIBPATH:"$(WINDOWSSDKDIR)\lib\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\SDK\v2.0\LIB\AMD64"
 		JPEGLIB=libs/libjpeg$(BITS).lib
 	else
-		MSVCPATH=C:/Program Files (x86)/Microsoft Visual Studio 8/VC/BIN/
+		WINDRES=i686-w64-mingw32-windres
+		MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/
 
-		MSVCINC=-I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\include"
-		MSVCLIB=/LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\ATLMFC\LIB" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\LIB" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\lib" /LIBPATH:"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\LIB"
+		MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
+		MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\LIB" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\LIB" /LIBPATH:"$(WINDOWSSDKDIR)\lib" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\LIB"
 		JPEGLIB=libs/jpeg.lib
 	endif
 	STRIP=@echo strip
@@ -869,11 +881,12 @@ ifeq ($(FTE_TARGET),vc)
 	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
 	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast 
 	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
-	RELEASE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMIZATIONS) /fp:fast
-	RELEASE_LDFLAGS = /LTCG:PGOPTIMIZE
+	RELEASE_CFLAGS = -O2 -Ot -Ox -GL -GS- -Gr $(CPUOPTIMIZATIONS) /fp:fast
+	RELEASE_LDFLAGS = /LTCG
+# /LTCG:PGOPTIMIZE
 
-	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
-	DO_LD=$(DO_ECHO) "$(MSVCPATH)link" /nologo /out:"$@" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
+	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
+	DO_LD=$(DO_ECHO) "$(MSVCPATH)link" /nologo /out:"$(shell cygpath -m $@)" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib kernel32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
 	DEPCC=
 
@@ -881,6 +894,7 @@ ifeq ($(FTE_TARGET),vc)
 
 	SPEEXCFLAGS+= -Dinline=_inline -D_USE_MATH_DEFINES
 
+	BASE_CFLAGS:=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(shell cygpath -m $(CLIENT_DIR)) -I$(shell cygpath -m $(SERVER_DIR)) -I$(shell cygpath -m $(COMMON_DIR)) -I$(shell cygpath -m $(GL_DIR)) -I$(shell cygpath -m $(D3D_DIR)) -I$(shell cygpath -m $(PROGS_DIR)) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(BOTLIB_CFLAGS) $(SVNREVISION)
 
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS) -DMULTITHREAD -DMSVCLIBSPATH="libs/"
 	SV_EXE_NAME=../fteqwsv$(BITS)$(EXEPOSTFIX)
@@ -1311,7 +1325,7 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 
 DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
-	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(OUT_DIR)/$(fn)) ) $(LDFLAGS)
+	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
 _out-rel:
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"
@@ -1415,7 +1429,7 @@ m-dbg:
 m-profile:
 	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(MB_DIR)"
 
-.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg
+.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir
 
 
 _qcc-tmp: $(REQDIR)

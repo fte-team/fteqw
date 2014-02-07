@@ -9352,6 +9352,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"hash_getkey",		PF_hash_getkey,		0,		0,		0,		292,	D("string(float table, float idx)", "gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all.")},
 	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(float table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys.")},
 	{"checkcommand",	PF_checkcommand,	0,		0,		0,		294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
+	{"argescape",		PF_argescape,		0,		0,		0,		295,	D("string(string s)", "Marks up a string so that it can be reliably tokenized as a single argument later.")},
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
@@ -9675,9 +9676,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
-	{"physics_enable",	PF_Ignore,			0,		0,		0,		540,	"void(entity e, float physics_enabled)" STUB},
-	{"physics_addforce",PF_Ignore,			0,		0,		0,		541,	"void(entity e, vector force, vector relative_ofs)" STUB},
-	{"physics_addtorque",PF_Ignore,			0,		0,		0,		542,	"void(entity e, vector torque)" STUB},
+
+	{"physics_enable",	PF_physics_enable,	0,		0,		0,		540,	D("void(entity e, float physics_enabled)", "Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time.")},
+	{"physics_addforce",PF_physics_addforce,0,		0,		0,		541,	D("void(entity e, vector force, vector relative_ofs)", "Apply some impulse directional force upon a MOVETYPE_PHYSICS entity.")},
+	{"physics_addtorque",PF_physics_addtorque,0,	0,		0,		542,	D("void(entity e, vector torque)", "Apply some impulse rotational force upon a MOVETYPE_PHYSICS entity.")},
 
 	{"setkeydest",		PF_Fixme,			0,		0,		0,		601,	"void(float dest)"},
 	{"getkeydest",		PF_Fixme,			0,		0,		0,		602,	"float()"},
@@ -10528,6 +10530,11 @@ void PR_DumpPlatform_f(void)
 		{"VF_SCREENVSIZE",		"const float", CS, "Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect).", VF_SCREENVSIZE},
 		{"VF_SCREENPSIZE",		"const float", CS, "Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect).", VF_SCREENPSIZE},
 		{"VF_VIEWENTITY",		"const float", CS, "Changes the RF_EXTERNALMODEL flag on entities to match the new selection, and removes entities flaged with RF_VIEWENTITY. Requires cunning use of .entnum and typically requires calling addentities(MASK_VIEWMODEL) too.", VF_VIEWENTITY},
+
+		{"VF_RT_DESTCOLOUR",	"const float", CS, "The FrameBuffer texture index to write colour info into. 1-based. Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy. Written to by both 3d and 2d rendering.", VF_RT_DESTCOLOUR},
+		{"VF_RT_SOURCECOLOUR",	"const float", CS, "The FrameBuffer texture index to use with shaders that specify a $sourcecolour map.", VF_RT_SOURCECOLOUR},
+		{"VF_RT_DEPTH",			"const float", CS, "The FrameBuffer texture index to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16=4,24=5,32=6), sizexy.", VF_RT_DEPTH},
+		{"VF_RT_RIPPLE",		"const float", CS, "The FrameBuffer texture index to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy.", VF_RT_RIPPLE},
 
 		{"RF_VIEWMODEL",		"const float", CS, "Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob.", CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, "Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible.", CSQCRF_EXTERNALMODEL},

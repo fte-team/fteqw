@@ -34,12 +34,12 @@ static int QDECL VFSSTDIO_WriteBytes (struct vfsfile_s *file, const void *buffer
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fwrite(buffer, 1, bytestoread, intfile->handle);
 }
-static qboolean QDECL VFSSTDIO_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL VFSSTDIO_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fseek(intfile->handle, pos, SEEK_SET) == 0;
 }
-static unsigned long QDECL VFSSTDIO_Tell (struct vfsfile_s *file)
+static qofs_t QDECL VFSSTDIO_Tell (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return ftell(intfile->handle);
@@ -49,7 +49,7 @@ static void QDECL VFSSTDIO_Flush(struct vfsfile_s *file)
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	fflush(intfile->handle);
 }
-static unsigned long QDECL VFSSTDIO_GetSize (struct vfsfile_s *file)
+static qofs_t QDECL VFSSTDIO_GetSize (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 
@@ -218,7 +218,7 @@ static qboolean QDECL FSSTDIO_PollChanges(searchpathfuncs_t *handle)
 //	stdiopath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
-static int QDECL FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data, searchpathfuncs_t *spath)
+static int QDECL FSSTDIO_RebuildFSHash(const char *filename, qofs_t filesize, void *data, searchpathfuncs_t *spath)
 {
 	stdiopath_t *sp = (void*)spath;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
@@ -240,7 +240,7 @@ static void QDECL FSSTDIO_BuildHash(searchpathfuncs_t *handle, int depth, void (
 	sp->AddFileHash = AddFileHash;
 	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, AddFileHash, handle);
 }
-static int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	stdiopath_t *sp = (void*)handle;
 	int len;
@@ -304,7 +304,7 @@ static void QDECL FSSTDIO_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, 
 
 	fclose(f);
 }
-static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
 {
 	stdiopath_t *sp = (stdiopath_t*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);

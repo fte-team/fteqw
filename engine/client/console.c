@@ -732,7 +732,7 @@ void Con_PrintCon (console_t *con, char *txt)
 				reuse->newer = NULL;
 				reuse->older = NULL;
 			}
-			reuse->id = ++con->nextlineid;
+			reuse->id = (++con->nextlineid) & 0xffff;
 			reuse->older = con->current;
 			con->current->newer = reuse;
 			con->current = reuse;
@@ -1286,7 +1286,7 @@ void Con_DrawNotify (void)
 		conchar_t *ends[8];
 		conchar_t markup[MAXCMDLINE+64];
 		conchar_t *c, *end;
-		char *foo = va(chat_team?"say_team: %s":"say: %s", chat_buffer?chat_buffer:"");
+		char *foo = va(chat_team?"say_team: %s":"say: %s", chat_buffer?(char*)chat_buffer:"");
 		int lines, i, pos;
 		Font_BeginString(font_console, 0, 0, &x, &y);
 		y = con_main.notif_l * Font_CharHeight();

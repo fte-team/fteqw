@@ -1319,7 +1319,7 @@ void QCC_PR_LexString (void)
 void QCC_PR_LexString (void)
 {
 	int		c;
-	int		len;
+	int		len = 0;
 	char	*end, *cnst;
 	int		raw;
 	char	rawdelim[64];
@@ -1356,6 +1356,18 @@ void QCC_PR_LexString (void)
 				rawdelim[raw++] = c;
 			}
 			rawdelim[raw++] = '\"';
+
+			//these two conditions are generally part of the C preprocessor.
+			if (!strncmp(pr_file_p, "\\\r\n", 3))
+			{	//dos format
+				pr_file_p += 3;
+				pr_source_line++;
+			}
+			else if (!strncmp(pr_file_p, "\\\r", 2) || !strncmp(pr_file_p, "\\\n", 2))
+			{	//mac + unix format
+				pr_file_p += 2;
+				pr_source_line++;
+			}
 		}
 		else if (*pr_file_p == '\"')
 			pr_file_p++;
@@ -1365,14 +1377,13 @@ void QCC_PR_LexString (void)
 			break;
 		first = false;
 
-		len = 0;
 		for(;;)
 		{
 			c = *pr_file_p++;
 			if (!c)
 				QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
 
-			//these two conditions are generally part of the C preprocessor.
+/*			//these two conditions are generally part of the C preprocessor.
 			if (c == '\\' && *pr_file_p == '\r' && pr_file_p[1] == '\n')
 			{	//dos format
 				pr_file_p += 2;
@@ -1385,10 +1396,10 @@ void QCC_PR_LexString (void)
 				pr_source_line++;
 				continue;
 			}
-
+*/
 			if (raw)
 			{
-				//raw strings contain very little parsing. just delimiter and \NL support.
+				//raw strings contain very little parsing. just delimiter and initial \NL support.
 				if (c == rawdelim[0] && !strncmp(pr_file_p, rawdelim+1, raw-1))
 				{
 					pr_file_p += raw-1;

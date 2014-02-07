@@ -152,8 +152,8 @@ void DestFlush(qboolean compleate)
 				else
 				{	//error of some kind. would block or something
 					int e;
-					e = qerrno;
-					if (e != EWOULDBLOCK)
+					e = neterrno();
+					if (e != NET_EWOULDBLOCK)
 						d->error = true;
 				}
 			}
@@ -229,8 +229,8 @@ void SV_MVD_RunPendingConnections(void)
 			else
 			{	//error of some kind. would block or something
 				int e;
-				e = qerrno;
-				if (e != EWOULDBLOCK)
+				e = neterrno();
+				if (e != NET_EWOULDBLOCK)
 					p->error = true;
 			}
 		}
@@ -550,9 +550,8 @@ void SV_MVD_RunPendingConnections(void)
 				p->error = true;
 			else
 			{	//error of some kind. would block or something
-				int e;
-				e = qerrno;
-				if (e != EWOULDBLOCK)
+				int e = neterrno();
+				if (e != NET_EWOULDBLOCK)
 					p->error = true;
 			}
 		}
@@ -683,7 +682,7 @@ typedef struct
 #define SORT_NO 0
 #define SORT_BY_DATE 1
 
-int QDECL Sys_listdirFound(const char *fname, int fsize, void *uptr, searchpathfuncs_t *spath)
+int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, void *uptr, searchpathfuncs_t *spath)
 {
 	file_t *f;
 	dir_t *dir = uptr;
@@ -2107,20 +2106,20 @@ void SV_MVD_QTVReverse_f (void)
 
 	if ((sock = socket (adrfam, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
-		Con_Printf ("qtvreverse: socket: %s\n", strerror(qerrno));
+		Con_Printf ("qtvreverse: socket: %s\n", strerror(neterrno()));
 		return;
 	}
 	if (connect(sock, (void*)&remote, adrsz) == INVALID_SOCKET)
 	{
 		closesocket(sock);
-		Con_Printf ("qtvreverse: connect: %s\n", strerror(qerrno));
+		Con_Printf ("qtvreverse: connect: %s\n", strerror(neterrno()));
 		return;
 	}
 
 	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
 	{
 		closesocket(sock);
-		Con_Printf ("qtvreverse: ioctl FIONBIO: %s\n", strerror(qerrno));
+		Con_Printf ("qtvreverse: ioctl FIONBIO: %s\n", strerror(neterrno()));
 		return;
 	}
 
@@ -2130,7 +2129,7 @@ void SV_MVD_QTVReverse_f (void)
 	if (send(sock, data, strlen(data), 0) == INVALID_SOCKET)
 	{
 		closesocket(sock);
-		Con_Printf ("qtvreverse: send: %s\n", strerror(qerrno));
+		Con_Printf ("qtvreverse: send: %s\n", strerror(neterrno()));
 		return;
 	}
 
@@ -2366,9 +2365,9 @@ void SV_MVDEasyRecord_f (void)
 }
 
 #ifdef HAVE_TCP
-static int MVD_StreamStartListening(int port)
+static SOCKET MVD_StreamStartListening(int port)
 {
-	int sock;
+	SOCKET sock;
 
 	struct sockaddr_in	address;
 //	int fromlen;
@@ -2383,12 +2382,12 @@ static int MVD_StreamStartListening(int port)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
-		Sys_Error ("MVD_StreamStartListening: socket: %s", strerror(qerrno));
+		Sys_Error ("MVD_StreamStartListening: socket: %s", strerror(neterrno()));
 	}
 
 	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 	}
 
 	if( bind (sock, (void *)&address, sizeof(address)) == INVALID_SOCKET)
@@ -2406,7 +2405,7 @@ static int MVD_StreamStartListening(int port)
 void SV_MVDStream_Poll(void)
 {
 #ifdef HAVE_TCP
-	static int listensocket=INVALID_SOCKET;
+	static SOCKET listensocket=INVALID_SOCKET;
 	static int listenport;
 	int _true = true;
 

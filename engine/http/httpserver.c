@@ -133,14 +133,14 @@ qboolean HTTP_ServerInit(int port)
 
 	if ((httpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		IWebPrintf ("HTTP_ServerInit: socket: %s\n", strerror(qerrno));
+		IWebPrintf ("HTTP_ServerInit: socket: %s\n", strerror(neterrno()));
 		httpserverfailed = true;
 		return false;
 	}
 
 	if (ioctlsocket (httpserversocket, FIONBIO, &_true) == -1)
 	{
-		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
+		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(neterrno()));
 		httpserverfailed = true;
 		return false;
 	}
@@ -305,7 +305,7 @@ void HTTP_RunExisting (void)
 				ammount = recv(cl->datasock, cl->inbuffer+cl->inbufferused, ammount, 0);
 				if (ammount < 0)
 				{
-					if (qerrno != EWOULDBLOCK)	//they closed on us. Assume end.
+					if (neterrno() != NET_EWOULDBLOCK)	//they closed on us. Assume end.
 					{
 						cl->closereason = "recv error";
 					}
@@ -622,8 +622,8 @@ notimplemented:
 
 			if (ammount == -1)
 			{
-				localerrno = qerrno;
-				if (localerrno != EWOULDBLOCK)
+				localerrno = neterrno();
+				if (localerrno != NET_EWOULDBLOCK)
 				{
 					cl->closereason = "some error when sending";
 				}
@@ -698,26 +698,27 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 
 	if (clientsock == -1)
 	{
-		if (qerrno == EWOULDBLOCK)
+		int e = neterrno();
+		if (e == NET_EWOULDBLOCK)
 		{
 			HTTP_RunExisting();
 			return false;
 		}
 
-		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
+		if (e == NET_ECONNABORTED || e == NET_ECONNRESET)
 		{
 			Con_TPrintf ("Connection lost or aborted\n");
 			return false;
 		}
 
 
-		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
+		Con_Printf ("NET_GetPacket: %s\n", strerror(e));
 		return false;
 	}
 
 	if (ioctlsocket (clientsock, FIONBIO, (u_long *)&_true) == -1)
 	{
-		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
+		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(neterrno()));
 		closesocket(clientsock);
 		return false;
 	}

@@ -90,7 +90,7 @@ struct pubprogfuncs_s
 
 	struct progstate_s **progstate;	//internal to the library.
 
-	func_t	(PDECL *FindFunction)				(pubprogfuncs_t *prinst, char *funcname, progsnum_t num);
+	func_t	(PDECL *FindFunction)				(pubprogfuncs_t *prinst, const char *funcname, progsnum_t num);
 
 	int		(PDECL *StartCompile)				(pubprogfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
 	int		(PDECL *ContinueCompile)			(pubprogfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed

@@ -2,18 +2,19 @@
 
 #include <SDL.h>
 
-SDL_Surface *sdlsurf;
+#if SDL_MAJOR_VERSION >=2
+SDL_Window *sdlwindow;
+#else
+extern SDL_Surface *sdlsurf;
+#endif
 
 qboolean ActiveApp;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 extern qboolean vid_isfullscreen;
 
-#ifdef FTE_TARGET_WEB	//theoretically generic, but the IME is probably going to be more annoying on systems where its actually implemented properly.
-
 #if SDL_MAJOR_VERSION > 1 || (SDL_MAJOR_VERSION == 1 && SDL_MINOR_VERSION >= 3)
 #define HAVE_SDL_TEXTINPUT
-#endif
 #endif
 
 void IN_ActivateMouse(void)
@@ -23,7 +24,13 @@ void IN_ActivateMouse(void)
 
 	mouseactive = true;
 	SDL_ShowCursor(0);
+
+#if SDL_MAJOR_VERSION >= 2
+	SDL_SetRelativeMouseMode(true);
+	SDL_SetWindowGrab(sdlwindow, true);
+#else
 	SDL_WM_GrabInput(SDL_GRAB_ON);
+#endif
 }
 
 void IN_DeactivateMouse(void)
@@ -33,9 +40,266 @@ void IN_DeactivateMouse(void)
 
 	mouseactive = false;
 	SDL_ShowCursor(1);
+#if SDL_MAJOR_VERSION >= 2
+	SDL_SetRelativeMouseMode(false);
+	SDL_SetWindowGrab(sdlwindow, false);
+#else
 	SDL_WM_GrabInput(SDL_GRAB_OFF);
+#endif
 }
 
+#if SDL_MAJOR_VERSION >= 2
+unsigned int MySDL_MapKey(unsigned int sdlkey)
+{
+	switch(sdlkey)
+	{
+	default:				return 0;
+	//any ascii chars can be mapped directly to keys, even if they're only ever accessed with shift etc... oh well.
+	case SDLK_RETURN:		return K_ENTER;
+	case SDLK_ESCAPE:		return K_ESCAPE;
+	case SDLK_BACKSPACE:	return K_BACKSPACE;
+	case SDLK_TAB:			return K_TAB;
+	case SDLK_SPACE:		return K_SPACE;
+	case SDLK_EXCLAIM:
+	case SDLK_QUOTEDBL:
+	case SDLK_HASH:
+	case SDLK_PERCENT:
+	case SDLK_DOLLAR:
+	case SDLK_AMPERSAND:
+	case SDLK_QUOTE:
+	case SDLK_LEFTPAREN:
+	case SDLK_RIGHTPAREN:
+	case SDLK_ASTERISK:
+	case SDLK_PLUS:
+	case SDLK_COMMA:
+	case SDLK_MINUS:
+	case SDLK_PERIOD:
+	case SDLK_SLASH:
+	case SDLK_0:
+	case SDLK_1:
+	case SDLK_2:
+	case SDLK_3:
+	case SDLK_4:
+	case SDLK_5:
+	case SDLK_6:
+	case SDLK_7:
+	case SDLK_8:
+	case SDLK_9:
+	case SDLK_COLON:
+	case SDLK_SEMICOLON:
+	case SDLK_LESS:
+	case SDLK_EQUALS:
+	case SDLK_GREATER:
+	case SDLK_QUESTION:
+	case SDLK_AT:
+	case SDLK_LEFTBRACKET:
+	case SDLK_BACKSLASH:
+	case SDLK_RIGHTBRACKET:
+	case SDLK_CARET:
+	case SDLK_UNDERSCORE:
+	case SDLK_BACKQUOTE:
+	case SDLK_a:
+	case SDLK_b:
+	case SDLK_c:
+	case SDLK_d:
+	case SDLK_e:
+	case SDLK_f:
+	case SDLK_g:
+	case SDLK_h:
+	case SDLK_i:
+	case SDLK_j:
+	case SDLK_k:
+	case SDLK_l:
+	case SDLK_m:
+	case SDLK_n:
+	case SDLK_o:
+	case SDLK_p:
+	case SDLK_q:
+	case SDLK_r:
+	case SDLK_s:
+	case SDLK_t:
+	case SDLK_u:
+	case SDLK_v:
+	case SDLK_w:
+	case SDLK_x:
+	case SDLK_y:
+	case SDLK_z:
+							return sdlkey;
+	case SDLK_CAPSLOCK:		return K_CAPSLOCK;
+	case SDLK_F1:			return K_F1;
+	case SDLK_F2:			return K_F2;
+	case SDLK_F3:			return K_F3;
+	case SDLK_F4:			return K_F4;
+	case SDLK_F5:			return K_F5;
+	case SDLK_F6:			return K_F6;
+	case SDLK_F7:			return K_F7;
+	case SDLK_F8:			return K_F8;
+	case SDLK_F9: 			return K_F9;
+	case SDLK_F10:			return K_F10;
+	case SDLK_F11:			return K_F11;
+	case SDLK_F12:			return K_F12;
+	case SDLK_PRINTSCREEN:	return K_PRINTSCREEN;
+	case SDLK_SCROLLLOCK:	return K_SCRLCK;
+	case SDLK_PAUSE:		return K_PAUSE;
+	case SDLK_INSERT:		return K_INS;
+	case SDLK_HOME:			return K_HOME;
+	case SDLK_PAGEUP:		return K_PGUP;
+	case SDLK_DELETE:		return K_DEL;
+	case SDLK_END:			return K_END;
+	case SDLK_PAGEDOWN:		return K_PGDN;
+	case SDLK_RIGHT:		return K_RIGHTARROW;
+	case SDLK_LEFT:			return K_LEFTARROW;
+	case SDLK_DOWN:			return K_DOWNARROW;
+	case SDLK_UP:			return K_UPARROW;
+	case SDLK_NUMLOCKCLEAR:	return K_KP_NUMLOCK;
+	case SDLK_KP_DIVIDE:	return K_KP_SLASH;
+	case SDLK_KP_MULTIPLY:	return K_KP_STAR;
+	case SDLK_KP_MINUS:		return K_KP_MINUS;
+	case SDLK_KP_PLUS:		return K_KP_PLUS;
+	case SDLK_KP_ENTER:		return K_KP_ENTER;
+	case SDLK_KP_1:			return K_KP_END;
+	case SDLK_KP_2:			return K_KP_DOWNARROW;
+	case SDLK_KP_3:			return K_KP_PGDN;
+	case SDLK_KP_4:			return K_KP_LEFTARROW;
+	case SDLK_KP_5:			return K_KP_5;
+	case SDLK_KP_6:			return K_KP_RIGHTARROW;
+	case SDLK_KP_7:			return K_KP_HOME;
+	case SDLK_KP_8:			return K_KP_UPARROW;
+	case SDLK_KP_9:			return K_KP_PGDN;
+	case SDLK_KP_0:			return K_KP_INS;
+	case SDLK_KP_PERIOD:	return K_KP_DEL;
+	case SDLK_APPLICATION:	return K_APP;
+	case SDLK_POWER:		return K_POWER;
+	case SDLK_KP_EQUALS:	return K_KP_EQUALS;
+	case SDLK_F13:			return K_F13;
+	case SDLK_F14:			return K_F14;
+	case SDLK_F15:			return K_F15;
+/*
+	case SDLK_F16:			return K_;
+	case SDLK_F17:			return K_;
+	case SDLK_F18:			return K_;
+	case SDLK_F19:			return K_;
+	case SDLK_F20:			return K_;
+	case SDLK_F21:			return K_;
+	case SDLK_F22:			return K_;
+	case SDLK_F23:			return K_;
+	case SDLK_F24:			return K_;
+	case SDLK_EXECUTE:		return K_;
+	case SDLK_HELP:			return K_;
+	case SDLK_MENU:			return K_;
+	case SDLK_SELECT:		return K_;
+	case SDLK_STOP:			return K_;
+	case SDLK_AGAIN:		return K_;
+	case SDLK_UNDO:			return K_;
+	case SDLK_CUT:			return K_;
+	case SDLK_COPY:			return K_;
+	case SDLK_PASTE:		return K_;
+	case SDLK_FIND:			return K_;
+	case SDLK_MUTE:			return K_;
+*/
+	case SDLK_VOLUMEUP:		return K_VOLUP;
+	case SDLK_VOLUMEDOWN:	return K_VOLDOWN;
+/*
+	case SDLK_KP_COMMA:		return K_;
+	case SDLK_KP_EQUALSAS400:	return K_;
+	case SDLK_ALTERASE:		return K_;
+	case SDLK_SYSREQ:		return K_;
+	case SDLK_CANCEL:		return K_;
+	case SDLK_CLEAR:		return K_;
+	case SDLK_PRIOR:		return K_;
+	case SDLK_RETURN2:		return K_;
+	case SDLK_SEPARATOR:	return K_;
+	case SDLK_OUT:			return K_;
+	case SDLK_OPER:			return K_;
+	case SDLK_CLEARAGAIN:	return K_;
+	case SDLK_CRSEL:		return K_;
+	case SDLK_EXSEL:		return K_;
+	case SDLK_KP_00:		return K_;
+	case SDLK_KP_000:		return K_;
+	case SDLK_THOUSANDSSEPARATOR:	return K_;
+	case SDLK_DECIMALSEPARATOR:		return K_;
+	case SDLK_CURRENCYUNIT:			return K_;
+	case SDLK_CURRENCYSUBUNIT:		return K_;
+	case SDLK_KP_LEFTPAREN:			return K_;
+	case SDLK_KP_RIGHTPAREN:		return K_;
+	case SDLK_KP_LEFTBRACE:			return K_;
+	case SDLK_KP_RIGHTBRACE:		return K_;
+	case SDLK_KP_TAB:		return K_;
+	case SDLK_KP_BACKSPACE:	return K_;
+	case SDLK_KP_A:			return K_;
+	case SDLK_KP_B:			return K_;
+	case SDLK_KP_C:			return K_;
+	case SDLK_KP_D:			return K_;
+	case SDLK_KP_E:			return K_;
+	case SDLK_KP_F:			return K_;
+	case SDLK_KP_XOR:		return K_;
+	case SDLK_KP_POWER:		return K_;
+	case SDLK_KP_PERCENT:	return K_;
+	case SDLK_KP_LESS:		return K_;
+	case SDLK_KP_GREATER:	return K_;
+	case SDLK_KP_AMPERSAND: return K_;
+	case SDLK_KP_DBLAMPERSAND:		return K_;
+	case SDLK_KP_VERTICALBAR:		return K_;
+	case SDLK_KP_DBLVERTICALBAR:	return K_;
+	case SDLK_KP_COLON:		return K_;
+	case SDLK_KP_HASH:		return K_;
+	case SDLK_KP_SPACE:		return K_;
+	case SDLK_KP_AT:		return K_;
+	case SDLK_KP_EXCLAM:	return K_;
+	case SDLK_KP_MEMSTORE:	return K_;
+	case SDLK_KP_MEMRECALL:	return K_;
+	case SDLK_KP_MEMCLEAR:	return K_;
+	case SDLK_KP_MEMADD:	return K_;
+	case SDLK_KP_MEMSUBTRACT:	return K_;
+	case SDLK_KP_MEMMULTIPLY:	return K_;
+	case SDLK_KP_MEMDIVIDE:		return K_;
+	case SDLK_KP_PLUSMINUS:		return K_;
+	case SDLK_KP_CLEAR:			return K_;
+	case SDLK_KP_CLEARENTRY:	return K_;
+	case SDLK_KP_BINARY:		return K_;
+	case SDLK_KP_OCTAL:			return K_;
+	case SDLK_KP_DECIMAL:		return K_;
+	case SDLK_KP_HEXADECIMAL:	return K_;
+*/
+	case SDLK_LCTRL:		return K_LCTRL;
+	case SDLK_LSHIFT:		return K_LSHIFT;
+	case SDLK_LALT:			return K_LALT;
+	case SDLK_LGUI:			return K_APP;
+	case SDLK_RCTRL:		return K_RCTRL;
+	case SDLK_RSHIFT:		return K_RSHIFT;
+	case SDLK_RALT:			return K_RALT;
+/*
+	case SDLK_RGUI:			return K_;
+	case SDLK_MODE:			return K_;
+	case SDLK_AUDIONEXT:	return K_;
+	case SDLK_AUDIOPREV:	return K_;
+	case SDLK_AUDIOSTOP:	return K_;
+	case SDLK_AUDIOPLAY:	return K_;
+	case SDLK_AUDIOMUTE:	return K_;
+	case SDLK_MEDIASELECT:	return K_;
+	case SDLK_WWW:			return K_;
+	case SDLK_MAIL:			return K_;
+	case SDLK_CALCULATOR:	return K_;
+	case SDLK_COMPUTER:		return K_;
+	case SDLK_AC_SEARCH:	return K_;
+	case SDLK_AC_HOME:		return K_;
+	case SDLK_AC_BACK:		return K_;
+	case SDLK_AC_FORWARD:	return K_;
+	case SDLK_AC_STOP:		return K_;
+	case SDLK_AC_REFRESH:	return K_;
+	case SDLK_AC_BOOKMARKS:	return K_;
+	case SDLK_BRIGHTNESSDOWN:	return K_;
+	case SDLK_BRIGHTNESSUP:		return K_;
+	case SDLK_DISPLAYSWITCH:	return K_;
+	case SDLK_KBDILLUMTOGGLE:	return K_;
+	case SDLK_KBDILLUMDOWN:		return K_;
+	case SDLK_KBDILLUMUP:		return K_;
+	case SDLK_EJECT:			return K_;
+	case SDLK_SLEEP:			return K_;
+*/
+	}
+}
+#else
 #define tenoh	0,0,0,0,0, 0,0,0,0,0
 #define fiftyoh tenoh, tenoh, tenoh, tenoh, tenoh
 #define hundredoh fiftyoh, fiftyoh
@@ -188,6 +452,7 @@ static unsigned int tbl_sdltoquake[] =
 	'e',		//SDLK_EURO		= 321,		/* Some european keyboards */
 	0			//SDLK_UNDO		= 322,		/* Atari keyboard has Undo */
 };
+#endif
 
 static unsigned int tbl_sdltoquakemouse[] =
 {
@@ -212,6 +477,37 @@ void Sys_SendKeyEvents(void)
 	{
 		switch(event.type)
 		{
+#if SDL_MAJOR_VERSION >= 2
+		case SDL_WINDOWEVENT:
+			switch(event.window.event)
+			{
+			default:
+				break;
+			case SDL_WINDOWEVENT_SIZE_CHANGED:
+				#if SDL_PATCHLEVEL >= 1
+					SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.
+				#else
+					SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
+				#endif
+				{
+					extern cvar_t vid_conautoscale, vid_conwidth;	//make sure the screen is updated properly.
+					Cvar_ForceCallback(&vid_conautoscale);
+					Cvar_ForceCallback(&vid_conwidth);
+				}
+				break;
+			case SDL_WINDOWEVENT_FOCUS_GAINED:
+				ActiveApp = true;
+				break;
+			case SDL_WINDOWEVENT_FOCUS_LOST:
+				ActiveApp = false;
+				break;
+			case SDL_WINDOWEVENT_CLOSE:
+				Cbuf_AddText("quit prompt\n", RESTRICT_LOCAL);
+				break;
+			}
+			break;
+#else
+
 		case SDL_ACTIVEEVENT:
 			if (event.active.state & SDL_APPINPUTFOCUS)
 			{	//follow keyboard status
@@ -231,17 +527,21 @@ void Sys_SendKeyEvents(void)
 			}
 #endif
 			break;
+#endif
 
 		case SDL_KEYUP:
 		case SDL_KEYDOWN:
 			{
-				int u = event.key.keysym.unicode;
 				int s = event.key.keysym.sym;
 				int qs;
+#if SDL_MAJOR_VERSION >= 2
+				qs = MySDL_MapKey(s);
+#else
 				if (s < sizeof(tbl_sdltoquake) / sizeof(tbl_sdltoquake[0]))
 					qs = tbl_sdltoquake[s];
 				else 
 					qs = 0;
+#endif
 
 #ifdef FTE_TARGET_WEB
 				if (s == 1249)
@@ -250,14 +550,13 @@ void Sys_SendKeyEvents(void)
 #ifdef HAVE_SDL_TEXTINPUT
 				IN_KeyEvent(0, event.key.state, qs, 0);
 #else
-				IN_KeyEvent(0, event.key.state, qs, u);
+				IN_KeyEvent(0, event.key.state, qs, event.key.keysym.unicode);
 #endif
 			}
 			break;
 #ifdef HAVE_SDL_TEXTINPUT
 		case SDL_TEXTINPUT:
 			{
-				int i;
 				unsigned int uc;
 				int err;
 				char *text = event.text.text;
@@ -274,23 +573,50 @@ void Sys_SendKeyEvents(void)
 			break;
 #endif
 
+#if SDL_MAJOR_VERSION >= 2
+		case SDL_FINGERDOWN:
+		case SDL_FINGERUP:
+			IN_MouseMove(event.tfinger.fingerId, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
+			IN_KeyEvent(event.tfinger.fingerId, event.type==SDL_FINGERDOWN, K_MOUSE1, 0);
+			break;
+		case SDL_FINGERMOTION:
+			IN_MouseMove(event.tfinger.fingerId, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
+			break;
+
+		case SDL_DROPFILE:
+			Host_RunFile(event.drop.file, strlen(event.drop.file), NULL);
+			SDL_free(event.drop.file);
+			break;
+#endif
+
 		case SDL_MOUSEMOTION:
+#if SDL_MAJOR_VERSION >= 2
+			if (event.motion.which == SDL_TOUCH_MOUSEID)
+				break;	//ignore legacy touch events.
+#endif
 			if (!mouseactive)
-				IN_MouseMove(0, true, event.motion.x, event.motion.y, 0, 0);
+				IN_MouseMove(event.motion.which, true, event.motion.x, event.motion.y, 0, 0);
 			else
-				IN_MouseMove(0, false, event.motion.xrel, event.motion.yrel, 0, 0);
+				IN_MouseMove(event.motion.which, false, event.motion.xrel, event.motion.yrel, 0, 0);
 			break;
 
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
-			//Hmm. SDL allows for 255 buttons...
+#if SDL_MAJOR_VERSION >= 2
+			if (event.button.which == SDL_TOUCH_MOUSEID)
+				break;	//ignore legacy touch events. 
+#endif
+			//Hmm. SDL allows for 255 buttons, but only defines 5...
 			if (event.button.button > sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]))
 				event.button.button = sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]);
-			IN_KeyEvent(0, event.button.state, tbl_sdltoquakemouse[event.button.button-1], 0);
+			IN_KeyEvent(event.button.which, event.button.state, tbl_sdltoquakemouse[event.button.button-1], 0);
 			break;
 
+		case SDL_APP_TERMINATING:
+			Cbuf_AddText("quit force\n", RESTRICT_LOCAL);
+			break;
 		case SDL_QUIT:
-			Cbuf_AddText("quit", RESTRICT_LOCAL);
+			Cbuf_AddText("quit\n", RESTRICT_LOCAL);
 			break;
 		}
 	}
@@ -314,6 +640,9 @@ void INS_ReInit (void)
 	SDL_StartTextInput();
 #else
 	SDL_EnableUNICODE(SDL_ENABLE);
+#endif
+#if SDL_MAJOR_VERSION >= 2
+	SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
 #endif
 }
 

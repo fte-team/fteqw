@@ -92,6 +92,7 @@ typedef struct cvar_s
 #define CVARAFD(ConsoleName,Value,ConsoleName2,Flags,Description)CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, Description, NULL)
 #define CVARAFC(ConsoleName,Value,ConsoleName2,Flags,Callback)	CVARAFC(ConsoleName, Value, ConsoleName2, Flags, NULL, Callback)
 #define CVARAF(ConsoleName,Value,ConsoleName2,Flags)			CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, NULL, NULL)
+#define CVARFDC(ConsoleName,Value,Flags,Description,Callback)	CVARAFDC(ConsoleName, Value, NULL, Flags, Description, Callback)
 #define CVARFC(ConsoleName,Value,Flags,Callback)				CVARAFDC(ConsoleName, Value, NULL, Flags, NULL, Callback)
 #define CVARAD(ConsoleName,Value,ConsoleName2,Description)		CVARAFDC(ConsoleName, Value, ConsoleName2, 0, Description, NULL)
 #define CVARFD(ConsoleName,Value,Flags,Description)				CVARAFDC(ConsoleName, Value, NULL, Flags, Description, NULL)

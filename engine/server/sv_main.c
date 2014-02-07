@@ -951,13 +951,17 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 
 	if (ISQWCLIENT(to))
 	{
+		int ping = SV_CalcPing (client, false);
+		if (ping > 0xffff)
+			ping = 0xffff;
+
 		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
 		ClientReliableWrite_Byte (to, i);
 		ClientReliableWrite_Short(to, client->old_frags);
 
 		ClientReliableWrite_Begin (to, svc_updateping, 4);
 		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short (to, SV_CalcPing (client, false));
+		ClientReliableWrite_Short (to, ping);
 
 		ClientReliableWrite_Begin (to, svc_updatepl, 3);
 		ClientReliableWrite_Byte (to, i);
@@ -3817,6 +3821,7 @@ void SV_GetConsoleCommands (void)
 		cmd = Sys_ConsoleInput ();
 		if (!cmd)
 			break;
+		Log_String(LOG_CONSOLE, cmd);
 		Cbuf_AddText (cmd, RESTRICT_LOCAL);
 	}
 }

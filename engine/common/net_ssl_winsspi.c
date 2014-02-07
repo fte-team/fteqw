@@ -573,17 +573,17 @@ static int QDECL SSPI_WriteBytes (struct vfsfile_s *file, const void *buffer, in
 
 	return bytestowrite;
 }
-static qboolean QDECL SSPI_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL SSPI_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	SSPI_Error((sslfile_t*)file, "unable to seek on streams\n");
 	return false;
 }
-static unsigned long QDECL SSPI_Tell (struct vfsfile_s *file)
+static qofs_t QDECL SSPI_Tell (struct vfsfile_s *file)
 {
 	SSPI_Error((sslfile_t*)file, "unable to seek on streams\n");
 	return 0;
 }
-static unsigned long QDECL SSPI_GetLen (struct vfsfile_s *file)
+static qofs_t QDECL SSPI_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }

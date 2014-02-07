@@ -37,6 +37,7 @@ static void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height,
 static void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags);
 static void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha);
 static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
+static void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode);
 
 void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
@@ -79,6 +80,23 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void 
 		break;
 	case TF_8PAL32:
 		GL_Upload8Pal32(data, palette, width, height, flags);
+		break;
+
+	//render target formats, data is not supported. this means we can just use the 32bit upload.
+	case TF_DEPTH16:
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_DEPTH_COMPONENT16_ARB);
+		break;
+	case TF_DEPTH24:
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_DEPTH_COMPONENT24_ARB);
+		break;
+	case TF_DEPTH32:
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_DEPTH_COMPONENT32_ARB);
+		break;
+	case TF_RGBA16F:
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_RGBA16F_ARB);
+		break;
+	case TF_RGBA32F:
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_RGBA32F_ARB);
 		break;
 
 	default:
@@ -569,10 +587,25 @@ void GL_Set2D (qboolean flipped)
 	float rad, ang;
 	float tmp[16], tmp2[16];
 	float w = vid.width, h = vid.height;
+	qboolean fbo = !!r_refdef.rt_destcolour;
+
+	if (fbo)
+	{
+		R2D_RT_GetTexture(r_refdef.rt_destcolour, &vid.fbpwidth, &vid.fbpheight);
+		vid.fbvwidth = vid.fbpwidth;
+		vid.fbvheight = vid.fbpheight;
+	}
+	else
+	{
+		vid.fbvwidth = vid.width;
+		vid.fbvheight = vid.height;
+		vid.fbpwidth = vid.pixelwidth;
+		vid.fbpheight = vid.pixelheight;
+	}
 
 	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
 	ang = (int)ang * 90;
-	if (ang)
+	if (ang && !fbo)
 	{ /*more expensive maths*/
 		rad = (ang * M_PI) / 180;
 
@@ -587,17 +620,20 @@ void GL_Set2D (qboolean flipped)
 	}
 	else
 	{
+		w = vid.fbvwidth;
+		h = vid.fbvheight;
 		if (flipped)
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, 0, vid.height, -99999, 99999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, w, 0, h, -99999, 99999);
 		else
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, w, h, 0, -99999, 99999);
 		Matrix4x4_Identity(r_refdef.m_view);
 	}
+	//current physical position on the current render target.
 	r_refdef.pxrect.x = 0;
 	r_refdef.pxrect.y = 0;
-	r_refdef.pxrect.width = vid.pixelwidth;
-	r_refdef.pxrect.height = vid.pixelheight;
-	r_refdef.pxrect.maxheight = vid.pixelheight;
+	r_refdef.pxrect.width = vid.fbpwidth;
+	r_refdef.pxrect.height = vid.fbpheight;
+	r_refdef.pxrect.maxheight = vid.fbpheight;
 	r_refdef.time = realtime;
 	/*flush that gl state*/
 	GL_ViewportUpdate();
@@ -1137,7 +1173,7 @@ void GL_8888to4444(int targ, unsigned char *in, unsigned short *out, unsigned in
 GL_Upload32
 ===============
 */
-void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode)
+static void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode)
 {
 	int		miplevel=0;
 	int			samples;
@@ -1150,18 +1186,21 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	scaled_width = width;
 	scaled_height = height;
-	GL_RoundDimensions(&scaled_width, &scaled_height, flags);
+	if (data)
+	{
+		GL_RoundDimensions(&scaled_width, &scaled_height, flags);
 
-	if (!(flags & IF_NOALPHA))
-	{	//make sure it does actually have those alpha pixels (q3 compat)
-		int i;
-		flags |= IF_NOALPHA;
-		for (i = 3; i < width*height*4; i+=4)
-		{
-			if (((unsigned char*)data)[i] < 255)
+		if (!(flags & IF_NOALPHA))
+		{	//make sure it does actually have those alpha pixels (q3 compat)
+			int i;
+			flags |= IF_NOALPHA;
+			for (i = 3; i < width*height*4; i+=4)
 			{
-				flags &= ~IF_NOALPHA;
-				break;
+				if (((unsigned char*)data)[i] < 255)
+				{
+					flags &= ~IF_NOALPHA;
+					break;
+				}
 			}
 		}
 	}
@@ -1182,14 +1221,25 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
-	if (scaled_width * scaled_height*4 > sizeofuploadmemorybuffer)
+	if (!data)
+		scaled = NULL;
+	else
 	{
-		sizeofuploadmemorybuffer = scaled_width * scaled_height * 4;
-		uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
+		if (scaled_width * scaled_height*4 > sizeofuploadmemorybuffer)
+		{
+			sizeofuploadmemorybuffer = scaled_width * scaled_height * 4;
+			uploadmemorybuffer = BZ_Realloc(uploadmemorybuffer, sizeofuploadmemorybuffer);
+		}
+		scaled = (unsigned *)uploadmemorybuffer;
 	}
-	scaled = (unsigned *)uploadmemorybuffer;
 
-	if (gl_config.gles)
+	if (glcolormode == GL_DEPTH_COMPONENT || glcolormode == GL_DEPTH_COMPONENT16_ARB || glcolormode == GL_DEPTH_COMPONENT24_ARB || glcolormode == GL_DEPTH_COMPONENT32_ARB)
+	{
+		samples = glcolormode;
+		glcolormode = GL_DEPTH_COMPONENT;
+		type = GL_UNSIGNED_BYTE;
+	}
+	else if (gl_config.gles)
 	{
 		glcolormode = GL_RGBA; /*our input is RGBA or RGBX, with the internal format restriction, we must therefore always have an alpha value*/
 		type = GL_UNSIGNED_BYTE;
@@ -1266,7 +1316,9 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	GL_Texturemode_Apply(targ, flags);
 
-	if (scaled_width == width && scaled_height == height)
+	if (!data)
+		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
+	else if (scaled_width == width && scaled_height == height)
 	{
 		if ((flags&IF_NOMIPMAP)||gl_config.sgis_generate_mipmap)	//gotta love this with NPOT textures... :)
 		{

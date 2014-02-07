@@ -161,7 +161,7 @@ qboolean isPermedia = false;
 // Note that 0 is MODE_WINDOWED
 extern cvar_t	vid_mode;
 // Note that 3 is MODE_FULLSCREEN_DEFAULT
-extern cvar_t		_vid_wait_override;
+extern cvar_t		vid_vsync;
 extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
 extern cvar_t		vid_desktopgamma;
@@ -170,7 +170,7 @@ extern cvar_t		vid_preservegamma;
 
 extern cvar_t		vid_gl_context_version;
 extern cvar_t		vid_gl_context_debug;
-extern cvar_t		vid_gl_context_es2;
+extern cvar_t		vid_gl_context_es;
 extern cvar_t		vid_gl_context_forwardcompatible;
 extern cvar_t		vid_gl_context_compatibility;
 
@@ -184,6 +184,9 @@ static char reqminidriver[MAX_OSPATH];
 static char opengldllname[MAX_OSPATH];
 
 #ifdef _DEBUG
+//this is a list of the functions that exist in opengles2, as well as wglCreateContextAttribsARB.
+//functions not in this list *should* be stubs that just return errors, but we can't always depend on drivers for that... they shouldn't get called.
+//this list is just to make it easier to test+debug android gles2 stuff using windows.
 static char *gles2funcs[] =
 {
 #define f(n) #n,
@@ -350,7 +353,7 @@ void *getglfunc(char *name)
 	}
 
 #ifdef _DEBUG
-	if (vid_gl_context_es2.ival == 2)
+	if (vid_gl_context_es.ival == 2)
 	{
 		int i;
 		for (i = 0; gles2funcs[i]; i++)
@@ -1154,7 +1157,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		char *ver;
 
 		ver = vid_gl_context_version.string;
-		if (!*ver && vid_gl_context_es2.ival)
+		if (!*ver && vid_gl_context_es.ival)
 			ver = "2.0";
 
 		mv = ver;
@@ -1189,10 +1192,10 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		}
 
 		/*only switch contexts if there's actually a point*/
-		if (i || !vid_gl_context_compatibility.ival || vid_gl_context_es2.ival)
+		if (i || !vid_gl_context_compatibility.ival || vid_gl_context_es.ival)
 		{
 			attribs[i+1] = 0;
-			if (vid_gl_context_es2.ival)
+			if (vid_gl_context_es.ival)
 				attribs[i+1] |= WGL_CONTEXT_ES2_PROFILE_BIT_EXT;
 			else if (vid_gl_context_compatibility.ival)
 				attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
@@ -1200,7 +1203,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 				attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
 			attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
 			//WGL_CONTEXT_PROFILE_MASK_ARB is ignored if < 3.2 - however, nvidia do not agree and return errors
-			if (atof(ver) >= 3.2 || vid_gl_context_es2.ival)
+			if (atof(ver) >= 3.2 || vid_gl_context_es.ival)
 				i+=2;
 
 			attribs[i] = 0;
@@ -1223,7 +1226,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 				if (error == (0xc0070000 | ERROR_INVALID_VERSION_ARB))
 					Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
 				else if (error == (0xc0070000 | ERROR_INVALID_PROFILE_ARB))
-					Con_Printf("Unsupported OpenGL profile (%s).\n", vid_gl_context_es2.ival?"gles":(vid_gl_context_compatibility.ival?"compat":"core"));
+					Con_Printf("Unsupported OpenGL profile (%s).\n", vid_gl_context_es.ival?"gles":(vid_gl_context_compatibility.ival?"compat":"core"));
 				else if (error == (0xc0070000 | ERROR_INVALID_OPERATION))
 					Con_Printf("wglCreateContextAttribsARB returned invalid operation.\n");
 				else if (error == (0xc0070000 | ERROR_DC_NOT_FOUND))
@@ -1255,10 +1258,10 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
-	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
+	if (qwglSwapIntervalEXT && *vid_vsync.string)
 	{
 		TRACE(("dbg: VID_AttachGL: qwglSwapIntervalEXT\n"));
-		qwglSwapIntervalEXT(_vid_wait_override.value);
+		qwglSwapIntervalEXT(vid_vsync.value);
 	}
 	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
 	qglClearColor(0, 0, 0, 0);
@@ -1292,8 +1295,8 @@ void GL_BeginRendering (void)
 
 void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
-		qwglSwapIntervalEXT(_vid_wait_override.value);
+	if (qwglSwapIntervalEXT && *vid_vsync.string)
+		qwglSwapIntervalEXT(vid_vsync.value);
 }
 
 void GLVID_Recenter_f(void)
@@ -1318,7 +1321,7 @@ void GLVID_Recenter_f(void)
 		sys_parentheight = atoi(Cmd_Argv(4));
 	if (Cmd_Argc() > 5)
 	{
-		HWND newparent = (HWND)strtoull(Cmd_Argv(5), NULL, 16);
+		HWND newparent = (HWND)(DWORD_PTR)strtoull(Cmd_Argv(5), NULL, 16);
 		if (newparent != sys_parentwindow && mainwindow && modestate==MS_WINDOWED)
 			SetParent(mainwindow, sys_parentwindow);
 		sys_parentwindow = newparent;
@@ -1623,7 +1626,7 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	1,				// version number
 	PFD_DRAW_TO_WINDOW 		// support window
 	|  PFD_SUPPORT_OPENGL 	// support OpenGL
-	|  PFD_DOUBLEBUFFER ,	// double buffered
+	|  PFD_DOUBLEBUFFER,		// double buffered
 	PFD_TYPE_RGBA,			// RGBA type
 	24,				// 24-bit color depth
 	0, 0, 0, 0, 0, 0,		// color bits ignored
@@ -1673,6 +1676,8 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 				{
 					Con_Printf(CON_WARNING "WARNING: software-rendered opengl context\nPlease install appropriate graphics drivers, or try d3d rendering instead\n");
 				}
+				else if (pfd.dwFlags & PFD_SWAP_COPY)
+					Con_Printf(CON_WARNING "WARNING: buffer swaps will use copy operations\n");
 				return TRUE;
 			}
 		}
@@ -1699,6 +1704,8 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	{
 		Con_Printf(CON_WARNING "WARNING: software-rendered opengl context\nPlease install appropriate graphics drivers, or try d3d rendering instead\n");
 	}
+	else if (pfd.dwFlags & PFD_SWAP_COPY)
+		Con_Printf(CON_WARNING "WARNING: buffer swaps will use copy operations\n");
 
 	FixPaletteInDescriptor(hDC, &pfd);
     return TRUE;
@@ -2061,7 +2068,7 @@ void GLVID_DeInit (void)
 	GLVID_Shutdown();
 	ActiveApp = false;
 
-	Cvar_Unhook(&_vid_wait_override);
+	Cvar_Unhook(&vid_vsync);
 	Cvar_Unhook(&vid_wndalpha);
 	Cmd_RemoveCommand("vid_recenter");
 
@@ -2112,7 +2119,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid_canalttab = true;
 
-	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
+	Cvar_Hook(&vid_vsync, VID_Wait_Override_Callback);
 	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
 
 	Cmd_AddCommand("vid_recenter", GLVID_Recenter_f);

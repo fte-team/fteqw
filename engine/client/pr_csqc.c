@@ -1432,7 +1432,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 	case VF_VIEWENTITY:
 		//switches over EXTERNALMODEL flags and clears WEAPONMODEL flagged entities.
 		//FIXME: make affect addentities(MASK_ENGINE) calls too.
-		CL_EditExternalModels(*p);
+		CL_EditExternalModels(*p, NULL, 0);
 		break;
 	case VF_FOV:
 		//explicit fov overrides aproximate fov
@@ -1543,6 +1543,47 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 		r_refdef.useperspective = *p;
 		break;
 
+	case VF_RT_DESTCOLOUR:
+		if (prinst->callargc >= 4)
+		{
+			float fmt = G_FLOAT(OFS_PARM2);
+			float *size = G_VECTOR(OFS_PARM3);
+			R2D_RT_Configure(*p, size[0], size[1], fmt);
+		}
+		r_refdef.rt_destcolour = *p;
+		GLBE_RenderToTextureUpdate2d(true);
+		break;
+	case VF_RT_SOURCECOLOUR:
+		if (prinst->callargc >= 4)
+		{
+			float fmt = G_FLOAT(OFS_PARM2);
+			float *size = G_VECTOR(OFS_PARM3);
+			R2D_RT_Configure(*p, size[0], size[1], fmt);
+		}
+		r_refdef.rt_sourcecolour = *p;
+		GLBE_RenderToTextureUpdate2d(false);
+		break;
+	case VF_RT_DEPTH:
+		if (prinst->callargc >= 4)
+		{
+			float fmt = G_FLOAT(OFS_PARM2);
+			float *size = G_VECTOR(OFS_PARM3);
+			R2D_RT_Configure(*p, size[0], size[1], fmt);
+		}
+		r_refdef.rt_depth = *p;
+		GLBE_RenderToTextureUpdate2d(false);
+		break;
+	case VF_RT_RIPPLE:
+		if (prinst->callargc >= 4)
+		{
+			float fmt = G_FLOAT(OFS_PARM2);
+			float *size = G_VECTOR(OFS_PARM3);
+			R2D_RT_Configure(*p, size[0], size[1], fmt);
+		}
+		r_refdef.rt_ripplemap = *p;
+		GLBE_RenderToTextureUpdate2d(false);
+		break;
+
 	default:
 		Con_DPrintf("SetViewFlag: %i not recognised\n", parametertype);
 		G_FLOAT(OFS_RETURN) = 0;
@@ -1566,10 +1607,10 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 
 	{
 		srect_t srect;
-		srect.x = (float)r_refdef.grect.x / vid.width;
-		srect.y = (float)r_refdef.grect.y / vid.height;
-		srect.width = (float)r_refdef.grect.width / vid.width;
-		srect.height = (float)r_refdef.grect.height / vid.height;
+		srect.x = (float)r_refdef.grect.x / vid.fbvwidth;
+		srect.y = (float)r_refdef.grect.y / vid.fbvheight;
+		srect.width = (float)r_refdef.grect.width / vid.fbvwidth;
+		srect.height = (float)r_refdef.grect.height / vid.fbvheight;
 		srect.dmin = -99999;
 		srect.dmax = 99999;
 		srect.y = (1-srect.y) - srect.height;
@@ -3982,7 +4023,7 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 
 	if (entnum >= cl.maxlerpents || !cl.lerpentssequence || cl.lerpents[entnum].sequence != cl.lerpentssequence)
 	{
-		Con_Printf("PF_getentity: entity %i is not valid\n", fldnum);
+		Con_DPrintf("PF_getentity: entity %i is not valid\n", entnum);
 		VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
 		return;
 	}
@@ -4494,6 +4535,7 @@ static struct {
 	{"hash_getkey",				PF_hash_getkey,				292},
 	{"hash_getcb",				PF_hash_getcb,				293},
 	{"checkcommand",			PF_checkcommand,			294},
+	{"argescape",				PF_argescape,				295},
 //300
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -4808,6 +4850,12 @@ static struct {
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
+//	{"bufstr_find",				PF_Fixme,					537},
+//	{"matchpattern",			PF_Fixme,					538},
+//	{"undefined",				PF_Fixme,					539},
+	{"physics_enable",			PF_physics_enable,			540},
+	{"physics_addforce",		PF_physics_addforce,		541},
+	{"physics_addtorque",		PF_physics_addtorque,		542},
 
 	{"setmousetarget",			PF_cl_setmousetarget,		603},
 	{"getmousetarget",			PF_cl_getmousetarget,		604},

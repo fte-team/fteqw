@@ -411,6 +411,21 @@ void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 
 //=============================================================================
 
+int CL_IsDownloading(char *localname)
+{
+	downloadlist_t *dl;
+	/*check for dupes*/
+	for (dl = cl.downloadlist; dl; dl = dl->next)	//It's already on our list. Ignore it.
+	{
+		if (!strcmp(dl->localname, localname))
+			return 2;	//queued
+	}
+
+	if (!strcmp(cls.downloadlocalname, localname))
+		return 1;	//downloading
+	return 0;
+}
+
 //note: this will overwrite existing files.
 //returns true if the download is going to be downloaded after the call.
 qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
@@ -461,21 +476,19 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 	}
 
 	/*check for dupes*/
-	for (dl = cl.downloadlist; dl; dl = dl->next)	//It's already on our list. Ignore it.
+	switch(CL_IsDownloading(localname))
 	{
-		if (!strcmp(dl->rname, filename))
-		{
-			if (flags & DLLF_VERBOSE)
-				Con_Printf("Already waiting for \"%s\"\n", filename);
-			return true;
-		}
-	}
-
-	if (!strcmp(cls.downloadremotename, filename))
-	{
+	case 2:
+		if (flags & DLLF_VERBOSE)
+			Con_Printf("Already waiting for \"%s\"\n", filename);
+		return true;
+	default:
+	case 1:
 		if (flags & DLLF_VERBOSE)
 			Con_Printf("Already downloading \"%s\"\n", filename);
 		return true;
+	case 0:
+		break;
 	}
 
 	if (!*filename)
@@ -1699,7 +1712,7 @@ void CL_ParseChunkedDownload(void)
 	qbyte	*svname;
 	//qbyte	osname[MAX_OSPATH]; //unreferenced
 	int totalsize;
-	int chunknum, ridx;
+	qofs_t chunknum, ridx;
 	char data[DLBLOCKSIZE];
 
 	chunknum = MSG_ReadLong();
@@ -2076,7 +2089,7 @@ qboolean CL_ParseOOBDownload(void)
 void CLDP_ParseDownloadData(void)
 {
 	unsigned char buffer[1<<16];
-	int start;
+	qofs_t start;
 	int size;
 	start = MSG_ReadLong();
 	size = (unsigned short)MSG_ReadShort();

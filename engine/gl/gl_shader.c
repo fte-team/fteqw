@@ -3097,7 +3097,8 @@ static shaderkey_t shaderpasskeys[] =
 	{"maskalpha",	Shaderpass_MaskAlpha},
 	{"alphatest",	Shaderpass_AlphaTest},
 	{"texgen",		Shaderpass_TexGen},
-	{"cameracubemap",Shaderpass_CubeMap},
+	{"cubemap",		Shaderpass_CubeMap},	//one of these is wrong
+	{"cameracubemap",Shaderpass_CubeMap},	//one of these is wrong
 	{"red",			Shaderpass_Red},
 	{"green",		Shaderpass_Green},
 	{"blue",		Shaderpass_Blue},
@@ -3161,7 +3162,7 @@ void Shader_Free (shader_t *shader)
 
 
 
-int QDECL Shader_InitCallback (const char *name, int size, void *param, searchpathfuncs_t *spath)
+int QDECL Shader_InitCallback (const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
 {
 	strcpy(shaderbuf+shaderbuflen, name);
 	Shader_MakeCache(shaderbuf+shaderbuflen);
@@ -3311,6 +3312,7 @@ static void Shader_GetPathAndOffset(char *name, char **path, unsigned int *offse
 void Shader_Reset(shader_t *s)
 {
 	char name[MAX_QPATH];
+	int id = s->id;
 	int uses = s->uses;
 	shader_gen_t *defaultgen = s->generator;
 	char *genargs = s->genargs;
@@ -3323,6 +3325,7 @@ void Shader_Reset(shader_t *s)
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
+	s->id = id;
 	s->width = w;
 	s->height = h;
 	s->defaulttextures = dt;
@@ -4163,6 +4166,13 @@ void Shader_UpdateRegistration (void)
 
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
+	char *h;
+	char imagename[MAX_QPATH];
+	strcpy(imagename, shader->name);
+	h = strchr(imagename, '#');
+	if (h)
+		*h = 0;
+
 	if (!tn)
 		tn = &shader->defaulttextures;
 	if (!TEXVALID(shader->defaulttextures.base))
@@ -4170,7 +4180,7 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		/*dlights/realtime lighting needs some stuff*/
 		if (!TEXVALID(tn->base))
 		{
-			tn->base = R_LoadHiResTexture(shader->name, NULL, IF_NOALPHA);
+			tn->base = R_LoadHiResTexture(imagename, NULL, IF_NOALPHA);
 		}
 		if (TEXVALID(tn->base))
 			shader->flags &= ~SHADER_NOIMAGE;
@@ -4178,16 +4188,18 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		TEXASSIGN(shader->defaulttextures.base, tn->base);
 	}
 
+	COM_StripExtension(imagename, imagename, sizeof(imagename));
+
 	if (!TEXVALID(shader->defaulttextures.bump))
 	{
 		if (r_loadbumpmapping)
 		{
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", shader->name), NULL, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), NULL, IF_NOALPHA);
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_bump", shader->name), NULL, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("%s_bump", imagename), NULL, IF_NOALPHA);
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("normalmaps/%s", shader->name), NULL, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("normalmaps/%s", imagename), NULL, IF_NOALPHA);
 		}
 		TEXASSIGN(shader->defaulttextures.bump, tn->bump);
 	}
@@ -4197,7 +4209,7 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
 			if (!TEXVALID(tn->loweroverlay))
-				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->name), NULL, 0);	/*how rude*/
+				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), NULL, 0);	/*how rude*/
 		}
 		TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
 	}
@@ -4207,7 +4219,7 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
 			if (!TEXVALID(tn->upperoverlay))
-				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
+				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), NULL, 0);
 		}
 		TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
 	}
@@ -4218,7 +4230,7 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
 		{
 			if (!TEXVALID(tn->specular))
-				tn->specular = R_LoadHiResTexture(va("%s_gloss", shader->name), NULL, 0);
+				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), NULL, 0);
 		}
 		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
 	}
@@ -4436,7 +4448,7 @@ void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args)
 			"{\n"
 				"program default2d\n"
 				"{\n"
-					"videomap %s\n"
+					"videomap \"%s\"\n"
 				"}\n"
 			"}\n"
 		, (const char*)args)
@@ -5115,29 +5127,19 @@ void R_UnloadShader(shader_t *shader)
 static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
 {
 	int i, f = -1;
+	char cleanname[MAX_QPATH];
 	char shortname[MAX_QPATH];
-	char *hash;
+	char *argsstart;
 	shader_t *s;
 
 	if (!*name)
 		name = "gfx/white";
 
-	hash = strchr(name, '#');
-	if (hash)	//don't strip anything.
-	{
-		Q_strncpyz(shortname, name, sizeof(shortname));
-		hash = shortname+(hash-name);
-	}
-	else
-	{
-		*(int*)shortname = 0;
-		COM_StripExtension ( name, shortname, sizeof(shortname));
-	}
-
-	COM_CleanUpPath(shortname);
+	Q_strncpyz(cleanname, name, sizeof(cleanname));
+	COM_CleanUpPath(cleanname);
 
 	// check the hash first
-	s = Hash_Get(&shader_active_hash, shortname);
+	s = Hash_Get(&shader_active_hash, cleanname);
 	while (s)
 	{
 		//make sure the same texture can be used as either a lightmap or vertexlit shader
@@ -5148,7 +5150,7 @@ static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t
 			s->uses++;
 			return s;
 		}
-		s = Hash_GetNext(&shader_active_hash, shortname, s);
+		s = Hash_GetNext(&shader_active_hash, cleanname, s);
 	}
 
 	// not loaded, find a free slot
@@ -5183,6 +5185,11 @@ static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t
 			r_maxshaders = nm;
 		}
 	}
+	if (strlen(cleanname) >= sizeof(s->name))
+	{
+		Sys_Error( "R_LoadShader: Shader name too long.");
+		return NULL;
+	}
 
 	s = r_shaders[f];
 	if (!s)
@@ -5191,7 +5198,7 @@ static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t
 	if (r_numshaders < f+1)
 		r_numshaders = f+1;
 
-	Q_strncpyz(s->name, shortname, sizeof(s->name));
+	Q_strncpyz(s->name, cleanname, sizeof(s->name));
 	s->usageflags = usageflags;
 	s->generator = defaultgen;
 	if (genargs)
@@ -5199,9 +5206,11 @@ static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t
 	else
 		s->genargs = NULL;
 
-	//now strip off the hash so we find the right shader script
-	if (hash)
-		*hash = 0;
+	//now determine the 'short name'. ie: the shader that is loaded off disk (no args, no extension)
+	argsstart = strchr(cleanname, '#');
+	if (argsstart)
+		*argsstart = 0;
+	COM_StripExtension (cleanname, shortname, sizeof(shortname));
 
 	if (ruleset_allow_shaders.ival)
 	{
@@ -5266,13 +5275,13 @@ static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t
 		Shader_Reset(s);
 
 		if (!strcmp(shortname, "textures/common/clip"))
-			Shader_DefaultScript(shortname, s,
+			Shader_DefaultScript(cleanname, s,
 				"{\n"
 					"surfaceparm nodraw\n"
 					"surfaceparm nodlight\n"
 				"}\n");
 		else
-			s->generator(shortname, s, s->genargs);
+			s->generator(cleanname, s, s->genargs);
 		return s;
 	}
 	else

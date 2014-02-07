@@ -55,7 +55,7 @@ typedef struct
 
 #define	MAX_FILES_IN_PACK	2048
 
-static void QDECL FSPAK_GetPathDetails(searchpathfuncs_t *handle, char *out, unsigned int outlen)
+static void QDECL FSPAK_GetPathDetails(searchpathfuncs_t *handle, char *out, size_t outlen)
 {
 	pack_t *pak = (pack_t*)handle;
 
@@ -87,7 +87,7 @@ static void QDECL FSPAK_BuildHash(searchpathfuncs_t *handle, int depth, void (QD
 		AddFileHash(depth, pak->files[i].name, &pak->files[i].bucket, &pak->files[i]);
 	}
 }
-static int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static unsigned int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	mpackfile_t *pf = hashedresult;
 	int i;
@@ -125,7 +125,7 @@ static int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *loc, cons
 	}
 	return FF_NOTFOUND;
 }
-static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
 {
 	pack_t	*pak = (pack_t*)handle;
 	int		num;
@@ -174,9 +174,9 @@ static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 typedef struct {
 	vfsfile_t funcs;
 	pack_t *parentpak;
-	unsigned long startpos;
-	unsigned long length;
-	unsigned long currentpos;
+	qofs_t startpos;
+	qofs_t length;
+	qofs_t currentpos;
 } vfspack_t;
 static int QDECL VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
 {
@@ -206,7 +206,7 @@ static int QDECL VFSPAK_WriteBytes (struct vfsfile_s *vfs, const void *buffer, i
 	Sys_Error("Cannot write to pak files\n");
 	return 0;
 }
-static qboolean QDECL VFSPAK_Seek (struct vfsfile_s *vfs, unsigned long pos)
+static qboolean QDECL VFSPAK_Seek (struct vfsfile_s *vfs, qofs_t pos)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	if (pos < 0 || pos > vfsp->length)
@@ -215,12 +215,12 @@ static qboolean QDECL VFSPAK_Seek (struct vfsfile_s *vfs, unsigned long pos)
 
 	return true;
 }
-static unsigned long QDECL VFSPAK_Tell (struct vfsfile_s *vfs)
+static qofs_t QDECL VFSPAK_Tell (struct vfsfile_s *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	return vfsp->currentpos - vfsp->startpos;
 }
-static unsigned long QDECL VFSPAK_GetLen (struct vfsfile_s *vfs)
+static qofs_t QDECL VFSPAK_GetLen (struct vfsfile_s *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	return vfsp->length;
@@ -269,15 +269,6 @@ static void QDECL FSPAK_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, ch
 		return;
 	VFS_READ(f, buffer, loc->len);
 	VFS_CLOSE(f);
-/*
-	FILE *f;
-	f = fopen(loc->rawname, "rb");
-	if (!f)	//err...
-		return;
-	fseek(f, loc->offset, SEEK_SET);
-	fread(buffer, 1, loc->len, f);
-	fclose(f);
-*/
 }
 
 

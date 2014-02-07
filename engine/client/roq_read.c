@@ -70,7 +70,7 @@ static int roq_parse_file(vfsfile_t *fp, roq_info *ri)
 {
 unsigned int head1, head3, chunk_id;//, chunk_arg;
 long head2, chunk_size;
-long fpos;
+qofs_t fpos;
 #ifndef FAST
 int max_frame;
 #endif
@@ -400,7 +400,7 @@ unsigned char *tp, *buf;
 int frame_stats[2][4] = {{0},{0}};
 roq_qcell *qcell;
 
-long fpos = ri->vid_pos;
+qofs_t fpos = ri->vid_pos;
 
 	VFS_SEEK(fp, fpos);
 	while(fpos+8 < ri->maxpos)

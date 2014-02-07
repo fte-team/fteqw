@@ -21,13 +21,13 @@ struct searchpathfuncs_s
 	int				fsver;
 	void			(QDECL *ClosePath)(searchpathfuncs_t *handle);
 
-	void			(QDECL *GetPathDetails)(searchpathfuncs_t *handle, char *outdetails, unsigned int sizeofdetails);
+	void			(QDECL *GetPathDetails)(searchpathfuncs_t *handle, char *outdetails, size_t sizeofdetails);
 	void			(QDECL *BuildHash)(searchpathfuncs_t *handle, int depth, void (QDECL *FS_AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle));
 	unsigned int	(QDECL *FindFile)(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult);	//true if found (hashedresult can be NULL)
 		//note that if rawfile and offset are set, many Com_FileOpens will read the raw file
 		//otherwise ReadFile will be called instead.
 	void			(QDECL *ReadFile)(searchpathfuncs_t *handle, flocation_t *loc, char *buffer);	//reads the entire file in one go (size comes from loc, so make sure the loc is valid, this is for performance with compressed archives)
-	int				(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm);
+	int				(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm);
 
 	int				(QDECL *GeneratePureCRC) (searchpathfuncs_t *handle, int seed, int usepure);
 

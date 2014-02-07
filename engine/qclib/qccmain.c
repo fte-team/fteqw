@@ -580,11 +580,16 @@ void QCC_InitData (void)
 	qcc_sourcefile = NULL;
 
 	memset(stringtablist, 0, sizeof(stringtablist));
-	numstatements = 1;
-	strofs = 2;
-	numfunctions = 1;
-	numglobaldefs = 1;
-	numfielddefs = 1;
+	numstatements = 1;	//first statement should be an OP_DONE, matching the null function(ish), in case it somehow doesn't get caught by the vm.
+	strofs = 2;			//null, empty, *other stuff*
+	numfunctions = 1;	//first function is a null function.
+	numglobaldefs = 1;	//first globaldef is a null def. just because. doesn't include parms+ret. is there any point to this?
+
+	numfielddefs = 0;
+	fields[numfielddefs].type = ev_void;
+	fields[numfielddefs].s_name = 0;	//should map to null
+	fields[numfielddefs].ofs = 0;
+	numfielddefs++;	//FIXME: do we actually need a null field? is there any point to this at all?
 
 	memset(&ret_temp, 0, sizeof(ret_temp));
 
@@ -3478,10 +3483,14 @@ void QCC_ContinueCompile(void)
 
 	if (newstylesource)
 	{
+		char *ofp = pr_file_p;
 		do
 		{
 			new_QCC_ContinueCompile();
 		} while(currentchunk);	//while parsing through preprocessor, make sure nothing gets hurt.
+		if (ofp == pr_file_p && qcc_compileactive && pr_token_type != tt_eof)
+			QCC_Error (ERR_INTERNAL, "Syntax error\n");
+
 		return;
 	}
 

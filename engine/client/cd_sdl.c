@@ -2,6 +2,11 @@
 
 #include <SDL.h>
 
+#if SDL_MAJOR_VERSION >= 2
+//sdl2 has no cd support. sod off.
+#include "cd_null.c"
+#else
+
 extern	cvar_t	bgmvolume;
 
 static qboolean	initialized = false;
@@ -121,3 +126,4 @@ void CDAudio_Shutdown(void)
 	cddevice = NULL;
 	initialized = false;
 }
+#endif

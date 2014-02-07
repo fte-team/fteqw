@@ -489,7 +489,7 @@ cinematics_t *CIN_PlayCinematic (char *arg)
 	}
 	else
 	{
-		Con_Printf(CON_WARNING "Cinematic %s not found.\n", name);
+		Con_Printf(CON_WARNING "Cinematic %s not found.\n", arg);
 	}
 	return cin;
 }

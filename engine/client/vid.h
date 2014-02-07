@@ -61,8 +61,14 @@ typedef struct
 	qboolean		isminimized;	//can omit rendering as it won't be seen anyway.
 	int				fullbright;		// index of first fullbright color
 
-	unsigned		width; /*virtual 2d width*/
-	unsigned		height; /*virtual 2d height*/
+	unsigned		fbvwidth; /*virtual 2d width*/
+	unsigned		fbvheight; /*virtual 2d height*/
+	unsigned		fbpwidth; /*virtual 2d width*/
+	unsigned		fbpheight; /*virtual 2d height*/
+
+	unsigned		width; /*virtual 2d screen width*/
+	unsigned		height; /*virtual 2d screen height*/
+
 	int				numpages;
 
 	unsigned		rotpixelwidth; /*width after rotation in pixels*/

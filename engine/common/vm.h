@@ -17,8 +17,12 @@
 	#if defined(_WIN64)
 		#define qintptr_t __int64
 		#define FTE_WORDSIZE 64
+		#define quintptr_t unsigned qintptr_t
 	#elif defined(_WIN32)
-		#define qintptr_t __int32
+		typedef __int32 qintptr_t;	//add __w64 if you need msvc to shut up about unsafe type conversions
+		typedef unsigned __int32 quintptr_t;
+//		#define qintptr_t __int32
+//		#define quintptr_t unsigned qintptr_t
 		#define FTE_WORDSIZE 32
 	#else
 		#if __WORDSIZE == 64
@@ -28,8 +32,8 @@
 			#define qintptr_t long
 			#define FTE_WORDSIZE 32
 		#endif
+		#define quintptr_t unsigned qintptr_t
 	#endif
-	#define quintptr_t unsigned qintptr_t
 #endif
 
 #ifndef FTE_WORDSIZE

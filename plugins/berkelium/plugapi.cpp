@@ -439,7 +439,7 @@ extern "C" qintptr_t Plug_Init(qintptr_t *args)
 		Con_Printf("Berkelium plugin failed: Engine doesn't support Shutdown feature\n");
 		return false;
 	}
-	if (!Plug_ExportNative("Media_VideoDecoder", &decoderfuncs))
+	if (!pPlug_ExportNative("Media_VideoDecoder", &decoderfuncs))
 	{
 		Con_Printf("Berkelium plugin failed: Engine doesn't support media decoder plugins\n");
 		return false;

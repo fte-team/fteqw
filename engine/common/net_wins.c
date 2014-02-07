@@ -1557,14 +1557,16 @@ void NET_SendLoopPacket (int sock, int length, void *data, netadr_t *to)
 	loop->msgs[i].datalen = length;
 }
 
-int FTENET_Loop_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *out, int adrnum)
+int FTENET_Loop_GetLocalAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
-	if (adrnum==0)
+	if (maxaddresses)
 	{
-		out->type = NA_LOOPBACK;
-		out->port = con->thesocket+1;
+		addresses->type = NA_LOOPBACK;
+		addresses->port = con->thesocket+1;
+		*adrflags = 0;
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 qboolean FTENET_Loop_GetPacket(ftenet_generic_connection_t *con)
@@ -1613,7 +1615,7 @@ static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean iss
 	{
 		loopbacks[sock].inited = true;
 
-		newcon->GetLocalAddress = FTENET_Loop_GetLocalAddress;
+		newcon->GetLocalAddresses = FTENET_Loop_GetLocalAddresses;
 		newcon->GetPacket = FTENET_Loop_GetPacket;
 		newcon->SendPacket = FTENET_Loop_SendPacket;
 		newcon->Close = FTENET_Loop_Close;
@@ -1664,7 +1666,7 @@ typedef struct
 	unsigned int refreshtime;
 } pmpcon_t;
 
-int FTENET_NATPMP_GetLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *local, int adridx);
+int FTENET_NATPMP_GetLocalAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 {
 	pmpcon_t *pmp;
@@ -1688,7 +1690,7 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 	{
 		if (!collection->conn[i])
 			continue;
-		if (collection->conn[i]->GetLocalAddress == FTENET_NATPMP_GetLocalAddress)
+		if (collection->conn[i]->GetLocalAddresses == FTENET_NATPMP_GetLocalAddresses)
 		{
 			pmp = (pmpcon_t*)collection->conn[i];
 			if (NET_CompareAdr(&pmp->pmpaddr, &net_from))
@@ -1704,7 +1706,7 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 					pmp->natadr.port = 0;
 					memcpy(pmp->natadr.address.ip, pmpreqrep->ipv4, sizeof(pmp->natadr.address.ip));
 					NET_AdrToString(adrbuf, sizeof(adrbuf), &pmp->natadr);
-					pmp->natadr.connum = i;
+					pmp->natadr.connum = i+1;
 					Con_DPrintf("NAT-PMP: Public ip is %s\n", adrbuf);
 
 					if (pmp->natadr.type && pmp->natadr.port)
@@ -1752,9 +1754,13 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 
 static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connections_t *collection)
 {
-	int i;
-	int adrno, adrcount=1;
+	int i, m;
 	netadr_t adr;
+	
+	netadr_t	addr[64];
+	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
+	int			flags[sizeof(addr)/sizeof(addr[0])];
+
 	struct
 	{
 		qbyte ver; qbyte op; short reserved1;
@@ -1772,78 +1778,90 @@ static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connectio
 	if (!collection)
 		return;
 
-	for (i = 0; i < MAX_CONNECTIONS; i++)
+	m = NET_EnumerateAddresses(collection, con, flags, addr, sizeof(addr)/sizeof(addr[0]));
+
+	for (i = 0; i < m; i++)
 	{
-		if (!collection->conn[i])
+		//ignore any ips which are proxied by other people. that would be too weird.
+		if (flags[i] & (ADDR_NATPMP|ADDR_UPNPIGP))
 			continue;
-		if (collection->conn[i]->GetLocalAddress && collection->conn[i]->GetLocalAddress != FTENET_NATPMP_GetLocalAddress)
+
+		adr = addr[i];
+
+		//unipv6ify it if its a hybrid socket.
+		if (adr.type == NA_IPV6 &&
+			!*(int*)&adr.address.ip6[0] &&
+			!*(int*)&adr.address.ip6[4] &&
+			!*(short*)&adr.address.ip6[8] &&
+			*(short*)&adr.address.ip6[10]==(short)0xffff && 
+			!*(int*)&adr.address.ip6[12])
 		{
-			for (adrno = 0, adrcount=1; (adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno)) && adrno < adrcount; adrno++)
-			{
-//				Con_Printf("net address (%s): %s\n", collection->conn[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), adr));
-
-				//unipv6ify it if its a hybrid socket.
-				if (adr.type == NA_IPV6 &&
-					!*(int*)&adr.address.ip6[0] &&
-					!*(int*)&adr.address.ip6[4] &&
-					!*(short*)&adr.address.ip6[8] &&
-					*(short*)&adr.address.ip6[10]==(short)0xffff && 
-					!*(int*)&adr.address.ip6[12])
-				{
-					*(int*)adr.address.ip = *(int*)&adr.address.ip6[12];
-					adr.type = NA_IP;
-				}
-
-				if (adr.type == NA_IP)
-				{
-					if (adr.address.ip[0] == 127)	//yes. loopback has a lot of ip addresses. wasteful but whatever.
-						continue;
-
-					//assume a netmask of 255.255.255.0
-					adr.address.ip[3] = 1;
-				}
-//				else if (adr.type == NA_IPV6)
-//				{
-//				}
-				else
-					continue;
-
-				pmpreqmsg.privport = adr.port;
-				pmpreqmsg.pubport = oldport?oldport:adr.port;
-
-				if (*(int*)pmp->reqpmpaddr.address.ip == INADDR_ANY)
-				{
-					pmp->pmpaddr = adr;
-					pmp->pmpaddr.port = pmp->reqpmpaddr.port;
-				}
-				else
-					pmp->pmpaddr = pmp->reqpmpaddr;
-
-				if (*(int*)pmp->pmpaddr.address.ip == INADDR_ANY)
-					continue;
-
-				//get the public ip.
-				pmpreqmsg.op = 0;
-				NET_SendPacket(NS_SERVER, 2, &pmpreqmsg, &pmp->pmpaddr);
-
-				//open the firewall/nat.
-				pmpreqmsg.op = 1;
-				NET_SendPacket(NS_SERVER, sizeof(pmpreqmsg), &pmpreqmsg, &pmp->pmpaddr);
-
-				break;
-			}
+			*(int*)adr.address.ip = *(int*)&adr.address.ip6[12];
+			adr.type = NA_IP;
 		}
+
+		if (adr.type == NA_IP)
+		{
+			if (adr.address.ip[0] == 127)	//yes. loopback has a lot of ip addresses. wasteful but whatever.
+				continue;
+
+			//assume a netmask of 255.255.255.0
+			adr.address.ip[3] = 1;
+		}
+//		else if (adr.type == NA_IPV6)
+//		{
+//		}
+		else
+			continue;
+
+		pmpreqmsg.privport = adr.port;
+		pmpreqmsg.pubport = oldport?oldport:adr.port;
+
+		if (*(int*)pmp->reqpmpaddr.address.ip == INADDR_ANY)
+		{
+			pmp->pmpaddr = adr;
+			pmp->pmpaddr.port = pmp->reqpmpaddr.port;
+		}
+		else
+			pmp->pmpaddr = pmp->reqpmpaddr;
+
+		if (*(int*)pmp->pmpaddr.address.ip == INADDR_ANY)
+			continue;
+
+		//get the public ip.
+		pmpreqmsg.op = 0;
+		NET_SendPacket(NS_SERVER, 2, &pmpreqmsg, &pmp->pmpaddr);
+
+		//open the firewall/nat.
+		pmpreqmsg.op = 1;
+		NET_SendPacket(NS_SERVER, sizeof(pmpreqmsg), &pmpreqmsg, &pmp->pmpaddr);
+
+		break;
 	}
 }
 #define PMP_POLL_TIME (1000*30)//every 30 seconds
-int FTENET_NATPMP_GetLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *local, int adridx)
+qboolean Net_OpenUDPPort(char *privateip, int privateport, char *publicip, size_t publiciplen, int *publicport);
+int FTENET_NATPMP_GetLocalAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 	pmpcon_t *pmp = (pmpcon_t*)con;
-	local->type = NA_INVALID;
+/*
+	char pubip[256];
+	int pubport;
 
-	if (adridx == 0)
-		*local = pmp->natadr;
-	return (pmp->natadr.type != NA_INVALID) && (pmp->natadr.port != 0);
+	if (Net_OpenUDPPort("192.168.1.4", 27500, pubip, sizeof(pubip), &pubport))
+	{
+		*adrflags = ADDR_UPNPIGP;
+		NET_StringToAdr(pubip, pubport, addresses);
+		return 1;
+	}
+*/
+	if (maxaddresses)
+	{
+		*adrflags = ADDR_NATPMP;
+		*addresses = pmp->natadr;
+		return (pmp->natadr.type != NA_INVALID) && (pmp->natadr.port != 0);
+	}
+	return 0;
 }
 qboolean FTENET_NATPMP_GetPacket(struct ftenet_generic_connection_s *con)
 {
@@ -1876,12 +1894,12 @@ ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver
 		pmpadr.type = NA_IP;
 	if (pmpadr.type != NA_IP)
 		return NULL;
-	
+
 	pmp = Z_Malloc(sizeof(*pmp));
 	pmp->col = svs.sockets;
 	Q_strncpyz(pmp->pub.name, "natpmp", sizeof(pmp->pub.name));
 	pmp->reqpmpaddr = pmpadr;
-	pmp->pub.GetLocalAddress = FTENET_NATPMP_GetLocalAddress;
+	pmp->pub.GetLocalAddresses = FTENET_NATPMP_GetLocalAddresses;
 	pmp->pub.GetPacket = FTENET_NATPMP_GetPacket;
 	//qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
 	pmp->pub.SendPacket = FTENET_NATPMP_SendPacket;
@@ -1894,10 +1912,6 @@ ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver
 
 	return &pmp->pub;
 }
-#endif
-
-#ifdef UPNP
-ftenet_generic_connection_t *FTENET_NATUPNP_EstablishConnection(qboolean isserver, const char *address);
 #endif
 
 qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name, const char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address), qboolean islisten)
@@ -2029,15 +2043,14 @@ void FTENET_Generic_Close(ftenet_generic_connection_t *con)
 }
 
 #ifdef _WIN32
-int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qboolean ipv4, qboolean ipv6)
+int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,   unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 	//in win32, we can look up our own hostname to retrieve a list of local interface addresses.
-	netadr_t adr;
 #ifdef USE_GETHOSTNAME_LOCALLISTING
 	char		adrs[MAX_ADR_SIZE];
 	int b;
 #endif
-	int idx = 0;
+	int found = 0;
 
 	gethostname(adrs, sizeof(adrs));
 #ifdef IPPROTO_IPV6
@@ -2060,28 +2073,35 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 					|| (itr->ai_addr->sa_family == AF_IPX && ipx)
 #endif
 					)
-				if (idx++ == count)
+				if (maxaddresses)
 				{
-					SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, out);
-					out->port = port;
+					SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, addresses);
+					addresses->port = port;
+					*adrflags++ = 0;
+					addresses++;
+					maxaddresses--;
+					found++;
 				}
 			}
 			pfreeaddrinfo(result);
 
 			/*if none found, fill in the 0.0.0.0 or whatever*/
-			if (!idx)
+			if (!found && maxaddresses)
 			{
-				idx++;
-				memset(out, 0, sizeof(*out));
-				out->port = port;
+				memset(addresses, 0, sizeof(*addresses));
+				addresses->port = port;
 				if (ipv6)
-					out->type = NA_IPV6;
+					addresses->type = NA_IPV6;
 				else if (ipv4)
-					out->type = NA_IP;
+					addresses->type = NA_IP;
 				else if (ipx)
-					out->type = NA_IPX;
+					addresses->type = NA_IPX;
 				else
-					out->type = NA_INVALID;
+					addresses->type = NA_INVALID;
+				*adrflags++ = 0;
+				addresses++;
+				maxaddresses--;
+				found++;
 			}
 		}
 	}
@@ -2094,33 +2114,38 @@ int FTENET_GetLocalAddress(netadr_t *out, int port, int count, qboolean ipx, qbo
 #ifdef HAVE_IPV4
 		if(h && h->h_addrtype == AF_INET)
 		{
-			for (b = 0; h->h_addr_list[b]; b++)
+			for (b = 0; h->h_addr_list[b] && maxaddresses; b++)
 			{
 				struct sockaddr_in from;
 				from.sin_family = AF_INET;
 				memcpy(&from.sin_addr, h->h_addr_list[b], sizeof(&from.sin_addr));
-				SockadrToNetadr((struct sockaddr_qstorage*)&from, &adr);
-				if (idx++ == count)
-					*out = adr;
+				SockadrToNetadr((struct sockaddr_qstorage*)&from, addresses);
+
+				*adrflags++ = 0;
+				addresses++;
+				maxaddresses--;
+				found++;
 			}
 		}
 #endif
 #ifdef IPPROTO_IPV6
 		if(h && h->h_addrtype == AF_INET6)
 		{
-			for (b = 0; h->h_addr_list[b]; b++)
+			for (b = 0; h->h_addr_list[b] && maxaddresses; b++)
 			{
 				struct sockaddr_in6 from;
 				from.sin6_family = AF_INET6;
 				memcpy(&from.sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
-				SockadrToNetadr((struct sockaddr_qstorage*)&from, &adr);
-				if (idx++ == count)
-					*out = adr;
+				SockadrToNetadr((struct sockaddr_qstorage*)&from, addresses);
+				*adrflags++ = 0;
+				addresses++;
+				maxaddresses--;
+				found++;
 			}
 		}
 #endif
 	}
-	return idx;
+	return found;
 }
 
 #elif defined(__linux__) && !defined(ANDROID)
@@ -2185,7 +2210,7 @@ int FTENET_GetLocalAddress(netadr_t *out, int count)
 }
 #endif
 
-int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *out, int count)
+int FTENET_Generic_GetLocalAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 #ifndef HAVE_PACKET
 	return 0;
@@ -2193,7 +2218,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 	struct sockaddr_qstorage	from;
 	int fromsize = sizeof(from);
 	netadr_t adr;
-	int idx = 0;
+	int found = 0;
 
 	if (getsockname (con->thesocket, (struct sockaddr*)&from, &fromsize) != -1)
 	{
@@ -2211,7 +2236,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 		{
 			//ipv6 socket bound to the ipv4-any address is a bit weird, but oh well.
 			//FIXME: should we first validate that we support hybrid sockets?
-			idx = FTENET_GetLocalAddress(out, adr.port, count, false, true, false);
+			found = FTENET_GetLocalAddress(adr.port, false, true, false, adrflags, addresses, maxaddresses);
 		}
 		else
 		{
@@ -2239,32 +2264,42 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 					ipv6 = true;
 				}
 
-				idx = FTENET_GetLocalAddress(out, adr.port, count, ipx, ipv4, ipv6);
+				found = FTENET_GetLocalAddress(adr.port, ipx, ipv4, ipv6, adrflags, addresses, maxaddresses);
 			}
 		}
 #endif
 
 		//and use the bound address (even if its 0.0.0.0) if we didn't grab a list from the system.
-		if (!idx)
+		if (!found)
 		{
-			if (adr.type == NA_IPV6 &&
+			if (maxaddresses && adr.type == NA_IPV6 &&
 				!*(int*)&adr.address.ip6[0] &&
 				!*(int*)&adr.address.ip6[4] &&
 				!*(int*)&adr.address.ip6[8] &&
 				!*(int*)&adr.address.ip6[12])
 			{
-				if (idx++ == count)
-				{
-					*out = adr;
-					out->type = NA_IP;
-				}
+				*addresses = adr;
+				addresses->type = NA_IP;
+
+				*adrflags++ = 0;
+				addresses++;
+				maxaddresses--;
+				found++;
 			}
-			if (idx++ == count)
-				*out = adr;
+
+			if (maxaddresses)
+			{
+				*addresses = adr;
+
+				*adrflags++ = 0;
+				addresses++;
+				maxaddresses--;
+				found++;
+			}
 		}
 	}
 
-	return idx;
+	return found;
 #endif
 }
 
@@ -2287,18 +2322,18 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 
 	if (ret == -1)
 	{
-		err = qerrno;
+		err = neterrno();
 
-		if (err == EWOULDBLOCK)
+		if (err == NET_EWOULDBLOCK)
 			return false;
-		if (err == EMSGSIZE)
+		if (err == NET_EMSGSIZE)
 		{
 			SockadrToNetadr (&from, &net_from);
 			Con_TPrintf ("Warning:  Oversize packet from %s\n",
 				NET_AdrToString (adr, sizeof(adr), &net_from));
 			return false;
 		}
-		if (err == ECONNABORTED || err == ECONNRESET)
+		if (err == NET_ECONNABORTED || err == NET_ECONNRESET)
 		{
 			Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
 #ifndef SERVERONLY
@@ -2391,22 +2426,22 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 	ret = sendto (con->thesocket, data, length, 0, (struct sockaddr*)&addr, size );
 	if (ret == -1)
 	{
-		int ecode = qerrno;
+		int ecode = neterrno();
 // wouldblock is silent
-		if (ecode == EWOULDBLOCK)
+		if (ecode == NET_EWOULDBLOCK)
 			return true;
 
-		if (ecode == ECONNREFUSED)
+		if (ecode == NET_ECONNREFUSED)
 			return true;
 
-		if (ecode == EACCES)
+		if (ecode == NET_EACCES)
 		{
 			Con_Printf("Access denied: check firewall\n");
 			return true;
 		}
 
 #ifndef SERVERONLY
-		if (ecode == EADDRNOTAVAIL)
+		if (ecode == NET_EADDRNOTAVAIL)
 			Con_DPrintf("NET_SendPacket Warning: %i\n", ecode);
 		else
 #endif
@@ -2542,7 +2577,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	}
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 
 
 	//
@@ -2554,7 +2589,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	newcon = Z_Malloc(sizeof(*newcon));
 	if (newcon)
 	{
-		newcon->GetLocalAddress = FTENET_Generic_GetLocalAddress;
+		newcon->GetLocalAddresses = FTENET_Generic_GetLocalAddresses;
 		newcon->GetPacket = FTENET_Generic_GetPacket;
 		newcon->SendPacket = FTENET_Generic_SendPacket;
 		newcon->Close = FTENET_Generic_Close;
@@ -2720,17 +2755,17 @@ qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 		}
 		else if (ret == -1)
 		{
-			err = qerrno;
+			err = neterrno();
 
-			if (err == EWOULDBLOCK)
+			if (err == NET_EWOULDBLOCK)
 				ret = 0;
 			else
 			{
-				if (err == ECONNABORTED || err == ECONNRESET)
+				if (err == NET_ECONNABORTED || err == NET_ECONNRESET)
 				{
 					Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
 				}
-				else if (err == ENOTCONN)
+				else if (err == NET_ENOTCONN)
 					Con_Printf ("TCPConnect_GetPacket: connection failed\n");
 				else
 					Con_Printf ("TCPConnect_GetPacket: Error (%i): %s\n", err, strerror(err));
@@ -3527,7 +3562,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 		}
 
 		if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-			Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+			Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 #endif
 	}
 	else
@@ -3549,7 +3584,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 	if (newcon)
 	{
 		if (isserver)
-			newcon->generic.GetLocalAddress = FTENET_Generic_GetLocalAddress;
+			newcon->generic.GetLocalAddresses = FTENET_Generic_GetLocalAddresses;
 		newcon->generic.GetPacket = FTENET_TCPConnect_GetPacket;
 		newcon->generic.SendPacket = FTENET_TCPConnect_SendPacket;
 		newcon->generic.Close = FTENET_TCPConnect_Close;
@@ -3701,11 +3736,11 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 		read = recv(con->generic.thesocket, con->incoming+con->income, sizeof(con->incoming)-1 - con->income, 0);
 		if (read < 0)
 		{
-			read = qerrno;
+			read = neterrno();
 			switch(read)
 			{
-			case ECONNABORTED:
-			case ECONNRESET:
+			case NET_ECONNABORTED:
+			case NET_ECONNRESET:
 				closesocket(con->generic.thesocket);
 				con->generic.thesocket = INVALID_SOCKET;
 				break;
@@ -4622,16 +4657,17 @@ int NET_GetPacket (netsrc_t netsrc, int firstsock)
 
 int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote, netadr_t *local, int idx)
 {
+	int adrflags;
 	if (!remote->connum)
 		return 0;
 
 	if (!collection->conn[remote->connum-1])
 		return 0;
 
-	if (!collection->conn[remote->connum-1]->GetLocalAddress)
+	if (!collection->conn[remote->connum-1]->GetLocalAddresses)
 		return 0;
 
-	return collection->conn[remote->connum-1]->GetLocalAddress(collection->conn[remote->connum-1], local, idx);
+	return collection->conn[remote->connum-1]->GetLocalAddresses(collection->conn[remote->connum-1], &adrflags, local, 1);
 }
 
 qboolean NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t *to)
@@ -4710,30 +4746,60 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 	return true;
 }
 
-void NET_PrintAddresses(ftenet_connections_t *collection)
+int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, int *adrflags, netadr_t *addresses, int maxaddresses)
 {
-	int i;
-	int adrno, adrcount=1;
-	netadr_t adr;
-	char adrbuf[MAX_ADR_SIZE];
-
-	if (!collection)
-		return;
-
+	unsigned int found = 0, c, i, j;
 	for (i = 0; i < MAX_CONNECTIONS; i++)
 	{
 		if (!collection->conn[i])
 			continue;
-		adrno = 0;
-		if (collection->conn[i]->GetLocalAddress)
+
+		c = collection->conn[i]->GetLocalAddresses(collection->conn[i], adrflags, addresses, maxaddresses);
+
+		if (maxaddresses && !c)
 		{
-			for (adrcount=1; (adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno)) && adrno < adrcount; adrno++)
-			{
-				Con_Printf("net address (%s): %s\n", collection->conn[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &adr));
-			}
+			*adrflags = 0;
+			addresses->type = NA_INVALID;
+			c = 1;
 		}
-		if (!adrno)
-			Con_Printf("net address (%s): no addresses\n", collection->conn[i]->name);
+
+		//fill in connection info
+		for (j = 0; j < c; j++)
+		{
+			con[j] = collection->conn[i];
+			addresses[j].connum = i+1;
+		}
+
+		con += c;
+		adrflags += c;
+		addresses += c;
+		maxaddresses -= c;
+		found += c;
+	}
+	return found;
+}
+
+#define MAXADDRESSES 64
+void NET_PrintAddresses(ftenet_connections_t *collection)
+{
+	int i;
+	char adrbuf[MAX_ADR_SIZE];
+	int m;
+	netadr_t	addr[64];
+	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
+	int			flags[sizeof(addr)/sizeof(addr[0])];
+
+	if (!collection)
+		return;
+
+	m = NET_EnumerateAddresses(collection, con, flags, addr, sizeof(addr)/sizeof(addr[0]));
+
+	for (i = 0; i < m; i++)
+	{
+		if (addr[i].type == NA_INVALID)
+			Con_Printf("net address (%s): no addresses\n", con[i]->name);
+		else
+			Con_Printf("net address (%s): %s\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
 	}
 }
 
@@ -4759,7 +4825,7 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&recvbufsize, sizeof(recvbufsize));
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 
 //	memset(&loc, 0, sizeof(loc));
 //	((struct sockaddr*)&loc)->sa_family = ((struct sockaddr*)&loc)->sa_family;
@@ -4767,19 +4833,19 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 
 	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
 	{
-		int err = qerrno;
-		if (err != EWOULDBLOCK && err != EINPROGRESS)
+		int err = neterrno();
+		if (err != NET_EWOULDBLOCK && err != NET_EINPROGRESS)
 		{
 			char buf[256];
 			NET_AdrToString(buf, sizeof(buf), remoteaddr);
-			if (err == EADDRNOTAVAIL)
+			if (err == NET_EADDRNOTAVAIL)
 			{
 				if (remoteaddr->port == 0 && (remoteaddr->type == NA_IP || remoteaddr->type == NA_IPV6))
 					Con_Printf ("TCP_OpenStream: no port specified (%s)\n", buf);
 				else
 					Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
 			}
-			else if (err == EACCES)
+			else if (err == NET_EACCES)
 				Con_Printf ("TCP_OpenStream: access denied: check firewall (%s)\n", buf);
 			else
 				Con_Printf ("TCP_OpenStream: connect: error %i (%s)\n", err, buf);
@@ -4884,7 +4950,7 @@ int maxport = port + 100;
 		return (int)INVALID_SOCKET;
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 
 	if (bcast)
 	{
@@ -4915,10 +4981,10 @@ int maxport = port + 100;
 		if( bind (newsocket, (void *)&address, sizeof(address)) == -1)
 		{
 			if (!port)
-				Sys_Error ("UDP_OpenSocket: bind: %s", strerror(qerrno));
+				Sys_Error ("UDP_OpenSocket: bind: %s", strerror(neterrno()));
 			port++;
 			if (port > maxport)
-				Sys_Error ("UDP_OpenSocket: bind: %s", strerror(qerrno));
+				Sys_Error ("UDP_OpenSocket: bind: %s", strerror(neterrno()));
 		}
 		else
 			break;
@@ -4941,12 +5007,12 @@ int maxport = port + 100;
 
 	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
-		Con_Printf("IPV6 is not supported: %s\n", strerror(qerrno));
+		Con_Printf("IPV6 is not supported: %s\n", strerror(neterrno()));
 		return (int)INVALID_SOCKET;
 	}
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 
 	if (bcast)
 	{
@@ -4984,7 +5050,7 @@ int maxport = port + 100;
 		{
 			if (!port)
 			{
-				err = qerrno;
+				err = neterrno();
 				Con_Printf ("UDP6_OpenSocket: bind: (%i) %s", err, strerror(err));
 				closesocket(newsocket);
 				return (int)INVALID_SOCKET;
@@ -4992,7 +5058,7 @@ int maxport = port + 100;
 			port++;
 			if (port > maxport)
 			{
-				err = qerrno;
+				err = neterrno();
 				Con_Printf ("UDP6_OpenSocket: bind: (%i) %s", err, strerror(err));
 				closesocket(newsocket);
 				return (int)INVALID_SOCKET;
@@ -5022,15 +5088,16 @@ int IPX_OpenSocket (int port, qboolean bcast)
 
 	if ((newsocket = socket (PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == INVALID_SOCKET)
 	{
-		if (qerrno != EAFNOSUPPORT)
-			Con_Printf ("WARNING: IPX_Socket: socket: %i\n", qerrno);
+		int e = neterrno();
+		if (e != NET_EAFNOSUPPORT)
+			Con_Printf ("WARNING: IPX_Socket: socket: %i\n", e);
 		return INVALID_SOCKET;
 	}
 
 	// make it non-blocking
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 	{
-		Con_Printf ("WARNING: IPX_Socket: ioctl FIONBIO: %i\n", qerrno);
+		Con_Printf ("WARNING: IPX_Socket: ioctl FIONBIO: %i\n", neterrno());
 		return INVALID_SOCKET;
 	}
 
@@ -5039,7 +5106,7 @@ int IPX_OpenSocket (int port, qboolean bcast)
 		// make it broadcast capable
 		if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof(_true)) == -1)
 		{
-			Con_Printf ("WARNING: IPX_Socket: setsockopt SO_BROADCAST: %i\n", qerrno);
+			Con_Printf ("WARNING: IPX_Socket: setsockopt SO_BROADCAST: %i\n", neterrno());
 			return INVALID_SOCKET;
 		}
 	}
@@ -5054,7 +5121,7 @@ int IPX_OpenSocket (int port, qboolean bcast)
 
 	if( bind (newsocket, (void *)&address, sizeof(address)) == -1)
 	{
-		Con_Printf ("WARNING: IPX_Socket: bind: %i\n", qerrno);
+		Con_Printf ("WARNING: IPX_Socket: bind: %i\n", neterrno());
 		closesocket (newsocket);
 		return INVALID_SOCKET;
 	}
@@ -5258,6 +5325,12 @@ qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 #endif
 	return false;
 }
+
+void NET_UPNPIGP_Callback(cvar_t *var, char *oldval)
+{
+}
+cvar_t net_upnpigp = CVARCD("net_upnpigp", "0", NET_UPNPIGP_Callback, "If set, enables the use of the upnp-igd protocol to punch holes in your local NAT box.");
+
 /*
 ====================
 NET_Init
@@ -5300,6 +5373,9 @@ void NET_Init (void)
 #ifndef SERVERONLY
 	Cmd_AddCommand("cl_addport", NET_ClientPort_f);
 #endif
+
+	Cvar_Register (&net_upnpigp, "networking");
+	net_upnpigp.restriction = RESTRICT_MAX;
 }
 #ifndef SERVERONLY
 void NET_InitClient(void)
@@ -5584,21 +5660,21 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 		len = recv(tf->sock, tf->readbuffer + tf->readbuffered, trying, 0);
 		if (len == -1)
 		{
-			int e = qerrno;
-			if (e != EWOULDBLOCK)
+			int e = neterrno();
+			if (e != NET_EWOULDBLOCK)
 			{
 				switch(e)
 				{
-				case ENOTCONN:
+				case NET_ENOTCONN:
 					Con_Printf("connection to \"%s\" failed\n", tf->peer);
 					break;
-				case ECONNABORTED:
+				case NET_ECONNABORTED:
 					Con_DPrintf("connection to \"%s\" aborted\n", tf->peer);
 					break;
-				case ECONNREFUSED:
+				case NET_ECONNREFUSED:
 					Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
 					break;
-				case ECONNRESET:
+				case NET_ECONNRESET:
 					Con_DPrintf("connection to \"%s\" reset\n", tf->peer);
 					break;
 				default:
@@ -5665,12 +5741,12 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 	len = send(tf->sock, buffer, bytestoread, 0);
 	if (len == -1 || len == 0)
 	{
-		int e = qerrno;
+		int e = neterrno();
 		switch(e)
 		{
-		case EWOULDBLOCK:
+		case NET_EWOULDBLOCK:
 			return 0;	//nothing available yet.
-		case ENOTCONN:
+		case NET_ENOTCONN:
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
 			break;
 		default:
@@ -5684,17 +5760,17 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 	}
 	return len;
 }
-qboolean QDECL VFSTCP_Seek (struct vfsfile_s *file, unsigned long pos)
+qboolean QDECL VFSTCP_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	VFSTCP_Error((tcpfile_t*)file);
 	return false;
 }
-unsigned long QDECL VFSTCP_Tell (struct vfsfile_s *file)
+qofs_t QDECL VFSTCP_Tell (struct vfsfile_s *file)
 {
 	VFSTCP_Error((tcpfile_t*)file);
 	return 0;
 }
-unsigned long QDECL VFSTCP_GetLen (struct vfsfile_s *file)
+qofs_t QDECL VFSTCP_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }

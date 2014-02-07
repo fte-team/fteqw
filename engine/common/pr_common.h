@@ -184,6 +184,7 @@ void QCBUILTIN PF_entityfieldtype (pubprogfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_putentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_checkcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_argescape(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
 void QCBUILTIN PF_getsurfacenumpoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -252,6 +253,9 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void skel_dodelete(pubprogfuncs_t *prinst);
 	void skel_reset(pubprogfuncs_t *prinst);
 #endif
+void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
@@ -484,10 +488,25 @@ pbool QDECL ED_CanFree (edict_t *ed);
 #define	SOLID_CORPSE			5		// non-solid to solid_slidebox entities and itself.
 #define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
 #define SOLID_PORTAL			21		//1: traces always use point-size. 2: various movetypes automatically transform entities. 3: traces that impact portal bbox use a union. 4. traces ignore part of the world within the portal's box
-#define	SOLID_PHYSICS_BOX		32		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
-#define	SOLID_PHYSICS_SPHERE	33		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
-#define	SOLID_PHYSICS_CAPSULE	34		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
-#define SOLID_PHYSICS_CYLINDER  35
+#define	SOLID_PHYSICS_BOX		32		// deprecated. physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+#define	SOLID_PHYSICS_SPHERE	33		// deprecated. physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+#define	SOLID_PHYSICS_CAPSULE	34		// deprecated. physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+#define SOLID_PHYSICS_TRIMESH	35
+#define SOLID_PHYSICS_CYLINDER  36
+
+#define	GEOMTYPE_NONE      -1
+#define	GEOMTYPE_SOLID      0
+#define	GEOMTYPE_BOX		1
+#define	GEOMTYPE_SPHERE		2
+#define	GEOMTYPE_CAPSULE	3
+#define	GEOMTYPE_TRIMESH	4
+#define	GEOMTYPE_CYLINDER	5
+#define	GEOMTYPE_CAPSULE_X	6
+#define	GEOMTYPE_CAPSULE_Y	7
+#define	GEOMTYPE_CAPSULE_Z	8
+#define	GEOMTYPE_CYLINDER_X	9
+#define	GEOMTYPE_CYLINDER_Y	10
+#define	GEOMTYPE_CYLINDER_Z	11
 
 
 #define JOINTTYPE_POINT 1
@@ -549,6 +568,11 @@ typedef enum
 	VF_VIEWENTITY = 206,
 	VF_STATSENTITIY = 207,	//the player number for the stats.
 	VF_SCREENVOFFSET = 208,
+
+	VF_RT_DESTCOLOUR	= 209,
+	VF_RT_SOURCECOLOUR	= 210,
+	VF_RT_DEPTH			= 211,
+	VF_RT_RIPPLE		= 212,	/**/
 } viewflags;
 
 /*FIXME: this should be changed*/

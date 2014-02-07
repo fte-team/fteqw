@@ -28,7 +28,7 @@ typedef struct {
 	roq_cell cells[256];
 	roq_qcell qcells[256];
 	short snd_sqr_arr[256];
-	long roq_start, aud_pos, vid_pos;
+	qofs_t roq_start, aud_pos, vid_pos;
 	long *frame_offset;
 	unsigned long num_frames, num_audio_bytes;
 	int width, height, frame_num, audio_channels;

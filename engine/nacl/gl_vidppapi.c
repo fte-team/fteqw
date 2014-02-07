@@ -17,7 +17,7 @@ extern PPB_Instance* instance_interface;
 int delayedswap = false;
 qboolean swappending;
 
-extern cvar_t		_vid_wait_override;
+extern cvar_t		vid_vsync;
 
 void FrameEvent(void* user_data, int32_t result);
 qboolean NAGL_SwapPending(void)
@@ -49,7 +49,7 @@ void GL_DoSwap(void)
 {
 	if (delayedswap)
 	{
-		qboolean vsync = _vid_wait_override.ival || !*_vid_wait_override.string;
+		qboolean vsync = vid_vsync.ival || !*vid_vsync.string;
 		struct PP_CompletionCallback ccb = { swap_callback, NULL, vsync?PP_COMPLETIONCALLBACK_FLAG_NONE:PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
 		glFlush();
 		delayedswap = false;
@@ -63,7 +63,7 @@ void GL_DoSwap(void)
 			break;
 		case PP_ERROR_INPROGRESS:
 			Con_DPrintf("chrome still can't handle vid_wait 0. forcing vsync\n");
-			_vid_wait_override.ival = 1;
+			vid_vsync.ival = 1;
 			break;
 		default:
 			Con_DPrintf("unknown error on SwapBuffers call\n");

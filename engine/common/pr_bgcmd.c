@@ -1718,7 +1718,7 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int QDECL search_enumerate(const char *name, int fsize, void *parm, searchpathfuncs_t *spath)
+int QDECL search_enumerate(const char *name, qofs_t fsize, void *parm, searchpathfuncs_t *spath)
 {
 	prvmsearch_t *s = parm;
 
@@ -2314,7 +2314,12 @@ void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (ofs && (ofs < 0 || ofs > strlen(instr)))
 		G_FLOAT(OFS_RETURN) = '\0';
 	else
-		G_FLOAT(OFS_RETURN) = VMUTF8?unicode_decode(&err, instr+ofs, &next, VMUTF8MARKUP):(unsigned char)instr[ofs];
+	{
+		if (VMUTF8)
+			G_FLOAT(OFS_RETURN) = unicode_decode(&err, instr+ofs, &next, VMUTF8MARKUP);
+		else
+			G_FLOAT(OFS_RETURN) = (unsigned char)instr[ofs];
+	}
 }
 
 //FTE_STRINGS
@@ -3579,6 +3584,13 @@ void QCBUILTIN PF_ArgV  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_INT(OFS_RETURN) = 0;
 	else
 		RETURN_TSTRING(qctoken[idx].token);
+}
+
+void QCBUILTIN PF_argescape(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[8192];
+	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	RETURN_TSTRING(COM_QuotedString(str, temp, sizeof(temp)));
 }
 
 //Console functions

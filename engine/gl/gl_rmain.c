@@ -37,16 +37,10 @@ extern int		gl_stencilbits;
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
-vec3_t		modelorg, r_entorigin;
-
 extern int			r_visframecount;	// bumped when going to a new PVS
 extern int			r_framecount;		// used for dlight push checking
 
-float		r_wateralphaval;	//allowed or not...
-
 //mplane_t	frustum[4];
-
-int			c_brush_polys, c_alias_polys;
 
 //
 // view origin
@@ -99,6 +93,8 @@ texid_t scenepp_texture_edge;
 
 texid_t scenepp_postproc_cube;
 int scenepp_postproc_cube_size;
+
+fbostate_t fbo_gameview;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -381,39 +377,59 @@ void R_SetupGL (float stereooffset)
 		//
 		// set up viewpoint
 		//
-		x = r_refdef.vrect.x * (int)vid.pixelwidth/(int)vid.width;
-		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
-		y = (r_refdef.vrect.y) * (int)vid.pixelheight/(int)vid.height;
-		y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
+		if (r_refdef.rt_destcolour)
+		{
+			//with fbo rendering, we disable all virtual scaling.
+			x = r_refdef.vrect.x;
+			x2 = r_refdef.vrect.x + r_refdef.vrect.width;
+			y = r_refdef.vrect.y;
+			y2 = r_refdef.vrect.y + r_refdef.vrect.height;
 
-		// fudge around because of frac screen scale
-		if (x > 0)
-			x--;
-		if (x2 < vid.pixelwidth)
-			x2++;
-		if (y2 < vid.pixelheight)
-			y2++;
-		if (y > 0)
-			y--;
+			w = x2 - x;
+			h = y2 - y;
 
-		w = x2 - x;
-		h = y2 - y;
+			r_refdef.pxrect.x = x;
+			r_refdef.pxrect.y = y;
+			r_refdef.pxrect.width = w;
+			r_refdef.pxrect.height = h;
+			r_refdef.pxrect.maxheight = vid.fbpheight;
+		}
+		else
+		{
+			x = r_refdef.vrect.x * (int)vid.pixelwidth/(int)vid.width;
+			x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
+			y = (r_refdef.vrect.y) * (int)vid.pixelheight/(int)vid.height;
+			y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
 
+
+			// fudge around because of frac screen scale
+			if (x > 0)
+				x--;
+			if (x2 < vid.pixelwidth)
+				x2++;
+			if (y2 < vid.pixelheight)
+				y2++;
+			if (y > 0)
+				y--;
+
+			w = x2 - x;
+			h = y2 - y;
+
+			if (stereooffset && r_stereo_method.ival == 5)
+			{
+				w /= 2;
+				if (stereooffset > 0)
+					x += vid.pixelwidth/2;
+			}
+
+			r_refdef.pxrect.x = x;
+			r_refdef.pxrect.y = y;
+			r_refdef.pxrect.width = w;
+			r_refdef.pxrect.height = h;
+			r_refdef.pxrect.maxheight = vid.pixelheight;
+		}
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
-
-		if (stereooffset && r_stereo_method.ival == 5)
-		{
-			w /= 2;
-			if (stereooffset > 0)
-				x += vid.pixelwidth/2;
-		}
-
-		r_refdef.pxrect.x = x;
-		r_refdef.pxrect.y = y;
-		r_refdef.pxrect.width = w;
-		r_refdef.pxrect.height = h;
-		r_refdef.pxrect.maxheight = vid.pixelheight;
 
 		GL_ViewportUpdate();
 
@@ -969,6 +985,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		qglClipPlane(GL_CLIP_PLANE0, glplane);
 		qglEnable(GL_CLIP_PLANE0);
 	}*/
+	//fixme: we can probably scissor a smaller frusum
 	R_SetFrustum (r_refdef.m_projection, vmat);
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
@@ -1101,7 +1118,7 @@ void R_Clear (void)
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
-		if (r_clear.ival && r_refdef.grect.x == 0 && r_refdef.grect.y == 0 && r_refdef.grect.width == vid.width && r_refdef.grect.height == vid.height && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && r_refdef.grect.x == 0 && r_refdef.grect.y == 0 && (unsigned)r_refdef.grect.width == vid.fbvwidth && (unsigned)r_refdef.grect.height == vid.fbvheight && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		{
 			qglClearColor(1, 0, 0, 0);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1208,10 +1225,12 @@ static void R_RenderMotionBlur(void)
 			"}\n"
 		"}\n"
 		);
-	GLBE_RenderToTexture(sceneblur_texture, r_nulltex, r_nulltex, r_nulltex, false);
+//	GLBE_RenderToTexture(sceneblur_texture, r_nulltex, r_nulltex, r_nulltex, false);
+	Con_Printf("FIXME: tex_sourcecolour = sceneblur_texture\n");
 	R2D_ImageColours(1, 1, 1, gl_motionblur.value);
 	R2D_Image(0, 0, vid.width, vid.height, cs-vs, ct+vt, cs+vs, ct-vt, shader);
-	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
+	Con_Printf("FIXME: tex_sourcecolour = reset\n");
+//	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
 
 	//grab the current image so we can feed that back into the next frame.
 	GL_MTBind(0, GL_TEXTURE_2D, sceneblur_texture);
@@ -1402,21 +1421,22 @@ r_refdef must be set before the first call
 */
 void GLR_RenderView (void)
 {
+	int oldfbo = 0;
+	int dofbo = r_refdef.rt_destcolour || r_refdef.rt_depth;
 	double	time1 = 0, time2;
 
 	checkglerror();
 
+	GL_DoSwap();
+
 	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
-	{
-		GL_DoSwap();
 		return;
-	}
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	{
+		//FIXME: fbo stuff
 		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
 		{
-			GL_DoSwap();
-
 			GL_Set2D (false);
 			R2D_ImageColours(0, 0, 0, 1);
 			R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
@@ -1424,8 +1444,52 @@ void GLR_RenderView (void)
 			return;
 		}
 //		Sys_Error ("R_RenderView: NULL worldmodel");
+	}
 
+	BE_Scissor(NULL);
+	if (dofbo)
+	{
+		unsigned int flags = 0;
+		texid_t col = r_nulltex, depth = r_nulltex;
+		unsigned int cw=0, ch=0, dw=0, dh=0;
+		//3d views generally ignore source colour+depth.
+		//FIXME: support depth with no colour
+		if (r_refdef.rt_destcolour)
+			col = R2D_RT_GetTexture(r_refdef.rt_destcolour, &cw, &ch);
+		if (r_refdef.rt_depth)
+			depth = R2D_RT_GetTexture(r_refdef.rt_depth, &dw, &dh);
 
+		if (r_refdef.rt_destcolour)
+		{ 	//colour (with or without depth)
+			if (r_refdef.rt_depth && (dw != cw || dh != dh))
+			{
+				Con_Printf("RT: destcolour and depth render targets are of different sizes\n");	//should check rgb/depth modes too I guess.
+				depth = r_nulltex;
+			}
+			vid.fbvwidth = vid.fbpwidth = cw;
+			vid.fbvheight = vid.fbpheight = ch;
+		}
+		else
+		{	//depth, with no colour
+			vid.fbvwidth = vid.fbpwidth = dw;
+			vid.fbvheight = vid.fbpheight = dh;
+		}
+		if (TEXVALID(col))
+			flags |= FBO_TEX_COLOUR;
+		if (TEXVALID(depth))
+			flags |= FBO_TEX_DEPTH;
+		else
+			flags |= FBO_RB_DEPTH;
+		oldfbo = GLBE_FBO_Update(&fbo_gameview, true, flags, col, depth, vid.fbpwidth, vid.fbpheight);
+		//oldfbo will probably be the 2d fbo
+	}
+	else 
+	{
+		vid.fbvwidth = vid.width;
+		vid.fbvheight = vid.height;
+		vid.fbpwidth = vid.pixelwidth;
+		vid.fbpheight = vid.pixelheight;
+	}
 
 	if (qglPNTrianglesiATI)
 	{
@@ -1452,11 +1516,9 @@ void GLR_RenderView (void)
 	if (r_speeds.ival)
 	{
 		time1 = Sys_DoubleTime ();
-		c_brush_polys = 0;
-		c_alias_polys = 0;
 	}
 
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
+	if (!dofbo && !(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
 	{
 
 	}
@@ -1481,16 +1543,23 @@ void GLR_RenderView (void)
 
 		RQuantAdd(RQUANT_MSECS, (int)((time2-time1)*1000000));
 
-		RQuantAdd(RQUANT_WPOLYS, c_brush_polys);
-		RQuantAdd(RQUANT_EPOLYS, c_alias_polys);
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys);
 	}
 
 	checkglerror();
 
-	GL_Set2D (false);
+	//update stuff now that we're not rendering the 3d scene
+	if (dofbo)
+		GLBE_RenderToTextureUpdate2d(true);
+	else
+	{
+		GLBE_RenderToTextureUpdate2d(false);
+		GL_Set2D (false);
+	}
 
-	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || r_secondaryview)
+	//FIXME: support bloom+waterwarp even when drawing to an fbo?
+	//FIXME: force waterwarp to a temp fbo always
+	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || r_secondaryview || dofbo)
 		return;
 
 	if (r_secondaryview)

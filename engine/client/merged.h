@@ -256,10 +256,17 @@ typedef enum uploadfmt
         TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
         TF_H2_T4A4,     /*8bit data, weird packing*/
 
-        /*anything below requires a palette*/
+        /*this block requires a palette*/
         TF_PALETTES,
         TF_8PAL24,
-        TF_8PAL32
+        TF_8PAL32,
+
+		/*for render targets*/
+		TF_DEPTH16,
+		TF_DEPTH24,
+		TF_DEPTH32,
+		TF_RGBA16F,
+		TF_RGBA32F
 } uploadfmt_t;
 
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
@@ -369,3 +376,7 @@ typedef struct rendererinfo_s {
 #define BE_VBO_Finish			rf->BE_VBO_Finish
 #define BE_VBO_Destroy			rf->BE_VBO_Destroy
 #define BE_Scissor				rf->BE_Scissor
+
+texid_t R2D_RT_Configure(unsigned int id, int width, int height, uploadfmt_t rtfmt);
+texid_t R2D_RT_GetTexture(unsigned int id, unsigned int *width, unsigned int *height);
+

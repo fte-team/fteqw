@@ -1734,8 +1734,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 //	if (skipcmd)
 //		return;
 
-	if (!fullsend)
+	if (!fullsend || !msecstouse)
 		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
+
+	if (msecstouse > 127)
+		Con_Printf("%i\n", msecstouse, msecs);
 
 #ifdef NQPROT
 	if (cls.protocol != CP_NETQUAKE || cls.netchan.nqreliable_allowed)

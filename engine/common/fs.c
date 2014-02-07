@@ -12,12 +12,7 @@
 #include "winquake.h"
 #endif
 
-#if defined(MINGW) && defined(_SDL)
-#include "./mingw-libs/SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
-#endif
-
 hashtable_t filesystemhash;
-qboolean blockcache = true;
 qboolean com_fschanged = true;
 static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
@@ -315,27 +310,27 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 	if (*fname == '*')
 		fname++;
 
-	if (!stricmp(fname, "game"))
+	if (!Q_strcasecmp(fname, "game"))
 	{
 		Z_Free(man->installation);
 		man->installation = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!stricmp(fname, "name"))
+	else if (!Q_strcasecmp(fname, "name"))
 	{
 		Z_Free(man->formalname);
 		man->formalname = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!stricmp(fname, "protocolname"))
+	else if (!Q_strcasecmp(fname, "protocolname"))
 	{
 		Z_Free(man->protocolname);
 		man->protocolname = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!stricmp(fname, "defaultexec"))
+	else if (!Q_strcasecmp(fname, "defaultexec"))
 	{
 		Z_Free(man->defaultexec);
 		man->defaultexec = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!stricmp(fname, "basegame") || !stricmp(fname, "gamedir"))
+	else if (!Q_strcasecmp(fname, "basegame") || !Q_strcasecmp(fname, "gamedir"))
 	{
 		int i;
 		char *newdir = Cmd_Argv(1);
@@ -351,7 +346,7 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 			{
 				if (!man->gamepath[i].path)
 				{
-					man->gamepath[i].base = !stricmp(fname, "basegame");
+					man->gamepath[i].base = !Q_strcasecmp(fname, "basegame");
 					man->gamepath[i].path = Z_StrDup(newdir);
 					break;
 				}
@@ -367,7 +362,7 @@ static void FS_Manifest_ParseTokens(ftemanifest_t *man)
 		qboolean crcknown;
 		int crc;
 		int i, j;
-		if (!stricmp(fname, "package"))
+		if (!Q_strcasecmp(fname, "package"))
 			Cmd_ShiftArgs(1, false);
 
 		crcknown = (strcmp(Cmd_Argv(1), "-") && *Cmd_Argv(1));
@@ -527,7 +522,7 @@ COM_Dir_f
 
 ============
 */
-static int QDECL COM_Dir_List(const char *name, int size, void *parm, searchpathfuncs_t *spath)
+static int QDECL COM_Dir_List(const char *name, qofs_t size, void *parm, searchpathfuncs_t *spath)
 {
 	searchpath_t	*s;
 	for (s=com_searchpaths ; s ; s=s->next)
@@ -535,7 +530,14 @@ static int QDECL COM_Dir_List(const char *name, int size, void *parm, searchpath
 		if (s->handle == spath)
 			break;
 	}
-	Con_Printf("%s  (%i) (%s)\n", name, size, s?s->logicalpath:"??");
+	if (size > 1.0*1024*1024*1024)
+		Con_Printf("%s \t(%#.3ggb) (%s)\n", name, size/(1024.0*1024*1024), s?s->logicalpath:"??");
+	else if (size > 1.0*1024*1024)
+		Con_Printf("%s \t(%#.3gmb) (%s)\n", name, size/(1024.0*1024), s?s->logicalpath:"??");
+	else if (size > 1.0*1024)
+		Con_Printf("%s \t(%#.3gkb) (%s)\n", name, size/1024.0, s?s->logicalpath:"??");
+	else
+		Con_Printf("%s \t(%ub) (%s)\n", name, (unsigned int)size, s?s->logicalpath:"??");
 	return 1;
 }
 
@@ -668,26 +670,32 @@ static void COM_CopyFile (char *netpath, char *cachepath)
 int fs_hash_dups;
 int fs_hash_files;
 
+//normally the filesystem drivers pass a pre-allocated bucket and static strings to us
+//the OS driver can't really be expected to track things that reliably however, so it just gives names via the stack.
+//these files are grouped up to avoid excessive memory allocations.
+struct fsbucketblock
+{
+	struct fsbucketblock *prev;
+	int used;
+	int total;
+	qbyte data[1];
+};
+static struct fsbucketblock *fs_hash_filebuckets;
+
 void FS_FlushFSHashReally(void)
 {
 	if (filesystemhash.numbuckets)
 	{
 		int i;
-		fsbucket_t *bucket, *next;
-
 		for (i = 0; i < filesystemhash.numbuckets; i++)
-		{
-			bucket = (fsbucket_t*)filesystemhash.bucket[i];
 			filesystemhash.bucket[i] = NULL;
-			while(bucket)
-			{
-				next = (fsbucket_t*)bucket->buck.next;
-				/*if the string starts right after the bucket, free it*/
-				if (bucket->depth < 0)
-					Z_Free(bucket);
-				bucket = next;
-			}
-		}
+	}
+
+	while (fs_hash_filebuckets)
+	{
+		struct fsbucketblock *n = fs_hash_filebuckets->prev;
+		Z_Free(fs_hash_filebuckets);
+		fs_hash_filebuckets = n;
 	}
 
 	com_fschanged = true;
@@ -710,27 +718,34 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	if (old)
 	{
 		fs_hash_dups++;
-		if (depth >= ((old->depth<0)?(-old->depth-1):old->depth))
+		if (depth >= old->depth)
 		{
 			return;
 		}
 
 		//remove the old version
 		Hash_RemoveBucket(&filesystemhash, fname, &old->buck);
-		if (old->depth < 0)
-			Z_Free(old);
 	}
 
 	if (!filehandle)
 	{
-		filehandle = Z_Malloc(sizeof(*filehandle) + strlen(fname)+1);
+		int nlen = strlen(fname)+1;
+		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+sizeof(*filehandle)+nlen > fs_hash_filebuckets->total)
+		{
+			void *o = fs_hash_filebuckets;
+			fs_hash_filebuckets = Z_Malloc(65536);
+			fs_hash_filebuckets->total = 65536 - sizeof(*fs_hash_filebuckets);
+			fs_hash_filebuckets->prev = o;
+		}
+		filehandle = (fsbucket_t*)(fs_hash_filebuckets->data+fs_hash_filebuckets->used);
+		fs_hash_filebuckets->used += sizeof(*filehandle)+nlen;
+
 		if (!filehandle)
 			return;	//eep!
-		strcpy((char*)(filehandle+1), fname);
+		memcpy((char*)(filehandle+1), fname, nlen);
 		fname = (char*)(filehandle+1);
-		filehandle->depth = -depth-1;
 	}
-	else filehandle->depth = depth;
+	filehandle->depth = depth;
 
 	Hash_AddInsensative(&filesystemhash, fname, pathhandle, &filehandle->buck);
 	fs_hash_files++;
@@ -740,6 +755,9 @@ void FS_RebuildFSHash(void)
 {
 	int depth = 1;
 	searchpath_t	*search;
+	if (!com_fschanged)
+		return;
+
 	if (!filesystemhash.numbuckets)
 	{
 		filesystemhash.numbuckets = 1024;
@@ -810,10 +828,8 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		goto fail;
 	}
 
-	if (com_fs_cache.ival && !blockcache)
+	if (com_fs_cache.ival && !com_fschanged)
 	{
-		if (com_fschanged)
-			FS_RebuildFSHash();
 		pf = Hash_GetInsensative(&filesystemhash, filename);
 		if (!pf)
 			goto fail;
@@ -1088,71 +1104,6 @@ void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags)
 	fs_referencetype = refflag;
 }
 
-
-#if 0
-int COM_FOpenLocationFILE(flocation_t *loc, FILE **file)
-{
-	if (!*loc->rawname)
-	{
-		if (!loc->len)
-		{
-			*file = NULL;
-			return -1;
-		}
-
-		if (loc->search->funcs->ReadFile)
-		{//create a new, temp file, bung the contents of the compressed file into it, then continue.
-			char *buf;
-			FILE *f = tmpfile();
-			buf = BZ_Malloc(loc->len);
-			loc->search->funcs->ReadFile(loc->search->handle, loc, buf);
-			fwrite(buf, 1, loc->len, f);
-			BZ_Free(buf);
-			fseek(f, 0, SEEK_SET);
-
-			*file = f;
-			com_pathforfile = loc->search;
-			return loc->len;
-		}
-		return -1;
-	}
-//	Con_Printf("Opening %s\n", loc->rawname);
-	*file = fopen(loc->rawname, "rb");
-	if (!*file)
-		return -1;
-	fseek(*file, loc->offset, SEEK_SET);
-	com_pathforfile = loc->search;
-	return loc->len;
-}
-
-int COM_FOpenFile(char *filename, FILE **file)
-{
-	flocation_t loc;
-	Con_Printf(CON_ERROR "COM_FOpenFile is obsolete\n");
-	FS_FLocateFile(filename, FSLFRT_LENGTH, &loc);
-
-	com_filesize = -1;
-	if (loc.search)
-	{
-		com_file_copyprotected = loc.search->copyprotected;
-		com_file_untrusted = !!(loc.search->flags & SPF_UNTRUSTED);
-		com_filesize = COM_FOpenLocationFILE(&loc, file);
-	}
-	else
-		*file = NULL;
-	return com_filesize;
-}
-/*
-int COM_FOpenWriteFile(char *filename, FILE **file)
-{
-	COM_CreatePath(filename);
-	*file = fopen(filename, "wb");
-	return !!*file;
-}
-*/
-#endif
-//int COM_FOpenFile (char *filename, FILE **file) {file_from_pak=0;return COM_FOpenFile2 (filename, file, false);}	//FIXME: TEMPORARY
-
 //outbuf might not be written into
 static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
 {
@@ -1219,7 +1170,7 @@ vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 		return handle;
 //	ext = COM_FileExtension (filename);
 #ifdef AVAIL_ZLIB
-//	if (!stricmp(ext, ".gz"))
+//	if (!Q_strcasecmp(ext, ".gz"))
 	{
 		return FS_DecompressGZip(handle, NULL);
 	}
@@ -1482,7 +1433,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 {
 	vfsfile_t *f;
 	qbyte *buf;
-	int len;
+	qofs_t len;
 	char	base[MAX_OSPATH];
 	flocation_t loc;
 	FS_FLocateFile(path, FSLFRT_LENGTH, &loc);
@@ -1490,6 +1441,8 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 	if (!loc.search)
 		return NULL;	//wasn't found
 
+	if (loc.len > 0x7fffffff)	//don't malloc 5000gb sparse files or anything crazy on a 32bit system...
+		return NULL;
 
 	f = loc.search->handle->OpenVFS(loc.search->handle, &loc, "rb");
 	if (!f)
@@ -1581,11 +1534,11 @@ qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize)
 
 
 /*warning: at some point I'll change this function to return only read-only buffers*/
-int FS_LoadFile(char *name, void **file)
+qofs_t FS_LoadFile(char *name, void **file)
 {
 	*file = FS_LoadMallocFile(name);
 	if (!*file)
-		return -1;
+		return (qofs_t)-1;
 	return com_filesize;
 }
 void FS_FreeFile(void *file)
@@ -1595,7 +1548,7 @@ void FS_FreeFile(void *file)
 
 
 
-void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t*), void *parm)
+void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t*), void *parm)
 {
 	searchpath_t    *search;
 	for (search = com_searchpaths; search ; search = search->next)
@@ -1628,7 +1581,7 @@ void COM_FlushTempoaryPacks(void)
 	com_purepaths = NULL;
 }
 
-qboolean COM_LoadMapPackFile (const char *filename, int ofs)
+qboolean COM_LoadMapPackFile (const char *filename, qofs_t ofs)
 {
 	return false;
 }
@@ -1643,7 +1596,7 @@ searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir, unsig
 	{
 		p = *oldpaths;
 
-		if (!stricmp(p->logicalpath, dir))
+		if (!Q_strcasecmp(p->logicalpath, dir))
 		{
 			*keepflags |= p->flags & (SPF_REFERENCED | SPF_UNTRUSTED);
 			*oldpaths = p->next;
@@ -1664,7 +1617,7 @@ typedef struct {
 	const char *puredesc;
 } wildpaks_t;
 
-static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vparam, searchpathfuncs_t *funcs)
+static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, void *vparam, searchpathfuncs_t *funcs)
 {
 	wildpaks_t *param = vparam;
 	vfsfile_t *vfs;
@@ -1679,7 +1632,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, int size, void *vp
 
 	for (search = com_searchpaths; search; search = search->next)
 	{
-		if (!stricmp(search->logicalpath, pakfile))	//assumption: first member of structure is a char array
+		if (!Q_strcasecmp(search->logicalpath, pakfile))	//assumption: first member of structure is a char array
 			return true; //already loaded (base paths?)
 	}
 
@@ -1791,9 +1744,9 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 
 					for (oldp = com_searchpaths; oldp; oldp = oldp->next)
 					{
-						if (!stricmp(oldp->purepath, fs_manifest->package[i].path))
+						if (!Q_strcasecmp(oldp->purepath, fs_manifest->package[i].path))
 							break;
-						if (!stricmp(oldp->logicalpath, lname))
+						if (!Q_strcasecmp(oldp->logicalpath, lname))
 							break;
 					}
 					if (!oldp)
@@ -1902,6 +1855,9 @@ void COM_FlushFSCache(void)
 				com_fschanged |= search->handle->PollChanges(search->handle);
 		}
 	}
+
+	//rebuild it if needed
+	FS_RebuildFSHash();
 }
 
 /*since should start as 0, otherwise this can be used to poll*/
@@ -1940,7 +1896,7 @@ void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const ch
 
 	for (search = com_searchpaths; search; search = search->next)
 	{
-		if (!stricmp(search->logicalpath, dir))
+		if (!Q_strcasecmp(search->logicalpath, dir))
 			return; //already loaded (base paths?)
 	}
 
@@ -2554,7 +2510,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				//this works around 1.01 vs 1.06 issues.
 				for (sp = com_searchpaths; sp; sp = sp->next)
 				{
-					if (!stricmp(pname, sp->purepath))
+					if (!Q_strcasecmp(pname, sp->purepath))
 						break;
 				}
 			}
@@ -2847,17 +2803,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		BROWSEINFO bi;
 		LPITEMIDLIST il;
 		memset(&bi, 0, sizeof(bi));
-
-		#if defined(_SDL) && defined (WIN32) && defined (MINGW) // mingw32 sdl cross compiled binary, code completely untested, doesn't crash so good sign ~moodles
-			SDL_SysWMinfo wmInfo;
-			SDL_GetWMInfo(&wmInfo);
-			HWND sys_parentwindow = wmInfo.window;
-
-		if (sys_parentwindow)
-			bi.hwndOwner = sys_parentwindow; //note that this is usually still null
-		else
-		#endif
-			bi.hwndOwner = mainwindow; //note that this is usually still null
+		bi.hwndOwner = mainwindow; //note that this is usually still null
 		bi.pidlRoot = NULL;
 		bi.pszDisplayName = resultpath;
 		bi.lpszTitle = va("Please locate your existing %s installation", poshname);
@@ -3461,8 +3407,6 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	}
 	fs_manifest = man;
 
-	blockcache = true;
-
 	if (man->installation && *man->installation)
 	{
 		for (i = 0; gamemode_info[i].argname; i++)
@@ -3562,7 +3506,9 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 			}
 		}
 	}
-	blockcache = false;
+
+	//rebuild the cache now, should be safe to waste some cycles on it
+	FS_RebuildFSHash();
 
 	COM_Effectinfo_Clear();
 #ifndef SERVERONLY
@@ -3589,7 +3535,7 @@ void FS_ChangeGame_f(void)
 	{
 		for (i = 0; gamemode_info[i].argname; i++)
 		{			
-			if (!stricmp(gamemode_info[i].argname+1, arg))
+			if (!Q_strcasecmp(gamemode_info[i].argname+1, arg))
 			{
 				Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
 				FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true);

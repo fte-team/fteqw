@@ -439,7 +439,14 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	p = R2D_SafeCachePic(picname);
 	if (!p)
 		p = R2D_SafePicFromWad(picname);
-	G_FLOAT(OFS_RETURN) = !!p;
+
+	if (!p)
+	{
+		if (!CL_IsDownloading(picname))
+			p = R2D_SafeCachePic("no_texture");
+	}
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);

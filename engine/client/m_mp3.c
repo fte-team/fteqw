@@ -701,7 +701,7 @@ void M_Media_Draw (void)
 char compleatenamepath[MAX_OSPATH];
 char compleatenamename[MAX_OSPATH];
 qboolean compleatenamemultiple;
-int QDECL Com_CompleatenameCallback(const char *name, int size, void *data, searchpathfuncs_t *spath)
+int QDECL Com_CompleatenameCallback(const char *name, qofs_t size, void *data, searchpathfuncs_t *spath)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
@@ -1480,7 +1480,7 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 
 	FS_FLocateFile(name, FSLFRT_DEPTH_OSONLY, &loc);
 
-	if (!loc.offset && !qAVIFileOpenA(&pavi, loc.rawname, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
+	if (!loc.offset && *loc.rawname && !qAVIFileOpenA(&pavi, loc.rawname, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
 	{
 		int filmwidth;
 		int filmheight;

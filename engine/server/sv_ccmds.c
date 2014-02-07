@@ -374,7 +374,7 @@ void SV_Give_f (void)
 	}
 }
 
-int QDECL ShowMapList (const char *name, int flags, void *parm, searchpathfuncs_t *spath)
+int QDECL ShowMapList (const char *name, qofs_t flags, void *parm, searchpathfuncs_t *spath)
 {
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
@@ -630,10 +630,13 @@ void SV_Map_f (void)
 	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 	{
 		/*pass the new map's name as an extension, so appropriate loading screens can be shown*/
-		if (ISNQCLIENT(host_client))
-			SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
-		else
-			SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
+		if (host_client->controller == NULL)
+		{
+			if (ISNQCLIENT(host_client))
+				SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
+			else
+				SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
+		}
 		host_client->prespawn_stage = PRESPAWN_INVALID;
 		host_client->prespawn_idx = 0;
 	}
@@ -1711,6 +1714,9 @@ void SV_SendServerInfoChange(char *key, const char *value)
 
 	FOREACHCLIENT(i, cl)
 	{
+		if (cl->controller)
+			continue;
+
 		if (ISQWCLIENT(cl))
 		{
 			ClientReliableWrite_Begin(cl, svc_serverinfo, strlen(key) + strlen(value)+3);

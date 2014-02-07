@@ -526,9 +526,9 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if (FS_LoadFile(name, (void **)&f) != -1)
+	if (!qofs_Error(FS_LoadFile(name, (void **)&f)))
 		;
-	else if (FS_LoadFile(va("%s.cfg", name), (void **)&f) != -1)
+	else if (!qofs_Error(FS_LoadFile(va("%s.cfg", name), (void **)&f)))
 		;
 	else
 	{
@@ -1928,7 +1928,13 @@ void Cmd_ForwardToServer_f (void)
 	}
 
 	if (Cmd_Argc() > 1)
-		CL_SendClientCommand(true, "%s", Cmd_Args());
+	{
+		int split = CL_TargettedSplit(true);
+		if (split)
+			CL_SendClientCommand(true, "%i %s", split+1, Cmd_Args());
+		else
+			CL_SendClientCommand(true, "%s", Cmd_Args());
+	}
 }
 #else
 void Cmd_ForwardToServer (void)

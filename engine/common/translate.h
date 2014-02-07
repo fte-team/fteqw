@@ -12,7 +12,8 @@ struct language_s
 {
 	char *name;
 	struct po_s *po;
-} languages[MAX_LANGUAGES];
+};
+extern struct language_s languages[MAX_LANGUAGES];
 #define langtext(t,l) PO_GetText(languages[l].po, t)
 int TL_FindLanguage(const char *lang);
 

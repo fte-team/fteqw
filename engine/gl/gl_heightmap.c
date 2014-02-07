@@ -163,7 +163,7 @@ struct hmwater_s
 {
 	struct hmwater_s *next;
 	unsigned int contentmask;
-	qboolean simple;
+	qboolean simple;	//no holes, one height
 	float minheight;
 	float maxheight;
 	shader_t *shader;
@@ -555,6 +555,7 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	w->shader = R_RegisterCustom (s->hmmod->watershadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
 #endif
 	w->simple = true;
+	w->contentmask = FTECONTENTS_WATER;
 	memset(w->holes, 0, sizeof(w->holes));
 	for (i = 0; i < 9*9; i++)
 		w->heights[i] = maxheight;
@@ -754,7 +755,7 @@ static void Terr_TrimWater(hmsection_t *s)
 	int i;
 	struct hmwater_s *w, **link;
 
-	for (link = &s->water; (w = *link); link = &(*link)->next)
+	for (link = &s->water; (w = *link); )
 	{
 		//one has a height above the terrain?
 		for (i = 0; i < 9*9; i++)
@@ -766,6 +767,8 @@ static void Terr_TrimWater(hmsection_t *s)
 			Z_Free(w);
 			continue;
 		}
+		else
+			link = &(*link)->next;
 	}
 }
 static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int sy)
@@ -831,7 +834,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	for (j = 0, w = s->water; w; j++)
 		w = w->next;
 	Terr_Write_SInt(&strm, j);
-	for (i = 0; i < j; i++)
+	for (i = 0, w = s->water; i < j; i++, w = w->next)
 	{
 		char *shadername = w->shader->name;
 		int fl = 0;
@@ -917,9 +920,6 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	for (i = 0; i < s->numents; i++)
 	{
 		unsigned int mf;
-		mf = 0;
-		if (s->ents[i].scale != 1)
-			mf |= TMF_SCALE;
 
 		//make sure we don't overflow. we should always be aligned at this point.
 		if (strm.pos > strm.maxsize/2)
@@ -928,6 +928,10 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 			strm.pos = 0;
 		}
 
+		mf = 0;
+		if (s->ents[i].scale != 1)
+			mf |= TMF_SCALE;
+		Terr_Write_SInt(&strm, mf);
 		if (s->ents[i].model)
 			Terr_Write_String(&strm, s->ents[i].model->name);
 		else
@@ -996,6 +1000,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		int fl = Terr_Read_SInt(&strm);
 		w->next = s->water;
 		s->water = w;
+		w->simple = true;
 		w->contentmask = Terr_Read_SInt(&strm);
 		if (fl & 1)
 			Terr_Read_String(&strm, shadername, sizeof(shadername));
@@ -1009,6 +1014,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		{
 			for (x = 0; x < 8; x++)
 				w->holes[i] = Terr_Read_Byte(&strm);
+			w->simple = false;
 		}
 		if (fl & 4)
 		{
@@ -1016,6 +1022,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 			{
 				w->heights[x] = Terr_Read_Float(&strm);
 			}
+			w->simple = false;
 		}
 		else
 		{	//all heights the same can be used as a way to compress the data
@@ -1071,7 +1078,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 					for (x = 0; x < SECTTEXSIZE; x++)
 					{
 						delta = Terr_Read_Byte(&strm);
-						last += delta;
+						last = (last+delta)&0xff;
 						lm[x*4+j] = last;
 					}
 					lm += (HMLMSTRIDE)*lightmap_bytes;
@@ -1146,6 +1153,9 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	return ptr;
 }
 
+//#include "gl_adt.inc"
+//#include "gl_m2.inc"
+
 static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 {
 	int i;
@@ -1195,7 +1205,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 
 #if 0//def DEBUG
 	void *f;
-	if (lightmap_bytes == 4 && lightmap_bgra && FS_LoadFile(va("maps/%s/splatt.png", hm->path), &f) >= 0)
+	if (lightmap_bytes == 4 && lightmap_bgra && FS_LoadFile(va("maps/%s/splatt.png", hm->path), &f) != (qofs_t)-1)
 	{
 		//temp
 		int vx, vy;
@@ -1239,7 +1249,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 		FS_FreeFile(f);
 	}
 
-	if (lightmap_bytes == 4 && lightmap_bgra && FS_LoadFile(va("maps/%s/heightmap.png", hm->path), &f) >= 0)
+	if (lightmap_bytes == 4 && lightmap_bgra && !qofs_Error(FS_LoadFile(va("maps/%s/heightmap.png", hm->path), &f)))
 	{
 		//temp
 		int vx, vy;
@@ -1278,7 +1288,6 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 	}
 #endif
 }
-
 static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, void *filebase, unsigned int filelen)
 {
 	void *ptr = filebase;
@@ -1322,7 +1331,7 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, v
 #ifndef SERVERONLY
 qboolean Terr_DownloadedSection(char *fname)
 {
-	int len;
+	qofs_t len;
 	dsection_t *fileptr;
 	int x, y;
 	heightmap_t *hm;
@@ -1336,9 +1345,9 @@ qboolean Terr_DownloadedSection(char *fname)
 	if (Terr_IsSectionFName(hm, fname, &x, &y))
 	{
 		fileptr = NULL;
-		len = FS_LoadFile(fname, &fileptr);
+		len = FS_LoadFile(fname, (void**)&fileptr);
 
-		if (len >= sizeof(*fileptr) && fileptr->magic == SECTION_MAGIC)
+		if (!qofs_Error(len) && len >= sizeof(*fileptr) && fileptr->magic == SECTION_MAGIC)
 			Terr_ReadSection(hm, ver, x, y, fileptr+1, len - sizeof(*fileptr));
 		else
 			Terr_ReadSection(hm, ver, x, y, NULL, 0);
@@ -1355,7 +1364,7 @@ qboolean Terr_DownloadedSection(char *fname)
 static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, unsigned int flags)
 {
 	void *diskimage;
-	int len;
+	qofs_t len;
 	int ver = 0;
 #ifndef SERVERONLY
 	//when using networked terrain, the client will never load a section from disk, but will only load it from the server
@@ -1373,7 +1382,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 
 #if SECTIONSPERBLOCK > 1
 	len = FS_LoadFile(Terr_DiskBlockName(hm, sx, sy), (void**)&diskimage);
-	if (len >= 0)
+	if (!qofs_Error(len))
 	{
 		int offset;
 		int x, y;
@@ -1416,7 +1425,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 
 	//legacy one-section-per-file format.
 	len = FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&diskimage);
-	if (len >= 0)
+	if (!qofs_Error(len))
 	{
 		dsection_t *h = diskimage;
 		if (len >= sizeof(*h) && h->magic == SECTION_MAGIC)
@@ -1439,7 +1448,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 
 	//download it if it couldn't be loaded.
 #ifndef SERVERONLY
-	if (!cl.downloadlist)
+	if (!cl.downloadlist && !(flags & TGS_NODOWNLOAD))
 		CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, sx, sy), NULL, 0);
 #endif
 }
@@ -2013,7 +2022,7 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmw
 			{
 				cl_strisvertv[cl_numstrisvert][0] = mins[0] + step*x;
 				cl_strisvertv[cl_numstrisvert][1] = mins[1] + step*y;
-				cl_strisvertv[cl_numstrisvert][2] = w->heights[x + y*8];
+				cl_strisvertv[cl_numstrisvert][2] = w->heights[x + y*9];
 				cl_strisvertt[cl_numstrisvert][0] = cl_strisvertv[cl_numstrisvert][0]/64;
 				cl_strisvertt[cl_numstrisvert][1] = cl_strisvertv[cl_numstrisvert][1]/64;
 				Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
@@ -2116,6 +2125,7 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 	switch(hm->mode)
 	{
 	case HMM_BLOCKS:
+		//tiles, like dungeon keeper
 		if (mesh->xyz_array)
 			BZ_Free(mesh->xyz_array);
 		{
@@ -2314,6 +2324,7 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 		}
 		break;
 	case HMM_TERRAIN:
+		//smooth terrain
 		if (!mesh->xyz_array)
 		{
 			mesh->xyz_array = BZ_Malloc((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
@@ -3452,19 +3463,37 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	return trace->fraction < 1;
 }
 
+typedef struct
+{
+	int id;
+	int x, y;
+} hmpvs_t;
 unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int pvssize, qboolean add)
 {
-	return 0;
+	//embed the org onto the pvs
+	hmpvs_t *hmpvs = (hmpvs_t*)pvsbuffer;
+	hmpvs->id = 0xdeadbeef;
+	hmpvs->x = org[0];
+	hmpvs->y = org[1];
+	return sizeof(*hmpvs);
 }
 
 #ifndef CLIENTONLY
 qboolean Heightmap_EdictInFatPVS	(model_t *mod, struct pvscache_s *edict, qbyte *pvsdata)
 {
-	return true;
+	int x,y;
+	hmpvs_t *hmpvs = (hmpvs_t*)pvsdata;
+	//check distance
+	x = edict->areanum - hmpvs->x;
+	y = edict->areanum2 - hmpvs->y;
+
+	return (x*x+y*y) < 4096*4096;
 }
 
 void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, float *maxs)
 {
+	ent->areanum = (mins[0] + maxs[0]) * 0.5;
+	ent->areanum2 = (mins[1] + maxs[1]) * 0.5;
 }
 #endif
 

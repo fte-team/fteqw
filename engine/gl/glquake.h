@@ -278,7 +278,6 @@ extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
 extern	int			r_framecount;
 
-extern float r_wateralphaval;
 extern qboolean		r_loadbumpmapping;
 
 //

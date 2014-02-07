@@ -89,13 +89,11 @@ struct {
 		texid_t tex_normals;
 		texid_t tex_diffuse;
 		int fbo_current;	//the one currently being rendered to
-		int fbo_diffuse;
-		int rb_depth;
-		int rb_stencil;
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
-		int fbo_depthless;
-		int fbo_reflection;
+		fbostate_t fbo_2dfbo;
+		fbostate_t fbo_reflectrefrac;
+		fbostate_t fbo_lprepass;
 		texid_t tex_reflection;	/*basically a portal rendered to texture*/
 		texid_t tex_refraction;	/*the (culled) underwater view*/
 		texid_t tex_refractiondepth;	/*the (culled) underwater view*/
@@ -1501,6 +1499,11 @@ static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
 			dst[1] = DotProduct(tc_gen_t, src[i]);
 		}
 		return dst;
+
+//	case TC_GEN_SKYBOX:
+//	case TC_GEN_WOBBLESKY:
+//	case TC_GEN_REFLECT:
+//		break;
 	}
 }
 
@@ -2348,14 +2351,14 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int tmu)
 	if (!pass->numtcmods)
 	{
 		//if there are no tcmods, pass through here as fast as possible
-		if (pass->tcgen == TC_GEN_BASE)
+		switch(pass->tcgen)
 		{
+		case TC_GEN_BASE:
 			shaderstate.pendingtexcoordparts[tmu] = 2;
 			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
 			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->texcoord.gl.addr;
-		}
-		else if (pass->tcgen == TC_GEN_LIGHTMAP)
-		{
+			break;
+		case TC_GEN_LIGHTMAP:
 			if (!shaderstate.sourcevbo->lmcoord[0].gl.addr)
 			{
 				shaderstate.pendingtexcoordparts[tmu] = 2;
@@ -2368,29 +2371,30 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int tmu)
 				shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->lmcoord[0].gl.vbo;
 				shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->lmcoord[0].gl.addr;
 			}
-		}
-		else if (pass->tcgen == TC_GEN_NORMAL)
-		{
+			break;
+		case TC_GEN_NORMAL:
 			shaderstate.pendingtexcoordparts[tmu] = 3;
 			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->normals.gl.vbo;
 			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->normals.gl.addr;
-		}
-		else if (pass->tcgen == TC_GEN_SVECTOR)
-		{
+			break;
+		case TC_GEN_SVECTOR:
 			shaderstate.pendingtexcoordparts[tmu] = 3;
 			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->svector.gl.vbo;
 			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->svector.gl.addr;
-		}
-		else if (pass->tcgen == TC_GEN_TVECTOR)
-		{
+			break;
+		case TC_GEN_TVECTOR:
 			shaderstate.pendingtexcoordparts[tmu] = 3;
 			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->tvector.gl.vbo;
 			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->tvector.gl.addr;
-		}
-		else
-		{
+			break;
+		//	case TC_GEN_SKYBOX:
+			//position - viewpos
+//	case TC_GEN_WOBBLESKY:
+//	case TC_GEN_REFLECT:
+		default:
 			//specular highlights and reflections have no fixed data, and must be generated.
 			GenerateTCMods(pass, tmu);
+			break;
 		}
 	}
 	else
@@ -3775,6 +3779,7 @@ static void DrawMeshes(void)
 
 	case BEM_WIREFRAME:
 		//FIXME: do this with a shader instead? its not urgent as we can draw the shader normally anyway, just faster.
+		//FIXME: we need to use a shader for vertex blending. not really an issue with mdl, but more significant with iqms (base pose!).
 		GL_DeSelectProgram();
 		shaderstate.pendingcolourvbo = 0;
 		shaderstate.pendingcolourpointer = NULL;
@@ -4210,6 +4215,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if ((batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
 		{
+			int oldfbo;
 			float oldil;
 			int oldbem;
 			//these flags require rendering some view as an fbo
@@ -4234,23 +4240,22 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				GL_ForceDepthWritable();
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, r_nulltex, true);
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_reflection, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
-				r_refdef.vrect.width = vid.width/2;
-				r_refdef.vrect.height = vid.height/2;
+				r_refdef.vrect.width = vid.fbvwidth/2;
+				r_refdef.vrect.height = vid.fbvheight/2;
 				r_refdef.pxrect.x = 0;
 				r_refdef.pxrect.y = 0;
-				r_refdef.pxrect.width = vid.pixelwidth/2;
-				r_refdef.pxrect.height = vid.pixelheight/2;
-				r_refdef.pxrect.maxheight = vid.pixelheight/2;
+				r_refdef.pxrect.width = vid.fbpwidth/2;
+				r_refdef.pxrect.height = vid.fbpheight/2;
+				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 				GL_ViewportUpdate();
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 0);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, 1);
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
+				GLBE_FBO_Pop(oldfbo);
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
 				GL_ViewportUpdate();
@@ -4261,7 +4266,6 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				{
 					vrect_t ovrect = r_refdef.vrect;
 					pxrect_t oprect = r_refdef.pxrect;
-					GL_ForceDepthWritable();
 
 					if (!shaderstate.tex_refraction.num)
 					{
@@ -4285,27 +4289,29 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 						}
-						GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, shaderstate.tex_refractiondepth, true);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR|FBO_TEX_DEPTH, shaderstate.tex_refraction, shaderstate.tex_refractiondepth, vid.pixelwidth/2, vid.pixelheight/2);
 					}
 					else
-						GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, r_nulltex, true);
+					{
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_refraction, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
+					}
 
 					r_refdef.vrect.x = 0;
 					r_refdef.vrect.y = 0;
-					r_refdef.vrect.width = vid.width/2;
-					r_refdef.vrect.height = vid.height/2;
+					r_refdef.vrect.width = vid.fbvwidth/2;
+					r_refdef.vrect.height = vid.fbvheight/2;
 					r_refdef.pxrect.x = 0;
 					r_refdef.pxrect.y = 0;
-					r_refdef.pxrect.width = vid.pixelwidth/2;
-					r_refdef.pxrect.height = vid.pixelheight/2;
-					r_refdef.pxrect.maxheight = vid.pixelheight/2;
+					r_refdef.pxrect.width = vid.fbpwidth/2;
+					r_refdef.pxrect.height = vid.fbpheight/2;
+					r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 					GL_ViewportUpdate();
 
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 0);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
-					GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
+					GLBE_FBO_Pop(oldfbo);
 
 					r_refdef.vrect = ovrect;
 					r_refdef.pxrect = oprect;
@@ -4323,22 +4329,22 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					//FIXME: can we use RGB8 instead?
 					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2, 0);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_ripplemap, r_nulltex, false);
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR, shaderstate.tex_ripplemap, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
-				r_refdef.vrect.width = vid.width/2;
-				r_refdef.vrect.height = vid.height/2;
+				r_refdef.vrect.width = vid.fbvwidth/2;
+				r_refdef.vrect.height = vid.fbvheight/2;
 				r_refdef.pxrect.x = 0;
 				r_refdef.pxrect.y = 0;
-				r_refdef.pxrect.width = vid.pixelwidth/2;
-				r_refdef.pxrect.height = vid.pixelheight/2;
-				r_refdef.pxrect.maxheight = vid.pixelheight/2;
+				r_refdef.pxrect.width = vid.fbpwidth/2;
+				r_refdef.pxrect.height = vid.fbpheight/2;
+				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 				GL_ViewportUpdate();
 
 				qglClearColor(0, 0, 0, 0);
@@ -4349,7 +4355,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.recurse+=1; //paranoid, should stop potential infinite loops
 				GLBE_SubmitMeshes(true, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
 				r_refdef.recurse-=1;
-				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
+				GLBE_FBO_Pop(oldfbo);
 
 				r_refdef.vrect = orect;
 				r_refdef.pxrect = oprect;
@@ -4462,6 +4468,179 @@ void GLBE_BaseEntTextures(void)
 }
 #endif
 
+void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
+{
+	unsigned int width, height;
+	if (destchanged)
+	{
+		if (r_refdef.rt_destcolour)
+		{
+			texid_t tex = R2D_RT_GetTexture(r_refdef.rt_destcolour, &width, &height);
+			GLBE_FBO_Update(&shaderstate.fbo_2dfbo, true, FBO_TEX_COLOUR, tex, r_nulltex, width, height);
+		}
+		else
+			GLBE_FBO_Push(NULL);
+		GL_Set2D(false);
+	}
+	else
+	{
+		shaderstate.tex_sourcecol = R2D_RT_GetTexture(r_refdef.rt_sourcecolour, &width, &height);
+		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth, &width, &height);
+	}
+}
+void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth)
+{
+	shaderstate.tex_sourcecol = sourcecolour;
+	shaderstate.tex_sourcedepth = sourcedepth;
+}
+int GLBE_FBO_Push(fbostate_t *state)
+{
+	int newfbo;
+	int oldfbo = shaderstate.fbo_current;
+	if (state)
+		newfbo = state->fbo;
+	else
+		newfbo = 0;
+	if (shaderstate.fbo_current == newfbo)	//don't bother if its not changed (also avoids crashes when fbos are not supported)
+		return oldfbo;
+	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_current=newfbo);
+	return oldfbo;
+}
+void GLBE_FBO_Pop(int oldfbo)
+{
+	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, oldfbo);
+	shaderstate.fbo_current = oldfbo;
+}
+
+void GLBE_FBO_Destroy(fbostate_t *state)
+{
+	if (state->fbo == shaderstate.fbo_current)
+		GLBE_FBO_Push(NULL);
+
+	//wasn't initialised anyway.
+	if (!state->fbo)
+		return;
+
+	qglDeleteFramebuffersEXT(1, &state->fbo);
+	state->fbo = 0;
+
+	if (state->rb_depth)
+		qglDeleteRenderbuffersEXT(1, &state->rb_depth);
+	state->rb_depth = 0;
+	if (state->rb_stencil)
+		qglDeleteRenderbuffersEXT(1, &state->rb_stencil);
+	state->rb_stencil = 0;
+	if (state->rb_depthstencil)
+		qglDeleteRenderbuffersEXT(1, &state->rb_depthstencil);
+	state->rb_depthstencil = 0;
+
+	state->enables = 0;
+}
+
+//state->colour is created if usedepth is set and it doesn't previously exist
+int GLBE_FBO_Update(fbostate_t *state, qboolean bind, unsigned int enables, texid_t destcol, texid_t destdepth, int width, int height)
+{
+	int old;
+
+	if (TEXVALID(destcol))
+	{
+		enables |= FBO_TEX_COLOUR;
+		enables &= ~FBO_RB_COLOUR;
+	}
+	if (TEXVALID(destdepth))
+	{
+		enables |= FBO_TEX_DEPTH;
+		enables &= ~FBO_RB_DEPTH;
+	}
+
+	if ((state->enables ^ enables) & ~FBO_RESET)
+	{
+		GLBE_FBO_Destroy(state);
+		state->enables = enables & ~FBO_RESET;
+		enables |= FBO_RESET;
+	}
+
+	if (!state->fbo)
+	{
+		qglGenFramebuffersEXT(1, &state->fbo);
+		old = GLBE_FBO_Push(state);
+
+		enables |= FBO_RESET;
+	}
+	else
+		old = GLBE_FBO_Push(state);
+
+	if (state->rb_size[0] != width || state->rb_size[1] != height || (enables & FBO_RESET))
+	{
+		if (state->rb_depth && !(enables & FBO_RB_DEPTH))
+		{
+			qglDeleteRenderbuffersEXT(1, &state->rb_depth);
+			state->rb_depth = 0;
+		}
+		if (state->rb_stencil && !(enables & FBO_RB_STENCIL))
+		{
+			qglDeleteRenderbuffersEXT(1, &state->rb_stencil);
+			state->rb_stencil = 0;
+		}
+		state->rb_size[0] = width;
+		state->rb_size[1] = height;
+
+		enables |= FBO_RESET;
+
+		if (enables & (FBO_TEX_COLOUR|FBO_RB_COLOUR))
+		{
+			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			qglReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+		}
+		else
+		{
+			qglDrawBuffer(GL_NONE);
+			qglReadBuffer(GL_NONE);
+		}
+	}
+
+	if (enables & FBO_TEX_DEPTH)
+	{
+		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, destdepth.num, 0);
+		//fixme: no stencil
+	}
+	else if (enables & FBO_RB_DEPTH)
+	{
+		if (!state->rb_depth)
+		{
+			//create an unnamed depth buffer
+			qglGenRenderbuffersEXT(1, &state->rb_depth);
+			qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, state->rb_depth);
+			if (!gl_config.ext_packed_depth_stencil)
+				qglGenRenderbuffersEXT(1, &state->rb_stencil);
+			enables |= FBO_RESET;	//make sure it gets instanciated
+		}
+
+		if (enables & FBO_RESET)
+		{
+			qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, state->rb_depth);
+			if (gl_config.ext_packed_depth_stencil)
+				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, state->rb_size[0], state->rb_size[1]);
+			else
+			{
+				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, state->rb_size[0], state->rb_size[1]);
+
+				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, state->rb_stencil);
+				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, state->rb_size[0], state->rb_size[1]);
+			}
+			qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, state->rb_depth);
+			if (gl_config.ext_packed_depth_stencil)
+				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, state->rb_depth);
+			else
+				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, state->rb_stencil);
+		}
+	}
+
+	if (enables & FBO_TEX_COLOUR)
+		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, destcol.num, 0);
+	return old;
+}
+/*
 void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth)
 {
 	shaderstate.tex_sourcecol = sourcecol;
@@ -4485,16 +4664,12 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
 				if (gl_config.ext_packed_depth_stencil)
 				{
-					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, vid.pixelwidth/2, vid.pixelheight/2);
 					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
 				}
 				else
 				{
-					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2);
-
 					qglGenRenderbuffersEXT(1, &shaderstate.rb_stencil);
 					qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
-					qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, vid.pixelwidth/2, vid.pixelheight/2);
 					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
 				}
 				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
@@ -4507,9 +4682,38 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 			shaderstate.fbo_current = shaderstate.fbo_diffuse;
 
 			if (destdepth.num)
+			{
 				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, destdepth.num, 0);
+				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, 0);
+			}
 			else
+			{
+				//resize the depth renderbuffer if its the wrong size now
+				if (shaderstate.rb_depth_size[0] != r_refdef.fbo_width || shaderstate.rb_depth_size[1] != r_refdef.fbo_height)
+				{
+					shaderstate.rb_depth_size[0] = r_refdef.fbo_width;
+					shaderstate.rb_depth_size[1] = r_refdef.fbo_height;
+
+					qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
+					if (gl_config.ext_packed_depth_stencil)
+					{
+						qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, r_refdef.fbo_width, r_refdef.fbo_height);
+						qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
+					}
+					else
+					{
+						qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, r_refdef.fbo_width, r_refdef.fbo_height);
+
+						qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
+						qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, r_refdef.fbo_width, r_refdef.fbo_height);
+					}
+				}
 				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
+				if (gl_config.ext_packed_depth_stencil)
+					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_depth);
+				else
+					qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, shaderstate.rb_stencil);
+			}
 		}
 		else
 		{
@@ -4530,9 +4734,18 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, destcol.num, 0);
 	}
 }
+*/
 
 void GLBE_DrawLightPrePass(qbyte *vis)
 {
+	/*
+	walls(bumps) -> normalbuffer
+	lights+normalbuffer -> lightlevelbuffer
+	walls(diffuse)+lightlevelbuffer -> screen
+
+	normalbuffer contains depth in the alpha channel. an actual depthbuffer is also generated at this time, which is used for depth test stuff but not as a shader input.
+	*/
+	int oldfbo;
 	if (!shaderstate.initeddepthnorm)
 	{
 		shaderstate.initeddepthnorm = true;
@@ -4579,8 +4792,6 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 	if (!TEXVALID(shaderstate.tex_diffuse))
 	{
-		int drb;
-
 		shaderstate.tex_diffuse = GL_AllocNewTexture("***prepass diffuse***", vid.pixelwidth, vid.pixelheight, 0);
 		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_diffuse);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -4592,26 +4803,12 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 		r_lightprepass.modified = false;
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-
-		qglGenFramebuffersEXT(1, &shaderstate.fbo_diffuse);
-		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
-
-		qglGenRenderbuffersEXT(1, &drb);
-		qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
-		qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth, vid.pixelheight);
-		qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
-
-
-		qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-//		qglReadBuffer(GL_NONE);
 	}
-	else
-		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
 
 	/*set the FB up to draw surface info*/
-	qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, shaderstate.tex_normals.num, 0);
+	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_normals, r_nulltex, vid.pixelwidth, vid.pixelheight);
 	GL_ForceDepthWritable();
+	//FIXME: should probably clear colour buffer too.
 	qglClear(GL_DEPTH_BUFFER_BIT);
 
 	if (GL_FRAMEBUFFER_COMPLETE_EXT != qglCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
@@ -4624,8 +4821,8 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	GLBE_SubmitMeshes(true, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
-	shaderstate.tex_sourcecol = shaderstate.tex_normals;
-	qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, shaderstate.tex_diffuse.num, 0);
+	GLBE_FBO_Sources(shaderstate.tex_normals, r_nulltex);
+	GLBE_FBO_Update(&shaderstate.fbo_lprepass, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_diffuse, r_nulltex, vid.pixelwidth, vid.pixelheight);
 
 	BE_SelectMode(BEM_STANDARD);
 	qglClearColor (0,0,0,0);
@@ -4636,8 +4833,8 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	GLBE_SubmitMeshes(true, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
-	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-	shaderstate.tex_sourcecol = shaderstate.tex_diffuse;
+	GLBE_FBO_Pop(oldfbo);
+	GLBE_FBO_Sources(shaderstate.tex_diffuse, r_nulltex);
 	qglDrawBuffer(GL_BACK);
 
 	/*now draw the postlight passes (this includes blended stuff which will NOT be lit)*/
@@ -4650,9 +4847,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	Sh_DrawLights(vis);
 #endif
 
-	shaderstate.tex_sourcecol = r_nulltex;
-	shaderstate.tex_sourcedepth = r_nulltex;
-
+	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 	qglClearColor (1,0,0,1);
 }
 
@@ -4670,7 +4865,6 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 	if (!r_refdef.recurse)
 	{
-		shaderstate.fbo_current = 0;	//just in case something crashed
 		GL_DoSwap();
 		if (shaderstate.wbatch + 50 > shaderstate.maxwbatches)
 		{
@@ -4684,6 +4878,10 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	}
 	if (shaderstate.oldwidth != vid.pixelwidth || shaderstate.oldheight != vid.pixelheight)
 	{
+		GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
+		GLBE_FBO_Destroy(&shaderstate.fbo_reflectrefrac);
+		GLBE_FBO_Destroy(&shaderstate.fbo_lprepass);
+
 		if (shaderstate.tex_reflection.num)
 		{
 			R_DestroyTexture(shaderstate.tex_reflection);
@@ -4704,17 +4902,6 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			R_DestroyTexture(shaderstate.temptexture);
 			shaderstate.temptexture = r_nulltex;
 		}
-		if (shaderstate.fbo_diffuse)
-		{
-			qglDeleteFramebuffersEXT(1, &shaderstate.fbo_diffuse);
-			shaderstate.fbo_diffuse = 0;
-		}
-		if (shaderstate.rb_depth)
-			qglDeleteRenderbuffersEXT(1, &shaderstate.rb_depth);
-		shaderstate.rb_depth = 0;
-		if (shaderstate.rb_stencil)
-			qglDeleteRenderbuffersEXT(1, &shaderstate.rb_stencil);
-		shaderstate.rb_stencil = 0;
 		shaderstate.oldwidth = vid.pixelwidth;
 		shaderstate.oldheight = vid.pixelheight;
 

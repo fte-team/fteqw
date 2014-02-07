@@ -3,6 +3,11 @@
 
 #ifdef FTEPLUGIN
 #include "quakedef.h"
+#define QPREFIX
+#endif
+
+#if !defined(NOQPREFIX) && !defined(QPREFIX)
+#define QPREFIX
 #endif
 
 #ifdef Q3_VM
@@ -83,7 +88,7 @@ typedef unsigned long quintptr_t;
 #endif
 
 
-#ifndef FTEPLUGIN
+#ifndef QPREFIX
 #define pPlug_GetEngineFunction Plug_GetEngineFunction
 #define pCon_Print Con_Print
 #define pCvar_GetFloat Cvar_GetFloat
@@ -98,7 +103,7 @@ extern "C" {
 
 //DLLs need a wrapper to add the extra parameter and call a boring function.
 #define TEST
-#ifdef FTEPLUGIN
+#ifdef QPREFIX
 	#define EBUILTIN(t, n, args) extern qintptr_t BUILTIN_##n; t p##n args
 	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t p##n args {qintptr_t res; if (!BUILTINISVALID(n))pSys_Error("Builtin "#n" is not valid\n");res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
 	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t p##n args {if (!BUILTINISVALID(n))pSys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}

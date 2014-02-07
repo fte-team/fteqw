@@ -3541,7 +3541,10 @@ void CL_Say (qboolean team, char *extra)
 		CLQ3_SendClientCommand("%s %s%s", team ? "say_team" : "say", extra?extra:"", sendtext);
 	else
 #endif
-		CL_SendClientCommand(true, "%s \"%s%s\"", team ? "say_team" : "say", extra?extra:"", sendtext);
+	{
+		int split = CL_TargettedSplit(true);
+		CL_SendClientCommand(true, "%s%s \"%s%s\"", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
+	}
 }
 
 

@@ -363,10 +363,10 @@ const dReal *   (ODE_API *dBodyGetAngularVel)(dBodyID);
 void            (ODE_API *dBodySetMass)(dBodyID, const dMass *mass);
 //void            (ODE_API *dBodyGetMass)(dBodyID, dMass *mass);
 //void            (ODE_API *dBodyAddForce)(dBodyID, dReal fx, dReal fy, dReal fz);
-//void            (ODE_API *dBodyAddTorque)(dBodyID, dReal fx, dReal fy, dReal fz);
+void            (ODE_API *dBodyAddTorque)(dBodyID, dReal fx, dReal fy, dReal fz);
 //void            (ODE_API *dBodyAddRelForce)(dBodyID, dReal fx, dReal fy, dReal fz);
 //void            (ODE_API *dBodyAddRelTorque)(dBodyID, dReal fx, dReal fy, dReal fz);
-//void            (ODE_API *dBodyAddForceAtPos)(dBodyID, dReal fx, dReal fy, dReal fz, dReal px, dReal py, dReal pz);
+void            (ODE_API *dBodyAddForceAtPos)(dBodyID, dReal fx, dReal fy, dReal fz, dReal px, dReal py, dReal pz);
 //void            (ODE_API *dBodyAddForceAtRelPos)(dBodyID, dReal fx, dReal fy, dReal fz, dReal px, dReal py, dReal pz);
 //void            (ODE_API *dBodyAddRelForceAtPos)(dBodyID, dReal fx, dReal fy, dReal fz, dReal px, dReal py, dReal pz);
 //void            (ODE_API *dBodyAddRelForceAtRelPos)(dBodyID, dReal fx, dReal fy, dReal fz, dReal px, dReal py, dReal pz);
@@ -389,8 +389,8 @@ dJointID        (ODE_API *dBodyGetJoint)(dBodyID, int index);
 //void            (ODE_API *dBodySetDynamic)(dBodyID);
 //void            (ODE_API *dBodySetKinematic)(dBodyID);
 //int             (ODE_API *dBodyIsKinematic)(dBodyID);
-//void            (ODE_API *dBodyEnable)(dBodyID);
-//void            (ODE_API *dBodyDisable)(dBodyID);
+void            (ODE_API *dBodyEnable)(dBodyID);
+void            (ODE_API *dBodyDisable)(dBodyID);
 //int             (ODE_API *dBodyIsEnabled)(dBodyID);
 void            (ODE_API *dBodySetGravityMode)(dBodyID b, int mode);
 int             (ODE_API *dBodyGetGravityMode)(dBodyID b);
@@ -828,10 +828,10 @@ static dllfunction_t odefuncs[] =
 	{(void **) &dBodySetMass,						"dBodySetMass"},
 //	{"dBodyGetMass",								(void **) &dBodyGetMass},
 //	{"dBodyAddForce",								(void **) &dBodyAddForce},
-//	{"dBodyAddTorque",								(void **) &dBodyAddTorque},
+	{(void **) &dBodyAddTorque,						"dBodyAddTorque"},
 //	{"dBodyAddRelForce",							(void **) &dBodyAddRelForce},
 //	{"dBodyAddRelTorque",							(void **) &dBodyAddRelTorque},
-//	{"dBodyAddForceAtPos",							(void **) &dBodyAddForceAtPos},
+	{(void **) &dBodyAddForceAtPos,					"dBodyAddForceAtPos"},
 //	{"dBodyAddForceAtRelPos",						(void **) &dBodyAddForceAtRelPos},
 //	{"dBodyAddRelForceAtPos",						(void **) &dBodyAddRelForceAtPos},
 //	{"dBodyAddRelForceAtRelPos",					(void **) &dBodyAddRelForceAtRelPos},
@@ -854,8 +854,8 @@ static dllfunction_t odefuncs[] =
 //	{"dBodySetDynamic",								(void **) &dBodySetDynamic},
 //	{"dBodySetKinematic",							(void **) &dBodySetKinematic},
 //	{"dBodyIsKinematic",							(void **) &dBodyIsKinematic},
-//	{"dBodyEnable",									(void **) &dBodyEnable},
-//	{"dBodyDisable",								(void **) &dBodyDisable},
+	{(void **) &dBodyEnable,						"dBodyEnable"},
+	{(void **) &dBodyDisable,						"dBodyDisable"},
 //	{"dBodyIsEnabled",								(void **) &dBodyIsEnabled},
 	{(void **) &dBodySetGravityMode,				"dBodySetGravityMode"},
 	{(void **) &dBodyGetGravityMode,				"dBodyGetGravityMode"},
@@ -1170,6 +1170,8 @@ static dllfunction_t odefuncs[] =
 // Handle for ODE DLL
 dllhandle_t ode_dll = NULL;
 #endif
+
+static void World_ODE_RunCmd(world_t *world, odecommandqueue_t *cmd);
 
 void World_ODE_Init(void)
 {
@@ -1798,22 +1800,22 @@ qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, odebodyinfo
 	world->ode.hasodeents = true;	//I don't like this, but we need the world etc to be solid.
 	world->ode.hasextraobjs = true;
 	
-	switch(bodyinfo->shape)
+	switch(bodyinfo->geomshape)
 	{
-	case SOLID_PHYSICS_CAPSULE:
+	case GEOMTYPE_CAPSULE:
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
 		bodyptr->ode_geom = (void *)dCreateCapsule(world->ode.ode_space, radius, bodyinfo->dimensions[2]);
 		dMassSetCapsuleTotal(&mass, bodyinfo->mass, 3, radius, bodyinfo->dimensions[2]);
 		//aligned along the geom's local z axis
 		break;
-	case SOLID_PHYSICS_SPHERE:
+	case GEOMTYPE_SPHERE:
 		//radius
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1] + bodyinfo->dimensions[2]) / 3;
 		bodyptr->ode_geom = dCreateSphere(world->ode.ode_space, radius);
 		dMassSetSphereTotal(&mass, bodyinfo->mass, radius);
 		//aligned along the geom's local z axis
 		break;
-	case SOLID_PHYSICS_CYLINDER:
+	case GEOMTYPE_CYLINDER:
 		//radius, length
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
 		bodyptr->ode_geom = dCreateCylinder(world->ode.ode_space, radius, bodyinfo->dimensions[2]);
@@ -1821,7 +1823,7 @@ qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, odebodyinfo
 		//alignment is irreleevnt, thouse I suppose it might be scaled wierdly.
 		break;
 	default:
-	case SOLID_PHYSICS_BOX:
+	case GEOMTYPE_BOX:
 		//diameter
 		bodyptr->ode_geom = dCreateBox(world->ode.ode_space, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
 		dMassSetBoxTotal(&mass, bodyinfo->mass, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
@@ -2074,6 +2076,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	int modelindex = 0;
 	int movetype = MOVETYPE_NONE;
 	int solid = SOLID_NOT;
+	int geomtype = GEOMTYPE_SOLID;
 	qboolean modified = false;
 	vec3_t angles;
 	vec3_t avelocity;
@@ -2099,15 +2102,32 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	if (!ode_dll)
 		return;
 #endif
+	geomtype = (int)ed->xv->geomtype;
 	solid = (int)ed->v->solid;
 	movetype = (int)ed->v->movetype;
 	scale = ed->xv->scale?ed->xv->scale:1;
 	modelindex = 0;
 	model = NULL;
 
-	switch(solid)
+	if (!geomtype)
 	{
-	case SOLID_BSP:
+		switch((int)ed->v->solid)
+		{
+		case SOLID_NOT:				geomtype = GEOMTYPE_NONE;		break;
+		case SOLID_TRIGGER:			geomtype = GEOMTYPE_NONE;		break;
+		case SOLID_BSP:				geomtype = GEOMTYPE_TRIMESH;	break;
+		case SOLID_PHYSICS_TRIMESH:	geomtype = GEOMTYPE_TRIMESH;	break;
+		case SOLID_PHYSICS_BOX:		geomtype = GEOMTYPE_BOX;		break;
+		case SOLID_PHYSICS_SPHERE:	geomtype = GEOMTYPE_SPHERE;		break;
+		case SOLID_PHYSICS_CAPSULE:	geomtype = GEOMTYPE_CAPSULE;	break;
+		case SOLID_PHYSICS_CYLINDER:geomtype = GEOMTYPE_CYLINDER;	break;
+		default:					geomtype = GEOMTYPE_BOX;		break;
+		}
+	}
+
+	switch(geomtype)
+	{
+	case GEOMTYPE_TRIMESH:
 		modelindex = (int)ed->v->modelindex;
 		model = world->Get_CModel(world, modelindex);
 		if (model)
@@ -2123,18 +2143,16 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			massval = 1.0f;
 		}
 		break;
-	case SOLID_BBOX:
-	case SOLID_SLIDEBOX:
-	case SOLID_CORPSE:
-	case SOLID_PHYSICS_BOX:
-	case SOLID_PHYSICS_SPHERE:
-	case SOLID_PHYSICS_CAPSULE:
+	case GEOMTYPE_BOX:
+	case GEOMTYPE_SPHERE:
+	case GEOMTYPE_CAPSULE:
 		VectorCopy(ed->v->mins, entmins);
 		VectorCopy(ed->v->maxs, entmaxs);
 		if (ed->xv->mass)
 			massval = ed->xv->mass;
 		break;
 	default:
+//	case GEOMTYPE_NONE:
 		if (ed->ode.ode_physics)
 			World_ODE_RemoveFromEntity(world, ed);
 		return;
@@ -2177,9 +2195,9 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			VectorSet(geomsize, 1.0f, 1.0f, 1.0f);
 		}
 
-		switch(solid)
+		switch(geomtype)
 		{
-		case SOLID_BSP:
+		case GEOMTYPE_TRIMESH:
 			Matrix4x4_Identity(ed->ode.ode_offsetmatrix);
 			ed->ode.ode_geom = NULL;
 			if (!model)
@@ -2203,20 +2221,17 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			ed->ode.ode_geom = (void *)dCreateTriMesh(world->ode.ode_space, dataID, NULL, NULL, NULL);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
-		case SOLID_BBOX:
-		case SOLID_SLIDEBOX:
-		case SOLID_CORPSE:
-		case SOLID_PHYSICS_BOX:
+		case GEOMTYPE_BOX:
 			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			ed->ode.ode_geom = (void *)dCreateBox(world->ode.ode_space, geomsize[0], geomsize[1], geomsize[2]);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
-		case SOLID_PHYSICS_SPHERE:
+		case GEOMTYPE_SPHERE:
 			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			ed->ode.ode_geom = (void *)dCreateSphere(world->ode.ode_space, geomsize[0] * 0.5f);
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
-		case SOLID_PHYSICS_CAPSULE:
+		case GEOMTYPE_CAPSULE:
 			axisindex = 0;
 			if (geomsize[axisindex] < geomsize[1])
 				axisindex = 1;
@@ -2627,6 +2642,15 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 				if (!ed->isfree)
 					World_ODE_Frame_JointFromEntity(world, ed);
 			}
+			while(world->ode.cmdqueuehead)
+			{
+				odecommandqueue_t *cmd = world->ode.cmdqueuehead;
+				world->ode.cmdqueuehead = cmd->next;
+				if (!cmd->next)
+					world->ode.cmdqueuetail = NULL;
+				World_ODE_RunCmd(world, cmd);
+				Z_Free(cmd);
+			}
 		}
 
 		for (i = 0;i < world->ode.ode_iterations;i++)
@@ -2669,6 +2693,83 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 			}
 		}
 	}
+}
+
+static void World_ODE_RunCmd(world_t *world, odecommandqueue_t *cmd)
+{
+	switch(cmd->command)
+	{
+	case ODECMD_ENABLE:
+		if (cmd->edict->ode.ode_body)
+			dBodyEnable(cmd->edict->ode.ode_body);
+		break;
+	case ODECMD_DISABLE:
+		if (cmd->edict->ode.ode_body)
+			dBodyDisable(cmd->edict->ode.ode_body);
+		break;
+	case ODECMD_FORCE:
+		if (cmd->edict->ode.ode_body)
+		{
+			dBodyEnable(cmd->edict->ode.ode_body);
+			dBodyAddForceAtPos(cmd->edict->ode.ode_body, cmd->v1[0], cmd->v1[1], cmd->v1[2], cmd->v2[0], cmd->v2[1], cmd->v2[2]);
+		}
+		break;
+	case ODECMD_TORQUE:
+		if (cmd->edict->ode.ode_body)
+		{
+			dBodyEnable(cmd->edict->ode.ode_body);
+			dBodyAddTorque(cmd->edict->ode.ode_body, cmd->v1[0], cmd->v1[1], cmd->v1[2]);
+		}
+		break;
+	}
+}
+
+static odecommandqueue_t *physics_queuecommand(world_t *world)
+{
+	odecommandqueue_t *cmd = Z_Malloc(sizeof(*cmd));
+	world->ode.hasodeents = true;	//just in case.
+
+	//add on the end of the queue, so that order is preserved.
+	if (world->ode.cmdqueuehead)
+		world->ode.cmdqueuetail->next = world->ode.cmdqueuetail = cmd;
+	else
+		world->ode.cmdqueuetail = world->ode.cmdqueuehead = cmd;
+	return cmd;
+}
+
+void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t*e			= G_WEDICT(prinst, OFS_PARM0);
+	int		isenable	= G_FLOAT(OFS_PARM1);
+	world_t *world = prinst->parms->user;
+	odecommandqueue_t *cmd = physics_queuecommand(world);
+
+	cmd->command = isenable?ODECMD_ENABLE:ODECMD_DISABLE;
+	cmd->edict = e;
+}
+void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
+	float	*force			= G_VECTOR(OFS_PARM1);
+	float	*relative_ofs	= G_VECTOR(OFS_PARM2);
+	world_t *world = prinst->parms->user;
+	odecommandqueue_t *cmd = physics_queuecommand(world);
+
+	cmd->command = ODECMD_FORCE;
+	cmd->edict = e;
+	VectorCopy(force, cmd->v1);
+	VectorCopy(relative_ofs, cmd->v2);
+}
+void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
+	float	*torque			= G_VECTOR(OFS_PARM1);
+	world_t *world = prinst->parms->user;
+	odecommandqueue_t *cmd = physics_queuecommand(world);
+
+	cmd->command = ODECMD_TORQUE;
+	cmd->edict = e;
+	VectorCopy(torque, cmd->v1);
 }
 
 #endif

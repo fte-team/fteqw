@@ -172,7 +172,7 @@ void INS_Shutdown(void)
 
 /*
 //nacl supposedly has no way to implement this (other than us writing a listfile in each directory)
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *), void *parm)
 {
 	return 0;
 }

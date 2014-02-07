@@ -55,6 +55,7 @@ static shader_t *bloomfinal;
 #define MAXLEVELS 3
 texid_t scrtex;
 texid_t pingtex[2][MAXLEVELS];
+fbostate_t fbo_bloom;
 static int scrwidth, scrheight;
 static int texwidth[MAXLEVELS], texheight[MAXLEVELS];
 
@@ -172,6 +173,7 @@ static void R_SetupBloomTextures(int w, int h)
 void R_BloomBlend (void)
 {
 	int i;
+	int oldfbo = 0;
 
 	if (!gl_config.ext_framebuffer_objects)
 		return;
@@ -198,14 +200,16 @@ void R_BloomBlend (void)
 		if (i == 0)
 		{
 			/*filter the screen into a downscaled image*/
-			GLBE_RenderToTexture(scrtex, r_nulltex, pingtex[0][0], r_nulltex, false);
+			oldfbo = GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[0][0], r_nulltex, 0, 0);
+			GLBE_FBO_Sources(scrtex, r_nulltex);
 			qglViewport (0, 0, texwidth[0], texheight[0]);
 			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
 		}
 		else
 		{
 			/*simple downscale that multiple times*/
-			GLBE_RenderToTexture(pingtex[0][i-1], r_nulltex, pingtex[0][i], r_nulltex, false);
+			GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[0][i], r_nulltex, 0, 0);
+			GLBE_FBO_Sources(pingtex[0][i-1], r_nulltex);
 			qglViewport (0, 0, texwidth[i], texheight[i]);
 			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
 		}
@@ -218,13 +222,15 @@ void R_BloomBlend (void)
 		*/
 		r_worldentity.glowmod[0] = 1.2 / texwidth[i];
 		r_worldentity.glowmod[1] = 0;
-		GLBE_RenderToTexture(pingtex[0][i], r_nulltex, pingtex[1][i], r_nulltex, false);
+		GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[1][i], r_nulltex, 0, 0);
+		GLBE_FBO_Sources(pingtex[0][i], r_nulltex);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 
 		r_worldentity.glowmod[0] = 0;
 		r_worldentity.glowmod[1] = 1.2 / texheight[i];
-		GLBE_RenderToTexture(pingtex[1][i], r_nulltex, pingtex[0][i], r_nulltex, false);
+		GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[0][i], r_nulltex, 0, 0);
+		GLBE_FBO_Sources(pingtex[1][i], r_nulltex);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 	}
@@ -234,7 +240,8 @@ void R_BloomBlend (void)
 	GL_Set2D(false);
 
 	/*combine them onto the screen*/
-	GLBE_RenderToTexture(scrtex, r_nulltex, r_nulltex, r_nulltex, false);
+	GLBE_FBO_Pop(oldfbo);
+	GLBE_FBO_Sources(scrtex, r_nulltex);
 	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y + r_refdef.vrect.height, r_refdef.vrect.width, -r_refdef.vrect.height, bloomfinal);
 }
 void R_InitBloomTextures(void)

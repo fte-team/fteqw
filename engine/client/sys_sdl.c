@@ -19,9 +19,14 @@
 #include <emscripten/emscripten.h>
 #endif
 
+#if SDL_MAJOR_VERSION >= 2
+SDL_Window *sdlwindow;
+#endif
+
 #ifndef isDedicated
 qboolean isDedicated;
 #endif
+extern qboolean ActiveApp;
 
 void Sys_Error (const char *error, ...)
 {
@@ -33,9 +38,11 @@ void Sys_Error (const char *error, ...)
 	va_end (argptr);
 	fprintf(stderr, "Error: %s\n", string);
 
-	Con_Print ("Quake Error: ");
-	Con_Print (string);
-	Con_Print ("\n");
+	Sys_Printf ("Quake Error: %s\n", string);
+
+#if SDL_MAJOR_VERSION >= 2
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Sys_Error", string, sdlwindow);
+#endif
 
 	if (COM_CheckParm("-crashonerror"))
 		*(int*)-3 = 0;
@@ -122,7 +129,8 @@ void Sys_mkdir (char *path)
 #if WIN32
 	_mkdir (path);
 #else
-	mkdir (path, 0777);	//WARNING: DO NOT RUN AS ROOT!
+	//user, group, others
+	mkdir (path, 0755);	//WARNING: DO NOT RUN AS ROOT!
 #endif
 }
 
@@ -152,7 +160,7 @@ void Sys_Quit (void)
 //SDL provides no file enumeration facilities.
 #if defined(_WIN32)
 #include <windows.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
@@ -218,7 +226,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 }
 #elif defined(linux) || defined(__unix__) || defined(__MACH__)
 #include <dirent.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];
@@ -292,7 +300,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	return true;
 }
 #else
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, void *), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, void *), void *parm, void *spath)
 {
 	Con_Printf("Warning: Sys_EnumerateFiles not implemented\n");
 	return false;
@@ -497,8 +505,13 @@ int QDECL main(int argc, char **argv)
 			double sleeptime;
 
 	// yield the CPU for a little while when paused, minimized, or not the focus
-			if (!(SDL_GetAppState() & SDL_APPACTIVE))
+#if SDL_MAJOR_VERSION >= 2
+			if (!ActiveApp)
 				SDL_Delay(1);
+#else
+			if (!(SDL_GetAppState() & SDL_APPINPUTFOCUS))
+				SDL_Delay(1);
+#endif
 
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
@@ -536,12 +549,23 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
+#if SDL_MAJOR_VERSION >= 2
+	SDL_DisplayMode mode;
+	if (!SDL_GetDesktopDisplayMode(0, &mode))
+	{
+		*width = mode.w;
+		*height = mode.h;
+		*bpp = (SDL_PIXELTYPE(mode.format) == SDL_PIXELTYPE_PACKED32)?32:16;
+		*refreshrate = mode.refresh_rate;
+		return true;
+	}
+#endif
 	return false;
 }
 
 
 
-#if SDL_MAJOR_VERSION >= 2	//probably could inclued 1.3
+#if SDL_MAJOR_VERSION >= 2	//probably could include 1.3
 #include <SDL_clipboard.h>
 char *Sys_GetClipboard(void)
 {
@@ -549,7 +573,7 @@ char *Sys_GetClipboard(void)
 }
 void Sys_CloseClipboard(char *bf)
 {
-	SDL_Free(bf);
+	SDL_free(bf);
 }
 void Sys_SaveClipboard(char *text)
 {
@@ -578,7 +602,11 @@ void Sys_SaveClipboard(char *text)
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	// SDL threads do not support setting thread stack size
+#if SDL_MAJOR_VERSION >= 2
+	return (void *)SDL_CreateThread(func, name, args);
+#else
 	return (void *)SDL_CreateThread(func, args);
+#endif
 }
 
 void Sys_WaitOnThread(void *thread)

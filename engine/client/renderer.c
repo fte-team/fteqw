@@ -45,8 +45,8 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
-cvar_t _vid_wait_override					= CVARAF  ("vid_wait", "0",
-													   "_vid_wait_override", CVAR_ARCHIVE);
+cvar_t vid_vsync							= CVARAF  ("vid_wait", "0",
+													   "vid_vsync", CVAR_ARCHIVE);
 
 cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
 													 CVAR_ARCHIVE);
@@ -63,7 +63,7 @@ cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable
 //opengl library, blank means try default.
 static cvar_t gl_driver						= CVARF ("gl_driver", "",
 													 CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t gl_shadeq1_name						= CVAR  ("gl_shadeq1_name", "*");
+cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
 
 cvar_t mod_md3flags							= CVAR  ("mod_md3flags", "1");
@@ -107,8 +107,8 @@ cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "64 64 128",
 													"r_floorcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
-cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
-												CVAR_CHEAT|CVAR_SHADERSYSTEM);
+cvar_t r_fullbright							= CVARFD ("r_fullbright", "0",
+												CVAR_CHEAT|CVAR_SHADERSYSTEM, "Ignore world lightmaps, drawing everything fully lit.");
 cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
 												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
 cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
@@ -145,8 +145,8 @@ cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
-cvar_t r_replacemodels						= CVARF ("r_replacemodels", IFMINIMAL("","md3 md2"),
-												CVAR_ARCHIVE);
+cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2"),
+												CVAR_ARCHIVE, "A list of filename extensions to attempt to use instead of mdl.");
 
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
@@ -184,33 +184,33 @@ cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
 cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
-cvar_t vid_renderer							= CVARF ("vid_renderer", "",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
+													 CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
 
-cvar_t vid_bpp								= CVARF ("vid_bpp", "32",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_desktopsettings					= CVARF ("vid_desktopsettings", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_bpp								= CVARFD ("vid_bpp", "32",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The number of colour bits to request from the renedering context");
+cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
 #ifdef NACL
 cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
 												CVAR_ARCHIVE);
 #else
 //these cvars will be given their names when they're registered, based upon whether -plugin was used. this means code can always use vid_fullscreen without caring, but gets saved properly.
-cvar_t vid_fullscreen						= CVARAF (NULL, "1", "vid_fullscreen",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_fullscreen_alternative			= CVARF (NULL, "1",
-												CVAR_ARCHIVE);
+cvar_t vid_fullscreen						= CVARAFD (NULL, "1", "vid_fullscreen",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Whether to use fullscreen or not.");
+cvar_t vid_fullscreen_alternative			= CVARFD (NULL, "1",
+												CVAR_ARCHIVE, "Whether to use fuollscreen or not. This cvar is saved to your config but not otherwise used in this operating mode.");
 #endif
-cvar_t vid_height							= CVARF ("vid_height", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_height							= CVARFD ("vid_height", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
 cvar_t vid_multisample						= CVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
-cvar_t vid_width							= CVARF ("vid_width", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_width							= CVARFD ("vid_width", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen width to attempt to use, in physical pixels. 0 means use desktop resolution.");
 
 cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far your eyes are apart, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
 cvar_t	r_stereo_method						= CVARD("r_stereo_method", "0", "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue.\nValue 4=red/green.\nValue 5=eye strain.");
@@ -223,7 +223,7 @@ extern cvar_t r_drawentities;
 extern cvar_t r_drawviewmodel;
 extern cvar_t r_drawworld;
 extern cvar_t r_fullbright;
-cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT|CVAR_SHADERSYSTEM);
+cvar_t	r_mirroralpha = CVARFD("r_mirroralpha","1", CVAR_CHEAT|CVAR_SHADERSYSTEM, "Specifies how the default shader is generated for the 'window02_1' texture. Values less than 1 will turn it into a mirror.");
 extern cvar_t r_netgraph;
 extern cvar_t r_norefresh;
 extern cvar_t r_novis;
@@ -246,11 +246,11 @@ rendererstate_t currentrendererstate;
 
 #if defined(GLQUAKE)
 cvar_t	gl_workaround_ati_shadersource		= CVARD	 ("gl_workaround_ati_shadersource", "1", "Work around ATI driver bugs in the glShaderSource function. Can safely be enabled with other drivers too.");
-cvar_t	vid_gl_context_version				= SCVAR  ("vid_gl_context_version", "");
-cvar_t	vid_gl_context_forwardcompatible	= SCVAR  ("vid_gl_context_forwardcompatible", "0");
-cvar_t	vid_gl_context_compatibility		= SCVAR  ("vid_gl_context_compatibility", "1");
-cvar_t	vid_gl_context_debug				= SCVAR  ("vid_gl_context_debug", "0");	//for my ati drivers, debug 1 only works if version >= 3
-cvar_t	vid_gl_context_es2					= SCVAR  ("vid_gl_context_es2", "0"); //requires version set correctly, no debug, no compat
+cvar_t	vid_gl_context_version				= CVARD  ("vid_gl_context_version", "", "Specifies the version of OpenGL to try to create.");
+cvar_t	vid_gl_context_forwardcompatible	= CVARD  ("vid_gl_context_forwardcompatible", "0", "Requests an opengl context with no depricated features enabled.");
+cvar_t	vid_gl_context_compatibility		= CVARD  ("vid_gl_context_compatibility", "1", "Requests an OpenGL context with fixed-function backwards compat.");
+cvar_t	vid_gl_context_debug				= CVARD  ("vid_gl_context_debug", "0", "Requests a debug opengl context. This provides better error oreporting.");	//for my ati drivers, debug 1 only works if version >= 3
+cvar_t	vid_gl_context_es					= CVARD  ("vid_gl_context_es", "0", "Requests an OpenGLES context. Be sure to set vid_gl_context_version to 2 or so."); //requires version set correctly, no debug, no compat
 #endif
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
@@ -258,23 +258,22 @@ cvar_t gl_ati_truform						= CVAR  ("gl_ati_truform", "0");
 cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
-cvar_t gl_blendsprites						= CVAR  ("gl_blendsprites", "0");
-cvar_t r_deluxemapping						= CVARAF ("r_deluxemapping", "0", "r_glsl_deluxemapping",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t gl_compress							= CVARF ("gl_compress", "0",
-												CVAR_ARCHIVE);
-cvar_t gl_conback							= CVARFC ("gl_conback", "",
-												CVAR_RENDERERCALLBACK, R2D_Conback_Callback);
-cvar_t gl_detail							= CVARF ("gl_detail", "0",
-												CVAR_ARCHIVE);
-cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
+cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
+cvar_t r_deluxemapping						= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions");
+cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
+cvar_t gl_conback							= CVARFDC ("gl_conback", "",
+												CVAR_RENDERERCALLBACK, "Specifies which conback shader/image to use. The Quake fallback is gfx/conback.lmp", R2D_Conback_Callback);
+//cvar_t gl_detail							= CVARF ("gl_detail", "0",
+//												CVAR_ARCHIVE);
+//cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
 cvar_t gl_font								= CVARFD ("gl_font", "",
 													  CVAR_RENDERERCALLBACK, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
 													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
 													  "TTF fonts may be loaded from your windows directory. \'gl_font cour:couri\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text."
 													  ));
 cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
-cvar_t gl_lerpimages						= CVARF  ("gl_lerpimages", "1", CVAR_ARCHIVE);
+cvar_t gl_lerpimages						= CVARFD  ("gl_lerpimages", "1", CVAR_ARCHIVE, "Enables smoother resampling for images which are not power-of-two, when the drivers do not support non-power-of-two textures.");
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
@@ -282,14 +281,14 @@ cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
 
 cvar_t	r_clear								= CVARAF("r_clear","0",
 													 "gl_clear", 0);
-cvar_t gl_max_size							= SCVARF  ("gl_max_size", "2048", CVAR_RENDERERLATCH);
+cvar_t gl_max_size							= CVARFD  ("gl_max_size", "8192", CVAR_RENDERERLATCH, "Specifies the maximum texture size that the engine may use. Textures larger than this will be downsized. Clamped by the value the driver supports.");
 cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
 												CVAR_ARCHIVE);
-cvar_t gl_menutint_shader					= SCVAR  ("gl_menutint_shader", "1");
+cvar_t gl_menutint_shader					= CVARD  ("gl_menutint_shader", "1", "Controls the use of GLSL to desaturate the background when drawing the menu, like quake's dos software renderer used to do before the ugly dithering of winquake.");
 
 //by setting to 64 or something, you can use this as a wallhack
-cvar_t gl_mindist							= SCVARF ("gl_mindist", "4",
-												CVAR_CHEAT);
+cvar_t gl_mindist							= CVARFD ("gl_mindist", "4",
+												CVAR_CHEAT, "Distance to the near clip plane. Smaller values may damage depth precision, high values can potentialy be used to see through walls...");
 
 cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
 												CVAR_ARCHIVE);
@@ -299,14 +298,14 @@ cvar_t gl_overbright						= CVARFC ("gl_overbright", "1",
 												Surf_RebuildLightmap_Callback);
 cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);
-cvar_t gl_picmip							= CVARF  ("gl_picmip", "0", CVAR_ARCHIVE);
-cvar_t gl_picmip2d							= CVARF  ("gl_picmip2d", "0", CVAR_ARCHIVE);
-cvar_t gl_nohwblend							= SCVAR  ("gl_nohwblend","1");
-cvar_t gl_savecompressedtex					= SCVAR  ("gl_savecompressedtex", "0");
-cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
-cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "0");	//0 = guess.
+cvar_t gl_picmip							= CVARFD  ("gl_picmip", "0", CVAR_ARCHIVE, "Reduce world/model texture sizes by some exponential factor.");
+cvar_t gl_picmip2d							= CVARFD  ("gl_picmip2d", "0", CVAR_ARCHIVE, "Reduce hud/menu texture sizes by some exponential factor.");
+cvar_t gl_nohwblend							= CVARD  ("gl_nohwblend","1", "If 1, don't use hardware gamma ramps for transient effects that change each frame (does not affect long-term effects like holding quad or underwater tints).");
+cvar_t gl_savecompressedtex					= CVARD  ("gl_savecompressedtex", "0", "Write out a copy of textures in a compressed format. The driver will do the compression on the fly, thus this setting is likely inferior to software which does not care so much about compression times.");
+//cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
+cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
 cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
-cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
+cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "8192", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
 #ifdef SPECULAR
 cvar_t gl_specular							= CVARF  ("gl_specular", "1", CVAR_ARCHIVE);
@@ -329,33 +328,30 @@ cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 												GL_Texturemode2d_Callback);
 #endif
 
-cvar_t vid_triplebuffer						= CVARAF ("vid_triplebuffer", "1",
-												"gl_triplebuffer", CVAR_ARCHIVE);
+cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 
 cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of portals the camera is allowed to recurse through.");
 cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
-cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
-												CVAR_ARCHIVE);
-cvar_t r_shadows						= SCVARF ("r_shadows", "0",
-												CVAR_ARCHIVE);
+cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
+cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "Experimental. Attempt to use a different lighting mechanism.");
 
 cvar_t r_shadow_bumpscale_basetexture		= CVARD  ("r_shadow_bumpscale_basetexture", "0", "bumpyness scaler for generation of fallback normalmap textures from models");
 cvar_t r_shadow_bumpscale_bumpmap			= CVARD  ("r_shadow_bumpscale_bumpmap", "4", "bumpyness scaler for _bump textures");
 
-cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
+cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
-cvar_t r_glsl_offsetmapping_reliefmapping = CVARF("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
-cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
+cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer. r_glsl_offsetmapping must be set.");
+//cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
 
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
 
-cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
+cvar_t r_vertexdlights						= CVARD	("r_vertexdlights", "0", "Determine model lighting with respect to nearby dlights. Poor-man's rtlights.");
 
-cvar_t vid_preservegamma					= SCVAR ("vid_preservegamma", "0");
+cvar_t vid_preservegamma					= CVARD ("vid_preservegamma", "0", "Restore initial hardware gamma ramps when quitting.");
 cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=loadtime-gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma.");
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
@@ -386,7 +382,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_debug, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_forwardcompatible, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_compatibility, GLRENDEREROPTIONS);
-	Cvar_Register (&vid_gl_context_es2, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_es, GLRENDEREROPTIONS);
 
 	//screen
 	Cvar_Register (&vid_preservegamma, GLRENDEREROPTIONS);
@@ -424,7 +420,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
-	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
+//	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
 
 
 #ifdef R_XFLIP
@@ -442,8 +438,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
-	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
+//	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
+//	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
@@ -464,7 +460,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_vertexdlights, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
+//	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
 
@@ -562,7 +558,7 @@ void Renderer_Init(void)
 
 	//but register ALL vid_ commands.
 	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
-	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_vsync, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
@@ -1360,10 +1356,10 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->rate = vid_refreshrate.value;
 	newr->stereo = (r_stereo_method.ival == 1);
 
-	if (!*_vid_wait_override.string || _vid_wait_override.value < 0)
+	if (!*vid_vsync.string || vid_vsync.value < 0)
 		newr->wait = -1;
 	else
-		newr->wait = _vid_wait_override.value;
+		newr->wait = vid_vsync.value;
 
 	newr->renderer = NULL;
 

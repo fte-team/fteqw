@@ -2270,7 +2270,7 @@ static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 char ** skinfilelist;
 int skinfilecount;
 
-static qboolean VARGS Mod_TryAddSkin(const char *skinname, ...)
+static qboolean VARGS Mod_TryAddSkin(qboolean force, const char *skinname, ...)
 {
 	va_list		argptr;
 	char		string[MAX_QPATH];
@@ -2290,7 +2290,7 @@ static qboolean VARGS Mod_TryAddSkin(const char *skinname, ...)
 			return true;	//already added
 	}
 
-	if (!COM_FCheckExists(string))
+	if (!force && !COM_FCheckExists(string))
 		return false;
 
 	skinfilelist = BZ_Realloc(skinfilelist, sizeof(*skinfilelist)*(skinfilecount+1));
@@ -2300,13 +2300,13 @@ static qboolean VARGS Mod_TryAddSkin(const char *skinname, ...)
 	return true;
 }
 
-int QDECL Mod_EnumerateSkins(const char *name, int size, void *param, searchpathfuncs_t *spath)
+int QDECL Mod_EnumerateSkins(const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
 {
-	Mod_TryAddSkin(name);
+	Mod_TryAddSkin(false, name);
 	return true;
 }
 
-int Mod_BuildSkinFileList(char *modelname)
+int Mod_BuildSkinFileList(qboolean forcedefault, char *modelname)
 {
 	int i;
 	char skinfilename[MAX_QPATH];
@@ -2324,31 +2324,31 @@ int Mod_BuildSkinFileList(char *modelname)
 	//try and add numbered skins, and then try fixed names.
 	for (i = 0; ; i++)
 	{
-		if (!Mod_TryAddSkin("%s_%i.skin", modelname, i))
+		if (!Mod_TryAddSkin(false, "%s_%i.skin", modelname, i))
 		{
 			if (i == 0)
 			{
-				if (!Mod_TryAddSkin("%s_default.skin", skinfilename, i))
+				if (!Mod_TryAddSkin(forcedefault, "%s_default.skin", skinfilename, i))
 					break;
 			}
 			else if (i == 1)
 			{
-				if (!Mod_TryAddSkin("%s_blue.skin", skinfilename, i))
+				if (!Mod_TryAddSkin(false, "%s_blue.skin", skinfilename, i))
 					break;
 			}
 			else if (i == 2)
 			{
-				if (!Mod_TryAddSkin("%s_red.skin", skinfilename, i))
+				if (!Mod_TryAddSkin(false, "%s_red.skin", skinfilename, i))
 					break;
 			}
 			else if (i == 3)
 			{
-				if (!Mod_TryAddSkin("%s_green.skin", skinfilename, i))
+				if (!Mod_TryAddSkin(false, "%s_green.skin", skinfilename, i))
 					break;
 			}
 			else if (i == 4)
 			{
-				if (!Mod_TryAddSkin("%s_yellow.skin", skinfilename, i))
+				if (!Mod_TryAddSkin(false, "%s_yellow.skin", skinfilename, i))
 					break;
 			}
 			else
@@ -2442,11 +2442,11 @@ void Mod_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum
 }
 
 #if defined(D3DQUAKE) || defined(GLQUAKE)
-shader_t *Mod_LoadSkinFile(char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
+shader_t *Mod_LoadSkinFile(char *defaultshadername, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
 {
 	shader_t *shader;
 	char shadername[MAX_QPATH];
-	Q_strncpyz(shadername, surfacename, sizeof(shadername));
+	Q_strncpyz(shadername, defaultshadername?defaultshadername:surfacename, sizeof(shadername));
 
 	Mod_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber, NULL);
 
@@ -4164,7 +4164,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer)
 	root = NULL;
 
 #ifndef SERVERONLY
-	externalskins = Mod_BuildSkinFileList(mod->name);
+	externalskins = Mod_BuildSkinFileList(false, mod->name);
 #else
 	externalskins = 0;
 #endif
@@ -4610,9 +4610,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 
 #ifndef SERVERONLY
-	skinfiles = Mod_BuildSkinFileList(loadmodel->name);
-	if (skinfiles < 1)
-		skinfiles = 1;
+	skinfiles = Mod_BuildSkinFileList(true, loadmodel->name);
 #endif
 
 	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
@@ -4633,7 +4631,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer)
 			skin[j].numshaders = 1;	//non-sequenced skins.
 			skin[j].ofsshaders = shaders;
 
-			shaders[0] = Mod_LoadSkinFile(surfname, j, NULL, 0, 0, NULL);
+			shaders[0] = Mod_LoadSkinFile(NULL, surfname, j, NULL, 0, 0, NULL);
 		}
 
 		root[i].ofsskins = skin;
@@ -5657,9 +5655,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	}
 
 #ifndef SERVERONLY
-	skinfiles = Mod_BuildSkinFileList(loadmodel->name);
-	if (skinfiles < 1)
-		skinfiles = 1;
+	skinfiles = Mod_BuildSkinFileList(true, loadmodel->name);
 #endif
 
 	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
@@ -5690,7 +5686,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 			skin[j].numshaders = 1;	//non-sequenced skins.
 			skin[j].ofsshaders = shaders;
 
-			shaders[0] = Mod_LoadSkinFile(mesh->shadername, j, NULL, 0, 0, NULL);
+			shaders[0] = Mod_LoadSkinFile(NULL, mesh->shadername, j, NULL, 0, 0, NULL);
 		}
 
 		m->ofsskins = skin;
@@ -5889,6 +5885,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 #ifndef SERVERONLY
 	galiasskin_t *skin;
 	shader_t **shaders;
+	int skinfiles;
 #endif
 	galiasgroup_t *fgroup;
 	galiasbone_t *bones;
@@ -5997,7 +5994,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	memsize += sizeof(*fgroup)*numgroups + sizeof(float)*12*(h->num_joints + (h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints;
 	memsize += (sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes;
 #ifndef SERVERONLY
-	memsize += sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes;
+	skinfiles = Mod_BuildSkinFileList(true, loadmodel->name);
+	memsize += (sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes)*skinfiles;
 #endif
 
 	/*allocate a nice big block of memory and figure out where stuff is*/
@@ -6024,7 +6022,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	opose = oposebase + 12*h->num_joints;
 #ifndef SERVERONLY
 	skin = (galiasskin_t*)(opose + 12*(h->num_poses*h->num_frames));
-	shaders = (shader_t**)(skin + h->num_meshes);
+	shaders = (shader_t**)(skin + h->num_meshes*skinfiles);
 #endif
 
 //no code to load animations or bones
@@ -6162,21 +6160,26 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		offset = LittleLong(mesh[i].first_vertex);
 
 #ifndef SERVERONLY
-		/*skins*/
-		gai[i].numskins = 1;
-		gai[i].ofsskins = &skin[i];
-		Q_strncpyz(skin[i].name, strings+mesh[i].material, sizeof(skin[i].name));
-		skin[i].skinwidth = 1;
-		skin[i].skinheight = 1;
-		skin[i].ofstexels = 0; /*doesn't support 8bit colourmapping*/
-		skin[i].skinspeed = 10; /*something to avoid div by 0*/
-		skin[i].numshaders = 1;
-		skin[i].ofsshaders = &shaders[i];
-		shaders[i] = R_RegisterSkin(skin[i].name, mod->name);
-		R_BuildDefaultTexnums(NULL, shaders[i]);
-		if (shaders[i]->flags & SHADER_NOIMAGE)
-			Con_Printf("Unable to load texture for shader \"%s\" on polyset \"%s\" for model \"%s\"\n", shaders[i]->name, strings+mesh[i].name, loadmodel->name);
+		/*texture coords*/
 		gai[i].ofs_st_array = (otcoords+offset);
+		/*skins*/
+		gai[i].numskins = skinfiles;
+		gai[i].ofsskins = skin;
+
+		for (j = 0; j < skinfiles; j++)
+		{
+			Q_strncpyz(skin->name, skinfilelist[j], sizeof(skin[i].name));
+			skin->skinwidth = 1;
+			skin->skinheight = 1;
+			skin->ofstexels = 0; /*doesn't support 8bit colourmapping*/
+			skin->skinspeed = 10; /*something to avoid div by 0*/
+			skin->numshaders = 1;	//non-sequenced skins.
+			skin->ofsshaders = shaders;
+			skin++;
+
+			*shaders++ = Mod_LoadSkinFile(strings+mesh[i].material, strings+mesh[i].name, j, NULL, 0, 0, NULL);
+		}
+		skin += skinfiles;
 #endif
 
 		nt = LittleLong(mesh[i].num_triangles);
@@ -6958,7 +6961,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 			{
 				char namebkup[MAX_QPATH];
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
-				if (!Mod_ParseMD5Anim(file, root, &poseofs[numgroups], &grouplist[numgroups]))
+				if (!Mod_ParseMD5Anim(file, root, (void**)&poseofs[numgroups], &grouplist[numgroups]))
 				{
 					return false;
 				}
@@ -6976,7 +6979,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 			{
 				char namebkup[MAX_QPATH];
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
-				if (!Mod_ParseMD5Anim(file, root, &poseofs[numgroups], &grouplist[numgroups]))
+				if (!Mod_ParseMD5Anim(file, root, (void**)&poseofs[numgroups], &grouplist[numgroups]))
 				{
 					return false;
 				}

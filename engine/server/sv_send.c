@@ -60,6 +60,8 @@ void SV_FlushRedirect (void)
 	if (!*outputbuf)
 		return;
 
+	Log_String(LOG_CONSOLE, va("{\n%s}\n", outputbuf)); 
+
 	if (sv_redirected == RD_PACKET)
 	{
 		send[0] = 0xff;
@@ -111,6 +113,8 @@ SV_BeginRedirect
 */
 void SV_BeginRedirect (redirect_t rd, int lang)
 {
+	SV_FlushRedirect();
+
 	sv_redirected = rd;
 	sv_redirectedlang = lang;
 	outputbuf[0] = 0;
@@ -234,6 +238,9 @@ EVENT MESSAGES
 //Directly print to a client without translating nor printing into an mvd. generally for error messages due to the lack of mvd thing.
 void SV_PrintToClient(client_t *cl, int level, const char *string)
 {
+	if (cl->controller)
+		cl = cl->controller;
+
 	switch (cl->protocol)
 	{
 	case SCP_BAD:	//bot
@@ -385,7 +392,9 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 	if(strlen(string) >= sizeof(string))
 		Sys_Error("SV_BroadcastPrintf: Buffer stomped\n");
 
-	Sys_Printf ("%s", string);	// print to the console
+	//pretend to print on the server, but not to the client's console
+	Sys_Printf ("%s", string);	// print to the system console
+	Log_String(LOG_CONSOLE, string);	//dump into log
 
 	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 	{
@@ -428,7 +437,9 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 	if(strlen(string) >= sizeof(string))
 		Sys_Error("SV_BroadcastPrintf: Buffer stomped\n");
 
+	//pretend to print on the server, but not to the client's console
 	Sys_Printf ("%s", string);	// print to the console
+	Log_String(LOG_CONSOLE, string);	//dump into log
 
 	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 	{

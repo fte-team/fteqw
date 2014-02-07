@@ -408,7 +408,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];
@@ -566,7 +566,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	lib = NULL;
 	if (!lib)
 		lib = dlopen (name, RTLD_LAZY);
-	if (!lib && strcmp(COM_FileExtension(name), "so"))
+	if (!lib && !strstr(name, ".so"))
 		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
 	{

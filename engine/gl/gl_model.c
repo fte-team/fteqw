@@ -4816,7 +4816,7 @@ typedef struct {
 	short xpos;
 	short ypos;
 } doomimage_t;
-static int QDECL FindDoomSprites(const char *name, int size, void *param, searchpathfuncs_t *spath)
+static int QDECL FindDoomSprites(const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
 {
 	if (*(int *)param + strlen(name)+1 > 16000)
 		Sys_Error("Too many doom sprites\n");

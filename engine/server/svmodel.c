@@ -39,7 +39,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 
 qbyte	mod_novis[(MAX_MAP_LEAFS+7)/8];
 
-#define	MAX_MOD_KNOWN	512
+#define	MAX_MOD_KNOWN	2048
 model_t	mod_known[MAX_MOD_KNOWN];
 int		mod_numknown;
 

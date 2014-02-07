@@ -21,7 +21,7 @@
 #include "netinc.h"
 
 static iwboolean ftpserverinitied = false;
-static int	ftpserversocket = INVALID_SOCKET;
+static SOCKET	ftpserversocket = INVALID_SOCKET;
 qboolean ftpserverfailed;
 
 
@@ -36,8 +36,8 @@ typedef struct FTPclient_s{
 	int cmdbuflen;
 	int msgbuflen;
 
-	int controlsock;
-	int datasock;	//FTP only allows one transfer per connection.
+	SOCKET controlsock;
+	SOCKET datasock;	//FTP only allows one transfer per connection.
 	int dataislisten;
 	int datadir;	//0 no data, 1 reading, 2 writing
 	vfsfile_t *file;
@@ -49,13 +49,13 @@ typedef struct FTPclient_s{
 
 FTPclient_t *FTPclient;
 
-int FTP_BeginListening(int aftype, int port)
+SOCKET FTP_BeginListening(int aftype, int port)
 {
 	struct sockaddr_qstorage address;
 	unsigned long _true = true;
 	unsigned long _false = false;
 	int i;
-	int sock;
+	SOCKET sock;
 
 #ifdef IPPROTO_IPV6
 	if ((sock = socket ((aftype!=1)?PF_INET6:PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
@@ -63,13 +63,13 @@ int FTP_BeginListening(int aftype, int port)
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 #endif
 	{
-		IWebPrintf ("FTP_BeginListening: socket: %s\n", strerror(qerrno));
+		IWebPrintf ("FTP_BeginListening: socket: %s\n", strerror(neterrno()));
 		return INVALID_SOCKET;
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
 	{
-		IWebPrintf ("FTP_BeginListening: ioctl FIONBIO: %s", strerror(qerrno));
+		IWebPrintf ("FTP_BeginListening: ioctl FIONBIO: %s", strerror(neterrno()));
 		return INVALID_SOCKET;
 	}
 
@@ -134,9 +134,9 @@ void FTP_ServerShutdown(void)
 }
 
 //we ought to filter this to remove duplicates.
-static int QDECL SendFileNameTo(const char *rawname, int size, void *param, searchpathfuncs_t *spath)
+static int QDECL SendFileNameTo(const char *rawname, qofs_t size, void *param, searchpathfuncs_t *spath)
 {
-	int socket = *(int*)param;
+	SOCKET socket = *(SOCKET*)param;
 //	int i;
 	char buffer[256+1];
 	char *slash;
@@ -171,10 +171,10 @@ static int QDECL SendFileNameTo(const char *rawname, int size, void *param, sear
 	return true;
 }
 
-int FTP_SV_makelistensocket(unsigned long nblocking)
+SOCKET FTP_SV_makelistensocket(unsigned long nblocking)
 {
 	char name[256];
-	int sock;
+	SOCKET sock;
 	struct hostent *hent;
 
 	struct sockaddr_in	address;
@@ -193,12 +193,12 @@ int FTP_SV_makelistensocket(unsigned long nblocking)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: socket: %s", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: socket: %s", strerror(neterrno()));
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &nblocking) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 	}
 
 	if( bind (sock, (void *)&address, sizeof(address)) == -1)
@@ -211,7 +211,7 @@ int FTP_SV_makelistensocket(unsigned long nblocking)
 
 	return sock;
 }
-iwboolean	FTP_SVSocketPortToString (int socket, char *s)
+iwboolean	FTP_SVSocketPortToString (SOCKET socket, char *s)
 {
 	struct sockaddr_qstorage addr;
 	int adrlen = sizeof(addr);
@@ -226,7 +226,7 @@ iwboolean	FTP_SVSocketPortToString (int socket, char *s)
 	return true;
 }
 //only to be used for ipv4 sockets.
-iwboolean	FTP_SVSocketToString (int socket, char *s)
+iwboolean	FTP_SVSocketToString (SOCKET socket, char *s)
 {
 	struct sockaddr_in addr;
 	qbyte *baddr;
@@ -249,7 +249,7 @@ iwboolean	FTP_SVSocketToString (int socket, char *s)
 	sprintf(s, "%i,%i,%i,%i,%i,%i", baddr[0], baddr[1], baddr[2], baddr[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
 	return true;
 }
-iwboolean	FTP_SVRemoteSocketToString (int socket, char *s, int slen)
+iwboolean	FTP_SVRemoteSocketToString (SOCKET socket, char *s, int slen)
 {
 	struct sockaddr_qstorage addr;
 	netadr_t na;
@@ -327,7 +327,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		if (sent == -1)
 		{
 			VFS_SEEK(cl->file, pos);
-			if (qerrno != EWOULDBLOCK)
+			if (neterrno() != NET_EWOULDBLOCK)
 			{
 				closesocket(cl->datasock);
 				cl->datasock = INVALID_SOCKET;
@@ -361,7 +361,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		pos = cl->datadir?1:!cl->blocking;
 		if (ioctlsocket (cl->controlsock, FIONBIO, (u_long *)&pos) == -1)
 		{
-			IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(qerrno));
+			IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(neterrno()));
 			return 0;
 		}
 	}
@@ -374,7 +374,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		}
 		if (len == -1)
 		{
-			if (qerrno != EWOULDBLOCK)
+			if (neterrno() != NET_EWOULDBLOCK)
 			{
 				closesocket(cl->datasock);
 				cl->datasock = INVALID_SOCKET;
@@ -398,13 +398,14 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 	ret = recv(cl->controlsock, cl->commandbuffer+cl->cmdbuflen, sizeof(cl->commandbuffer)-1 - cl->cmdbuflen, 0);
 	if (ret == -1)
 	{
-		if (qerrno == EWOULDBLOCK)
+		int e = neterrno();
+		if (e == NET_EWOULDBLOCK)
 			return false;	//remove
 
-		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
+		if (e == NET_ECONNABORTED || e == NET_ECONNRESET)
 			return true;
 
-		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
+		Con_Printf ("NET_GetPacket: %s\n", strerror(e));
 		return true;
 	}
 	if (*cl->messagebuffer)
@@ -583,12 +584,12 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 			if ((cl->datasock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 			{
-				Sys_Error ("FTP_ServerThinkForConnection: socket: %s", strerror(qerrno));
+				Sys_Error ("FTP_ServerThinkForConnection: socket: %s", strerror(neterrno()));
 			}
 
 			if (ioctlsocket (cl->datasock, FIONBIO, (u_long *)&_true) == -1)
 			{
-				Sys_Error ("FTP_ServerThinkForConnection: ioctl FIONBIO: %s", strerror(qerrno));
+				Sys_Error ("FTP_ServerThinkForConnection: ioctl FIONBIO: %s", strerror(neterrno()));
 			}
 
 			from.sin_family = AF_INET;
@@ -629,7 +630,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				struct sockaddr_qstorage adr;
 				int adrlen = sizeof(adr);
 				temp = accept(cl->datasock, (struct sockaddr *)&adr, &adrlen);
-				err = qerrno;
+				err = neterrno();
 				closesocket(cl->datasock);
 				cl->datasock = temp;
 				cl->dataislisten = false;
@@ -690,7 +691,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 				if (cl->datasock == INVALID_SOCKET)
 				{
-					QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", qerrno);
+					QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", neterrno());
 					continue;
 				}
 				else
@@ -779,7 +780,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 					if (cl->datasock == INVALID_SOCKET)
 					{
-						QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", qerrno);
+						QueueMessageva (cl, "425 Can't accept pasv data connection - %i.\r\n", neterrno());
 						continue;
 					}
 					else
@@ -885,7 +886,7 @@ iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port)
 	FTPclient_t *cl, *prevcl;
 	struct sockaddr_qstorage	from;
 	int		fromlen;
-	int clientsock;
+	SOCKET clientsock;
 unsigned long _true = true;
 
 	if (!ftpserverinitied)
@@ -949,23 +950,24 @@ unsigned long _true = true;
 
 	if (clientsock == INVALID_SOCKET)
 	{
-		if (qerrno == EWOULDBLOCK)
+		int e = neterrno();
+		if (e == NET_EWOULDBLOCK)
 			return false;
 
-		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
+		if (e == NET_ECONNABORTED || e == NET_ECONNRESET)
 		{
 			Con_TPrintf ("Connection lost or aborted\n");
 			return false;
 		}
 
 
-		Con_Printf ("NET_GetPacket: %s\n", strerror(qerrno));
+		Con_Printf ("NET_GetPacket: %s\n", strerror(e));
 		return false;
 	}
 
 	if (ioctlsocket (clientsock, FIONBIO, &_true) == -1)
 	{
-		IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(qerrno));
+		IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(neterrno()));
 		return false;
 	}
 	cl = IWebMalloc(sizeof(FTPclient_t));

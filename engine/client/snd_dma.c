@@ -50,7 +50,7 @@ vec3_t		listener_up = {0, 0, 1};
 vec3_t		listener_velocity;
 vec_t		sound_nominal_clip_dist=1000.0;
 
-#define	MAX_SFX		2048
+#define	MAX_SFX		8192
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
 int			num_sfx;
 
@@ -3085,9 +3085,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 {
 	soundcardinfo_t *si;
 	int i;
-	int prepadl;
-	int spare;
-	int outsamples;
+	int prepadl;	//this is the amount of data that was previously available, and will be removed from the buffer.
+	int spare;		//the amount of existing data that is still left to be played
+	int outsamples;	//the amount of data we're going to add (at the output rate)
 	double speedfactor;
 	qbyte *newcache;
 	streaming_t *s, *free=NULL;
@@ -3150,7 +3150,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		s->width = width;
 		s->numchannels = channels;
 		s->length = 0;
-//		Con_Printf("Restarting raw stream\n");
+		Con_Printf("Restarting raw stream\n");
 	}
 
 	speedfactor	= (double)speed/snd_speed;
@@ -3188,7 +3188,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		if (spare < 0)	//remaining samples since last time
 			spare = 0;
 
-		if (spare > snd_speed*2) // more than 2 seconds of sound
+		if (spare > snd_speed*2) // more than 2 seconds of sound. don't buffer more than 2 seconds. 1: its probably buggy if we need to. 2: takes too much memory, and we use malloc+copies.
 		{
 			Con_DPrintf("Sacrificed raw sound stream\n");
 			spare = 0;	//too far out. sacrifice it all

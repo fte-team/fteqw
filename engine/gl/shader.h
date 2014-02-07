@@ -603,11 +603,35 @@ void GLBE_SelectEntity(entity_t *ent);
 qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
 void GLBE_Scissor(srect_t *rect);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
+//void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
+void GLBE_RenderToTextureUpdate2d(qboolean destchanged);
 void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
 void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
 void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
 void GLBE_VBO_Destroy(vboarray_t *vearray);
+
+typedef struct
+{
+	int fbo;
+	int rb_size[2];
+	int rb_depth;
+	int rb_stencil;
+	int rb_depthstencil;
+	texid_t colour;
+	unsigned int enables;
+} fbostate_t;
+#define FBO_RB_COLOUR		1
+#define FBO_RB_DEPTH		2
+#define FBO_RB_STENCIL		4
+#define FBO_RESET			8	//resize all renderbuffers / free any that are not active. implied if the sizes differ
+#define FBO_TEX_COLOUR		16	//internal
+#define FBO_TEX_DEPTH		32	//internal
+#define FBO_TEX_STENCIL		64	//internal
+void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth);
+int GLBE_FBO_Push(fbostate_t *state);
+void GLBE_FBO_Pop(int oldfbo);
+void GLBE_FBO_Destroy(fbostate_t *state);
+int GLBE_FBO_Update(fbostate_t *state, qboolean bind, unsigned int enables, texid_t destcol, texid_t destdepth, int width, int height);
 #endif
 #ifdef D3D9QUAKE
 void D3D9BE_Init(void);

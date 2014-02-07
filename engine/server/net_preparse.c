@@ -1290,8 +1290,6 @@ void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 }
 void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
-	short datas = (int)(in*8);
-	float dataf = in;
 	NPP_NQCheckDest(dest);
 	if (!bufferlen)
 		Con_Printf("NQWriteCoord: Messages should start with WriteByte\n");
@@ -1323,11 +1321,15 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 
 	if (destprim->coordsize==4)
 	{
+		float dataf = in;
+
 		dataf = LittleFloat(dataf);
 		NPP_AddData(&dataf, sizeof(float));
 	}
 	else
 	{
+		short datas = (int)(in*8);
+
 		datas = LittleShort(datas);
 		NPP_AddData(&datas, sizeof(short));
 	}

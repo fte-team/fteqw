@@ -338,12 +338,30 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 
 void COM_WriteFile (const char *filename, const void *data, int len);
 
+//qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.
+#if defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
+	#define FS_64BIT
+#endif
+#ifdef FS_64BIT
+	typedef unsigned long long qofs_t;	//type to use for a file offset
+	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
+	#define qofs_Low(o) ((o)&0xffffffffu)
+	#define qofs_High(o) ((o)>>32)
+	#define qofs_Error(o) ((o) == ~0ull)
+#else
+	typedef unsigned int qofs_t;	//type to use for a file offset
+	#define qofs_Make(low,high) (low)
+	#define qofs_Low(o) (o)
+	#define qofs_High(o) (0)
+	#define qofs_Error(o) ((o) == ~0ul)
+#endif
+
 typedef struct {
-	struct searchpath_s	*search;
-	int				index;
-	char			rawname[MAX_OSPATH];
-	int				offset;
-	int				len;
+	struct searchpath_s	*search;			//used to say which filesystem driver to open the file from
+	int				index;					//used by the filesystem driver as a simple reference to the file
+	char			rawname[MAX_OSPATH];	//blank means not readable directly
+	qofs_t			offset;					//only usable if rawname is set.
+	qofs_t			len;					//uncompressed length
 } flocation_t;
 struct vfsfile_s;
 
@@ -372,14 +390,13 @@ FTE_DEPRECATED void COM_CloseFile (FILE *h);
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,ignorepacks?FSLFRT_DEPTH_OSONLY:FSLFRT_DEPTH_ANYPATH, NULL)
 #define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLFRT_IFFOUND, NULL)
 
-
 typedef struct vfsfile_s
 {
 	int (QDECL *ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
 	int (QDECL *WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestoread);
-	qboolean (QDECL *Seek) (struct vfsfile_s *file, unsigned long pos);	//returns false for error
-	unsigned long (QDECL *Tell) (struct vfsfile_s *file);
-	unsigned long (QDECL *GetLen) (struct vfsfile_s *file);	//could give some lag
+	qboolean (QDECL *Seek) (struct vfsfile_s *file, qofs_t pos);	//returns false for error
+	qofs_t (QDECL *Tell) (struct vfsfile_s *file);
+	qofs_t (QDECL *GetLen) (struct vfsfile_s *file);	//could give some lag
 	void (QDECL *Close) (struct vfsfile_s *file);
 	void (QDECL *Flush) (struct vfsfile_s *file);
 	qboolean seekingisabadplan;
@@ -476,15 +493,15 @@ char *FS_GetBasedir(void);
 struct zonegroup_s;
 void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path);
 qbyte *FS_LoadMallocFile (const char *path);
-int FS_LoadFile(char *name, void **file);
+qofs_t FS_LoadFile(char *name, void **file);
 void FS_FreeFile(void *file);
 
 qbyte *COM_LoadFile (const char *path, int usehunk);
 
-qboolean COM_LoadMapPackFile(const char *name, int offset);
+qboolean COM_LoadMapPackFile(const char *name, qofs_t offset);
 void COM_FlushTempoaryPacks(void);
 
-void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm);
+void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm);
 
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove

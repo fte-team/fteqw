@@ -278,7 +278,7 @@ plugin_t *Plug_Load(char *file, int type)
 	return newplug;
 }
 
-static int QDECL Plug_Emumerated (const char *name, int size, void *param, searchpathfuncs_t *spath)
+static int QDECL Plug_Emumerated (const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
 {
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
@@ -288,7 +288,7 @@ static int QDECL Plug_Emumerated (const char *name, int size, void *param, searc
 
 	return true;
 }
-static int QDECL Plug_EnumeratedRoot (const char *name, int size, void *param, searchpathfuncs_t *spath)
+static int QDECL Plug_EnumeratedRoot (const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
 {
 	char vmname[MAX_QPATH];
 	int len;
@@ -1086,7 +1086,7 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 		read = recv(pluginstreamarray[handle].socket, dest, destlen, 0);
 		if (read < 0)
 		{
-			if (qerrno == EWOULDBLOCK)
+			if (neterrno() == NET_EWOULDBLOCK)
 				return -1;
 			else
 				return -2;
@@ -1117,7 +1117,7 @@ qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *ar
 		written = send(pluginstreamarray[handle].socket, src, srclen, 0);
 		if (written < 0)
 		{
-			if (qerrno == EWOULDBLOCK)
+			if (neterrno() == NET_EWOULDBLOCK)
 				return -1;
 			else
 				return -2;
@@ -1162,7 +1162,7 @@ qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *
 		written = sendto(pluginstreamarray[handle].socket, src, srclen, 0, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
 		if (written < 0)
 		{
-			if (qerrno == EWOULDBLOCK)
+			if (neterrno() == NET_EWOULDBLOCK)
 				return -1;
 			else
 				return -2;

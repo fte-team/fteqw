@@ -1510,12 +1510,11 @@ char *particle_set_high =
 "scalefactor 1\n"
 "scaledelta -15\n"
 "randomvel 0\n"
-
-"lightradius 350\n"
-"lightrgb    1.4 1.2 1.05\n"
-"lighttime   0.5\n"
-"lightradiusfade 350\n"
-"lightrgbfade 2 2 2 \n"
+//	lightradius 350
+//	lightrgb    1.4 1.2 1.05
+//	lighttime   0.5
+//	lightradiusfade 350
+//	lightrgbfade 2 2 2	
 "}\n"
 //smoke
 "r_part +te_explosion\n"
@@ -1558,7 +1557,7 @@ char *particle_set_high =
 "}\n"
 
 //hide lights in explosions.
-"r_explosionlight 0\n"
+//r_explosionlight 0
 
 //hide the explosion sprite in nq+qw - WARNING: some mods use this sprite as a flame thrower.
 "cl_expsprite 0\n"

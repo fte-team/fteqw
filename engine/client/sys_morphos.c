@@ -199,7 +199,7 @@ int Sys_FileTime(char *path)
 	return ret;
 }
 
-int Sys_EnumerateFiles(const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles(const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *), void *parm)
 {
 	char *pattern;
 	char pattrans[256];

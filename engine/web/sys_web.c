@@ -107,7 +107,7 @@ void Sys_Quit (void)
 	exit (0);
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	Con_DPrintf("Warning: Sys_EnumerateFiles not implemented\n");
 	return false;

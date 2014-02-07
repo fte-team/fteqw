@@ -1027,6 +1027,7 @@ void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
 
+int CL_IsDownloading(char *localname);
 qboolean CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags);
 qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags);
 downloadlist_t *CL_DownloadFailed(char *name, qboolean cancel);
@@ -1105,7 +1106,7 @@ void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
 //these last ones are needed for csqc handling of engine-bound ents.
 void CL_ClearEntityLists(void);
-void CL_EditExternalModels(int newviewentity);
+int CL_EditExternalModels(int newviewentity, entity_t *viewentities, int maxviewenties);
 void CL_FreeVisEdicts(void);
 void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);

@@ -186,7 +186,7 @@ typedef struct {
 	int bufferleft;
 	int skip;
 } vmsearch_t;
-static int QDECL VMEnum(const char *match, int size, void *args, searchpathfuncs_t *spath)
+static int QDECL VMEnum(const char *match, qofs_t size, void *args, searchpathfuncs_t *spath)
 {
 	char *check;
 	int newlen;
@@ -210,13 +210,13 @@ static int QDECL VMEnum(const char *match, int size, void *args, searchpathfuncs
 	return true;
 }
 
-static int QDECL IfFound(const char *match, int size, void *args, searchpathfuncs_t *spath)
+static int QDECL IfFound(const char *match, qofs_t size, void *args, searchpathfuncs_t *spath)
 {
 	*(qboolean*)args = true;
 	return true;
 }
 
-static int QDECL VMEnumMods(const char *match, int size, void *args, searchpathfuncs_t *spath)
+static int QDECL VMEnumMods(const char *match, qofs_t size, void *args, searchpathfuncs_t *spath)
 {
 	char *check;
 	char desc[1024];
@@ -235,7 +235,7 @@ static int QDECL VMEnumMods(const char *match, int size, void *args, searchpathf
 		return true;
 
 	if (!stricmp(match, "baseq3/"))
-		return true;	//we don't want baseq3
+		return true;	//we don't want baseq3. FIXME: should be any basedir, rather than hardcoded.
 
 	foundone = false;
 	Sys_EnumerateFiles(va("%s%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone, spath);

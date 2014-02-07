@@ -309,7 +309,7 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;

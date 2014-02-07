@@ -353,16 +353,14 @@ void R_MakeTexWad_f(void)
 				if (buf)
 					break;
 			}
+			width = 16;
+			height = 16;
 			if (buf)
 				data = Read32BitImageFile(buf, com_filesize, &width, &height, &hasalpha, imagename);
 			else
 				data = NULL;
 			if (!data)
-			{
-				data = Z_Malloc(16*16*4);
-				width = 16;
-				height = 16;
-			}
+				data = Z_Malloc(width*height*4);
 
 			dummymip.width = (int)(width/scale) & ~0xf;
 			dummymip.height = (int)(height/scale) & ~0xf;

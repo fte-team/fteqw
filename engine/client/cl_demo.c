@@ -1646,7 +1646,7 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 void CL_PlayDemo(char *demoname)
 {
 	char	name[256];
-	int start;
+	qofs_t start;
 	vfsfile_t *f;
 
 //

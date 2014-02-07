@@ -63,6 +63,8 @@ unsigned int sys_parentheight;
 int qwinvermaj;
 int qwinvermin;
 
+char		*sys_argv[MAX_NUM_ARGVS];
+
 
 #ifdef RESTARTTEST
 jmp_buf restart_jmpbuf;
@@ -730,7 +732,7 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 		return !rename(oldfname, newfname);
 }
 
-static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	qboolean go;
 	if (!WinNT)
@@ -818,7 +820,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
-							go = func(file, fd.nFileSizeLow, parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
 						}
 					}
 				}
@@ -829,7 +831,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
-							go = func(file, fd.nFileSizeLow, parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
 						}
 					}
 				}
@@ -933,7 +935,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
-							go = func(file, fd.nFileSizeLow, parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
 						}
 					}
 				}
@@ -944,7 +946,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
-							go = func(file, fd.nFileSizeLow, parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
 						}
 					}
 				}
@@ -954,7 +956,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 	}
 	return go;
 }
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	char fullmatch[MAX_OSPATH];
 	int start;
@@ -1127,6 +1129,7 @@ void Sys_Init (void)
 
 void Sys_Shutdown(void)
 {
+	int i;
 	if (tevent)
 		CloseHandle (tevent);
 	tevent = NULL;
@@ -1134,6 +1137,14 @@ void Sys_Shutdown(void)
 	if (qwclsemaphore)
 		CloseHandle (qwclsemaphore);
 	qwclsemaphore = NULL;
+
+	for (i = 0; i < MAX_NUM_ARGVS; i++)
+	{
+		if (!sys_argv[i])
+			break;
+		free(sys_argv[i]);
+		sys_argv[i] = NULL;
+	}
 }
 
 
@@ -1762,7 +1773,6 @@ WinMain
 */
 HINSTANCE	global_hInstance;
 int			global_nCmdShow;
-char		*argv[MAX_NUM_ARGVS];
 HWND		hwnd_dialog;
 
 
@@ -2105,9 +2115,9 @@ void Win7_TaskListInit(void)
 #if defined(SVNREVISION) && !defined(MINIMAL)
 	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
 	#if defined(OFFICIAL_RELEASE)
-		#define BUILDTYPE "rel"
+		#define UPD_BUILDTYPE "rel"
 	#else
-		#define BUILDTYPE "test"
+		#define UPD_BUILDTYPE "test"
 		#define UPDATE_URL "http://triptohell.info/moodles/"
 		#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
 		#ifdef _WIN64
@@ -2285,7 +2295,7 @@ void Update_Version_Updated(struct dl_download *dl)
 			char pendingname[MAX_OSPATH];
 			vfsfile_t *pending;
 			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
-			Q_strncatz(pendingname, DISTRIBUTION BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
+			Q_strncatz(pendingname, DISTRIBUTION UPD_BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
 			Update_CreatePath(pendingname);
 			pending = VFSOS_Open(pendingname, "wb");
 			if (!pending)
@@ -2302,7 +2312,7 @@ void Update_Version_Updated(struct dl_download *dl)
 				VFS_CLOSE(pending);
 				if (VFS_GETLEN(dl->file) == size)
 				{
-					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
+					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
 				}
 			}
 		}
@@ -2372,19 +2382,19 @@ qboolean Sys_CheckUpdated(void)
 		char pendingpath[MAX_OSPATH];
 		char updatedpath[MAX_OSPATH];
 
-		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
+		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
 		if (*pendingpath)
 		{
-			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" BUILDTYPE EXETYPE);
+			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE);
 			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
 			Update_CreatePath(updatedpath);
-			Q_strncatz(updatedpath, "cur" BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
+			Q_strncatz(updatedpath, "cur" UPD_BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
 			DeleteFile(updatedpath);
 			if (MoveFile(pendingpath, updatedpath))
-				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
+				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
 		}
 
-		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, BUILDTYPE EXETYPE, updatedpath, sizeof(updatedpath));
+		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, updatedpath, sizeof(updatedpath));
 		
 		if (*updatedpath)
 		{
@@ -2638,9 +2648,11 @@ static int Sys_ProcessCommandline(char **argv, int maxargc, char *argv0)
 			}
 		}
 	}
-	argv[argc] = argv0;
 	if (argc < 1)
+	{
+		argv[0] = argv0;
 		argc = 1;
+	}
 	for (i = 0; i < argc; i++)
 		argv[i] = strdup(argv[i]);
 	return i;
@@ -2745,9 +2757,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 		else
 			GetModuleFileNameA(NULL, bindir, sizeof(bindir)-1);
-		parms.argc = Sys_ProcessCommandline(argv, MAX_NUM_ARGVS, bindir);
+		parms.argc = Sys_ProcessCommandline(sys_argv, MAX_NUM_ARGVS, bindir);
 		*COM_SkipPath(bindir) = 0;
-		parms.argv = (const char **)argv;
+		parms.argv = (const char **)sys_argv;
 
 		host_parms.binarydir = bindir;
 		COM_InitArgv (parms.argc, parms.argv);

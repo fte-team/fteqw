@@ -465,59 +465,59 @@ static int do_stdin = 1;
 #if 1
 char *Sys_LineInputChar(char *line)
 {
-char c;
+	char c;
 	while(*line)
-{
-c = *line++;
-	if (c == '\r' || c == '\n')
 	{
-		coninput_text[coninput_len] = 0;
-		putch ('\n');
-		putch (']');
-		coninput_len = 0;
-		fflush(stdout);
-		return coninput_text;
-	}
-	if (c == 8)
-	{
-		if (coninput_len)
+		c = *line++;
+		if (c == '\r' || c == '\n')
 		{
-			putch (c);
-			putch (' ');
-			putch (c);
-			coninput_len--;
 			coninput_text[coninput_len] = 0;
+			putch ('\n');
+			putch (']');
+			coninput_len = 0;
+			fflush(stdout);
+			return coninput_text;
 		}
-		continue;
-	}
-	if (c == '\t')
-	{
-		int i;
-		char *s = Cmd_CompleteCommand(coninput_text, true, true, 0, NULL);
-		if(s)
+		if (c == 8)
 		{
-			for (i = 0; i < coninput_len; i++)
-				putch('\b');
-			for (i = 0; i < coninput_len; i++)
-				putch(' ');
-			for (i = 0; i < coninput_len; i++)
-				putch('\b');
-
-			strcpy(coninput_text, s);
-			coninput_len = strlen(coninput_text);
-			printf("%s", coninput_text);
+			if (coninput_len)
+			{
+				putch (c);
+				putch (' ');
+				putch (c);
+				coninput_len--;
+				coninput_text[coninput_len] = 0;
+			}
+			continue;
 		}
-		continue;
+		if (c == '\t')
+		{
+			int i;
+			char *s = Cmd_CompleteCommand(coninput_text, true, true, 0, NULL);
+			if(s)
+			{
+				for (i = 0; i < coninput_len; i++)
+					putch('\b');
+				for (i = 0; i < coninput_len; i++)
+					putch(' ');
+				for (i = 0; i < coninput_len; i++)
+					putch('\b');
+
+				strcpy(coninput_text, s);
+				coninput_len = strlen(coninput_text);
+				printf("%s", coninput_text);
+			}
+			continue;
+		}
+		putch (c);
+		coninput_text[coninput_len] = c;
+		coninput_len++;
+		coninput_text[coninput_len] = 0;
+		if (coninput_len == sizeof(coninput_text))
+			coninput_len = 0;
 	}
-	putch (c);
-	coninput_text[coninput_len] = c;
-	coninput_len++;
-	coninput_text[coninput_len] = 0;
-	if (coninput_len == sizeof(coninput_text))
-		coninput_len = 0;
-}
 	fflush(stdout);
-return NULL;
+	return NULL;
 }
 #endif
 /*
@@ -563,7 +563,8 @@ char *Sys_ConsoleInput (void)
 	else
 	{
 		len = read (0, text, sizeof(text)-1);
-		if (len == 0) {
+		if (len == 0)
+		{
 			// end of file
 			do_stdin = 0;
 			return NULL;
@@ -745,7 +746,7 @@ int main(int argc, char *argv[])
 
 
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];

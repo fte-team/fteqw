@@ -461,7 +461,7 @@ void Sys_SaveClipboard(char *text)
 }
 
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];
@@ -537,7 +537,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 #if 0
 #include <android/asset_manager.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *), void *parm)
 {
 	qboolean go = true;
 	const char *f;

@@ -369,7 +369,7 @@ void M_Menu_Audio_f (void)
 		MB_SPACING(8),
 		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_SPACING(4),
-		MB_COMBOCVAR("Output Device", snd_device, info->outdevdescs, info->outdevnames, NULL),
+		MB_COMBOCVAR("Output Device", snd_device, (const char**)info->outdevdescs, (const char**)info->outdevnames, NULL),
 		MB_SLIDER("Volume", volume, 0, 1, 0.1, NULL),
 		MB_COMBOCVAR("Speaker Setup", snd_speakers, speakeroptions, speakervalues, NULL),
 		MB_COMBOCVAR("Frequency", snd_khz, soundqualityoptions, soundqualityvalues, NULL),
@@ -394,7 +394,7 @@ void M_Menu_Audio_f (void)
 #ifdef VOICECHAT
 		MB_REDTEXT("Voice Options", false),
 		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_COMBOCVAR("Microphone Device", snd_voip_capturedevice, info->capdevdescs, info->capdevnames, NULL),
+		MB_COMBOCVAR("Microphone Device", snd_voip_capturedevice, (const char**)info->capdevdescs, (const char**)info->capdevnames, NULL),
 		MB_SLIDER("Voice Volume", snd_voip_play, 0, 2, 0.1, NULL),
 		MB_CHECKBOXCVAR("Microphone Test", snd_voip_test, 0),
 		MB_SLIDER("Microphone Volume", snd_voip_micamp, 0, 2, 0.1, NULL),
@@ -547,7 +547,7 @@ const char *presetexec[] =
 	"r_shadow_realtime_dlight 0;"
 	"r_shadow_realtime_world 0;"
 	"r_glsl_offsetmapping 0;"
-	"gl_detail 0;"
+//	"gl_detail 0;"
 	"gl_load24bit 0;"
 	"r_replacemodels \"\";"
 	"r_waterwarp 0;"
@@ -595,7 +595,7 @@ const char *presetexec[] =
 	"gl_texturemode ll;"
 #ifndef MINIMAL
 	"r_particlesystem script;"
-	"r_particledesc \"spikeset tsshaft\";"
+	"r_particledesc \"high tsshaft\";"
 #endif
 	"gl_specular 1;"
 	"r_loadlit 2;"
@@ -603,7 +603,7 @@ const char *presetexec[] =
 	"gl_blendsprites 1;"
 //	"r_fastsky -1;"
 	"r_shadow_realtime_dlight 1;"
-	"gl_detail 1;"
+//	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
 	"gl_texture_anisotropic_filtering 4;"
 
@@ -898,7 +898,7 @@ void M_Menu_Textures_f (void)
 		MB_SPACING(4),
 		MB_CHECKBOXCVAR("Deluxemapping", r_deluxemapping, 0),
 		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
-		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
+//		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
 		MB_CHECKBOXCVAR("offsetmapping", r_glsl_offsetmapping, 0),
 		MB_SPACING(4),
 		MB_CHECKBOXCVAR("Texture Compression", gl_compress, 0), // merge the save compressed tex options into here?
@@ -2329,7 +2329,7 @@ void M_Menu_Video_f (void)
 		"Wait for Display Enable",
 		NULL
 	};
-	extern cvar_t _vid_wait_override;
+	extern cvar_t vid_vsync;
 */
 	videomenuinfo_t *info;
 	static char current3dres[32]; // enough to fit 1920x1200
@@ -2429,7 +2429,7 @@ void M_Menu_Video_f (void)
 	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"     Custom width", vid_width.string);	y+=8;
 	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"    Custom height", vid_height.string);	y+=12;
 	info->vsynccombo = MC_AddCombo(menu,	16, y,			"            VSync", vsyncoptions, currentvsync); y+=8;
-	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &_vid_wait_override,0);	y+=8;
+	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &vid_vsync,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							" Desktop Settings", &vid_desktopsettings,0);	y+=8;
 	y+=8;
 	MC_AddCommand(menu,	16, y,								"= Apply Changes =", M_VideoApply);	y+=8;

@@ -126,8 +126,8 @@ char *D3D_NameForResult(HRESULT hr)
 
 static void D3D11_PresentOrCrash(void)
 {
-	extern cvar_t _vid_wait_override;
-	HRESULT hr = IDXGISwapChain_Present(d3dswapchain, _vid_wait_override.ival, 0);
+	extern cvar_t vid_vsync;
+	HRESULT hr = IDXGISwapChain_Present(d3dswapchain, vid_vsync.ival, 0);
 	if (FAILED(hr))
 		Sys_Error("IDXGISwapChain_Present: %s\n", D3D_NameForResult(hr));
 }

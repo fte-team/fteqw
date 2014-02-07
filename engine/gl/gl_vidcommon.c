@@ -1294,7 +1294,7 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 			}
 			if (!glsl_hdrs[i])
 			{
-				if (FS_LoadFile(incname, (void**)&inc) >= 0)
+				if (FS_LoadFile(incname, (void**)&inc) != (qofs_t)-1)
 				{
 					if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
 					{
@@ -1744,6 +1744,9 @@ void GL_Init(void *(*getglfunction) (char *name))
 	if (!qglBindBufferARB)
 		qglBindBufferARB	= GL_BindBufferARBStub;
 #endif
+
+	if (!qglGetString)
+		Sys_Error("qglGetString not set. Serious gl library initialisation error\n");
 
 	gl_vendor = qglGetString (GL_VENDOR);
 	Con_SafePrintf ("GL_VENDOR: %s\n", gl_vendor);

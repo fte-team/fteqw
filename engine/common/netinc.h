@@ -127,18 +127,6 @@
 	#ifdef ENOTCONN
 		#undef ENOTCONN
 	#endif
-
-	#define EWOULDBLOCK		WSAEWOULDBLOCK
-	#define EINPROGRESS		WSAEINPROGRESS
-	#define EMSGSIZE		WSAEMSGSIZE
-	#define ECONNRESET		WSAECONNRESET
-	#define ECONNABORTED	WSAECONNABORTED
-	#define ECONNREFUSED	WSAECONNREFUSED
-	#define ENOTCONN		WSAENOTCONN
-	#define EACCES			WSAEACCES
-	#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-	#define EAFNOSUPPORT	WSAEAFNOSUPPORT
-
 #else
 	#include <sys/time.h>
 	#include <sys/types.h>
@@ -177,11 +165,37 @@
 #endif
 
 #if defined(_WIN32)
-	#define qerrno WSAGetLastError()
+	#define neterrno() WSAGetLastError()
+	//this madness is because winsock defines its own errors instead of using system error codes.
+	//*AND* microsoft then went and defined names for all the unix ones too... with different values! oh the insanity of it all!
+	#define NET_EWOULDBLOCK		WSAEWOULDBLOCK
+	#define NET_EINPROGRESS		WSAEINPROGRESS
+	#define NET_EMSGSIZE		WSAEMSGSIZE
+	#define NET_ECONNRESET		WSAECONNRESET
+	#define NET_ECONNABORTED	WSAECONNABORTED
+	#define NET_ECONNREFUSED	WSAECONNREFUSED
+	#define NET_ENOTCONN		WSAENOTCONN
+	#define NET_EACCES			WSAEACCES
+	#define NET_EADDRNOTAVAIL	WSAEADDRNOTAVAIL
+	#define NET_EAFNOSUPPORT	WSAEAFNOSUPPORT
 #elif defined(__MORPHOS__) && !defined(ixemul)
-	#define qerrno Errno()
+	#define neterrno() Errno()
 #else
-	#define qerrno errno
+	#define neterrno() errno
+#endif
+
+#ifndef NET_EWOULDBLOCK
+	//assume unix codes instead, so our prefix still works.
+	#define NET_EWOULDBLOCK		EWOULDBLOCK
+	#define NET_EINPROGRESS		EINPROGRESS
+	#define NET_EMSGSIZE		EMSGSIZE
+	#define NET_ECONNRESET		ECONNRESET
+	#define NET_ECONNABORTED	ECONNABORTED
+	#define NET_ECONNREFUSED	ECONNREFUSED
+	#define NET_ENOTCONN		ENOTCONN
+	#define NET_EACCES			EACCES
+	#define NET_EADDRNOTAVAIL	EADDRNOTAVAIL
+	#define NET_EAFNOSUPPORT	EAFNOSUPPORT
 #endif
 
 #ifndef INVALID_SOCKET
@@ -254,12 +268,14 @@ extern icefuncs_t iceapi;
 #endif
 
 
+#define ADDR_NATPMP		(1u<<0)
+#define ADDR_UPNPIGP	(1u<<1)
 
 #define FTENET_ADDRTYPES 2
 typedef struct ftenet_generic_connection_s {
 	char name[MAX_QPATH];
 
-	int (*GetLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *local, int adridx);
+	int (*GetLocalAddresses)(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
 	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t *to);
@@ -292,3 +308,5 @@ void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrn
 ftenet_connections_t *FTENET_CreateCollection(qboolean listen);
 void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
+int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, int *adrflags, netadr_t *addresses, int maxaddresses);
+

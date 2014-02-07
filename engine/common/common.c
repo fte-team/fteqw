@@ -40,7 +40,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#include "./mingw-libs/jpeglib.h"
 	#endif
 	#ifdef _SDL
-		#include "./mingw-libs/SDL_version.h"
+		#include <SDL.h>
 	#endif
 #elif defined(_WIN32)
 	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
@@ -55,7 +55,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#include "jpeglib.h"
 	#endif
 	#ifdef _SDL
-		#include "SDL_version.h"
+		#include <SDL.h>
 	#endif
 #else
 	#if defined(AVAIL_PNGLIB) && !defined(SERVERONLY)
@@ -69,7 +69,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#include <jpeglib.h>
 	#endif
 	#ifdef _SDL
-		#include <SDL_version.h>
+		#include <SDL.h>
 	#endif
 #endif
 
@@ -2160,7 +2160,7 @@ unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen)
 	{
 		shift = bcount*6;
 		shift = shift-6;
-		*((unsigned char *)out) = (unsigned char)((unicode>>shift)&(0x0000007f>>bcount)) | (0xffffff00 >> bcount);
+		*((unsigned char *)out) = (unsigned char)((unicode>>shift)&(0x0000007f>>bcount)) | ((0xffffff00 >> bcount) & 0xff);
 		out = (char*)out + 1;
 		do
 		{
@@ -2181,7 +2181,7 @@ unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean 
 	{	//quake compatible chars
 		if (maxlen < 1)
 			return 0;
-		*out++ = unicode;
+		*out++ = unicode & 0xff;
 		return 1;
 	}
 	else if (!markup)
@@ -5282,12 +5282,12 @@ int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...
 #endif
 
 // libSDL.a and libSDLmain.a mingw32 libs use this function for some reason, just here to shut gcc up
-#ifdef _MINGW_VFPRINTF
+/*#ifdef _MINGW_VFPRINTF
 int __mingw_vfprintf (FILE *__stream, const char *__format, __VALIST __local_argv)
 {
   return vfprintf( __stream, __format, __local_argv );
 }
-#endif
+#endif*/
 
 int version_number(void)
 {

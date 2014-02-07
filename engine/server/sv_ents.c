@@ -29,6 +29,17 @@ extern cvar_t sv_cullentities_trace;
 extern cvar_t sv_cullplayers_trace;
 extern cvar_t sv_nopvs;
 
+#define SV_PVS_CAMERAS 16
+typedef struct
+{
+	int numents;
+	edict_t *ent[SV_PVS_CAMERAS];	//ents in this list are always sent, even if the server thinks that they are invisible.
+	vec3_t org[SV_PVS_CAMERAS];
+
+	qbyte pvs[(MAX_MAP_LEAFS+7)>>3];
+} pvscamera_t;
+
+
 /*
 =============================================================================
 
@@ -917,13 +928,13 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	if (bits & 0x0000ff00)
 		bits |= UF_EXTEND1;
 
-	MSG_WriteByte(msg, bits>>0);
+	MSG_WriteByte(msg, (bits>>0) & 0xff);
 	if (bits & UF_EXTEND1)
-		MSG_WriteByte(msg, bits>>8);
+		MSG_WriteByte(msg, (bits>>8) & 0xff);
 	if (bits & UF_EXTEND2)
-		MSG_WriteByte(msg, bits>>16);
+		MSG_WriteByte(msg, (bits>>16) & 0xff);
 	if (bits & UF_EXTEND3)
-		MSG_WriteByte(msg, bits>>24);
+		MSG_WriteByte(msg, (bits>>24) & 0xff);
 
 	if (bits & UF_FRAME)
 	{
@@ -1148,7 +1159,10 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			client->sentents.max_entities = j;
 		}
 		while(j > client->sentents.num_entities)
-			client->pendingentbits[client->sentents.num_entities++] = UF_RESET|UF_RESET2;
+		{
+			client->sentents.entities[client->sentents.num_entities].number = 0;
+			client->sentents.num_entities++;
+		}
 	}
 
 	/*figure out the entitys+bits that changed (removed and active)*/
@@ -1986,32 +2000,37 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #endif
 
 
-qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
+qboolean Cull_Traceline(pvscamera_t *cameras, edict_t *seen)
 {
 	int i;
 	trace_t tr;
-	vec3_t start;
 	vec3_t end;
+	int c;
 
 	if (seen->v->solid == SOLID_BSP)
 		return false;	//bsp ents are never culled this way
 
 	//stage 1: check against their origin
-	VectorAdd(viewer->v->origin, viewer->v->view_ofs, start);
-	tr.fraction = 1;
-	if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, start, seen->v->origin, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
-		return false;	//wasn't blocked
+	for (c = 0; c < cameras->numents; c++)
+	{
+		tr.fraction = 1;
+		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], seen->v->origin, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
+			return false;	//wasn't blocked
+	}
 
 	//stage 2: check against their bbox
-	for (i = 0; i < 8; i++)
+	for (c = 0; c < cameras->numents; c++)
 	{
-		end[0] = seen->v->origin[0] + ((i&1)?seen->v->mins[0]:seen->v->maxs[0]);
-		end[1] = seen->v->origin[1] + ((i&2)?seen->v->mins[1]:seen->v->maxs[1]);
-		end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
+		for (i = 0; i < 8; i++)
+		{
+			end[0] = seen->v->origin[0] + ((i&1)?seen->v->mins[0]:seen->v->maxs[0]);
+			end[1] = seen->v->origin[1] + ((i&2)?seen->v->mins[1]:seen->v->maxs[1]);
+			end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
 
-		tr.fraction = 1;
-		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, start, end, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
-			return false;	//this trace went through, so don't cull
+			tr.fraction = 1;
+			if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], end, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
+				return false;	//this trace went through, so don't cull
+		}
 	}
 
 	return true;
@@ -2109,7 +2128,7 @@ SV_WritePlayersToClient
 
 =============
 */
-void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *clent, qbyte *pvs, sizebuf_t *msg)
+void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *clent, pvscamera_t *cameras, sizebuf_t *msg)
 {
 	qboolean isbot;
 	int			j;
@@ -2304,13 +2323,13 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				continue;
 
 			// ignore if not touching a PV leaf
-			if (pvs && !sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, pvs))
+			if (cameras && !sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, cameras->pvs))
 				continue;
 
 			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
-			if (sv_cullplayers_trace.value || sv_cullentities_trace.value)
-				if (Cull_Traceline(clent, ent))
+			if (cameras && (sv_cullplayers_trace.value || sv_cullentities_trace.value))
+				if (Cull_Traceline(cameras, ent))
 					continue;
 		}
 
@@ -2951,12 +2970,10 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	}
 
 	if (state->effects & DPEF_LOWPRECISION)
-		state->effects &= DPEF_LOWPRECISION;	//we don't support it, nor does dp any more. strip it.
+		state->effects &= ~DPEF_LOWPRECISION;	//we don't support it, nor does dp any more. strip it.
 
 	if (state->effects & EF_FULLBRIGHT)	//wrap the field for fte clients (this is horrible)
-	{
 		state->hexen2flags |= MLS_FULLBRIGHT;
-	}
 
 	if (progstype != PROG_QW && state->effects && client && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
 	{
@@ -3046,11 +3063,11 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 #pragma warningmsg("TODO: Fix attachments for more vanilla clients")
 }
 
-void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, edict_t *clent, qboolean ignorepvs)
+void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t *cameras, edict_t *clent)
 {
 //pvs and clent can be null, but only if the other is also null
 	int e, i;
-	edict_t *ent, *trackent, *tracecullent;
+	edict_t *ent, *tracecullent;	//tracecullent is different from ent because attached models cull the parent instead. also, null for entities which are not culled.
 	entity_state_t	*state;
 #define DEPTHOPTIMISE
 #ifdef DEPTHOPTIMISE
@@ -3061,22 +3078,11 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 	int pvsflags;
 	int limit;
+	int c, maxc = cameras?cameras->numents:0;
 
-	if (client->spectator)
-		trackent = EDICT_NUM(svprogfuncs, client->spec_track);
-	else if (clent)
-		trackent = PROG_TO_EDICT(svprogfuncs, clent->xv->view2);
-	else
-		trackent = NULL;
-
-	if (client->viewent
- #ifdef NQPROT
-  && ISQWCLIENT(client)
-  #endif
-		)	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
-
+	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
+	if (client->viewent && ISQWCLIENT(client))
 	{
-
 //FIXME: this hack needs cleaning up
 #ifdef DEPTHOPTIMISE
 		distances[0] = 0;
@@ -3153,21 +3159,26 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 		}
 
 		pvsflags = ent->xv->pvsflags;
-		if (ent->xv->viewmodelforclient)
+		for (c = 0; c < maxc; c++)
+		{
+			if (ent == cameras->ent[c])
+				break;
+		}
+		if (c < maxc)
+			tracecullent = NULL;
+		else if (ent->xv->viewmodelforclient)
 		{
 			if (ent->xv->viewmodelforclient != (clent?EDICT_TO_PROG(svprogfuncs, clent):0))
 				continue;
 			tracecullent = NULL;
 		}
-		else if (ent == clent || ent == trackent)
-			tracecullent = NULL;
 		else
 		{
 			// ignore ents without visible models
 			if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC) && ent->v->skin >= 0)
 				continue;
 
-			if (pvs)	//self doesn't get a pvs test, to cover teleporters
+			if (cameras)	//self doesn't get a pvs test, to cover teleporters
 			{
 				if ((int)ent->v->effects & EF_NODEPTHTEST)
 					tracecullent = NULL;
@@ -3193,13 +3204,13 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 						}
 						else
 						{
-							if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)tracecullent)->pvsinfo, pvs))
+							if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)tracecullent)->pvsinfo, cameras->pvs))
 								continue;
 						}
 					}
 					else
 					{
-						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, pvs))
+						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, cameras->pvs))
 							continue;
 						tracecullent = ent;
 					}
@@ -3255,10 +3266,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				continue;	//not in this dimension - sorry...
 
 
-		if (!ignorepvs && ent != clent && tracecullent && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))
+		if (cameras && tracecullent && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))
 		{	//more expensive culling
 			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
-				if (Cull_Traceline(clent, tracecullent))
+				if (Cull_Traceline(cameras, tracecullent))
 					continue;
 		}
 
@@ -3339,36 +3350,49 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	}
 }
 
-qbyte *SV_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsize)
+void SV_AddCameraEntity(pvscamera_t *cameras, edict_t *ent, vec3_t viewofs)
 {
+	int i;
 	vec3_t org;
-	int leavepvs = false;
-/*
-	if (r_novis.ival)
+
+	for (i = 0; i < cameras->numents; i++)
 	{
-		memset(pvs, 0xff, (sv.world.worldmodel->numleafs+31)>>3);
-		return pvs;
+		if (cameras->ent[i] == ent)
+			return;	//don't add the same ent multiple times (.view2 or portals that can see themselves through other portals).
 	}
-*/
+
+	if (viewofs)
+		VectorAdd (ent->v->origin, viewofs, org);
+	else
+		VectorCopy (ent->v->origin, org);
+
+	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, cameras->pvs, sizeof(cameras->pvs), cameras->numents!=0);
+	if (cameras->numents < SV_PVS_CAMERAS)
+	{
+		cameras->ent[cameras->numents] = ent;
+		VectorCopy(org, cameras->org[cameras->numents]);
+		cameras->numents++;
+	}
+}
+
+void SV_Snapshot_SetupPVS(client_t *client, pvscamera_t *camera)
+{
+	camera->numents = 0;
 	for (; client; client = client->controlled)
 	{
-		if (client->viewent)
-		{
-			edict_t *e = PROG_TO_EDICT(svprogfuncs, client->viewent);
-			VectorAdd (e->v->origin, client->edict->v->view_ofs, org);
-		}
+		if (client->viewent)	//svc_viewentity hack
+			SV_AddCameraEntity(camera, EDICT_NUM(svprogfuncs, client->viewent), client->edict->v->view_ofs);
 		else
-			VectorAdd (client->edict->v->origin, client->edict->v->view_ofs, org);
-		sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, pvs, pvsbufsize, leavepvs);
-		leavepvs = true;
+			SV_AddCameraEntity(camera, client->edict, client->edict->v->view_ofs);
 
-#ifdef PEXT_VIEW2
-		if (client->edict->xv->view2)	//add a second view point to the pvs
-			sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2)->v->origin, pvs, pvsbufsize, leavepvs);
-#endif
+		//spectators should always see their targetted player
+		if (client->spec_track)
+			SV_AddCameraEntity(camera, EDICT_NUM(svprogfuncs, client->spec_track), client->edict->v->view_ofs);
+
+		//view2 support should always see the extra entity
+		if (client->edict->xv->view2)
+			SV_AddCameraEntity(camera, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2), NULL);
 	}
-
-	return pvs;
 }
 
 void SV_Snapshot_Clear(packet_entities_t *pack)
@@ -3388,11 +3412,10 @@ Builds a temporary q1 style entity packet for a q3 client
 */
 void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack)
 {
-	qbyte pvsbuf[(MAX_MAP_LEAFS+7)>>3];
-	qbyte *pvs;
+	pvscamera_t cameras;
 	SV_Snapshot_Clear(pack);
-	pvs = SV_Snapshot_SetupPVS(client, pvsbuf, sizeof(pvsbuf));
-	SV_Snapshot_BuildQ1(client, pack, pvs, client->edict, false);
+	SV_Snapshot_SetupPVS(client, &cameras);
+	SV_Snapshot_BuildQ1(client, pack, &cameras, client->edict);
 }
 
 /*
@@ -3408,11 +3431,10 @@ svc_playerinfo messages
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs)
 {
 	int		e;
-	qbyte	*pvs;
 	packet_entities_t	*pack;
 	edict_t	*clent;
 	client_frame_t	*frame;
-	qbyte pvsbuffer[(MAX_MAP_LEAFS+7)/8];
+	pvscamera_t camerasbuf, *cameras = &camerasbuf;
 
 	// this is the frame we are creating
 	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
@@ -3421,21 +3443,21 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	// find the client's PVS
 	if (ignorepvs)
-	{
+	{	//mvd...
 		clent = NULL;
-		pvs = NULL;
+		cameras = NULL;
 	}
 	else
 	{
 		clent = client->edict;
 		if (sv_nopvs.ival)
-			pvs = NULL;
+			cameras = NULL;
 #ifdef HLSERVER
 		else if (svs.gametype == GT_HALFLIFE)
 			pvs = SVHL_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
 #endif
 		else 
-			pvs = SV_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
+			SV_Snapshot_SetupPVS(client, cameras);
 	}
 
 	host_client = client;
@@ -3468,7 +3490,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			SVHL_Snapshot_Build(client, pack, pvs, clent, ignorepvs);
 		else
 #endif
-			SV_Snapshot_BuildQ1(client, pack, pvs, clent, ignorepvs);
+			SV_Snapshot_BuildQ1(client, pack, cameras, clent);
 	}
 
 #ifdef NQPROT
@@ -3534,7 +3556,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			if (client == &demo.recorder)
 				SV_WritePlayersToMVD(client, frame, msg);
 			else
-				SV_WritePlayersToClient (client, frame, clent, pvs, msg);
+				SV_WritePlayersToClient (client, frame, clent, cameras, msg);
 		}
 
 		SVQW_EmitPacketEntities (client, pack, msg);

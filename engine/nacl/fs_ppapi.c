@@ -201,18 +201,18 @@ static int VFSMEM_WriteBytes (struct vfsfile_s *file, const void *buffer, int by
 //	Sys_Printf("written: %i, file is now at %i\n", total, f->offset);
 	return total;
 }
-static qboolean VFSMEM_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean VFSMEM_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfsmfile_t *f = (vfsmfile_t*)file;
 	f->offset = pos;
 	return true;
 }
-static unsigned long VFSMEM_Tell (struct vfsfile_s *file)
+static qofs_t VFSMEM_Tell (struct vfsfile_s *file)
 {
 	vfsmfile_t *f = (vfsmfile_t*)file;
 	return f->offset;
 }
-static unsigned long VFSMEM_GetSize (struct vfsfile_s *file)
+static qofs_t VFSMEM_GetSize (struct vfsfile_s *file)
 {
 	vfsmfile_t *f = (vfsmfile_t*)file;
 	return f->file->length;
@@ -395,7 +395,7 @@ static void FSPPAPI_ClosePath(searchpathfuncs_t *handle)
 	Z_Free(handle);
 }
 
-int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	int rootlen = strlen(rootpath);
 	char *sub;
@@ -418,13 +418,13 @@ int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(con
 	}
 	return true;
 }
-static int FSPPAPI_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *), void *parm)
+static int FSPPAPI_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm)
 {
 	pppath_t *sp = (void*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);
 }
 
-static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data, searchpathfuncs_t *handle)
+static int FSPPAPI_RebuildFSHash(const char *filename, qofs_t filesize, void *data, searchpathfuncs_t *handle)
 {
 	pppath_t *sp = (void*)handle;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
@@ -571,13 +571,13 @@ static int VFSPPAPI_WriteBytes (struct vfsfile_s *file, const void *buffer, int 
 		intfile->offset += res;
 	return res;
 }
-static qboolean VFSPPAPI_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean VFSPPAPI_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfsppapifile_t *intfile = (vfsppapifile_t*)file;
 	intfile->offset = pos;
 	return true;
 }
-static unsigned long VFSPPAPI_Tell (struct vfsfile_s *file)
+static qofs_t VFSPPAPI_Tell (struct vfsfile_s *file)
 {
 	vfsppapifile_t *intfile = (vfsppapifile_t*)file;
 	return intfile->offset;
@@ -587,7 +587,7 @@ static void VFSPPAPI_Flush(struct vfsfile_s *file)
 	vfsppapifile_t *intfile = (vfsppapifile_t*)file;
 	ppb_fileio->Flush(intfile->handle, nullccb);
 }
-static unsigned long VFSPPAPI_GetSize (struct vfsfile_s *file)
+static qofs_t VFSPPAPI_GetSize (struct vfsfile_s *file)
 {
 	vfsppapifile_t *intfile = (vfsppapifile_t*)file;
 	struct PP_FileInfo fileinfo;
@@ -710,7 +710,7 @@ static void FSPPAPI_ClosePath(searchpathfuncs_t *handle)
 {
 	Z_Free(handle);
 }
-static int FSPPAPI_RebuildFSHash(const char *filename, int filesize, void *data)
+static int FSPPAPI_RebuildFSHash(const char *filename, qofs_t filesize, void *data)
 {
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory

@@ -45,6 +45,7 @@ static int shadow_fbo_id;
 static int shadow_fbo_depth_num;
 static int crepuscular_fbo_id;
 texid_t crepuscular_texture_id;
+fbostate_t crepuscular_fbo;
 shader_t *crepuscular_shader;
 
 cvar_t r_shadow_shadowmapping_nearclip = CVAR("r_shadow_shadowmapping_nearclip", "1");
@@ -2365,6 +2366,8 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 
 	switch(qrenderer)
 	{
+	default:
+		return false;
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		if (!TEXVALID(shadowmap[isspot]))
@@ -2458,6 +2461,8 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 
 	switch(qrenderer)
 	{
+	default:
+		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		/*end framebuffer*/
@@ -3142,6 +3147,7 @@ void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 {
 #ifdef GLQUAKE
+	int oldfbo;
 	static mesh_t mesh;
 	static vecV_t xyz[4] =
 	{
@@ -3209,19 +3215,19 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	BE_Scissor(NULL);
 
-	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, r_nulltex, false);
+	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, true, FBO_TEX_COLOUR, crepuscular_texture_id, r_nulltex, vid.pixelwidth, vid.pixelheight);
 
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours, LSHADER_STANDARD);
 	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
-	GLBE_RenderToTexture(crepuscular_texture_id, r_nulltex, r_nulltex, r_nulltex, false);
+	GLBE_FBO_Pop(oldfbo);
+	Con_Printf("FIXME: shaderstate.tex_sourceocolour = crepuscular_texture_id\n");
 
 	BE_SelectMode(BEM_STANDARD);
 
 	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
-
-	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
+	Con_Printf("FIXME: shaderstate.tex_sourceocolour = reset\n");
 #endif
 }
 

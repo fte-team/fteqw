@@ -670,16 +670,21 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 #define PNG_ALLOCATED
 #endif
 
-#define png_const_infop png_infop
-#define png_const_structp png_structp
-#define png_const_bytep png_bytep
+#if PNG_LIBPNG_VER < 10500
+	#define png_const_infop png_infop
+	#define png_const_structp png_structp
+	#define png_const_bytep png_bytep
+#endif
+#if PNG_LIBPNG_VER < 10600
+	#define png_const_inforp png_const_infop
+#endif
 
 void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
 void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
-png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_bit_depth);
-png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_channels);
-png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr)) PSTATIC(png_get_rowbytes);
+png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
+png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
+png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
 void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
 void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
 void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
@@ -759,9 +764,16 @@ qboolean LibPNG_Init(void)
 	};
 
 	if (!LIBPNG_LOADED())
-		libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
-	if (!LIBPNG_LOADED())
-		libpng_handle = Sys_LoadLibrary("libpng12", pngfuncs);
+	{
+		#ifdef _WIN32
+			libpng_handle = Sys_LoadLibrary("libpng"STRINGIFY(PNG_LIBPNG_VER_DLLNUM), pngfuncs);
+		#else
+			libpng_handle = Sys_LoadLibrary("libpng.so."STRINGIFY(PNG_LIBPNG_VER_SONUM), pngfuncs);
+		#endif
+	}
+//	if (!LIBPNG_LOADED())
+//		libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
+
 #endif
 	return LIBPNG_LOADED();
 }
@@ -2509,15 +2521,18 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 		int i;
 		if (w >= 4 && h >= 4 && w*h+sizeof(int)*2 == com_filesize)
 		{
-			unsigned int *in = (unsigned int*)buf+2;
+			qboolean foundalpha = false;
+			qbyte *in = (qbyte*)((int*)buf+2);
 			data = BZ_Malloc(w * h * sizeof(int));
 			for (i = 0; i < w * h; i++)
 			{
+				if (in[i] == 255)
+					foundalpha = true;
 				((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
 			}
 			*width = w;
 			*height = h;
-			*hasalpha = false;
+			*hasalpha = foundalpha;
 			return data;
 		}
 	}
@@ -2629,6 +2644,72 @@ static struct
 };
 
 int image_width, image_height;
+qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, char *iname, char *fname, qbyte *filedata, int filesize)
+{
+	qboolean hasalpha;
+	qbyte *rgbadata;
+
+	//these formats have special handling, because they cannot be implemented via Read32BitImageFile - they don't result in rgba images.
+#ifdef IMAGEFMT_DDS
+	*tex = GL_ReadTextureDDS(iname, filedata, filesize);
+	if (TEXVALID(*tex))
+		return true;
+#endif
+#ifdef IMAGEFMT_BLP
+	if (filedata[0] == 'B' && filedata[1] == 'L' && filedata[2] == 'P' && filedata[3] == '2') 
+	{
+		*tex = GL_ReadBLPFile(iname, filedata, filesize);
+		if (TEXVALID(*tex))
+			return true;
+	}
+#endif
+
+	hasalpha = false;
+	if ((rgbadata = Read32BitImageFile(filedata, filesize, &image_width, &image_height, &hasalpha, fname)))
+	{
+		extern cvar_t vid_hardwaregamma;
+		if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
+			BoostGamma(rgbadata, image_width, image_height);
+
+		if (hasalpha)
+			flags &= ~IF_NOALPHA;
+		else if (!(flags & IF_NOALPHA))
+		{
+			unsigned int alpha_width, alpha_height, p;
+			char aname[MAX_QPATH];
+			unsigned char *alphadata;
+			char *alph;
+			COM_StripExtension(fname, aname, sizeof(aname));
+			Q_strncatz(aname, "_alpha", sizeof(aname));
+			Q_strncatz(aname, COM_FileExtension(fname), sizeof(aname));
+			if ((alph = COM_LoadFile (aname, 5)))
+			{
+				if ((alphadata = Read32BitImageFile(alph, filesize, &alpha_width, &alpha_height, &hasalpha, aname)))
+				{
+					if (alpha_width == image_width && alpha_height == image_height)
+					{
+						for (p = 0; p < alpha_width*alpha_height; p++)
+						{
+							rgbadata[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
+						}
+					}
+					BZ_Free(alphadata);
+				}
+				BZ_Free(alph);
+			}
+		}
+
+		TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", iname));
+		*tex = R_LoadTexture32 (iname, image_width, image_height, rgbadata, flags);
+
+		BZ_Free(rgbadata);
+
+		return true;
+	}
+	else
+		Con_Printf("Unable to read file %s (format unsupported)\n", fname);
+	return false;
+}
 texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 {
 	qboolean alphaed;
@@ -2636,7 +2717,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	unsigned char *data;
 	texid_t tex;
 //	int h;
-	char fname[MAX_QPATH], nicename[MAX_QPATH];
+	char fname[MAX_QPATH], nicename[MAX_QPATH], iname[MAX_QPATH];
 	qboolean hasalpha;
 
 	int i, e;
@@ -2682,6 +2763,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		}
 	}
 
+	//cubemaps need special all-at-once handling or something, and is not individual textures.
 	if ((flags & IF_TEXTYPE) == IF_CUBEMAP)
 	{
 		int j;
@@ -2809,85 +2891,17 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
-				//these formats have special handling, because they cannot be implemented via Read32BitImageFile - they don't result in rgba images.
-#ifdef IMAGEFMT_DDS
-				tex = GL_ReadTextureDDS(name, buf, com_filesize);
-				if (TEXVALID(tex))
-				{
-					BZ_Free(buf);
-					return tex;
-				}
-#endif
-#ifdef IMAGEFMT_BLP
-				if (buf[0] == 'B' && buf[1] == 'L' && buf[2] == 'P' && buf[3] == '2') 
-				{
-					tex = GL_ReadBLPFile(name, buf, com_filesize);
-					if (TEXVALID(tex))
-					{
-						BZ_Free(buf);
-						return tex;
-					}
-				}
-#endif
-
-				hasalpha = false;
-				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, &hasalpha, fname)))
-				{
-					extern cvar_t vid_hardwaregamma;
-					if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
-						BoostGamma(data, image_width, image_height);
-
-					if (hasalpha)
-						flags &= ~IF_NOALPHA;
-					else if (!(flags & IF_NOALPHA))
-					{
-						unsigned int alpha_width, alpha_height, p;
-						char aname[MAX_QPATH];
-						unsigned char *alphadata;
-						char *alph;
-						if (tex_path[i].args >= 3)
-							snprintf(aname, sizeof(aname)-1, tex_path[i].path, subpath, nicename, va("_alpha%s", tex_extensions[e].name));
-						else
-							snprintf(aname, sizeof(aname)-1, tex_path[i].path, nicename, va("_alpha%s", tex_extensions[e].name));
-						if ((alph = COM_LoadFile (aname, 5)))
-						{
-							if ((alphadata = Read32BitImageFile(alph, com_filesize, &alpha_width, &alpha_height, &hasalpha, aname)))
-							{
-								if (alpha_width == image_width && alpha_height == image_height)
-								{
-									for (p = 0; p < alpha_width*alpha_height; p++)
-									{
-										data[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
-									}
-								}
-								BZ_Free(alphadata);
-							}
-							BZ_Free(alph);
-						}
-					}
-
-
-					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
-					if (tex_path[i].args >= 3)
-					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
-						snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-						tex = R_LoadTexture32 (fname, image_width, image_height, data, flags);
-					}
-					else
-						tex = R_LoadTexture32 (name, image_width, image_height, data, flags);
-
-					BZ_Free(data);
-
-					BZ_Free(buf);
-
-					return tex;
-				}
+				if (tex_path[i].args >= 3)
+					snprintf(iname, sizeof(iname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
 				else
+					snprintf(iname, sizeof(iname)-1, "%s", name); /*should be safe if its null*/
+
+				if (R_LoadTextureFromMemory(&tex, flags, iname, fname, buf, com_filesize))
 				{
-					Con_Printf("Unable to read file %s (format unsupported)\n", fname);
 					BZ_Free(buf);
-					continue;
+					return tex;
 				}
+				BZ_Free(buf);
 			}
 		}
 	}
@@ -2895,25 +2909,17 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	if (!(flags & IF_SUBDIRONLY))
 	{
 		/*still failed? attempt to load quake lmp files, which have no real format id*/
-		if (flags & IF_EXACTEXTENSION)
-			Q_strncpyz(fname, nicename, sizeof(fname));
-		else
-			snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
+		Q_strncpyz(fname, name, sizeof(fname));
+		COM_DefaultExtension(fname, ".lmp", sizeof(fname));
 		if ((buf = COM_LoadFile (fname, 5)))
 		{
-			extern cvar_t vid_hardwaregamma;
-			TEXASSIGNF(tex, r_nulltex);
-			if (com_filesize >= 8)
+			if (R_LoadTextureFromMemory(&tex, flags, name, fname, buf, com_filesize))
 			{
-				image_width = LittleLong(((int*)buf)[0]);
-				image_height = LittleLong(((int*)buf)[1]);
-				if (image_width >= 4 && image_height >= 4 && image_width*image_height+8 == com_filesize)
-				{
-					tex = R_LoadTexture8(name, image_width, image_height, buf+8, flags, 1);
-				}
+				BZ_Free(buf);
+				return tex;
 			}
 			BZ_Free(buf);
-			return tex;
+			return r_nulltex;
 		}
 
 		//now look in wad files. (halflife compatability)

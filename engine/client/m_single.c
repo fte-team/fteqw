@@ -500,7 +500,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 	return false;
 }
 
-static int QDECL DemoAddItem(const char *filename, int size, void *parm, searchpathfuncs_t *spath)
+static int QDECL DemoAddItem(const char *filename, qofs_t size, void *parm, searchpathfuncs_t *spath)
 {
 	int extnum;
 	demomenu_t *menu = parm;

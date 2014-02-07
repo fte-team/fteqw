@@ -311,46 +311,41 @@ struct icestate_s *QDECL ICE_Create(void *module, char *conname, char *peername,
 
 	if (collection)
 	{
-		int i;
-		int adrno, adrcount=1;
-		netadr_t adr;
-		for (i = 0; i < MAX_CONNECTIONS; i++)
+		int i, m;
+
+		netadr_t	addr[64];
+		struct ftenet_generic_connection_s			*gcon[sizeof(addr)/sizeof(addr[0])];
+		int			flags[sizeof(addr)/sizeof(addr[0])];
+
+		m = NET_EnumerateAddresses(collection, gcon, flags, addr, sizeof(addr)/sizeof(addr[0]));
+
+		for (i = 0; i < m; i++)
 		{
-			if (!collection->conn[i])
-				continue;
-			adrno = 0;
-			if (collection->conn[i]->GetLocalAddress)
+			if (addr[i].type == NA_IP || addr[i].type == NA_IPV6)
 			{
-				for (adrcount=1; (adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno)) && adrno < adrcount; adrno++)
-				{
-					if (adr.type == NA_IP || adr.type == NA_IPV6)
-					{
-						adr.connum = i;
-						ICE_AddLCandidateInfo(con, &adr, adrno, ICE_HOST);
+				ICE_AddLCandidateInfo(con, &addr[i], i, ICE_HOST);
 
-						/*
-						cand = Z_Malloc(sizeof(*cand));
-						cand->info.network = i;
-						cand->info.port = ntohs(adr.port);
-						adr.port = 0;	//to make sure its not part of the string...
-						Q_strncpyz(cand->info.addr, NET_AdrToString(adrbuf, sizeof(adrbuf), &adr), sizeof(cand->info.addr));
-						cand->info.generation = 0;
-						cand->info.component = 1;
-						cand->info.foundation = 1;
-						cand->info.priority =
-							(1<<24)*(126) +
-							(1<<8)*((adr.type == NA_IP?32768:0)+net*256+(255-adrno)) +
-							(1<<0)*(256 - cand->info.component);
+				/*
+				cand = Z_Malloc(sizeof(*cand));
+				cand->info.network = i;
+				cand->info.port = ntohs(adr.port);
+				adr.port = 0;	//to make sure its not part of the string...
+				Q_strncpyz(cand->info.addr, NET_AdrToString(adrbuf, sizeof(adrbuf), &adr), sizeof(cand->info.addr));
+				cand->info.generation = 0;
+				cand->info.component = 1;
+				cand->info.foundation = 1;
+				cand->info.priority =
+					(1<<24)*(126) +
+					(1<<8)*((adr.type == NA_IP?32768:0)+net*256+(255-adrno)) +
+					(1<<0)*(256 - cand->info.component);
 
-						Sys_RandomBytes((void*)rnd, sizeof(rnd));
-						Q_strncpyz(cand->info.candidateid, va("x%08x%08x", rnd[0], rnd[1]), sizeof(cand->info.candidateid));
-						cand->dirty = true;
+				Sys_RandomBytes((void*)rnd, sizeof(rnd));
+				Q_strncpyz(cand->info.candidateid, va("x%08x%08x", rnd[0], rnd[1]), sizeof(cand->info.candidateid));
+				cand->dirty = true;
 
-						cand->next = con->lc;
-						con->lc = cand;
-						*/
-					}
-				}
+				cand->next = con->lc;
+				con->lc = cand;
+				*/
 			}
 		}
 	}

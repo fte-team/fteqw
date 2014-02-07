@@ -355,7 +355,7 @@ int QDECL VFSGen_WriteBytes(vfsfile_t *f, const void *buffer, int bytes)
 	return 0;
 }
 
-qboolean QDECL VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
+qboolean QDECL VFSGen_Seek(vfsfile_t *f, qofs_t newpos)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	if (newpos < 0 || newpos >= g->buffer->len)
@@ -366,13 +366,13 @@ qboolean QDECL VFSGen_Seek(vfsfile_t *f, unsigned long newpos)
 	return true;
 }
 
-unsigned long QDECL VFSGen_Tell(vfsfile_t *f)
+qofs_t QDECL VFSGen_Tell(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->pos;
 }
 
-unsigned long QDECL VFSGen_GetLen(vfsfile_t *f)
+qofs_t QDECL VFSGen_GetLen(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->buffer->len;

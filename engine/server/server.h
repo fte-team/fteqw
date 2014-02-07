@@ -834,7 +834,7 @@ typedef struct
 #define	SOLID_BSP				4		// bsp clip, touch on edge, block
 #define	SOLID_PHASEH2			5
 #define	SOLID_CORPSE			5
-#define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
+#define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER. deprecated. use solid_bsp and skin=-16
 
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
@@ -1266,7 +1266,11 @@ void SV_ConSay_f(void);
 //this header gives supported version numbers and stuff
 typedef struct mvdpendingdest_s {
 	qboolean error;	//disables writers, quit ASAP.
+#ifdef _WIN32
+	qintptr_t socket;
+#else
 	int socket;
+#endif
 
 	char inbuffer[2048];
 	char outbuffer[2048];

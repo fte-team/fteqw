@@ -10,6 +10,7 @@
 
 
 char sys_language[64] = "";
+struct language_s languages[MAX_LANGUAGES];
 
 void TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 {

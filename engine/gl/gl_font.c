@@ -218,6 +218,7 @@ typedef struct font_s
 	ftfontface_t *face[MAX_FTFACES];
 #endif
 	struct font_s *alt;
+	vec3_t tint;
 	vec3_t alttint;
 } font_t;
 
@@ -1058,7 +1059,18 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	int i = 0;
 	int defaultplane;
 	char *aname;
+	char *parms;
 	int height = (vheight * vid.rotpixelheight)/vid.height;
+	char facename[MAX_QPATH];
+
+	Q_strncpy(facename, fontfilename, sizeof(facename));
+
+	aname = strstr(facename, ":");
+	if (aname)
+		*aname++ = 0;
+	parms = strstr(facename, "?");
+	if (parms)
+		*parms++ = 0;
 
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
@@ -1072,6 +1084,35 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	default:
 		VectorSet(f->alttint, 1.16, 0.54, 0.41);
 		break;
+	}
+	VectorSet(f->tint, 1, 1, 1);
+	fontfilename = facename;
+
+	if (parms)
+	{
+		while (*parms)
+		{
+			if (!strncmp(parms, "col=", 4))
+			{
+				char *t = parms+4;
+				f->tint[0] = strtod(t, &t);
+				if (*t == ',') t++;
+				if (*t == ' ') t++;
+				f->tint[1] = strtod(t, &t);
+				if (*t == ',') t++;
+				if (*t == ' ') t++;
+				f->tint[2] = strtod(t, &t);
+				parms = t;
+
+			}
+			while(*parms && *parms != '&')
+				parms++;
+			if (*parms == '&')
+			{
+				parms++;
+				continue;
+			}
+		}
 	}
 
 #ifdef DOOMWADS
@@ -1195,21 +1236,28 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 		return f;
 	}
 
-	aname = strstr(fontfilename, ":");
 	if (aname)
 	{
-		*aname = 0;
-		if (!strncmp(aname+1, "?col=", 5))
+		if (!strncmp(aname, "?col=", 5))
 		{
-			char *t = aname+6;
+			char *t = aname+5;
 			f->alttint[0] = strtod(t, &t);
+			if (*t == ',') t++;
 			if (*t == ' ') t++;
 			f->alttint[1] = strtod(t, &t);
+			if (*t == ',') t++;
 			if (*t == ' ') t++;
 			f->alttint[2] = strtod(t, &t);
 		}
 		else
-			f->alt = Font_LoadFont(vheight, aname+1);
+		{
+			f->alt = Font_LoadFont(vheight, aname);
+			if (f->alt)
+			{
+				VectorCopy(f->alt->tint, f->alttint);
+				VectorCopy(f->alt->tint, f->alt->alttint);
+			}
+		}
 	}
 
 	{
@@ -1258,8 +1306,6 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 			f->chars[i].texplane = BITMAPPLANE;
 		}
 	}
-	if (aname)
-		*aname = ':';
 
 	defaultplane = BITMAPPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
 	if (!TEXVALID(f->singletexture))
@@ -1359,6 +1405,7 @@ void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 	curfont_scale[0] = curfont->charheight;
 	curfont_scale[1] = curfont->charheight;
 	curfont_scaled = false;
+	font_colourmask = ~0u;	//force the colour to be recalculated.
 }
 void Font_Transform(float vx, float vy, int *px, int *py)
 {
@@ -1385,6 +1432,7 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 
 	curfont_scale[0] = (szx * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
 	curfont_scale[1] = (szy * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
+	font_colourmask = ~0u;	//force the colour to be recalculated.
 }
 
 void Font_EndString(struct font_s *font)
@@ -1601,7 +1649,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 		if (font->alt)
 		{
 			font = font->alt;
-			charcode &= ~CON_2NDCHARSETTEXT;
+//			charcode &= ~CON_2NDCHARSETTEXT;
 		}
 		else if ((charcode&CON_CHARMASK) >= 0xe000 && (charcode&CON_CHARMASK) <= 0xe0ff)
 			charcode &= ~CON_2NDCHARSETTEXT;	//don't double-dip
@@ -1679,6 +1727,12 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 				font_forecolour[0] = min(font_forecolour[0]*font->alttint[0], 255);
 				font_forecolour[1] = min(font_forecolour[1]*font->alttint[1], 255);
 				font_forecolour[2] = min(font_forecolour[2]*font->alttint[2], 255);
+			}
+			else
+			{
+				font_forecolour[0] = min(font_forecolour[0]*font->tint[0], 255);
+				font_forecolour[1] = min(font_forecolour[1]*font->tint[1], 255);
+				font_forecolour[2] = min(font_forecolour[2]*font->tint[2], 255);
 			}
 		}
 	}
@@ -1855,6 +1909,12 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 				font_forecolour[0] = min(font_forecolour[0]*font->alttint[0], 255);
 				font_forecolour[1] = min(font_forecolour[1]*font->alttint[1], 255);
 				font_forecolour[2] = min(font_forecolour[2]*font->alttint[2], 255);
+			}
+			else
+			{
+				font_forecolour[0] = min(font_forecolour[0]*font->tint[0], 255);
+				font_forecolour[1] = min(font_forecolour[1]*font->tint[1], 255);
+				font_forecolour[2] = min(font_forecolour[2]*font->tint[2], 255);
 			}
 		}
 	}

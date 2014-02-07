@@ -90,9 +90,9 @@ typedef struct
 	unsigned int flags;
 	unsigned int encryptkey;
 	mpqarchive_t *archive;
-	unsigned int foffset;
-	unsigned int flength;
-	unsigned int alength;
+	qofs_t foffset;
+	qofs_t flength;	//decompressed size
+	qofs_t alength;	//size on disk
 
 	ofs_t archiveoffset;
 
@@ -106,7 +106,7 @@ typedef struct
 static qboolean crypt_table_initialized = false;
 static unsigned int crypt_table[0x500];
 
-void mpq_init_cryptography(void)
+static void mpq_init_cryptography(void)
 {
     // prepare crypt_table
     unsigned int seed   = 0x00100001;
@@ -140,7 +140,7 @@ void mpq_init_cryptography(void)
 #define HASH_NAME_A 1
 #define HASH_NAME_B 2
 #define HASH_KEY 3
-unsigned int mpq_hash_cstring(const char *string, unsigned int type)
+static unsigned int mpq_hash_cstring(const char *string, unsigned int type)
 {
 	unsigned int seed1 = 0x7FED7FED;
 	unsigned int seed2 = 0xEEEEEEEE;
@@ -167,7 +167,7 @@ unsigned int mpq_hash_cstring(const char *string, unsigned int type)
 #define MPQSwapInt32LittleToHost(a) (a)
 #define MPQSwapInt32HostToLittle(a) (a)
 
-void mpq_decrypt(void* data, size_t length, unsigned int key, qboolean disable_output_swapping)
+static void mpq_decrypt(void* data, size_t length, unsigned int key, qboolean disable_output_swapping)
 {
 	unsigned int* buffer32 = (unsigned int*)data;
 	unsigned int seed = 0xEEEEEEEE;
@@ -213,7 +213,7 @@ void mpq_decrypt(void* data, size_t length, unsigned int key, qboolean disable_o
 
 #define HASH_TABLE_EMPTY 0xffffffff
 #define HASH_TABLE_DELETED 0xfffffffe
-unsigned int mpq_lookuphash(mpqarchive_t *mpq, const char *filename, int locale)
+static unsigned int mpq_lookuphash(mpqarchive_t *mpq, const char *filename, int locale)
 {
 	unsigned int initial_position = mpq_hash_cstring(filename, HASH_POSITION) % mpq->hashentries;
 	unsigned int current_position = initial_position;
@@ -245,8 +245,8 @@ unsigned int mpq_lookuphash(mpqarchive_t *mpq, const char *filename, int locale)
 	return HASH_TABLE_EMPTY;
 }
 
-vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
-void	MPQ_ClosePath(searchpathfuncs_t *handle)
+static vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
+static void	MPQ_ClosePath(searchpathfuncs_t *handle)
 {
 	mpqarchive_t *mpq = (void*)handle;
 	VFS_CLOSE(mpq->file);
@@ -255,7 +255,7 @@ void	MPQ_ClosePath(searchpathfuncs_t *handle)
 	free(mpq->listfile);
 	free(mpq);
 }
-qboolean MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
+static int MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
 {
 	mpqarchive_t *mpq = (void*)handle;
 	unsigned int blockentry;
@@ -266,16 +266,16 @@ qboolean MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *n
 		if (block >= mpq->blockdata && block <= mpq->blockdata + mpq->blockentries)
 			blockentry = (mpqblock_t*)block - mpq->blockdata;
 		else
-			return false;
+			return FF_NOTFOUND;
 	}
 	else
 	{
 		unsigned int hashentry = mpq_lookuphash(mpq, name, 0);
 		if (hashentry == HASH_TABLE_EMPTY)
-			return false;
+			return FF_NOTFOUND;
 		blockentry = mpq->hashdata[hashentry].block_table_index;
 		if (blockentry > mpq->blockentries)
-			return false;
+			return FF_NOTFOUND;
 	}
 	if (loc)
 	{
@@ -289,11 +289,11 @@ qboolean MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *n
 	if (mpq->blockdata[blockentry].flags & MPQFilePatch)
 	{
 		Con_DPrintf("Cannot cope with patch files\n");
-		return false;
+		return FF_NOTFOUND;
 	}
-	return true;
+	return FF_FOUND;
 }
-void	MPQ_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
+static void	MPQ_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
 {
 	vfsfile_t *f;
 	f = MPQ_OpenVFS(handle, loc, "rb");
@@ -343,7 +343,7 @@ static int mpqwildcmp(const char *wild, const char *string, char **end)
 	}
 	return !*wild;
 }
-int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, int fsize, void *parm, searchpathfuncs_t *spath), void *parm)
+static int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm)
 {
 	int ok = 1;
 	char *s, *n;
@@ -371,7 +371,7 @@ int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL 
 	}
 	return ok;
 }
-void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+static void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	char *s, *n;
 	char name[MAX_QPATH];
@@ -403,17 +403,17 @@ void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHas
 	}
 }
 
-int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, int seed, int usepure)
+static int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, int seed, int usepure)
 {
 	return 0;
 }
 
-qboolean	MPQ_PollChanges(searchpathfuncs_t *handle)
+static qboolean	MPQ_PollChanges(searchpathfuncs_t *handle)
 {
 	return false;
 }
 
-searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
+static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
 {
 	flocation_t lloc;
 	mpqarchive_t *mpq;
@@ -524,13 +524,13 @@ struct blastdata_s
 	void *indata;
 	unsigned int inlen;
 };
-unsigned mpqf_blastin(void *how, unsigned char **buf)
+static unsigned mpqf_blastin(void *how, unsigned char **buf)
 {
 	struct blastdata_s *args = how;
 	*buf = args->indata;
 	return args->inlen;
 }
-int mpqf_blastout(void *how, unsigned char *buf, unsigned len)
+static int mpqf_blastout(void *how, unsigned char *buf, unsigned len)
 {
 	struct blastdata_s *args = how;
 	if (len > args->outlen)
@@ -540,7 +540,7 @@ int mpqf_blastout(void *how, unsigned char *buf, unsigned len)
 	args->outlen -= len;
 	return 0;
 }
-void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int outlen, void *indata, unsigned int inlen)
+static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int outlen, void *indata, unsigned int inlen)
 {
 	int ret;
 
@@ -619,7 +619,7 @@ void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int outlen, 
 	}
 }
 
-int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	int bytesread = 0;
 	mpqfile_t *f = (mpqfile_t *)file;
@@ -747,12 +747,12 @@ int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 
 	return bytesread;
 }
-int MPQF_writebytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
+static int MPQF_writebytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
 //	mpqfile_t *f = (mpqfile_t *)file;
 	return 0;
 }
-qboolean MPQF_seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean MPQF_seek (struct vfsfile_s *file, qofs_t pos)
 {
 	mpqfile_t *f = (mpqfile_t *)file;
 	if (pos > f->flength)
@@ -760,17 +760,17 @@ qboolean MPQF_seek (struct vfsfile_s *file, unsigned long pos)
 	f->foffset = pos;
 	return true;
 }
-unsigned long MPQF_tell (struct vfsfile_s *file)
+static qofs_t MPQF_tell (struct vfsfile_s *file)
 {
 	mpqfile_t *f = (mpqfile_t *)file;
 	return f->foffset;
 }
-unsigned long MPQF_getlen (struct vfsfile_s *file)
+static qofs_t MPQF_getlen (struct vfsfile_s *file)
 {
 	mpqfile_t *f = (mpqfile_t *)file;
 	return f->flength;
 }
-void MPQF_close (struct vfsfile_s *file)
+static void MPQF_close (struct vfsfile_s *file)
 {
 	mpqfile_t *f = (mpqfile_t *)file;
 	if (f->buffer)
@@ -779,11 +779,11 @@ void MPQF_close (struct vfsfile_s *file)
 		free(f->sectortab);
 	free(f);
 }
-void MPQF_flush (struct vfsfile_s *file)
+static void MPQF_flush (struct vfsfile_s *file)
 {
 }
 
-qboolean MPQF_GetKey(unsigned int flags, unsigned int blockoffset, unsigned int blocksize, unsigned int *key)
+static qboolean MPQF_GetKey(unsigned int flags, unsigned int blockoffset, unsigned int blocksize, unsigned int *key)
 {
 	if (flags & MPQFileEncrypted)
 	{
@@ -798,7 +798,7 @@ qboolean MPQF_GetKey(unsigned int flags, unsigned int blockoffset, unsigned int 
 	return true;
 }
 
-vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	mpqarchive_t *mpq = (void*)handle;
 	mpqblock_t *block = &mpq->blockdata[loc->index];

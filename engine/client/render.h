@@ -150,6 +150,7 @@ typedef struct mplane_s
 #define MAXFRUSTUMPLANES 7	//4 side, 1 near, 1 far (fog), 1 water plane.
 
 #define R_MAX_RECURSE	6
+#define R_POSTPROC_PASSES 6
 #define RDFD_FOV 1
 typedef struct
 {
@@ -188,8 +189,10 @@ typedef struct
 	unsigned int	flipcull;	/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
 	qboolean	useperspective; /*not orthographic*/
 
-	int			postprocshader; /*if set, renders to texture then invokes this shader*/
-	int			postproccube; /*postproc shader wants a cubemap, this is the mask of sides required*/
+	int 		rt_destcolour;		/*used for 2d. written by 3d*/
+	int			rt_sourcecolour;	/*read by 2d. not used for 3d. */
+	int			rt_depth;			/*read by 2d. used by 3d (renderbuffer used if not set)*/
+	int			rt_ripplemap;		/*read by 2d. used by 3d (internal ripplemap buffer used if not set)*/
 
 	qbyte		*forcedvis;
 

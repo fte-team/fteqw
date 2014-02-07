@@ -902,17 +902,18 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 
 	if (ret == -1)
 	{
+		int er = neterrno();
 // wouldblock is silent
-		if (qerrno == EWOULDBLOCK)
+		if (er == NET_EWOULDBLOCK)
 			return;
 
-		if (qerrno == ECONNREFUSED)
+		if (er == NET_ECONNREFUSED)
 			return;
 
-		if (qerrno == EADDRNOTAVAIL)
-			Con_DPrintf("NET_SendPollPacket Warning: %i\n", qerrno);
+		if (er == NET_EADDRNOTAVAIL)
+			Con_DPrintf("NET_SendPollPacket Warning: %i\n", er);
 		else
-			Con_Printf ("NET_SendPollPacket ERROR: %i\n", qerrno);
+			Con_Printf ("NET_SendPollPacket ERROR: %i\n", er);
 	}
 }
 
@@ -937,23 +938,24 @@ int Master_CheckPollSockets(void)
 
 		if (ret == -1)
 		{
-			if (qerrno == EWOULDBLOCK)
+			int e = neterrno();
+			if (e == NET_EWOULDBLOCK)
 				continue;
-			if (qerrno == EMSGSIZE)
+			if (e == NET_EMSGSIZE)
 			{
 				SockadrToNetadr (&from, &net_from);
 				Con_Printf ("Warning:  Oversize packet from %s\n",
 					NET_AdrToString (adr, sizeof(adr), &net_from));
 				continue;
 			}
-			if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
+			if (e == NET_ECONNABORTED || e == NET_ECONNRESET)
 			{
 //				Con_Printf ("Connection lost or aborted\n");
 				continue;
 			}
 
 
-			Con_Printf ("NET_CheckPollSockets: %i, %s\n", qerrno, strerror(qerrno));
+			Con_Printf ("NET_CheckPollSockets: %i, %s\n", e, strerror(e));
 			continue;
 		}
 		SockadrToNetadr (&from, &net_from);

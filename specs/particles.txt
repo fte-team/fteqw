@@ -17,6 +17,21 @@ will give transparent (0.5) red particles that will fade to fully white when the
 they will spawn within a ball of 32 units radius.
 
 
+Types:
+Always try to include a type. The engine will guess what your particle is meant to be otherwise, based on textures and other nonsense. That stuff is generally unreliable, and probably not what you want.
+
+Chaining:
+You can add multiple particle descriptions to a single effect. The first should be 'r_part foo', and the others should be 'r_part +foo'. Particles without a + will reset the chain.
+
+Effect naming:
+Effects loaded by r_particledesc will be given an internal prefix, eg: foo.cfg.
+If the gamecode explicitly states foo.bar, your foo.cfg will automatically be executed, and will automatically use the bar effect from it.
+The effect can still be overriden from a custom config by explicitly naming the effect foo.bar - the effect bar in the config foo will not override this, but would override bar on its own.
+
+Scale:
+scale values are defined in 1/4th qu, for some reason.
+scalefactor typically needs to be explicitly set to 1. this value affects how the particle scales with distance from view, rather than the actual size of the particle.
+
 
 
 texture <TEXTURENAME>
@@ -42,7 +57,7 @@ beamtexspeed <value>
 
 scale <min> [max]
 	particles will start with a diameter of this many quake units.
-	actual scale will be randomly chosen between min and max (max defaults to equal min is missing)
+	actual scale will be randomly chosen between min and max (max defaults to equal if min is missing)
 
 scalerand <extra>
 	obsolete
@@ -116,7 +131,7 @@ assoc <effectname>
 
 inwater <effectname>
 	Specifies a replacement effect to use when this one is spawned underwater.
-	assoc used is the replacement effect. the assoc value from the replaced effect is ignored.
+	assoc used is the replacement effect. the assoc value from the replaced effect is ignored (this includes +foo chains).
 
 colorindex <index> [rand]
 	Specifies a palette index to spawn the particle with.
@@ -200,8 +215,14 @@ blend <mode>
 spawnmode <mode> [arg1] [arg2]
 	This affects how particles are positioned when they first spawn, and their initial velocities.
 	for point effects, mode may be one of:
-		circle: particles spawn within a ball with uniform distance from the center
+		box: simple axially aligned box of particles.
+		circle: particles spawn within a ball with uniform distance from the center. none will appear in the middle.
+			arg1: percentage of the circle to cover. a value of 5 will go around the circle 5 separate times. this can be used for weird beam effects.
+			areaspread: the radius of the ball
+			areaspreadvert: the height of the ball. if 0, will be a flat circle
 		ball: particles spawn randomly within a ball.
+			areaspread: the radius of the ball
+			areaspreadvert: the height of the ball. if 0, will be a flat circle.
 		telebox: matches quake's telebox
 		lavasplash: like chthon's lava splash
 		uniformcircle: particles are spawned in a circle with uniform distance between and from the center. z=0.
@@ -221,7 +242,7 @@ spawnparam2 <value>
 	obsolete. see spawnmode.
 
 up <value>
-	the particle's origin is moved upwards by this amount
+	the particle's starting origin is moved upwards by this amount (worldspace).
 
 type <mode>
 	How the particles look.
@@ -229,8 +250,9 @@ type <mode>
 		beam: valid only for trails. Particles form a single textured beam acting as nodes along it.
 		spark: particles are lines, their length depending upon their speed.
 		sparkfan: particles are non-planar triangle fans, their length depending upon their speed.
-		texturedspark: textured particles are aligned along their direction of movement, their length depending upon their speed.
-		decal: particles are spawned only upon bsp geometry. They are clipped by it.
+		texturedspark: textured particles are aligned along their direction of movement, their length depending upon their speed, width equal to their scale.
+		cdecal/decal: particles are spawned only upon bsp geometry. They are clipped by it.
+		udecal: unclipped decal. exact semantics are subject to change.
 		*default*: Particles are regular, rotating, 2d images.
 
 isbeam
@@ -271,3 +293,25 @@ nospreadfirst
 
 nospreadlast
 	don't randomize org/vel for last generated particle
+
+sound <soundname> <vol> <attenuation> [pitch] [delay]
+	When the effect is first spawned, the named sound will play with the given volume and attenuation at the center point. This may not work with all spawn methods, as it will ignore any count scales.
+
+lightradius <radius>
+lightradiusfade <radiuspersecond>
+lightrgb <r> <g> <b>
+lightrgbfade <r/s> <g/s> <b/s>
+lighttime <maxage>
+	Spawns a dlight when the effect is spawned.
+	dlight is removed when radius drops to 0 or the age is exceeded.
+	at this time it is not possible to override the corona/specular levels.
+
+lightcubemap <cubemapnum>
+	value 0 means no cubemap.
+	otherwise with eg cubemap 5, uses image files cubemaps/5ft.tga, cubemaps/5bk.tga, etc.
+	fixme: at the current time, the cubemap is world-aligned and cannot rotate.
+
+model <name> <firstframe> <endframe> <framerate> <alpha>
+	spawns sprites or models that fly away with random angles and run through some frame sequence. handy for simple gib effects.
+
+spawnstain <radius> <r> <g> <b>

@@ -338,7 +338,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		if (ammount < 0)
 		{
-			if (qerrno != EWOULDBLOCK)
+			if (neterrno() != NET_EWOULDBLOCK)
 				return false;
 			return true;
 		}
@@ -358,7 +358,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			return false;
 		if (ammount < 0)
 		{
-			if (qerrno != EWOULDBLOCK)
+			if (neterrno() != NET_EWOULDBLOCK)
 				return false;
 			return true;
 		}
@@ -554,7 +554,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		ammount = recv(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1, 0);
 		if (ammount < 0)
 		{
-			if (qerrno != EWOULDBLOCK)
+			if (neterrno() != NET_EWOULDBLOCK)
 				return false;
 			return true;
 		}
@@ -1029,7 +1029,7 @@ void QDECL VFSPIPE_Close(vfsfile_t *f)
 	free(p->data);
 	free(p);
 }
-unsigned long QDECL VFSPIPE_GetLen(vfsfile_t *f)
+qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	return p->writepos - p->readpos;

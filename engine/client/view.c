@@ -145,14 +145,14 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 	if (cl.spectator)
 		return 0;
 
+	if (cl_bobcycle.value <= 0 || cl.intermission)
+		return 0;
+
 	if (!pv->onground || cl.paused)
 	{
 		pv->bobcltime = cl.time;
 		return pv->bob;		// just use old value
 	}
-
-	if (cl_bobcycle.value <= 0)
-		return 0;
 
 	pv->bobtime += cl.time - pv->bobcltime;
 	pv->bobcltime = cl.time;
@@ -1158,9 +1158,11 @@ void V_ApplyRefdef (void)
 }
 
 //if the view entities differ, removes all externalmodel flags except for adding it to the new entity, and removes weaponmodels.
-void CL_EditExternalModels(int newviewentity)
+//returns the number of view entities that were stripped out
+int CL_EditExternalModels(int newviewentity, entity_t *viewentities, int maxviewenties)
 {
 	int i;
+	int viewents = 0;
 	for (i = 0; i < cl_numvisedicts; )
 	{
 		if (cl_visedicts[i].keynum == newviewentity && newviewentity)
@@ -1170,12 +1172,15 @@ void CL_EditExternalModels(int newviewentity)
 
 		if (cl_visedicts[i].flags & Q2RF_WEAPONMODEL)
 		{
+			if (viewents < maxviewenties)
+				viewentities[viewents++] = cl_visedicts[i];
 			memmove(&cl_visedicts[i], &cl_visedicts[i+1], sizeof(*cl_visedicts) * (cl_numvisedicts-(i+1)));
 			cl_numvisedicts--;
 		}
 		else
 			i++;
 	}
+	return viewents;
 }
 
 /*
@@ -1197,6 +1202,10 @@ void V_ClearRefdef(playerview_t *pv)
 
 	r_refdef.drawsbar = !cl.intermission;
 	r_refdef.flags = 0;
+
+//	memset(r_refdef.postprocshader, 0, sizeof(r_refdef.postprocshader));
+//	memset(r_refdef.postprocsize, 0, sizeof(r_refdef.postprocsize));
+//	r_refdef.postproccube = 0;
 }
 
 /*
@@ -1491,6 +1500,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 		VectorCopy(pv->cam_desired_position, r_refdef.vieworg);
 		R_RenderView ();
 	}
+	r_secondaryview = true;
 
 
 #ifdef SIDEVIEWS
@@ -1514,8 +1524,6 @@ void V_RenderPlayerViews(playerview_t *pv)
 		float ofx;
 		float ofy;
 
-		r_secondaryview = true;
-
 		if (vsec_x[viewnum].value < 0)
 			vsec_x[viewnum].value = 0;
 		if (vsec_y[viewnum].value < 0)
@@ -1536,6 +1544,10 @@ void V_RenderPlayerViews(playerview_t *pv)
 		r_refdef.vrect.y += r_refdef.vrect.height*vsec_y[viewnum].value;
 		r_refdef.vrect.width *= vsec_scalex[viewnum].value;
 		r_refdef.vrect.height *= vsec_scaley[viewnum].value;
+
+		r_refdef.fov_x = 0;
+		r_refdef.fov_y = 0;
+		V_ApplyAFov(NULL);
 #ifdef PEXT_VIEW2
 			//secondary view entity.
 		e=NULL;
@@ -1565,7 +1577,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 			}
 
 
-			CL_EditExternalModels(e->keynum);
+			CL_EditExternalModels(e->keynum, NULL, 0);
 
 			R_RenderView ();
 //				r_framecount = old_framecount;
@@ -1579,7 +1591,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 			r_refdef.viewangles[PITCH] *= -cos((vsec_yaw[viewnum].value / 180 * 3.14)+3.14);
 			if (vsec_enabled[viewnum].value!=2)
 			{
-				CL_EditExternalModels(0);
+				CL_EditExternalModels(0, NULL, 0);
 				R_RenderView ();
 			}
 		}
@@ -1612,7 +1624,7 @@ void V_RenderView (void)
 		if (viewnum)
 		{
 			//should be enough to just hack a few things.
-			CL_EditExternalModels(cl.playerview[viewnum].viewentity);
+			CL_EditExternalModels(cl.playerview[viewnum].viewentity, NULL, 0);
 		}
 		else
 		{

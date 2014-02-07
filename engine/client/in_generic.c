@@ -10,8 +10,9 @@ static cvar_t m_accel = CVARF("m_accel", "0", CVAR_ARCHIVE);
 static cvar_t m_forcewheel = CVARD("m_forcewheel", "1", "0: ignore mousewheels in apis where it is abiguous.\n1: Use mousewheel when it is treated as a third axis. Motion above a threshold is ignored, to avoid issues with an unknown threshold.\n2: Like 1, but excess motion is retained. The threshold specifies exact z-axis distance per notice.");
 static cvar_t m_forcewheel_threshold = CVARD("m_forcewheel_threshold", "32", "Mousewheel graduations smaller than this will not trigger mousewheel deltas.");
 static cvar_t m_strafeonright = CVARFD("m_strafeonright", "1", CVAR_ARCHIVE, "If 1, touching the right half of the touchscreen will strafe/move, while the left side will turn.");
-static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.5", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
-static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "5", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
+static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
+static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
+static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
 
 extern cvar_t cl_forcesplitclient;	//all devices claim to be a single player
 extern cvar_t _windowed_mouse;
@@ -108,6 +109,7 @@ void IN_Init(void)
 	Cvar_Register (&m_strafeonright, "input controls");
 	Cvar_Register (&m_fatpressthreshold, "input controls");
 	Cvar_Register (&m_slidethreshold, "input controls");
+	Cvar_Register (&m_touchmajoraxis, "input controls");
 
 	INS_Init();
 }
@@ -354,14 +356,27 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 			//if they're strafing, calculate the speed to move at based upon their displacement
 			if (mouse->down)
 			{
-				mx = (mouse->oldpos[0] - mouse->downpos[0])*0.1;
-				my = (mouse->oldpos[1] - mouse->downpos[1])*0.1;
+				mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4;
+				my = mouse->oldpos[1] - (vid.pixelheight*3)/4;
+
+				//mx = (mouse->oldpos[0] - mouse->downpos[0])*0.1;
+				//my = (mouse->oldpos[1] - mouse->downpos[1])*0.1;
 			}
 			else
 			{
 				mx = 0;
 				my = 0;
 			}
+
+			if (m_touchmajoraxis.ival)
+			{
+				//major axis only
+				if (fabs(mx) > fabs(my))
+					my = 0;
+				else
+					mx = 0;
+			}
+
 			strafe_x = true;
 			strafe_y = true;
 		}
@@ -369,6 +384,10 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 		{
 			strafe_x = false;
 			strafe_y = false;
+
+			//boost sensitivity so that the default works okay.
+			mx *= 1.75;
+			my *= 1.75;
 		}
 	}
 	else

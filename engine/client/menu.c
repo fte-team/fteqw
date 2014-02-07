@@ -914,6 +914,7 @@ void M_Menu_Quit_f (void)
 		break;
 	case 2:
 		Key_Dest_Add(kdm_menu);
+		Key_Dest_Remove(kdm_console);
 		m_state = m_complex;
 
 		quitmenu = M_CreateMenuInfront(0);
@@ -932,6 +933,7 @@ void M_Menu_Quit_f (void)
 		break;
 	case 1:
 		Key_Dest_Add(kdm_menu);
+		Key_Dest_Remove(kdm_console);
 		m_state = m_complex;
 
 		quitmenu = M_CreateMenuInfront(0);

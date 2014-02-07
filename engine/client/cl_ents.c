@@ -4489,12 +4489,6 @@ void CL_LinkViewModel(void)
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
 	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
 
-#ifdef SIDEVIEWS
-	extern qboolean r_secondaryview;
-	if (r_secondaryview==1)
-		return;
-#endif
-
 	if (r_drawviewmodel.value <= 0 || !Cam_DrawViewModel(r_refdef.playerview))
 		return;
 

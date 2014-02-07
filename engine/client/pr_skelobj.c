@@ -318,7 +318,7 @@ static dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
 
 	memset(&ctx->defbody, 0, sizeof(ctx->defbody));
 	ctx->defbody.animate = true;
-	ctx->defbody.shape = SOLID_PHYSICS_BOX;
+	ctx->defbody.geomshape = GEOMTYPE_BOX;
 	ctx->defbody.dimensions[0] = 4;
 	ctx->defbody.dimensions[1] = 4;
 	ctx->defbody.dimensions[2] = 4;
@@ -458,13 +458,13 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 	else if (ctx->body && argc == 2 && !stricmp(cmd, "shape"))
 	{
 		if (!stricmp(val, "box"))
-			ctx->body->shape = SOLID_PHYSICS_BOX;
+			ctx->body->geomshape = GEOMTYPE_BOX;
 		else if (!stricmp(val, "sphere"))
-			ctx->body->shape = SOLID_PHYSICS_SPHERE;
+			ctx->body->geomshape = GEOMTYPE_SPHERE;
 		else if (!stricmp(val, "cylinder"))
-			ctx->body->shape = SOLID_PHYSICS_CYLINDER;
+			ctx->body->geomshape = GEOMTYPE_CYLINDER;
 		else if (!stricmp(val, "capsule"))
-			ctx->body->shape = SOLID_PHYSICS_CAPSULE;
+			ctx->body->geomshape = GEOMTYPE_CAPSULE;
 		else if (!ctx->errors++)
 			Con_Printf("^[Joint shape \"%s\" not recognised\\edit\\%s %i^]\n", val, d->name, linenum);
 	}
@@ -1259,23 +1259,23 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 			
 			World_ODE_RagMatrixFromBody(sko->world, &sko->body[i].odebody, bodymat);
 
-			switch(doll->body[i].shape)
+			switch(doll->body[i].geomshape)
 			{
 			default:
-			case SOLID_PHYSICS_BOX:
+			case GEOMTYPE_BOX:
 				VectorScale(doll->body[i].dimensions, -0.5, mins);
 				VectorScale(doll->body[i].dimensions, 0.5, maxs);
 				CLQ1_AddOrientedCube(debugshader, mins, maxs, bodymat, 0.2, 0.2, 0.2, 1);
 				break;
-			case SOLID_PHYSICS_CYLINDER:
+			case GEOMTYPE_CYLINDER:
 				rad = (doll->body[i].dimensions[0] + doll->body[i].dimensions[1])*0.5;
 				CLQ1_AddOrientedCylinder(debugshader, rad, doll->body[i].dimensions[2], false, bodymat, 0.2, 0.2, 0.2, 1);
 				break;
-			case SOLID_PHYSICS_CAPSULE:
+			case GEOMTYPE_CAPSULE:
 				rad = (doll->body[i].dimensions[0] + doll->body[i].dimensions[1])*0.5;
 				CLQ1_AddOrientedCylinder(debugshader, rad, doll->body[i].dimensions[2], true, bodymat, 0.2, 0.2, 0.2, 1);
 				break;
-			case SOLID_PHYSICS_SPHERE:
+			case GEOMTYPE_SPHERE:
 				rad = (doll->body[i].dimensions[0] + doll->body[i].dimensions[1] + doll->body[i].dimensions[2])/3;
 				CLQ1_AddOrientedCylinder(debugshader, rad, rad, true, bodymat, 0.2, 0.2, 0.2, 1);
 				break;

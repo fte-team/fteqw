@@ -16,6 +16,7 @@
 typedef struct {
 	searchpathfuncs_t pub;
 	HANDLE changenotification;
+	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
 	int hashdepth;
 	char rootpath[1];
 } vfsw32path_t;
@@ -133,9 +134,9 @@ static int QDECL VFSW32_WriteBytes (struct vfsfile_s *file, const void *buffer, 
 		return 0;
 	return written;
 }
-static qboolean QDECL VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL VFSW32_Seek (struct vfsfile_s *file, qofs_t pos)
 {
-	unsigned long upper, lower;
+	DWORD hi, lo;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
 	{
@@ -143,17 +144,18 @@ static qboolean QDECL VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
 		return true;
 	}
 
-	lower = (pos & 0xffffffff);
-	upper = ((pos>>16)>>16);
-
-	return SetFilePointer(intfile->hand, lower, &upper, FILE_BEGIN) != INVALID_SET_FILE_POINTER;
+	lo = qofs_Low(pos);
+	hi = qofs_High(pos);
+	return SetFilePointer(intfile->hand, lo, &hi, FILE_BEGIN) != INVALID_SET_FILE_POINTER;
 }
-static unsigned long QDECL VFSW32_Tell (struct vfsfile_s *file)
+static qofs_t QDECL VFSW32_Tell (struct vfsfile_s *file)
 {
+	DWORD hi = 0, lo;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
 		return intfile->offset;
-	return SetFilePointer(intfile->hand, 0, NULL, FILE_CURRENT);
+	lo = SetFilePointer(intfile->hand, 0, &hi, FILE_CURRENT);
+	return qofs_Make(lo,hi);
 }
 static void QDECL VFSW32_Flush(struct vfsfile_s *file)
 {
@@ -162,13 +164,15 @@ static void QDECL VFSW32_Flush(struct vfsfile_s *file)
 		FlushViewOfFile(intfile->mmap, intfile->length);
 	FlushFileBuffers(intfile->hand);
 }
-static unsigned long QDECL VFSW32_GetSize (struct vfsfile_s *file)
+static qofs_t QDECL VFSW32_GetSize (struct vfsfile_s *file)
 {
+	DWORD lo, hi = 0;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 
 	if (intfile->mmap)
 		return intfile->length;
-	return GetFileSize(intfile->hand, NULL);
+	lo = GetFileSize(intfile->hand, &hi);
+	return qofs_Make(lo,hi);
 }
 static void QDECL VFSW32_Close(vfsfile_t *file)
 {
@@ -180,15 +184,15 @@ static void QDECL VFSW32_Close(vfsfile_t *file)
 	}
 	CloseHandle(intfile->hand);
 	Z_Free(file);
-
-	COM_FlushFSCache();
 }
 
-vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
+//WARNING: handle can be null
+static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *quakename, const char *osname, const char *mode)
 {
 	HANDLE h, mh;
 	unsigned int fsize;
 	void *mmap;
+	qboolean didexist = true;
 
 	vfsw32file_t *file;
 	qboolean read = !!strchr(mode, 'r');
@@ -214,17 +218,44 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 	{
 		wchar_t wide[MAX_OSPATH];
 		widen(wide, sizeof(wide), osname);
-		if ((write && read) || append)
-			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+		h = INVALID_HANDLE_VALUE;
+		if (write || append)
+		{
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (h == INVALID_HANDLE_VALUE)
+			{
+				didexist = false;
+				if (!read)	//if we're not reading, the file will be created anew. make sure we don't just reuse it. we do want to avoid rebuilding our name->location cache though.
+				{
+					CloseHandle(h);
+					h = INVALID_HANDLE_VALUE;
+				}
+			}
+		}
+
+		if (h != INVALID_HANDLE_VALUE)
+			;
+		else if ((write && read) || append)
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (write)
-			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (read)
-			h = CreateFileW(wide, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileW(wide, GENERIC_READ,					FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		else
 			h = INVALID_HANDLE_VALUE;
 	}
 	if (h == INVALID_HANDLE_VALUE)
 		return NULL;
+
+	if (!didexist)
+	{
+		if (handle && handle->AddFileHash)
+			handle->AddFileHash(handle->hashdepth, quakename, NULL, handle);
+		else
+			COM_RefreshFSCache_f();	//no idea where this path is. if its inside a quake path, make sure it gets flushed properly. FIXME: his shouldn't be needed if we have change notifications working properly.
+	}
+
 
 	fsize = GetFileSize(h, NULL);
 	if (write || append || text || fsize > 1024*1024*5)
@@ -273,11 +304,17 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 	return (vfsfile_t*)file;
 }
 
+vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
+{
+	//called without regard to a search path
+	return VFSW32_OpenInternal(NULL, NULL, osname, mode);
+}
+
 static vfsfile_t *QDECL VFSW32_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
-
-	return VFSW32_Open(loc->rawname, mode);
+	vfsw32path_t *wp = (void*)handle;
+	return VFSW32_OpenInternal(wp, loc->rawname+strlen(wp->rootpath)+1, loc->rawname, mode);
 }
 static void QDECL VFSW32_ClosePath(searchpathfuncs_t *handle)
 {
@@ -311,10 +348,9 @@ static qboolean QDECL VFSW32_PollChanges(searchpathfuncs_t *handle)
 	}
 	return result;
 }
-static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle, searchpathfuncs_t *spath)
+static int QDECL VFSW32_RebuildFSHash(const char *filename, qofs_t filesize, void *handle, searchpathfuncs_t *spath)
 {
 	vfsw32path_t *wp = (void*)spath;
-	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = handle;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
@@ -324,16 +360,17 @@ static int QDECL VFSW32_RebuildFSHash(const char *filename, int filesize, void *
 		return true;
 	}
 
-	AddFileHash(wp->hashdepth, filename, NULL, wp);
+	wp->AddFileHash(wp->hashdepth, filename, NULL, wp);
 	return true;
 }
 static void QDECL VFSW32_BuildHash(searchpathfuncs_t *handle, int hashdepth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
 	vfsw32path_t *wp = (void*)handle;
+	wp->AddFileHash = AddFileHash;
 	wp->hashdepth = hashdepth;
 	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
-static int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	vfsw32path_t *wp = (void*)handle;
 	FILE *f;
@@ -392,7 +429,7 @@ static void QDECL VFSW32_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, c
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
-static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);

@@ -88,7 +88,7 @@ cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
 cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
 
-cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "", "Which protocol to use for single-player/the internal client. Should be one of: qw, nqid, nq, fitz, dp6, dp7. If empty, will use qw protocols for qw mods, and nq protocols for nq mods.");
+cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, dp6, dp7. If empty, will use qw protocols for qw mods, and nq protocols for nq mods.");
 
 
 cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
@@ -666,7 +666,7 @@ void CL_CheckForResend (void)
 				pext2 = Net_PextMask(2, false);
 				cls.protocol = CP_QUAKEWORLD;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "idqw"))
+			else if (!strcmp(cl_loopbackprotocol.string, "qwid") || !strcmp(cl_loopbackprotocol.string, "idqw"))
 				cls.protocol = CP_QUAKEWORLD;
 			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
 			{
@@ -678,7 +678,7 @@ void CL_CheckForResend (void)
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_PROQUAKE3_4;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "nqid"))
+			else if (!strcmp(cl_loopbackprotocol.string, "nqid") || !strcmp(cl_loopbackprotocol.string, "idnq"))
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_ID;

@@ -1551,7 +1551,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 			R2D_RT_Configure(*p, size[0], size[1], fmt);
 		}
 		r_refdef.rt_destcolour = *p;
-		GLBE_RenderToTextureUpdate2d(true);
+		BE_RenderToTextureUpdate2d(true);
 		break;
 	case VF_RT_SOURCECOLOUR:
 		if (prinst->callargc >= 4)
@@ -1561,7 +1561,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 			R2D_RT_Configure(*p, size[0], size[1], fmt);
 		}
 		r_refdef.rt_sourcecolour = *p;
-		GLBE_RenderToTextureUpdate2d(false);
+		BE_RenderToTextureUpdate2d(false);
 		break;
 	case VF_RT_DEPTH:
 		if (prinst->callargc >= 4)
@@ -1571,7 +1571,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 			R2D_RT_Configure(*p, size[0], size[1], fmt);
 		}
 		r_refdef.rt_depth = *p;
-		GLBE_RenderToTextureUpdate2d(false);
+		BE_RenderToTextureUpdate2d(false);
 		break;
 	case VF_RT_RIPPLE:
 		if (prinst->callargc >= 4)
@@ -1581,7 +1581,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 			R2D_RT_Configure(*p, size[0], size[1], fmt);
 		}
 		r_refdef.rt_ripplemap = *p;
-		GLBE_RenderToTextureUpdate2d(false);
+		BE_RenderToTextureUpdate2d(false);
 		break;
 
 	default:

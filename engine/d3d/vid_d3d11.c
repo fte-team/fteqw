@@ -1199,6 +1199,10 @@ static void	(D3D11_R_RenderView)				(void)
 	D3D11_Set2D ();
 }
 
+void D3D11BE_RenderToTextureUpdate2d(qboolean destchanged)
+{
+}
+
 rendererinfo_t d3d11rendererinfo =
 {
 	"Direct3D11",
@@ -1256,6 +1260,8 @@ rendererinfo_t d3d11rendererinfo =
 	D3D11BE_VBO_Data,
 	D3D11BE_VBO_Finish,
 	D3D11BE_VBO_Destroy,
+
+	D3D11BE_RenderToTextureUpdate2d,
 
 	"no more"
 };

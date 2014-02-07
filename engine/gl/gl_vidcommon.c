@@ -2045,6 +2045,8 @@ rendererinfo_t openglrendererinfo = {
 	GLBE_VBO_Finish,
 	GLBE_VBO_Destroy,
 
+	GLBE_RenderToTextureUpdate2d,
+
 	""
 };
 

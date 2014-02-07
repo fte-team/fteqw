@@ -994,11 +994,11 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		VectorCopy(plane.normal, fp.normal);
 		fp.dist = plane.dist;
 
-		if (DotProduct(fp.normal, vpn) < 0)
-		{
-			VectorNegate(fp.normal, fp.normal);
-			fp.dist *= -1;
-		}
+//		if (DotProduct(fp.normal, vpn) < 0)
+//		{
+//			VectorNegate(fp.normal, fp.normal);
+//			fp.dist *= -1;
+//		}
 
 		fp.type = PLANE_ANYZ;
 		fp.signbits = SignbitsForPlane (&fp);

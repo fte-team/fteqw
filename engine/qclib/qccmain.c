@@ -1975,7 +1975,7 @@ void QCC_CRC_Init(unsigned short *crcvalue)
 
 void QCC_CRC_ProcessByte(unsigned short *crcvalue, qbyte data)
 {
-	*crcvalue = (*crcvalue << 8) ^ QCC_crctable[(*crcvalue >> 8) ^ data];
+	*crcvalue = ((*crcvalue << 8) ^ QCC_crctable[(*crcvalue >> 8) ^ data]) & 0xffff;
 }
 
 unsigned short QCC_CRC_Value(unsigned short crcvalue)

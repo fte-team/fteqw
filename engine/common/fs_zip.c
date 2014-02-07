@@ -836,10 +836,11 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 				}
 				break;
 			default:
-				Con_Printf("Unknown chunk %x\n", extrachunk_tag);
+/*				Con_Printf("Unknown chunk %x\n", extrachunk_tag);
+			case 0x000a:	//NTFS (timestamps)
 			case 0x5455:	//extended timestamp
 			case 0x7875:	//unix uid/gid
-				extra += extrachunk_len;
+*/				extra += extrachunk_len;
 				break;
 			}
 		}
@@ -946,10 +947,11 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 				}
 				break;
 			default:
-				Con_Printf("Unknown chunk %x\n", extrachunk_tag);
+/*				Con_Printf("Unknown chunk %x\n", extrachunk_tag);
+			case 0x000a:	//NTFS (timestamps)
 			case 0x5455:	//extended timestamp
 			case 0x7875:	//unix uid/gid
-				extra += extrachunk_len;
+*/				extra += extrachunk_len;
 				break;
 			}
 		}

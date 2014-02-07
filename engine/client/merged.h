@@ -343,6 +343,7 @@ typedef struct rendererinfo_s {
 	void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
 	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
 	void (*BE_VBO_Destroy)(vboarray_t *vearray);
+	void (*BE_RenderToTextureUpdate2d)(qboolean destchanged);
 	char *alignment;
 } rendererinfo_t;
 
@@ -376,6 +377,8 @@ typedef struct rendererinfo_s {
 #define BE_VBO_Finish			rf->BE_VBO_Finish
 #define BE_VBO_Destroy			rf->BE_VBO_Destroy
 #define BE_Scissor				rf->BE_Scissor
+
+#define BE_RenderToTextureUpdate2d rf->BE_RenderToTextureUpdate2d
 
 texid_t R2D_RT_Configure(unsigned int id, int width, int height, uploadfmt_t rtfmt);
 texid_t R2D_RT_GetTexture(unsigned int id, unsigned int *width, unsigned int *height);

@@ -1212,7 +1212,9 @@ void	(D3D9_SCR_UpdateScreen)			(void);
 
 
 
-
+void D3D9BE_RenderToTextureUpdate2d(qboolean destchanged)
+{
+}
 
 rendererinfo_t d3d9rendererinfo =
 {
@@ -1271,6 +1273,8 @@ rendererinfo_t d3d9rendererinfo =
 	D3D9BE_VBO_Data,
 	D3D9BE_VBO_Finish,
 	D3D9BE_VBO_Destroy,
+
+	D3D9BE_RenderToTextureUpdate2d,
 
 	"no more"
 };

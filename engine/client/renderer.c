@@ -343,7 +343,7 @@ cvar_t r_shadow_bumpscale_bumpmap			= CVARD  ("r_shadow_bumpscale_bumpmap", "4",
 cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
 cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer. r_glsl_offsetmapping must be set.");
-//cvar_t r_glsl_turbscale						= CVARF  ("r_glsl_turbscale", "1", CVAR_ARCHIVE);
+cvar_t r_glsl_turbscale						= CVARFD  ("r_glsl_turbscale", "1", CVAR_ARCHIVE, "Controls the strength of water ripples (used by the altwater glsl code).");
 
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
@@ -420,7 +420,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
-//	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
 
 
 #ifdef R_XFLIP
@@ -814,6 +814,8 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,
 	NULL,
 	NULL,
+	NULL,
+
 	NULL,
 
 	""

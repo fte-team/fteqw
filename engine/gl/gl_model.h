@@ -452,14 +452,12 @@ typedef struct mleaf_s
 #ifdef Q2BSPS
 	//it's a q2 thing
 	int			area;
-	unsigned short	firstleafbrush;
-	unsigned short	numleafbrushes;
-
-	unsigned short	firstleafface;	//q3 addititions
-	unsigned short	numleaffaces;
-
-	unsigned short	numleafpatches;
-	unsigned short	firstleafpatch;
+	unsigned int	firstleafbrush;
+	unsigned int	numleafbrushes;
+	unsigned int	firstleafface;
+	unsigned int	numleaffaces;
+	unsigned int	firstleafpatch;
+	unsigned int	numleafpatches;
 #endif
 } mleaf_t;
 

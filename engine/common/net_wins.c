@@ -2194,8 +2194,8 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 #endif
 			0)
 		{
-			SockadrToNetadr(&ifa->ifa_addr, addresses[idx]);
-			addresses[idx]->port = port;
+			SockadrToNetadr((struct sockaddr_qstorage*)&ifa->ifa_addr, &addresses[idx]);
+			addresses[idx].port = port;
 			adrflags[idx] = 0;
 			idx++;
 		}

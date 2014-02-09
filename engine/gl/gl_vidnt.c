@@ -572,7 +572,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	WindowRect.bottom = info->height;
 
 
-#ifndef _SDL
+#ifndef FTE_SDL
 	if (sys_parentwindow)
 	{
 		SetWindowLong(sys_parentwindow, GWL_STYLE, GetWindowLong(sys_parentwindow, GWL_STYLE)|WS_OVERLAPPED);

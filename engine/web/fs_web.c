@@ -4,9 +4,7 @@
 #if defined(FTE_TARGET_WEB)
 #include "ftejslib.h"
 
-#if !defined(_WIN32) || defined(_SDL)
 #define FSWEB_OpenPath VFSOS_OpenPath
-#endif
 #define FSWEB_OpenTemp FS_OpenTemp
 
 typedef struct {

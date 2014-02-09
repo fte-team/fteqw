@@ -8,7 +8,7 @@
 #define Z_Free free
 #define Z_Malloc malloc
 #else
-#if !defined(_WIN32) || defined(_SDL)
+#if !defined(_WIN32) || defined(FTE_SDL)
 #define FSSTDIO_OpenPath VFSOS_OpenPath
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
@@ -184,7 +184,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	return (vfsfile_t*)file;
 }
 
-#if !defined(_WIN32) || defined(_SDL)
+#if !defined(_WIN32) || defined(FTE_SDL)
 vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 {
 	vfsfile_t *f;

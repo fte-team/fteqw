@@ -39,7 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//#include "./mingw-libs/jversion.h"
 		#include "./mingw-libs/jpeglib.h"
 	#endif
-	#ifdef _SDL
+	#ifdef FTE_SDL
 		#include <SDL.h>
 	#endif
 #elif defined(_WIN32)
@@ -54,7 +54,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//#include "jversion.h"
 		#include "jpeglib.h"
 	#endif
-	#ifdef _SDL
+	#ifdef FTE_SDL
 		#include <SDL.h>
 	#endif
 #else
@@ -68,7 +68,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//#include <jversion.h>
 		#include <jpeglib.h>
 	#endif
-	#ifdef _SDL
+	#ifdef FTE_SDL
 		#include <SDL.h>
 	#endif
 #endif
@@ -4052,7 +4052,7 @@ void COM_Version_f (void)
 	Con_Printf("QuakeC just-in-time compiler (QCJIT) enabled\n");
 #endif
 
-#ifdef _SDL
+#ifdef FTE_SDL
 	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #endif
 

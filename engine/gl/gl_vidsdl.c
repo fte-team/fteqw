@@ -184,10 +184,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 #if SDL_MAJOR_VERSION < 2
 	SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+#else
+	SDL_DisableScreenSaver();
 #endif
 	vid_vsync.modified = true;
 
-	SDL_DisableScreenSaver();
 
 	#ifdef _WIN32
 	{	//win32 apis are very insistant upon having a window context for things that have nothing to do with windowing system stuff.
@@ -201,7 +202,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		#else
 			SDL_SysWMinfo wmInfo;
 			SDL_GetWMInfo(&wmInfo);
-			memset(&bi, 0, sizeof(bi));
 			mainwindow = wmInfo.window; //note that this is usually still null
 		#endif
 	}
@@ -245,6 +245,7 @@ void GL_DoSwap (void)
 		return;
 	screenflush = 0;
 
+#if SDL_MAJOR_VERSION >= 2
 	if (vid_vsync.modified)
 	{
 		if (*vid_vsync.string)
@@ -256,7 +257,6 @@ void GL_DoSwap (void)
 		vid_vsync.modified = false;
 	}
 
-#if SDL_MAJOR_VERSION >= 2
 	SDL_GL_SwapWindow(sdlwindow);
 #else
 	SDL_GL_SwapBuffers();

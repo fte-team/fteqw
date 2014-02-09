@@ -110,7 +110,7 @@ typedef struct directive_s
 #define TOKEN_HEAP_SIZE		4096
 
 #ifdef _WIN64
-        #ifdef _SDL
+        #ifdef FTE_SDL
                 #define vsnprintf linuxlike_vsnprintf
         #endif
 #endif

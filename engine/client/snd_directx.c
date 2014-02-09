@@ -666,7 +666,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		}
 	}
 
-#ifdef _SDL
+#ifdef FTE_SDL
 #define mainwindow GetDesktopWindow()
 #endif
 	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
@@ -700,7 +700,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 	dsbuf.lpwfxFormat = NULL;
 
 #ifdef DSBCAPS_GLOBALFOCUS
-#ifndef _SDL
+#ifndef FTE_SDL
 	if (snd_inactive.ival || sys_parentwindow
 		) /*always inactive if we have a parent window, because we can't tell properly otherwise*/
 #endif

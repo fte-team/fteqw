@@ -167,7 +167,7 @@ char basefolder[MAX_QPATH];
 #endif
 
 #ifdef _WIN64
-        #ifdef _SDL
+        #ifdef FTE_SDL
                 #define vsnprintf linuxlike_vsnprintf
         #endif
 #endif

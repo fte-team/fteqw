@@ -368,7 +368,7 @@ ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length
+	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
@@ -684,31 +684,41 @@ BOTLIB_OBJS = 			\
 	l_struct.o	
 
 #the defaults for sdl come first
-GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
-GL_EXE_NAME=../fteqw_sdl.gl$(BITS)
-GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
-SDLCONFIG?=sdl-config
 CC_MACHINE:=$(shell $(CC) -dumpmachine)
+ifeq ($(FTE_TARGET),SDL2)
+	SDLCONFIG?=sdl2-config
+	FTE_FULLTARGET?=sdl2$(BITS)
+endif
+ifeq ($(FTE_TARGET),SDL)
+	FTE_FULLTARGET?=sdl$(BITS)
+endif
+SDLCONFIG?=sdl-config
+FTE_FULLTARGET?=sdl$(FTE_TARGET)$(BITS)
+
+GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+GL_EXE_NAME=../fteqw_gl$(FTE_FULLTARGET)
+GLCL_EXE_NAME=../fteqwcl_gl$(FTE_FULLTARGET)
+
 #SDLCONFIG:=libs/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs/sdl2_mingw/$(CC_MACHINE)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --libs`
 else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --libs`
 endif
-GL_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags`
-GLB_DIR=gl_sdl$(FTE_TARGET)$(BITS)
-GLCL_DIR=glcl_sdl$(FTE_TARGET)$(BITS)
+GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
+GLB_DIR=gl_$(FTE_FULLTARGET)
+GLCL_DIR=glcl_$(FTE_FULLTARGET)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
-SV_EXE_NAME=../fteqw_sdl.sv$(BITS)
+SV_EXE_NAME=../fteqw_sv$(FTE_FULLTARGET)
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 SV_LDFLAGS=-lz
 
-MINGL_DIR=mingl_sdl$(FTE_TARGET)$(BITS)
-MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
+MINGL_DIR=mingl_$(FTE_FULLTARGET)
+MINGL_EXE_NAME=../fteqw_mingl$(FTE_FULLTARGET)
 
-MB_DIR=m_sdl$(FTE_TARGET)$(BITS)
-M_EXE_NAME=../fteqw_sdl$(BITS)
+MB_DIR=m_$(FTE_FULLTARGET)
+M_EXE_NAME=../fteqw_$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags` -D_MERGED_SDL
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
@@ -795,6 +805,10 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	endif
 
 	EXEPOSTFIX=.exe
+
+	CC_MACHINE:=$(shell $(CC) -dumpmachine)
+	HAXX:= $(shell test -f libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config || (wget http://www.libsdl.org/release/SDL2-devel-2.0.1-mingw.tar.gz && cd $(BASE_DIR)/libs && tar -xvzf ../SDL2-devel-2.0.1-mingw.tar.gz && rm ../SDL2-devel-2.0.1-mingw.tar.gz))
+	SDLCONFIG=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config --prefix=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)
 	
 	#the defaults for sdl come first
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS)  gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
@@ -806,7 +820,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
 	endif
 	
-	GL_CFLAGS=-D_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDLCONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
+	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDLCONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		GL_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -816,7 +830,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../fteqw_sdl_sv$(BITS)$(EXEPOSTFIX)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DFTE_SDL
 	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm
 
 	MINGL_DIR=mingl_sdlwin$(BITS)
@@ -825,7 +839,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl$(BITS)$(EXEPOSTFIX)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
+	M_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		M_CFLAGS+= -D_MINGW_VFPRINTF
@@ -844,7 +858,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
+	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		D3D_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -1518,6 +1532,7 @@ clean:
 
 distclean: clean
 	-rm -f droid/ftekeystore
+	-rm -f -r libs/SDL2-2.0.1
 
 
 #################################################

@@ -338,6 +338,8 @@ void R2D_Init(void)
 #ifdef PLUGINS
 	Plug_DrawReloadImages();
 #endif
+
+	R2D_Font_Changed();
 }
 
 mpic_t	*R2D_SafeCachePic (char *path)

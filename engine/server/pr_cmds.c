@@ -10064,6 +10064,7 @@ typedef struct
 	qboolean misc;
 } knowndef_t;
 #include "cl_master.h"
+void Key_PrintQCDefines(vfsfile_t *f);
 void PR_DumpPlatform_f(void)
 {
 #ifdef SERVERONLY
@@ -11050,6 +11051,13 @@ void PR_DumpPlatform_f(void)
 	}
 	if (d != (ALL & ~targ))
 		VFS_PRINTF(f, "#endif\n");
+
+	if (targ & (CS|MENU))
+	{
+		VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+		Key_PrintQCDefines(f);
+		VFS_PRINTF(f, "#endif\n");
+	}
 
 
 	VFS_PRINTF(f, "#pragma noref 0\n");

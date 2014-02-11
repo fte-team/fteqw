@@ -626,8 +626,8 @@ long fpos;
 		{
 			snd_left += (int)ri->snd_sqr_arr[(unsigned)VFS_GETC(fp)];
 			snd_right += (int)ri->snd_sqr_arr[(unsigned)VFS_GETC(fp)];
-			*(short *)&ri->audio[i * 2] = snd_left;
-			*(short *)&ri->audio[i * 2 + 2] = snd_right;
+			*(short *)&ri->audio[i * 2] = snd_left & 0xffff;
+			*(short *)&ri->audio[i * 2 + 2] = snd_right & 0xffff;
 		}
 		ri->aud_pos = fpos;
 		return chunk_size;

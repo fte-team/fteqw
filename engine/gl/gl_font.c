@@ -638,6 +638,16 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 		}
 	}
 #endif
+
+	if (charidx == '\r')
+	{
+		if (f->chars[charidx|0xe000].texplane != INVALIDPLANE)
+		{
+			f->chars[charidx] = f->chars[charidx|0xe000];
+			return &f->chars[charidx];
+		}
+	}
+
 	return NULL;
 }
 

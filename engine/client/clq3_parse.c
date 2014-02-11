@@ -908,6 +908,18 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	cmd->forwardmove *= 127/400.0f;
 	cmd->sidemove *= 127/400.0f;
 	cmd->upmove *= 127/400.0f;
+	if (cmd->forwardmove > 127)
+		cmd->forwardmove = 127;
+	if (cmd->forwardmove < -127)
+		cmd->forwardmove = -127;
+	if (cmd->sidemove > 127)
+		cmd->sidemove = 127;
+	if (cmd->sidemove < -127)
+		cmd->sidemove = -127;
+	if (cmd->upmove > 127)
+		cmd->upmove = 127;
+	if (cmd->upmove < -127)
+		cmd->upmove = -127;
 
 	if (cmd->buttons & 2)	//jump
 	{

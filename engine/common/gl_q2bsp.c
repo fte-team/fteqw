@@ -12,8 +12,6 @@
 
 #define MAX_Q3MAP_INDICES 0x8000000	//just a sanity limit
 #define	MAX_Q3MAP_VERTEXES	0x800000	//just a sanity limit
-#define	MAX_Q3MAP_BRUSHSIDES	0x30000
-#define MAX_CM_BRUSHSIDES		(MAX_Q3MAP_BRUSHSIDES << 1)
 #define MAX_CM_PATCH_VERTS		(4096)
 #define MAX_CM_FACES			(MAX_Q2MAP_FACES)
 #define MAX_CM_PATCHES			(0x10000)
@@ -285,13 +283,10 @@ static mfog_t		*map_fogs;
 static int			map_numfogs;
 
 static int			numbrushsides;
-static q2cbrushside_t map_brushsides[MAX_Q2MAP_BRUSHSIDES];
+static q2cbrushside_t *map_brushsides;
 
 static int numtexinfo;
 static q2mapsurface_t	*map_surfaces;
-
-static int			numplanes;
-static mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
 
 static int			numleafs = 1;	// allow leaf funcs to be called without a map
 static mleaf_t		map_leafs[(MAX_MAP_LEAFS+7)/8];
@@ -1114,7 +1109,7 @@ qboolean CMod_LoadSurfaces (lump_t *l)
 	return true;
 }
 #ifndef SERVERONLY
-texture_t *Mod_LoadWall(char *name, char *sname)
+texture_t *Mod_LoadWall(char *name, char *sname, unsigned int imageflags)
 {
 	q2miptex_t replacementwal;
 	qbyte *in, *oin;
@@ -1130,7 +1125,7 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 	wal = (void *)FS_LoadMallocFile (name);
 	if (!wal)
 	{
-		tn.base = R_LoadReplacementTexture(name, loadname, 0);
+		tn.base = R_LoadReplacementTexture(name, loadname, imageflags);
 		wal = &replacementwal;
 		memset(wal, 0, sizeof(*wal));
 		Q_strncpyz(wal->name, name, sizeof(wal->name));
@@ -1138,7 +1133,7 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 		wal->height = image_height;
 	}
 	else
-		tn.base = R_LoadReplacementTexture(wal->name, loadname, IF_NOALPHA);
+		tn.base = R_LoadReplacementTexture(wal->name, loadname, imageflags);
 
 	wal->width = LittleLong(wal->width);
 	wal->height = LittleLong(wal->height);
@@ -1161,7 +1156,7 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 
 	if (!TEXVALID(tn.base))
 	{
-		tn.base = R_LoadReplacementTexture(wal->name, "bmodels", IF_NOALPHA);
+		tn.base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags);
 		if (!TEXVALID(tn.base))
 		{
 			if (!wal->offsets[0])
@@ -1170,7 +1165,7 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 				CL_CheckOrEnqueDownloadFile(name, NULL, 0);
 				return NULL;
 			}
-			tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, IF_NOALPHA|IF_NOGAMMA);
+			tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, imageflags);
 		}
 	}
 
@@ -1267,7 +1262,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 			}
 			snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
-			out->texture = Mod_LoadWall (name, sname);
+			out->texture = Mod_LoadWall (name, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
 			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
 				out->texture = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
@@ -1504,7 +1499,7 @@ qboolean CMod_LoadNodes (lump_t *l)
 			out->minmaxs[3+j] = LittleShort (in->maxs[j]);
 		}
 
-		out->plane = map_planes + LittleLong(in->planenum);
+		out->plane = loadmodel->planes + LittleLong(in->planenum);
 
 		out->firstsurface = LittleShort (in->firstface);
 		out->numsurfaces = LittleShort (in->numfaces);
@@ -1595,9 +1590,9 @@ qboolean CMod_LoadLeafs (lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_PLANES)
+	if (count > sizeof(map_leafs)/sizeof(map_leafs[0]))
 	{
-		Con_Printf (CON_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many leafs\n");
 		return false;
 	}
 
@@ -1685,17 +1680,13 @@ qboolean CMod_LoadPlanes (lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count >= MAX_Q2MAP_PLANES)
+	if (count >= SANITY_MAX_MAP_PLANES)
 	{
-		Con_Printf (CON_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many planes (%i)\n", count);
 		return false;
 	}
 
-	out = map_planes;
-	numplanes = count;
-
-
-	loadmodel->planes = out;
+	loadmodel->planes = out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
 	loadmodel->numplanes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
@@ -1779,19 +1770,19 @@ qboolean CMod_LoadBrushSides (lump_t *l)
 	count = l->filelen / sizeof(*in);
 
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_BRUSHSIDES)
+	if (count > SANITY_MAX_MAP_BRUSHSIDES)
 	{
-		Con_Printf (CON_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many brushsides (%i)\n", count);
 		return false;
 	}
 
-	out = map_brushsides;
+	out = map_brushsides = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
 	numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		num = LittleShort (in->planenum);
-		out->plane = &map_planes[num];
+		out->plane = &loadmodel->planes[num];
 		j = LittleShort (in->texinfo);
 		if (j >= numtexinfo)
 		{
@@ -3185,17 +3176,14 @@ qboolean CModQ3_LoadPlanes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = map_planes;//Hunk_AllocName ( count*2*sizeof(*out), loadname);
 
-	if (count > MAX_MAP_PLANES)
+	if (count > SANITY_MAX_MAP_PLANES)
 	{
-		Con_Printf (CON_ERROR "Too many planes on map\n");
+		Con_Printf (CON_ERROR "Too many planes on map (%i)\n", count);
 		return false;
 	}
 
-	numplanes = count;
-
-	loadmodel->planes = out;
+	loadmodel->planes = out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
 	loadmodel->numplanes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
@@ -3265,19 +3253,19 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 	count = l->filelen / sizeof(*in);
 
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_BRUSHSIDES)
+	if (count > SANITY_MAX_MAP_BRUSHSIDES)
 	{
-		Con_Printf (CON_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many brushsides (%i)\n", count);
 		return false;
 	}
 
-	out = map_brushsides;
+	out = map_brushsides = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
 	numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		num = LittleLong (in->planenum);
-		out->plane = &map_planes[num];
+		out->plane = &loadmodel->planes[num];
 		j = LittleLong (in->texinfo);
 		if (j >= numtexinfo)
 		{
@@ -3307,19 +3295,19 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 	count = l->filelen / sizeof(*in);
 
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_BRUSHSIDES)
+	if (count > SANITY_MAX_MAP_BRUSHSIDES)
 	{
-		Con_Printf (CON_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many brushsides (%i)\n", count);
 		return false;
 	}
 
-	out = map_brushsides;
+	out = map_brushsides = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
 	numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		num = LittleLong (in->planenum);
-		out->plane = &map_planes[num];
+		out->plane = &loadmodel->planes[num];
 		j = LittleLong (in->texinfo);
 		if (j >= numtexinfo)
 		{
@@ -3798,7 +3786,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	void *buildcookie = NULL;
 
 	// free old stuff
-	numplanes = 0;
 	numleafs = 0;
 	numcmodels = 0;
 	numvisibility = 0;
@@ -3921,7 +3908,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
 		noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
 		noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
-		noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
 		if (header.version == 1)
 		{
 			noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
@@ -3932,6 +3918,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			noerrors = noerrors && CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
 			noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
 		}
+		noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
 		if (header.version == 1)
 			noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
 		else
@@ -4084,8 +4071,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			noerrors = noerrors && CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
 			noerrors = noerrors && CMod_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
 			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
 			noerrors = noerrors && CMod_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
 			noerrors = noerrors && CMod_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
 			noerrors = noerrors && CMod_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
 			noerrors = noerrors && CMod_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
@@ -4130,8 +4117,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			noerrors = noerrors && Mod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES], false);
 		#endif
 			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
 			noerrors = noerrors && CMod_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
 			noerrors = noerrors && CMod_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
 			noerrors = noerrors && CMod_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
 			noerrors = noerrors && CMod_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
@@ -4359,16 +4346,14 @@ void CM_InitBoxHull (void)
 	box_model.hulls[0].available = true;
 
 	box_model.nodes = ZG_Malloc(&box_model.memgroup, sizeof(mnode_t)*6);
-	box_planes = &map_planes[numplanes];
+	box_planes = ZG_Malloc(&box_model.memgroup, sizeof(mplane_t)*12);
 	if (numbrushes+1 > SANITY_MAX_MAP_BRUSHES
-		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES
-		|| numbrushsides+6 > MAX_Q2MAP_BRUSHSIDES
-		|| numplanes+12 > MAX_Q2MAP_PLANES)
+		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES)
 		Host_Error ("Not enough room for box tree");
 
 	box_brush = &map_brushes[numbrushes];
 	box_brush->numsides = 6;
-	box_brush->brushside = &map_brushsides[numbrushsides];
+	box_brush->brushside = ZG_Malloc(&box_model.memgroup, sizeof(q2cbrushside_t)*6);
 	box_brush->contents = Q2CONTENTS_MONSTER;
 
 	box_leaf = &map_leafs[numleafs];
@@ -4383,13 +4368,13 @@ void CM_InitBoxHull (void)
 		side = i&1;
 
 		// brush sides
-		s = &map_brushsides[numbrushsides+i];
-		s->plane = 	map_planes + (numplanes+i*2+side);
+		s = &box_brush->brushside[i];
+		s->plane = 	box_planes + (i*2+side);
 		s->surface = &nullsurface;
 
 		// nodes
 		c = &box_model.nodes[i];
-		c->plane = map_planes + (numplanes+i*2);
+		c->plane = box_planes + (i*2);
 		c->childnum[side] = -1 - emptyleaf;
 		if (i != 5)
 			c->childnum[side^1] = box_headnode+i + 1;
@@ -4478,7 +4463,7 @@ int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
 
 int CM_PointLeafnum (model_t *mod, vec3_t p)
 {
-	if (!numplanes)
+	if (!mod || mod->needload)
 		return 0;		// sound may call this without map loaded
 	return CM_PointLeafnum_r (mod, p, 0);
 }

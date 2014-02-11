@@ -41,13 +41,15 @@ qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_
 	else if (cl_forwardspeed.value > 200)
 	{
 		Cvar_SetValue (&cl_forwardspeed, 200);
-		Cvar_SetValue (&cl_backspeed, 200);
+		if (*cl_backspeed.string)
+			Cvar_SetValue (&cl_backspeed, 200);
 		return false;
 	}
 	else
 	{
 		Cvar_SetValue (&cl_forwardspeed, 400);
-		Cvar_SetValue (&cl_backspeed, 400);
+		if (*cl_backspeed.string)
+			Cvar_SetValue (&cl_backspeed, 400);
 		return true;
 	}
 }

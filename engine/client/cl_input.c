@@ -37,6 +37,7 @@ cvar_t	cl_netfps = CVAR("cl_netfps", "150");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
+cvar_t	cl_run = CVARD("cl_run", "1", "Enables autorun, doubling the effective value of cl_forwardspeed and friends.");
 
 cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
@@ -483,7 +484,7 @@ void CL_ProxyMenuHooks(void)
 
 cvar_t	cl_upspeed = SCVARF("cl_upspeed","400", CVAR_ARCHIVE);
 cvar_t	cl_forwardspeed = SCVARF("cl_forwardspeed","400", CVAR_ARCHIVE);
-cvar_t	cl_backspeed = SCVARF("cl_backspeed","400", CVAR_ARCHIVE);
+cvar_t	cl_backspeed = CVARFD("cl_backspeed","", CVAR_ARCHIVE, "The base speed that you move backwards at. If empty, uses the value of cl_forwardspeed instead.");
 cvar_t	cl_sidespeed = SCVARF("cl_sidespeed","400", CVAR_ARCHIVE);
 
 cvar_t	cl_movespeedkey = SCVAR("cl_movespeedkey","2.0");
@@ -570,7 +571,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 //
 // adjust for speed key
 //
-	if (in_speed.state[pnum] & 1)
+	if ((in_speed.state[pnum] & 1) ^ cl_run.ival)
 		scale *= cl_movespeedkey.value;
 
 	if (in_strafe.state[pnum] & 1)
@@ -590,17 +591,8 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 	if (! (in_klook.state[pnum] & 1) )
 	{	
 		cmd->forwardmove += scale*cl_forwardspeed.value * CL_KeyState (&in_forward, pnum);
-		cmd->forwardmove -= scale*cl_backspeed.value * CL_KeyState (&in_back, pnum);
+		cmd->forwardmove -= scale*(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum);
 	}
-}
-
-int MakeChar (int i)
-{
-	if (i < -127*4)
-		i = -127*4;
-	if (i > 127*4)
-		i = 127*4;
-	return i;
 }
 
 void CL_ClampPitch (int pnum)
@@ -1360,7 +1352,7 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 	qboolean dontdrop;
 	usercmd_t *cmd;
 	int checksumIndex, i;
-	qbyte lightlev;
+	int lightlev;
 
 	seq_hash = cls.netchan.outgoing_sequence;
 
@@ -1396,7 +1388,7 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 	cmd = &cl.outframes[i].cmd[0];
 	*cmd = independantphysics[0];
 	
-	cmd->lightlevel = lightlev;
+	cmd->lightlevel = (lightlev>255)?255:lightlev;
 
 	cl.outframes[i].senttime = realtime;
 	cl.outframes[i].latency = -1;
@@ -1931,6 +1923,7 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_queueimpulses, inputnetworkcvargroup);
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
 	Cvar_Register (&cl_sparemsec, inputnetworkcvargroup);
+	Cvar_Register (&cl_run, inputnetworkcvargroup);
 
 	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);
 

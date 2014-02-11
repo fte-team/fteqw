@@ -138,6 +138,8 @@ typedef struct cvar_group_s
 #define CVAR_TELLGAMECODE   (1<<17) //tells the gamecode when it has changed, does not prevent changing, added as an optimisation
 
 #define CVAR_CONFIGDEFAULT	(1<<18)	//this cvar's default value has been changed to match a config.
+#define CVAR_NOSAVE			(1<<19) //this cvar should never be saved. ever.
+#define CVAR_NORESET		(1<<20) //cvar is not reset by various things.
 
 #define CVAR_LASTFLAG CVAR_SHADERSYSTEM
 

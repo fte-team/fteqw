@@ -231,6 +231,22 @@ keyname_t keynames[] =
 	{NULL,0}
 };
 
+#if defined(CSQC_DAT) || defined(MENU_DAT)
+int MP_TranslateFTEtoQCCodes(int code);
+void Key_PrintQCDefines(vfsfile_t *f)
+{
+	int i, j;
+	for (i = 0; keynames[i].name; i++)
+	{
+		for (j = 0; j < i; j++)
+			if (keynames[j].keynum == keynames[i].keynum)
+				break;
+		if (j == i)
+			VFS_PRINTF(f, "#define K_%s\t%i\n", keynames[i].name, MP_TranslateFTEtoQCCodes(keynames[j].keynum));
+	}
+}
+#endif
+
 /*
 ==============================================================================
 

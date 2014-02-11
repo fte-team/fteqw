@@ -2390,7 +2390,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 
 	Cmd_AddCommand ("localinfo", SV_Localinfo_f);
-	Cmd_AddCommand ("gamedir", SV_Gamedir_f);
+	Cmd_AddCommandD ("gamedir", SV_Gamedir_f, "Change the current gamedir.");
 	Cmd_AddCommand ("sv_gamedir", SV_Gamedir);
 	Cmd_AddCommand ("sv_settimer", SV_SetTimer_f);
 	Cmd_AddCommand ("stuffcmd", SV_StuffToClient_f);

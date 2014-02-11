@@ -104,7 +104,7 @@ typedef enum {
 	CG_SNAPVECTOR,
 	CG_REMOVECOMMAND,
 	CG_R_LIGHTFORPOINT,				//73
-	CG_CIN_PLAYCINEMATIC,			//64
+	CG_CIN_PLAYCINEMATIC,			//74
 	CG_CIN_STOPCINEMATIC,			//75
 	CG_CIN_RUNCINEMATIC,			//76
 	CG_CIN_DRAWCINEMATIC,			//77
@@ -1033,6 +1033,15 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 	case CG_CEIL:
 		VM_FLOAT(ret)=(float)ceil(VM_FLOAT(arg[0]));
+		break;
+
+	case CG_R_REMAP_SHADER:
+		{
+//			char *dst = VM_POINTER(arg[0]);
+//			char *src = VM_POINTER(arg[1]);
+//			float timeoffset = VM_FLOAT(arg[2]);
+			Con_DPrintf("CG_R_REMAP_SHADER: not implemented\n");
+		}
 		break;
 
 	case CG_R_REGISTERFONT:

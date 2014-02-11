@@ -1349,26 +1349,35 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
 
+	if (!file)
+		file = sv.world.worldmodel->entities;
+	if (!file)
+		file = Z_StrDup("");
+
 	switch(svs.gametype)
 	{
 	default:
 		break;
 	case GT_Q1QVM:
 	case GT_PROGS:
-		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file?file :sv.world.worldmodel->entities, spawnflagmask);
+		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
 		break;
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		ge->SpawnEntities(sv.name, file?file :sv.world.worldmodel->entities, startspot?startspot:"");
+		ge->SpawnEntities(sv.name, file, startspot?startspot:"");
 		break;
 #endif
 	case GT_QUAKE3:
 		break;
 #ifdef HLSERVER
 	case GT_HALFLIFE:
-		SVHL_SpawnEntities(file?file :sv.world.worldmodel->entities);		break;
+		SVHL_SpawnEntities(file);
+		break;
 #endif
 	}
+
+	if (file != sv.world.worldmodel->entities)
+		Z_Free(file);
 
 #ifndef SERVERONLY
 	current_loading_size+=10;

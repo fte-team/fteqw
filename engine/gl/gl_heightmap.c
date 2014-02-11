@@ -584,7 +584,13 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		Terr_GenerateWater(s, ds->waterheight);
 
 	memset(s->holes, 0, sizeof(s->holes));
-//	s->holes = ds->holes;
+	for (i = 0; i < 8*8; i++)
+	{
+		int x = (i & 7);
+		int y = (i>>3);
+		if (ds->holes & ((x>>1)|((y>>1)<<3)))
+			s->holes[y] |= 1u<<x;
+	}
 
 	ptr = ds+1;
 
@@ -1480,6 +1486,14 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	Q_strncpyz(ds.texname[1], s->texname[1], sizeof(ds.texname[1]));
 	Q_strncpyz(ds.texname[2], s->texname[2], sizeof(ds.texname[2]));
 	Q_strncpyz(ds.texname[3], s->texname[3], sizeof(ds.texname[3]));
+
+	for (i = 0; i < 8*8; i++)
+	{
+		int x = (i & 7);
+		int y = (i>>3);
+		if (s->holes[y] & (1u<<x))
+			ds.holes |= ((x>>1)|((y>>1)<<3));
+	}
 
 	lm = lightmap[s->lightmap]->lightmaps;
 	lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;

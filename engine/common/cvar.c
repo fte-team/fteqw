@@ -150,6 +150,8 @@ char *Cvar_FlagToName(int flag)
 		return "rulesetlatch";
 	case CVAR_SHADERSYSTEM:
 		return "shadersystem";
+	case CVAR_NOSAVE:
+		return "nosave";
 	}
 
 	return NULL;
@@ -569,6 +571,8 @@ void Cvar_Reset_f (void)
 			}
 
 			if ((cmd->flags & CVAR_NOSET) && !search)
+				continue;
+			if (cmd->flags & CVAR_NORESET)
 				continue;
 
 			// reset cvar to default only if its okay to do so
@@ -1297,7 +1301,7 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 			if (var->flags & CVAR_ARCHIVE || (all && var != &cl_warncmd))
 			{
 				//yeah, don't force-save readonly cvars.
-				if (var->flags & CVAR_NOSET)
+				if (var->flags & (CVAR_NOSET|CVAR_NOSAVE))
 					continue;
 
 				if (!writtengroupheader)

@@ -852,7 +852,7 @@ typedef struct {
 	int		bits; 	// bits > 0  -->  unsigned integer
 					// bits = 0  -->  float value
 					// bits < 0  -->  signed integer
-} field_t;
+} q3field_t;
 
 // field declarations
 #ifdef MSG_SHOWNET
@@ -874,7 +874,7 @@ typedef struct {
 //
 // entityState_t
 //
-static const field_t esFieldTable[] = {
+static const q3field_t esFieldTable[] = {
 	ES_FIELD( pos.trTime,			32 ),
 	ES_FIELD( pos.trBase[0],		 0 ),
 	ES_FIELD( pos.trBase[1],		 0 ),
@@ -945,7 +945,7 @@ returns false if the ent was removed.
 #ifndef SERVERONLY
 qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *to, int number )
 {
-	const field_t	*field;
+	const q3field_t	*field;
 	int				to_integer;
 	int				maxFieldNum;
 #ifdef MSG_SHOWNET
@@ -1103,7 +1103,7 @@ MSG_WriteDeltaEntity
 #ifndef CLIENTONLY
 void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q3entityState_t *to, qboolean force)
 {
-	const field_t	*field;
+	const q3field_t	*field;
 	int				to_value;
 	int				to_integer;
 	float			to_float;
@@ -1219,7 +1219,7 @@ void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q
 //
 // playerState_t
 //
-static const field_t psFieldTable[] = {
+static const q3field_t psFieldTable[] = {
 	PS_FIELD( commandTime,			32 ),
 	PS_FIELD( origin[0],			 0 ),
 	PS_FIELD( origin[1],			 0 ),
@@ -1283,7 +1283,7 @@ MSG_WriteDeltaPlayerstate
 #ifndef CLIENTONLY
 void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, const q3playerState_t *to)
 {
-	const field_t	*field;
+	const q3field_t	*field;
 	int				to_value;
 	float			to_float;
 	int				to_integer;
@@ -1462,7 +1462,7 @@ void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, co
 
 #ifndef SERVERONLY
 void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *to ) {
-	const field_t	*field;
+	const q3field_t	*field;
 	int				to_integer;
 	int				maxFieldNum;
 	int				bitmask;

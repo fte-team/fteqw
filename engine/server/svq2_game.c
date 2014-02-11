@@ -628,7 +628,13 @@ static int VARGS SVQ2_PointContents (vec3_t p)
 
 static cvar_t *VARGS Q2Cvar_Get (char *var_name, char *value, int flags)
 {
-	return Cvar_Get(var_name, value, flags, "Quake2 game variables");
+	cvar_t *var = Cvar_Get(var_name, value, flags, "Quake2 game variables");
+	if (!var)
+	{
+		Con_Printf("Q2Cvar_Get: variable %s not creatable\n", var_name);
+		return NULL;
+	}
+	return var;
 }
 
 cvar_t *VARGS Q2Cvar_Set (char *var_name, char *value)
@@ -808,9 +814,6 @@ qboolean SVQ2_InitGameProgs(void)
 		import.SetAreaPortalState	= CMQ2_Q1BSP_SetAreaPortalState;
 	*/
 	}
-
-	Cvar_ForceSet(Cvar_Get("game", "", CVAR_LATCH, "Q2 compat"), FS_GetGamedir());
-	Cvar_ForceSet(Cvar_Get("basedir", "", CVAR_LATCH, "Q2 compat"), FS_GetBasedir());
 
 	ge = (game_export_t *)SVQ2_GetGameAPI ((game_import_t*)&import);
 

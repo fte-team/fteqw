@@ -570,7 +570,7 @@ void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	MSG_WriteByte (msg, svcq2_frame);
 	MSG_WriteLong (msg, sv.framenum);
 	MSG_WriteLong (msg, lastframe);	// what we are delta'ing from
-	MSG_WriteByte (msg, client->chokecount);	// rate dropped packets
+	MSG_WriteByte (msg, client->chokecount&0xff);	// rate dropped packets
 	client->chokecount = 0;
 
 	// send over the areabits

@@ -97,6 +97,8 @@ cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT);
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. See also: r_globalskin_count.");
+cvar_t r_globalskin_count						= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= SCVARF ("r_coronas", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",

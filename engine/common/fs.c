@@ -12,15 +12,33 @@
 #include "winquake.h"
 #endif
 
+void fs_game_callback(cvar_t *var, char *oldvalue);
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 static unsigned int fs_restarts;
-extern cvar_t com_fs_cache;
-extern cvar_t cfg_reload_on_gamedir;
+
+cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
+cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
+cvar_t fs_game = CVARFDC("game", "", CVAR_NOSAVE|CVAR_NORESET, "Provided for Q2 compat.", fs_game_callback);
+cvar_t fs_gamedir = CVARFD("fs_gamedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
+cvar_t fs_basedir = CVARFD("fs_basedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
 int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
 void COM_CheckRegistered (void);
+
+void fs_game_callback(cvar_t *var, char *oldvalue)
+{
+	static qboolean runaway = false;
+	char buf[MAX_OSPATH];
+	if (!strcmp(var->string, oldvalue))
+		return;	//no change here.
+	if (runaway)
+		return;	//ignore that
+	runaway = true;
+	Cmd_ExecuteString(va("gamedir %s\n", COM_QuotedString(var->string, buf, sizeof(buf))), Cmd_ExecLevel);
+	runaway = false;
+}
 
 struct
 {
@@ -1940,11 +1958,6 @@ char *FS_GetGamedir(void)
 {
 	return gamedirfile;
 }
-/*unsafe - provided only for gamecode compat, should not be used for internal features*/
-char *FS_GetBasedir(void)
-{
-	return com_quakedir;
-}
 
 //given a 'c:/foo/bar/' path, will extract 'bar'.
 void FS_ExtractDir(char *in, char *out, int outlen)
@@ -3515,6 +3528,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.
 #endif
 
+	Cvar_ForceSet(&fs_game, FS_GetGamedir());
+#ifdef Q2SERVER
+	Cvar_ForceSet(&fs_gamedir, va("%s%s", com_quakedir, FS_GetGamedir()));
+	Cvar_ForceSet(&fs_basedir, com_quakedir);
+#endif
+
 	return true;
 }
 
@@ -3589,11 +3608,17 @@ void COM_InitFilesystem (void)
 	FS_CleanDir(com_quakedir, sizeof(com_quakedir));
 
 
-
-	Cvar_Register(&fs_gamename, "FS");
-	Cvar_Register(&fs_gamemanifest, "FS");
+	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
+	Cvar_Register(&com_fs_cache, "Filesystem");
+	Cvar_Register(&fs_gamename, "Filesystem");
+	Cvar_Register(&fs_gamemanifest, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&com_modname, "Server Info");
+	Cvar_Register(&fs_game, "Filesystem");
+#ifdef Q2SERVER
+	Cvar_Register(&fs_gamedir, "Filesystem");
+	Cvar_Register(&fs_basedir, "Filesystem");
+#endif
 
 	usehome = false;
 

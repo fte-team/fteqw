@@ -396,9 +396,14 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.framestate.g[FS_REG].frame[1] = q3->oldframe;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
 	ent.framestate.g[FS_REG].lerpfrac = q3->backlerp;
-	ent.scale = q3->radius;
+	if (q3->reType == RT_SPRITE)
+	{
+		ent.scale = q3->radius;
+		ent.rotation = q3->rotation;
+	}
+	else
+		ent.scale = 1;
 	ent.rtype = q3->reType;
-	ent.rotation = q3->rotation;
 
 	if (q3->customSkin)
 		ent.skinnum = Mod_SkinNumForName(ent.model, VM_FROMSTRCACHE(q3->customSkin));

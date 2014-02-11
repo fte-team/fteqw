@@ -55,6 +55,7 @@ extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;
 extern cvar_t r_skin_overlays;
+extern cvar_t r_globalskin_first, r_globalskin_count;
 
 #ifndef SERVERONLY
 static hashtable_t skincolourmapped;
@@ -222,7 +223,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	*forcedtex = NULL;
 
 	/*hexen2 feature: global skins */
-	if (inf->numskins < 100 && e->skinnum >= 100 && e->skinnum < 110)
+	if (inf->numskins < e->skinnum && e->skinnum >= r_globalskin_first.ival && e->skinnum < r_globalskin_first.ival+r_globalskin_count.ival)
 	{
 		shader_t *s;
 		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);

@@ -21,8 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
-cvar_t com_fs_cache			= SCVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 cvar_t dpcompat_set         = SCVAR("dpcompat_set", "0");
@@ -261,7 +259,7 @@ void Cbuf_InsertText (const char *text, int level, qboolean addnl)
 // add the entire text of the file
 	Cbuf_AddText (text, level);
 	if (addnl)
-		SZ_Write (&cmd_text[level].buf, "\n", 1);
+		Cbuf_AddText ("\n", level);
 // add the copied off data
 	if (templen)
 	{
@@ -1284,6 +1282,9 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 	};
 
 	dest[len] = 0;
+
+	if (len && dest[len-1] == '\r')	//with dos line endings, don't add some pointless \r char on the end.
+		dest[len-1] = 0;
 
 	return dest;
 }
@@ -3069,7 +3070,6 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
 	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
-	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
 
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
@@ -3116,7 +3116,6 @@ void Cmd_Init (void)
 	Cmd_AddMacro("version", Macro_Version, false);
 	Cmd_AddMacro("qt", Macro_Quote, false);
 
-	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");

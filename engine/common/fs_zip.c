@@ -428,6 +428,7 @@ struct decompressstate
 	qofs_t usize;	//data remaining. refuse to read more bytes than this.
 	unsigned char inbuffer[16384];
 	unsigned char outbuffer[16384];
+	unsigned int readoffset;
 
 	z_stream strm;
 };
@@ -453,23 +454,25 @@ qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t b
 	qofs_t read = 0;
 	while(bytes)
 	{
-		if (st->strm.total_out)
+		if (st->readoffset < st->strm.total_out)
 		{
-			unsigned int consume = st->strm.total_out;
+			unsigned int consume = st->strm.total_out-st->readoffset;
 			if (consume > bytes)
 				consume = bytes;
-			memcpy(buffer, st->outbuffer, consume);
-			st->strm.total_out -= consume;
+			memcpy(buffer, st->outbuffer+st->readoffset, consume);
 			buffer += consume;
 			bytes -= consume;
 			read += consume;
+			st->readoffset += consume;
 			continue;
 		}
 		else if (eof)
 			break;	//no input available, and nothing in the buffers.
 
+		st->strm.total_out = 0;
 		st->strm.avail_out = sizeof(st->outbuffer);
 		st->strm.next_out = st->outbuffer;
+		st->readoffset = 0;
 		if (!st->strm.avail_in)
 		{
 			qofs_t sz;

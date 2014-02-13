@@ -364,7 +364,6 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 		{
 			vec3_t move;
 			vec3_t from;
-			float firstfrac = trace.fraction;
 
 			VectorCopy(trace.endpos, from);	//just in case
 			VectorSubtract(end, trace.endpos, move);
@@ -863,7 +862,8 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 		moved_edict[num_moved] = check;
 		num_moved++;
 
-//		check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
+		if (check->v->groundentity != pusher->entnum)
+			check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
 
 		// try moving the contacted entity
 		VectorAdd (check->v->origin, move, check->v->origin);
@@ -1112,7 +1112,6 @@ static void WPhys_Physics_Noclip (world_t *w, wedict_t *ent)
 	{
 		vec3_t move;
 		vec3_t from;
-		float firstfrac = trace.fraction;
 		VectorCopy(trace.endpos, from);	//just in case
 		VectorSubtract(end, trace.endpos, move);
 		WPhys_PortalTransform(w, ent, impact, from, move);

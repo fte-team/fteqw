@@ -4272,7 +4272,6 @@ double Host_Frame (double time)
 
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
-		extern mleaf_t	*r_viewleaf;
 		extern cvar_t scr_chatmodecvar;
 
 		if (scr_chatmodecvar.ival && !cl.intermission)

@@ -51,7 +51,7 @@ NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
 
 #correct the gcc build when cross compiling
-ifeq ($(FTE_TARGET),win32)
+ifneq (,$(findstring win32,$(FTE_TARGET)))
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
 		#old/original mingw project, headers are not very up to date.
@@ -74,7 +74,7 @@ ifeq ($(FTE_TARGET),win32)
 endif
 
 #correct the gcc build when cross compiling
-ifeq ($(FTE_TARGET),win64)
+ifneq (,$(findstring win64,$(FTE_TARGET)))
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
 		ifneq ($(shell which x86_64-w64-mingw32-gcc 2> /dev/null),)
@@ -152,36 +152,9 @@ ifeq ($(FTE_TARGET),droid)
 	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
-#correct the gcc build when cross compiling
-ifeq ($(FTE_TARGET),win32_SDL)
-	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
-		#CC didn't state that it was mingw... so try fixing that up
-		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
-			#yup, the alternative exists (this matches the one debian has)
-			CC=i586-mingw32msvc-gcc
-			WINDRES=i586-mingw32msvc-windres
-			STRIP=i586-mingw32msvc-strip
-#			BITS=32
-		endif
-	endif
-endif
 
 ifeq ($(FTE_TARGET),win64_sdl)
 	FTE_TARGET=win64_SDL
-endif
-
-#correct the gcc build when cross compiling
-ifeq ($(FTE_TARGET),win64_SDL)
-	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
-		#CC didn't state that it was mingw... so try fixing that up
-		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
-			#yup, the alternative exists (this matches the one debian has)
-			CC=amd64-mingw32msvc-gcc -m64
-			WINDRES=amd64-mingw32msvc-windres
-			STRIP=amd64-mingw32msvc-strip
-#			BITS=64
-		endif
-	endif
 endif
 
 #crosscompile macosx from linux, default target ppc 32bit
@@ -300,7 +273,7 @@ PROGS_DIR=$(BASE_DIR)/qclib
 NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
 
-ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
+ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS)
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -344,7 +317,7 @@ ifeq ($(FTE_TARGET),macosx)
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
-ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
+ifneq (,$(findstring win,$(FTE_TARGET)))
 	BASELDFLAGS=-lm
 	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
 
@@ -797,18 +770,19 @@ ifeq ($(FTE_TARGET),nacl)
 endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
-ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)	
+ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	LIBS_DIR=./libs
-	
-	ifeq ($(shell echo $(FTE_TARGET)|grep -i -v "win64_sdl"),)
+
+	ifneq (,$(findstring win64,$(FTE_TARGET)))
 		BITS=64
 	endif
 
 	EXEPOSTFIX=.exe
 
 	CC_MACHINE:=$(shell $(CC) -dumpmachine)
-	HAXX:= $(shell test -f libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config || (wget http://www.libsdl.org/release/SDL2-devel-2.0.1-mingw.tar.gz && cd $(BASE_DIR)/libs && tar -xvzf ../SDL2-devel-2.0.1-mingw.tar.gz && rm ../SDL2-devel-2.0.1-mingw.tar.gz))
-	SDLCONFIG=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config --prefix=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)
+	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config
+	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)
+	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
 	
 	#the defaults for sdl come first
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS)  gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
@@ -820,7 +794,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
 	endif
 	
-	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDLCONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
+	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		GL_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -839,7 +813,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl$(BITS)$(EXEPOSTFIX)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
+	M_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		M_CFLAGS+= -D_MINGW_VFPRINTF
@@ -858,7 +832,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC `$(SDL_CONFIG) --cflags` $(DX7SDK) $(SPEEXCFLAGS)
+	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC $(DX7SDK) $(SPEEXCFLAGS)
 	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
 		D3D_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
@@ -944,7 +918,7 @@ ifeq ($(FTE_TARGET),vc)
 endif
 
 #FTE_TARGET=win32 | FTE_TARGET=win64 (MinGW32 | MinGW64)
-ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
+ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	# The extra object file called resources.o is specific for MinGW to link the icon in
 
 	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
@@ -1275,11 +1249,11 @@ endif
 
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc
-	$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
+	@$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
 
 #npAPI stuff requires some extra resources
 $(OUT_DIR)/npplug.o : ftequake/npplug.rc
-	$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
+	@$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
 
 
 #$(OUT_DIR)/%.d: %.c
@@ -1341,14 +1315,14 @@ DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
-_out-rel:
+_out-rel: $(ARCH_PREDEP)
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"
 	$(STRIP) $(STRIPFLAGS) $(OUT_DIR)/$(EXE_NAME)
 
-_out-dbg:
+_out-dbg: $(ARCH_PREDEP)
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="$(OBJS)"
 
-_out-profile:
+_out-profile: $(ARCH_PREDEP)
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(PROFILE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(PROFILE_LDFLAGS)" OBJS="$(OBJS)"
 
 _cl-rel: reldir
@@ -1670,6 +1644,12 @@ droid-help:
 	@-echo "JARSIGNARGS: Additional optional arguments to java's jarsigner program. You may want to put -storepass FOO in here, but what ever you do - keep it secure. Avoid bash history snooping, etc. If its not present, you will safely be prompted as required."
 	@-echo
 	@-echo "Note that 'make droid-rel' will automatically generate a keystore. If you forget the password, just do a 'make dist-clean'."
+
+$(BASE_DIR)/libs/SDL2-2.0.1/i686-w64-mingw32/bin/sdl2-config:
+	wget http://www.libsdl.org/release/SDL2-devel-2.0.1-mingw.tar.gz -O $(BASE_DIR)/sdl2.tar.gz
+	cd $(BASE_DIR)/libs && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
+	rm $(BASE_DIR)/sdl2.tar.gz
+$(BASE_DIR)/libs/SDL2-2.0.1/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs/SDL2-2.0.1/i686-w64-mingw32/bin/sdl2-config
 
 makelibs:
 ifndef ARCH

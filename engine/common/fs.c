@@ -907,14 +907,14 @@ fail:
 			loc->search->handle->ReadFile(loc->search->handle, loc, targname);
 
 			//properlyish unixify
-			while(s = strchr(targname, '\\'))
+			while((s = strchr(targname, '\\')))
 				*s = '/';
 			if (*targname == '/')
 				Q_strncpyz(mergedname, targname+1, sizeof(mergedname));
 			else
 			{
 				Q_strncpyz(mergedname, filename, sizeof(mergedname));
-				while(s = strchr(mergedname, '\\'))
+				while((s = strchr(mergedname, '\\')))
 					*s = '/';
 				b = COM_SkipPath(mergedname);
 				*b = 0;

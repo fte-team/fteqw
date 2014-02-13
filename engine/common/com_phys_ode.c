@@ -2731,7 +2731,10 @@ static odecommandqueue_t *physics_queuecommand(world_t *world)
 
 	//add on the end of the queue, so that order is preserved.
 	if (world->ode.cmdqueuehead)
-		world->ode.cmdqueuetail->next = world->ode.cmdqueuetail = cmd;
+	{
+		odecommandqueue_t *ot = world->ode.cmdqueuetail;
+		ot->next = world->ode.cmdqueuetail = cmd;
+	}
 	else
 		world->ode.cmdqueuetail = world->ode.cmdqueuehead = cmd;
 	return cmd;

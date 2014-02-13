@@ -900,6 +900,9 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 	{
 		switch(type)
 		{
+		default:
+			inc = 0;
+			break;
 		case UTF16LE:
 		case UTF16BE:
 			inc = inputf[type==UTF16BE];
@@ -915,7 +918,7 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 				if (l >= 0xdc00u && l < 0xe000u)
 				{
 					inputf+=2;
-					inc = ((inc & 0x3ffu)<<10) | (l & 0x3ffu) + 0x10000;
+					inc = (((inc & 0x3ffu)<<10) | (l & 0x3ffu)) + 0x10000;
 					i++;
 				}
 			}

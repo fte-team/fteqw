@@ -3325,6 +3325,7 @@ void Shader_Reset(shader_t *s)
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
+	s->remapto = s;
 	s->id = id;
 	s->width = w;
 	s->height = h;
@@ -5124,7 +5125,7 @@ void R_UnloadShader(shader_t *shader)
 	if (shader->uses-- == 1)
 		Shader_Free(shader);
 }
-static shader_t *R_LoadShader (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
+static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
 {
 	int i, f = -1;
 	char cleanname[MAX_QPATH];
@@ -5406,6 +5407,64 @@ cin_t *R_ShaderFindCinematic(char *name)
 	}
 	return NULL;
 #endif
+}
+
+void R_RemapShader(const char *sourcename, const char *destname, float timeoffset)
+{
+	shader_t *o;
+	shader_t *n;
+
+	//make sure all types of the shader are remapped properly.
+	//if there's a .shader file with it then it should 'just work'.
+
+	o = R_LoadShader (sourcename, SUF_NONE, NULL, NULL);
+	n = R_LoadShader (destname, SUF_NONE, NULL, NULL);
+	if (o)
+	{
+		if (!n)
+			n = o;
+		o->remapto = n;
+		o->remaptime = timeoffset;	//this just feels wrong.
+	}
+
+	o = R_LoadShader (sourcename, SUF_2D, NULL, NULL);
+	n = R_LoadShader (destname, SUF_2D, NULL, NULL);
+	if (o)
+	{
+		if (!n)
+			n = o;
+		o->remapto = n;
+		o->remaptime = timeoffset;
+	}
+
+	o = R_LoadShader (sourcename, SUF_LIGHTMAP, NULL, NULL);
+	n = R_LoadShader (destname, SUF_LIGHTMAP, NULL, NULL);
+	if (o)
+	{
+		if (!n)
+			n = o;
+		o->remapto = n;
+		o->remaptime = timeoffset;
+	}
+}
+
+void Shader_RemapShader_f(void)
+{
+	char *sourcename = Cmd_Argv(1);
+	char *destname = Cmd_Argv(2);
+	float timeoffset = atof(Cmd_Argv(3));
+	
+	if (!Cmd_FromGamecode() && !atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
+	{
+		Con_Printf("%s may only be used from gamecode, or when cheats are enabled\n", Cmd_Argv(0));
+		return;
+	}
+	if (!*sourcename)
+	{
+		Con_Printf("%s originalshader remappedshader starttime\n", Cmd_Argv(0));
+		return;
+	}
+	R_RemapShader(sourcename, destname, timeoffset);
 }
 
 shader_t *R_RegisterPic (char *name)

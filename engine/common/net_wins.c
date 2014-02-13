@@ -2118,6 +2118,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 			{
 				struct sockaddr_in from;
 				from.sin_family = AF_INET;
+				from.sin_port = port;
 				memcpy(&from.sin_addr, h->h_addr_list[b], sizeof(&from.sin_addr));
 				SockadrToNetadr((struct sockaddr_qstorage*)&from, addresses);
 
@@ -2135,6 +2136,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 			{
 				struct sockaddr_in6 from;
 				from.sin6_family = AF_INET6;
+				from.sin6_port = port;
 				memcpy(&from.sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
 				SockadrToNetadr((struct sockaddr_qstorage*)&from, addresses);
 				*adrflags++ = 0;
@@ -2974,7 +2976,7 @@ closesvstream:
 										"Connection: Upgrade\r\n"
 										"Access-Control-Allow-Origin: *\r\n"	//allow cross-origin requests. this means you can use any domain to play on any public server.
 										"Sec-WebSocket-Accept: %s\r\n"
-//										"%s"
+										"%s"
 										"\r\n", acceptkey, protoname);
 							//send the websocket handshake response.
 							send(st->socketnum, resp, strlen(resp), 0);

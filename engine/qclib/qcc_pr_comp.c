@@ -1433,6 +1433,8 @@ static QCC_def_t *QCC_GetTemp(QCC_type_t *type)
 		var_c->ofs = t->ofs;
 		var_c->temp = t;
 		t->lastfunc = pr_scope;
+
+		t->laststatement = numstatements;
 	}
 	else
 	{
@@ -1440,8 +1442,6 @@ static QCC_def_t *QCC_GetTemp(QCC_type_t *type)
 		var_c->ofs = QCC_GetFreeTempOffsetSpace(type->size);
 		numtemps+=type->size;
 	}
-
-	t->laststatement = numstatements;
 
 	var_c->s_file = s_file;
 	var_c->s_line = pr_source_line;
@@ -1511,11 +1511,11 @@ static void QCC_LockActiveTemps(void)
 
 }
 
-static void QCC_LockTemp(QCC_def_t *d)
-{
-	if (d->temp && d->temp->used)
-		d->temp->scope = pr_scope;
-}
+//static void QCC_LockTemp(QCC_def_t *d)
+//{
+//	if (d->temp && d->temp->used)
+//		d->temp->scope = pr_scope;
+//}
 static void QCC_ForceLockTempForOffset(int ofs)
 {
 	temp_t *t;
@@ -6876,9 +6876,8 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				if (ops != opcodes_store)
 				{
 					lhsd = QCC_RefToDef(lhsr, false);
-					for (i = 0; ops[i]; i++)
+					for (i = 0; (op=ops[i]); i++)
 					{
-						op = ops[i];
 //						if (QCC_OPCodeValid(op))
 						{
 							if ((*op->type_b)->type == rhsd->type->type && (*op->type_a)->type == lhsd->type->type)
@@ -6920,7 +6919,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 							rhsd = QCC_MakeVectorConst(0,0,0);
 						else if (lhsr->cast->type == ev_struct || lhsr->cast->type == ev_union)
 						{
-							QCC_PR_ParseError(0, "Type mismatch on assignment. %s %s %s is not supported\n", lhsd->type->name, opname, rhsd->type->name);
+							QCC_PR_ParseError(0, "Type mismatch on assignment. %s %s %s is not supported\n", lhsr->cast->name, opname, rhsd->type->name);
 						}
 					}
 					else

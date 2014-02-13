@@ -3303,7 +3303,6 @@ void CL_ParseModellist (qboolean lots)
 	int	nummodels;
 	char	*str;
 	int n;
-	int vwplayerindex = -1;
 
 // precache models and note certain default indexes
 	if (lots)

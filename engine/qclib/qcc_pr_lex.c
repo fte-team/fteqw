@@ -2386,7 +2386,6 @@ void QCC_PR_ConditionCompilation(void)
 	char *s;
 	int quote=false;
 	pbool preprocessorhack = false;
-	int comment = 0;
 	CompilerConstant_t *cnst;
 
 	QCC_PR_SimpleGetToken ();
@@ -2565,12 +2564,12 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 }
 
 /* *buffer, *bufferlen and *buffermax should be NULL/0 at the start */
-static void QCC_PR_ExpandStrCat(char **buffer, int *bufferlen, int *buffermax,   char *newdata, int newlen)
+static void QCC_PR_ExpandStrCat(char **buffer, size_t *bufferlen, size_t *buffermax,   char *newdata, size_t newlen)
 {
-	int newmax = *bufferlen + newlen;
-	if (newmax < *bufferlen)
+	size_t newmax = *bufferlen + newlen;
+	if (newmax < *bufferlen)//check for overflow
 	{
-		QCC_PR_ParseWarning(ERR_INTERNAL, "out of memory");
+		QCC_PR_ParseWarning(ERR_INTERNAL, "exceeds 4gb");
 		return;
 	}
 	if (newmax > *buffermax)
@@ -2583,7 +2582,7 @@ static void QCC_PR_ExpandStrCat(char **buffer, int *bufferlen, int *buffermax,  
 			newmax = *bufferlen * 2;
 			if (newmax < *bufferlen) /*overflowed?*/
 			{
-				QCC_PR_ParseWarning(ERR_INTERNAL, "out of memory");
+				QCC_PR_ParseWarning(ERR_INTERNAL, "exceeds 4gb");
 				return;
 			}
 		}
@@ -2656,8 +2655,8 @@ int QCC_PR_CheckCompConst(void)
 				char *start;
 				char *starttok;
 				char *buffer;
-				int buffermax;
-				int bufferlen;
+				size_t buffermax;
+				size_t bufferlen;
 				char *paramoffset[MAXCONSTANTPARAMS+1];
 				int param=0;
 				int plevel=0;
@@ -4442,7 +4441,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 							found = true;
 							break;
 						}
-						if (basicindex < pp[i].ofs+1)	//if we found one with the index
+						if ((unsigned int)basicindex < pp[i].ofs+1)	//if we found one with the index
 							basicindex = pp[i].ofs+1;	//make sure we don't union it.
 					}
 				}
@@ -4465,7 +4464,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (!d)
 				{
 					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST);
-					for (i = 0; i < newparm->size; i++)
+					for (i = 0; (unsigned int)i < newparm->size; i++)
 						((int *)qcc_pr_globals)[i+d->ofs] = pr.size_fields + i;
 					pr.size_fields += i;
 
@@ -4486,7 +4485,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			int i;
 			redeclaration = newt->num_parms != numparms;
 
-			for (i = 0; i < numparms && i < newt->num_parms; i++)
+			for (i = 0; i < numparms && (unsigned int)i < newt->num_parms; i++)
 			{
 				if (newt->params[i].arraysize != parms[i].arraysize || typecmp(newt->params[i].type, parms[i].type) || strcmp(newt->params[i].paramname, parms[i].paramname))
 				{

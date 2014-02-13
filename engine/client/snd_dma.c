@@ -1578,7 +1578,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device)
 	for (i = 0; outputdrivers[i]; i++)
 	{
 		sd = outputdrivers[i];
-		if (sd && !driver || !Q_strcasecmp(sd->name, driver))
+		if (sd && (!driver || !Q_strcasecmp(sd->name, driver)))
 		{
 			//skip drivers which are not present.
 			if (!sd->InitCard)

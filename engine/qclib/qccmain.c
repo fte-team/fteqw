@@ -640,7 +640,6 @@ void QCC_UnmarshalLocals(void)
 	unsigned int maxo;
 	int i;
 	extern int tempsused;
-	QCC_def_t *largestfunc = NULL;
 
 	ofs = numpr_globals;
 	maxo = ofs+locals_marshalled;

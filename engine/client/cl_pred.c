@@ -802,7 +802,7 @@ void CL_PredictMovePNum (int seat)
 	int			fromframe, toframe;
 	outframe_t	*backdate;
 	player_state_t *fromstate, *tostate, framebuf[2];	//need two framebufs so we can interpolate between two states.
-	usercmd_t	*cmdfrom, *cmdto;
+	usercmd_t	*cmdto;
 	double		fromtime, totime;
 	int			oldphysent;
 	double		simtime;
@@ -811,9 +811,6 @@ void CL_PredictMovePNum (int seat)
 	qboolean	nopred;
 	
 	//these are to make svc_viewentity work better
-	float *vel;
-	float *org;
-	float stepheight = 0;
 	float netfps = cl_netfps.value;
 
 	if (!netfps)
@@ -1028,9 +1025,6 @@ void CL_PredictMovePNum (int seat)
 			le = &cl.lerpents[pv->viewentity];
 	}
 
-	vel = fromstate->velocity;
-	org = fromstate->origin;
-
 	// predict forward until cl.time <= to->senttime
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers();
@@ -1039,7 +1033,7 @@ void CL_PredictMovePNum (int seat)
 	//just in case we don't run any prediction
 	VectorCopy(tostate->gravitydir, pmove.gravitydir);
 
-	cmdfrom = cmdto = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[seat];
+	cmdto = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[seat];
 
 	if (!nopred)
 	{
@@ -1066,7 +1060,6 @@ void CL_PredictMovePNum (int seat)
 			fromtime = totime;
 			fromstate = tostate;
 			fromframe = toframe;	//qw debug
-			cmdfrom = cmdto;
 
 			cmdto = &of->cmd[seat];
 			totime = of->senttime;
@@ -1090,7 +1083,6 @@ void CL_PredictMovePNum (int seat)
 			msec = ((simtime - totime) * 1000);
 			if (msec >= 1)
 			{
-				cmdfrom = cmdto;
 				fromstate = tostate;
 				fromtime = totime;
 				fromframe = toframe;

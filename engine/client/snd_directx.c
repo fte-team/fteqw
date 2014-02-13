@@ -974,7 +974,6 @@ static BOOL (CALLBACK  DSound_EnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR 
 	char guidbuf[128];
 	wchar_t mssuck[128];
 	void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename) = parm;
-	soundcardinfo_t *sc = parm;
 	if (guid == NULL)	//we don't care about the (dupe) default device
 		return TRUE;
 

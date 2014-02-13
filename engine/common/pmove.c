@@ -178,7 +178,6 @@ int PM_SlideMove (void)
 			{
 				vec3_t move;
 				vec3_t from;
-				float firstfrac = trace.fraction;
 
 				VectorCopy(trace.endpos, from);	//just in case
 				VectorSubtract(end, trace.endpos, move);

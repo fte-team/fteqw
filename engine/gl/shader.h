@@ -484,6 +484,8 @@ struct shader_s
 	//end of shared fields.
 
 	shader_t *bemoverrides[bemoverride_max];
+	shader_t *remapto;	//render using this shader instead. for q3 nonsense.
+	float	remaptime;
 
 	byte_vec4_t fog_color;
 	float fog_dist;
@@ -554,6 +556,7 @@ shader_t *R_RegisterShader_Flare (char *name);
 shader_t *R_RegisterSkin  (char *shadername, char *modname);
 shader_t *R_RegisterCustom (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
+void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 
 cin_t *R_ShaderGetCinematic(shader_t *s);
 cin_t *R_ShaderFindCinematic(char *name);
@@ -572,6 +575,7 @@ void Shader_Shutdown (void);
 qboolean Shader_Init (void);
 void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
+void Shader_RemapShader_f(void);
 
 mfog_t *CM_FogForOrigin(vec3_t org);
 

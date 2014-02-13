@@ -183,7 +183,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 
 	tgaheader_t tgaheader;
 
-	if (length < 18 || buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32)
+	if (length < 18 || (buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32))
 		return NULL;	//BUMMER!
 
 	tgaheader.id_len = buf[0];

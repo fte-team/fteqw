@@ -14,9 +14,9 @@ vfsfile_t *IWebGenerateFile(char *name)
 char lastrecordedmvd[MAX_QPATH];
 
 IWeb_FileGen_t *IWeb_GenerationBuffer;
-int IWeb_GenerationBufferTotal;
+size_t IWeb_GenerationBufferTotal;
 
-void IWeb_MoreGeneratedResize(int newsize)
+void IWeb_MoreGeneratedResize(size_t newsize)
 {
 	IWeb_FileGen_t *ob;
 
@@ -39,9 +39,32 @@ void IWeb_MoreGeneratedResize(int newsize)
 }
 void IWeb_Generate(const char *buf)
 {
-	long count = strlen(buf);
+	size_t count = strlen(buf);
 	if (!IWeb_GenerationBuffer || IWeb_GenerationBuffer->len + count >= IWeb_GenerationBufferTotal)
-		IWeb_MoreGeneratedResize(IWeb_GenerationBufferTotal + count+(16*1024));
+	{
+		IWeb_FileGen_t *ob;
+		size_t newsize = IWeb_GenerationBufferTotal + count+(16*1024);
+
+		if (newsize < IWeb_GenerationBufferTotal)
+		{
+			Sys_Error("Integer overflow\n");
+			return;	//should probably crash or something.
+		}
+
+		ob = IWeb_GenerationBuffer;
+		IWeb_GenerationBuffer = BZ_Malloc(sizeof(IWeb_GenerationBuffer) + newsize);
+		memset(IWeb_GenerationBuffer, 0, sizeof(*IWeb_GenerationBuffer));
+
+		IWeb_GenerationBuffer->data = (char *)(IWeb_GenerationBuffer+1);
+		if (ob)
+		{
+			memcpy(IWeb_GenerationBuffer->data, ob->data, ob->len);
+			IWeb_GenerationBuffer->len = ob->len;
+			IWebFree(ob);
+		}
+
+		IWeb_GenerationBufferTotal = newsize;
+	}
 
 	memcpy(&IWeb_GenerationBuffer->data[IWeb_GenerationBuffer->len], buf, count);
 	IWeb_GenerationBuffer->len+=count;

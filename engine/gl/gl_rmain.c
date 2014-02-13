@@ -1421,7 +1421,6 @@ r_refdef must be set before the first call
 */
 void GLR_RenderView (void)
 {
-	int oldfbo = 0;
 	int dofbo = r_refdef.rt_destcolour || r_refdef.rt_depth;
 	double	time1 = 0, time2;
 
@@ -1480,8 +1479,7 @@ void GLR_RenderView (void)
 			flags |= FBO_TEX_DEPTH;
 		else
 			flags |= FBO_RB_DEPTH;
-		oldfbo = GLBE_FBO_Update(&fbo_gameview, true, flags, col, depth, vid.fbpwidth, vid.fbpheight);
-		//oldfbo will probably be the 2d fbo
+		GLBE_FBO_Update(&fbo_gameview, true, flags, col, depth, vid.fbpwidth, vid.fbpheight);
 	}
 	else 
 	{

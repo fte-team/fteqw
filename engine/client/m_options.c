@@ -68,9 +68,6 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 void M_Menu_Options_f (void)
 {
 	extern cvar_t crosshair;
-#ifdef _WIN32
-	extern qboolean vid_isfullscreen;
-#endif
 	int y;
 
 	menubulk_t bulk[] = {
@@ -885,7 +882,7 @@ void M_Menu_Textures_f (void)
 		NULL
 	};
 
-	extern cvar_t gl_load24bit, gl_specular, gl_detail, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat, r_glsl_offsetmapping;
+	extern cvar_t gl_load24bit, gl_specular, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat, r_glsl_offsetmapping;
 	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d, gl_mipcap;
 	int y;
 	menubulk_t bulk[] =

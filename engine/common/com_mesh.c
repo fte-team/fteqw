@@ -1790,7 +1790,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 
 
-
+/*
 static float PlaneNearest(vec3_t normal, vec3_t mins, vec3_t maxs)
 {
 	float result;
@@ -1806,6 +1806,7 @@ static float PlaneNearest(vec3_t normal, vec3_t mins, vec3_t maxs)
 #endif
 	return result;
 }
+*/
 
 static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
@@ -1819,7 +1820,7 @@ static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numind
 
 	float planedist;
 	float diststart, distend;
-	float expand;
+//	float expand;
 
 	float frac;
 //	float temp;
@@ -1836,7 +1837,7 @@ static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numind
 		VectorSubtract(p3, p2, edge2);
 		CrossProduct(edge1, edge2, normal);
 
-		expand = PlaneNearest(normal, mins, maxs);
+//		expand = PlaneNearest(normal, mins, maxs);
 		planedist = DotProduct(p1, normal);
 		diststart = DotProduct(start, normal);
 		if (diststart <= planedist)

@@ -1513,7 +1513,7 @@ void MasterInfo_WriteServers(void)
 			break;
 		}
 		if (mast->address)
-			VFS_PUTS(mf, va("%s\t%s\t%s\n", mast->address, typename, protoname, mast->name));
+			VFS_PUTS(mf, va("%s\t%s%s\t%s\n", mast->address, typename, protoname, mast->name));
 		else
 			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &mast->adr), typename, mast->name));
 	}

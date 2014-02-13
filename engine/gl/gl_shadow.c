@@ -2311,7 +2311,6 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 	pxrect_t oprect;
 	shadowmesh_t *smesh;
 	int isspot = (l->fov != 0);
-	extern cvar_t r_shadow_shadowmapping_precision;
 	int sidevisible;
 	int oldflip = r_refdef.flipcull;
 	int oldexternalview = r_refdef.externalview;

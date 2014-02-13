@@ -135,7 +135,7 @@ qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qin
 {
 	qintptr_t ret = 0;
 	char *name = VM_POINTER(arg[0]);
-	char *mimetype = VM_POINTER(arg[1]);
+//	char *mimetype = VM_POINTER(arg[1]);
 	void *codeddata = VM_POINTER(arg[2]);
 	unsigned int datalength = VM_LONG(arg[3]);
 	texid_t t;

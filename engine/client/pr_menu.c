@@ -257,7 +257,7 @@ void CL_LoadFont_f(void)
 				for (j = 0; j < fontslot[i].sizes; j++)
 				{
 					if (j)
-						Con_Printf(", ", fontslot[i].size[j]);
+						Con_Printf(", ");
 					Con_Printf("%i", fontslot[i].size[j]);
 				}
 				Con_Printf(")\n");
@@ -830,7 +830,7 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	int ie = G_FLOAT(OFS_PARM1);
 	float pa = G_FLOAT(OFS_PARM2);
 	float pb = G_FLOAT(OFS_PARM3);
-	float pc = G_FLOAT(OFS_PARM4);
+//	float pc = G_FLOAT(OFS_PARM4);
 	console_t *con = Con_FindConsole(conname);
 	G_FLOAT(OFS_RETURN) = 0;
 	if (!con)

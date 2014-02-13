@@ -2151,7 +2151,7 @@ static void QCBUILTIN PF_cs_setsensativityscaler (pubprogfuncs_t *prinst, struct
 static void QCBUILTIN PF_cs_boxparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int effectnum = CL_TranslateParticleFromServer(G_FLOAT(OFS_PARM0));
-	csqcedict_t *ent	= (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+//	csqcedict_t *ent	= (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 	float *org_from		= G_VECTOR(OFS_PARM2);
 	float *org_to		= G_VECTOR(OFS_PARM3);
 	float *vel_from		= G_VECTOR(OFS_PARM4);
@@ -5257,7 +5257,6 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	int i;
 	string_t *str;
 	csqcedict_t *worldent;
-	qboolean loaded = false;
 	if (csprogs_promiscuous != anycsqc || csprogs_checksum != checksum)
 		CSQC_Shutdown();
 	csprogs_promiscuous = anycsqc;

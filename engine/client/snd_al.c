@@ -224,8 +224,6 @@ extern sfx_t *known_sfx;
 extern int loaded_sfx;
 extern int num_sfx;
 
-static qboolean openal_vars_initialized = false;
-
 
 static void OnChangeALMaxDistance (cvar_t *var, char *value);
 static void OnChangeALSpeedOfSound (cvar_t *var, char *value);

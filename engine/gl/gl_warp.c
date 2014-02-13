@@ -85,27 +85,32 @@ void R_DrawSkyChain (batch_t *batch)
 	{
 		R_CalcSkyChainBounds(batch);
 		GL_DrawSkyBox (skyboxtex, batch);
-
-		GL_SkyForceDepth(batch);
-		return;
 	}
+	if (skyshader->numpasses)
+	{
 #if defined(GLQUAKE) && !defined(ANDROID)
-	if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base) && TEXVALID(batch->shader->defaulttextures.fullbright))
-	{
-		R_CalcSkyChainBounds(batch);
+		if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base) && TEXVALID(batch->shader->defaulttextures.fullbright))
+		{
+			R_CalcSkyChainBounds(batch);
 
-		R_IBrokeTheArrays();
-		GL_DrawSkyGrid(batch->texture);
-		R_IBrokeTheArrays();
-
-		GL_SkyForceDepth(batch);
-	}
-	else
+			R_IBrokeTheArrays();
+			GL_DrawSkyGrid(batch->texture);
+			R_IBrokeTheArrays();
+		}
+		else
 #endif
-	{
-		GL_DrawSkySphere(batch, skyshader);
-		GL_SkyForceDepth(batch);
+			GL_DrawSkySphere(batch, skyshader);
 	}
+
+	//neither skydomes nor skyboxes will have been drawn with the correct depth values for the sky.
+	//this can result in rooms behind the sky surfaces being visible.
+	//so make sure they're correct where they're expected to be.
+	//don't do it on q3 bsp, because q3map2 can't do skyrooms without being weird about it. or something. anyway, we get different (buggy) behaviour from q3 if we don't skip this.
+	//See: The Edge Of Forever (motef, by sock) for an example of where this needs to be skipped.
+	//See dm3 for an example of where the depth needs to be correct (OMG THERE'S PLAYERS IN MY SKYBOX! WALLHAXX!).
+	//you can't please them all.
+	if (r_worldentity.model->fromgame != fg_quake3)
+		GL_SkyForceDepth(batch);
 }
 
 /*

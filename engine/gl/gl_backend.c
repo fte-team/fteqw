@@ -1679,7 +1679,6 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 //dest is packed too
 static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *dst, const mesh_t *mesh)
 {
-	int n = cnt;
 	switch (pass->rgbgen)
 	{
 	case RGB_GEN_ENTITY:
@@ -3369,7 +3368,6 @@ void GLBE_SelectEntity(entity_t *ent)
 	}
 
 	shaderstate.lastuniform = 0;
-	shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 }
 #if 0
 static void BE_SelectFog(vec3_t colour, float alpha, float density)
@@ -4017,16 +4015,15 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
 {
 	shaderstate.curbatch = &shaderstate.dummybatch;
+	shaderstate.curshader = shader->remapto;
 	if (!vbo)
 	{
 		mesh_t *m;
-		shaderstate.curshader = shader;
 		shaderstate.flags = beflags;
 		TRACE(("GLBE_DrawMesh_List: shader %s\n", shader->name));
 		if (shaderstate.curentity != &r_worldentity)
-		{
 			GLBE_SelectEntity(&r_worldentity);
-		}
+		shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + shader->remaptime);
 		shaderstate.curtexnums = texnums;
 
 		while (nummeshes--)
@@ -4045,12 +4042,10 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 	{
 		shaderstate.sourcevbo = vbo;
 		shaderstate.colourarraytype = GL_FLOAT;
-		shaderstate.curshader = shader;
 		shaderstate.flags = beflags;
 		if (shaderstate.curentity != &r_worldentity)
-		{
 			GLBE_SelectEntity(&r_worldentity);
-		}
+		shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + shader->remaptime);
 		shaderstate.curtexnums = texnums;
 
 		shaderstate.meshcount = nummeshes;
@@ -4079,16 +4074,15 @@ void GLBE_SubmitBatch(batch_t *batch)
 			return;
 	}
 
-	shaderstate.curshader = batch->shader;
+	shaderstate.curshader = batch->shader->remapto;
 	shaderstate.flags = batch->flags;
 	if (shaderstate.curentity != batch->ent)
-	{
 		GLBE_SelectEntity(batch->ent);
-	}
+	shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + batch->shader->remaptime);
 	if (batch->skin)
 		shaderstate.curtexnums = batch->skin;
 	else
-		shaderstate.curtexnums = &shaderstate.curshader->defaulttextures;
+		shaderstate.curtexnums = &batch->shader->defaulttextures;
 
 	if (0)
 	{
@@ -4201,7 +4195,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)
+			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK || shaderstate.mode == BEM_WIREFRAME)
 			{
 				if (!batch->shader->prog)
 				{

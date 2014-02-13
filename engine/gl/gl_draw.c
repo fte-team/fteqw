@@ -1072,7 +1072,6 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 
 void GL_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flags)
 {
-	qboolean mipmap = flags & IF_NOMIPMAP;
 	if (r_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));

@@ -1,6 +1,7 @@
 #include "quakedef.h"
 
 #ifdef AVAIL_OGGVORBIS
+#define OV_EXCLUDE_STATIC_CALLBACKS
 
 #ifdef __MORPHOS__
 	#include <exec/exec.h>

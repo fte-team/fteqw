@@ -524,7 +524,7 @@ queryresult_t *SQL_GetQueryResult (sqlserver_t *server, int queryidx, int row)
 
 	qreq = SQL_GetQueryRequest(server, queryidx);
 	for (qres = qreq->results; qres; qres = qres->next)
-		if (qres->request && qres->request->num == queryidx && (row >= qres->firstrow || row == -1 && !qres->firstrow) && row < qres->firstrow + qres->rows)
+		if (qres->request && qres->request->num == queryidx && (row >= qres->firstrow || (row == -1 && !qres->firstrow)) && row < qres->firstrow + qres->rows)
 			return qres;
 
 	return NULL;

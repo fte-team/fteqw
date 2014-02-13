@@ -535,6 +535,7 @@ void Renderer_Init(void)
 
 #endif
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
+	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	GLD3DRenderer_Init();

@@ -1692,7 +1692,7 @@ void SV_Heartbeat_f (void)
 
 #define FOREACHCLIENT(i,cl)	\
 for (i = sv.mvdrecording?-1:0; i < sv.allocated_client_slots; i++)	\
-if (cl = (i==-1?&demo.recorder:&svs.clients[i]))	\
+if ((cl = (i==-1?&demo.recorder:&svs.clients[i])))	\
 if ((i == -1) || cl->state > cs_zombie)
 
 void SV_SendServerInfoChange(char *key, const char *value)

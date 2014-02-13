@@ -588,7 +588,8 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	{
 		int x = (i & 7);
 		int y = (i>>3);
-		if (ds->holes & ((x>>1)|((y>>1)<<3)))
+		int b = (1u<<(x>>1)) << ((y>>1)<<2);
+		if (ds->holes & b)
 			s->holes[y] |= 1u<<x;
 	}
 
@@ -1371,7 +1372,6 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 {
 	void *diskimage;
 	qofs_t len;
-	int ver = 0;
 #ifndef SERVERONLY
 	//when using networked terrain, the client will never load a section from disk, but will only load it from the server
 	//one section at a time.
@@ -1468,7 +1468,6 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	dsection_v1_t ds;
 	vec4_t dcolours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	int nothing = 0;
-	float waterheight = s->minh;
 	struct hmwater_s *w = s->water;
 
 	memset(&ds, 0, sizeof(ds));
@@ -1491,9 +1490,22 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	{
 		int x = (i & 7);
 		int y = (i>>3);
+		int b = (1u<<(x>>1)) << ((y>>1)<<2);
 		if (s->holes[y] & (1u<<x))
-			ds.holes |= ((x>>1)|((y>>1)<<3));
+			ds.holes |= b;
 	}
+
+	//make sure the user can see the holes they just saved.
+	memset(s->holes, 0, sizeof(s->holes));
+	for (i = 0; i < 8*8; i++)
+	{
+		int x = (i & 7);
+		int y = (i>>3);
+		int b = (1u<<(x>>1)) << ((y>>1)<<2);
+		if (ds.holes & b)
+			s->holes[y] |= 1u<<x;
+	}
+	s->flags |= TSF_DIRTY;
 
 	lm = lightmap[s->lightmap]->lightmaps;
 	lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
@@ -1521,7 +1533,6 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		}
 	}
 	ds.waterheight = w?w->heights[4*8+4]:s->minh;
-	ds.holes = 0;//s->holes;
 	ds.minh = s->minh;
 	ds.maxh = s->maxh;
 	ds.ents_num = s->numents;
@@ -2165,8 +2176,8 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 				int holerow;
 
 				//skip generation of the mesh above holes
-				holerow = vy/(SECTHEIGHTSIZE>>1);
-				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>1));
+				holerow = ((vy<<3)/(SECTHEIGHTSIZE-1));
+				holebit = 1u<<((vx<<3)/(SECTHEIGHTSIZE-1));
 				if (s->holes[holerow] & holebit)
 					continue;
 #endif
@@ -2394,8 +2405,8 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 				int holebit;
 
 				//skip generation of the mesh above holes
-				holerow = vy/(SECTHEIGHTSIZE>>1);
-				holebit = 1u<<(vx/(SECTHEIGHTSIZE>>1));
+				holerow = ((vy<<3)/(SECTHEIGHTSIZE-1));
+				holebit = 1u<<((vx<<3)/(SECTHEIGHTSIZE-1));
 				if (s->holes[holerow] & holebit)
 					continue;
 	#endif
@@ -2611,6 +2622,8 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 				break;
 			case mod_brush:
 				Surf_GenBrushBatches(ctx->batches, &s->ents[i]);
+				break;
+			default:	//FIXME: no sprites! oh noes!
 				break;
 			}
 		}
@@ -2911,8 +2924,8 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	sx = x; x-=sx;
 	sy = y; y-=sy;
 
-	holerow = sy/(SECTHEIGHTSIZE>>1);
-	holebit = 1u<<(sx/(SECTHEIGHTSIZE>>1));
+	holerow = ((sy<<3)/(SECTHEIGHTSIZE-1));
+	holebit = 1u<<((sx<<3)/(SECTHEIGHTSIZE-1));
 	if (s->holes[holerow] & (1u<<holebit))
 		return FTECONTENTS_EMPTY;
 
@@ -3198,8 +3211,8 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	tx = tx % (SECTHEIGHTSIZE-1);
 	ty = ty % (SECTHEIGHTSIZE-1);
 
-	holerow = ty/(SECTHEIGHTSIZE>>1);
-	holebit = 1u<<(tx/(SECTHEIGHTSIZE>>1));
+	holerow = ((ty<<3)/(SECTHEIGHTSIZE-1));
+	holebit = 1u<<((tx<<3)/(SECTHEIGHTSIZE-1));
 	if (s->holes[holerow] & holebit)
 		return;	//no collision with holes
 
@@ -3624,11 +3637,16 @@ static void ted_dorelight(heightmap_t *hm)
 }
 static void ted_sethole(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
-	unsigned int row = idx>>4;
+	unsigned int row = idx/9;
+	unsigned int col = idx%9;
 	unsigned int bit;
 	unsigned int mask;
-	mask = 1u<<(idx&7);
-	if (*(float*)ctx >= 1)
+	if (row == 8 || col == 8)
+		return;	//meh, our painting function is written with an overlap of 1
+	if (w <= 0)
+		return;
+	mask = 1u<<(col);
+	if (*(float*)ctx > 0)
 		bit = mask;
 	else
 		bit = 0;
@@ -4043,7 +4061,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	*/	
 		pos[0] -= 0.5 * hm->sectionsize / 8;
 		pos[1] -= 0.5 * hm->sectionsize / 8;
-		ted_itterate(hm, tid_linear, pos, radius, 1, 8, ted_sethole, &quant);
+		ted_itterate(hm, tid_linear, pos, radius, 1, 9, ted_sethole, &quant);
 		break;
 	case ter_height_set:
 		ted_itterate(hm, tid_linear, pos, radius, 1, SECTHEIGHTSIZE, ted_heightset, &quant);

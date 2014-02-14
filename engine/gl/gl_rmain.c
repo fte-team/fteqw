@@ -796,7 +796,7 @@ void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
 	r_refdef.m_projection[14] = c[3];
 }
 
-void TestDrawPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
+void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
 void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
 	entity_t *view;
@@ -1109,13 +1109,13 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	if (r_portaldrawplanes.ival)
 	{
 		//the front of the plane should generally point away from the camera, and will be drawn in bright green. woo
-		TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.5, 0.0, false);
-		TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.5, 0.0, false);
+		CL_DrawDebugPlane(plane.normal, plane.dist+0.01, 0.0, 0.5, 0.0, false);
+		CL_DrawDebugPlane(plane.normal, plane.dist-0.01, 0.0, 0.5, 0.0, false);
 		//the back of the plane points towards the camera, and will be drawn in blue, for the luls
 		VectorNegate(plane.normal, plane.normal);
 		plane.dist *= -1;
-		TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.0, 0.2, false);
-		TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.0, 0.2, false);
+		CL_DrawDebugPlane(plane.normal, plane.dist+0.01, 0.0, 0.0, 0.2, false);
+		CL_DrawDebugPlane(plane.normal, plane.dist-0.01, 0.0, 0.0, 0.2, false);
 	}
 
 

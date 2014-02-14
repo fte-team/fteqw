@@ -2132,7 +2132,8 @@ void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, flo
 	cl_numstrisvert += 2;
 }
 #include "shader.h"
-void CL_AddOrientedCube(float *normal, float dist, float r, float g, float b, qboolean enqueue)
+//well, 8192
+void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue)
 {
 	scenetris_t *t;
 	if (!enqueue)

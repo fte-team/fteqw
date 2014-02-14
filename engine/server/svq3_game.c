@@ -681,7 +681,7 @@ void SVQ3_SetConfigString(int num, char *string)
 	svq3_configstrings[num] = Z_Malloc(len+1);
 	strcpy(svq3_configstrings[num], string);
 
-	SVQ3_SendConfigString(num, string);
+	SVQ3_SendConfigString(NULL, num, string);
 }
 
 static int FloatAsInt(float f)

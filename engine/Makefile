@@ -805,7 +805,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../fteqw_sdl_sv$(BITS)$(EXEPOSTFIX)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DFTE_SDL
-	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm
+	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
 
 	MINGL_DIR=mingl_sdlwin$(BITS)
 	MINGL_EXE_NAME=../fteqw_sdl_mingl$(BITS)$(EXEPOSTFIX)
@@ -1139,15 +1139,15 @@ endif
 ifeq ($(FTE_TARGET),droid)
 	BASELDFLAGS=
 
+	SV_CFLAGS=
+	SV_LDFLAGS=
 	SV_DIR=sv_droid-$(DROID_ARCH)
-	SV_LDFLAGS=-lz
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) svmodel.o sys_droid.o 
 	SV_EXE_NAME=libftedroid.so
 
-	SV_LDFLAGS=
-
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
+	GL_CFLAGS=$(GLCFLAGS)
 	GL_LDFLAGS=$(GLLDFLAGS)
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
 	GLB_DIR=gl_droid-$(DROID_ARCH)
 	GL_EXE_NAME=libftedroid.so
 endif

@@ -349,6 +349,7 @@ qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 static vm_t *cgvm;
 
 extern int keycatcher;
+char bigconfigstring[65536];
 
 qboolean CG_GetServerCommand(int cmdnum)
 {
@@ -360,6 +361,23 @@ qboolean CG_GetServerCommand(int cmdnum)
 
 	Con_DPrintf("Dispaching %s\n", str);
 	Cmd_TokenizeString(str, false, false);
+
+	if (!strcmp(Cmd_Argv(0), "bcs0"))
+	{
+		Q_snprintfz(bigconfigstring, sizeof(bigconfigstring), "cs %s \"%s", Cmd_Argv(1), Cmd_Argv(2));
+		return false;
+	}
+	if (!strcmp(Cmd_Argv(0), "bcs1"))
+	{
+		Q_strncatz(bigconfigstring, Cmd_Argv(2), sizeof(bigconfigstring));
+		return false;
+	}
+	if (!strcmp(Cmd_Argv(0), "bcs2"))
+	{
+		Q_strncatz(bigconfigstring, Cmd_Argv(2), sizeof(bigconfigstring));
+		Q_strncatz(bigconfigstring, "\"", sizeof(bigconfigstring));
+		Cmd_TokenizeString(bigconfigstring, false, false);
+	}
 
 	if (!strcmp(Cmd_Argv(0), "cs"))
 		CG_InsertIntoGameState(atoi(Cmd_Argv(1)), Cmd_Argv(2));
@@ -548,6 +566,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		VM_LONG(ret) = VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 1);
 		break;
 	case CG_FS_WRITE:	//fwrite
+		Con_DPrintf("CG_FS_WRITE: not implemented\n");
 		break;
 	case CG_FS_FCLOSEFILE:	//fclose
 		VM_fclose(VM_LONG(arg[0]), 1);
@@ -703,6 +722,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_R_LOADWORLDMAP:	//FTE can't distinguish. :/
+		Con_DPrintf("CG_R_LOADWORLDMAP: not implemented\n");
 		break;				//So long as noone has one collision model with a different rendering one, we'll be fine
 
 	case CG_CM_LOADMAP:
@@ -839,8 +859,16 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
+		//entnum, origin, velocity, sfx
+//		Con_DPrintf("CG_S_ADDLOOPINGSOUND: not implemented\n");
+		break;
+	case CG_S_ADDREALLOOPINGSOUND:
+		//entnum, origin, velocity, sfx
+//		Con_DPrintf("CG_S_ADDREALLOOPINGSOUND: not implemented\n");
 		break;
 	case CG_S_STOPLOOPINGSOUND:
+		//entnum
+//		Con_DPrintf("CG_S_STOPLOOPINGSOUND: not implemented\n");
 		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:
@@ -850,9 +878,13 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		Media_BackgroundTrack(NULL, NULL);
 		return 0;
 	case CG_S_CLEARLOOPINGSOUNDS:
+		//clearall
+		Con_DPrintf("CG_S_CLEARLOOPINGSOUNDS: not implemented\n");
 		break;
 
 	case CG_S_UPDATEENTITYPOSITION://void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
+		//entnum, org
+//		Con_DPrintf("CG_S_UPDATEENTITYPOSITION: not implemented\n");
 		break;
 	case CG_S_RESPATIALIZE://void		trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], int inwater );
 		{
@@ -868,9 +900,6 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			VectorCopy(axis[2], r_refdef.audio.up);
 			r_refdef.audio.inwater = inwater;
 		}
-		break;
-
-	case CG_S_ADDREALLOOPINGSOUND:
 		break;
 
 	case CG_KEY_ISDOWN:
@@ -986,6 +1015,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 	case CG_PC_READ_TOKEN:
 		//fixme: memory protect.
+		VALIDATEPOINTER(arg[1], sizeof(struct pc_token_s));
 		return Script_Read(arg[0], VM_POINTER(arg[1]));
 
 // standard Q3

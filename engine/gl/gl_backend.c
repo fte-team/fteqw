@@ -58,7 +58,7 @@ static const char LIGHTPASS_SHADER[] = "\
 	}\n\
 }";
 
-extern cvar_t r_glsl_offsetmapping, r_portalrecursion;
+extern cvar_t r_glsl_offsetmapping, r_portalrecursion, r_portalonly;
 
 static void BE_SendPassBlendDepthMask(unsigned int sbits);
 void GLBE_SubmitBatch(batch_t *batch);
@@ -1583,7 +1583,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				t1 = src[0];
 				t2 = src[1];
 				dst[0] = t1 * tcmod->args[0] + t2 * tcmod->args[2] + tcmod->args[4];
-				dst[1] = t2 * tcmod->args[1] + t1 * tcmod->args[3] + tcmod->args[5];
+				dst[1] = t1 * tcmod->args[1] + t2 * tcmod->args[3] + tcmod->args[5];
 			}
 			break;
 
@@ -4374,7 +4374,12 @@ void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop)
 		if (drawworld)
 		{
 			if (i == SHADER_SORT_PORTAL && r_refdef.recurse < portaldepth)
+			{
 				GLBE_SubmitMeshesPortals(model->batches, shaderstate.mbatches[i]);
+
+				if (!r_refdef.recurse && r_portalonly.ival)
+					return;
+			}
 
 			GLBE_SubmitMeshesSortList(model->batches[i]);
 		}

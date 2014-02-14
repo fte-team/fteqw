@@ -386,7 +386,7 @@ struct traceinfo_s
 	vec3_t end;
 };
 
-#if 0
+#if 1
 #include "shader.h"
 void BE_GenPolyBatches(batch_t **batches);
 void TestDrawPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue)

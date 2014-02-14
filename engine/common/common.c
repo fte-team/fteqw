@@ -1436,7 +1436,7 @@ float MSG_ReadFloat (void)
 
 char *MSG_ReadString (void)
 {
-	static char	string[2048];
+	static char	string[8192];
 	int		l,c;
 
 	l = 0;

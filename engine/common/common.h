@@ -261,7 +261,7 @@ void deleetstring(char *result, char *leet);
 
 //============================================================================
 
-extern	char		com_token[1024];
+extern	char		com_token[65536];
 
 typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING} com_tokentype_t;
 extern com_tokentype_t com_tokentype;

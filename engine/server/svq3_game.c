@@ -384,7 +384,7 @@ static int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
 
 #define	ENTITYNUM_NONE		(MAX_GENTITIES-1)
 #define	ENTITYNUM_WORLD		(MAX_GENTITIES-2)
-static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)
+static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask, qboolean capsule)
 {
 	int contactlist[128];
 	trace_t tr;
@@ -550,20 +550,20 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 	return cont;
 }
 
-static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent)
+static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent, qboolean capsule)
 {
 	model_t *mod;
 	trace_t tr;
 
-	if (!ent->s.modelindex || ent->r.bmodel)
-		mod = CM_TempBoxModel(ent->r.mins, ent->r.maxs);
-	else
+	if (ent->r.bmodel)
 		mod = Mod_ForName(va("*%i", ent->s.modelindex), false);
+	else
+		mod = CM_TempBoxModel(ent->r.mins, ent->r.maxs);
 
 	if (mod->needload || !mod->funcs.NativeTrace)
 		return false;
 
-	mod->funcs.NativeTrace(mod, 0, 0, NULL, vec3_origin, vec3_origin, mins, maxs, 0xffffffff, &tr);
+	tr = CM_TransformedBoxTrace(mod, vec3_origin, vec3_origin, mins, maxs, 0xffffffff, ent->r.currentOrigin, ent->r.currentAngles);
 
 	if (tr.startsolid)
 		return true;
@@ -637,16 +637,51 @@ void SVQ3_SendServerCommand(client_t *cl, char *str)
 	Q_strncpyz(cl->server_commands[cl->num_server_commands & TEXTCMD_MASK], str, sizeof(cl->server_commands[0]));
 }
 
+void SVQ3_SendConfigString(client_t *dest, int num, char *string)
+{
+	int len = strlen(string);
+#define CONFIGSTRING_MAXCHUNK (1024-24)
+	if (len > CONFIGSTRING_MAXCHUNK)
+	{
+		char *cmd;
+		char buf[CONFIGSTRING_MAXCHUNK+1];
+		int off = 0;
+		for (;;)
+		{
+			int chunk = len - off;
+			if (chunk > CONFIGSTRING_MAXCHUNK)
+				chunk = CONFIGSTRING_MAXCHUNK;
+			//split it up into multiple commands.
+			if (!off)
+				cmd = "bcs0";	//initial chunk
+			else if (off + chunk == len)
+				cmd = "bcs2";	//terminator
+			else
+				cmd = "bcs1";	//mid chunk
+			memcpy(buf, string+off, chunk);
+			buf[chunk] = 0;
+			SVQ3_SendServerCommand(dest, va("%s %i \"%s\"\n", cmd, num, buf));
+			off += chunk;
+			if (off == len)
+				break;
+		}
+	}
+	else
+		SVQ3_SendServerCommand(dest, va("cs %i \"%s\"\n", num, string));
+}
+
 void SVQ3_SetConfigString(int num, char *string)
 {
+	int len;
 	if (!string)
 		string = "";
+	len = strlen(string);
 	if (svq3_configstrings[num])
 		Z_Free(svq3_configstrings[num]);
-	svq3_configstrings[num] = Z_Malloc(strlen(string)+1);
+	svq3_configstrings[num] = Z_Malloc(len+1);
 	strcpy(svq3_configstrings[num], string);
 
-	SVQ3_SendServerCommand( NULL, va("cs %i \"%s\"\n", num, string));
+	SVQ3_SendConfigString(num, string);
 }
 
 static int FloatAsInt(float f)
@@ -869,13 +904,19 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 		break;
 	case G_TRACE:	// ( trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask );
 		VALIDATEPOINTER(arg[0], sizeof(q3trace_t));
-		SVQ3_Trace(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]), VM_POINTER(arg[4]), VM_LONG(arg[5]), VM_LONG(arg[6]));
+		SVQ3_Trace(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]), VM_POINTER(arg[4]), VM_LONG(arg[5]), VM_LONG(arg[6]), false);
+		break;
+	case G_TRACECAPSULE:	// ( trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask );
+		VALIDATEPOINTER(arg[0], sizeof(q3trace_t));
+		SVQ3_Trace(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]), VM_POINTER(arg[4]), VM_LONG(arg[5]), VM_LONG(arg[6]), true);
 		break;
 	case G_ENTITY_CONTACT:
 			// ( const vec3_t mins, const vec3_t maxs, const gentity_t *ent );	33
 	// perform an exact check against inline brush models of non-square shape
-		return SVQ3_Contact(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
-		break;
+		return SVQ3_Contact(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), false);
+	case G_ENTITY_CONTACTCAPSULE:
+		return SVQ3_Contact(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), true);
+
 	case G_ENTITIES_IN_BOX:	// ( const vec3_t mins, const vec3_t maxs, gentity_t **list, int maxcount );	32
 	// EntitiesInBox will return brush models based on their bounding box,
 	// so exact determination must still be done with EntityContact
@@ -1536,7 +1577,7 @@ static char *QDECL BL_BSPEntityData(void)
 static void QDECL BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)
 {
 	q3trace_t tr;
-	SVQ3_Trace(&tr, start, mins, maxs, end, passent, contentmask);
+	SVQ3_Trace(&tr, start, mins, maxs, end, passent, contentmask, false);
 
 	trace->allsolid = tr.allsolid;
 	trace->startsolid = tr.startsolid;

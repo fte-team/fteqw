@@ -77,6 +77,8 @@ extern cvar_t gl_ati_truform_type;
 extern cvar_t gl_ati_truform_tesselation;
 
 extern cvar_t gl_blendsprites;
+extern cvar_t r_portaldrawplanes;
+extern cvar_t r_portalonly;
 
 #ifdef R_XFLIP
 cvar_t	r_xflip = SCVAR("leftisright", "0");
@@ -793,7 +795,8 @@ void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
 	r_refdef.m_projection[10] = c[2] + 1.0F;
 	r_refdef.m_projection[14] = c[3];
 }
-//void TestDrawPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
+
+void TestDrawPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
 void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
 	entity_t *view;
@@ -805,6 +808,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	int i;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
 	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
+	plane_t oplane;
+	float ivmat[16], trmat[16];
 
 	if (r_refdef.recurse >= R_MAX_RECURSE-1)
 		return;
@@ -910,16 +915,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 #ifdef CSQC_DAT
 		if (CSQC_SetupToRenderPortal(batch->ent->keynum))
 		{
-			plane_t oplane = plane;
-			float ivmat[16], trmat[16];
+			oplane = plane;
 
 			//transform the old surface plane into the new view matrix
 			Matrix4_Invert(r_refdef.m_view, ivmat);
 			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 			Matrix4_Multiply(ivmat, vmat, trmat);
-			plane.normal[0] = (oplane.normal[0] * trmat[0] + oplane.normal[1] * trmat[4] + oplane.normal[2] * trmat[8]);
-			plane.normal[1] = (oplane.normal[0] * trmat[1] + oplane.normal[1] * trmat[5] + oplane.normal[2] * trmat[9]);
-			plane.normal[2] = (oplane.normal[0] * trmat[2] + oplane.normal[1] * trmat[6] + oplane.normal[2] * trmat[10]);
+			plane.normal[0] = -(oplane.normal[0] * trmat[0] + oplane.normal[1] * trmat[1] + oplane.normal[2] * trmat[2]);
+			plane.normal[1] = -(oplane.normal[0] * trmat[4] + oplane.normal[1] * trmat[5] + oplane.normal[2] * trmat[6]);
+			plane.normal[2] = -(oplane.normal[0] * trmat[8] + oplane.normal[1] * trmat[9] + oplane.normal[2] * trmat[10]);
 			plane.dist = -oplane.dist + trmat[12]*oplane.normal[0] + trmat[13]*oplane.normal[1] + trmat[14]*oplane.normal[2];
 
 			if (Cvar_Get("temp_useplaneclip", "1", 0, "temp")->ival)
@@ -938,12 +942,16 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			for (i = 1; i < mesh->numvertexes; i++)
 				VectorAdd(r_refdef.pvsorigin, mesh->xyz_array[i], r_refdef.pvsorigin);
 			VectorScale(r_refdef.pvsorigin, 1.0/mesh->numvertexes, r_refdef.pvsorigin);
+
+			portaltype = 1;
 		}
 		else
 		{
 			float d;
 			vec3_t paxis[3], porigin, vaxis[3], vorg;
 			void PerpendicularVector( vec3_t dst, const vec3_t src );
+
+			oplane = plane;
 
 			/*calculate where the surface is meant to be*/
 			VectorCopy(mesh->normals_array[0], paxis[0]);
@@ -961,31 +969,59 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			VectorCopy(vorg, r_refdef.pvsorigin);
 
 			/*rotate it a bit*/
-			RotatePointAroundVector(vaxis[1], vaxis[0], view->axis[1], sin(realtime)*4);
-			CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+			if (view->framestate.g[FS_REG].frame[1])	//oldframe
+			{
+				if (view->framestate.g[FS_REG].frame[0])	//newframe
+					d = realtime * view->framestate.g[FS_REG].frame[0];	//newframe
+				else
+					d = view->skinnum + sin(realtime)*4;
+			}
+			else
+				d = view->skinnum;
+
+			if (d)
+			{
+				vec3_t rdir;
+				VectorCopy(vaxis[1], rdir);
+				RotatePointAroundVector(vaxis[1], vaxis[0], rdir, d);
+				CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+			}
 
 			TransformCoord(oldrefdef.vieworg, paxis, porigin, vaxis, vorg, r_refdef.vieworg);
 			TransformDir(vpn, paxis, vaxis, vpn);
 			TransformDir(vright, paxis, vaxis, vright);
 			TransformDir(vup, paxis, vaxis, vup);
 			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+
+
+			//transform the old surface plane into the new view matrix
+			if (Matrix4_Invert(r_refdef.m_view, ivmat))
+			{
+				extern cvar_t temp1;
+				Matrix4_Multiply(ivmat, vmat, trmat);
+				plane.normal[0] = -(oplane.normal[0] * trmat[0] + oplane.normal[1] * trmat[1] + oplane.normal[2] * trmat[2]);
+				plane.normal[1] = -(oplane.normal[0] * trmat[4] + oplane.normal[1] * trmat[5] + oplane.normal[2] * trmat[6]);
+				plane.normal[2] = -(oplane.normal[0] * trmat[8] + oplane.normal[1] * trmat[9] + oplane.normal[2] * trmat[10]);
+				plane.dist = -oplane.dist + trmat[12]*oplane.normal[0] + trmat[13]*oplane.normal[1] + trmat[14]*oplane.normal[2];
+				portaltype = 1;
+			}
 		}
 		break;
 	}
 
 	/*FIXME: can we get away with stenciling the screen?*/
 	/*Add to frustum culling instead of clip planes?*/
-/*	if (qglClipPlane)
+/*	if (qglClipPlane && portaltype)
 	{
 		GLdouble glplane[4];
-		glplane[0] = -plane.normal[0];
-		glplane[1] = -plane.normal[1];
-		glplane[2] = -plane.normal[2];
+		glplane[0] = plane.normal[0];
+		glplane[1] = plane.normal[1];
+		glplane[2] = plane.normal[2];
 		glplane[3] = plane.dist;
 		qglClipPlane(GL_CLIP_PLANE0, glplane);
 		qglEnable(GL_CLIP_PLANE0);
-	}*/
-	//fixme: we can probably scissor a smaller frusum
+	}
+*/	//fixme: we can probably scissor a smaller frusum
 	R_SetFrustum (r_refdef.m_projection, vmat);
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
@@ -1070,14 +1106,17 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 //	if (qglClipPlane)
 //		qglDisable(GL_CLIP_PLANE0);
 
-	//the front of the plane should generally point away from the camera, and will be drawn in bright green. woo
-//	TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.5, 0.0, false);
-//	TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.5, 0.0, false);
-	//the back of the plane points towards the camera, and will be drawn in blue, for the luls
-//	VectorNegate(plane.normal, plane.normal);
-//	plane.dist *= -1;
-//	TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.0, 0.2, false);
-//	TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.0, 0.2, false);
+	if (r_portaldrawplanes.ival)
+	{
+		//the front of the plane should generally point away from the camera, and will be drawn in bright green. woo
+		TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.5, 0.0, false);
+		TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.5, 0.0, false);
+		//the back of the plane points towards the camera, and will be drawn in blue, for the luls
+		VectorNegate(plane.normal, plane.normal);
+		plane.dist *= -1;
+		TestDrawPlane(plane.normal, plane.dist+0.01, 0.0, 0.0, 0.2, false);
+		TestDrawPlane(plane.normal, plane.dist-0.01, 0.0, 0.0, 0.2, false);
+	}
 
 
 	r_refdef = oldrefdef;

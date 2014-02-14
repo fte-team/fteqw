@@ -2430,6 +2430,7 @@ void Surf_DeInit(void)
 	numlightmaps=0;
 
 	Alias_Shutdown();
+	Shader_ResetRemaps();
 }
 
 void Surf_Clear(model_t *mod)

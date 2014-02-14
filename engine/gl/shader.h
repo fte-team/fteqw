@@ -570,7 +570,8 @@ void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultScript(char *shortname, shader_t *s, const void *args);
 
-void Shader_DoReload(void);
+void Shader_ResetRemaps(void);	//called on map changes to reset remapped shaders.
+void Shader_DoReload(void);		//called when the shader system dies.
 void Shader_Shutdown (void);
 qboolean Shader_Init (void);
 void Shader_NeedReload(qboolean rescanfs);

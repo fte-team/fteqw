@@ -1650,7 +1650,7 @@ void SCR_SetUpToDrawConsole (void)
 			Key_Dest_Add(kdm_console);
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if ((!Key_Dest_Has(~(kdm_console|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+		else if (!Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~(kdm_console|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			//go fullscreen if we're not doing anything
 #ifdef VM_UI

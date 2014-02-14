@@ -5409,6 +5409,20 @@ cin_t *R_ShaderFindCinematic(char *name)
 #endif
 }
 
+void Shader_ResetRemaps(void)
+{
+	shader_t *s;
+	int i;
+	for (i = 0; i < r_numshaders; i++)
+	{
+		s = r_shaders[i];
+		if (!s)
+			continue;
+		s->remapto = s;
+		s->remaptime = 0;
+	}
+}
+
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset)
 {
 	shader_t *o;

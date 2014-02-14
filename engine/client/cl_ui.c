@@ -407,6 +407,8 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 
 	if (q3->customSkin)
 		ent.skinnum = Mod_SkinNumForName(ent.model, VM_FROMSTRCACHE(q3->customSkin));
+	else
+		ent.skinnum = q3->skinNum;
 
 	ent.shaderRGBAf[0] = q3->shaderRGBA[0]/255.0f;
 	ent.shaderRGBAf[1] = q3->shaderRGBA[1]/255.0f;

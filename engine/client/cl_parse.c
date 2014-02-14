@@ -1942,10 +1942,10 @@ void CL_ParseDownload (void)
 	}
 	if (size == -3)
 	{
-		char *localname;
+		char *requestedname;
 		Q_strncpyz(name, MSG_ReadString(), sizeof(name));
-		localname = MSG_ReadString();
-		Con_DPrintf("Download for %s redirected to %s\n", localname, name);
+		requestedname = MSG_ReadString();
+		Con_DPrintf("Download for %s redirected to %s\n", requestedname, name);
 		/*quakeforge http download redirection*/
 		if (cls.downloadqw)
 		{

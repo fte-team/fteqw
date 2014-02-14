@@ -333,6 +333,8 @@ cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 
 cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of portals the camera is allowed to recurse through.");
+cvar_t r_portaldrawplanes					= CVARD  ("r_portaldrawplanes", "0", "Draw front and back planes in portals. Debug feature.");
+cvar_t r_portalonly							= CVARD  ("r_portalonly", "0", "Don't draw things which are not portals. Debug feature.");
 cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
 cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
@@ -406,6 +408,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);
 	Cvar_Register (&r_portalrecursion, GLRENDEREROPTIONS);
+	Cvar_Register (&r_portaldrawplanes, GLRENDEREROPTIONS);
+	Cvar_Register (&r_portalonly, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);

@@ -766,7 +766,7 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 		Netchan_TransmitNextFragment( chan );
 		if( chan->reliable_length )
 		{
-			Con_Printf( "%s: unsent fragments\n", NET_AdrToString( adr, sizeof(adr), &chan->remote_address ) );
+			Con_DPrintf( "%s: unsent fragments\n", NET_AdrToString( adr, sizeof(adr), &chan->remote_address ) );
 			return;
 		}
 		/*drop the outgoing packet if we fragmented*/

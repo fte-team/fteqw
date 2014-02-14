@@ -2131,6 +2131,96 @@ void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, flo
 	t->numidx = cl_numstrisidx - t->firstidx;
 	cl_numstrisvert += 2;
 }
+#include "shader.h"
+void CL_AddOrientedCube(float *normal, float dist, float r, float g, float b, qboolean enqueue)
+{
+	scenetris_t *t;
+	if (!enqueue)
+		cl_numstris = 0;
+
+	if (cl_numstris == cl_maxstris)
+	{
+		cl_maxstris+=8;
+		cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+	}
+	t = &cl_stris[cl_numstris++];
+	t->shader = R_RegisterShader("testplane", SUF_NONE, "{\n{\nmap $whiteimage\nrgbgen vertex\nalphagen vertex\nblendfunc add\nnodepth\n}\n}\n");
+	t->firstidx = cl_numstrisidx;
+	t->firstvert = cl_numstrisvert;
+	t->numvert = 0;
+	t->numidx = 0;
+
+	if (cl_numstrisidx+6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	{
+		vec3_t tmp = {0,0.04,0.96};
+		vec3_t right, forward;
+		CrossProduct(normal, tmp, right);
+		VectorNormalize(right);
+		CrossProduct(normal, right, forward);
+		VectorNormalize(forward);
+
+		VectorScale(                        normal,    dist,      cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, right,     cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, forward,   cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+
+		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, right,  cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, forward, cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+
+		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, right,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, forward,  cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+
+		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, right,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, forward,   cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+	}
+
+
+
+
+	/*build the triangles*/
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 1;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 2;
+
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 3;
+
+
+	t->numidx = cl_numstrisidx - t->firstidx;
+	t->numvert += 4;
+
+	if (!enqueue)
+	{
+//		int oldents = cl_numvisedicts;
+//		cl_numvisedicts = 0;
+		BE_DrawWorld(false, NULL);
+		cl_numstris = 0;
+//		cl_numvisedicts = oldents;
+	}
+}
 void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a)
 {
 	int v;

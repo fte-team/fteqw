@@ -784,9 +784,7 @@ typedef struct {
 	int filelen;
 } pngreadinfo_t;
 
-void PNGAPI png_default_read_data(png_structp png_ptr, png_bytep data, png_size_t length);
-
-void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
+static void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 {
 	pngreadinfo_t *ri = (pngreadinfo_t*)qpng_get_io_ptr(png_ptr);
 	if (ri->readposition+len > ri->filelen)
@@ -796,6 +794,25 @@ void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 	}
 	memcpy(data, &ri->data[ri->readposition], len);
 	ri->readposition+=len;
+}
+
+struct pngerr
+{
+	const char *fname;
+	jmp_buf jbuf;
+};
+static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
+{
+	struct pngerr *err = png_get_error_ptr(png_ptr);
+	Con_Printf("libpng %s: %s", err->fname, error_msg);
+	longjmp(err->jbuf, 1);
+	abort();
+}
+
+static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg)
+{
+	struct pngerr *err = png_get_error_ptr(png_ptr);
+	Con_Printf("libpng %s: %s\n", err->fname, warning_msg);
 }
 
 qbyte *png_rgba;
@@ -808,15 +825,28 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *
 	unsigned long rowbytes;
 	pngreadinfo_t ri;
 	png_uint_32 pngwidth, pngheight;
+	struct pngerr errctx;
 
 	memcpy(header, buf, 8);
+
+	errctx.fname = fname;
+	if (setjmp(errctx.jbuf))
+	{
+error:
+		if (data)
+			BZ_Free(data);
+		if (rowpointers)
+			BZ_Free(rowpointers);
+		qpng_destroy_read_struct(&png, &pnginfo, NULL);
+		return (png_rgba = NULL);
+	}
 
 	if (qpng_sig_cmp(header, 0, 8))
 	{
 		return (png_rgba = NULL);
 	}
 
-	if (!(png = qpng_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
+	if (!(png = qpng_create_read_struct(PNG_LIBPNG_VER_STRING, &errctx, png_onerror, png_onwarning)))
 	{
 		return (png_rgba = NULL);
 	}
@@ -826,17 +856,6 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *
 		qpng_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
-
-	if (setjmp(png_jmpbuf(png)))
-	{
-error:
-		if (data)
-			BZ_Free(data);
-		if (rowpointers)
-			BZ_Free(rowpointers);
-        qpng_destroy_read_struct(&png, &pnginfo, NULL);
-        return (png_rgba = NULL);
-    }
 
 	ri.data=buf;
 	ri.readposition=8;
@@ -923,6 +942,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	png_structp png_ptr;
 	png_infop info_ptr;
 	png_byte **row_pointers;
+	struct pngerr errctx;
 
 	if (!FS_NativePath(filename, FS_GAMEONLY, name, sizeof(name)))
 		return false;
@@ -934,36 +954,37 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 			return false;
 	}
 
-    if (!(png_ptr = qpng_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
+	errctx.fname = filename;
+	if (setjmp(errctx.jbuf))
+	{
+err:
+		qpng_destroy_write_struct(&png_ptr, &info_ptr);
+		fclose(fp);
+		return false;
+	}
+
+	if (!(png_ptr = qpng_create_write_struct(PNG_LIBPNG_VER_STRING, &errctx, png_onerror, png_onwarning)))
 	{
 		fclose(fp);
 		return false;
 	}
 
-    if (!(info_ptr = qpng_create_info_struct(png_ptr)))
+	if (!(info_ptr = qpng_create_info_struct(png_ptr)))
 	{
 		qpng_destroy_write_struct(&png_ptr, (png_infopp) NULL);
 		fclose(fp);
 		return false;
-    }
-
-	if (setjmp(png_jmpbuf(png_ptr)))
-	{
-err:
-        qpng_destroy_write_struct(&png_ptr, &info_ptr);
-        fclose(fp);
-		return false;
-    }
+	}
 
 	qpng_init_io(png_ptr, fp);
 	compression = bound(0, compression, 100);
 
 // had to add these when I migrated from libpng 1.4.x to 1.5.x
 #ifndef Z_NO_COMPRESSION
-#define Z_NO_COMPRESSION         0
+#define Z_NO_COMPRESSION			0
 #endif
 #ifndef Z_BEST_COMPRESSION
-#define Z_BEST_COMPRESSION       9
+#define Z_BEST_COMPRESSION			9
 #endif
 	qpng_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
@@ -1168,7 +1189,7 @@ fill_input_buffer (j_decompress_ptr cinfo)
 		if (src->start_of_file)	/* Treat empty input file as fatal error */
 		ERREXIT(cinfo, JERR_INPUT_EMPTY);
 		WARNMS(cinfo, JWRN_JPEG_EOF);
-    /* Insert a fake EOI marker */
+		/* Insert a fake EOI marker */
 		src->buffer[0] = (JOCTET) 0xFF;
 		src->buffer[1] = (JOCTET) JPEG_EOI;
 		nbytes = 2;
@@ -1533,12 +1554,12 @@ qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int 
 
 	while (cinfo.next_scanline < cinfo.image_height)
 	{
-	    *row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
-	    #ifdef DYNAMIC_LIBJPEG
-	    	qjpeg_write_scanlines(&cinfo, row_pointer, 1);
-	    #else
-	    	jpeg_write_scanlines(&cinfo, row_pointer, 1);
-	    #endif
+		*row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
+		#ifdef DYNAMIC_LIBJPEG
+			qjpeg_write_scanlines(&cinfo, row_pointer, 1);
+		#else
+			jpeg_write_scanlines(&cinfo, row_pointer, 1);
+		#endif
 	}
 	#ifdef DYNAMIC_LIBJPEG
 		qjpeg_finish_compress(&cinfo);

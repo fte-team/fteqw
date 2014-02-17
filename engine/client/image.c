@@ -766,18 +766,30 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_get_error_ptr,					"png_get_error_ptr"},
 		{NULL, NULL}
 	};
-
-	if (!LIBPNG_LOADED())
+	static qboolean tried;
+	if (!tried)
 	{
-		#ifdef _WIN32
-			libpng_handle = Sys_LoadLibrary("libpng"STRINGIFY(PNG_LIBPNG_VER_DLLNUM), pngfuncs);
-		#else
-			libpng_handle = Sys_LoadLibrary("libpng.so."STRINGIFY(PNG_LIBPNG_VER_SONUM), pngfuncs);
-		#endif
-	}
-//	if (!LIBPNG_LOADED())
-//		libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
+		tried = true;
 
+		if (!LIBPNG_LOADED())
+		{
+			char *libname;
+			#ifdef _WIN32
+				libname = va("libpng%i", PNG_LIBPNG_VER_DLLNUM);
+			#else
+				if (PNG_LIBPNG_VER_SONUM == 0)
+					libname = "libpng.so";
+				else
+					libname = va("libpng.so.%i", PNG_LIBPNG_VER_SONUM);
+			#endif
+			libpng_handle = Sys_LoadLibrary(libname, pngfuncs);
+			if (!libpng_handle)
+				Con_Printf("Unable to load %s\n", libname);
+		}
+
+//		if (!LIBPNG_LOADED())
+//			libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
+	}
 #endif
 	return LIBPNG_LOADED();
 }
@@ -819,7 +831,6 @@ static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg
 	Con_Printf("libpng %s: %s\n", err->fname, warning_msg);
 }
 
-qbyte *png_rgba;
 qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *fname)
 {
 	qbyte header[8], **rowpointers = NULL, *data = NULL;
@@ -830,6 +841,9 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *
 	pngreadinfo_t ri;
 	png_uint_32 pngwidth, pngheight;
 	struct pngerr errctx;
+
+    if (!LibPNG_Init())
+        return NULL;
 
 	memcpy(header, buf, 8);
 
@@ -842,23 +856,23 @@ error:
 		if (rowpointers)
 			BZ_Free(rowpointers);
 		qpng_destroy_read_struct(&png, &pnginfo, NULL);
-		return (png_rgba = NULL);
+		return NULL;
 	}
 
 	if (qpng_sig_cmp(header, 0, 8))
 	{
-		return (png_rgba = NULL);
+		return NULL;
 	}
 
 	if (!(png = qpng_create_read_struct(PNG_LIBPNG_VER_STRING, &errctx, png_onerror, png_onwarning)))
 	{
-		return (png_rgba = NULL);
+		return NULL;
 	}
 
 	if (!(pnginfo = qpng_create_info_struct(png)))
 	{
 		qpng_destroy_read_struct(&png, &pnginfo, NULL);
-		return (png_rgba = NULL);
+		return NULL;
 	}
 
 	ri.data=buf;
@@ -915,7 +929,7 @@ error:
 	{
 		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);
 		qpng_destroy_read_struct(&png, &pnginfo, NULL);
-		return (png_rgba = NULL);
+		return NULL;
 	}
 
 	data = BZF_Malloc(*height * rowbytes);
@@ -932,7 +946,7 @@ error:
 
 	qpng_destroy_read_struct(&png, &pnginfo, NULL);
 	BZ_Free(rowpointers);
-	return (png_rgba = data);
+	return data;
 }
 
 
@@ -949,6 +963,9 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	struct pngerr errctx;
 
 	if (!FS_NativePath(filename, FS_GAMEONLY, name, sizeof(name)))
+		return false;
+
+	if (!LibPNG_Init())
 		return false;
 
 	if (!(fp = fopen (name, "wb")))

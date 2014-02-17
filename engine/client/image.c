@@ -719,6 +719,8 @@ png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_structp png_ptr)) PSTATIC(png_ge
 void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
 png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
 
+png_voidp (PNGAPI *qpng_get_error_ptr) PNGARG((png_structp png_ptr)) PSTATIC(png_get_error_ptr);
+
 qboolean LibPNG_Init(void)
 {
 #ifdef DYNAMIC_LIBPNG
@@ -760,6 +762,8 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_init_io,						"png_init_io"},
 		{(void **) &qpng_destroy_write_struct,			"png_destroy_write_struct"},
 		{(void **) &qpng_create_write_struct,			"png_create_write_struct"},
+
+		{(void **) &qpng_get_error_ptr,					"png_get_error_ptr"},
 		{NULL, NULL}
 	};
 
@@ -803,7 +807,7 @@ struct pngerr
 };
 static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
 {
-	struct pngerr *err = png_get_error_ptr(png_ptr);
+	struct pngerr *err = qpng_get_error_ptr(png_ptr);
 	Con_Printf("libpng %s: %s", err->fname, error_msg);
 	longjmp(err->jbuf, 1);
 	abort();
@@ -811,7 +815,7 @@ static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
 
 static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg)
 {
-	struct pngerr *err = png_get_error_ptr(png_ptr);
+	struct pngerr *err = qpng_get_error_ptr(png_ptr);
 	Con_Printf("libpng %s: %s\n", err->fname, warning_msg);
 }
 

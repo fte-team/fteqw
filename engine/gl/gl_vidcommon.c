@@ -222,6 +222,7 @@ FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 #define DEBUG
 #endif
 #if defined(DEBUG)
+#ifndef GL_ARB_debug_output
 typedef void (APIENTRY *GLDEBUGPROCARB)(GLenum source,
 					GLenum type,
 					GLuint id,
@@ -229,6 +230,7 @@ typedef void (APIENTRY *GLDEBUGPROCARB)(GLenum source,
 					GLsizei length,
 					const GLchar* message,
 					GLvoid* userParam);
+#endif
 void (APIENTRY *qglDebugMessageControlARB)(GLenum source,
 					GLenum type,
 					GLenum severity,
@@ -1782,7 +1784,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglDisableClientState = GL_ClientStateStub;
 	}
 
-	qglClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.
+	qglClearColor (0,0,0,1);	//clear to black so that it looks a little nicer on start.
 	qglClear(GL_COLOR_BUFFER_BIT);
 
 	if (qglPolygonMode)

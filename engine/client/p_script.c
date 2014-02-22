@@ -509,7 +509,8 @@ static int PScript_FindParticleType(char *name)
 			if (!stricmp(part_type[i].name, name))
 			{
 				ptype = &part_type[i];
-				break;
+				if (ptype->loaded)	//(mostly) ignore ones that are not currently loaded
+					break;
 			}
 		}
 	}
@@ -2527,7 +2528,9 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 		{
 			if (partset_list[i].data)
 			{
+				Cbuf_AddText(va("\nr_part namespace %s %i\n", name, implicit), restrictlevel);
 				Cbuf_AddText(*partset_list[i].data, RESTRICT_LOCAL);
+				Cbuf_AddText("\nr_part namespace \"\" 0\n", restrictlevel);
 			}
 			return true;
 		}

@@ -1653,7 +1653,9 @@ static ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isse
 static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address);
 #endif
 static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address);
+#ifdef HAVE_NATPMP
 static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address);
+#endif
 
 #ifdef HAVE_NATPMP
 typedef struct
@@ -1709,8 +1711,10 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 					pmp->natadr.connum = i+1;
 					Con_DPrintf("NAT-PMP: Public ip is %s\n", adrbuf);
 
+#ifdef SUPPORT_ICE
 					if (pmp->natadr.type && pmp->natadr.port)
 						ICE_AddLCandidateConn(collection, &pmp->natadr, ICE_SRFLX);	//let ICE connections know about it
+#endif
 					return true;
 				}
 				if (net_message.cursize == 16 && pmpreqrep->op == 129)
@@ -1741,8 +1745,10 @@ static qboolean NET_Was_NATPMP(ftenet_connections_t *collection)
 					Con_DPrintf("NAT-PMP: Local port %u publically available on port %u\n", (unsigned short)BigShort(pmpreqrep->privport), (unsigned short)BigShort(pmpreqrep->pubport));
 					pmp->natadr.port = pmpreqrep->pubport;
 
+#ifdef SUPPORT_ICE
 					if (pmp->natadr.type && pmp->natadr.port)
 						ICE_AddLCandidateConn(collection, &pmp->natadr, ICE_SRFLX);
+#endif
 					return true;
 				}
 				return false;

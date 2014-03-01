@@ -856,9 +856,10 @@ pbool QCC_WriteData (int crc)
 			pr_scope = def->scope;
 			if (strcmp(def->name, "IMMEDIATE"))
 			{
-				if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references.", def->name))
+				char typestr[256];
+				if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name))
 				{
-					if (!warnedunref)
+					if (!warnedunref && wt == WARN_NOTREFERENCED)
 					{
 						QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
 						warnedunref = true;
@@ -3054,6 +3055,7 @@ int QCC_FindQCFiles()
 
 int qcc_compileactive = false;
 extern int accglobalsblock;
+extern int qcc_debugflag;
 char *originalqccmsrc;	//for autoprototype.
 void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
@@ -3079,6 +3081,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	pHash_Get = &Hash_Get;
 	pHash_GetNext = &Hash_GetNext;
 	pHash_Add = &Hash_Add;
+	pHash_RemoveData = &Hash_RemoveData;
 
 	MAX_REGS		= 1<<17;
 	MAX_STRINGS		= 1000000;
@@ -3185,6 +3188,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	optres_test2 = 0;
 
 	accglobalsblock = 0;
+	qcc_debugflag = false;
 
 
 	numtemps = 0;
@@ -3283,6 +3287,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		pHash_Get = &Hash_GetInsensative;
 		pHash_GetNext = &Hash_GetNextInsensative;
 		pHash_Add = &Hash_AddInsensative;
+		pHash_RemoveData = &Hash_RemoveDataInsensative;
 	}
 
 	p = QCC_CheckParm ("-src");
@@ -3303,8 +3308,8 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	if (flag_acc)
 	{
-		if (!QCC_FindQCFiles())
-			QCC_Error (ERR_COULDNTOPENFILE, "Couldn't open file for asm output.");
+		if (!QCC_FindQCFiles(qccmsourcedir))
+			QCC_Error (ERR_COULDNTOPENFILE, "Couldn't find any qc files.");
 	}
 	else
 	{

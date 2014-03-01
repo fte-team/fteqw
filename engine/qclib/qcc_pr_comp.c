@@ -136,6 +136,7 @@ int optres_test2;
 void *(*pHash_Get)(hashtable_t *table, const char *name);
 void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
 void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);
+void (*pHash_RemoveData)(hashtable_t *table, const char *name, void *data);
 
 QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int arraysize, unsigned int ofs, int referable, unsigned int flags);
 QCC_type_t *QCC_PR_FindType (QCC_type_t *type);
@@ -1316,9 +1317,16 @@ QCC_def_t *QCC_SupplyConversionForAssignment(QCC_def_t *to, QCC_def_t *from, ety
 	if (o < 0)
 	{
 		if (fatal && wanted != ev_variant && from->type->type != ev_variant)
-			QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, from, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", to->name, basictypenames[wanted], basictypenames[from->type->type]);
-		else
-			return from;
+		{
+			if (flag_laxcasts)
+			{
+				QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", to->name, basictypenames[wanted], basictypenames[from->type->type]);
+				QCC_PR_ParsePrintDef(WARN_LAXCAST, from);
+			}
+			else
+				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, from, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", to->name, basictypenames[wanted], basictypenames[from->type->type]);
+		}
+		return from;
 	}
 
 	return QCC_PR_Statement(&pr_opcodes[o], from, NULL, NULL);	//conversion return value
@@ -1337,9 +1345,16 @@ QCC_def_t *QCC_SupplyConversion(QCC_def_t *var, etype_t wanted, pbool fatal)
 	if (o < 0)
 	{
 		if (fatal && wanted != ev_variant && var->type->type != ev_variant)
-			QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, var, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var->type->type]);
-		else
-			return var;
+		{
+			if (flag_laxcasts)
+			{
+				QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var->type->type]);
+				QCC_PR_ParsePrintDef(WARN_LAXCAST, var);
+			}
+			else
+				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, var, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var->type->type]);
+		}
+		return var;
 	}
 
 	return QCC_PR_Statement(&pr_opcodes[o], var, NULL, NULL);	//conversion return value
@@ -4605,8 +4620,8 @@ QCC_def_t *QCC_MakeFloatConst(float value)
 	pr.def_tail->next = cn;
 	pr.def_tail = cn;
 
-	cn->s_file = s_file;
-	cn->s_line = pr_source_line;
+//	cn->s_file = s_file;
+//	cn->s_line = pr_source_line;
 	cn->type = type_float;
 	cn->name = "IMMEDIATE";
 	cn->constant = true;
@@ -5673,10 +5688,18 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_NOT_FNC], e, 0, NULL);	//functions are integer values too.
 			else if (t == ev_pointer)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_NOT_FNC], e, 0, NULL);	//Pointers are too.
+			else if (t == ev_void && flag_laxcasts)
+			{
+				QCC_PR_ParseWarning(WARN_LAXCAST, "Type mismatch: !void");
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_NOT_F], e, 0, NULL);
+			}
 			else
 			{
+				char etype[256];
+				TypeName(e->type, etype, sizeof(etype));
+
 				e2 = NULL;		// shut up compiler warning;
-				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for !");
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch: !%s", etype);
 			}
 			return QCC_DefToRef(retbuf, e2);
 		}
@@ -7190,7 +7213,7 @@ void QCC_PR_ParseStatement (void)
 			{
 				if (!e2->subscoped_away)
 				{
-					Hash_RemoveData(&localstable, e2->name, e2);
+					pHash_RemoveData(&localstable, e2->name, e2);
 					e2->subscoped_away = true;
 				}
 			}
@@ -9753,6 +9776,9 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 	QCC_def_t *def, *first=NULL;
 	char typebuf[1024];
 
+	if (name && !strcmp(name, "ImpulseCommands"))
+		QCC_PR_Note(0, strings+s_file, pr_source_line, "Defining %s", name);
+
 #define KEYWORD(x) if (!STRCMP(name, #x) && keyword_##x) {if (keyword_##x)QCC_PR_ParseWarning(WARN_KEYWORDDISABLED, "\""#x"\" keyword used as variable name%s", keywords_coexist?" - coexisting":" - disabling");keyword_##x=keywords_coexist;}
 	if (name)
 	{
@@ -9930,95 +9956,22 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 //	char element[MAX_NAME];
 	QCC_def_t *foundstatic = NULL;
 	char typebuf1[1024], typebuf2[1024];
+	int ins, insmax;
 
 	if (!allocate)
 		arraysize = -1;
 
-	if (scope)
+	if (pHash_Get != &Hash_Get)
 	{
-		def = Hash_Get(&localstable, name);
-
-		while(def)
-		{
-			if ( def->scope && def->scope != scope)
-			{
-				def = Hash_GetNext(&localstable, name, def);
-				continue;		// in a different function
-			}
-
-			if (type && typecmp(def->type, type))
-				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
-			if (def->arraysize != arraysize && arraysize>=0)
-				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
-			if (allocate && scope)
-			{
-				QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s duplicate definition ignored", name);
-				QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
-//				if (!scope)
-//					QCC_PR_ParsePrintDef(def);
-			}
-			return def;
-		}
+		ins = 0;
+		insmax = allocate?1:2;
 	}
-
-
-	def = Hash_Get(&globalstable, name);
-
-	while(def)
+	else
 	{
-		if ( (def->scope || (scope && allocate)) && def->scope != scope)
-		{
-			def = Hash_GetNext(&globalstable, name, def);
-			continue;		// in a different function
-		}
-
-		if (def->isstatic && strcmp(strings+def->s_file, strings+s_file))
-		{	//warn? or would that be pointless?
-			foundstatic = def;
-			def = Hash_GetNext(&globalstable, name, def);
-			continue;		// in a different function
-		}
-
-		if (type && typecmp(def->type, type))
-		{
-			if (pr_scope || typecmp_lax(def->type, type))
-			{
-				//unequal even when we're lax
-				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
-			}
-			else
-			{
-				QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
-				QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
-
-				if (type->type == ev_function)
-				{
-					//update the def's type to the new one if the mandatory argument count is longer
-					//FIXME: don't change the param names!
-					if (type->num_parms > def->type->num_parms)
-						def->type = type;
-				}
-			}
-		}
-		if (def->arraysize != arraysize && arraysize>=0)
-			QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
-		if (allocate && scope)
-		{
-			if (pr_scope)
-			{	//warn? or would that be pointless?
-				def = Hash_GetNext(&globalstable, name, def);
-				continue;		// in a different function
-			}
-
-			QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s duplicate definition ignored", name);
-			QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
-//			if (!scope)
-//				QCC_PR_ParsePrintDef(def);
-		}
-		return def;
+		ins = 1;
+		insmax = 2;
 	}
-
-	if (pHash_Get != &Hash_Get && !allocate)	//do we want to try case insensative too?
+	for (; ins < insmax; ins++)
 	{
 		if (scope)
 		{
@@ -10026,6 +9979,13 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 
 			while(def)
 			{
+				//ignore differing case the first time around.
+				if (ins == 0 && strcmp(def->name, name))
+				{
+					def = pHash_GetNext(&globalstable, name, def);
+					continue;		// in a different function
+				}
+
 				if ( def->scope && def->scope != scope)
 				{
 					def = pHash_GetNext(&localstable, name, def);
@@ -10033,9 +9993,9 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 				}
 
 				if (type && typecmp(def->type, type))
-					QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 				if (def->arraysize != arraysize && arraysize>=0)
-					QCC_PR_ParseError (ERR_TYPEMISMATCHARRAYSIZE, "Array sizes for redecleration of %s do not match",name);
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
 				if (allocate && scope)
 				{
 					QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s duplicate definition ignored", name);
@@ -10047,40 +10007,55 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 			}
 		}
 
-
 		def = pHash_Get(&globalstable, name);
 
 		while(def)
 		{
-			if ( def->scope && def->scope != scope)
+			//ignore differing case the first time around.
+			if (ins == 0 && strcmp(def->name, name))
 			{
 				def = pHash_GetNext(&globalstable, name, def);
 				continue;		// in a different function
 			}
 
-			if (def->isstatic && def->s_file != s_file)
-			{	//warn? or would that be pointless?
-				foundstatic = def;
-				def = Hash_GetNext(&globalstable, name, def);
+			if ( (def->scope || (scope && allocate)) && def->scope != scope)
+			{
+				def = pHash_GetNext(&globalstable, name, def);
+				continue;		// in a different function
+			}
+
+			//ignore it if its static in some other file.
+			if (def->isstatic && strcmp(strings+def->s_file, strings+s_file))
+			{
+				if (!foundstatic)
+					foundstatic = def;	//save it off purely as a warning.
+				def = pHash_GetNext(&globalstable, name, def);
 				continue;		// in a different function
 			}
 
 			if (type && typecmp(def->type, type))
 			{
-				if (!pr_scope)
+				if (pr_scope || typecmp_lax(def->type, type))
 				{
-					char typebuf1[1024], typebuf2[1024];
-					if (typecmp_lax(def->type, type))
+					//unequal even when we're lax
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+				}
+				else
+				{
+					QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+					QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
+
+					if (type->type == ev_function)
 					{
-						//unequal even when we're lax
-						QCC_PR_ParseError (ERR_TYPEMISMATCHREDEC, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+						//update the def's type to the new one if the mandatory argument count is longer
+						//FIXME: don't change the param names!
+						if (type->num_parms > def->type->num_parms)
+							def->type = type;
 					}
-					else
-						QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
 				}
 			}
 			if (def->arraysize != arraysize && arraysize>=0)
-				QCC_PR_ParseError (ERR_TYPEMISMATCHARRAYSIZE, "Array sizes for redecleration of %s do not match",name);
+				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
 			if (allocate && scope)
 			{
 				if (pr_scope)
@@ -10509,6 +10484,7 @@ void QCC_PR_ParseInitializerDef(QCC_def_t *def)
 }
 
 int accglobalsblock;	//0 = error, 1 = var, 2 = function, 3 = objdata
+int qcc_debugflag;
 /*
 ================
 PR_ParseDefs
@@ -10878,35 +10854,56 @@ void QCC_PR_ParseDefs (char *classname)
 		}
 	case 2:
 		name = QCC_PR_ParseName();
-		QCC_PR_GetDef(type_function, name, NULL, true, 1, true);
+		QCC_PR_GetDef(type_function, name, NULL, true, 0, true);
 		QCC_PR_CheckToken (";");
 		return;
 	case 3:
 		{
-		char *oldp = pr_file_p;
-		name = QCC_PR_ParseName();
-		if (!QCC_PR_CheckToken(":"))	//nope, it wasn't!
-		{
-			QCC_PR_IncludeChunk(name, true, NULL);
-			QCC_PR_Lex();
-			QCC_PR_UnInclude();
-			pr_file_p = oldp;
-			break;
-		}
-		if (QCC_PR_CheckKeyword(keyword_object, "object"))
-			QCC_PR_GetDef(QCC_PR_FieldType(type_entity), name, NULL, true, 0, true);
-		else if (QCC_PR_CheckKeyword(keyword_string, "string"))
-			QCC_PR_GetDef(QCC_PR_FieldType(type_string), name, NULL, true, 0, true);
-		else if (QCC_PR_CheckKeyword(keyword_real, "real"))
-			QCC_PR_GetDef(QCC_PR_FieldType(type_float), name, NULL, true, 0, true);
-		else if (QCC_PR_CheckKeyword(keyword_vector, "vector"))
-			QCC_PR_GetDef(QCC_PR_FieldType(type_vector), name, NULL, true, 0, true);
-		else if (QCC_PR_CheckKeyword(keyword_pfunc, "pfunc"))
-			QCC_PR_GetDef(QCC_PR_FieldType(type_function), name, NULL, true, 0, true);
-		else
-			QCC_PR_ParseError(ERR_BADNOTTYPE, "Bad type\n");
-		QCC_PR_Expect (";");
-		return;
+			char *oldp = pr_file_p;
+			name = QCC_PR_ParseName();
+			if (!QCC_PR_CheckToken(":"))	//nope, it wasn't!
+			{
+				QCC_PR_IncludeChunk(name, true, NULL);
+				QCC_PR_Lex();
+				QCC_PR_UnInclude();
+				pr_file_p = oldp;
+				break;
+			}
+			if (QCC_PR_CheckKeyword(keyword_object, "object"))
+				def = QCC_PR_GetDef(QCC_PR_FieldType(type_entity), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+			else if (QCC_PR_CheckKeyword(keyword_string, "string"))
+				def = QCC_PR_GetDef(QCC_PR_FieldType(type_string), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+			else if (QCC_PR_CheckKeyword(keyword_real, "real"))
+				def = QCC_PR_GetDef(QCC_PR_FieldType(type_float), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+			else if (QCC_PR_CheckKeyword(keyword_vector, "vector"))
+				def = QCC_PR_GetDef(QCC_PR_FieldType(type_vector), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+			else if (QCC_PR_CheckKeyword(keyword_pfunc, "pfunc"))
+				def = QCC_PR_GetDef(QCC_PR_FieldType(type_function), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+			else
+			{
+				QCC_PR_ParseError(ERR_BADNOTTYPE, "Bad type\n");
+				QCC_PR_Expect (";");
+				return;
+			}
+
+			if (!def->initialized)
+			{
+				def->initialized = 1;
+				for (i = 0; i < def->type->size*(def->arraysize?def->arraysize:1); i++)	//make arrays of fields work.
+				{
+					if (*(int *)&qcc_pr_globals[def->ofs+i])
+					{
+						QCC_PR_ParseWarning(0, "Field def already has a value:");
+						QCC_PR_ParsePrintDef(0, def);
+					}
+					*(int *)&qcc_pr_globals[def->ofs+i] = pr.size_fields+i;
+				}
+
+				pr.size_fields += i;
+			}
+
+			QCC_PR_Expect (";");
+			return;
 		}
 	}
 
@@ -10948,13 +10945,27 @@ void QCC_PR_ParseDefs (char *classname)
 		externfnc=false;
 	}
 
+	if (qcc_debugflag)
+		if (!QCC_PR_GetDef (type_function, "ImpulseCommands", NULL, false, 0, false))
+			QCC_PR_Note(0, strings+s_file, pr_source_line, "ImpulseCommands no longer defined");
+
+
 	if (!pr_scope && QCC_PR_CheckKeyword(keyword_function, "function"))	//reacc support.
 	{
 		name = QCC_PR_ParseName ();
 		QCC_PR_Expect("(");
 		type = QCC_PR_ParseFunctionTypeReacc(false, type);
 		QCC_PR_Expect(";");
+
 		def = QCC_PR_GetDef (type, name, NULL, true, 0, false);
+
+		if (name && !strcmp(name, "ImpulseCommands"))
+			qcc_debugflag = true;
+		
+
+		if (qcc_debugflag)
+			if (!QCC_PR_GetDef (type_function, "ImpulseCommands", NULL, false, 0, false))
+				QCC_PR_Note(0, strings+s_file, pr_source_line, "ImpulseCommands no longer defined at the start of %s", name);
 
 		if (autoprototype)
 		{	//ignore the code and stuff
@@ -10993,43 +11004,47 @@ void QCC_PR_ParseDefs (char *classname)
 			}
 			return;
 		}
-
-		def->references++;
-
-		pr_scope = def;
-		f = QCC_PR_ParseImmediateStatements (type);
-		pr_scope = NULL;
-		def->initialized = 1;
-		def->isstatic = isstatic;
-		G_FUNCTION(def->ofs) = numfunctions;
-		f->def = def;
-//				if (pr_dumpasm)
-//					PR_PrintFunction (def);
-
-		if (numfunctions >= MAX_FUNCTIONS)
-			QCC_Error(ERR_INTERNAL, "Too many function defs");
-
-// fill in the dfunction
-		df = &functions[numfunctions];
-		numfunctions++;
-		if (f->builtin)
-			df->first_statement = -f->builtin;
 		else
-			df->first_statement = f->code;
-
-		if (f->builtin && opt_function_names)
-			optres_function_names += strlen(f->def->name);
-		else
-			df->s_name = QCC_CopyString (f->def->name);
-		df->s_file = s_file2;
-		df->numparms =  f->def->type->num_parms;
-		df->locals = locals_end - locals_start;
-		df->parm_start = locals_start;
-		for (i=0 ; i<df->numparms ; i++)
 		{
-			df->parm_size[i] = type->params[i].type->size;
-		}
+			def->references++;
 
+			pr_scope = def;
+			f = QCC_PR_ParseImmediateStatements (type);
+			pr_scope = NULL;
+			def->initialized = 1;
+			def->isstatic = isstatic;
+			G_FUNCTION(def->ofs) = numfunctions;
+			f->def = def;
+	//				if (pr_dumpasm)
+	//					PR_PrintFunction (def);
+
+			if (numfunctions >= MAX_FUNCTIONS)
+				QCC_Error(ERR_INTERNAL, "Too many function defs");
+
+	// fill in the dfunction
+			df = &functions[numfunctions];
+			numfunctions++;
+			if (f->builtin)
+				df->first_statement = -f->builtin;
+			else
+				df->first_statement = f->code;
+
+			if (f->builtin && opt_function_names)
+				optres_function_names += strlen(f->def->name);
+			else
+				df->s_name = QCC_CopyString (f->def->name);
+			df->s_file = s_file2;
+			df->numparms =  f->def->type->num_parms;
+			df->locals = locals_end - locals_start;
+			df->parm_start = locals_start;
+			for (i=0 ; i<df->numparms ; i++)
+			{
+				df->parm_size[i] = type->params[i].type->size;
+			}
+		}
+		if (qcc_debugflag)
+			if (!QCC_PR_GetDef (type_function, "ImpulseCommands", NULL, false, 0, false))
+				QCC_PR_Note(0, strings+s_file, pr_source_line, "ImpulseCommands no longer defined at the end of %s", name);
 		return;
 	}
 

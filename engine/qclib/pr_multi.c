@@ -1,8 +1,8 @@
 #define PROGSUSED
 #include "progsint.h"
 
-//#define MAPPING_DEBUG
-//#define MAPPING_PARANOID	//may actually break unions, so beware.
+#define MAPPING_DEBUG
+#define MAPPING_PARANOID	//may actually break unions, so beware.
 
 void PR_SetBuiltins(int type);
 /*

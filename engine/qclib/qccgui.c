@@ -2837,6 +2837,7 @@ void SetProgsSrc(void)
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
+	pbool fl_acc;
 	unsigned int i;
 	WNDCLASS wndclass;
 	ghInstance= hInstance;
@@ -2878,7 +2879,16 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	GUI_RevealOptions();
 
-	if (/*!fl_acc &&*/ !*progssrcname)
+	for (i = 0, fl_acc = false; compiler_flag[i].enabled; i++)
+	{
+		if (!strcmp("acc", compiler_flag[i].abbrev))
+		{
+			fl_acc = !!(compiler_flag[i].flags & FLAG_SETINGUI);
+			break;
+		}
+	}
+
+	if (!fl_acc && !*progssrcname)
 	{
 		strcpy(progssrcname, "preprogs.src");
 		if (QCC_FileSize(progssrcname)==-1)
@@ -3098,7 +3108,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			if (buttons[ID_EDIT].washit)
 			{
 				buttons[ID_EDIT].washit = false;
-				EditFile(progssrcname, -1);
+				if (*progssrcname)
+					EditFile(progssrcname, -1);
 			}
 #ifdef EMBEDDEBUG
 			if (buttons[ID_RUN].washit)

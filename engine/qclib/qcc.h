@@ -995,3 +995,4 @@ pbool QCC_PR_UnInclude(void);
 extern void *(*pHash_Get)(hashtable_t *table, const char *name);
 extern void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
 extern void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);
+extern void (*pHash_RemoveData)(hashtable_t *table, const char *name, void *data);

@@ -174,6 +174,46 @@ void GUI_ParseCommandLine(char *args)
 				}
 			}
 		}
+		else if (!strnicmp(parameters+paramlen, "-F", 2) || !strnicmp(parameters+paramlen, "/F", 2) || !strnicmp(parameters+paramlen, "-K", 2) || !strnicmp(parameters+paramlen, "/K", 2))
+		{
+			if (parameters[paramlen+2])
+			{
+				if (!strncmp(parameters+paramlen+2, "no-", 3))
+				{
+					if (parameters[paramlen+5])
+					{
+						for (p = 0; compiler_flag[p].enabled; p++)
+							if ((*compiler_flag[p].abbrev && !strcmp(parameters+paramlen+5, compiler_flag[p].abbrev)) || !strcmp(parameters+paramlen+5, compiler_flag[p].fullname))
+							{
+								compiler_flag[p].flags &= ~FLAG_SETINGUI;
+								break;
+							}
+
+						if (!compiler_flag[p].enabled)
+						{
+							parameters[paramlen+next-args] = ' ';
+							paramlen += l;
+						}
+					}
+				}
+				else
+				{
+					for (p = 0; compiler_flag[p].enabled; p++)
+						if ((*compiler_flag[p].abbrev && !strcmp(parameters+paramlen+2, compiler_flag[p].abbrev)) || !strcmp(parameters+paramlen+2, compiler_flag[p].fullname))
+						{
+							compiler_flag[p].flags |= FLAG_SETINGUI;
+							break;
+						}
+
+					if (!compiler_flag[p].enabled)
+					{
+						parameters[paramlen+next-args] = ' ';
+						paramlen += l;
+					}
+				}
+			}
+		}
+
 /*
 		else if (!strnicmp(parameters+paramlen, "-Fno-kce", 8) || !strnicmp(parameters+paramlen, "/Fno-kce", 8))	//keywords stuph
 		{

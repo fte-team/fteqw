@@ -3684,7 +3684,13 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 	char *ret;
 
 	if (type->type == ev_void)
-		return "void";
+	{
+		if (buffersize < 0)
+			return buffer;
+		*buffer = 0;
+		Q_strlcat(buffer, "void", buffersize);
+		return buffer;
+	}
 
 	if (type->type == ev_pointer)
 	{
@@ -3717,7 +3723,7 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 			args--;
 
 			Q_strlcat(buffer, type->params[i].type->name, buffersize);
-			if (type->params[i].paramname)
+			if (type->params[i].paramname && *type->params[i].paramname)
 			{
 				Q_strlcat(buffer, " ", buffersize);
 				Q_strlcat(buffer, type->params[i].paramname, buffersize);
@@ -3955,10 +3961,11 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 }
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 {
-	QCC_type_t	*ftype;
-//	char	*name;
-//	char	argname[64];
-//	int definenames = !recursivefunctiontype;
+	QCC_type_t	*ftype, *nptype;
+	char	*name;
+	int definenames = !recursivefunctiontype;
+	int numparms = 0;
+	struct QCC_typeparam_s paramlist[MAX_PARMS+MAX_EXTRA_PARMS];
 
 	recursivefunctiontype++;
 
@@ -3971,63 +3978,61 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 
 	if (!QCC_PR_CheckToken (")"))
 	{
-#if 1
-#pragma message("I broke reacc support")
-#else
-		if (QCC_PR_CheckToken ("..."))
-			ftype->num_parms = -1;	// variable args
-		else
-			do
+		do
+		{
+			if (numparms>=MAX_PARMS+MAX_EXTRA_PARMS)
+				QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
+
+			if (QCC_PR_CheckToken ("..."))
 			{
-				if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
-					QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
+				ftype->vargs = true;
+				break;
+			}
 
-				if (QCC_PR_CheckToken ("..."))
-				{
-					ftype->num_parms = (ftype->num_parms * -1) - 1;
-					break;
-				}
+			if (QCC_PR_CheckName("arg"))
+			{
+				name = "";
+				nptype = QCC_PR_NewType("Variant", ev_variant, false);
+			}
+			else if (QCC_PR_CheckName("vect"))	//this can only be of vector sizes, so...
+			{
+				name = "";
+				nptype = QCC_PR_NewType("Vector", ev_vector, false);
+			}
+			else
+			{
+				name = QCC_PR_ParseName();
+				QCC_PR_Expect(":");
+				nptype = QCC_PR_ParseType(true, false);
+			}
 
-				if (QCC_PR_CheckName("arg"))
-				{
-					sprintf(argname, "arg%i", ftype->num_parms);
-					name = argname;
-					nptype = QCC_PR_NewType("Variant", ev_variant, false);
-				}
-				else if (QCC_PR_CheckName("vect"))	//this can only be of vector sizes, so...
-				{
-					sprintf(argname, "arg%i", ftype->num_parms);
-					name = argname;
-					nptype = QCC_PR_NewType("Vector", ev_vector, false);
-				}
-				else
-				{
-					name = QCC_PR_ParseName();
-					QCC_PR_Expect(":");
-					nptype = QCC_PR_ParseType(true, false);
-				}
+			if (nptype->type == ev_void)
+				break;
+//			type->name = "FUNC PARAMETER";
 
-				if (nptype->type == ev_void)
-					break;
-				if (!ptype)
-				{
-					ptype = nptype;
-					ftype->param = ptype;
-				}
-				else
-				{
-					ptype->next = nptype;
-					ptype = ptype->next;
-				}
-//				type->name = "FUNC PARAMETER";
 
-				if (definenames)
-					strcpy (pr_parm_names[ftype->num_parms], name);
-				ftype->num_parms++;
-			} while (QCC_PR_CheckToken (";"));
-#endif
+			paramlist[numparms].optional = false;
+			paramlist[numparms].ofs = 0;
+			paramlist[numparms].arraysize = 0;
+			paramlist[numparms].type = nptype;
+
+			if (!*name)
+				paramlist[numparms].paramname = "";
+			else
+			{
+				paramlist[numparms].paramname = qccHunkAlloc(strlen(name)+1);
+				strcpy(paramlist[numparms].paramname, name);
+			}
+			if (definenames)
+				QC_snprintfz(pr_parm_names[numparms], MAX_NAME, "%s", name);
+
+			numparms++;
+		} while (QCC_PR_CheckToken (";"));
 		QCC_PR_Expect (")");
 	}
+	ftype->num_parms = numparms;
+	ftype->params = qccHunkAlloc(sizeof(*ftype->params) * numparms);
+	memcpy(ftype->params, paramlist, sizeof(*ftype->params) * numparms);
 	recursivefunctiontype--;
 	if (newtype)
 		return ftype;

@@ -36,6 +36,7 @@ void *Hash_Add(hashtable_t *table, const char *name, void *data, bucket_t *buck)
 void *Hash_AddInsensative(hashtable_t *table, const char *name, void *data, bucket_t *buck);
 void Hash_Remove(hashtable_t *table, const char *name);
 void Hash_RemoveData(hashtable_t *table, const char *name, void *data);
+void Hash_RemoveDataInsensative(hashtable_t *table, const char *name, void *data);
 void Hash_RemoveBucket(hashtable_t *table, const char *name, bucket_t *data);
 void Hash_RemoveKey(hashtable_t *table, unsigned int key);
 void *Hash_AddKey(hashtable_t *table, unsigned int key, void *data, bucket_t *buck);

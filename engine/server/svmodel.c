@@ -415,7 +415,7 @@ Mod_LoadModel
 Loads a model into the cache
 ==================
 */
-model_t *Mod_LoadModel (model_t *mod, qboolean crash)
+model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 {
 	unsigned *buf;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
@@ -437,7 +437,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 	if (!buf)
 	{
-		if (crash)
+		if (verbose >= MLV_ERROR)
 			SV_Error ("Mod_NumForName: %s not found", mod->name);
 		return NULL;
 	}
@@ -529,9 +529,10 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 		}
 #endif
 
-		Con_Printf (CON_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
+		if (verbose >= MLV_WARN)
+			Con_Printf (CON_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
 couldntload:
-		if (crash)
+		if (verbose >= MLV_ERROR)
 			SV_Error ("Load failed on critical model %s", mod->name);
 		return NULL;
 	}
@@ -546,13 +547,13 @@ Mod_ForName
 Loads in a model for the given name
 ==================
 */
-model_t *Mod_ForName (const char *name, qboolean crash)
+model_t *Mod_ForName (const char *name, enum mlverbosity_e verbose)
 {
 	model_t	*mod;
 
 	mod = Mod_FindName (name);
 
-	return Mod_LoadModel (mod, crash);
+	return Mod_LoadModel (mod, verbose);
 }
 
 

@@ -503,6 +503,16 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 				offset = (chan->pos>>PITCHSHIFT) - sbuf.soundoffset;
 				sbuf.data += offset * sc->width*sc->numchannels;
 				sbuf.length -= offset;
+
+				if (!sbuf.length && (chan->pos>>PITCHSHIFT) == sbuf.soundoffset)
+				{
+					chan->sfx = NULL;
+					if (sfx->decoder.abort)
+					{
+						if (!S_IsPlayingSomewhere(sfx))
+							sfx->decoder.abort(sfx);
+					}
+				}
 				sbuf.soundoffset = 0;
 
 				//build a buffer with it and queue it up.

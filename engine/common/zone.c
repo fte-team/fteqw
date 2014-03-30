@@ -456,6 +456,8 @@ typedef struct zonegroupblock_s
 } zonegroupblock_t;
 
 #ifdef USE_MSVCRT_DEBUG
+#undef ZG_Malloc
+void *ZG_Malloc(zonegroup_t *ctx, int size){return ZG_MallocNamed(ctx, size, "ZG_Malloc", size);}
 void *ZG_MallocNamed(zonegroup_t *ctx, int size, char *file, int line)
 #else
 void *ZG_Malloc(zonegroup_t *ctx, int size)

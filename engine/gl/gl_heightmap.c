@@ -2532,7 +2532,6 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 #endif
 }
 
-model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 struct tdibctx
 {
 	heightmap_t *hm;
@@ -2611,7 +2610,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 				if (hm->beinglazy)
 					continue;
 				hm->beinglazy = true;
-				Mod_LoadModel(model, false);
+				Mod_LoadModel(model, MLV_WARN);
 			}
 			if (model->needload)
 				continue;

@@ -8,6 +8,14 @@
 #include "shader.h"
 
 #if !defined(NOMEDIA)
+#if defined(_WIN32) && !defined(WINRT)
+#define WINAMP
+#endif
+#if defined(_WIN32) && !defined(WINRT)
+#define WINAVI
+#endif
+
+
 typedef struct mediatrack_s{
 	char filename[MAX_QPATH];
 	char nicename[MAX_QPATH];
@@ -456,9 +464,15 @@ void CD_f (void)
 		return;
 	}
 
-	if (!bgmvolume.ival)
+	if (Q_strcasecmp(command, "stop") == 0)
 	{
-		Con_Printf("Background music is disabled. %s is 0\n", bgmvolume.name);
+		Media_Clear();
+		return;
+	}
+
+	if (!bgmvolume.value)
+	{
+		Con_Printf("Background music is disabled: %s is 0\n", bgmvolume.name);
 		return;
 	}
 
@@ -507,12 +521,6 @@ void CD_f (void)
 			Con_Printf("No CD in player.\n");
 			return;
 		}
-	}
-
-	if (Q_strcasecmp(command, "stop") == 0)
-	{
-		CDAudio_Stop();
-		return;
 	}
 
 	if (Q_strcasecmp(command, "pause") == 0)

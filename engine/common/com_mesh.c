@@ -2336,7 +2336,6 @@ static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 		skin[x + skinwidth * y] = fdc;
 	}
 }
-#endif
 
 skinid_t *skinfilelist;
 int skinfilecount;
@@ -2467,7 +2466,6 @@ shader_t *Mod_ShaderFromQ3SkinFile(char *out, galiasinfo_t *surf, char *modelnam
 	return NULL;
 }
 
-#ifndef SERVERONLY
 shader_t *Mod_LoadSkinFile(char *defaultshadername, galiasinfo_t *surf, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette, char *outskinname)
 {
 	shader_t *shader;

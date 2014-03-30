@@ -61,7 +61,7 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
-cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0", "bgmvolume", CVAR_ARCHIVE,
+cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0.3", "bgmvolume", CVAR_ARCHIVE,
 											"Volume level for background music.");
 cvar_t volume					= CVARFD(	"volume", "0.7", CVAR_ARCHIVE,
 											"Main volume level for all engine sound.");
@@ -2566,6 +2566,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 
 	for (i = MUSIC_FIRST; i < MUSIC_STOP; i++)
 	{
+		qboolean changed = false;
 		chan = &sc->channel[i];
 		if (!chan->sfx)
 		{
@@ -2581,13 +2582,17 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 					chan->sfx = newmusic;
 					chan->rate = 1<<PITCHSHIFT;
 					chan->pos = 0;
+					changed = true;
 				}
 			}
 		}
 		if (chan->sfx)
 		{
-			chan->master_vol = 255;	//bypasses volume cvar completely.
-			chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = bound(0, chan->master_vol*bgmvolume.value*voicevolumemod, 255);
+			chan->flags = CF_ABSVOLUME;	//bypasses volume cvar completely.
+			chan->master_vol = bound(0, 255*bgmvolume.value*voicevolumemod, 255);
+			chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
+			if (sc->ChannelUpdate)
+				sc->ChannelUpdate(sc, chan, changed);
 		}
 	}
 

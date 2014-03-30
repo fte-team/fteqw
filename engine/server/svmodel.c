@@ -211,11 +211,11 @@ void Mod_Init (qboolean initial)
 }
 
 
-int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer))
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
 {
 	return 0;
 }
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer))
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
 {
 	return 0;
 }
@@ -476,36 +476,36 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	case BSPVERSIONPREREL:
 	case BSPVERSION:
 	case BSPVERSIONHL:
-		if (!Mod_LoadBrushModel (mod, buf))
+		if (!Mod_LoadBrushModel (mod, buf, com_filesize))
 			goto couldntload;
 		break;
 
 	case RAPOLYHEADER:
 	case IDPOLYHEADER:
-		if (!Mod_LoadQ1Model(mod, buf))
+		if (!Mod_LoadQ1Model(mod, buf, com_filesize))
 			goto couldntload;
 		break;
 #ifdef MD2MODELS
 	case MD2IDALIASHEADER:
-		if (!Mod_LoadQ2Model(mod, buf))
+		if (!Mod_LoadQ2Model(mod, buf, com_filesize))
 			goto couldntload;
 		break;
 #endif
 #ifdef MD3MODELS
 	case MD3_IDENT:
-		if (!Mod_LoadQ3Model (mod, buf))
+		if (!Mod_LoadQ3Model (mod, buf, com_filesize))
 			goto couldntload;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-		if (!Mod_LoadZymoticModel(mod, buf))
+		if (!Mod_LoadZymoticModel(mod, buf, com_filesize))
 			goto couldntload;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-		if (!Mod_LoadDarkPlacesModel(mod, buf))
+		if (!Mod_LoadDarkPlacesModel(mod, buf, com_filesize))
 			goto couldntload;
 		break;
 #endif
@@ -523,7 +523,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #ifdef TERRAIN
 		if (!strcmp(com_token, "terrain"))	//custom format, text based.
 		{
-			if (!Terr_LoadTerrainModel(mod, buf))
+			if (!Terr_LoadTerrainModel(mod, buf, com_filesize))
 				goto couldntload;
 			break;
 		}
@@ -1767,7 +1767,7 @@ qboolean Mod_LoadPlanes (lump_t *l)
 Mod_LoadBrushModel
 =================
 */
-qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean Mod_LoadBrushModel (model_t *mod, void *buffer, size_t buffersize)
 {
 	int			i, j;
 	dheader_t	*header;

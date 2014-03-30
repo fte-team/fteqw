@@ -103,7 +103,7 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 //
 void M_Init (void);
 void M_Reinit(void);
-void M_Shutdown(void);
+void M_Shutdown(qboolean total);
 void M_Keydown (int key, int unicode);
 void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
@@ -290,9 +290,9 @@ typedef struct menu_s {
 	menuoption_t *cursoritem;
 } menu_t;
 
-menutext_t *MC_AddBufferedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign, qboolean red);
-menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
-menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
+menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign, qboolean red);
+menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign);
+menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign);
 menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
@@ -302,15 +302,14 @@ menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
 menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta);
 menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int cvarbitmask);
 menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
-menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);
+menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const char *text, const char *command);
 menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command);
 mpic_t *QBigFontWorks(void);
 menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command);
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char *text, char *command, ...);
-menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
+menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, const char *text, char *command, ...);
+menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue);
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
-menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
 menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint);
@@ -432,15 +431,15 @@ void M_DrawServers(void);
 void M_SListKey(int key);
 
 //drawing funcs
-void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable);
+void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable);
 void M_DrawCharacter (int cx, int line, unsigned int num);
 void M_Print (int cx, int cy, qbyte *str);
 void M_PrintWhite (int cx, int cy, qbyte *str);
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic);
 
 
-void M_FindKeysForCommand (int pnum, char *command, int *twokeys);
-void M_UnbindCommand (char *command);
+void M_FindKeysForCommand (int pnum, const char *command, int *twokeys);
+void M_UnbindCommand (const char *command);
 
 void MP_CvarChanged(cvar_t *var);
 qboolean MP_Init (void);

@@ -305,14 +305,25 @@ static void	MPQ_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buff
 
 static int mpqwildcmp(const char *wild, const char *string, char **end)
 {
+	int s, w;
 	while (*string)
 	{
-		if (*string == '\r' || *string == '\n' || *string == ';')
+		s = *string;
+		if (s == '\r' || s == '\n' || s == ';')
 			break;
+		w = *wild;
 
-		if (*wild == '*')
+		if (s >= 'A' && s <= 'Z')
+			s = s-'A'+'a';
+		if (w >= 'A' && w <= 'Z')
+			w = w-'A'+'a';
+
+		if (w == '*')
 		{
-			if (wild[1] == *string || *string == '/' || *string == '\\')
+			w = wild[1];
+			if (w >= 'A' && w <= 'Z')
+				w = w-'A'+'a';
+			if (w == s || s == '/' || s == '\\')
 			{
 				//* terminates if we get a match on the char following it, or if its a \ or / char
 				wild++;
@@ -320,7 +331,7 @@ static int mpqwildcmp(const char *wild, const char *string, char **end)
 			}
 			string++;
 		}
-		else if ((*wild == *string) || (*wild == '?'))
+		else if ((w == s) || (w == '?'))
 		{
 			//this char matches
 			wild++;
@@ -770,7 +781,7 @@ static qofs_t MPQF_getlen (struct vfsfile_s *file)
 	mpqfile_t *f = (mpqfile_t *)file;
 	return f->flength;
 }
-static void MPQF_close (struct vfsfile_s *file)
+static qboolean MPQF_close (struct vfsfile_s *file)
 {
 	mpqfile_t *f = (mpqfile_t *)file;
 	if (f->buffer)
@@ -778,6 +789,8 @@ static void MPQF_close (struct vfsfile_s *file)
 	if (f->sectortab)
 		free(f->sectortab);
 	free(f);
+
+	return true;
 }
 static void MPQF_flush (struct vfsfile_s *file)
 {

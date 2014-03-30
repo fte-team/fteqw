@@ -392,10 +392,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "float4 pos: POSITION;\n"
 "float3 normal: NORMAL;\n"
+"#ifdef MASK\n"
+"float4 tc: TEXCOORD0;\n"
+"#endif\n"
 "};\n"
 "struct v2f\n"
 "{\n"
 "float4 pos: SV_POSITION;\n"
+"#ifdef MASK\n"
+"float2 tc: TEXCOORD0;\n"
+"#endif\n"
 "};\n"
 
 "#include <ftedefs.h>\n"
@@ -407,12 +413,42 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "outp.pos = mul(m_model, inp.pos);\n"
 "outp.pos = mul(m_view, outp.pos);\n"
 "outp.pos = mul(m_projection, outp.pos);\n"
+
+"#ifdef MASK\n"
+"outp.tc = inp.tc.xy;\n"
+"#endif\n"
+
 "return outp;\n"
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"void main (v2f inp) : SV_TARGET\n"
+"#ifdef MASK\n"
+"Texture2D shaderTexture[1];\n"
+"SamplerState SampleType[1];\n"
+"#endif\n"
+
+"#if LEVEL < 1000\n"
+//pre dx10 requires that we ALWAYS write to a target.
+"float4 main (v2f inp) : SV_TARGET\n"
+"#else\n"
+//but on 10, it'll write depth automatically and we don't care about colour.
+"void main (v2f inp) //dx10-level\n"
+"#endif\n"
 "{\n"
+
+"#ifdef MASK\n"
+"float alpha = shaderTexture[0].Sample(SampleType[0], inp.tc).a;\n"
+"#ifndef MASKOP\n"
+"#define MASKOP >= //drawn if (alpha OP ref) is true.\n"
+"#endif\n"
+//support for alpha masking
+"if (!(alpha MASKOP MASK))\n"
+"discard;\n"
+"#endif\n"
+
+"#if LEVEL < 1000\n"
+"return float4(0, 0, 0, 1);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 },
@@ -467,7 +503,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "v2f main (a2v inp)\n"
 "{\n"
 "v2f outp;\n"
-"outp.pos = mul(m_projection, inp.pos);\n"
+"outp.pos = mul(m_model, inp.pos);\n"
+"outp.pos = mul(m_view, outp.pos);\n"
+"outp.pos = mul(m_projection, outp.pos);\n"
 "outp.tc = inp.tc;\n"
 "outp.vcol = inp.vcol;\n"
 "return outp;\n"
@@ -680,6 +718,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "float4 col;\n"
 "col = shaderTexture[0].Sample(SampleType, inp.tc);\n"
+
+"#ifdef MASK\n"
+"#ifndef MASKOP\n"
+"#define MASKOP >= //drawn if (alpha OP ref) is true.\n"
+"#endif\n"
+//support for alpha masking
+"if (!(col.a MASKOP MASK))\n"
+"discard;\n"
+"#endif\n"
+
 "#ifdef UPPER\n"
 "float4 uc = shaderTexture[2].Sample(SampleType, inp.tc);\n"
 "col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
@@ -1180,7 +1228,19 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"return shaderTexture[0].Sample(SampleType[0], inp.tc) * shaderTexture[1].Sample(SampleType[1], inp.lmtc).bgra;\n"
+"float4 tex = shaderTexture[0].Sample(SampleType[0], inp.tc);\n"
+"float4 lm = shaderTexture[1].Sample(SampleType[1], inp.lmtc);\n"
+
+"#ifdef MASK\n"
+"#ifndef MASKOP\n"
+"#define MASKOP >= //drawn if (alpha OP ref) is true.\n"
+"#endif\n"
+//support for alpha masking
+"if (!(tex.a MASKOP MASK))\n"
+"discard;\n"
+"#endif\n"
+
+"return tex * lm.bgra;\n"
 "}\n"
 "#endif\n"
 },

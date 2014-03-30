@@ -284,7 +284,7 @@ int MP_TranslateQCtoFTECodes(int code)
 //string	findkeysforcommand(string command) = #610;
 void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int keynums[2];
 	char keyname[512];
 
@@ -308,7 +308,7 @@ void QCBUILTIN PF_cl_stringtokeynum(pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	int i;
 	int modifier;
-	char *s;
+	const char *s;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	i = Key_StringToKeynum(s, &modifier);
@@ -353,7 +353,7 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 // #487 float(string name) gecko_create( string name )
 void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
 	cin = R_ShaderGetCinematic(R_RegisterShader(shadername, SUF_2D,
 				"{\n"
@@ -375,8 +375,8 @@ void QCBUILTIN PF_cs_gecko_destroy (pubprogfuncs_t *prinst, struct globalvars_s 
 // #489 void(string name) gecko_navigate( string name, string URI )
 void QCBUILTIN PF_cs_gecko_navigate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *command = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *command = PR_GetStringOfs(prinst, OFS_PARM1);
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
 
@@ -388,7 +388,7 @@ void QCBUILTIN PF_cs_gecko_navigate (pubprogfuncs_t *prinst, struct globalvars_s
 // #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
 void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	int key = G_FLOAT(OFS_PARM1);
 	int eventtype = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
@@ -401,7 +401,7 @@ void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s
 // #491 void gecko_mousemove( string name, float x, float y )
 void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	float posx = G_FLOAT(OFS_PARM1);
 	float posy = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
@@ -414,7 +414,7 @@ void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_
 // #492 void gecko_resize( string name, float w, float h )
 void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	float sizex = G_FLOAT(OFS_PARM1);
 	float sizey = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
@@ -426,7 +426,7 @@ void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *
 // #493 vector gecko_get_texture_extent( string name )
 void QCBUILTIN PF_cs_gecko_get_texture_extent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
 	int sx, sy;
 	cin_t *cin;
@@ -448,7 +448,7 @@ void QCBUILTIN PF_cs_gecko_get_texture_extent (pubprogfuncs_t *prinst, struct gl
 
 void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *sample = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *sample = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	sfx_t *sfx = S_PrecacheSound(sample);
 	if (!sfx || sfx->failedload)
@@ -512,7 +512,7 @@ void QCBUILTIN PF_cl_sethostcachemaskstring(pubprogfuncs_t *prinst, struct globa
 {
 	int mask = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
-	char *str = PR_GetStringOfs(prinst, OFS_PARM2);
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM2);
 	int op = G_FLOAT(OFS_PARM3);
 
 	Master_SetMaskString(mask, field, str, op);
@@ -571,7 +571,7 @@ void QCBUILTIN PF_cl_gethostcachestring (pubprogfuncs_t *prinst, struct globalva
 //float	gethostcacheindexforkey(string key) = #622;
 void QCBUILTIN PF_cl_gethostcacheindexforkey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	G_FLOAT(OFS_RETURN) = Master_KeyForName(keyname);
 }
@@ -610,12 +610,10 @@ void PF_cl_addwantedhostcachekey(pubprogfuncs_t *prinst, struct globalvars_s *pr
 #endif
 
 
-
-
 void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *defaultbody = PF_VarString(prinst, 1, pr_globals);
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *defaultbody = PF_VarString(prinst, 1, pr_globals);
 
 	shader_t *shad;
 

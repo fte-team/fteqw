@@ -156,7 +156,7 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs)
 	return true;
 }
 #endif
-pbool CompileFile(progfuncs_t *progfuncs, char *filename)
+pbool CompileFile(progfuncs_t *progfuncs, const char *filename)
 {	
 #if defined(MINIMAL) || defined(OMIT_QCC)
 	return false;

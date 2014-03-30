@@ -401,7 +401,7 @@ qofs_t QDECL VFSGen_GetLen(vfsfile_t *f)
 	return g->buffer->len;
 }
 
-void QDECL VFSGen_Close(vfsfile_t *f)
+qboolean QDECL VFSGen_Close(vfsfile_t *f)
 {
 	int fnum;
 	vfsgen_t *g = (vfsgen_t*)f;
@@ -416,6 +416,7 @@ void QDECL VFSGen_Close(vfsfile_t *f)
 				IWebFiles[fnum].buffer = NULL;
 	}
 	Z_Free(g);
+	return true;
 }
 
 

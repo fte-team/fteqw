@@ -10,7 +10,7 @@
 
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(int height, char *fontfilename);
+struct font_s *Font_LoadFont(int height, const char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -700,7 +700,7 @@ static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
 	return c;
 }
 
-qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
+qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfilename)
 {
 #ifdef AVAIL_FREETYPE
 	ftfontface_t *qface;
@@ -788,7 +788,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		}
 	}
 
-#ifdef _WIN32
+#if defined(_WIN32) 
 	if (error)
 	{
 		static qboolean firsttime = true;
@@ -796,19 +796,21 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 
 		if (firsttime)
 		{
-			HMODULE shfolder = LoadLibrary("shfolder.dll");
+			HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
+			dllfunction_t shfolderfuncs[] =
+			{
+				{(void**)&dSHGetFolderPath, "SHGetFolderPathA"},
+				{NULL, NULL}
+			};
+			dllhandle_t *shfolder = Sys_LoadLibrary("shfolder.dll", shfolderfuncs);
+
 			firsttime = false;
 			if (shfolder)
 			{
-				HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
-				dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
-				if (dSHGetFolderPath)
-				{
-					// 0x14 == CSIDL_FONTS
-					if (dSHGetFolderPath(NULL, 0x14, NULL, 0, fontdir) != S_OK)
-						*fontdir = 0;
-				}
-				FreeLibrary(shfolder);
+				// 0x14 == CSIDL_FONTS
+				if (dSHGetFolderPath(NULL, 0x14, NULL, 0, fontdir) != S_OK)
+					*fontdir = 0;
+				Sys_CloseLibrary(shfolder);
 			}
 		}
 		if (*fontdir)
@@ -1063,7 +1065,7 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(int vheight, char *fontfilename)
+struct font_s *Font_LoadFont(int vheight, const char *fontfilename)
 {
 	struct font_s *f;
 	int i = 0;
@@ -1271,7 +1273,7 @@ struct font_s *Font_LoadFont(int vheight, char *fontfilename)
 	}
 
 	{
-		char *start;
+		const char *start;
 		start = fontfilename;
 		for(;;)
 		{
@@ -1647,7 +1649,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	int v;
 	struct font_s *font = curfont;
 #ifdef D3D11QUAKE
-	float dxbias = (qrenderer == QR_DIRECT3D11)?0.5:0;
+	float dxbias = 0;//(qrenderer == QR_DIRECT3D11)?0.5:0;
 #else
 #define dxbias 0
 #endif
@@ -1827,7 +1829,7 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 	struct font_s *font = curfont;
 	float cw, ch;
 #ifdef D3D11QUAKE
-	float dxbias = (qrenderer == QR_DIRECT3D11)?0.5:0;
+	float dxbias = 0;//(qrenderer == QR_DIRECT3D11)?0.5:0;
 #else
 #define dxbias 0
 #endif

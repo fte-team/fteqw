@@ -429,7 +429,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 						break;
 			if (!mo)
 			{
-				MC_AddConsoleCommand(m, 6*8, y, path+prefixlen, va("menu_download \"%s/\"", path));
+				MC_AddConsoleCommand(m, 6*8, 170, y, path+prefixlen, va("menu_download \"%s/\"", path));
 				y += 8;
 			}
 		}
@@ -445,9 +445,9 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 	}
 
 	y+=4;
-	MC_AddCommand(m, 0, y, "      Back", MD_PopMenu);
+	MC_AddCommand(m, 0, 170, y, "Back", MD_PopMenu);
 	y+=8;
-	MC_AddCommand(m, 0, y, "      Apply", MD_ApplyDownloads);
+	MC_AddCommand(m, 0, 170, y, "Apply", MD_ApplyDownloads);
 /*
 	for (pn = 1, p = availablepackages; p && pn < info->firstpackagenum ; p=p->next, pn++)
 
@@ -785,8 +785,8 @@ void Menu_DownloadStuff_f (void)
 			downloadablelistreceived[i] = 0;
 	}
 
-	MC_AddWhiteText(menu, 24, 8, "Downloads", false);
-	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
+	MC_AddWhiteText(menu, 24, 170, 8, "Downloads", false);
+	MC_AddWhiteText(menu, 16, 170, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
 	{
 		static qboolean loadedinstalled;

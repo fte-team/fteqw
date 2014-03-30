@@ -32,6 +32,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winsock2.h>
+
+#if defined(WINAPI_FAMILY) && !defined(WINRT)
+	#if WINAPI_FAMILY != WINAPI_FAMILY_DESKTOP_APP
+		//don't just define it. things that don't #include winquake.h / glquake.h need it too.
+		#error "WINRT needs to be defined for non-desktop"
+	#endif
+#endif
 #endif
 
 #ifndef APIENTRY
@@ -168,11 +175,11 @@ typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAY)	(GLuint index);
 typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
 typedef void		(APIENTRYP FTEPFNGLGETVERTEXATTRIBIV)			(GLuint index, GLenum pname, GLint *params);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIXPROC)		(GLint location, GLsizei count, GLboolean transpose, GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIXPROC)		(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM1IARBPROC)			(GLint location, GLint v0);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM1FARBPROC)			(GLint location, GLfloat v0);
 
@@ -232,15 +239,15 @@ void GL_Upload24BGR (char *name, qbyte *data, int width, int height, unsigned in
 void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 #endif
 */
-texid_tf GL_LoadTexture (char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype);
-texid_tf GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale);
-texid_tf GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_tf GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_tf GL_LoadTexture32 (char *identifier, int width, int height, void *data, unsigned int flags);
-texid_tf GL_LoadCompressed(char *name);
-texid_tf GL_FindTexture (char *identifier, unsigned int flags);
+texid_tf GL_LoadTexture (const char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype);
+texid_tf GL_LoadTexture8Bump (const char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale);
+texid_tf GL_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_tf GL_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_tf GL_LoadTexture32 (const char *identifier, int width, int height, void *data, unsigned int flags);
+texid_tf GL_LoadCompressed(const char *name);
+texid_tf GL_FindTexture (const char *identifier, unsigned int flags);
 
-texid_tf GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags);
+texid_tf GL_LoadTextureFB (const char *identifier, int width, int height, qbyte *data, unsigned int flags);
 void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
 /*
 typedef struct
@@ -1060,7 +1067,7 @@ extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag, qboolean silent);
+GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *frag, qboolean silent, vfsfile_t *blobfile);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

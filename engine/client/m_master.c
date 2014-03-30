@@ -666,7 +666,7 @@ void M_Menu_ServerList2_f(void)
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
 
-	MC_AddCommand(menu, 64, 0, info->refreshtext, SL_DoRefresh);
+	MC_AddCommand(menu, 64, 208, 0, info->refreshtext, SL_DoRefresh);
 
 	info->filter[1] = !sb_hidenetquake.value;
 	info->filter[2] = !sb_hidequakeworld.value;
@@ -778,8 +778,8 @@ void M_QuickConnect_f(void)
 	cust->common.height = 8;
 	cust->common.width = vid.width-8;
 
-	MC_AddCommand(menu, 64, 128, "Refresh", SL_DoRefresh);
-	MC_AddCommand(menu, 64, 136, "Cancel", M_QuickConnect_Cancel);
+	MC_AddCommand(menu, 64, 0, 128, "Refresh", SL_DoRefresh);
+	MC_AddCommand(menu, 64, 0, 136, "Cancel", M_QuickConnect_Cancel);
 }
 
 

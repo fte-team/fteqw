@@ -2,33 +2,6 @@
 #include "fs.h"
 #include "winquake.h"
 
-#ifndef INVALID_SET_FILE_POINTER
-#define INVALID_SET_FILE_POINTER ~0
-#endif
-
-//read-only memory mapped files.
-//for write access, we use the stdio module as a fallback.
-//do you think anyone will ever notice that utf8 filenames work even in windows? probably not. oh well, worth a try.
-
-#define VFSW32_Open VFSOS_Open
-#define VFSW32_OpenPath VFSOS_OpenPath
-
-typedef struct {
-	searchpathfuncs_t pub;
-	HANDLE changenotification;
-	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
-	int hashdepth;
-	char rootpath[1];
-} vfsw32path_t;
-typedef struct {
-	vfsfile_t funcs;
-	HANDLE hand;
-	HANDLE mmh;
-	void *mmap;
-	unsigned int length;
-	unsigned int offset;
-} vfsw32file_t;
-
 //outlen is the size of out in _BYTES_.
 wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8)
 {
@@ -98,6 +71,35 @@ char *narrowen(char *out, size_t outlen, wchar_t *wide)
 	return ret;
 }
 
+
+#ifndef WINRT	//winrt is too annoying. lets just use stdio.
+
+#ifndef INVALID_SET_FILE_POINTER
+#define INVALID_SET_FILE_POINTER ~0
+#endif
+
+//read-only memory mapped files.
+//for write access, we use the stdio module as a fallback.
+//do you think anyone will ever notice that utf8 filenames work even in windows? probably not. oh well, worth a try.
+
+#define VFSW32_Open VFSOS_Open
+#define VFSW32_OpenPath VFSOS_OpenPath
+
+typedef struct {
+	searchpathfuncs_t pub;
+	HANDLE changenotification;
+	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
+	int hashdepth;
+	char rootpath[1];
+} vfsw32path_t;
+typedef struct {
+	vfsfile_t funcs;
+	HANDLE hand;
+	HANDLE mmh;
+	void *mmap;
+	unsigned int length;
+	unsigned int offset;
+} vfsw32file_t;
 
 static int QDECL VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
@@ -174,7 +176,7 @@ static qofs_t QDECL VFSW32_GetSize (struct vfsfile_s *file)
 	lo = GetFileSize(intfile->hand, &hi);
 	return qofs_Make(lo,hi);
 }
-static void QDECL VFSW32_Close(vfsfile_t *file)
+static qboolean QDECL VFSW32_Close(vfsfile_t *file)
 {
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
@@ -184,6 +186,7 @@ static void QDECL VFSW32_Close(vfsfile_t *file)
 	}
 	CloseHandle(intfile->hand);
 	Z_Free(file);
+	return true;
 }
 
 //WARNING: handle can be null
@@ -202,6 +205,9 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	write |= append;
 	if (strchr(mode, '+'))
 		read = write = true;
+
+	if (fs_readonly && (write || append))
+		return NULL;
 
 	if (!WinNT)
 	{
@@ -222,6 +228,7 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 		h = INVALID_HANDLE_VALUE;
 		if (write || append)
 		{
+			//this extra block is to avoid flushing fs caches needlessly
 			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (h == INVALID_HANDLE_VALUE)
 			{
@@ -246,7 +253,10 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 			h = INVALID_HANDLE_VALUE;
 	}
 	if (h == INVALID_HANDLE_VALUE)
+	{
+		DWORD e = GetLastError();
 		return NULL;
+	}
 
 	if (!didexist)
 	{
@@ -370,13 +380,15 @@ static void QDECL VFSW32_BuildHash(searchpathfuncs_t *handle, int hashdepth, voi
 	wp->hashdepth = hashdepth;
 	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
+#include <errno.h>
 static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	vfsw32path_t *wp = (void*)handle;
-	FILE *f;
-	int len;
 	char netpath[MAX_OSPATH];
 	wchar_t wide[MAX_OSPATH];
+	qofs_t len;
+	HANDLE h;
+	DWORD attr;
 
 
 	if (hashedresult && (void *)hashedresult != wp)
@@ -394,23 +406,35 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 	snprintf (netpath, sizeof(netpath)-1, "%s/%s", wp->rootpath, filename);
 
 	if (!WinNT)
-		f = fopen(netpath, "rb");
+	{
+		WIN32_FIND_DATAA fda;
+		h = FindFirstFileA(netpath, &fda);
+		attr = fda.dwFileAttributes;
+		len = (h == INVALID_HANDLE_VALUE)?0:qofs_Make(fda.nFileSizeLow, fda.nFileSizeHigh);
+	}
 	else
-		f = _wfopen(widen(wide, sizeof(wide), netpath), L"rb");
-	if (!f)
+	{
+		WIN32_FIND_DATAW fdw;
+		h = FindFirstFileW(widen(wide, sizeof(wide), netpath), &fdw);
+		attr = fdw.dwFileAttributes;
+		len = (h == INVALID_HANDLE_VALUE)?0:qofs_Make(fdw.nFileSizeLow, fdw.nFileSizeHigh);
+	}
+	if (h == INVALID_HANDLE_VALUE)
+	{
+	//	int e = GetLastError();
+	//  if (e == ERROR_PATH_NOT_FOUND)	//then look inside a zip
 		return FF_NOTFOUND;
-
-	fseek(f, 0, SEEK_END);
-	len = ftell(f);
-	fclose(f);
+	}
+	FindClose(h);
 	if (loc)
 	{
 		loc->len = len;
 		loc->offset = 0;
 		loc->index = 0;
-		snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename);
+		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
-
+	if (attr & FILE_ATTRIBUTE_DIRECTORY)
+		return FF_DIRECTORY;	//not actually openable.
 	return FF_FOUND;
 }
 static void QDECL VFSW32_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
@@ -440,6 +464,8 @@ static qboolean QDECL VFSW32_RenameFile(searchpathfuncs_t *handle, const char *o
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	char oldsyspath[MAX_OSPATH];
 	char newsyspath[MAX_OSPATH];
+	if (fs_readonly)
+		return false;
 	snprintf (oldsyspath, sizeof(oldsyspath)-1, "%s/%s", wp->rootpath, oldfname);
 	snprintf (newsyspath, sizeof(newsyspath)-1, "%s/%s", wp->rootpath, newfname);
 	return Sys_Rename(oldsyspath, newsyspath);
@@ -448,6 +474,8 @@ static qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *f
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	char syspath[MAX_OSPATH];
+	if (fs_readonly)
+		return false;
 	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
 	return Sys_remove(syspath);
 }
@@ -455,6 +483,8 @@ static qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filena
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	char syspath[MAX_OSPATH];
+	if (fs_readonly)
+		return false;
 	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
 	Sys_mkdir(syspath);
 	return true;
@@ -492,3 +522,4 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc
 
 	return &np->pub;
 }
+#endif

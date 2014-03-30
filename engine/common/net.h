@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //FIXME: should split this into loopback/dgram/stream/irc
 //with the ipv4/v6/x as a separate parameter
-typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_IRC, NA_WEBSOCKET, NA_NATPMP} netadrtype_t;
+typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_TLSV4, NA_TLSV6, NA_IRC, NA_WEBSOCKET, NA_NATPMP} netadrtype_t;
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
 
@@ -92,7 +92,7 @@ void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 int			NET_GetPacket (netsrc_t netsrc, int firstsock);
-qboolean	NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t *to);
+qboolean	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t *to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);

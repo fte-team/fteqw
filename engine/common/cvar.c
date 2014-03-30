@@ -68,7 +68,7 @@ Cvar_FindVar
 */
 cvar_t *Cvar_FindVar (const char *var_name)
 {
-	return Hash_GetInsensative(&cvar_hash, var_name);
+	return Hash_GetInsensitive(&cvar_hash, var_name);
 /*
 	cvar_group_t	*grp;
 	cvar_t	*var;
@@ -791,10 +791,21 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 			var->modified++;	//only modified if it changed.
 			if (var->callback)
 				var->callback(var, latch);
-
-			if ((var->flags & CVAR_ARCHIVE) && !(var->flags & CVAR_SERVEROVERRIDE) && cl_warncmd.ival)
-				Cvar_ConfigChanged();
 		}
+		if ((var->flags & CVAR_ARCHIVE) && !(var->flags & CVAR_SERVEROVERRIDE) && cl_warncmd.ival)
+		{
+			if (var->latched_string)
+			{
+				if (strcmp(var->latched_string, value))
+					Cvar_ConfigChanged();
+			}
+			else
+			{
+				if (strcmp(latch, value))
+					Cvar_ConfigChanged();
+			}
+		}
+
 
 		Z_Free (latch);	// free the old value string
 	}
@@ -968,7 +979,7 @@ void Cvar_SetValue (cvar_t *var, float value)
 	if (value == (int)value)
 		sprintf (val, "%i",(int)value);	//make it look nicer.
 	else
-		sprintf (val, "%f",value);
+		sprintf (val, "%g",value);
 	Cvar_Set (var, val);
 }
 
@@ -1063,9 +1074,9 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 			Cvar_Free(old);
 
-			Hash_AddInsensative(&cvar_hash, variable->name, variable, &variable->hbn1);
+			Hash_AddInsensitive(&cvar_hash, variable->name, variable, &variable->hbn1);
 			if (variable->name2)
-				Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
+				Hash_AddInsensitive(&cvar_hash, variable->name2, variable, &variable->hbn2);
 
 			return false;
 		}
@@ -1088,9 +1099,9 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	variable->restriction = 0;	//exe registered vars
 	group->cvars = variable;
 
-	Hash_AddInsensative(&cvar_hash, variable->name, variable, &variable->hbn1);
+	Hash_AddInsensitive(&cvar_hash, variable->name, variable, &variable->hbn1);
 	if (variable->name2)
-		Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
+		Hash_AddInsensitive(&cvar_hash, variable->name2, variable, &variable->hbn2);
 
 	variable->string = NULL;
 

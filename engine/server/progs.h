@@ -121,6 +121,9 @@ void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue);
 void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue);
 void PF_InitTempStrings(pubprogfuncs_t *prinst);
 
+#ifdef VM_LUA
+qboolean PR_LoadLua(void);
+#endif
 #ifdef VM_Q1
 struct client_s;
 void Q1QVM_Shutdown(void);

@@ -133,6 +133,7 @@ int VM_GetFileList(char *path, char *ext, char *output, int buffersize);
 #ifdef VM_CG
 void CG_Stop (void);
 void CG_Start (void);
+qboolean CG_VideoRestarted(void);
 int CG_Refresh(void);
 qboolean CG_Command(void);
 qboolean CG_KeyPress(int key, int unicode, int down);

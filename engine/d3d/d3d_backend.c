@@ -777,9 +777,9 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_BLENDTEXTUREALPHA);
 
-//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
+//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
 	case PBM_OVERBRIGHT:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, last);
@@ -1094,7 +1094,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 
 	m = shaderstate.meshlist[0];
 
-	if (1)//pass->flags & SHADER_PASS_NOCOLORARRAY)
+	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
 	{
 		shaderstate.passsinglecolour = true;
 		shaderstate.passcolour = D3DCOLOR_RGBA(255,255,255,255);
@@ -1807,7 +1807,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 		perm |= PERMUTATION_FULLBRIGHT;
 	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.gfog_rgbd[3] && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
+	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
 		perm |= PERMUTATION_FOG;
 	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.hlsl.vert && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
 		perm |= PERMUTATION_FRAMEBLEND;
@@ -2704,7 +2704,7 @@ void D3D9BE_SubmitBatch(batch_t *batch)
 	shaderstate.batchvbo = batch->vbo;
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = batch->shader;
-	shaderstate.curtexnums = batch->skin;
+	shaderstate.curtexnums = batch->skin?batch->skin:&batch->shader->defaulttextures;
 	shaderstate.curbatch = batch;
 	shaderstate.flags = batch->flags;
 	if (batch->lightmap[0] < 0)

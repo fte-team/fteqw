@@ -6,8 +6,6 @@
 
 extern cvar_t maxclients;
 
-menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
-
 /* MULTIPLAYER MENU */
 void M_Menu_MultiPlayer_f (void)
 {
@@ -29,13 +27,13 @@ void M_Menu_MultiPlayer_f (void)
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_multiplayer");
 
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 40,	"Join network server", "menu_slist\n");
-		MC_AddConsoleCommand	(menu, 64, 40,	"Quick Connect", "quickconnect qw\n");
-		MC_AddConsoleCommand	(menu, 64, 48,	"Start network server", "menu_newmulti\n");
-		MC_AddConsoleCommand	(menu, 64, 56,	"Player setup", "menu_setup\n");
-		MC_AddConsoleCommand	(menu, 64, 64,	"Demos", "menu_demo\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Join network server", "menu_slist\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Quick Connect", "quickconnect qw\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Start network server", "menu_newmulti\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 64,	"Player setup", "menu_setup\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Demos", "menu_demo\n");
 
-		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 40, NULL, false);
+		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
 		return;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -77,28 +75,28 @@ void M_Menu_MultiPlayer_f (void)
 			MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 			MC_AddPicture(menu, 72, 32, 232, 64, "gfx/mp_menu.lmp");
 		}
+
+		b = MC_AddConsoleCommand(menu, 72, 320, 32, "", "menu_slist\n");
+		menu->selecteditem = (menuoption_t*)b;
+		b->common.height = 20;
+		b->common.width = p?p->width:320;
+		b = MC_AddConsoleCommand(menu, 72, 320, 52, "", "menu_newmulti\n");
+		b->common.height = 20;
+		b->common.width = p?p->width:320;
+		b = MC_AddConsoleCommand(menu, 72, 320, 72, "", "menu_setup\n");
+		b->common.height = 20;
+		b->common.width = p?p->width:320;
+
+		b = MC_AddConsoleCommand(menu, 72, 320, 92, "", "menu_demo\n");
+		MC_AddWhiteText(menu, 72, 0, 92+20/2-6, "Demos", false);
+		b->common.height = 20/2+2;
+		b->common.width = p?p->width:320;
+
+		b = MC_AddConsoleCommand(menu, 72, 320, 112, "", "quickconnect qw\n");
+		MC_AddWhiteText(menu, 72, 0, 112+20/2-6, "Quick Connect", false);
+		b->common.height = 20/2+2;
+		b->common.width = p?p->width:320;
 	}
-
-	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n");
-	menu->selecteditem = (menuoption_t*)b;
-	b->common.height = 20;
-	b->common.width = p?p->width:320;
-	b = MC_AddConsoleCommand(menu, 72, 52, "", "menu_newmulti\n");
-	b->common.height = 20;
-	b->common.width = p?p->width:320;
-	b = MC_AddConsoleCommand(menu, 72, 72, "", "menu_setup\n");
-	b->common.height = 20;
-	b->common.width = p?p->width:320;
-
-	b = MC_AddConsoleCommand(menu, 72, 92, "", "menu_demo\n");
-	MC_AddWhiteText(menu, 72, 92+20/2-6, "Demos", false);
-	b->common.height = 20/2+2;
-	b->common.width = p?p->width:320;
-
-	b = MC_AddConsoleCommand(menu, 72, 112, "", "quickconnect qw\n");
-	MC_AddWhiteText(menu, 72, 112+20/2-6, "Quick Connect", false);
-	b->common.height = 20/2+2;
-	b->common.width = p?p->width:320;
 
 	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
 }
@@ -269,7 +267,7 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 {
-	qbyte translationTable[256];
+	unsigned int translationTable[256];
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
 	void *f;
@@ -310,6 +308,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		}
 	}
 
+	R2D_ImageColours(1,1,1,1);
 	p = R2D_SafeCachePic ("gfx/bigbox.lmp");
 	if (p)
 		R2D_ScalePic (x-12, y-8, 72, 72, p);
@@ -383,7 +382,7 @@ void M_Menu_Setup_f (void)
 			b->common.width = 12*20;
 			b->common.height = 20;
 */
-			menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
+			menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
 		}
 		return;
 	}
@@ -424,15 +423,15 @@ void M_Menu_Setup_f (void)
 	ci->draw = MSetup_TransDraw;
 	ci->key = NULL;
 
-	MC_AddCommand(menu, 64, 96, "Top colour", SetupMenuColour);
-	MC_AddCommand(menu, 64, 120, "Lower colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, 96, "Top colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, 120, "Lower colour", SetupMenuColour);
 
-	MC_AddCommand(menu, 64, 152, "Accept changes", ApplySetupMenu);
-	b = MC_AddConsoleCommand(menu, 64, 168, "Network Settings", "menu_network\n");
+	MC_AddCommand(menu, 64, 160, 152, "Accept changes", ApplySetupMenu);
+	b = MC_AddConsoleCommand(menu, 64, 160, 168, "Network Settings", "menu_network\n");
 	b->common.tooltip = "Change network and client prediction settings.";
-	b = MC_AddConsoleCommand(menu, 64, 176, "Teamplay Settings", "menu_teamplay\n");
+	b = MC_AddConsoleCommand(menu, 64, 160, 176, "Teamplay Settings", "menu_teamplay\n");
 	b->common.tooltip = "Change teamplay macro settings.";
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
 
 
 	info->lowercolour = bottomcolor.value;
@@ -598,9 +597,9 @@ void M_Menu_GameOptions_f (void)
 //	MC_AddPicture(menu, 72, 32, ("gfx/mp_menu.lmp") );
 
 	menu->selecteditem = (menuoption_t*)
-	MC_AddCommand						(menu, 64, y,	" Start game", MultiBeginGame);y+=16;
+	MC_AddCommand						(menu, 64, 160, y,	"Start game", MultiBeginGame);y+=16;
 
-	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,	"   Hostname", name.string);y+=16;
+	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,	"Hostname", name.string);y+=16;
 
 	for (players = 0; players < sizeof(numplayeroptions)/ sizeof(numplayeroptions[0]); players++)
 	{
@@ -610,23 +609,21 @@ void M_Menu_GameOptions_f (void)
 
 	info->numplayers	= MC_AddCombo	(menu, 64, 160, y,			"Max players", (const char **)numplayeroptions,	players);y+=8;
 
-	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			" Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
-	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			"   Teamplay", (const char **)teamplayoptions,		teamplay.value);y+=8;
-	info->skill			= MC_AddCombo	(menu, 64, 160, y,			"      Skill", (const char **)skilloptions,			skill.value);y+=8;
-	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			"  dedicated", NULL, 0);y+=8;
+	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			"Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
+	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			"Teamplay", (const char **)teamplayoptions,		teamplay.value);y+=8;
+	info->skill			= MC_AddCombo	(menu, 64, 160, y,			"Skill", (const char **)skilloptions,			skill.value);y+=8;
+	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			"dedicated", NULL, 0);y+=8;
 	y+=8;
-	info->timelimit		= MC_AddCombo	(menu, 64, 160, y,			" Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
-	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			" Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
-	y+=8;
-	MC_AddSlider	(menu, 64-7*8, 160, y,					"Extra edict support", &pr_maxedicts, 512, 2047, 256);y+=8;
+	info->timelimit		= MC_AddCombo	(menu, 64, 160, y,			"Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
+	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			"Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
 	if (mgt == MGT_QUAKE2)
-		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"        map", "base1");
+		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"map", "base1");
 	else
-		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"        map", "start");
+		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"map", "start");
 	y += 16;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
 
 
 	info->lowercolour = bottomcolor.value;
@@ -656,7 +653,7 @@ void M_Menu_Teamplay_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_COMBOCVAR("Skins", noskins, noskinsoptions, noskinsvalues, "Enable or disable player skin usage. No download will use skins but will not download them from the server."),
 		MB_EDITCVARTIP("Enemy Skin", "cl_enemyskin", "Override enemy skin with this."),
 		MB_EDITCVARTIP("Team Skin", "cl_teamskin", "Override teammate skin with this."),
@@ -686,7 +683,7 @@ void M_Menu_Teamplay_Locations_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Location Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Separator", "loc_name_separator", "Location name seperator character(s)"),
 		MB_SPACING(4),
 		MB_EDITCVARSLIM("Super Shotgun", "loc_name_ssg", "Short name for Super Shotgun in teamplay location 'reports'"),
@@ -720,7 +717,7 @@ void M_Menu_Teamplay_Needs_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Needed Items", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Shells", "tp_need_shells", "Short name for Shotgun Shells in teamplay 'need' reports"),
 		MB_EDITCVARSLIM("Nails", "tp_need_nails", "Short name for Nails in teamplay 'need' reports"),
 		MB_EDITCVARSLIM("Rockets", "tp_need_rockets", "Short name for Rockets/Grenades in teamplay 'need' reports"),
@@ -746,7 +743,7 @@ void M_Menu_Teamplay_Items_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Item Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_CONSOLECMD("Armor", "menu_teamplay_armor\n", "Modify team play macro armor names."),
 		MB_CONSOLECMD("Weapon", "menu_teamplay_weapons\n", "Modify team play macro weapon names."),
 		MB_CONSOLECMD("Powerups", "menu_teamplay_powerups\n", "Modify team play macro powerup names."),
@@ -766,7 +763,7 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Armor Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Armor", "tp_name_armor", "Short name for Armor type"),
 		MB_EDITCVARSLIM("Green Type -", "tp_name_armortype_ga", "Short name for Green Armor type"),
 		MB_EDITCVARSLIM("Yellow Type -", "tp_name_armortype_ya", "Short name for Yellow Armor type"),
@@ -788,7 +785,7 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Weapon Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Weapon", "tp_name_weapon", "Short name for Weapon"),
 		MB_SPACING(4),
 		MB_EDITCVARSLIM("Axe", "tp_name_axe", "Short name for Weapon"),
@@ -812,7 +809,7 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Powerup Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Quad Damage", "tp_name_quad", "Short name for Quad Damage"),
 		MB_EDITCVARSLIM("Pentagram", "tp_name_pent", "Short name for Pentgram of Protection"),
 		MB_EDITCVARSLIM("Ring of Invis", "tp_name_ring", "Short name for Ring Of Invisibilty"),
@@ -839,7 +836,7 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Ammo/Health", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Shells", "tp_name_shells", "Short name for Shells"),
 		MB_EDITCVARSLIM("Nails", "tp_name_nails", "Short name for Nails"),
 		MB_EDITCVARSLIM("Rockets", "tp_name_rockets", "Short name for Rockets"),
@@ -861,7 +858,7 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Team Fortress", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Sentry Gun", "tp_name_sentry", "Short name for the Engineer's Sentry Gun"),
 		MB_EDITCVARSLIM("Dispenser", "tp_name_disp", "Short name for the Engineer's Ammo Dispenser"),
 		MB_EDITCVARSLIM("Flag", "tp_name_flag", "Short name for Flag"),
@@ -878,7 +875,7 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Teamplay Misc", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Enemy", "tp_name_enemy", "Short for Enemy in teamplay 'status' & 'location' reports"),
 		MB_EDITCVARSLIM("Teammate", "tp_name_teammate", "Short for Enemy in teamplay 'status' & 'location' reports"),
 		MB_SPACING(4),
@@ -912,6 +909,7 @@ void M_Menu_Network_f (void)
 		"Lower Latency",
 		"Smoother",
 		"Smooth Demos Only",
+		NULL
 	};
 	static const char *smoothingvalues[] = {"0", "1", "2", NULL};
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
@@ -921,7 +919,7 @@ void M_Menu_Network_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Network Settings", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_EDITCVARSLIM("Network FPS", "cl_netfps", "Sets ammount of FPS used to communicate with server (sent and received)"),
 		MB_EDITCVARSLIM("Rate", "rate", "Maximum bytes per second that the server should send to the client"),
 		MB_EDITCVARSLIM("Download Rate", "drate", "Maximum bytes per second that the server should send maps and demos to the client"),

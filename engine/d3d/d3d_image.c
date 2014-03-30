@@ -33,7 +33,7 @@ void D3D9_Image_Shutdown(void)
 	}
 }
 
-static d3dtexture_t *d3d_lookup_texture(char *ident)
+static d3dtexture_t *d3d_lookup_texture(const char *ident)
 {
 	d3dtexture_t *tex;
 
@@ -57,7 +57,7 @@ static d3dtexture_t *d3d_lookup_texture(char *ident)
 extern cvar_t gl_picmip;
 extern cvar_t gl_picmip2d;
 
-texid_t D3D9_AllocNewTexture(char *ident, int width, int height, unsigned int flags)
+texid_t D3D9_AllocNewTexture(const char *ident, int width, int height, unsigned int flags)
 {
 	IDirect3DTexture9 *tx;
 
@@ -411,7 +411,7 @@ static void genNormalMap(unsigned int *nmap, qbyte *pixels, int w, int h, float 
 	}
 }
 
-void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
+void    D3D9_Upload (texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 	switch (fmt)
 	{
@@ -423,13 +423,28 @@ void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, vo
 		tex.ref->height = height;
 		Upload_Texture_32(tex.ptr, data, width, height, flags);
 		break;
+	case TF_8PAL24:
+		{
+			qbyte *pal24 = palette;
+			unsigned int pal32[256];
+			int i;
+			for (i = 0; i < 256; i++)
+			{
+				pal32[i] = 0x00000000 |
+						(pal24[i*3+2]<<24) |
+						(pal24[i*3+1]<<8) |
+						(pal24[i*3+0]<<0);
+			}
+			D3D9_LoadTexture_8((d3dtexture_t*)tex.ref, data, (unsigned int *)pal32, width, height, flags, fmt);
+		}
+		break;
 	default:
-		OutputDebugString(va("D3D9_LoadTextureFmt doesn't support fmt %i (%s)", fmt, name));
+		OutputDebugString(va("D3D9_Upload doesn't support fmt %i (%s)", fmt, name));
 		break;
 	}
 }
 
-texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
+texid_t D3D9_LoadTexture (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
 	d3dtexture_t *tex;
 	switch (fmt)
@@ -508,12 +523,12 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 	}
 }
 
-texid_t D3D9_LoadCompressed (char *name)
+texid_t D3D9_LoadCompressed (const char *name)
 {
 	return r_nulltex;
 }
 
-texid_t D3D9_FindTexture (char *identifier, unsigned int flags)
+texid_t D3D9_FindTexture (const char *identifier, unsigned int flags)
 {
 	d3dtexture_t *tex = d3d_lookup_texture(identifier);
 	if (tex->tex.ptr)
@@ -521,13 +536,13 @@ texid_t D3D9_FindTexture (char *identifier, unsigned int flags)
 	return r_nulltex;
 }
 
-texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
+texid_t D3D9_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
 {
 	d3dtexture_t *tex = d3d_lookup_texture(identifier);
 	D3D9_LoadTexture_8(tex, data, (unsigned int *)palette32, width, height, flags, TF_SOLID8);
 	return tex->tex;
 }
-texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
+texid_t D3D9_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
 {
 	unsigned int pal32[256];
 	int i;

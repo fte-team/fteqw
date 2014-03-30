@@ -1587,9 +1587,11 @@ qboolean SVHL_ClientConnect(client_t *client, netadr_t adr, char rejectmessage[1
 	NET_AdrToString(ipadr, sizeof(ipadr), &adr);
 	strcpy(rejectmessage, "Rejected by gamecode");
 
+	sv.skipbprintclient = client;
 	bi_begin();
 	result = SVHL_GameFuncs.ClientConnect(&SVHL_Edict[client-svs.clients+1], client->name, ipadr, rejectmessage);
 	bi_end();
+	sv.skipbprintclient = NULL;
 
 	return result;
 }

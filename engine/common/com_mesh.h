@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #endif
 
-int HLMod_BoneForName(model_t *mod, char *name);
-int HLMod_FrameForName(model_t *mod, char *name);
+int HLMod_BoneForName(model_t *mod, const char *name);
+int HLMod_FrameForName(model_t *mod, const char *name);
 
 //a single pose within an animation (note: always refered to via a framegroup, even if there's only one frame in that group).
 typedef struct
@@ -32,14 +32,14 @@ typedef struct
 typedef struct
 {
 #ifdef SKELETALMODELS
-	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from their parent.
+	skeltype_t skeltype;	//for models with transforms, states that bones need to be transformed from their parent.
 							//this is actually bad, and can result in bones shortening as they interpolate.
+	float *boneofs;	//numposes*12*numbones
 #endif
 	qboolean loop;
 	int numposes;
 	float rate;
 	galiaspose_t *poseofs;
-	float *boneofs;	//numposes*12*numbones
 	char name[64];
 } galiasgroup_t;
 
@@ -52,8 +52,9 @@ struct galiasbone_s
 	float inverse[12];
 };
 
-typedef struct
+typedef struct FTE_DEPRECATED
 {
+	//DEPRECATED
 	//skeletal poses refer to this.
 	int vertexindex;
 	int boneindex;
@@ -100,6 +101,9 @@ typedef struct
 
 typedef struct galiasinfo_s
 {
+	char surfacename[MAX_QPATH];
+	unsigned short geomset;
+	unsigned short geomid;
 	index_t *ofs_indexes;
 	int numindexes;
 
@@ -118,6 +122,8 @@ typedef struct galiasinfo_s
 
 #ifndef SERVERONLY
 	vec2_t *ofs_st_array;
+	vec4_t *ofs_rgbaf;
+	byte_vec4_t *ofs_rgbaub;
 #endif
 
 	int groups;
@@ -148,6 +154,7 @@ typedef struct galiasinfo_s
 #endif
 	vboarray_t vboindicies;
 	vboarray_t vbotexcoords;
+	vboarray_t vborgba;	//yeah, just you try reading THAT as an actual word.
 
 //these exist only in the root mesh.
 	int numtagframes;
@@ -155,9 +162,29 @@ typedef struct galiasinfo_s
 	md3tag_t *ofstags;
 } galiasinfo_t;
 
-float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize, qboolean renderable);
+typedef struct
+{
+	int (*RegisterModelFormatText)(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	int (*RegisterModelFormatMagic)(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	void (*UnRegisterModelFormat)(int idx);
+	void (*UnRegisterAllModelFormats)(void *module);
+
+	void *(*ZG_Malloc)(zonegroup_t *ctx, int size);
+
+	void (*ConcatTransforms) (float in1[3][4], float in2[3][4], float out[3][4]);
+	void (*M3x4_Invert) (const float *in1, float *out);
+	void (*StripExtension) (const char *in, char *out, int outlen);
+	void (*GenMatrixPosQuat4Scale)(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+	void (*ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
+
+	shader_t *(*RegisterShader) (const char *name, unsigned int usageflags, const char *shaderscript);
+	shader_t *(*RegisterSkin)  (const char *shadername, const char *modname);
+	void (*BuildDefaultTexnums)(texnums_t *tn, shader_t *shader);
+} modplugfuncs_t;
+
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
+void Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 #endif
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
 void Alias_FlushCache(void);
@@ -166,7 +193,7 @@ void Alias_Register(void);
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 
-qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize);
 #ifdef MAP_PROC 
 	qboolean Mod_LoadMap_Proc(model_t *mode, void *buffer);
 #endif

@@ -519,7 +519,7 @@ extern pbool pr_subscopedlocals;
 extern pbool flag_ifstring;
 extern pbool flag_iffloat;
 extern pbool flag_acc;
-extern pbool flag_caseinsensative;
+extern pbool flag_caseinsensitive;
 extern pbool flag_laxcasts;
 extern pbool flag_hashonly;
 extern pbool flag_fasttrackarrays;
@@ -647,7 +647,7 @@ enum {
 	WARN_KEYWORDDISABLED,
 	WARN_ENUMFLAGS_NOTINTEGER,
 	WARN_ENUMFLAGS_NOTBINARY,
-	WARN_CASEINSENSATIVEFRAMEMACRO,
+	WARN_CASEINSENSITIVEFRAMEMACRO,
 	WARN_DUPLICATELABEL,
 	WARN_DUPLICATEMACRO,
 	WARN_ASSIGNMENTINCONDITIONAL,

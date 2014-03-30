@@ -1,7 +1,7 @@
 #include "quakedef.h"
 
 #ifdef RUNTIMELIGHTING
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef UTILITY
 
 
 extern model_t *lightmodel;

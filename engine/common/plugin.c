@@ -764,7 +764,7 @@ static int Plug_NewStreamHandle(plugstream_e type)
 	return i;
 }
 
-#ifndef NACL
+#ifdef HAVE_PACKET
 //EBUILTIN(int, NET_TCPListen, (char *ip, int port, int maxcount));
 //returns a new socket with listen enabled.
 static qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -939,6 +939,7 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 	if (VM_OOB(arg[1], sizeof(int)))
 		return -2;
 	ret = VM_POINTER(arg[1]);
+	*ret = -1;
 
 	switch(arg[2])
 	{
@@ -1059,7 +1060,7 @@ void Plug_Net_Close_Internal(int handle)
 		pluginstreamarray[handle].vfs = NULL;
 		break;
 	case STREAM_SOCKET:
-#ifndef NACL
+#ifdef HAVE_PACKET
 		closesocket(pluginstreamarray[handle].socket);
 #endif
 		break;
@@ -1081,7 +1082,7 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
-#ifndef NACL
+#ifdef HAVE_PACKET
 	case STREAM_SOCKET:
 		read = recv(pluginstreamarray[handle].socket, dest, destlen, 0);
 		if (read < 0)
@@ -1112,7 +1113,7 @@ qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *ar
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
-#ifndef NACL
+#ifdef HAVE_PACKET
 	case STREAM_SOCKET:
 		written = send(pluginstreamarray[handle].socket, src, srclen, 0);
 		if (written < 0)
@@ -1157,7 +1158,7 @@ qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
-#ifndef NACL
+#ifdef HAVE_PACKET
 	case STREAM_SOCKET:
 		written = sendto(pluginstreamarray[handle].socket, src, srclen, 0, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
 		if (written < 0)
@@ -1289,7 +1290,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
 		Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
 
-#ifndef NACL
+#ifdef HAVE_PACKET
 		Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
 		Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
 		Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);

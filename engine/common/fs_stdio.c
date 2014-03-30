@@ -8,7 +8,7 @@
 #define Z_Free free
 #define Z_Malloc malloc
 #else
-#if !defined(_WIN32) || defined(FTE_SDL)
+#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT)
 #define FSSTDIO_OpenPath VFSOS_OpenPath
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
@@ -62,21 +62,27 @@ static qofs_t QDECL VFSSTDIO_GetSize (struct vfsfile_s *file)
 
 	return maxlen;
 }
-static void QDECL VFSSTDIO_Close(vfsfile_t *file)
+static qboolean QDECL VFSSTDIO_Close(vfsfile_t *file)
 {
+	qboolean success;
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
+	success = !ferror(intfile->handle);
 	fclose(intfile->handle);
 	Z_Free(file);
+	return success;
 }
 
 #ifdef _WIN32
-static void QDECL VFSSTDIO_CloseTemp(vfsfile_t *file)
+static qboolean QDECL VFSSTDIO_CloseTemp(vfsfile_t *file)
 {
+	qboolean success;
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	char *fname = (char*)(intfile+1); 
+	success = !ferror(intfile->handle);
 	fclose(intfile->handle);
 	_unlink(fname);
 	Z_Free(file);
+	return success;
 }
 #endif
 
@@ -184,7 +190,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	return (vfsfile_t*)file;
 }
 
-#if !defined(_WIN32) || defined(FTE_SDL)
+#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT)
 vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 {
 	vfsfile_t *f;

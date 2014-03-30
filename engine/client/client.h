@@ -696,8 +696,8 @@ typedef struct
 	vec3_t skyaxis;
 
 	qboolean	fog_locked;
-	float		fog_density;
-	vec3_t		fog_colour;
+	fogstate_t	fog;
+	fogstate_t	oldfog;
 
 	char		levelname[40];	// for display on solo scoreboard
 
@@ -807,7 +807,7 @@ extern cvar_t ruleset_allow_particle_lightning;
 extern cvar_t ruleset_allow_overlongsounds;
 extern cvar_t ruleset_allow_larger_models;
 extern cvar_t ruleset_allow_modified_eyes;
-extern cvar_t ruleset_allow_sensative_texture_replacements;
+extern cvar_t ruleset_allow_sensitive_texture_replacements;
 extern cvar_t ruleset_allow_localvolume;
 extern cvar_t ruleset_allow_shaders;
 
@@ -953,7 +953,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
 
 float CL_KeyState (kbutton_t *key, int pnum);
 char *Key_KeynumToString (int keynum);
-int Key_StringToKeynum (char *str, int *modifier);
+int Key_StringToKeynum (const char *str, int *modifier);
 char *Key_GetBinding(int keynum);
 
 void CL_UseIndepPhysics(qboolean allow);
@@ -1015,7 +1015,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 #define NET_TIMINGS 256
 #define NET_TIMINGSMASK 255
 extern int	packet_latency[NET_TIMINGS];
-int CL_CalcNet (void);
+int CL_CalcNet (float scale);
 void CL_ClearParseState(void);
 void CL_Parse_Disconnected(void);
 void CL_DumpPacket(void);
@@ -1027,17 +1027,17 @@ void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
 
-int CL_IsDownloading(char *localname);
-qboolean CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags);
-qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags);
-downloadlist_t *CL_DownloadFailed(char *name, qboolean cancel);
+int CL_IsDownloading(const char *localname);
+qboolean CL_CheckOrEnqueDownloadFile (const char *filename, const char *localname, unsigned int flags);
+qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags);
+downloadlist_t *CL_DownloadFailed(const char *name, qboolean cancel);
 int CL_DownloadRate(void);
 void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown);
 qboolean CL_ParseOOBDownload(void);
 void CL_DownloadFinished(void);
 void CL_RequestNextDownload (void);
 void CL_SendDownloadReq(sizebuf_t *msg);
-void Sound_CheckDownload(char *s); /*checkorenqueue a sound file*/
+void Sound_CheckDownload(const char *s); /*checkorenqueue a sound file*/
 
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);
@@ -1155,7 +1155,7 @@ qboolean CSQC_ParseGamePacket(void);
 qboolean CSQC_CenterPrint(int lplayernum, char *cmd);
 void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
 void CSQC_WorldLoaded(void);
-qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
+qboolean CSQC_ParseTempEntity(void);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid);
 qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid);
@@ -1333,6 +1333,7 @@ void CL_BeginServerReconnect(void);
 
 void SV_User_f (void);	//called by client version of the function
 void SV_Serverinfo_f (void);
+void SV_ConSay_f(void);
 
 
 
@@ -1374,12 +1375,12 @@ struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 #endif
-qboolean Media_BackgroundTrack(char *initialtrack, char *looptrack);	//new background music interface
+qboolean Media_BackgroundTrack(const char *initialtrack, const char *looptrack);	//new background music interface
 void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack);				//legacy cd interface for protocols that only support numbered tracks.
 void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 
 //these accept NULL for cin to mean the current fullscreen video
-void Media_Send_Command(cin_t *cin, char *command);
+void Media_Send_Command(cin_t *cin, const char *command);
 void Media_Send_MouseMove(cin_t *cin, float x, float y);
 void Media_Send_Resize(cin_t *cin, int x, int y);
 void Media_Send_GetSize(cin_t *cin, int *x, int *y);
@@ -1415,7 +1416,7 @@ typedef struct
 	void (VARGS *key) (void *ctx, int code, int unicode, int event);
 	qboolean (VARGS *setsize) (void *ctx, int width, int height);
 	void (VARGS *getsize) (void *ctx, int *width, int *height);
-	void (VARGS *changestream) (void *ctx, char *streamname);
+	void (VARGS *changestream) (void *ctx, const char *streamname);
 } media_decoder_funcs_t;
 typedef struct {
 	char *drivername;

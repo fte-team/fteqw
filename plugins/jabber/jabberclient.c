@@ -2494,7 +2494,6 @@ static int qsortcaps(const void *va, const void *vb)
 	char *b = *(char**)vb;
 	return strcmp(a, b);
 }
-int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
 char *buildcapshash(jclient_t *jcl)
 {
 	int i, l;

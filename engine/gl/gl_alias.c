@@ -60,6 +60,270 @@ extern cvar_t r_globalskin_first, r_globalskin_count;
 #ifndef SERVERONLY
 static hashtable_t skincolourmapped;
 
+//q3 .skin support
+static skinfile_t **registeredskins;
+static skinid_t numregisteredskins;
+void Mod_WipeSkin(skinid_t id)
+{
+	skinfile_t *sk = registeredskins[id-1];
+	int i;
+	if (!sk)
+		return;
+
+	for (i = 0; i < sk->nummappings; i++)
+	{
+		if (sk->mappings[i].needsfree)
+			R_DestroyTexture(sk->mappings[i].texnums.base);
+		R_UnloadShader(sk->mappings[i].shader);
+	}
+	Z_Free(registeredskins[id]);
+	registeredskins[id] = NULL;
+}
+static void Mod_WipeAllSkins(void)
+{
+	skinid_t id;
+	for (id = 0; id < numregisteredskins; )
+		Mod_WipeSkin(++id);
+	Z_Free(registeredskins);
+	registeredskins = NULL;
+	numregisteredskins = 0;
+}
+skinfile_t *Mod_LookupSkin(skinid_t id)
+{
+	id--;
+	if (id < numregisteredskins)
+		return registeredskins[id];
+	return NULL;
+}
+static void Mod_ComposeSkin(char *texture)
+{
+	float x=0, y=0;
+	float w, h;
+	float r=1,g=1,b=1,a=1;
+	int l;
+	char *s, tname[MAX_QPATH];
+	shader_t *sourceimg;
+	for (s = texture; *s; s++)
+	{
+		if (*s == '@' || *s == ':' || *s == '?' || *s == '*')
+			break;
+	}
+
+	l = s - texture;
+	if (l > MAX_QPATH-1)
+		l = MAX_QPATH-1;
+	memcpy(tname, texture, l);
+	tname[l] = 0;
+
+	//load the image and set some default sizes, etc.
+	sourceimg = R2D_SafeCachePic(tname);
+	if (!sourceimg)	//no shader? no point in doing anything.
+		return;
+	w = sourceimg->width;
+	h = sourceimg->height;
+
+	//create a render target if one is not already selected
+	if (!r_refdef.rt_destcolour)
+	{
+		r_refdef.rt_destcolour = 1;	//fixme: this 1 here is a technicality. it will destroy this render target slot. we should find/make a free one instead.
+		R2D_RT_Configure(r_refdef.rt_destcolour, x+w, y+h, TF_RGBA32);
+		BE_RenderToTextureUpdate2d(true);
+	}
+
+
+	while(*s)
+	{
+		switch(*s)
+		{
+		case '@':
+			x = strtod(s+1, &s); 
+			if (*s == ',')
+				s++;
+			y = strtod(s, &s); 
+			break;
+		case ':':
+			w = strtod(s+1, &s); 
+			if (*s == ',')
+				s++;
+			h = strtod(s, &s); 
+			break;
+		case '?':
+			r = strtod(s+1, &s); 
+			if (*s == ',')
+				s++;
+			g = strtod(s, &s); 
+			if (*s == ',')
+				s++;
+			b = strtod(s, &s); 
+			if (*s == ',')
+				s++;
+			a = strtod(s, &s);
+			break;
+//		case '*':
+//			break;
+		default:
+			s+=strlen(s);	//some sort of error or other thing we don't support
+			break;
+		}
+	}
+
+
+	R2D_ImageColours(r,g,b,a);
+	R2D_Image(x, 512-(y+h), w, h, 0, 1, 1, 0, sourceimg);
+	R_UnloadShader(sourceimg);	//we're done with it now
+}
+//create a new skin with explicit name and text. even if its already loaded. this means you can free it safely.
+skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
+{
+	skinid_t id;
+	char *nl;
+	skinfile_t *skin;
+	char shadername[MAX_QPATH];
+
+	for (id = 0; id < numregisteredskins; id++)
+	{
+		if (!registeredskins[id])
+			break;
+	}
+	if (id == numregisteredskins)
+	{	
+		int newn = numregisteredskins + 64;
+		registeredskins = BZ_Realloc(registeredskins, sizeof(*registeredskins) * newn);
+		memset(registeredskins + numregisteredskins, 0, (newn-numregisteredskins)*sizeof(*registeredskins));
+		numregisteredskins = newn;
+	}
+	
+	skin = Z_Malloc(sizeof(*skin) - sizeof(skin->mappings) + sizeof(skin->mappings[0])*4);
+	skin->maxmappings = 4;
+	Q_strncpyz(skin->skinname, skinname, sizeof(skin->skinname));
+
+	while(skintext)
+	{
+		if (skin->nummappings == skin->maxmappings)
+		{
+			skin->maxmappings += 4;
+			skin = BZ_Realloc(skin, sizeof(*skin) - sizeof(skin->mappings) + sizeof(skin->mappings[0])*skin->maxmappings);
+		}
+
+		skintext = COM_ParseToken(skintext, ",");
+		if (!skintext)
+			break;
+		if (!strcmp(com_token, "replace"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+
+			if (com_tokentype != TTP_LINEENDING)
+			{
+				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
+				skintext = COM_ParseToken(skintext, NULL);
+				Q_strncpyz(shadername, com_token, sizeof(shadername));
+				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
+				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
+				skin->mappings[skin->nummappings].texnums = skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->nummappings++;
+			}
+		}
+		else if (!strcmp(com_token, "compose"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+			//body
+			if (com_tokentype != TTP_LINEENDING)
+			{
+				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
+				skintext = COM_ParseToken(skintext, NULL);
+				Q_strncpyz(shadername, com_token, sizeof(shadername));
+				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
+				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
+				skin->mappings[skin->nummappings].texnums = skin->mappings[skin->nummappings].shader->defaulttextures;
+
+				for(;;)
+				{
+					while(*skintext == ' ' || *skintext == '\t')
+						skintext++;
+					if (*skintext == '+')
+						skintext++;
+					else
+						break;
+					skintext = COM_Parse(skintext);
+					Mod_ComposeSkin(com_token);
+				}
+
+				skin->mappings[skin->nummappings].needsfree = 1;
+				skin->mappings[skin->nummappings].texnums.base = R2D_RT_DetachTexture(r_refdef.rt_destcolour);
+				skin->nummappings++;
+
+				r_refdef.rt_destcolour = 0;
+				BE_RenderToTextureUpdate2d(true);
+			}
+		}
+		else if (!strcmp(com_token, "geomset"))
+		{
+			int set;
+			skintext = COM_ParseToken(skintext, NULL);
+			set = atoi(com_token);
+
+			if (com_tokentype != TTP_LINEENDING)
+			{
+				skintext = COM_ParseToken(skintext, NULL);
+				if (set < MAX_GEOMSETS)
+					skin->geomset[set] = atoi(com_token);
+			}
+		}
+		else if (!strncmp(com_token, "tag_", 4))
+		{
+			//ignore it. matches q3.
+		}
+		else
+		{
+			while(*skintext == ' ' || *skintext == '\t')
+				skintext++;
+			if (*skintext == ',')
+			{
+				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
+				skintext = COM_ParseToken(skintext+1, NULL);
+				skin->mappings[skin->nummappings].shader = R_RegisterSkin(com_token, skin->skinname);
+				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
+				skin->mappings[skin->nummappings].texnums = skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->nummappings++;
+			}
+		}
+
+		if (com_tokentype == TTP_LINEENDING || !skintext)
+			continue;
+		nl = strchr(skintext, '\n');
+		if (!nl)
+			skintext = skintext+strlen(skintext);
+		else
+			skintext = nl+1;
+		if (!*skintext)
+			break;
+	}
+	registeredskins[id] = skin;
+	return id+1;
+}
+//registers a skin. loads it if there's not one with that name already registered.
+//returns 0 if it failed.
+skinid_t Mod_RegisterSkinFile(const char *skinname)
+{
+	char *f;
+	skinid_t id;
+	//block duplicates
+	for (id = 0; id < numregisteredskins; id++)
+	{
+		if (!registeredskins[id])
+			continue;
+		if (!strcmp(skinname, registeredskins[id]->skinname))
+			return id+1;
+	}
+	f = FS_LoadMallocFile(skinname);
+	if (!f)
+		return 0;
+	id = Mod_ReadSkinFile(skinname, f);
+	Z_Free(f);
+	return id;
+}
+
+
 //changes vertex lighting values
 #if 0
 static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float *colormod)
@@ -206,6 +470,8 @@ void GL_GAliasFlushSkinCache(void)
 	triangleFacing = NULL;
 	numFacing = 0;
 #endif
+
+	Mod_WipeAllSkins();
 }
 
 static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e, texnums_t **forcedtex)
@@ -219,8 +485,28 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	unsigned int tc, bc, pc;
 	qboolean forced;
+	qboolean generateupperlower = false;
 
 	*forcedtex = NULL;
+	/*q3 .skin files*/
+	if (e->customskin)
+	{
+		skinfile_t *sk = Mod_LookupSkin(e->customskin);
+		if (sk)
+		{
+			int i;
+			if (inf->geomset < MAX_GEOMSETS && sk->geomset[inf->geomset] != inf->geomid)
+				return NULL;	//don't allow this surface to be drawn.
+			for (i = 0; i < sk->nummappings; i++)
+			{
+				if (!strcmp(sk->mappings[i].surface, inf->surfacename))
+				{
+					*forcedtex = &sk->mappings[i].texnums;
+					return sk->mappings[i].shader;
+				}
+			}
+		}
+	}
 
 	/*hexen2 feature: global skins */
 	if (inf->numskins < e->skinnum && e->skinnum >= r_globalskin_first.ival && e->skinnum < r_globalskin_first.ival+r_globalskin_count.ival)
@@ -236,7 +522,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	}
 
 
-	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.ival)
+	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensitive_texture_replacements.ival)
 		forced = true;
 	else
 		forced = false;
@@ -310,6 +596,17 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					subframe = subframe%skins->numshaders;
 
 					shader = skins->ofsshaders[subframe];
+				}
+			}
+			if (shader)
+			{
+				if (!plskin && (TEXVALID(shader->defaulttextures.loweroverlay) || TEXVALID(shader->defaulttextures.upperoverlay)))
+					return shader;	//the shader can do its own colourmapping.
+				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].handle.glsl && !h2playertranslations)
+				{	//this shader can do permutations. this means we can generate only a black image, with separate top+bottom textures.
+					tc = 0xff000000;
+					bc = 0xff000000;
+					generateupperlower = true;
 				}
 			}
 
@@ -587,6 +884,60 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						cm->texnum.fullbright = R_LoadTexture(va("fb$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
 										scaled_width, scaled_height, TF_RGBA32, pixels, IF_NOMIPMAP);
 				}*/
+
+				if (generateupperlower)
+				{
+					for (i=0 ; i<256 ; i++)
+						translate32[i] = 0xff000000;
+					for (i = 0; i < 16; i++)
+						translate32[TOP_RANGE+i] = d_8to24rgbtable[i];
+					out = pixels;
+					fracstep = tinwidth*0x10000/scaled_width;
+					for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+					{
+						inrow = original + inwidth*(i*inheight/scaled_height);
+						frac = fracstep >> 1;
+						for (j=0 ; j<scaled_width ; j+=4)
+						{
+							out[j] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out[j+1] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out[j+2] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out[j+3] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+						}
+					}
+					cm->texnum.upperoverlay = R_LoadTexture(va("up$%i$%i$%i$%s", cm->skinnum, subframe, pc, cm->name),
+									scaled_width, scaled_height, TF_RGBA32, pixels, IF_NOMIPMAP);
+
+					for (i=0 ; i<256 ; i++)
+						translate32[i] = 0xff000000;
+					for (i = 0; i < 16; i++)
+						translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[i];
+					out = pixels;
+					fracstep = tinwidth*0x10000/scaled_width;
+					for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+					{
+						inrow = original + inwidth*(i*inheight/scaled_height);
+						frac = fracstep >> 1;
+						for (j=0 ; j<scaled_width ; j+=4)
+						{
+							out[j] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out[j+1] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out[j+2] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out[j+3] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+						}
+					}
+					cm->texnum.loweroverlay = R_LoadTexture(va("lo$%i$%i$%i$%s", cm->skinnum, subframe, pc, cm->name),
+									scaled_width, scaled_height, TF_RGBA32, pixels, IF_NOMIPMAP);
+
+				}
 			}
 			else
 			{
@@ -1004,7 +1355,11 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 		}
 	}
 
-	if (!(e->flags & Q2RF_WEAPONMODEL) && !e->framestate.bonestate)
+	if (!(e->flags & Q2RF_WEAPONMODEL)
+#ifdef SKELETALMODELS
+		&& !e->framestate.bonestate
+#endif
+		)
 	{
 		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
 			return;
@@ -2028,7 +2383,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			if (ent->model->engineflags & MDLF_NOTREPLACEMENTS)
 			{
 				if (ent->model->fromgame != fg_quake || ent->model->type != mod_alias)
-					if (!ruleset_allow_sensative_texture_replacements.value)
+					if (!ruleset_allow_sensitive_texture_replacements.value)
 						continue;
 			}
 

@@ -82,14 +82,14 @@ client_t	*host_client;			// current client
 
 // bound the size of the physics time tic
 #ifdef SERVERONLY
-cvar_t	sv_mintic = SCVAR("sv_mintic","0.03");
+cvar_t	sv_mintic = CVARD("sv_mintic","0.013", "The minimum interval between running physics frames.");
 #else
-cvar_t	sv_mintic = SCVAR("sv_mintic","0");	//client builds can think as often as they want.
+cvar_t	sv_mintic = CVARD("sv_mintic","0", "The minimum interval between running physics frames.");	//client builds can think as often as they want.
 #endif
-cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");//never run a tick slower than this
-cvar_t	sv_limittics = SCVAR("sv_limittics","3");//
+cvar_t	sv_maxtic = CVARD("sv_maxtic","0.1", "The maximum interval between running physics frames. If the value is too low, multiple physics interations might be run at a time (based upon sv_limittics). Set identical to sv_mintic for fixed-interval ticks, which may be required if ODE is used.");//never run a tick slower than this
+cvar_t	sv_limittics = CVARD("sv_limittics","3", "The maximum number of ticks that may be run within a frame, to allow the server to catch up if it stalled or if sv_maxtic is too low.");//
 
-cvar_t	sv_nailhack = SCVAR("sv_nailhack","0");
+cvar_t	sv_nailhack = CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
 cvar_t	sv_nopvs	= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
 
 
@@ -124,6 +124,7 @@ cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
 cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 cvar_t	allow_download_copyrighted = CVAR("allow_download_copyrighted", "0");
 
+cvar_t sv_serverip = CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public = CVAR("sv_public", "0");
 cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
 cvar_t sv_listen_nq = CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
@@ -151,7 +152,7 @@ cvar_t sv_masterport = CVAR("sv_masterport", "0");
 
 cvar_t pext_ezquake_nochunks = CVARD("pext_ezquake_nochunks", "1", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
 
-cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
+cvar_t	sv_gamespeed = CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
 cvar_t pausable	= CVAR("pausable", "1");
@@ -166,7 +167,7 @@ cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
 cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
 cvar_t	sv_playerslots	= CVARAD("sv_playerslots",	"", 
-								 "maxplayers",		"Specify maximum number of player/spectator/bot slots, new value takes effect on the next map (this may result in players getting kicked). This should generally be maxclients+maxspectators. Leave blank for a default value.\nMaximum value of "STRINGIFY(MAX_CLIENTS)". Values above 16 will result in issues with vanilla NQ clients. Effective values other than 32 will result in issues with vanilla QW clients.");
+								 "maxplayers",		"Specify maximum number of player/spectator/bot slots, new value takes effect on the next map (this may result in players getting kicked). This should generally be set to maxclients+maxspectators. Leave blank for a default value.\nMaximum value of "STRINGIFY(MAX_CLIENTS)". Values above 16 will result in issues with vanilla NQ clients. Effective values other than 32 will result in issues with vanilla QW clients.");
 cvar_t	maxclients		= CVARAFD("maxclients",		"8",
 								 "sv_maxclients",			CVAR_SERVERINFO, "Specify the maximum number of players allowed on the server at once. Can be changed mid-map.");
 cvar_t	maxspectators	= CVARFD("maxspectators",	"8",	CVAR_SERVERINFO, "Specify the maximum number of spectators allowed on the server at once. Can be changed mid-map.");
@@ -212,10 +213,13 @@ void SV_AcceptClient (netadr_t *adr, int userid, char *userinfo);
 void Master_Shutdown (void);
 void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 char *SV_BannedReason (netadr_t *a);
+void SV_EvaluatePenalties(client_t *cl);
 
 #ifdef SQL
 void PR_SQLCycle();
 #endif
+
+int	nextuserid;
 
 //============================================================================
 
@@ -422,10 +426,10 @@ void SV_DropClient (client_t *drop)
 		return;
 	}
 
-	if (!drop->controller)
+	if (!drop->controller && drop->netchan.remote_address.type != NA_LOOPBACK)
 	{
 		// add the disconnect
-		if (drop->state != cs_zombie)
+		if (drop->state < cs_connected)
 		{
 			switch (drop->protocol)
 			{
@@ -448,13 +452,13 @@ void SV_DropClient (client_t *drop)
 		}
 	}
 
-#ifdef SVRANKING
 	if (drop->state == cs_spawned)
 	{
-		int j;
-		rankstats_t rs;
+#ifdef SVRANKING
 		if (drop->rankid)
 		{
+			int j;
+			rankstats_t rs;
 			if (Rank_GetPlayerStats(drop->rankid, &rs))
 			{
 				rs.timeonserver += realtime - drop->stats_started;
@@ -480,8 +484,11 @@ void SV_DropClient (client_t *drop)
 				Rank_SetPlayerStats(drop->rankid, &rs);
 			}
 		}
-	}
 #endif
+#ifdef SUBSERVERS
+		SSV_SavePlayerStats(drop, false);
+#endif
+	}
 #ifdef SVCHAT
 	SV_WipeChat(drop);
 #endif
@@ -493,7 +500,7 @@ void SV_DropClient (client_t *drop)
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
-			if (drop->state == cs_spawned && host_initialized)
+			if ((drop->state == cs_spawned || drop->istobeloaded) && host_initialized)
 			{
 #ifdef VM_Q1
 				if (svs.gametype == GT_Q1QVM)
@@ -527,7 +534,7 @@ void SV_DropClient (client_t *drop)
 					ED_Clear(svprogfuncs, drop->edict);
 			}
 
-			if (svprogfuncs && drop->edict)
+			if (svprogfuncs && drop->edict && drop->edict->v)
 				drop->edict->v->frags = 0;
 			drop->edict = NULL;
 
@@ -586,14 +593,18 @@ void SV_DropClient (client_t *drop)
 #pragma warningmsg("This means that we may not see the reason we kicked ourselves.")
 #endif
 		drop->state = cs_free;	//don't do zombie stuff
-		CL_Disconnect();
+		CL_BeginServerReconnect();
 	}
 	else
 #endif
+	if (drop->state == cs_spawned || drop->istobeloaded)
 	{
+		drop->istobeloaded = false;
 		drop->state = cs_zombie;		// become free in a few seconds
 		drop->connection_started = realtime;	// for zombie timeout
 	}
+	else
+		drop->state = cs_free;	//skip zombie state if qc couldn't access it anyway.
 	drop->istobeloaded = false;
 
 	drop->old_frags = 0;
@@ -637,7 +648,10 @@ void SV_DropClient (client_t *drop)
 	termmsg.data = termbuf;
 	termmsg.maxsize = sizeof(termbuf);
 	termmsg.cursize = 0;
-	if (ISQWCLIENT(drop) || ISNQCLIENT(drop))
+	if (drop->netchan.remote_address.type == NA_LOOPBACK)
+	{
+	}
+	else if (ISQWCLIENT(drop) || ISNQCLIENT(drop))
 	{
 		MSG_WriteByte(&termmsg, svc_disconnect);
 	}
@@ -1106,7 +1120,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	int numclients = 0;
 	int i;
 	char *resp;
-	char *gamestatus;
+	const char *gamestatus;
 	eval_t *v;
 
 	if (!sv_listen_nq.ival && !sv_listen_dp.ival)
@@ -1499,6 +1513,7 @@ void SVC_GetChallenge (void)
 void SV_GetNewSpawnParms(client_t *cl)
 {
 	int i;
+
 	if (svprogfuncs)	//q2 dlls don't use parms in this mannor. It's all internal to the dll.
 	{
 		// call the progs to get default spawn parms for the new client
@@ -1757,7 +1772,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	else if (client->protocol == SCP_FITZ666)
 	{
 		client->max_net_clients = NQMAX_CLIENTS;
-		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently.
+		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently, which causes problems.
 		client->maxmodels = 1024;
 		maxpacketentities = 512;
 
@@ -1843,6 +1858,799 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	}
 }
 
+#ifdef SUBSERVERS
+void MSV_UpdatePlayerStats(qboolean initial, unsigned int playerid, unsigned int serverid, int numstats, float *stats);
+
+static char *knownmaps[] =
+{
+	"",
+	"start"
+};
+
+static pubsubserver_t *subservers;
+qboolean	isClusterSlave;
+unsigned int nextserverid;
+
+pubsubserver_t *MSV_StartSubServer(unsigned int id, const char *mapname)
+{
+	sizebuf_t send;
+	char send_buf[64];
+	pubsubserver_t *s = Sys_ForkServer();
+	if (s)
+	{
+		if (!id)
+		{
+			if (nextserverid < sizeof(knownmaps)/sizeof(knownmaps[0]))
+				nextserverid = sizeof(knownmaps)/sizeof(knownmaps[0]);
+			id = nextserverid++;
+		}
+		s->id = id;
+		s->next = subservers;
+		subservers = s;
+
+		Q_strncpyz(s->name, mapname, sizeof(s->name));
+
+		memset(&send, 0, sizeof(send));
+		send.data = send_buf;
+		send.maxsize = sizeof(send_buf);
+		send.cursize = 2;
+		MSG_WriteByte(&send, ccmd_acceptserver);
+		MSG_WriteLong(&send, s->id);
+		MSG_WriteString(&send, s->name);
+		Sys_InstructSlave(s, &send);
+	}
+	return s;
+}
+
+pubsubserver_t *MSV_FindSubServer(unsigned int id)
+{
+	pubsubserver_t *s;
+	for (s = subservers; s; s = s->next)
+	{
+		if (id == s->id)
+			return s;
+	}
+
+	if (!s && id >= 1 && id < sizeof(knownmaps)/sizeof(knownmaps[0]))
+		s = MSV_StartSubServer(id, knownmaps[id]);
+
+	return s;
+}
+pubsubserver_t *MSV_FindSubServerName(const char *mapname)
+{
+	pubsubserver_t *s;
+	unsigned int to;
+	for (to = 1; to < sizeof(knownmaps)/sizeof(knownmaps[0]); to++)
+	{
+		if (!strcmp(knownmaps[to], mapname))
+			return MSV_FindSubServer(to);
+	}
+
+	for (s = subservers; s; s = s->next)
+	{
+		if (!strcmp(s->name, mapname))
+			return s;
+	}
+
+	return MSV_StartSubServer(0, mapname);
+}
+qboolean MSV_AddressForMap(netadr_t *ret, int natype, int serverid)
+{
+	pubsubserver_t *s = MSV_FindSubServer(serverid);
+
+	if (s)
+	{
+		if (natype == s->addrv6.type)
+			*ret = s->addrv6;
+		else
+			*ret = s->addrv4;
+		return true;
+	}
+	return false;
+}
+
+void MSV_InstructSlave(unsigned int id, sizebuf_t *cmd)
+{
+	pubsubserver_t *s;
+	if (!id)
+	{
+		for (s = subservers; s; s = s->next)
+			Sys_InstructSlave(s, cmd);
+	}
+	else
+	{
+		s = MSV_FindSubServer(id);
+		if (s)
+			Sys_InstructSlave(s, cmd);
+	}
+}
+
+void MSV_MapCluster_f(void)
+{
+	SV_SpawnClusterMode();
+}
+
+void SSV_PrintToMaster(char *s)
+{
+	sizebuf_t send;
+	char send_buf[8192];
+	memset(&send, 0, sizeof(send));
+	send.data = send_buf;
+	send.maxsize = sizeof(send_buf);
+	send.cursize = 2;
+
+	MSG_WriteByte(&send, ccmd_print);
+	MSG_WriteString(&send, s);
+	SSV_InstructMaster(&send);
+}
+
+void MSV_SubServerCommand_f(void)
+{
+	sizebuf_t buf;
+	char bufmem[1024];
+	pubsubserver_t *s;
+	int id;
+	char *c;
+	if (Cmd_Argc() == 1)
+	{
+		Con_Printf("Active servers on this cluster:\n");
+		for (s = subservers; s; s = s->next)
+		{
+			Con_Printf("%i: %s", s->id, s->name);
+			if (s->addrv4.type != NA_INVALID)
+				Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
+			if (s->addrv6.type != NA_INVALID)
+				Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv6));
+			Con_Printf("\n");
+		}
+		return;
+	}
+	if (!strcmp(Cmd_Argv(0), "ssv_all"))
+		id = 0;
+	else
+	{
+		id = atoi(Cmd_Argv(1));
+		Cmd_ShiftArgs(1, false);
+	}
+
+	buf.data = bufmem;
+	buf.maxsize = sizeof(bufmem);
+	buf.cursize = 2;
+	buf.packing = SZ_RAWBYTES;
+	c = Cmd_Args();
+	MSG_WriteByte(&buf, ccmd_stuffcmd);
+	MSG_WriteString(&buf, c);
+	buf.data[0] = buf.cursize & 0xff;
+	buf.data[1] = (buf.cursize>>8) & 0xff;
+	MSV_InstructSlave(id, &buf);
+}
+
+void MSV_ReadFromSubServer(pubsubserver_t *s)
+{
+	sizebuf_t	send;
+	qbyte		send_buf[MAX_QWMSGLEN];
+	netadr_t adr;
+	char *str;
+	int c;
+
+	c = MSG_ReadByte();
+	switch(c)
+	{
+	default:
+	case ccmd_bad:
+		Sys_Error("Corrupt message (%i) from SubServer %i:%s", c, s->id, s->name);
+		break;
+	case ccmd_print:
+		Con_Printf("%s", MSG_ReadString());
+		break;
+	case ccmd_saveplayer:
+		{
+			float stats[NUM_SPAWN_PARMS];
+			int i, numstats;
+			unsigned int lastserver = MSG_ReadLong();
+			int plid = MSG_ReadLong();
+			numstats = MSG_ReadByte();
+			for (i = 0; i < numstats; i++)
+				stats[i] = MSG_ReadFloat();
+			MSV_UpdatePlayerStats(lastserver, plid, s->id, numstats, stats);
+		}
+		break;
+	case ccmd_transferplayer:
+		{
+			char guid[64];
+			char mapname[64];
+			int plid = MSG_ReadLong();
+			char *newmap = MSG_ReadStringBuffer(mapname, sizeof(mapname));
+			char *claddr = MSG_ReadString();
+			char *clguid = MSG_ReadStringBuffer(guid, sizeof(guid));
+			pubsubserver_t *toptr;
+
+			memset(&send, 0, sizeof(send));
+			send.data = send_buf;
+			send.maxsize = sizeof(send_buf);
+			send.cursize = 2;
+
+			if (NULL!=(toptr=MSV_FindSubServerName(newmap)))
+			{
+				Con_Printf("Transfer to %i:%s\n", toptr->id, toptr->name);
+
+				MSG_WriteByte(&send, ccmd_takeplayer);
+				MSG_WriteLong(&send, plid);
+				MSG_WriteLong(&send, s->id);
+				MSG_WriteString(&send, claddr);
+				MSG_WriteString(&send, clguid);
+
+				c = MSG_ReadByte();
+				MSG_WriteByte(&send, c);
+				Con_Printf("Transfer %i stats\n", c);
+				while(c--)
+					MSG_WriteFloat(&send, MSG_ReadFloat());
+
+				Sys_InstructSlave(toptr, &send);
+			}
+			else
+			{
+				//suck up the stats
+				c = MSG_ReadByte();
+				while(c--)
+					MSG_ReadFloat();
+
+				Con_Printf("Transfer abort\n");
+
+				MSG_WriteByte(&send, ccmd_tookplayer);
+				MSG_WriteLong(&send, s->id);
+				MSG_WriteLong(&send, plid);
+				MSG_WriteString(&send, "");
+
+				Sys_InstructSlave(s, &send);
+			}
+		}
+		break;
+	case ccmd_tookplayer:
+		{
+			int to = MSG_ReadLong();
+			int plid = MSG_ReadLong();
+			char *claddr = MSG_ReadString();
+			char *rmsg;
+			netadr_t cladr;
+			netadr_t svadr;
+			char adrbuf[256];
+			Con_Printf("Took player\n");
+
+			memset(&send, 0, sizeof(send));
+			send.data = send_buf;
+			send.maxsize = sizeof(send_buf);
+			send.cursize = 2;
+
+			NET_StringToAdr(claddr, 0, &cladr);
+			MSV_AddressForMap(&svadr, cladr.type, s->id);
+			if (!to)
+			{
+				if (svadr.type != NA_INVALID)
+				{
+					rmsg = va("fredir\n%s", NET_AdrToString(adrbuf, sizeof(adrbuf), &svadr));
+					Netchan_OutOfBand (NS_SERVER, &cladr, strlen(rmsg), (qbyte *)rmsg);
+				}
+			}
+			else
+			{
+				MSG_WriteByte(&send, ccmd_tookplayer);
+				MSG_WriteLong(&send, s->id);
+				MSG_WriteLong(&send, plid);
+				MSG_WriteString(&send, NET_AdrToString(adrbuf, sizeof(adrbuf), &svadr));
+
+				MSV_InstructSlave(to, &send);
+			}
+		}
+		break;
+	case ccmd_serveraddress:
+		s->addrv4.type = NA_INVALID;
+		s->addrv6.type = NA_INVALID;
+		str = MSG_ReadString();
+		Q_strncpyz(s->name, str, sizeof(s->name));
+		for (;;)
+		{
+			str = MSG_ReadString();
+			if (!*str)
+				break;
+			if (NET_StringToAdr(str, 0, &adr))
+			{
+				if (adr.type == NA_IP && s->addrv4.type == NA_INVALID)
+					s->addrv4 = adr;
+				if (adr.type == NA_IPV6 && s->addrv6.type == NA_INVALID)
+					s->addrv6 = adr;
+			}
+		}
+		Con_Printf("%i:%s: restarted\n", s->id, s->name);
+		break;
+	}
+	if (msg_readcount != net_message.cursize || msg_badread)
+		Sys_Error("Master: Readcount isn't right (%i)\n", net_message.data[0]);
+}
+
+void MSV_PollSlaves(void)
+{
+	pubsubserver_t **link, *s;
+	for (link = &subservers; (s=*link); )
+	{
+		switch(Sys_SubServerRead(s))
+		{
+		case -1:
+			//error - server is dead and needs to be freed.
+			*link = s->next;
+			Z_Free(s);
+			break;
+		case 0:
+			//no messages
+			link = &s->next;
+			break;
+		case 1:
+			//got a message. read it and see if there's more.
+			MSV_ReadFromSubServer(s);
+			break;
+		}
+	}
+}
+
+void SSV_ReadFromControlServer(void)
+{
+	int c;
+	char *s;
+
+	c = MSG_ReadByte();
+	switch(c)
+	{
+	case ccmd_bad:
+	default:
+		SV_Error("Invalid message from cluster (%i)\n", c);
+		break;
+	case ccmd_stuffcmd:
+		s = MSG_ReadString();
+		SV_BeginRedirect(RD_MASTER, 0);
+		Cmd_ExecuteString(s, RESTRICT_LOCAL);
+		SV_EndRedirect();
+		break;
+
+	case ccmd_acceptserver:
+		svs.clusterserverid	= MSG_ReadLong();
+		s = MSG_ReadString();
+		if (*s && !strchr(s, ';') && !strchr(s, '\n') && !strchr(s, '\"'))	//sanity check the argument
+			Cmd_ExecuteString(va("map \"%s\"", s), RESTRICT_LOCAL);
+		if (svprogfuncs && pr_global_ptrs->serverid)
+			*pr_global_ptrs->serverid = svs.clusterserverid;
+		break;
+
+	case ccmd_tookplayer:
+		{
+			client_t *cl = NULL;
+			int to = MSG_ReadLong();
+			int plid = MSG_ReadLong();
+			char *addr = MSG_ReadString();
+			int i;
+
+			Con_Printf("%s: got tookplayer\n", sv.name);
+
+			for (i = 0; i < svs.allocated_client_slots; i++)
+			{
+				if (svs.clients[i].state && svs.clients[i].userid == plid)
+				{
+					cl = &svs.clients[i];
+					break;
+				}
+			}
+			if (cl)
+			{
+				if (!*addr)
+				{
+					Con_Printf("%s: tookplayer: failed\n", sv.name);
+					Info_SetValueForStarKey(cl->userinfo, "*transfer", "", sizeof(cl->userinfo));
+				}
+				else
+				{
+					Con_Printf("%s: tookplayer: do transfer\n", sv.name);
+//					SV_StuffcmdToClient(cl, va("connect \"%s\"\n", addr));
+					SV_StuffcmdToClient(cl, va("cl_transfer \"%s\"\n", addr));
+					cl->redirect = 2;
+				}
+			}
+			else
+				Con_Printf("%s: tookplayer: invalid player.\n", sv.name);
+		}
+		break;
+
+	case ccmd_transferedplayer:
+		{
+			client_t *cl;
+			char *to;
+			int toserver = MSG_ReadLong();
+			int playerid = MSG_ReadLong();
+			int i;
+
+			for (i = 0; i < svs.allocated_client_slots; i++)
+			{
+				if (svs.clients[i].userid == playerid && svs.clients[i].state >= cs_loadzombie)
+				{
+					cl = &svs.clients[i];
+					cl->drop = true;
+					to = Info_ValueForKey(cl->userinfo, "*transfer");
+					Con_Printf("%s transfered to %s\n", cl->name, to);
+					break;
+				}
+			}
+		}
+		break;
+
+	case ccmd_takeplayer:
+		{
+			client_t *cl = NULL;
+			int i, j;
+			float stat;
+			char guid[64];
+			int plid = MSG_ReadLong();
+			int fromsv = MSG_ReadLong();
+			char *claddr = MSG_ReadString();
+			char *clguid = MSG_ReadStringBuffer(guid, sizeof(guid));
+
+			if (sv.state >= ss_active)
+			{
+				for (i = 0; i < svs.allocated_client_slots; i++)
+				{
+					if (!svs.clients[i].state || (svs.clients[i].userid == plid && svs.clients[i].state >= cs_loadzombie))
+					{
+						cl = &svs.clients[i];
+						break;
+					}
+				}
+			}
+
+			Con_Printf("%s: takeplayer\n", sv.name);
+			if (cl)
+			{
+				cl->userid = plid;
+				if (cl->state == cs_loadzombie && cl->istobeloaded)
+					cl->connection_started = realtime+20;	//renew the slot
+				else if (!cl->state)
+				{	//allocate a new pending player.
+					cl->previousserver = fromsv;
+					cl->state = cs_loadzombie;
+					cl->connection_started = realtime+20;
+					Q_strncpyz(cl->guid, clguid, sizeof(cl->guid));
+					sv.spawned_client_slots++;
+					memset(&cl->netchan, 0, sizeof(cl->netchan));
+					SV_GetNewSpawnParms(cl);
+				}
+			}
+
+			j = MSG_ReadByte();
+			Con_Printf("%s: %i stats\n", sv.name, j);
+			for (i = 0; i < j; i++)
+			{
+				stat = MSG_ReadFloat();
+				if (cl && cl->state == cs_loadzombie && i < NUM_SPAWN_PARMS)
+					cl->spawn_parms[i] = stat;
+			}
+
+			{
+				sizebuf_t	send;
+				qbyte		send_buf[MAX_QWMSGLEN];
+
+				if (fromsv)
+					Con_Printf("%s: send tookplayer\n", sv.name);
+				else
+					Con_Printf("%s: from master\n", sv.name);
+				memset(&send, 0, sizeof(send));
+				send.data = send_buf;
+				send.maxsize = sizeof(send_buf);
+				send.cursize = 2;
+
+				if (cl)
+				{
+					MSG_WriteByte(&send, ccmd_tookplayer);
+					MSG_WriteLong(&send, fromsv);
+					MSG_WriteLong(&send, plid);
+					MSG_WriteString(&send, claddr);
+					SSV_InstructMaster(&send);
+				}
+			}
+		}
+		break;
+	}
+
+	if (msg_readcount != net_message.cursize || msg_badread)
+		Sys_Error("Subserver: Readcount isn't right (%i)\n", net_message.data[0]);
+}
+
+void SSV_UpdateAddresses(void)
+{
+	char		buf[256];
+	netadr_t	addr[64];
+	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
+	int			flags[sizeof(addr)/sizeof(addr[0])];
+	int			count;
+	sizebuf_t	send;
+	qbyte		send_buf[MAX_QWMSGLEN];
+	int i;
+
+	if (!SSV_IsSubServer())
+		return;
+
+	count = NET_EnumerateAddresses(svs.sockets, con, flags, addr, sizeof(addr)/sizeof(addr[0]));
+
+	if (*sv_serverip.string)
+	{
+		for (i = 0; i < count; i++)
+		{
+			if (addr[i].type == NA_IP)
+			{
+				NET_StringToAdr(sv_serverip.string, BigShort(addr[i].port), &addr[0]);
+				count = 1;
+				break;
+			}
+		}
+	}
+
+	memset(&send, 0, sizeof(send));
+	send.data = send_buf;
+	send.maxsize = sizeof(send_buf);
+	send.cursize = 2;
+	MSG_WriteByte(&send, ccmd_serveraddress);
+
+	MSG_WriteString(&send, sv.name);
+	for (i = 0; i < count; i++)
+		MSG_WriteString(&send, NET_AdrToString(buf, sizeof(buf), &addr[i]));
+	MSG_WriteByte(&send, 0);
+	SSV_InstructMaster(&send);
+}
+
+void SSV_SavePlayerStats(client_t *cl, unsigned int previousserver)
+{
+	//called when the *transfer userinfo gets set to the new map
+	sizebuf_t	send;
+	qbyte		send_buf[MAX_QWMSGLEN];
+	int i;
+	if (!SSV_IsSubServer())
+		return;
+
+	if (!previousserver)
+		SV_SaveSpawnparmsClient(cl, NULL);
+
+	memset(&send, 0, sizeof(send));
+	send.data = send_buf;
+	send.maxsize = sizeof(send_buf);
+	send.cursize = 2;
+
+	MSG_WriteByte(&send, ccmd_saveplayer);
+	MSG_WriteLong(&send, previousserver);
+	MSG_WriteLong(&send, cl->userid);
+	MSG_WriteByte(&send, NUM_SPAWN_PARMS);
+	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	{
+		MSG_WriteFloat(&send, cl->spawn_parms[i]);
+	}
+
+	SSV_InstructMaster(&send);
+}
+void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver)
+{
+	//called when the *transfer userinfo gets set to the new map
+	sizebuf_t	send;
+	qbyte		send_buf[MAX_QWMSGLEN];
+	int i;
+	char tmpbuf[256];
+	float parms[NUM_SPAWN_PARMS];
+
+	SV_SaveSpawnparmsClient(cl, parms);
+
+	memset(&send, 0, sizeof(send));
+	send.data = send_buf;
+	send.maxsize = sizeof(send_buf);
+	send.cursize = 2;
+	MSG_WriteByte(&send, ccmd_transferplayer);
+	MSG_WriteLong(&send, cl->userid);
+	MSG_WriteString(&send, newserver);
+	MSG_WriteString(&send, NET_AdrToString(tmpbuf, sizeof(tmpbuf), &cl->netchan.remote_address));
+	MSG_WriteString(&send, cl->guid);
+
+	//stats
+	MSG_WriteByte(&send, NUM_SPAWN_PARMS);
+	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	{
+		MSG_WriteFloat(&send, parms[i]);
+	}
+
+	SSV_InstructMaster(&send);
+}
+
+#ifdef SQL
+#include "sv_sql.h"
+int pendinglookups = 0;
+struct logininfo_s
+{
+	netadr_t clientaddr;
+	char guid[64];
+};
+#endif
+qboolean SV_IgnoreSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
+{
+	return false;
+}
+void MSV_UpdatePlayerStats(unsigned int lastserver, unsigned int playerid, unsigned int serverid, int numstats, float *stats)
+{
+	queryrequest_t *req;
+	sqlserver_t *srv;
+	static char hex[16] = "0123456789abcdef";
+	char sql[2048], *sqle;
+	union{float *f;qbyte *b;} blob;
+	Q_snprintfz(sql, sizeof(sql), "UPDATE accounts SET stats=x'");
+	sqle = sql+strlen(sql);
+	for (blob.f = stats, numstats*=4; numstats--; blob.b++)
+	{
+		*sqle++ = hex[*blob.b>>4];
+		*sqle++ = hex[*blob.b&15];
+	}
+	if (lastserver)
+		Q_snprintfz(sqle, sizeof(sql)-(sqle-sql), "', serverid=%u WHERE playerid = %u;", serverid, playerid);
+	else
+		Q_snprintfz(sqle, sizeof(sql)-(sqle-sql), "' WHERE playerid = %u AND serverid = %u;", playerid, serverid);
+
+	srv = SQL_GetServer(sv.logindatabase, false);
+	if (srv)
+		SQL_NewQuery(srv, SV_IgnoreSQLResult, sql, &req);
+
+	if (lastserver)
+	{
+		sizebuf_t	send;
+		qbyte		send_buf[64];
+		memset(&send, 0, sizeof(send));
+		send.data = send_buf;
+		send.maxsize = sizeof(send_buf);
+		send.cursize = 2;
+		MSG_WriteByte(&send, ccmd_transferedplayer);
+		MSG_WriteLong(&send, serverid);
+		MSG_WriteLong(&send, playerid);
+		MSV_InstructSlave(lastserver, &send);
+	}
+}
+
+qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serverid, unsigned int playerid, char *clientguid, netadr_t *clientaddr, void *statsblob, size_t statsblobsize)
+{
+	char tmpbuf[256];
+	netadr_t serveraddr;
+
+	if (!serverid)
+		serverid = 1;
+
+	if (!MSV_AddressForMap(&serveraddr, clientaddr->type, serverid) && !MSV_AddressForMap(&serveraddr, clientaddr->type, serverid=1))
+		SV_RejectMessage(SCP_QUAKEWORLD, "Unable to find lobby.\n");
+	else
+	{
+		sizebuf_t	send;
+		qbyte		send_buf[MAX_QWMSGLEN];
+		memset(&send, 0, sizeof(send));
+		send.data = send_buf;
+		send.maxsize = sizeof(send_buf);
+		send.cursize = 2;
+		MSG_WriteByte(&send, ccmd_takeplayer);
+		MSG_WriteLong(&send, playerid);
+		MSG_WriteLong(&send, 0);	//from server
+		MSG_WriteString(&send, NET_AdrToString(tmpbuf, sizeof(tmpbuf), &net_from));
+		MSG_WriteString(&send, clientguid);
+
+		MSG_WriteByte(&send, statsblobsize/4);
+		SZ_Write(&send, statsblob, statsblobsize&~3);
+		MSV_InstructSlave(serverid, &send);
+
+		if (serveraddr.type == NA_INVALID)
+		{
+			if (net_from.type != NA_LOOPBACK)
+				SV_RejectMessage(SCP_QUAKEWORLD, "Starting instance.\n");
+		}
+		else if (legacyclientredirect)
+		{
+			*legacyclientredirect = serveraddr;
+			return true;
+		}
+		else
+		{
+			char *s = va("fredir\n%s", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &serveraddr));
+			Netchan_OutOfBand (NS_SERVER, clientaddr, strlen(s), (qbyte *)s);
+			return true;
+		}
+	}
+	return false;
+}
+
+qboolean MSV_ClusterLoginSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
+{
+	sqlserver_t *sql = SQL_GetServer(req->srvid, true);
+	queryresult_t *res = SQL_GetQueryResult(sql, req->num, 0);
+	struct logininfo_s *info = req->user.thread;
+	char *s;
+	int playerid, serverid;
+	char *statsblob;
+	size_t blobsize;
+
+	res = SQL_GetQueryResult(sql, req->num, 0);
+	if (!res)
+	{
+		playerid = 0;
+		statsblob = NULL;
+		blobsize = 0;
+		serverid = 0;
+	}
+	else
+	{
+		s = SQL_ReadField(sql, res, 0, 0, true, NULL);
+		playerid = atoi(s);
+
+		statsblob = SQL_ReadField(sql, res, 0, 2, true, &blobsize);
+
+		s = SQL_ReadField(sql, res, 0, 1, true, NULL);
+		serverid = s?atoi(s):0;
+	}
+
+	net_from = info->clientaddr;	//okay, that's a bit stupid, rewrite rejectmessage to accept an arg?
+	if (!playerid)
+		SV_RejectMessage(SCP_QUAKEWORLD, "Bad username or password.\n");
+	else
+		MSV_ClusterLoginReply(NULL, serverid, playerid, info->guid, &info->clientaddr, statsblob, blobsize);
+	Z_Free(info);
+	pendinglookups--;
+	return false;
+}
+
+//returns true to block entry to this server.
+qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
+{
+	char escname[64], escpasswd[64];
+	sqlserver_t *sql;
+	queryrequest_t *req;
+	struct logininfo_s *info;
+	char *sqlparams[] =
+	{
+		"",
+		"",
+		"",
+		"login",
+	};
+
+	if (sv.state != ss_clustermode)
+		return false;
+
+	if (sv.logindatabase != -1)
+	{
+		if (pendinglookups > 10)
+			return true;
+		sql = SQL_GetServer(sv.logindatabase, false);
+		if (!sql)
+			return true;
+		SQL_Escape(sql, Info_ValueForKey(userinfo, "name"), escname, sizeof(escname)); 
+		SQL_Escape(sql, Info_ValueForKey(userinfo, "password"), escpasswd, sizeof(escpasswd));
+		if (SQL_NewQuery(sql, MSV_ClusterLoginSQLResult, va("SELECT playerid,serverid,stats FROM accounts WHERE name='%s' AND password='%s';", escname, escpasswd), &req) != -1)
+		{
+			pendinglookups++;
+			req->user.thread = info = Z_Malloc(sizeof(*info));
+			Q_strncpyz(info->guid, guid, sizeof(info->guid));
+			info->clientaddr = net_from;
+		}
+	}
+	else if (0)
+	{
+		char tmpbuf[256];
+		netadr_t redir;
+		if (MSV_ClusterLoginReply(&redir, 0, nextuserid++, guid, &net_from, NULL, 0))
+		{
+			Info_SetValueForStarKey(userinfo, "*redirect", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &redir), userinfosize);
+			return false;
+		}
+		return true;
+	}
+	else
+		MSV_ClusterLoginReply(NULL, 0, nextuserid++, guid, &net_from, NULL, 0);
+	return true;
+}
+#endif
+
 /*
 ==================
 SVC_DirectConnect
@@ -1857,7 +2665,6 @@ SS: connect2 $VER $QPORT $CHALLENGE "\key\val" "\key\val"
 NQ: hacked to take the form of QW
 extension flags follow it.
 */
-int	nextuserid;
 client_t *SVC_DirectConnect(void)
 {
 	char		userinfo[MAX_SPLITS][2048];
@@ -1881,6 +2688,7 @@ client_t *SVC_DirectConnect(void)
 	char guid[128] = "";
 	char basic[80];
 	qboolean	redirect = false;
+	qboolean	preserveparms = false;
 
 	int numssclients = 1;
 
@@ -2016,10 +2824,16 @@ client_t *SVC_DirectConnect(void)
 			Q_strncpyz (userinfo[i], Cmd_Argv(4+i), sizeof(userinfo[i])-1);
 	}
 
-	for (i = 0; i < numssclients; i++)
 	{
-		//don't let users exploit mods made for mvdsv instead of FTE
-		Info_RemoveKey (userinfo[i], "*VIP");
+		char *banreason = SV_BannedReason(&adr);
+		if (banreason)
+		{
+			if (*banreason)
+				SV_RejectMessage (protocol, "You were banned.\nReason: %s\n", banreason);
+			else
+				SV_RejectMessage (protocol, "You were banned.\n");
+			return NULL;
+		}
 	}
 
 	if (protocol == SCP_QUAKEWORLD)	//readd?
@@ -2110,6 +2924,9 @@ client_t *SVC_DirectConnect(void)
 			return NULL;
 		}
 	}
+
+	if (MSV_ClusterLogin(guid, userinfo[0], sizeof(userinfo[0])))
+		return NULL;
 
 	// check for password or spectator_password
 	if (svprogfuncs)
@@ -2205,6 +3022,8 @@ client_t *SVC_DirectConnect(void)
 		Q_strncpyS (newcl->userinfo, userinfo[0], sizeof(newcl->userinfo)-1);
 	newcl->userinfo[sizeof(newcl->userinfo)-1] = '\0';
 
+//	Con_TPrintf("%s:%s:connect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+
 	// if there is already a slot for this ip, drop it
 	for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 	{
@@ -2239,8 +3058,8 @@ client_t *SVC_DirectConnect(void)
 			}*/
 			else
 			{
-				Con_TPrintf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
-//				SV_DropClient (cl);
+//				Con_TPrintf ("%s:%s:reconnect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				SV_DropClient (cl);
 			}
 			break;
 		}
@@ -2248,7 +3067,7 @@ client_t *SVC_DirectConnect(void)
 
 	name = Info_ValueForKey (temp.userinfo, "name");
 
-	if (protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
+	if (sv.world.worldmodel && protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
 	{
 		if (sv.world.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
 		{
@@ -2302,14 +3121,23 @@ client_t *SVC_DirectConnect(void)
 		else
 			clients++;
 
-		if (cl->istobeloaded && cl->state == cs_zombie)
+		if (cl->state == cs_loadzombie)
 		{
 			if (!newcl)
 			{
-				if (!strcmp(cl->name, name) || !*cl->name || sv.allocated_client_slots <= 1)	//named, or first come first serve.
+				if (((!strcmp(cl->name, name) || !*cl->name) && (!*cl->guid || !strcmp(guid, cl->guid))) || sv.allocated_client_slots <= 1)	//named, or first come first serve.
 				{
+					if (cl->istobeloaded)
+						Con_Printf("%s:Using loadzombie\n", sv.name);
+					else
+						Con_Printf("%s:Using parmzombie\n", sv.name);
 					newcl = cl;
+					preserveparms = true;
 					temp.istobeloaded = cl->istobeloaded;
+					memcpy(temp.spawn_parms, cl->spawn_parms, sizeof(temp.spawn_parms));
+#ifdef SUBSERVERS
+					temp.previousserver = cl->previousserver;
+#endif
 					break;
 				}
 			}
@@ -2318,6 +3146,12 @@ client_t *SVC_DirectConnect(void)
 
 	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
 	{
+		if (SSV_IsSubServer())
+		{
+			SV_RejectMessage (protocol, "Direct connections are not permitted.\n");
+			return NULL;
+		}
+
 		/*single player logic*/
 		if (sv.allocated_client_slots == 1 && net_from.type == NA_LOOPBACK)
 			if (svs.clients[0].state >= cs_connected)
@@ -2340,7 +3174,7 @@ client_t *SVC_DirectConnect(void)
 			}
 		}
 
-		/*only q1/h2 has maxclients/maxspectators limits. q2 or q3 the gamecode does this*/
+		/*only q1/h2 has a maxclients/maxspectators separation. q2 or q3 the gamecode enforces any such clienttype limits*/
 		if (svprogfuncs)
 		{
 			if (spectator && spectators >= maxspectators.ival)
@@ -2384,18 +3218,6 @@ client_t *SVC_DirectConnect(void)
 		}
 	}
 
-	{
-		char *banreason = SV_BannedReason(&adr);
-		if (banreason)
-		{
-			if (*banreason)
-				SV_RejectMessage (protocol, "You were banned.\nReason: %s\n", banreason);
-			else
-				SV_RejectMessage (protocol, "You were banned.\n");
-			return NULL;
-		}
-	}
-
 	//set up the gamecode for this player, optionally drop them here
 	edictnum = (newcl-svs.clients)+1;
 	switch (svs.gametype)
@@ -2419,15 +3241,21 @@ client_t *SVC_DirectConnect(void)
 #ifdef VM_Q1
 	case GT_Q1QVM:
 #endif
+#ifdef VM_LUA
+	case GT_LUA:
+#endif
 	case GT_PROGS:
-		ent = EDICT_NUM(svprogfuncs, edictnum);
+		if (svprogfuncs)
+			ent = EDICT_NUM(svprogfuncs, edictnum);
+		else
+			ent = NULL;
 #ifdef Q2SERVER
 		temp.q2edict = NULL;
 #endif
 		temp.edict = ent;
 
 		{
-			char *reject = SV_CheckRejectConnection(&adr, userinfo[0], protocol, protextsupported, protextsupported2, guid);
+			const char *reject = SV_CheckRejectConnection(&adr, userinfo[0], protocol, protextsupported, protextsupported2, guid);
 			if (reject)
 			{
 				SV_RejectMessage(protocol, "%s", reject);
@@ -2557,7 +3385,8 @@ client_t *SVC_DirectConnect(void)
 
 //			SV_OutOfBandPrintf (isquake2client, adr, "\nWARNING: You have not got a place on the ranking system, probably because a user with the same name has already connected and your pwds differ.\n\n");
 
-			SV_GetNewSpawnParms(newcl);
+			if (!preserveparms)
+				SV_GetNewSpawnParms(newcl);
 		}
 		else
 		{
@@ -2587,7 +3416,7 @@ client_t *SVC_DirectConnect(void)
 
 			if (rs.timeonserver)
 			{
-				if (cl->istobeloaded)
+				if (preserveparms)
 				{	//do nothing.
 				}
 				else if (sv_resetparms.value)
@@ -2613,7 +3442,7 @@ client_t *SVC_DirectConnect(void)
 
 				SV_OutOfBandPrintf (protocol == SCP_QUAKE2, &adr, s);
 			}
-			else if (!cl->istobeloaded)
+			else if (!preserveparms)
 			{
 				SV_GetNewSpawnParms(newcl);
 
@@ -2624,7 +3453,7 @@ client_t *SVC_DirectConnect(void)
 	}
 #else
 	// call the progs to get default spawn parms for the new client
-	if (!cl->istobeloaded)
+	if (!preserveparms)
 	{
 		SV_GetNewSpawnParms(newcl);
 	}
@@ -2688,6 +3517,8 @@ client_t *SVC_DirectConnect(void)
 	SV_VoiceInitClient(newcl);
 #endif
 
+	SV_EvaluatePenalties(newcl);
+
 	newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
 	for (clients = 1; clients < numssclients; clients++)
 	{
@@ -2746,7 +3577,10 @@ client_t *SVC_DirectConnect(void)
 
 		SV_ExtractFromUserinfo (cl, true);
 
-		SV_GetNewSpawnParms(cl);
+//		if (!preserveparms)
+			SV_GetNewSpawnParms(cl);
+
+		SV_EvaluatePenalties(cl);
 	}
 	newcl->controller = NULL;
 
@@ -2766,6 +3600,10 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->redirect = redirect;
 
+#ifdef SUBSERVERS
+	SSV_SavePlayerStats(newcl, newcl->previousserver);
+	newcl->previousserver = 0;
+#endif
 
 	return newcl;
 }
@@ -3140,6 +3978,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	char *str;
 	char buffer[256], buffer2[256];
 	netadr_t localaddr;
+	char *banreason;
 	if (net_from.type == NA_LOOPBACK)
 		return false;
 
@@ -3155,6 +3994,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		if ((header & (NETFLAG_DATA|NETFLAG_EOM)) == (NETFLAG_DATA|NETFLAG_EOM))
 		{
 			int sequence;
+			if (SV_BannedReason (&net_from))
+				return false;	//just in case.
 			sequence = LongSwap(MSG_ReadLong());
 			if (sequence <= 1)
 			{
@@ -3259,6 +4100,20 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 			return false;	//not our version...
 		}
+
+		banreason = SV_BannedReason (&net_from);
+		if (banreason)
+		{
+			SZ_Clear(&sb);
+			MSG_WriteLong(&sb, 0);
+			MSG_WriteByte(&sb, CCREP_REJECT);
+			MSG_WriteString(&sb, *banreason?va("You are banned: %s\n", banreason):"You are banned\n");
+			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+			return false;	//not our version...
+		}
+
+
 		mod = MSG_ReadByte();
 		modver = MSG_ReadByte();
 		flags = MSG_ReadByte();
@@ -3305,6 +4160,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		}
 		return true;
 	case CCREQ_SERVER_INFO:
+		if (SV_BannedReason (&net_from))
+			return false;
 		if (Q_strcmp (MSG_ReadString(), NET_GAMENAME_NQ) != 0)
 			return false;
 
@@ -3331,6 +4188,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_PLAYER_INFO:
+		if (SV_BannedReason (&net_from))
+			return false;
 		/*one request per player, ouch ouch ouch, what will it make of 32 players, I wonder*/
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
@@ -3359,6 +4218,9 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_RULE_INFO:
+		if (SV_BannedReason (&net_from))
+			return false;
+
 		/*lol, nq is evil*/
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
@@ -3434,53 +4296,7 @@ If 0, then only addresses matching the list will be allowed.  This lets you easi
 ==============================================================================
 */
 
-cvar_t	filterban = SCVAR("filterban", "1");
-
-
-// SV_BannedAdress, run through ban address list and return corresponding bannedips_t
-// pointer, otherwise return NULL if not in the list
-bannedips_t *SV_GetBannedAddressEntry (netadr_t *a)
-{
-	bannedips_t *banip;
-	for (banip = svs.bannedips; banip; banip=banip->next)
-	{
-		if (NET_CompareAdrMasked(a, &banip->adr, &banip->adrmask))
-			return banip;
-	}
-	return NULL;
-}
-
-/*
-=================
-SV_FilterPacket
-=================
-*/
-char *SV_BannedReason (netadr_t *a)
-{
-	char *reason = filterban.value?NULL:"";	//"" = banned with no explicit reason
-	bannedips_t *banip;
-
-	if (NET_IsLoopBackAddress(a))
-		return NULL; // never filter loopback
-
-	for (banip = svs.bannedips; banip; banip=banip->next)
-	{
-		if (NET_CompareAdrMasked(a, &banip->adr, &banip->adrmask))
-		{
-			switch(banip->type)
-			{
-			case BAN_BAN:
-				return banip->reason;
-			case BAN_PERMIT:
-				return 0;
-			default:
-				reason = filterban.value?banip->reason:NULL;
-				break;
-			}
-		}
-	}
-	return reason;
-}
+cvar_t	filterban = CVARD("filterban", "1", "If 0, players will be kicked by default unless there is a rule that allows them. Also affects the default action of addip.");
 
 //send a network packet to a new non-connected client.
 //this is to combat tunneling
@@ -3504,6 +4320,7 @@ void SV_OpenRoute_f(void)
 SV_ReadPackets
 =================
 */
+void SV_KillExpiredBans(void);
 #ifdef SERVER_DEMO_PLAYBACK
 //FIMXE: move to header
 qboolean SV_GetPacket (void);
@@ -3518,6 +4335,8 @@ qboolean SV_ReadPackets (float *delay)
 	qboolean	received = false;
 	int			giveup = 5000; /*we're fucked if we need this to be this high, but at least we can retain some clients if we're really running that slow*/
 	int			cookie = 0;
+
+	SV_KillExpiredBans();
 
 	for (i = 0; i < svs.allocated_client_slots; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
@@ -3549,7 +4368,7 @@ qboolean SV_ReadPackets (float *delay)
 
 				if (ISNQCLIENT(cl))
 				{
-					if (cl->state > cs_zombie)
+					if (cl->state >= cs_connected)
 					{
 						if (NQNetChan_Process(&cl->netchan))
 						{
@@ -3566,7 +4385,7 @@ qboolean SV_ReadPackets (float *delay)
 					{	// this is a valid, sequenced packet, so process it
 						received++;
 						svs.stats.packets++;
-						if (cl->state > cs_zombie)
+						if (cl->state >= cs_connected)
 						{	//make sure they didn't already disconnect
 							if (cl->send_message)
 								cl->chokecount++;
@@ -3592,19 +4411,24 @@ qboolean SV_ReadPackets (float *delay)
 	while (giveup-- > 0 && (cookie=NET_GetPacket (NS_SERVER, cookie)) >= 0)
 #endif
 	{
-		banreason = SV_BannedReason (&net_from);
-		if (banreason)
-		{
-			if (*banreason)
-				Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "%cYou are banned: %s\n", A2C_PRINT, banreason);
-			else
-				Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "%cYou are banned\n", A2C_PRINT);
-			continue;
-		}
-
 		// check for connectionless packet (0xffffffff) first
 		if (*(int *)net_message.data == -1)
 		{
+			banreason = SV_BannedReason (&net_from);
+			if (banreason)
+			{
+				static unsigned int lt;
+				unsigned int ct = Sys_Milliseconds();
+				if (ct - lt > 5*1000)
+				{
+					if (*banreason)
+						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "You are banned: %s\n", banreason);
+					else
+						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "You are banned\n");
+				}
+				continue;
+			}
+
 			SV_ConnectionlessPacket();
 			continue;
 		}
@@ -3635,7 +4459,7 @@ qboolean SV_ReadPackets (float *delay)
 #ifdef NQPROT
 			if (ISNQCLIENT(cl) && cl->netchan.remote_address.port == net_from.port)
 			{
-				if (cl->state != cs_zombie)
+				if (cl->state >= cs_connected)
 				{
 					if (cl->delay > 0)
 						goto dominping;
@@ -3667,7 +4491,7 @@ qboolean SV_ReadPackets (float *delay)
 			if (cl->delay > 0)
 			{
 dominping:
-				if (cl->state == cs_zombie)
+				if (cl->state < cs_connected)
 					break;
 				if (net_message.cursize > sizeof(svs.free_lagged_packet->data))
 				{
@@ -3696,7 +4520,7 @@ dominping:
 			{	// this is a valid, sequenced packet, so process it
 				received++;
 				svs.stats.packets++;
-				if (cl->state != cs_zombie)
+				if (cl->state >= cs_connected)
 				{
 					if (cl->send_message)
 						cl->chokecount++;
@@ -3729,6 +4553,8 @@ dominping:
 		if (SVNQ_ConnectionlessPacket())
 			continue;
 #endif
+		if (SV_BannedReason (&net_from))
+			continue;
 
 		if (NET_WasSpecialPacket(NS_SERVER))
 			continue;
@@ -3765,7 +4591,8 @@ void SV_CheckTimeouts (void)
 
 	for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 	{
-		if (cl->state == cs_connected || cl->state == cs_spawned) {
+		if (cl->state == cs_connected || cl->state == cs_spawned)
+		{
 			if (!cl->spectator)
 				nclients++;
 			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD)
@@ -3775,26 +4602,37 @@ void SV_CheckTimeouts (void)
 				cl->state = cs_free;	// don't bother with zombie state for local player.
 			}
 		}
-		if (cl->state == cs_zombie &&
-			realtime - cl->connection_started > zombietime.value)
-		{
-			if (cl->connection_started == -1)
-			{
-				continue;
-			}
+
+		if (cl->state == cs_zombie && realtime - cl->connection_started > zombietime.value)
 			cl->state = cs_free;	// can now be reused
+
+		if (cl->state == cs_loadzombie && realtime - cl->connection_started > zombietime.value)
+		{
 			if (cl->istobeloaded)
 			{
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+				if (cl->istobeloaded == 1)
+				{
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+					PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+					if (*cl->name)
+						SV_BroadcastTPrintf (PRINT_HIGH, "LoadZombie %s timed out\n", cl->name);
+					else
+						SV_BroadcastTPrintf (PRINT_HIGH, "LoadZombie timed out\n", cl->name);
+				}
 				sv.spawned_client_slots--;
 
 				cl->istobeloaded=false;
 
-				SV_BroadcastTPrintf (PRINT_HIGH, "LoadZombie %s timed out\n", cl->name);
-//				cl->state = cs_zombie;	// the real zombieness starts now
-//				cl->connection_started = realtime;
+				//must go through a zombie phase for 2 secs when the zombie gets removed.
+				cl->state = cs_zombie;	// the real zombieness starts now
+				cl->connection_started = realtime;
 			}
+			else
+			{
+				//no entity, just free them.
+				cl->state = cs_free;
+			}
+			cl->netchan.remote_address.type = NA_INVALID;	//don't mess up from not knowing their address.
 		}
 	}
 	if ((sv.paused&1) && !nclients)
@@ -3945,8 +4783,10 @@ void SV_Impulse_f (void)
 
 	svs.clients[i].edict->v->netname = PR_SetString(svprogfuncs, "Console");
 
+	sv.skipbprintclient = &svs.clients[i];
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+	sv.skipbprintclient = NULL;
 
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
@@ -4108,6 +4948,17 @@ void SV_MVDStream_Poll(void);
 
 	if (sv.state < ss_active || !sv.world.worldmodel)
 	{
+#ifdef SUBSERVERS
+		if (sv.state == ss_clustermode)
+		{
+			MSV_PollSlaves();
+			isidle = !SV_ReadPackets (&delay);
+#ifdef SQL
+			PR_SQLCycle();
+#endif
+			SV_SendClientMessages ();
+		}
+#endif
 #ifndef SERVERONLY
 	// check for commands typed to the host
 		if (isDedicated)
@@ -4195,7 +5046,8 @@ void SV_MVDStream_Poll(void);
 		{
 			NET_Tick();
 
-			SV_GetConsoleCommands ();
+			if (sv.framenum != 1)
+				SV_GetConsoleCommands ();
 
 // process console commands
 			if (!pr_imitatemvdsv.value)
@@ -4330,6 +5182,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_resetparms,	cvargroup_servercontrol);
 
+	Cvar_Register (&sv_serverip,	cvargroup_servercontrol);
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_qw,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_nq,	cvargroup_servercontrol);
@@ -4393,6 +5246,12 @@ void SV_InitLocal (void)
 	Cvar_Register (&pext_ezquake_nochunks, cvargroup_servercontrol);
 
 	Cmd_AddCommand ("sv_impulse", SV_Impulse_f);
+
+#ifdef SUBSERVERS
+	Cmd_AddCommand ("ssv", MSV_SubServerCommand_f);
+	Cmd_AddCommand ("ssv_all", MSV_SubServerCommand_f);
+	Cmd_AddCommand ("mapcluster", MSV_MapCluster_f);
+#endif
 
 	Cmd_AddCommand ("openroute", SV_OpenRoute_f);
 
@@ -4493,7 +5352,7 @@ void Master_Heartbeat (void)
 			}
 			else
 			{
-				if (sv_masterlist[i].adr.type == NA_TCP || sv_masterlist[i].adr.type == NA_TCPV6)
+				if (sv_masterlist[i].adr.type == NA_TCP || sv_masterlist[i].adr.type == NA_TCPV6 || sv_masterlist[i].adr.type == NA_TLSV4 || sv_masterlist[i].adr.type == NA_TLSV6)
 					NET_EnsureRoute(svs.sockets, sv_masterlist[i].cv.name, sv_masterlist[i].cv.string, false);
 
 				//choose default port
@@ -4704,7 +5563,7 @@ void SV_FixupName(char *in, char *out, unsigned int outlen)
 }
 
 
-qboolean ReloadRanking(client_t *cl, char *newname)
+qboolean ReloadRanking(client_t *cl, const char *newname)
 {
 #ifdef SVRANKING
 	int newid;
@@ -4862,6 +5721,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 			Q_strncpyz (cl->name, newname, sizeof(cl->namebuf));
 
+			if (svprogfuncs)
+				svprogfuncs->SetStringField(svprogfuncs, cl->edict, &cl->edict->v->netname, cl->name, true);
 
 #ifdef SVRANKING
 			if (ReloadRanking(cl, newname))
@@ -4908,6 +5769,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	{
 		cl->messagelevel = atoi(val);
 	}
+
 #ifdef NQPROT
 	{
 		int top = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
@@ -4921,7 +5783,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 		cl->playercolor = top*16 + bottom;
 		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
-			cl->edict->xv->clientcolors = cl->playercolor;
+			if (cl->edict)
+				cl->edict->xv->clientcolors = cl->playercolor;
 			MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
 			MSG_WriteByte (&sv.nqreliable_datagram, cl-svs.clients);
 			MSG_WriteByte (&sv.nqreliable_datagram, cl->playercolor);
@@ -5072,6 +5935,14 @@ void SV_Init (quakeparms_t *parms)
 		Con_Printf ("%s\n", version_string());
 
 		Con_TPrintf ("======== %s Initialized ========\n", *fs_gamename.string?fs_gamename.string:"Nothing");
+
+#ifdef SUBSERVERS
+		if (SSV_IsSubServer())
+		{
+			NET_InitServer();
+			return;
+		}
+#endif
 
 		// if a map wasn't specified on the command line, spawn start.map
 		//aliases require that we flush the cbuf in order to actually see the results.

@@ -41,6 +41,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define _LPCWAVEFORMATEX_DEFINED
 
 
+#if defined(WINAPI_FAMILY) && !defined(WINRT)
+	#if WINAPI_FAMILY != WINAPI_FAMILY_DESKTOP_APP
+		//don't just define it. things that don't #include winquake.h / glquake.h need it too.
+		#error "WINRT needs to be defined for non-desktop"
+	#endif
+#endif
+
+
 #ifndef WM_MOUSEWHEEL
 #define WM_MOUSEWHEEL                   0x020A
 #endif
@@ -96,7 +104,7 @@ void S_BlockSound (void);
 void S_UnblockSound (void);
 
 void VID_SetDefaultMode (void);
-
+/*
 int (PASCAL FAR *pWSAStartup)(WORD wVersionRequired, LPWSADATA lpWSAData);
 int (PASCAL FAR *pWSACleanup)(void);
 int (PASCAL FAR *pWSAGetLastError)(void);
@@ -115,6 +123,7 @@ struct hostent FAR * (PASCAL FAR *pgethostbyaddr)(const char FAR * addr,
 												  int len, int type);
 int (PASCAL FAR *pgetsockname)(SOCKET s, struct sockaddr FAR *name,
 							   int FAR * namelen);
+*/
 #endif
 
 #endif

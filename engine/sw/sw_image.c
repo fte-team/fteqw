@@ -20,7 +20,7 @@ void SW_RoundDimensions(int width, int height, int *scaled_width, int *scaled_he
 		*scaled_height = 256;
 }
 
-texid_tf SW_AllocNewTexture(char *identifier, int w, int h, unsigned int flags)
+texid_tf SW_AllocNewTexture(const char *identifier, int w, int h, unsigned int flags)
 {
 	int nw, nh;
 	texid_t n;
@@ -45,7 +45,7 @@ texid_tf SW_AllocNewTexture(char *identifier, int w, int h, unsigned int flags)
 	n.ref = &img->com;
 	return n;
 }
-texid_tf SW_FindTexture(char *identifier, unsigned int flags)
+texid_tf SW_FindTexture(const char *identifier, unsigned int flags)
 {
 	return r_nulltex;
 }
@@ -111,7 +111,7 @@ void SW_Upload8(swimage_t *img, int iw, int ih, unsigned char *data)
 	SW_RGBToBGR(img);
 }
 
-texid_tf SW_LoadTexture(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags)
+texid_tf SW_LoadTexture(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags)
 {
 	texid_t img = SW_FindTexture(identifier, flags);
 	if (!img.ptr)
@@ -139,19 +139,19 @@ texid_tf SW_LoadTexture(char *identifier, int width, int height, uploadfmt_t fmt
 	}
 	return img;
 }
-texid_tf SW_LoadTexture8Pal24(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
+texid_tf SW_LoadTexture8Pal24(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
 {
 	return r_nulltex;
 }
-texid_tf SW_LoadTexture8Pal32(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
+texid_tf SW_LoadTexture8Pal32(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
 {
 	return r_nulltex;
 }
-texid_tf SW_LoadCompressed(char *name)
+texid_tf SW_LoadCompressed(const char *name)
 {
 	return r_nulltex;
 }
-void SW_Upload(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
+void SW_Upload(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 }
 void SW_DestroyTexture(texid_t tex)

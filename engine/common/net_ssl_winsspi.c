@@ -2,7 +2,7 @@
 #if defined(HAVE_WINSSPI)
 cvar_t *tls_ignorecertificateerrors;
 
-#include <windows.h>
+#include "winquake.h"
 #define SECURITY_WIN32
 #include <security.h>
 #include <sspi.h>
@@ -16,6 +16,7 @@ static struct
 	SECURITY_STATUS (WINAPI *pEncryptMessage)				(PCtxtHandle,ULONG,PSecBufferDesc,ULONG);
 	SECURITY_STATUS (WINAPI *pAcquireCredentialsHandleA)	(SEC_CHAR*,SEC_CHAR*,ULONG,PLUID,PVOID,SEC_GET_KEY_FN,PVOID,PCredHandle,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pInitializeSecurityContextA)	(PCredHandle,PCtxtHandle,SEC_CHAR*,ULONG,ULONG,ULONG,PSecBufferDesc,ULONG,PCtxtHandle,PSecBufferDesc,PULONG,PTimeStamp);
+	SECURITY_STATUS (WINAPI *pAcceptSecurityContext)		(PCredHandle,PCtxtHandle,PSecBufferDesc,unsigned long,unsigned long,PCtxtHandle,PSecBufferDesc,unsigned long SEC_FAR *,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pCompleteAuthToken)			(PCtxtHandle,PSecBufferDesc);
 	SECURITY_STATUS (WINAPI *pQueryContextAttributesA)		(PCtxtHandle,ULONG,PVOID);
 	SECURITY_STATUS (WINAPI *pFreeCredentialsHandle)		(PCredHandle);
@@ -28,6 +29,9 @@ static struct
 	BOOL (WINAPI *pCertVerifyCertificateChainPolicy)		(LPCSTR,PCCERT_CHAIN_CONTEXT,PCERT_CHAIN_POLICY_PARA,PCERT_CHAIN_POLICY_STATUS);
 	void (WINAPI *pCertFreeCertificateChain)				(PCCERT_CHAIN_CONTEXT);
 	DWORD (WINAPI *pCertNameToStrA)							(DWORD dwCertEncodingType, PCERT_NAME_BLOB pName, DWORD dwStrType, LPTSTR psz, DWORD csz);
+
+	PCCERT_CONTEXT (WINAPI *pCertCreateSelfSignCertificate)	(HCRYPTPROV,PCERT_NAME_BLOB,DWORD,PCRYPT_KEY_PROV_INFO,PCRYPT_ALGORITHM_IDENTIFIER,PSYSTEMTIME,PSYSTEMTIME,PCERT_EXTENSIONS);
+	BOOL (WINAPI *pCertStrToNameA)							(DWORD,LPCSTR,DWORD,void *,BYTE *,DWORD *,LPCSTR *);
 } crypt;
 static qboolean SSL_Init(void)
 {
@@ -37,6 +41,7 @@ static qboolean SSL_Init(void)
 		{(void**)&secur.pEncryptMessage,				"EncryptMessage"},
 		{(void**)&secur.pAcquireCredentialsHandleA,		"AcquireCredentialsHandleA"},
 		{(void**)&secur.pInitializeSecurityContextA,	"InitializeSecurityContextA"},
+		{(void**)&secur.pAcceptSecurityContext,			"AcceptSecurityContext"},
 		{(void**)&secur.pCompleteAuthToken,				"CompleteAuthToken"},
 		{(void**)&secur.pQueryContextAttributesA,		"QueryContextAttributesA"},
 		{(void**)&secur.pFreeCredentialsHandle,			"FreeCredentialsHandle"},
@@ -50,6 +55,8 @@ static qboolean SSL_Init(void)
 		{(void**)&crypt.pCertVerifyCertificateChainPolicy,	"CertVerifyCertificateChainPolicy"},
 		{(void**)&crypt.pCertFreeCertificateChain,			"CertFreeCertificateChain"},
 		{(void**)&crypt.pCertNameToStrA,					"CertNameToStrA"},
+		{(void**)&crypt.pCertCreateSelfSignCertificate,		"CertCreateSelfSignCertificate"},
+		{(void**)&crypt.pCertStrToNameA,					"CertStrToNameA"},
 		{NULL, NULL}
 	};
 
@@ -114,6 +121,7 @@ static int SSPI_CopyIntoBuffer(struct sslbuf *buf, const void *data, unsigned in
 
 static void SSPI_Error(sslfile_t *f, char *error)
 {
+	f->handshaking = HS_ERROR;
 	Sys_Printf("%s", error);
 	if (f->stream)
 		VFS_CLOSE(f->stream);
@@ -184,7 +192,11 @@ static void SSPI_Decode(sslfile_t *f)
 	{
 		if (ss == SEC_E_INCOMPLETE_MESSAGE)
 			return;	//no error if its incomplete, we can just get more data later on.
-		SSPI_Error(f, "DecryptMessage failed\n");
+		switch(ss)
+		{
+		case SEC_E_INVALID_HANDLE:	SSPI_Error(f, "DecryptMessage failed: SEC_E_INVALID_HANDLE\n"); break;
+		default:					SSPI_Error(f, va("DecryptMessage failed: %0#x\n", ss)); break;
+		}
 		return;
 	}
 
@@ -383,15 +395,84 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
     return Status;
 }
 
-static void SSPI_Handshake (sslfile_t *f)
+static PCCERT_CONTEXT SSPI_GetServerCertificate(void)
+{
+	static PCCERT_CONTEXT ret;
+	char *issuertext = "CN=127.0.0.1, O=\"FTE QuakeWorld\", OU=Testing, C=TR";
+	CERT_NAME_BLOB issuerblob;
+
+	CRYPT_ALGORITHM_IDENTIFIER sigalg;
+	SYSTEMTIME expiredate;
+
+	if (ret)
+		return ret;
+
+	memset(&sigalg, 0, sizeof(sigalg));
+	sigalg.pszObjId = szOID_RSA_SHA1RSA;
+
+	GetSystemTime(&expiredate);
+	expiredate.wYear += 2;	//2 years hence. woo
+
+
+	memset(&issuerblob, 0, sizeof(issuerblob));
+	crypt.pCertStrToNameA(X509_ASN_ENCODING, issuertext, CERT_X500_NAME_STR, NULL, issuerblob.pbData, &issuerblob.cbData, NULL);
+	issuerblob.pbData = Z_Malloc(issuerblob.cbData);
+	crypt.pCertStrToNameA(X509_ASN_ENCODING, issuertext, CERT_X500_NAME_STR, NULL, issuerblob.pbData, &issuerblob.cbData, NULL);
+
+	ret = crypt.pCertCreateSelfSignCertificate(
+			0,
+			&issuerblob,
+			0,
+			NULL,
+			&sigalg,
+			NULL,
+			&expiredate,
+			NULL
+		);
+
+	Z_Free(issuerblob.pbData);
+	return ret;
+}
+
+static void SSPI_GenServerCredentials(sslfile_t *f)
 {
 	SECURITY_STATUS   ss;
 	TimeStamp         Lifetime;
-	SecBufferDesc     OutBuffDesc;
-	SecBuffer         OutSecBuff;
-	SecBufferDesc     InBuffDesc;
-	SecBuffer         InSecBuff[2];
-	ULONG             ContextAttributes;
+	SCHANNEL_CRED SchannelCred;
+	PCCERT_CONTEXT cred;
+
+	memset(&SchannelCred, 0, sizeof(SchannelCred));
+	SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
+	SchannelCred.grbitEnabledProtocols = (SP_PROT_TLS1|SP_PROT_SSL3) & SP_PROT_SERVERS;
+	SchannelCred.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER|SCH_CRED_DISABLE_RECONNECTS;	/*don't use windows login info or anything*/
+
+	cred = SSPI_GetServerCertificate();
+	SchannelCred.cCreds = 1;
+	SchannelCred.paCred = &cred;
+
+	if (!cred)
+	{
+		SSPI_Error(f, "Unable to load/generate certificate\n");
+		return;
+	}
+
+	ss = secur.pAcquireCredentialsHandleA (NULL, UNISP_NAME_A, SECPKG_CRED_INBOUND, NULL, &SchannelCred, NULL, NULL, &f->cred, &Lifetime);
+	if (ss < 0)
+	{
+		SSPI_Error(f, "AcquireCredentialsHandle failed\n");
+		return;
+	}
+}
+
+static void SSPI_Handshake (sslfile_t *f)
+{
+	SECURITY_STATUS		ss;
+	TimeStamp			Lifetime;
+	SecBufferDesc		OutBuffDesc;
+	SecBuffer			OutSecBuff;
+	SecBufferDesc		InBuffDesc;
+	SecBuffer			InSecBuff[2];
+	ULONG				ContextAttributes;
 	SCHANNEL_CRED SchannelCred;
 
 	if (f->outcrypt.avail)
@@ -402,6 +483,8 @@ static void SSPI_Handshake (sslfile_t *f)
 			return;
 	}
 
+	//FIXME: skip this if we've had no new data since last time
+
 	OutBuffDesc.ulVersion = SECBUFFER_VERSION;
 	OutBuffDesc.cBuffers  = 1;
 	OutBuffDesc.pBuffers  = &OutSecBuff;
@@ -410,7 +493,9 @@ static void SSPI_Handshake (sslfile_t *f)
 	OutSecBuff.BufferType = SECBUFFER_TOKEN;
 	OutSecBuff.pvBuffer   = f->outcrypt.data + f->outcrypt.avail;
 
-	if (f->handshaking == HS_STARTCLIENT)
+	if (f->handshaking == HS_ERROR)
+		return;	//gave up.
+	else if (f->handshaking == HS_STARTCLIENT)
 	{
 		//no input data yet.
 		f->handshaking = HS_CLIENT;
@@ -429,7 +514,7 @@ static void SSPI_Handshake (sslfile_t *f)
 
 		ss = secur.pInitializeSecurityContextA (&f->cred, NULL, NULL, MessageAttribute, 0, SECURITY_NATIVE_DREP, NULL, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
 	}
-	else
+	else if (f->handshaking == HS_CLIENT)
 	{
 		//only if we actually have data.
 		if (!f->incrypt.avail)
@@ -460,6 +545,41 @@ static void SSPI_Handshake (sslfile_t *f)
 		}
 		else f->incrypt.avail = 0;
 	}
+	else if (f->handshaking == HS_STARTSERVER || f->handshaking == HS_SERVER)
+	{
+		//only if we actually have data.
+		if (!f->incrypt.avail)
+			return;
+
+		InBuffDesc.ulVersion = SECBUFFER_VERSION;
+		InBuffDesc.cBuffers  = 2;
+		InBuffDesc.pBuffers  = InSecBuff;
+
+		InSecBuff[0].BufferType = SECBUFFER_TOKEN;
+		InSecBuff[0].cbBuffer   = f->incrypt.avail;
+		InSecBuff[0].pvBuffer   = f->incrypt.data;
+
+		InSecBuff[1].BufferType = SECBUFFER_EMPTY;
+		InSecBuff[1].pvBuffer   = NULL;
+		InSecBuff[1].cbBuffer   = 0;
+
+		ss = secur.pAcceptSecurityContext(&f->cred, (f->handshaking==HS_SERVER)?&f->sechnd:NULL, &InBuffDesc, ASC_REQ_ALLOCATE_MEMORY|ASC_REQ_STREAM|ASC_REQ_CONFIDENTIALITY, SECURITY_NATIVE_DREP, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime); 
+
+		if (ss == SEC_E_INCOMPLETE_MESSAGE)
+			return;
+		f->handshaking = HS_SERVER;
+
+		//any extra data should still remain for the next time around. this might be more handshake data or payload data.
+		if (InSecBuff[1].BufferType == SECBUFFER_EXTRA)
+		{
+			memmove(f->incrypt.data, f->incrypt.data + (f->incrypt.avail - InSecBuff[1].cbBuffer), InSecBuff[1].cbBuffer);
+			f->incrypt.avail = InSecBuff[1].cbBuffer;
+		}
+		else f->incrypt.avail = 0;
+	}
+	else
+		return;
+	
 
 	if (ss == SEC_I_INCOMPLETE_CREDENTIALS)
 	{
@@ -469,7 +589,14 @@ static void SSPI_Handshake (sslfile_t *f)
 
 	if (ss < 0)  
 	{
-		SSPI_Error(f, "InitializeSecurityContext failed\n");
+		switch(ss)
+		{
+		case SEC_E_ALGORITHM_MISMATCH:	SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_ALGORITHM_MISMATCH\n");	break;
+		case SEC_E_INVALID_HANDLE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_HANDLE\n");		break;
+		case SEC_E_ILLEGAL_MESSAGE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_ILLEGAL_MESSAGE\n");		break;
+		case SEC_E_INVALID_TOKEN:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_TOKEN\n");		break;
+		default:						SSPI_Error(f, va("InitializeSecurityContext failed: %#x\n", ss));				break;
+		}
 		return;
 	}
 
@@ -501,26 +628,29 @@ static void SSPI_Handshake (sslfile_t *f)
 		secur.pQueryContextAttributesA(&f->sechnd, SECPKG_ATTR_STREAM_SIZES, &strsizes);
 		f->headersize = strsizes.cbHeader;
 		f->footersize = strsizes.cbTrailer;
-		f->handshaking = HS_ESTABLISHED;
-
-		if (*f->wpeername)
-		{
-			ss = secur.pQueryContextAttributesA(&f->sechnd, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &remotecert);
-			if (ss != SEC_E_OK)
+		if (f->handshaking != HS_SERVER)
+		{	//server takes an annonymous client. client expects a proper certificate.
+			if (*f->wpeername)
 			{
-				f->handshaking = HS_ERROR;
-				SSPI_Error(f, "unable to read server's certificate\n");
-				return;
+				ss = secur.pQueryContextAttributesA(&f->sechnd, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &remotecert);
+				if (ss != SEC_E_OK)
+				{
+					f->handshaking = HS_ERROR;
+					SSPI_Error(f, "unable to read server's certificate\n");
+					return;
+				}
+				if (VerifyServerCertificate(remotecert, f->wpeername, 0))
+				{
+					f->handshaking = HS_ERROR;
+					SSPI_Error(f, "Error validating certificante\n");
+					return;
+				}
 			}
-			if (VerifyServerCertificate(remotecert, f->wpeername, 0))
-			{
-				f->handshaking = HS_ERROR;
-				SSPI_Error(f, "Error validating certificante\n");
-			}
+			else
+				Sys_Printf("SSL/TLS Server name not specified, skipping verification\n");
 		}
-		else
-			Sys_Printf("SSL/TLS Server name not specified, skipping verification\n");
 
+		f->handshaking = HS_ESTABLISHED;
 
 		SSPI_Encode(f);
 	}
@@ -587,10 +717,13 @@ static qofs_t QDECL SSPI_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }
-static void QDECL SSPI_Close (struct vfsfile_s *file)
+static qboolean QDECL SSPI_Close (struct vfsfile_s *file)
 {
-	SSPI_Error((sslfile_t*)file, "");
-	Z_Free(file);
+	sslfile_t *f = (sslfile_t *)file;
+	qboolean success = f->stream != NULL;
+	SSPI_Error(f, "");
+	Z_Free(f);
+	return success;
 }
 
 #include <wchar.h>
@@ -609,11 +742,13 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 	if (!hostname)
 		hostname = "";
 
+/*
 	if (server)	//unsupported
 	{
 		VFS_CLOSE(source);
 		return NULL;
 	}
+*/
 
 	newf = Z_Malloc(sizeof(*newf));
 	while(*hostname)
@@ -643,6 +778,9 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 	newf->funcs.Tell = SSPI_Tell;
 	newf->funcs.WriteBytes = SSPI_WriteBytes;
 	newf->funcs.seekingisabadplan = true;
+
+	if (server)
+		SSPI_GenServerCredentials(newf);
 
 	return &newf->funcs;
 }

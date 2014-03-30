@@ -79,13 +79,13 @@ void M_Menu_Save_f (void)
 	menu->data = menu+1;
 	
 	MC_AddCenterPicture (menu, 4, 24, "gfx/p_save.lmp");	
-	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 32, NULL, false);	
+	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
 
 	M_ScanSaves ();
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
-		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 32+8*i, m_filenames[i], "savegame s%i\nclosemenu\n", i);
+		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, m_filenames[i], "savegame s%i\nclosemenu\n", i);
 		if (!menu->selecteditem)
 			menu->selecteditem = op;
 	}
@@ -103,16 +103,16 @@ void M_Menu_Load_f (void)
 	menu->data = menu+1;
 	
 	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
-	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 32, NULL, false);	
+	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
 
 	M_ScanSaves ();
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
 		if (loadable[i])
-			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 32+8*i, m_filenames[i], "loadgame s%i\nclosemenu\n", i);
+			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, m_filenames[i], "loadgame s%i\nclosemenu\n", i);
 		else
-			MC_AddWhiteText(menu, 16, 32+8*i, m_filenames[i], false);
+			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_filenames[i], false);
 		if (!menu->selecteditem && op)
 			menu->selecteditem = op;
 	}
@@ -136,8 +136,8 @@ void M_Menu_SinglePlayer_f (void)
 #ifdef CLIENTONLY
 	menu = M_CreateMenu(0);
 
-	MC_AddWhiteText(menu, 84, 12*8, "This build is unable", false);
-	MC_AddWhiteText(menu, 84, 13*8, "to start a local game", false);
+	MC_AddWhiteText(menu, 84, 0, 12*8, "This build is unable", false);
+	MC_AddWhiteText(menu, 84, 0, 13*8, "to start a local game", false);
 
 	MC_AddBox (menu, 60, 10*8, 25, 4);
 #else
@@ -151,14 +151,14 @@ void M_Menu_SinglePlayer_f (void)
 
 		//quake2 uses the 'newgame' alias.
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 40,	"Easy",		"closemenu; skill 0;deathmatch 0; coop 0;newgame\n");
-		MC_AddConsoleCommand	(menu, 64, 48,	"Medium",	"closemenu; skill 1;deathmatch 0; coop 0;newgame\n");
-		MC_AddConsoleCommand	(menu, 64, 56,	"Hard",		"closemenu; skill 2;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		"closemenu; skill 0;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	"closemenu; skill 1;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		"closemenu; skill 2;deathmatch 0; coop 0;newgame\n");
 
-		MC_AddConsoleCommand	(menu, 64, 72,	"Load Game", "menu_load\n");
-		MC_AddConsoleCommand	(menu, 64, 80,	"Save Game", "menu_save\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Load Game", "menu_load\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 80,	"Save Game", "menu_save\n");
 
-		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 40, NULL, false);
+		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
 		return;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -194,7 +194,7 @@ void M_Menu_SinglePlayer_f (void)
 			MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title2.lmp");
 
 			if (cl_splitscreen.ival)
-				MC_AddBufferedText(menu, 80, (y+=8)+12, va("Player %i\n", pnum), false, true); 
+				MC_AddBufferedText(menu, 80, 0, (y+=8)+12, va("Player %i\n", pnum), false, true); 
 
 			for (i = 0; i < 4+havemp; i++)
 			{
@@ -335,21 +335,21 @@ void M_Menu_SinglePlayer_f (void)
 	{
 		MC_AddBox (menu, 60, 10*8, 23, 4);
 
-		MC_AddWhiteText(menu, 92, 12*8, "Could find file", false);
-		MC_AddWhiteText(menu, 92, 13*8, "gfx/sp_menu.lmp", false);
+		MC_AddWhiteText(menu, 92, 0, 12*8, "Couldn't find file", false);
+		MC_AddWhiteText(menu, 92, 0, 13*8, "gfx/sp_menu.lmp", false);
 	}
 	else
 	{
 		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-		b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;startmap_sp\n");
+		b = MC_AddConsoleCommand	(menu, 16, 304, 32,	"", "closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;startmap_sp\n");
 		menu->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;
-		b = MC_AddConsoleCommand	(menu, 16, 52,	"", "menu_load\n");
+		b = MC_AddConsoleCommand	(menu, 16, 304, 52,	"", "menu_load\n");
 		b->common.width = p->width;
 		b->common.height = 20;
-		b = MC_AddConsoleCommand	(menu, 16, 72,	"", "menu_save\n");
+		b = MC_AddConsoleCommand	(menu, 16, 304, 72,	"", "menu_save\n");
 		b->common.width = p->width;
 		b->common.height = 20;
 
@@ -374,7 +374,7 @@ typedef struct {
 
 	int pathlen;
 	char path[MAX_OSPATH];
-	int fsroot;	//FS_ROOT, FS_GAME, FS_GAMEONLY. if FS_ROOT, executed command will have a leading #
+	int fsroot;	//FS_SYSTEM, FS_GAME, FS_GAMEONLY. if FS_SYSTEM, executed command will have a leading #
 
 	char *command[64];	//these let the menu be used for nearly any sort of file browser.
 	char *ext[64];
@@ -491,8 +491,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 					extnum = 0;
 
 				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fsroot==FS_ROOT)?"#":"", info->selected->name), RESTRICT_LOCAL);
-				M_ToggleMenu_f();
-				
+				M_RemoveMenu(menu);				
 			}
 		}
 		return true;
@@ -660,8 +659,8 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	{
 		if (!strcmp(path, "../"))
 		{
-			info->fsroot = FS_ROOT;
 			FS_NativePath("", FS_ROOT, info->path, sizeof(info->path));
+			info->fsroot = FS_SYSTEM;
 			while((s = strchr(info->path, '\\')))
 				*s = '/';
 		}
@@ -686,7 +685,7 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	info->pathlen = strlen(info->path);
 
 	M_Demo_Flush(menu->data);
-	if (info->fsroot == FS_ROOT)
+	if (info->fsroot == FS_SYSTEM)
 	{
 		s = strchr(info->path, '/');
 		if (s && strchr(s+1, '/'))
@@ -705,7 +704,7 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 		Q_snprintfz(match, sizeof(match), "../");
 		DemoAddItem(match, 0, info, NULL);
 	}
-	if (info->fsroot == FS_ROOT)
+	if (info->fsroot == FS_SYSTEM)
 	{
 		Q_snprintfz(match, sizeof(match), *info->path?"%s*":"/*", info->path);
 		Sys_EnumerateFiles("", match, DemoAddItem, info, NULL);
@@ -732,20 +731,32 @@ void M_Menu_Demos_f (void)
 
 	info->fsroot = FS_GAME;
 
-	info->command[0] = "playdemo";
-	info->ext[0] = ".qwd";
-	info->command[1] = "playdemo";
-	info->ext[1] = ".dem";
-	info->command[2] = "playdemo";
-	info->ext[2] = ".dm2";
-	info->command[3] = "playdemo";
-	info->ext[3] = ".mvd";
+	info->numext = 0;
+	info->command[info->numext] = "playdemo";
+	info->ext[info->numext++] = ".qwd";
+	info->command[info->numext] = "playdemo";
+	info->ext[info->numext++] = ".dem";
+	info->command[info->numext] = "playdemo";
+	info->ext[info->numext++] = ".dm2";
+	info->command[info->numext] = "playdemo";
+	info->ext[info->numext++] = ".mvd";
+	info->command[info->numext] = "playdemo";
+	info->ext[info->numext++] = ".mvd.gz";
 	//there are also qizmo demos (.qwz) out there...
 	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
-	info->numext = 4;
 
-	MC_AddWhiteText(menu, 24, 8, "Choose a Demo", false);
-	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
+	//and some archive formats... for the luls
+	info->command[info->numext] = NULL;
+	info->ext[info->numext++] = ".zip";
+	info->command[info->numext] = NULL;
+	info->ext[info->numext++] = ".pk3";
+	info->command[info->numext] = NULL;
+	info->ext[info->numext++] = ".pk4";
+	info->command[info->numext] = NULL;
+	info->ext[info->numext++] = ".pak";
+
+	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
+	MC_AddWhiteText(menu, 16, 170, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
 	info->list->draw = M_DemoDraw;
@@ -788,8 +799,8 @@ void M_Menu_MediaFiles_f (void)
 	info->numext++;
 #endif
 
-	MC_AddWhiteText(menu, 24, 8, "Media List", false);
-	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
+	MC_AddWhiteText(menu, 24, 170, 8, "Media List", false);
+	MC_AddWhiteText(menu, 16, 170, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
 	info->list->draw = M_DemoDraw;

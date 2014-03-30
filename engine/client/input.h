@@ -28,7 +28,10 @@ void IN_Shutdown (void);
 void IN_Commands (void);
 // oportunity for devices to stick commands on the script buffer
 
-void IN_Move (float *movements, int pnum);
+qboolean IN_MouseDevIsTouch(int devid);	//check if a mouse devid is a touch screen, and thus if we should check the cursor and simulate a ui event or not
+int IN_TranslateMButtonPress(int devid);	//allow the touchscreen code to swallow mouse1 as a begin-looking event
+
+void IN_Move (float *movements, int pnum, float frametime);
 // add additional movement on top of the keyboard move cmd
 
 extern cvar_t in_xflip;

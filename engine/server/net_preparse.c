@@ -878,7 +878,7 @@ void NPP_NQCheckDest(int dest)
 		destprim = &writedest->prim;
 	}
 }
-void NPP_AddData(void *data, int len)
+void NPP_AddData(const void *data, int len)
 {
 	if (bufferlen+len > sizeof(buffer))
 		Sys_Error("Preparse buffer was filled\n");
@@ -1260,8 +1260,6 @@ void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 {
 	char data = (int)(in*256/360) & 255;
 	NPP_NQCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("NQWriteAngle: Messages should start with WriteByte\n");
 
 #ifdef NQPROT
 	if (cldest)
@@ -1278,6 +1276,9 @@ void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 	else
 		MSG_WriteAngle (NQWriteDest(dest), in);
 #endif
+
+	if (!bufferlen)
+		Con_Printf("NQWriteAngle: Messages should start with WriteByte\n");
 
 	if (destprim->anglesize==2)
 	{
@@ -1335,7 +1336,7 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 	}
 	NPP_NQCheckFlush();
 }
-void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
+void NPP_NQWriteString(int dest, const char *data)	//replacement write func (nq to qw)
 {
 	NPP_NQCheckDest(dest);
 	if (!bufferlen)
@@ -2002,7 +2003,7 @@ void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 		NPP_QWWriteShort(dest, datas);
 	}
 }
-void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
+void NPP_QWWriteString(int dest, const char *data)	//replacement write func (nq to qw)
 {
 #if 0
 	//the slow but guarenteed routine

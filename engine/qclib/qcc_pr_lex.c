@@ -2097,7 +2097,7 @@ int QCC_PR_FindMacro (char *name)
 	{
 		if (!stricmp (name, pr_framemacros[i]))
 		{
-			QCC_PR_ParseWarning(WARN_CASEINSENSATIVEFRAMEMACRO, "Case insensative frame macro");
+			QCC_PR_ParseWarning(WARN_CASEINSENSITIVEFRAMEMACRO, "Case insensitive frame macro");
 			return pr_framemacrovalue[i];
 		}
 	}
@@ -3462,7 +3462,7 @@ pbool QCC_PR_CheckName(char *string)
 {
 	if (pr_token_type != tt_name)
 		return false;
-	if (flag_caseinsensative)
+	if (flag_caseinsensitive)
 	{
 		if (stricmp (string, pr_token))
 			return false;
@@ -3480,7 +3480,7 @@ pbool QCC_PR_CheckKeyword(int keywordenabled, char *string)
 {
 	if (!keywordenabled)
 		return false;
-	if (flag_caseinsensative)
+	if (flag_caseinsensitive)
 	{
 		if (stricmp (string, pr_token))
 			return false;

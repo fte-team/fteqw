@@ -104,6 +104,7 @@ void GLSCR_UpdateScreen (void)
 	Shader_DoReload();
 
 	GL_BeginRendering ();
+	qglDisable(GL_SCISSOR_TEST);
 #ifdef VM_UI
 	uimenu = UI_MenuState();
 #else

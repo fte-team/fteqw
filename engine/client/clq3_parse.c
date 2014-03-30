@@ -538,6 +538,10 @@ void CLQ3_ParseGameState(void)
 // wipe the client_state_t struct
 //
 	CL_ClearState();
+	ccs.firstParseEntity = 0;
+	memset(ccs.parseEntities, 0, sizeof(ccs.parseEntities));
+	memset(ccs.baselines, 0, sizeof(ccs.baselines));
+
 
 	cl.minpitch = -90;
 	cl.maxpitch = 90;

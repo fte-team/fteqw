@@ -115,7 +115,7 @@ void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, fl
 	}
 	Font_BeginScaledString(font, vx, vy, szx, szy, px, py);
 }
-int PR_findnamedfont(char *name, qboolean isslotname)
+int PR_findnamedfont(const char *name, qboolean isslotname)
 {
 	int i;
 	if (isslotname)
@@ -176,14 +176,14 @@ void PR_ResetFonts(unsigned int purgeowner)
 }
 void QCBUILTIN PF_CL_findfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *slotname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *slotname = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = PR_findnamedfont(slotname, true) + 1;	//return default on failure.
 }
 void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *slotname = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *facename = PR_GetStringOfs(prinst, OFS_PARM1);
-	char *sizestr = PR_GetStringOfs(prinst, OFS_PARM2);
+	const char *slotname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *facename = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *sizestr = PR_GetStringOfs(prinst, OFS_PARM2);
 	int slotnum = G_FLOAT(OFS_PARM3);
 	//float fix_scale = G_FLOAT(OFS_PARM4);
 	//float fix_voffset = G_FLOAT(OFS_PARM5);
@@ -345,7 +345,7 @@ void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s 
 	float *pos = G_VECTOR(OFS_PARM0);
 	float *size = G_VECTOR(OFS_PARM1);
 	unsigned int flags = G_FLOAT(OFS_PARM2);
-	char *text = PR_GetStringOfs(prinst, OFS_PARM3);
+	const char *text = PR_GetStringOfs(prinst, OFS_PARM3);
 	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags);
 }
 
@@ -353,7 +353,7 @@ void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s 
 void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
-	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *text = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
 	float alpha = 0;
 	float flag = 0;
@@ -411,7 +411,7 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 {
 	conchar_t buffer[2048], *end;
 	float px, py;
-	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *text = PR_GetStringOfs(prinst, OFS_PARM0);
 	int usecolours = G_FLOAT(OFS_PARM1);
 	float *size = (prinst->callargc > 2)?G_VECTOR(OFS_PARM2):NULL;
 
@@ -428,7 +428,7 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
-	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
@@ -458,7 +458,7 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	float *size = G_VECTOR(OFS_PARM1);
-	char *picname = PR_GetStringOfs(prinst, OFS_PARM2);
+	const char *picname = PR_GetStringOfs(prinst, OFS_PARM2);
 	float *srcPos = G_VECTOR(OFS_PARM3);
 	float *srcSize = G_VECTOR(OFS_PARM4);
 	float *rgb = G_VECTOR(OFS_PARM5);
@@ -488,14 +488,14 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*str;
+	const char	*str;
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = !!R_RegisterCustom(str, SUF_2D, NULL, NULL);
 }
 
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*str;
+	const char	*str;
 	mpic_t	*pic;
 	float fromwad;
 
@@ -573,7 +573,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	
 	float *pos = G_VECTOR(OFS_PARM0);
-	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *text = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
@@ -595,7 +595,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 	while(*text)
 	{
 		if (1)//VMUTF8)
-			c = unicode_decode(&error, text, &text, false);
+			c = unicode_decode(&error, text, (char**)&text, false);
 		else
 		{
 			//FIXME: which charset is this meant to be using?
@@ -666,7 +666,7 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 //vector  drawgetimagesize(string pic) = #460;
 void QCBUILTIN PF_CL_drawgetimagesize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
 	mpic_t *p = R2D_SafeCachePic(picname);
 
 	float *ret = G_VECTOR(OFS_RETURN);
@@ -715,9 +715,9 @@ void QCBUILTIN PF_cl_getmousepos (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *field = PR_GetStringOfs(prinst, OFS_PARM1);
-	char *value = (prinst->callargc>2)?PR_GetStringOfs(prinst, OFS_PARM2):NULL;
+	const char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *field = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *value = (prinst->callargc>2)?PR_GetStringOfs(prinst, OFS_PARM2):NULL;
 	console_t *con = Con_FindConsole(conname);
 	G_INT(OFS_RETURN) = 0;
 	if (!con)
@@ -795,8 +795,8 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char outbuf[4096];
-	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *fmt = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *fmt = PR_GetStringOfs(prinst, OFS_PARM1);
 	console_t *con = Con_FindConsole(conname);
 	if (!con)
 		return;
@@ -805,7 +805,7 @@ void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 }
 void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
 	float *pos = G_VECTOR(OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
 	float fontsize = G_FLOAT(OFS_PARM3);
@@ -826,7 +826,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key);
 void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
 void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int ie = G_FLOAT(OFS_PARM1);
 	float pa = G_FLOAT(OFS_PARM2);
 	float pb = G_FLOAT(OFS_PARM3);
@@ -914,7 +914,7 @@ void QCBUILTIN PF_mod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = a % b;
 }
 
-char *RemapCvarNameFromDPToFTE(char *name)
+const char *RemapCvarNameFromDPToFTE(const char *name)
 {
 	if (!stricmp(name, "vid_bitsperpixel"))
 		return "vid_bpp";
@@ -942,7 +942,7 @@ char *RemapCvarNameFromDPToFTE(char *name)
 static void QCBUILTIN PF_menu_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	cvar_t	*var;
-	char	*str;
+	const char	*str;
 
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -971,7 +971,7 @@ static void QCBUILTIN PF_menu_cvar (pubprogfuncs_t *prinst, struct globalvars_s 
 }
 static void QCBUILTIN PF_menu_cvar_set (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*var_name, *val;
+	const char	*var_name, *val;
 	cvar_t *var;
 
 	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -983,7 +983,7 @@ static void QCBUILTIN PF_menu_cvar_set (pubprogfuncs_t *prinst, struct globalvar
 }
 static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
 	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, cv->string );
 }
@@ -1076,7 +1076,7 @@ static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 void QCBUILTIN PF_CL_precache_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*str;
+	const char	*str;
 
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -1185,13 +1185,13 @@ static void QCBUILTIN PF_CopyEntity (pubprogfuncs_t *prinst, struct globalvars_s
 
 void QCBUILTIN PF_localsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
 	S_LocalSound (soundname);
 }
 
 void QCBUILTIN PF_menu_checkextension (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int i;
 	G_FLOAT(OFS_RETURN) = 0;
 
@@ -1221,7 +1221,7 @@ void QCBUILTIN PF_CL_precache_file (pubprogfuncs_t *prinst, struct globalvars_s 
 void QCBUILTIN PF_menu_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
-	char *s;
+	const char *s;
 	string_t t;
 	menuedict_t *ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
@@ -1330,7 +1330,7 @@ void QCBUILTIN PF_IsNotNull(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 //returns number of single quoted strings in the string.
 void QCBUILTIN PF_altstr_count(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *s;
+	const char *s;
 	int count = 0;
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	for (;*s;s++)
@@ -1349,7 +1349,7 @@ void QCBUILTIN PF_altstr_count(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_altstr_prepare(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char outstr[8192], *out;
-	char *instr, *in;
+	const char *instr, *in;
 	int size;
 
 //	VM_SAFEPARMCOUNT( 1, VM_altstr_prepare );
@@ -1375,7 +1375,8 @@ void QCBUILTIN PF_altstr_prepare(pubprogfuncs_t *prinst, struct globalvars_s *pr
 //string  altstr_get(string str, float num) = #84;
 void QCBUILTIN PF_altstr_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *altstr, *pos, outstr[8192], *out;
+	const char *altstr, *pos;
+	char outstr[8192], *out;
 	int count, size;
 
 //	VM_SAFEPARMCOUNT( 2, VM_altstr_get );
@@ -1422,8 +1423,8 @@ void QCBUILTIN PF_altstr_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_altstr_set(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int num;
-	char *altstr, *str;
-	char *in;
+	const char *altstr, *str;
+	const char *in;
 	char outstr[8192], *out;
 
 //	VM_SAFEPARMCOUNT( 3, VM_altstr_set );
@@ -1845,8 +1846,11 @@ void MP_Shutdown (void)
 	Master_ClearMasks();
 #endif
 
-	Key_Dest_Remove(kdm_menu);
-	m_state = 0;
+	if (m_state == m_menu_dat)
+	{
+		Key_Dest_Remove(kdm_menu);
+		m_state = 0;
+	}
 
 	key_dest_absolutemouse &= ~kdm_menu;
 }
@@ -1904,8 +1908,6 @@ qboolean MP_Init (void)
 
 	if (forceqmenu.value)
 		return false;
-
-	M_DeInit_Internal();
 
 	MP_SetupBuiltins();
 
@@ -1973,6 +1975,8 @@ qboolean MP_Init (void)
 			return false;
 		}
 		inmenuprogs++;
+
+		M_DeInit_Internal();
 
 		PF_InitTempStrings(menu_world.progs);
 
@@ -2049,7 +2053,7 @@ void MP_CoreDump_f(void)
 
 void MP_Reload_f(void)
 {
-	M_Shutdown();
+	M_Shutdown(true);
 	M_Reinit();
 }
 

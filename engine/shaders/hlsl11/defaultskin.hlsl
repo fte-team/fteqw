@@ -38,6 +38,16 @@ struct v2f
 	{
 		float4 col;
 		col = shaderTexture[0].Sample(SampleType, inp.tc);
+
+		#ifdef MASK
+			#ifndef MASKOP
+				#define MASKOP >=	//drawn if (alpha OP ref) is true.
+			#endif
+			//support for alpha masking
+			if (!(col.a MASKOP MASK))
+				discard;
+		#endif
+
 #ifdef UPPER
 		float4 uc = shaderTexture[2].Sample(SampleType, inp.tc);
 		col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);

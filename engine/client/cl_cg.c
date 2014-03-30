@@ -24,7 +24,7 @@ extern int mod_numknown;
 #define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-#define VM_FROMSHANDLE(a) (a?r_shaders[a-1]:NULL)
+#define VM_FROMSHANDLE(a) ((a&&(unsigned int)a<=r_numshaders)?r_shaders[a-1]:NULL)
 #define VM_TOSHANDLE(a) (a?a->id+1:0)
 
 extern model_t		box_model;
@@ -730,14 +730,14 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			int i;
 			char *mapname = VM_POINTER(arg[0]);
 			strcpy(cl.model_name[1], mapname);
-			cl.worldmodel = cl.model_precache[1] = Mod_ForName(mapname, false);
+			cl.worldmodel = cl.model_precache[1] = Mod_ForName(mapname, MLV_SILENT);
 			if (cl.worldmodel->needload)
-				Host_EndGame("Couldn't load map");
+				Host_EndGame("Couldn't load map %s", mapname);
 
 			for (i=1 ; i<cl.model_precache[1]->numsubmodels ; i++)
 			{
 				strcpy(cl.model_name[1+i], va("*%i", i));
-				cl.model_precache[i+1] = Mod_ForName (cl.model_name[i+1], false);
+				cl.model_precache[i+1] = Mod_ForName (cl.model_name[i+1], MLV_SILENT);
 			}
 		}
 
@@ -772,16 +772,18 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_R_REGISTERMODEL:	//precache model
 		{
+			char *name = VM_POINTER(arg[0]);
 			model_t *mod;
-			mod = Mod_ForName(VM_POINTER(arg[0]), false);
+			mod = Mod_ForName(name, MLV_SILENT);
 			if (mod->needload || mod->type == mod_dummy)
-				return 0;
-			VM_LONG(ret) = VM_TOMHANDLE(mod);
+				VM_LONG(ret) = 0;
+			else
+				VM_LONG(ret) = VM_TOMHANDLE(mod);
 		}
 		break;
 
 	case CG_R_REGISTERSKIN:
-		VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
+		VM_LONG(ret) = Mod_RegisterSkinFile(VM_POINTER(arg[0]));
 		break;
 
 	case CG_R_REGISTERSHADER:
@@ -969,7 +971,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		VALIDATEPOINTER(arg[1], sizeof(q3usercmd_t));
 		VM_LONG(ret) = CGQ3_GetUserCmd(VM_LONG(arg[0]), VM_POINTER(arg[1]));
 		break;
-	case CG_SETUSERCMDVALUE:	//weaponselect, zoomsensativity.
+	case CG_SETUSERCMDVALUE:	//weaponselect, zoomsensitivity.
 		ccs.selected_weapon = VM_LONG(arg[0]);
 		in_sensitivityscale = VM_FLOAT(arg[1]);
 		break;
@@ -1161,6 +1163,16 @@ void CG_Stop (void)
 		VM_fcloseall(1);
 		cgvm = NULL;
 	}
+}
+
+qboolean CG_VideoRestarted(void)
+{
+	if (cgvm)
+	{
+		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playerview[0].playernum);
+		return true;
+	}
+	return false;
 }
 
 void CG_Start (void)

@@ -648,10 +648,10 @@ float Q_atof (const char *str)
 attempts to remove leet strange chars from a name
 the resulting string is not intended to be visible to humans, but this functions results can be matched against each other.
 */
-void deleetstring(char *result, char *leet)
+void deleetstring(char *result, const char *leet)
 {
 	char *s = result;
-	char *s2 = leet;
+	const char *s2 = leet;
 	while(*s2)
 	{
 		if (*s2 == (char)0xff)
@@ -1434,6 +1434,24 @@ float MSG_ReadFloat (void)
 	return dat.f;
 }
 
+char *MSG_ReadStringBuffer (char *out, size_t outsize)
+{
+	int		l,c;
+
+	l = 0;
+	do
+	{
+		c = MSG_ReadChar ();
+		if (msg_badread || c == 0)
+			break;
+		out[l] = c;
+		l++;
+	} while (l < outsize-1);
+
+	out[l] = 0;
+
+	return out;
+}
 char *MSG_ReadString (void)
 {
 	static char	string[8192];
@@ -2299,14 +2317,14 @@ unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen, qboolea
 }
 
 //char-based strlen.
-unsigned int unicode_charcount(char *in, size_t buffersize, qboolean markup)
+unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean markup)
 {
 	int error;
-	char *end = in + buffersize;
+	const char *end = in + buffersize;
 	int chars = 0;
 	for(chars = 0; in < end && *in; chars+=1)
 	{
-		unicode_decode(&error, in, &in, markup);
+		unicode_decode(&error, in, (char**)&in, markup);
 
 		if (in > end)
 			break;	//exceeded buffer size uncleanly
@@ -2315,9 +2333,9 @@ unsigned int unicode_charcount(char *in, size_t buffersize, qboolean markup)
 }
 
 //handy hacky function.
-unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs, qboolean markup)
+unsigned int unicode_byteofsfromcharofs(const char *str, unsigned int charofs, qboolean markup)
 {
-	char *in = str;
+	const char *in = str;
 	int error;
 	int chars;
 	for(chars = 0; *in; chars+=1)
@@ -2325,19 +2343,19 @@ unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs, qboolea
 		if (chars >= charofs)
 			return in - str;
 
-		unicode_decode(&error, in, &in, markup);
+		unicode_decode(&error, in, (char**)&in, markup);
 	}
 	return in - str;
 }
 //handy hacky function.
-unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs, qboolean markup)
+unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, qboolean markup)
 {
 	int error;
-	char *end = str + byteofs;
+	const char *end = str + byteofs;
 	int chars = 0;
 	for(chars = 0; str < end && *str; chars+=1)
 	{
-		unicode_decode(&error, str, &str, markup);
+		unicode_decode(&error, str, (char**)&str, markup);
 
 		if (str > end)
 			break;	//exceeded buffer size uncleanly
@@ -2363,7 +2381,7 @@ int towlower(int c)
 }
 #endif
 
-size_t unicode_strtoupper(char *in, char *out, size_t outsize, qboolean markup)
+size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean markup)
 {
 	//warning: towupper is locale-specific (eg: turkish has both I and dotted-I and thus i should transform to dotted-I rather than to I).
 	//also it can't easily cope with accent prefixes.
@@ -2374,7 +2392,7 @@ size_t unicode_strtoupper(char *in, char *out, size_t outsize, qboolean markup)
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, &in, markup);
+		c = unicode_decode(&error, in, (char**)&in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towupper(c & 0x7f) + (c & 0xff80);
 		else
@@ -2387,7 +2405,7 @@ size_t unicode_strtoupper(char *in, char *out, size_t outsize, qboolean markup)
 	return l;
 }
 
-size_t unicode_strtolower(char *in, char *out, size_t outsize, qboolean markup)
+size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean markup)
 {
 	//warning: towlower is locale-specific (eg: turkish has both i and dotless-i and thus I should transform to dotless-i rather than to i).
 	//also it can't easily cope with accent prefixes.
@@ -2398,7 +2416,7 @@ size_t unicode_strtolower(char *in, char *out, size_t outsize, qboolean markup)
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, &in, markup);
+		c = unicode_decode(&error, in, (char**)&in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towlower(c & 0x7f) + (c & 0xff80);
 		else
@@ -2976,6 +2994,30 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			continue;
 		}
+		else if (str[0] == '=' && str[1] == '`' && str[2] == 'u' && str[3] == '8' && str[4] == ':' && !keepmarkup)
+		{
+			int l;
+			char temp[1024];
+			str += 5;
+			while(*str)
+			{
+				l = 0;
+				while (*str && l < sizeof(temp)-32 && !(str[0] == '`' && str[1] == '='))
+					temp[l++] = *str++;
+				//recurse
+				temp[l] = 0;
+				l = COM_ParseFunString(ext, temp, out, outsize, PFS_FORCEUTF8) - out;
+				outsize -= l;
+				out += l;
+				if (str[0] == '`' && str[1] == '=')
+				{
+					str+=2;
+					break;
+				}
+			}
+			continue;
+		}
+
 /*
 		else if ((str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p' && str[4] == ':' && !linkstart && !(flags & (PFS_NOMARKUP|PFS_KEEPMARKUP))) ||
 				(str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p' && str[4] == 's' && str[5] == ':' && !linkstart && !(flags & (PFS_NOMARKUP|PFS_KEEPMARKUP))))
@@ -4341,6 +4383,7 @@ int	memsearch (qbyte *start, int count, int search)
 	return -1;
 }
 
+/*
 struct effectinfo_s
 {
 	struct effectinfo_s *next;
@@ -4486,7 +4529,7 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum)
 	}
 	return "";
 }
-
+*/
 /*************************************************************************/
 
 /*remaps map checksums from known non-cheat GPL maps to authentic id1 maps*/
@@ -4569,7 +4612,7 @@ Searches the string for the given
 key and returns the associated value, or an empty string.
 ===============
 */
-char *Info_ValueForKey (char *s, const char *key)
+char *Info_ValueForKey (const char *s, const char *key)
 {
 	char	pkey[1024];
 	static	char value[4][1024];	// use two buffers so compares

@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_surf.c: surface-related refresh code
 
 #include "quakedef.h"
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 #include "glquake.h"
 #include "shader.h"
 #include "renderque.h"
@@ -1967,12 +1967,26 @@ void Surf_SetupFrame(void)
 	R_AnimateLight();
 	r_framecount++;
 
+	if (r_refdef.recurse)
+	{
+		VectorCopy(r_refdef.pvsorigin, pvsorg);
+	}
+	else
+	{
+		VectorCopy(r_refdef.vieworg, pvsorg);
+	}
+
 	r_viewcontents = 0;
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 	{
 	}
+	else if (!cl.worldmodel || cl.worldmodel->needload || cl.worldmodel->fromgame == fg_doom3 )
+	{
+		r_viewleaf = NULL;
+		r_viewleaf2 = NULL;
+	}
 #ifdef Q2BSPS
-	else if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3))
+	else if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 	{
 		static mleaf_t fakeleaf;
 		mleaf_t	*leaf;
@@ -1984,16 +1998,9 @@ void Surf_SetupFrame(void)
 
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
-		if (r_refdef.recurse)
-		{
-			leaf = Mod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
-			r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, r_refdef.pvsorigin);
-		}
-		else
-		{
-			leaf = Mod_PointInLeaf (cl.worldmodel, r_origin);
-			r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, r_origin);
-		}
+
+		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
+		r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, pvsorg);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		// check above and below so crossing solid water doesn't draw wrong
@@ -2001,7 +2008,7 @@ void Surf_SetupFrame(void)
 		{	// look down a bit
 			vec3_t	temp;
 
-			VectorCopy (r_origin, temp);
+			VectorCopy (pvsorg, temp);
 			temp[2] -= 16;
 			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
@@ -2012,7 +2019,7 @@ void Surf_SetupFrame(void)
 		{	// look up a bit
 			vec3_t	temp;
 
-			VectorCopy (r_origin, temp);
+			VectorCopy (pvsorg, temp);
 			temp[2] += 16;
 			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
@@ -2021,22 +2028,8 @@ void Surf_SetupFrame(void)
 		}
 	}
 #endif
-	else if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
-	{
-		r_viewleaf = NULL;
-		r_viewleaf2 = NULL;
-	}
 	else
 	{
-		if (r_refdef.recurse)
-		{
-			VectorCopy(r_refdef.pvsorigin, pvsorg);
-		}
-		else
-		{
-			VectorCopy(r_origin, pvsorg);
-		}
-
 		r_viewleaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
 
 		if (!r_viewleaf)
@@ -2095,7 +2088,7 @@ void Surf_SetupFrame(void)
 #ifdef TERRAIN
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->terrain)
 	{
-		r_viewcontents |= Heightmap_PointContents(cl.worldmodel, NULL, r_origin);
+		r_viewcontents |= Heightmap_PointContents(cl.worldmodel, NULL, pvsorg);
 	}
 #endif
 
@@ -2106,18 +2099,19 @@ void Surf_SetupFrame(void)
 		VectorCopy(pmove.player_maxs, t2);
 		VectorClear(pmove.player_maxs);
 		VectorClear(pmove.player_mins);
-		r_viewcontents |= PM_ExtraBoxContents(r_origin);
+		r_viewcontents |= PM_ExtraBoxContents(pvsorg);
 		VectorCopy(t1, pmove.player_mins);
 		VectorCopy(t2, pmove.player_maxs);
 	}
-	V_SetContentsColor (r_viewcontents);
+	if (!r_secondaryview)
+		V_SetContentsColor (r_viewcontents);
 
 
 	if (r_refdef.audio.defaulted)
 	{
 		//first scene is the 'main' scene and audio defaults to that (unless overridden later in the frame)
 		r_refdef.audio.defaulted = false;
-		VectorCopy(r_origin, r_refdef.audio.origin);
+		VectorCopy(r_refdef.vieworg, r_refdef.audio.origin);
 		VectorCopy(vpn, r_refdef.audio.forward);
 		VectorCopy(vright, r_refdef.audio.right);
 		VectorCopy(vup, r_refdef.audio.up);
@@ -2282,8 +2276,6 @@ void Surf_DrawWorld (void)
 		/*Don't act as a wallhack*/
 		return;
 	}
-
-	Surf_SetupFrame();
 
 	currentmodel = cl.worldmodel;
 	currententity = &r_worldentity;
@@ -2460,6 +2452,7 @@ void Surf_LightmapMode(void)
 
 	switch(qrenderer)
 	{
+	default:
 	case QR_SOFTWARE:
 		lightmap_bytes = 4;
 		lightmap_bgra = true;
@@ -2472,8 +2465,8 @@ void Surf_LightmapMode(void)
 		lightmap_bgra = true;
 		break;
 #endif
-	case QR_OPENGL:
 #ifdef GLQUAKE
+	case QR_OPENGL:
 		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
 		lightmap_bgra = false;
 		if (gl_config.gles)
@@ -2496,8 +2489,6 @@ void Surf_LightmapMode(void)
 			lightmap_bytes = 1;
 		break;
 #endif
-	default:
-		break;
 	}
 }
 
@@ -2703,6 +2694,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 		int j;
 		unsigned char *src;
 		unsigned char *dst;
+		if (*m->name != '*')
 		for (i = 0; i < m->lightmaps.count; i++)
 		{
 			if (lightmap[newfirst+i]->external)

@@ -75,6 +75,8 @@ typedef enum {
 	RT_MAX_REF_ENTITY_TYPE
 } refEntityType_t;
 
+typedef unsigned int skinid_t;	//skin 0 is 'unused'
+
 struct dlight_s;
 typedef struct entity_s
 {
@@ -97,6 +99,7 @@ typedef struct entity_s
 	
 	struct model_s			*model;			// NULL = no model
 	int						skinnum;		// for Alias models
+	skinid_t				customskin;		// quake3 style skins
 
 	int						playerindex;	//for qw skins
 	int						topcolour;		//colourmapping
@@ -138,6 +141,22 @@ typedef struct entity_s
 #endif
 } entity_t;
 
+#define MAX_GEOMSETS 32
+typedef struct
+{
+	char skinname[MAX_QPATH];
+	int nummappings;
+	int maxmappings;
+	qbyte geomset[MAX_GEOMSETS];	//allows selecting a single set of geometry from alternatives. this might be a can of worms.
+	struct
+	{
+		char surface[MAX_QPATH];
+		shader_t *shader;
+		texnums_t texnums;
+		int needsfree;	//which textures need to be freed.
+	} mappings[1];
+} skinfile_t;
+
 // plane_t structure
 typedef struct mplane_s
 {
@@ -148,6 +167,27 @@ typedef struct mplane_s
 	qbyte	pad[2];
 } mplane_t;
 #define MAXFRUSTUMPLANES 7	//4 side, 1 near, 1 far (fog), 1 water plane.
+
+typedef struct
+{
+	//note: uniforms expect specific padding/ordering. be really careful with reordering this
+	vec3_t colour;		//w_fog[0].xyz
+	float alpha;		//w_fog[0].w scales clamped fog value
+	float density;		//w_fog[1].x egads, everyone has a different opinion.
+	float depthbias;	//w_fog[1].y distance until the fog actually starts
+	float glslpad1;		//w_fog[1].z
+	float glslpad2;		//w_fog[1].w
+
+//	float alpha;
+//	float start;
+//	float end;
+//	float height;
+//	float fadedepth;
+
+	float time;	//timestamp for when its current.
+} fogstate_t;
+void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf);
+void CL_ResetFog(void);
 
 #define R_MAX_RECURSE	6
 #define R_POSTPROC_PASSES 6
@@ -180,7 +220,7 @@ typedef struct
 	mplane_t	frustum[MAXFRUSTUMPLANES];
 	int			frustum_numplanes;
 
-	vec4_t		gfog_rgbd;
+	fogstate_t	globalfog;
 
 	pxrect_t	pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
@@ -227,6 +267,7 @@ void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and call
 void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
 
 //r_surf.c
+void Surf_SetupFrame(void);	//determine pvs+viewcontents
 void Surf_DrawWorld(void);
 void Surf_GenBrushBatches(struct batch_s **batches, entity_t *ent);
 void Surf_StainSurf(struct msurface_s *surf, float *parms);
@@ -325,37 +366,37 @@ enum imageflags
 
 /*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
 #ifdef GLQUAKE
-texid_tf GL_AllocNewTexture(char *name, int w, int h, unsigned int flags);
-void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
-texid_tf GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_tf GL_AllocNewTexture(const char *name, int w, int h, unsigned int flags);
+void GL_UploadFmt(texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+texid_tf GL_LoadTextureFmt (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
 void GL_DestroyTexture(texid_t tex);
 #endif
 #ifdef D3DQUAKE
-texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
-texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_t D3D9_LoadCompressed (char *name);
-texid_t D3D9_FindTexture (char *identifier, unsigned int flags);
-texid_t D3D9_AllocNewTexture(char *ident, int width, int height, unsigned int flags);
-void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+texid_t D3D9_LoadTexture (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_t D3D9_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t D3D9_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t D3D9_LoadCompressed (const char *name);
+texid_t D3D9_FindTexture (const char *identifier, unsigned int flags);
+texid_t D3D9_AllocNewTexture(const char *ident, int width, int height, unsigned int flags);
+void    D3D9_Upload (texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D9_DestroyTexture (texid_t tex);
 void D3D9_Image_Shutdown(void);
 
-texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
-texid_t D3D11_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_t D3D11_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_t D3D11_LoadCompressed (char *name);
-texid_t D3D11_FindTexture (char *identifier, unsigned int flags);
-texid_t D3D11_AllocNewTexture(char *ident, int width, int height, unsigned int flags);
-void    D3D11_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+texid_t D3D11_LoadTexture (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_t D3D11_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t D3D11_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t D3D11_LoadCompressed (const char *name);
+texid_t D3D11_FindTexture (const char *identifier, unsigned int flags);
+texid_t D3D11_AllocNewTexture(const char *ident, int width, int height, unsigned int flags);
+void    D3D11_Upload (texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D11_DestroyTexture (texid_t tex);
 void D3D11_Image_Shutdown(void);
 #endif
 
 extern int image_width, image_height;
-texid_tf R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags);
-texid_tf R_LoadHiResTexture(char *name, char *subpath, unsigned int flags);
-texid_tf R_LoadBumpmapTexture(char *name, char *subpath);
+texid_tf R_LoadReplacementTexture(const char *name, const char *subpath, unsigned int flags);
+texid_tf R_LoadHiResTexture(const char *name, const char *subpath, unsigned int flags);
+texid_tf R_LoadBumpmapTexture(const char *name, const char *subpath);
 
 qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
 
@@ -366,19 +407,23 @@ extern	texid_t balltexture;
 extern	texid_t beamtexture;
 extern	texid_t ptritexture;
 
+skinid_t Mod_RegisterSkinFile(const char *skinname);
+skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext);
+void Mod_WipeSkin(skinid_t id);
+skinfile_t *Mod_LookupSkin(skinid_t id);
+
 void	Mod_Init (qboolean initial);
 void Mod_Shutdown (qboolean final);
-int Mod_TagNumForName(struct model_s *model, char *name);
-int Mod_SkinNumForName(struct model_s *model, char *name);
-int Mod_FrameNumForName(struct model_s *model, char *name);
+int Mod_TagNumForName(struct model_s *model, const char *name);
+int Mod_SkinNumForName(struct model_s *model, const char *name);
+int Mod_FrameNumForName(struct model_s *model, const char *name);
 float Mod_GetFrameDuration(struct model_s *model, int frameno);
 
 void Mod_ResortShaders(void);
 void	Mod_ClearAll (void);
-struct model_s *Mod_ForName (char *name, qboolean crash);
-struct model_s *Mod_FindName (char *name);
+struct model_s *Mod_FindName (const char *name);
 void	*Mod_Extradata (struct model_s *mod);	// handles caching
-void	Mod_TouchModel (char *name);
+void	Mod_TouchModel (const char *name);
 void Mod_RebuildLightmaps (void);
 
 struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
@@ -388,8 +433,8 @@ void Mod_NowLoadExternal(void);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
 
-int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer));
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer));
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 void Mod_UnRegisterModelFormat(int idx);
 void Mod_UnRegisterAllModelFormats(void *module);
 
@@ -451,7 +496,7 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
 void Renderer_Init(void);
 void Renderer_Start(void);
 qboolean Renderer_Started(void);
-void R_ShutdownRenderer(void);
+void R_ShutdownRenderer(qboolean videotoo);
 void R_RestartRenderer_f (void);//this goes here so we can save some stack when first initing the sw renderer.
 
 //used to live in glquake.h

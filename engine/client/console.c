@@ -142,7 +142,7 @@ void Con_Destroy (console_t *con)
 		con_current = &con_main;
 }
 /*obtains a console_t without creating*/
-console_t *Con_FindConsole(char *name)
+console_t *Con_FindConsole(const char *name)
 {
 	console_t *con;
 	if (!strcmp(name, "current") && con_current)
@@ -155,7 +155,7 @@ console_t *Con_FindConsole(char *name)
 	return NULL;
 }
 /*creates a potentially duplicate console_t - please use Con_FindConsole first, as its confusing otherwise*/
-console_t *Con_Create(char *name, unsigned int flags)
+console_t *Con_Create(const char *name, unsigned int flags)
 {
 	console_t *con;
 	if (!strcmp(name, "current"))
@@ -717,7 +717,7 @@ void Con_PrintCon (console_t *con, char *txt)
 			else
 				con->current->time = realtime;
 
-#if defined(_WIN32) && !defined(NOMEDIA)
+#if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
 			if (con->current)
 				TTS_SayConString((conchar_t*)(con->current+1));
 #endif
@@ -1128,18 +1128,26 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	/*just above that, we have the tab completion list*/
 	if (con_commandmatch && con_displaypossibilities.value)
 	{
-		int lines;
-		conchar_t *starts[32];
-		conchar_t *ends[32];
-		conchar_t *end;
-		char *cmd;
+		conchar_t *end, *s;
+		char *cmd;//, *desc;
 		int cmdstart;
+		size_t newlen;
 		cmdstart = text[1] == '/'?2:1;
 		end = maskedtext;
 
+		if (!con->completionline || con->completionline->length + 512 > con->completionline->maxlength)
+		{
+			newlen = (con->completionline?con->completionline->length:0) + 2048;
+
+			Z_Free(con->completionline);
+			con->completionline = Z_Malloc(sizeof(*con->completionline) + newlen*sizeof(conchar_t));
+			con->completionline->maxlength = newlen;
+		}
+		con->completionline->length = 0;
+
 		for (i = 1; ; i++)
 		{
-			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i, NULL);
+			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i, NULL);//&desc);
 			if (!cmd)
 			{
 				if (i <= 2)
@@ -1147,19 +1155,16 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 				break;
 			}
 
-			end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("%s\t", cmd), end, (maskedtext+sizeof(maskedtext)/sizeof(maskedtext[0])-1-end)*sizeof(maskedtext[0]), true);
+			s = (conchar_t*)(con->completionline+1);
+//			if (desc)
+//				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s\\tip\\%s^]\t", cmd, desc), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
+//			else
+				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s^]\t", cmd), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
+			con->completionline->length = end - s;
 		}
 
-		lines = Font_LineBreaks(maskedtext, end, right - left, 32, starts, ends);
-		while(lines-->0)
-		{
-			rhs = left;
-			y -= Font_CharHeight();
-			for (cchar = starts[lines]; cchar < ends[lines]; cchar++)
-			{
-				rhs = Font_DrawChar(rhs, y, *cchar);
-			}
-		}
+		if (con->completionline->length)
+			y = Con_DrawConsoleLines(con, con->completionline, left, right, y, 0, selactive, selsx, selex, selsy, seley);
 	}
 
 	return y;
@@ -1302,9 +1307,10 @@ void Con_DrawNotify (void)
 		foo[pos] = i;
 
 		//k, build the string properly.
-		end = COM_ParseFunString(CON_WHITEMASK, foo, markup, sizeof(markup) - sizeof(markup[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+		end = COM_ParseFunString(CON_WHITEMASK, foo, markup, sizeof(markup) - sizeof(markup[0])-1, PFS_KEEPMARKUP | PFS_FORCEUTF8);
 
 		//and overwrite the cursor so that it blinks.
+		*end = ' '|CON_WHITEMASK;
 		if (((int)(realtime*con_cursorspeed)&1))
 			*c = 0xe00b|CON_WHITEMASK;
 		if (c == end)
@@ -1563,6 +1569,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	int i;
 	int x;
 
+	if (l != con->completionline)
 	if (l != con->footerline)
 	if (l != con->current)
 	{
@@ -1730,18 +1737,18 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						sstart = sx+picw;
 						send = sstart;
 						for (i = 0; i < linelength; i++)
-							send += Font_CharWidth(s[i]);
+							send = Font_CharEndCoord(font_console, send, s[i]);
 
 						//show something on blank lines
 						if (send == sstart)
-							send = sstart + Font_CharWidth(' ');
+							send = Font_CharEndCoord(font_console, send, ' ');
 
 						if (y >= seley)
 						{
 							send = sstart;
 							for (i = 0; i < linelength; )
 							{
-								send += Font_CharWidth(s[i++]);
+								send = Font_CharEndCoord(font_console, send, s[i++]);
 
 								if (send > selex)
 									break;
@@ -1757,10 +1764,10 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						{
 							for (i = 0; i < linelength; i++)
 							{
-								x = Font_CharWidth(s[i]);
-								if (sstart + x > selsx)
+								x = Font_CharEndCoord(font_console, sstart, s[i]);
+								if (x > selsx)
 									break;
-								sstart += x;
+								sstart = x;
 							}
 
 							con->selstartline = l;
@@ -1969,6 +1976,7 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 	char *result;
 	int outlen, maxlen;
 	int finalendoffset;
+	unsigned int uc;
 
 	if (!con->selstartline || !con->selendline)
 		return NULL;
@@ -1989,7 +1997,8 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 			while (cur > (conchar_t*)(l+1))
 			{
 				cur--;
-				if ((*cur & CON_CHARMASK) == ' ')
+				uc = (*cur & CON_CHARMASK);
+				if (uc == ' ' || uc == '\t')
 				{
 					cur++;
 					break;
@@ -1999,7 +2008,8 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 			}
 			while (finalendoffset < con->selendline->length)
 			{
-				if ((((conchar_t*)(l+1))[finalendoffset] & CON_CHARMASK) != ' ')
+				uc = (((conchar_t*)(l+1))[finalendoffset] & CON_CHARMASK);
+				if (uc != ' ' && uc != '\t' && ((conchar_t*)(l+1))[finalendoffset] != CON_LINKEND)
 					finalendoffset++;
 				else
 					break;
@@ -2023,20 +2033,19 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 		}
 	}
 	//scan forwards to find the end of the selected link
-	for(lend = (conchar_t*)(con->selendline+1) + finalendoffset; lend < (conchar_t*)(con->selendline+1) + con->selendline->length; lend++)
+	if (*cur == CON_LINKSTART)
 	{
-		if (*lend == CON_LINKEND)
+		for(lend = (conchar_t*)(con->selendline+1) + finalendoffset; lend < (conchar_t*)(con->selendline+1) + con->selendline->length; lend++)
 		{
-			finalendoffset = lend+1 - (conchar_t*)(con->selendline+1);
-			break;
+			if (*lend == CON_LINKEND)
+			{
+				finalendoffset = lend+1 - (conchar_t*)(con->selendline+1);
+				break;
+			}
 		}
 	}
-
-	if (onlyiflink)
-	{
-		if (*cur != CON_LINKSTART)
-			return NULL;
-	}
+	else if (onlyiflink)
+		return NULL;
 
 	maxlen = 1024*1024;
 	result = Z_Malloc(maxlen+1);

@@ -425,9 +425,15 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 			chan->last_received = realtime;
 		}
 		else if (sequence < chan->reliable_sequence)
-			Con_DPrintf("Stale ack recieved\n");
+		{
+			if (showdrop.ival)
+				Con_Printf("Stale ack recieved\n");
+		}
 		else if (sequence > chan->reliable_sequence)
-			Con_Printf("Future ack recieved\n");
+		{
+			if (showdrop.ival)
+				Con_Printf("Future ack recieved\n");
+		}
 
 		if (showpackets.value)
 			Con_Printf ("in  %s a=%i %i\n"
@@ -442,7 +448,8 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 	{
 		if (sequence <= chan->incoming_unreliable)
 		{
-			Con_DPrintf("Stale datagram recieved (%i<=%i)\n", sequence, chan->incoming_unreliable);
+			if (showdrop.ival)
+				Con_Printf("Stale datagram recieved (%i<=%i)\n", sequence, chan->incoming_unreliable);
 			return NQP_ERROR;
 		}
 		drop = sequence - chan->incoming_unreliable - 1;
@@ -516,7 +523,10 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 			}
 		}
 		else
-			Con_DPrintf("Stale reliable (%i)\n", sequence);
+		{
+			if (showdrop.ival)
+				Con_Printf("Stale reliable (%i)\n", sequence);
+		}
 
 		return NQP_ERROR;
 	}
@@ -553,7 +563,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
-		if (chan->remote_address.type == NA_TCP && chan->reliable_length)
+		if ((chan->remote_address.type == NA_TCP || chan->remote_address.type == NA_TCPV6 || chan->remote_address.type == NA_TLSV4 || chan->remote_address.type == NA_TLSV6) && chan->reliable_length)
 		{
 			//if over tcp, everything is assumed to be reliable. pretend it got acked.
 			chan->reliable_length = 0;	//they got the entire message
@@ -775,7 +785,8 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #endif
 
 	if (showpackets.value)
-		Con_Printf ("--> s=%i(%i) a=%i(%i) %i\n"
+		Con_Printf ("%s --> s=%i(%i) a=%i(%i) %i\n"
+			, chan->sock == NS_SERVER?"s2c":"c2s"
 			, chan->outgoing_sequence
 			, send_reliable
 			, chan->incoming_sequence
@@ -832,7 +843,8 @@ qboolean Netchan_Process (netchan_t *chan)
 	sequence_ack &= ~(1<<31);	
 
 	if (showpackets.value)
-		Con_Printf ("<-- s=%i(%i) a=%i(%i) %i%s\n"
+		Con_Printf ("%s <-- s=%i(%i) a=%i(%i) %i%s\n"
+			, chan->sock == NS_SERVER?"c2s":"s2c"
 			, sequence
 			, reliable_message
 			, sequence_ack

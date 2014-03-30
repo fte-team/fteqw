@@ -271,9 +271,9 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs);
 pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, char *key);
 char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *progfuncs, char *key);
 char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, int *size, int maxsize, int mode);
-int PDECL PR_LoadEnts(pubprogfuncs_t *progfuncs, char *file, float killonspawnflags);
+int PDECL PR_LoadEnts(pubprogfuncs_t *progfuncs, const char *file, float killonspawnflags);
 char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, int *size, int maxsize, struct edict_s *ed);
-struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
+struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *progfuncs, const char *buf, int *size, struct edict_s *ed);
 void PDECL PR_StackTrace (pubprogfuncs_t *progfuncs);
 
 extern int noextensions;
@@ -355,8 +355,8 @@ typedef struct extensionbuiltin_s {
 void PR_Init (void);
 
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *progfuncs, func_t fnum);
-int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, char *s, int headercrc, builtin_t *builtins, int numbuiltins);
-int PR_ReallyLoadProgs (progfuncs_t *progfuncs, char *filename, int headercrc, progstate_t *progstate, pbool complain);
+int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s, int headercrc, builtin_t *builtins, int numbuiltins);
+int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int headercrc, progstate_t *progstate, pbool complain);
 
 void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name);
 
@@ -370,7 +370,7 @@ char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength
 
 void PDECL ED_Print (pubprogfuncs_t *progfuncs, struct edict_s *ed);
 //void ED_Write (FILE *f, edictrun_t *ed);
-char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent);
+const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t *ent);
 
 //void ED_WriteGlobals (FILE *f);
 void ED_ParseGlobals (char *data);
@@ -434,7 +434,7 @@ eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *progfuncs, struct edict_s *e
 void PDECL PR_GenerateStatementString (pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);
 fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *progfuncs, unsigned int *count);
 char *PDECL PR_UglyValueString (pubprogfuncs_t *progfuncs, etype_t type, eval_t *val);
-pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, char *s);
+pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, const char *s);
 
 #endif
 
@@ -483,7 +483,7 @@ ddef16_t *ED_FindGlobal16 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
 
-string_t PDECL PR_StringToProgs			(pubprogfuncs_t *inst, char *str);
+string_t PDECL PR_StringToProgs			(pubprogfuncs_t *inst, const char *str);
 char *ASMCALL PR_StringToNative				(pubprogfuncs_t *inst, string_t str);
 
 void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
@@ -491,13 +491,13 @@ void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
 char *PR_GlobalString (progfuncs_t *progfuncs, int ofs);
 char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs);
 
-pbool CompileFile(progfuncs_t *progfuncs, char *filename);
+pbool CompileFile(progfuncs_t *progfuncs, const char *filename);
 
 struct jitstate;
 struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs);
 void PR_EnterJIT(progfuncs_t *progfuncs, struct jitstate *jitstate, int statement);
 void PR_CloseJit(struct jitstate *jit);
 
-char *QCC_COM_Parse (char *data);
+char *QCC_COM_Parse (const char *data);
 extern char	qcc_token[1024];
 #endif

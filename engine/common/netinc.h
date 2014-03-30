@@ -1,11 +1,11 @@
 
-#if !defined(NACL) && !defined(FTE_TARGET_WEB)
+#if !defined(NACL) && !defined(FTE_TARGET_WEB) && !defined(WINRT)
 #define HAVE_IPV4	//says we can send and receive AF_INET ipv4 udp packets.
 #define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
 #define HAVE_PACKET	//if we have the socket api at all...
 #endif
 
-#if defined(NACL) || defined(FTE_TARGET_WEB)
+#ifndef HAVE_PACKET
 
 	struct sockaddr
 	{
@@ -30,12 +30,16 @@
 		char url[64];
 	};
 
+	#define ntohs BigShort
+	#define htons BigShort
+	#define htonl BigLong
+	#define ntohl BigLong
+
 #elif defined(_WIN32)
 	#ifdef _MSC_VER
 		#define USEIPX
 	#endif
 	#define WIN32_LEAN_AND_MEAN
-	#define byte winbyte
 	#include <windows.h>
 	#include <winsock2.h>
 //	#include "winquake.h"
@@ -98,34 +102,6 @@
 	#endif
 	#ifndef IPV6_V6ONLY
 		#define IPV6_V6ONLY 27
-	#endif
-
-	#ifdef EADDRNOTAVAIL
-		#undef EADDRNOTAVAIL
-	#endif
-	#ifdef EAFNOSUPPORT
-		#undef EAFNOSUPPORT
-	#endif
-	#ifdef ECONNABORTED
-		#undef ECONNABORTED
-	#endif
-	#ifdef ECONNREFUSED
-		#undef ECONNREFUSED
-	#endif
-	#ifdef ECONNREFUSED
-		#undef ECONNREFUSED
-	#endif
-	#ifdef EMSGSIZE
-		#undef EMSGSIZE
-	#endif
-	#ifdef EWOULDBLOCK
-		#undef EWOULDBLOCK
-	#endif
-	#ifdef EACCES
-		#undef EACCES
-	#endif
-	#ifdef ENOTCONN
-		#undef ENOTCONN
 	#endif
 #else
 	#include <sys/time.h>
@@ -278,7 +254,7 @@ typedef struct ftenet_generic_connection_s {
 	int (*GetLocalAddresses)(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
-	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t *to);
+	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
 #ifdef HAVE_PACKET
 	int (*SetReceiveFDSet) (struct ftenet_generic_connection_s *con, fd_set *fdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
@@ -310,3 +286,8 @@ void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, int *adrflags, netadr_t *addresses, int maxaddresses);
 
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
+#ifdef HAVE_PACKET
+vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded
+#endif
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport);

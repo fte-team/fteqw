@@ -377,9 +377,9 @@ static qboolean	CMQ2_Q1BSP_SetAreaPortalState (int portalnum, qboolean open)
 	return true;
 }*/
 
-static void VARGS PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.q2multicast, c);}
-static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.q2multicast, c);}
-static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.q2multicast, c);}
+static void VARGS PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.q2multicast, c & 0xff);}
+static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.q2multicast, c & 0xff);}
+static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.q2multicast, c & 0xffff);}
 static void VARGS PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.q2multicast, c);}
 static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.q2multicast, f);}
 static void VARGS PFQ2_WriteString (char *s) {MSG_WriteString (&sv.q2multicast, s);}

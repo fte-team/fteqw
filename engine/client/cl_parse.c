@@ -258,7 +258,7 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL(80)",	//80
 	"NEW PROTOCOL(81)",	//81
 	"NEW PROTOCOL(82)",	//82
-	"NEW PROTOCOL(83)",	//83
+	"nqsvcfte_cgamepacket(83)",	//83
 	"NEW PROTOCOL(84)",	//84
 	"NEW PROTOCOL(85)",	//85
 	"nqsvcfte_updateentities",	//86
@@ -312,7 +312,7 @@ void CL_Parse_Disconnected(void)
 
 int packet_latency[NET_TIMINGS];
 
-int CL_CalcNet (void)
+int CL_CalcNet (float scale)
 {
 	int		i;
 	outframe_t	*frame;
@@ -354,7 +354,7 @@ int CL_CalcNet (void)
 //		else if (frame->invalid)
 //			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
 		else
-			packet_latency[i&NET_TIMINGSMASK] = frame->latency * 60;
+			packet_latency[i&NET_TIMINGSMASK] = frame->latency * 60 * scale;
 	}
 
 	if (sent < 1)
@@ -411,7 +411,7 @@ void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 
 //=============================================================================
 
-int CL_IsDownloading(char *localname)
+int CL_IsDownloading(const char *localname)
 {
 	downloadlist_t *dl;
 	/*check for dupes*/
@@ -428,7 +428,7 @@ int CL_IsDownloading(char *localname)
 
 //note: this will overwrite existing files.
 //returns true if the download is going to be downloaded after the call.
-qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
+qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags)
 {
 	char *ext;
 	downloadlist_t *dl;
@@ -653,7 +653,7 @@ void CL_DownloadFinished(void)
 			{
 				if (!FS_Rename(tempname+8, filename+8, FS_ROOT))
 				{
-					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];
 					FS_NativePath(tempname+8, FS_ROOT, nativetmp, sizeof(nativetmp));
 					FS_NativePath(filename+8, FS_ROOT, nativefinal, sizeof(nativefinal));
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
@@ -661,11 +661,11 @@ void CL_DownloadFinished(void)
 			}
 			else if (!strncmp(tempname,"skins/",6))
 			{
-				if (!FS_Rename(tempname+6, filename+6, FS_SKINS))
+				if (!FS_Rename(tempname, filename, FS_PUBBASEGAMEONLY))
 				{
-					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
-					FS_NativePath(tempname+6, FS_SKINS, nativetmp, sizeof(nativetmp));
-					FS_NativePath(filename+6, FS_SKINS, nativefinal, sizeof(nativefinal));
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];
+					FS_NativePath(tempname, FS_PUBBASEGAMEONLY, nativetmp, sizeof(nativetmp));
+					FS_NativePath(filename, FS_PUBBASEGAMEONLY, nativefinal, sizeof(nativefinal));
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
 				}
 			}
@@ -673,7 +673,7 @@ void CL_DownloadFinished(void)
 			{
 				if (!FS_Rename(tempname, filename, FS_GAME))
 				{
-					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];
 					FS_NativePath(tempname, FS_GAME, nativetmp, sizeof(nativetmp));
 					FS_NativePath(filename, FS_GAME, nativefinal, sizeof(nativefinal));
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
@@ -716,7 +716,7 @@ void CL_DownloadFinished(void)
 			{
 				if (!strcmp(cl.model_name[i], filename))
 				{
-					cl.model_precache[i] = Mod_ForName(cl.model_name[i], false);	//throw away result.
+					cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);	//throw away result.
 					if (i == 1)
 						cl.worldmodel = cl.model_precache[i];
 					break;
@@ -726,7 +726,7 @@ void CL_DownloadFinished(void)
 			{
 				if (!strcmp(cl.model_csqcname[i], filename))
 				{
-					cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], false);	//throw away result.
+					cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], MLV_WARN);	//throw away result.
 					break;
 				}
 			}
@@ -734,7 +734,7 @@ void CL_DownloadFinished(void)
 			{
 				if (!strcmp(cl.model_name_vwep[i], filename))
 				{
-					cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], false);
+					cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
 					break;
 				}
 			}
@@ -746,7 +746,7 @@ void CL_DownloadFinished(void)
 	}
 }
 
-qboolean CL_CheckFile(char *filename)
+qboolean CL_CheckFile(const char *filename)
 {
 	if (strstr (filename, ".."))
 	{
@@ -761,7 +761,7 @@ qboolean CL_CheckFile(char *filename)
 	return false;
 }
 
-qboolean CL_CheckDLFile(char *filename)
+qboolean CL_CheckDLFile(const char *filename)
 {
 	if (!strncmp(filename, "package/", 8))
 	{
@@ -785,7 +785,7 @@ Returns true if the file exists, returns false if it triggered a download.
 ===============
 */
 
-qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags)
+qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localname, unsigned int flags)
 {	//returns false if we don't have the file yet.
 	if (flags & DLLF_NONGAME)
 	{
@@ -1160,7 +1160,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 	if (cl.playerview[0].playernum == -1)
 	{	//q2 cinematic - don't load the models.
-		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", false);
+		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", MLV_WARN);
 	}
 	else
 	{
@@ -1183,7 +1183,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 					cl.model_precache[i] = NULL;
 				else
 #endif
-					cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+					cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_WARN);
 
 				S_ExtraUpdate();
 
@@ -1201,7 +1201,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 #ifdef CSQC_DAT
 				CSQC_LoadResource(cl.model_name_vwep[i], "vwep");
 #endif
-				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], false);
+				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], MLV_WARN);
 				endstage();
 			}
 		}
@@ -1243,7 +1243,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 			else
 				CSQC_LoadResource(cl.model_csqcname[i], "model");
 #endif
-			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], false);
+			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], MLV_WARN);
 
 			S_ExtraUpdate();
 
@@ -1335,7 +1335,7 @@ int CL_LoadSounds(int stage, qboolean dontactuallyload)
 	return stage;
 }
 
-void Sound_CheckDownload(char *s)
+void Sound_CheckDownload(const char *s)
 {
 	char mangled[512];
 
@@ -1640,7 +1640,7 @@ char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
-downloadlist_t *CL_DownloadFailed(char *name, qboolean cancel)
+downloadlist_t *CL_DownloadFailed(const char *name, qboolean cancel)
 {
 	//add this to our failed list. (so we don't try downloading it again...)
 	downloadlist_t *failed, **link, *dl;
@@ -1992,17 +1992,17 @@ void CL_ParseDownload (void)
 	// open the file if not opened yet
 	if (!cls.downloadqw)
 	{
-		if (strncmp(cls.downloadtempname,"skins/",6))
+		if (!strncmp(cls.downloadtempname,"skins/",6))
+		{
+			Q_snprintfz(name, sizeof(name), "%s", cls.downloadtempname);
+			FS_CreatePath (name, FS_PUBBASEGAMEONLY);
+			cls.downloadqw = FS_OpenVFS (name, "wb", FS_PUBBASEGAMEONLY);
+		}
+		else
 		{
 			Q_snprintfz(name, sizeof(name), "%s", cls.downloadtempname);
 			FS_CreatePath (name, FS_GAME);
 			cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAME);
-		}
-		else
-		{
-			Q_snprintfz(name, sizeof(name)-6, "%s", cls.downloadtempname+6);
-			FS_CreatePath (name, FS_SKINS);
-			cls.downloadqw = FS_OpenVFS (name, "wb", FS_SKINS);
 		}
 		if (!cls.downloadqw)
 		{
@@ -3491,7 +3491,7 @@ void CLQ2_ParseConfigString (void)
 				cl.model_precache[i-Q2CS_MODELS] = NULL;
 			}
 			else
-				cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], false);
+				cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], MLV_WARN);
 		}
 	}
 	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_MODELS)
@@ -4978,7 +4978,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		else
 			Q_strncatz(fullchatmessage, "\1", sizeof(fullchatmessage));
 
-#if defined(_WIN32) && !defined(NOMEDIA)
+#if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
 		TTS_SayChatString(&msg);
 #endif
 
@@ -5213,8 +5213,8 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 						Q_strncpyz(cl.model_name_vwep[i], mname, sizeof(cl.model_name_vwep[i]));
 						if (cls.state == ca_active)
 						{
-							CL_CheckOrEnqueDownloadFile(mname, NULL, 0);
-							cl.model_precache_vwep[i] = Mod_ForName(mname, false);
+							CL_CheckOrEnqueDownloadFile(cl.model_name_vwep[i], NULL, 0);
+							cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
 						}
 					}
 				}
@@ -5281,7 +5281,7 @@ void CL_ParsePrecache(void)
 		{
 			model_t *model;
 			CL_CheckOrEnqueDownloadFile(s, s, 0);
-			model = Mod_ForName(s, i == 1);
+			model = Mod_ForName(s, (i == 1)?MLV_ERROR:MLV_WARN);
 			if (!model)
 				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;
@@ -5315,7 +5315,7 @@ void CL_ParsePrecache(void)
 			if (cl.particle_ssname[i])
 				free(cl.particle_ssname[i]);
 			cl.particle_ssname[i] = strdup(s);
-			cl.particle_ssprecache[i] = 1+P_FindParticleType(s);
+			cl.particle_ssprecache[i] = P_FindParticleType(s);
 			cl.particle_ssprecaches = true;
 		}
 		else
@@ -5419,7 +5419,7 @@ void CLQW_ParseServerMessage (void)
 
 		if (cmd == svcfte_choosesplitclient)
 		{
-			SHOWNET(svc_qwstrings[cmd]);
+			SHOWNET2(svc_qwstrings[cmd], cmd);
 
 			destsplit = MSG_ReadByte() % MAX_SPLITS;
 			cmd = MSG_ReadByte();
@@ -5434,7 +5434,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 		}
 
-		SHOWNET(svc_qwstrings[cmd]);
+		SHOWNET2(svc_qwstrings[cmd], cmd);
 
 	// other commands
 		switch (cmd)
@@ -6650,12 +6650,13 @@ void CLNQ_ParseServerMessage (void)
 			Cmd_ExecuteString("bf", RESTRICT_SERVER);
 			break;
 		case svcfitz_fog:
-			cl.fog_density = MSG_ReadByte()/255.0f;
-			cl.fog_colour[0] = MSG_ReadByte()/255.0f;
-			cl.fog_colour[1] = MSG_ReadByte()/255.0f;
-			cl.fog_colour[2] = MSG_ReadByte()/255.0f;
-			/*time =*/ MSG_ReadShort();
-			cl.fog_locked = !!cl.fog_density;
+			CL_ResetFog();
+			cl.fog.density = MSG_ReadByte()/255.0f;
+			cl.fog.colour[0] = MSG_ReadByte()/255.0f;
+			cl.fog.colour[1] = MSG_ReadByte()/255.0f;
+			cl.fog.colour[2] = MSG_ReadByte()/255.0f;
+			cl.fog.time += ((unsigned short)MSG_ReadShort()) / 100.0;
+			cl.fog_locked = !!cl.fog.density;
 			break;
 		case svcfitz_spawnbaseline2:
 			i = MSGCL_ReadEntity ();

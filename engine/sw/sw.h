@@ -158,13 +158,13 @@ void SW_VID_UpdateViewport(wqcom_t *com);
 
 
 
-texid_tf SW_LoadTexture(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
-texid_tf SW_LoadTexture8Pal24(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_tf SW_LoadTexture8Pal32(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_tf SW_LoadCompressed(char *name);
-texid_tf SW_FindTexture(char *identifier, unsigned int flags);
-texid_tf SW_AllocNewTexture(char *identifier, int w, int h, unsigned int flags);
-void SW_Upload(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
+texid_tf SW_LoadTexture(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
+texid_tf SW_LoadTexture8Pal24(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_tf SW_LoadTexture8Pal32(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_tf SW_LoadCompressed(const char *name);
+texid_tf SW_FindTexture(const char *identifier, unsigned int flags);
+texid_tf SW_AllocNewTexture(const char *identifier, int w, int h, unsigned int flags);
+void SW_Upload(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void SW_DestroyTexture(texid_t tex);
 
 
@@ -179,6 +179,7 @@ void SWBE_GenBrushModelVBO(struct model_s *mod);
 void SWBE_ClearVBO(struct vbo_s *vbo);
 void SWBE_UploadAllLightmaps(void);
 void SWBE_SelectEntity(struct entity_s *ent);
-void SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour);
+qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, unsigned int lmode);
 qboolean SWBE_LightCullModel(vec3_t org, struct model_s *model);
+void SWBE_RenderToTextureUpdate2d(qboolean destchanged);
 void SWBE_Set2D(void);

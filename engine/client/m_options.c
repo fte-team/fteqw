@@ -36,21 +36,33 @@ menu_t *M_Options_Title(int *y, int infosize)
 //these are awkward/strange
 qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_t set)
 {
-	if (set == CHK_CHECKED)
-		return cl_forwardspeed.value > 200;
-	else if (cl_forwardspeed.value > 200)
+	if (M_GameType() == MGT_QUAKE2)
 	{
-		Cvar_SetValue (&cl_forwardspeed, 200);
-		if (*cl_backspeed.string)
-			Cvar_SetValue (&cl_backspeed, 200);
-		return false;
+		extern cvar_t cl_run;
+		//quake2 mods have a nasty tendancy to hack at the various cvars, which breaks everything
+		if (set != CHK_CHECKED)
+			Cvar_SetValue(&cl_run, !cl_run.ival);
+		return cl_run.ival;
 	}
 	else
 	{
-		Cvar_SetValue (&cl_forwardspeed, 400);
-		if (*cl_backspeed.string)
-			Cvar_SetValue (&cl_backspeed, 400);
-		return true;
+		//for better compat with other quake engines, we just ignore the cl_run cvar, at least for the menu.
+		if (set == CHK_CHECKED)
+			return cl_forwardspeed.value > 200;
+		else if (cl_forwardspeed.value > 200)
+		{
+			Cvar_SetValue (&cl_forwardspeed, 200);
+			if (*cl_backspeed.string)
+				Cvar_SetValue (&cl_backspeed, 200);
+			return false;
+		}
+		else
+		{
+			Cvar_SetValue (&cl_forwardspeed, 400);
+			if (*cl_backspeed.string)
+				Cvar_SetValue (&cl_backspeed, 400);
+			return true;
+		}
 	}
 }
 qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_set_t set)
@@ -223,9 +235,9 @@ void M_Menu_Audio_Speakers_f (void)
 	menu->event = M_Audio_StartSound;
 
 	for (i = 0; i < 6; i++)
-		info->speaker[i] = MC_AddBufferedText(menu, 0, 0, va("%i", i), false, true);
+		info->speaker[i] = MC_AddBufferedText(menu, 0, 0, 0, va("%i", i), false, true);
 
-	info->testsoundsource = MC_AddBufferedText(menu, 0, 0, "X", false, true);
+	info->testsoundsource = MC_AddBufferedText(menu, 0, 0, 0, "X", false, true);
 
 	info->card = sndcardinfo;
 
@@ -364,7 +376,7 @@ void M_Menu_Audio_f (void)
 
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Sound Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_SPACING(8),
 		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_SPACING(4),
@@ -392,7 +404,7 @@ void M_Menu_Audio_f (void)
 
 #ifdef VOICECHAT
 		MB_REDTEXT("Voice Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_COMBOCVAR("Microphone Device", snd_voip_capturedevice, (const char**)info->capdevdescs, (const char**)info->capdevnames, NULL),
 		MB_SLIDER("Voice Volume", snd_voip_play, 0, 2, 0.1, NULL),
 		MB_CHECKBOXCVAR("Microphone Test", snd_voip_test, 0),
@@ -483,7 +495,7 @@ void M_Menu_Particles_f (void)
 	int y;
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Particle Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 //		MB_COMBOCVAR("Particle System", r_particlesystem, psystemopts, psystemvals, "Selects particle system to use. Classic is standard Quake particles, script is FTE style scripted particles, and none disables particles entirely."),
 		MB_COMBOCVAR("Particle Set", r_particledesc, pdescopts, pdescvals, "Selects particle set to use with the scripted particle system."),
 		MB_SPACING(4),
@@ -597,7 +609,7 @@ const char *presetexec[] =
 	"r_particledesc \"high tsshaft\";"
 #endif
 	"gl_specular 1;"
-	"r_loadlit 2;"
+//	"r_loadlit 2;"
 	"r_waterstyle 2;"
 	"gl_blendsprites 1;"
 //	"r_fastsky -1;"
@@ -640,7 +652,7 @@ void M_Menu_Preset_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Please Choose Preset", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_CONSOLECMD("286     (untextured)",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
 		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
 		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"This is for Quake purists!"),
@@ -749,7 +761,7 @@ void M_Menu_FPS_f (void)
 		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("FPS Options", false),
-			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
 			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
 			MB_SPACING(4),
@@ -795,7 +807,7 @@ void M_Menu_Render_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Rendering Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_CHECKBOXCVAR("Calculate VIS", r_novis, 0),
 		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
@@ -888,7 +900,7 @@ void M_Menu_Textures_f (void)
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Texture Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_CHECKBOXCVAR("Load Replacements", gl_load24bit, 0),
 		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
 		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
@@ -1120,7 +1132,7 @@ void M_Menu_Lighting_f (void)
 		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("Lighting Options", false),
-			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 #ifdef RTLIGHTS
 			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
 			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
@@ -1384,8 +1396,8 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	/*anything that doesn't match will end up with 0*/
 	#endif
 
-	MC_AddRedText(menu, 16, y, 			"     Quake Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+	MC_AddRedText(menu, 16, 170, y, 			"     Quake Singleplayer Cheats", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"     €‚ ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -1395,10 +1407,10 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	#ifdef TEXTEDITOR
 	MC_AddCheckBox(menu,	16, 170, y,		"Debugger", &debugger, 0); y+=8;
 	#endif
-	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "impulse 255\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"     Toggle Godmode", "god\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"     Toggle Flymode", "fly\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"        Quad Damage", "impulse 255\n"); y+=8;
 	#ifndef CLIENTONLY
 	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
 	#endif
@@ -1408,20 +1420,20 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	#ifndef CLIENTONLY
 	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
-	MC_AddConsoleCommand(menu, 16, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"No Enemy Targetting", "notarget\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"No Enemy Targetting", "notarget\n"); y+=8;
 	#ifndef CLIENTONLY
-	MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", "restart\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,   "Restart Map", "restart\n"); y+=8;
 	#else
-	MC_AddConsoleCommand(menu, 16, y,   "            Suicide", "kill\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,   "Suicide", "kill\n"); y+=8;
 	#endif
 
 	y+=8;
-	MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats);	y+=8;
+	MC_AddCommand(menu,	16, 170, y,			"Apply Changes", M_Apply_SP_Cheats);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, cursorpositionY, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, 0, cursorpositionY, NULL, false);
 }
 
 // Quake 2
@@ -1498,16 +1510,16 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	/*anything that doesn't match will end up with 0*/
 	#endif
 
-	MC_AddRedText(menu, 16, y, 			"     Quake2 Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+	MC_AddRedText(menu, 16, 170, y, 		"Quake2 Singleplayer Cheats", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"€‚ ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
 	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_q2, currentmap);	y+=8;
 	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
-	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Godmode", "god\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Noclip", "noclip\n"); y+=8;
 	#ifndef CLIENTONLY
 	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,850,25);	y+=8;
 	#endif
@@ -1517,35 +1529,35 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	#ifndef CLIENTONLY
 	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
-	MC_AddConsoleCommand(menu, 16, y,	"     Unlimited Ammo", "dmflags 8192\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "give quad damage\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"     Blue & Red Key", "give blue key\ngive red key\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"        Pyramid Key", "give pyramid key\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "give all\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"       Data Spinner", "give data spinner\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"         Power Cube", "give power cube\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"            Data CD", "give data cd\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"          Ammo Pack", "give ammo pack\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"          Bandolier", "give bandolier\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"         Adrenaline", "give adrenaline\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"       Ancient Head", "give ancient head\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"   Environment Suit", "give environment suit\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"         Rebreather", "give rebreather\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"    Invulnerability", "give invulnerability\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"           Silencer", "give silencer\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"       Power Shield", "give power shield\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"   Commander's Head", "give commander's head\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"      Security Pass", "give security pass\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"   Airstrike Marker", "give airstrike marker\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Unlimited Ammo", "dmflags 8192\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Quad Damage", "give quad damage\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Blue & Red Key", "give blue key\ngive red key\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Pyramid Key", "give pyramid key\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Items", "give all\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Data Spinner", "give data spinner\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Power Cube", "give power cube\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Data CD", "give data cd\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Ammo Pack", "give ammo pack\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Bandolier", "give bandolier\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Adrenaline", "give adrenaline\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Ancient Head", "give ancient head\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Environment Suit", "give environment suit\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Rebreather", "give rebreather\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Invulnerability", "give invulnerability\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Silencer", "give silencer\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Power Shield", "give power shield\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Commander's Head", "give commander's head\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Security Pass", "give security pass\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Airstrike Marker", "give airstrike marker\n"); y+=8;
 	#ifndef CLIENTONLY
-	MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", va("restart\n")); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,   "Restart Map", va("restart\n")); y+=8;
 	#endif
 
 	y+=8;
-	MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats_Q2);	y+=8;
+	MC_AddCommand(menu,	16, 170, y,			"Apply Changes", M_Apply_SP_Cheats_Q2);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, cursorpositionY, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, 0, cursorpositionY, NULL, false);
 }
 
 // Hexen 2
@@ -1856,8 +1868,8 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	else
 		currentmap = 0;
 
-		MC_AddRedText(menu, 16, y, 			"     Hexen2 Singleplayer Cheats", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		MC_AddRedText(menu, 16, 170, y, 		"Hexen2 Singleplayer Cheats", false); y+=8;
+		MC_AddWhiteText(menu, 16, 170, y,		"€‚ ", false); y+=8;
 		y+=8;
 		#ifndef CLIENTONLY
 		info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -1866,9 +1878,9 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 		#ifndef CLIENTONLY
 		MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 		#endif
-		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Godmode", "god\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Flymode", "fly\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"                Toggle Noclip", "noclip\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Godmode", "god\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Flymode", "fly\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Noclip", "noclip\n"); y+=8;
 		#ifndef CLIENTONLY
 		MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
 		#endif
@@ -1878,29 +1890,29 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 		#ifndef CLIENTONLY
 		MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 		#endif
-		MC_AddConsoleCommand(menu, 16, y,	"         Sheep Transformation", "impulse 14\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"    Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"   Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"Change to Necromancer (lvl3+)", "impulse 173\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"   Change to Assassin (lvl3+)", "impulse 174\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"              Remove Monsters", "impulse 35\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"              Freeze Monsters", "impulse 36\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"            Unfreeze Monsters", "impulse 37\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"          Increase Level By 1", "impulse 40\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"          Increase Experience", "impulse 41\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"         Display Co-ordinates", "impulse 42\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"           All Weapons & Mana", "impulse 9\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"   All Weapons & Mana & Items", "impulse 43\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"          No Enemy Targetting", "notarget\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"             Enable Crosshair", "crosshair 1\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"          20 Of Each Artifact", "impulse 299\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "                  Restart Map", "impulse 99\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Sheep Transformation", "impulse 14\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Necromancer (lvl3+)", "impulse 173\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Assassin (lvl3+)", "impulse 174\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Remove Monsters", "impulse 35\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Freeze Monsters", "impulse 36\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Unfreeze Monsters", "impulse 37\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Increase Level By 1", "impulse 40\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Increase Experience", "impulse 41\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Display Co-ordinates", "impulse 42\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Mana", "impulse 9\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Mana & Items", "impulse 43\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"No Enemy Targetting", "notarget\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"Enable Crosshair", "crosshair 1\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,	"20 Of Each Artifact", "impulse 299\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, 170, y,  "Restart Map", "impulse 99\n"); y+=8;
 
 		y+=8;
-		MC_AddCommand(menu,	16, y,			"                Apply Changes", M_Apply_SP_Cheats_H2);	y+=8;
+		MC_AddCommand(menu,	16, 170, y,			"Apply Changes", M_Apply_SP_Cheats_H2);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, cursorpositionY, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, 0, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Singleplayer_Cheats_f (void)
@@ -2358,7 +2370,7 @@ void M_Menu_Video_f (void)
 		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("Video Options", false),
-			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 #ifdef MULTIRENDERER
 			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
 #endif
@@ -2447,4 +2459,291 @@ void M_Menu_Video_f (void)
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
 	*/
 	menu->event = CheckCustomMode;
+}
+
+typedef struct
+{
+	int skingroup;
+	int framegroup;
+	double framechangetime;
+	double skinchangetime;
+	float pitch;
+	float yaw;
+	float dist;
+	char modelname[MAX_QPATH];
+	char forceshader[MAX_QPATH];
+} modelview_t;
+
+static unsigned int genhsv(float h_, float s, float v)
+{
+	float r=0, g=1, b=0;
+
+	float h = h_ - floor(h_);
+
+	int i = floor(h * 6);
+	float f = h * 6 - i;
+	float p = v * (1 - s);
+	float q = v * (1 - f * s);
+	float t = v * (1 - (1 - f) * s);
+	switch(i)
+	{
+		case 0: r = v, g = t, b = p; break;
+		case 1: r = q, g = v, b = p; break;
+		case 2: r = p, g = v, b = t; break;
+		case 3: r = p, g = q, b = v; break;
+		case 4: r = t, g = p, b = v; break;
+		case 5: r = v, g = p, b = q; break;
+	}
+
+	return 0xff000000 |
+		((int)(r*255)<<16) |
+		((int)(g*255)<<8) |
+		((int)(b*255)<<0);
+};
+const char *Mod_FrameNameForNum(model_t *model, int num);
+const char *Mod_SkinNameForNum(model_t *model, int num);
+
+static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_s *m)
+{
+	static playerview_t pv;
+	entity_t ent;
+	vec3_t fwd, rgt, up;
+	const char *fname;
+
+	modelview_t *mods = c->dptr;
+
+	memset(&pv, 0, sizeof(pv));
+
+	CL_DecayLights ();
+	CL_ClearEntityLists();
+	V_ClearRefdef(&pv);
+	r_refdef.drawsbar = false;
+	V_CalcRefdef(&pv);
+	r_refdef.grect.width = vid.width;
+	r_refdef.grect.height = vid.height;
+	r_refdef.grect.x = 0;
+	r_refdef.grect.y = 0;
+	r_refdef.time = realtime;
+
+	r_refdef.flags = Q2RDF_NOWORLDMODEL;
+
+	r_refdef.afov = 60;
+	r_refdef.fov_x = 0;
+	r_refdef.fov_y = 0;
+	r_refdef.dirty |= RDFD_FOV;
+
+	VectorClear(r_refdef.viewangles);
+	r_refdef.viewangles[0] = mods->pitch;
+	r_refdef.viewangles[1] = mods->yaw;
+	AngleVectors(r_refdef.viewangles, fwd, rgt, up);
+	VectorScale(fwd, -mods->dist, r_refdef.vieworg);
+
+	memset(&ent, 0, sizeof(ent));
+	ent.scale = 1;
+	ent.model = Mod_ForName(mods->modelname, MLV_WARN);
+	if (!ent.model)
+		return;	//panic!
+	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+	Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+	if (strstr(mods->modelname, "player"))
+	{
+		ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
+		ent.topcolour		= genhsv(realtime*0.1 + 0.5, 1, 1);
+	}
+	else
+	{
+		ent.topcolour = TOP_DEFAULT;
+		ent.bottomcolour = BOTTOM_DEFAULT;
+	}
+//	ent.fatness = sin(realtime)*5;
+	ent.playerindex = -1;
+	ent.scale = 33.3333;
+	ent.skinnum = mods->skingroup;
+	ent.shaderTime = realtime;
+	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
+	ent.framestate.g[FS_REG].frametime[0] = realtime - mods->framechangetime;
+	ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
+	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
+	V_AddEntity(&ent);
+
+	V_ApplyRefdef();
+	R_RenderView();
+
+	fname = Mod_FrameNameForNum(ent.model, mods->framegroup);
+	if (!fname)
+		fname = "Unknown Frame";
+	Draw_FunString(0, 0, va("%i: %s", mods->framegroup, fname));
+	fname = Mod_SkinNameForNum(ent.model, mods->skingroup);
+	if (!fname)
+		fname = "Unknown Skin";
+	Draw_FunString(0, 8, va("%i: %s", mods->skingroup, fname));
+}
+static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key)
+{
+	modelview_t *mods = c->dptr;
+
+	if (key == 'w')
+	{
+		mods->dist *= 0.9;
+		if (mods->dist < 5)
+			mods->dist = 5;
+	}
+	else if (key == 's')
+		mods->dist /= 0.9;
+	else if (key == K_UPARROW)
+		mods->pitch += 5;
+	else if (key == K_DOWNARROW)
+		mods->pitch -= 5;
+	else if (key == K_LEFTARROW)
+		mods->yaw -= 5;
+	else if (key == K_RIGHTARROW)
+		mods->yaw += 5;
+	else if (key == K_HOME)
+	{
+		mods->skingroup = max(0, mods->skingroup-1);
+		mods->skinchangetime = realtime;
+	}
+	else if (key == K_END)
+	{
+		mods->skingroup += 1;
+		mods->skinchangetime = realtime;
+	}
+	else if (key == K_PGDN)
+	{
+		mods->framegroup = max(0, mods->framegroup-1);
+		mods->framechangetime = realtime;
+	}
+	else if (key == K_PGUP)
+	{
+		mods->framegroup += 1;
+		mods->framechangetime = realtime;
+	}
+	else
+		return false;
+	return true;
+}
+
+void M_Menu_ModelViewer_f(void)
+{
+	modelview_t *mv;
+	menucustom_t *c;
+	menu_t *menu;
+		
+	Key_Dest_Add(kdm_menu);
+
+	menu = M_CreateMenu(sizeof(*mv));
+	mv = menu->data;
+	c = MC_AddCustom(menu, 64, 32, mv, 0);
+	menu->cursoritem = (menuoption_t*)c;
+	c->draw = M_ModelViewerDraw;
+	c->key = M_ModelViewerKey;
+
+	mv->yaw = 180 + crandom()*45;
+	mv->dist = 150;
+	Q_strncpyz(mv->modelname, Cmd_Argv(1), sizeof(mv->modelname));
+	Q_strncpyz(mv->forceshader, Cmd_Argv(2), sizeof(mv->forceshader));
+}
+
+typedef struct
+{
+	ftemanifest_t **manifests;
+	size_t nummanifests;
+	int y;
+} modmenu_t;
+
+static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
+{
+	modmenu_t *mods = c->dptr;
+	int i, ym;
+	c->common.height = vid.height - y;
+	ym = y+c->common.height;
+
+	mods->y = y;
+
+	for (i = 0; y+8 <= ym && i < mods->nummanifests; y+=8, i++)
+	{
+		if (mousecursor_y >= y && mousecursor_y < y+8)
+			Draw_AltFunString(x, y, mods->manifests[i]->formalname);
+		else
+			Draw_FunString(x, y, mods->manifests[i]->formalname);
+	}
+}
+static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key)
+{
+	modmenu_t *mods = c->dptr;
+	int i;
+	ftemanifest_t *man;
+	if (key == K_MOUSE1)
+	{
+		i = (mousecursor_y - mods->y)/8;
+		if (i < 0 || i > mods->nummanifests)
+			return false;
+		man = mods->manifests[i];
+		mods->manifests[i] = NULL;
+		M_RemoveMenu(m);
+		FS_ChangeGame(man, true);
+
+		//starting to a blank state generally means that the current config settings are utterly useless and windowed by default.
+		//so generally when switching to a *real* game, we want to restart video just so things like fullscreen etc are saved+used properly.
+		//if we're already running a game, this should probably just be a vid_reload instead to ensure that the conback etc is reloaded.
+		Cbuf_AddText("\nvid_restart\n", RESTRICT_LOCAL);
+		return true;
+	}
+
+	return false;
+}
+static void Mods_Remove	(struct menu_s *m)
+{
+	modmenu_t *mods = m->data;
+	int i;
+
+	for (i = 0; i < mods->nummanifests; i++)
+	{
+		if (mods->manifests[i])
+			FS_Manifest_Free(mods->manifests[i]);
+	}
+	Z_Free(mods->manifests);
+	mods->manifests = NULL;
+}
+
+static qboolean Mods_AddMod(void *usr, ftemanifest_t *man)
+{
+	modmenu_t *mods = usr;
+	int i = mods->nummanifests;
+	mods->manifests = BZ_Realloc(mods->manifests, (i+1) * sizeof(*mods->manifests));
+	mods->manifests[i] = man;
+	mods->nummanifests = i+1;
+	return true;
+}
+
+#include "fs.h"
+
+void M_Menu_Mods_f (void)
+{
+	modmenu_t *mods;
+	menucustom_t *c;
+	menu_t *menu;
+		
+	Key_Dest_Add(kdm_menu);
+
+	menu = M_CreateMenu(sizeof(modmenu_t));
+	mods = menu->data;
+	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+	MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
+
+	c = MC_AddCustom(menu, 64, 32, mods, 0);
+	menu->cursoritem = (menuoption_t*)c;
+	c->draw = Mods_Draw;
+	c->key = Mods_Key;
+	menu->remove = Mods_Remove;
+
+	FS_EnumerateKnownGames(Mods_AddMod, menu->data);
+
+	if (mods->nummanifests == 1)
+	{
+		ftemanifest_t *man = mods->manifests[0];
+		mods->manifests[0] = NULL;
+		M_RemoveMenu(menu);
+		FS_ChangeGame(man, true);
+	}
 }

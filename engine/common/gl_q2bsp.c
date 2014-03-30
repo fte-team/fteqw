@@ -6049,4 +6049,9 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&map_autoopenportals, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 }
+void CM_Shutdown(void)
+{
+	ZG_FreeGroup(&box_model.memgroup);
+	box_planes = NULL;
+}
 #endif

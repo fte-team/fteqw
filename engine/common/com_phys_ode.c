@@ -1673,7 +1673,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	}
 }
 
-static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
+static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
 {
 	unsigned int sno;
 	msurface_t *surf;
@@ -1768,6 +1768,81 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	ed->ode.ode_numvertices = numverts;
 	ed->ode.ode_numtriangles = numindexes/3;
 	return true;
+}
+
+#include "com_mesh.h"
+static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
+{
+	mesh_t mesh;
+	unsigned int numverts;
+	unsigned int numindexes,i;
+	galiasinfo_t *inf;
+	unsigned int surfnum = 0;
+	entity_t re;
+
+	numverts = 0;
+	numindexes = 0;
+
+	//fill in the parts of the entity_t that Alias_GAliasBuildMesh needs.
+	world->Get_FrameState(world, ed, &re.framestate);
+	re.fatness = ed->xv->fatness;
+	re.model = mod;
+
+	inf = Mod_Extradata (mod);
+	while(inf)
+	{
+		numverts += inf->numverts;
+		numindexes += inf->numindexes;
+		inf = inf->nextsurf;
+	}
+
+	if (!numindexes)
+	{
+		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
+		return false;
+	}
+	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
+	ed->ode.ode_vertex3f = BZ_Malloc(numverts*sizeof(vec3_t));
+
+	numverts = 0;
+	numindexes = 0;
+
+	inf = Mod_Extradata (mod);
+	while(inf)
+	{
+		Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum++, &re, false);
+		for (i = 0; i < mesh.numvertexes; i++)
+			VectorSubtract(mesh.xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
+		for (i = 0; i < mesh.numindexes; i+=3)
+		{
+			//flip the triangles as we go
+			ed->ode.ode_element3i[numindexes+i+0] = numverts+mesh.indexes[i+2];
+			ed->ode.ode_element3i[numindexes+i+1] = numverts+mesh.indexes[i+1];
+			ed->ode.ode_element3i[numindexes+i+2] = numverts+mesh.indexes[i+0];
+		}
+		numverts += inf->numverts;
+		numindexes += inf->numindexes;
+		inf = inf->nextsurf;
+	}
+
+	Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
+
+	ed->ode.ode_numvertices = numverts;
+	ed->ode.ode_numtriangles = numindexes/3;
+	return true;
+}
+
+static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
+{
+	switch(mod->type)
+	{
+	case mod_brush:
+		return GenerateCollisionMesh_BSP(world, mod, ed, geomcenter);
+	case mod_alias:
+		return GenerateCollisionMesh_Alias(world, mod, ed, geomcenter);
+	default:
+		return false;	//panic!
+	}
 }
 
 qboolean World_ODE_RagMatrixToBody(odebody_t *bodyptr, float *mat)
@@ -2070,7 +2145,6 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	dMass mass;
 	float test;
 	void *dataID;
-	dVector3 capsulerot[3];
 	model_t *model;
 	int axisindex;
 	int modelindex = 0;
@@ -2146,6 +2220,13 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	case GEOMTYPE_BOX:
 	case GEOMTYPE_SPHERE:
 	case GEOMTYPE_CAPSULE:
+	case GEOMTYPE_CAPSULE_X:
+	case GEOMTYPE_CAPSULE_Y:
+	case GEOMTYPE_CAPSULE_Z:
+	case GEOMTYPE_CYLINDER:
+	case GEOMTYPE_CYLINDER_X:
+	case GEOMTYPE_CYLINDER_Y:
+	case GEOMTYPE_CYLINDER_Z:
 		VectorCopy(ed->v->mins, entmins);
 		VectorCopy(ed->v->maxs, entmaxs);
 		if (ed->xv->mass)
@@ -2232,29 +2313,94 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
 		case GEOMTYPE_CAPSULE:
-			axisindex = 0;
-			if (geomsize[axisindex] < geomsize[1])
-				axisindex = 1;
-			if (geomsize[axisindex] < geomsize[2])
-				axisindex = 2;
+		case GEOMTYPE_CAPSULE_X:
+		case GEOMTYPE_CAPSULE_Y:
+		case GEOMTYPE_CAPSULE_Z:
+			if (geomtype == GEOMTYPE_CAPSULE)
+			{
+				axisindex = 0;
+				if (geomsize[axisindex] < geomsize[1])
+					axisindex = 1;
+				if (geomsize[axisindex] < geomsize[2])
+					axisindex = 2;
+			}
+			else
+				axisindex = geomtype-GEOMTYPE_CAPSULE_X;
 			// the qc gives us 3 axis radius, the longest axis is the capsule
 			// axis, since ODE doesn't like this idea we have to create a
 			// capsule which uses the standard orientation, and apply a
 			// transform to it
-			memset(capsulerot, 0, sizeof(capsulerot));
 			if (axisindex == 0)
+			{
 				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
+				radius = min(geomsize[1], geomsize[2]) * 0.5f;
+			}
 			else if (axisindex == 1)
+			{
 				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
+				radius = min(geomsize[0], geomsize[2]) * 0.5f;
+			}
 			else
+			{
 				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
-			radius = geomsize[!axisindex] * 0.5f; // any other axis is the radius
+				radius = min(geomsize[0], geomsize[1]) * 0.5f;
+			}
 			length = geomsize[axisindex] - radius*2;
+			if (length <= 0)
+			{
+				radius -= (1 - length)*0.5;
+				length = 1;
+			}
 			// because we want to support more than one axisindex, we have to
 			// create a transform, and turn on its cleanup setting (which will
 			// cause the child to be destroyed when it is destroyed)
 			ed->ode.ode_geom = (void *)dCreateCapsule(world->ode.ode_space, radius, length);
 			dMassSetCapsuleTotal(&mass, massval, axisindex+1, radius, length);
+			break;
+		case GEOMTYPE_CYLINDER:
+		case GEOMTYPE_CYLINDER_X:
+		case GEOMTYPE_CYLINDER_Y:
+		case GEOMTYPE_CYLINDER_Z:
+			if (geomtype == GEOMTYPE_CYLINDER)
+			{
+				axisindex = 0;
+				if (geomsize[axisindex] < geomsize[1])
+					axisindex = 1;
+				if (geomsize[axisindex] < geomsize[2])
+					axisindex = 2;
+			}
+			else
+				axisindex = geomtype-GEOMTYPE_CYLINDER_X;
+			// the qc gives us 3 axis radius, the longest axis is the capsule
+			// axis, since ODE doesn't like this idea we have to create a
+			// capsule which uses the standard orientation, and apply a
+			// transform to it
+			if (axisindex == 0)
+			{
+				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
+				radius = min(geomsize[1], geomsize[2]) * 0.5f;
+			}
+			else if (axisindex == 1)
+			{
+				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
+				radius = min(geomsize[0], geomsize[2]) * 0.5f;
+			}
+			else
+			{
+				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
+				radius = min(geomsize[0], geomsize[1]) * 0.5f;
+			}
+			length = geomsize[axisindex] - radius*2;
+			if (length <= 0)
+			{
+				radius -= (1 - length)*0.5;
+				length = 1;
+			}
+			// because we want to support more than one axisindex, we have to
+			// create a transform, and turn on its cleanup setting (which will
+			// cause the child to be destroyed when it is destroyed)
+			ed->ode.ode_geom = (void *)dCreateCylinder(world->ode.ode_space, radius, length);
+			dMassSetCylinderTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
 			Sys_Error("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);

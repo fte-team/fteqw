@@ -69,7 +69,7 @@ struct pubprogfuncs_s
 	void	(PDECL *CloseProgs)					(pubprogfuncs_t *inst);
 
 	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, size_t addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
-	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
+	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, const char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
 	int		(PDECL *InitEnts)					(pubprogfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(PDECL *ExecuteProgram)				(pubprogfuncs_t *prinst, func_t fnum);	//start execution
 	struct globalvars_s	*(PDECL *globals)		(pubprogfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
@@ -103,7 +103,7 @@ struct pubprogfuncs_s
 	int		(PDECL *load_ents)					(pubprogfuncs_t *prinst, char *s, float killonspawnflags);	//restore the entire progs state (or just add some more ents) (returns edicts ize)
 
 	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, struct edict_s *ed);	//will save just one entities vars
-	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
+	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, const char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
 	union eval_s	*(PDECL *FindGlobal)		(pubprogfuncs_t *prinst, const char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
 	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup);	//dump a string into the progs memory (for setting globals and whatnot)
@@ -148,8 +148,8 @@ struct pubprogfuncs_s
 
 	string_t (PDECL *TempString)				(pubprogfuncs_t *prinst, const char *str);
 
-	string_t (PDECL *StringToProgs)				(pubprogfuncs_t *prinst, char *str);
-	char *(ASMCALL *StringToNative)				(pubprogfuncs_t *prinst, string_t str);
+	string_t (PDECL *StringToProgs)				(pubprogfuncs_t *prinst, const char *str);
+	const char *(ASMCALL *StringToNative)			(pubprogfuncs_t *prinst, string_t str);
 
 	int (PDECL *QueryField)						(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 
@@ -169,7 +169,8 @@ struct pubprogfuncs_s
 	void (PDECL *GenerateStatementString)		(pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);
 	fdef_t *(PDECL *FieldInfo)					(pubprogfuncs_t *progfuncs, unsigned int *count);
 	char *(PDECL *UglyValueString)				(pubprogfuncs_t *progfuncs, etype_t type, union eval_s *val);
-	pbool (PDECL *ParseEval)					(pubprogfuncs_t *progfuncs, union eval_s *eval, int type, char *s);
+	pbool (PDECL *ParseEval)					(pubprogfuncs_t *progfuncs, union eval_s *eval, int type, const char *s);
+	void (PDECL *SetStringField)				(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static);	//if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
 };
 
 typedef struct progexterns_s {

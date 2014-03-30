@@ -195,6 +195,7 @@ struct client_s;
 unsigned int MSGSV_ReadEntity (struct client_s *fromclient);
 unsigned int MSGCL_ReadEntity (void);
 float MSG_ReadFloat (void);
+char *MSG_ReadStringBuffer (char *out, size_t outsize);
 char *MSG_ReadString (void);
 char *MSG_ReadStringLine (void);
 
@@ -256,7 +257,7 @@ int Q_strncasecmp (const char *s1, const char *s2, int n);
 int Q_strcasecmp (const char *s1, const char *s2);
 int	Q_atoi (const char *str);
 float Q_atof (const char *str);
-void deleetstring(char *result, char *leet);
+void deleetstring(char *result, const char *leet);
 
 
 //============================================================================
@@ -303,14 +304,17 @@ unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboole
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int COM_DeQuake(conchar_t chr);
 
+//small macro to tell COM_ParseFunString (and related functions like con_printf) that the input is a utf-8 string.
+#define U8(s) "=`u8:"s"`="
+
 //handles whatever charset is active, including ^U stuff.
-unsigned int unicode_byteofsfromcharofs(char *str, unsigned int charofs, qboolean markup);
-unsigned int unicode_charofsfrombyteofs(char *str, unsigned int byteofs, qboolean markup);
+unsigned int unicode_byteofsfromcharofs(const char *str, unsigned int charofs, qboolean markup);
+unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, qboolean markup);
 unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup);
-size_t unicode_strtolower(char *in, char *out, size_t outsize, qboolean markup);
-size_t unicode_strtoupper(char *in, char *out, size_t outsize, qboolean markup);
-unsigned int unicode_charcount(char *in, size_t buffersize, qboolean markup);
+size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean markup);
+size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean markup);
+unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean markup);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
@@ -331,8 +335,8 @@ extern int com_filesize;
 extern qboolean com_file_untrusted;
 struct cache_user_s;
 
-extern char	com_quakedir[MAX_OSPATH];
-extern char	com_homedir[MAX_OSPATH];
+extern char	com_gamepath[MAX_OSPATH];
+extern char	com_homepath[MAX_OSPATH];
 extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
@@ -342,7 +346,7 @@ void COM_WriteFile (const char *filename, const void *data, int len);
 #if defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
 	#define FS_64BIT
 #endif
-#ifdef FS_64BIT
+#if 1//def FS_64BIT
 	typedef unsigned long long qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
 	#define qofs_Low(o) ((o)&0xffffffffu)
@@ -397,7 +401,7 @@ typedef struct vfsfile_s
 	qboolean (QDECL *Seek) (struct vfsfile_s *file, qofs_t pos);	//returns false for error
 	qofs_t (QDECL *Tell) (struct vfsfile_s *file);
 	qofs_t (QDECL *GetLen) (struct vfsfile_s *file);	//could give some lag
-	void (QDECL *Close) (struct vfsfile_s *file);
+	qboolean (QDECL *Close) (struct vfsfile_s *file);	//returns false if there was some error.
 	void (QDECL *Flush) (struct vfsfile_s *file);
 	qboolean seekingisabadplan;
 
@@ -407,25 +411,26 @@ typedef struct vfsfile_s
 } vfsfile_t;
 typedef struct searchpathfuncs_s searchpathfuncs_t;
 
-#define VFS_CLOSE(vf) (vf->Close(vf))
-#define VFS_TELL(vf) (vf->Tell(vf))
-#define VFS_GETLEN(vf) (vf->GetLen(vf))
-#define VFS_SEEK(vf,pos) (vf->Seek(vf,pos))
-#define VFS_READ(vf,buffer,buflen) (vf->ReadBytes(vf,buffer,buflen))
-#define VFS_WRITE(vf,buffer,buflen) (vf->WriteBytes(vf,buffer,buflen))
-#define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
-#define VFS_PUTS(vf,s) do{const char *t=s;vf->WriteBytes(vf,t,strlen(t));}while(0)
+#define VFS_CLOSE(vf) ((vf)->Close(vf))
+#define VFS_TELL(vf) ((vf)->Tell(vf))
+#define VFS_GETLEN(vf) ((vf)->GetLen(vf))
+#define VFS_SEEK(vf,pos) ((vf)->Seek(vf,pos))
+#define VFS_READ(vf,buffer,buflen) ((vf)->ReadBytes(vf,buffer,buflen))
+#define VFS_WRITE(vf,buffer,buflen) ((vf)->WriteBytes(vf,buffer,buflen))
+#define VFS_FLUSH(vf) do{if((vf)->Flush)(vf)->Flush(vf);}while(0)
+#define VFS_PUTS(vf,s) do{const char *t=s;(vf)->WriteBytes(vf,t,strlen(t));}while(0)
 char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
 void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
 	FS_BINARYPATH,	//for dlls and stuff
-	FS_ROOT,		//./
+	FS_ROOT,		//./ (the root basepath or root homepath.)
 	FS_GAMEONLY,	//$gamedir/
 	FS_GAMEDOWNLOADCACHE,	//typically the same as FS_GAMEONLY 
-	FS_CONFIGONLY,	//fte/ (should still be part of the game path)
-	FS_SKINS		//qw/skins/
+	FS_BASEGAMEONLY,	//fte/ (fixme: should be the last basegame.)
+	FS_PUBBASEGAMEONLY,	//qw/ (fixme: should be the last non-private basedir)
+	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected.
 };
 
 void FS_FlushFSHashReally(void);
@@ -447,6 +452,8 @@ void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 void FS_PureMode(int mode, char *packagelist, char *crclist, int seed);	//implies an fs_restart
 
+//recursively tries to open files until it can get a zip.
+vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name);
 
 qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
@@ -461,7 +468,13 @@ qboolean FS_Restarted(unsigned int *since);
 
 typedef struct
 {
+	qboolean blockupdate;	//set to block the updateurl from being used this session. this avoids recursive updates when manifests contain the same update url.
+
+	int minver;	//if the engine svn revision is lower than this, the manifest will not be used as an 'upgrade'.
+	int maxver;	//if not 0, the manifest will not be used
+	qboolean disablehomedir;
 	char *updateurl;	//url to download an updated manifest file from.
+	char *updatefile;	//this is the file that needs to be written to update the manifest.
 	char *installation;	//optional hardcoded commercial name, used for scanning the registry to find existing installs.
 	char *formalname;	//the commercial name of the game. you'll get FULLENGINENAME otherwise.
 	char *protocolname;	//the name used for purposes of dpmaster
@@ -481,19 +494,20 @@ typedef struct
 	} package[64];
 } ftemanifest_t;
 void FS_Manifest_Free(ftemanifest_t *man);
-ftemanifest_t *FS_Manifest_Parse(const char *data);
+ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs);
 void FS_Shutdown(void);
 void COM_Gamedir (const char *dir);
-char *FS_GetGamedir(void);
+char *FS_GetGamedir(qboolean publicpathonly);
 char *FS_GetBasedir(void);
+char *FS_GetManifestArgs(void);
 
 struct zonegroup_s;
 void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path);
 qbyte *FS_LoadMallocFile (const char *path);
-qofs_t FS_LoadFile(char *name, void **file);
+qofs_t FS_LoadFile(const char *name, void **file);
 void FS_FreeFile(void *file);
 
 qbyte *COM_LoadFile (const char *path, int usehunk);
@@ -513,7 +527,7 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum);
 unsigned int COM_RemapMapChecksum(unsigned int checksum);
 
 #define	MAX_INFO_KEY	256
-char *Info_ValueForKey (char *s, const char *key);
+char *Info_ValueForKey (const char *s, const char *key);
 void Info_RemoveKey (char *s, const char *key);
 char *Info_KeyForNumber (char *s, int num);
 void Info_RemovePrefixedKeys (char *start, char prefix);
@@ -524,14 +538,14 @@ void Info_Print (char *s, char *lineprefix);
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
 
 void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);
-unsigned int Com_BlockChecksum (void *buffer, int length);
-void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
+unsigned int Com_BlockChecksum (const void *buffer, int length);
+void Com_BlockFullChecksum (const void *buffer, int len, unsigned char *outbuf);
 qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigned mapchecksum);
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
-int SHA1(char *digest, int maxdigestsize, char *string, int stringlen);
-int SHA1_HMAC(unsigned char *digest, int maxdigestsize, unsigned char *data, int datalen, unsigned char *key, int keylen);
+int SHA1(char *digest, int maxdigestsize, const char *string, int stringlen);
+int SHA1_HMAC(unsigned char *digest, int maxdigestsize, const unsigned char *data, int datalen, const unsigned char *key, int keylen);
 
 int version_number(void);
 char *version_string(void);

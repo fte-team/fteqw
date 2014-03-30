@@ -73,7 +73,9 @@ void SCR_ShowPic_Create(void);
 void SCR_ShowPic_Hide(void);
 void SCR_ShowPic_Move(void);
 void SCR_ShowPic_Update(void);
-void SCR_ShowPic_Clear(void);
+void SCR_ShowPic_Clear(qboolean all);
+char *SCR_ShowPics_ClickCommand(int cx, int cy);
+void SCR_ShowPic_Script_f(void);
 
 //a header is better than none...
 void Draw_TextBox (int x, int y, int width, int lines);
@@ -95,7 +97,7 @@ void SCR_SetLoadingFile(char *str);
 /*fonts*/
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(int height, char *fontfilename);
+struct font_s *Font_LoadFont(int height, const char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/

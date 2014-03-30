@@ -53,7 +53,10 @@ int		keyshift[K_MAX];		// key to map to if shift held down in console
 int		key_repeats[K_MAX];	// if > 1, it is autorepeating
 qboolean	keydown[K_MAX];
 
-qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
+#define MAX_INDEVS 8
+
+char *releasecommand[K_MAX][MAX_INDEVS];	//this is the console command to be invoked when the key is released. should free it.
+qbyte releasecommandlevel[K_MAX][MAX_INDEVS];	//and this is the cbuf level it is to be run at.
 
 void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
 
@@ -721,6 +724,12 @@ void Key_DefaultLinkClicked(char *text, char *info)
 		Cbuf_AddText(va("\nplaydemo %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+	c = Info_ValueForKey(info, "map");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nmap %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
 	c = Info_ValueForKey(info, "cmd");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
@@ -751,12 +760,19 @@ void Key_DefaultLinkClicked(char *text, char *info)
 		Con_Footerf(false, "%s", c);
 		return;
 	}
-	if (!*info && *text == '/')
+
+	//if there's no info and the text starts with a leading / then insert it as a suggested/completed console command
+	//skip any leading colour code.
+	if (text[0] == '^' && text[1] >= '0' && text[1] <= '9')
+		text+=2;
+	if (*text == '/')
 	{
+		int tlen = info - text;
 		Z_Free(key_lines[edit_line]);
-		key_lines[edit_line] = BZ_Malloc(strlen(text) + 2);
+		key_lines[edit_line] = BZ_Malloc(tlen + 2);
 		key_lines[edit_line][0] = ']';
-		strcpy(key_lines[edit_line]+1, text);
+		memcpy(key_lines[edit_line]+1, text, tlen);
+		key_lines[edit_line][1+tlen] = 0;
 		key_linepos = strlen(key_lines[edit_line]);
 		return;
 	}
@@ -1424,7 +1440,7 @@ the given string.  Single ascii characters return themselves, while
 the K_* names are matched up.
 ===================
 */
-int Key_StringToKeynum (char *str, int *modifier)
+int Key_StringToKeynum (const char *str, int *modifier)
 {
 	keyname_t	*kn;
 	char *underscore;
@@ -1670,9 +1686,12 @@ void Key_BindLevel_f (void)
 		return;
 	}
 
+	if (modifier == ~0)	//modifier unspecified. default to no modifier
+		modifier = 0;
+
 	if (c == 2)
 	{
-		if (keybindings[b])
+		if (keybindings[b][modifier])
 			Con_Printf ("\"%s\" (%i)= \"%s\"\n", Cmd_Argv(1), bindcmdlevel[b][modifier], keybindings[b][modifier] );
 		else
 			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
@@ -1899,88 +1918,26 @@ Should NOT be called during an interrupt!
 */
 void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 {
-	char	*kb;
+	int bl, bkey;
+	char	*dc, *uc;
 	char	p[16];
-	char	cmd[1024];
-	int keystate, oldstate;
+	int modifierstate;
 	int conkey = consolekeys[key] || (unicode && (key != '`' || key_linepos>1));	//if the input line is empty, allow ` to toggle the console, otherwise enter it as actual text.
 
 //	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 
-	oldstate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL]);
+	//bug: my keyboard doesn't fire release events if the other shift is already pressed.
+	//hack around that by just force-releasing eg left if right is pressed, but only on inital press to avoid potential infinite loops if the state got bad.
+	//ctrl+alt don't seem to have the problem.
+	//you can still see a difference in that 
+	if (key == K_LSHIFT && !keydown[K_LSHIFT] && keydown[K_RSHIFT])
+		Key_Event(devid, K_RSHIFT, 0, false);
+	if (key == K_RSHIFT && !keydown[K_RSHIFT] && keydown[K_LSHIFT])
+		Key_Event(devid, K_LSHIFT, 0, false);
+
+	modifierstate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL]);
 
 	keydown[key] = down;
-
-	if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
-	{
-		int k;
-
-		keystate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL]);
-
-		for (k = 0; k < K_MAX; k++)
-		{	//go through the old state removing all depressed keys. they are all up now.
-
-			if (k == K_LSHIFT || k == K_RSHIFT || k == K_LALT || k == K_RALT || k == K_LCTRL || k == K_RCTRL)
-				continue;
-
-			if (deltaused[k][oldstate])
-			{
-				if (keybindings[k][oldstate] == keybindings[k][keystate] || !strcmp(keybindings[k][oldstate], keybindings[k][keystate]))
-				{	//bindings match. skip this key
-//					Con_Printf ("keeping bind %i\n", k); //@@@
-					deltaused[k][oldstate] = false;
-					deltaused[k][keystate] = true;
-					continue;
-				}
-
-//				Con_Printf ("removing bind %i\n", k); //@@@
-
-				deltaused[k][oldstate] = false;
-
-				kb = keybindings[k][oldstate];
-				if (kb && kb[0] == '+')
-				{
-					Q_snprintfz (cmd, sizeof(cmd), "-%s %i\n", kb+1, k+oldstate*256);
-					Cbuf_AddText (cmd, bindcmdlevel[k][oldstate]);
-				}
-				if (keyshift[k] != k)
-				{
-					kb = keybindings[keyshift[k]][oldstate];
-					if (kb && kb[0] == '+')
-					{
-						Q_snprintfz (cmd, sizeof(cmd), "-%s %i\n", kb+1, k+oldstate*256);
-						Cbuf_AddText (cmd, bindcmdlevel[k][oldstate]);
-					}
-				}
-			
-				if (keydown[k] && !Key_Dest_Has(~kdm_game))
-				{
-					deltaused[k][keystate] = true;
-
-	//				Con_Printf ("adding bind %i\n", k); //@@@
-
-					kb = keybindings[k][keystate];
-					if (kb)
-					{
-						if (kb[0] == '+')
-						{	// button commands add keynum as a parm
-							Q_snprintfz (cmd, sizeof(cmd), "%s %i\n", kb, k+keystate*256);
-							Cbuf_AddText (cmd, bindcmdlevel[k][keystate]);
-						}
-						else
-						{
-							Cbuf_AddText (kb, bindcmdlevel[k][keystate]);
-							Cbuf_AddText ("\n", bindcmdlevel[k][keystate]);
-						}
-					}
-				}
-			}
-		}
-
-		keystate = oldstate = 0;
-	}
-	else
-		keystate = oldstate;
 
 	if (!down)
 		key_repeats[key] = 0;
@@ -2011,7 +1968,8 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		{
 			if (down)
 			{
-				Con_ToggleConsole_Force();
+				if (!Key_Dest_Has(kdm_console))	//don't toggle it when the console is already down. this allows typing blind to not care if its already active.
+					Con_ToggleConsole_Force();
 				return;
 			}
 		}
@@ -2104,35 +2062,12 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 			Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
 #endif
 
-		if (!deltaused[key][keystate])	//this wasn't down, so don't make it leave down state.
-			return;
-		deltaused[key][keystate] = false;
-
-		if (key == K_RALT)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-			key = K_ALT;
-		if (key == K_RCTRL)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-			key = K_CTRL;
-		if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-			key = K_SHIFT;
-
-		if (devid)
-			Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
-		else
-			*p = 0;
-		kb = keybindings[key][keystate];
-		if (kb && kb[0] == '+')
+		uc = releasecommand[key][devid%MAX_INDEVS];
+		if (uc)	//this wasn't down, so don't crash on bad commands.
 		{
-			Q_snprintfz (cmd, sizeof(cmd), "-%s%s %i\n", p, kb+1, key+oldstate*256);
-			Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-		}
-		if (keyshift[key] != key)
-		{
-			kb = keybindings[keyshift[key]][keystate];
-			if (kb && kb[0] == '+')
-			{
-				Q_snprintfz (cmd, sizeof(cmd), "-%s%s %i\n", p, kb+1, key+oldstate*256);
-				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-			}
+			releasecommand[key][devid%MAX_INDEVS] = NULL;
+			Cbuf_AddText (uc, releasecommandlevel[key][devid%MAX_INDEVS]);
+			Z_Free(uc);
 		}
 		return;
 	}
@@ -2197,47 +2132,88 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	if (key_repeats[key] > 1)
 		return;
 
-	deltaused[key][keystate] = true;
-
 	if (devid)
 		Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
 	else
 		*p = 0;
 
-	if (key == K_RALT)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-		key = K_ALT;
-	if (key == K_RCTRL)	//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-		key = K_CTRL;
-	if (key == K_RSHIFT)//simulate a singular alt for binds. really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-		key = K_SHIFT;
+	dc = keybindings[key][modifierstate];
+	bl = bindcmdlevel[key][modifierstate];
 
-	if ((key == K_MOUSE1 || key == K_MOUSE2) && 1)
+	//simulate singular shift+alt+ctrl for binds (no left/right). really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
+	if (key == K_RALT && (!dc || !*dc))
 	{
-		int nkey = Sbar_TranslateHudClick();
-		if (nkey)
-		{
-			//handle +/- events 'properly' the only safe way we can - by releasing them instantly and discarding the mouse-up event.
-			Key_Event(devid, nkey, 0, true);
-			Key_Event(devid, nkey, 0, false);
-			return;
-		}
+		bkey = K_LALT;
+		dc = keybindings[bkey][modifierstate];
+		bl = bindcmdlevel[bkey][modifierstate];
 	}
-
-	kb = keybindings[key][keystate];
-	if (kb)
+	else if (key == K_RCTRL && (!dc || !*dc))
 	{
-		if (kb[0] == '+')
-		{	// button commands add keynum as a parm
-			Q_snprintfz (cmd, sizeof(cmd), "+%s%s %i\n", p, kb+1, key+oldstate*256);
-			Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-		}
+		bkey = K_LCTRL;
+		dc = keybindings[bkey][modifierstate];
+		bl = bindcmdlevel[bkey][modifierstate];
+	}
+	else if (key == K_RSHIFT && (!dc || !*dc))
+	{
+		bkey = K_LSHIFT;
+		dc = keybindings[bkey][modifierstate];
+		bl = bindcmdlevel[bkey][modifierstate];
+	}
+	else
+		bkey = key;
+
+	if (key == K_MOUSE1 && IN_MouseDevIsTouch(devid))
+	{
+		dc = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y);
+		if (dc)
+			bl = RESTRICT_INSECURE;
 		else
 		{
-			if (*p)Cbuf_AddText (p, bindcmdlevel[key][keystate]);
-			Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
-			Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
+			int bkey = Sbar_TranslateHudClick();
+			if (bkey)
+			{
+				dc = keybindings[bkey][modifierstate];
+				bl = bindcmdlevel[bkey][modifierstate];
+			}
+		}
+
+		if (!dc)	//no buttons to click, 
+		{
+			bkey = IN_TranslateMButtonPress(devid);
+			if (bkey)
+			{
+				dc = keybindings[bkey][modifierstate];
+				bl = bindcmdlevel[bkey][modifierstate];
+			}
+			else
+				return;
 		}
 	}
+
+	if (!dc)
+		dc = "";
+	if (dc[0] == '+')
+	{
+		uc = va("-%s%s %i\n", p, dc+1, bkey);
+		dc = va("+%s%s %i\n", p, dc+1, bkey);
+	}
+	else
+	{
+		uc = NULL;
+		dc = va("%s%s\n", p, dc);
+	}
+
+	//don't mess up if we ran out of devices, just silently release the one that it conflicted with (and only if its in conflict).
+	if (releasecommand[key][devid%MAX_INDEVS] && (!uc || strcmp(uc, releasecommand[key][devid%MAX_INDEVS])))
+	{
+		Cbuf_AddText (releasecommand[key][devid%MAX_INDEVS], releasecommandlevel[key][devid%MAX_INDEVS]);
+		Z_Free(releasecommand[key][devid%MAX_INDEVS]);
+		releasecommand[key][devid%MAX_INDEVS] = NULL;
+	}
+	Cbuf_AddText (dc, bl);
+	if (uc)
+		releasecommand[key][devid%MAX_INDEVS] = Z_StrDup(uc);
+	releasecommandlevel[key][devid%MAX_INDEVS] = bl;
 }
 
 /*

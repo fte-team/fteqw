@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef enum {
 	ss_dead,			// no map loaded
+	ss_clustermode,
 	ss_loading,			// spawning level edicts
 	ss_active,			// actively running
 	ss_cinematic
@@ -110,6 +111,7 @@ typedef struct
 	double		time;
 	double		starttime;
 	int framenum;
+	int logindatabase;
 
 	qboolean	paused;				// are we paused?
 	float		pausedstart;
@@ -131,12 +133,12 @@ typedef struct
 		};
 #endif
 		struct {
-			char		*vw_model_precache[32];
-			char		*model_precache[MAX_MODELS];	// NULL terminated
+			const char		*vw_model_precache[32];
+			const char	*model_precache[MAX_MODELS];	// NULL terminated
 			char		particle_precache[MAX_SSPARTICLESPRE][MAX_QPATH];	// NULL terminated
 			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
-			char		*lightstyles[MAX_LIGHTSTYLES];
-			char		lightstylecolours[MAX_LIGHTSTYLES];
+			const char		*lightstyles[MAX_LIGHTSTYLES];
+			qbyte		lightstylecolours[MAX_LIGHTSTYLES];
 		};
 	} strings;
 	qbyte		h2cdtrack;
@@ -147,6 +149,8 @@ typedef struct
 
 	model_t	*models[MAX_MODELS];
 	qbyte		*pvs, *phs;			// fully expanded and decompressed
+
+	struct client_s	*skipbprintclient;	//SV_BroadcastPrint skips this client
 
 	// added to every client's unreliable buffer each frame, then cleared
 	sizebuf_t	datagram;
@@ -198,6 +202,8 @@ typedef struct
 	qboolean msgfromdemo;
 
 	qboolean gamedirchanged;
+
+	qboolean haveitems2;	//use items2 field instead of serverflags for the high bits of STAT_ITEMS
 
 
 
@@ -275,8 +281,8 @@ typedef struct
 typedef enum
 {
 	cs_free,		// can be reused for a new connection
-	cs_zombie,		// client has been disconnected, but don't reuse
-					// connection for a couple seconds
+	cs_zombie,		// client has been disconnected, but don't reuse connection for a couple seconds. entity was already cleared.
+	cs_loadzombie,	// slot reserved for a client. the player's entity may or may not be known (istobeloaded says that state). parms _ARE_ known.
 	cs_connected,	// has been assigned to a client_t, but not in game yet
 	cs_spawned		// client is fully in game
 } client_conn_state_t;
@@ -371,6 +377,9 @@ typedef struct client_s
 	int challenge;
 	int				userid;							// identifying number
 	char			userinfo[EXTENDED_INFO_STRING];		// infostring
+#ifdef SUBSERVERS
+	unsigned int	previousserver;
+#endif
 
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
@@ -398,7 +407,7 @@ typedef struct client_s
 	char			*name;
 	char			namebuf[32];			// for printing to other people
 										// extracted from userinfo
-	char			guid[32]; /*+2 for split+pad*/
+	char			guid[64]; /*+2 for split+pad*/
 	int				messagelevel;		// for filtering printed messages
 
 	// the datagram is written to after every frame, but only cleared
@@ -474,6 +483,9 @@ typedef struct client_s
 	qbyte		ismuted;
 	qbyte		iscuffed;
 	qbyte		iscrippled;
+	qbyte		isdeaf;
+	qbyte		islagged;
+	qbyte		isvip;
 
 	qbyte		istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
 
@@ -724,18 +736,30 @@ typedef struct
 	int			time;
 } challenge_t;
 
+#define BAN_BAN			(1u<<0)	//user is banned from the server
+#define	BAN_PERMIT		(1u<<1)	//user can evade block bans or filterban
+#define	BAN_CUFF		(1u<<2)	//can't shoot/use impulses
+#define	BAN_MUTE		(1u<<3)	//can't use say/say_team
+#define	BAN_CRIPPLED	(1u<<4)	//can't move
+#define	BAN_DEAF		(1u<<5)	//can't see say/say_team
+#define	BAN_LAGGED		(1u<<6)	//given an extra 200ms
+#define BAN_VIP			(1u<<7)	//mods might give the user special rights
+
 typedef struct bannedips_s {
-	enum {BAN_BAN, BAN_FILTER, BAN_PERMIT} type;
+	unsigned int banflags;
 	struct bannedips_s *next;
 	netadr_t	adr;
 	netadr_t	adrmask;
-	unsigned int expiretime;
+	time_t expiretime;
 	char reason[1];
 } bannedips_t;
 
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
 	GT_Q1QVM,
+#ifdef VM_LUA
+	GT_LUA,		//for the luls
+#endif
 	GT_HALFLIFE,
 	GT_QUAKE2,	//q2 servers run from a q2 game dll
 	GT_QUAKE3,	//q3 servers run off the q3 qvm api
@@ -766,6 +790,7 @@ typedef struct
 	int			spawncount;			// number of servers spawned since start,
 									// used to check late spawns
 	int framenum;	//physics frame number for out-of-sequence thinks (fix for slow rockets)
+	int clusterserverid;			// which server we are in the cluster. for gamecode to track with stats.
 
 	struct ftenet_connections_s *sockets;
 
@@ -928,7 +953,7 @@ extern	vfsfile_t	*sv_fraglogfile;
 //===========================================================
 
 void SV_AddDebugPolygons(void);
-char *SV_CheckRejectConnection(netadr_t *adr, char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
+const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
 
 //
 // sv_main.c
@@ -946,12 +971,13 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
 void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength);
 
-int SV_ModelIndex (char *name);
+int SV_ModelIndex (const char *name);
 
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
 
-void SV_SaveSpawnparms (qboolean);
+void SV_SaveSpawnparms (void);
+void SV_SaveSpawnparmsClient(client_t *client, float *transferparms);	//if transferparms, calls SetTransferParms instead, and does not modify the player.
 void SV_SaveLevelCache(char *savename, qboolean dontharmgame);
 void SV_Savegame (char *savename);
 qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers);
@@ -972,12 +998,44 @@ void Master_Packet (void);
 
 void SV_FixupName(char *in, char *out, unsigned int outlen);
 
+#ifdef SUBSERVERS
+//cluster stuff
+typedef struct pubsubserver_s
+{
+	struct pubsubserver_s *next;
+	unsigned int id;
+	char name[64];
+	netadr_t addrv4;
+	netadr_t addrv6;
+} pubsubserver_t;
+extern qboolean isClusterSlave;
+void SSV_UpdateAddresses(void);
+void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver);
+void SSV_PollSlaves(void);
+void SSV_InstructMaster(sizebuf_t *cmd);
+void SSV_PrintToMaster(char *s);
+void SSV_ReadFromControlServer(void);
+void SSV_SavePlayerStats(client_t *cl, unsigned int previousserver);
+
+void Sys_InstructSlave(pubsubserver_t *s, sizebuf_t *cmd);
+int Sys_SubServerRead(pubsubserver_t *s);	//1: yes. 0: no. -1: error
+pubsubserver_t *Sys_ForkServer(void);
+
+#define SSV_IsSubServer() isClusterSlave
+#else
+#define SSV_UpdateAddresses() false
+#define MSV_ClusterLogin(guid,info,infosize) false
+#define SSV_IsSubServer() false
+#endif
+
 //
 // sv_init.c
 //
+void SV_SpawnClusterMode(void);
 void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean usecinematic);
 void SV_UnspawnServer (void);
 void SV_FlushSignon (void);
+void SV_UpdateMaxPlayers(int newmax);
 
 void SV_FilterImpulseInit(void);
 qboolean SV_FilterImpulse(int imp, int level);
@@ -1040,8 +1098,8 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj);
-void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj);
+void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj);
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, char *string);
@@ -1099,18 +1157,9 @@ void SVM_Think(int port);
 //
 // svonly.c
 //
-typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_OBLIVION} redirect_t;	//oblivion is provided so people can read the output before the buffer is wiped.
+typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_OBLIVION, RD_MASTER} redirect_t;	//oblivion is provided so people can read the output before the buffer is wiped.
 void SV_BeginRedirect (redirect_t rd, int lang);
 void SV_EndRedirect (void);
-
-//
-// sv_ccmds.c
-//
-void SV_Status_f (void);
-
-
-
-
 
 
 qboolean PR_GameCodePacket(char *s);
@@ -1183,7 +1232,7 @@ typedef struct {
 	rankstats_t s;
 } rankinfo_t;
 
-int Rank_GetPlayerID(char *guid, char *name, int pwd, qboolean allowcreate, qboolean requirepasswordtobeset);
+int Rank_GetPlayerID(char *guid, const char *name, int pwd, qboolean allowcreate, qboolean requirepasswordtobeset);
 void Rank_SetPlayerStats(int id, rankstats_t *stats);
 rankstats_t *Rank_GetPlayerStats(int id, rankstats_t *buffer);
 rankinfo_t *Rank_GetPlayerInfo(int id, rankinfo_t *buffer);
@@ -1197,11 +1246,11 @@ int Rank_GetPass (char *name);
 extern cvar_t rank_needlogin;
 
 
-client_t *SV_GetClientForString(char *name, int *id);
+client_t *SV_GetClientForString(const char *name, int *id);
 qboolean    SV_MayCheat(void);
 
 
-qboolean ReloadRanking(client_t *cl, char *newname);
+qboolean ReloadRanking(client_t *cl, const char *newname);
 #endif
 
 
@@ -1217,7 +1266,7 @@ void NPP_NQWriteLong(int dest, long data);
 void NPP_NQWriteAngle(int dest, float data);
 void NPP_NQWriteCoord(int dest, float data);
 void NPP_NQWriteFloat(int dest, float data);
-void NPP_NQWriteString(int dest, char *data);
+void NPP_NQWriteString(int dest, const char *data);
 void NPP_NQWriteEntity(int dest, short data);
 
 void NPP_QWWriteByte(int dest, qbyte data);
@@ -1227,7 +1276,7 @@ void NPP_QWWriteLong(int dest, long data);
 void NPP_QWWriteAngle(int dest, float data);
 void NPP_QWWriteCoord(int dest, float data);
 void NPP_QWWriteFloat(int dest, float data);
-void NPP_QWWriteString(int dest, char *data);
+void NPP_QWWriteString(int dest, const char *data);
 void NPP_QWWriteEntity(int dest, short data);
 
 
@@ -1251,10 +1300,6 @@ void SV_WipeChat(client_t *client);
 int SV_ChatMove(int impulse);
 void SV_ChatThink(client_t *client);
 #endif
-
-
-void SV_ConSay_f(void);
-
 
 
 

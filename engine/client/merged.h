@@ -10,7 +10,13 @@ struct entity_s;
 struct dlight_s;
 struct galiasbone_s;
 
-
+typedef enum
+{
+	SKEL_RELATIVE,	//relative to parent.
+	SKEL_ABSOLUTE,	//relative to model. doesn't blend very well.
+	SKEL_INVERSE_RELATIVE,	//pre-inverted. faster than regular relative but has weirdness with skeletal objects. blends okay.
+	SKEL_INVERSE_ABSOLUTE	//final renderable type.
+} skeltype_t;
 
 #ifdef HALFLIFEMODELS
 	#define MAX_BONE_CONTROLLERS 5
@@ -32,9 +38,11 @@ typedef struct {
 		int endbone;
 	} g[FS_COUNT];
 
+#ifdef SKELETALOBJECTS
 	float *bonestate;
 	int bonecount;
-	qboolean boneabs;
+	skeltype_t skeltype;
+#endif
 
 #ifdef HALFLIFEMODELS
 	float bonecontrols[MAX_BONE_CONTROLLERS];	//hl special bone controllers
@@ -55,12 +63,12 @@ typedef struct {
 extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
 
-mpic_t *R2D_SafeCachePic (char *path);
-mpic_t *R2D_SafePicFromWad (char *name);
+mpic_t *R2D_SafeCachePic (const char *path);
+mpic_t *R2D_SafePicFromWad (const char *name);
 void R2D_DrawCrosshair (void);
 void R2D_ScalePic (float x, float y, float width, float height, mpic_t *pic);
 void R2D_SubPic(float x, float y, float width, float height, mpic_t *pic, float srcx, float srcy, float srcwidth, float srcheight);
-void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic, qbyte *translation);
+void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic, unsigned int *palette);
 void R2D_TileClear (float x, float y, float w, float h);
 void R2D_FadeScreen (void);
 
@@ -98,7 +106,7 @@ extern void SCR_SetUpToDrawConsole					(void);
 extern void SCR_EraseCenterString					(void);
 extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
 
-void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaultmask, unsigned int fieldflags);
+void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags);
 #define CPRINT_BALIGN		(1<<0)	//B
 #define CPRINT_TALIGN		(1<<1)	//T
 #define CPRINT_LALIGN		(1<<2)	//L
@@ -118,25 +126,32 @@ enum mod_purge_e
 	MP_FLUSH,		//user flush command. anything flushable goes.
 	MP_RESET		//*everything* is destroyed. renderer is going down.
 };
+enum mlverbosity_e
+{
+	MLV_SILENT,
+	MLV_WARN,
+	MLV_ERROR
+};
 
 extern void	Mod_ClearAll						(void);
 extern void Mod_Purge							(enum mod_purge_e type);
-extern struct model_s *Mod_ForName				(char *name, qboolean crash);
-extern struct model_s *Mod_FindName				(char *name);
+extern struct model_s *Mod_FindName				(const char *name);	//find without loading. needload should be set.
+extern struct model_s *Mod_ForName				(const char *name, enum mlverbosity_e verbosity);	//finds+loads
+extern struct model_s *Mod_LoadModel			(struct model_s *mod, enum mlverbosity_e verbose);	//makes sure a model is loaded
 extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
-extern void	Mod_TouchModel						(char *name);
+extern void	Mod_TouchModel						(const char *name);
 
 extern void	Mod_NowLoadExternal					(void);
 
 extern void	Mod_Think							(void);
-extern int Mod_SkinNumForName					(struct model_s *model, char *name);
-extern int Mod_FrameNumForName					(struct model_s *model, char *name);
+extern int Mod_SkinNumForName					(struct model_s *model, const char *name);
+extern int Mod_FrameNumForName					(struct model_s *model, const char *name);
 extern float Mod_GetFrameDuration				(struct model_s *model, int framenum);
 
 #undef FNC
 
 extern qboolean	Mod_GetTag						(struct model_s *model, int tagnum, framestate_t *framestate, float *transforms);
-extern int Mod_TagNumForName					(struct model_s *model, char *name);
+extern int Mod_TagNumForName					(struct model_s *model, const char *name);
 
 int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
 int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
@@ -291,12 +306,12 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 
-	texid_tf (*IMG_LoadTexture)			(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
-	texid_tf (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-	texid_tf (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-	texid_tf (*IMG_LoadCompressed)		(char *name);
-	texid_tf (*IMG_FindTexture)			(char *identifier, unsigned int flags);
-	texid_tf (*IMG_AllocNewTexture)		(char *identifier, int w, int h, unsigned int flags);
+	texid_tf (*IMG_LoadTexture)			(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
+	texid_tf (*IMG_LoadTexture8Pal24)	(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+	texid_tf (*IMG_LoadTexture8Pal32)	(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+	texid_tf (*IMG_LoadCompressed)		(const char *name);
+	texid_tf (*IMG_FindTexture)			(const char *identifier, unsigned int flags);
+	texid_tf (*IMG_AllocNewTexture)		(const char *identifier, int w, int h, unsigned int flags);
 	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 
@@ -385,4 +400,5 @@ typedef struct rendererinfo_s {
 
 texid_t R2D_RT_Configure(unsigned int id, int width, int height, uploadfmt_t rtfmt);
 texid_t R2D_RT_GetTexture(unsigned int id, unsigned int *width, unsigned int *height);
+texid_t R2D_RT_DetachTexture(unsigned int id);
 

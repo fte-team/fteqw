@@ -86,7 +86,7 @@ qboolean	Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *description
 // if function is NULL, the command will be forwarded to the server
 // as a clc_stringcmd instead of executed locally
 
-qboolean Cmd_Exists (char *cmd_name);
+qboolean Cmd_Exists (const char *cmd_name);
 // used by the cvar code to check for cvar / command name overlap
 
 char *Cmd_Describe (char *cmd_name);
@@ -115,19 +115,19 @@ int Cmd_CheckParm (char *parm);
 // Returns the position (1 to argc-1) in the command's argument list
 // where the given parameter apears, or 0 if not present
 
-char *Cmd_AliasExist(char *name, int restrictionlevel);
+char *Cmd_AliasExist(const char *name, int restrictionlevel);
 void Alias_WipeStuffedAliases(void);
 
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions);
 
 void Cmd_TokenizePunctation (char *text, char *punctuation);
-char *Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize);
+const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolean qctokenize);
 // Takes a null terminated string.  Does not need to be /n terminated.
 // breaks the string up into arg tokens.
 
 void	Cmd_ExecuteString (char *text, int restrictionlevel);
 
-void Cmd_Args_Set(char *newargs);
+void Cmd_Args_Set(const char *newargs);
 
 #define RESTRICT_MAX_TOTAL  31
 #define RESTRICT_MAX_USER	29	//1-64	it's all about bit size. This is max settable. servers are +1 or +2

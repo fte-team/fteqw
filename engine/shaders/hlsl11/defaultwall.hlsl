@@ -31,6 +31,18 @@ struct v2f
 
 	float4 main (v2f inp) : SV_TARGET
 	{
-		return shaderTexture[0].Sample(SampleType[0], inp.tc) * shaderTexture[1].Sample(SampleType[1], inp.lmtc).bgra;
+		float4 tex = shaderTexture[0].Sample(SampleType[0], inp.tc);
+		float4 lm = shaderTexture[1].Sample(SampleType[1], inp.lmtc);
+
+#ifdef MASK
+#ifndef MASKOP
+#define MASKOP >=	//drawn if (alpha OP ref) is true.
+#endif
+		//support for alpha masking
+		if (!(tex.a MASKOP MASK))
+			discard;
+#endif
+
+		return tex * lm.bgra;
 	}
 #endif

@@ -41,7 +41,6 @@ static HANDLE hconsoleout;
 
 qboolean	WinNT;	//if true, use utf-16 file paths. if false, hope that paths are in ascii.
 
-
 #ifdef _DEBUG
 #if _MSC_VER >= 1300
 #define CATCHCRASH
@@ -287,6 +286,10 @@ int	Sys_FileTime (char *path)
 	return -1;
 }
 
+
+wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
+char *narrowen(char *out, size_t outlen, wchar_t *wide);
+
 /*
 ================
 Sys_mkdir
@@ -309,51 +312,244 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
-	HANDLE r;
-	WIN32_FIND_DATA fd;
-	char apath[MAX_OSPATH];
-	char file[MAX_OSPATH];
-	char *s;
-	int go;
-	Q_strncpyz(apath, match, sizeof(apath));
-//	sprintf(apath, "%s%s", gpath, match);
-	for (s = apath+strlen(apath)-1; s>= apath; s--)
+	qboolean go;
+	if (!WinNT)
 	{
-		if (*s == '/')
-			break;
-	}
-	s++;
-	*s = '\0';
+		HANDLE r;
+		WIN32_FIND_DATAA fd;
+		int nest = neststart;	//neststart refers to just after a /
+		qboolean wild = false;
 
-
-
-	Q_snprintfz(file, sizeof(file), "%s/%s", gpath, match);
-	r = FindFirstFile(file, &fd);
-	if (r==(HANDLE)-1)
-		return 1;
-    go = true;
-	do
-	{
-		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+		while(match[nest] && match[nest] != '/')
 		{
-			if (*fd.cFileName != '.')
+			if (match[nest] == '?' || match[nest] == '*')
+				wild = true;
+			nest++;
+		}
+		if (match[nest] == '/')
+		{
+			char submatch[MAX_OSPATH];
+			char tmproot[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			if (!wild)
+				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
+
+			if (nest-neststart+1> MAX_OSPATH)
+				return 1;
+			memcpy(submatch, match+neststart, nest - neststart);
+			submatch[nest - neststart] = 0;
+			nest++;
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			r = FindFirstFile(tmproot, &fd);
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
 			{
-				Q_snprintfz(file, sizeof(file), "%s%s/", apath, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, parm, spath);
-			}
+				if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, fd.cFileName))
+					{
+						int newnest;
+						if (strlen(tmproot) + strlen(fd.cFileName) + strlen(match+nest) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
+							newnest = strlen(file);
+							strcpy(file+newnest, match+nest);
+							go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+						}
+					}
+				}
+			} while(FindNextFile(r, &fd) && go);
+			FindClose(r);
 		}
 		else
 		{
-			Q_snprintfz(file, sizeof(file), "%s%s", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm, spath);
+			const char *submatch = match + neststart;
+			char tmproot[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			r = FindFirstFile(tmproot, &fd);
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
+			{
+				if (*fd.cFileName == '.')
+					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, fd.cFileName))
+					{
+						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+						}
+					}
+				}
+				else
+				{
+					if (wildcmp(submatch, fd.cFileName))
+					{
+						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+						}
+					}
+				}
+			} while(FindNextFile(r, &fd) && go);
+			FindClose(r);
 		}
 	}
-	while(FindNextFile(r, &fd) && go);
-	FindClose(r);
+	else
+	{
+		HANDLE r;
+		WIN32_FIND_DATAW fd;
+		int nest = neststart;	//neststart refers to just after a /
+		qboolean wild = false;
 
+		while(match[nest] && match[nest] != '/')
+		{
+			if (match[nest] == '?' || match[nest] == '*')
+				wild = true;
+			nest++;
+		}
+		if (match[nest] == '/')
+		{
+			char submatch[MAX_OSPATH];
+			char tmproot[MAX_OSPATH];
+
+			if (!wild)
+				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
+
+			if (nest-neststart+1> MAX_OSPATH)
+				return 1;
+			memcpy(submatch, match+neststart, nest - neststart);
+			submatch[nest - neststart] = 0;
+			nest++;
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			{
+				wchar_t wroot[MAX_OSPATH];
+				r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			}
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
+			{
+				char utf8[MAX_OSPATH];
+				char file[MAX_OSPATH];
+				narrowen(utf8, sizeof(utf8), fd.cFileName);
+				if (*utf8 == '.');	//don't ever find files with a name starting with '.'
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, utf8))
+					{
+						int newnest;
+						if (strlen(tmproot) + strlen(utf8) + strlen(match+nest) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, utf8);
+							newnest = strlen(file);
+							strcpy(file+newnest, match+nest);
+							go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+						}
+					}
+				}
+			} while(FindNextFileW(r, &fd) && go);
+			FindClose(r);
+		}
+		else
+		{
+			const char *submatch = match + neststart;
+			char tmproot[MAX_OSPATH];
+
+			if (neststart+4 > MAX_OSPATH)
+				return 1;
+			memcpy(tmproot, match, neststart);
+			strcpy(tmproot+neststart, "*.*");
+
+			{
+				wchar_t wroot[MAX_OSPATH];
+				r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+			}
+			strcpy(tmproot+neststart, "");
+			if (r==(HANDLE)-1)
+				return 1;
+			go = true;
+			do
+			{
+				char utf8[MAX_OSPATH];
+				char file[MAX_OSPATH];
+
+				narrowen(utf8, sizeof(utf8), fd.cFileName);
+				if (*utf8 == '.')
+					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				{
+					if (wildcmp(submatch, utf8))
+					{
+						if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+						}
+					}
+				}
+				else
+				{
+					if (wildcmp(submatch, utf8))
+					{
+						if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
+						{
+							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+						}
+					}
+				}
+			} while(FindNextFileW(r, &fd) && go);
+			FindClose(r);
+		}
+	}
 	return go;
+}
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+{
+	char fullmatch[MAX_OSPATH];
+	int start;
+	if (strlen(gpath) + strlen(match) + 2 > MAX_OSPATH)
+		return 1;
+
+	strcpy(fullmatch, gpath);
+	start = strlen(fullmatch);
+	if (start && fullmatch[start-1] != '/')
+		fullmatch[start++] = '/';
+	fullmatch[start] = 0;
+	strcat(fullmatch, match);
+	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm, spath);
 }
 
 /*
@@ -493,7 +689,7 @@ double Sys_DoubleTime (void)
 Sys_ConsoleInput
 ================
 */
-
+void SV_GetNewSpawnParms(client_t *cl);
 char	coninput_text[256];
 int		coninput_len;
 char *Sys_ConsoleInput (void)
@@ -512,6 +708,50 @@ char *Sys_ConsoleInput (void)
 		}
 		return NULL;
 	}
+
+#ifdef SUBSERVERS
+	if (SSV_IsSubServer())
+	{
+		DWORD avail;
+		static char	text[1024], *nl;
+		static int textpos = 0;
+
+		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+		if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
+		{
+			SV_FinalMessage("Cluster shut down\n");
+			Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
+		}
+		else if (avail)
+		{
+			if (avail > sizeof(text)-1-textpos)
+				avail = sizeof(text)-1-textpos;
+			if (ReadFile(input, text+textpos, avail, &avail, NULL))
+			{
+				textpos += avail;
+				while(textpos >= 2)
+				{
+					unsigned short len = text[0] | (text[1]<<8);
+					if (textpos >= len && len >= 2)
+					{
+						memcpy(net_message.data, text+2, len-2);
+						net_message.cursize = len-2;
+						MSG_BeginReading (msg_nullnetprim);
+
+						SSV_ReadFromControlServer();
+						
+						memmove(text, text+len, textpos - len);
+						textpos -= len;
+					}
+					else
+						break;
+				}
+			}
+
+		}
+		return NULL;
+	}
+#endif
 
 	// read a line out
 	while (_kbhit())
@@ -646,6 +886,14 @@ void Sys_Printf (char *fmt, ...)
 		va_start (argptr,fmt);
 		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
+
+#ifdef SUBSERVERS
+		if (SSV_IsSubServer())
+		{
+			SSV_PrintToMaster(msg);
+			return;
+		}
+#endif
 
 		{
 			int i;
@@ -1118,6 +1366,10 @@ int main (int argc, char **argv)
 			signal (SIGSEGV,	Signal_Error_Handler);
 		}
 	#endif
+
+#ifdef SUBSERVERS
+		isClusterSlave = COM_CheckParm("-clusterslave");
+#endif
 		StartQuakeServer();
 
 		ServerMainLoop();

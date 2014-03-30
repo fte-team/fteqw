@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 #include "winquake.h"
+#ifndef WINRT
 
 // 64K is > 1 second at 16-bit, 22050 Hz
 #define	WAV_BUFFERS				64
@@ -367,3 +368,4 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	return true;
 }
 int (*pWAV_InitCard) (soundcardinfo_t *sc, int cardnum) = &WAV_InitCard;
+#endif

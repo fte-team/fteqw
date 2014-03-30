@@ -96,7 +96,7 @@ void SV_RecordDemo_f (void)
 	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server so the clients reconnect and send nice fresh messages.
 	{
 		c = &svs.clients[clnum];
-		if (c->state <= cs_zombie)
+		if (c->state < cs_connected)
 			continue;
 		ClientReliableWrite_Begin (c, svc_stufftext, 2+strlen("reconnect\n"));
 		ClientReliableWrite_String (c, "disconnect;wait;reconnect\n");
@@ -152,7 +152,7 @@ void SV_PlayDemo_f(void)
 	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server so new clients don't conflict.
 	{
 		c = &svs.clients[clnum];
-		if (c->state <= cs_zombie)
+		if (c->state < cs_connected)
 			continue;
 		ClientReliableWrite_Begin (c, svc_stufftext, 2+strlen("reconnect\n"));
 		ClientReliableWrite_String (c, "reconnect\n");

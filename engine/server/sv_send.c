@@ -73,6 +73,21 @@ void SV_FlushRedirect (void)
 
 		NET_SendPacket (NS_SERVER, strlen(send)+1, send, &net_from);
 	}
+#ifdef SUBSERVERS
+	else if (sv_redirected == RD_MASTER)
+	{
+		sizebuf_t s;
+
+		memset(&s, 0, sizeof(s));
+		s.data = send;
+		s.maxsize = sizeof(send);
+		s.cursize = 2;
+
+		MSG_WriteByte(&s, ccmd_print);
+		MSG_WriteString(&s, outputbuf);
+		SSV_InstructMaster(&s);
+	}
+#endif
 	else if (sv_redirected == RD_CLIENT)
 	{
 		int chop;
@@ -405,6 +420,9 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 		if (cl->protocol == SCP_BAD)
 			continue;
 
+		if (cl == sv.skipbprintclient)	//silence bprints about the player in ClientConnect. NQ completely wipes the buffer after clientconnect, which is what traditionally hides it.
+			continue;
+
 		if (cl->controller)
 			continue;
 
@@ -543,6 +561,22 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	}
 
 //	to = MULTICAST_ALL;
+	//don't let things crash if the world model went away. can happen in broadcasts when reloading video with the map no longer available causing the server to die with the resulting broadcast messages about players dropping or gib effects appearing
+	if (sv.world.worldmodel->needload)
+	{
+		switch(to)
+		{
+		case MULTICAST_PHS_R:
+		case MULTICAST_PVS_R:
+			to = MULTICAST_ALL_R;
+			break;
+		case MULTICAST_PHS:
+		case MULTICAST_PVS:
+			to = MULTICAST_ALL;
+			break;
+		}
+	}
+
 #ifdef Q2BSPS
 	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
@@ -904,7 +938,7 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj)
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj)
 {
     int         sound_num;
     int			extfield_mask;
@@ -1064,7 +1098,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
+void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj)
 {
 	edict_t *entity = (edict_t*)wentity;
 	int i;
@@ -1146,8 +1180,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 			MSG_WriteByte(msg, pnum);
 		}
 		MSG_WriteByte (msg, svc_damage);
-		MSG_WriteByte (msg, ent->v->dmg_save);
-		MSG_WriteByte (msg, ent->v->dmg_take);
+		MSG_WriteByte (msg, min(255, ent->v->dmg_save));
+		MSG_WriteByte (msg, min(255, ent->v->dmg_take));
 		for (i=0 ; i<3 ; i++)
 			MSG_WriteCoord (msg, other->v->origin[i] + 0.5*(other->v->mins[i] + other->v->maxs[i]));
 
@@ -1598,9 +1632,9 @@ void SV_ClearQCStats(void)
 }
 
 extern cvar_t dpcompat_stats;
-void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
+void SV_UpdateQCStats(edict_t	*ent, int *statsi, const char **statss, float *statsf)
 {
-	char *s;
+	const char *s;
 	int i;
 	int t;
 
@@ -1651,7 +1685,6 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 /*this function calculates the current stat values for the given client*/
 void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], char *statss[MAX_CL_STATS])
 {
-	extern qboolean pr_items2;
 	edict_t *ent;
 	ent = client->edict;
 	memset (statsi, 0, sizeof(int)*MAX_CL_STATS);
@@ -1697,7 +1730,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		}
 
 		// stuff the sigil bits into the high bits of items for sbar
-		if (pr_items2)
+		if (sv.haveitems2)
 			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
 		else
 			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
@@ -1992,7 +2025,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// copy the accumulated multicast datagram
 	// for this client out to the message
-	if (client->datagram.overflowed)
+	if (client->datagram.overflowed || msg.cursize + client->datagram.cursize > msg.maxsize)
 		Con_Printf ("WARNING: datagram overflowed for %s\n", client->name);
 	else
 		SZ_Write (&msg, client->datagram.data, client->datagram.cursize);
@@ -2133,7 +2166,7 @@ void SV_UpdateToReliableMessages (void)
 	int			i, j;
 	client_t *client, *sp;
 	edict_t *ent;
-	char *name;
+	const char *name;
 
 	float curgrav;
 	float curspeed;
@@ -2364,7 +2397,7 @@ void SV_SendClientMessages (void)
 	{
 		for (i=0, c = svs.clients ; i<svs.allocated_client_slots ; i++, c++)
 		{
-			if (c->state <= cs_zombie)
+			if (c->state < cs_connected)
 				continue;
 
 			if (c->drop)
@@ -2393,13 +2426,20 @@ void SV_SendClientMessages (void)
 // build individual updates
 	for (i=0, c = svs.clients ; i<svs.allocated_client_slots ; i++, c++)
 	{
-		if (c->state <= cs_zombie)
+		if (c->state < cs_loadzombie)
 			continue;
 
 		if (c->drop)
 		{
 			SV_DropClient(c);
 			c->drop = false;
+			continue;
+		}
+
+		if (c->state == cs_loadzombie)
+		{	//not yet present.
+			c->netchan.message.cursize = 0;
+			c->datagram.cursize = 0;
 			continue;
 		}
 
@@ -2414,18 +2454,9 @@ void SV_SendClientMessages (void)
 			continue;
 		}
 
-		if (c->istobeloaded && c->state == cs_zombie)
-		{	//not yet present.
-			c->netchan.message.cursize = 0;
-			c->datagram.cursize = 0;
-			continue;
-		}
-
 #ifdef Q3SERVER
 		if (ISQ3CLIENT(c))
 		{	//q3 protocols bypass backbuffering and pretty much everything else
-			if (c->state <= cs_zombie)
-				continue;
 			SVQ3_SendMessage(c);
 			continue;
 		}
@@ -2521,7 +2552,7 @@ void SV_SendClientMessages (void)
 				c->netchan.nqunreliableonly = false;
 				c->send_message = false;
 				//nq sends one packet only for each server physics frame
-				if (c->nextservertimeupdate < pt && c->state != cs_zombie)
+				if (c->nextservertimeupdate < pt && c->state >= ca_connected)
 				{
 					c->send_message = true;
 					c->nextservertimeupdate = pt + 1.0/77;

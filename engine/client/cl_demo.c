@@ -1643,6 +1643,13 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 	TP_ExecTrigger ("f_demostart");
 }
 
+vfsfile_t *CL_OpenFileInZipOrSys(char *name)
+{
+	if (*name == '#')
+		return VFSOS_Open(name+1, "rb");
+	else
+		return CL_OpenFileInPackage(NULL, name);
+}
 void CL_PlayDemo(char *demoname)
 {
 	char	name[256];
@@ -1654,10 +1661,7 @@ void CL_PlayDemo(char *demoname)
 //
 	Q_strncpyz (name, demoname, sizeof(name));
 	COM_DefaultExtension (name, ".qwd", sizeof(name));
-	if (*name == '#')
-		f = VFSOS_Open(name+1, "rb");
-	else
-		f = FS_OpenVFS(name, "rb", FS_GAME);
+	f = CL_OpenFileInZipOrSys(name);
 	if (!f)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
@@ -1683,7 +1687,6 @@ void CL_PlayDemo(char *demoname)
 		return;
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
-	Con_Printf ("Playing demo from %s.\n", name);
 
 	if (!VFS_GETLEN (f))
 	{
@@ -1958,7 +1961,7 @@ void CL_QTVPoll (void)
 					MC_AddCenterPicture(sourcesmenu, 4, 24, "gfx/p_option.lmp");
 				}
 				if (init_numplayers == true && init_numviewers == true)
-					MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
+					MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
 				//else
 				//	FIXME: add error message here
 			}

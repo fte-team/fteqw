@@ -424,7 +424,7 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *us
 	return data;
 }
 
-qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//returns rgba
+qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha)//returns rgba
 {
 	char texname[17];
 	int i, j;

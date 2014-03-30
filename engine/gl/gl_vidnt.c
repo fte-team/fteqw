@@ -842,6 +842,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 extern qboolean gammaworks;
 static void ReleaseGL(void);
+static void Win_Touch_Init(HWND wnd);
 static qboolean CreateMainWindow(rendererstate_t *info)
 {
 	qboolean		stat;
@@ -855,6 +856,9 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 		TRACE(("dbg: GLVID_SetMode: VID_SetFullDIBMode\n"));
 		stat = VID_SetFullDIBMode(info);
 	}
+	VID_UpdateWindowStatus(mainwindow);
+
+	Win_Touch_Init(mainwindow);
 
 	INS_UpdateGrabs(info->fullscreen, ActiveApp);
 
@@ -1264,7 +1268,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		qwglSwapIntervalEXT(vid_vsync.value);
 	}
 	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
-	qglClearColor(0, 0, 0, 0);
+	qglClearColor(0, 0, 0, 1);
 	qglClear(GL_COLOR_BUFFER_BIT);
 	qSwapBuffers(maindc);
 
@@ -1320,7 +1324,32 @@ void GLVID_Recenter_f(void)
 
 void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
+	//this code tells windows to use the alpha channel of the screen, but does really nasty things with the mouse such that its unplayable.
+	//its not useful.
+/*	if (modestate==MS_WINDOWED)
+	{
+		struct qDWM_BLURBEHIND 
+		{
+			  DWORD dwFlags;
+			  BOOL  fEnable;
+			  HRGN  hRgnBlur;
+			  BOOL  fTransitionOnMaximized;
+		} bb = {1, true, NULL, true};
+		HRESULT (WINAPI *pDwmEnableBlurBehindWindow)(HWND hWnd,const struct qDWM_BLURBEHIND *pBlurBehind);
+		dllfunction_t dwm[] =
+		{
+			{(void*)&pDwmEnableBlurBehindWindow, "DwmEnableBlurBehindWindow"},
+			{NULL,NULL}
+		};
+		if (Sys_LoadLibrary("dwmapi.dll", dwm))
+			pDwmEnableBlurBehindWindow(mainwindow, &bb);
+	}
+*/
+
 #ifdef WS_EX_LAYERED
+	//enable whole-window fixed transparency. should work in win2k+
+	//note that this can destroy framerates, and they won't reset when the setting is reverted to 1.
+	//be prepared to do a vid_restart.
 	if (modestate==MS_WINDOWED)
 	{
 		int av;
@@ -1346,7 +1375,10 @@ void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 				pSetLayeredWindowAttributes(mainwindow, 0, (BYTE)av, LWA_ALPHA);
 			}
 			else
+			{
 				SetWindowLong(mainwindow, GWL_EXSTYLE, GetWindowLong(mainwindow, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+				pSetLayeredWindowAttributes(mainwindow, 0, (BYTE)255, LWA_ALPHA);
+			}
 		}
 	}
 #endif
@@ -1479,39 +1511,47 @@ int forcepixelformat;
 
 BOOL CheckForcePixelFormat(rendererstate_t *info)
 {
-	if (qwglChoosePixelFormatARB && info->multisample)
+	if (qwglChoosePixelFormatARB && (info->multisample || info->srgb))
 	{
 		HDC hDC;
 		int valid;
-		float fAttributes[] = {0,0};
+		float fAttribute[] = {0,0};
 		UINT numFormats;
 		int pixelformat;
-		int iAttributes[] = {
-				WGL_DRAW_TO_WINDOW_ARB,	GL_TRUE,
-				WGL_SUPPORT_OPENGL_ARB,	GL_TRUE,
-				WGL_ACCELERATION_ARB,	WGL_FULL_ACCELERATION_ARB,
-				WGL_COLOR_BITS_ARB,		info->bpp,
-				WGL_ALPHA_BITS_ARB,		8,
-				WGL_DEPTH_BITS_ARB,		16,
-				WGL_STENCIL_BITS_ARB,	8,
-				WGL_DOUBLE_BUFFER_ARB,	GL_TRUE,
-				WGL_SAMPLE_BUFFERS_ARB,	GL_TRUE,
-				WGL_SAMPLES_ARB,		info->multisample,						// Check For 4x Multisampling
-				WGL_STEREO_ARB,			info->stereo,
-				0,						0
-		};
+		int iAttributes = 0;
+		int iAttribute[16*2];
+		iAttribute[iAttributes++] = WGL_DRAW_TO_WINDOW_ARB;				iAttribute[iAttributes++] = GL_TRUE;
+		iAttribute[iAttributes++] = WGL_SUPPORT_OPENGL_ARB;				iAttribute[iAttributes++] = GL_TRUE;
+		iAttribute[iAttributes++] = WGL_ACCELERATION_ARB;				iAttribute[iAttributes++] = WGL_FULL_ACCELERATION_ARB;
+		iAttribute[iAttributes++] = WGL_COLOR_BITS_ARB;					iAttribute[iAttributes++] = info->bpp;
+		iAttribute[iAttributes++] = WGL_ALPHA_BITS_ARB;					iAttribute[iAttributes++] = 4;
+		iAttribute[iAttributes++] = WGL_DEPTH_BITS_ARB;					iAttribute[iAttributes++] = 16;
+		iAttribute[iAttributes++] = WGL_STENCIL_BITS_ARB;				iAttribute[iAttributes++] = 8;
+		iAttribute[iAttributes++] = WGL_DOUBLE_BUFFER_ARB;				iAttribute[iAttributes++] = GL_TRUE;
+		iAttribute[iAttributes++] = WGL_STEREO_ARB;						iAttribute[iAttributes++] = info->stereo;
+		if (info->multisample)
+		{
+			iAttribute[iAttributes++] = WGL_SAMPLE_BUFFERS_ARB;				iAttribute[iAttributes++] = GL_TRUE;
+			iAttribute[iAttributes++] = WGL_SAMPLES_ARB,					iAttribute[iAttributes++] = info->multisample;						// Check For 4x Multisampling
+		}
+		if (info->srgb)
+		{
+			iAttribute[iAttributes++] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;	iAttribute[iAttributes++] = GL_TRUE;
+		}
+		iAttribute[iAttributes++] = 0;									iAttribute[iAttributes++] = 0;
+
 
 		TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 4)\n"));
 		hDC = GetDC(mainwindow);
 
-		valid = qwglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelformat,&numFormats);
-		while ((!valid || numFormats < 1) && iAttributes[19] > 1)
+		valid = qwglChoosePixelFormatARB(hDC,iAttribute,fAttribute,1,&pixelformat,&numFormats);
+/*		while ((!valid || numFormats < 1) && iAttribute[19] > 1)
 		{	//failed, switch wgl_samples to 2
-			iAttributes[19] /= 2;
+			iAttribute[19] /= 2;
 			TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (smaller multisample)\n"));
-			valid = qwglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelformat,&numFormats);
+			valid = qwglChoosePixelFormatARB(hDC,iAttribute,fAttribute,1,&pixelformat,&numFormats);
 		}
-
+*/
 		ReleaseDC(mainwindow, hDC);
 		if (valid && numFormats > 0)
 		{
@@ -1777,6 +1817,77 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	return true;
 }
 
+#ifndef TWF_WANTPALM
+typedef struct _TOUCHINPUT {
+  LONG      x;
+  LONG      y;
+  HANDLE    hSource;
+  DWORD     dwID;
+  DWORD     dwFlags;
+  DWORD     dwMask;
+  DWORD     dwTime;
+  ULONG_PTR dwExtraInfo;
+  DWORD     cxContact;
+  DWORD     cyContact;
+} TOUCHINPUT, *PTOUCHINPUT;
+DECLARE_HANDLE(HTOUCHINPUT);
+
+#define WM_TOUCH					0x0240 
+#define TOUCHINPUTMASKF_CONTACTAREA	0x0004
+#define TOUCHEVENTF_DOWN			0x0002
+#define TOUCHEVENTF_UP				0x0004
+#define TWF_WANTPALM				0x00000002
+#endif
+
+static BOOL (WINAPI *pRegisterTouchWindow)(HWND hWnd, ULONG ulFlags);
+static BOOL (WINAPI *pGetTouchInputInfo)(HTOUCHINPUT hTouchInput, UINT cInputs, PTOUCHINPUT pInputs, int cbSize);
+static BOOL (WINAPI *pCloseTouchInputHandle)(HTOUCHINPUT hTouchInput);
+static void Win_Touch_Init(HWND wnd)
+{
+	HMODULE lib;
+	lib = LoadLibrary("user32.dll");
+	pRegisterTouchWindow = (void*)GetProcAddress(lib, "RegisterTouchWindow");
+	pGetTouchInputInfo = (void*)GetProcAddress(lib, "GetTouchInputInfo");
+	pCloseTouchInputHandle = (void*)GetProcAddress(lib, "CloseTouchInputHandle");
+
+	if (pRegisterTouchWindow && pGetTouchInputInfo && pCloseTouchInputHandle)
+		pRegisterTouchWindow(wnd, TWF_WANTPALM);
+}
+static void Win_Touch_Event(int points, HTOUCHINPUT ti)
+{
+	float sz;
+	int i;
+	TOUCHINPUT *inputs = malloc(points * sizeof(*inputs)), *input;
+	if (inputs)
+	{
+		if (pGetTouchInputInfo(ti, points, inputs, sizeof(*inputs)))
+		{
+			for (i = 0, input = inputs; i < points; i++, input++)
+			{
+				int id = input->dwID+1;	//googling implies the id is generally a low 0-based index. I can't test this. the +1 ensures that mouselook is not broken by someone trying to use a touchscreen at the same time.
+				if (input->dwMask & TOUCHINPUTMASKF_CONTACTAREA)
+					sz = sqrt((input->cxContact*input->cxContact + input->cyContact*input->cyContact) / 10000.0);
+				else
+					sz = 0;
+
+				//the web seems to imply that the ids should be low values, <16 or so. hurrah.
+
+				//movement *then* buttons. this should ensure that the cursor is positioned correctly.
+				IN_MouseMove(id, true, input->x/100.0f, input->y/100.0f, 0, sz);
+
+				if (input->dwFlags & TOUCHEVENTF_DOWN)
+					IN_KeyEvent(id, true, K_MOUSE1, 0);
+				if (input->dwFlags & TOUCHEVENTF_UP)
+					IN_KeyEvent(id, false, K_MOUSE1, 0);
+			}
+		}
+		free(inputs);
+	}
+
+	pCloseTouchInputHandle(ti);
+}
+
+
 /* main window procedure */
 LONG WINAPI GLMainWndProc (
     HWND    hWnd,
@@ -1811,6 +1922,10 @@ LONG WINAPI GLMainWndProc (
 				break;
 			ClearAllStates ();
 			break;
+
+		case WM_TOUCH:
+			Win_Touch_Event(LOWORD(wParam), (HTOUCHINPUT)lParam);
+			return 0;	//return 0 if we handled it.
 
 		case WM_CREATE:
 			break;

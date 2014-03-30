@@ -225,11 +225,12 @@ static qofs_t QDECL VFSPAK_GetLen (struct vfsfile_s *vfs)
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	return vfsp->length;
 }
-static void QDECL VFSPAK_Close(vfsfile_t *vfs)
+static qboolean QDECL VFSPAK_Close(vfsfile_t *vfs)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	FSPAK_ClosePath(&vfsp->parentpak->pub);	//tell the parent that we don't need it open any more (reference counts)
 	Z_Free(vfsp);	//free ourselves.
+	return true;
 }
 static vfsfile_t *QDECL FSPAK_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {

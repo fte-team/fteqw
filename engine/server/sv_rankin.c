@@ -383,7 +383,7 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 	}
 }
 
-int Rank_GetPlayerID(char *guid, char *name, int pwd, qboolean allowadd, qboolean requirepasswordtobeset)
+int Rank_GetPlayerID(char *guid, const char *name, int pwd, qboolean allowadd, qboolean requirepasswordtobeset)
 {
 	rankstats_t rs;
 	rankheader_t rh;

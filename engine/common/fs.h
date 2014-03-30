@@ -2,9 +2,10 @@
 
 #define FSVER 2
 
-#define FF_NOTFOUND	0	//file wasn't found
-#define FF_FOUND	1	//file was found
-#define FF_SYMLINK	2	//file contents are the name of a different file (symlink). do a recursive lookup on the name
+#define FF_NOTFOUND		(0u)	//file wasn't found
+#define FF_FOUND		(1u<<0u)	//file was found
+#define FF_SYMLINK		(1u<<1u)	//file contents are the name of a different file (symlink). do a recursive lookup on the name
+#define FF_DIRECTORY	(1u<<2u)
 
 typedef struct
 {
@@ -14,6 +15,7 @@ typedef struct
 extern hashtable_t filesystemhash;	//this table is the one to build your hash references into
 extern int fs_hash_dups;	//for tracking efficiency. no functional use.
 extern int fs_hash_files;	//for tracking efficiency. no functional use.
+extern qboolean fs_readonly;	//if true, fopen(, "w") should always fail.
 
 struct searchpath_s;
 struct searchpathfuncs_s
@@ -54,9 +56,12 @@ int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfun
 void FS_UnRegisterFileSystemType(int idx);
 void FS_UnRegisterFileSystemModule(void *module);
 
+void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr);
+
 #define SPF_REFERENCED		1	//something has been loaded from this path. should filter out client references...
 #define SPF_COPYPROTECTED	2	//downloads are not allowed fom here.
 #define SPF_TEMPORARY		4	//a map-specific path, purged at map change.
 #define SPF_EXPLICIT		8	//a root gamedir (bumps depth on gamedir depth checks). 
 #define SPF_UNTRUSTED		16	//has been downloaded from somewhere. configs inside it should never be execed with local access rights.
+#define SPF_PRIVATE			32	//private to the client. ie: the fte dir.
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);

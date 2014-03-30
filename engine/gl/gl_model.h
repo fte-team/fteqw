@@ -50,11 +50,12 @@ typedef enum {
 	SHADER_SORT_COUNT
 } shadersort_t;
 
-#define MAX_BONES 128
+#define MAX_BONES 256
+#define MAX_GPU_BONES 256
 struct doll_s;
 void rag_flushdolls(qboolean force);
 void rag_freedoll(struct doll_s *doll);
-struct doll_s *rag_createdollfromstring(struct model_s *mod, char *fname, int numbones, char *file);
+struct doll_s *rag_createdollfromstring(struct model_s *mod, const char *fname, int numbones, const char *file);
 struct world_s;
 void rag_doallanimations(struct world_s *world);
 void rag_removedeltaent(lerpents_t *le);
@@ -93,7 +94,7 @@ typedef struct mesh_s
 	vec3_t			*trnormals;
 
 	qboolean		istrifan;	/*if its a fan/poly/single quad  (permits optimisations)*/
-	float			*bones;
+	const float		*bones;
 	int				numbones;
 	byte_vec4_t		*bonenums;
 	vec4_t			*boneweights;
@@ -267,7 +268,7 @@ typedef struct vbo_s
 	vboarray_t boneweights;
 
 	unsigned int vbobones;
-	float *bones;
+	const float *bones;
 	unsigned  int numbones;
 
 	struct vbo_s *next;
@@ -958,17 +959,6 @@ typedef struct model_s
 #define MDLF_HASBRUSHES		 0x400 // q1bsp has brush info for more precise traceboxes
 
 //============================================================================
-/*
-void	Mod_Init (void);
-void	Mod_ClearAll (void);
-model_t *Mod_ForName (char *name, qboolean crash);
-model_t *Mod_FindName (char *name);
-void	*Mod_Extradata (model_t *mod);	// handles caching
-void	Mod_TouchModel (char *name);
-
-mleaf_t *Mod_PointInLeaf (float *p, model_t *model);
-qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
-*/
 #endif	// __MODEL__
 
 

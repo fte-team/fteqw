@@ -1051,7 +1051,9 @@ char *Macro_CombinedHealth(void)
 	//work out the max useful armour
 	//this will under-exagurate, due to usage of ceil based on damage
 	m = h/(1-t);
-	if (a > m && m > 0)
+	if (m < 0)
+		a = 0;
+	else if (m < a)
 		a = m;
 
 	h = h + a;

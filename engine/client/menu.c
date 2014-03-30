@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void M_Menu_Audio_f (void);
 void M_Menu_Demos_f (void);
+void M_Menu_Mods_f (void);
+void M_Menu_ModelViewer_f(void);
 
 m_state_t m_state;
 
@@ -51,11 +53,9 @@ void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 	R2D_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
 }
 
-void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable)
+void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable)
 {
 	int		j;
-	qbyte	*dest, *source;
-	qbyte identityTable[256];
 
 	int pc = Cvar_Get("cl_playerclass", "1", 0, "Hexen2")->value;
 	if (h2playertranslations && pc)
@@ -67,38 +67,49 @@ void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable)
 		colorB = colorA + 256;
 		sourceA = colorB + (top * 256);
 		sourceB = colorB + (bottom * 256);
-		for(i=0;i<256;i++)
+		for(i=0;i<255;i++)
 		{
 			if (bottom > 0 && (colorB[i] != 255))
-				translationTable[i] = sourceB[i];
+				translationTable[i] = d_8to24rgbtable[sourceB[i]] | 0xff000000;
 			else if (top > 0 && (colorA[i] != 255))
-				translationTable[i] = sourceA[i];
+				translationTable[i] = d_8to24rgbtable[sourceA[i]] | 0xff000000;
 			else
-				translationTable[i] = i;
+				translationTable[i] = d_8to24rgbtable[i] | 0xff000000;
 		}
 	}
 	else
 	{
-		top *= 16;
-		bottom *= 16;
-		for (j = 0; j < 256; j++)
-			identityTable[j] = j;
-		dest = translationTable;
-		source = identityTable;
-		memcpy (dest, source, 256);
-
-		if (top < 128)	// the artists made some backwards ranges.  sigh.
-			memcpy (dest + TOP_RANGE, source + top, 16);
-		else
-			for (j=0 ; j<16 ; j++)
-				dest[TOP_RANGE+j] = source[top+15-j];
-
-		if (bottom < 128)
-			memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
-		else
-			for (j=0 ; j<16 ; j++)
-				dest[BOTTOM_RANGE+j] = source[bottom+15-j];
+		for(j=0;j<255;j++)
+		{
+			if (j >= TOP_RANGE && j < TOP_RANGE + (1<<4))
+			{
+				if (top >= 16)
+				{
+					*((unsigned char*)&translationTable[j]+0) = (((top&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[j&15]+0))>>8;
+					*((unsigned char*)&translationTable[j]+1) = (((top&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[j&15]+1))>>8;
+					*((unsigned char*)&translationTable[j]+2) = (((top&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[j&15]+2))>>8;
+					*((unsigned char*)&translationTable[j]+3) = 0xff;
+				}
+				else
+					translationTable[j] = d_8to24rgbtable[top<8?j-TOP_RANGE+(top<<4):(top<<4)+15-(j-TOP_RANGE)] | 0xff000000;
+			}
+			else if (j >= BOTTOM_RANGE && j < BOTTOM_RANGE + (1<<4))
+			{
+				if (bottom >= 16)
+				{
+					*((unsigned char*)&translationTable[j]+0) = (((bottom&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[j&15]+0))>>8;
+					*((unsigned char*)&translationTable[j]+1) = (((bottom&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[j&15]+1))>>8;
+					*((unsigned char*)&translationTable[j]+2) = (((bottom&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[j&15]+2))>>8;
+					*((unsigned char*)&translationTable[j]+3) = 0xff;
+				}
+				else
+					translationTable[j] = d_8to24rgbtable[bottom<8?j-BOTTOM_RANGE+(bottom<<4):(bottom<<4)+15-(j-BOTTOM_RANGE)] | 0xff000000;
+			}
+			else
+				translationTable[j] = d_8to24rgbtable[j] | 0xff000000;
+		}
 	}
+	translationTable[255] = 0;	//alpha
 }
 
 
@@ -454,7 +465,7 @@ int M_FindKeysForBind (char *command, int *keylist, int total)
 	return count;
 }
 
-void M_FindKeysForCommand (int pnum, char *command, int *twokeys)
+void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
 {
 	char prefix[5];
 
@@ -485,7 +496,7 @@ void M_FindKeysForCommand (int pnum, char *command, int *twokeys)
 	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
 }
 
-void M_UnbindCommand (char *command)
+void M_UnbindCommand (const char *command)
 {
 	int		j;
 	int		l;
@@ -507,32 +518,38 @@ void M_UnbindCommand (char *command)
 /* HELP MENU */
 
 int		help_page;
-char *helpstyle;
 int		num_help_pages;
-int	helppagemin;
 
+struct
+{
+	char *pattern;
+	int base;
+} helpstyles[] =
+{
+	{"gfx/help%i.dxt",0},			//quake extended
+	{"gfx/help%i.tga",0},			//quake extended
+	{"gfx/help%i.png",0},			//quake extended
+	{"gfx/help%i.jpeg",0},			//quake extended
+	{"gfx/help%i.lmp",0},			//quake
+	{"gfx/menu/help%02i.lmp",1}		//hexen2
+};
 
 void M_Menu_Help_f (void)
 {
+	int i;
 	Key_Dest_Add(kdm_menu);
 	m_state = m_help;
 	help_page = 0;
 
-	if (COM_FDepthFile("gfx/help0.lmp", true) <= COM_FDepthFile("gfx/menu/help1.lmp", true))
-	{
-		helpstyle = "gfx/help%i.lmp";
-		helppagemin=0;
-	}
-	else
-	{
-		helpstyle = "gfx/menu/help%02i.lmp";
-		helppagemin = 1;
-	}
-
 	num_help_pages = 1;
 	while(num_help_pages < 100)
 	{
-		if (!COM_FDepthFile(va(helpstyle, num_help_pages+helppagemin), true))
+		for (i = 0; i < sizeof(helpstyles)/sizeof(helpstyles[0]); i++)
+		{
+			if (COM_FDepthFile(va(helpstyles[i].pattern, num_help_pages+helpstyles[i].base), true))
+				break;
+		}
+		if (i == sizeof(helpstyles)/sizeof(helpstyles[0]))
 			break;
 		num_help_pages++;
 	}
@@ -542,8 +559,10 @@ void M_Menu_Help_f (void)
 
 void M_Help_Draw (void)
 {
-	mpic_t *pic;
-	pic = R2D_SafeCachePic(va(helpstyle, help_page+helppagemin));
+	int i;
+	mpic_t *pic = NULL;
+	for (i = 0; i < sizeof(helpstyles)/sizeof(helpstyles[0]) && !pic; i++)
+		pic = R2D_SafeCachePic(va(helpstyles[i].pattern, help_page+helpstyles[i].base));
 	if (!pic)
 		M_Menu_Main_f ();
 	else
@@ -649,13 +668,13 @@ void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2
 	strcpy(t, optioncancel);
 	optioncancel = t;
 
-	MC_AddWhiteText(&m->m, 64, 84,	 m1, false);
-	MC_AddWhiteText(&m->m, 64, 92,	 m2, false);
-	MC_AddWhiteText(&m->m, 64, 100,	 m3, false);
+	MC_AddWhiteText(&m->m, 64, 0, 84,	 m1, false);
+	MC_AddWhiteText(&m->m, 64, 0, 92,	 m2, false);
+	MC_AddWhiteText(&m->m, 64, 0, 100,	 m3, false);
 	                
-	m->b_yes	= MC_AddCommand(&m->m, 64, 116, optionyes,		M_Menu_Prompt_Button);
-	m->b_no		= MC_AddCommand(&m->m, 144,116, optionno,		M_Menu_Prompt_Button);
-	m->b_cancel	= MC_AddCommand(&m->m, 224,116, optioncancel,	M_Menu_Prompt_Button);
+	m->b_yes	= MC_AddCommand(&m->m, 64, 0, 116, optionyes,		M_Menu_Prompt_Button);
+	m->b_no		= MC_AddCommand(&m->m, 144,0, 116, optionno,		M_Menu_Prompt_Button);
+	m->b_cancel	= MC_AddCommand(&m->m, 224,0, 116, optioncancel,	M_Menu_Prompt_Button);
 
 	m->m.selecteditem = (menuoption_t *)m->b_cancel;
 
@@ -920,14 +939,14 @@ void M_Menu_Quit_f (void)
 		quitmenu = M_CreateMenuInfront(0);
 		quitmenu->key = MC_SaveQuit_Key;
 
-		MC_AddWhiteText(quitmenu, 64, 84,	 "You have unsaved settings ", false);
-		MC_AddWhiteText(quitmenu, 64, 92,	 "    Would you like to     ", false);
-		MC_AddWhiteText(quitmenu, 64, 100,	 "      save them now?      ", false);
-                        
-                quitmenu->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommand    (quitmenu, 64, 116, "Yes",							"menu_quit forcesave\n");
-		MC_AddConsoleCommand    (quitmenu, 144,116,           "No",					"menu_quit force\n");
-		MC_AddConsoleCommand    (quitmenu, 224,116,                     "Cancel",	"menupop\n");
+		MC_AddWhiteText(quitmenu, 64, 0, 84,	 "You have unsaved settings ", false);
+		MC_AddWhiteText(quitmenu, 64, 0, 92,	 "    Would you like to     ", false);
+		MC_AddWhiteText(quitmenu, 64, 0, 100,	 "      save them now?      ", false);
+
+		quitmenu->selecteditem = (menuoption_t *)
+		MC_AddConsoleCommand    (quitmenu, 64, 0, 116, "Yes",							"menu_quit forcesave\n");
+		MC_AddConsoleCommand    (quitmenu, 144,0, 116,           "No",					"menu_quit force\n");
+		MC_AddConsoleCommand    (quitmenu, 224,0, 116,                     "Cancel",	"menupop\n");
 
 		MC_AddBox (quitmenu, 56, 76, 25, 5);
 		break;
@@ -942,14 +961,14 @@ void M_Menu_Quit_f (void)
 
 		i = rand()&7;
 
-		MC_AddWhiteText(quitmenu, 64, 84, quitMessage[i*4+0], false);
-		MC_AddWhiteText(quitmenu, 64, 92, quitMessage[i*4+1], false);
-		MC_AddWhiteText(quitmenu, 64, 100, quitMessage[i*4+2], false);
-		MC_AddWhiteText(quitmenu, 64, 108, quitMessage[i*4+3], false);
-                
+		MC_AddWhiteText(quitmenu, 64, 0, 84, quitMessage[i*4+0], false);
+		MC_AddWhiteText(quitmenu, 64, 0, 92, quitMessage[i*4+1], false);
+		MC_AddWhiteText(quitmenu, 64, 0, 100, quitMessage[i*4+2], false);
+		MC_AddWhiteText(quitmenu, 64, 0, 108, quitMessage[i*4+3], false);
+
 		quitmenu->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommand    (quitmenu, 120, 116,        "Yes",			       "menu_quit force\n");
-		MC_AddConsoleCommand    (quitmenu, 208,116,                   "No",               "menupop\n");
+		MC_AddConsoleCommand    (quitmenu, 120, 0, 116,        "Yes",			       "menu_quit force\n");
+		MC_AddConsoleCommand    (quitmenu, 208, 0, 116,                   "No",               "menupop\n");
 
 		MC_AddBox (quitmenu, 56, 76, 24, 5);
 		break;
@@ -1007,6 +1026,8 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
 	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
+	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
+	Cmd_AddCommand ("modelviewer", M_Menu_ModelViewer_f);
 
 #ifdef CL_MASTER
 	Cmd_AddCommand ("menu_servers", M_Menu_ServerList2_f);
@@ -1111,12 +1132,13 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("quickconnect");
 }
 
-void M_Shutdown(void)
+void M_Shutdown(qboolean total)
 {
 #ifdef MENU_DAT
 	MP_Shutdown();
 #endif
-	M_DeInit_Internal();
+	if (total)
+		M_DeInit_Internal();
 }
 
 void M_Reinit(void)

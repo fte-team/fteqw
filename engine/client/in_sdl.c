@@ -49,6 +49,214 @@ void IN_DeactivateMouse(void)
 }
 
 #if SDL_MAJOR_VERSION >= 2
+#define MAX_JOYSTICKS 4
+static struct sdljoy_s
+{
+	//fte doesn't distinguish between joysticks and controllers.
+	//in sdl, controllers are some glorified version of joysticks apparently.
+	char *devname;
+	SDL_Joystick *joystick;
+	SDL_GameController *controller;
+	SDL_JoystickID id;
+} sdljoy[MAX_JOYSTICKS]; 
+//the enumid is the value for the open function rather than the working id.
+static void J_ControllerAdded(int enumid)
+{
+	char *cname;
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+		if (j_controller[i] == NULL)
+			break;
+	if (i == MAX_JOYSTICKS)
+		return;
+
+	sdljoy[i].controller = SDL_GameControllerOpen(enumid);
+	if (!sdljoy[i].controller)
+		return;
+	sdljoy[i].joystick = SDL_GameControllerGetJoystick(sdljoy[i].controller);
+	sdljoy[i].id = SDL_JoystickInstanceID(sdljoy[i].joystick);
+
+	cname = SDL_GameControllerName(sdljoy[i].controller);
+	if (!cname)
+		cname = "Unknown Controller";
+	Con_Printf("Found new controller (%i): %s\n", i, cname);
+	sdljoy[i].devname = Z_StrDup(cname);
+}
+static void J_JoystickAdded(int enumid)
+{
+	char *cname;
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+		if (sdljoy[i].joystick == NULL)
+			break;
+	if (i == MAX_JOYSTICKS)
+		return;
+
+	sdljoy[i].joystick = SDL_JoystickOpen(enumid);
+	if (!sdljoy[i].joystick)
+		return;
+	sdljoy[i].id = SDL_JoystickInstanceID(sdljoy[i].joystick);
+
+	cname = SDL_GameControllerName(sdljoy[i].controller);
+	if (!cname)
+		cname = "Unknown Joystick";
+	Con_Printf("Found new joystick (%i): %s\n", i, cname);
+}
+static struct sdljoy_s *J_DevId(int jid)
+{
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+		if (sdljoy[i].joystick && sdljoy[i].id == jid)
+			return &sdljoy[i];
+	return NULL;
+}
+static void J_ControllerAxis(int jid, int axis, int value)
+{
+	int axismap[] = {0,1,3,4,2,5};
+
+	struct sdljoy_s *joy = J_DevId(jid);
+	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]))
+		IN_JoystickAxisEvent(joy - sdljoy, axismap[axis], value / 32767.0);
+}
+static void J_JoystickAxis(int jid, int axis, int value)
+{
+	int axismap[] = {0,1,3,4,2,5};
+
+	struct sdljoy_s *joy = J_DevId(jid);
+	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]))
+		IN_JoystickAxisEvent(joy - sdljoy, axismap[axis], value / 32767.0);
+}
+//we don't do hats and balls and stuff.
+static void J_ControllerButton(int jid, int button, qboolean pressed)
+{
+	//controllers have reliable button maps.
+	//but that doesn't meant that fte has specific k_ names for those buttons, but the mapping should be reliable, at least until they get mapped to proper k_ values.
+	int buttonmap[] = {
+#if 0
+		//NOTE: DP has specific 'X360' buttons for many of these. of course, its not an exact mapping...
+		K_X360_A,				/*SDL_CONTROLLER_BUTTON_A*/
+		K_X360_B,				/*SDL_CONTROLLER_BUTTON_B*/
+		K_X360_X,				/*SDL_CONTROLLER_BUTTON_X*/
+		K_X360_Y,				/*SDL_CONTROLLER_BUTTON_Y*/
+		K_X360_BACK,			/*SDL_CONTROLLER_BUTTON_BACK*/
+		K_AUX2,					/*SDL_CONTROLLER_BUTTON_GUIDE*/
+		K_X360_START,			/*SDL_CONTROLLER_BUTTON_START*/
+		K_X360_LEFT_THUMB,		/*SDL_CONTROLLER_BUTTON_LEFTSTICK*/
+		K_X360_RIGHT_THUMB,		/*SDL_CONTROLLER_BUTTON_RIGHTSTICK*/
+		K_X360_LEFT_SHOULDER,	/*SDL_CONTROLLER_BUTTON_LEFTSHOULDER*/
+		K_X360_RIGHT_SHOULDER,	/*SDL_CONTROLLER_BUTTON_RIGHTSHOULDER*/
+		K_X360_DPAD_UP,			/*SDL_CONTROLLER_BUTTON_DPAD_UP*/
+		K_X360_DPAD_DOWN,		/*SDL_CONTROLLER_BUTTON_DPAD_DOWN*/
+		K_X360_DPAD_LEFT,		/*SDL_CONTROLLER_BUTTON_DPAD_LEFT*/
+		K_X360_DPAD_RIGHT		/*SDL_CONTROLLER_BUTTON_DPAD_RIGHT*/
+#else
+		K_JOY1,		/*SDL_CONTROLLER_BUTTON_A*/
+		K_JOY2,		/*SDL_CONTROLLER_BUTTON_B*/
+		K_JOY3,		/*SDL_CONTROLLER_BUTTON_X*/
+		K_JOY4,		/*SDL_CONTROLLER_BUTTON_Y*/
+		K_AUX1,		/*SDL_CONTROLLER_BUTTON_BACK*/
+		K_AUX2,		/*SDL_CONTROLLER_BUTTON_GUIDE*/
+		K_AUX3,		/*SDL_CONTROLLER_BUTTON_START*/
+		K_AUX4,		/*SDL_CONTROLLER_BUTTON_LEFTSTICK*/
+		K_AUX5,		/*SDL_CONTROLLER_BUTTON_RIGHTSTICK*/
+		K_AUX6,		/*SDL_CONTROLLER_BUTTON_LEFTSHOULDER*/
+		K_AUX7,		/*SDL_CONTROLLER_BUTTON_RIGHTSHOULDER*/
+		K_AUX8,		/*SDL_CONTROLLER_BUTTON_DPAD_UP*/
+		K_AUX9,		/*SDL_CONTROLLER_BUTTON_DPAD_DOWN*/
+		K_AUX10,	/*SDL_CONTROLLER_BUTTON_DPAD_LEFT*/
+		K_AUX11		/*SDL_CONTROLLER_BUTTON_DPAD_RIGHT*/
+#endif
+	};
+
+	struct sdljoy_s *joy = J_DevId(jid);
+	if (joy && button < sizeof(buttonmap)/sizeof(buttonmap[0]))
+		IN_KeyEvent(joy - sdljoy, pressed, buttonmap[button], 0);
+}
+static void J_JoystickButton(int jid, int button, qboolean pressed)
+{
+	//generic joysticks have no specific mappings. they're really random like that.
+	int buttonmap[] = {
+		K_JOY1,
+		K_JOY2,
+		K_JOY3,
+		K_JOY4,
+		K_AUX1,
+		K_AUX2,
+		K_AUX3,
+		K_AUX4,
+		K_AUX5,
+		K_AUX6,
+		K_AUX7,
+		K_AUX8,
+		K_AUX9,
+		K_AUX10,
+		K_AUX11,
+		K_AUX12,
+		K_AUX13,
+		K_AUX14,
+		K_AUX15,
+		K_AUX16,
+		K_AUX17,
+		K_AUX18,
+		K_AUX19,
+		K_AUX20,
+		K_AUX21,
+		K_AUX22,
+		K_AUX23,
+		K_AUX24,
+		K_AUX25,
+		K_AUX26,
+		K_AUX27,
+		K_AUX28,
+		K_AUX29,
+		K_AUX30,
+		K_AUX31,
+		K_AUX32
+	};
+
+	struct sdljoy_s *joy = J_DevId(jid);
+	if (joy && button < sizeof(buttonmap)/sizeof(buttonmap[0]))
+		IN_KeyEvent(joy - sdljoy, pressed, buttonmap[button], 0);
+}
+static void J_Kill(int jid, qboolean verbose)
+{
+	int i;
+	struct sdljoy_s *joy = J_DevId(jid);
+
+	if (!joy)
+		return;
+
+	//make sure all the axis are nulled out, to avoid surprises.
+	for (i = 0; i < 6; i++)
+		IN_JoystickAxisEvent(joy - sdljoy, i, 0);
+
+	if (joy->controller)
+	{
+		for (i = 0; i < 32; i++)
+			J_ControllerButton(jid, i, false);
+		Con_Printf("Controller unplugged(%i): %s\n", joy - sdljoy, joy->devname);
+		SDL_GameControllerClose(joy->controller);
+	}
+	else
+	{
+		for (i = 0; i < 32; i++)
+			J_JoystickButton(jid, i, false);
+		Con_Printf("Joystick unplugged(%i): %s\n", joy - sdljoy, joy->devname);
+		SDL_JoystickClose(joy->joystick);
+	}
+	joy->controller = NULL;
+	joy->joystick = NULL;
+	Z_Free(joy->devname);
+	joy->devname = NULL;
+}
+static void J_KillAll(void)
+{
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+		J_Kill(sdljoy[i].id, false);
+}
+#endif
+
+#if SDL_MAJOR_VERSION >= 2
 unsigned int MySDL_MapKey(unsigned int sdlkey)
 {
 	switch(sdlkey)
@@ -620,6 +828,41 @@ void Sys_SendKeyEvents(void)
 		case SDL_QUIT:
 			Cbuf_AddText("quit\n", RESTRICT_LOCAL);
 			break;
+
+#if SDL_MAJOR_VERSION >= 2
+		//actually, joysticks *should* work with sdl1 as well, but there are some differences (like no hot plugging, I think).
+		case SDL_JOYAXISMOTION:
+			break;
+//		case SDL_JOYBALLMOTION:
+//		case SDL_JOYHATMOTION:
+			break;
+		case SDL_JOYBUTTONDOWN:
+		case SDL_JOYBUTTONUP:
+			J_JoystickButton(event.jbutton.which, event.jbutton.button, event.type==SDL_CONTROLLERBUTTONDOWN);
+			break;
+		case SDL_JOYDEVICEADDED:
+			J_JoystickAdded(event.jdevice.which);
+			break;
+		case SDL_JOYDEVICEREMOVED:
+			J_Kill(event.jdevice.which, true);
+			break;
+
+		case SDL_CONTROLLERAXISMOTION:
+			J_ControllerAxis(event.caxis.which, event.caxis.axis, event.caxis.value);
+			break;
+		case SDL_CONTROLLERBUTTONDOWN:
+		case SDL_CONTROLLERBUTTONUP:
+			J_ControllerButton(event.cbutton.which, event.cbutton.button, event.type==SDL_CONTROLLERBUTTONDOWN);
+			break;
+		case SDL_CONTROLLERDEVICEADDED:
+			J_ControllerAdded(event.cdevice.which);
+			break;
+		case SDL_CONTROLLERDEVICEREMOVED:
+			J_Kill(event.cdevice.which, true);
+			break;
+//		case SDL_CONTROLLERDEVICEREMAPPED:
+//			break;
+#endif
 		}
 	}
 }
@@ -632,6 +875,11 @@ void Sys_SendKeyEvents(void)
 void INS_Shutdown (void)
 {
 	IN_DeactivateMouse();
+
+#if SDL_MAJOR_VERSION >= 2
+	J_KillAll();
+	SDL_QuitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+#endif
 }
 
 void INS_ReInit (void)
@@ -654,6 +902,9 @@ void INS_Move(float *movements, int pnum)
 }
 void INS_Init (void)
 {
+#if SDL_MAJOR_VERSION >= 2
+	SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+#endif
 }
 void INS_Accumulate(void)	//input polling
 {

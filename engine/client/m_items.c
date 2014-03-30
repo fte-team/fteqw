@@ -408,20 +408,19 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		{
 		case mt_text:
 			if (!option->text.text)
-			{
+			{	//blinking cursor image hack
 				if ((int)(realtime*4)&1)
 					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			}
+			else if (option->common.width)
+				Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->text.text, option->common.width, true, option->text.isred);
 			else if (option->text.isred)
 				Draw_AltFunString(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
 			else
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
 			break;
 		case mt_button:
-			if (!menu->cursoritem && menu->selecteditem == option)
-				Draw_AltFunString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
-			else
-				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
+			Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->button.text, option->common.width, true, !menu->cursoritem && menu->selecteditem == option);
 			break;
 		case mt_hexen2buttonbigfont:
 			Draw_Hexen2BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
@@ -661,13 +660,14 @@ static void MenuDraw(menu_t *menu)
 }
 
 
-menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboolean rightalign)
+menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign)
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t));
 	n->common.type = mt_text;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = lhs;
 	n->common.posy = y;
+	n->common.width = rhs?rhs-lhs:0;
 	n->text = text;
 
 	if (rightalign && text)
@@ -678,13 +678,14 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboole
 	return n;
 }
 
-menutext_t *MC_AddBufferedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign, qboolean red)
+menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign, qboolean red)
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t) + strlen(text)+1);
 	n->common.type = mt_text;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = lhs;
 	n->common.posy = y;
+	n->common.width = rhs?rhs-lhs:0;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->isred = red;
@@ -697,10 +698,10 @@ menutext_t *MC_AddBufferedText(menu_t *menu, int x, int y, const char *text, qbo
 	return n;
 }
 
-menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean rightalign)
+menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign)
 {
 	menutext_t *n;
-	n = MC_AddWhiteText(menu, x, y, text, false);
+	n = MC_AddWhiteText(menu, lhs, rhs, y, text, false);
 	n->isred = true;
 	return n;
 }
@@ -1138,15 +1139,15 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *ca
 	return n;
 }
 
-menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command)
+menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const char *text, const char *command)
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_button;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = lhs;
 	n->common.posy = y;
 	n->common.height = 8;
-	n->common.width = strlen(text)*8;
+	n->common.width = rhs?rhs - lhs:strlen(text)*8;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->command = n->text + strlen(n->text)+1;
@@ -1194,25 +1195,25 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, cons
 	return n;
 }
 
-menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int))
+menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int))
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t));
 	n->common.type = mt_button;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = lhs;
 	n->common.posy = y;
 	n->text = text;
 	n->command = NULL;
 	n->key = command;
 	n->common.height = 8;
-	n->common.width = strlen(text)*8;
+	n->common.width = rhs?rhs-lhs:strlen(text)*8;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
 	return n;
 }
 
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char *text, char *command, ...)
+menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, const char *text, char *command, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -1225,8 +1226,9 @@ menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char
 	n = Z_Malloc(sizeof(menubutton_t) + strlen(string)+1);
 	n->common.type = mt_button;
 	n->common.iszone = true;
-	n->common.posx = x;
+	n->common.posx = lhs;
 	n->common.posy = y;
+	n->common.width = rhs-lhs;
 	n->text = text;
 	n->command = (char *)(n+1);
 	strcpy((char *)(n+1), string);
@@ -1751,7 +1753,7 @@ typedef struct {
 	menu_t *parent;
 } guiinfo_t;
 
-qboolean MC_GuiKey(int key, menu_t *menu)
+static qboolean MC_GuiKey(int key, menu_t *menu)
 {
 	guiinfo_t *info = (guiinfo_t *)menu->data;
 	switch(key)
@@ -1798,7 +1800,7 @@ qboolean MC_GuiKey(int key, menu_t *menu)
 			gui->text[2] = "Hello yet again";
 			for (y = 0, i = 0; gui->text[i]; i++, y+=1*8)
 			{
-				info->op[i] = MC_AddRedText(info->dropout, 0, y, gui->text[i], false);
+				info->op[i] = MC_AddRedText(info->dropout, 0, 0, y, gui->text[i], false);
 			}
 		}
 		break;
@@ -1919,28 +1921,28 @@ void M_Menu_Main_f (void)
 			MC_AddSelectablePicture(mainm, 68, 173, "pics/m_main_quit");
 
 #ifndef CLIENTONLY
-			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
+			b = MC_AddConsoleCommand	(mainm, 68, 320, 13,	"", "menu_single\n");
 			b->common.tooltip = "Singleplayer.";
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = 32;
 #endif
-			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
+			b = MC_AddConsoleCommand	(mainm, 68, 320, 53,	"", "menu_multi\n");
 			b->common.tooltip = "Multiplayer.";
 #ifdef CLIENTONLY
 			mainm->selecteditem = (menuoption_t *)b;
 #endif
 			b->common.width = 12*20;
 			b->common.height = 32;
-			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
+			b = MC_AddConsoleCommand	(mainm, 68, 320, 93,	"", "menu_options\n");
 			b->common.tooltip = "Options.";
 			b->common.width = 12*20;
 			b->common.height = 32;
-			b = MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
+			b = MC_AddConsoleCommand	(mainm, 68, 320, 133,	"", "menu_video\n");
 			b->common.tooltip = "Video Options.";
 			b->common.width = 12*20;
 			b->common.height = 32;
-			b = MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
+			b = MC_AddConsoleCommand	(mainm, 68, 320, 173,	"", "menu_quit\n");
 			b->common.tooltip = "Quit to DOS.";
 			b->common.width = 12*20;
 			b->common.height = 32;
@@ -1997,12 +1999,12 @@ void M_Menu_Main_f (void)
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
-			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
+			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
 
 			mainm->selecteditem = (menuoption_t *)
-			MC_AddConsoleCommand	(mainm, 64, 32,	"Join server", "menu_servers\n");
-			MC_AddConsoleCommand	(mainm, 64, 40,	"Options", "menu_options\n");
-			MC_AddConsoleCommand	(mainm, 64, 48,	"Quit", "menu_quit\n");
+			MC_AddConsoleCommand	(mainm, 64, 170, 32,	"Join server", "menu_servers\n");
+			MC_AddConsoleCommand	(mainm, 64, 170, 40,	"Options", "menu_options\n");
+			MC_AddConsoleCommand	(mainm, 64, 170, 48,	"Quit", "menu_quit\n");
 			return;
 		}
 		mainm->key = MC_Main_Key;
@@ -2031,12 +2033,12 @@ void M_Menu_Main_f (void)
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
-			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
+			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
 
 			mainm->selecteditem = (menuoption_t *)
-			MC_AddConsoleCommand	(mainm, 64, 32,	"Join server", "menu_servers\n");
-			MC_AddConsoleCommand	(mainm, 64, 40,	"Options", "menu_options\n");
-			MC_AddConsoleCommand	(mainm, 64, 48,	"Quit", "menu_quit\n");
+			MC_AddConsoleCommand	(mainm, 64, 170, 32,	"Join server", "menu_servers\n");
+			MC_AddConsoleCommand	(mainm, 64, 170, 40,	"Options", "menu_options\n");
+			MC_AddConsoleCommand	(mainm, 64, 170, 48,	"Quit", "menu_quit\n");
 			return;
 		}
 		mainm->key = MC_Main_Key;
@@ -2048,32 +2050,32 @@ void M_Menu_Main_f (void)
 
 		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
 
-		b=MC_AddConsoleCommand	(mainm, 72, 32,	"", "menu_single\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 312, 32,	"", "menu_single\n");
 		b->common.tooltip = "Start singleplayer Quake game.";
 		mainm->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 72, 52,	"", "menu_multi\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 312, 52,	"", "menu_multi\n");
 		b->common.tooltip = "Multiplayer menu.";
 		b->common.width = p->width;
 		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 72, 72,	"", "menu_options\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 312, 72,	"", "menu_options\n");
 		b->common.tooltip = "Options menu.";
 		b->common.width = p->width;
 		b->common.height = 20;
 		if (m_helpismedia.value)
 		{
-			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "menu_media\n");
+			b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "menu_media\n");
 			b->common.tooltip = "Media menu.";
 		}
 		else
 		{
-			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "help\n");
+			b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "help\n");
 			b->common.tooltip = "Help menu.";
 		}
 		b->common.width = p->width;
 		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 72, 112,	"", "menu_quit\n");
+		b=MC_AddConsoleCommand	(mainm, 72, 312, 112,	"", "menu_quit\n");
 		b->common.tooltip = "Exit to DOS.";
 		b->common.width = p->width;
 		b->common.height = 20;
@@ -2112,10 +2114,10 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 				control = NULL;
 				continue;
 			case 0: // white text
-				control = (union menuoption_s *)MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
+				control = (union menuoption_s *)MC_AddWhiteText(menu, xleft, xtextend, y, bulk->text, bulk->rightalign);
 				break;
 			case 1: // red text
-				control = (union menuoption_s *)MC_AddRedText(menu, x, y, bulk->text, bulk->rightalign);
+				control = (union menuoption_s *)MC_AddRedText(menu, xleft, xtextend, y, bulk->text, bulk->rightalign);
 				break;
 			case 2: // spacing
 				spacing = bulk->spacing;
@@ -2128,10 +2130,10 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			{
 			default:
 			case 0: // console command
-				control = (union menuoption_s *)MC_AddConsoleCommand(menu, x, y, bulk->text, bulk->consolecmd);
+				control = (union menuoption_s *)MC_AddConsoleCommand(menu, xleft, xtextend, y, bulk->text, bulk->consolecmd);
 				break;
 			case 1: // function command
-				control = (union menuoption_s *)MC_AddCommand(menu, x, y, bulk->text, bulk->command);
+				control = (union menuoption_s *)MC_AddCommand(menu, xleft, xtextend, y, bulk->text, bulk->command);
 				break;
 			}
 			break;
@@ -2190,6 +2192,6 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 	menu->selecteditem = selected;
 	if (selected)
 		selectedy = selected->common.posy;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, xtextend + 8, selectedy, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, xtextend + 8, 0, selectedy, NULL, false);
 	return y;
 }

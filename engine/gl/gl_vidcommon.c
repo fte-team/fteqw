@@ -58,6 +58,11 @@ void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail
 void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid* *pointer);
 
+//GL_OES_get_program_binary
+void (APIENTRY *qglGetProgramBinary)(GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, GLvoid *binary);
+void (APIENTRY *qglProgramBinary)(GLuint program, GLenum binaryFormat, const GLvoid *binary, GLint length);
+#define GL_PROGRAM_BINARY_LENGTH	0x8741
+
 //quick hack that made quake work on both 1+ext and 1.1 gl implementations.
 BINDTEXFUNCPTR qglBindTexture;
 
@@ -185,7 +190,6 @@ GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
-PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
 PFNGLBINDPROGRAMARBPROC qglBindProgramARB;
 PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 */
@@ -890,6 +894,25 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_DPrintf("GLSL available\n");
 	}
 #endif
+
+	qglGetProgramBinary = NULL;
+	qglProgramBinary = NULL;
+	if (gl_config.arb_shader_objects)
+	{
+		if (gl_config.glversion >= 4.1 || GL_CheckExtension("GL_ARB_get_program_binary"))
+		{
+			qglGetProgramBinary = (void *)getglext("glGetProgramBinary");
+			qglProgramBinary = (void *)getglext("glProgramBinary");
+		}
+		else if (GL_CheckExtension("GL_OES_get_program_binary"))
+		{
+			//no PROGRAM_BINARY_RETRIEVABLE_HINT
+			qglGetProgramBinary = (void *)getglext("glGetProgramBinaryOES");
+			qglProgramBinary = (void *)getglext("glProgramBinaryOES");
+		}
+	}
+
+
 	//we only use vao if we don't have a choice.
 	//certain drivers (*cough* mesa *cough*) update vao0 state even when a different vao is bound.
 	//they also don't support client arrays, so are unusable without glsl or vertex streaming (which is *really* hard to optimise for - especially with webgl etc)
@@ -997,7 +1020,7 @@ static const char *glsl_hdrs[] =
 			"#ifdef SKELETAL\n"
 				"attribute vec4 v_bone;"
 				"attribute vec4 v_weight;"
-				"uniform mat3x4 m_bones["STRINGIFY(MAX_BONES)"];\n"
+				"uniform mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
 				
 				"vec4 skeletaltransform()"
 				"{"
@@ -1070,25 +1093,27 @@ static const char *glsl_hdrs[] =
 	"sys/fog.h",
 			"#ifdef FRAGMENT_SHADER\n"
 				"#ifdef FOG\n"
-					"uniform vec4 w_fog;\n"
+					"uniform vec4 w_fog[2];\n"
 					"vec3 fog3(in vec3 regularcolour)"
 					"{"
-						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fog[1].y);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = clamp(fac, 0.0, 1.0);\n"
-						"return mix(w_fog.rgb, regularcolour, fac);\n"
+						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
+						"return mix(w_fog[0].rgb, regularcolour, fac);\n"
 					"}\n"
 					"vec3 fog3additive(in vec3 regularcolour)"
 					"{"
-						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fog[1].y);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = clamp(fac, 0.0, 1.0);\n"
+						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
 						"return regularcolour * fac;\n"
 					"}\n"
 					"vec4 fog4(in vec4 regularcolour)"
@@ -1097,22 +1122,24 @@ static const char *glsl_hdrs[] =
 					"}\n"
 					"vec4 fog4additive(in vec4 regularcolour)"
 					"{"
-						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fog[1].y);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = clamp(fac, 0.0, 1.0);\n"
+						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
 						"return regularcolour * vec4(fac, fac, fac, 1.0);\n"
 					"}\n"
 					"vec4 fog4blend(in vec4 regularcolour)"
 					"{"
-						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fog[1].y);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = clamp(fac, 0.0, 1.0);\n"
+						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
 						"return regularcolour * vec4(1.0, 1.0, 1.0, fac);\n"
 					"}\n"
 				"#else\n"
@@ -1338,7 +1365,7 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
+GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
 {
 	GLhandleARB shader;
 	GLint       compiled;
@@ -1538,7 +1565,7 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (char *name, GLhandleARB vert, GLhandleARB frag, qboolean silent)
+GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB frag, qboolean silent)
 {
 	GLhandleARB program;
 	GLint       linked;
@@ -1588,7 +1615,7 @@ GLhandleARB GLSlang_CreateProgramObject (char *name, GLhandleARB vert, GLhandleA
 	return program;
 }
 
-GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag, qboolean silent)
+GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
 	GLhandleARB handle;
 	GLhandleARB vs;
@@ -1614,7 +1641,38 @@ GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstan
 
 	checkglerror();
 
+	if (handle && blobfile && qglGetProgramBinary)
+	{
+		GLuint ui;
+		GLenum e;
+		unsigned int len, fmt;
+		void *blobdata;
+
+		qglGetProgramParameteriv_(handle, GL_PROGRAM_BINARY_LENGTH, &ui);
+		len = ui;
+
+		blobdata = BZ_Malloc(len);
+        qglGetProgramBinary(handle, len, NULL, &e, blobdata);
+		fmt = e;
+
+		VFS_WRITE(blobfile, &fmt, sizeof(fmt));
+		VFS_WRITE(blobfile, &len, sizeof(len));
+		VFS_WRITE(blobfile, blobdata, len);
+		BZ_Free(blobdata);
+	}
+
 	return handle;
+}
+
+qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
+{
+	int ver = gl_config.gles?100:110;
+	if (permu & PERMUTATION_SKELETAL)
+		ver = 120;
+	prog->permu[permu].handle.glsl = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, frag, noerrors, blobfile);
+	if (prog->permu[permu].handle.glsl)
+		return true;
+	return false;
 }
 
 GLint GLSlang_GetUniformLocation (int prog, char *name)
@@ -1625,6 +1683,154 @@ GLint GLSlang_GetUniformLocation (int prog, char *name)
 		Con_Printf("Failed to get location of uniform '%s'\n", name);
 	}
 	return i;
+}
+
+static qboolean GLSlang_LoadBlob(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile)
+{
+	unsigned int fmt;
+	unsigned int length;
+	void *binary;
+	GLint success;
+	if (!qglProgramBinary)
+		return false;
+	VFS_READ(blobfile, &fmt, sizeof(fmt));
+	VFS_READ(blobfile, &length, sizeof(length));
+	binary = BZ_Malloc(length);
+	VFS_READ(blobfile, binary, length);
+
+	prog->permu[permu].handle.glsl = qglCreateProgramObjectARB();
+	qglProgramBinary(prog->permu[permu].handle.glsl, fmt, binary, length);
+	BZ_Free(binary);
+	qglGetProgramParameteriv_(prog->permu[permu].handle.glsl, GL_OBJECT_LINK_STATUS_ARB, &success);
+
+	if (!success)
+	{
+		qglDeleteProgramObject_(prog->permu[permu].handle.glsl);
+		prog->permu[permu].handle.glsl = 0;
+	}
+	return !!success;
+}
+
+static void GLSlang_DeleteProg(program_t *prog, unsigned int permu)
+{
+	if (prog->permu[permu].handle.glsl)
+	{
+		qglDeleteProgramObject_(prog->permu[permu].handle.glsl);
+		prog->permu[permu].handle.glsl = 0;
+	}
+}
+
+static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvartypes)
+{
+	unsigned int i, p;
+	qboolean found;
+	int uniformloc;
+	char tmpname[128];
+	cvar_t *cvar;
+
+	prog->numparams = 0;
+
+	//figure out visible attributes
+	for (p = 0; p < PERMUTATIONS; p++)
+	{
+		if (!prog->permu[p].handle.glsl)
+			continue;
+		GLSlang_UseProgram(prog->permu[p].handle.glsl);
+		for (i = 0; shader_attr_names[i].name; i++)
+		{
+			uniformloc = qglGetAttribLocationARB(prog->permu[p].handle.glsl, shader_attr_names[i].name);
+			if (uniformloc != -1)
+			{
+				if (shader_attr_names[i].ptype != uniformloc)
+					Con_Printf("Bad attribute: %s\n", shader_attr_names[i].name);
+				else
+					prog->permu[p].attrmask |= 1u<<uniformloc;
+			}
+		}
+	}
+
+	//figure out the uniforms
+	for (i = 0; shader_unif_names[i].name; i++)
+	{
+		found = false;
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!prog->permu[p].handle.glsl)
+				continue;
+			GLSlang_UseProgram(prog->permu[p].handle.glsl);
+
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, shader_unif_names[i].name);
+			if (uniformloc != -1)
+				found = true;
+
+			if (prog->numparams == SHADER_PROGPARMS_MAX)
+			{
+				if (found)
+					break;
+			}
+			else
+				prog->permu[p].parm[prog->numparams] = uniformloc;
+		}
+		if (found)
+		{
+			if (prog->numparams == SHADER_PROGPARMS_MAX)
+				Con_Printf("Too many paramters for program (ignoring %s)\n", shader_unif_names[i].name);
+			else
+			{
+				prog->parm[prog->numparams].type = shader_unif_names[i].ptype;
+				prog->numparams++;
+			}
+		}
+	}
+	/*set cvar unirforms*/
+	for (i = 0; cvarnames[i]; i++)
+	{
+		if (prog->numparams == SHADER_PROGPARMS_MAX)
+		{
+			Con_Printf("Too many cvar paramters for program\n");
+			break;
+		}
+		for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
+			tmpname[p] = cvarnames[i][p];
+		tmpname[p] = 0;
+		cvar = Cvar_Get(tmpname, "0", CVAR_SHADERSYSTEM, "glsl cvars");
+		if (!cvar)
+			continue;
+		cvar->flags |= CVAR_SHADERSYSTEM;
+		prog->parm[prog->numparams].type = cvartypes[i];
+		prog->parm[prog->numparams].pval = cvar;
+		found = false;
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!prog->permu[p].handle.glsl)
+				continue;
+			GL_SelectProgram(prog->permu[p].handle.glsl);
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("cvar_%s", tmpname));
+			if (uniformloc != -1)
+			{
+				//qglUniform1fARB(uniformloc, cvar->value);
+				found = true;
+			}
+			prog->permu[p].parm[prog->numparams] = uniformloc;
+		}
+		if (found)
+			prog->numparams++;
+	}
+	/*set texture uniforms*/
+	for (p = 0; p < PERMUTATIONS; p++)
+	{
+		if (!prog->permu[p].handle.glsl)
+			continue;
+		if (!(prog->permu[p].attrmask & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
+			prog->permu[p].attrmask |= (1u<<VATTR_LEG_VERTEX);
+		GLSlang_UseProgram(prog->permu[p].handle.glsl);
+		for (i = 0; i < 8; i++)
+		{
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("s_t%i", i));
+			if (uniformloc != -1)
+				qglUniform1iARB(uniformloc, i);
+		}
+	}
 }
 
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.
@@ -1816,6 +2022,47 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglDebugMessageCallbackARB(myGLDEBUGPROCAMD, NULL);
 	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
+
+
+
+	memset(&sh_config, 0, sizeof(sh_config));
+	if (gl_config.gles)
+	{
+		sh_config.minver = 100;
+		sh_config.maxver = 110;
+		sh_config.blobpath = "gles/%s.blob";
+		sh_config.progpath = "glsl/%s.glsl";
+		sh_config.shadernamefmt = "%s_gles";
+	}
+	else
+	{
+		sh_config.minver = gl_config.arb_shader_objects?110:0;
+		sh_config.maxver = gl_config.arb_shader_objects?gl_config.maxglslversion:0;
+		sh_config.blobpath = "glsl/%s.blob";
+		sh_config.progpath = "glsl/%s.glsl";
+		sh_config.shadernamefmt = "%s_glsl";
+	}
+
+	sh_config.progs_supported	= gl_config.arb_shader_objects;
+	sh_config.progs_required	= gl_config.nofixedfunc;
+
+	sh_config.pDeleteProg		= GLSlang_DeleteProg;
+	sh_config.pLoadBlob			= qglProgramBinary?GLSlang_LoadBlob:NULL;
+	sh_config.pCreateProgram	= GLSlang_CreateProgramPermu;
+	sh_config.pProgAutoFields	= GLSlang_ProgAutoFields;
+
+	if (gl_config.nofixedfunc)
+	{
+		sh_config.tex_env_combine		= 1;
+		sh_config.nv_tex_env_combine4	= 1;
+		sh_config.env_add				= 1;
+	}
+	else
+	{
+		sh_config.tex_env_combine		= gl_config.tex_env_combine;
+		sh_config.nv_tex_env_combine4	= gl_config.nv_tex_env_combine4;
+		sh_config.env_add				= gl_config.env_add;
+	}
 }
 
 

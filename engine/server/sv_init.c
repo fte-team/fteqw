@@ -42,7 +42,7 @@ extern cvar_t	sv_gamespeed;
 extern cvar_t	sv_csqcdebug;
 extern cvar_t	sv_csqc_progname;
 extern cvar_t	sv_calcphs;
-extern cvar_t	sv_playerslots;
+extern cvar_t	sv_playerslots, maxclients, maxspectators;
 
 /*
 ================
@@ -50,7 +50,7 @@ SV_ModelIndex
 
 ================
 */
-int SV_ModelIndex (char *name)
+int SV_ModelIndex (const char *name)
 {
 	int		i;
 
@@ -264,6 +264,94 @@ void SVNQ_CreateBaseline (void)
 	}
 }
 
+void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
+{
+	int j;
+	for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+	{
+		if (pr_global_ptrs->spawnparamglobals[j])
+			*pr_global_ptrs->spawnparamglobals[j] = client->spawn_parms[j];
+	}
+
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
+		Q1QVM_SetChangeParms();
+	}
+#endif
+	else if (pr_global_ptrs->SetChangeParms)
+	{
+		func_t setparms = 0;
+		if (transferparms)
+		{
+			setparms = PR_FindFunction(svprogfuncs, "SetTransferParms", PR_ANY);
+			if (!setparms)
+				setparms = pr_global_struct->SetChangeParms;
+		}
+		else
+			setparms = pr_global_struct->SetChangeParms;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
+		PR_ExecuteProgram (svprogfuncs, setparms);
+	}
+
+	if (transferparms)
+	{
+		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+		{
+			if (pr_global_ptrs->spawnparamglobals[j])
+				transferparms[j] = *pr_global_ptrs->spawnparamglobals[j];
+		}
+		return;
+	}
+	else
+	{
+		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+		{
+			if (pr_global_ptrs->spawnparamglobals[j])
+				client->spawn_parms[j] = *pr_global_ptrs->spawnparamglobals[j];
+		}
+	}
+
+	// call the progs to get default spawn parms for the new client
+	if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
+	{//oooh, evil.
+		char buffer[65536*4];
+		int bufsize = 0;
+		char *buf;
+		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+			client->spawn_parms[j] = 0;
+
+		buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, sizeof(buffer), client->edict);
+
+		if (client->spawninfo)
+			Z_Free(client->spawninfo);
+		client->spawninfo = Z_Malloc(bufsize+1);
+		memcpy(client->spawninfo, buf, bufsize+1);
+		client->spawninfotime = sv.time;
+	}
+
+#ifdef SVRANKING
+	if (client->rankid)
+	{
+		rankstats_t rs;
+		if (Rank_GetPlayerStats(client->rankid, &rs))
+		{
+			rs.timeonserver += realtime - client->stats_started;
+			client->stats_started = realtime;
+			rs.kills += client->kills;
+			rs.deaths += client->deaths;
+			client->kills=0;
+			client->deaths=0;
+			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+			{
+				rs.parm[j] = client->spawn_parms[j];
+			}
+			Rank_SetPlayerStats(client->rankid, &rs);
+		}
+	}
+#endif
+}
 
 /*
 ================
@@ -274,9 +362,9 @@ and each client for saving across the
 transition to another level
 ================
 */
-void SV_SaveSpawnparms (qboolean dontsave)
+void SV_SaveSpawnparms (void)
 {
-	int		i, j;
+	int		i;
 
 	if (!sv.state)
 		return;		// no progs loaded yet
@@ -292,77 +380,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 		if (host_client->state != cs_spawned)
 			continue;
 
-		if (dontsave)	//level restart requires that stats can be reset
-			continue;
-
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-		{
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
-			Q1QVM_SetChangeParms();
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-			{
-				if (pr_global_ptrs->spawnparamglobals[j])
-					host_client->spawn_parms[j] = *pr_global_ptrs->spawnparamglobals[j];
-				else
-					host_client->spawn_parms[j] = 0;
-			}
-		}
-#endif
-		else if (pr_global_ptrs->SetChangeParms)
-		{
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-			{
-				if (pr_global_ptrs->spawnparamglobals[j])
-					host_client->spawn_parms[j] = *pr_global_ptrs->spawnparamglobals[j];
-				else
-					host_client->spawn_parms[j] = 0;
-			}
-		}
-
-		// call the progs to get default spawn parms for the new client
-		if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
-		{//oooh, evil.
-			char buffer[65536*4];
-			int bufsize = 0;
-			char *buf;
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-				host_client->spawn_parms[j] = 0;
-
-			buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, sizeof(buffer), host_client->edict);
-
-			if (host_client->spawninfo)
-				Z_Free(host_client->spawninfo);
-			host_client->spawninfo = Z_Malloc(bufsize+1);
-			memcpy(host_client->spawninfo, buf, bufsize+1);
-			host_client->spawninfotime = sv.time;
-		}
-
-#ifdef SVRANKING
-		if (host_client->rankid)
-		{
-			rankstats_t rs;
-			if (Rank_GetPlayerStats(host_client->rankid, &rs))
-			{
-				rs.timeonserver += realtime - host_client->stats_started;
-				host_client->stats_started = realtime;
-				rs.kills += host_client->kills;
-				rs.deaths += host_client->deaths;
-				host_client->kills=0;
-				host_client->deaths=0;
-				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-				{
-					if (pr_global_ptrs->spawnparamglobals[j])
-						rs.parm[j] = *pr_global_ptrs->spawnparamglobals[j];
-					else
-						rs.parm[j] = 0;
-				}
-				Rank_SetPlayerStats(host_client->rankid, &rs);
-			}
-		}
-#endif
+		SV_SaveSpawnparmsClient(host_client, NULL);
 	}
 }
 
@@ -537,11 +555,17 @@ void SV_UnspawnServer (void)	//terminate the running server.
 				SV_DropClient(&svs.clients[i]);
 		}
 		PR_Deinit();
+#ifdef Q3SERVER
+		SVQ3_ShutdownGame();
+#endif
 #ifdef Q2SERVER
 		SVQ2_ShutdownGameProgs();
 #endif
 #ifdef HLSERVER
 		SVHL_ShutdownGame();
+#endif
+#ifdef VM_Q1
+		Q1QVM_Shutdown();
 #endif
 		sv.world.worldmodel = NULL;
 		sv.state = ss_dead;
@@ -675,6 +699,31 @@ static void SV_SetupNetworkBuffers(qboolean bigcoords)
 	sv.num_signon_buffers = 1;
 }
 
+#ifdef SUBSERVERS
+void SV_SpawnClusterMode(void)
+{
+	char *sqlparams[] =
+	{
+		"",
+		"",
+		"",
+		"login",
+	};
+	if (sv.state)
+		SV_UnspawnServer();
+	NET_InitServer();
+
+	//child processes return 0 and fall through
+	memset(&sv, 0, sizeof(sv));
+	sv.state = ss_clustermode;
+	sv.logindatabase = -1;//SQL_NewServer("sqlite", sqlparams);
+
+	//and for legacy clients, we need some server stuff inited.
+	SV_SetupNetworkBuffers(false);
+	SV_UpdateMaxPlayers(32);
+}
+#endif
+
 /*
 ================
 SV_SpawnServer
@@ -795,6 +844,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	// wipe the entire per-level structure
 	memset (&sv, 0, sizeof(sv));
+	sv.logindatabase = -1;
 
 	SV_SetupNetworkBuffers(sv_bigcoords.ival);
 
@@ -834,7 +884,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 #ifndef SERVERONLY
 	//This fixes a bug where the server advertises cheats, the internal client connects, and doesn't think cheats are allowed.
-	//this applies to a few other things too, but cheats is the only special one (because of the *)
+	//this applies to anything that can affect the content that is loaded by the server, but cheats is the only special one (because of the *)
 	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
 	if (!isDedicated)
 		CL_CheckServerInfo();
@@ -868,7 +918,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			else if (COM_FCheckExists(va(exts[2], server)))
 				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[2], server);
 		}
-		sv.world.worldmodel = Mod_ForName (sv.modelname, true);
+		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 	}
 	if (!sv.world.worldmodel || sv.world.worldmodel->needload)
 		Sys_Error("\"%s\" is missing or corrupt\n", sv.modelname);
@@ -981,6 +1031,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		newgametype = GT_QUAKE2;	//we loaded the dll
 	else
 #endif
+#ifdef VM_LUA
+	if (PR_LoadLua())
+		newgametype = GT_LUA;
+	else
+#endif
 #ifdef VM_Q1
 	if (PR_LoadQ1QVM())
 		newgametype = GT_Q1QVM;
@@ -1027,7 +1082,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
 			sv.strings.model_precache[1+i] = localmodels[i];
-			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.models[i+1] = Mod_ForName (localmodels[i], MLV_WARN);
 		}
 
 		//check player/eyes models for hacks
@@ -1036,7 +1091,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 	else
 #endif
-	if (svs.gametype == GT_PROGS)
+	if (svs.gametype == GT_PROGS
+#ifdef VM_LUA
+		|| svs.gametype == GT_LUA
+#endif
+		)
 	{
 		strcpy(sv.strings.sound_precache[0], "");
 		sv.strings.model_precache[0] = "";
@@ -1045,7 +1104,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
 			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0, false);
-			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.models[i+1] = Mod_ForName (localmodels[i], MLV_WARN);
 		}
 
 		//check player/eyes models for hacks
@@ -1075,7 +1134,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1; i<sv.world.worldmodel->numsubmodels; i++)
 		{
 			strcpy(sv.strings.configstring[Q2CS_MODELS+1+i], localmodels[i]);
-			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.models[i+1] = Mod_ForName (localmodels[i], MLV_WARN);
 		}
 	}
 #endif
@@ -1101,6 +1160,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	default:
 		SV_Error("bad gametype");
 		break;
+#ifdef VM_LUA
+	case GT_LUA:
+#endif
 	case GT_Q1QVM:
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
@@ -1118,11 +1180,15 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			i = sv_playerslots.ival;
 		else
 		{
-			/*only make one slot for single-player*/
-			if (!isDedicated && !deathmatch.value && !coop.value)
+			/*only make one slot for single-player (ktx sucks)*/
+			if (!isDedicated && !deathmatch.value && !coop.value && svs.gametype != GT_Q1QVM)
 				i = 1;
 			else
-				i = QWMAX_CLIENTS;
+			{
+				i = maxclients.ival + maxspectators.ival;
+				if (i < QWMAX_CLIENTS)
+					i = QWMAX_CLIENTS;
+			}
 		}
 		SV_UpdateMaxPlayers(i);
 
@@ -1216,7 +1282,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
-			ent->v->model = PR_NewString(svprogfuncs, sv.world.worldmodel->name, 0);
+			svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->model, sv.world.worldmodel->name, true);
 		ent->v->modelindex = 1;		// world model
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
@@ -1227,8 +1293,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
 			{
-				ent->v->targetname = PR_NewString(svprogfuncs, "mvdsv", 0);
-				ent->v->netname = PR_NewString(svprogfuncs, version_string(), 0);
+				svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->targetname, "mvdsv", true);
+				svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->netname, version_string(), false);
 			}
 			ent->v->impulse = 0;//QWE_VERNUM;
 			ent->v->items = 103;
@@ -1238,7 +1304,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
-			pr_global_struct->mapname = PR_NewString(svprogfuncs, sv.name, 0);
+			svprogfuncs->SetStringField(svprogfuncs, NULL, &pr_global_struct->mapname, sv.name, true);
 
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
@@ -1357,10 +1423,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	switch(svs.gametype)
 	{
 	default:
-		break;
-	case GT_Q1QVM:
-	case GT_PROGS:
-		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
+		if (svprogfuncs)
+			sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
+		else
+			sv.world.edict_size = 0;
 		break;
 #ifdef Q2SERVER
 	case GT_QUAKE2:
@@ -1534,9 +1600,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 
 				// call the spawn function
+				sv.skipbprintclient = host_client;
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+				sv.skipbprintclient = NULL;
 
 				// actually spawn the player
 				pr_global_struct->time = sv.world.physicstime;
@@ -1564,6 +1632,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 
 	SV_MVD_SendInitialGamestate(NULL);
+
+	SSV_UpdateAddresses();
 }
 
 #endif

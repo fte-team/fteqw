@@ -89,11 +89,7 @@ typedef struct skelobject_s
 
 	model_t *model;
 	world_t *world; /*be it ssqc or csqc*/
-	enum
-	{
-		SKOT_RELATIVE,	//relative to parent
-		SKOT_ABSOLUTE	//relative to model
-	} type;
+	skeltype_t type;
 
 	unsigned int numbones;
 	float *bonematrix;
@@ -124,7 +120,7 @@ void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, int sta
 	if (!boneinfo)
 		return;
 	endbone = min(endbone, maxbones-1);
-	if (skelobjsrc->type == SKOT_ABSOLUTE)
+	if (skelobjsrc->type == SKEL_ABSOLUTE)
 	{
 		if (skelobjsrc != skelobjdst)
 		{
@@ -171,7 +167,7 @@ void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, int sta
 		}
 	}
 
-	skelobjdst->type = SKOT_ABSOLUTE;
+	skelobjdst->type = SKEL_ABSOLUTE;
 }
 static void bonemat_fromidentity(float *out)
 {
@@ -303,7 +299,7 @@ typedef struct {
 	odebodyinfo_t defbody;
 	odejointinfo_t defjoint;
 } dollcreatectx_t;
-static dollcreatectx_t *rag_createdoll(model_t *mod, char *fname, int numbones)
+static dollcreatectx_t *rag_createdoll(model_t *mod, const char *fname, int numbones)
 {
 	int i;
 	dollcreatectx_t *ctx;
@@ -603,7 +599,7 @@ static doll_t *rag_finishdoll(dollcreatectx_t *ctx)
 	return d;
 };
 
-doll_t *rag_createdollfromstring(model_t *mod, char *fname, int numbones, char *file)
+doll_t *rag_createdollfromstring(model_t *mod, const char *fname, int numbones, const char *file)
 {
 	int linenum = 0;
 	dollcreatectx_t *ctx;
@@ -949,7 +945,7 @@ void skel_info_f(void)
 			if (skelobjects[i].world == &csqc_world)
 				Con_Printf(" CSQC\n");
 #endif
-			Con_Printf(" type: %s\n", (skelobjects[i].type == SKOT_RELATIVE)?"parentspace":"modelspace");
+			Con_Printf(" type: %s\n", (skelobjects[i].type == SKEL_RELATIVE)?"parentspace":"modelspace");
 			Con_Printf(" model: %s\n", skelobjects[i].model->name);
 			Con_Printf(" bone count: %i\n", skelobjects[i].numbones);
 #ifdef RAGDOLL
@@ -1066,7 +1062,7 @@ void skel_lookup(pubprogfuncs_t *prinst, int skelidx, framestate_t *out)
 	skelobject_t *sko = skel_get(prinst, skelidx);
 	if (sko && sko->inuse)
 	{
-		out->boneabs = sko->type;
+		out->skeltype = sko->type;
 		out->bonecount = sko->numbones;
 		out->bonestate = sko->bonematrix;
 	}
@@ -1354,7 +1350,7 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 	}
 
 	//if it wasn't before, it definitely is now.
-	sko->type = SKOT_ABSOLUTE;
+	sko->type = SKEL_ABSOLUTE;
 }
 
 //called each physics frame to update the body velocities for animation
@@ -1411,7 +1407,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 	skelobject_t skorel = {0};
 	float relmat[MAX_BONES*12];
 	skorel.bonematrix = relmat;
-	skorel.type = SKOT_RELATIVE;
+	skorel.type = SKEL_RELATIVE;
 
 	if (mod->dollinfo)
 	{
@@ -1425,7 +1421,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 			if (!sko)
 				return;	//couldn't get one, ran out of memory or something?
 			sko->model = mod;
-			sko->type = SKOT_RELATIVE;
+			sko->type = SKEL_RELATIVE;
 			le->skeletalobject = (sko - skelobjects) + 1;
 		}
 		else
@@ -1466,7 +1462,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 
 		ent->framestate.bonestate = sko->bonematrix;
 		ent->framestate.bonecount = sko->numbones;
-		ent->framestate.boneabs = sko->type == SKOT_ABSOLUTE;
+		ent->framestate.skeltype = sko->type;
 	}
 }
 #endif
@@ -1480,7 +1476,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	//do we want to be able to generate a ragdoll object with this function too?
 #ifdef RAGDOLL
 	wedict_t *wed = (wedict_t*)G_EDICT(prinst, OFS_PARM0);
-	char *ragname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *ragname = PR_GetStringOfs(prinst, OFS_PARM1);
 	int parentskel = G_FLOAT(OFS_PARM2);
 	int skelidx;
 	skelobject_t *sko, *psko;
@@ -1500,7 +1496,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	//the parent skeletal object must be relative, if specified.
 	psko = skel_get(prinst, parentskel);
-	if (psko && psko->type != SKOT_RELATIVE)
+	if (psko && psko->type != SKEL_RELATIVE)
 		return;
 
 	sko = skel_get(prinst, skelidx);
@@ -1634,7 +1630,7 @@ void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	int type;
 
 	midx = G_FLOAT(OFS_PARM0);
-	type = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):SKOT_RELATIVE;
+	type = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):SKEL_RELATIVE;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -1643,7 +1639,7 @@ void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (!model)
 		return; //no model set, can't get a skeleton
 
-	numbones = Mod_GetNumBones(model, type != SKOT_RELATIVE);
+	numbones = Mod_GetNumBones(model, type != SKEL_RELATIVE);
 	if (!numbones)
 	{
 //		isabs = true;
@@ -1724,14 +1720,14 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (lastbone < firstbone)
 		lastbone = firstbone;
 
-	if (skelobj->type != SKOT_RELATIVE)
+	if (skelobj->type != SKEL_RELATIVE)
 	{
 		if (firstbone > 0 || lastbone < skelobj->numbones || retainfrac)
 		{
 			Con_Printf("skel_build on non-relative skeleton\n");
 			return;
 		}
-		skelobj->type = SKOT_RELATIVE;	//entire model will get replaced, convert it.
+		skelobj->type = SKEL_RELATIVE;	//entire model will get replaced, convert it.
 	}
 
 	if (retainfrac == 0)
@@ -1840,7 +1836,7 @@ void QCBUILTIN PF_skel_get_boneparent (pubprogfuncs_t *prinst, struct globalvars
 void QCBUILTIN PF_skel_find_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
-	char *bname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *bname = PR_GetStringOfs(prinst, OFS_PARM1);
 	skelobject_t *skelobj;
 
 	skelobj = skel_get(prinst, skelidx);
@@ -1859,7 +1855,7 @@ void QCBUILTIN PF_skel_get_bonerel (pubprogfuncs_t *prinst, struct globalvars_s 
 	skelobject_t *skelobj = skel_get(prinst, skelidx);
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
-	else if (skelobj->type!=SKOT_RELATIVE)
+	else if (skelobj->type!=SKEL_RELATIVE)
 	{
 		float tmp[12];
 		float invparent[12];
@@ -1886,7 +1882,7 @@ void QCBUILTIN PF_skel_get_boneabs (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
-	else if (skelobj->type != SKOT_RELATIVE)
+	else if (skelobj->type != SKEL_RELATIVE)
 	{
 		//can just copy it out
 		bonemat_toqcvectors(skelobj->bonematrix + boneidx*12, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
@@ -1966,7 +1962,7 @@ void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars
 		float parentent[12];
 		framestate_t fstate;
 		w->Get_FrameState(w, ent, &fstate);
-		if (skelobj->type == SKOT_ABSOLUTE || !Mod_GetTag(skelobj->model, Mod_GetBoneParent(skelobj->model, boneidx+1), &fstate, parentabs))
+		if (skelobj->type == SKEL_ABSOLUTE || !Mod_GetTag(skelobj->model, Mod_GetBoneParent(skelobj->model, boneidx+1), &fstate, parentabs))
 		{
 			bonemat_fromentity(w, ent, parentw);
 		}
@@ -2110,7 +2106,7 @@ void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *p
 			startbone++;
 		}
 	}
-	else if (skelobjsrc->type == SKOT_RELATIVE && skelobjdst->type == SKOT_ABSOLUTE)
+	else if (skelobjsrc->type == SKEL_RELATIVE && skelobjdst->type == SKEL_ABSOLUTE)
 	{
 		/*copy from relative to absolute*/
 		skel_copy_toabs(skelobjdst, skelobjsrc, startbone, endbone);
@@ -2180,7 +2176,7 @@ void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
-	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
 	model_t *mod = *tagname?w->Get_CModel(w, ent->v->modelindex):NULL;
 	if (mod)
 		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
@@ -2199,21 +2195,6 @@ void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	unsigned int skinnum = G_FLOAT(OFS_PARM1);
 	model_t *mod = w->Get_CModel(w, modelindex);
 	const char *n = Mod_FrameNameForNum(mod, skinnum);
-
-	if (n)
-		RETURN_TSTRING(n);
-	else
-		G_INT(OFS_RETURN) = 0;	//null string (which is also empty in qc)
-}
-
-//string(float modidx, float skinnum) skintoname
-void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	world_t *w = prinst->parms->user;
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
-	unsigned int skinnum = G_FLOAT(OFS_PARM1);
-	model_t *mod = w->Get_CModel(w, modelindex);
-	const char *n = Mod_SkinNameForNum(mod, skinnum);
 
 	if (n)
 		RETURN_TSTRING(n);
@@ -2244,6 +2225,21 @@ void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
+}
+
+//string(float modidx, float skinnum) skintoname
+void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	model_t *mod = w->Get_CModel(w, modelindex);
+	const char *n = Mod_SkinNameForNum(mod, skinnum);
+
+	if (n)
+		RETURN_TSTRING(n);
+	else
+		G_INT(OFS_RETURN) = 0;	//null string (which is also empty in qc)
 }
 void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

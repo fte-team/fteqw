@@ -714,6 +714,16 @@ void HTTPDL_Establish(struct dl_download *dl)
 	//not yet blocking.
 	if (connect(con->sock, (struct sockaddr *)&serveraddr, addresssize) == -1)
 	{
+		int err = neterrno();
+		switch(err)
+		{
+		case NET_EACCES:
+			Con_Printf("HTTP: connect(%s): access denied. Check firewall.\n", server);
+			break;
+		default:
+			Con_Printf("HTTP: connect(%s): %s", server, strerror(neterrno()));
+			break;
+		}
 		dl->status = DL_FAILED;
 		return;
 	}
@@ -1023,27 +1033,28 @@ typedef struct
 	int readpos;
 } vfspipe_t;
 
-void QDECL VFSPIPE_Close(vfsfile_t *f)
+static qboolean QDECL VFSPIPE_Close(vfsfile_t *f)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	free(p->data);
 	free(p);
+	return true;
 }
-qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
+static qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	return p->writepos - p->readpos;
 }
-//unsigned long QDECL VFSPIPE_Tell(vfsfile_t *f)
+//static unsigned long QDECL VFSPIPE_Tell(vfsfile_t *f)
 //{
 //	return 0;
 //}
-//qboolean QDECL VFSPIPE_Seek(vfsfile_t *f, unsigned long offset)
+//static qboolean QDECL VFSPIPE_Seek(vfsfile_t *f, unsigned long offset)
 //{
 //	Con_Printf("Seeking is a bad plan, mmkay?\n");
 //	return false;
 //}
-int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
+static int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	if (len > p->writepos - p->readpos)
@@ -1062,7 +1073,7 @@ int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 	}
 	return len;
 }
-int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
+static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	if (p->writepos + len > p->maxlen)

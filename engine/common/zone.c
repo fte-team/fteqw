@@ -398,7 +398,7 @@ void *BZ_MallocNamed(int size, char *file, int line)	//BZ_MallocNamed but allowe
 	return mem;
 }
 #else
-void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensative data structures.
+void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensitive data structures.
 {
 	void *mem = BZF_Malloc(size);
 	if (!mem)

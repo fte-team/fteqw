@@ -47,6 +47,7 @@ typedef enum {
 	SHADER_2D
 } shadertype_t;
 
+/*
 typedef enum {
 	MF_NONE			= 1<<0,
 	MF_NORMALS		= 1<<1,
@@ -57,6 +58,7 @@ typedef enum {
 	MF_NOCULL		= 1<<6,
 	MF_NONBATCHED	= 1<<7
 } meshfeatures_t;
+*/
 
 //colour manipulation
 typedef struct
@@ -158,9 +160,10 @@ enum
 	SBITS_MISC_NODEPTHTEST				= 0x00020000,
 	SBITS_MISC_DEPTHEQUALONLY			= 0x00040000,
 	SBITS_MISC_DEPTHCLOSERONLY			= 0x00080000,
-#define SBITS_MISC_BITS				  0x000f0000
+//#define SBITS_MISC_BITS				  0x000f0000
 
 	SBITS_TRUFORM						= 0x00100000,
+	SBITS_AFFINE						= 0x00200000,
 };
 
 
@@ -424,6 +427,9 @@ union programhandle_u
 			void *ctabv;
 		#endif
 		#ifdef D3D11QUAKE
+			int topology;	//D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+			void *hull;
+			void *domain;
 			void *layout;
 		#endif
 	} hlsl;
@@ -537,7 +543,7 @@ struct shader_s
 	shader_gen_t *generator;
 	char	*genargs;
 
-	meshfeatures_t features;
+//	meshfeatures_t features;
 	bucket_t bucket;
 };
 
@@ -548,27 +554,27 @@ extern int be_maxpasses;
 
 
 void R_UnloadShader(shader_t *shader);
-shader_t *R_RegisterPic (char *name);
-shader_t *R_RegisterShader (char *name, unsigned int usageflags, const char *shaderscript);
-shader_t *R_RegisterShader_Lightmap (char *name);
-shader_t *R_RegisterShader_Vertex (char *name);
-shader_t *R_RegisterShader_Flare (char *name);
-shader_t *R_RegisterSkin  (char *shadername, char *modname);
-shader_t *R_RegisterCustom (char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
+shader_t *R_RegisterPic (const char *name);
+shader_t *R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript);
+shader_t *R_RegisterShader_Lightmap (const char *name);
+shader_t *R_RegisterShader_Vertex (const char *name);
+shader_t *R_RegisterShader_Flare (const char *name);
+shader_t *R_RegisterSkin  (const char *shadername, const char *modname);
+shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 
 cin_t *R_ShaderGetCinematic(shader_t *s);
-cin_t *R_ShaderFindCinematic(char *name);
+cin_t *R_ShaderFindCinematic(const char *name);
 
-void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultWaterShader(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultScript(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultWaterShader(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultCinematic(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultScript(const char *shortname, shader_t *s, const void *args);
 
 void Shader_ResetRemaps(void);	//called on map changes to reset remapped shaders.
 void Shader_DoReload(void);		//called when the shader system dies.
@@ -608,6 +614,29 @@ typedef struct
 #define FBO_TEX_COLOUR		16	//internal
 #define FBO_TEX_DEPTH		32	//internal
 #define FBO_TEX_STENCIL		64	//internal
+
+
+typedef struct
+{
+	char *progpath;	//path to use for glsl/hlsl
+	char *blobpath;	//path to use for binary glsl/hlsl blobs.
+	char *shadernamefmt;	//optional postfix for shader names for this renderer FIXME: should probably have multiple, for gles to fallback to desktop gl etc.
+
+	qboolean progs_supported;	//can use programs (all but gles1)
+	qboolean progs_required;	//no fixed function if this is true (d3d11, gles, gl3core)
+	unsigned int minver;		//lowest glsl version usable
+	unsigned int maxver;		//highest glsl version usable
+
+	qboolean tex_env_combine;
+	qboolean nv_tex_env_combine4;
+	qboolean env_add;
+
+	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
+	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
+	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
+	void	 (*pProgAutoFields)	(program_t *prog, char **cvarnames, int *cvartypes);
+} sh_config_t;
+extern sh_config_t sh_config;
 
 #ifdef GLQUAKE
 void GLBE_Init(void);
@@ -660,8 +689,6 @@ void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray
 void D3D9BE_VBO_Destroy(vboarray_t *vearray);
 void D3D9BE_Scissor(srect_t *rect);
 
-qboolean D3D9Shader_CreateProgram (program_t *prog, char *sname, int permu, char **precompilerconstants, char *vert, char *frag);
-int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3D9Shader_Init(void);
 void D3D9BE_Reset(qboolean before);
 #endif
@@ -681,9 +708,6 @@ qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);
 void D3D11BE_SelectEntity(entity_t *ent);
 qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
 
-qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, int permu, char **precompilerconstants, char *vert, char *frag);
-void D3D11Shader_DeleteProgram(program_t *prog);
-int D3D11Shader_FindUniform(union programhandle_u *h, int type, char *name);
 qboolean D3D11Shader_Init(unsigned int featurelevel);
 void D3D11BE_Reset(qboolean before);
 void D3D11BE_SetupViewCBuffer(void);
@@ -729,4 +753,6 @@ struct shader_field_names_s
 	enum shaderprogparmtype_e ptype;
 };
 extern struct shader_field_names_s shader_field_names[];
+extern struct shader_field_names_s shader_unif_names[];
+extern struct shader_field_names_s shader_attr_names[];
 #endif

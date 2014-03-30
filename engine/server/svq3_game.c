@@ -154,6 +154,23 @@ static void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 
 #define MAX_TOTAL_ENT_LEAFS		256
 
+static model_t *Q3G_GetCModel(unsigned int modelindex)
+{
+	if ((unsigned int)modelindex < MAX_MODELS)
+	{
+		if (!sv.models[modelindex])
+		{
+			if (modelindex == 0)
+				sv.models[modelindex] = sv.world.worldmodel;
+			else
+				sv.models[modelindex] = Mod_ForName(va("*%i", modelindex), MLV_WARN);
+		}
+
+		if (!sv.models[modelindex]->needload)
+			return sv.models[modelindex];
+	}
+	return NULL;
+}
 
 static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 {
@@ -459,8 +476,9 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 
 		if (es->r.bmodel)
 		{
-			mod = Mod_ForName(va("*%i", es->s.modelindex), false);
-			if (mod->needload)
+			//FIXME, this is inefficient.
+			mod = Q3G_GetCModel(es->s.modelindex);
+			if (!mod)
 				continue;
 			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, contentmask, es->r.currentOrigin, vec3_origin);
 		}
@@ -533,8 +551,8 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 
 		if (es->r.bmodel)
 		{
-			mod = Mod_ForName(va("*%i", es->s.modelindex), false);
-			if (mod->needload)
+			mod = Q3G_GetCModel(es->s.modelindex);
+			if (!mod)
 				continue;
 			tr = CM_TransformedBoxTrace(mod, pos, pos, vec3_origin, vec3_origin, 0xffffffff, es->r.currentOrigin, vec3_origin);
 		}
@@ -556,11 +574,11 @@ static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent, qboolea
 	trace_t tr;
 
 	if (ent->r.bmodel)
-		mod = Mod_ForName(va("*%i", ent->s.modelindex), false);
+		mod = Q3G_GetCModel(ent->s.modelindex);
 	else
 		mod = CM_TempBoxModel(ent->r.mins, ent->r.maxs);
 
-	if (mod->needload || !mod->funcs.NativeTrace)
+	if (!mod || !mod->funcs.NativeTrace)
 		return false;
 
 	tr = CM_TransformedBoxTrace(mod, vec3_origin, vec3_origin, mins, maxs, 0xffffffff, ent->r.currentOrigin, ent->r.currentAngles);
@@ -572,13 +590,25 @@ static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent, qboolea
 
 static void SVQ3_SetBrushModel(q3sharedEntity_t *ent, char *modelname)
 {
+	int modelindex;
 	model_t *mod;
-	mod = Mod_ForName(modelname, false);
-	VectorCopy(mod->mins, ent->r.mins);
-	VectorCopy(mod->maxs, ent->r.maxs);
+	if (!modelname || *modelname != '*')
+		SV_Error("SVQ3_SetBrushModel: not an inline model");
+	modelindex = atoi(modelname+1);
+	mod = Q3G_GetCModel(modelindex);
+	if (mod)
+	{
+		VectorCopy(mod->mins, ent->r.mins);
+		VectorCopy(mod->maxs, ent->r.maxs);
+	}
+	else
+	{
+		VectorCopy(mod->mins, ent->r.mins);
+		VectorCopy(mod->maxs, ent->r.maxs);
+	}
 	ent->r.bmodel = true;
 	ent->r.contents = -1;
-	ent->s.modelindex = atoi(modelname+1);
+	ent->s.modelindex = modelindex;
 
 	Q3G_LinkEntity( ent );
 }
@@ -625,7 +655,7 @@ void SVQ3_SendServerCommand(client_t *cl, char *str)
 		int i;
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
-			if (svs.clients[i].state>cs_zombie)
+			if (svs.clients[i].state>=cs_connected)
 			{
 				SVQ3_SendServerCommand(&svs.clients[i], str);	//go for consistancy.
 			}
@@ -1625,9 +1655,17 @@ static void QDECL BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t 
 	float max;
 	int	i;
 
-	mod = Mod_ForName(va("*%i", modelnum), false);
-	VectorCopy(mod->mins, mins);
-	VectorCopy(mod->maxs, maxs);
+	mod = Q3G_GetCModel(modelnum);
+	if (mod)
+	{
+		VectorCopy(mod->mins, mins);
+		VectorCopy(mod->maxs, maxs);
+	}
+	else
+	{
+		VectorCopy(vec3_origin, mins);
+		VectorCopy(vec3_origin, maxs);
+	}
 
 	//if the model is rotated
 	if ((angles[0] || angles[1] || angles[2]))
@@ -2480,16 +2518,16 @@ void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
 
 	int i, j;
 
-	char *str;
+	const char *str;
 	char sysinfo[MAX_SERVERINFO_STRING];
-	char *cfgstr[MAX_CONFIGSTRINGS];
+	const char *cfgstr[MAX_CONFIGSTRINGS];
 
 	//an empty crc string means we let the client use any
 	//but then it doesn't download our qwoverq3 thing.
 	char *refpackcrcs = "";//"-1309355180 0 0 0 0 0 0 0 0 0";
 	char *refpacknames = "baseq3/pak0 baseq3/pak1 baseq3/pak2 baseq3/pak3 baseq3/pak4 baseq3/pak5 baseq3/pak6 baseq3/pak7 baseq3/pak8 fte/qwoverq3";
 
-	memset(cfgstr, 0, sizeof(cfgstr));
+	memset((void*)cfgstr, 0, sizeof(cfgstr));
 
 	sysinfo[0] = 0;
 	Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), sizeof(sysinfo));
@@ -2850,7 +2888,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 	else if(cmdCount > MAX_PACKET_USERCMDS)
 		SV_DropClient(client);
 
-	if(client->state <= cs_zombie)
+	if(client->state < cs_connected)
 		return; // was dropped
 
 	// calculate key for usercmd decryption
@@ -3073,7 +3111,7 @@ void SVQ3_ParseClientMessage(client_t *client)
 	//
 	while(1)
 	{
-		if(client->state <= cs_zombie)
+		if(client->state < ca_connected)
 			return; // parsed command caused client to disconnect
 
 		if(msg_readcount > net_message.cursize)
@@ -3128,7 +3166,7 @@ qboolean SVQ3_HandleClient(void)
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
-		if (svs.clients[i].state <= cs_zombie)
+		if (svs.clients[i].state < cs_connected)
 			continue;
 		if (svs.clients[i].netchan.qport != qport)
 			continue;

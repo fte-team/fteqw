@@ -2270,7 +2270,11 @@ qboolean SV_Physics (void)
 	//keep gravity tracking the cvar properly
 	movevars.gravity = sv_gravity.value;
 
-	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE)	//make tics multiples of sv_maxtic (defaults to 0.1)
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE 
+#ifdef VM_LUA
+		&& svs.gametype != GT_LUA
+#endif
+		)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
 		host_frametime = sv.time - sv.world.physicstime;
 		if (host_frametime<0)

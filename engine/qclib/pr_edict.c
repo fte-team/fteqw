@@ -1081,7 +1081,7 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, char *s)
+pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const char *s)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int		i;
@@ -1257,7 +1257,7 @@ Used for initial level load and for savegames.
 ====================
 */
 #if 1
-char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
+const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t *ent)
 {
 	fdef_t		*key;
 	pbool	init;
@@ -1787,11 +1787,11 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 int header_crc;
 
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
-int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, char *file, float killonspawnflags)
+int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnflags)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	eval_t *fulldata;	//this is part of FTE_FULLSPAWNDATA
-	char *datastart;
+	const char *datastart;
 
 	eval_t *selfvar = NULL;
 	eval_t *var;
@@ -2159,11 +2159,10 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, char *file, float killonspawnflags)
 					if (externs->entspawn)
 						externs->entspawn((struct edict_s *) ed, true);
 
-					sv_num_edicts = numents;
 					ed->isfree = false;
 					file = ED_ParseEdict (progfuncs, file, ed);
 				}
-				numents++;
+				sv_num_edicts = ++numents;
 				continue;
 			}
 
@@ -2382,11 +2381,11 @@ char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, int maxsize, 
 
 	return buf;
 }
-struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, char *buf, int *size, struct edict_s *ed)
+struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, int *size, struct edict_s *ed)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *ent;
-	char *start = buf;
+	const char *start = buf;
 
 	buf = QCC_COM_Parse(buf);	//read the key
 	if (!buf || !*qcc_token)
@@ -2483,7 +2482,7 @@ char *decode(int complen, int len, int method, char *info, char *buffer);
 PR_LoadProgs
 ===============
 */
-int PR_ReallyLoadProgs (progfuncs_t *progfuncs, char *filename, int headercrc, progstate_t *progstate, pbool complain)
+int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int headercrc, progstate_t *progstate, pbool complain)
 {
 	unsigned int		i, type;
 //	extensionbuiltin_t *eb;

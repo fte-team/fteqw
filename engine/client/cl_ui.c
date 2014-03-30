@@ -405,10 +405,8 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 		ent.scale = 1;
 	ent.rtype = q3->reType;
 
-	if (q3->customSkin)
-		ent.skinnum = Mod_SkinNumForName(ent.model, VM_FROMSTRCACHE(q3->customSkin));
-	else
-		ent.skinnum = q3->skinNum;
+	ent.customskin = q3->customSkin;
+	ent.skinnum = q3->skinNum;
 
 	ent.shaderRGBAf[0] = q3->shaderRGBA[0]/255.0f;
 	ent.shaderRGBAf[1] = q3->shaderRGBA[1]/255.0f;
@@ -429,6 +427,10 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 		ent.flags |= Q2RF_EXTERNALMODEL;
 	if (q3->renderfx & Q3RF_NOSHADOW)
 		ent.flags |= RF_NOSHADOW;
+
+	ent.topcolour = TOP_DEFAULT;
+	ent.bottomcolour = BOTTOM_DEFAULT;
+	ent.playerindex = -1;
 
 	VectorCopy(q3->origin, ent.origin);
 	VectorCopy(q3->oldorigin, ent.oldorigin);
@@ -839,7 +841,12 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_R_REGISTERMODEL:	//precache model
 		{
 			char *name = VM_POINTER(arg[0]);
-			VM_LONG(ret) = VM_TOMHANDLE(Mod_ForName(name, false));
+			model_t *mod;
+			mod = Mod_ForName(name, MLV_SILENT);
+			if (mod->needload || mod->type == mod_dummy)
+				VM_LONG(ret) = 0;
+			else
+				VM_LONG(ret) = VM_TOMHANDLE(mod);
 		}
 		break;
 	case UI_R_MODELBOUNDS:
@@ -863,7 +870,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case UI_R_REGISTERSKIN:
-		VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
+		VM_LONG(ret) = Mod_RegisterSkinFile(VM_POINTER(arg[0]));
 		break;
 
 	case UI_R_REGISTERFONT:	//register font

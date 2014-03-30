@@ -70,7 +70,7 @@ the qc code:
 #define SENDDELAY 1
 
 float SV_ChatFunc(const char *func);
-void Chat_GetTag(char *filename, float tag, char **text, char **condition, char **options)
+void Chat_GetTag(const char *filename, float tag, char **text, char **condition, char **options)
 {	
 	char *file; char *s;
 	file = COM_LoadTempFile(va("dialog/%s.dlg", filename));
@@ -372,7 +372,7 @@ void SV_EndChat(void)
 }
 
 
-void SV_Chat(char *filename, float starttag, edict_t *edict)
+void SV_Chat(const char *filename, float starttag, edict_t *edict)
 {
 	int i, tag;
 	char optiontext[1024];

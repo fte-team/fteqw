@@ -1177,9 +1177,6 @@ void CL_PredictMove (void)
 {
 	int i;
 
-	//work out which packet entities are solid
-	CL_SetSolidEntities ();
-
 	// Set up prediction for other players
 	CL_SetUpPlayerPrediction(false);
 

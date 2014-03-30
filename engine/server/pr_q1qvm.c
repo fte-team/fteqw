@@ -18,6 +18,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+/*64bit cpu notes:
+string_t is a 32bit quantity.
+this datatype needs to have enough bits to express any address that contains a string.
+in a 32bit build, this is fine. with a qvm, the offset between the vm base and the string is always less than 32bits so this is fine too.
+HOWEVER...
+native code uses a base address of 0. this needs a 48bit datatype for any userland address. 32 bits just ain't enough.
+even worse: ktx defines string_t as a 'char*'. okay, its 64bit at last... but it means that the entire entity field structure is now the wrong size with the wrong offsets.
+this means CRASH!
+how to fix? good luck with that. seriously.
+	the only sane way to fix it is to either define a better base address (say the dll base,
+		and require that all string_t values are bss or data and not from malloc, which is problematic when loading dynamic stuff from a map)
+	alternatively, you could create some string_t->pointer lookup. messy.
+	either way, string_t cannot be a pointer.
+	probably the best solution is to stop using string_t stuff completely. move all those string values somewhere else.
+	netnames will still mess things up.
+so just use qvms.
+oh, wait, ktx no longer supports those properly.
+*/
+
 #include "quakedef.h"
 
 #ifdef VM_Q1
@@ -473,14 +492,20 @@ static globalvars_t *QDECL Q1QVMPF_Globals(pubprogfuncs_t *prinst, int prnum)
 	return NULL;
 }
 
-static string_t QDECL Q1QVMPF_StringToProgs(pubprogfuncs_t *prinst, char *str)
+static string_t QDECL Q1QVMPF_StringToProgs(pubprogfuncs_t *prinst, const char *str)
 {
-	return (string_t)(str - (char*)VM_MemoryBase(q1qvm));
+	string_t ret = (string_t)(str - (char*)VM_MemoryBase(q1qvm));
+	if (ret >= VM_MemoryMask(q1qvm))
+		return 0;
+	return ret;
 }
 
 static char *ASMCALL QDECL Q1QVMPF_StringToNative(pubprogfuncs_t *prinst, string_t str)
 {
-	return (char*)VM_MemoryBase(q1qvm) + str;
+	char *ret = (char*)VM_MemoryBase(q1qvm) + str;
+	if (!ret)	//qvms can never return a null. make sure native code can't crash things either.
+		return "";
+	return ret;
 }
 
 static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qintptr_t *arg, char *argtypes)
@@ -651,19 +676,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		return PF_checkclient_Internal(svprogfuncs);
 
 	case G_STUFFCMD:
-		{
-			char *s;
-			client_t *cl;
-			if ((unsigned)VM_LONG(arg[0]) > sv.allocated_client_slots)
-				return -1;
-			cl = &svs.clients[VM_LONG(arg[0])-1];
-			if (cl->state != cs_spawned)
-				return -1;
-			s = VM_POINTER(arg[1]);
-
-			ClientReliableWrite_Begin (cl, svc_stufftext, 3+strlen(s));
-			ClientReliableWrite_String(cl, s);
-		}
+		PF_stuffcmd_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
 		break;
 
 	case G_LOCALCMD:
@@ -1151,15 +1164,16 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 			char *key = VM_POINTER(arg[1]);
 			if (*key == '*' && (VM_LONG(arg[3])&1))
 				return -1;	//denied!
+			return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
 		}
 		//fallthrough
+
+	case G_SetBotUserInfo:
+		return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
 
 	case G_MOVETOGOAL:
 		return World_MoveToGoal(&sv.world, (wedict_t*)Q1QVMPF_ProgsToEdict(svprogfuncs, pr_global_struct->self), VM_FLOAT(arg[0]));
 
-	case G_SetBotUserInfo:
-		WrapQCBuiltin(PF_ForceInfoKey, offset, mask, arg, "ess");
-		return 0;
 
 	case G_strftime:
 		{
@@ -1295,12 +1309,12 @@ void Q1QVM_Shutdown(void)
 			svs.clients[i].name = svs.clients[i].namebuf;
 		}
 		VM_Destroy(q1qvm);
+		q1qvm = NULL;
+		VM_fcloseall(VMFSID_Q1QVM);
+		if (svprogfuncs == &q1qvmprogfuncs)
+			sv.world.progs = svprogfuncs = NULL;
+		Z_FreeTags(VMFSID_Q1QVM);
 	}
-	q1qvm = NULL;
-	VM_fcloseall(VMFSID_Q1QVM);
-	if (svprogfuncs == &q1qvmprogfuncs)
-		sv.world.progs = svprogfuncs = NULL;
-	Z_FreeTags(VMFSID_Q1QVM);
 }
 
 void Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
@@ -1327,6 +1341,15 @@ void Q1QVM_Event_Think(world_t *w, wedict_t *s)
 qboolean Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
 {
 	return false;	//always do legacy behaviour
+}
+
+void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
+{
+	string_t newval = progfuncs->StringToProgs(progfuncs, str);
+	if (newval || !str)
+		*fld = newval;
+	else
+		Con_DPrintf("Ignoring string set outside of progs VM\n");
 }
 
 qboolean PR_LoadQ1QVM(void)
@@ -1370,6 +1393,7 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmprogfuncs.GetEdictFieldValue = Q1QVMPF_GetEdictFieldValue;
 	q1qvmprogfuncs.StringToProgs = Q1QVMPF_StringToProgs;
 	q1qvmprogfuncs.StringToNative = Q1QVMPF_StringToNative;
+	q1qvmprogfuncs.SetStringField = Q1QVMPF_SetStringField;
 
 	sv.world.Event_Touch = Q1QVM_Event_Touch;
 	sv.world.Event_Think = Q1QVM_Event_Think;
@@ -1505,6 +1529,17 @@ void Q1QVM_ClientConnect(client_t *cl)
 		//FIXME: check this pointer
 		strcpy(cl->name, cl->namebuf);
 	}
+	else if (!VM_NonNative(q1qvm))
+	{
+		Q_strncpyz(cl->namebuf, cl->name, sizeof(cl->namebuf));
+		cl->name = cl->namebuf;
+		cl->edict->v->netname = Q1QVMPF_StringToProgs(svprogfuncs, cl->namebuf);
+
+		Con_DPrintf("WARNING: Mod provided no netname buffer and will not function correctly when compiled as a qvm.\n");
+	}
+	else
+		Con_Printf("WARNING: Mod provided no netname buffer. Player names will not be set properly.\n");
+
 	// call the spawn function
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);

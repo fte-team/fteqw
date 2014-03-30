@@ -2932,7 +2932,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				if (age > 1)
 					age = 1;
 
-				if (cl_predict_players.ival)
+				if (cl_predict_players.ival && pmove.numphysent)
 				{
 					CL_PredictEntityMovement(from, age);
 					VectorCopy(from->u.q1.predorg, le->origin);
@@ -3076,7 +3076,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 		This can happen if the client's predicted time is greater than the most recently received packet.
 		This should of course not happen...
 		*/
-		Con_DPrintf("Warning: No lerp-to frame packet\n");
+//		Con_DPrintf("Warning: No lerp-to frame packet\n");
 
 		/*just grab the most recent frame that is valid*/
 		for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
@@ -3152,8 +3152,8 @@ void CL_TransitionEntities (void)
 	else
 		frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
 
-//	Con_Printf("%f %f %f (%f) (%i)\n", packold->servertime, servertime, packnew->servertime, frac, newff);
-//	Con_Printf("%f %f %f\n", cl.oldgametime, servertime, cl.gametime);
+//	if (!cl.paused)
+//		Con_Printf("%f %f %f (%f) (%i) %f %f %f\n", packold->servertime, servertime, packnew->servertime, frac, newff, cl.oldgametime, servertime, cl.gametime);
 
 	CL_TransitionPacketEntities(newff, packnew, packold, frac, servertime);
 	cl.packfrac = frac;
@@ -3268,6 +3268,7 @@ void CL_LinkPacketEntities (void)
 		ent = &cl_visedicts[cl_numvisedicts];
 		ent->rtype = RT_MODEL;
 		ent->playerindex = -1;
+		ent->customskin = 0;
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
 		ent->h2playerclass = 0;

@@ -182,6 +182,8 @@ void		Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *p
 float		*Matrix4x4_CM_NewRotation(float a, float x, float y, float z);
 float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);
 
+void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+
 #define AngleVectorsFLU(a,f,l,u) do{AngleVectors(a,f,l,u);VectorNegate(l,l);}while(0)
 
 //projection matricies of different types... gesh
@@ -194,7 +196,7 @@ void		Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float nea
 fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
 int			Q_log2 (int val);
 
-void		Matrix3x4_InvertTo3x3(float *in, float *result);
+void		Matrix3x4_InvertTo3x3(const float *in, float *result);
 
 fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
 int			Q_log2 (int val);

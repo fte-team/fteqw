@@ -54,7 +54,7 @@ void Media_Clear (void)
 }
 
 //fake cd tracks.
-qboolean Media_BackgroundTrack(char *track, char *looptrack)
+qboolean Media_BackgroundTrack(const char *track, const char *looptrack)
 {
 	unsigned int tracknum;
 #if !defined(NOMEDIA)
@@ -206,10 +206,10 @@ void Media_EndedTrack(void)
 
 
 #include "winquake.h"
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 #define WINAMP
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(WINRT)
 #define WINAVI
 #endif
 
@@ -1262,7 +1262,7 @@ struct cin_s
 	void (*key) (struct cin_s *cin, int code, int unicode, int event);
 	qboolean (*setsize) (struct cin_s *cin, int width, int height);
 	void (*getsize) (struct cin_s *cin, int *width, int *height);
-	void (*changestream) (struct cin_s *cin, char *streamname);
+	void (*changestream) (struct cin_s *cin, const char *streamname);
 
 
 
@@ -1761,7 +1761,7 @@ void Media_Plugin_GetSize(cin_t *cin, int *width, int *height)
 		cin->plugin.funcs->getsize(cin->plugin.ctx, width, height);
 	currentplug = oldplug;
 }
-void Media_Plugin_ChangeStream(cin_t *cin, char *streamname)
+void Media_Plugin_ChangeStream(cin_t *cin, const char *streamname)
 {
 	struct plugin_s *oldplug = currentplug;
 	currentplug = cin->plugin.plug;
@@ -2579,18 +2579,26 @@ qboolean Media_ShowFilm(void)
 			}
 			Media_StopFilm(false);
 		}
-		else
+		else if (cin)
 		{
+			int cw = cin->outwidth, ch = cin->outheight;
 			float ratiox, ratioy;
 			if (cin->cursormove)
 				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
 			if (cin->setsize)
 				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
 
-			ratiox = (float)cin->outwidth / vid.pixelwidth;
-			ratioy = (float)cin->outheight / vid.pixelheight;
+			//FIXME: should have a proper aspect ratio setting. RoQ files are always power of two, which makes things ugly.
+			if (1)
+			{
+				cw = 4;
+				ch = 3;
+			}
 
-			if (!cin->outheight || !cin->outwidth)
+			ratiox = (float)cw / vid.pixelwidth;
+			ratioy = (float)ch / vid.pixelheight;
+
+			if (!ch || !cw)
 			{
 				R2D_ImageColours(0, 0, 0, 1);
 				R2D_FillBlock(0, 0, vid.width, vid.height);
@@ -2598,7 +2606,7 @@ qboolean Media_ShowFilm(void)
 			}
 			else if (ratiox > ratioy)
 			{
-				int h = (vid.width * cin->outheight) / cin->outwidth;
+				int h = (vid.width * ch) / cw;
 				int p = vid.height - h;
 
 				//letterbox
@@ -2611,7 +2619,7 @@ qboolean Media_ShowFilm(void)
 			}
 			else
 			{
-				int w = (vid.height * cin->outwidth) / cin->outheight;
+				int w = (vid.height * cw) / ch;
 				int p = vid.width - w;
 				//sidethingies
 				R2D_ImageColours(0, 0, 0, 1);
@@ -2656,7 +2664,7 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 }
 #endif
 
-void Media_Send_Command(cin_t *cin, char *command)
+void Media_Send_Command(cin_t *cin, const char *command)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
@@ -3443,7 +3451,7 @@ void Media_RecordDemo_f(void)
 		CL_Stopdemo_f();	//capturing failed for some reason
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 typedef struct ISpNotifySink ISpNotifySink;
 typedef void *ISpNotifyCallback;
 typedef void __stdcall SPNOTIFYCALLBACK(WPARAM wParam, LPARAM lParam);
@@ -4136,7 +4144,7 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
 void Media_Init(void)
 {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 	Cmd_AddCommand("tts", TTS_Say_f);
 	Cmd_AddCommand("stt", STT_Init_f);
 	Cvar_Register(&tts_mode, "Gimmicks");

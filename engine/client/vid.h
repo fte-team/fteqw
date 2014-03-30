@@ -33,6 +33,7 @@ typedef struct {
 	int height;
 	qboolean fullscreen;
 	qboolean stereo;
+	qboolean srgb;
 	int bpp;
 	int rate;
 	int wait;	//-1 = default, 0 = off, 1 = on, 2 = every other

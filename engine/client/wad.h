@@ -115,4 +115,4 @@ void Mod_ParseWadsFromEntityLump(char *data);
 qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *usesalpha);
 void Mod_ParseInfoFromEntityLump(struct model_s *wmodel, char *data, char *mapname);
 qboolean Wad_NextDownload (void);
-qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha);
+qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha);

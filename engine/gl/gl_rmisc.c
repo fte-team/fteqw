@@ -483,9 +483,6 @@ void GLR_Init (void)
 //	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
 //	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);
 //	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
-	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
-	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
-	Cvar_Hook(&v_brightness, GLV_Gamma_Callback);
 
 	GLR_ReInit();
 }

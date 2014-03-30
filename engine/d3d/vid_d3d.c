@@ -407,6 +407,11 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     return lRet;
 }
 
+static void D3D9_VID_SwapBuffers(void)
+{
+	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+}
+
 static void resetD3D9(void)
 {
 	HRESULT res;
@@ -959,7 +964,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		{
 			IDirect3DDevice9_BeginScene(pD3DDev9);
 			scr_drawloading = true;
-			SCR_DrawLoading ();
+			SCR_DrawLoading (true);
 			scr_drawloading = false;
 			IDirect3DDevice9_EndScene(pD3DDev9);
 			IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
@@ -1110,7 +1115,7 @@ static void	(D3D9_R_DeInit)					(void)
 
 
 
-static void D3D9_SetupViewPort(void)
+static void D3D9_SetupViewPortProjection(void)
 {
 	extern cvar_t gl_mindist;
 	float	screenaspect;
@@ -1176,11 +1181,15 @@ static void D3D9_SetupViewPort(void)
 
 static void	(D3D9_R_RenderView)				(void)
 {
-	D3D9_SetupViewPort();
+	Surf_SetupFrame();
+
+	D3D9_SetupViewPortProjection();
+
 	if (r_clear.ival && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255,0,0), 1, 0));
 	else
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
@@ -1209,8 +1218,6 @@ char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight
 void	(D3D9_VID_SetWindowCaption)		(char *msg);
 
 void	(D3D9_SCR_UpdateScreen)			(void);
-
-
 
 void D3D9BE_RenderToTextureUpdate2d(qboolean destchanged)
 {
@@ -1248,9 +1255,10 @@ rendererinfo_t d3d9rendererinfo =
 
 	D3D9_VID_Init,
 	D3D9_VID_DeInit,
+	D3D9_VID_SwapBuffers,
 	D3D9_VID_ApplyGammaRamps,
-	D3D9_VID_GetRGBInfo,
 	D3D9_VID_SetWindowCaption,
+	D3D9_VID_GetRGBInfo,
 
 	D3D9_SCR_UpdateScreen,
 

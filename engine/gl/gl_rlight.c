@@ -1475,8 +1475,11 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 #ifdef RTLIGHTS
 	if (r_shadow_realtime_world.ival)
 	{
-		VectorScale(res_diffuse, r_shadow_realtime_world_lightmaps.value, res_diffuse);
-		VectorScale(res_ambient, r_shadow_realtime_world_lightmaps.value, res_ambient);
+		float lm = r_shadow_realtime_world_lightmaps.value;
+		if (lm < 0) lm = 0;
+		if (lm > 1) lm = 1;
+		VectorScale(res_diffuse, lm, res_diffuse);
+		VectorScale(res_ambient, lm, res_ambient);
 	}
 #endif
 }

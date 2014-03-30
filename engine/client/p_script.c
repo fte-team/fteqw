@@ -462,7 +462,7 @@ static int P_AllocateParticleType(char *config, char *name)	//guarentees that th
 }
 
 //public interface. get without creating.
-static int PScript_FindParticleType(char *name)
+static int PScript_FindParticleType(const char *name)
 {
 	int i;
 	part_type_t *ptype = NULL;
@@ -3171,7 +3171,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 		{
 			mod = &ptype->models[rand() % ptype->nummodels];
 			if (!mod->model)
-				mod->model = Mod_ForName(mod->name, false);
+				mod->model = Mod_ForName(mod->name, MLV_WARN);
 			if (mod->model && !mod->model->needload)
 			{
 				vec3_t morg, mdir;

@@ -44,15 +44,15 @@ typedef struct
 } SHA1_CTX;
 
 #define DIGEST_SIZE 20
-void SHA1Transform(unsigned int state[5], unsigned char buffer[64]);
+void SHA1Transform(unsigned int state[5], const unsigned char buffer[64]);
 void SHA1Init(SHA1_CTX* context);
-void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len);
+void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
 void SHA1Final(unsigned char digest[DIGEST_SIZE], SHA1_CTX* context);
 
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void SHA1Transform(unsigned int state[5], unsigned char buffer[64])
+void SHA1Transform(unsigned int state[5], const unsigned char buffer[64])
 {
 	unsigned int a, b, c, d, e;
 	typedef union
@@ -122,7 +122,7 @@ void SHA1Init(SHA1_CTX* context)
 
 /* Run your data through this. */
 
-void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len)
+void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len)
 {
 	unsigned int i, j;
 
@@ -179,7 +179,7 @@ memset(&finalcount, 0, 8);
 }
 
 
-int SHA1(char *digest, int maxdigestsize, char *string, int stringlen)
+int SHA1(char *digest, int maxdigestsize, const char *string, int stringlen)
 {
 	SHA1_CTX context;
 	if (maxdigestsize < DIGEST_SIZE)
@@ -216,7 +216,7 @@ hacked up a bit by someone else...
 #define IPAD 0x36
 #define OPAD 0x5c
 
-static void memxor(char *dest, char *src, size_t length)
+static void memxor(char *dest, const char *src, size_t length)
 {
 	size_t i;
 	for (i = 0; i < length; i++)
@@ -226,8 +226,8 @@ static void memxor(char *dest, char *src, size_t length)
 }
 
 int SHA1_HMAC(unsigned char *digest, int maxdigestsize,
-			  unsigned char *data, int datalen,
-			  unsigned char *key, int keylen)
+			  const unsigned char *data, int datalen,
+			  const unsigned char *key, int keylen)
 {
 	SHA1_CTX inner;
 	SHA1_CTX outer;

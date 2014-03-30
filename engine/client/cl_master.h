@@ -182,7 +182,7 @@ void Master_SetupSockets(void);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);
 
-int Master_KeyForName(char *keyname);
+int Master_KeyForName(const char *keyname);
 float Master_ReadKeyFloat(serverinfo_t *server, int keynum);
 char *Master_ReadKeyString(serverinfo_t *server, int keynum);
 
@@ -194,5 +194,5 @@ qboolean Master_GetSortDescending(void);
 int Master_NumSorted(void);
 void Master_ClearMasks(void);
 serverinfo_t *Master_SortedServer(int idx);
-void Master_SetMaskString(qboolean or, hostcachekey_t field, char *param, slist_test_t testop);
+void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, slist_test_t testop);
 void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_test_t testop);

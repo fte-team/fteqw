@@ -26,16 +26,16 @@ model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 static int mod_datasequence;
 
-qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
-qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t fsize);
+qboolean Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
-qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
+qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf, size_t fsize);
 
-qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
-qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
-qboolean Mod_LoadQ3Model (model_t *mod, void *buffer);
-qboolean Mod_LoadZymoticModel (model_t *mod, void *buffer);
-qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+qboolean Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize);
+qboolean Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize);
+qboolean Mod_LoadQ3Model (model_t *mod, void *buffer, size_t fsize);
+qboolean Mod_LoadZymoticModel (model_t *mod, void *buffer, size_t fsize);
+qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize);
 
 qbyte	mod_novis[(MAX_MAP_LEAFS+7)/8];
 
@@ -376,7 +376,7 @@ Mod_FindName
 
 ==================
 */
-model_t *Mod_FindName (char *name)
+model_t *Mod_FindName (const char *name)
 {
 	int		i;
 	model_t	*mod;
@@ -546,7 +546,7 @@ Mod_ForName
 Loads in a model for the given name
 ==================
 */
-model_t *Mod_ForName (char *name, qboolean crash)
+model_t *Mod_ForName (const char *name, qboolean crash)
 {
 	model_t	*mod;
 

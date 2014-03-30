@@ -66,6 +66,7 @@ extern cvar_t	r_postprocshader;
 extern cvar_t	gl_screenangle;
 
 extern cvar_t	gl_mindist;
+extern cvar_t	vid_srgb;
 
 extern cvar_t	ffov;
 
@@ -133,6 +134,7 @@ void GL_InitSceneProcessingShaders (void)
 	}
 
 	gl_dither.modified = true;	//fixme: bad place for this, but hey
+	vid_srgb.modified = true;
 }
 
 #define PP_WARP_TEX_SIZE 64
@@ -357,6 +359,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 
 //==================================================================================
 
+qboolean R_GameRectIsFullscreen(void);
 /*
 =============
 R_SetupGL
@@ -435,7 +438,7 @@ void R_SetupGL (float stereooffset)
 
 		GL_ViewportUpdate();
 
-		if (r_waterwarp.value<0 && (r_viewcontents & FTECONTENTS_FLUID))
+		if ((r_waterwarp.value<0 || (r_waterwarp.value && !R_GameRectIsFullscreen())) && (r_viewcontents & FTECONTENTS_FLUID))
 		{
 			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
@@ -494,8 +497,16 @@ void R_SetupGL (float stereooffset)
 			qglDisable(GL_DITHER);
 		}
 	}
+	if (vid_srgb.modified)
+	{
+		if (vid_srgb.ival)
+			qglEnable(GL_FRAMEBUFFER_SRGB);
+		else
+			qglDisable(GL_FRAMEBUFFER_SRGB);
+	}
 }
 
+void Surf_SetupFrame(void);
 /*
 ================
 R_RenderScene
@@ -578,6 +589,8 @@ void R_RenderScene (void)
 		}
 		if (i)
 			qglClear (GL_DEPTH_BUFFER_BIT);
+
+		Surf_SetupFrame();
 
 		TRACE(("dbg: calling R_SetupGL\n"));
 		R_SetupGL (stereooffset[i]);
@@ -1150,13 +1163,18 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 R_Clear
 =============
 */
+qboolean R_GameRectIsFullscreen(void)
+{
+	return r_refdef.grect.x == 0 && r_refdef.grect.y == 0 && (unsigned)r_refdef.grect.width == vid.fbvwidth && (unsigned)r_refdef.grect.height == vid.fbvheight;
+}
+
 int gldepthfunc = GL_LEQUAL;
 void R_Clear (void)
 {
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
-		if (r_clear.ival && r_refdef.grect.x == 0 && r_refdef.grect.y == 0 && (unsigned)r_refdef.grect.width == vid.fbvwidth && (unsigned)r_refdef.grect.height == vid.fbvheight && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && R_GameRectIsFullscreen() && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		{
 			qglClearColor(1, 0, 0, 0);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1593,10 +1611,10 @@ void GLR_RenderView (void)
 
 	//FIXME: support bloom+waterwarp even when drawing to an fbo?
 	//FIXME: force waterwarp to a temp fbo always
-	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || r_secondaryview || dofbo)
+	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || dofbo)
 		return;
 
-	if (r_secondaryview)
+	if (!R_GameRectIsFullscreen())
 		return;
 
 	if (r_bloom.value)

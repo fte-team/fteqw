@@ -7,6 +7,13 @@
 	#endif
 	#include <mysql/mysql.h>
 #endif
+#ifdef USE_SQLITE
+typedef struct
+{
+	char *ptr;
+	int len;
+} sqliteresult_t;
+#endif
 
 #define SQL_CONNECT_STRUCTPARAMS 2
 #define SQL_CONNECT_PARAMS 4
@@ -99,11 +106,11 @@ void SQL_ClosePersistantResult(sqlserver_t *server, queryresult_t *qres);
 void SQL_CloseResult(sqlserver_t *server, queryresult_t *qres);
 void SQL_CloseRequest(sqlserver_t *server, queryrequest_t *qres, qboolean force);
 void SQL_CloseAllResults(sqlserver_t *server);
-char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields);
-int SQL_NewServer(char *driver, char **paramstr);
+char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields, size_t *resultsize);
+int SQL_NewServer(const char *driver, const char **paramstr);
 int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), char *str, queryrequest_t **reqout);	//callback will be called on the main thread once the result is back
 void SQL_Disconnect(sqlserver_t *server);
-void SQL_Escape(sqlserver_t *server, char *src, char *dst, int dstlen);
+void SQL_Escape(sqlserver_t *server, const char *src, char *dst, int dstlen);
 const char *SQL_Info(sqlserver_t *server);
 qboolean SQL_Available(void);
 void SQL_ServerCycle (void);

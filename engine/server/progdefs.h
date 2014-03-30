@@ -90,6 +90,7 @@ typedef struct nqglobalvars_s
 	vec3_t *input_movevalues;
 	float *input_buttons;
 	float *spawnparamglobals[NUM_SPAWN_PARMS];
+	float *serverid;
 } globalptrs_t;
 
 #define P_VEC(v) (pr_global_struct->v)
@@ -189,22 +190,22 @@ and the extension fields are added on the end and can have extra vm-specific stu
 #define comextqcfields	\
 	comfieldvector(punchangle,NULL) /*std in nq*/\
 	comfieldfloat(gravity,NULL)	/*added in quake 1.09 (for hipnotic)*/\
-	comfieldfloat(hull,NULL)/*PEXT_HEXEN2*/\
+	comfieldfloat(hull,"Overrides the hull used by the entity for walkmove/movetogoal and not traceline/tracebox.")/*PEXT_HEXEN2*/\
 	comfieldentity(movechain,NULL)/*hexen2*/\
 	comfieldfunction(chainmoved, ".void()",NULL)/*hexen2*/\
-	comfieldfunction(contentstransition, ".void(float old, float new)",NULL)/*ENTITYCONTENTSTRANSITION*/\
-	comfieldfloat(dimension_solid,NULL)/*EXT_DIMENSION_PHYSICS*/\
-	comfieldfloat(dimension_hit,NULL)/*EXT_DIMENSION_PHYSICS*/\
+	comfieldfunction(contentstransition, ".void(float old, float new)","This function is called when the entity moves between water and air. If specified, default splash sounds will be disabled allowing you to provide your own.")/*ENTITYCONTENTSTRANSITION*/\
+	comfieldfloat(dimension_solid,"This is the bitmask of dimensions which the entity is solid within.")/*EXT_DIMENSION_PHYSICS*/\
+	comfieldfloat(dimension_hit,"This is the bitmask of dimensions which the entity will be blocked by. If other.dimension_solid & self.dimension_hit, our traces will impact and not proceed. If its false, the traces will NOT impact, allowing self to pass straight through.")/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(hitcontentsmask,NULL)\
 	comfieldfloat(scale,NULL)/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness,NULL)/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha,NULL)/*DP_ENT_ALPHA*/\
 	comfieldentity(tag_entity,NULL)\
 	comfieldfloat(tag_index,NULL)\
-	comfieldfloat(skeletonindex,NULL)		/*FTE_CSQC_SKELETONOBJECTS*/\
+	comfieldfloat(skeletonindex,"This object serves as a container for the skeletal bone states used to override the animation data.")		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod,NULL)\
 	comfieldvector(glowmod,NULL)\
-	comfieldvector(gravitydir,NULL)\
+	comfieldvector(gravitydir,"Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings.")\
 	comfieldfunction(camera_transform,".vector(vector org, vector ang)", NULL)\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
 	comfieldfloat(geomtype,NULL)/*DP_...PHYSICS*/\
@@ -248,13 +249,13 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(dimension_ghost,"If this entity is visible only within these dimensions, it will become transparent, as if a ghost.")/*EXT_DIMENSION_GHOST*/\
 	comfieldfloat(dimension_ghost_alpha,"If this entity is subject to dimension_ghost, this is the scaler for its alpha value. If 0, 0.5 will be used instead.")/*EXT_DIMENSION_GHOST*/\
 	comfieldfloat(playerclass,NULL)/*hexen2 requirements*/\
-	comfieldfloat(drawflags,NULL)/*hexen2*/\
+	comfieldfloat(drawflags,"Various flags that affect lighting values and scaling. Typically set to 96 in quake for proper compatibility with DP_QC_SCALE.")/*hexen2*/\
 	comfieldfloat(hasted,NULL)/*hexen2 uses this AS WELL as maxspeed*/\
 	comfieldfloat(light_level,NULL)/*hexen2's grabbing light level from client*/\
 	comfieldfloat(abslight,"Allows overriding light levels. Use drawflags to state that this field should actually be used.")/*hexen2's force a lightlevel*/\
 	comfieldfunction(SendEntity, ".float(entity playerent, float changedflags)",NULL)/*EXT_CSQC*/\
 	comfieldfloat(SendFlags,NULL)/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
-	comfieldfloat(Version,"Obsolete")/*EXT_CSQC (obsolete)*/\
+	comfieldfloat(Version,"Obsolete, set a SendFlags bit instead.")/*EXT_CSQC (obsolete)*/\
 	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
 	comfieldfloat(modelflags,NULL)\
 	comfieldfloat(uniquespawnid,NULL)/*FTE_ENT_UNIQUESPAWNID*/\
@@ -269,7 +270,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(frame2time,NULL)	/*EXT_CSQC_1*/\
 	comfieldfloat(lerpfrac,NULL)	/*EXT_CSQC_1*/\
 	comfieldfloat(renderflags,NULL)\
-	comfieldfloat(forceshader,NULL)/*FTE_CSQC_SHADERS*/\
+	comfieldfloat(forceshader,"Contains a shader handle used to replace all surfaces upon the entity.")/*FTE_CSQC_SHADERS*/\
 							\
 	comfieldfloat(baseframe,NULL)	/*FTE_CSQC_BASEFRAME*/\
 	comfieldfloat(baseframe2,NULL)	/*FTE_CSQC_BASEFRAME*/\
@@ -287,7 +288,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(basesubblendfrac,NULL)	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
 							\
 	comfieldfloat(drawmask,NULL)	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
-	comfieldfunction(predraw, ".void()",NULL)	/*If present, is called just before it's drawn.*/	
+	comfieldfunction(predraw, ".float()",NULL)	/*If present, is called just before it's drawn.*/	
 
 typedef struct stdentvars_s //standard = standard for qw
 {

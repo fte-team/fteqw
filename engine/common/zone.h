@@ -97,7 +97,7 @@ void VARGS Z_TagFree(void *ptr);
 void VARGS Z_FreeTags(int tag);
 //void *Z_Realloc (void *ptr, int size);
 
-//Big Zone: allowed to fail, doesn't clear. The expectation is a large file, rather than sensative data structures.
+//Big Zone: allowed to fail, doesn't clear. The expectation is a large file, rather than sensitive data structures.
 //(this is a nicer name for malloc)
 void *BZ_Malloc(int size);
 void *BZF_Malloc(int size);

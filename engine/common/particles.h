@@ -123,7 +123,7 @@ typedef struct {
 	char *name1;
 	char *name2;
 
-	int (*FindParticleType) (char *name);
+	int (*FindParticleType) (const char *name);
 	qboolean (*ParticleQuery) (int type, int body, char *outstr, int outstrlen);
 
 	int (*RunParticleEffectTypeString) (vec3_t org, vec3_t dir, float count, char *name);

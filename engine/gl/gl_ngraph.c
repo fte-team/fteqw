@@ -99,7 +99,7 @@ void R_NetGraph (void)
 	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
 
 	x = 0;
-	lost = CL_CalcNet();
+	lost = CL_CalcNet(r_netgraph.value);
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
 		i = (cl.movesequence-a) & NET_TIMINGSMASK;
@@ -130,8 +130,6 @@ void R_NetGraph (void)
 void R_FrameTimeGraph (int frametime)
 {
 	int		a, x, i, y;
-	int lost;
-	char st[80];
 	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
 
 	static int timehistory[NET_TIMINGS];
@@ -140,7 +138,6 @@ void R_FrameTimeGraph (int frametime)
 	timehistory[findex++&NET_TIMINGSMASK] = frametime;
 
 	x = 0;
-	lost = CL_CalcNet();
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
 		i = (findex-a) & NET_TIMINGSMASK;
@@ -159,8 +156,6 @@ void R_FrameTimeGraph (int frametime)
 	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 1);
 	y += 8;
 
-	sprintf(st, "%3i%% packet loss", lost);
-	Draw_FunString(8, y, st);
 	y += 8;
 
 	R_Upload(netgraphtexture, "***netgraph***", TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);

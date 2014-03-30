@@ -757,6 +757,38 @@ void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
+void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12])
+{
+	   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
+	   float x2, y2, z2;
+	   float s;
+	   x2 = quat[0] + quat[0];
+	   y2 = quat[1] + quat[1];
+	   z2 = quat[2] + quat[2];
+
+	   xx = quat[0] * x2;   xy = quat[0] * y2;   xz = quat[0] * z2;
+	   yy = quat[1] * y2;   yz = quat[1] * z2;   zz = quat[2] * z2;
+	   xw = quat[3] * x2;   yw = quat[3] * y2;   zw = quat[3] * z2;
+
+	   s = scale[0];
+	   result[0*4+0] = s*(1.0f - (yy + zz));
+	   result[1*4+0] = s*(xy + zw);
+	   result[2*4+0] = s*(xz - yw);
+
+	   s = scale[1];
+	   result[0*4+1] = s*(xy - zw);
+	   result[1*4+1] = s*(1.0f - (xx + zz));
+	   result[2*4+1] = s*(yz + xw);
+
+	   s = scale[2];
+	   result[0*4+2] = s*(xz + yw);
+	   result[1*4+2] = s*(yz - xw);
+	   result[2*4+2] = s*(1.0f - (xx + yy));
+
+	   result[0*4+3]  =     pos[0];
+	   result[1*4+3]  =     pos[1];
+	   result[2*4+3]  =     pos[2];
+}
 #ifdef HALFLIFEMODELS
 
 void AngleQuaternion( const vec3_t angles, vec4_t quaternion )
@@ -1646,7 +1678,7 @@ void Matrix3x4_InvertTo4x4_Simple (const float *in1, float *out)
 	out[15] = 1;
 }
 
-void Matrix3x4_InvertTo3x3(float *in, float *result)
+void Matrix3x4_InvertTo3x3(const float *in, float *result)
 {
 	float t1[16], tr[16];
 	memcpy(t1, in, sizeof(float)*12);

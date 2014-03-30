@@ -3034,14 +3034,17 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 
 
 #ifdef PEXT_SCALE
-	state->scale = ent->xv->scale*16;
 	if (!ent->xv->scale)
 		state->scale = 1*16;
+	else
+		state->scale = bound(0, ent->xv->scale*16, 255);
+
 #endif
 #ifdef PEXT_TRANS
-	state->trans = ent->xv->alpha*255;
 	if (!ent->xv->alpha)
 		state->trans = 255;
+	else
+		state->trans = bound(0, ent->xv->alpha*255, 255);
 
 	//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 	if (client && client->edict)
@@ -3298,6 +3301,9 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 			VectorMA(clent->v->origin, -0.5, org, org);
 			dist = DotProduct(org, org);	//Length
 
+//			if (dist > 1024*1024)
+//				continue;
+
 			// add to the packetentities
 			if (pack->num_entities == pack->max_entities)
 			{
@@ -3474,6 +3480,12 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	else
 		pack = &frame->entities;
 	SV_Snapshot_Clear(pack);
+
+	if (!pack->entities)
+	{
+		Con_Printf("DON'T PANIC!\n");
+		return;
+	}
 
 	// put other visible entities into either a packet_entities or a nails message
 

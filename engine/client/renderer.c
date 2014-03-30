@@ -121,7 +121,7 @@ cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
-cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
+extern cvar_t r_lerpmuzzlehack;
 cvar_t r_nolerp								= CVARF  ("r_nolerp", "0", CVAR_ARCHIVE);
 cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 cvar_t r_nolightdir							= CVARF  ("r_nolightdir", "0", CVAR_ARCHIVE);
@@ -159,7 +159,7 @@ cvar_t scr_chatmodecvar						= CVAR  ("scr_chatmode", "0");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
-cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "300");
+cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 // 10 - 170
 cvar_t scr_fov								= CVARFC("fov", "90",
 												CVAR_ARCHIVE,
@@ -209,6 +209,8 @@ cvar_t vid_multisample						= CVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_srgb								= CVARF ("vid_srgb", "0",
+												CVAR_ARCHIVE);
 cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",
@@ -255,7 +257,7 @@ cvar_t	vid_gl_context_debug				= CVARD  ("vid_gl_context_debug", "0", "Requests 
 cvar_t	vid_gl_context_es					= CVARD  ("vid_gl_context_es", "0", "Requests an OpenGLES context. Be sure to set vid_gl_context_version to 2 or so."); //requires version set correctly, no debug, no compat
 #endif
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#if 1
 cvar_t gl_ati_truform						= CVAR  ("gl_ati_truform", "0");
 cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
@@ -263,6 +265,7 @@ cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
 cvar_t r_deluxemapping						= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions");
+cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
 cvar_t gl_conback							= CVARFDC ("gl_conback", "",
 												CVAR_RENDERERCALLBACK, "Specifies which conback shader/image to use. The Quake fallback is gfx/conback.lmp", R2D_Conback_Callback);
@@ -361,7 +364,7 @@ cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
-cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
+cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 
 extern cvar_t gl_dither;
 cvar_t	gl_screenangle = SCVAR("gl_screenangle", "0");
@@ -438,6 +441,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
 
+	Cvar_Register (&r_shaderblobs, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
@@ -595,6 +599,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_height, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_refreshrate, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_srgb, GLRENDEREROPTIONS);
 
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
@@ -845,9 +850,6 @@ rendererinfo_t swrendererinfo;
 
 rendererinfo_t *rendererinfo[] =
 {
-#ifndef NPQTV
-	&dedicatedrendererinfo,
-#endif
 #ifdef GLQUAKE
 #ifdef FTE_RPI
 	&rpirendererinfo,
@@ -863,6 +865,9 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef SWQUAKE
 	&swrendererinfo,
+#endif
+#ifndef NPQTV
+	&dedicatedrendererinfo,
 #endif
 };
 
@@ -916,9 +921,8 @@ void D3DSucks(void)
 		Sys_Error("Failed to reload content after mode switch\n");
 }
 
-void R_ShutdownRenderer(void)
+void R_ShutdownRenderer(qboolean videotoo)
 {
-
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
 	P_Shutdown();
@@ -935,7 +939,7 @@ void R_ShutdownRenderer(void)
 	if (Draw_Shutdown)
 		Draw_Shutdown();
 
-	if (VID_DeInit)
+	if (VID_DeInit && videotoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
@@ -983,7 +987,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	if (!newr->renderer)
 		return false;
 
-	R_ShutdownRenderer();
+	R_ShutdownRenderer(true);
 
 	if (qrenderer == QR_NONE)
 	{
@@ -1094,6 +1098,8 @@ TRACE(("dbg: R_ApplyRenderer: screen inited\n"));
 		Sbar_Flush();
 
 		IN_ReInit();
+
+		Cvar_ForceCallback(&v_gamma);
 	}
 	else
 	{
@@ -1137,7 +1143,7 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 #endif
 
 TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
-		sv.world.worldmodel = Mod_ForName (sv.modelname, false);
+		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_WARN);
 TRACE(("dbg: R_ApplyRenderer: loaded\n"));
 		if (sv.world.worldmodel->needload)
 		{
@@ -1203,6 +1209,14 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			}
 		}
 #endif
+#ifdef Q3SERVER
+		else if (svs.gametype == GT_QUAKE3)
+		{
+			//traditionally a q3 server can just keep hold of its world cmodel and nothing is harmed.
+			//this means we just need to reload the worldmodel and all is fine...
+			//there are some edge cases however, like lingering pointers refering to entities.
+		}
+#endif
 		else
 			SV_UnspawnServer();
 	}
@@ -1215,6 +1229,19 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 	CL_InitDlights();
 
 TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
+
+	if (newr)
+		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
+
+#ifdef Q3SERVER
+	if (svs.gametype == GT_QUAKE3)
+	{
+		CG_Stop();
+		CG_Start();
+		R_NewMap();
+	}
+	else
+#endif
 	if (cl.worldmodel)
 	{
 		cl.worldmodel = NULL;
@@ -1227,7 +1254,6 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 			if (!cl.model_name[i][0])
 				break;
 
-			cl.model_precache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
 
 #ifdef Q2CLIENT	//skip vweps
@@ -1235,9 +1261,9 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				cl.model_precache[i] = NULL;
 			else
 #endif
-				cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+				cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_SILENT);
 
-			if (!cl.model_precache[i] && i == 1)
+			if ((!cl.model_precache[i] || cl.model_precache[i]->type == mod_dummy) && i == 1)
 			{
 				Con_Printf ("\nThe required model file '%s' could not be found.\n\n"
 					, cl.model_name[i]);
@@ -1254,7 +1280,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=0; i < MAX_VWEP_MODELS; i++)
 		{
 			if (*cl.model_name_vwep[i])
-				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], false);
+				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], MLV_SILENT);
 			else
 				cl.model_precache_vwep[i] = NULL;
 		}
@@ -1267,7 +1293,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 
 			cl.model_csqcprecache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading csqc model %s\n", cl.model_csqcname[i]));
-			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], false);
+			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], MLV_SILENT);
 
 			if (!cl.model_csqcprecache[i])
 			{
@@ -1340,13 +1366,12 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 	TRACE(("dbg: R_ApplyRenderer: done\n"));
 
-	if (newr)
-		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 	return true;
 }
 
 void R_ReloadRenderer_f (void)
 {
+	R_ShutdownRenderer(false);
 	//reloads textures without destroying video context.
 	R_ApplyRenderer_Load(NULL);
 }
@@ -1371,6 +1396,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->fullscreen = vid_fullscreen.value;
 	newr->rate = vid_refreshrate.value;
 	newr->stereo = (r_stereo_method.ival == 1);
+	newr->srgb = vid_srgb.ival;
 
 	if (!*vid_vsync.string || vid_vsync.value < 0)
 		newr->wait = -1;
@@ -1483,7 +1509,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		return;
 	}
 
-	M_Shutdown();
+	M_Shutdown(false);
 	Media_CaptureDemoEnd();
 
 	TRACE(("dbg: R_RestartRenderer_f renderer %i\n", newr.renderer));
@@ -1499,7 +1525,9 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		}
 		else
 		{
+			int i;
 			qboolean failed = true;
+			rendererinfo_t *skip = newr.renderer;
 
 			if (newr.rate != 0)
 			{
@@ -1516,23 +1544,31 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 				failed = !R_ApplyRenderer(&newr);
 			}
 
-			if (failed)
+			for (i = 0; failed && i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 			{
-				newr.renderer = &dedicatedrendererinfo;
-				if (R_ApplyRenderer(&newr))
+				newr.renderer = rendererinfo[i];
+				if (newr.renderer && newr.renderer != skip)
 				{
-					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
-					Con_Printf(CON_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\n\nChange the following vars to something useable, and then use the setrenderer command.\n");
-					Con_Printf("%s: %s\n", vid_width.name, vid_width.string);
-					Con_Printf("%s: %s\n", vid_height.name, vid_height.string);
-					Con_Printf("%s: %s\n", vid_bpp.name, vid_bpp.string);
-					Con_Printf("%s: %s\n", vid_refreshrate.name, vid_refreshrate.string);
-					Con_Printf("%s: %s\n", vid_renderer.name, vid_renderer.string);
-					Con_Printf("%s: %s\n", gl_driver.name, gl_driver.string);
+					Con_Printf(CON_NOTICE "Trying %s\n", newr.renderer->description);
+					failed = !R_ApplyRenderer(&newr);
 				}
-				else
-					Sys_Error("Couldn't fall back to previous renderer\n");
 			}
+
+			//if we ended up resorting to our last choice (dedicated) then print some informative message about it
+			//fixme: on unixy systems, we should make sure we're actually printing to something (ie: that we're not running via some x11 shortcut with our stdout redirected to /dev/nul
+			if (!failed && newr.renderer == &dedicatedrendererinfo)
+			{
+				Con_Printf(CON_ERROR "Video mode switch failed. Console forced.\n\nPlease change the following vars to something useable, and then use the setrenderer command.\n");
+				Con_Printf("%s: %s\n", vid_width.name, vid_width.string);
+				Con_Printf("%s: %s\n", vid_height.name, vid_height.string);
+				Con_Printf("%s: %s\n", vid_bpp.name, vid_bpp.string);
+				Con_Printf("%s: %s\n", vid_refreshrate.name, vid_refreshrate.string);
+				Con_Printf("%s: %s\n", vid_renderer.name, vid_renderer.string);
+				Con_Printf("%s: %s\n", gl_driver.name, gl_driver.string);
+			}
+
+			if (failed)
+				Sys_Error("Unable to initialise any video mode\n");
 		}
 	}
 
@@ -2245,7 +2281,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 	r_refdef.frustum_numplanes++;
 
 	//do far plane
-	//fog will not logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
+	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
 	if (r_refdef.gfog_rgbd[3] 
 #ifdef TERRAIN
 	&& cl.worldmodel && cl.worldmodel->type == mod_heightmap
@@ -2261,9 +2297,9 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		/*Documentation: the GLSL/GL will do this maths:
 		float dist = 1024;
 		if (r_fog_exp2.ival)
-			fog = pow(2, -r_refdef.gfog_rgbd[3] * r_refdef.gfog_rgbd[3] * dist * dist * 1.442695);
+			fog = pow(2, -r_refdef.globalfog.density * r_refdef.globalfog.density * dist * dist * 1.442695);
 		else
-			fog = pow(2, -r_refdef.gfog_rgbd[3] * dist * 1.442695);
+			fog = pow(2, -r_refdef.globalfog.density * dist * 1.442695);
 		*/
 
 		//the fog factor cut-off where its pointless to allow it to get closer to 0 (0 is technically infinite)
@@ -2272,9 +2308,9 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		//figure out the eyespace distance required to reach that fog value
 		culldist = log(fog);
 		if (r_fog_exp2.ival)
-			culldist = sqrt(culldist / (-r_refdef.gfog_rgbd[3] * r_refdef.gfog_rgbd[3]));
+			culldist = sqrt(culldist / (-r_refdef.globalfog.density * r_refdef.globalfog.density));
 		else
-			culldist = culldist / (-r_refdef.gfog_rgbd[3]);
+			culldist = culldist / (-r_refdef.globalfog.density);
 		//anything drawn beyond this point is fully obscured by fog
 
 		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = mvp[3] - mvp[2];

@@ -63,7 +63,7 @@ typedef struct {
 	hostcachekey_t fieldindex;
 
 	float operandi;
-	char *operands;
+	const char *operands;
 
 	qboolean or;
 	int compareop;
@@ -175,7 +175,7 @@ qboolean Master_CompareInteger(int a, int b, slist_test_t rule)
 	}
 	return false;
 }
-qboolean Master_CompareString(char *a, char *b, slist_test_t rule)
+qboolean Master_CompareString(const char *a, const char *b, slist_test_t rule)
 {
 	switch(rule)
 	{
@@ -325,7 +325,7 @@ void Master_ClearMasks(void)
 	numvisrules = 0;
 }
 
-void Master_SetMaskString(qboolean or, hostcachekey_t field, char *param, slist_test_t testop)
+void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, slist_test_t testop)
 {
 	if (numvisrules == MAX_VISRULES)
 		return;	//just don't add it.
@@ -540,7 +540,7 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 	return "";
 }
 
-int Master_KeyForName(char *keyname)
+int Master_KeyForName(const char *keyname)
 {
 	int i;
 	if (!strcmp(keyname, "map"))

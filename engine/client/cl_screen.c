@@ -584,7 +584,7 @@ void SCR_CheckDrawCenterString (void)
 	}
 }
 
-void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaultmask, unsigned int fieldflags)
+void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags)
 {
 	cprint_t p;
 	vrect_t r;
@@ -663,9 +663,11 @@ static void SCR_DrawSimMTouchCursor(void)
 typedef struct showpic_s {
 	struct showpic_s *next;
 	qbyte zone;
-	short x, y;
+	qboolean persist;
+	short x, y, w, h;
 	char *name;
 	char *picname;
+	char *tcommand;
 } showpic_t;
 showpic_t *showpics;
 
@@ -745,13 +747,54 @@ void SCR_ShowPics_Draw(void)
 		p = R2D_SafeCachePic(sp->picname);
 		if (!p)
 			continue;
-		R2D_ScalePic(x, y, p->width, p->height, p);
+		R2D_ScalePic(x, y, sp->w?sp->w:p->width, sp->h?sp->h:p->height, p);
 	}
 }
-
-void SCR_ShowPic_Clear(void)
+char *SCR_ShowPics_ClickCommand(int cx, int cy)
 {
+	downloadlist_t *failed;
+	float x, y, w, h;
 	showpic_t *sp;
+	mpic_t *p;
+	for (sp = showpics; sp; sp = sp->next)
+	{
+		if (!sp->tcommand || !*sp->tcommand)
+			continue;
+
+		x = sp->x;
+		y = sp->y;
+		w = sp->w;
+		h = sp->h;
+		SP_RecalcXY(&x, &y, sp->zone);
+
+		if (!w || !h)
+		{
+			if (!*sp->picname)
+				continue;
+			for (failed = cl.faileddownloads; failed; failed = failed->next)
+			{	//don't try displaying ones that we know to have failed.
+				if (!strcmp(failed->rname, sp->picname))
+				break;
+			}
+			if (failed)
+				continue;
+			p = R2D_SafeCachePic(sp->picname);
+			if (!p)
+				continue;
+			w = w?w:sp->w;
+			h = h?h:sp->h;
+		}
+		if (cx >= x && cx < x+w)
+			if (cy >= y && cy < y+h)
+				return sp->tcommand;	//if they overlap, that's your own damn fault.
+	}
+	return NULL;
+}
+
+//all=false clears only server pics, not ones from configs.
+void SCR_ShowPic_Clear(qboolean all)
+{
+	showpic_t **link, *sp;
 	int pnum;
 
 	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
@@ -760,12 +803,19 @@ void SCR_ShowPic_Clear(void)
 		scr_centerprint[pnum].charcount = 0;
 	}
 
-	while((sp = showpics))
+	for (link = &showpics; (sp=*link); )
 	{
-		showpics = sp->next;
+		if (sp->persist)
+		{
+			link = &sp->next;
+			continue;
+		}
+		
+		*link = sp->next;
 
 		Z_Free(sp->name);
 		Z_Free(sp->picname);
+		Z_Free(sp->tcommand);
 		Z_Free(sp);
 	}
 }
@@ -879,7 +929,8 @@ void SCR_ShowPic_Script_f(void)
 {
 	char *imgname;
 	char *name;
-	int x, y;
+	char *tcommand;
+	int x, y, w, h;
 	int zone;
 	showpic_t *sp;
 
@@ -889,17 +940,27 @@ void SCR_ShowPic_Script_f(void)
 	y = atoi(Cmd_Argv(4));
 	zone = atoi(Cmd_Argv(5));
 
+	w = atoi(Cmd_Argv(6));
+	h = atoi(Cmd_Argv(7));
+	tcommand = Cmd_Argv(8);
 
 
 	sp = SCR_ShowPic_Find(name);
 
 	Z_Free(sp->picname);
-	sp->picname = Z_Malloc(strlen(imgname)+1);
-	strcpy(sp->picname, imgname);
+	Z_Free(sp->tcommand);
+	sp->picname = Z_StrDup(imgname);
+	sp->tcommand = Z_StrDup(tcommand);
 
 	sp->zone = zone;
 	sp->x = x;
 	sp->y = y;
+	sp->w = w;
+	sp->h = h;
+
+	if (!sp->persist)
+		sp->persist = !Cmd_FromGamecode();
+
 }
 
 //=============================================================================

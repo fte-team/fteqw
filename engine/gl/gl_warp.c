@@ -56,6 +56,7 @@ void R_SetSky(char *skyname)
 				"program default2d\n"
 				"{\n"
 					"map $diffuse\n"
+					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
 				"}\n"
 			"}\n"
 		);

@@ -123,6 +123,7 @@ void QCBUILTIN PF_stov (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_dupstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_forgetstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_min (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_max (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -133,7 +134,7 @@ void QCBUILTIN PF_atan (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_atan2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_tan (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, char *s, int firstarg, char *outbuf, int outbuflen);
+void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, const char *s, int firstarg, char *outbuf, int outbuflen);
 void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -304,6 +305,7 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 
 void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_edict_for_num (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_num_for_edict (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -442,21 +444,22 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_applylightstyle(int style, char *val, int col);
-void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuation);
+void QCBUILTIN PF_applylightstyle(int style, const char *val, int col);
+void PF_ambientsound_Internal (float *pos, const char *samp, float vol, float attenuation);
 void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_ExecuteCommand  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_setspawnparms (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_ForceInfoKey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_precache_vwep_model(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value);
 int PF_checkclient_Internal (pubprogfuncs_t *prinst);
-void PF_precache_sound_Internal (pubprogfuncs_t *prinst, char *s);
-int PF_precache_model_Internal (pubprogfuncs_t *prinst, char *s, qboolean queryonly);
-void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, char *m);
-char *PF_infokey_Internal (int entnum, char *value);
-void PF_centerprint_Internal (int entnum, qboolean plaque, char *s);
-void PF_WriteString_Internal (int target, char *str);
+void PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s);
+int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly);
+void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m);
+char *PF_infokey_Internal (int entnum, const char *value);
+void PF_stuffcmd_Internal(int entnum, const char *str);
+void PF_centerprint_Internal (int entnum, qboolean plaque, const char *s);
+void PF_WriteString_Internal (int target, const char *str);
 pbool QDECL ED_CanFree (edict_t *ed);
 #endif
 

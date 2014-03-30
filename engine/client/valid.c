@@ -2,11 +2,7 @@
 #include <ctype.h>
 
 #ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#include <windows.h>
+#include "winquake.h"
 #endif
 
 typedef struct f_modified_s {
@@ -59,7 +55,7 @@ static Security_Supported_Binaries_t Security_Supported_Binaries;
 static Security_Shutdown_t Security_Shutdown;
 
 
-#ifdef _WIN32
+#if 0//def _WIN32
 static void *secmodule;
 #endif
 
@@ -209,7 +205,7 @@ void InitValidation(void)
 	Cvar_Register(&allow_f_cmdline,	"Authentication");
 	Cvar_Register(&ruleset,		"Authentication");
 
-#ifdef _WIN32
+#if 0//def _WIN32
 	secmodule = LoadLibrary("fteqw-security.dll");
 	if (secmodule)
 	{
@@ -242,7 +238,7 @@ void InitValidation(void)
 			Cvar_Register(&auth_validateclients,	"Authentication");
 			return;
 		}
-#ifdef _WIN32
+#if 0//def _WIN32
 		FreeLibrary(secmodule);
 #endif
 	}
@@ -380,7 +376,7 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_overlong_sounds", "0"},
 	{"ruleset_allow_larger_models", "0"},
 	{"ruleset_allow_modified_eyes", "0"},
-	{"ruleset_allow_sensative_texture_replacements", "0"},
+	{"ruleset_allow_sensitive_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_fbmodels", "0"},
 	{"tp_disputablemacros", "0"},
@@ -397,7 +393,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_packet", "0"},
 	{"ruleset_allow_frj", "0"},
 	{"ruleset_allow_modified_eyes", "0"},
-	{"ruleset_allow_sensative_texture_replacements", "0"},
+	{"ruleset_allow_sensitive_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_shaders", "0"},
 	{"ruleset_allow_fbmodels", "0"},

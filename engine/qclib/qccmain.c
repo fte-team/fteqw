@@ -175,7 +175,7 @@ struct {
 	{" F302", WARN_UNINITIALIZED},
 	{" F303", WARN_EVILPREPROCESSOR},
 	{" F304", WARN_UNARYNOTSCOPE},
-	{" F305", WARN_CASEINSENSATIVEFRAMEMACRO},
+	{" F305", WARN_CASEINSENSITIVEFRAMEMACRO},
 	{" F306", WARN_SAMENAMEASGLOBAL},
 	{" F307", WARN_STRICTTYPEMISMATCH},
 
@@ -291,8 +291,8 @@ compiler_flag_t compiler_flag[] = {
 	{&writeasm,				0,				"wasm",			"Dump Assembler",		"Writes out a qc.asm which contains all your functions but in assembler. This is a great way to look for bugs in fteqcc, but can also be used to see exactly what your functions turn into, and thus how to optimise statements better."},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
 	{&flag_ifstring,		FLAG_MIDCOMPILE,"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
 	{&flag_iffloat,			FLAG_MIDCOMPILE,"iffloat","if(-0.0) fix","Fixes certain floating point logic."},
-	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensativity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
-	{&flag_caseinsensative,	0,				"caseinsens",	"Case insensativity",	"Causes fteqcc to become case insensative whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
+	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
+	{&flag_caseinsensitive,	0,				"caseinsens",	"Case insensitivity",	"Causes fteqcc to become case insensitive whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensitive case if the specified case doesn't exist. This should b usable for any mod
 	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatible types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
@@ -2972,7 +2972,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_EVILPREPROCESSOR] = WA_WARN;//FIXME: make into WA_ERROR;
 
 	if (QCC_CheckParm("-h2"))
-		qccwarningaction[WARN_CASEINSENSATIVEFRAMEMACRO] = WA_IGNORE;
+		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;
 
 	//Check the command line
 	QCC_PR_CommandLinePrecompilerOptions();
@@ -2996,7 +2996,8 @@ void QCC_SetDefaultProperties (void)
 }
 
 //builds a list of files, pretends that they came from a progs.src
-int QCC_FindQCFiles()
+//FIXME: use sourcedir!
+int QCC_FindQCFiles(const char *sourcedir)
 {
 #ifdef _WIN32
 	WIN32_FIND_DATA fd;
@@ -3010,7 +3011,7 @@ int QCC_FindQCFiles()
 	qccmsrc = qccHunkAlloc(8192);
 	strcat(qccmsrc, "progs.dat\n");//"#pragma PROGS_DAT progs.dat\n");
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 	h = FindFirstFile("*.qc", &fd);
 	if (h == INVALID_HANDLE_VALUE)
 		return 0;
@@ -3281,13 +3282,13 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		return;
 	}
 
-	if (flag_caseinsensative)
+	if (flag_caseinsensitive)
 	{
-		printf("Compiling without case sensativity\n");
-		pHash_Get = &Hash_GetInsensative;
-		pHash_GetNext = &Hash_GetNextInsensative;
-		pHash_Add = &Hash_AddInsensative;
-		pHash_RemoveData = &Hash_RemoveDataInsensative;
+		printf("Compiling without case sensitivity\n");
+		pHash_Get = &Hash_GetInsensitive;
+		pHash_GetNext = &Hash_GetNextInsensitive;
+		pHash_Add = &Hash_AddInsensitive;
+		pHash_RemoveData = &Hash_RemoveDataInsensitive;
 	}
 
 	p = QCC_CheckParm ("-src");

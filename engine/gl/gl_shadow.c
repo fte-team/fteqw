@@ -512,7 +512,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 }
 static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 {
-	if (sh_shmesh != &sh_tempshmesh)
+	if (sh_shmesh != &sh_tempshmesh || 1)
 	{
 		switch (qrenderer)
 		{
@@ -521,8 +521,8 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 		default:
 			break;
 
-		case QR_OPENGL:
 #ifdef GLQUAKE
+		case QR_OPENGL:
 			if (!qglGenBuffersARB)
 				return sh_shmesh;
 			qglGenBuffersARB(2, sh_shmesh->vebo);
@@ -533,10 +533,10 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 
 			GL_SelectEBO(sh_shmesh->vebo[1]);
 			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
-#endif
 			break;
-		case QR_DIRECT3D9:
+#endif
 #ifdef D3D9QUAKE
+		case QR_DIRECT3D9:
 			if (sh_shmesh->numindicies && sh_shmesh->numverts)
 			{
 				void *map;
@@ -551,8 +551,8 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 				IDirect3DVertexBuffer9_Unlock(sh_shmesh->d3d9_vbuffer);
 
 			}
-#endif
 			break;
+#endif
 #ifdef D3D11QUAKE	
 		case QR_DIRECT3D11:
 			D3D11BE_GenerateShadowBuffer(&sh_shmesh->d3d11_vbuffer, sh_shmesh->verts, sh_shmesh->numverts, &sh_shmesh->d3d11_ibuffer, sh_shmesh->indicies, sh_shmesh->numindicies);
@@ -1420,22 +1420,8 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			{
 				SHM_BeginShadowMesh(dl, type);
 
-#if 0
-				{
-					int i;
-					msurface_t *surf;
-					for (i = 0; i < cl.worldmodel->numsurfaces; i+=2)
-					{
-						surf = &cl.worldmodel->surfaces[i];
-						SHM_Shadow_Cache_Surface(surf);
-						SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
-					}
-					memset(sh_shmesh->litleaves, 0xff, sh_shmesh->leafbytes);
-				}
-#else
 				SHM_MarkLeavesQ1(dl, lvis);
 				SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
-#endif
 			}
 			break;
 #ifdef Q2BSPS
@@ -1450,24 +1436,10 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			/*q3 doesn't have edge info*/
 			SHM_BeginShadowMesh(dl, type);
 
-#if 0
-				{
-					int i;
-					msurface_t *surf;
-					for (i = 0; i < cl.worldmodel->numsurfaces; i++)
-					{
-						surf = &cl.worldmodel->surfaces[i];
-						SHM_Shadow_Cache_Surface(surf);
-						SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
-					}
-					memset(sh_shmesh->litleaves, 0xff, sh_shmesh->leafbytes);
-				}
-#else
 			sh_shadowframe++;
 			SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
 			if (type == SMT_STENCILVOLUME)
 				SHM_ComposeVolume_BruteForce(dl);
-#endif
 			break;
 #endif
 		default:
@@ -2298,7 +2270,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 */
 }
 
-void D3D11_BeginShadowMap(int id, int w, int h);
+qboolean D3D11_BeginShadowMap(int id, int w, int h);
 void D3D11_EndShadowMap(void);
 
 void D3D11BE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int texheight, float shadowscale);
@@ -2430,7 +2402,8 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
-		D3D11_BeginShadowMap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2)));
+		if (!D3D11_BeginShadowMap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2))))
+			return false;
 
 //		BE_Scissor(&rect);
 		break;
@@ -3311,15 +3284,18 @@ void Com_ParseVector(char *str, vec3_t out)
 
 void Sh_CheckSettings(void)
 {
-	qboolean canstencil = false, cansmap = false;
+	qboolean canstencil = false, cansmap = false, canshadowless = false;
 	r_shadow_shadowmapping.ival = r_shadow_shadowmapping.value;
 	r_shadow_realtime_world.ival = r_shadow_realtime_world.value;
 	r_shadow_realtime_dlight.ival = r_shadow_realtime_dlight.value;
+	r_shadow_realtime_world_shadows.ival = r_shadow_realtime_world_shadows.value;
+	r_shadow_realtime_dlight_shadows.ival = r_shadow_realtime_dlight_shadows.value;
 
 	switch(qrenderer)
 	{
 #ifdef GLQUAKE
 	case QR_OPENGL:
+		canshadowless = true; //falls back to crappy texture env
 		if (gl_config.arb_shader_objects && gl_config.ext_framebuffer_objects && gl_config.arb_shadow)
 			cansmap = true;
 		if (gl_stencilbits)
@@ -3329,6 +3305,7 @@ void Sh_CheckSettings(void)
 #ifdef D3D9QUAKE
 	case QR_DIRECT3D9:
 		#ifndef GLQUAKE
+		canshadowless = true;
 		//the code still has a lot of ifdefs, so will crash if you try it in a merged build.
 		//its not really usable in d3d-only builds either, so no great loss.
 		canstencil = true;
@@ -3337,7 +3314,9 @@ void Sh_CheckSettings(void)
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
-		cansmap = true;
+		canshadowless = true;	//all feature levels
+		if (D3D11_BeginShadowMap(0, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2))
+			cansmap = true;		//tends to not work properly until feature level 10 for one error or another.
 		break;
 #endif
 	default:
@@ -3346,19 +3325,28 @@ void Sh_CheckSettings(void)
 		return;
 	}
 
-	if (!canstencil && !cansmap)
+	if (!canstencil && !cansmap && !canshadowless)
 	{
 		//no shadow methods available at all.
-		Con_Printf("Missing GL extensions: realtime lighting is not possible.\n");
+		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival)
+			Con_Printf("Missing driver extensions: realtime lighting is not possible.\n");
 		r_shadow_realtime_world.ival = 0;
 		r_shadow_realtime_dlight.ival = 0;
+	}
+	else if (!canstencil && !cansmap)
+	{
+		//no shadow methods available at all.
+		if ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival))
+			Con_Printf("Missing driver extensions: realtime shadows are not possible.\n");
+		r_shadow_realtime_world_shadows.ival = 0;
+		r_shadow_realtime_dlight_shadows.ival = 0;
 	}
 	else if (!canstencil || !cansmap)
 	{
 		//only one shadow method
 		if (!!r_shadow_shadowmapping.ival != cansmap)
 		{
-			Con_Printf("Missing GL extensions: forcing shadowmapping %s.\n", cansmap?"on":"off");
+			Con_Printf("Missing driver extensions: forcing shadowmapping %s.\n", cansmap?"on":"off");
 			r_shadow_shadowmapping.ival = cansmap;
 		}
 	}

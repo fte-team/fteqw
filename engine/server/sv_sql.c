@@ -17,6 +17,7 @@ static unsigned int (VARGS *qmysql_errno)(MYSQL *mysql);
 static const char *(VARGS *qmysql_error)(MYSQL *mysql);
 static MYSQL_FIELD *(VARGS *qmysql_fetch_field_direct)(MYSQL_RES *res, unsigned int fieldnr);
 static MYSQL_ROW (VARGS *qmysql_fetch_row)(MYSQL_RES *result);
+static unsigned long *(VARGS *qmysql_fetch_lengths)(MYSQL_RES *result);
 static unsigned int (VARGS *qmysql_field_count)(MYSQL *mysql);
 static void (VARGS *qmysql_free_result)(MYSQL_RES *result);
 static const char *(VARGS *qmysql_get_client_info)(void);
@@ -43,6 +44,7 @@ static dllfunction_t mysqlfuncs[] =
 	{(void*)&qmysql_error, "mysql_error"},
 	{(void*)&qmysql_fetch_field_direct, "mysql_fetch_field_direct"},
 	{(void*)&qmysql_fetch_row, "mysql_fetch_row"},
+	{(void*)&qmysql_fetch_lengths, "mysql_fetch_lengths"},
 	{(void*)&qmysql_field_count, "mysql_field_count"},
 	{(void*)&qmysql_free_result, "mysql_free_result"},
 	{(void*)&qmysql_get_client_info, "mysql_get_client_info"},
@@ -76,6 +78,7 @@ SQLITE_API int (QDECL *qsqlite3_column_count)(sqlite3_stmt *pStmt);
 SQLITE_API const char *(QDECL *qsqlite3_column_name)(sqlite3_stmt *pStmt, int N);
 SQLITE_API int (QDECL *qsqlite3_step)(sqlite3_stmt *pStmt);
 SQLITE_API const unsigned char *(QDECL *qsqlite3_column_text)(sqlite3_stmt *pStmt, int i);
+SQLITE_API int (QDECL *qsqlite3_column_bytes)(sqlite3_stmt*, int iCol);
 SQLITE_API int (QDECL *qsqlite3_finalize)(sqlite3_stmt *pStmt);
 
 static dllfunction_t sqlitefuncs[] =
@@ -92,6 +95,7 @@ static dllfunction_t sqlitefuncs[] =
 	{(void*)&qsqlite3_column_name,				"sqlite3_column_name"},
 	{(void*)&qsqlite3_step,						"sqlite3_step"},
 	{(void*)&qsqlite3_column_text,				"sqlite3_column_text"},
+	{(void*)&qsqlite3_column_bytes,				"sqlite3_column_bytes"},
 	{(void*)&qsqlite3_finalize,					"sqlite3_finalize"},
 	{NULL}
 };
@@ -343,7 +347,7 @@ int sql_serverworker(void *sref)
 					sqlite3_stmt *pStmt;
 					const char *trailingstring;
 					char *statementstring = qreq->query;
-					char **mat;
+					sqliteresult_t *mat;
 					int rowspace;
 					int totalrows = 0;
 					qboolean keeplooping = true;
@@ -361,8 +365,8 @@ int sql_serverworker(void *sref)
 							{
 								rowspace = 65;
 
-								qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + columns * sizeof(char*) * rowspace);
-								mat = (char**)(qres + 1);
+								qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + columns * sizeof(sqliteresult_t) * rowspace);
+								mat = (sqliteresult_t*)(qres + 1);
 								if (qres)
 								{
 									qres->result = mat;
@@ -376,7 +380,8 @@ int sql_serverworker(void *sref)
 									//headers technically take a row.
 									for (i = 0; i < columns; i++)
 									{
-										mat[i] = strdup(qsqlite3_column_name(pStmt, i));
+										mat[i].ptr = strdup(qsqlite3_column_name(pStmt, i));
+										mat[i].len = 0;
 									}
 									rowspace--;
 									mat += columns;
@@ -390,7 +395,13 @@ int sql_serverworker(void *sref)
 
 											//generate the row info
 											for (i = 0; i < columns; i++)
-												mat[i] = strdup(qsqlite3_column_text(pStmt, i));
+											{
+												const char *data = qsqlite3_column_text(pStmt, i);
+												mat[i].len = qsqlite3_column_bytes(pStmt, i);
+												mat[i].ptr = malloc(mat[i].len+1);
+												memcpy(mat[i].ptr, data, mat[i].len);
+												mat[i].ptr[mat[i].len] = 0;	//make sure blobs are null terminated, in case someone reads them as a string.
+											}
 											qres->rows++;
 											totalrows++;
 											rowspace--;
@@ -660,8 +671,10 @@ void SQL_CloseAllRequests(sqlserver_t *server)
 	}
 }
 
-char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields)
+char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields, size_t *resultsize)
 {
+	if (resultsize)
+		*resultsize = 0;
 	if (!qres->result)
 		return NULL;
 	else
@@ -681,6 +694,8 @@ char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col,
 					{
 						MYSQL_FIELD *field = qmysql_fetch_field_direct(qres->result, col);
 
+						if (resultsize)
+							*resultsize = 0;
 						if (!field)
 							return NULL;
 						else
@@ -690,9 +705,13 @@ char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col,
 #ifdef USE_SQLITE
 				case SQLDRV_SQLITE:
 					{
-						char **mat = qres->result;
+						sqliteresult_t *mat = qres->result;
 						if (mat)
-							return mat[col];
+						{
+							if (resultsize)
+								*resultsize = mat[col].len;
+							return mat[col].ptr;
+						}
 					}
 					return NULL;
 #endif
@@ -711,9 +730,13 @@ char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col,
 			case SQLDRV_MYSQL:
 				{
 					MYSQL_ROW sqlrow;
+					unsigned long *lengths;
 
 					qmysql_data_seek(qres->result, row);
 					sqlrow = qmysql_fetch_row(qres->result);
+					lengths = qmysql_fetch_lengths(qres->result);
+					if (resultsize)
+						*resultsize = lengths?lengths[col]:0;
 					if (!sqlrow || !sqlrow[col])
 						return NULL;
 					else
@@ -723,10 +746,14 @@ char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col,
 #ifdef USE_SQLITE
 				case SQLDRV_SQLITE:
 					{
-						char **mat = qres->result;
+						sqliteresult_t *mat = qres->result;
 						col += qres->columns * (row+1);
 						if (mat)
-							return mat[col];
+						{
+							if (resultsize)
+								*resultsize = mat[col].len;
+							return mat[col].ptr;
+						}
 					}
 					return NULL;
 #endif
@@ -773,7 +800,7 @@ void SQL_CleanupServer(sqlserver_t *server)
 	Z_Free(server);
 }
 
-int SQL_NewServer(char *driver, char **paramstr)
+int SQL_NewServer(const char *driver, const char **paramstr)
 {
 	sqlserver_t *server;
 	int serverref;
@@ -929,7 +956,7 @@ void SQL_Disconnect(sqlserver_t *server)
 	Sys_ConditionBroadcast(server->requestcondv);
 }
 
-void SQL_Escape(sqlserver_t *server, char *src, char *dst, int dstlen)
+void SQL_Escape(sqlserver_t *server, const char *src, char *dst, int dstlen)
 {
 	switch (server->driver)
 	{
@@ -1141,6 +1168,9 @@ void SQL_ServerCycle (void)
 				qres->next = qreq->results;
 				qreq->results = qres;
 
+				if (developer.ival)
+					if (qres->error)
+						Con_Printf("%s\n", qres->error);
 				if (qreq->state == SR_ABORTED)
 				{
 					persist = false;

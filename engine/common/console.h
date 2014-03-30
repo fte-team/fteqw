@@ -139,6 +139,7 @@ typedef struct console_s
 	void	(*redirect) (struct console_s *con, int key);	//if present, called every character.
 	void	*userdata;
 
+	conline_t	*completionline;	//temp text at the bottom of the console
 	conline_t	*footerline;	//temp text at the bottom of the console
 	conline_t	*selstartline, *selendline;
 	unsigned int	selstartoffset, selendoffset;
@@ -199,8 +200,8 @@ int Con_IsActive (console_t *con);
 void Con_Destroy (console_t *con);
 void Con_SetActive (console_t *con);
 qboolean Con_NameForNum(int num, char *buffer, int buffersize);
-console_t *Con_FindConsole(char *name);
-console_t *Con_Create(char *name, unsigned int flags);
+console_t *Con_FindConsole(const char *name);
+console_t *Con_Create(const char *name, unsigned int flags);
 void Con_SetVisible (console_t *con);
 void Con_PrintCon (console_t *con, char *txt);
 

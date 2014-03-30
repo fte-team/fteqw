@@ -331,7 +331,7 @@ extern vmvideo_t vid;
 #ifndef MAX_INFO_KEY
 #define	MAX_INFO_KEY	64
 #endif
-char *Info_ValueForKey (char *s, const char *key);
+char *Info_ValueForKey (const char *s, const char *key);
 void Info_RemoveKey (char *s, const char *key);
 void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);

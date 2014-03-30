@@ -286,9 +286,9 @@ int VM_GetFileList(char *path, char *ext, char *output, int buffersize)
 	if (!strcmp(path, "$modlist"))
 	{
 		vms.skip=0;
-		Sys_EnumerateFiles((vms.dir=com_quakedir), "*", VMEnumMods, &vms, NULL);
-		if (*com_homedir)
-			Sys_EnumerateFiles((vms.dir=com_homedir), "*", VMEnumMods, &vms, NULL);
+		Sys_EnumerateFiles((vms.dir=com_gamepath), "*", VMEnumMods, &vms, NULL);
+		if (*com_homepath)
+			Sys_EnumerateFiles((vms.dir=com_homepath), "*", VMEnumMods, &vms, NULL);
 	}
 	else if (*(char *)ext == '.' || *(char *)ext == '/')
 		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);

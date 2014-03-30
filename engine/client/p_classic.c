@@ -27,9 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define POLYS
 
-void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode);
-
-
 typedef enum {
 	DODGY,
 
@@ -95,7 +92,7 @@ static union c
 } classiccolours[BUFFERVERTS];
 static vec2_t classictexcoords[BUFFERVERTS];
 static index_t classicindexes[BUFFERVERTS];
-mesh_t classicmesh;
+static mesh_t classicmesh;
 #endif
 static shader_t *classicshader;
 
@@ -103,7 +100,7 @@ static shader_t *classicshader;
 
 //obtains an index for the name, even if it is unknown (one can be loaded after. will only fail if the effect limit is reached)
 //technically this function is not meant to fail often, but thats fine so long as the other functions are meant to safely reject invalid effect numbers.
-static int PClassic_FindParticleType(char *name)
+static int PClassic_FindParticleType(const char *name)
 {
 	if (!stricmp("tr_rocket", name))
 		return ROCKET_TRAIL;
@@ -134,7 +131,7 @@ static int PClassic_FindParticleType(char *name)
 	return P_INVALID;
 }
 
-qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
+static qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
 {
 	char *n = NULL;
 	switch(type)
@@ -765,6 +762,10 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 		scale = 6; break;
 	default:
 		scale = 3; break;
+	case TRACER1_TRAIL:
+	case TRACER2_TRAIL:
+		scale = (r_part_density.value < 0.5)?6*r_part_density.value:3;
+		break;
 	}
 
 	scale /= r_part_density.value;

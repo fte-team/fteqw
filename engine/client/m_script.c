@@ -243,10 +243,10 @@ void M_MenuS_Text_f (void)
 		return;
 	}
 	if (Cmd_Argc() == 4)
-		MC_AddBufferedText(menu_script, x, y, text, false, false);
+		MC_AddBufferedText(menu_script, x, 0, y, text, false, false);
 	else
 	{
-		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, y, text, va("menucallback %s\n", command));
+		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, 0, y, text, va("menucallback %s\n", command));
 		if (selectitem-- == 0)
 			menu_script->selecteditem = option;
 	}

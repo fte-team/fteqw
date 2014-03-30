@@ -36,6 +36,254 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #endif
 
+wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
+char *narrowen(char *out, size_t outlen, wchar_t *wide);
+
+
+#ifdef WINRT	//you're going to need a different sys_ port.
+qboolean isDedicated = false;
+qboolean ActiveApp;
+void VARGS Sys_Error (const char *error, ...){}	//eep
+void VARGS Sys_Printf (char *fmt, ...){}		//safe, but not ideal (esp for debugging)
+void Sys_SendKeyEvents (void){}					//safe, but not ideal
+void Sys_ServerActivity(void){}					//empty is safe
+void Sys_RecentServer(char *command, char *target, char *title, char *desc){}	//empty is safe
+qboolean Sys_InitTerminal(void){return false;}	//failure will break 'setrenderer sv'
+char *Sys_ConsoleInput (void){return NULL;}		//safe to stub
+void Sys_CloseTerminal (void){}					//called when switching from dedicated->non-dedicated
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs){return NULL;}	//can just about get away with it
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname){return NULL;}
+void Sys_CloseLibrary(dllhandle_t *lib){}		//safe, ish
+void Sys_Init (void){}							//safe, stub is fine. used to register system-specific cvars/commands.
+void Sys_Shutdown(void){}						//safe
+qboolean Sys_RandomBytes(qbyte *string, int len){return false;}
+qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate){return false;}
+void INS_Move(float *movements, int pnum){}		//safe
+void INS_Commands(void){}						//safe
+void INS_Init(void){}							//safe. should be xinput2 I guess. nothing else is actually supported. touchscreens don't really count.
+void INS_ReInit(void){}							//safe
+void INS_Shutdown(void){}						//safe
+void INS_UpdateGrabs(int fullscreen, int activeapp){}	//safe
+void *RT_GetCoreWindow(int *width, int *height){return NULL;}	//I already wrote the d3d code, but it needs a window to attach to. you can override width+height by writing to them
+void D3D11_DoResize(int newwidth, int newheight);	//already written, call if resized since getcorewindow
+
+static char *clippy;
+char *Sys_GetClipboard(void)
+{
+	return Z_StrDup(clippy);
+}
+void Sys_CloseClipboard(char *bf)
+{
+	Z_Free(bf);
+}
+void Sys_SaveClipboard(char *text)
+{
+	Z_Free(clippy);
+	clippy = Z_StrDup(text);
+}
+
+static LARGE_INTEGER timestart, timefreq;
+static qboolean timeinited = false;
+unsigned int Sys_Milliseconds(void)
+{
+	LARGE_INTEGER cur, diff;
+	if (!timeinited)
+	{
+		timeinited = true;
+		QueryPerformanceFrequency(&timefreq); 
+		QueryPerformanceCounter(&timestart);
+	}
+	QueryPerformanceCounter(&cur);
+	diff.QuadPart = cur.QuadPart - timestart.QuadPart;
+	diff.QuadPart *= 1000;
+	diff.QuadPart /= timefreq.QuadPart;
+	return diff.QuadPart;
+}
+double Sys_DoubleTime (void)
+{
+	LARGE_INTEGER cur, diff;
+	if (!timeinited)
+	{
+		timeinited = true;
+		QueryPerformanceFrequency(&timefreq); 
+		QueryPerformanceCounter(&timestart);
+	}
+	QueryPerformanceCounter(&cur);
+	diff.QuadPart = cur.QuadPart - timestart.QuadPart;
+	diff.QuadPart *= 1000;
+	return (double)diff.QuadPart / (double)timefreq.QuadPart;	//I hope the timefreq doesn't get rounded and cause milliseconds and doubletime to start to drift apart.
+}
+
+void Sys_Quit (void)
+{
+	Host_Shutdown ();
+	exit(1);
+}
+
+void Sys_mkdir (char *path)
+{
+	wchar_t wide[MAX_OSPATH];
+	widen(wide, sizeof(wide), path);
+	CreateDirectoryW(wide, NULL);
+}
+
+qboolean Sys_remove (char *path)
+{
+	wchar_t wide[MAX_OSPATH];
+	widen(wide, sizeof(wide), path);
+	if (DeleteFileW(wide))
+		return true;	//success
+	if (GetLastError() == ERROR_FILE_NOT_FOUND)
+		return true;	//succeed when the file already didn't exist
+	return false;		//other errors? panic
+}
+
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	wchar_t oldwide[MAX_OSPATH];
+	wchar_t newwide[MAX_OSPATH];
+	widen(oldwide, sizeof(oldwide), oldfname);
+	widen(newwide, sizeof(newwide), newfname);
+	return MoveFileExW(oldwide, newwide, MOVEFILE_REPLACE_EXISTING|MOVEFILE_COPY_ALLOWED);
+}
+
+//enumeratefiles is recursive for */* to work
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+{
+	qboolean go;
+
+	HANDLE r;
+	WIN32_FIND_DATAW fd;
+	int nest = neststart;	//neststart refers to just after a /
+	qboolean wild = false;
+
+	while(match[nest] && match[nest] != '/')
+	{
+		if (match[nest] == '?' || match[nest] == '*')
+			wild = true;
+		nest++;
+	}
+	if (match[nest] == '/')
+	{
+		char submatch[MAX_OSPATH];
+		char tmproot[MAX_OSPATH];
+
+		if (!wild)
+			return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
+
+		if (nest-neststart+1> MAX_OSPATH)
+			return 1;
+		memcpy(submatch, match+neststart, nest - neststart);
+		submatch[nest - neststart] = 0;
+		nest++;
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		{
+			wchar_t wroot[MAX_OSPATH];
+			r = FindFirstFileExW(widen(wroot, sizeof(wroot), tmproot), FindExInfoStandard, &fd, FindExSearchNameMatch, NULL, 0);
+		}
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			char utf8[MAX_OSPATH];
+			char file[MAX_OSPATH];
+			narrowen(utf8, sizeof(utf8), fd.cFileName);
+			if (*utf8 == '.');	//don't ever find files with a name starting with '.'
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					int newnest;
+					if (strlen(tmproot) + strlen(utf8) + strlen(match+nest) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, utf8);
+						newnest = strlen(file);
+						strcpy(file+newnest, match+nest);
+						go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+					}
+				}
+			}
+		} while(FindNextFileW(r, &fd) && go);
+		FindClose(r);
+	}
+	else
+	{
+		const char *submatch = match + neststart;
+		char tmproot[MAX_OSPATH];
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		{
+			wchar_t wroot[MAX_OSPATH];
+			r = FindFirstFileExW(widen(wroot, sizeof(wroot), tmproot), FindExInfoStandard, &fd, FindExSearchNameMatch, NULL, 0);
+		}
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			char utf8[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			narrowen(utf8, sizeof(utf8), fd.cFileName);
+			if (*utf8 == '.')
+				;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+					}
+				}
+			}
+			else
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+					}
+				}
+			}
+		} while(FindNextFileW(r, &fd) && go);
+		FindClose(r);
+	}
+	return go;
+}
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+{
+	char fullmatch[MAX_OSPATH];
+	int start;
+	if (strlen(gpath) + strlen(match) + 2 > MAX_OSPATH)
+		return 1;
+
+	strcpy(fullmatch, gpath);
+	start = strlen(fullmatch);
+	if (start && fullmatch[start-1] != '/')
+		fullmatch[start++] = '/';
+	fullmatch[start] = 0;
+	strcat(fullmatch, match);
+	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm, spath);
+}
+
+#else
+
 #if defined(GLQUAKE) && defined(DEBUG)
 #define PRINTGLARRAYS
 #endif
@@ -448,7 +696,14 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 			Sys_SaveClipboard(stacklog+logstart);
 #ifdef _MSC_VER
 			if (MessageBoxA(0, stacklog, "KABOOM!", MB_ICONSTOP|MB_YESNO) != IDYES)
+			{
+				if (pIsDebuggerPresent ())
+				{
+					//its possible someone attached a debugger while we were showing that message
+					return EXCEPTION_CONTINUE_SEARCH;
+				}
 				return EXCEPTION_EXECUTE_HANDLER;
+			}
 #else
 			MessageBox(0, stacklog, "KABOOM!", MB_ICONSTOP);
 			return EXCEPTION_EXECUTE_HANDLER;
@@ -485,10 +740,10 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 		}
 
 		/*take a dump*/
-		if (*com_homedir)
-			Q_strncpyz(dumpPath, com_homedir, sizeof(dumpPath));
-		else if (*com_quakedir)
-			Q_strncpyz(dumpPath, com_quakedir, sizeof(dumpPath));
+		if (*com_homepath)
+			Q_strncpyz(dumpPath, com_homepath, sizeof(dumpPath));
+		else if (*com_gamepath)
+			Q_strncpyz(dumpPath, com_gamepath, sizeof(dumpPath));
 		else
 			GetTempPath (sizeof(dumpPath)-16, dumpPath);
 		Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
@@ -676,10 +931,6 @@ FILE IO
 
 ===============================================================================
 */
-
-
-wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
-char *narrowen(char *out, size_t outlen, wchar_t *wide);
 
 void Sys_mkdir (char *path)
 {
@@ -1193,12 +1444,20 @@ void VARGS Sys_Printf (char *fmt, ...)
 	wchar_t wide[1024], *out;
 	int wlen;
 
-	if (!houtput && !debugout)
+	if (!houtput && !debugout && !SSV_IsSubServer())
 		return;
 
 	va_start (argptr,fmt);
 	vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
+
+#ifdef SUBSERVERS
+	if (SSV_IsSubServer())
+	{
+		SSV_PrintToMaster(text);
+		return;
+	}
+#endif
 
 	end = COM_ParseFunString(CON_WHITEMASK, text, msg, sizeof(msg), false);
 	out = wide;
@@ -1451,7 +1710,7 @@ void Sys_SaveClipboard(char *text)
 				while (*text)
 				{
 					//NOTE: should be \r\n and not just \n
-					*temp++ = utf8_decode(&error, text, &text);
+					*temp++ = utf8_decode(&error, text, &text) & 0xff;
 				}
 				*temp = 0;
 				strcpy(temp, text);
@@ -1486,6 +1745,55 @@ char *Sys_ConsoleInput (void)
 	DWORD numevents, numread, dummy=0;
 	HANDLE	th;
 	char	*clipText, *textCopied;
+
+#ifdef SUBSERVERS
+	if (SSV_IsSubServer())
+	{
+		DWORD avail;
+		static char	text[1024], *nl;
+		static int textpos = 0;
+
+		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+		for (;;)
+		{
+			if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
+			{
+				SV_FinalMessage("Cluster shut down\n");
+				Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
+			}
+			else if (avail)
+			{
+				if (avail > sizeof(text)-1-textpos)
+					avail = sizeof(text)-1-textpos;
+				if (ReadFile(input, text+textpos, avail, &avail, NULL))
+				{
+					textpos += avail;
+					while(textpos >= 2)
+					{
+						unsigned short len = text[0] | (text[1]<<8);
+						if (textpos >= len && len >= 2)
+						{
+							memcpy(net_message.data, text+2, len-2);
+							net_message.cursize = len-2;
+							MSG_BeginReading (msg_nullnetprim);
+
+							SSV_ReadFromControlServer();
+							
+							memmove(text, text+len, textpos - len);
+							textpos -= len;
+						}
+						else
+							break;
+					}
+				}
+			}
+			else
+				break;
+		}
+		return NULL;
+	}
+#endif
+
 
 	if (!hinput)
 		return NULL;
@@ -1608,6 +1916,10 @@ BOOL WINAPI HandlerRoutine (DWORD dwCtrlType)
 qboolean Sys_InitTerminal (void)
 {
 	DWORD m;
+
+	if (SSV_IsSubServer())
+		return true;	//just pretend we did
+
 	if (!AllocConsole())
 		return false;
 
@@ -1963,7 +2275,7 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 	IShellLinkW_SetIconLocation(link, buf, 0);  /*grab the first icon from our exe*/
 	IShellLinkW_SetPath(link, buf); /*program to run*/
 
-	Q_strncpyz(tmp, com_quakedir, sizeof(tmp));
+	Q_strncpyz(tmp, com_gamepath, sizeof(tmp));
 	/*normalize the gamedir, so we don't end up with the same thing multiple times*/
 	for(s = tmp; *s; s++)
 	{
@@ -2884,24 +3196,28 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		parms.argc = com_argc;
 		parms.argv = com_argv;
 
-	#if !defined(CLIENTONLY) && !defined(SERVERONLY)
+#if !defined(CLIENTONLY) && !defined(SERVERONLY)
 		if (COM_CheckParm ("-dedicated"))
 			isDedicated = true;
+	#ifdef SUBSERVERS
+		if (COM_CheckParm("-clusterslave"))
+			isDedicated = isClusterSlave = true;
 	#endif
+#endif
 
 		if (isDedicated)
 		{
-	#if !defined(CLIENTONLY)
+#if !defined(CLIENTONLY)
 			if (!Sys_InitTerminal())
 				Sys_Error ("Couldn't allocate dedicated server console");
-	#endif
+#endif
 		}
 
 		if (!Sys_Startup_CheckMem(&parms))
 			Sys_Error ("Not enough memory free; check disk space\n");
 
 
-	#ifndef CLIENTONLY
+#ifndef CLIENTONLY
 		if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
 		{
 			int delay;
@@ -2919,19 +3235,19 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			}
 			return TRUE;
 		}
-	#endif
+#endif
 
 		tevent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		if (!tevent)
 			Sys_Error ("Couldn't create event");
 
-	#ifdef SERVERONLY
+#ifdef SERVERONLY
 		Sys_Printf ("SV_Init\n");
 		SV_Init(&parms);
-	#else
+#else
 		Sys_Printf ("Host_Init\n");
 		Host_Init (&parms);
-	#endif
+#endif
 
 		oldtime = Sys_DoubleTime ();
 
@@ -3064,3 +3380,4 @@ void Sys_Sleep (double seconds)
 {
 	Sleep(seconds * 1000);
 }
+#endif

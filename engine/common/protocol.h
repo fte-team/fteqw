@@ -111,8 +111,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	PORT_QWCLIENT	27001
 #define	PORT_QWMASTER	27000
 #define	PORT_QWSERVER	27500
-#define PORT_Q2CLIENT 27901
-#define PORT_Q2SERVER 27910
+#define PORT_Q2CLIENT	27901
+#define PORT_Q2SERVER	27910
+#define PORT_Q3SERVER	27960
 
 //hexen2: 26900
 
@@ -308,6 +309,47 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #define svc_invalid			256
+
+
+enum clustercmdops_e
+{
+	ccmd_bad = 0,			//abort!
+	ccmd_stuffcmd = 1,		//regular ol stuffcmd
+			//string concommand
+	ccmd_print = 2,
+			//string message
+	ccmd_acceptserver,
+			//serverid
+	ccmd_takeplayer,	//master->server, saying to allocate a slot for a player.
+			//long plid
+			//long fromsvid (0=no reply needed)
+			//byte statcount
+			//float stats[statcount]
+	ccmd_transferplayer,	//server->master, asking to move them to a new server.
+			//long plid
+			//string map
+			//byte ipv4=0, ipv6=1
+			//byte statcount
+			//float stats[statcount]
+	ccmd_transferedplayer,	//master->server, saying the transfer was completed. original server no longer owns the player.
+			//long toserver,
+			//long playerid
+	ccmd_tookplayer,	//server->master->server, saying that a player was taken.
+			//long svid (this is always the *other* server)
+			//long plid
+			//string addr (this is the client's address when sent to the master, and the server's address that took the message in the message to the source server)
+	ccmd_transferabort,	//server->master->server, saying that a player was rejected.
+			//long plid
+			//long fromsvid
+			//string server
+	ccmd_saveplayer,	//server->master, saves a player's stats.
+			//long plid
+			//byte statcount
+			//float stats[statcount]
+	ccmd_serveraddress,	//server->master, contains a few net addresses
+			//string address[]
+			//byte 0
+};
 
 
 enum svcq2_ops_e

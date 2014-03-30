@@ -206,7 +206,7 @@ COM_Parse
 Parse a token out of a string
 ==============
 */
-char *QCC_COM_Parse (char *data)
+char *QCC_COM_Parse (const char *data)
 {
 	int		c;
 	int		len;
@@ -264,12 +264,12 @@ skipwhite:
 			else if (c=='\"')
 			{
 				qcc_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			else if (c=='\0'||c=='\n')
 			{
 				qcc_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			if (len >= sizeof(qcc_token)-1)
 				;
@@ -285,7 +285,7 @@ skipwhite:
 		qcc_token[len] = c;
 		len++;
 		qcc_token[len] = 0;
-		return data+1;
+		return (char*)data+1;
 	}
 
 // parse a regular word
@@ -302,7 +302,7 @@ skipwhite:
 	} while (c && !qcc_iswhite(c));
 
 	qcc_token[len] = 0;
-	return data;
+	return (char*)data;
 }
 
 //more C tokens...

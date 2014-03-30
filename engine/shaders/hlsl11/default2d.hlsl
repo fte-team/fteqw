@@ -17,7 +17,9 @@ struct v2f
 	v2f main (a2v inp)
 	{
 		v2f outp;
-		outp.pos = mul(m_projection, inp.pos);
+		outp.pos = mul(m_model, inp.pos);
+		outp.pos = mul(m_view, outp.pos);
+		outp.pos = mul(m_projection, outp.pos);
 		outp.tc = inp.tc;
 		outp.vcol = inp.vcol;
 		return outp;

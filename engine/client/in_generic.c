@@ -26,7 +26,8 @@ struct eventlist_s
 		IEV_KEYDOWN,
 		IEV_KEYRELEASE,
 		IEV_MOUSEABS,
-		IEV_MOUSEDELTA
+		IEV_MOUSEDELTA,
+		IEV_JOYAXIS
 	} type;
 	int devid;
 
@@ -41,6 +42,11 @@ struct eventlist_s
 		{
 			int scancode, unicode;
 		} keyboard;
+		struct
+		{
+			int axis;
+			float value;
+		} joy;
 	};
 } eventlist[EVENTQUEUELENGTH];
 volatile int events_avail; /*volatile to make sure the cc doesn't try leaving these cached in a register*/
@@ -67,7 +73,7 @@ struct mouse_s
 		M_MOUSE,	//using deltas
 		M_TOUCH		//using absolutes
 	} type;
-	int qdeviceid;
+	int qdeviceid;	//so we can just use pointers.
 	vec2_t oldpos;
 	vec2_t downpos;
 	float moveddist;	//how far it has moved while held. this provides us with our emulated mouse1 when they release the press
@@ -77,7 +83,13 @@ struct mouse_s
 	int down;
 } ptr[MAXPOINTERS];
 
-
+#define MAXJOYAXIS 6
+#define MAXJOYSTICKS 4
+struct joy_s
+{
+	int qdeviceid;
+	int axis[MAXJOYAXIS];
+} joy[MAXJOYSTICKS];
 
 void IN_Shutdown(void)
 {
@@ -88,13 +100,15 @@ void IN_ReInit(void)
 {
 	int i;
 
-	events_avail = 0;
-	events_used = 0;
-
 	for (i = 0; i < MAXPOINTERS; i++)
 	{
 		ptr[i].type = M_INVALID;
 		ptr[i].qdeviceid = i;
+	}
+
+	for (i = 0; i < MAXJOYSTICKS; i++)
+	{
+		joy[i].qdeviceid = i;
 	}
 
 	INS_ReInit();
@@ -102,6 +116,9 @@ void IN_ReInit(void)
 
 void IN_Init(void)
 {
+	events_avail = 0;
+	events_used = 0;
+
 	Cvar_Register (&m_filter, "input controls");
 	Cvar_Register (&m_accel, "input controls");
 	Cvar_Register (&m_forcewheel, "Input Controls");
@@ -112,6 +129,40 @@ void IN_Init(void)
 	Cvar_Register (&m_touchmajoraxis, "input controls");
 
 	INS_Init();
+}
+
+//tells the keys.c code whether the cursor is currently active, causing mouse clicks instead of binds.
+qboolean IN_MouseDevIsTouch(int devid)
+{
+	if (devid < MAXPOINTERS)
+		return ptr[devid].type == M_TOUCH;
+	return false;
+}
+//there was no ui to click on at least...
+//translates MOUSE1 press events into begin-look-or-strafe events.
+//translates to MOUSE2 accordingly
+//returns 0 if it ate it completely.
+int IN_TranslateMButtonPress(int devid)
+{
+	int ret;
+	if (!ptr[devid].down)
+	{
+		//set the cursor-pressed state, so we begin to look/strafe around
+		ptr[devid].down = 1;
+		ptr[devid].moveddist = 0;
+		ptr[devid].downpos[0] = ptr[devid].oldpos[0];
+		ptr[devid].downpos[1] = ptr[devid].oldpos[1];
+		ptr[devid].delta[0] = 0;
+		ptr[devid].delta[1] = 0;
+		ret = 0;	//eat it
+	}
+	else
+	{
+		//this is the key binding that the press should use
+		ret = (m_strafeonright.ival && ptr[devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+	}
+
+	return ret;
 }
 
 /*a 'pointer' is either a multitouch pointer, or a separate device
@@ -137,45 +188,24 @@ void IN_Commands(void)
 				else
 				{
 					if (ev->type == IEV_KEYDOWN)
-					{
-						ptr[ev->devid].down = 1;
-						ptr[ev->devid].moveddist = 0;
-						ptr[ev->devid].downpos[0] = ptr[ev->devid].oldpos[0];
-						ptr[ev->devid].downpos[1] = ptr[ev->devid].oldpos[1];
-						ptr[ev->devid].delta[0] = 0;
-						ptr[ev->devid].delta[1] = 0;
-
-						if (ev->mouse.tsize > m_fatpressthreshold.value)
-						{
-							int key = (m_strafeonright.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
-							Key_Event(ev->devid, key, 0, true);
-							ptr[ev->devid].down = 2;
-						}
-					}
+						Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
 					else
 					{
-						if (ptr[ev->devid].down > 1)
+						if (ptr[ev->devid].down == 1 || ptr[ev->devid].moveddist < m_slidethreshold.value)
 						{
-							int key = (m_strafeonright.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
-							Key_Event(ev->devid, key, 0, false);
-							ptr[ev->devid].down = 1;
+							ptr[ev->devid].down = 2;
+							Key_Event(ev->devid, K_MOUSE1, 0, true);
 						}
-						if (ptr[ev->devid].down)
-						{
-							if (ptr[ev->devid].moveddist < m_slidethreshold.value)
-							{
-								/*if its on the right, make it a mouse2*/
-								int key = (m_strafeonright.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
-								Key_Event(ev->devid, key, 0, true);
-								Key_Event(ev->devid, key, 0, false);
-							}
-						}
+						Key_Event(ev->devid, K_MOUSE1, 0, false);
 						ptr[ev->devid].down = 0;
 					}
 					break;
 				}
 			}
 			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
+			break;
+		case IEV_JOYAXIS:
+			joy[ev->devid].axis[ev->joy.axis] = ev->joy.value;
 			break;
 		case IEV_MOUSEDELTA:
 			if (ev->devid < MAXPOINTERS)
@@ -237,15 +267,13 @@ void IN_Commands(void)
 
 				if (ptr[ev->devid].down > 1 && ev->mouse.tsize < m_fatpressthreshold.value)
 				{
-					int key = (m_strafeonright.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
-					Key_Event(ev->devid, key, 0, false);
 					ptr[ev->devid].down = 1;
+					Key_Event(ev->devid, K_MOUSE1, 0, false);
 				}
 				if (ptr[ev->devid].down == 1 && ev->mouse.tsize > m_fatpressthreshold.value)
 				{
-					int key = (m_strafeonright.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
-					Key_Event(ev->devid, key, 0, true);
 					ptr[ev->devid].down = 2;
+					Key_Event(ev->devid, K_MOUSE1, 0, true);
 				}
 			}
 			break;
@@ -407,15 +435,15 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 	else
 	{
-		//if game is not focused, kill any mouse look
-		if (Key_Dest_Has(~kdm_game))
+		if (mx || my)
+		if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
 		{
 			mx = 0;
 			my = 0;
 		}
 
-		if (mx || my)
-		if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
+		//if game is not focused, kill any mouse look
+		if (Key_Dest_Has(~kdm_game))
 		{
 			mx = 0;
 			my = 0;
@@ -487,12 +515,109 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 }
 
-void IN_Move (float *movements, int pnum)
+static float joydeadzone(float mag, float deadzone)
+{
+	if (mag > 1)	//erg?
+		mag = 1;
+	if (mag > deadzone)
+	{
+		mag -= deadzone;
+		mag = mag / (1.f-deadzone);
+	}
+	else
+		mag = 0;
+	return mag;
+}
+
+void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float frametime)
+{
+	float mag;
+	vec3_t jlook, jstrafe;
+
+	int wpnum;
+
+	/*each device will be processed when its player comes to be processed*/
+	wpnum = cl.splitclients;
+	if (wpnum < 1)
+		wpnum = 1;
+	if (cl_forcesplitclient.ival)
+		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
+	else
+		wpnum = joy->qdeviceid % wpnum;
+	if (wpnum != pnum)
+		return;
+
+	jlook[0] = joy->axis[0];
+	jlook[1] = joy->axis[1];
+	jlook[2] = joy->axis[2];
+
+	jstrafe[0] = joy->axis[3];
+	jstrafe[1] = joy->axis[4];
+	jstrafe[2] = joy->axis[5];
+
+	//uses a radial deadzone for x+y axis, and separate out the z axis, just because most controllers are 2d affairs with any 3rd axis being a separate knob.
+	//deadzone values are stolen from microsoft's xinput documentation. they seem quite large to me - I guess that means that xbox controllers are just dodgy imprecise crap with excessive amounts of friction and finger grease.
+	mag = joydeadzone(sqrt(jlook[0]*jlook[0] + jlook[1]*jlook[1]), 0.239);
+	mag = pow(mag, 2);
+	jlook[0] *= mag;
+	jlook[1] *= mag;
+	mag = joydeadzone(fabs(jlook[2]), 0.00092);
+	jlook[2] *= mag;
+
+	mag = joydeadzone(sqrt(jstrafe[0]*jstrafe[0] + jstrafe[1]*jstrafe[1]), 0.265);
+	mag = pow(mag, 2);
+	jstrafe[0] *= mag;
+	jstrafe[1] *= mag;
+	mag = joydeadzone(fabs(jstrafe[2]), 0.00092);
+	jstrafe[2] *= mag;
+
+	if (Key_Dest_Has(~kdm_game))
+	{
+		VectorClear(jlook);
+		VectorClear(jstrafe);
+	}
+
+	VectorScale(jlook, frametime, jlook);
+	VectorScale(jstrafe, frametime, jstrafe);
+
+	if (!movements)	//if this is null, gamecode should still get inputs, just no camera looking or anything.
+		return;
+
+	//angle changes
+	cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * jlook[0];
+	cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * jlook[1];
+//	cl.playerview[pnum].viewanglechange[ROLL] += m_roll.value * jlook[2];	//this would be too weird.
+
+	if (in_mlook.state[pnum] & 1)
+		V_StopPitchDrift (&cl.playerview[pnum]);
+
+	//movement
+	movements[1] += m_side.value * jstrafe[0];		//x=right=1
+	movements[0] -= m_forward.value * jstrafe[1];	//y=forward=0
+	movements[2] += m_side.value * jstrafe[2];		//z=up=2
+}
+
+void IN_Move (float *movements, int pnum, float frametime)
 {
 	int i;
 	INS_Move(movements, pnum);
 	for (i = 0; i < MAXPOINTERS; i++)
 		IN_MoveMouse(&ptr[i], movements, pnum);
+
+	for (i = 0; i < MAXJOYSTICKS; i++)
+		IN_MoveJoystick(&joy[i], movements, pnum, frametime);
+}
+
+void IN_JoystickAxisEvent(int devid, int axis, float value)
+{
+	struct eventlist_s *ev = in_newevent();
+	if (!ev)	
+		return;
+	ev->type = IEV_JOYAXIS;
+	ev->devid = devid;
+	ev->joy.axis = axis;
+	ev->joy.value = value;
+	in_finishevent();
 }
 
 void IN_KeyEvent(int devid, int down, int keycode, int unicode)

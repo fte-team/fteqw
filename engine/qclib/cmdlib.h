@@ -92,7 +92,7 @@ void	ExtractFileExtension (char *path, char *dest);
 long 	ParseNum (char *str);
 
 
-char *QCC_COM_Parse (char *data);
+char *QCC_COM_Parse (const char *data);
 char *QCC_COM_Parse2 (char *data);
 
 extern	char	qcc_token[1024];

@@ -290,6 +290,7 @@ void V_DriftPitch (playerview_t *pv)
 ==============================================================================
 */
 
+void V_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 cshift_t	cshift_empty = { {130,80,50}, 0 };
 cshift_t	cshift_water = { {130,80,50}, 128 };
@@ -298,9 +299,9 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = CVARFD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
-cvar_t		v_contrast = CVARFD("contrast", "1.0", CVAR_ARCHIVE, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
-cvar_t		v_brightness = CVARFD("brightness", "0.0", CVAR_ARCHIVE, "Brightness is how much 'white' to add to each and every pixel on the screen.");
+cvar_t		v_gamma = CVARFDC("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.", V_Gamma_Callback);
+cvar_t		v_contrast = CVARFDC("contrast", "1.0", CVAR_ARCHIVE, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.", V_Gamma_Callback);
+cvar_t		v_brightness = CVARFDC("brightness", "0.0", CVAR_ARCHIVE, "Brightness is how much 'white' to add to each and every pixel on the screen.", V_Gamma_Callback);
 
 qbyte		gammatable[256];	// palette is sent through this
 
@@ -362,13 +363,11 @@ void BuildGammaTable (float g, float c, float b)
 V_CheckGamma
 =================
 */
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
+void V_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value, v_brightness.value);
 	V_UpdatePalette (true);
 }
-#endif
 
 /*
 ===============
@@ -758,10 +757,13 @@ void V_UpdatePalette (qboolean force)
 			ramps[2][i] = gammatable[ib]<<8;
 		}
 
-		applied = rf->VID_ApplyGammaRamps ((unsigned short*)ramps);
-		if (!applied && r2d_canhwgamma)
-			rf->VID_ApplyGammaRamps (NULL);
-		r2d_canhwgamma = applied;
+		if (qrenderer)
+		{
+			applied = rf->VID_ApplyGammaRamps ((unsigned short*)ramps);
+			if (!applied && r2d_canhwgamma)
+				rf->VID_ApplyGammaRamps (NULL);
+			r2d_canhwgamma = applied;
+		}
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
@@ -1225,8 +1227,8 @@ void V_CalcRefdef (playerview_t *pv)
 		return;
 #endif
 
-	VectorCopy(cl.fog_colour, r_refdef.gfog_rgbd);
-	r_refdef.gfog_rgbd[3] = cl.fog_density / 64;
+	CL_BlendFog(&r_refdef.globalfog, &cl.oldfog, realtime, &cl.fog);
+	r_refdef.globalfog.density /= 64;	//FIXME
 
 	if (v_viewheight.value < -7)
 		bob=-7;
@@ -1628,14 +1630,14 @@ void V_RenderView (void)
 		}
 		else
 		{
-			if (r_worldentity.model)
+			if (r_worldentity.model && !r_worldentity.model->needload)
 			{
 				RSpeedMark();
 
 				CL_AllowIndependantSendCmd(false);
 
+				CL_SetSolidEntities ();
 				CL_TransitionEntities();
-
 				CL_PredictMove ();
 
 				// build a refresh entity list

@@ -81,7 +81,7 @@ unsigned short QCRC_Value(unsigned short crcvalue)
 	return crcvalue ^ QCRC_XOR_VALUE;
 }
 
-unsigned short QCRC_Block (qbyte *start, int count)
+unsigned short QCRC_Block (const qbyte *start, int count)
 {
 	unsigned short	crc;
 
@@ -92,7 +92,7 @@ unsigned short QCRC_Block (qbyte *start, int count)
 	return crc;
 }
 
-unsigned short QCRC_Block_AsLower (qbyte *start, int count)
+unsigned short QCRC_Block_AsLower (const qbyte *start, int count)
 {
 	unsigned short	crc;
 
@@ -103,7 +103,7 @@ unsigned short QCRC_Block_AsLower (qbyte *start, int count)
 	return crc;
 }
 
-void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)
+void QCRC_AddBlock (unsigned short *crcvalue, const qbyte *start, int count)
 {
     while (count--)
 		QCRC_ProcessByte(crcvalue, *start++);

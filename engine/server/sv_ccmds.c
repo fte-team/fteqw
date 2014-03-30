@@ -42,10 +42,10 @@ cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
 extern cvar_t sv_public;
 
 //generic helper function for naming players.
-client_t *SV_GetClientForString(char *name, int *id)
+client_t *SV_GetClientForString(const char *name, int *id)
 {
 	int i;
-	char *s;
+	const char *s;
 	char nicename[80];
 	char niceclname[80];
 	client_t *cl;
@@ -58,7 +58,7 @@ client_t *SV_GetClientForString(char *name, int *id)
 	{
 		for (i = first, cl = svs.clients+first; i < sv.allocated_client_slots; i++, cl++)
 		{
-			if (cl->state<=cs_zombie)
+			if (cl->state<=cs_loadzombie)
 				continue;
 
 			*id=i+1;
@@ -82,7 +82,7 @@ client_t *SV_GetClientForString(char *name, int *id)
 		int uid = Q_atoi(name);
 		for (i = first, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 		{
-			if (cl->state<=cs_zombie)
+			if (cl->state<=cs_loadzombie)
 				continue;
 			if (cl->userid == uid)
 			{
@@ -97,7 +97,7 @@ client_t *SV_GetClientForString(char *name, int *id)
 
 	for (i = first, cl = svs.clients+first; i < sv.allocated_client_slots; i++, cl++)
 	{
-		if (cl->state<=cs_zombie)
+		if (cl->state<=cs_loadzombie)
 			continue;
 
 
@@ -135,7 +135,7 @@ void Master_ClearAll(void);
 void Master_ReResolve(void);
 void Master_Add(char *stringadr);
 
-void SV_SetMaster_f (void)
+static void SV_SetMaster_f (void)
 {
 	int		i;
 
@@ -162,9 +162,10 @@ void SV_SetMaster_f (void)
 SV_Quit_f
 ==================
 */
-void SV_Quit_f (void)
+static void SV_Quit_f (void)
 {
-	SV_FinalMessage ("server shutdown\n");
+	if (sv.state >= ss_loading)
+		SV_FinalMessage ("server shutdown\n");
 	Con_TPrintf ("Shutting down.\n");
 	SV_Shutdown ();
 	Sys_Quit ();
@@ -175,7 +176,7 @@ void SV_Quit_f (void)
 SV_Fraglogfile_f
 ============
 */
-void SV_Fraglogfile_f (void)
+static void SV_Fraglogfile_f (void)
 {
 	char	name[MAX_OSPATH];
 	int		i;
@@ -220,7 +221,7 @@ SV_SetPlayer
 Sets host_client and sv_player to the player with idnum Cmd_Argv(1)
 ==================
 */
-qboolean SV_SetPlayer (void)
+static qboolean SV_SetPlayer (void)
 {
 	client_t	*cl;
 	int			i;
@@ -251,7 +252,7 @@ SV_God_f
 Sets client to godmode
 ==================
 */
-void SV_God_f (void)
+static void SV_God_f (void)
 {
 	if (!SV_MayCheat())
 	{
@@ -271,7 +272,7 @@ void SV_God_f (void)
 }
 
 
-void SV_Noclip_f (void)
+static void SV_Noclip_f (void)
 {
 	if (!SV_MayCheat())
 	{
@@ -301,7 +302,7 @@ void SV_Noclip_f (void)
 SV_Give_f
 ==================
 */
-void SV_Give_f (void)
+static void SV_Give_f (void)
 {
 	char	*t;
 	int		v;
@@ -374,21 +375,23 @@ void SV_Give_f (void)
 	}
 }
 
-int QDECL ShowMapList (const char *name, qofs_t flags, void *parm, searchpathfuncs_t *spath)
+static int QDECL ShowMapList (const char *name, qofs_t flags, void *parm, searchpathfuncs_t *spath)
 {
+	char stripped[64];
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
-	Con_Printf("%s\n", name+5);
+	COM_StripExtension(name+5, stripped, sizeof(stripped)); 
+	Con_Printf("^[%s\\map\\%s^]\n", stripped, stripped);
 	return true;
 }
-void SV_MapList_f(void)
+static void SV_MapList_f(void)
 {
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, NULL);
 	COM_EnumerateFiles("maps/*.cm", ShowMapList, NULL);
 	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
 }
 
-void gtcallback(struct cvar_s *var, char *oldvalue)
+static void gtcallback(struct cvar_s *var, char *oldvalue)
 {
 	Con_Printf("g_gametype changed\n");
 }
@@ -418,7 +421,7 @@ void SV_Map_f (void)
 	char	spot[MAX_QPATH];
 	char	expanded[MAX_QPATH];
 	char	*nextserver;
-	qboolean issamelevel = false;
+	qboolean isrestart = false;
 	qboolean newunit = false;
 	qboolean cinematic = false;
 	qboolean waschangelevel = false;
@@ -484,7 +487,7 @@ void SV_Map_f (void)
 	{
 		//grab the current map name
 		COM_StripExtension(COM_SkipPath(sv.modelname), level, sizeof(level));
-		issamelevel = true;
+		isrestart = true;
 
 		if (!*level)
 		{
@@ -574,9 +577,10 @@ void SV_Map_f (void)
 		CL_Disconnect();
 #endif
 
-	SV_SaveSpawnparms (issamelevel);
+	if (!isrestart)
+		SV_SaveSpawnparms ();
 
-	if (startspot && !issamelevel && !newunit)
+	if (startspot && !isrestart && !newunit)
 	{
 #ifdef Q2SERVER
 		if (ge)
@@ -676,7 +680,7 @@ void SV_Map_f (void)
 		}
 	}
 
-	if (!issamelevel)
+	if (!isrestart)
 	{
 		cvar_t *nsv;
 		nsv = Cvar_Get("nextserver", "", 0, "");
@@ -757,253 +761,530 @@ void SV_KickSlot_f (void)
 		Con_Printf("Client %i is not active\n", clnum);
 }
 
-void SV_BanName_f (void)
+//will kick clients if they got banned (without being safe)
+void SV_EvaluatePenalties(client_t *cl)
 {
-	client_t	*cl;
-	int clnum=-1;
-	char *reason = NULL;
-	int reasonsize = 0;
+	bannedips_t *banip;
+	bannedips_t *cuff = NULL;
+	bannedips_t *mute = NULL;
+	bannedips_t *cripple = NULL;
+	bannedips_t *deaf = NULL;
+	bannedips_t *lagged = NULL;
+	bannedips_t *vip = NULL;
+	bannedips_t *safe = NULL;
+	bannedips_t *banned = NULL;
+	char *penalties[8];
+	char *reasons[8];
+	int numpenalties = 0;
+	int numreasons = 0;
 
-	if (Cmd_Argc() < 2)
+	if (cl->realip.type != NA_INVALID)
 	{
-		Con_Printf("%s userid|nick [reason]\n", Cmd_Argv(0));
-		return;
-	}
-
-	if (Cmd_Argc() > 2)
-	{
-		reason = Cmd_Argv(2);
-		reasonsize = strlen(reason);
-	}
-
-	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
-	if (cl)
-	{
-		bannedips_t *nb;
-
-		if (NET_IsLoopBackAddress(&cl->netchan.remote_address))
+		for (banip = svs.bannedips; banip; banip=banip->next)
 		{
-			Con_Printf("You're not allowed to ban loopback!\n");
-			continue;
+			if (NET_CompareAdrMasked(&cl->realip, &banip->adr, &banip->adrmask))
+			{
+				if ((banip->banflags & BAN_CUFF) && !cuff)
+					cuff = banip;
+				if ((banip->banflags & BAN_MUTE) && !mute)
+					mute = banip;
+				if ((banip->banflags & BAN_CRIPPLED) && !cripple)
+					cripple = banip;
+				if ((banip->banflags & BAN_DEAF) && !deaf)
+					deaf = banip;
+				if ((banip->banflags & BAN_LAGGED) && !lagged)
+					lagged = banip;
+				if ((banip->banflags & BAN_BAN) && !banned)
+					banned = banip;
+				if ((banip->banflags & BAN_PERMIT) && !safe)
+					safe = banip;
+				if ((banip->banflags & BAN_VIP) && !vip)
+					vip = banip;
+			}
 		}
-
-		nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
-		nb->next = svs.bannedips;
-		nb->adr = cl->netchan.remote_address;
-		NET_IntegerToMask(&nb->adr, &nb->adrmask, -1); // fill mask
-		if (*Cmd_Argv(2))	//explicit blocking of all ports of a client ip
-			nb->adr.port = 0;
-		svs.bannedips = nb;
-		if (reasonsize)
-			Q_strcpy(nb->reason, reason);
-
-		SV_BroadcastTPrintf (PRINT_HIGH, "%s was banned\n", cl->name);
-		// print directly, because the dropped client won't get the
-		// SV_BroadcastPrintf message
-		SV_ClientTPrintf (cl, PRINT_HIGH, "You were banned\n");
-		SV_LogPlayer(cl, "banned name");
-		SV_DropClient (cl);
 	}
-
-	if (clnum == -1)
-		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
-}
-
-void SV_KickBanIP(netadr_t *banadr, netadr_t *banmask, char *reason)
-{
-	qboolean shouldkick;
-	client_t *cl;
-	int i;
-	unsigned int reasonsize;
-	bannedips_t *nb;
-
-	if (reason)
-		reasonsize = strlen(reason);
-	else
-		reasonsize = 0;
-
-	// loop through clients and kick the ones that match
-	for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+	for (banip = svs.bannedips; banip; banip=banip->next)
 	{
-		if (cl->state<=cs_zombie)
-			continue;
-
-		shouldkick = false;
-
-		if (NET_CompareAdrMasked(&cl->netchan.remote_address, banadr, banmask))
-			shouldkick = true;
-		else if (cl->realip_status >= 1)
-			if (NET_CompareAdrMasked(&cl->realip, banadr, banmask))
-				shouldkick = true;
-
-		if (shouldkick)
+		if (NET_CompareAdrMasked(&cl->netchan.remote_address, &banip->adr, &banip->adrmask))
 		{
-			// match, so kick
-			SV_BroadcastTPrintf (PRINT_HIGH, "%s was banned\n", cl->name);
-			// print directly, because the dropped client won't get the
-			// SV_BroadcastPrintf message
-			SV_ClientTPrintf (cl, PRINT_HIGH, "You were banned\n");
-			SV_LogPlayer(cl, "banned ip");
-			SV_DropClient (cl);
+			if ((banip->banflags & BAN_CUFF) && !cuff)
+				cuff = banip;
+			if ((banip->banflags & BAN_MUTE) && !mute)
+				mute = banip;
+			if ((banip->banflags & BAN_CRIPPLED) && !cripple)
+				cripple = banip;
+			if ((banip->banflags & BAN_DEAF) && !deaf)
+				deaf = banip;
+			if ((banip->banflags & BAN_LAGGED) && !lagged)
+				lagged = banip;
+			if ((banip->banflags & BAN_BAN) && !banned)
+				banned = banip;
+			if ((banip->banflags & BAN_PERMIT) && !safe)
+				safe = banip;
+			if ((banip->banflags & BAN_VIP) && !vip)
+				vip = banip;
 		}
 	}
 
-	// add IP and mask to ban list
-	nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
-	nb->next = svs.bannedips;
-	nb->adr = *banadr;
-	nb->adrmask = *banmask;
-	svs.bannedips = nb;
-	if (reasonsize)
-		Q_strcpy(nb->reason, reason);
-}
-
-void SV_BanIP_f (void)
-{
-	netadr_t banadr;
-	netadr_t banmask;
-	char *reason = NULL;
-
-	if (Cmd_Argc() < 2)
+	if (banned && !safe)
 	{
-		Con_Printf("%s address/mask|adress/maskbits [reason]\n", Cmd_Argv(0));
-		return;
-	}
-
-	if (!NET_StringToAdrMasked(Cmd_Argv(1), &banadr, &banmask))
-	{
-		Con_Printf("invalid address or mask\n");
-		return;
-	}
-
-	if (NET_IsLoopBackAddress(&banadr))
-	{
-		Con_Printf("You're not allowed to ban loopback!\n");
-		return;
-	}
-
-	if (Cmd_Argc() > 2)
-		reason = Cmd_Argv(2);
-
-	SV_KickBanIP(&banadr, &banmask, reason);
-}
-
-void SV_BanClientIP_f (void)
-{
-	netadr_t banmask;
-	client_t	*cl;
-	char *reason = NULL;
-	int clnum=-1;
-
-	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
-	{
-		if (NET_IsLoopBackAddress(&cl->netchan.remote_address))
-		{
-			Con_Printf("You're not allowed to ban loopback!\n");
-			continue;
-		}
-
-		if (cl->realip_status>0)
-		{
-			memset(&banmask.address, 0xff, sizeof(banmask.address));
-			banmask.type = cl->netchan.remote_address.type;
-			SV_KickBanIP(&cl->realip, &banmask, reason);
-		}
+		if (*banned->reason)
+			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned: %s\n", cl->name, banned->reason));
 		else
+			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned\n", cl->name));
+		cl->drop = true;
+	}
+
+	if (cuff)
+	{
+		if (!cl->iscuffed)
 		{
-			memset(&banmask.address, 0xff, sizeof(banmask.address));
-			banmask.type = cl->netchan.remote_address.type;
-			SV_KickBanIP(&cl->netchan.remote_address, &banmask, reason);
+			cl->iscuffed = true;
+			penalties[numpenalties++] = "cuffed";
+			reasons[numreasons++] = cuff->reason;
+		}
+	}
+	else
+	{
+		if (cl->iscuffed == true)
+		{
+			cl->iscuffed = false;
+			SV_PrintToClient(cl, PRINT_HIGH, "Cuff expired\n");
+		}
+	}
+
+	if (cripple)
+	{
+		if (!cl->iscrippled)
+		{
+			cl->iscrippled = true;
+			penalties[numpenalties++] = "crippled";
+			reasons[numreasons++] = cripple->reason;
+		}
+	}
+	else
+	{
+		if (cl->iscrippled == true)
+		{
+			cl->iscrippled = false;
+			SV_PrintToClient(cl, PRINT_HIGH, "Cripple expired\n");
+		}
+	}
+
+	if (mute)
+	{
+		if (!cl->ismuted)
+		{
+			cl->ismuted = true;
+			if (!deaf)
+			{
+				penalties[numpenalties++] = "muted";
+				reasons[numreasons++] = mute->reason;
+			}
+		}
+	}
+	else
+	{
+		if (cl->ismuted == true)
+		{
+			cl->ismuted = false;
+
+			if (!cl->isdeaf)
+				SV_PrintToClient(cl, PRINT_HIGH, "Mute expired\n");
+			if (!deaf && cl->isdeaf == true)
+				cl->isdeaf = false;	//don't let them know that they were ever mute+deaf.
+		}
+	}
+	if (deaf)
+	{
+		if (!cl->isdeaf)
+		{
+			cl->isdeaf = true;
+			if (!mute)
+			{
+				penalties[numpenalties++] = "deaf";
+				reasons[numreasons++] = deaf->reason;
+			}
+		}
+	}
+	else
+	{
+		if (cl->isdeaf == true)
+		{
+			cl->isdeaf = false;
+			SV_PrintToClient(cl, PRINT_HIGH, "Deafness expired\n");
+		}
+	}
+	if (lagged)
+	{
+		if (!cl->islagged)
+		{
+			cl->islagged = true;
+			penalties[numpenalties++] = "lagged";
+			reasons[numreasons++] = lagged->reason;
+		}
+	}
+	else
+	{
+		if (cl->islagged == true)
+		{
+			cl->islagged = false;
+			SV_PrintToClient(cl, PRINT_HIGH, "Lag penalty expired\n");
+		}
+	}
+	if (vip)
+	{
+		if (!cl->isvip)
+		{
+			cl->isvip = true;
+			penalties[numpenalties++] = "vip";
+			reasons[numreasons++] = deaf->reason;
+		}
+	}
+	else
+	{
+		if (cl->isvip == true)
+		{
+			cl->isvip = false;
+			SV_PrintToClient(cl, PRINT_HIGH, "VIP expired\n");
+		}
+	}
+
+	if (cl->controller)
+		return;	//don't spam it for every player in a splitscreen client.
+
+	if (numpenalties)
+	{
+		char penaltystring[1024];
+		int i, j;
+		Q_strncpyz(penaltystring, "You are ", sizeof(penaltystring));
+		for (i = 0; i < numpenalties; i++)
+		{
+			if (i && i == numpenalties-1)
+				Q_strncatz(penaltystring, " and ", sizeof(penaltystring));
+			else if (i)
+				Q_strncatz(penaltystring, ", ", sizeof(penaltystring));
+			Q_strncatz(penaltystring, penalties[i], sizeof(penaltystring));
+		}
+		Q_strncatz(penaltystring, "\n", sizeof(penaltystring));
+		SV_PrintToClient(cl, PRINT_HIGH, penaltystring);
+		for (i = 0; i < numreasons; i++)
+		{
+			if (*reasons[i])
+			{
+				for(j = 0; j < i; j++)
+					if (!strcmp(reasons[i], reasons[j]))
+						break;
+				if (i == j)
+					SV_PrintToClient(cl, PRINT_HIGH, va("  %s\n", reasons[i]));
+			}
 		}
 	}
 }
 
-void SV_FilterIP_f (void)
+static time_t reevaluatebantime;
+static qboolean reevaluatebans;
+//could use time(NULL) instead, but this avoids a system call.
+static time_t SV_BanTime(void)
 {
-	netadr_t banadr;
-	netadr_t banmask;
+	static double bantimemark;
+	static time_t banstarttime;
+	if (!banstarttime)
+	{
+		banstarttime = time(NULL);
+		bantimemark = realtime;
+	}
+	return banstarttime + (realtime - bantimemark);
+}
+//removes anything with an expiry time in the past.
+//avoids walking the list if there's nothing changed.
+//can be used to force penalty reevaluation.
+void SV_KillExpiredBans(void)
+{
+	bannedips_t **link, *banip;
+	time_t curtime = SV_BanTime();
 	int i;
-	client_t	*cl;
+	if (reevaluatebantime && curtime > reevaluatebantime)
+	{
+		reevaluatebantime = 0;
+		reevaluatebantime = ~reevaluatebantime;	//should be 64bit safe?
+		if (reevaluatebantime < 0)
+			reevaluatebantime = (unsigned long long)reevaluatebantime>>1;
+		for(link = &svs.bannedips; (banip = *link) != NULL; )
+		{
+			if (banip->expiretime)
+			{
+				if (banip->expiretime < curtime)
+				{
+					reevaluatebans = true;
+					*link = banip->next;
+					Z_Free(banip);
+					continue;
+				}
+				if (reevaluatebantime > banip->expiretime)
+					reevaluatebantime = banip->expiretime;
+			}
+			link = &banip->next;
+		}
+	}
+
+	if (reevaluatebans)
+	{
+		reevaluatebans = false;
+		for (i = 0; i < svs.allocated_client_slots; i++)
+		{
+			if (svs.clients[i].state<=cs_loadzombie)
+				continue;
+
+			SV_EvaluatePenalties(&svs.clients[i]);
+		}
+	}
+}
+
+//adds a new ban/penalty.
+//will remove old penalties if the new one has a longer duration, otherwise will ignore the add.
+static qboolean SV_AddBanEntry(bannedips_t *proto, char *reason)
+{
+	bannedips_t *nb, **link;
+	nb = svs.bannedips;
+	while (nb)
+	{
+		if (NET_CompareAdr(&nb->adr, &proto->adr) && NET_CompareAdr(&nb->adrmask, &proto->adrmask))
+		{
+			//found a match, figure out which lasts longer
+			//the shorter ban duration gets its effective banflags stripped.
+			if ((proto->expiretime && proto->expiretime < nb->expiretime) || !nb->expiretime)
+				proto->banflags &= ~nb->banflags;
+			else
+				nb->banflags &= ~proto->banflags;
+
+			if (!proto->banflags)
+			{
+				//we should not have been able to strip a previous nb->banflags if this ban was duped later.
+				return false;
+			}
+			if (!nb->banflags)
+			{
+				reevaluatebantime = nb->expiretime = 1;	//make sure it expires 'soon'.
+			}
+		}
+		nb = nb->next;
+	}
+
+	link = &svs.bannedips;
+
+	// add IP and mask to filter list
+	nb = Z_Malloc(sizeof(bannedips_t) + strlen(reason));
+	nb->adr = proto->adr;
+	nb->adrmask = proto->adrmask;
+	nb->banflags = proto->banflags;
+	nb->expiretime = proto->expiretime;
+	Q_strcpy(nb->reason, reason);
+
+	nb->next = *link;
+	*link = nb;
+
+	reevaluatebans = true;	//make sure the new ban/penalty applies to the right IPs.
+	if (nb->expiretime && reevaluatebantime > nb->expiretime)
+		reevaluatebantime = nb->expiretime;
+	return true;
+}
+
+//slightly different logic.
+//if duration is specified, just does an add instead.
+//otherwise ignores durations.
+//only really works with a single toggle. if any are found, will not add.
+//returns 1 if added, 0 if removed, and -1 if tried to add and it already existed.
+static int SV_ToggleBan(bannedips_t *proto, char *reason)
+{
+	qboolean found = false;
 	bannedips_t *nb;
+	if (proto->expiretime)
+		return SV_AddBanEntry(proto, reason)?true:-1;
+
+	nb = svs.bannedips;
+	while (nb)
+	{
+		if (NET_CompareAdr(&nb->adr, &proto->adr) && NET_CompareAdr(&nb->adrmask, &proto->adrmask))
+		{
+			if (nb->banflags & proto->banflags)
+			{
+				found = true;
+				nb->banflags &= ~proto->banflags;
+				reevaluatebans = true;
+				if (!nb->banflags)
+					reevaluatebantime = nb->expiretime = 1;	//make sure it expires 'soon'.
+			}
+		}
+		nb = nb->next;
+	}
+
+	if (found)
+		return 0;
+	return SV_AddBanEntry(proto, reason)?true:-1;
+}
+
+extern cvar_t filterban;
+//returns a reason if the client is banned. ignores other penalties.
+char *SV_BannedReason (netadr_t *a)
+{
+	char *reason = filterban.value?NULL:"";	//"" = banned with no explicit reason
+	bannedips_t *banip;
+
+	if (NET_IsLoopBackAddress(a))
+		return NULL; // never filter loopback
+
+	for (banip = svs.bannedips; banip; banip=banip->next)
+	{
+		if (NET_CompareAdrMasked(a, &banip->adr, &banip->adrmask))
+		{
+			if (banip->banflags & BAN_BAN)
+				return banip->reason;	//banned, with reason.
+			if (banip->banflags & BAN_PERMIT)
+				return NULL;	//allowed
+		}
+	}
+	return reason;
+}
+
+#ifdef _MSC_VER
+#define strtoull _strtoui64
+#endif
+
+static void SV_FilterIP_f (void)
+{
+	bannedips_t proto;
 	extern cvar_t filterban;
+	int arg=2;
+	char *s;
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s address/mask|adress/maskbits\n", Cmd_Argv(0));
+		Con_Printf("%s <address/mask|adress/maskbits> [flags] [+time] [reason]\n", Cmd_Argv(0));
+		Con_Printf("allowed flags: ban,safe,cuff,mute,cripple,deaf,lag. time is in seconds (omitting the plus will be taken to mean unix time).\n", Cmd_Argv(0));
 		return;
 	}
 
-	if (!NET_StringToAdrMasked(Cmd_Argv(1), &banadr, &banmask))
+	if (!NET_StringToAdrMasked(Cmd_Argv(1), &proto.adr, &proto.adrmask))
 	{
 		Con_Printf("invalid address or mask\n");
 		return;
 	}
 
-	if (NET_IsLoopBackAddress(&banadr))
+	if (NET_IsLoopBackAddress(&proto.adr))
 	{
 		Con_Printf("You're not allowed to filter loopback!\n");
 		return;
 	}
 
-	nb = svs.bannedips;
-	while (nb)
+	s = Cmd_Argv(2);
+	proto.banflags = 0;
+	while(*s)
 	{
-		if (NET_CompareAdr(&nb->adr, &banadr) && NET_CompareAdr(&nb->adrmask, &banmask))
-		{
-			Con_Printf("%s is already banned\n", Cmd_Argv(1));
-			return;
-		}
-		nb = nb->next;
+		s=COM_ParseToken(s,",");
+		if (!Q_strcasecmp(com_token, ","))
+			;
+		else if (!Q_strcasecmp(com_token, "ban"))
+			proto.banflags |= BAN_BAN;
+		else if (!Q_strcasecmp(com_token, "safe") || !Q_strcasecmp(com_token, "permit"))
+			proto.banflags |= BAN_PERMIT;
+		else if (!Q_strcasecmp(com_token, "cuff"))
+			proto.banflags |= BAN_CUFF;
+		else if (!Q_strcasecmp(com_token, "mute"))
+			proto.banflags |= BAN_MUTE;
+		else if (!Q_strcasecmp(com_token, "cripple"))
+			proto.banflags |= BAN_CRIPPLED;
+		else if (!Q_strcasecmp(com_token, "deaf"))
+			proto.banflags |= BAN_DEAF;
+		else if (!Q_strcasecmp(com_token, "lag") || !Q_strcasecmp(com_token, "lagged"))
+			proto.banflags |= BAN_LAGGED;
+		else if (!Q_strcasecmp(com_token, "vip"))
+			proto.banflags |= BAN_VIP;
+		else
+			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
+	}
+	//if no flags were specified, 
+	if (!proto.banflags)
+	{
+		if (!strcmp(Cmd_Argv(0), "ban"))	
+			proto.banflags = BAN_BAN;
+		else
+			proto.banflags = filterban.ival?BAN_BAN:BAN_PERMIT;
 	}
 
-	// loop through clients and kick the ones that match
-	for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
-	{
-		if (cl->state<=cs_zombie)
-			continue;
+	s = Cmd_Argv(3);
+	if (*s == '+')
+		proto.expiretime = SV_BanTime() + strtoull(s+1, NULL, 0);
+	else
+		proto.expiretime = strtoull(s, NULL, 0);
 
-		if (filterban.value && NET_CompareAdrMasked(&cl->netchan.remote_address, &banadr, &banmask))
-			SV_DropClient (cl);
-	}
-
-	// add IP and mask to filter list
-	nb = Z_Malloc(sizeof(bannedips_t));
-	nb->next = svs.bannedips;
-	nb->adr = banadr;
-	nb->adrmask = banmask;
-	nb->type = BAN_FILTER;
-	*nb->reason = 0;
-	svs.bannedips = nb;
+	//and then add it
+	if (!SV_AddBanEntry(&proto, Cmd_Argv(4)))
+		Con_Printf("addip: entry already exists\n");
 }
 
-void SV_BanList_f (void)
+static void SV_BanList_f (void)
 {
 	int bancount = 0;
-	bannedips_t *nb = svs.bannedips;
+	bannedips_t *nb;
 	char adr[MAX_ADR_SIZE];
+	char middlebit[256];
+	time_t bantime = SV_BanTime();
 
-	while (nb)
+	SV_KillExpiredBans();
+
+	for (nb = svs.bannedips; nb; nb = nb->next)
 	{
-		if (nb->reason[0])
-			Con_Printf("%s, %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), nb->reason);
-		else
-			Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
-		bancount++;
-		nb = nb->next;
+		if (nb->banflags & BAN_BAN)
+		{
+			*middlebit = 0;
+			if (nb->expiretime)
+				Q_strncatz(middlebit, va(",\t%+llu", (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
+			if (nb->reason[0])
+				Q_strncatz(middlebit, ",\t", sizeof(middlebit));
+			Con_Printf("%s%s%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), middlebit, nb->reason);
+			bancount++;
+		}
 	}
 
 	Con_Printf("%i total entries in ban list\n", bancount);
 }
 
-void SV_FilterList_f (void)
+static void SV_FilterList_f (void)
 {
 	int filtercount = 0;
-	bannedips_t *nb = svs.bannedips;
+	bannedips_t *nb;
 	char adr[MAX_ADR_SIZE];
+	char banflags[1024];
+	int i;
+	static const char *banflagnames[] = {
+		"ban",
+		"safe",
+		"cuff",
+		"mute",
+		"cripple",
+		"deaf",
+		"lag",
+		"vip",
+		NULL
+	};
 
-	while (nb)
+	SV_KillExpiredBans();
+
+	for (nb = svs.bannedips; nb; )
 	{
-		Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
+		*banflags = 0;
+		for (i = 0; banflagnames[i]; i++)
+		{
+			if (nb->banflags & (1u<<i))
+			{
+				if (*banflags)
+					Q_strncatz(banflags, ",", sizeof(banflags));
+				Q_strncatz(banflags, banflagnames[i], sizeof(banflags));
+			}
+		}
+
+		Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags);
 		filtercount++;
 		nb = nb->next;
 	}
@@ -1011,62 +1292,19 @@ void SV_FilterList_f (void)
 	Con_Printf("%i total entries in filter list\n", filtercount);
 }
 
-void SV_Unban_f (void)
+static void SV_Unfilter_f (void)
 {
+	qboolean found = false;
 	qboolean all = false;
 	bannedips_t **link;
 	bannedips_t *nb;
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
 	char adr[MAX_ADR_SIZE];
+	unsigned int banflags, nf;
+	char *s;
 
-	if (Cmd_Argc() < 2)
-	{
-		Con_Printf("%s address/mask|address/maskbits|all\n", Cmd_Argv(0));
-		return;
-	}
-
-	if (!Q_strcasecmp(Cmd_Argv(1), "all"))
-	{
-		Con_Printf("removing all banned addresses\n");
-		all = true;
-	}
-	else if (!NET_StringToAdrMasked(Cmd_Argv(1), &unbanadr, &unbanmask))
-	{
-		Con_Printf("invalid address or mask\n");
-		return;
-	}
-
-	for (link = &svs.bannedips ; (nb = *link) ; )
-	{
-		if (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask)))
-		{
-			if (!all)
-				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
-			*link = nb->next;
-			Z_Free(nb);
-
-			if (!all)
-				return;
-		}
-		else
-		{
-			link = &(*link)->next;
-		}
-	}
-
-	if (!all)
-		Con_Printf("address was not banned\n");
-}
-
-void SV_Unfilter_f (void)
-{
-	qboolean all = false;
-	bannedips_t **link;
-	bannedips_t *nb;
-	netadr_t unbanadr = {0};
-	netadr_t unbanmask = {0};
-	char adr[MAX_ADR_SIZE];
+	SV_KillExpiredBans();
 
 	if (Cmd_Argc() < 2)
 	{
@@ -1085,17 +1323,54 @@ void SV_Unfilter_f (void)
 		return;
 	}
 
+	s = Cmd_Argv(2);
+	banflags = 0;
+	while(*s)
+	{
+		s=COM_ParseToken(s,",");
+		if (!Q_strcasecmp(com_token, ","))
+			;
+		else if (!Q_strcasecmp(com_token, "ban"))
+			banflags |= BAN_BAN;
+		else if (!Q_strcasecmp(com_token, "safe") || !Q_strcasecmp(com_token, "permit"))
+			banflags |= BAN_PERMIT;
+		else if (!Q_strcasecmp(com_token, "cuff"))
+			banflags |= BAN_CUFF;
+		else if (!Q_strcasecmp(com_token, "mute"))
+			banflags |= BAN_MUTE;
+		else if (!Q_strcasecmp(com_token, "cripple"))
+			banflags |= BAN_CRIPPLED;
+		else if (!Q_strcasecmp(com_token, "deaf"))
+			banflags |= BAN_DEAF;
+		else if (!Q_strcasecmp(com_token, "lag") || !Q_strcasecmp(com_token, "lagged"))
+			banflags |= BAN_LAGGED;
+		else if (!Q_strcasecmp(com_token, "vip"))
+			banflags |= BAN_VIP;
+		else
+			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
+	}
+	//if no flags were specified, assume all
+	if (!banflags)
+		banflags = BAN_BAN|BAN_PERMIT|BAN_CUFF|BAN_MUTE|BAN_CRIPPLED|BAN_DEAF|BAN_LAGGED|BAN_VIP;
+
 	for (link = &svs.bannedips ; (nb = *link) ; )
 	{
-		if (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask)))
+		if ((nb->banflags & banflags) && (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask))))
 		{
+			found = true;
 			if (!all)
 				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
-			*link = nb->next;
-			Z_Free(nb);
 
-			if (!all)
-				return;
+			nf = nb->banflags & banflags;
+			nb->banflags -= nf;
+			if (!nb->banflags)
+			{
+				//this entry no longer has any flags
+				*link = nb->next;
+				Z_Free(nb);
+			}
+			else
+				link = &(*link)->next;
 		}
 		else
 		{
@@ -1103,17 +1378,80 @@ void SV_Unfilter_f (void)
 		}
 	}
 
-	if (!all)
+	if (!all && !found)
 		Con_Printf("address was not filtered\n");
 }
+static void SV_PenaltyToggle (unsigned int banflag, char *penaltyname)
+{
+	char *name = Cmd_Argv(1);
+	char *duration = Cmd_Argv(2);
+	char *reason = Cmd_Argv(3);
+	bannedips_t proto;
+	client_t *cl;
+	qboolean found = false;
+	int clnum=-1;
 
-void SV_WriteIP_f (void)
+	proto.banflags = banflag;
+
+	if (*duration == '+')
+		proto.expiretime = SV_BanTime() + strtoull(duration+1, &duration, 0);
+	else
+		proto.expiretime = strtoull(duration, &duration, 0);
+
+	//both of these should work
+	//cuff foo "cos they're morons"
+	//cuff foo +10 "cos they're morons"
+	if (!*reason && *duration)
+		reason = duration;
+
+	memset(&proto.adrmask.address, 0xff, sizeof(proto.adrmask.address));
+	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
+	{
+		found = true;
+		proto.adr = cl->netchan.remote_address;
+		proto.adr.port = 0;
+		proto.adrmask.type = cl->netchan.remote_address.type;
+
+		switch(SV_ToggleBan(&proto, reason))
+		{
+		case 1:
+			Con_Printf("%s: %s is now %s\n", Cmd_Argv(0), cl->name, penaltyname);
+			break;
+		case 0:
+			Con_Printf("%s: %s is no longer %s\n", Cmd_Argv(0), cl->name, penaltyname);
+			break;
+		default:
+		case -1:
+			Con_Printf("%s: %s already %s\n", Cmd_Argv(0), cl->name, penaltyname);
+			break;
+		}
+	}
+	if (!found)
+		Con_Printf("%s: no clients\n", Cmd_Argv(0));
+}
+
+static void SV_WriteIP_f (void)
 {
 	vfsfile_t	*f;
 	char	name[MAX_OSPATH];
 	bannedips_t *bi;
 	char *s;
 	char adr[MAX_ADR_SIZE];
+	char banflags[1024];
+	int i;
+	static const char *banflagnames[] = {
+		"ban",
+		"safe",
+		"cuff",
+		"mute",
+		"cripple",
+		"deaf",
+		"lag",
+		"vip",
+		NULL
+	};
+
+	SV_KillExpiredBans();
 
 	strcpy (name, "listip.cfg");
 
@@ -1129,16 +1467,22 @@ void SV_WriteIP_f (void)
 	bi = svs.bannedips;
 	while (bi)
 	{
-		if (bi->type == BAN_BAN)
-			s = "banip";
-		else if (bi->type == BAN_PERMIT)
-			s = "allowip";
-		else
-			s = "addip";
+		*banflags = 0;
+		for (i = 0; banflagnames[i]; i++)
+		{
+			if (bi->banflags & (1u<<i))
+			{
+				if (*banflags)
+					Q_strncatz(banflags, ",", sizeof(banflags));
+				Q_strncatz(banflags, banflagnames[i], sizeof(banflags));
+			}
+		}
 		if (bi->reason[0])
-			s = va("%s %s \"%s\"\n", s, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), bi->reason);
+			s = va("%s %s %llu \"%s\"\n", banflags, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), (unsigned long long) bi->expiretime, bi->reason);
+		else if (bi->expiretime)
+			s = va("%s %s %llu\n", banflags, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), (unsigned long long) bi->expiretime);
 		else
-			s = va("%s %s\n", s, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask));
+			s = va("%s %s\n", banflags, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask));
 		VFS_WRITE(f, s, strlen(s));
 		bi = bi->next;
 	}
@@ -1147,7 +1491,7 @@ void SV_WriteIP_f (void)
 }
 
 
-void SV_ForceName_f (void)
+static void SV_ForceName_f (void)
 {
 	client_t	*cl;
 	int clnum=-1;
@@ -1172,112 +1516,27 @@ void SV_ForceName_f (void)
 		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
 }
 
-void SV_CripplePlayer_f (void)
+static void SV_CripplePlayer_f (void)
 {
-	client_t	*cl;
-	int clnum=-1;
-
-	int persist = *Cmd_Argv(2);
-
-	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
-	{
-		if (!cl->iscrippled)
-		{
-			SV_LogPlayer(cl, "crippled");
-			if (persist && cl->rankid)
-			{
-				cl->iscrippled = 2;
-				SV_BroadcastTPrintf (PRINT_HIGH, "%s is now crippled permanently\n", cl->name);
-			}
-			else
-			{
-				cl->iscrippled = true;
-				SV_BroadcastTPrintf (PRINT_HIGH, "%s is crippled\n", cl->name);
-			}
-		}
-		else
-		{
-			SV_LogPlayer(cl, "uncrippled");
-			cl->iscrippled = false;
-			SV_ClientTPrintf (cl, PRINT_HIGH, "You are no longer crippled\n");
-		}
-	}
-
-	if (clnum == -1)
-		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
+	SV_PenaltyToggle(BAN_CRIPPLED, "crippled");
 }
 
-void SV_Mute_f (void)
+static void SV_Mute_f (void)
 {
-	client_t	*cl;
-	int clnum=-1;
-
-	int persist = *Cmd_Argv(2);
-
-	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
-	{
-		if (!cl->ismuted)
-		{
-			SV_LogPlayer(cl, "muted");
-			if (persist && cl->rankid)
-			{
-				cl->ismuted = 2;
-				SV_BroadcastTPrintf (PRINT_HIGH, "%s was muted permanently\n", cl->name);
-			}
-			else
-			{
-				cl->ismuted = true;
-				SV_BroadcastTPrintf (PRINT_HIGH, "%s was muted\n", cl->name);
-			}
-		}
-		else
-		{
-			SV_LogPlayer(cl, "unmuted");
-			cl->ismuted = false;
-			SV_ClientTPrintf (cl, PRINT_HIGH, "You are no longer muted\n");
-		}
-	}
-
-	if (clnum == -1)
-		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
+	SV_PenaltyToggle(BAN_MUTE, "muted");
 }
 
-void SV_Cuff_f (void)
+static void SV_Cuff_f (void)
 {
-	client_t	*cl;
-	int clnum=-1;
-
-	int persist = *Cmd_Argv(2);
-
-	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
-	{
-		if (!cl->iscuffed)
-		{
-			SV_LogPlayer(cl, "cuffed");
-			if (persist && cl->rankid)
-			{
-				cl->iscuffed = 2;
-				SV_BroadcastTPrintf (PRINT_HIGH, "%s is still cuffed\n", cl->name);
-			}
-			else
-			{
-				cl->iscuffed = true;
-				SV_BroadcastTPrintf (PRINT_HIGH, "%s is cuffed\n", cl->name);
-			}
-		}
-		else
-		{
-			SV_LogPlayer(cl, "uncuffed");
-			cl->iscuffed = false;
-			SV_ClientTPrintf (cl, PRINT_HIGH, "You are no longer cuffed\n");
-		}
-	}
-
-	if (clnum == -1)
-		Con_TPrintf ("Couldn't find user number %s\n", Cmd_Argv(1));
+	SV_PenaltyToggle(BAN_CUFF, "cuffed");
 }
 
-void SV_Floodprot_f(void)
+static void SV_BanClientIP_f (void)
+{
+	SV_PenaltyToggle(BAN_BAN, "banned");
+}
+
+static void SV_Floodprot_f(void)
 {
 	extern cvar_t sv_floodprotect;
 	extern cvar_t sv_floodprotect_messages;
@@ -1307,7 +1566,7 @@ void SV_Floodprot_f(void)
 	Cvar_SetValue(&sv_floodprotect_silencetime, atof(Cmd_Argv(3)));
 }
 
-void SV_StuffToClient_f(void)
+static void SV_StuffToClient_f(void)
 {	//with this we emulate the progs 'stuffcmds' builtin
 
 	client_t	*cl;
@@ -1399,7 +1658,7 @@ void SV_StuffToClient_f(void)
 		Z_Free(key);
 }
 
-char *ShowTime(unsigned int seconds)
+static char *ShowTime(unsigned int seconds)
 {
 	char buf[1024];
 	char *b = buf;
@@ -1435,7 +1694,7 @@ char *ShowTime(unsigned int seconds)
 SV_Status_f
 ================
 */
-void SV_Status_f (void)
+static void SV_Status_f (void)
 {
 	int			i, j, l;
 	client_t	*cl;
@@ -1453,6 +1712,8 @@ void SV_Status_f (void)
 		))
 		columns = 40;
 
+	NET_PrintAddresses(svs.sockets);
+
 	if (!sv.state)
 	{
 		Con_Printf("Server is not running\n");
@@ -1468,12 +1729,12 @@ void SV_Status_f (void)
 	avg = 1000*svs.stats.latched_active / STATFRAMES;
 	pak = (float)svs.stats.latched_packets/ STATFRAMES;
 
-	NET_PrintAddresses(svs.sockets);
-
 	Con_Printf("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf("avg response time: %i ms\n",(int)avg);
 	Con_Printf("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
+	if (sv.state == ss_clustermode)
+		return;
 	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	//show the current map+name (but hide name if its too long or would be ugly)
 	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
@@ -1494,7 +1755,7 @@ void SV_Status_f (void)
 				break;
 		Con_Printf("sounds           : %i/%i\n", count, MAX_SOUNDS);
 	}
-	Con_Printf("gamedir          : %s\n", FS_GetGamedir());
+	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
 	if (sv.mvdrecording)
@@ -1523,8 +1784,15 @@ void SV_Status_f (void)
 			else
 				Con_Printf("\n");
 
-			if (cl->istobeloaded && cl->state == cs_zombie)
-				s = "LoadZombie";
+			if (cl->state == cs_loadzombie)
+			{
+				if (cl->istobeloaded)
+					s = "LoadZombie";
+				else
+					s = "ParmZombie";
+			}
+			else if (cl->state == cs_zombie && cl->netchan.remote_address.type == NA_INVALID)
+				s = "none";
 			else if (cl->protocol == SCP_BAD)
 				s = "bot";
 			else
@@ -1535,7 +1803,7 @@ void SV_Status_f (void)
 				Con_Printf ("CONNECTING\n");
 				continue;
 			}
-			if (cl->state == cs_zombie)
+			if (cl->state == cs_zombie || cl->state == cs_loadzombie)
 			{
 				Con_Printf ("ZOMBIE\n");
 				continue;
@@ -1556,8 +1824,15 @@ void SV_Status_f (void)
 				continue;
 			Con_Printf ("%5i %6i ", (int)cl->old_frags,  cl->userid);
 
-			if (cl->istobeloaded && cl->state == cs_zombie)
-				s = "LoadZombie";
+			if (cl->state == cs_loadzombie)
+			{
+				if (cl->istobeloaded)
+					s = "LoadZombie";
+				else
+					s = "ParmZombie";
+			}
+			else if (cl->state == cs_zombie && cl->netchan.remote_address.type == NA_INVALID)
+				s = "none";
 			else if (cl->protocol == SCP_BAD)
 				s = "bot";
 			else
@@ -1575,7 +1850,7 @@ void SV_Status_f (void)
 			{
 				Con_Printf ("CONNECTING           ");
 			}
-			else if (cl->state == cs_zombie)
+			else if (cl->state == cs_zombie || cl->state == cs_loadzombie)
 			{
 				Con_Printf ("ZOMBIE               ");
 			}
@@ -1630,6 +1905,8 @@ void SV_ConSay_f(void)
 	{
 		if (client->state == cs_free)
 			continue;
+		if (client->isdeaf)
+			continue;
 		SV_ClientPrintf(client, PRINT_CHAT, "%s\n", text);
 	}
 
@@ -1646,7 +1923,7 @@ void SV_ConSay_f(void)
 	}
 }
 
-void SV_ConSayOne_f (void)
+static void SV_ConSayOne_f (void)
 {
 	char	text[2048];
 	client_t	*to;
@@ -1684,7 +1961,7 @@ void SV_ConSayOne_f (void)
 SV_Heartbeat_f
 ==================
 */
-void SV_Heartbeat_f (void)
+static void SV_Heartbeat_f (void)
 {
 	Master_ReResolve();
 	svs.last_heartbeat = -9999;
@@ -1693,7 +1970,7 @@ void SV_Heartbeat_f (void)
 #define FOREACHCLIENT(i,cl)	\
 for (i = sv.mvdrecording?-1:0; i < sv.allocated_client_slots; i++)	\
 if ((cl = (i==-1?&demo.recorder:&svs.clients[i])))	\
-if ((i == -1) || cl->state > cs_zombie)
+if ((i == -1) || cl->state >= cs_connected)
 
 void SV_SendServerInfoChange(char *key, const char *value)
 {
@@ -1817,7 +2094,7 @@ SV_Serverinfo_f
   Examine or change the serverinfo string
 ===========
 */
-void SV_Localinfo_f (void)
+static void SV_Localinfo_f (void)
 {
 	char *old;
 
@@ -1968,6 +2245,19 @@ void SV_User_f (void)
 		if (cl->download)
 			Con_Printf ("download: \"%s\" %ik/%ik (%i%%)", cl->downloadfn, cl->downloadcount/1024, cl->downloadsize/1024, (cl->downloadcount*100)/cl->downloadsize);
 
+		if (cl->iscrippled)
+			Con_Printf("crippled\n");
+		if (cl->iscuffed)
+			Con_Printf("cuffed\n");
+		if (cl->isdeaf)
+			Con_Printf("deaf\n");
+		if (cl->islagged)
+			Con_Printf("lagged\n");
+		if (cl->ismuted)
+			Con_Printf("muted\n");
+		if (cl->isvip)
+			Con_Printf("vip\n");
+
 		SV_CalcNetRates(cl, &ftime, &frames, &minf, &maxf);
 		if (frames)
 			Con_Printf("net: %gfps (min%g max %g), c2s: %ibps, s2c: %ibps\n", ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
@@ -1994,7 +2284,7 @@ SV_Gamedir
 Sets the fake *gamedir to a different directory.
 ================
 */
-void SV_Gamedir (void)
+static void SV_Gamedir (void)
 {
 	char			*dir;
 
@@ -2029,13 +2319,13 @@ SV_Gamedir_f
 Sets the gamedir and path to a different directory.
 ================
 */
-void SV_Gamedir_f (void)
+static void SV_Gamedir_f (void)
 {
 	char			*dir;
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf ("Current gamedir: %s\n", FS_GetGamedir());
+		Con_TPrintf ("Current gamedir: %s\n", FS_GetGamedir(true));
 		return;
 	}
 
@@ -2060,14 +2350,12 @@ void SV_Gamedir_f (void)
 	Z_Free(dir);
 }
 
-
-extern char	gamedirfile[MAX_OSPATH];
 /*
 ================
 SV_Snap
 ================
 */
-void SV_Snap (int uid)
+static void SV_Snap (int uid)
 {
 	client_t *cl;
 	char		pcxname[80];
@@ -2095,8 +2383,6 @@ void SV_Snap (int uid)
 	sprintf(pcxname, "%d-00.pcx", uid);
 
 	strcpy(checkname, "snap");
-	Sys_mkdir(gamedirfile);
-	Sys_mkdir(checkname);
 
 	for (i=0 ; i<=99 ; i++)
 	{
@@ -2129,7 +2415,7 @@ void SV_Snap (int uid)
 SV_Snap_f
 ================
 */
-void SV_Snap_f (void)
+static void SV_Snap_f (void)
 {
 	int			uid;
 
@@ -2149,7 +2435,7 @@ void SV_Snap_f (void)
 SV_Snap
 ================
 */
-void SV_SnapAll_f (void)
+static void SV_SnapAll_f (void)
 {
 	client_t *cl;
 	int			i;
@@ -2162,12 +2448,12 @@ void SV_SnapAll_f (void)
 	}
 }
 
-float mytimer;
-float lasttimer;
-int ticsleft;
-float timerinterval;
-int timerlevel;
-cvar_t *timercommand;
+static float mytimer;
+static float lasttimer;
+static int ticsleft;
+static float timerinterval;
+static int timerlevel;
+static cvar_t *timercommand;
 void SV_CheckTimer(void)
 {
 	float ctime = Sys_DoubleTime();
@@ -2192,7 +2478,7 @@ void SV_CheckTimer(void)
 	}
 }
 
-void SV_SetTimer_f(void)
+static void SV_SetTimer_f(void)
 {
 	int count;
 	float interval;
@@ -2232,7 +2518,7 @@ void SV_SetTimer_f(void)
 	timerlevel = Cmd_ExecLevel;
 }
 
-void SV_SendGameCommand_f(void)
+static void SV_SendGameCommand_f(void)
 {
 #ifdef Q3SERVER
 	if (SVQ3_ConsoleCommand())
@@ -2265,19 +2551,19 @@ void PIN_SaveMessages(void);
 void PIN_DeleteOldestMessage(void);
 void PIN_MakeMessage(char *from, char *msg);
 
-void SV_Pin_Save_f(void)
+static void SV_Pin_Save_f(void)
 {
 	PIN_SaveMessages();
 }
-void SV_Pin_Reload_f(void)
+static void SV_Pin_Reload_f(void)
 {
 	PIN_LoadMessages();
 }
-void SV_Pin_Delete_f(void)
+static void SV_Pin_Delete_f(void)
 {
 	PIN_DeleteOldestMessage();
 }
-void SV_Pin_Add_f(void)
+static void SV_Pin_Add_f(void)
 {
 	PIN_MakeMessage(Cmd_Argv(1), Cmd_Argv(2));
 }
@@ -2355,24 +2641,25 @@ void SV_InitOperatorCommands (void)
 	//various punishments
 	Cmd_AddCommand ("kick", SV_Kick_f);
 	Cmd_AddCommand ("clientkick", SV_KickSlot_f);
+	Cmd_AddCommand ("renameclient", SV_ForceName_f);
 	Cmd_AddCommand ("mute", SV_Mute_f);
 	Cmd_AddCommand ("cuff", SV_Cuff_f);
-	Cmd_AddCommand ("renameclient", SV_ForceName_f);
 	Cmd_AddCommand ("cripple", SV_CripplePlayer_f);
-	Cmd_AddCommand ("banname", SV_BanName_f);
-	Cmd_AddCommand ("banlist", SV_BanList_f);
-	Cmd_AddCommand ("banip", SV_BanIP_f);
 	Cmd_AddCommand ("ban", SV_BanClientIP_f);
-	Cmd_AddCommand ("unban", SV_Unban_f);
-//	Cmd_AddCommand ("ban", SV_BanName_f);
-	Cmd_AddCommand ("status", SV_Status_f);
+	Cmd_AddCommand ("banname", SV_BanClientIP_f);	//legacy dupe-name crap
+
+	Cmd_AddCommand ("banlist", SV_BanList_f);	//shows only bans, not other penalties
+	Cmd_AddCommand ("unban", SV_Unfilter_f);	//merely renamed.
+	Cmd_AddCommand ("banlist", SV_BanList_f);	//shows only bans, not other penalties
 
 	Cmd_AddCommand ("addip", SV_FilterIP_f);
 	Cmd_AddCommand ("removeip", SV_Unfilter_f);
-	Cmd_AddCommand ("listip", SV_FilterList_f);
+	Cmd_AddCommand ("listip", SV_FilterList_f);	//shows all penalties
 	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("floodprot", SV_Floodprot_f);
+
+	Cmd_AddCommand ("status", SV_Status_f);
 
 	Cmd_AddCommand ("sv", SV_SendGameCommand_f);
 	Cmd_AddCommand ("mod", SV_SendGameCommand_f);
@@ -2385,6 +2672,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("gamemap", SV_Map_f);
 	Cmd_AddCommand ("changelevel", SV_Map_f);
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
+	Cmd_AddCommand ("maplist", SV_MapList_f);
 	Cmd_AddCommand ("setmaster", SV_SetMaster_f);
 
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);

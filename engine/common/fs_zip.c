@@ -604,15 +604,20 @@ static qofs_t QDECL VFSZIP_GetLen (struct vfsfile_s *file)
 	vfszip_t *vfsz = (vfszip_t*)file;
 	return vfsz->length;
 }
-static void QDECL VFSZIP_Close (struct vfsfile_s *file)
+static qboolean QDECL VFSZIP_Close (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
 	if (vfsz->defer)
 		VFS_CLOSE(vfsz->defer);
 
+	if (vfsz->decompress)
+		FSZIP_Decompress_Destroy(vfsz->decompress);
+
 	FSZIP_ClosePath(&vfsz->parent->pub);
 	Z_Free(vfsz);
+
+	return true;	//FIXME: return an error if the crc was wrong.
 }
 
 static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qofs_t *datastart, qofs_t *datasize);
@@ -627,7 +632,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	if (strcmp(mode, "rb"))
 		return NULL; //urm, unable to write/append
 
-	if (loc->len < 0)
+	if (qofs_Error(loc->len))
 		return NULL;
 
 	flags = zip->files[loc->index].flags;

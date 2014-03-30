@@ -106,7 +106,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_D3D
 #endif
 
-#if defined(_WIN32) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
 	#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
 #elif defined(__linux__) || defined(__CYGWIN__)
 	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
@@ -188,6 +188,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#ifdef SERVERONLY
 			#define USE_MYSQL	//allow mysql in dedicated servers.
 		#endif
+		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) 
+			//#define SUBSERVERS	//use subserver code.
+		#endif
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 
@@ -234,6 +237,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 		#define VM_Q1			//q1 qvm gamecode interface
+		//#define	VM_LUA			//q1 lua gamecode interface
 
 		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
 		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
@@ -288,6 +292,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q2SERVER	//requires a dll anyway.
 	#undef Q3CLIENT
 	#undef Q3SERVER //trying to trim memory use
+#endif
+#ifdef WINRT
+	#undef TCPCONNECT	//err...
+	#undef IRCCONNECT	//not happening
+	#undef AVAIL_DSOUND	//yeah, good luck there
+	#undef AVAIL_DINPUT	//nope, not supported.
+	#undef SV_MASTER	//no socket interface
+	#undef CL_MASTER	//no socket interface
+	#undef WEBSERVER		//http/ftp servers
+	#undef WEBCLIENT		//http/ftp clients.
+	#undef MULTITHREAD
 #endif
 #ifdef ANDROID
 	#undef RTLIGHTS
@@ -350,7 +365,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef AVAIL_ZLIB
-	#undef SUPPORT_ICE
+	#undef SUPPORT_ICE	//depends upon zlib's crc32 for fingerprinting. I cba writing my own.
 #endif
 
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
@@ -484,12 +499,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ARCH_CPU_POSTFIX "unk"
 #endif
 
-#if (defined(_M_IX86) || defined(__i386__)) && !defined(__amd64__) && !defined(_AMD64_)
-#define UNALIGNED_OK	1	// set to 0 if unaligned accesses are not supported
-#else
-#define UNALIGNED_OK	0
-#endif
-
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 	#define MSVCDISABLEWARNINGS
@@ -512,7 +521,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NORETURN __attribute__((noreturn))
 #endif
 
-//I'm making my own restrict, because msvc can't cope if I #define restrict to __restrict, and quite possibly other platforms too
+//I'm making my own restrict, because msvc's headers can't cope if I #define restrict to __restrict, and quite possibly other platforms too
 #if __STDC_VERSION__ >= 199901L
 	#define fte_restrict restrict
 #elif defined(_MSC_VER)

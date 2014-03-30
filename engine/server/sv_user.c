@@ -225,10 +225,24 @@ void SV_New_f (void)
 
 	if (host_client->redirect)
 	{
-		char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
-		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
-		ClientReliableWrite_String (host_client, msg);
+		if (host_client->redirect == 1)
+		{
+			char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
+			ClientReliableWrite_String (host_client, msg);
+		}
 		return;
+	}
+	else
+	{
+		char *srv = Info_ValueForKey(host_client->userinfo, "*redirect");
+		if (*srv)
+		{
+			char *msg = va("connect \"%s\"\n", srv);
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
+			ClientReliableWrite_String (host_client, msg);
+			return;
+		}
 	}
 
 /*	splitt delay
@@ -243,10 +257,10 @@ void SV_New_f (void)
 //	host_client->sendinfo = true;
 
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
-	if (!gamedir[0] || !strcmp(gamedir, "fte"))
+	if (!gamedir[0])
 	{
 		if (ISQWCLIENT(host_client))
-			gamedir = "qw";
+			gamedir = FS_GetGamedir(true);
 		else
 			gamedir = "";
 	}
@@ -431,9 +445,12 @@ void SVNQ_New_f (void)
 	host_client->send_message = true;
 	if (host_client->redirect)
 	{
-		char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
-		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
-		ClientReliableWrite_String (host_client, msg);
+		if (host_client->redirect == 1)
+		{
+			char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
+			ClientReliableWrite_String (host_client, msg);
+		}
 		return;
 	}
 
@@ -1020,7 +1037,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		if (client->zquake_extensions & Z_EXT_VWEP)
 		{
 			char mname[MAX_QPATH];
-			char vweaplist[1024] = "//vwep";
+			char vweaplist[2048] = "//vwep";
 
 			for (i = 0; sv.strings.vw_model_precache[i]; i++)
 			{
@@ -1743,8 +1760,10 @@ void SV_Begin_Core(client_t *split)
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 						if (pr_globals)
 							G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
+						sv.skipbprintclient = host_client;
 						if (pr_global_ptrs->ClientConnect)
 							PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->ClientConnect);
+						sv.skipbprintclient = NULL;
 
 						// actually spawn the player
 						pr_global_struct->time = sv.world.physicstime;
@@ -2283,6 +2302,7 @@ void SV_VoiceReadPacket(void)
 	/*read the data from the client*/
 	bytes = MSG_ReadShort();
 	ring = &voice.ring[voice.write & (VOICE_RING_SIZE-1)];
+	//voice data does not get echoed to the sender unless sv_voip_echo is on too, which is rarely the case, so no worries about leaking the mute+deaf talking-to-yourself thing
 	if (bytes > sizeof(ring->data) || host_client->ismuted || !sv_voip.ival)
 	{
 		MSG_ReadSkip(bytes);
@@ -2314,6 +2334,9 @@ void SV_VoiceReadPacket(void)
 		if (host_client->spectator && !sv_spectalk.ival)
 			if (!cl->spectator)
 				continue;
+
+		if (cl->isdeaf)
+			continue;
 
 		if (vt == VT_TEAM)
 		{
@@ -2476,23 +2499,53 @@ void SV_Voice_Target_f(void)
 {
 	unsigned int other;
 	char *t = Cmd_Argv(1);
+	char *v = Cmd_Argv(2);
+	qboolean verbose = *v?atoi(v):host_client->voice_active;
 	if (!strcmp(t, "team"))
+	{
 		host_client->voice_target = VT_TEAM;
+		if (verbose)
+		{
+			if (teamplay.ival)
+				SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to team\n");
+			else
+				SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to all (no teamplay)\n");
+		}
+	}
 	else if (!strcmp(t, "all"))
+	{
 		host_client->voice_target = VT_ALL;
+		if (verbose)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to all\n");
+	}
 	else if (!strcmp(t, "nonmuted"))
+	{
 		host_client->voice_target = VT_NONMUTED;
+		if (verbose)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to all people you've not ignored\n");
+	}
 	else if (*t >= '0' && *t <= '9')
 	{
 		other = atoi(t);
 		if (other >= svs.allocated_client_slots)
+			if (verbose)
+				SV_ClientTPrintf(host_client, PRINT_HIGH, "Invalid client\n");
 			return;
 		host_client->voice_target = VT_PLAYERSLOT0 + other;
+		if (verbose)
+		{
+			if (host_client->state >= cs_connected)
+				SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice only to %s\n", host_client->name);
+			else
+				SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice only to player slot %i, if someone occupies it\n", other);
+		}
 	}
 	else
 	{
 		/*don't know who you mean, futureproofing*/
 		host_client->voice_target = VT_TEAM;
+		if (verbose)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to team\n");
 	}
 }
 void SV_Voice_MuteAll_f(void)
@@ -3017,8 +3070,16 @@ void SV_SayOne_f (void)
 	if (Cmd_Argc () < 3)
 		return;
 
+	if (host_client->ismuted && !host_client->isdeaf)
+	{
+		SV_ClientTPrintf(host_client, PRINT_CHAT, "You are muted\n");
+		return;
+	}
+
 	while((to = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
+		if (host_client->ismuted)
+			continue;
 		if (host_client->spectator)
 		{
 			if (!sv_spectalk.value || to->spectator)
@@ -3029,12 +3090,8 @@ void SV_SayOne_f (void)
 		else
 			Q_snprintfz (text, sizeof(text), "{%s}:", host_client->name);
 
-		if (host_client->ismuted)
-		{
-			SV_ClientTPrintf(host_client, PRINT_CHAT, "%s is muted\n");
-			return;
-		}
-
+		if (to->isdeaf)
+			continue;
 
 		for (i = 2; ; i++)
 		{
@@ -3147,7 +3204,8 @@ void SV_Say (qboolean team)
 	if (Cmd_Argc () < 2)
 		return;
 
-	Sys_ServerActivity();
+	if (!host_client->ismuted)
+		Sys_ServerActivity();
 
 	memset(sent, 0, sizeof(sent));
 
@@ -3163,7 +3221,7 @@ void SV_Say (qboolean team)
 	else
 		Q_snprintfz (text, sizeof(text), "%s: ", host_client->name);
 
-	if (host_client->ismuted)
+	if (host_client->ismuted && !host_client->isdeaf)
 	{
 		SV_ClientTPrintf(host_client, PRINT_CHAT, "You cannot chat while muted\n");
 		return;
@@ -3221,7 +3279,8 @@ void SV_Say (qboolean team)
 
 	Q_strcat(text, "\n");
 
-	Sys_Printf ("%s", text);
+	if (!host_client->ismuted)
+		Sys_Printf ("%s", text);
 
 	mvdrecording = sv.mvdrecording;
 	sv.mvdrecording = false;	//so that the SV_ClientPrintf doesn't send to all players.
@@ -3245,6 +3304,14 @@ void SV_Say (qboolean team)
 					continue;	// on different teams
 			}
 		}
+
+		if (host_client->ismuted)
+		{
+			if (client != host_client)
+				continue;
+		}
+		else if (client->isdeaf)
+			continue;
 
 		cls |= 1 << j;
 
@@ -3380,17 +3447,23 @@ void SV_Kill_f (void)
 	}
 #endif
 
-#ifdef VM_Q1
-	if (svs.gametype == GT_Q1QVM)
+	switch(svs.gametype)
 	{
+#ifdef VM_Q1
+	case GT_Q1QVM:
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		Q1QVM_ClientCommand();
 		return;
-	}
 #endif
-	if (svs.gametype != GT_PROGS)
-		return;
+#ifdef VM_LUA
+	case GT_LUA:
+#endif
+	case GT_PROGS:
+		break;
+	default:
+		return;	//should have its own parsing.
+	}
 
 	if (sv_player->v->health <= 0)
 	{
@@ -3480,7 +3553,9 @@ void SV_Drop_f (void)
 	SV_EndRedirect ();
 	if (!host_client->drop)
 	{
-		if (host_client->redirect)
+		if (host_client->redirect == 2)
+			SV_BroadcastPrintf (PRINT_HIGH, "%s transfered to %s\n", host_client->name, Info_ValueForKey(host_client->userinfo, "*transfer"));
+		else if (host_client->redirect)
 			SV_BroadcastPrintf (PRINT_HIGH, "%s redirected to %s\n", host_client->name, sv_fullredirect.string);
 		else
 		{
@@ -3853,7 +3928,7 @@ void SV_Vote_f (void)
 	int totalusers = 0;
 	qboolean passes;
 
-	if (!votelevel.value)
+	if (!votelevel.value || (host_client->ismuted && host_client->isdeaf))
 	{
 		SV_ClientTPrintf(host_client, PRINT_HIGH, "Voting was dissallowed\n");
 		return;
@@ -3990,7 +4065,7 @@ void Cmd_Give_f (void)
 		return;
 	}
 
-	if (svs.gametype != GT_PROGS)
+	if (!svprogfuncs)
 		return;
 
 	t = Cmd_Argv(1);
@@ -4031,7 +4106,7 @@ void Cmd_Give_f (void)
 			SV_TPrintToClient(host_client, PRINT_HIGH, "give: unknown item\n");
 		}
 	}
-	else
+	else if (svprogfuncs->EvaluateDebugString)
 	{
 		if (developer.value < 2 && host_client->netchan.remote_address.type != NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
 		{
@@ -4056,7 +4131,7 @@ void Cmd_Noclip_f (void)
 		return;
 	}
 
-	if (svs.gametype != GT_PROGS)
+	if (!svprogfuncs)
 		return;
 
 	SV_LogPlayer(host_client, "noclip cheat");
@@ -4085,7 +4160,7 @@ void Cmd_Fly_f (void)
 		return;
 	}
 
-	if (svs.gametype != GT_PROGS)
+	if (!svprogfuncs)
 		return;
 
 	SV_LogPlayer(host_client, "fly cheat");
@@ -4119,7 +4194,7 @@ void Cmd_SetPos_f(void)
 		return;
 	}
 
-	if (svs.gametype != GT_PROGS)
+	if (!svprogfuncs)
 		return;
 
 	if (Cmd_Argc() != 4)
@@ -4156,7 +4231,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	{
 		if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
 			ED_Clear(svprogfuncs, ent);
-		ent->v->netname = PR_SetString(svprogfuncs, cl->name);
+		svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->netname, cl->name, true);
 	}
 	ED_Spawned(ent, false);
 	ent->isfree = false;
@@ -4650,9 +4725,11 @@ void SVNQ_Begin_f (void)
 			}
 
 			// call the spawn function
+			sv.skipbprintclient = host_client;
 			pr_global_struct->time = sv.world.physicstime;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+			sv.skipbprintclient = NULL;
 
 			// actually spawn the player
 			pr_global_struct->time = sv.world.physicstime;
@@ -6276,6 +6353,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 					cl->delay = bound(0, cl->delay, 1);	//but make sure things don't go crazy
 				}
 			}
+			if (cl->islagged)
+				if (cl->delay < 0.2)
+					cl->delay = 0.2;
 		}
 
 		if (sv_antilag.ival)
@@ -6724,7 +6804,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			host_client = cl;
 			sv_player = cl->edict;
 
-			if (cl->state == cs_zombie)
+			if (cl->state >= cs_connected)
 				return;	// disconnect command
 			break;
 

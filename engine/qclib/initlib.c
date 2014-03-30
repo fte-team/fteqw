@@ -93,7 +93,7 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount)
 		/*only do this if the caller states that it can cope with addressable-block relocations/resizes*/
 		if (externs->addressablerelocated)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 			char *newblock;
 		#if 0//def _DEBUG
 			int oldtot = addressablesize;
@@ -133,7 +133,7 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount)
 	prinst.addressableused += ammount;
 	progfuncs->funcs.stringtablesize = prinst.addressableused;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 	if (!VirtualAlloc (prinst.addressablehunk, prinst.addressableused, MEM_COMMIT, PAGE_READWRITE))
 		Sys_Error("VirtualAlloc failed. Blame windows.");
 #endif
@@ -400,7 +400,7 @@ void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 //		return;
 	}
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 	if (prinst.addressablehunk && prinst.addressablesize != totalammount)
 	{
 		VirtualFree(prinst.addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
@@ -482,7 +482,7 @@ void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_p
 	PRHunkFree(progfuncs, 0);	//clear mem - our hunk may not be a real hunk.
 	if (addressable_size<0 || addressable_size == (size_t)-1)
 	{
-#ifdef _WIN64
+#if defined(_WIN64) && !defined(WINRT)
 		addressable_size = 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
 #else
 		addressable_size = 32*1024*1024;
@@ -809,7 +809,7 @@ int PDECL EdictToProgs (pubprogfuncs_t *ppf, struct edict_s *ed)
 	return EDICT_TO_PROG(progfuncs, ed);
 }
 
-string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, char *str)
+string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, const char *str)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	char **ntable;
@@ -832,7 +832,7 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, char *str)
 	if (free != -1)
 	{
 		i = free;
-		prinst.allocedstrings[i] = str;
+		prinst.allocedstrings[i] = (char*)str;
 		return (string_t)((unsigned int)i | STRING_STATIC);
 	}
 
@@ -849,12 +849,17 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, char *str)
 	{
 		if (!prinst.allocedstrings[i])
 		{
-			prinst.allocedstrings[i] = str;
+			prinst.allocedstrings[i] = (char*)str;
 			return (string_t)((unsigned int)i | STRING_STATIC);
 		}
 	}
 
 	return 0;
+}
+//if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
+void PDECL PR_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
+{
+	*fld = PR_StringToProgs(progfuncs, str);
 }
 
 char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)
@@ -1124,7 +1129,8 @@ pubprogfuncs_t deffuncs = {
 	PR_GenerateStatementString,
 	ED_FieldInfo,
 	PR_UglyValueString,
-	ED_ParseEval
+	ED_ParseEval,
+	PR_SetStringField
 };
 static int PDECL qclib_null_printf(const char *s, ...)
 {
@@ -1220,7 +1226,7 @@ static void PDECL PR_CloseProgs(pubprogfuncs_t *ppf)
 
 	PRHunkFree(inst, 0);
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 	VirtualFree(inst->inst.addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
 #else
 	free(inst->inst.addressablehunk);

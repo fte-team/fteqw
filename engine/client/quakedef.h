@@ -184,7 +184,9 @@ extern "C" {
 #include "world.h"
 #include "q2game.h"
 #include "../http/iweb.h"
-#ifndef CLIENTONLY
+#ifdef CLIENTONLY
+#define SSV_IsSubServer() false
+#else
 #include "server.h"
 #endif
 

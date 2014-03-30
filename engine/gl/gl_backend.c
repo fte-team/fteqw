@@ -933,7 +933,7 @@ static void RevertToKnownState(void)
 		GL_DeSelectProgram();
 	}
 
-	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MASK_BITS);
+	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MASK_BITS|SBITS_AFFINE);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 
 	shaderstate.shaderbits &= ~(SBITS_BLEND_BITS);
@@ -1050,15 +1050,15 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		t = pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
 		break;
 	case T_GEN_LIGHTMAP:
-		if (shaderstate.curbatch->lightmap[0] < 0)
+		if ((unsigned short)shaderstate.curbatch->lightmap[0] >= numlightmaps)
 			t = r_whiteimage;
 		else
 			t = lightmap[shaderstate.curbatch->lightmap[0]]->lightmap_texture;
 		break;
 	case T_GEN_DELUXMAP:
 		{
-			int lmi = shaderstate.curbatch->lightmap[0];
-			if (lmi < 0 || !lightmap[lmi]->hasdeluxe)
+			unsigned int lmi = shaderstate.curbatch->lightmap[0];
+			if (lmi >= numlightmaps || !lightmap[lmi]->hasdeluxe)
 				t = missing_texture_normal;
 			else
 				t = lightmap[lmi+1]->lightmap_texture;
@@ -1080,10 +1080,16 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			t = missing_texture_gloss;
 		break;
 	case T_GEN_UPPEROVERLAY:
-		t = shaderstate.curtexnums->upperoverlay;
+		if (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->upperoverlay))
+			t = shaderstate.curtexnums->upperoverlay;
+		else
+			t = r_nulltex;
 		break;
 	case T_GEN_LOWEROVERLAY:
-		t = shaderstate.curtexnums->loweroverlay;
+		if (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->loweroverlay))
+			t = shaderstate.curtexnums->loweroverlay;
+		else
+			t = r_nulltex;
 		break;
 	case T_GEN_FULLBRIGHT:
 		t = shaderstate.curtexnums->fullbright;
@@ -2558,6 +2564,14 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 		else
 			qglDisable(GL_PN_TRIANGLES_ATI);
 	}
+
+	if (delta & SBITS_AFFINE)
+	{
+		if (sbits & SBITS_AFFINE)
+			qglHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+		else
+			qglHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+	}
 }
 
 static void BE_SubmitMeshChain(void)
@@ -3026,7 +3040,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			qglUniform3fvARB(ph, 1, shaderstate.lightcolours);
 			break;
 		case SP_W_FOG:
-			qglUniform4fvARB(ph, 1, r_refdef.gfog_rgbd);
+			qglUniform4fvARB(ph, 2, r_refdef.globalfog.colour);	//and density
 			break;
 		case SP_V_EYEPOS:
 			qglUniform3fvARB(ph, 1, r_origin);
@@ -3136,7 +3150,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_FULLBRIGHT;
 	if ((TEXVALID(shaderstate.curtexnums->loweroverlay) || TEXVALID(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].handle.glsl)
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.gfog_rgbd[3] && p->permu[perm|PERMUTATION_FOG].handle.glsl)
+	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.glsl)
 		perm |= PERMUTATION_FOG;
 	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 		perm |= PERMUTATION_DELUXE;
@@ -3275,7 +3289,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			if (gl_config.nofixedfunc && !shaderstate.allblackshader)
 			{
 				char *defs[] = {NULL};
-				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false);
+				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
 			}
 
@@ -3799,7 +3813,7 @@ static void DrawMeshes(void)
 				if (!shaderstate.allblackshader)
 				{
 					char *defs[] = {NULL};
-					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false);
+					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 					shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
 				}
 
@@ -4245,7 +4259,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 				GL_ViewportUpdate();
 				GL_ForceDepthWritable();
-				qglClearColor(0, 0, 0, 0);
+				qglClearColor(0, 0, 0, 1);
 				qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, 1);
 				GLBE_FBO_Pop(oldfbo);
@@ -4301,7 +4315,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GL_ViewportUpdate();
 
 					GL_ForceDepthWritable();
-					qglClearColor(0, 0, 0, 0);
+					qglClearColor(0, 0, 0, 1);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 					GLBE_FBO_Pop(oldfbo);
@@ -4340,7 +4354,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 				GL_ViewportUpdate();
 
-				qglClearColor(0, 0, 0, 0);
+				qglClearColor(0, 0, 0, 1);
 				qglClear(GL_COLOR_BUFFER_BIT);
 
 //				r_refdef.waterheight = DotProduct(batch->mesh[0]->xyz_array[0], batch->mesh[0]->normals_array[0]);
@@ -4823,7 +4837,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	GLBE_FBO_Update(&shaderstate.fbo_lprepass, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_diffuse, r_nulltex, vid.pixelwidth, vid.pixelheight);
 
 	BE_SelectMode(BEM_STANDARD);
-	qglClearColor (0,0,0,0);
+	qglClearColor (0,0,0,1);
 	qglClear(GL_COLOR_BUFFER_BIT);
 
 	GLBE_SelectEntity(&r_worldentity);

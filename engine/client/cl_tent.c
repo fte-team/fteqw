@@ -711,7 +711,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	if (ruleset_allow_particle_lightning.ival && btype >= 0)
 		m = NULL;
 	else
-		m = Mod_ForName(mname, false);
+		m = Mod_ForName(mname, MLV_WARN);
 
 	if (m && m->needload)
 		CL_CheckOrEnqueDownloadFile(m->name, NULL, 0);
@@ -835,23 +835,23 @@ void CL_ParseStream (int type)
 	switch(type)
 	{
 	case TEH2_STREAM_LIGHTNING_SMALL:
-		b->model = 	Mod_ForName("models/stltng2.mdl", true);
+		b->model = 	Mod_ForName("models/stltng2.mdl", MLV_WARN);
 		b->flags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_lightning_small");
 		break;
 	case TEH2_STREAM_LIGHTNING:
-		b->model = 	Mod_ForName("models/stlghtng.mdl", true);
+		b->model = 	Mod_ForName("models/stlghtng.mdl", MLV_WARN);
 		b->flags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_lightning");
 		break;
 	case TEH2_STREAM_ICECHUNKS:
-		b->model = 	Mod_ForName("models/stice.mdl", true);
+		b->model = 	Mod_ForName("models/stice.mdl", MLV_WARN);
 		b->flags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_icechunks");
 		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, 0, 20);
 		break;
 	case TEH2_STREAM_SUNSTAFF1:
-		b->model = Mod_ForName("models/stsunsf1.mdl", true);
+		b->model = Mod_ForName("models/stsunsf1.mdl", MLV_WARN);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff1");
 		if (b->particleeffect < 0)
 		{
@@ -859,26 +859,26 @@ void CL_ParseStream (int type)
 			if (b2)
 			{
 				memcpy(b2, b, sizeof(*b2));
-				b2->model = Mod_ForName("models/stsunsf2.mdl", true);
+				b2->model = Mod_ForName("models/stsunsf2.mdl", MLV_WARN);
 				b2->alpha = 0.5;
 			}
 		}
 		break;
 	case TEH2_STREAM_SUNSTAFF2:
-		b->model = 	Mod_ForName("models/stsunsf1.mdl", true);
+		b->model = 	Mod_ForName("models/stsunsf1.mdl", MLV_WARN);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
 		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
 		break;
 	case TEH2_STREAM_COLORBEAM:
-		b->model = Mod_ForName("models/stclrbm.mdl", true);
+		b->model = Mod_ForName("models/stclrbm.mdl", MLV_WARN);
 		b->particleeffect = P_FindParticleType("te_stream_colorbeam");
 		break;
 	case TEH2_STREAM_GAZE:
-		b->model = Mod_ForName("models/stmedgaz.mdl", true);
+		b->model = Mod_ForName("models/stmedgaz.mdl", MLV_WARN);
 		b->particleeffect = P_FindParticleType("te_stream_gaze");
 		break;
 	case TEH2_STREAM_FAMINE:
-		b->model = Mod_ForName("models/fambeam.mdl", true);
+		b->model = Mod_ForName("models/fambeam.mdl", MLV_WARN);
 		b->particleeffect = P_FindParticleType("te_stream_famine");
 		break;
 	default:
@@ -909,17 +909,13 @@ void CL_ParseTEnt (void)
 //	explosion_t	*ex;
 	int		cnt, colour;
 
-	type = MSG_ReadByte ();
-
 #ifdef CSQC_DAT
-	if (type != TE_GUNSHOT)
-	{
-		//I know I'm going to regret this.
-		if (CSQC_ParseTempEntity((unsigned char)type))
-			return;
-	}
+	//I know I'm going to regret this.
+	if (CSQC_ParseTempEntity())
+		return;
 #endif
 
+	type = MSG_ReadByte ();
 
 	if (nqprot)
 	{
@@ -1157,7 +1153,7 @@ void CL_ParseTEnt (void)
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
 			ex->start = cl.time;
-			ex->model = Mod_ForName ("progs/s_explod.spr", true);
+			ex->model = Mod_ForName ("progs/s_explod.spr", MLV_WARN);
 		}
 		break;
 	case TE_EXPLOSION:			// rocket explosion
@@ -1197,7 +1193,7 @@ void CL_ParseTEnt (void)
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
 			ex->start = cl.time;
-			ex->model = Mod_ForName ("progs/s_explod.spr", true);
+			ex->model = Mod_ForName ("progs/s_explod.spr", MLV_WARN);
 		}
 		break;
 
@@ -1919,7 +1915,9 @@ void CL_RefreshCustomTEnts(void)
 		for (i = 0; i <= MAX_SSPARTICLESPRE; i++)
 		{
 			if (cl.particle_ssname[i])
-				cl.particle_ssprecache[i] = 1+P_FindParticleType(cl.particle_ssname[i]);
+				cl.particle_ssprecache[i] = P_FindParticleType(cl.particle_ssname[i]);
+			else
+				cl.particle_ssprecache[i] = P_INVALID;
 		}
 	}
 	if (cl.particle_csprecaches)
@@ -1927,7 +1925,9 @@ void CL_RefreshCustomTEnts(void)
 		for (i = 0; i <= MAX_CSPARTICLESPRE; i++)
 		{
 			if (cl.particle_csname[i])
-				cl.particle_csprecache[i] = 1+P_FindParticleType(cl.particle_csname[i]);
+				cl.particle_csprecache[i] = P_FindParticleType(cl.particle_csname[i]);
+			else
+				cl.particle_csprecache[i] = P_INVALID;
 		}
 	}
 }
@@ -1953,12 +1953,12 @@ int CL_TranslateParticleFromServer(int qceffect)
 	if (cl.particle_ssprecaches && qceffect >= 0 && qceffect < MAX_SSPARTICLESPRE)
 	{
 		/*proper precaches*/
-		return cl.particle_ssprecache[qceffect]-1;
+		return cl.particle_ssprecache[qceffect];
 	}
 	else if (-qceffect >= 0 && -qceffect < MAX_CSPARTICLESPRE)
 	{
 		qceffect = -qceffect;
-		return cl.particle_csprecache[qceffect]-1;
+		return cl.particle_csprecache[qceffect];
 	}
 	else
 		return -1;
@@ -2177,7 +2177,7 @@ void CL_SmokeAndFlash(vec3_t origin)
 	ex->flags = Q2RF_TRANSLUCENT;
 	ex->alpha = 1;
 	ex->start = cl.time;
-	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, false);
+	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, MLV_WARN);
 
 	ex = CL_AllocExplosion ();
 	VectorCopy (origin, ex->origin);
@@ -2186,7 +2186,7 @@ void CL_SmokeAndFlash(vec3_t origin)
 	ex->flags = Q2RF_FULLBRIGHT;
 	ex->numframes = 2;
 	ex->start = cl.time;
-	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_flash].modelname, false);
+	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_flash].modelname, MLV_WARN);
 }
 
 void CL_Laser (vec3_t start, vec3_t end, int colors)
@@ -2347,7 +2347,7 @@ void CLQ2_ParseTEnt (void)
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
 		ex->start = cl.time;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW|Q2RF_TRANSLUCENT;
@@ -2435,7 +2435,7 @@ void CLQ2_ParseTEnt (void)
 			VectorCopy (pos, ex->origin);
 			VectorClear(ex->angles);
 			ex->start = cl.time;
-			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, true);
+			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
 			ex->firstframe = 30;
 			ex->alpha = 1;
 			ex->flags |= Q2RF_TRANSLUCENT;
@@ -2530,7 +2530,7 @@ void CLQ2_ParseTEnt (void)
 			VectorCopy (pos, ex->origin);
 			VectorClear(ex->angles);
 			ex->start = cl.time;
-			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
+			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
 			ex->alpha = 1;
 			ex->flags |= Q2RF_TRANSLUCENT;
 			if (rand()&1)
@@ -2678,7 +2678,7 @@ void CLQ2_ParseTEnt (void)
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
 		ex->start = cl.time;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
@@ -2728,7 +2728,7 @@ void CLQ2_ParseTEnt (void)
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
 		ex->start = cl.time;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
@@ -2786,7 +2786,7 @@ void CLQ2_ParseTEnt (void)
 //		ex->type = ex_poly;
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->angles[1] = rand() % 360;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
+		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
 		if (rand() < RAND_MAX/2)
 			ex->firstframe = 15;
 		ex->numframes = 15;
@@ -3106,21 +3106,21 @@ void CL_UpdateBeams (void)
 				playerview_t *pv = &cl.playerview[j];
 				if (b->entity == ((cl.spectator&&pv->cam_auto)?pv->cam_spec_track+1:(pv->playernum+1)))
 				{
-					player_state_t	*pl;
+//					player_state_t	*pl;
 		//			VectorSubtract(cl.simorg, b->start, org);
 		//			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
-					pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
-					if (pl->messagenum == cl.parsecount || cls.protocol == CP_NETQUAKE)
+//					pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
+//					if (pl->messagenum == cl.parsecount || cls.protocol == CP_NETQUAKE)
 					{
 						vec3_t	fwd, org, ang;
 						float	delta, f, len;
 
-						if (cl.spectator && pv->cam_auto)
-						{	//if we're tracking someone, use their origin explicitly.
-							vieworg = pl->origin;
-						}
-						else
+//						if (cl.spectator && pv->cam_auto)
+//						{	//if we're tracking someone, use their origin explicitly.
+//							vieworg = pl->origin;
+//						}
+//						else
 							vieworg = pv->simorg;
 						viewang = pv->simangles;
 

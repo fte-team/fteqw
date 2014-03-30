@@ -594,6 +594,35 @@ qintptr_t VARGS Plug_S_RawAudio(void *offset, quintptr_t mask, const qintptr_t *
 	return 0;
 }
 
+#include "com_mesh.h"
+qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+#ifdef SKELETALMODELS
+	static modplugfuncs_t funcs =
+	{
+		Mod_RegisterModelFormatText,
+		Mod_RegisterModelFormatMagic,
+		Mod_UnRegisterModelFormat,
+		Mod_UnRegisterAllModelFormats,
+		ZG_Malloc,
+
+		R_ConcatTransforms,
+		Matrix3x4_Invert_Simple,
+		COM_StripExtension,
+		GenMatrixPosQuat4Scale,
+		Alias_ForceConvertBoneData,
+
+		R_RegisterShader,
+		R_RegisterSkin,
+		R_BuildDefaultTexnums
+	};
+	if (VM_LONG(arg[0]) == sizeof(funcs))
+		return (qintptr_t)&funcs;
+	else
+#endif
+		return 0;
+}
+
 void Plug_Client_Init(void)
 {
 	Plug_RegisterBuiltin("CL_GetStats",				Plug_CL_GetStats, PLUG_BIF_NEEDSRENDERER);
@@ -629,6 +658,8 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
 	
 	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
+	
+	Plug_RegisterBuiltin("Mod_GetPluginModelFuncs",	Plug_Mod_GetPluginModelFuncs, PLUG_BIF_NEEDSRENDERER|PLUG_BIF_DLLONLY);
 }
 
 void Plug_Client_Close(plugin_t *plug)

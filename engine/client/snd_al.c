@@ -298,7 +298,7 @@ static void PrintALError(char *string)
 	Con_Printf("OpenAL - %s: %x: %s\n",string,err,text);
 }
 
-void OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc)
+void OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 {
 	unsigned int fmt;
 	unsigned int size;
@@ -334,20 +334,50 @@ void OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc)
 	PrintALError("pre Buffer Data");
 	palGenBuffers(1, bufptr);
 	/*openal is inconsistant and supports only 8bit unsigned or 16bit signed*/
-	if (sc->width == 1)
+	if (volume != 1)
 	{
-		unsigned char *tmp = malloc(size);
-		char *src = sc->data;
-		int i;
-		for (i = 0; i < size; i++)
+		if (sc->width == 1)
 		{
-			tmp[i] = src[i]+128;
+			unsigned char *tmp = malloc(size);
+			char *src = sc->data;
+			int i;
+			for (i = 0; i < size; i++)
+			{
+				tmp[i] = src[i]*volume+128;	//signed->unsigned
+			}
+			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+			free(tmp);
 		}
-		palBufferData(*bufptr, fmt, tmp, size, sc->speed);
-		free(tmp);
+		else
+		{
+			short *tmp = malloc(size);
+			short *src = (short*)sc->data;
+			int i;
+			for (i = 0; i < (size>>1); i++)
+			{
+				tmp[i] = bound(-32767, src[i]*volume, 32767);	//signed.
+			}
+			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+			free(tmp);
+		}
 	}
 	else
-		palBufferData(*bufptr, fmt, sc->data, size, sc->speed);
+	{
+		if (sc->width == 1)
+		{
+			unsigned char *tmp = malloc(size);
+			char *src = sc->data;
+			int i;
+			for (i = 0; i < size; i++)
+			{
+				tmp[i] = src[i]+128;
+			}
+			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+			free(tmp);
+		}
+		else
+			palBufferData(*bufptr, fmt, sc->data, size, sc->speed);
+	}
 
 	//FIXME: we need to handle oal-oom error codes
 
@@ -385,7 +415,7 @@ static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, vec3_t origin, vec3_t for
 
 	if (!s_al_static_listener.value)
 	{
-		palListenerf(AL_GAIN, volume.value*voicevolumemod);
+		palListenerf(AL_GAIN, 1);
 		palListenerfv(AL_POSITION, oali->ListenPos);
 		palListenerfv(AL_VELOCITY, oali->ListenVel);
 		palListenerfv(AL_ORIENTATION, oali->ListenOri);
@@ -398,7 +428,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	oalinfo_t *oali = sc->handle;
 	ALuint src;
 	sfx_t *sfx = chan->sfx;
-	float pitch;
+	float pitch, cvolume;
 	int chnum = chan - sc->channel;
 	ALuint buf;
 
@@ -453,6 +483,10 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		return;
 	}
 
+	cvolume = chan->master_vol/255.0f;
+	if (!(chan->flags & CF_ABSVOLUME))
+		cvolume *= volume.value*voicevolumemod;
+
 	if (schanged || sfx->decoder.decodedata)
 	{
 		if (!sfx->openal_buffer)
@@ -473,7 +507,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 
 				//build a buffer with it and queue it up.
 				//buffer will be purged later on when its unqueued
-				OpenAL_LoadCache(&buf, &sbuf);
+				OpenAL_LoadCache(&buf, &sbuf, max(1,cvolume));
 				palSourceQueueBuffers(src, 1, &buf);
 
 				//yay
@@ -485,14 +519,15 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			}
 			else
 			{
-				OpenAL_LoadCache(&sfx->openal_buffer, sfx->decoder.buf);
+				OpenAL_LoadCache(&sfx->openal_buffer, sfx->decoder.buf, 1);
 				palSourcei(src, AL_BUFFER, sfx->openal_buffer);
 			}
 		}
 		else
 			palSourcei(src, AL_BUFFER, sfx->openal_buffer);
 	}
-	palSourcef(src, AL_GAIN, chan->master_vol/255.0f);
+
+	palSourcef(src, AL_GAIN, min(cvolume, 1));	//openal only supports a max volume of 1. anything above is an error and will be clamped.
 	if (chan->entnum == -1 || chan->entnum == cl.playerview[0].viewentity)
 		palSourcefv(src, AL_POSITION, vec3_origin);
 	else

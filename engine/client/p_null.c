@@ -5,7 +5,7 @@
 #include "renderque.h"
 
 //returns a valid effect if its existance is known.
-static int PNULL_FindParticleType(char *name)
+static int PNULL_FindParticleType(const char *name)
 {
 //	Con_DPrintf("P_FindParticleType %s\n", name);
 	return P_INVALID;

@@ -30,7 +30,7 @@ static void S_StopAllSounds_f (void);
 
 static void S_UpdateCard(soundcardinfo_t *sc);
 static void S_ClearBuffer (soundcardinfo_t *sc);
-static sfx_t *S_FindName (char *name);
+static sfx_t *S_FindName (const char *name);
 
 // =======================================================================
 // Internal sound data & structures
@@ -131,7 +131,7 @@ cvar_t snd_voip_showmeter		= CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIV
 cvar_t snd_voip_play			= CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables voip playback. Value is a volume scaler.", S_Voip_Play_Callback);
 cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_micamp			= CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
-cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex. 1: raw. 2: opus.", 0);
+cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).", 0);
 cvar_t snd_voip_noisefilter		= CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
 cvar_t snd_voip_autogain		= CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
 #endif
@@ -2007,7 +2007,7 @@ S_FindName
 also touches it
 ==================
 */
-static sfx_t *S_FindName (char *name)
+static sfx_t *S_FindName (const char *name)
 {
 	int		i;
 	sfx_t	*sfx;
@@ -2112,7 +2112,7 @@ S_PrecacheSound
 
 ==================
 */
-sfx_t *S_PrecacheSound (char *name)
+sfx_t *S_PrecacheSound (const char *name)
 {
 	sfx_t	*sfx;
 
@@ -2834,7 +2834,7 @@ void S_ExtraUpdate (void)
 	if (!sound_started)
 		return;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 	INS_Accumulate ();
 #endif
 
@@ -3015,7 +3015,7 @@ void S_SoundList_f(void)
 }
 
 
-void S_LocalSound (char *sound)
+void S_LocalSound (const char *sound)
 {
 	sfx_t	*sfx;
 

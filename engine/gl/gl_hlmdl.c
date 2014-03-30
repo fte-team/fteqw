@@ -72,7 +72,7 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
  =======================================================================================================================
  */
 extern char loadname[];
-qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 {
     /*~~*/
     int i;
@@ -224,7 +224,7 @@ void *Mod_GetHalfLifeModelData(model_t *mod)
 }
 #endif
 
-int HLMod_FrameForName(model_t *mod, char *name)
+int HLMod_FrameForName(model_t *mod, const char *name)
 {
 	int i;
 	hlmdl_header_t *h;

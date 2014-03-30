@@ -200,6 +200,7 @@ void R2D_Init(void)
 			"if $nofixed\n"
 				"program default2d\n"
 			"endif\n"
+			"affine\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
@@ -268,6 +269,7 @@ void R2D_Init(void)
 	shader_gammacb = R_RegisterShader("gammacbshader", SUF_NONE,
 		"{\n"
 			"program defaultgammacb\n"
+			"affine\n"
 			"cull back\n"
 			"{\n"
 				"map $currentrender\n"
@@ -288,6 +290,7 @@ void R2D_Init(void)
 	);
 	shader_menutint = R_RegisterShader("menutint", SUF_NONE,
 		"{\n"
+			"affine\n"
 			"if $glsl && gl_menutint_shader != 0\n"
 				"program menutint\n"
 				"{\n"
@@ -307,6 +310,7 @@ void R2D_Init(void)
 			"if $nofixed\n"
 				"program default2d\n"
 			"endif\n"
+			"affine\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
@@ -342,7 +346,7 @@ void R2D_Init(void)
 	R2D_Font_Changed();
 }
 
-mpic_t	*R2D_SafeCachePic (char *path)
+mpic_t	*R2D_SafeCachePic (const char *path)
 {
 	shader_t *s;
 	if (!qrenderer)
@@ -354,7 +358,7 @@ mpic_t	*R2D_SafeCachePic (char *path)
 }
 
 
-mpic_t *R2D_SafePicFromWad (char *name)
+mpic_t *R2D_SafePicFromWad (const char *name)
 {
 	char newnamewad[32];
 	char newnamegfx[32];
@@ -465,25 +469,18 @@ void R2D_SubPic(float x, float y, float width, float height, mpic_t *pic, float 
 }
 
 /* this is an ugly special case drawing func that's only used for the player color selection menu */
-void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic, qbyte *translation)
+void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic, unsigned int *palette)
 {
 	int				v, u;
 	unsigned		trans[64*64], *dest;
 	qbyte			*src;
-	int				p;
 
 	dest = trans;
 	for (v=0 ; v<64 ; v++, dest += 64)
 	{
 		src = &pic[ ((v*height)>>6) *width];
 		for (u=0 ; u<64 ; u++)
-		{
-			p = src[(u*width)>>6];
-			if (p == 255)
-				dest[u] = 0x0;
-			else
-				dest[u] =  d_8to24rgbtable[translation[p]];
-		}
+			dest[u] = palette[src[(u*width)>>6]];
 	}
 
 	if (!TEXVALID(translate_texture))
@@ -498,6 +495,8 @@ void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic,
 				"{\n"
 					"map $diffuse\n"
 					"blendfunc blend\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
 				"}\n"
 			"}\n");
 		translate_shader->defaulttextures.base = translate_texture;
@@ -631,7 +630,7 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
-#if defined(_WIN32) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
 #include <windows.h>
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 {
@@ -699,6 +698,10 @@ void R2D_Font_Changed(void)
 		Font_Free(font_default);
 	font_default = NULL;
 
+	if (font_tiny)
+		Font_Free(font_tiny);
+	font_tiny = NULL; 
+
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 	PR_ResetFonts(0);
 #endif
@@ -706,7 +709,7 @@ void R2D_Font_Changed(void)
 	if (qrenderer == QR_NONE)
 		return;
 
-#if defined(_WIN32) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
 	if (!strcmp(gl_font.string, "?"))
 	{
 		BOOL (APIENTRY *pChooseFontA)(LPCHOOSEFONTA) = NULL;
@@ -1366,6 +1369,21 @@ texid_t R2D_RT_GetTexture(unsigned int id, unsigned int *width, unsigned int *he
 	*width = rendertargets[id].width;
 	*height = rendertargets[id].height;
 	return rendertargets[id].id;
+}
+
+texid_t R2D_RT_DetachTexture(unsigned int id)
+{
+	texid_t r;
+	id--;
+	if (id >= numrendertargets)
+		return r_nulltex;
+
+	r = rendertargets[id].id;
+	rendertargets[id].id = r_nulltex;
+	rendertargets[id].fmt = TF_INVALID;
+	rendertargets[id].width = 0;
+	rendertargets[id].height = 0;
+	return r;
 }
 
 #endif

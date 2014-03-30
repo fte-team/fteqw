@@ -21,14 +21,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/types.h>
 #include <sys/timeb.h>
 
-#include <winsock.h>
+#include "winquake.h"
 #include <conio.h>
 
-#ifdef MULTITHREAD
+#if !defined(WINRT) && defined(MULTITHREAD)
 #include <process.h>
-#endif
-
-#ifdef MULTITHREAD
 /* Thread creation calls */
 typedef struct threadwrap_s
 {
@@ -309,4 +306,113 @@ void Sys_DestroyConditional(void *condv)
 	DeleteCriticalSection(&cv->mainlock);
 	free(cv);
 }
+
 #endif
+
+#ifdef SUBSERVERS
+typedef struct slaveserver_s
+{
+	pubsubserver_t pub;
+
+	HANDLE inpipe;
+	HANDLE outpipe;
+	
+	qbyte inbuffer[2048];
+	int inbufsize;
+} winsubserver_t;
+
+
+pubsubserver_t *Sys_ForkServer(void)
+{
+	char exename[256];
+	char curdir[256];
+	char cmdline[8192];
+	PROCESS_INFORMATION childinfo;
+	STARTUPINFO startinfo;
+	SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
+	winsubserver_t *ctx = Z_Malloc(sizeof(*ctx));
+
+	GetModuleFileName(NULL, exename, sizeof(exename));
+	GetCurrentDirectory(sizeof(curdir), curdir);
+	Q_snprintfz(cmdline, sizeof(cmdline), "foo -clusterslave %s", FS_GetManifestArgs());	//fixme: include which manifest is in use, so configs get set up the same.
+
+	memset(&startinfo, 0, sizeof(startinfo));
+	startinfo.cb = sizeof(startinfo);
+	startinfo.hStdInput = NULL;
+	startinfo.hStdError = NULL;
+	startinfo.hStdOutput = NULL;
+	startinfo.dwFlags |= STARTF_USESTDHANDLES;
+
+	//create pipes for the stdin/stdout.
+	CreatePipe(&ctx->inpipe, &startinfo.hStdOutput, &pipesec, 0);
+	CreatePipe(&startinfo.hStdInput, &ctx->outpipe, &pipesec, 0);
+
+	SetHandleInformation(ctx->inpipe, HANDLE_FLAG_INHERIT, 0);
+	SetHandleInformation(ctx->outpipe, HANDLE_FLAG_INHERIT, 0);
+	SetHandleInformation(startinfo.hStdOutput, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+	SetHandleInformation(startinfo.hStdInput, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+
+	CreateProcess(exename, cmdline, NULL, NULL, TRUE, 0, NULL, curdir, &startinfo, &childinfo);
+
+	//these ends of the pipes were inherited by now, so we can discard them in the caller.
+	CloseHandle(startinfo.hStdOutput);
+	CloseHandle(startinfo.hStdInput);
+	return &ctx->pub;
+}
+
+void Sys_InstructSlave(pubsubserver_t *ps, sizebuf_t *cmd)
+{
+	winsubserver_t *s = (winsubserver_t*)ps;
+	DWORD written = 0;
+	cmd->data[0] = cmd->cursize & 0xff;
+	cmd->data[1] = (cmd->cursize>>8) & 0xff;
+	WriteFile(s->outpipe, cmd->data, cmd->cursize, &written, NULL);
+}
+
+void SSV_InstructMaster(sizebuf_t *cmd)
+{
+	HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+	DWORD written = 0;
+	cmd->data[0] = cmd->cursize & 0xff;
+	cmd->data[1] = (cmd->cursize>>8) & 0xff;
+	WriteFile(output, cmd->data, cmd->cursize, &written, NULL);
+}
+
+int Sys_SubServerRead(pubsubserver_t *ps)
+{
+	DWORD avail;
+	winsubserver_t *s = (winsubserver_t*)ps;
+
+	if (!PeekNamedPipe(s->inpipe, NULL, 0, NULL, &avail, NULL))
+	{
+		CloseHandle(s->inpipe);
+		CloseHandle(s->outpipe);
+		Con_Printf("%i:%s has died\n", s->pub.id, s->pub.name);
+		return -1;
+	}
+	else if (avail)
+	{
+		if (avail > sizeof(s->inbuffer)-1-s->inbufsize)
+			avail = sizeof(s->inbuffer)-1-s->inbufsize;
+		if (ReadFile(s->inpipe, s->inbuffer+s->inbufsize, avail, &avail, NULL))
+			s->inbufsize += avail;
+	}
+
+	if(s->inbufsize >= 2)
+	{
+		unsigned short len = s->inbuffer[0] | (s->inbuffer[1]<<8);
+		if (s->inbufsize >= len && len>=2)
+		{
+			memcpy(net_message.data, s->inbuffer+2, len-2);
+			net_message.cursize = len-2;
+			memmove(s->inbuffer, s->inbuffer+len, s->inbufsize - len);
+			s->inbufsize -= len;
+			MSG_BeginReading (msg_nullnetprim);
+
+			return 1;
+		}
+	}
+	return 0;
+}
+#endif
+

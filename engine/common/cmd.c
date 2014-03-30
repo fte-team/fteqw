@@ -45,10 +45,10 @@ typedef struct cmdalias_s
 
 cmdalias_t	*cmd_alias;
 
-cvar_t cl_warncmd			= SCVAR("cl_warncmd", "1");
-cvar_t cl_aliasoverlap		= SCVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
+cvar_t cl_warncmd			= CVARF("cl_warncmd", "1", CVAR_NOSAVE|CVAR_NORESET);
+cvar_t cl_aliasoverlap		= CVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
-cvar_t tp_disputablemacros	= SCVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
+cvar_t tp_disputablemacros	= CVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
 
 
 //=============================================================================
@@ -843,7 +843,7 @@ void Cmd_DeleteAlias(char *name)
 	}
 }
 
-char *Cmd_AliasExist(char *name, int restrictionlevel)
+char *Cmd_AliasExist(const char *name, int restrictionlevel)
 {
 	cmdalias_t	*a;
 	// if the alias already exists, reuse it
@@ -1061,7 +1061,7 @@ char *VARGS Cmd_Args (void)
 	return cmd_args;
 }
 
-void Cmd_Args_Set(char *newargs)
+void Cmd_Args_Set(const char *newargs)
 {
 	if (cmd_args_buf)
 		Z_Free(cmd_args_buf);
@@ -1365,7 +1365,7 @@ Cmd_TokenizeString
 Parses the given string into command line tokens, stopping at the \n
 ============
 */
-char *Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
+const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolean qctokenize)
 {
 	int		i;
 
@@ -1668,7 +1668,7 @@ int Cmd_Level(char *name)
 Cmd_Exists
 ============
 */
-qboolean	Cmd_Exists (char *cmd_name)
+qboolean	Cmd_Exists (const char *cmd_name)
 {
 	cmd_function_t	*cmd;
 
@@ -2862,8 +2862,8 @@ void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "configs/%s", filename);
 		COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 
-		FS_CreatePath(fname, FS_CONFIGONLY);
-		f = FS_OpenVFS(fname, "wb", FS_CONFIGONLY);
+		FS_CreatePath(fname, FS_BASEGAMEONLY);
+		f = FS_OpenVFS(fname, "wb", FS_BASEGAMEONLY);
 	}
 	if (!f)
 	{

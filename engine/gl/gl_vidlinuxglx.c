@@ -348,7 +348,7 @@ static qboolean VMODE_Init(void)
 	if (vm.lib)
 	{
 		if (vm.pXF86VidModeQueryVersion(vid_dpy, &vm.vmajor, &vm.vminor))
-      		Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
+			Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
 		else
 		{
 			Con_Printf("No XF86-VidModeExtension support\n");
@@ -409,15 +409,15 @@ static qboolean DGAM_Init(void)
 #define XIMaskIsSet(ptr, event) (((unsigned char*)(ptr))[(event)>>3] &   (1 << ((event) & 7)))
 #define XIMaskLen(event)        (((event + 7) >> 3))
 typedef struct {
-    int           mask_len;
-    unsigned char *mask;
-    double        *values;
+	int				mask_len;
+	unsigned char	*mask;
+	double			*values;
 } XIValuatorState;
 typedef struct
 {
-    int                 deviceid;
-    int                 mask_len;
-    unsigned char*      mask;
+	int					deviceid;
+	int					mask_len;
+	unsigned char*		mask;
 } XIEventMask;
 #define XIAllMasterDevices 1
 #define XI_RawButtonPress 15
@@ -425,19 +425,19 @@ typedef struct
 #define XI_RawMotion 17
 #define XI_LASTEVENT XI_RawMotion
 typedef struct {
-	int           type;         /* GenericEvent */
-	unsigned long serial;       /* # of last request processed by server */
-	Bool          send_event;   /* true if this came from a SendEvent request */
-	Display       *display;     /* Display the event was read from */
-	int           extension;    /* XI extension offset */
-	int           evtype;       /* XI_RawKeyPress, XI_RawKeyRelease, etc. */
-	Time          time;
-	int           deviceid;
-	int           sourceid;     /* Bug: Always 0. https://bugs.freedesktop.org//show_bug.cgi?id=34240 */
-	int           detail;
-	int           flags;
-	XIValuatorState valuators;
-	double        *raw_values;
+	int				type;			/* GenericEvent */
+	unsigned long	serial;			/* # of last request processed by server */
+	Bool			send_event;		/* true if this came from a SendEvent request */
+	Display			*display;		/* Display the event was read from */
+	int				extension;		/* XI extension offset */
+	int				evtype;			/* XI_RawKeyPress, XI_RawKeyRelease, etc. */
+	Time			time;
+	int				deviceid;
+	int				sourceid;		/* Bug: Always 0. https://bugs.freedesktop.org//show_bug.cgi?id=34240 */
+	int				detail;
+	int				flags;
+	XIValuatorState	valuators;
+	double			*raw_values;
 } XIRawEvent;
 #endif
 static struct
@@ -497,9 +497,9 @@ static qboolean XI2_Init(void)
 		XISetMask(maskbuf, XI_RawButtonRelease);
 /*		if (xi2.vmajor >= 2 && xi2.vminor >= 2)
 		{
-	                XISetMask(maskbuf, XI_RawTouchBegin);
-	                XISetMask(maskbuf, XI_RawTouchUpdate);
-	                XISetMask(maskbuf, XI_RawTouchEnd);
+			XISetMask(maskbuf, XI_RawTouchBegin);
+			XISetMask(maskbuf, XI_RawTouchUpdate);
+			XISetMask(maskbuf, XI_RawTouchEnd);
 		}
 */		xi2.pXISelectEvents(vid_dpy, DefaultRootWindow(vid_dpy), &evm, 1);
 		return true;
@@ -595,41 +595,43 @@ static void X_ShutdownUnicode(void)
 static long X_InitUnicode(void)
 {
 	long requiredevents = 0;
-//return 0;
 	X_ShutdownUnicode();
 
-	if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXCreateIC && x11.pXSetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
+	if (!COM_CheckParm("-noxim"))
 	{
-		setlocale(LC_CTYPE, "");
-		x11.pXSetLocaleModifiers("");
-		if (x11.pXSupportsLocale())
+		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXCreateIC && x11.pXSetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
 		{
-			x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, NULL, NULL);
-			if (x11.inputmethod)
+			setlocale(LC_CTYPE, "");	//just in case.
+			x11.pXSetLocaleModifiers("");
+			if (x11.pXSupportsLocale())
 			{
-				x11.unicodecontext = x11.pXCreateIC(x11.inputmethod,
-					XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
-					XNClientWindow, vid_window,
-					XNFocusWindow, vid_window,
-					NULL);
-				if (x11.unicodecontext)
+				x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, NULL, NULL);
+				if (x11.inputmethod)
 				{
-					x11.pXSetICFocus(x11.unicodecontext);
-					x11.dounicode = true;
+					x11.unicodecontext = x11.pXCreateIC(x11.inputmethod,
+						XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+						XNClientWindow, vid_window,
+						XNFocusWindow, vid_window,
+						NULL);
+					if (x11.unicodecontext)
+					{
+						x11.pXSetICFocus(x11.unicodecontext);
+						x11.dounicode = true;
 
-					x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
+						x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
+					}
 				}
 			}
+//			setlocale(LC_CTYPE, "C");
 		}
-//		setlocale(LC_ALL, "C");
 	}
 
-	Con_Printf("Unicode support: %s\n", x11.dounicode?"available":"unavailable");
+	Con_DPrintf("Unicode support: %s\n", x11.dounicode?"available":"unavailable");
 
 	return requiredevents;
 }
 
-static void X_KeyEvent(XKeyEvent *ev, qboolean pressed)
+static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 {
 	int i;
 	int key;
@@ -639,14 +641,14 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed)
 	key = 0;
 
 	keysym = x11.pXLookupKeysym(ev, 0);
-	if (pressed)
+	if (pressed && !filtered)
 	{
 		if (x11.dounicode)
 		{
 			Status status = XLookupNone;
 			if (x11.pXutf8LookupString)
 			{
-				char buf1[1] = {0};
+				char buf1[4] = {0};
 				char *buf = buf1, *c;
 				int count = x11.pXutf8LookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf1, sizeof(buf1), NULL, &status);
 				if (status == XBufferOverflow)
@@ -671,10 +673,8 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed)
 				if (status == XBufferOverflow)
 				{
 					buf = alloca(sizeof(wchar_t)*(count+1));
-					printf("XBufferOverflow\n");
 					count = x11.pXwcLookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf, count, NULL, &status);
 				}
-				printf("Translated to \"%ls\" (%i %i)\n", buf, count, status);
 				//if wchar_t is 16bit, then expect problems when we completely ignore surrogates. this is why we favour the utf8 route as it doesn't care whether wchar_t is defined as 16bit or 32bit.
 				for (i = 0; i < count; i++)
 					if (buf[i])
@@ -893,15 +893,13 @@ static void GetEvent(void)
 	int b;
 	qboolean x11violations = true;
 	Window mw;
+	qboolean filtered = false;
 
 	x11.pXNextEvent(vid_dpy, &event);
 
 	if (x11.dounicode)
 		if (x11.pXFilterEvent(&event, vid_window))
-		{
-			Con_Printf("Event filtered\n");
-			return;
-		}
+			filtered = true;
 
 	switch (event.type)
 	{
@@ -957,7 +955,7 @@ static void GetEvent(void)
 								raw_val++;
 							}
 						}
-			                        IN_MouseMove(raw->deviceid, false, rawx, rawy, 0, 0);
+						IN_MouseMove(raw->deviceid, false, rawx, rawy, 0, 0);
 					}
 					break;
 				default:
@@ -973,7 +971,7 @@ static void GetEvent(void)
 	case ResizeRequest:
 		vid.pixelwidth = event.xresizerequest.width;
 		vid.pixelheight = event.xresizerequest.height;
-                Cvar_ForceCallback(&vid_conautoscale);
+		Cvar_ForceCallback(&vid_conautoscale);
 //		if (fullscreenflags & FULLSCREEN_ACTIVE)
 //			x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
@@ -982,7 +980,7 @@ static void GetEvent(void)
 		{
 			vid.pixelwidth = event.xconfigurerequest.width;
 			vid.pixelheight = event.xconfigurerequest.height;
-	                Cvar_ForceCallback(&vid_conautoscale);
+			Cvar_ForceCallback(&vid_conautoscale);
 		}
 		else if (event.xconfigurerequest.window == vid_decoywindow)
 		{
@@ -993,10 +991,10 @@ static void GetEvent(void)
 //			x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
 	case KeyPress:
-		X_KeyEvent(&event.xkey, true);
+		X_KeyEvent(&event.xkey, true, filtered);
 		break;
 	case KeyRelease:
-		X_KeyEvent(&event.xkey, false);
+		X_KeyEvent(&event.xkey, false, filtered);
 		break;
 
 	case MotionNotify:
@@ -1139,7 +1137,7 @@ static void GetEvent(void)
 		if ((fullscreenflags & FULLSCREEN_LEGACY) && (fullscreenflags & FULLSCREEN_ACTIVE))
 			mw = vid_decoywindow;
 
-                if (event.xfocus.window == mw)
+		if (event.xfocus.window == mw)
 		{
 			ActiveApp = false;
 			if (old_windowed_mouse)
@@ -1284,24 +1282,24 @@ void InitSig(void)
 
 static Cursor CreateNullCursor(Display *display, Window root)
 {
-    Pixmap cursormask;
-    XGCValues xgc;
-    GC gc;
-    XColor dummycolour;
-    Cursor cursor;
+	Pixmap cursormask;
+	XGCValues xgc;
+	GC gc;
+	XColor dummycolour;
+	Cursor cursor;
 
-    cursormask = x11.pXCreatePixmap(display, root, 1, 1, 1/*depth*/);
-    xgc.function = GXclear;
-    gc =  x11.pXCreateGC(display, cursormask, GCFunction, &xgc);
-    x11.pXFillRectangle(display, cursormask, gc, 0, 0, 1, 1);
-    dummycolour.pixel = 0;
-    dummycolour.red = 0;
-    dummycolour.flags = 04;
-    cursor = x11.pXCreatePixmapCursor(display, cursormask, cursormask,
-          &dummycolour,&dummycolour, 0,0);
-    x11.pXFreePixmap(display,cursormask);
-    x11.pXFreeGC(display,gc);
-    return cursor;
+	cursormask = x11.pXCreatePixmap(display, root, 1, 1, 1/*depth*/);
+	xgc.function = GXclear;
+	gc =  x11.pXCreateGC(display, cursormask, GCFunction, &xgc);
+	x11.pXFillRectangle(display, cursormask, gc, 0, 0, 1, 1);
+	dummycolour.pixel = 0;
+	dummycolour.red = 0;
+	dummycolour.flags = 04;
+	cursor = x11.pXCreatePixmapCursor(display, cursormask, cursormask,
+		&dummycolour,&dummycolour, 0,0);
+	x11.pXFreePixmap(display,cursormask);
+	x11.pXFreeGC(display,gc);
+	return cursor;
 }
 
 qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
@@ -1343,15 +1341,17 @@ void GLVID_SwapBuffers (void)
 	switch(currentpsl)
 	{
 #ifdef USE_EGL
-	default:
 	case PSL_EGL:
-		EGL_SwapBuffers();
+		EGL_BeginRendering();
 		break;
 #endif
 	case PSL_GLX:
 		//we don't need to flush, XSawpBuffers does it for us.
 		//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 		qglXSwapBuffers(vid_dpy, vid_window);
+		break;
+	default:
+	case PSL_NONE:
 		break;
 	}
 }
@@ -1930,7 +1930,7 @@ void Sys_SendKeyEvents(void)
 				}
 				fullscreenflags &= ~FULLSCREEN_ACTIVE;
 			}
-	                modeswitchpending = 0;
+			modeswitchpending = 0;
 		}
 
 		if (modeswitchpending)
@@ -2050,11 +2050,11 @@ rendererinfo_t eglrendererinfo =
 	GLBE_LightCullModel,
 
 	GLBE_VBO_Begin,
-    GLBE_VBO_Data,
-    GLBE_VBO_Finish,
-    GLBE_VBO_Destroy,
+	GLBE_VBO_Data,
+	GLBE_VBO_Finish,
+	GLBE_VBO_Destroy,
 
-    GLBE_RenderToTextureUpdate2d,
+	GLBE_RenderToTextureUpdate2d,
 
 	""
 };
@@ -2078,7 +2078,7 @@ char *Sys_GetClipboard(void)
 		
 		return data;
 	}
-        return clipboard_buffer;
+	return clipboard_buffer;
 }
 
 void Sys_CloseClipboard(char *bf)
@@ -2092,32 +2092,32 @@ void Sys_CloseClipboard(char *bf)
 void Sys_SaveClipboard(char *text)
 {
 	Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
-        Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
+	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 	x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
 }
 #endif
 
 qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
-        Display *xtemp;
-        int scr;
+	Display *xtemp;
+	int scr;
 
 	if (!x11_initlib())
 		return false;
 
-        xtemp = x11.pXOpenDisplay(NULL);
+	xtemp = x11.pXOpenDisplay(NULL);
 
-        if (!xtemp)
-                return false;
+	if (!xtemp)
+		return false;
 
-        scr = DefaultScreen(xtemp);
+	scr = DefaultScreen(xtemp);
 
-        *width = DisplayWidth(xtemp, scr);
-        *height = DisplayHeight(xtemp, scr);
-        *bpp = DefaultDepth(xtemp, scr);
-        *refreshrate = 0;
+	*width = DisplayWidth(xtemp, scr);
+	*height = DisplayHeight(xtemp, scr);
+	*bpp = DefaultDepth(xtemp, scr);
+	*refreshrate = 0;
 
-        x11.pXCloseDisplay(xtemp);
+	x11.pXCloseDisplay(xtemp);
 
-        return true;
+	return true;
 }

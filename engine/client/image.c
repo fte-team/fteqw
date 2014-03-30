@@ -2274,7 +2274,7 @@ typedef struct {
 } ddsheader;
 
 
-texid_tf GL_ReadTextureDDS(char *iname, unsigned char *buffer, int filesize)
+texid_tf GL_ReadTextureDDS(const char *iname, unsigned char *buffer, int filesize)
 {
 	extern int		gl_filter_min;
 	extern int		gl_filter_max;
@@ -2368,7 +2368,7 @@ texid_tf GL_ReadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 #endif
 
 #ifdef IMAGEFMT_BLP
-texid_tf GL_ReadBLPFile(char *iname, unsigned char *buffer, int filesize)
+texid_tf GL_ReadBLPFile(const char *iname, unsigned char *buffer, int filesize, int *width, int *height)
 {
 	extern int		gl_filter_min;
 	extern int		gl_filter_max;
@@ -2400,8 +2400,8 @@ texid_tf GL_ReadBLPFile(char *iname, unsigned char *buffer, int filesize)
 	if (memcmp(blp->blp2, "BLP2", 4) || blp->type != 1 || qrenderer != QR_OPENGL)
 		return r_nulltex;
 
-	w = blp->xres;
-	h = blp->yres;
+	*width = w = blp->xres;
+	*height = h = blp->yres;
 
 	texnum = GL_AllocNewTexture(iname, w, h, 0);
 	GL_MTBind(0, GL_TEXTURE_2D, texnum);
@@ -2465,10 +2465,11 @@ texid_tf GL_ReadBLPFile(char *iname, unsigned char *buffer, int filesize)
 			if (!tmpmem)
 				tmpmem = malloc(4*w*h);
 
-			//8bit palette index
+			//load the rgb data first (8-bit paletted)
 			for (i = 0; i < w*h; i++)
 				tmpmem[i] = blp->palette[*in++] | 0xff000000;
 
+			//and then change the alpha bits accordingly.
 			switch(blp->alphadepth)
 			{
 			case 0:
@@ -2561,7 +2562,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 		int w = LittleLong(((int*)buf)[0]);
 		int h = LittleLong(((int*)buf)[1]);
 		int i;
-		if (w >= 4 && h >= 4 && w*h+sizeof(int)*2 == com_filesize)
+		if (w >= 3 && h >= 4 && w*h+sizeof(int)*2 == com_filesize)
 		{
 			qboolean foundalpha = false;
 			qbyte *in = (qbyte*)((int*)buf+2);
@@ -2686,7 +2687,7 @@ static struct
 };
 
 int image_width, image_height;
-qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, char *iname, char *fname, qbyte *filedata, int filesize)
+qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, const char *iname, char *fname, qbyte *filedata, int filesize)
 {
 	qboolean hasalpha;
 	qbyte *rgbadata;
@@ -2700,7 +2701,7 @@ qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, char *iname, char *fna
 #ifdef IMAGEFMT_BLP
 	if (filedata[0] == 'B' && filedata[1] == 'L' && filedata[2] == 'P' && filedata[3] == '2') 
 	{
-		*tex = GL_ReadBLPFile(iname, filedata, filesize);
+		*tex = GL_ReadBLPFile(iname, filedata, filesize, &image_width, &image_height);
 		if (TEXVALID(*tex))
 			return true;
 	}
@@ -2752,7 +2753,7 @@ qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, char *iname, char *fna
 		Con_Printf("Unable to read file %s (format unsupported)\n", fname);
 	return false;
 }
-texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
+texid_t R_LoadHiResTexture(const char *name, const char *subpath, unsigned int flags)
 {
 	qboolean alphaed;
 	char *buf;
@@ -2975,7 +2976,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	}
 	return r_nulltex;
 }
-texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags)
+texid_t R_LoadReplacementTexture(const char *name, const char *subpath, unsigned int flags)
 {
 	if (!gl_load24bit.value)
 		return r_nulltex;
@@ -2983,7 +2984,7 @@ texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags)
 }
 
 extern cvar_t r_shadow_bumpscale_bumpmap;
-texid_t R_LoadBumpmapTexture(char *name, char *subpath)
+texid_t R_LoadBumpmapTexture(const char *name, const char *subpath)
 {
 	char *buf, *data;
 	texid_t tex;

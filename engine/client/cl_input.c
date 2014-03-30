@@ -37,7 +37,7 @@ cvar_t	cl_netfps = CVAR("cl_netfps", "150");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
-cvar_t	cl_run = CVARD("cl_run", "1", "Enables autorun, doubling the effective value of cl_forwardspeed and friends.");
+cvar_t	cl_run = CVARD("cl_run", "0", "Enables autorun, inverting the state of the +speed key.");
 
 cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
@@ -1120,9 +1120,6 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	Q_vsnprintfz (string,sizeof(string), format,argptr);
 	va_end (argptr);
 
-
-	Con_DPrintf("Queing stringcmd %s\n", string);
-
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
 	{
@@ -1477,7 +1474,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 	MSG_WriteByte (buf, 0);
 
 	// write our lossage percentage
-	lost = CL_CalcNet();
+	lost = CL_CalcNet(r_netgraph.value);
 	MSG_WriteByte (buf, (qbyte)lost);
 
 	firstsize=0;
@@ -1585,7 +1582,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				CL_BaseMove (cmd, plnum, 1, 1);
 
 				// allow mice or other external controllers to add to the move
-				IN_Move (mousemovements[plnum], plnum);
+				IN_Move (mousemovements[plnum], plnum, frametime);
 				independantphysics[plnum].forwardmove += mousemovements[plnum][0];
 				independantphysics[plnum].sidemove += mousemovements[plnum][1];
 				independantphysics[plnum].upmove += mousemovements[plnum][2];
@@ -1620,7 +1617,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cls.netchan.outgoing_sequence = cl.movesequence;
 		}
 
-		IN_Move (NULL, 0);
+		IN_Move (NULL, 0, frametime);
 		return; // sendcmds come from the demo
 	}
 
@@ -1696,7 +1693,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	{
 //		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
 		CL_AdjustAngles (plnum, frametime);
-		IN_Move (mousemovements[plnum], plnum);
+		IN_Move (mousemovements[plnum], plnum, frametime);
 		CL_ClampPitch(plnum);
 		independantphysics[plnum].forwardmove += mousemovements[plnum][0];
 		independantphysics[plnum].sidemove += mousemovements[plnum][1];

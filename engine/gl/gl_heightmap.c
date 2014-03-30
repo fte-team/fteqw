@@ -282,6 +282,8 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 {
 #ifndef SERVERONLY
 	extern texid_t missing_texture;
+	if (isDedicated)
+		return;
 	//CL_CheckOrEnqueDownloadFile(s->texname[0], NULL, 0);
 	//CL_CheckOrEnqueDownloadFile(s->texname[1], NULL, 0);
 	//CL_CheckOrEnqueDownloadFile(s->texname[2], NULL, 0);
@@ -429,6 +431,7 @@ static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy)
 	sy &= CHUNKLIMIT-1;
 	return va("maps/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
 }
+#ifndef SERVERONLY
 static char *Terr_TempDiskSectionName(heightmap_t *hm, int sx, int sy)
 {
 	sx -= CHUNKBIAS;
@@ -438,6 +441,7 @@ static char *Terr_TempDiskSectionName(heightmap_t *hm, int sx, int sy)
 	sy &= CHUNKLIMIT-1;
 	return va("temp/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
 }
+#endif
 
 static int dehex_e(int i, qboolean *error)
 {
@@ -552,7 +556,8 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	w->next = s->water;
 	s->water = w;
 #ifndef SERVERONLY
-	w->shader = R_RegisterCustom (s->hmmod->watershadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
+	if (!isDedicated)
+		w->shader = R_RegisterCustom (s->hmmod->watershadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
 #endif
 	w->simple = true;
 	w->contentmask = FTECONTENTS_WATER;
@@ -567,8 +572,10 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
+#ifndef SERVERONLY
 	dsmesh_t *dm;
 	float *colours;
+#endif
 	dsection_v1_t *ds = ptr;
 	int i;
 
@@ -664,7 +671,7 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		s->numents = s->maxents = 0;
 	for (i = 0, dm = (dsmesh_t*)ptr; i < s->numents; i++, dm = (dsmesh_t*)((qbyte*)dm + dm->size))
 	{
-		s->ents[i].model = Mod_ForName((char*)(dm + 1), false);
+		s->ents[i].model = Mod_ForName((char*)(dm + 1), MLV_WARN);
 		if (!s->ents[i].model || s->ents[i].model->type == mod_dummy)
 		{
 			s->numents--;
@@ -967,13 +974,17 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 #endif
 static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
+#ifndef SERVERONLY
 	char modelname[MAX_QPATH];
+	qbyte last;
+	int y;
+	qboolean present;
+	qbyte *lm, delta;
+#endif
 	struct terrstream_s strm = {ptr, len, 0};
 	float f;
-	int i, j, x, y;
-	qbyte *lm, delta, last;
+	int i, j, x;
 	unsigned int flags = Terr_Read_SInt(&strm);
-	qboolean present;
 
 	s->flags |= flags & ~TSF_INTERNAL;
 	if (flags & TSF_HASHEIGHTS)
@@ -1161,11 +1172,12 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 }
 
 //#include "gl_adt.inc"
-//#include "gl_m2.inc"
 
 static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 {
+#ifndef SERVERONLY
 	int i;
+#endif
 
 	s->flags |= TSF_FAILEDLOAD;
 	memset(s->holes, 0, sizeof(s->holes));
@@ -1840,6 +1852,8 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	hm->activesections--;
 }
 
+#ifndef SERVERONLY
+//dedicated servers do not support editing. no lightmap info causes problems.
 static void Terr_DoEditNotify(heightmap_t *hm)
 {
 	int i;
@@ -1852,7 +1866,7 @@ static void Terr_DoEditNotify(heightmap_t *hm)
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
-		if (svs.clients[i].state > cs_zombie && svs.clients[i].netchan.remote_address.type != NA_LOOPBACK)
+		if (svs.clients[i].state >= cs_connected && svs.clients[i].netchan.remote_address.type != NA_LOOPBACK)
 		{
 			if (svs.clients[i].backbuf.cursize)
 				return;
@@ -1868,7 +1882,7 @@ static void Terr_DoEditNotify(heightmap_t *hm)
 			cmd = va("mod_terrain_reload %s %i %i\n", hm->path, s->sx - CHUNKBIAS, s->sy - CHUNKBIAS);
 			for (i = 0; i < sv.allocated_client_slots; i++)
 			{
-				if (svs.clients[i].state > cs_zombie && svs.clients[i].netchan.remote_address.type != NA_LOOPBACK)
+				if (svs.clients[i].state >= cs_connected && svs.clients[i].netchan.remote_address.type != NA_LOOPBACK)
 				{
 					SV_StuffcmdToClient(&svs.clients[i], cmd);
 				}
@@ -1917,6 +1931,7 @@ static qboolean Terr_Collect(heightmap_t *hm)
 	}
 	return false;
 }
+#endif
 
 /*purge all sections, but not root
 lightmaps only are purged whenever the client rudely kills lightmaps
@@ -2753,19 +2768,19 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	}
 
 
-	if (r_refdef.gfog_rgbd[3] || gl_maxdist.value>0)
+	if (r_refdef.globalfog.density || gl_maxdist.value>0)
 	{
 		float culldist;
 		extern cvar_t r_fog_exp2;
 
-		if (r_refdef.gfog_rgbd[3])
+		if (r_refdef.globalfog.density)
 		{
 			//figure out the eyespace distance required to reach that fog value
 			culldist = log(0.5/255.0f);
 			if (r_fog_exp2.ival)
-				culldist = sqrt(culldist / (-r_refdef.gfog_rgbd[3] * r_refdef.gfog_rgbd[3]));
+				culldist = sqrt(culldist / (-r_refdef.globalfog.density * r_refdef.globalfog.density));
 			else
-				culldist = culldist / (-r_refdef.gfog_rgbd[3]);
+				culldist = culldist / (-r_refdef.globalfog.density);
 			//anything drawn beyond this point is fully obscured by fog
 			culldist += 4096;
 		}
@@ -3760,7 +3775,7 @@ static void ted_mixnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 static void ted_mixpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
-	char *texname = ctx;
+	const char *texname = ctx;
 	int t;
 	vec3_t newval;
 	if (w > 1)
@@ -3954,7 +3969,7 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 	}
 }
 
-void ted_texkill(hmsection_t *s, char *killtex)
+void ted_texkill(hmsection_t *s, const char *killtex)
 {
 	int x, y, t, to;
 	if (!s)
@@ -4108,7 +4123,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 //		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixset, G_VECTOR(OFS_PARM4));
 //		break;
 	case ter_mix_paint:
-		ted_itterate(hm, tid_exponential, pos, radius, quant/10, SECTTEXSIZE, ted_mixpaint, PR_GetStringOfs(prinst, OFS_PARM4));
+		ted_itterate(hm, tid_exponential, pos, radius, quant/10, SECTTEXSIZE, ted_mixpaint, (void*)PR_GetStringOfs(prinst, OFS_PARM4));
 		break;
 	case ter_mix_concentrate:
 		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixconcentrate, NULL);
@@ -4378,7 +4393,7 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 #endif
 }
 
-qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer)
+qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize)
 {
 	heightmap_t *hm;
 
@@ -4632,10 +4647,6 @@ void Mod_Terrain_Reload_f(void)
 
 void Terr_Init(void)
 {
-#ifdef M2
-	GL_M2_Init();
-#endif
-
 	Cvar_Register(&mod_terrain_networked, "Terrain");
 	Cvar_Register(&mod_terrain_defaulttexture, "Terrain");
 	Cvar_Register(&mod_terrain_savever, "Terrain");

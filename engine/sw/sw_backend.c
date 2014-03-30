@@ -120,10 +120,10 @@ static void Matrix3_Multiply_Vec3 (mat3_t a, vec3_t b, vec3_t product)
 	product[2] = a[2][0]*b[0] + a[2][1]*b[1] + a[2][2]*b[2];
 }
 
-static int Matrix3_Compare(mat3_t in, mat3_t out)
-{
-	return memcmp(in, out, sizeof(mat3_t));
-}
+//static int Matrix3_Compare(mat3_t in, mat3_t out)
+//{
+//	return memcmp(in, out, sizeof(mat3_t));
+//}
 
 //end matrix functions
 ////////////////////////////////////////////////////////////////
@@ -652,11 +652,16 @@ void SWBE_SelectEntity(struct entity_s *ent)
 
 	SWBE_UpdateUniforms();
 }
-void SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour)
+qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, unsigned int lmode)
 {
+	return false;
 }
 qboolean SWBE_LightCullModel(vec3_t org, struct model_s *model)
 {
 	return false;
+}
+
+void SWBE_RenderToTextureUpdate2d(qboolean destchanged)
+{
 }
 #endif

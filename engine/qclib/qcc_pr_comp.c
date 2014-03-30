@@ -74,7 +74,7 @@ pbool pr_subscopedlocals;	//causes locals to be valid ONLY within their statemen
 pbool flag_ifstring;		//makes if (blah) equivelent to if (blah != "") which resolves some issues in multiprogs situations.
 pbool flag_iffloat;			//use an op_if_f instruction instead of op_if so if(-0) evaluates to false.
 pbool flag_acc;				//reacc like behaviour of src files (finds *.qc in start dir and compiles all in alphabetical order)
-pbool flag_caseinsensative;	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
+pbool flag_caseinsensitive;	//symbols will be matched to an insensitive case if the specified case doesn't exist. This should b usable for any mod
 pbool flag_laxcasts;		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 pbool flag_hashonly;		//Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile
 pbool flag_fasttrackarrays;	//Faster arrays, dynamically detected, activated only in supporting engines.
@@ -6936,7 +6936,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				}
 				else
 				{
-					if (rhsd->constant && rhsd->type->type == ev_integer && !G_INT(rhsd->ofs))
+					if (rhsd->constant && (rhsd->type->type == ev_integer || rhsd->type->type == ev_float) && !G_INT(rhsd->ofs) && !STRCMP(rhsd->name, "IMMEDIATE"))
 					{
 						if (lhsr->cast->type == ev_vector)
 							rhsd = QCC_MakeVectorConst(0,0,0);
@@ -6972,7 +6972,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 				if (op->associative!=ASSOC_LEFT)
 				{
-					QCC_PR_ParseError(ERR_INTERNAL, "internal error: shuold be unreachable\n");
+					QCC_PR_ParseError(ERR_INTERNAL, "internal error: should be unreachable\n");
 				}
 				else
 				{
@@ -6985,7 +6985,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				}
 
 				if (priority > 1 && exprflags & EXPR_WARN_ABOVE_1)
-					QCC_PR_ParseWarning(WARN_UNARYNOTSCOPE, "You may wish to add brackets after that ! operator");
+					QCC_PR_ParseWarning(WARN_UNARYNOTSCOPE, "unary-not applies to non-unary expression");
 
 				break;
 			}

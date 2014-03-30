@@ -32,14 +32,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define GL_USE8BITTEX
 
-static void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags);
-static void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height, unsigned int flags);
-static void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags);
-static void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha);
+static void GL_Upload32 (const char *name, unsigned *data, int width, int height, unsigned int flags);
+static void GL_Upload32_BGRA (const char *name, unsigned *data, int width, int height, unsigned int flags);
+static void GL_Upload24BGR_Flip (const char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags);
+static void GL_Upload8 (const char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha);
 static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
-static void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode);
+static void GL_Upload32_Int (const char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode);
 
-void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
+void GL_UploadFmt(texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 	GL_MTBind(0, GL_TEXTURE_2D, tex);
 	switch(fmt)
@@ -105,7 +105,7 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void 
 	}
 }
 
-texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
+texid_t GL_LoadTextureFmt (const char *name, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
 	extern cvar_t r_shadow_bumpscale_basetexture, r_shadow_bumpscale_bumpmap;
 	switch(fmt)
@@ -194,7 +194,7 @@ typedef struct gltexture_s
 
 static gltexture_t	*gltextures;
 
-static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h, unsigned int flags)
+static gltexture_t *GL_AllocNewGLTexture(const char *ident, int w, int h, unsigned int flags)
 {
 	gltexture_t *glt;
 	glt = BZ_Malloc(sizeof(*glt) + sizeof(bucket_t));
@@ -216,7 +216,7 @@ static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h, unsigned int
 	return glt;
 }
 
-texid_t GL_AllocNewTexture(char *name, int w, int h, unsigned int flags)
+texid_t GL_AllocNewTexture(const char *name, int w, int h, unsigned int flags)
 {
 	gltexture_t *glt = GL_AllocNewGLTexture(name, w, h, flags);
 	return glt->texnum;
@@ -501,8 +501,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	GL_BeginRendering ();
 	TRACE(("dbg: GLDraw_ReInit: SCR_DrawLoading\n"));
 
+	qglDisable(GL_SCISSOR_TEST);
 	GL_Set2D(false);
 
+	qglClearColor(0, 0, 0, 1);
 	qglClear(GL_COLOR_BUFFER_BIT);
 	{
 		mpic_t *pic = R2D_SafeCachePic ("gfx/loading.lmp");
@@ -527,7 +529,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	inited15to8 = false;
 #endif
 
-	qglClearColor (1,0,0,0);
+	qglClearColor (1,0,0,1);
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	GL_InitSceneProcessingShaders();
@@ -657,7 +659,7 @@ void GL_Set2D (qboolean flipped)
 GL_FindTexture
 ================
 */
-texid_t GL_FindTexture (char *identifier, unsigned int flags)
+texid_t GL_FindTexture (const char *identifier, unsigned int flags)
 {
 	gltexture_t	*glt;
 
@@ -675,7 +677,7 @@ texid_t GL_FindTexture (char *identifier, unsigned int flags)
 	return r_nulltex;
 }
 
-gltexture_t	*GL_MatchTexture (char *identifier, unsigned int flags, int bits, int width, int height)
+gltexture_t	*GL_MatchTexture (const char *identifier, unsigned int flags, int bits, int width, int height)
 {
 	gltexture_t	*glt;
 
@@ -1172,7 +1174,7 @@ void GL_8888to4444(int targ, unsigned char *in, unsigned short *out, unsigned in
 GL_Upload32
 ===============
 */
-static void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode)
+static void GL_Upload32_Int (const char *name, unsigned *data, int width, int height, unsigned int flags, GLenum glcolormode)
 {
 	int		miplevel=0;
 	int			samples;
@@ -1443,16 +1445,16 @@ done:
 	}
 }
 
-void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags)
+void GL_Upload32 (const char *name, unsigned *data, int width, int height, unsigned int flags)
 {
 	GL_Upload32_Int(name, data, width, height, flags, GL_RGBA);
 }
-void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height, unsigned int flags)
+void GL_Upload32_BGRA (const char *name, unsigned *data, int width, int height, unsigned int flags)
 {
 	GL_Upload32_Int(name, data, width, height, flags, GL_BGRA_EXT);
 }
 
-void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags)
+void GL_Upload24BGR (const char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags)
 {
 	int outwidth, outheight;
 	int y, x;
@@ -1522,7 +1524,7 @@ void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight, un
 
 	GL_Upload32 (name, (unsigned int*)uploadmemorybufferintermediate, outwidth, outheight, flags);
 }
-void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags)
+void GL_Upload24BGR_Flip (const char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags)
 {
 	int outwidth, outheight;
 	int y, x;
@@ -1978,7 +1980,7 @@ unsigned ColorPercent[16] =
 	25, 51, 76, 102, 114, 127, 140, 153, 165, 178, 191, 204, 216, 229, 237, 247
 };
 
-void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha)
+void GL_Upload8 (const char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha)
 {
 	unsigned	*trans;
 	int			i, s;
@@ -2229,7 +2231,7 @@ static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, uns
 GL_LoadTexture
 ================
 */
-texid_t GL_LoadTexture (char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype)
+texid_t GL_LoadTexture (const char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype)
 {
 	gltexture_t	*glt = NULL;
 
@@ -2254,7 +2256,7 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 	return glt->texnum;
 }
 
-texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags)
+texid_t GL_LoadTextureFB (const char *identifier, int width, int height, qbyte *data, unsigned int flags)
 {
 	int			i;
 	gltexture_t	*glt;
@@ -2285,7 +2287,7 @@ texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, 
 	return glt->texnum;
 }
 
-texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
+texid_t GL_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
 {
 	gltexture_t	*glt;
 
@@ -2307,7 +2309,7 @@ texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *da
 
 	return glt->texnum;
 }
-texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
+texid_t GL_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
 {
 	gltexture_t	*glt;
 
@@ -2330,7 +2332,7 @@ texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *da
 	return glt->texnum;
 }
 
-texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, unsigned int flags)
+texid_t GL_LoadTexture32 (const char *identifier, int width, int height, void *data, unsigned int flags)
 {
 //	qboolean	noalpha;
 //	int			p, s;
@@ -2391,7 +2393,7 @@ texid_t GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned
 	return glt->texnum;
 }
 
-texid_t GL_LoadCompressed(char *name)
+texid_t GL_LoadCompressed(const char *name)
 {
 	unsigned char *file;
 	gltexture_t	*glt;
@@ -2456,7 +2458,7 @@ texid_t GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned c
 	return glt->texnum;
 }
 
-texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale)
+texid_t GL_LoadTexture8Bump (const char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale)
 {
 //	qboolean	noalpha;
 	//	int			p, s;

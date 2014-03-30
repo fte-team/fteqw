@@ -9,6 +9,15 @@
 #define COBJMACROS
 #include <d3d11.h>
 
+ID3D11Device *pD3DDev11;
+ID3D11DeviceContext *d3ddevctx;
+
+#ifdef WINRT	//winrt crap has its own non-hwnd window crap, after years of microsoft forcing everyone to use hwnds for everything. I wonder why they don't have that many winrt apps.
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "D3D11.lib")
+#include "dxgi1_2.h"
+#else
+
 /*Fixup outdated windows headers*/
 #ifndef WM_XBUTTONDOWN
    #define WM_XBUTTONDOWN      0x020B
@@ -40,6 +49,7 @@
 #ifndef WM_INPUT
 	#define WM_INPUT 255
 #endif
+#endif
 
 #define DEFINE_QGUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
         const GUID DECLSPEC_SELECTANY name \
@@ -47,9 +57,12 @@
 
 DEFINE_QGUID(qIID_ID3D11Texture2D,0x6f15aaf2,0xd208,0x4e89,0x9a,0xb4,0x48,0x95,0x35,0xd3,0x4f,0x9c);
 
-ID3D11Device *pD3DDev11;
-ID3D11DeviceContext *d3ddevctx;
+#ifdef WINRT
+IDXGISwapChain1 *d3dswapchain;
+#else
 IDXGISwapChain *d3dswapchain;
+#endif
+IDXGIOutput *d3dscreen;
 
 ID3D11RenderTargetView *fb_backbuffer;
 ID3D11DepthStencilView *fb_backdepthstencil;
@@ -136,6 +149,7 @@ typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 static modestate_t modestate;
 
 
+#ifndef WINRT	//winrt crap has its own non-hwnd window crap, after years of microsoft forcing everyone to use hwnds for everything. I wonder why they don't have that many winrt apps.
 static void D3DVID_UpdateWindowStatus (HWND hWnd)
 {
 	POINT p;
@@ -143,7 +157,7 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 	int window_width, window_height;
 	GetClientRect(hWnd, &nr);
 
-	Sys_Printf("Update: %i %i %i %i\n", nr.left, nr.top, nr.right, nr.bottom);
+//	Sys_Printf("Update: %i %i %i %i\n", nr.left, nr.top, nr.right, nr.bottom);
 
 	//if its bad then we're probably minimised
 	if (nr.right <= nr.left)
@@ -168,7 +182,7 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 	window_center_x = (window_rect.left + window_rect.right) / 2;
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
-	Sys_Printf("Window: %i %i %i %i\n", window_x, window_y, window_width, window_height);
+//	Sys_Printf("Window: %i %i %i %i\n", window_x, window_y, window_width, window_height);
 
 
 	INS_UpdateClipCursor ();
@@ -208,20 +222,36 @@ static qboolean D3D11AppActivate(BOOL fActive, BOOL minimize)
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 
-	if (fActive)
-	{
-		Cvar_ForceCallback(&v_gamma);
-	}
-	if (!fActive)
-	{
-		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
-	}
-
 	return true;
 }
 
 
+static void D3D11_DoResize(void)
+{
+	d3d_resized = true;
 
+	D3DVID_UpdateWindowStatus(mainwindow);
+
+	if (d3dscreen)
+	{	//seriously? this is disgusting.
+		DXGI_OUTPUT_DESC desc;
+		IDXGIOutput_GetDesc(d3dscreen, &desc);
+		vid.pixelwidth = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
+		vid.pixelheight = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
+	}
+	else
+	{
+		vid.pixelwidth = window_rect.right - window_rect.left;
+		vid.pixelheight = window_rect.bottom - window_rect.top;
+	}
+//	Con_Printf("Resizing buffer to %i*%i\n", vid.pixelwidth, vid.pixelheight);
+	released3dbackbuffer();
+	IDXGISwapChain_ResizeBuffers(d3dswapchain, 0, vid.pixelwidth, vid.pixelheight, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+
+	D3D11BE_Reset(true);
+	resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
+	D3D11BE_Reset(false);
+}
 
 
 static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -254,6 +284,12 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 		case WM_SYSKEYDOWN:
 			if (keydown[K_LALT] && wParam == '\r')
 			{
+				if (d3dscreen)
+				{
+					IDXGIOutput_Release(d3dscreen);
+					d3dscreen = NULL;
+				}
+
 				if (modestate == MS_FULLSCREEN)
 					modestate = MS_WINDOWED;
 				else
@@ -262,15 +298,28 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 					extern cvar_t vid_width, vid_height;
 					int width = vid_width.ival;
 					int height = vid_height.ival;
-					rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
-					rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-					rect.right = rect.left+width;
-					rect.bottom = rect.top+height;
+					if (!width || !height)
+					{
+						DXGI_OUTPUT_DESC desc;
+						IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
+						IDXGIOutput_GetDesc(d3dscreen, &desc);
+						rect = desc.DesktopCoordinates;
+					}
+					else
+					{
+						rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+						rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+						rect.right = rect.left+width;
+						rect.bottom = rect.top+height;
+					}
 					AdjustWindowRectEx(&rect, WS_OVERLAPPED, FALSE, 0);
 					SetWindowPos(hWnd, NULL, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, SWP_SHOWWINDOW|SWP_FRAMECHANGED);
 					modestate = MS_FULLSCREEN;
 				}
-				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, NULL);
+		
+				if (!d3dscreen && modestate == MS_FULLSCREEN)
+					IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, d3dscreen);
 
 				if (modestate == MS_WINDOWED)
 				{
@@ -286,7 +335,12 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 					SetWindowPos(hWnd, HWND_TOP, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, SWP_SHOWWINDOW|SWP_FRAMECHANGED);
 					SetForegroundWindow(hWnd);
 					SetFocus(hWnd);
+
+					//work around a windows bug by forcing all windows to be repainted.
+					InvalidateRect(NULL, NULL, false);
 				}
+				D3D11_DoResize();
+				Cvar_ForceCallback(&v_gamma);
 			}
 			else if (!vid_initializing)
 				INS_TranslateKeyEvent (wParam, lParam, true, 0);
@@ -424,7 +478,11 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 				ShowWindow(mainwindow, SW_SHOWNORMAL);
 
 			if (ActiveApp && modestate == MS_FULLSCREEN)
-				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, NULL);
+			{
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, d3dscreen);
+				D3D11_DoResize();
+			}
+			Cvar_ForceCallback(&v_gamma);
 
 		// fix the leftover Alt from any Alt-Tab or the like that switched us away
 //			ClearAllStates ();
@@ -454,6 +512,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
     /* return 1 if handled message, 0 if not */
     return lRet;
 }
+#endif
 
 #if (WINVER < 0x500) && !defined(__GNUC__)
 typedef struct tagMONITORINFO
@@ -520,6 +579,82 @@ static qboolean resetd3dbackbuffer(int width, int height)
 	return true;
 }
 
+#ifdef WINRT	//winrt crap has its own non-hwnd window crap, after years of microsoft forcing everyone to use hwnds for everything. I wonder why they don't have that many winrt apps.
+void D3D11_DoResize(int newwidth, int newheight)
+{
+	d3d_resized = true;
+
+//	Con_Printf("Resizing buffer to %i*%i\n", vid.pixelwidth, vid.pixelheight);
+	released3dbackbuffer();
+	if (d3dswapchain)
+	{
+		IDXGISwapChain_ResizeBuffers(d3dswapchain, 0, vid.pixelwidth, vid.pixelheight, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+
+		D3D11BE_Reset(true);
+		resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
+		D3D11BE_Reset(false);
+	}
+}
+void *RT_GetCoreWindow(int *width, int *height);
+static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
+{
+	static IID factiid1 = {0x770aae78, 0xf26f, 0x4dba, 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87};
+	static IID factiid2 = {0x50c83a1c, 0xe072, 0x4c48, 0x87, 0xb0, 0x36, 0x30, 0xfa, 0x36, 0xa6, 0xd0};
+	IDXGIFactory2 *fact = NULL;
+	HRESULT hr;
+	D3D_FEATURE_LEVEL flevel, flevels[] =
+	{
+		//D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+		D3D_FEATURE_LEVEL_10_1,
+		D3D_FEATURE_LEVEL_10_0,
+
+		D3D_FEATURE_LEVEL_9_3,
+		D3D_FEATURE_LEVEL_9_2,
+		D3D_FEATURE_LEVEL_9_1
+	};
+	DXGI_SWAP_CHAIN_DESC1 scd = {0};
+
+	IUnknown *window = RT_GetCoreWindow(&info->width, &info->height);
+
+	modestate = MS_FULLSCREEN;
+
+	//fill scd
+	scd.Width = info->width;
+	scd.Height = info->height;
+	scd.Format = info->srgb?DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:DXGI_FORMAT_B8G8R8A8_UNORM;
+	scd.Stereo = info->stereo;
+	scd.SampleDesc.Count = 1+info->multisample;
+	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	scd.BufferCount = 2+info->triplebuffer;	//rt only supports fullscreen, so the frontbuffer needs to be created by us.
+	scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+	scd.Flags = 0;
+
+	//create d3d stuff
+	hr = CreateDXGIFactory1(&factiid2, &fact);
+	if (FAILED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, flevels, sizeof(flevels)/sizeof(flevels[0]), D3D11_SDK_VERSION, &pD3DDev11, &flevel, &d3ddevctx)))
+		Sys_Error("D3D11CreateDevice failed\n");
+	else
+	{
+		if (FAILED(IDXGIFactory2_CreateSwapChainForCoreWindow(fact, (IUnknown*)pD3DDev11, window, &scd, NULL, &d3dswapchain)))
+			Sys_Error("IDXGIFactory2_CreateSwapChainForCoreWindow failed\n");
+		else
+		{
+			vid.numpages = scd.BufferCount;
+			if (!resetd3dbackbuffer(info->width, info->height))
+				Sys_Error("unable to reset back buffer\n");
+			else
+			{
+				if (!D3D11Shader_Init(flevel))
+					Con_Printf("Unable to intialise a suitable HLSL compiler, please install the DirectX runtime.\n");
+				else
+					return true;
+			}
+		}
+	}
+	return false;
+}
+#else
 static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN func, IDXGIAdapter *adapt)
 {
 	int flags = 0;//= D3D11_CREATE_DEVICE_SINGLETHREADED;
@@ -533,9 +668,9 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 		D3D_FEATURE_LEVEL_10_0,
 
 		//FIXME: need npot.
-//		D3D_FEATURE_LEVEL_9_3,
-//		D3D_FEATURE_LEVEL_9_2,
-//		D3D_FEATURE_LEVEL_9_1
+		D3D_FEATURE_LEVEL_9_3,
+		D3D_FEATURE_LEVEL_9_2,
+		D3D_FEATURE_LEVEL_9_1
 	};
 	memset(&scd, 0, sizeof(scd));
 
@@ -563,10 +698,10 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	scd.BufferDesc.RefreshRate.Numerator = 0;
 	scd.BufferDesc.RefreshRate.Denominator = 0;
 	scd.BufferCount = 1+info->triplebuffer;	//back buffer count
-	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	//32bit colour
+	scd.BufferDesc.Format = info->srgb?DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:DXGI_FORMAT_R8G8B8A8_UNORM;	//32bit colour
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.OutputWindow = hWnd;
-	scd.SampleDesc.Count = 1+info->multisample;
+	scd.SampleDesc.Count = 1+info->multisample;	//as we're starting up windowed (and switching to fullscreen after), the frontbuffer is handled by windows.
 	scd.Windowed = TRUE;
 	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;// | DXGI_SWAP_CHAIN_FLAG_NONPREROTATED;
 
@@ -731,7 +866,11 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	}
 
 	if (info->fullscreen)
-		IDXGISwapChain_SetFullscreenState(d3dswapchain, true, NULL);
+	{
+		if (!d3dscreen)
+			IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
+		IDXGISwapChain_SetFullscreenState(d3dswapchain, true, d3dscreen);
+	}
 
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
@@ -758,10 +897,9 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 		mouseactive = false;
 	}
 
-	Cvar_ForceCallback(&v_gamma);
-
 	return true;
 }
+#endif
 
 /*a new model has been loaded*/
 static void	(D3D11_R_NewMap)					(void)
@@ -824,17 +962,71 @@ static void	 (D3D11_VID_DeInit)				(void)
 	}
 	d3ddevctx = NULL;
 
+#ifndef WINRT
 	if (mainwindow)
 	{
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
+#endif
+
+	if (d3dscreen)
+		IUnknown_Release(d3dscreen);
+	d3dscreen = NULL;
 
 	DoDXGIDebug();
 }
 
+extern float		hw_blend[4];		// rgba 0.0 - 1.0
+
+static void D3D11_BuildRamps(int points, DXGI_RGB *out)
+{
+	int i;
+	vec3_t cshift;
+	vec3_t c;
+	float sc;
+	VectorScale(hw_blend, hw_blend[3], cshift);
+	for (i = 0; i < points; i++)
+	{
+		sc = i / (float)(points-1);
+		VectorSet(c, sc, sc, sc);
+		VectorAdd(c, cshift, c);
+		VectorScale(c, v_contrast.value, c);
+
+		out[i].Red		= pow (c[0], v_gamma.value) + v_brightness.value;
+		out[i].Green	= pow (c[1], v_gamma.value) + v_brightness.value;
+		out[i].Blue		= pow (c[2], v_gamma.value) + v_brightness.value;
+	}
+}
+
 static qboolean	D3D11_VID_ApplyGammaRamps(unsigned short *ramps)
 {
+	HRESULT hr;
+	DXGI_GAMMA_CONTROL_CAPABILITIES caps;
+	DXGI_GAMMA_CONTROL gam;
+	//cache the screen, so we don't get too confused.
+	if (!d3dscreen)
+		return false;	//don't do it when we're running windowed.
+
+	if (d3dscreen)
+	{
+		gam.Scale.Red = 1;
+		gam.Scale.Green = 1;
+		gam.Scale.Blue = 1;
+		gam.Offset.Red = 0;
+		gam.Offset.Green = 0;
+		gam.Offset.Blue = 0;
+
+		if (FAILED(IDXGIOutput_GetGammaControlCapabilities(d3dscreen, &caps)))
+			return false;
+		if (caps.NumGammaControlPoints > 1025)
+			caps.NumGammaControlPoints = 1025;
+		D3D11_BuildRamps(caps.NumGammaControlPoints, gam.GammaCurve);
+
+		hr = IDXGIOutput_SetGammaControl(d3dscreen, &gam);
+		if (SUCCEEDED(hr))
+			return true;
+	}
 	return false;
 }
 static char	*D3D11_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
@@ -889,7 +1081,9 @@ static char	*D3D11_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidhei
 }
 static void	(D3D11_VID_SetWindowCaption)		(char *msg)
 {
+#ifndef WINRT
 	SetWindowText(mainwindow, msg);
+#endif
 }
 
 void D3D11_Set2D (void)
@@ -924,7 +1118,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 	if (r_clear.ival)
 	{
-		float colours[4] = {1, 0, 0, 0};
+		float colours[4] = {(r_clear.ival==2)?0:1, 0, 0, 0};
 		ID3D11DeviceContext_ClearRenderTargetView(d3ddevctx, fb_backbuffer, colours);
 	}
 
@@ -939,6 +1133,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 		Cvar_ForceCallback(&vid_conautoscale);
 		Cvar_ForceCallback(&vid_conwidth);
 	}
+	R2D_Font_Changed();
 
 	if (scr_disabled_for_loading)
 	{
@@ -951,7 +1146,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 		{
 //			IDirect3DDevice9_BeginScene(pD3DDev9);
 			scr_drawloading = true;
-			SCR_DrawLoading ();
+			SCR_DrawLoading (true);
 			scr_drawloading = false;
 //			IDirect3DDevice9_EndScene(pD3DDev9);
 			D3D11_PresentOrCrash();
@@ -1101,6 +1296,7 @@ static void	(D3D11_R_Init)					(void)
 }
 static void	(D3D11_R_DeInit)					(void)
 {
+	GL_GAliasFlushSkinCache();
 	Surf_DeInit();
 	Shader_Shutdown();
 	D3D11_Image_Shutdown();
@@ -1161,6 +1357,10 @@ static void D3D11_SetupViewPort(void)
 static void	(D3D11_R_RenderView)				(void)
 {
 	float x, x2, y, y2;
+	double time1 = 0, time2 = 0;
+
+	if (r_speeds.ival)
+		time1 = Sys_DoubleTime();
 
 	D3D11_SetupViewPort();
 	//unlike gl, we clear colour beforehand, because that seems more sane.
@@ -1175,6 +1375,10 @@ static void	(D3D11_R_RenderView)				(void)
 	r_refdef.pxrect.y = floor(y);
 	r_refdef.pxrect.width = (int)ceil(x2) - r_refdef.pxrect.x;
 	r_refdef.pxrect.height = (int)ceil(y2) - r_refdef.pxrect.y;
+
+	Surf_SetupFrame();
+
+	//fixme: waterwarp fov
 
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
@@ -1197,6 +1401,12 @@ static void	(D3D11_R_RenderView)				(void)
 	RQ_RenderBatchClear();
 
 	D3D11_Set2D ();
+
+	if (r_speeds.ival)
+	{
+		time2 = Sys_DoubleTime();
+		RQuantAdd(RQUANT_MSECS, (int)((time2-time1)*1000000));
+	}
 }
 
 void D3D11BE_RenderToTextureUpdate2d(qboolean destchanged)
@@ -1235,9 +1445,10 @@ rendererinfo_t d3d11rendererinfo =
 
 	D3D11_VID_Init,
 	D3D11_VID_DeInit,
+	D3D11_PresentOrCrash,
 	D3D11_VID_ApplyGammaRamps,
-	D3D11_VID_GetRGBInfo,
 	D3D11_VID_SetWindowCaption,
+	D3D11_VID_GetRGBInfo,
 
 	D3D11_SCR_UpdateScreen,
 

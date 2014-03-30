@@ -951,7 +951,8 @@ static qboolean QDECL DSOUND_InitCard (soundcardinfo_t *sc, const char *device)
 		}
 
 		//wait for the thread to finish (along with all its error con printfs etc
-		Sys_ConditionWait(cond);
+		if (!Sys_ConditionWait(cond))
+			Con_SafePrintf ("Looks like the sound thread isn't starting up\n");
 		Sys_UnlockConditional(cond);
 		Sys_DestroyConditional(cond);
 

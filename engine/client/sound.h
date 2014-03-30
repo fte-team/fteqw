@@ -132,7 +132,7 @@ qboolean S_HaveOutput(void);
 void S_Music_Clear(sfx_t *onlyifsample);
 void S_Music_Seek(float time);
 
-sfx_t *S_PrecacheSound (char *sample);
+sfx_t *S_PrecacheSound (const char *sample);
 void S_TouchSound (char *sample);
 void S_UntouchAll(void);
 void S_ClearPrecache (void);
@@ -237,7 +237,7 @@ extern cvar_t snd_mixerthread;
 
 extern int		snd_blocked;
 
-void S_LocalSound (char *s);
+void S_LocalSound (const char *s);
 qboolean S_LoadSound (sfx_t *s);
 
 typedef qboolean (*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);

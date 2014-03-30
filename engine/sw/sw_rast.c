@@ -1041,9 +1041,10 @@ rendererinfo_t swrendererinfo =
 
 	SW_VID_Init,
 	SW_VID_DeInit,
+	SW_VID_SwapBuffers,
 	SW_VID_ApplyGammaRamps,
-	SW_VID_GetRGBInfo,
 	SW_VID_SetWindowCaption,
+	SW_VID_GetRGBInfo,
 
 	SW_SCR_UpdateScreen,
 
@@ -1066,6 +1067,8 @@ rendererinfo_t swrendererinfo =
 	SW_VBO_Data,
 	SW_VBO_Finish,
 	SW_VBO_Destroy,
+
+	SWBE_RenderToTextureUpdate2d,
 
 	"no more"
 };

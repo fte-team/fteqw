@@ -94,7 +94,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	return PR_SwitchProgs(progfuncs, newpr);
 }
 
-progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, char *s, int headercrc, builtin_t *builtins, int numbuiltins)
+progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, const char *s, int headercrc, builtin_t *builtins, int numbuiltins)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int a;

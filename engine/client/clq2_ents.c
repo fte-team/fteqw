@@ -1312,9 +1312,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					char *pmodel = Info_ValueForKey(player->userinfo, "model");
 					if (*pmodel)
-						ent.model = Mod_ForName(va("players/%s/tris.md2", pmodel), false);
+						ent.model = Mod_ForName(va("players/%s/tris.md2", pmodel), MLV_WARN);
 					if (!ent.model || ent.model->needload)
-						ent.model = Mod_ForName("players/male/tris.md2", false);
+						ent.model = Mod_ForName("players/male/tris.md2", MLV_SILENT);
 				}
 				ent.playerindex = (s1->skinnum&0xff)%cl.allocated_client_slots;
 				player->model = ent.model;
@@ -1535,7 +1535,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 				i = (s1->skinnum >> 8); // 0 is default weapon model
 				if (i >= 0 && i < cl.numq2visibleweapons)
-					ent.model = Mod_ForName(va("players/%s/%s", modelname, cl.q2visibleweapons[i]), false);
+					ent.model = Mod_ForName(va("players/%s/%s", modelname, cl.q2visibleweapons[i]), MLV_WARN);
 				/*
 				ci = &cl.clientinfo[s1->skinnum & 0xff];
 				i = (s1->skinnum >> 8); // 0 is default weapon model

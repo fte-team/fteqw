@@ -38,14 +38,15 @@ model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
+void CM_Shutdown(void);
 
-qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer);
-qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer);
-qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize);
+qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize);
+qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize);
 #ifdef Q2BSPS
-qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
-model_t *Mod_LoadModel (model_t *mod, qboolean crash);
+model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
 
 #ifdef MAP_DOOM
 qboolean Mod_LoadDoomLevel(model_t *mod);
@@ -249,8 +250,10 @@ int RelightThread(void *arg)
 	{
 #ifdef _WIN32
 		surf = InterlockedIncrement(&relitsurface);
+#elif defined(__GNUC__)
+		surf = __sync_add_and_fetch(&relitsurface, 1);
 #else
-		surf = relightthreads++;
+		surf = relitsurface++;
 #endif
 		if (surf >= lightmodel->numsurfaces)
 			break;
@@ -270,7 +273,7 @@ void Mod_Think (void)
 		if (!relightthreads)
 		{
 			int i;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINRT)
 			HANDLE me = GetCurrentProcess();
 			DWORD_PTR proc, sys;
 			/*count cpus*/
@@ -284,6 +287,8 @@ void Mod_Think (void)
 				relightthreads = 1;
 			else
 				relightthreads--;
+#elif defined(__GNUC__)
+			relightthreads = 2;	//erm, lets hope...
 #else
 			/*can't do atomics*/
 			relightthreads = 1;
@@ -553,6 +558,9 @@ void Mod_Shutdown (qboolean final)
 	if (final)
 	{
 		Mod_UnRegisterAllModelFormats(NULL);
+#ifdef Q2BSPS
+		CM_Shutdown();
+#endif
 	}
 	else
 	{
@@ -582,7 +590,7 @@ void *Mod_Extradata (model_t *mod)
 	if (r)
 		return r;
 
-	Mod_LoadModel (mod, true);
+	Mod_LoadModel (mod, MLV_ERROR);
 	
 	if (!mod->meshinfo)
 		Sys_Error ("Mod_Extradata: caching failed");
@@ -639,7 +647,7 @@ Mod_FindName
 
 ==================
 */
-model_t *Mod_FindName (char *name)
+model_t *Mod_FindName (const char *name)
 {
 	int		i;
 	model_t	*mod;
@@ -682,7 +690,7 @@ Mod_TouchModel
 
 ==================
 */
-void Mod_TouchModel (char *name)
+void Mod_TouchModel (const char *name)
 {
 	model_t	*mod;
 	
@@ -703,10 +711,10 @@ static struct
 	char *formatname;
 	char *ident;
 	unsigned int magic;
-	qboolean (QDECL *load) (model_t *mod, void *buffer);
+	qboolean (QDECL *load) (model_t *mod, void *buffer, size_t buffersize);
 } modelloaders[64];
 
-int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer))
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
@@ -730,7 +738,7 @@ int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magi
 
 	return free+1;
 }
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer))
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
@@ -791,13 +799,13 @@ Mod_LoadModel
 Loads a model into the cache
 ==================
 */
-model_t *Mod_LoadModel (model_t *mod, qboolean crash)
+model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 {
 	unsigned *buf = NULL;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
 	char mdlbase[MAX_QPATH];
 	char *replstr;
-	qboolean doomsprite = false;
+	qboolean doomsprite = false, tryreplace;
 	unsigned int magic, i;
 
 	char *ext;
@@ -899,6 +907,8 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	if (!gl_load24bit.value)
 		replstr = "";
 
+	tryreplace = !!*replstr;
+
 	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
 
 	while (replstr)
@@ -949,7 +959,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 		}
 		if (i < sizeof(modelloaders) / sizeof(modelloaders[0]))
 		{
-			if (!modelloaders[i].load(mod, buf))
+			if (!modelloaders[i].load(mod, buf, com_filesize))
 				continue;
 			if (mod->type == mod_brush)
 				Surf_BuildModelLightmaps(mod);
@@ -964,7 +974,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 			}
 			if (i < sizeof(modelloaders) / sizeof(modelloaders[0]))
 			{
-				if (!modelloaders[i].load(mod, buf))
+				if (!modelloaders[i].load(mod, buf, com_filesize))
 					continue;
 			}
 			else
@@ -1007,11 +1017,24 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 		return mod;
 	}
 
-	if (crash)
+	switch(verbose)
+	{
+	default:
+	case MLV_ERROR:
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
-
-	if (*mod->name != '*' && strcmp(mod->name, "null"))
-		Con_Printf(CON_ERROR "Unable to load or replace %s\n", mod->name);
+		break;
+	case MLV_WARN:
+		if (*mod->name != '*' && strcmp(mod->name, "null"))
+		{
+			if (tryreplace)
+				Con_Printf(CON_ERROR "Unable to load or replace %s\n", mod->name);
+			else
+				Con_Printf(CON_ERROR "Unable to load %s\n", mod->name);
+		}
+		break;
+	case MLV_SILENT:
+		break;
+	}
 	mod->type = mod_dummy;
 	mod->mins[0] = -16;
 	mod->mins[1] = -16;
@@ -1032,13 +1055,13 @@ Mod_ForName
 Loads in a model for the given name
 ==================
 */
-model_t *Mod_ForName (char *name, qboolean crash)
+model_t *Mod_ForName (const char *name, enum mlverbosity_e verbosity)
 {
 	model_t	*mod;
 	
 	mod = Mod_FindName (name);
 	
-	return Mod_LoadModel (mod, crash);
+	return Mod_LoadModel (mod, verbosity);
 }
 
 
@@ -4129,7 +4152,7 @@ void Mod_FixupMinsMaxs(void)
 Mod_LoadBrushModel
 =================
 */
-qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 {
 	int			i, j;
 	dheader_t	*header;
@@ -4567,7 +4590,7 @@ static void * Mod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int fra
 Mod_LoadSpriteModel
 =================
 */
-qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
 {
 	int					i;
 	int					version;
@@ -4722,7 +4745,7 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer)
 }
 
 #ifdef SP2MODELS
-qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize)
 {
 	int					i;
 	int					version;

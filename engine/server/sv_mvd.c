@@ -1687,7 +1687,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
 	int n, i;
-	char *s;
+	const char *s;
 
 	client_t *player;
 	char *gamedir;
@@ -1720,11 +1720,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
 	if (!gamedir[0])
-		gamedir = FS_GetGamedir();
-
-	/*the gamedir shouldn't be fte - that should be hidden from clients*/
-	if (!strncmp(gamedir, "fte", 3))
-		gamedir = "qw";
+		gamedir = FS_GetGamedir(true);
 
 	MSG_WriteByte (&buf, svc_serverdata);
 

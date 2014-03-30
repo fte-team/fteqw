@@ -547,7 +547,7 @@ void Validation_Apply_Ruleset(void)
 	}
 	if (!rs->rulesetname)
 	{
-		Con_Printf("Cannot apply ruleset %s - not recognised\n", rs->rulesetname);
+		Con_Printf("Cannot apply ruleset %s - not recognised\n", ruleset.string);
 		return;
 	}
 	

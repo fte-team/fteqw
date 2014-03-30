@@ -113,10 +113,6 @@ void GLVID_DeInit(void)
 	killCocoa();
 }
 
-void GL_DoSwap(void)
-{
-}
-
 void GLVID_SetPalette (unsigned char *palette)
 {
 	qbyte *pal;
@@ -179,11 +175,7 @@ void GLVID_SetCaption(char *text)
 {
 }
 
-void GL_BeginRendering (void)
-{
-}
-
-void GL_EndRendering(void)
+void GLVID_SwapBuffers(void)
 {
 	flushCocoa();
 }

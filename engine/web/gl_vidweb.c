@@ -142,17 +142,8 @@ void GLVID_DeInit (void)
 }
 
 
-void GL_BeginRendering (void)
+void VIDGL_SwapBuffers (void)
 {
-}
-
-qboolean screenflush;
-void GL_DoSwap (void)
-{
-	if (!screenflush)
-		return;
-	screenflush = 0;
-
 	//webgl doesn't support swapbuffers.
 	//you can't use it for loading screens.
 	//such things must result in waiting until the following frame.
@@ -177,13 +168,6 @@ void GL_DoSwap (void)
 		}
 	}
 */
-}
-
-void GL_EndRendering (void)
-{
-	screenflush = true;
-	if (!gl_lateswap.value)
-		GL_DoSwap();
 }
 
 qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)

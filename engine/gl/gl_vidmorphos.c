@@ -581,17 +581,9 @@ void GLVID_DeInit(void)
 	}
 }
 
-void GL_BeginRendering(void)
-{
-}
-
-void GL_EndRendering (void)
+void GLVID_SwapBuffers (void)
 {
 	glASwapBuffers();
-}
-
-void GL_DoSwap(void)
-{
 }
 
 void GLVID_SetPalette (unsigned char *palette)

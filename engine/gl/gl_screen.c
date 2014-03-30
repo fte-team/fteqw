@@ -85,10 +85,10 @@ void GLSCR_UpdateScreen (void)
 		{		
 			GL_BeginRendering ();
 			scr_drawloading = true;
-			SCR_DrawLoading ();
+			SCR_DrawLoading (true);
 			scr_drawloading = false;
 			GL_EndRendering ();	
-			GL_DoSwap();
+			VID_SwapBuffers();
 			RSpeedEnd(RSPEED_TOTALREFRESH);
 			return;
 		}
@@ -123,7 +123,7 @@ void GLSCR_UpdateScreen (void)
 		if (key_dest_mask & kdm_console)
 			Con_DrawConsole(vid.height/2, false);
 		GL_EndRendering ();	
-		GL_DoSwap();
+		VID_SwapBuffers();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
 	}
@@ -137,8 +137,8 @@ void GLSCR_UpdateScreen (void)
 #endif
 		R2D_BrightenScreen();
 		GL_EndRendering ();	
-		GL_DoSwap();
 		GL_Set2D (false);
+		VID_SwapBuffers();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
 	}
@@ -161,18 +161,17 @@ void GLSCR_UpdateScreen (void)
 		nohud = true;
 	else
 #endif
+	{
 		if (uimenu != 1)
 		{
 			if (r_worldentity.model && cls.state == ca_active)
  				V_RenderView ();
 			else
 			{
-				GL_DoSwap();
 				noworld = true;
 			}
 		}
-	else
-		GL_DoSwap();
+	}
 
 	GL_Set2D (false);
 
@@ -206,6 +205,7 @@ void GLSCR_UpdateScreen (void)
 
 	RSpeedRemark();
 	GL_EndRendering ();
+	VID_SwapBuffers();
 	RSpeedEnd(RSPEED_FINISH);
 }
 

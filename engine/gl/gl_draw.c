@@ -513,7 +513,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
 	GL_EndRendering ();
-	GL_DoSwap();
+	VID_SwapBuffers();
 
 	GL_SetupSceneProcessingTextures();
 

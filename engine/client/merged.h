@@ -309,9 +309,10 @@ typedef struct rendererinfo_s {
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
+	void	(*VID_SwapBuffers)			(void);	//force a buffer swap, regardless of what's displayed.
 	qboolean (*VID_ApplyGammaRamps)		(unsigned short *ramps);
-	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
 	void	(*VID_SetWindowCaption)		(char *msg);
+	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
 
 	void	(*SCR_UpdateScreen)			(void);
 
@@ -348,6 +349,8 @@ typedef struct rendererinfo_s {
 } rendererinfo_t;
 
 #define rf currentrendererstate.renderer
+
+#define VID_SwapBuffers		rf->VID_SwapBuffers
 
 #define R_LoadTexture		rf->IMG_LoadTexture
 #define R_LoadTexture8Pal24	rf->IMG_LoadTexture8Pal24

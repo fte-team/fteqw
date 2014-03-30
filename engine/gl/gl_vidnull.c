@@ -29,15 +29,7 @@ void GLD_EndDirectRect(int x, int y, int width, int height)
 {
 }
 
-void GL_BeginRendering (void)
-{
-}
-
-void GL_EndRendering (void)
-{
-}
-
-void GL_DoSwap(void)
+void GLVID_SwapBuffers(void)
 {
 }
 

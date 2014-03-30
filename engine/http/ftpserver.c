@@ -159,9 +159,9 @@ static int QDECL SendFileNameTo(const char *rawname, qofs_t size, void *param, s
 		fname = slash+1;
 
 	if (isdir)
-		sprintf(buffer, "drw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", size, fname);
+		sprintf(buffer, "drw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", (unsigned int)size, fname);
 	else
-		sprintf(buffer, "-rw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", size, fname);
+		sprintf(buffer, "-rw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", (unsigned int)size, fname);
 
 //	strcpy(buffer, fname);
 //	for (i = strlen(buffer); i < 40; i+=8)

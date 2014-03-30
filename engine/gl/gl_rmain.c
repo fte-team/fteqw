@@ -997,7 +997,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			//transform the old surface plane into the new view matrix
 			if (Matrix4_Invert(r_refdef.m_view, ivmat))
 			{
-				extern cvar_t temp1;
 				Matrix4_Multiply(ivmat, vmat, trmat);
 				plane.normal[0] = -(oplane.normal[0] * trmat[0] + oplane.normal[1] * trmat[1] + oplane.normal[2] * trmat[2]);
 				plane.normal[1] = -(oplane.normal[0] * trmat[4] + oplane.normal[1] * trmat[5] + oplane.normal[2] * trmat[6]);
@@ -1464,8 +1463,6 @@ void GLR_RenderView (void)
 	double	time1 = 0, time2;
 
 	checkglerror();
-
-	GL_DoSwap();
 
 	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
 		return;

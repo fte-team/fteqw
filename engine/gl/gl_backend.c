@@ -2657,7 +2657,6 @@ static void BE_SubmitMeshChain(void)
 				break;
 			}
 		}
-
 		qglDrawRangeElements(batchtype, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
 		RQuantAdd(RQUANT_DRAWS, 1);
  	}
@@ -4864,7 +4863,6 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 	if (!r_refdef.recurse)
 	{
-		GL_DoSwap();
 		if (shaderstate.wbatch + 50 > shaderstate.maxwbatches)
 		{
 			int newm = shaderstate.wbatch + 100;

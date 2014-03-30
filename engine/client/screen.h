@@ -55,7 +55,7 @@ void SCR_ImageName (char *mapname);
 void RSpeedShow(void);
 
 void SCR_CrosshairPosition(playerview_t *pview, float *x, float *y);
-void SCR_DrawLoading (void);
+void SCR_DrawLoading (qboolean opaque);
 void SCR_TileClear (void);
 void SCR_DrawNotifyString (void);
 void SCR_CheckDrawCenterString (void);

@@ -2784,7 +2784,7 @@ void SV_DownloadSize_f(void)
 		break;
 	case -5: /*package*/
 	case 0: /*exists*/
-		name = va("dlsize \"%s\" %u\n", name, loc.len);
+		name = va("dlsize \"%s\" %u\n", name, (unsigned int)loc.len);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
 		break;

@@ -584,21 +584,18 @@ void GLR_TimeRefresh_f (void)
 	if (frames < 1)
 		frames = 128;
 
-#if defined(_WIN32) && !defined(FTE_SDL)
 	if (finish == 2)
 	{
-		extern HDC		maindc;
 		qglFinish ();
 		start = Sys_DoubleTime ();
 		for (i=0 ; i<frames ; i++)
 		{
 			r_refdef.viewangles[1] = i/(float)frames*360.0;
 			R_RenderView ();
-			qSwapBuffers(maindc);
+			VID_SwapBuffers();
 		}
 	}
 	else
-#endif
 	{
 		if (qglDrawBuffer)
 			qglDrawBuffer  (GL_FRONT);
@@ -621,7 +618,7 @@ void GLR_TimeRefresh_f (void)
 	if (qglDrawBuffer)
 		qglDrawBuffer  (GL_BACK);
 	GL_EndRendering ();
-	GL_DoSwap();
+	VID_SwapBuffers();
 }
 
 #endif

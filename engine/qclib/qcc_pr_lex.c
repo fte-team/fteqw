@@ -2949,7 +2949,7 @@ char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend)
 				QC_snprintfz(out, outend-out, "%s", c->params[i]);
 				out += strlen(out);
 			}
-			QC_snprintfz(out, outend-out, ")", c->name);
+			QC_snprintfz(out, outend-out, ")");
 		}
 		else
 			QC_snprintfz(out, outend-out, "#define %s", c->name);

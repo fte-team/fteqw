@@ -230,21 +230,8 @@ void GLVID_DeInit (void)
 }
 
 
-void GL_BeginRendering (void)
+void GLVID_SwapBuffers (void)
 {
-//    if (!wglMakeCurrent( maindc, baseRC ))
-//		Sys_Error ("wglMakeCurrent failed");
-
-//	qglViewport (*x, *y, *width, *height);
-}
-
-qboolean screenflush;
-void GL_DoSwap (void)
-{
-	if (!screenflush)
-		return;
-	screenflush = 0;
-
 #if SDL_MAJOR_VERSION >= 2
 	if (vid_vsync.modified)
 	{
@@ -277,13 +264,6 @@ void GL_DoSwap (void)
 				IN_DeactivateMouse ();
 		}
 	}
-}
-
-void GL_EndRendering (void)
-{
-	screenflush = true;
-	if (!gl_lateswap.value)
-		GL_DoSwap();
 }
 
 qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)

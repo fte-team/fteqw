@@ -59,29 +59,13 @@ extern r_config_t r_config;
 			#endif
 		#else
 			#include <GLES2/gl2.h>
-			/*gles has no fixed function*/
-			#define GL_PROJECTION 0
-			#define GL_MODELVIEW 0
-			#define GL_CLIP_PLANE0 0
-			#define GL_ALPHA_TEST 0
-			#define GL_MODULATE 0
-			#define GL_FLAT 0
-			#define GL_SMOOTH 0
-			#define GL_DECAL 0
-			#define GL_ADD 0
-			#define GL_TEXTURE_ENV 0
-			#define GL_TEXTURE_ENV_MODE 0
-			#define GL_COLOR_ARRAY 0
-			#define GL_VERTEX_ARRAY 0
 			#define GL_TEXTURE_COORD_ARRAY 0
 		#endif
 		/*gles has no doubles*/
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
-		#define GL_CLAMP GL_CLAMP_TO_EDGE
 		#define GL_NONE                           0
 
-		#define GL_FILL (Sys_Error("GL_FILL was used"),0)
 		#define GL_QUADS (Sys_Error("GL_QUADS was used"),0)
 	#elif defined(__MACOSX__)
 		//apple, you suck.
@@ -90,28 +74,6 @@ extern r_config_t r_config;
 		#include <GLES2/gl2.h>
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
-		#define GL_CLAMP GL_CLAMP_TO_EDGE
-			#define GL_POLYGON (Con_Printf("GL_POLYGON was used"),0)
-			#define GL_QUAD_STRIP (Con_Printf("GL_QUAD_STRIP was used"),0)
-			#define GL_QUADS (Con_Printf("GL_QUADS was used"),0)
-
-
-			#define GL_PROJECTION (Con_Printf("GL_PROJECTION was used"),0)
-			#define GL_MODELVIEW (Con_Printf("GL_MODELVIEW was used"),0)
-			#define GL_CLIP_PLANE0 (Con_Printf("GL_CLIP_PLANE0 was used"),0)
-			#define GL_MODULATE (Con_Printf("GL_MODULATE was used"),0)
-			#define GL_FLAT (Con_Printf("GL_FLAT was used"),0)
-			#define GL_SMOOTH (Con_Printf("GL_SMOOTH was used"),0)
-			#define GL_DECAL (Con_Printf("GL_DECAL was used"),0)
-			#define GL_ADD (Con_Printf("GL_ADD was used"),0)
-			#define GL_FILL (Con_Printf("GL_FILL was used"),0)
-			#define GL_TEXTURE_ENV (Con_Printf("GL_TEXTURE_ENV was used"),0)
-			#define GL_TEXTURE_ENV_MODE (Con_Printf("GL_TEXTURE_ENV_MODE was used"),0)
-			#define GL_COLOR_ARRAY (Con_Printf("GL_COLOR_ARRAY was used"),0)
-			#define GL_VERTEX_ARRAY (Con_Printf("GL_VERTEX_ARRAY was used"),0)
-			#define GL_TEXTURE_COORD_ARRAY (Con_Printf("GL_TEXTURE_COORD_ARRAY was used"),0)
-
-
 	#else
 		#include <GL/gl.h>
 		#ifdef GL_STATIC
@@ -121,11 +83,53 @@ extern r_config_t r_config;
 	#endif
 //#include <GL/glu.h>
 #include "glsupp.h"
+			
+
+
+	/*gles2 has no fixed function*/
+#ifndef GL_ALPHA_TEST
+	#define GL_ALPHA_TEST 0
+#endif
+#ifndef GL_FILL
+	#define GL_FILL (Sys_Error("GL_FILL was used"),0)
+#endif
+#ifndef GL_CLAMP
+	#define GL_CLAMP GL_CLAMP_TO_EDGE
+#endif
+#ifndef GL_TEXTURE_ENV
+	#define GL_TEXTURE_ENV (Con_Printf("GL_TEXTURE_ENV was used"),0)
+	#define GL_TEXTURE_ENV_MODE (Con_Printf("GL_TEXTURE_ENV_MODE was used"),0)
+	#define GL_VERTEX_ARRAY (Con_Printf("GL_VERTEX_ARRAY was used"),0)
+	#define GL_COLOR_ARRAY (Con_Printf("GL_COLOR_ARRAY was used"),0)
+	#define GL_TEXTURE_COORD_ARRAY (Con_Printf("GL_TEXTURE_COORD_ARRAY was used"),0)
+	#define GL_DECAL (Con_Printf("GL_DECAL was used"),0)
+	#define GL_ADD (Con_Printf("GL_ADD was used"),0)
+	#define GL_FLAT (Con_Printf("GL_FLAT was used"),0)
+	#define GL_SMOOTH (Con_Printf("GL_SMOOTH was used"),0)
+	#define GL_MODULATE 0x2100
+	#define GL_PROJECTION (Con_Printf("GL_PROJECTION was used"),0)
+	#define GL_MODELVIEW (Con_Printf("GL_MODELVIEW was used"),0)
+	#define GL_CLIP_PLANE0 (Con_Printf("GL_CLIP_PLANE0 was used"),0)
+#endif
+#ifndef GL_COLOR_ARRAY_POINTER
+	#define GL_COLOR_ARRAY_POINTER 0
+	#define GL_NORMAL_ARRAY 0
+	#define GL_NORMAL_ARRAY_POINTER 0
+	#define GL_TEXTURE_COORD_ARRAY_POINTER 0
+	#define GL_VERTEX_ARRAY_POINTER 0
+	#define GL_BLEND_SRC 0
+	#define GL_BLEND_DST 0
+#endif
+#ifndef GL_POLYGON
+	#define GL_POLYGON (Con_Printf("GL_POLYGON was used"),0)
+	#define GL_QUAD_STRIP (Con_Printf("GL_QUAD_STRIP was used"),0)
+	#define GL_QUADS (Con_Printf("GL_QUADS was used"),0)
+#endif
 
 void GL_InitFogTexture(void);
 
-void GL_BeginRendering (void);
-void GL_EndRendering (void);
+#define GL_BeginRendering()
+#define GL_EndRendering()
 
 void GL_FlushSkinCache(void);
 void GL_GAliasFlushSkinCache(void);
@@ -340,13 +344,6 @@ void GL_SelectTexture (int tmunum);
 void GL_SetShaderState2D(qboolean is2d);
 void GL_ForceDepthWritable(void);
 
-#endif
-
-//
-// vid_gl*.c
-//
-#ifdef GLQUAKE
-void GL_DoSwap (void);
 #endif
 
 //

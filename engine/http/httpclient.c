@@ -730,14 +730,14 @@ void HTTPDL_Establish(struct dl_download *dl)
 		Q_snprintfz(con->buffer, con->bufferlen,
 			"POST %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
-			"Content-Length: %i\r\n"
+			"Content-Length: %u\r\n"
 			"Content-Type: %s\r\n"
 			"Connection: close\r\n"
 #if !defined(NPFTE) && defined(AVAIL_ZLIB)
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"
-			"\r\n", uri, server, dl->postlen, dl->postmimetype);
+			"\r\n", uri, server, (unsigned int)dl->postlen, dl->postmimetype);
 		con->bufferused = strlen(con->buffer);
 		memcpy(con->buffer + con->bufferused, dl->postdata, dl->postlen);
 		con->bufferused += dl->postlen;

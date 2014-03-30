@@ -19,6 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 /*
+Small note: anything concerning EGL in here is specific to egl-with-x11.
+if you want egl-with-framebuffer, look elsewhere.
+*/
+
+/*
 X11 is a huge pile of shit. I don't mean just the old x11 protocol, but all the _current_ standards that don't even try to fix the issues too.
 
 Its fucking retarded the crap that you have to do to get something to work.
@@ -52,12 +57,12 @@ none of these issues will be fixed by a compositing window manager, because ther
 #include "quakedef.h"
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
-#include "glquake.h"
 
 #include <GL/glx.h>
 #ifdef USE_EGL
 #include "gl_videgl.h"
 #endif
+#include "glquake.h"
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
@@ -69,6 +74,7 @@ static Window vid_decoywindow;	//for legacy mode, this is a boring window that w
 static Window vid_root;
 static GLXContext ctx = NULL;
 static int scrnum;
+static long vid_x_eventmask;
 static enum
 {
 	PSL_NONE,
@@ -91,6 +97,8 @@ extern long    sys_parentwindow;
 		    PointerMotionMask)
 
 #define X_MASK (KEY_MASK | MOUSE_MASK | ResizeRequest | StructureNotifyMask | FocusChangeMask | VisibilityChangeMask)
+
+struct _XrmHashBucketRec;
 
 static struct
 {
@@ -145,6 +153,22 @@ static struct
 	int	 (*pXUngrabKeyboard)(Display *display, Time time);
 	int	 (*pXUngrabPointer)(Display *display, Time time);
 	int 	 (*pXWarpPointer)(Display *display, Window src_w, Window dest_w, int src_x, int src_y, unsigned int src_width, unsigned int src_height, int dest_x, int dest_y);
+	Status (*pXMatchVisualInfo)(Display *display, int screen, int depth, int class, XVisualInfo *vinfo_return);
+
+	char *(*pXSetLocaleModifiers)(char *modifier_list);
+	Bool (*pXSupportsLocale)(void); 
+	XIM		(*pXOpenIM)(Display *display, struct _XrmHashBucketRec *db, char *res_name, char *res_class);
+	XIC		(*pXCreateIC)(XIM im, ...);
+	void	(*pXSetICFocus)(XIC ic); 
+	char *  (*pXGetICValues)(XIC ic, ...); 
+	Bool	(*pXFilterEvent)(XEvent *event, Window w);
+	int		(*pXutf8LookupString)(XIC ic, XKeyPressedEvent *event, char *buffer_return, int bytes_buffer, KeySym *keysym_return, Status *status_return);
+	int		(*pXwcLookupString)(XIC ic, XKeyPressedEvent *event, wchar_t *buffer_return, int bytes_buffer, KeySym *keysym_return, Status *status_return);
+	void	(*pXDestroyIC)(XIC ic);
+	Status	(*pXCloseIM)(XIM im);
+	qboolean	dounicode;
+	XIC			unicodecontext;
+	XIM			inputmethod;
 } x11;
 static qboolean x11_initlib(void)
 {
@@ -198,6 +222,7 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXUngrabKeyboard,		"XUngrabKeyboard"},
 		{(void**)&x11.pXUngrabPointer,		"XUngrabPointer"},
 		{(void**)&x11.pXWarpPointer,		"XWarpPointer"},
+		{(void**)&x11.pXMatchVisualInfo,		"XMatchVisualInfo"},
 		{NULL, NULL}
 	};
 
@@ -214,8 +239,22 @@ static qboolean x11_initlib(void)
 		//these ones are extensions, and the reason we're doing this.
 		if (x11.lib)
 		{
-			x11.pXGetEventData = Sys_GetAddressForName(x11.lib, "XGetEventData");
-			x11.pXFreeEventData = Sys_GetAddressForName(x11.lib, "XFreeEventData");
+			//raw input (yay mouse deltas)
+			x11.pXGetEventData		= Sys_GetAddressForName(x11.lib, "XGetEventData");
+			x11.pXFreeEventData		= Sys_GetAddressForName(x11.lib, "XFreeEventData");
+
+			//internationalisation
+			x11.pXSetLocaleModifiers = Sys_GetAddressForName(x11.lib, "XSetLocaleModifiers");
+			x11.pXSupportsLocale	= Sys_GetAddressForName(x11.lib, "XSupportsLocale");
+			x11.pXOpenIM			= Sys_GetAddressForName(x11.lib, "XOpenIM");
+			x11.pXCreateIC			= Sys_GetAddressForName(x11.lib, "XCreateIC");
+			x11.pXSetICFocus		= Sys_GetAddressForName(x11.lib, "XSetICFocus");
+			x11.pXGetICValues		= Sys_GetAddressForName(x11.lib, "XGetICValues");
+			x11.pXFilterEvent		= Sys_GetAddressForName(x11.lib, "XFilterEvent");
+			x11.pXutf8LookupString	= Sys_GetAddressForName(x11.lib, "Xutf8LookupString");
+			x11.pXwcLookupString	= Sys_GetAddressForName(x11.lib, "XwcLookupString");
+			x11.pXDestroyIC			= Sys_GetAddressForName(x11.lib, "XDestroyIC");
+			x11.pXCloseIM			= Sys_GetAddressForName(x11.lib, "XCloseIM");
 		}
 		else
 		{
@@ -299,7 +338,7 @@ static qboolean VMODE_Init(void)
 
 	if (!x11.pXQueryExtension(vid_dpy, "XFree86-VidModeExtension", &vm.opcode, &vm.event, &vm.error))
 	{
-		Con_Printf("DGA extension not available.\n");
+		Con_Printf("VidModeExtension extension not available.\n");
 		return false;
 	}
 	
@@ -308,14 +347,14 @@ static qboolean VMODE_Init(void)
 
 	if (vm.lib)
 	{
-	        if (vm.pXF86VidModeQueryVersion(vid_dpy, &vm.vmajor, &vm.vminor))
-      			Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
+		if (vm.pXF86VidModeQueryVersion(vid_dpy, &vm.vmajor, &vm.vminor))
+      		Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
 		else
-	        {
-      			Con_Printf("No XF86-VidModeExtension support\n");
+		{
+			Con_Printf("No XF86-VidModeExtension support\n");
 			vm.vmajor = 0;
-		        vm.vminor = 0;
-	        }
+			vm.vminor = 0;
+		}
 	}
 
 	return vm.vmajor;
@@ -429,7 +468,12 @@ static qboolean XI2_Init(void)
 
 	if (!xi2.libxi)
 	{
-		xi2.libxi = Sys_LoadLibrary("libXi.so.6", xi2_functable);
+#ifdef __CYGWIN__
+		if (!xi2.libxi)
+			xi2.libxi = Sys_LoadLibrary("cygXi-6.dll", xi2_functable);
+#endif
+		if (!xi2.libxi)
+			xi2.libxi = Sys_LoadLibrary("libXi.so.6", xi2_functable);
 		if (!xi2.libxi)
 			xi2.libxi = Sys_LoadLibrary("libXi", xi2_functable);
 		if (!xi2.libxi)
@@ -507,6 +551,10 @@ qboolean GLX_InitLibrary(char *driver)
 		gllibrary = Sys_LoadLibrary(driver, funcs);
 	else
 		gllibrary = NULL;
+#ifdef __CYGWIN__
+	if (!gllibrary)
+		gllibrary = Sys_LoadLibrary("cygGL-1.dll", funcs);
+#endif
 	if (!gllibrary)	//I hate this.
 		gllibrary = Sys_LoadLibrary("libGL.so.1", funcs);
 	if (!gllibrary)
@@ -535,24 +583,116 @@ void *GLX_GetSymbol(char *name)
 	return symb;
 }
 
-static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
+static void X_ShutdownUnicode(void)
 {
+	if (x11.unicodecontext)
+		x11.pXDestroyIC(x11.unicodecontext);
+	if (x11.inputmethod)
+		x11.pXCloseIM(x11.inputmethod);
+	x11.dounicode = false;
+}
+#include <locale.h>
+static long X_InitUnicode(void)
+{
+	long requiredevents = 0;
+//return 0;
+	X_ShutdownUnicode();
 
+	if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXCreateIC && x11.pXSetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
+	{
+		setlocale(LC_CTYPE, "");
+		x11.pXSetLocaleModifiers("");
+		if (x11.pXSupportsLocale())
+		{
+			x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, NULL, NULL);
+			if (x11.inputmethod)
+			{
+				x11.unicodecontext = x11.pXCreateIC(x11.inputmethod,
+					XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+					XNClientWindow, vid_window,
+					XNFocusWindow, vid_window,
+					NULL);
+				if (x11.unicodecontext)
+				{
+					x11.pXSetICFocus(x11.unicodecontext);
+					x11.dounicode = true;
+
+					x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
+				}
+			}
+		}
+//		setlocale(LC_ALL, "C");
+	}
+
+	Con_Printf("Unicode support: %s\n", x11.dounicode?"available":"unavailable");
+
+	return requiredevents;
+}
+
+static void X_KeyEvent(XKeyEvent *ev, qboolean pressed)
+{
+	int i;
 	int key;
-	char buf[64];
 	KeySym keysym, shifted;
-
+	unsigned int unichar[64];
+	int unichars = 0;
 	key = 0;
 
 	keysym = x11.pXLookupKeysym(ev, 0);
-	if (unicode)
+	if (pressed)
 	{
-		if ((keysym & 0xff000000) == 0x01000000)
-			*unicode = keysym & 0x00ffffff;
+		if (x11.dounicode)
+		{
+			Status status = XLookupNone;
+			if (x11.pXutf8LookupString)
+			{
+				char buf1[1] = {0};
+				char *buf = buf1, *c;
+				int count = x11.pXutf8LookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf1, sizeof(buf1), NULL, &status);
+				if (status == XBufferOverflow)
+				{
+					buf = alloca(count+1);
+					count = x11.pXutf8LookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf, count, NULL, &status);
+				}
+				for (c = buf; c < &buf[count]; )
+				{
+					int error;
+					unsigned int uc = utf8_decode(&error, c, &c);
+					if (uc)
+						unichar[unichars++] = uc;
+				}
+			}
+			else
+			{
+				//is allowed some weird encodings...
+				wchar_t buf1[4] = {0};
+				wchar_t *buf = buf1;
+				int count = x11.pXwcLookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf, sizeof(buf1), &shifted, &status);
+				if (status == XBufferOverflow)
+				{
+					buf = alloca(sizeof(wchar_t)*(count+1));
+					printf("XBufferOverflow\n");
+					count = x11.pXwcLookupString(x11.unicodecontext, (XKeyPressedEvent*)ev, buf, count, NULL, &status);
+				}
+				printf("Translated to \"%ls\" (%i %i)\n", buf, count, status);
+				//if wchar_t is 16bit, then expect problems when we completely ignore surrogates. this is why we favour the utf8 route as it doesn't care whether wchar_t is defined as 16bit or 32bit.
+				for (i = 0; i < count; i++)
+					if (buf[i])
+						unichar[unichars++] = buf[i];
+			}
+		}
 		else
 		{
-			x11.pXLookupString(ev, buf, sizeof buf, &shifted, 0);
-			*unicode = (unsigned char)buf[0];
+			char buf[64];
+			if ((keysym & 0xff000000) == 0x01000000)
+				unichar[unichars++] = keysym & 0x00ffffff;
+			else
+			{
+				int count = x11.pXLookupString(ev, buf, sizeof(buf), &shifted, 0);
+				for (i = 0; i < count; i++)
+					if (buf[i])
+						unichar[unichars++] = (unsigned char)buf[i];
+			}
 		}
 	}
 
@@ -676,7 +816,21 @@ static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 			break;
 	}
 
-	return key;
+	if (unichars)
+	{
+		//we got some text, this is fun isn't it?
+		//the key value itself is sent with the last text char. this avoids multiple presses, and dead keys were already sent.
+		for (i = 0; i < unichars-1; i++)
+		{
+			IN_KeyEvent(0, pressed, 0, unichar[i]);
+		}
+		IN_KeyEvent(0, pressed, key, unichar[i]);
+	}
+	else
+	{
+		//no text available, just do the keypress
+		IN_KeyEvent(0, pressed, key, 0);
+	}
 }
 
 static void install_grabs(void)
@@ -737,11 +891,17 @@ static void GetEvent(void)
 {
 	XEvent event, rep;
 	int b;
-	unsigned int uc;
 	qboolean x11violations = true;
 	Window mw;
 
 	x11.pXNextEvent(vid_dpy, &event);
+
+	if (x11.dounicode)
+		if (x11.pXFilterEvent(&event, vid_window))
+		{
+			Con_Printf("Event filtered\n");
+			return;
+		}
 
 	switch (event.type)
 	{
@@ -833,12 +993,10 @@ static void GetEvent(void)
 //			x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
 		break;
 	case KeyPress:
-		b = XLateKey(&event.xkey, &uc);
-		Key_Event(0, b, uc, true);
+		X_KeyEvent(&event.xkey, true);
 		break;
 	case KeyRelease:
-		b = XLateKey(&event.xkey, NULL);
-		Key_Event(0, b, 0, false);
+		X_KeyEvent(&event.xkey, false);
 		break;
 
 	case MotionNotify:
@@ -857,10 +1015,10 @@ static void GetEvent(void)
 					IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
 
 					/* move the mouse to the window center again (disabling warp first so we don't see it*/
-					x11.pXSelectInput(vid_dpy, vid_window, X_MASK & ~PointerMotionMask);
+					x11.pXSelectInput(vid_dpy, vid_window, vid_x_eventmask & ~PointerMotionMask);
 					x11.pXWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0,
 						cx, cy);
-					x11.pXSelectInput(vid_dpy, vid_window, X_MASK);
+					x11.pXSelectInput(vid_dpy, vid_window, vid_x_eventmask);
 				}
 			}
 			else
@@ -1066,6 +1224,8 @@ void GLVID_Shutdown(void)
 	if (vm.originalapplied)
 		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 
+	X_ShutdownUnicode();
+
 	switch(currentpsl)
 	{
 #ifdef USE_EGL
@@ -1178,43 +1338,20 @@ qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
 	}
 }
 
-/*
-=================
-GL_BeginRendering
-
-=================
-*/
-void GL_BeginRendering (void)
+void GLVID_SwapBuffers (void)
 {
 	switch(currentpsl)
 	{
 #ifdef USE_EGL
+	default:
 	case PSL_EGL:
-		EGL_BeginRendering();
-		break;
-#endif
-	case PSL_GLX:
-	case PSL_NONE:
-		break;
-	}
-}
-
-
-void GL_EndRendering (void)
-{
-	switch(currentpsl)
-	{
-#ifdef USE_EGL
-	case PSL_EGL:
-		EGL_EndRendering();
+		EGL_SwapBuffers();
 		break;
 #endif
 	case PSL_GLX:
 		//we don't need to flush, XSawpBuffers does it for us.
 		//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 		qglXSwapBuffers(vid_dpy, vid_window);
-		break;
-	case PSL_NONE:
 		break;
 	}
 }
@@ -1225,11 +1362,16 @@ void X_StoreIcon(Window wnd)
 	int i;
 	unsigned long data[64*64+2];
 	unsigned int *indata = (unsigned int*)icon.pixel_data;
+	unsigned int inwidth = icon.width;
+	unsigned int inheight = icon.height;
+
+	//FIXME: support loading an icon from the filesystem.
+
 	Atom propname = x11.pXInternAtom(vid_dpy, "_NET_WM_ICON", false);
 	Atom proptype = x11.pXInternAtom(vid_dpy, "CARDINAL", false);
 
-	data[0] = icon.width;
-	data[1] = icon.height;
+	data[0] = inwidth;
+	data[1] = inheight;
 	for (i = 0; i < data[0]*data[1]; i++)
 		data[i+2] = indata[i];
 
@@ -1352,7 +1494,7 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 	attr.background_pixel = 0;
 	attr.border_pixel = 0;
 	attr.colormap = x11.pXCreateColormap(vid_dpy, vid_root, visinfo->visual, AllocNone);
-	attr.event_mask = X_MASK;
+	attr.event_mask = vid_x_eventmask = X_MASK;
 	attr.backing_store = NotUseful;
 	attr.save_under = False;
 	mask = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWBackingStore |CWSaveUnder;
@@ -1576,6 +1718,9 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	else
 		vid_window = X_CreateWindow(false, visinfo, width, height, fullscreen);
 
+	vid_x_eventmask |= X_InitUnicode();
+	x11.pXSelectInput(vid_dpy, vid_window, vid_x_eventmask);
+
 	CL_UpdateWindowTitle();
 	/*make it visible*/
 
@@ -1629,7 +1774,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
-		if (!EGL_Init(info, palette, vid_window, vid_dpy))
+		if (!EGL_Init(info, palette, (EGLNativeWindowType)vid_window, (EGLNativeDisplayType)vid_dpy))
 		{
 			Con_Printf("Failed to create EGL context.\n");
 			GLVID_Shutdown();
@@ -1662,17 +1807,17 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	if (!COM_CheckParm("-noxi2") && XI2_Init())
 	{
 		x11_input_method = XIM_XI2;
-		Con_Printf("Using XInput2\n");
+		Con_DPrintf("Using XInput2\n");
 	}
 	else if (!COM_CheckParm("-nodga") && !COM_CheckParm("-nomdga") && DGAM_Init())
 	{
 		x11_input_method = XIM_DGA;
-		Con_Printf("Using DGA mouse\n");
+		Con_DPrintf("Using DGA mouse\n");
 	}
 	else
 	{
 		x11_input_method = XIM_ORIG;
-		Con_Printf("Using X11 mouse\n");
+		Con_DPrintf("Using X11 mouse\n");
 	}
 
 	if (Cvar_Get("vidx_grabkeyboard", "0", 0, "Additional video options")->value)
@@ -1843,8 +1988,6 @@ void INS_Shutdown(void)
 {
 }
 
-void GL_DoSwap(void) {}
-
 void GLVID_SetCaption(char *text)
 {
 	x11.pXStoreName(vid_dpy, vid_window, text);
@@ -1855,7 +1998,7 @@ void GLVID_SetCaption(char *text)
 #include "gl_draw.h"
 rendererinfo_t eglrendererinfo =
 {
-	"EGL",
+	"EGL(X11)",
 	{
 		"egl"
 	},
@@ -1880,16 +2023,13 @@ rendererinfo_t eglrendererinfo =
 	GLR_NewMap,
 	GLR_PreNewMap,
 
-	Surf_AddStain,
-	Surf_LessenStains,
-
 	EGLVID_Init,
 	GLVID_DeInit,
-	GLVID_SetPalette,
-	GLVID_ShiftPalette,
-	GLVID_GetRGBInfo,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
 
 	GLVID_SetCaption,       //setcaption
+	GLVID_GetRGBInfo,
 
 
 	GLSCR_UpdateScreen,
@@ -1906,7 +2046,15 @@ rendererinfo_t eglrendererinfo =
 	GLBE_UploadAllLightmaps,
 	GLBE_SelectEntity,
 	GLBE_SelectDLight,
+	GLBE_Scissor,
 	GLBE_LightCullModel,
+
+	GLBE_VBO_Begin,
+    GLBE_VBO_Data,
+    GLBE_VBO_Finish,
+    GLBE_VBO_Destroy,
+
+    GLBE_RenderToTextureUpdate2d,
 
 	""
 };

@@ -36,10 +36,7 @@ void *GLES_GetSymbol(char *symname)
 }
 
 #if 1
-void GL_BeginRendering(void)
-{
-}
-void GL_EndRendering (void)
+void GLVID_SwapBuffers(void)
 {
 }
 void GLVID_DeInit(void)
@@ -174,19 +171,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 
-void GL_BeginRendering(void)
-{
-}
-
-void GL_EndRendering (void)
+void GLVID_SwapBuffers(void)
 {
 	eglSwapBuffers(sys_display, sys_surface);
 }
 #endif
-
-void GL_DoSwap(void)
-{
-}
 
 qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 {

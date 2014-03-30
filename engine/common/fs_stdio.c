@@ -300,7 +300,7 @@ static void QDECL FSSTDIO_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, 
 	result = fread(buffer, 1, loc->len, f); // do soemthing with result
 
 	if (result != loc->len)
-		Con_Printf("FSSTDIO_ReadFile() fread: Filename: %s, expected %i, result was %u (%s)\n",loc->rawname,loc->len,(unsigned int)result,strerror(errno));
+		Con_Printf("FSSTDIO_ReadFile() fread: Filename: %s, expected %u, result was %u (%s)\n",loc->rawname,(unsigned int)loc->len,(unsigned int)result,strerror(errno));
 
 	fclose(f);
 }

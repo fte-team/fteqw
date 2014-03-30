@@ -910,7 +910,6 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	extern cvar_t log_developer;
 
 #ifdef CRAZYDEBUGGING
 	va_start (argptr,fmt);
@@ -919,6 +918,7 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	Sys_Printf("%s", msg);
 	return;
 #else
+	extern cvar_t log_developer;
 	if (!developer.value && !log_developer.value)
 		return; // early exit
 #endif

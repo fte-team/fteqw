@@ -590,11 +590,11 @@ void COM_Locate_f (void)
 	{
 		if (!*loc.rawname)
 		{
-			Con_Printf("File is %i bytes compressed inside %s\n", loc.len, loc.search->logicalpath);
+			Con_Printf("File is %u bytes compressed inside %s\n", (unsigned)loc.len, loc.search->logicalpath);
 		}
 		else
 		{
-			Con_Printf("Inside %s (%i bytes)\n  %s\n", loc.rawname, loc.len, loc.search->logicalpath);
+			Con_Printf("Inside %s (%u bytes)\n  %s\n", loc.rawname, (unsigned)loc.len, loc.search->logicalpath);
 		}
 	}
 	else

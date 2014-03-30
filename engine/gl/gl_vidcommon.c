@@ -222,15 +222,14 @@ FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 #define DEBUG
 #endif
 #if defined(DEBUG)
-#ifndef GL_ARB_debug_output
-typedef void (APIENTRY *GLDEBUGPROCARB)(GLenum source,
+//always defining this, my system headers use void instead of GLvoid which results in gcc warnings.
+typedef void (APIENTRY *qGLDEBUGPROCARB)(GLenum source,
 					GLenum type,
 					GLuint id,
 					GLenum severity,
 					GLsizei length,
 					const GLchar* message,
 					GLvoid* userParam);
-#endif
 void (APIENTRY *qglDebugMessageControlARB)(GLenum source,
 					GLenum type,
 					GLenum severity,
@@ -243,7 +242,7 @@ void (APIENTRY *qglDebugMessageInsertARB)(GLenum source,
 					GLenum severity,
 					GLsizei length, 
 					const char* buf);
-void (APIENTRY *qglDebugMessageCallbackARB)(GLDEBUGPROCARB callback,
+void (APIENTRY *qglDebugMessageCallbackARB)(qGLDEBUGPROCARB callback,
 					void* userParam);
 GLuint (APIENTRY *qglGetDebugMessageLogARB)(GLuint count,
 					GLsizei bufsize,
@@ -254,6 +253,7 @@ GLuint (APIENTRY *qglGetDebugMessageLogARB)(GLuint count,
 					GLsizei* lengths,
 					char* messageLog);
 
+#ifndef GL_ARB_debug_output
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB               0x8242
 #define GL_MAX_DEBUG_MESSAGE_LENGTH_ARB               0x9143
 #define GL_MAX_DEBUG_LOGGED_MESSAGES_ARB              0x9144
@@ -276,6 +276,7 @@ GLuint (APIENTRY *qglGetDebugMessageLogARB)(GLuint count,
 #define GL_DEBUG_SEVERITY_HIGH_ARB                    0x9146
 #define GL_DEBUG_SEVERITY_MEDIUM_ARB                  0x9147
 #define GL_DEBUG_SEVERITY_LOW_ARB                     0x9148 
+#endif
 
 
 void (APIENTRY myGLDEBUGPROCAMD)(GLenum source,
@@ -480,7 +481,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 #define GL_CONTEXT_CORE_PROFILE_BIT				0x00000001
 #define GL_CONTEXT_COMPATIBILITY_PROFILE_BIT	0x00000002
 #define GL_CONTEXT_FLAGS						0x821E
+#ifndef GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT
 #define GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT 0x0001
+#endif
 			qglGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
 
 			if (!profile)
@@ -627,6 +630,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 #ifndef qglActiveTextureARB
 		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB)
+			gl_mtexable = false;
+		else if (gl_mtexarbable == 1)
+		{
+			Con_Printf("OpenGL Driver Bug detected: 1 texture is NOT multitexture\n");
+			gl_mtexable = false;
+		}
+		if (!gl_mtexable)
 		{
 			qglActiveTextureARB = NULL;
 			qglClientActiveTextureARB = NULL;
@@ -663,7 +673,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 #ifndef GL_STATIC
 	qglStencilOpSeparateATI = NULL;
-	if ((gl_config.gles && gl_config.glversion >= 2) || gl_config.glversion >= 3) //theoretically that should be a 2 not 3.
+	if ((gl_config.gles && gl_config.glversion >= 2) || (!gl_config.gles && gl_config.glversion >= 3)) //theoretically that should be a 2 not 3.
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparate");
 	else if (GL_CheckExtension("GL_ATI_separate_stencil"))
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparateATI");
@@ -890,14 +900,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGenVertexArrays	= NULL;
 		qglBindVertexArray	= NULL;
 	}
-	else if (gl_config.glversion >= 3)
+	else if (gl_config.glversion >= 3 && !gl_config.gles)
 	{
 		/*yay core!*/
+		Con_Printf("Using vao (core)\n");
 		qglGenVertexArrays	= (void *)getglext("glGenVertexArrays");
 		qglBindVertexArray	= (void *)getglext("glBindVertexArray");
 	}
 	else if (GL_CheckExtension("GL_ARB_vertex_array_object"))
 	{
+		Con_Printf("Using vao (extension)\n");
 		qglGenVertexArrays	= (void *)getglext("glGenVertexArraysARB");
 		qglBindVertexArray	= (void *)getglext("glBindVertexArrayARB");
 	}
@@ -1868,7 +1880,7 @@ void DumpGLState(void)
 	GLint glint;
 	GLint glint4[4];
 
-	if (qglGetVertexAttribiv)
+//	if (qglGetVertexAttribiv)
 	{
 		qglGetIntegerv(GL_VERTEX_ARRAY_BINDING, &rval);
 		Sys_Printf("VERTEX_ARRAY_BINDING: %i\n", rval);
@@ -1920,6 +1932,7 @@ void DumpGLState(void)
 			Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", qglIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
 		}
 
+		if (qglGetVertexAttribiv)
 		for (i = 0; i < 16; i++)
 		{
 			int en, bo, as, st, ty, no;
@@ -2019,10 +2032,10 @@ rendererinfo_t openglrendererinfo = {
 
 	GLVID_Init,
 	GLVID_DeInit,
+	GLVID_SwapBuffers,
 	GLVID_ApplyGammaRamps,
-	GLVID_GetRGBInfo,
-
 	GLVID_SetCaption,	//setcaption
+	GLVID_GetRGBInfo,
 
 
 	GLSCR_UpdateScreen,

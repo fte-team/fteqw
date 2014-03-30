@@ -1383,7 +1383,7 @@ void SCR_SetLoadingFile(char *str)
 	}
 }
 
-void SCR_DrawLoading (void)
+void SCR_DrawLoading (qboolean opaque)
 {
 	int sizex, x, y;
 	mpic_t  *pic;
@@ -1399,6 +1399,8 @@ void SCR_DrawLoading (void)
 		R2D_ImageColours(1, 1, 1, 1);
 		R2D_ScalePic (0, 0, vid.width, vid.height, pic);
 	}
+	else if (opaque)
+		R2D_ConsoleBackground (0, vid.height, true);
 
 	qdepth = COM_FDepthFile("gfx/loading.lmp", true);
 	h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
@@ -1606,7 +1608,7 @@ void SCR_ImageName (char *mapname)
 	scr_disabled_for_loading = false;
 	scr_drawloading = true;
 	GL_BeginRendering ();
-	SCR_DrawLoading();
+	SCR_DrawLoading(false);
 	SCR_SetUpToDrawConsole();
 	if (Key_Dest_Has(kdm_console) || !*levelshotname)
 		SCR_DrawConsole(!!*levelshotname);
@@ -2163,7 +2165,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 	if (scr_drawloading || loading_stage)
 	{
-		SCR_DrawLoading();
+		SCR_DrawLoading(false);
 
 		SCR_ShowPics_Draw();
 	}

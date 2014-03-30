@@ -150,15 +150,13 @@ void EGL_Shutdown(void)
 	eglsurf = EGL_NO_SURFACE;
 }
 
-void EGL_BeginRendering (void)
+void EGL_SwapBuffers (void)
 {
-}
-
-
-void EGL_EndRendering (void)
-{
+	TRACE(("EGL_SwapBuffers\n"));
+	TRACE(("swapping buffers\n"));
 	qeglSwapBuffers(egldpy, eglsurf);
 	/* TODO: check result? */
+	TRACE(("EGL_SwapBuffers done\n"));
 }
 
 qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window, EGLNativeDisplayType dpy)
@@ -168,11 +166,15 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 	EGLint major, minor;
 	EGLint attrib[] =
 	{
-		EGL_BUFFER_SIZE, info->bpp,
-		EGL_SAMPLES, info->multisample,
-		EGL_STENCIL_SIZE, 8,
-		EGL_ALPHA_MASK_SIZE, 8,
+		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+//		EGL_BUFFER_SIZE, info->bpp,
+//		EGL_SAMPLES, info->multisample,
+//		EGL_STENCIL_SIZE, 8,
+		EGL_ALPHA_MASK_SIZE, 0,
 		EGL_DEPTH_SIZE, 16,
+		EGL_RED_SIZE, 1,
+		EGL_GREEN_SIZE, 1,
+		EGL_BLUE_SIZE, 1,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_NONE
 	};
@@ -217,11 +219,17 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		Con_Printf(CON_ERROR "EGL: can't choose config!\n");
 		return false;
 	}
+	
+	if (!numconfig)
+	{
+		Con_Printf(CON_ERROR "EGL: no configs!\n");
+		return false;
+	}
 
 	eglsurf = qeglCreateWindowSurface(egldpy, cfg, window, NULL);
 	if (eglsurf == EGL_NO_SURFACE)
 	{
-		Con_Printf(CON_ERROR "EGL: no surface!\n");
+		Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: %x\n", qeglGetError());
 		return false;
 	}
 

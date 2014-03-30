@@ -229,7 +229,7 @@ void R2D_Init(void)
 				"blendfunc blend\n"
 			"}\n"
 		"}\n");
-	shader_contrastup = R_RegisterShader("constrastupshader", SUF_NONE,
+	shader_contrastup = R_RegisterShader("contrastupshader", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -241,7 +241,7 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
-	shader_contrastdown = R_RegisterShader("constrastdownshader", SUF_NONE,
+	shader_contrastdown = R_RegisterShader("contrastdownshader", SUF_NONE,
 		"{\n"
 			"program defaultfill\n"
 			"{\n"
@@ -938,6 +938,7 @@ void R2D_BrightenScreen (void)
 	if (r2d_canhwgamma)
 		return;
 
+	TRACE(("R2D_BrightenScreen: brightening\n"));
 	if (v_gamma.value != 1 && shader_gammacb->prog)
 	{
 		//this should really be done properly, with render-to-texture

@@ -358,15 +358,15 @@ static int QDECL SSL_Write(struct vfsfile_s *f, const void *buffer, int bytestow
 		return -1;	//closed by remote connection.
 	return written;
 }
-static qboolean QDECL SSL_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL SSL_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	return false;
 }
-static unsigned long QDECL SSL_Tell (struct vfsfile_s *file)
+static qofs_t QDECL SSL_Tell (struct vfsfile_s *file)
 {
 	return 0;
 }
-static unsigned long QDECL SSL_GetLen (struct vfsfile_s *file)
+static qofs_t QDECL SSL_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }

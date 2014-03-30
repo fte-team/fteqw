@@ -10,8 +10,7 @@ void *EGL_Proc(char *f);
 void EGL_UnloadLibrary(void);
 qboolean EGL_LoadLibrary(char *driver);
 void EGL_Shutdown(void);
-void EGL_BeginRendering (void);
-void EGL_EndRendering (void);
+void EGL_SwapBuffers (void);
 qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window, EGLNativeDisplayType dpy);
 
 #endif

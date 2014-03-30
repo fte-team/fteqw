@@ -102,8 +102,9 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
 // sets the mode; only used by the Quake engine for resetting to mode 0 (the
 // base mode) on memory allocation failures
 
-qboolean GLVID_Is8bit();
+qboolean GLVID_Is8bit(void);
 
+void GLVID_SwapBuffers(void);
 char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
 void GLVID_SetCaption(char *caption);
 #endif

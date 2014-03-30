@@ -1274,25 +1274,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	return true;
 }
 
-/*
-=================
-GL_BeginRendering
-
-=================
-*/
-void GL_BeginRendering (void)
-{
-	vid.pixelwidth = WindowRect.right - WindowRect.left;
-	vid.pixelheight = WindowRect.bottom - WindowRect.top;
-
-	qglDisable(GL_SCISSOR_TEST);
-
-//    if (!wglMakeCurrent( maindc, baseRC ))
-//		Sys_Error ("wglMakeCurrent failed");
-
-//	glViewport (*x, *y, *width, *height);
-}
-
 void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (qwglSwapIntervalEXT && *vid_vsync.string)
@@ -1371,25 +1352,13 @@ void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 #endif
 }
 
-qboolean screenflush;
-void GL_DoSwap (void)
+void GLVID_SwapBuffers (void)
 {
-	if (!screenflush)
-		return;
-	screenflush = 0;
-
 	qSwapBuffers(maindc);
 
 // handle the mouse state when windowed if that's changed
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
-}
-
-void GL_EndRendering (void)
-{
-	screenflush = true;
-	if (!gl_lateswap.value)
-		GL_DoSwap();
 }
 
 void OblitterateOldGamma(void)

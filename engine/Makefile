@@ -685,7 +685,7 @@ GLCL_DIR=glcl_$(FTE_FULLTARGET)
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw_sv$(FTE_FULLTARGET)
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
-SV_LDFLAGS=-lz
+SV_LDFLAGS=
 
 MINGL_DIR=mingl_$(FTE_FULLTARGET)
 MINGL_EXE_NAME=../fteqw_mingl$(FTE_FULLTARGET)
@@ -693,7 +693,7 @@ MINGL_EXE_NAME=../fteqw_mingl$(FTE_FULLTARGET)
 MB_DIR=m_$(FTE_FULLTARGET)
 M_EXE_NAME=../fteqw_$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
-M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags` -D_MERGED_SDL
+M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags`
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 
 ifdef windir
@@ -702,6 +702,13 @@ else
 	#pthread is needed because of SDL.
 	M_LDFLAGS=$(MLDFLAGS) `$(SDLCONFIG) --libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 endif
+
+ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
+	SV_LDFLAGS+=-lz
+	GL_LDFLAGS+=-lz
+	M_LDFLAGS+=-lz
+endif
+
 
 
 #specific targets override those defaults as needed.
@@ -1007,11 +1014,10 @@ ifeq ($(FTE_TARGET),bsd)
 	MINGL_EXE_NAME=../fteqw.mingl
 	MINGL_DIR=mingl_bsd
 endif
-ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
-
+ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_DIR=sv_linux$(BITS)
-	SV_LDFLAGS=-lz
 	SV_EXE_NAME=../fteqw.sv$(BITS)
+	SV_LDFLAGS=
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
 	NPFTE_DLL_NAME=../npfte$(BITS).so
@@ -1022,25 +1028,49 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS) -lz
+	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS) -lz
-	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DLIBVORBISFILE_STATIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
+	M_LDFLAGS=$(GL_LDFLAGS)
+	M_CFLAGS=$(GL_CFLAGS)
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
 
 	IMAGELDFLAGS=
 
+	ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
+		SV_LDFLAGS+= -lz
+		GL_LDFLAGS+= -lz
+		M_LDFLAGS+= -lz
+	endif
 
 
 	MINGL_EXE_NAME=../fteqw.mingl$(BITS)
 	MINGL_DIR=mingl_linux$(BITS)
+
+endif
+ifneq (,$(findstring rpi,$(FTE_TARGET)))
+	#These next two lines enable cross compiling. If you're compiling natively you can just kill the two.
+	RPI_SYSROOT:=$(realpath $(shell echo ~)/rpi/rpi-sysroot/)
+	CC=~/rpi/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-gcc --sysroot=$(RPI_SYSROOT)
+	SDLCONFIG=$(RPI_SYSROOT)/usr/bin/sdl-config --prefix=$(RPI_SYSROOT)/usr
+	GL_CFLAGS+= -I$(RPI_SYSROOT)/opt/vc/include -I$(RPI_SYSROOT)/opt/vc/include/interface/vmcs_host/linux -I$(RPI_SYSROOT)/opt/vc/include/interface/vcos/pthreads -DFTE_RPI -DUSE_EGL
+	GL_LDFLAGS+= -L$(RPI_SYSROOT)/opt/vc/lib -Wl,--sysroot=$(RPI_SYSROOT),-rpath=/opt/vc/lib,-rpath-link=$(RPI_SYSROOT)/opt/vc/lib -lbcm_host
+	GLCL_OBJS+=gl_vidrpi.o
+endif
+ifneq (,$(findstring wayland,$(FTE_TARGET)))
+	GL_CFLAGS+=-DUSE_EGL
+	GLCL_OBJS+=gl_vidwayland.o
+	GL_LDFLAGS+=-lwayland-client -lwayland-egl
+endif
+ifneq (,$(findstring fbdev,$(FTE_TARGET)))
+	GL_CFLAGS+=-DUSE_EGL
+	GLCL_OBJS+=gl_vidfbdev.o
 endif
 ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	SV_DIR=sv_macosx$(EXTENSION)$(BITS)
@@ -1162,8 +1192,8 @@ ifeq ($(FTE_TARGET),web)
 	JSLIBS=--js-library web/ftejslib.js -s DISABLE_GL_EMULATION=1
 	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) --shell-file web/fteshell.html  -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	DEBUG_CFLAGS=-g --jcache -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	RELEASE_LDFLAGS=-s ASM_JS=1 -O1	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
+	DEBUG_CFLAGS=-g -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
+	RELEASE_LDFLAGS=-s ASM_JS=1 -O2	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
 #	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
 	DEBUG_LDLAGS=-O0 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
 	CC=emcc
@@ -1311,7 +1341,7 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
+DO_LD ?= $(DO_ECHO) $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 

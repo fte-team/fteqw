@@ -201,6 +201,8 @@ void Sys_Printf (char *fmt, ...)
 				putc(tab[w&31], stdout);
 			}
 		}
+		else if (w < ' ' && w != '\t' && w != '\r' && w != '\n')
+			putc('?', stdout);	//don't let anyone print escape codes or other things that could crash an xterm.
 		else
 		{
 			/*putwc doesn't like me. force it in utf8*/
@@ -731,7 +733,6 @@ int main (int c, const char **v)
 {
 	double time, oldtime, newtime;
 	quakeparms_t parms;
-	int j;
 
 //	char cwd[1024];
 	char bindir[1024];

@@ -795,11 +795,10 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
+	NULL, //VID_SwapBuffers
 	NULL, //VID_ApplyGammaRamps,
-	NULL, //VID_GetRGBInfo,
-
-
 	NULL,	//set caption
+	NULL, //VID_GetRGBInfo,
 
 	NULL,	//SCR_UpdateScreen;
 
@@ -832,6 +831,9 @@ rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 #ifdef GLQUAKE
 extern rendererinfo_t openglrendererinfo;
 rendererinfo_t eglrendererinfo;
+extern rendererinfo_t rpirendererinfo;
+rendererinfo_t waylandrendererinfo;
+rendererinfo_t fbdevrendererinfo;
 #endif
 #ifdef D3DQUAKE
 rendererinfo_t d3d9rendererinfo;
@@ -847,8 +849,13 @@ rendererinfo_t *rendererinfo[] =
 	&dedicatedrendererinfo,
 #endif
 #ifdef GLQUAKE
+#ifdef FTE_RPI
+	&rpirendererinfo,
+#endif
 	&openglrendererinfo,
 	&eglrendererinfo,
+	&waylandrendererinfo,
+	&fbdevrendererinfo,
 #endif
 #ifdef D3DQUAKE
 	&d3d9rendererinfo,

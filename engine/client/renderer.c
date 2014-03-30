@@ -2282,7 +2282,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 
 	//do far plane
 	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.gfog_rgbd[3] 
+	if (r_refdef.globalfog.density
 #ifdef TERRAIN
 	&& cl.worldmodel && cl.worldmodel->type == mod_heightmap
 #else

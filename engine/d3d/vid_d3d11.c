@@ -1388,7 +1388,7 @@ static void	(D3D11_R_RenderView)				(void)
 //			P_DrawParticles ();
 //	}
 	
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
 		{
 			D3D11_Set2D ();

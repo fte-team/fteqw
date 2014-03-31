@@ -1627,9 +1627,9 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 
 		/*inherit certain properties from the parent entity*/
 		if (ps->dpflags & RENDER_VIEWMODEL)
-			ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+			ent->flags |= RF_WEAPONMODEL|Q2RF_MINLIGHT|RF_DEPTHHACK;
 		if ((ps->dpflags & RENDER_EXTERIORMODEL) || r_refdef.playerview->viewentity == ps->number)
-			ent->flags |= Q2RF_EXTERNALMODEL;
+			ent->flags |= RF_EXTERNALMODEL;
 
 		if (ent->playerindex == -1 && ps->colormap > 0 && ps->colormap <= cl.allocated_client_slots)
 		{
@@ -2733,7 +2733,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 	shell->shaderRGBAf[2] *= (effects & EF_BLUE)?1:0;
 	shell->shaderRGBAf[3] *= v_powerupshell.value;
 	/*let the shader do all the work*/
-	shell->flags &= ~Q2RF_TRANSLUCENT|Q2RF_ADDITIVE;
+	shell->flags &= ~RF_TRANSLUCENT|RF_ADDITIVE;
 }
 
 static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
@@ -3409,17 +3409,17 @@ void CL_LinkPacketEntities (void)
 
 		ent->flags = 0;
 		if (state->dpflags & RENDER_VIEWMODEL)
-			ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+			ent->flags |= RF_WEAPONMODEL|Q2RF_MINLIGHT|RF_DEPTHHACK;
 		if ((state->dpflags & RENDER_EXTERIORMODEL) || r_refdef.playerview->viewentity == state->number)
-			ent->flags |= Q2RF_EXTERNALMODEL;
+			ent->flags |= RF_EXTERNALMODEL;
 		if (state->effects & NQEF_ADDITIVE)
-			ent->flags |= Q2RF_ADDITIVE;
+			ent->flags |= RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
 			ent->flags |= RF_NODEPTHTEST;
 		if (state->effects & DPEF_NOSHADOW)
 			ent->flags |= RF_NOSHADOW;
 		if (state->trans != 0xff)
-			ent->flags |= Q2RF_TRANSLUCENT;
+			ent->flags |= RF_TRANSLUCENT;
 
 /*		if (le->origin[2] < r_refdef.waterheight != le->lastorigin[2] < r_refdef.waterheight)
 		{
@@ -4451,7 +4451,7 @@ void CL_LinkPlayers (void)
 		ent->shaderRGBAf[2] = state->colourmod[2]/32.0f;
 		ent->shaderRGBAf[3] = state->alpha/255.0f;
 		if (state->alpha != 255)
-			ent->flags |= Q2RF_TRANSLUCENT;
+			ent->flags |= RF_TRANSLUCENT;
 
 		ent->fatness = state->fatness;
 		//
@@ -4463,7 +4463,7 @@ void CL_LinkPlayers (void)
 		angles[ROLL] = V_CalcRoll (angles, state->velocity)*4;
 
 		if (j+1 == r_refdef.playerview->viewentity || (cl.spectator && r_refdef.playerview->cam_locked && r_refdef.playerview->cam_spec_track == j))
-			ent->flags |= Q2RF_EXTERNALMODEL;
+			ent->flags |= RF_EXTERNALMODEL;
 		// the player object gets added with flags | 2
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
@@ -4637,7 +4637,7 @@ void CL_LinkViewModel(void)
 	ent.shaderRGBAf[3] = alpha;
 	if (alpha != 1)
 	{
-		ent.flags |= Q2RF_TRANSLUCENT;
+		ent.flags |= RF_TRANSLUCENT;
 	}
 
 	ent.model = cl.model_precache[pv->stats[STAT_WEAPON]];
@@ -4675,7 +4675,7 @@ void CL_LinkViewModel(void)
 		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 	}
 
-	ent.flags |= Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK|RF_NOSHADOW;
+	ent.flags |= RF_WEAPONMODEL|RF_DEPTHHACK|RF_NOSHADOW;
 
 	plnum = -1;
 	if (cl.spectator)
@@ -4700,11 +4700,11 @@ void CL_LinkViewModel(void)
 				"}\n"
 				);
 		ent.shaderRGBAf[3] = 1;
-		ent.flags &= ~Q2RF_TRANSLUCENT;
+		ent.flags &= ~RF_TRANSLUCENT;
 		V_AddEntity(&ent);
 		ent.forcedshader = NULL;
 		ent.shaderRGBAf[3] = alpha;
-		ent.flags |= Q2RF_TRANSLUCENT;
+		ent.flags |= RF_TRANSLUCENT;
 	}
 }
 

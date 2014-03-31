@@ -420,11 +420,11 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.forcedshader = VM_FROMSHANDLE(q3->customShader);
 	ent.shaderTime = q3->shaderTime;
 	if (q3->renderfx & Q3RF_FIRST_PERSON)
-		ent.flags |= Q2RF_WEAPONMODEL;
+		ent.flags |= RF_WEAPONMODEL;
 	if (q3->renderfx & Q3RF_DEPTHHACK)
-		ent.flags |= Q2RF_DEPTHHACK;
+		ent.flags |= RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
-		ent.flags |= Q2RF_EXTERNALMODEL;
+		ent.flags |= RF_EXTERNALMODEL;
 	if (q3->renderfx & Q3RF_NOSHADOW)
 		ent.flags |= RF_NOSHADOW;
 
@@ -586,9 +586,9 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	VectorCopy(ref->viewaxis[1], r_refdef.viewaxis[1]);
 	VectorCopy(ref->viewaxis[2], r_refdef.viewaxis[2]);
 	if (ref->rdflags & 1)
-		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+		r_refdef.flags |= RDF_NOWORLDMODEL;
 	else
-		r_refdef.flags &= ~Q2RDF_NOWORLDMODEL;
+		r_refdef.flags &= ~RDF_NOWORLDMODEL;
 	r_refdef.fov_x = ref->fov_x;
 	r_refdef.fov_y = ref->fov_y;
 	r_refdef.vrect.x = ref->x;

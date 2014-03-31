@@ -916,7 +916,7 @@ void R2D_PolyBlend (void)
 	if (!sw_blend[3])
 		return;
 
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+	if (r_refdef.flags & RDF_NOWORLDMODEL)
 		return;
 
 	R2D_ImageColours (sw_blend[0], sw_blend[1], sw_blend[2], sw_blend[3]);

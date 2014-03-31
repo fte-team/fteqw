@@ -72,8 +72,6 @@ extern r_config_t r_config;
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
 		#define GL_NONE                           0
-
-		#define GL_QUADS (Sys_Error("GL_QUADS was used"),0)
 	#elif defined(__MACOSX__)
 		//apple, you suck.
 		#include <AGL/agl.h>

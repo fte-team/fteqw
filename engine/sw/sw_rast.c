@@ -847,7 +847,7 @@ void SW_R_RenderView(void)
 	vec3_t newa;
 	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
-		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+		r_refdef.flags |= RDF_NOWORLDMODEL;
 
 //	R_SetupGL ();
 

@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
 
+void SV_LegacySavegame_f(void);
 void SV_Savegame_f (void);
 void SV_Loadgame_f (void);
 #define INVIS_CHAR1 12
@@ -3128,9 +3129,9 @@ client_t *SVC_DirectConnect(void)
 				if (((!strcmp(cl->name, name) || !*cl->name) && (!*cl->guid || !strcmp(guid, cl->guid))) || sv.allocated_client_slots <= 1)	//named, or first come first serve.
 				{
 					if (cl->istobeloaded)
-						Con_Printf("%s:Using loadzombie\n", sv.name);
+						Con_DPrintf("%s:Using loadzombie\n", sv.name);
 					else
-						Con_Printf("%s:Using parmzombie\n", sv.name);
+						Con_DPrintf("%s:Using parmzombie\n", sv.name);
 					newcl = cl;
 					preserveparms = true;
 					temp.istobeloaded = cl->istobeloaded;
@@ -5255,6 +5256,7 @@ void SV_InitLocal (void)
 
 	Cmd_AddCommand ("openroute", SV_OpenRoute_f);
 
+	Cmd_AddCommand ("savegame_legacy", SV_LegacySavegame_f);
 	Cmd_AddCommand ("savegame", SV_Savegame_f);
 	Cmd_AddCommand ("loadgame", SV_Loadgame_f);
 	Cmd_AddCommand ("save", SV_Savegame_f);

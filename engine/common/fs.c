@@ -1372,10 +1372,14 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 			if (vfs)
 				return vfs;
 		}
-		snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename);
-		if (*mode == 'w')
-			COM_CreatePath(fullname);
-		return VFSOS_Open(fullname, mode);
+		if (*gamedirfile)
+		{
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename);
+			if (*mode == 'w')
+				COM_CreatePath(fullname);
+			return VFSOS_Open(fullname, mode);
+		}
+		return NULL;
 	case FS_GAME:	//load from paks in preference to system paths. overwriting be damned.
 	case FS_PUBBASEGAMEONLY:	//load from paks in preference to system paths. overwriting be damned.
 		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
@@ -2533,6 +2537,13 @@ void FS_PureMode(int puremode, char *packagenames, char *packagecrcs, int purese
 {
 	qboolean pureflush;
 
+	if (puremode == fs_puremode && fs_pureseed == pureseed)
+	{
+		if ((!packagenames && !fs_purenames) || !strcmp(fs_purenames?fs_purenames:"", packagenames?packagenames:""))
+			if ((!packagecrcs && !fs_purecrcs) || !strcmp(fs_purecrcs?fs_purecrcs:"", packagecrcs?packagecrcs:""))
+				return;
+	}
+
 	Z_Free(fs_purenames);
 	Z_Free(fs_purecrcs);
 
@@ -3663,11 +3674,14 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 		}
 	}
 
-	if (!builtingame && !fixedbasedir && !FS_DirHasAPackage(newbasedir, man))
-		if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath)))
-			Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
+	if (allowreloadconfigs)
+	{
+		if (!builtingame && !fixedbasedir && !FS_DirHasAPackage(newbasedir, man))
+			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath)))
+				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
 
-	Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
+		Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
+	}
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(com_gamepath, sizeof(com_gamepath));
 

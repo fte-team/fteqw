@@ -230,7 +230,7 @@ void GL_SetupSceneProcessingTextures (void)
 
 void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
 {
-	if ((e->flags & Q2RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
+	if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 	{
 		float em[16];
 		float vm[16];
@@ -464,10 +464,7 @@ void R_SetupGL (float stereooffset)
 		}
 		else
 		{
-			if (gl_maxdist.value>=1)
-				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, -gl_maxdist.value, gl_maxdist.value);
-			else
-				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, -9999, 9999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, 0, gl_maxdist.value>=1?gl_maxdist.value:9999);
 		}
 
 		newa[0] = r_refdef.viewangles[0];
@@ -522,7 +519,7 @@ void R_RenderScene (void)
 	int i;
 	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
-		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+		r_refdef.flags |= RDF_NOWORLDMODEL;
 
 	stereomode = r_stereo_method.ival;
 	if (stereomode == 1)
@@ -1174,7 +1171,7 @@ void R_Clear (void)
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
-		if (r_clear.ival && R_GameRectIsFullscreen() && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && R_GameRectIsFullscreen() && !(r_refdef.flags & RDF_NOWORLDMODEL))
 		{
 			qglClearColor(1, 0, 0, 0);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1485,7 +1482,7 @@ void GLR_RenderView (void)
 	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
 		return;
 
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		//FIXME: fbo stuff
 		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
@@ -1570,7 +1567,7 @@ void GLR_RenderView (void)
 		time1 = Sys_DoubleTime ();
 	}
 
-	if (!dofbo && !(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
+	if (!dofbo && !(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
 	{
 
 	}
@@ -1611,7 +1608,7 @@ void GLR_RenderView (void)
 
 	//FIXME: support bloom+waterwarp even when drawing to an fbo?
 	//FIXME: force waterwarp to a temp fbo always
-	if ((r_refdef.flags & Q2RDF_NOWORLDMODEL) || dofbo)
+	if ((r_refdef.flags & RDF_NOWORLDMODEL) || dofbo)
 		return;
 
 	if (!R_GameRectIsFullscreen())

@@ -1185,14 +1185,14 @@ static void	(D3D9_R_RenderView)				(void)
 
 	D3D9_SetupViewPortProjection();
 
-	if (r_clear.ival && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	if (r_clear.ival && !(r_refdef.flags & RDF_NOWORLDMODEL))
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255,0,0), 1, 0));
 	else
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		if (cl.worldmodel)
 			P_DrawParticles ();

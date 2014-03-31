@@ -2474,6 +2474,8 @@ shader_t *Mod_LoadSkinFile(char *defaultshadername, galiasinfo_t *surf, int skin
 
 	shader = Mod_ShaderFromQ3SkinFile(shadername, surf, loadmodel->name, skinnumber, outskinname);
 	if (!shader)
+		shader = R_RegisterSkin(defaultshadername, loadmodel->name);
+	if (!shader)
 		shader = R_RegisterSkin(surf->surfacename, loadmodel->name);
 	if (shader)
 	{

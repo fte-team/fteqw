@@ -1123,9 +1123,9 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 	}
 
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
-		if (e->flags & Q2RF_WEAPONMODEL)
+		if (e->flags & RF_WEAPONMODEL)
 		{
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, r_refdef.vieworg, shadelight, ambientlight, lightdir);
 			for (i = 0; i < 3; i++)
@@ -1255,7 +1255,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		e->light_dir[1] = DotProduct(lightdir, e->axis[1]);
 		e->light_dir[2] = DotProduct(lightdir, e->axis[2]);
 
-		if (e->flags & Q2RF_WEAPONMODEL)
+		if (e->flags & RF_WEAPONMODEL)
 		{
 			vec3_t temp;
 			temp[0] = DotProduct(e->light_dir, vpn);
@@ -1340,7 +1340,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	texnums_t *skin;
 
-	if ((r_refdef.externalview || r_refdef.recurse) && e->flags & Q2RF_WEAPONMODEL)
+	if ((r_refdef.externalview || r_refdef.recurse) && e->flags & RF_WEAPONMODEL)
 		return;
 
 	clmodel = e->model;
@@ -1355,7 +1355,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 		}
 	}
 
-	if (!(e->flags & Q2RF_WEAPONMODEL)
+	if (!(e->flags & RF_WEAPONMODEL)
 #ifdef SKELETALMODELS
 		&& !e->framestate.bonestate
 #endif
@@ -1415,13 +1415,13 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			sort = shader->sort;
 			if (e->flags & RF_FORCECOLOURMOD)
 				b->flags |= BEF_FORCECOLOURMOD;
-			if (e->flags & Q2RF_ADDITIVE)
+			if (e->flags & RF_ADDITIVE)
 			{
 				b->flags |= BEF_FORCEADDITIVE;
 				if (sort < SHADER_SORT_ADDITIVE)
 					sort = SHADER_SORT_ADDITIVE;
 			}
-			if (e->flags & Q2RF_TRANSLUCENT)
+			if (e->flags & RF_TRANSLUCENT)
 			{
 				b->flags |= BEF_FORCETRANSPARENT;
 				if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
@@ -2051,7 +2051,7 @@ static void R_DB_Sprite(batch_t *batch)
 		return;
 	}
 
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.playerview->viewentity > 0)
+	if (e->flags & RF_WEAPONMODEL && r_refdef.playerview->viewentity > 0)
 	{
 		sprorigin[0] = r_refdef.playerview->vw_origin[0];
 		sprorigin[1] = r_refdef.playerview->vw_origin[1];
@@ -2089,7 +2089,7 @@ static void R_DB_Sprite(batch_t *batch)
 	{
 	case SPR_ORIENTED:
 		// bullet marks on walls
-		if ((e->flags & Q2RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
+		if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 		{
 			vec3_t ea[3];
 			AngleVectors (e->angles, ea[0], ea[1], ea[2]);
@@ -2217,13 +2217,13 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 
 	b->flags = 0;
 	sort = shader->sort;
-	if (e->flags & Q2RF_ADDITIVE)
+	if (e->flags & RF_ADDITIVE)
 	{
 		b->flags |= BEF_FORCEADDITIVE;
 		if (sort < SHADER_SORT_ADDITIVE)
 			sort = SHADER_SORT_ADDITIVE;
 	}
-	if (e->flags & Q2RF_TRANSLUCENT || (gl_blendsprites.ival && drawfunc == R_DB_Sprite))
+	if (e->flags & RF_TRANSLUCENT || (gl_blendsprites.ival && drawfunc == R_DB_Sprite))
 	{
 		b->flags |= BEF_FORCETRANSPARENT;
 		if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
@@ -2322,7 +2322,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 		batches[i] = NULL;
 
 #if defined(TERRAIN)
-	if (cl.worldmodel && cl.worldmodel->terrain && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	if (cl.worldmodel && cl.worldmodel->terrain && !(r_refdef.flags & RDF_NOWORLDMODEL))
 		Terr_DrawTerrainModel(batches, &r_worldentity);
 #endif
 
@@ -2345,12 +2345,12 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	{
 		ent = &cl_visedicts[i];
 
-		if (!r_refdef.externalview && (ent->flags & Q2RF_EXTERNALMODEL))
+		if (!r_refdef.externalview && (ent->flags & RF_EXTERNALMODEL))
 			continue;
 
 		if (bemode == BEM_STENCIL || bemode == BEM_DEPTHONLY)
 		{
-			if (ent->flags & (RF_NOSHADOW | Q2RF_ADDITIVE | RF_NODEPTHTEST | Q2RF_TRANSLUCENT))	//noshadow often isn't enough for legacy content.
+			if (ent->flags & (RF_NOSHADOW | RF_ADDITIVE | RF_NODEPTHTEST | RF_TRANSLUCENT))	//noshadow often isn't enough for legacy content.
 				continue;
 			if (ent->keynum == dl->key && ent->keynum)	//shadows are not cast from the entity that owns the light. it is expected to be inside.
 				continue;

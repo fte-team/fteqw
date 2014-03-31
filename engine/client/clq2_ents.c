@@ -1359,7 +1359,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		}
 
 		// only used for black hole model right now, FIXME: do better
-		if (renderfx == Q2RF_TRANSLUCENT)
+		if (renderfx == RF_TRANSLUCENT)
 			ent.shaderRGBAf[3] = 0.70;
 
 		// render effects (fullbright, translucent, etc)
@@ -1408,7 +1408,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 //			VectorCopy(cl.predicted_origin, ent.origin);
 //			VectorCopy(cl.predicted_origin, ent.oldorigin);
-			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
+			ent.flags |= RF_EXTERNALMODEL;	// only draw from mirrors
 
 			if (effects & Q2EF_FLAG1)
 				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
@@ -1426,20 +1426,20 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 		if (effects & Q2EF_BFG)
 		{
-			ent.flags |= Q2RF_TRANSLUCENT;
+			ent.flags |= RF_TRANSLUCENT;
 			ent.shaderRGBAf[3] = 0.30;
 		}
 
 		// RAFAEL
 		if (effects & Q2EF_PLASMA)
 		{
-			ent.flags |= Q2RF_TRANSLUCENT;
+			ent.flags |= RF_TRANSLUCENT;
 			ent.shaderRGBAf[3] = 0.6;
 		}
 
 		if (effects & Q2EF_SPHERETRANS)
 		{
-			ent.flags |= Q2RF_TRANSLUCENT;
+			ent.flags |= RF_TRANSLUCENT;
 			// PMM - *sigh*  yet more EF overloading
 			if (effects & Q2EF_TRACKERTRAIL)
 				ent.shaderRGBAf[3] = 0.6;
@@ -1514,7 +1514,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;
-		ent.flags &= Q2RF_EXTERNALMODEL;
+		ent.flags &= RF_EXTERNALMODEL;
 		ent.shaderRGBAf[3] = 1;
 
 		// duplicate for linked models
@@ -1809,7 +1809,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	else
 		gun.framestate.g[FS_REG].frame[1] = ops->gunframe;
 
-	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
+	gun.flags = Q2RF_MINLIGHT | RF_DEPTHHACK | RF_WEAPONMODEL;
 	gun.framestate.g[FS_REG].lerpfrac = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);

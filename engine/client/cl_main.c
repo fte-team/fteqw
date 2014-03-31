@@ -342,7 +342,6 @@ void CL_Quit_f (void)
 		M_Menu_Quit_f ();
 		return;
 	}*/
-	CL_Disconnect ();
 	Sys_Quit ();
 }
 

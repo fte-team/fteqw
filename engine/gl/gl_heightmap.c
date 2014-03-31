@@ -2624,10 +2624,10 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			if (a >= 1)
 			{
 				a = 1;
-				s->ents[i].flags &= ~Q2RF_TRANSLUCENT;
+				s->ents[i].flags &= ~RF_TRANSLUCENT;
 			}
 			else
-				s->ents[i].flags |= Q2RF_TRANSLUCENT;
+				s->ents[i].flags |= RF_TRANSLUCENT;
 			s->ents[i].shaderRGBAf[3] = a;
 			switch(model->type)
 			{

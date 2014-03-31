@@ -727,48 +727,49 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 	switch (type)
 	{
 	case ev_struct:
-		sprintf (line, "structures cannot yet be saved");
+		QC_snprintfz (line, sizeof(line), "structures cannot yet be saved");
 		break;
 	case ev_union:
-		sprintf (line, "unions cannot yet be saved");
+		QC_snprintfz (line, sizeof(line), "unions cannot yet be saved");
 		break;
 	case ev_string:
-		sprintf (line, "%s", PR_StringToNative(&progfuncs->funcs, val->string));
+		//FIXME: we should probably add markup. vanilla does _not_, so we can expect problems reloading anyway.
+		QC_snprintfz (line, sizeof(line), "%s", PR_StringToNative(&progfuncs->funcs, val->string));
 		break;
 	case ev_entity:
-		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
+		QC_snprintfz (line, sizeof(line), "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
 		break;
 	case ev_function:
 		f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-		sprintf (line, "%s", f->s_name+progfuncs->funcs.stringtable);
+		QC_snprintfz (line, sizeof(line), "%s", f->s_name+progfuncs->funcs.stringtable);
 		break;
 	case ev_field:
 		fielddef = ED_FieldAtOfs (progfuncs, val->_int );
-		sprintf (line, "%s", fielddef->name);
+		QC_snprintfz (line, sizeof(line), "%s", fielddef->name);
 		break;
 	case ev_void:
-		sprintf (line, "void");
+		QC_snprintfz (line, sizeof(line), "void");
 		break;
 	case ev_float:
 		if (val->_float == (int)val->_float)
-			sprintf (line, "%i", (int)val->_float);	//an attempt to cut down on the number of .000000 vars..
+			QC_snprintfz (line, sizeof(line), "%i", (int)val->_float);	//an attempt to cut down on the number of .000000 vars..
 		else
-			sprintf (line, "%f", val->_float);
+			QC_snprintfz (line, sizeof(line), "%f", val->_float);
 		break;
 	case ev_integer:
-		sprintf (line, "%i", val->_int);
+		QC_snprintfz (line, sizeof(line), "%i", val->_int);
 		break;
 	case ev_vector:
 		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
-			sprintf (line, "%i %i %i", (int)val->_vector[0], (int)val->_vector[1], (int)val->_vector[2]);
+			QC_snprintfz (line, sizeof(line), "%i %i %i", (int)val->_vector[0], (int)val->_vector[1], (int)val->_vector[2]);
 		else
-			sprintf (line, "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
+			QC_snprintfz (line, sizeof(line), "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	case ev_pointer:
 		QC_snprintfz (line, sizeof(line), "%#x", val->_int);
 		break;
 	default:
-		sprintf (line, "bad type %i", type);
+		QC_snprintfz (line, sizeof(line), "bad type %i", type);
 		break;
 	}
 
@@ -1578,7 +1579,7 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
 	char buffer[8192];
-	dfunction_t	*f;
+	const dfunction_t	*f;
 	int			i;
 	int progs;
 
@@ -1707,7 +1708,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 
 			AddS ("{\n");
 
-			if (!ed->isfree)
+			if (!ed->isfree)	//free entities write a {} with no data. the loader detects this specifically.
 				ED_WriteEdict(progfuncs, ed, buf, bufofs, bufmax, true);
 
 			AddS ("}\n");

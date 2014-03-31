@@ -261,12 +261,22 @@ skipwhite:
 				c = '\n';
 				data++;
 			}
+			else if (c=='\\' && *data == 'r')
+			{					// and do mac lines while we're at it.
+				c = '\r';
+				data++;
+			}
+			else if (c=='\\' && *data == 't')
+			{					// and do tabs while we're at it.
+				c = '\t';
+				data++;
+			}
 			else if (c=='\"')
 			{
 				qcc_token[len] = 0;
 				return (char*)data;
 			}
-			else if (c=='\0'||c=='\n')
+			else if (c=='\0')	//\n does not terminate the string. that would break compatibility with vanilla saved games
 			{
 				qcc_token[len] = 0;
 				return (char*)data;

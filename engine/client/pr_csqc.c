@@ -617,13 +617,13 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	{
 		rflags = in->xv->renderflags;
 		if (rflags & CSQCRF_VIEWMODEL)
-			out->flags |= Q2RF_DEPTHHACK|Q2RF_WEAPONMODEL;
+			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
 		if (rflags & CSQCRF_EXTERNALMODEL)
-			out->flags |= Q2RF_EXTERNALMODEL;
+			out->flags |= RF_EXTERNALMODEL;
 		if (rflags & CSQCRF_DEPTHHACK)
-			out->flags |= Q2RF_DEPTHHACK;
+			out->flags |= RF_DEPTHHACK;
 		if (rflags & CSQCRF_ADDITIVE)
-			out->flags |= Q2RF_ADDITIVE;
+			out->flags |= RF_ADDITIVE;
 		//CSQCRF_USEAXIS is below
 		if (rflags & CSQCRF_NOSHADOW)
 			out->flags |= RF_NOSHADOW;
@@ -635,7 +635,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 
 	effects = in->v->effects;
 	if (effects & NQEF_ADDITIVE)
-		out->flags |= Q2RF_ADDITIVE;
+		out->flags |= RF_ADDITIVE;
 	if (effects & DPEF_NOSHADOW)
 		out->flags |= RF_NOSHADOW;
 	if (effects & EF_NODEPTHTEST)
@@ -711,7 +711,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	}
 	else
 	{
-		out->flags |= Q2RF_TRANSLUCENT;
+		out->flags |= RF_TRANSLUCENT;
 		out->shaderRGBAf[3] = in->xv->alpha;
 	}
 
@@ -1381,7 +1381,7 @@ static void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 		break;
 
 	case VF_DRAWWORLD:
-		*r = !(r_refdef.flags&Q2RDF_NOWORLDMODEL);
+		*r = !(r_refdef.flags&RDF_NOWORLDMODEL);
 		break;
 	case VF_ENGINESBAR:
 		*r = r_refdef.drawsbar;
@@ -1531,7 +1531,7 @@ static void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars
 		break;
 
 	case VF_DRAWWORLD:
-		r_refdef.flags = (r_refdef.flags&~Q2RDF_NOWORLDMODEL) | (*p?0:Q2RDF_NOWORLDMODEL);
+		r_refdef.flags = (r_refdef.flags&~RDF_NOWORLDMODEL) | (*p?0:RDF_NOWORLDMODEL);
 		break;
 	case VF_ENGINESBAR:
 		r_refdef.drawsbar = !!*p;

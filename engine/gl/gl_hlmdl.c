@@ -730,13 +730,13 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				//fixme: we probably need to force some blend modes based on the surface flags.
 				if (rent->flags & RF_FORCECOLOURMOD)
 					b->flags |= BEF_FORCECOLOURMOD;
-				if (rent->flags & Q2RF_ADDITIVE)
+				if (rent->flags & RF_ADDITIVE)
 				{
 					b->flags |= BEF_FORCEADDITIVE;
 					if (sort < SHADER_SORT_ADDITIVE)
 						sort = SHADER_SORT_ADDITIVE;
 				}
-				if (rent->flags & Q2RF_TRANSLUCENT)
+				if (rent->flags & RF_TRANSLUCENT)
 				{
 					b->flags |= BEF_FORCETRANSPARENT;
 					if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)

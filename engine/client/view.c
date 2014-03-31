@@ -1168,11 +1168,11 @@ int CL_EditExternalModels(int newviewentity, entity_t *viewentities, int maxview
 	for (i = 0; i < cl_numvisedicts; )
 	{
 		if (cl_visedicts[i].keynum == newviewentity && newviewentity)
-			cl_visedicts[i].flags |= Q2RF_EXTERNALMODEL;
+			cl_visedicts[i].flags |= RF_EXTERNALMODEL;
 		else
-			cl_visedicts[i].flags &= ~Q2RF_EXTERNALMODEL;
+			cl_visedicts[i].flags &= ~RF_EXTERNALMODEL;
 
-		if (cl_visedicts[i].flags & Q2RF_WEAPONMODEL)
+		if (cl_visedicts[i].flags & RF_WEAPONMODEL)
 		{
 			if (viewents < maxviewenties)
 				viewentities[viewents++] = cl_visedicts[i];

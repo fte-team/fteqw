@@ -1124,40 +1124,40 @@ typedef struct q1usercmd_s
 
 
 // entity_state_t->renderfx flags
-#define	Q2RF_MINLIGHT			1		// always have some light (viewmodel)
-#define	Q2RF_EXTERNALMODEL		2		// don't draw through eyes, only mirrors
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_FULLBRIGHT			8		// always draw full intensity
-#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
-#define	Q2RF_TRANSLUCENT		32
-#define	Q2RF_FRAMELERP			64
-#define Q2RF_BEAM				128
+#define	Q2RF_MINLIGHT			(1u<<0)		//ni	always have some light (viewmodel)
+#define	RF_EXTERNALMODEL		(1u<<1)		//i 	don't draw through eyes, only mirrors
+#define	RF_WEAPONMODEL			(1u<<2)		//i 	only draw through eyes
+#define	Q2RF_FULLBRIGHT			(1u<<3)		//i 	always draw full intensity
+#define	RF_DEPTHHACK			(1u<<4)		//i 	for view weapon Z crunching
+#define	RF_TRANSLUCENT			(1u<<5)		//forces shader sort order and BEF_FORCETRANSPARENT
+#define	Q2RF_FRAMELERP			(1u<<6)		//q2only
+#define Q2RF_BEAM				(1u<<7)		//mostly q2only
 
-#define	Q2RF_CUSTOMSKIN			256		// skin is an index in image_precache
-#define	Q2RF_GLOW				512		// pulse lighting for bonus items
-#define Q2RF_SHELL_RED			1024
-#define	Q2RF_SHELL_GREEN		2048
-#define Q2RF_SHELL_BLUE			4096
+#define	Q2RF_CUSTOMSKIN			(1u<<8)		//not even in q2		skin is an index in image_precache
+#define	Q2RF_GLOW				(1u<<9)		//i		pulse lighting for bonus items
+#define Q2RF_SHELL_RED			(1u<<10)	//q2only
+#define	Q2RF_SHELL_GREEN		(1u<<11)	//q2only
+#define Q2RF_SHELL_BLUE			(1u<<12)	//q2only
 
 //ROGUE
-#define Q2RF_IR_VISIBLE			0x00008000		// 32768
-#define	Q2RF_SHELL_DOUBLE		0x00010000		// 65536
-#define	Q2RF_SHELL_HALF_DAM		0x00020000
-#define Q2RF_USE_DISGUISE		0x00040000
+#define Q2RF_IR_VISIBLE			(1u<<15)	// shows red with Q2RDF_IRGOGGLES
+#define	Q2RF_SHELL_DOUBLE		(1u<<16)	//q2only
+#define	Q2RF_SHELL_HALF_DAM		(1u<<17)	//q2only
+#define Q2RF_USE_DISGUISE		(1u<<18)	//ni	entity is displayed with skin 'players/$MODEL/disguise.pcx' instead
 //ROGUE
 
-#define Q2RF_ADDITIVE			0x00080000
-#define RF_NOSHADOW				0x00100000
-#define RF_NODEPTHTEST			0x00200000
-#define RF_FORCECOLOURMOD		0x00400000
+#define RF_ADDITIVE				(1u<<19)	//forces shader sort order and BEF_FORCEADDITIVE
+#define RF_NOSHADOW				(1u<<20)	//disables shadow casting
+#define RF_NODEPTHTEST			(1u<<21)	//forces shader sort order and BEF_FORCENODEPTH
+#define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
 
 // player_state_t->refdef flags
 #define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate
-#define Q2RDF_NOWORLDMODEL		2		// used for player configuration screen
+#define RDF_NOWORLDMODEL		2		// used for player configuration screen
 
 //ROGUE
-#define	Q2RDF_IRGOGGLES			4
-#define Q2RDF_UVGOGGLES			8
+#define	Q2RDF_IRGOGGLES			4		//ents with Q2RF_IR_VISIBLE show up pure red.
+#define Q2RDF_UVGOGGLES			8		//usused / reserved
 //ROGUE
 
 

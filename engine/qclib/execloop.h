@@ -646,6 +646,8 @@ reeval:
 				progfuncs->funcs.callargc = OPCODE - OP_CALL0;
 			fnum = OPA->function;
 
+			glob = NULL;	//try to derestrict it.
+
 			callerprogs=pr_typecurrent;			//so we can revert to the right caller.
 			newpr = (fnum & 0xff000000)>>24;	//this is the progs index of the callee
 			fnum &= ~0xff000000;				//the callee's function index.
@@ -678,6 +680,8 @@ reeval:
 				/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
 				if (pr_typecurrent != 0)
 				{
+					//builtins quite hackily refer to only a single global.
+					//for builtins to affect the globals of other progs, we need to first switch to the progs that it will affect, so they'll be correct when we switch back
 					PR_SwitchProgsParms(progfuncs, 0);
 				}
 				i = -newf->first_statement;
@@ -710,18 +714,17 @@ reeval:
 	//			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
 				PR_SwitchProgsParms(progfuncs, (progsnum_t)callerprogs);
 
-	//#ifndef DEBUGABLE	//decide weather non debugger wants to start debugging.
+				//decide weather non debugger wants to start debugging.
 				s = st-pr_statements;
-				goto restart;
-	//#endif
-	//			break;
+				return s;
 			}
 	//		PR_SwitchProgsParms((OPA->function & 0xff000000)>>24);
 			s = PR_EnterFunction (progfuncs, newf, callerprogs);
 			st = &pr_statements[s];
 		}
 		
-		goto restart;
+		//resume at the new statement, which might be in a different progs
+		return s;
 //		break;
 
 	case OP_DONE:
@@ -729,9 +732,9 @@ reeval:
 
 		RUNAWAYCHECK();
 
-		pr_globals[OFS_RETURN] = pr_globals[st->a];
-		pr_globals[OFS_RETURN+1] = pr_globals[st->a+1];
-		pr_globals[OFS_RETURN+2] = pr_globals[st->a+2];
+		glob[OFS_RETURN] = glob[st->a];
+		glob[OFS_RETURN+1] = glob[st->a+1];
+		glob[OFS_RETURN+2] = glob[st->a+2];
 /*
 {
 	static char buffer[1024*1024*8];
@@ -743,9 +746,9 @@ reeval:
 		st = &pr_statements[s];		
 		if (pr_depth == prinst.exitdepth)
 		{		
-			return;		// all done
+			return -1;		// all done
 		}
-		goto restart;
+		return s;
 //		break;
 
 	case OP_STATE:
@@ -913,7 +916,7 @@ reeval:
 		{
 			PR_RunError(&progfuncs->funcs, "array index out of bounds: %s[%d] (max %d)", PR_GlobalStringNoContents(progfuncs, st->a), i, ((eval_t *)&glob[st->a-1])->_int);
 		}
-		t = (eval_t *)&pr_globals[(uofs)st->a + i];
+		t = (eval_t *)&glob[(uofs)st->a + i];
 		OPC->_int = t->_int;
 		break;
 	case OP_FETCH_GBL_V:
@@ -923,7 +926,7 @@ reeval:
 			pr_xstatement = st-pr_statements;
 			PR_RunError(&progfuncs->funcs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}
-		t = (eval_t *)&pr_globals[(uofs)st->a + i*3];
+		t = (eval_t *)&glob[(uofs)st->a + i*3];
 		OPC->_vector[0] = t->_vector[0];
 		OPC->_vector[1] = t->_vector[1];
 		OPC->_vector[2] = t->_vector[2];
@@ -1227,7 +1230,7 @@ reeval:
 			if (st == pr_statements + s)
 				PR_RunError(&progfuncs->funcs, "unable to resume boundcheck");
 			st = pr_statements + s;
-			goto restart;
+			return s;
 		}
 		break;
 /*	case OP_PUSH:

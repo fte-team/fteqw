@@ -2,14 +2,12 @@
 
 #ifndef CLIENTONLY
 
-//#ifdef _DEBUG
-#define NEWSAVEFORMAT
-//#endif
-
 extern cvar_t skill;
 extern cvar_t deathmatch;
 extern cvar_t coop;
 extern cvar_t teamplay;
+
+void SV_Savegame_f (void);
 
 //Writes a SAVEGAME_COMMENT_LENGTH character comment describing the current
 void SV_SavegameComment (char *text)
@@ -333,8 +331,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	}
 }
 
-#ifndef NEWSAVEFORMAT
-void SV_Savegame_f (void)
+void SV_LegacySavegame_f (void)
 {
 	int len;
 	char *s = NULL;
@@ -343,14 +340,15 @@ void SV_Savegame_f (void)
 
 	int version = SAVEGAME_VERSION;
 
-	char	name[256];
-	FILE	*f;
+	char	native[MAX_OSPATH];
+	char	name[MAX_QPATH];
+	vfsfile_t	*f;
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_Printf ("save <savename> : save a game\n");
+		Con_TPrintf ("save <savename> : save a game\n");
 		return;
 	}
 
@@ -362,25 +360,35 @@ void SV_Savegame_f (void)
 
 	if (sv.state != ss_active)
 	{
-		Con_Printf("Can't apply: Server isn't running or is still loading\n");
+		Con_TPrintf("Can't apply: Server isn't running or is still loading\n");
 		return;
 	}
 
-	sprintf (name, "%s/saves/%s", com_gamedir, Cmd_Argv(1));
-	COM_DefaultExtension (name, ".sav");
+	if (sv.allocated_client_slots != 1 || svs.clients->state != cs_spawned)
+	{
+		//we don't care about fte-format legacy.
+		Con_TPrintf("Unable to use legacy savegame format to save multiplayer games\n");
+		SV_Savegame_f();
+		return;
+	}
 
-	Con_TPrintf ("Saving game to %s...\n", name);
-	f = fopen (name, "w");
+	sprintf (name, "%s", Cmd_Argv(1));
+	COM_DefaultExtension (name, ".sav", sizeof(name));
+
+	if (!FS_NativePath(name, FS_GAMEONLY, native, sizeof(native)))
+		return;
+	Con_TPrintf (U8("Saving game to %s...\n"), native);
+	f = FS_OpenVFS(name, "wb", FS_GAMEONLY);
 	if (!f)
 	{
-		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);
+		Con_TPrintf ("ERROR: couldn't open %s.\n", name);
 		return;
 	}
 
 	//if there are 1 of 1 players connected
-	if (sv.allocated_client_slots == 1 && svs.clients->state < cs_spawned)
+	if (sv.allocated_client_slots == 1 && svs.clients->state == cs_spawned)
 	{//try to go for nq/zq compatability as this is a single player game.
-		s = PR_SaveEnts(svprogfuncs, NULL, &len, 2);	//get the entity state now, so that we know if we can get the full state in a q1 format.
+		s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 2);	//get the entity state now, so that we know if we can get the full state in a q1 format.
 		if (s)
 		{
 			if (progstype == PROG_QW)
@@ -391,61 +399,58 @@ void SV_Savegame_f (void)
 	}
 
 
-	fprintf (f, "%i\n", version);
+	VFS_PRINTF(f, "%i\n", version);
 	SV_SavegameComment (comment);
-	fprintf (f, "%s\n", comment);
+	VFS_PRINTF(f, "%s\n", comment);
 
 	if (version != SAVEGAME_VERSION)
 	{
-		for (i=0; i<NUM_SPAWN_PARMS ; i++)
-				fprintf (f, "%f\n", svs.clients->spawn_parms[i]);	//client 1.
-		fprintf (f, "%f\n", skill.value);
+		//only 16 spawn parms.
+		for (i=0; i < 16; i++)
+			VFS_PRINTF(f, "%f\n", svs.clients->spawn_parms[i]);	//client 1.
+		VFS_PRINTF(f, "%f\n", skill.value);
 	}
 	else
 	{
-		fprintf(f, "%i\n", sv.allocated_client_slots);
+		VFS_PRINTF(f, "%i\n", sv.allocated_client_slots);
 		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)
 		{
 			if (cl->state < cs_spawned && !cl->istobeloaded)	//don't save if they are still connecting
 			{
-				fprintf(f, "\"\"\n");
+				VFS_PRINTF(f, "\"\"\n");
 				continue;
 			}
 
-			fprintf(f, "\"%s\"\n", cl->name);
+			VFS_PRINTF(f, "\"%s\"\n", cl->name);
 			for (i=0; i<NUM_SPAWN_PARMS ; i++)
-				fprintf (f, "%f\n", cl->spawn_parms[i]);
+				VFS_PRINTF(f, "%f\n", cl->spawn_parms[i]);
 		}
-		fprintf (f, "%i\n", progstype);
-		fprintf (f, "%f\n", skill.value);
-		fprintf (f, "%f\n", deathmatch.value);
-		fprintf (f, "%f\n", coop.value);
-		fprintf (f, "%f\n", teamplay.value);
+		VFS_PRINTF(f, "%i\n", progstype);
+		VFS_PRINTF(f, "%f\n", skill.value);
+		VFS_PRINTF(f, "%f\n", deathmatch.value);
+		VFS_PRINTF(f, "%f\n", coop.value);
+		VFS_PRINTF(f, "%f\n", teamplay.value);
 	}
-	fprintf (f, "%s\n", sv.name);
-	fprintf (f, "%f\n",sv.time);
+	VFS_PRINTF(f, "%s\n", sv.name);
+	VFS_PRINTF(f, "%f\n",sv.time);
 
-// write the light styles
-
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+// write the light styles (only 64 are saved in legacy saved games)
+	for (i=0 ; i < 64; i++)
 	{
-		if (sv.lightstyles[i])
-			fprintf (f, "%s\n", sv.lightstyles[i]);
+		if (sv.strings.lightstyles[i] && *sv.strings.lightstyles[i])
+			VFS_PRINTF(f, "%s\n", sv.strings.lightstyles[i]);
 		else
-			fprintf (f,"m\n");
+			VFS_PRINTF(f,"m\n");
 	}
 
 	if (!s)
-		s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
-	fprintf(f, "%s\n", s);
+		s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
+	VFS_PUTS(f, s);
+	VFS_PUTS(f, "\n");
 	svprogfuncs->parms->memfree(s);
 
-	fclose (f);
-	Con_TPrintf (STL_SAVEDONE);
-
-	SV_BroadcastTPrintf(2, STL_GAMESAVED);
+	VFS_CLOSE(f);
 }
-#endif
 
 
 
@@ -963,8 +968,6 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	VFS_CLOSE (f);
 }
 
-#ifdef NEWSAVEFORMAT
-
 #define FTESAVEGAME_VERSION 25000
 
 void SV_Savegame (char *savename)
@@ -1335,6 +1338,4 @@ void SV_Loadgame_f (void)
 	sv.allocated_client_slots = slots;
 	sv.spawned_client_slots += loadzombies;
 }
-#endif
-
 #endif

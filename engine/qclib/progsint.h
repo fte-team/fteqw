@@ -61,7 +61,7 @@ typedef struct sharedvar_s
 typedef struct
 {
 	int				s;
-	dfunction_t		*f;
+	const dfunction_t		*f;
 	int				progsnum;
 	int pushed;
 } prstack_t;
@@ -129,7 +129,7 @@ int reorganisefields;
 	int continuestatement;
 	int exitdepth;
 
-	dfunction_t	*pr_xfunction;
+	const dfunction_t	*pr_xfunction;
 #define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;
 #define pr_xstatement prinst.pr_xstatement

@@ -3367,7 +3367,7 @@ void GLBE_SelectEntity(entity_t *ent)
 	if (qglLoadMatrixf)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
 
-	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK)
+	if (shaderstate.curentity->flags & RF_DEPTHHACK)
 		nd = 0.3;
 	else
 		nd = 1;
@@ -3812,7 +3812,7 @@ static void DrawMeshes(void)
 			{
 				if (!shaderstate.allblackshader)
 				{
-					char *defs[] = {NULL};
+					const char *defs[] = {NULL};
 					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 					shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
 				}

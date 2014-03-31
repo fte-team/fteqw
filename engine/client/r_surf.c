@@ -1977,7 +1977,7 @@ void Surf_SetupFrame(void)
 	}
 
 	r_viewcontents = 0;
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
 	}
 	else if (!cl.worldmodel || cl.worldmodel->needload || cl.worldmodel->fromgame == fg_doom3 )
@@ -2086,7 +2086,7 @@ void Surf_SetupFrame(void)
 	}
 
 #ifdef TERRAIN
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->terrain)
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->terrain)
 	{
 		r_viewcontents |= Heightmap_PointContents(cl.worldmodel, NULL, pvsorg);
 	}
@@ -2201,14 +2201,14 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	}
 
 	bef = BEF_PUSHDEPTH;
-	if (ent->flags & Q2RF_ADDITIVE)
+	if (ent->flags & RF_ADDITIVE)
 		bef |= BEF_FORCEADDITIVE;
 	else if (ent->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
 	{
 		bef |= BEF_FORCETRANSPARENT;
 		ent->shaderRGBAf[3] = r_wateralpha.value;
 	}
-	else if (ent->flags & Q2RF_TRANSLUCENT && cls.protocol != CP_QUAKE3)
+	else if (ent->flags & RF_TRANSLUCENT && cls.protocol != CP_QUAKE3)
 		bef |= BEF_FORCETRANSPARENT;
 	if (ent->flags & RF_NODEPTHTEST)
 		bef |= BEF_FORCENODEPTH;
@@ -2265,9 +2265,9 @@ void Surf_DrawWorld (void)
 	qbyte frustumvis_[MAX_MAP_LEAFS/8];
 	RSpeedLocals();
 
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
-		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+		r_refdef.flags |= RDF_NOWORLDMODEL;
 		BE_DrawWorld(false, NULL);
 		return;
 	}
@@ -2365,7 +2365,7 @@ void Surf_DrawWorld (void)
 			}
 		}
 
-		if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		{
 			CL_LinkStaticEntities(entvis);
 			TRACE(("dbg: calling R_DrawParticles\n"));

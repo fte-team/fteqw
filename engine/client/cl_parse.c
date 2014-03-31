@@ -3716,17 +3716,17 @@ void CL_ParseStatic (int version)
 
 	ent->flags = 0;
 	if (es.dpflags & RENDER_VIEWMODEL)
-		ent->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
+		ent->flags |= RF_WEAPONMODEL|Q2RF_MINLIGHT|RF_DEPTHHACK;
 	if (es.dpflags & RENDER_EXTERIORMODEL)
-		ent->flags |= Q2RF_EXTERNALMODEL;
+		ent->flags |= RF_EXTERNALMODEL;
 	if (es.effects & NQEF_ADDITIVE)
-		ent->flags |= Q2RF_ADDITIVE;
+		ent->flags |= RF_ADDITIVE;
 	if (es.effects & EF_NODEPTHTEST)
 		ent->flags |= RF_NODEPTHTEST;
 	if (es.effects & DPEF_NOSHADOW)
 		ent->flags |= RF_NOSHADOW;
 	if (es.trans != 0xff)
-		ent->flags |= Q2RF_TRANSLUCENT;
+		ent->flags |= RF_TRANSLUCENT;
 
 	VectorCopy (es.origin, ent->origin);
 	VectorCopy (es.angles, ent->angles);

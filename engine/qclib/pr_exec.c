@@ -2,6 +2,14 @@
 #include "progsint.h"
 //#include "editor.h"
 
+#if __STDC_VERSION__ >= 199901L
+	#define fte_restrict restrict
+#elif defined(_MSC_VER)
+	#define fte_restrict __restrict
+#else
+	#define fte_restrict
+#endif
+
 #define HunkAlloc BADGDFG sdfhhsf FHS
 
 
@@ -234,7 +242,7 @@ char *QC_ucase(char *str)
 void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 {
 	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
-	dfunction_t	*f;
+	const dfunction_t	*f;
 	int			i;
 	int progs;
 
@@ -414,7 +422,7 @@ PR_EnterFunction
 Returns the new program statement counter
 ====================
 */
-int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
+int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, const dfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
 
@@ -888,7 +896,7 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 {
 	int pn = pr_typecurrent;
 	int snum;
-	dfunction_t *f = pr_xfunction;
+	const dfunction_t *f = pr_xfunction;
 
 	switch(current_progstate->structtype)
 	{
@@ -1096,7 +1104,7 @@ static char *lastfile = 0;
 
 	int pn = pr_typecurrent;
 	int i;
-	dfunction_t *f = pr_xfunction;
+	const dfunction_t *f = pr_xfunction;
 
 	if (!externs->useeditor)
 	{
@@ -1150,28 +1158,126 @@ static char *lastfile = 0;
 	return statement;
 }
 
-//DMW: all pointer functions are modified to be absoloute pointers from NULL not sv_edicts
+#define RUNAWAYCHECK()							\
+	if (!--*runaway)								\
+	{											\
+		pr_xstatement = st-pr_statements;		\
+		PR_RunError (&progfuncs->funcs, "runaway loop error\n");\
+		PR_StackTrace(&progfuncs->funcs);		\
+		printf ("runaway loop error\n");		\
+		while(pr_depth > prinst.exitdepth)		\
+			PR_LeaveFunction(progfuncs);		\
+		pr_spushed = 0;							\
+		return -1;								\
+	}
+
+static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
+{
+	eval_t	*t, *swtch=NULL;
+
+	int swtchtype = 0; //warning about not being initialized before use
+	dstatement16_t	*fte_restrict st16;
+	dfunction_t	*fte_restrict newf;
+	int		i;
+	edictrun_t	*ed;
+	eval_t	*ptr;
+
+	float *fte_restrict glob = pr_globals;
+	float tmpf;
+	int tmpi;
+
+#define OPA ((eval_t *)&glob[st->a])
+#define OPB ((eval_t *)&glob[st->b])
+#define OPC ((eval_t *)&glob[st->c])
+
+#define INTSIZE 16
+	st16 = &pr_statements16[s];
+	while (progfuncs->funcs.pr_trace || prinst.watch_ptr)
+	{
+#ifdef FTE_TARGET_WEB
+		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
+		pr_xstatement = st-pr_statements;
+		PR_RunError (&progfuncs->funcs, "runaway loop error\n");
+		PR_StackTrace(&progfuncs->funcs);
+		return -1;
+#else
+		#define DEBUGABLE
+		#ifdef SEPARATEINCLUDES
+			#include "execloop16d.h"
+		#else
+			#include "execloop.h"
+		#endif
+		#undef DEBUGABLE
+#endif
+	}
+
+	while(1)
+	{
+		#include "execloop.h"
+	}
+#undef INTSIZE
+}
+
+static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
+{
+	eval_t	*t, *swtch=NULL;
+
+	int swtchtype = 0; //warning about not being initialized before use
+	const dstatement32_t	*fte_restrict st32;
+	const dfunction_t	*fte_restrict newf;
+	int		i;
+	edictrun_t	*ed;
+	eval_t	*ptr;
+
+	float *fte_restrict glob = pr_globals;
+	float tmpf;
+	int tmpi;
+
+#define OPA ((eval_t *)&glob[st->a])
+#define OPB ((eval_t *)&glob[st->b])
+#define OPC ((eval_t *)&glob[st->c])
+
+#define INTSIZE 32
+	st32 = &pr_statements32[s];
+	while (progfuncs->funcs.pr_trace || prinst.watch_ptr)
+	{
+#ifdef FTE_TARGET_WEB
+		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
+		pr_xstatement = st-pr_statements;
+		PR_RunError (&progfuncs->funcs, "runaway loop error\n");
+		PR_StackTrace(&progfuncs->funcs);
+		return -1;
+#else
+		#define DEBUGABLE
+		#ifdef SEPARATEINCLUDES
+			#include "execloop32d.h"
+		#else
+			#include "execloop.h"
+		#endif
+		#undef DEBUGABLE
+#endif
+	}
+
+	while(1)
+	{
+		#ifdef SEPARATEINCLUDES
+			#include "execloop32.h"
+		#else
+			#include "execloop.h"
+		#endif
+	}
+#undef INTSIZE
+}
+
 /*
 ====================
 PR_ExecuteProgram
 ====================
 */
-void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
+static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 {
-	eval_t	*t, *swtch=NULL;
-
 	int swtchtype = 0; //warning about not being initialized before use
-	dstatement16_t	*st16;
-	dstatement32_t	*st32;
-	dfunction_t	*newf;
 	int		runaway;
-	int		i;
-	edictrun_t	*ed;
-	eval_t	*ptr;
-
-	float *glob;
-	float tmpf;
-	int tmpi;
 
 	if (prinst.watch_ptr && prinst.watch_ptr->_int != prinst.watch_old._int)
 	{
@@ -1207,78 +1313,25 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	runaway = 100000000;
 
-#define PRBOUNDSCHECK
-#define RUNAWAYCHECK()							\
-	if (!--runaway)								\
-	{											\
-		pr_xstatement = st-pr_statements;		\
-		PR_RunError (&progfuncs->funcs, "runaway loop error\n");\
-		PR_StackTrace(&progfuncs->funcs);		\
-		printf ("runaway loop error\n");		\
-		while(pr_depth > prinst.exitdepth)		\
-			PR_LeaveFunction(progfuncs);		\
-		pr_spushed = 0;							\
-		return;									\
-	}
-
-#define OPA ((eval_t *)&glob[st->a])
-#define OPB ((eval_t *)&glob[st->b])
-#define OPC ((eval_t *)&glob[st->c])
-
-restart:	//jumped to when the progs might have changed.
-	glob = pr_globals;
-	switch (current_progstate->structtype)
+	for(;;)
 	{
-	case PST_DEFAULT:
-	case PST_QTEST:
-#define INTSIZE 16
-		st16 = &pr_statements16[s];
-		while (progfuncs->funcs.pr_trace || prinst.watch_ptr)
+		switch (current_progstate->structtype)
 		{
-			#define DEBUGABLE
-			#ifdef SEPARATEINCLUDES
-				#include "execloop16d.h"
-			#else
-				#include "execloop.h"
-			#endif
-			#undef DEBUGABLE
+		case PST_DEFAULT:
+		case PST_QTEST:
+			s = PR_ExecuteCode16(progfuncs, s, &runaway);
+			if (s == -1)
+				return;
+			continue;
+		case PST_KKQWSV:
+		case PST_FTE32:
+			s = PR_ExecuteCode32(progfuncs, s, &runaway);
+			if (s == -1)
+				return;
+			continue;
+		default:
+			Sys_Error("PR_ExecuteProgram - bad structtype");
 		}
-
-		while(1)
-		{
-			#include "execloop.h"
-		}
-#undef INTSIZE
-		Sys_Error("PR_ExecuteProgram - should be unreachable");
-		break;
-	case PST_KKQWSV:
-	case PST_FTE32:
-#define INTSIZE 32
-		st32 = &pr_statements32[s];
-		while (progfuncs->funcs.pr_trace || prinst.watch_ptr)
-		{
-			#define DEBUGABLE
-			#ifdef SEPARATEINCLUDES
-				#include "execloop32d.h"
-			#else
-				#include "execloop.h"
-			#endif
-			#undef DEBUGABLE
-		}
-
-		while(1)
-		{
-			#ifdef SEPARATEINCLUDES
-				#include "execloop32.h"
-			#else
-				#include "execloop.h"
-			#endif
-		}
-#undef INTSIZE
-		Sys_Error("PR_ExecuteProgram - should be unreachable");
-		break;
-	default:
-		Sys_Error("PR_ExecuteProgram - bad structtype");
 	}
 }
 
@@ -1395,7 +1448,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	int ed = prinst.exitdepth;
 	int localsoffset, baselocalsoffset;
 	qcthread_t *thread = externs->memalloc(sizeof(qcthread_t));
-	dfunction_t *f;
+	const dfunction_t *f;
 
 	//copy out the functions stack.
 	for (i = 0,localsoffset=0; i < ed; i++)
@@ -1460,7 +1513,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	dfunction_t	*f, *oldf;
+	const dfunction_t	*f, *oldf;
 	int		i,l,ls;
 	progsnum_t initial_progs;
 	int		oldexitdepth;

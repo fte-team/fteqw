@@ -2795,7 +2795,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		VectorScale((m+8), mod->clampscale, (m+8));
 	}
 
-	if (e->flags & Q2RF_WEAPONMODEL)
+	if (e->flags & RF_WEAPONMODEL)
 	{
 		/*FIXME: no bob*/
 		float iv[16];
@@ -2861,7 +2861,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)shaderstate.ecbuffers[shaderstate.ecbufferidx], 0);
 
-	ndr = (e->flags & Q2RF_DEPTHHACK)?0.333:1;
+	ndr = (e->flags & RF_DEPTHHACK)?0.333:1;
 	if (ndr != shaderstate.depthrange)
 	{
 		D3D11_VIEWPORT vport;

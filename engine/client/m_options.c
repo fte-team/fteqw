@@ -2461,6 +2461,7 @@ void M_Menu_Video_f (void)
 	menu->event = CheckCustomMode;
 }
 
+#ifndef MINIMAL
 typedef struct
 {
 	int skingroup;
@@ -2503,6 +2504,20 @@ static unsigned int genhsv(float h_, float s, float v)
 const char *Mod_FrameNameForNum(model_t *model, int num);
 const char *Mod_SkinNameForNum(model_t *model, int num);
 
+#include "com_mesh.h"
+static void M_BoneDisplay(galiasbone_t *b, int *y, int depth, int parent, int first, int last)
+{
+	int i;
+	for (i = first; i < last;  i++)
+	{
+		if (b[i].parent == parent)
+		{
+			Draw_FunString(depth*16, *y, va("%i: %s", i, b[i].name));
+			*y += 8;
+			M_BoneDisplay(b, y, depth+1, i, i+1, last);
+		}
+	}
+}
 static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	static playerview_t pv;
@@ -2525,7 +2540,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	r_refdef.grect.y = 0;
 	r_refdef.time = realtime;
 
-	r_refdef.flags = Q2RDF_NOWORLDMODEL;
+	r_refdef.flags = RDF_NOWORLDMODEL;
 
 	r_refdef.afov = 60;
 	r_refdef.fov_x = 0;
@@ -2557,7 +2572,6 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	}
 //	ent.fatness = sin(realtime)*5;
 	ent.playerindex = -1;
-	ent.scale = 33.3333;
 	ent.skinnum = mods->skingroup;
 	ent.shaderTime = realtime;
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
@@ -2569,14 +2583,29 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	V_ApplyRefdef();
 	R_RenderView();
 
+	y = 0;
+
 	fname = Mod_FrameNameForNum(ent.model, mods->framegroup);
 	if (!fname)
 		fname = "Unknown Frame";
-	Draw_FunString(0, 0, va("%i: %s", mods->framegroup, fname));
+	Draw_FunString(0, y, va("%i: %s", mods->framegroup, fname));
+	y+=8;
 	fname = Mod_SkinNameForNum(ent.model, mods->skingroup);
 	if (!fname)
 		fname = "Unknown Skin";
-	Draw_FunString(0, 8, va("%i: %s", mods->skingroup, fname));
+	Draw_FunString(0, y, va("%i: %s", mods->skingroup, fname));
+	y+=8;
+
+	{
+		int bonecount;
+		galiasbone_t *b = Mod_GetBoneInfo(ent.model, &bonecount);
+		if (b && bonecount)
+		{
+			Draw_FunString(0, y, va("Bones: ", mods->skingroup, fname));
+			y+=8;
+			M_BoneDisplay(b, &y, 0, -1, 0, bonecount);
+		}
+	}
 }
 static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key)
 {
@@ -2643,6 +2672,12 @@ void M_Menu_ModelViewer_f(void)
 	Q_strncpyz(mv->modelname, Cmd_Argv(1), sizeof(mv->modelname));
 	Q_strncpyz(mv->forceshader, Cmd_Argv(2), sizeof(mv->forceshader));
 }
+#else
+void M_Menu_ModelViewer_f(void)
+{
+	Con_Printf("no.\n");
+}
+#endif
 
 typedef struct
 {

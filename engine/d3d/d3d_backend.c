@@ -2666,7 +2666,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		VectorScale((m+8), mod->clampscale, (m+8));
 	}
 
-	if (e->flags & Q2RF_WEAPONMODEL)
+	if (e->flags & RF_WEAPONMODEL)
 	{
 		/*FIXME: no bob*/
 		float iv[16];
@@ -2686,7 +2686,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	{
 	D3DVIEWPORT9 vport;
 	IDirect3DDevice9_GetViewport(pD3DDev9, &vport);
-	vport.MaxZ = (e->flags & Q2RF_DEPTHHACK)?0.333:1;
+	vport.MaxZ = (e->flags & RF_DEPTHHACK)?0.333:1;
 	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
 	}
 }

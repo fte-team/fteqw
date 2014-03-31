@@ -2174,7 +2174,7 @@ void CL_SmokeAndFlash(vec3_t origin)
 	VectorClear(ex->angles);
 //	ex->type = ex_misc;
 	ex->numframes = 4;
-	ex->flags = Q2RF_TRANSLUCENT;
+	ex->flags = RF_TRANSLUCENT;
 	ex->alpha = 1;
 	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, MLV_WARN);
@@ -2199,7 +2199,7 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 	ex->skinnum = (colors >> ((rand() % 4)*8)) & 0xff;
 	VectorCopy (start, ex->origin);
 	VectorCopy (end, ex->oldorigin);
-	ex->flags = Q2RF_TRANSLUCENT | Q2RF_BEAM;
+	ex->flags = RF_TRANSLUCENT | Q2RF_BEAM;
 	ex->start = cl.time;
 	ex->framerate = 100; // smoother fading
 }
@@ -2350,7 +2350,7 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW|Q2RF_TRANSLUCENT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_ADDITIVE|RF_NOSHADOW|RF_TRANSLUCENT;
 		ex->alpha = 1;
 
 		ex->angles[0] = acos(dir[2])/M_PI*180;
@@ -2438,7 +2438,7 @@ void CLQ2_ParseTEnt (void)
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
 			ex->firstframe = 30;
 			ex->alpha = 1;
-			ex->flags |= Q2RF_TRANSLUCENT;
+			ex->flags |= RF_TRANSLUCENT;
 			ex->numframes = 19;
 		}
 		break;
@@ -2532,7 +2532,7 @@ void CLQ2_ParseTEnt (void)
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
 			ex->alpha = 1;
-			ex->flags |= Q2RF_TRANSLUCENT;
+			ex->flags |= RF_TRANSLUCENT;
 			if (rand()&1)
 				ex->firstframe = 15;
 			else

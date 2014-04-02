@@ -3772,9 +3772,23 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			if (f2ness != 1)
 			{
 				f1time *= g1->rate;
-				frame1 = (int)f1time%g1->numposes;
-				frame2 = ((int)f1time+1)%g1->numposes;
-				f1time = f1time - (int)f1time;
+				if (g1->loop)
+				{
+					frame1 = (int)f1time%g1->numposes;
+					frame2 = ((int)f1time+1)%g1->numposes;
+					f1time = f1time - (int)f1time;
+				}
+				else
+				{
+					frame1 = (int)f1time;
+					frame2 = ((int)f1time+1);
+					f1time = f1time - (int)f1time;
+					if (frame2 >= g1->numposes)
+					{
+						frame1 = frame2 = g1->numposes-1;
+						f1time = 0;
+					}
+				}
 				pose[numposes] = g1->boneofs + inf->numbones*12*frame1;
 				plerp[numposes] = (1-f1time) * (1-f2ness);
 				numposes++;
@@ -3788,9 +3802,23 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			if (f2ness)
 			{
 				f2time *= g2->rate;
-				frame1 = (int)f2time%g2->numposes;
-				frame2 = ((int)f2time+1)%g2->numposes;
-				f2time = f2time - (int)f2time;
+				if (g2->loop)
+				{
+					frame1 = (int)f2time%g2->numposes;
+					frame2 = ((int)f2time+1)%g2->numposes;
+					f2time = f2time - (int)f2time;
+				}
+				else
+				{
+					frame1 = (int)f2time;
+					frame2 = ((int)f2time+1);
+					f2time = f2time - (int)f2time;
+					if (frame2 >= g2->numposes)
+					{
+						frame1 = frame2 = g2->numposes-1;
+						f2time = 0;
+					}
+				}
 				pose[numposes] = g2->boneofs + inf->numbones*12*frame1;
 				plerp[numposes] = (1-f2time) * f2ness;
 				numposes++;

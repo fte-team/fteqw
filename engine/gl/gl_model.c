@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
+extern cvar_t gl_lightmap_average;
 
 qboolean isnotmap = true;	//used to not warp ammo models.
 
@@ -2523,10 +2524,21 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 		mesh->st_array[i][0] = s/surf->texinfo->texture->width;
 		mesh->st_array[i][1] = t/surf->texinfo->texture->height;
 
-		for (sty = 0; sty < 1; sty++)
+		if (gl_lightmap_average.ival)
 		{
-			mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]*16) + 8) / (mod->lightmaps.width*16);
-			mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]*16) + 8) / (mod->lightmaps.height*16);
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]*16) + 8) / (mod->lightmaps.width*16);
+				mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]*16) + 8) / (mod->lightmaps.height*16);
+			}
+		}
+		else
+		{
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]*16) + 8) / (mod->lightmaps.width*16);
+				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]*16) + 8) / (mod->lightmaps.height*16);
+			}
 		}
 
 		//figure out the texture directions, for bumpmapping and stuff

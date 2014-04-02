@@ -26,6 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "renderque.h"
 #include <math.h>
 
+extern cvar_t gl_lightmap_nearest;
+
 void GLBE_ClearVBO(vbo_t *vbo)
 {
 	int vboh[6 + MAXRLIGHTMAPS];
@@ -532,8 +534,16 @@ void GLBE_UploadAllLightmaps(void)
 			TEXASSIGN(lm->lightmap_texture, R_AllocNewTexture("***lightmap***", lm->width, lm->height, IF_LINEAR|IF_NOMIPMAP));
 		}
 		GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		if (gl_lightmap_nearest.ival)
+		{
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		}
+		else
+		{
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
 		switch (lightmap_bytes)
 		{
 		case 4:

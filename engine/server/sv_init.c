@@ -1468,7 +1468,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		else
 			snprintf(sv.mapname, sizeof(sv.mapname), "%s", sv.name);
 		if (Cvar_Get("sv_readonlyworld", "1", 0, "DP compatability")->value)
+		{
 			ent->readonly = true;	//lock it down!
+
+			if (ent->v->origin[0] != 0 || ent->v->origin[1] != 0 || ent->v->origin[2] != 0 || ent->v->angles[0] != 0 || ent->v->angles[1] != 0 || ent->v->angles[2] != 0)
+				Con_Printf("Warning: The world has moved. Alert your nearest reputable news agency.\n");
+
+		}
 
 		// look up some model indexes for specialized message compression
 		SV_FindModelNumbers ();

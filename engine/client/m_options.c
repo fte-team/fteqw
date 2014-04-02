@@ -808,7 +808,7 @@ void M_Menu_Render_f (void)
 	{
 		MB_REDTEXT("Rendering Options", false),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
-		MB_CHECKBOXCVAR("Calculate VIS", r_novis, 0),
+		MB_CHECKBOXCVAR("Disable VIS", r_novis, 0),
 		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
 		MB_CHECKBOXCVAR("Disable Framegroup Lerp", r_noframegrouplerp, 0),
@@ -2505,16 +2505,21 @@ const char *Mod_FrameNameForNum(model_t *model, int num);
 const char *Mod_SkinNameForNum(model_t *model, int num);
 
 #include "com_mesh.h"
-static void M_BoneDisplay(galiasbone_t *b, int *y, int depth, int parent, int first, int last)
+static void M_BoneDisplay(entity_t *e, galiasbone_t *b, int *y, int depth, int parent, int first, int last)
 {
 	int i;
 	for (i = first; i < last;  i++)
 	{
 		if (b[i].parent == parent)
 		{
-			Draw_FunString(depth*16, *y, va("%i: %s", i, b[i].name));
+			float result[12];
+			memset(result, 0, sizeof(result));
+			if (Mod_GetTag(e->model, i, &e->framestate, result))
+				Draw_FunString(depth*16, *y, va("%i: %s (%g %g %g)", i, b[i].name, result[3], result[7], result[11]));
+			else
+				Draw_FunString(depth*16, *y, va("%i: %s", i, b[i].name));
 			*y += 8;
-			M_BoneDisplay(b, y, depth+1, i, i+1, last);
+			M_BoneDisplay(e, b, y, depth+1, i, i+1, last);
 		}
 	}
 }
@@ -2603,7 +2608,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		{
 			Draw_FunString(0, y, va("Bones: ", mods->skingroup, fname));
 			y+=8;
-			M_BoneDisplay(b, &y, 0, -1, 0, bonecount);
+			M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
 		}
 	}
 }

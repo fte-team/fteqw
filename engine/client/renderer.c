@@ -150,6 +150,9 @@ cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
 cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2"),
 												CVAR_ARCHIVE, "A list of filename extensions to attempt to use instead of mdl.");
 
+cvar_t gl_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_nearest is enabled.");
+cvar_t gl_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE, "Determine lightmap values based upon the center of the polygon. This will give a more buggy look, quite probably.");
+
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
@@ -477,6 +480,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
+
+	Cvar_Register (&gl_lightmap_nearest, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_lightmap_average, GLRENDEREROPTIONS);
 
 	R_BloomRegister();
 }

@@ -1810,6 +1810,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_entity = QCC_PR_NewType("entity", ev_entity, true);
 	type_field = QCC_PR_NewType("__field", ev_field, false);
 	type_function = QCC_PR_NewType("__function", ev_function, false);
+	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
 	type_integer = QCC_PR_NewType("__integer", ev_integer, true);
 	type_variant = QCC_PR_NewType("variant", ev_variant, true);
@@ -1823,8 +1824,8 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_intpointer->aux_type = type_integer;
 	type_floatpointer = QCC_PR_NewType("__floatpointer", ev_pointer, false);
 	type_floatpointer->aux_type = type_float;
-
-	type_function->aux_type = type_void;
+	type_floatfunction = QCC_PR_NewType("__floatfunction", ev_function, false);
+	type_floatfunction->aux_type = type_float;
 
 	//type_field->aux_type = type_float;
 

@@ -5517,14 +5517,18 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 
 	if (!d)
 	{
-		if (	(!strcmp(name, "random" ))	||
-				(!strcmp(name, "randomv"))	||
+		if (	(!strcmp(name, "randomv"))	||
 				(!strcmp(name, "sizeof"))	||
 				(!strcmp(name, "entnum"))	||
 				(!strcmp(name, "va_arg"))	||
-				(!strcmp(name, "_")))	//intrinsics, any old function with no args will do.
+				(!strcmp(name, "_"))		)	//intrinsics, any old function with no args will do.
 		{
 			d = QCC_PR_GetDef (type_function, name, NULL, true, 0, false);
+			d->initialized = 0;
+		}
+		else if (	(!strcmp(name, "random" ))	)	//intrinsics, any old function with no args will do. returning a float just in case people declare things in the wrong order
+		{
+			d = QCC_PR_GetDef (type_floatfunction, name, NULL, true, 0, false);
 			d->initialized = 0;
 		}
 		else if (keyword_class && !strcmp(name, "this"))

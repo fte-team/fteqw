@@ -3347,8 +3347,10 @@ void CL_LinkPacketEntities (void)
 			if (!(dl->flags & PFLAGS_FULLDYNAMIC))	//corona-only lights shouldn't do much else.
 			{
 				dl->flags &= ~(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND);
+#ifdef RTLIGHTS
 				/*make sure there's no rtlight*/
 				memset(dl->lightcolourscales, 0, sizeof(dl->lightcolourscales));
+#endif
 			}
 			dl->corona = (state->lightpflags & PFLAGS_CORONA)?1:0;
 			dl->coronascale = 0.25;

@@ -67,32 +67,22 @@ char *pr_punctuationremap[] =	//a nice bit of evilness.
 {"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", "~", ":", NULL};
 
 // simple types.  function types are dynamically allocated
-QCC_type_t	*type_void;// = {ev_void/*, &def_void*/};
-QCC_type_t	*type_string;// = {ev_string/*, &def_string*/};
-QCC_type_t	*type_float;// = {ev_float/*, &def_float*/};
-QCC_type_t	*type_vector;// = {ev_vector/*, &def_vector*/};
-QCC_type_t	*type_entity;// = {ev_entity/*, &def_entity*/};
-QCC_type_t	*type_field;// = {ev_field/*, &def_field*/};
-QCC_type_t	*type_function;// = {ev_function/*, &def_function*/,NULL,&type_void};
-// type_function is a void() function used for state defs
-QCC_type_t	*type_pointer;// = {ev_pointer/*, &def_pointer*/};
-QCC_type_t	*type_integer;// = {ev_integer/*, &def_integer*/};
-QCC_type_t	*type_variant;// = {ev_integer/*, &def_integer*/};
-QCC_type_t	*type_floatpointer;
-QCC_type_t	*type_intpointer;
+QCC_type_t	*type_void;				//void
+QCC_type_t	*type_string;			//string
+QCC_type_t	*type_float;			//float
+QCC_type_t	*type_vector;			//vector
+QCC_type_t	*type_entity;			//entity
+QCC_type_t	*type_field;			//.void
+QCC_type_t	*type_function;			//void()
+QCC_type_t	*type_floatfunction;	//float()
+QCC_type_t	*type_pointer;			//??? * - careful with this one
+QCC_type_t	*type_integer;			//int
+QCC_type_t	*type_variant;			//__variant
+QCC_type_t	*type_floatpointer;		//float *
+QCC_type_t	*type_intpointer;		//int *
 
 QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 
-/*QCC_def_t	def_void = {type_void, "temp"};
-QCC_def_t	def_string = {type_string, "temp"};
-QCC_def_t	def_float = {type_float, "temp"};
-QCC_def_t	def_vector = {type_vector, "temp"};
-QCC_def_t	def_entity = {type_entity, "temp"};
-QCC_def_t	def_field = {type_field, "temp"};
-QCC_def_t	def_function = {type_function, "temp"};
-QCC_def_t	def_pointer = {type_pointer, "temp"};
-QCC_def_t	def_integer = {type_integer, "temp"};
-*/
 QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
 //QCC_def_t	*def_for_type[9] = {&def_void, &def_string, &def_float, &def_vector, &def_entity, &def_field, &def_function, &def_pointer, &def_integer};

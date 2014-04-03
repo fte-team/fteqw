@@ -661,6 +661,8 @@ reeval:
 				//break/skip the instruction.
 				PR_StackTrace(&progfuncs->funcs);
 				printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+
+				glob = pr_globals;
 #ifndef DEBUGABLE
 				progfuncs->funcs.pr_trace++;
 				st--;
@@ -695,6 +697,7 @@ reeval:
 					{
 						st=&pr_statements[prinst.continuestatement];
 						prinst.continuestatement=-1;
+						glob = pr_globals;
 						break;
 					}
 				}

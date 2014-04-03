@@ -1990,8 +1990,11 @@ void COM_FlushFSCache(void)
 		}
 	}
 
-	//rebuild it if needed
-	FS_RebuildFSHash();
+	if (com_fs_cache.ival)
+	{
+		//rebuild it if needed
+		FS_RebuildFSHash();
+	}
 }
 
 /*since should start as 0, otherwise this can be used to poll*/

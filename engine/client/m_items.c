@@ -144,7 +144,10 @@ void Draw_BigFontString(int x, int y, const char *text)
 	mpic_t *p;
 	p = QBigFontWorks();
 	if (!p)
+	{
+		Draw_FunString(x, y, text);
 		return;
+	}
 
 	{	//a hack for scaling
 		p->width = 20*8;

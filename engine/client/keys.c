@@ -781,7 +781,7 @@ void Key_DefaultLinkClicked(char *text, char *info)
 void Key_ConsoleRelease(console_t *con, int key, int unicode)
 {
 	char *buffer;
-	if (key == K_MOUSE1)
+	if (key == K_MOUSE1 && con->mousedown[2] == 1)
 	{
 		con->mousedown[2] = 0;
 		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)

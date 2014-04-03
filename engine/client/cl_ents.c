@@ -3330,7 +3330,7 @@ void CL_LinkPacketEntities (void)
 				CL_NewDlight(state->number, ent->origin, radius, 0.1, colour[0], colour[1], colour[2]);
 			}
 		}
-		if (state->lightpflags & PFLAGS_FULLDYNAMIC)
+		if (state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA))
 		{
 			vec3_t colour;
 			if (!state->light[0] && !state->light[1] && !state->light[2])
@@ -3344,6 +3344,12 @@ void CL_LinkPacketEntities (void)
 				colour[2] = state->light[2]/1024.0f;
 			}
 			dl = CL_NewDlight(state->number, ent->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
+			if (!(dl->flags & PFLAGS_FULLDYNAMIC))	//corona-only lights shouldn't do much else.
+			{
+				dl->flags &= ~(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND);
+				/*make sure there's no rtlight*/
+				memset(dl->lightcolourscales, 0, sizeof(dl->lightcolourscales));
+			}
 			dl->corona = (state->lightpflags & PFLAGS_CORONA)?1:0;
 			dl->coronascale = 0.25;
 			dl->style = state->lightstyle;

@@ -5775,7 +5775,7 @@ qboolean CSQC_DrawView(void)
 	if (csqcg.frametime)
 		*csqcg.frametime = host_frametime;
 
-	if (csqc_isdarkplaces && *csqcg.physics_mode == 1)
+	if (csqc_isdarkplaces && *csqc_world.g.physics_mode == 1)
 	{
 		csqc_world.physicstime = cl.servertime;
 	}

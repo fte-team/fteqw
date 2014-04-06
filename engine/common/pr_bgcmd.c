@@ -874,7 +874,10 @@ void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	RETURN_CSTRING(cv->string);
+	if (cv)
+		RETURN_CSTRING(cv->string);
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 
 //string(string cvarname) cvar_defstring
@@ -882,7 +885,10 @@ void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *p
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	RETURN_CSTRING(cv->defaultstr);
+	if (cv)
+		RETURN_CSTRING(cv->defaultstr);
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 
 //string(string cvarname) cvar_description
@@ -890,7 +896,10 @@ void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	RETURN_CSTRING(cv->description);
+	if (cv)
+		RETURN_CSTRING(cv->description);
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 
 //float(string name) cvar_type
@@ -1975,25 +1984,26 @@ findradius (origin, radius)
 */
 void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	extern cvar_t sv_gameplayfix_blowupfallenzombies;
-	edict_t	*ent, *chain;
+	wedict_t	*ent, *chain;
 	float	rad;
 	float	*org;
 	vec3_t	eorg;
 	int		i, j;
 
-	chain = (edict_t *)sv.world.edicts;
+	chain = w->edicts;
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
 	rad = rad*rad;
 
-	for (i=1 ; i<sv.world.num_edicts ; i++)
+	for (i=1 ; i<w->num_edicts ; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i);
+		ent = WEDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		if (ent->v->solid == SOLID_NOT && (progstype != PROG_QW || !((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
+		if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 			continue;
 		for (j=0 ; j<3 ; j++)
 			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);

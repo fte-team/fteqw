@@ -1197,7 +1197,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
-		if (!client->lockangles && (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && client->delta_sequence != -1)
+		if (!client->lockangles && (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && client->delta_sequence != -1 && !client->viewent)
 		{
 			MSG_WriteByte (msg, svcfte_setangledelta);
 			for (i=0 ; i < 3 ; i++)

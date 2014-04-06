@@ -62,6 +62,7 @@ cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERV
 
 cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
+cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed tht players will sink at while inactive in water. Empty means 60.");
 cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = CVARF("pm_airstep", "", CVAR_SERVERINFO);
@@ -707,7 +708,8 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			VectorSubtract (org2, org, move2);
 			VectorAdd (check->v->origin, move2, check->v->origin);
 
-			check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
+			if (check->v->movetype != MOVETYPE_WALK)
+				check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
 
 			// may have pushed them off an edge
 			if (PROG_TO_WEDICT(w->progs, check->v->groundentity) != pusher)
@@ -726,11 +728,32 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			// if it is ok to leave in the old position, do it
 			// this is only relevent for riding entities, not pushed
 			// FIXME: this doesn't acount for rotation
-			VectorSubtract (check->v->origin, move, check->v->origin);
+			VectorCopy (pushed_p->origin, check->v->origin);
 			block = World_TestEntityPosition (w, check);
 			if (!block)
 			{
 				pushed_p--;
+				continue;
+			}
+
+			//okay, that didn't work, try pushing the against stuff
+			WPhys_PushEntity(w, check, move, 0);
+			block = World_TestEntityPosition (w, check);
+			if (!block)
+				continue;
+
+			VectorCopy(check->v->origin, move);
+			for (i = 0; i < 8 && block; i++)
+			{
+				//precision errors can strike when you least expect it. lets try and reduce them.
+				check->v->origin[0] = check->v->origin[0] + ((i&1)?-1:1)/8.0;
+				check->v->origin[1] = check->v->origin[1] + ((i&2)?-1:1)/8.0;
+				check->v->origin[2] = check->v->origin[2] + ((i&4)?-1:1)/8.0;
+				block = World_TestEntityPosition (w, check);
+			}
+			if (!block)
+			{
+				World_LinkEdict (w, check, false);
 				continue;
 			}
 		}
@@ -743,7 +766,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 		}
 
 		//these pushes are contents brushes, and are not solid. water cannot crush. the player just enters the water.
-		//but, the player will be moved along with the water.
+		//but, the player will be moved along with the water if possible.
 		if (pusher->v->skin < 0)
 			continue;
 
@@ -2449,9 +2472,7 @@ void SV_SetMoveVars(void)
 	movevars.friction			= sv_friction.value;
 	movevars.waterfriction	    = sv_waterfriction.value;
 	movevars.entgravity			= 1.0;
-	if (*sv_stepheight.string)
-		movevars.stepheight			= sv_stepheight.value;
-	else
-		movevars.stepheight			= PM_DEFAULTSTEPHEIGHT;
+	movevars.stepheight			= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
+	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 }
 #endif

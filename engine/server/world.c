@@ -888,7 +888,7 @@ wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent)
 	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, ((ent->v->solid == SOLID_NOT || ent->v->solid == SOLID_TRIGGER)?MOVE_NOMONSTERS:0), ent);
 	
 	if (trace.startsolid)
-		return w->edicts;
+		return trace.ent?trace.ent:w->edicts;
 		
 	return NULL;
 }
@@ -1731,7 +1731,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	clip.maxs = maxs;
 	clip.type = type;
 	clip.passedict = passedict;
-	clip.hullnum = hullnum;
+	clip.hullnum = 0;//hullnum; //BUG: hexen2's SV_ClipMoveToEntity's move_ent argument is set inconsistantly. This has the effect that the SOLID_BSP's .hull field is used instead of the SOLID_BBOX entity. We can't fix this because hexen2 depends upon it - this is the 'tibet5' bug.
 #ifdef Q2SERVER
 	clip.q2passedict = NULL;
 #endif

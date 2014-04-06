@@ -715,7 +715,7 @@ void NPP_NQFlush(void)
 //		bufferlen = 0;
 //		break;
 	case svc_setview:
-//		requireextension = PEXT_SETVIEW;
+		requireextension = PEXT_SETVIEW;
 
 		if (cldest)	//catch it to work with all clients
 		{
@@ -724,7 +724,7 @@ void NPP_NQFlush(void)
 			if (cldest->viewent == (cldest - svs.clients)+1)
 				cldest->viewent = 0;	//self is the same as none
 		}
-		bufferlen = 0;
+//		bufferlen = 0;
 		break;
 	case svcdp_hidelmp:
 		requireextension = PEXT_SHOWPIC;

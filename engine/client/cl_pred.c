@@ -1113,7 +1113,7 @@ void CL_PredictMovePNum (int seat)
 		VectorCopy (tostate->velocity, pv->simvel);
 		VectorCopy (tostate->origin, pv->simorg);
 
-		if (pv->viewentity && pv->viewentity != pv->playernum+1)
+		if (pv->viewentity && pv->viewentity != pv->playernum+1 && pv->cam_locked)
 			VectorCopy(tostate->viewangles, pv->simangles);
 //Con_DPrintf("%f %f %f\n", fromtime, simtime, totime);
 	}
@@ -1143,7 +1143,7 @@ void CL_PredictMovePNum (int seat)
 				pv->simvel[i] = (1-f)*fromstate->velocity[i] + f*tostate->velocity[i];
 
 
-				if (pv->viewentity && pv->viewentity != pv->playernum+1)
+				if (pv->viewentity && pv->viewentity != pv->playernum+1 && pv->cam_locked)
 				{
 					pv->simangles[i] = LerpAngles360(fromstate->viewangles[i], tostate->viewangles[i], f);// * (360.0/65535);
 //					pv->viewangles[i] = LerpAngles16(fromstate->command.angles[i], tostate->command.angles[i], f) * (360.0/65535);

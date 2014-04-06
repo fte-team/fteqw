@@ -101,6 +101,7 @@ typedef struct {
 	float waterfriction;
 	float entgravity;
 	float bunnyspeedcap;
+	float watersinkspeed;
 	float ktjump;
 	int	walljump;
 	qboolean slidefix;

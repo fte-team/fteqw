@@ -3063,6 +3063,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 {
 	extern int			pr_bracelevel, tempsused;
 	time_t long_time;
+	extern QCC_type_t *pr_classtype;
 
 	int		p;
 
@@ -3076,6 +3077,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	myargc = argc;
 	myargv = argv;
 	pr_scope = NULL;
+	pr_classtype = NULL;
 	locals_marshalled = 0;
 
 	qcc_compileactive = true;

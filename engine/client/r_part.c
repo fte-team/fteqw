@@ -185,7 +185,11 @@ void P_Shutdown(void)
 {
 	if (pe)
 	{
+		CL_ClearTEntParticleState();
 		CL_ClearLerpEntsParticleState();
+#ifdef Q2CLIENT
+		CLQ2_ClearParticleState();
+#endif
 		pe->ShutdownParticles();
 	}
 	pe = NULL;

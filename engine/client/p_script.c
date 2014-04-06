@@ -757,6 +757,7 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	skytris_t *st;
 	part_type_t *torun;
 	char tnamebuf[sizeof(ptype->name)];
+	char tconfbuf[sizeof(ptype->config)];
 
 	// go with a lazy clear of list.. mark everything as DEAD and let
 	// the beam rendering handle removing nodes
@@ -795,6 +796,7 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	beamsegs = ptype->beams;
 	st = ptype->skytris;
 	strcpy(tnamebuf, ptype->name);
+	strcpy(tconfbuf, ptype->config);
 
 	//free uneeded info
 	if (ptype->ramp)
@@ -810,6 +812,7 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	ptype->beams = beamsegs;
 	ptype->skytris = st;
 	strcpy(ptype->name, tnamebuf);
+	strcpy(ptype->config, tconfbuf);
 	ptype->assoc=P_INVALID;
 	ptype->inwater = P_INVALID;
 	ptype->cliptype = P_INVALID;

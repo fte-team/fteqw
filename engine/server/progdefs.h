@@ -206,7 +206,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(colormod,NULL)\
 	comfieldvector(glowmod,NULL)\
 	comfieldvector(gravitydir,"Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings.")\
-	comfieldfunction(camera_transform,".vector(vector org, vector ang)", NULL)\
+	comfieldfunction(camera_transform,".vector(vector org, vector ang)", "Provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc.")\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
 	comfieldfloat(geomtype,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(friction,NULL)/*DP_...PHYSICS*/\

@@ -229,16 +229,9 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 		if (write || append)
 		{
 			//this extra block is to avoid flushing fs caches needlessly
-			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, (!read&&!append)?CREATE_ALWAYS:OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (h == INVALID_HANDLE_VALUE)
-			{
 				didexist = false;
-				if (!read)	//if we're not reading, the file will be created anew. make sure we don't just reuse it. we do want to avoid rebuilding our name->location cache though.
-				{
-					CloseHandle(h);
-					h = INVALID_HANDLE_VALUE;
-				}
-			}
 		}
 
 		if (h != INVALID_HANDLE_VALUE)

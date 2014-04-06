@@ -89,6 +89,7 @@ extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
+extern cvar_t	pm_watersinkspeed;
 cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
@@ -5755,6 +5756,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.airstep = (pm_airstep.value != 0);
 		movevars.walljump = (pm_walljump.value);
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
+		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 
 		for (i=0 ; i<3 ; i++)
 		{
@@ -5946,6 +5948,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.airstep = (pm_airstep.value != 0);
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
+	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 
 	if (sv_player->xv->hasted)
 		movevars.maxspeed*=sv_player->xv->hasted;

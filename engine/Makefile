@@ -1680,7 +1680,7 @@ droid-dbg:
 	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-dbg DROID_ARCH=$a; )
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
 	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/gl_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
-	@cd droid && $(ANT) debug && $(ANT) debug install
+	@cd droid && $(ANT) debug #&& $(ANT) debug install
 	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 
 droid-help:

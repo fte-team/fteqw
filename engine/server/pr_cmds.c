@@ -2677,14 +2677,18 @@ particle(origin, color, count)
 static void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
 {
 	float		*org, *dir;
-	float		color;
-	float		count;
+	int		color;
+	int		count;
 	int i, v;
 
 	org = G_VECTOR(OFS_PARM0);
 	dir = G_VECTOR(OFS_PARM1);
 	color = G_FLOAT(OFS_PARM2);
 	count = G_FLOAT(OFS_PARM3);
+
+	count = bound(0, count, 255);
+	color &= 0xff;
+
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_particle);
 	MSG_WriteCoord (&sv.nqmulticast, org[0]);
@@ -2701,6 +2705,7 @@ static void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_glob
 	}
 	MSG_WriteByte (&sv.nqmulticast, count);
 	MSG_WriteByte (&sv.nqmulticast, color);
+	SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 #endif
 	//for qw users (and not fte)
 /*	if (*prinst->callargc >= 5)
@@ -2904,6 +2909,7 @@ static void QCBUILTIN PF_particle4 (pubprogfuncs_t *prinst, globalvars_t *pr_glo
 
 static void QCBUILTIN PF_h2particleexplosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	//used by the ice staff
 	Con_Printf("H2FIXME: PF_h2particleexplosion not implemented\n");
 /*
 	float *org;
@@ -9365,7 +9371,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
-	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, float inwater)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default.")},// (EXT_CSQC)
+	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, optional float inwater)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default.")},// (EXT_CSQC)
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
 	{"serverkey",		PF_Fixme,	0,		0,		0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
@@ -10193,7 +10199,7 @@ void PR_DumpPlatform_f(void)
 		{"SpectatorDisconnect",		"noref void()", QW|NQ, "Called when a spectator disconnects from the game."},
 		{"SpectatorThink",			"noref void()", QW|NQ, "Called each frame for each spectator."},
 		{"SV_ParseClientCommand",	"noref void(string cmd)", QW|NQ, "Provides QC with a way to intercept 'cmd foo' commands from the client. Very handy. Self will be set to the sending client, while the 'cmd' argument can be tokenize()d and each element retrieved via argv(argno). Unrecognised cmds MUST be passed on to the clientcommand builtin."},
-		{"SV_ParseConnectionlessPacket", "noref void(string sender, string body)", QW|NQ, "Provides QC with a way to communicate between servers, or with client server browsers. Sender is the sender's ip. Body is the body of the message. You'll need to add your own password/etc support as required. Self is not valid."},
+		{"SV_ParseConnectionlessPacket", "noref float(string sender, string body)", QW|NQ, "Provides QC with a way to communicate between servers, or with client server browsers. Sender is the sender's ip. Body is the body of the message. You'll need to add your own password/etc support as required. Self is not valid."},
 		{"SV_PausedTic",			"noref void(float pauseduration)", QW|NQ, "For each frame that the server is paused, this function will be called to give the gamecode a chance to unpause the server again. the pauseduration argument says how long the server has been paused for (the time global is frozen and will not increment while paused). Self is not valid."},
 		{"SV_ShouldPause",			"noref float(float newstatus)", QW|NQ, "Called to give the qc a change to block pause/unpause requests. Return false for the pause request to be ignored. newstatus is 1 if the user is trying to pause the game. For the duration of the call, self will be set to the player who tried to pause, or to world if it was triggered by a server-side event."},
 		{"ClassChangeWeapon",		"noref void()", H2, "Hexen2 support. Called when cl_playerclass changes. Self is set to the player who is changing class."},
@@ -10224,7 +10230,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_ConsoleLink",		"noref float(string text, string info)", CS, "Called if the user clicks a ^[text\\infokey\\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself."},
 		{"CSQC_Ent_Update",			"noref void(float isnew)", CS},
 		{"CSQC_Ent_Remove",			"noref void()", CS},
-		{"CSQC_Event_Sound",		"noref float(float entnum, float channel, float soundname, float vol, float attenuation, vector pos, float pitchmod)", CS},
+		{"CSQC_Event_Sound",		"noref float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod)", CS},
 //		{"CSQC_ServerSound",		"//void()", CS},
 		{"CSQC_LoadResource",		"noref float(string resname, string restype)", CS, "Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called."},
 		{"CSQC_Parse_TempEntity",	"noref float()", CS,	"Please don't use this. Use CSQC_Parse_Event and multicasts instead."},

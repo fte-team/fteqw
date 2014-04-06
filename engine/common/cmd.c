@@ -2849,6 +2849,7 @@ void Cmd_WriteConfig_f(void)
 	if (!*filename)
 	{
 		snprintf(fname, sizeof(fname), "fte.cfg");
+		FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	}
@@ -2862,12 +2863,13 @@ void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "configs/%s", filename);
 		COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 
+		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_BASEGAMEONLY);
 		f = FS_OpenVFS(fname, "wb", FS_BASEGAMEONLY);
 	}
 	if (!f)
 	{
-		Con_Printf ("Couldn't write config %s\n",fname);
+		Con_Printf ("Couldn't write config %s\n", sysname);
 		return;
 	}
 
@@ -2889,7 +2891,6 @@ void Cmd_WriteConfig_f(void)
 
 	Cvar_Saved();
 
-	FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
 	Con_Printf ("Wrote %s\n",sysname);
 }
 

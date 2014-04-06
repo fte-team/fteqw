@@ -1788,10 +1788,9 @@ void CL_CheckServerInfo(void)
 	movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
 	movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
 	s = Info_ValueForKey(cl.serverinfo, "pm_stepheight");
-	if (*s)
-		movevars.stepheight = Q_atof(s);
-	else
-		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
+	movevars.stepheight = *s?Q_atof(s):PM_DEFAULTSTEPHEIGHT;
+	s = Info_ValueForKey(cl.serverinfo, "pm_watersinkspeed");
+	movevars.watersinkspeed = *s?Q_atof(s):60;
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)

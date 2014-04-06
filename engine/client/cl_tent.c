@@ -173,13 +173,15 @@ typedef struct
 	int		entity;
 	short	tag;
 	qbyte	active;
-	qbyte	flags;
+	qbyte	bflags;
 	qbyte	type;
 	qbyte	skin;
+	unsigned int rflags;
 	struct model_s	*model;
 	float	endtime;
 	float	alpha;
 	vec3_t	start, end;
+	vec3_t	offset;	//when attached, this is the offset from the owning entity. probably only z is meaningful.
 	int		particleeffect;
 	trailstate_t *trailstate;
 	trailstate_t *emitstate;
@@ -362,10 +364,10 @@ void CL_ShutdownTEnts (void)
 void CL_ClearTEntParticleState (void)
 {
 	int i;
-	for (i = 0; i < beams_running; i++)
+	for (i = 0; i < cl_beams_max; i++)
 	{
-		pe->DelinkTrailstate(&(cl_beams[i].trailstate));
-		pe->DelinkTrailstate(&(cl_beams[i].emitstate));
+		P_DelinkTrailstate(&(cl_beams[i].trailstate));
+		P_DelinkTrailstate(&(cl_beams[i].emitstate));
 	}
 }
 
@@ -758,7 +760,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	b->model = m;
 	b->particleeffect = btype;
 	b->tag = -1;
-	b->flags |= /*STREAM_ATTACHED|*/1;
+	b->bflags |= /*STREAM_ATTACHED|*/1;
 	b->endtime = cl.time + 0.2;
 	b->alpha = 1;
 	VectorCopy (start, b->start);
@@ -787,6 +789,28 @@ void CL_ParseBeam (int tent)
 
 	CL_AddBeam(tent, ent, start, end);
 }
+
+//finds the latest non-lerped position
+float *CL_FindLatestEntityOrigin(int entnum)
+{
+	int i;
+	packet_entities_t *pe;
+	int framenum = cl.validsequence & UPDATE_MASK;
+	pe = &cl.inframes[framenum].packet_entities;
+	for (i = 0; i < pe->num_entities; i++)
+	{
+		if (pe->entities[i].number == entnum)
+			return pe->entities[i].origin;
+	}
+	if (entnum > 0 && entnum <= MAX_CLIENTS)
+	{
+		entnum--;
+		if (cl.inframes[framenum].playerstate[entnum].messagenum == cl.parsecount)
+			return cl.inframes[framenum].playerstate[entnum].origin;
+	}
+	return NULL;
+}
+
 void CL_ParseStream (int type)
 {
 	int		ent;
@@ -823,7 +847,7 @@ void CL_ParseStream (int type)
 
 	b->entity = ent;
 	b->tag = tag;
-	b->flags = flags;
+	b->bflags = flags;
 	b->model = NULL;
 	b->particleeffect = -1;
 	b->endtime = cl.time + duration;
@@ -832,21 +856,32 @@ void CL_ParseStream (int type)
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
 
+	if (b->bflags & STREAM_ATTACHED)
+	{
+		float *entorg = CL_FindLatestEntityOrigin(ent);
+		if (!entorg)
+			b->bflags &= ~STREAM_ATTACHED;	//not found, attached isn't valid.
+		else
+		{
+			VectorSubtract(b->start, entorg, b->offset);
+		}
+	}
+
 	switch(type)
 	{
 	case TEH2_STREAM_LIGHTNING_SMALL:
 		b->model = 	Mod_ForName("models/stltng2.mdl", MLV_WARN);
-		b->flags |= 2;
+		b->bflags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_lightning_small");
 		break;
 	case TEH2_STREAM_LIGHTNING:
 		b->model = 	Mod_ForName("models/stlghtng.mdl", MLV_WARN);
-		b->flags |= 2;
+		b->bflags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_lightning");
 		break;
 	case TEH2_STREAM_ICECHUNKS:
 		b->model = 	Mod_ForName("models/stice.mdl", MLV_WARN);
-		b->flags |= 2;
+		b->bflags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_icechunks");
 		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, 0, 20);
 		break;
@@ -858,11 +893,17 @@ void CL_ParseStream (int type)
 			b2 = CL_NewBeam(ent, tag+128);
 			if (b2)
 			{
+				P_DelinkTrailstate(&b2->trailstate);
+				P_DelinkTrailstate(&b2->emitstate);
 				memcpy(b2, b, sizeof(*b2));
+				b2->trailstate = NULL;
+				b2->emitstate = NULL;
 				b2->model = Mod_ForName("models/stsunsf2.mdl", MLV_WARN);
 				b2->alpha = 0.5;
+				b2->rflags = RF_TRANSLUCENT;
 			}
 		}
+		//FIXME: we don't add the blob corners+smoke
 		break;
 	case TEH2_STREAM_SUNSTAFF2:
 		b->model = 	Mod_ForName("models/stsunsf1.mdl", MLV_WARN);
@@ -1908,7 +1949,12 @@ void CL_RefreshCustomTEnts(void)
 {
 	int i;
 	for (i = 0; i < sizeof(customtenttype)/sizeof(customtenttype[0]); i++)
+	{
 		customtenttype[i].particleeffecttype = (!*customtenttype[i].name)?-1:P_FindParticleType(customtenttype[i].name);
+
+//		if (customtenttype[i].particleeffecttype == P_INVALID && *customtenttype[i].name)
+//			Con_DPrintf("%s was not loaded\n", customtenttype[i].name);
+	}
 
 	if (cl.particle_ssprecaches)
 	{
@@ -2109,6 +2155,10 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe
 	ex->numframes = framecount;
 	ex->framerate = framerate;
 	ex->alpha = alpha;
+	ex->skinnum = 0;
+
+	if (model->type == mod_alias)
+		ex->flags |= RF_TRANSLUCENT;
 
 	if (randspin)
 	{
@@ -3099,7 +3149,7 @@ void CL_UpdateBeams (void)
 		lastrunningbeam = bnum;
 
 	// if coming from the player, update the start position
-		if ((b->flags & 1) && b->entity > 0 && b->entity <= cl.allocated_client_slots)
+		if ((b->bflags & 1) && b->entity > 0 && b->entity <= cl.allocated_client_slots)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
@@ -3179,19 +3229,18 @@ void CL_UpdateBeams (void)
 				}
 			}
 		}
-		else if (b->flags & STREAM_ATTACHED)
+		else if (b->bflags & STREAM_ATTACHED)
 		{
 			player_state_t	*pl;
 			st = CL_FindPacketEntity(b->entity);
 			if (st)
 			{
-				VectorCopy(st->origin, b->start);
+				VectorAdd(st->origin, b->offset, b->start);
 			}
 			else if (b->entity <= cl.allocated_client_slots && b->entity > 0)
 			{
 				pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
-				VectorCopy(pl->origin, b->start);
-				b->start[2]+=16;
+				VectorAdd(pl->origin, b->offset, b->start);
 			}
 		}
 
@@ -3228,7 +3277,7 @@ void CL_UpdateBeams (void)
 		VectorCopy (b->start, org);
 		d = VectorNormalize(dist);
 
-		if(b->flags & 2)
+		if(b->bflags & 2)
 		{
 			offset = (int)(cl.time*40)%30;
 			for(i = 0; i < 3; i++)
@@ -3247,6 +3296,7 @@ void CL_UpdateBeams (void)
 			ent->drawflags |= MLS_ABSLIGHT;
 			ent->abslight = 64 + 128 * bound(0, cl_shaftlight.value, 1);
 			ent->shaderRGBAf[3] = b->alpha;
+			ent->flags = b->rflags;
 
 			ent->angles[0] = -pitch;
 			ent->angles[1] = yaw;

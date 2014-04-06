@@ -1446,7 +1446,8 @@ GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precom
 					"#else\n"
 					"#define v_position v_position1\n"
 					"#endif\n"
-					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
+					"vec4 ftetransform() { return m_modelviewprojection * vec4(v_position, 1.0); }\n"
+//					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
 				;
 			length[strings] = strlen(prstrings[strings]);

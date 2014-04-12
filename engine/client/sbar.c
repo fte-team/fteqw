@@ -1945,6 +1945,32 @@ void Sbar_DrawScoreboard (void)
 }
 
 
+static void Sbar_Hexen2DrawActiveStuff(playerview_t *pv)
+{
+	int x = r_refdef.grect.x + r_refdef.grect.width;
+	mpic_t *pic;
+	if (pv->stats[STAT_H2_ARTIFACT_ACTIVE] & 4)
+	{
+		pic = R2D_SafeCachePic(va("gfx/pwrbook%d.lmp", ((int)(cl.time*16)%15)+1));
+		x -= 32;
+		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, pic);
+		x -= 18;
+	}
+	if (pv->stats[STAT_H2_ARTIFACT_ACTIVE] & 1)
+	{
+		pic = R2D_SafeCachePic(va("gfx/durhst%d.lmp", ((int)(cl.time*16)%15)+1));
+		x -= 32;
+		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, pic);
+		x -= 18;
+	}
+	if (pv->stats[STAT_H2_ARTIFACT_ACTIVE] & 2)
+	{
+		pic = R2D_SafeCachePic(va("gfx/durshd%d.lmp", ((int)(cl.time*16)%15)+1));
+		x -= 32;
+		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, pic);
+		x -= 18;
+	}
+}
 static void Sbar_Hexen2DrawItem(playerview_t *pv, float x, float y, int itemnum)
 {
 	int num;
@@ -2461,6 +2487,8 @@ void Sbar_Draw (playerview_t *pv)
 
 		if (cl.deathmatch)
 			Sbar_MiniDeathmatchOverlay (pv);
+
+		Sbar_Hexen2DrawActiveStuff(pv);
 	}
 	else if (sbarfailed)	//files failed to load.
 	{

@@ -89,7 +89,7 @@ void GoToDefinition(char *name)
 			fnc = &functions[((int *)qcc_pr_globals)[def->ofs]];
 			if (fnc->first_statement>=0 && fnc->s_file)
 			{
-				EditFile(fnc->s_file+strings, statement_linenums[fnc->first_statement]);
+				EditFile(fnc->s_file+strings, statements[fnc->first_statement].linenum);
 				return;
 			}
 		}

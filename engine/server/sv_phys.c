@@ -62,7 +62,7 @@ cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERV
 
 cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
-cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed tht players will sink at while inactive in water. Empty means 60.");
+cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed that players will sink at while inactive in water. Empty means 60.");
 cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = CVARF("pm_airstep", "", CVAR_SERVERINFO);
@@ -728,7 +728,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			// if it is ok to leave in the old position, do it
 			// this is only relevent for riding entities, not pushed
 			// FIXME: this doesn't acount for rotation
-			VectorCopy (pushed_p->origin, check->v->origin);
+			VectorCopy (pushed_p[-1].origin, check->v->origin);
 			block = World_TestEntityPosition (w, check);
 			if (!block)
 			{
@@ -746,9 +746,9 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			for (i = 0; i < 8 && block; i++)
 			{
 				//precision errors can strike when you least expect it. lets try and reduce them.
-				check->v->origin[0] = check->v->origin[0] + ((i&1)?-1:1)/8.0;
-				check->v->origin[1] = check->v->origin[1] + ((i&2)?-1:1)/8.0;
-				check->v->origin[2] = check->v->origin[2] + ((i&4)?-1:1)/8.0;
+				check->v->origin[0] = move[0] + ((i&1)?-1:1)/8.0;
+				check->v->origin[1] = move[1] + ((i&2)?-1:1)/8.0;
+				check->v->origin[2] = move[2] + ((i&4)?-1:1)/8.0;
 				block = World_TestEntityPosition (w, check);
 			}
 			if (!block)
@@ -904,19 +904,35 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 			continue;
 		}
 
+		if (block)
+		{
+			//try to nudge it forward by an epsilon to avoid precision issues
+			float movelen = VectorLength(move);
+			VectorMA(check->v->origin, (1/8.0)/movelen, move, check->v->origin);
+			block = World_TestEntityPosition (w, check);
+			if (!block)
+			{	//okay, that got it. we're all good.
+				World_LinkEdict (w, check, false);
+				continue;
+			}
+		}
+
 		// if it is ok to leave in the old position, do it
-		VectorSubtract (check->v->origin, move, check->v->origin);
+		VectorCopy (moved_from[num_moved-1], check->v->origin);
 		block = World_TestEntityPosition (w, check);
 		if (!block)
 		{
 			//if leaving it where it was, allow it to drop to the floor again (useful for plats that move downward)
-			check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
+			if (check->v->movetype != MOVETYPE_WALK)
+				check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
 
 			num_moved--;
 			continue;
 		}
 
-	// if it is still inside the pusher, block
+	// its blocking us. this is probably a problem.
+
+		//corpses 
 		if (check->v->mins[0] == check->v->maxs[0])
 		{
 			World_LinkEdict (w, check, false);
@@ -930,7 +946,7 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 			continue;
 		}
 
-		//these pushes are contents brushes, and are not solid. water cannot crush. the player just enters the water.
+		//these pushers are contents brushes, and are not solid. water cannot crush. the player just enters the water.
 		//but, the player will be moved along with the water.
 		if (pusher->v->skin < 0)
 			continue;
@@ -1280,7 +1296,8 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	if (trace.allsolid)
 	{
-		trace.fraction = 0;
+		if (progstype != PROG_H2)
+			trace.fraction = 0;
 
 #pragma warningmsg("The following line might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
 		VectorNegate(gravitydir, trace.plane.normal);

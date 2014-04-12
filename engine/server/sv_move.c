@@ -74,12 +74,14 @@ realcheck:
 	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
 	stop[2] = start[2] - 2*movevars.stepheight;
 	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
+	ent->xv->hull = 0;	//stop the hull from breaking tracelines
 	trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true, ent);
-	ent->xv->hull = savedhull;
 
 	if (trace.fraction == 1.0)
+	{
+		ent->xv->hull = savedhull;
 		return false;
+	}
 	mid = bottom = trace.endpos[2];
 	
 // the corners must be within 16 of the midpoint	
@@ -89,18 +91,19 @@ realcheck:
 			start[0] = stop[0] = x ? maxs[0] : mins[0];
 			start[1] = stop[1] = y ? maxs[1] : mins[1];
 			
-			savedhull = ent->xv->hull;
-			ent->xv->hull = 0;
 			trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true, ent);
-			ent->xv->hull = savedhull;
-			
+	
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
 				bottom = trace.endpos[2];
 			if (trace.fraction == 1.0 || mid - trace.endpos[2] > movevars.stepheight)
+			{
+				ent->xv->hull = savedhull;
 				return false;
+			}
 		}
 
 	c_yes++;
+	ent->xv->hull = savedhull;
 	return true;
 }
 

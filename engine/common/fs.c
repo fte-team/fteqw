@@ -2304,8 +2304,8 @@ void COM_Gamedir (const char *dir)
 #define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
-/*set some stuff so our regular qw client appears more like hexen2*/
-#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
+/*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
+#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*yay q2!*/
 #define Q2CFG "com_nogamedirnativecode 0\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
@@ -3158,14 +3158,18 @@ void FS_Shutdown(void)
 	fs_manifest = NULL;
 }
 
+//returns false if the directory is not suitable.
+//returns true if it contains a known package. if we don't actually know of any packages that it should have, we just have to assume that its okay.
 static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 {
+	qboolean defaultret = true;
 	int j;
 	vfsfile_t *f;
 	for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
 	{
 		if (!man->package[j].path)
 			continue;
+		defaultret = false;
 
 		f = VFSOS_Open(va("%s%s", basedir, man->package[j].path), "rb");
 		if (f)
@@ -3174,7 +3178,7 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 			return true;
 		}
 	}
-	return false;
+	return defaultret;
 }
 
 //just check each possible file, see if one is there.

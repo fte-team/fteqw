@@ -97,7 +97,7 @@ cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT);
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
-cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. See also: r_globalskin_count.");
+cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
 cvar_t r_globalskin_count						= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= SCVARF ("r_coronas", "0",
 												CVAR_ARCHIVE);
@@ -172,7 +172,8 @@ cvar_t scr_showpause						= SCVAR  ("showpause", "1");
 cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
 cvar_t scr_turtlefps						= SCVAR  ("scr_turtlefps", "10");
 cvar_t scr_sshot_compression				= SCVAR  ("scr_sshot_compression", "75");
-cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "jpg");
+cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "png");
+cvar_t scr_sshot_prefix						= SCVAR  ("scr_sshot_prefix", "screenshots/fte"); 
 cvar_t scr_viewsize							= CVARFC("viewsize", "100",
 												CVAR_ARCHIVE,
 												SCR_Viewsize_Callback);
@@ -649,6 +650,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);
 	Cvar_Register (&scr_sshot_compression, SCREENOPTIONS);
+	Cvar_Register (&scr_sshot_prefix, SCREENOPTIONS);
 
 	Cvar_Register(&cl_cursor,	SCREENOPTIONS);
 	Cvar_Register(&cl_cursorsize,	SCREENOPTIONS);
@@ -706,6 +708,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
+	Cvar_Register (&r_globalskin_first, GRAPHICALNICETIES);
+	Cvar_Register (&r_globalskin_count, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadows, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);

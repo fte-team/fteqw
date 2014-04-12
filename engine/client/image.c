@@ -177,13 +177,14 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 //remember to free it
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *hasalpha, int asgrey)
 {
+	//tga files sadly lack a true magic header thing.
 	unsigned char *data;
 
 	qboolean flipped;
 
-	tgaheader_t tgaheader;
+	tgaheader_t tgaheader;	//things are misaligned, so no pointer.
 
-	if (length < 18 || (buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32))
+	if (length < 18 || buf[1] > 1 || (buf[16] != 8 && buf[16] != 16 && buf[16] != 24 && buf[16] != 32))
 		return NULL;	//BUMMER!
 
 	tgaheader.id_len = buf[0];
@@ -198,6 +199,27 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 	tgaheader.height = LittleShort(*(short *)&buf[14]);
 	tgaheader.bpp = buf[16];
 	tgaheader.attribs = buf[17];
+
+	switch(tgaheader.version)
+	{
+	case 0:	//No image data included.
+		return NULL;	//not really valid for us. reject it after all
+	case 1:	//Uncompressed, color-mapped images.
+	case 2:	//Uncompressed, RGB images.
+	case 3:	//Uncompressed, black and white images.
+	case 9:	//Runlength encoded color-mapped images.
+	case 10:	//Runlength encoded RGB images.
+	case 11:	//Compressed, black and white images.
+	case 32:	//Compressed color-mapped data, using Huffman, Delta, and runlength encoding.
+	case 33:	//Compressed color-mapped data, using Huffman, Delta, and runlength encoding.  4-pass quadtree-type process.
+		break;
+	default:
+		return NULL;
+	}
+	//validate the size to some sanity limit.
+	if ((unsigned short)tgaheader.width > 8192 || (unsigned short)tgaheader.height > 8192)
+		return NULL;
+
 
 	flipped = !((tgaheader.attribs & 0x20) >> 5);
 #ifndef NPFTE
@@ -626,7 +648,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 		return initbuf;
 	}
 	else
-		Con_Printf("Unsupported version\n");
+		Con_Printf("TGA: Unsupported version\n");
 	return NULL;
 }
 

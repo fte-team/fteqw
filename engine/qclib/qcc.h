@@ -575,7 +575,7 @@ extern int optres_logicops;
 
 pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms);
 
-void QCC_PR_PrintStatement (QCC_dstatement_t *s);
+void QCC_PR_PrintStatement (QCC_statement_t *s);
 
 void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
@@ -889,9 +889,8 @@ extern unsigned int	numpr_globals;
 extern char		*strings;
 extern int			strofs;
 
-extern QCC_dstatement_t	*statements;
+extern QCC_statement_t	*statements;
 extern int			numstatements;
-extern int			*statement_linenums;
 
 extern QCC_dfunction_t	*functions;
 extern int			numfunctions;

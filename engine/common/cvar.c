@@ -1410,11 +1410,15 @@ void Cvar_Shutdown(void)
 				Cvar_DefaultFree(var->defaultstr);
 				var->defaultstr = NULL;
 			}
+			Z_Free(var->latched_string);
 			Z_Free(var->string);
 			if (var->flags & CVAR_POINTER)
 				Z_Free(var);
 			else
+			{
 				var->string = NULL;
+				var->latched_string = NULL;
+			}
 		}
 
 		grp = cvar_groups;

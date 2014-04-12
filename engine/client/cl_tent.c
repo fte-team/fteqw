@@ -204,11 +204,14 @@ typedef struct
 	vec3_t	avel;
 	int		flags;
 	float	gravity;
-	float	alpha;
+	float	startalpha;
+	float	endalpha;
 	float	start;
 	float	framerate;
 	model_t	*model;
 	int skinnum;
+	int		traileffect;
+	trailstate_t *trailstate;
 } explosion_t;
 
 explosion_t	*cl_explosions;
@@ -517,29 +520,11 @@ int CLQ2_RegisterTEntModels (void)
 	return true;
 }
 #endif
-/*
-=================
-CL_ClearTEnts
-=================
-*/
-void CL_ClearTEnts (void)
+
+static void CL_ClearExplosion(explosion_t *exp, vec3_t org)
 {
-	CL_ClearTEntParticleState();
-	CL_ShutdownTEnts();
-
-	cl_beams_max = 0;
-	BZ_Free(cl_beams);
-	cl_beams = NULL;
-	beams_running = 0;
-
-	cl_explosions_max = 0;
-	BZ_Free(cl_explosions);
-	cl_explosions = NULL;
-	explosions_running = 0;
-}
-
-static void CL_ClearExplosion(explosion_t *exp)
-{
+	exp->endalpha = 0;
+	exp->startalpha = 1;
 	exp->gravity = 0;
 	exp->flags = 0;
 	exp->model = NULL;
@@ -548,6 +533,34 @@ static void CL_ClearExplosion(explosion_t *exp)
 	VectorClear(exp->velocity);
 	VectorClear(exp->angles);
 	VectorClear(exp->avel);
+	P_DelinkTrailstate(&(exp->trailstate));
+	exp->traileffect = P_INVALID;
+	VectorCopy(org, exp->origin);
+	VectorCopy(org, exp->oldorigin);
+}
+
+/*
+=================
+CL_ClearTEnts
+=================
+*/
+void CL_ClearTEnts (void)
+{
+	int i;
+	CL_ClearTEntParticleState();
+	CL_ShutdownTEnts();
+
+	cl_beams_max = 0;
+	BZ_Free(cl_beams);
+	cl_beams = NULL;
+	beams_running = 0;
+
+	for (i = 0; i < cl_explosions_max; i++)
+		CL_ClearExplosion(cl_explosions+i, vec3_origin);
+	cl_explosions_max = 0;
+	BZ_Free(cl_explosions);
+	cl_explosions = NULL;
+	explosions_running = 0;
 }
 
 /*
@@ -555,7 +568,7 @@ static void CL_ClearExplosion(explosion_t *exp)
 CL_AllocExplosion
 =================
 */
-explosion_t *CL_AllocExplosion (void)
+explosion_t *CL_AllocExplosion (vec3_t org)
 {
 	int		i;
 	float	time;
@@ -565,7 +578,7 @@ explosion_t *CL_AllocExplosion (void)
 	{
 		if (!cl_explosions[i].model)
 		{
-			CL_ClearExplosion(&cl_explosions[i]);
+			CL_ClearExplosion(&cl_explosions[i], org);
 			return &cl_explosions[i];
 		}
 	}
@@ -576,10 +589,11 @@ explosion_t *CL_AllocExplosion (void)
 		{
 			cl_explosions_max = (i+1)*2;
 			cl_explosions = BZ_Realloc(cl_explosions, sizeof(*cl_explosions)*cl_explosions_max);
+			memset(cl_explosions + i, 0, sizeof(*cl_explosions)*(cl_explosions_max-i));
 		}
 
 		explosions_running++;
-		CL_ClearExplosion(&cl_explosions[i]);
+		CL_ClearExplosion(&cl_explosions[i], org);
 		return &cl_explosions[i];
 	}
 
@@ -593,7 +607,7 @@ explosion_t *CL_AllocExplosion (void)
 			time = cl_explosions[i].start;
 			index = i;
 		}
-	CL_ClearExplosion(&cl_explosions[index]);
+	CL_ClearExplosion(&cl_explosions[index], org);
 	return &cl_explosions[index];
 }
 
@@ -922,6 +936,10 @@ void CL_ParseStream (int type)
 		b->model = Mod_ForName("models/fambeam.mdl", MLV_WARN);
 		b->particleeffect = P_FindParticleType("te_stream_famine");
 		break;
+	case TEH2_STREAM_CHAIN:
+		b->model = Mod_ForName("models/stchain.mdl", MLV_WARN);
+		b->particleeffect = P_FindParticleType("te_stream_chain");
+		break;
 	default:
 		Con_Printf("CL_ParseStream: type %i\n", type);
 		break;
@@ -1191,10 +1209,10 @@ void CL_ParseTEnt (void)
 	// sprite
 		if (cl_expsprite.ival) // temp hopefully
 		{
-			explosion_t *ex = CL_AllocExplosion ();
-			VectorCopy (pos, ex->origin);
+			explosion_t *ex = CL_AllocExplosion (pos);
 			ex->start = cl.time;
 			ex->model = Mod_ForName ("progs/s_explod.spr", MLV_WARN);
+			ex->endalpha = ex->startalpha;	//don't fade out
 		}
 		break;
 	case TE_EXPLOSION:			// rocket explosion
@@ -1231,8 +1249,7 @@ void CL_ParseTEnt (void)
 	// sprite
 		if (cl_expsprite.ival && !nqprot) // temp hopefully
 		{
-			explosion_t *ex = CL_AllocExplosion ();
-			VectorCopy (pos, ex->origin);
+			explosion_t *ex = CL_AllocExplosion (pos);
 			ex->start = cl.time;
 			ex->model = Mod_ForName ("progs/s_explod.spr", MLV_WARN);
 		}
@@ -2141,24 +2158,28 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect)
 {
 	explosion_t	*ex;
 	vec3_t spos;
 	float dlen;
 
-	ex = CL_AllocExplosion ();
-	VectorCopy (org, ex->origin);
+	ex = CL_AllocExplosion (org);
 	ex->start = cl.time;
 	ex->model = model;
 	ex->firstframe = startframe;
 	ex->numframes = framecount;
 	ex->framerate = framerate;
-	ex->alpha = alpha;
 	ex->skinnum = 0;
+	ex->traileffect = traileffect;
 
-	if (model->type == mod_alias)
+	if (alpha >= -1 && alpha < 1)
 		ex->flags |= RF_TRANSLUCENT;
+
+	//sprites always use a fixed alpha. models can too if the alpha is < 0
+	if (model->type == mod_sprite || alpha < 0)
+		ex->endalpha = fabs(alpha);
+	ex->startalpha = fabs(alpha);
 
 	if (randspin)
 	{
@@ -2192,6 +2213,7 @@ void CL_ParseEffect (qboolean effect2)
 	int startframe;
 	int framecount;
 	int framerate;
+	model_t *mod;
 
 	org[0] = MSG_ReadCoord();
 	org[1] = MSG_ReadCoord();
@@ -2210,8 +2232,8 @@ void CL_ParseEffect (qboolean effect2)
 	framecount = MSG_ReadByte();
 	framerate = MSG_ReadByte();
 
-
-	CL_SpawnSpriteEffect(org, vec3_origin, cl.model_precache[modelindex], startframe, framecount, framerate, 1, 0, 0);
+	mod = cl.model_precache[modelindex];
+	CL_SpawnSpriteEffect(org, vec3_origin, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 0, 0, P_INVALID);
 }
 
 #ifdef Q2CLIENT
@@ -2219,18 +2241,15 @@ void CL_SmokeAndFlash(vec3_t origin)
 {
 	explosion_t	*ex;
 
-	ex = CL_AllocExplosion ();
-	VectorCopy (origin, ex->origin);
+	ex = CL_AllocExplosion (origin);
 	VectorClear(ex->angles);
 //	ex->type = ex_misc;
 	ex->numframes = 4;
 	ex->flags = RF_TRANSLUCENT;
-	ex->alpha = 1;
 	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, MLV_WARN);
 
-	ex = CL_AllocExplosion ();
-	VectorCopy (origin, ex->origin);
+	ex = CL_AllocExplosion (origin);
 	VectorClear(ex->angles);
 //	ex->type = ex_flash;
 	ex->flags = Q2RF_FULLBRIGHT;
@@ -2241,10 +2260,11 @@ void CL_SmokeAndFlash(vec3_t origin)
 
 void CL_Laser (vec3_t start, vec3_t end, int colors)
 {
-	explosion_t	*ex = CL_AllocExplosion();
+	explosion_t	*ex = CL_AllocExplosion(start);
 	ex->firstframe = 0;
 	ex->numframes = 10;
-	ex->alpha = 0.33f;
+	ex->startalpha = 0.33f;
+	ex->endalpha = 0;
 	ex->model = NULL;
 	ex->skinnum = (colors >> ((rand() % 4)*8)) & 0xff;
 	VectorCopy (start, ex->origin);
@@ -2394,14 +2414,12 @@ void CLQ2_ParseTEnt (void)
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -5, -10, 20);
 
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 		ex->start = cl.time;
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|RF_ADDITIVE|RF_NOSHADOW|RF_TRANSLUCENT;
-		ex->alpha = 1;
 
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
@@ -2481,13 +2499,11 @@ void CLQ2_ParseTEnt (void)
 
 //		if (!R_ParticleExplosionHeart(pos))
 		{
-			ex = CL_AllocExplosion ();
-			VectorCopy (pos, ex->origin);
+			ex = CL_AllocExplosion (pos);
 			VectorClear(ex->angles);
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
 			ex->firstframe = 30;
-			ex->alpha = 1;
 			ex->flags |= RF_TRANSLUCENT;
 			ex->numframes = 19;
 		}
@@ -2576,12 +2592,10 @@ void CLQ2_ParseTEnt (void)
 	// sprite
 //		if (!R_ParticleExplosionHeart(pos))
 		{
-			ex = CL_AllocExplosion ();
-			VectorCopy (pos, ex->origin);
+			ex = CL_AllocExplosion (pos);
 			VectorClear(ex->angles);
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
-			ex->alpha = 1;
 			ex->flags |= RF_TRANSLUCENT;
 			if (rand()&1)
 				ex->firstframe = 15;
@@ -2725,8 +2739,7 @@ void CLQ2_ParseTEnt (void)
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, -10, 0, -10, 20);
 
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 		ex->start = cl.time;
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
@@ -2775,8 +2788,7 @@ void CLQ2_ParseTEnt (void)
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -2, 0, 20);
 
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 		ex->start = cl.time;
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
 		ex->firstframe = 0;
@@ -2831,8 +2843,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_PLAIN_EXPLOSION:
 		MSG_ReadPos (pos);
 
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 //		ex->type = ex_poly;
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->angles[1] = rand() % 360;
@@ -3019,8 +3030,7 @@ void CLQ2_ParseTEnt (void)
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	case CRTE_BLASTER_MUZZLEFLASH:
 		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
@@ -3028,8 +3038,7 @@ void CLQ2_ParseTEnt (void)
 		break;
 	case CRTE_BLUE_MUZZLEFLASH:
 		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
@@ -3037,8 +3046,7 @@ void CLQ2_ParseTEnt (void)
 		break;
 	case CRTE_SMART_MUZZLEFLASH:
 		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->origin);
+		ex = CL_AllocExplosion (pos);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
@@ -3048,7 +3056,7 @@ void CLQ2_ParseTEnt (void)
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	case CRTE_DEATHFIELD:
 		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion ();
+		ex = CL_AllocExplosion (pos);
 		VectorCopy (pos, ex->origin);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
@@ -3330,6 +3338,7 @@ void CL_UpdateExplosions (void)
 	int lastrunningexplosion = -1;
 	vec3_t pos, norm;
 	static float oldtime;
+	float		scale;
 	float frametime = cl.time - oldtime;
 	if (frametime < 0 || frametime > 100)
 		frametime = 0;
@@ -3354,12 +3363,20 @@ void CL_UpdateExplosions (void)
 		}
 
 		of = (int)f-1;
-		if ((int)f >= numframes || (int)f < 0)
+		if (ex->endalpha && (int)f == numframes)
+		{
+			scale = 1-(f-(int)f);	//if we have endalpha not 0, then there is a final 'bonus' frame where the model scales down to 0. use numframes+framerate to control how fast it fades.
+			f = of;	//clamp it to the old frame
+		}
+		else if ((int)f >= numframes || (int)f < 0)
 		{
 			ex->model = NULL;
 			ex->flags = 0;
+			P_DelinkTrailstate(&(ex->trailstate));
 			continue;
 		}
+		else
+			scale = 1;
 		if (of < 0)
 			of = 0;
 
@@ -3407,12 +3424,15 @@ void CL_UpdateExplosions (void)
 		ent->framestate.g[FS_REG].frame[1] = (int)f+firstframe;
 		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
 		ent->framestate.g[FS_REG].lerpfrac = (f - (int)f);
-		if (ent->model && ent->model->type == mod_sprite)
-			ent->shaderRGBAf[3] = ex->alpha;	/*sprites don't fade over time, the animation should do it*/
-		else
-			ent->shaderRGBAf[3] = (1.0 - f/(numframes))*ex->alpha;
+		ent->shaderRGBAf[3] = (1.0 - f/(numframes))*(ex->startalpha-ex->endalpha) + ex->endalpha;
 		ent->flags = ex->flags;
+		ent->scale = scale;
+		ent->drawflags = SCALE_ORIGIN_ORIGIN; 
 
+		if (ex->traileffect != P_INVALID)
+			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, 0, &(ex->trailstate));
+		if (!(ex->flags & Q2RF_BEAM))
+			VectorCopy(ent->origin, ex->oldorigin);	//don't corrupt q2 beams
 		if (ex->flags & Q2RF_BEAM)
 		{
 			ent->rtype = RT_BEAM;

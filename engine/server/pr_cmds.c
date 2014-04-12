@@ -2831,7 +2831,7 @@ static void QCBUILTIN PF_particle2 (pubprogfuncs_t *prinst, globalvars_t *pr_glo
 	MSG_WriteFloat (&sv.multicast, dmax[2]);
 
 	MSG_WriteShort (&sv.multicast, color);
-	MSG_WriteByte (&sv.multicast, count);
+	MSG_WriteByte (&sv.multicast, bound(0, count, 255));
 	MSG_WriteByte (&sv.multicast, effect);
 
 	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
@@ -2898,10 +2898,10 @@ static void QCBUILTIN PF_particle4 (pubprogfuncs_t *prinst, globalvars_t *pr_glo
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
 	MSG_WriteCoord (&sv.multicast, org[2]);
-	MSG_WriteByte (&sv.multicast, radius);
+	MSG_WriteByte (&sv.multicast, bound(0, radius, 255));
 
 	MSG_WriteShort (&sv.multicast, color);
-	MSG_WriteByte (&sv.multicast, count);
+	MSG_WriteByte (&sv.multicast, bound(0, count, 255));
 	MSG_WriteByte (&sv.multicast, effect);
 
 	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
@@ -2909,24 +2909,26 @@ static void QCBUILTIN PF_particle4 (pubprogfuncs_t *prinst, globalvars_t *pr_glo
 
 static void QCBUILTIN PF_h2particleexplosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	//used by the ice staff
-	Con_Printf("H2FIXME: PF_h2particleexplosion not implemented\n");
-/*
+	//used by the (regular) ice staff, and multiple other things.
 	float *org;
-	int color,radius,counter;
-
+	int color,radius,count, effect;
 	org = G_VECTOR(OFS_PARM0);
-	color = G_FLOAT(OFS_PARM1);
-	radius = G_FLOAT(OFS_PARM2);
-	counter = G_FLOAT(OFS_PARM3);
-	MSG_WriteByte(&sv.datagram, svc_particle_explosion);
-	MSG_WriteCoord(&sv.datagram, org[0]);
-	MSG_WriteCoord(&sv.datagram, org[1]);
-	MSG_WriteCoord(&sv.datagram, org[2]);
-	MSG_WriteShort(&sv.datagram, color);
-	MSG_WriteShort(&sv.datagram, radius);
-	MSG_WriteShort(&sv.datagram, counter);
-*/
+	radius = G_FLOAT(OFS_PARM1);
+	color = G_FLOAT(OFS_PARM2);
+	effect = 255;	//special explosion thing
+	count = G_FLOAT(OFS_PARM3);
+
+	MSG_WriteByte (&sv.multicast, svcfte_particle4);
+	MSG_WriteCoord (&sv.multicast, org[0]);
+	MSG_WriteCoord (&sv.multicast, org[1]);
+	MSG_WriteCoord (&sv.multicast, org[2]);
+	MSG_WriteByte (&sv.multicast, bound(0, radius, 255));
+
+	MSG_WriteShort (&sv.multicast, color);
+	MSG_WriteByte (&sv.multicast, count);
+	MSG_WriteByte (&sv.multicast, effect);
+
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
 /*
@@ -5076,23 +5078,41 @@ PF_changelevel
 */
 void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char	*s, *spot;
+	char newmap[MAX_QPATH];
+	char startspot[MAX_QPATH];
 
 // make sure we don't issue two changelevels (unless the last one failed)
 	if (sv.mapchangelocked)
 		return;
 	sv.mapchangelocked = true;
 
-	if (svprogfuncs->callargc == 2)
+	if (progstype == PROG_H2)
 	{
-		s = PR_GetStringOfs(prinst, OFS_PARM0);
-		spot = PR_GetStringOfs(prinst, OFS_PARM1);
-		Cbuf_AddText (va("\nchangelevel %s %s\n",s, spot), RESTRICT_LOCAL);
+		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot));
+		//these flags disable the whole levelcache thing. the spawnspot is meant to still and always be specified.
+		//hexen2 ALWAYS specifies two arguments, and it seems that raven left it blank in some single-player maps too.
+		//if we don't want to be stupid/broken in deathmatch, we might as well do the fully compatible thing
+		if ((int)pr_global_struct->serverflags & (16|32))
+		{
+			COM_QuotedString(va("*%s", PR_GetStringOfs(prinst, OFS_PARM0)), newmap, sizeof(newmap));
+			Cbuf_AddText (va("\nmap %s %s\n", newmap, startspot), RESTRICT_LOCAL);
+		}
+		else
+		{
+			COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM0), newmap, sizeof(newmap));
+			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
+		}
 	}
 	else
 	{
-		s = PR_GetStringOfs(prinst, OFS_PARM0);
-		Cbuf_AddText (va("\nmap %s\n",s), RESTRICT_LOCAL);
+		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM0), newmap, sizeof(newmap));
+		if (svprogfuncs->callargc == 2)
+		{
+			COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot));
+			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
+		}
+		else
+			Cbuf_AddText (va("\nmap %s\n", newmap), RESTRICT_LOCAL);
 	}
 }
 
@@ -7053,7 +7073,7 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("h2part.ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_redcloud]			= SV_CustomTEnt_Register("h2part.ce_redcloud",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("h2part.ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
-		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("h2part.ce_teleporterbody",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("h2part.ce_teleporterbody",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_boneshard]			= SV_CustomTEnt_Register("h2part.ce_boneshard",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_boneshrapnel]		= SV_CustomTEnt_Register("h2part.ce_boneshrapnel",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("h2part.ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
@@ -7384,15 +7404,35 @@ static void QCBUILTIN PF_h2endeffect(pubprogfuncs_t *prinst, struct globalvars_s
 
 static void QCBUILTIN PF_h2rain_go(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	/*
+	//used by (tomed) icemace.hc 
 	float *min = G_VECTOR(OFS_PARM0);
-	float *max = G_VECTOR(OFS_PMAR1);
+	float *max = G_VECTOR(OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
 	float *dir = G_VECTOR(OFS_PARM3);
 	float colour = G_FLOAT(OFS_PARM4);
 	float count = G_FLOAT(OFS_PARM5);
-	*/
-	Con_DPrintf("FTE-H2 FIXME: rain_go not implemented\n");
+
+	//this is some hacky alternative.
+	//fixme: the effect isn't bounded to the box
+	MSG_WriteByte(&sv.multicast, svc_temp_entity);
+	MSG_WriteByte(&sv.multicast, TEDP_PARTICLERAIN);
+	// min
+	MSG_WriteCoord(&sv.multicast, min[0]);
+	MSG_WriteCoord(&sv.multicast, min[1]);
+	MSG_WriteCoord(&sv.multicast, max[2]);
+	// max
+	MSG_WriteCoord(&sv.multicast, max[0]);
+	MSG_WriteCoord(&sv.multicast, max[1]);
+	MSG_WriteCoord(&sv.multicast, max[2]);
+	// velocity
+	MSG_WriteCoord(&sv.multicast, dir[0]);
+	MSG_WriteCoord(&sv.multicast, dir[1]);
+	MSG_WriteCoord(&sv.multicast, -(frandom()*700+256));	//dir not valid. fill in a default downwards direction
+	// count
+	MSG_WriteShort(&sv.multicast, min(count, 65535));
+	// colour
+	MSG_WriteByte(&sv.multicast, (int)colour&0xff);
+	SV_Multicast(NULL, MULTICAST_ALL);
 }
 
 static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -10375,10 +10415,10 @@ void PR_DumpPlatform_f(void)
 		{"PVSF_IGNOREPVS",		"const float", QW|NQ, "Ignores pvs. This entity is visible whereever you are on the map.", PVSF_IGNOREPVS},
 		{"PVSF_NOREMOVE",		"const float", QW|NQ, "Once visible to a client, this entity will remain visible. This can be useful for csqc and corpses.", PVSF_NOREMOVE},
 
+		//most of these are there for documentation rather than anything else.
 		{"INFOKEY_P_IP",		"const string", QW|NQ, NULL, 0, "\"ip\""},
 		{"INFOKEY_P_REALIP",	"const string", QW|NQ, NULL, 0, "\"realip\""},
 		{"INFOKEY_P_CSQCACTIVE","const string", QW|NQ, "Client has csqc enabled. CSQC ents etc will be sent to this player.", 0, "\"csqcactive\""},
-		{"INFOKEY_P_PING",		"const string", CS|QW|NQ, NULL, 0, "\"ping\""},
 		{"INFOKEY_P_SVPING",	"const string", QW|NQ, NULL, 0, "\"svping\""},
 		{"INFOKEY_P_GUID",		"const string", QW|NQ, "Some hash string which should be reasonably unique to this player's quake installation.", 0, "\"guid\""},
 		{"INFOKEY_P_CHALLENGE",	"const string", QW|NQ, NULL, 0, "\"challenge\""},
@@ -10386,6 +10426,18 @@ void PR_DumpPlatform_f(void)
 		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, NULL, 0, "\"download\""},
 		{"INFOKEY_P_TRUSTLEVEL","const string", QW|NQ, NULL, 0, "\"trustlevel\""},
 		{"INFOKEY_P_PROTOCOL",	"const string", QW|NQ, "The network protocol the client is using to connect to the server.", 0, "\"protocol\""},
+		{"INFOKEY_P_VIP",		"const string", QW|NQ, "1 if the player has the VIP 'penalty'.", 0, "\"*VIP\""},
+		{"INFOKEY_P_ISMUTED",	"const string", QW|NQ, "1 if the player has the 'mute' penalty and is not allowed to use the say/say_team commands.", 0, "\"*ismuted\""},
+		{"INFOKEY_P_ISDEAF",	"const string", QW|NQ, "1 if the player has the 'deaf' penalty and cannot see other people's say/say_team commands.", 0, "\"*isdeaf\""},
+		{"INFOKEY_P_ISCRIPPLED","const string", QW|NQ, "1 if the player has the cripple penalty, and their movement values are ignored (.movement is locked to 0).", 0, "\"*ismuted\""},
+		{"INFOKEY_P_ISCUFFED",	"const string", QW|NQ, "1 if the player has the cuff penalty, and is unable to attack or use impulses(.button0 and .impulse fields are locked to 0).", 0, "\"*ismuted\""},
+		{"INFOKEY_P_ISLAGGED",	"const string", QW|NQ, "1 if the player has the fakelag penalty and has an extra 200ms of lag.", 0, "\"*ismuted\""},
+		{"INFOKEY_P_PING",		"const string", CS|QW|NQ, "The player's ping time, in milliseconds.", 0, "\"ping\""},
+		{"INFOKEY_P_NAME",		"const string", CS|QW|NQ, "The player's name.", 0, "\"name\""},
+		{"INFOKEY_P_TOPCOLOR",	"const string", CS|QW|NQ, "The player's upper/shirt colour (palette index).", 0, "\"topcolor\""},
+		{"INFOKEY_P_BOTTOMCOLOR","const string", CS|QW|NQ, "The player's lower/pants/trouser colour (palette index).", 0, "\"bottomcolor\""},
+		{"INFOKEY_P_TOPCOLOR_RGB","const string", CS, "The player's upper/shirt colour as an rgb value in a format usable with stov.", 0, "\"topcolor_rgb\""},
+		{"INFOKEY_P_BOTTOMCOLOR_RGB","const string", CS, "The player's lower/pants/trouser colour as an rgb value in a format usable with stov.", 0, "\"bottomcolor_rgb\""},
 		{"INFOKEY_P_MUTED",		"const string", CS, "0: we can see the result of the player's say/say_team commands.   1: we see no say/say_team messages from this player. Use the ignore command to toggle this value.", 0, "\"ignored\""},
 		{"INFOKEY_P_VOIP_MUTED","const string", CS, "0: we can hear this player when they speak (assuming voip is generally enabled). 1: we ignore everything this player says. Use cl_voip_mute to change the values.", 0, "\"vignored\""},
 		{"INFOKEY_P_ENTERTIME",	"const string", CS, "Reads the timestamp at which the player entered the game, in terms of csqc's time global.", 0, "\"entertime\""},
@@ -10413,8 +10465,8 @@ void PR_DumpPlatform_f(void)
 		{"FL_CLASS_DEPENDENT",	"const float", H2, NULL, FL_CLASS_DEPENDENT},
 
 		{"MOVE_NORMAL",			"const float", QW|NQ|CS, NULL, MOVE_NORMAL},
-		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, NULL, MOVE_NOMONSTERS},
-		{"MOVE_MISSILE",		"const float", QW|NQ|CS, NULL, MOVE_MISSILE},
+		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, "The trace will ignore all non-solid_bsp entities.", MOVE_NOMONSTERS},
+		{"MOVE_MISSILE",		"const float", QW|NQ|CS, "The trace will use a bbox size of +/- 15 against entities with FL_MONSTER set.", MOVE_MISSILE},
 		{"MOVE_HITMODEL",		"const float", QW|NQ|CS, "Traces will impact the actual mesh of the model instead of merely their bounding box. Should generally only be used for tracelines. Note that this flag is unreliable as an object can animate through projectiles. The bounding box MUST be set to completely encompass the entity or those extra areas will be non-solid (leaving a hole for things to go through).", MOVE_HITMODEL},
 		{"MOVE_TRIGGERS",		"const float", QW|NQ|CS, "This trace type will impact only triggers. It will ignore non-solid entities.", MOVE_TRIGGERS},
 		{"MOVE_EVERYTHING",		"const float", QW|NQ|CS, "This type of trace will hit solids and triggers alike. Even non-solid entities.", MOVE_EVERYTHING},

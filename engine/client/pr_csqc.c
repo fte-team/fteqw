@@ -2954,7 +2954,7 @@ void QCBUILTIN PF_cl_effect(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	mdl = Mod_ForName(name, MLV_WARN);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, NULL, mdl, startframe, endframe, framerate, 1, 0, 0);
+		CL_SpawnSpriteEffect(org, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 0, 0, P_INVALID);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }
@@ -5253,6 +5253,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	int i;
 	string_t *str;
 	csqcedict_t *worldent;
+	char *cheats;
 	if (csprogs_promiscuous != anycsqc || csprogs_checksum != checksum)
 		CSQC_Shutdown();
 	csprogs_promiscuous = anycsqc;
@@ -5261,7 +5262,8 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	csqc_mayread = false;
 
 	csqc_singlecheats = cls.demoplayback;
-	if (atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
+	cheats = Info_ValueForKey(cl.serverinfo, "*cheats");
+	if (!Q_strcasecmp(cheats, "ON") || atoi(cheats))
 		csqc_singlecheats = true;
 #ifndef CLIENTONLY
 	else if (sv.state == ss_active && sv.allocated_client_slots == 1)

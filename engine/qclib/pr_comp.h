@@ -425,8 +425,14 @@ typedef struct statement32_s
 	unsigned int	a,b,c;
 } dstatement32_t;
 #define QCC_dstatement16_t dstatement16_t
-#define QCC_dstatement_t dstatement32_t
 #define QCC_dstatement32_t dstatement32_t
+
+typedef struct qcc_statement_s
+{
+	unsigned int	op;
+	unsigned int	a,b,c;
+	unsigned int	linenum;
+} QCC_statement_t;
 
 //these should be the same except the string type
 typedef struct ddef16_s

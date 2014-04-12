@@ -1020,7 +1020,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		if (extfield_mask & NQSND_VOLUME)
 			MSG_WriteByte (&sv.multicast, volume);
 		if (extfield_mask & NQSND_ATTENUATION)
-			MSG_WriteByte (&sv.multicast, attenuation*64);
+			MSG_WriteByte (&sv.multicast, bound(0, attenuation*64, 255));
 		if (extfield_mask & FTESND_PITCHADJ)
 			MSG_WriteByte (&sv.multicast, pitchadj);
 		if (extfield_mask & DPSND_LARGEENTITY)
@@ -1058,7 +1058,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		if (qwflags & SND_VOLUME)
 			MSG_WriteByte (&sv.multicast, volume);
 		if (qwflags & SND_ATTENUATION)
-			MSG_WriteByte (&sv.multicast, attenuation*64);
+			MSG_WriteByte (&sv.multicast, bound(0, attenuation*64, 255));
 		MSG_WriteByte (&sv.multicast, sound_num);
 		for (i=0 ; i<3 ; i++)
 			MSG_WriteCoord (&sv.multicast, origin[i]);
@@ -1075,7 +1075,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 	if (extfield_mask & NQSND_VOLUME)
 		MSG_WriteByte (&sv.nqmulticast, volume);
 	if (extfield_mask & NQSND_ATTENUATION)
-		MSG_WriteByte (&sv.nqmulticast, attenuation*64);
+		MSG_WriteByte (&sv.nqmulticast, bound(0, attenuation*64, 255));
 	if (extfield_mask & FTESND_PITCHADJ)
 		MSG_WriteByte (&sv.nqmulticast, pitchadj);
 	if (extfield_mask & DPSND_LARGEENTITY)

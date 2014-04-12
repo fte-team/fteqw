@@ -192,6 +192,7 @@ extern cvar_t          scr_showpause;
 extern cvar_t          scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
+extern cvar_t			scr_sshot_prefix;
 extern cvar_t			scr_sshot_compression;
 extern  		cvar_t  crosshair;
 extern cvar_t			scr_consize;
@@ -1934,7 +1935,7 @@ SCR_ScreenShot_f
 void SCR_ScreenShot_f (void)
 {
 	char			sysname[1024];
-	char            pcxname[80];
+	char            pcxname[MAX_QPATH];
 	int                     i;
 	vfsfile_t *vfs;
 	void *rgbbuffer;
@@ -1958,23 +1959,22 @@ void SCR_ScreenShot_f (void)
 	}
 	else
 	{
+		int stop = 1000;
+		char date[MAX_QPATH];
+		time_t tm = time(NULL);
+		strftime(date, sizeof(date), "%Y%m%d%H%M%S", localtime(&tm));
 	//
 	// find a file name to save it to
 	//
-		Q_snprintfz(pcxname, sizeof(pcxname), "screenshots/fte00000.%s", scr_sshot_type.string);
-
-		for (i=0 ; i<=100000 ; i++)
+		for (i=0 ; i<stop ; i++)
 		{
-			pcxname[16] = (i%10000)/1000 + '0';
-			pcxname[17] = (i%1000)/100 + '0';
-			pcxname[18] = (i%100)/10 + '0';
-			pcxname[19] = (i%10) + '0';
+			Q_snprintfz(pcxname, sizeof(pcxname), "%s-%s-%i.%s", scr_sshot_prefix.string, date, i, scr_sshot_type.string);
 
 			if (!(vfs = FS_OpenVFS(pcxname, "rb", FS_GAMEONLY)))
 				break;  // file doesn't exist
 			VFS_CLOSE(vfs);
 		}
-		if (i==100000)
+		if (i==stop)
 		{
 			Con_Printf ("SCR_ScreenShot_f: Couldn't create sequentially named file\n");
 			return;

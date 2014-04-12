@@ -1086,7 +1086,7 @@ void CL_ParseParticleEffect4 (void);
 int CL_TranslateParticleFromServer(int sveffect);
 void CL_ParseTrailParticles(void);
 void CL_ParsePointParticles(qboolean compact);
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity);	/*called from the particlesystem*/
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect);	/*called from the particlesystem*/
 
 //
 // cl_ents.c

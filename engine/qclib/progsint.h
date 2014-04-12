@@ -179,6 +179,12 @@ typedef struct
 	int		priority;	//FIXME: priority should be done differently...
 	enum {ASSOC_LEFT, ASSOC_RIGHT, ASSOC_RIGHT_RESULT}			associative;
 	struct QCC_type_s		**type_a, **type_b, **type_c;
+
+	unsigned int flags;
+	//ASSIGNS_B
+	//ASSIGNS_IB
+	//ASSIGNS_C
+	//ASSIGNS_IC
 } QCC_opcode_t;
 extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 

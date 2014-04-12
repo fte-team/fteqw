@@ -477,9 +477,9 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWNORMAL);
 
-			if (ActiveApp && modestate == MS_FULLSCREEN)
+			if (modestate == MS_FULLSCREEN)
 			{
-				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, d3dscreen);
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, ActiveApp, d3dscreen);
 				D3D11_DoResize();
 			}
 			Cvar_ForceCallback(&v_gamma);

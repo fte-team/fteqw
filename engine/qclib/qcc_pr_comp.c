@@ -166,7 +166,7 @@ enum
 	STFL_CONVERTB=1<<3
 };
 #define QCC_PR_Statement(op,a,b,st) QCC_PR_StatementFlags(op,a,b,st,STFL_CONVERTA|STFL_CONVERTB)
-QCC_def_t *QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_dstatement_t **outstatement, unsigned int flags);
+QCC_def_t *QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_statement_t **outstatement, unsigned int flags);
 
 void QCC_PR_ParseState (void);
 pbool expandedemptymacro;
@@ -1016,7 +1016,7 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 			return false;
 //		if (num >= OP_MULSTORE_F && num <= OP_SUBSTOREP_V)
 //			return false;
-		if (num <= OP_CALL8H)	//CALLXH are fixed up. This is to provide more dynamic switching...??
+		if (num <= OP_CALL8H)	//CALLXH are fixed up. This is to provide more dynamic switching...
 			return true;
 		return false;
 	case QCF_FTEH2:
@@ -1547,7 +1547,7 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 
 	QCC_def_t *def;
 	int newofs;
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	int i;
 
 	newofs = 0;
@@ -1839,7 +1839,7 @@ int QCC_PR_FindSourceForAssignedOffset(int ofs, int firstst)
 
 pbool QCC_Temp_Describe(QCC_def_t *def, char *buffer, int buffersize)
 {
-	QCC_dstatement_t	*s;
+	QCC_statement_t	*s;
 	int st;
 	temp_t *t = def->temp;
 	if (!t)
@@ -1859,15 +1859,15 @@ pbool QCC_Temp_Describe(QCC_def_t *def, char *buffer, int buffersize)
 	return true;
 }
 
-QCC_dstatement_t *QCC_PR_SimpleStatement( int op, int var_a, int var_b, int var_c, int force);
+QCC_statement_t *QCC_PR_SimpleStatement( int op, int var_a, int var_b, int var_c, int force);
 
-QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_dstatement_t **outstatement, unsigned int flags)
+QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_statement_t **outstatement, unsigned int flags)
 {
 	char typea[256], typeb[256];
-	QCC_dstatement_t	*statement;
+	QCC_statement_t	*statement;
 	QCC_def_t			*var_c=NULL, *temp=NULL;
 
-	if (outstatement == (QCC_dstatement_t **)0xffffffff)
+	if (outstatement == (QCC_statement_t **)0xffffffff)
 	{
 		outstatement = NULL;
 		flags &= ~(STFL_CONVERTA|STFL_CONVERTB);
@@ -2591,21 +2591,18 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 		case OP_ADDSTORE_I:
 			op = &pr_opcodes[OP_ADD_I];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 		case OP_ADDSTORE_FI:
 			op = &pr_opcodes[OP_ADD_FI];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 //		case OP_ADDSTORE_IF:
 //			fixme: result is a float but needs to be an int
@@ -2613,7 +2610,6 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 //			var_c = var_b;
 //			var_b = var_a;
 //			var_a = var_c;
-//			var_c = var_a;
 //			break;
 
 		case OP_SUBSTORE_F:
@@ -2621,14 +2617,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 		case OP_SUBSTORE_FI:
 			op = &pr_opcodes[OP_SUB_FI];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 //		case OP_SUBSTORE_IF:
 //			fixme: result is a float but needs to be an int
@@ -2636,14 +2630,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 //			var_c = var_b;
 //			var_b = var_a;
 //			var_a = var_c;
-//			var_c = var_a;
 //			break;
 		case OP_SUBSTORE_I:
 			op = &pr_opcodes[OP_SUB_I];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_BINARYNOT_I:
@@ -2654,7 +2646,7 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 		case OP_BINARYNOT_F:
 			op = &pr_opcodes[OP_SUB_F];
 			var_b = var_a;
-			var_a = QCC_MakeFloatConst(0xffffff);	//due to fpu precision, we only use 24 bits.
+			var_a = QCC_MakeFloatConst(-1);	//divVerent says -1 is safe, even with floats. I guess I'm just too paranoid.
 			break;
 
 		case OP_DIVSTORE_F:
@@ -2662,14 +2654,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 		case OP_DIVSTORE_FI:
 			op = &pr_opcodes[OP_DIV_FI];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 //		case OP_DIVSTORE_IF:
 //			fixme: result is a float, but needs to be an int
@@ -2677,14 +2667,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 //			var_c = var_b;
 //			var_b = var_a;
 //			var_a = var_c;
-//			var_c = var_a;
 //			break;
 		case OP_DIVSTORE_I:
 			op = &pr_opcodes[OP_DIV_I];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_MULSTORE_F:
@@ -2692,7 +2680,6 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 //		case OP_MULSTORE_IF:
 //			fixme: result is a float, but needs to be an int
@@ -2700,14 +2687,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 //			var_c = var_b;
 //			var_b = var_a;
 //			var_a = var_c;
-//			var_c = var_a;
 //			break;
 		case OP_MULSTORE_FI:
 			op = &pr_opcodes[OP_MUL_FI];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_ADDSTORE_V:
@@ -2715,7 +2700,6 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_SUBSTORE_V:
@@ -2723,7 +2707,6 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_MULSTORE_VF:
@@ -2731,14 +2714,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 		case OP_MULSTORE_VI:
 			op = &pr_opcodes[OP_MUL_VI];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_BITSETSTORE_I:
@@ -2746,14 +2727,12 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 		case OP_BITSETSTORE_F:
 			op = &pr_opcodes[OP_BITOR_F];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
-			var_c = var_a;
 			break;
 
 		case OP_STOREP_P:
@@ -2881,25 +2860,25 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 					}
 
 					/*generate new OP_ADDRESS instruction - FIXME: the arguments may have changed since the original instruction*/
-					statement_linenums[statement-statements] = statement_linenums[st];
 					statement->op = OP_ADDRESS;
 					statement->a = statements[st].a;
 					statement->b = statements[st].b;
 					statement->c = var_c->ofs;
+					statement->linenum = statements[st].linenum;
 
 					/*convert old one to an OP_LOAD*/
-					statement_linenums[st] = pr_token_line_last;
 					statements[st].op = ((*op->type_c)->type==ev_vector)?OP_LOAD_V:OP_LOAD_F;
 //					statements[st].a = statements[st].a;
 //					statements[st].b = statements[st].b;
 //					statements[st].c = statements[st].c;
+					statements[st].linenum = pr_token_line_last;
 				}
 			}
 
 			statement = &statements[numstatements];
 			numstatements++;
 
-			statement_linenums[statement-statements] = pr_token_line_last;
+			statement->linenum = pr_token_line_last;
 			switch(op - pr_opcodes)
 			{
 			case OP_SUBSTOREP_V:
@@ -2973,7 +2952,7 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 				statement = &statements[numstatements];
 				numstatements++;
 
-				statement_linenums[statement-statements] = pr_token_line_last;
+				statement->linenum = pr_token_line_last;
 				statement->op = OP_SUB_F;
 
 				//t = c & i
@@ -3039,7 +3018,7 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 	if (outstatement)
 		*outstatement = statement;
 
-	statement_linenums[statement-statements] = pr_token_line_last;
+	statement->linenum = pr_token_line_last;
 	statement->op = op - pr_opcodes;
 	statement->a = var_a ? var_a->ofs : 0;
 	statement->b = var_b ? var_b->ofs : 0;
@@ -3112,29 +3091,29 @@ QCC_PR_SimpleStatement
 Emits a primitive statement, returning the var it places it's value in
 ============
 */
-QCC_dstatement_t *QCC_PR_SimpleStatement( int op, int var_a, int var_b, int var_c, int force)
+QCC_statement_t *QCC_PR_SimpleStatement( int op, int var_a, int var_b, int var_c, int force)
 {
-	QCC_dstatement_t	*statement;
+	QCC_statement_t	*statement;
 
 	if (!force && !QCC_OPCodeValid(pr_opcodes+op))
 	{
 		QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target\n", pr_opcodes[op].name, pr_opcodes[op].opname);
 	}
 
-	statement_linenums[numstatements] = pr_token_line_last;
 	statement = &statements[numstatements];
-
 	numstatements++;
+
 	statement->op = op;
 	statement->a = var_a;
 	statement->b = var_b;
 	statement->c = var_c;
+	statement->linenum = pr_token_line_last;
 	return statement;
 }
 
 void QCC_PR_Statement3 ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_def_t *var_c, int force)
 {
-	QCC_dstatement_t	*statement;
+	QCC_statement_t	*statement;
 
 	if (!force && !QCC_OPCodeValid(op))
 	{
@@ -3146,11 +3125,11 @@ void QCC_PR_Statement3 ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, Q
 	statement = &statements[numstatements];
 	numstatements++;
 
-	statement_linenums[statement-statements] = pr_token_line_last;
 	statement->op = op - pr_opcodes;
 	statement->a = var_a ? var_a->ofs : 0;
 	statement->b = var_b ? var_b->ofs : 0;
 	statement->c = var_c ? var_c->ofs : 0;
+	statement->linenum = pr_token_line_last;
 }
 
 /*
@@ -3493,7 +3472,7 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC
 //	int np;
 
 	int callconvention;
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 
 
 	func->timescalled++;
@@ -3628,11 +3607,11 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *newself, QCC_def_t *func, QCC
 
 	//generate the call
 	if (argcount>MAX_PARMS)
-		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[callconvention-1+MAX_PARMS], func, 0, (QCC_dstatement_t **)&st));
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[callconvention-1+MAX_PARMS], func, 0, (QCC_statement_t **)&st));
 	else if (argcount)
-		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[callconvention-1+argcount], func, 0, (QCC_dstatement_t **)&st));
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[callconvention-1+argcount], func, 0, (QCC_statement_t **)&st));
 	else
-		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_CALL0], func, 0, (QCC_dstatement_t **)&st));
+		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_CALL0], func, 0, (QCC_statement_t **)&st));
 
 	if (callconvention == OP_CALL1H)
 	{
@@ -3906,7 +3885,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 				{
 					if (d)
 					{
-						QCC_dstatement_t *st;
+						QCC_statement_t *st;
 						QCC_def_t *t;
 						QCC_PR_SimpleStatement(OP_CALL0, func->ofs, 0, 0, false);
 
@@ -4311,16 +4290,16 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 
 			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");
-			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, QCC_MakeIntConst(1), (QCC_dstatement_t **)0xffffffff);
+			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, QCC_MakeIntConst(1), (QCC_statement_t **)0xffffffff);
 
 			d = QCC_PR_GetDef(NULL, "nextent", NULL, false, 0, false);
 			if (!d)
 				QCC_PR_ParseError(0, "the nextent builtin is not defined");
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], e, &def_parms[0], (QCC_dstatement_t **)0xffffffff));
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], e, &def_parms[0], (QCC_statement_t **)0xffffffff));
 			d = QCC_PR_Statement(&pr_opcodes[OP_CALL0], d, NULL, NULL);
-			d = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], d, QCC_MakeIntConst(1), (QCC_dstatement_t **)0xffffffff);
+			d = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], d, QCC_MakeIntConst(1), (QCC_statement_t **)0xffffffff);
 
-			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, d, (QCC_dstatement_t **)0xffffffff);
+			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, d, (QCC_statement_t **)0xffffffff);
 
 			return e;
 		}
@@ -4390,11 +4369,11 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 				e = &def_parms[arg];
 
 				e->ofs = OFS_PARM0+0;
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[0]), e, (QCC_dstatement_t **)0xffffffff));
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[0]), e, (QCC_statement_t **)0xffffffff));
 				e->ofs = OFS_PARM0+1;
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[1]), e, (QCC_dstatement_t **)0xffffffff));
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[1]), e, (QCC_statement_t **)0xffffffff));
 				e->ofs = OFS_PARM0+2;
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[2]), e, (QCC_dstatement_t **)0xffffffff));
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[2]), e, (QCC_statement_t **)0xffffffff));
 				e->ofs = OFS_PARM0;
 				e->type = type_vector;
 
@@ -5316,12 +5295,12 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 		}
 /*		else if (d->type->type == ev_vector && d->arraysize == 0)
 		{	//array notation on vectors (non-field)
-			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_SupplyConversion(idx, ev_integer, true), (QCC_dstatement_t **)0xffffffff);
+			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_SupplyConversion(idx, ev_integer, true), (QCC_statement_t **)0xffffffff);
 			d->type = type_float;
 		}
 *//*	else if (d->type->type == ev_field && d->type->aux_type->type == ev_vector && d->arraysize == 0)
 		{	//array notation on vectors (fields)
-			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_FLD], d, QCC_SupplyConversion(idx, ev_integer, true), (QCC_dstatement_t **)0xffffffff);
+			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_FLD], d, QCC_SupplyConversion(idx, ev_integer, true), (QCC_statement_t **)0xffffffff);
 			d->type = type_floatfield;
 		}
 */		else
@@ -5418,19 +5397,19 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		d = QCC_GetTemp(type_vector);
 		d->type = type_float;
 		if (x->type->type == ev_float)
-			QCC_PR_Statement(pr_opcodes + OP_STORE_F, x, d, (QCC_dstatement_t **)0xffffffff);
+			QCC_PR_Statement(pr_opcodes + OP_STORE_F, x, d, (QCC_statement_t **)0xffffffff);
 		else
-			QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, x, d, (QCC_dstatement_t **)0xffffffff);
+			QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, x, d, (QCC_statement_t **)0xffffffff);
 		d->ofs++;
 		if (y->type->type == ev_float)
-			QCC_PR_Statement(pr_opcodes + OP_STORE_F, y, d, (QCC_dstatement_t **)0xffffffff);
+			QCC_PR_Statement(pr_opcodes + OP_STORE_F, y, d, (QCC_statement_t **)0xffffffff);
 		else
-			QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, y, d, (QCC_dstatement_t **)0xffffffff);
+			QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, y, d, (QCC_statement_t **)0xffffffff);
 		d->ofs++;
 		if (z->type->type == ev_float)
-			QCC_PR_Statement(pr_opcodes + OP_STORE_F, z, d, (QCC_dstatement_t **)0xffffffff);
+			QCC_PR_Statement(pr_opcodes + OP_STORE_F, z, d, (QCC_statement_t **)0xffffffff);
 		else
-			QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, z, d, (QCC_dstatement_t **)0xffffffff);
+			QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, z, d, (QCC_statement_t **)0xffffffff);
 		d->ofs++;
 		d->ofs -= 3;
 		d->type = type_vector;
@@ -5995,7 +5974,7 @@ QCC_def_t *QCC_CollapseStore(QCC_def_t *dest, QCC_def_t *source, QCC_type_t *typ
 	{
 		if (source->temp)
 		{
-			QCC_dstatement_t *statement = &statements[numstatements-1];
+			QCC_statement_t *statement = &statements[numstatements-1];
 			statement->c = dest->ofs;
 			dest->references++;
 
@@ -6296,7 +6275,7 @@ QCC_def_t *QCC_LoadFromArray(QCC_def_t *base, QCC_def_t *index, QCC_type_t *t, p
 				for (i = 0; i < t->size; i++)
 				{
 					if (i)
-						args[0] = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], index, QCC_MakeFloatConst(i), (QCC_dstatement_t **)0xffffffff);
+						args[0] = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], index, QCC_MakeFloatConst(i), (QCC_statement_t **)0xffffffff);
 					else
 					{
 						args[0] = index;
@@ -6305,7 +6284,7 @@ QCC_def_t *QCC_LoadFromArray(QCC_def_t *base, QCC_def_t *index, QCC_type_t *t, p
 					r = QCC_PR_GenerateFunctionCall(NULL, funcretr, args, &type_float, 1);
 					opt_assignments = old_op;
 					QCC_UnFreeTemp(index);
-					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], r, base, (QCC_dstatement_t **)0xffffffff));
+					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], r, base, (QCC_statement_t **)0xffffffff));
 					base->ofs++;
 				}
 				QCC_FreeTemp(index);
@@ -6777,39 +6756,36 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 	while (1)
 	{
-		if (priority == FUNC_PRIORITY)
+		if (priority == FUNC_PRIORITY && QCC_PR_CheckToken ("(") )
 		{
-			if (QCC_PR_CheckToken ("(") )
-			{
-				qcc_usefulstatement=true;
-				lhsd = QCC_PR_ParseFunctionCall (lhsr);
-				lhsd = QCC_PR_ParseArrayPointer(lhsd, true, true);
-				lhsr = QCC_DefToRef(retbuf, lhsd);
-			}
-			if (QCC_PR_CheckToken ("?"))
-			{
-				QCC_def_t *val, *r;
-				QCC_dstatement32_t *fromj, *elsej;
-				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT_I], QCC_RefToDef(lhsr, true), NULL, &fromj));
-				val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
-				r = QCC_GetTemp(val->type);
-				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, (QCC_dstatement_t **)0xffffffff));
-				//r can be stomped upon until its reused anyway
-				QCC_UnFreeTemp(r);
+			qcc_usefulstatement=true;
+			lhsd = QCC_PR_ParseFunctionCall (lhsr);
+			lhsd = QCC_PR_ParseArrayPointer(lhsd, true, true);
+			lhsr = QCC_DefToRef(retbuf, lhsd);
+		}
+		if (priority == FUNC_PRIORITY && QCC_PR_CheckToken ("?"))
+		{
+			QCC_def_t *val, *r;
+			QCC_statement_t *fromj, *elsej;
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT_I], QCC_RefToDef(lhsr, true), NULL, &fromj));
+			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			r = QCC_GetTemp(val->type);
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, (QCC_statement_t **)0xffffffff));
+			//r can be stomped upon until its reused anyway
+			QCC_UnFreeTemp(r);
 
-				QCC_PR_Expect(":");
-				QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, &elsej);
-				fromj->b = &statements[numstatements] - fromj;
-				val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			QCC_PR_Expect(":");
+			QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, &elsej);
+			fromj->b = &statements[numstatements] - fromj;
+			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 
-				if (typecmp(val->type, r->type) != 0)
-					QCC_PR_ParseError(0, "Ternary operator with mismatching types\n");
-				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, (QCC_dstatement_t **)0xffffffff));
-				QCC_UnFreeTemp(r);
+			if (typecmp(val->type, r->type) != 0)
+				QCC_PR_ParseError(0, "Ternary operator with mismatching types\n");
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, (QCC_statement_t **)0xffffffff));
+			QCC_UnFreeTemp(r);
 
-				elsej->a = &statements[numstatements] - elsej;
-				return QCC_DefToRef(retbuf, r);
-			}
+			elsej->a = &statements[numstatements] - elsej;
+			return QCC_DefToRef(retbuf, r);
 		}
 
 		opnum=0;
@@ -7059,7 +7035,7 @@ int QCC_PR_IntConstExpr(void)
 	return true;
 }
 
-void QCC_PR_GotoStatement (QCC_dstatement_t *patch2, char *labelname)
+void QCC_PR_GotoStatement (QCC_statement_t *patch2, char *labelname)
 {
 	if (num_gotos >= max_gotos)
 	{
@@ -7074,7 +7050,7 @@ void QCC_PR_GotoStatement (QCC_dstatement_t *patch2, char *labelname)
 	num_gotos++;
 }
 
-pbool QCC_PR_StatementBlocksMatch(QCC_dstatement_t *p1, int p1count, QCC_dstatement_t *p2, int p2count)
+pbool QCC_PR_StatementBlocksMatch(QCC_statement_t *p1, int p1count, QCC_statement_t *p2, int p2count)
 {
 	if (p1count != p2count)
 		return false;
@@ -7098,9 +7074,9 @@ pbool QCC_PR_StatementBlocksMatch(QCC_dstatement_t *p1, int p1count, QCC_dstatem
 }
 
 //vanilla qc only has an OP_IFNOT_I, others will be emulated as required, so we tend to need to emulate other opcodes.
-QCC_dstatement_t *QCC_Generate_OP_IF(QCC_def_t *e)
+QCC_statement_t *QCC_Generate_OP_IF(QCC_def_t *e)
 {
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	switch(e->type->type)
 	{
 	//int/pointer types
@@ -7143,9 +7119,9 @@ QCC_dstatement_t *QCC_Generate_OP_IF(QCC_def_t *e)
 	}
 	return st;
 }
-QCC_dstatement_t *QCC_Generate_OP_IFNOT(QCC_def_t *e)
+QCC_statement_t *QCC_Generate_OP_IFNOT(QCC_def_t *e)
 {
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	switch(e->type->type)
 	{
 	//int/pointer types
@@ -7201,7 +7177,7 @@ void QCC_PR_ParseStatement (void)
 	int cases;
 	int i;
 	QCC_def_t				*e, *e2;
-	QCC_dstatement_t		*patch1, *patch2, *patch3;
+	QCC_statement_t		*patch1, *patch2, *patch3;
 	int statementstart = pr_source_line;
 	pbool wasuntil;
 
@@ -7382,8 +7358,7 @@ void QCC_PR_ParseStatement (void)
 		int old_numstatements;
 		int numtemp, i;
 
-		int					linenum[32];
-		QCC_dstatement_t		temp[sizeof(linenum)/sizeof(linenum[0])];
+		QCC_statement_t		temp[32];
 
 		continues = num_continues;
 		breaks = num_breaks;
@@ -7412,12 +7387,11 @@ void QCC_PR_ParseStatement (void)
 			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, 0));
 
 			numtemp = numstatements - old_numstatements;
-			if (numtemp > sizeof(linenum)/sizeof(linenum[0]))
+			if (numtemp > sizeof(temp)/sizeof(temp[0]))
 				QCC_PR_ParseError(ERR_TOOCOMPLEX, "Update expression too large");
 			numstatements = old_numstatements;
 			for (i = 0 ; i < numtemp ; i++)
 			{
-				linenum[i] = statement_linenums[numstatements + i];
 				temp[i] = statements[numstatements + i];
 			}
 
@@ -7435,7 +7409,6 @@ void QCC_PR_ParseStatement (void)
 		patch3 = &statements[numstatements];
 		for (i = 0 ; i < numtemp ; i++)
 		{
-			statement_linenums[numstatements] = linenum[i];
 			statements[numstatements++] = temp[i];
 		}
 		QCC_PR_SimpleStatement(OP_GOTO, patch2 - &statements[numstatements], 0, 0, false);
@@ -8229,7 +8202,7 @@ void QCC_PR_ParseState (void)
 
 void QCC_PR_ParseAsm(void)
 {
-	QCC_dstatement_t *patch1;
+	QCC_statement_t *patch1;
 	int op, p;
 	QCC_def_t *a, *b, *c;
 
@@ -8769,7 +8742,7 @@ int QCC_CheckOneUninitialised(int firststatement, int laststatement, unsigned in
 {
 	int ret;
 	int i;
-	QCC_dstatement32_t *st;
+	QCC_statement_t *st;
 
 	for (i = firststatement; i < laststatement; i++)
 	{
@@ -8891,7 +8864,7 @@ pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 		err = QCC_CheckOneUninitialised(firststatement, laststatement, min, max);
 		if (err > 0)
 		{
-			QCC_PR_Warning(WARN_UNINITIALIZED, strings+s_file, statement_linenums[err], "Potentially uninitialised variable %s", local->name);
+			QCC_PR_Warning(WARN_UNINITIALIZED, strings+s_file, statements[err].linenum, "Potentially uninitialised variable %s", local->name);
 			result = true;
 //			break;
 		}
@@ -8902,7 +8875,7 @@ pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 
 void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, unsigned int min, unsigned int max, unsigned int newmin)
 {
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	unsigned int i;
 
 	for (i = firststatement, st = &statements[i]; i < laststatement; i++, st++)
@@ -9082,7 +9055,7 @@ void QCC_WriteAsmFunction(QCC_def_t	*sc, unsigned int firststatement, gofs_t fir
 				}
 			}
 		}
-		fprintf(asmfile, "; /*%i*/\n", statement_linenums[i]);
+		fprintf(asmfile, "; /*%i*/\n", statements[i].linenum);
 	}
 
 	fprintf(asmfile, "}\n\n");
@@ -9379,7 +9352,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type)
 
 void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int min, int max)
 {
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	QCC_def_t *eq;
 	int stride;
 
@@ -9420,7 +9393,7 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 //This is useful when we have a load of indexes.
 void QCC_PR_ArrayRecurseDivideUsingVectors(QCC_def_t *array, QCC_def_t *index, int min, int max)
 {
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	QCC_def_t *eq;
 	if (min == max || min+1 == max)
 	{
@@ -9517,7 +9490,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *ar
 	QCC_dfunction_t *df;
 	QCC_def_t *index;
 
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	QCC_def_t *eq;
 
 	QCC_def_t *fasttrackpossible;
@@ -9651,7 +9624,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *ar
 
 void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t *value, int min, int max)
 {
-	QCC_dstatement_t *st;
+	QCC_statement_t *st;
 	QCC_def_t *eq;
 	int stride;
 
@@ -9734,7 +9707,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *ar
 
 	if (fasttrackpossible)
 	{
-		QCC_dstatement_t *st;
+		QCC_statement_t *st;
 
 		QCC_PR_Statement(pr_opcodes+OP_IFNOT_I, fasttrackpossible, NULL, &st);
 		//note that the array size is coded into the globals, one index before the array.

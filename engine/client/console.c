@@ -116,6 +116,9 @@ void Con_Destroy (console_t *con)
 	if (con->footerline)
 		Z_Free(con->footerline);
 	con->footerline = NULL;
+	if (con->completionline)
+		Z_Free(con->completionline);
+	con->completionline = NULL;
 
 	if (con == &con_main)
 	{

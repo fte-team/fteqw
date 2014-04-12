@@ -4155,6 +4155,8 @@ char *Shader_DefaultBSPWater(const char *shortname)
 		wstyle = r_lavastyle.ival;
 	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*slime", 5) && *r_slimestyle.string)
 		wstyle = r_slimestyle.ival;
+	else if (!strncmp(shortname, "*lava", 5))
+		wstyle = -2;
 	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && strncmp(shortname, "*lava", 5))
 		wstyle = r_waterstyle.ival<1?1:r_waterstyle.ival;
 #endif
@@ -4171,6 +4173,17 @@ char *Shader_DefaultBSPWater(const char *shortname)
 		return (
 			"{\n"
 				"surfaceparm nodraw\n"
+				"surfaceparm nodlight\n"
+			"}\n"
+		);
+	case -2:	//regular with r_wateralpha forced off.
+		return (
+			"{\n"
+				"program defaultwarp\n"
+				"{\n"
+					"map $diffuse\n"
+					"tcmod turb 0.02 0.1 0.5 0.1\n"
+				"}\n"
 				"surfaceparm nodlight\n"
 			"}\n"
 		);

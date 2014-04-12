@@ -1427,6 +1427,13 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 				if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
 					sort = SHADER_SORT_BLEND;
 			}
+			else if (e->drawflags & DRF_TRANSLUCENT)
+			{
+				b->flags |= BEF_FORCETRANSPARENT;
+				if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
+					sort = SHADER_SORT_BLEND;
+				e->shaderRGBAf[3] = r_wateralpha.value;
+			}
 			if (e->flags & RF_NODEPTHTEST)
 			{
 				b->flags |= BEF_FORCENODEPTH;

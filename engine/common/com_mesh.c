@@ -2828,6 +2828,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"{\n"
 							"map $diffuse\n"
 							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
+							"alphagen entity\n"
 							"rgbgen lightingDiffuse\n"
 							"cull disable\n"
 							"depthwrite\n"
@@ -2838,17 +2839,21 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 							"alphafunc ge128\n"
 							"rgbgen lightingDiffuse\n"
+							"alphagen entity\n"
 							"depthwrite\n"
 						"}\n"
 					"}\n");
 			else if (skintranstype)
 				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
 					"{\n"
+//						"program defaultskin\n"
 						"{\n"
 							"map $diffuse\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"alphagen entity\n"
 							"rgbgen lightingDiffuse\n"
 							"depthwrite\n"
 						"}\n"
@@ -3049,10 +3054,10 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 //skins
 	skinstart = (daliasskintype_t *)((char*)pq1inmodel+hdrsize);
 
-	if( mod->flags & MFH2_HOLEY )
-		skintranstype = 3;	//hexen2
-	else if( mod->flags & MFH2_TRANSPARENT )
+	if( mod->flags & MFH2_TRANSPARENT )
 		skintranstype = 2;	//hexen2
+	else if( mod->flags & MFH2_HOLEY )
+		skintranstype = 3;	//hexen2
 	else if( mod->flags & MFH2_SPECIAL_TRANS )
 		skintranstype = 4;	//hexen2
 	else

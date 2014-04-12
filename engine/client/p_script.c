@@ -169,6 +169,7 @@ typedef struct {
 	float frameend;
 	float framerate;
 	float alpha;
+	int traileffect;
 } partmodels_t;
 // TODO: merge in alpha with rgb to gain benefit of vector opts
 typedef struct part_type_s {
@@ -907,7 +908,7 @@ static void P_ParticleEffect_f(void)
 			for (i = 0; i < 64; i++)
 			{
 				parenttype = ptype - part_type;
-				snprintf(newname, sizeof(newname), "+%i%s", i, var);
+				snprintf(newname, sizeof(newname), "+%i%s", i, ptype->name);
 				ptype = P_GetParticleType(config, newname);
 				if (!ptype->loaded)
 				{
@@ -1172,12 +1173,21 @@ static void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "model"))
 		{
+			if (*Cmd_Argv(6))
+			{
+				assoc = P_AllocateParticleType(config, Cmd_Argv(6));//careful - this can realloc all the particle types
+				ptype = &part_type[pnum];
+			}
+			else
+				assoc = -1;
+
 			ptype->models = BZ_Realloc(ptype->models, sizeof(partmodels_t)*(ptype->nummodels+1));
 			Q_strncpyz(ptype->models[ptype->nummodels].name, Cmd_Argv(1), sizeof(ptype->models[ptype->nummodels].name));
 			ptype->models[ptype->nummodels].framestart = atof(Cmd_Argv(2));
 			ptype->models[ptype->nummodels].frameend = atof(Cmd_Argv(3));
 			ptype->models[ptype->nummodels].framerate = atof(Cmd_Argv(4));
 			ptype->models[ptype->nummodels].alpha = atof(Cmd_Argv(5));
+			ptype->models[ptype->nummodels].traileffect = assoc;
 			ptype->nummodels++;
 		}
 		else if (!strcmp(var, "colorindex"))
@@ -1654,11 +1664,15 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		for (i = 0; i < ptype->nummodels; i++)
 		{
-			Q_strncatz(outstr, va("model %s %g %g %g %g\n", ptype->models[i].name, ptype->models[i].framestart, ptype->models[i].frameend, ptype->models[i].framerate, ptype->models[i].alpha), outstrlen);
+			Q_strncatz(outstr, va("model \"%s\" %g %g %g %g \"%s\"\n", ptype->models[i].name, ptype->models[i].framestart, ptype->models[i].frameend, ptype->models[i].framerate, ptype->models[i].alpha, ptype->assoc==P_INVALID?"":part_type[ptype->assoc].name), outstrlen);
 		}
 
 		if (*ptype->texname)
-			Q_strncatz(outstr, va("texture %s\n", ptype->texname), outstrlen);
+		{
+			Q_strncatz(outstr, va("texture \"%s\"\n", ptype->texname), outstrlen);
+			Q_strncatz(outstr, va("tcoords %g %g %g %g %g %i %g\n", ptype->s1, ptype->t1, ptype->s2, ptype->t2, 1.0f, ptype->randsmax, ptype->texsstride), outstrlen);
+		}
+
 		if (ptype->count)
 			Q_strncatz(outstr, va("count %g\n", ptype->count), outstrlen);
 
@@ -1709,8 +1723,6 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		if (ptype->assoc != P_INVALID)
 			Q_strncatz(outstr, va("assoc \"%s\"\n", part_type[ptype->assoc].name), outstrlen);
 
-		Q_strncatz(outstr, va("tcoords %g %g %g %g %g %i %g\n", ptype->s1, ptype->t1, ptype->s2, ptype->t2, 1.0f, ptype->randsmax, ptype->texsstride), outstrlen);
-
 		Q_strncatz(outstr, va("rotationstart %g %g\n", ptype->rotationstartmin*180/M_PI, (ptype->rotationstartmin+ptype->rotationstartrand)*180/M_PI), outstrlen);
 		Q_strncatz(outstr, va("rotationspeed %g %g\n", ptype->rotationmin*180/M_PI, (ptype->rotationmin+ptype->rotationrand)*180/M_PI), outstrlen);
 
@@ -1729,6 +1741,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		}
 		if (ptype->stain_radius)
 			Q_strncatz(outstr, va("spawnstain %g %g %g %g\n", ptype->stain_radius, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2]), outstrlen);
+		if (ptype->stainonimpact)
+			Q_strncatz(outstr, va("stains %g\n", ptype->stainonimpact), outstrlen);
+
 
 		return true;
 
@@ -2239,19 +2254,19 @@ static void P_ImportEffectInfo_f(void)
 			ptype->dl_cubemapnum = atoi(arg[1]);
 #if 1
 		else if (!strcmp(arg[0], "staincolor") && args == 3)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainalpha") && args == 3)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainsize") && args == 3)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "staintex") && args == 3)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainless") && args == 2)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "rotate") && args == 3)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "rotate") && args == 5)
-			Con_DPrintf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
 #endif
 		else
 			Con_Printf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
@@ -2532,7 +2547,7 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 			if (partset_list[i].data)
 			{
 				Cbuf_AddText(va("\nr_part namespace %s %i\n", name, implicit), restrictlevel);
-				Cbuf_AddText(*partset_list[i].data, RESTRICT_LOCAL);
+				Cbuf_AddText(*partset_list[i].data, restrictlevel);
 				Cbuf_AddText("\nr_part namespace \"\" 0\n", restrictlevel);
 			}
 			return true;
@@ -3179,7 +3194,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 			{
 				vec3_t morg, mdir;
 				PScript_ApplyOrgVel(morg, mdir, org, dir, i, count, ptype);
-				CL_SpawnSpriteEffect(morg, mdir, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, ptype->alpha?ptype->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity);
+				CL_SpawnSpriteEffect(morg, mdir, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect);
 			}
 		}
 	}

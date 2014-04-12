@@ -63,9 +63,8 @@ unsigned int	numpr_globals;
 char		*strings;
 int			strofs;
 
-QCC_dstatement_t	*statements;
+QCC_statement_t	*statements;
 int			numstatements;
-int			*statement_linenums;
 
 QCC_dfunction_t	*functions;
 int			numfunctions;
@@ -684,6 +683,7 @@ pbool QCC_WriteData (int crc)
 	pbool types = false;
 	int outputsttype = PST_DEFAULT;
 	pbool warnedunref = false;
+	int			*statement_linenums;
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
 	{
@@ -1072,16 +1072,27 @@ strofs = (strofs+3)&~3;
 		}
 	}
 
+	if (debugtarget || opt_filenames)
+	{
+		statement_linenums = qccHunkAlloc(sizeof(statement_linenums) * numstatements);
+		for (i = 0; i < numstatements; i++)
+			statement_linenums[i] = statements[i].linenum;
+	}
+	else
+		statement_linenums = NULL;
+
+
 	switch(outputsttype)
 	{
 	case PST_KKQWSV:
 	case PST_FTE32:
+#define statements32 ((QCC_dstatement32_t*) statements)
 		for (i=0 ; i<numstatements ; i++)
 		{
-			statements[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
-			statements[i].a = PRLittleLong/*PRLittleShort*/(statements[i].a);
-			statements[i].b = PRLittleLong/*PRLittleShort*/(statements[i].b);
-			statements[i].c = PRLittleLong/*PRLittleShort*/(statements[i].c);
+			statements32[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
+			statements32[i].a = PRLittleLong/*PRLittleShort*/(statements[i].a);
+			statements32[i].b = PRLittleLong/*PRLittleShort*/(statements[i].b);
+			statements32[i].c = PRLittleLong/*PRLittleShort*/(statements[i].c);
 		}
 
 		if (progs.blockscompressed&1)
@@ -1095,13 +1106,13 @@ strofs = (strofs+3)&~3;
 			SafeSeek(h, i, SEEK_SET);
 		}
 		else
-			SafeWrite (h, statements, numstatements*sizeof(QCC_dstatement32_t));
+			SafeWrite (h, statements32, numstatements*sizeof(QCC_dstatement32_t));
 		break;
 	case PST_QTEST:
 #define qtst ((qtest_statement_t*) statements)
 		for (i=0 ; i<numstatements ; i++) // scale down from 16-byte internal to 12-byte qtest
 		{
-			QCC_dstatement_t stmt = statements[i];
+			QCC_statement_t stmt = statements[i];
 			qtst[i].line = 0; // no line support
 			qtst[i].op = PRLittleShort((unsigned short)stmt.op);
 			if (stmt.a < 0)
@@ -3203,9 +3214,8 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	strings = (void *)qccHunkAlloc(sizeof(char) * MAX_STRINGS);
 	strofs = 2;
 
-	statements = (void *)qccHunkAlloc(sizeof(QCC_dstatement_t) * MAX_STATEMENTS);
+	statements = (void *)qccHunkAlloc(sizeof(QCC_statement_t) * MAX_STATEMENTS);
 	numstatements = 0;
-	statement_linenums = (void *)qccHunkAlloc(sizeof(int) * MAX_STATEMENTS);
 
 	functions = (void *)qccHunkAlloc(sizeof(QCC_dfunction_t) * MAX_FUNCTIONS);
 	numfunctions=0;

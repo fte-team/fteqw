@@ -1652,9 +1652,17 @@ qboolean FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, co
 
 void FTENET_Loop_Close(ftenet_generic_connection_t *con)
 {
+	int i;
 	int sock = con->thesocket;
 	sock &= 1;
 	loopbacks[sock].inited = false;
+	for (i = 0; i < MAX_LOOPBACK; i++)
+	{
+		BZ_Free(loopbacks[sock].msgs[i].data);
+		loopbacks[sock].msgs[i].data = NULL;
+		loopbacks[sock].msgs[i].datalen = 0;
+		loopbacks[sock].msgs[i].datamax = 0;
+	}
 	Z_Free(con);
 }
 

@@ -585,7 +585,7 @@ void PM_WaterMove (void)
 
 	if (pmove.pm_type != PM_FLY && !pmove.cmd.forwardmove && !pmove.cmd.sidemove && !pmove.cmd.upmove && !pmove.onladder)
 	{
-		VectorMA(wishvel, 60, pmove.gravitydir, wishvel);
+		VectorMA(wishvel, movevars.watersinkspeed, pmove.gravitydir, wishvel);
 	}
 	else
 	{

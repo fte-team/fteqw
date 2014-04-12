@@ -1602,7 +1602,7 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 	int model;
 	framestate_t fstate;
 
-	if (parenttagent > cl.maxlerpents)
+	if (parenttagent >= cl.maxlerpents)
 	{
 		Con_Printf("tag entity out of range!\n");
 		return;
@@ -2881,7 +2881,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 
 #ifdef RAGDOLL
 			le = &cl.lerpents[sold->number];
-			if (le->skeletalobject)
+			if (sold->number < cl.maxlerpents && le->skeletalobject)
 				rag_removedeltaent(le);
 #endif
 		}
@@ -3344,7 +3344,7 @@ void CL_LinkPacketEntities (void)
 				colour[2] = state->light[2]/1024.0f;
 			}
 			dl = CL_NewDlight(state->number, ent->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
-			if (!(dl->flags & PFLAGS_FULLDYNAMIC))	//corona-only lights shouldn't do much else.
+			if (!(state->lightpflags & PFLAGS_FULLDYNAMIC))	//corona-only lights shouldn't do much else.
 			{
 				dl->flags &= ~(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND);
 #ifdef RTLIGHTS
@@ -3599,15 +3599,16 @@ void CL_LinkPacketEntities (void)
 			else if (modelflags & MFH2_ACIDBALL)
 			{
 				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
-				dclr[0] = 0.1;
-				dclr[1] = 0.2;
+				dclr[0] = 0.5;
+				dclr[1] = 1;
+				dclr[2] = 0.25;
 			}
 			else if (modelflags & MFH2_SPIT)
 			{
 				// as far as I can tell this effect inverses the light...
 				dclr[0] = -dclr[0];
-				dclr[0] = -dclr[1];
-				dclr[0] = -dclr[2];
+				dclr[1] = -dclr[1];
+				dclr[2] = -dclr[2];
 				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
 			}
 

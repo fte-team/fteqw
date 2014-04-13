@@ -3343,7 +3343,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			trace_t tr;
 			float sb,sw,tb,tw;
 
-			vec3_t bestdir;
+			vec3_t bestdir, bestorg;
 
 			if (!free_decals)
 				return 0;
@@ -3354,6 +3354,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				bestdir[1] = 0.73;
 				bestdir[2] = 0.73;
 				dist = 1;
+				VectorCopy(org, bestorg);
 				for (i = 0; i < 6; i++)
 				{
 					if (i >= 3)
@@ -3377,10 +3378,12 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 						{
 							dist = tr.fraction;
 							VectorCopy(tr.plane.normal, bestdir);
+							VectorCopy(tr.endpos, bestorg);
 						}
 					}
 				}
 				dir = bestdir;
+				org = bestorg;
 			}
 			VectorInverse(dir);
 			VectorNormalize(dir);

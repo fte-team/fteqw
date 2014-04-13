@@ -4472,7 +4472,9 @@ void CL_MuzzleFlash (int destsplit)
 	dl->channelfade[1] = 0.75;
 	dl->channelfade[2] = 0.375;
 	dl->decay = 500;
+#ifdef RTLIGHTS
 	dl->lightcolourscales[2] = 4;
+#endif
 }
 
 #ifdef Q2CLIENT

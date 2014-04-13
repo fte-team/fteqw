@@ -38,6 +38,7 @@ cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
 cvar_t	cl_run = CVARD("cl_run", "0", "Enables autorun, inverting the state of the +speed key.");
+cvar_t	cl_fastaccel = CVARD("cl_fastaccel", "1", "Begin moving at full speed instantly, instead of waiting a frame or so.");
 
 cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
@@ -408,10 +409,12 @@ Returns 0.25 if a key was pressed and released during the frame,
 1.0 if held for the entire time
 ===============
 */
-float CL_KeyState (kbutton_t *key, int pnum)
+float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart)
 {
 	float		val;
 	qboolean	impulsedown, impulseup, down;
+
+	noslowstart = noslowstart && cl_fastaccel.ival;
 	
 	impulsedown = key->state[pnum] & 2;
 	impulseup = key->state[pnum] & 4;
@@ -421,7 +424,7 @@ float CL_KeyState (kbutton_t *key, int pnum)
 	if (impulsedown && !impulseup)
 	{
 		if (down)
-			val = 0.5;	// pressed and held this frame
+			val = noslowstart?1.0:0.5;	// pressed and held this frame
 		else
 			val = 0;	//	I_Error ();
 	}
@@ -531,8 +534,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		quant = cl_yawspeed.ival;
 		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
-		cl.playerview[pnum].viewanglechange[YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
-		cl.playerview[pnum].viewanglechange[YAW] += speed*quant * CL_KeyState (&in_left, pnum);
+		cl.playerview[pnum].viewanglechange[YAW] -= speed*quant * CL_KeyState (&in_right, pnum, false);
+		cl.playerview[pnum].viewanglechange[YAW] += speed*quant * CL_KeyState (&in_left, pnum, false);
 	}
 	if (in_klook.state[pnum] & 1)
 	{
@@ -540,12 +543,12 @@ void CL_AdjustAngles (int pnum, double frametime)
 		quant = cl_pitchspeed.ival;
 		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
-		cl.playerview[pnum].viewanglechange[PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
-		cl.playerview[pnum].viewanglechange[PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
+		cl.playerview[pnum].viewanglechange[PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum, false);
+		cl.playerview[pnum].viewanglechange[PITCH] += speed*quant * CL_KeyState (&in_back, pnum, false);
 	}
 	
-	up = CL_KeyState (&in_lookup, pnum);
-	down = CL_KeyState(&in_lookdown, pnum);
+	up = CL_KeyState (&in_lookup, pnum, false);
+	down = CL_KeyState(&in_lookdown, pnum, false);
 
 	quant = cl_pitchspeed.ival;
 	if (!ruleset_allow_frj.ival)
@@ -576,22 +579,22 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 
 	if (in_strafe.state[pnum] & 1)
 	{
-		cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_right, pnum);
-		cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_left, pnum);
+		cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_right, pnum, true);
+		cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_left, pnum, true);
 	}
 
-	cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_moveright, pnum);
-	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum);
+	cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_moveright, pnum, true);
+	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum, true);
 
 	if(in_xflip.ival) cmd->sidemove *= -1;
 
-	cmd->upmove += scale*cl_upspeed.value * CL_KeyState (&in_up, pnum);
-	cmd->upmove -= scale*cl_upspeed.value * CL_KeyState (&in_down, pnum);
+	cmd->upmove += scale*cl_upspeed.value * CL_KeyState (&in_up, pnum, true);
+	cmd->upmove -= scale*cl_upspeed.value * CL_KeyState (&in_down, pnum, true);
 
 	if (! (in_klook.state[pnum] & 1) )
 	{	
-		cmd->forwardmove += scale*cl_forwardspeed.value * CL_KeyState (&in_forward, pnum);
-		cmd->forwardmove -= scale*(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum);
+		cmd->forwardmove += scale*cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true);
+		cmd->forwardmove -= scale*(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true);
 	}
 }
 
@@ -1910,6 +1913,7 @@ void CL_InitInput (void)
 	Cmd_AddCommand("in_restart", IN_Restart);
 	Cmd_AddCommand("sendcvar", CL_SendCvar_f);
 
+	Cvar_Register (&cl_fastaccel, inputnetworkcvargroup);
 	Cvar_Register (&in_xflip, inputnetworkcvargroup);
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
 

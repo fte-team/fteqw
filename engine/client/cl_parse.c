@@ -4463,15 +4463,16 @@ void CL_MuzzleFlash (int destsplit)
 
 	dl->radius = 200 + (rand()&31);
 	dl->minlight = 32;
-	dl->die = cl.time + 0.5;
+	dl->die = cl.time + 0.1;
 	dl->color[0] = 1.3;
-	dl->color[1] = 0.9;
-	dl->color[2] = 0.5;
+	dl->color[1] = 1.3;
+	dl->color[2] = 1.3;
 
 	dl->channelfade[0] = 1.5;
 	dl->channelfade[1] = 0.75;
 	dl->channelfade[2] = 0.375;
 	dl->decay = 500;
+	dl->lightcolourscales[2] = 4;
 }
 
 #ifdef Q2CLIENT

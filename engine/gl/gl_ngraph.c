@@ -27,6 +27,9 @@ extern qbyte		*draw_chars;				// 8*8 graphic characters
 static texid_t	netgraphtexture;	// netgraph texture
 static shader_t *netgraphshader;
 
+static int timehistory[NET_TIMINGS];
+static int findex;
+
 #define NET_GRAPHHEIGHT 32
 
 static	qbyte ngraph_texels[NET_GRAPHHEIGHT][NET_TIMINGS];
@@ -99,11 +102,25 @@ void R_NetGraph (void)
 	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
 
 	x = 0;
-	lost = CL_CalcNet(r_netgraph.value);
-	for (a=0 ; a<NET_TIMINGS ; a++)
+	if (r_netgraph.value < 0)
 	{
-		i = (cl.movesequence-a) & NET_TIMINGSMASK;
-		R_LineGraph (NET_TIMINGS-1-a, packet_latency[i]);
+		lost = -1;
+		if (!cl.paused)
+			timehistory[++findex&NET_TIMINGSMASK] = (cl.currentpackentities?(cl.currentpackentities->servertime - cl.servertime)*NET_GRAPHHEIGHT*5:0);
+		for (a=0 ; a<NET_TIMINGS ; a++)
+		{
+			i = (findex-a) & NET_TIMINGSMASK;
+			R_LineGraph (NET_TIMINGS-1-a, timehistory[i]<0?10000:timehistory[i]);
+		}
+	}
+	else
+	{
+		lost = CL_CalcNet(r_netgraph.value);
+		for (a=0 ; a<NET_TIMINGS ; a++)
+		{
+			i = (cl.movesequence-a) & NET_TIMINGSMASK;
+			R_LineGraph (NET_TIMINGS-1-a, packet_latency[i]);
+		}
 	}
 
 	// now load the netgraph texture into gl and draw it
@@ -131,9 +148,6 @@ void R_FrameTimeGraph (int frametime)
 {
 	int		a, x, i, y;
 	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
-
-	static int timehistory[NET_TIMINGS];
-	static int findex;
 
 	timehistory[findex++&NET_TIMINGSMASK] = frametime;
 

@@ -263,6 +263,8 @@ typedef struct part_type_s {
 	float dl_radius;
 	float dl_time;
 	vec4_t dl_decay;
+	float dl_corona_intensity;
+	float dl_corona_scale;
 	//PT_NODLSHADOW
 	int dl_cubemapnum;
 	vec3_t stain_rgb;
@@ -825,8 +827,10 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	ptype->rotationstartmin = -M_PI;	//start with a random angle
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->spawnchance = 1;
-	ptype->dl_time = 5000;
+	ptype->dl_time = 0;
 	VectorSet(ptype->dl_rgb, 1, 1, 1);
+	ptype->dl_corona_intensity = 1;
+	ptype->dl_corona_scale = 0.5;
 
 	ptype->randsmax = 1;
 	ptype->s2 = 1;
@@ -1208,12 +1212,21 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "blue"))
 			ptype->rgb[2] = atof(value)/255;
 		else if (!strcmp(var, "rgb"))
-		{
+		{	//byte version
 			ptype->rgb[0] = ptype->rgb[1] = ptype->rgb[2] = atof(value)/255;
 			if (Cmd_Argc()>3)
 			{
 				ptype->rgb[1] = atof(Cmd_Argv(2))/255;
 				ptype->rgb[2] = atof(Cmd_Argv(3))/255;
+			}
+		}
+		else if (!strcmp(var, "rgbf"))
+		{	//float version
+			ptype->rgb[0] = ptype->rgb[1] = ptype->rgb[2] = atof(value);
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgb[1] = atof(Cmd_Argv(2));
+				ptype->rgb[2] = atof(Cmd_Argv(3));
 			}
 		}
 
@@ -1236,12 +1249,23 @@ static void P_ParticleEffect_f(void)
 				ptype->rgbchangetime = ptype->die;
 		}
 		else if (!strcmp(var, "rgbdelta"))
-		{
+		{	//byte version
 			ptype->rgbchange[0] = ptype->rgbchange[1] = ptype->rgbchange[2] = atof(value)/255;
 			if (Cmd_Argc()>3)
 			{
 				ptype->rgbchange[1] = atof(Cmd_Argv(2))/255;
 				ptype->rgbchange[2] = atof(Cmd_Argv(3))/255;
+			}
+			if (!ptype->rgbchangetime)
+				ptype->rgbchangetime = ptype->die;
+		}
+		else if (!strcmp(var, "rgbdeltaf"))
+		{	//float version
+			ptype->rgbchange[0] = ptype->rgbchange[1] = ptype->rgbchange[2] = atof(value);
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgbchange[1] = atof(Cmd_Argv(2));
+				ptype->rgbchange[2] = atof(Cmd_Argv(3));
 			}
 			if (!ptype->rgbchangetime)
 				ptype->rgbchangetime = ptype->die;
@@ -1256,12 +1280,21 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "bluerand"))
 			ptype->rgbrand[2] = atof(value)/255;
 		else if (!strcmp(var, "rgbrand"))
-		{
+		{	//byte version
 			ptype->rgbrand[0] = ptype->rgbrand[1] = ptype->rgbrand[2] = atof(value)/255;
 			if (Cmd_Argc()>3)
 			{
 				ptype->rgbrand[1] = atof(Cmd_Argv(2))/255;
 				ptype->rgbrand[2] = atof(Cmd_Argv(3))/255;
+			}
+		}
+		else if (!strcmp(var, "rgbrandf"))
+		{	//float version
+			ptype->rgbrand[0] = ptype->rgbrand[1] = ptype->rgbrand[2] = atof(value);
+			if (Cmd_Argc()>3)
+			{
+				ptype->rgbrand[1] = atof(Cmd_Argv(2));
+				ptype->rgbrand[2] = atof(Cmd_Argv(3));
 			}
 		}
 
@@ -1569,8 +1602,15 @@ static void P_ParticleEffect_f(void)
 			ptype->dl_decay[1] = atof(Cmd_Argv(2));
 			ptype->dl_decay[2] = atof(Cmd_Argv(3));
 		}
+		else if (!strcmp(var, "lightcorona"))
+		{
+			ptype->dl_corona_intensity = atof(value);
+			ptype->dl_corona_scale = atof(Cmd_Argv(2));
+		}
 		else if (!strcmp(var, "lighttime"))
 			ptype->dl_time = atof(value);
+		else if (!strcmp(var, "lightshadows"))
+			ptype->flags = (ptype->flags & ~PT_NODLSHADOW) | (atof(value)?0:PT_NODLSHADOW);
 		else if (!strcmp(var, "lightcubemap"))
 			ptype->dl_cubemapnum = atoi(value);
 		else if (!strcmp(var, "spawnstain"))
@@ -1738,6 +1778,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("lighttime %g\n", ptype->dl_time), outstrlen);
 			Q_strncatz(outstr, va("lightshadows %g\n", (ptype->flags & PT_NODLSHADOW)?0.0f:1.0f), outstrlen);
 			Q_strncatz(outstr, va("lightcubemap %i\n", ptype->dl_cubemapnum), outstrlen);
+			Q_strncatz(outstr, va("lightcorona %g %g\n", ptype->dl_corona_intensity, ptype->dl_corona_scale), outstrlen);
 		}
 		if (ptype->stain_radius)
 			Q_strncatz(outstr, va("spawnstain %g %g %g %g\n", ptype->stain_radius, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2]), outstrlen);
@@ -2252,6 +2293,11 @@ static void P_ImportEffectInfo_f(void)
 			ptype->flags = (ptype->flags & ~PT_NODLSHADOW) | (!atoi(arg[1])?PT_NODLSHADOW:0);
 		else if (!strcmp(arg[0], "lightcubemapnum") && args == 2)
 			ptype->dl_cubemapnum = atoi(arg[1]);
+		else if (!strcmp(arg[0], "lightcorona") && args == 3)
+		{
+			ptype->dl_corona_intensity = atof(arg[1]);
+			ptype->dl_corona_scale = atof(arg[2]);
+		}
 #if 1
 		else if (!strcmp(arg[0], "staincolor") && args == 3)
 			Con_DPrintf("Particle effect %s not supported\n", arg[0]);
@@ -3201,10 +3247,12 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 	if (ptype->dl_radius)
 	{
 		dlight_t *dl = CL_NewDlight(dlkey, org, ptype->dl_radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
-		dl->channelfade[0] = ptype->dl_decay[0];
-		dl->channelfade[1] = ptype->dl_decay[1];
-		dl->channelfade[2] = ptype->dl_decay[2];
-		dl->decay =          ptype->dl_decay[3];
+		dl->channelfade[0]	= ptype->dl_decay[0];
+		dl->channelfade[1]	= ptype->dl_decay[1];
+		dl->channelfade[2]	= ptype->dl_decay[2];
+		dl->decay			= ptype->dl_decay[3];
+		dl->corona			= ptype->dl_corona_intensity;
+		dl->coronascale		= ptype->dl_corona_scale;
 		if (ptype->flags & PT_NODLSHADOW)
 			dl->flags |= LFLAG_NOSHADOWS;
 		if (ptype->dl_cubemapnum)

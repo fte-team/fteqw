@@ -281,6 +281,7 @@ void R_RenderDlights (void)
 	unsigned int beflags = 0;
 	float intensity, cscale;
 	qboolean coronastyle;
+	qboolean flashstyle;
 
 	if (!r_coronas.value && !r_flashblend.value)
 		return;
@@ -297,22 +298,22 @@ void R_RenderDlights (void)
 		if (l->corona <= 0)
 			continue;
 
-		if (l->flags & LFLAG_FLASHBLEND)
-		{
-			if (!r_flashblend.value)
-				continue;
-			//dlights emitting from the local player are not visible as flashblends
-			if (l->key == r_refdef.playerview->viewentity)
-				continue;	//was a glow
-			if (l->key == -(r_refdef.playerview->viewentity))
-				continue;	//was a muzzleflash
-			coronastyle = false;
-		}
-		else
-			coronastyle = true;
+		//dlights emitting from the local player are not visible as flashblends
+		if (l->key == r_refdef.playerview->viewentity)
+			continue;	//was a glow
+		if (l->key == -(r_refdef.playerview->viewentity))
+			continue;	//was a muzzleflash
+
+		coronastyle = (l->flags & (LFLAG_NORMALMODE|LFLAG_REALTIMEMODE));
+		flashstyle = ((l->flags & LFLAG_FLASHBLEND) && r_flashblend.ival);
+
+		if (!coronastyle && !flashstyle)
+			continue;
+		if (coronastyle && flashstyle)
+			flashstyle = false;
 
 		cscale = l->coronascale;
-		intensity = l->corona * 0.25;
+		intensity = l->corona;// * 0.25;
 		if (coronastyle)
 			intensity *= r_coronas.value;
 		else

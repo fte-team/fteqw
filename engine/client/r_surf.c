@@ -2732,6 +2732,12 @@ void Surf_BuildModelLightmaps (model_t *m)
 		int j;
 		lightmapinfo_t *lm, *dlm;
 		qbyte *deluxemap;
+
+		if (*m->name == '*')
+		{
+			if (!cl.worldmodel || cl.worldmodel->needload)
+				return;
+		}
 		//fixup surface lightmaps, and paint
 		for (i=0; i<m->nummodelsurfaces; i++)
 		{

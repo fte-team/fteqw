@@ -405,7 +405,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	if (cl_hightrack.value && !pv->cam_locked)
 		Cam_CheckHighTarget(pv);
 
-	if (!pv->cam_auto || cls.state != ca_active)
+	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel || cl.worldmodel->needload)
 		return;
 
 	if (pv->cam_locked && (!cl.players[pv->cam_spec_track].name[0] || cl.players[pv->cam_spec_track].spectator))

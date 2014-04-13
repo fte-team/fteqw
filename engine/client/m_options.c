@@ -2760,30 +2760,31 @@ static qboolean Mods_AddMod(void *usr, ftemanifest_t *man)
 
 void M_Menu_Mods_f (void)
 {
-	modmenu_t *mods;
+	modmenu_t mods;
 	menucustom_t *c;
 	menu_t *menu;
-		
-	Key_Dest_Add(kdm_menu);
 
-	menu = M_CreateMenu(sizeof(modmenu_t));
-	mods = menu->data;
-	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
+	memset(&mods, 0, sizeof(mods));
+	FS_EnumerateKnownGames(Mods_AddMod, &mods);
 
-	c = MC_AddCustom(menu, 64, 32, mods, 0);
-	menu->cursoritem = (menuoption_t*)c;
-	c->draw = Mods_Draw;
-	c->key = Mods_Key;
-	menu->remove = Mods_Remove;
-
-	FS_EnumerateKnownGames(Mods_AddMod, menu->data);
-
-	if (mods->nummanifests == 1)
+	if (mods.nummanifests == 1)
 	{
-		ftemanifest_t *man = mods->manifests[0];
-		mods->manifests[0] = NULL;
-		M_RemoveMenu(menu);
-		FS_ChangeGame(man, true);
+		FS_ChangeGame(mods.manifests[0], true);
+		Z_Free(mods.manifests);
+	}
+	else
+	{
+		Key_Dest_Add(kdm_menu);
+
+		menu = M_CreateMenu(sizeof(modmenu_t));
+		*(modmenu_t*)menu->data = mods;
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
+
+		c = MC_AddCustom(menu, 64, 32, menu->data, 0);
+		menu->cursoritem = (menuoption_t*)c;
+		c->draw = Mods_Draw;
+		c->key = Mods_Key;
+		menu->remove = Mods_Remove;
 	}
 }

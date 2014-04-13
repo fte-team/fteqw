@@ -164,8 +164,8 @@ cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
 cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 // 10 - 170
-cvar_t scr_fov								= CVARFC("fov", "90",
-												CVAR_ARCHIVE,
+cvar_t scr_fov								= CVARFDC("fov", "108",
+												CVAR_ARCHIVE, "field of vision, 1-170 degrees, standard fov is 90, nquake.",
 												SCR_Fov_Callback);
 cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "8");
 cvar_t scr_showpause						= SCVAR  ("showpause", "1");

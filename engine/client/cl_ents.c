@@ -127,7 +127,7 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[0] = 1;
 	dl->color[1] = 1;
 	dl->color[2] = 1;
-	dl->corona = bound(0, r_flashblend.value * 0.25, 1);
+	dl->corona = bound(0, 1 * 0.25, 1);
 	dl->coronascale = bound(0, r_flashblendscale.value, 1);
 #ifdef RTLIGHTS
 	dl->lightcolourscales[0] = r_shadow_realtime_dlight_ambient.value;
@@ -795,10 +795,13 @@ void CLFTE_ParseEntities(void)
 
 	newp->servertime = MSG_ReadFloat();
 
-	cl.oldgametime = cl.gametime;
-	cl.oldgametimemark = cl.gametimemark;
-	cl.gametime = newp->servertime;
-	cl.gametimemark = realtime;
+	if (cl.gametime != newp->servertime)
+	{
+		cl.oldgametime = cl.gametime;
+		cl.oldgametimemark = cl.gametimemark;
+		cl.gametime = newp->servertime;
+		cl.gametimemark = realtime;
+	}
 
 	/*clear all entities*/
 	newp->num_entities = 0;
@@ -2869,9 +2872,9 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		snew = &newpack->entities[newpnum];
 
 		sold = NULL;
-		for ( ; oldpnum<oldpack->num_entities ; oldpnum++)
+		for ( ; oldpnum<oldpack->num_entities ; oldpnum)
 		{
-			sold = &oldpack->entities[oldpnum];
+			sold = &oldpack->entities[oldpnum++];
 			if (sold->number >= snew->number)
 			{
 				if (sold->number > snew->number)

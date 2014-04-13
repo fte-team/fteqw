@@ -2451,13 +2451,6 @@ cin_t *Media_StartCin(char *name)
 	return cin;
 }
 
-qboolean Media_Playing(void)
-{
-	if (videoshader)
-		return true;
-	return false;
-}
-
 struct pendingfilms_s
 {
 	struct pendingfilms_s *next;

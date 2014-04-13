@@ -431,7 +431,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 
 
 //Used when cl_nopred is 1 to determine whether we are on ground, otherwise stepup smoothing code produces ugly jump physics
-void CL_CatagorizePosition (playerview_t *pv)
+void CL_CatagorizePosition (playerview_t *pv, float *org)
 {
 	if (cl.spectator)
 	{
@@ -439,7 +439,7 @@ void CL_CatagorizePosition (playerview_t *pv)
 		return;
 	}
 	VectorClear (pmove.velocity);
-	VectorCopy (pv->simorg, pmove.origin);
+	VectorCopy (org, pmove.origin);
 	pmove.numtouch = 0;
 	PM_CategorizePosition ();
 	pv->onground = pmove.onground;
@@ -497,7 +497,7 @@ void CL_CalcCrouch (playerview_t *pv)
 		// in air or moving down
 		pv->oldz = orgz;
 		pv->crouch += host_frametime * 150;
-		if (orgz - pv->oldz <= 0)
+		if (orgz - pv->oldz < 0)
 			pv->crouch -= orgz - pv->oldz;	//if the view moved down, remove that amount from our crouching to avoid unneeded bobbing
 		if (pv->crouch > 0)
 			pv->crouch = 0;
@@ -805,7 +805,7 @@ void CL_PredictMovePNum (int seat)
 	usercmd_t	*cmdto;
 	double		fromtime, totime;
 	int			oldphysent;
-	double		simtime;
+	double		simtime;	//this is server time if nopred is set (lerp-only), and local time if we're predicting
 	extern cvar_t cl_netfps;
 	lerpents_t	*le;
 	qboolean	nopred;
@@ -999,6 +999,8 @@ void CL_PredictMovePNum (int seat)
 			if (pe->entities[i].number == pv->viewentity)
 			{
 				CL_EntStateToPlayerState(fromstate, &pe->entities[i]);
+				if (nopred)
+					fromtime -= (pe->entities[i].u.q1.msec / 1000.0f);	//correct the time to match stale players
 				break;
 			}
 		}
@@ -1008,14 +1010,13 @@ void CL_PredictMovePNum (int seat)
 			if (pe->entities[i].number == pv->viewentity)
 			{
 				CL_EntStateToPlayerState(tostate, &pe->entities[i]);
-
+				if (nopred)
+					totime -= (pe->entities[i].u.q1.msec / 1000.0f);	//correct the time to match stale players. FIXME: this can push the simtime into the 'future' resulting in stuttering
 				if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 				{
-					cl.players[pv->playernum].stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
-					cl.players[pv->playernum].statsf[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
-			
-					pv->stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
-					pv->statsf[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
+					//putting weapon frames in there was probably a stupid idea.
+					pv->stats[STAT_WEAPONFRAME] = cl.players[pv->playernum].stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
+					pv->statsf[STAT_WEAPONFRAME] = cl.players[pv->playernum].statsf[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
 					pv->pmovetype = tostate->pm_type;
 				}
 				break;
@@ -1150,9 +1151,8 @@ void CL_PredictMovePNum (int seat)
 				}
 			}
 		}
-		CL_CatagorizePosition(pv);
-
 	}
+	CL_CatagorizePosition(pv, tostate->origin);
 
 	if (le)
 	{

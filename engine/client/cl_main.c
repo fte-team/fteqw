@@ -786,6 +786,7 @@ void CL_CheckForResend (void)
 			}
 			else
 				CL_ConnectToDarkPlaces("", &connectinfo.adr);
+			connectinfo.trying = false;
 		}
 		else
 			CL_SendConnectPacket (NULL, 8192-16, pext1, pext2, false);
@@ -4592,7 +4593,7 @@ void CL_StartCinematicOrMenu(void)
 #ifndef CLIENTONLY
 	if (!sv.state)
 #endif
-	if (!cls.demoinfile && !cls.state && !Media_PlayingFullScreen())
+	if (!cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
 	{
 		int ol_depth;
 		int idcin_depth;
@@ -4621,7 +4622,7 @@ void CL_StartCinematicOrMenu(void)
 	}
 #endif
 
-	if (!cls.demoinfile && !*cls.servername && !Media_Playing())
+	if (!cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
 	{
 #ifndef CLIENTONLY
 		if (!sv.state)
@@ -4713,8 +4714,8 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	//if the renderer is already up and running, be prepared to reload content to match the new conback/font/etc
 	if (qrenderer != QR_NONE)
 		Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
-	if (Key_Dest_Has(kdm_menu))
-		Cbuf_AddText ("closemenu\ntogglemenu\n", RESTRICT_LOCAL);	//make sure the menu has the right content loaded.
+//	if (Key_Dest_Has(kdm_menu))
+//		Cbuf_AddText ("closemenu\ntogglemenu\n", RESTRICT_LOCAL);	//make sure the menu has the right content loaded.
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 

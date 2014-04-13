@@ -882,6 +882,10 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 
 // calculate an offset value to center the origin
 	VectorSubtract (hull->clip_mins, mins, offset);
+
+//	offset[0] = 0;
+//	offset[1] = 0;
+
 	if (axis)
 	{
 		vec3_t tmp;

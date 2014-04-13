@@ -604,8 +604,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					return shader;	//the shader can do its own colourmapping.
 				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].handle.glsl && !h2playertranslations)
 				{	//this shader can do permutations. this means we can generate only a black image, with separate top+bottom textures.
-					tc = 0xff000000;
-					bc = 0xff000000;
+					tc = 0xfe000000;
+					bc = 0xfe000000;
 					generateupperlower = true;
 				}
 			}

@@ -951,7 +951,7 @@ void CL_WriteToServer (usercmd_t *cmd);
 void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
 
 
-float CL_KeyState (kbutton_t *key, int pnum);
+float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
 char *Key_KeynumToString (int keynum);
 int Key_StringToKeynum (const char *str, int *modifier);
 char *Key_GetBinding(int keynum);
@@ -1370,7 +1370,6 @@ qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
 qboolean Media_PlayFilm(char *name, qboolean enqueue);
 qboolean Media_StopFilm(qboolean all);
-qboolean Media_Playing(void);
 struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);

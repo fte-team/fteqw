@@ -1437,7 +1437,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 		skorel.numbones = sko->numbones;
 
 		//FIXME: provide some way for the animation to auto-trigger ragdoll (so framegroups can work automagically)
-		if ((ent->framestate.g[FS_REG].frame[0] & 32767) || (ent->framestate.g[FS_REG].frame[1] & 32767))
+		if ((ent->framestate.g[FS_REG].frame[0] & 0x8000) || (ent->framestate.g[FS_REG].frame[1] & 0x8000))
 			sko->numanimated = 0;
 		else if (sko->doll)
 			sko->numanimated = sko->doll->numdefaultanimated;
@@ -1445,6 +1445,8 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 		skorel.model = sko->model;
 		if (sko->numanimated || sko->doll != mod->dollinfo)
 		{
+//			sko->type = SKEL_ABSOLUTE;
+//			Alias_ForceConvertBoneData(skorel.type, skorel.bonematrix, skorel.numbones, bones, sko->type, sko->bonematrix, sko->numbones);
 			skel_copy_toabs(sko, &skorel, 0, sko->numbones);
 		}
 

@@ -1619,7 +1619,7 @@ void NPP_QWFlush(void)
 				org[0] = (*(short*)&buffer[multicastpos])/8.0f;
 				org[1] = (*(short*)&buffer[multicastpos+2])/8.0f;
 				org[2] = (*(short*)&buffer[multicastpos+4])/8.0f;
-				count = buffer[2]*20;
+				count = bound(0, buffer[2]*20, 255);
 				if (minortype == TEQW_LIGHTNINGBLOOD)
 					colour = 225;
 				else

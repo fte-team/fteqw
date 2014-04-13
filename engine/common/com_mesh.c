@@ -857,6 +857,7 @@ struct
 	const float *usebonepose;
 	int bonecount;
 #endif
+	qboolean usebones;
 
 	vecV_t *acoords1;
 	vecV_t *acoords2;
@@ -1279,7 +1280,7 @@ int Alias_BlendBoneData(galiasinfo_t *inf, framestate_t *fstate, float *result, 
 {
 	skellerps_t lerps[FS_COUNT], *lerp;
 	size_t bone, endbone = 0;
-	size_t numgroups = Alias_FindRawSkelData(inf, fstate, lerps, 0, inf->numbones);
+	size_t numgroups = Alias_FindRawSkelData(inf, fstate, lerps, firstbone, lastbone);
 
 	float *pose, *matrix;
 	int k, b;
@@ -1593,7 +1594,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 	if (meshcache.ent == e)
 	{
-		if (meshcache.vertgroup == inf->shares_verts && meshcache.ent == e)
+		if (meshcache.vertgroup == inf->shares_verts && meshcache.ent == e && usebones == meshcache.usebones)
 		{
 			mesh->xyz_array = meshcache.acoords1;
 			mesh->xyz2_array = meshcache.acoords2;
@@ -1608,7 +1609,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		}
 	}
 #else
-			if (usebones && meshcache.bonecachetype != -1)
+			if (usebones)
 			{
 				mesh->bonenums = inf->ofs_skel_idx;
 				mesh->boneweights = inf->ofs_skel_weight;
@@ -1651,6 +1652,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		*vbop = NULL;
 	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 	{
+		usebones = false;
+
 		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
 		meshcache.usebonepose = NULL;
 		mesh->xyz_array = inf->ofs_skel_xyz;
@@ -1729,6 +1732,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	else
 #endif
 	{
+		usebones = false;
+
 		frame1 = e->framestate.g[FS_REG].frame[0];
 		frame2 = e->framestate.g[FS_REG].frame[1];
 		lerp = e->framestate.g[FS_REG].lerpfrac;
@@ -1853,6 +1858,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		meshcache.vbop = *vbop;
 
 #ifdef SKELETALMODELS
+	meshcache.usebones = usebones;
 	if (usebones)
 	{
 		mesh->bonenums = inf->ofs_skel_idx;

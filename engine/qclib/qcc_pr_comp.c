@@ -594,6 +594,14 @@ QCC_opcode_t pr_opcodes[] =
  {7, "&~", "BITCLR_F",	6, ASSOC_LEFT,					&type_float, &type_float, &type_float},
  {7, "&~", "BITCLR_I",	6, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
 
+ {7, "+", "ADD_PF",	6, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
+ {7, "+", "ADD_FP",	6, ASSOC_LEFT,						&type_float,	&type_pointer,	&type_pointer},
+ {7, "+", "ADD_PI",	6, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
+ {7, "+", "ADD_IP",	6, ASSOC_LEFT,						&type_integer,	&type_pointer,	&type_pointer},
+ {7, "-", "SUB_PF",	6, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
+ {7, "-", "SUB_PI",	6, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
+ {7, "-", "SUB_PP",	6, ASSOC_LEFT,						&type_pointer,	&type_pointer,	&type_integer},
+
  {0, NULL}
 };
 
@@ -854,6 +862,10 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][128] =
 		&pr_opcodes[OP_ADD_FI],
 		&pr_opcodes[OP_ADD_IF],
 		&pr_opcodes[OP_ADD_SF],
+		&pr_opcodes[OP_ADD_PF],
+		&pr_opcodes[OP_ADD_FP],
+		&pr_opcodes[OP_ADD_PI],
+		&pr_opcodes[OP_ADD_IP],
 
 		&pr_opcodes[OP_SUB_F],
 		&pr_opcodes[OP_SUB_V],
@@ -861,6 +873,9 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][128] =
 		&pr_opcodes[OP_SUB_FI],
 		&pr_opcodes[OP_SUB_IF],
 		&pr_opcodes[OP_SUB_S],
+		&pr_opcodes[OP_SUB_PF],
+		&pr_opcodes[OP_SUB_PI],
+		&pr_opcodes[OP_SUB_PP],
 		NULL
 	}, {	//5
 
@@ -2456,6 +2471,42 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 //			QCC_PR_ParseWarning(0, "OP_LOADA_STRUCT: cannot emulate");
 			break;
 
+		case OP_ADD_PF:
+		case OP_ADD_FP:
+		case OP_ADD_PI:
+		case OP_ADD_IP:
+			numstatements--;
+			var_c = (op == &pr_opcodes[OP_ADD_PF] || op == &pr_opcodes[OP_ADD_PI])?var_a:var_b;
+			var_b = (op == &pr_opcodes[OP_ADD_PF] || op == &pr_opcodes[OP_ADD_PI])?var_b:var_a;
+			QCC_UnFreeTemp(var_c);
+			if (op == &pr_opcodes[OP_ADD_FP] || op == &pr_opcodes[OP_ADD_PF])
+				var_b = QCC_SupplyConversion(var_b, ev_integer, true);	//FIXME: this should be an unconditional float->int conversion
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], var_b, QCC_MakeIntConst(var_c->type->size), NULL, 0);
+			QCC_FreeTemp(var_c);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_PIW], var_c, var_b, NULL, 0);
+		case OP_SUB_PF:
+		case OP_SUB_PI:
+			numstatements--;
+			var_c = var_a;
+			var_b = var_b;
+			QCC_UnFreeTemp(var_c);
+			if (op == &pr_opcodes[OP_SUB_PF])
+				var_b = QCC_SupplyConversion(var_b, ev_integer, true);	//FIXME: this should be an unconditional float->int conversion
+			//fixme: word size
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], var_b, QCC_MakeIntConst(var_c->type->size*4), NULL, 0);
+			QCC_FreeTemp(var_c);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_I], var_c, var_b, NULL, 0);
+		case OP_SUB_PP:
+			numstatements--;
+			if (typecmp(var_a->type, var_b->type))
+				QCC_PR_ParseError(0, "incompatible pointer types");
+			//determine byte offset
+			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_I], var_a, var_b, NULL, 0);
+			//determine divisor (fixme: word size)
+			var_b = QCC_MakeIntConst(var_c->type->size*4);
+			//divide the result
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], var_c, var_b, NULL, 0);
+
 		case OP_ADD_I:
 			{
 				QCC_def_t *arg[2] = {var_a, var_b};
@@ -3257,7 +3308,7 @@ QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand)
 				REF_GLOBAL,
 				QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], operand->base, operand->index, NULL), 
 				NULL,
-				(operand->index->type->type == ev_field)?operand->index->type->aux_type:type_variant,
+				QCC_PR_PointerType((operand->index->type->type == ev_field)?operand->index->type->aux_type:type_variant),
 				true);
 	}
 	if (operand->type == REF_GLOBAL || operand->type == REF_ARRAY)
@@ -3696,6 +3747,11 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 	if (funcref->type == REF_FIELD && strstr(funcref->index->name, "::"))
 	{
 		newself = funcref->base;
+		func = QCC_RefToDef(funcref, false);
+	}
+	else if (funcref->type == REF_NONVIRTUAL)
+	{
+		newself = funcref->index;
 		func = QCC_RefToDef(funcref, false);
 	}
 	else
@@ -5085,6 +5141,14 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 		}
 		else
 		{
+			if (field->type == REF_GLOBAL && strstr(field->base->name, "::"))
+			{
+				QCC_def_t *theent = QCC_RefToDef(lhs, true);
+				*refbuf = *field;
+				refbuf->type = REF_NONVIRTUAL;
+				refbuf->index = theent;
+				return refbuf;
+			}
 			if (t->parentclass)
 				QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field of class %s", QCC_RefToDef(field, false)->name, t->name);
 			else
@@ -5479,10 +5543,19 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		{	//try getting a member.
 			QCC_type_t *type;
 			type = assumeclass;
-			while(!d && type)
+			while(type)
 			{
+				//look for virtual things
 				sprintf(membername, "%s::"MEMBERFIELDNAME, type->name, name);
 				d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
+				if (d)
+					break;
+
+				//look for non-virtual things (functions: after virtual stuff, because this will find the actual function def too)
+				sprintf(membername, "%s::%s", type->name, name);
+				d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
+				if (d)
+					break;
 
 				type = type->parentclass;
 			}
@@ -6340,11 +6413,14 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 		ref->base = origv;
 		ref->index = NULL;
 		ref->readonly = true;
+
 		return origv;
 	}
 
 	switch(ref->type)
 	{
+	case REF_NONVIRTUAL:
+		break;
 	case REF_GLOBAL:
 	case REF_ARRAY:
 		if (ref->index)
@@ -6456,7 +6532,7 @@ QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pb
 			{
 				QCC_def_t *dd;
 	//			QCC_PR_ParseWarning(0, "FIXME: trying to do references: assignments to arrays with const offset not supported.\n");
-
+		case REF_NONVIRTUAL:
 				dest->base->references++;
 				dd = (void *)qccHunkAlloc (sizeof(QCC_def_t));
 				memset (dd, 0, sizeof(QCC_def_t));
@@ -6650,6 +6726,7 @@ QCC_opcode_t *QCC_PR_ChooseOpcode(QCC_def_t *lhs, QCC_def_t *rhs, QCC_opcode_t *
 
 				if (op->associative!=ASSOC_LEFT)
 				{//assignment
+#if 0
 					if (op->type_a == &type_pointer)	//ent var
 					{
 						/*FIXME: I don't like this code*/
@@ -6663,6 +6740,7 @@ QCC_opcode_t *QCC_PR_ChooseOpcode(QCC_def_t *lhs, QCC_def_t *rhs, QCC_opcode_t *
 							c = QCC_canConv(rhs, (*op->type_c)->type);
 					}
 					else
+#endif
 					{
 						c=QCC_canConv(rhs, (*op->type_b)->type);
 						if (type_a != (*op->type_a)->type)	//in this case, a is the final assigned value
@@ -9821,6 +9899,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 		def->saved = !!(flags & GDF_SAVED);
 		def->constant = !!(flags & GDF_CONST);
 		def->isstatic = !!(flags & GDF_STATIC);
+		def->strip = !!(flags & GDF_STRIP);
 
 		def->ofs = ofs + type->size*a;
 		if (!first)

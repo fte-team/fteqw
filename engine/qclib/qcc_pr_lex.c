@@ -4379,13 +4379,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 			QCC_PR_Expect(";");
 
-			//static members are technically funny-named globals, and do not generate fields.
-			if (isstatic || (newparm->type == ev_function && !arraysize))
+			//static members are technically just funny-named globals, and do not generate fields.
+			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
 			{
 				sprintf(membername, "%s::%s", classname, parmname);
 				QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
 
-				if (isstatic)
+				if (isnonvirt || isstatic)
 					continue;
 			}
 
@@ -4471,7 +4471,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//actually, that seems pointless.
 			sprintf(membername, "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, GDF_CONST);
+			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, GDF_CONST|GDF_STRIP);
 			d->references++;	//always referenced, so you can inherit safely.
 		}
 

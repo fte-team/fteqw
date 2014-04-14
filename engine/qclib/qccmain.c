@@ -875,6 +875,9 @@ pbool QCC_WriteData (int crc)
 			}
 		}
 
+		if (def->strip)
+			continue;
+
 		if (def->type->type == ev_function)
 		{
 			if (opt_function_names && def->initialized && functions[G_FUNCTION(def->ofs)].first_statement<0)
@@ -1482,49 +1485,42 @@ strofs = (strofs+3)&~3;
 
 	printf("Compile finished: %s\n", destfile);
 
-	if (!debugtarget)
+	if (statement_linenums)
 	{
-		if (opt_filenames)
+		unsigned int lnotype = *(unsigned int*)"LNOF";
+		unsigned int version = 1;
+		pbool gz = false;
+		while(1)
 		{
-			printf("Not writing linenumbers file due to conflicting optimisation (try -Ono-f)\n");
-		}
-		else
-		{
-			unsigned int lnotype = *(unsigned int*)"LNOF";
-			unsigned int version = 1;
-			pbool gz = false;
-			while(1)
-			{
-				char *ext;
-				ext = strrchr(destfile, '.');
-				if (strchr(ext, '/') || strchr(ext, '\\'))
-					break;
-				if (!stricmp(ext, ".gz"))
-				{
-					*ext = 0;
-					gz = true;
-					continue;
-				}
-				*ext = 0;
+			char *ext;
+			ext = strrchr(destfile, '.');
+			if (strchr(ext, '/') || strchr(ext, '\\'))
 				break;
-			}
-			if (strlen(destfile) < sizeof(destfile)-(4+3))
+			if (!stricmp(ext, ".gz"))
 			{
-				strcat(destfile, ".lno");
-				if (gz)
-					strcat(destfile, ".gz");
-				if (verbose)
-					printf("Writing %s for debugging\n", destfile);
-				h = SafeOpenWrite (destfile, 2*1024*1024);
-				SafeWrite (h, &lnotype, sizeof(int));
-				SafeWrite (h, &version, sizeof(int));
-				SafeWrite (h, &numglobaldefs, sizeof(int));
-				SafeWrite (h, &numpr_globals, sizeof(int));
-				SafeWrite (h, &numfielddefs, sizeof(int));
-				SafeWrite (h, &numstatements, sizeof(int));
-				SafeWrite (h, statement_linenums, numstatements*sizeof(int));
-				SafeClose (h);
+				*ext = 0;
+				gz = true;
+				continue;
 			}
+			*ext = 0;
+			break;
+		}
+		if (strlen(destfile) < sizeof(destfile)-(4+3))
+		{
+			strcat(destfile, ".lno");
+			if (gz)
+				strcat(destfile, ".gz");
+			if (verbose)
+				printf("Writing %s for debugging\n", destfile);
+			h = SafeOpenWrite (destfile, 2*1024*1024);
+			SafeWrite (h, &lnotype, sizeof(int));
+			SafeWrite (h, &version, sizeof(int));
+			SafeWrite (h, &numglobaldefs, sizeof(int));
+			SafeWrite (h, &numpr_globals, sizeof(int));
+			SafeWrite (h, &numfielddefs, sizeof(int));
+			SafeWrite (h, &numstatements, sizeof(int));
+			SafeWrite (h, statement_linenums, numstatements*sizeof(int));
+			SafeClose (h);
 		}
 	}
 

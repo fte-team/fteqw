@@ -365,6 +365,7 @@ typedef struct QCC_def_s
 	pbool isstatic:1;
 	pbool subscoped_away:1;
 	pbool followptr:1;
+	pbool strip:1;
 
 	temp_t *temp;
 } QCC_def_t;
@@ -377,6 +378,7 @@ typedef struct
 		REF_POINTER,//*(pointerdef+wordindex)	- maths...
 		REF_FIELD,	//(entity.field)			- reading is a single load, writing requires address+storep
 		REF_STRING,	//"hello"[1]=='e'			- special opcodes, or str2chr builtin, or something
+		REF_NONVIRTUAL	//(global.ofs)			- identical to global except for function calls, where index can be used to provide the 'newself' for the call.
 	} type;
 
 	QCC_def_t *base;
@@ -833,6 +835,7 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_SAVED	1
 #define GDF_STATIC	2
 #define GDF_CONST	4
+#define GDF_STRIP	8	//always stripped, regardless of optimisations. used for class member fields
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, unsigned int flags);
 char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
 

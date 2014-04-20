@@ -4271,8 +4271,12 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 	char *con;
 	buddy_t *b;
 	bresource_t *br;
-	if (!JCL_FindBuddy(jcl, to, &b, &br, true))
+	JCL_FindBuddy(jcl, to, &b, &br, true);
+	if (!b)
+	{
+		Con_Printf("Can't find buddy \"%s\"\n", to);
 		return;
+	}
 	if (b->chatroom)
 	{
 		if (br)
@@ -4551,21 +4555,21 @@ void JCL_Command(int accid, char *console)
 										"This text...\n");
 			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /raw <XML STANZAS/>^]\n"
 										"For debug hackery.\n");
-			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /friend accountname friendlyname^]\n"
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /friend accountname@domain friendlyname^]\n"
 										"Befriends accountname, and shows them in your various lists using the friendly name. Can also be used to rename friends.\n");
-			Con_TrySubPrint(console,	"^[/" COMMANDPREFIX " /unfriend accountname^]\n"
+			Con_TrySubPrint(console,	"^[/" COMMANDPREFIX " /unfriend accountname@domain^]\n"
 										"Ostracise your new best enemy. You will no longer see them and they won't be able to contact you.\n");
 			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /blist^]\n"
 										"Show all your friends! Names are clickable and will begin conversations.\n");
 			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /quit^]\n"
 										"Disconnect from the XMPP server, noone will be able to hear you scream.\n");
-			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /join accountname^]\n"
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /join accountname@domain^]\n"
 										"Joins your friends game (they will be prompted).\n");
-			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /invite accountname^]\n"
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /invite accountname@domain^]\n"
 										"Invite someone to join your game (they will be prompted).\n");
-			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /voice accountname^]\n"
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /voice accountname@domain^]\n"
 										"Begin a bi-directional peer-to-peer voice conversation with someone (they will be prompted).\n");
-			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /msg ACCOUNTNAME your message goes here^]\n"
+			Con_TrySubPrint(console, 	"^[/" COMMANDPREFIX " /msg ACCOUNTNAME@domain \"your message goes here\"^]\n"
 										"Sends a message to the named person. If given a resource postfix, your message will be sent only to that resource.\n");
 			Con_TrySubPrint(console, 	"If no arguments, will print out your friends list. If no /command is used, the arguments will be sent as a message to the person you last sent a message to.\n");
 		}
@@ -4630,6 +4634,13 @@ void JCL_Command(int accid, char *console)
 			//FIXME: validate the dest. deal with xml markup in dest.
 			Q_strlcpy(jcl->defaultdest, arg[1], sizeof(jcl->defaultdest));
 			msg = arg[2];
+
+			//reparse the commands, so we get all trailing text
+			msg = imsg;
+			msg = JCL_ParseOut(msg, arg[0], sizeof(arg[0]));
+			msg = JCL_ParseOut(msg, arg[1], sizeof(arg[1]));
+			while(*msg == ' ')
+				*msg++;
 
 			JCL_SendMessage(jcl, jcl->defaultdest, msg);
 		}

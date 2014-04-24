@@ -583,6 +583,7 @@ WINDOWS_OBJS = \
 	cd_win.o \
 	fs_win32.o \
 	in_win.o \
+	vid_headless.o \
 	sys_win.o \
 	sys_win_threads.o \
 	net_ssl_winsspi.o \

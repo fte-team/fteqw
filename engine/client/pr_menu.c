@@ -779,6 +779,18 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 				con->parseflags |= PFS_FORCEUTF8;
 		}
 	}
+	else if (!strcmp(field, "close"))
+	{
+		RETURN_TSTRING("0");	//meant to return the old state...
+		if (value && atoi(value))
+			Con_Destroy(con);
+	}
+	else if (!strcmp(field, "clear"))
+	{
+		RETURN_TSTRING(con->linecount?"0":"1");
+		if (value && atoi(value))
+			Con_ClearCon(con);
+	}
 	else if (!strcmp(field, "hidden"))
 	{
 		RETURN_TSTRING((con->flags & CON_HIDDEN)?"1":"0");
@@ -985,7 +997,12 @@ static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct global
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
-	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, cv->string );
+	if (!cv)
+		G_INT(OFS_RETURN) = 0;
+	else if (cv->latched_string)
+		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cv->latched_string);
+	else
+		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cv->string);
 }
 
 qboolean M_Vid_GetMode(int num, int *w, int *h);
@@ -1093,10 +1110,13 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	{
 	case 0:
 		// key_game
-		if (!(cls.state == ca_active))
+		if (cls.state == ca_disconnected)
 			Key_Dest_Add(kdm_console);
-		Key_Dest_Remove(kdm_menu);
-		Key_Dest_Remove(kdm_message);
+		if (Key_Dest_Has(kdm_menu))
+		{
+			Key_Dest_Remove(kdm_menu);
+			Key_Dest_Remove(kdm_message);
+		}
 		break;
 	case 2:
 		// key_menu
@@ -1959,7 +1979,7 @@ qboolean MP_Init (void)
 		int mprogs;
 		Con_DPrintf("Initializing menu.dat\n");
 		menu_world.progs = InitProgs(&menuprogparms);
-		PR_Configure(menu_world.progs, 64*1024*1024, 1);
+		PR_Configure(menu_world.progs, 64*1024*1024, 1, pr_enable_profiling.ival);
 		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat", 10020, NULL, 0);
 		if (mprogs < 0) //no per-progs builtins.
 		{
@@ -2057,6 +2077,16 @@ void MP_Reload_f(void)
 	M_Reinit();
 }
 
+static void MP_Poke_f(void)
+{
+	if (!SV_MayCheat())
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
+	else if (svprogfuncs && svprogfuncs->EvaluateDebugString)
+		Con_TPrintf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+	else
+		Con_TPrintf ("not supported.\n");
+}
+
 void MP_Breakpoint_f(void)
 {
 	int wasset;
@@ -2089,6 +2119,9 @@ void MP_RegisterCvarsAndCmds(void)
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);
+
+	Cmd_AddCommand("poke_menuqc", MP_Poke_f);
+
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);

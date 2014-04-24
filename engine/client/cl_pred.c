@@ -888,6 +888,20 @@ void CL_PredictMovePNum (int seat)
 			VectorCopy (pv->viewangles, pv->simangles);
 	}
 
+	if (!pv->cam_locked && pv->cam_auto && cl.spectator && pv->cam_spec_track >= 0 && pv->cam_spec_track < cl.allocated_client_slots && pv->viewentity != pv->cam_spec_track+1)
+	{
+		if (cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->cam_spec_track].messagenum == cl.validsequence)
+		{
+			pv->cam_locked = true;
+			pv->viewentity = pv->cam_spec_track+1;
+		}
+		else if (pv->cam_spec_track+1 < cl.maxlerpents && cl.lerpents[pv->cam_spec_track+1].sequence == cl.lerpentssequence)
+		{
+			pv->cam_locked = true;
+			pv->viewentity = pv->cam_spec_track+1;
+		}
+	}
+
 	nopred = cl_nopred.ival;
 
 	//don't wrap

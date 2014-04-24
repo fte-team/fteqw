@@ -2881,6 +2881,24 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			}
 		}
 
+		if (!strcmp(type, "error"))
+		{
+			ot = XML_ChildOfTree(tree, "body", 0);
+			if (ot)
+			{
+				unparsable = false;
+				if (f)
+				{
+					if (!strncmp(ot->body, "/me ", 4))
+						Con_SubPrintf(ctx, "* ^2%s^7%s\n", f, ot->body+3);
+					else
+						Con_SubPrintf(ctx, "^2%s^7: %s\n", f, ot->body);
+				}
+			}
+			else
+				Con_SubPrintf(ctx, "error sending message: %s\r", f);
+		}
+
 		if (f)
 		{
 			ot = XML_ChildOfTree(tree, "composing", 0);

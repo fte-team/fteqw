@@ -715,7 +715,7 @@ static struct
 	qboolean (QDECL *load) (model_t *mod, void *buffer, size_t buffersize);
 } modelloaders[64];
 
-int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
+int QDECL Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
@@ -739,7 +739,7 @@ int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magi
 
 	return free+1;
 }
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
+int QDECL Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
@@ -766,7 +766,7 @@ int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned 
 	return free+1;
 }
 
-void Mod_UnRegisterModelFormat(int idx)
+void QDECL Mod_UnRegisterModelFormat(int idx)
 {
 	idx--;
 	if ((unsigned int)(idx) >= sizeof(modelloaders)/sizeof(modelloaders[0]))
@@ -783,7 +783,7 @@ void Mod_UnRegisterModelFormat(int idx)
 	//FS_Restart will be needed
 }
 
-void Mod_UnRegisterAllModelFormats(void *module)
+void QDECL Mod_UnRegisterAllModelFormats(void *module)
 {
 	int i;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)

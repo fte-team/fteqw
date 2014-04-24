@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 entity_state_t *CL_FindPacketEntity(int num);
 
 int
+	pt_muzzleflash=P_INVALID,
 	pt_gunshot=P_INVALID,
 	ptdp_gunshotquad=P_INVALID,
 	pt_spike=P_INVALID,
@@ -420,6 +421,7 @@ void CL_RegisterParticles(void)
 		}
 	}
 
+	pt_muzzleflash			= P_FindParticleType("TE_MUZZLEFLASH");
 	pt_gunshot				= P_FindParticleType("TE_GUNSHOT");	/*shotgun*/
 	ptdp_gunshotquad		= P_FindParticleType("TE_GUNSHOTQUAD");	/*DP: quadded shotgun*/
 	pt_spike				= P_FindParticleType("TE_SPIKE");	/*nailgun*/
@@ -770,6 +772,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		return;
 	}
 
+	b->rflags = RF_NOSHADOW;
 	b->entity = ent;
 	b->model = m;
 	b->particleeffect = btype;
@@ -858,7 +861,8 @@ void CL_ParseStream (int type)
 		Con_Printf ("beam list overflow!\n");
 		return;
 	}
-
+		
+	b->rflags = RF_NOSHADOW;
 	b->entity = ent;
 	b->tag = tag;
 	b->bflags = flags;
@@ -914,7 +918,7 @@ void CL_ParseStream (int type)
 				b2->emitstate = NULL;
 				b2->model = Mod_ForName("models/stsunsf2.mdl", MLV_WARN);
 				b2->alpha = 0.5;
-				b2->rflags = RF_TRANSLUCENT;
+				b2->rflags = RF_TRANSLUCENT|RF_NOSHADOW;
 			}
 		}
 		//FIXME: we don't add the blob corners+smoke
@@ -1742,7 +1746,7 @@ typedef struct custtentinst_s
 } custtentinst_t;
 custtentinst_t *activepcusttents;
 
-void CL_SpawnCustomTEnd(custtentinst_t *info)
+void CL_SpawnCustomTEnt(custtentinst_t *info)
 {
 	clcustomtents_t *t = info->type;
 	qboolean failed;
@@ -1838,7 +1842,7 @@ void CL_RunPCustomTEnts(void)
 	lasttime = cl.time;
 	for (ef = activepcusttents; ef; ef = ef->next)
 	{
-		CL_SpawnCustomTEnd(ef);
+		CL_SpawnCustomTEnt(ef);
 	}
 }
 
@@ -1960,7 +1964,7 @@ void CL_ParseCustomTEnt(void)
 		}
 	}
 	else
-		CL_SpawnCustomTEnd(&info);
+		CL_SpawnCustomTEnt(&info);
 }
 void CL_RefreshCustomTEnts(void)
 {
@@ -2024,7 +2028,7 @@ int CL_TranslateParticleFromServer(int qceffect)
 		return cl.particle_csprecache[qceffect];
 	}
 	else
-		return -1;
+		return P_INVALID;
 
 //	else
 //	{

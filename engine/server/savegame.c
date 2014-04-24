@@ -6,6 +6,7 @@ extern cvar_t skill;
 extern cvar_t deathmatch;
 extern cvar_t coop;
 extern cvar_t teamplay;
+extern cvar_t pr_enable_profiling;
 
 void SV_Savegame_f (void);
 
@@ -259,7 +260,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		Q_SetProgsParms(false);
 		svs.numprogs = 0;
 
-		PR_Configure(svprogfuncs, -1, MAX_PROGS);
+		PR_Configure(svprogfuncs, -1, MAX_PROGS, pr_enable_profiling.ival);
 		PR_RegisterFields();
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);	//just in case the max edicts isn't set.
 		progstype = pt;	//presumably the progs.dat will be what they were before.
@@ -678,7 +679,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	if (progstype != PROG_H2)
 	{
 		Q_SetProgsParms(false);
-		PR_Configure(svprogfuncs, -1, MAX_PROGS);
+		PR_Configure(svprogfuncs, -1, MAX_PROGS, pr_enable_profiling.ival);
 		PR_RegisterFields();
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 	}

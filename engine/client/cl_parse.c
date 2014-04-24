@@ -4406,75 +4406,90 @@ void CL_SetStatString (int pnum, int stat, char *value)
 CL_MuzzleFlash
 ==============
 */
-void CL_MuzzleFlash (int destsplit)
+void CL_MuzzleFlash (int entnum)
 {
-	vec3_t		fv, rv, uv;
-	dlight_t	*dl=NULL;
-	int			i;
+	dlight_t	*dl;
 	player_state_t	*pl;
 
 	packet_entities_t *pack;
 	entity_state_t *s1;
 	int pnum;
-
+	vec3_t org = {0,0,0};
+	vec3_t axis[3] = {{0,0,0}};
+	int dlightkey = 0;
+	extern int pt_muzzleflash;
 	extern cvar_t cl_muzzleflash;
-
-	i = MSGCL_ReadEntity ();
 
 	//was it us?
 	if (!cl_muzzleflash.ival) // remove all muzzleflashes
 		return;
 
-	if (i-1 == cl.playerview[destsplit].playernum && cl_muzzleflash.value == 2)
+	if (cl_muzzleflash.value == 2)
+	{
+		//muzzleflash 2 removes muzzleflashes on us
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+			if (entnum-1 == cl.playerview[pnum].playernum)
+				return;
+	}
+
+	if (!dlightkey)
+	{
+		pack = &cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities;
+
+		for (pnum=0 ; pnum<pack->num_entities ; pnum++)	//try looking for an entity with that id first
+		{
+			s1 = &pack->entities[pnum];
+
+			if (s1->number == entnum)
+			{
+				dlightkey = entnum;
+				VectorCopy(s1->origin, org);
+				AngleVectors(s1->angles, axis[0], axis[1], axis[2]);
+				break;
+			}
+		}
+	}
+	if (!dlightkey)
+	{	//that ent number doesn't exist, go for a player with that number
+		if ((unsigned)(entnum) <= cl.allocated_client_slots && entnum > 0)
+		{
+			pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[entnum-1];
+
+			if (pl->messagenum == cl.validsequence)
+			{
+				dlightkey = -entnum;
+				VectorCopy(pl->origin, org);
+				AngleVectors(pl->viewangles, axis[0], axis[1], axis[2]);
+				if (pl->szmins[2] == 0)	/*hull is 0-based, so origin is bottom of model, move the light up slightly*/
+					org[2] += pl->szmaxs[2]/2;
+			}
+		}
+	}
+
+	if (!dlightkey)
 		return;
 
-	pack = &cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities;
-
-	for (pnum=0 ; pnum<pack->num_entities ; pnum++)	//try looking for an entity with that id first
+	if (P_RunParticleEffectType(org, NULL, 1, pt_muzzleflash))
 	{
-		s1 = &pack->entities[pnum];
+		dl = CL_AllocDlight (dlightkey);
+		VectorMA (org, 15, axis[0], dl->origin);
+		memcpy(dl->axis, axis, sizeof(dl->axis));
 
-		if (s1->number == i)
-		{
-			dl = CL_AllocDlight (i);
-			VectorCopy (s1->origin,  dl->origin);
-			AngleVectors(s1->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
-			break;
-		}
-	}
-	if (pnum==pack->num_entities)
-	{	//that ent number doesn't exist, go for a player with that number
-		if ((unsigned)(i) <= cl.allocated_client_slots && i > 0)
-		{
-			pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[i-1];
+		dl->radius = 200 + (rand()&31);
+		dl->minlight = 32;
+		dl->die = cl.time + 0.1;
+		dl->color[0] = 1.5;
+		dl->color[1] = 1.3;
+		dl->color[2] = 1.0;
 
-			dl = CL_AllocDlight (-i);
-			VectorCopy (pl->origin,  dl->origin);	//set it's origin
-			if (pl->szmins[2] == 0)	/*hull is 0-based, so origin is bottom of model, move the light up slightly*/
-				dl->origin[2] += pl->szmaxs[2]/2;
-			AngleVectors(pl->viewangles, dl->axis[0], dl->axis[1], dl->axis[2]);
-
-			AngleVectors (pl->viewangles, fv, rv, uv);	//shift it up a little
-			VectorMA (dl->origin, 15, fv, dl->origin);
-		}
-		else
-			return;
-	}
-
-	dl->radius = 200 + (rand()&31);
-	dl->minlight = 32;
-	dl->die = cl.time + 0.1;
-	dl->color[0] = 1.3;
-	dl->color[1] = 1.3;
-	dl->color[2] = 1.3;
-
-	dl->channelfade[0] = 1.5;
-	dl->channelfade[1] = 0.75;
-	dl->channelfade[2] = 0.375;
-	dl->decay = 500;
+		dl->channelfade[0] = 1.5;
+		dl->channelfade[1] = 0.75;
+		dl->channelfade[2] = 0.375;
+		dl->decay = 1000;
 #ifdef RTLIGHTS
-	dl->lightcolourscales[2] = 4;
+		dl->lightcolourscales[2] = 4;
 #endif
+	}
 }
 
 #ifdef Q2CLIENT
@@ -5761,7 +5776,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_muzzleflash:
-			CL_MuzzleFlash (destsplit);
+			CL_MuzzleFlash (MSGCL_ReadEntity());
 			break;
 
 		case svc_updateuserinfo:

@@ -22754,6 +22754,10 @@
 						/>
 					</FileConfiguration>
 				</File>
+				<File
+					RelativePath="..\client\vid_headless.c"
+					>
+				</File>
 				<Filter
 					Name="gl"
 					>

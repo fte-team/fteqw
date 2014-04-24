@@ -88,6 +88,7 @@ void M_Menu_Options_f (void)
 		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
 		MB_SPACING(4),
+		MB_SLIDER("Field of View", scr_fov, 80, 110, 5, NULL),
 		MB_SLIDER("Mouse Speed", sensitivity, 1, 10, 0.2, NULL),
 		MB_SLIDER("Crosshair", crosshair, 0, 22, 1, NULL), // move this to hud setup?
 		MB_CHECKBOXFUNC("Always Run", M_Options_AlwaysRun, 0, "Set movement to run at fastest speed by default."),
@@ -567,6 +568,8 @@ const char *presetexec[] =
 	"cl_nolerp 1;"
 	"r_lerpmuzzlehack 0;"
 	"v_gunkick 0;"
+	"cl_rollangle 0;"
+	"cl_bob 0;"
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -600,6 +603,8 @@ const char *presetexec[] =
 	"cl_nolerp 0;"
 	"r_lerpmuzzlehack 1;"
 	"v_gunkick 1;"
+	"cl_rollangle 2.0;"
+	"cl_bob 0.02;"
 
 	, // nice options
 	"r_stains 0.75;"

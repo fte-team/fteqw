@@ -164,27 +164,27 @@ typedef struct galiasinfo_s
 
 typedef struct
 {
-	int (*RegisterModelFormatText)(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-	int (*RegisterModelFormatMagic)(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-	void (*UnRegisterModelFormat)(int idx);
-	void (*UnRegisterAllModelFormats)(void *module);
+	int (QDECL *RegisterModelFormatText)(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	int (QDECL *RegisterModelFormatMagic)(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	void (QDECL *UnRegisterModelFormat)(int idx);
+	void (QDECL *UnRegisterAllModelFormats)(void *module);
 
-	void *(*ZG_Malloc)(zonegroup_t *ctx, int size);
+	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, int size);
 
-	void (*ConcatTransforms) (float in1[3][4], float in2[3][4], float out[3][4]);
-	void (*M3x4_Invert) (const float *in1, float *out);
-	void (*StripExtension) (const char *in, char *out, int outlen);
-	void (*GenMatrixPosQuat4Scale)(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
-	void (*ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
+	void (QDECL *ConcatTransforms) (float in1[3][4], float in2[3][4], float out[3][4]);
+	void (QDECL *M3x4_Invert) (const float *in1, float *out);
+	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
+	void (QDECL *GenMatrixPosQuat4Scale)(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 
-	shader_t *(*RegisterShader) (const char *name, unsigned int usageflags, const char *shaderscript);
-	shader_t *(*RegisterSkin)  (const char *shadername, const char *modname);
-	void (*BuildDefaultTexnums)(texnums_t *tn, shader_t *shader);
+	shader_t *(QDECL *RegisterShader) (const char *name, unsigned int usageflags, const char *shaderscript);
+	shader_t *(QDECL *RegisterSkin)  (const char *shadername, const char *modname);
+	void (QDECL *BuildDefaultTexnums)(texnums_t *tn, shader_t *shader);
 } modplugfuncs_t;
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
-void Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
+void QDECL Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 #endif
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
 void Alias_FlushCache(void);

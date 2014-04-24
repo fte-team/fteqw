@@ -833,9 +833,9 @@ void R2D_Console_Resize(void)
 
 	if (!cwidth && !cheight)
 		cheight = 480;
-	if (cheight && !cwidth)
+	if (cheight && !cwidth && vid.rotpixelheight)
 		cwidth = (cheight*vid.rotpixelwidth)/vid.rotpixelheight;
-	if (cwidth && !cheight)
+	if (cwidth && !cheight && vid.rotpixelwidth)
 		cheight = (cwidth*vid.rotpixelheight)/vid.rotpixelwidth;
 
 	if (!cwidth)

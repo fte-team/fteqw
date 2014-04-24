@@ -317,7 +317,7 @@ size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean ma
 unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean markup);
 
 char *COM_SkipPath (const char *pathname);
-void COM_StripExtension (const char *in, char *out, int outlen);
+void QDECL COM_StripExtension (const char *in, char *out, int outlen);
 void COM_StripAllExtensions (char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
 int QDECL COM_FileSize(const char *path);

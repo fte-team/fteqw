@@ -1287,6 +1287,8 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->glowmod[1] = MSG_ReadByte();
 		s->glowmod[2] = MSG_ReadByte();
 	}
+	if (bits & E5_TRAILEFFECTNUM)
+		s->u.q1.traileffectnum = MSG_ReadShort();
 }
 
 void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(

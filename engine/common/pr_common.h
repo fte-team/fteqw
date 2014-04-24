@@ -83,6 +83,7 @@ char *PF_TempStr(pubprogfuncs_t *prinst);	//returns a tempstring which can be fi
 #define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_TempString(prinst, s))	//temp (static but cycle buffers)
 extern cvar_t pr_tempstringsize;
 extern cvar_t pr_tempstringcount;
+extern cvar_t pr_enable_profiling;
 
 extern int qcinput_scan;
 extern int qcinput_unicode;

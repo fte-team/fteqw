@@ -807,8 +807,10 @@ typedef struct
 	// log messages are used so that fraglog processes can get stats
 	int			logsequence;	// the message currently being filled
 	double		logtime;		// time of last swap
-	sizebuf_t	log[2];
-	qbyte		log_buf[2][MAX_DATAGRAM];
+
+#define FRAGLOG_BUFFERS	8
+	sizebuf_t	log[FRAGLOG_BUFFERS];
+	qbyte		log_buf[FRAGLOG_BUFFERS][MAX_DATAGRAM];
 
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
 

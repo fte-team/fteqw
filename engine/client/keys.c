@@ -1922,7 +1922,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	char	*dc, *uc;
 	char	p[16];
 	int modifierstate;
-	int conkey = consolekeys[key] || (unicode && (key != '`' || key_linepos>1));	//if the input line is empty, allow ` to toggle the console, otherwise enter it as actual text.
+	int conkey = consolekeys[key] || ((unicode || key == '`') && (key != '`' || key_linepos>1));	//if the input line is empty, allow ` to toggle the console, otherwise enter it as actual text.
 
 //	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 

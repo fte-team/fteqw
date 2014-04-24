@@ -16,10 +16,11 @@ static char *cvargroup_progs = "Progs variables";
 
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
 cvar_t pr_droptofloorunits = CVAR("pr_droptofloorunits", "");
-cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
-cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
-cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
-cvar_t pr_enable_uriget = SCVAR("pr_enable_uriget", "1");
+cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
+cvar_t pr_tempstringcount = CVAR("pr_tempstringcount", "");//"16");
+cvar_t pr_tempstringsize = CVAR("pr_tempstringsize", "4096");
+cvar_t pr_enable_uriget = CVAR("pr_enable_uriget", "1");
+cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
 int tokenizeqc(const char *str, qboolean dpfuckage);
 
 void skel_info_f(void);
@@ -32,6 +33,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
+	Cvar_Register (&pr_enable_profiling, cvargroup_progs);
 
 #ifdef RAGDOLL
 	Cmd_AddCommand("skel_info", skel_info_f);
@@ -5092,10 +5094,11 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}},
+	{"FTE_CSQC_RENDERTARGETS_WIP"},
 	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
-	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},
+	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},	//I'd rename this to _CSQC_ but it does technically provide this builtin to menuqc too, not that the forceshader entity field exists there... but whatever.
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_GFX_QUAKE3SHADERS"},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},

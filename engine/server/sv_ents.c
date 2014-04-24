@@ -2584,15 +2584,11 @@ int glowsize=0, glowcolor=0, colourmod=0;
 //
 // write the message
 //
-#ifdef PARANOID
-	MSG_WriteByte (msg,(bits | NQU_SIGNAL) & 0xFF); //gets caught on 'range error'
-#else
-	MSG_WriteByte (msg,bits | NQU_SIGNAL);
-#endif
+	MSG_WriteByte (msg,(bits | NQU_SIGNAL) & 0xff); //gets caught on 'range error'
 
-	if (bits & NQU_MOREBITS)	MSG_WriteByte (msg, bits>>8);
-	if (bits & DPU_EXTEND1)		MSG_WriteByte (msg, bits>>16);
-	if (bits & DPU_EXTEND2)		MSG_WriteByte (msg, bits>>24);
+	if (bits & NQU_MOREBITS)	MSG_WriteByte (msg, (bits>>8)&0xff);
+	if (bits & DPU_EXTEND1)		MSG_WriteByte (msg, (bits>>16)&0xff);
+	if (bits & DPU_EXTEND2)		MSG_WriteByte (msg, (bits>>24)&0xff);
 
 	if (bits & NQU_LONGENTITY)
 		MSG_WriteShort (msg,ent->number);

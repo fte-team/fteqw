@@ -422,7 +422,7 @@ PR_EnterFunction
 Returns the new program statement counter
 ====================
 */
-int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, const dfunction_t *f, int progsnum)
+int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
 
@@ -1176,7 +1176,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	eval_t	*t, *swtch=NULL;
 
 	int swtchtype = 0; //warning about not being initialized before use
-	dstatement16_t	*fte_restrict st16;
+	const dstatement16_t	*fte_restrict st;
 	dfunction_t	*fte_restrict newf;
 	int		i;
 	edictrun_t	*ed;
@@ -1191,8 +1191,8 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 #define OPC ((eval_t *)&glob[st->c])
 
 #define INTSIZE 16
-	st16 = &pr_statements16[s];
-	while (progfuncs->funcs.pr_trace || prinst.watch_ptr)
+	st = &pr_statements16[s];
+	while (progfuncs->funcs.pr_trace || prinst.watch_ptr || prinst.profiling)
 	{
 #ifdef FTE_TARGET_WEB
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
@@ -1223,8 +1223,8 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	eval_t	*t, *swtch=NULL;
 
 	int swtchtype = 0; //warning about not being initialized before use
-	const dstatement32_t	*fte_restrict st32;
-	const dfunction_t	*fte_restrict newf;
+	const dstatement32_t	*fte_restrict st;
+	dfunction_t	*fte_restrict newf;
 	int		i;
 	edictrun_t	*ed;
 	eval_t	*ptr;
@@ -1238,8 +1238,8 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 #define OPC ((eval_t *)&glob[st->c])
 
 #define INTSIZE 32
-	st32 = &pr_statements32[s];
-	while (progfuncs->funcs.pr_trace || prinst.watch_ptr)
+	st = &pr_statements32[s];
+	while (progfuncs->funcs.pr_trace || prinst.watch_ptr || prinst.profiling)
 	{
 #ifdef FTE_TARGET_WEB
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
@@ -1513,7 +1513,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	const dfunction_t	*f, *oldf;
+	dfunction_t	*f, *oldf;
 	int		i,l,ls;
 	progsnum_t initial_progs;
 	int		oldexitdepth;

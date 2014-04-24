@@ -1759,7 +1759,7 @@ char *COM_SkipPath (const char *pathname)
 COM_StripExtension
 ============
 */
-void COM_StripExtension (const char *in, char *out, int outlen)
+void QDECL COM_StripExtension (const char *in, char *out, int outlen)
 {
 	char *s;
 

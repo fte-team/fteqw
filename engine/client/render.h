@@ -341,8 +341,6 @@ enum imageflags
 	/*warning: many of these flags only apply the first time it is requested*/
 	IF_CLAMP = 1<<0,
 	IF_NEAREST = 1<<1,
-	IF_UIPIC = 1<<10,	//subject to texturemode2d
-	IF_LINEAR = 1<<11,
 	IF_NOPICMIP = 1<<2,
 	IF_NOMIPMAP = 1<<3,
 	IF_NOALPHA = 1<<4,
@@ -353,6 +351,9 @@ enum imageflags
 	IF_TEXTYPE = (1<<6) | (1<<7) | (1<<8), /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_TEXTYPESHIFT = 6, /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP = 1<<9,
+	IF_UIPIC = 1<<10,	//subject to texturemode2d
+	IF_LINEAR = 1<<11,
+	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
 	IF_EXACTEXTENSION = 1<<29,
 	IF_REPLACE = 1<<30,
 	IF_SUBDIRONLY = 1<<31
@@ -433,10 +434,10 @@ void Mod_NowLoadExternal(void);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
 
-int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-void Mod_UnRegisterModelFormat(int idx);
-void Mod_UnRegisterAllModelFormats(void *module);
+int QDECL Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+int QDECL Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+void QDECL Mod_UnRegisterModelFormat(int idx);
+void QDECL Mod_UnRegisterAllModelFormats(void *module);
 
 #ifdef RUNTIMELIGHTING
 void LightFace (int surfnum);

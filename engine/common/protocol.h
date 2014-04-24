@@ -1558,9 +1558,9 @@ typedef struct q1usercmd_s
 // unused
 #define E5_GLOWMOD (1<<24)
 // unused
-#define E5_UNUSED25 (1<<25)
+#define E5_COMPLEXANIMATION (1<<25)
 // unused
-#define E5_UNUSED26 (1<<26)
+#define E5_TRAILEFFECTNUM (1<<26)
 // unused
 #define E5_UNUSED27 (1<<27)
 // unused
@@ -1572,4 +1572,4 @@ typedef struct q1usercmd_s
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
 
-#define E5_ALLUNUSED (E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+#define E5_ALLUNUSED (E5_COMPLEXANIMATION|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)

@@ -108,6 +108,8 @@ avplug/libavformat/avformat.h:
 distclean:
 	rm avplug/libavformat/avformat.h
 
+-include Makefile.private
+
 $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iavplug/msvc_lib $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
 #native: $(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT)

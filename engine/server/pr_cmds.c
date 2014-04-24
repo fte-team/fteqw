@@ -61,7 +61,6 @@ cvar_t	noexit = CVAR("noexit", "0");
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
 
 /*cvars purely for compat with others*/
-cvar_t	dpcompat_trailparticles = CVARD("dpcompat_trailparticles", "0", "Swaps the parameter order of the trailparticles builtin so that mods that target DP only can still run.");
 cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_LATCH, "Enables mvdsv-specific builtins, and fakes identifiers so that mods made for mvdsv can run properly and with the full feature set.");
 
 /*compat with frikqcc's arrays (ensures that unknown fields are at the same offsets*/
@@ -1054,7 +1053,7 @@ void PR_Decompile_f(void)
 	if (!svprogfuncs)
 	{
 		Q_SetProgsParms(false);
-		PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
+		PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, 0);
 	}
 
 
@@ -1126,7 +1125,7 @@ void PR_ApplyCompilation_f (void)
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 
 
-	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
+	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
 	PR_RegisterFields();
 	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
@@ -1222,6 +1221,23 @@ void PR_WatchPoint_f(void)
 	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 
+static void PR_SSProfile_f(void)
+{
+	if (svprogfuncs && svprogfuncs->DumpProfile)
+		if (!svprogfuncs->DumpProfile(svprogfuncs))
+			Con_Printf("Please set pr_enable_profiling and restart the map first\n");
+}
+
+static void PR_SSPoke_f(void)
+{
+	if (!SV_MayCheat())
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
+	else if (svprogfuncs && svprogfuncs->EvaluateDebugString)
+		Con_TPrintf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+	else
+		Con_TPrintf ("not supported.\n");
+}
+
 void PR_SSCoreDump_f(void)
 {
 	if (!svprogfuncs)
@@ -1267,6 +1283,8 @@ void PR_Init(void)
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
 	Cmd_AddCommand ("coredump_ssqc", PR_SSCoreDump_f);
+	Cmd_AddCommand ("poke_ssqc", PR_SSPoke_f);
+	Cmd_AddCommand ("profile_ssqc", PR_SSProfile_f);
 
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
 	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
@@ -1276,7 +1294,6 @@ void PR_Init(void)
 	Cmd_AddCommand ("svtestprogs", QCLibTest);
 #endif
 */
-	Cvar_Register(&dpcompat_trailparticles, "Darkplaces compatibility");
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
 
@@ -1353,7 +1370,7 @@ void Q_InitProgs(void)
 
 
 // load progs to get entity field count
-	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
+	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
 
 	PR_RegisterFields();
 
@@ -5129,26 +5146,40 @@ void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	edict_t	*ent1, *ent2;
 	int		e1, e2;
 	char	*s;
+	sizebuf_t *sz;
 
 	ent1 = G_EDICT(prinst, OFS_PARM0);
 	ent2 = G_EDICT(prinst, OFS_PARM1);
 
-	e1 = NUM_FOR_EDICT(prinst, ent1);
-	e2 = NUM_FOR_EDICT(prinst, ent2);
+	e1 = NUM_FOR_EDICT(prinst, ent1)-1;
+	e2 = NUM_FOR_EDICT(prinst, ent2)-1;
 
-	if (e1 < 1 || e1 > sv.allocated_client_slots
-	|| e2 < 1 || e2 > sv.allocated_client_slots)
+	if (e1 < 0 || e1 >= sv.allocated_client_slots
+	|| e2 < 0 || e2 >= sv.allocated_client_slots)
 		return;
 
 #ifdef SVRANKING
 	if (e1 != e2)	//don't get a point for suicide.
-		svs.clients[e1-1].kills += 1;
-	svs.clients[e2-1].deaths += 1;
+		svs.clients[e1].kills += 1;
+	svs.clients[e2].deaths += 1;
 #endif
 
-	s = va("\\%s\\%s\\\n",svs.clients[e1-1].name, svs.clients[e2-1].name);
+	s = va("\\%s\\%s\\\n",svs.clients[e1].name, svs.clients[e2].name);
 
-	SZ_Print (&svs.log[svs.logsequence&1], s);
+	//print it to the fraglog buffer for masters/etc to query
+	sz = &svs.log[svs.logsequence&(FRAGLOG_BUFFERS-1)];
+	if (sz->cursize && sz->cursize+strlen(s)+1 >= sz->maxsize)
+	{
+		// swap buffers and bump sequence
+		svs.logtime = realtime;
+		svs.logsequence++;
+		sz = &svs.log[svs.logsequence&(FRAGLOG_BUFFERS-1)];
+		sz->cursize = 0;
+		Con_TPrintf ("beginning fraglog sequence %i\n", svs.logsequence);
+	}
+	SZ_Print (sz, s);
+
+	//print it to our local fraglog file.
 	if (sv_fraglogfile)
 	{
 		VFS_WRITE(sv_fraglogfile, s, strlen(s));
@@ -7612,7 +7643,7 @@ static void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct global
 	float *end = G_VECTOR(OFS_PARM3);
 
 	/*DP gets this wrong*/
-	if (dpcompat_trailparticles.ival)
+	if (G_INT(OFS_PARM1) >= MAX_EDICTS)
 	{
 		ednum = G_EDICTNUM(prinst, OFS_PARM0);
 		efnum = G_FLOAT(OFS_PARM1);
@@ -9177,7 +9208,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_FINDFLOAT
 	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, D("entity(entity start, .float fld, float match)", "Equivelent to the find builtin, but instead of comparing strings, this builtin compares floats. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
 
-	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	D("float(string extname)", "Checks for an extension by its name (eg: checkextension(\"FRIK_FILE\") says that its okay to go ahead and use strcat).\nUse cvar_value(\"pr_checkextension\") to see if this builtin exists.")},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
+	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	D("float(string extname)", "Checks for an extension by its name (eg: checkextension(\"FRIK_FILE\") says that its okay to go ahead and use strcat).\nUse cvar(\"pr_checkextension\") to see if this builtin exists.")},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	D("float(string builtinname)", "Looks to see if the named builtin is valid, and returns the builtin number it exists at.")},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
 	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("string(string cvarname)","An old/legacy equivelent of more recent/common builtins in order to read a cvar's string value."), true},
@@ -9451,7 +9482,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"memsetval",		PF_memsetval,		0,		0,		0,		389,	D("void(__variant *dst, float ofs, __variant val)", "Changes the 32bit value stored at the specified pointer-with-offset.")},
 	{"memptradd",		PF_memptradd,		0,		0,		0,		390,	D("__variant*(__variant *base, float ofs)", "Perform some pointer maths. Woo.")},
 
-	{"con_getset",		PF_Fixme,			0,		0,		0,		391,	D("string(string conname, string field, optional string newvalue)", "Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field.")},
+	{"con_getset",		PF_Fixme,			0,		0,		0,		391,	D("string(string conname, string field, optional string newvalue)", "Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field. Valid properties: 	title, name, next, unseen, markup, forceutf8, close, clear, hidden, linecount")},
 	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
 	{"con_draw",		PF_Fixme,			0,		0,		0,		393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
 	{"con_input",		PF_Fixme,			0,		0,		0,		394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
@@ -10124,7 +10155,7 @@ void PR_DumpPlatform_f(void)
 		{"ltime",				".float", QW|NQ},
 		{"entnum",				".float", CS,	"The entity number as its known on the server."},
 		{"drawmask",			".float", CS,	"Acts as a filter in the addentities call."},
-		{"predraw",				".float()", CS,	"Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Return true to inhibit addition of the entity, and false for the entity to be added to the scene."},
+		{"predraw",				".float()", CS,	"Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Should return one of the PREDRAW_* constants."},
 		{"lastruntime",			".float", QW},
 		{"movetype",			".float", QW|NQ|CS},
 		{"solid",				".float", QW|NQ|CS},
@@ -10497,6 +10528,10 @@ void PR_DumpPlatform_f(void)
 		{"MF_TRACER2",			"const float", QW|NQ, NULL, EF_MF_TRACER2>>24},
 		{"MF_TRACER3",			"const float", QW|NQ, NULL, EF_MF_TRACER3>>24},
 
+		{"PFLAGS_NOSHADOW",		"const float", QW|NQ|CS, "Associated RT lights attached will not cast shadows, making them significantly faster to draw.", PFLAGS_NOSHADOW},
+		{"PFLAGS_CORONA",		"const float", QW|NQ|CS, "Enables support of coronas on the associated rtlights.", PFLAGS_CORONA},
+		{"PFLAGS_FULLDYNAMIC",	"const float", QW|NQ, "When set in self.pflags, enables fully-customised dynamic lights. Custom rtlight information is not otherwise used.", PFLAGS_FULLDYNAMIC},
+
 		//including these for csqc stat types.
 //		{"EV_VOID",				"const float", QW|NQ, NULL, ev_void},
 		{"EV_STRING",			"const float", QW|NQ, NULL, ev_string},
@@ -10598,6 +10633,8 @@ void PR_DumpPlatform_f(void)
 
 		{"MASK_ENGINE",			"const float", CS, "Valid as an argument for addentities. If specified, all non-csqc entities will be added to the scene.", MASK_DELTA},
 		{"MASK_VIEWMODEL",		"const float", CS, "Valid as an argument for addentities. If specified, the regular engine viewmodel will be added to the scene.", MASK_STDVIEWMODEL},
+		{"PREDRAW_AUTOADD",		"const float", CS, "Valid as a return value from the predraw function. Returning this will cause the engine to automatically invoke addentity(self) for you.", false},
+		{"PREDRAW_NEXT",		"const float", CS, "Valid as a return value from the predraw function. Returning this will simply move on to the next entity without the autoadd behaviour, so can be used for particle/invisible/special entites, or entities that were explicitly drawn with addentity.", true},
 
 		{"LFIELD_ORIGIN",		"const float", CS, NULL, lfield_origin},
 		{"LFIELD_COLOUR",		"const float", CS, NULL, lfield_colour},

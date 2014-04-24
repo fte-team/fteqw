@@ -350,7 +350,7 @@ typedef struct QCC_def_s
 	struct QCC_def_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	struct QCC_def_s	*generatedfor;
-	int			initialized;	// 1 when a declaration included "= immediate"
+	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern. 3 = don't warn (unless actually called)
 	int			constant;		// 1 says we can use the value over and over again
 
 	int references;

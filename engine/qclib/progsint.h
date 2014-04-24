@@ -61,7 +61,7 @@ typedef struct sharedvar_s
 typedef struct
 {
 	int				s;
-	const dfunction_t		*f;
+	dfunction_t		*f;
 	int				progsnum;
 	int pushed;
 } prstack_t;
@@ -129,7 +129,8 @@ int reorganisefields;
 	int continuestatement;
 	int exitdepth;
 
-	const dfunction_t	*pr_xfunction;
+	pbool profiling;
+	dfunction_t	*pr_xfunction;
 #define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;
 #define pr_xstatement prinst.pr_xstatement
@@ -477,7 +478,7 @@ fdef_t *ED_FindField (progfuncs_t *progfuncs, const char *name);
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *pnum, progsnum_t fromprogs);
 func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, const char *funcname, progsnum_t pnum);
-void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int max_progs);
+//void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int max_progs);
 int PDECL PR_InitEnts(pubprogfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool verbose);
 void PDECL QC_ClearEdict (pubprogfuncs_t *progfuncs, struct edict_s *ed);

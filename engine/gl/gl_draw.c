@@ -1321,7 +1321,7 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
 	else if (scaled_width == width && scaled_height == height)
 	{
-		if ((flags&IF_NOMIPMAP)||gl_config.sgis_generate_mipmap)	//gotta love this with NPOT textures... :)
+		if (((flags&IF_NOMIPMAP)||gl_config.sgis_generate_mipmap) && !(flags & IF_PREMULTIPLYALPHA))	//gotta love this with NPOT textures... :)
 		{
 			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
 			if (type == GL_UNSIGNED_SHORT_5_6_5)
@@ -1336,6 +1336,19 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 	}
 	else
 		GL_ResampleTexture (data, width, height, scaled, scaled_width, scaled_height);
+
+	if (flags & IF_PREMULTIPLYALPHA)
+	{
+		//works for rgba or bgra
+		int i;
+		unsigned char *premul = (unsigned char*)scaled;
+		for (i = 0; i < scaled_width*scaled_height; i++, premul+=4)
+		{
+			premul[0] = (premul[0] * premul[3])>>8;
+			premul[1] = (premul[1] * premul[3])>>8;
+			premul[2] = (premul[2] * premul[3])>>8;
+		}
+	}
 	if (scaled_width * scaled_height*4 > sizeofuploadmemorybufferintermediate)
 	{
 		sizeofuploadmemorybufferintermediate = scaled_width * scaled_height * 4;

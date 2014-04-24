@@ -633,7 +633,7 @@ uses parent bone info, so don't try to offset for a first bone.
 ALWAYS writes dest. Don't force it if you don't want to waste cycles when no conversion is actually needed.
 destbonecount is to catch errors, its otherwise ignored for now. no identity padding.
 */
-void Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount)
+void QDECL Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount)
 {
 	float altbuffer[MAX_BONES*12];
 	const float *buf = Alias_ConvertBoneData(sourcetype, sourcedata, bonecount, bones, desttype, destbuffer, altbuffer, destbonecount);

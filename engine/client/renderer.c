@@ -857,6 +857,7 @@ rendererinfo_t d3d11rendererinfo;
 #ifdef SWQUAKE
 rendererinfo_t swrendererinfo;
 #endif
+rendererinfo_t headlessrenderer;
 
 rendererinfo_t *rendererinfo[] =
 {
@@ -879,6 +880,7 @@ rendererinfo_t *rendererinfo[] =
 #ifndef NPQTV
 	&dedicatedrendererinfo,
 #endif
+	&headlessrenderer,
 };
 
 
@@ -1017,6 +1019,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 	extern model_t *loadmodel;
 
 	Cache_Flush();
+	COM_FlushFSCache();	//make sure the fs cache is built if needed. there's lots of loading here.
 
 	TRACE(("dbg: R_ApplyRenderer: old renderer closed\n"));
 

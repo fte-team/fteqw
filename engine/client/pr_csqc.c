@@ -2215,7 +2215,7 @@ static void QCBUILTIN PF_cs_trailparticles (pubprogfuncs_t *prinst, struct globa
 	float *start = G_VECTOR(OFS_PARM2);
 	float *end = G_VECTOR(OFS_PARM3);
 
-	if (csqc_isdarkplaces)
+	if (G_INT(OFS_PARM1) >= MAX_EDICTS)
 	{
 		efnum = G_FLOAT(OFS_PARM1);
 		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
@@ -5342,7 +5342,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqcprogs = InitProgs(&csqcprogparms);
 		csqc_world.progs = csqcprogs;
 		csqc_world.usesolidcorpse = true;
-		PR_Configure(csqcprogs, pr_csqc_memsize.ival, 16);
+		PR_Configure(csqcprogs, pr_csqc_memsize.ival, 16, pr_enable_profiling.ival);
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;
 		csqc_world.Event_Think = CSQC_Event_Think;
@@ -5688,6 +5688,12 @@ void CSQC_WatchPoint_f(void)
 	else
 		Con_Printf("Watchpoint cleared\n");
 }
+void PR_CSProfile_f(void)
+{
+	if (csqcprogs && csqcprogs->DumpProfile)
+		if (!csqcprogs->DumpProfile(csqcprogs))
+			Con_Printf("Please set pr_enable_profiling and restart the map first\n");
+}
 
 static void CSQC_GameCommand_f(void);
 void CSQC_RegisterCvarsAndThings(void)
@@ -5698,6 +5704,7 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cmd_AddCommand("breakpoint_csqc", CSQC_Breakpoint_f);
 	Cmd_AddCommand ("watchpoint_csqc", CSQC_WatchPoint_f);
 	Cmd_AddCommandD("poke_csqc", CSQC_Poke_f, "Allows you to inspect/debug ");
+	Cmd_AddCommand ("profile_csqc", PR_CSProfile_f);
 
 	Cvar_Register(&pr_csqc_formenus, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_memsize, CSQCPROGSGROUP);

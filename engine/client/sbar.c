@@ -816,6 +816,8 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	}
 	failedpic = false;
 
+	COM_FlushFSCache();	//make sure the fs cache is built if needed. there's lots of loading here.
+
 	sbarfailed = false;
 
 	for (i=0 ; i<10 ; i++)

@@ -68,7 +68,7 @@ struct pubprogfuncs_s
 
 	void	(PDECL *CloseProgs)					(pubprogfuncs_t *inst);
 
-	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, size_t addressablesize, int max_progs);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
+	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, size_t addressablesize, int max_progs, pbool enableprofiling);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
 	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, const char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
 	int		(PDECL *InitEnts)					(pubprogfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(PDECL *ExecuteProgram)				(pubprogfuncs_t *prinst, func_t fnum);	//start execution
@@ -171,6 +171,7 @@ struct pubprogfuncs_s
 	char *(PDECL *UglyValueString)				(pubprogfuncs_t *progfuncs, etype_t type, union eval_s *val);
 	pbool (PDECL *ParseEval)					(pubprogfuncs_t *progfuncs, union eval_s *eval, int type, const char *s);
 	void (PDECL *SetStringField)				(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static);	//if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
+	pbool (PDECL *DumpProfile)					(pubprogfuncs_t *progfuncs);
 };
 
 typedef struct progexterns_s {
@@ -240,7 +241,7 @@ typedef union eval_s
 
 
 #ifndef DLL_PROG
-#define PR_Configure(pf, memsize, max_progs)				(*pf->Configure)			(pf, memsize, max_progs)
+#define PR_Configure(pf, memsize, max_progs, profiling)		(*pf->Configure)			(pf, memsize, max_progs, profiling)
 #define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->LoadProgs)			(pf, s, headercrc, builtins, numb)
 #define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
 #define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)

@@ -55,6 +55,7 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 static cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
 static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
+static cvar_t	in_nonstandarddeadkeys = CVARD("in_nonstandarddeadkeys", "1", "Discard input events that result in multiple keys. Only the last key will be used. This results in behaviour that differs from eg notepad. To use a dead key, press it twice instead of the dead key followed by space.");
 
 static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
@@ -1095,6 +1096,7 @@ void INS_Init (void)
 
 	Cvar_Register (&in_dinput, "Input Controls");
 	Cvar_Register (&in_builtinkeymap, "Input Controls");
+	Cvar_Register (&in_nonstandarddeadkeys, "Input Controls");
 	Cvar_Register (&in_simulatemultitouch, "Input Controls");
 
 	Cvar_Register (&m_accel_noforce, "Input Controls");
@@ -2086,6 +2088,7 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 	extern cvar_t in_builtinkeymap;
 	int qcode;
 	int unicode;
+	int chars;
 	extern int		keyshift[256];
 	extern int		shift_down;
 
@@ -2096,11 +2099,16 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 		BYTE	keystate[256];
 		WCHAR	wchars[2];
 		GetKeyboardState(keystate);
-		if (ToUnicode(wParam, HIWORD(lParam), keystate, wchars, sizeof(wchars)/sizeof(wchars[0]), 0) > 0)
+		chars = ToUnicode(wParam, HIWORD(lParam), keystate, wchars, sizeof(wchars)/sizeof(wchars[0]), 0);
+	
+		if (chars > 0)
 		{
-			//ignore if more, its probably a compose and > 65535 anyway. we can't represent that.
-//			if (!wchars[1])
-				unicode = wchars[0];
+			if (!in_nonstandarddeadkeys.ival)
+			{
+				for (unicode = 0; unicode < chars-1; unicode++)
+					Key_Event (qdeviceid, 0, wchars[unicode], down);
+			}
+			unicode = wchars[chars-1];
 		}
 		else unicode = 0;
 	}
@@ -2110,7 +2118,6 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 		if (shift_down && unicode < K_MAX && keyshift[unicode])
 			unicode = keyshift[unicode]; 
 	}
-
 	Key_Event (qdeviceid, qcode, unicode, down);
 }
 #endif

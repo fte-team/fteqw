@@ -647,7 +647,7 @@ pbool QCC_PR_Precompiler(void)
 
 			QCC_PR_SkipToEndOfLine(false);
 
-			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s", msg);
+			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s\n", msg);
 		}
 		else if (!strncmp(directive, "warning", 7))
 		{
@@ -659,7 +659,7 @@ pbool QCC_PR_Precompiler(void)
 
 			QCC_PR_SkipToEndOfLine(false);
 
-			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s", msg);
+			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s\n", msg);
 		}
 		else if (!strncmp(directive, "message", 7))
 		{
@@ -4200,6 +4200,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		while (!QCC_PR_CheckToken("}"))
 		{
 			pbool havebody = false;
+			pbool isnull = false;
 			pbool isvirt = false;
 			pbool isnonvirt = false;
 			pbool isstatic = false;
@@ -4279,70 +4280,80 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (pr_scope)
 					QCC_Error(ERR_INTERNAL, "Nested function declaration");
 
+				isnull = (QCC_PR_CheckImmediate("0") || QCC_PR_CheckImmediate("0i"));
 				sprintf(membername, "%s::%s", classname, parmname);
-				def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
-
-				if (newparm->type != ev_function)
-					QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
+				if (isnull)
+				{
+					def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, 0);
+					G_FUNCTION(def->ofs) = 0;
+					def->initialized = 1;
+				}
 				else
 				{
-					extern unsigned int locals_end, locals_start;
-					extern QCC_type_t *pr_classtype;
-					QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
+					def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
 
-					if (autoprototype)
-					{
-						QCC_PR_Expect("{");
-
-						{
-							int blev = 1;
-							//balance out the { and }
-							while(blev)
-							{
-								if (pr_token_type == tt_eof)
-									break;
-								if (QCC_PR_CheckToken("{"))
-									blev++;
-								else if (QCC_PR_CheckToken("}"))
-									blev--;
-								else
-									QCC_PR_Lex();	//ignore it.
-							}
-						}
-					}
+					if (newparm->type != ev_function)
+						QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
 					else
 					{
-						pr_scope = def;
-						pr_classtype = newt;
-						f = QCC_PR_ParseImmediateStatements (newparm);
-						pr_classtype = NULL;
-						pr_scope = NULL;
-						G_FUNCTION(def->ofs) = numfunctions;
-						f->def = def;
-						def->initialized = 1;
+						extern unsigned int locals_end, locals_start;
+						extern QCC_type_t *pr_classtype;
+						QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
 
-						if (numfunctions >= MAX_FUNCTIONS)
-							QCC_Error(ERR_INTERNAL, "Too many function defs");
-
-				// fill in the dfunction
-						df = &functions[numfunctions];
-						numfunctions++;
-						if (f->builtin)
-							df->first_statement = -f->builtin;
-						else
-							df->first_statement = f->code;
-
-						if (f->builtin && opt_function_names)
-							optres_function_names += strlen(f->def->name);
-						else
-							df->s_name = QCC_CopyString (f->def->name);
-						df->s_file = s_file;
-						df->numparms =  f->def->type->num_parms;
-						df->locals = locals_end - locals_start;
-						df->parm_start = locals_start;
-						for (i=0 ; i<df->numparms ; i++)
+						if (autoprototype)
 						{
-							df->parm_size[i] = newparm->params[i].type->size;
+							QCC_PR_Expect("{");
+
+							{
+								int blev = 1;
+								//balance out the { and }
+								while(blev)
+								{
+									if (pr_token_type == tt_eof)
+										break;
+									if (QCC_PR_CheckToken("{"))
+										blev++;
+									else if (QCC_PR_CheckToken("}"))
+										blev--;
+									else
+										QCC_PR_Lex();	//ignore it.
+								}
+							}
+						}
+						else
+						{
+							pr_scope = def;
+							pr_classtype = newt;
+							f = QCC_PR_ParseImmediateStatements (newparm);
+							pr_classtype = NULL;
+							pr_scope = NULL;
+							G_FUNCTION(def->ofs) = numfunctions;
+							f->def = def;
+							def->initialized = 1;
+
+							if (numfunctions >= MAX_FUNCTIONS)
+								QCC_Error(ERR_INTERNAL, "Too many function defs");
+
+							// fill in the dfunction
+							df = &functions[numfunctions];
+							numfunctions++;
+							if (f->builtin)
+								df->first_statement = -f->builtin;
+							else
+								df->first_statement = f->code;
+
+							if (f->builtin && opt_function_names)
+								optres_function_names += strlen(f->def->name);
+							else
+								df->s_name = QCC_CopyString (f->def->name);
+							df->s_file = s_file;
+							df->numparms =  f->def->type->num_parms;
+							df->locals = locals_end - locals_start;
+							df->parm_start = locals_start;
+							for (i=0 ; i<df->numparms ; i++)
+							{
+								df->parm_size[i] = newparm->params[i].type->size;
+							}
 						}
 					}
 				}
@@ -4471,7 +4482,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//actually, that seems pointless.
 			sprintf(membername, "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, GDF_CONST|GDF_STRIP);
+			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, (isnull?0:GDF_CONST)|GDF_STRIP);
 			d->references++;	//always referenced, so you can inherit safely.
 		}
 

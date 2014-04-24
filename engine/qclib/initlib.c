@@ -215,7 +215,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 	b = prinst.mfreelist;
 	while (b)
 	{
-		if (b < 0 || b >= prinst.addressableused)
+		if (b < 0 || b+sizeof(qcmemfreeblock_t) >= prinst.addressableused)
 		{
 			printf("PF_memalloc: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs);
@@ -458,7 +458,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 edictrun_t tempedict;	//used as a safty buffer
 static float tempedictfields[2048];
 
-void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_progs)	//can be used to wipe all memory
+static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_progs, pbool profiling)	//can be used to wipe all memory
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int i;
@@ -505,6 +505,7 @@ void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_p
 
 	prinst.reorganisefields = false;
 
+	prinst.profiling = profiling;
 	maxedicts = 1;
 	prinst.edicttable = &sv_edicts;
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
@@ -1023,6 +1024,58 @@ void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)
 
 	prinst.numtempstrings = depth;
 }
+pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	struct progstate_s *ps;
+	unsigned int i, f, j, s;
+	struct
+	{
+		char *fname;
+		int profile;
+	} *sorted, t;
+	if (!prinst.profiling)
+	{
+		printf("Enabling profiling\n");
+		return true;
+	}
+
+	for (i = 0; i < maxprogs; i++)
+	{
+		ps = &pr_progstate[i];
+		if (ps->progs == NULL)	//we havn't loaded it yet, for some reason
+			continue;	
+
+		printf("%s:\n", ps->filename);
+		sorted = malloc(sizeof(*sorted) * ps->progs->numfunctions);
+		//pull out the functions in order to sort them
+		for (s = 0, f = 0; f < ps->progs->numfunctions; f++)
+		{
+			if (!ps->functions[f].profile)
+				continue;
+			sorted[s].fname = ps->functions[f].s_name+progfuncs->funcs.stringtable;
+			sorted[s].profile = ps->functions[f].profile;
+			ps->functions[f].profile = 0;
+			s++;
+		}
+
+		// good 'ol bubble sort
+		for (f = 0; f < s; f++)
+			for (j = f; j < s; j++)
+				if (sorted[f].profile > sorted[j].profile)
+				{
+					t = sorted[f];
+					sorted[f] = sorted[j];
+					sorted[j] = t;
+				}
+
+		//print it out
+		for (f = 0; f < s; f++)
+			printf("%s: %u\n", sorted[f].fname, sorted[f].profile);
+		free(sorted);
+	}
+	return true;
+}
 
 static void PDECL PR_CloseProgs(pubprogfuncs_t *ppf);
 
@@ -1130,7 +1183,8 @@ pubprogfuncs_t deffuncs = {
 	ED_FieldInfo,
 	PR_UglyValueString,
 	ED_ParseEval,
-	PR_SetStringField
+	PR_SetStringField,
+	PR_DumpProfiles
 };
 static int PDECL qclib_null_printf(const char *s, ...)
 {

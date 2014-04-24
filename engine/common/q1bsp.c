@@ -1500,7 +1500,7 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 #endif
 
 #ifdef TERRAIN
-	if (cl.worldmodel->terrain)
+	if (cl.worldmodel && cl.worldmodel->terrain)
 		Terrain_ClipDecal(&dec, center, dec.radius, cl.worldmodel);
 #endif
 

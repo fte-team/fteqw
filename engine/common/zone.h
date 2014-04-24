@@ -115,7 +115,7 @@ typedef struct zonegroup_s
 	void *first;
 	int bytes;
 } zonegroup_t;
-void *ZG_Malloc(zonegroup_t *ctx, int size);
+void *QDECL ZG_Malloc(zonegroup_t *ctx, int size);
 void *ZG_MallocNamed(zonegroup_t *ctx, int size, char *file, int line);
 void ZG_FreeGroup(zonegroup_t *ctx);
 

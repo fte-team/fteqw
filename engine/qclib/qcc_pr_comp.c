@@ -4228,9 +4228,10 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 
 			if (!QCC_PR_CheckToken(")"))
 			{
-				rettype = QCC_TypeForName(QCC_PR_ParseName());
+				char *nam = QCC_PR_ParseName();
+				rettype = QCC_TypeForName(nam);
 				if (!rettype || rettype->type != ev_entity)
-					QCC_PR_ParseError(ERR_NOTANAME, "Spawn operator with undefined class");
+					QCC_PR_ParseError(ERR_NOTANAME, "Spawn operator with undefined class: %s", nam);
 			}
 			else
 				rettype = NULL;	//default, corrected to entity later
@@ -5542,22 +5543,17 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		if (assumeclass && assumeclass->parentclass)
 		{	//try getting a member.
 			QCC_type_t *type;
-			type = assumeclass;
-			while(type)
+			for(type = assumeclass; type && !d; type = type->parentclass)
 			{
 				//look for virtual things
 				sprintf(membername, "%s::"MEMBERFIELDNAME, type->name, name);
 				d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
-				if (d)
-					break;
-
+			}
+			for(type = assumeclass; type && !d; type = type->parentclass)
+			{
 				//look for non-virtual things (functions: after virtual stuff, because this will find the actual function def too)
 				sprintf(membername, "%s::%s", type->name, name);
 				d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
-				if (d)
-					break;
-
-				type = type->parentclass;
 			}
 		}
 		if (!d)
@@ -6516,7 +6512,7 @@ QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pb
 			if (dest->type == REF_FIELD)
 				QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s %s.%s", typea, typeb, dest->base->type->name, dest->index->name);
 			else if (dest->index)
-				QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s[]", typea, typeb, dest->base->name);
+				QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s[%s]", typea, typeb, dest->base->name, dest->index->name);
 			else
 				QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s %s", typea, typeb, dest->base->name);
 		}
@@ -7002,6 +6998,12 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 						{
 							QCC_PR_ParseError(0, "Type mismatch on assignment. %s %s %s is not supported\n", lhsr->cast->name, opname, rhsd->type->name);
 						}
+						else if(lhsr->cast->type == ev_float)
+							rhsd = QCC_MakeFloatConst(0);
+						else if(lhsr->cast->type == ev_integer)
+							rhsd = QCC_MakeIntConst(0);
+						else
+							rhsd = QCC_MakeIntConst(0);
 					}
 					else
 						rhsd = QCC_SupplyConversionForAssignment(lhsr->base, rhsd, lhsr->cast->type, true);
@@ -7058,11 +7060,10 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 	{
 		QCC_PR_DiscardRef(lhsr);
 		if (!qcc_usefulstatement)
-			QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Effectless statement");
+			QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Statement does not do anything");
 		qcc_usefulstatement = false;
 		lhsr = QCC_PR_RefExpression(retbuf, TOP_PRIORITY, exprflags);
 	}
-
 	return lhsr;
 }
 
@@ -7087,7 +7088,7 @@ void QCC_PR_DiscardExpression (int priority, int exprflags)
 	{
 //		int osl = pr_source_line;
 //		pr_source_line = statementstart;
-		QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Effectless statement");
+		QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "Statement does not do anything");
 //		pr_source_line = osl;
 	}
 	qcc_usefulstatement = olduseful;
@@ -7291,7 +7292,7 @@ void QCC_PR_ParseStatement (void)
 		if (QCC_PR_CheckToken (";"))
 		{
 			if (pr_scope->type->aux_type->type != ev_void)
-				QCC_PR_ParseWarning(WARN_MISSINGRETURNVALUE, "\'%s\' should return %s", pr_scope->name, pr_scope->type->aux_type->name);
+				QCC_PR_ParseWarning(WARN_MISSINGRETURNVALUE, "\'%s\' returned nothing, expected %s", pr_scope->name, pr_scope->type->aux_type->name);
 			if (opt_return_only)
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_DONE], 0, 0, NULL));
 			else
@@ -9831,9 +9832,6 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 	QCC_def_t *def, *first=NULL;
 	char typebuf[1024];
 
-	if (name && !strcmp(name, "ImpulseCommands"))
-		QCC_PR_Note(0, strings+s_file, pr_source_line, "Defining %s", name);
-
 #define KEYWORD(x) if (!STRCMP(name, #x) && keyword_##x) {if (keyword_##x)QCC_PR_ParseWarning(WARN_KEYWORDDISABLED, "\""#x"\" keyword used as variable name%s", keywords_coexist?" - coexisting":" - disabling");keyword_##x=keywords_coexist;}
 	if (name)
 	{
@@ -10326,11 +10324,15 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 		QCC_PR_Expect("{");
 		for (i = 0; i < arraysize; i++)
 		{
+			if (QCC_PR_CheckToken("}"))
+				break;
 			QCC_PR_ParseInitializerType(0, def, type, offset + i*type->size);
 			if (!QCC_PR_CheckToken(","))
+			{
+				QCC_PR_Expect("}");
 				break;
+			}
 		}
-		QCC_PR_Expect("}");
 	}
 	else
 	{
@@ -10441,11 +10443,15 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 			isunion = ((type)->type == ev_union);
 			for (partnum = 0; partnum < (type)->num_parms; partnum++)
 			{
+				if (QCC_PR_CheckToken("}"))
+					break;
 				QCC_PR_ParseInitializerType((type)->params[partnum].arraysize, def, (type)->params[partnum].type, offset + (type)->params[partnum].ofs);
 				if (isunion || !QCC_PR_CheckToken(","))
+				{
+					QCC_PR_Expect("}");
 					break;
+				}
 			}
-			QCC_PR_Expect("}");
 			return;
 		}
 		else
@@ -11215,7 +11221,7 @@ void QCC_PR_ParseDefs (char *classname)
 		gd_flags = 0;
 		if (isstatic)
 			gd_flags |= GDF_STATIC;
-		if (isconstant)
+		if (isconstant || (type->type == ev_function && !isvar))
 			gd_flags |= GDF_CONST;
 		if (!nosave)
 			gd_flags |= GDF_SAVED;
@@ -11341,11 +11347,8 @@ void QCC_PR_ParseDefs (char *classname)
 		}
 		else
 		{
-			if (type->type == ev_function && isvar)
-			{
+			if (type->type == ev_function)
 				isconstant = !isvar;
-				def->initialized = 1;
-			}
 
 			if (type->type == ev_field)
 			{

@@ -555,13 +555,13 @@ extern int be_maxpasses;
 
 void R_UnloadShader(shader_t *shader);
 shader_t *R_RegisterPic (const char *name);
-shader_t *R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript);
+shader_t *QDECL R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript);
 shader_t *R_RegisterShader_Lightmap (const char *name);
 shader_t *R_RegisterShader_Vertex (const char *name);
 shader_t *R_RegisterShader_Flare (const char *name);
-shader_t *R_RegisterSkin  (const char *shadername, const char *modname);
+shader_t *QDECL R_RegisterSkin  (const char *shadername, const char *modname);
 shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
-void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
+void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 
 cin_t *R_ShaderGetCinematic(shader_t *s);

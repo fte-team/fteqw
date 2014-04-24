@@ -256,7 +256,7 @@ static void SV_God_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		Con_TPrintf ("You must run the server with +sv_cheats 1 to enable this command.\n");
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
 		return;
 	}
 
@@ -276,7 +276,7 @@ static void SV_Noclip_f (void)
 {
 	if (!SV_MayCheat())
 	{
-		Con_TPrintf ("You must run the server with +sv_cheats 1 to enable this command.\n");
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
 		return;
 	}
 
@@ -312,7 +312,7 @@ static void SV_Give_f (void)
 
 	if (!SV_MayCheat())
 	{
-		Con_TPrintf ("You must run the server with +sv_cheats 1 to enable this command.\n");
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
 		return;
 	}
 

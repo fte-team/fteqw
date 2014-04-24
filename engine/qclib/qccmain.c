@@ -1075,7 +1075,7 @@ strofs = (strofs+3)&~3;
 		}
 	}
 
-	if (debugtarget || opt_filenames)
+	if (!opt_filenames)
 	{
 		statement_linenums = qccHunkAlloc(sizeof(statement_linenums) * numstatements);
 		for (i = 0; i < numstatements; i++)
@@ -1416,7 +1416,7 @@ strofs = (strofs+3)&~3;
 		progs.ofsbodylessfuncs = SafeSeek (h, 0, SEEK_CUR);
 		progs.numbodylessfuncs = WriteBodylessFuncs(h);
 
-		if (debugtarget)
+		if (debugtarget && statement_linenums)
 		{
 			progs.ofslinenums = SafeSeek (h, 0, SEEK_CUR);
 			if (progs.blockscompressed&64)
@@ -1431,6 +1431,7 @@ strofs = (strofs+3)&~3;
 			}
 			else
 				SafeWrite (h, statement_linenums, numstatements*sizeof(int));
+			statement_linenums = NULL;
 		}
 		else
 			progs.ofslinenums = 0;
@@ -3332,9 +3333,11 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 				sprintf (qccmprogsdat, "%s", argv[p+1]);
 			else
 			{	//look for a preprogs.src... :o)
-				sprintf (qccmprogsdat, "preprogs.src");
+				sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
 				if (externs->FileSize(qccmprogsdat) <= 0)
 					sprintf (qccmprogsdat, "progs.src");
+				else
+					sprintf (qccmprogsdat, "preprogs.src");
 			}
 
 			numsourcefiles = 0;

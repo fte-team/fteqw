@@ -155,7 +155,7 @@ void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4x4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
 void		Matrix3x4_Invert (const float *in1, float *out);
-void		Matrix3x4_Invert_Simple (const float *in1, float *out);
+void		QDECL Matrix3x4_Invert_Simple (const float *in1, float *out);
 void		Matrix3x4_InvertTo4x4_Simple (const float *in1, float *out);
 void		Matrix3x3_RM_Invert_Simple(const vec3_t in[3], vec3_t out[3]);
 void		Matrix4x4_RM_CreateTranslate (float *out, float x, float y, float z);
@@ -182,7 +182,7 @@ void		Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *p
 float		*Matrix4x4_CM_NewRotation(float a, float x, float y, float z);
 float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);
 
-void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+void QDECL GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
 
 #define AngleVectorsFLU(a,f,l,u) do{AngleVectors(a,f,l,u);VectorNegate(l,l);}while(0)
 
@@ -202,7 +202,7 @@ fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
 int			Q_log2 (int val);
 void		R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
 void		R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
-void		R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
+void		QDECL R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
 void		RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
 int			VectorCompare (const vec3_t v1, const vec3_t v2);

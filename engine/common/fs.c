@@ -2299,7 +2299,7 @@ void COM_Gamedir (const char *dir)
 
 #define QCFG "set allow_download_refpackages 0\n"
 /*stuff that makes dp-only mods work a bit better*/
-#define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\n set dpcompat_trailparticles 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
+#define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
 #define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
 /*some modern non-compat settings*/

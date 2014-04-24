@@ -579,7 +579,7 @@ void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3])
 R_ConcatTransforms
 ================
 */
-void R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4])
+void QDECL R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 				in1[0][2] * in2[2][0];
@@ -757,7 +757,7 @@ void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
-void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12])
+void QDECL GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12])
 {
 	   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
 	   float x2, y2, z2;
@@ -1635,7 +1635,7 @@ void Matrix3x4_Invert (const float *in1, float *out)
 	Vector4Set (out+8, c[0], c[1], c[2], -DotProduct (c, trans));
 }
 
-void Matrix3x4_Invert_Simple (const float *in1, float *out)
+void QDECL Matrix3x4_Invert_Simple (const float *in1, float *out)
 {
 	// we only support uniform scaling, so assume the first row is enough
 	// (note the lack of sqrt here, because we're trying to undo the scaling,

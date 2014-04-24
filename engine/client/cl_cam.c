@@ -100,7 +100,7 @@ void Cam_Lock(playerview_t *pv, int playernum)
 
 	pv->cam_spec_track = playernum;
 	pv->cam_locked = false;
-	pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating
+	pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating until actually locked
 
 	
 	Skin_FlushPlayers();
@@ -765,6 +765,7 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 
 	pv->cam_auto = CAM_TRACK;
 	Cam_Lock(pv, slot);
+	//and force the lock here and now
 	pv->cam_locked = true;
 	pv->viewentity = slot+1;
 }

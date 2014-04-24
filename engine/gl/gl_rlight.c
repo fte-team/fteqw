@@ -282,6 +282,7 @@ void R_RenderDlights (void)
 	float intensity, cscale;
 	qboolean coronastyle;
 	qboolean flashstyle;
+	float dist;
 
 	if (!r_coronas.value && !r_flashblend.value)
 		return;
@@ -320,6 +321,16 @@ void R_RenderDlights (void)
 			intensity *= r_flashblend.value;
 		if (intensity <= 0 || cscale <= 0)
 			continue;
+
+		//prevent the corona from intersecting with the near clip plane by just fading it away if its too close
+		VectorSubtract(l->origin, r_refdef.vieworg, waste1);
+		dist = VectorLength(waste1);
+		if (dist < 128+256)
+		{
+			if (dist <= 128)
+				continue;
+			intensity *= (dist-128) / 256;
+		}
 
 		/*coronas use depth testing to compute visibility*/
 		if (coronastyle)

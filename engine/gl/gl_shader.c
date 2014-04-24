@@ -3854,7 +3854,7 @@ void Shader_UpdateRegistration (void)
 }
 */
 
-void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
+void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
 	char *h;
 	char imagename[MAX_QPATH];
@@ -5145,7 +5145,7 @@ shader_t *R_RegisterPic (const char *name)
 	return shader;
 }
 
-shader_t *R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript)
+shader_t *QDECL R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript)
 {
 	return R_LoadShader (name, usageflags, Shader_DefaultScript, shaderscript);
 }
@@ -5165,7 +5165,7 @@ shader_t *R_RegisterShader_Flare (const char *name)
 	return R_LoadShader (name, 0, Shader_DefaultBSPFlare, NULL);
 }
 
-shader_t *R_RegisterSkin (const char *shadername, const char *modname)
+shader_t *QDECL R_RegisterSkin (const char *shadername, const char *modname)
 {
 	shader_t *shader;
 #ifdef _DEBUG

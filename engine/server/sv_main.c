@@ -92,7 +92,7 @@ cvar_t	sv_limittics = CVARD("sv_limittics","3", "The maximum number of ticks tha
 
 cvar_t	sv_nailhack = CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
 cvar_t	sv_nopvs	= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
-
+cvar_t	fraglog_public = CVARD("fraglog_public", "1", "Enables support for connectionless fraglog requests");
 
 cvar_t	timeout = SCVAR("timeout","65");		// seconds without any message
 cvar_t	zombietime = SCVAR("zombietime", "2");	// seconds to sink messages
@@ -1258,23 +1258,22 @@ SV_CheckLog
 
 ===================
 */
-#define	LOG_HIGHWATER	4096
 #define	LOG_FLUSH		10*60
 void SV_CheckLog (void)
 {
 	sizebuf_t	*sz;
 
-	sz = &svs.log[svs.logsequence&1];
+	sz = &svs.log[svs.logsequence&(FRAGLOG_BUFFERS-1)];
 
-	// bump sequence if allmost full, or ten minutes have passed and
+	// bump sequence ten minutes have passed and
 	// there is something still sitting there
-	if (sz->cursize > LOG_HIGHWATER
-	|| (realtime - svs.logtime > LOG_FLUSH && sz->cursize) )
+	//logfrag does the rotation for a full log.
+	if (realtime - svs.logtime > LOG_FLUSH && sz->cursize)
 	{
 		// swap buffers and bump sequence
 		svs.logtime = realtime;
 		svs.logsequence++;
-		sz = &svs.log[svs.logsequence&1];
+		sz = &svs.log[svs.logsequence&(FRAGLOG_BUFFERS-1)];
 		sz->cursize = 0;
 		Con_TPrintf ("beginning fraglog sequence %i\n", svs.logsequence);
 	}
@@ -1293,27 +1292,41 @@ instead of the data.
 */
 void SVC_Log (void)
 {
-	int		seq;
+	unsigned int	seq;
 	char	data[MAX_DATAGRAM+64];
 	char	adr[MAX_ADR_SIZE];
 
 	if (Cmd_Argc() == 2)
-		seq = atoi(Cmd_Argv(1));
-	else
-		seq = -1;
+	{
+		seq = strtoul(Cmd_Argv(1), NULL, 0);
+		//seq is the last one that the client already has
 
-	if (seq == svs.logsequence-1 || !sv_fraglogfile)
-	{	// they already have this data, or we aren't logging frags
+		if (seq < svs.logsequence-(FRAGLOG_BUFFERS-1))
+			seq = svs.logsequence-(FRAGLOG_BUFFERS-1);	//send them this sequence
+		else if (seq == svs.logsequence)
+		{	//current log isn't available as its not complete yet.
+			data[0] = A2A_NACK;
+			NET_SendPacket (NS_SERVER, 1, data, &net_from);
+			return;
+		}
+		else if (seq > svs.logsequence)	//future logs are not valid either. reply with the last that was. this is for compat, just in case.
+			seq = svs.logsequence-1;
+		else
+			seq = seq+1;	//they will get the next sequence from the one they already have
+	}
+	else
+		seq = 0;
+
+	if (!fraglog_public.ival)
+	{	//frag logs are not public (for DoS protection perhaps?.
 		data[0] = A2A_NACK;
 		NET_SendPacket (NS_SERVER, 1, data, &net_from);
 		return;
 	}
 
-	Con_DPrintf ("sending log %i to %s\n", svs.logsequence-1, NET_AdrToString(adr, sizeof(adr), &net_from));
+	Con_DPrintf ("sending log %i to %s\n", seq, NET_AdrToString(adr, sizeof(adr), &net_from));
 
-	sprintf (data, "stdlog %i\n", svs.logsequence-1);
-	strcat (data, (char *)svs.log_buf[((svs.logsequence-1)&1)]);
-
+	Q_snprintfz(data, sizeof(data), "stdlog %i\n%s", seq, (char *)svs.log_buf[seq&(FRAGLOG_BUFFERS-1)]);
 	NET_SendPacket (NS_SERVER, strlen(data)+1, data, &net_from);
 }
 
@@ -5192,6 +5205,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_listen_dp,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_q3,	cvargroup_servercontrol);
 	sv_listen_qw.restriction = RESTRICT_MAX;
+	Cvar_Register (&fraglog_public,	cvargroup_servercontrol);
 
 	SVNET_RegisterCvars();
 

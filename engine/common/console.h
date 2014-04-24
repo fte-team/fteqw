@@ -198,6 +198,7 @@ void Con_ExecuteLine(console_t *con, char *line);	//takes normal console command
 void Con_CycleConsole (void);
 int Con_IsActive (console_t *con);
 void Con_Destroy (console_t *con);
+void Con_ClearCon(console_t *con);
 void Con_SetActive (console_t *con);
 qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(const char *name);

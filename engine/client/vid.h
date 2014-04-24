@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // a pixel can be one, two, or four bytes
 typedef qbyte pixel_t;
 
-typedef enum {QR_NONE, QR_OPENGL, QR_DIRECT3D9, QR_DIRECT3D11, QR_SOFTWARE} r_qrenderer_t;
+typedef enum {QR_NONE, QR_HEADLESS, QR_OPENGL, QR_DIRECT3D9, QR_DIRECT3D11, QR_SOFTWARE} r_qrenderer_t;
 
 typedef struct {
 	//you are not allowed to make anything not work if it's not based on these vars...

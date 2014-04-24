@@ -574,7 +574,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	GLVID_Crashed();
 #endif
 
-	if (!iswatchdog && pIsDebuggerPresent ())
+	if (!iswatchdog && pIsDebuggerPresent && pIsDebuggerPresent ())
 	{
 		/*if we have a current window, minimize it to bring us out of fullscreen*/
 		extern qboolean vid_initializing;

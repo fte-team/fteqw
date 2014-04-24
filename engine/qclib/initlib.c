@@ -1037,6 +1037,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 	if (!prinst.profiling)
 	{
 		printf("Enabling profiling\n");
+		prinst.profiling = true;
 		return true;
 	}
 

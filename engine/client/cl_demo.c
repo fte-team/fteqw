@@ -1490,7 +1490,7 @@ void CL_ReRecord_f (void)
 //
 // open the demo file
 //
-	COM_DefaultExtension (name, ".qwd", sizeof(name));
+	COM_RequireExtension (name, ".qwd", sizeof(name));
 
 	cls.demooutfile = FS_OpenVFS (name, "wb", FS_GAME);
 	if (!cls.demooutfile)

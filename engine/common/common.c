@@ -1942,7 +1942,37 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 	Q_strncatz (path, extension, maxlen);
 }
 
+//adds .ext only if it isn't already present (either case).
+//extension *must* contain a leading . as this is really a requiresuffix rather than an actual extension
+//returns false if truncated. will otherwise still succeed.
+qboolean COM_RequireExtension(char *path, char *extension, int maxlen)
+{
+	qboolean okay = true;
+	int plen = strlen(path);
+	int elen = strlen(extension);
 
+	//check if its aready suffixed
+	if (plen >= elen)
+	{
+		if (!Q_strcasecmp(path+plen-elen, extension))
+			return okay;
+	}
+
+	//truncate if required
+	if (plen+1+elen > maxlen)
+	{
+		if (elen+1 > maxlen)
+			Sys_Error("extension longer than path buffer");
+		okay = false;
+		plen = maxlen - 1+elen;
+	}
+
+	//do the copy
+	while(*extension)
+		path[plen++] = *extension++;
+	path[plen] = 0;
+	return okay;
+}
 
 //errors:
 //1 sequence error

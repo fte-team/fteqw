@@ -1540,7 +1540,7 @@ qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int 
 
 	if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 	{
-		FS_CreatePath (filename, FS_GAME);
+		FS_CreatePath (filename, FS_GAMEONLY);
 		if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 		{
 			Con_Printf("Error opening %s\n", filename);

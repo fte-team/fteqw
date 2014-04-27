@@ -2358,6 +2358,14 @@ void SV_VoiceReadPacket(void)
 			if (host_client->voice_mute[j>>3] & (1<<(j&3)))
 				continue;
 		}
+		else if (vt == VT_SPECSELF)
+		{
+			//spectators spectating self hear it.
+			//self hears it (for demos, voip_echo stops it from actually being echoed)
+			if (!host_client->spectator || host_client->spec_track != host_client-svs.clients)
+				if (j != host_client-svs.clients)
+					continue;
+		}
 		else if (vt >= VT_PLAYERSLOT0)
 		{
 			if (j != vt - VT_PLAYERSLOT0)
@@ -2518,6 +2526,12 @@ void SV_Voice_Target_f(void)
 		host_client->voice_target = VT_ALL;
 		if (verbose)
 			SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to all\n");
+	}
+	else if (!strcmp(t, "specself"))
+	{
+		host_client->voice_target = VT_SPECSELF;
+		if (verbose)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "Now sending voice to your personal admirers\n");
 	}
 	else if (!strcmp(t, "nonmuted"))
 	{

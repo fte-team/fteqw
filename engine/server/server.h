@@ -522,6 +522,7 @@ typedef struct client_s
 		VT_TEAM,
 		VT_ALL,
 		VT_NONMUTED,	/*cheap, but allows custom private channels with no external pesters*/
+		VT_SPECSELF,	/*sends to self, audiable to people spectating self*/
 		VT_PLAYERSLOT0
 		/*player0+...*/
 	} voice_target;

@@ -1035,7 +1035,7 @@ static void GL_MipMap8Bit (qbyte *in, int width, int height)
 #endif
 #endif
 
-qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsigned int *out_flags)
+static qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsigned int *out_flags)
 {
 	int miplevel;
 	int width;
@@ -1405,8 +1405,8 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 		if (compressed == GL_TRUE && !strstr(name, ".."))	//is there any point in bothering with the whole endian thing?
 		{
 			Q_snprintfz(outname, sizeof(outname), "tex/%s.tex", name);
-			FS_CreatePath(outname, FS_GAME);
-			out = FS_OpenVFS(outname, "wb", FS_GAME);
+			FS_CreatePath(outname, FS_GAMEONLY);
+			out = FS_OpenVFS(outname, "wb", FS_GAMEONLY);
 			if (out)
 			{
 				i = LittleLong(miplevels);

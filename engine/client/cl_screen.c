@@ -1858,25 +1858,25 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 		return false;
 
 #ifdef AVAIL_PNGLIB
-	if (!strcmp(ext, "png"))
+	if (!Q_strcasecmp(ext, "png"))
 	{
 		return Image_WritePNG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
-		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
+		if (!Q_strcasecmp(ext, "jpeg") || !Q_strcasecmp(ext, "jpg"))
 	{
 		return screenshotJPEG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
-	/*	if (!strcmp(ext, "bmp"))
+	/*	if (!Q_strcasecmp(ext, "bmp"))
 	{
 		WriteBMPFile(pcxname, rgb_buffer, width, height);
 	}
 	else*/
-		if (!strcmp(ext, "pcx"))
+		if (!Q_strcasecmp(ext, "pcx"))
 	{
 		int y, x;
 		qbyte *src, *dest;
@@ -1895,7 +1895,7 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 
 		WritePCXfile (filename, newbuf, width, height, width, host_basepal, false);
 	}
-	else	//tga
+	else if (!Q_strcasecmp(ext, "tga"))	//tga
 	{
 		vfsfile_t *vfs;
 		FS_CreatePath(filename, FS_GAMEONLY);
@@ -1924,6 +1924,8 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 			VFS_CLOSE(vfs);
 		}
 	}
+	else	//extension / type not recognised.
+		return false;
 	return true;
 }
 

@@ -374,8 +374,7 @@ void SV_LegacySavegame_f (void)
 	}
 
 	sprintf (name, "%s", Cmd_Argv(1));
-	COM_DefaultExtension (name, ".sav", sizeof(name));
-
+	COM_RequireExtension (name, ".sav", sizeof(name));
 	if (!FS_NativePath(name, FS_GAMEONLY, native, sizeof(native)))
 		return;
 	Con_TPrintf (U8("Saving game to %s...\n"), native);

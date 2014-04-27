@@ -980,16 +980,37 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 	else
 	{
 		for (sound_num=1 ; sound_num<MAX_SOUNDS
-			&& sv.strings.sound_precache[sound_num] ; sound_num++)
+			&& *sv.strings.sound_precache[sound_num] ; sound_num++)
 			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
 				break;
 	}
 
-    if ( sound_num == MAX_SOUNDS || !sv.strings.sound_precache[sound_num] )
-    {
-        Con_DPrintf ("SV_StartSound: %s not precacheed\n", sample);
-        return;
-    }
+	if ( sound_num == MAX_SOUNDS || !*sv.strings.sound_precache[sound_num] )
+	{
+		if (sound_num < MAX_SOUNDS)
+		{
+			Con_Printf("WARNING: SV_StartSound: sound %s not precached\n", sample);
+			//late precache it. use multicast to ensure that its sent NOW (and to all). normal reliables would mean it would arrive after the svc_sound
+			Q_strncpyz(sv.strings.sound_precache[sound_num], sample, sizeof(sv.strings.sound_precache[sound_num]));
+			Con_DPrintf("Delayed sound precache: %s\n", sample);
+			MSG_WriteByte(&sv.multicast, svcfte_precache);
+			MSG_WriteShort(&sv.multicast, sound_num+PC_SOUND);
+			MSG_WriteString(&sv.multicast, sample);
+	#ifdef NQPROT
+			MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
+			MSG_WriteShort(&sv.nqmulticast, sound_num+PC_SOUND);
+			MSG_WriteString(&sv.nqmulticast, sample);
+	#endif
+			SV_MulticastProtExt(NULL, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_CSQC, 0);
+
+			reliable = true;	//try to make sure it doesn't arrive before the precache!
+		}
+		else
+		{
+			Con_DPrintf ("SV_StartSound: %s not precached\n", sample);
+			return;
+		}
+	}
 
 	if (reliable || !sv_phs.value)	// no PHS flag
 		use_phs = false;

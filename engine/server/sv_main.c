@@ -1489,7 +1489,7 @@ void SVC_GetChallenge (void)
 			compressioncrc = Huff_PreferedCompressionCRC();
 			if (compressioncrc)
 			{
-				lng = LittleLong((('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)));
+				lng = LittleLong(PROTOCOL_VERSION_HUFFMAN);
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 
@@ -2710,7 +2710,7 @@ client_t *SVC_DirectConnect(void)
 
 	unsigned int protextsupported=0;
 	unsigned int protextsupported2=0;
-	extern cvar_t sv_protocol_nq;
+	extern cvar_t sv_protocol_nq, net_compress;
 
 
 	char *name;
@@ -2905,6 +2905,12 @@ client_t *SVC_DirectConnect(void)
 		case PROTOCOL_VERSION_HUFFMAN:
 			huffcrc = Q_atoi(Cmd_Argv(1));
 			Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
+			if (!net_compress.ival || !Huff_CompressionCRC(huffcrc))
+			{
+				SV_RejectMessage (protocol, "Compression should not have been enabled.\n");	//buggy/exploiting client. can also happen from timing when changing the setting, but whatever
+				Con_TPrintf ("* rejected - bad compression state\n");
+				return NULL;
+			}
 			break;
 		case PROTOCOL_VERSION_FRAGMENT:
 			mtu = Q_atoi(Cmd_Argv(1)) & ~7;

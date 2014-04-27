@@ -289,7 +289,7 @@ static int numtexinfo;
 static q2mapsurface_t	*map_surfaces;
 
 static int			numleafs = 1;	// allow leaf funcs to be called without a map
-static mleaf_t		map_leafs[(MAX_MAP_LEAFS+7)/8];
+static mleaf_t		map_leafs[MAX_MAP_LEAFS];
 static int			emptyleaf;
 
 static int			numleafbrushes;

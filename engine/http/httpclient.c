@@ -30,8 +30,8 @@ static void DL_OnLoad(void *c, void *data, int datasize)
 	{
 		if (*dl->localname)
 		{
-			FS_CreatePath(dl->localname, FS_GAME);
-			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
+			FS_CreatePath(dl->localname, FS_GAMEONLY);
+			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAMEONLY);
 		}
 		else
 		{

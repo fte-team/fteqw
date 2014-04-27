@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 #include "quakedef.h"
 #ifdef HUFFNETWORK
+extern cvar_t net_compress;
 #define ID_INLINE
 
 #define VALUE(a)			(*(size_t *)&(a))
@@ -755,6 +756,9 @@ void Huff_LoadTable(char *filename)
 
 int Huff_PreferedCompressionCRC (void)
 {
+	if (!net_compress.ival)
+		return 0;
+
 	if (!madetable)
 		Huff_Init(NULL);
 	return madetable;
@@ -797,17 +801,28 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 	inLen = msg->cursize - offset;	
 	if (inLen <= 0 || inLen >= MAX_OVERALLMSGLEN)
 	{
+		//panic!
 		return;
 	}
 
 	outLen = 0;
 	for (i=0; i < inLen; i++)
 	{
-		if (i == MAX_OVERALLMSGLEN)
-			Sys_Error("Compression became too large\n");
 		Huff_EmitByte(data[i], buffer, &outLen);
 
 		countinghuffCounts[data[i]]++;
+
+		outLen = (huffBitPos >> 3) + 1;
+		if (outLen > inLen)
+			break;
+		if (outLen > MAX_OVERALLMSGLEN-64)
+		{
+			Con_Printf("Huffman overflow\n");
+			//panic
+			data[0] = 0x80;
+			msg->cursize = offset+1;
+			return;
+		}
 	}
 
 	outLen = (huffBitPos >> 3) + 1;

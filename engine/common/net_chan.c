@@ -85,6 +85,7 @@ cvar_t	showpackets = SCVAR("showpackets", "0");
 cvar_t	showdrop = SCVAR("showdrop", "0");
 cvar_t	qport = SCVAR("qport", "0");
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
 cvar_t	pext_replacementdeltas = CVAR("pext_replacementdeltas", "1");
 cvar_t	pext_nqpredinfo = CVAR("debug_pext_nqpredinfo", "0");
@@ -235,6 +236,7 @@ void Netchan_Init (void)
 	Cvar_Register (&showdrop, "Networking");
 	Cvar_Register (&qport, "Networking");
 	Cvar_Register (&net_mtu, "Networking");
+	Cvar_Register (&net_compress, "Networking");
 
 	// pick a port value that should be nice and random
 #ifdef _WIN32

@@ -1662,7 +1662,7 @@ downloadlist_t *CL_DownloadFailed(const char *name, qboolean cancel)
 			if (!strncmp(cls.downloadtempname, "package/", 8))
 				FS_Remove(cls.downloadtempname, FS_ROOT);
 			else if (!strncmp(cls.downloadtempname,"skins/",6))
-				FS_Remove(va("qw/%s", cls.downloadtempname), FS_ROOT);
+				FS_Remove(cls.downloadtempname, FS_PUBBASEGAMEONLY);
 			else
 				FS_Remove(cls.downloadtempname, FS_GAME);
 			CL_SendClientCommand(true, "stopdownload");
@@ -1791,8 +1791,8 @@ void CL_ParseChunkedDownload(void)
 		}
 		else if (!strncmp(cls.downloadtempname,"skins/",6))
 		{
-			FS_CreatePath (va("qw/%s", cls.downloadtempname), FS_ROOT);
-			cls.downloadqw = FS_OpenVFS (va("qw/%s", cls.downloadtempname), "wb", FS_ROOT);
+			FS_CreatePath (cls.downloadtempname, FS_PUBBASEGAMEONLY);
+			cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_PUBBASEGAMEONLY);
 		}
 		else
 		{
@@ -2001,8 +2001,8 @@ void CL_ParseDownload (void)
 		else
 		{
 			Q_snprintfz(name, sizeof(name), "%s", cls.downloadtempname);
-			FS_CreatePath (name, FS_GAME);
-			cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAME);
+			FS_CreatePath (name, FS_GAMEONLY);
+			cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAMEONLY);
 		}
 		if (!cls.downloadqw)
 		{
@@ -2136,8 +2136,8 @@ void CLDP_ParseDownloadBegin(char *s)
 		VFS_CLOSE(cls.downloadqw);
 	}
 
-	FS_CreatePath (cls.downloadtempname, FS_GAME);
-	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAME);
+	FS_CreatePath (cls.downloadtempname, FS_GAMEONLY);
+	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAMEONLY);
 	cls.downloadmethod = DL_DARKPLACES;
 
 	Q_strncpyz(cls.downloadlocalname, fname, sizeof(cls.downloadlocalname));

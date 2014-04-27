@@ -3772,7 +3772,7 @@ void PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 	{
 		if (!*sv.strings.sound_precache[i])
 		{
-			strcpy(sv.strings.sound_precache[i], s);
+			Q_strncpyz(sv.strings.sound_precache[i], s, sizeof(sv.strings.sound_precache[i]));
 
 			/*touch the file, so any packs will be referenced*/
 			FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);

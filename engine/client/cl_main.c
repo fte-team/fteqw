@@ -58,6 +58,7 @@ cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be smoother, but they may be more laggy. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
+extern cvar_t net_compress;
 
 cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
 
@@ -602,7 +603,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		connectinfo.mtu = 0;
 
 #ifdef HUFFNETWORK
-	if (compressioncrc && Huff_CompressionCRC(compressioncrc))
+	if (compressioncrc && net_compress.ival && Huff_CompressionCRC(compressioncrc))
 	{
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_HUFFMAN, LittleLong(compressioncrc)), sizeof(data));
 		connectinfo.compress = true;

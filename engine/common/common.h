@@ -322,6 +322,7 @@ void COM_StripAllExtensions (char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
 int QDECL COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
+qboolean COM_RequireExtension(char *path, char *extension, int maxlen);
 char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
 

@@ -2543,9 +2543,11 @@ void SV_Voice_Target_f(void)
 	{
 		other = atoi(t);
 		if (other >= svs.allocated_client_slots)
+		{
 			if (verbose)
 				SV_ClientTPrintf(host_client, PRINT_HIGH, "Invalid client\n");
 			return;
+		}
 		host_client->voice_target = VT_PLAYERSLOT0 + other;
 		if (verbose)
 		{

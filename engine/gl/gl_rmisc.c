@@ -522,6 +522,8 @@ void GLR_NewMap (void)
 
 	Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
 
+	if (!pe)
+		Cvar_ForceCallback(&r_particlesystem);
 TRACE(("dbg: GLR_NewMap: clear particles\n"));
 	P_ClearParticles ();
 TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));

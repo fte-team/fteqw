@@ -380,6 +380,8 @@ void P_DefaultTrail (model_t *model)
 	// TODO: make trail default color into RGB values instead of indexes
 	if (model->engineflags & MDLF_NODEFAULTTRAIL)
 		return;
+	if (!pe)
+		return;
 
 	if (model->flags & MF_ROCKET)
 		P_SelectableTrail(model, &r_rockettrail, P_FindParticleType("TR_ROCKET"), 109, P_FindParticleType("TR_GRENADE"), 6);

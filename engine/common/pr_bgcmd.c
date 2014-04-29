@@ -1895,7 +1895,7 @@ void QCBUILTIN PF_writetofile(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	char *entstr;
 	int buflen;
 
-	buflen = sizeof(buffer);
+	buflen = 0;
 	entstr = prinst->saveent(prinst, buffer, &buflen, sizeof(buffer), ed);	//will save just one entities vars
 	if (entstr)
 	{
@@ -4219,10 +4219,11 @@ void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int size = 1024*1024;
+	int max = 1024*1024;
+	int size = 0;
 	char *buffer = BZ_Malloc(size);
 	char *buf;
-	buf = prinst->saveent(prinst, buffer, &size, size, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));
+	buf = prinst->saveent(prinst, buffer, &size, max, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));
 	Con_Printf("Entity %i:\n%s\n", G_EDICTNUM(prinst, OFS_PARM0), buf);
 	BZ_Free(buffer);
 }

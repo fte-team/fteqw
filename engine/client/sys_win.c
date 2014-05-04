@@ -289,9 +289,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 #endif
 
 #if defined(_DEBUG) || defined(DEBUG)
-#if 1//_MSC_VER >= 1300
 #define CATCHCRASH
-#endif
 #endif
 
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
@@ -561,6 +559,37 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 		{NULL, NULL}
 	};
 
+	switch(exceptionCode)
+	{
+	case EXCEPTION_ACCESS_VIOLATION:
+	case EXCEPTION_DATATYPE_MISALIGNMENT:
+	case EXCEPTION_BREAKPOINT:
+	case EXCEPTION_SINGLE_STEP:
+	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+	case EXCEPTION_FLT_DENORMAL_OPERAND:
+	case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+	case EXCEPTION_FLT_INEXACT_RESULT:
+	case EXCEPTION_FLT_INVALID_OPERATION:
+	case EXCEPTION_FLT_OVERFLOW:
+	case EXCEPTION_FLT_STACK_CHECK:
+	case EXCEPTION_FLT_UNDERFLOW:
+	case EXCEPTION_INT_DIVIDE_BY_ZERO:
+	case EXCEPTION_INT_OVERFLOW:
+	case EXCEPTION_PRIV_INSTRUCTION:
+	case EXCEPTION_IN_PAGE_ERROR:
+	case EXCEPTION_ILLEGAL_INSTRUCTION:
+	case EXCEPTION_NONCONTINUABLE_EXCEPTION:
+	case EXCEPTION_STACK_OVERFLOW:
+	case EXCEPTION_INVALID_DISPOSITION:
+	case EXCEPTION_GUARD_PAGE:
+	case EXCEPTION_INVALID_HANDLE:
+//	case EXCEPTION_POSSIBLE_DEADLOCK:
+		break;
+	default:
+		//because windows is a steaming pile of shite, we have to ignore any software-generated exceptions, because most of them are not in fact fatal, *EVEN IF THEY CLAIM TO BE NON-CONTINUABLE*
+		return exceptionCode;
+	}
+
 #ifdef PRINTGLARRAYS
 	if (!iswatchdog && qrenderer == QR_OPENGL)
 		DumpGLState();
@@ -778,12 +807,16 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 //most compilers do not support __try. perhaps we should avoid its use entirely?
 LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
 {
-	DWORD foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
+	DWORD foo = EXCEPTION_CONTINUE_SEARCH;
+	//only bother with fatal non-continuable errors.
+	if (ExceptionInfo->ExceptionRecord->ExceptionFlags & EXCEPTION_NONCONTINUABLE)
+	{
+		foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
 
-	//we have no handler. thus we handle it by exiting.
-	if (foo == EXCEPTION_EXECUTE_HANDLER)
-		exit(1);
-
+		//we have no handler. thus we handle it by exiting.
+		if (foo == EXCEPTION_EXECUTE_HANDLER)
+			exit(1);
+	}
 	return foo;
 }
 

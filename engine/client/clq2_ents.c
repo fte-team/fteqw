@@ -511,11 +511,11 @@ CL_ParseEntityBits
 Returns the entity number and the header bits
 =================
 */
-int	bitcounts[32];	/// just for protocol profiling
-int CLQ2_ParseEntityBits (unsigned *bits)
+//static int	bitcounts[32];	/// just for protocol profiling
+static int CLQ2_ParseEntityBits (unsigned int *bits)
 {
 	unsigned	b, total;
-	int			i;
+//	int			i;
 	int			number;
 
 	total = MSG_ReadByte ();
@@ -536,12 +536,12 @@ int CLQ2_ParseEntityBits (unsigned *bits)
 	}
 
 	// count the bits for net profiling
-	for (i=0 ; i<32 ; i++)
+/*	for (i=0 ; i<32 ; i++)
 		if (total&(1<<i))
 			bitcounts[i]++;
-
+*/
 	if (total & Q2U_NUMBER16)
-		number = MSG_ReadShort ();
+		number = (unsigned short)MSG_ReadShort ();
 	else
 		number = MSG_ReadByte ();
 
@@ -711,10 +711,10 @@ rest of the data stream.
 */
 static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 {
-	int			newnum;
-	int			bits;
+	unsigned int		newnum;
+	unsigned int			bits;
 	entity_state_t	*oldstate=NULL;
-	int			oldindex, oldnum;
+	unsigned int		oldindex, oldnum;
 
 	cl.validsequence = cls.netchan.incoming_sequence;
 
@@ -1409,6 +1409,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //			VectorCopy(cl.predicted_origin, ent.origin);
 //			VectorCopy(cl.predicted_origin, ent.oldorigin);
 			ent.flags |= RF_EXTERNALMODEL;	// only draw from mirrors
+			renderfx |= RF_EXTERNALMODEL;
 
 			if (effects & Q2EF_FLAG1)
 				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
@@ -1503,11 +1504,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			// pmm
 			ent.flags = renderfx;
-			ent.shaderRGBAf[3] = 0.30;
+			ent.shaderRGBAf[3] = 0.20;
 			ent.shaderRGBAf[0] = (!!(renderfx & Q2RF_SHELL_RED));
 			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
 			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
 			ent.forcedshader = R_RegisterCustom("q2/shell", SUF_NONE, Shader_DefaultSkinShell, NULL);
+			ent.fatness = 2;
 			V_AddEntity (&ent);
 		}
 		ent.forcedshader = NULL;

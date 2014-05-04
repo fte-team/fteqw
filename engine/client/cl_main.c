@@ -4696,7 +4696,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
 	else
 	{	//they didn't give us an rc file!
-		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
+		Cbuf_AddText ("bind ` toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 		if (COM_FCheckExists ("config.cfg"))
 			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);

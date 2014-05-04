@@ -10324,6 +10324,7 @@ void PR_DumpPlatform_f(void)
 
 		{"TRUE",					"const float", ALL, NULL, 1},
 		{"FALSE",					"const float", ALL, "File not found...", 0},
+		{"M_PI",					"const float", ALL, "File not found...", M_PI},
 
 		{"MOVETYPE_NONE",			"const float", QW|NQ|CS, NULL, MOVETYPE_NONE},
 		{"MOVETYPE_WALK",			"const float", QW|NQ|CS, NULL, MOVETYPE_WALK},

@@ -24,6 +24,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include <conio.h>
 
+#if defined(_DEBUG) || defined(DEBUG)
+#define CATCHCRASH
+LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo);
+
+#ifdef _MSC_VER	//nt5
+PVOID WINAPI AddVectoredExceptionHandler(ULONG FirstHandler, PVECTORED_EXCEPTION_HANDLER VectoredHandler);
+#endif
+#endif
+
 #if !defined(WINRT) && defined(MULTITHREAD)
 #include <process.h>
 /* Thread creation calls */
@@ -75,6 +84,10 @@ void Sys_SetThreadName(unsigned int dwThreadID, char *threadName)
    __except(EXCEPTION_EXECUTE_HANDLER)
    {
    }
+
+#ifdef CATCHCRASH
+	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
+#endif
 }
 #endif
 

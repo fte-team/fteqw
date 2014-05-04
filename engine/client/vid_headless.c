@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#ifndef SERVERONLY
 #include "gl_draw.h"
 #include "shader.h"
 
@@ -273,3 +274,4 @@ rendererinfo_t headlessrenderer =
 	Headless_BE_RenderToTextureUpdate2d,
 	""
 };
+#endif

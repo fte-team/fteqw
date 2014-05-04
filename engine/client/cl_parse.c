@@ -4504,7 +4504,7 @@ void CLQ2_ParseMuzzleFlash (void)
 	float		volume;
 	char		soundname[64];
 
-	i = MSG_ReadShort ();
+	i = (unsigned short)(short)MSG_ReadShort ();
 	if (i < 1 || i >= Q2MAX_EDICTS)
 		Host_Error ("CL_ParseMuzzleFlash: bad entity");
 
@@ -4692,7 +4692,7 @@ void CLQ2_ParseMuzzleFlash2 (void)
 	int			ent;
 	int			flash_number;
 
-	ent = MSG_ReadShort ();
+	ent = (unsigned short)(short)MSG_ReadShort ();
 	if (ent < 1 || ent >= Q2MAX_EDICTS)
 		Host_EndGame ("CL_ParseMuzzleFlash2: bad entity");
 

@@ -1884,7 +1884,6 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 
 // clip to world
 	w->worldmodel->funcs.NativeTrace(w->worldmodel, 0, 0, NULL, start, end, mins, maxs, hitcontentsmask, &clip.trace);
-//	clip.trace = CM_BoxTrace(w->worldmodel, start, end, mins, maxs, hitcontentsmask);//SVQ2_ClipMoveToEntity ( ge->edicts, start, mins, maxs, end );
 	clip.trace.ent = ge->edicts;
 
 	if (clip.trace.fraction == 0)

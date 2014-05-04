@@ -1251,7 +1251,8 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	{
 		CG_Stop();
 		CG_Start();
-		R_NewMap();
+		if (cl.worldmodel)
+			R_NewMap();
 	}
 	else
 #endif

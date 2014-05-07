@@ -3,6 +3,7 @@
 #include "quakedef.h"
 #include "winquake.h"
 extern qboolean forcesaveprompt;
+extern cvar_t pr_debugger;
 
 menu_t *M_Options_Title(int *y, int infosize)
 {
@@ -110,6 +111,10 @@ void M_Menu_Options_f (void)
 #endif
 #ifndef MINIMAL
 		MB_CONSOLECMD("Particle Options", "menu_particles\n", "Set particle effect options."),
+#endif
+#ifdef TEXTEDITOR
+		//this option is a bit strange in q2.
+		MB_CHECKBOXCVAR("QC Debugger", pr_debugger, 0),
 #endif
 		// removed downloads (is this still appropriate?)
 		// removed teamplay
@@ -660,7 +665,7 @@ void M_Menu_Preset_f (void)
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
 		MB_CONSOLECMD("286     (untextured)",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
 		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
-		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"This is for Quake purists!"),
+		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"This is for purists!"),
 		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
 		MB_END()
@@ -674,12 +679,22 @@ void M_Menu_Preset_f (void)
 
 void FPS_Preset_f (void)
 {
+	char *presetfname;
 	char *arg = Cmd_Argv(1);
 	int i;
 
 	if (!*arg)
 	{
 		M_Menu_Preset_f();
+		return;
+	}
+
+	presetfname = va("configs/preset_%s.cfg", arg);
+	if (COM_FCheckExists(presetfname))
+	{
+		char buffer[MAX_OSPATH];
+		COM_QuotedString(presetfname, buffer, sizeof(buffer));
+		Cbuf_AddText(va("\nexec %s\n", buffer), RESTRICT_LOCAL);
 		return;
 	}
 
@@ -1381,9 +1396,6 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	extern cvar_t host_mapname;
 	#endif
-	#ifdef TEXTEDITOR
-	extern cvar_t debugger;
-	#endif
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
@@ -1410,7 +1422,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
 	#ifdef TEXTEDITOR
-	MC_AddCheckBox(menu,	16, 170, y,		"Debugger", &debugger, 0); y+=8;
+	MC_AddCheckBox(menu,	16, 170, y,		"Debugger", &pr_debugger, 0); y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, 170, y,	"     Toggle Godmode", "god\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"     Toggle Flymode", "fly\n"); y+=8;

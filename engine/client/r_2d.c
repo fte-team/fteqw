@@ -210,6 +210,8 @@ void R2D_Init(void)
 		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 	if (!TEXVALID(draw_backtile->defaulttextures.base))
 		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
+	if (!TEXVALID(draw_backtile->defaulttextures.base))
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("pics/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 
 	shader_draw_fill = R_RegisterShader("fill_opaque", SUF_NONE,
 		"{\n"

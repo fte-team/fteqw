@@ -825,8 +825,11 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	}
 
+	//stop q2 from crashing.
 	if (!deathmatch.value && !coop.value)
 		maxclients.value = 1;
+	else
+		maxclients.value = maxclients.ival;
 	if (maxclients.value > MAX_CLIENTS)
 		Cvar_SetValue(&maxclients, MAX_CLIENTS);
 

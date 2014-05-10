@@ -2109,7 +2109,7 @@ void MP_Breakpoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
-	Cvar_Set(Cvar_FindVar("debugger"), "1");
+	Cvar_Set(Cvar_FindVar("pr_debugger"), "1");
 }
 
 void MP_RegisterCvarsAndCmds(void)

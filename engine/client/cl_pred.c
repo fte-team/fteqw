@@ -170,7 +170,7 @@ q2trace_t	VARGS CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end
 	trace_t		t;
 
 	// check against world
-	t = CM_BoxTrace (cl.worldmodel, start, end, mins, maxs, MASK_PLAYERSOLID);
+	cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, mins, maxs, MASK_PLAYERSOLID, &t);
 	if (t.fraction < 1.0)
 		t.ent = (struct edict_s *)1;
 
@@ -535,7 +535,9 @@ short LerpAngles16(short to, short from, float frac)
 void CL_CalcClientTime(void)
 {
 	extern float demtime;
-	if (cls.protocol != CP_QUAKE3)
+	if (!cls.state)
+		cl.servertime += host_frametime;
+	else if (cls.protocol != CP_QUAKE3)
 	{
 		float oldst = realtime;
 

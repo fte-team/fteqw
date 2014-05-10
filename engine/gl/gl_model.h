@@ -373,11 +373,13 @@ typedef struct msurface_s
 	mtexinfo_t	*texinfo;
 	int			visframe;		// should be drawn when node is crossed
 	int			shadowframe;
+	int			clipcount;
 	
-// lighting info
+// legacy lighting info
 	int			dlightframe;
 	int			dlightbits;
 
+//static lighting
 	int			lightmaptexturenums[MAXRLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
 	qbyte		styles[MAXQ1LIGHTMAPS];
 	qbyte		vlstyles[MAXRLIGHTMAPS];
@@ -455,8 +457,8 @@ typedef struct mleaf_s
 	int			area;
 	unsigned int	firstleafbrush;
 	unsigned int	numleafbrushes;
-	unsigned int	firstleafface;
-	unsigned int	numleaffaces;
+	unsigned int	firstleafcmesh;
+	unsigned int	numleafcmeshes;
 	unsigned int	firstleafpatch;
 	unsigned int	numleafpatches;
 #endif
@@ -884,6 +886,7 @@ typedef struct model_s
 	int			numnodes;
 	mnode_t		*nodes;
 	void		*cnodes;
+	mnode_t		*rootnode;
 
 	int			numtexinfo;
 	mtexinfo_t	*texinfo;
@@ -1014,7 +1017,6 @@ qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster);
 int		CM_BoxLeafnums (struct model_s *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode);
 int		CM_PointContents (struct model_s *mod, vec3_t p);
 int		CM_TransformedPointContents (struct model_s *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles);
-struct trace_s	CM_BoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask);
 int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
 struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
 struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);

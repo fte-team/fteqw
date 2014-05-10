@@ -4607,10 +4607,17 @@ void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *arg
 
 	Shader_DefaultScript(shortname, s,
 		"{\n"
-			"sort blend\n"
-			"deformvertexes normal 1 1\n"
+			"sort seethrough\n"	//before blend, but after other stuff. should fix most issues with shotgun etc effects obscuring it.
+//			"deformvertexes normal 1 1\n"
+			//draw it with depth but no colours at all
 			"{\n"
-				"map $diffuse\n"
+				"map $whiteimage\n"
+				"maskcolor\n"
+				"depthwrite\n"
+			"}\n"
+			//now draw it again, depthfunc = equal should fill only the near-side, avoiding any excess-brightness issues with overlapping triangles
+			"{\n"
+				"map $whiteimage\n"
 				"rgbgen entity\n"
 				"alphagen entity\n"
 				"blendfunc blend\n"

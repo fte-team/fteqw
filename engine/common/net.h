@@ -182,7 +182,7 @@ typedef struct
 // time and size data to calculate bandwidth
 	int			outgoing_size[MAX_LATENT];
 	double		outgoing_time[MAX_LATENT];
-	qboolean	compress;
+	struct huffman_s	*compresstable;
 
 	//nq servers must recieve truncated packets.
 	int in_fragment_length;
@@ -210,12 +210,15 @@ nqprot_t NQNetChan_Process(netchan_t *chan);
 #endif
 
 #ifdef HUFFNETWORK
+#define HUFFCRC_QUAKE3 0x286f2e8d
+
+typedef struct huffman_s huffman_t;
 int Huff_PreferedCompressionCRC (void);
 void Huff_EncryptPacket(sizebuf_t *msg, int offset);
 void Huff_DecryptPacket(sizebuf_t *msg, int offset);
-qboolean Huff_CompressionCRC(int crc);
-void Huff_CompressPacket(sizebuf_t *msg, int offset);
-void Huff_DecompressPacket(sizebuf_t *msg, int offset);
+huffman_t *Huff_CompressionCRC(int crc);
+void Huff_CompressPacket(huffman_t *huff, sizebuf_t *msg, int offset);
+void Huff_DecompressPacket(huffman_t *huff, sizebuf_t *msg, int offset);
 int Huff_GetByte(qbyte *buffer, int *count);
 void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #endif

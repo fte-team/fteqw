@@ -2475,7 +2475,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 
-	particlecqtexture = R_LoadTexture32("", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
+	particlecqtexture = R_LoadTexture32("classicparticle", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
 
 
 

@@ -2954,7 +2954,7 @@ void QCBUILTIN PF_cl_effect(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	mdl = Mod_ForName(name, MLV_WARN);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 0, 0, P_INVALID);
+		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }
@@ -5658,12 +5658,12 @@ void CSQC_Breakpoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
-	Cvar_Set(Cvar_FindVar("debugger"), "1");
+	Cvar_Set(Cvar_FindVar("pr_debugger"), "1");
 }
 
 static void CSQC_Poke_f(void)
 {
-	if (!csqc_singlecheats)
+	if (!csqc_singlecheats && cls.state)
 		Con_Printf("%s is a cheat command\n", Cmd_Argv(0));
 	else if (csqcprogs)
 		Con_Printf("Result: %s\n", csqcprogs->EvaluateDebugString(csqcprogs, Cmd_Args()));

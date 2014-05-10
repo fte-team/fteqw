@@ -604,7 +604,7 @@ void SVNQ_New_f (void)
 
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
-	MSG_WriteEntity (&host_client->netchan.message, NUM_FOR_EDICT(svprogfuncs, host_client->edict));
+	MSG_WriteEntity (&host_client->netchan.message, host_client - svs.clients);//NUM_FOR_EDICT(svprogfuncs, host_client->edict));
 
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 1);
@@ -4643,7 +4643,10 @@ void SVNQ_Spawn_f (void)
 	// set up the edict
 	ent = host_client->edict;
 
-	if (host_client->istobeloaded)	//minimal setup
+	if (!ent)
+	{
+	}
+	else if (host_client->istobeloaded)	//minimal setup
 	{
 		host_client->entgravity = ent->xv->gravity*sv_gravity.value;
 		host_client->maxspeed = ent->xv->maxspeed;
@@ -4669,21 +4672,30 @@ void SVNQ_Spawn_f (void)
 	memset (host_client->statsf, 0, sizeof(host_client->statsf));
 	memset (host_client->statss, 0, sizeof(host_client->statss));
 
-	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
-	ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->total_secrets);
-
-	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
-	ClientReliableWrite_Byte (host_client, STAT_TOTALMONSTERS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->total_monsters);
-
-	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
-	ClientReliableWrite_Byte (host_client, STAT_SECRETS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->found_secrets);
-
-	ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
-	ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
+	if (pr_global_ptrs->total_secrets)
+	{
+		ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
+		ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
+		ClientReliableWrite_Long (host_client, pr_global_struct->total_secrets);
+	}
+	if (pr_global_ptrs->total_monsters)
+	{
+		ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
+		ClientReliableWrite_Byte (host_client, STAT_TOTALMONSTERS);
+		ClientReliableWrite_Long (host_client, pr_global_struct->total_monsters);
+	}
+	if (pr_global_ptrs->found_secrets)
+	{
+		ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
+		ClientReliableWrite_Byte (host_client, STAT_SECRETS);
+		ClientReliableWrite_Long (host_client, pr_global_struct->found_secrets);
+	}
+	if (pr_global_ptrs->killed_monsters)
+	{
+		ClientReliableWrite_Begin (host_client, svcnq_updatestatlong, 6);
+		ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
+		ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
+	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 3);
@@ -4847,7 +4859,7 @@ void SVNQ_NQColour_f (void)
 
 	playercolor = top*16 + bottom;
 
-	if (progstype != PROG_QW)
+	if (progstype != PROG_QW && host_client->edict)
 		host_client->edict->v->team = bottom + 1;
 
 	Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", top), sizeof(host_client->userinfo));

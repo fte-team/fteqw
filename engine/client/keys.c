@@ -1995,7 +1995,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	{
 #ifdef VM_UI
 #ifdef TEXTEDITOR
-		if (!Key_Dest_Has(~kdm_game))
+		if (!Key_Dest_Has(~kdm_game) && !Key_Dest_Has(kdm_console))
 #endif
 		{
 			if (down && Media_PlayingFullScreen())
@@ -2013,9 +2013,8 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 
 		if (Key_Dest_Has(kdm_console))
 		{
-			if (cls.state || Key_Dest_Has(~(kdm_console|kdm_game)))
-				Key_Dest_Remove(kdm_console);
-			else
+			Key_Dest_Remove(kdm_console);
+			if (!cls.state && !Key_Dest_Has(~kdm_game))
 				M_ToggleMenu_f ();
 		}
 #ifdef TEXTEDITOR

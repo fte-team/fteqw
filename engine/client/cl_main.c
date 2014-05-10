@@ -142,6 +142,7 @@ cvar_t  cl_gunanglex			= CVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
+cvar_t	cl_sendguid				= CVARD("cl_sendguid", "0", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files. Also allows the server to send nearly arbitary download commands.");
 cvar_t  cl_download_mapsrc		= CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
@@ -225,7 +226,7 @@ static struct
 	qboolean		istransfer;		//ignore the user's desired server (don't change connect.adr).
 	netadr_t		adr;			//address that we're trying to transfer to.
 	int				mtu;
-	qboolean		compress;
+	unsigned int	compresscrc;
 	int				protocol;		//tracked as part of guesswork based upon what replies we get.
 	int				challenge;		//tracked as part of guesswork based upon what replies we get.
 	double			time;			//for connection retransmits
@@ -394,6 +395,9 @@ char *CL_GUIDString(netadr_t *adr)
 	char serveraddr[256];
 	void *blocks[2];
 	int lens[2];
+
+	if (!cl_sendguid.ival)
+		return NULL;
 
 	if (*connectinfo.guid && connectinfo.istransfer)
 		return connectinfo.guid;
@@ -606,11 +610,11 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (compressioncrc && net_compress.ival && Huff_CompressionCRC(compressioncrc))
 	{
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_HUFFMAN, LittleLong(compressioncrc)), sizeof(data));
-		connectinfo.compress = true;
+		connectinfo.compresscrc = compressioncrc;
 	}
 	else
 #endif
-		connectinfo.compress = false;
+		connectinfo.compresscrc = 0;
 
 	info = CL_GUIDString(to);
 	if (info)
@@ -790,7 +794,12 @@ void CL_CheckForResend (void)
 			connectinfo.trying = false;
 		}
 		else
+		{
+			if (!connectinfo.challenge)
+				connectinfo.challenge = rand();
+			cls.challenge = connectinfo.challenge;
 			CL_SendConnectPacket (NULL, 8192-16, pext1, pext2, false);
+		}
 		return;
 	}
 #endif
@@ -1339,6 +1348,7 @@ void CL_ClearState (void)
 	cl.oldgametime = 0;
 	cl.gametime = 0;
 	cl.gametimemark = 0;
+	cl.splitclients = 1;
 }
 
 /*
@@ -1490,6 +1500,8 @@ void CL_Disconnect_f (void)
 #endif
 
 	CL_Disconnect ();
+
+	connectinfo.trying = false;
 }
 
 /*
@@ -2735,7 +2747,11 @@ client_connect:	//fixme: make function
 		cls.challenge = connectinfo.challenge;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
 		cls.netchan.fragmentsize = connectinfo.mtu;
-		cls.netchan.compress = connectinfo.compress;
+#ifdef HUFFNETWORK
+		cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.compresscrc);
+#else
+		cls.netchan.compresstable = NULL;
+#endif
 		CL_ParseEstablished();
 #ifdef Q3CLIENT
 		if (cls.protocol != CP_QUAKE3)
@@ -2885,7 +2901,7 @@ void CLNQ_ConnectionlessPacket(void)
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
-		cls.netchan.compress = 0;
+		cls.netchan.compresstable = NULL;
 		cls.protocol = CP_NETQUAKE;
 		cls.state = ca_connected;
 		Con_TPrintf ("Connected.\n");
@@ -3422,6 +3438,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_sendguid, cl_controlgroup);
 	Cvar_Register (&cl_defaultport, cl_controlgroup);
 	Cvar_Register (&cl_servername, cl_controlgroup);
 	Cvar_Register (&cl_serveraddress, cl_controlgroup);
@@ -3696,6 +3713,7 @@ void VARGS Host_EndGame (char *message, ...)
 	CL_Disconnect ();
 
 	SV_UnspawnServer();
+	connectinfo.trying = false;
 
 	Cvar_Set(&cl_shownet, "0");
 
@@ -4422,7 +4440,8 @@ double Host_Frame (double time)
 	// resend a connection request if necessary
 	if (cls.state == ca_disconnected)
 	{
-		IN_Move(NULL, 0, time);
+		CL_SendCmd (host_frametime, true);
+//		IN_Move(NULL, 0, time);
 		CL_CheckForResend ();
 
 #ifdef VOICECHAT

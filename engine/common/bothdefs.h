@@ -171,6 +171,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef USE_MADLIB		//no internal mp3 playing
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
+		#define SPRMODELS		//quake1 sprite models
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 		#define PLUGINS
 
@@ -194,6 +195,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 
+		#define DSPMODELS		//doom sprites (only needs DOOMWADS to generate the right wad file names)
+		#define SPRMODELS		//quake1 sprite models
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
@@ -378,6 +381,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
+	#undef DSPMODELS
+	#undef SPRMODELS
+	#undef SP2MODELS
 
 	#undef PSET_SCRIPT
 	#undef PSET_CLASSIC

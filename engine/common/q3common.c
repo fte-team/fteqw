@@ -412,11 +412,9 @@ static void MSG_WriteRawBits( sizebuf_t *msg, int value, int bits )
 MSG_WriteHuffBits
 ============
 */
+#ifdef HUFFNETWORK
 static void MSG_WriteHuffBits( sizebuf_t *msg, int value, int bits )
 {
-#ifdef MSG_PROFILING
-	int		startbits = msg->currentbit;
-#endif
 	int		remaining;
 	int		i;
 
@@ -445,11 +443,8 @@ static void MSG_WriteHuffBits( sizebuf_t *msg, int value, int bits )
 	}
 
 	msg->cursize = (msg->currentbit >> 3) + 1;
-
-#ifdef MSG_PROFILING
-	msg_bitsEmitted += msg->currentbit - startbits;
-#endif // MSG_PROFILING
 }
+#endif
 
 /*
 ============
@@ -514,9 +509,11 @@ void MSG_WriteBits(sizebuf_t *msg, int value, int bits)
 	case SZ_RAWBITS:
 		MSG_WriteRawBits( msg, value, bits );
 		break;
+#ifdef HUFFNETWORK
 	case SZ_HUFFMAN:
 		MSG_WriteHuffBits( msg, value, bits );
 		break;
+#endif
 	}
 
 }

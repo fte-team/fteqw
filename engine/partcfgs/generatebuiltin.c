@@ -9,6 +9,7 @@ char effects[][64] =
 	"high.cfg",
 	"minimal.cfg",
 	"h2part.cfg",
+	"q2part.cfg",
 	"tsshaft.cfg",
 	""
 };

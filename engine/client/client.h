@@ -909,7 +909,6 @@ extern unsigned int cl_maxstris;
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
 
 qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
-qboolean Q2TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
 //
 // cl_input
@@ -1086,7 +1085,7 @@ void CL_ParseParticleEffect4 (void);
 int CL_TranslateParticleFromServer(int sveffect);
 void CL_ParseTrailParticles(void);
 void CL_ParsePointParticles(qboolean compact);
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect);	/*called from the particlesystem*/
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags);	/*called from the particlesystem*/
 
 //
 // cl_ents.c

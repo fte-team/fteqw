@@ -1010,6 +1010,13 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 			res_ambient[0] = 255;	//out of the map
 			res_ambient[1] = 255;
 			res_ambient[2] = 255;
+
+			if (res_diffuse)
+			{
+				res_diffuse[0] = 255;
+				res_diffuse[1] = 255;
+				res_diffuse[2] = 255;
+			}
 			return;
 		}
 	}
@@ -1209,7 +1216,7 @@ int R_LightPoint (vec3_t p)
 	end[1] = p[1];
 	end[2] = p[2] - 2048;
 
-	r = GLRecursiveLightPoint (cl.worldmodel->nodes, p, end);
+	r = GLRecursiveLightPoint (cl.worldmodel->rootnode, p, end);
 	
 	if (r == -1)
 		r = 0;
@@ -1234,7 +1241,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	int			i;
 	mtexinfo_t	*tex;
 	qbyte		*lightmap, *deluxmap;
-	float	scale;
+	float	scale, overbright;
 	int			maps;
 
 	if (cl.worldmodel->fromgame == fg_quake2)
@@ -1309,6 +1316,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 		l[3]=0;l[4]=0;l[5]=0;
 		if (lightmap)
 		{
+			overbright = 1/255.0f;
 			if (cl.worldmodel->deluxdata)
 			{
 				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
@@ -1320,7 +1328,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
+						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
 						if (cl_lightstyle[surf->styles[maps]].colour & 1)
 							l[0] += lightmap[0] * scale;
@@ -1349,7 +1357,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
+						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
 						if (cl_lightstyle[surf->styles[maps]].colour & 1)
 							l[0] += *lightmap * scale;
@@ -1378,7 +1386,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
+						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
 						if (cl_lightstyle[surf->styles[maps]].colour & 1)
 							l[0] += lightmap[0] * scale;
@@ -1398,7 +1406,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]]/256.0f;
+						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
 						if (cl_lightstyle[surf->styles[maps]].colour & 1)
 							l[0] += *lightmap * scale;
@@ -1450,7 +1458,7 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 	end[1] = point[1];
 	end[2] = point[2] - 2048;
 
-	r = GLRecursiveLightPoint3C(model->nodes, point, end);
+	r = GLRecursiveLightPoint3C(model->rootnode, point, end);
 	if (r == NULL)
 	{
 		res_diffuse[0] = 0;
@@ -1467,14 +1475,14 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 	}
 	else
 	{
-		res_diffuse[0] = r[0];
-		res_diffuse[1] = r[1];
-		res_diffuse[2] = r[2];
+		res_diffuse[0] = r[0]*2;
+		res_diffuse[1] = r[1]*2;
+		res_diffuse[2] = r[2]*2;
 
 		/*bright on one side, dark on the other, but not too dark*/
-		res_ambient[0] = r[0]/3;
-		res_ambient[1] = r[1]/3;
-		res_ambient[2] = r[2]/3;
+		res_ambient[0] = r[0]/2;
+		res_ambient[1] = r[1]/2;
+		res_ambient[2] = r[2]/2;
 
 		res_dir[0] = r[3];
 		res_dir[1] = r[4];

@@ -1,48 +1,499 @@
 /*
-Q3Fusion - Quake III Clone Engine
+===========================================================================
+Copyright (C) 1999-2005 Id Software, Inc.
 
-Copyright (C) 2003 Andrey Nazarov
+This file is part of Quake III Arena source code.
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
+Quake III Arena source code is free software; you can redistribute it
+and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation; either version 2 of the License,
+or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
-
-See the GNU General Public License for more details.
+Quake III Arena source code is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+along with Quake III Arena source code; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+===========================================================================
 */
 
-//
-// huff.c - Huffman compression routines for data bitstream
-//
+/* This is based on the Adaptive Huffman algorithm described in Sayood's Data
+ * Compression book.  The ranks are not actually stored, but implicitly defined
+ * by the location of a node within a doubly-linked list */
 #include "quakedef.h"
+
 #ifdef HUFFNETWORK
+#define NYT HMAX					/* NYT = Not Yet Transmitted */
+#define INTERNAL_NODE (HMAX+1)
+
+typedef struct nodetype {
+	struct	nodetype *left, *right, *parent; /* tree structure */ 
+	struct	nodetype *next, *prev; /* doubly-linked list */
+	struct	nodetype **head; /* highest ranked node in block */
+	int		weight;
+	int		symbol;
+} node_t;
+
+#define HMAX 256 /* Maximum symbol */
+
+typedef struct {
+	int			blocNode;
+	int			blocPtrs;
+
+	node_t*		tree;
+	node_t*		lhead;
+	node_t*		ltail;
+	node_t*		loc[HMAX+1];
+	node_t**	freelist;
+
+	node_t		nodeList[768];
+	node_t*		nodePtrs[768];
+} huff_t;
+
+struct huffman_s{
+	int counts[256];
+	unsigned int crc;
+	qboolean built;
+
+	huff_t		compressor;
+	huff_t		decompressor;
+};
 extern cvar_t net_compress;
-#define ID_INLINE
 
-#define VALUE(a)			(*(size_t *)&(a))
-#define NODE(a)				((void*)((size_t)a))
+static int			bloc = 0;
+/*
+static void	Huff_putBit( int bit, qbyte *fout, int *offset) {
+	bloc = *offset;
+	if ((bloc&7) == 0) {
+		fout[(bloc>>3)] = 0;
+	}
+	fout[(bloc>>3)] |= bit << (bloc&7);
+	bloc++;
+	*offset = bloc;
+}
 
-#define NODE_START			NODE(  1)
-#define NODE_NONE			NODE(256)
-#define NODE_NEXT			NODE(257)
+static int		Huff_getBloc(void)
+{
+	return bloc;
+}
 
-#define NOT_REFERENCED		256
+static void	Huff_setBloc(int _bloc)
+{
+	bloc = _bloc;
+}
+*/
+int		Huff_getBit( qbyte *fin, int *offset) {
+	int t;
+	bloc = *offset;
+	t = (fin[(bloc>>3)] >> (bloc&7)) & 0x1;
+	bloc++;
+	*offset = bloc;
+	return t;
+}
 
-#define HUFF_TREE_SIZE		7175
-typedef void				*tree_t[HUFF_TREE_SIZE];
+/* Add a bit to the output file (buffered) */
+static void huff_add_bit (char bit, qbyte *fout) {
+	if ((bloc&7) == 0) {
+		fout[(bloc>>3)] = 0;
+	}
+	fout[(bloc>>3)] |= bit << (bloc&7);
+	bloc++;
+}
 
-//
-// pre-defined frequency counts for all bytes [0..255]
-//
-static int q3huffCounts[256] = {
+/* Receive one bit from the input file (buffered) */
+static int huff_get_bit (qbyte *fin) {
+	int t;
+	t = (fin[(bloc>>3)] >> (bloc&7)) & 0x1;
+	bloc++;
+	return t;
+}
+
+static node_t **huff_get_ppnode(huff_t* huff) {
+	node_t **tppnode;
+	if (!huff->freelist) {
+		return &(huff->nodePtrs[huff->blocPtrs++]);
+	} else {
+		tppnode = huff->freelist;
+		huff->freelist = (node_t **)*tppnode;
+		return tppnode;
+	}
+}
+
+static void huff_free_ppnode(huff_t* huff, node_t **ppnode) {
+	*ppnode = (node_t *)huff->freelist;
+	huff->freelist = ppnode;
+}
+
+/* Swap the location of these two nodes in the tree */
+static void huff_swap (huff_t* huff, node_t *node1, node_t *node2) { 
+	node_t *par1, *par2;
+
+	par1 = node1->parent;
+	par2 = node2->parent;
+
+	if (par1) {
+		if (par1->left == node1) {
+			par1->left = node2;
+		} else {
+	      par1->right = node2;
+		}
+	} else {
+		huff->tree = node2;
+	}
+
+	if (par2) {
+		if (par2->left == node2) {
+			par2->left = node1;
+		} else {
+			par2->right = node1;
+		}
+	} else {
+		huff->tree = node1;
+	}
+
+	node1->parent = par2;
+	node2->parent = par1;
+}
+
+/* Swap these two nodes in the linked list (update ranks) */
+static void huff_swaplist(node_t *node1, node_t *node2) {
+	node_t *par1;
+
+	par1 = node1->next;
+	node1->next = node2->next;
+	node2->next = par1;
+
+	par1 = node1->prev;
+	node1->prev = node2->prev;
+	node2->prev = par1;
+
+	if (node1->next == node1) {
+		node1->next = node2;
+	}
+	if (node2->next == node2) {
+		node2->next = node1;
+	}
+	if (node1->next) {
+		node1->next->prev = node1;
+	}
+	if (node2->next) {
+		node2->next->prev = node2;
+	}
+	if (node1->prev) {
+		node1->prev->next = node1;
+	}
+	if (node2->prev) {
+		node2->prev->next = node2;
+	}
+}
+
+/* Do the increments */
+static void huff_increment(huff_t* huff, node_t *node) {
+	node_t *lnode;
+
+	if (!node) {
+		return;
+	}
+
+	if (node->next != NULL && node->next->weight == node->weight) {
+		lnode = *node->head;
+		if (lnode != node->parent) {
+			huff_swap(huff, lnode, node);
+		}
+		huff_swaplist(lnode, node);
+	}
+	if (node->prev && node->prev->weight == node->weight) {
+		*node->head = node->prev;
+	} else {
+		*node->head = NULL;
+		huff_free_ppnode(huff, node->head);
+	}
+	node->weight++;
+	if (node->next && node->next->weight == node->weight) {
+		node->head = node->next->head;
+	} else { 
+		node->head = huff_get_ppnode(huff);
+		*node->head = node;
+	}
+	if (node->parent) {
+		huff_increment(huff, node->parent);
+		if (node->prev == node->parent) {
+			huff_swaplist(node, node->parent);
+			if (*node->head == node) {
+				*node->head = node->parent;
+			}
+		}
+	}
+}
+
+static void Huff_addRef(huff_t* huff, qbyte ch) {
+	node_t *tnode, *tnode2;
+	if (huff->loc[ch] == NULL) { /* if this is the first transmission of this node */
+		tnode = &(huff->nodeList[huff->blocNode++]);
+		tnode2 = &(huff->nodeList[huff->blocNode++]);
+
+		tnode2->symbol = INTERNAL_NODE;
+		tnode2->weight = 1;
+		tnode2->next = huff->lhead->next;
+		if (huff->lhead->next) {
+			huff->lhead->next->prev = tnode2;
+			if (huff->lhead->next->weight == 1) {
+				tnode2->head = huff->lhead->next->head;
+			} else {
+				tnode2->head = huff_get_ppnode(huff);
+				*tnode2->head = tnode2;
+			}
+		} else {
+			tnode2->head = huff_get_ppnode(huff);
+			*tnode2->head = tnode2;
+		}
+		huff->lhead->next = tnode2;
+		tnode2->prev = huff->lhead;
+
+		tnode->symbol = ch;
+		tnode->weight = 1;
+		tnode->next = huff->lhead->next;
+		if (huff->lhead->next) {
+			huff->lhead->next->prev = tnode;
+			if (huff->lhead->next->weight == 1) {
+				tnode->head = huff->lhead->next->head;
+			} else {
+				/* this should never happen */
+				tnode->head = huff_get_ppnode(huff);
+				*tnode->head = tnode2;
+			}
+		} else {
+			/* this should never happen */
+			tnode->head = huff_get_ppnode(huff);
+			*tnode->head = tnode;
+		}
+		huff->lhead->next = tnode;
+		tnode->prev = huff->lhead;
+		tnode->left = tnode->right = NULL;
+
+		if (huff->lhead->parent) {
+			if (huff->lhead->parent->left == huff->lhead) { /* lhead is guaranteed to by the NYT */
+				huff->lhead->parent->left = tnode2;
+			} else {
+				huff->lhead->parent->right = tnode2;
+			}
+		} else {
+			huff->tree = tnode2; 
+		}
+
+		tnode2->right = tnode;
+		tnode2->left = huff->lhead;
+
+		tnode2->parent = huff->lhead->parent;
+		huff->lhead->parent = tnode->parent = tnode2;
+
+		huff->loc[ch] = tnode;
+
+		huff_increment(huff, tnode2->parent);
+	} else {
+		huff_increment(huff, huff->loc[ch]);
+	}
+}
+
+/* Get a symbol */
+static int Huff_Receive (node_t *node, int *ch, qbyte *fin) {
+	while (node && node->symbol == INTERNAL_NODE) {
+		if (huff_get_bit(fin)) {
+			node = node->right;
+		} else {
+			node = node->left;
+		}
+	}
+	if (!node) {
+		return 0;
+//		Com_Error(ERR_DROP, "Illegal tree!");
+	}
+	return (*ch = node->symbol);
+}
+
+/* Get a symbol */
+static void Huff_offsetReceive (node_t *node, int *ch, qbyte *fin, int *offset) {
+	bloc = *offset;
+	while (node && node->symbol == INTERNAL_NODE) {
+		if (huff_get_bit(fin)) {
+			node = node->right;
+		} else {
+			node = node->left;
+		}
+	}
+	if (!node) {
+		*ch = 0;
+		return;
+//		Com_Error(ERR_DROP, "Illegal tree!");
+	}
+	*ch = node->symbol;
+	*offset = bloc;
+}
+
+/* Send the prefix code for this node */
+static void huff_send(node_t *node, node_t *child, qbyte *fout) {
+	if (node->parent) {
+		huff_send(node->parent, node, fout);
+	}
+	if (child) {
+		if (node->right == child) {
+			huff_add_bit(1, fout);
+		} else {
+			huff_add_bit(0, fout);
+		}
+	}
+}
+
+/* Send a symbol */
+static void Huff_transmit (huff_t *huff, int ch, qbyte *fout) {
+	int i;
+	if (huff->loc[ch] == NULL) { 
+		/* node_t hasn't been transmitted, send a NYT, then the symbol */
+		Huff_transmit(huff, NYT, fout);
+		for (i = 7; i >= 0; i--) {
+			huff_add_bit((char)((ch >> i) & 0x1), fout);
+		}
+	} else {
+		huff_send(huff->loc[ch], NULL, fout);
+	}
+}
+
+static void Huff_offsetTransmit (huff_t *huff, int ch, qbyte *fout, int *offset) {
+	bloc = *offset;
+	huff_send(huff->loc[ch], NULL, fout);
+	*offset = bloc;
+}
+
+static void Huff_Decompress(sizebuf_t *mbuf, int offset) {
+	int			ch, cch, i, j, size;
+	qbyte		seq[65536];
+	qbyte*		buffer;
+	huff_t		huff;
+
+	size = mbuf->cursize - offset;
+	buffer = mbuf->data + offset;
+
+	if ( size <= 0 ) {
+		return;
+	}
+
+	memset(&huff, 0, sizeof(huff_t));
+	// Initialize the tree & list with the NYT node 
+	huff.tree = huff.lhead = huff.ltail = huff.loc[NYT] = &(huff.nodeList[huff.blocNode++]);
+	huff.tree->symbol = NYT;
+	huff.tree->weight = 0;
+	huff.lhead->next = huff.lhead->prev = NULL;
+	huff.tree->parent = huff.tree->left = huff.tree->right = NULL;
+
+	cch = buffer[0]*256 + buffer[1];
+	// don't overflow with bad messages
+	if ( cch > mbuf->maxsize - offset ) {
+		cch = mbuf->maxsize - offset;
+	}
+	bloc = 16;
+
+	for ( j = 0; j < cch; j++ ) {
+		ch = 0;
+		// don't overflow reading from the messages
+		// FIXME: would it be better to have an overflow check in get_bit ?
+		if ( (bloc >> 3) > size ) {
+			seq[j] = 0;
+			break;
+		}
+		Huff_Receive(huff.tree, &ch, buffer);				/* Get a character */
+		if ( ch == NYT ) {								/* We got a NYT, get the symbol associated with it */
+			ch = 0;
+			for ( i = 0; i < 8; i++ ) {
+				ch = (ch<<1) + huff_get_bit(buffer);
+			}
+		}
+
+		seq[j] = ch;									/* Write symbol */
+
+		Huff_addRef(&huff, (qbyte)ch);								/* Increment node */
+	}
+	mbuf->cursize = cch + offset;
+	memcpy(mbuf->data + offset, seq, cch);
+}
+
+static void Huff_Compress(sizebuf_t *mbuf, int offset) {
+	int			i, ch, size;
+	qbyte		seq[65536];
+	qbyte*		buffer;
+	huff_t		huff;
+
+	size = mbuf->cursize - offset;
+	buffer = mbuf->data+ + offset;
+
+	if (size<=0) {
+		return;
+	}
+
+	memset(&huff, 0, sizeof(huff_t));
+	// Add the NYT (not yet transmitted) node into the tree/list */
+	huff.tree = huff.lhead = huff.loc[NYT] =  &(huff.nodeList[huff.blocNode++]);
+	huff.tree->symbol = NYT;
+	huff.tree->weight = 0;
+	huff.lhead->next = huff.lhead->prev = NULL;
+	huff.tree->parent = huff.tree->left = huff.tree->right = NULL;
+
+	seq[0] = (size>>8);
+	seq[1] = size&0xff;
+
+	bloc = 16;
+
+	for (i=0; i<size; i++ ) {
+		ch = buffer[i];
+		Huff_transmit(&huff, ch, seq);						/* Transmit symbol */
+		Huff_addRef(&huff, (qbyte)ch);								/* Do update */
+	}
+
+	bloc += 8;												// next byte
+
+	mbuf->cursize = (bloc>>3) + offset;
+	memcpy(mbuf->data+offset, seq, (bloc>>3));
+}
+
+static void Huff_Init(huffman_t *huff)
+{
+	int i, j;
+
+	memset(&huff->compressor, 0, sizeof(huff_t));
+	memset(&huff->decompressor, 0, sizeof(huff_t));
+
+	// Initialize the tree & list with the NYT node 
+	huff->decompressor.tree = huff->decompressor.lhead = huff->decompressor.ltail = huff->decompressor.loc[NYT] = &(huff->decompressor.nodeList[huff->decompressor.blocNode++]);
+	huff->decompressor.tree->symbol = NYT;
+	huff->decompressor.tree->weight = 0;
+	huff->decompressor.lhead->next = huff->decompressor.lhead->prev = NULL;
+	huff->decompressor.tree->parent = huff->decompressor.tree->left = huff->decompressor.tree->right = NULL;
+
+	// Add the NYT (not yet transmitted) node into the tree/list */
+	huff->compressor.tree = huff->compressor.lhead = huff->compressor.loc[NYT] =  &(huff->compressor.nodeList[huff->compressor.blocNode++]);
+	huff->compressor.tree->symbol = NYT;
+	huff->compressor.tree->weight = 0;
+	huff->compressor.lhead->next = huff->compressor.lhead->prev = NULL;
+	huff->compressor.tree->parent = huff->compressor.tree->left = huff->compressor.tree->right = NULL;
+
+	for(i=0;i<256;i++)
+	{
+		for (j=0;j<huff->counts[i];j++)
+		{
+			Huff_addRef(&huff->compressor,	(qbyte)i);
+			Huff_addRef(&huff->decompressor,	(qbyte)i);
+		}
+	}
+}
+
+
+
+
+static huffman_t q3huff = 
+{
+	{
 	0x3D1CB, 0x0A0E9, 0x01894, 0x01BC2, 0x00E92, 0x00EA6, 0x017DE, 0x05AF3,
 	0x08225, 0x01B26, 0x01E9E, 0x025F2, 0x02429, 0x0436B, 0x00F6D, 0x006F2,
 	0x02060, 0x00644, 0x00636, 0x0067F, 0x0044C, 0x004BD, 0x004D6, 0x0046E,
@@ -75,727 +526,57 @@ static int q3huffCounts[256] = {
 	0x01E6F, 0x003BA, 0x00509, 0x003A5, 0x00467, 0x00C87, 0x003FC, 0x0039F,
 	0x0054B, 0x00300, 0x00410, 0x002E9, 0x003B8, 0x00325, 0x00431, 0x002E4,
 	0x003F5, 0x00325, 0x003F0, 0x0031C, 0x003E4, 0x00421, 0x02CC1, 0x034C0
+	},
+	0x286f2e8d
 };
-
-static int countinghuffCounts[256];
-
-
-//
-// static Huffman tree
-//
-static tree_t	huffTree;
-
-//
-// received from MSG_* code
-//
-static int		huffBitPos;
-
-
-/*
-=======================================================================================
-
-  HUFFMAN TREE CONSTRUCTION
-
-=======================================================================================
-*/
-
-/*
-============
-Huff_PrepareTree
-============
-*/
-static ID_INLINE void Huff_PrepareTree(tree_t tree)
-{
-	void **node;
-	
-	memset(tree, 0, sizeof(tree_t));
-	
-	// create first node
-	node = &tree[263];
-	tree[0] = (void*)(VALUE(tree[0])+1);
-
-	node[7] = NODE_NONE;
-	tree[2] = node;
-	tree[3] = node;
-	tree[4] = node;
-	tree[261] = node;
-}
-
-
-
-/*
-============
-Huff_GetNode
-============
-*/
-static ID_INLINE void **Huff_GetNode(void **tree)
-{
-	void **node;
-	int	value;
-
-	node = (void**)tree[262];
-	if (!node)
-	{
-		value = VALUE(tree[1])++;
-		node = &tree[value + 6407];
-		return node;
-	}
-
-	tree[262] = node[0];
-	return node;
-}
-
-/*
-============
-Huff_Swap
-============
-*/
-static ID_INLINE void Huff_Swap(void **tree1, void **tree2, void **tree3)
-{
-	void **a, **b;
-
-	a = (void**)tree2[2];
-	if (a)
-	{
-		if (a[0] == tree2)
-			a[0] = tree3;
-		else
-			a[1] = tree3;
-	}
-	else
-		tree1[2] = tree3;
-
-	b = (void**)tree3[2];
-
-	if (b)
-	{
-		if (b[0] == tree3)
-		{
-			b[0] = tree2;
-			tree2[2] = b;
-			tree3[2] = a;
-			return;
-		}
-
-		b[1] = tree2;
-		tree2[2] = b;
-		tree3[2] = a;
-		return;
-	}
-
-	tree1[2] = tree2;
-	tree2[2] = NULL;
-	tree3[2] = a;
-}
-
-/*
-============
-Huff_SwapTrees
-============
-*/
-static ID_INLINE void Huff_SwapTrees(void **tree1, void **tree2)
-{
-	void **temp;
-
-	temp = (void**)tree1[3];
-	tree1[3] = tree2[3];
-	tree2[3] = temp;
-
-	temp = (void**)tree1[4];
-	tree1[4] = tree2[4];
-	tree2[4] = temp;
-
-	if (tree1[3] == tree1)
-		tree1[3] = tree2;
-
-	if (tree2[3] == tree2)
-		tree2[3] = tree1;
-
-	temp = (void**)tree1[3];
-	if (temp)
-		temp[4] = tree1;
-
-	temp = (void**)tree2[3];
-	if (temp)
-		temp[4] = tree2;
-
-	temp = (void**)tree1[4];
-	if (temp)
-		temp[3] = tree1;
-
-	temp = (void**)tree2[4];
-	if (temp)
-		temp[3] = tree2;
-
-}
-
-/*
-============
-Huff_DeleteNode
-============
-*/
-static ID_INLINE void Huff_DeleteNode(void **tree1, void **tree2)
-{
-	tree2[0] = tree1[262];
-	tree1[262] = tree2;
-}
-
-/*
-============
-Huff_IncrementFreq_r
-============
-*/
-static void Huff_IncrementFreq_r(void **tree1, void **tree2)
-{
-	void **a, **b;
-
-	if (!tree2)
-	{
-		return;
-	}
-
-	a = (void**)tree2[3];
-	if (a)
-	{
-		a = (void**)a[6];
-		if (a == tree2[6])
-		{
-			b = (void**)tree2[5];
-			if (b[0] != tree2[2])
-			{
-				Huff_Swap(tree1, (void**)b[0], tree2);
-			}
-			Huff_SwapTrees((void**)b[0], tree2);
-		}
-	}
-
-	a = (void**)tree2[4];
-	if (a && a[6] == tree2[6])
-	{
-		b = (void**)tree2[5];
-		b[0] = a;
-	}
-	else
-	{
-		a = (void**)tree2[5];
-		a[0] = 0;
-		Huff_DeleteNode(tree1, (void**)tree2[5]);
-	}
-
-	
-	VALUE(tree2[6])++;
-	a = (void**)tree2[3];
-	if (a && a[6] == tree2[6])
-	{
-		tree2[5] = a[5];
-	}
-	else
-	{
-		a = Huff_GetNode(tree1);
-		tree2[5] = a;
-		a[0] = tree2;
-	}
-
-	if (tree2[2])
-	{
-		Huff_IncrementFreq_r(tree1, (void**)tree2[2]);
-	
-		if (tree2[4] == tree2[2])
-		{
-			Huff_SwapTrees(tree2, (void**)tree2[2]);
-			a = (void**)tree2[5];
-
-			if (a[0] == tree2)
-			{
-				a[0] = (void**)tree2[2];
-			}
-		}
-	}
-}
-
-/*
-============
-Huff_AddReference
-
-Insert 'ch' into the tree or increment it's frequency
-============
-*/
-static void Huff_AddReference(void **tree, int ch)
-{
-	void **a, **b, **c, **d;
-	int value;
-
-	ch &= 255;
-	if (tree[ch + 5])
-	{
-		Huff_IncrementFreq_r(tree, (void**)tree[ch + 5]);
-		return; // already added
-	}
-
-	value = VALUE(tree[0])++;
-	b = &tree[value * 8 + 263];
-
-	value = VALUE(tree[0])++;
-	a = &tree[value * 8 + 263];
-
-	a[7] = NODE_NEXT;
-	a[6] = NODE_START;
-	d = (void**)tree[3];
-	a[3] = d[3];
-	if (a[3])
-	{
-		d = (void**)a[3];
-		d[4] = a;
-		d = (void**)a[3];
-		if (d[6] == NODE_START)
-		{
-			a[5] = d[5];
-		}
-		else
-		{
-			d = Huff_GetNode(tree);
-			a[5] = d;
-			d[0] = a;
-		}
-	}
-	else
-	{
-		d = Huff_GetNode(tree);
-		a[5] = d;
-		d[0] = a;
-
-	}
-	
-	d = (void**)tree[3];
-	d[3] = a;
-	a[4] = (void**)tree[3];
-	b[7] = NODE(ch);
-	b[6] = NODE_START;
-	d = (void**)tree[3];
-	b[3] = d[3];
-	if (b[3])
-	{
-		d = (void**)b[3];
-		d[4] = b;
-		if (d[6] == NODE_START)
-		{
-			b[5] = d[5];
-		}
-		else
-		{
-			d = Huff_GetNode(tree);
-			b[5] = d;
-			d[0] = a;
-		}
-	}
-	else
-	{
-		d = Huff_GetNode(tree);
-		b[5] = d;
-		d[0] = b;
-	}
-
-	d = (void**)tree[3];
-	d[3] = b;
-	b[4] = (void**)tree[3];
-	b[1] = NULL;
-	b[0] = NULL;
-	d = (void**)tree[3];
-	c = (void**)d[2];
-	if (c)
-	{
-		if (c[0] == tree[3])
-		{
-			c[0] = a;
-		}
-		else
-		{
-			c[1] = a;
-		}
-	}
-	else
-	{
-		tree[2] = a;
-	}
-
-	a[1] = b;
-	d = (void**)tree[3];
-	a[0] = d;
-	a[2] = d[2];
-	b[2] = a;
-	d = (void**)tree[3];
-	d[2] = a;
-	tree[ch + 5] = b;
-
-	Huff_IncrementFreq_r(tree, (void**)a[2]);
-}
-
-/*
-=======================================================================================
-
-  BITSTREAM I/O
-
-=======================================================================================
-*/
-
-/*
-============
-Huff_EmitBit
-
-Put one bit into buffer
-============
-*/
-static ID_INLINE void Huff_EmitBit(int bit, qbyte *buffer)
-{
-	if (!(huffBitPos & 7))
-	{
-		buffer[huffBitPos >> 3] = 0;
-	}
-
-	buffer[huffBitPos >> 3] |= bit << (huffBitPos & 7);
-	huffBitPos++;
-}
-
-/*
-============
-Huff_GetBit
-
-Read one bit from buffer
-============
-*/
-static ID_INLINE int Huff_GetBit(qbyte *buffer)
-{
-	int bit;
-
-	bit = buffer[huffBitPos >> 3] >> (huffBitPos & 7);
-	huffBitPos++;
-
-	return (bit & 1);
-}
-
-/*
-============
-Huff_EmitPathToByte
-============
-*/
-static ID_INLINE void Huff_EmitPathToByte(void **tree, void **subtree, qbyte *buffer)
-{
-	if (tree[2])
-	{
-		Huff_EmitPathToByte((void**)tree[2], tree, buffer);
-	}
-
-	if (!subtree)
-	{
-		return;
-	}
-
-	//
-	// emit tree walking control bits
-	//
-	if (tree[1] == subtree)
-	{
-		Huff_EmitBit(1, buffer);
-	}
-	else
-	{
-		Huff_EmitBit(0, buffer);
-	}
-}
-
-/*
-============
-Huff_GetByteFromTree
-
-Get one qbyte using dynamic or static tree
-============
-*/
-static ID_INLINE int Huff_GetByteFromTree(void **tree, qbyte *buffer)
-{
-	if (!tree)
-	{
-		return 0;
-	}
-
-	//
-	// walk through the tree until we get a value
-	//
-	while (tree[7] == NODE_NEXT)
-	{
-		if (!Huff_GetBit(buffer))
-		{
-			tree = (void**)tree[0];
-		}
-		else
-		{
-			tree = (void**)tree[1];
-		}
-
-		if (!tree)
-		{
-			return 0;
-		}
-	}
-
-	return VALUE(tree[7]);
-}
-
-/*
-============
-Huff_EmitByteDynamic
-
-Emit one qbyte using dynamic tree
-============
-*/
-static void Huff_EmitByteDynamic(void **tree, int value, qbyte *buffer)
-{
-	void **subtree;
-	int i;
-
-	//
-	// if qbyte was already referenced, emit path to it
-	//
-	subtree = (void**)tree[value + 5];
-	if (subtree)
-	{
-		if (subtree[2])
-		{
-			Huff_EmitPathToByte((void**)subtree[2], subtree, buffer);
-		}		
-		return;
-	}
-
-	//
-	// qbyte was not referenced, just emit 8 bits
-	//
-	Huff_EmitByteDynamic(tree, NOT_REFERENCED, buffer);
-
-	for (i = 7; i >= 0; i--)
-	{
-		Huff_EmitBit((value >> i) & 1, buffer);
-	}
-
-}
-
-/*
-=======================================================================================
-
-  PUBLIC INTERFACE
-
-=======================================================================================
-*/
-
-/*
-============
-Huff_CompressPacket
-
-Compress message using dynamic Huffman tree,
-beginning from specified offset
-============
-*/
-void Huff_EncryptPacket(sizebuf_t *msg, int offset)
-{
-	tree_t	tree;
-	qbyte	buffer[MAX_OVERALLMSGLEN];
-	qbyte	*data;
-	int		outLen;
-	int		inLen;
-	int		i;
-
-	data = msg->data + offset;
-	inLen = msg->cursize - offset;
-	if (inLen <= 0 || inLen >= MAX_OVERALLMSGLEN)
-	{
-		return;
-	}
-
-	Huff_PrepareTree(tree);
-
-	buffer[0] = inLen >> 8;
-	buffer[1] = inLen & 0xFF;
-	huffBitPos = 16;
-
-	for (i = 0; i < inLen; i++)
-	{
-		Huff_EmitByteDynamic(tree, data[i], buffer);
-		Huff_AddReference(tree, data[i]);
-	}
-	
-	outLen = (huffBitPos >> 3) + 1;
-
-	msg->cursize = offset + outLen;
-	memcpy(data, buffer, outLen);
-
-}
-
-/*
-============
-Huff_DecompressPacket
-
-Decompress message using dynamic Huffman tree,
-beginning from specified offset
-============
-*/
-void Huff_DecryptPacket(sizebuf_t *msg, int offset)
-{
-	tree_t	tree;
-	qbyte	buffer[MAX_OVERALLMSGLEN];
-	qbyte	*data;
-	int		outLen;
-	int		inLen;
-	int		i, j;
-	int		ch;
-
-	data = msg->data + offset;
-	inLen = msg->cursize - offset;
-	if (inLen <= 0)
-	{
-		return;
-	}
-
-	Huff_PrepareTree(tree);
-
-	outLen = (data[0] << 8) + data[1];
-	huffBitPos = 16;
-	
-	if (outLen > msg->maxsize - offset)
-	{
-		outLen = msg->maxsize - offset;
-	}
-
-	for (i = 0; i < outLen; i++)
-	{
-		if ((huffBitPos >> 3) > inLen)
-		{
-			buffer[i] = 0;
-			break;
-		}
-
-		ch = Huff_GetByteFromTree((void**)tree[2], data);
-
-		if (ch == NOT_REFERENCED)
-		{
-			ch = 0; // just read 8 bits
-			for (j = 0 ; j < 8 ; j++)
-			{
-				ch <<= 1;
-				ch |= Huff_GetBit(data);
-			}
-		}
-
-		buffer[i] = ch;
-		Huff_AddReference(tree, ch);
-	}
-
-
-	msg->cursize = offset + outLen;
-	memcpy(data, buffer, outLen);
-}
-
-/*
-============
-Huff_EmitByte
-============
-*/
-void Huff_EmitByte(int ch, qbyte *buffer, int *count)
-{
-	huffBitPos = *count;
-	Huff_EmitPathToByte((void**)huffTree[ch + 5], NULL, buffer);
-	*count = huffBitPos;
-}
-
-/*
-============
-Huff_GetByte
-============
-*/
-int Huff_GetByte(qbyte *buffer, int *count)
-{
-	int ch;
-
-	huffBitPos = *count;
-	ch = Huff_GetByteFromTree((void**)huffTree[2], buffer);
-	*count = huffBitPos;
-
-	return ch;
-}
-
-static int madetable;
-/*
-============
-Huff_Init
-============
-*/
-void Huff_Init(int *huffCounts)
-{
-	int	i, j;
-
-	if (!huffCounts)
-		huffCounts = q3huffCounts;
-
-	// build empty tree
-	Huff_PrepareTree(huffTree);
-
-	// add all pre-defined qbyte references
-	for (i = 0; i < 256; i++)
-	{
-		for (j = 0; j < huffCounts[i]; j++)
-		{
-			Huff_AddReference(huffTree, i);
-		}
-		huffCounts[i] = LittleLong(huffCounts[i]);
-	}
-	madetable=Com_BlockChecksum(huffCounts, sizeof(*huffCounts)*256);
-	for(i=0;i<256;i++)
-		huffCounts[i] = LittleLong(huffCounts[i]);
-}
-
-void Huff_LoadTable(char *filename)
-{
-}
 
 int Huff_PreferedCompressionCRC (void)
 {
 	if (!net_compress.ival)
 		return 0;
-
-	if (!madetable)
-		Huff_Init(NULL);
-	return madetable;
+	return q3huff.crc;
 }
-
-qboolean Huff_CompressionCRC(int crc)
+huffman_t *Huff_CompressionCRC(int crc)
 {
-	if (!madetable)
-		Huff_Init(NULL);
-	if (crc != LittleLong(madetable))
-		return false;
-	return true;
+	huffman_t *huff = NULL;
+
+	if (crc == q3huff.crc)
+		huff = &q3huff;
+	else
+		huff = NULL;
+
+	if (huff && !huff->built)
+		Huff_Init(huff);
+	return huff;
+}
+void Huff_DecryptPacket(sizebuf_t *msg, int offset)
+{
+	//decompress using a dynamic from-nil tree
+	Huff_Decompress(msg, offset);
+}
+void Huff_EncryptPacket(sizebuf_t *msg, int offset)
+{
+	//decompress using a dynamic from-nil tree
+	Huff_Compress(msg, offset);
+}
+int Huff_GetByte(qbyte *buffer, int *count)
+{
+	int ch;
+	Huff_offsetReceive (q3huff.decompressor.tree, &ch, buffer, count);
+	return ch;
+}
+void Huff_EmitByte(int ch, qbyte *buffer, int *count)
+{
+	Huff_offsetTransmit(&q3huff.compressor, ch, buffer, count);
 }
 
-
-
-
-
-
-/*
-============
-Huff_CompressPacket
-
-Compress message using loaded Huffman tree,
-beginning from specified offset
-============
-*/
-void Huff_CompressPacket( sizebuf_t *msg, int offset )
+void Huff_CompressPacket(huffman_t *huff, sizebuf_t *msg, int offset)
 {
 	qbyte	buffer[MAX_OVERALLMSGLEN];
 	qbyte	*data;
 	int		outLen;
 	int		inLen;
 	int		i;
-
-	if (!madetable)
-		Huff_Init(NULL);
 
 	data = msg->data + offset;
 	inLen = msg->cursize - offset;	
@@ -808,11 +589,8 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 	outLen = 0;
 	for (i=0; i < inLen; i++)
 	{
-		Huff_EmitByte(data[i], buffer, &outLen);
+		Huff_offsetTransmit(&huff->compressor, data[i], buffer, &outLen);
 
-		countinghuffCounts[data[i]]++;
-
-		outLen = (huffBitPos >> 3) + 1;
 		if (outLen > inLen)
 			break;
 		if (outLen > MAX_OVERALLMSGLEN-64)
@@ -825,8 +603,6 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 		}
 	}
 
-	outLen = (huffBitPos >> 3) + 1;
-
 	if (outLen > inLen)
 	{
 		memmove(data+1, data, inLen);
@@ -837,7 +613,7 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 
 	msg->cursize = offset + outLen;
 	{	//add the bitcount
-		data[0] = (outLen<<3) - huffBitPos;
+		data[0] = (outLen<<3) - outLen;
 		data+=1;
 		msg->cursize+=1;
 	}
@@ -845,25 +621,13 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 		Sys_Error("Compression became too large\n");
 	memcpy(data, buffer, outLen);
 }
-
-/*
-============
-Huff_DecompressPacket
-
-Decompress message using loaded Huffman tree,
-beginning from specified offset
-============
-*/
-void Huff_DecompressPacket(sizebuf_t *msg, int offset)
+void Huff_DecompressPacket(huffman_t *huff, sizebuf_t *msg, int offset)
 {
 	qbyte	buffer[MAX_OVERALLMSGLEN];
 	qbyte	*data;
 	int		outLen;
 	int		inLen;
-	int		i;
-
-	if (!madetable)
-		Huff_Init(NULL);
+	int		i, ch;
 
 	data = msg->data + offset;
 	inLen = msg->cursize - offset;	
@@ -889,7 +653,8 @@ void Huff_DecompressPacket(sizebuf_t *msg, int offset)
 	{
 		if (i == MAX_OVERALLMSGLEN)
 			Sys_Error("Decompression became too large\n");
-		buffer[i] = Huff_GetByte(data, &outLen);
+		Huff_offsetReceive (huff->decompressor.tree, &ch, data, &outLen);
+		buffer[i] = ch;
 	}
 	
 	msg->cursize = offset + i;
@@ -897,6 +662,5 @@ void Huff_DecompressPacket(sizebuf_t *msg, int offset)
 		Sys_Error("Decompression became too large\n");
 	memcpy(msg->data + offset, buffer, i);
 }
-
 #endif
 

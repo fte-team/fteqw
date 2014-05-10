@@ -61,7 +61,7 @@ typedef struct trace_s
 //q2 game dll code will memcpy the lot from trace_t to q2trace_t.
 	qboolean	allsolid;	// if true, plane is not valid
 	qboolean	startsolid;	// if true, the initial point was in a solid area
-	float		fraction;	// time completed, 1.0 = didn't hit anything
+	float		fraction;	// time completed, 1.0 = didn't hit anything (nudged closer to the start point to cover precision issues)
 	vec3_t		endpos;		// final position
 	cplane_t	plane;		// surface normal at impact
 	q2csurface_t	*surface;	// q2-compat surface hit
@@ -71,6 +71,7 @@ typedef struct trace_s
 	int entnum;
 
 	qboolean	inopen, inwater;
+	float truefraction;	//can be negative, also has floating point precision issues, etc.
 } trace_t;
 
 typedef struct q2trace_s

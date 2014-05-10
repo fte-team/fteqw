@@ -1876,28 +1876,29 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 
 
-/*
 static float PlaneNearest(vec3_t normal, vec3_t mins, vec3_t maxs)
 {
 	float result;
-	return 128;
-#if 1
+#if 0
 	result  = fabs(normal[0] * maxs[0]);
 	result += fabs(normal[1] * maxs[1]);
 	result += fabs(normal[2] * maxs[2]);
+#elif 0
+	result  = normal[0] * ((normal[0] > 0)?-16:16);
+	result += normal[1] * ((normal[1] > 0)?-16:16);
+	result += normal[2] * ((normal[2] > 0)?-24:32);
 #else
-	result  = normal[0] * ((normal[0] < 0)?mins[0]:maxs[0]);
-	result += normal[1] * ((normal[1] < 0)?mins[1]:maxs[1]);
-	result += normal[2] * ((normal[2] < 0)?mins[2]:maxs[2]);
+	result  = normal[0] * ((normal[0] > 0)?mins[0]:maxs[0]);
+	result += normal[1] * ((normal[1] > 0)?mins[1]:maxs[1]);
+	result += normal[2] * ((normal[2] > 0)?mins[2]:maxs[2]);
 #endif
 	return result;
 }
-*/
 
-static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	qboolean impacted = false;
-	int i;
+	int i, j;
 
 	float *p1, *p2, *p3;
 	vec3_t edge1, edge2, edge3;
@@ -1906,10 +1907,10 @@ static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numind
 
 	float planedist;
 	float diststart, distend;
-//	float expand;
+	float mn,mx;
+	float extend;
 
 	float frac;
-//	float temp;
 
 	vec3_t impactpoint;
 
@@ -1922,47 +1923,107 @@ static qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numind
 		VectorSubtract(p1, p2, edge1);
 		VectorSubtract(p3, p2, edge2);
 		CrossProduct(edge1, edge2, normal);
+		VectorNormalize(normal);
 
-//		expand = PlaneNearest(normal, mins, maxs);
-		planedist = DotProduct(p1, normal);
-		diststart = DotProduct(start, normal);
-		if (diststart <= planedist)
-			continue;	//start on back side.
-		distend = DotProduct(end, normal);
-		if (distend >= planedist)
-			continue;	//end on front side (as must start - doesn't cross).
-
-		frac = (diststart - planedist - 1) / (diststart-distend);
-		if (frac < 0)
-			frac = 0;
-
-		if (frac >= trace->fraction)	//already found one closer.
+		//degenerate triangle
+		if (!normal[0] && !normal[1] && !normal[2])
 			continue;
 
-		impactpoint[0] = start[0] + frac*(end[0] - start[0]);
-		impactpoint[1] = start[1] + frac*(end[1] - start[1]);
-		impactpoint[2] = start[2] + frac*(end[2] - start[2]);
+		//debugging
+//		if (normal[2] != 1)
+//			continue;
 
-//		temp = DotProduct(impactpoint, normal)-planedist;
+#define	DIST_EPSILON	(0.03125)
+#define DIST_SOLID		(3/8.0)	//the plane must be at least this thick, or player prediction will try jittering through it to correct the player's origin
+		extend = PlaneNearest(normal, mins, maxs);
+		planedist = DotProduct(p1, normal)-extend;
+		diststart = DotProduct(start, normal);
+		if (diststart/*+extend+DIST_SOLID*/ < planedist)
+			continue;	//start on back side (or slightly inside).
+		distend = DotProduct(end, normal);
+		if (distend > planedist)
+			continue;	//end on front side.
 
+		//figure out the precise frac
+		if (diststart > planedist)
+		{
+			//if we're not stuck inside it
+			if (distend >= diststart)
+				continue;	//trace moves away from or along the surface. don't block the trace if we're sliding along the front of it.
+		}
+		frac = (diststart - planedist) / (diststart-distend);
+		if (frac >= trace->truefraction)	//already found one closer.
+			continue;
+
+		//an impact outside of the surface's bounding box (expanded by the trace bbox) is not a valid impact.
+		//this solves extrusion issues.
+		for (j = 0; j < 3; j++)
+		{
+			impactpoint[j] = start[j] + frac*(end[j] - start[j]);
+			//make sure the impact point is within the triangle's bbox.
+			//primarily, this serves to prevent the edge extruding off to infinity or so
+			mx = mn = p1[j];
+			if (mn > p2[j])
+				mn = p2[j];
+			if (mx < p2[j])
+				mx = p2[j];
+			if (mn > p3[j])
+				mn = p3[j];
+			if (mx < p3[j])
+				mx = p3[j];
+			mx-=mins[j]-DIST_EPSILON;
+			mn-=maxs[j]+DIST_EPSILON;
+			if (impactpoint[j] > mx)
+				break;
+			if (impactpoint[j] < mn)
+				break;
+		}
+		if (j < 3)
+			continue;
+
+
+		//make sure the impact point is actually within the triangle
 		CrossProduct(edge1, normal, edgenormal);
-//		temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
-		if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal))
+		VectorNormalize(edgenormal);
+		if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal)-PlaneNearest(edgenormal, mins, maxs)+DIST_EPSILON)
 			continue;
 
 		CrossProduct(normal, edge2, edgenormal);
-		if (DotProduct(impactpoint, edgenormal) > DotProduct(p3, edgenormal))
+		VectorNormalize(edgenormal);
+		if (DotProduct(impactpoint, edgenormal) > DotProduct(p3, edgenormal)-PlaneNearest(edgenormal, mins, maxs)+DIST_EPSILON)
 			continue;
 
 		VectorSubtract(p1, p3, edge3);
 		CrossProduct(normal, edge3, edgenormal);
-		if (DotProduct(impactpoint, edgenormal) > DotProduct(p1, edgenormal))
+		VectorNormalize(edgenormal);
+		if (DotProduct(impactpoint, edgenormal) > DotProduct(p1, edgenormal)-PlaneNearest(edgenormal, mins, maxs)+DIST_EPSILON)
 			continue;
 
-		trace->fraction = frac;
-		VectorCopy(impactpoint, trace->endpos);
+		//okay, its a valid impact
+		trace->truefraction = frac;
+
+		//move back from the impact point. this should keep the point slightly outside of the solid triangle.
+		frac = (diststart - (planedist+DIST_EPSILON)) / (diststart-distend);
+		if (frac < 0)
+		{	//we're inside, apparently
+			trace->startsolid = trace->allsolid = (diststart < planedist);
+			trace->fraction = 0;
+			VectorCopy(start, trace->endpos);
+		}
+		else
+		{
+			//we made progress
+			trace->fraction = frac;
+			trace->endpos[0] = start[0] + frac*(end[0] - start[0]);
+			trace->endpos[1] = start[1] + frac*(end[1] - start[1]);
+			trace->endpos[2] = start[2] + frac*(end[2] - start[2]);
+		}
 		VectorCopy(normal, trace->plane.normal);
+		trace->plane.dist = planedist;
 		impacted = true;
+
+//		if (fabs(normal[0]) != 1 && fabs(normal[1]) != 1 && fabs(normal[2]) != 1)
+//			Con_Printf("Non-axial impact\n");
 	}
 	return impacted;
 }

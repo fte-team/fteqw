@@ -1491,6 +1491,34 @@ char *particle_set_high =
 "assoc gunshotsmoke\n"
 "}\n"
 
+"r_part te_superspike\n"
+"{\n"
+"type sparkfan\n"
+"count 20\n"
+"scale 1\n"
+"scalefactor 1\n"
+"alpha 0.5\n"
+"die 0.2\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 12\n"
+"spawnvel 300\n"
+"}\n"
+"r_part +te_superspike\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"count 1\n"
+"scale 1\n"
+"scalefactor 1\n"
+"scaledelta 190\n"
+"die 0.1\n"
+"alpha 0.6\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"assoc gunshotsmoke\n"
+"}\n"
 
 ////////////////////////////////////////////////
 //explosion
@@ -1559,9 +1587,10 @@ char *particle_set_high =
 //hide lights in explosions.
 //r_explosionlight 0
 
-//hide the explosion sprite in nq+qw - WARNING: some mods use this sprite as a flame thrower.
+//hide the explosion sprite in qw
 "cl_expsprite 0\n"
-"r_effect \"progs/s_explod.spr\" hidden 1\n"
+//hide it in nq - WARNING: some mods use this sprite as a flame thrower.
+//r_effect "progs/s_explod.spr" hidden 1
 
 //////////////////////////////////////////
 //r_part te_tarexplosion
@@ -1574,6 +1603,7 @@ char *particle_set_high =
 //}
 
 //////////////////////////////////////////
+//FIXME: what if we don't have glsl support?
 "r_part te_teleport\n"
 "{\n"
 "scale 250\n"
@@ -1651,6 +1681,22 @@ char *particle_set_high =
 "lightrgb    0.75 0.37 0.18\n"
 "}\n"
 
+"r_part te_knightspike\n"
+"{\n"
+"type sparkfan\n"
+"count 200\n"
+"scale 3\n"
+"scalefactor 1\n"
+"alpha 0.5\n"
+"die 0.5\n"
+"rgb 192 96 48\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 12\n"
+"spawnvel 100\n"
+"stretchfactor 10\n"
+"}\n"
+
 /////////////////////////////////////////
 //vore missiles
 "r_part tr_vorespike\n"
@@ -1705,13 +1751,13 @@ char *particle_set_high =
 "r_trail \"progs/laser.mdl\" tr_enforcerlaser\n"
 
 /////////////////////////////////////////
-//scrag missiles. just use the default trail cos we're lazy
+//scrag missiles.
 "r_part tr_wizspike\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
 "scale 15\n"
-"step 1\n"
+"step 4\n"
 "alpha 0.6\n"
 "die 0.2\n"
 "rgb 25 200 25\n"
@@ -1722,12 +1768,54 @@ char *particle_set_high =
 "spawnmode spiral\n"
 "spawnvel 25\n"
 "blend add\n"
-"lighttime 0\n"
+"lighttime 2\n"
+"lightradiusfade 75\n"
 "lightshadows 0\n"
 "lightradius 150\n"
 "lightrgb    0.1 0.7 0.1\n"
 "}\n"
 
+"r_part tr_wizspike2\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 4\n"
+"step 1\n"
+"alpha 0.6\n"
+"die 0.2\n"
+"rgb 25 200 25\n"
+"veladd 64\n"
+"randomvel 64\n"
+"friction 4\n"
+"scalefactor 0.825\n"
+"spawnmode spiral\n"
+"spawnvel 25\n"
+"blend add\n"
+"}\n"
+//scrag impact
+"r_part te_wizspike\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"alpha 0.6\n"
+"rgb 25 200 25\n"
+"friction 0\n"
+"scalefactor 0.825\n"
+"blend add\n"
+"count 5\n"
+"veladd -256\n"
+"randomvel 256\n"
+"die 1\n"
+"diesubrand 0.5\n"
+"gravity 800\n"
+"emit tr_wizspike2\n"
+"emitinterval -1\n"
+"bounce 1.5\n"
+"}\n"
+
+/////////////////////////////////////////
+//shambler stuff
 "r_part shambercharging\n"
 "{\n"
 "spawnmode ball\n"
@@ -1753,7 +1841,8 @@ char *particle_set_high =
 "}\n"
 "r_effect progs/s_light.mdl shambercharging 0\n"
 
-
+/////////////////////////////////////////
+//blood effects
 "r_part te_blood\n"
 "{\n"
 "texture fte_bloodparticle\n"
@@ -3114,6 +3203,172 @@ char *particle_set_h2part =
 //h2part.ce_teleporterbody_1 was not loaded
 //h2part.ce_grey_smoke_100 was not loaded
 //h2part.ce_chunk_fire was not loaded
+;
+
+
+
+//////////////////////////////////////////////////////
+
+
+char *particle_set_q2part =
+
+"r_part pe_default\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 1\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.3 0.8\n"
+"randomvel 20\n"
+"orgadd 0 31\n"
+"spawnorg 4\n"
+"gravity 40\n"
+"scalefactor 0.8\n"
+"}\n"
+
+
+"r_part q2_smoke\n"
+"{\n"
+"count 0 0 1\n"
+"model \"models/objects/smoke/tris.md2\" framestart=0 frameend=4 framerate=10 alpha=1\n"
+"}\n"
+"r_part q2_smokeandflash\n"
+"{\n"
+"count 0 0 1\n"
+"model \"models/objects/flash/tris.md2\" framestart=0 frameend=2 framerate=10 alpha=-1 fullbright\n"
+"assoc q2_smoke\n"
+"}\n"
+
+"r_part teq2_gunshot /*machinegun*/\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 40\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.3 0.8\n"
+"randomvel 20\n"
+"orgadd 0 31\n"
+"spawnorg 4\n"
+"gravity 40\n"
+"scalefactor 0.8\n"
+"colorindex 0 7\n"
+/*smoke puff models*/
+"assoc q2_smokeandflash\n"
+/*low chance of various sounds*/
+"sound world/ric1.wav 1 1 0 0 1\n"
+"sound world/ric2.wav 1 1 0 0 1\n"
+"sound world/ric3.wav 1 1 0 0 1\n"
+"sound \"\" 1 1 0 0 12\n"
+"}\n"
+
+"r_part teq2_shotgun /*shotgun... duh*/\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 20\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.3 0.8\n"
+"randomvel 20\n"
+"orgadd 0 31\n"
+"spawnorg 4\n"
+"gravity 40\n"
+"scalefactor 0.8\n"
+"colorindex 0 7\n"
+/*smoke puff models*/
+"assoc q2_smokeandflash\n"
+"}\n"
+
+"r_part teq2_blood\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 60\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.3 0.8\n"
+"randomvel 20\n"
+"orgadd 0 31\n"
+"spawnorg 4\n"
+"gravity 40\n"
+"scalefactor 0.8\n"
+"colorindex 232 7\n"
+"}\n"
+
+"r_part q2_blasterpuff\n"
+"{\n"
+"count 0 0 1\n"
+"model \"models/objects/explode/tris.md2\" framestart=0 frameend=4 framerate=10 alpha=1 orient additive fullbright noshadow\n"
+"}\n"
+"r_part teq2_blaster\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 60\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.3 0.8\n"
+"randomvel 40\n"
+"orgadd 0 15\n"
+"veladd 30\n"
+"spawnorg 4\n"
+"gravity 40\n"
+"scalefactor 0.8\n"
+"colorindex 0xe0 7\n"
+"assoc q2_blasterpuff /*the model*/\n"
+"lightradius 150\n"
+"lightradiusfade 400\n"
+"lightrgb 1 1 0\n"
+"lightshadows 0\n"
+"sound \"weapons/lashit.wav\" 1 1 0 0\n"
+"}\n"
+"r_part TR_BLASTERTRAIL\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"scale 0.5\n"
+"alpha 1\n"
+"scalefactor 0.8\n"
+"step 5\n"
+"spawnorg 1\n"
+"randomvel 5\n"
+"die 0.3 0.5\n"
+"colorindex 0xe0\n"
+"}\n"
+
+"r_part TR_RAILTRAIL\n"
+"{\n"
+/*blue spiral*/
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"scale 0.5\n"
+"alpha 1\n"
+"scalefactor 0.8\n"
+"step 1\n"
+"spawnmode spiral 64\n"
+"spawnorg 3\n"
+"spawnvel 6\n"
+"die 1 1.2\n"
+"colorindex 116 7\n"
+
+"sound \"weapons/railgf1a.wav\" 1 1 0 0\n"
+"}\n"
+"r_part +TR_RAILTRAIL\n"
+"{\n"
+/*grey filler*/
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"scale 0.5\n"
+"alpha 1\n"
+"scalefactor 0.8\n"
+"step 0.75\n"
+"spawnorg 3\n"
+"spawnvel 3\n"
+"die 0.6 0.8\n"
+"colorindex 0 15\n"
+"}\n"
 ;
 
 

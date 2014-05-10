@@ -1187,8 +1187,8 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	{
 		if (ambientlight[i] > 128)
 			ambientlight[i] = 128;
-		if (shadelight[i] > 192)
-			shadelight[i] = 192;
+		if (shadelight[i] > 255)
+			shadelight[i] = 255;
 	}
 
 //MORE HUGE HACKS! WHEN WILL THEY CEASE!
@@ -1279,9 +1279,9 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 	if (e->flags & Q2RF_GLOW)
 	{
-		shadelight[0] += sin(cl.time)*0.25;
-		shadelight[1] += sin(cl.time)*0.25;
-		shadelight[2] += sin(cl.time)*0.25;
+		float scale = 1 + 0.2 * sin(cl.time*7);
+		VectorScale(ambientlight, scale, ambientlight);
+		VectorScale(shadelight, scale, shadelight);
 	}
 
 	VectorMA(ambientlight, 0.5, shadelight, e->light_avg);

@@ -377,6 +377,7 @@ void M_Menu_Keys_f (void)
 	menu_t *menu;
 	int mgt;
 	extern cvar_t cl_splitscreen, cl_forcesplitclient;
+	vfsfile_t *bindslist;
 
 	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
@@ -426,6 +427,20 @@ void M_Menu_Keys_f (void)
 		};
 		MC_AddCvarCombo(menu, 16, 170, y, "Force client", &cl_forcesplitclient, (const char **)texts, (const char **)values);
 		y+=8;
+	}
+
+	bindslist = FS_OpenVFS("bindlist.lst", "rb", FS_GAME);
+	if (bindslist)
+	{
+		char line[1024];
+		while(VFS_GETS(bindslist, line, sizeof(line)))
+		{
+			Cmd_TokenizeString(line, false, false);
+			MC_AddBind(menu, 16, 170, y, Cmd_Argv(1), Cmd_Argv(0));
+			y += 8;
+		}
+		VFS_CLOSE(bindslist);
+		return;
 	}
 
 	while (bindnames->name)

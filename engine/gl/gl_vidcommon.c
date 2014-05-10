@@ -70,32 +70,33 @@ BINDTEXFUNCPTR qglBindTexture;
 /*glslang - arb_shader_objects
 gl core uses different names/distinctions from the extension
 */
-FTEPFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
-FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
-FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
-FTEPFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
-FTEPFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
-FTEPFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
-FTEPFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetShaderParameteriv_;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetProgramParameteriv_;
-FTEPFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
-FTEPFNGLGETINFOLOGARBPROC           qglGetShaderInfoLog_;
-FTEPFNGLGETINFOLOGARBPROC           qglGetProgramInfoLog_;
-FTEPFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
-FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
+FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
+FTEPFNGLDELETEOBJECTARBPROC			qglDeleteProgramObject_;
+FTEPFNGLDELETEOBJECTARBPROC			qglDeleteShaderObject_;
+FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
+FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
+FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
+FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
+FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetShaderParameteriv_;
+FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetProgramParameteriv_;
+FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
+FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
+FTEPFNGLGETINFOLOGARBPROC			qglGetProgramInfoLog_;
+FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
+FTEPFNGLBINDATTRIBLOCATIONARBPROC	qglBindAttribLocationARB;
 FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
-FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
+FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
 FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4fvARB;
 FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
 FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
-FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
-FTEPFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
-FTEPFNGLUNIFORM3FARBPROC            qglUniform3fARB;
-FTEPFNGLUNIFORM3FVARBPROC           qglUniform3fvARB;
-FTEPFNGLUNIFORM4FVARBPROC           qglUniform2fvARB;
-FTEPFNGLUNIFORM1IARBPROC            qglUniform1iARB;
-FTEPFNGLUNIFORM1FARBPROC            qglUniform1fARB;
+FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
+FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
+FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
+FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
+FTEPFNGLUNIFORM4FVARBPROC			qglUniform2fvARB;
+FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
+FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
+FTEPFNGLGETSHADERSOURCEARBPROC		qglGetShaderSource;
 #endif
 //standard 1.1 opengl calls
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
@@ -803,6 +804,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform2fvARB			= NULL;
 		qglUniform1iARB				= NULL;
 		qglUniform1fARB				= NULL;
+		qglGetShaderSource			= NULL;
 	}
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
@@ -852,6 +854,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGetVertexAttribPointerv	= (void *)getglext("glGetVertexAttribPointerv");
 		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
+		qglGetShaderSource			= (void *)getglext("glGetShaderSource");
 		Con_DPrintf("GLSL available\n");
 	}
 	else if (GL_CheckExtension("GL_ARB_fragment_shader")
@@ -890,6 +893,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform2fvARB			= (void *)getglext("glUniform2fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
+		qglGetShaderSource			= (void *)getglext("glGetShaderSourceARB");
 
 		Con_DPrintf("GLSL available\n");
 	}
@@ -1365,12 +1369,11 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
+//doesn't check to see if it was okay. use FinishShader for that.
+static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
 {
 	GLhandleARB shader;
-	GLint       compiled;
-	char        str[1024];
-	int loglen, i;
+	int i;
 	const GLchar *prstrings[64+16];
 	GLint length[sizeof(prstrings)/sizeof(prstrings[0])];
 	int strings = 0;
@@ -1511,9 +1514,24 @@ GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precom
 		qglShaderSourceARB(shader, strings, prstrings, length);
 	qglCompileShaderARB(shader);
 
+	return shader;
+}
+
+//called after CreateShader. Checks for success.
+//Splitting creation allows for both vertex+fragment shaders to be processed simultaneously if the driver threads glCompileShaderARB.
+static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GLenum shadertype, qboolean silent)
+{
+	GLint	compiled;
+	int loglen;
+
+	if (!shader)	//if there's no shader, then there was nothing to finish...
+		return shader;
+
 	qglGetShaderParameteriv_(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
 	if(!compiled)
 	{
+		char	str[8192];
+
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 		qglDeleteShaderObject_(shader);
 		if (!silent)
@@ -1530,19 +1548,11 @@ GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precom
 				Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
 				break;
 			}
-			Con_DPrintf("Shader \"%s\" source:\n", name);
-			for (i = 0; i < strings; i++)
+			if (developer.ival)
 			{
-				int j;
-				if (length[i] < 0)
-					Con_DPrintf("%s", prstrings[i]);
-				else
-				{
-					for (j = 0; j < length[i]; j++)
-						Con_DPrintf("%c", prstrings[i][j]);
-				}
+				qglGetShaderSource(shader, sizeof(str), NULL, str);
+				Con_Printf("Shader \"%s\" source:\n%s", name, str);
 			}
-			Con_DPrintf("%s\n", str);
 		}
 		return 0;
 	}
@@ -1552,13 +1562,14 @@ GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precom
 		qglGetShaderParameteriv_(shader, GL_OBJECT_INFO_LOG_LENGTH_ARB, &loglen);
 		if (loglen)
 		{
+			char	str[8192];
+
 			qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 			if (strstr(str, "WARNING"))
 			{
-				Con_Printf("Shader source:\n");
-				for (i = 0; i < strings; i++)
-					Con_Printf("%s", prstrings[i]);
-				Con_Printf("%s\n", str);
+				Con_Printf("Shader \"%s\" log:\n%s", name, str);
+				qglGetShaderSource(shader, sizeof(str), NULL, str);
+				Con_Printf("Shader \"%s\" source:\n%s", name, str);
 			}
 		}
 	}
@@ -1568,9 +1579,9 @@ GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precom
 
 GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB frag, qboolean silent)
 {
-	GLhandleARB program;
-	GLint       linked;
-	char        str[2048];
+	GLhandleARB	program;
+	GLint		linked;
+	char		str[2048];
 
 	program = qglCreateProgramObjectARB();
 	qglAttachObjectARB(program, vert);
@@ -1629,8 +1640,11 @@ GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precom
 	if (!precompilerconstants)
 		precompilerconstants = &nullconstants;
 
-	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
 	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB, silent);
+	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
+
+	fs = GLSlang_FinishShader(fs, name, GL_FRAGMENT_SHADER_ARB, silent);
+	vs = GLSlang_FinishShader(vs, name, GL_VERTEX_SHADER_ARB, silent);
 
 	if (!vs || !fs)
 		handle = 0;
@@ -1653,7 +1667,7 @@ GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precom
 		len = ui;
 
 		blobdata = BZ_Malloc(len);
-        qglGetProgramBinary(handle, len, NULL, &e, blobdata);
+		qglGetProgramBinary(handle, len, NULL, &e, blobdata);
 		fmt = e;
 
 		VFS_WRITE(blobfile, &fmt, sizeof(fmt));

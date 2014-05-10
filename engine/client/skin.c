@@ -121,36 +121,21 @@ void Skin_Find (player_info_t *sc)
 {
 	skin_t		*skin;
 	int			i;
-	char		name[128], *s, *mn;
+	char		name[128], *s;
 	model_t		*model;
-
-	mn = Info_ValueForKey (sc->userinfo, "model");
-	while((s = strchr(mn, '/')))
-		*mn = '\0';
 
 	if (allskins[0])
 		s = allskins;
 	else
 		s = Info_ValueForKey (sc->userinfo, "skin");
 
-	if (strstr (mn, "..") || *mn == '.')
-		mn = "";
-
 	if (!*s)
 		s = baseskin.string;
 	if (!*s)
 		s = "default";
 
-	if (*mn)
-	{
-		mn = va("%s/%s", mn, s);
-		COM_StripExtension (mn, name, sizeof(name));
-	}
-	else
-	{
-		s = Skin_FindName(sc);
-		COM_StripExtension (s, name, sizeof(name));
-	}
+	s = Skin_FindName(sc);
+	COM_StripExtension (s, name, sizeof(name));
 
 	s = strchr(name, '/');
 	if (s)

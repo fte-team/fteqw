@@ -568,7 +568,7 @@ void CLQ3_ParseGameState(void)
 		switch(c)
 		{
 		default:
-			Host_EndGame("CLQ3_ParseGameState: bad command byte");
+			Host_EndGame("CLQ3_ParseGameState: bad command byte %i", c);
 			break;
 
 		case svcq3_configstring:
@@ -753,7 +753,7 @@ qboolean CLQ3_Netchan_Process(void)
 		{
 			c = '.';
 		}
-		bitmask ^= c << (i & 1);
+		bitmask ^= c << ((i-msg_readcount) & 1);
 		net_message.data[i] ^= bitmask;
 	}
 #endif
@@ -1060,8 +1060,14 @@ void CLQ3_SendConnectPacket(netadr_t *to)
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
 	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), cls.userinfo[0]));
+#ifdef HUFFNETWORK
 	Huff_EncryptPacket(&msg, 12);
-	Huff_PreferedCompressionCRC();
+	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))
+	{
+		Con_Printf("Huffman compression error\n");
+		return;
+	}
+#endif
 	NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, to);
 }
 #endif

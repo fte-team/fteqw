@@ -178,7 +178,17 @@ typedef struct {
 	float framerate;
 	float alpha;
 	int traileffect;
+	unsigned int rflags;
+#define RF_USEORIENTATION Q2RF_CUSTOMSKIN	//private flag
 } partmodels_t;
+typedef struct {
+	char name[MAX_QPATH];
+	float vol;
+	float atten;
+	float delay;
+	float pitch;
+	float weight;
+} partsounds_t;
 // TODO: merge in alpha with rgb to gain benefit of vector opts
 typedef struct part_type_s {
 	char name[MAX_QPATH];
@@ -188,11 +198,8 @@ typedef struct part_type_s {
 	int nummodels;
 	partmodels_t *models;
 
-	char soundname[MAX_QPATH];
-	float soundvol;
-	float soundattn;
-	float sounddelay;
-	float soundpitch;
+	int numsounds;
+	partsounds_t *sounds;
 
 	vec3_t rgb;	//initial colour
 	float alpha;
@@ -208,8 +215,8 @@ typedef struct part_type_s {
 	float scalerand;	//with up to this much extra
 	float die, randdie;	//how long it lasts (plus some rand)
 	float randomvel, randomvelvert, randomvelvertbias; //random velocity (unaligned=worldspace)
-	float veladd;		//scale the incoming velocity by this much
-	float orgadd;		//spawn the particle this far along its velocity direction
+	float veladd, randomveladd;		//scale the incoming velocity by this much
+	float orgadd, randomorgadd;		//spawn the particle this far along its velocity direction
 	float spawnvel, spawnvelvert; //spawn the particle with a velocity based upon its spawn type (generally so it flies outwards)
 	vec3_t orgbias;		//static 3d world-coord bias
 
@@ -836,6 +843,8 @@ static void P_ResetToDefaults(part_type_t *ptype)
 		BZ_Free(ptype->ramp);
 	if (ptype->models)
 		BZ_Free(ptype->models);
+	if (ptype->sounds)
+		BZ_Free(ptype->sounds);
 
 	//reset everything we're too lazy to specifically set
 	memset(ptype, 0, sizeof(*ptype));
@@ -1189,9 +1198,19 @@ static void P_ParticleEffect_f(void)
 			}
 		}
 		else if (!strcmp(var, "veladd"))
+		{
 			ptype->veladd = atof(value);
+			ptype->randomveladd = 0;
+			if (Cmd_Argc()>2)
+				ptype->randomveladd = atof(Cmd_Argv(2)) - ptype->veladd;
+		}
 		else if (!strcmp(var, "orgadd"))
+		{
 			ptype->orgadd = atof(value);
+			ptype->randomorgadd = 0;
+			if (Cmd_Argc()>2)
+				ptype->randomorgadd = atof(Cmd_Argv(2)) - ptype->orgadd;
+		}
 		else if (!strcmp(var, "friction"))
 		{
 			ptype->friction[2] = ptype->friction[1] = ptype->friction[0] = atof(value);
@@ -1225,28 +1244,102 @@ static void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "model"))
 		{
-			if (*Cmd_Argv(6))
-			{
-				assoc = P_AllocateParticleType(config, Cmd_Argv(6));//careful - this can realloc all the particle types
-				ptype = &part_type[pnum];
-			}
-			else
-				assoc = -1;
+			partmodels_t *mod;
+			char *e;
 
 			ptype->models = BZ_Realloc(ptype->models, sizeof(partmodels_t)*(ptype->nummodels+1));
 			Q_strncpyz(ptype->models[ptype->nummodels].name, Cmd_Argv(1), sizeof(ptype->models[ptype->nummodels].name));
-			ptype->models[ptype->nummodels].framestart = atof(Cmd_Argv(2));
-			ptype->models[ptype->nummodels].frameend = atof(Cmd_Argv(3));
-			ptype->models[ptype->nummodels].framerate = atof(Cmd_Argv(4));
-			ptype->models[ptype->nummodels].alpha = atof(Cmd_Argv(5));
-			ptype->models[ptype->nummodels].traileffect = assoc;
-			ptype->nummodels++;
+			mod = &ptype->models[ptype->nummodels++];
+
+			mod->framestart = 0;
+			mod->frameend = 1;
+			mod->framerate = 10;
+			mod->alpha = 1;
+			mod->traileffect = P_INVALID;
+			mod->rflags = RF_NOSHADOW;
+
+			strtoul(Cmd_Argv(2), &e, 0);
+			while(*e == ' ' || *e == '\t')
+				e++;
+			if (*e)
+			{
+				int p;
+				for(p = 2; p < Cmd_Argc(); p++)
+				{
+					e = Cmd_Argv(p);
+
+					if (!Q_strncasecmp(e, "framestart=", 11))
+						mod->framestart = atof(e+11);
+					else if (!Q_strncasecmp(e, "frameend=", 9))
+						mod->frameend = atof(e+9);
+					else if (!Q_strncasecmp(e, "framerate=", 10))
+						mod->framerate = atof(e+10);
+					else if (!Q_strncasecmp(e, "alpha=", 6))
+						mod->alpha = atof(e+6);
+					else if (!Q_strncasecmp(e, "trail=", 6))
+					{
+						mod->traileffect = P_AllocateParticleType(config, e+6);//careful - this can realloc all the particle types
+						ptype = &part_type[pnum];
+					}
+					else if (!Q_strncasecmp(e, "orient", 6))
+						mod->rflags |= RF_USEORIENTATION;	//use the dir to orient the model, instead of always facing up.
+					else if (!Q_strncasecmp(e, "additive", 8))
+						mod->rflags |= RF_ADDITIVE;			//additive blend
+					else if (!Q_strncasecmp(e, "transparent", 11))
+						mod->rflags |= RF_TRANSLUCENT;		//force blend
+					else if (!Q_strncasecmp(e, "fullbright", 10))
+						mod->rflags |= Q2RF_FULLBRIGHT;		//fullbright, woo
+					else if (!Q_strncasecmp(e, "shadow", 6))
+						mod->rflags &= ~RF_NOSHADOW;		//clear noshadow
+					else if (!Q_strncasecmp(e, "noshadow", 8))
+						mod->rflags |= RF_NOSHADOW;			//set noshadow (cos... you know...)
+					else
+						Con_Printf("Bad named argument: %s\n", e);
+				}
+			}
+			else
+			{
+				mod->framestart = atof(Cmd_Argv(2));
+				mod->frameend = atof(Cmd_Argv(3));
+				mod->framerate = atof(Cmd_Argv(4));
+				mod->alpha = atof(Cmd_Argv(5));
+				if (*Cmd_Argv(6))
+				{
+					mod->traileffect = P_AllocateParticleType(config, Cmd_Argv(6));//careful - this can realloc all the particle types
+					ptype = &part_type[pnum];
+				}
+				else
+					mod->traileffect = P_INVALID;
+			}
+		}
+		else if (!strcmp(var, "sound"))
+		{
+			ptype->sounds = BZ_Realloc(ptype->sounds, sizeof(partsounds_t)*(ptype->numsounds+1));
+			Q_strncpyz(ptype->sounds[ptype->numsounds].name, Cmd_Argv(1), sizeof(ptype->sounds[ptype->numsounds].name));
+			if (*ptype->sounds[ptype->numsounds].name)
+				S_PrecacheSound(ptype->sounds[ptype->numsounds].name);
+			ptype->sounds[ptype->numsounds].vol = atof(Cmd_Argv(2));
+			if (!ptype->sounds[ptype->numsounds].vol)
+				ptype->sounds[ptype->numsounds].vol = 1;
+			ptype->sounds[ptype->numsounds].atten = atof(Cmd_Argv(3));
+			if (!ptype->sounds[ptype->numsounds].atten)
+				ptype->sounds[ptype->numsounds].atten = 1;
+			ptype->sounds[ptype->numsounds].pitch = atof(Cmd_Argv(4));
+			if (!ptype->sounds[ptype->numsounds].pitch)
+				ptype->sounds[ptype->numsounds].pitch = 100;
+			ptype->sounds[ptype->numsounds].delay = atof(Cmd_Argv(5));
+			if (!ptype->sounds[ptype->numsounds].delay)
+				ptype->sounds[ptype->numsounds].delay = 0;
+			ptype->sounds[ptype->numsounds].weight = atof(Cmd_Argv(6));
+			if (!ptype->sounds[ptype->numsounds].weight)
+				ptype->sounds[ptype->numsounds].weight = 1;
+			ptype->numsounds++;
 		}
 		else if (!strcmp(var, "colorindex"))
 		{
 			if (Cmd_Argc()>2)
-				ptype->colorrand = atof(Cmd_Argv(2));
-			ptype->colorindex = atoi(value);
+				ptype->colorrand = strtoul(Cmd_Argv(2), NULL, 0);
+			ptype->colorindex = strtoul(value, NULL, 0);
 		}
 		else if (!strcmp(var, "colorrand"))
 			ptype->colorrand = atoi(value); // now obsolete
@@ -1624,23 +1717,6 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "nospreadlast"))
 			ptype->flags |= PT_NOSPREADLAST;
 
-		else if (!strcmp(var, "sound"))
-		{
-			Q_strncpyz(ptype->soundname, value, sizeof(ptype->soundname));
-			ptype->soundvol = atof(Cmd_Argv(2));
-			if (!ptype->soundvol)
-				ptype->soundvol = 1;
-			ptype->soundattn = atof(Cmd_Argv(3));
-			if (!ptype->soundattn)
-				ptype->soundattn = 1;
-			ptype->soundpitch = atof(Cmd_Argv(4));
-			if (!ptype->soundpitch)
-				ptype->soundpitch = 100;
-			ptype->sounddelay = atof(Cmd_Argv(5));
-			if (!ptype->sounddelay)
-				ptype->sounddelay = 0;
-		}
-
 		else if (!strcmp(var, "lightradius"))
 			ptype->dl_radius = atof(value);
 		else if (!strcmp(var, "lightradiusfade"))
@@ -1827,7 +1903,11 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		for (i = 0; i < ptype->nummodels; i++)
 		{
-			Q_strncatz(outstr, va("model \"%s\" %g %g %g %g \"%s\"\n", ptype->models[i].name, ptype->models[i].framestart, ptype->models[i].frameend, ptype->models[i].framerate, ptype->models[i].alpha, ptype->assoc==P_INVALID?"":part_type[ptype->assoc].name), outstrlen);
+			Q_strncatz(outstr, va("model \"%s\" %g %g %g %g \"%s\"\n", ptype->models[i].name, ptype->models[i].framestart, ptype->models[i].frameend, ptype->models[i].framerate, ptype->models[i].alpha, ptype->models[i].traileffect==P_INVALID?"":part_type[ptype->models[i].traileffect].name), outstrlen);
+		}
+		for (i = 0; i < ptype->numsounds; i++)
+		{
+			Q_strncatz(outstr, va("sound \"%s\" %g %g %g %g %g\n", ptype->sounds[i].name, ptype->sounds[i].vol, ptype->sounds[i].atten, ptype->sounds[i].pitch, ptype->sounds[i].delay, ptype->sounds[i].weight), outstrlen);
 		}
 
 		if (*ptype->texname)
@@ -1910,10 +1990,10 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		if (ptype->areaspread || ptype->areaspreadvert)
 			Q_strncatz(outstr, va("spawnorg %g %g\n", ptype->areaspread, ptype->areaspreadvert), outstrlen);
 
-		if (ptype->veladd)
-			Q_strncatz(outstr, va("veladd %g\n", ptype->veladd), outstrlen);
-		if (ptype->orgadd)
-			Q_strncatz(outstr, va("orgadd %g\n", ptype->orgadd), outstrlen);
+		if (ptype->veladd || ptype->randomveladd)
+			Q_strncatz(outstr, va(ptype->randomveladd?"veladd %g %g\n":"veladd %g\n", ptype->veladd, ptype->veladd+ptype->randomveladd), outstrlen);
+		if (ptype->orgadd || ptype->randomorgadd)
+			Q_strncatz(outstr, va(ptype->randomorgadd?"orgadd %g %g\n":"orgadd %g\n", ptype->orgadd, ptype->orgadd+ptype->randomorgadd), outstrlen);
 		if (ptype->randomvel || ptype->randomvelvert || ptype->randomvelvertbias)
 			Q_strncatz(outstr, va("randomvel %g %g %g\n", ptype->randomvel, ptype->randomvelvertbias - ptype->randomvelvert, ptype->randomvelvertbias + ptype->randomvelvert), outstrlen);
 
@@ -1922,9 +2002,6 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		Q_strncatz(outstr, va("rotationstart %g %g\n", ptype->rotationstartmin*180/M_PI, (ptype->rotationstartmin+ptype->rotationstartrand)*180/M_PI), outstrlen);
 		Q_strncatz(outstr, va("rotationspeed %g %g\n", ptype->rotationmin*180/M_PI, (ptype->rotationmin+ptype->rotationrand)*180/M_PI), outstrlen);
-
-		if (ptype->soundvol)
-			Q_strncatz(outstr, va("sound \"%s\" %g %g %g %g\n", ptype->soundname, ptype->soundvol, ptype->soundattn, ptype->soundpitch, ptype->sounddelay), outstrlen);
 
 		if (ptype->dl_radius)
 		{
@@ -2688,6 +2765,8 @@ static void PScript_Shutdown (void)
 		numparticletypes--;
 		if (part_type[numparticletypes].models)
 			BZ_Free(part_type[numparticletypes].models);
+		if (part_type[numparticletypes].sounds)
+			BZ_Free(part_type[numparticletypes].sounds);
 		if (part_type[numparticletypes].ramp)
 			BZ_Free(part_type[numparticletypes].ramp);
 	}
@@ -3447,24 +3526,27 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t e
 	oorg[1] = eforg[1] + arsvec[1];
 	oorg[2] = eforg[2] + arsvec[2];
 
+	k = ptype->orgadd + frandom()*ptype->randomorgadd;
+	l = ptype->veladd + frandom()*ptype->randomveladd;
+
 	// apply arsvec+ofsvec
 	if (efdir)
 	{
-		ovel[0] += efdir[0]*ptype->veladd+ofsvec[0]*ptype->spawnvel;
-		ovel[1] += efdir[1]*ptype->veladd+ofsvec[1]*ptype->spawnvel;
-		ovel[2] += efdir[2]*ptype->veladd+ofsvec[2]*ptype->spawnvelvert;
+		ovel[0] += efdir[0]*l+ofsvec[0]*ptype->spawnvel;
+		ovel[1] += efdir[1]*l+ofsvec[1]*ptype->spawnvel;
+		ovel[2] += efdir[2]*l+ofsvec[2]*ptype->spawnvelvert;
 
-		oorg[0] += efdir[0]*ptype->orgadd;
-		oorg[1] += efdir[1]*ptype->orgadd;
-		oorg[2] += efdir[2]*ptype->orgadd;
+		oorg[0] += efdir[0]*k;
+		oorg[1] += efdir[1]*k;
+		oorg[2] += efdir[2]*k;
 	}
 	else
 	{//efdir is effectively up - '0 0 -1'
 		ovel[0] += ofsvec[0]*ptype->spawnvel;
 		ovel[1] += ofsvec[1]*ptype->spawnvel;
-		ovel[2] += ofsvec[2]*ptype->spawnvelvert - ptype->veladd;
+		ovel[2] += ofsvec[2]*ptype->spawnvelvert - l;
 
-		oorg[2] -= ptype->orgadd;
+		oorg[2] -= k;
 	}
 	VectorAdd(oorg, ptype->orgbias, oorg);
 }
@@ -3487,7 +3569,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 			{
 				vec3_t morg, mdir;
 				PScript_ApplyOrgVel(morg, mdir, org, dir, i, count, ptype);
-				CL_SpawnSpriteEffect(morg, mdir, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect);
+				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?dir:NULL, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION);
 			}
 		}
 	}
@@ -3510,9 +3592,24 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 		if (ptype->dl_cubemapnum)
 			snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
 	}
-	if (*ptype->soundname)
+	if (ptype->numsounds)
 	{
-		S_StartSound(0, 0, S_PrecacheSound(ptype->soundname), org, ptype->soundvol, ptype->soundattn, ptype->sounddelay, ptype->soundpitch);
+		int i;
+		float w,tw;
+		for (i = 0, tw = 0; i < ptype->numsounds; i++)
+			tw += ptype->sounds[i].weight;
+		w = frandom() * tw;	//select the sound by weight
+		//and figure out which one that weight corresponds to
+		for (i = 0, tw = 0; i < ptype->numsounds; i++)
+		{
+			tw += ptype->sounds[i].weight;
+			if (w <= tw)
+			{
+				if (*ptype->sounds[i].name && ptype->sounds[i].vol > 0)
+					S_StartSound(0, 0, S_PrecacheSound(ptype->sounds[i].name), org, ptype->sounds[i].vol, ptype->sounds[i].atten, ptype->sounds[i].delay, ptype->sounds[i].pitch);
+				break;
+			}
+		}
 	}
 	if (ptype->stain_radius)
 		Surf_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
@@ -3523,7 +3620,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 {
 	part_type_t *ptype = &part_type[typenum];
 	int i, j, k, l, spawnspc;
-	float m, pcount;
+	float m, pcount, orgadd, veladd;
 	particle_t	*p;
 	beamseg_t *b, *bfirst;
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
@@ -4036,23 +4133,25 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			p->org[2] = org[2] + arsvec[2];
 
 			// apply arsvec+ofsvec
+			orgadd = ptype->orgadd + frandom()*ptype->randomorgadd;
+			veladd = ptype->veladd + frandom()*ptype->randomveladd;
 			if (dir)
 			{
-				p->vel[0] += dir[0]*ptype->veladd+ofsvec[0]*ptype->spawnvel;
-				p->vel[1] += dir[1]*ptype->veladd+ofsvec[1]*ptype->spawnvel;
-				p->vel[2] += dir[2]*ptype->veladd+ofsvec[2]*ptype->spawnvelvert;
+				p->vel[0] += dir[0]*veladd+ofsvec[0]*ptype->spawnvel;
+				p->vel[1] += dir[1]*veladd+ofsvec[1]*ptype->spawnvel;
+				p->vel[2] += dir[2]*veladd+ofsvec[2]*ptype->spawnvelvert;
 
-				p->org[0] += dir[0]*ptype->orgadd;
-				p->org[1] += dir[1]*ptype->orgadd;
-				p->org[2] += dir[2]*ptype->orgadd;
+				p->org[0] += dir[0]*orgadd;
+				p->org[1] += dir[1]*orgadd;
+				p->org[2] += dir[2]*orgadd;
 			}
 			else
 			{
 				p->vel[0] += ofsvec[0]*ptype->spawnvel;
 				p->vel[1] += ofsvec[1]*ptype->spawnvel;
-				p->vel[2] += ofsvec[2]*ptype->spawnvelvert - ptype->veladd;
+				p->vel[2] += ofsvec[2]*ptype->spawnvelvert - veladd;
 
-				p->org[2] -= ptype->orgadd;
+				p->org[2] -= orgadd;
 			}
 
 			VectorAdd(p->org, ptype->orgbias, p->org);
@@ -5607,12 +5706,7 @@ static void PScript_DrawParticleTypes (void)
 	VectorScale (vup, 1.5, pup);
 	VectorScale (vright, 1.5, pright);
 
-#ifdef Q2BSPS
-	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-		tr = Q2TraceLineN;
-	else
-#endif
-		tr = TraceLineN;
+	tr = TraceLineN;
 
 	kill_list = kill_first = NULL;
 

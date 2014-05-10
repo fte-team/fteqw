@@ -4208,7 +4208,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK || shaderstate.mode == BEM_WIREFRAME)
+			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)// || shaderstate.mode == BEM_WIREFRAME)
 			{
 				if (!batch->shader->prog)
 				{

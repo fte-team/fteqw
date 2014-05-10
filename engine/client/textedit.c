@@ -31,7 +31,7 @@ F11 will step through.
 static cvar_t editstripcr = CVARD("edit_stripcr", "1", "remove \\r from eols (on load)");
 static cvar_t editaddcr = CVARD("edit_addcr", editaddcr_default, "make sure that each line ends with a \\r (on save)");
 static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
-cvar_t debugger = CVARD("debugger", debugger_default, "When enabled, QC errors and debug events will enable step-by-step tracing.");
+cvar_t pr_debugger = CVARAD("pr_debugger", debugger_default, "debugger", "When enabled, QC errors and debug events will enable step-by-step tracing.");
 extern cvar_t pr_sourcedir;
 
 static pubprogfuncs_t *editprogfuncs;
@@ -1199,7 +1199,7 @@ void Editor_Draw(void)
 int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement, int nump, char **parms)
 {
 	char *f1, *f2;
-	if (editormodal || (line < 0 && !statement) || !debugger.ival)
+	if (editormodal || (line < 0 && !statement) || !pr_debugger.ival)
 		return line;	//whoops
 
 	if (qrenderer == QR_NONE)
@@ -1360,6 +1360,6 @@ void Editor_Init(void)
 	Cvar_Register(&editstripcr, "Text editor");
 	Cvar_Register(&editaddcr, "Text editor");
 	Cvar_Register(&edittabspacing, "Text editor");
-	Cvar_Register(&debugger, "Text editor");
+	Cvar_Register(&pr_debugger, "Text editor");
 }
 #endif

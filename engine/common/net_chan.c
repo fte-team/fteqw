@@ -723,10 +723,10 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	chan->outgoing_time[i] = realtime;
 
 #ifdef HUFFNETWORK
-	if (chan->compress)
+	if (chan->compresstable)
 	{
 		//int oldsize = send.cursize;
-		Huff_CompressPacket(&send, 8 + ((chan->sock == NS_CLIENT)?2:0) + (chan->fragmentsize?2:0));
+		Huff_CompressPacket(chan->compresstable, &send, 8 + ((chan->sock == NS_CLIENT)?2:0) + (chan->fragmentsize?2:0));
 //		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
 //		Huff_DecompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
 	}
@@ -739,7 +739,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	{
 		int hsz = 10 + ((chan->sock == NS_CLIENT)?2:0); /*header size, if fragmentation is in use*/
 
-		if (!chan->fragmentsize || send.cursize < chan->fragmentsize - hsz)
+		if ((!chan->fragmentsize) || send.cursize-hsz < ((chan->fragmentsize - hsz)&~7))
 			NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
 		else
 		{
@@ -1003,10 +1003,10 @@ qboolean Netchan_Process (netchan_t *chan)
 	chan->last_received = realtime;
 
 #ifdef HUFFNETWORK
-	if (chan->compress)
+	if (chan->compresstable)
 	{
 //		Huff_CompressPacket(&net_message, (chan->sock == NS_SERVER)?10:8);
-		Huff_DecompressPacket(&net_message, msg_readcount);
+		Huff_DecompressPacket(chan->compresstable, &net_message, msg_readcount);
 	}
 #endif
 

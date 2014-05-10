@@ -461,14 +461,28 @@ void CL_RegisterParticles(void)
 	ptqw_blood				= P_FindParticleType("TE_BLOOD");
 	ptqw_lightningblood		= P_FindParticleType("TE_LIGHTNINGBLOOD");
 
-	ptq2_blood				= P_FindParticleType("TE_BLOOD");
-	rtq2_railtrail			= P_FindParticleType("TR_RAILTRAIL");
-	rtq2_blastertrail		= P_FindParticleType("TR_BLASTERTRAIL");
-	ptq2_blasterparticles	= P_FindParticleType("TE_BLASTERPARTICLES");
-	rtq2_bubbletrail		= P_FindParticleType("TE_BUBBLETRAIL");
-	rtq2_gib				= P_FindParticleType("TR_GIB");
-	rtq2_rocket				= P_FindParticleType("TR_ROCKET");
-	rtq2_grenade			= P_FindParticleType("TR_GRENADE");
+	if (cls.protocol == CP_QUAKE2)
+	{
+		ptq2_blood				= P_FindParticleType("q2part.TEQ2_BLOOD");
+		rtq2_railtrail			= P_FindParticleType("q2part.TR_RAILTRAIL");
+		rtq2_blastertrail		= P_FindParticleType("q2part.TR_BLASTERTRAIL");
+		ptq2_blasterparticles	= P_FindParticleType("TE_BLASTERPARTICLES");
+		rtq2_bubbletrail		= P_FindParticleType("TE_BUBBLETRAIL");
+		rtq2_gib				= P_FindParticleType("TR_GIB");
+		rtq2_rocket				= P_FindParticleType("TR_ROCKET");
+		rtq2_grenade			= P_FindParticleType("TR_GRENADE");
+	}
+	else
+	{
+		ptq2_blood				= P_INVALID;
+		rtq2_railtrail			= P_INVALID;
+		rtq2_blastertrail		= P_INVALID;
+		ptq2_blasterparticles	= P_INVALID;
+		rtq2_bubbletrail		= P_INVALID;
+		rtq2_gib				= P_INVALID;
+		rtq2_rocket				= P_INVALID;
+		rtq2_grenade			= P_INVALID;
+	}
 
 	rtqw_railtrail			= P_FindParticleType("TE_RAILTRAIL");
 	rtfte_lightning1		= P_FindParticleType("TE_LIGHTNING1");
@@ -2162,11 +2176,9 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags)
 {
 	explosion_t	*ex;
-	vec3_t spos;
-	float dlen;
 
 	ex = CL_AllocExplosion (org);
 	ex->start = cl.time;
@@ -2177,13 +2189,15 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe
 	ex->skinnum = 0;
 	ex->traileffect = traileffect;
 
-	if (alpha >= -1 && alpha < 1)
-		ex->flags |= RF_TRANSLUCENT;
+	ex->flags |= renderflags;
 
 	//sprites always use a fixed alpha. models can too if the alpha is < 0
 	if (model->type == mod_sprite || alpha < 0)
 		ex->endalpha = fabs(alpha);
 	ex->startalpha = fabs(alpha);
+
+	if (ex->endalpha < 1 || ex->startalpha < 1)
+		ex->flags |= RF_TRANSLUCENT;
 
 	if (randspin)
 	{
@@ -2197,12 +2211,30 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe
 	}
 	ex->gravity = gravity;
 
+	if (orientationup)
+	{
+		ex->angles[0] = acos(orientationup[2])/M_PI*180;
+		if (orientationup[0])
+			ex->angles[1] = atan2(orientationup[1], orientationup[0])/M_PI*180;
+		else if (orientationup[1] > 0)
+			ex->angles[1] = 90;
+		else if (orientationup[1] < 0)
+			ex->angles[1] = 270;
+		else
+			ex->angles[1] = 0;
+		ex->angles[0]*=-1;
+	}
+
+
 	if (dir)
 	{
+//		vec3_t spos;
+//		float dlen;
+//		dlen = -10/VectorLength(dir);
+//		VectorMA(ex->origin, dlen, dir, spos);
+//		TraceLineN(spos, org, ex->origin, NULL);
+
 		VectorCopy(dir, ex->velocity);
-		dlen = -10/VectorLength(dir);
-		VectorMA(ex->origin, dlen, dir, spos);
-		TraceLineN(spos, org, ex->origin, NULL);
 	}
 	else
 		VectorClear(ex->velocity);
@@ -2237,7 +2269,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 	mod = cl.model_precache[modelindex];
-	CL_SpawnSpriteEffect(org, vec3_origin, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 0, 0, P_INVALID);
+	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0);
 }
 
 #ifdef Q2CLIENT
@@ -2301,6 +2333,43 @@ void CLQ2_ParseTEnt (void)
 	type = MSG_ReadByte ();
 
 	switch (type)
+	{
+	case Q2TE_GUNSHOT:
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_gunshot");
+		break;
+	case Q2TE_BLOOD:
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_blood");
+		break;
+	case Q2TE_SHOTGUN:
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_shotgun");
+		break;
+	case Q2TE_BLASTER:
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_blaster");
+		break;
+
+	case Q2TE_RAILTRAIL:			// railgun effect
+		MSG_ReadPos (pos);
+		MSG_ReadPos (pos2);
+		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL))
+			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
+		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
+		break;
+	default:
+		goto fixme;
+//		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+//		break;
+	}
+	return;
+fixme:
+	switch(type)
 	{
 	case Q2TE_BLOOD:			// bullet hitting flesh
 		MSG_ReadPos (pos);

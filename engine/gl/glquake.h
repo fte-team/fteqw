@@ -47,6 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void D3D9_Set2D (void);
 
+float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
@@ -180,6 +181,7 @@ typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei c
 typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM1IARBPROC)			(GLint location, GLint v0);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM1FARBPROC)			(GLint location, GLfloat v0);
+typedef void		(APIENTRYP FTEPFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *source);
 
 typedef void (APIENTRY * FTEPFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
 typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);

@@ -18,9 +18,27 @@
 #define MAX_CM_LEAFFACES		(MAX_Q2MAP_LEAFFACES)
 #define	MAX_CM_AREAS			MAX_Q2MAP_AREAS
 
-#define	Q3SURF_NODRAW			0x80	// don't generate a drawsurface at all
-#define	Q3SURF_SKIP				0x200	// completely ignore, allowing non-closed brushes
-#define	Q3SURF_NONSOLID			0x4000	// don't collide against curves with this set
+//#define Q3SURF_NODAMAGE		0x00000001
+//#define Q3SURF_SLICK			0x00000002
+//#define Q3SURF_SKY			0x00000004
+//#define Q3SURF_LADDER			0x00000008
+//#define Q3SURF_NOIMPACT		0x00000010
+//#define Q3SURF_NOMARKS		0x00000020
+//#define Q3SURF_FLESH			0x00000040
+#define	Q3SURF_NODRAW			0x00000080	// don't generate a drawsurface at all
+//#define Q3SURF_HINT			0x00000100
+#define	Q3SURF_SKIP				0x00000200	// completely ignore, allowing non-closed brushes
+//#define Q3SURF_NOLIGHTMAP		0x00000400
+//#define Q3SURF_POINTLIGHT		0x00000800
+//#define Q3SURF_METALSTEPS		0x00001000
+//#define Q3SURF_NOSTEPS		0x00002000
+#define	Q3SURF_NONSOLID			0x00004000	// don't collide against curves with this set
+//#define Q3SURF_LIGHTFILTER	0x00008000
+//#define Q3SURF_ALPHASHADOW	0x00010000
+//#define Q3SURF_NODLIGHT		0x00020000
+//#define Q3SURF_DUST			0x00040000
+cvar_t q3bsp_surf_meshcollision_flag = CVARD("q3bsp_surf_meshcollision_flag", "0x80000000", "The surfaceparm flag(s) that enables q3bsp trisoup collision");
+cvar_t q3bsp_surf_meshcollision_force = CVARD("q3bsp_surf_meshcollision_force", "0", "Force mesh-based collisions on all q3bsp trisoup surfaces.");
 
 #if Q3SURF_NODRAW != TI_NODRAW
 #error "nodraw isn't constant"
@@ -36,10 +54,9 @@ qboolean Mod_LoadSurfedges (lump_t *l);
 void Mod_LoadLighting (lump_t *l);
 
 
-qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
-qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
-unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
+static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 extern mplane_t	*box_planes;
 
 
@@ -255,20 +272,45 @@ typedef struct
 
 typedef struct
 {
+	vec3_t		absmins, absmaxs;
+
+	vecV_t		*xyz_array;
+	size_t numverts;
+	index_t		*indicies;
+	size_t numincidies;
+
+	q2mapsurface_t	*surface;
+	int			checkcount;		// to avoid repeated testings
+} q3cmesh_t;
+
+typedef struct
+{
 	int		facetype;
 
 	int		numverts;
 	int		firstvert;
 
 	int		shadernum;
-	int		patch_cp[2];
+	union
+	{
+		struct
+		{
+			int		cp[2];
+		} patch;
+		struct
+		{
+			int firstindex;
+			int numindicies;
+		} soup;
+	};
 } q3cface_t;
 
 typedef struct cmodel_s
 {
 	vec3_t		mins, maxs;
 	vec3_t		origin;		// for sounds or lights
-	int			headnode;
+	mnode_t		*headnode;
+	mleaf_t		*headleaf;
 	int		numsurfaces;
 	int		firstsurface;
 
@@ -288,12 +330,8 @@ static q2cbrushside_t *map_brushsides;
 static int numtexinfo;
 static q2mapsurface_t	*map_surfaces;
 
-static int			numleafs = 1;	// allow leaf funcs to be called without a map
-static mleaf_t		map_leafs[MAX_MAP_LEAFS];
-static int			emptyleaf;
-
 static int			numleafbrushes;
-static int			map_leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
+static q2cbrush_t	*map_leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
 
 static int			numcmodels;
 static cmodel_t		*map_cmodels;
@@ -306,9 +344,6 @@ static q2dvis_t		*map_q2vis;
 static q3dvis_t		*map_q3pvs;
 static q3dvis_t		*map_q3phs;
 
-static int			numentitychars;
-static char		*map_entitystring;
-
 static int			numareas = 1;
 static q2carea_t		map_q2areas[MAX_Q2MAP_AREAS];
 static q3carea_t		map_q3areas[MAX_CM_AREAS];
@@ -316,12 +351,19 @@ static q3carea_t		map_q3areas[MAX_CM_AREAS];
 static int			numareaportals;
 static q2dareaportal_t map_areaportals[MAX_Q2MAP_AREAPORTALS];
 
+//(deprecated) patch collisions
 static q3cpatch_t	map_patches[MAX_CM_PATCHES];
 static int			numpatches;
-
 static int			*map_leafpatches;
 static int			numleafpatches;
 static int			maxleafpatches;
+
+//list of mesh surfaces within the leaf
+static q3cmesh_t	map_cmeshes[MAX_CM_PATCHES];
+static int			numcmeshes;
+static int			*map_leafcmeshes;
+static int			numleafcmeshes;
+static int			maxleafcmeshes;
 
 static int			numclusters = 1;
 
@@ -342,11 +384,6 @@ int		CM_NumInlineModels (model_t *model);
 cmodel_t	*CM_InlineModel (char *name);
 void	CM_InitBoxHull (void);
 static void	FloodAreaConnections (void);
-
-
-static int		c_pointcontents;
-static int		c_traces, c_brush_traces;
-
 
 static vecV_t		*map_verts;	//3points
 static int			numvertexes;
@@ -916,6 +953,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 	q3cface_t *face;
 	q2mapsurface_t *surf;
 	q3cpatch_t *patch;
+	q3cmesh_t *cmesh;
 	int *checkout = alloca(sizeof(int)*numfaces);
 
 	if (map_noCurves.ival)
@@ -923,81 +961,145 @@ qboolean CM_CreatePatchesForLeafs (void)
 
 	memset (checkout, -1, sizeof(int)*numfaces);
 
-	for (i = 0, leaf = map_leafs; i < numleafs; i++, leaf++)
+	for (i = 0, leaf = loadmodel->leafs; i < loadmodel->numleafs; i++, leaf++)
 	{
 		leaf->numleafpatches = 0;
 		leaf->firstleafpatch = numleafpatches;
+		leaf->numleafcmeshes = 0;
+		leaf->firstleafcmesh = numleafcmeshes;
 
 		if (leaf->cluster == -1)
 			continue;
 
-		for (j=0 ; j<leaf->numleaffaces ; j++)
+		for (j=0 ; j<leaf->nummarksurfaces ; j++)
 		{
-			k = leaf->firstleafface + j;
-			if (k >= numleaffaces)
-			{
-				break;
-			}
-
-			k = map_leaffaces[k];
-#ifdef _DEBUG
+			k = leaf->firstmarksurface[j] - loadmodel->surfaces;
 			if (k >= numfaces)
 			{
 				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: corrupt map\n");
 				break;
 			}
-#endif
 			face = &map_faces[k];
 
-			if (face->facetype != MST_PATCH || face->numverts <= 0)
-				continue;
-			if (face->patch_cp[0] <= 0 || face->patch_cp[1] <= 0)
+			if (face->numverts <= 0)
 				continue;
 			if (face->shadernum < 0 || face->shadernum >= loadmodel->numtextures)
 				continue;
-
 			surf = &map_surfaces[face->shadernum];
-			if ( !surf->c.value || (surf->c.flags & Q3SURF_NONSOLID) )
+			if (!surf->c.value)	//surface has no contents value, so can't ever block anything.
 				continue;
 
-			if (numleafpatches >= maxleafpatches)
+			switch(face->facetype)
 			{
-				maxleafpatches *= 2;
-				maxleafpatches += 16;
-				if (numleafpatches > maxleafpatches)
-				{	//detect overflow
-					Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map is insanely huge!\n");
-					return false;
-				}
-				map_leafpatches = realloc(map_leafpatches, sizeof(*map_leafpatches) * maxleafpatches);
-			}
+			case MST_TRIANGLE_SOUP:
+				if (!face->soup.numindicies)
+					continue;
+				//only enable mesh collisions if its meant to be enabled.
+				//we haven't parsed any shaders, so we depend upon the stuff that the bsp compiler left lying around.
+				if (!(surf->c.flags & q3bsp_surf_meshcollision_flag.ival) && !q3bsp_surf_meshcollision_force.ival)
+					continue;
 
-			// the patch was already built
-			if (checkout[k] != -1)
-			{
-				map_leafpatches[numleafpatches] = checkout[k];
-				patch = &map_patches[checkout[k]];
-			}
-			else
-			{
-				if (numpatches >= MAX_CM_PATCHES)
+				if (numleafcmeshes >= maxleafcmeshes)
 				{
-					Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
-					return false;
+					maxleafcmeshes *= 2;
+					maxleafcmeshes += 16;
+					if (numleafcmeshes > maxleafcmeshes)
+					{	//detect overflow
+						Con_Printf (CON_ERROR "CM_CreateCMeshesForLeafs: map is insanely huge!\n");
+						return false;
+					}
+					map_leafcmeshes = realloc(map_leafcmeshes, sizeof(*map_leafcmeshes) * maxleafcmeshes);
 				}
 
-				patch = &map_patches[numpatches];
-				map_leafpatches[numleafpatches] = numpatches;
-				checkout[k] = numpatches++;
+				// the patch was already built
+				if (checkout[k] != -1)
+				{
+					map_leafcmeshes[numleafcmeshes] = checkout[k];
+					cmesh = &map_cmeshes[checkout[k]];
+				}
+				else
+				{
+					if (numcmeshes >= MAX_CM_PATCHES)
+					{
+						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
+						return false;
+					}
 
-//gcc warns without this cast
-				CM_CreatePatch ( patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch_cp );
+					cmesh = &map_cmeshes[numcmeshes];
+					map_leafcmeshes[numleafcmeshes] = numcmeshes;
+					checkout[k] = numcmeshes++;
+
+	//gcc warns without this cast
+
+					cmesh->surface = surf;
+					cmesh->numverts = face->numverts;
+					cmesh->numincidies = face->soup.numindicies;
+					cmesh->xyz_array = ZG_Malloc(&loadmodel->memgroup, cmesh->numverts * sizeof(*cmesh->xyz_array) + cmesh->numincidies * sizeof(*cmesh->indicies));
+					cmesh->indicies = (index_t*)(cmesh->xyz_array + cmesh->numverts);
+
+					VectorCopy(map_verts[face->firstvert+0], cmesh->xyz_array[0]);
+					VectorCopy(cmesh->xyz_array[0], cmesh->absmaxs);
+					VectorCopy(cmesh->xyz_array[0], cmesh->absmins);
+					for (k = 1; k < cmesh->numverts; k++)
+					{
+						VectorCopy(map_verts[face->firstvert+k], cmesh->xyz_array[k]);
+						AddPointToBounds(cmesh->xyz_array[k], cmesh->absmins, cmesh->absmaxs);
+					}
+					for (k = 0; k < cmesh->numincidies; k++)
+						cmesh->indicies[k] = map_surfindexes[face->soup.firstindex+k];
+				}
+				leaf->contents |= surf->c.value;
+				leaf->numleafcmeshes++;
+
+				numleafcmeshes++;
+
+				break;
+			case MST_PATCH:
+				if (face->patch.cp[0] <= 0 || face->patch.cp[1] <= 0)
+					continue;
+
+				if ( !surf->c.value || (surf->c.flags & Q3SURF_NONSOLID) )
+					continue;
+
+				if (numleafpatches >= maxleafpatches)
+				{
+					maxleafpatches *= 2;
+					maxleafpatches += 16;
+					if (numleafpatches > maxleafpatches)
+					{	//detect overflow
+						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map is insanely huge!\n");
+						return false;
+					}
+					map_leafpatches = realloc(map_leafpatches, sizeof(*map_leafpatches) * maxleafpatches);
+				}
+
+				// the patch was already built
+				if (checkout[k] != -1)
+				{
+					map_leafpatches[numleafpatches] = checkout[k];
+					patch = &map_patches[checkout[k]];
+				}
+				else
+				{
+					if (numpatches >= MAX_CM_PATCHES)
+					{
+						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
+						return false;
+					}
+
+					patch = &map_patches[numpatches];
+					map_leafpatches[numleafpatches] = numpatches;
+					checkout[k] = numpatches++;
+
+	//gcc warns without this cast
+					CM_CreatePatch ( patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch.cp );
+				}
+				leaf->contents |= patch->surface->c.value;
+				leaf->numleafpatches++;
+
+				numleafpatches++;
+				break;
 			}
-
-			leaf->contents |= patch->surface->c.value;
-			leaf->numleafpatches++;
-
-			numleafpatches++;
 		}
 	}
 
@@ -1021,7 +1123,7 @@ qbyte	*cmod_base;
 CMod_LoadSubmodels
 =================
 */
-qboolean CMod_LoadSubmodels (lump_t *l)
+qboolean CModQ2_LoadSubmodels (lump_t *l)
 {
 	q2dmodel_t	*in;
 	cmodel_t	*out;
@@ -1057,7 +1159,7 @@ qboolean CMod_LoadSubmodels (lump_t *l)
 			out->maxs[j] = LittleFloat (in->maxs[j]) + 1;
 			out->origin[j] = LittleFloat (in->origin[j]);
 		}
-		out->headnode = LittleLong (in->headnode);
+		out->headnode = loadmodel->nodes + LittleLong (in->headnode);
 		out->firstsurface = LittleLong (in->firstface);
 		out->numsurfaces = LittleLong (in->numfaces);
 	}
@@ -1074,7 +1176,7 @@ qboolean CMod_LoadSubmodels (lump_t *l)
 CMod_LoadSurfaces
 =================
 */
-qboolean CMod_LoadSurfaces (lump_t *l)
+qboolean CModQ2_LoadSurfaces (lump_t *l)
 {
 	q2texinfo_t	*in;
 	q2mapsurface_t	*out;
@@ -1187,7 +1289,7 @@ texture_t *Mod_LoadWall(char *name, char *sname, unsigned int imageflags)
 	return tex;
 }
 
-qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
+qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 {
 	q2texinfo_t *in;
 	mtexinfo_t *out;
@@ -1361,7 +1463,7 @@ Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-qboolean CMod_LoadFaces (lump_t *l)
+qboolean CModQ2_LoadFaces (lump_t *l)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
@@ -1458,7 +1560,7 @@ CMod_LoadNodes
 
 =================
 */
-qboolean CMod_LoadNodes (lump_t *l)
+qboolean CModQ2_LoadNodes (lump_t *l)
 {
 	q2dnode_t		*in;
 	int			child;
@@ -1510,7 +1612,7 @@ qboolean CMod_LoadNodes (lump_t *l)
 			child = LittleLong (in->children[j]);
 			out->childnum[j] = child;
 			if (child < 0)
-				out->children[j] = (mnode_t *)(map_leafs + -1-child);
+				out->children[j] = (mnode_t *)(loadmodel->leafs + -1-child);
 			else
 				out->children[j] = loadmodel->nodes + child;
 		}
@@ -1527,7 +1629,7 @@ CMod_LoadBrushes
 
 =================
 */
-qboolean CMod_LoadBrushes (lump_t *l)
+qboolean CModQ2_LoadBrushes (lump_t *l)
 {
 	q2dbrush_t	*in;
 	q2cbrush_t	*out;
@@ -1569,7 +1671,7 @@ qboolean CMod_LoadBrushes (lump_t *l)
 CMod_LoadLeafs
 =================
 */
-qboolean CMod_LoadLeafs (lump_t *l)
+qboolean CModQ2_LoadLeafs (lump_t *l)
 {
 	int			i, j;
 	mleaf_t		*out;
@@ -1590,14 +1692,13 @@ qboolean CMod_LoadLeafs (lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count > sizeof(map_leafs)/sizeof(map_leafs[0]))
+	if (count > MAX_MAP_LEAFS)
 	{
 		Con_Printf (CON_ERROR "Map has too many leafs\n");
 		return false;
 	}
 
-	out = map_leafs;
-	numleafs = count;
+	out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
 	numclusters = 0;
 
 	loadmodel->leafs = out;
@@ -1629,27 +1730,14 @@ qboolean CMod_LoadLeafs (lump_t *l)
 		if (out->cluster >= numclusters)
 			numclusters = out->cluster + 1;
 	}
+	out = loadmodel->leafs;
 
-	if (map_leafs[0].contents != Q2CONTENTS_SOLID)
+	if (out[0].contents != Q2CONTENTS_SOLID)
 	{
 		Con_Printf (CON_ERROR "Map leaf 0 is not CONTENTS_SOLID\n");
 		return false;
 	}
 
-	emptyleaf = -1;
-	for (i=1 ; i<numleafs ; i++)
-	{
-		if (!map_leafs[i].contents)
-		{
-			emptyleaf = i;
-			break;
-		}
-	}
-	if (emptyleaf == -1)
-	{
-		Con_Printf (CON_ERROR "Map does not have an empty leaf\n");
-		return false;
-	}
 	return true;
 }
 
@@ -1658,7 +1746,7 @@ qboolean CMod_LoadLeafs (lump_t *l)
 CMod_LoadPlanes
 =================
 */
-qboolean CMod_LoadPlanes (lump_t *l)
+qboolean CModQ2_LoadPlanes (lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -1712,10 +1800,10 @@ qboolean CMod_LoadPlanes (lump_t *l)
 CMod_LoadLeafBrushes
 =================
 */
-qboolean CMod_LoadLeafBrushes (lump_t *l)
+qboolean CModQ2_LoadLeafBrushes (lump_t *l)
 {
 	int			i;
-	int	*out;
+	q2cbrush_t	**out;
 	unsigned short 	*in;
 	int			count;
 
@@ -1743,7 +1831,7 @@ qboolean CMod_LoadLeafBrushes (lump_t *l)
 	numleafbrushes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
-		*out = LittleShort (*in);
+		*out = map_brushes + (unsigned short)(short)LittleShort (*in);
 
 	return true;
 }
@@ -1753,7 +1841,7 @@ qboolean CMod_LoadLeafBrushes (lump_t *l)
 CMod_LoadBrushSides
 =================
 */
-qboolean CMod_LoadBrushSides (lump_t *l)
+qboolean CModQ2_LoadBrushSides (lump_t *l)
 {
 	int			i, j;
 	q2cbrushside_t	*out;
@@ -1800,7 +1888,7 @@ qboolean CMod_LoadBrushSides (lump_t *l)
 CMod_LoadAreas
 =================
 */
-qboolean CMod_LoadAreas (lump_t *l)
+qboolean CModQ2_LoadAreas (lump_t *l)
 {
 	int			i;
 	q2carea_t		*out;
@@ -1840,7 +1928,7 @@ qboolean CMod_LoadAreas (lump_t *l)
 CMod_LoadAreaPortals
 =================
 */
-qboolean CMod_LoadAreaPortals (lump_t *l)
+qboolean CModQ2_LoadAreaPortals (lump_t *l)
 {
 	int			i;
 	q2dareaportal_t		*out;
@@ -1878,7 +1966,7 @@ qboolean CMod_LoadAreaPortals (lump_t *l)
 CMod_LoadVisibility
 =================
 */
-qboolean CMod_LoadVisibility (lump_t *l)
+qboolean CModQ2_LoadVisibility (lump_t *l)
 {
 	int		i;
 
@@ -1911,14 +1999,11 @@ CMod_LoadEntityString
 */
 void CMod_LoadEntityString (lump_t *l)
 {
-	numentitychars = l->filelen;
 //	if (l->filelen > MAX_Q2MAP_ENTSTRING)
 //		Host_Error ("Map has too large entity lump");
 
-	map_entitystring = ZG_Malloc(&loadmodel->memgroup, l->filelen+1);
-	memcpy (map_entitystring, cmod_base + l->fileofs, l->filelen);
-
-	loadmodel->entities = map_entitystring;
+	loadmodel->entities = ZG_Malloc(&loadmodel->memgroup, l->filelen+1);
+	memcpy (loadmodel->entities, cmod_base + l->fileofs, l->filelen);
 }
 
 
@@ -1961,7 +2046,7 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 	q3dmodel_t	*in;
 	cmodel_t	*out;
 	int			i, j, count;
-	int			*leafbrush;
+	q2cbrush_t **leafbrush;
 	mleaf_t		*bleaf;
 
 	in = (void *)(cmod_base + l->fileofs);
@@ -1986,6 +2071,11 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 	out = map_cmodels = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_cmodels));
 	numcmodels = count;
 
+	if (count > 1)
+		bleaf = ZG_Malloc(&loadmodel->memgroup, (count-1) * sizeof(*bleaf));
+	else
+		bleaf = NULL;
+
 	mapisq3 = true;
 
 	for (i=0 ; i<count ; i++, in++, out++)
@@ -1999,16 +2089,19 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 		out->firstsurface = LittleLong (in->firstsurface);
 		out->numsurfaces = LittleLong (in->num_surfaces);
 		if (!i)
-			out->headnode = 0;
+		{
+			out->headnode = loadmodel->nodes;
+			out->headleaf = NULL;
+		}
 		else
 		{
-//create a new leaf to hold the bruses and be directly clipped
-			out->headnode = -1 - numleafs;
+//create a new leaf to hold the brushes and be directly clipped
+			out->headleaf = bleaf;
+			out->headnode = NULL;
 
 //			out->firstbrush = LittleLong(in->firstbrush);
 //			out->num_brushes = LittleLong(in->num_brushes);
 
-			bleaf = &map_leafs[numleafs++];
 			bleaf->numleafbrushes = LittleLong ( in->num_brushes );
 			bleaf->firstleafbrush = numleafbrushes;
 			bleaf->contents = 0;
@@ -2016,10 +2109,11 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 			leafbrush = &map_leafbrushes[numleafbrushes];
 			for ( j = 0; j < bleaf->numleafbrushes; j++, leafbrush++ )
 			{
-				*leafbrush = LittleLong ( in->firstbrush ) + j;
-				bleaf->contents |= map_brushes[*leafbrush].contents;
+				*leafbrush = map_brushes + LittleLong ( in->firstbrush ) + j;
+				bleaf->contents |= (*leafbrush)->contents;
 			}
 			numleafbrushes += bleaf->numleafbrushes;
+			bleaf++;
 		}
 		//submodels
 	}
@@ -2274,8 +2368,16 @@ qboolean CModQ3_LoadFaces (lump_t *l)
 		out->numverts = LittleLong ( in->num_vertices );
 		out->firstvert = LittleLong ( in->firstvertex );
 
-		out->patch_cp[0] = LittleLong ( in->patchwidth );
-		out->patch_cp[1] = LittleLong ( in->patchheight );
+		if (out->facetype == MST_PATCH)
+		{
+			out->patch.cp[0] = LittleLong ( in->patchwidth );
+			out->patch.cp[1] = LittleLong ( in->patchheight );
+		}
+		else
+		{
+			out->soup.firstindex = LittleLong(in->firstindex);
+			out->soup.numindicies = LittleLong(in->num_indexes);
+		}
 	}
 
 	loadmodel->numsurfaces = i;
@@ -2315,8 +2417,16 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 		out->numverts = LittleLong ( in->num_vertices );
 		out->firstvert = LittleLong ( in->firstvertex );
 
-		out->patch_cp[0] = LittleLong ( in->patchwidth );
-		out->patch_cp[1] = LittleLong ( in->patchheight );
+		if (out->facetype == MST_PATCH)
+		{
+			out->patch.cp[0] = LittleLong ( in->patchwidth );
+			out->patch.cp[1] = LittleLong ( in->patchheight );
+		}
+		else
+		{
+			out->soup.firstindex = LittleLong(in->firstindex);
+			out->soup.numindicies = LittleLong(in->num_indexes);
+		}
 	}
 
 	loadmodel->numsurfaces = i;
@@ -3092,14 +3202,11 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 		return false;
 	}
 
-	out = map_leafs;
-	numleafs = count;
+	out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
 	numclusters = 0;
 
 	loadmodel->leafs = out;
 	loadmodel->numleafs = count;
-
-	emptyleaf = -1;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -3108,55 +3215,33 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 			out->minmaxs[0+j] = LittleLong(in->mins[j]);
 			out->minmaxs[3+j] = LittleLong(in->maxs[j]);
 		}
-		out->cluster = LittleLong ( in->cluster );
-		out->area = LittleLong ( in->area ) + 1;
-		out->firstleafface = LittleLong ( in->firstleafsurface );
-		out->numleaffaces = LittleLong ( in->num_leafsurfaces );
+		out->cluster = LittleLong(in->cluster);
+		out->area = LittleLong(in->area) + 1;
+//		out->firstleafface = LittleLong(in->firstleafsurface);
+//		out->numleaffaces = LittleLong(in->num_leafsurfaces);
 		out->contents = 0;
-		out->firstleafbrush = LittleLong ( in->firstleafbrush );
-		out->numleafbrushes = LittleLong ( in->num_leafbrushes );
+		out->firstleafbrush = LittleLong(in->firstleafbrush);
+		out->numleafbrushes = LittleLong(in->num_leafbrushes);
 
-		out->firstmarksurface = loadmodel->marksurfaces +
-			LittleLong(in->firstleafsurface);
+		out->firstmarksurface = loadmodel->marksurfaces + LittleLong(in->firstleafsurface);
 		out->nummarksurfaces = LittleLong(in->num_leafsurfaces);
 
 		if (out->minmaxs[0] > out->minmaxs[3+0] || out->minmaxs[1] > out->minmaxs[3+1] ||
-			out->minmaxs[2] > out->minmaxs[3+2] || VectorEquals (out->minmaxs, out->minmaxs+3))
+			out->minmaxs[2] > out->minmaxs[3+2])// || VectorEquals (out->minmaxs, out->minmaxs+3))
 		{
 			out->nummarksurfaces = 0;
 		}
 
-		for ( j=0 ; j<out->numleafbrushes ; j++)
+		for (j=0 ; j<out->numleafbrushes ; j++)
 		{
-			brush = &map_brushes[map_leafbrushes[out->firstleafbrush + j]];
+			brush = map_leafbrushes[out->firstleafbrush + j];
 			out->contents |= brush->contents;
 		}
 
-		if ( out->area >= numareas ) {
+		if (out->area >= numareas)
+		{
 			numareas = out->area + 1;
 		}
-
-		if ( !out->contents ) {
-			emptyleaf = i;
-		}
-	}
-
-	// if map doesn't have an empty leaf - force one
-	if ( emptyleaf == -1 ) {
-		if (numleafs >= MAX_MAP_LEAFS-1)
-		{
-			Con_Printf (CON_ERROR "Map does not have an empty leaf\n");
-			return false;
-		}
-
-		out->cluster = -1;
-		out->area = -1;
-		out->numleafbrushes = 0;
-		out->contents = 0;
-		out->firstleafbrush = 0;
-
-		Con_DPrintf ( "Forcing an empty leaf: %i\n", numleafs );
-		emptyleaf = numleafs++;
 	}
 
 	return true;
@@ -3203,7 +3288,7 @@ qboolean CModQ3_LoadPlanes (lump_t *l)
 qboolean CModQ3_LoadLeafBrushes (lump_t *l)
 {
 	int			i;
-	int	*out;
+	q2cbrush_t  **out;
 	int 	*in;
 	int			count;
 
@@ -3231,7 +3316,7 @@ qboolean CModQ3_LoadLeafBrushes (lump_t *l)
 	numleafbrushes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
-		*out = LittleLong (*in);
+		*out = map_brushes + LittleLong (*in);
 
 	return true;
 }
@@ -3654,17 +3739,16 @@ void CMQ3_CalcPHS (void)
 }
 #endif
 
-qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer, unsigned int buffersize)
+static qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer, unsigned int buffersize)
 {
 	return CM_ClusterPVS(model, CM_LeafCluster(model, leafnum), buffer, buffersize);
 }
 
 #ifndef SERVERONLY
 #define GLQ2BSP_LightPointValues GLQ1BSP_LightPointValues
-#define SWQ2BSP_LightPointValues SWQ1BSP_LightPointValues
 
 extern int	r_dlightframecount;
-void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
+static void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -3722,7 +3806,7 @@ void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 }
 
 #ifndef SERVERONLY
-void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
+static void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -3763,7 +3847,6 @@ void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 #endif
 
 void GLQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-void SWQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 /*
 ==================
@@ -3775,7 +3858,7 @@ Loads in the map and all submodels
 cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *checksum)
 {
 	unsigned		*buf;
-	int				i,j;
+	int				i;
 	q2dheader_t		header;
 	int				length;
 	static unsigned	last_checksum;
@@ -3786,11 +3869,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	void *buildcookie = NULL;
 
 	// free old stuff
-	numleafs = 0;
 	numcmodels = 0;
 	numvisibility = 0;
-	numentitychars = 0;
-	map_entitystring = NULL;
 	box_planes = NULL;	//so its rebuilt
 
 	loadmodel->type = mod_brush;
@@ -3798,11 +3878,12 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	if (!name || !name[0])
 	{
 		map_cmodels = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*map_cmodels));
+		loadmodel->leafs = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*loadmodel->leafs));
 		numcmodels = 1;
-		numleafs = 1;
 		numclusters = 1;
 		numareas = 1;
 		*checksum = 0;
+		map_cmodels[0].headnode = (mnode_t*)loadmodel->leafs;	//directly start with the empty leaf
 		return &map_cmodels[0];			// cinematic servers won't have anything at all
 	}
 
@@ -3846,7 +3927,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
 		return NULL;
 		break;
-#if 1
+#ifdef Q3BSPS
 	case 1: //rbsp/fbsp
 	case Q3BSPVERSION+1:	//rtcw
 	case Q3BSPVERSION:
@@ -3907,7 +3988,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		mapisq3 = true;
 		noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
 		noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
-		noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
 		if (header.version == 1)
 		{
 			noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
@@ -3919,6 +3999,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
 		}
 		noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
+		noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
 		if (header.version == 1)
 			noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
 		else
@@ -3999,7 +4080,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
 		loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-		loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
+		loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
 
 #ifndef SERVERONLY
 		loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
@@ -4067,17 +4148,17 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		switch(qrenderer)
 		{
 		case QR_NONE:	//dedicated only
-			noerrors = noerrors && CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CMod_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
-			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CMod_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CMod_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CMod_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CMod_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CMod_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
+			noerrors = noerrors && CModQ2_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
+			noerrors = noerrors && CModQ2_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
+			noerrors = noerrors && CModQ2_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
+			noerrors = noerrors && CModQ2_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModQ2_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
+			noerrors = noerrors && CModQ2_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
+			noerrors = noerrors && CModQ2_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
+			noerrors = noerrors && CModQ2_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
+			noerrors = noerrors && CModQ2_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
 			if (noerrors)
 				CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
 
@@ -4108,22 +4189,22 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			if (noerrors)
 				Mod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
 		#endif
-			noerrors = noerrors && CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CMod_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
+			noerrors = noerrors && CModQ2_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
+			noerrors = noerrors && CModQ2_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
 		#ifndef SERVERONLY
-			noerrors = noerrors && CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
+			noerrors = noerrors && CModQ2_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
+			noerrors = noerrors && CModQ2_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
 			noerrors = noerrors && Mod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES], false);
 		#endif
-			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CMod_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CMod_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CMod_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CMod_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CMod_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
+			noerrors = noerrors && CModQ2_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
+			noerrors = noerrors && CModQ2_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModQ2_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
+			noerrors = noerrors && CModQ2_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
+			noerrors = noerrors && CModQ2_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
+			noerrors = noerrors && CModQ2_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
+			noerrors = noerrors && CModQ2_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
 			if (noerrors)
 				CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
 
@@ -4176,17 +4257,11 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 
 	loadmodel->numsubmodels = CM_NumInlineModels(loadmodel);
 	{
+		model_t	*wmod = loadmodel;
 		model_t	*mod = loadmodel;
 
-		mod->hulls[0].firstclipnode = map_cmodels[0].headnode;
-		mod->hulls[0].available = true;
-
-		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
-		{
-			mod->hulls[j].firstclipnode = map_cmodels[0].headnode;
-			mod->hulls[j].available = false;
-		}
-
+		mod->hulls[0].firstclipnode = map_cmodels[0].headnode-mod->nodes;
+		mod->rootnode = map_cmodels[0].headnode;
 		mod->nummodelsurfaces = map_cmodels[0].numsurfaces;
 
 		for (i=1 ; i< loadmodel->numsubmodels ; i++)
@@ -4205,16 +4280,24 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			bm = CM_InlineModel (name);
 
 
-			mod->hulls[0].firstclipnode = bm->headnode;
-			mod->hulls[0].available = true;
+			
+			mod->hulls[0].firstclipnode = -1;	//no nodes, 
+			if (bm->headleaf)
+			{
+				mod->leafs = bm->headleaf;
+				mod->nodes = NULL;
+				mod->hulls[0].firstclipnode = -1;	//make it refer directly to the first leaf, for things that still use numbers. 
+				mod->rootnode = (mnode_t*)bm->headleaf;
+			}
+			else
+			{
+				mod->leafs = wmod->leafs;
+				mod->nodes = wmod->nodes;
+				mod->hulls[0].firstclipnode = bm->headnode - mod->nodes;	//determine the correct node index
+				mod->rootnode = bm->headnode;
+			}
 			mod->nummodelsurfaces = bm->numsurfaces;
 			mod->firstmodelsurface = bm->firstsurface;
-			for (j=1 ; j<MAX_MAP_HULLSM ; j++)
-			{
-				mod->hulls[j].firstclipnode = bm->headnode;
-				mod->hulls[j].lastclipnode = mod->numclipnodes-1;
-				mod->hulls[j].available = false;
-			}
 
 			memset(&mod->batches, 0, sizeof(mod->batches));
 			mod->vbos = NULL;
@@ -4277,30 +4360,25 @@ int		CM_NumInlineModels (model_t *model)
 	return numcmodels;
 }
 
-char	*CM_EntityString (model_t *model)
-{
-	return map_entitystring;
-}
-
 int		CM_LeafContents (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafContents: bad number");
-	return map_leafs[leafnum].contents;
+	return model->leafs[leafnum].contents;
 }
 
 int		CM_LeafCluster (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafCluster: bad number");
-	return map_leafs[leafnum].cluster;
+	return model->leafs[leafnum].cluster;
 }
 
 int		CM_LeafArea (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafArea: bad number");
-	return map_leafs[leafnum].area;
+	return model->leafs[leafnum].area;
 }
 
 //=======================================================================
@@ -4309,7 +4387,7 @@ int		CM_LeafArea (model_t *model, int leafnum)
 mplane_t	*box_planes;
 int			box_headnode;
 q2cbrush_t	*box_brush;
-mleaf_t		*box_leaf;
+mleaf_t		box_leaf[2];	//solid, empty
 model_t		box_model;
 
 /*
@@ -4343,8 +4421,6 @@ void CM_InitBoxHull (void)
 	box_model.funcs.NativeContents		= CM_NativeContents;
 	box_model.funcs.NativeTrace			= CM_NativeTrace;
 
-	box_model.hulls[0].available = true;
-
 	box_model.nodes = ZG_Malloc(&box_model.memgroup, sizeof(mnode_t)*6);
 	box_planes = ZG_Malloc(&box_model.memgroup, sizeof(mplane_t)*12);
 	if (numbrushes+1 > SANITY_MAX_MAP_BRUSHES
@@ -4356,12 +4432,17 @@ void CM_InitBoxHull (void)
 	box_brush->brushside = ZG_Malloc(&box_model.memgroup, sizeof(q2cbrushside_t)*6);
 	box_brush->contents = Q2CONTENTS_MONSTER;
 
-	box_leaf = &map_leafs[numleafs];
-	box_leaf->contents = Q2CONTENTS_MONSTER;
-	box_leaf->firstleafbrush = numleafbrushes;
-	box_leaf->numleafbrushes = 1;
+	box_leaf[0].contents = Q2CONTENTS_MONSTER;
+	box_leaf[0].firstleafbrush = numleafbrushes;
+	box_leaf[0].numleafbrushes = 1;
+	box_leaf[1].contents = 0;
+	box_leaf[1].firstleafbrush = numleafbrushes;
+	box_leaf[1].numleafbrushes = 1;
+	box_model.leafs = box_leaf;
 
-	map_leafbrushes[numleafbrushes] = numbrushes;
+	box_model.rootnode = box_model.nodes;
+
+	map_leafbrushes[numleafbrushes] = box_brush;
 
 	for (i=0 ; i<6 ; i++)
 	{
@@ -4375,11 +4456,11 @@ void CM_InitBoxHull (void)
 		// nodes
 		c = &box_model.nodes[i];
 		c->plane = box_planes + (i*2);
-		c->childnum[side] = -1 - emptyleaf;
+		c->childnum[side] = -1 - 1;	//empty leaf
 		if (i != 5)
 			c->childnum[side^1] = box_headnode+i + 1;
 		else
-			c->childnum[side^1] = -1 - numleafs;
+			c->childnum[side^1] = -1 - 0;	//solid leaf
 
 		// planes
 		p = &box_planes[i*2];
@@ -4455,8 +4536,6 @@ int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
 		else
 			num = node->childnum[0];
 	}
-
-	c_pointcontents++;		// optimize counter
 
 	return -1 - num;
 }
@@ -4564,10 +4643,10 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);
 
 	if (!mapisq3)
-		contents = map_leafs[i].contents;	//q2 is simple.
+		contents = mod->leafs[i].contents;	//q2 is simple.
 	else
 	{
-		leaf = &map_leafs[i];
+		leaf = &mod->leafs[i];
 
 	//	if ( leaf->contents & CONTENTS_NODROP ) {
 	//		contents = CONTENTS_NODROP;
@@ -4577,7 +4656,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 
 		for (i = 0; i < leaf->numleafbrushes; i++)
 		{
-			brush = &map_brushes[map_leafbrushes[leaf->firstleafbrush + i]];
+			brush = map_leafbrushes[leaf->firstleafbrush + i];
 
 			// check if brush actually adds something to contents
 			if ( (contents & brush->contents) == brush->contents ) {
@@ -4626,12 +4705,12 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 		contents = 0;
 		for (k--; k >= 0; k--)
 		{
-			leaf = &map_leafs[leaflist[k]];
+			leaf = &model->leafs[leaflist[k]];
 			if (mapisq3)
 			{
 				for (i = 0; i < leaf->numleafbrushes; i++)
 				{
-					brush = &map_brushes[map_leafbrushes[leaf->firstleafbrush + i]];
+					brush = map_leafbrushes[leaf->firstleafbrush + i];
 
 					// check if brush actually adds something to contents
 					if ( (contents & brush->contents) == brush->contents ) {
@@ -4701,23 +4780,23 @@ BOX TRACING
 // 1/32 epsilon to keep floating point happy
 #define	DIST_EPSILON	(0.03125)
 
-vec3_t	trace_start, trace_end;
-vec3_t	trace_mins, trace_maxs;
-vec3_t	trace_extents;
-vec3_t	trace_absmins, trace_absmaxs;
-float	trace_truefraction;
-float	trace_nearfraction;
+static vec3_t	trace_start, trace_end;
+static vec3_t	trace_mins, trace_maxs;
+static vec3_t	trace_extents;
+static vec3_t	trace_absmins, trace_absmaxs;
+static float	trace_truefraction;
+static float	trace_nearfraction;
 
-trace_t	trace_trace;
-int		trace_contents;
-qboolean	trace_ispoint;		// optimized case
+static trace_t	trace_trace;
+static int		trace_contents;
+static qboolean	trace_ispoint;		// optimized case
 
 /*
 ================
 CM_ClipBoxToBrush
 ================
 */
-void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
+static void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 					  trace_t *trace, q2cbrush_t *brush)
 {
 	int			i, j;
@@ -4737,8 +4816,6 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 
 	if (!brush->numsides)
 		return;
-
-	c_brush_traces++;
 
 	getout = false;
 	startout = false;
@@ -4832,7 +4909,246 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 	}
 }
 
-void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
+static void CM_ClipBoxToPlanes (vec3_t trmins, vec3_t trmaxs, vec3_t p1, vec3_t p2, trace_t *trace, vec3_t plmins, vec3_t plmaxs, mplane_t *plane, int numplanes, q2csurface_t *surf)
+{
+	int			i, j;
+	mplane_t	*clipplane;
+	float		dist;
+	float		enterfrac, leavefrac;
+	vec3_t		ofs;
+	float		d1, d2;
+	qboolean	getout, startout;
+	float		f;
+//	q2cbrushside_t	*side, *leadside;
+	static mplane_t	bboxplanes[6] = //we change the dist, but nothing else
+	{
+		{1, 0, 0},
+		{0, 1, 0},
+		{0, 0, 1},
+		{-1, 0, 0},
+		{0, -1, 0},
+		{0, 0, -1},
+	};
+
+	float nearfrac=0;
+	enterfrac = -1;
+	leavefrac = 2;
+	clipplane = NULL;
+
+	getout = false;
+	startout = false;
+//	leadside = NULL;
+
+	for (i=0 ; i<numplanes ; i++, plane++)
+	{
+		// FIXME: special case for axial
+		if (!trace_ispoint)
+		{	// general box case
+
+			// push the plane out apropriately for mins/maxs
+
+			// FIXME: use signbits into 8 way lookup for each mins/maxs
+			for (j=0 ; j<3 ; j++)
+			{
+				if (plane->normal[j] < 0)
+					ofs[j] = trmaxs[j];
+				else
+					ofs[j] = trmins[j];
+			}
+			dist = DotProduct (ofs, plane->normal);
+			dist = plane->dist - dist;
+		}
+		else
+		{	// special point case
+			dist = plane->dist;
+		}
+
+		d1 = DotProduct (p1, plane->normal) - dist;
+		d2 = DotProduct (p2, plane->normal) - dist;
+
+		if (d2 > 0)
+			getout = true;	// endpoint is not in solid
+		if (d1 > 0)
+			startout = true;
+
+		// if completely in front of face, no intersection
+		if (d1 > 0 && d2 >= d1)
+			return;
+
+		if (d1 <= 0 && d2 <= 0)
+			continue;
+
+		// crosses face
+		if (d1 > d2)
+		{	// enter
+			f = (d1) / (d1-d2);
+			if (f > enterfrac)
+			{
+				enterfrac = f;
+				nearfrac = (d1-DIST_EPSILON) / (d1-d2);
+				clipplane = plane;
+//				leadside = side;
+			}
+		}
+		else
+		{	// leave
+			f = (d1) / (d1-d2);
+			if (f < leavefrac)
+				leavefrac = f;
+		}
+	}
+
+	//bevel the brush axially (to match the player's bbox), in case that wasn't already done
+	for (i=0, plane = bboxplanes; i<6 ; i++, plane++)
+	{
+		if (i < 3)
+		{	//positive normal
+			dist = trmins[i];
+			plane->dist = plmaxs[i];
+			dist = plane->dist - dist;
+			d1 = p1[i] - dist;
+			d2 = p2[i] - dist;
+		}
+		else
+		{	//negative normal
+			j = i-3;
+			dist = -trmaxs[j];
+			plane->dist = -plmins[j];
+			dist = plane->dist - dist;
+			d1 = -p1[j] - dist;
+			d2 = -p2[j] - dist;
+		}
+
+		if (d2 > 0)
+			getout = true;	// endpoint is not in solid
+		if (d1 > 0)
+			startout = true;
+
+		// if completely in front of face, no intersection
+		if (d1 > 0 && d2 >= d1)
+			return;
+
+		if (d1 <= 0 && d2 <= 0)
+			continue;
+
+		// crosses face
+		if (d1 > d2)
+		{	// enter
+			f = (d1) / (d1-d2);
+			if (f > enterfrac)
+			{
+				enterfrac = f;
+				nearfrac = (d1-DIST_EPSILON) / (d1-d2);
+				clipplane = plane;
+//				leadside = side;
+			}
+		}
+		else
+		{	// leave
+			f = (d1) / (d1-d2);
+			if (f < leavefrac)
+				leavefrac = f;
+		}
+	}
+
+	if (!startout)
+	{	// original point was inside brush
+		trace->startsolid = true;
+		if (!getout)
+			trace->allsolid = true;
+		return;
+	}
+	if (enterfrac <= leavefrac)
+	{
+		if (enterfrac > -1 && enterfrac <= trace_truefraction)
+		{
+			if (enterfrac < 0)
+				enterfrac = 0;
+
+			trace_nearfraction = nearfrac;
+			trace_truefraction = enterfrac;
+
+			trace->plane.dist = clipplane->dist;
+			VectorCopy(clipplane->normal, trace->plane.normal);
+			trace->surface = surf;
+			trace->contents = surf->value;
+		}
+	}
+}
+static void Mod_Trace_Trisoup_(vecV_t *posedata, index_t *indexes, size_t numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace, q2csurface_t *surf)
+{
+	size_t i;
+	int j;
+	float *p1, *p2, *p3;
+	vec3_t edge1, edge2, edge3;
+	mplane_t planes[5];
+	vec3_t tmins, tmaxs;
+
+	for (i = 0; i < numindexes; i+=3)
+	{
+		p1 = posedata[indexes[i+0]];
+		p2 = posedata[indexes[i+1]];
+		p3 = posedata[indexes[i+2]];
+
+		//determine the triangle extents, and skip the triangle if we're completely out of bounds
+		for (j = 0; j < 3; j++)
+		{
+			tmins[j] = p1[j];
+			if (tmins[j] > p2[j])
+				tmins[j] = p2[j];
+			if (tmins[j] > p3[j])
+				tmins[j] = p3[j];
+			if (trace_absmaxs[j]+(1/8.f) < tmins[j])
+				break;
+			tmaxs[j] = p1[j];
+			if (tmaxs[j] < p2[j])
+				tmaxs[j] = p2[j];
+			if (tmaxs[j] < p3[j])
+				tmaxs[j] = p3[j];
+			if (trace_absmins[j]-(1/8.f) > tmaxs[j])
+				break;
+		}
+		//skip any triangles which are completely outside the trace bounds
+		if (j < 3)
+			continue;
+
+		VectorSubtract(p1, p2, edge1);
+		VectorSubtract(p3, p2, edge2);
+		VectorSubtract(p1, p3, edge3);
+		CrossProduct(edge1, edge2, planes[0].normal);
+		VectorNormalize(planes[0].normal);
+		planes[0].dist = DotProduct(p1, planes[0].normal);
+		VectorNegate(planes[0].normal, planes[1].normal);
+		planes[1].dist = -planes[0].dist + 4;
+
+		//determine edges
+		//FIXME: use adjacency info
+		CrossProduct(edge1, planes[0].normal, planes[2].normal);
+		VectorNormalize(planes[2].normal);
+		planes[2].dist = DotProduct(p2, planes[2].normal);
+
+		CrossProduct(planes[0].normal, edge2, planes[3].normal);
+		VectorNormalize(planes[3].normal);
+		planes[3].dist = DotProduct(p3, planes[3].normal);
+
+		CrossProduct(planes[0].normal, edge3, planes[4].normal);
+		VectorNormalize(planes[4].normal);
+		planes[4].dist = DotProduct(p1, planes[4].normal);
+
+		CM_ClipBoxToPlanes(mins, maxs, start, end, trace, tmins, tmaxs, planes, 5, surf); 
+	}
+}
+
+static void CM_ClipBoxToMesh (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2, trace_t *trace, mesh_t *mesh)
+{
+	trace_truefraction = trace->truefraction;
+	trace_nearfraction = trace->fraction;
+	Mod_Trace_Trisoup_(mesh->xyz_array, mesh->indexes, mesh->numindexes, p1, p2, mins, maxs, trace, &nullsurface.c);
+	trace->truefraction = trace_truefraction;
+	trace->fraction = trace_nearfraction;
+}
+
+static void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 					  trace_t *trace, q2cbrush_t *brush)
 {
 	int			i, j;
@@ -4847,8 +5163,6 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 
 	if (!brush->numsides)
 		return;
-
-	c_brush_traces++;
 
 	enterfrac = -1;
 	leavefrac = 2;
@@ -4946,7 +5260,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 CM_TestBoxInBrush
 ================
 */
-void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
+static void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 					  trace_t *trace, q2cbrush_t *brush)
 {
 	int			i, j;
@@ -4993,7 +5307,7 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 	trace->contents |= brush->contents;
 }
 
-void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
+static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 					  trace_t *trace, q2cbrush_t *brush)
 {
 	int			i, j;
@@ -5054,24 +5368,21 @@ void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 CM_TraceToLeaf
 ================
 */
-void CM_TraceToLeaf (int leafnum)
+static void CM_TraceToLeaf (mleaf_t		*leaf)
 {
 	int			k, j;
-	int			brushnum;
-	mleaf_t		*leaf;
 	q2cbrush_t	*b;
 
 	int patchnum;
 	q3cpatch_t *patch;
+	q3cmesh_t *cmesh;
 
-	leaf = &map_leafs[leafnum];
 	if ( !(leaf->contents & trace_contents))
 		return;
 	// trace line against all brushes in the leaf
 	for (k=0 ; k<leaf->numleafbrushes ; k++)
 	{
-		brushnum = map_leafbrushes[leaf->firstleafbrush+k];
-		b = &map_brushes[brushnum];
+		b = map_leafbrushes[leaf->firstleafbrush+k];
 		if (b->checkcount == checkcount)
 			continue;	// already checked this brush in another leaf
 		b->checkcount = checkcount;
@@ -5107,6 +5418,22 @@ void CM_TraceToLeaf (int leafnum)
 		}
 	}
 
+	for (k = 0; k < leaf->numleafcmeshes; k++)
+	{
+		patchnum = map_leafcmeshes[leaf->firstleafcmesh+k];
+		cmesh = &map_cmeshes[patchnum];
+		if (cmesh->checkcount == checkcount)
+			continue;	// already checked this patch in another leaf
+		cmesh->checkcount = checkcount;
+		if ( !(cmesh->surface->c.value & trace_contents) )
+			continue;
+		if ( !BoundsIntersect(cmesh->absmins, cmesh->absmaxs, trace_absmins, trace_absmaxs) )
+			continue;
+
+		Mod_Trace_Trisoup_(cmesh->xyz_array, cmesh->indicies, cmesh->numincidies, trace_start, trace_end, trace_mins, trace_maxs, &trace_trace, &cmesh->surface->c);
+		if (trace_nearfraction<=0)
+			return;
+	}
 }
 
 
@@ -5115,23 +5442,20 @@ void CM_TraceToLeaf (int leafnum)
 CM_TestInLeaf
 ================
 */
-void CM_TestInLeaf (int leafnum)
+static void CM_TestInLeaf (mleaf_t		*leaf)
 {
 	int			k, j;
-	int			brushnum;
 	int patchnum;
-	mleaf_t		*leaf;
 	q2cbrush_t	*b;
+	q3cmesh_t	*cmesh;
 	q3cpatch_t *patch;
 
-	leaf = &map_leafs[leafnum];
 	if ( !(leaf->contents & trace_contents))
 		return;
 	// trace line against all brushes in the leaf
 	for (k=0 ; k<leaf->numleafbrushes ; k++)
 	{
-		brushnum = map_leafbrushes[leaf->firstleafbrush+k];
-		b = &map_brushes[brushnum];
+		b = map_leafbrushes[leaf->firstleafbrush+k];
 		if (b->checkcount == checkcount)
 			continue;	// already checked this brush in another leaf
 		b->checkcount = checkcount;
@@ -5167,6 +5491,22 @@ void CM_TestInLeaf (int leafnum)
 		}
 	}
 
+	for (k = 0; k < leaf->numleafcmeshes; k++)
+	{
+		patchnum = map_leafcmeshes[leaf->firstleafcmesh+k];
+		cmesh = &map_cmeshes[patchnum];
+		if (cmesh->checkcount == checkcount)
+			continue;	// already checked this patch in another leaf
+		cmesh->checkcount = checkcount;
+		if ( !(cmesh->surface->c.value & trace_contents) )
+			continue;
+		if ( !BoundsIntersect(cmesh->absmins, cmesh->absmaxs, trace_absmins, trace_absmaxs) )
+			continue;
+
+		Mod_Trace_Trisoup_(cmesh->xyz_array, cmesh->indicies, cmesh->numincidies, trace_start, trace_end, trace_mins, trace_maxs, &trace_trace, &cmesh->surface->c);
+		if (trace_nearfraction<=0)
+			return;
+	}
 }
 
 
@@ -5176,7 +5516,7 @@ CM_RecursiveHullCheck
 
 ==================
 */
-void CM_RecursiveHullCheck (model_t *mod, int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
+static void CM_RecursiveHullCheck (model_t *mod, int num, float p1f, float p2f, vec3_t p1, vec3_t p2)
 {
 	mnode_t		*node;
 	mplane_t	*plane;
@@ -5194,7 +5534,7 @@ void CM_RecursiveHullCheck (model_t *mod, int num, float p1f, float p2f, vec3_t 
 	// if < 0, we are in a leaf node
 	if (num < 0)
 	{
-		CM_TraceToLeaf (-1-num);
+		CM_TraceToLeaf (&mod->leafs[-1-num]);
 		return;
 	}
 
@@ -5298,26 +5638,22 @@ return;
 CM_BoxTrace
 ==================
 */
-trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
+static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 						  vec3_t mins, vec3_t maxs,
 						  int brushmask)
 {
 	int		i;
-#if ADJ
-	int moved;
-#endif
 	vec3_t point;
 
 
 	checkcount++;		// for multi-check avoidance
-
-	c_traces++;			// for statistics, may be zeroed
 
 	// fill in a default trace
 	memset (&trace_trace, 0, sizeof(trace_trace));
 	trace_truefraction = 1;
 	trace_nearfraction = 1;
 	trace_trace.fraction = 1;
+	trace_trace.truefraction = 1;
 	trace_trace.surface = &(nullsurface.c);
 
 	if (!mod)	// map not loaded
@@ -5340,6 +5676,21 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	VectorAdd (end, trace_maxs, point);
 	AddPointToBounds (point, trace_absmins, trace_absmaxs);
 
+	if (0)
+	{	//treat *ALL* tests against the actual geometry instead of using any brushes.
+		//also ignores the bsp etc. not fast. testing only.
+		for (i = 0; i < mod->numsurfaces; i++)
+		{
+			CM_ClipBoxToMesh(trace_mins, trace_maxs, trace_start, trace_end, &trace_trace, mod->surfaces[i].mesh);
+		}
+	}
+	else
+	if (0)
+	{
+		for (i = 0; i < mod->numleafs; i++)
+			CM_TraceToLeaf(&mod->leafs[i]);
+	}
+	else
 	//
 	// check for position test special case
 	//
@@ -5349,21 +5700,6 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		int		i, numleafs;
 		vec3_t	c1, c2;
 		int		topnode;
-#if ADJ
-		if (-mins[2] != maxs[2])	//be prepared to move the thing up to counter the different min/max
-		{
-			moved = (trace_maxs[2] - trace_mins[2])/2;
-			trace_mins[2] = -moved;
-			trace_maxs[2] = moved;
-			trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2];
-			moved = (maxs[2] - trace_maxs[2]);
-		}
-
-		trace_start[2]+=moved;
-		trace_end[2]+=moved;
-#endif
-
-
 
 		VectorAdd (start, mins, c1);
 		VectorAdd (start, maxs, c2);
@@ -5376,53 +5712,34 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		numleafs = CM_BoxLeafnums_headnode (mod, c1, c2, leafs, sizeof(leafs)/sizeof(leafs[0]), mod->hulls[0].firstclipnode, &topnode);
 		for (i=0 ; i<numleafs ; i++)
 		{
-			CM_TestInLeaf (leafs[i]);
+			CM_TestInLeaf (&mod->leafs[leafs[i]]);
 			if (trace_trace.allsolid)
 				break;
 		}
 		VectorCopy (start, trace_trace.endpos);
-#if ADJ
-		trace_trace.endpos[2] -= moved;
-#endif
 		return trace_trace;
 	}
-#if ADJ
-	moved = 0;
-#endif
 	//
 	// check for point special case
 	//
-	if (trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
+	else if (trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
 		&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0)
 	{
 		trace_ispoint = true;
 		VectorClear (trace_extents);
+		CM_RecursiveHullCheck (mod, mod->hulls[0].firstclipnode, 0, 1, trace_start, trace_end);
 	}
+	//
+	// general aabb trace
+	//
 	else
 	{
 		trace_ispoint = false;
-		trace_extents[0] = -trace_mins[0] > trace_maxs[0] ? -trace_mins[0] : trace_maxs[0]+1;
-		trace_extents[1] = -trace_mins[1] > trace_maxs[1] ? -trace_mins[1] : trace_maxs[1]+1;
-		trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2]+1;
-#if ADJ
-		if (-mins[2] != maxs[2])	//be prepared to move the thing up to counter the different min/max
-		{
-			moved = (trace_maxs[2] - trace_mins[2])/2;
-			trace_mins[2] = -moved;
-			trace_maxs[2] = moved;
-			trace_extents[2] = -trace_mins[2] > trace_maxs[2] ? -trace_mins[2] : trace_maxs[2];
-			moved = (maxs[2] - trace_maxs[2]);
-		}
-
-		trace_start[2]+=moved;
-		trace_end[2]+=moved;
-#endif
+		trace_extents[0] = ((-trace_mins[0] > trace_maxs[0]) ? -trace_mins[0] : trace_maxs[0])+1;
+		trace_extents[1] = ((-trace_mins[1] > trace_maxs[1]) ? -trace_mins[1] : trace_maxs[1])+1;
+		trace_extents[2] = ((-trace_mins[2] > trace_maxs[2]) ? -trace_mins[2] : trace_maxs[2])+1;
+		CM_RecursiveHullCheck (mod, mod->hulls[0].firstclipnode, 0, 1, trace_start, trace_end);
 	}
-
-	//
-	// general sweeping through world
-	//
-	CM_RecursiveHullCheck (mod, mod->hulls[0].firstclipnode, 0, 1, trace_start, trace_end);
 
 	if (trace_nearfraction == 1)
 	{
@@ -5437,13 +5754,10 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		for (i=0 ; i<3 ; i++)
 			trace_trace.endpos[i] = trace_start[i] + trace_trace.fraction * (trace_end[i] - trace_start[i]);
 	}
-#if ADJ
-	trace_trace.endpos[2] -= moved;
-#endif
 	return trace_trace;
 }
 
-qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
 	if (axis)
 	{
@@ -5998,7 +6312,7 @@ qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, qbyte *visbits)
 	if (nodenum < 0)
 	{
 		leafnum = -1-nodenum;
-		cluster = map_leafs[leafnum].cluster;
+		cluster = mod->leafs[leafnum].cluster;
 		if (cluster == -1)
 			return false;
 		if (visbits[cluster>>3] & (1<<(cluster&7)))
@@ -6012,15 +6326,6 @@ qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, qbyte *visbits)
 	return CM_HeadnodeVisible(mod, node->childnum[1], visbits);
 }
 
-/*
-qboolean Q2BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
-{
-	trace_t ret = CM_BoxTrace(p1, p2, hull->clip_mins, hull->clip_maxs, hull->firstclipnode, MASK_SOLID);
-	memcpy(trace, &ret, sizeof(trace_t));
-	if (ret.fraction==1)
-		return true;
-	return false;
-}*/
 unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 {
 	int pc;
@@ -6047,6 +6352,8 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&map_noareas, MAPOPTIONS);
 	Cvar_Register(&map_noCurves, MAPOPTIONS);
 	Cvar_Register(&map_autoopenportals, MAPOPTIONS);
+	Cvar_Register(&q3bsp_surf_meshcollision_flag, MAPOPTIONS);
+	Cvar_Register(&q3bsp_surf_meshcollision_force, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 }
 void CM_Shutdown(void)

@@ -112,7 +112,7 @@ typedef struct
 	int reserved2;
 	int reserved1;
 	//char modelname[1+];
-} dsmesh_t;
+} dsmesh_v1_t;
 
 typedef struct
 {
@@ -184,6 +184,8 @@ typedef struct
 
 	struct hmwater_s *water;
 
+	size_t traceseq;
+
 #ifndef SERVERONLY
 	pvscache_t pvscache;
 	vec4_t colours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];	//FIXME: make bytes
@@ -196,12 +198,11 @@ typedef struct
 	mesh_t mesh;
 	mesh_t *amesh;
 
-	int numents;
-	int maxents;
-	entity_t *ents;
-
 	hmpolyset_t *polys;
 #endif
+	int numents;
+	int maxents;
+	struct hmentity_s **ents;
 } hmsection_t;
 typedef struct
 {
@@ -210,7 +211,10 @@ typedef struct
 typedef struct heightmap_s
 {
 	char path[MAX_QPATH];
-	char watershadername[MAX_QPATH];	//typically the name of the ocean or whatever.
+	char defaultwatershader[MAX_QPATH];	//typically the name of the ocean or whatever.
+	float defaultwaterheight;
+	float defaultgroundheight;
+	char defaultgroundtexture[MAX_QPATH];
 	int firstsegx, firstsegy;
 	int maxsegx, maxsegy; //tex/cull sections
 	float sectionsize;	//each section is this big, in world coords
@@ -220,7 +224,15 @@ typedef struct heightmap_s
 	mesh_t skymesh;
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
-	qboolean beinglazy;	//only load one section per frame, if its the renderer doing the loading. this helps avoid stalls, in theory.
+	qboolean beinglazy;	//only load one section per frame, if its the renderer doing the loading. this helps avoid nasty stalls, in theory.
+	size_t traceseq;
+	size_t drawnframe;
+	enum
+	{
+		DGT_SOLID,	//invalid/new areas should be completely solid until painted.
+		DGT_HOLES,	//invalid/new sections should be non-solid+invisible
+		DGT_FLAT	//invalid/new sections should be filled with ground by default
+	} defaultgroundtype;
 	enum
 	{
 		HMM_TERRAIN,
@@ -232,6 +244,16 @@ typedef struct heightmap_s
 	int activesections;
 	link_t recycle;		//section list in lru order
 //	link_t collected;	//memory that may be reused, to avoid excess reallocs.
+
+	struct hmentity_s
+	{
+		size_t drawnframe;	//don't add it to the scene multiple times.
+		size_t traceseq;	//don't trace through this entity multiple times if its in different sections.
+		int refs;		//entity is free/reusable when its no longer referenced by any sections
+		entity_t ent;
+
+		struct hmentity_s *next;	//used for freeing/allocating an entity
+	} *entities;
 
 #ifndef SERVERONLY
 	unsigned int numusedlmsects;	//to track leaks and stats
@@ -548,6 +570,7 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy)
 	return s;
 }
 
+//generates some water
 static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 {
 	int i;
@@ -557,7 +580,7 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	s->water = w;
 #ifndef SERVERONLY
 	if (!isDedicated)
-		w->shader = R_RegisterCustom (s->hmmod->watershadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
+		w->shader = R_RegisterCustom (s->hmmod->defaultwatershader, SUF_NONE, Shader_DefaultWaterShader, NULL);
 #endif
 	w->simple = true;
 	w->contentmask = FTECONTENTS_WATER;
@@ -570,10 +593,121 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	return w;
 }
 
+//embeds a mesh
+static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t epos, vec3_t axis[3], float scale)
+{
+	struct hmentity_s *e, *f = NULL;
+	hmsection_t *s;
+	int min[2], max[2], coord[2];
+	int i;
+
+	if (!mod)
+		return;
+
+	if (!scale)
+		scale = 1;
+
+	if (axis[0][0] != 1 || axis[0][1] != 0 || axis[0][2] != 0 ||
+		axis[1][0] != 0 || axis[1][1] != 1 || axis[1][2] != 0 ||
+		axis[2][0] != 0 || axis[2][1] != 0 || axis[2][2] != 1)
+	{
+		min[0] = floor((epos[0]-mod->radius*scale) / hm->sectionsize) + CHUNKBIAS;
+		min[1] = floor((epos[1]-mod->radius*scale) / hm->sectionsize) + CHUNKBIAS;
+		min[0] = bound(hm->firstsegx, min[0], hm->maxsegx-1);
+		min[1] = bound(hm->firstsegy, min[1], hm->maxsegy-1);
+		
+		max[0] = floor((epos[0]+mod->radius*scale) / hm->sectionsize) + CHUNKBIAS;
+		max[1] = floor((epos[1]+mod->radius*scale) / hm->sectionsize) + CHUNKBIAS;
+		max[0] = bound(hm->firstsegx, max[0], hm->maxsegx-1);
+		max[1] = bound(hm->firstsegy, max[1], hm->maxsegy-1);
+	}
+	else
+	{
+		min[0] = floor((epos[0]+mod->mins[0]*scale) / hm->sectionsize) + CHUNKBIAS;
+		min[1] = floor((epos[1]+mod->mins[1]*scale) / hm->sectionsize) + CHUNKBIAS;
+		min[0] = bound(hm->firstsegx, min[0], hm->maxsegx-1);
+		min[1] = bound(hm->firstsegy, min[1], hm->maxsegy-1);
+		
+		max[0] = floor((epos[0]+mod->maxs[0]*scale) / hm->sectionsize) + CHUNKBIAS;
+		max[1] = floor((epos[1]+mod->maxs[1]*scale) / hm->sectionsize) + CHUNKBIAS;
+		max[0] = bound(hm->firstsegx, max[0], hm->maxsegx-1);
+		max[1] = bound(hm->firstsegy, max[1], hm->maxsegy-1);
+	}
+
+	//try to find the ent if it already exists (don't do dupes)
+	for (e = hm->entities; e; e = e->next)
+	{
+		if (!e->refs)
+			f = e;
+		else
+		{
+			if (e->ent.origin[0] != epos[0] || e->ent.origin[1] != epos[1] || e->ent.origin[2] != epos[2])
+				continue;
+			if (e->ent.model != mod || e->ent.scale != scale)
+				continue;
+			if (memcmp(axis, e->ent.axis, sizeof(axis)))
+				continue;
+			break;	//looks like a match.
+		}
+	}
+	//allocate it if needed
+	if (!e)
+	{
+		if (f)
+			e = f;	//can reuse a released one
+		else
+		{	//allocate one
+			e = Z_Malloc(sizeof(*e));
+			e->next = hm->entities;
+			hm->entities = e;
+		}
+
+		e->ent.drawflags = SCALE_ORIGIN_ORIGIN;
+		e->ent.scale = scale;
+		e->ent.playerindex = -1;
+		e->ent.shaderRGBAf[0] = 1;
+		e->ent.shaderRGBAf[1] = 1;
+		e->ent.shaderRGBAf[2] = 1;
+		e->ent.shaderRGBAf[3] = 1;
+		VectorCopy(epos, e->ent.origin);
+		memcpy(e->ent.axis, axis, sizeof(e->ent.axis));
+		e->ent.model = mod;
+	}
+
+	for (coord[0] = min[0]; coord[0] <= max[0]; coord[0]++)
+	{
+		for (coord[1] = min[1]; coord[1] <= max[1]; coord[1]++)
+		{
+			s = Terr_GetSection(hm, coord[0], coord[1], loadflags);
+			if (!s)
+				continue;
+
+			//don't add pointless dupes
+			for (i = 0; i < s->numents; i++)
+			{
+				if (s->ents[i] == e)
+					break;
+			}
+			if (i < s->numents)
+				continue;
+
+			s->flags |= TSF_EDITED;
+
+			if (s->maxents == s->numents)
+			{
+				s->maxents++;
+				s->ents = realloc(s->ents, sizeof(*s->ents)*(s->maxents));
+			}
+			s->ents[s->numents++] = e;
+			e->refs++;
+		}
+	}
+}
+
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
 #ifndef SERVERONLY
-	dsmesh_t *dm;
+	dsmesh_v1_t *dm;
 	float *colours;
 #endif
 	dsection_v1_t *ds = ptr;
@@ -661,36 +795,13 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	}
 
 	/*load any static ents*/
-	s->numents = ds->ents_num;
-	s->maxents = s->numents;
-	if (s->maxents)
-		s->ents = Z_Malloc(sizeof(*s->ents) * s->maxents);
-	else
-		s->ents = NULL;
-	if (!s->ents)
-		s->numents = s->maxents = 0;
-	for (i = 0, dm = (dsmesh_t*)ptr; i < s->numents; i++, dm = (dsmesh_t*)((qbyte*)dm + dm->size))
+	for (i = 0, dm = (dsmesh_v1_t*)ptr; i < ds->ents_num; i++, dm = (dsmesh_v1_t*)((qbyte*)dm + dm->size))
 	{
-		s->ents[i].model = Mod_ForName((char*)(dm + 1), MLV_WARN);
-		if (!s->ents[i].model || s->ents[i].model->type == mod_dummy)
-		{
-			s->numents--;
-			i--;
-			continue;
-		}
-		s->ents[i].scale = dm->scale;
-		s->ents[i].drawflags = SCALE_ORIGIN_ORIGIN;
-		s->ents[i].playerindex = -1;
-		VectorCopy(dm->axisorg[0], s->ents[i].axis[0]);
-		VectorCopy(dm->axisorg[1], s->ents[i].axis[1]);
-		VectorCopy(dm->axisorg[2], s->ents[i].axis[2]);
-		VectorCopy(dm->axisorg[3], s->ents[i].origin);
-		s->ents[i].origin[0] += (s->sx-CHUNKBIAS)*hm->sectionsize;
-		s->ents[i].origin[1] += (s->sy-CHUNKBIAS)*hm->sectionsize;
-		s->ents[i].shaderRGBAf[0] = 1;
-		s->ents[i].shaderRGBAf[1] = 1;
-		s->ents[i].shaderRGBAf[2] = 1;
-		s->ents[i].shaderRGBAf[3] = 1;
+		vec3_t org;
+		org[0] = dm->axisorg[3][0] + (s->sx-CHUNKBIAS)*hm->sectionsize;
+		org[1] = dm->axisorg[3][1] + (s->sy-CHUNKBIAS)*hm->sectionsize;
+		org[2] = dm->axisorg[3][2];
+		Terr_AddMesh(hm, TGS_NOLOAD, Mod_ForName((char*)(dm + 1), MLV_WARN), org, dm->axisorg, dm->scale); 
 	}
 #endif
 	return ptr;
@@ -853,7 +964,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		char *shadername = w->shader->name;
 		int fl = 0;
 
-		if (strcmp(shadername, hm->watershadername))
+		if (strcmp(shadername, hm->defaultwatershader))
 			fl |= 1;
 		for (x = 0; x < 8; x++)
 			if (w->holes[x])
@@ -943,27 +1054,27 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		}
 
 		mf = 0;
-		if (s->ents[i].scale != 1)
+		if (s->ents[i]->ent.scale != 1)
 			mf |= TMF_SCALE;
 		Terr_Write_SInt(&strm, mf);
-		if (s->ents[i].model)
-			Terr_Write_String(&strm, s->ents[i].model->name);
+		if (s->ents[i]->ent.model)
+			Terr_Write_String(&strm, s->ents[i]->ent.model->name);
 		else
 			Terr_Write_String(&strm, "*invalid");
-		Terr_Write_Float(&strm, s->ents[i].origin[0]+(CHUNKBIAS-sx)*hm->sectionsize);
-		Terr_Write_Float(&strm, s->ents[i].origin[1]+(CHUNKBIAS-sy)*hm->sectionsize);
-		Terr_Write_Float(&strm, s->ents[i].origin[2]);
-		Terr_Write_Float(&strm, s->ents[i].axis[0][0]);
-		Terr_Write_Float(&strm, s->ents[i].axis[0][1]);
-		Terr_Write_Float(&strm, s->ents[i].axis[0][2]);
-		Terr_Write_Float(&strm, s->ents[i].axis[1][0]);
-		Terr_Write_Float(&strm, s->ents[i].axis[1][1]);
-		Terr_Write_Float(&strm, s->ents[i].axis[1][2]);
-		Terr_Write_Float(&strm, s->ents[i].axis[2][0]);
-		Terr_Write_Float(&strm, s->ents[i].axis[2][1]);
-		Terr_Write_Float(&strm, s->ents[i].axis[2][2]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.origin[0]+(CHUNKBIAS-sx)*hm->sectionsize);
+		Terr_Write_Float(&strm, s->ents[i]->ent.origin[1]+(CHUNKBIAS-sy)*hm->sectionsize);
+		Terr_Write_Float(&strm, s->ents[i]->ent.origin[2]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[0][0]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[0][1]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[0][2]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[1][0]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[1][1]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[1][2]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[2][0]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[2][1]);
+		Terr_Write_Float(&strm, s->ents[i]->ent.axis[2][2]);
 		if (mf & TMF_SCALE)
-			Terr_Write_Float(&strm, s->ents[i].scale);
+			Terr_Write_Float(&strm, s->ents[i]->ent.scale);
 	}
 
 	//reset it in case the buffer is getting a little full
@@ -1023,7 +1134,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		if (fl & 1)
 			Terr_Read_String(&strm, shadername, sizeof(shadername));
 		else
-			Q_strncpyz(shadername, hm->watershadername, sizeof(hm->watershadername));
+			Q_strncpyz(shadername, hm->defaultwatershader, sizeof(shadername));
 #ifndef SERVERONLY
 //		CL_CheckOrEnqueDownloadFile(shadername, NULL, 0);
 		w->shader = R_RegisterCustom (shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
@@ -1122,50 +1233,35 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	}
 
 	/*load any static ents*/
-	s->numents = Terr_Read_SInt(&strm);
-	if (s->maxents)
-		BZ_Free(s->ents);
-	s->maxents = s->numents;
-	if (s->maxents)
-		s->ents = BZ_Malloc(sizeof(*s->ents) * s->maxents);
-	else
-		s->ents = NULL;
-	if (!s->ents)
-		s->numents = s->maxents = 0;
-	for (i = 0; i < s->numents; i++)
+	j = Terr_Read_SInt(&strm);
+	for (i = 0; i < j; i++)
 	{
+		vec3_t axis[3];
+		vec3_t org;
 		unsigned int mf;
+		model_t *mod;
+		float scale;
 		mf = Terr_Read_SInt(&strm);
-		memset(&s->ents[i], 0, sizeof(s->ents[i]));
-		s->ents[i].model = Mod_FindName(Terr_Read_String(&strm, modelname, sizeof(modelname)));
-		s->ents[i].origin[0] = Terr_Read_Float(&strm);
-		s->ents[i].origin[1] = Terr_Read_Float(&strm);
-		s->ents[i].origin[2] = Terr_Read_Float(&strm);
-		s->ents[i].axis[0][0] = Terr_Read_Float(&strm);
-		s->ents[i].axis[0][1] = Terr_Read_Float(&strm);
-		s->ents[i].axis[0][2] = Terr_Read_Float(&strm);
-		s->ents[i].axis[1][0] = Terr_Read_Float(&strm);
-		s->ents[i].axis[1][1] = Terr_Read_Float(&strm);
-		s->ents[i].axis[1][2] = Terr_Read_Float(&strm);
-		s->ents[i].axis[2][0] = Terr_Read_Float(&strm);
-		s->ents[i].axis[2][1] = Terr_Read_Float(&strm);
-		s->ents[i].axis[2][2] = Terr_Read_Float(&strm);
-		s->ents[i].scale = (mf&TMF_SCALE)?Terr_Read_Float(&strm):1;
 
-		s->ents[i].drawflags = SCALE_ORIGIN_ORIGIN;
-		s->ents[i].playerindex = -1;
-		s->ents[i].origin[0] += (s->sx-CHUNKBIAS)*hm->sectionsize;
-		s->ents[i].origin[1] += (s->sy-CHUNKBIAS)*hm->sectionsize;
-		s->ents[i].shaderRGBAf[0] = 1;
-		s->ents[i].shaderRGBAf[1] = 1;
-		s->ents[i].shaderRGBAf[2] = 1;
-		s->ents[i].shaderRGBAf[3] = 1;
+		mod = Mod_FindName(Terr_Read_String(&strm, modelname, sizeof(modelname)));
+		org[0] = Terr_Read_Float(&strm);
+		org[1] = Terr_Read_Float(&strm);
+		org[2] = Terr_Read_Float(&strm);
+		axis[0][0] = Terr_Read_Float(&strm);
+		axis[0][1] = Terr_Read_Float(&strm);
+		axis[0][2] = Terr_Read_Float(&strm);
+		axis[1][0] = Terr_Read_Float(&strm);
+		axis[1][1] = Terr_Read_Float(&strm);
+		axis[1][2] = Terr_Read_Float(&strm);
+		axis[2][0] = Terr_Read_Float(&strm);
+		axis[2][1] = Terr_Read_Float(&strm);
+		axis[2][2] = Terr_Read_Float(&strm);
+		scale = (mf&TMF_SCALE)?Terr_Read_Float(&strm):1;
 
-		if (!s->ents[i].model)
-		{
-			s->numents--;
-			i--;
-		}
+		org[0] += (s->sx-CHUNKBIAS)*hm->sectionsize;
+		org[1] += (s->sy-CHUNKBIAS)*hm->sectionsize;
+
+		Terr_AddMesh(hm, TGS_NOLOAD, mod, org, axis, scale);
 	}
 #endif
 	return ptr;
@@ -1175,9 +1271,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 
 static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 {
-#ifndef SERVERONLY
 	int i;
-#endif
 
 	s->flags |= TSF_FAILEDLOAD;
 	memset(s->holes, 0, sizeof(s->holes));
@@ -1186,7 +1280,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 	Q_strncpyz(s->texname[0], "", sizeof(s->texname[0]));
 	Q_strncpyz(s->texname[1], "", sizeof(s->texname[1]));
 	Q_strncpyz(s->texname[2], "", sizeof(s->texname[2]));
-	Q_strncpyz(s->texname[3], "", sizeof(s->texname[3]));
+	Q_strncpyz(s->texname[3], hm->defaultgroundtexture, sizeof(s->texname[3]));
 
 	if (s->lightmap >= 0)
 	{
@@ -1221,6 +1315,12 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 	}
 	s->mesh.colors4f_array[0] = s->colours;
 #endif
+
+	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		s->heights[i] = hm->defaultgroundheight;
+
+	if (hm->defaultwaterheight > hm->defaultgroundheight)
+		Terr_GenerateWater(s, hm->defaultwaterheight);
 
 #if 0//def DEBUG
 	void *f;
@@ -1475,7 +1575,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int sy)
 {
 	int i;
-	dsmesh_t dm;
+	dsmesh_v1_t dm;
 	qbyte *lm;
 	dsection_v1_t ds;
 	vec4_t dcolours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
@@ -1555,21 +1655,21 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	for (i = 0; i < s->numents; i++)
 	{
 		int pad;
-		dm.scale = s->ents[i].scale;
-		VectorCopy(s->ents[i].axis[0], dm.axisorg[0]);
-		VectorCopy(s->ents[i].axis[1], dm.axisorg[1]);
-		VectorCopy(s->ents[i].axis[2], dm.axisorg[2]);
-		VectorCopy(s->ents[i].origin, dm.axisorg[3]);
+		dm.scale = s->ents[i]->ent.scale;
+		VectorCopy(s->ents[i]->ent.axis[0], dm.axisorg[0]);
+		VectorCopy(s->ents[i]->ent.axis[1], dm.axisorg[1]);
+		VectorCopy(s->ents[i]->ent.axis[2], dm.axisorg[2]);
+		VectorCopy(s->ents[i]->ent.origin, dm.axisorg[3]);
 		dm.axisorg[3][0] += (CHUNKBIAS-sx)*hm->sectionsize;
 		dm.axisorg[3][1] += (CHUNKBIAS-sy)*hm->sectionsize;
-		dm.size = sizeof(dm) + strlen(s->ents[i].model->name) + 1;
+		dm.size = sizeof(dm) + strlen(s->ents[i]->ent.model->name) + 1;
 		if (dm.size & 3)
 			pad = 4 - (dm.size&3);
 		else
 			pad = 0;
 		dm.size += pad;
 		VFS_WRITE(f, &dm, sizeof(dm));
-		VFS_WRITE(f, s->ents[i].model->name, strlen(s->ents[i].model->name)+1);
+		VFS_WRITE(f, s->ents[i]->ent.model->name, strlen(s->ents[i]->ent.model->name)+1);
 		if (pad)
 			VFS_WRITE(f, &nothing, pad);
 	}
@@ -1812,7 +1912,13 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 
 void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
 {
+	int i;
 	RemoveLink(&s->recycle);
+
+	for (i = 0; i < s->numents; i++)
+		s->ents[i]->refs-=1;
+	s->numents = 0;
+
 #ifndef SERVERONLY
 	if (s->lightmap >= 0)
 	{
@@ -2601,7 +2707,13 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		{
 			vec3_t dist;
 			float a;
-			model_t *model = s->ents[i].model;
+			model_t *model;
+			//skip the entity if its already been added to some batch this frame.
+			if (s->ents[i]->drawnframe == hm->drawnframe)
+				continue;
+			s->ents[i]->drawnframe = hm->drawnframe;
+
+			model = s->ents[i]->ent.model;
 			if (!model)
 				continue;
 
@@ -2615,7 +2727,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			if (model->needload)
 				continue;
 
-			VectorSubtract(s->ents[i].origin, r_origin, dist);
+			VectorSubtract(s->ents[i]->ent.origin, r_origin, dist);
 			a = VectorLength(dist);
 			a = 1024 - a + model->radius*16;
 			a /= model->radius;
@@ -2624,18 +2736,18 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			if (a >= 1)
 			{
 				a = 1;
-				s->ents[i].flags &= ~RF_TRANSLUCENT;
+				s->ents[i]->ent.flags &= ~RF_TRANSLUCENT;
 			}
 			else
-				s->ents[i].flags |= RF_TRANSLUCENT;
-			s->ents[i].shaderRGBAf[3] = a;
+				s->ents[i]->ent.flags |= RF_TRANSLUCENT;
+			s->ents[i]->ent.shaderRGBAf[3] = a;
 			switch(model->type)
 			{
 			case mod_alias:
-				R_GAlias_GenerateBatches(&s->ents[i], ctx->batches);
+				R_GAlias_GenerateBatches(&s->ents[i]->ent, ctx->batches);
 				break;
 			case mod_brush:
-				Surf_GenBrushBatches(ctx->batches, &s->ents[i]);
+				Surf_GenBrushBatches(ctx->batches, &s->ents[i]->ent);
 				break;
 			default:	//FIXME: no sprites! oh noes!
 				break;
@@ -2802,6 +2914,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 		bounds[3] = hm->maxsegy;
 	}
 
+	hm->drawnframe+=1;
 	tdibctx.hm = hm;
 	tdibctx.batches = batches;
 	tdibctx.ent = e;
@@ -3073,6 +3186,7 @@ typedef struct {
 	heightmap_t *hm;
 	int contents;
 	int hitcontentsmask;
+	trace_t *result;
 } hmtrace_t;
 
 static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
@@ -3157,7 +3271,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	vec3_t p[4];
 	vec4_t n[5];
 	int t;
-//	int i;
+	int i;
 
 #ifndef STRICTEDGES
 	float d1, d2;
@@ -3187,26 +3301,47 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 		Heightmap_Trace_Brush(tr, n, 4);
 		return;
 	}
-/*
-	for (i = 0; i < s->numents; i++)
-	{
-		vec3_t start_l, end_l;
-		trace_t etr;
-		model_t *model = s->ents[i].model;
-		int frame = s->ents[i].framestate.g[FS_REG].frame[0];
-		if (!model || model->needload || !model->funcs.NativeTrace)
-			continue;
-		VectorSubtract (tr->start, s->ents[i].origin, start_l);
-		VectorSubtract (tr->end, s->ents[i].origin, end_l);
-		start_l[2] -= tr->mins[2];
-		end_l[2] -= tr->mins[2];
-		VectorScale(start_l, s->ents[i].scale, start_l);
-		VectorScale(end_l, s->ents[i].scale, end_l);
 
-		memset(&etr, 0, sizeof(etr));
-		etr.fraction = 1;
-		if (model->funcs.NativeTrace (model, 0, frame, s->ents[i].axis, start_l, end_l, tr->mins, tr->maxs, tr->hitcontentsmask, &etr))
+	if (s->traceseq != tr->hm->traceseq)
+	{
+		s->traceseq = tr->hm->traceseq;
+		for (i = 0; i < s->numents; i++)
 		{
+			vec3_t start_l, end_l;
+			trace_t etr;
+			model_t *model;
+			int frame;
+			if (s->ents[i]->traceseq == tr->hm->traceseq)
+				continue;
+			s->ents[i]->traceseq = tr->hm->traceseq;
+			model = s->ents[i]->ent.model;
+			frame = s->ents[i]->ent.framestate.g[FS_REG].frame[0];
+			if (!model || model->needload || !model->funcs.NativeTrace)
+				continue;
+			//figure out where on the submodel the trace is.
+			VectorSubtract (tr->start, s->ents[i]->ent.origin, start_l);
+			VectorSubtract (tr->end, s->ents[i]->ent.origin, end_l);
+			start_l[2] -= tr->mins[2];
+			end_l[2] -= tr->mins[2];
+			VectorScale(start_l, s->ents[i]->ent.scale, start_l);
+			VectorScale(end_l, s->ents[i]->ent.scale, end_l);
+
+			//skip if the local trace points are outside the model's bounds
+/*			for (j = 0; j < 3; j++)
+			{
+				if (start_l[j]+tr->mins[j] > model->maxs[j] && end_l[j]+tr->mins[j] > model->maxs[j])
+					continue;
+				if (start_l[j]+tr->maxs[j] < model->mins[j] && end_l[j]+tr->maxs[j] < model->mins[j])
+					continue;
+			}
+*/
+			//do the trace
+			memset(&etr, 0, sizeof(etr));
+			etr.fraction = 1;
+			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->hitcontentsmask, &etr);
+
+			tr->result->startsolid |= etr.startsolid;
+			tr->result->allsolid |= etr.allsolid;
 			if (etr.fraction < tr->frac)
 			{
 				tr->contents = etr.contents;
@@ -3218,7 +3353,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			}
 		}
 	}
-*/
+
 	sx = tx - CHUNKBIAS*(SECTHEIGHTSIZE-1);
 	sy = ty - CHUNKBIAS*(SECTHEIGHTSIZE-1);
 
@@ -3388,6 +3523,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	float wbias;
 	hmtrace_t hmtrace;
 	hmtrace.hm = model->terrain;
+	hmtrace.hm->traceseq++;
 	hmtrace.htilesize = hmtrace.hm->sectionsize / (SECTHEIGHTSIZE-1);
 	hmtrace.frac = 1;
 	hmtrace.contents = 0;
@@ -3399,6 +3535,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1;
+	hmtrace.result = trace;
 
 	//to tile space
 	hmtrace.start[0] = (start[0]);
@@ -4064,7 +4201,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			hmsection_t *s;
 			x = pos[0]*4 / hm->sectionsize;
 			y = pos[1]*4 / hm->sectionsize;
-			x = bound(hm->firstsegx*4, x, hm->maxsegy*4-1);
+			x = bound(hm->firstsegx*4, x, hm->maxsegx*4-1);
 			y = bound(hm->firstsegy*4, y, hm->maxsegy*4-1);
 		
 			s = Terr_GetSection(hm, x/4, y/4, TGS_FORCELOAD);
@@ -4142,7 +4279,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			hmsection_t *s;
 			x = pos[0] / hm->sectionsize;
 			y = pos[1] / hm->sectionsize;
-			x = bound(hm->firstsegx, x, hm->maxsegy-1);
+			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
 			s = Terr_GetSection(hm, x, y, TGS_LOAD);
@@ -4157,7 +4294,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			int x, y;
 			x = pos[0] / hm->sectionsize;
 			y = pos[1] / hm->sectionsize;
-			x = bound(hm->firstsegx, x, hm->maxsegy-1);
+			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 
 			ted_texkill(Terr_GetSection(hm, x, y, TGS_FORCELOAD), PR_GetStringOfs(prinst, OFS_PARM4));
@@ -4165,59 +4302,36 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		break;
 	case ter_mesh_add:
 		{
-			entity_t *e;
-			float *epos;
-			int x, y;
-			hmsection_t *s;
-			epos = ((wedict_t *)G_EDICT(prinst, OFS_PARM1))->v->origin;
-			x = (epos[0] / hm->sectionsize) + CHUNKBIAS;
-			y = (epos[1] / hm->sectionsize) + CHUNKBIAS;
-			x = bound(hm->firstsegx, x, hm->maxsegy-1);
-			y = bound(hm->firstsegy, y, hm->maxsegy-1);
-		
-			s = Terr_GetSection(hm, x, y, TGS_FORCELOAD);
-			if (!s)
-				return;
-
-			s->flags |= TSF_EDITED;
-
-			if (s->maxents == s->numents)
-			{
-				s->maxents++;
-				s->ents = realloc(s->ents, sizeof(*s->ents)*(s->maxents));
-			}
-			e = &s->ents[s->numents++];
-
-			memset(e, 0, sizeof(*e));
-			e->scale = ((wedict_t *)G_EDICT(prinst, OFS_PARM1))->xv->scale;
-			e->playerindex = -1;
-			e->shaderRGBAf[0] = 1;
-			e->shaderRGBAf[1] = 1;
-			e->shaderRGBAf[2] = 1;
-			e->shaderRGBAf[3] = 1;
-			VectorCopy(epos, e->origin);
-			AngleVectorsFLU(((wedict_t *)G_EDICT(prinst, OFS_PARM1))->v->angles, e->axis[0], e->axis[1], e->axis[2]);
-			e->model = vmw->Get_CModel(vmw, ((wedict_t *)G_EDICT(prinst, OFS_PARM1))->v->modelindex);
+			vec3_t axis[3];
+			wedict_t *ed = G_WEDICT(prinst, OFS_PARM1);
+			//FIXME: modeltype pitch inversion
+			AngleVectorsFLU(ed->v->angles, axis[0], axis[1], axis[2]);
+			Terr_AddMesh(hm, TGS_FORCELOAD, vmw->Get_CModel(vmw, ed->v->modelindex), ed->v->origin, axis, ed->xv->scale);
 		}
 		break;
 	case ter_mesh_kill:
 		{
-//			int i;
+			int i;
 //			entity_t *e;
 			int x, y;
 //			float r;
 			hmsection_t *s;
 			x = pos[0] / hm->sectionsize;
 			y = pos[1] / hm->sectionsize;
-			x = bound(hm->firstsegx, x, hm->maxsegy-1);
+			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
 			s = Terr_GetSection(hm, x, y, TGS_FORCELOAD);
 			if (!s)
 				return;
 
-			s->numents = 0;
-			s->flags |= TSF_EDITED;
+			if (s->numents)
+			{
+				for (i = 0; i < s->numents; i++)
+					s->ents[i]->refs -= 1;
+				s->flags |= TSF_EDITED;
+				s->numents = 0;
+			}
 
 			/*for (i = 0; i < s->numents; i++)
 			{
@@ -4241,6 +4355,11 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 	heightmap->sectionsize = 1024;
 	heightmap->mode = HMM_TERRAIN;
 
+	heightmap->defaultgroundheight = 0;
+	heightmap->defaultwaterheight = 0;
+	Q_strncpyz(heightmap->defaultwatershader, va("water/%s", heightmap->path), sizeof(heightmap->defaultwatershader));
+	Q_strncpyz(heightmap->defaultgroundtexture, "", sizeof(heightmap->defaultgroundtexture));
+
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.
 	if (com_token[0] == '{')
@@ -4251,7 +4370,7 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 		if (com_token[0] == '}')
 			break; // end of worldspawn
 		if (com_token[0] == '_')
-			strcpy(key, com_token + 1);	//_ vars are for comments/utility stuff that arn't visible to progs. Ignore them.
+			strcpy(key, com_token + 1);	//_ vars are for comments/utility stuff that arn't visible to progs and for compat. We want to support these stealth things.
 		else
 			strcpy(key, com_token);
 		if (!((data=COM_Parse(data))))
@@ -4266,6 +4385,14 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 			heightmap->maxsegx = atoi(com_token);
 		else if (!strcmp("maxysegment", key))
 			heightmap->maxsegy = atoi(com_token);
+		else if (!strcmp("defaultwaterheight", key))
+			heightmap->defaultwaterheight = atof(com_token);
+		else if (!strcmp("defaultgroundheight", key))
+			heightmap->defaultgroundheight = atof(com_token);
+		else if (!strcmp("defaultgroundtexture", key))
+			Q_strncpyz(heightmap->defaultgroundtexture, key, sizeof(heightmap->defaultgroundtexture));
+		else if (!strcmp("defaultwatertexture", key))
+			Q_strncpyz(heightmap->defaultwatershader, key, sizeof(heightmap->defaultwatershader));
 		else if (!strcmp("tiles", key))
 		{
 			char *d;
@@ -4302,7 +4429,6 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
 	{
-		Q_strncpyz(hm->watershadername, va("water/%s", hm->path), sizeof(hm->watershadername));
 		if (skyname)
 			hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
 		else
@@ -4433,7 +4559,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	mod->mins[0] = (hm->firstsegx - CHUNKBIAS) * hm->sectionsize;
 	mod->mins[1] = (hm->firstsegy - CHUNKBIAS) * hm->sectionsize;
 	mod->mins[2] = -999999999999999999999999.f;
-	mod->maxs[0] = (hm->maxsegy - CHUNKBIAS) * hm->sectionsize;
+	mod->maxs[0] = (hm->maxsegx - CHUNKBIAS) * hm->sectionsize;
 	mod->maxs[1] = (hm->maxsegy - CHUNKBIAS) * hm->sectionsize;
 	mod->maxs[2] = 999999999999999999999999.f;
 
@@ -4525,6 +4651,10 @@ void Mod_Terrain_Create_f(void)
 			"_minysegment -2048\n"
 			"_maxxsegment 2048\n"
 			"_maxysegment 2048\n"
+			"//_defaultgroundtexture city4_2\n"
+			"//_defaultwatertexture *water2\n"
+			"//_defaultgroundheight -1024\n"
+			"//_defaultwaterheight 0\n"	//hurrah, sea level.
 //			"_tiles 64 64 8 8\n"
 		"}\n"
 		"{\n"
@@ -4533,6 +4663,8 @@ void Mod_Terrain_Create_f(void)
 		"}\n"
 		, Cmd_Argv(2));
 	COM_WriteFile(mname, mdata, strlen(mdata));
+
+	//FIXME: create 4 sections around the origin
 }
 //reads in the terrain a tile at a time, and writes it out again.
 //the new version will match our current format version.

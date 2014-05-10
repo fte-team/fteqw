@@ -25,13 +25,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 
-#ifndef SERVERONLY	//FIXME
+#if 1//ndef SERVERONLY	//FIXME
 #include "glquake.h"
 #include "com_mesh.h"
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
 extern cvar_t gl_lightmap_average;
+
+#ifdef SERVERONLY
+cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
+cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
+cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
+texture_t	r_notexture_mip_real;
+texture_t	*r_notexture_mip = &r_notexture_mip_real;
+#endif
 
 qboolean isnotmap = true;	//used to not warp ammo models.
 
@@ -53,7 +61,7 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
 qboolean Mod_LoadDoomLevel(model_t *mod);
 #endif
 
-#ifdef DOOMWADS
+#ifdef DSPMODELS
 void Mod_LoadDoomSprite (model_t *mod);
 #endif
 
@@ -95,8 +103,8 @@ void Mod_UpdateLightmap(int snum)
 }
 #endif
 
-
-void Mod_MemList_f(void)
+#ifndef SERVERONLY
+static void Mod_MemList_f(void)
 {
 	int m;
 	model_t *mod;
@@ -110,7 +118,7 @@ void Mod_MemList_f(void)
 	Con_Printf("Total: %i bytes\n", total);
 }
 
-void Mod_BatchList_f(void)
+static void Mod_BatchList_f(void)
 {
 	int m, i;
 	model_t *mod;
@@ -147,7 +155,7 @@ void Mod_BatchList_f(void)
 	}
 }
 
-void Mod_TextureList_f(void)
+static void Mod_TextureList_f(void)
 {
 	int m, i;
 	texture_t *tx;
@@ -190,7 +198,7 @@ void Mod_TextureList_f(void)
 		Con_Printf("%u\n", count);
 }
 
-void Mod_BlockTextureColour_f (void)
+static void Mod_BlockTextureColour_f (void)
 {
 	char texname[64];
 	model_t *mod;
@@ -236,7 +244,7 @@ void Mod_BlockTextureColour_f (void)
 		}
 	}
 }
-
+#endif
 
 
 #if defined(RUNTIMELIGHTING) && defined(MULTITHREAD)
@@ -476,7 +484,9 @@ void Mod_Purge(enum mod_purge_e ptype)
 				//brush models cannot be safely flushed.
 				if (!unused && ptype != MP_RESET)
 					continue;
+#ifndef SERVERONLY
 				Surf_Clear(mod);
+#endif
 			}
 
 #ifdef TERRAIN
@@ -511,17 +521,21 @@ void Mod_Init (qboolean initial)
 		mod_numknown = 0;
 		Q1BSP_Init();
 
+#ifndef SERVERONLY
 		Cmd_AddCommand("mod_memlist", Mod_MemList_f);
 		Cmd_AddCommand("mod_batchlist", Mod_BatchList_f);
 		Cmd_AddCommand("mod_texturelist", Mod_TextureList_f);
 		Cmd_AddCommand("mod_usetexture", Mod_BlockTextureColour_f);
+#endif
 	}
 
 	if (initial)
 	{
 		Alias_Register();
 
+#ifdef SPRMODELS
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 Sprite (spr)",			IDSPRITEHEADER,							Mod_LoadSpriteModel);
+#endif
 #ifdef SP2MODELS
 		Mod_RegisterModelFormatMagic(NULL, "Quake2 Sprite (sp2)",			IDSPRITE2HEADER,						Mod_LoadSprite2Model);
 #endif
@@ -837,7 +851,9 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 		mod->maxs[2] = 16;
 		mod->needload = false;
 		mod->engineflags = 0;
+#ifndef SERVERONLY
 		P_LoadedModel(mod);
+#endif
 		return mod;
 	}
 	
@@ -927,7 +943,7 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 			if (!buf)
 			{
-#ifdef DOOMWADS
+#ifdef DSPMODELS
 				if (doomsprite) // special case needed for doom sprites
 				{
 					mod->needload = false;
@@ -962,8 +978,10 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 		{
 			if (!modelloaders[i].load(mod, buf, com_filesize))
 				continue;
+#ifndef SERVERONLY
 			if (mod->type == mod_brush)
 				Surf_BuildModelLightmaps(mod);
+#endif
 		}
 		else
 		{
@@ -997,8 +1015,10 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 #endif
 */
 
+#ifndef SERVERONLY
 		P_LoadedModel(mod);
 		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
+#endif
 
 		TRACE(("Mod_LoadModel: Loaded\n"));
 
@@ -1045,7 +1065,9 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 	mod->maxs[2] = 16;
 	mod->needload = 2;
 	mod->engineflags = 0;
+#ifndef SERVERONLY
 	P_LoadedModel(mod);
+#endif
 	return mod;
 }
 
@@ -1264,6 +1286,7 @@ void Mod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *g
 
 void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 {
+#ifndef SERVERONLY
 	extern cvar_t gl_shadeq1_name;
 	char altname[MAX_QPATH];
 	char *star;
@@ -1285,14 +1308,16 @@ void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 	}
 
 	R_BuildDefaultTexnums(&tn, tx->shader);
+#endif
 }
 
 #define LMT_DIFFUSE 1
 #define LMT_FULLBRIGHT 2
 #define LMT_BUMP 4
 #define LMT_SPEC 8
-void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
+static void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 {
+#ifndef SERVERONLY
 	char altname[256];
 	qbyte *base;
 	qboolean alphaed;
@@ -1414,6 +1439,7 @@ void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 			}
 		}
 	}
+#endif
 }
 
 /*
@@ -1627,6 +1653,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
 void Mod_NowLoadExternal(void)
 {
+#ifndef SERVERONLY
 	int i, width, height;
 	qboolean alphaed;
 	texture_t	*tx;
@@ -1693,6 +1720,7 @@ void Mod_NowLoadExternal(void)
 		}
 		Mod_FinishTexture(tx, tn);
 	}
+#endif
 }
 
 qbyte lmgamma[256];
@@ -1768,6 +1796,7 @@ void Mod_LoadLighting (lump_t *l)
 	if (!samples)
 		return;
 
+#ifndef SERVERONLY
 	if (!luxdata && r_loadlits.ival && r_deluxemapping.ival)
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
@@ -1927,6 +1956,7 @@ void Mod_LoadLighting (lump_t *l)
 //		else
 			//failed to find
 	}
+#endif
 
 #ifdef RUNTIMELIGHTING
 	if (r_loadlits.value == 2 && !lightmodel && (!litdata || (!luxdata && r_deluxemapping.ival)))
@@ -2007,8 +2037,10 @@ void Mod_LoadLighting (lump_t *l)
 		*out++ = lmgamma[*litdata++];
 	}
 
+#ifndef SERVERONLY
 	if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
 		SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
+#endif
 }
 
 /*
@@ -2485,6 +2517,7 @@ qboolean Mod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 	return true;
 }
 
+#ifndef SERVERONLY
 void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 {
 	int i, lindex;
@@ -3115,7 +3148,7 @@ void Mod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mo
 	if (BE_GenBrushModelVBO)
 		BE_GenBrushModelVBO(mod);
 }
-
+#endif
 
 /*
 =================
@@ -3985,27 +4018,7 @@ qboolean Mod_LoadPlanes (lump_t *l)
 	return true;
 }
 
-/*
-=================
-RadiusFromBounds
-=================
-*/
-
-float RadiusFromBounds (vec3_t mins, vec3_t maxs);
-/*
-{
-	int		i;
-	vec3_t	corner;
-
-	for (i=0 ; i<3 ; i++)
-	{
-		corner[i] = fabs(mins[i]) > fabs(maxs[i]) ? fabs(mins[i]) : fabs(maxs[i]);
-	}
-
-	return Length (corner);
-}
-*/
-
+#ifndef SERVERONLY
 //combination of R_AddDynamicLights and R_MarkLights
 static void Q1BSP_StainNode (mnode_t *node, float *parms)
 {
@@ -4043,6 +4056,7 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 	Q1BSP_StainNode (node->children[0], parms);
 	Q1BSP_StainNode (node->children[1], parms);
 }
+#endif
 
 void Mod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 {
@@ -4073,7 +4087,8 @@ void Mod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 	}
 
 }
-void Mod_FixupMinsMaxs(void)
+
+static void Mod_FixupMinsMaxs(void)
 {
 	//q1 bsps are capped to +/- 32767 by the nodes/leafs
 	//verts arn't though
@@ -4125,17 +4140,17 @@ void Mod_FixupMinsMaxs(void)
 				lnumverts = surf->numedges;
 				for (en=0 ; en<lnumverts ; en++)
 				{
-					lindex = currentmodel->surfedges[surf->firstedge + en];
+					lindex = loadmodel->surfedges[surf->firstedge + en];
 
 					if (lindex > 0)
 					{
 						e = &pedges[lindex];
-						v = currentmodel->vertexes[e->v[0]].position;
+						v = loadmodel->vertexes[e->v[0]].position;
 					}
 					else
 					{
 						e = &pedges[-lindex];
-						v = currentmodel->vertexes[e->v[1]].position;
+						v = loadmodel->vertexes[e->v[1]].position;
 					}
 
 					if (pleaf->minmaxs[0] > v[0])
@@ -4184,6 +4199,9 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	
 	header = (dheader_t *)buffer;
 
+#ifdef SERVERONLY
+	isnotmap = !!sv.world.worldmodel;
+#else
 	if ((!cl.worldmodel && cls.state>=ca_connected)
 #ifndef CLIENTONLY
 		|| (!sv.world.worldmodel && sv.active)
@@ -4192,6 +4210,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 		isnotmap = false;
 	else
 		isnotmap = true;
+#endif
 
 	i = LittleLong (header->version);
 
@@ -4267,18 +4286,10 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	crouchhullfile = NULL;
 
 	TRACE(("Loading info\n"));
-#ifndef CLIENTONLY
-	if (sv.state)	//if the server is running
-	{
-		if (!strcmp(loadmodel->name, va("maps/%s.bsp", sv.name)))
-			Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-	}
-	else
+#ifndef SERVERONLY
+	if (!isnotmap)
+		Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
 #endif
-	{
-		if (!cl.model_precache[1])	//not copied across yet
-			Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-	}
 
 // load into heap
 	if (!isDedicated || ode)
@@ -4357,9 +4368,11 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	TRACE(("LoadBrushModel %i\n", __LINE__));
 	Q1BSP_SetModelFuncs(mod);
 	TRACE(("LoadBrushModel %i\n", __LINE__));
+#ifndef SERVERONLY
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
-	mod->funcs.StainNode			= Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
+	mod->funcs.StainNode			= Q1BSP_StainNode;
+#endif
 
 	mod->numframes = 2;		// regular and alternate animation
 	
@@ -4371,6 +4384,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	{
 		bm = &mod->submodels[i];
 
+		mod->rootnode = mod->nodes + bm->headnode[0];
 		mod->hulls[0].firstclipnode = bm->headnode[0];
 		mod->hulls[0].available = true;
 		Q1BSP_CheckHullNodes(&mod->hulls[0]);
@@ -4404,7 +4418,9 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 		if (meshlist)
 		{
+#ifndef SERVERONLY
 			Mod_Batches_Build(meshlist, mod, NULL, NULL);
+#endif
 		}
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 
@@ -4447,6 +4463,7 @@ ALIAS MODELS
 
 //=========================================================
 
+#ifdef SPRMODELS
 /*
 =================
 Mod_LoadSpriteFrame
@@ -4755,6 +4772,7 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
 
 	return true;
 }
+#endif
 
 #ifdef SP2MODELS
 qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize)
@@ -4843,7 +4861,7 @@ qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize)
 }
 #endif
 
-#ifdef DOOMWADS
+#ifdef DSPMODELS
 
 typedef struct {
 	short width;

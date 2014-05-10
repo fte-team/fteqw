@@ -195,22 +195,6 @@ void P_Shutdown(void)
 	pe = NULL;
 }
 
-#ifdef Q2BSPS
-qboolean Q2TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
-{
-	vec3_t nul = {0,0,0};
-	trace_t trace = CM_BoxTrace(pmove.physents[0].model, start, end, nul, nul, MASK_WORLDSOLID);
-
-	if (trace.fraction < 1)
-	{
-		VectorCopy (trace.plane.normal, normal);
-		VectorCopy (trace.endpos, impact);
-		return true;
-	}
-	return false;
-}
-#endif
-
 qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 {
 	trace_t		trace;

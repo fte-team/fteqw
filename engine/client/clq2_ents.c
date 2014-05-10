@@ -118,11 +118,6 @@ void CLQ2_ClearState(void)
 	memset(cl_entities, 0, sizeof(cl_entities));
 }
 
-//extern	struct model_s	*cl_mod_powerscreen;
-
-//PGM
-int	vidref_val;
-//PGM
 #include "q2m_flash.c"
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number)
 {
@@ -130,12 +125,25 @@ void CLQ2_RunMuzzleFlash2 (int ent, int flash_number)
 	dlight_t	*dl;
 	vec3_t		forward, right, up;
 	char		soundname[64];
+	int ef;
+
+	if (flash_number < 0 || flash_number >= sizeof(monster_flash_offset)/sizeof(monster_flash_offset[0]))
+		return;
 
 	// locate the origin
 	AngleVectors (cl_entities[ent].current.angles, forward, right, up);
-	origin[0] = cl_entities[ent].current.origin[0] + forward[0] * monster_flash_offset[flash_number][0] + right[0] * monster_flash_offset[flash_number][1];
-	origin[1] = cl_entities[ent].current.origin[1] + forward[1] * monster_flash_offset[flash_number][0] + right[1] * monster_flash_offset[flash_number][1];
-	origin[2] = cl_entities[ent].current.origin[2] + forward[2] * monster_flash_offset[flash_number][0] + right[2] * monster_flash_offset[flash_number][1] + monster_flash_offset[flash_number][2];
+	origin[0] = cl_entities[ent].current.origin[0] + forward[0] * monster_flash_offset[flash_number].offset[0] + right[0] * monster_flash_offset[flash_number].offset[1];
+	origin[1] = cl_entities[ent].current.origin[1] + forward[1] * monster_flash_offset[flash_number].offset[0] + right[1] * monster_flash_offset[flash_number].offset[1];
+	origin[2] = cl_entities[ent].current.origin[2] + forward[2] * monster_flash_offset[flash_number].offset[0] + right[2] * monster_flash_offset[flash_number].offset[1] + monster_flash_offset[flash_number].offset[2];
+
+	ef = P_FindParticleType(monster_flash_offset[flash_number].name);
+	if (ef != P_INVALID)
+	{
+		P_RunParticleEffectType(origin, NULL, 1, ef);
+		return;
+	}
+
+	//the rest of the function is legacy code.
 
 	dl = CL_AllocDlight (ent);
 	VectorCopy (origin,  dl->origin);
@@ -491,9 +499,6 @@ void CLQ2_RunMuzzleFlash2 (int ent, int flash_number)
 
   //hmm... he must take AGES on the loo.... :p
 	}
-	dl->color[0] /= 5;
-	dl->color[1] /= 5;
-	dl->color[2] /= 5;
 }
 
 /*
@@ -1310,9 +1315,6 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				ent.model = player->model;
 				if (!ent.model || ent.model->needload)	//we need to do better than this
 				{
-					char *pmodel = Info_ValueForKey(player->userinfo, "model");
-					if (*pmodel)
-						ent.model = Mod_ForName(va("players/%s/tris.md2", pmodel), MLV_WARN);
 					if (!ent.model || ent.model->needload)
 						ent.model = Mod_ForName("players/male/tris.md2", MLV_SILENT);
 				}

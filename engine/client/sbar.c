@@ -388,7 +388,6 @@ void Sbar_ExecuteLayoutString (char *s)
 			value = atoi(com_token);
 			if (value >= MAX_CLIENTS || value < 0)
 				Host_EndGame ("client >= MAX_CLIENTS");
-//			ci = &cl.clientinfo[value];
 
 			s = COM_Parse (s);
 			score = atoi(com_token);
@@ -405,9 +404,10 @@ void Sbar_ExecuteLayoutString (char *s)
 			Draw_FunString (x+32, y+16, va("Ping:  %i", ping));
 			Draw_FunString (x+32, y+24, va("Time:  %i", time));
 
-//			if (!ci->icon)
-//				ci = &cl.baseclientinfo;
-//			Draw_Pic (x, y, R2D_SafeCachePic(ci->iconname));
+			p = R2D_SafeCachePic(va("players/%s_i.pcx", cl.players[value].skin->name));
+			if (!p)	//display a default if the icon couldn't be found.
+				p = R2D_SafeCachePic(va("players/male/grunt_i.pcx", cl.players[value].skin->name));
+			R2D_ScalePic (x, y, 32, 32, p);
 			continue;
 		}
 
@@ -427,7 +427,6 @@ void Sbar_ExecuteLayoutString (char *s)
 			value = atoi(com_token);
 			if (value >= MAX_CLIENTS || value < 0)
 				Host_EndGame ("client >= MAX_CLIENTS");
-//			ci = &cl.clientinfo[value];
 
 			s = COM_Parse (s);
 			score = atoi(com_token);
@@ -437,7 +436,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			if (ping > 999)
 				ping = 999;
 
-			sprintf(block, "%3d %3d %-12.12s", score, ping, "Player"/*ci->name*/);
+			sprintf(block, "%3d %3d %-12.12s", score, ping, cl.players[value].name);
 
 //			if (value == cl.playernum)
 //				Draw_Alt_String (x, y, block);

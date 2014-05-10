@@ -528,7 +528,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 		grabmouse = false;
 
 	//visiblity
-	if (grabmouse)
+	if (grabmouse || (mousecursor_x > 0 && mousecursor_y > 0 && mousecursor_x < vid.pixelwidth && mousecursor_y < vid.pixelheight))
 		INS_HideMouse();
 	else
 		INS_ShowMouse();

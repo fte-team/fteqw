@@ -1329,7 +1329,7 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 	}
 	else
 	{
-		short datas = (int)(in*8);
+		short datas = (int)(in*8)&0xffff;
 
 		datas = LittleShort(datas);
 		NPP_AddData(&datas, sizeof(short));

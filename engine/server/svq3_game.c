@@ -2544,7 +2544,7 @@ void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
 	str = refpacknames;//FS_GetPackNames(buffer, sizeof(buffer), true);
 	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, sizeof(sysinfo));
 
-Con_Printf("Sysinfo: %s\n", sysinfo);
+//Con_Printf("Sysinfo: %s\n", sysinfo);
 	str = "0";
 	Info_SetValueForKey(sysinfo, "sv_pure", str, sizeof(sysinfo));
 
@@ -3223,7 +3223,9 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 
 	if (net_message.cursize < 13)
 		return;
+#ifdef HUFFNETWORK
 	Huff_DecryptPacket(&net_message, 12);
+#endif
 
 
 	Cmd_TokenizeString((char*)net_message.data+4, false, false);
@@ -3235,7 +3237,15 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	if (!cl)
 		cl = SVQ3_FindEmptyPlayerSlot();
 
-	if (!cl)
+#ifdef HUFFNETWORK
+	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))
+	{
+		reason = "Could not set up compression.";
+		userinfo = NULL;
+	}
+	else
+#endif
+		if (!cl)
 	{
 		reason = "Server is full.";
 		userinfo = NULL;
@@ -3251,10 +3261,6 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 			reason = "Invalid challenge";
 		else
 		{
-#ifndef SERVERONLY
-			if (net_from.type == NA_LOOPBACK)
-				cls.challenge = challenge = 500;
-#endif
 			Q_strncpyz(cl->userinfo, userinfo, sizeof(cl->userinfo));
 			reason = NET_AdrToString(adr, sizeof(adr), &net_from);
 			Info_SetValueForStarKey(cl->userinfo, "ip", reason, sizeof(cl->userinfo));
@@ -3289,8 +3295,6 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	cl->gamestatesequence = -1;
 
 	NET_SendPacket (NS_SERVER, 19, "\377\377\377\377connectResponse", &net_from);
-
-	Huff_PreferedCompressionCRC();
 
 	cl->frameunion.q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*cl->frameunion.q3frames));
 }

@@ -209,7 +209,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	parms[6] = blue;
 
 
-	cl.worldmodel->funcs.StainNode(cl.worldmodel->nodes+cl.worldmodel->hulls[0].firstclipnode, parms);
+	cl.worldmodel->funcs.StainNode(cl.worldmodel->rootnode, parms);
 
 	//now stain bsp models other than world.
 
@@ -233,7 +233,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 			}
 
 
-			pe->model->funcs.StainNode(pe->model->nodes+pe->model->hulls[0].firstclipnode, parms);
+			pe->model->funcs.StainNode(pe->model->rootnode, parms);
 		}
 	}
 }
@@ -2173,8 +2173,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 				if (!(cl_dlights[k].flags & LFLAG_LIGHTMAP))
 					continue;
 
-				model->funcs.MarkLights (&cl_dlights[k], 1<<k,
-					model->nodes + model->hulls[0].firstclipnode);
+				model->funcs.MarkLights (&cl_dlights[k], 1<<k, model->rootnode);
 			}
 		}
 

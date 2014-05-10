@@ -1811,7 +1811,6 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	{
 #ifdef Q3SERVER
 	case SCP_QUAKE3:
-		Huff_PreferedCompressionCRC();
 		if (client->frameunion.q3frames)
 			Z_Free(client->frameunion.q3frames);
 		client->frameunion.q3frames = Z_Malloc(Q3UPDATE_BACKUP*sizeof(*client->frameunion.q3frames));
@@ -2721,7 +2720,12 @@ client_t *SVC_DirectConnect(void)
 
 		//this is used by q3 (note, we already decrypted the huffman connection packet in a hack)
 		if (!sv_listen_q3.value)
+		{
+			if (!sv_listen_nq.value)
+				SV_RejectMessage (SCP_DARKPLACES6, "Server is not accepting quake3 clients at this time.\n", version_string());
+			Con_TPrintf ("* rejected connect from q3 client\n");
 			return NULL;
+		}
 		numssclients = 1;
 		protocol = SCP_QUAKE3;
 
@@ -2748,11 +2752,20 @@ client_t *SVC_DirectConnect(void)
 		s = Info_ValueForKey(userinfo[0], "name");
 		if (!*s)
 			Info_SetValueForKey(userinfo[0], "name", "UnnamedQ3", sizeof(userinfo[0]));
+
+#ifdef HUFFNETWORK
+		huffcrc = HUFFCRC_QUAKE3;
+#endif
 	}
 	else if (*(Cmd_Argv(0)+7) == '\\')
 	{	//DP has the userinfo attached directly to the end of the connect command
 		if (!sv_listen_dp.value)
+		{
+			if (!sv_listen_nq.value)
+				SV_RejectMessage (SCP_DARKPLACES6, "Server is not accepting darkplaces clients at this time.\n", version_string());
+			Con_TPrintf ("* rejected connect from dp client\n");
 			return NULL;
+		}
 		Q_strncpyz (userinfo[0], net_message.data + 11, sizeof(userinfo[0])-1);
 
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
@@ -2903,6 +2916,7 @@ client_t *SVC_DirectConnect(void)
 			}
 			break;
 		case PROTOCOL_VERSION_HUFFMAN:
+#ifdef HUFFNETWORK
 			huffcrc = Q_atoi(Cmd_Argv(1));
 			Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
 			if (!net_compress.ival || !Huff_CompressionCRC(huffcrc))
@@ -2911,6 +2925,7 @@ client_t *SVC_DirectConnect(void)
 				Con_TPrintf ("* rejected - bad compression state\n");
 				return NULL;
 			}
+#endif
 			break;
 		case PROTOCOL_VERSION_FRAGMENT:
 			mtu = Q_atoi(Cmd_Argv(1)) & ~7;
@@ -3265,6 +3280,13 @@ client_t *SVC_DirectConnect(void)
 	case GT_LUA:
 #endif
 	case GT_PROGS:
+		if (protocol == SCP_QUAKE2)
+		{
+			SV_RejectMessage(protocol, "This is a Quake server.");
+			Con_DPrintf ("* Rejected q2 client.\n");
+			return NULL;
+		}
+
 		if (svprogfuncs)
 			ent = EDICT_NUM(svprogfuncs, edictnum);
 		else
@@ -3279,6 +3301,7 @@ client_t *SVC_DirectConnect(void)
 			if (reject)
 			{
 				SV_RejectMessage(protocol, "%s", reject);
+				Con_DPrintf ("* Game rejected a connection.\n");
 				return NULL;
 			}
 		}
@@ -3287,12 +3310,26 @@ client_t *SVC_DirectConnect(void)
 
 #ifdef Q2SERVER
 	case GT_QUAKE2:
+		if (protocol != SCP_QUAKE2)
+		{
+			SV_RejectMessage(protocol, "This is a Quake2 server.");
+			Con_DPrintf ("* Rejected non-q2 client.\n");
+			return NULL;
+		}
 		q2ent = Q2EDICT_NUM(edictnum);
 		temp.edict = NULL;
 		temp.q2edict = q2ent;
 
 		if (!ge->ClientConnect(q2ent, temp.userinfo))
+		{
+			const char *reject = Info_ValueForKey(temp.userinfo, "rejmsg");
+			if (*reject)
+				SV_RejectMessage(protocol, "%s\nConnection Refused.", reject);
+			else
+				SV_RejectMessage(protocol, "Connection Refused.");
+			Con_DPrintf ("Game rejected a connection.\n");
 			return NULL;
+		}
 
 		ge->ClientUserinfoChanged(q2ent, temp.userinfo);
 
@@ -3337,10 +3374,12 @@ client_t *SVC_DirectConnect(void)
 
 	Netchan_Setup (NS_SERVER, &newcl->netchan, &adr, qport);
 
+#ifdef HUFFNETWORK
 	if (huffcrc)
-		newcl->netchan.compress = true;
+		newcl->netchan.compresstable = Huff_CompressionCRC(huffcrc);
 	else
-		newcl->netchan.compress = false;
+#endif
+		newcl->netchan.compresstable = NULL;
 	if (mtu >= 64)
 	{
 		newcl->netchan.fragmentsize = mtu;
@@ -3929,7 +3968,9 @@ qboolean SV_ConnectionlessPacket (void)
 			if (!strstr(s, "\\name\\"))
 			{	//if name isn't in the string, assume they're q3
 				//this isn't quite true though, hence the listen check. but users shouldn't be connecting with an empty name anyway. more fool them.
+#ifdef HUFFNETWORK
 				Huff_DecryptPacket(&net_message, 12);
+#endif
 				MSG_BeginReading(svs.netprim);
 				MSG_ReadLong();
 				s = MSG_ReadStringLine();

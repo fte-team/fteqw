@@ -9233,7 +9233,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, ...)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
 	{"stov",			PF_stov,			0,		0,		0,		117, "vector(string s)"},	// (FRIK_FILE)
-	{"strzone",			PF_dupstring,		0,		0,		0,		118, "string(string s)"},	// (FRIK_FILE)
+	{"strzone",			PF_dupstring,		0,		0,		0,		118, "string(string s, ...)"},	// (FRIK_FILE)
 	{"strunzone",		PF_forgetstring,	0,		0,		0,		119, "void(string s)"},	// (FRIK_FILE)
 //end frikfile
 

@@ -4540,41 +4540,41 @@ void CLQ2_ParseMuzzleFlash (void)
 	switch (weapon)
 	{
 	case Q2MZ_BLASTER:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/blastf1a.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_BLUEHYPERBLASTER:
-		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 0.2;
+		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 1;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/hyprbf1a.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_HYPERBLASTER:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/hyprbf1a.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_MACHINEGUN:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
 		break;
 
 	case Q2MZ_SHOTGUN:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotgf1b.wav"), volume, ATTN_NORM, 0);
 		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/shotgr1b.wav"), volume, ATTN_NORM, 0.1);
 		break;
 	case Q2MZ_SSHOTGUN:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/sshotf1b.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_CHAINGUN1:
 		dl->radius = 200 + (rand()&31);
-		dl->color[0] = 0.2;dl->color[1] = 0.05;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 0.25;dl->color[2] = 0;
 		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_CHAINGUN2:
 		dl->radius = 225 + (rand()&31);
-		dl->color[0] = 0.2;dl->color[1] = 0.1;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
 		dl->die = cl.time  + 0.1;	// long delay
 		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
@@ -4583,7 +4583,7 @@ void CLQ2_ParseMuzzleFlash (void)
 		break;
 	case Q2MZ_CHAINGUN3:
 		dl->radius = 250 + (rand()&31);
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		dl->die = cl.time  + 0.1;	// long delay
 		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
@@ -4594,92 +4594,92 @@ void CLQ2_ParseMuzzleFlash (void)
 		break;
 
 	case Q2MZ_RAILGUN:
-		dl->color[0] = 0.1;dl->color[1] = 0.1;dl->color[2] = 0.2;
+		dl->color[0] = 0.5;dl->color[1] = 0.5;dl->color[2] = 1;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/railgf1a.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_ROCKET:
-		dl->color[0] = 0.2;dl->color[1] = 0.1;dl->color[2] = 0.04;
+		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0.2;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rocklf1a.wav"), volume, ATTN_NORM, 0);
 		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/rocklr1b.wav"), volume, ATTN_NORM, 0.1);
 		break;
 	case Q2MZ_GRENADE:
-		dl->color[0] = 0.2;dl->color[1] = 0.1;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), volume, ATTN_NORM, 0);
 		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/grenlr1b.wav"), volume, ATTN_NORM, 0.1);
 		break;
 	case Q2MZ_BFG:
-		dl->color[0] = 0;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/bfg__f1y.wav"), volume, ATTN_NORM, 0);
 		break;
 
 	case Q2MZ_LOGIN:
-		dl->color[0] = 0;dl->color[1] = 0.2; dl->color[2] = 0;
+		dl->color[0] = 0;dl->color[1] = 1; dl->color[2] = 0;
 		dl->die = cl.time + 1.0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
 //		CL_LogoutEffect (pl->current.origin, weapon);
 		break;
 	case Q2MZ_LOGOUT:
-		dl->color[0] = 0.2;dl->color[1] = 0; dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 0; dl->color[2] = 0;
 		dl->die = cl.time + 1.0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
 //		CL_LogoutEffect (pl->current.origin, weapon);
 		break;
 	case Q2MZ_RESPAWN:
-		dl->color[0] = 0.2;dl->color[1] = 0.2; dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1; dl->color[2] = 0;
 		dl->die = cl.time + 1.0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
 //		CL_LogoutEffect (pl->current.origin, weapon);
 		break;
 	// RAFAEL
 	case Q2MZ_PHALANX:
-		dl->color[0] = 0.2;dl->color[1] = 0.1; dl->color[2] = 0.1;
+		dl->color[0] = 1;dl->color[1] = 0.5; dl->color[2] = 0.5;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/plasshot.wav"), volume, ATTN_NORM, 0);
 		break;
 	// RAFAEL
 	case Q2MZ_IONRIPPER:
-		dl->color[0] = 0.2;dl->color[1] = 0.1; dl->color[2] = 0.1;
+		dl->color[0] = 1;dl->color[1] = 0.5; dl->color[2] = 0.5;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rippfire.wav"), volume, ATTN_NORM, 0);
 		break;
 
 // ======================
 // PGM
 	case Q2MZ_ETF_RIFLE:
-		dl->color[0] = 0.18;dl->color[1] = 0.14;dl->color[2] = 0;
+		dl->color[0] = 0.9;dl->color[1] = 0.7;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/nail1.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_SHOTGUN2:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotg2.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_HEATBEAM:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		dl->die = cl.time + 100;
 	//	Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/bfg__l1a.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_BLASTER2:
-		dl->color[0] = 0;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
 		// FIXME - different sound for blaster2 ??
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/blastf1a.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_TRACKER:
 		// negative flashes handled the same in gl/soft until CL_AddDLights
-		dl->color[0] = -0.2;dl->color[1] = -0.2;dl->color[2] = -0.2;
+		dl->color[0] = -1;dl->color[1] = -1;dl->color[2] = -1;
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/disint2.wav"), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_NUKE1:
-		dl->color[0] = 0.2;dl->color[1] = 0;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 0;dl->color[2] = 0;
 		dl->die = cl.time + 100;
 		break;
 	case Q2MZ_NUKE2:
-		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
 		dl->die = cl.time + 100;
 		break;
 	case Q2MZ_NUKE4:
-		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 0.2;
+		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 1;
 		dl->die = cl.time + 100;
 		break;
 	case Q2MZ_NUKE8:
-		dl->color[0] = 0;dl->color[1] = 0.2;dl->color[2] = 0.2;
+		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 1;
 		dl->die = cl.time + 100;
 		break;
 // PGM

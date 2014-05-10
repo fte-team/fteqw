@@ -1719,12 +1719,13 @@ void SCR_SetUpToDrawConsole (void)
 			//go fullscreen if we're not doing anything
 #ifdef VM_UI
 			if (UI_MenuState() || UI_OpenMenu())
-				;
+				scr_con_current = scr_conlines = 0;
 			else
 #endif
 				if (cls.state < ca_demostart)
 					Key_Dest_Add(kdm_console);
-			scr_con_current = scr_conlines = vid.height * fullscreenpercent;
+			if (Key_Dest_Has(kdm_console))
+				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		}
 		else if (Key_Dest_Has(kdm_console) || scr_chatmode)
 		{

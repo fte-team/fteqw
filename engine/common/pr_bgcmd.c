@@ -2556,7 +2556,7 @@ void QCBUILTIN PF_dupstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *buf;
-	int len = 0;
+	size_t len = 0;
 	const char *s[8];
 	int l[8];
 	int i;
@@ -2568,13 +2568,16 @@ void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 	len++; /*for the null*/
 	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &buf, len);
-	len = 0;
-	for (i = 0; i < prinst->callargc; i++)
+	if (buf)
 	{
-		memcpy(buf, s[i], l[i]);
-		buf += l[i];
+		len = 0;
+		for (i = 0; i < prinst->callargc; i++)
+		{
+			memcpy(buf, s[i], l[i]);
+			buf += l[i];
+		}
+		*buf = '\0';
 	}
-	*buf = '\0';
 }
 
 //returns a section of a string as a tempstring

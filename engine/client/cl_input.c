@@ -1769,6 +1769,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 	if (fullsend)
 	{
+		if (!cls.state)
+		{
+			msecs -= (double)msecstouse;
+			return;
+		}
 		switch (cls.protocol)
 		{
 #ifdef NQPROT

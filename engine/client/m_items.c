@@ -665,16 +665,14 @@ static void MenuDraw(menu_t *menu)
 
 menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign)
 {
-	menutext_t *n = Z_Malloc(sizeof(menutext_t));
+	menutext_t *n = Z_Malloc(sizeof(menutext_t) + (text?strlen(text):0)+1);
 	n->common.type = mt_text;
 	n->common.iszone = true;
 	n->common.posx = lhs;
 	n->common.posy = y;
-	n->common.width = rhs?rhs-lhs:0;
-	n->text = text;
-
-	if (rightalign && text)
-		n->common.posx -= strlen(text)*8;
+	n->common.width = (rhs && rightalign)?rhs-lhs:0;
+	n->text = (char*)(n+1);
+	strcpy((char*)(n+1), (text?text:""));
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -704,14 +702,14 @@ menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char
 menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign)
 {
 	menutext_t *n;
-	n = MC_AddWhiteText(menu, lhs, rhs, y, text, false);
+	n = MC_AddWhiteText(menu, lhs, rhs, y, text, rightalign);
 	n->isred = true;
 	return n;
 }
 
-menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command)
+menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip)
 {
-	menubind_t *n = Z_Malloc(sizeof(*n) + strlen(caption)+1 + strlen(command)+1);
+	menubind_t *n = Z_Malloc(sizeof(*n) + strlen(caption)+1 + strlen(command)+1 + (tooltip?strlen(tooltip)+1:0));
 	n->common.type = mt_bind;
 	n->common.iszone = true;
 	n->common.posx = cx;
@@ -721,6 +719,11 @@ menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption,
 	strcpy(n->caption, caption);
 	n->command = n->caption+strlen(n->caption)+1;
 	strcpy(n->command, command);
+	if (tooltip)
+	{
+		n->common.tooltip = n->command+strlen(n->command)+1;
+		strcpy(n->common.tooltip, tooltip);
+	}
 	n->common.width = n->captionwidth + 64;
 	n->common.height = 8;
 

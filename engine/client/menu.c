@@ -435,9 +435,19 @@ void M_Menu_Keys_f (void)
 		char line[1024];
 		while(VFS_GETS(bindslist, line, sizeof(line)))
 		{
+			char *cmd, *desc, *tip;
 			Cmd_TokenizeString(line, false, false);
-			MC_AddBind(menu, 16, 170, y, Cmd_Argv(1), Cmd_Argv(0));
-			y += 8;
+			cmd = Cmd_Argv(0);
+			desc = Cmd_Argv(1);
+			tip = Cmd_Argv(2);
+			if (*cmd)
+			{
+				if (strcmp(cmd, "-"))	//lines with a command of "-" are spacers/comments.
+					MC_AddBind(menu, (320-(int)vid.width)/2, 170, y, desc, cmd, tip);
+				else if (*desc)
+					MC_AddRedText(menu, (320-(int)vid.width)/2, 170, y, desc, true);
+				y += 8;
+			}
 		}
 		VFS_CLOSE(bindslist);
 		return;
@@ -445,7 +455,7 @@ void M_Menu_Keys_f (void)
 
 	while (bindnames->name)
 	{
-		MC_AddBind(menu, 16, 170, y, bindnames->name, bindnames->command);
+		MC_AddBind(menu, 16, 170, y, bindnames->name, bindnames->command, NULL);
 		y += 8;
 
 		bindnames++;

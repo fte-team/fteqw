@@ -291,7 +291,7 @@ void M_MenuS_Bind_f (void)
 	if (!*caption)
 		caption = command;
 
-	MC_AddBind(menu_script, x, x+160, y, command, caption);
+	MC_AddBind(menu_script, x, x+160, y, command, caption, NULL);
 }
 
 void M_MenuS_Comboi_f (void)

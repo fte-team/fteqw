@@ -293,7 +293,7 @@ typedef struct menu_s {
 menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign, qboolean red);
 menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign);
 menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign);
-menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command);
+menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname);

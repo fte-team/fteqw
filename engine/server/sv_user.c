@@ -1716,7 +1716,7 @@ void SV_Begin_Core(client_t *split)
 			{
 				eval_t *eval, *eval2;
 				eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL);
-				if (eval && split->spawninfo)
+				if (eval && eval->function && split->spawninfo)
 				{
 					globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 					int j;

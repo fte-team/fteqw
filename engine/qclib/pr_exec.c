@@ -1365,7 +1365,11 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	{
 //		if (pr_global_struct->self)
 //			ED_Print (PROG_TO_EDICT(pr_global_struct->self));
+#ifdef __GNUC__
+		printf("PR_ExecuteProgram: NULL function from exe (address %p)\n", __builtin_return_address(0));
+#else
 		printf("PR_ExecuteProgram: NULL function from exe\n");
+#endif
 //		Host_Error ("PR_ExecuteProgram: NULL function from exe");
 
 //		PR_MoveParms(0, pr_typecurrent);

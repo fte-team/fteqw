@@ -533,7 +533,10 @@ void SVPR_Event_Think(world_t *w, wedict_t *s)
 {
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
-	PR_ExecuteProgram (w->progs, s->v->think);
+	if (!s->v->think)
+		Con_Printf("SSQC entity \"%s\" has nextthink with no think function\n", PR_GetString(w->progs, s->v->classname));
+	else
+		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
 qboolean SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)

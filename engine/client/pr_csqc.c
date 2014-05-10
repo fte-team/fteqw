@@ -5025,7 +5025,10 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)w->edicts);
 	*csqcg.simtime = w->physicstime;
 
-	PR_ExecuteProgram (w->progs, s->v->think);
+	if (!s->v->think)
+		Con_Printf("CSQC entity \"%s\" has nextthink with no think function\n", PR_GetString(w->progs, s->v->classname));
+	else
+		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
 void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)

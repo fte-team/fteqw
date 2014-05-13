@@ -1466,7 +1466,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
 					"#else\n"
-					"#define v_position gl_Vertex\n"
+					"#define v_position gl_Vertex.xyz\n"
 					"#define ftetransform ftransform\n"
 					"uniform mat4 m_modelviewprojection;\n"
 					"#endif\n"
@@ -1533,7 +1533,6 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 		char	str[8192];
 
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
-		qglDeleteShaderObject_(shader);
 		if (!silent)
 		{
 			switch (shadertype)
@@ -1554,6 +1553,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 				Con_Printf("Shader \"%s\" source:\n%s", name, str);
 			}
 		}
+		qglDeleteShaderObject_(shader);
 		return 0;
 	}
 

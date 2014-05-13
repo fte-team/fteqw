@@ -2339,6 +2339,30 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 	S_UnlockMixer();
 }
 
+float S_GetSoundTime(int entnum, int entchannel)
+{
+	int i;
+	float result = -1;	//if we didn't find one
+	soundcardinfo_t *sc;
+	S_LockMixer();
+	for (sc = sndcardinfo; sc && result == -1; sc = sc->next)
+	{
+		for (i = 0; i < sc->total_chans; i++)
+		{
+			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
+			{
+				result = (sc->channel[i].pos>>PITCHSHIFT) / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				break;
+			}
+		}
+		//we found one on this sound device card, ignore others.
+		if (result != -1)
+			break;
+	}
+	S_UnlockMixer();
+	return result;
+}
+
 qboolean S_IsPlayingSomewhere(sfx_t *s)
 {
 	soundcardinfo_t *si;

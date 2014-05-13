@@ -94,7 +94,7 @@ typedef struct
 	int		flags;			// cf_ flags
 	int		looping;		// where to loop, -1 = no looping
 	int		entnum;			// to allow overriding a specific sound
-	int		entchannel;		//int audio_fd
+	int		entchannel;		// to avoid overriding a specific sound too easily
 	vec3_t	origin;			// origin of sound effect
 	vec_t	dist_mult;		// distance multiplier (attenuation/clipK)
 	int		master_vol;		// 0-255 master volume
@@ -116,6 +116,7 @@ typedef struct soundcardinfo_s soundcardinfo_t;
 void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (qboolean final);
+float S_GetSoundTime(int entnum, int entchannel);
 void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);

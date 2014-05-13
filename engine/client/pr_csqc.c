@@ -2833,6 +2833,13 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 	G_FLOAT(OFS_RETURN) = false;
 }
 
+void QCBUILTIN PF_getsoundtime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*entity	= G_WEDICT(prinst, OFS_PARM0);
+	int			channel	= G_FLOAT(OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = S_GetSoundTime(entity, channel);
+}
 static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char		*sample;
@@ -4842,6 +4849,7 @@ static struct {
 	{"loadfromdata",			PF_loadfromdata,			529},
 	{"loadfromfile",			PF_loadfromfile,			530},
 
+	{"getsoundtime",			PF_getsoundtime,			533},
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},

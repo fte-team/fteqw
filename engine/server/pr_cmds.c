@@ -9687,8 +9687,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	//end mvdsv extras
 	//restart dp extras
 //	{"log",				PF_Fixme,			0,		0,		0,		532,	"float(string mname)", true},
-//	{"getsoundtime",	VM_getsoundtime,	0,		0,		0,		533,	"float(entity e, float channel)" STUB},
-	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	"float(string sample)" STUB},
+	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	"float(entity e, float channel)"},
+	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	"float(string sample)"},
 	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	"float(string filename, float bufhandle)"},
 	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	"float(float filehandle, float bufhandle, optional float startpos, optional float numstrings)"},
 //	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},

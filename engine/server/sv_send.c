@@ -818,15 +818,15 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				{
 					vec3_t delta;
 					VectorSubtract(origin, client->edict->v->origin, delta);
-					if (Length(delta) <= 1024)
+					if (DotProduct(delta, delta) <= 1024*1024)
 						goto inrange;
 				}
 
-				// -1 is because pvs rows are 1 based, not 0 based like leafs
-				if (mask != sv.pvs)
+				if (mask != sv.pvs)	//leaf 0 is the solid see-all region, so no point figuring out where the players are
 				{
 					vec3_t pos;
 					VectorAdd(client->edict->v->origin, client->edict->v->view_ofs, pos);
+					// -1 is because pvs rows are 1 based, not 0 based like leafs
 					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, pos)-1;
 					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 					{

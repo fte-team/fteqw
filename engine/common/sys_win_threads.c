@@ -58,7 +58,7 @@ unsigned int WINAPI threadwrapper(void *args)
 	return 0;
 }
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(_MSC_VER)
 const DWORD MS_VC_EXCEPTION=0x406D1388;
 #pragma pack(push,8)
 typedef struct tagTHREADNAME_INFO
@@ -71,23 +71,19 @@ typedef struct tagTHREADNAME_INFO
 #pragma pack(pop)
 void Sys_SetThreadName(unsigned int dwThreadID, char *threadName)
 {
-   THREADNAME_INFO info;
-   info.dwType = 0x1000;
-   info.szName = threadName;
-   info.dwThreadID = dwThreadID;
-   info.dwFlags = 0;
+	THREADNAME_INFO info;
+	info.dwType = 0x1000;
+	info.szName = threadName;
+	info.dwThreadID = dwThreadID;
+	info.dwFlags = 0;
 
-   __try
-   {
-      RaiseException( MS_VC_EXCEPTION, 0, sizeof(info)/sizeof(ULONG_PTR), (ULONG_PTR*)&info );
-   }
-   __except(EXCEPTION_EXECUTE_HANDLER)
-   {
-   }
-
-#ifdef CATCHCRASH
-	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
-#endif
+	__try
+	{
+		RaiseException( MS_VC_EXCEPTION, 0, sizeof(info)/sizeof(ULONG_PTR), (ULONG_PTR*)&info );
+	}
+	__except(EXCEPTION_EXECUTE_HANDLER)
+	{
+	}
 }
 #endif
 
@@ -114,8 +110,11 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 		return NULL;
 	}
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(_MSC_VER)
 	Sys_SetThreadName(tid, name);
+#endif
+#ifdef CATCHCRASH
+	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
 #endif
 
 	return (void *)handle;

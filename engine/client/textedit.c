@@ -22,16 +22,16 @@ F11 will step through.
 #else
 #define editaddcr_default "0"
 #endif
-#if defined(ANDROID) || defined(SERVERONLY)
+//#if defined(ANDROID) || defined(SERVERONLY)
 #define debugger_default "0"
-#else
-#define debugger_default "1"
-#endif
+//#else
+//#define debugger_default "1"
+//#endif
 
 static cvar_t editstripcr = CVARD("edit_stripcr", "1", "remove \\r from eols (on load)");
 static cvar_t editaddcr = CVARD("edit_addcr", editaddcr_default, "make sure that each line ends with a \\r (on save)");
 static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
-cvar_t pr_debugger = CVARAD("pr_debugger", debugger_default, "debugger", "When enabled, QC errors and debug events will enable step-by-step tracing.");
+cvar_t pr_debugger = CVARAFD("pr_debugger", debugger_default, "debugger", CVAR_SAVE, "When enabled, QC errors and debug events will enable step-by-step tracing.");
 extern cvar_t pr_sourcedir;
 
 static pubprogfuncs_t *editprogfuncs;

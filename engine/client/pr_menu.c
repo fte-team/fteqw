@@ -1005,24 +1005,6 @@ static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct global
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cv->string);
 }
 
-qboolean M_Vid_GetMode(int num, int *w, int *h);
-//a bit pointless really
-void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-//	extern cvar_t vid_fullscreen;
-	float mode = G_FLOAT(OFS_PARM0);
-//	qboolean forfullscreen = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):vid_fullscreen.ival;
-	float *ret = G_VECTOR(OFS_RETURN);
-	int w, h;
-
-	w=h=0;
-	M_Vid_GetMode(mode, &w, &h);
-
-	ret[0] = w;
-	ret[1] = h;
-	ret[2] = 0;
-}
-
 
 
 

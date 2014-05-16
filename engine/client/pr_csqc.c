@@ -4866,7 +4866,7 @@ static struct {
 	{"callfunction",			PF_callfunction,			605},
 	{"writetofile",				PF_writetofile,				606},
 	{"isfunction",				PF_isfunction,				607},
-	{"parseentitydata",			PF_parseentitydata,			608},
+	{"getresolution",			PF_cl_getresolution,		608},
 	{"keynumtostring_menu",		PF_cl_keynumtostring,		609},	//while present in dp's menuqc, dp doesn't actually support keynumtostring=609 in csqc. Which is probably a good thing because csqc would have 3 separate versions if it did.
 
 	{"findkeysforcommand_dp",	PF_cl_findkeysforcommand,	610},

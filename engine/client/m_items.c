@@ -671,8 +671,11 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *t
 	n->common.posx = lhs;
 	n->common.posy = y;
 	n->common.width = (rhs && rightalign)?rhs-lhs:0;
-	n->text = (char*)(n+1);
-	strcpy((char*)(n+1), (text?text:""));
+	if (text)
+	{
+		n->text = (char*)(n+1);
+		strcpy((char*)(n+1), (text));
+	}
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;

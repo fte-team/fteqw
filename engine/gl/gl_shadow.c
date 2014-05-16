@@ -449,7 +449,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 	unsigned int lb;
 	sh_vertnum = 0;
 
-	lb = (cl.worldmodel->numleafs+7)/8;
+	lb = (cl.worldmodel->numvisleafs+7)/8;
 	if (!dl->die || !dl->key)
 	{
 		sh_shmesh = dl->worldshadowmesh;
@@ -978,7 +978,7 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 	{
 		//static
 		//variation on mark leaves
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numvisleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
 			if (cluster == -1)
@@ -1000,7 +1000,7 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 	{
 		//dynamic lights will be discarded after this frame anyway, so only include leafs that are visible
 		//variation on mark leaves
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numvisleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
 			if (cluster == -1)
@@ -1028,7 +1028,7 @@ static void SHM_MarkLeavesQ1(dlight_t *dl, unsigned char *lvis)
 	sh_shadowframe++;
 
 	//variation on mark leaves
-	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+	for (i=0 ; i<cl.worldmodel->numvisleafs ; i++)
 	{
 		if (lvis[i>>3] & (1<<(i&7)))
 		{
@@ -1514,7 +1514,7 @@ static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 	int i, m;
 	if (!v2)
 		return false;
-	m = (cl.worldmodel->numleafs+7)>>3;
+	m = (cl.worldmodel->numvisleafs+7)>>3;
 
 	for (i=(m&~3) ; i<m ; i++)
 	{
@@ -1536,7 +1536,7 @@ static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
 {
 	int i;
-	int m = (cl.worldmodel->numleafs);
+	int m = (cl.worldmodel->numvisleafs);
 	mleaf_t *wl = cl.worldmodel->leafs;
 	unsigned char lv;
 

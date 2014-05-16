@@ -711,6 +711,9 @@ void HTTPDL_Establish(struct dl_download *dl)
 
 	//don't bother binding. its optional.
 
+	//FIXME: make the connect call with a non-blocking socket.
+	//FIXME: use a vfsfile_t instead of a direct socket to support https
+
 	//not yet blocking.
 	if (connect(con->sock, (struct sockaddr *)&serveraddr, addresssize) == -1)
 	{
@@ -719,6 +722,9 @@ void HTTPDL_Establish(struct dl_download *dl)
 		{
 		case NET_EACCES:
 			Con_Printf("HTTP: connect(%s): access denied. Check firewall.\n", server);
+			break;
+		case NET_ETIMEDOUT:
+			Con_Printf("HTTP: connect(%s): timed out.\n", server);
 			break;
 		default:
 			Con_Printf("HTTP: connect(%s): %s", server, strerror(neterrno()));

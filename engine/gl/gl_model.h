@@ -874,6 +874,7 @@ typedef struct model_s
 	int			numplanes;
 	mplane_t	*planes;
 
+	int			numvisleafs;
 	int			numleafs;		// number of visible leafs, not counting 0
 	mleaf_t		*leafs;
 

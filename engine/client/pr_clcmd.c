@@ -464,6 +464,30 @@ void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 
+qboolean M_Vid_GetMode(int num, int *w, int *h);
+//a bit pointless really
+void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+//	extern cvar_t vid_fullscreen;
+	float mode = G_FLOAT(OFS_PARM0);
+	qboolean fixedmodes = (prinst->callargc >= 2)?!G_FLOAT(OFS_PARM1):false; //if true, we should return sane-sized modes suitable for a window... or the mod could make up its own, but whatever.
+	float *ret = G_VECTOR(OFS_RETURN);
+	int w, h;
+
+	w=h=0;
+	if (mode == -1)
+	{
+		int bpp, rate;
+		Sys_GetDesktopParameters(&w, &h, &bpp, &rate);
+	}
+	else
+		M_Vid_GetMode(mode, &w, &h);
+
+	ret[0] = w;
+	ret[1] = h;
+	ret[2] = (w&&h)?1:0;
+}
+
 #ifdef CL_MASTER
 #include "cl_master.h"
 

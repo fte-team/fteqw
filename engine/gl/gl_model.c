@@ -4421,7 +4421,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 
 		mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
 
-//		mod->numleafs = bm->visleafs;
+		mod->numvisleafs = bm->visleafs;
 
 		memset(&mod->batches, 0, sizeof(mod->batches));
 		mod->vbos = NULL;

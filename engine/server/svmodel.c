@@ -1898,7 +1898,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer, size_t buffersize)
 		VectorCopy (bm->maxs, mod->maxs);
 		VectorCopy (bm->mins, mod->mins);
 
-		mod->numleafs = bm->visleafs;
+		mod->numvisleafs = bm->visleafs;
 
 		if (i < mod->numsubmodels-1)
 		{	// duplicate the basic information

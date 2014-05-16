@@ -219,7 +219,7 @@ int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned 
 {
 	return 0;
 }
-void Mod_UnRegisterModelFormat(int idx)
+void Mod_UnRegisterModelFormat(void *module, int idx)
 {
 }
 void Mod_UnRegisterAllModelFormats(void *module)

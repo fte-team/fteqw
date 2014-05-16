@@ -40,6 +40,7 @@ extern int
 	ptqw_blood,
 	ptqw_lightningblood,
 	
+#ifdef Q2CLIENT
 	ptq2_blood,
 	rtq2_railtrail,
 	rtq2_blastertrail,
@@ -48,6 +49,7 @@ extern int
 	rtq2_gib,
 	rtq2_rocket,
 	rtq2_grenade,
+#endif
 
 	rtqw_railtrail,	//common to zquake/fuhquake/fte
 	rtfte_lightning1,

@@ -545,6 +545,7 @@ void CL_RegisterParticles(void)
 	ptqw_blood				= P_FindParticleType("TE_BLOOD");
 	ptqw_lightningblood		= P_FindParticleType("TE_LIGHTNINGBLOOD");
 
+#ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
 		for (i = 0; i < sizeof(pt_q2)/sizeof(pt_q2[0]); i++)
@@ -572,6 +573,7 @@ void CL_RegisterParticles(void)
 		rtq2_rocket				= P_INVALID;
 		rtq2_grenade			= P_INVALID;
 	}
+#endif
 
 	rtqw_railtrail			= P_FindParticleType("TE_RAILTRAIL");
 	rtfte_lightning1		= P_FindParticleType("TE_LIGHTNING1");
